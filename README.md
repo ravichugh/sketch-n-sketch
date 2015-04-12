@@ -1,3 +1,3 @@
 # "SketchnSketch"
 
-Repository for the tentatively named "SketchnSketch" program syntesis and direct manipulation project.
+Repository for the tentatively named "SketchnSketch" program synthesis and direct manipulation project.
