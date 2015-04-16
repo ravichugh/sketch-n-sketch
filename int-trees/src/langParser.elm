@@ -2,6 +2,7 @@ module LangParser where
 
 import List ((::))
 import List
+import Dict
 
 import Lang (..)
 
@@ -20,4 +21,23 @@ freshenExps k es =
   List.foldr (\e (es',k') ->
     let (e1,k1) = freshen k' e in
     (e1::es', k1)) ([],k) es
+
+-- this will be done while parsing eventually...
+
+substOf_ s e = case e of
+  EConst i l -> case Dict.get l s of
+                  Nothing -> Dict.insert l i s
+                  Just j  -> if | i == j -> s
+  EVar _     -> s 
+  EFun _ _   -> s   -- not recursing into lambdas
+  EApp e1 e2 -> substOf_ (substOf_ s e1) e2 
+  EOp op es  -> substOfExps_ s es
+  EList es   -> substOfExps_ s es
+
+substOfExps_ s es = case es of
+  []     -> s
+  e::es' -> substOfExps_ (substOf_ s e) es'
+
+substOf : Exp -> Subst
+substOf = substOf_ Dict.empty
 

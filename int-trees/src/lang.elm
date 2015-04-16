@@ -4,6 +4,7 @@ import List ((::))
 import List
 import String
 import Debug
+import Dict
 
 import Utils
 
@@ -57,21 +58,33 @@ run = eval []
 ------------------------------------------------------------------------------
 -- Unparsing
 
-strExp : Exp -> String
-strExp e = case e of
-  EConst i l     -> toString i ++ Utils.bracks (strLoc l)
-  EVar x         -> x
-  EFun x e       -> Utils.parens ("fun " ++ x ++ " -> " ++ strExp e)
-  EApp e1 e2     -> strExp e1 ++ Utils.parens (strExp e2)
-  EOp op [e1,e2] -> String.join " " [strExp e1, strOp op, strExp e2]
-  EList es       -> Utils.bracks (String.join ", " (List.map strExp es))
+strExp     = strExp_ False
+strExpLocs = strExp_ True
 
-strVal : Val -> String
-strVal v = case v of
-  VConst i tr      -> toString i ++ Utils.braces (strTrace tr)
-  VClosure x e env -> "<fun>"
-  VList vs         -> Utils.bracks (String.join ", " (List.map strVal vs))
-  VHole            -> "??"
+strExp_ showLocs e =
+  let foo = strExp_ showLocs in
+  case e of
+    EConst i l     -> toString i
+                        ++ if | showLocs  -> Utils.braces (strLoc l)
+                              | otherwise -> ""
+    EVar x         -> x
+    EFun x e       -> Utils.parens ("fun " ++ x ++ " -> " ++ foo e)
+    EApp e1 e2     -> foo e1 ++ Utils.parens (foo e2)
+    EOp op [e1,e2] -> String.join " " [foo e1, strOp op, foo e2]
+    EList es       -> Utils.bracks (String.join ", " (List.map foo es))
+
+strVal     = strVal_ False
+strValLocs = strVal_ True
+
+strVal_ showTraces v =
+  let foo = strVal_ showTraces in
+  case v of
+    VConst i tr      -> toString i
+                          ++ if | showTraces -> Utils.braces (strTrace tr)
+                                | otherwise  -> ""
+    VClosure x e env -> "<fun>"
+    VList vs         -> Utils.bracks (String.join ", " (List.map foo vs))
+    VHole            -> "??"
 
 strOp op = case op of {Plus -> "+"}
 
@@ -85,6 +98,21 @@ strTrace tr = case tr of
 
 
 ------------------------------------------------------------------------------
+-- Substitutions
+
+type alias Subst = Dict.Dict Loc Int
+
+applySubst : Subst -> Exp -> Exp
+applySubst subst e = case e of
+  EConst _ l -> case Dict.get l subst of Just i -> EConst i l
+  EVar _     -> e
+  EFun _ _   -> e   -- not recursing into lambdas
+  EOp op es  -> EOp op (List.map (applySubst subst) es)
+  EList es   -> EList (List.map (applySubst subst) es)
+  EApp e1 e2 -> EApp (applySubst subst e1) (applySubst subst e2)
+
+
+------------------------------------------------------------------------------
 -- Value Contexts
 
 type alias VContext = Val
@@ -94,7 +122,7 @@ fillHoleWith : VContext -> Val -> Val
 fillHoleWith vc w = case vc of
   VHole          -> w
   VConst _ _     -> vc
-  VClosure _ _ _ -> vc
+  VClosure _ _ _ -> vc   -- not recursing into closures
   VList vs       -> VList (List.map (flip fillHoleWith w) vs)
 
 diff : Val -> Val -> Maybe (Maybe (VContext, Val, Val))
