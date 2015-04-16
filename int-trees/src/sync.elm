@@ -2,6 +2,7 @@ module Sync where
 
 import List
 import Dict
+import Utils
 
 import Lang (..)
 
@@ -27,6 +28,16 @@ solve subst (Equation sum tr) =
   let (partialSum,n) = evalTrace tr in
   (sum - partialSum) // n
  
--- TODO: weird bug when trying to abstract this over f
-plusplus (i1,j1) (i2,j2) = (i1+i2, j1+j2)
+plusplus = Utils.lift_2_2 (+)
+
+compareVals : (Val, Val) -> Int
+compareVals (v1, v2) = case (v1, v2) of
+  (VConst i _, VConst j _) -> abs (i-j)
+  (VList vs1, VList vs2)   -> case Utils.maybeZip vs1 vs2 of
+                                Nothing -> largeInt
+                                Just l  -> Utils.sum (List.map compareVals l)
+  _                        -> if | v1 == v2  -> 0
+                                 | otherwise -> largeInt
+
+largeInt = 99999999
 

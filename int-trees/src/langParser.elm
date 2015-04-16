@@ -30,7 +30,7 @@ substOf_ s e = case e of
                   Just j  -> if | i == j -> s
   EVar _     -> s 
   EFun _ _   -> s   -- not recursing into lambdas
-  EApp e1 e2 -> substOf_ (substOf_ s e1) e2 
+  EApp e1 e2 -> substOfExps_ s [e1,e2]
   EOp op es  -> substOfExps_ s es
   EList es   -> substOfExps_ s es
 

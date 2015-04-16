@@ -4,40 +4,70 @@ import Text
 import Dict
 import String
 import List
+import Debug
 
 import Lang (..)
 import LangParser
 import Sync
+import Utils
 
 print = Text.leftAligned << Text.monospace << Text.fromString
 
-br s1 s2 = s1 ++ "\n" ++ s2
+------------------------------------------------------------------------------
 
-main =
+e0 =
   let (x,y) = (EVar "x", EVar "y") in
-  let e =
+  fst <| LangParser.freshen 1 <|
     eApp (EFun "x" (EFun "y" (EList [ePlus x (eConst 0), ePlus x y])))
          [eConst 3, eConst 5]
-  in
-  let (e,_) = LangParser.freshen 1 e in
-  let v = eval [] e in
-  let (VList [v1, VConst 8 tr2]) = v in
-  let subst0 = LangParser.substOf e in
-  let substs = Sync.inferSubsts subst0 (VConst 9 tr2) in
-  print <|
-    strExpLocs e ++ " ->* " ++ strValLocs v `br`
-    toString (Dict.toList subst0) `br`
-    toString substs `br`
-    String.join "\n" (List.map (\s ->
-      let e' = applySubst s e in
-      strExp e' ++ " ->* " ++ strVal (run e')) substs)
 
-strDiff v1 v2 =
-  let mmx = diff v1 v2 in
-  case mmx of
-    Nothing -> "incompatible" ++ "\n  " ++ strVal v1 ++ "\n  " ++ strVal v2
-    Just Nothing -> "no diff " ++ "\n  " ++ strVal v1 ++ "\n  " ++ strVal v2
-    Just (Just (vc,w1,w2)) ->
-      "context = " ++ strVal vc ++
-        "\n  " ++ strVal w1 ++ "\n  " ++ strVal w2
+v0  = run e0
+v0' = VList [vConst 3, vConst 9]
+-- v0' = VList [vConst 2, vConst 8]
+
+------------------------------------------------------------------------------
+
+doExample e v v' =
+  let s0 =
+    String.join "\n" [ strExpLocs e ++ " ->* " ++ strValLocs v
+                     , ""
+                     , "Initial Program"
+                     , strExp e
+                     , ""
+                     , "Initial Result"
+                     , strVal v
+                     , ""
+                     , "Updated Result"
+                     , strVal v'
+                     ]
+  in
+  case diff v v' of
+    Nothing       -> print <| String.join "\n" [s0, "bad change"]
+    Just (Same _) -> print <| String.join "\n" [s0, "no change"]
+    Just (Diff vc w w') ->
+      let subst0 = LangParser.substOf e in
+      let substs = Sync.inferSubsts subst0 w' in
+      let l =
+        List.sortBy snd <|
+          List.map (\s ->
+            let e1 = applySubst s e in
+            let v1 = run e1 in
+            let n  = Sync.compareVals (v, v1) in
+            ((e1, v1), n)
+          ) substs
+      in
+      -- let s1 = String.join " " [ strVal vc, strVal w, strVal w' ] in
+      print <|
+        String.join "\n" [
+          s0
+        , ""
+        , String.join "\n\n"
+            (Utils.mapi (\(i,((ei,vi),vdiff)) ->
+               "Option " ++ toString i ++ " "
+               ++ Utils.parens ("vdiff = " ++ toString vdiff) ++ "\n"
+               ++ strExp ei ++ " ->* " ++ strVal vi) l)
+        ]
+
+main =
+  doExample e0 v0 v0'
 
