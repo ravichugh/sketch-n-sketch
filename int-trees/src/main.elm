@@ -1,4 +1,4 @@
-module Junk where
+module Main where
 
 import Text
 import Dict
