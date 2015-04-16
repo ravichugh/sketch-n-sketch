@@ -1,3 +1,3 @@
-# "SketchnSketch"
+# Sketch-N-Sketch
 
-Repository for the tentatively named "SketchnSketch" program synthesis and direct manipulation project.
+Sketch-N-Sketch: Program Synthesis for Direct Manipulation
