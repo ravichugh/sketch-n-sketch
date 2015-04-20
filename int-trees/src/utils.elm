@@ -34,6 +34,10 @@ parens = delimit "(" ")"
 bracks = delimit "[" "]"
 braces = delimit "{" "}"
 
+spaces = String.join " "
+commas = String.join ", "
+lines  = String.join "\n"
+
 sum = List.foldl (+) 0
 
 lift_2_2 f (a,b) (c,d) = (f a c, f b d)

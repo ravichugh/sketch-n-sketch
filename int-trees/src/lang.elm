@@ -22,6 +22,7 @@ type Exp
   | EApp Exp Exp
   | EOp Op (List Exp)
   | EList (List Exp)
+  | ELet Ident Exp Exp
 
 type Val
   = VConst Int Trace
@@ -46,6 +47,7 @@ eval env e = case e of
   EList es   -> VList (List.map (eval env) es)
   EApp e1 e2 -> case eval env e1 of VClosure x e env' ->
                   let v2 = eval env e2 in eval ((x,v2)::env') e
+  ELet x e1 e2 -> eval env (EApp (EFun x e2) e1)
 
 evalOp env op es =
   case (op, List.map (eval env) es) of
@@ -96,6 +98,31 @@ strTrace tr = case tr of
     Utils.parens (String.concat
       [strOp op, " ", String.join " " (List.map strTrace l)])
 
+tab k = String.repeat k "  "
+
+sExpK k     = (++) (tab k) << sExp_ False k
+sExpLocsK k = (++) (tab k) << sExp_ True k
+sExp        = sExpK 0
+sExpLocs    = sExpLocsK 0
+
+sExp_ showLocs k e =
+  let foo = sExp_ showLocs in
+  case e of
+    EConst i l     -> toString i
+                        ++ if | showLocs  -> Utils.braces (strLoc l)
+                              | otherwise -> ""
+    EVar x         -> x
+    EFun x e       -> Utils.parens <|
+                        "fn (" ++ x ++ ")\n" ++ tab (k+1) ++ foo (k+1) e
+    EApp e1 e2     -> Utils.parens <| foo k e1 ++ " " ++ foo k e2
+    EOp op [e1,e2] -> Utils.parens <|
+                        String.join " " [strOp op, foo k e1, foo k e2]
+    EList es       -> Utils.bracks <| String.join ", " (List.map (foo k) es)
+    ELet x e1 e2   -> Utils.parens <|
+                        "let " ++ x ++ "\n" ++
+                          tab (k+1) ++ foo (k+1) e1 ++ "\n" ++
+                          tab (k+1) ++ foo (k+1) e2
+
 
 ------------------------------------------------------------------------------
 -- Substitutions
@@ -110,6 +137,7 @@ applySubst subst e = case e of
   EOp op es  -> EOp op (List.map (applySubst subst) es)
   EList es   -> EList (List.map (applySubst subst) es)
   EApp e1 e2 -> EApp (applySubst subst e1) (applySubst subst e2)
+  ELet x e1 e2 -> ELet x (applySubst subst e1) (applySubst subst e2) -- TODO
 
 
 ------------------------------------------------------------------------------
@@ -191,4 +219,7 @@ ePlus e1 e2 = EOp Plus [e1,e2]
 eApp e es = case es of
   [e1]    -> EApp e e1
   e1::es' -> eApp (EApp e e1) es'
+eFun xs e = case xs of
+  [x]     -> EFun x e
+  x::xs'  -> EFun x (eFun xs' e)
 

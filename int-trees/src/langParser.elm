@@ -16,6 +16,7 @@ freshen k e = case e of
   EApp e1 e2 -> let ([e1',e2'],k') = freshenExps k [e1,e2] in (EApp e1' e2', k')
   EOp op es  -> let (es',k') = freshenExps k es in (EOp op es', k')
   EList es   -> let (es',k') = freshenExps k es in (EList es', k')
+  ELet x e1 e2 -> let ([e1',e2'],k') = freshenExps k [e1,e2] in (ELet x e1' e2', k')
 
 freshenExps k es =
   List.foldr (\e (es',k') ->
@@ -33,6 +34,7 @@ substOf_ s e = case e of
   EApp e1 e2 -> substOfExps_ s [e1,e2]
   EOp op es  -> substOfExps_ s es
   EList es   -> substOfExps_ s es
+  ELet x e1 e2 -> substOfExps_ s [e1,e2]  -- TODO
 
 substOfExps_ s es = case es of
   []     -> s
