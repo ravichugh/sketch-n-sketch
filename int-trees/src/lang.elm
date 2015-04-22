@@ -85,7 +85,7 @@ strVal_ showTraces v =
                           ++ if | showTraces -> Utils.braces (strTrace tr)
                                 | otherwise  -> ""
     VClosure x e env -> "<fun>"
-    VList vs         -> Utils.bracks (String.join ", " (List.map foo vs))
+    VList vs         -> Utils.bracks (String.join " " (List.map foo vs))
     VHole            -> "??"
 
 strOp op = case op of {Plus -> "+"}
@@ -113,11 +113,11 @@ sExp_ showLocs k e =
                               | otherwise -> ""
     EVar x         -> x
     EFun x e       -> Utils.parens <|
-                        "fn (" ++ x ++ ")\n" ++ tab (k+1) ++ foo (k+1) e
+                        "fn " ++ x ++ "\n" ++ tab (k+1) ++ foo (k+1) e
     EApp e1 e2     -> Utils.parens <| foo k e1 ++ " " ++ foo k e2
     EOp op [e1,e2] -> Utils.parens <|
                         String.join " " [strOp op, foo k e1, foo k e2]
-    EList es       -> Utils.bracks <| String.join ", " (List.map (foo k) es)
+    EList es       -> Utils.bracks <| String.join " " (List.map (foo k) es)
     ELet x e1 e2   -> Utils.parens <|
                         "let " ++ x ++ "\n" ++
                           tab (k+1) ++ foo (k+1) e1 ++ "\n" ++

@@ -1,0 +1,15 @@
+{
+    "version": "1.0.0",
+    "summary": "helpful summary of your project, less than 80 characters",
+    "repository": "https://github.com/USER/PROJECT.git",
+    "license": "BSD3",
+    "source-directories": [
+        "."
+    ],
+    "exposed-modules": [],
+    "dependencies": {
+        "elm-lang/core"   : "1.1.1 <= v < 2.0.0"
+      , "maxsnew/lazy"    : "1.0.0 <= v < 2.0.0"
+    },
+    "blahblahblah": "'Dandandan/parser': '5.0.0 <= v < 6.0.0'"
+}

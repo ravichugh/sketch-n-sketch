@@ -14,17 +14,17 @@ import Utils
 print = Text.leftAligned << Text.monospace << Text.fromString
 
 ------------------------------------------------------------------------------
+-- Sample Tests
 
-e0 =
-  let (x,y) = (EVar "x", EVar "y") in
-  fst <| LangParser.freshen 1 <|
-    ELet "f" (eFun ["x","y"] (EList [ePlus x (eConst 0), ePlus x y])) <|
-      eApp (EVar "f")
-           [eConst 3, eConst 5]
+se0 = "
+  (let f (fn x (fn y [(+ x 0) (+ x y)]))
+    ((f 3) 5))
+"
 
+e0  = se0 |> LangParser.parseE |> LangParser.freshen 1 |> fst
 v0  = run e0
-v0' = VList [vConst 3, vConst 9]
--- v0' = VList [vConst 2, vConst 8]
+sv0 = "[3 9]"
+v0' = LangParser.parseV sv0
 
 ------------------------------------------------------------------------------
 

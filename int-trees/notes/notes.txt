@@ -1,0 +1,16 @@
+
+-- import Parser.Number as PN
+-- import Parser ((<|>),(<$>),(*>),(<*))
+-- import Parser as P
+--   -- TODO ugh, adding "import List ((::))" to several library files:
+--   --   elm-stuff/packages/TheSeamau5/elm-random-extra/1.1.0/src/Random/Extra.elm
+--   --   elm-stuff/packages/TheSeamau5/elm-random-extra/1.1.0/src/Random/String.elm
+--   --   elm-stuff/packages/Dandandan/parser/5.0.1/Parser.elm
+
+- with Dandandan/Parser, failing with "p is undefined" JS error when
+  recursively calling parsers
+- same issue even when using recursively
+- implemented OurParser from scratch in same style, same issue.
+- solution: need to wrap recursively around _definition_ of parseVal,
+  not _call_ to parseVal... figure out why...
+
