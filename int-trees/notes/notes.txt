@@ -14,3 +14,6 @@
 - solution: need to wrap recursively around _definition_ of parseVal,
   not _call_ to parseVal... figure out why...
 
+- adding thunks, rather than using recursively, leads to "too much recursion"
+  rather than undefined error. so stick with lazy...
+

@@ -9,22 +9,10 @@ import Debug
 import Lang (..)
 import LangParser
 import Sync
+import TestParser
 import Utils
 
 print = Text.leftAligned << Text.monospace << Text.fromString
-
-------------------------------------------------------------------------------
--- Sample Tests
-
-se0 = "
-  (let f (fn x (fn y [(+ x 0) (+ x y)]))
-    ((f 3) 5))
-"
-
-e0  = se0 |> LangParser.parseE |> LangParser.freshen 1 |> fst
-v0  = run e0
-sv0 = "[3 9]"
-v0' = LangParser.parseV sv0
 
 ------------------------------------------------------------------------------
 
@@ -71,5 +59,6 @@ doExample e v v' =
         ]
 
 main =
-  doExample e0 v0 v0'
+  let {e,v,vnew} = TestParser.test0 () in
+  doExample e v vnew
 
