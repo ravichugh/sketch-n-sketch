@@ -13,20 +13,30 @@ import Utils
 type alias Loc = Int
 type alias Ident = String
 
+type alias Pat = Ident -- TODO
+
 type Op = Plus
 
 type Exp
   = EConst Int Loc
   | EVar Ident
-  | EFun Ident Exp
-  | EApp Exp Exp
+  | EFun (List Pat) Exp
+  | EApp Exp (List Exp)
   | EOp Op (List Exp)
   | EList (List Exp)
-  | ELet Ident Exp Exp
+  | ELet Ident Exp Exp -- TODO
+
+    -- EFun [] e     impossible
+    -- EFun [p] e    (\p. e)
+    -- EFun ps e     (\(p1 ... pn) e) === (\p1 (\p2 (... (\pn e) ...)))
+    
+    -- EApp f []     impossible
+    -- EApp f [x]    (f x)
+    -- EApp f xs     (f x1 ... xn) === ((... ((f x1) x2) ...) xn)
 
 type Val
   = VConst Int Trace
-  | VClosure Ident Exp Env
+  | VClosure Pat Exp Env
   | VList (List Val)
   | VHole
 
@@ -38,16 +48,26 @@ type Trace = TrLoc Loc | TrOp Op (List Trace)
 
 type alias Env = List (Ident, Val)
 
+lookupVar env x =
+  case Utils.maybeFind x env of
+    Just v -> v
+    Nothing -> Debug.crash <| "eval: var " ++ Utils.bracks x
+
 eval : Env -> Exp -> Val
 eval env e = case e of
   EConst i l -> VConst i (TrLoc l)
-  EVar x     -> case Utils.maybeFind x env of Just v -> v
-  EFun x e   -> VClosure x e env
+  EVar x     -> lookupVar env x
+  EFun [x] e -> VClosure x e env
   EOp op es  -> evalOp env op es
   EList es   -> VList (List.map (eval env) es)
-  EApp e1 e2 -> case eval env e1 of VClosure x e env' ->
-                  let v2 = eval env e2 in eval ((x,v2)::env') e
-  ELet x e1 e2 -> eval env (EApp (EFun x e2) e1)
+  EApp e1 [e2] ->
+    case eval env e1 of VClosure x e env' ->
+      let v2 = eval env e2 in eval ((x,v2)::env') e
+
+  -- abstract syntactic sugar
+  EFun xs e  -> eval env (eFun xs e)
+  EApp e1 es -> eval env (eApp e1 es)
+  ELet x e1 e2 -> eval env (EApp (EFun [x] e2) [e1])
 
 evalOp env op es =
   case (op, List.map (eval env) es) of
@@ -59,21 +79,6 @@ run = eval []
 
 ------------------------------------------------------------------------------
 -- Unparsing
-
-strExp     = strExp_ False
-strExpLocs = strExp_ True
-
-strExp_ showLocs e =
-  let foo = strExp_ showLocs in
-  case e of
-    EConst i l     -> toString i
-                        ++ if | showLocs  -> Utils.braces (strLoc l)
-                              | otherwise -> ""
-    EVar x         -> x
-    EFun x e       -> Utils.parens ("fun " ++ x ++ " -> " ++ foo e)
-    EApp e1 e2     -> foo e1 ++ Utils.parens (foo e2)
-    EOp op [e1,e2] -> String.join " " [foo e1, strOp op, foo e2]
-    EList es       -> Utils.bracks (String.join ", " (List.map foo es))
 
 strVal     = strVal_ False
 strValLocs = strVal_ True
@@ -112,9 +117,14 @@ sExp_ showLocs k e =
                         ++ if | showLocs  -> Utils.braces (strLoc l)
                               | otherwise -> ""
     EVar x         -> x
-    EFun x e       -> Utils.parens <|
-                        "fn " ++ x ++ "\n" ++ tab (k+1) ++ foo (k+1) e
-    EApp e1 e2     -> Utils.parens <| foo k e1 ++ " " ++ foo k e2
+    EFun [x] e     -> Utils.parens <|
+                        "\\" ++ x ++ "\n" ++ tab (k+1) ++ foo (k+1) e
+    EFun xs e      -> Utils.parens <|
+                        "\\" ++ Utils.parens (Utils.spaces xs) ++ "\n" ++
+                          tab (k+1) ++ foo (k+1) e
+    EApp e1 [e2]   -> Utils.parens <| foo k e1 ++ " " ++ foo k e2
+    EApp e1 es     -> Utils.parens <|
+                        foo k e1 ++ " " ++ Utils.spaces (List.map (foo k) es)
     EOp op [e1,e2] -> Utils.parens <|
                         String.join " " [strOp op, foo k e1, foo k e2]
     EList es       -> Utils.bracks <| String.join " " (List.map (foo k) es)
@@ -136,7 +146,7 @@ applySubst subst e = case e of
   EFun _ _   -> e   -- not recursing into lambdas
   EOp op es  -> EOp op (List.map (applySubst subst) es)
   EList es   -> EList (List.map (applySubst subst) es)
-  EApp e1 e2 -> EApp (applySubst subst e1) (applySubst subst e2)
+  EApp f es  -> EApp (applySubst subst f) (List.map (applySubst subst) es)
   ELet x e1 e2 -> ELet x (applySubst subst e1) (applySubst subst e2) -- TODO
 
 
@@ -216,10 +226,12 @@ dummyTrace = TrLoc dummyLoc
 eConst = flip EConst dummyLoc
 vConst = flip VConst dummyTrace
 ePlus e1 e2 = EOp Plus [e1,e2]
+
 eApp e es = case es of
-  [e1]    -> EApp e e1
-  e1::es' -> eApp (EApp e e1) es'
+  [e1]    -> EApp e [e1]
+  e1::es' -> eApp (EApp e [e1]) es'
+
 eFun xs e = case xs of
-  [x]     -> EFun x e
-  x::xs'  -> EFun x (eFun xs' e)
+  [x]     -> EFun [x] e
+  x::xs'  -> EFun [x] (eFun xs' e)
 

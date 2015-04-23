@@ -1,4 +1,6 @@
 
+------------------------------------------------------------------------------
+
 -- import Parser.Number as PN
 -- import Parser ((<|>),(<$>),(*>),(<*))
 -- import Parser as P
@@ -16,4 +18,12 @@
 
 - adding thunks, rather than using recursively, leads to "too much recursion"
   rather than undefined error. so stick with lazy...
+
+------------------------------------------------------------------------------
+Concrete Syntax
+
+         (\x e)
+   (\(x y z) e)  ===  (\x (\y (\z e)))      -- keep sugar around in AST
+        (e1 e2)
+  (e1 e2 e3 e4)  ===  (((e1 e2) e3) e4)     -- keep sugar
 

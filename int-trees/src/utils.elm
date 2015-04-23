@@ -28,6 +28,9 @@ mapi f xs =
   let n = List.length xs in
   List.map f (zip [1..n] xs)
 
+split : Int -> List a -> (List a, List a)
+split n xs = (List.take n xs, List.drop n xs)
+
 delimit a b s = String.concat [a, s, b]
 
 parens = delimit "(" ")"

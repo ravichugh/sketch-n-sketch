@@ -19,8 +19,8 @@ freshen : Int -> Exp -> (Exp, Int)
 freshen k e = case e of
   EConst i _ -> (EConst i k, k + 1)
   EVar x     -> (EVar x, k)
-  EFun x e   -> let (e',k') = freshen k e in (EFun x e', k')
-  EApp e1 e2 -> let ([e1',e2'],k') = freshenExps k [e1,e2] in (EApp e1' e2', k')
+  EFun ps e  -> let (e',k') = freshen k e in (EFun ps e', k')
+  EApp f es  -> let (f'::es',k') = freshenExps k (f::es) in (EApp f' es', k')
   EOp op es  -> let (es',k') = freshenExps k es in (EOp op es', k')
   EList es   -> let (es',k') = freshenExps k es in (EList es', k')
   ELet x e1 e2 -> let ([e1',e2'],k') = freshenExps k [e1,e2] in (ELet x e1' e2', k')
@@ -38,7 +38,7 @@ substOf_ s e = case e of
                   Just j  -> if | i == j -> s
   EVar _     -> s 
   EFun _ _   -> s   -- not recursing into lambdas
-  EApp e1 e2 -> substOfExps_ s [e1,e2]
+  EApp f es  -> substOfExps_ s (f::es)
   EOp op es  -> substOfExps_ s es
   EList es   -> substOfExps_ s es
   ELet x e1 e2 -> substOfExps_ s [e1,e2]  -- TODO
@@ -52,6 +52,9 @@ substOf = substOf_ Dict.empty
 
 
 ------------------------------------------------------------------------------
+
+single    x =  [x]
+unsingle [x] =  x
 
 isAlpha c        = Char.isLower c || Char.isUpper c
 isAlphaNumeric c = Char.isLower c || Char.isUpper c || Char.isDigit c
@@ -92,11 +95,17 @@ parens      = delimit "(" ")"
 parseIntV = flip VConst dummyTrace <$> parseInt
 parseIntE = flip EConst dummyLoc   <$> parseInt
 
-parseList p f =
-  token_ "["              >>>
-  P.sepBy p (P.token " ") >>= \xs ->
-  token_ "]"              >>>
+parseList_ sepBy start sep end p f =
+  token_ start          >>>
+  sepBy p (P.token sep) >>= \xs ->
+  token_ end            >>>
     P.return (f xs)
+
+parseList :
+  String -> String -> String -> P.Parser a -> (List a -> b) -> P.Parser b
+
+parseList  = parseList_ P.sepBy
+parseList1 = parseList_ P.sepBy1
 
 parseV = P.parse <|
   parseVal    >>= \v ->
@@ -106,10 +115,10 @@ parseV = P.parse <|
 parseVal : P.Parser Val
 parseVal = P.recursively <| \_ ->
       white parseIntV
-  +++ parseValList0
+  <++ parseValList0
   <++ parseValList
 
-parseValList = parseList parseVal VList
+parseValList = parseList "[" " " "]" parseVal VList
 
 parseValList0 =
   always (VList []) <$> P.token "[]"
@@ -124,28 +133,34 @@ parseVar = EVar <$> (white parseIdent)
 parseExp : P.Parser Exp
 parseExp = P.recursively <| \_ ->
       white parseIntE
-  +++ parseVar
-  +++ parseFun
-  +++ parseApp
-  +++ parseExpList
-  +++ parseLet
-  +++ parseBinop
+  <++ parseVar
+  <++ parseFun
+  <++ parseApp
+  <++ parseExpList
+  <++ parseLet
+  <++ parseBinop
 
 parseFun =
   parens <|
-    token_ "fn"      >>>
-    white parseIdent >>= \x ->
-    parseExp         >>= \e ->
-      P.return (EFun x e)
+    token_ "\\"     >>>
+    white parsePats >>= \ps ->
+    parseExp        >>= \e ->
+      P.return (EFun ps e)
+
+parsePats =
+      (parseIdent >>= (single >> P.return))
+  <++ (parseList1 "(" " " ")" parseIdent identity)
 
 parseApp =
   parens <|
-    parseExp >>= \e1 ->
-    oneWhite >>>
-    parseExp >>= \e2 ->
-      P.return (EApp e1 e2)
+    parseExp     >>= \f ->
+    oneWhite     >>>
+    parseExpArgs >>= \es ->
+      P.return (EApp f es)
 
-parseExpList = parseList parseExp EList
+parseExpArgs = parseList1 "" " " "" parseExp identity
+
+parseExpList = parseList "[" " " "]" parseExp EList
 
 parseLet =
   parens <|
