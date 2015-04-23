@@ -31,22 +31,9 @@ doExample e v v' =
       , strVal v'
       ]
   in
-  case diff v v' of
-    Nothing       -> print <| Utils.lines [s0, "bad change"]
-    Just (Same _) -> print <| Utils.lines [s0, "no change"]
-    Just (Diff vc w w') ->
-      let subst0 = LangParser.substOf e in
-      let substs = Sync.inferSubsts subst0 w' in
-      let l =
-        List.sortBy snd <|
-          List.map (\s ->
-            let e1 = applySubst s e in
-            let v1 = run e1 in
-            let n  = Sync.compareVals (v, v1) in
-            ((e1, v1), n)
-          ) substs
-      in
-      -- let s1 = Utils.spaces [ strVal vc, strVal w, strVal w' ] in
+  case Sync.sync e v v' of
+    Err e -> print <| Utils.lines [s0, e]
+    Ok l ->
       print <|
         Utils.lines [
           s0

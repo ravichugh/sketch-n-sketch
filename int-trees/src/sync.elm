@@ -1,4 +1,4 @@
-module Sync where
+module Sync (sync) where
 
 import List
 import Dict
@@ -6,6 +6,7 @@ import Set
 import Utils
 
 import Lang (..)
+import LangParser
 
 type Equation = Equation Int Trace
 
@@ -49,4 +50,22 @@ compareVals (v1, v2) = case (v1, v2) of
                                  | otherwise -> largeInt
 
 largeInt = 99999999
+
+------------------------------------------------------------------------------
+
+sync : Exp -> Val -> Val -> Result String (List ((Exp, Val), Int))
+sync e v v' =
+  case diff v v' of
+    Nothing       -> Err "bad change"
+    Just (Same _) -> Err "no change"
+    Just (Diff vc w w') ->
+      let subst0 = LangParser.substOf e in
+      let substs = inferSubsts subst0 w' in
+      Ok <| List.sortBy snd <|
+        List.map (\s ->
+          let e1 = applySubst s e in
+          let v1 = run e1 in
+          let n  = compareVals (v, v1) in
+          ((e1, v1), n)
+        ) substs
 
