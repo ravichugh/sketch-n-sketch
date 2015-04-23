@@ -28,9 +28,14 @@ testParser = ()
   `ignore` parseE "(if true 2 [3])"
   `ignore` parseE "(if (< 1 2) [3] [])"
 
+  `ignore` parseE "[1|2]"
+  `ignore` parseE "[1 | 2]"
+  `ignore` parseE "[1 2 | 3]"
+  `ignore` parseE "[1 | [2 | [3]]]"
+
 --------------------------------------------------------------------------------
 
-makeSyncTest se sv' =
+makeTest se sv' =
   let e  = se |> parseE |> freshen 1 |> fst
       v  = Lang.run e
       v' = parseV sv'
@@ -38,22 +43,34 @@ makeSyncTest se sv' =
   {e=e, v=v, vnew=v'}
 
 test0 () =
-  makeSyncTest
+  makeTest
     "(let f (\\(x y) [(+ x 0) (+ x y)]) (f 3 5))"
     "[3 9]"
 
 test1 () =
-  makeSyncTest
+  makeTest
     "(if (< 1 2) (+ 2 4) (+ 3 3))"
     "10"
 
 test2 () =
-  makeSyncTest
+  makeTest
     "(letrec sum (\\n (if (< n 0) 0 (+ n (sum (- n 1))))) (sum 3))"
     "[]"
 
 test3 () =
-  makeSyncTest
+  makeTest
     "(letrec fact (\\n (if (< n 1) 1 (* n (fact (- n 1))))) (fact 5))"
     "[]"
+
+test4 () =
+  makeTest
+    "(letrec foo (\\n (if (< n 1) [] [n (foo (- n 1))]))
+     (letrec bar (\\n (if (< n 1) [] [n | (bar (- n 1))]))
+       [(foo 5) (bar 5)]))"
+    "[]"
+
+test5 () =
+  makeTest
+    "[1 | [2 | [3]]]"
+    "[1 2 3]"
 

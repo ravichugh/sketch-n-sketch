@@ -46,6 +46,6 @@ doExample e v v' =
         ]
 
 main =
-  let {e,v,vnew} = TestParser.test3 () in
+  let {e,v,vnew} = TestParser.test4 () in
   doExample e v vnew
 

@@ -26,7 +26,7 @@ type Exp
   | EFun (List Pat) Exp
   | EApp Exp (List Exp)
   | EOp Op (List Exp)
-  | EList (List Exp)
+  | EList (List Exp) (Maybe Exp)
   | EIf Exp Exp Exp
   | ELet Bool Ident Exp Exp -- TODO
 
@@ -70,7 +70,13 @@ eval env e = case e of
   EVar x     -> lookupVar env x
   EFun [x] e -> VClosure Nothing x e env
   EOp op es  -> evalOp env op es
-  EList es   -> VList (List.map (eval env) es)
+
+  EList es m ->
+    let vs = List.map (eval env) es in
+    case m of
+      Nothing   -> VList vs
+      Just rest -> case eval env rest of
+                     VList vs' -> VList (vs ++ vs')
 
   EIf e1 e2 e3 ->
     case eval env e1 of
@@ -162,7 +168,11 @@ sExp_ showLocs k e =
                         foo k e1 ++ " " ++ Utils.spaces (List.map (foo k) es)
     EOp op [e1,e2] -> Utils.parens <|
                         String.join " " [strOp op, foo k e1, foo k e2]
-    EList es       -> Utils.bracks <| String.join " " (List.map (foo k) es)
+    EList es mrest -> Utils.bracks <|
+                        let s = String.join " " (List.map (foo k) es) in
+                        case mrest of
+                          Nothing -> s
+                          Just e  -> s ++ " | " ++ foo k e
     EIf e1 e2 e3   -> Utils.parens <|
                         "if " ++ foo k e1 ++ "\n" ++
                           tab (k+1) ++ foo (k+1) e2 ++ "\n" ++
@@ -185,7 +195,8 @@ applySubst subst e = case e of
   EVar _     -> e
   EFun _ _   -> e   -- not recursing into lambdas
   EOp op es  -> EOp op (List.map (applySubst subst) es)
-  EList es   -> EList (List.map (applySubst subst) es)
+  EList es m -> EList (List.map (applySubst subst) es)
+                      (Utils.mapMaybe (applySubst subst) m)
   EApp f es  -> EApp (applySubst subst f) (List.map (applySubst subst) es)
   ELet b x e1 e2 ->
     ELet b x (applySubst subst e1) (applySubst subst e2) -- TODO

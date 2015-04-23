@@ -24,6 +24,13 @@ Concrete Syntax
 
          (\x e)
    (\(x y z) e)  ===  (\x (\y (\z e)))      -- keep sugar around in AST
+
         (e1 e2)
   (e1 e2 e3 e4)  ===  (((e1 e2) e3) e4)     -- keep sugar
+
+  -- list literal (exactly n elements)
+  [e1 ... en]
+
+  -- "multi-cons" (n elements plus rest)
+  [e1 ... en | e ]  ===  [e1 | [e2 | [ ... | e ] ... ] ]
 

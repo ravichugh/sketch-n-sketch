@@ -23,7 +23,11 @@ freshen k e = case e of
   EFun ps e  -> let (e',k') = freshen k e in (EFun ps e', k')
   EApp f es  -> let (f'::es',k') = freshenExps k (f::es) in (EApp f' es', k')
   EOp op es  -> let (es',k') = freshenExps k es in (EOp op es', k')
-  EList es   -> let (es',k') = freshenExps k es in (EList es', k')
+  EList es m -> let (es',k') = freshenExps k es in
+                case m of
+                  Nothing -> (EList es' Nothing, k')
+                  Just e  -> let (e',k'') = freshen k' e in
+                             (EList es' (Just e'), k'')
   EIf e1 e2 e3 -> let ([e1',e2',e3'],k') = freshenExps k [e1,e2,e3] in
                   (EIf e1' e2' e3', k')
   ELet b x e1 e2 ->
@@ -46,7 +50,9 @@ substOf_ s e = case e of
   EFun _ _   -> s   -- not recursing into lambdas
   EApp f es  -> substOfExps_ s (f::es)
   EOp op es  -> substOfExps_ s es
-  EList es   -> substOfExps_ s es
+  EList es m -> case m of
+                  Nothing -> substOfExps_ s es
+                  Just e  -> substOfExps_ s (e::es)
   EIf e1 e2 e3 -> substOfExps_ s [e1,e2,e3]
   ELet _ _ e1 e2 -> substOfExps_ s [e1,e2]  -- TODO
 
@@ -178,7 +184,17 @@ parseApp =
 
 parseExpArgs = parseList1 "" " " "" parseExp identity
 
-parseExpList = parseList "[" " " "]" parseExp EList
+parseExpList = P.recursively <| \_ -> -- TODO recursively
+  parseExpListLiteral <++ parseMultiCons
+
+parseExpListLiteral =
+  parseList "[" " " "]" parseExp (flip EList Nothing)
+
+parseMultiCons =
+  parseList1 "[" " " "|" parseExp identity >>= \es ->
+  parseExp                                 >>= \rest ->
+  token_ "]"                               >>>
+    P.return (EList es (Just rest))
 
 parseRec =
       (always True  <$> token_ "letrec")
