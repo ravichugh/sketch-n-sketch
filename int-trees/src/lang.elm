@@ -15,15 +15,19 @@ type alias Ident = String
 
 type alias Pat = Ident -- TODO
 
-type Op = Plus
+type Op
+  = Plus | Mult
+  | Lt
 
 type Exp
   = EConst Int Loc
+  | EBase BaseVal
   | EVar Ident
   | EFun (List Pat) Exp
   | EApp Exp (List Exp)
   | EOp Op (List Exp)
   | EList (List Exp)
+  | EIf Exp Exp Exp
   | ELet Ident Exp Exp -- TODO
 
     -- EFun [] e     impossible
@@ -36,9 +40,14 @@ type Exp
 
 type Val
   = VConst Int Trace
+  | VBase BaseVal
   | VClosure Pat Exp Env
   | VList (List Val)
   | VHole
+
+type BaseVal -- unlike Ints, these cannot be changed by Sync
+  = Bool Bool
+  | String String
 
 type Trace = TrLoc Loc | TrOp Op (List Trace)
 
@@ -56,10 +65,15 @@ lookupVar env x =
 eval : Env -> Exp -> Val
 eval env e = case e of
   EConst i l -> VConst i (TrLoc l)
+  EBase v    -> VBase v
   EVar x     -> lookupVar env x
   EFun [x] e -> VClosure x e env
   EOp op es  -> evalOp env op es
   EList es   -> VList (List.map (eval env) es)
+  EIf e1 e2 e3 ->
+    case eval env e1 of
+      VBase (Bool True)  -> eval env e2
+      VBase (Bool False) -> eval env e3
   EApp e1 [e2] ->
     case eval env e1 of VClosure x e env' ->
       let v2 = eval env e2 in eval ((x,v2)::env') e
@@ -72,6 +86,8 @@ eval env e = case e of
 evalOp env op es =
   case (op, List.map (eval env) es) of
     (Plus, [VConst i1 t1, VConst i2 t2]) -> VConst (i1+i2) (TrOp op [t1,t2])
+    (Mult, [VConst i1 t1, VConst i2 t2]) -> VConst (i1*i2) (TrOp op [t1,t2])
+    (Lt  , [VConst i1 t1, VConst i2 t2]) -> vBool (i1<i2)
 
 run : Exp -> Val
 run = eval []
@@ -79,6 +95,10 @@ run = eval []
 
 ------------------------------------------------------------------------------
 -- Unparsing
+
+strBaseVal v = case v of
+  Bool True  -> "true"
+  Bool False -> "false"
 
 strVal     = strVal_ False
 strValLocs = strVal_ True
@@ -89,11 +109,12 @@ strVal_ showTraces v =
     VConst i tr      -> toString i
                           ++ if | showTraces -> Utils.braces (strTrace tr)
                                 | otherwise  -> ""
+    VBase b          -> strBaseVal b
     VClosure x e env -> "<fun>"
     VList vs         -> Utils.bracks (String.join " " (List.map foo vs))
     VHole            -> "??"
 
-strOp op = case op of {Plus -> "+"}
+strOp op = case op of {Plus -> "+"; Mult -> "*"; Lt -> "<"}
 
 strLoc l = "k" ++ toString l
 
@@ -113,6 +134,7 @@ sExpLocs    = sExpLocsK 0
 sExp_ showLocs k e =
   let foo = sExp_ showLocs in
   case e of
+    EBase v        -> strBaseVal v
     EConst i l     -> toString i
                         ++ if | showLocs  -> Utils.braces (strLoc l)
                               | otherwise -> ""
@@ -128,6 +150,10 @@ sExp_ showLocs k e =
     EOp op [e1,e2] -> Utils.parens <|
                         String.join " " [strOp op, foo k e1, foo k e2]
     EList es       -> Utils.bracks <| String.join " " (List.map (foo k) es)
+    EIf e1 e2 e3   -> Utils.parens <|
+                        "if " ++ foo k e1 ++ "\n" ++
+                          tab (k+1) ++ foo (k+1) e2 ++ "\n" ++
+                          tab (k+1) ++ foo (k+1) e3
     ELet x e1 e2   -> Utils.parens <|
                         "let " ++ x ++ "\n" ++
                           tab (k+1) ++ foo (k+1) e1 ++ "\n" ++
@@ -142,12 +168,15 @@ type alias Subst = Dict.Dict Loc Int
 applySubst : Subst -> Exp -> Exp
 applySubst subst e = case e of
   EConst _ l -> case Dict.get l subst of Just i -> EConst i l
+  EBase _    -> e
   EVar _     -> e
   EFun _ _   -> e   -- not recursing into lambdas
   EOp op es  -> EOp op (List.map (applySubst subst) es)
   EList es   -> EList (List.map (applySubst subst) es)
   EApp f es  -> EApp (applySubst subst f) (List.map (applySubst subst) es)
   ELet x e1 e2 -> ELet x (applySubst subst e1) (applySubst subst e2) -- TODO
+  EIf e1 e2 e3 ->
+    EIf (applySubst subst e1) (applySubst subst e2) (applySubst subst e3)
 
 
 ------------------------------------------------------------------------------
@@ -213,7 +242,8 @@ diff_ v1 v2 = case (v1, v2) of
               Debug.crash "diff_: error?"
         ) (justSameVList []) l
   _ ->
-    Nothing
+    if | v1 == v2  -> Just (Same v1)
+       | otherwise -> Nothing
            
 justSameVList = Just << Same << VList
       
@@ -226,6 +256,14 @@ dummyTrace = TrLoc dummyLoc
 eConst = flip EConst dummyLoc
 vConst = flip VConst dummyTrace
 ePlus e1 e2 = EOp Plus [e1,e2]
+
+eBool  = EBase << Bool
+eTrue  = eBool True
+eFalse = eBool False
+
+vBool  = VBase << Bool
+vTrue  = vBool True
+vFalse = vBool False
 
 eApp e es = case es of
   [e1]    -> EApp e [e1]

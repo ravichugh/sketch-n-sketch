@@ -2,11 +2,20 @@ module Sync where
 
 import List
 import Dict
+import Set
 import Utils
 
 import Lang (..)
 
 type Equation = Equation Int Trace
+
+locsOfTrace : Trace -> List Loc
+locsOfTrace =
+  let foo t = case t of
+    TrLoc l   -> Set.singleton l
+    TrOp _ ts -> List.foldl Set.union Set.empty (List.map foo ts)
+  in
+  Set.toList << foo
 
 inferSubsts : Subst -> Val -> List Subst
 inferSubsts s (VConst i tr) =
@@ -14,7 +23,7 @@ inferSubsts s (VConst i tr) =
     (\l -> let s' = Dict.remove l s in
            let n  = solve s' (Equation i tr) in
            Dict.insert l n s')
-    (Dict.keys s)
+    (locsOfTrace tr)
 
 -- assumes that a single variable is being solved for
 solve : Subst -> Equation -> Int

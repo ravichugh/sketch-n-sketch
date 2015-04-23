@@ -18,11 +18,14 @@ import OurParser as P
 freshen : Int -> Exp -> (Exp, Int)
 freshen k e = case e of
   EConst i _ -> (EConst i k, k + 1)
+  EBase v    -> (EBase v, k)
   EVar x     -> (EVar x, k)
   EFun ps e  -> let (e',k') = freshen k e in (EFun ps e', k')
   EApp f es  -> let (f'::es',k') = freshenExps k (f::es) in (EApp f' es', k')
   EOp op es  -> let (es',k') = freshenExps k es in (EOp op es', k')
   EList es   -> let (es',k') = freshenExps k es in (EList es', k')
+  EIf e1 e2 e3 -> let ([e1',e2',e3'],k') = freshenExps k [e1,e2,e3] in
+                  (EIf e1' e2' e3', k')
   ELet x e1 e2 -> let ([e1',e2'],k') = freshenExps k [e1,e2] in (ELet x e1' e2', k')
 
 freshenExps k es =
@@ -36,11 +39,13 @@ substOf_ s e = case e of
   EConst i l -> case Dict.get l s of
                   Nothing -> Dict.insert l i s
                   Just j  -> if | i == j -> s
+  EBase _    -> s
   EVar _     -> s 
   EFun _ _   -> s   -- not recursing into lambdas
   EApp f es  -> substOfExps_ s (f::es)
   EOp op es  -> substOfExps_ s es
   EList es   -> substOfExps_ s es
+  EIf e1 e2 e3 -> substOfExps_ s [e1,e2,e3]
   ELet x e1 e2 -> substOfExps_ s [e1,e2]  -- TODO
 
 substOfExps_ s es = case es of
@@ -95,6 +100,14 @@ parens      = delimit "(" ")"
 parseIntV = flip VConst dummyTrace <$> parseInt
 parseIntE = flip EConst dummyLoc   <$> parseInt
 
+parseEBase =
+      (always eTrue  <$> P.token "true")
+  <++ (always eFalse <$> P.token "false")
+
+parseVBase =
+      (always vTrue  <$> P.token "true")
+  <++ (always vFalse <$> P.token "false")
+
 parseList_ sepBy start sep end p f =
   token_ start          >>>
   sepBy p (P.token sep) >>= \xs ->
@@ -115,6 +128,7 @@ parseV = P.parse <|
 parseVal : P.Parser Val
 parseVal = P.recursively <| \_ ->
       white parseIntV
+  <++ white parseVBase
   <++ parseValList0
   <++ parseValList
 
@@ -133,12 +147,14 @@ parseVar = EVar <$> (white parseIdent)
 parseExp : P.Parser Exp
 parseExp = P.recursively <| \_ ->
       white parseIntE
+  <++ white parseEBase
   <++ parseVar
   <++ parseFun
+  <++ parseBinop
+  <++ parseIf
   <++ parseApp
   <++ parseExpList
   <++ parseLet
-  <++ parseBinop
 
 parseFun =
   parens <|
@@ -173,9 +189,25 @@ parseLet =
 
 parseBinop =
   parens <|
-    token_ "+" >>>
+    parseOp    >>= \op ->
     parseExp   >>= \e1 ->
     oneWhite   >>>
     parseExp   >>= \e2 ->
-      P.return (EOp Plus [e1,e2])
+      P.return (EOp op [e1,e2])
+
+parseOp =
+      (always Plus <$> token_ "+")
+  <++ (always Mult <$> token_ "*")
+  <++ (always Lt   <$> token_ "<")
+
+parseIf =
+  parens <|
+    token_ "if" >>>
+    oneWhite    >>>
+    parseExp    >>= \e1 ->
+    oneWhite    >>>
+    parseExp    >>= \e2 ->
+    oneWhite    >>>
+    parseExp    >>= \e3 ->
+      P.return (EIf e1 e2 e3)
 
