@@ -30,27 +30,30 @@ testParser = ()
 
 --------------------------------------------------------------------------------
 
-test0 () =
-  let
-    se = "
-      (let f (\\(x y) [(+ x 0) (+ x y)])
-        (f 3 5))
-    "
-    
-    e   = se |> parseE |> freshen 1 |> fst
-    v   = Lang.run e
-    sv' = "[3 9]"
-    v'  = parseV sv'
+makeSyncTest se sv' =
+  let e  = se |> parseE |> freshen 1 |> fst
+      v  = Lang.run e
+      v' = parseV sv'
   in
   {e=e, v=v, vnew=v'}
 
+test0 () =
+  makeSyncTest
+    "(let f (\\(x y) [(+ x 0) (+ x y)]) (f 3 5))"
+    "[3 9]"
+
 test1 () =
-  let
-    se  = "(if (< 1 2) (+ 2 4) (+ 3 3))"
-    e   = se |> parseE |> freshen 1 |> fst
-    v   = Lang.run e
-    sv' = "10"
-    v'  = parseV sv'
-  in
-  {e=e, v=v, vnew=v'}
+  makeSyncTest
+    "(if (< 1 2) (+ 2 4) (+ 3 3))"
+    "10"
+
+test2 () =
+  makeSyncTest
+    "(letrec sum (\\n (if (< n 0) 0 (+ n (sum (- n 1))))) (sum 3))"
+    "[]"
+
+test3 () =
+  makeSyncTest
+    "(letrec fact (\\n (if (< n 1) 1 (* n (fact (- n 1))))) (fact 5))"
+    "[]"
 

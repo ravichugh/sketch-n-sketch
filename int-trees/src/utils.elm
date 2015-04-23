@@ -3,6 +3,7 @@ module Utils where
 import List ((::))
 import List
 import String
+import Debug
 
 maybeFind : a -> List (a,b) -> Maybe b
 maybeFind k l = case l of
@@ -44,4 +45,6 @@ lines  = String.join "\n"
 sum = List.foldl (+) 0
 
 lift_2_2 f (a,b) (c,d) = (f a c, f b d)
+
+assert s b = if b then () else Debug.crash ("assert error: " ++ s)
 

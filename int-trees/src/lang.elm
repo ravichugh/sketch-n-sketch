@@ -16,7 +16,7 @@ type alias Ident = String
 type alias Pat = Ident -- TODO
 
 type Op
-  = Plus | Mult
+  = Plus | Minus | Mult
   | Lt
 
 type Exp
@@ -28,7 +28,7 @@ type Exp
   | EOp Op (List Exp)
   | EList (List Exp)
   | EIf Exp Exp Exp
-  | ELet Ident Exp Exp -- TODO
+  | ELet Bool Ident Exp Exp -- TODO
 
     -- EFun [] e     impossible
     -- EFun [p] e    (\p. e)
@@ -41,7 +41,7 @@ type Exp
 type Val
   = VConst Int Trace
   | VBase BaseVal
-  | VClosure Pat Exp Env
+  | VClosure (Maybe Ident) Pat Exp Env
   | VList (List Val)
   | VHole
 
@@ -64,28 +64,41 @@ lookupVar env x =
 
 eval : Env -> Exp -> Val
 eval env e = case e of
+
   EConst i l -> VConst i (TrLoc l)
   EBase v    -> VBase v
   EVar x     -> lookupVar env x
-  EFun [x] e -> VClosure x e env
+  EFun [x] e -> VClosure Nothing x e env
   EOp op es  -> evalOp env op es
   EList es   -> VList (List.map (eval env) es)
+
   EIf e1 e2 e3 ->
     case eval env e1 of
       VBase (Bool True)  -> eval env e2
       VBase (Bool False) -> eval env e3
+
   EApp e1 [e2] ->
-    case eval env e1 of VClosure x e env' ->
-      let v2 = eval env e2 in eval ((x,v2)::env') e
+    let (v1,v2) = (eval env e1, eval env e2) in
+    case v1 of
+      VClosure Nothing  x e env' -> eval ((x,v2)::env') e
+      VClosure (Just f) x e env' -> eval ((f,v1)::(x,v2)::env') e
+
+  ELet True f e1 e2 ->
+    case eval env e1 of
+      VClosure Nothing x body env' ->
+        let _   = Utils.assert "eval letrec" (env == env') in
+        let v1' = VClosure (Just f) x body env in
+        eval ((f,v1')::env) e2
 
   -- abstract syntactic sugar
   EFun xs e  -> eval env (eFun xs e)
   EApp e1 es -> eval env (eApp e1 es)
-  ELet x e1 e2 -> eval env (EApp (EFun [x] e2) [e1])
+  ELet False x e1 e2 -> eval env (EApp (EFun [x] e2) [e1])
 
 evalOp env op es =
   case (op, List.map (eval env) es) of
     (Plus, [VConst i1 t1, VConst i2 t2]) -> VConst (i1+i2) (TrOp op [t1,t2])
+    (Minus, [VConst i1 t1, VConst i2 t2]) -> VConst (i1-i2) (TrOp op [t1,t2])
     (Mult, [VConst i1 t1, VConst i2 t2]) -> VConst (i1*i2) (TrOp op [t1,t2])
     (Lt  , [VConst i1 t1, VConst i2 t2]) -> vBool (i1<i2)
 
@@ -110,11 +123,11 @@ strVal_ showTraces v =
                           ++ if | showTraces -> Utils.braces (strTrace tr)
                                 | otherwise  -> ""
     VBase b          -> strBaseVal b
-    VClosure x e env -> "<fun>"
+    VClosure _ _ _ _ -> "<fun>"
     VList vs         -> Utils.bracks (String.join " " (List.map foo vs))
     VHole            -> "??"
 
-strOp op = case op of {Plus -> "+"; Mult -> "*"; Lt -> "<"}
+strOp op = case op of {Plus -> "+"; Minus -> "-"; Mult -> "*"; Lt -> "<"}
 
 strLoc l = "k" ++ toString l
 
@@ -154,8 +167,8 @@ sExp_ showLocs k e =
                         "if " ++ foo k e1 ++ "\n" ++
                           tab (k+1) ++ foo (k+1) e2 ++ "\n" ++
                           tab (k+1) ++ foo (k+1) e3
-    ELet x e1 e2   -> Utils.parens <|
-                        "let " ++ x ++ "\n" ++
+    ELet b x e1 e2 -> Utils.parens <|
+                        (if b then "letrec " else "let ") ++ x ++ "\n" ++
                           tab (k+1) ++ foo (k+1) e1 ++ "\n" ++
                           tab (k+1) ++ foo (k+1) e2
 
@@ -174,7 +187,8 @@ applySubst subst e = case e of
   EOp op es  -> EOp op (List.map (applySubst subst) es)
   EList es   -> EList (List.map (applySubst subst) es)
   EApp f es  -> EApp (applySubst subst f) (List.map (applySubst subst) es)
-  ELet x e1 e2 -> ELet x (applySubst subst e1) (applySubst subst e2) -- TODO
+  ELet b x e1 e2 ->
+    ELet b x (applySubst subst e1) (applySubst subst e2) -- TODO
   EIf e1 e2 e3 ->
     EIf (applySubst subst e1) (applySubst subst e2) (applySubst subst e3)
 
@@ -187,10 +201,10 @@ type alias VContext = Val
 
 fillHoleWith : VContext -> Val -> Val
 fillHoleWith vc w = case vc of
-  VHole          -> w
-  VConst _ _     -> vc
-  VClosure _ _ _ -> vc   -- not recursing into closures
-  VList vs       -> VList (List.map (flip fillHoleWith w) vs)
+  VHole            -> w
+  VConst _ _       -> vc
+  VClosure _ _ _ _ -> vc   -- not recursing into closures
+  VList vs         -> VList (List.map (flip fillHoleWith w) vs)
 
 type VDiff = Same Val | Diff VContext Val Val
 

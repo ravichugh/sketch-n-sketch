@@ -26,7 +26,9 @@ freshen k e = case e of
   EList es   -> let (es',k') = freshenExps k es in (EList es', k')
   EIf e1 e2 e3 -> let ([e1',e2',e3'],k') = freshenExps k [e1,e2,e3] in
                   (EIf e1' e2' e3', k')
-  ELet x e1 e2 -> let ([e1',e2'],k') = freshenExps k [e1,e2] in (ELet x e1' e2', k')
+  ELet b x e1 e2 ->
+    let ([e1',e2'],k') = freshenExps k [e1,e2] in
+    (ELet b x e1' e2', k')
 
 freshenExps k es =
   List.foldr (\e (es',k') ->
@@ -46,7 +48,7 @@ substOf_ s e = case e of
   EOp op es  -> substOfExps_ s es
   EList es   -> substOfExps_ s es
   EIf e1 e2 e3 -> substOfExps_ s [e1,e2,e3]
-  ELet x e1 e2 -> substOfExps_ s [e1,e2]  -- TODO
+  ELet _ _ e1 e2 -> substOfExps_ s [e1,e2]  -- TODO
 
 substOfExps_ s es = case es of
   []     -> s
@@ -152,9 +154,9 @@ parseExp = P.recursively <| \_ ->
   <++ parseFun
   <++ parseBinop
   <++ parseIf
-  <++ parseApp
   <++ parseExpList
   <++ parseLet
+  <++ parseApp
 
 parseFun =
   parens <|
@@ -178,14 +180,18 @@ parseExpArgs = parseList1 "" " " "" parseExp identity
 
 parseExpList = parseList "[" " " "]" parseExp EList
 
+parseRec =
+      (always True  <$> token_ "letrec")
+  <++ (always False <$> token_ "let")
+
 parseLet =
   parens <|
-    token_ "let"     >>>
+    parseRec         >>= \b ->
     white parseIdent >>= \x ->
     parseExp         >>= \e1 ->
     oneWhite         >>>
     parseExp         >>= \e2 ->
-      P.return (ELet x e1 e2)
+      P.return (ELet b x e1 e2)
 
 parseBinop =
   parens <|
@@ -196,9 +202,10 @@ parseBinop =
       P.return (EOp op [e1,e2])
 
 parseOp =
-      (always Plus <$> token_ "+")
-  <++ (always Mult <$> token_ "*")
-  <++ (always Lt   <$> token_ "<")
+      (always Plus  <$> token_ "+")
+  <++ (always Minus <$> token_ "-")
+  <++ (always Mult  <$> token_ "*")
+  <++ (always Lt    <$> token_ "<")
 
 parseIf =
   parens <|
