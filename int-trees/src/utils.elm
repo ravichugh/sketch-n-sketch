@@ -51,3 +51,6 @@ assert s b = if b then () else Debug.crash ("assert error: " ++ s)
 mapMaybe : (a -> b) -> Maybe a -> Maybe b
 mapMaybe f mx = case mx of {Just x -> Just (f x); Nothing -> Nothing}
 
+bindMaybe : (a -> Maybe b) -> Maybe a -> Maybe b
+bindMaybe f mx = case mx of {Just x -> f x; Nothing -> Nothing}
+

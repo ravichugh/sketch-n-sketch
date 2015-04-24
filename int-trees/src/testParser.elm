@@ -31,7 +31,12 @@ testParser = ()
   `ignore` parseE "[1|2]"
   `ignore` parseE "[1 | 2]"
   `ignore` parseE "[1 2 | 3]"
-  `ignore` parseE "[1 | [2 | [3]]]"
+  `ignore` parseE "  [1 | [2 | [3]]]"
+
+  `ignore` parseE "((\\[x] x) [3])"
+  `ignore` parseE "((\\  [x] x) [3])"
+  `ignore` parseE "((\\[x y z] (+ x (+ y z))) [1 2 3])"
+
 
 --------------------------------------------------------------------------------
 
@@ -72,5 +77,20 @@ test4 () =
 test5 () =
   makeTest
     "[1 | [2 | [3]]]"
+    "[1 2 3]"
+
+test6 () =
+  makeTest
+    "(let sum3 (\\[x y z] (+ x (+ y z))) (sum3 [1 2 3]))"
+    "[1 2 3]"
+
+test7 () =
+  makeTest
+    "(let hd (\\[hd | tl] hd) (hd [1 2 3]))"
+    "[1 2 3]"
+
+test8 () =
+  makeTest
+    "(let tl (\\[hd | tl] tl) (tl [1 2 3]))"
     "[1 2 3]"
 

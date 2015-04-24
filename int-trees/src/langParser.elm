@@ -128,6 +128,18 @@ parseList :
 parseList  = parseList_ P.sepBy
 parseList1 = parseList_ P.sepBy1
 
+parseListLiteral p f = parseList "[" " " "]" p f
+
+parseMultiCons p f =
+  parseList1 "[" " " "|" p identity >>= \xs ->
+  p                                 >>= \y ->
+  token_ "]"                        >>>
+    P.return (f xs y)
+
+parseListLiteralOrMultiCons p f g = P.recursively <| \_ ->
+      (parseListLiteral p f)
+  <++ (parseMultiCons p g)
+
 parseV = P.parse <|
   parseVal    >>= \v ->
   white P.end >>>
@@ -137,13 +149,10 @@ parseVal : P.Parser Val
 parseVal = P.recursively <| \_ ->
       white parseIntV
   <++ white parseVBase
-  <++ parseValList0
   <++ parseValList
 
-parseValList = parseList "[" " " "]" parseVal VList
-
-parseValList0 =
-  always (VList []) <$> P.token "[]"
+-- parseValList = parseList "[" " " "]" parseVal VList
+parseValList = parseListLiteral parseVal VList
 
 parseE = P.parse <|
   parseExp    >>= \e ->
@@ -166,14 +175,22 @@ parseExp = P.recursively <| \_ ->
 
 parseFun =
   parens <|
-    token_ "\\"     >>>
-    white parsePats >>= \ps ->
-    parseExp        >>= \e ->
+    token_ "\\" >>>
+    parsePats   >>= \ps ->
+    parseExp    >>= \e ->
       P.return (EFun ps e)
 
+parsePat = P.recursively <| \_ ->
+      (white parseIdent >>= (PVar >> P.return))
+  <++ parsePatList
+
+parsePatList =
+  parseListLiteralOrMultiCons
+    parsePat (\xs -> PList xs Nothing) (\xs y -> PList xs (Just y))
+
 parsePats =
-      (parseIdent >>= (single >> P.return))
-  <++ (parseList1 "(" " " ")" parseIdent identity)
+      (parsePat >>= (single >> P.return))
+  <++ (parseList1 "(" " " ")" parsePat identity)
 
 parseApp =
   parens <|
@@ -184,17 +201,9 @@ parseApp =
 
 parseExpArgs = parseList1 "" " " "" parseExp identity
 
-parseExpList = P.recursively <| \_ -> -- TODO recursively
-  parseExpListLiteral <++ parseMultiCons
-
-parseExpListLiteral =
-  parseList "[" " " "]" parseExp (flip EList Nothing)
-
-parseMultiCons =
-  parseList1 "[" " " "|" parseExp identity >>= \es ->
-  parseExp                                 >>= \rest ->
-  token_ "]"                               >>>
-    P.return (EList es (Just rest))
+parseExpList =
+  parseListLiteralOrMultiCons
+    parseExp (\xs -> EList xs Nothing) (\xs y -> EList xs (Just y))
 
 parseRec =
       (always True  <$> token_ "letrec")

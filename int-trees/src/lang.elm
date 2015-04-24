@@ -13,7 +13,9 @@ import Utils
 type alias Loc = Int
 type alias Ident = String
 
-type alias Pat = Ident -- TODO
+type Pat
+  = PVar Ident
+  | PList (List Pat) (Maybe Pat)
 
 type Op
   = Plus | Minus | Mult
@@ -57,6 +59,32 @@ type Trace = TrLoc Loc | TrOp Op (List Trace)
 
 type alias Env = List (Ident, Val)
 
+match : (Pat, Val) -> Maybe Env
+match pv = case pv of
+  (PVar x, v) -> Just [(x,v)]
+  (PList ps Nothing, VList vs) ->
+    Utils.bindMaybe matchList (Utils.maybeZip ps vs)
+  (PList ps (Just rest), VList vs) ->
+    let (n,m) = (List.length ps, List.length vs) in
+    if | n > m     -> Nothing
+       | otherwise -> let (vs1,vs2) = Utils.split n vs in
+                      (rest, VList vs2) `cons` (matchList (Utils.zip ps vs1))
+  (PList _ _, _) -> Nothing
+
+matchList : List (Pat, Val) -> Maybe Env
+matchList pvs =
+  List.foldl (\pv acc ->
+    case (acc, match pv) of
+      (Just old, Just new) -> Just (new ++ old)
+      _                    -> Nothing
+  ) (Just []) pvs
+
+cons : (Pat, Val) -> Maybe Env -> Maybe Env
+cons pv menv =
+  case (menv, match pv) of
+    (Just env, Just env') -> Just (env' ++ env)
+    _                     -> Nothing
+
 lookupVar env x =
   case Utils.maybeFind x env of
     Just v -> v
@@ -68,7 +96,7 @@ eval env e = case e of
   EConst i l -> VConst i (TrLoc l)
   EBase v    -> VBase v
   EVar x     -> lookupVar env x
-  EFun [x] e -> VClosure Nothing x e env
+  EFun [p] e -> VClosure Nothing p e env
   EOp op es  -> evalOp env op es
 
   EList es m ->
@@ -86,20 +114,25 @@ eval env e = case e of
   EApp e1 [e2] ->
     let (v1,v2) = (eval env e1, eval env e2) in
     case v1 of
-      VClosure Nothing  x e env' -> eval ((x,v2)::env') e
-      VClosure (Just f) x e env' -> eval ((f,v1)::(x,v2)::env') e
+      VClosure Nothing p e env' ->
+        case (p, v2) `cons` Just env' of
+          Just env'' -> eval env'' e
+      VClosure (Just f) p e env' ->
+        case (PVar f, v1) `cons` ((p, v2) `cons` Just env') of
+          Just env'' -> eval env'' e
 
   ELet True f e1 e2 ->
     case eval env e1 of
       VClosure Nothing x body env' ->
         let _   = Utils.assert "eval letrec" (env == env') in
         let v1' = VClosure (Just f) x body env in
-        eval ((f,v1')::env) e2
+        case (PVar f, v1') `cons` Just env of
+          Just env' -> eval env' e2
 
   -- abstract syntactic sugar
-  EFun xs e  -> eval env (eFun xs e)
+  EFun ps e  -> eval env (eFun ps e)
   EApp e1 es -> eval env (eApp e1 es)
-  ELet False x e1 e2 -> eval env (EApp (EFun [x] e2) [e1])
+  ELet False x e1 e2 -> eval env (EApp (EFun [PVar x] e2) [e1])
 
 evalOp env op es =
   case (op, List.map (eval env) es) of
@@ -143,6 +176,13 @@ strTrace tr = case tr of
     Utils.parens (String.concat
       [strOp op, " ", String.join " " (List.map strTrace l)])
 
+strPat p = case p of
+  PVar x     -> x
+  PList ps m -> let s = Utils.spaces (List.map strPat ps) in
+                case m of
+                  Nothing   -> Utils.bracks s
+                  Just rest -> Utils.bracks (s ++ " | " ++ strPat rest)
+
 tab k = String.repeat k "  "
 
 sExpK k     = (++) (tab k) << sExp_ False k
@@ -158,10 +198,10 @@ sExp_ showLocs k e =
                         ++ if | showLocs  -> Utils.braces (strLoc l)
                               | otherwise -> ""
     EVar x         -> x
-    EFun [x] e     -> Utils.parens <|
-                        "\\" ++ x ++ "\n" ++ tab (k+1) ++ foo (k+1) e
-    EFun xs e      -> Utils.parens <|
-                        "\\" ++ Utils.parens (Utils.spaces xs) ++ "\n" ++
+    EFun [p] e     -> Utils.parens <|
+                        "\\" ++ strPat p ++ "\n" ++ tab (k+1) ++ foo (k+1) e
+    EFun ps e      -> Utils.parens <|
+                        "\\" ++ Utils.parens (Utils.spaces (List.map strPat ps)) ++ "\n" ++
                           tab (k+1) ++ foo (k+1) e
     EApp e1 [e2]   -> Utils.parens <| foo k e1 ++ " " ++ foo k e2
     EApp e1 es     -> Utils.parens <|
