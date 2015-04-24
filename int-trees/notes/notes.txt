@@ -19,6 +19,8 @@
 - adding thunks, rather than using recursively, leads to "too much recursion"
   rather than undefined error. so stick with lazy...
 
+- sprinkly recursively in a couple more places...
+
 ------------------------------------------------------------------------------
 Concrete Syntax
 

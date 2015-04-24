@@ -10,6 +10,7 @@ import Debug
 import Lang (..)
 import OurParser ((>>=),(>>>),(<$>),(+++),(<++))
 import OurParser as P
+import Utils
 
 ------------------------------------------------------------------------------
 
@@ -33,6 +34,10 @@ freshen k e = case e of
   ELet b x e1 e2 ->
     let ([e1',e2'],k') = freshenExps k [e1,e2] in
     (ELet b x e1' e2', k')
+  ECase e l ->
+    let es = List.map snd l in
+    let (e'::es', k') = freshenExps k (e::es) in
+    (ECase e' (Utils.zip (List.map fst l) es'), k')
 
 freshenExps k es =
   List.foldr (\e (es',k') ->
@@ -170,6 +175,7 @@ parseExp = P.recursively <| \_ ->
   <++ parseFun
   <++ parseBinop
   <++ parseIf
+  <++ parseCase
   <++ parseExpList
   <++ parseLet
   <++ parseApp
@@ -246,4 +252,20 @@ parseIf =
     oneWhite    >>>
     parseExp    >>= \e3 ->
       P.return (EIf e1 e2 e3)
+
+parseCase =
+  parens <|
+    token_ "case" >>>
+    oneWhite      >>>
+    parseExp      >>= \e ->
+    oneWhite      >>>
+    parseBranches >>= \l ->
+      P.return (ECase e l)
+
+parseBranches = P.recursively <| \_ ->
+  parseList1 "" " " "" parseBranch identity
+
+parseBranch =
+  parens <|
+    parsePat >>= \p -> oneWhite >>> parseExp >>= \e -> P.return (p,e)
 

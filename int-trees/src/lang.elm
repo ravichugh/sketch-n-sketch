@@ -30,6 +30,7 @@ type Exp
   | EOp Op (List Exp)
   | EList (List Exp) (Maybe Exp)
   | EIf Exp Exp Exp
+  | ECase Exp (List (Pat, Exp))
   | ELet Bool Pat Exp Exp
 
     -- EFun [] e     impossible
@@ -111,6 +112,11 @@ eval env e = case e of
       VBase (Bool True)  -> eval env e2
       VBase (Bool False) -> eval env e3
 
+  ECase e1 l ->
+    let v1 = eval env e1 in
+    case evalBranches env v1 l of
+      Just v2 -> v2
+
   EApp e1 [e2] ->
     let (v1,v2) = (eval env e1, eval env e2) in
     case v1 of
@@ -143,6 +149,15 @@ evalOp env op es =
     (Minus, [VConst i1 t1, VConst i2 t2]) -> VConst (i1-i2) (TrOp op [t1,t2])
     (Mult, [VConst i1 t1, VConst i2 t2]) -> VConst (i1*i2) (TrOp op [t1,t2])
     (Lt  , [VConst i1 t1, VConst i2 t2]) -> vBool (i1<i2)
+
+evalBranches env v =
+  List.foldl (\(p,e) acc ->
+    case (acc, (p,v) `cons` Just env) of
+      (Just done, _)       -> Just done
+      (Nothing, Just env') -> Just (eval env' e)
+      _                    -> Nothing
+
+  ) Nothing
 
 run : Exp -> Val
 run = eval []
@@ -224,6 +239,11 @@ sExp_ showLocs k e =
                         (if b then "letrec " else "let ") ++ strPat p ++ "\n" ++
                           tab (k+1) ++ foo (k+1) e1 ++ "\n" ++
                           tab (k+1) ++ foo (k+1) e2
+    ECase e1 l ->
+      let bar (pi,ei) =
+        tab (k+1) ++ Utils.parens (strPat pi ++ " " ++ foo (k+1) ei) in
+      Utils.parens <|
+        "case " ++ foo k e1 ++ "\n" ++ Utils.lines (List.map bar l)
 
 
 ------------------------------------------------------------------------------

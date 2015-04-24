@@ -38,7 +38,7 @@ testParser = ()
   `ignore` parseE "((\\[x y z] (+ x (+ y z))) [1 2 3])"
 
   `ignore` parseE "(let _ [] [])"
-  -- `ignore` parseE "(case [] ([] true) ([_|_] false))"
+  `ignore` parseE "(case [] ([] true) ([_|_] false))"
 
 
 --------------------------------------------------------------------------------
@@ -101,5 +101,25 @@ test8 () =
 test9 () =
   makeTest
     "(let [x y z] [1 2 3] (+ x (+ y z)))"
+    "[1 2 3]"
+
+test10 () =
+  makeTest
+    "(let isNil (\\xs (case xs ([] true) ([_|_] false)))
+       [(isNil []) (isNil [1])])"
+    "[1 2 3]"
+
+test11 () =
+  makeTest
+    "(let plus1 (\\x (+ x 1))
+     (letrec map (\\f (\\xs (case xs ([] []) ([hd|tl] [(f hd)|(map f tl)]))))
+       (map plus1 [1 2 3])))"
+    "[1 2 3]"
+
+test12 () =
+  makeTest
+    "(let plus1 (\\x (+ x 1))
+     (letrec map (\\(f xs) (case xs ([] []) ([hd|tl] [(f hd)|(map f tl)])))
+       (map plus1 [1 2 3])))"
     "[1 2 3]"
 
