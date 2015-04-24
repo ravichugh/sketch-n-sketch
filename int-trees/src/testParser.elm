@@ -37,7 +37,7 @@ testParser = ()
   `ignore` parseE "((\\  [x] x) [3])"
   `ignore` parseE "((\\[x y z] (+ x (+ y z))) [1 2 3])"
 
-  -- `ignore` parseE "(let _ [] [])"
+  `ignore` parseE "(let _ [] [])"
   -- `ignore` parseE "(case [] ([] true) ([_|_] false))"
 
 

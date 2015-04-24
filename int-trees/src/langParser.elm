@@ -82,6 +82,7 @@ parseInt : P.Parser Int
 parseInt = (unsafeToInt << String.fromList) <$> P.some (P.satisfy Char.isDigit)
              -- TODO negative
 
+-- TODO allow '_', disambiguate from wildcard in parsePat
 parseIdent : P.Parser String
 parseIdent =
   P.satisfy isAlpha                 >>= \c ->
@@ -180,8 +181,11 @@ parseFun =
     parseExp    >>= \e ->
       P.return (EFun ps e)
 
+parseWildcard = token_ "_" >>> P.return (PVar "_")
+
 parsePat = P.recursively <| \_ ->
       (white parseIdent >>= (PVar >> P.return))
+  <++ parseWildcard
   <++ parsePatList
 
 parsePatList =
