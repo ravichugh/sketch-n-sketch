@@ -51,6 +51,7 @@ type Val
 type BaseVal -- unlike Ints, these cannot be changed by Sync
   = Bool Bool
   | String String
+  | Star -- placeholder used by sync
 
 type Trace = TrLoc Loc | TrOp Op (List Trace)
 
@@ -247,6 +248,33 @@ sExp_ showLocs k e =
 
 
 ------------------------------------------------------------------------------
+-- Mapping
+
+mapExp : (Exp -> Exp) -> Exp -> Exp
+mapExp f e =
+  let foo = mapExp f in
+  case e of
+    EConst _ _     -> f e
+    EBase _        -> f e
+    EVar _         -> f e
+    EFun ps e'     -> f (EFun ps (foo e'))
+    EApp e1 es     -> f (EApp (foo e1) (List.map foo es))
+    EOp op es      -> f (EOp op (List.map foo es))
+    EList es m     -> f (EList (List.map foo es) (Utils.mapMaybe foo m))
+    EIf e1 e2 e3   -> f (EIf (foo e1) (foo e2) (foo e3))
+    ECase e1 l     -> f (ECase (foo e1) (List.map (\(p,ei) -> (p, foo ei)) l))
+    ELet b p e1 e2 -> f (ELet b p (foo e1) (foo e2))
+
+mapVal : (Val -> Val) -> Val -> Val
+mapVal f v = case v of
+  VList vs         -> f (VList (List.map (mapVal f) vs))
+  VConst _ _       -> f v
+  VBase _          -> f v
+  VClosure _ _ _ _ -> f v
+  VHole            -> f v
+
+
+------------------------------------------------------------------------------
 -- Substitutions
 
 type alias Subst = Dict.Dict Loc Int
@@ -277,6 +305,7 @@ fillHoleWith : VContext -> Val -> Val
 fillHoleWith vc w = case vc of
   VHole            -> w
   VConst _ _       -> vc
+  VBase _          -> vc
   VClosure _ _ _ _ -> vc   -- not recursing into closures
   VList vs         -> VList (List.map (flip fillHoleWith w) vs)
 
@@ -306,6 +335,7 @@ eqV (v1,v2) = case (v1, v2) of            -- equality modulo traces
 -- and that v2 has dummy locs
 
 diff_ v1 v2 = case (v1, v2) of
+  (VBase Star, VConst _ _) -> Just (Same v2)
   (VConst i tr, VConst j _) ->
     if | i == j    -> Just (Same (VConst i tr))  -- cf. comment above
        | otherwise -> Just (Diff VHole v1 (VConst j tr))

@@ -123,3 +123,17 @@ test12 () =
        (map plus1 [1 2 3])))"
     "[1 2 3]"
 
+test13 () =
+  makeTest
+    "(letrec mult (\\(m n) (if (< m 1) 0 (+ n (mult (- m 1) n))))
+       [(mult 0 10) (mult 2 4) (mult 10 9)])"
+    "[1 2 3]"
+
+test14 () =
+  makeTest
+    "(letrec map (\\(f xs) (case xs ([] []) ([hd|tl] [(f hd)|(map f tl)])))
+     (letrec mult (\\(m n) (if (< m 1) 0 (+ n (mult (- m 1) n))))
+     (let [x0 y0 sep] [10 8 30]
+       (map (\\i [(+ x0 (mult i sep)) y0]) [0 1 2]))))"
+    "[[10 8] [40 8] [100 8]]"
+

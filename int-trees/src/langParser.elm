@@ -52,13 +52,14 @@ substOf_ s e = case e of
                   Just j  -> if | i == j -> s
   EBase _    -> s
   EVar _     -> s 
-  EFun _ _   -> s   -- not recursing into lambdas
+  EFun _ e'  -> substOf_ s e'
   EApp f es  -> substOfExps_ s (f::es)
   EOp op es  -> substOfExps_ s es
   EList es m -> case m of
                   Nothing -> substOfExps_ s es
                   Just e  -> substOfExps_ s (e::es)
   EIf e1 e2 e3 -> substOfExps_ s [e1,e2,e3]
+  ECase e1 l   -> substOfExps_ s (e1 :: List.map snd l)
   ELet _ _ e1 e2 -> substOfExps_ s [e1,e2]  -- TODO
 
 substOfExps_ s es = case es of

@@ -7,6 +7,7 @@ import Utils
 
 import Lang (..)
 import LangParser
+import Debug
 
 type Equation = Equation Int Trace
 
@@ -62,10 +63,22 @@ sync e v v' =
       let subst0 = LangParser.substOf e in
       let substs = inferSubsts subst0 w' in
       Ok <| List.sortBy snd <|
-        List.map (\s ->
+        List.filterMap (\s ->
           let e1 = applySubst s e in
           let v1 = run e1 in
-          let n  = compareVals (v, v1) in
-          ((e1, v1), n)
+          let vcStar = mapVal (\x -> case x of
+                                       VConst _ _ -> VBase Star
+                                       _          -> x) vc
+          in
+          case diff_ (fillHoleWith vcStar w') v1 of
+            Nothing -> Debug.crash "sync: shouldn't happen?"
+            Just (Same _) ->
+              let n = compareVals (v, v1) in
+              Just ((e1, v1), n)
+            Just (Diff _ _ w1) ->
+              if | w1 /= w' -> Nothing
+                 | otherwise ->
+                     let n = compareVals (v, v1) in
+                     Just ((e1, v1), n)
         ) substs
 
