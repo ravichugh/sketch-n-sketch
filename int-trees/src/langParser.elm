@@ -211,19 +211,19 @@ parseRec =
 
 parseLet =
   parens <|
-    parseRec         >>= \b ->
-    white parseIdent >>= \x ->
-    parseExp         >>= \e1 ->
-    oneWhite         >>>
-    parseExp         >>= \e2 ->
-      P.return (ELet b x e1 e2)
+    parseRec >>= \b ->
+    parsePat >>= \p ->
+    parseExp >>= \e1 ->
+    oneWhite >>>
+    parseExp >>= \e2 ->
+      P.return (ELet b p e1 e2)
 
 parseBinop =
   parens <|
-    parseOp    >>= \op ->
-    parseExp   >>= \e1 ->
-    oneWhite   >>>
-    parseExp   >>= \e2 ->
+    parseOp  >>= \op ->
+    parseExp >>= \e1 ->
+    oneWhite >>>
+    parseExp >>= \e2 ->
       P.return (EOp op [e1,e2])
 
 parseOp =

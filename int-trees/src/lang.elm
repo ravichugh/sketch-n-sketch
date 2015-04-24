@@ -30,7 +30,7 @@ type Exp
   | EOp Op (List Exp)
   | EList (List Exp) (Maybe Exp)
   | EIf Exp Exp Exp
-  | ELet Bool Ident Exp Exp -- TODO
+  | ELet Bool Pat Exp Exp
 
     -- EFun [] e     impossible
     -- EFun [p] e    (\p. e)
@@ -121,7 +121,7 @@ eval env e = case e of
         case (PVar f, v1) `cons` ((p, v2) `cons` Just env') of
           Just env'' -> eval env'' e
 
-  ELet True f e1 e2 ->
+  ELet True (PVar f) e1 e2 ->
     case eval env e1 of
       VClosure Nothing x body env' ->
         let _   = Utils.assert "eval letrec" (env == env') in
@@ -132,7 +132,10 @@ eval env e = case e of
   -- abstract syntactic sugar
   EFun ps e  -> eval env (eFun ps e)
   EApp e1 es -> eval env (eApp e1 es)
-  ELet False x e1 e2 -> eval env (EApp (EFun [PVar x] e2) [e1])
+  ELet False p e1 e2 -> eval env (EApp (EFun [p] e2) [e1])
+
+  -- errors
+  ELet True (PList _ _) _ _ -> Debug.crash "eval: multi letrec"
 
 evalOp env op es =
   case (op, List.map (eval env) es) of
@@ -217,8 +220,8 @@ sExp_ showLocs k e =
                         "if " ++ foo k e1 ++ "\n" ++
                           tab (k+1) ++ foo (k+1) e2 ++ "\n" ++
                           tab (k+1) ++ foo (k+1) e3
-    ELet b x e1 e2 -> Utils.parens <|
-                        (if b then "letrec " else "let ") ++ x ++ "\n" ++
+    ELet b p e1 e2 -> Utils.parens <|
+                        (if b then "letrec " else "let ") ++ strPat p ++ "\n" ++
                           tab (k+1) ++ foo (k+1) e1 ++ "\n" ++
                           tab (k+1) ++ foo (k+1) e2
 
@@ -238,8 +241,8 @@ applySubst subst e = case e of
   EList es m -> EList (List.map (applySubst subst) es)
                       (Utils.mapMaybe (applySubst subst) m)
   EApp f es  -> EApp (applySubst subst f) (List.map (applySubst subst) es)
-  ELet b x e1 e2 ->
-    ELet b x (applySubst subst e1) (applySubst subst e2) -- TODO
+  ELet b p e1 e2 ->
+    ELet b p (applySubst subst e1) (applySubst subst e2) -- TODO
   EIf e1 e2 e3 ->
     EIf (applySubst subst e1) (applySubst subst e2) (applySubst subst e3)
 
@@ -334,7 +337,7 @@ eApp e es = case es of
   [e1]    -> EApp e [e1]
   e1::es' -> eApp (EApp e [e1]) es'
 
-eFun xs e = case xs of
-  [x]     -> EFun [x] e
-  x::xs'  -> EFun [x] (eFun xs' e)
+eFun ps e = case ps of
+  [p]     -> EFun [p] e
+  p::ps'  -> EFun [p] (eFun ps' e)
 
