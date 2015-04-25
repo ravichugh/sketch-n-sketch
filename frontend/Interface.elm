@@ -42,6 +42,12 @@ codeBox : String -> Html.Html
 codeBox codeText =
     Html.textarea
         [ Html.Attributes.id "codeBox"
+        , Html.Attributes.style
+            [ ("height", "100%")
+            , ("width",  "50%")
+            , ("resize", "none")
+            , ("overflow", "scroll")
+            ]
         , Html.Attributes.value codeText
         , Html.Events.on "input" Html.Events.targetValue
             (Signal.message events << CodeUpdate)
