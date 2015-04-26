@@ -3,19 +3,19 @@
 -- program and output of the language as defined in int-trees.
 
 --Import the language and its parsing utilities
-import Lang
-import LangParser
-import Sync
-import Utils
+--import Lang
+--import LangParser
+--import Sync
+--import Utils
 
-import String
-import Graphics.Element as GE 
-import Signal
+import String exposing (..)
+import Graphics.Element as GE exposing (..)
+import Signal exposing (..)
 
-import Window
-import Html
-import Html.Attributes
-import Html.Events
+import Window exposing (..)
+import Html exposing (..)
+import Html.Attributes exposing (..)
+import Html.Events exposing (..)
 
 
 -- Model --
