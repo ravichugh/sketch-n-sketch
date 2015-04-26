@@ -3,14 +3,20 @@
 -- program and output of the language as defined in int-trees.
 
 --Import the language and its parsing utilities
-import Lang
-import LangParser
-import Sync
-import Utils
+--import Lang
+--import LangParser
+--import Sync
+--import Utils
 
-import String
-import Graphics.Element as GE
-import Signal
+import String exposing (..)
+import Graphics.Element as GE exposing (..)
+import Signal exposing (..)
+
+import Window exposing (..)
+import Html exposing (..)
+import Html.Attributes exposing (..)
+import Html.Events exposing (..)
+
 
 -- Model --
 type alias Model = { code : String
@@ -22,14 +28,41 @@ initModel = { code = ""
 type Event = CodeUpdate String
            | OutputUpdate String
 
+events : Signal.Mailbox Event
+events = Signal.mailbox <| CodeUpdate ""
+
 -- Update --
 upstate : Event -> Model -> Model
-upstate evt old = initModel
+upstate evt old = case evt of
+    UpdateCode newcode -> { old | code <- newcode }
+    _ -> old
 
 -- View --
+codeBox : String -> Html.Html
+codeBox codeText =
+    Html.textarea
+        [ Html.Attributes.id "codeBox"
+        , Html.Attributes.style
+            [ ("height", "100%")
+            , ("width",  "50%")
+            , ("resize", "none")
+            , ("overflow", "scroll")
+            ]
+        , Html.Attributes.value codeText
+        , Html.Events.on "input" Html.Events.targetValue
+            (Signal.message events << CodeUpdate)
+        ]
+        []
+
 view : (Int, Int) -> Model -> GE.Element
-view (w,h) model = GE.spacer w h
+view (w,h) model = GE.flow GE.right [ Html.toElement (w // 2) h
+                                        <| codeBox model.code
+                                    ]
 
 -- Main --
 main : Signal Element
-main = Singal.constant <| GE.spacer 10 10
+main = let sigModel = Signal.foldp upstate initState
+                        <| Signal.mergeMany
+                            [ events.signal
+                            ]
+       in Signal.map2 view Window.dimensions sigModel
