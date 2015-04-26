@@ -2,8 +2,6 @@
 -- This defines and renders and renders an interactive interface for editing the
 -- program and output of the language as defined in int-trees.
 
-module Main where
-
 --Import the language and its parsing utilities
 --import Lang
 --import LangParser
