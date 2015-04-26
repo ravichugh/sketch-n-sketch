@@ -1,14 +1,12 @@
 module LangParser where
 
-import List ((::))
-import List
 import String
 import Dict
 import Char
 import Debug
 
-import Lang (..)
-import OurParser ((>>=),(>>>),(<$>),(+++),(<++))
+import Lang exposing (..)
+import OurParser exposing ((>>=),(>>>),(<$>),(+++),(<++))
 import OurParser as P
 import Utils
 

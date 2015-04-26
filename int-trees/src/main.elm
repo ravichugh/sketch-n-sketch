@@ -1,18 +1,19 @@
 module Main where
 
 import Text
+import Graphics.Element
 import Dict
 import String
 import List
 import Debug
 
-import Lang (..)
+import Lang exposing (..)
 import LangParser
 import Sync
 import TestParser
 import Utils
 
-print = Text.leftAligned << Text.monospace << Text.fromString
+print = Graphics.Element.leftAligned << Text.monospace << Text.fromString
 
 ------------------------------------------------------------------------------
 

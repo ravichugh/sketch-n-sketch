@@ -1,11 +1,10 @@
 module Sync (sync) where
 
-import List
 import Dict
 import Set
 import Utils
 
-import Lang (..)
+import Lang exposing (..)
 import LangParser
 import Debug
 

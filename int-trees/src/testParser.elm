@@ -1,7 +1,7 @@
 module TestParser where
 
 import Lang
-import LangParser (parseV, parseE, freshen)
+import LangParser exposing (parseV, parseE, freshen)
 
 _ `ignore` _ = ()
 

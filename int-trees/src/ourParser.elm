@@ -1,10 +1,8 @@
 module OurParser where
 
-import List ((::))
-import List
 import String
 import Debug
-import Lazy (..)
+import Lazy exposing (..)
 
 type alias Parser_ a = String -> List (a, String)
 

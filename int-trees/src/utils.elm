@@ -1,7 +1,5 @@
 module Utils where
 
-import List ((::))
-import List
 import String
 import Debug
 
