@@ -78,19 +78,17 @@ upstate evt old = case evt of
             let maybeObj = pickObj (mx, my) (old.objects)
             in case maybeObj of
                 Nothing -> old
-                Just (form, x, y) -> { old | movingObj <- Just ((form, x, y)
-                                                                 , x -
-                                                                    Basics.toFloat mx
-                                                                 , y -
-                                                                    Basics.toFloat my
-                                                                 )
-                                     }
+                Just (form, x, y) -> 
+                    { old | movingObj <- Just ((form, x, y)
+                                              , Basics.toFloat <| x - mx
+                                              , Basics.toFloat <| y - my                     
+                                              )
+                    }
         Just (obj, xdist, ydist) ->
             let newpos = (Basics.toFloat mx + xdist, Basics.toFloat my + ydist)
-                newobjs = List.map (updateObjPos newpos obj)
-                                    old.objects
+                newobjs = List.map (updateObjPos newpos obj) old.objects
             in  { old | objects <- newobjs 
-                        , movingObj <- Just 
+                      , movingObj <- Just 
                             (updateObjPos newpos obj obj, xdist, ydist)
                 }
     _ -> old
@@ -99,8 +97,8 @@ upstate evt old = case evt of
 pickObj : (Int, Int) -> List Object -> Maybe Object
 pickObj (mx, my) objs = case objs of
     [] -> Nothing
-    (form, x, y) :: xs -> if | abs (x - Basics.toFloat mx) <= 20 
-                               && abs (y - Basics.toFloat my) <= 20 -> Just (form, x, y)
+    (form, x, y) :: xs -> if | abs (Basics.toFloat <| x - mx) <= 20 
+                               && abs (Basics.toFloat <| y - my) <= 20 -> Just (form, x, y)
                              | otherwise -> pickObj (mx, my) xs
 
 updateObjPos : (Float, Float) -> Object -> Object -> Object
@@ -111,7 +109,7 @@ updateObjPos (newx, newy) obj other = if
                             , Svg.Attributes.cy <| toString newy
                             ]
                             [oldsvg]
-                         , newx, newy)
+                         , round newx, round newy)
     | otherwise -> other
 
 mouseUp : Bool -> (Bool, Maybe Event) -> (Bool, Maybe Event)
@@ -145,7 +143,7 @@ visualsBox model dim =
     let
         intdim = floor (dim/20)
     in 
-        Svg.svg <| List.map (\(f,x,y) -> f) model.objects 
+        Svg.svg [] <| List.map (\(f,x,y) -> f) model.objects 
 
 buildSquare : List Int -> Maybe (Svg.Svg, Int, Int)
 buildSquare coords =
@@ -203,11 +201,6 @@ view (w,h) model =
                 ]    
                 [visualsBox model dim]
             ]
-            
-                    
-                                    
-
-
 
 -- Main --
 main : Signal Html.Html
