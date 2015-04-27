@@ -1,4 +1,4 @@
-module LangParser where
+module LangParser (prelude, freshen, substOf, parseE, parseV) where
 
 import String
 import Dict
@@ -9,23 +9,36 @@ import Lang exposing (..)
 import OurParser exposing ((>>=),(>>>),(<$>),(+++),(<++))
 import OurParser as P
 import Utils
+import Prelude
 
 ------------------------------------------------------------------------------
 
+(prelude, initK) = freshen_ 1 (parseE_ identity Prelude.src)
+
+------------------------------------------------------------------------------
+
+-- these top-level freshen and substOf definitions are ugly...
+
+freshen : Exp -> Exp
+freshen e = fst (freshen_ initK e)
+
+substOf : Exp -> Subst
+substOf e = substOfExps_ Dict.empty [prelude, e]
+
 -- this will be done while parsing eventually...
 
-freshen : Int -> Exp -> (Exp, Int)
-freshen k e = case e of
+freshen_ : Int -> Exp -> (Exp, Int)
+freshen_ k e = case e of
   EConst i _ -> (EConst i k, k + 1)
   EBase v    -> (EBase v, k)
   EVar x     -> (EVar x, k)
-  EFun ps e  -> let (e',k') = freshen k e in (EFun ps e', k')
+  EFun ps e  -> let (e',k') = freshen_ k e in (EFun ps e', k')
   EApp f es  -> let (f'::es',k') = freshenExps k (f::es) in (EApp f' es', k')
   EOp op es  -> let (es',k') = freshenExps k es in (EOp op es', k')
   EList es m -> let (es',k') = freshenExps k es in
                 case m of
                   Nothing -> (EList es' Nothing, k')
-                  Just e  -> let (e',k'') = freshen k' e in
+                  Just e  -> let (e',k'') = freshen_ k' e in
                              (EList es' (Just e'), k'')
   EIf e1 e2 e3 -> let ([e1',e2',e3'],k') = freshenExps k [e1,e2,e3] in
                   (EIf e1' e2' e3', k')
@@ -39,7 +52,7 @@ freshen k e = case e of
 
 freshenExps k es =
   List.foldr (\e (es',k') ->
-    let (e1,k1) = freshen k' e in
+    let (e1,k1) = freshen_ k' e in
     (e1::es', k1)) ([],k) es
 
 -- this will be done while parsing eventually...
@@ -63,9 +76,6 @@ substOf_ s e = case e of
 substOfExps_ s es = case es of
   []     -> s
   e::es' -> substOfExps_ (substOf_ s e) es'
-
-substOf : Exp -> Subst
-substOf = substOf_ Dict.empty
 
 
 ------------------------------------------------------------------------------
@@ -159,10 +169,12 @@ parseVal = P.recursively <| \_ ->
 -- parseValList = parseList "[" " " "]" parseVal VList
 parseValList = parseListLiteral parseVal VList
 
-parseE = P.parse <|
+parseE_ f = P.parse <|
   parseExp    >>= \e ->
   white P.end >>>
-    P.return e
+    P.return (f e)
+
+parseE = parseE_ freshen
 
 parseVar = EVar <$> (white parseIdent)
 

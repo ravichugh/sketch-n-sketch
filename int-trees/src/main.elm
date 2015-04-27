@@ -10,7 +10,7 @@ import Debug
 import Lang exposing (..)
 import LangParser
 import Sync
-import TestParser
+import MicroTests
 import Utils
 
 print = Graphics.Element.leftAligned << Text.monospace << Text.fromString
@@ -47,6 +47,6 @@ doExample e v v' =
         ]
 
 main =
-  let {e,v,vnew} = TestParser.test14 () in
+  let {e,v,vnew} = MicroTests.test14 () in
   doExample e v vnew
 

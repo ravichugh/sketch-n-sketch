@@ -3,10 +3,11 @@ module Sync (sync) where
 import Dict
 import Set
 import Utils
+import Debug
 
 import Lang exposing (..)
+import Eval
 import LangParser
-import Debug
 
 type Equation = Equation Int Trace
 
@@ -64,7 +65,7 @@ sync e v v' =
       Ok <| List.sortBy snd <|
         List.filterMap (\s ->
           let e1 = applySubst s e in
-          let v1 = run e1 in
+          let v1 = Eval.run e1 in
           let vcStar = mapVal (\x -> case x of
                                        VConst _ _ -> VBase Star
                                        _          -> x) vc

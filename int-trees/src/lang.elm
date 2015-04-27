@@ -90,34 +90,44 @@ lookupVar env x =
     Just v -> v
     Nothing -> Debug.crash <| "eval: var " ++ Utils.bracks x
 
-eval : Env -> Exp -> Val
-eval env e = case e of
+-- eval propagates output environment in order to extract
+-- initial environment from prelude
 
-  EConst i l -> VConst i (TrLoc l)
-  EBase v    -> VBase v
-  EVar x     -> lookupVar env x
-  EFun [p] e -> VClosure Nothing p e env
-  EOp op es  -> evalOp env op es
+eval_ : Env -> Exp -> Val
+eval_ env e = fst <| eval env e
+
+eval : Env -> Exp -> (Val, Env)
+eval env e =
+
+  let ret v = (v, env) in
+
+  case e of
+
+  EConst i l -> ret <| VConst i (TrLoc l)
+  EBase v    -> ret <| VBase v
+  EVar x     -> ret <| lookupVar env x
+  EFun [p] e -> ret <| VClosure Nothing p e env
+  EOp op es  -> ret <| evalOp env op es
 
   EList es m ->
-    let vs = List.map (eval env) es in
+    let vs = List.map (eval_ env) es in
     case m of
-      Nothing   -> VList vs
-      Just rest -> case eval env rest of
-                     VList vs' -> VList (vs ++ vs')
+      Nothing   -> ret <| VList vs
+      Just rest -> case eval_ env rest of
+                     VList vs' -> ret <| VList (vs ++ vs')
 
   EIf e1 e2 e3 ->
-    case eval env e1 of
+    case eval_ env e1 of
       VBase (Bool True)  -> eval env e2
       VBase (Bool False) -> eval env e3
 
   ECase e1 l ->
-    let v1 = eval env e1 in
+    let v1 = eval_ env e1 in
     case evalBranches env v1 l of
-      Just v2 -> v2
+      Just v2 -> ret v2
 
   EApp e1 [e2] ->
-    let (v1,v2) = (eval env e1, eval env e2) in
+    let (v1,v2) = (eval_ env e1, eval_ env e2) in
     case v1 of
       VClosure Nothing p e env' ->
         case (p, v2) `cons` Just env' of
@@ -127,7 +137,7 @@ eval env e = case e of
           Just env'' -> eval env'' e
 
   ELet True (PVar f) e1 e2 ->
-    case eval env e1 of
+    case eval_ env e1 of
       VClosure Nothing x body env' ->
         let _   = Utils.assert "eval letrec" (env == env') in
         let v1' = VClosure (Just f) x body env in
@@ -143,7 +153,7 @@ eval env e = case e of
   ELet True (PList _ _) _ _ -> Debug.crash "eval: multi letrec"
 
 evalOp env op es =
-  case (op, List.map (eval env) es) of
+  case (op, List.map (eval_ env) es) of
     (Plus, [VConst i1 t1, VConst i2 t2]) -> VConst (i1+i2) (TrOp op [t1,t2])
     (Minus, [VConst i1 t1, VConst i2 t2]) -> VConst (i1-i2) (TrOp op [t1,t2])
     (Mult, [VConst i1 t1, VConst i2 t2]) -> VConst (i1*i2) (TrOp op [t1,t2])
@@ -153,13 +163,10 @@ evalBranches env v =
   List.foldl (\(p,e) acc ->
     case (acc, (p,v) `cons` Just env) of
       (Just done, _)       -> Just done
-      (Nothing, Just env') -> Just (eval env' e)
+      (Nothing, Just env') -> Just (eval_ env' e)
       _                    -> Nothing
 
   ) Nothing
-
-run : Exp -> Val
-run = eval []
 
 
 ------------------------------------------------------------------------------
@@ -168,6 +175,8 @@ run = eval []
 strBaseVal v = case v of
   Bool True  -> "true"
   Bool False -> "false"
+  String s   -> "\"" ++ s ++ "\""
+  Star       -> "X"
 
 strVal     = strVal_ False
 strValLocs = strVal_ True

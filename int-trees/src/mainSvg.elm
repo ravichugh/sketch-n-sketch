@@ -1,7 +1,7 @@
 module MainSvg where
 
 import Svg exposing (..)
-import Svg.Attributes exposing (cx, cy, r)
+import Svg.Attributes as A exposing (cx, cy, r)
 import Html
 import Graphics.Element as E exposing (Element)
 import Text
@@ -9,7 +9,7 @@ import Color
 
 import Lang exposing (..)
 import LangParser
-import TestParser
+import MicroTests
 import Sync
 import Utils
 
@@ -21,7 +21,7 @@ valToSvg_ v =
   let str = toString in
   case v of
     VList [VConst x _, VConst y _] ->
-      circle [ cx (str x), cy (str y), r "5" ] []
+      circle [ cx (str x), cy (str y), r "5", A.fill "#999999" ] []
 
 valToElt : Val -> Element
 valToElt v =
@@ -38,7 +38,7 @@ expToElt = showMonoString << Lang.sExp
 
 main : Element
 main =
-  let {e,v,vnew} = TestParser.test14 () in
+  let {e,v,vnew} = MicroTests.test16 () in
   let l1 = [ showString "Original Program", expToElt e
            , showString "Original Canvas", valToElt v
            , showString "Updated Canvas", valToElt vnew ] in

@@ -1,7 +1,7 @@
-module TestParser where
+module MicroTests where
 
-import Lang
 import LangParser exposing (parseV, parseE, freshen)
+import Eval
 
 _ `ignore` _ = ()
 
@@ -44,8 +44,8 @@ testParser = ()
 --------------------------------------------------------------------------------
 
 makeTest se sv' =
-  let e  = se |> parseE |> freshen 1 |> fst
-      v  = Lang.run e
+  let e  = freshen (parseE se)
+      v  = Eval.run e
       v' = parseV sv'
   in
   {e=e, v=v, vnew=v'}
@@ -136,4 +136,16 @@ test14 () =
      (let [x0 y0 sep] [10 8 30]
        (map (\\i [(+ x0 (mult i sep)) y0]) [0 1 2]))))"
     "[[10 8] [40 8] [100 8]]"
+
+test15 () =
+  makeTest
+    "(let [x0 y0 sep] [10 28 30]
+       (map (\\i [(+ x0 (mult i sep)) y0]) [0 1 2]))"
+    "[[10 28] [40 28] [100 28]]"
+
+test16 () =
+  makeTest
+    "(let [x0 y0 sep] [10 28 30]
+       (map (\\i [(+ x0 (mult i sep)) y0]) [0 1 2]))"
+    "[[150 28] [40 28] [70 28]]"
 
