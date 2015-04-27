@@ -65,34 +65,36 @@ type Event = CodeUpdate String
            | SelectObject (List Int)
            | DeselectObject (List Int)
            | MouseDown (Int, Int)
-           | MouseUp
 
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
 
 -- Update --
 upstate : Event -> Model -> Model
-upstate evt old = case evt of
+upstate evt old = case Debug.log "Event" evt of
     CodeUpdate newcode -> { old | code <- newcode }
-    MouseUp            -> { old | movingObj <- Nothing }
     MouseDown (mx, my) -> case old.movingObj of
-        Nothing                 ->
-            let maybeObj = pickObj (mx, my) (old.objects)
-            in case maybeObj of
-                Nothing -> old
-                Just (form, x, y) -> 
-                    { old | movingObj <- Just ((form, x, y)
-                                              , Basics.toFloat <| x - mx
-                                              , Basics.toFloat <| y - my                     
-                                              )
+        Nothing                 -> old
+        Just (obj, xdist, ydist) -> if
+            | xdist == -1.0 || ydist == -1.0 -> case obj of
+                (svg, xpos, ypos) -> 
+                    { old | movingObj <- Just (obj 
+                                               , Basics.toFloat <| xpos -  mx
+                                               , Basics.toFloat <| ypos - my) }
+            | otherwise -> 
+                let newpos = (Basics.toFloat mx + xdist, Basics.toFloat my + ydist)
+                    newobjs = List.map (updateObjPos newpos obj) old.objects
+                    moved = updateObjPos newpos obj obj
+                in  { old | objects <- newobjs 
+                          , movingObj <- Just 
+                                (moved, xdist, ydist)
                     }
-        Just (obj, xdist, ydist) ->
-            let newpos = (Basics.toFloat mx + xdist, Basics.toFloat my + ydist)
-                newobjs = List.map (updateObjPos newpos obj) old.objects
-            in  { old | objects <- newobjs 
-                      , movingObj <- Just 
-                            (updateObjPos newpos obj obj, xdist, ydist)
-                }
+    SelectObject [x,y] -> let match = List.filter 
+                                (\(o,x2,y2) -> x == x2 && y == y2)
+                                old.objects
+                          in case match of
+                              mat :: xs -> { old | movingObj <- Just (mat, -1.0, -1.0) }
+    DeselectObject [x,y] -> { old | movingObj <- Nothing }
     _ -> old
 
 
@@ -104,24 +106,14 @@ pickObj (mx, my) objs = case objs of
                              | otherwise -> pickObj (mx, my) xs
 
 updateObjPos : (Float, Float) -> Object -> Object -> Object
-updateObjPos (newx, newy) obj other = if
-    | obj == other -> let (oldsvg, xpos, ypos) = obj
-                      in (Svg.style
-                            [ Svg.Attributes.cx <| toString newx
-                            , Svg.Attributes.cy <| toString newy
-                            ]
-                            [oldsvg]
-                         , round newx, round newy)
-    | otherwise -> other
-
-mouseUp : Bool -> (Bool, Maybe Event) -> (Bool, Maybe Event)
-mouseUp newevt (oldevt, _) = case (oldevt, newevt) of
-    (True, False) -> (newevt, Just MouseUp)
-    _             -> (newevt, Nothing)
-
+updateObjPos (newx, newy) (o1,x1,y1) (o2,x2,y2) = if
+    | (x1,y1) == (x2,y2) -> 
+        case buildSquare [round newx, round newy] of
+            Just sq -> sq
+    | otherwise -> (o2,x2,y2)
 
 adjustCoords : (Int, Int) -> (Int, Int) -> (Int, Int)
-adjustCoords (w,h) (mx, my) = (mx - 3 * (w // 4), (-1 * my) + h // 2)
+adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
 
 -- View --
 codeBox : String -> Html.Html
@@ -145,7 +137,11 @@ visualsBox model dim =
     let
         intdim = floor (dim/20)
     in 
-        Svg.svg [] <| List.map (\(f,x,y) -> f) model.objects 
+        Svg.svg [ Attr.style
+                    [ ("width", "100%")
+                    , ("height", "100%")
+                    ]
+                ] <| List.map (\(f,x,y) -> f) model.objects 
 
 buildSquare : List Int -> Maybe (Svg.Svg, Int, Int)
 buildSquare coords =
@@ -218,17 +214,10 @@ main : Signal Html.Html
 main = let sigModel = Signal.foldp upstate sampleModel
                         <| Signal.mergeMany
                             [ events.signal
-                            , Signal.map (\(a,Just x) -> x)
-                                            <| Signal.filter (\(a,x) -> x /= Nothing)
-                                                             (False, Just
-                                                                     MouseUp)
-                                            <| Signal.foldp mouseUp 
-                                                            (False, Nothing)
-                                                            Mouse.isDown 
-                                        , Signal.map MouseDown
-                                            <| Signal.map2 adjustCoords
-                                                           Window.dimensions
-                                            <| (Signal.sampleOn Mouse.isDown
-                                                                  Mouse.position)
+                            , Signal.map2 (,) Mouse.isDown Mouse.position
+                                |> Signal.filter (\(x,y) -> x) (False, (0,0))
+                                |> Signal.map (\(x,y) -> y)
+                                |> Signal.map2 adjustCoords Window.dimensions
+                                |> Signal.map MouseDown
                             ]
        in Signal.map2 view Window.dimensions sigModel
