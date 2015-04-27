@@ -27,6 +27,8 @@ import Svg.Attributes
 import Svg.Events
 import Svg.Lazy
 
+import Debug
+
 -- Model --
 --code is the text from the codebox
 --output: the parsed representation
@@ -150,10 +152,11 @@ buildSquare coords =
     case coords of
         [x,y] -> 
                 Just (Svg.rect
-                    [ Svg.Attributes.cx <| toString x 
-                    , Svg.Attributes.cy <| toString y
+                    [ Svg.Attributes.x <| toString x 
+                    , Svg.Attributes.y <| toString y
                     , Svg.Attributes.width "60"
                     , Svg.Attributes.height "60"
+                    , Svg.Attributes.fill "blue"
                     , Svg.Events.onMouseDown (Signal.message events.address
                         (SelectObject coords)) --TODO id of some sort
                     , Svg.Events.onMouseUp (Signal.message events.address
@@ -188,15 +191,23 @@ view (w,h) model =
             ]
             [ Html.div 
                 [ Attr.style
-                    [ ("width", toString <| w // 2) 
-                    , ("height", toString <| h)
+                    [ ("width", String.append (toString <| w // 2 - 1) "px")
+                    , ("height", String.append (toString <| h - 20) "px")
+                    , ("margin", "0")
+                    , ("position", "absolute")
+                    , ("left", "0px")
+                    , ("top", "0px")
                     ]
                 ]
                 [codeBox model.code]
             , Html.div
                 [ Attr.style
-                    [ ("width", toString <| w // 2)
-                    , ("height", toString h)
+                    [ ("width", String.append (toString <| w // 2 - 1) "px")
+                    , ("height", String.append (toString h) "px")
+                    , ("margin", "0")
+                    , ("position", "absolute")
+                    , ("left", String.append (toString <| w // 2 - 1) "px")
+                    , ("top", "0px")
                     ]
                 ]    
                 [visualsBox model dim]
