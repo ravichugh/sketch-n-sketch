@@ -22,7 +22,10 @@ import Html exposing (..)
 import Html.Attributes as Attr exposing (..) 
 import Html.Events as Events exposing (..) 
 
---import Svg
+import Svg
+import Svg.Attributes
+import Svg.Events
+import Svg.Lazy
 
 -- Model --
 --code is the text from the codebox
@@ -37,7 +40,7 @@ type alias Model = { code : String
                     , movingObj : Maybe (Object, Float, Float)
                    }
 
-type alias Object = (GC.Form, Int, Int)
+type alias Object = (Svg.Svg, Int, Int)
 
 initModel = { code = ""
             , output = []
@@ -133,31 +136,32 @@ codeBox codeText =
         ]
         []
 
-visualsBox : Model -> Float -> List GC.Form
+visualsBox : Model -> Float -> Html.Html
 visualsBox model dim =
     let
         intdim = floor (dim/20)
     in 
-        List.map (\(f,x,y) -> GC.move (Basics.toFloat x, 
-                                Basics.toFloat y) 
-                                 f) model.objects
+        Svg.svg <| List.map (\(f,x,y) -> f) model.objects 
 
-buildSquare : List Int -> Maybe (Html.Html, Int, Int)
+buildSquare : List Int -> Maybe (Svg.Svg, Int, Int)
 buildSquare coords =
     case coords of
         [x,y] -> 
-                Just (Html.div
-                    [ Attr.style
-                        [ ("backgroundColor", "lightGreen")
-                        , ("height", "60px")
-                        , ("width", "60px")
-                        , ("border", "2px solid black")
-                        ]
-                    , Events.onClick events.address (SelectObject coords)
+                Just (Svg.rect
+                    [ Svg.Attribtes.cx "x" --TODO int to str
+                    , Svg.Attributes.cy "y" --TODO int to str
+                    , Svg.Attributes.width "60"
+                    , Svg.Attributes.height "60"
+                    , Svg.Events.onMouseDown (Signal.message events.address
+                        (SelectObject coords)) --TODO id of some sort
+                    , Svg.Events.onMouseUp (Signal.message events.address
+                        (DeselectObject coords)) --TODO Add this type
+                    , Svg.Events.onMouseOut (Signal.message events.address
+                        (DeselectObject coords)) --TODO Add this type
                     ]
                     []
-                , x
-                , y
+                , x --TODO no longer needed
+                , y --TODO no longer needed
                 )
         _     -> Nothing
 
@@ -169,21 +173,40 @@ justList l =
         _             -> []
 
 
-view : (Int, Int) -> Model -> GE.Element
+view : (Int, Int) -> Model -> Html.Html
 view (w,h) model = 
     let
         dim = (Basics.toFloat (Basics.min w h)) / 2
     in
-        GE.flow GE.right [ Html.toElement (w // 2) h
-                                        <| codeBox model.code
-                                    , GC.collage (w // 2) h
-                                        <| visualsBox model dim
-                                    ]
+        Html.div
+            [ Attr.style
+                [ ("width", w)
+                , ("height", h)
+                ]
+            ]
+            [ Html.div 
+                [ Attr.style
+                    [ ("width", w // 2) 
+                    , ("height", h)
+                    ]
+                ]
+                [codeBox model.code]
+            , Html.div
+                [ Attr.style
+                    [ ("width", w // 2)
+                    , ("height", h)
+                    ]
+                ]    
+                [visualsBox model dim]
+            ]
+            
+                    
+                                    
 
 
 
 -- Main --
-main : Signal Element
+main : Signal Html.Html
 main = let sigModel = Signal.foldp upstate sampleModel
                         <| Signal.mergeMany
                             [ events.signal
