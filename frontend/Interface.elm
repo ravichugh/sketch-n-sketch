@@ -51,9 +51,7 @@ initModel = { code = ""
 
 sampleModel = { code = "[[50,100],[150,100],[250,100]]"
             , output = [[50,100],[150,100],[250,100]] 
-            , objects = List.map (\(f,x,y) -> (GC.toForm f,x,y))
-                        <| List.map (\(l,w,z) -> (Html.toElement 50 50 l,w,z))
-                        <| justList
+            , objects = justList
                         <| List.map (\s -> buildSquare s) 
                             [[50,100],[150,100],[250,100]]
             , selected = Nothing
@@ -63,6 +61,7 @@ sampleModel = { code = "[[50,100],[150,100],[250,100]]"
 type Event = CodeUpdate String
            | OutputUpdate String
            | SelectObject (List Int)
+           | DeselectObject (List Int)
            | MouseDown (Int, Int)
            | MouseUp
 
@@ -80,9 +79,9 @@ upstate evt old = case evt of
             in case maybeObj of
                 Nothing -> old
                 Just (form, x, y) -> { old | movingObj <- Just ((form, x, y)
-                                                                 , form.x -
+                                                                 , x -
                                                                     Basics.toFloat mx
-                                                                 , form.y -
+                                                                 , y -
                                                                     Basics.toFloat my
                                                                  )
                                      }
@@ -100,14 +99,19 @@ upstate evt old = case evt of
 pickObj : (Int, Int) -> List Object -> Maybe Object
 pickObj (mx, my) objs = case objs of
     [] -> Nothing
-    (form, x, y) :: xs -> if | abs (form.x - Basics.toFloat mx) <= 20 
-                               && abs (form.y - Basics.toFloat my) <= 20 -> Just (form, x, y)
+    (form, x, y) :: xs -> if | abs (x - Basics.toFloat mx) <= 20 
+                               && abs (y - Basics.toFloat my) <= 20 -> Just (form, x, y)
                              | otherwise -> pickObj (mx, my) xs
 
 updateObjPos : (Float, Float) -> Object -> Object -> Object
 updateObjPos (newx, newy) obj other = if
-    | obj == other -> let (form, xpos, ypos) = obj
-                      in ({ form | x <- newx, y <- newy }, xpos, ypos)
+    | obj == other -> let (oldsvg, xpos, ypos) = obj
+                      in (Svg.style
+                            [ Svg.Attributes.cx <| toString newx
+                            , Svg.Attributes.cy <| toString newy
+                            ]
+                            [oldsvg]
+                         , newx, newy)
     | otherwise -> other
 
 mouseUp : Bool -> (Bool, Maybe Event) -> (Bool, Maybe Event)
@@ -148,8 +152,8 @@ buildSquare coords =
     case coords of
         [x,y] -> 
                 Just (Svg.rect
-                    [ Svg.Attribtes.cx "x" --TODO int to str
-                    , Svg.Attributes.cy "y" --TODO int to str
+                    [ Svg.Attributes.cx <| toString x 
+                    , Svg.Attributes.cy <| toString y
                     , Svg.Attributes.width "60"
                     , Svg.Attributes.height "60"
                     , Svg.Events.onMouseDown (Signal.message events.address
@@ -160,12 +164,12 @@ buildSquare coords =
                         (DeselectObject coords)) --TODO Add this type
                     ]
                     []
-                , x --TODO no longer needed
-                , y --TODO no longer needed
+                , x 
+                , y 
                 )
         _     -> Nothing
 
-justList : List (Maybe (Html.Html, Int, Int)) -> List (Html.Html, Int, Int)
+justList : List (Maybe (Svg.Svg, Int, Int)) -> List (Svg.Svg, Int, Int)
 justList l = 
     case l of
         Just v :: vs  -> v :: (justList vs)
@@ -180,21 +184,21 @@ view (w,h) model =
     in
         Html.div
             [ Attr.style
-                [ ("width", w)
-                , ("height", h)
+                [ ("width", toString w)
+                , ("height", toString h)
                 ]
             ]
             [ Html.div 
                 [ Attr.style
-                    [ ("width", w // 2) 
-                    , ("height", h)
+                    [ ("width", toString <| w // 2) 
+                    , ("height", toString <| h)
                     ]
                 ]
                 [codeBox model.code]
             , Html.div
                 [ Attr.style
-                    [ ("width", w // 2)
-                    , ("height", h)
+                    [ ("width", toString <| w // 2)
+                    , ("height", toString h)
                     ]
                 ]    
                 [visualsBox model dim]
