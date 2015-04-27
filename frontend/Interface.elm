@@ -22,6 +22,8 @@ import Html exposing (..)
 import Html.Attributes as Attr exposing (..) 
 import Html.Events as Events exposing (..) 
 
+--import Svg
+
 -- Model --
 --code is the text from the codebox
 --output: the parsed representation
@@ -60,9 +62,6 @@ type Event = CodeUpdate String
            | SelectObject (List Int)
            | MouseDown (Int, Int)
            | MouseUp
-
-events : Signal.Mailbox Event
-events = Signal.mailbox <| CodeUpdate ""
 
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
