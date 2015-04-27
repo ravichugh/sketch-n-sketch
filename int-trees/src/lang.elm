@@ -62,7 +62,7 @@ type alias Env = List (Ident, Val)
 strBaseVal v = case v of
   Bool True  -> "true"
   Bool False -> "false"
-  String s   -> "\"" ++ s ++ "\""
+  String s   -> "\'" ++ s ++ "\'"
   Star       -> "X"
 
 strVal     = strVal_ False
@@ -223,7 +223,7 @@ eqV (v1,v2) = case (v1, v2) of            -- equality modulo traces
     case Utils.maybeZip vs1 vs2 of
       Nothing -> False
       Just l  -> List.all eqV l
-  _ -> False
+  _ -> v1 == v2
   
 -- assuming that v1 is the value resulting from eval (so it has proper locs)
 -- and that v2 has dummy locs

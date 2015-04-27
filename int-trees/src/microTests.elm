@@ -1,5 +1,6 @@
 module MicroTests where
 
+import Lang exposing (strVal)
 import LangParser exposing (parseV, parseE, freshen)
 import Eval
 
@@ -148,4 +149,11 @@ test16 () =
     "(let [x0 y0 sep] [10 28 30]
        (map (\\i [(+ x0 (mult i sep)) y0]) [0 1 2]))"
     "[[150 28] [40 28] [70 28]]"
+
+test17 () =
+  makeTest
+    "(let [x0 y0 sep] [10 28 30]
+       (map (\\i (circle (+ x0 (mult i sep)) y0 10)) [0 1 2]))"
+    (strVal (Eval.run (parseE
+      "[(circle 150 28 10) (circle 40 28 10) (circle 70 28 10)]")))
 

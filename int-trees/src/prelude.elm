@@ -10,7 +10,10 @@ src = "
 (letrec mult (\\(m n)
    (if (< m 1) 0 (+ n (mult (- m 1) n))))
 
-0)))
+(let circle (\\(x y r)
+   ['circle' ['cx' x] ['cy' y] ['r' r]])
+
+0))))
 
 "
 

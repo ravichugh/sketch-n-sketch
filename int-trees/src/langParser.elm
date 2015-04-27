@@ -103,6 +103,8 @@ parseIdent =
   P.many (P.satisfy isAlphaNumeric) >>= \cs ->
     P.return (String.fromList (c::cs))
 
+parseStrLit = delimit "'" "'" parseIdent
+
 oneWhite : P.Parser ()
 oneWhite = always () <$> P.satisfy isWhitespace
 
@@ -126,10 +128,12 @@ parseIntE = flip EConst dummyLoc   <$> parseInt
 parseEBase =
       (always eTrue  <$> P.token "true")
   <++ (always eFalse <$> P.token "false")
+  <++ ((EBase << String) <$> parseStrLit)
 
 parseVBase =
       (always vTrue  <$> P.token "true")
   <++ (always vFalse <$> P.token "false")
+  <++ ((VBase << String) <$> parseStrLit)
 
 parseList_ sepBy start sep end p f =
   token_ start          >>>

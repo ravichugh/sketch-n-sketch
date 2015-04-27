@@ -1,7 +1,7 @@
 module MainSvg where
 
-import Svg exposing (..)
-import Svg.Attributes as A exposing (cx, cy, r)
+import Svg
+import Svg.Attributes as A
 import Html
 import Graphics.Element as E exposing (Element)
 import Text
@@ -13,15 +13,26 @@ import MicroTests
 import Sync
 import Utils
 
-valToSvg : Val -> List Svg
+str = toString
+
+valToSvg : Val -> List Svg.Svg
 valToSvg v = case v of
   VList vs -> List.map valToSvg_ vs
 
 valToSvg_ v =
-  let str = toString in
   case v of
-    VList [VConst x _, VConst y _] ->
-      circle [ cx (str x), cy (str y), r "5", A.fill "#999999" ] []
+    VList (VBase (String s) :: vs) -> (svg s) (List.map valToAttr vs) []
+
+funcsAttr = [ ("cx", A.cx), ("cy", A.cy), ("r", A.r) ]
+funcsSvg  = [ ("circle", Svg.circle) ]
+
+attr s = case Utils.maybeFind s funcsAttr of Just f -> f
+svg s  = case Utils.maybeFind s funcsSvg  of Just f -> f
+
+valToAttr : Val -> Svg.Attribute
+valToAttr v =
+  case v of
+    VList [VBase (String s), VConst i _] -> (attr s) (str i)
 
 valToElt : Val -> Element
 valToElt v =
@@ -38,7 +49,7 @@ expToElt = showMonoString << Lang.sExp
 
 main : Element
 main =
-  let {e,v,vnew} = MicroTests.test16 () in
+  let {e,v,vnew} = MicroTests.test17 () in
   let l1 = [ showString "Original Program", expToElt e
            , showString "Original Canvas", valToElt v
            , showString "Updated Canvas", valToElt vnew ] in
