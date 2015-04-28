@@ -8,12 +8,29 @@ src = "
   (case xs ([] []) ([hd|tl] [(f hd)|(map f tl)])))
 
 (letrec mult (\\(m n)
-   (if (< m 1) 0 (+ n (mult (- m 1) n))))
+  (if (< m 1) 0 (+ n (mult (- m 1) n))))
 
-(let circle (\\(x y r)
-   ['circle' ['cx' x] ['cy' y] ['r' r]])
+(let circle (\\(fill x y r)
+  ['circle' ['cx' x] ['cy' y] ['r' r] ['fill' fill]])
 
-0))))
+(let rect (\\(fill x y w h)
+  ['rect' ['x' x] ['y' y] ['width' w] ['height' h] ['fill' fill]])
+
+(let square (\\(fill x y side) (rect fill x y side side))
+
+(let line (\\(fill w x1 y1 x2 y2)
+  ['line' ['x1' x1] ['y1' y1] ['x2' x2] ['y2' y2] ['stroke' fill] ['strokeWidth' w]])
+
+(let polygon (\\(fill stroke w pts)
+  ['polygon' ['fill' fill] ['points' pts] ['stroke' stroke] ['strokeWidth' w]])
+
+(let circle_    (circle 'red')
+(let rect_      (rect '#999999')
+(let square_    (square '#999999')
+(let line_      (line 'blue' 2)
+(let polygon_   (polygon 'green' 'purple' 3)
+
+0)))))))))))))
 
 "
 

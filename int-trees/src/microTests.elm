@@ -153,7 +153,31 @@ test16 () =
 test17 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
-       (map (\\i (circle (+ x0 (mult i sep)) y0 10)) [0 1 2]))"
+       (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2]))"
     (strVal (Eval.run (parseE
-      "[(circle 150 28 10) (circle 40 28 10) (circle 70 28 10)]")))
+      "[(circle_ 150 28 10) (circle_ 40 28 10) (circle_ 70 28 10)]")))
+
+test18 () =
+  makeTest
+    "(let [x0 y0 sep] [10 28 30]
+       (map (\\i (square_ (+ x0 (mult i sep)) y0 20)) [0 1 2]))"
+    (strVal (Eval.run (parseE
+      "[(square_ 150 28 20) (square_ 40 28 20) (square_ 70 28 20)]")))
+
+test19 () =
+  makeTest
+    "(let [x0 y0 sep] [10 28 30]
+       (map (\\i (rect_ (+ x0 (mult i sep)) y0 20 30)) [0 1 2]))"
+    "[]"
+
+test20 () =
+  makeTest
+    "(let i 200 [(line_ 10 20 i 40) (line_ 10 70 i 40)])"
+    (strVal (Eval.run (parseE
+      "[(line_ 10 20 300 40) (line_ 10 70 200 40)]")))
+
+test21 () =
+  makeTest
+    "[(polygon_ [[10 10] [200 10] [100 50]])]"
+    "[]"
 

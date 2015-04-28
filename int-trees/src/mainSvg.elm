@@ -6,6 +6,7 @@ import Html
 import Graphics.Element as E exposing (Element)
 import Text
 import Color
+import Debug
 
 import Lang exposing (..)
 import LangParser
@@ -13,32 +14,66 @@ import MicroTests
 import Sync
 import Utils
 
-str = toString
-
 valToSvg : Val -> List Svg.Svg
 valToSvg v = case v of
-  VList vs -> List.map valToSvg_ vs
+  VList vs -> flip List.map vs <| \v1 -> case v1 of
+    VList (VBase (String shape) :: vs') ->
+      let attrs = flip List.map vs' <| \v2 -> case v2 of
+        VList [VBase (String a), VConst i _]       -> (attr a) (toString i)
+        VList [VBase (String a), VBase (String s)] -> (attr a) s
+        VList [VBase (String "points"), VList pts] ->
+          let s =
+            Utils.spaces <|
+              flip List.map pts <| \v3 -> case v3 of
+                VList [VConst x _, VConst y _] ->
+                  toString x ++ "," ++ toString y
+          in
+          (attr "points") s
+      in
+      (svg shape) attrs []
 
-valToSvg_ v =
-  case v of
-    VList (VBase (String s) :: vs) -> (svg s) (List.map valToAttr vs) []
+------------------------------------------------------------------------------
 
-funcsAttr = [ ("cx", A.cx), ("cy", A.cy), ("r", A.r) ]
-funcsSvg  = [ ("circle", Svg.circle) ]
+funcsSvg = [
+    ("circle", Svg.circle)
+  , ("line", Svg.line)
+  , ("polygon", Svg.polygon)
+  , ("rect", Svg.rect)
+  ]
 
-attr s = case Utils.maybeFind s funcsAttr of Just f -> f
-svg s  = case Utils.maybeFind s funcsSvg  of Just f -> f
+funcsAttr = [
+    ("cx", A.cx)
+  , ("cy", A.cy)
+  , ("fill", A.fill)
+  , ("height", A.height)
+  , ("points", A.points)
+  , ("r", A.r)
+  , ("stroke", A.stroke)
+  , ("strokeWidth", A.strokeWidth)
+  , ("width", A.width)
+  , ("x", A.x)
+  , ("x1", A.x1)
+  , ("x2", A.x2)
+  , ("y", A.y)
+  , ("y1", A.y1)
+  , ("y2", A.y2)
+  ]
 
-valToAttr : Val -> Svg.Attribute
-valToAttr v =
-  case v of
-    VList [VBase (String s), VConst i _] -> (attr s) (str i)
+find d s =
+  case Utils.maybeFind s d of
+    Just f  -> f
+    Nothing -> Debug.crash <| "MainSvg.find: " ++ s
+
+attr = find funcsAttr
+svg  = find funcsSvg
+
+------------------------------------------------------------------------------
 
 valToElt : Val -> Element
 valToElt v =
   E.color Color.lightGray <|
     let html = Svg.svg [] (valToSvg v) in
-    let (w,h) = (400, 100) in
+    let (w,h) = (600, 100) in
     Html.toElement w h html
 
 showMonoString s = E.leftAligned (Text.monospace (Text.fromString s))
@@ -49,7 +84,7 @@ expToElt = showMonoString << Lang.sExp
 
 main : Element
 main =
-  let {e,v,vnew} = MicroTests.test17 () in
+  let {e,v,vnew} = MicroTests.test21 () in
   let l1 = [ showString "Original Program", expToElt e
            , showString "Original Canvas", valToElt v
            , showString "Updated Canvas", valToElt vnew ] in

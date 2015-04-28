@@ -99,11 +99,14 @@ parseInt = (unsafeToInt << String.fromList) <$> P.some (P.satisfy Char.isDigit)
 -- TODO allow '_', disambiguate from wildcard in parsePat
 parseIdent : P.Parser String
 parseIdent =
+  let pred c = isAlphaNumeric c || c == '_' in
   P.satisfy isAlpha                 >>= \c ->
-  P.many (P.satisfy isAlphaNumeric) >>= \cs ->
+  P.many (P.satisfy pred)           >>= \cs ->
     P.return (String.fromList (c::cs))
 
-parseStrLit = delimit "'" "'" parseIdent
+parseStrLit =
+  let pred c = isAlphaNumeric c || c == '#' in
+  delimit "'" "'" (String.fromList <$> P.many (P.satisfy pred))
 
 oneWhite : P.Parser ()
 oneWhite = always () <$> P.satisfy isWhitespace
