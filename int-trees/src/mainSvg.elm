@@ -73,6 +73,7 @@ valToElt : Val -> Element
 valToElt v =
   E.color Color.lightGray <|
     let html = Svg.svg [] (valToSvg v) in
+    -- let html = Svg.svg [ A.x "0", A.y "0", A.viewBox "0 0 323.141 322.95" ] (valToSvg v) in
     let (w,h) = (600, 100) in
     Html.toElement w h html
 
@@ -84,7 +85,7 @@ expToElt = showMonoString << Lang.sExp
 
 main : Element
 main =
-  let {e,v,vnew} = MicroTests.test21 () in
+  let {e,v,vnew} = MicroTests.test22 () in
   let l1 = [ showString "Original Program", expToElt e
            , showString "Original Canvas", valToElt v
            , showString "Updated Canvas", valToElt vnew ] in

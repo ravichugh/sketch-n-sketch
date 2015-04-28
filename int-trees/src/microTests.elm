@@ -181,3 +181,18 @@ test21 () =
     "[(polygon_ [[10 10] [200 10] [100 50]])]"
     "[]"
 
+-- approximation of elm logo:
+-- https://github.com/evancz/elm-svg/blob/1.0.2/examples/Logo.elm
+test22 () =
+  makeTest
+    "(let foo (\\(color pts) (polygon color 'black' 0 pts))
+     [ (foo '#F0AD00' [[161 152] [231 82] [91 82]])
+       (foo '#7FD13B' [[8 0] [79 70] [232 70] [161 0]])
+       (rect '#7FD13B' 192 107 107 108)
+       (foo '#60B5CC' [[323 143] [323 0] [179 0]])
+       (foo '#5A6378' [[152 161] [0 8] [0 314]])
+       (foo '#F0AD00' [[255 246] [323 314] [323 178]])
+       (foo '#60B5CC' [[161 170] [8 323] [314 323]])
+     ])"
+    "[]"
+
