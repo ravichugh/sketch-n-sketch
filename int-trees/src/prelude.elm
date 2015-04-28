@@ -19,10 +19,12 @@ src = "
 (let square (\\(fill x y side) (rect fill x y side side))
 
 (let line (\\(fill w x1 y1 x2 y2)
-  ['line' ['x1' x1] ['y1' y1] ['x2' x2] ['y2' y2] ['stroke' fill] ['strokeWidth' w]])
+  ['line' ['x1' x1] ['y1' y1] ['x2' x2] ['y2' y2]
+          ['stroke' fill] ['strokeWidth' w]])
 
 (let polygon (\\(fill stroke w pts)
-  ['polygon' ['fill' fill] ['points' pts] ['stroke' stroke] ['strokeWidth' w]])
+  ['polygon' ['fill' fill] ['points' pts]
+             ['stroke' stroke] ['strokeWidth' w]])
 
 (let circle_    (circle 'red')
 (let rect_      (rect '#999999')

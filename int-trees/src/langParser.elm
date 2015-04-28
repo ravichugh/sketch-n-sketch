@@ -140,22 +140,24 @@ parseVBase =
 
 parseList_ sepBy start sep end p f =
   token_ start          >>>
-  sepBy p (P.token sep) >>= \xs ->
+  sepBy p sep           >>= \xs ->
   token_ end            >>>
     P.return (f xs)
 
 parseList :
-  String -> String -> String -> P.Parser a -> (List a -> b) -> P.Parser b
+  String -> P.Parser sep -> String -> P.Parser a -> (List a -> b) -> P.Parser b
 
 parseList  = parseList_ P.sepBy
 parseList1 = parseList_ P.sepBy1
 
-parseListLiteral p f = parseList "[" " " "]" p f
+parseListLiteral p f = parseList "[" listSep "]" p f
+
+listSep = P.token " " <++ P.token "\n" -- duplicating isWhitespace...
 
 parseMultiCons p f =
-  parseList1 "[" " " "|" p identity >>= \xs ->
-  p                                 >>= \y ->
-  token_ "]"                        >>>
+  parseList1 "[" listSep "|" p identity >>= \xs ->
+  p                                     >>= \y ->
+  token_ "]"                            >>>
     P.return (f xs y)
 
 parseListLiteralOrMultiCons p f g = P.recursively <| \_ ->
@@ -218,7 +220,7 @@ parsePatList =
 
 parsePats =
       (parsePat >>= (single >> P.return))
-  <++ (parseList1 "(" " " ")" parsePat identity)
+  <++ (parseList1 "(" listSep ")" parsePat identity)
 
 parseApp =
   parens <|
@@ -227,7 +229,7 @@ parseApp =
     parseExpArgs >>= \es ->
       P.return (EApp f es)
 
-parseExpArgs = parseList1 "" " " "" parseExp identity
+parseExpArgs = parseList1 "" listSep "" parseExp identity
 
 parseExpList =
   parseListLiteralOrMultiCons
@@ -281,7 +283,7 @@ parseCase =
       P.return (ECase e l)
 
 parseBranches = P.recursively <| \_ ->
-  parseList1 "" " " "" parseBranch identity
+  parseList1 "" listSep "" parseBranch identity
 
 parseBranch =
   parens <|
