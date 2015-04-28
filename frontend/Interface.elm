@@ -22,6 +22,13 @@ import Html exposing (..)
 import Html.Attributes as Attr exposing (..) 
 import Html.Events as Events exposing (..) 
 
+import Svg
+import Svg.Attributes
+import Svg.Events
+import Svg.Lazy
+
+import Debug
+
 -- Model --
 --code is the text from the codebox
 --output: the parsed representation
@@ -35,7 +42,7 @@ type alias Model = { code : String
                     , movingObj : Maybe (Object, Float, Float)
                    }
 
-type alias Object = (GC.Form, Int, Int)
+type alias Object = (Svg.Svg, Int, Int)
 
 initModel = { code = ""
             , output = []
@@ -46,9 +53,7 @@ initModel = { code = ""
 
 sampleModel = { code = "[[50,100],[150,100],[250,100]]"
             , output = [[50,100],[150,100],[250,100]] 
-            , objects = List.map (\(f,x,y) -> (GC.toForm f,x,y))
-                        <| List.map (\(l,w,z) -> (Html.toElement 50 50 l,w,z))
-                        <| justList
+            , objects = justList
                         <| List.map (\s -> buildSquare s) 
                             [[50,100],[150,100],[250,100]]
             , selected = Nothing
@@ -58,61 +63,54 @@ sampleModel = { code = "[[50,100],[150,100],[250,100]]"
 type Event = CodeUpdate String
            | OutputUpdate String
            | SelectObject (List Int)
+           | DeselectObject (List Int)
            | MouseDown (Int, Int)
-           | MouseUp
-
-events : Signal.Mailbox Event
-events = Signal.mailbox <| CodeUpdate ""
 
 -- Update --
 upstate : Event -> Model -> Model
-upstate evt old = case evt of
+upstate evt old = case Debug.log "Event" evt of
     CodeUpdate newcode -> { old | code <- newcode }
-    MouseUp            -> { old | movingObj <- Nothing }
     MouseDown (mx, my) -> case old.movingObj of
-        Nothing                 ->
-            let maybeObj = pickObj (mx, my) (old.objects)
-            in case maybeObj of
-                Nothing -> old
-                Just (form, x, y) -> { old | movingObj <- Just ((form, x, y)
-                                                                 , form.x -
-                                                                    Basics.toFloat mx
-                                                                 , form.y -
-                                                                    Basics.toFloat my
-                                                                 )
-                                     }
-        Just (obj, xdist, ydist) ->
-            let newpos = (Basics.toFloat mx + xdist, Basics.toFloat my + ydist)
-                newobjs = List.map (updateObjPos newpos obj)
-                                    old.objects
-            in  { old | objects <- newobjs 
-                        , movingObj <- Just 
-                            (updateObjPos newpos obj obj, xdist, ydist)
-                }
+        Nothing                 -> old
+        Just (obj, xdist, ydist) -> if
+            | xdist == -1.0 || ydist == -1.0 -> case obj of
+                (svg, xpos, ypos) -> 
+                    { old | movingObj <- Just (obj 
+                                               , Basics.toFloat <| xpos -  mx
+                                               , Basics.toFloat <| ypos - my) }
+            | otherwise -> 
+                let newpos = (Basics.toFloat mx + xdist, Basics.toFloat my + ydist)
+                    newobjs = List.map (updateObjPos newpos obj) old.objects
+                    moved = updateObjPos newpos obj obj
+                in  { old | objects <- newobjs 
+                          , movingObj <- Just 
+                                (moved, xdist, ydist)
+                    }
+    SelectObject [x,y] -> let match = List.filter 
+                                (\(o,x2,y2) -> x == x2 && y == y2)
+                                old.objects
+                          in case match of
+                              mat :: xs -> { old | movingObj <- Just (mat, -1.0, -1.0) }
+    DeselectObject [x,y] -> { old | movingObj <- Nothing }
     _ -> old
 
 
 pickObj : (Int, Int) -> List Object -> Maybe Object
 pickObj (mx, my) objs = case objs of
     [] -> Nothing
-    (form, x, y) :: xs -> if | abs (form.x - Basics.toFloat mx) <= 20 
-                               && abs (form.y - Basics.toFloat my) <= 20 -> Just (form, x, y)
+    (form, x, y) :: xs -> if | abs (Basics.toFloat <| x - mx) <= 20 
+                               && abs (Basics.toFloat <| y - my) <= 20 -> Just (form, x, y)
                              | otherwise -> pickObj (mx, my) xs
 
 updateObjPos : (Float, Float) -> Object -> Object -> Object
-updateObjPos (newx, newy) obj other = if
-    | obj == other -> let (form, xpos, ypos) = obj
-                      in ({ form | x <- newx, y <- newy }, xpos, ypos)
-    | otherwise -> other
-
-mouseUp : Bool -> (Bool, Maybe Event) -> (Bool, Maybe Event)
-mouseUp newevt (oldevt, _) = case (oldevt, newevt) of
-    (True, False) -> (newevt, Just MouseUp)
-    _             -> (newevt, Nothing)
-
+updateObjPos (newx, newy) (o1,x1,y1) (o2,x2,y2) = if
+    | (x1,y1) == (x2,y2) -> 
+        case buildSquare [round newx, round newy] of
+            Just sq -> sq
+    | otherwise -> (o2,x2,y2)
 
 adjustCoords : (Int, Int) -> (Int, Int) -> (Int, Int)
-adjustCoords (w,h) (mx, my) = (mx - 3 * (w // 4), (-1 * my) + h // 2)
+adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
 
 -- View --
 codeBox : String -> Html.Html
@@ -131,35 +129,41 @@ codeBox codeText =
         ]
         []
 
-visualsBox : Model -> Float -> List GC.Form
+visualsBox : Model -> Float -> Html.Html
 visualsBox model dim =
     let
         intdim = floor (dim/20)
     in 
-        List.map (\(f,x,y) -> GC.move (Basics.toFloat x, 
-                                Basics.toFloat y) 
-                                 f) model.objects
+        Svg.svg [ Attr.style
+                    [ ("width", "100%")
+                    , ("height", "100%")
+                    ]
+                ] <| List.map (\(f,x,y) -> f) model.objects 
 
-buildSquare : List Int -> Maybe (Html.Html, Int, Int)
+buildSquare : List Int -> Maybe (Svg.Svg, Int, Int)
 buildSquare coords =
     case coords of
         [x,y] -> 
-                Just (Html.div
-                    [ Attr.style
-                        [ ("backgroundColor", "lightGreen")
-                        , ("height", "60px")
-                        , ("width", "60px")
-                        , ("border", "2px solid black")
-                        ]
-                    , Events.onClick events.address (SelectObject coords)
+                Just (Svg.rect
+                    [ Svg.Attributes.x <| toString x 
+                    , Svg.Attributes.y <| toString y
+                    , Svg.Attributes.width "60"
+                    , Svg.Attributes.height "60"
+                    , Svg.Attributes.fill "blue"
+                    , Svg.Events.onMouseDown (Signal.message events.address
+                        (SelectObject coords)) --TODO id of some sort
+                    , Svg.Events.onMouseUp (Signal.message events.address
+                        (DeselectObject coords)) --TODO Add this type
+                    , Svg.Events.onMouseOut (Signal.message events.address
+                        (DeselectObject coords)) --TODO Add this type
                     ]
                     []
-                , x
-                , y
+                , x 
+                , y 
                 )
         _     -> Nothing
 
-justList : List (Maybe (Html.Html, Int, Int)) -> List (Html.Html, Int, Int)
+justList : List (Maybe (Svg.Svg, Int, Int)) -> List (Svg.Svg, Int, Int)
 justList l = 
     case l of
         Just v :: vs  -> v :: (justList vs)
@@ -167,35 +171,50 @@ justList l =
         _             -> []
 
 
-view : (Int, Int) -> Model -> GE.Element
+view : (Int, Int) -> Model -> Html.Html
 view (w,h) model = 
     let
         dim = (Basics.toFloat (Basics.min w h)) / 2
     in
-        GE.flow GE.right [ Html.toElement (w // 2) h
-                                        <| codeBox model.code
-                                    , GC.collage (w // 2) h
-                                        <| visualsBox model dim
-                                    ]
-
-
+        Html.div
+            [ Attr.style
+                [ ("width", toString w)
+                , ("height", toString h)
+                ]
+            ]
+            [ Html.div 
+                [ Attr.style
+                    [ ("width", String.append (toString <| w // 2 - 1) "px")
+                    , ("height", String.append (toString <| h - 20) "px")
+                    , ("margin", "0")
+                    , ("position", "absolute")
+                    , ("left", "0px")
+                    , ("top", "0px")
+                    ]
+                ]
+                [codeBox model.code]
+            , Html.div
+                [ Attr.style
+                    [ ("width", String.append (toString <| w // 2 - 1) "px")
+                    , ("height", String.append (toString h) "px")
+                    , ("margin", "0")
+                    , ("position", "absolute")
+                    , ("left", String.append (toString <| w // 2 - 1) "px")
+                    , ("top", "0px")
+                    ]
+                ]    
+                [visualsBox model dim]
+            ]
 
 -- Main --
-main : Signal Element
+main : Signal Html.Html
 main = let sigModel = Signal.foldp upstate sampleModel
                         <| Signal.mergeMany
                             [ events.signal
-                            , Signal.map (\(a,Just x) -> x)
-                                            <| Signal.filter (\(a,x) -> x /= Nothing)
-                                                             (False, Just
-                                                                     MouseUp)
-                                            <| Signal.foldp mouseUp 
-                                                            (False, Nothing)
-                                                            Mouse.isDown 
-                                        , Signal.map MouseDown
-                                            <| Signal.map2 adjustCoords
-                                                           Window.dimensions
-                                            <| (Signal.sampleOn Mouse.isDown
-                                                                  Mouse.position)
+                            , Signal.map2 (,) Mouse.isDown Mouse.position
+                                |> Signal.filter (\(x,y) -> x) (False, (0,0))
+                                |> Signal.map (\(x,y) -> y)
+                                |> Signal.map2 adjustCoords Window.dimensions
+                                |> Signal.map MouseDown
                             ]
        in Signal.map2 view Window.dimensions sigModel
