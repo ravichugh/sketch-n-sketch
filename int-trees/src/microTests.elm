@@ -198,3 +198,39 @@ test22 () =
      ])"
     "[]"
 
+test23 () =
+  makeTest
+    "(let [x0 y0 sep] [10 28 30]
+       (map2 (\\(i j) (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 20))
+             [0 1 2] [0 1 2]))"
+    (strVal (Eval.run (parseE
+      "[(square_ 150 28 20) (square_ 40 58 20) (square_ 70 88 20)]")))
+
+test24 () =
+  makeTest
+    "(let [x0 y0 sep] [10 28 30]
+       (map2 (\\(i j) (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 20))
+             [0 1 2] [0 1 2]))"
+    (strVal (Eval.run (parseE
+      "[(square_ 10 28 20) (square_ 40 58 20) (square_ 100 88 20)]")))
+
+test25 () =
+  makeTest
+    "(let [x0 y0 sep] [10 28 30]
+       (map2 (\\(i j) (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 20))
+             [0 1 2] [0 1 2]))"
+    (strVal (Eval.run (parseE
+      "[(square_ 10 28 20) (square_ 40 58 20) (square_ 100 108 20)]")))
+
+test26 () =
+  makeTest
+    "(let [x0 y0 sep] [10 28 30]
+       (map (\\[i j] (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 20))
+            (cartProd [0 1 2] [0 1])))"
+    "[['rect' ['x' 10] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 10] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 40] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 40] ['y' 99] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 70] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 70] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']]]"
+
