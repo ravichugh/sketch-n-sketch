@@ -6,6 +6,7 @@
 import Lang exposing (..) --For access to what makes up the Vals
 import LangParser exposing (freshen, parseE, parseV)
 import Sync exposing (sync)
+import Eval exposing (run)
 
 import List 
 import Dict
