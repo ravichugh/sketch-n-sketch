@@ -105,40 +105,62 @@ sExpLocs    = sExpLocsK 0
 
 sExp_ showLocs k e =
   let foo = sExp_ showLocs in
+  let indent = maybeIndent showLocs k in
   case e of
-    EBase v        -> strBaseVal v
-    EConst i l     -> toString i
-                        ++ if | showLocs  -> Utils.braces (strLoc l)
-                              | otherwise -> ""
-    EVar x         -> x
-    EFun [p] e     -> Utils.parens <|
-                        "\\" ++ strPat p ++ "\n" ++ tab (k+1) ++ foo (k+1) e
-    EFun ps e      -> Utils.parens <|
-                        "\\" ++ Utils.parens (Utils.spaces (List.map strPat ps)) ++ "\n" ++
-                          tab (k+1) ++ foo (k+1) e
-    EApp e1 [e2]   -> Utils.parens <| foo k e1 ++ " " ++ foo k e2
-    EApp e1 es     -> Utils.parens <|
-                        foo k e1 ++ " " ++ Utils.spaces (List.map (foo k) es)
-    EOp op [e1,e2] -> Utils.parens <|
-                        String.join " " [strOp op, foo k e1, foo k e2]
-    EList es mrest -> Utils.bracks <|
-                        let s = String.join " " (List.map (foo k) es) in
-                        case mrest of
-                          Nothing -> s
-                          Just e  -> s ++ " | " ++ foo k e
-    EIf e1 e2 e3   -> Utils.parens <|
-                        "if " ++ foo k e1 ++ "\n" ++
-                          tab (k+1) ++ foo (k+1) e2 ++ "\n" ++
-                          tab (k+1) ++ foo (k+1) e3
-    ELet b p e1 e2 -> Utils.parens <|
-                        (if b then "letrec " else "let ") ++ strPat p ++ "\n" ++
-                          tab (k+1) ++ foo (k+1) e1 ++ "\n" ++
-                          tab (k+1) ++ foo (k+1) e2
+    EBase v -> strBaseVal v
+    EConst i l ->
+      toString i ++ if showLocs then Utils.braces (strLoc l) else ""
+    EVar x -> x
+    EFun [p] e ->
+      Utils.parens <| "\\" ++ strPat p ++ indent e
+    EFun ps e ->
+      let args = Utils.spaces (List.map strPat ps) in
+      Utils.parens <| "\\" ++ Utils.parens args ++ indent e
+    EApp e1 [e2] ->
+      Utils.parens <| foo k e1 ++ " " ++ foo k e2
+    EApp e1 es ->
+      Utils.parens <| foo k e1 ++ " " ++ Utils.spaces (List.map (foo k) es)
+    EOp op [e1,e2] ->
+      Utils.parens <| String.join " " [strOp op, foo k e1, foo k e2]
+    EIf e1 e2 e3 ->
+      Utils.parens <|
+        "if " ++ foo k e1 ++ "\n" ++
+          tab (k+1) ++ foo (k+1) e2 ++ "\n" ++
+          tab (k+1) ++ foo (k+1) e3
+    EList es mrest ->
+      Utils.bracks <|
+        let ss = List.map (foo k) es
+            s  = Utils.spaces ss in
+        if fitsOnLine s then
+          case mrest of
+            Nothing -> s
+            Just e  -> s ++ " | " ++ foo k e
+        else
+          let s = String.join ("\n" ++ tab k ++ " ") ss in
+          case mrest of
+            Nothing -> s
+            Just e  -> s ++ "\n" ++ tab k ++ "|" ++ foo k e
+    ELet b p e1 e2 ->
+      Utils.parens <|
+        let k' = case e2 of {ELet _ _ _ _ -> k; _ -> k+1} in
+        (if b then "letrec " else "let ") ++ strPat p ++
+          indent e1 ++ "\n" ++
+          tab k' ++ foo k' e2
     ECase e1 l ->
       let bar (pi,ei) =
         tab (k+1) ++ Utils.parens (strPat pi ++ " " ++ foo (k+1) ei) in
       Utils.parens <|
         "case " ++ foo k e1 ++ "\n" ++ Utils.lines (List.map bar l)
+
+maybeIndent showLocs k e =
+  let s = sExp_ showLocs (k+1) e in
+  if | fitsOnLine s -> " " ++ s
+     | otherwise    -> "\n" ++ tab (k+1) ++ s
+
+fitsOnLine s =
+  if | String.length s > 70               -> False
+     | List.member '\n' (String.toList s) -> False
+     | otherwise                          -> True
 
 
 ------------------------------------------------------------------------------
