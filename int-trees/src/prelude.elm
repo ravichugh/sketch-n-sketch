@@ -7,6 +7,33 @@ src = "
 (letrec map (\\(f xs)
   (case xs ([] []) ([hd|tl] [(f hd)|(map f tl)])))
 
+(letrec map2 (\\(f xs ys)
+  (case [xs ys]
+    ([[x|xs1] [y|ys1]] [ (f x y) | (map2 f xs1 ys1) ])
+    (_                 [])))
+
+(letrec foldl (\\(f acc xs)
+  (case xs ([] acc) ([x|xs1] (foldl f (f x acc) xs1))))
+
+(letrec foldr (\\(f acc xs)
+  (case xs ([] acc) ([x|xs1] (f x (foldr f acc xs1)))))
+
+(letrec append (\\(xs ys)
+  (case xs ([] ys) ([x|xs1] [ x | (append xs1 ys)])))
+
+(let concat (foldr append [])
+
+(let concatMap (\\(f xs) (concat (map f xs)))
+
+(let cartProd (\\(xs ys)
+  (concatMap (\\x (map (\\y [x y]) ys)) xs))
+
+(let cons (\\(x xs) [x | xs])
+(let hd   (\\[x|xs] x)
+(let tl   (\\[x|xs] xs)
+
+(let plus (\\(x y) (+ x y))
+
 (letrec mult (\\(m n)
   (if (< m 1) 0 (+ n (mult (- m 1) n))))
 
@@ -32,7 +59,7 @@ src = "
 (let line_      (line 'blue' 2)
 (let polygon_   (polygon 'green' 'purple' 3)
 
-0)))))))))))))
+0))))))))))))))))))))))))
 
 "
 
