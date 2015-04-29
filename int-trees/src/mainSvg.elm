@@ -83,9 +83,8 @@ showString s     = E.leftAligned (Text.fromString s)
 expToElt : Exp -> Element
 expToElt = showMonoString << Lang.sExp
 
-main : Element
-main =
-  let {e,v,vnew} = MicroTests.test22 () in
+showOne test =
+  let {e,v,vnew} = test in
   let l1 = [ showString "Original Program", expToElt e
            , showString "Original Canvas", valToElt v
            , showString "Updated Canvas", valToElt vnew ] in
@@ -100,8 +99,23 @@ main =
           , valToElt vi
           ]
   in
+  let br = Html.toElement   1 20 (Html.br [] []) in
+  let hr = Html.toElement 600 20 (Html.hr [] []) in
   E.flow E.right [
     E.spacer 10 10
-  , E.flow E.down (List.intersperse (E.spacer 10 10) (l1 ++ List.concat l2))
+  , E.flow E.down
+      (List.intersperse (E.spacer 10 10) (l1 ++ List.concat l2) ++ [br,hr,br])
   ]
+
+main : Element
+main =
+  let tests = [
+      MicroTests.test17 ()
+    , MicroTests.test18 ()
+    , MicroTests.test19 ()
+    , MicroTests.test20 ()
+    , MicroTests.test21 ()
+    , MicroTests.test22 ()
+  ] in
+  E.flow E.down (List.map showOne tests)
 
