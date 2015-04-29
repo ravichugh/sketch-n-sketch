@@ -3,10 +3,10 @@
 -- program and output of the language as defined in int-trees.
 
 --Import the language and its parsing utilities
---import Lang
---import LangParser
---import Sync
---import Utils
+import Lang
+import LangParser
+import Sync
+import Utils
 
 import List exposing (..)
 import Dict exposing (..)
