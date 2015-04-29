@@ -2,11 +2,10 @@
 -- This defines and renders an interactive interface for editing the
 -- program and output of the language as defined in int-trees.
 
---Import the language and its parsing utilities
-import Lang
-import LangParser
-import Sync
-import Utils
+--Import the little language and its parsing utilities
+import Lang exposing (..) --For access to what makes up the Vals
+import LangParser exposing (freshen, parseE, parseV)
+import Sync exposing (sync)
 
 import List exposing (..)
 import Dict exposing (..)
@@ -65,6 +64,9 @@ type Event = CodeUpdate String
            | SelectObject (List Int)
            | DeselectObject (List Int)
            | MouseDown (Int, Int)
+
+events : Signal.Mailbox Event
+events = Signal.mailbox <| CodeUpdate ""
 
 -- Update --
 upstate : Event -> Model -> Model
