@@ -59,7 +59,7 @@ initModel = { code = ""
 --Just as in microTests
 sampleFields se =
     let e = freshen (parseE se)
-        v = Eval.run e
+        v = run e
     in {e=e, v=v}
 
 sampleCode = 
