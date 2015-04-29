@@ -110,7 +110,9 @@ showOne test =
 main : Element
 main =
   let tests = [
-      MicroTests.test17 ()
+      MicroTests.test15 ()
+    , MicroTests.test16 ()
+    , MicroTests.test17 ()
     , MicroTests.test18 ()
     , MicroTests.test19 ()
     , MicroTests.test20 ()

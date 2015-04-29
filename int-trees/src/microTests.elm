@@ -141,21 +141,23 @@ test14 () =
 test15 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
-       (map (\\i [(+ x0 (mult i sep)) y0]) [0 1 2]))"
-    "[[10 28] [40 28] [100 28]]"
+       (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2]))"
+    (strVal (Eval.run (parseE
+      "[(circle_ 10 28 10) (circle_ 40 28 10) (circle_ 100 28 10)]")))
 
 test16 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
-       (map (\\i [(+ x0 (mult i sep)) y0]) [0 1 2]))"
-    "[[150 28] [40 28] [70 28]]"
+       (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2]))"
+    (strVal (Eval.run (parseE
+      "[(circle_ 150 28 10) (circle_ 40 28 10) (circle_ 70 28 10)]")))
 
 test17 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
        (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2]))"
     (strVal (Eval.run (parseE
-      "[(circle_ 150 28 10) (circle_ 40 28 10) (circle_ 70 28 10)]")))
+      "[(circle_ 10 28 10) (circle_ 150 28 10) (circle_ 70 28 10)]")))
 
 test18 () =
   makeTest
