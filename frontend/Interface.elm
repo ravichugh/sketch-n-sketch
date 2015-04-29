@@ -153,9 +153,9 @@ buildSquare coords =
                     , Svg.Events.onMouseDown (Signal.message events.address
                         (SelectObject coords)) --TODO id of some sort
                     , Svg.Events.onMouseUp (Signal.message events.address
-                        (DeselectObject coords)) --TODO Add this type
+                        (DeselectObject coords))
                     , Svg.Events.onMouseOut (Signal.message events.address
-                        (DeselectObject coords)) --TODO Add this type
+                        (DeselectObject coords))
                     ]
                     []
                 , x 
