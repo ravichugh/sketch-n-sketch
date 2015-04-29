@@ -112,10 +112,10 @@ oneWhite : P.Parser ()
 oneWhite = always () <$> P.satisfy isWhitespace
 
 manySpaces : P.Parser ()
-manySpaces = always () <$> P.many oneWhite
+manySpaces = always () <$> P.munch isWhitespace
 
 someSpaces : P.Parser ()
-someSpaces = always () <$> P.some oneWhite
+someSpaces = always () <$> P.munch1 isWhitespace
 
 white : P.Parser a -> P.Parser a
 white p = manySpaces >>> p
