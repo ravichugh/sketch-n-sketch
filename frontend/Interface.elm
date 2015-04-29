@@ -66,6 +66,8 @@ type Event = CodeUpdate String
            | DeselectObject (List Int)
            | MouseDown (Int, Int)
 
+events : Signal.Mailbox Event
+events = Signal.mailbox <| CodeUpdate ""
 -- Update --
 upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
