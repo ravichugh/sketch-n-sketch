@@ -7,19 +7,17 @@ import Lang exposing (..) --For access to what makes up the Vals
 import LangParser exposing (freshen, parseE, parseV)
 import Sync exposing (sync)
 
-import List exposing (..)
-import Dict exposing (..)
-import String exposing (..)
-import Graphics.Element as GE exposing (..)
-import Graphics.Collage as GC exposing (..)
-import Result exposing (..)
-import Signal exposing (..)
+import List 
+import Dict
+import String 
+import Graphics.Element as GE 
+import Graphics.Collage as GC
 
-import Mouse exposing (..)
-import Window exposing (..)
-import Html exposing (..)
-import Html.Attributes as Attr exposing (..) 
-import Html.Events as Events exposing (..) 
+import Mouse 
+import Window 
+import Html 
+import Html.Attributes as Attr
+import Html.Events as Events
 
 import Svg
 import Svg.Attributes
@@ -35,10 +33,10 @@ import Debug
 --objects: a list of the objects
 --selected: the possible key of a selected object
 type alias Model = { code : String
-                    , output : List (List Int) --temporary
-                    , objects : List Object
-                    , selected : Maybe (List Int)
-                    , movingObj : Maybe (Object, Float, Float)
+                   , output : List (List Int) --temporary
+                   , objects : List Object
+                   , selected : Maybe (List Int)
+                   , movingObj : Maybe (Object, Float, Float)
                    }
 
 type alias Object = (Svg.Svg, Int, Int)
@@ -50,14 +48,14 @@ initModel = { code = ""
             , movingObj = Nothing
             }
 
-sampleModel = { code = "[[50,100],[150,100],[250,100]]"
-            , output = [[50,100],[150,100],[250,100]] 
-            , objects = justList
-                        <| List.map (\s -> buildSquare s) 
-                            [[50,100],[150,100],[250,100]]
-            , selected = Nothing
-            , movingObj = Nothing
-            }
+sampleModel = { code      = "[[50,100],[150,100],[250,100]]"
+              , output    = [[50,100],[150,100],[250,100]] 
+              , objects   = justList
+                              <| List.map (\s -> buildSquare s) 
+                                   [[50,100],[150,100],[250,100]]
+              , selected  = Nothing
+              , movingObj = Nothing
+              }
 
 type Event = CodeUpdate String
            | OutputUpdate String
