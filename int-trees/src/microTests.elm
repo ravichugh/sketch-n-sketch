@@ -1,7 +1,7 @@
 module MicroTests where
 
 import Lang exposing (strVal)
-import LangParser exposing (parseV, parseE, freshen)
+import LangParser exposing (parseV, parseE)
 import Eval
 
 _ `ignore` _ = ()
@@ -45,7 +45,7 @@ testParser = ()
 --------------------------------------------------------------------------------
 
 makeTest se sv' =
-  let e  = freshen (parseE se)
+  let e  = parseE se
       v  = Eval.run e
       v' = parseV sv'
   in

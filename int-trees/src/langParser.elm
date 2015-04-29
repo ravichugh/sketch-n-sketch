@@ -1,4 +1,4 @@
-module LangParser (prelude, freshen, substOf, parseE, parseV) where
+module LangParser (prelude, substOf, parseE, parseV) where
 
 import String
 import Dict
