@@ -71,7 +71,7 @@ sync e v v' =
                                        VConst _ _ -> VBase Star
                                        _          -> x) vc
           in
-          case diff_ (fillHoleWith vcStar holeSubst) v1 of
+          case diff_ (fillHole vcStar holeSubst) v1 of
             Nothing -> Debug.crash "sync: shouldn't happen?"
             Just (Same _) ->
               let n = compareVals (v, v1) in

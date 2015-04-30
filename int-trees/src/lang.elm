@@ -227,13 +227,16 @@ type alias VContext = Val
 
 type alias HoleSubst = Dict.Dict Int (Val,Val)
 
-fillHoleWith : VContext -> HoleSubst -> Val
-fillHoleWith vc subst = case vc of
-  VHole i          -> case Dict.get i subst of Just (_,w) -> w
+fillHole : VContext -> HoleSubst -> Val
+fillHole = fillHole_ True
+
+fillHole_ new vc subst = case vc of
+  VHole i          -> case Dict.get i subst of
+                        Just (vOld,vNew) -> if new then vNew else vOld
   VConst _ _       -> vc
   VBase _          -> vc
   VClosure _ _ _ _ -> vc   -- not recursing into closures
-  VList vs         -> VList (List.map (flip fillHoleWith subst) vs)
+  VList vs         -> VList (List.map (\v -> fillHole_ new v subst) vs)
 
 type VDiff = Same Val | Diff VContext HoleSubst
 
@@ -243,12 +246,12 @@ diff v1 v2 =
   case res of
     Just (Diff vc subst) ->
       -- TODO check all substituted values
-      let [(_,(w1,w2))] = Dict.toList subst in
-      let (v1',v2') = (fillHoleWith vc subst, fillHoleWith vc subst) in
+      let [(0,(w1,w2))] = Dict.toList subst in
+      let (v1',v2') = (fillHole_ False vc subst, fillHole_ True vc subst) in
       if | eqV (v1,v1') && eqV (v2,v2') -> res
-         | otherwise -> Nothing
-             -- Debug.crash (String.join "\n"
-             --   ["bad diff", strVal vc, strVal w1, strVal w2])
+         | otherwise ->
+             Debug.crash (String.join "\n"
+               ["bad diff", strVal vc, strVal w1, strVal w2])
     _ -> res
 
 eqV (v1,v2) = case (v1, v2) of            -- equality modulo traces
