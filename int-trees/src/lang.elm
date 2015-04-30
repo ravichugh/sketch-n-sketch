@@ -245,13 +245,12 @@ diff v1 v2 =
   let res = diff_ v1 v2 in
   case res of
     Just (Diff vc subst) ->
-      -- TODO check all substituted values
-      let [(0,(w1,w2))] = Dict.toList subst in
       let (v1',v2') = (fillHole_ False vc subst, fillHole_ True vc subst) in
       if | eqV (v1,v1') && eqV (v2,v2') -> res
          | otherwise ->
-             Debug.crash (String.join "\n"
-               ["bad diff", strVal vc, strVal w1, strVal w2])
+             let f (i,(vOld,vNew)) = [toString i, strVal vOld, strVal vNew] in
+             Debug.crash <| Utils.lines <|
+               ("bad diff" :: strVal vc :: List.concatMap f (Dict.toList subst))
     _ -> res
 
 eqV (v1,v2) = case (v1, v2) of            -- equality modulo traces
