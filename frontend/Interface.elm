@@ -72,7 +72,7 @@ sampleCode =
 sampleVals = sampleFields sampleCode
 
 sampleModel = { code      = sampleCode
-              , objects   = [] --TODO buildSVG sampleVals.v
+              , objects   = [buildSvg sampleVals.v] --TODO buildSVG sampleVals.v
               , movingObj = Nothing
               , inputVal = sampleVals.v
               , workingVal = sampleVals.v
@@ -84,6 +84,7 @@ type Event = CodeUpdate String
            | SelectObject (List Int)
            | DeselectObject (List Int)
            | MouseDown (Int, Int)
+           | Sync
 
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
@@ -114,6 +115,7 @@ upstate evt old = case Debug.log "Event" evt of
                           in case match of
                               mat :: xs -> { old | movingObj <- Just (mat, -1.0, -1.0) }
     DeselectObject [x,y] -> { old | movingObj <- Nothing }
+    Sync -> old --TODO perform appropriate sync actions
     _ -> old
 
 
@@ -127,7 +129,7 @@ pickObj (mx, my) objs = case objs of
 updateObjPos : (Float, Float) -> Object -> Object -> Object
 updateObjPos (newx, newy) (o1,x1,y1) (o2,x2,y2) = if
     | (x1,y1) == (x2,y2) -> 
-        case buildSquare [round newx, round newy] of
+        case buildSvg [round newx, round newy] of
             Just sq -> sq
     | otherwise -> (o2,x2,y2)
 
@@ -162,11 +164,11 @@ visualsBox model dim =
                     ]
                 ] <| List.map (\(f,x,y) -> f) model.objects 
 
-buildSvg : Val -> Maybe (Svg.Svg, Int, Int)
+buildSvg : Val -> List (Svg.Svg, Int, Int)
 buildSvg v = case v of
    VList vs -> flip List.map vs <| \v1 -> case v1 of
        VList (VBaes (String shape) :: vs') ->
-           let baseaddrs = flip List.map vs' <| \v2 -> case v2 of
+           let baseattrs = flip List.map vs' <| \v2 -> case v2 of
                VList [VBese (String a), VConst i _] -> (MainSvg.attr a) (toString i)
                VList [VBase (String a), VBase (String s)] -> (MainSvg.attr a) s
                VList [VBase (String "points"), VList pts] ->
@@ -176,7 +178,7 @@ buildSvg v = case v of
                             VList [VConst x _, VConst y _] ->
                                 toString x ++ "," ++ toString y
                    in (MainSvg.attr "points") s
-               addrs = List.append attrs
+               attrs = List.append attrs
                     [ Svg.Events.onMouseDown (Signal.message events.address
                         (SelectObject coords)) --TODO id of some sort
                     , Svg.Events.onMouseUp (Signal.message events.address
@@ -184,9 +186,13 @@ buildSvg v = case v of
                     , Svg.Events.onMouseOut (Signal.message events.address
                         (DeselectObject coords))
                     ]
-           in (MainSvg.svg shape) attrs []
+               xpos = case String.toInt <| MainSvg.find attrs "x" of
+                   Ok s -> s
+               ypos = case String.toIng <| MainSvg.find attrs "y" of
+                   Ok s -> s
+           in ((MainSvg.svg shape) attrs [], xpos, ypos)
 
-
+{-
 buildSquare : List Int -> Maybe (Svg.Svg, Int, Int)
 buildSquare coords =
     case coords of
@@ -216,7 +222,7 @@ justList l =
         Just v :: vs  -> v :: (justList vs)
         Nothing :: vs -> justList vs
         _             -> []
-
+-}
 
 view : (Int, Int) -> Model -> Html.Html
 view (w,h) model = 
@@ -232,7 +238,7 @@ view (w,h) model =
             [ Html.div 
                 [ Attr.style
                     [ ("width", String.append (toString <| w // 2 - 1) "px")
-                    , ("height", String.append (toString <| h - 20) "px")
+                    , ("height", String.append (toString <| h - 60) "px")
                     , ("margin", "0")
                     , ("position", "absolute")
                     , ("left", "0px")
@@ -240,6 +246,14 @@ view (w,h) model =
                     ]
                 ]
                 [codeBox model.code]
+            , Html.button
+                [ Attr.style
+                    [ ("name", "Sync the code and visual output")
+                    , ("value", "Sync")
+                    , ("type", "button")
+                    ]
+                , Events.onSubmit events.address Sync
+                ]
             , Html.div
                 [ Attr.style
                     [ ("width", String.append (toString <| w // 2 - 1) "px")
