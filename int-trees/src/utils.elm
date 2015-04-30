@@ -30,6 +30,11 @@ mapi f xs =
 split : Int -> List a -> (List a, List a)
 split n xs = (List.take n xs, List.drop n xs)
 
+oneOfEach : List (List a) -> List (List a)
+oneOfEach xss = case xss of
+  []       -> [[]]
+  xs::xss' -> List.concatMap (\x -> List.map ((::) x) (oneOfEach xss')) xs
+
 delimit a b s = String.concat [a, s, b]
 
 parens = delimit "(" ")"
