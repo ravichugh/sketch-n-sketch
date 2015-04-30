@@ -28,17 +28,29 @@ src = "
 (let cartProd (\\(xs ys)
   (concatMap (\\x (map (\\y [x y]) ys)) xs))
 
+(let zip (map2 (\\(x y) [x y]))
+
 (let cons (\\(x xs) [x | xs])
 (let hd   (\\[x|xs] x)
 (let tl   (\\[x|xs] xs)
 
-(let plus (\\(x y) (+ x y))
+(let plus  (\\(x y) (+ x y))
+(let minus (\\(x y) (- x y))
 
 (letrec mult (\\(m n)
   (if (< m 1) 0 (+ n (mult (- m 1) n))))
 
+(letrec div (\\(m n)
+  (if (< m n) 0
+  (if (< n 2) m
+    (+ 1 (div (- m n) n)))))
+
 (let circle (\\(fill x y r)
   ['circle' ['cx' x] ['cy' y] ['r' r] ['fill' fill]])
+
+(let ring (\\(c w x y r)
+  ['circle' ['cx' x] ['cy' y] ['r' r] ['fill' 'none']
+            ['stroke' c] ['strokeWidth' w]])
 
 (let rect (\\(fill x y w h)
   ['rect' ['x' x] ['y' y] ['width' w] ['height' h] ['fill' fill]])
@@ -59,7 +71,7 @@ src = "
 (let line_      (line 'blue' 2)
 (let polygon_   (polygon 'green' 'purple' 3)
 
-0))))))))))))))))))))))))
+0))))))))))))))))))))))))))))
 
 "
 

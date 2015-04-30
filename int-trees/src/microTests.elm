@@ -234,3 +234,29 @@ test26 () =
       ['rect' ['x' 70] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
       ['rect' ['x' 70] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']]]"
 
+test27 () =
+  makeTest
+    "(let [x0 y0 xsep ysep] [10 28 30 30]
+       (map (\\[i j] (square_ (+ x0 (mult i xsep)) (+ y0 (mult j ysep)) 20))
+            (cartProd [0 1 2] [0 1])))"
+    "[['rect' ['x' 10] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 10] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 40] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 60] ['y' 78] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 70] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 70] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']]]"
+
+-- rudimentary olympic rings
+test28 () =
+  makeTest
+    "(let [x0 y0 w r dx dy] [30 30 7 20 32 20]
+     (let dxHalf (div dx 2)
+     (let row1
+       (map (\\[i c] (ring c w (+ x0 (mult i dx)) y0 r))
+            (zip [0 1 2] ['blue' 'black' 'red']))
+     (let row2
+       (map (\\[i c] (ring c w (+ (+ x0 dxHalf) (mult i dx)) (+ y0 dy) r))
+            (zip [0 1] ['yellow' 'green']))
+       (append row1 row2)))))"
+    "[]"
+
