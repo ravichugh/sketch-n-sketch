@@ -117,9 +117,15 @@ sExp_ showLocs k e =
       let args = Utils.spaces (List.map strPat ps) in
       Utils.parens <| "\\" ++ Utils.parens args ++ indent e
     EApp e1 [e2] ->
-      Utils.parens <| foo k e1 ++ " " ++ foo k e2
+      Utils.parens <| foo k e1 ++ " " ++ indent e2
     EApp e1 es ->
-      Utils.parens <| foo k e1 ++ " " ++ Utils.spaces (List.map (foo k) es)
+      Utils.parens <|
+        let s1 = foo k e1
+            ss = List.map (foo (k+1)) es
+            s2 = Utils.spaces ss in
+        if fitsOnLine s2
+        then s1 ++ " " ++ s2
+        else String.join ("\n" ++ tab (k+1)) (s1::ss)
     EOp op [e1,e2] ->
       Utils.parens <| String.join " " [strOp op, foo k e1, foo k e2]
     EIf e1 e2 e3 ->
@@ -157,6 +163,7 @@ maybeIndent showLocs k e =
   if | fitsOnLine s -> " " ++ s
      | otherwise    -> "\n" ++ tab (k+1) ++ s
 
+-- TODO take into account indent and other prefix of current line
 fitsOnLine s =
   if | String.length s > 70               -> False
      | List.member '\n' (String.toList s) -> False
