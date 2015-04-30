@@ -2,26 +2,24 @@
 -- This defines and renders an interactive interface for editing the
 -- program and output of the language as defined in int-trees.
 
---Import the language and its parsing utilities
-import Lang
-import LangParser
-import Sync
-import Utils
+--Import the little language and its parsing utilities
+import Lang exposing (..) --For access to what makes up the Vals
+import LangParser exposing (freshen, parseE, parseV)
+import Sync exposing (sync)
+import Eval exposing (run)
 import MainSvg
 
-import List exposing (..)
-import Dict exposing (..)
-import String exposing (..)
-import Graphics.Element as GE exposing (..)
-import Graphics.Collage as GC exposing (..)
-import Result exposing (..)
-import Signal exposing (..)
+import List 
+import Dict
+import String 
+import Graphics.Element as GE 
+import Graphics.Collage as GC
 
-import Mouse exposing (..)
-import Window exposing (..)
-import Html exposing (..)
-import Html.Attributes as Attr exposing (..) 
-import Html.Events as Events exposing (..) 
+import Mouse 
+import Window 
+import Html 
+import Html.Attributes as Attr
+import Html.Events as Events
 
 import Svg
 import Svg.Attributes
@@ -31,41 +29,64 @@ import Svg.Lazy
 import Debug
 
 -- Model --
---code is the text from the codebox
---output: the parsed representation
---of the code (this type will change later)
---objects: a list of the objects
---selected: the possible key of a selected object
+--Fields:
+-- code            - Text currently in the textbox
+-- objects         - The workingVal translated to manipulable SVGs
+-- movingObj       - If an object is being moved, which one
+-- inputVal        - The last code input parsed into a Val
+--                   (changes only after picking an output of sync)
+-- workingVal      - The inputVal after applying the manipulations performed on
+--                   the graphics side (done on the fly)
+-- possibleChanges - The possible new expressions and their associated Vals, 
+--                   as from the output of sync
 type alias Model = { code : String
-                    , output : List (List Int) --temporary
-                    , objects : List Object
-                    , selected : Maybe (List Int)
-                    , movingObj : Maybe (Object, Float, Float)
+                   , objects : List Object
+                   , movingObj : Maybe (Object, Float, Float)
+                   , inputVal : Val
+                   , workingVal : Val
+                   , possibleChanges : List ((Exp, Val), Int)
                    }
 
 type alias Object = (Svg.Svg, Int, Int)
 
 initModel = { code = ""
-            , output = []
             , objects = []
-            , selected = Nothing
             , movingObj = Nothing
+            , inputVal = VHole
+            , workingVal = VHole
+            , possibleChanges = []
             }
 
-sampleModel = { code = "[[50,100],[150,100],[250,100]]"
-            , output = [[50,100],[150,100],[250,100]] 
-            , objects = justList
-                        <| List.map (\s -> buildSquare s) 
-                            [[50,100],[150,100],[250,100]]
-            , selected = Nothing
-            , movingObj = Nothing
-            }
+--Just as in microTests
+sampleFields se =
+    let e = freshen (parseE se)
+        v = run e
+    in {e=e, v=v}
+
+sampleCode = 
+    "(letrec map (\\(f xs) (case xs ([] []) ([hd|t1] [(f hd)|(map f t1)])))
+     (letrec mult (\\(m n) (if (< m 1) 0 (+ n (mult (- m 1) n))))
+     (let [x0 y0 sep] [10 8 30]
+       (map (\\i [(+ x0 (mult i sep)) y0]) [0 1 2]))))"
+
+sampleVals = sampleFields sampleCode
+
+sampleModel = { code      = sampleCode
+              , objects   = [] --TODO buildSVG sampleVals.v
+              , movingObj = Nothing
+              , inputVal = sampleVals.v
+              , workingVal = sampleVals.v
+              , possibleChanges = []
+              }
 
 type Event = CodeUpdate String
            | OutputUpdate String
            | SelectObject (List Int)
            | DeselectObject (List Int)
            | MouseDown (Int, Int)
+
+events : Signal.Mailbox Event
+events = Signal.mailbox <| CodeUpdate ""
 
 -- Update --
 upstate : Event -> Model -> Model
