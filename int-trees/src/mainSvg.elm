@@ -28,10 +28,11 @@ showString s     = E.leftAligned (Text.fromString s)
 
 expToElt : Exp -> Element
 expToElt = showMonoString << Lang.sExp
+expLocsToElt = showMonoString << Lang.sExpLocs
 
 showOne (w,h,test) =
   let {e,v,vnew} = test in
-  let l1 = [ showString "Original Program", expToElt e
+  let l1 = [ showString "Original Program", expToElt e --, expLocsToElt e
            , showString "Original Canvas",  valToElt w h v
            , showString "Updated Canvas",   valToElt w h vnew
            ] in

@@ -1,4 +1,4 @@
-module LangParser (prelude, substOf, parseE, parseV) where
+module LangParser (prelude, isPreludeLoc, substOf, parseE, parseV) where
 
 import String
 import Dict
@@ -14,6 +14,7 @@ import Prelude
 ------------------------------------------------------------------------------
 
 (prelude, initK) = freshen_ 1 (parseE_ identity Prelude.src)
+isPreludeLoc i   = i < initK
 
 ------------------------------------------------------------------------------
 

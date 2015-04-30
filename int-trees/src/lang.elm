@@ -221,6 +221,8 @@ applySubst subst e = case e of
 ------------------------------------------------------------------------------
 -- Value Contexts
 
+multiLeafDiffs = True
+
 type alias VContext = Val
   -- a VContext is a Val with exactly one VHole in single-leaf diff mode
   -- or multiple VHoles in multi-leaf diff mode
@@ -242,16 +244,17 @@ type VDiff = Same Val | Diff VContext HoleSubst
 
 diff : Val -> Val -> Maybe VDiff
 diff v1 v2 = 
-  let res = diff_ v1 v2 in
+  let res = diff_ 0 v1 v2 in
   case res of
-    Just (Diff vc subst) ->
+    Just (_, Diff vc subst) ->
       let (v1',v2') = (fillHole_ False vc subst, fillHole_ True vc subst) in
-      if | eqV (v1,v1') && eqV (v2,v2') -> res
+      if | eqV (v1,v1') && eqV (v2,v2') -> Just (Diff vc subst)
          | otherwise ->
              let f (i,(vOld,vNew)) = [toString i, strVal vOld, strVal vNew] in
              Debug.crash <| Utils.lines <|
                ("bad diff" :: strVal vc :: List.concatMap f (Dict.toList subst))
-    _ -> res
+    _ ->
+      Utils.mapMaybe snd res
 
 eqV (v1,v2) = case (v1, v2) of            -- equality modulo traces
   (VConst i tr, VConst j _) -> i == j
@@ -260,16 +263,20 @@ eqV (v1,v2) = case (v1, v2) of            -- equality modulo traces
       Nothing -> False
       Just l  -> List.all eqV l
   _ -> v1 == v2
+
+diffNoCheck v1 v2 =
+  Utils.mapMaybe snd (diff_ 0 v1 v2)
   
 -- assuming that v1 is the value resulting from eval (so it has proper locs)
 -- and that v2 has dummy locs
 
-diff_ v1 v2 = case (v1, v2) of
-  (VBase Star, VConst _ _) -> Just (Same v2)
+diff_ : Int -> Val -> Val -> Maybe (Int, VDiff)
+diff_ k v1 v2 = case (v1, v2) of
+  (VBase Star, VConst _ _) -> Just (k, Same v2)
   (VConst i tr, VConst j _) ->
-    if | i == j    -> Just (Same (VConst i tr))  -- cf. comment above
-       | otherwise -> Just (Diff (VHole 0) (Dict.singleton 0 (v1, (VConst j tr))))
-                        -- TODO thread hole ids through
+    if | i == j    -> Just (k, Same (VConst i tr))  -- cf. comment above
+       | otherwise -> let d = Dict.singleton k (v1, (VConst j tr)) in
+                      Just (k+1, Diff (VHole k) d)
   (VList vs1, VList vs2) ->
     case Utils.maybeZip vs1 vs2 of
       Nothing -> Nothing
@@ -277,26 +284,27 @@ diff_ v1 v2 = case (v1, v2) of
         List.foldr (\(vi1,vi2) acc ->
           case acc of
             Nothing -> Nothing
-            Just (Same (VList vs)) ->
-              case diff_ vi1 vi2 of
-                Nothing              -> Nothing
-                Just (Same v)        -> justSameVList (v::vs)
-                Just (Diff vc subst) -> Just (Diff (VList (vc::vs)) subst)
-            Just (Diff (VList vs) subst) ->
-              case diff_ vi1 vi2 of
-                Nothing              -> Nothing
-                Just (Same v)        -> Just (Diff (VList (v::vs)) subst)
-                Just (Diff _ _)      -> Nothing
-                                         -- TODO allow multi-leaf diffs
-            Just (Diff _ _) ->
+            Just (k, Same (VList vs)) ->
+              case diff_ k vi1 vi2 of
+                Nothing                 -> Nothing
+                Just (k, Same v)        -> Just (k, Same (VList (v::vs)))
+                Just (k, Diff vc subst) -> Just (k, Diff (VList (vc::vs)) subst)
+            Just (k, Diff (VList vs) subst) ->
+              case diff_ k vi1 vi2 of
+                Nothing                 -> Nothing
+                Just (k, Same v)        -> Just (k, Diff (VList (v::vs)) subst)
+                Just (k, Diff vc sub')  ->
+                  if | not multiLeafDiffs -> Nothing
+                     | otherwise ->
+                         let d = Dict.union subst sub' in
+                         Just (k, Diff (VList (vc::vs)) d)
+            Just (_, Diff _ _) ->
               Debug.crash "diff_: error?"
-        ) (justSameVList []) l
+        ) (Just (k, Same (VList []))) l
   _ ->
-    if | v1 == v2  -> Just (Same v1)
+    if | v1 == v2  -> Just (k, Same v1)
        | otherwise -> Nothing
-           
-justSameVList = Just << Same << VList
-      
+
 
 ------------------------------------------------------------------------------
 -- Abstract Syntax Helpers

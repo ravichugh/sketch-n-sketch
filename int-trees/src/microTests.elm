@@ -214,13 +214,14 @@ test24 () =
     (strVal (Eval.run (parseE
       "[(square_ 10 28 20) (square_ 40 58 20) (square_ 100 88 20)]")))
 
+-- two equations that constrain the same variable, but both have same solution
 test25 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
        (map2 (\\(i j) (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 20))
              [0 1 2] [0 1 2]))"
     (strVal (Eval.run (parseE
-      "[(square_ 10 28 20) (square_ 40 58 20) (square_ 100 108 20)]")))
+      "[(square_ 10 28 20) (square_ 40 58 20) (square_ 100 118 20)]")))
 
 test26 () =
   makeTest
@@ -234,6 +235,7 @@ test26 () =
       ['rect' ['x' 70] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
       ['rect' ['x' 70] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']]]"
 
+-- changing two leaves, each of which leads to two disjoint solutions
 test27 () =
   makeTest
     "(let [x0 y0 xsep ysep] [10 28 30 30]
