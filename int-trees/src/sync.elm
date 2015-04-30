@@ -59,7 +59,8 @@ sync e v v' =
   case diff v v' of
     Nothing       -> Err "bad change"
     Just (Same _) -> Err "no change"
-    Just (Diff vc w w') ->
+    Just (Diff vc holeSubst) ->
+      let [(_,(w,w'))] = Dict.toList holeSubst in -- TODO
       let subst0 = LangParser.substOf e in
       let substs = inferSubsts subst0 w' in
       Ok <| List.sortBy snd <|
@@ -70,12 +71,13 @@ sync e v v' =
                                        VConst _ _ -> VBase Star
                                        _          -> x) vc
           in
-          case diff_ (fillHoleWith vcStar w') v1 of
+          case diff_ (fillHoleWith vcStar holeSubst) v1 of
             Nothing -> Debug.crash "sync: shouldn't happen?"
             Just (Same _) ->
               let n = compareVals (v, v1) in
               Just ((e1, v1), n)
-            Just (Diff _ _ w1) ->
+            Just (Diff _ holeSubst') ->
+              let [(_,(_,w1))] = Dict.toList holeSubst' in -- TODO
               if | w1 /= w' -> Nothing
                  | otherwise ->
                      let n = compareVals (v, v1) in

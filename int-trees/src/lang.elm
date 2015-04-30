@@ -44,7 +44,7 @@ type Val
   | VBase BaseVal
   | VClosure (Maybe Ident) Pat Exp Env
   | VList (List Val)
-  | VHole
+  | VHole Int
 
 type BaseVal -- unlike Ints, these cannot be changed by Sync
   = Bool Bool
@@ -77,7 +77,7 @@ strVal_ showTraces v =
     VBase b          -> strBaseVal b
     VClosure _ _ _ _ -> "<fun>"
     VList vs         -> Utils.bracks (String.join " " (List.map foo vs))
-    VHole            -> "??"
+    VHole i          -> "HOLE_" ++ toString i
 
 strOp op = case op of {Plus -> "+"; Minus -> "-"; Mult -> "*"; Lt -> "<"}
 
@@ -194,7 +194,7 @@ mapVal f v = case v of
   VConst _ _       -> f v
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
-  VHole            -> f v
+  VHole _          -> f v
 
 
 ------------------------------------------------------------------------------
@@ -222,28 +222,33 @@ applySubst subst e = case e of
 -- Value Contexts
 
 type alias VContext = Val
-  -- invariant: a VContext is a Val with exactly one VHole
+  -- a VContext is a Val with exactly one VHole in single-leaf diff mode
+  -- or multiple VHoles in multi-leaf diff mode
 
-fillHoleWith : VContext -> Val -> Val
-fillHoleWith vc w = case vc of
-  VHole            -> w
+type alias HoleSubst = Dict.Dict Int (Val,Val)
+
+fillHoleWith : VContext -> HoleSubst -> Val
+fillHoleWith vc subst = case vc of
+  VHole i          -> case Dict.get i subst of Just (_,w) -> w
   VConst _ _       -> vc
   VBase _          -> vc
   VClosure _ _ _ _ -> vc   -- not recursing into closures
-  VList vs         -> VList (List.map (flip fillHoleWith w) vs)
+  VList vs         -> VList (List.map (flip fillHoleWith subst) vs)
 
-type VDiff = Same Val | Diff VContext Val Val
+type VDiff = Same Val | Diff VContext HoleSubst
 
 diff : Val -> Val -> Maybe VDiff
 diff v1 v2 = 
   let res = diff_ v1 v2 in
   case res of
-    Just (Diff vc w1 w2) ->
-      let (v1',v2') = (fillHoleWith vc w1, fillHoleWith vc w2) in
+    Just (Diff vc subst) ->
+      -- TODO check all substituted values
+      let [(_,(w1,w2))] = Dict.toList subst in
+      let (v1',v2') = (fillHoleWith vc subst, fillHoleWith vc subst) in
       if | eqV (v1,v1') && eqV (v2,v2') -> res
-         | otherwise ->
-             Debug.crash (String.join "\n"
-               ["bad diff", strVal vc, strVal w1, strVal w2])
+         | otherwise -> Nothing
+             -- Debug.crash (String.join "\n"
+             --   ["bad diff", strVal vc, strVal w1, strVal w2])
     _ -> res
 
 eqV (v1,v2) = case (v1, v2) of            -- equality modulo traces
@@ -261,7 +266,8 @@ diff_ v1 v2 = case (v1, v2) of
   (VBase Star, VConst _ _) -> Just (Same v2)
   (VConst i tr, VConst j _) ->
     if | i == j    -> Just (Same (VConst i tr))  -- cf. comment above
-       | otherwise -> Just (Diff VHole v1 (VConst j tr))
+       | otherwise -> Just (Diff (VHole 0) (Dict.singleton 0 (v1, (VConst j tr))))
+                        -- TODO thread hole ids through
   (VList vs1, VList vs2) ->
     case Utils.maybeZip vs1 vs2 of
       Nothing -> Nothing
@@ -273,13 +279,14 @@ diff_ v1 v2 = case (v1, v2) of
               case diff_ vi1 vi2 of
                 Nothing              -> Nothing
                 Just (Same v)        -> justSameVList (v::vs)
-                Just (Diff vc w1 w2) -> Just (Diff (VList (vc::vs)) w1 w2)
-            Just (Diff (VList vs) w1 w2) ->
+                Just (Diff vc subst) -> Just (Diff (VList (vc::vs)) subst)
+            Just (Diff (VList vs) subst) ->
               case diff_ vi1 vi2 of
                 Nothing              -> Nothing
-                Just (Same v)        -> Just (Diff (VList (v::vs)) w1 w2)
-                Just (Diff _ _ _)    -> Nothing
-            Just (Diff _ _ _) ->
+                Just (Same v)        -> Just (Diff (VList (v::vs)) subst)
+                Just (Diff _ _)      -> Nothing
+                                         -- TODO allow multi-leaf diffs
+            Just (Diff _ _) ->
               Debug.crash "diff_: error?"
         ) (justSameVList []) l
   _ ->
