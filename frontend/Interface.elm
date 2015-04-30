@@ -7,6 +7,7 @@ import Lang
 import LangParser
 import Sync
 import Utils
+import MainSvg
 
 import List exposing (..)
 import Dict exposing (..)
@@ -139,6 +140,31 @@ visualsBox model dim =
                     , ("height", "100%")
                     ]
                 ] <| List.map (\(f,x,y) -> f) model.objects 
+
+buildSvg : Val -> Maybe (Svg.Svg, Int, Int)
+buildSvg v = case v of
+   VList vs -> flip List.map vs <| \v1 -> case v1 of
+       VList (VBaes (String shape) :: vs') ->
+           let baseaddrs = flip List.map vs' <| \v2 -> case v2 of
+               VList [VBese (String a), VConst i _] -> (MainSvg.attr a) (toString i)
+               VList [VBase (String a), VBase (String s)] -> (MainSvg.attr a) s
+               VList [VBase (String "points"), VList pts] ->
+                   let s =
+                       Utils.spaces <|
+                        flip List.map pts <| \v3 -> case v3 of
+                            VList [VConst x _, VConst y _] ->
+                                toString x ++ "," ++ toString y
+                   in (MainSvg.attr "points") s
+               addrs = List.append attrs
+                    [ Svg.Events.onMouseDown (Signal.message events.address
+                        (SelectObject coords)) --TODO id of some sort
+                    , Svg.Events.onMouseUp (Signal.message events.address
+                        (DeselectObject coords))
+                    , Svg.Events.onMouseOut (Signal.message events.address
+                        (DeselectObject coords))
+                    ]
+           in (MainSvg.svg shape) attrs []
+
 
 buildSquare : List Int -> Maybe (Svg.Svg, Int, Int)
 buildSquare coords =
