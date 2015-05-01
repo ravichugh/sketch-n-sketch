@@ -16,6 +16,9 @@ testParser = ()
   `ignore` parseV "[1]"
   `ignore` parseV " []"
   `ignore` parseV " [1  2 3]   "
+  `ignore` parseV " 1.0 "
+  `ignore` parseV " -1.0 "
+  `ignore` parseV " -1 "
 
   `ignore` parseE "(\\x 1)"
   `ignore` parseE "(\\(x y z) 1)"
@@ -23,6 +26,8 @@ testParser = ()
   `ignore` parseE "(let f (\\x (\\y [(+ x 0) (+ x y)])) (f 3 5))"
   `ignore` parseE "(let f (\\(x y) [(+ x 0) (+ x y)]) (f 3 5))"
   `ignore` parseE "(let f (\\(x y) [(+ x 0) (+ x y)]) ((f 3) 5))"
+  `ignore` parseE " (- -1 0) "
+  `ignore` parseE " (--1 0) "
 
   `ignore` parseE "true"
   `ignore` parseE "(< 1 2)"
@@ -261,4 +266,13 @@ test28 () =
             (zip [0 1] ['yellow' 'green']))
        (append row1 row2)))))"
     "[]"
+
+-- similar to test15, but one solution requires floating point division
+-- instead of integer division
+test29 () =
+  makeTest
+    "(let [x0 y0 sep] [10 28 30]
+       (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2]))"
+    (strVal (Eval.run (parseE
+      "[(circle_ 10 28 10) (circle_ 40 28 10) (circle_ 101 28 10)]")))
 

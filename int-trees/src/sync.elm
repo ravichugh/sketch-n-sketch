@@ -100,7 +100,7 @@ diff_ k v1 v2 = case (v1, v2) of
 
 ------------------------------------------------------------------------------
 
-type Equation = Equation Int Trace
+type Equation = Equation Num Trace
 
 locsOfTrace : Trace -> List Loc
 locsOfTrace =
@@ -111,7 +111,7 @@ locsOfTrace =
   in
   Set.toList << foo
 
-solveOneLeaf : Subst -> Val -> List (Loc, Int)
+solveOneLeaf : Subst -> Val -> List (Loc, Num)
 solveOneLeaf s (VConst i tr) =
   List.map
     (\l -> let s' = Dict.remove l s in
@@ -127,7 +127,7 @@ inferSubsts s0 vs =
     |> List.map (Utils.mapMaybe (\s' -> Dict.union s' s0))  -- pref to s'
     |> List.filterMap identity
 
-combine : List (Loc, Int) -> Maybe Subst
+combine : List (Loc, Num) -> Maybe Subst
 combine solutions =
   let f (l,n) msubst =
     let g subst =
@@ -141,7 +141,7 @@ combine solutions =
   List.foldl f (Just Dict.empty) solutions
 
 -- assumes that a single variable is being solved for
-solve : Subst -> Equation -> Int
+solve : Subst -> Equation -> Num
 solve subst (Equation sum tr) =
   let evalTrace t = case t of
     TrLoc l      -> case Dict.get l subst of
@@ -150,11 +150,11 @@ solve subst (Equation sum tr) =
     TrOp Plus ts -> List.foldl plusplus (0,0) (List.map evalTrace ts)
   in
   let (partialSum,n) = evalTrace tr in
-  (sum - partialSum) // n
+  (sum - partialSum) / n
  
 plusplus = Utils.lift_2_2 (+)
 
-compareVals : (Val, Val) -> Int
+compareVals : (Val, Val) -> Num
 compareVals (v1, v2) = case (v1, v2) of
   (VConst i _, VConst j _) -> abs (i-j)
   (VList vs1, VList vs2)   -> case Utils.maybeZip vs1 vs2 of
@@ -172,7 +172,7 @@ getFillers = List.map (snd << snd) << Dict.toList
 
 leafToStar v = case v of {VConst _ _ -> VBase Star; _ -> v}
 
-sync : Exp -> Val -> Val -> Result String (List ((Exp, Val), Int))
+sync : Exp -> Val -> Val -> Result String (List ((Exp, Val), Num))
 sync e v v' =
   case diff v v' of
     Nothing       -> Err "bad change"

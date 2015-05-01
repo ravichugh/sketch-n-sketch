@@ -10,6 +10,7 @@ import Utils
 
 type alias Loc = Int
 type alias Ident = String
+type alias Num = Float
 
 type Pat
   = PVar Ident
@@ -20,7 +21,7 @@ type Op
   | Lt
 
 type Exp
-  = EConst Int Loc
+  = EConst Num Loc
   | EBase BaseVal
   | EVar Ident
   | EFun (List Pat) Exp
@@ -40,7 +41,7 @@ type Exp
     -- EApp f xs     (f x1 ... xn) === ((... ((f x1) x2) ...) xn)
 
 type Val
-  = VConst Int Trace
+  = VConst Num Trace
   | VBase BaseVal
   | VClosure (Maybe Ident) Pat Exp Env
   | VList (List Val)
@@ -200,7 +201,7 @@ mapVal f v = case v of
 ------------------------------------------------------------------------------
 -- Substitutions
 
-type alias Subst = Dict.Dict Loc Int
+type alias Subst = Dict.Dict Loc Num
 
 applySubst : Subst -> Exp -> Exp
 applySubst subst e = case e of

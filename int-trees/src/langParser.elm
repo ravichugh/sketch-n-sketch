@@ -88,14 +88,29 @@ isAlpha c        = Char.isLower c || Char.isUpper c
 isAlphaNumeric c = Char.isLower c || Char.isUpper c || Char.isDigit c
 isWhitespace c   = c == ' ' || c == '\n'
 
-unsafeToInt s =
-  case String.toInt s of
-    Ok i    -> i
-    Err err -> Debug.crash err
-
 parseInt : P.Parser Int
-parseInt = (unsafeToInt << String.fromList) <$> P.some (P.satisfy Char.isDigit)
-             -- TODO negative
+parseInt =
+  P.some (P.satisfy Char.isDigit) >>= \cs ->
+    P.return <|
+      Utils.fromOk "LangParser.parseInt" <|
+        String.toInt (String.fromList cs)
+
+parseFloat =
+  P.some (P.satisfy Char.isDigit) >>= \cs1 ->
+  P.satisfy ((==) '.')            >>= \c   ->
+  P.some (P.satisfy Char.isDigit) >>= \cs2 ->
+    P.return <|
+      Utils.fromOk "LangParser.parseFloat" <|
+        String.toFloat (String.fromList (cs1 ++ (c::cs2)))
+
+parseSign =
+  P.option 1 (P.satisfy ((==) '-') >>> P.return (-1))
+
+parseNum : P.Parser Num
+parseNum =
+  parseSign                             >>= \i ->
+  parseFloat <++ (toFloat <$> parseInt) >>= \n ->
+    P.return (i * n)
 
 -- TODO allow '_', disambiguate from wildcard in parsePat
 parseIdent : P.Parser String
@@ -126,8 +141,8 @@ token_ = white << P.token
 delimit a b = P.between (token_ a) (token_ b)
 parens      = delimit "(" ")"
 
-parseIntV = flip VConst dummyTrace <$> parseInt
-parseIntE = flip EConst dummyLoc   <$> parseInt
+parseNumV = flip VConst dummyTrace <$> parseNum
+parseNumE = flip EConst dummyLoc   <$> parseNum
 
 parseEBase =
       (always eTrue  <$> P.token "true")
@@ -172,7 +187,7 @@ parseV = P.parse <|
 
 parseVal : P.Parser Val
 parseVal = P.recursively <| \_ ->
-      white parseIntV
+      white parseNumV
   <++ white parseVBase
   <++ parseValList
 
@@ -190,7 +205,7 @@ parseVar = EVar <$> (white parseIdent)
 
 parseExp : P.Parser Exp
 parseExp = P.recursively <| \_ ->
-      white parseIntE
+      white parseNumE
   <++ white parseEBase
   <++ parseVar
   <++ parseFun

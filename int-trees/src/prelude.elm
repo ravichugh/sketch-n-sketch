@@ -36,6 +36,7 @@ src = "
 
 (let plus  (\\(x y) (+ x y))
 (let minus (\\(x y) (- x y))
+(let neg   (\\x     (- 0 x))
 
 (letrec mult (\\(m n)
   (if (< m 1) 0 (+ n (mult (- m 1) n))))
@@ -71,7 +72,7 @@ src = "
 (let line_      (line 'blue' 2)
 (let polygon_   (polygon 'green' 'purple' 3)
 
-0))))))))))))))))))))))))))))
+0)))))))))))))))))))))))))))))
 
 "
 

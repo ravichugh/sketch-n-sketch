@@ -51,6 +51,10 @@ lift_2_2 f (a,b) (c,d) = (f a c, f b d)
 
 assert s b = if b then () else Debug.crash ("assert error: " ++ s)
 
+fromOk s mx = case mx of
+  Ok x    -> x
+  Err err -> Debug.crash <| "fromOk [" ++ s ++ "]: " ++ err
+
 mapMaybe : (a -> b) -> Maybe a -> Maybe b
 mapMaybe f mx = case mx of {Just x -> Just (f x); Nothing -> Nothing}
 
