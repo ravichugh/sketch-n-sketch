@@ -73,7 +73,7 @@ sampleCode =
 sampleVals = sampleFields sampleCode
 
 sampleModel = { code      = sampleCode
-              , objects   = [buildSvg sampleVals.v] --TODO buildSVG sampleVals.v
+              , objects   = buildSvg sampleVals.v 
               , movingObj = Nothing
               , inputVal = sampleVals.v
               , workingVal = sampleVals.v
@@ -95,7 +95,7 @@ upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
     CodeUpdate newcode -> { old | code <- newcode }
     MouseDown (mx, my) -> case old.movingObj of
-        Nothing                 -> old
+        Nothing                  -> old
         Just (obj, xdist, ydist) -> if
             | xdist == -1.0 || ydist == -1.0 -> case obj of
                 (svg, attrs) -> 
@@ -106,8 +106,8 @@ upstate evt old = case Debug.log "Event" evt of
                             Ok a -> case String.toFloat a of
                                 Ok b -> b
                     in { old | movingObj <- Just (obj 
-                                               , Basics.toFloat <| xpos -  mx
-                                               , Basics.toFloat <| ypos - my) }
+                                               , xpos - Basics.toFloat mx
+                                               , ypos - Basics.toFloat my) }
             | otherwise -> 
                 let newpos = [ ("xpos", toString <| Basics.toFloat mx + xdist)
                                ("ypos", toString <| Basics.toFloat my + ydist) ]
@@ -118,23 +118,14 @@ upstate evt old = case Debug.log "Event" evt of
                                 (moved, xdist, ydist)
                     }
     SelectObject x -> let match = List.filter 
-                                (\(s, a) -> case MainSvg.find "xloc" of 
+                                (\(s, a) -> case MainSvg.find "xloc" a of 
                                     Ok b -> b == x)
                                 old.objects
-                          in case match of
+                      in case match of
                               mat :: xs -> { old | movingObj <- Just (mat, -1.0, -1.0) }
     DeselectObject x -> { old | movingObj <- Nothing }
     Sync -> old --TODO perform appropriate sync actions
     _ -> old
-
-{-
-pickObj : (Int, Int) -> List Object -> Maybe Object
-pickObj (mx, my) objs = case objs of
-    [] -> Nothing
-    (form, x, y) :: xs -> if | abs (Basics.toFloat <| x - mx) <= 20 
-                               && abs (Basics.toFloat <| y - my) <= 20 -> Just (form, x, y)
-                             | otherwise -> pickObj (mx, my) xs
--}
 
 updateObjPos : List (String, String) -> Object -> Object -> Object
 updateObjPos newattrs (o1, a1) (o2, a2) = 
@@ -197,22 +188,12 @@ buildSvg : Val -> List (Svg.Svg, List (String, String))
 buildSvg v = case v of
    VList vs -> flip List.map vs <| \v1 -> case v1 of
        VList (VBase (String shape) :: vs') ->
-           let firstattrs = flip List.map vs' <| \v2 -> (case v2 of
-               VList [VBase (String a), VConst i pos] -> (MainSvg.attr a)
-                    (String.concat [toString i,"|", toString pos])
-               VList [VBase (String a), VBase (String s)] -> (MainSvg.attr a) s
-               VList [VBase (String "points"), VList pts] ->
-                   let s =
-                       Utils.spaces <|
-                        flip List.map pts <| \v3 -> case v3 of
-                            VList [VConst x _, VConst y _] ->
-                                toString x ++ "," ++ toString y
-                   in (MainSvg.attr "points" s))
-                baseattrs = fst cleanAttrs firstattrs ([],[])
-                attrloc = snd cleanAttrs firstattrs ([],[])
+           let  firstattrs = getFirstAttrs vs'
+                baseattrs = fst <| cleanAttrs (snd firstattrs) ([],[])
+                attrloc = snd <| cleanAttrs (snd firstattrs) ([],[])
                 xloc = case MainSvg.find attrloc "x" of
                     Ok s -> s
-                attrs = List.append attrs
+                attrs = List.append (fst firstattrs)
                     [ Svg.Events.onMouseDown (Signal.message events.address
                         (SelectObject xloc)) --xloc should be unique ID
                     , Svg.Events.onMouseUp (Signal.message events.address
@@ -220,8 +201,24 @@ buildSvg v = case v of
                     , Svg.Events.onMouseOut (Signal.message events.address
                         (DeselectObject xloc))
                     ]
-           in ((MainSvg.svg shape) attrs [], attrs)
+           in ((MainSvg.svg shape) attrs [], List.map (\(a,b) -> b) baseattrs)
                 
+getFirstAttrs : List Val -> List (Svg.Attribute, (String, String))
+getFirstAttrs vals = List.map 
+    (\x -> case x of
+        VList [VBase (String a), VConst i pos] -> ((MainSvg.attr a) toString i
+              , (a, String.concat [toString i, "|", toString pos]))
+        VList [VBase (String a), VBase (String s)] -> ((MainSvg.attr a) s
+              , (a,s))
+        VList [VBase (String "points"), VList pts] ->
+            let s = Utils.spaces <| List.map
+                    (\y -> case y of
+                        VList [VConst x1 _, VConst y1 _] ->
+                            toString x1 ++ "," ++ toString y1)
+                    pts
+            in ((MainSvg.attr "points") s, ("points", s)))
+    vals
+
 --Takes a list of attributes and pulls out the location
 -- information for the constants into a separate list
 cleanAttrs : List (String, String) -> ( List (String, String)
@@ -237,38 +234,7 @@ cleanAttrs = \l (acc1, acc2) -> case l of
                                 , acc2)
                                 xs
     []            -> (acc1, acc2)
-{-
-buildSquare : List Int -> Maybe (Svg.Svg, Int, Int)
-buildSquare coords =
-    case coords of
-        [x,y] -> 
-                Just (Svg.rect
-                    [ Svg.Attributes.x <| toString x 
-                    , Svg.Attributes.y <| toString y
-                    , Svg.Attributes.width "60"
-                    , Svg.Attributes.height "60"
-                    , Svg.Attributes.fill "blue"
-                    , Svg.Events.onMouseDown (Signal.message events.address
-                        (SelectObject coords)) --TODO id of some sort
-                    , Svg.Events.onMouseUp (Signal.message events.address
-                        (DeselectObject coords))
-                    , Svg.Events.onMouseOut (Signal.message events.address
-                        (DeselectObject coords))
-                    ]
-                    []
-                , x 
-                , y 
-                )
-        _     -> Nothing
-
-justList : List (Maybe (Svg.Svg, Int, Int)) -> List (Svg.Svg, Int, Int)
-justList l = 
-    case l of
-        Just v :: vs  -> v :: (justList vs)
-        Nothing :: vs -> justList vs
-        _             -> []
--}
-
+    
 view : (Int, Int) -> Model -> Html.Html
 view (w,h) model = 
     let
