@@ -109,7 +109,8 @@ upstate evt old = case Debug.log "Event" evt of
                                                , Basics.toFloat <| xpos -  mx
                                                , Basics.toFloat <| ypos - my) }
             | otherwise -> 
-                let newpos = (Basics.toFloat mx + xdist, Basics.toFloat my + ydist)
+                let newpos = [ ("xpos", toString <| Basics.toFloat mx + xdist)
+                               ("ypos", toString <| Basics.toFloat my + ydist) ]
                     newobjs = List.map (updateObjPos newpos obj) old.objects
                     moved = updateObjPos newpos obj obj
                 in  { old | objects <- newobjs 
@@ -135,17 +136,31 @@ pickObj (mx, my) objs = case objs of
                              | otherwise -> pickObj (mx, my) xs
 -}
 
-updateObjPos : (Float, Float) -> Object -> Object -> Object
-updateObjPos (newx, newy) (o1, a1) (o2, a2) = 
+updateObjPos : List (String, String) -> Object -> Object -> Object
+updateObjPos newattrs (o1, a1) (o2, a2) = 
     let xloc1 = case MainSvg.find "xloc" a1 of
             Ok a -> a
         xloc2 = case MainSvg.find "xloc" a2 of
             Ok a -> a
-    in if | xloc1 == xloc2 -> buildOneSvg a1 --TODO this 
-    --| (x1,y1) == (x2,y2) -> 
-    --    case buildSvg [round newx, round newy] of
     --        Just sq -> sq
+    in if | xloc1 == xloc2 ->
+                let updatedattrs = updateAttrs newattrs a1
+                    svgattrs = List.map MainSvg.attr updatedattrs
+                in (Svg.rect svgattrs [], updatedattrs) --TODO keep track of
+                                                         --the kind of shape it is
           | otherwise -> (o2, a2)
+
+updateAttrs : List (String, String) -> List (String, String) -> 
+                List (String, String)
+updateAttrs newattrs oldattrs = case newattrs of
+    [] -> oldattrs
+    (a1, v1) :: xs -> updateAttrs xs (replace (a1,v1) oldattrs)
+
+replace : (String, String) -> List (String, String) -> List (String, String)
+replace (a1, v1) attrs = case attrs of
+    [] -> [(a1,v1)]
+    (a2, v2) :: xs -> if | a1 == a2 -> (a1, v1) :: xs
+                         | otherwise -> (a2, v2) :: replace (a1, v1) xs
 
 adjustCoords : (Int, Int) -> (Int, Int) -> (Int, Int)
 adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
@@ -192,11 +207,12 @@ buildSvg v = case v of
                         flip List.map pts <| \v3 -> case v3 of
                             VList [VConst x _, VConst y _] ->
                                 toString x ++ "," ++ toString y
-                   in (MainSvg.attr "points") s)
-               (baseattrs, attrloc) = cleanAttrs firstattrs
-               xloc = case MainSvg.find attrloc "x" of
-                   Ok s -> s
-               attrs = List.append attrs
+                   in (MainSvg.attr "points" s))
+                baseattrs = fst cleanAttrs firstattrs ([],[])
+                attrloc = snd cleanAttrs firstattrs ([],[])
+                xloc = case MainSvg.find attrloc "x" of
+                    Ok s -> s
+                attrs = List.append attrs
                     [ Svg.Events.onMouseDown (Signal.message events.address
                         (SelectObject xloc)) --xloc should be unique ID
                     , Svg.Events.onMouseUp (Signal.message events.address
@@ -204,8 +220,8 @@ buildSvg v = case v of
                     , Svg.Events.onMouseOut (Signal.message events.address
                         (DeselectObject xloc))
                     ]
-           in ((MainSvg.svg shape) attrs [], List.append baseattrs attrpos)
-
+           in ((MainSvg.svg shape) attrs [], attrs)
+                
 --Takes a list of attributes and pulls out the location
 -- information for the constants into a separate list
 cleanAttrs : List (String, String) -> ( List (String, String)
