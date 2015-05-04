@@ -102,16 +102,16 @@ diff_ k v1 v2 = case (v1, v2) of
 
 type Equation = Equation Num Trace
 
-locsOfTrace : Trace -> List Loc
+locsOfTrace : Trace -> List LocId
 locsOfTrace =
   let foo t = case t of
-    TrLoc l   -> if | LangParser.isPreludeLoc l -> Set.empty
-                    | otherwise                 -> Set.singleton l
+    TrLoc (k,_) -> if | LangParser.isPreludeLoc k -> Set.empty
+                      | otherwise                 -> Set.singleton k
     TrOp _ ts -> List.foldl Set.union Set.empty (List.map foo ts)
   in
   Set.toList << foo
 
-solveOneLeaf : Subst -> Val -> List (Loc, Num)
+solveOneLeaf : Subst -> Val -> List (LocId, Num)
 solveOneLeaf s (VConst i tr) =
   List.map
     (\l -> let s' = Dict.remove l s in
@@ -127,7 +127,7 @@ inferSubsts s0 vs =
     |> List.map (Utils.mapMaybe (\s' -> Dict.union s' s0))  -- pref to s'
     |> List.filterMap identity
 
-combine : List (Loc, Num) -> Maybe Subst
+combine : List (LocId, Num) -> Maybe Subst
 combine solutions =
   let f (l,n) msubst =
     let g subst =
@@ -144,7 +144,7 @@ combine solutions =
 solve : Subst -> Equation -> Num
 solve subst (Equation sum tr) =
   let evalTrace t = case t of
-    TrLoc l      -> case Dict.get l subst of
+    TrLoc (k,_)  -> case Dict.get k subst of
                       Nothing -> (0, 1)
                       Just i  -> (i, 0)
     TrOp Plus ts -> List.foldl plusplus (0,0) (List.map evalTrace ts)

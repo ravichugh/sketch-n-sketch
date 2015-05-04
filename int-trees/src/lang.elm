@@ -8,7 +8,8 @@ import Utils
 
 ------------------------------------------------------------------------------
 
-type alias Loc = Int
+type alias Loc = (LocId, Maybe Ident)
+type alias LocId = Int
 type alias Ident = String
 type alias Num = Float
 
@@ -82,7 +83,8 @@ strVal_ showTraces v =
 
 strOp op = case op of {Plus -> "+"; Minus -> "-"; Mult -> "*"; Lt -> "<"}
 
-strLoc l = "k" ++ toString l
+strLoc (k, mx) =
+  "k" ++ toString k ++ case mx of {Nothing -> ""; Just x -> "_" ++ x}
 
 strTrace tr = case tr of
   TrLoc l   -> strLoc l
@@ -201,11 +203,11 @@ mapVal f v = case v of
 ------------------------------------------------------------------------------
 -- Substitutions
 
-type alias Subst = Dict.Dict Loc Num
+type alias Subst = Dict.Dict LocId Num
 
 applySubst : Subst -> Exp -> Exp
 applySubst subst e = case e of
-  EConst _ l -> case Dict.get l subst of Just i -> EConst i l
+  EConst _ l -> case Dict.get (fst l) subst of Just i -> EConst i l
   EBase _    -> e
   EVar _     -> e
   EFun _ _   -> e   -- not recursing into lambdas
@@ -222,7 +224,7 @@ applySubst subst e = case e of
 ------------------------------------------------------------------------------
 -- Abstract Syntax Helpers
 
-dummyLoc = 0
+dummyLoc = (0, Nothing)
 dummyTrace = TrLoc dummyLoc
 eConst = flip EConst dummyLoc
 vConst = flip VConst dummyTrace

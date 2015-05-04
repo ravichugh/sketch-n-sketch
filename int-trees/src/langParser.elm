@@ -30,7 +30,7 @@ substOf e = substOfExps_ Dict.empty [prelude, e]
 
 freshen_ : Int -> Exp -> (Exp, Int)
 freshen_ k e = case e of
-  EConst i _ -> (EConst i k, k + 1)
+  EConst i _ -> (EConst i (k, Nothing), k + 1)
   EBase v    -> (EBase v, k)
   EVar x     -> (EVar x, k)
   EFun ps e  -> let (e',k') = freshen_ k e in (EFun ps e', k')
@@ -43,9 +43,10 @@ freshen_ k e = case e of
                              (EList es' (Just e'), k'')
   EIf e1 e2 e3 -> let ([e1',e2',e3'],k') = freshenExps k [e1,e2,e3] in
                   (EIf e1' e2' e3', k')
-  ELet b x e1 e2 ->
+  ELet b p e1 e2 ->
     let ([e1',e2'],k') = freshenExps k [e1,e2] in
-    (ELet b x e1' e2', k')
+    let e1'' = addBreadCrumbs (p, e1') in
+    (ELet b p e1'' e2', k')
   ECase e l ->
     let es = List.map snd l in
     let (e'::es', k') = freshenExps k (e::es) in
@@ -56,11 +57,24 @@ freshenExps k es =
     let (e1,k1) = freshen_ k' e in
     (e1::es', k1)) ([],k) es
 
+addBreadCrumbs pe = case pe of
+  (PVar x, EConst n (k, Nothing)) -> EConst n (k, Just x)
+  (PList ps mp, EList es me) ->
+    case Utils.maybeZip ps es of
+      Nothing  -> EList es me
+      Just pes -> let es' = List.map addBreadCrumbs pes in
+                  let me' =
+                    case (mp, me) of
+                      (Just p, Just e) -> Just (addBreadCrumbs (p,e))
+                      _                -> me in
+                  EList es' me'
+  (_, e) -> e
+
 -- this will be done while parsing eventually...
 
 substOf_ s e = case e of
-  EConst i l -> case Dict.get l s of
-                  Nothing -> Dict.insert l i s
+  EConst i l -> case Dict.get (fst l) s of
+                  Nothing -> Dict.insert (fst l) i s
                   Just j  -> if | i == j -> s
   EBase _    -> s
   EVar _     -> s 
