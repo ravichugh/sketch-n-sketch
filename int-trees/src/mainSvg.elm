@@ -34,28 +34,29 @@ showOne (w,h,test) =
   let {e,v,vnew} = test in
   let l1 = [ showString "Original Program", expToElt e --, expLocsToElt e
            , showString "Original Canvas",  valToElt w h v ] in
-  let l2 =
+  let l =
     case vnew of
-      VList [] -> []
-      _        -> [ showString "Updated Canvas", valToElt w h vnew ] in
-  let l3 =
-    case Sync.sync e v vnew of
-      Err e -> if l2 == [] then [] else [[ E.show e ]]
-      Ok results ->
-        flip Utils.mapi results <| \(i,((ei,vi),vdiff)) ->
-          [ showString <| "Option " ++ toString i ++ " "
-                          ++ Utils.parens ("vdiff = " ++ toString vdiff)
-          , expToElt ei
-          , valToElt w h vi
-          ]
+      VList [] -> l1
+      _ ->
+        let l2 = [ showString "Updated Canvas", valToElt w h vnew ] in
+        let l3 =
+          case Sync.sync e v vnew of
+            Err e -> [[ E.show e ]]
+            Ok results ->
+              flip Utils.mapi results <| \(i,((ei,vi),vdiff)) ->
+                [ showString <| "Option " ++ toString i ++ " "
+                                ++ Utils.parens ("vdiff = " ++ toString vdiff)
+                , expToElt ei
+                , valToElt w h vi
+                ]
+        in l2 ++ List.concat l3
   in
   let br = Html.toElement   1 20 (Html.br [] []) in
   let hr = Html.toElement 600 20 (Html.hr [] []) in
   E.flow E.right [
     E.spacer 10 10
   , E.flow E.down
-      (List.intersperse (E.spacer 10 10) (l1 ++ l2 ++ List.concat l3)
-        ++ [br,hr,br])
+      (List.intersperse (E.spacer 10 10) (l ++ [br,hr,br]))
   ]
 
 main : Element
