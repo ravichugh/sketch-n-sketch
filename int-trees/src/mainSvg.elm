@@ -33,12 +33,14 @@ expLocsToElt = showMonoString << Lang.sExpLocs
 showOne (w,h,test) =
   let {e,v,vnew} = test in
   let l1 = [ showString "Original Program", expToElt e --, expLocsToElt e
-           , showString "Original Canvas",  valToElt w h v
-           , showString "Updated Canvas",   valToElt w h vnew
-           ] in
+           , showString "Original Canvas",  valToElt w h v ] in
   let l2 =
+    case vnew of
+      VList [] -> []
+      _        -> [ showString "Updated Canvas", valToElt w h vnew ] in
+  let l3 =
     case Sync.sync e v vnew of
-      Err e -> [[ E.show e ]]
+      Err e -> if l2 == [] then [] else [[ E.show e ]]
       Ok results ->
         flip Utils.mapi results <| \(i,((ei,vi),vdiff)) ->
           [ showString <| "Option " ++ toString i ++ " "
@@ -52,7 +54,8 @@ showOne (w,h,test) =
   E.flow E.right [
     E.spacer 10 10
   , E.flow E.down
-      (List.intersperse (E.spacer 10 10) (l1 ++ List.concat l2) ++ [br,hr,br])
+      (List.intersperse (E.spacer 10 10) (l1 ++ l2 ++ List.concat l3)
+        ++ [br,hr,br])
   ]
 
 main : Element
@@ -72,6 +75,7 @@ main =
     , (600, 200, MicroTests.test26 ())
     , (600, 200, MicroTests.test27 ())
     , (600, 200, MicroTests.test28 ())
+    , (600, 200, MicroTests.test29 ())
   ] in
   E.flow E.down (List.map showOne tests)
 
