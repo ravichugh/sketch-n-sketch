@@ -9,6 +9,7 @@ import Sync exposing (sync)
 import Eval exposing (run)
 import MainSvg
 import Utils
+import MicroTests
 
 import List 
 import Dict
@@ -59,23 +60,18 @@ initModel = { code = ""
             }
 
 --Just as in microTests
-sampleFields se =
-    let e = parseE se
-        v = run e
-    in {e=e, v=v}
-
-sampleCode = 
+tempTestCode = 
     "(let [x0 y0 xsep ysep] [10 28 30 30]
-        (map (\\[i j] (square_ (+ x0 (mult i xsep)) (+ y0 (mult j ysep)) 20))
-             (cartProd [0 1 2] [0 1])))" 
+       (map (\\[i j] (square_ (+ x0 (mult i xsep)) (+ y0 (mult j ysep)) 20))
+            (cartProd [0 1 2] [0 1])))"
 
-sampleVals = sampleFields sampleCode
+tempTest = MicroTests.test27 ()
 
-sampleModel = { code      = sampleCode
-              , objects   = buildSvg sampleVals.v 
+sampleModel = { code      = tempTestCode
+              , objects   = buildSvg tempTest.v 
               , movingObj = Nothing
-              , inputVal = sampleVals.v
-              , workingVal = sampleVals.v
+              , inputVal = tempTest.v
+              , workingVal = tempTest.v
               , possibleChanges = []
               }
 
@@ -85,6 +81,7 @@ type Event = CodeUpdate String
            | DeselectObject String
            | MouseDown (Int, Int)
            | Sync
+           | Render
 
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
@@ -92,6 +89,13 @@ events = Signal.mailbox <| CodeUpdate ""
 -- Update --
 upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
+    Render -> { old | objects <- (buildSvg << Eval.run << parseE)
+                                  old.code
+                    , inputVal <- (Eval.run << parseE)
+                                  old.code
+                    , workingVal <- (Eval.run << parseE)
+                                    old.code
+              }
     CodeUpdate newcode -> { old | code <- newcode }
     MouseDown (mx, my) -> case old.movingObj of
         Nothing                  -> old
@@ -219,15 +223,16 @@ buildSvg v = case Debug.log "v" v of
            let  firstattrs = getFirstAttrs vs'
                 baseattrs = fst <| cleanAttrs (List.map snd firstattrs) ([],[])
                 attrloc = snd <| cleanAttrs (List.map snd firstattrs) ([],[])
-                xloc = find attrloc "xloc"
-                attrs = List.append (List.map fst firstattrs)
-                    [ Svg.Events.onMouseDown (Signal.message events.address
-                        (SelectObject xloc)) --xloc should be unique ID
-                    , Svg.Events.onMouseUp (Signal.message events.address
-                        (DeselectObject xloc))
-                    , Svg.Events.onMouseOut (Signal.message events.address
-                        (DeselectObject xloc))
-                    ]
+--                xloc = find attrloc "xloc"
+                attrs = List.map fst firstattrs
+--                attrs = List.append (List.map fst firstattrs)
+--                    [ Svg.Events.onMouseDown (Signal.message events.address
+--                        (SelectObject xloc)) --xloc should be unique ID
+--                    , Svg.Events.onMouseUp (Signal.message events.address
+--                        (DeselectObject xloc))
+--                    , Svg.Events.onMouseOut (Signal.message events.address
+--                        (DeselectObject xloc))
+--                    ]
            in ((svg shape) attrs [], List.append attrloc baseattrs)
                 
 getFirstAttrs : List Val -> List (Svg.Attribute, (String, String))
@@ -285,11 +290,16 @@ view (w,h) model =
                 [codeBox model.code]
             , Html.button
                 [ Attr.style
-                    [ ("name", "Sync the code and visual output")
-                    , ("value", "Sync")
+                    [ ("position", "absolute")
+                    , ("left", String.append (toString <| w // 4) "px")
+                    , ("top", String.append (toString <| h - 30) "px")
                     , ("type", "button")
+                    , ("width", "50px")
+                    , ("height", "20px")
                     ]
-                , Events.onSubmit events.address Sync
+                , Events.onClick events.address Render
+                , Attr.value "Render"
+                , Attr.name "Render the Code"
                 ]
                 []
             , Html.div
