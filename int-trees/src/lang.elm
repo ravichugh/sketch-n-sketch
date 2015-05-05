@@ -44,7 +44,7 @@ type Val
   | VBase BaseVal
   | VClosure (Maybe Ident) Pat Exp Env
   | VList (List Val)
-  | VHole
+  | VHole Int
 
 type BaseVal -- unlike Ints, these cannot be changed by Sync
   = Bool Bool
@@ -77,7 +77,7 @@ strVal_ showTraces v =
     VBase b          -> strBaseVal b
     VClosure _ _ _ _ -> "<fun>"
     VList vs         -> Utils.bracks (String.join " " (List.map foo vs))
-    VHole            -> "??"
+    VHole i          -> "HOLE_" ++ toString i
 
 strOp op = case op of {Plus -> "+"; Minus -> "-"; Mult -> "*"; Lt -> "<"}
 
@@ -117,9 +117,15 @@ sExp_ showLocs k e =
       let args = Utils.spaces (List.map strPat ps) in
       Utils.parens <| "\\" ++ Utils.parens args ++ indent e
     EApp e1 [e2] ->
-      Utils.parens <| foo k e1 ++ " " ++ foo k e2
+      Utils.parens <| foo k e1 ++ " " ++ indent e2
     EApp e1 es ->
-      Utils.parens <| foo k e1 ++ " " ++ Utils.spaces (List.map (foo k) es)
+      Utils.parens <|
+        let s1 = foo k e1
+            ss = List.map (foo (k+1)) es
+            s2 = Utils.spaces ss in
+        if fitsOnLine s2
+        then s1 ++ " " ++ s2
+        else String.join ("\n" ++ tab (k+1)) (s1::ss)
     EOp op [e1,e2] ->
       Utils.parens <| String.join " " [strOp op, foo k e1, foo k e2]
     EIf e1 e2 e3 ->
@@ -157,6 +163,7 @@ maybeIndent showLocs k e =
   if | fitsOnLine s -> " " ++ s
      | otherwise    -> "\n" ++ tab (k+1) ++ s
 
+-- TODO take into account indent and other prefix of current line
 fitsOnLine s =
   if | String.length s > 70               -> False
      | List.member '\n' (String.toList s) -> False
@@ -187,7 +194,7 @@ mapVal f v = case v of
   VConst _ _       -> f v
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
-  VHole            -> f v
+  VHole _          -> f v
 
 
 ------------------------------------------------------------------------------
@@ -210,77 +217,6 @@ applySubst subst e = case e of
   EIf e1 e2 e3 ->
     EIf (applySubst subst e1) (applySubst subst e2) (applySubst subst e3)
 
-
-------------------------------------------------------------------------------
--- Value Contexts
-
-type alias VContext = Val
-  -- invariant: a VContext is a Val with exactly one VHole
-
-fillHoleWith : VContext -> Val -> Val
-fillHoleWith vc w = case vc of
-  VHole            -> w
-  VConst _ _       -> vc
-  VBase _          -> vc
-  VClosure _ _ _ _ -> vc   -- not recursing into closures
-  VList vs         -> VList (List.map (flip fillHoleWith w) vs)
-
-type VDiff = Same Val | Diff VContext Val Val
-
-diff : Val -> Val -> Maybe VDiff
-diff v1 v2 = 
-  let res = diff_ v1 v2 in
-  case res of
-    Just (Diff vc w1 w2) ->
-      let (v1',v2') = (fillHoleWith vc w1, fillHoleWith vc w2) in
-      if | eqV (v1,v1') && eqV (v2,v2') -> res
-         | otherwise ->
-             Debug.crash (String.join "\n"
-               ["bad diff", strVal vc, strVal w1, strVal w2])
-    _ -> res
-
-eqV (v1,v2) = case (v1, v2) of            -- equality modulo traces
-  (VConst i tr, VConst j _) -> i == j
-  (VList vs1, VList vs2) ->
-    case Utils.maybeZip vs1 vs2 of
-      Nothing -> False
-      Just l  -> List.all eqV l
-  _ -> v1 == v2
-  
--- assuming that v1 is the value resulting from eval (so it has proper locs)
--- and that v2 has dummy locs
-
-diff_ v1 v2 = case (v1, v2) of
-  (VBase Star, VConst _ _) -> Just (Same v2)
-  (VConst i tr, VConst j _) ->
-    if | i == j    -> Just (Same (VConst i tr))  -- cf. comment above
-       | otherwise -> Just (Diff VHole v1 (VConst j tr))
-  (VList vs1, VList vs2) ->
-    case Utils.maybeZip vs1 vs2 of
-      Nothing -> Nothing
-      Just l ->
-        List.foldr (\(vi1,vi2) acc ->
-          case acc of
-            Nothing -> Nothing
-            Just (Same (VList vs)) ->
-              case diff_ vi1 vi2 of
-                Nothing              -> Nothing
-                Just (Same v)        -> justSameVList (v::vs)
-                Just (Diff vc w1 w2) -> Just (Diff (VList (vc::vs)) w1 w2)
-            Just (Diff (VList vs) w1 w2) ->
-              case diff_ vi1 vi2 of
-                Nothing              -> Nothing
-                Just (Same v)        -> Just (Diff (VList (v::vs)) w1 w2)
-                Just (Diff _ _ _)    -> Nothing
-            Just (Diff _ _ _) ->
-              Debug.crash "diff_: error?"
-        ) (justSameVList []) l
-  _ ->
-    if | v1 == v2  -> Just (Same v1)
-       | otherwise -> Nothing
-           
-justSameVList = Just << Same << VList
-      
 
 ------------------------------------------------------------------------------
 -- Abstract Syntax Helpers

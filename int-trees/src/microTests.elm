@@ -1,7 +1,7 @@
 module MicroTests where
 
 import Lang exposing (strVal)
-import LangParser exposing (parseV, parseE, freshen)
+import LangParser exposing (parseV, parseE)
 import Eval
 
 _ `ignore` _ = ()
@@ -45,7 +45,7 @@ testParser = ()
 --------------------------------------------------------------------------------
 
 makeTest se sv' =
-  let e  = freshen (parseE se)
+  let e  = parseE se
       v  = Eval.run e
       v' = parseV sv'
   in
@@ -141,21 +141,23 @@ test14 () =
 test15 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
-       (map (\\i [(+ x0 (mult i sep)) y0]) [0 1 2]))"
-    "[[10 28] [40 28] [100 28]]"
+       (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2]))"
+    (strVal (Eval.run (parseE
+      "[(circle_ 10 28 10) (circle_ 40 28 10) (circle_ 100 28 10)]")))
 
 test16 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
-       (map (\\i [(+ x0 (mult i sep)) y0]) [0 1 2]))"
-    "[[150 28] [40 28] [70 28]]"
+       (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2]))"
+    (strVal (Eval.run (parseE
+      "[(circle_ 150 28 10) (circle_ 40 28 10) (circle_ 70 28 10)]")))
 
 test17 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
        (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2]))"
     (strVal (Eval.run (parseE
-      "[(circle_ 150 28 10) (circle_ 40 28 10) (circle_ 70 28 10)]")))
+      "[(circle_ 10 28 10) (circle_ 150 28 10) (circle_ 70 28 10)]")))
 
 test18 () =
   makeTest
@@ -194,5 +196,69 @@ test22 () =
        (foo '#F0AD00' [[255 246] [323 314] [323 178]])
        (foo '#60B5CC' [[161 170] [8 323] [314 323]])
      ])"
+    "[]"
+
+test23 () =
+  makeTest
+    "(let [x0 y0 sep] [10 28 30]
+       (map2 (\\(i j) (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 20))
+             [0 1 2] [0 1 2]))"
+    (strVal (Eval.run (parseE
+      "[(square_ 150 28 20) (square_ 40 58 20) (square_ 70 88 20)]")))
+
+test24 () =
+  makeTest
+    "(let [x0 y0 sep] [10 28 30]
+       (map2 (\\(i j) (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 20))
+             [0 1 2] [0 1 2]))"
+    (strVal (Eval.run (parseE
+      "[(square_ 10 28 20) (square_ 40 58 20) (square_ 100 88 20)]")))
+
+-- two equations that constrain the same variable, but both have same solution
+test25 () =
+  makeTest
+    "(let [x0 y0 sep] [10 28 30]
+       (map2 (\\(i j) (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 20))
+             [0 1 2] [0 1 2]))"
+    (strVal (Eval.run (parseE
+      "[(square_ 10 28 20) (square_ 40 58 20) (square_ 100 118 20)]")))
+
+test26 () =
+  makeTest
+    "(let [x0 y0 sep] [10 28 30]
+       (map (\\[i j] (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 20))
+            (cartProd [0 1 2] [0 1])))"
+    "[['rect' ['x' 10] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 10] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 40] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 40] ['y' 99] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 70] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 70] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']]]"
+
+-- changing two leaves, each of which leads to two disjoint solutions
+test27 () =
+  makeTest
+    "(let [x0 y0 xsep ysep] [10 28 30 30]
+       (map (\\[i j] (square_ (+ x0 (mult i xsep)) (+ y0 (mult j ysep)) 20))
+            (cartProd [0 1 2] [0 1])))"
+    "[['rect' ['x' 10] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 10] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 40] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 60] ['y' 78] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 70] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
+      ['rect' ['x' 70] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']]]"
+
+-- rudimentary olympic rings
+test28 () =
+  makeTest
+    "(let [x0 y0 w r dx dy] [30 30 7 20 32 20]
+     (let dxHalf (div dx 2)
+     (let row1
+       (map (\\[i c] (ring c w (+ x0 (mult i dx)) y0 r))
+            (zip [0 1 2] ['blue' 'black' 'red']))
+     (let row2
+       (map (\\[i c] (ring c w (+ (+ x0 dxHalf) (mult i dx)) (+ y0 dy) r))
+            (zip [0 1] ['yellow' 'green']))
+       (append row1 row2)))))"
     "[]"
 

@@ -1,4 +1,4 @@
-module Eval (run) where
+module Eval (run, parseAndRun) where
 
 import Debug
 
@@ -122,4 +122,7 @@ run : Exp -> Val
 run e =
   let initEnv = snd (eval [] prelude) in
   eval_ initEnv e
+
+parseAndRun : String -> String
+parseAndRun = strVal << run << LangParser.parseE
 
