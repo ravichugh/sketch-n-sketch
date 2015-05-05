@@ -4,7 +4,7 @@
 
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
-import LangParser exposing (freshen, parseE, parseV)
+import LangParser exposing (parseE, parseV)
 import Sync exposing (sync)
 import Eval exposing (run)
 import MainSvg
@@ -60,7 +60,7 @@ initModel = { code = ""
 
 --Just as in microTests
 sampleFields se =
-    let e = freshen (parseE se)
+    let e = parseE se
         v = run e
     in {e=e, v=v}
 
@@ -89,8 +89,6 @@ type Event = CodeUpdate String
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
 
-events : Signal.Mailbox Event
-events = Signal.mailbox <| CodeUpdate ""
 -- Update --
 upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
@@ -100,9 +98,9 @@ upstate evt old = case Debug.log "Event" evt of
         Just (obj, xdist, ydist) -> if
             | xdist == -1.0 || ydist == -1.0 -> case obj of
                 (svg, attrs) -> 
-                    let xpos = case String.toFloat <| MainSvg.find attrs "xpos" of
+                    let xpos = case String.toFloat <| find attrs "xpos" of
                             Ok a -> a
-                        ypos = case String.toFloat <| MainSvg.find attrs "ypos" of
+                        ypos = case String.toFloat <| find attrs "ypos" of
                             Ok a -> a
                     in { old | movingObj <- Just (obj 
                                                , xpos - Basics.toFloat mx
@@ -117,7 +115,7 @@ upstate evt old = case Debug.log "Event" evt of
                                 (moved, xdist, ydist)
                     }
     SelectObject x -> let match = List.filter 
-                                (\(s, a) -> x == (MainSvg.find a "xloc"))
+                                (\(s, a) -> x == (find a "xloc"))
                                 old.objects
                       in case match of
                               mat :: xs -> { old | movingObj <- Just (mat, -1.0, -1.0) }
@@ -125,13 +123,48 @@ upstate evt old = case Debug.log "Event" evt of
     Sync -> old --TODO perform appropriate sync actions
     _ -> old
 
+--- Borrowed from LangSvg.elm ---
+funcsSvg = [
+    ("circle", Svg.circle)
+  , ("line", Svg.line)
+  , ("polygon", Svg.polygon)
+  , ("rect", Svg.rect)
+  ]
+
+funcsAttr = [
+    ("cx", Svg.Attributes.cx)
+  , ("cy", Svg.Attributes.cy)
+  , ("fill", Svg.Attributes.fill)
+  , ("height", Svg.Attributes.height)
+  , ("points", Svg.Attributes.points)
+  , ("r", Svg.Attributes.r)
+  , ("stroke", Svg.Attributes.stroke)
+  , ("strokeWidth", Svg.Attributes.strokeWidth)
+  , ("width", Svg.Attributes.width)
+  , ("x", Svg.Attributes.x)
+  , ("x1", Svg.Attributes.x1)
+  , ("x2", Svg.Attributes.x2)
+  , ("y", Svg.Attributes.y)
+  , ("y1", Svg.Attributes.y1)
+  , ("y2", Svg.Attributes.y2)
+  ]
+
+find d s =
+  case Utils.maybeFind s d of
+    Just f  -> f
+    Nothing -> Debug.crash <| "find: " ++ s
+
+attr = find funcsAttr
+svg  = find funcsSvg
+--- ---
+
 updateObjPos : List (String, String) -> Object -> Object -> Object
 updateObjPos newattrs (o1, a1) (o2, a2) = 
-    let xloc1 = MainSvg.find a1 "xloc"
-        xloc2 = MainSvg.find a2 "xloc"
+    let xloc1 = find a1 "xloc"
+        xloc2 = find a2 "xloc"
     in if | xloc1 == xloc2 ->
                 let updatedattrs = updateAttrs newattrs a1
-                    svgattrs = List.map (\(x,y) -> MainSvg.attr x <| y) updatedattrs
+                    svgattrs = List.map (\(x,y) -> attr x <| y) updatedattrs
                 in (Svg.rect svgattrs [], updatedattrs) --TODO keep track of
                                                          --the kind of shape it is
           | otherwise -> (o2, a2)
@@ -186,7 +219,7 @@ buildSvg v = case Debug.log "v" v of
            let  firstattrs = getFirstAttrs vs'
                 baseattrs = fst <| cleanAttrs (List.map snd firstattrs) ([],[])
                 attrloc = snd <| cleanAttrs (List.map snd firstattrs) ([],[])
-                xloc = MainSvg.find attrloc "xloc"
+                xloc = find attrloc "xloc"
                 attrs = List.append (List.map fst firstattrs)
                     [ Svg.Events.onMouseDown (Signal.message events.address
                         (SelectObject xloc)) --xloc should be unique ID
@@ -195,14 +228,14 @@ buildSvg v = case Debug.log "v" v of
                     , Svg.Events.onMouseOut (Signal.message events.address
                         (DeselectObject xloc))
                     ]
-           in ((MainSvg.svg shape) attrs [], List.append attrloc baseattrs)
+           in ((svg shape) attrs [], List.append attrloc baseattrs)
                 
 getFirstAttrs : List Val -> List (Svg.Attribute, (String, String))
 getFirstAttrs vals = List.map 
     (\x -> case x of
-        VList [VBase (String a), VConst i pos] -> ((MainSvg.attr a) <| toString i
+        VList [VBase (String a), VConst i pos] -> ((attr a) <| toString i
               , (a, String.concat [toString i, "|", toString pos]))
-        VList [VBase (String a), VBase (String s)] -> ((MainSvg.attr a) s
+        VList [VBase (String a), VBase (String s)] -> ((attr a) s
               , (a,s))
         VList [VBase (String "points"), VList pts] ->
             let s = Utils.spaces <| List.map
@@ -210,7 +243,7 @@ getFirstAttrs vals = List.map
                         VList [VConst x1 _, VConst y1 _] ->
                             toString x1 ++ "," ++ toString y1)
                     pts
-            in ((MainSvg.attr "points") s, ("points", s)))
+            in ((attr "points") s, ("points", s)))
     vals
 
 --Takes a list of attributes and pulls out the location
@@ -226,7 +259,7 @@ cleanAttrs = \l (acc1, acc2) -> case l of
                                 , (String.append key "loc", loc) :: acc2)
         _         -> cleanAttrs xs
                                 ((key, val) :: acc1, acc2)
-        []        -> (acc1, acc2)
+    []        -> (acc1, acc2)
     
 view : (Int, Int) -> Model -> Html.Html
 view (w,h) model = 
