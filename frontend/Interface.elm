@@ -65,10 +65,9 @@ sampleFields se =
     in {e=e, v=v}
 
 sampleCode = 
-    "(letrec map (\\(f xs) (case xs ([] []) ([hd|t1] [(f hd)|(map f t1)])))
-     (letrec mult (\\(m n) (if (< m 1) 0 (+ n (mult (- m 1) n))))
-     (let [x0 y0 sep] [10 8 30]
-       (map (\\i [(+ x0 (mult i sep)) y0]) [0 1 2]))))"
+    "(let [x0 y0 xsep ysep] [10 28 30 30]
+        (map (\\[i j] (square_ (+ x0 (mult i xsep)) (+ y0 (mult j ysep)) 20))
+             (cartProd [0 1 2] [0 1])))" 
 
 sampleVals = sampleFields sampleCode
 
