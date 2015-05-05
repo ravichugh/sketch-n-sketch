@@ -99,18 +99,16 @@ upstate evt old = case Debug.log "Event" evt of
         Just (obj, xdist, ydist) -> if
             | xdist == -1.0 || ydist == -1.0 -> case obj of
                 (svg, attrs) -> 
-                    let xpos = case MainSvg.find "xpos" attrs of
-                            Ok a -> case String.toFloat a of
-                                Ok b -> b
-                        ypos = case MainSvg.find "ypos" attrs of
-                            Ok a -> case String.toFloat a of
-                                Ok b -> b
+                    let xpos = case String.toFloat <| MainSvg.find attrs "xpos" of
+                            Ok a -> a
+                        ypos = case String.toFloat <| MainSvg.find attrs "ypos" of
+                            Ok a -> a
                     in { old | movingObj <- Just (obj 
                                                , xpos - Basics.toFloat mx
                                                , ypos - Basics.toFloat my) }
             | otherwise -> 
                 let newpos = [ ("xpos", toString <| Basics.toFloat mx + xdist)
-                               ("ypos", toString <| Basics.toFloat my + ydist) ]
+                             , ("ypos", toString <| Basics.toFloat my + ydist) ]
                     newobjs = List.map (updateObjPos newpos obj) old.objects
                     moved = updateObjPos newpos obj obj
                 in  { old | objects <- newobjs 
@@ -118,8 +116,7 @@ upstate evt old = case Debug.log "Event" evt of
                                 (moved, xdist, ydist)
                     }
     SelectObject x -> let match = List.filter 
-                                (\(s, a) -> case MainSvg.find "xloc" a of 
-                                    Ok b -> b == x)
+                                (\(s, a) -> x == (MainSvg.find a "xloc"))
                                 old.objects
                       in case match of
                               mat :: xs -> { old | movingObj <- Just (mat, -1.0, -1.0) }
@@ -129,14 +126,11 @@ upstate evt old = case Debug.log "Event" evt of
 
 updateObjPos : List (String, String) -> Object -> Object -> Object
 updateObjPos newattrs (o1, a1) (o2, a2) = 
-    let xloc1 = case MainSvg.find "xloc" a1 of
-            Ok a -> a
-        xloc2 = case MainSvg.find "xloc" a2 of
-            Ok a -> a
-    --        Just sq -> sq
+    let xloc1 = MainSvg.find a1 "xloc"
+        xloc2 = MainSvg.find a2 "xloc"
     in if | xloc1 == xloc2 ->
                 let updatedattrs = updateAttrs newattrs a1
-                    svgattrs = List.map MainSvg.attr updatedattrs
+                    svgattrs = List.map (\(x,y) -> MainSvg.attr x <| y) updatedattrs
                 in (Svg.rect svgattrs [], updatedattrs) --TODO keep track of
                                                          --the kind of shape it is
           | otherwise -> (o2, a2)
@@ -182,18 +176,17 @@ visualsBox model dim =
                     [ ("width", "100%")
                     , ("height", "100%")
                     ]
-                ] <| List.map (\(f,x,y) -> f) model.objects 
+                ] <| List.map (\(f,g) -> f) model.objects 
 
 buildSvg : Val -> List (Svg.Svg, List (String, String))
-buildSvg v = case v of
+buildSvg v = case Debug.log "v" v of
    VList vs -> flip List.map vs <| \v1 -> case v1 of
        VList (VBase (String shape) :: vs') ->
            let  firstattrs = getFirstAttrs vs'
-                baseattrs = fst <| cleanAttrs (snd firstattrs) ([],[])
-                attrloc = snd <| cleanAttrs (snd firstattrs) ([],[])
-                xloc = case MainSvg.find attrloc "x" of
-                    Ok s -> s
-                attrs = List.append (fst firstattrs)
+                baseattrs = fst <| cleanAttrs (List.map snd firstattrs) ([],[])
+                attrloc = snd <| cleanAttrs (List.map snd firstattrs) ([],[])
+                xloc = MainSvg.find attrloc "xloc"
+                attrs = List.append (List.map fst firstattrs)
                     [ Svg.Events.onMouseDown (Signal.message events.address
                         (SelectObject xloc)) --xloc should be unique ID
                     , Svg.Events.onMouseUp (Signal.message events.address
@@ -201,12 +194,12 @@ buildSvg v = case v of
                     , Svg.Events.onMouseOut (Signal.message events.address
                         (DeselectObject xloc))
                     ]
-           in ((MainSvg.svg shape) attrs [], List.map (\(a,b) -> b) baseattrs)
+           in ((MainSvg.svg shape) attrs [], List.append attrloc baseattrs)
                 
 getFirstAttrs : List Val -> List (Svg.Attribute, (String, String))
 getFirstAttrs vals = List.map 
     (\x -> case x of
-        VList [VBase (String a), VConst i pos] -> ((MainSvg.attr a) toString i
+        VList [VBase (String a), VConst i pos] -> ((MainSvg.attr a) <| toString i
               , (a, String.concat [toString i, "|", toString pos]))
         VList [VBase (String a), VBase (String s)] -> ((MainSvg.attr a) s
               , (a,s))
@@ -222,18 +215,17 @@ getFirstAttrs vals = List.map
 --Takes a list of attributes and pulls out the location
 -- information for the constants into a separate list
 cleanAttrs : List (String, String) -> ( List (String, String)
-                                      , List (String, Int))
+                                      , List (String, String))
                                    -> ( List (String, String)
                                       , List (String, String))
 cleanAttrs = \l (acc1, acc2) -> case l of
     (key, val) :: xs -> case String.split "|" val of
-        [v1, loc] -> cleanAttrs ((key, v1) :: acc1
-                                , (key, loc) :: acc2)
-                                xs
-        _         -> cleanAttrs ((key, val) :: acc1
-                                , acc2)
-                                xs
-    []            -> (acc1, acc2)
+        [v1, loc] -> cleanAttrs xs
+                                ((key, v1) :: acc1
+                                , (String.append key "loc", loc) :: acc2)
+        _         -> cleanAttrs xs
+                                ((key, val) :: acc1, acc2)
+        []        -> (acc1, acc2)
     
 view : (Int, Int) -> Model -> Html.Html
 view (w,h) model = 
