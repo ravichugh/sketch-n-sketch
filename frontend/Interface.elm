@@ -2,25 +2,25 @@
 -- This defines and renders an interactive interface for editing the
 -- program and output of the language as defined in int-trees.
 
---Import the language and its parsing utilities
---import Lang
---import LangParser
---import Sync
---import Utils
+--Import the little language and its parsing utilities
+import Lang exposing (..) --For access to what makes up the Vals
+import LangParser exposing (freshen, parseE, parseV)
+import Sync exposing (sync)
+import Eval exposing (run)
+import MainSvg
+import Utils
 
-import List exposing (..)
-import Dict exposing (..)
-import String exposing (..)
-import Graphics.Element as GE exposing (..)
-import Graphics.Collage as GC exposing (..)
-import Result exposing (..)
-import Signal exposing (..)
+import List 
+import Dict
+import String 
+import Graphics.Element as GE 
+import Graphics.Collage as GC
 
-import Mouse exposing (..)
-import Window exposing (..)
-import Html exposing (..)
-import Html.Attributes as Attr exposing (..) 
-import Html.Events as Events exposing (..) 
+import Mouse 
+import Window 
+import Html 
+import Html.Attributes as Attr
+import Html.Events as Events
 
 import Svg
 import Svg.Attributes
@@ -30,41 +30,64 @@ import Svg.Lazy
 import Debug
 
 -- Model --
---code is the text from the codebox
---output: the parsed representation
---of the code (this type will change later)
---objects: a list of the objects
---selected: the possible key of a selected object
+--Fields:
+-- code            - Text currently in the textbox
+-- objects         - The workingVal translated to manipulable SVGs
+-- movingObj       - If an object is being moved, which one
+-- inputVal        - The last code input parsed into a Val
+--                   (changes only after picking an output of sync)
+-- workingVal      - The inputVal after applying the manipulations performed on
+--                   the graphics side (done on the fly)
+-- possibleChanges - The possible new expressions and their associated Vals, 
+--                   as from the output of sync
 type alias Model = { code : String
-                    , output : List (List Int) --temporary
-                    , objects : List Object
-                    , selected : Maybe (List Int)
-                    , movingObj : Maybe (Object, Float, Float)
+                   , objects : List Object
+                   , movingObj : Maybe (Object, Float, Float)
+                   , inputVal : Val
+                   , workingVal : Val
+                   , possibleChanges : List ((Exp, Val), Int)
                    }
 
-type alias Object = (Svg.Svg, Int, Int)
+type alias Object = (Svg.Svg, List (String, String))
 
 initModel = { code = ""
-            , output = []
             , objects = []
-            , selected = Nothing
             , movingObj = Nothing
+            , inputVal = VHole
+            , workingVal = VHole
+            , possibleChanges = []
             }
 
-sampleModel = { code = "[[50,100],[150,100],[250,100]]"
-            , output = [[50,100],[150,100],[250,100]] 
-            , objects = justList
-                        <| List.map (\s -> buildSquare s) 
-                            [[50,100],[150,100],[250,100]]
-            , selected = Nothing
-            , movingObj = Nothing
-            }
+--Just as in microTests
+sampleFields se =
+    let e = freshen (parseE se)
+        v = run e
+    in {e=e, v=v}
+
+sampleCode = 
+    "(let [x0 y0 xsep ysep] [10 28 30 30]
+        (map (\\[i j] (square_ (+ x0 (mult i xsep)) (+ y0 (mult j ysep)) 20))
+             (cartProd [0 1 2] [0 1])))" 
+
+sampleVals = sampleFields sampleCode
+
+sampleModel = { code      = sampleCode
+              , objects   = buildSvg sampleVals.v 
+              , movingObj = Nothing
+              , inputVal = sampleVals.v
+              , workingVal = sampleVals.v
+              , possibleChanges = []
+              }
 
 type Event = CodeUpdate String
            | OutputUpdate String
-           | SelectObject (List Int)
-           | DeselectObject (List Int)
+           | SelectObject String
+           | DeselectObject String
            | MouseDown (Int, Int)
+           | Sync
+
+events : Signal.Mailbox Event
+events = Signal.mailbox <| CodeUpdate ""
 
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
@@ -73,43 +96,57 @@ upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
     CodeUpdate newcode -> { old | code <- newcode }
     MouseDown (mx, my) -> case old.movingObj of
-        Nothing                 -> old
+        Nothing                  -> old
         Just (obj, xdist, ydist) -> if
             | xdist == -1.0 || ydist == -1.0 -> case obj of
-                (svg, xpos, ypos) -> 
-                    { old | movingObj <- Just (obj 
-                                               , Basics.toFloat <| xpos -  mx
-                                               , Basics.toFloat <| ypos - my) }
+                (svg, attrs) -> 
+                    let xpos = case String.toFloat <| MainSvg.find attrs "xpos" of
+                            Ok a -> a
+                        ypos = case String.toFloat <| MainSvg.find attrs "ypos" of
+                            Ok a -> a
+                    in { old | movingObj <- Just (obj 
+                                               , xpos - Basics.toFloat mx
+                                               , ypos - Basics.toFloat my) }
             | otherwise -> 
-                let newpos = (Basics.toFloat mx + xdist, Basics.toFloat my + ydist)
+                let newpos = [ ("xpos", toString <| Basics.toFloat mx + xdist)
+                             , ("ypos", toString <| Basics.toFloat my + ydist) ]
                     newobjs = List.map (updateObjPos newpos obj) old.objects
                     moved = updateObjPos newpos obj obj
                 in  { old | objects <- newobjs 
                           , movingObj <- Just 
                                 (moved, xdist, ydist)
                     }
-    SelectObject [x,y] -> let match = List.filter 
-                                (\(o,x2,y2) -> x == x2 && y == y2)
+    SelectObject x -> let match = List.filter 
+                                (\(s, a) -> x == (MainSvg.find a "xloc"))
                                 old.objects
-                          in case match of
+                      in case match of
                               mat :: xs -> { old | movingObj <- Just (mat, -1.0, -1.0) }
-    DeselectObject [x,y] -> { old | movingObj <- Nothing }
+    DeselectObject x -> { old | movingObj <- Nothing }
+    Sync -> old --TODO perform appropriate sync actions
     _ -> old
 
+updateObjPos : List (String, String) -> Object -> Object -> Object
+updateObjPos newattrs (o1, a1) (o2, a2) = 
+    let xloc1 = MainSvg.find a1 "xloc"
+        xloc2 = MainSvg.find a2 "xloc"
+    in if | xloc1 == xloc2 ->
+                let updatedattrs = updateAttrs newattrs a1
+                    svgattrs = List.map (\(x,y) -> MainSvg.attr x <| y) updatedattrs
+                in (Svg.rect svgattrs [], updatedattrs) --TODO keep track of
+                                                         --the kind of shape it is
+          | otherwise -> (o2, a2)
 
-pickObj : (Int, Int) -> List Object -> Maybe Object
-pickObj (mx, my) objs = case objs of
-    [] -> Nothing
-    (form, x, y) :: xs -> if | abs (Basics.toFloat <| x - mx) <= 20 
-                               && abs (Basics.toFloat <| y - my) <= 20 -> Just (form, x, y)
-                             | otherwise -> pickObj (mx, my) xs
+updateAttrs : List (String, String) -> List (String, String) -> 
+                List (String, String)
+updateAttrs newattrs oldattrs = case newattrs of
+    [] -> oldattrs
+    (a1, v1) :: xs -> updateAttrs xs (replace (a1,v1) oldattrs)
 
-updateObjPos : (Float, Float) -> Object -> Object -> Object
-updateObjPos (newx, newy) (o1,x1,y1) (o2,x2,y2) = if
-    | (x1,y1) == (x2,y2) -> 
-        case buildSquare [round newx, round newy] of
-            Just sq -> sq
-    | otherwise -> (o2,x2,y2)
+replace : (String, String) -> List (String, String) -> List (String, String)
+replace (a1, v1) attrs = case attrs of
+    [] -> [(a1,v1)]
+    (a2, v2) :: xs -> if | a1 == a2 -> (a1, v1) :: xs
+                         | otherwise -> (a2, v2) :: replace (a1, v1) xs
 
 adjustCoords : (Int, Int) -> (Int, Int) -> (Int, Int)
 adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
@@ -140,39 +177,57 @@ visualsBox model dim =
                     [ ("width", "100%")
                     , ("height", "100%")
                     ]
-                ] <| List.map (\(f,x,y) -> f) model.objects 
+                ] <| List.map (\(f,g) -> f) model.objects 
 
-buildSquare : List Int -> Maybe (Svg.Svg, Int, Int)
-buildSquare coords =
-    case coords of
-        [x,y] -> 
-                Just (Svg.rect
-                    [ Svg.Attributes.x <| toString x 
-                    , Svg.Attributes.y <| toString y
-                    , Svg.Attributes.width "60"
-                    , Svg.Attributes.height "60"
-                    , Svg.Attributes.fill "blue"
-                    , Svg.Events.onMouseDown (Signal.message events.address
-                        (SelectObject coords)) --TODO id of some sort
+buildSvg : Val -> List (Svg.Svg, List (String, String))
+buildSvg v = case Debug.log "v" v of
+   VList vs -> flip List.map vs <| \v1 -> case v1 of
+       VList (VBase (String shape) :: vs') ->
+           let  firstattrs = getFirstAttrs vs'
+                baseattrs = fst <| cleanAttrs (List.map snd firstattrs) ([],[])
+                attrloc = snd <| cleanAttrs (List.map snd firstattrs) ([],[])
+                xloc = MainSvg.find attrloc "xloc"
+                attrs = List.append (List.map fst firstattrs)
+                    [ Svg.Events.onMouseDown (Signal.message events.address
+                        (SelectObject xloc)) --xloc should be unique ID
                     , Svg.Events.onMouseUp (Signal.message events.address
-                        (DeselectObject coords))
+                        (DeselectObject xloc))
                     , Svg.Events.onMouseOut (Signal.message events.address
-                        (DeselectObject coords))
+                        (DeselectObject xloc))
                     ]
-                    []
-                , x 
-                , y 
-                )
-        _     -> Nothing
+           in ((MainSvg.svg shape) attrs [], List.append attrloc baseattrs)
+                
+getFirstAttrs : List Val -> List (Svg.Attribute, (String, String))
+getFirstAttrs vals = List.map 
+    (\x -> case x of
+        VList [VBase (String a), VConst i pos] -> ((MainSvg.attr a) <| toString i
+              , (a, String.concat [toString i, "|", toString pos]))
+        VList [VBase (String a), VBase (String s)] -> ((MainSvg.attr a) s
+              , (a,s))
+        VList [VBase (String "points"), VList pts] ->
+            let s = Utils.spaces <| List.map
+                    (\y -> case y of
+                        VList [VConst x1 _, VConst y1 _] ->
+                            toString x1 ++ "," ++ toString y1)
+                    pts
+            in ((MainSvg.attr "points") s, ("points", s)))
+    vals
 
-justList : List (Maybe (Svg.Svg, Int, Int)) -> List (Svg.Svg, Int, Int)
-justList l = 
-    case l of
-        Just v :: vs  -> v :: (justList vs)
-        Nothing :: vs -> justList vs
-        _             -> []
-
-
+--Takes a list of attributes and pulls out the location
+-- information for the constants into a separate list
+cleanAttrs : List (String, String) -> ( List (String, String)
+                                      , List (String, String))
+                                   -> ( List (String, String)
+                                      , List (String, String))
+cleanAttrs = \l (acc1, acc2) -> case l of
+    (key, val) :: xs -> case String.split "|" val of
+        [v1, loc] -> cleanAttrs xs
+                                ((key, v1) :: acc1
+                                , (String.append key "loc", loc) :: acc2)
+        _         -> cleanAttrs xs
+                                ((key, val) :: acc1, acc2)
+        []        -> (acc1, acc2)
+    
 view : (Int, Int) -> Model -> Html.Html
 view (w,h) model = 
     let
@@ -187,7 +242,7 @@ view (w,h) model =
             [ Html.div 
                 [ Attr.style
                     [ ("width", String.append (toString <| w // 2 - 1) "px")
-                    , ("height", String.append (toString <| h - 20) "px")
+                    , ("height", String.append (toString <| h - 60) "px")
                     , ("margin", "0")
                     , ("position", "absolute")
                     , ("left", "0px")
@@ -195,6 +250,15 @@ view (w,h) model =
                     ]
                 ]
                 [codeBox model.code]
+            , Html.button
+                [ Attr.style
+                    [ ("name", "Sync the code and visual output")
+                    , ("value", "Sync")
+                    , ("type", "button")
+                    ]
+                , Events.onSubmit events.address Sync
+                ]
+                []
             , Html.div
                 [ Attr.style
                     [ ("width", String.append (toString <| w // 2 - 1) "px")

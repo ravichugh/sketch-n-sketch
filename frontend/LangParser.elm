@@ -1,1 +1,1 @@
-../int-trees/src/ourParser.elm
+../int-trees/src/langParser.elm
