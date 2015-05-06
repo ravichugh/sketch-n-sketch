@@ -47,7 +47,7 @@ oneOfEach xss = case xss of
 --       ...
 --   sn'  =  sn - s1 - s2 - ... - s(n-1)
 --
-cartProdWithDiff = oneOfEach << List.map Set.toList
+cartProdWithDiff = oneOfEach << List.map Set.toList << manySetDiffs
 
 manySetDiffs : List (Set.Set comparable) -> List (Set.Set comparable)
 manySetDiffs sets =
