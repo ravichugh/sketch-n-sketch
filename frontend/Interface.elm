@@ -10,6 +10,7 @@ import Eval exposing (run)
 import MainSvg
 import Utils
 import MicroTests
+import InterfaceUtils exposing (..)
 
 import List 
 import Dict
@@ -127,40 +128,6 @@ upstate evt old = case Debug.log "Event" evt of
     Sync -> old --TODO perform appropriate sync actions
     _ -> old
 
---- Borrowed from LangSvg.elm ---
-funcsSvg = [
-    ("circle", Svg.circle)
-  , ("line", Svg.line)
-  , ("polygon", Svg.polygon)
-  , ("rect", Svg.rect)
-  ]
-
-funcsAttr = [
-    ("cx", Svg.Attributes.cx)
-  , ("cy", Svg.Attributes.cy)
-  , ("fill", Svg.Attributes.fill)
-  , ("height", Svg.Attributes.height)
-  , ("points", Svg.Attributes.points)
-  , ("r", Svg.Attributes.r)
-  , ("stroke", Svg.Attributes.stroke)
-  , ("strokeWidth", Svg.Attributes.strokeWidth)
-  , ("width", Svg.Attributes.width)
-  , ("x", Svg.Attributes.x)
-  , ("x1", Svg.Attributes.x1)
-  , ("x2", Svg.Attributes.x2)
-  , ("y", Svg.Attributes.y)
-  , ("y1", Svg.Attributes.y1)
-  , ("y2", Svg.Attributes.y2)
-  ]
-
-find d s =
-  case Utils.maybeFind s d of
-    Just f  -> f
-    Nothing -> Debug.crash <| "find: " ++ s
-
-attr = find funcsAttr
-svg  = find funcsSvg
---- ---
 
 updateObjPos : List (String, String) -> Object -> Object -> Object
 updateObjPos newattrs (o1, a1) (o2, a2) = 
@@ -173,20 +140,6 @@ updateObjPos newattrs (o1, a1) (o2, a2) =
                                                          --the kind of shape it is
           | otherwise -> (o2, a2)
 
-updateAttrs : List (String, String) -> List (String, String) -> 
-                List (String, String)
-updateAttrs newattrs oldattrs = case newattrs of
-    [] -> oldattrs
-    (a1, v1) :: xs -> updateAttrs xs (replace (a1,v1) oldattrs)
-
-replace : (String, String) -> List (String, String) -> List (String, String)
-replace (a1, v1) attrs = case attrs of
-    [] -> [(a1,v1)]
-    (a2, v2) :: xs -> if | a1 == a2 -> (a1, v1) :: xs
-                         | otherwise -> (a2, v2) :: replace (a1, v1) xs
-
-adjustCoords : (Int, Int) -> (Int, Int) -> (Int, Int)
-adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
 
 -- View --
 codeBox : String -> Html.Html
@@ -235,36 +188,6 @@ buildSvg v = case Debug.log "v" v of
 --                    ]
            in ((svg shape) attrs [], List.append attrloc baseattrs)
                 
-getFirstAttrs : List Val -> List (Svg.Attribute, (String, String))
-getFirstAttrs vals = List.map 
-    (\x -> case x of
-        VList [VBase (String a), VConst i pos] -> ((attr a) <| toString i
-              , (a, String.concat [toString i, "|", toString pos]))
-        VList [VBase (String a), VBase (String s)] -> ((attr a) s
-              , (a,s))
-        VList [VBase (String "points"), VList pts] ->
-            let s = Utils.spaces <| List.map
-                    (\y -> case y of
-                        VList [VConst x1 _, VConst y1 _] ->
-                            toString x1 ++ "," ++ toString y1)
-                    pts
-            in ((attr "points") s, ("points", s)))
-    vals
-
---Takes a list of attributes and pulls out the location
--- information for the constants into a separate list
-cleanAttrs : List (String, String) -> ( List (String, String)
-                                      , List (String, String))
-                                   -> ( List (String, String)
-                                      , List (String, String))
-cleanAttrs = \l (acc1, acc2) -> case l of
-    (key, val) :: xs -> case String.split "|" val of
-        [v1, loc] -> cleanAttrs xs
-                                ((key, v1) :: acc1
-                                , (String.append key "loc", loc) :: acc2)
-        _         -> cleanAttrs xs
-                                ((key, val) :: acc1, acc2)
-    []        -> (acc1, acc2)
     
 view : (Int, Int) -> Model -> Html.Html
 view (w,h) model = 
@@ -291,17 +214,31 @@ view (w,h) model =
             , Html.button
                 [ Attr.style
                     [ ("position", "absolute")
-                    , ("left", String.append (toString <| w // 4) "px")
-                    , ("top", String.append (toString <| h - 30) "px")
+                    , ("left", String.append (toString <| w // 6) "px")
+                    , ("top", String.append (toString <| h - 40) "px")
                     , ("type", "button")
-                    , ("width", "50px")
-                    , ("height", "20px")
+                    , ("width", "100px")
+                    , ("height", "40px")
                     ]
                 , Events.onClick events.address Render
                 , Attr.value "Render"
                 , Attr.name "Render the Code"
                 ]
-                []
+                [text "render"]
+            , , Html.button
+                [ Attr.style
+                    [ ("position", "absolute")
+                    , ("left", String.append (toString <| w // 4) "px")
+                    , ("top", String.append (toString <| h - 40) "px")
+                    , ("type", "button")
+                    , ("width", "100px")
+                    , ("height", "40px")
+                    ]
+                , Events.onClick events.address Render
+                , Attr.value "Sync"
+                , Attr.name "Sync the code to the canvas"
+                ]
+                [text "sync"]
             , Html.div
                 [ Attr.style
                     [ ("width", String.append (toString <| w // 2 - 1) "px")
