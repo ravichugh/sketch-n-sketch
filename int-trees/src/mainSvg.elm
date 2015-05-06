@@ -10,7 +10,7 @@ import Debug
 
 import Lang exposing (..)
 import LangParser
-import LangSvg exposing (valToSvg, shapesToZoneTable)
+import LangSvg exposing (valToHtml, shapesToZoneTable)
 import MicroTests
 import Sync
 import Utils
@@ -19,9 +19,7 @@ import Utils
 
 valToElt w h v =
   E.color Color.lightGray <|
-    let html = Svg.svg [] (valToSvg v) in
-    -- let html = Svg.svg [ A.x "0", A.y "0", A.viewBox "0 0 323.141 322.95" ] (valToSvg v) in
-    Html.toElement w h html
+    Html.toElement w h (valToHtml v)
 
 showMonoString s = E.leftAligned (Text.monospace (Text.fromString s))
 showString s     = E.leftAligned (Text.fromString s)
@@ -70,7 +68,7 @@ main =
     , (600, 100, MicroTests.test19 ())
     , (600, 100, MicroTests.test20 ())
     , (600, 100, MicroTests.test21 ())
-    , (600, 400, MicroTests.test22 ())
+    , (600, 600, MicroTests.test22 ())
     , (600, 200, MicroTests.test23 ())
     , (600, 200, MicroTests.test24 ())
     , (600, 200, MicroTests.test25 ())

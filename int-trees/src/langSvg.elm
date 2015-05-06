@@ -1,4 +1,4 @@
-module LangSvg (valToSvg, shapesToZoneTable) where
+module LangSvg (valToHtml, shapesToZoneTable) where
 
 import Svg
 import Svg.Attributes as A
@@ -13,6 +13,9 @@ import Utils
 import Sync
 
 ------------------------------------------------------------------------------
+
+-- TODO probably want to factor HTML attributes and SVG attributes into
+-- records rather than lists of lists of ...
 
 valToSvg : Val -> List Svg.Svg
 valToSvg v = case v of
@@ -31,6 +34,16 @@ valToSvg v = case v of
           (attr "points") s
       in
       (svg shape) attrs []
+
+valToHtml : Val -> Html.Html
+valToHtml v = case v of
+  VList (VList [VBase (String "svgAttrs"), VList l] :: vs) ->
+    let f v1 = case v1 of
+      VList [VBase (String a), VBase (String s)] -> (attr a) s in
+    Svg.svg (List.map f l) (valToSvg (VList vs))
+  VList _ ->
+    Svg.svg [] (valToSvg v)
+
 
 ------------------------------------------------------------------------------
 
@@ -53,6 +66,7 @@ funcsAttr = [
   , ("ry", A.ry)
   , ("stroke", A.stroke)
   , ("strokeWidth", A.strokeWidth)
+  , ("viewBox", A.viewBox)
   , ("width", A.width)
   , ("x", A.x)
   , ("x1", A.x1)
@@ -111,6 +125,8 @@ type alias Locs = Set.Set Loc
 
 shapesToAttrLocs : Val -> Dict.Dict ShapeId (ShapeKind, Dict.Dict Attr Locs)
 shapesToAttrLocs v = case v of
+  VList (VList [VBase (String "svgAttrs"), _] :: vs) ->
+    shapesToAttrLocs (VList vs)
   VList vs ->
     let processShape (i,shape) dShapes = case shape of
       VList (VBase (String shape) :: vs') ->

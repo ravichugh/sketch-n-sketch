@@ -135,7 +135,7 @@ parseIdent =
     P.return (String.fromList (c::cs))
 
 parseStrLit =
-  let pred c = isAlphaNumeric c || c == '#' in
+  let pred c = isAlphaNumeric c || c == '#' || c == '.' || c == ' ' in
   delimit "'" "'" (String.fromList <$> P.many (P.satisfy pred))
 
 oneWhite : P.Parser ()
