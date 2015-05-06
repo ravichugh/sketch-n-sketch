@@ -8,7 +8,7 @@ import Utils
 
 ------------------------------------------------------------------------------
 
-type alias Loc = (LocId, Maybe Ident)
+type alias Loc = (LocId, Ident)  -- "" rather than Nothing b/c comparable
 type alias LocId = Int
 type alias Ident = String
 type alias Num = Float
@@ -84,7 +84,7 @@ strVal_ showTraces v =
 strOp op = case op of {Plus -> "+"; Minus -> "-"; Mult -> "*"; Lt -> "<"}
 
 strLoc (k, mx) =
-  "k" ++ toString k ++ case mx of {Nothing -> ""; Just x -> "_" ++ x}
+  "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx)
 
 strTrace tr = case tr of
   TrLoc l   -> strLoc l
@@ -224,7 +224,7 @@ applySubst subst e = case e of
 ------------------------------------------------------------------------------
 -- Abstract Syntax Helpers
 
-dummyLoc = (0, Nothing)
+dummyLoc = (0, "")
 dummyTrace = TrLoc dummyLoc
 eConst = flip EConst dummyLoc
 vConst = flip VConst dummyTrace

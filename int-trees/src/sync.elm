@@ -1,4 +1,4 @@
-module Sync (sync) where
+module Sync (sync, locsOfTrace) where
 
 import Dict
 import Set
@@ -102,14 +102,14 @@ diff_ k v1 v2 = case (v1, v2) of
 
 type Equation = Equation Num Trace
 
-locsOfTrace : Trace -> List LocId
+locsOfTrace : Trace -> Set.Set Loc
 locsOfTrace =
   let foo t = case t of
-    TrLoc (k,_) -> if | LangParser.isPreludeLoc k -> Set.empty
-                      | otherwise                 -> Set.singleton k
+    TrLoc l   -> if | LangParser.isPreludeLoc l -> Set.empty
+                    | otherwise                 -> Set.singleton l
     TrOp _ ts -> List.foldl Set.union Set.empty (List.map foo ts)
   in
-  Set.toList << foo
+  foo
 
 solveOneLeaf : Subst -> Val -> List (LocId, Num)
 solveOneLeaf s (VConst i tr) =
@@ -117,7 +117,7 @@ solveOneLeaf s (VConst i tr) =
     (\l -> let s' = Dict.remove l s in
            let n  = solve s' (Equation i tr) in
            (l, n))
-    (locsOfTrace tr)
+    (List.map fst <| Set.toList <| locsOfTrace tr)
 
 inferSubsts : Subst -> List Val -> List Subst
 inferSubsts s0 vs =

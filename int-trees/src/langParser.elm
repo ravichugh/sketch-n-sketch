@@ -14,7 +14,7 @@ import Prelude
 ------------------------------------------------------------------------------
 
 (prelude, initK) = freshen_ 1 (parseE_ identity Prelude.src)
-isPreludeLoc i   = i < initK
+isPreludeLoc (k,_) = k < initK
 
 ------------------------------------------------------------------------------
 
@@ -30,7 +30,7 @@ substOf e = substOfExps_ Dict.empty [prelude, e]
 
 freshen_ : Int -> Exp -> (Exp, Int)
 freshen_ k e = case e of
-  EConst i _ -> (EConst i (k, Nothing), k + 1)
+  EConst i _ -> (EConst i (k, ""), k + 1)
   EBase v    -> (EBase v, k)
   EVar x     -> (EVar x, k)
   EFun ps e  -> let (e',k') = freshen_ k e in (EFun ps e', k')
@@ -58,7 +58,7 @@ freshenExps k es =
     (e1::es', k1)) ([],k) es
 
 addBreadCrumbs pe = case pe of
-  (PVar x, EConst n (k, Nothing)) -> EConst n (k, Just x)
+  (PVar x, EConst n (k, "")) -> EConst n (k, x)
   (PList ps mp, EList es me) ->
     case Utils.maybeZip ps es of
       Nothing  -> EList es me
