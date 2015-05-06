@@ -146,8 +146,3 @@ strLoc_ l =
   if | mx == ""  -> strLoc l
      | otherwise -> mx
 
-blah xss =
-  Utils.spaces <|
-    List.map (Utils.braces << Utils.commas << List.map strLoc_)
-             (Utils.cartProdWithDiff xss)
-
