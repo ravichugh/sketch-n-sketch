@@ -36,6 +36,7 @@ valToSvg v = case v of
 
 funcsSvg = [
     ("circle", Svg.circle)
+  , ("ellipse", Svg.ellipse)
   , ("line", Svg.line)
   , ("polygon", Svg.polygon)
   , ("rect", Svg.rect)
@@ -48,6 +49,8 @@ funcsAttr = [
   , ("height", A.height)
   , ("points", A.points)
   , ("r", A.r)
+  , ("rx", A.rx)
+  , ("ry", A.ry)
   , ("stroke", A.stroke)
   , ("strokeWidth", A.strokeWidth)
   , ("width", A.width)
@@ -73,6 +76,10 @@ zones = [
     ("circle",
       [ ("Interior", ["cx", "cy"])
       , ("Edge", ["r"])
+      ])
+  , ("ellipse",
+      [ ("Interior", ["cx", "cy"])
+      , ("Edge", ["rx", "ry"])
       ])
   , ("rect",
       [ ("Interior", ["x", "y"])

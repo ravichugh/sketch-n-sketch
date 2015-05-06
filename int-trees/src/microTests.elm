@@ -276,3 +276,10 @@ test29 () =
     (strVal (Eval.run (parseE
       "[(circle_ 10 28 10) (circle_ 40 28 10) (circle_ 101 28 10)]")))
 
+test30 () =
+  makeTest
+    "(let [x0 y0 sep rx ry] [10 28 60 15 10]
+       (map (\\i (ellipse_ (+ x0 (mult i sep)) y0 rx ry)) [0 1 2]))"
+    (strVal (Eval.run (parseE
+      "[(ellipse_ 10 28 15 10) (ellipse_ 70 28 25 40) (ellipse_ 130 28 15 10)]")))
+

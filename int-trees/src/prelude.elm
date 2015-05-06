@@ -53,6 +53,9 @@ src = "
   ['circle' ['cx' x] ['cy' y] ['r' r] ['fill' 'none']
             ['stroke' c] ['strokeWidth' w]])
 
+(let ellipse (\\(fill x y rx ry)
+  ['ellipse' ['cx' x] ['cy' y] ['rx' rx] ['ry' ry] ['fill' fill]])
+
 (let rect (\\(fill x y w h)
   ['rect' ['x' x] ['y' y] ['width' w] ['height' h] ['fill' fill]])
 
@@ -67,12 +70,13 @@ src = "
              ['stroke' stroke] ['strokeWidth' w]])
 
 (let circle_    (circle 'red')
+(let ellipse_   (ellipse 'orange')
 (let rect_      (rect '#999999')
 (let square_    (square '#999999')
 (let line_      (line 'blue' 2)
 (let polygon_   (polygon 'green' 'purple' 3)
 
-0)))))))))))))))))))))))))))))
+0)))))))))))))))))))))))))))))))
 
 "
 
