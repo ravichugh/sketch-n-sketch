@@ -2,6 +2,7 @@ module Utils where
 
 import String
 import Debug
+import Set
 
 maybeFind : a -> List (a,b) -> Maybe b
 maybeFind k l = case l of
@@ -27,6 +28,11 @@ mapi f xs =
   let n = List.length xs in
   List.map f (zip [1..n] xs)
 
+foldli : ((Int, a) -> b -> b) -> b -> List a -> b
+foldli f init xs =
+  let n = List.length xs in
+  List.foldl f init (zip [1..n] xs)
+
 split : Int -> List a -> (List a, List a)
 split n xs = (List.take n xs, List.drop n xs)
 
@@ -34,6 +40,23 @@ oneOfEach : List (List a) -> List (List a)
 oneOfEach xss = case xss of
   []       -> [[]]
   xs::xss' -> List.concatMap (\x -> List.map ((::) x) (oneOfEach xss')) xs
+
+-- given [s1, ..., sn], compute s1' x ... x sn' where
+--   s1'  =  s1 - s2 - s3 - ... - sn
+--   s2'  =  s2 - s1 - s3 - ... - sn
+--       ...
+--   sn'  =  sn - s1 - s2 - ... - s(n-1)
+--
+cartProdWithDiff = oneOfEach << List.map Set.toList
+
+manySetDiffs : List (Set.Set comparable) -> List (Set.Set comparable)
+manySetDiffs sets =
+  mapi (\(i,locs_i) ->
+    foldli (\(j,locs_j) acc ->
+      if | i == j    -> acc
+         | otherwise -> acc `Set.diff` locs_j
+    ) locs_i sets
+  ) sets
 
 delimit a b s = String.concat [a, s, b]
 
@@ -50,6 +73,8 @@ sum = List.foldl (+) 0
 lift_2_2 f (a,b) (c,d) = (f a c, f b d)
 
 assert s b = if b then () else Debug.crash ("assert error: " ++ s)
+
+fromJust (Just x) = x
 
 fromOk s mx = case mx of
   Ok x    -> x

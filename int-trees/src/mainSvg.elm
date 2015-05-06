@@ -10,7 +10,7 @@ import Debug
 
 import Lang exposing (..)
 import LangParser
-import LangSvg exposing (valToSvg)
+import LangSvg exposing (valToSvg, shapesToZoneTable)
 import MicroTests
 import Sync
 import Utils
@@ -49,8 +49,9 @@ showOne (w,h,test) =
                 , expToElt ei
                 , valToElt w h vi
                 ]
-        in l2 ++ List.concat l3
+        in l1 ++ l2 ++ List.concat l3
   in
+  let l = l ++ [showMonoString <| shapesToZoneTable v] in
   let br = Html.toElement   1 20 (Html.br [] []) in
   let hr = Html.toElement 600 20 (Html.hr [] []) in
   E.flow E.right [

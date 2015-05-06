@@ -1,12 +1,16 @@
-module LangSvg (valToSvg) where
+module LangSvg (valToSvg, shapesToZoneTable) where
 
 import Svg
 import Svg.Attributes as A
 import Html
 import Debug
+import Dict
+import Set
+import String
 
 import Lang exposing (..)
 import Utils
+import Sync
 
 ------------------------------------------------------------------------------
 
@@ -62,4 +66,88 @@ find d s =
 
 attr = find funcsAttr
 svg  = find funcsSvg
+
+------------------------------------------------------------------------------
+
+zones = [
+    ("circle",
+      [ ("Interior", ["cx", "cy"])
+      , ("Edge", ["r"])
+      ])
+  , ("rect",
+      [ ("Interior", ["x", "y"])
+      , ("TopLeftCorner", ["x", "y", "width", "height"])
+      , ("TopRightCorner", ["y", "width", "height"])
+      , ("BotRightCorner", ["width", "height"])
+      , ("BotLeftCorner", ["x", "width", "height"])
+      , ("LeftEdge", ["x", "width"])
+      , ("TopEdge", ["y", "height"])
+      , ("RightEdge", ["width"])
+      , ("BotEdge", ["height"])
+      ])
+  , ("line",
+      [ ("Point1", ["x1", "y1"])
+      , ("Point2", ["x2", "y2"])
+      , ("Edge", ["x1", "y1", "x2", "y2"])
+      ])
+  , ("polygon",
+      [ ("TODO", [])
+      ])
+  ]
+
+------------------------------------------------------------------------------
+
+type alias ShapeId = Int
+type alias ShapeKind = String
+type alias Attr = String
+type alias Locs = Set.Set Loc
+
+shapesToAttrLocs : Val -> Dict.Dict ShapeId (ShapeKind, Dict.Dict Attr Locs)
+shapesToAttrLocs v = case v of
+  VList vs ->
+    let processShape (i,shape) dShapes = case shape of
+      VList (VBase (String shape) :: vs') ->
+        let processAttr v' dAttrs = case v' of
+          VList [VBase (String a), VConst _ tr] ->
+            Dict.insert a (Sync.locsOfTrace tr) dAttrs
+          -- VList [VBase (String "points"), VList pts] -> -- TODO
+          _ -> dAttrs
+        in
+        let attrs = List.foldl processAttr Dict.empty vs' in
+        Dict.insert i (shape, attrs) dShapes
+    in
+    Utils.foldli processShape Dict.empty vs
+
+shapesToZoneTable : Val -> String
+shapesToZoneTable v =
+  let foo i (k,d) acc =
+    acc ++ "Shape " ++ toString i ++ " " ++ Utils.parens k ++ "\n"
+        ++ shapeToZoneInfo k d ++ "\n"
+  in
+  Dict.foldl foo "" (shapesToAttrLocs v)
+
+shapeToZoneInfo kind d =
+  let get = flip justGet d in
+  Utils.maybeFind kind zones
+    |> Utils.fromJust
+    |> List.map (\(s,l) -> "  "
+         ++ String.padRight 18 ' ' s
+         ++ (List.map get l
+              |> Utils.cartProdWithDiff
+              |> List.map (Utils.braces << Utils.commas << List.map strLoc_)
+              |> Utils.spaces))
+    |> Utils.lines
+    |> flip (++) "\n"
+
+justGet k d = Utils.fromJust (Dict.get k d)
+
+strLoc_ l =
+  let (_,mx) = l in
+  if | mx == ""  -> strLoc l
+     | otherwise -> mx
+
+blah xss =
+  Utils.spaces <|
+    List.map (Utils.braces << Utils.commas << List.map strLoc_)
+             (Utils.cartProdWithDiff xss)
 
