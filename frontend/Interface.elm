@@ -234,7 +234,7 @@ view (w,h) model =
                     , ("width", "100px")
                     , ("height", "40px")
                     ]
-                , Events.onClick events.address Render
+                , Events.onClick events.address Sync
                 , Attr.value "Sync"
                 , Attr.name "Sync the code to the canvas"
                 ]
