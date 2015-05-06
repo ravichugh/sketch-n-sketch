@@ -66,6 +66,7 @@ funcsAttr = [
   , ("ry", A.ry)
   , ("stroke", A.stroke)
   , ("strokeWidth", A.strokeWidth)
+  , ("transform", A.transform)
   , ("viewBox", A.viewBox)
   , ("width", A.width)
   , ("x", A.x)

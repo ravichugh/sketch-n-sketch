@@ -31,6 +31,7 @@ src = "
 (let zip (map2 (\\(x y) [x y]))
 
 (let cons (\\(x xs) [x | xs])
+(let snoc (\\(x ys) (append ys [x]))
 (let hd   (\\[x|xs] x)
 (let tl   (\\[x|xs] xs)
 
@@ -69,6 +70,9 @@ src = "
   ['polygon' ['fill' fill] ['points' pts]
              ['stroke' stroke] ['strokeWidth' w]])
 
+(let addAttr (\\([shapeKind|oldAttrs] newAttr)
+  [shapeKind | (snoc newAttr oldAttrs)])
+
 (let circle_    (circle 'red')
 (let ellipse_   (ellipse 'orange')
 (let rect_      (rect '#999999')
@@ -76,7 +80,8 @@ src = "
 (let line_      (line 'blue' 2)
 (let polygon_   (polygon 'green' 'purple' 3)
 
-0)))))))))))))))))))))))))))))))
+
+0)))))))))))))))))))))))))))))))))
 
 "
 
