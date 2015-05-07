@@ -4,7 +4,7 @@ import Svg
 import Svg.Attributes as A
 import Html
 import Debug
-import Dict
+import Dict exposing (Dict)
 import Set
 import String
 
@@ -127,9 +127,9 @@ type alias Locs = List Loc
 type alias Zone = String
 type ExtraInfo = None | NumPoints Int
 
-type alias Dict0 = Dict.Dict ShapeId (ShapeKind, ExtraInfo, Dict.Dict Attr LocSet)
-type alias Dict1 = Dict.Dict ShapeId (ShapeKind, List (Zone, (List Locs)))
-type alias Dict2 = Dict.Dict ShapeId (ShapeKind, List (Zone, (Locs, List Locs)))
+type alias Dict0 = Dict ShapeId (ShapeKind, ExtraInfo, Dict Attr Trace)
+type alias Dict1 = Dict ShapeId (ShapeKind, List (Zone, (List Locs)))
+type alias Dict2 = Dict ShapeId (ShapeKind, List (Zone, (Locs, List Locs)))
 
 printZoneTable : Val -> String
 printZoneTable v =
@@ -149,15 +149,15 @@ shapesToAttrLocs v = case v of
       VList (VBase (String shape) :: vs') ->
         let processAttr v' (extra,dAttrs) = case v' of
           VList [VBase (String a), VConst _ tr] ->
-            (extra, Dict.insert a (Sync.locsOfTrace tr) dAttrs)
+            (extra, Dict.insert a tr dAttrs)
           VList [VBase (String "points"), VList pts] ->
             let acc' =
               Utils.foldli (\(i,vPt) acc ->
                 case vPt of
                   VList [VConst _ trx, VConst _ try] ->
                     let (ax,ay) = ("x" ++ toString i, "y" ++ toString i) in
-                    acc |> Dict.insert ax (Sync.locsOfTrace trx)
-                        |> Dict.insert ay (Sync.locsOfTrace try)) dAttrs pts in
+                    acc |> Dict.insert ax trx
+                        |> Dict.insert ay try) dAttrs pts in
             (NumPoints (List.length pts), acc')
           _ ->
             (extra, dAttrs)
@@ -177,12 +177,12 @@ shapesToZoneTable d0 =
   Dict.foldl foo Dict.empty d0
 
 shapeToZoneInfo :
-  (ShapeKind, ExtraInfo, Dict.Dict Attr LocSet) -> List (Zone, (List Locs))
+  (ShapeKind, ExtraInfo, Dict Attr Trace) -> List (Zone, (List Locs))
 shapeToZoneInfo (kind, extra, d) =
   let zones = getZones kind extra in
   let f (s,l) acc =
     let sets =
-      l |> List.map (\a -> justGet a d)
+      l |> List.map (\a -> Sync.locsOfTrace <| justGet a d)
         |> Utils.cartProdWithDiff in
     (s, sets) :: acc
   in
@@ -245,4 +245,48 @@ strLoc_ l =
   let (_,mx) = l in
   if | mx == ""  -> strLoc l
      | otherwise -> mx
+
+------------------------------------------------------------------------------
+
+type alias Triggers = Dict ShapeId (Dict Zone Trigger)
+type alias Trigger  = List (Attr, Num) -> Dict ShapeId (Dict Attr Num)
+
+-- TODO refactor Dict data structures above to make this more efficient
+
+makeTriggers : Dict0 -> Dict2 -> Subst -> Triggers
+makeTriggers d0 d2 subst =
+  let f i (_,zones) =
+    let g (zone,_) = Dict.insert zone (makeTrigger d0 d2 subst i zone) in
+    List.foldl g Dict.empty zones in
+  Dict.map f d2
+
+makeTrigger : Dict0 -> Dict2 -> Subst -> ShapeId -> Zone -> Trigger
+makeTrigger d0 d2 subst i zone l =
+  let subst' =
+    let f (attr,newNum) acc =
+      let k = whichLoc d0 d2 i zone attr in
+      let subst' = Dict.remove k subst in
+      let tr = justGet attr (Utils.thd3 (justGet i d0)) in
+      let kSolution = Sync.solve_ subst' newNum tr in
+      Dict.insert k kSolution acc in
+    List.foldl f Dict.empty l in
+  let g _ (_,_,di) = Dict.map (always (evalTr subst')) di in
+  Dict.map g d0
+
+-- TODO sloppy way of doing this for now...
+whichLoc : Dict0 -> Dict2 -> ShapeId -> Zone -> Attr -> LocId
+whichLoc d0 d2 i z attr =
+  let trLocs =
+    justGet i d0 |> Utils.thd3 |> justGet attr |> Sync.locsOfTrace in
+  let zoneLocs =
+    justGet i d2
+      |> snd |> Utils.maybeFind z |> Utils.fromJust |> fst
+      |> Set.fromList in
+  let [(k,_)] = Set.toList (trLocs `Set.intersect` zoneLocs) in
+  k
+
+evalTr : Subst -> Trace -> Num
+evalTr subst tr = case tr of
+  TrLoc (k,_)  -> justGet k subst
+  TrOp Plus ts -> List.foldl (+) 0 (List.map (evalTr subst) ts)
 

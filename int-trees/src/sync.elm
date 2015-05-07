@@ -1,4 +1,4 @@
-module Sync (sync, locsOfTrace) where
+module Sync (sync, locsOfTrace, solve_) where
 
 import Dict
 import Set
@@ -151,6 +151,9 @@ solve subst (Equation sum tr) =
   in
   let (partialSum,n) = evalTrace tr in
   (sum - partialSum) / n
+
+-- TODO move live update stuff to this module, and remove solve_
+solve_ subst num tr = solve subst (Equation num tr)
  
 plusplus = Utils.lift_2_2 (+)
 
