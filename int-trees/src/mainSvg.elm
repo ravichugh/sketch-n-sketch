@@ -19,7 +19,7 @@ import Utils
 
 valToElt w h v =
   E.color Color.lightGray <|
-    Html.toElement w h (LangSvg.valToHtml v)
+    Html.toElement w h (LangSvg.valToHtml w h v)
 
 showMonoString s = E.leftAligned (Text.monospace (Text.fromString s))
 showString s     = E.leftAligned (Text.fromString s)
@@ -77,6 +77,7 @@ main =
     , (600, 200, MicroTests.test28 ())
     , (600, 200, MicroTests.test29 ())
     , (600, 200, MicroTests.test30 ())
+    , (600, 600, MicroTests.test31 ())
   ] in
   E.flow E.down (List.map showOne tests)
 

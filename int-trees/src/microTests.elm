@@ -290,3 +290,22 @@ test30 () =
     (strVal (Eval.run (parseE
       "[(ellipse_ 10 28 15 10) (ellipse_ 70 28 25 40) (ellipse_ 130 28 15 10)]")))
 
+test31 () =
+  makeTest
+    "(let [x0 y0 w h delta] [50 50 200 200 10]
+     [ (rect 'white' x0 y0 w h)
+       (polygon 'black' 'DUMMY' 0
+         [[(+ x0 delta) y0]
+          [(+ x0 w) y0]
+          [(+ x0 w) (- (+ y0 h) delta)]])
+       (polygon 'black' 'DUMMY' 0
+         [[x0 (+ y0 delta)]
+          [x0 (- (+ y0 h) delta)]
+          [(- (+ x0 (div w 2)) delta) (+ y0 (div h 2))]])
+       (polygon 'black' 'DUMMY' 0
+         [[(+ x0 delta) (+ y0 h)]
+          [(- (+ x0 w) delta) (+ y0 h)]
+          [(+ x0 (div w 2)) (+ (+ y0 (div h 2)) delta)]])
+     ])"
+    "[]"
+

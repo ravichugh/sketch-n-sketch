@@ -34,14 +34,16 @@ valToSvg v = case v of
       in
       (svg shape) attrs []
 
-valToHtml : Val -> Html.Html
-valToHtml v = case v of
+valToHtml : Int -> Int -> Val -> Html.Html
+valToHtml w h v =
+  let wh = [A.width (toString w), A.height (toString h)] in
+  case v of
   VList (VList [VBase (String "svgAttrs"), VList l] :: vs) ->
     let f v1 = case v1 of
       VList [VBase (String a), VBase (String s)] -> (attr a) s in
-    Svg.svg (List.map f l) (valToSvg (VList vs))
+    Svg.svg (List.map f l ++ wh) (valToSvg (VList vs))
   VList _ ->
-    Svg.svg [] (valToSvg v)
+    Svg.svg wh (valToSvg v)
 
 
 ------------------------------------------------------------------------------
