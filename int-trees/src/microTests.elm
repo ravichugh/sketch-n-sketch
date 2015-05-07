@@ -190,6 +190,10 @@ test21 () =
 
 -- approximation of elm logo:
 -- https://github.com/evancz/elm-svg/blob/1.0.2/examples/Logo.elm
+--
+-- https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/transform
+-- http://tutorials.jenkov.com/svg/svg-viewport-view-box.html
+--
 test22 () =
   makeTest
     "(let foo (\\(color pts) (polygon color 'black' 0 pts))

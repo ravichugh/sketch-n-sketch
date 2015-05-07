@@ -47,6 +47,7 @@ oneOfEach xss = case xss of
 --       ...
 --   sn'  =  sn - s1 - s2 - ... - s(n-1)
 --
+cartProdWithDiff : List (Set.Set comparable) -> List (List comparable)
 cartProdWithDiff = oneOfEach << List.map Set.toList << manySetDiffs
 
 manySetDiffs : List (Set.Set comparable) -> List (Set.Set comparable)
@@ -57,6 +58,19 @@ manySetDiffs sets =
          | otherwise -> acc `Set.diff` locs_j
     ) locs_i sets
   ) sets
+
+-- TODO combine findFirst and removeFirst
+
+findFirst : (a -> Bool) -> List a -> Maybe a
+findFirst p xs = case xs of
+  []     -> Nothing
+  x::xs' -> if | p x       -> Just x
+               | otherwise -> findFirst p xs'
+
+removeFirst : a -> List a -> List a
+removeFirst x ys = case ys of
+  []     -> []
+  y::ys' -> if x == y then ys' else y :: removeFirst x ys'
 
 delimit a b s = String.concat [a, s, b]
 

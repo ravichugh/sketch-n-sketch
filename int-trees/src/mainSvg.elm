@@ -10,7 +10,7 @@ import Debug
 
 import Lang exposing (..)
 import LangParser
-import LangSvg exposing (valToHtml, shapesToZoneTable)
+import LangSvg
 import MicroTests
 import Sync
 import Utils
@@ -19,7 +19,7 @@ import Utils
 
 valToElt w h v =
   E.color Color.lightGray <|
-    Html.toElement w h (valToHtml v)
+    Html.toElement w h (LangSvg.valToHtml v)
 
 showMonoString s = E.leftAligned (Text.monospace (Text.fromString s))
 showString s     = E.leftAligned (Text.fromString s)
@@ -49,7 +49,7 @@ showOne (w,h,test) =
                 ]
         in l1 ++ l2 ++ List.concat l3
   in
-  let l = l ++ [showMonoString <| shapesToZoneTable v] in
+  let l = l ++ [showMonoString <| LangSvg.printZoneTable v] in
   let br = Html.toElement   1 20 (Html.br [] []) in
   let hr = Html.toElement 600 20 (Html.hr [] []) in
   E.flow E.right [

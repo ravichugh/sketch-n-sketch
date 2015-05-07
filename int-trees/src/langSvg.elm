@@ -1,4 +1,4 @@
-module LangSvg (valToHtml, shapesToZoneTable) where
+module LangSvg (valToHtml, printZoneTable) where
 
 import Svg
 import Svg.Attributes as A
@@ -122,11 +122,25 @@ zones = [
 type alias ShapeId = Int
 type alias ShapeKind = String
 type alias Attr = String
-type alias Locs = Set.Set Loc
+type alias LocSet = Set.Set Loc
+type alias Locs = List Loc
+type alias Zone = String
 type ExtraInfo = None | NumPoints Int
 
-shapesToAttrLocs :
-  Val -> Dict.Dict ShapeId (ShapeKind, ExtraInfo, Dict.Dict Attr Locs)
+type alias Dict0 = Dict.Dict ShapeId (ShapeKind, ExtraInfo, Dict.Dict Attr LocSet)
+type alias Dict1 = Dict.Dict ShapeId (ShapeKind, List (Zone, (List Locs)))
+type alias Dict2 = Dict.Dict ShapeId (ShapeKind, List (Zone, (Locs, List Locs)))
+
+printZoneTable : Val -> String
+printZoneTable v =
+  shapesToAttrLocs v         -- Step 1: Val   -> Dict0
+    |> shapesToZoneTable     -- Step 2: Dict0 -> Dict1
+    |> assignTriggers        -- Step 3: Dict1 -> Dict2
+    |> strTable              -- Step 4: Dict2 -> String
+
+-- Step 1 --
+
+shapesToAttrLocs : Val -> Dict0
 shapesToAttrLocs v = case v of
   VList (VList [VBase (String "svgAttrs"), _] :: vs) ->
     shapesToAttrLocs (VList vs)
@@ -153,14 +167,30 @@ shapesToAttrLocs v = case v of
     in
     Utils.foldli processShape Dict.empty vs
 
-shapesToZoneTable : Val -> String
-shapesToZoneTable v =
-  let foo i (k,extra,d) acc =
-    acc ++ "Shape " ++ toString i ++ " " ++ Utils.parens k ++ "\n"
-        ++ shapeToZoneInfo k extra d ++ "\n"
-  in
-  Dict.foldl foo "" (shapesToAttrLocs v)
+-- Step 2 --
 
+shapesToZoneTable : Dict0 -> Dict1
+shapesToZoneTable d0 =
+  let foo i stuff acc =
+    let (kind,_,_) = stuff in
+    Dict.insert i (kind, shapeToZoneInfo stuff) acc in
+  Dict.foldl foo Dict.empty d0
+
+shapeToZoneInfo :
+  (ShapeKind, ExtraInfo, Dict.Dict Attr LocSet) -> List (Zone, (List Locs))
+shapeToZoneInfo (kind, extra, d) =
+  let zones = getZones kind extra in
+  let f (s,l) acc =
+    let sets =
+      l |> List.map (\a -> justGet a d)
+        |> Utils.cartProdWithDiff in
+    (s, sets) :: acc
+  in
+  List.foldr f [] zones
+
+justGet k d = Utils.fromJust (Dict.get k d)
+
+getZones : ShapeKind -> ExtraInfo -> List (Zone, List Attr)
 getZones kind extra =
   let foo s i = s ++ toString i in
   let xy i    = [foo "x" i, foo "y" i] in
@@ -171,19 +201,45 @@ getZones kind extra =
     _ ->
       Utils.fromJust (Utils.maybeFind kind zones)
 
-shapeToZoneInfo kind extra d =
-  let get = flip justGet d in
-  getZones kind extra
-    |> List.map (\(s,l) -> "  "
-         ++ String.padRight 18 ' ' s
-         ++ (List.map get l
-              |> Utils.cartProdWithDiff
-              |> List.map (Utils.braces << Utils.commas << List.map strLoc_)
-              |> Utils.spaces))
-    |> Utils.lines
-    |> flip (++) "\n"
+-- Step 3 --
 
-justGet k d = Utils.fromJust (Dict.get k d)
+-- NOTE: choosing same name setSeen for both accumulators leads
+--       to JS undefined error. perhaps due to a shadowing bug?
+
+assignTriggers : Dict1 -> Dict2
+assignTriggers d1 =
+  let f i (kind,zoneLists) (setSeen1,acc) =
+    let g (zone,sets) (setSeen2,acc) =
+      case (Utils.findFirst (not << flip Set.member setSeen2) sets, sets) of
+        (Nothing, [])         -> (setSeen2, (zone,([],[]))::acc)
+        (Nothing, set::sets') -> (setSeen2, (zone,(set,sets'))::acc)
+        (Just x,  _)          ->
+          let setSeen3 = Set.insert x setSeen2 in
+          let acc' = (zone, (x, Utils.removeFirst x sets)) :: acc in
+          (setSeen3, acc')
+    in
+    let (setSeen,zoneLists') = List.foldl g (setSeen1,[]) zoneLists in
+    (setSeen, Dict.insert i (kind, List.reverse zoneLists') acc)
+  in
+  snd <| Dict.foldl f (Set.empty, Dict.empty) d1
+
+-- Step 4 --
+
+strTable : Dict2 -> String
+strTable d =
+  Dict.toList d
+    |> List.map (\(i,(kind,di)) ->
+         let s1 = "Shape " ++ toString i ++ " " ++ Utils.parens kind in
+         let sRows = List.map strRow di in
+         Utils.lines (s1::sRows))
+    |> String.join "\n\n"
+
+strRow (zone,(set,sets)) =
+     String.padRight 18 ' ' zone
+  ++ String.padRight 25 ' ' (if set == [] then "" else strLocs set)
+  ++ Utils.spaces (List.map strLocs sets)
+
+strLocs = Utils.braces << Utils.commas << List.map strLoc_
 
 strLoc_ l =
   let (_,mx) = l in
