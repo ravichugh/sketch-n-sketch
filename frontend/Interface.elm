@@ -50,7 +50,8 @@ type alias Model = { code : String
                    , possibleChanges : List ((Exp, Val), Int)
                    }
 
-type alias Object = (Svg.Svg, List (String, String))
+type alias Object = (Svg.Svg, List (String, String), String)
+
 
 initModel = { code = ""
             , objects = []
@@ -102,7 +103,7 @@ upstate evt old = case Debug.log "Event" evt of
         Nothing                  -> old
         Just (obj, xdist, ydist) -> if
             | xdist == -1.0 || ydist == -1.0 -> case obj of
-                (svg, attrs) -> 
+                (svg, attrs, shape) -> 
                     let xpos = case String.toFloat <| find attrs "xpos" of
                             Ok a -> a
                         ypos = case String.toFloat <| find attrs "ypos" of
@@ -120,25 +121,25 @@ upstate evt old = case Debug.log "Event" evt of
                                 (moved, xdist, ydist)
                     }
     SelectObject x -> let match = List.filter 
-                                (\(s, a) -> x == (find a "xloc"))
+                                (\(s, a, h) -> x == (find a "xloc"))
                                 old.objects
                       in case match of
                               mat :: xs -> { old | movingObj <- Just (mat, -1.0, -1.0) }
     DeselectObject x -> { old | movingObj <- Nothing }
     Sync -> old --TODO perform appropriate sync actions
     _ -> old
-
+ 
 
 updateObjPos : List (String, String) -> Object -> Object -> Object
-updateObjPos newattrs (o1, a1) (o2, a2) = 
+updateObjPos newattrs (o1, a1, s1) (o2, a2, s2) = 
     let xloc1 = find a1 "xloc"
         xloc2 = find a2 "xloc"
     in if | xloc1 == xloc2 ->
                 let updatedattrs = updateAttrs newattrs a1
                     svgattrs = List.map (\(x,y) -> attr x <| y) updatedattrs
-                in (Svg.rect svgattrs [], updatedattrs) --TODO keep track of
-                                                         --the kind of shape it is
-          | otherwise -> (o2, a2)
+                    shape = svg s1
+                in (shape svgattrs [], updatedattrs, s1) 
+          | otherwise -> (o2, a2, s2)
 
 
 -- View --
@@ -167,9 +168,9 @@ visualsBox model dim =
                     [ ("width", "100%")
                     , ("height", "100%")
                     ]
-                ] <| List.map (\(f,g) -> f) model.objects 
+                ] <| List.map (\(f,g,s) -> f) model.objects 
 
-buildSvg : Val -> List (Svg.Svg, List (String, String))
+buildSvg : Val -> List (Svg.Svg, List (String, String), String)
 buildSvg v = case Debug.log "v" v of
    VList vs -> flip List.map vs <| \v1 -> case v1 of
        VList (VBase (String shape) :: vs') ->
@@ -186,7 +187,7 @@ buildSvg v = case Debug.log "v" v of
 --                    , Svg.Events.onMouseOut (Signal.message events.address
 --                        (DeselectObject xloc))
 --                    ]
-           in ((svg shape) attrs [], List.append attrloc baseattrs)
+           in ((svg shape) attrs [], List.append attrloc baseattrs, shape)
                 
     
 view : (Int, Int) -> Model -> Html.Html
@@ -224,8 +225,8 @@ view (w,h) model =
                 , Attr.value "Render"
                 , Attr.name "Render the Code"
                 ]
-                [text "render"]
-            , , Html.button
+                [Html.text "render"]
+            , Html.button
                 [ Attr.style
                     [ ("position", "absolute")
                     , ("left", String.append (toString <| w // 4) "px")
@@ -238,7 +239,7 @@ view (w,h) model =
                 , Attr.value "Sync"
                 , Attr.name "Sync the code to the canvas"
                 ]
-                [text "sync"]
+                [Html.text "sync"]
             , Html.div
                 [ Attr.style
                     [ ("width", String.append (toString <| w // 2 - 1) "px")
