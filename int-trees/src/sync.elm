@@ -1,9 +1,10 @@
-module Sync (sync, locsOfTrace, solve_) where
+module Sync (sync, printZoneTable) where
 
-import Dict
+import Dict exposing (Dict)
 import Set
 import Utils
 import Debug
+import String
 
 import Lang exposing (..)
 import Eval
@@ -152,9 +153,6 @@ solve subst (Equation sum tr) =
   let (partialSum,n) = evalTrace tr in
   (sum - partialSum) / n
 
--- TODO move live update stuff to this module, and remove solve_
-solve_ subst num tr = solve subst (Equation num tr)
- 
 plusplus = Utils.lift_2_2 (+)
 
 compareVals : (Val, Val) -> Num
@@ -201,4 +199,213 @@ sync e v v' =
                      let n = compareVals (v, v1) in
                      Just ((e1, v1), n)
         ) substs
+
+
+------------------------------------------------------------------------------
+-- Zones
+
+zones = [
+    ("circle",
+      [ ("Interior", ["cx", "cy"])
+      , ("Edge", ["r"])
+      ])
+  , ("ellipse",
+      [ ("Interior", ["cx", "cy"])
+      , ("Edge", ["rx", "ry"])
+      ])
+  , ("rect",
+      [ ("Interior", ["x", "y"])
+      , ("TopLeftCorner", ["x", "y", "width", "height"])
+      , ("TopRightCorner", ["y", "width", "height"])
+      , ("BotRightCorner", ["width", "height"])
+      , ("BotLeftCorner", ["x", "width", "height"])
+      , ("LeftEdge", ["x", "width"])
+      , ("TopEdge", ["y", "height"])
+      , ("RightEdge", ["width"])
+      , ("BotEdge", ["height"])
+      ])
+  , ("line",
+      [ ("Point1", ["x1", "y1"])
+      , ("Point2", ["x2", "y2"])
+      , ("Edge", ["x1", "y1", "x2", "y2"])
+      ])
+  , ("polygon",
+      [ ("TODO", [])
+      ])
+  ]
+
+
+------------------------------------------------------------------------------
+-- Zones and Triggers
+
+type alias ShapeId = Int
+type alias ShapeKind = String
+type alias Attr = String
+type alias LocSet = Set.Set Loc
+type alias Locs = List Loc
+type alias Zone = String
+type ExtraInfo = None | NumPoints Int
+
+type alias Dict0 = Dict ShapeId (ShapeKind, ExtraInfo, Dict Attr Trace)
+type alias Dict1 = Dict ShapeId (ShapeKind, List (Zone, (List Locs)))
+type alias Dict2 = Dict ShapeId (ShapeKind, List (Zone, (Locs, List Locs)))
+
+printZoneTable : Val -> String
+printZoneTable v =
+  shapesToAttrLocs v         -- Step 1: Val   -> Dict0
+    |> shapesToZoneTable     -- Step 2: Dict0 -> Dict1
+    |> assignTriggers        -- Step 3: Dict1 -> Dict2
+    |> strTable              -- Step 4: Dict2 -> String
+
+-- Step 1 --
+
+shapesToAttrLocs : Val -> Dict0
+shapesToAttrLocs v = case v of
+  VList (VList [VBase (String "svgAttrs"), _] :: vs) ->
+    shapesToAttrLocs (VList vs)
+  VList vs ->
+    let processShape (i,shape) dShapes = case shape of
+      VList (VBase (String shape) :: vs') ->
+        let processAttr v' (extra,dAttrs) = case v' of
+          VList [VBase (String a), VConst _ tr] ->
+            (extra, Dict.insert a tr dAttrs)
+          VList [VBase (String "points"), VList pts] ->
+            let acc' =
+              Utils.foldli (\(i,vPt) acc ->
+                case vPt of
+                  VList [VConst _ trx, VConst _ try] ->
+                    let (ax,ay) = ("x" ++ toString i, "y" ++ toString i) in
+                    acc |> Dict.insert ax trx
+                        |> Dict.insert ay try) dAttrs pts in
+            (NumPoints (List.length pts), acc')
+          _ ->
+            (extra, dAttrs)
+        in
+        let (extra,attrs) = List.foldl processAttr (None, Dict.empty) vs' in
+        Dict.insert i (shape, extra, attrs) dShapes
+    in
+    Utils.foldli processShape Dict.empty vs
+
+-- Step 2 --
+
+shapesToZoneTable : Dict0 -> Dict1
+shapesToZoneTable d0 =
+  let foo i stuff acc =
+    let (kind,_,_) = stuff in
+    Dict.insert i (kind, shapeToZoneInfo stuff) acc in
+  Dict.foldl foo Dict.empty d0
+
+shapeToZoneInfo :
+  (ShapeKind, ExtraInfo, Dict Attr Trace) -> List (Zone, (List Locs))
+shapeToZoneInfo (kind, extra, d) =
+  let zones = getZones kind extra in
+  let f (s,l) acc =
+    let sets =
+      l |> List.map (\a -> locsOfTrace <| justGet a d)
+        |> Utils.cartProdWithDiff in
+    (s, sets) :: acc
+  in
+  List.foldr f [] zones
+
+justGet k d = Utils.fromJust (Dict.get k d)
+
+getZones : ShapeKind -> ExtraInfo -> List (Zone, List Attr)
+getZones kind extra =
+  let foo s i = s ++ toString i in
+  let xy i    = [foo "x" i, foo "y" i] in
+  let pt i    = (foo "Point" i, xy i) in
+  case (kind, extra) of
+    ("polygon", NumPoints n) ->
+      List.map pt [1..n] ++ [("Interior", List.concatMap xy [1..n])]
+    _ ->
+      Utils.fromJust (Utils.maybeFind kind zones)
+
+-- Step 3 --
+
+-- NOTE: choosing same name setSeen for both accumulators leads
+--       to JS undefined error. perhaps due to a shadowing bug?
+
+assignTriggers : Dict1 -> Dict2
+assignTriggers d1 =
+  let f i (kind,zoneLists) (setSeen1,acc) =
+    let g (zone,sets) (setSeen2,acc) =
+      case (Utils.findFirst (not << flip Set.member setSeen2) sets, sets) of
+        (Nothing, [])         -> (setSeen2, (zone,([],[]))::acc)
+        (Nothing, set::sets') -> (setSeen2, (zone,(set,sets'))::acc)
+        (Just x,  _)          ->
+          let setSeen3 = Set.insert x setSeen2 in
+          let acc' = (zone, (x, Utils.removeFirst x sets)) :: acc in
+          (setSeen3, acc')
+    in
+    let (setSeen,zoneLists') = List.foldl g (setSeen1,[]) zoneLists in
+    (setSeen, Dict.insert i (kind, List.reverse zoneLists') acc)
+  in
+  snd <| Dict.foldl f (Set.empty, Dict.empty) d1
+
+-- Step 4 --
+
+strTable : Dict2 -> String
+strTable d =
+  Dict.toList d
+    |> List.map (\(i,(kind,di)) ->
+         let s1 = "Shape " ++ toString i ++ " " ++ Utils.parens kind in
+         let sRows = List.map strRow di in
+         Utils.lines (s1::sRows))
+    |> String.join "\n\n"
+
+strRow (zone,(set,sets)) =
+     String.padRight 18 ' ' zone
+  ++ String.padRight 25 ' ' (if set == [] then "" else strLocs set)
+  ++ Utils.spaces (List.map strLocs sets)
+
+strLocs = Utils.braces << Utils.commas << List.map strLoc_
+
+strLoc_ l =
+  let (_,mx) = l in
+  if | mx == ""  -> strLoc l
+     | otherwise -> mx
+
+------------------------------------------------------------------------------
+
+type alias Triggers = Dict ShapeId (Dict Zone Trigger)
+type alias Trigger  = List (Attr, Num) -> Dict ShapeId (Dict Attr Num)
+
+-- TODO refactor Dict data structures above to make this more efficient
+
+makeTriggers : Dict0 -> Dict2 -> Subst -> Triggers
+makeTriggers d0 d2 subst =
+  let f i (_,zones) =
+    let g (zone,_) = Dict.insert zone (makeTrigger d0 d2 subst i zone) in
+    List.foldl g Dict.empty zones in
+  Dict.map f d2
+
+makeTrigger : Dict0 -> Dict2 -> Subst -> ShapeId -> Zone -> Trigger
+makeTrigger d0 d2 subst i zone l =
+  let subst' =
+    let f (attr,newNum) acc =
+      let k = whichLoc d0 d2 i zone attr in
+      let subst' = Dict.remove k subst in
+      let tr = justGet attr (Utils.thd3 (justGet i d0)) in
+      let kSolution = solve subst' (Equation newNum tr) in
+      Dict.insert k kSolution acc in
+    List.foldl f Dict.empty l in
+  let g _ (_,_,di) = Dict.map (always (evalTr subst')) di in
+  Dict.map g d0
+
+-- TODO sloppy way of doing this for now...
+whichLoc : Dict0 -> Dict2 -> ShapeId -> Zone -> Attr -> LocId
+whichLoc d0 d2 i z attr =
+  let trLocs =
+    justGet i d0 |> Utils.thd3 |> justGet attr |> locsOfTrace in
+  let zoneLocs =
+    justGet i d2
+      |> snd |> Utils.maybeFind z |> Utils.fromJust |> fst
+      |> Set.fromList in
+  let [(k,_)] = Set.toList (trLocs `Set.intersect` zoneLocs) in
+  k
+
+evalTr : Subst -> Trace -> Num
+evalTr subst tr = case tr of
+  TrLoc (k,_)  -> justGet k subst
+  TrOp Plus ts -> List.foldl (+) 0 (List.map (evalTr subst) ts)
 
