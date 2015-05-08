@@ -31,11 +31,13 @@ src = "
 (let zip (map2 (\\(x y) [x y]))
 
 (let cons (\\(x xs) [x | xs])
+(let snoc (\\(x ys) (append ys [x]))
 (let hd   (\\[x|xs] x)
 (let tl   (\\[x|xs] xs)
 
 (let plus  (\\(x y) (+ x y))
 (let minus (\\(x y) (- x y))
+(let neg   (\\x     (- 0 x))
 
 (letrec mult (\\(m n)
   (if (< m 1) 0 (+ n (mult (- m 1) n))))
@@ -52,6 +54,9 @@ src = "
   ['circle' ['cx' x] ['cy' y] ['r' r] ['fill' 'none']
             ['stroke' c] ['strokeWidth' w]])
 
+(let ellipse (\\(fill x y rx ry)
+  ['ellipse' ['cx' x] ['cy' y] ['rx' rx] ['ry' ry] ['fill' fill]])
+
 (let rect (\\(fill x y w h)
   ['rect' ['x' x] ['y' y] ['width' w] ['height' h] ['fill' fill]])
 
@@ -65,13 +70,18 @@ src = "
   ['polygon' ['fill' fill] ['points' pts]
              ['stroke' stroke] ['strokeWidth' w]])
 
+(let addAttr (\\([shapeKind|oldAttrs] newAttr)
+  [shapeKind | (snoc newAttr oldAttrs)])
+
 (let circle_    (circle 'red')
+(let ellipse_   (ellipse 'orange')
 (let rect_      (rect '#999999')
 (let square_    (square '#999999')
 (let line_      (line 'blue' 2)
 (let polygon_   (polygon 'green' 'purple' 3)
 
-0))))))))))))))))))))))))))))
+
+0)))))))))))))))))))))))))))))))))
 
 "
 

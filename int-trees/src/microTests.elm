@@ -16,6 +16,9 @@ testParser = ()
   `ignore` parseV "[1]"
   `ignore` parseV " []"
   `ignore` parseV " [1  2 3]   "
+  `ignore` parseV " 1.0 "
+  `ignore` parseV " -1.0 "
+  `ignore` parseV " -1 "
 
   `ignore` parseE "(\\x 1)"
   `ignore` parseE "(\\(x y z) 1)"
@@ -23,6 +26,8 @@ testParser = ()
   `ignore` parseE "(let f (\\x (\\y [(+ x 0) (+ x y)])) (f 3 5))"
   `ignore` parseE "(let f (\\(x y) [(+ x 0) (+ x y)]) (f 3 5))"
   `ignore` parseE "(let f (\\(x y) [(+ x 0) (+ x y)]) ((f 3) 5))"
+  `ignore` parseE " (- -1 0) "
+  `ignore` parseE " (--1 0) "
 
   `ignore` parseE "true"
   `ignore` parseE "(< 1 2)"
@@ -185,12 +190,19 @@ test21 () =
 
 -- approximation of elm logo:
 -- https://github.com/evancz/elm-svg/blob/1.0.2/examples/Logo.elm
+--
+-- https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/transform
+-- http://tutorials.jenkov.com/svg/svg-viewport-view-box.html
+--
 test22 () =
   makeTest
     "(let foo (\\(color pts) (polygon color 'black' 0 pts))
-     [ (foo '#F0AD00' [[161 152] [231 82] [91 82]])
+     [ ['svgAttrs' [['x' '0'] ['y' '0'] ['viewBox' '0 0 323.141 322.95']]]
+       (foo '#F0AD00' [[161 152] [231 82] [91 82]])
        (foo '#7FD13B' [[8 0] [79 70] [232 70] [161 0]])
-       (rect '#7FD13B' 192 107 107 108)
+       (addAttr
+          (rect '#7FD13B' 192 107 107 108)
+          ['transform' 'matrix(0.7071 0.7071 -0.7071 0.7071 186.4727 -127.2386)'])
        (foo '#60B5CC' [[323 143] [323 0] [179 0]])
        (foo '#5A6378' [[152 161] [0 8] [0 314]])
        (foo '#F0AD00' [[255 246] [323 314] [323 178]])
@@ -260,5 +272,40 @@ test28 () =
        (map (\\[i c] (ring c w (+ (+ x0 dxHalf) (mult i dx)) (+ y0 dy) r))
             (zip [0 1] ['yellow' 'green']))
        (append row1 row2)))))"
+    "[]"
+
+-- similar to test15, but one solution requires floating point division
+-- instead of integer division
+test29 () =
+  makeTest
+    "(let [x0 y0 sep] [10 28 30]
+       (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2]))"
+    (strVal (Eval.run (parseE
+      "[(circle_ 10 28 10) (circle_ 40 28 10) (circle_ 101 28 10)]")))
+
+test30 () =
+  makeTest
+    "(let [x0 y0 sep rx ry] [10 28 60 15 10]
+       (map (\\i (ellipse_ (+ x0 (mult i sep)) y0 rx ry)) [0 1 2]))"
+    (strVal (Eval.run (parseE
+      "[(ellipse_ 10 28 15 10) (ellipse_ 70 28 25 40) (ellipse_ 130 28 15 10)]")))
+
+test31 () =
+  makeTest
+    "(let [x0 y0 w h delta] [50 50 200 200 10]
+     [ (rect 'white' x0 y0 w h)
+       (polygon 'black' 'DUMMY' 0
+         [[(+ x0 delta) y0]
+          [(+ x0 w) y0]
+          [(+ x0 w) (- (+ y0 h) delta)]])
+       (polygon 'black' 'DUMMY' 0
+         [[x0 (+ y0 delta)]
+          [x0 (- (+ y0 h) delta)]
+          [(- (+ x0 (div w 2)) delta) (+ y0 (div h 2))]])
+       (polygon 'black' 'DUMMY' 0
+         [[(+ x0 delta) (+ y0 h)]
+          [(- (+ x0 w) delta) (+ y0 h)]
+          [(+ x0 (div w 2)) (+ (+ y0 (div h 2)) delta)]])
+     ])"
     "[]"
 

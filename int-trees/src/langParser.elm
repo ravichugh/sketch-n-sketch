@@ -14,7 +14,7 @@ import Prelude
 ------------------------------------------------------------------------------
 
 (prelude, initK) = freshen_ 1 (parseE_ identity Prelude.src)
-isPreludeLoc i   = i < initK
+isPreludeLoc (k,_) = k < initK
 
 ------------------------------------------------------------------------------
 
@@ -30,7 +30,7 @@ substOf e = substOfExps_ Dict.empty [prelude, e]
 
 freshen_ : Int -> Exp -> (Exp, Int)
 freshen_ k e = case e of
-  EConst i _ -> (EConst i k, k + 1)
+  EConst i _ -> (EConst i (k, ""), k + 1)
   EBase v    -> (EBase v, k)
   EVar x     -> (EVar x, k)
   EFun ps e  -> let (e',k') = freshen_ k e in (EFun ps e', k')
@@ -43,9 +43,10 @@ freshen_ k e = case e of
                              (EList es' (Just e'), k'')
   EIf e1 e2 e3 -> let ([e1',e2',e3'],k') = freshenExps k [e1,e2,e3] in
                   (EIf e1' e2' e3', k')
-  ELet b x e1 e2 ->
+  ELet b p e1 e2 ->
     let ([e1',e2'],k') = freshenExps k [e1,e2] in
-    (ELet b x e1' e2', k')
+    let e1'' = addBreadCrumbs (p, e1') in
+    (ELet b p e1'' e2', k')
   ECase e l ->
     let es = List.map snd l in
     let (e'::es', k') = freshenExps k (e::es) in
@@ -56,11 +57,24 @@ freshenExps k es =
     let (e1,k1) = freshen_ k' e in
     (e1::es', k1)) ([],k) es
 
+addBreadCrumbs pe = case pe of
+  (PVar x, EConst n (k, "")) -> EConst n (k, x)
+  (PList ps mp, EList es me) ->
+    case Utils.maybeZip ps es of
+      Nothing  -> EList es me
+      Just pes -> let es' = List.map addBreadCrumbs pes in
+                  let me' =
+                    case (mp, me) of
+                      (Just p, Just e) -> Just (addBreadCrumbs (p,e))
+                      _                -> me in
+                  EList es' me'
+  (_, e) -> e
+
 -- this will be done while parsing eventually...
 
 substOf_ s e = case e of
-  EConst i l -> case Dict.get l s of
-                  Nothing -> Dict.insert l i s
+  EConst i l -> case Dict.get (fst l) s of
+                  Nothing -> Dict.insert (fst l) i s
                   Just j  -> if | i == j -> s
   EBase _    -> s
   EVar _     -> s 
@@ -88,14 +102,29 @@ isAlpha c        = Char.isLower c || Char.isUpper c
 isAlphaNumeric c = Char.isLower c || Char.isUpper c || Char.isDigit c
 isWhitespace c   = c == ' ' || c == '\n'
 
-unsafeToInt s =
-  case String.toInt s of
-    Ok i    -> i
-    Err err -> Debug.crash err
-
 parseInt : P.Parser Int
-parseInt = (unsafeToInt << String.fromList) <$> P.some (P.satisfy Char.isDigit)
-             -- TODO negative
+parseInt =
+  P.some (P.satisfy Char.isDigit) >>= \cs ->
+    P.return <|
+      Utils.fromOk "LangParser.parseInt" <|
+        String.toInt (String.fromList cs)
+
+parseFloat =
+  P.some (P.satisfy Char.isDigit) >>= \cs1 ->
+  P.satisfy ((==) '.')            >>= \c   ->
+  P.some (P.satisfy Char.isDigit) >>= \cs2 ->
+    P.return <|
+      Utils.fromOk "LangParser.parseFloat" <|
+        String.toFloat (String.fromList (cs1 ++ (c::cs2)))
+
+parseSign =
+  P.option 1 (P.satisfy ((==) '-') >>> P.return (-1))
+
+parseNum : P.Parser Num
+parseNum =
+  parseSign                             >>= \i ->
+  parseFloat <++ (toFloat <$> parseInt) >>= \n ->
+    P.return (i * n)
 
 -- TODO allow '_', disambiguate from wildcard in parsePat
 parseIdent : P.Parser String
@@ -106,7 +135,7 @@ parseIdent =
     P.return (String.fromList (c::cs))
 
 parseStrLit =
-  let pred c = isAlphaNumeric c || c == '#' in
+  let pred c = isAlphaNumeric c || List.member c (String.toList "#., -()") in
   delimit "'" "'" (String.fromList <$> P.many (P.satisfy pred))
 
 oneWhite : P.Parser ()
@@ -126,8 +155,8 @@ token_ = white << P.token
 delimit a b = P.between (token_ a) (token_ b)
 parens      = delimit "(" ")"
 
-parseIntV = flip VConst dummyTrace <$> parseInt
-parseIntE = flip EConst dummyLoc   <$> parseInt
+parseNumV = flip VConst dummyTrace <$> parseNum
+parseNumE = flip EConst dummyLoc   <$> parseNum
 
 parseEBase =
       (always eTrue  <$> P.token "true")
@@ -172,7 +201,7 @@ parseV = P.parse <|
 
 parseVal : P.Parser Val
 parseVal = P.recursively <| \_ ->
-      white parseIntV
+      white parseNumV
   <++ white parseVBase
   <++ parseValList
 
@@ -190,7 +219,7 @@ parseVar = EVar <$> (white parseIdent)
 
 parseExp : P.Parser Exp
 parseExp = P.recursively <| \_ ->
-      white parseIntE
+      white parseNumE
   <++ white parseEBase
   <++ parseVar
   <++ parseFun

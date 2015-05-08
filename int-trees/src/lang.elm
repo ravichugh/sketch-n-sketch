@@ -8,8 +8,10 @@ import Utils
 
 ------------------------------------------------------------------------------
 
-type alias Loc = Int
+type alias Loc = (LocId, Ident)  -- "" rather than Nothing b/c comparable
+type alias LocId = Int
 type alias Ident = String
+type alias Num = Float
 
 type Pat
   = PVar Ident
@@ -20,7 +22,7 @@ type Op
   | Lt
 
 type Exp
-  = EConst Int Loc
+  = EConst Num Loc
   | EBase BaseVal
   | EVar Ident
   | EFun (List Pat) Exp
@@ -40,7 +42,7 @@ type Exp
     -- EApp f xs     (f x1 ... xn) === ((... ((f x1) x2) ...) xn)
 
 type Val
-  = VConst Int Trace
+  = VConst Num Trace
   | VBase BaseVal
   | VClosure (Maybe Ident) Pat Exp Env
   | VList (List Val)
@@ -81,7 +83,8 @@ strVal_ showTraces v =
 
 strOp op = case op of {Plus -> "+"; Minus -> "-"; Mult -> "*"; Lt -> "<"}
 
-strLoc l = "k" ++ toString l
+strLoc (k, mx) =
+  "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx)
 
 strTrace tr = case tr of
   TrLoc l   -> strLoc l
@@ -200,11 +203,11 @@ mapVal f v = case v of
 ------------------------------------------------------------------------------
 -- Substitutions
 
-type alias Subst = Dict.Dict Loc Int
+type alias Subst = Dict.Dict LocId Num
 
 applySubst : Subst -> Exp -> Exp
 applySubst subst e = case e of
-  EConst _ l -> case Dict.get l subst of Just i -> EConst i l
+  EConst _ l -> case Dict.get (fst l) subst of Just i -> EConst i l
   EBase _    -> e
   EVar _     -> e
   EFun _ _   -> e   -- not recursing into lambdas
@@ -221,7 +224,7 @@ applySubst subst e = case e of
 ------------------------------------------------------------------------------
 -- Abstract Syntax Helpers
 
-dummyLoc = 0
+dummyLoc = (0, "")
 dummyTrace = TrLoc dummyLoc
 eConst = flip EConst dummyLoc
 vConst = flip VConst dummyTrace
