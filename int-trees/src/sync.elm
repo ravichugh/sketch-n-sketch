@@ -278,6 +278,9 @@ shapesToAttrLocs v = case v of
                     acc |> Dict.insert ax trx
                         |> Dict.insert ay try) dAttrs pts in
             (NumPoints (List.length pts), acc')
+          -- NOTE:
+          --   string-valued and RGBA attributes are ignored.
+          --   see LangSvg.valToSvg for spec of attributes.
           _ ->
             (extra, dAttrs)
         in

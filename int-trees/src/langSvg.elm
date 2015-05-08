@@ -31,8 +31,16 @@ valToSvg v = case v of
                   toString x ++ "," ++ toString y
           in
           (attr "points") s
+        VList [VBase (String "fill"), VList rgba] ->
+          (attr "fill") (valToRgba rgba)
+        VList [VBase (String "stroke"), VList rgba] ->
+          (attr "stroke") (valToRgba rgba)
       in
       (svg shape) attrs []
+
+valToRgba v = case v of
+  [VConst r _, VConst g _, VConst b _, VConst a _] ->
+    "rgba" ++ Utils.parens (Utils.commas (List.map toString [r,g,b,a]))
 
 valToHtml : Int -> Int -> Val -> Html.Html
 valToHtml w h v =
