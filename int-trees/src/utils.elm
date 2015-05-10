@@ -3,6 +3,7 @@ module Utils where
 import String
 import Debug
 import Set
+import Dict
 
 maybeFind : a -> List (a,b) -> Maybe b
 maybeFind k l = case l of
@@ -103,4 +104,7 @@ bindMaybe f mx = case mx of {Just x -> f x; Nothing -> Nothing}
 fst3 (x,_,_) = x
 snd3 (_,x,_) = x
 thd3 (_,_,x) = x
+
+setIsEmpty  = (==) [] << Set.toList
+dictIsEmpty = (==) [] << Dict.toList
 

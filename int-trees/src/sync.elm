@@ -1,4 +1,4 @@
-module Sync (sync, printZoneTable) where
+module Sync (sync, prepareLiveUpdates, printZoneTable) where
 
 import Dict exposing (Dict)
 import Set
@@ -371,29 +371,46 @@ strLoc_ l =
 ------------------------------------------------------------------------------
 
 type alias Triggers = Dict ShapeId (Dict Zone Trigger)
-type alias Trigger  = List (Attr, Num) -> Dict ShapeId (Dict Attr Num)
+type alias Trigger  = List (Attr, Num) -> (Exp, Dict ShapeId (Dict Attr Num))
+
+prepareLiveUpdates : Exp -> Val -> Triggers
+prepareLiveUpdates e v =
+  let d0 = shapesToAttrLocs v in
+  let d1 = shapesToZoneTable d0 in
+  let d2 = assignTriggers d1 in
+  makeTriggers e d0 d2
 
 -- TODO refactor Dict data structures above to make this more efficient
 
-makeTriggers : Dict0 -> Dict2 -> Subst -> Triggers
-makeTriggers d0 d2 subst =
+makeTriggers : Exp -> Dict0 -> Dict2 -> Triggers
+makeTriggers e d0 d2 =
+  let subst = LangParser.substOf e in
   let f i (_,zones) =
-    let g (zone,_) = Dict.insert zone (makeTrigger d0 d2 subst i zone) in
+    let g (zone,_) = Dict.insert zone (makeTrigger e d0 d2 subst i zone) in
     List.foldl g Dict.empty zones in
   Dict.map f d2
 
-makeTrigger : Dict0 -> Dict2 -> Subst -> ShapeId -> Zone -> Trigger
-makeTrigger d0 d2 subst i zone l =
-  let subst' =
-    let f (attr,newNum) acc =
+makeTrigger : Exp -> Dict0 -> Dict2 -> Subst -> ShapeId -> Zone -> Trigger
+makeTrigger e d0 d2 subst i zone = \newAttrs ->
+  let (subst',changedLocs) =
+    let f (attr,newNum) (acc1,acc2) =
       let k = whichLoc d0 d2 i zone attr in
       let subst' = Dict.remove k subst in
       let tr = justGet attr (Utils.thd3 (justGet i d0)) in
       let kSolution = solve subst' (Equation newNum tr) in
-      Dict.insert k kSolution acc in
-    List.foldl f Dict.empty l in
-  let g _ (_,_,di) = Dict.map (always (evalTr subst')) di in
-  Dict.map g d0
+      (Dict.insert k kSolution acc1, Set.insert k acc2) in
+    List.foldl f (Dict.empty, Set.empty) newAttrs in
+  let g i (_,_,di) acc =
+    let h attr tr acc =
+      let locs = Set.map fst (locsOfTrace tr) in
+      if | Utils.setIsEmpty (locs `Set.intersect` changedLocs) -> acc
+         | otherwise -> Dict.insert attr (evalTr subst' tr) acc
+    in
+    let di' = Dict.foldl h Dict.empty di in
+    if | Utils.dictIsEmpty di' -> acc
+       | otherwise -> Dict.insert i di' acc in
+  let e' = applySubst subst' e in
+  (e', Dict.foldl g Dict.empty d0)
 
 -- TODO sloppy way of doing this for now...
 whichLoc : Dict0 -> Dict2 -> ShapeId -> Zone -> Attr -> LocId
