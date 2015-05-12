@@ -84,6 +84,7 @@ main =
     , (600, 200, MicroTests.test35 ())
     , (600, 330, MicroTests.test36 ())
     , (600, 330, MicroTests.test37 ())
+    , (600, 200, MicroTests.test38 ())
   ] in
   E.flow E.down (List.map showOne tests)
 

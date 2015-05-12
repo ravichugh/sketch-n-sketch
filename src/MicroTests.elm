@@ -384,3 +384,13 @@ test37 () =
      ]"
     "[]"
 
+test38 () =
+  makeTest
+    "[ ['text'
+         [['x' 10] ['y' 20] ['style' 'fill:red']]
+         [['TEXT' 'Several lines:']
+          ['tspan' [['x' 10] ['y' 45]] [['TEXT' 'First line.']]]
+          ['tspan' [['x' 10] ['y' 70]] [['TEXT' 'Second line.']]] ]]
+     ]"
+    "[]"
+

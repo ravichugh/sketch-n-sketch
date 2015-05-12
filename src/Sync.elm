@@ -262,6 +262,7 @@ printZoneTable v =
 
 -- Step 1 --
 
+-- TODO update for new LangSvg
 shapesToAttrLocs : Val -> Dict0
 shapesToAttrLocs v = case v of
   VList (VList [VBase (String "svgAttrs"), _] :: vs) ->

@@ -1,8 +1,14 @@
 module LangSvg (valToHtml) where
 
+import Html
 import Svg
 import Svg.Attributes as A
-import Html
+import VirtualDom
+
+-- in Svg.elm:
+--   type alias Svg = VirtualDom.Node
+--   type alias Attribute = VirtualDom.Property
+
 import Debug
 import Set
 import String
@@ -17,19 +23,33 @@ import Sync
 -- TODO probably want to factor HTML attributes and SVG attributes into
 -- records rather than lists of lists of ...
 
+-- http://www.w3schools.com/svg/svg_text.asp
+-- https://developer.mozilla.org/en-US/docs/Web/SVG/Element/g
+
 valToSvg : Val -> List Svg.Svg
 valToSvg v = case v of
   VList vs -> flip List.map vs <| \v1 -> case v1 of
+    VList [VBase (String "text"), VList vs1, VList vs2] ->
+      (svg "text") (valsToAttrs vs1) (valsToNodes vs2)
+    VList [VBase (String "tspan"), VList vs1, VList vs2] ->
+      (svg "tspan") (valsToAttrs vs1) (valsToNodes vs2)
     VList (VBase (String shape) :: vs') ->
-      let attrs = flip List.map vs' <| \v2 -> case v2 of
-        VList [VBase (String a), VConst i _]       -> (attr a) (toString i)
-        VList [VBase (String a), VBase (String s)] -> (attr a) s
-        VList [VBase (String "points"), VList vs]  -> (attr "points") (valToPoints vs)
-        VList [VBase (String "fill"), VList vs]    -> (attr "fill") (valToRgba vs)
-        VList [VBase (String "stroke"), VList vs]  -> (attr "stroke") (valToRgba vs)
-        VList [VBase (String "d"), VList vs]       -> (attr "d") (valToPath vs)
-      in
-      (svg shape) attrs []
+      (svg shape) (valsToAttrs vs') []
+
+valsToNodes =
+  List.map <| \v -> case v of
+    VList [VBase (String "TEXT"), VBase (String s)] -> VirtualDom.text s
+    VList [VBase (String "tspan"), VList vs1, VList vs2] ->
+      (svg "tspan") (valsToAttrs vs1) (valsToNodes vs2)
+
+valsToAttrs =
+  List.map <| \v -> case v of
+    VList [VBase (String a), VConst i _]       -> (attr a) (toString i)
+    VList [VBase (String a), VBase (String s)] -> (attr a) s
+    VList [VBase (String "points"), VList vs]  -> (attr "points") (valToPoints vs)
+    VList [VBase (String "fill"), VList vs]    -> (attr "fill") (valToRgba vs)
+    VList [VBase (String "stroke"), VList vs]  -> (attr "stroke") (valToRgba vs)
+    VList [VBase (String "d"), VList vs]       -> (attr "d") (valToPath vs)
 
 valToPoints = Utils.spaces << List.map valToPoint
 
@@ -109,6 +129,8 @@ funcsSvg = [
   , ("polygon", Svg.polygon)
   , ("polyline", Svg.polyline)
   , ("rect", Svg.rect)
+  , ("text", Svg.text)
+  , ("tspan", Svg.tspan)
   ]
 
 funcsAttr = [
@@ -124,6 +146,7 @@ funcsAttr = [
   , ("ry", A.ry)
   , ("stroke", A.stroke)
   , ("strokeWidth", A.strokeWidth)
+  , ("style", A.style)
   , ("transform", A.transform)
   , ("viewBox", A.viewBox)
   , ("width", A.width)
