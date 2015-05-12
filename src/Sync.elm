@@ -229,9 +229,12 @@ zones = [
       , ("Point2", ["x2", "y2"])
       , ("Edge", ["x1", "y1", "x2", "y2"])
       ])
-  , ("polygon",
-      [ ("TODO", [])
-      ])
+  -- TODO
+  , ("path", [])
+  , ("text", [])
+  -- NOTE: these are computed in getZones
+  , ("polygon", [ ])
+  , ("polyline", [ ])
   ]
 
 
@@ -318,6 +321,8 @@ getZones kind extra =
   let xy i    = [foo "x" i, foo "y" i] in
   let pt i    = (foo "Point" i, xy i) in
   case (kind, extra) of
+    ("polyline", NumPoints n) ->
+      List.map pt [1..n]
     ("polygon", NumPoints n) ->
       List.map pt [1..n] ++ [("Interior", List.concatMap xy [1..n])]
     _ ->

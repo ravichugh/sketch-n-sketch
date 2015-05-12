@@ -70,6 +70,12 @@ src = "
   ['polygon' ['fill' fill] ['points' pts]
              ['stroke' stroke] ['strokeWidth' w]])
 
+(let polyline (\\(fill stroke w pts)
+  ['polyline' ['fill' fill] ['points' pts] ['stroke' stroke] ['strokeWidth' w]])
+
+(let path (\\(fill stroke w d)
+  ['path' ['fill' fill] ['stroke' stroke] ['strokeWidth' w] ['d' d]])
+
 (let addAttr (\\([shapeKind|oldAttrs] newAttr)
   [shapeKind | (snoc newAttr oldAttrs)])
 
@@ -79,9 +85,10 @@ src = "
 (let square_    (square '#999999')
 (let line_      (line 'blue' 2)
 (let polygon_   (polygon 'green' 'purple' 3)
+(let path_      (path 'transparent' 'brown' 5)
 
 
-0)))))))))))))))))))))))))))))))))
+0))))))))))))))))))))))))))))))))))))
 
 "
 
