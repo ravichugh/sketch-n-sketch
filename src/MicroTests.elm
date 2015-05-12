@@ -394,3 +394,15 @@ test38 () =
      ]"
     "[]"
 
+test39 () =
+  makeTest
+    "['svg'
+        [['viewbox' '0 0 95 50']]
+        ['g'
+           [['stroke' 'green'] ['fill' 'white'] ['stroke-width' 5]]
+           [ ['circle' [['cx' 25] ['cy' 25] ['r' 15]] []]
+             ['circle' [['cx' 40] ['cy' 25] ['r' 15]] []]
+             ['circle' [['cx' 55] ['cy' 25] ['r' 15]] []]
+             ['circle' [['cx' 70] ['cy' 25] ['r' 15]] []] ]]]"
+    "[]"
+

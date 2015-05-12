@@ -230,6 +230,7 @@ zones = [
       , ("Edge", ["x1", "y1", "x2", "y2"])
       ])
   -- TODO
+  , ("g", [])
   , ("path", [])
   , ("text", [])
   -- NOTE: these are computed in getZones
