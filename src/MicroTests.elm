@@ -197,7 +197,7 @@ test21 () =
 test22 () =
   makeTest
     "(let foo (\\(color pts) (polygon color 'black' 0 pts))
-     [ ['svgAttrs' [['x' '0'] ['y' '0'] ['viewBox' '0 0 323.141 322.95']]]
+     [ 'svg' [['x' '0'] ['y' '0'] ['viewBox' '0 0 323.141 322.95']]
        (foo '#F0AD00' [[161 152] [231 82] [91 82]])
        (foo '#7FD13B' [[8 0] [79 70] [232 70] [161 0]])
        (addAttr
@@ -240,12 +240,12 @@ test26 () =
     "(let [x0 y0 sep] [10 28 30]
        (map (\\[i j] (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 20))
             (cartProd [0 1 2] [0 1])))"
-    "[['rect' ['x' 10] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 10] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 40] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 40] ['y' 99] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 70] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 70] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']]]"
+    "[['rect' [['x' 10] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 10] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 40] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 40] ['y' 99] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 70] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 70] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']] []]]"
 
 -- changing two leaves, each of which leads to two disjoint solutions
 test27 () =
@@ -253,12 +253,12 @@ test27 () =
     "(let [x0 y0 xsep ysep] [10 28 30 30]
        (map (\\[i j] (square_ (+ x0 (mult i xsep)) (+ y0 (mult j ysep)) 20))
             (cartProd [0 1 2] [0 1])))"
-    "[['rect' ['x' 10] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 10] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 40] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 60] ['y' 78] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 70] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 70] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']]]"
+    "[['rect' [['x' 10] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 10] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 40] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 60] ['y' 78] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 70] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 70] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']] []]]"
 
 -- rudimentary olympic rings
 test28 () =

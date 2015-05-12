@@ -262,14 +262,16 @@ printZoneTable v =
 
 -- Step 1 --
 
--- TODO update for new LangSvg
+-- TODO: recurse into SVG "datatype"
+
 shapesToAttrLocs : Val -> Dict0
 shapesToAttrLocs v = case v of
-  VList (VList [VBase (String "svgAttrs"), _] :: vs) ->
+  VList (VBase (String "svg") :: _ :: vs) ->
     shapesToAttrLocs (VList vs)
   VList vs ->
     let processShape (i,shape) dShapes = case shape of
-      VList (VBase (String shape) :: vs') ->
+      VList [VBase (String "TEXT"), VBase (String s)] -> dShapes
+      VList [VBase (String shape), VList vs', VList _] ->
         let processAttr v' (extra,dAttrs) = case v' of
           VList [VBase (String a), VConst _ tr] ->
             (extra, Dict.insert a tr dAttrs)

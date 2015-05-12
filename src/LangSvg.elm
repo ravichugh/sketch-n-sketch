@@ -23,27 +23,36 @@ import Sync
 -- TODO probably want to factor HTML attributes and SVG attributes into
 -- records rather than lists of lists of ...
 
--- http://www.w3schools.com/svg/svg_text.asp
--- https://developer.mozilla.org/en-US/docs/Web/SVG/Element/g
+valToHtml : Int -> Int -> Val -> Html.Html
+valToHtml w h v =
+  let wh = [A.width (toString w), A.height (toString h)] in
+  case v of
+    VList (VBase (String "svg") :: VList attrs :: vs) ->
+      Svg.svg (List.map valToAttr attrs ++ wh) (valToSvgList (VList vs))
+    VList _ ->
+      Svg.svg wh (valToSvgList v)
 
-valToSvg : Val -> List Svg.Svg
-valToSvg v = case v of
-  VList vs -> flip List.map vs <| \v1 -> case v1 of
-    VList [VBase (String "text"), VList vs1, VList vs2] ->
-      (svg "text") (valsToAttrs vs1) (valsToNodes vs2)
-    VList [VBase (String "tspan"), VList vs1, VList vs2] ->
-      (svg "tspan") (valsToAttrs vs1) (valsToNodes vs2)
-    VList (VBase (String shape) :: vs') ->
-      (svg shape) (valsToAttrs vs') []
+valToSvgList : Val -> List Svg.Svg
+valToSvgList (VList vs) = List.map valToSvgNode vs
 
-valsToNodes =
-  List.map <| \v -> case v of
-    VList [VBase (String "TEXT"), VBase (String s)] -> VirtualDom.text s
-    VList [VBase (String "tspan"), VList vs1, VList vs2] ->
-      (svg "tspan") (valsToAttrs vs1) (valsToNodes vs2)
+valToSvgNode : Val -> VirtualDom.Node
+valToSvgNode (VList [VBase (String f), VList vs1, VList vs2]) =
+  (svg f) (valsToAttrs vs1) (valsToNodes vs2)
 
-valsToAttrs =
-  List.map <| \v -> case v of
+valToNode : Val -> VirtualDom.Node
+valToNode v = case v of
+  VList [VBase (String "TEXT"), VBase (String s)] -> VirtualDom.text s
+  VList [VBase (String f), VList vs1, VList vs2]  -> (svg f) (valsToAttrs vs1) (valsToNodes vs2)
+
+          -- TODO bug?
+          --   in second case above, JS error when calling valToSvgNode v instead.
+          --   related to desugaring, as with recursive parsers?
+
+valsToNodes = List.map valToNode
+valsToAttrs = List.map valToAttr
+
+valToAttr v =
+  case v of
     VList [VBase (String a), VConst i _]       -> (attr a) (toString i)
     VList [VBase (String a), VBase (String s)] -> (attr a) s
     VList [VBase (String "points"), VList vs]  -> (attr "points") (valToPoints vs)
@@ -106,17 +115,6 @@ matchCmd cmd s =
   let [c] = String.toList cmd in
   let cs  = String.toList s in
   List.member c (cs ++ List.map Char.toLower cs)
-
-valToHtml : Int -> Int -> Val -> Html.Html
-valToHtml w h v =
-  let wh = [A.width (toString w), A.height (toString h)] in
-  case v of
-  VList (VList [VBase (String "svgAttrs"), VList l] :: vs) ->
-    let f v1 = case v1 of
-      VList [VBase (String a), VBase (String s)] -> (attr a) s in
-    Svg.svg (List.map f l ++ wh) (valToSvg (VList vs))
-  VList _ ->
-    Svg.svg wh (valToSvg v)
 
 
 ------------------------------------------------------------------------------

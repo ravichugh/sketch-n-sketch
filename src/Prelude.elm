@@ -48,36 +48,49 @@ src = "
     (+ 1 (div (- m n) n)))))
 
 (let circle (\\(fill x y r)
-  ['circle' ['cx' x] ['cy' y] ['r' r] ['fill' fill]])
+  ['circle'
+     [['cx' x] ['cy' y] ['r' r] ['fill' fill]]
+     []])
 
 (let ring (\\(c w x y r)
-  ['circle' ['cx' x] ['cy' y] ['r' r] ['fill' 'none']
-            ['stroke' c] ['strokeWidth' w]])
+  ['circle'
+     [ ['cx' x] ['cy' y] ['r' r] ['fill' 'none'] ['stroke' c] ['strokeWidth' w] ]
+     []])
 
 (let ellipse (\\(fill x y rx ry)
-  ['ellipse' ['cx' x] ['cy' y] ['rx' rx] ['ry' ry] ['fill' fill]])
+  ['ellipse'
+     [ ['cx' x] ['cy' y] ['rx' rx] ['ry' ry] ['fill' fill] ]
+     []])
 
 (let rect (\\(fill x y w h)
-  ['rect' ['x' x] ['y' y] ['width' w] ['height' h] ['fill' fill]])
+  ['rect'
+     [ ['x' x] ['y' y] ['width' w] ['height' h] ['fill' fill] ]
+     []])
 
 (let square (\\(fill x y side) (rect fill x y side side))
 
 (let line (\\(fill w x1 y1 x2 y2)
-  ['line' ['x1' x1] ['y1' y1] ['x2' x2] ['y2' y2]
-          ['stroke' fill] ['strokeWidth' w]])
+  ['line'
+     [ ['x1' x1] ['y1' y1] ['x2' x2] ['y2' y2] ['stroke' fill] ['strokeWidth' w] ]
+     []])
 
 (let polygon (\\(fill stroke w pts)
-  ['polygon' ['fill' fill] ['points' pts]
-             ['stroke' stroke] ['strokeWidth' w]])
+  ['polygon'
+     [ ['fill' fill] ['points' pts] ['stroke' stroke] ['strokeWidth' w] ]
+     []])
 
 (let polyline (\\(fill stroke w pts)
-  ['polyline' ['fill' fill] ['points' pts] ['stroke' stroke] ['strokeWidth' w]])
+  ['polyline'
+     [ ['fill' fill] ['points' pts] ['stroke' stroke] ['strokeWidth' w] ]
+     []])
 
 (let path (\\(fill stroke w d)
-  ['path' ['fill' fill] ['stroke' stroke] ['strokeWidth' w] ['d' d]])
+  ['path'
+     [ ['fill' fill] ['stroke' stroke] ['strokeWidth' w] ['d' d] ]
+     []])
 
-(let addAttr (\\([shapeKind|oldAttrs] newAttr)
-  [shapeKind | (snoc newAttr oldAttrs)])
+(let addAttr (\\([shapeKind oldAttrs children] newAttr)
+  [shapeKind (snoc newAttr oldAttrs) children])
 
 (let circle_    (circle 'red')
 (let ellipse_   (ellipse 'orange')
