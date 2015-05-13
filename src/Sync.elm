@@ -233,6 +233,7 @@ zones = [
   , ("g", [])
   , ("path", [])
   , ("text", [])
+  , ("tspan", [])
   -- NOTE: these are computed in getZones
   , ("polygon", [ ])
   , ("polyline", [ ])
@@ -263,16 +264,25 @@ printZoneTable v =
 
 -- Step 1 --
 
--- TODO: recurse into SVG "datatype"
-
 shapesToAttrLocs : Val -> Dict0
 shapesToAttrLocs v = case v of
+
+  -- NOTE: any reason to track constants in svgAttrs?
   VList (VBase (String "svg") :: _ :: vs) ->
     shapesToAttrLocs (VList vs)
+
   VList vs ->
-    let processShape (i,shape) dShapes = case shape of
-      VList [VBase (String "TEXT"), VBase (String s)] -> dShapes
-      VList [VBase (String shape), VList vs', VList _] ->
+
+    -- NOTE: switched from simple foldli approach to assigning ids.
+    -- may be better to carry assigned ids directly within the Vals.
+
+    let processShape shape (nextId,dShapes) = case shape of
+
+      VList [VBase (String "TEXT"), VBase (String s)] -> (nextId, dShapes)
+
+      VList [VBase (String kind), VList vs', VList children] ->
+
+        -- processing attributes of current node
         let processAttr v' (extra,dAttrs) = case v' of
           VList [VBase (String a), VConst _ tr] ->
             (extra, Dict.insert a tr dAttrs)
@@ -292,9 +302,15 @@ shapesToAttrLocs v = case v of
             (extra, dAttrs)
         in
         let (extra,attrs) = List.foldl processAttr (None, Dict.empty) vs' in
-        Dict.insert i (shape, extra, attrs) dShapes
+
+        -- recursing into sub-nodes
+        let (nextId',dShapes') =
+          List.foldl processShape (nextId,dShapes) children in
+
+        (nextId' + 1, Dict.insert nextId' (kind, extra, attrs) dShapes')
     in
-    Utils.foldli processShape Dict.empty vs
+
+    snd <| List.foldl processShape (1, Dict.empty) vs
 
 -- Step 2 --
 
