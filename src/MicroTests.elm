@@ -406,3 +406,13 @@ test39 () =
              ['circle' [['cx' 70] ['cy' 25] ['r' 15]] []] ]]]"
     "[]"
 
+test40 () =
+  makeTest
+    "['svg'
+        [['viewbox' '0 0 95 50']]
+        ['g' [['stroke' 'green'] ['fill' 'white'] ['stroke-width' 5]]
+             (let [x0 y0 r sep] [25 25 15 15]
+               (map (\\i ['circle' [['cx' (+ x0 (mult i sep))] ['cy' y0] ['r' r]] []])
+                    [0 1 2 3])) ]]"
+    "[]"
+
