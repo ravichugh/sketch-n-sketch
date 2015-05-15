@@ -152,7 +152,7 @@ upstate evt old = case Debug.log "Event" evt of
     _ -> old
  
 --TODO: fix object tracking issue
-{-
+
 updateObj : List (String, String) -> Object -> Object -> Object
 updateObj newattrs (o1, a1) (o2, a2) = case Debug.log "index" (find a1 "index") of
   a ->
@@ -162,7 +162,7 @@ updateObj newattrs (o1, a1) (o2, a2) = case Debug.log "index" (find a1 "index") 
                     shape = svg (find a1 "shape")
                 in ((shape svgattrs []), updatedattrs) 
        | otherwise -> (o2, a2)
--}
+
 
 -- View --
 codeBox : String -> Html.Html
