@@ -80,7 +80,7 @@ sampleModel = { code      = tempTestCode
 
 type Event = CodeUpdate String
            | OutputUpdate String
-           | SelectObject Int
+           | SelectObject Int String
            | DeselectObject Int
            | MouseDown (Int, Int)
            | Sync
@@ -128,12 +128,12 @@ upstate evt old = case Debug.log "Event" evt of
                                 (moved, xdist, ydist)
                           , workingVal <- newvals
                     }
-    SelectObject x -> let sx = toString x
-                          match = List.filter 
-                                (\(s, a) -> sx == (find a "index"))
+    SelectObject x zonetype -> 
+        let sx = toString x
+            match = List.filter (\(s, a) -> sx == (find a "index"))
                                 old.objects
-                      in case match of
-                              mat :: xs -> { old | movingObj <- Just (mat, -1.0, -1.0) }
+            in case match of
+                mat :: xs -> { old | movingObj <- Just (mat, -1.0, -1.0) }
     DeselectObject x -> { old | movingObj <- Nothing }
     Sync -> old --TODO perform appropriate sync actions
     _ -> old
@@ -186,15 +186,45 @@ buildSvg v = case Debug.log "v" v of
                 baseattrs = fst <| cleanAttrs (List.map snd firstattrs) ([],[])
                 modattrs = ("shape", shape) :: ("index", toString i) :: baseattrs
                 attrloc = snd <| cleanAttrs (List.map snd firstattrs) ([],[])
-                attrs = List.append (List.map fst firstattrs)
-                    [ Svg.Events.onMouseDown (Signal.message events.address
-                        (SelectObject i)) 
-                    , Svg.Events.onMouseUp (Signal.message events.address
-                        (DeselectObject i))
-                    ]
-           in (((svg shape) attrs []), modattrs)
+                zones = makeZones modattrs
+--                attrs = List.append (List.map fst firstattrs)
+--                    [ Svg.Events.onMouseDown (Signal.message events.address
+--                        (SelectObject i)) 
+--                    , Svg.Events.onMouseUp (Signal.message events.address
+--                        (DeselectObject i))
+--                    ]
+           in (((svg shape) (List.map fst firstattrs) zones), modattrs)
                 
-    
+makeZones : List (String, String) -> List Svg.Svg
+makeZones attrs = case Debug.log "attrs" attrs of
+    ("shape", shape) :: xs -> case shape of
+        "rect" -> case xs of
+            ("index", i) :: ys -> 
+                let xcent = attr "x" <| toString
+                            <| (case String.toFloat <| find ys "x" of
+                                    Ok z -> round <| z * 0.125)
+                    ycent = attr "y" <| toString
+                            <| (case String.toFloat <| find ys "y" of
+                                    Ok z -> round <| z * 0.125)
+                    wcent = attr "width" <| toString <| (\x -> x * 0.75) 
+                            <| (case String.toFloat <| find ys "width" of
+                                    Ok z -> z)
+                    hcent = attr "height" <| toString <| (\x -> x * 0.75) 
+                            <| (case String.toFloat <| find ys "height" of
+                                    Ok z -> z)
+                    fill = attr "fill" "#FFFFFF"
+                    firstattrs = [xcent, ycent, wcent, hcent, fill]
+                    attrs = List.append firstattrs
+                        [ Svg.Events.onMouseDown (Signal.message events.address
+                            (case String.toInt i of
+                                Ok z -> SelectObject z "center"))
+                        , Svg.Events.onMouseUp (Signal.message events.address
+                            (DeselectObject <| case String.toInt i of 
+                                Ok z -> z))
+                        ]
+                    centBox = Svg.rect attrs []
+                in [centBox]
+
 view : (Int, Int) -> Model -> Html.Html
 view (w,h) model = 
     let
