@@ -117,9 +117,16 @@ upstate evt old = case Debug.log "Event" evt of
                              , ("y", toString <| Basics.toFloat my + ydist) ]
                     newobjs = List.map (updateObjPos newpos obj) old.objects
                     moved = updateObjPos newpos obj obj
+                    movingIndex = case obj of
+                        (svgshape, attributes) -> find attributes "index"
+                    newvals = updateVal old.workingVal movingIndex 
+                            ("x", toString <| Basics.toFloat mx + xdist)
+                            |> (\a -> updateVal a movingIndex
+                                ("y", toString <| Basics.toFloat my + ydist))
                 in  { old | objects <- newobjs 
                           , movingObj <- Just 
                                 (moved, xdist, ydist)
+                          , workingVal <- newvals
                     }
     SelectObject x -> let sx = toString x
                           match = List.filter 

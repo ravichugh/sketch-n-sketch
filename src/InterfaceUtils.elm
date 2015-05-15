@@ -128,7 +128,7 @@ changeAttr i vs' index (attrname, attrval) =
   List.map (\x -> case x of
             VList [VBase (String a), VConst ix pos] ->
               if | (toString i == index) ->
-                    case (String.toFloat  attrval) of
+                    case (String.toFloat attrval) of
                       Ok f -> VList [VBase (String attrname), VConst f pos]
                  | otherwise -> VList [VBase (String a), VConst ix pos]
             VList [VBase (String a), VBase (String s)] ->
@@ -136,3 +136,4 @@ changeAttr i vs' index (attrname, attrval) =
                     VList [VBase (String a), VBase (String attrval)]
                  | otherwise -> VList [VBase (String a), VBase (String s)]
             ) vs'
+            _ -> x
