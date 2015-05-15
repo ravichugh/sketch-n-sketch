@@ -25,10 +25,10 @@
 
 ## Syncing
 
-* Have Model track inputExp
+* ~~Have Model track inputExp~~
 * Create function to generate static/not manipulable text box and image
-* Have Model track if we're in a manipulable state or not
-* Insert Sync button
+* ~~Have Model track if we're in a manipulable state or not~~
+* Hook Sync button up to events
 * Have Sync event call sync on inputExp, inputVal, and workingVal
 * Modify View code to generate stack of static renderings upon being called in
 static mode, which are in possibleChanges
