@@ -116,10 +116,11 @@ cleanAttrs = \l (acc1, acc2) -> case l of
 
 updateVal : Val -> String -> (String, String) -> Val
 updateVal v index (attrname, attrval) = case Debug.log "update v" v of
-   VList vs -> flip List.map (Utils.mapi (\s -> s) vs) <| \v1 -> 
-    case v1 of
-       (i, VList (VBase (String shape) :: vs')) -> 
-          VList (VBase (String shape) :: (changeAttr i vs' index (attrname, attrval)))
+    VList vs -> VList <| flip List.map (Utils.mapi (\s -> s) vs) <| \v1 -> 
+        case v1 of
+            (i, VList (VBase (String shape) :: vs')) -> 
+                VList (VBase (String shape) :: 
+                    (changeAttr i vs' index (attrname, attrval)))
             
 --helper function for updateVal
 changeAttr : Int -> List Val -> String -> (String, String) -> List Val
