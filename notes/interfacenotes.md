@@ -12,7 +12,7 @@
 
 * Create children SVGs along with the parent Objects
 * Tie event handlers only to the children SVGs
-* SelectObject takes an ID and a zone keyword
+* ~~SelectObject takes an ID and a zone keyword~~
 * MovingObj keeps track of what type of zone is selected
 * MouseDown code only changes attributes that are manipulable by that zone
   - Util function to propagate attribute changes to children SVGs along with
