@@ -50,7 +50,8 @@ type alias Model = { code : String
                    , possibleChanges : List ((Exp, Val), Int)
                    }
 
-type alias Object = (Svg.Svg, List (String, String), String)
+--An Object is composed of an index, svg, list of attribute name/values, and shape
+type alias Object = (Int, Svg.Svg, List (String, String), String)
 
 
 initModel = { code = ""
@@ -79,8 +80,8 @@ sampleModel = { code      = tempTestCode
 
 type Event = CodeUpdate String
            | OutputUpdate String
-           | SelectObject String
-           | DeselectObject String
+           | SelectObject Int
+           | DeselectObject Int
            | MouseDown (Int, Int)
            | Sync
            | Render
@@ -103,17 +104,17 @@ upstate evt old = case Debug.log "Event" evt of
         Nothing                  -> old
         Just (obj, xdist, ydist) -> if
             | xdist == -1.0 || ydist == -1.0 -> case obj of
-                (svg, attrs, shape) -> 
-                    let xpos = case String.toFloat <| find attrs "xpos" of
+                (ix, svg, attrs, shape) -> 
+                    let xpos = case String.toFloat <| find attrs "x" of
                             Ok a -> a
-                        ypos = case String.toFloat <| find attrs "ypos" of
+                        ypos = case String.toFloat <| find attrs "y" of
                             Ok a -> a
                     in { old | movingObj <- Just (obj 
                                                , xpos - Basics.toFloat mx
                                                , ypos - Basics.toFloat my) }
             | otherwise -> 
-                let newpos = [ ("xpos", toString <| Basics.toFloat mx + xdist)
-                             , ("ypos", toString <| Basics.toFloat my + ydist) ]
+                let newpos = [ ("x", toString <| Basics.toFloat mx + xdist)
+                             , ("y", toString <| Basics.toFloat my + ydist) ]
                     newobjs = List.map (updateObjPos newpos obj) old.objects
                     moved = updateObjPos newpos obj obj
                 in  { old | objects <- newobjs 
@@ -121,7 +122,7 @@ upstate evt old = case Debug.log "Event" evt of
                                 (moved, xdist, ydist)
                     }
     SelectObject x -> let match = List.filter 
-                                (\(s, a, h) -> x == (find a "xloc"))
+                                (\(i, s, a, h) -> x == i)
                                 old.objects
                       in case match of
                               mat :: xs -> { old | movingObj <- Just (mat, -1.0, -1.0) }
@@ -131,15 +132,13 @@ upstate evt old = case Debug.log "Event" evt of
  
 
 updateObjPos : List (String, String) -> Object -> Object -> Object
-updateObjPos newattrs (o1, a1, s1) (o2, a2, s2) = 
-    let xloc1 = find a1 "xloc"
-        xloc2 = find a2 "xloc"
-    in if | xloc1 == xloc2 ->
+updateObjPos newattrs (i1, o1, a1, s1) (i2, o2, a2, s2) = 
+    if | i1 == i2 ->
                 let updatedattrs = updateAttrs newattrs a1
                     svgattrs = List.map (\(x,y) -> attr x <| y) updatedattrs
                     shape = svg s1
-                in (shape svgattrs [], updatedattrs, s1) 
-          | otherwise -> (o2, a2, s2)
+                in (i1, (shape svgattrs []), updatedattrs, s1) 
+       | otherwise -> (i2, o2, a2, s2)
 
 
 -- View --
@@ -168,26 +167,22 @@ visualsBox model dim =
                     [ ("width", "100%")
                     , ("height", "100%")
                     ]
-                ] <| List.map (\(f,g,s) -> f) model.objects 
+                ] <| List.map (\(i,f,g,s) -> f) model.objects 
 
-buildSvg : Val -> List (Svg.Svg, List (String, String), String)
+buildSvg : Val -> List (Int, Svg.Svg, List (String, String), String)
 buildSvg v = case Debug.log "v" v of
-   VList vs -> flip List.map vs <| \v1 -> case v1 of
-       VList (VBase (String shape) :: vs') ->
+   VList vs -> flip List.map (Utils.mapi (\s -> s) vs) <| \v1 -> case v1 of
+       (i, VList (VBase (String shape) :: vs')) ->
            let  firstattrs = getFirstAttrs vs'
                 baseattrs = fst <| cleanAttrs (List.map snd firstattrs) ([],[])
                 attrloc = snd <| cleanAttrs (List.map snd firstattrs) ([],[])
---                xloc = find attrloc "xloc"
-                attrs = List.map fst firstattrs
---                attrs = List.append (List.map fst firstattrs)
---                    [ Svg.Events.onMouseDown (Signal.message events.address
---                        (SelectObject xloc)) --xloc should be unique ID
---                    , Svg.Events.onMouseUp (Signal.message events.address
---                        (DeselectObject xloc))
---                    , Svg.Events.onMouseOut (Signal.message events.address
---                        (DeselectObject xloc))
---                    ]
-           in ((svg shape) attrs [], List.append attrloc baseattrs, shape)
+                attrs = List.append (List.map fst firstattrs)
+                    [ Svg.Events.onMouseDown (Signal.message events.address
+                        (SelectObject i)) 
+                    , Svg.Events.onMouseUp (Signal.message events.address
+                        (DeselectObject i))
+                    ]
+           in (i, ((svg shape) attrs []), baseattrs, shape)
                 
     
 view : (Int, Int) -> Model -> Html.Html
