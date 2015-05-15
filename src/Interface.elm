@@ -34,6 +34,7 @@ import Debug
 -- Model --
 --Fields:
 -- code            - Text currently in the textbox
+--inputExp         - input Expression
 -- objects         - The workingVal translated to manipulable SVGs
 -- movingObj       - If an object is being moved, which one
 -- inputVal        - The last code input parsed into a Val
@@ -42,12 +43,15 @@ import Debug
 --                   the graphics side (done on the fly)
 -- possibleChanges - The possible new expressions and their associated Vals, 
 --                   as from the output of sync
+-- syncMode        - True if state should be non-manipulatable/sync selecting
 type alias Model = { code : String
+                   , inputExp : Maybe Exp
                    , objects : List Object
                    , movingObj : Maybe (Object, Float, Float)
                    , inputVal : Val
                    , workingVal : Val
-                   , possibleChanges : List ((Exp, Val), Int)
+                   , possibleChanges : List ((Exp, Val), Float)
+                   , syncMode : Bool
                    }
 
 --An Object is composed of an svg, list of attribute key/values
@@ -55,11 +59,13 @@ type alias Object = (Svg.Svg, List (String, String))
 
 
 initModel = { code = ""
+            , inputExp = Nothing
             , objects = []
             , movingObj = Nothing
             , inputVal = VHole
             , workingVal = VHole
             , possibleChanges = []
+            , syncMode = False
             }
 
 --Just as in microTests
@@ -71,11 +77,13 @@ tempTestCode =
 tempTest = MicroTests.test27 ()
 
 sampleModel = { code      = tempTestCode
+              , inputExp  = Just (parseE tempTestCode)
               , objects   = buildSvg tempTest.v 
               , movingObj = Nothing
               , inputVal = tempTest.v
               , workingVal = tempTest.v
               , possibleChanges = []
+              , syncMode = False
               }
 
 type Event = CodeUpdate String
@@ -115,7 +123,7 @@ upstate evt old = case Debug.log "Event" evt of
             | otherwise -> 
                 let newpos = [ ("x", toString <| Basics.toFloat mx + xdist)
                              , ("y", toString <| Basics.toFloat my + ydist) ]
-                    moved = updateObjPos newpos obj obj
+                    moved = updateObj newpos obj obj
                     movingIndex = case obj of
                         (svgshape, attributes) -> find attributes "index"
                     newvals = updateVal old.workingVal movingIndex 
@@ -135,20 +143,26 @@ upstate evt old = case Debug.log "Event" evt of
             in case match of
                 mat :: xs -> { old | movingObj <- Just (mat, -1.0, -1.0) }
     DeselectObject x -> { old | movingObj <- Nothing }
-    Sync -> old --TODO perform appropriate sync actions
+    Sync -> 
+        case old.inputExp of
+            Just ip -> case (Result.toMaybe <| sync ip old.inputVal old.workingVal) of
+                Just ls -> { old | possibleChanges <- ls }
+                Nothing -> old
+            _       -> old
     _ -> old
  
-
---updateObjPos : List (String, String) -> Object -> Object -> Object
---updateObjPos newattrs (o1, a1) (o2, a2) = case Debug.log "index" (find a1 "index") of
---  a ->
---    if | ((find a1 "index") == (find a2 "index")) ->
---                let updatedattrs = updateAttrs newattrs a1
---                    svgattrs = List.map (\(x,y) -> attr x <| y) (List.drop 2 updatedattrs)
---                    shape = svg (find a1 "shape")
---                in ((shape svgattrs []), updatedattrs) 
---       | otherwise -> (o2, a2)
-
+--TODO: fix object tracking issue
+{-
+updateObj : List (String, String) -> Object -> Object -> Object
+updateObj newattrs (o1, a1) (o2, a2) = case Debug.log "index" (find a1 "index") of
+  a ->
+    if | ((find a1 "index") == (find a2 "index")) ->
+                let updatedattrs = updateAttrs newattrs a1
+                    svgattrs = List.map (\(x,y) -> attr x <| y) (List.drop 2 updatedattrs)
+                    shape = svg (find a1 "shape")
+                in ((shape svgattrs []), updatedattrs) 
+       | otherwise -> (o2, a2)
+-}
 
 -- View --
 codeBox : String -> Html.Html
