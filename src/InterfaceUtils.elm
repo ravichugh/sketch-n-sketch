@@ -135,5 +135,6 @@ changeAttr i vs' index (attrname, attrval) =
               if | (toString i == index) ->
                     VList [VBase (String a), VBase (String attrval)]
                  | otherwise -> VList [VBase (String a), VBase (String s)]
-            ) vs'
             _ -> x
+            ) vs'
+            
