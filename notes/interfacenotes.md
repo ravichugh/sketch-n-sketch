@@ -21,7 +21,15 @@
 
 ## Syncing
 
+* Have Model track inputExp
 * Create function to generate static/not manipulable text box and image
 * Have Model track if we're in a manipulable state or not
 * Insert Sync button
-* Modify View code to generate stack of static renderings upon 
+* Have Sync event call sync on inputExp, inputVal, and workingVal
+* Modify View code to generate stack of static renderings upon being called in
+static mode, which are in possibleChanges
+* Have static rendering come along with a button and an ID
+* Make new Event called SelectChoice or something to that effect that takes a
+choice ID
+* Have SelectChoice make the chosen element of possibleChanges the new
+input/working quantities and clear out the old possibilities
