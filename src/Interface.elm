@@ -133,10 +133,11 @@ upstate evt old = case Debug.log "Event" evt of
  
 
 updateObjPos : List (String, String) -> Object -> Object -> Object
-updateObjPos newattrs (o1, a1) (o2, a2) = 
+updateObjPos newattrs (o1, a1) (o2, a2) = case Debug.log "index" (find a1 "index") of
+  a ->
     if | ((find a1 "index") == (find a2 "index")) ->
                 let updatedattrs = updateAttrs newattrs a1
-                    svgattrs = List.map (\(x,y) -> attr x <| y) updatedattrs
+                    svgattrs = List.map (\(x,y) -> attr x <| y) (List.drop 2 updatedattrs)
                     shape = svg (find a1 "shape")
                 in ((shape svgattrs []), updatedattrs) 
        | otherwise -> (o2, a2)
