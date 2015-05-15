@@ -1,11 +1,11 @@
 # Things to do
 
-* Move index attribute into attrs for Objects
-* Move shape attribute into attrs for Objects
+~~* Move index attribute into attrs for Objects~~
+~~* Move shape attribute into attrs for Objects~~
 * Have MouseDown events also update WorkingVal
   - Write util function to update a val given an ID
-  - Make sure given IDs are unique
-  - Have SelectObject send the correct ID over its event handler
+  ~~- Make sure given IDs are unique~~
+  ~~- Have SelectObject send the correct ID over its event handler~~
   - Call util function to perform updates in MouseDown code
 
 ## Zones
@@ -33,3 +33,7 @@ static mode, which are in possibleChanges
 choice ID
 * Have SelectChoice make the chosen element of possibleChanges the new
 input/working quantities and clear out the old possibilities
+
+## Cleanup
+* Remove Debug.log from buildSvg and upstate
+* Clean "|" code out
