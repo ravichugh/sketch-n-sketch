@@ -115,7 +115,6 @@ upstate evt old = case Debug.log "Event" evt of
             | otherwise -> 
                 let newpos = [ ("x", toString <| Basics.toFloat mx + xdist)
                              , ("y", toString <| Basics.toFloat my + ydist) ]
-                    newobjs = List.map (updateObjPos newpos obj) old.objects
                     moved = updateObjPos newpos obj obj
                     movingIndex = case obj of
                         (svgshape, attributes) -> find attributes "index"
@@ -123,6 +122,7 @@ upstate evt old = case Debug.log "Event" evt of
                             ("x", toString <| Basics.toFloat mx + xdist)
                             |> (\a -> updateVal a movingIndex
                                 ("y", toString <| Basics.toFloat my + ydist))
+                    newobjs = buildSvg newvals
                 in  { old | objects <- newobjs 
                           , movingObj <- Just 
                                 (moved, xdist, ydist)
@@ -139,15 +139,15 @@ upstate evt old = case Debug.log "Event" evt of
     _ -> old
  
 
-updateObjPos : List (String, String) -> Object -> Object -> Object
-updateObjPos newattrs (o1, a1) (o2, a2) = case Debug.log "index" (find a1 "index") of
-  a ->
-    if | ((find a1 "index") == (find a2 "index")) ->
-                let updatedattrs = updateAttrs newattrs a1
-                    svgattrs = List.map (\(x,y) -> attr x <| y) (List.drop 2 updatedattrs)
-                    shape = svg (find a1 "shape")
-                in ((shape svgattrs []), updatedattrs) 
-       | otherwise -> (o2, a2)
+--updateObjPos : List (String, String) -> Object -> Object -> Object
+--updateObjPos newattrs (o1, a1) (o2, a2) = case Debug.log "index" (find a1 "index") of
+--  a ->
+--    if | ((find a1 "index") == (find a2 "index")) ->
+--                let updatedattrs = updateAttrs newattrs a1
+--                    svgattrs = List.map (\(x,y) -> attr x <| y) (List.drop 2 updatedattrs)
+--                    shape = svg (find a1 "shape")
+--                in ((shape svgattrs []), updatedattrs) 
+--       | otherwise -> (o2, a2)
 
 
 -- View --
@@ -187,13 +187,8 @@ buildSvg v = case Debug.log "v" v of
                 modattrs = ("shape", shape) :: ("index", toString i) :: baseattrs
                 attrloc = snd <| cleanAttrs (List.map snd firstattrs) ([],[])
                 zones = makeZones modattrs
---                attrs = List.append (List.map fst firstattrs)
---                    [ Svg.Events.onMouseDown (Signal.message events.address
---                        (SelectObject i)) 
---                    , Svg.Events.onMouseUp (Signal.message events.address
---                        (DeselectObject i))
---                    ]
-           in (((svg shape) (List.map fst firstattrs) zones), modattrs)
+                shapes = svg shape (List.map fst firstattrs) [] :: zones
+           in ((Svg.svg [] shapes), modattrs)
                 
 makeZones : List (String, String) -> List Svg.Svg
 makeZones attrs = case Debug.log "attrs" attrs of
@@ -202,17 +197,22 @@ makeZones attrs = case Debug.log "attrs" attrs of
             ("index", i) :: ys -> 
                 let xcent = attr "x" <| toString
                             <| (case String.toFloat <| find ys "x" of
-                                    Ok z -> round <| z * 0.125)
+                                    Ok z -> 
+                                        case String.toFloat <| find ys "width" of
+                                            Ok k -> z + k * 0.125)
                     ycent = attr "y" <| toString
                             <| (case String.toFloat <| find ys "y" of
-                                    Ok z -> round <| z * 0.125)
+                                    Ok z -> 
+                                        case String.toFloat <| find ys "height"
+                                        of
+                                            Ok k -> round <| z + k * 0.125)
                     wcent = attr "width" <| toString <| (\x -> x * 0.75) 
                             <| (case String.toFloat <| find ys "width" of
                                     Ok z -> z)
                     hcent = attr "height" <| toString <| (\x -> x * 0.75) 
                             <| (case String.toFloat <| find ys "height" of
                                     Ok z -> z)
-                    fill = attr "fill" "#FFFFFF"
+                    fill = attr "fill" "#FF0000"
                     firstattrs = [xcent, ycent, wcent, hcent, fill]
                     attrs = List.append firstattrs
                         [ Svg.Events.onMouseDown (Signal.message events.address
