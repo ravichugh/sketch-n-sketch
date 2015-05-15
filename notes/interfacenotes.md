@@ -3,10 +3,10 @@
 * ~~Move index attribute into attrs for Objects~~
 * ~~Move shape attribute into attrs for Objects~~
 * Have MouseDown events also update WorkingVal
-  - Write util function to update a val given an ID
+  - ~~Write util function to update a val given an ID~~
   - ~~Make sure given IDs are unique~~
   - ~~Have SelectObject send the correct ID over its event handler~~
-  - Call util function to perform updates in MouseDown code
+  - ~~Call util function to perform updates in MouseDown code~~
 
 ## Zones
 
