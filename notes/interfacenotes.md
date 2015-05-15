@@ -37,3 +37,4 @@ input/working quantities and clear out the old possibilities
 ## Cleanup
 * Remove Debug.log from buildSvg and upstate
 * Clean "|" code out
+* Make ZoneType type instead of using Strings
