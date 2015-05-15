@@ -113,3 +113,4 @@ cleanAttrs = \l (acc1, acc2) -> case l of
         _         -> cleanAttrs xs
                                 ((key, val) :: acc1, acc2)
     []        -> (acc1, acc2)
+

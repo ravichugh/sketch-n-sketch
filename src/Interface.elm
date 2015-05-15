@@ -50,8 +50,8 @@ type alias Model = { code : String
                    , possibleChanges : List ((Exp, Val), Int)
                    }
 
---An Object is composed of an index, svg, list of attribute name/values, and shape
-type alias Object = (Int, Svg.Svg, List (String, String), String)
+--An Object is composed of an svg, list of attribute key/values
+type alias Object = (Svg.Svg, List (String, String))
 
 
 initModel = { code = ""
@@ -104,7 +104,7 @@ upstate evt old = case Debug.log "Event" evt of
         Nothing                  -> old
         Just (obj, xdist, ydist) -> if
             | xdist == -1.0 || ydist == -1.0 -> case obj of
-                (ix, svg, attrs, shape) -> 
+                (svg, attrs) -> 
                     let xpos = case String.toFloat <| find attrs "x" of
                             Ok a -> a
                         ypos = case String.toFloat <| find attrs "y" of
@@ -121,8 +121,9 @@ upstate evt old = case Debug.log "Event" evt of
                           , movingObj <- Just 
                                 (moved, xdist, ydist)
                     }
-    SelectObject x -> let match = List.filter 
-                                (\(i, s, a, h) -> x == i)
+    SelectObject x -> let sx = toString x
+                          match = List.filter 
+                                (\(s, a) -> sx == (find a "index"))
                                 old.objects
                       in case match of
                               mat :: xs -> { old | movingObj <- Just (mat, -1.0, -1.0) }
@@ -132,13 +133,13 @@ upstate evt old = case Debug.log "Event" evt of
  
 
 updateObjPos : List (String, String) -> Object -> Object -> Object
-updateObjPos newattrs (i1, o1, a1, s1) (i2, o2, a2, s2) = 
-    if | i1 == i2 ->
+updateObjPos newattrs (o1, a1) (o2, a2) = 
+    if | ((find a1 "index") == (find a2 "index")) ->
                 let updatedattrs = updateAttrs newattrs a1
                     svgattrs = List.map (\(x,y) -> attr x <| y) updatedattrs
-                    shape = svg s1
-                in (i1, (shape svgattrs []), updatedattrs, s1) 
-       | otherwise -> (i2, o2, a2, s2)
+                    shape = svg (find a1 "shape")
+                in ((shape svgattrs []), updatedattrs) 
+       | otherwise -> (o2, a2)
 
 
 -- View --
@@ -167,14 +168,15 @@ visualsBox model dim =
                     [ ("width", "100%")
                     , ("height", "100%")
                     ]
-                ] <| List.map (\(i,f,g,s) -> f) model.objects 
+                ] <| List.map (\(f,g) -> f) model.objects 
 
-buildSvg : Val -> List (Int, Svg.Svg, List (String, String), String)
+buildSvg : Val -> List (Svg.Svg, List (String, String))
 buildSvg v = case Debug.log "v" v of
    VList vs -> flip List.map (Utils.mapi (\s -> s) vs) <| \v1 -> case v1 of
        (i, VList (VBase (String shape) :: vs')) ->
            let  firstattrs = getFirstAttrs vs'
                 baseattrs = fst <| cleanAttrs (List.map snd firstattrs) ([],[])
+                modattrs = ("shape", shape) :: ("index", toString i) :: baseattrs
                 attrloc = snd <| cleanAttrs (List.map snd firstattrs) ([],[])
                 attrs = List.append (List.map fst firstattrs)
                     [ Svg.Events.onMouseDown (Signal.message events.address
@@ -182,7 +184,7 @@ buildSvg v = case Debug.log "v" v of
                     , Svg.Events.onMouseUp (Signal.message events.address
                         (DeselectObject i))
                     ]
-           in (i, ((svg shape) attrs []), baseattrs, shape)
+           in (((svg shape) attrs []), modattrs)
                 
     
 view : (Int, Int) -> Model -> Html.Html
