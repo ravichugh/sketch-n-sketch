@@ -9,6 +9,9 @@ import VirtualDom
 --   type alias Svg = VirtualDom.Node
 --   type alias Attribute = VirtualDom.Property
 
+-- in Html.elm:
+--   type alias Html = VirtualDom.Node
+
 import Debug
 import Set
 import String
@@ -24,32 +27,22 @@ import Sync
 -- records rather than lists of lists of ...
 
 valToHtml : Int -> Int -> Val -> Html.Html
-valToHtml w h v =
-  let wh = [A.width (toString w), A.height (toString h)] in
-  case v of
-    VList (VBase (String "svg") :: VList attrs :: vs) ->
-      Svg.svg (List.map valToAttr attrs ++ wh) (valToSvgList (VList vs))
-    VList _ ->
-      Svg.svg wh (valToSvgList v)
-
-valToSvgList : Val -> List Svg.Svg
-valToSvgList (VList vs) = List.map valToSvgNode vs
-
-valToSvgNode : Val -> VirtualDom.Node
-valToSvgNode (VList [VBase (String f), VList vs1, VList vs2]) =
-  (svg f) (valsToAttrs vs1) (valsToNodes vs2)
+valToHtml w h (VList [VBase (String "svg"), VList vs1, VList vs2]) =
+  let wh = [numAttrToVal "width" w, numAttrToVal "height" h] in
+  let v' = VList [VBase (String "svg"), VList (wh ++ vs1), VList vs2] in
+  valToNode v'
+    -- NOTE: not checking if width/height already in vs1
 
 valToNode : Val -> VirtualDom.Node
 valToNode v = case v of
   VList [VBase (String "TEXT"), VBase (String s)] -> VirtualDom.text s
   VList [VBase (String f), VList vs1, VList vs2]  -> (svg f) (valsToAttrs vs1) (valsToNodes vs2)
 
-          -- TODO bug?
-          --   in second case above, JS error when calling valToSvgNode v instead.
-          --   related to desugaring, as with recursive parsers?
-
 valsToNodes = List.map valToNode
 valsToAttrs = List.map valToAttr
+
+numAttrToVal a i =
+  VList [VBase (String a), VConst (toFloat i) dummyTrace]
 
 valToAttr v =
   case v of
@@ -128,6 +121,7 @@ funcsSvg = [
   , ("polygon", Svg.polygon)
   , ("polyline", Svg.polyline)
   , ("rect", Svg.rect)
+  , ("svg", Svg.svg)
   , ("text", Svg.text)
   , ("tspan", Svg.tspan)
   ]

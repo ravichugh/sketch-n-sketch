@@ -267,9 +267,13 @@ printZoneTable v =
 shapesToAttrLocs : Val -> Dict0
 shapesToAttrLocs v = case v of
 
-  -- NOTE: any reason to track constants in svgAttrs?
-  VList (VBase (String "svg") :: _ :: vs) ->
-    shapesToAttrLocs (VList vs)
+  -- -- NOTE: any reason to track constants in svgAttrs?
+  -- VList (VBase (String "svg") :: _ :: vs) ->
+  --   shapesToAttrLocs (VList vs)
+
+  -- TODO: rework processShape/processShapes
+  VList [VBase (String "svg"), _, VList children] ->
+    shapesToAttrLocs (VList children)
 
   VList vs ->
 

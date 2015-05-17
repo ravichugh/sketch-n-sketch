@@ -92,6 +92,8 @@ src = "
 (let addAttr (\\([shapeKind oldAttrs children] newAttr)
   [shapeKind (snoc newAttr oldAttrs) children])
 
+(let svg (\\shapes ['svg' [] shapes])
+
 (let circle_    (circle 'red')
 (let ellipse_   (ellipse 'orange')
 (let rect_      (rect '#999999')
@@ -101,7 +103,7 @@ src = "
 (let path_      (path 'transparent' 'brown' 5)
 
 
-0))))))))))))))))))))))))))))))))))))
+0)))))))))))))))))))))))))))))))))))))
 
 "
 
