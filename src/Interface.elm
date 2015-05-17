@@ -92,7 +92,7 @@ type Event = CodeUpdate String
            | DeselectObject Int
            | MouseDown (Int, Int)
            | Sync
-           | SelectOption Float
+           | SelectOption ((Exp, Val), Float)
            | Render
 
 events : Signal.Mailbox Event
@@ -147,10 +147,15 @@ upstate evt old = case Debug.log "Event" evt of
     Sync -> 
         case old.inputExp of
             Just ip -> case (Result.toMaybe <| sync ip old.inputVal old.workingVal) of
-                Just ls -> { old | possibleChanges <- ls }
+                Just ls -> { old | possibleChanges <- ls, 
+                                 syncMode <- True }
                 Nothing -> old
             _       -> old
-    SelectOption f -> { old | possibleChanges <- []} --TODO
+    SelectOption ((e,v), f) -> { old | possibleChanges <- []
+                               , inputVal <- v
+                               , workingVal <- v
+                               , inputExp <- Just e
+                               ,syncMode <- False }
     _ -> old
  
 --TODO: fix object tracking issue
@@ -254,7 +259,6 @@ view (w,h) model =
                     [ Attr.style
                         [ ("width", toString w)
                         , ("height", toString h)
-                        , ("overflow", "scroll")
                         ]
                     ]
                     [renderView (w,h) model
@@ -298,7 +302,6 @@ renderView (w,h) model =
             [ Attr.style
                 [ ("width", toString w)
                 , ("height", toString h)
-                , ("overflow", "scroll")
                 ]
             ]
             [ Html.div 
@@ -370,7 +373,7 @@ renderOption (w,h) possiblechanges model dim =
                         , ("top", "0px")
                         ]
                     ]    
-                    [visualsBox model.objects dim model.syncMode]
+                    [visualsBox (buildSvg v) dim model.syncMode] --TODO: parse val to svgs
                 , Html.button
                     [ Attr.style
                         [ ("position", "absolute")
@@ -380,7 +383,7 @@ renderOption (w,h) possiblechanges model dim =
                         , ("width", "100px")
                         , ("height", "40px")
                         ]
-                    , Events.onClick events.address (SelectOption f)
+                    , Events.onClick events.address (SelectOption ((e,v), f))
                     , Attr.value "Select"
                     , Attr.name "Select this codebox and visualbox"
                     ]
