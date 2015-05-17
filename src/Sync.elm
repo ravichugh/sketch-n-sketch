@@ -244,6 +244,7 @@ zones = [
 ------------------------------------------------------------------------------
 -- Zones and Triggers
 
+-- TODO define these in Lang or LangSvg
 type alias ShapeId = Int
 type alias ShapeKind = String
 type alias Attr = String
@@ -258,12 +259,15 @@ type alias Dict2 = Dict ShapeId (ShapeKind, List (Zone, (Locs, List Locs)))
 
 printZoneTable : Val -> String
 printZoneTable v =
-  nodeToAttrLocs v         -- Step 1: Val   -> Dict0
+  nodeToAttrLocs v           -- Step 1: Val   -> Dict0
     |> shapesToZoneTable     -- Step 2: Dict0 -> Dict1
     |> assignTriggers        -- Step 3: Dict1 -> Dict2
     |> strTable              -- Step 4: Dict2 -> String
 
 -- Step 1 --
+
+-- TODO: assigning IDs is now redundant with valToIndexedTree.
+-- so start with IndexedTree rather than Val.
 
 nodeToAttrLocs : Val -> Dict0
 nodeToAttrLocs = snd << flip nodeToAttrLocs_ (1, Dict.empty)

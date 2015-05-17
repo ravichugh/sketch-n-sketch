@@ -1,4 +1,4 @@
-module LangSvg (valToHtml) where
+module LangSvg (valToHtml, valToIndexedTree, printIndexedTree) where
 
 import Html
 import Svg
@@ -16,10 +16,10 @@ import Debug
 import Set
 import String
 import Char
+import Dict exposing (Dict)
 
 import Lang exposing (..)
 import Utils
-import Sync
 
 ------------------------------------------------------------------------------
 
@@ -160,4 +160,45 @@ find d s =
 
 attr = find funcsAttr
 svg  = find funcsSvg
+
+
+------------------------------------------------------------------------------
+
+type alias ShapeKind = String
+
+type alias NodeId = Int
+type alias IndexedTree = Dict NodeId IndexedTreeNode
+type IndexedTreeNode
+  = TextNode String
+  | SvgNode ShapeKind (List Val) (List NodeId)
+
+children n = case n of {TextNode _ -> []; SvgNode _ _ l -> l}
+
+valToIndexedTree : Val -> IndexedTree
+valToIndexedTree = snd << flip valToIndexedTree_ (1, Dict.empty)
+
+valToIndexedTree_ v (nextId, d) = case v of
+
+  VList [VBase (String "TEXT"), VBase (String s)] ->
+    (1 + nextId, Dict.insert nextId (TextNode s) d)
+
+  VList [VBase (String kind), VList vs1, VList vs2] ->
+    let processChild vi (a_nextId, a_graph , a_children) =
+      let (a_nextId',a_graph') = valToIndexedTree_ vi (a_nextId, a_graph) in
+      let a_children'          = (a_nextId' - 1) :: a_children in
+      (a_nextId', a_graph', a_children') in
+    let (nextId',d',children) = List.foldl processChild (nextId,d,[]) vs2 in
+    let node = SvgNode kind vs1 (List.reverse children) in
+    (1 + nextId', Dict.insert nextId' node d')
+
+printIndexedTree : Val -> String
+printIndexedTree = valToIndexedTree >> strEdges
+
+strEdges : IndexedTree -> String
+strEdges =
+     Dict.toList
+  >> List.map (\(i,n) ->
+       let l = List.map toString (children n) in
+       toString i ++ " " ++ Utils.braces (Utils.spaces l))
+  >> Utils.lines
 
