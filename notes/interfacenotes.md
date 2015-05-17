@@ -26,17 +26,21 @@
 ## Syncing
 
 * ~~Have Model track inputExp~~
-* Create function to generate static/not manipulable text box and image
+* ~~Create function to generate static/not manipulatable text box and image~~
+  - Still need to make visuals non-manipulatable
 * ~~Have Model track if we're in a manipulable state or not~~
-* Hook Sync button up to events
-* Have Sync event call sync on inputExp, inputVal, and workingVal
-* Modify View code to generate stack of static renderings upon being called in
-static mode, which are in possibleChanges
+* ~~Hook Sync button up to events~~
+* ~~Have Sync event call sync on inputExp, inputVal, and workingVal~~
+* ~~Modify View code to generate stack of static renderings upon being called in
+static mode, which are in possibleChanges~~
+  - Move Select button to proper location
+  - Do further testing on other microtests
+  - Beautify and fix overlaps/ugliness
 * Have static rendering come along with a button and an ID
-* Make new Event called SelectChoice or something to that effect that takes a
-choice ID
-* Have SelectChoice make the chosen element of possibleChanges the new
-input/working quantities and clear out the old possibilities
+* ~~Make new Event called SelectOption or something to that effect that takes a
+choice ID~~
+* ~~Have SelectOption make the chosen element of possibleChanges the new
+input/working quantities and clear out the old possibilities~~
 
 ## Cleanup
 * Remove Debug.log from buildSvg and upstate
