@@ -205,7 +205,8 @@ sync e v v' =
 -- Zones
 
 zones = [
-    ("circle",
+    ("svg", [])
+  , ("circle",
       [ ("Interior", ["cx", "cy"])
       , ("Edge", ["r"])
       ])
@@ -257,64 +258,48 @@ type alias Dict2 = Dict ShapeId (ShapeKind, List (Zone, (Locs, List Locs)))
 
 printZoneTable : Val -> String
 printZoneTable v =
-  shapesToAttrLocs v         -- Step 1: Val   -> Dict0
+  nodeToAttrLocs v         -- Step 1: Val   -> Dict0
     |> shapesToZoneTable     -- Step 2: Dict0 -> Dict1
     |> assignTriggers        -- Step 3: Dict1 -> Dict2
     |> strTable              -- Step 4: Dict2 -> String
 
 -- Step 1 --
 
-shapesToAttrLocs : Val -> Dict0
-shapesToAttrLocs v = case v of
+nodeToAttrLocs : Val -> Dict0
+nodeToAttrLocs = snd << flip nodeToAttrLocs_ (1, Dict.empty)
 
-  -- -- NOTE: any reason to track constants in svgAttrs?
-  -- VList (VBase (String "svg") :: _ :: vs) ->
-  --   shapesToAttrLocs (VList vs)
+nodeToAttrLocs_ v (nextId,dShapes) = case v of
 
-  -- TODO: rework processShape/processShapes
-  VList [VBase (String "svg"), _, VList children] ->
-    shapesToAttrLocs (VList children)
+  VList [VBase (String "TEXT"), VBase (String s)] -> (nextId, dShapes)
 
-  VList vs ->
+  VList [VBase (String kind), VList vs', VList children] ->
 
-    -- NOTE: switched from simple foldli approach to assigning ids.
-    -- may be better to carry assigned ids directly within the Vals.
-
-    let processShape shape (nextId,dShapes) = case shape of
-
-      VList [VBase (String "TEXT"), VBase (String s)] -> (nextId, dShapes)
-
-      VList [VBase (String kind), VList vs', VList children] ->
-
-        -- processing attributes of current node
-        let processAttr v' (extra,dAttrs) = case v' of
-          VList [VBase (String a), VConst _ tr] ->
-            (extra, Dict.insert a tr dAttrs)
-          VList [VBase (String "points"), VList pts] ->
-            let acc' =
-              Utils.foldli (\(i,vPt) acc ->
-                case vPt of
-                  VList [VConst _ trx, VConst _ try] ->
-                    let (ax,ay) = ("x" ++ toString i, "y" ++ toString i) in
-                    acc |> Dict.insert ax trx
-                        |> Dict.insert ay try) dAttrs pts in
-            (NumPoints (List.length pts), acc')
-          -- NOTE:
-          --   string-valued and RGBA attributes are ignored.
-          --   see LangSvg.valToSvg for spec of attributes.
-          _ ->
-            (extra, dAttrs)
-        in
-        let (extra,attrs) = List.foldl processAttr (None, Dict.empty) vs' in
-
-        -- recursing into sub-nodes
-        let (nextId',dShapes') =
-          List.foldl processShape (nextId,dShapes) children in
-
-        (nextId' + 1, Dict.insert nextId' (kind, extra, attrs) dShapes')
+    -- processing attributes of current node
+    let processAttr v' (extra,dAttrs) = case v' of
+      VList [VBase (String a), VConst _ tr] ->
+        (extra, Dict.insert a tr dAttrs)
+      VList [VBase (String "points"), VList pts] ->
+        let acc' =
+          Utils.foldli (\(i,vPt) acc ->
+            case vPt of
+              VList [VConst _ trx, VConst _ try] ->
+                let (ax,ay) = ("x" ++ toString i, "y" ++ toString i) in
+                acc |> Dict.insert ax trx
+                    |> Dict.insert ay try) dAttrs pts in
+        (NumPoints (List.length pts), acc')
+      -- NOTE:
+      --   string-valued and RGBA attributes are ignored.
+      --   see LangSvg.valToSvg for spec of attributes.
+      _ ->
+        (extra, dAttrs)
     in
+    let (extra,attrs) = List.foldl processAttr (None, Dict.empty) vs' in
 
-    snd <| List.foldl processShape (1, Dict.empty) vs
+    -- recursing into sub-nodes
+    let (nextId',dShapes') =
+      List.foldl nodeToAttrLocs_ (nextId,dShapes) children in
+
+    (nextId' + 1, Dict.insert nextId' (kind, extra, attrs) dShapes')
 
 -- Step 2 --
 
@@ -404,7 +389,7 @@ type alias Trigger  = List (Attr, Num) -> (Exp, Dict ShapeId (Dict Attr Num))
 
 prepareLiveUpdates : Exp -> Val -> Triggers
 prepareLiveUpdates e v =
-  let d0 = shapesToAttrLocs v in
+  let d0 = nodeToAttrLocs v in
   let d1 = shapesToZoneTable d0 in
   let d2 = assignTriggers d1 in
   makeTriggers e d0 d2
