@@ -92,6 +92,7 @@ type Event = CodeUpdate String
            | DeselectObject Int
            | MouseDown (Int, Int)
            | Sync
+           | SelectOption Float
            | Render
 
 events : Signal.Mailbox Event
@@ -149,6 +150,7 @@ upstate evt old = case Debug.log "Event" evt of
                 Just ls -> { old | possibleChanges <- ls }
                 Nothing -> old
             _       -> old
+    SelectOption f -> { old | possibleChanges <- []} --TODO
     _ -> old
  
 --TODO: fix object tracking issue
@@ -165,32 +167,35 @@ updateObj newattrs (o1, a1) (o2, a2) = case Debug.log "index" (find a1 "index") 
 
 
 -- View --
-codeBox : String -> Html.Html
-codeBox codeText =
-    Html.textarea
-        [ Attr.id "codeBox"
-        , Attr.style
-            [ ("height", "100%")
-            , ("width",  "100%")
-            , ("resize", "none")
-            , ("overflow", "scroll")
-            ]
-        , Attr.value codeText
-        , Events.on "input" Events.targetValue
-            (Signal.message events.address << CodeUpdate)
-        ]
-        []
-
-visualsBox : Model -> Float -> Html.Html
-visualsBox model dim =
+codeBox : String -> Bool -> Html.Html
+codeBox code switch =
     let
-        intdim = floor (dim/20)
-    in 
-        Svg.svg [ Attr.style
-                    [ ("width", "100%")
-                    , ("height", "100%")
-                    ]
-                ] <| List.map (\(f,g) -> f) model.objects 
+        event = case switch of
+            True -> []
+            False ->  [(Events.on "input" Events.targetValue
+                (Signal.message events.address << CodeUpdate))]
+    in
+        Html.textarea
+            ([ Attr.id "codeBox"
+            , Attr.style
+                [ ("height", "100%")
+                , ("width",  "100%")
+                , ("resize", "none")
+                , ("overflow", "scroll")
+                ]
+            , Attr.value code
+            ]
+            ++
+            event)
+            []
+
+visualsBox : List Object -> Float -> Bool -> Html.Html
+visualsBox objects dim switch =
+    Svg.svg [ Attr.style
+                [ ("width", "100%")
+                , ("height", "100%")
+                ]
+            ] <| List.map (\(f,g) -> f) objects
 
 buildSvg : Val -> List (Svg.Svg, List (String, String))
 buildSvg v = case Debug.log "v" v of
@@ -244,10 +249,56 @@ view (w,h) model =
     let
         dim = (Basics.toFloat (Basics.min w h)) / 2
     in
+        case model.syncMode of
+            False -> Html.div
+                    [ Attr.style
+                        [ ("width", toString w)
+                        , ("height", toString h)
+                        , ("overflow", "scroll")
+                        ]
+                    ]
+                    [renderView (w,h) model
+                    , Html.button
+                        [ Attr.style
+                            [ ("position", "absolute")
+                            , ("left", String.append (toString <| w // 6) "px")
+                            , ("top", String.append (toString <| h - 40) "px")
+                            , ("type", "button")
+                            , ("width", "100px")
+                            , ("height", "40px")
+                            ]
+                        , Events.onClick events.address Render
+                        , Attr.value "Render"
+                        , Attr.name "Render the Code"
+                        ]
+                        [Html.text "render"]
+                    , Html.button
+                        [ Attr.style
+                            [ ("position", "absolute")
+                            , ("left", String.append (toString <| w // 4) "px")
+                            , ("top", String.append (toString <| h - 40) "px")
+                            , ("type", "button")
+                            , ("width", "100px")
+                            , ("height", "40px")
+                            ]
+                        , Events.onClick events.address Sync
+                        , Attr.value "Sync"
+                        , Attr.name "Sync the code to the canvas"
+                        ]
+                        [Html.text "sync"]
+                    ]
+            True -> syncView (w,h) model
+
+renderView : (Int, Int) -> Model -> Html.Html
+renderView (w,h) model = 
+    let
+        dim = (Basics.toFloat (Basics.min w h)) / 2
+    in
         Html.div
             [ Attr.style
                 [ ("width", toString w)
                 , ("height", toString h)
+                , ("overflow", "scroll")
                 ]
             ]
             [ Html.div 
@@ -260,35 +311,7 @@ view (w,h) model =
                     , ("top", "0px")
                     ]
                 ]
-                [codeBox model.code]
-            , Html.button
-                [ Attr.style
-                    [ ("position", "absolute")
-                    , ("left", String.append (toString <| w // 6) "px")
-                    , ("top", String.append (toString <| h - 40) "px")
-                    , ("type", "button")
-                    , ("width", "100px")
-                    , ("height", "40px")
-                    ]
-                , Events.onClick events.address Render
-                , Attr.value "Render"
-                , Attr.name "Render the Code"
-                ]
-                [Html.text "render"]
-            , Html.button
-                [ Attr.style
-                    [ ("position", "absolute")
-                    , ("left", String.append (toString <| w // 4) "px")
-                    , ("top", String.append (toString <| h - 40) "px")
-                    , ("type", "button")
-                    , ("width", "100px")
-                    , ("height", "40px")
-                    ]
-                , Events.onClick events.address Sync
-                , Attr.value "Sync"
-                , Attr.name "Sync the code to the canvas"
-                ]
-                [Html.text "sync"]
+                [codeBox model.code model.syncMode]
             , Html.div
                 [ Attr.style
                     [ ("width", String.append (toString <| w // 2 - 1) "px")
@@ -299,8 +322,72 @@ view (w,h) model =
                     , ("top", "0px")
                     ]
                 ]    
-                [visualsBox model dim]
+                [visualsBox model.objects dim model.syncMode]
             ]
+
+syncView : (Int, Int) -> Model -> Html.Html
+syncView (w,h) model = 
+    let
+        dim = (Basics.toFloat (Basics.min w h)) / 2
+    in
+         Html.div
+            [ Attr.style
+                [("width", toString w)
+                , ("height", toString h)
+                , ("overflow", "scroll")
+                ]
+            ]
+            (renderOption (w, h // 4) model.possibleChanges model dim)
+
+renderOption : (Int, Int) -> List ((Exp, Val), Float) -> Model -> Float -> List Html.Html
+renderOption (w,h) possiblechanges model dim =
+    case possiblechanges of
+        ((e,v), f)::ps -> 
+            (Html.div
+                [ Attr.style
+                    [ ("width", toString w)
+                    , ("height", toString h)
+                    ]
+                ]
+                [ Html.div 
+                    [ Attr.style
+                        [ ("width", String.append (toString <| w // 2 - 30) "px")
+                        , ("height", String.append (toString <| h) "px")
+                        , ("margin", "0")
+                        , ("position", "absolute")
+                        , ("left", "0px")
+                        , ("top", "0px")
+                        ]
+                    ]
+                    [codeBox (sExpK 1 e) model.syncMode]
+                , Html.div
+                    [ Attr.style
+                        [ ("width", String.append (toString <| w // 2 - 50) "px")
+                        , ("height", String.append (toString h) "px")
+                        , ("margin", "0")
+                        , ("position", "absolute")
+                        , ("left", String.append (toString <| w // 2 - 50) "px")
+                        , ("top", "0px")
+                        ]
+                    ]    
+                    [visualsBox model.objects dim model.syncMode]
+                , Html.button
+                    [ Attr.style
+                        [ ("position", "absolute")
+                        , ("left", String.append (toString <| w // 4) "px")
+                        , ("top", String.append (toString <| h - 40) "px")
+                        , ("type", "button")
+                        , ("width", "100px")
+                        , ("height", "40px")
+                        ]
+                    , Events.onClick events.address (SelectOption f)
+                    , Attr.value "Select"
+                    , Attr.name "Select this codebox and visualbox"
+                    ]
+                    [Html.text "select"]
+                ]) :: renderOption (w,h) ps model dim
+        [] -> []
+
 
 -- Main --
 main : Signal Html.Html
