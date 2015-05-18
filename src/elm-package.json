@@ -13,6 +13,7 @@
         "elm-lang/core" : "1.1.1 <= v < 3.0.0"
       , "evancz/elm-svg" : "1.0.2 <= v < 2.0.0"
       , "evancz/elm-html" : "3.0.0 <= v < 4.0.0"
+      , "evancz/virtual-dom" : "1.0.0 <= v < 2.0.0"
       , "maxsnew/lazy" : "1.0.1 <= v < 2.0.0"
     }
 }

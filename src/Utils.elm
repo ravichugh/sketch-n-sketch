@@ -91,6 +91,10 @@ assert s b = if b then () else Debug.crash ("assert error: " ++ s)
 
 fromJust (Just x) = x
 
+fromJust_ s mx = case mx of
+  Just x  -> x
+  Nothing -> Debug.crash <| "Utils.fromJust_: " ++ s
+
 fromOk s mx = case mx of
   Ok x    -> x
   Err err -> Debug.crash <| "fromOk [" ++ s ++ "]: " ++ err

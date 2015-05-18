@@ -50,6 +50,7 @@ showOne (w,h,test) =
         in l1 ++ l2 ++ List.concat l3
   in
   let l = l ++ [showMonoString <| Sync.printZoneTable v] in
+  let l = l ++ [showMonoString <| LangSvg.printIndexedTree v] in
   let br = Html.toElement   1 20 (Html.br [] []) in
   let hr = Html.toElement 600 20 (Html.hr [] []) in
   E.flow E.right [
@@ -78,6 +79,15 @@ main =
     , (600, 200, MicroTests.test29 ())
     , (600, 200, MicroTests.test30 ())
     , (600, 600, MicroTests.test31 ())
+    , (600, 300, MicroTests.test32 ())
+    , (600, 300, MicroTests.test33 ())
+    , (600, 200, MicroTests.test34 ())
+    , (600, 200, MicroTests.test35 ())
+    , (600, 330, MicroTests.test36 ())
+    , (600, 330, MicroTests.test37 ())
+    , (600, 200, MicroTests.test38 ())
+    , (600, 200, MicroTests.test39 ())
+    , (600, 200, MicroTests.test40 ())
   ] in
   E.flow E.down (List.map showOne tests)
 

@@ -205,7 +205,8 @@ sync e v v' =
 -- Zones
 
 zones = [
-    ("circle",
+    ("svg", [])
+  , ("circle",
       [ ("Interior", ["cx", "cy"])
       , ("Edge", ["r"])
       ])
@@ -229,15 +230,21 @@ zones = [
       , ("Point2", ["x2", "y2"])
       , ("Edge", ["x1", "y1", "x2", "y2"])
       ])
-  , ("polygon",
-      [ ("TODO", [])
-      ])
+  -- TODO
+  , ("g", [])
+  , ("path", [])
+  , ("text", [])
+  , ("tspan", [])
+  -- NOTE: these are computed in getZones
+  , ("polygon", [ ])
+  , ("polyline", [ ])
   ]
 
 
 ------------------------------------------------------------------------------
 -- Zones and Triggers
 
+-- TODO define these in Lang or LangSvg
 type alias ShapeId = Int
 type alias ShapeKind = String
 type alias Attr = String
@@ -252,42 +259,51 @@ type alias Dict2 = Dict ShapeId (ShapeKind, List (Zone, (Locs, List Locs)))
 
 printZoneTable : Val -> String
 printZoneTable v =
-  shapesToAttrLocs v         -- Step 1: Val   -> Dict0
+  nodeToAttrLocs v           -- Step 1: Val   -> Dict0
     |> shapesToZoneTable     -- Step 2: Dict0 -> Dict1
     |> assignTriggers        -- Step 3: Dict1 -> Dict2
     |> strTable              -- Step 4: Dict2 -> String
 
 -- Step 1 --
 
-shapesToAttrLocs : Val -> Dict0
-shapesToAttrLocs v = case v of
-  VList (VList [VBase (String "svgAttrs"), _] :: vs) ->
-    shapesToAttrLocs (VList vs)
-  VList vs ->
-    let processShape (i,shape) dShapes = case shape of
-      VList (VBase (String shape) :: vs') ->
-        let processAttr v' (extra,dAttrs) = case v' of
-          VList [VBase (String a), VConst _ tr] ->
-            (extra, Dict.insert a tr dAttrs)
-          VList [VBase (String "points"), VList pts] ->
-            let acc' =
-              Utils.foldli (\(i,vPt) acc ->
-                case vPt of
-                  VList [VConst _ trx, VConst _ try] ->
-                    let (ax,ay) = ("x" ++ toString i, "y" ++ toString i) in
-                    acc |> Dict.insert ax trx
-                        |> Dict.insert ay try) dAttrs pts in
-            (NumPoints (List.length pts), acc')
-          -- NOTE:
-          --   string-valued and RGBA attributes are ignored.
-          --   see LangSvg.valToSvg for spec of attributes.
-          _ ->
-            (extra, dAttrs)
-        in
-        let (extra,attrs) = List.foldl processAttr (None, Dict.empty) vs' in
-        Dict.insert i (shape, extra, attrs) dShapes
+-- TODO: assigning IDs is now redundant with valToIndexedTree.
+-- so start with IndexedTree rather than Val.
+
+nodeToAttrLocs : Val -> Dict0
+nodeToAttrLocs = snd << flip nodeToAttrLocs_ (1, Dict.empty)
+
+nodeToAttrLocs_ v (nextId,dShapes) = case v of
+
+  VList [VBase (String "TEXT"), VBase (String s)] -> (nextId, dShapes)
+
+  VList [VBase (String kind), VList vs', VList children] ->
+
+    -- processing attributes of current node
+    let processAttr v' (extra,dAttrs) = case v' of
+      VList [VBase (String a), VConst _ tr] ->
+        (extra, Dict.insert a tr dAttrs)
+      VList [VBase (String "points"), VList pts] ->
+        let acc' =
+          Utils.foldli (\(i,vPt) acc ->
+            case vPt of
+              VList [VConst _ trx, VConst _ try] ->
+                let (ax,ay) = ("x" ++ toString i, "y" ++ toString i) in
+                acc |> Dict.insert ax trx
+                    |> Dict.insert ay try) dAttrs pts in
+        (NumPoints (List.length pts), acc')
+      -- NOTE:
+      --   string-valued and RGBA attributes are ignored.
+      --   see LangSvg.valToSvg for spec of attributes.
+      _ ->
+        (extra, dAttrs)
     in
-    Utils.foldli processShape Dict.empty vs
+    let (extra,attrs) = List.foldl processAttr (None, Dict.empty) vs' in
+
+    -- recursing into sub-nodes
+    let (nextId',dShapes') =
+      List.foldl nodeToAttrLocs_ (nextId,dShapes) children in
+
+    (nextId' + 1, Dict.insert nextId' (kind, extra, attrs) dShapes')
 
 -- Step 2 --
 
@@ -318,6 +334,8 @@ getZones kind extra =
   let xy i    = [foo "x" i, foo "y" i] in
   let pt i    = (foo "Point" i, xy i) in
   case (kind, extra) of
+    ("polyline", NumPoints n) ->
+      List.map pt [1..n]
     ("polygon", NumPoints n) ->
       List.map pt [1..n] ++ [("Interior", List.concatMap xy [1..n])]
     _ ->
@@ -375,7 +393,7 @@ type alias Trigger  = List (Attr, Num) -> (Exp, Dict ShapeId (Dict Attr Num))
 
 prepareLiveUpdates : Exp -> Val -> Triggers
 prepareLiveUpdates e v =
-  let d0 = shapesToAttrLocs v in
+  let d0 = nodeToAttrLocs v in
   let d1 = shapesToZoneTable d0 in
   let d2 = assignTriggers d1 in
   makeTriggers e d0 d2

@@ -146,46 +146,46 @@ test14 () =
 test15 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
-       (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2]))"
+       (svg (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2])))"
     (strVal (Eval.run (parseE
-      "[(circle_ 10 28 10) (circle_ 40 28 10) (circle_ 100 28 10)]")))
+      "(svg [(circle_ 10 28 10) (circle_ 40 28 10) (circle_ 100 28 10)])")))
 
 test16 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
-       (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2]))"
+       (svg (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2])))"
     (strVal (Eval.run (parseE
-      "[(circle_ 150 28 10) (circle_ 40 28 10) (circle_ 70 28 10)]")))
+      "(svg [(circle_ 150 28 10) (circle_ 40 28 10) (circle_ 70 28 10)])")))
 
 test17 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
-       (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2]))"
+       (svg (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2])))"
     (strVal (Eval.run (parseE
-      "[(circle_ 10 28 10) (circle_ 150 28 10) (circle_ 70 28 10)]")))
+      "(svg [(circle_ 10 28 10) (circle_ 150 28 10) (circle_ 70 28 10)])")))
 
 test18 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
-       (map (\\i (square_ (+ x0 (mult i sep)) y0 20)) [0 1 2]))"
+       (svg (map (\\i (square_ (+ x0 (mult i sep)) y0 20)) [0 1 2])))"
     (strVal (Eval.run (parseE
-      "[(square_ 150 28 20) (square_ 40 28 20) (square_ 70 28 20)]")))
+      "(svg [(square_ 150 28 20) (square_ 40 28 20) (square_ 70 28 20)])")))
 
 test19 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
-       (map (\\i (rect_ (+ x0 (mult i sep)) y0 20 30)) [0 1 2]))"
+       (svg (map (\\i (rect_ (+ x0 (mult i sep)) y0 20 30)) [0 1 2])))"
     "[]"
 
 test20 () =
   makeTest
-    "(let i 200 [(line_ 10 20 i 40) (line_ 10 70 i 40)])"
+    "(let i 200 (svg [(line_ 10 20 i 40) (line_ 10 70 i 40)]))"
     (strVal (Eval.run (parseE
-      "[(line_ 10 20 300 40) (line_ 10 70 200 40)]")))
+      "(svg [(line_ 10 20 300 40) (line_ 10 70 200 40)])")))
 
 test21 () =
   makeTest
-    "[(polygon_ [[10 10] [200 10] [100 50]])]"
+    "(svg [(polygon_ [[10 10] [200 10] [100 50]])])"
     "[]"
 
 -- approximation of elm logo:
@@ -197,7 +197,8 @@ test21 () =
 test22 () =
   makeTest
     "(let foo (\\(color pts) (polygon color 'black' 0 pts))
-     [ ['svgAttrs' [['x' '0'] ['y' '0'] ['viewBox' '0 0 323.141 322.95']]]
+     [ 'svg' [['x' '0'] ['y' '0'] ['viewBox' '0 0 323.141 322.95']]
+       [
        (foo '#F0AD00' [[161 152] [231 82] [91 82]])
        (foo '#7FD13B' [[8 0] [79 70] [232 70] [161 0]])
        (addAttr
@@ -207,58 +208,61 @@ test22 () =
        (foo '#5A6378' [[152 161] [0 8] [0 314]])
        (foo '#F0AD00' [[255 246] [323 314] [323 178]])
        (foo '#60B5CC' [[161 170] [8 323] [314 323]])
+       ]
      ])"
     "[]"
 
 test23 () =
   makeTest
-    "(let [x0 y0 sep] [10 28 30]
+    "(let [x0 y0 sep] [10 28 30] (svg
        (map2 (\\(i j) (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 20))
-             [0 1 2] [0 1 2]))"
+             [0 1 2] [0 1 2])))"
     (strVal (Eval.run (parseE
-      "[(square_ 150 28 20) (square_ 40 58 20) (square_ 70 88 20)]")))
+      "(svg [(square_ 150 28 20) (square_ 40 58 20) (square_ 70 88 20)])")))
 
 test24 () =
   makeTest
-    "(let [x0 y0 sep] [10 28 30]
+    "(let [x0 y0 sep] [10 28 30] (svg
        (map2 (\\(i j) (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 20))
-             [0 1 2] [0 1 2]))"
+             [0 1 2] [0 1 2])))"
     (strVal (Eval.run (parseE
-      "[(square_ 10 28 20) (square_ 40 58 20) (square_ 100 88 20)]")))
+      "(svg [(square_ 10 28 20) (square_ 40 58 20) (square_ 100 88 20)])")))
 
 -- two equations that constrain the same variable, but both have same solution
 test25 () =
   makeTest
-    "(let [x0 y0 sep] [10 28 30]
+    "(let [x0 y0 sep] [10 28 30] (svg
        (map2 (\\(i j) (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 20))
-             [0 1 2] [0 1 2]))"
+             [0 1 2] [0 1 2])))"
     (strVal (Eval.run (parseE
-      "[(square_ 10 28 20) (square_ 40 58 20) (square_ 100 118 20)]")))
+      "(svg [(square_ 10 28 20) (square_ 40 58 20) (square_ 100 118 20)])")))
 
 test26 () =
   makeTest
-    "(let [x0 y0 sep] [10 28 30]
+    "(let [x0 y0 sep] [10 28 30] (svg
        (map (\\[i j] (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 20))
-            (cartProd [0 1 2] [0 1])))"
-    "[['rect' ['x' 10] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 10] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 40] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 40] ['y' 99] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 70] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 70] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']]]"
+            (cartProd [0 1 2] [0 1]))))"
+    "[ 'svg' []
+     [['rect' [['x' 10] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 10] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 40] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 40] ['y' 99] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 70] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 70] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']] []]]]"
 
 -- changing two leaves, each of which leads to two disjoint solutions
 test27 () =
   makeTest
-    "(let [x0 y0 xsep ysep] [10 28 30 30]
+    "(let [x0 y0 xsep ysep] [10 28 30 30] (svg
        (map (\\[i j] (square_ (+ x0 (mult i xsep)) (+ y0 (mult j ysep)) 20))
-            (cartProd [0 1 2] [0 1])))"
-    "[['rect' ['x' 10] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 10] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 40] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 60] ['y' 78] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 70] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']]
-      ['rect' ['x' 70] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']]]"
+            (cartProd [0 1 2] [0 1]))))"
+    "[ 'svg' []
+     [['rect' [['x' 10] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 10] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 40] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 60] ['y' 78] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 70] ['y' 28] ['width' 20] ['height' 20] ['fill' '#999999']] []]
+      ['rect' [['x' 70] ['y' 58] ['width' 20] ['height' 20] ['fill' '#999999']] []]]]"
 
 -- rudimentary olympic rings
 test28 () =
@@ -271,7 +275,7 @@ test28 () =
      (let row2
        (map (\\[i c] (ring c w (+ (+ x0 dxHalf) (mult i dx)) (+ y0 dy) r))
             (zip [0 1] ['yellow' 'green']))
-       (append row1 row2)))))"
+       (svg (append row1 row2))))))"
     "[]"
 
 -- similar to test15, but one solution requires floating point division
@@ -279,20 +283,20 @@ test28 () =
 test29 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
-       (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2]))"
+       (svg (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2])))"
     (strVal (Eval.run (parseE
-      "[(circle_ 10 28 10) (circle_ 40 28 10) (circle_ 101 28 10)]")))
+      "(svg [(circle_ 10 28 10) (circle_ 40 28 10) (circle_ 101 28 10)])")))
 
 test30 () =
   makeTest
     "(let [x0 y0 sep rx ry] [10 28 60 15 10]
-       (map (\\i (ellipse_ (+ x0 (mult i sep)) y0 rx ry)) [0 1 2]))"
+       (svg (map (\\i (ellipse_ (+ x0 (mult i sep)) y0 rx ry)) [0 1 2])))"
     (strVal (Eval.run (parseE
-      "[(ellipse_ 10 28 15 10) (ellipse_ 70 28 25 40) (ellipse_ 130 28 15 10)]")))
+      "(svg [(ellipse_ 10 28 15 10) (ellipse_ 70 28 25 40) (ellipse_ 130 28 15 10)])")))
 
 test31 () =
   makeTest
-    "(let [x0 y0 w h delta] [50 50 200 200 10]
+    "(let [x0 y0 w h delta] [50 50 200 200 10] (svg
      [ (rect 'white' x0 y0 w h)
        (polygon 'black' 'DUMMY' 0
          [[(+ x0 delta) y0]
@@ -306,6 +310,119 @@ test31 () =
          [[(+ x0 delta) (+ y0 h)]
           [(- (+ x0 w) delta) (+ y0 h)]
           [(+ x0 (div w 2)) (+ (+ y0 (div h 2)) delta)]])
+     ]))"
+    "[]"
+
+test32 () =
+  makeTest
+    "(let [x0 y0 w h delta] [50 50 200 200 10] (svg
+     [ (rect 'white' x0 y0 w h)
+       (polyline 'none' 'black' 1
+         [[(+ x0 delta) y0]
+          [(+ x0 w) y0]
+          [(+ x0 w) (- (+ y0 h) delta)]])
+       (polyline 'none' 'black' 1
+         [[x0 (+ y0 delta)]
+          [x0 (- (+ y0 h) delta)]
+          [(- (+ x0 (div w 2)) delta) (+ y0 (div h 2))]])
+       (polyline 'none' 'black' 1
+         [[(+ x0 delta) (+ y0 h)]
+          [(- (+ x0 w) delta) (+ y0 h)]
+          [(+ x0 (div w 2)) (+ (+ y0 (div h 2)) delta)]])
+     ]))"
+    "[]"
+
+test33 () =
+  makeTest
+    "(svg
+     [ (path_ ['M' 20 20 'L' 60 20 'L' 60 80 'Z'])
+       (path_ ['M' 10 10 'H' 90 'V' 90 'H' 10 'L' 10 10 'Z'])
+       (path_ ['M' 150 0 'L' 75 200 'L' 225 200 'Z'])
      ])"
+    "[]"
+
+test34 () =
+  makeTest
+    "(svg
+     [ (path_ ['M' 10 10   'C' 20 20 40 20 50 10])
+       (path_ ['M' 70 10   'C' 70 20 120 20 120 10])
+       (path_ ['M' 130 10  'C' 120 20 180 20 170 10])
+       (path_ ['M' 10 60   'C' 20 80 40 80 50 60])
+       (path_ ['M' 70 60   'C' 70 80 110 80 110 60])
+       (path_ ['M' 130 60  'C' 120 80 180 80 170 60])
+       (path_ ['M' 10 110  'C' 20 140 40 140 50 110])
+       (path_ ['M' 70 110  'C' 70 140 110 140 110 110])
+       (path_ ['M' 130 110 'C' 120 140 180 140 170 110])
+     ])"
+    "[]"
+
+test35 () =
+  makeTest
+    "(svg
+     [ (path_ ['M' 10 80 'C' 40 10 65 10 95 80 'S' 150 150 180 80])
+       (path_ ['M' 10 80 'Q' 95 10 180 80])
+       (path_ ['M' 10 80 'Q' 52.5 10 95 80 'T' 180 80])
+     ])"
+    "[]"
+
+test36 () =
+  makeTest
+    "(svg
+     [ (addAttr
+         (path 'green' 'black' 2
+           ['M' 10 315
+            'L' 110 215
+            'A' 30 50 0 0 1 162.55 162.45
+            'L' 172.55 152.45
+            'A' 30 50 -45 0 1 215.1 109.9
+            'L' 315 10])
+         ['opacity' 0.5]) ])"
+    "[]"
+
+test37 () =
+  makeTest
+    "(svg
+     [ (path 'green' 'black' 2
+         ['M' 80 80 'A' 45 45 0 0 0 125 125 'L' 125 80 'Z'])
+       (path 'red' 'black' 2
+         ['M' 230 80 'A' 45 45 0 1 0 275 125 'L' 275 80 'Z'])
+       (path 'purple' 'black' 2
+         ['M' 80 230 'A' 45 45 0 0 1 125 275 'L' 125 230 'Z'])
+       (path 'blue' 'black' 2
+         ['M' 230 230 'A' 45 45 0 1 1 275 275 'L' 275 230 'Z'])
+     ])"
+    "[]"
+
+test38 () =
+  makeTest
+    "(svg
+     [ ['text'
+         [['x' 10] ['y' 20] ['style' 'fill:red']]
+         [['TEXT' 'Several lines:']
+          ['tspan' [['x' 10] ['y' 45]] [['TEXT' 'First line.']]]
+          ['tspan' [['x' 10] ['y' 70]] [['TEXT' 'Second line.']]] ]]
+     ])"
+    "[]"
+
+test39 () =
+  makeTest
+    "['svg'
+        [['viewbox' '0 0 95 50']]
+        [['g'
+           [['stroke' 'green'] ['fill' 'white'] ['stroke-width' 5]]
+           [ ['circle' [['cx' 25] ['cy' 25] ['r' 15]] []]
+             ['circle' [['cx' 40] ['cy' 25] ['r' 15]] []]
+             ['circle' [['cx' 55] ['cy' 25] ['r' 15]] []]
+             ['circle' [['cx' 70] ['cy' 25] ['r' 15]] []] ]]]]"
+    "[]"
+
+test40 () =
+  makeTest
+    "['svg'
+        [['viewbox' '0 0 95 50']]
+        [['g' [['stroke' 'green'] ['fill' 'white'] ['stroke-width' 5]]
+             (let [x0 y0 r sep] [25 25 15 15]
+               (map (\\i ['circle' [['cx' (+ x0 (mult i sep))] ['cy' y0] ['r' r]] []])
+                    [0 1 2 3])) ]]]"
     "[]"
 
