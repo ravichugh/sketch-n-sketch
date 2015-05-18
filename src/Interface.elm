@@ -129,8 +129,8 @@ upstate evt old = case Debug.log "Event" evt of
                         (svgshape, attributes) -> find attributes "index"
                     newvals = updateVal old.workingVal movingIndex 
                             ("x", toString <| Basics.toFloat mx + xdist)
-                            |> (\a -> updateVal a movingIndex
-                                ("y", toString <| Basics.toFloat my + ydist))
+                            --|> (\a -> updateVal a movingIndex
+                            --    ("y", toString <| Basics.toFloat my + ydist))
                     newobjs = buildSvg newvals
                 in  { old | objects <- newobjs 
                           , movingObj <- Just 
@@ -248,6 +248,7 @@ makeZones attrs = case Debug.log "attrs" attrs of
                         ]
                     centBox = Svg.rect attrs []
                 in [centBox]
+        _ -> []
 
 view : (Int, Int) -> Model -> Html.Html
 view (w,h) model = 
@@ -321,7 +322,7 @@ renderView (w,h) model =
                     , ("height", String.append (toString h) "px")
                     , ("margin", "0")
                     , ("position", "absolute")
-                    , ("left", String.append (toString <| w // 2 - 1) "px")
+                    , ("left", String.append (toString <| w // 2) "px")
                     , ("top", "0px")
                     ]
                 ]    
@@ -333,23 +334,21 @@ syncView (w,h) model =
     let
         dim = (Basics.toFloat (Basics.min w h)) / 2
     in
-         Html.div
-            [ Attr.style
-                [("width", toString w)
-                , ("height", toString h)
-                , ("overflow", "scroll")
-                ]
-            ]
-            (renderOption (w, h // 4) model.possibleChanges model dim)
+        Html.div
+        []
+        (renderOption (w, h // 4) (Utils.mapi (\x -> x) model.possibleChanges) model dim)
+            
 
-renderOption : (Int, Int) -> List ((Exp, Val), Float) -> Model -> Float -> List Html.Html
+renderOption : (Int, Int) -> List (Int, ((Exp, Val), Float)) -> Model -> Float -> List Html.Html
 renderOption (w,h) possiblechanges model dim =
     case possiblechanges of
-        ((e,v), f)::ps -> 
+        (i, ((e,v), f))::ps -> 
             (Html.div
                 [ Attr.style
                     [ ("width", toString w)
                     , ("height", toString h)
+                    , ("top", String.append (toString <| h * (i-1)) "px")
+                    , ("position", "absolute")
                     ]
                 ]
                 [ Html.div 
@@ -359,7 +358,7 @@ renderOption (w,h) possiblechanges model dim =
                         , ("margin", "0")
                         , ("position", "absolute")
                         , ("left", "0px")
-                        , ("top", "0px")
+                        , ("top", "0px") -- String.append (toString <| h * (i-1)) "px")
                         ]
                     ]
                     [codeBox (sExpK 1 e) model.syncMode]
@@ -369,25 +368,25 @@ renderOption (w,h) possiblechanges model dim =
                         , ("height", String.append (toString h) "px")
                         , ("margin", "0")
                         , ("position", "absolute")
-                        , ("left", String.append (toString <| w // 2 - 50) "px")
-                        , ("top", "0px")
+                        , ("left", String.append (toString <| w // 2) "px")
+                        , ("top", "0px") --String.append (toString <| h * (i-1)) "px")
                         ]
                     ]    
                     [visualsBox (buildSvg v) dim model.syncMode] --TODO: parse val to svgs
-                , Html.button
-                    [ Attr.style
-                        [ ("position", "absolute")
-                        , ("left", String.append (toString <| w // 4) "px")
-                        , ("top", String.append (toString <| h - 40) "px")
-                        , ("type", "button")
-                        , ("width", "100px")
-                        , ("height", "40px")
-                        ]
-                    , Events.onClick events.address (SelectOption ((e,v), f))
-                    , Attr.value "Select"
-                    , Attr.name "Select this codebox and visualbox"
-                    ]
-                    [Html.text "select"]
+--                , Html.button
+--                    [ Attr.style
+--                        [ ("position", "absolute")
+--                        , ("left", String.append (toString <| w // 4) "px")
+--                        , ("top", "0px) --String.append (toString <| h - 40) "px")
+--                        , ("type", "button")
+--                        , ("width", "100px")
+--                        , ("height", "40px")
+--                        ]
+--                    , Events.onClick events.address (SelectOption ((e,v), f))
+--                    , Attr.value "Select"
+--                    , Attr.name "Select this codebox and visualbox"
+--                    ]
+--                    [Html.text "select"]
                 ]) :: renderOption (w,h) ps model dim
         [] -> []
 
