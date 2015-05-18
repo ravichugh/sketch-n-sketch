@@ -44,14 +44,15 @@ valsToAttrs = List.map valToAttr
 numAttrToVal a i =
   VList [VBase (String a), VConst (toFloat i) dummyTrace]
 
-valToAttr v =
-  case v of
-    VList [VBase (String a), VConst i _]       -> (attr a) (toString i)
-    VList [VBase (String a), VBase (String s)] -> (attr a) s
-    VList [VBase (String "points"), VList vs]  -> (attr "points") (valToPoints vs)
-    VList [VBase (String "fill"), VList vs]    -> (attr "fill") (valToRgba vs)
-    VList [VBase (String "stroke"), VList vs]  -> (attr "stroke") (valToRgba vs)
-    VList [VBase (String "d"), VList vs]       -> (attr "d") (valToPath vs)
+valToAttr (VList [VBase (String k), v]) =
+  let f = attr k in
+  case (k, v) of
+    (_, VConst i _)       -> f (toString i)
+    (_, VBase (String s)) -> f s
+    ("points", VList vs)  -> f (valToPoints vs)
+    ("fill", VList vs)    -> f (valToRgba vs)
+    ("stroke", VList vs)  -> f (valToRgba vs)
+    ("d", VList vs)       -> f (valToPath vs)
 
 valToPoints = Utils.spaces << List.map valToPoint
 
