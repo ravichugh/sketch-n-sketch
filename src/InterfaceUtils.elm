@@ -113,3 +113,30 @@ cleanAttrs = \l (acc1, acc2) -> case l of
         _         -> cleanAttrs xs
                                 ((key, val) :: acc1, acc2)
     []        -> (acc1, acc2)
+
+updateVal : Val -> String -> (String, String) -> Val
+updateVal v index (attrname, attrval) = case Debug.log "update v" v of
+    VList vs -> VList <| flip List.map (Utils.mapi (\s -> s) vs) <| \v1 -> 
+        case v1 of
+            (i, VList (VBase (String shape) :: vs')) -> 
+                VList (VBase (String shape) :: 
+                    (changeAttr i vs' index (attrname, attrval)))
+            
+--helper function for updateVal
+changeAttr : Int -> List Val -> String -> (String, String) -> List Val
+changeAttr i vs' index (attrname, attrval) =
+    if | toString i == index ->
+          List.map (\x -> case x of
+                    VList [VBase (String a), VConst ix pos] ->
+                      if | (a == attrname) ->
+                            case (String.toFloat attrval) of
+                              Ok f -> VList [VBase (String attrname), VConst f pos]
+                         | otherwise -> VList [VBase (String a), VConst ix pos]
+                    VList [VBase (String a), VBase (String s)] ->
+                      if | (a == attrname) ->
+                            VList [VBase (String a), VBase (String attrval)]
+                         | otherwise -> VList [VBase (String a), VBase (String s)]
+                    _ -> x
+                    ) vs'
+       | otherwise -> vs'
+            

@@ -34,6 +34,7 @@ import Debug
 -- Model --
 --Fields:
 -- code            - Text currently in the textbox
+--inputExp         - input Expression
 -- objects         - The workingVal translated to manipulable SVGs
 -- movingObj       - If an object is being moved, which one
 -- inputVal        - The last code input parsed into a Val
@@ -42,24 +43,29 @@ import Debug
 --                   the graphics side (done on the fly)
 -- possibleChanges - The possible new expressions and their associated Vals, 
 --                   as from the output of sync
+-- syncMode        - True if state should be non-manipulatable/sync selecting
 type alias Model = { code : String
+                   , inputExp : Maybe Exp
                    , objects : List Object
                    , movingObj : Maybe (Object, Float, Float)
                    , inputVal : Val
                    , workingVal : Val
-                   , possibleChanges : List ((Exp, Val), Int)
+                   , possibleChanges : List ((Exp, Val), Float)
+                   , syncMode : Bool
                    }
 
---An Object is composed of an index, svg, list of attribute name/values, and shape
-type alias Object = (Int, Svg.Svg, List (String, String), String)
+--An Object is composed of an svg, list of attribute key/values
+type alias Object = (Svg.Svg, List (String, String))
 
 
 initModel = { code = ""
+            , inputExp = Nothing
             , objects = []
             , movingObj = Nothing
             , inputVal = VHole
             , workingVal = VHole
             , possibleChanges = []
+            , syncMode = False
             }
 
 --Just as in microTests
@@ -71,19 +77,22 @@ tempTestCode =
 tempTest = MicroTests.test27 ()
 
 sampleModel = { code      = tempTestCode
+              , inputExp  = Just (parseE tempTestCode)
               , objects   = buildSvg tempTest.v 
               , movingObj = Nothing
               , inputVal = tempTest.v
               , workingVal = tempTest.v
               , possibleChanges = []
+              , syncMode = False
               }
 
 type Event = CodeUpdate String
            | OutputUpdate String
-           | SelectObject Int
+           | SelectObject Int String
            | DeselectObject Int
            | MouseDown (Int, Int)
            | Sync
+           | SelectOption ((Exp, Val), Float)
            | Render
 
 events : Signal.Mailbox Event
@@ -104,7 +113,7 @@ upstate evt old = case Debug.log "Event" evt of
         Nothing                  -> old
         Just (obj, xdist, ydist) -> if
             | xdist == -1.0 || ydist == -1.0 -> case obj of
-                (ix, svg, attrs, shape) -> 
+                (svg, attrs) -> 
                     let xpos = case String.toFloat <| find attrs "x" of
                             Ok a -> a
                         ypos = case String.toFloat <| find attrs "y" of
@@ -115,78 +124,178 @@ upstate evt old = case Debug.log "Event" evt of
             | otherwise -> 
                 let newpos = [ ("x", toString <| Basics.toFloat mx + xdist)
                              , ("y", toString <| Basics.toFloat my + ydist) ]
-                    newobjs = List.map (updateObjPos newpos obj) old.objects
-                    moved = updateObjPos newpos obj obj
+                    moved = updateObj newpos obj obj
+                    movingIndex = case obj of
+                        (svgshape, attributes) -> find attributes "index"
+                    newvals = updateVal old.workingVal movingIndex 
+                            ("x", toString <| Basics.toFloat mx + xdist)
+                            --|> (\a -> updateVal a movingIndex
+                            --    ("y", toString <| Basics.toFloat my + ydist))
+                    newobjs = buildSvg newvals
                 in  { old | objects <- newobjs 
                           , movingObj <- Just 
                                 (moved, xdist, ydist)
+                          , workingVal <- newvals
                     }
-    SelectObject x -> let match = List.filter 
-                                (\(i, s, a, h) -> x == i)
+    SelectObject x zonetype -> 
+        let sx = toString x
+            match = List.filter (\(s, a) -> sx == (find a "index"))
                                 old.objects
-                      in case match of
-                              mat :: xs -> { old | movingObj <- Just (mat, -1.0, -1.0) }
+            in case match of
+                mat :: xs -> { old | movingObj <- Just (mat, -1.0, -1.0) }
     DeselectObject x -> { old | movingObj <- Nothing }
-    Sync -> old --TODO perform appropriate sync actions
+    Sync -> 
+        case old.inputExp of
+            Just ip -> case (Result.toMaybe <| sync ip old.inputVal old.workingVal) of
+                Just ls -> { old | possibleChanges <- ls, 
+                                 syncMode <- True }
+                Nothing -> old
+            _       -> old
+    SelectOption ((e,v), f) -> { old | possibleChanges <- []
+                               , inputVal <- v
+                               , workingVal <- v
+                               , inputExp <- Just e
+                               ,syncMode <- False }
     _ -> old
  
+--TODO: fix object tracking issue
 
-updateObjPos : List (String, String) -> Object -> Object -> Object
-updateObjPos newattrs (i1, o1, a1, s1) (i2, o2, a2, s2) = 
-    if | i1 == i2 ->
+updateObj : List (String, String) -> Object -> Object -> Object
+updateObj newattrs (o1, a1) (o2, a2) = case Debug.log "index" (find a1 "index") of
+  a ->
+    if | ((find a1 "index") == (find a2 "index")) ->
                 let updatedattrs = updateAttrs newattrs a1
-                    svgattrs = List.map (\(x,y) -> attr x <| y) updatedattrs
-                    shape = svg s1
-                in (i1, (shape svgattrs []), updatedattrs, s1) 
-       | otherwise -> (i2, o2, a2, s2)
+                    svgattrs = List.map (\(x,y) -> attr x <| y) (List.drop 2 updatedattrs)
+                    shape = svg (find a1 "shape")
+                in ((shape svgattrs []), updatedattrs) 
+       | otherwise -> (o2, a2)
 
 
 -- View --
-codeBox : String -> Html.Html
-codeBox codeText =
-    Html.textarea
-        [ Attr.id "codeBox"
-        , Attr.style
-            [ ("height", "100%")
-            , ("width",  "100%")
-            , ("resize", "none")
-            , ("overflow", "scroll")
-            ]
-        , Attr.value codeText
-        , Events.on "input" Events.targetValue
-            (Signal.message events.address << CodeUpdate)
-        ]
-        []
-
-visualsBox : Model -> Float -> Html.Html
-visualsBox model dim =
+codeBox : String -> Bool -> Html.Html
+codeBox code switch =
     let
-        intdim = floor (dim/20)
-    in 
-        Svg.svg [ Attr.style
-                    [ ("width", "100%")
-                    , ("height", "100%")
-                    ]
-                ] <| List.map (\(i,f,g,s) -> f) model.objects 
+        event = case switch of
+            True -> []
+            False ->  [(Events.on "input" Events.targetValue
+                (Signal.message events.address << CodeUpdate))]
+    in
+        Html.textarea
+            ([ Attr.id "codeBox"
+            , Attr.style
+                [ ("height", "100%")
+                , ("width",  "100%")
+                , ("resize", "none")
+                , ("overflow", "scroll")
+                ]
+            , Attr.value code
+            ]
+            ++
+            event)
+            []
 
-buildSvg : Val -> List (Int, Svg.Svg, List (String, String), String)
+visualsBox : List Object -> Float -> Bool -> Html.Html
+visualsBox objects dim switch =
+    Svg.svg [ Attr.style
+                [ ("width", "100%")
+                , ("height", "100%")
+                ]
+            ] <| List.map (\(f,g) -> f) objects
+
+buildSvg : Val -> List (Svg.Svg, List (String, String))
 buildSvg v = case Debug.log "v" v of
    VList vs -> flip List.map (Utils.mapi (\s -> s) vs) <| \v1 -> case v1 of
        (i, VList (VBase (String shape) :: vs')) ->
            let  firstattrs = getFirstAttrs vs'
                 baseattrs = fst <| cleanAttrs (List.map snd firstattrs) ([],[])
+                modattrs = ("shape", shape) :: ("index", toString i) :: baseattrs
                 attrloc = snd <| cleanAttrs (List.map snd firstattrs) ([],[])
-                attrs = List.append (List.map fst firstattrs)
-                    [ Svg.Events.onMouseDown (Signal.message events.address
-                        (SelectObject i)) 
-                    , Svg.Events.onMouseUp (Signal.message events.address
-                        (DeselectObject i))
-                    ]
-           in (i, ((svg shape) attrs []), baseattrs, shape)
+                zones = makeZones modattrs
+                shapes = svg shape (List.map fst firstattrs) [] :: zones
+           in ((Svg.svg [] shapes), modattrs)
                 
-    
+makeZones : List (String, String) -> List Svg.Svg
+makeZones attrs = case Debug.log "attrs" attrs of
+    ("shape", shape) :: xs -> case shape of
+        "rect" -> case xs of
+            ("index", i) :: ys -> 
+                let xcent = attr "x" <| toString
+                            <| (case String.toFloat <| find ys "x" of
+                                    Ok z -> 
+                                        case String.toFloat <| find ys "width" of
+                                            Ok k -> z + k * 0.125)
+                    ycent = attr "y" <| toString
+                            <| (case String.toFloat <| find ys "y" of
+                                    Ok z -> 
+                                        case String.toFloat <| find ys "height"
+                                        of
+                                            Ok k -> round <| z + k * 0.125)
+                    wcent = attr "width" <| toString <| (\x -> x * 0.75) 
+                            <| (case String.toFloat <| find ys "width" of
+                                    Ok z -> z)
+                    hcent = attr "height" <| toString <| (\x -> x * 0.75) 
+                            <| (case String.toFloat <| find ys "height" of
+                                    Ok z -> z)
+                    fill = attr "fill" "#FF0000"
+                    firstattrs = [xcent, ycent, wcent, hcent, fill]
+                    attrs = List.append firstattrs
+                        [ Svg.Events.onMouseDown (Signal.message events.address
+                            (case String.toInt i of
+                                Ok z -> SelectObject z "center"))
+                        , Svg.Events.onMouseUp (Signal.message events.address
+                            (DeselectObject <| case String.toInt i of 
+                                Ok z -> z))
+                        ]
+                    centBox = Svg.rect attrs []
+                in [centBox]
+        _ -> []
+
 view : (Int, Int) -> Model -> Html.Html
 view (w,h) model = 
+    let
+        dim = (Basics.toFloat (Basics.min w h)) / 2
+    in
+        case model.syncMode of
+            False -> Html.div
+                    [ Attr.style
+                        [ ("width", toString w)
+                        , ("height", toString h)
+                        ]
+                    ]
+                    [renderView (w,h) model
+                    , Html.button
+                        [ Attr.style
+                            [ ("position", "absolute")
+                            , ("left", String.append (toString <| w // 6) "px")
+                            , ("top", String.append (toString <| h - 40) "px")
+                            , ("type", "button")
+                            , ("width", "100px")
+                            , ("height", "40px")
+                            ]
+                        , Events.onClick events.address Render
+                        , Attr.value "Render"
+                        , Attr.name "Render the Code"
+                        ]
+                        [Html.text "render"]
+                    , Html.button
+                        [ Attr.style
+                            [ ("position", "absolute")
+                            , ("left", String.append (toString <| w // 4) "px")
+                            , ("top", String.append (toString <| h - 40) "px")
+                            , ("type", "button")
+                            , ("width", "100px")
+                            , ("height", "40px")
+                            ]
+                        , Events.onClick events.address Sync
+                        , Attr.value "Sync"
+                        , Attr.name "Sync the code to the canvas"
+                        ]
+                        [Html.text "sync"]
+                    ]
+            True -> syncView (w,h) model
+
+renderView : (Int, Int) -> Model -> Html.Html
+renderView (w,h) model = 
     let
         dim = (Basics.toFloat (Basics.min w h)) / 2
     in
@@ -206,47 +315,81 @@ view (w,h) model =
                     , ("top", "0px")
                     ]
                 ]
-                [codeBox model.code]
-            , Html.button
-                [ Attr.style
-                    [ ("position", "absolute")
-                    , ("left", String.append (toString <| w // 6) "px")
-                    , ("top", String.append (toString <| h - 40) "px")
-                    , ("type", "button")
-                    , ("width", "100px")
-                    , ("height", "40px")
-                    ]
-                , Events.onClick events.address Render
-                , Attr.value "Render"
-                , Attr.name "Render the Code"
-                ]
-                [Html.text "render"]
-            , Html.button
-                [ Attr.style
-                    [ ("position", "absolute")
-                    , ("left", String.append (toString <| w // 4) "px")
-                    , ("top", String.append (toString <| h - 40) "px")
-                    , ("type", "button")
-                    , ("width", "100px")
-                    , ("height", "40px")
-                    ]
-                , Events.onClick events.address Sync
-                , Attr.value "Sync"
-                , Attr.name "Sync the code to the canvas"
-                ]
-                [Html.text "sync"]
+                [codeBox model.code model.syncMode]
             , Html.div
                 [ Attr.style
                     [ ("width", String.append (toString <| w // 2 - 1) "px")
                     , ("height", String.append (toString h) "px")
                     , ("margin", "0")
                     , ("position", "absolute")
-                    , ("left", String.append (toString <| w // 2 - 1) "px")
+                    , ("left", String.append (toString <| w // 2) "px")
                     , ("top", "0px")
                     ]
                 ]    
-                [visualsBox model dim]
+                [visualsBox model.objects dim model.syncMode]
             ]
+
+syncView : (Int, Int) -> Model -> Html.Html
+syncView (w,h) model = 
+    let
+        dim = (Basics.toFloat (Basics.min w h)) / 2
+    in
+        Html.div
+        []
+        (renderOption (w, h // 4) (Utils.mapi (\x -> x) model.possibleChanges) model dim)
+            
+
+renderOption : (Int, Int) -> List (Int, ((Exp, Val), Float)) -> Model -> Float -> List Html.Html
+renderOption (w,h) possiblechanges model dim =
+    case possiblechanges of
+        (i, ((e,v), f))::ps -> 
+            (Html.div
+                [ Attr.style
+                    [ ("width", toString w)
+                    , ("height", toString h)
+                    , ("top", String.append (toString <| h * (i-1)) "px")
+                    , ("position", "absolute")
+                    ]
+                ]
+                [ Html.div 
+                    [ Attr.style
+                        [ ("width", String.append (toString <| w // 2 - 30) "px")
+                        , ("height", String.append (toString <| h) "px")
+                        , ("margin", "0")
+                        , ("position", "absolute")
+                        , ("left", "0px")
+                        , ("top", "0px") -- String.append (toString <| h * (i-1)) "px")
+                        ]
+                    ]
+                    [codeBox (sExpK 1 e) model.syncMode]
+                , Html.div
+                    [ Attr.style
+                        [ ("width", String.append (toString <| w // 2 - 50) "px")
+                        , ("height", String.append (toString h) "px")
+                        , ("margin", "0")
+                        , ("position", "absolute")
+                        , ("left", String.append (toString <| w // 2) "px")
+                        , ("top", "0px") --String.append (toString <| h * (i-1)) "px")
+                        ]
+                    ]    
+                    [visualsBox (buildSvg v) dim model.syncMode] --TODO: parse val to svgs
+--                , Html.button
+--                    [ Attr.style
+--                        [ ("position", "absolute")
+--                        , ("left", String.append (toString <| w // 4) "px")
+--                        , ("top", "0px) --String.append (toString <| h - 40) "px")
+--                        , ("type", "button")
+--                        , ("width", "100px")
+--                        , ("height", "40px")
+--                        ]
+--                    , Events.onClick events.address (SelectOption ((e,v), f))
+--                    , Attr.value "Select"
+--                    , Attr.name "Select this codebox and visualbox"
+--                    ]
+--                    [Html.text "select"]
+                ]) :: renderOption (w,h) ps model dim
+        [] -> []
+
 
 -- Main --
 main : Signal Html.Html
