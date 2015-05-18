@@ -1,4 +1,5 @@
-module LangSvg (valToHtml, valToIndexedTree, printIndexedTree) where
+module LangSvg where
+-- module LangSvg (valToHtml, valToIndexedTree, printIndexedTree) where
 
 import Html
 import Svg
