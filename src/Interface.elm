@@ -68,6 +68,7 @@ tempTestCode =
 
 tempTest = MicroTests.test27 ()
 
+--A Sample model for working with a given microtest
 sampleModel = { code      = tempTestCode
               , inputExp  = Just (parseE tempTestCode)
               , objects   = buildVisual <| LangSvg.valToIndexedTree tempTest.v 
@@ -79,8 +80,17 @@ sampleModel = { code      = tempTestCode
               , syncMode = False
               }
 
+--Event
+--CodeUpdate : carries updated string of code with it
+--SelectObject : carries an id of an object and an identifying string for a zone
+--DeselectObject : carries an id of an object which shall no longer be selected
+--                  for alteration.
+--MouseDown : carries a position of mouse on a down click
+--Sync : signals the system to enter syncMode
+--SelectOption : carries a possiblechange pane from sync to be displayed as the new
+--              console
+--Render : display a given val from the code
 type Event = CodeUpdate String
-           | OutputUpdate String
            | SelectObject Int String
            | DeselectObject Int
            | MouseDown (Int, Int)
@@ -88,12 +98,14 @@ type Event = CodeUpdate String
            | SelectOption ((Exp, Val), Float)
            | Render
 
+--A mailbox for signaling the model
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
 
 -- Update --
 upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
+    --make a val from code and display it
     Render -> case Debug.log "run" <| Eval.run <| parseE old.code of
         bare -> let vals = VList [VBase (String "svg"), VList [], bare] in 
             { old | objects      <- buildVisual 
@@ -102,7 +114,10 @@ upstate evt old = case Debug.log "Event" evt of
                   , workingVal   <- vals
                   , workingSlate <- LangSvg.valToIndexedTree vals
             }
+    --Replace old code with new code
     CodeUpdate newcode -> { old | code <- newcode }
+    --check if a mouse position is within an object when a mouse down
+    --event occured.
     MouseDown (mx, my) -> case old.movingObj of
         Nothing                  -> old
         Just (objid, xdist, ydist) -> if
@@ -131,9 +146,11 @@ upstate evt old = case Debug.log "Event" evt of
                 in  { old | objects <- newobjs 
                           , workingSlate <- newSlate
                     }
+    --Selecting a given zone within an object
     SelectObject id zonetype -> { old | movingObj <- Just (id, -1.0, -1.0) }
-
+    --wipes out selection of an object
     DeselectObject x -> { old | movingObj <- Nothing }
+    --run sync function and then populate the list of possibleChanges
     Sync -> 
         case old.inputExp of
             Just ip -> 
@@ -145,22 +162,30 @@ upstate evt old = case Debug.log "Event" evt of
                                }
                     Nothing -> old
             _       -> old
+    --Given possible changes, an option is selected. Vals are correspondingly
+    --updated and syncMode is turned off.
     SelectOption ((e,v), f) -> { old | possibleChanges <- []
                                      , inputVal <- v
                                      , workingVal <- v
                                      , inputExp <- Just e
                                      , syncMode <- False 
                                }
+    --catch all
     _ -> old
  
---TODO: fix object tracking issue
+--TODO: fix object/zone tracking issue
 
+--given a list of attributes and their new values, update an object and return it
 updateObj : List (String, String) -> Object -> Object -> Object
 updateObj newattrs (o1, a1) (o2, a2) = case Debug.log "index" (find a1 "index") of
   a ->
+    --check for matching indices
     if | ((find a1 "index") == (find a2 "index")) ->
+                --update the exsisting attrs
                 let updatedattrs = updateAttrStrs newattrs a1
+                    --since first 2 attrs are shape/id, remove them for svg creation
                     svgattrs = List.map (\(x,y) -> attr x <| y) (List.drop 2 updatedattrs)
+                    --find correct shape function
                     shape = svg (find a1 "shape")
                 in ((shape svgattrs []), updatedattrs) 
        | otherwise -> (o2, a2)
@@ -170,11 +195,13 @@ updateObj newattrs (o1, a1) (o2, a2) = case Debug.log "index" (find a1 "index") 
 codeBox : String -> Bool -> Html.Html
 codeBox code switch =
     let
+        --depending on switch, toggle manipulatability
         event = case switch of
             True -> []
             False ->  [(Events.on "input" Events.targetValue
                 (Signal.message events.address << CodeUpdate))]
     in
+        --build text area
         Html.textarea
             ([ Attr.id "codeBox"
             , Attr.style
@@ -186,9 +213,11 @@ codeBox code switch =
             , Attr.value code
             ]
             ++
+            --add event, if it exsists
             event)
             []
 
+--Build viusal pane and populate with the model's objects
 visualsBox : List Object -> Float -> Bool -> Html.Html
 visualsBox objects dim switch =
     Svg.svg [ Attr.style
@@ -197,9 +226,12 @@ visualsBox objects dim switch =
                 ]
             ] <| List.map (\(f,g) -> f) objects
 
+--Umbrella function for taking and indexed tree and calling buildSvg over it
 buildVisual : LangSvg.IndexedTree -> List (Svg.Svg, List (String, String))
 buildVisual valDict = List.map buildSvg (Dict.toList valDict)
 
+--Function for handling attributes and children of an indexed tree and building them
+--into Svgs with attr lists to be updated as necessary
 buildSvg : (LangSvg.NodeId, LangSvg.IndexedTreeNode) -> (Svg.Svg, List (String, String))
 buildSvg (nodeID, node) = case node of
     LangSvg.TextNode text -> (VirtualDom.text text, [("shape", "TEXT"), ("text", text)])
@@ -208,7 +240,8 @@ buildSvg (nodeID, node) = case node of
            zones = makeZones shape nodeID attrstrs
            mainshape = (LangSvg.svg shape <| LangSvg.valsToAttrs attrs) []
        in (Svg.svg [] (mainshape :: zones), attrstrs)
-                
+
+--Zone building function (still under construction/prone to change)                
 makeZones : String -> LangSvg.NodeId -> List (String, String) -> List Svg.Svg
 makeZones shape nodeID attrstrs = case shape of
         "rect" ->
@@ -241,12 +274,15 @@ makeZones shape nodeID attrstrs = case shape of
             in [centBox]
         _ -> []
 
+--Umbrella function for viewing a given model
 view : (Int, Int) -> Model -> Html.Html
 view (w,h) model = 
     let
         dim = (Basics.toFloat (Basics.min w h)) / 2
     in
+        --check whether there is syncing occuring
         case model.syncMode of
+            --no sync, do normal displaying of code & visuals
             False -> Html.div
                     [ Attr.style
                         [ ("width", toString w)
@@ -283,8 +319,11 @@ view (w,h) model =
                         ]
                         [Html.text "sync"]
                     ]
+            --call special view for syncing
             True -> syncView (w,h) model
 
+--When view is manipulatable, call this function for code & visuals
+--to build corresponding panes
 renderView : (Int, Int) -> Model -> Html.Html
 renderView (w,h) model = 
     let
@@ -320,6 +359,7 @@ renderView (w,h) model =
                 [visualsBox model.objects dim model.syncMode]
             ]
 
+--Build an Html of the iterations of renderOption over the possibleChanges
 syncView : (Int, Int) -> Model -> Html.Html
 syncView (w,h) model = 
     let
@@ -329,7 +369,7 @@ syncView (w,h) model =
         []
         (renderOption (w, h // 4) (Utils.mapi (\x -> x) model.possibleChanges) model dim)
             
-
+--Given a possible Change, build code from Expr and visuals from the val, rank by priority w/ mapi
 renderOption : (Int, Int) -> List (Int, ((Exp, Val), Float)) -> Model -> Float -> List Html.Html
 renderOption (w,h) possiblechanges model dim =
     case possiblechanges of
