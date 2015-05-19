@@ -11,6 +11,8 @@ import MainSvg
 import Utils
 import MicroTests
 import InterfaceUtils exposing (..)
+import LangSvg
+import VirtualDom
 
 import List 
 import Dict
@@ -47,26 +49,16 @@ import Debug
 type alias Model = { code : String
                    , inputExp : Maybe Exp
                    , objects : List Object
-                   , movingObj : Maybe (Object, Float, Float)
+                   , movingObj : Maybe (LangSvg.NodeId, Float, Float)
                    , inputVal : Val
                    , workingVal : Val
+                   , workingSlate : LangSvg.IndexedTree
                    , possibleChanges : List ((Exp, Val), Float)
                    , syncMode : Bool
                    }
 
 --An Object is composed of an svg, list of attribute key/values
 type alias Object = (Svg.Svg, List (String, String))
-
-
-initModel = { code = ""
-            , inputExp = Nothing
-            , objects = []
-            , movingObj = Nothing
-            , inputVal = VHole
-            , workingVal = VHole
-            , possibleChanges = []
-            , syncMode = False
-            }
 
 --Just as in microTests
 tempTestCode = 
@@ -78,10 +70,11 @@ tempTest = MicroTests.test27 ()
 
 sampleModel = { code      = tempTestCode
               , inputExp  = Just (parseE tempTestCode)
-              , objects   = buildSvg tempTest.v 
+              , objects   = buildVisual <| LangSvg.valToIndexedTree tempTest.v 
               , movingObj = Nothing
               , inputVal = tempTest.v
               , workingVal = tempTest.v
+              , workingSlate = LangSvg.valToIndexedTree tempTest.v
               , possibleChanges = []
               , syncMode = False
               }
@@ -101,61 +94,63 @@ events = Signal.mailbox <| CodeUpdate ""
 -- Update --
 upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
-    Render -> { old | objects <- (buildSvg << Eval.run << parseE)
-                                  old.code
-                    , inputVal <- (Eval.run << parseE)
-                                  old.code
-                    , workingVal <- (Eval.run << parseE)
-                                    old.code
-              }
+    Render -> case Debug.log "run" <| Eval.run <| parseE old.code of
+        bare -> let vals = VList [VBase (String "svg"), VList [], bare] in 
+            { old | objects      <- buildVisual 
+                                    <| LangSvg.valToIndexedTree vals
+                  , inputVal     <- vals
+                  , workingVal   <- vals
+                  , workingSlate <- LangSvg.valToIndexedTree vals
+            }
     CodeUpdate newcode -> { old | code <- newcode }
     MouseDown (mx, my) -> case old.movingObj of
         Nothing                  -> old
-        Just (obj, xdist, ydist) -> if
-            | xdist == -1.0 || ydist == -1.0 -> case obj of
-                (svg, attrs) -> 
-                    let xpos = case String.toFloat <| find attrs "x" of
-                            Ok a -> a
-                        ypos = case String.toFloat <| find attrs "y" of
-                            Ok a -> a
-                    in { old | movingObj <- Just (obj 
-                                               , xpos - Basics.toFloat mx
-                                               , ypos - Basics.toFloat my) }
+        Just (objid, xdist, ydist) -> if
+            | xdist == -1.0 || ydist == -1.0 -> 
+                case Dict.get objid old.workingSlate of 
+                    Just node ->
+                        case buildSvg (objid, node) of
+                            (svg, attrs) -> 
+                                let xpos = case String.toFloat <| find attrs "x" of
+                                        Ok a -> a
+                                    ypos = case String.toFloat <| find attrs "y" of
+                                        Ok a -> a
+                                in { old | movingObj <- Just (objid 
+                                            , xpos - Basics.toFloat mx
+                                            , ypos - Basics.toFloat my) 
+                                   }
             | otherwise -> 
                 let newpos = [ ("x", toString <| Basics.toFloat mx + xdist)
                              , ("y", toString <| Basics.toFloat my + ydist) ]
-                    moved = updateObj newpos obj obj
-                    movingIndex = case obj of
-                        (svgshape, attributes) -> find attributes "index"
-                    newvals = updateVal old.workingVal movingIndex 
-                            ("x", toString <| Basics.toFloat mx + xdist)
-                            --|> (\a -> updateVal a movingIndex
-                            --    ("y", toString <| Basics.toFloat my + ydist))
-                    newobjs = buildSvg newvals
+                    newSlate = List.foldr (updateSlate objid)
+                                old.workingSlate
+                                [ ("x", toString <| Basics.toFloat mx + xdist)
+                                , ("y", toString <| Basics.toFloat my + ydist)
+                                ]
+                    newobjs = buildVisual newSlate
                 in  { old | objects <- newobjs 
-                          , movingObj <- Just 
-                                (moved, xdist, ydist)
-                          , workingVal <- newvals
+                          , workingSlate <- newSlate
                     }
-    SelectObject x zonetype -> 
-        let sx = toString x
-            match = List.filter (\(s, a) -> sx == (find a "index"))
-                                old.objects
-            in case match of
-                mat :: xs -> { old | movingObj <- Just (mat, -1.0, -1.0) }
+    SelectObject id zonetype -> { old | movingObj <- Just (id, -1.0, -1.0) }
+
     DeselectObject x -> { old | movingObj <- Nothing }
     Sync -> 
         case old.inputExp of
-            Just ip -> case (Result.toMaybe <| sync ip old.inputVal old.workingVal) of
-                Just ls -> { old | possibleChanges <- ls, 
-                                 syncMode <- True }
-                Nothing -> old
+            Just ip -> 
+                let inputval = Eval.run ip
+                    newval = indexedTreeToVal old.workingSlate
+                in case (Result.toMaybe <| sync ip inputval newval) of
+                    Just ls -> { old | possibleChanges <- ls
+                                     , syncMode <- True 
+                               }
+                    Nothing -> old
             _       -> old
     SelectOption ((e,v), f) -> { old | possibleChanges <- []
-                               , inputVal <- v
-                               , workingVal <- v
-                               , inputExp <- Just e
-                               ,syncMode <- False }
+                                     , inputVal <- v
+                                     , workingVal <- v
+                                     , inputExp <- Just e
+                                     , syncMode <- False 
+                               }
     _ -> old
  
 --TODO: fix object tracking issue
@@ -164,7 +159,7 @@ updateObj : List (String, String) -> Object -> Object -> Object
 updateObj newattrs (o1, a1) (o2, a2) = case Debug.log "index" (find a1 "index") of
   a ->
     if | ((find a1 "index") == (find a2 "index")) ->
-                let updatedattrs = updateAttrs newattrs a1
+                let updatedattrs = updateAttrStrs newattrs a1
                     svgattrs = List.map (\(x,y) -> attr x <| y) (List.drop 2 updatedattrs)
                     shape = svg (find a1 "shape")
                 in ((shape svgattrs []), updatedattrs) 
@@ -202,52 +197,48 @@ visualsBox objects dim switch =
                 ]
             ] <| List.map (\(f,g) -> f) objects
 
-buildSvg : Val -> List (Svg.Svg, List (String, String))
-buildSvg v = case Debug.log "v" v of
-   VList vs -> flip List.map (Utils.mapi (\s -> s) vs) <| \v1 -> case v1 of
-       (i, VList (VBase (String shape) :: vs')) ->
-           let  firstattrs = getFirstAttrs vs'
-                baseattrs = fst <| cleanAttrs (List.map snd firstattrs) ([],[])
-                modattrs = ("shape", shape) :: ("index", toString i) :: baseattrs
-                attrloc = snd <| cleanAttrs (List.map snd firstattrs) ([],[])
-                zones = makeZones modattrs
-                shapes = svg shape (List.map fst firstattrs) [] :: zones
-           in ((Svg.svg [] shapes), modattrs)
+buildVisual : LangSvg.IndexedTree -> List (Svg.Svg, List (String, String))
+buildVisual valDict = List.map buildSvg (Dict.toList valDict)
+
+buildSvg : (LangSvg.NodeId, LangSvg.IndexedTreeNode) -> (Svg.Svg, List (String, String))
+buildSvg (nodeID, node) = case node of
+    LangSvg.TextNode text -> (VirtualDom.text text, [("shape", "TEXT"), ("text", text)])
+    LangSvg.SvgNode shape attrs childrenids ->
+       let attrstrs = getAttrs attrs
+           zones = makeZones shape nodeID attrstrs
+           mainshape = (LangSvg.svg shape <| LangSvg.valsToAttrs attrs) []
+       in (Svg.svg [] (mainshape :: zones), attrstrs)
                 
-makeZones : List (String, String) -> List Svg.Svg
-makeZones attrs = case Debug.log "attrs" attrs of
-    ("shape", shape) :: xs -> case shape of
-        "rect" -> case xs of
-            ("index", i) :: ys -> 
-                let xcent = attr "x" <| toString
-                            <| (case String.toFloat <| find ys "x" of
-                                    Ok z -> 
-                                        case String.toFloat <| find ys "width" of
-                                            Ok k -> z + k * 0.125)
-                    ycent = attr "y" <| toString
-                            <| (case String.toFloat <| find ys "y" of
-                                    Ok z -> 
-                                        case String.toFloat <| find ys "height"
-                                        of
-                                            Ok k -> round <| z + k * 0.125)
-                    wcent = attr "width" <| toString <| (\x -> x * 0.75) 
-                            <| (case String.toFloat <| find ys "width" of
-                                    Ok z -> z)
-                    hcent = attr "height" <| toString <| (\x -> x * 0.75) 
-                            <| (case String.toFloat <| find ys "height" of
-                                    Ok z -> z)
-                    fill = attr "fill" "#FF0000"
-                    firstattrs = [xcent, ycent, wcent, hcent, fill]
-                    attrs = List.append firstattrs
-                        [ Svg.Events.onMouseDown (Signal.message events.address
-                            (case String.toInt i of
-                                Ok z -> SelectObject z "center"))
-                        , Svg.Events.onMouseUp (Signal.message events.address
-                            (DeselectObject <| case String.toInt i of 
-                                Ok z -> z))
-                        ]
-                    centBox = Svg.rect attrs []
-                in [centBox]
+makeZones : String -> LangSvg.NodeId -> List (String, String) -> List Svg.Svg
+makeZones shape nodeID attrstrs = case shape of
+        "rect" ->
+            let xcent = LangSvg.attr "x" <| toString
+                        <| (case String.toFloat <| find attrstrs "x" of
+                                Ok z -> 
+                                    case String.toFloat <| find attrstrs "width" of
+                                        Ok k -> z + k * 0.125)
+                ycent = LangSvg.attr "y" <| toString
+                        <| (case String.toFloat <| find attrstrs "y" of
+                                Ok z -> 
+                                    case String.toFloat <| find attrstrs "height"
+                                    of
+                                        Ok k -> round <| z + k * 0.125)
+                wcent = LangSvg.attr "width" <| toString <| (\x -> x * 0.75) 
+                        <| (case String.toFloat <| find attrstrs "width" of
+                                Ok z -> z)
+                hcent = LangSvg.attr "height" <| toString <| (\x -> x * 0.75) 
+                        <| (case String.toFloat <| find attrstrs "height" of
+                                Ok z -> z)
+                fill = LangSvg.attr "fill" "#FF0000"
+                firstattrs = [xcent, ycent, wcent, hcent, fill]
+                attrs = List.append firstattrs
+                    [ Svg.Events.onMouseDown (Signal.message events.address
+                        (SelectObject nodeID "center"))
+                    , Svg.Events.onMouseUp (Signal.message events.address
+                        (DeselectObject nodeID))
+                    ]
+                centBox = Svg.rect attrs []
+            in [centBox]
         _ -> []
 
 view : (Int, Int) -> Model -> Html.Html
@@ -372,7 +363,7 @@ renderOption (w,h) possiblechanges model dim =
                         , ("top", "0px") --String.append (toString <| h * (i-1)) "px")
                         ]
                     ]    
-                    [visualsBox (buildSvg v) dim model.syncMode] --TODO: parse val to svgs
+                    [visualsBox (buildVisual <| LangSvg.valToIndexedTree v) dim model.syncMode] --TODO: parse val to svgs
 --                , Html.button
 --                    [ Attr.style
 --                        [ ("position", "absolute")

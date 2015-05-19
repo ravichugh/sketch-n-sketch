@@ -46,3 +46,16 @@ input/working quantities and clear out the old possibilities~~
 * Remove Debug.log from buildSvg and upstate
 * Clean "|" code out
 * Make ZoneType type instead of using Strings
+
+## Other
+* Eval.run should return Val with outer "svg"?
+  - LangSvg.valToIndexedTree assumes this, must wrap in "svg" otherwise 
+* Sync.sync takes vals - is it a problem if they are dumped from an IndexedTree?
+* Could use IndexedTreeNode -> Val function; is there any reason why that
+doesn't make sense?
+  - The order of the Vals that go into sync matter, right? So just dumping the
+    dictionary doesn't make sense. However, that means that we still need to
+    keep track of an intermediate Val, which we said that the IndexedTree would
+    prevent. Actually, we _should_ be able to reconstruct the original Val from
+    the dict, so long as we can order the children of any given svg node
+    properly.

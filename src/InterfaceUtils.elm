@@ -10,6 +10,7 @@ import Eval exposing (run)
 import MainSvg
 import Utils
 import MicroTests
+import LangSvg
 
 import List 
 import Dict
@@ -68,11 +69,11 @@ svg  = find funcsSvg
 
 --Update Utilities
 
-updateAttrs : List (String, String) -> List (String, String) -> 
+updateAttrStrs : List (String, String) -> List (String, String) -> 
                 List (String, String)
-updateAttrs newattrs oldattrs = case newattrs of
+updateAttrStrs newattrs oldattrs = case newattrs of
     [] -> oldattrs
-    (a1, v1) :: xs -> updateAttrs xs (replace (a1,v1) oldattrs)
+    (a1, v1) :: xs -> updateAttrStrs xs (replace (a1,v1) oldattrs)
 
 replace : (String, String) -> List (String, String) -> List (String, String)
 replace (a1, v1) attrs = case attrs of
@@ -85,9 +86,9 @@ adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
 
 getFirstAttrs : List Val -> List (Svg.Attribute, (String, String))
 getFirstAttrs vals = List.map 
-    (\x -> case x of
+    (\x -> case Debug.log "x" x of
         VList [VBase (String a), VConst i pos] -> ((attr a) <| toString i
-              , (a, String.concat [toString i, "|", toString pos]))
+              , (a, toString i))
         VList [VBase (String a), VBase (String s)] -> ((attr a) s
               , (a,s))
         VList [VBase (String "points"), VList pts] ->
@@ -97,6 +98,21 @@ getFirstAttrs vals = List.map
                             toString x1 ++ "," ++ toString y1)
                     pts
             in ((attr "points") s, ("points", s)))
+    vals
+
+getAttrs : List Val -> List (String, String)
+getAttrs vals = List.map
+    (\x -> case x of
+        VList [VBase (String a), VConst i pos] -> (a, toString i)
+        VList [VBase (String a), VBase (String s)] -> (a, s)
+        VList [VBase (String "points"), VList pts] ->
+            let s = Utils.spaces <| List.map
+                    (\y -> case y of
+                        VList [VConst x1 _, VConst y1 _] ->
+                            toString x1 ++ "," ++ toString y1)
+                    pts
+            in ("points", s)
+    )
     vals
 
 --Takes a list of attributes and pulls out the location
@@ -116,12 +132,42 @@ cleanAttrs = \l (acc1, acc2) -> case l of
 
 updateVal : Val -> String -> (String, String) -> Val
 updateVal v index (attrname, attrval) = case Debug.log "update v" v of
-    VList vs -> VList <| flip List.map (Utils.mapi (\s -> s) vs) <| \v1 -> 
+    VList [VBase (String "svg"), VList [], VList vs] -> VList [VBase (String "svg"), VList [], VList <| flip List.map (Utils.mapi (\s -> s) vs) <| \v1 -> 
         case v1 of
-            (i, VList (VBase (String shape) :: vs')) -> 
+            (i, VList (VBase (String shape) :: VList vs' :: cs)) -> 
                 VList (VBase (String shape) :: 
-                    (changeAttr i vs' index (attrname, attrval)))
+                    List.append (changeAttr i vs' index (attrname, attrval)) cs)
+        ]
+        
+updateSlate : LangSvg.NodeId -> 
+                (String, String) -> 
+                LangSvg.IndexedTree ->
+                LangSvg.IndexedTree
+updateSlate id newattr nodes = case Dict.get id nodes of
+    Nothing   -> nodes
+    Just node -> case node of
+        LangSvg.TextNode x -> nodes
+        LangSvg.SvgNode shape attrs children -> 
+            let newnode = LangSvg.SvgNode shape (updateAttrs newattr attrs) children
+            in Dict.insert id newnode nodes
             
+updateAttrs : (String, String) -> List Val -> List Val
+updateAttrs (attr, value) vals = case vals of
+    VList [VBase (String a), VConst ix pos] :: vs ->
+        if | a == attr -> case String.toFloat value of
+                Ok f -> VList [VBase (String a), VConst f pos] :: vs
+           | otherwise -> 
+                VList [VBase (String a), VConst ix pos] :: updateAttrs (attr, value) vs
+    VList [VBase (String a), VBase (String s)] :: vs ->
+        if | a == attr ->
+                VList [VBase (String a), VBase (String value)] :: vs
+           | otherwise ->
+                VList [VBase (String a), VBase (String s)] :: updateAttrs (attr,value) vs
+    [] -> []
+
+indexedTreeToVal : LangSvg.IndexedTree -> Val
+indexedTreeToVal slate = VList []
+
 --helper function for updateVal
 changeAttr : Int -> List Val -> String -> (String, String) -> List Val
 changeAttr i vs' index (attrname, attrval) =
