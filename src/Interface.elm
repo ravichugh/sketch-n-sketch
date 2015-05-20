@@ -14,23 +14,29 @@ import InterfaceUtils exposing (..)
 import LangSvg
 import VirtualDom
 
+--Core Libraries
 import List 
 import Dict
 import String 
 import Graphics.Element as GE 
 import Graphics.Collage as GC
 
+--Signaling Libraries
 import Mouse 
 import Window 
+
+--Html Libraries
 import Html 
 import Html.Attributes as Attr
 import Html.Events as Events
 
+--Svg Libraries
 import Svg
 import Svg.Attributes
 import Svg.Events
 import Svg.Lazy
 
+--Error Checking Libraries
 import Debug
 
 -- Model --
@@ -234,7 +240,9 @@ buildVisual valDict = List.map buildSvg (Dict.toList valDict)
 --into Svgs with attr lists to be updated as necessary
 buildSvg : (LangSvg.NodeId, LangSvg.IndexedTreeNode) -> (Svg.Svg, List (String, String))
 buildSvg (nodeID, node) = case node of
+    --if text, call svg text creation
     LangSvg.TextNode text -> (VirtualDom.text text, [("shape", "TEXT"), ("text", text)])
+    --If svg object, make objects with appropriate zones and attributes
     LangSvg.SvgNode shape attrs childrenids ->
        let attrstrs = getAttrs attrs
            zones = makeZones shape nodeID attrstrs
@@ -289,6 +297,7 @@ view (w,h) model =
                         , ("height", toString h)
                         ]
                     ]
+                    --display code & visuals
                     [renderView (w,h) model
                     , Html.button
                         [ Attr.style
@@ -367,12 +376,14 @@ syncView (w,h) model =
     in
         Html.div
         []
+        --index the possible changes and render these options
         (renderOption (w, h // 4) (Utils.mapi (\x -> x) model.possibleChanges) model dim)
             
 --Given a possible Change, build code from Expr and visuals from the val, rank by priority w/ mapi
 renderOption : (Int, Int) -> List (Int, ((Exp, Val), Float)) -> Model -> Float -> List Html.Html
 renderOption (w,h) possiblechanges model dim =
     case possiblechanges of
+        --if there is a possible change remaining, display this option
         (i, ((e,v), f))::ps -> 
             (Html.div
                 [ Attr.style
@@ -418,6 +429,7 @@ renderOption (w,h) possiblechanges model dim =
 --                    , Attr.name "Select this codebox and visualbox"
 --                    ]
 --                    [Html.text "select"]
+                --attach remaining option htmls
                 ]) :: renderOption (w,h) ps model dim
         [] -> []
 
