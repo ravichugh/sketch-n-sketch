@@ -55,13 +55,16 @@ import Debug
 type alias Model = { code : String
                    , inputExp : Maybe Exp
                    , objects : List Object
-                   , movingObj : Maybe (LangSvg.NodeId, Float, Float)
+                   , movingObj : Maybe (LangSvg.NodeId, Zone, Maybe ((Int,Int) -> LangSvg.IndexedTree))
                    , inputVal : Val
                    , workingVal : Val
                    , workingSlate : LangSvg.IndexedTree
                    , possibleChanges : List ((Exp, Val), Float)
                    , syncMode : Bool
                    }
+
+-- rkc TODO: move zone tables from Sync to LangSvg
+type alias Zone = String
 
 --An Object is composed of an svg, list of attribute key/values
 type alias Object = (Svg.Svg, List (String, String))
@@ -85,7 +88,7 @@ sampleModel = { code      = sExp tempTest.e
 --SelectObject : carries an id of an object and an identifying string for a zone
 --DeselectObject : carries an id of an object which shall no longer be selected
 --                  for alteration.
---MouseDown : carries a position of mouse on a down click
+--MousePos : carries a position of mouse on a down click
 --Sync : signals the system to enter syncMode
 --SelectOption : carries a possiblechange pane from sync to be displayed as the new
 --              console
@@ -93,7 +96,7 @@ sampleModel = { code      = sExp tempTest.e
 type Event = CodeUpdate String
            | SelectObject Int String
            | DeselectObject Int
-           | MouseDown (Int, Int)
+           | MousePos (Int, Int)
            | Sync
            | SelectOption ((Exp, Val), Float)
            | Render
@@ -116,40 +119,51 @@ upstate evt old = case Debug.log "Event" evt of
             }
     --Replace old code with new code
     CodeUpdate newcode -> { old | code <- newcode }
+
     --check if a mouse position is within an object when a mouse down
     --event occured.
-    MouseDown (mx, my) -> case old.movingObj of
-        Nothing                  -> old
-        Just (objid, xdist, ydist) -> if
-            | xdist == -1.0 || ydist == -1.0 -> 
-                case Dict.get objid old.workingSlate of 
-                    Just node ->
-                        case buildSvg (objid, node) of
-                            (svg, attrs) -> 
-                                let xpos = case String.toFloat <| Utils.find_ attrs "x" of
-                                        Ok a -> a
-                                    ypos = case String.toFloat <| Utils.find_ attrs "y" of
-                                        Ok a -> a
-                                in { old | movingObj <- Just (objid 
-                                            , xpos - Basics.toFloat mx
-                                            , ypos - Basics.toFloat my) 
-                                   }
-            | otherwise -> 
-                let newpos = [ ("x", toString <| Basics.toFloat mx + xdist)
-                             , ("y", toString <| Basics.toFloat my + ydist) ]
-                    newSlate = List.foldr (updateSlate objid)
-                                old.workingSlate
-                                [ ("x", toString <| Basics.toFloat mx + xdist)
-                                , ("y", toString <| Basics.toFloat my + ydist)
-                                ]
-                    newobjs = buildVisual newSlate
-                in  { old | objects <- newobjs 
-                          , workingSlate <- newSlate
-                    }
+    MousePos (mx, my) ->
+      case old.movingObj of
+
+        Nothing -> old
+
+        Just (objid, zone, Nothing) ->
+          let (svg,attrs) = buildSvg (objid, get_ objid old.workingSlate)
+              x0 = toInt_ (Utils.find_ attrs "x") - mx
+              y0 = toInt_ (Utils.find_ attrs "y") - my
+              onNewPos (x,y) =
+                List.foldr (updateSlate objid) old.workingSlate
+                  [ ("x", toString <| x0 + x)
+                  , ("y", toString <| y0 + y)
+                  ]
+          in
+          { old | movingObj <- Just (objid, zone, Just onNewPos) }
+
+        Just (objid, zone, Just onNewPos) ->
+          let newSlate = onNewPos (mx, my) in
+          { old | objects <- buildVisual newSlate, workingSlate <- newSlate }
+
+        -- -- rkc: what does "dist"ance refer to?
+        -- Just (objid, zone, xdist, ydist) -> if
+        --     | xdist == dummyInit || ydist == dummyInit -> 
+        --         let (svg,attrs) = buildSvg (objid, get_ objid old.workingSlate)
+        --             xpos = toFloat_ <| Utils.find_ attrs "x"
+        --             ypos = toFloat_ <| Utils.find_ attrs "y"
+        --             obj' = Just (objid , zone , xpos - Basics.toFloat mx , ypos - Basics.toFloat my) 
+        --         in { old | movingObj <- obj' }
+        --     | otherwise -> 
+        --         let newpos = [ ("x", toString <| Basics.toFloat mx + xdist)
+        --                      , ("y", toString <| Basics.toFloat my + ydist) ]
+        --             newSlate = List.foldr (updateSlate objid) old.workingSlate newpos
+        --             newobjs = buildVisual newSlate
+        --         in  { old | objects <- newobjs, workingSlate <- newSlate }
+
     --Selecting a given zone within an object
-    SelectObject id zonetype -> { old | movingObj <- Just (id, -1.0, -1.0) }
+    SelectObject id zone -> { old | movingObj <- Just (id, zone, Nothing) }
+
     --wipes out selection of an object
     DeselectObject x -> { old | movingObj <- Nothing }
+
     --run sync function and then populate the list of possibleChanges
     Sync -> 
         case old.inputExp of
@@ -243,8 +257,11 @@ buildSvg (nodeID, node) = case node of
            mainshape = (LangSvg.svg shape <| LangSvg.valsToAttrs attrs) []
        in (Svg.svg [] (mainshape :: zones), attrstrs)
 
+get_ k d = Utils.fromJust <| Dict.get k d
+
 compileAttrNum k v = LangSvg.attr k (toString v)
-toAttrNum          = Utils.fromOk_ << String.toFloat
+toFloat_           = Utils.fromOk_ << String.toFloat
+toInt_             = Utils.fromOk_ << String.toInt
 
 onMouseDown = Svg.Events.onMouseDown << Signal.message events.address
 onMouseUp   = Svg.Events.onMouseUp   << Signal.message events.address
@@ -254,8 +271,25 @@ makeZones : String -> LangSvg.NodeId -> List (String, String) -> List Svg.Svg
 makeZones shape nodeID l =
   case shape of
 
+    "circle" ->
+        let [cx,cy,r] = List.map (toFloat_ << Utils.find_ l) ["cx","cy","r"] in
+        let gutterPct = 0.100 in
+        let zInterior =
+          flip Svg.circle [] [
+              compileAttrNum "cx" cx
+            , compileAttrNum "cy" cy
+            , compileAttrNum "r" (r * (1 - 2*gutterPct))
+            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
+            , LangSvg.attr "strokeWidth" "3"
+            , LangSvg.attr "fill" "rgba(0,0,0,0)"
+            , onMouseDown (SelectObject nodeID "Interior")
+            , onMouseUp (DeselectObject nodeID)
+            ]
+        in
+        [] -- [zInterior]
+
     "rect" ->
-        let [x,y,w,h] = List.map (toAttrNum << Utils.find_ l) ["x","y","width","height"] in
+        let [x,y,w,h] = List.map (toFloat_ << Utils.find_ l) ["x","y","width","height"] in
         let gutterPct = 0.125 in
         let zInterior =
           flip Svg.rect [] [
@@ -435,6 +469,6 @@ main = let sigModel = Signal.foldp upstate sampleModel
                                 |> Signal.filter (\(x,y) -> x) (False, (0,0))
                                 |> Signal.map (\(x,y) -> y)
                                 |> Signal.map2 adjustCoords Window.dimensions
-                                |> Signal.map MouseDown
+                                |> Signal.map MousePos
                             ]
        in Signal.map2 view Window.dimensions sigModel
