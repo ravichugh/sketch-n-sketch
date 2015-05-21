@@ -155,10 +155,7 @@ funcsAttr = [
   , ("y2", A.y2)
   ]
 
-find d s =
-  case Utils.maybeFind s d of
-    Just f  -> f
-    Nothing -> Debug.crash <| "MainSvg.find: " ++ s
+find d s = Utils.find ("MainSvg.find: " ++ s) d s
 
 attr = find funcsAttr
 svg  = find funcsSvg

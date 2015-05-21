@@ -66,17 +66,11 @@ type alias Model = { code : String
 --An Object is composed of an svg, list of attribute key/values
 type alias Object = (Svg.Svg, List (String, String))
 
---Just as in microTests
-tempTestCode = 
-    "(let [x0 y0 xsep ysep] [10 28 30 30]
-       (map (\\[i j] (square_ (+ x0 (mult i xsep)) (+ y0 (mult j ysep)) 20))
-            (cartProd [0 1 2] [0 1])))"
-
-tempTest = MicroTests.test27 ()
+tempTest = MicroTests.test41 ()
 
 --A Sample model for working with a given microtest
-sampleModel = { code      = tempTestCode
-              , inputExp  = Just (parseE tempTestCode)
+sampleModel = { code      = sExp tempTest.e
+              , inputExp  = Just tempTest.e
               , objects   = buildVisual <| LangSvg.valToIndexedTree tempTest.v 
               , movingObj = Nothing
               , inputVal = tempTest.v
@@ -132,9 +126,9 @@ upstate evt old = case Debug.log "Event" evt of
                     Just node ->
                         case buildSvg (objid, node) of
                             (svg, attrs) -> 
-                                let xpos = case String.toFloat <| find attrs "x" of
+                                let xpos = case String.toFloat <| Utils.find_ attrs "x" of
                                         Ok a -> a
-                                    ypos = case String.toFloat <| find attrs "y" of
+                                    ypos = case String.toFloat <| Utils.find_ attrs "y" of
                                         Ok a -> a
                                 in { old | movingObj <- Just (objid 
                                             , xpos - Basics.toFloat mx
@@ -183,16 +177,16 @@ upstate evt old = case Debug.log "Event" evt of
 
 --given a list of attributes and their new values, update an object and return it
 updateObj : List (String, String) -> Object -> Object -> Object
-updateObj newattrs (o1, a1) (o2, a2) = case Debug.log "index" (find a1 "index") of
+updateObj newattrs (o1, a1) (o2, a2) = case Debug.log "index" (Utils.find_ a1 "index") of
   a ->
     --check for matching indices
-    if | ((find a1 "index") == (find a2 "index")) ->
+    if | ((Utils.find_ a1 "index") == (Utils.find_ a2 "index")) ->
                 --update the exsisting attrs
                 let updatedattrs = updateAttrStrs newattrs a1
                     --since first 2 attrs are shape/id, remove them for svg creation
-                    svgattrs = List.map (\(x,y) -> attr x <| y) (List.drop 2 updatedattrs)
+                    svgattrs = List.map (\(x,y) -> LangSvg.attr x <| y) (List.drop 2 updatedattrs)
                     --find correct shape function
-                    shape = svg (find a1 "shape")
+                    shape = LangSvg.svg (Utils.find_ a1 "shape")
                 in ((shape svgattrs []), updatedattrs) 
        | otherwise -> (o2, a2)
 
@@ -249,38 +243,36 @@ buildSvg (nodeID, node) = case node of
            mainshape = (LangSvg.svg shape <| LangSvg.valsToAttrs attrs) []
        in (Svg.svg [] (mainshape :: zones), attrstrs)
 
+compileAttrNum k v = LangSvg.attr k (toString v)
+toAttrNum          = Utils.fromOk_ << String.toFloat
+
+onMouseDown = Svg.Events.onMouseDown << Signal.message events.address
+onMouseUp   = Svg.Events.onMouseUp   << Signal.message events.address
+
 --Zone building function (still under construction/prone to change)                
 makeZones : String -> LangSvg.NodeId -> List (String, String) -> List Svg.Svg
-makeZones shape nodeID attrstrs = case shape of
-        "rect" ->
-            let xcent = LangSvg.attr "x" <| toString
-                        <| (case String.toFloat <| find attrstrs "x" of
-                                Ok z -> 
-                                    case String.toFloat <| find attrstrs "width" of
-                                        Ok k -> z + k * 0.125)
-                ycent = LangSvg.attr "y" <| toString
-                        <| (case String.toFloat <| find attrstrs "y" of
-                                Ok z -> 
-                                    case String.toFloat <| find attrstrs "height"
-                                    of
-                                        Ok k -> round <| z + k * 0.125)
-                wcent = LangSvg.attr "width" <| toString <| (\x -> x * 0.75) 
-                        <| (case String.toFloat <| find attrstrs "width" of
-                                Ok z -> z)
-                hcent = LangSvg.attr "height" <| toString <| (\x -> x * 0.75) 
-                        <| (case String.toFloat <| find attrstrs "height" of
-                                Ok z -> z)
-                fill = LangSvg.attr "fill" "#FF0000"
-                firstattrs = [xcent, ycent, wcent, hcent, fill]
-                attrs = List.append firstattrs
-                    [ Svg.Events.onMouseDown (Signal.message events.address
-                        (SelectObject nodeID "center"))
-                    , Svg.Events.onMouseUp (Signal.message events.address
-                        (DeselectObject nodeID))
-                    ]
-                centBox = Svg.rect attrs []
-            in [centBox]
-        _ -> []
+makeZones shape nodeID l =
+  case shape of
+
+    "rect" ->
+        let [x,y,w,h] = List.map (toAttrNum << Utils.find_ l) ["x","y","width","height"] in
+        let gutterPct = 0.125 in
+        let zInterior =
+          flip Svg.rect [] [
+              compileAttrNum "x" (round <| x + w * gutterPct)
+            , compileAttrNum "y" (round <| y + h * gutterPct)
+            , compileAttrNum "width" (w * (1 - 2*gutterPct))
+            , compileAttrNum "height" (h * (1 - 2*gutterPct))
+            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
+            , LangSvg.attr "strokeWidth" "3"
+            , LangSvg.attr "fill" "rgba(0,0,0,0)"
+            , onMouseDown (SelectObject nodeID "Interior")
+            , onMouseUp (DeselectObject nodeID)
+            ]
+        in
+        [zInterior]
+
+    _ -> []
 
 --Umbrella function for viewing a given model
 view : (Int, Int) -> Model -> Html.Html

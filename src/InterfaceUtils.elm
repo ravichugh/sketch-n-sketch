@@ -32,6 +32,7 @@ import Svg.Lazy
 import Debug
 
 
+{-
 --- Borrowed from LangSvg.elm ---
 funcsSvg = [
     ("circle", Svg.circle)
@@ -66,6 +67,7 @@ find d s =
 attr = find funcsAttr
 svg  = find funcsSvg
 --- ---
+-}
 
 --Update Utilities
 
@@ -84,12 +86,13 @@ replace (a1, v1) attrs = case attrs of
 adjustCoords : (Int, Int) -> (Int, Int) -> (Int, Int)
 adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
 
+{-
 getFirstAttrs : List Val -> List (Svg.Attribute, (String, String))
 getFirstAttrs vals = List.map 
     (\x -> case Debug.log "x" x of
-        VList [VBase (String a), VConst i pos] -> ((attr a) <| toString i
+        VList [VBase (String a), VConst i pos] -> ((LangSvg.attr a) <| toString i
               , (a, toString i))
-        VList [VBase (String a), VBase (String s)] -> ((attr a) s
+        VList [VBase (String a), VBase (String s)] -> ((LangSvg.attr a) s
               , (a,s))
         VList [VBase (String "points"), VList pts] ->
             let s = Utils.spaces <| List.map
@@ -97,8 +100,9 @@ getFirstAttrs vals = List.map
                         VList [VConst x1 _, VConst y1 _] ->
                             toString x1 ++ "," ++ toString y1)
                     pts
-            in ((attr "points") s, ("points", s)))
+            in ((LangSvg.attr "points") s, ("points", s)))
     vals
+-}
 
 getAttrs : List Val -> List (String, String)
 getAttrs vals = List.map

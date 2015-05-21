@@ -11,6 +11,13 @@ maybeFind k l = case l of
   (k0,v0) :: l' -> if | k == k0   -> Just v0
                       | otherwise -> maybeFind k l'
 
+find err d k =
+  case maybeFind k d of
+    Just f  -> f
+    Nothing -> Debug.crash <| "Utils.find: " ++ err
+
+find_ = find ""
+
 zip : List a -> List b -> List (a,b)
 zip xs ys = case (xs, ys) of
   (x::xs', y::ys') -> (x,y) :: zip xs' ys'
@@ -98,6 +105,8 @@ fromJust_ s mx = case mx of
 fromOk s mx = case mx of
   Ok x    -> x
   Err err -> Debug.crash <| "fromOk [" ++ s ++ "]: " ++ err
+
+fromOk_ = fromOk ""
 
 mapMaybe : (a -> b) -> Maybe a -> Maybe b
 mapMaybe f mx = case mx of {Just x -> Just (f x); Nothing -> Nothing}
