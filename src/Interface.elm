@@ -131,14 +131,24 @@ upstate evt old = case Debug.log "Event" evt of
           let (_,attrs) = buildSvg (objid, get_ objid old.workingSlate) in
           let intAttr   = toInt_ << Utils.find_ attrs in
           let onNewPos (mx',my') =
+            let fx x  = (x, toString <| intAttr x - mx + mx') in
+            let fy y  = (y, toString <| intAttr y - my + my') in
+            let fx_ x = (x, toString <| intAttr x + mx - mx') in
+            let fy_ y = (y, toString <| intAttr y + my - my') in
             let newAttrs =
               case (kind, zone) of
-                ("rect", "Interior") ->
-                   [ ("x", toString <| intAttr "x" - mx + mx')
-                   , ("y", toString <| intAttr "y" - my + my') ]
-                ("circle", "Interior") ->
-                   [ ("cx", toString <| intAttr "cx" - mx + mx')
-                   , ("cy", toString <| intAttr "cy" - my + my') ]
+
+                ("rect", "Interior")       -> [fx "x", fy "y"]
+                ("rect", "RightEdge")      -> [fx "width"]
+                ("rect", "BotRightCorner") -> [fx "width", fy "height"]
+                ("rect", "BotEdge")        -> [fy "height"]
+                ("rect", "BotLeftCorner")  -> [fx "x", fx_ "width", fy "height"]
+                ("rect", "LeftEdge")       -> [fx "x", fx_ "width"]
+                ("rect", "TopLeftCorner")  -> [fx "x", fy "y", fx_ "width", fy_ "height"]
+                ("rect", "TopEdge")        -> [fy "y", fy_ "height"]
+                ("rect", "TopRightCorner") -> [fy "y", fx "width", fy_ "height"]
+
+                ("circle", "Interior") -> [fx "cx", fy "cy"]
                 ("circle", "Edge") ->
                   let (dx,dy) = (mx' - mx, my' - my) in
                   [ ("r", toString <| intAttr "r" + (max dx dy)) ]
@@ -308,21 +318,30 @@ makeZones shape nodeID l =
 
     "rect" ->
         let [x,y,w,h] = List.map (toFloat_ << Utils.find_ l) ["x","y","width","height"] in
-        let gutterPct = 0.125 in
-        let zInterior =
+        let gut = 0.125 in
+        let mk zone dx dy sw sh =
           flip Svg.rect [] [
-              compileAttrNum "x" (round <| x + w * gutterPct)
-            , compileAttrNum "y" (round <| y + h * gutterPct)
-            , compileAttrNum "width" (w * (1 - 2*gutterPct))
-            , compileAttrNum "height" (h * (1 - 2*gutterPct))
+              compileAttrNum "x" (x + dx)
+            , compileAttrNum "y" (y + dy)
+            , compileAttrNum "width" (w * sw)
+            , compileAttrNum "height" (h * sh)
             , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
             , LangSvg.attr "strokeWidth" "3"
             , LangSvg.attr "fill" "rgba(0,0,0,0)"
-            , onMouseDown (SelectObject nodeID shape "Interior")
+            , onMouseDown (SelectObject nodeID shape zone)
             , onMouseUp (DeselectObject nodeID)
             ]
         in
-        [zInterior]
+        [ mk "Interior" (gut*w) (gut*h) ((1-2*gut)) ((1-2*gut))
+        , mk "RightEdge" ((1-gut)*w) (gut*h) (gut) ((1-2*gut))
+        , mk "BotRightCorner" ((1-gut)*w) ((1-gut)*h) (gut) (gut)
+        , mk "BotEdge" (gut*w) ((1-gut)*h) (1-2*gut) (gut)
+        , mk "BotLeftCorner" (0) ((1-gut)*h) (gut) (gut)
+        , mk "LeftEdge" (0) (gut*h) (gut) (1-2*gut)
+        , mk "TopLeftCorner" (0) (0) (gut) (gut)
+        , mk "TopEdge" (gut*w) (0) (1-2*gut) (gut)
+        , mk "TopRightCorner" ((1-gut)*w) (0) (gut) (gut)
+        ]
 
     _ -> []
 
