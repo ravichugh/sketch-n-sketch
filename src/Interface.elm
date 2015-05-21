@@ -11,7 +11,7 @@ import MainSvg
 import Utils
 import MicroTests
 import InterfaceUtils exposing (..)
-import LangSvg
+import LangSvg exposing (IndexedTree, NodeId, ShapeKind)
 import VirtualDom
 
 --Core Libraries
@@ -55,7 +55,7 @@ import Debug
 type alias Model = { code : String
                    , inputExp : Maybe Exp
                    , objects : List Object
-                   , movingObj : Maybe (LangSvg.NodeId, Zone, Maybe ((Int,Int) -> LangSvg.IndexedTree))
+                   , movingObj : Maybe (NodeId, ShapeKind, Zone, Maybe ((Int,Int) -> IndexedTree))
                    , inputVal : Val
                    , workingVal : Val
                    , workingSlate : LangSvg.IndexedTree
@@ -94,7 +94,7 @@ sampleModel = { code      = sExp tempTest.e
 --              console
 --Render : display a given val from the code
 type Event = CodeUpdate String
-           | SelectObject Int String
+           | SelectObject Int ShapeKind Zone
            | DeselectObject Int
            | MousePos (Int, Int)
            | Sync
@@ -127,19 +127,24 @@ upstate evt old = case Debug.log "Event" evt of
 
         Nothing -> old
 
-        Just (objid, zone, Nothing) ->
-          let (svg,attrs) = buildSvg (objid, get_ objid old.workingSlate)
-              x0 = toInt_ (Utils.find_ attrs "x") - mx
-              y0 = toInt_ (Utils.find_ attrs "y") - my
-              onNewPos (x,y) =
-                List.foldr (updateSlate objid) old.workingSlate
-                  [ ("x", toString <| x0 + x)
-                  , ("y", toString <| y0 + y)
-                  ]
+        Just (objid, kind, zone, Nothing) ->
+          let (_,attrs) = buildSvg (objid, get_ objid old.workingSlate) in
+          let intAttr   = toInt_ << Utils.find_ attrs in
+          let onNewPos (mx',my') =
+            let newAttrs =
+              case (kind, zone) of
+                ("rect", "Interior") ->
+                   [ ("x", toString <| intAttr "x" - mx + mx')
+                   , ("y", toString <| intAttr "y" - my + my') ]
+                ("circle", "Interior") ->
+                   [ ("cx", toString <| intAttr "cx" - mx + mx')
+                   , ("cy", toString <| intAttr "cy" - my + my') ]
+            in
+            List.foldr (updateSlate objid) old.workingSlate newAttrs
           in
-          { old | movingObj <- Just (objid, zone, Just onNewPos) }
+          { old | movingObj <- Just (objid, kind, zone, Just onNewPos) }
 
-        Just (objid, zone, Just onNewPos) ->
+        Just (objid, kind, zone, Just onNewPos) ->
           let newSlate = onNewPos (mx, my) in
           { old | objects <- buildVisual newSlate, workingSlate <- newSlate }
 
@@ -159,7 +164,7 @@ upstate evt old = case Debug.log "Event" evt of
         --         in  { old | objects <- newobjs, workingSlate <- newSlate }
 
     --Selecting a given zone within an object
-    SelectObject id zone -> { old | movingObj <- Just (id, zone, Nothing) }
+    SelectObject id kind zone -> { old | movingObj <- Just (id, kind, zone, Nothing) }
 
     --wipes out selection of an object
     DeselectObject x -> { old | movingObj <- Nothing }
@@ -282,11 +287,11 @@ makeZones shape nodeID l =
             , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
             , LangSvg.attr "strokeWidth" "3"
             , LangSvg.attr "fill" "rgba(0,0,0,0)"
-            , onMouseDown (SelectObject nodeID "Interior")
+            , onMouseDown (SelectObject nodeID shape "Interior")
             , onMouseUp (DeselectObject nodeID)
             ]
         in
-        [] -- [zInterior]
+        [zInterior]
 
     "rect" ->
         let [x,y,w,h] = List.map (toFloat_ << Utils.find_ l) ["x","y","width","height"] in
@@ -300,7 +305,7 @@ makeZones shape nodeID l =
             , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
             , LangSvg.attr "strokeWidth" "3"
             , LangSvg.attr "fill" "rgba(0,0,0,0)"
-            , onMouseDown (SelectObject nodeID "Interior")
+            , onMouseDown (SelectObject nodeID shape "Interior")
             , onMouseUp (DeselectObject nodeID)
             ]
         in

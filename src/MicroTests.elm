@@ -428,6 +428,9 @@ test40 () =
 
 test41 () =
   makeTest
-    "(svg [(rect_ 50 10 80 130)])"
+    "(svg [
+       (rect_ 50 10 80 130)
+       (circle 'lightblue' 300 100 50)
+     ])"
     "[]"
 
