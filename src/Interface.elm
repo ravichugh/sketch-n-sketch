@@ -139,6 +139,9 @@ upstate evt old = case Debug.log "Event" evt of
                 ("circle", "Interior") ->
                    [ ("cx", toString <| intAttr "cx" - mx + mx')
                    , ("cy", toString <| intAttr "cy" - my + my') ]
+                ("circle", "Edge") ->
+                  let (dx,dy) = (mx' - mx, my' - my) in
+                  [ ("r", toString <| intAttr "r" + (max dx dy)) ]
             in
             List.foldr (updateSlate objid) old.workingSlate newAttrs
           in
@@ -289,9 +292,19 @@ makeZones shape nodeID l =
             , LangSvg.attr "fill" "rgba(0,0,0,0)"
             , onMouseDown (SelectObject nodeID shape "Interior")
             , onMouseUp (DeselectObject nodeID)
-            ]
-        in
-        [zInterior]
+            ] in
+        let zEdge =
+          flip Svg.circle [] [
+              compileAttrNum "cx" cx
+            , compileAttrNum "cy" cy
+            , compileAttrNum "r" (r * (1))
+            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
+            , LangSvg.attr "strokeWidth" "10"
+            , LangSvg.attr "fill" "rgba(0,0,0,0)"
+            , onMouseDown (SelectObject nodeID shape "Edge")
+            , onMouseUp (DeselectObject nodeID)
+            ] in
+        [zEdge, zInterior] -- important that zEdge goes on top
 
     "rect" ->
         let [x,y,w,h] = List.map (toFloat_ << Utils.find_ l) ["x","y","width","height"] in
