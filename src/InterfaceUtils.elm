@@ -99,6 +99,21 @@ events = Signal.mailbox <| CodeUpdate ""
 
 --Update Utilities
 
+--given a list of attributes and their new values, update an object and return it
+updateObj : List (String, String) -> Object -> Object -> Object
+updateObj newattrs (o1, a1) (o2, a2) = case Debug.log "index" (Utils.find_ a1 "index") of
+  a ->
+    --check for matching indices
+    if | ((Utils.find_ a1 "index") == (Utils.find_ a2 "index")) ->
+                --update the exsisting attrs
+                let updatedattrs = updateAttrStrs newattrs a1
+                    --since first 2 attrs are shape/id, remove them for svg creation
+                    svgattrs = List.map (\(x,y) -> LangSvg.attr x <| y) (List.drop 2 updatedattrs)
+                    --find correct shape function
+                    shape = LangSvg.svg (Utils.find_ a1 "shape")
+                in ((shape svgattrs []), updatedattrs) 
+       | otherwise -> (o2, a2)
+
 updateAttrStrs : List (String, String) -> List (String, String) -> 
                 List (String, String)
 updateAttrStrs newattrs oldattrs = case newattrs of
