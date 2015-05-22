@@ -184,8 +184,13 @@ upstate evt old = case Debug.log "Event" evt of
 
         Just (objid, kind, zone, Just onNewPos) ->
           let (newE,newSlate) = onNewPos (mx, my) in
-          { old | code <- sExp newE
-                , inputExp <- Just newE
+          let (code',inputExp') =
+            case old.syncMode of
+              Live -> (sExp newE, Just newE)
+              _    -> (old.code, old.inputExp)
+          in
+          { old | code <- code'
+                , inputExp <- inputExp'
                 , workingSlate <- newSlate
                 , objects <- buildVisual newSlate }
 
