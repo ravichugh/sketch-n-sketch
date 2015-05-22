@@ -51,15 +51,18 @@ input/working quantities and clear out the old possibilities~~
 * Eval.run should return Val with outer "svg"?
   - LangSvg.valToIndexedTree assumes this, must wrap in "svg" otherwise 
 * Sync.sync takes vals - is it a problem if they are dumped from an IndexedTree?
-* Could use IndexedTreeNode -> Val function; is there any reason why that
-doesn't make sense?
-  - The order of the Vals that go into sync matter, right? So just dumping the
+* ~~Could use IndexedTreeNode -> Val function;~~
+  - ~~The order of the Vals that go into sync matter, right? So just dumping the
     dictionary doesn't make sense. However, that means that we still need to
     keep track of an intermediate Val, which we said that the IndexedTree would
     prevent. Actually, we _should_ be able to reconstruct the original Val from
     the dict, so long as we can order the children of any given svg node
-    properly.
-* Split files -- view, zones, other?
-* Change high level data representations
+    properly.~~
+* ~~Split files -- view, zones ~~
+* ~~Change high level data representations~~
 * Create more nuanced data representation for attr { List (String,String)}
+
+## Implement more nuanced Textbox functionality
+* Syntax Highlighting
+  - Need some agreement on how we want to do this
 
