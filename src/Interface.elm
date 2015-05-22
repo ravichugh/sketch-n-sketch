@@ -58,12 +58,11 @@ sampleModel = { code      = sExp tempTest.e
 upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
     --make a val from code and display it
-    Render -> case Debug.log "run" <| Eval.run <| parseE old.code of
-        bare -> let vals = VList [VBase (String "svg"), VList [], bare] in 
-            { old | objects      <- buildVisual 
-                                    <| LangSvg.valToIndexedTree vals
-                  , workingSlate <- LangSvg.valToIndexedTree vals
-            }
+    Render ->
+      let res = Debug.log "run" <| Eval.run <| parseE old.code in
+      { old | objects      <- buildVisual <| LangSvg.valToIndexedTree res
+            , workingSlate <- LangSvg.valToIndexedTree res }
+
     --Replace old code with new code
     CodeUpdate newcode -> { old | code <- newcode }
 
