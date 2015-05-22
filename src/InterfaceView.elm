@@ -216,11 +216,11 @@ regularView (w,h) model =
                         ]
                     ]
                     --display code & visuals
-                    [renderView (w,h) model
+                    ([renderView (w,h) model
                     , Html.button
                         [ Attr.style
                             [ ("position", "absolute")
-                            , ("left", String.append (toString <| w // 6) "px")
+                            , ("left", String.append (toString <| w // 8) "px")
                             , ("top", String.append (toString <| h - 40) "px")
                             , ("type", "button")
                             , ("width", "100px")
@@ -231,7 +231,7 @@ regularView (w,h) model =
                         , Attr.name "Render the Code"
                         ]
                         [Html.text "render"]
-                    , Html.button
+                    , Html.select
                         [ Attr.style
                             [ ("position", "absolute")
                             , ("left", String.append (toString <| w // 4) "px")
@@ -240,16 +240,35 @@ regularView (w,h) model =
                             , ("width", "100px")
                             , ("height", "40px")
                             ]
-                        , Events.onClick events.address Sync
-                        , Attr.value "Sync"
-                        , Attr.name "Sync the code to the canvas"
                         ]
                         [ -- TODO: temporary way to switch from live to sync
-                          case model.mode of
-                            AdHoc -> Html.text "sync"
-                            Live  -> Html.text "turn off live"
+                            Html.option [Events.onClick events.address (SwitchMode Live)] 
+                                [Html.text "live"]
+                            , Html.option [Events.onClick events.address (SwitchMode AdHoc)] 
+                                [Html.text "ad hoc"]
                         ]
                     ]
+                    ++
+                    (case model.mode of
+                        SyncSelect -> []
+                        Live -> []
+                        AdHoc -> 
+                            [Html.button
+                                [ Attr.style
+                                    [ ("position", "absolute")
+                                    , ("left", String.append (toString <| w // 2) "px")
+                                    , ("top", String.append (toString <| h - 40) "px")
+                                    , ("type", "button")
+                                    , ("width", "100px")
+                                    , ("height", "40px")
+                                    ]
+                                , Events.onClick events.address Sync
+                                , Attr.value "Sync"
+                                , Attr.name "Sync the code to the canvas"
+                                ]
+                                [Html.text "sync"]
+                            ]
+                    ))
 
 --When view is manipulatable, call this function for code & visuals
 --to build corresponding panes

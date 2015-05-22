@@ -174,6 +174,7 @@ upstate evt old = case Debug.log "Event" evt of
                                      , inputExp <- Just e
                                      , mode <- AdHoc
                                }
+    SwitchMode m -> { old | mode <- m }
     --catch all
     _ -> old
  
@@ -192,9 +193,6 @@ updateObj newattrs (o1, a1) (o2, a2) = case Debug.log "index" (Utils.find_ a1 "i
                     shape = LangSvg.svg (Utils.find_ a1 "shape")
                 in ((shape svgattrs []), updatedattrs) 
        | otherwise -> (o2, a2)
-
-
-
 
 
 -- Main --
