@@ -58,8 +58,10 @@ upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
     --make a val from code and display it
     Render ->
-      let res = Debug.log "run" <| Eval.run <| parseE old.code in
-      { old | workingSlate <- LangSvg.valToIndexedTree res }
+      let e = parseE old.code in
+      let v = Eval.run e in
+      { old | inputExp <- Just e
+            , workingSlate <- LangSvg.valToIndexedTree v }
 
     --Replace old code with new code
     CodeUpdate newcode -> { old | code <- newcode }
@@ -72,7 +74,7 @@ upstate evt old = case Debug.log "Event" evt of
         Nothing -> old
 
         Just (objid, kind, zone, Nothing) ->
-          let (_,attrs) = buildSvg (objid, get_ objid old.workingSlate) in
+          let (_,attrs) = buildSvg (objid, Utils.justGet objid old.workingSlate) in
           let numAttr   = toFloat_ << Utils.find_ attrs in
           let onNewPos (mx',my') =
             let fx x  = (x, numAttr x - toFloat mx + toFloat mx') in
@@ -102,7 +104,7 @@ upstate evt old = case Debug.log "Event" evt of
                 ("ellipse", "Interior") -> [fx "cx", fy "cy"]
                 ("ellipse", "Edge")     -> [fx "rx", fy "ry"]
             in
-            let trigger = get_ zone (get_ objid old.triggers) in
+            let trigger = Utils.justGet zone (Utils.justGet objid old.triggers) in
             let (newE,otherChanges) = trigger newAttrs in
             let slate =
               case old.mode of
@@ -162,10 +164,10 @@ upstate evt old = case Debug.log "Event" evt of
                     inputval' = indexedTreeToVal (LangSvg.valToIndexedTree inputval)
                     newval = indexedTreeToVal old.workingSlate
                 in
-                  -- let _ = if inputval' == newval then Debug.crash "bad" else 0 in
                   case sync ip inputval' newval of
-                    Err e -> Debug.crash ("upstate Sync: ++ " ++ e)
+                    Ok [] -> old
                     Ok ls -> { old | possibleChanges <- ls , mode <- SyncSelect }
+                    Err e -> Debug.crash ("upstate Sync: ++ " ++ e)
 
     --Given possible changes, an option is selected. Vals are correspondingly
     --updated and mode is turned off.

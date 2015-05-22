@@ -93,8 +93,6 @@ buildSvg (nodeID, node) = case node of
            mainshape = (LangSvg.svg shape <| LangSvg.valsToAttrs attrs) []
        in (Svg.svg [] (mainshape :: zones), attrstrs)
 
-get_ k d = Utils.fromJust <| Dict.get k d
-
 compileAttrNum k v = LangSvg.attr k (toString v)
 toFloat_           = Utils.fromOk_ << String.toFloat
 -- toInt_             = Utils.fromOk_ << String.toInt

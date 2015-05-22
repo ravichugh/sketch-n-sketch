@@ -214,7 +214,15 @@ updateAttrs (attr, value) vals = case vals of
     [] -> []
 
 indexedTreeToVal : LangSvg.IndexedTree -> Val
-indexedTreeToVal slate = VList []
+indexedTreeToVal slate =
+  let foo n =
+    case n of
+      LangSvg.TextNode s -> VList [VBase (String "TEXT"), VBase (String s)]
+      LangSvg.SvgNode kind vs1 l2 ->
+        let vs2 = List.map (foo << flip Utils.justGet slate) l2 in
+        VList [VBase (String kind), VList vs1, VList vs2]
+  in
+  foo (Utils.justGet 1 slate)
 
 --helper function for updateVal
 changeAttr : Int -> List Val -> String -> (String, String) -> List Val

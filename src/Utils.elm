@@ -108,6 +108,8 @@ fromOk s mx = case mx of
 
 fromOk_ = fromOk ""
 
+justGet k d = fromJust <| Dict.get k d
+
 mapMaybe : (a -> b) -> Maybe a -> Maybe b
 mapMaybe f mx = case mx of {Just x -> Just (f x); Nothing -> Nothing}
 
