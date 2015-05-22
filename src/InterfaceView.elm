@@ -107,6 +107,8 @@ makeZones : String -> LangSvg.NodeId -> List (String, String) -> List Svg.Svg
 makeZones shape nodeID l =
   case shape of
 
+    -- TODO refactor common parts
+
     "circle" ->
         let [cx,cy,r] = List.map (toFloat_ << Utils.find_ l) ["cx","cy","r"] in
         let gutterPct = 0.100 in
@@ -135,14 +137,12 @@ makeZones shape nodeID l =
         [zEdge, zInterior] -- important that zEdge goes on top
 
     "rect" ->
-        let [x,y,w,h] = List.map (toFloat_ << Utils.find_ l) ["x","y","width","height"] in
-        let gut = 0.125 in
-        let mk zone dx dy sw sh =
+        let mk zone x_ y_ w_ h_ =
           flip Svg.rect [] [
-              compileAttrNum "x" (x + dx)
-            , compileAttrNum "y" (y + dy)
-            , compileAttrNum "width" (w * sw)
-            , compileAttrNum "height" (h * sh)
+              compileAttrNum "x" x_
+            , compileAttrNum "y" y_
+            , compileAttrNum "width" w_
+            , compileAttrNum "height" h_
             , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
             , LangSvg.attr "strokeWidth" "3"
             , LangSvg.attr "fill" "rgba(0,0,0,0)"
@@ -150,16 +150,53 @@ makeZones shape nodeID l =
             , onMouseUp (DeselectObject nodeID)
             ]
         in
-        [ mk "Interior" (gut*w) (gut*h) ((1-2*gut)) ((1-2*gut))
-        , mk "RightEdge" ((1-gut)*w) (gut*h) (gut) ((1-2*gut))
-        , mk "BotRightCorner" ((1-gut)*w) ((1-gut)*h) (gut) (gut)
-        , mk "BotEdge" (gut*w) ((1-gut)*h) (1-2*gut) (gut)
-        , mk "BotLeftCorner" (0) ((1-gut)*h) (gut) (gut)
-        , mk "LeftEdge" (0) (gut*h) (gut) (1-2*gut)
-        , mk "TopLeftCorner" (0) (0) (gut) (gut)
-        , mk "TopEdge" (gut*w) (0) (1-2*gut) (gut)
-        , mk "TopRightCorner" ((1-gut)*w) (0) (gut) (gut)
-        ]
+        let
+          [x,y,w,h]     = List.map (toFloat_ << Utils.find_ l) ["x","y","width","height"]
+          gut           = 0.125
+          (x0,x1,x2)    = (x, x + gut*w, x + (1-gut)*w)
+          (y0,y1,y2)    = (y, y + gut*h, y + (1-gut)*h)
+          (wSlim,wWide) = (gut*w, (1-2*gut)*w)
+          (hSlim,hWide) = (gut*h, (1-2*gut)*h)
+        in
+          [ mk "Interior"       x1 y1 wWide hWide
+          , mk "RightEdge"      x2 y1 wSlim hWide
+          , mk "BotRightCorner" x2 y2 wSlim hSlim
+          , mk "BotEdge"        x1 y2 wWide hSlim
+          , mk "BotLeftCorner"  x0 y2 wSlim hSlim
+          , mk "LeftEdge"       x0 y1 wSlim hWide
+          , mk "TopLeftCorner"  x0 y0 wSlim hSlim
+          , mk "TopEdge"        x1 y0 wWide hSlim
+          , mk "TopRightCorner" x2 y0 wSlim hSlim
+          ]
+
+    "ellipse" ->
+        let [cx,cy,rx,ry] = List.map (toFloat_ << Utils.find_ l) ["cx","cy","rx","ry"] in
+        let gutterPct = 0.100 in
+        let zInterior =
+          flip Svg.ellipse [] [
+              compileAttrNum "cx" cx
+            , compileAttrNum "cy" cy
+            , compileAttrNum "rx" (rx * (1 - 2*gutterPct))
+            , compileAttrNum "ry" (ry * (1 - 2*gutterPct))
+            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
+            , LangSvg.attr "strokeWidth" "3"
+            , LangSvg.attr "fill" "rgba(0,0,0,0)"
+            , onMouseDown (SelectObject nodeID shape "Interior")
+            , onMouseUp (DeselectObject nodeID)
+            ] in
+        let zEdge =
+          flip Svg.ellipse [] [
+              compileAttrNum "cx" cx
+            , compileAttrNum "cy" cy
+            , compileAttrNum "rx" (rx * (1))
+            , compileAttrNum "ry" (ry * (1))
+            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
+            , LangSvg.attr "strokeWidth" "10"
+            , LangSvg.attr "fill" "rgba(0,0,0,0)"
+            , onMouseDown (SelectObject nodeID shape "Edge")
+            , onMouseUp (DeselectObject nodeID)
+            ] in
+        [zEdge, zInterior] -- important that zEdge goes on top
 
     _ -> []
 
