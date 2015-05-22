@@ -107,6 +107,8 @@ makeZones : String -> LangSvg.NodeId -> List (String, String) -> List Svg.Svg
 makeZones shape nodeID l =
   case shape of
 
+    -- TODO refactor common parts
+
     "circle" ->
         let [cx,cy,r] = List.map (toFloat_ << Utils.find_ l) ["cx","cy","r"] in
         let gutterPct = 0.100 in
@@ -166,6 +168,35 @@ makeZones shape nodeID l =
           , mk "TopEdge"        x1 y0 wWide hSlim
           , mk "TopRightCorner" x2 y0 wSlim hSlim
           ]
+
+    "ellipse" ->
+        let [cx,cy,rx,ry] = List.map (toFloat_ << Utils.find_ l) ["cx","cy","rx","ry"] in
+        let gutterPct = 0.100 in
+        let zInterior =
+          flip Svg.ellipse [] [
+              compileAttrNum "cx" cx
+            , compileAttrNum "cy" cy
+            , compileAttrNum "rx" (rx * (1 - 2*gutterPct))
+            , compileAttrNum "ry" (ry * (1 - 2*gutterPct))
+            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
+            , LangSvg.attr "strokeWidth" "3"
+            , LangSvg.attr "fill" "rgba(0,0,0,0)"
+            , onMouseDown (SelectObject nodeID shape "Interior")
+            , onMouseUp (DeselectObject nodeID)
+            ] in
+        let zEdge =
+          flip Svg.ellipse [] [
+              compileAttrNum "cx" cx
+            , compileAttrNum "cy" cy
+            , compileAttrNum "rx" (rx * (1))
+            , compileAttrNum "ry" (ry * (1))
+            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
+            , LangSvg.attr "strokeWidth" "10"
+            , LangSvg.attr "fill" "rgba(0,0,0,0)"
+            , onMouseDown (SelectObject nodeID shape "Edge")
+            , onMouseUp (DeselectObject nodeID)
+            ] in
+        [zEdge, zInterior] -- important that zEdge goes on top
 
     _ -> []
 

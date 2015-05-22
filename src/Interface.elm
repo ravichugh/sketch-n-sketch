@@ -41,7 +41,7 @@ import Svg.Lazy
 import Debug
 
 
-tempTest = MicroTests.test42 ()
+tempTest = MicroTests.test41 ()
 
 --A Sample model for working with a given microtest
 sampleModel = { code      = sExp tempTest.e
@@ -101,6 +101,9 @@ upstate evt old = case Debug.log "Event" evt of
                   -- of init click w.r.t center into account
                   let (dx,dy) = (mx' - mx, my' - my) in
                   [ ("r", numAttr "r" + toFloat (max dx dy)) ]
+
+                ("ellipse", "Interior") -> [fx "cx", fy "cy"]
+                ("ellipse", "Edge")     -> [fx "rx", fy "ry"]
             in
             let trigger = get_ zone (get_ objid old.triggers) in
             let (newE,otherChanges) = trigger newAttrs in

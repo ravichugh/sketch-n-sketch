@@ -431,6 +431,7 @@ test41 () =
     "(svg [
        (rect_ 50 10 80 130)
        (circle 'lightblue' 300 100 50)
+       (ellipse_ 40 280 30 50)
      ])"
     "[]"
 
