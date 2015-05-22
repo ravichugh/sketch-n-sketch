@@ -51,7 +51,6 @@ import Debug
 --                   options/live updating)
 type alias Model = { code : String
                    , inputExp : Maybe Exp
-                   , objects : List Object
                    , movingObj : Maybe (NodeId, ShapeKind, Zone, Maybe MouseTrigger)
                    , workingSlate : IndexedTree
                    , triggers : Triggers

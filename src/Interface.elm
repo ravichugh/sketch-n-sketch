@@ -46,7 +46,6 @@ tempTest = MicroTests.test42 ()
 --A Sample model for working with a given microtest
 sampleModel = { code      = sExp tempTest.e
               , inputExp  = Just tempTest.e
-              , objects   = buildVisual <| LangSvg.valToIndexedTree tempTest.v 
               , movingObj = Nothing
               , workingSlate = LangSvg.valToIndexedTree tempTest.v
               , possibleChanges = []
@@ -60,8 +59,7 @@ upstate evt old = case Debug.log "Event" evt of
     --make a val from code and display it
     Render ->
       let res = Debug.log "run" <| Eval.run <| parseE old.code in
-      { old | objects      <- buildVisual <| LangSvg.valToIndexedTree res
-            , workingSlate <- LangSvg.valToIndexedTree res }
+      { old | workingSlate <- LangSvg.valToIndexedTree res }
 
     --Replace old code with new code
     CodeUpdate newcode -> { old | code <- newcode }
@@ -129,8 +127,7 @@ upstate evt old = case Debug.log "Event" evt of
           in
           { old | code <- code'
                 , inputExp <- inputExp'
-                , workingSlate <- newSlate
-                , objects <- buildVisual newSlate }
+                , workingSlate <- newSlate }
 
         -- -- rkc: what does "dist"ance refer to?
         -- Just (objid, zone, xdist, ydist) -> if

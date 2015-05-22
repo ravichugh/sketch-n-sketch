@@ -304,7 +304,7 @@ renderView (w,h) model =
                     , ("top", "0px")
                     ]
                 ]    
-                [visualsBox model.objects dim (syncBool model.mode)]
+                [visualsBox (buildVisual model.workingSlate) dim (syncBool model.mode)]
             ]
 
 --Build an Html of the iterations of renderOption over the possibleChanges
