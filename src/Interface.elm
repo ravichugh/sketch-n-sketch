@@ -151,7 +151,10 @@ upstate evt old = case Debug.log "Event" evt of
     SelectObject id kind zone -> { old | movingObj <- Just (id, kind, zone, Nothing) }
 
     --wipes out selection of an object
-    DeselectObject x -> { old | movingObj <- Nothing }
+    DeselectObject x ->
+      let e = Utils.fromJust old.inputExp in
+      { old | movingObj <- Nothing
+            , triggers  <- Sync.prepareLiveUpdates e (Eval.run e) }
 
     --run sync function and then populate the list of possibleChanges
     Sync -> 
