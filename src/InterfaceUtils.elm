@@ -154,6 +154,8 @@ updateSlate id newattr nodes = case Dict.get id nodes of
         LangSvg.SvgNode shape attrs children -> 
             let newnode = LangSvg.SvgNode shape (updateAttrs newattr attrs) children
             in Dict.insert id newnode nodes
+
+upslate = updateSlate
             
 updateAttrs : (String, String) -> List Val -> List Val
 updateAttrs (attr, value) vals = case vals of

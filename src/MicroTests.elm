@@ -434,3 +434,9 @@ test41 () =
      ])"
     "[]"
 
+test42 () =
+  makeTest
+    "(let [x0 y0 sep] [40 28 110]
+       (svg (map (\\i (rect 'lightblue' (+ x0 (mult i sep)) y0 60 130)) [0 1 2])))"
+    "[]"
+

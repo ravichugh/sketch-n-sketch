@@ -114,6 +114,9 @@ mapMaybe f mx = case mx of {Just x -> Just (f x); Nothing -> Nothing}
 bindMaybe : (a -> Maybe b) -> Maybe a -> Maybe b
 bindMaybe f mx = case mx of {Just x -> f x; Nothing -> Nothing}
 
+mapSnd : (b -> b') -> (a, b) -> (a, b')
+mapSnd f (x,y) = (x, f y)
+
 fst3 (x,_,_) = x
 snd3 (_,x,_) = x
 thd3 (_,_,x) = x

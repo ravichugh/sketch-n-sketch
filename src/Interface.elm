@@ -5,7 +5,7 @@
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
 import LangParser exposing (parseE, parseV)
-import Sync exposing (sync)
+import Sync exposing (sync, Triggers)
 import Eval exposing (run)
 import MainSvg
 import Utils
@@ -55,13 +55,16 @@ import Debug
 type alias Model = { code : String
                    , inputExp : Maybe Exp
                    , objects : List Object
-                   , movingObj : Maybe (NodeId, ShapeKind, Zone, Maybe ((Int,Int) -> IndexedTree))
+                   , movingObj : Maybe (NodeId, ShapeKind, Zone, Maybe MouseTrigger)
                    , inputVal : Val
                    , workingVal : Val
-                   , workingSlate : LangSvg.IndexedTree
+                   , workingSlate : IndexedTree
+                   , triggers : Triggers
                    , possibleChanges : List ((Exp, Val), Float)
                    , syncMode : Bool
                    }
+
+type alias MouseTrigger = (Int, Int) -> (Exp, IndexedTree)
 
 -- rkc TODO: move zone tables from Sync to LangSvg
 type alias Zone = String
@@ -69,7 +72,7 @@ type alias Zone = String
 --An Object is composed of an svg, list of attribute key/values
 type alias Object = (Svg.Svg, List (String, String))
 
-tempTest = MicroTests.test41 ()
+tempTest = MicroTests.test42 ()
 
 --A Sample model for working with a given microtest
 sampleModel = { code      = sExp tempTest.e
@@ -81,6 +84,7 @@ sampleModel = { code      = sExp tempTest.e
               , workingSlate = LangSvg.valToIndexedTree tempTest.v
               , possibleChanges = []
               , syncMode = False
+              , triggers = Sync.prepareLiveUpdates tempTest.e tempTest.v
               }
 
 --Event
@@ -129,12 +133,12 @@ upstate evt old = case Debug.log "Event" evt of
 
         Just (objid, kind, zone, Nothing) ->
           let (_,attrs) = buildSvg (objid, get_ objid old.workingSlate) in
-          let intAttr   = toInt_ << Utils.find_ attrs in
+          let numAttr   = toFloat_ << Utils.find_ attrs in
           let onNewPos (mx',my') =
-            let fx x  = (x, toString <| intAttr x - mx + mx') in
-            let fy y  = (y, toString <| intAttr y - my + my') in
-            let fx_ x = (x, toString <| intAttr x + mx - mx') in
-            let fy_ y = (y, toString <| intAttr y + my - my') in
+            let fx x  = (x, numAttr x - toFloat mx + toFloat mx') in
+            let fy y  = (y, numAttr y - toFloat my + toFloat my') in
+            let fx_ x = (x, numAttr x + toFloat mx - toFloat mx') in
+            let fy_ y = (y, numAttr y + toFloat my - toFloat my') in
             let newAttrs =
               case (kind, zone) of
 
@@ -150,16 +154,30 @@ upstate evt old = case Debug.log "Event" evt of
 
                 ("circle", "Interior") -> [fx "cx", fy "cy"]
                 ("circle", "Edge") ->
+                  -- TODO to make stretching more intuitive, take orientation
+                  -- of init click w.r.t center into account
                   let (dx,dy) = (mx' - mx, my' - my) in
-                  [ ("r", toString <| intAttr "r" + (max dx dy)) ]
+                  [ ("r", numAttr "r" + toFloat (max dx dy)) ]
             in
-            List.foldr (updateSlate objid) old.workingSlate newAttrs
+            let trigger = get_ zone (get_ objid old.triggers) in
+            let (newE,otherChanges) = trigger newAttrs in
+            let slate =
+              Dict.foldl (\j dj acc1 ->
+                Dict.foldl
+                  (\a n acc2 -> upslate j (a, toString n) acc2) acc1 dj
+                ) old.workingSlate otherChanges in
+            let newAttrs' = List.map (Utils.mapSnd toString) newAttrs in
+            let newSlate  = List.foldr (upslate objid) slate newAttrs' in
+            (newE, newSlate)
           in
           { old | movingObj <- Just (objid, kind, zone, Just onNewPos) }
 
         Just (objid, kind, zone, Just onNewPos) ->
-          let newSlate = onNewPos (mx, my) in
-          { old | objects <- buildVisual newSlate, workingSlate <- newSlate }
+          let (newE,newSlate) = onNewPos (mx, my) in
+          { old | code <- sExp newE
+                , inputExp <- Just newE
+                , workingSlate <- newSlate
+                , objects <- buildVisual newSlate }
 
         -- -- rkc: what does "dist"ance refer to?
         -- Just (objid, zone, xdist, ydist) -> if
@@ -279,7 +297,7 @@ get_ k d = Utils.fromJust <| Dict.get k d
 
 compileAttrNum k v = LangSvg.attr k (toString v)
 toFloat_           = Utils.fromOk_ << String.toFloat
-toInt_             = Utils.fromOk_ << String.toInt
+-- toInt_             = Utils.fromOk_ << String.toInt
 
 onMouseDown = Svg.Events.onMouseDown << Signal.message events.address
 onMouseUp   = Svg.Events.onMouseUp   << Signal.message events.address

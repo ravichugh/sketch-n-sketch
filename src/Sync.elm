@@ -1,4 +1,4 @@
-module Sync (sync, prepareLiveUpdates, printZoneTable) where
+module Sync (sync, prepareLiveUpdates, printZoneTable, Triggers) where
 
 import Dict exposing (Dict)
 import Set
@@ -328,6 +328,8 @@ shapeToZoneInfo (kind, extra, d) =
 
 justGet k d = Utils.fromJust (Dict.get k d)
 
+justGet_ err k d = Utils.fromJust_ err (Dict.get k d)
+
 getZones : ShapeKind -> ExtraInfo -> List (Zone, List Attr)
 getZones kind extra =
   let foo s i = s ++ toString i in
@@ -417,7 +419,7 @@ makeTrigger e d0 d2 subst i zone = \newAttrs ->
       let tr = justGet attr (Utils.thd3 (justGet i d0)) in
       let kSolution = solve subst' (Equation newNum tr) in
       (Dict.insert k kSolution acc1, Set.insert k acc2) in
-    List.foldl f (Dict.empty, Set.empty) newAttrs in
+    List.foldl f (subst, Set.empty) newAttrs in
   let g i (_,_,di) acc =
     let h attr tr acc =
       let locs = Set.map fst (locsOfTrace tr) in
