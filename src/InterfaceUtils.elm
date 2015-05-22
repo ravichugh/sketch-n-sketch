@@ -3,71 +3,98 @@
 module InterfaceUtils where
 --Import the little language and its parsing utilities
 --TODO: clean up this import list...some redundancy here
+--Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
 import LangParser exposing (parseE, parseV)
-import Sync exposing (sync)
+import Sync exposing (sync, Triggers)
 import Eval exposing (run)
 import MainSvg
 import Utils
 import MicroTests
-import LangSvg
+import LangSvg exposing (IndexedTree, NodeId, ShapeKind)
+import VirtualDom
 
+--Core Libraries
 import List 
 import Dict
 import String 
 import Graphics.Element as GE 
 import Graphics.Collage as GC
 
+--Signaling Libraries
 import Mouse 
 import Window 
+
+--Html Libraries
 import Html 
 import Html.Attributes as Attr
 import Html.Events as Events
 
+--Svg Libraries
 import Svg
 import Svg.Attributes
 import Svg.Events
 import Svg.Lazy
 
+--Error Checking Libraries
 import Debug
 
+-- Model --
+--Fields:
+-- code            - Text currently in the textbox
+--inputExp         - input Expression
+-- objects         - The workingVal translated to manipulable SVGs
+-- movingObj       - If an object is being moved, which one
+-- possibleChanges - The possible new expressions and their associated Vals, 
+--                   as from the output of sync
+-- mode            - Flag for current mode (ad hoc manipulation/selection of sync
+--                   options/live updating)
+type alias Model = { code : String
+                   , inputExp : Maybe Exp
+                   , objects : List Object
+                   , movingObj : Maybe (NodeId, ShapeKind, Zone, Maybe MouseTrigger)
+                   , workingSlate : IndexedTree
+                   , triggers : Triggers
+                   , possibleChanges : List ((Exp, Val), Float)
+                   , mode : Mode
+                   }
 
-{-
---- Borrowed from LangSvg.elm ---
-funcsSvg = [
-    ("circle", Svg.circle)
-  , ("line", Svg.line)
-  , ("polygon", Svg.polygon)
-  , ("rect", Svg.rect)
-  ]
+type alias MouseTrigger = (Int, Int) -> (Exp, IndexedTree)
 
-funcsAttr = [
-    ("cx", Svg.Attributes.cx)
-  , ("cy", Svg.Attributes.cy)
-  , ("fill", Svg.Attributes.fill)
-  , ("height", Svg.Attributes.height)
-  , ("points", Svg.Attributes.points)
-  , ("r", Svg.Attributes.r)
-  , ("stroke", Svg.Attributes.stroke)
-  , ("strokeWidth", Svg.Attributes.strokeWidth)
-  , ("width", Svg.Attributes.width)
-  , ("x", Svg.Attributes.x)
-  , ("x1", Svg.Attributes.x1)
-  , ("x2", Svg.Attributes.x2)
-  , ("y", Svg.Attributes.y)
-  , ("y1", Svg.Attributes.y1)
-  , ("y2", Svg.Attributes.y2)
-  ]
+type Mode = AdHoc | SyncSelect | Live
 
-find d s =
-  case Utils.maybeFind s d of
-    Just f  -> f
-    Nothing -> Debug.crash <| "find: " ++ s
+syncBool m = case m of
+  Live       -> False -- TODO: dummy...
+  AdHoc      -> False
+  SyncSelect -> True
 
-attr = find funcsAttr
-svg  = find funcsSvg
---- ---
--}
+--Event
+--CodeUpdate : carries updated string of code with it
+--SelectObject : carries an id of an object and an identifying string for a zone
+--DeselectObject : carries an id of an object which shall no longer be selected
+--                  for alteration.
+--MousePos : carries a position of mouse on a down click
+--Sync : signals the system to enter selectMode
+--SelectOption : carries a possiblechange pane from sync to be displayed as the new
+--              console
+--Render : display a given val from the code
+type Event = CodeUpdate String
+           | SelectObject Int ShapeKind Zone
+           | DeselectObject Int
+           | MousePos (Int, Int)
+           | Sync
+           | SelectOption ((Exp, Val), Float)
+           | Render
+
+--An Object is composed of an svg, list of attribute key/values
+type alias Object = (Svg.Svg, List (String, String))
+
+-- rkc TODO: move zone tables from Sync to LangSvg
+type alias Zone = String
+
+--A mailbox for signaling the model
+events : Signal.Mailbox Event
+events = Signal.mailbox <| CodeUpdate ""
 
 --Update Utilities
 
