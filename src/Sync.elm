@@ -178,6 +178,7 @@ sync e v v' =
   case diff v v' of
     Nothing       -> Err "bad change"
     Just (Same _) -> Err "no change"
+    -- Just (Same _) -> Ok []
     Just (Diff vc holeSubst) ->
       let newNew = getFillers holeSubst in
       let subst0 = LangParser.substOf e in

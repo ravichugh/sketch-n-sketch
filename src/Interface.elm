@@ -162,13 +162,13 @@ upstate evt old = case Debug.log "Event" evt of
             (Live, _) -> { old | mode <- AdHoc } -- shouldn't happen anymore
             (AdHoc, Just ip) ->
                 let inputval = Eval.run ip
+                    inputval' = indexedTreeToVal (LangSvg.valToIndexedTree inputval)
                     newval = indexedTreeToVal old.workingSlate
-                in case (Result.toMaybe <| sync ip inputval newval) of
-                    Just ls -> { old | possibleChanges <- ls
-                                     , mode <- SyncSelect
-                               }
-                    Nothing -> old
-            _       -> old
+                in
+                  -- let _ = if inputval' == newval then Debug.crash "bad" else 0 in
+                  case sync ip inputval' newval of
+                    Err e -> Debug.crash ("upstate Sync: ++ " ++ e)
+                    Ok ls -> { old | possibleChanges <- ls , mode <- SyncSelect }
 
     --Given possible changes, an option is selected. Vals are correspondingly
     --updated and mode is turned off.
