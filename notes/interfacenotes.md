@@ -58,7 +58,7 @@ input/working quantities and clear out the old possibilities~~
     prevent. Actually, we _should_ be able to reconstruct the original Val from
     the dict, so long as we can order the children of any given svg node
     properly.~~
-* ~~Split files -- view, zones ~~
+* ~~Split files: view, zones ~~
 * ~~Change high level data representations~~
 * Create more nuanced data representation for attr { List (String,String)}
 
