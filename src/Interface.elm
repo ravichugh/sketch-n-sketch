@@ -41,7 +41,7 @@ import Svg.Lazy
 import Debug
 
 
-tempTest = MicroTests.test41 ()
+tempTest = MicroTests.test42 ()
 
 --A Sample model for working with a given microtest
 sampleModel = { code      = sExp tempTest.e
