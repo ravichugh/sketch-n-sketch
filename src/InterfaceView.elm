@@ -204,7 +204,7 @@ regularView (w,h) model =
                             , ("height", "40px")
                             ]
                         ]
-                        [ -- TODO: temporary way to switch from live to sync
+                        [ 
                             Html.option [Events.onClick events.address (SwitchMode Live)] 
                                 [Html.text "live"]
                             , Html.option [Events.onClick events.address (SwitchMode AdHoc)] 

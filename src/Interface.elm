@@ -171,7 +171,9 @@ upstate evt old = case Debug.log "Event" evt of
                                      , inputExp <- Just e
                                      , mode <- AdHoc
                                }
+
     SwitchMode m -> { old | mode <- m }
+    
     --catch all
     _ -> old
  
