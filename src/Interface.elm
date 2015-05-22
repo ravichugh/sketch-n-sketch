@@ -56,8 +56,6 @@ type alias Model = { code : String
                    , inputExp : Maybe Exp
                    , objects : List Object
                    , movingObj : Maybe (NodeId, ShapeKind, Zone, Maybe MouseTrigger)
-                   , inputVal : Val
-                   , workingVal : Val
                    , workingSlate : IndexedTree
                    , triggers : Triggers
                    , possibleChanges : List ((Exp, Val), Float)
@@ -86,8 +84,6 @@ sampleModel = { code      = sExp tempTest.e
               , inputExp  = Just tempTest.e
               , objects   = buildVisual <| LangSvg.valToIndexedTree tempTest.v 
               , movingObj = Nothing
-              , inputVal = tempTest.v
-              , workingVal = tempTest.v
               , workingSlate = LangSvg.valToIndexedTree tempTest.v
               , possibleChanges = []
               , syncMode = Live
@@ -124,8 +120,6 @@ upstate evt old = case Debug.log "Event" evt of
         bare -> let vals = VList [VBase (String "svg"), VList [], bare] in 
             { old | objects      <- buildVisual 
                                     <| LangSvg.valToIndexedTree vals
-                  , inputVal     <- vals
-                  , workingVal   <- vals
                   , workingSlate <- LangSvg.valToIndexedTree vals
             }
     --Replace old code with new code
@@ -232,8 +226,6 @@ upstate evt old = case Debug.log "Event" evt of
     --Given possible changes, an option is selected. Vals are correspondingly
     --updated and syncMode is turned off.
     SelectOption ((e,v), f) -> { old | possibleChanges <- []
-                                     , inputVal <- v
-                                     , workingVal <- v
                                      , inputExp <- Just e
                                      , syncMode <- AdHoc
                                }
