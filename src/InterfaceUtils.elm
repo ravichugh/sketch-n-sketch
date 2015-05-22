@@ -83,6 +83,7 @@ type Event = CodeUpdate String
            | DeselectObject Int
            | MousePos (Int, Int)
            | Sync
+           | SwitchMode Mode
            | SelectOption ((Exp, Val), Float)
            | Render
 
