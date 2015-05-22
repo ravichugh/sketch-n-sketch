@@ -61,10 +61,17 @@ type alias Model = { code : String
                    , workingSlate : IndexedTree
                    , triggers : Triggers
                    , possibleChanges : List ((Exp, Val), Float)
-                   , syncMode : Bool
+                   , syncMode : Mode
                    }
 
 type alias MouseTrigger = (Int, Int) -> (Exp, IndexedTree)
+
+type Mode = AdHoc | SyncSelect | Live
+
+syncBool m = case m of
+  Live       -> False -- TODO: dummy...
+  AdHoc      -> False
+  SyncSelect -> True
 
 -- rkc TODO: move zone tables from Sync to LangSvg
 type alias Zone = String
@@ -83,7 +90,7 @@ sampleModel = { code      = sExp tempTest.e
               , workingVal = tempTest.v
               , workingSlate = LangSvg.valToIndexedTree tempTest.v
               , possibleChanges = []
-              , syncMode = False
+              , syncMode = Live
               , triggers = Sync.prepareLiveUpdates tempTest.e tempTest.v
               }
 
@@ -162,10 +169,13 @@ upstate evt old = case Debug.log "Event" evt of
             let trigger = get_ zone (get_ objid old.triggers) in
             let (newE,otherChanges) = trigger newAttrs in
             let slate =
-              Dict.foldl (\j dj acc1 ->
-                Dict.foldl
-                  (\a n acc2 -> upslate j (a, toString n) acc2) acc1 dj
-                ) old.workingSlate otherChanges in
+              case old.syncMode of
+                AdHoc -> old.workingSlate
+                Live ->
+                  Dict.foldl (\j dj acc1 ->
+                    Dict.foldl
+                      (\a n acc2 -> upslate j (a, toString n) acc2) acc1 dj
+                    ) old.workingSlate otherChanges in
             let newAttrs' = List.map (Utils.mapSnd toString) newAttrs in
             let newSlate  = List.foldr (upslate objid) slate newAttrs' in
             (newE, newSlate)
@@ -202,23 +212,25 @@ upstate evt old = case Debug.log "Event" evt of
 
     --run sync function and then populate the list of possibleChanges
     Sync -> 
-        case old.inputExp of
-            Just ip -> 
+        case (old.syncMode, old.inputExp) of
+            (Live, _) -> { old | syncMode <- AdHoc }
+            (AdHoc, Just ip) ->
                 let inputval = Eval.run ip
                     newval = indexedTreeToVal old.workingSlate
                 in case (Result.toMaybe <| sync ip inputval newval) of
                     Just ls -> { old | possibleChanges <- ls
-                                     , syncMode <- True 
+                                     , syncMode <- SyncSelect
                                }
                     Nothing -> old
             _       -> old
+
     --Given possible changes, an option is selected. Vals are correspondingly
     --updated and syncMode is turned off.
     SelectOption ((e,v), f) -> { old | possibleChanges <- []
                                      , inputVal <- v
                                      , workingVal <- v
                                      , inputExp <- Just e
-                                     , syncMode <- False 
+                                     , syncMode <- AdHoc
                                }
     --catch all
     _ -> old
@@ -365,14 +377,14 @@ makeZones shape nodeID l =
 
 --Umbrella function for viewing a given model
 view : (Int, Int) -> Model -> Html.Html
-view (w,h) model = 
-    let
-        dim = (Basics.toFloat (Basics.min w h)) / 2
-    in
-        --check whether there is syncing occuring
-        case model.syncMode of
-            --no sync, do normal displaying of code & visuals
-            False -> Html.div
+view wh model =
+  case model.syncMode of
+    AdHoc      -> regularView wh model
+    Live       -> regularView wh model
+    SyncSelect -> selectView wh model
+
+regularView (w,h) model =
+                  Html.div
                     [ Attr.style
                         [ ("width", toString w)
                         , ("height", toString h)
@@ -407,10 +419,12 @@ view (w,h) model =
                         , Attr.value "Sync"
                         , Attr.name "Sync the code to the canvas"
                         ]
-                        [Html.text "sync"]
+                        [ -- TODO: temporary way to switch from live to sync
+                          case model.syncMode of
+                            AdHoc -> Html.text "sync"
+                            Live  -> Html.text "turn off live"
+                        ]
                     ]
-            --call special view for syncing
-            True -> syncView (w,h) model
 
 --When view is manipulatable, call this function for code & visuals
 --to build corresponding panes
@@ -435,7 +449,7 @@ renderView (w,h) model =
                     , ("top", "0px")
                     ]
                 ]
-                [codeBox model.code model.syncMode]
+                [codeBox model.code (syncBool model.syncMode)]
             , Html.div
                 [ Attr.style
                     [ ("width", String.append (toString <| w // 2 - 1) "px")
@@ -446,12 +460,12 @@ renderView (w,h) model =
                     , ("top", "0px")
                     ]
                 ]    
-                [visualsBox model.objects dim model.syncMode]
+                [visualsBox model.objects dim (syncBool model.syncMode)]
             ]
 
 --Build an Html of the iterations of renderOption over the possibleChanges
-syncView : (Int, Int) -> Model -> Html.Html
-syncView (w,h) model = 
+selectView : (Int, Int) -> Model -> Html.Html
+selectView (w,h) model =
     let
         dim = (Basics.toFloat (Basics.min w h)) / 2
     in
@@ -484,7 +498,7 @@ renderOption (w,h) possiblechanges model dim =
                         , ("top", "0px") -- String.append (toString <| h * (i-1)) "px")
                         ]
                     ]
-                    [codeBox (sExpK 1 e) model.syncMode]
+                    [codeBox (sExpK 1 e) (syncBool model.syncMode)]
                 , Html.div
                     [ Attr.style
                         [ ("width", String.append (toString <| w // 2 - 50) "px")
@@ -495,7 +509,7 @@ renderOption (w,h) possiblechanges model dim =
                         , ("top", "0px") --String.append (toString <| h * (i-1)) "px")
                         ]
                     ]    
-                    [visualsBox (buildVisual <| LangSvg.valToIndexedTree v) dim model.syncMode] --TODO: parse val to svgs
+                    [visualsBox (buildVisual <| LangSvg.valToIndexedTree v) dim (syncBool model.syncMode)] --TODO: parse val to svgs
 --                , Html.button
 --                    [ Attr.style
 --                        [ ("position", "absolute")
