@@ -154,8 +154,7 @@ upstate evt old = case Debug.log "Event" evt of
 
     SwitchMode m -> { old | mode <- m }
 
-    --catch all
-    _ -> old
+    _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
 
 
 -- Main --

@@ -193,7 +193,6 @@ svg  = find funcsSvg
 ------------------------------------------------------------------------------
 
 type alias ShapeKind = String
-
 type alias NodeId = Int
 type alias IndexedTree = Dict NodeId IndexedTreeNode
 type alias Attr = (String, AVal)
@@ -230,4 +229,48 @@ strEdges =
        let l = List.map toString (children n) in
        toString i ++ " " ++ Utils.braces (Utils.spaces l))
   >> Utils.lines
+
+
+------------------------------------------------------------------------------
+-- Zones
+
+type alias Zone = String
+
+-- TODO perhaps define Interface callbacks here
+
+zones = [
+    ("svg", [])
+  , ("circle",
+      [ ("Interior", ["cx", "cy"])
+      , ("Edge", ["r"])
+      ])
+  , ("ellipse",
+      [ ("Interior", ["cx", "cy"])
+      , ("Edge", ["rx", "ry"])
+      ])
+  , ("rect",
+      [ ("Interior", ["x", "y"])
+      , ("TopLeftCorner", ["x", "y", "width", "height"])
+      , ("TopRightCorner", ["y", "width", "height"])
+      , ("BotRightCorner", ["width", "height"])
+      , ("BotLeftCorner", ["x", "width", "height"])
+      , ("LeftEdge", ["x", "width"])
+      , ("TopEdge", ["y", "height"])
+      , ("RightEdge", ["width"])
+      , ("BotEdge", ["height"])
+      ])
+  , ("line",
+      [ ("Point1", ["x1", "y1"])
+      , ("Point2", ["x2", "y2"])
+      , ("Edge", ["x1", "y1", "x2", "y2"])
+      ])
+  -- TODO
+  , ("g", [])
+  , ("path", [])
+  , ("text", [])
+  , ("tspan", [])
+  -- NOTE: these are computed in Sync.getZones
+  , ("polygon", [ ])
+  , ("polyline", [ ])
+  ]
 

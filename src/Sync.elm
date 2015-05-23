@@ -7,6 +7,7 @@ import Debug
 import String
 
 import Lang exposing (..)
+import LangSvg exposing (NodeId, ShapeKind, Zone)
 import Eval
 import LangParser
 
@@ -202,61 +203,18 @@ sync e v v' =
         ) substs
 
 
-------------------------------------------------------------------------------
--- Zones
-
-zones = [
-    ("svg", [])
-  , ("circle",
-      [ ("Interior", ["cx", "cy"])
-      , ("Edge", ["r"])
-      ])
-  , ("ellipse",
-      [ ("Interior", ["cx", "cy"])
-      , ("Edge", ["rx", "ry"])
-      ])
-  , ("rect",
-      [ ("Interior", ["x", "y"])
-      , ("TopLeftCorner", ["x", "y", "width", "height"])
-      , ("TopRightCorner", ["y", "width", "height"])
-      , ("BotRightCorner", ["width", "height"])
-      , ("BotLeftCorner", ["x", "width", "height"])
-      , ("LeftEdge", ["x", "width"])
-      , ("TopEdge", ["y", "height"])
-      , ("RightEdge", ["width"])
-      , ("BotEdge", ["height"])
-      ])
-  , ("line",
-      [ ("Point1", ["x1", "y1"])
-      , ("Point2", ["x2", "y2"])
-      , ("Edge", ["x1", "y1", "x2", "y2"])
-      ])
-  -- TODO
-  , ("g", [])
-  , ("path", [])
-  , ("text", [])
-  , ("tspan", [])
-  -- NOTE: these are computed in getZones
-  , ("polygon", [ ])
-  , ("polyline", [ ])
-  ]
-
 
 ------------------------------------------------------------------------------
--- Zones and Triggers
+-- Triggers
 
--- TODO define these in Lang or LangSvg
-type alias ShapeId = Int
-type alias ShapeKind = String
-type alias Attr = String
+type alias AttrName = String
 type alias LocSet = Set.Set Loc
 type alias Locs = List Loc
-type alias Zone = String
 type ExtraInfo = None | NumPoints Int
 
-type alias Dict0 = Dict ShapeId (ShapeKind, ExtraInfo, Dict Attr Trace)
-type alias Dict1 = Dict ShapeId (ShapeKind, List (Zone, (List Locs)))
-type alias Dict2 = Dict ShapeId (ShapeKind, List (Zone, (Locs, List Locs)))
+type alias Dict0 = Dict NodeId (ShapeKind, ExtraInfo, Dict AttrName Trace)
+type alias Dict1 = Dict NodeId (ShapeKind, List (Zone, (List Locs)))
+type alias Dict2 = Dict NodeId (ShapeKind, List (Zone, (Locs, List Locs)))
 
 printZoneTable : Val -> String
 printZoneTable v =
@@ -316,7 +274,7 @@ shapesToZoneTable d0 =
   Dict.foldl foo Dict.empty d0
 
 shapeToZoneInfo :
-  (ShapeKind, ExtraInfo, Dict Attr Trace) -> List (Zone, (List Locs))
+  (ShapeKind, ExtraInfo, Dict AttrName Trace) -> List (Zone, (List Locs))
 shapeToZoneInfo (kind, extra, d) =
   let zones = getZones kind extra in
   let f (s,l) acc =
@@ -331,7 +289,7 @@ justGet k d = Utils.fromJust (Dict.get k d)
 
 justGet_ err k d = Utils.fromJust_ err (Dict.get k d)
 
-getZones : ShapeKind -> ExtraInfo -> List (Zone, List Attr)
+getZones : ShapeKind -> ExtraInfo -> List (Zone, List AttrName)
 getZones kind extra =
   let foo s i = s ++ toString i in
   let xy i    = [foo "x" i, foo "y" i] in
@@ -342,7 +300,7 @@ getZones kind extra =
     ("polygon", NumPoints n) ->
       List.map pt [1..n] ++ [("Interior", List.concatMap xy [1..n])]
     _ ->
-      Utils.fromJust (Utils.maybeFind kind zones)
+      Utils.fromJust (Utils.maybeFind kind LangSvg.zones)
 
 -- Step 3 --
 
@@ -391,8 +349,8 @@ strLoc_ l =
 
 ------------------------------------------------------------------------------
 
-type alias Triggers = Dict ShapeId (Dict Zone Trigger)
-type alias Trigger  = List (Attr, Num) -> (Exp, Dict ShapeId (Dict Attr Num))
+type alias Triggers = Dict NodeId (Dict Zone Trigger)
+type alias Trigger  = List (AttrName, Num) -> (Exp, Dict NodeId (Dict AttrName Num))
 
 prepareLiveUpdates : Exp -> Val -> Triggers
 prepareLiveUpdates e v =
@@ -411,7 +369,7 @@ makeTriggers e d0 d2 =
     List.foldl g Dict.empty zones in
   Dict.map f d2
 
-makeTrigger : Exp -> Dict0 -> Dict2 -> Subst -> ShapeId -> Zone -> Trigger
+makeTrigger : Exp -> Dict0 -> Dict2 -> Subst -> NodeId -> Zone -> Trigger
 makeTrigger e d0 d2 subst i zone = \newAttrs ->
   let (subst',changedLocs) =
     let f (attr,newNum) (acc1,acc2) =
@@ -434,7 +392,7 @@ makeTrigger e d0 d2 subst i zone = \newAttrs ->
   (e', Dict.foldl g Dict.empty d0)
 
 -- TODO sloppy way of doing this for now...
-whichLoc : Dict0 -> Dict2 -> ShapeId -> Zone -> Attr -> LocId
+whichLoc : Dict0 -> Dict2 -> NodeId -> Zone -> AttrName -> LocId
 whichLoc d0 d2 i z attr =
   let trLocs =
     justGet i d0 |> Utils.thd3 |> justGet attr |> locsOfTrace in
