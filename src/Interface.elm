@@ -43,7 +43,6 @@ import Debug
 
 tempTest = MicroTests.test42 ()
 
---A Sample model for working with a given microtest
 sampleModel = { code      = sExp tempTest.e
               , inputExp  = Just tempTest.e
               , movingObj = Nothing
@@ -51,21 +50,17 @@ sampleModel = { code      = sExp tempTest.e
               , mode  = Live <| Sync.prepareLiveUpdates tempTest.e tempTest.v
               }
 
--- Update --
 upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
-    --make a val from code and display it
+
     Render ->
       let e = parseE old.code in
       let v = Eval.run e in
       { old | inputExp <- Just e
             , workingSlate <- LangSvg.valToIndexedTree v }
 
-    --Replace old code with new code
     CodeUpdate newcode -> { old | code <- newcode }
 
-    --check if a mouse position is within an object when a mouse down
-    --event occured.
     MousePos (mx, my) ->
       case old.movingObj of
 
@@ -125,16 +120,13 @@ upstate evt old = case Debug.log "Event" evt of
                 , inputExp <- Just newE
                 , workingSlate <- newSlate }
 
-    --Selecting a given zone within an object
     SelectObject id kind zone -> { old | movingObj <- Just (id, kind, zone, Nothing) }
 
-    --wipes out selection of an object
     DeselectObject x ->
       let e = Utils.fromJust old.inputExp in
       { old | movingObj <- Nothing
             , mode      <- Live <| Sync.prepareLiveUpdates e (Eval.run e) }
 
-    --run sync function and then populate the list of possibleChanges
     Sync -> 
         case (old.mode, old.inputExp) of
             (Live _, _) -> Debug.crash "upstate Sync: shouldn't happen anymore"
@@ -148,8 +140,6 @@ upstate evt old = case Debug.log "Event" evt of
                     Ok ls -> { old | mode <- SyncSelect ls }
                     Err e -> Debug.crash ("upstate Sync: ++ " ++ e)
 
-    --Given possible changes, an option is selected. Vals are correspondingly
-    --updated and mode is turned off.
     SelectOption ((e,v), f) -> { old | inputExp <- Just e, mode <- AdHoc }
 
     SwitchMode m -> { old | mode <- m }
@@ -157,7 +147,6 @@ upstate evt old = case Debug.log "Event" evt of
     _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
 
 
--- Main --
 main : Signal Html.Html
 main = let sigModel = Signal.foldp upstate sampleModel
                         <| Signal.mergeMany
