@@ -214,7 +214,10 @@ regularView (w,h) model =
                 --, Events.onClick events.address Render
                 ] 
                 [Html.text ("test"++ (toString (i + 14)))]) 
-                (Utils.mapi identity (List.map Utils.thd3 MainSvg.tests))
+                -- TODO: not a good idea to render all examples all the time...
+                --       should only render an example when it is selected.
+                -- (Utils.mapi identity (List.map Utils.thd3 MainSvg.tests))
+                []
     in
                   Html.div
                     [ Attr.style
