@@ -5,12 +5,14 @@ import Lang exposing (..) --For access to what makes up the Vals
 import Sync exposing (Triggers)
 import Utils
 import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr, Zone)
+import MainSvg exposing (tests)
 
 import List 
 import Dict
 import Debug
 
 import Svg
+import Lazy
 
 type alias Model =
   { code : String
@@ -48,7 +50,7 @@ type Event = CodeUpdate String
            | Sync
            | SwitchMode Mode
            | SelectOption ((Exp, Val), Float)
-           | Render
+           | Render (Maybe Exp)
 
 type alias Object = (Svg.Svg, List Attr)
 
@@ -89,3 +91,11 @@ indexedTreeToVal slate =
   in
   foo (Utils.justGet 1 slate)
 
+callExp i = Lazy.force <| callTest i
+
+callTest : Int -> Lazy.Lazy Exp
+callTest i = 
+    let 
+        testlist = (Utils.mapi (\(x,y) -> (x,y.e)) (List.map Utils.thd3 tests))
+    in
+        Lazy.lazy (\() -> Utils.find_ testlist (i - 14)) 

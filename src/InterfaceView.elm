@@ -70,7 +70,7 @@ codeBox code switch =
 --Build viusal pane and populate with the model's objects
 visualsBox : List Object -> Float -> Bool -> Html.Html
 visualsBox objects dim switch =
-  Svg.svg [ Attr.style [ ("width", "100%"), ("height", "100%") ] ]
+  Svg.svg [ Attr.style [ ("width", "100%"), ("height", "100%"), ("border", "2px solid black")] ]
           (List.map fst objects)
 
 --Umbrella function for taking and indexed tree and calling buildSvg over it
@@ -89,7 +89,7 @@ buildSvg (nodeID, node) = case node of
       let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs) [] in
       (Svg.svg [] (mainshape :: zones), attrs)
 
-attrNum k v = LangSvg.attr k (toString v)
+compileAttrNum k v = LangSvg.attr k (toString v)
 toFloat_ (LangSvg.ANum i) = i
 -- toFloat_           = Utils.fromOk_ << String.toFloat
 -- toInt_             = Utils.fromOk_ << String.toInt
@@ -97,54 +97,52 @@ toFloat_ (LangSvg.ANum i) = i
 onMouseDown = Svg.Events.onMouseDown << Signal.message events.address
 onMouseUp   = Svg.Events.onMouseUp   << Signal.message events.address
 
-zoneEvents id shape zone =
-  [ onMouseDown (SelectObject id shape zone)
-  , onMouseUp (DeselectObject id) ]
-
-zoneBorder svgFunc id shape zone =
-  flip svgFunc [] <<
-  (++) (zoneEvents id shape zone) <<
-  (++) [ LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
-       , LangSvg.attr "strokeWidth" "3"
-       , LangSvg.attr "fill" "rgba(0,0,0,0)"
-       ]
-
-zonePoint id shape zone =
-  flip Svg.circle [] <<
-  (++) (zoneEvents id shape zone) <<
-  (++) [ LangSvg.attr "r" "4"
-       , LangSvg.attr "fill" "rgba(255,0,0,0.5)"
-       ]
-
-zonePoints id shape =
-  Utils.mapi <| \(i, (x,y)) ->
-    zonePoint id shape ("Point" ++ toString i) [ attrNum "cx" x, attrNum "cy" y ]
-
 --Zone building function (still under construction/prone to change)                
 makeZones : String -> LangSvg.NodeId -> List Attr -> List Svg.Svg
-makeZones shape id l =
+makeZones shape nodeID l =
   case shape of
+
+    -- TODO refactor common parts
 
     "circle" ->
         let [cx,cy,r] = List.map (toFloat_ << Utils.find_ l) ["cx","cy","r"] in
         let gutterPct = 0.100 in
         let zInterior =
-          zoneBorder Svg.circle id shape "Interior" [
-              attrNum "cx" cx , attrNum "cy" cy
-            , attrNum "r" (r * (1 - 2*gutterPct))
+          flip Svg.circle [] [
+              compileAttrNum "cx" cx
+            , compileAttrNum "cy" cy
+            , compileAttrNum "r" (r * (1 - 2*gutterPct))
+            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
+            , LangSvg.attr "strokeWidth" "3"
+            , LangSvg.attr "fill" "rgba(0,0,0,0)"
+            , onMouseDown (SelectObject nodeID shape "Interior")
+            , onMouseUp (DeselectObject nodeID)
             ] in
         let zEdge =
-          zoneBorder Svg.circle id shape "Edge" [
-              attrNum "cx" cx , attrNum "cy" cy
-            , attrNum "r" (r * (1))
+          flip Svg.circle [] [
+              compileAttrNum "cx" cx
+            , compileAttrNum "cy" cy
+            , compileAttrNum "r" (r * (1))
+            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
+            , LangSvg.attr "strokeWidth" "10"
+            , LangSvg.attr "fill" "rgba(0,0,0,0)"
+            , onMouseDown (SelectObject nodeID shape "Edge")
+            , onMouseUp (DeselectObject nodeID)
             ] in
         [zEdge, zInterior] -- important that zEdge goes on top
 
     "rect" ->
         let mk zone x_ y_ w_ h_ =
-          zoneBorder Svg.rect id shape zone [
-              attrNum "x" x_ , attrNum "y" y_
-            , attrNum "width" w_ , attrNum "height" h_
+          flip Svg.rect [] [
+              compileAttrNum "x" x_
+            , compileAttrNum "y" y_
+            , compileAttrNum "width" w_
+            , compileAttrNum "height" h_
+            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
+            , LangSvg.attr "strokeWidth" "3"
+            , LangSvg.attr "fill" "rgba(0,0,0,0)"
+            , onMouseDown (SelectObject nodeID shape zone)
+            , onMouseUp (DeselectObject nodeID)
             ]
         in
         let
@@ -170,28 +168,30 @@ makeZones shape id l =
         let [cx,cy,rx,ry] = List.map (toFloat_ << Utils.find_ l) ["cx","cy","rx","ry"] in
         let gutterPct = 0.100 in
         let zInterior =
-          zoneBorder Svg.ellipse id shape "Interior" [
-              attrNum "cx" cx , attrNum "cy" cy
-            , attrNum "rx" (rx * (1 - 2*gutterPct))
-            , attrNum "ry" (ry * (1 - 2*gutterPct))
+          flip Svg.ellipse [] [
+              compileAttrNum "cx" cx
+            , compileAttrNum "cy" cy
+            , compileAttrNum "rx" (rx * (1 - 2*gutterPct))
+            , compileAttrNum "ry" (ry * (1 - 2*gutterPct))
+            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
+            , LangSvg.attr "strokeWidth" "3"
+            , LangSvg.attr "fill" "rgba(0,0,0,0)"
+            , onMouseDown (SelectObject nodeID shape "Interior")
+            , onMouseUp (DeselectObject nodeID)
             ] in
         let zEdge =
-          zoneBorder Svg.ellipse id shape "Edge" [
-              attrNum "cx" cx , attrNum "cy" cy
-            , attrNum "rx" (rx * (1))
-            , attrNum "ry" (ry * (1))
+          flip Svg.ellipse [] [
+              compileAttrNum "cx" cx
+            , compileAttrNum "cy" cy
+            , compileAttrNum "rx" (rx * (1))
+            , compileAttrNum "ry" (ry * (1))
+            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
+            , LangSvg.attr "strokeWidth" "10"
+            , LangSvg.attr "fill" "rgba(0,0,0,0)"
+            , onMouseDown (SelectObject nodeID shape "Edge")
+            , onMouseUp (DeselectObject nodeID)
             ] in
         [zEdge, zInterior] -- important that zEdge goes on top
-
-    "line" ->
-        let [x1,y1,x2,y2] = List.map (toFloat_ << Utils.find_ l) ["x1","y1","x2","y2"] in
-        let zPts = zonePoints id shape [(x1,y1),(x2,y2)] in
-        zPts
-
-    "polygon" ->
-        let (LangSvg.APoints pts) = Utils.find_ l "points" in
-        let zPts = zonePoints id shape pts in
-        zPts
 
     _ -> []
 
@@ -203,18 +203,23 @@ view wh model =
     Live _       -> regularView wh model
     SyncSelect l -> selectView wh model l
 
+
 regularView (w,h) model =
     let
         testlist = 
-            List.reverse <| List.map (\(i,s) -> Html.option 
-                [ Events.onClick events.address (CodeUpdate (sExpK 1 s.e))
-                --, Events.onClick events.address Render
-                ] 
-                [Html.text ("test"++ (toString (i + 14)))]) 
-                -- TODO: not a good idea to render all examples all the time...
-                --       should only render an example when it is selected.
-                -- (Utils.mapi identity (List.map Utils.thd3 MainSvg.tests))
-                []
+            List.reverse 
+            <| List.map (\i -> 
+                Html.option 
+                    --callExp (a lazy function in Interfaceutils) 
+                    --now searches the microtests for the corresponding
+                    --test given a test number. note: callExp is lazy
+                    [ Events.onMouseOver events.address 
+                        (CodeUpdate (sExpK 1 (callExp i)))
+                    , Events.onClick events.address 
+                        (Render (Just (callExp i)))
+                    ] 
+                    [Html.text (toString i)]
+                ) [15..42]
     in
                   Html.div
                     [ Attr.style
@@ -227,22 +232,22 @@ regularView (w,h) model =
                     , Html.button
                         [ Attr.style
                             [ ("position", "absolute")
-                            , ("left", String.append (toString <| w // 8) "px")
-                            , ("top", String.append (toString <| h - 40) "px")
+                            , ("left", String.append (toString <| w // 2 - 50) "px")
+                            , ("top", String.append (toString <| h // 4) "px")
                             , ("type", "button")
                             , ("width", "100px")
                             , ("height", "40px")
                             ]
-                        , Events.onClick events.address Render
+                        , Events.onClick events.address (Render Nothing)
                         , Attr.value "Render"
                         , Attr.name "Render the Code"
                         ]
-                        [Html.text "render"]
+                        [Html.text "Render Code"]
                     , Html.select
                         [ Attr.style
                             [ ("position", "absolute")
-                            , ("left", String.append (toString <| (w // 8 + 200)) "px")
-                            , ("top", String.append (toString <| h - 40) "px")
+                            , ("left", String.append (toString <| (w // 2 - 50)) "px")
+                            , ("top", String.append (toString <| h // 4 + 60) "px")
                             , ("type", "button")
                             , ("width", "100px")
                             , ("height", "40px")
@@ -252,15 +257,16 @@ regularView (w,h) model =
                           let v = Eval.run e in
                           let mode = Live <| Sync.prepareLiveUpdates e v in
                             Html.option [Events.onClick events.address (SwitchMode mode)]
-                                [Html.text "live"]
+                                [Html.text "Live"]
                             , Html.option [Events.onClick events.address (SwitchMode AdHoc)] 
-                                [Html.text "ad hoc"]
-                        ]  
+                                [Html.text "Ad Hoc"]
+                        ]
+                    , Html.text "MicroTests" 
                     , Html.select
                         [ Attr.style
                             [ ("position", "absolute")
-                            , ("left", String.append (toString <| w // 8 + 400) "px")
-                            , ("top", String.append (toString <| h - 40) "px")
+                            , ("left", String.append (toString <| w // 2 - 50) "px")
+                            , ("top", String.append (toString <| h // 4 + 120) "px")
                             , ("type", "button")
                             , ("width", "100px")
                             , ("height", "40px")
@@ -276,8 +282,8 @@ regularView (w,h) model =
                             [Html.button
                                 [ Attr.style
                                     [ ("position", "absolute")
-                                    , ("left", String.append (toString <| w // 8 + 600) "px")
-                                    , ("top", String.append (toString <| h - 40) "px")
+                                    , ("left", String.append (toString <| w // 2 - 50) "px")
+                                    , ("top", String.append (toString <| h // 4 + 180) "px")
                                     , ("type", "button")
                                     , ("width", "100px")
                                     , ("height", "40px")
@@ -286,7 +292,7 @@ regularView (w,h) model =
                                 , Attr.value "Sync"
                                 , Attr.name "Sync the code to the canvas"
                                 ]
-                                [Html.text "sync"]
+                                [Html.text "Synchronize"]
                             ]
                     ))
 
@@ -305,8 +311,8 @@ renderView (w,h) model =
             ]
             [ Html.div 
                 [ Attr.style
-                    [ ("width", String.append (toString <| w // 2 - 1) "px")
-                    , ("height", String.append (toString <| h - 60) "px")
+                    [ ("width", String.append (toString <| w // 2 - 60) "px")
+                    , ("height", String.append (toString <| h) "px")
                     , ("margin", "0")
                     , ("position", "absolute")
                     , ("left", "0px")
@@ -316,11 +322,11 @@ renderView (w,h) model =
                 [codeBox model.code (syncBool model.mode)]
             , Html.div
                 [ Attr.style
-                    [ ("width", String.append (toString <| w // 2 - 1) "px")
+                    [ ("width", String.append (toString <| w // 2 - 60) "px")
                     , ("height", String.append (toString h) "px")
                     , ("margin", "0")
                     , ("position", "absolute")
-                    , ("left", String.append (toString <| w // 2) "px")
+                    , ("left", String.append (toString <| w // 2 + 60) "px")
                     , ("top", "0px")
                     ]
                 ]    

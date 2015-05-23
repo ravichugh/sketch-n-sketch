@@ -42,8 +42,6 @@ import Debug
 
 
 tempTest = MicroTests.test42 ()
--- tempTest = MicroTests.test20 ()
--- tempTest = MicroTests.test31 ()
 
 sampleModel = { code      = sExp tempTest.e
               , inputExp  = Just tempTest.e
@@ -55,11 +53,16 @@ sampleModel = { code      = sExp tempTest.e
 upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
 
-    Render ->
+    Render m ->
       let e = parseE old.code in
       let v = Eval.run e in
-      { old | inputExp <- Just e
-            , workingSlate <- LangSvg.valToIndexedTree v }
+      case m of
+        Nothing -> { old | inputExp <- Just e
+                   , workingSlate <- LangSvg.valToIndexedTree v }
+        Just x -> { old | inputExp <- Just x
+                   , workingSlate <- 
+                      LangSvg.valToIndexedTree (Eval.run x)
+                 }
 
     CodeUpdate newcode -> { old | code <- newcode }
 
@@ -72,14 +75,10 @@ upstate evt old = case Debug.log "Event" evt of
           let (_,attrs) = buildSvg (objid, Utils.justGet objid old.workingSlate) in
           let numAttr   = toFloat_ << Utils.find_ attrs in
           let onNewPos (mx',my') =
-            let posX n = n - toFloat mx + toFloat mx' in
-            let posY n = n - toFloat my + toFloat my' in
-            let negX n = n + toFloat mx - toFloat mx' in
-            let negY n = n + toFloat my - toFloat my' in
-            let fx   a = (a, aNum <| posX (numAttr a)) in
-            let fy   a = (a, aNum <| posY (numAttr a)) in
-            let fx_  a = (a, aNum <| negX (numAttr a)) in
-            let fy_  a = (a, aNum <| negY (numAttr a)) in
+            let fx x  = (x, aNum <| numAttr x - toFloat mx + toFloat mx') in
+            let fy y  = (y, aNum <| numAttr y - toFloat my + toFloat my') in
+            let fx_ x = (x, aNum <| numAttr x + toFloat mx - toFloat mx') in
+            let fy_ y = (y, aNum <| numAttr y + toFloat my - toFloat my') in
             let newAttrs =
               case (kind, zone) of
 
@@ -102,39 +101,12 @@ upstate evt old = case Debug.log "Event" evt of
 
                 ("ellipse", "Interior") -> [fx "cx", fy "cy"]
                 ("ellipse", "Edge")     -> [fx "rx", fy "ry"]
-
-                ("line", _) ->
-                  case Utils.munchString "Point" zone of
-                    Just suf ->
-                      case String.toInt suf of
-                        Ok i ->
-                          [fx ("x" ++ toString i), fy ("y" ++ toString i)]
-
-                ("polygon", _) ->
-                  case Utils.munchString "Point" zone of
-                    Just suf ->
-                      case String.toInt suf of
-                        Ok i ->
-                          let (Just (LangSvg.SvgNode _ blah _)) = Dict.get objid old.workingSlate in
-                          let (LangSvg.APoints pts) = Utils.find_ blah "points" in
-                          let pts' =
-                            Utils.foldri (\(j,(xj,yj)) acc ->
-                              let (xj',yj') =
-                                if | i == j    -> (posX xj, posY yj)
-                                   | otherwise -> (xj, yj)
-                              in
-                              (xj',yj')::acc) [] pts
-                          in
-                          [("points", LangSvg.APoints pts')]
-
             in
             let newSlate = List.foldr (upslate objid) old.workingSlate newAttrs in
               case old.mode of
                 AdHoc -> (Utils.fromJust old.inputExp, newSlate)
                 Live triggers ->
                   let trigger = Utils.justGet zone (Utils.justGet objid triggers) in
-                  -- TODO Sync.Trigger needs to support derived attributes,
-                  --      such as x1, y1, etc. for polygon...
                   let newAttrs' = List.map (Utils.mapSnd toFloat_) newAttrs in
                   let (newE,otherChanges) = trigger newAttrs' in
                   let newSlate' =
