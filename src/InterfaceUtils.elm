@@ -68,14 +68,12 @@ upslate id newattr nodes = case Dict.get id nodes of
             in Dict.insert id newnode nodes
 
 updateAttrs : (String, LangSvg.AVal) -> List Attr -> List Attr
-updateAttrs (k1, value) vals =
-  case value of
-    LangSvg.ANum i1 ->
-      case vals of
-        [] -> []
-        (k0, LangSvg.ANum i0) :: vs ->
-          if | k0 == k1  -> (k0, aNum i1) :: vs
-             | otherwise -> (k0, aNum i0) :: updateAttrs (k1, value) vs
+updateAttrs (k1, v1) vals =
+  case vals of
+    [] -> []
+    (k0, v0) :: vs ->
+      if | k0 == k1  -> (k0, v1) :: vs
+         | otherwise -> (k0, v0) :: updateAttrs (k1, v1) vs
 
 aNum = LangSvg.ANum
 

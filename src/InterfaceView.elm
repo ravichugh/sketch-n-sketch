@@ -89,7 +89,7 @@ buildSvg (nodeID, node) = case node of
       let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs) [] in
       (Svg.svg [] (mainshape :: zones), attrs)
 
-compileAttrNum k v = LangSvg.attr k (toString v)
+attrNum k v = LangSvg.attr k (toString v)
 toFloat_ (LangSvg.ANum i) = i
 -- toFloat_           = Utils.fromOk_ << String.toFloat
 -- toInt_             = Utils.fromOk_ << String.toInt
@@ -97,52 +97,54 @@ toFloat_ (LangSvg.ANum i) = i
 onMouseDown = Svg.Events.onMouseDown << Signal.message events.address
 onMouseUp   = Svg.Events.onMouseUp   << Signal.message events.address
 
+zoneEvents id shape zone =
+  [ onMouseDown (SelectObject id shape zone)
+  , onMouseUp (DeselectObject id) ]
+
+zoneBorder svgFunc id shape zone =
+  flip svgFunc [] <<
+  (++) (zoneEvents id shape zone) <<
+  (++) [ LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
+       , LangSvg.attr "strokeWidth" "3"
+       , LangSvg.attr "fill" "rgba(0,0,0,0)"
+       ]
+
+zonePoint id shape zone =
+  flip Svg.circle [] <<
+  (++) (zoneEvents id shape zone) <<
+  (++) [ LangSvg.attr "r" "4"
+       , LangSvg.attr "fill" "rgba(255,0,0,0.5)"
+       ]
+
+zonePoints id shape =
+  Utils.mapi <| \(i, (x,y)) ->
+    zonePoint id shape ("Point" ++ toString i) [ attrNum "cx" x, attrNum "cy" y ]
+
 --Zone building function (still under construction/prone to change)                
 makeZones : String -> LangSvg.NodeId -> List Attr -> List Svg.Svg
-makeZones shape nodeID l =
+makeZones shape id l =
   case shape of
-
-    -- TODO refactor common parts
 
     "circle" ->
         let [cx,cy,r] = List.map (toFloat_ << Utils.find_ l) ["cx","cy","r"] in
         let gutterPct = 0.100 in
         let zInterior =
-          flip Svg.circle [] [
-              compileAttrNum "cx" cx
-            , compileAttrNum "cy" cy
-            , compileAttrNum "r" (r * (1 - 2*gutterPct))
-            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
-            , LangSvg.attr "strokeWidth" "3"
-            , LangSvg.attr "fill" "rgba(0,0,0,0)"
-            , onMouseDown (SelectObject nodeID shape "Interior")
-            , onMouseUp (DeselectObject nodeID)
+          zoneBorder Svg.circle id shape "Interior" [
+              attrNum "cx" cx , attrNum "cy" cy
+            , attrNum "r" (r * (1 - 2*gutterPct))
             ] in
         let zEdge =
-          flip Svg.circle [] [
-              compileAttrNum "cx" cx
-            , compileAttrNum "cy" cy
-            , compileAttrNum "r" (r * (1))
-            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
-            , LangSvg.attr "strokeWidth" "10"
-            , LangSvg.attr "fill" "rgba(0,0,0,0)"
-            , onMouseDown (SelectObject nodeID shape "Edge")
-            , onMouseUp (DeselectObject nodeID)
+          zoneBorder Svg.circle id shape "Edge" [
+              attrNum "cx" cx , attrNum "cy" cy
+            , attrNum "r" (r * (1))
             ] in
         [zEdge, zInterior] -- important that zEdge goes on top
 
     "rect" ->
         let mk zone x_ y_ w_ h_ =
-          flip Svg.rect [] [
-              compileAttrNum "x" x_
-            , compileAttrNum "y" y_
-            , compileAttrNum "width" w_
-            , compileAttrNum "height" h_
-            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
-            , LangSvg.attr "strokeWidth" "3"
-            , LangSvg.attr "fill" "rgba(0,0,0,0)"
-            , onMouseDown (SelectObject nodeID shape zone)
-            , onMouseUp (DeselectObject nodeID)
+          zoneBorder Svg.rect id shape zone [
+              attrNum "x" x_ , attrNum "y" y_
+            , attrNum "width" w_ , attrNum "height" h_
             ]
         in
         let
@@ -168,30 +170,28 @@ makeZones shape nodeID l =
         let [cx,cy,rx,ry] = List.map (toFloat_ << Utils.find_ l) ["cx","cy","rx","ry"] in
         let gutterPct = 0.100 in
         let zInterior =
-          flip Svg.ellipse [] [
-              compileAttrNum "cx" cx
-            , compileAttrNum "cy" cy
-            , compileAttrNum "rx" (rx * (1 - 2*gutterPct))
-            , compileAttrNum "ry" (ry * (1 - 2*gutterPct))
-            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
-            , LangSvg.attr "strokeWidth" "3"
-            , LangSvg.attr "fill" "rgba(0,0,0,0)"
-            , onMouseDown (SelectObject nodeID shape "Interior")
-            , onMouseUp (DeselectObject nodeID)
+          zoneBorder Svg.ellipse id shape "Interior" [
+              attrNum "cx" cx , attrNum "cy" cy
+            , attrNum "rx" (rx * (1 - 2*gutterPct))
+            , attrNum "ry" (ry * (1 - 2*gutterPct))
             ] in
         let zEdge =
-          flip Svg.ellipse [] [
-              compileAttrNum "cx" cx
-            , compileAttrNum "cy" cy
-            , compileAttrNum "rx" (rx * (1))
-            , compileAttrNum "ry" (ry * (1))
-            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
-            , LangSvg.attr "strokeWidth" "10"
-            , LangSvg.attr "fill" "rgba(0,0,0,0)"
-            , onMouseDown (SelectObject nodeID shape "Edge")
-            , onMouseUp (DeselectObject nodeID)
+          zoneBorder Svg.ellipse id shape "Edge" [
+              attrNum "cx" cx , attrNum "cy" cy
+            , attrNum "rx" (rx * (1))
+            , attrNum "ry" (ry * (1))
             ] in
         [zEdge, zInterior] -- important that zEdge goes on top
+
+    "line" ->
+        let [x1,y1,x2,y2] = List.map (toFloat_ << Utils.find_ l) ["x1","y1","x2","y2"] in
+        let zPts = zonePoints id shape [(x1,y1),(x2,y2)] in
+        zPts
+
+    "polygon" ->
+        let (LangSvg.APoints pts) = Utils.find_ l "points" in
+        let zPts = zonePoints id shape pts in
+        zPts
 
     _ -> []
 

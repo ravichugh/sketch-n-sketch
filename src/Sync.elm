@@ -407,4 +407,6 @@ evalTr : Subst -> Trace -> Num
 evalTr subst tr = case tr of
   TrLoc (k,_)  -> justGet k subst
   TrOp Plus ts -> List.foldl (+) 0 (List.map (evalTr subst) ts)
+  TrOp Minus ts -> List.foldl (-) 0 (List.map (evalTr subst) ts)
+  TrOp op _    -> Debug.crash <| "Sync.evalTr, unsupported op: " ++ strOp op
 

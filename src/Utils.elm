@@ -41,8 +41,19 @@ foldli f init xs =
   let n = List.length xs in
   List.foldl f init (zip [1..n] xs)
 
+foldri f init xs = List.reverse (foldli f init xs)
+
 split : Int -> List a -> (List a, List a)
 split n xs = (List.take n xs, List.drop n xs)
+
+splitString : Int -> String -> (String, String)
+splitString n s = (String.left n s, String.dropLeft n s)
+
+munchString : String -> String -> Maybe String
+munchString prefix s =
+  let (pre,suf) = splitString (String.length prefix) s in
+  if | pre == prefix -> Just suf
+     | otherwise     -> Nothing
 
 oneOfEach : List (List a) -> List (List a)
 oneOfEach xss = case xss of
