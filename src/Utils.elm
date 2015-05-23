@@ -96,7 +96,9 @@ lift_2_2 f (a,b) (c,d) = (f a c, f b d)
 
 assert s b = if b then () else Debug.crash ("assert error: " ++ s)
 
-fromJust (Just x) = x
+fromJust m = case m of
+  Just x -> x
+  Nothing -> Debug.crash <| "Utils.fromJust: Nothing"
 
 fromJust_ s mx = case mx of
   Just x  -> x

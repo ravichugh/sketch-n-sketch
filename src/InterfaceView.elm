@@ -207,6 +207,15 @@ view wh model =
     SyncSelect -> selectView wh model
 
 regularView (w,h) model =
+    let
+        testlist = 
+            List.reverse <| List.map (\(i,s) -> Html.option 
+                [ Events.onClick events.address (CodeUpdate (sExpK 1 s.e))
+                --, Events.onClick events.address Render
+                ] 
+                [Html.text ("test"++ (toString (i + 14)))]) 
+                (Utils.mapi (\x -> x) MainSvg.tests)
+    in
                   Html.div
                     [ Attr.style
                         [ ("width", toString w)
@@ -232,7 +241,7 @@ regularView (w,h) model =
                     , Html.select
                         [ Attr.style
                             [ ("position", "absolute")
-                            , ("left", String.append (toString <| w // 4) "px")
+                            , ("left", String.append (toString <| (w // 8 + 200)) "px")
                             , ("top", String.append (toString <| h - 40) "px")
                             , ("type", "button")
                             , ("width", "100px")
@@ -244,7 +253,18 @@ regularView (w,h) model =
                                 [Html.text "live"]
                             , Html.option [Events.onClick events.address (SwitchMode AdHoc)] 
                                 [Html.text "ad hoc"]
+                        ]  
+                    , Html.select
+                        [ Attr.style
+                            [ ("position", "absolute")
+                            , ("left", String.append (toString <| w // 8 + 400) "px")
+                            , ("top", String.append (toString <| h - 40) "px")
+                            , ("type", "button")
+                            , ("width", "100px")
+                            , ("height", "40px")
+                            ]
                         ]
+                        testlist
                     ]
                     ++
                     (case model.mode of
@@ -254,7 +274,7 @@ regularView (w,h) model =
                             [Html.button
                                 [ Attr.style
                                     [ ("position", "absolute")
-                                    , ("left", String.append (toString <| w // 2) "px")
+                                    , ("left", String.append (toString <| w // 8 + 600) "px")
                                     , ("top", String.append (toString <| h - 40) "px")
                                     , ("type", "button")
                                     , ("width", "100px")
