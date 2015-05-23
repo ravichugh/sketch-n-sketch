@@ -48,8 +48,7 @@ sampleModel = { code      = sExp tempTest.e
               , inputExp  = Just tempTest.e
               , movingObj = Nothing
               , workingSlate = LangSvg.valToIndexedTree tempTest.v
-              , mode  = Live
-              , triggers = Sync.prepareLiveUpdates tempTest.e tempTest.v
+              , mode  = Live <| Sync.prepareLiveUpdates tempTest.e tempTest.v
               }
 
 -- Update --
@@ -103,47 +102,28 @@ upstate evt old = case Debug.log "Event" evt of
                 ("ellipse", "Interior") -> [fx "cx", fy "cy"]
                 ("ellipse", "Edge")     -> [fx "rx", fy "ry"]
             in
-            let trigger = Utils.justGet zone (Utils.justGet objid old.triggers) in
-            let (newE,otherChanges) = trigger newAttrs in
-            let slate =
-              case old.mode of
-                AdHoc -> old.workingSlate
-                Live ->
-                  Dict.foldl (\j dj acc1 ->
-                    Dict.foldl
-                      (\a n acc2 -> upslate j (a, toString n) acc2) acc1 dj
-                    ) old.workingSlate otherChanges in
             let newAttrs' = List.map (Utils.mapSnd toString) newAttrs in
-            let newSlate  = List.foldr (upslate objid) slate newAttrs' in
-            (newE, newSlate)
+            let newSlate  = List.foldr (upslate objid) old.workingSlate newAttrs' in
+              case old.mode of
+                AdHoc -> (Utils.fromJust old.inputExp, newSlate)
+                Live triggers ->
+                  let trigger = Utils.justGet zone (Utils.justGet objid triggers) in
+                  let (newE,otherChanges) = trigger newAttrs in
+                  let newSlate' =
+                    Dict.foldl (\j dj acc1 ->
+                      Dict.foldl
+                        (\a n acc2 -> upslate j (a, toString n) acc2) acc1 dj
+                      ) newSlate otherChanges
+                  in
+                  (newE, newSlate')
           in
           { old | movingObj <- Just (objid, kind, zone, Just onNewPos) }
 
         Just (objid, kind, zone, Just onNewPos) ->
           let (newE,newSlate) = onNewPos (mx, my) in
-          let (code',inputExp') =
-            case old.mode of
-              Live -> (sExp newE, Just newE)
-              _    -> (old.code, old.inputExp)
-          in
-          { old | code <- code'
-                , inputExp <- inputExp'
+          { old | code <- sExp newE
+                , inputExp <- Just newE
                 , workingSlate <- newSlate }
-
-        -- -- rkc: what does "dist"ance refer to?
-        -- Just (objid, zone, xdist, ydist) -> if
-        --     | xdist == dummyInit || ydist == dummyInit -> 
-        --         let (svg,attrs) = buildSvg (objid, get_ objid old.workingSlate)
-        --             xpos = toFloat_ <| Utils.find_ attrs "x"
-        --             ypos = toFloat_ <| Utils.find_ attrs "y"
-        --             obj' = Just (objid , zone , xpos - Basics.toFloat mx , ypos - Basics.toFloat my) 
-        --         in { old | movingObj <- obj' }
-        --     | otherwise -> 
-        --         let newpos = [ ("x", toString <| Basics.toFloat mx + xdist)
-        --                      , ("y", toString <| Basics.toFloat my + ydist) ]
-        --             newSlate = List.foldr (updateSlate objid) old.workingSlate newpos
-        --             newobjs = buildVisual newSlate
-        --         in  { old | objects <- newobjs, workingSlate <- newSlate }
 
     --Selecting a given zone within an object
     SelectObject id kind zone -> { old | movingObj <- Just (id, kind, zone, Nothing) }
@@ -152,12 +132,12 @@ upstate evt old = case Debug.log "Event" evt of
     DeselectObject x ->
       let e = Utils.fromJust old.inputExp in
       { old | movingObj <- Nothing
-            , triggers  <- Sync.prepareLiveUpdates e (Eval.run e) }
+            , mode      <- Live <| Sync.prepareLiveUpdates e (Eval.run e) }
 
     --run sync function and then populate the list of possibleChanges
     Sync -> 
         case (old.mode, old.inputExp) of
-            (Live, _) -> { old | mode <- AdHoc } -- shouldn't happen anymore
+            (Live _, _) -> Debug.crash "upstate Sync: shouldn't happen anymore"
             (AdHoc, Just ip) ->
                 let inputval = Eval.run ip
                     inputval' = indexedTreeToVal (LangSvg.valToIndexedTree inputval)

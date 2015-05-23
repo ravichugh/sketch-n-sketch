@@ -203,7 +203,7 @@ view : (Int, Int) -> Model -> Html.Html
 view wh model =
   case model.mode of
     AdHoc        -> regularView wh model
-    Live         -> regularView wh model
+    Live _       -> regularView wh model
     SyncSelect l -> selectView wh model l
 
 regularView (w,h) model =
@@ -251,8 +251,10 @@ regularView (w,h) model =
                             , ("height", "40px")
                             ]
                         ]
-                        [ 
-                            Html.option [Events.onClick events.address (SwitchMode Live)] 
+                        [ let e = Utils.fromJust model.inputExp in
+                          let v = Eval.run e in
+                          let mode = Live <| Sync.prepareLiveUpdates e v in
+                            Html.option [Events.onClick events.address (SwitchMode mode)]
                                 [Html.text "live"]
                             , Html.option [Events.onClick events.address (SwitchMode AdHoc)] 
                                 [Html.text "ad hoc"]
@@ -272,7 +274,7 @@ regularView (w,h) model =
                     ++
                     (case model.mode of
                         SyncSelect _ -> []
-                        Live -> []
+                        Live _ -> []
                         AdHoc -> 
                             [Html.button
                                 [ Attr.style
