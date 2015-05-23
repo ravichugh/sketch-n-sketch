@@ -13,7 +13,7 @@ import MainSvg
 import Utils
 import MicroTests
 import InterfaceUtils exposing (..)
-import LangSvg exposing (IndexedTree, NodeId, ShapeKind)
+import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr)
 import VirtualDom
 
 --Core Libraries
@@ -68,40 +68,37 @@ codeBox code switch =
             []
 
 --Build viusal pane and populate with the model's objects
-visualsBox : List (Svg.Svg, List (String, String))-> Float -> Bool -> Html.Html
+visualsBox : List Object -> Float -> Bool -> Html.Html
 visualsBox objects dim switch =
-    Svg.svg [ Attr.style
-                [ ("width", "100%")
-                , ("height", "100%")
-                ]
-            ] <| List.map (\(f,g) -> f) objects
+  Svg.svg [ Attr.style [ ("width", "100%"), ("height", "100%") ] ]
+          (List.map fst objects)
 
 --Umbrella function for taking and indexed tree and calling buildSvg over it
-buildVisual : LangSvg.IndexedTree -> List (Svg.Svg, List (String, String))
+buildVisual : LangSvg.IndexedTree -> List (Svg.Svg, List Attr)
 buildVisual valDict = List.map buildSvg (Dict.toList valDict)
 
 --Function for handling attributes and children of an indexed tree and building them
 --into Svgs with attr lists to be updated as necessary
-buildSvg : (LangSvg.NodeId, LangSvg.IndexedTreeNode) -> (Svg.Svg, List (String, String))
+buildSvg : (LangSvg.NodeId, LangSvg.IndexedTreeNode) -> (Svg.Svg, List Attr)
 buildSvg (nodeID, node) = case node of
-    --if text, call svg text creation
-    LangSvg.TextNode text -> (VirtualDom.text text, [("shape", "TEXT"), ("text", text)])
-    --If svg object, make objects with appropriate zones and attributes
+    LangSvg.TextNode text ->
+      let str = LangSvg.AString in
+      (VirtualDom.text text, [("shape", str "TEXT"), ("text", str text)])
     LangSvg.SvgNode shape attrs childrenids ->
-       let attrstrs = getAttrs attrs
-           zones = makeZones shape nodeID attrstrs
-           mainshape = (LangSvg.svg shape <| LangSvg.compileAttrs attrs) []
-       in (Svg.svg [] (mainshape :: zones), attrstrs)
+      let zones = makeZones shape nodeID attrs in
+      let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs) [] in
+      (Svg.svg [] (mainshape :: zones), attrs)
 
 compileAttrNum k v = LangSvg.attr k (toString v)
-toFloat_           = Utils.fromOk_ << String.toFloat
+toFloat_ (LangSvg.ANum i) = i
+-- toFloat_           = Utils.fromOk_ << String.toFloat
 -- toInt_             = Utils.fromOk_ << String.toInt
 
 onMouseDown = Svg.Events.onMouseDown << Signal.message events.address
 onMouseUp   = Svg.Events.onMouseUp   << Signal.message events.address
 
 --Zone building function (still under construction/prone to change)                
-makeZones : String -> LangSvg.NodeId -> List (String, String) -> List Svg.Svg
+makeZones : String -> LangSvg.NodeId -> List Attr -> List Svg.Svg
 makeZones shape nodeID l =
   case shape of
 

@@ -75,10 +75,10 @@ upstate evt old = case Debug.log "Event" evt of
           let (_,attrs) = buildSvg (objid, Utils.justGet objid old.workingSlate) in
           let numAttr   = toFloat_ << Utils.find_ attrs in
           let onNewPos (mx',my') =
-            let fx x  = (x, numAttr x - toFloat mx + toFloat mx') in
-            let fy y  = (y, numAttr y - toFloat my + toFloat my') in
-            let fx_ x = (x, numAttr x + toFloat mx - toFloat mx') in
-            let fy_ y = (y, numAttr y + toFloat my - toFloat my') in
+            let fx x  = (x, aNum <| numAttr x - toFloat mx + toFloat mx') in
+            let fy y  = (y, aNum <| numAttr y - toFloat my + toFloat my') in
+            let fx_ x = (x, aNum <| numAttr x + toFloat mx - toFloat mx') in
+            let fy_ y = (y, aNum <| numAttr y + toFloat my - toFloat my') in
             let newAttrs =
               case (kind, zone) of
 
@@ -97,22 +97,22 @@ upstate evt old = case Debug.log "Event" evt of
                   -- TODO to make stretching more intuitive, take orientation
                   -- of init click w.r.t center into account
                   let (dx,dy) = (mx' - mx, my' - my) in
-                  [ ("r", numAttr "r" + toFloat (max dx dy)) ]
+                  [ ("r", aNum <| numAttr "r" + toFloat (max dx dy)) ]
 
                 ("ellipse", "Interior") -> [fx "cx", fy "cy"]
                 ("ellipse", "Edge")     -> [fx "rx", fy "ry"]
             in
-            let newAttrs' = List.map (Utils.mapSnd toString) newAttrs in
-            let newSlate  = List.foldr (upslate objid) old.workingSlate newAttrs' in
+            let newSlate = List.foldr (upslate objid) old.workingSlate newAttrs in
               case old.mode of
                 AdHoc -> (Utils.fromJust old.inputExp, newSlate)
                 Live triggers ->
                   let trigger = Utils.justGet zone (Utils.justGet objid triggers) in
-                  let (newE,otherChanges) = trigger newAttrs in
+                  let newAttrs' = List.map (Utils.mapSnd toFloat_) newAttrs in
+                  let (newE,otherChanges) = trigger newAttrs' in
                   let newSlate' =
                     Dict.foldl (\j dj acc1 ->
                       Dict.foldl
-                        (\a n acc2 -> upslate j (a, toString n) acc2) acc1 dj
+                        (\a n acc2 -> upslate j (a, aNum n) acc2) acc1 dj
                       ) newSlate otherChanges
                   in
                   (newE, newSlate')

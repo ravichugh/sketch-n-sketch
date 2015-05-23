@@ -238,6 +238,7 @@ eFalse = eBool False
 vBool  = VBase << Bool
 vTrue  = vBool True
 vFalse = vBool False
+vStr   = VBase << String
 
 eApp e es = case es of
   [e1]    -> EApp e [e1]

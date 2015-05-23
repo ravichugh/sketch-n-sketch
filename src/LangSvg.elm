@@ -37,10 +37,12 @@ valToHtml w h (VList [VBase (String "svg"), VList vs1, VList vs2]) =
 compileValToNode : Val -> VirtualDom.Node
 compileValToNode v = case v of
   VList [VBase (String "TEXT"), VBase (String s)] -> VirtualDom.text s
-  VList [VBase (String f), VList vs1, VList vs2]  -> (svg f) (compileAttrs vs1) (compileNodes vs2)
+  VList [VBase (String f), VList vs1, VList vs2] ->
+    (svg f) (compileAttrVals vs1) (compileNodeVals vs2)
 
-compileNodes = List.map compileValToNode
-compileAttrs = List.map ((\(k,v) -> (attr k) (strAVal v)) << valToAttr)
+compileNodeVals = List.map compileValToNode
+compileAttrVals = List.map ((\(k,v) -> (attr k) (strAVal v)) << valToAttr)
+compileAttrs    = List.map ((\(k,v) -> (attr k) (strAVal v)))
 
 numAttrToVal a i =
   VList [VBase (String a), VConst (toFloat i) dummyTrace]
@@ -65,7 +67,10 @@ valToAttr (VList [VBase (String k), v]) =
     ("d", VList vs)       -> (k, APath vs)
 
 valToPoint (VList [VConst x _, VConst y _]) = (x,y)
+pointToVal (x,y) = (VList [vConst x, vConst y])
+
 valToRgba [VConst r _, VConst g _, VConst b _, VConst a _] = (r,g,b,a)
+rgbaToVal (r,g,b,a) = [vConst r, vConst g, vConst b, vConst a]
 
 strPoint (x,y) = toString x ++ "," ++ toString y
 strRgba (r,g,b,a) =
@@ -78,6 +83,15 @@ strAVal a = case a of
   ARgba tup -> strRgba tup
   APath vs  -> valToPath vs
 
+-- NOTE: dummyTrace (via vConst) should be okay, since Attrs only go to Interface
+valOfAVal a = case a of
+  AString s -> VBase (String s)
+  ANum i    -> vConst i
+  APoints l -> VList (List.map pointToVal l)
+  ARgba tup -> VList (rgbaToVal tup)
+  APath vs  -> VList vs
+
+valOfAttr (k,a) = VList [VBase (String k), valOfAVal a]
 
 -- https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
 -- http://www.w3schools.com/svg/svg_path.asp
@@ -182,9 +196,10 @@ type alias ShapeKind = String
 
 type alias NodeId = Int
 type alias IndexedTree = Dict NodeId IndexedTreeNode
+type alias Attr = (String, AVal)
 type IndexedTreeNode
   = TextNode String
-  | SvgNode ShapeKind (List Val) (List NodeId)
+  | SvgNode ShapeKind (List Attr) (List NodeId)
 
 children n = case n of {TextNode _ -> []; SvgNode _ _ l -> l}
 
@@ -202,7 +217,7 @@ valToIndexedTree_ v (nextId, d) = case v of
       let a_children'          = (a_nextId' - 1) :: a_children in
       (a_nextId', a_graph', a_children') in
     let (nextId',d',children) = List.foldl processChild (nextId,d,[]) vs2 in
-    let node = SvgNode kind vs1 (List.reverse children) in
+    let node = SvgNode kind (List.map valToAttr vs1) (List.reverse children) in
     (1 + nextId', Dict.insert nextId' node d')
 
 printIndexedTree : Val -> String
