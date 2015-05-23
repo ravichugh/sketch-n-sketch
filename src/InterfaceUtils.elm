@@ -1,60 +1,24 @@
 -- InterfaceUtils.elm
 -- This provide utility and helper functions to Interface.elm
 module InterfaceUtils where
---Import the little language and its parsing utilities
---TODO: clean up this import list...some redundancy here
---Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
-import LangParser exposing (parseE, parseV)
-import Sync exposing (sync, Triggers)
-import Eval exposing (run)
-import MainSvg
+import Sync exposing (Triggers)
 import Utils
-import MicroTests
-import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr)
-import VirtualDom
+import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr, Zone)
 
---Core Libraries
 import List 
 import Dict
-import String 
-import Graphics.Element as GE 
-import Graphics.Collage as GC
-
---Signaling Libraries
-import Mouse 
-import Window 
-
---Html Libraries
-import Html 
-import Html.Attributes as Attr
-import Html.Events as Events
-
---Svg Libraries
-import Svg
-import Svg.Attributes
-import Svg.Events
-import Svg.Lazy
-
---Error Checking Libraries
 import Debug
 
--- Model --
---Fields:
--- code            - Text currently in the textbox
---inputExp         - input Expression
--- objects         - The workingVal translated to manipulable SVGs
--- movingObj       - If an object is being moved, which one
--- possibleChanges - The possible new expressions and their associated Vals, 
---                   as from the output of sync
--- mode            - Flag for current mode (ad hoc manipulation/selection of sync
---                   options/live updating)
-type alias Model = { code : String
-                   , inputExp : Maybe Exp
-                   , movingObj : Maybe (NodeId, ShapeKind, Zone, Maybe MouseTrigger)
-                   , workingSlate : IndexedTree
-                   , mode : Mode
-                   }
+import Svg
+
+type alias Model =
+  { code : String
+  , inputExp : Maybe Exp
+  , movingObj : Maybe (NodeId, ShapeKind, Zone, Maybe MouseTrigger)
+  , workingSlate : IndexedTree
+  , mode : Mode
+  }
 
 type alias MouseTrigger = (Int, Int) -> (Exp, IndexedTree)
 
@@ -86,17 +50,10 @@ type Event = CodeUpdate String
            | SelectOption ((Exp, Val), Float)
            | Render
 
---An Object is composed of an svg, list of attribute key/values
 type alias Object = (Svg.Svg, List Attr)
 
--- rkc TODO: move zone tables from Sync to LangSvg
-type alias Zone = String
-
---A mailbox for signaling the model
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
-
---Update Utilities
 
 adjustCoords : (Int, Int) -> (Int, Int) -> (Int, Int)
 adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
