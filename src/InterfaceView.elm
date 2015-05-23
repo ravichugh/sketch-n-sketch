@@ -90,7 +90,7 @@ buildSvg (nodeID, node) = case node of
     LangSvg.SvgNode shape attrs childrenids ->
        let attrstrs = getAttrs attrs
            zones = makeZones shape nodeID attrstrs
-           mainshape = (LangSvg.svg shape <| LangSvg.valsToAttrs attrs) []
+           mainshape = (LangSvg.svg shape <| LangSvg.compileAttrs attrs) []
        in (Svg.svg [] (mainshape :: zones), attrstrs)
 
 compileAttrNum k v = LangSvg.attr k (toString v)

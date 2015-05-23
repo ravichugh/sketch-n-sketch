@@ -31,38 +31,53 @@ valToHtml : Int -> Int -> Val -> Html.Html
 valToHtml w h (VList [VBase (String "svg"), VList vs1, VList vs2]) =
   let wh = [numAttrToVal "width" w, numAttrToVal "height" h] in
   let v' = VList [VBase (String "svg"), VList (wh ++ vs1), VList vs2] in
-  valToNode v'
+  compileValToNode v'
     -- NOTE: not checking if width/height already in vs1
 
-valToNode : Val -> VirtualDom.Node
-valToNode v = case v of
+compileValToNode : Val -> VirtualDom.Node
+compileValToNode v = case v of
   VList [VBase (String "TEXT"), VBase (String s)] -> VirtualDom.text s
-  VList [VBase (String f), VList vs1, VList vs2]  -> (svg f) (valsToAttrs vs1) (valsToNodes vs2)
+  VList [VBase (String f), VList vs1, VList vs2]  -> (svg f) (compileAttrs vs1) (compileNodes vs2)
 
-valsToNodes = List.map valToNode
-valsToAttrs = List.map valToAttr
+compileNodes = List.map compileValToNode
+compileAttrs = List.map ((\(k,v) -> (attr k) (strAVal v)) << valToAttr)
 
 numAttrToVal a i =
   VList [VBase (String a), VConst (toFloat i) dummyTrace]
 
+type AVal
+  = ANum Num
+  | AString String
+  | APoints (List Point)
+  | ARgba Rgba
+  | APath (List Val) -- untyped
+
+type alias Point = (Num,Num)
+type alias Rgba  = (Num,Num,Num,Num)
+
 valToAttr (VList [VBase (String k), v]) =
-  let f = attr k in
   case (k, v) of
-    (_, VConst i _)       -> f (toString i)
-    (_, VBase (String s)) -> f s
-    ("points", VList vs)  -> f (valToPoints vs)
-    ("fill", VList vs)    -> f (valToRgba vs)
-    ("stroke", VList vs)  -> f (valToRgba vs)
-    ("d", VList vs)       -> f (valToPath vs)
+    (_, VConst i _)       -> (k, ANum i)
+    (_, VBase (String s)) -> (k, AString s)
+    ("points", VList vs)  -> (k, APoints <| List.map valToPoint vs)
+    ("fill", VList vs)    -> (k, ARgba <| valToRgba vs)
+    ("stroke", VList vs)  -> (k, ARgba <| valToRgba vs)
+    ("d", VList vs)       -> (k, APath vs)
 
-valToPoints = Utils.spaces << List.map valToPoint
+valToPoint (VList [VConst x _, VConst y _]) = (x,y)
+valToRgba [VConst r _, VConst g _, VConst b _, VConst a _] = (r,g,b,a)
 
-valToPoint (VList [VConst x _, VConst y _]) =
-  toString x ++ "," ++ toString y
+strPoint (x,y) = toString x ++ "," ++ toString y
+strRgba (r,g,b,a) =
+  "rgba" ++ Utils.parens (Utils.commas (List.map toString [r,g,b,a]))
 
-valToRgba v = case v of
-  [VConst r _, VConst g _, VConst b _, VConst a _] ->
-    "rgba" ++ Utils.parens (Utils.commas (List.map toString [r,g,b,a]))
+strAVal a = case a of
+  AString s -> s
+  ANum i    -> toString i
+  APoints l -> Utils.spaces (List.map strPoint l)
+  ARgba tup -> strRgba tup
+  APath vs  -> valToPath vs
+
 
 -- https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
 -- http://www.w3schools.com/svg/svg_path.asp
