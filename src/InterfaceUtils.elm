@@ -54,18 +54,19 @@ type alias Model = { code : String
                    , movingObj : Maybe (NodeId, ShapeKind, Zone, Maybe MouseTrigger)
                    , workingSlate : IndexedTree
                    , triggers : Triggers
-                   , possibleChanges : List ((Exp, Val), Float)
                    , mode : Mode
                    }
 
 type alias MouseTrigger = (Int, Int) -> (Exp, IndexedTree)
 
-type Mode = AdHoc | SyncSelect | Live
+type alias PossibleChanges = List ((Exp, Val), Float)
+
+type Mode = AdHoc | SyncSelect PossibleChanges | Live
 
 syncBool m = case m of
-  Live       -> False -- TODO: dummy...
-  AdHoc      -> False
-  SyncSelect -> True
+  Live         -> False -- TODO: dummy...
+  AdHoc        -> False
+  SyncSelect _ -> True
 
 --Event
 --CodeUpdate : carries updated string of code with it

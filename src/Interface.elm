@@ -48,7 +48,6 @@ sampleModel = { code      = sExp tempTest.e
               , inputExp  = Just tempTest.e
               , movingObj = Nothing
               , workingSlate = LangSvg.valToIndexedTree tempTest.v
-              , possibleChanges = []
               , mode  = Live
               , triggers = Sync.prepareLiveUpdates tempTest.e tempTest.v
               }
@@ -166,15 +165,12 @@ upstate evt old = case Debug.log "Event" evt of
                 in
                   case sync ip inputval' newval of
                     Ok [] -> old
-                    Ok ls -> { old | possibleChanges <- ls , mode <- SyncSelect }
+                    Ok ls -> { old | mode <- SyncSelect ls }
                     Err e -> Debug.crash ("upstate Sync: ++ " ++ e)
 
     --Given possible changes, an option is selected. Vals are correspondingly
     --updated and mode is turned off.
-    SelectOption ((e,v), f) -> { old | possibleChanges <- []
-                                     , inputExp <- Just e
-                                     , mode <- AdHoc
-                               }
+    SelectOption ((e,v), f) -> { old | inputExp <- Just e, mode <- AdHoc }
 
     SwitchMode m -> { old | mode <- m }
 

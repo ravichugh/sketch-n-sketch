@@ -202,9 +202,9 @@ makeZones shape nodeID l =
 view : (Int, Int) -> Model -> Html.Html
 view wh model =
   case model.mode of
-    AdHoc      -> regularView wh model
-    Live       -> regularView wh model
-    SyncSelect -> selectView wh model
+    AdHoc        -> regularView wh model
+    Live         -> regularView wh model
+    SyncSelect l -> selectView wh model l
 
 regularView (w,h) model =
     let
@@ -271,7 +271,7 @@ regularView (w,h) model =
                     ]
                     ++
                     (case model.mode of
-                        SyncSelect -> []
+                        SyncSelect _ -> []
                         Live -> []
                         AdHoc -> 
                             [Html.button
@@ -329,15 +329,15 @@ renderView (w,h) model =
             ]
 
 --Build an Html of the iterations of renderOption over the possibleChanges
-selectView : (Int, Int) -> Model -> Html.Html
-selectView (w,h) model =
+selectView : (Int, Int) -> Model -> PossibleChanges -> Html.Html
+selectView (w,h) model possibleChanges =
     let
         dim = (Basics.toFloat (Basics.min w h)) / 2
     in
         Html.div
         []
         --index the possible changes and render these options
-        (renderOption (w, h // 4) (Utils.mapi (\x -> x) model.possibleChanges) model dim)
+        (renderOption (w, h // 4) (Utils.mapi (\x -> x) possibleChanges) model dim)
             
 --Given a possible Change, build code from Expr and visuals from the val, rank by priority w/ mapi
 renderOption : (Int, Int) -> List (Int, ((Exp, Val), Float)) -> Model -> Float -> List Html.Html
