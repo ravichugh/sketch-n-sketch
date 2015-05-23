@@ -214,7 +214,7 @@ regularView (w,h) model =
                 --, Events.onClick events.address Render
                 ] 
                 [Html.text ("test"++ (toString (i + 14)))]) 
-                (Utils.mapi (\x -> x) MainSvg.tests)
+                (Utils.mapi identity (List.map Utils.thd3 MainSvg.tests))
     in
                   Html.div
                     [ Attr.style
