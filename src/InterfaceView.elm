@@ -115,6 +115,7 @@ makeZones shape nodeID l =
             , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
             , LangSvg.attr "strokeWidth" "3"
             , LangSvg.attr "fill" "rgba(0,0,0,0)"
+            , LangSvg.attr "cursor" "move"
             , onMouseDown (SelectObject nodeID shape "Interior")
             , onMouseUp (DeselectObject nodeID)
             ] in
@@ -126,14 +127,15 @@ makeZones shape nodeID l =
             , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
             , LangSvg.attr "strokeWidth" "10"
             , LangSvg.attr "fill" "rgba(0,0,0,0)"
+            , LangSvg.attr "cursor" "crosshair"
             , onMouseDown (SelectObject nodeID shape "Edge")
             , onMouseUp (DeselectObject nodeID)
             ] in
         [zEdge, zInterior] -- important that zEdge goes on top
 
     "rect" ->
-        let mk zone x_ y_ w_ h_ =
-          flip Svg.rect [] [
+        let mk zone x_ y_ w_ h_ s_ =
+          flip Svg.rect [] ([
               compileAttrNum "x" x_
             , compileAttrNum "y" y_
             , compileAttrNum "width" w_
@@ -143,7 +145,7 @@ makeZones shape nodeID l =
             , LangSvg.attr "fill" "rgba(0,0,0,0)"
             , onMouseDown (SelectObject nodeID shape zone)
             , onMouseUp (DeselectObject nodeID)
-            ]
+            ] ++ List.map (\(a,b) -> LangSvg.attr a b) s_)
         in
         let
           [x,y,w,h]     = List.map (toFloat_ << Utils.find_ l) ["x","y","width","height"]
@@ -153,15 +155,15 @@ makeZones shape nodeID l =
           (wSlim,wWide) = (gut*w, (1-2*gut)*w)
           (hSlim,hWide) = (gut*h, (1-2*gut)*h)
         in
-          [ mk "Interior"       x1 y1 wWide hWide
-          , mk "RightEdge"      x2 y1 wSlim hWide
-          , mk "BotRightCorner" x2 y2 wSlim hSlim
-          , mk "BotEdge"        x1 y2 wWide hSlim
-          , mk "BotLeftCorner"  x0 y2 wSlim hSlim
-          , mk "LeftEdge"       x0 y1 wSlim hWide
-          , mk "TopLeftCorner"  x0 y0 wSlim hSlim
-          , mk "TopEdge"        x1 y0 wWide hSlim
-          , mk "TopRightCorner" x2 y0 wSlim hSlim
+          [ mk "Interior"       x1 y1 wWide hWide [("cursor", "move")]
+          , mk "RightEdge"      x2 y1 wSlim hWide [("cursor", "ew-resize")]
+          , mk "BotRightCorner" x2 y2 wSlim hSlim [("cursor", "nwse-resize")]
+          , mk "BotEdge"        x1 y2 wWide hSlim [("cursor", "ns-resize")]
+          , mk "BotLeftCorner"  x0 y2 wSlim hSlim [("cursor", "nesw-resize")]
+          , mk "LeftEdge"       x0 y1 wSlim hWide [("cursor", "ew-resize")]
+          , mk "TopLeftCorner"  x0 y0 wSlim hSlim [("cursor", "nwse-resize")]
+          , mk "TopEdge"        x1 y0 wWide hSlim [("cursor", "ns-resize")]
+          , mk "TopRightCorner" x2 y0 wSlim hSlim [("cursor", "nesw-resize")]
           ]
 
     "ellipse" ->
@@ -176,6 +178,7 @@ makeZones shape nodeID l =
             , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
             , LangSvg.attr "strokeWidth" "3"
             , LangSvg.attr "fill" "rgba(0,0,0,0)"
+            , LangSvg.attr "cursor" "move"
             , onMouseDown (SelectObject nodeID shape "Interior")
             , onMouseUp (DeselectObject nodeID)
             ] in
@@ -188,6 +191,7 @@ makeZones shape nodeID l =
             , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
             , LangSvg.attr "strokeWidth" "10"
             , LangSvg.attr "fill" "rgba(0,0,0,0)"
+            , LangSvg.attr "cursor" "crosshair"
             , onMouseDown (SelectObject nodeID shape "Edge")
             , onMouseUp (DeselectObject nodeID)
             ] in
@@ -200,7 +204,7 @@ view : (Int, Int) -> Model -> Html.Html
 view (w,h) model =
   let 
     ui = model.ui
-    windowsplit = (w, h - 140)
+    windowsplit = (w, h * 9 // 10)
     viewtype = case model.mode of
       AdHoc        -> regularView windowsplit model
       Live _       -> regularView windowsplit model
@@ -221,14 +225,24 @@ view (w,h) model =
           , ("left", dimToPix 0)
           , ("top", dimToPix 0)
           , ("width", dimToPix w)
-          , ("height", dimToPix 140)
+          , ("height", dimToPix (h // 10))
           ]
         ]
-        [ Html.button
+        [ Html.div 
+            [Attr.style
+                [ ("font-family", "Trebuchet MS, Helvetica, sans-serif")
+                , ("font-size", "40px")
+                , ("position", "absolute")
+                , ("left", "10px")
+                , ("top", "10px")
+                ]
+            ]
+            [Html.text "Sketch-n-Sketch"]
+        , Html.button  
           [ Attr.style
             [ ("position", "absolute")
             , ("left", dimToPix (w - 160))
-            , ("bottom", dimToPix 80)
+            , ("top", dimToPix 20)
             , ("type", "button")
             , ("width", "140px")
             , ("height", "40px")
@@ -237,7 +251,6 @@ view (w,h) model =
             ({ ui | orient <- switchOrient ui.orient}))
           ]
           [Html.text ("Orientation: " ++ (toString model.ui.orient))]
-        , Html.text "Sketch-n-Sketch"
         ]
       , viewtype
       ]
@@ -267,7 +280,7 @@ regularView (w,h) model =
                       , ("width", toString w)
                       , ("height", toString h)
                       , ("left", dimToPix 0)
-                      , ("top", dimToPix 140)
+                      , ("top", dimToPix (h // 9))
                       ]
                     ]
                     --display code & visuals
