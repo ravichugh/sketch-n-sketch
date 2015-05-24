@@ -217,7 +217,7 @@ type ExtraInfo = None | NumPoints Int
 
 type alias Dict0 = Dict NodeId (ShapeKind, ExtraInfo, Dict AttrName Trace)
 type alias Dict1 = Dict NodeId (ShapeKind, List (Zone, (List Locs)))
-type alias Dict2 = Dict NodeId (ShapeKind, List (Zone, (Locs, List Locs)))
+type alias Dict2 = Dict NodeId (ShapeKind, List (Zone, Maybe (Locs, List Locs)))
 
 printZoneTable : Val -> String
 printZoneTable v =
@@ -314,11 +314,11 @@ assignTriggers d1 =
   let f i (kind,zoneLists) (setSeen1,acc) =
     let g (zone,sets) (setSeen2,acc) =
       case (Utils.findFirst (not << flip Set.member setSeen2) sets, sets) of
-        (Nothing, [])         -> (setSeen2, (zone,([],[]))::acc)
-        (Nothing, set::sets') -> (setSeen2, (zone,(set,sets'))::acc)
+        (Nothing, [])         -> (setSeen2, (zone,Nothing)::acc)
+        (Nothing, set::sets') -> (setSeen2, (zone,Just(set,sets'))::acc)
         (Just x,  _)          ->
           let setSeen3 = Set.insert x setSeen2 in
-          let acc' = (zone, (x, Utils.removeFirst x sets)) :: acc in
+          let acc' = (zone, Just (x, Utils.removeFirst x sets)) :: acc in
           (setSeen3, acc')
     in
     let (setSeen,zoneLists') = List.foldl g (setSeen1,[]) zoneLists in
@@ -337,10 +337,12 @@ strTable d =
          Utils.lines (s1::sRows))
     |> String.join "\n\n"
 
-strRow (zone,(set,sets)) =
-     String.padRight 18 ' ' zone
-  ++ String.padRight 25 ' ' (if set == [] then "" else strLocs set)
-  ++ Utils.spaces (List.map strLocs sets)
+strRow (zone, m) = case m of
+  Nothing -> String.padRight 18 ' ' zone
+  Just (set,sets) ->
+       String.padRight 18 ' ' zone
+    ++ String.padRight 25 ' ' (if set == [] then "" else strLocs set)
+    ++ Utils.spaces (List.map strLocs sets)
 
 strLocs = Utils.braces << Utils.commas << List.map strLoc_
 
@@ -351,7 +353,7 @@ strLoc_ l =
 
 ------------------------------------------------------------------------------
 
-type alias Triggers = Dict NodeId (Dict Zone Trigger)
+type alias Triggers = Dict NodeId (Dict Zone (Maybe Trigger))
 type alias Trigger  = List (AttrName, Num) -> (Exp, Dict NodeId (Dict AttrName Num))
 
 prepareLiveUpdates : Exp -> Val -> Triggers
@@ -367,7 +369,11 @@ makeTriggers : Exp -> Dict0 -> Dict2 -> Triggers
 makeTriggers e d0 d2 =
   let subst = LangParser.substOf e in
   let f i (_,zones) =
-    let g (zone,_) = Dict.insert zone (makeTrigger e d0 d2 subst i zone) in
+    let g (zone,m) =
+      Dict.insert zone <|
+        case m of
+          Nothing -> Nothing
+          Just _  -> Just (makeTrigger e d0 d2 subst i zone) in
     List.foldl g Dict.empty zones in
   Dict.map f d2
 
@@ -418,8 +424,9 @@ whichLoc d0 d2 i z attr =
     justGet i d0 |> Utils.thd3 |> justGet attr |> locsOfTrace in
   let zoneLocs =
     justGet i d2
-      |> snd |> Utils.maybeFind z |> Utils.fromJust |> fst
-      |> Set.fromList in
+      |> snd |> Utils.maybeFind z |> Utils.fromJust
+      |> Utils.fromJust_ "guaranteed not to fail b/c of check in makeTriggers"
+      |> fst |> Set.fromList in
   let [(k,_)] = Set.toList (trLocs `Set.intersect` zoneLocs) in
   k
 

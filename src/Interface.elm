@@ -150,15 +150,17 @@ upstate evt old = case Debug.log "Event" evt of
               case old.mode of
                 AdHoc -> (Utils.fromJust old.inputExp, newSlate)
                 Live triggers ->
-                  let trigger = Utils.justGet zone (Utils.justGet objid triggers) in
-                  let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
-                  let newSlate' =
-                    Dict.foldl (\j dj acc1 ->
-                      Dict.foldl
-                        (\a n acc2 -> upslate j (a, aNum n) acc2) acc1 dj
-                      ) newSlate otherChanges
-                  in
-                  (newE, newSlate')
+                  case Utils.justGet zone (Utils.justGet objid triggers) of
+                    Nothing -> (Utils.fromJust old.inputExp, newSlate)
+                    Just trigger ->
+                      let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
+                      let newSlate' =
+                        Dict.foldl (\j dj acc1 ->
+                          Dict.foldl
+                            (\a n acc2 -> upslate j (a, aNum n) acc2) acc1 dj
+                          ) newSlate otherChanges
+                      in
+                      (newE, newSlate')
           in
           { old | movingObj <- Just (objid, kind, zone, Just onNewPos) }
 
