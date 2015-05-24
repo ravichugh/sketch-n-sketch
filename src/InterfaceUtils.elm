@@ -115,4 +115,4 @@ switchOrient m = case m of
   Vertical -> Horizontal
   Horizontal -> Vertical
 
-dimTopix d = String.append (toString d) "px"
+dimToPix d = String.append (toString d) "px"

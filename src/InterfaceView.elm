@@ -200,7 +200,7 @@ view : (Int, Int) -> Model -> Html.Html
 view (w,h) model =
   let 
     ui = model.ui
-    windowsplit = (w, h - 200)
+    windowsplit = (w, h - 140)
     viewtype = case model.mode of
       AdHoc        -> regularView windowsplit model
       Live _       -> regularView windowsplit model
@@ -211,24 +211,24 @@ view (w,h) model =
         [ ("width", toString w)
         , ("height", toString h)
         , ("position", "absolute")
-        , ("left", String.append (toString <| 0) "px")
-        , ("top", String.append (toString <| 0) "px")
+        , ("left", dimToPix 0)
+        , ("top", dimToPix 0)
         ]
       ]
       [ Html.div --title banner
         [ Attr.style
           [ ("position", "absolute")
-          , ("left", String.append (toString <| 0) "px")
-          , ("top", String.append (toString <| 0) "px")
-          , ("width", String.append (toString <| w) "px")
-          , ("height", String.append (toString <| 140) "px")
+          , ("left", dimToPix 0)
+          , ("top", dimToPix 0)
+          , ("width", dimToPix w)
+          , ("height", dimToPix 140)
           ]
         ]
         [ Html.button
           [ Attr.style
             [ ("position", "absolute")
-            , ("left", String.append (toString <| w - 160) "px")
-            , ("bottom", String.append (toString <| 80) "px")
+            , ("left", dimToPix (w - 160))
+            , ("bottom", dimToPix 80)
             , ("type", "button")
             , ("width", "140px")
             , ("height", "40px")
@@ -266,8 +266,8 @@ regularView (w,h) model =
                       [ ("position", "absolute")
                       , ("width", toString w)
                       , ("height", toString h)
-                      , ("left", String.append (toString <| 0) "px")
-                      , ("top", String.append (toString <| 200) "px")
+                      , ("left", dimToPix 0)
+                      , ("top", dimToPix 140)
                       ]
                     ]
                     --display code & visuals
@@ -275,8 +275,8 @@ regularView (w,h) model =
                     , Html.button
                         [ Attr.style
                             [ ("position", "absolute")
-                            , ("left", String.append (toString <| w // 2 - 50) "px")
-                            , ("top", String.append (toString <| h // 4) "px")
+                            , ("left", dimToPix (w // 2 - 50))
+                            , ("top", dimToPix (h // 4))
                             , ("type", "button")
                             , ("width", "100px")
                             , ("height", "40px")
@@ -289,8 +289,8 @@ regularView (w,h) model =
                     , Html.select
                         [ Attr.style
                             [ ("position", "absolute")
-                            , ("left", String.append (toString <| (w // 2 - 50)) "px")
-                            , ("top", String.append (toString <| h // 4 + 60) "px")
+                            , ("left", dimToPix (w // 2 - 50))
+                            , ("top", dimToPix (h // 4 + 60))
                             , ("type", "button")
                             , ("width", "100px")
                             , ("height", "40px")
@@ -308,8 +308,8 @@ regularView (w,h) model =
                     , Html.select
                         [ Attr.style
                             [ ("position", "absolute")
-                            , ("left", String.append (toString <| w // 2 - 50) "px")
-                            , ("top", String.append (toString <| h // 4 + 120) "px")
+                            , ("left", dimToPix (w // 2 - 50))
+                            , ("top", dimToPix (h // 4 + 120))
                             , ("type", "button")
                             , ("width", "100px")
                             , ("height", "40px")
@@ -325,8 +325,8 @@ regularView (w,h) model =
                             [Html.button
                                 [ Attr.style
                                     [ ("position", "absolute")
-                                    , ("left", String.append (toString <| w // 2 - 50) "px")
-                                    , ("top", String.append (toString <| h // 4 + 180) "px")
+                                    , ("left", dimToPix (w // 2 - 50))
+                                    , ("top", dimToPix (h // 4 + 180))
                                     , ("type", "button")
                                     , ("width", "100px")
                                     , ("height", "40px")
@@ -354,8 +354,8 @@ renderView (w,h) model =
             ]
             [ Html.div 
                 [ Attr.style
-                    [ ("width", String.append (toString <| w // 2 - 60) "px")
-                    , ("height", String.append (toString <| h) "px")
+                    [ ("width", dimToPix (w // 2 - 60))
+                    , ("height", dimToPix h)
                     , ("margin", "0")
                     , ("position", "absolute")
                     , ("left", "0px")
@@ -365,11 +365,11 @@ renderView (w,h) model =
                 [codeBox model.code (syncBool model.mode)]
             , Html.div
                 [ Attr.style
-                    [ ("width", String.append (toString <| w // 2 - 60) "px")
-                    , ("height", String.append (toString h) "px")
+                    [ ("width", dimToPix (w // 2 - 60))
+                    , ("height", dimToPix h)
                     , ("margin", "0")
                     , ("position", "absolute")
-                    , ("left", String.append (toString <| w // 2 + 60) "px")
+                    , ("left", dimToPix (w // 2 + 60))
                     , ("top", "0px")
                     ]
                 ]    
@@ -397,14 +397,14 @@ renderOption (w,h) possiblechanges model dim =
                 [ Attr.style
                     [ ("width", toString w)
                     , ("height", toString h)
-                    , ("top", String.append (toString <| h * (i-1)) "px")
+                    , ("top", dimToPix (h * (i-1)))
                     , ("position", "absolute")
                     ]
                 ]
                 [ Html.div 
                     [ Attr.style
-                        [ ("width", String.append (toString <| w // 2 - 30) "px")
-                        , ("height", String.append (toString <| h) "px")
+                        [ ("width", dimToPix (w // 2 - 30))
+                        , ("height", dimToPix h)
                         , ("margin", "0")
                         , ("position", "absolute")
                         , ("left", "0px")
@@ -414,11 +414,11 @@ renderOption (w,h) possiblechanges model dim =
                     [codeBox (sExpK 1 e) (syncBool model.mode)]
                 , Html.div
                     [ Attr.style
-                        [ ("width", String.append (toString <| w // 2 - 50) "px")
-                        , ("height", String.append (toString h) "px")
+                        [ ("width", dimToPix (w // 2 - 50))
+                        , ("height", dimToPix h)
                         , ("margin", "0")
                         , ("position", "absolute")
-                        , ("left", String.append (toString <| w // 2) "px")
+                        , ("left", dimToPix (w // 2))
                         , ("top", "0px") --String.append (toString <| h * (i-1)) "px")
                         ]
                     ]    
