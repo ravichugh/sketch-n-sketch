@@ -41,8 +41,9 @@ compileValToNode v = case v of
     (svg f) (compileAttrVals vs1) (compileNodeVals vs2)
 
 compileNodeVals = List.map compileValToNode
-compileAttrVals = List.map ((\(k,v) -> (attr k) (strAVal v)) << valToAttr)
-compileAttrs    = List.map ((\(k,v) -> (attr k) (strAVal v)))
+compileAttrVals = List.map (uncurry compileAttr << valToAttr)
+compileAttrs    = List.map (uncurry compileAttr)
+compileAttr k v = (attr k) (strAVal v)
 
 numAttrToVal a i =
   VList [VBase (String a), VConst (toFloat i) dummyTrace]
@@ -56,6 +57,9 @@ type AVal
 
 type alias Point = (Num,Num)
 type alias Rgba  = (Num,Num,Num,Num)
+
+toNum    (ANum i) = i
+toPoints (APoints pts) = pts
 
 valToAttr (VList [VBase (String k), v]) =
   case (k, v) of
@@ -235,6 +239,20 @@ strEdges =
 -- Zones
 
 type alias Zone = String
+
+-- NOTE: would like to use only the following definition, but datatypes
+-- aren't comparable... so using Strings for storing in dictionaries, but
+-- using the following for pattern-matching purposes
+
+type RealZone = Z String | ZPoint Int
+
+addi s i = s ++ toString i
+
+realZoneOf s =
+  Maybe.withDefault (Z s)
+    (Utils.mapMaybe
+      (ZPoint << Utils.fromOk_ << String.toInt)
+      (Utils.munchString "Point" s))
 
 -- TODO perhaps define Interface callbacks here
 

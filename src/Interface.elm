@@ -12,7 +12,7 @@ import Utils
 import MicroTests
 import InterfaceUtils exposing (..)
 import InterfaceView exposing (..)
-import LangSvg exposing (IndexedTree, NodeId, ShapeKind)
+import LangSvg exposing (IndexedTree, NodeId, ShapeKind, toNum, toPoints, addi)
 import VirtualDom
 
 --Core Libraries
@@ -41,9 +41,11 @@ import Svg.Lazy
 import Debug
 
 
-tempTest = MicroTests.test42 ()
+-- tempTest = MicroTests.test42 ()
 -- tempTest = MicroTests.test20 ()
 -- tempTest = MicroTests.test31 ()
+tempTest = MicroTests.test41 ()
+-- tempTest = MicroTests.test43 ()
 
 sampleModel = { code      = sExp tempTest.e
               , inputExp  = Just tempTest.e
@@ -70,7 +72,7 @@ upstate evt old = case Debug.log "Event" evt of
 
         Just (objid, kind, zone, Nothing) ->
           let (_,attrs) = buildSvg (objid, Utils.justGet objid old.workingSlate) in
-          let numAttr   = toFloat_ << Utils.find_ attrs in
+          let numAttr   = toNum << Utils.find_ attrs in
           let onNewPos (mx',my') =
             let posX n = n - toFloat mx + toFloat mx' in
             let posY n = n - toFloat my + toFloat my' in
@@ -80,63 +82,76 @@ upstate evt old = case Debug.log "Event" evt of
             let fy   a = (a, aNum <| posY (numAttr a)) in
             let fx_  a = (a, aNum <| negX (numAttr a)) in
             let fy_  a = (a, aNum <| negY (numAttr a)) in
-            let newAttrs =
+            let ret l = (l, l) in
+            let (newRealAttrs,newFakeAttrs) =
               case (kind, zone) of
 
-                ("rect", "Interior")       -> [fx "x", fy "y"]
-                ("rect", "RightEdge")      -> [fx "width"]
-                ("rect", "BotRightCorner") -> [fx "width", fy "height"]
-                ("rect", "BotEdge")        -> [fy "height"]
-                ("rect", "BotLeftCorner")  -> [fx "x", fx_ "width", fy "height"]
-                ("rect", "LeftEdge")       -> [fx "x", fx_ "width"]
-                ("rect", "TopLeftCorner")  -> [fx "x", fy "y", fx_ "width", fy_ "height"]
-                ("rect", "TopEdge")        -> [fy "y", fy_ "height"]
-                ("rect", "TopRightCorner") -> [fy "y", fx "width", fy_ "height"]
+                ("rect", "Interior")       -> ret [fx "x", fy "y"]
+                ("rect", "RightEdge")      -> ret [fx "width"]
+                ("rect", "BotRightCorner") -> ret [fx "width", fy "height"]
+                ("rect", "BotEdge")        -> ret [fy "height"]
+                ("rect", "BotLeftCorner")  -> ret [fx "x", fx_ "width", fy "height"]
+                ("rect", "LeftEdge")       -> ret [fx "x", fx_ "width"]
+                ("rect", "TopLeftCorner")  -> ret [fx "x", fy "y", fx_ "width", fy_ "height"]
+                ("rect", "TopEdge")        -> ret [fy "y", fy_ "height"]
+                ("rect", "TopRightCorner") -> ret [fy "y", fx "width", fy_ "height"]
 
-                ("circle", "Interior") -> [fx "cx", fy "cy"]
+                ("circle", "Interior") -> ret [fx "cx", fy "cy"]
                 ("circle", "Edge") ->
                   -- TODO to make stretching more intuitive, take orientation
                   -- of init click w.r.t center into account
                   let (dx,dy) = (mx' - mx, my' - my) in
-                  [ ("r", aNum <| numAttr "r" + toFloat (max dx dy)) ]
+                  ret [ ("r", aNum <| numAttr "r" + toFloat (max dx dy)) ]
 
-                ("ellipse", "Interior") -> [fx "cx", fy "cy"]
-                ("ellipse", "Edge")     -> [fx "rx", fy "ry"]
+                ("ellipse", "Interior") -> ret [fx "cx", fy "cy"]
+                ("ellipse", "Edge")     -> ret [fx "rx", fy "ry"]
 
+                ("line", "Edge") -> ret [fx "x1", fx "x2", fy "y1", fy "y2"]
                 ("line", _) ->
-                  case Utils.munchString "Point" zone of
-                    Just suf ->
-                      case String.toInt suf of
-                        Ok i ->
-                          [fx ("x" ++ toString i), fy ("y" ++ toString i)]
+                  case LangSvg.realZoneOf zone of
+                    LangSvg.ZPoint i -> ret [fx (addi "x" i), fy (addi "y" i)]
+
+                -- TODO rethink/refactor polygon zones
+
+                ("polygon", "Interior") ->
+                  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
+                  let pts = toPoints <| Utils.find_ nodeAttrs "points" in
+                  let accs =
+                    let foo (j,(xj,yj)) (acc1,acc2) =
+                      let (xj',yj') = (posX xj, posY yj) in
+                      let acc2' = (addi "x"j, LangSvg.ANum xj') :: (addi "y"j, LangSvg.ANum yj') :: acc2 in
+                      ((xj',yj')::acc1, acc2')
+                    in
+                    Utils.foldli foo ([],[]) pts
+                  in
+                  let (acc1,acc2) = Utils.reverse2 accs in
+                  ([("points", LangSvg.APoints acc1)], acc2)
 
                 ("polygon", _) ->
-                  case Utils.munchString "Point" zone of
-                    Just suf ->
-                      case String.toInt suf of
-                        Ok i ->
-                          let (Just (LangSvg.SvgNode _ blah _)) = Dict.get objid old.workingSlate in
-                          let (LangSvg.APoints pts) = Utils.find_ blah "points" in
-                          let pts' =
-                            Utils.foldri (\(j,(xj,yj)) acc ->
-                              let (xj',yj') =
-                                if | i == j    -> (posX xj, posY yj)
-                                   | otherwise -> (xj, yj)
-                              in
-                              (xj',yj')::acc) [] pts
-                          in
-                          [("points", LangSvg.APoints pts')]
+                  case LangSvg.realZoneOf zone of
+                    LangSvg.ZPoint i ->
+                      let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
+                      let pts = toPoints <| Utils.find_ nodeAttrs "points" in
+                      let accs =
+                        let foo (j,(xj,yj)) (acc1,acc2) =
+                          if | i /= j -> ((xj,yj)::acc1, acc2)
+                             | otherwise ->
+                                 let (xj',yj') = (posX xj, posY yj) in
+                                 let acc2' = (addi "x"i, LangSvg.ANum xj') :: (addi "y"i, LangSvg.ANum yj') :: acc2 in
+                                 ((xj',yj')::acc1, acc2')
+                        in
+                        Utils.foldli foo ([],[]) pts
+                      in
+                      let (acc1,acc2) = Utils.reverse2 accs in
+                      ([("points", LangSvg.APoints acc1)], acc2)
 
             in
-            let newSlate = List.foldr (upslate objid) old.workingSlate newAttrs in
+            let newSlate = List.foldr (upslate objid) old.workingSlate newRealAttrs in
               case old.mode of
                 AdHoc -> (Utils.fromJust old.inputExp, newSlate)
                 Live triggers ->
                   let trigger = Utils.justGet zone (Utils.justGet objid triggers) in
-                  -- TODO Sync.Trigger needs to support derived attributes,
-                  --      such as x1, y1, etc. for polygon...
-                  let newAttrs' = List.map (Utils.mapSnd toFloat_) newAttrs in
-                  let (newE,otherChanges) = trigger newAttrs' in
+                  let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
                   let newSlate' =
                     Dict.foldl (\j dj acc1 ->
                       Dict.foldl

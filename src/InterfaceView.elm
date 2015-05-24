@@ -13,7 +13,7 @@ import MainSvg
 import Utils
 import MicroTests
 import InterfaceUtils exposing (..)
-import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr)
+import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr, toNum, addi)
 import VirtualDom
 
 --Core Libraries
@@ -89,10 +89,7 @@ buildSvg (nodeID, node) = case node of
       let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs) [] in
       (Svg.svg [] (mainshape :: zones), attrs)
 
-attrNum k v = LangSvg.attr k (toString v)
-toFloat_ (LangSvg.ANum i) = i
--- toFloat_           = Utils.fromOk_ << String.toFloat
--- toInt_             = Utils.fromOk_ << String.toInt
+attrNum k v = LangSvg.compileAttr k (LangSvg.ANum v)
 
 onMouseDown = Svg.Events.onMouseDown << Signal.message events.address
 onMouseUp   = Svg.Events.onMouseUp   << Signal.message events.address
@@ -101,24 +98,28 @@ zoneEvents id shape zone =
   [ onMouseDown (SelectObject id shape zone)
   , onMouseUp (DeselectObject id) ]
 
-zoneBorder svgFunc id shape zone =
+zone svgFunc id shape zone l =
+  svgFunc (zoneEvents id shape zone ++ l) []
+
+-- TODO use zone
+zoneBorder svgFunc id shape zone flag =
   flip svgFunc [] <<
   (++) (zoneEvents id shape zone) <<
   (++) [ LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
-       , LangSvg.attr "strokeWidth" "3"
+       , LangSvg.attr "strokeWidth" (if flag then "5" else "0")
        , LangSvg.attr "fill" "rgba(0,0,0,0)"
        ]
 
 zonePoint id shape zone =
   flip Svg.circle [] <<
   (++) (zoneEvents id shape zone) <<
-  (++) [ LangSvg.attr "r" "4"
+  (++) [ LangSvg.attr "r" "6"
        , LangSvg.attr "fill" "rgba(255,0,0,0.5)"
        ]
 
-zonePoints id shape =
-  Utils.mapi <| \(i, (x,y)) ->
-    zonePoint id shape ("Point" ++ toString i) [ attrNum "cx" x, attrNum "cy" y ]
+zonePoints id shape (LangSvg.APoints pts) =
+  flip Utils.mapi pts <| \(i, (x,y)) ->
+    zonePoint id shape (addi "Point" i) [ attrNum "cx" x, attrNum "cy" y ]
 
 --Zone building function (still under construction/prone to change)                
 makeZones : String -> LangSvg.NodeId -> List Attr -> List Svg.Svg
@@ -126,29 +127,29 @@ makeZones shape id l =
   case shape of
 
     "circle" ->
-        let [cx,cy,r] = List.map (toFloat_ << Utils.find_ l) ["cx","cy","r"] in
+        let [cx,cy,r] = List.map (toNum << Utils.find_ l) ["cx","cy","r"] in
         let gutterPct = 0.100 in
         let zInterior =
-          zoneBorder Svg.circle id shape "Interior" [
+          zoneBorder Svg.circle id shape "Interior" False [
               attrNum "cx" cx , attrNum "cy" cy
             , attrNum "r" (r * (1 - 2*gutterPct))
             ] in
         let zEdge =
-          zoneBorder Svg.circle id shape "Edge" [
+          zoneBorder Svg.circle id shape "Edge" True [
               attrNum "cx" cx , attrNum "cy" cy
             , attrNum "r" (r * (1))
             ] in
-        [zEdge, zInterior] -- important that zEdge goes on top
+        [zEdge, zInterior]
 
     "rect" ->
         let mk zone x_ y_ w_ h_ =
-          zoneBorder Svg.rect id shape zone [
+          zoneBorder Svg.rect id shape zone True [
               attrNum "x" x_ , attrNum "y" y_
             , attrNum "width" w_ , attrNum "height" h_
             ]
         in
         let
-          [x,y,w,h]     = List.map (toFloat_ << Utils.find_ l) ["x","y","width","height"]
+          [x,y,w,h]     = List.map (toNum << Utils.find_ l) ["x","y","width","height"]
           gut           = 0.125
           (x0,x1,x2)    = (x, x + gut*w, x + (1-gut)*w)
           (y0,y1,y2)    = (y, y + gut*h, y + (1-gut)*h)
@@ -167,31 +168,43 @@ makeZones shape id l =
           ]
 
     "ellipse" ->
-        let [cx,cy,rx,ry] = List.map (toFloat_ << Utils.find_ l) ["cx","cy","rx","ry"] in
+        let [cx,cy,rx,ry] = List.map (toNum << Utils.find_ l) ["cx","cy","rx","ry"] in
         let gutterPct = 0.100 in
         let zInterior =
-          zoneBorder Svg.ellipse id shape "Interior" [
+          zoneBorder Svg.ellipse id shape "Interior" False [
               attrNum "cx" cx , attrNum "cy" cy
             , attrNum "rx" (rx * (1 - 2*gutterPct))
             , attrNum "ry" (ry * (1 - 2*gutterPct))
             ] in
         let zEdge =
-          zoneBorder Svg.ellipse id shape "Edge" [
+          zoneBorder Svg.ellipse id shape "Edge" True [
               attrNum "cx" cx , attrNum "cy" cy
             , attrNum "rx" (rx * (1))
             , attrNum "ry" (ry * (1))
             ] in
-        [zEdge, zInterior] -- important that zEdge goes on top
+        [zEdge, zInterior]
 
     "line" ->
-        let [x1,y1,x2,y2] = List.map (toFloat_ << Utils.find_ l) ["x1","y1","x2","y2"] in
-        let zPts = zonePoints id shape [(x1,y1),(x2,y2)] in
-        zPts
+        let [x1,y1,x2,y2] = List.map (toNum << Utils.find_ l) ["x1","y1","x2","y2"] in
+        let zPts = zonePoints id shape (LangSvg.APoints [(x1,y1),(x2,y2)]) in
+        let zLine =
+          -- TODO use zone instead, since stroke* is getting defined here
+          zoneBorder Svg.line id shape "Edge" False [
+              attrNum "x1" x1 , attrNum "y1" y1
+            , attrNum "x2" x2 , attrNum "y2" y2
+            , LangSvg.compileAttr "stroke" (Utils.find_ l "stroke")
+            , LangSvg.compileAttr "strokeWidth" (Utils.find_ l "strokeWidth")
+            ] in
+        zLine :: zPts
 
     "polygon" ->
-        let (LangSvg.APoints pts) = Utils.find_ l "points" in
+        let pts = Utils.find_ l "points" in
         let zPts = zonePoints id shape pts in
-        zPts
+        let zInterior =
+          zoneBorder Svg.polygon id shape "Interior" False [
+              LangSvg.compileAttr "points" pts
+            ] in
+        zInterior :: zPts
 
     _ -> []
 

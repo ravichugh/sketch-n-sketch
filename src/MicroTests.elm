@@ -428,16 +428,30 @@ test40 () =
 
 test41 () =
   makeTest
-    "(svg [
+    "(let [x y] [200 150] (svg [
        (rect_ 50 10 80 130)
        (circle 'lightblue' 300 100 50)
        (ellipse_ 40 280 30 50)
-     ])"
+       (polygon_ [[110 110] [300 110] [x y]])
+       (polygon_ [[110 210] [300 210] [x y]])
+       (line_ 10 20 300 40)
+     ]))"
     "[]"
 
 test42 () =
   makeTest
     "(let [x0 y0 sep] [40 28 110]
        (svg (map (\\i (rect 'lightblue' (+ x0 (mult i sep)) y0 60 130)) [0 1 2])))"
+    "[]"
+
+-- output of test31, so that Interior of polygons are draggable
+test43 () =
+  makeTest
+    "['svg' [] [['rect' [['x' 50] ['y' 50] ['width' 200] ['height' 200] ['fill'
+        'white']] []] ['polygon' [['fill' 'black'] ['points' [[60 50] [250 50] [250
+        240]]] ['stroke' 'DUMMY'] ['strokeWidth' 0]] []] ['polygon' [['fill' 'black']
+        ['points' [[50 60] [50 240] [140 150]]] ['stroke' 'DUMMY'] ['strokeWidth' 0]]
+        []] ['polygon' [['fill' 'black'] ['points' [[60 250] [240 250] [150 160]]]
+        ['stroke' 'DUMMY'] ['strokeWidth' 0]] []]]]"
     "[]"
 

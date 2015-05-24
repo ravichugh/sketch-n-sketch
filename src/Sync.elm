@@ -7,7 +7,7 @@ import Debug
 import String
 
 import Lang exposing (..)
-import LangSvg exposing (NodeId, ShapeKind, Zone)
+import LangSvg exposing (NodeId, ShapeKind, Zone, addi)
 import Eval
 import LangParser
 
@@ -207,6 +207,9 @@ sync e v v' =
 ------------------------------------------------------------------------------
 -- Triggers
 
+-- NOTE: AttrNames include "fake" attributes
+--   e.g. for polygons, x1,y1,x2,y2,x3,y3,...
+
 type alias AttrName = String
 type alias LocSet = Set.Set Loc
 type alias Locs = List Loc
@@ -246,7 +249,7 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
           Utils.foldli (\(i,vPt) acc ->
             case vPt of
               VList [VConst _ trx, VConst _ try] ->
-                let (ax,ay) = ("x" ++ toString i, "y" ++ toString i) in
+                let (ax,ay) = (addi "x" i, addi "y" i) in
                 acc |> Dict.insert ax trx
                     |> Dict.insert ay try) dAttrs pts in
         (NumPoints (List.length pts), acc')
@@ -291,9 +294,8 @@ justGet_ err k d = Utils.fromJust_ err (Dict.get k d)
 
 getZones : ShapeKind -> ExtraInfo -> List (Zone, List AttrName)
 getZones kind extra =
-  let foo s i = s ++ toString i in
-  let xy i    = [foo "x" i, foo "y" i] in
-  let pt i    = (foo "Point" i, xy i) in
+  let xy i = [addi "x" i, addi "y" i] in
+  let pt i = (addi "Point" i, xy i) in
   case (kind, extra) of
     ("polyline", NumPoints n) ->
       List.map pt [1..n]
@@ -330,7 +332,7 @@ strTable : Dict2 -> String
 strTable d =
   Dict.toList d
     |> List.map (\(i,(kind,di)) ->
-         let s1 = "Shape " ++ toString i ++ " " ++ Utils.parens kind in
+         let s1 = addi "Shape " i ++ " " ++ Utils.parens kind in
          let sRows = List.map strRow di in
          Utils.lines (s1::sRows))
     |> String.join "\n\n"
@@ -371,6 +373,7 @@ makeTriggers e d0 d2 =
 
 makeTrigger : Exp -> Dict0 -> Dict2 -> Subst -> NodeId -> Zone -> Trigger
 makeTrigger e d0 d2 subst i zone = \newAttrs ->
+  -- TODO symbolically compute changes !!!
   let (subst',changedLocs) =
     let f (attr,newNum) (acc1,acc2) =
       let k = whichLoc d0 d2 i zone attr in
@@ -384,6 +387,23 @@ makeTrigger e d0 d2 subst i zone = \newAttrs ->
       let locs = Set.map fst (locsOfTrace tr) in
       if | Utils.setIsEmpty (locs `Set.intersect` changedLocs) -> acc
          | otherwise -> Dict.insert attr (evalTr subst' tr) acc
+
+         -- updating "points" based on fake attributes would be easier
+         -- if the Little representation simply kept separate attributes
+         -- for each point...
+         {-
+         | otherwise ->
+             let default () = Dict.insert attr (evalTr subst' tr) acc in
+             case String.uncons attr of
+               Nothing -> default ()
+               Just (pre,suf) ->
+                 if pre == 'x' || pre == 'y' then
+                   case String.toInt suf of
+                     Err _ -> default ()
+                     Ok i  -> Debug.log "SYNC: change other point..." <| default ()
+                 else
+                   default()
+        -}
     in
     let di' = Dict.foldl h Dict.empty di in
     if | Utils.dictIsEmpty di' -> acc

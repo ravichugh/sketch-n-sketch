@@ -86,8 +86,9 @@ tests =
   , (600, 200, MicroTests.test38 ())
   , (600, 200, MicroTests.test39 ())
   , (600, 200, MicroTests.test40 ())
-  , (600, 200, MicroTests.test41 ())
+  , (600, 300, MicroTests.test41 ())
   , (600, 200, MicroTests.test42 ())
+  , (600, 600, MicroTests.test43 ())
   ]
 
 main : Element

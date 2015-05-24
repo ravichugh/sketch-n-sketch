@@ -43,6 +43,8 @@ foldli f init xs =
 
 foldri f init xs = List.reverse (foldli f init xs)
 
+reverse2 (xs,ys) = (List.reverse xs, List.reverse ys)
+
 split : Int -> List a -> (List a, List a)
 split n xs = (List.take n xs, List.drop n xs)
 
@@ -128,6 +130,9 @@ mapMaybe f mx = case mx of {Just x -> Just (f x); Nothing -> Nothing}
 
 bindMaybe : (a -> Maybe b) -> Maybe a -> Maybe b
 bindMaybe f mx = case mx of {Just x -> f x; Nothing -> Nothing}
+
+plusMaybe : Maybe a -> Maybe a -> Maybe a
+plusMaybe mx my = case mx of {Just _ -> mx; Nothing -> my}
 
 mapSnd : (b -> b') -> (a, b) -> (a, b')
 mapSnd f (x,y) = (x, f y)
