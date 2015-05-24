@@ -10,6 +10,7 @@ import MainSvg exposing (tests)
 import List 
 import Dict
 import Debug
+import String
 
 import Svg
 import Lazy
@@ -20,7 +21,16 @@ type alias Model =
   , movingObj : Maybe (NodeId, ShapeKind, Zone, Maybe MouseTrigger)
   , workingSlate : IndexedTree
   , mode : Mode
+  , ui : UI
   }
+
+type alias UI = 
+  { orient : Orientation
+  --, windowSplit : (Int, Int) --TODO: for changing window dimensions of
+  --codebox and visualsbox
+  }
+
+type Orientation = Vertical | Horizontal
 
 type alias MouseTrigger = (Int, Int) -> (Exp, IndexedTree)
 
@@ -51,6 +61,7 @@ type Event = CodeUpdate String
            | SwitchMode Mode
            | SelectOption ((Exp, Val), Float)
            | Render (Maybe Exp)
+           | UIupdate UI
 
 type alias Object = (Svg.Svg, List Attr)
 
@@ -99,3 +110,9 @@ callTest i =
         testlist = (Utils.mapi (\(x,y) -> (x,y.e)) (List.map Utils.thd3 tests))
     in
         Lazy.lazy (\() -> Utils.find_ testlist (i - 14)) 
+
+switchOrient m = case m of
+  Vertical -> Horizontal
+  Horizontal -> Vertical
+
+dimTopix d = String.append (toString d) "px"

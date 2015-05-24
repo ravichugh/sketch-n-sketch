@@ -48,6 +48,7 @@ sampleModel = { code      = sExp tempTest.e
               , movingObj = Nothing
               , workingSlate = LangSvg.valToIndexedTree tempTest.v
               , mode  = Live <| Sync.prepareLiveUpdates tempTest.e tempTest.v
+              , ui = {orient = Vertical}
               }
 
 upstate : Event -> Model -> Model
@@ -148,6 +149,8 @@ upstate evt old = case Debug.log "Event" evt of
     SelectOption ((e,v), f) -> { old | inputExp <- Just e, mode <- AdHoc }
 
     SwitchMode m -> { old | mode <- m }
+
+    UIupdate u -> { old | ui <- u }
 
     _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
 

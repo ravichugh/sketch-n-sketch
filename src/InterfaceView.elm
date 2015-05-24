@@ -197,11 +197,51 @@ makeZones shape nodeID l =
 
 --Umbrella function for viewing a given model
 view : (Int, Int) -> Model -> Html.Html
-view wh model =
-  case model.mode of
-    AdHoc        -> regularView wh model
-    Live _       -> regularView wh model
-    SyncSelect l -> selectView wh model l
+view (w,h) model =
+  let 
+    ui = model.ui
+    windowsplit = (w, h - 200)
+    viewtype = case model.mode of
+      AdHoc        -> regularView windowsplit model
+      Live _       -> regularView windowsplit model
+      SyncSelect l -> selectView windowsplit model l
+  in
+    Html.div
+      [ Attr.style
+        [ ("width", toString w)
+        , ("height", toString h)
+        , ("position", "absolute")
+        , ("left", String.append (toString <| 0) "px")
+        , ("top", String.append (toString <| 0) "px")
+        ]
+      ]
+      [ Html.div --title banner
+        [ Attr.style
+          [ ("position", "absolute")
+          , ("left", String.append (toString <| 0) "px")
+          , ("top", String.append (toString <| 0) "px")
+          , ("width", String.append (toString <| w) "px")
+          , ("height", String.append (toString <| 140) "px")
+          ]
+        ]
+        [ Html.button
+          [ Attr.style
+            [ ("position", "absolute")
+            , ("left", String.append (toString <| w - 160) "px")
+            , ("bottom", String.append (toString <| 80) "px")
+            , ("type", "button")
+            , ("width", "140px")
+            , ("height", "40px")
+            ]
+          , Events.onClick events.address (UIupdate 
+            ({ ui | orient <- switchOrient ui.orient}))
+          ]
+          [Html.text ("Orientation: " ++ (toString model.ui.orient))]
+        , Html.text "Sketch-n-Sketch"
+        ]
+      , viewtype
+      ]
+
 
 
 regularView (w,h) model =
@@ -223,9 +263,12 @@ regularView (w,h) model =
     in
                   Html.div
                     [ Attr.style
-                        [ ("width", toString w)
-                        , ("height", toString h)
-                        ]
+                      [ ("position", "absolute")
+                      , ("width", toString w)
+                      , ("height", toString h)
+                      , ("left", String.append (toString <| 0) "px")
+                      , ("top", String.append (toString <| 200) "px")
+                      ]
                     ]
                     --display code & visuals
                     ([renderView (w,h) model
