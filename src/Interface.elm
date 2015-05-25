@@ -158,6 +158,8 @@ upstate evt old = case Debug.log "Event" evt of
                     Nothing -> (Utils.fromJust old.inputExp, newSlate)
                     Just trigger ->
                       let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
+                      if not Sync.tryToBeSmart then
+                        (newE, LangSvg.valToIndexedTree <| Eval.run newE) else
                       let newSlate' =
                         Dict.foldl (\j dj acc1 ->
                           Dict.foldl

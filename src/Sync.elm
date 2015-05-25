@@ -1,4 +1,4 @@
-module Sync (sync, prepareLiveUpdates, printZoneTable, Triggers) where
+module Sync (sync, prepareLiveUpdates, printZoneTable, Triggers, tryToBeSmart) where
 
 import Dict exposing (Dict)
 import Set
@@ -356,6 +356,8 @@ strLoc_ l =
 type alias Triggers = Dict NodeId (Dict Zone (Maybe Trigger))
 type alias Trigger  = List (AttrName, Num) -> (Exp, Dict NodeId (Dict AttrName Num))
 
+tryToBeSmart = False
+
 prepareLiveUpdates : Exp -> Val -> Triggers
 prepareLiveUpdates e v =
   let d0 = nodeToAttrLocs v in
@@ -411,7 +413,10 @@ makeTrigger e d0 d2 subst i zone = \newAttrs ->
                    default()
         -}
     in
-    let di' = Dict.foldl h Dict.empty di in
+    -- let di' = Dict.foldl h Dict.empty di in
+    let di' =
+      if | tryToBeSmart -> Dict.foldl h Dict.empty di
+         | otherwise    -> Dict.empty in
     if | Utils.dictIsEmpty di' -> acc
        | otherwise -> Dict.insert i di' acc in
   let e' = applySubst subst' e in
