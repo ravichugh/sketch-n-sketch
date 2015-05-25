@@ -199,7 +199,7 @@ upstate evt old = case Debug.log "Event" evt of
 
     SelectObject id kind zone -> { old | movingObj <- Just (id, kind, zone, Nothing) }
 
-    DeselectObject x ->
+    DeselectObject ->
       let e = Utils.fromJust old.inputExp in
       { old | movingObj <- Nothing
             , mode      <- Live <| Sync.prepareLiveUpdates e (Eval.run e) }

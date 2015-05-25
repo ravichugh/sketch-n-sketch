@@ -70,7 +70,8 @@ codeBox code switch =
 --Build viusal pane and populate with the model's objects
 visualsBox : List Object -> Float -> Bool -> Html.Html
 visualsBox objects dim switch =
-  Svg.svg [ Attr.style [ ("width", "100%"), ("height", "100%") ] ]
+  Svg.svg [ onMouseUp DeselectObject
+          , Attr.style [ ("width", "100%"), ("height", "100%") ] ]
           (List.map fst objects)
 
 --Umbrella function for taking and indexed tree and calling buildSvg over it
@@ -96,7 +97,7 @@ onMouseUp   = Svg.Events.onMouseUp   << Signal.message events.address
 
 zoneEvents id shape zone =
   [ onMouseDown (SelectObject id shape zone)
-  , onMouseUp (DeselectObject id) ]
+  , onMouseUp DeselectObject ]
 
 zone svgFunc id shape zone l =
   svgFunc (zoneEvents id shape zone ++ l) []

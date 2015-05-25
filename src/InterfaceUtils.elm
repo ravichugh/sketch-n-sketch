@@ -43,7 +43,7 @@ syncBool m = case m of
 --Render : display a given val from the code
 type Event = CodeUpdate String
            | SelectObject Int ShapeKind Zone
-           | DeselectObject Int
+           | DeselectObject
            | MousePos (Int, Int)
            | Sync
            | SwitchMode Mode
