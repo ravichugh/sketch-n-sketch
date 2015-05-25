@@ -31,38 +31,71 @@ valToHtml : Int -> Int -> Val -> Html.Html
 valToHtml w h (VList [VBase (String "svg"), VList vs1, VList vs2]) =
   let wh = [numAttrToVal "width" w, numAttrToVal "height" h] in
   let v' = VList [VBase (String "svg"), VList (wh ++ vs1), VList vs2] in
-  valToNode v'
+  compileValToNode v'
     -- NOTE: not checking if width/height already in vs1
 
-valToNode : Val -> VirtualDom.Node
-valToNode v = case v of
+compileValToNode : Val -> VirtualDom.Node
+compileValToNode v = case v of
   VList [VBase (String "TEXT"), VBase (String s)] -> VirtualDom.text s
-  VList [VBase (String f), VList vs1, VList vs2]  -> (svg f) (valsToAttrs vs1) (valsToNodes vs2)
+  VList [VBase (String f), VList vs1, VList vs2] ->
+    (svg f) (compileAttrVals vs1) (compileNodeVals vs2)
 
-valsToNodes = List.map valToNode
-valsToAttrs = List.map valToAttr
+compileNodeVals = List.map compileValToNode
+compileAttrVals = List.map (uncurry compileAttr << valToAttr)
+compileAttrs    = List.map (uncurry compileAttr)
+compileAttr k v = (attr k) (strAVal v)
 
 numAttrToVal a i =
   VList [VBase (String a), VConst (toFloat i) dummyTrace]
 
+type AVal
+  = ANum Num
+  | AString String
+  | APoints (List Point)
+  | ARgba Rgba
+  | APath (List Val) -- untyped
+
+type alias Point = (Num,Num)
+type alias Rgba  = (Num,Num,Num,Num)
+
+toNum    (ANum i) = i
+toPoints (APoints pts) = pts
+
 valToAttr (VList [VBase (String k), v]) =
-  let f = attr k in
   case (k, v) of
-    (_, VConst i _)       -> f (toString i)
-    (_, VBase (String s)) -> f s
-    ("points", VList vs)  -> f (valToPoints vs)
-    ("fill", VList vs)    -> f (valToRgba vs)
-    ("stroke", VList vs)  -> f (valToRgba vs)
-    ("d", VList vs)       -> f (valToPath vs)
+    (_, VConst i _)       -> (k, ANum i)
+    (_, VBase (String s)) -> (k, AString s)
+    ("points", VList vs)  -> (k, APoints <| List.map valToPoint vs)
+    ("fill", VList vs)    -> (k, ARgba <| valToRgba vs)
+    ("stroke", VList vs)  -> (k, ARgba <| valToRgba vs)
+    ("d", VList vs)       -> (k, APath vs)
 
-valToPoints = Utils.spaces << List.map valToPoint
+valToPoint (VList [VConst x _, VConst y _]) = (x,y)
+pointToVal (x,y) = (VList [vConst x, vConst y])
 
-valToPoint (VList [VConst x _, VConst y _]) =
-  toString x ++ "," ++ toString y
+valToRgba [VConst r _, VConst g _, VConst b _, VConst a _] = (r,g,b,a)
+rgbaToVal (r,g,b,a) = [vConst r, vConst g, vConst b, vConst a]
 
-valToRgba v = case v of
-  [VConst r _, VConst g _, VConst b _, VConst a _] ->
-    "rgba" ++ Utils.parens (Utils.commas (List.map toString [r,g,b,a]))
+strPoint (x,y) = toString x ++ "," ++ toString y
+strRgba (r,g,b,a) =
+  "rgba" ++ Utils.parens (Utils.commas (List.map toString [r,g,b,a]))
+
+strAVal a = case a of
+  AString s -> s
+  ANum i    -> toString i
+  APoints l -> Utils.spaces (List.map strPoint l)
+  ARgba tup -> strRgba tup
+  APath vs  -> valToPath vs
+
+-- NOTE: dummyTrace (via vConst) should be okay, since Attrs only go to Interface
+valOfAVal a = case a of
+  AString s -> VBase (String s)
+  ANum i    -> vConst i
+  APoints l -> VList (List.map pointToVal l)
+  ARgba tup -> VList (rgbaToVal tup)
+  APath vs  -> VList vs
+
+valOfAttr (k,a) = VList [VBase (String k), valOfAVal a]
 
 -- https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
 -- http://www.w3schools.com/svg/svg_path.asp
@@ -155,10 +188,7 @@ funcsAttr = [
   , ("y2", A.y2)
   ]
 
-find d s =
-  case Utils.maybeFind s d of
-    Just f  -> f
-    Nothing -> Debug.crash <| "MainSvg.find: " ++ s
+find d s = Utils.find ("MainSvg.find: " ++ s) d s
 
 attr = find funcsAttr
 svg  = find funcsSvg
@@ -167,12 +197,12 @@ svg  = find funcsSvg
 ------------------------------------------------------------------------------
 
 type alias ShapeKind = String
-
 type alias NodeId = Int
 type alias IndexedTree = Dict NodeId IndexedTreeNode
+type alias Attr = (String, AVal)
 type IndexedTreeNode
   = TextNode String
-  | SvgNode ShapeKind (List Val) (List NodeId)
+  | SvgNode ShapeKind (List Attr) (List NodeId)
 
 children n = case n of {TextNode _ -> []; SvgNode _ _ l -> l}
 
@@ -190,7 +220,7 @@ valToIndexedTree_ v (nextId, d) = case v of
       let a_children'          = (a_nextId' - 1) :: a_children in
       (a_nextId', a_graph', a_children') in
     let (nextId',d',children) = List.foldl processChild (nextId,d,[]) vs2 in
-    let node = SvgNode kind vs1 (List.reverse children) in
+    let node = SvgNode kind (List.map valToAttr vs1) (List.reverse children) in
     (1 + nextId', Dict.insert nextId' node d')
 
 printIndexedTree : Val -> String
@@ -203,4 +233,62 @@ strEdges =
        let l = List.map toString (children n) in
        toString i ++ " " ++ Utils.braces (Utils.spaces l))
   >> Utils.lines
+
+
+------------------------------------------------------------------------------
+-- Zones
+
+type alias Zone = String
+
+-- NOTE: would like to use only the following definition, but datatypes
+-- aren't comparable... so using Strings for storing in dictionaries, but
+-- using the following for pattern-matching purposes
+
+type RealZone = Z String | ZPoint Int
+
+addi s i = s ++ toString i
+
+realZoneOf s =
+  Maybe.withDefault (Z s)
+    (Utils.mapMaybe
+      (ZPoint << Utils.fromOk_ << String.toInt)
+      (Utils.munchString "Point" s))
+
+-- TODO perhaps define Interface callbacks here
+
+zones = [
+    ("svg", [])
+  , ("circle",
+      [ ("Interior", ["cx", "cy"])
+      , ("Edge", ["r"])
+      ])
+  , ("ellipse",
+      [ ("Interior", ["cx", "cy"])
+      , ("Edge", ["rx", "ry"])
+      ])
+  , ("rect",
+      [ ("Interior", ["x", "y"])
+      , ("TopLeftCorner", ["x", "y", "width", "height"])
+      , ("TopRightCorner", ["y", "width", "height"])
+      , ("BotRightCorner", ["width", "height"])
+      , ("BotLeftCorner", ["x", "width", "height"])
+      , ("LeftEdge", ["x", "width"])
+      , ("TopEdge", ["y", "height"])
+      , ("RightEdge", ["width"])
+      , ("BotEdge", ["height"])
+      ])
+  , ("line",
+      [ ("Point1", ["x1", "y1"])
+      , ("Point2", ["x2", "y2"])
+      , ("Edge", ["x1", "y1", "x2", "y2"])
+      ])
+  -- TODO
+  , ("g", [])
+  , ("path", [])
+  , ("text", [])
+  , ("tspan", [])
+  -- NOTE: these are computed in Sync.getZones
+  , ("polygon", [ ])
+  , ("polyline", [ ])
+  ]
 

@@ -207,10 +207,11 @@ type alias Subst = Dict.Dict LocId Num
 
 applySubst : Subst -> Exp -> Exp
 applySubst subst e = case e of
-  EConst _ l -> case Dict.get (fst l) subst of Just i -> EConst i l
+  EConst n l -> case Dict.get (fst l) subst of Just i -> EConst i l
+                                            -- Nothing -> EConst n l
   EBase _    -> e
   EVar _     -> e
-  EFun _ _   -> e   -- not recursing into lambdas
+  EFun ps e' -> EFun ps (applySubst subst e')
   EOp op es  -> EOp op (List.map (applySubst subst) es)
   EList es m -> EList (List.map (applySubst subst) es)
                       (Utils.mapMaybe (applySubst subst) m)
@@ -237,6 +238,7 @@ eFalse = eBool False
 vBool  = VBase << Bool
 vTrue  = vBool True
 vFalse = vBool False
+vStr   = VBase << String
 
 eApp e es = case es of
   [e1]    -> EApp e [e1]

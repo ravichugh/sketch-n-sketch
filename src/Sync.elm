@@ -1,4 +1,4 @@
-module Sync (sync, prepareLiveUpdates, printZoneTable) where
+module Sync (sync, prepareLiveUpdates, printZoneTable, Triggers, tryToBeSmart) where
 
 import Dict exposing (Dict)
 import Set
@@ -7,6 +7,7 @@ import Debug
 import String
 
 import Lang exposing (..)
+import LangSvg exposing (NodeId, ShapeKind, Zone, addi)
 import Eval
 import LangParser
 
@@ -177,7 +178,8 @@ sync : Exp -> Val -> Val -> Result String (List ((Exp, Val), Num))
 sync e v v' =
   case diff v v' of
     Nothing       -> Err "bad change"
-    Just (Same _) -> Err "no change"
+    -- Just (Same _) -> Err "no change"
+    Just (Same _) -> Ok []
     Just (Diff vc holeSubst) ->
       let newNew = getFillers holeSubst in
       let subst0 = LangParser.substOf e in
@@ -201,61 +203,21 @@ sync e v v' =
         ) substs
 
 
-------------------------------------------------------------------------------
--- Zones
-
-zones = [
-    ("svg", [])
-  , ("circle",
-      [ ("Interior", ["cx", "cy"])
-      , ("Edge", ["r"])
-      ])
-  , ("ellipse",
-      [ ("Interior", ["cx", "cy"])
-      , ("Edge", ["rx", "ry"])
-      ])
-  , ("rect",
-      [ ("Interior", ["x", "y"])
-      , ("TopLeftCorner", ["x", "y", "width", "height"])
-      , ("TopRightCorner", ["y", "width", "height"])
-      , ("BotRightCorner", ["width", "height"])
-      , ("BotLeftCorner", ["x", "width", "height"])
-      , ("LeftEdge", ["x", "width"])
-      , ("TopEdge", ["y", "height"])
-      , ("RightEdge", ["width"])
-      , ("BotEdge", ["height"])
-      ])
-  , ("line",
-      [ ("Point1", ["x1", "y1"])
-      , ("Point2", ["x2", "y2"])
-      , ("Edge", ["x1", "y1", "x2", "y2"])
-      ])
-  -- TODO
-  , ("g", [])
-  , ("path", [])
-  , ("text", [])
-  , ("tspan", [])
-  -- NOTE: these are computed in getZones
-  , ("polygon", [ ])
-  , ("polyline", [ ])
-  ]
-
 
 ------------------------------------------------------------------------------
--- Zones and Triggers
+-- Triggers
 
--- TODO define these in Lang or LangSvg
-type alias ShapeId = Int
-type alias ShapeKind = String
-type alias Attr = String
+-- NOTE: AttrNames include "fake" attributes
+--   e.g. for polygons, x1,y1,x2,y2,x3,y3,...
+
+type alias AttrName = String
 type alias LocSet = Set.Set Loc
 type alias Locs = List Loc
-type alias Zone = String
 type ExtraInfo = None | NumPoints Int
 
-type alias Dict0 = Dict ShapeId (ShapeKind, ExtraInfo, Dict Attr Trace)
-type alias Dict1 = Dict ShapeId (ShapeKind, List (Zone, (List Locs)))
-type alias Dict2 = Dict ShapeId (ShapeKind, List (Zone, (Locs, List Locs)))
+type alias Dict0 = Dict NodeId (ShapeKind, ExtraInfo, Dict AttrName Trace)
+type alias Dict1 = Dict NodeId (ShapeKind, List (Zone, (List Locs)))
+type alias Dict2 = Dict NodeId (ShapeKind, List (Zone, Maybe (Locs, List Locs)))
 
 printZoneTable : Val -> String
 printZoneTable v =
@@ -287,7 +249,7 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
           Utils.foldli (\(i,vPt) acc ->
             case vPt of
               VList [VConst _ trx, VConst _ try] ->
-                let (ax,ay) = ("x" ++ toString i, "y" ++ toString i) in
+                let (ax,ay) = (addi "x" i, addi "y" i) in
                 acc |> Dict.insert ax trx
                     |> Dict.insert ay try) dAttrs pts in
         (NumPoints (List.length pts), acc')
@@ -315,7 +277,7 @@ shapesToZoneTable d0 =
   Dict.foldl foo Dict.empty d0
 
 shapeToZoneInfo :
-  (ShapeKind, ExtraInfo, Dict Attr Trace) -> List (Zone, (List Locs))
+  (ShapeKind, ExtraInfo, Dict AttrName Trace) -> List (Zone, (List Locs))
 shapeToZoneInfo (kind, extra, d) =
   let zones = getZones kind extra in
   let f (s,l) acc =
@@ -328,18 +290,19 @@ shapeToZoneInfo (kind, extra, d) =
 
 justGet k d = Utils.fromJust (Dict.get k d)
 
-getZones : ShapeKind -> ExtraInfo -> List (Zone, List Attr)
+justGet_ err k d = Utils.fromJust_ err (Dict.get k d)
+
+getZones : ShapeKind -> ExtraInfo -> List (Zone, List AttrName)
 getZones kind extra =
-  let foo s i = s ++ toString i in
-  let xy i    = [foo "x" i, foo "y" i] in
-  let pt i    = (foo "Point" i, xy i) in
+  let xy i = [addi "x" i, addi "y" i] in
+  let pt i = (addi "Point" i, xy i) in
   case (kind, extra) of
     ("polyline", NumPoints n) ->
       List.map pt [1..n]
     ("polygon", NumPoints n) ->
       List.map pt [1..n] ++ [("Interior", List.concatMap xy [1..n])]
     _ ->
-      Utils.fromJust (Utils.maybeFind kind zones)
+      Utils.fromJust (Utils.maybeFind kind LangSvg.zones)
 
 -- Step 3 --
 
@@ -351,11 +314,11 @@ assignTriggers d1 =
   let f i (kind,zoneLists) (setSeen1,acc) =
     let g (zone,sets) (setSeen2,acc) =
       case (Utils.findFirst (not << flip Set.member setSeen2) sets, sets) of
-        (Nothing, [])         -> (setSeen2, (zone,([],[]))::acc)
-        (Nothing, set::sets') -> (setSeen2, (zone,(set,sets'))::acc)
+        (Nothing, [])         -> (setSeen2, (zone,Nothing)::acc)
+        (Nothing, set::sets') -> (setSeen2, (zone,Just(set,sets'))::acc)
         (Just x,  _)          ->
           let setSeen3 = Set.insert x setSeen2 in
-          let acc' = (zone, (x, Utils.removeFirst x sets)) :: acc in
+          let acc' = (zone, Just (x, Utils.removeFirst x sets)) :: acc in
           (setSeen3, acc')
     in
     let (setSeen,zoneLists') = List.foldl g (setSeen1,[]) zoneLists in
@@ -369,15 +332,17 @@ strTable : Dict2 -> String
 strTable d =
   Dict.toList d
     |> List.map (\(i,(kind,di)) ->
-         let s1 = "Shape " ++ toString i ++ " " ++ Utils.parens kind in
+         let s1 = addi "Shape " i ++ " " ++ Utils.parens kind in
          let sRows = List.map strRow di in
          Utils.lines (s1::sRows))
     |> String.join "\n\n"
 
-strRow (zone,(set,sets)) =
-     String.padRight 18 ' ' zone
-  ++ String.padRight 25 ' ' (if set == [] then "" else strLocs set)
-  ++ Utils.spaces (List.map strLocs sets)
+strRow (zone, m) = case m of
+  Nothing -> String.padRight 18 ' ' zone
+  Just (set,sets) ->
+       String.padRight 18 ' ' zone
+    ++ String.padRight 25 ' ' (if set == [] then "" else strLocs set)
+    ++ Utils.spaces (List.map strLocs sets)
 
 strLocs = Utils.braces << Utils.commas << List.map strLoc_
 
@@ -388,8 +353,10 @@ strLoc_ l =
 
 ------------------------------------------------------------------------------
 
-type alias Triggers = Dict ShapeId (Dict Zone Trigger)
-type alias Trigger  = List (Attr, Num) -> (Exp, Dict ShapeId (Dict Attr Num))
+type alias Triggers = Dict NodeId (Dict Zone (Maybe Trigger))
+type alias Trigger  = List (AttrName, Num) -> (Exp, Dict NodeId (Dict AttrName Num))
+
+tryToBeSmart = False
 
 prepareLiveUpdates : Exp -> Val -> Triggers
 prepareLiveUpdates e v =
@@ -404,12 +371,17 @@ makeTriggers : Exp -> Dict0 -> Dict2 -> Triggers
 makeTriggers e d0 d2 =
   let subst = LangParser.substOf e in
   let f i (_,zones) =
-    let g (zone,_) = Dict.insert zone (makeTrigger e d0 d2 subst i zone) in
+    let g (zone,m) =
+      Dict.insert zone <|
+        case m of
+          Nothing -> Nothing
+          Just _  -> Just (makeTrigger e d0 d2 subst i zone) in
     List.foldl g Dict.empty zones in
   Dict.map f d2
 
-makeTrigger : Exp -> Dict0 -> Dict2 -> Subst -> ShapeId -> Zone -> Trigger
+makeTrigger : Exp -> Dict0 -> Dict2 -> Subst -> NodeId -> Zone -> Trigger
 makeTrigger e d0 d2 subst i zone = \newAttrs ->
+  -- TODO symbolically compute changes !!!
   let (subst',changedLocs) =
     let f (attr,newNum) (acc1,acc2) =
       let k = whichLoc d0 d2 i zone attr in
@@ -417,28 +389,49 @@ makeTrigger e d0 d2 subst i zone = \newAttrs ->
       let tr = justGet attr (Utils.thd3 (justGet i d0)) in
       let kSolution = solve subst' (Equation newNum tr) in
       (Dict.insert k kSolution acc1, Set.insert k acc2) in
-    List.foldl f (Dict.empty, Set.empty) newAttrs in
+    List.foldl f (subst, Set.empty) newAttrs in
   let g i (_,_,di) acc =
     let h attr tr acc =
       let locs = Set.map fst (locsOfTrace tr) in
       if | Utils.setIsEmpty (locs `Set.intersect` changedLocs) -> acc
          | otherwise -> Dict.insert attr (evalTr subst' tr) acc
+
+         -- updating "points" based on fake attributes would be easier
+         -- if the Little representation simply kept separate attributes
+         -- for each point...
+         {-
+         | otherwise ->
+             let default () = Dict.insert attr (evalTr subst' tr) acc in
+             case String.uncons attr of
+               Nothing -> default ()
+               Just (pre,suf) ->
+                 if pre == 'x' || pre == 'y' then
+                   case String.toInt suf of
+                     Err _ -> default ()
+                     Ok i  -> Debug.log "SYNC: change other point..." <| default ()
+                 else
+                   default()
+        -}
     in
-    let di' = Dict.foldl h Dict.empty di in
+    -- let di' = Dict.foldl h Dict.empty di in
+    let di' =
+      if | tryToBeSmart -> Dict.foldl h Dict.empty di
+         | otherwise    -> Dict.empty in
     if | Utils.dictIsEmpty di' -> acc
        | otherwise -> Dict.insert i di' acc in
   let e' = applySubst subst' e in
   (e', Dict.foldl g Dict.empty d0)
 
 -- TODO sloppy way of doing this for now...
-whichLoc : Dict0 -> Dict2 -> ShapeId -> Zone -> Attr -> LocId
+whichLoc : Dict0 -> Dict2 -> NodeId -> Zone -> AttrName -> LocId
 whichLoc d0 d2 i z attr =
   let trLocs =
     justGet i d0 |> Utils.thd3 |> justGet attr |> locsOfTrace in
   let zoneLocs =
     justGet i d2
-      |> snd |> Utils.maybeFind z |> Utils.fromJust |> fst
-      |> Set.fromList in
+      |> snd |> Utils.maybeFind z |> Utils.fromJust
+      |> Utils.fromJust_ "guaranteed not to fail b/c of check in makeTriggers"
+      |> fst |> Set.fromList in
   let [(k,_)] = Set.toList (trLocs `Set.intersect` zoneLocs) in
   k
 
@@ -446,4 +439,6 @@ evalTr : Subst -> Trace -> Num
 evalTr subst tr = case tr of
   TrLoc (k,_)  -> justGet k subst
   TrOp Plus ts -> List.foldl (+) 0 (List.map (evalTr subst) ts)
+  TrOp Minus ts -> List.foldl (-) 0 (List.map (evalTr subst) ts)
+  TrOp op _    -> Debug.crash <| "Sync.evalTr, unsupported op: " ++ strOp op
 

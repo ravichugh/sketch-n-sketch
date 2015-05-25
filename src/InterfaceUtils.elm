@@ -1,142 +1,91 @@
 -- InterfaceUtils.elm
 -- This provide utility and helper functions to Interface.elm
 module InterfaceUtils where
---Import the little language and its parsing utilities
---TODO: clean up this import list...some redundancy here
 import Lang exposing (..) --For access to what makes up the Vals
-import LangParser exposing (parseE, parseV)
-import Sync exposing (sync)
-import Eval exposing (run)
-import MainSvg
+import Sync exposing (Triggers)
 import Utils
-import MicroTests
+import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr, Zone)
 
 import List 
 import Dict
-import String 
-import Graphics.Element as GE 
-import Graphics.Collage as GC
-
-import Mouse 
-import Window 
-import Html 
-import Html.Attributes as Attr
-import Html.Events as Events
-
-import Svg
-import Svg.Attributes
-import Svg.Events
-import Svg.Lazy
-
 import Debug
 
+import Svg
 
---- Borrowed from LangSvg.elm ---
-funcsSvg = [
-    ("circle", Svg.circle)
-  , ("line", Svg.line)
-  , ("polygon", Svg.polygon)
-  , ("rect", Svg.rect)
-  ]
+type alias Model =
+  { code : String
+  , inputExp : Maybe Exp
+  , movingObj : Maybe (NodeId, ShapeKind, Zone, Maybe MouseTrigger)
+  , workingSlate : IndexedTree
+  , mode : Mode
+  }
 
-funcsAttr = [
-    ("cx", Svg.Attributes.cx)
-  , ("cy", Svg.Attributes.cy)
-  , ("fill", Svg.Attributes.fill)
-  , ("height", Svg.Attributes.height)
-  , ("points", Svg.Attributes.points)
-  , ("r", Svg.Attributes.r)
-  , ("stroke", Svg.Attributes.stroke)
-  , ("strokeWidth", Svg.Attributes.strokeWidth)
-  , ("width", Svg.Attributes.width)
-  , ("x", Svg.Attributes.x)
-  , ("x1", Svg.Attributes.x1)
-  , ("x2", Svg.Attributes.x2)
-  , ("y", Svg.Attributes.y)
-  , ("y1", Svg.Attributes.y1)
-  , ("y2", Svg.Attributes.y2)
-  ]
+type alias MouseTrigger = (Int, Int) -> (Exp, IndexedTree)
 
-find d s =
-  case Utils.maybeFind s d of
-    Just f  -> f
-    Nothing -> Debug.crash <| "find: " ++ s
+type alias PossibleChanges = List ((Exp, Val), Float)
 
-attr = find funcsAttr
-svg  = find funcsSvg
---- ---
+type Mode = AdHoc | SyncSelect PossibleChanges | Live Triggers
 
---Update Utilities
+syncBool m = case m of
+  Live _       -> False -- TODO: dummy...
+  AdHoc        -> False
+  SyncSelect _ -> True
 
-updateAttrs : List (String, String) -> List (String, String) -> 
-                List (String, String)
-updateAttrs newattrs oldattrs = case newattrs of
-    [] -> oldattrs
-    (a1, v1) :: xs -> updateAttrs xs (replace (a1,v1) oldattrs)
+--Event
+--CodeUpdate : carries updated string of code with it
+--SelectObject : carries an id of an object and an identifying string for a zone
+--DeselectObject : carries an id of an object which shall no longer be selected
+--                  for alteration.
+--MousePos : carries a position of mouse on a down click
+--Sync : signals the system to enter selectMode
+--SelectOption : carries a possiblechange pane from sync to be displayed as the new
+--              console
+--Render : display a given val from the code
+type Event = CodeUpdate String
+           | SelectObject Int ShapeKind Zone
+           | DeselectObject Int
+           | MousePos (Int, Int)
+           | Sync
+           | SwitchMode Mode
+           | SelectOption ((Exp, Val), Float)
+           | Render
 
-replace : (String, String) -> List (String, String) -> List (String, String)
-replace (a1, v1) attrs = case attrs of
-    [] -> [(a1,v1)]
-    (a2, v2) :: xs -> if | a1 == a2 -> (a1, v1) :: xs
-                         | otherwise -> (a2, v2) :: replace (a1, v1) xs
+type alias Object = (Svg.Svg, List Attr)
+
+events : Signal.Mailbox Event
+events = Signal.mailbox <| CodeUpdate ""
 
 adjustCoords : (Int, Int) -> (Int, Int) -> (Int, Int)
 adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
+        
+upslate : LangSvg.NodeId -> (String, LangSvg.AVal) -> LangSvg.IndexedTree -> LangSvg.IndexedTree
+upslate id newattr nodes = case Dict.get id nodes of
+    Nothing   -> Debug.crash "upslate"
+    Just node -> case node of
+        LangSvg.TextNode x -> nodes
+        LangSvg.SvgNode shape attrs children -> 
+            let newnode = LangSvg.SvgNode shape (updateAttrs newattr attrs) children
+            in Dict.insert id newnode nodes
 
-getFirstAttrs : List Val -> List (Svg.Attribute, (String, String))
-getFirstAttrs vals = List.map 
-    (\x -> case x of
-        VList [VBase (String a), VConst i pos] -> ((attr a) <| toString i
-              , (a, String.concat [toString i, "|", toString pos]))
-        VList [VBase (String a), VBase (String s)] -> ((attr a) s
-              , (a,s))
-        VList [VBase (String "points"), VList pts] ->
-            let s = Utils.spaces <| List.map
-                    (\y -> case y of
-                        VList [VConst x1 _, VConst y1 _] ->
-                            toString x1 ++ "," ++ toString y1)
-                    pts
-            in ((attr "points") s, ("points", s)))
-    vals
+updateAttrs : (String, LangSvg.AVal) -> List Attr -> List Attr
+updateAttrs (k1, v1) vals =
+  case vals of
+    [] -> []
+    (k0, v0) :: vs ->
+      if | k0 == k1  -> (k0, v1) :: vs
+         | otherwise -> (k0, v0) :: updateAttrs (k1, v1) vs
 
---Takes a list of attributes and pulls out the location
--- information for the constants into a separate list
-cleanAttrs : List (String, String) -> ( List (String, String)
-                                      , List (String, String))
-                                   -> ( List (String, String)
-                                      , List (String, String))
-cleanAttrs = \l (acc1, acc2) -> case l of
-    (key, val) :: xs -> case String.split "|" val of
-        [v1, loc] -> cleanAttrs xs
-                                ((key, v1) :: acc1
-                                , (String.append key "loc", loc) :: acc2)
-        _         -> cleanAttrs xs
-                                ((key, val) :: acc1, acc2)
-    []        -> (acc1, acc2)
+aNum = LangSvg.ANum
 
-updateVal : Val -> String -> (String, String) -> Val
-updateVal v index (attrname, attrval) = case Debug.log "update v" v of
-    VList vs -> VList <| flip List.map (Utils.mapi (\s -> s) vs) <| \v1 -> 
-        case v1 of
-            (i, VList (VBase (String shape) :: vs')) -> 
-                VList (VBase (String shape) :: 
-                    (changeAttr i vs' index (attrname, attrval)))
-            
---helper function for updateVal
-changeAttr : Int -> List Val -> String -> (String, String) -> List Val
-changeAttr i vs' index (attrname, attrval) =
-    if | toString i == index ->
-          List.map (\x -> case x of
-                    VList [VBase (String a), VConst ix pos] ->
-                      if | (a == attrname) ->
-                            case (String.toFloat attrval) of
-                              Ok f -> VList [VBase (String attrname), VConst f pos]
-                         | otherwise -> VList [VBase (String a), VConst ix pos]
-                    VList [VBase (String a), VBase (String s)] ->
-                      if | (a == attrname) ->
-                            VList [VBase (String a), VBase (String attrval)]
-                         | otherwise -> VList [VBase (String a), VBase (String s)]
-                    _ -> x
-                    ) vs'
-       | otherwise -> vs'
-            
+indexedTreeToVal : LangSvg.IndexedTree -> Val
+indexedTreeToVal slate =
+  let foo n =
+    case n of
+      LangSvg.TextNode s -> VList [VBase (String "TEXT"), VBase (String s)]
+      LangSvg.SvgNode kind l1 l2 ->
+        let vs1 = List.map LangSvg.valOfAttr l1 in
+        let vs2 = List.map (foo << flip Utils.justGet slate) l2 in
+        VList [VBase (String kind), VList vs1, VList vs2]
+  in
+  foo (Utils.justGet 1 slate)
+

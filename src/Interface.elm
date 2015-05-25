@@ -5,393 +5,204 @@
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
 import LangParser exposing (parseE, parseV)
-import Sync exposing (sync)
+import Sync exposing (sync, Triggers)
 import Eval exposing (run)
 import MainSvg
 import Utils
 import MicroTests
 import InterfaceUtils exposing (..)
+import InterfaceView exposing (..)
+import LangSvg exposing (IndexedTree, NodeId, ShapeKind, toNum, toPoints, addi)
+import VirtualDom
 
+--Core Libraries
 import List 
 import Dict
 import String 
 import Graphics.Element as GE 
 import Graphics.Collage as GC
 
+--Signaling Libraries
 import Mouse 
 import Window 
+
+--Html Libraries
 import Html 
 import Html.Attributes as Attr
 import Html.Events as Events
 
+--Svg Libraries
 import Svg
 import Svg.Attributes
 import Svg.Events
 import Svg.Lazy
 
+--Error Checking Libraries
 import Debug
 
--- Model --
---Fields:
--- code            - Text currently in the textbox
---inputExp         - input Expression
--- objects         - The workingVal translated to manipulable SVGs
--- movingObj       - If an object is being moved, which one
--- inputVal        - The last code input parsed into a Val
---                   (changes only after picking an output of sync)
--- workingVal      - The inputVal after applying the manipulations performed on
---                   the graphics side (done on the fly)
--- possibleChanges - The possible new expressions and their associated Vals, 
---                   as from the output of sync
--- syncMode        - True if state should be non-manipulatable/sync selecting
-type alias Model = { code : String
-                   , inputExp : Maybe Exp
-                   , objects : List Object
-                   , movingObj : Maybe (Object, Float, Float)
-                   , inputVal : Val
-                   , workingVal : Val
-                   , possibleChanges : List ((Exp, Val), Float)
-                   , syncMode : Bool
-                   }
 
---An Object is composed of an svg, list of attribute key/values
-type alias Object = (Svg.Svg, List (String, String))
+-- tempTest = MicroTests.test42 ()
+-- tempTest = MicroTests.test20 ()
+-- tempTest = MicroTests.test31 ()
+tempTest = MicroTests.test41 ()
+-- tempTest = MicroTests.test43 ()
 
-
-initModel = { code = ""
-            , inputExp = Nothing
-            , objects = []
-            , movingObj = Nothing
-            , inputVal = VHole
-            , workingVal = VHole
-            , possibleChanges = []
-            , syncMode = False
-            }
-
---Just as in microTests
-tempTestCode = 
-    "(let [x0 y0 xsep ysep] [10 28 30 30]
-       (map (\\[i j] (square_ (+ x0 (mult i xsep)) (+ y0 (mult j ysep)) 20))
-            (cartProd [0 1 2] [0 1])))"
-
-tempTest = MicroTests.test27 ()
-
-sampleModel = { code      = tempTestCode
-              , inputExp  = Just (parseE tempTestCode)
-              , objects   = buildSvg tempTest.v 
+sampleModel = { code      = sExp tempTest.e
+              , inputExp  = Just tempTest.e
               , movingObj = Nothing
-              , inputVal = tempTest.v
-              , workingVal = tempTest.v
-              , possibleChanges = []
-              , syncMode = False
+              , workingSlate = LangSvg.valToIndexedTree tempTest.v
+              , mode  = Live <| Sync.prepareLiveUpdates tempTest.e tempTest.v
               }
 
-type Event = CodeUpdate String
-           | OutputUpdate String
-           | SelectObject Int String
-           | DeselectObject Int
-           | MouseDown (Int, Int)
-           | Sync
-           | SelectOption ((Exp, Val), Float)
-           | Render
-
-events : Signal.Mailbox Event
-events = Signal.mailbox <| CodeUpdate ""
-
--- Update --
 upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
-    Render -> { old | objects <- (buildSvg << Eval.run << parseE)
-                                  old.code
-                    , inputVal <- (Eval.run << parseE)
-                                  old.code
-                    , workingVal <- (Eval.run << parseE)
-                                    old.code
-              }
+
+    Render ->
+      let e = parseE old.code in
+      let v = Eval.run e in
+      { old | inputExp <- Just e
+            , workingSlate <- LangSvg.valToIndexedTree v }
+
     CodeUpdate newcode -> { old | code <- newcode }
-    MouseDown (mx, my) -> case old.movingObj of
-        Nothing                  -> old
-        Just (obj, xdist, ydist) -> if
-            | xdist == -1.0 || ydist == -1.0 -> case obj of
-                (svg, attrs) -> 
-                    let xpos = case String.toFloat <| find attrs "x" of
-                            Ok a -> a
-                        ypos = case String.toFloat <| find attrs "y" of
-                            Ok a -> a
-                    in { old | movingObj <- Just (obj 
-                                               , xpos - Basics.toFloat mx
-                                               , ypos - Basics.toFloat my) }
-            | otherwise -> 
-                let newpos = [ ("x", toString <| Basics.toFloat mx + xdist)
-                             , ("y", toString <| Basics.toFloat my + ydist) ]
-                    moved = updateObj newpos obj obj
-                    movingIndex = case obj of
-                        (svgshape, attributes) -> find attributes "index"
-                    newvals = updateVal old.workingVal movingIndex 
-                            ("x", toString <| Basics.toFloat mx + xdist)
-                            --|> (\a -> updateVal a movingIndex
-                            --    ("y", toString <| Basics.toFloat my + ydist))
-                    newobjs = buildSvg newvals
-                in  { old | objects <- newobjs 
-                          , movingObj <- Just 
-                                (moved, xdist, ydist)
-                          , workingVal <- newvals
-                    }
-    SelectObject x zonetype -> 
-        let sx = toString x
-            match = List.filter (\(s, a) -> sx == (find a "index"))
-                                old.objects
-            in case match of
-                mat :: xs -> { old | movingObj <- Just (mat, -1.0, -1.0) }
-    DeselectObject x -> { old | movingObj <- Nothing }
+
+    MousePos (mx, my) ->
+      case old.movingObj of
+
+        Nothing -> old
+
+        Just (objid, kind, zone, Nothing) ->
+          let (_,attrs) = buildSvg (objid, Utils.justGet objid old.workingSlate) in
+          let numAttr   = toNum << Utils.find_ attrs in
+          let onNewPos (mx',my') =
+            let posX n = n - toFloat mx + toFloat mx' in
+            let posY n = n - toFloat my + toFloat my' in
+            let negX n = n + toFloat mx - toFloat mx' in
+            let negY n = n + toFloat my - toFloat my' in
+            let fx   a = (a, aNum <| posX (numAttr a)) in
+            let fy   a = (a, aNum <| posY (numAttr a)) in
+            let fx_  a = (a, aNum <| negX (numAttr a)) in
+            let fy_  a = (a, aNum <| negY (numAttr a)) in
+            let ret l = (l, l) in
+            let (newRealAttrs,newFakeAttrs) =
+              case (kind, zone) of
+
+                ("rect", "Interior")       -> ret [fx "x", fy "y"]
+                ("rect", "RightEdge")      -> ret [fx "width"]
+                ("rect", "BotRightCorner") -> ret [fx "width", fy "height"]
+                ("rect", "BotEdge")        -> ret [fy "height"]
+                ("rect", "BotLeftCorner")  -> ret [fx "x", fx_ "width", fy "height"]
+                ("rect", "LeftEdge")       -> ret [fx "x", fx_ "width"]
+                ("rect", "TopLeftCorner")  -> ret [fx "x", fy "y", fx_ "width", fy_ "height"]
+                ("rect", "TopEdge")        -> ret [fy "y", fy_ "height"]
+                ("rect", "TopRightCorner") -> ret [fy "y", fx "width", fy_ "height"]
+
+                ("circle", "Interior") -> ret [fx "cx", fy "cy"]
+                ("circle", "Edge") ->
+                  let [cx,cy] = List.map numAttr ["cx", "cy"] in
+                  let dx = if toFloat mx >= cx then mx' - mx else mx - mx' in
+                  let dy = if toFloat my >= cy then my' - my else my - my' in
+                  ret [ ("r", aNum <| numAttr "r" + toFloat (max dx dy)) ]
+
+                ("ellipse", "Interior") -> ret [fx "cx", fy "cy"]
+                ("ellipse", "Edge")     ->
+                  let [cx,cy] = List.map numAttr ["cx", "cy"] in
+                  let dx = if toFloat mx >= cx then fx else fx_ in
+                  let dy = if toFloat my >= cy then fy else fy_ in
+                  ret [dx "rx", dy "ry"]
+
+                ("line", "Edge") -> ret [fx "x1", fx "x2", fy "y1", fy "y2"]
+                ("line", _) ->
+                  case LangSvg.realZoneOf zone of
+                    LangSvg.ZPoint i -> ret [fx (addi "x" i), fy (addi "y" i)]
+
+                -- TODO rethink/refactor polygon zones
+
+                ("polygon", "Interior") ->
+                  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
+                  let pts = toPoints <| Utils.find_ nodeAttrs "points" in
+                  let accs =
+                    let foo (j,(xj,yj)) (acc1,acc2) =
+                      let (xj',yj') = (posX xj, posY yj) in
+                      let acc2' = (addi "x"j, LangSvg.ANum xj') :: (addi "y"j, LangSvg.ANum yj') :: acc2 in
+                      ((xj',yj')::acc1, acc2')
+                    in
+                    Utils.foldli foo ([],[]) pts
+                  in
+                  let (acc1,acc2) = Utils.reverse2 accs in
+                  ([("points", LangSvg.APoints acc1)], acc2)
+
+                ("polygon", _) ->
+                  case LangSvg.realZoneOf zone of
+                    LangSvg.ZPoint i ->
+                      let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
+                      let pts = toPoints <| Utils.find_ nodeAttrs "points" in
+                      let accs =
+                        let foo (j,(xj,yj)) (acc1,acc2) =
+                          if | i /= j -> ((xj,yj)::acc1, acc2)
+                             | otherwise ->
+                                 let (xj',yj') = (posX xj, posY yj) in
+                                 let acc2' = (addi "x"i, LangSvg.ANum xj') :: (addi "y"i, LangSvg.ANum yj') :: acc2 in
+                                 ((xj',yj')::acc1, acc2')
+                        in
+                        Utils.foldli foo ([],[]) pts
+                      in
+                      let (acc1,acc2) = Utils.reverse2 accs in
+                      ([("points", LangSvg.APoints acc1)], acc2)
+
+            in
+            let newSlate = List.foldr (upslate objid) old.workingSlate newRealAttrs in
+              case old.mode of
+                AdHoc -> (Utils.fromJust old.inputExp, newSlate)
+                Live triggers ->
+                  case Utils.justGet zone (Utils.justGet objid triggers) of
+                    Nothing -> (Utils.fromJust old.inputExp, newSlate)
+                    Just trigger ->
+                      let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
+                      if not Sync.tryToBeSmart then
+                        (newE, LangSvg.valToIndexedTree <| Eval.run newE) else
+                      let newSlate' =
+                        Dict.foldl (\j dj acc1 ->
+                          Dict.foldl
+                            (\a n acc2 -> upslate j (a, aNum n) acc2) acc1 dj
+                          ) newSlate otherChanges
+                      in
+                      (newE, newSlate')
+          in
+          { old | movingObj <- Just (objid, kind, zone, Just onNewPos) }
+
+        Just (objid, kind, zone, Just onNewPos) ->
+          let (newE,newSlate) = onNewPos (mx, my) in
+          { old | code <- sExp newE
+                , inputExp <- Just newE
+                , workingSlate <- newSlate }
+
+    SelectObject id kind zone -> { old | movingObj <- Just (id, kind, zone, Nothing) }
+
+    DeselectObject x ->
+      let e = Utils.fromJust old.inputExp in
+      { old | movingObj <- Nothing
+            , mode      <- Live <| Sync.prepareLiveUpdates e (Eval.run e) }
+
     Sync -> 
-        case old.inputExp of
-            Just ip -> case (Result.toMaybe <| sync ip old.inputVal old.workingVal) of
-                Just ls -> { old | possibleChanges <- ls, 
-                                 syncMode <- True }
-                Nothing -> old
-            _       -> old
-    SelectOption ((e,v), f) -> { old | possibleChanges <- []
-                               , inputVal <- v
-                               , workingVal <- v
-                               , inputExp <- Just e
-                               ,syncMode <- False }
-    _ -> old
- 
---TODO: fix object tracking issue
+        case (old.mode, old.inputExp) of
+            (Live _, _) -> Debug.crash "upstate Sync: shouldn't happen anymore"
+            (AdHoc, Just ip) ->
+                let inputval = Eval.run ip
+                    inputval' = indexedTreeToVal (LangSvg.valToIndexedTree inputval)
+                    newval = indexedTreeToVal old.workingSlate
+                in
+                  case sync ip inputval' newval of
+                    Ok [] -> old
+                    Ok ls -> { old | mode <- SyncSelect ls }
+                    Err e -> Debug.crash ("upstate Sync: ++ " ++ e)
 
-updateObj : List (String, String) -> Object -> Object -> Object
-updateObj newattrs (o1, a1) (o2, a2) = case Debug.log "index" (find a1 "index") of
-  a ->
-    if | ((find a1 "index") == (find a2 "index")) ->
-                let updatedattrs = updateAttrs newattrs a1
-                    svgattrs = List.map (\(x,y) -> attr x <| y) (List.drop 2 updatedattrs)
-                    shape = svg (find a1 "shape")
-                in ((shape svgattrs []), updatedattrs) 
-       | otherwise -> (o2, a2)
+    SelectOption ((e,v), f) -> { old | inputExp <- Just e, mode <- AdHoc }
+
+    SwitchMode m -> { old | mode <- m }
+
+    _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
 
 
--- View --
-codeBox : String -> Bool -> Html.Html
-codeBox code switch =
-    let
-        event = case switch of
-            True -> []
-            False ->  [(Events.on "input" Events.targetValue
-                (Signal.message events.address << CodeUpdate))]
-    in
-        Html.textarea
-            ([ Attr.id "codeBox"
-            , Attr.style
-                [ ("height", "100%")
-                , ("width",  "100%")
-                , ("resize", "none")
-                , ("overflow", "scroll")
-                ]
-            , Attr.value code
-            ]
-            ++
-            event)
-            []
-
-visualsBox : List Object -> Float -> Bool -> Html.Html
-visualsBox objects dim switch =
-    Svg.svg [ Attr.style
-                [ ("width", "100%")
-                , ("height", "100%")
-                ]
-            ] <| List.map (\(f,g) -> f) objects
-
-buildSvg : Val -> List (Svg.Svg, List (String, String))
-buildSvg v = case Debug.log "v" v of
-   VList vs -> flip List.map (Utils.mapi (\s -> s) vs) <| \v1 -> case v1 of
-       (i, VList (VBase (String shape) :: vs')) ->
-           let  firstattrs = getFirstAttrs vs'
-                baseattrs = fst <| cleanAttrs (List.map snd firstattrs) ([],[])
-                modattrs = ("shape", shape) :: ("index", toString i) :: baseattrs
-                attrloc = snd <| cleanAttrs (List.map snd firstattrs) ([],[])
-                zones = makeZones modattrs
-                shapes = svg shape (List.map fst firstattrs) [] :: zones
-           in ((Svg.svg [] shapes), modattrs)
-                
-makeZones : List (String, String) -> List Svg.Svg
-makeZones attrs = case Debug.log "attrs" attrs of
-    ("shape", shape) :: xs -> case shape of
-        "rect" -> case xs of
-            ("index", i) :: ys -> 
-                let xcent = attr "x" <| toString
-                            <| (case String.toFloat <| find ys "x" of
-                                    Ok z -> 
-                                        case String.toFloat <| find ys "width" of
-                                            Ok k -> z + k * 0.125)
-                    ycent = attr "y" <| toString
-                            <| (case String.toFloat <| find ys "y" of
-                                    Ok z -> 
-                                        case String.toFloat <| find ys "height"
-                                        of
-                                            Ok k -> round <| z + k * 0.125)
-                    wcent = attr "width" <| toString <| (\x -> x * 0.75) 
-                            <| (case String.toFloat <| find ys "width" of
-                                    Ok z -> z)
-                    hcent = attr "height" <| toString <| (\x -> x * 0.75) 
-                            <| (case String.toFloat <| find ys "height" of
-                                    Ok z -> z)
-                    fill = attr "fill" "#FF0000"
-                    firstattrs = [xcent, ycent, wcent, hcent, fill]
-                    attrs = List.append firstattrs
-                        [ Svg.Events.onMouseDown (Signal.message events.address
-                            (case String.toInt i of
-                                Ok z -> SelectObject z "center"))
-                        , Svg.Events.onMouseUp (Signal.message events.address
-                            (DeselectObject <| case String.toInt i of 
-                                Ok z -> z))
-                        ]
-                    centBox = Svg.rect attrs []
-                in [centBox]
-        _ -> []
-
-view : (Int, Int) -> Model -> Html.Html
-view (w,h) model = 
-    let
-        dim = (Basics.toFloat (Basics.min w h)) / 2
-    in
-        case model.syncMode of
-            False -> Html.div
-                    [ Attr.style
-                        [ ("width", toString w)
-                        , ("height", toString h)
-                        ]
-                    ]
-                    [renderView (w,h) model
-                    , Html.button
-                        [ Attr.style
-                            [ ("position", "absolute")
-                            , ("left", String.append (toString <| w // 6) "px")
-                            , ("top", String.append (toString <| h - 40) "px")
-                            , ("type", "button")
-                            , ("width", "100px")
-                            , ("height", "40px")
-                            ]
-                        , Events.onClick events.address Render
-                        , Attr.value "Render"
-                        , Attr.name "Render the Code"
-                        ]
-                        [Html.text "render"]
-                    , Html.button
-                        [ Attr.style
-                            [ ("position", "absolute")
-                            , ("left", String.append (toString <| w // 4) "px")
-                            , ("top", String.append (toString <| h - 40) "px")
-                            , ("type", "button")
-                            , ("width", "100px")
-                            , ("height", "40px")
-                            ]
-                        , Events.onClick events.address Sync
-                        , Attr.value "Sync"
-                        , Attr.name "Sync the code to the canvas"
-                        ]
-                        [Html.text "sync"]
-                    ]
-            True -> syncView (w,h) model
-
-renderView : (Int, Int) -> Model -> Html.Html
-renderView (w,h) model = 
-    let
-        dim = (Basics.toFloat (Basics.min w h)) / 2
-    in
-        Html.div
-            [ Attr.style
-                [ ("width", toString w)
-                , ("height", toString h)
-                ]
-            ]
-            [ Html.div 
-                [ Attr.style
-                    [ ("width", String.append (toString <| w // 2 - 1) "px")
-                    , ("height", String.append (toString <| h - 60) "px")
-                    , ("margin", "0")
-                    , ("position", "absolute")
-                    , ("left", "0px")
-                    , ("top", "0px")
-                    ]
-                ]
-                [codeBox model.code model.syncMode]
-            , Html.div
-                [ Attr.style
-                    [ ("width", String.append (toString <| w // 2 - 1) "px")
-                    , ("height", String.append (toString h) "px")
-                    , ("margin", "0")
-                    , ("position", "absolute")
-                    , ("left", String.append (toString <| w // 2) "px")
-                    , ("top", "0px")
-                    ]
-                ]    
-                [visualsBox model.objects dim model.syncMode]
-            ]
-
-syncView : (Int, Int) -> Model -> Html.Html
-syncView (w,h) model = 
-    let
-        dim = (Basics.toFloat (Basics.min w h)) / 2
-    in
-        Html.div
-        []
-        (renderOption (w, h // 4) (Utils.mapi (\x -> x) model.possibleChanges) model dim)
-            
-
-renderOption : (Int, Int) -> List (Int, ((Exp, Val), Float)) -> Model -> Float -> List Html.Html
-renderOption (w,h) possiblechanges model dim =
-    case possiblechanges of
-        (i, ((e,v), f))::ps -> 
-            (Html.div
-                [ Attr.style
-                    [ ("width", toString w)
-                    , ("height", toString h)
-                    , ("top", String.append (toString <| h * (i-1)) "px")
-                    , ("position", "absolute")
-                    ]
-                ]
-                [ Html.div 
-                    [ Attr.style
-                        [ ("width", String.append (toString <| w // 2 - 30) "px")
-                        , ("height", String.append (toString <| h) "px")
-                        , ("margin", "0")
-                        , ("position", "absolute")
-                        , ("left", "0px")
-                        , ("top", "0px") -- String.append (toString <| h * (i-1)) "px")
-                        ]
-                    ]
-                    [codeBox (sExpK 1 e) model.syncMode]
-                , Html.div
-                    [ Attr.style
-                        [ ("width", String.append (toString <| w // 2 - 50) "px")
-                        , ("height", String.append (toString h) "px")
-                        , ("margin", "0")
-                        , ("position", "absolute")
-                        , ("left", String.append (toString <| w // 2) "px")
-                        , ("top", "0px") --String.append (toString <| h * (i-1)) "px")
-                        ]
-                    ]    
-                    [visualsBox (buildSvg v) dim model.syncMode] --TODO: parse val to svgs
---                , Html.button
---                    [ Attr.style
---                        [ ("position", "absolute")
---                        , ("left", String.append (toString <| w // 4) "px")
---                        , ("top", "0px) --String.append (toString <| h - 40) "px")
---                        , ("type", "button")
---                        , ("width", "100px")
---                        , ("height", "40px")
---                        ]
---                    , Events.onClick events.address (SelectOption ((e,v), f))
---                    , Attr.value "Select"
---                    , Attr.name "Select this codebox and visualbox"
---                    ]
---                    [Html.text "select"]
-                ]) :: renderOption (w,h) ps model dim
-        [] -> []
-
-
--- Main --
 main : Signal Html.Html
 main = let sigModel = Signal.foldp upstate sampleModel
                         <| Signal.mergeMany
@@ -400,6 +211,6 @@ main = let sigModel = Signal.foldp upstate sampleModel
                                 |> Signal.filter (\(x,y) -> x) (False, (0,0))
                                 |> Signal.map (\(x,y) -> y)
                                 |> Signal.map2 adjustCoords Window.dimensions
-                                |> Signal.map MouseDown
+                                |> Signal.map MousePos
                             ]
        in Signal.map2 view Window.dimensions sigModel
