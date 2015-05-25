@@ -132,21 +132,6 @@ makeZones : String -> LangSvg.NodeId -> List Attr -> List Svg.Svg
 makeZones shape id l =
   case shape of
 
-    "circle" ->
-        let [cx,cy,r] = List.map (toNum << Utils.find_ l) ["cx","cy","r"] in
-        let gutterPct = 0.100 in
-        let zInterior =
-          zoneBorder Svg.circle id shape "Interior" False [
-              attrNum "cx" cx , attrNum "cy" cy
-            , attrNum "r" (r * (1 - 2*gutterPct))
-            ] in
-        let zEdge =
-          zoneBorder Svg.circle id shape "Edge" True [
-              attrNum "cx" cx , attrNum "cy" cy
-            , attrNum "r" (r * (1))
-            ] in
-        [zEdge, zInterior]
-
     "rect" ->
         let mk zone x_ y_ w_ h_ =
           zoneBorder Svg.rect id shape zone True [
@@ -173,22 +158,8 @@ makeZones shape id l =
           , mk "TopRightCorner" x2 y0 wSlim hSlim
           ]
 
-    "ellipse" ->
-        let [cx,cy,rx,ry] = List.map (toNum << Utils.find_ l) ["cx","cy","rx","ry"] in
-        let gutterPct = 0.100 in
-        let zInterior =
-          zoneBorder Svg.ellipse id shape "Interior" False [
-              attrNum "cx" cx , attrNum "cy" cy
-            , attrNum "rx" (rx * (1 - 2*gutterPct))
-            , attrNum "ry" (ry * (1 - 2*gutterPct))
-            ] in
-        let zEdge =
-          zoneBorder Svg.ellipse id shape "Edge" True [
-              attrNum "cx" cx , attrNum "cy" cy
-            , attrNum "rx" (rx * (1))
-            , attrNum "ry" (ry * (1))
-            ] in
-        [zEdge, zInterior]
+    "circle"  -> makeZonesEllipse shape id l
+    "ellipse" -> makeZonesEllipse shape id l
 
     "line" ->
         let [x1,y1,x2,y2] = List.map (toNum << Utils.find_ l) ["x1","y1","x2","y2"] in
@@ -200,6 +171,22 @@ makeZones shape id l =
     "polyline" -> makeZonesPoly shape id l
 
     _ -> []
+
+makeZonesEllipse shape id l =
+  let _ = Utils.assert "makeZonesEllipse" (shape == "circle" || shape == "ellipse") in
+  let foo =
+    let [cx,cy] = List.map (toNum << Utils.find_ l) ["cx","cy"] in
+    [ attrNum "cx" cx , attrNum "cy" cy ] in
+  let (f,bar) =
+    if shape == "circle" then
+      let [r] = List.map (toNum << Utils.find_ l) ["r"] in
+      (Svg.circle, [ attrNum "r" r ])
+    else
+      let [rx,ry] = List.map (toNum << Utils.find_ l) ["rx","ry"] in
+      (Svg.ellipse, [ attrNum "rx" rx , attrNum "ry" ry ]) in
+  let zInterior = zoneBorder f id shape "Interior" False (foo ++ bar) in
+  let zEdge = zoneBorder f id shape "Edge" True (foo ++ bar) in
+  [zEdge, zInterior]
 
 makeZonesPoly shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "polygon" || shape == "polyline") in
