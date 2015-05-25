@@ -144,7 +144,7 @@ matchCmd cmd s =
 ------------------------------------------------------------------------------
 
 funcsSvg = [
-    ("circle", Svg.circle)
+  ("circle", Svg.circle)
   , ("ellipse", Svg.ellipse)
   , ("g", Svg.g)
   , ("line", Svg.line)
@@ -158,7 +158,8 @@ funcsSvg = [
   ]
 
 funcsAttr = [
-    ("cx", A.cx)
+  ("cursor", A.cursor)
+  , ("cx", A.cx)
   , ("cy", A.cy)
   , ("d", A.d)
   , ("fill", A.fill)
