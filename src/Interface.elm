@@ -98,13 +98,17 @@ upstate evt old = case Debug.log "Event" evt of
 
                 ("circle", "Interior") -> ret [fx "cx", fy "cy"]
                 ("circle", "Edge") ->
-                  -- TODO to make stretching more intuitive, take orientation
-                  -- of init click w.r.t center into account
-                  let (dx,dy) = (mx' - mx, my' - my) in
+                  let [cx,cy] = List.map numAttr ["cx", "cy"] in
+                  let dx = if toFloat mx >= cx then mx' - mx else mx - mx' in
+                  let dy = if toFloat my >= cy then my' - my else my - my' in
                   ret [ ("r", aNum <| numAttr "r" + toFloat (max dx dy)) ]
 
                 ("ellipse", "Interior") -> ret [fx "cx", fy "cy"]
-                ("ellipse", "Edge")     -> ret [fx "rx", fy "ry"]
+                ("ellipse", "Edge")     ->
+                  let [cx,cy] = List.map numAttr ["cx", "cy"] in
+                  let dx = if toFloat mx >= cx then fx else fx_ in
+                  let dy = if toFloat my >= cy then fy else fy_ in
+                  ret [dx "rx", dy "ry"]
 
                 ("line", "Edge") -> ret [fx "x1", fx "x2", fy "y1", fy "y2"]
                 ("line", _) ->
