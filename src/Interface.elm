@@ -44,6 +44,7 @@ import Debug
 -- tempTest = MicroTests.test42 ()
 -- tempTest = MicroTests.test20 ()
 -- tempTest = MicroTests.test31 ()
+-- tempTest = MicroTests.test32 ()
 tempTest = MicroTests.test41 ()
 -- tempTest = MicroTests.test43 ()
 
@@ -148,6 +149,26 @@ upstate evt old = case Debug.log "Event" evt of
                       in
                       let (acc1,acc2) = Utils.reverse2 accs in
                       ([("points", LangSvg.APoints acc1)], acc2)
+                    LangSvg.ZEdge i ->
+                      let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
+                      let pts = toPoints <| Utils.find_ nodeAttrs "points" in
+                      let n = List.length pts in
+                      let accs =
+                        let foo (j,(xj,yj)) (acc1,acc2) =
+                          if | i == j || (i == n && j == 1) || (i < n && j == i+1) ->
+                                 let _ = Debug.log "change" (i, j) in
+                                 let (xj',yj') = (posX xj, posY yj) in
+                                 let acc2' = (addi "x"j, LangSvg.ANum xj') :: (addi "y"j, LangSvg.ANum yj') :: acc2 in
+                                 ((xj',yj')::acc1, acc2')
+                             | otherwise ->
+                                 ((xj,yj)::acc1, acc2)
+                        in
+                        Utils.foldli foo ([],[]) pts
+                      in
+                      let (acc1,acc2) = Utils.reverse2 accs in
+                      ([("points", LangSvg.APoints acc1)], acc2)
+
+                ("polyline", _) -> Debug.crash "TODO polyline zone callbacks"
 
             in
             let newSlate = List.foldr (upslate objid) old.workingSlate newRealAttrs in

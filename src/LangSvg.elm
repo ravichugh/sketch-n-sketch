@@ -244,15 +244,22 @@ type alias Zone = String
 -- aren't comparable... so using Strings for storing in dictionaries, but
 -- using the following for pattern-matching purposes
 
-type RealZone = Z String | ZPoint Int
+type RealZone = Z String | ZPoint Int | ZEdge Int
 
 addi s i = s ++ toString i
 
 realZoneOf s =
-  Maybe.withDefault (Z s)
-    (Utils.mapMaybe
-      (ZPoint << Utils.fromOk_ << String.toInt)
-      (Utils.munchString "Point" s))
+  Maybe.withDefault (Z s) (toZPoint s `Utils.plusMaybe` toZEdge s)
+
+toZPoint s =
+  Utils.mapMaybe
+    (ZPoint << Utils.fromOk_ << String.toInt)
+    (Utils.munchString "Point" s)
+
+toZEdge s =
+  Utils.mapMaybe
+    (ZEdge << Utils.fromOk_ << String.toInt)
+    (Utils.munchString "Edge" s)
 
 -- TODO perhaps define Interface callbacks here
 

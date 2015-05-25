@@ -117,9 +117,14 @@ zonePoint id shape zone =
        , LangSvg.attr "fill" "rgba(255,0,0,0.5)"
        ]
 
-zonePoints id shape (LangSvg.APoints pts) =
+zonePoints id shape pts =
   flip Utils.mapi pts <| \(i, (x,y)) ->
     zonePoint id shape (addi "Point" i) [ attrNum "cx" x, attrNum "cy" y ]
+
+zoneLine id shape zone (x1,y1) (x2,y2) =
+  zoneBorder Svg.line id shape zone True [
+      attrNum "x1" x1 , attrNum "y1" y1 , attrNum "x2" x2 , attrNum "y2" y2
+    ]
 
 --Zone building function (still under construction/prone to change)                
 makeZones : String -> LangSvg.NodeId -> List Attr -> List Svg.Svg
@@ -186,27 +191,31 @@ makeZones shape id l =
 
     "line" ->
         let [x1,y1,x2,y2] = List.map (toNum << Utils.find_ l) ["x1","y1","x2","y2"] in
-        let zPts = zonePoints id shape (LangSvg.APoints [(x1,y1),(x2,y2)]) in
-        let zLine =
-          -- TODO use zone instead, since stroke* is getting defined here
-          zoneBorder Svg.line id shape "Edge" False [
-              attrNum "x1" x1 , attrNum "y1" y1
-            , attrNum "x2" x2 , attrNum "y2" y2
-            , LangSvg.compileAttr "stroke" (Utils.find_ l "stroke")
-            , LangSvg.compileAttr "strokeWidth" (Utils.find_ l "strokeWidth")
-            ] in
+        let zLine = zoneLine id shape "Edge" (x1,y1) (x2,y2) in
+        let zPts = zonePoints id shape [(x1,y1),(x2,y2)] in
         zLine :: zPts
 
-    "polygon" ->
-        let pts = Utils.find_ l "points" in
-        let zPts = zonePoints id shape pts in
-        let zInterior =
-          zoneBorder Svg.polygon id shape "Interior" False [
-              LangSvg.compileAttr "points" pts
-            ] in
-        zInterior :: zPts
+    "polygon"  -> makeZonesPoly shape id l
+    "polyline" -> makeZonesPoly shape id l
 
     _ -> []
+
+makeZonesPoly shape id l =
+  let _ = Utils.assert "makeZonesPoly" (shape == "polygon" || shape == "polyline") in
+  let pts = LangSvg.toPoints <| Utils.find_ l "points" in
+  let zPts = zonePoints id shape pts in
+  let zLines =
+    let pairs = Utils.adjacentPairs (shape == "polygon") pts in
+    let f (i,(pti,ptj)) = zoneLine id shape (addi "Edge" i) pti ptj in
+    Utils.mapi f pairs in
+  let zInterior =
+    zoneBorder Svg.polygon id shape "Interior" False [
+        LangSvg.compileAttr "points" (LangSvg.APoints pts)
+      ] in
+  let firstEqLast xs = Utils.head_ xs == Utils.head_ (List.reverse xs) in
+  if | shape == "polygon" -> zInterior :: (zLines ++ zPts)
+     | firstEqLast pts    -> zInterior :: (zLines ++ zPts)
+     | otherwise          -> zLines ++ zPts
 
 --Umbrella function for viewing a given model
 view : (Int, Int) -> Model -> Html.Html
