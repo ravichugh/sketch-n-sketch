@@ -53,7 +53,7 @@ eval env e =
 
   case e of
 
-  EConst i l -> ret <| VConst i (TrLoc l)
+  EConst i l -> ret <| VConst (i, TrLoc l)
   EBase v    -> ret <| VBase v
   EVar x     -> ret <| lookupVar env x
   EFun [p] e -> ret <| VClosure Nothing p e env
@@ -103,11 +103,13 @@ eval env e =
   ELet True (PList _ _) _ _ -> Debug.crash "eval: multi letrec"
 
 evalOp env op es =
-  case (op, List.map (eval_ env) es) of
-    (Plus, [VConst i1 t1, VConst i2 t2]) -> VConst (i1+i2) (TrOp op [t1,t2])
-    (Minus, [VConst i1 t1, VConst i2 t2]) -> VConst (i1-i2) (TrOp op [t1,t2])
-    (Mult, [VConst i1 t1, VConst i2 t2]) -> VConst (i1*i2) (TrOp op [t1,t2])
-    (Lt  , [VConst i1 t1, VConst i2 t2]) -> vBool (i1<i2)
+  case List.map (eval_ env) es of
+    [VConst it, VConst jt] ->
+      case op of
+        Plus  -> VConst (fst it + fst jt, TrOp op [snd it, snd jt])
+        Minus -> VConst (fst it - fst jt, TrOp op [snd it, snd jt])
+        Mult  -> VConst (fst it * fst jt, TrOp op [snd it, snd jt])
+        Lt    -> vBool  (fst it < fst jt)
 
 evalBranches env v =
   List.foldl (\(p,e) acc ->

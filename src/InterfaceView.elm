@@ -13,7 +13,7 @@ import MainSvg
 import Utils
 import MicroTests
 import InterfaceUtils exposing (..)
-import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr, toNum, addi)
+import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr, toNum, toNumTr, addi)
 import VirtualDom
 
 --Core Libraries
@@ -90,7 +90,9 @@ buildSvg (nodeID, node) = case node of
       let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs) [] in
       (Svg.svg [] (mainshape :: zones), attrs)
 
-attrNum k v = LangSvg.compileAttr k (LangSvg.ANum v)
+-- compileAttr will throw away the trace anyway
+attrNum k n    = LangSvg.compileAttr k (LangSvg.ANum (n, dummyTrace))
+attrNumTr k nt = LangSvg.compileAttr k (LangSvg.ANum nt)
 
 onMouseDown = Svg.Events.onMouseDown << Signal.message events.address
 onMouseUp   = Svg.Events.onMouseUp   << Signal.message events.address
@@ -120,11 +122,11 @@ zonePoint id shape zone =
 
 zonePoints id shape pts =
   flip Utils.mapi pts <| \(i, (x,y)) ->
-    zonePoint id shape (addi "Point" i) [ attrNum "cx" x, attrNum "cy" y ]
+    zonePoint id shape (addi "Point" i) [ attrNumTr "cx" x, attrNumTr "cy" y ]
 
 zoneLine id shape zone (x1,y1) (x2,y2) =
   zoneBorder Svg.line id shape zone True [
-      attrNum "x1" x1 , attrNum "y1" y1 , attrNum "x2" x2 , attrNum "y2" y2
+      attrNumTr "x1" x1 , attrNumTr "y1" y1 , attrNumTr "x2" x2 , attrNumTr "y2" y2
     ]
 
 --Zone building function (still under construction/prone to change)                
@@ -162,7 +164,7 @@ makeZones shape id l =
     "ellipse" -> makeZonesEllipse shape id l
 
     "line" ->
-        let [x1,y1,x2,y2] = List.map (toNum << Utils.find_ l) ["x1","y1","x2","y2"] in
+        let [x1,y1,x2,y2] = List.map (toNumTr << Utils.find_ l) ["x1","y1","x2","y2"] in
         let zLine = zoneLine id shape "Edge" (x1,y1) (x2,y2) in
         let zPts = zonePoints id shape [(x1,y1),(x2,y2)] in
         zLine :: zPts

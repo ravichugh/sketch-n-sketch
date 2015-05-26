@@ -155,7 +155,7 @@ token_ = white << P.token
 delimit a b = P.between (token_ a) (token_ b)
 parens      = delimit "(" ")"
 
-parseNumV = flip VConst dummyTrace <$> parseNum
+parseNumV = (VConst << flip (,) dummyTrace) <$> parseNum
 parseNumE = flip EConst dummyLoc   <$> parseNum
 
 parseEBase =

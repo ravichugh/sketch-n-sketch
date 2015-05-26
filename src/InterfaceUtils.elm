@@ -75,8 +75,6 @@ updateAttrs (k1, v1) vals =
       if | k0 == k1  -> (k0, v1) :: vs
          | otherwise -> (k0, v0) :: updateAttrs (k1, v1) vs
 
-aNum = LangSvg.ANum
-
 indexedTreeToVal : LangSvg.IndexedTree -> Val
 indexedTreeToVal slate =
   let foo n =

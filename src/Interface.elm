@@ -5,14 +5,14 @@
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
 import LangParser exposing (parseE, parseV)
-import Sync exposing (sync, Triggers)
+import Sync
 import Eval exposing (run)
 import MainSvg
 import Utils
 import MicroTests
 import InterfaceUtils exposing (..)
 import InterfaceView exposing (..)
-import LangSvg exposing (IndexedTree, NodeId, ShapeKind, toNum, toPoints, addi)
+import LangSvg exposing (IndexedTree, NodeId, ShapeKind, toNum, toNumTr, toPoints, addi)
 import VirtualDom
 
 --Core Libraries
@@ -41,11 +41,11 @@ import Svg.Lazy
 import Debug
 
 
--- tempTest = MicroTests.test42 ()
+tempTest = MicroTests.test42 ()
 -- tempTest = MicroTests.test20 ()
 -- tempTest = MicroTests.test31 ()
 -- tempTest = MicroTests.test32 ()
-tempTest = MicroTests.test41 ()
+-- tempTest = MicroTests.test41 ()
 -- tempTest = MicroTests.test43 ()
 
 sampleModel = { code      = sExp tempTest.e
@@ -72,18 +72,32 @@ upstate evt old = case Debug.log "Event" evt of
         Nothing -> old
 
         Just (objid, kind, zone, Nothing) ->
+
           let (_,attrs) = buildSvg (objid, Utils.justGet objid old.workingSlate) in
-          let numAttr   = toNum << Utils.find_ attrs in
+          let numAttr = toNum << Utils.find_ attrs in
+          let mapNumAttr f a =
+            let (n,trace) = toNumTr (Utils.find_ attrs a) in
+            (a, LangSvg.ANum (f n, trace)) in
+
           let onNewPos (mx',my') =
+
             let posX n = n - toFloat mx + toFloat mx' in
             let posY n = n - toFloat my + toFloat my' in
             let negX n = n + toFloat mx - toFloat mx' in
             let negY n = n + toFloat my - toFloat my' in
-            let fx   a = (a, aNum <| posX (numAttr a)) in
-            let fy   a = (a, aNum <| posY (numAttr a)) in
-            let fx_  a = (a, aNum <| negX (numAttr a)) in
-            let fy_  a = (a, aNum <| negY (numAttr a)) in
+
+            let posX' (n,tr) = (posX n, tr) in
+            let posY' (n,tr) = (posY n, tr) in
+            let negX' (n,tr) = (negX n, tr) in
+            let negY' (n,tr) = (negY n, tr) in
+
+            let fx  = mapNumAttr posX in
+            let fy  = mapNumAttr posY in
+            let fx_ = mapNumAttr negX in
+            let fy_ = mapNumAttr negY in
+
             let ret l = (l, l) in
+
             let (newRealAttrs,newFakeAttrs) =
               case (kind, zone) of
 
@@ -102,7 +116,7 @@ upstate evt old = case Debug.log "Event" evt of
                   let [cx,cy] = List.map numAttr ["cx", "cy"] in
                   let dx = if toFloat mx >= cx then mx' - mx else mx - mx' in
                   let dy = if toFloat my >= cy then my' - my else my - my' in
-                  ret [ ("r", aNum <| numAttr "r" + toFloat (max dx dy)) ]
+                  ret [ (mapNumAttr (\r -> r + toFloat (max dx dy)) "r") ]
 
                 ("ellipse", "Interior") -> ret [fx "cx", fy "cy"]
                 ("ellipse", "Edge")     ->
@@ -123,7 +137,7 @@ upstate evt old = case Debug.log "Event" evt of
                   let pts = toPoints <| Utils.find_ nodeAttrs "points" in
                   let accs =
                     let foo (j,(xj,yj)) (acc1,acc2) =
-                      let (xj',yj') = (posX xj, posY yj) in
+                      let (xj',yj') = (posX' xj, posY' yj) in
                       let acc2' = (addi "x"j, LangSvg.ANum xj') :: (addi "y"j, LangSvg.ANum yj') :: acc2 in
                       ((xj',yj')::acc1, acc2')
                     in
@@ -141,7 +155,7 @@ upstate evt old = case Debug.log "Event" evt of
                         let foo (j,(xj,yj)) (acc1,acc2) =
                           if | i /= j -> ((xj,yj)::acc1, acc2)
                              | otherwise ->
-                                 let (xj',yj') = (posX xj, posY yj) in
+                                 let (xj',yj') = (posX' xj, posY' yj) in
                                  let acc2' = (addi "x"i, LangSvg.ANum xj') :: (addi "y"i, LangSvg.ANum yj') :: acc2 in
                                  ((xj',yj')::acc1, acc2')
                         in
@@ -156,8 +170,7 @@ upstate evt old = case Debug.log "Event" evt of
                       let accs =
                         let foo (j,(xj,yj)) (acc1,acc2) =
                           if | i == j || (i == n && j == 1) || (i < n && j == i+1) ->
-                                 let _ = Debug.log "change" (i, j) in
-                                 let (xj',yj') = (posX xj, posY yj) in
+                                 let (xj',yj') = (posX' xj, posY' yj) in
                                  let acc2' = (addi "x"j, LangSvg.ANum xj') :: (addi "y"j, LangSvg.ANum yj') :: acc2 in
                                  ((xj',yj')::acc1, acc2')
                              | otherwise ->
@@ -183,8 +196,9 @@ upstate evt old = case Debug.log "Event" evt of
                         (newE, LangSvg.valToIndexedTree <| Eval.run newE) else
                       let newSlate' =
                         Dict.foldl (\j dj acc1 ->
+                          let _ = Debug.crash "TODO: dummyTrace is probably a problem..." in
                           Dict.foldl
-                            (\a n acc2 -> upslate j (a, aNum n) acc2) acc1 dj
+                            (\a n acc2 -> upslate j (a, LangSvg.ANum (n, dummyTrace)) acc2) acc1 dj
                           ) newSlate otherChanges
                       in
                       (newE, newSlate')
@@ -200,9 +214,14 @@ upstate evt old = case Debug.log "Event" evt of
     SelectObject id kind zone -> { old | movingObj <- Just (id, kind, zone, Nothing) }
 
     DeselectObject ->
-      let e = Utils.fromJust old.inputExp in
-      { old | movingObj <- Nothing
-            , mode      <- Live <| Sync.prepareLiveUpdates e (Eval.run e) }
+      let mode' =
+        case old.mode of
+          Live _ -> let e = Utils.fromJust old.inputExp in
+                    Live <| Sync.prepareLiveUpdates e (Eval.run e)
+          m      -> m   -- since top-level SVG may have triggered this event,
+                        -- preserve the current mode
+      in
+      { old | movingObj <- Nothing , mode <- mode' }
 
     Sync -> 
         case (old.mode, old.inputExp) of
@@ -212,7 +231,11 @@ upstate evt old = case Debug.log "Event" evt of
                     inputval' = indexedTreeToVal (LangSvg.valToIndexedTree inputval)
                     newval = indexedTreeToVal old.workingSlate
                 in
-                  case sync ip inputval' newval of
+                  -- let _ = Debug.log "same vals ??" (inputval' == newval) in
+                  -- let _ = Debug.log "??" (strVal inputval') in
+                  -- let _ = Debug.log "??" (strVal newval) in
+                  -- let _ = Debug.log "code" (sExp ip) in
+                  case Debug.log "sync options" <| Sync.sync ip inputval' newval of
                     Ok [] -> old
                     Ok ls -> { old | mode <- SyncSelect ls }
                     Err e -> Debug.crash ("upstate Sync: ++ " ++ e)
