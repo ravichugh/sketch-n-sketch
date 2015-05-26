@@ -92,7 +92,6 @@ strAVal a = case a of
   ARgba tup -> strRgba tup
   APath vs  -> valToPath vs
 
--- NOTE: dummyTrace (via vConst) should be okay, since Attrs only go to Interface
 valOfAVal a = case a of
   AString s -> VBase (String s)
   ANum it   -> VConst it
