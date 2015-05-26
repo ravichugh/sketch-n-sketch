@@ -5,12 +5,15 @@ import Lang exposing (..) --For access to what makes up the Vals
 import Sync exposing (Triggers)
 import Utils
 import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr, Zone)
+import MainSvg exposing (tests)
 
 import List 
 import Dict
 import Debug
+import String
 
 import Svg
+import Lazy
 
 type alias Model =
   { code : String
@@ -19,7 +22,16 @@ type alias Model =
   , rootId : NodeId
   , workingSlate : IndexedTree
   , mode : Mode
+  , ui : UI
   }
+
+type alias UI = 
+  { orient : Orientation
+  --, windowSplit : (Int, Int) --TODO: for changing window dimensions of
+  --codebox and visualsbox
+  }
+
+type Orientation = Vertical | Horizontal
 
 type alias MouseTrigger = (Int, Int) -> (Exp, IndexedTree)
 
@@ -49,7 +61,9 @@ type Event = CodeUpdate String
            | Sync
            | SwitchMode Mode
            | SelectOption ((Exp, Val), Float)
+           | SelectTest Int
            | Render
+           | UIupdate UI
 
 type alias Object = (Svg.Svg, List Attr)
 
@@ -80,3 +94,8 @@ indexedTreeToVal rootId slate =
   in
   foo (Utils.justGet rootId slate)
 
+switchOrient m = case m of
+  Vertical -> Horizontal
+  Horizontal -> Vertical
+
+dimToPix d = String.append (toString d) "px"

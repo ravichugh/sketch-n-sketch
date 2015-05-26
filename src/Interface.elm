@@ -41,13 +41,7 @@ import Svg.Lazy
 import Debug
 
 
--- tempTest = MicroTests.test42 ()
--- tempTest = MicroTests.test20 ()
--- tempTest = MicroTests.test31 ()
--- tempTest = MicroTests.test32 ()
-tempTest = MicroTests.test41 ()
--- tempTest = MicroTests.test43 ()
-
+tempTest = MicroTests.test42 ()
 sampleModel =
   let (rootId,slate) = LangSvg.valToIndexedTree tempTest.v in
     { code         = sExp tempTest.e
@@ -56,6 +50,7 @@ sampleModel =
     , rootId       = rootId
     , workingSlate = slate
     , mode         = Live <| Sync.prepareLiveUpdates tempTest.e tempTest.v
+    , ui           = {orient = Vertical}
     }
 
 upstate : Event -> Model -> Model
@@ -244,7 +239,17 @@ upstate evt old = case Debug.log "Event" evt of
 
     SelectOption ((e,v), f) -> { old | inputExp <- Just e, mode <- AdHoc }
 
+    SelectTest i ->
+      let {e,v} = (Utils.geti (i - 14) MainSvg.tests') () in
+      let (rootId,tree) = LangSvg.valToIndexedTree v in
+      { old | inputExp <- Just e
+            , code <- sExp e
+            , rootId <- rootId
+            , workingSlate <- tree }
+
     SwitchMode m -> { old | mode <- m }
+
+    UIupdate u -> { old | ui <- u }
 
     _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
 

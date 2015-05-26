@@ -108,9 +108,9 @@ adjacentPairs includeLast (x0::xs) =
   if | includeLast -> List.reverse ((xn,x0) :: pairs)
      | otherwise   -> List.reverse (pairs)
 
--- -- 0-based
--- geti : Int -> List a -> a
--- geti i = fromJust << List.head << List.drop (i-1)
+-- 0-based
+geti : Int -> List a -> a
+geti i = fromJust << List.head << List.drop (i-1)
 
 delimit a b s = String.concat [a, s, b]
 
@@ -162,6 +162,8 @@ mapSnd f (x,y) = (x, f y)
 fst3 (x,_,_) = x
 snd3 (_,x,_) = x
 thd3 (_,_,x) = x
+
+mapThd3 f (x,y,z) = (x, y, f z)
 
 setIsEmpty  = (==) [] << Set.toList
 dictIsEmpty = (==) [] << Dict.toList
