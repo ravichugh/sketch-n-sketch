@@ -385,7 +385,10 @@ renderOption (w,h) possiblechanges model dim =
                         , ("top", "0px") --String.append (toString <| h * (i-1)) "px")
                         ]
                     ]    
-                    [visualsBox (buildVisual <| LangSvg.valToIndexedTree v) dim (syncBool model.mode)] --TODO: parse val to svgs
+                    [visualsBox
+                       (buildVisual <| snd <| LangSvg.valToIndexedTree v)
+                       dim
+                       (syncBool model.mode)] --TODO: parse val to svgs
 --                , Html.button
 --                    [ Attr.style
 --                        [ ("position", "absolute")

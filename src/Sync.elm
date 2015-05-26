@@ -38,7 +38,7 @@ type VDiff = Same Val | Diff VContext HoleSubst
 
 diff : Val -> Val -> Maybe VDiff
 diff v1 v2 =
-  let res = Debug.log "diff_ res" <| diff_ 0 v1 v2 in
+  let res = diff_ 0 v1 v2 in
   case res of
     Just (_, Diff vc subst) ->
       let (v1',v2') = (fillHole_ False vc subst, fillHole_ True vc subst) in

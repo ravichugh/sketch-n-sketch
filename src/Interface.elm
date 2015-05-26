@@ -41,19 +41,22 @@ import Svg.Lazy
 import Debug
 
 
-tempTest = MicroTests.test42 ()
+-- tempTest = MicroTests.test42 ()
 -- tempTest = MicroTests.test20 ()
 -- tempTest = MicroTests.test31 ()
 -- tempTest = MicroTests.test32 ()
--- tempTest = MicroTests.test41 ()
+tempTest = MicroTests.test41 ()
 -- tempTest = MicroTests.test43 ()
 
-sampleModel = { code      = sExp tempTest.e
-              , inputExp  = Just tempTest.e
-              , movingObj = Nothing
-              , workingSlate = LangSvg.valToIndexedTree tempTest.v
-              , mode  = Live <| Sync.prepareLiveUpdates tempTest.e tempTest.v
-              }
+sampleModel =
+  let (rootId,slate) = LangSvg.valToIndexedTree tempTest.v in
+    { code         = sExp tempTest.e
+    , inputExp     = Just tempTest.e
+    , movingObj    = Nothing
+    , rootId       = rootId
+    , workingSlate = slate
+    , mode         = Live <| Sync.prepareLiveUpdates tempTest.e tempTest.v
+    }
 
 upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
@@ -61,8 +64,8 @@ upstate evt old = case Debug.log "Event" evt of
     Render ->
       let e = parseE old.code in
       let v = Eval.run e in
-      { old | inputExp <- Just e
-            , workingSlate <- LangSvg.valToIndexedTree v }
+      let (rootId,slate) = LangSvg.valToIndexedTree tempTest.v in
+      { old | inputExp <- Just e, rootId <- rootId , workingSlate <- slate }
 
     CodeUpdate newcode -> { old | code <- newcode }
 
@@ -193,7 +196,7 @@ upstate evt old = case Debug.log "Event" evt of
                     Just trigger ->
                       let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
                       if not Sync.tryToBeSmart then
-                        (newE, LangSvg.valToIndexedTree <| Eval.run newE) else
+                        (newE, snd <| LangSvg.valToIndexedTree <| Eval.run newE) else
                       let newSlate' =
                         Dict.foldl (\j dj acc1 ->
                           let _ = Debug.crash "TODO: dummyTrace is probably a problem..." in
@@ -227,17 +230,16 @@ upstate evt old = case Debug.log "Event" evt of
         case (old.mode, old.inputExp) of
             (Live _, _) -> Debug.crash "upstate Sync: shouldn't happen anymore"
             (AdHoc, Just ip) ->
-                let inputval = Eval.run ip
-                    inputval' = indexedTreeToVal (LangSvg.valToIndexedTree inputval)
-                    newval = indexedTreeToVal old.workingSlate
+                let inputval  = Eval.run ip
+                    inputval' = inputval |> LangSvg.valToIndexedTree
+                                         |> snd
+                                         |> indexedTreeToVal old.rootId
+                    newval    = indexedTreeToVal old.rootId old.workingSlate
                 in
-                  -- let _ = Debug.log "same vals ??" (inputval' == newval) in
-                  -- let _ = Debug.log "??" (strVal inputval') in
-                  -- let _ = Debug.log "??" (strVal newval) in
-                  -- let _ = Debug.log "code" (sExp ip) in
-                  case Debug.log "sync options" <| Sync.sync ip inputval' newval of
+                  case Sync.sync ip inputval' newval of
                     Ok [] -> old
-                    Ok ls -> { old | mode <- SyncSelect ls }
+                    Ok ls -> let _ = Debug.log "# of sync options" (List.length ls) in
+                             { old | mode <- SyncSelect ls }
                     Err e -> Debug.crash ("upstate Sync: ++ " ++ e)
 
     SelectOption ((e,v), f) -> { old | inputExp <- Just e, mode <- AdHoc }

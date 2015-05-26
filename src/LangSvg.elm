@@ -210,8 +210,11 @@ type IndexedTreeNode
 
 children n = case n of {TextNode _ -> []; SvgNode _ _ l -> l}
 
-valToIndexedTree : Val -> IndexedTree
-valToIndexedTree = snd << flip valToIndexedTree_ (1, Dict.empty)
+valToIndexedTree : Val -> (NodeId, IndexedTree)
+valToIndexedTree v =
+  let (nextId,tree) = valToIndexedTree_ v (1, Dict.empty) in
+  let rootId = Debug.log "rootId" (nextId - 1) in
+  (rootId, tree)
 
 valToIndexedTree_ v (nextId, d) = case v of
 
@@ -228,7 +231,7 @@ valToIndexedTree_ v (nextId, d) = case v of
     (1 + nextId', Dict.insert nextId' node d')
 
 printIndexedTree : Val -> String
-printIndexedTree = valToIndexedTree >> strEdges
+printIndexedTree = valToIndexedTree >> snd >> strEdges
 
 strEdges : IndexedTree -> String
 strEdges =

@@ -16,6 +16,7 @@ type alias Model =
   { code : String
   , inputExp : Maybe Exp
   , movingObj : Maybe (NodeId, ShapeKind, Zone, Maybe MouseTrigger)
+  , rootId : NodeId
   , workingSlate : IndexedTree
   , mode : Mode
   }
@@ -75,8 +76,8 @@ updateAttrs (k1, v1) vals =
       if | k0 == k1  -> (k0, v1) :: vs
          | otherwise -> (k0, v0) :: updateAttrs (k1, v1) vs
 
-indexedTreeToVal : LangSvg.IndexedTree -> Val
-indexedTreeToVal slate =
+indexedTreeToVal : NodeId -> LangSvg.IndexedTree -> Val
+indexedTreeToVal rootId slate =
   let foo n =
     case n of
       LangSvg.TextNode s -> VList [VBase (String "TEXT"), VBase (String s)]
@@ -85,5 +86,5 @@ indexedTreeToVal slate =
         let vs2 = List.map (foo << flip Utils.justGet slate) l2 in
         VList [VBase (String kind), VList vs1, VList vs2]
   in
-  foo (Utils.justGet 1 slate)
+  foo (Utils.justGet rootId slate)
 
