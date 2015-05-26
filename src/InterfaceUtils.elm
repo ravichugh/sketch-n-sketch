@@ -65,16 +65,8 @@ upslate id newattr nodes = case Dict.get id nodes of
     Just node -> case node of
         LangSvg.TextNode x -> nodes
         LangSvg.SvgNode shape attrs children -> 
-            let newnode = LangSvg.SvgNode shape (updateAttrs newattr attrs) children
+            let newnode = LangSvg.SvgNode shape (Utils.update newattr attrs) children
             in Dict.insert id newnode nodes
-
-updateAttrs : (String, LangSvg.AVal) -> List Attr -> List Attr
-updateAttrs (k1, v1) vals =
-  case vals of
-    [] -> []
-    (k0, v0) :: vs ->
-      if | k0 == k1  -> (k0, v1) :: vs
-         | otherwise -> (k0, v0) :: updateAttrs (k1, v1) vs
 
 indexedTreeToVal : NodeId -> LangSvg.IndexedTree -> Val
 indexedTreeToVal rootId slate =
