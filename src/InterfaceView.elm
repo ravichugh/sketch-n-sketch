@@ -13,7 +13,7 @@ import MainSvg
 import Utils
 import MicroTests
 import InterfaceUtils exposing (..)
-import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr)
+import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr, toNum, toNumTr, addi)
 import VirtualDom
 
 --Core Libraries
@@ -71,7 +71,8 @@ codeBox code switch =
 visualsBox : List Object -> Float -> Bool -> Html.Html
 visualsBox objects dim switch =
   Svg.svg 
-    [ Attr.style 
+    [ onMouseUp DeselectObject
+    , Attr.style 
       [ ("width", "100%")
       , ("height", "100%")
       , ("border", "2px solid black")
@@ -95,115 +96,134 @@ buildSvg (nodeID, node) = case node of
       let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs) [] in
       (Svg.svg [] (mainshape :: zones), attrs)
 
-compileAttrNum k v = LangSvg.attr k (toString v)
-toFloat_ (LangSvg.ANum i) = i
--- toFloat_           = Utils.fromOk_ << String.toFloat
--- toInt_             = Utils.fromOk_ << String.toInt
+-- compileAttr will throw away the trace anyway
+attrNum k n    = LangSvg.compileAttr k (LangSvg.ANum (n, dummyTrace))
+attrNumTr k nt = LangSvg.compileAttr k (LangSvg.ANum nt)
 
 onMouseDown = Svg.Events.onMouseDown << Signal.message events.address
 onMouseUp   = Svg.Events.onMouseUp   << Signal.message events.address
 
+zoneEvents id shape zone =
+  [ onMouseDown (SelectObject id shape zone)
+  , onMouseUp DeselectObject ]
+
+zone svgFunc id shape zone l =
+  svgFunc (zoneEvents id shape zone ++ l) []
+
+cursorStyle s = [ LangSvg.attr "cursor" s ]
+
+-- TODO use zone
+zoneBorder svgFunc id shape zone flag =
+  flip svgFunc [] <<
+  (++) (zoneEvents id shape zone) <<
+  (++) [ LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
+       , LangSvg.attr "strokeWidth" (if flag then "5" else "0")
+       , LangSvg.attr "fill" "rgba(0,0,0,0)"
+       ] <<
+  (++) (if | zone == "Interior"       -> cursorStyle "move" 
+           | zone == "RightEdge"      -> cursorStyle "ew-resize"
+           | zone == "BotRightCorner" -> cursorStyle "nwse-resize"
+           | zone == "BotEdge"        -> cursorStyle "ns-resize"
+           | zone == "BotLeftCorner"  -> cursorStyle "nesw-resize"
+           | zone == "LeftEdge"       -> cursorStyle "ew-resize"
+           | zone == "TopLeftCorner"  -> cursorStyle "nwse-resize"
+           | zone == "TopEdge"        -> cursorStyle "ns-resize"
+           | zone == "TopRightCorner" -> cursorStyle "nesw-resize"
+           | otherwise                -> [])
+
+zonePoint id shape zone =
+  flip Svg.circle [] <<
+  (++) (zoneEvents id shape zone) <<
+  (++) [ LangSvg.attr "r" "6"
+       , LangSvg.attr "fill" "rgba(255,0,0,0.5)"
+       ]
+
+zonePoints id shape pts =
+  flip Utils.mapi pts <| \(i, (x,y)) ->
+    zonePoint id shape (addi "Point" i) [ attrNumTr "cx" x, attrNumTr "cy" y ]
+
+zoneLine id shape zone (x1,y1) (x2,y2) =
+  zoneBorder Svg.line id shape zone True [
+      attrNumTr "x1" x1 , attrNumTr "y1" y1 , attrNumTr "x2" x2 , attrNumTr "y2" y2
+    ]
+
 --Zone building function (still under construction/prone to change)                
 makeZones : String -> LangSvg.NodeId -> List Attr -> List Svg.Svg
-makeZones shape nodeID l =
+makeZones shape id l =
   case shape of
 
-    -- TODO refactor common parts
-
-    "circle" ->
-        let [cx,cy,r] = List.map (toFloat_ << Utils.find_ l) ["cx","cy","r"] in
-        let gutterPct = 0.100 in
-        let zInterior =
-          flip Svg.circle [] [
-              compileAttrNum "cx" cx
-            , compileAttrNum "cy" cy
-            , compileAttrNum "r" (r * (1 - 2*gutterPct))
-            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
-            , LangSvg.attr "strokeWidth" "3"
-            , LangSvg.attr "fill" "rgba(0,0,0,0)"
-            , LangSvg.attr "cursor" "move"
-            , onMouseDown (SelectObject nodeID shape "Interior")
-            , onMouseUp (DeselectObject nodeID)
-            ] in
-        let zEdge =
-          flip Svg.circle [] [
-              compileAttrNum "cx" cx
-            , compileAttrNum "cy" cy
-            , compileAttrNum "r" (r * (1))
-            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
-            , LangSvg.attr "strokeWidth" "10"
-            , LangSvg.attr "fill" "rgba(0,0,0,0)"
-            , LangSvg.attr "cursor" "crosshair"
-            , onMouseDown (SelectObject nodeID shape "Edge")
-            , onMouseUp (DeselectObject nodeID)
-            ] in
-        [zEdge, zInterior] -- important that zEdge goes on top
-
     "rect" ->
-        let mk zone x_ y_ w_ h_ s_ =
-          flip Svg.rect [] ([
-              compileAttrNum "x" x_
-            , compileAttrNum "y" y_
-            , compileAttrNum "width" w_
-            , compileAttrNum "height" h_
-            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
-            , LangSvg.attr "strokeWidth" "3"
-            , LangSvg.attr "fill" "rgba(0,0,0,0)"
-            , onMouseDown (SelectObject nodeID shape zone)
-            , onMouseUp (DeselectObject nodeID)
-            ] ++ List.map (\(a,b) -> LangSvg.attr a b) s_)
+        let mk zone x_ y_ w_ h_ =
+          zoneBorder Svg.rect id shape zone True [
+              attrNum "x" x_ , attrNum "y" y_
+            , attrNum "width" w_ , attrNum "height" h_
+            ]
         in
         let
-          [x,y,w,h]     = List.map (toFloat_ << Utils.find_ l) ["x","y","width","height"]
+          [x,y,w,h]     = List.map (toNum << Utils.find_ l) ["x","y","width","height"]
           gut           = 0.125
           (x0,x1,x2)    = (x, x + gut*w, x + (1-gut)*w)
           (y0,y1,y2)    = (y, y + gut*h, y + (1-gut)*h)
           (wSlim,wWide) = (gut*w, (1-2*gut)*w)
           (hSlim,hWide) = (gut*h, (1-2*gut)*h)
         in
-          [ mk "Interior"       x1 y1 wWide hWide [("cursor", "move")]
-          , mk "RightEdge"      x2 y1 wSlim hWide [("cursor", "ew-resize")]
-          , mk "BotRightCorner" x2 y2 wSlim hSlim [("cursor", "nwse-resize")]
-          , mk "BotEdge"        x1 y2 wWide hSlim [("cursor", "ns-resize")]
-          , mk "BotLeftCorner"  x0 y2 wSlim hSlim [("cursor", "nesw-resize")]
-          , mk "LeftEdge"       x0 y1 wSlim hWide [("cursor", "ew-resize")]
-          , mk "TopLeftCorner"  x0 y0 wSlim hSlim [("cursor", "nwse-resize")]
-          , mk "TopEdge"        x1 y0 wWide hSlim [("cursor", "ns-resize")]
-          , mk "TopRightCorner" x2 y0 wSlim hSlim [("cursor", "nesw-resize")]
+          [ mk "Interior"       x1 y1 wWide hWide
+          , mk "RightEdge"      x2 y1 wSlim hWide
+          , mk "BotRightCorner" x2 y2 wSlim hSlim
+          , mk "BotEdge"        x1 y2 wWide hSlim
+          , mk "BotLeftCorner"  x0 y2 wSlim hSlim
+          , mk "LeftEdge"       x0 y1 wSlim hWide
+          , mk "TopLeftCorner"  x0 y0 wSlim hSlim
+          , mk "TopEdge"        x1 y0 wWide hSlim
+          , mk "TopRightCorner" x2 y0 wSlim hSlim
           ]
 
-    "ellipse" ->
-        let [cx,cy,rx,ry] = List.map (toFloat_ << Utils.find_ l) ["cx","cy","rx","ry"] in
-        let gutterPct = 0.100 in
-        let zInterior =
-          flip Svg.ellipse [] [
-              compileAttrNum "cx" cx
-            , compileAttrNum "cy" cy
-            , compileAttrNum "rx" (rx * (1 - 2*gutterPct))
-            , compileAttrNum "ry" (ry * (1 - 2*gutterPct))
-            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
-            , LangSvg.attr "strokeWidth" "3"
-            , LangSvg.attr "fill" "rgba(0,0,0,0)"
-            , LangSvg.attr "cursor" "move"
-            , onMouseDown (SelectObject nodeID shape "Interior")
-            , onMouseUp (DeselectObject nodeID)
-            ] in
-        let zEdge =
-          flip Svg.ellipse [] [
-              compileAttrNum "cx" cx
-            , compileAttrNum "cy" cy
-            , compileAttrNum "rx" (rx * (1))
-            , compileAttrNum "ry" (ry * (1))
-            , LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
-            , LangSvg.attr "strokeWidth" "10"
-            , LangSvg.attr "fill" "rgba(0,0,0,0)"
-            , LangSvg.attr "cursor" "crosshair"
-            , onMouseDown (SelectObject nodeID shape "Edge")
-            , onMouseUp (DeselectObject nodeID)
-            ] in
-        [zEdge, zInterior] -- important that zEdge goes on top
+    "circle"  -> makeZonesEllipse shape id l
+    "ellipse" -> makeZonesEllipse shape id l
+
+    "line" ->
+        let [x1,y1,x2,y2] = List.map (toNumTr << Utils.find_ l) ["x1","y1","x2","y2"] in
+        let zLine = zoneLine id shape "Edge" (x1,y1) (x2,y2) in
+        let zPts = zonePoints id shape [(x1,y1),(x2,y2)] in
+        zLine :: zPts
+
+    "polygon"  -> makeZonesPoly shape id l
+    "polyline" -> makeZonesPoly shape id l
 
     _ -> []
+
+makeZonesEllipse shape id l =
+  let _ = Utils.assert "makeZonesEllipse" (shape == "circle" || shape == "ellipse") in
+  let foo =
+    let [cx,cy] = List.map (toNum << Utils.find_ l) ["cx","cy"] in
+    [ attrNum "cx" cx , attrNum "cy" cy ] in
+  let (f,bar) =
+    if shape == "circle" then
+      let [r] = List.map (toNum << Utils.find_ l) ["r"] in
+      (Svg.circle, [ attrNum "r" r ])
+    else
+      let [rx,ry] = List.map (toNum << Utils.find_ l) ["rx","ry"] in
+      (Svg.ellipse, [ attrNum "rx" rx , attrNum "ry" ry ]) in
+  let zInterior = zoneBorder f id shape "Interior" False (foo ++ bar) in
+  let zEdge = zoneBorder f id shape "Edge" True (foo ++ bar) in
+  [zEdge, zInterior]
+
+makeZonesPoly shape id l =
+  let _ = Utils.assert "makeZonesPoly" (shape == "polygon" || shape == "polyline") in
+  let pts = LangSvg.toPoints <| Utils.find_ l "points" in
+  let zPts = zonePoints id shape pts in
+  let zLines =
+    let pairs = Utils.adjacentPairs (shape == "polygon") pts in
+    let f (i,(pti,ptj)) = zoneLine id shape (addi "Edge" i) pti ptj in
+    Utils.mapi f pairs in
+  let zInterior =
+    zoneBorder Svg.polygon id shape "Interior" False [
+        LangSvg.compileAttr "points" (LangSvg.APoints pts)
+      ] in
+  let firstEqLast xs = Utils.head_ xs == Utils.head_ (List.reverse xs) in
+  if | shape == "polygon" -> zInterior :: (zLines ++ zPts)
+     | firstEqLast pts    -> zInterior :: (zLines ++ zPts)
+     | otherwise          -> zLines ++ zPts
 
 --Umbrella function for viewing a given model
 view : (Int, Int) -> Model -> Html.Html
@@ -325,7 +345,7 @@ renderButton left top = Html.button
                             , ("width", "100px")
                             , ("height", "40px")
                             ]
-                        , Events.onClick events.address (Render Nothing)
+                        , Events.onClick events.address Render
                         , Attr.value "Render"
                         , Attr.name "Render the Code"
                         ]
@@ -482,7 +502,10 @@ renderOption (w,h) possiblechanges model dim =
                         , ("top", "0px") --String.append (toString <| h * (i-1)) "px")
                         ]
                     ]    
-                    [visualsBox (buildVisual <| LangSvg.valToIndexedTree v) dim (syncBool model.mode)] --TODO: parse val to svgs
+                    [visualsBox
+                       (buildVisual <| snd <| LangSvg.valToIndexedTree v)
+                       dim
+                       (syncBool model.mode)] --TODO: parse val to svgs
 --                , Html.button
 --                    [ Attr.style
 --                        [ ("position", "absolute")

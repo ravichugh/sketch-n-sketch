@@ -41,52 +41,60 @@ compileValToNode v = case v of
     (svg f) (compileAttrVals vs1) (compileNodeVals vs2)
 
 compileNodeVals = List.map compileValToNode
-compileAttrVals = List.map ((\(k,v) -> (attr k) (strAVal v)) << valToAttr)
-compileAttrs    = List.map ((\(k,v) -> (attr k) (strAVal v)))
+compileAttrVals = List.map (uncurry compileAttr << valToAttr)
+compileAttrs    = List.map (uncurry compileAttr)
+compileAttr k v = (attr k) (strAVal v)
 
 numAttrToVal a i =
-  VList [VBase (String a), VConst (toFloat i) dummyTrace]
+  VList [VBase (String a), VConst (toFloat i, dummyTrace)]
 
 type AVal
-  = ANum Num
+  = ANum NumTr
   | AString String
   | APoints (List Point)
   | ARgba Rgba
   | APath (List Val) -- untyped
 
-type alias Point = (Num,Num)
-type alias Rgba  = (Num,Num,Num,Num)
+type alias Point = (NumTr, NumTr)
+type alias Rgba  = (NumTr, NumTr, NumTr, NumTr)
+
+toNum    (ANum (i,_)) = i
+toNumTr  (ANum (i,t)) = (i,t)
+toPoints (APoints pts) = pts
 
 valToAttr (VList [VBase (String k), v]) =
   case (k, v) of
-    (_, VConst i _)       -> (k, ANum i)
+    (_, VConst it)        -> (k, ANum it)
     (_, VBase (String s)) -> (k, AString s)
     ("points", VList vs)  -> (k, APoints <| List.map valToPoint vs)
     ("fill", VList vs)    -> (k, ARgba <| valToRgba vs)
     ("stroke", VList vs)  -> (k, ARgba <| valToRgba vs)
     ("d", VList vs)       -> (k, APath vs)
 
-valToPoint (VList [VConst x _, VConst y _]) = (x,y)
-pointToVal (x,y) = (VList [vConst x, vConst y])
+valToPoint (VList [VConst x, VConst y]) = (x,y)
+pointToVal (x,y) = (VList [VConst x, VConst y])
 
-valToRgba [VConst r _, VConst g _, VConst b _, VConst a _] = (r,g,b,a)
-rgbaToVal (r,g,b,a) = [vConst r, vConst g, vConst b, vConst a]
+valToRgba [VConst r, VConst g, VConst b, VConst a] = (r,g,b,a)
+rgbaToVal (r,g,b,a) = [VConst r, VConst g, VConst b, VConst a]
 
-strPoint (x,y) = toString x ++ "," ++ toString y
-strRgba (r,g,b,a) =
+strPoint (x_,y_) =
+  let [x,y] = List.map fst [x_,y_] in
+  toString x ++ "," ++ toString y
+
+strRgba (r_,g_,b_,a_) =
+  let [r,g,b,a] = List.map fst [r_,g_,b_,a_] in
   "rgba" ++ Utils.parens (Utils.commas (List.map toString [r,g,b,a]))
 
 strAVal a = case a of
   AString s -> s
-  ANum i    -> toString i
+  ANum it   -> toString (fst it)
   APoints l -> Utils.spaces (List.map strPoint l)
   ARgba tup -> strRgba tup
   APath vs  -> valToPath vs
 
--- NOTE: dummyTrace (via vConst) should be okay, since Attrs only go to Interface
 valOfAVal a = case a of
   AString s -> VBase (String s)
-  ANum i    -> vConst i
+  ANum it   -> VConst it
   APoints l -> VList (List.map pointToVal l)
   ARgba tup -> VList (rgbaToVal tup)
   APath vs  -> VList vs
@@ -104,7 +112,7 @@ valOfAttr (k,a) = VList [VBase (String k), valOfAVal a]
 valToPath = Utils.spaces << valToPath_
 
 valToPath_ vs =
-  let pt i j = toString i ++ " " ++ toString j in
+  let pt (i,_) (j,_) = toString i ++ " " ++ toString j in
   case vs of
     [] -> []
     VBase (String cmd) :: vs' ->
@@ -131,9 +139,9 @@ valToPath_ vs =
 projConsts k vs =
   if k == 0 then ([], vs)
   else case vs of
-         VConst i _ ::vs' ->
+         VConst it ::vs' ->
            let (l1,l2) = projConsts (k-1) vs' in
-           (i::l1, l2)
+           (it::l1, l2)
 
 matchCmd cmd s =
   let [c] = String.toList cmd in
@@ -203,8 +211,11 @@ type IndexedTreeNode
 
 children n = case n of {TextNode _ -> []; SvgNode _ _ l -> l}
 
-valToIndexedTree : Val -> IndexedTree
-valToIndexedTree = snd << flip valToIndexedTree_ (1, Dict.empty)
+valToIndexedTree : Val -> (NodeId, IndexedTree)
+valToIndexedTree v =
+  let (nextId,tree) = valToIndexedTree_ v (1, Dict.empty) in
+  let rootId = nextId - 1 in
+  (rootId, tree)
 
 valToIndexedTree_ v (nextId, d) = case v of
 
@@ -221,7 +232,7 @@ valToIndexedTree_ v (nextId, d) = case v of
     (1 + nextId', Dict.insert nextId' node d')
 
 printIndexedTree : Val -> String
-printIndexedTree = valToIndexedTree >> strEdges
+printIndexedTree = valToIndexedTree >> snd >> strEdges
 
 strEdges : IndexedTree -> String
 strEdges =
@@ -236,6 +247,27 @@ strEdges =
 -- Zones
 
 type alias Zone = String
+
+-- NOTE: would like to use only the following definition, but datatypes
+-- aren't comparable... so using Strings for storing in dictionaries, but
+-- using the following for pattern-matching purposes
+
+type RealZone = Z String | ZPoint Int | ZEdge Int
+
+addi s i = s ++ toString i
+
+realZoneOf s =
+  Maybe.withDefault (Z s) (toZPoint s `Utils.plusMaybe` toZEdge s)
+
+toZPoint s =
+  Utils.mapMaybe
+    (ZPoint << Utils.fromOk_ << String.toInt)
+    (Utils.munchString "Point" s)
+
+toZEdge s =
+  Utils.mapMaybe
+    (ZEdge << Utils.fromOk_ << String.toInt)
+    (Utils.munchString "Edge" s)
 
 -- TODO perhaps define Interface callbacks here
 

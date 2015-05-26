@@ -18,6 +18,14 @@ find err d k =
 
 find_ = find ""
 
+update : (comparable, v) -> List (comparable, v) -> List (comparable, v)
+update (k1, v1) vals =
+  case vals of
+    [] -> []
+    (k0, v0) :: vs ->
+      if | k0 == k1  -> (k0, v1) :: vs
+         | otherwise -> (k0, v0) :: update (k1, v1) vs
+
 zip : List a -> List b -> List (a,b)
 zip xs ys = case (xs, ys) of
   (x::xs', y::ys') -> (x,y) :: zip xs' ys'
@@ -42,6 +50,8 @@ foldli f init xs =
   List.foldl f init (zip [1..n] xs)
 
 foldri f init xs = List.reverse (foldli f init xs)
+
+reverse2 (xs,ys) = (List.reverse xs, List.reverse ys)
 
 split : Int -> List a -> (List a, List a)
 split n xs = (List.take n xs, List.drop n xs)
@@ -91,6 +101,13 @@ removeFirst x ys = case ys of
   []     -> []
   y::ys' -> if x == y then ys' else y :: removeFirst x ys'
 
+adjacentPairs : Bool -> List a -> List (a, a)
+adjacentPairs includeLast (x0::xs) =
+  let f xi (xPrev,acc) = (xi, (xPrev,xi) :: acc) in
+  let (xn,pairs) = List.foldl f (x0,[]) xs in
+  if | includeLast -> List.reverse ((xn,x0) :: pairs)
+     | otherwise   -> List.reverse (pairs)
+
 -- 0-based
 geti : Int -> List a -> a
 geti i = fromJust << List.head << List.drop (i-1)
@@ -127,11 +144,17 @@ fromOk_ = fromOk ""
 
 justGet k d = fromJust <| Dict.get k d
 
+head_ = fromJust << List.head
+tail_ = fromJust << List.tail
+
 mapMaybe : (a -> b) -> Maybe a -> Maybe b
 mapMaybe f mx = case mx of {Just x -> Just (f x); Nothing -> Nothing}
 
 bindMaybe : (a -> Maybe b) -> Maybe a -> Maybe b
 bindMaybe f mx = case mx of {Just x -> f x; Nothing -> Nothing}
+
+plusMaybe : Maybe a -> Maybe a -> Maybe a
+plusMaybe mx my = case mx of {Just _ -> mx; Nothing -> my}
 
 mapSnd : (b -> b') -> (a, b) -> (a, b')
 mapSnd f (x,y) = (x, f y)

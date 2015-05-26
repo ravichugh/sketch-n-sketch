@@ -19,6 +19,7 @@ type alias Model =
   { code : String
   , inputExp : Maybe Exp
   , movingObj : Maybe (NodeId, ShapeKind, Zone, Maybe MouseTrigger)
+  , rootId : NodeId
   , workingSlate : IndexedTree
   , mode : Mode
   , ui : UI
@@ -55,13 +56,13 @@ syncBool m = case m of
 --Render : display a given val from the code
 type Event = CodeUpdate String
            | SelectObject Int ShapeKind Zone
-           | DeselectObject Int
+           | DeselectObject
            | MousePos (Int, Int)
            | Sync
            | SwitchMode Mode
            | SelectOption ((Exp, Val), Float)
            | SelectTest Int
-           | Render (Maybe Exp)
+           | Render
            | UIupdate UI
 
 type alias Object = (Svg.Svg, List Attr)
@@ -78,21 +79,11 @@ upslate id newattr nodes = case Dict.get id nodes of
     Just node -> case node of
         LangSvg.TextNode x -> nodes
         LangSvg.SvgNode shape attrs children -> 
-            let newnode = LangSvg.SvgNode shape (updateAttrs newattr attrs) children
+            let newnode = LangSvg.SvgNode shape (Utils.update newattr attrs) children
             in Dict.insert id newnode nodes
 
-updateAttrs : (String, LangSvg.AVal) -> List Attr -> List Attr
-updateAttrs (k1, v1) vals =
-  case vals of
-    [] -> []
-    (k0, v0) :: vs ->
-      if | k0 == k1  -> (k0, v1) :: vs
-         | otherwise -> (k0, v0) :: updateAttrs (k1, v1) vs
-
-aNum = LangSvg.ANum
-
-indexedTreeToVal : LangSvg.IndexedTree -> Val
-indexedTreeToVal slate =
+indexedTreeToVal : NodeId -> LangSvg.IndexedTree -> Val
+indexedTreeToVal rootId slate =
   let foo n =
     case n of
       LangSvg.TextNode s -> VList [VBase (String "TEXT"), VBase (String s)]
@@ -101,7 +92,7 @@ indexedTreeToVal slate =
         let vs2 = List.map (foo << flip Utils.justGet slate) l2 in
         VList [VBase (String kind), VList vs1, VList vs2]
   in
-  foo (Utils.justGet 1 slate)
+  foo (Utils.justGet rootId slate)
 
 switchOrient m = case m of
   Vertical -> Horizontal

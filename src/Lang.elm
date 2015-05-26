@@ -42,11 +42,13 @@ type Exp
     -- EApp f xs     (f x1 ... xn) === ((... ((f x1) x2) ...) xn)
 
 type Val
-  = VConst Num Trace
+  = VConst NumTr
   | VBase BaseVal
   | VClosure (Maybe Ident) Pat Exp Env
   | VList (List Val)
   | VHole Int
+
+type alias NumTr = (Num, Trace)
 
 type BaseVal -- unlike Ints, these cannot be changed by Sync
   = Bool Bool
@@ -73,7 +75,7 @@ strValLocs = strVal_ True
 strVal_ showTraces v =
   let foo = strVal_ showTraces in
   case v of
-    VConst i tr      -> toString i
+    VConst (i,tr)    -> toString i
                           ++ if | showTraces -> Utils.braces (strTrace tr)
                                 | otherwise  -> ""
     VBase b          -> strBaseVal b
@@ -194,7 +196,7 @@ mapExp f e =
 mapVal : (Val -> Val) -> Val -> Val
 mapVal f v = case v of
   VList vs         -> f (VList (List.map (mapVal f) vs))
-  VConst _ _       -> f v
+  VConst _         -> f v
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
   VHole _          -> f v
@@ -228,7 +230,6 @@ applySubst subst e = case e of
 dummyLoc = (0, "")
 dummyTrace = TrLoc dummyLoc
 eConst = flip EConst dummyLoc
-vConst = flip VConst dummyTrace
 ePlus e1 e2 = EOp Plus [e1,e2]
 
 eBool  = EBase << Bool
