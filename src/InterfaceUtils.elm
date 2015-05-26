@@ -37,9 +37,12 @@ type alias MouseTrigger = (Int, Int) -> (Exp, IndexedTree)
 
 type alias PossibleChanges = List ((Exp, Val), Float)
 
-type Mode = AdHoc | SyncSelect PossibleChanges | Live Triggers
+type Mode
+  = AdHoc | SyncSelect PossibleChanges | Live Triggers
+  | NoDirectMan
 
 syncBool m = case m of
+  NoDirectMan  -> False -- TODO: dummy...
   Live _       -> False -- TODO: dummy...
   AdHoc        -> False
   SyncSelect _ -> True

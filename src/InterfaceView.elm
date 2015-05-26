@@ -68,32 +68,34 @@ codeBox code switch =
             []
 
 --Build viusal pane and populate with the model's objects
-visualsBox : List Object -> Float -> Bool -> Html.Html
-visualsBox objects dim switch =
+visualsBox : List Object -> Html.Html
+visualsBox objects =
   Svg.svg 
     [ onMouseUp DeselectObject
     , Attr.style 
       [ ("width", "100%")
       , ("height", "100%")
-      -- , ("draggable", "false") -- TODO: get rid of annoying drag...
       , ("border", "2px solid black")
       ]
     ]
     (List.map fst objects)
 
 --Umbrella function for taking and indexed tree and calling buildSvg over it
-buildVisual : LangSvg.IndexedTree -> List (Svg.Svg, List Attr)
-buildVisual valDict = List.map buildSvg (Dict.toList valDict)
+buildVisual : Bool -> LangSvg.IndexedTree -> List (Svg.Svg, List Attr)
+buildVisual showZones valDict =
+  List.map (buildSvg showZones) (Dict.toList valDict)
 
 --Function for handling attributes and children of an indexed tree and building them
 --into Svgs with attr lists to be updated as necessary
-buildSvg : (LangSvg.NodeId, LangSvg.IndexedTreeNode) -> (Svg.Svg, List Attr)
-buildSvg (nodeID, node) = case node of
+buildSvg : Bool -> (LangSvg.NodeId, LangSvg.IndexedTreeNode) -> (Svg.Svg, List Attr)
+buildSvg showZones (nodeID, node) = case node of
     LangSvg.TextNode text ->
       let str = LangSvg.AString in
       (VirtualDom.text text, [("shape", str "TEXT"), ("text", str text)])
     LangSvg.SvgNode shape attrs childrenids ->
-      let zones = makeZones shape nodeID attrs in
+      let zones =
+        if | showZones -> makeZones shape nodeID attrs
+           | otherwise -> [] in
       let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs) [] in
       (Svg.svg [] (mainshape :: zones), attrs)
 
@@ -242,6 +244,7 @@ view (w,h) model =
     ui = model.ui
     windowsplit = (w, h * 9 // 10)
     viewtype = case model.mode of
+      NoDirectMan  -> regularView windowsplit model
       AdHoc        -> regularView windowsplit model
       Live _       -> regularView windowsplit model
       SyncSelect l -> selectView windowsplit model l
@@ -330,6 +333,7 @@ orientButtonToggler (w,h) model =
                   ++
                   (case model.mode of
                       SyncSelect _ -> []
+                      NoDirectMan -> []
                       Live _ -> []
                       AdHoc -> [syncButton vAxis (vSpace + 180)]
                   )
@@ -362,24 +366,28 @@ renderButton left top = Html.button
                         [Html.text "Render Code"]
 
 modeToggle : Int -> Int -> Model -> Html.Html
-modeToggle left top model = Html.select
-                        [ Attr.style
-                            [ ("position", "absolute")
-                            , ("left", dimToPix left)
-                            , ("top", dimToPix top)
-                            , ("type", "button")
-                            , ("width", "100px")
-                            , ("height", "40px")
-                            ]
-                        ]
-                        [ let e = Utils.fromJust model.inputExp in
-                          let v = Eval.run e in
-                          let mode = Live <| Sync.prepareLiveUpdates e v in
-                            Html.option [Events.onClick events.address (SwitchMode mode)]
-                                [Html.text "Live"]
-                            , Html.option [Events.onClick events.address (SwitchMode AdHoc)] 
-                                [Html.text "Ad Hoc"]
-                        ]
+modeToggle left top model =
+  let opt s m =
+    Html.option [Events.onClick events.address (SwitchMode m)] [Html.text s] in
+  let optionLive =
+    -- may want to delay this to when Live is selected
+    let e = Utils.fromJust model.inputExp in
+    let v = Eval.run e in
+    let mode = Live <| Sync.prepareLiveUpdates e v in
+    opt "Live" mode in
+  let optionAdHoc = opt "Ad Hoc" AdHoc in
+  let optionFreeze = opt "Freeze" NoDirectMan in
+  Html.select
+    [ Attr.style
+        [ ("position", "absolute")
+        , ("left", dimToPix left)
+        , ("top", dimToPix top)
+        , ("type", "button")
+        , ("width", "100px")
+        , ("height", "40px")
+        ]
+    ]
+    [ optionLive, optionAdHoc, optionFreeze ]
 
 testToggle left top testlist = Html.select
                         [ Attr.style
@@ -454,6 +462,7 @@ codeBoxPlacer w h left top model =
 
 visualsBoxPlacer : Int -> Int -> Int -> Int -> Float -> Model -> Html.Html
 visualsBoxPlacer w h left top dim model = 
+  let showZones = case model.mode of {NoDirectMan -> False; _ -> True} in
   Html.div
     [ Attr.style
       [ ("width", dimToPix w)
@@ -464,7 +473,7 @@ visualsBoxPlacer w h left top dim model =
       , ("top", dimToPix top)
       ]
     ]    
-    [visualsBox (buildVisual model.workingSlate) dim (syncBool model.mode)]
+    [visualsBox (buildVisual showZones model.workingSlate)]
 
 --Build an Html of the iterations of renderOption over the possibleChanges
 selectView : (Int, Int) -> Model -> PossibleChanges -> Html.Html
@@ -512,10 +521,8 @@ renderOption (w,h) possiblechanges model dim =
                         , ("top", "0px") --String.append (toString <| h * (i-1)) "px")
                         ]
                     ]    
-                    [visualsBox
-                       (buildVisual <| snd <| LangSvg.valToIndexedTree v)
-                       dim
-                       (syncBool model.mode)] --TODO: parse val to svgs
+                    [visualsBox (buildVisual False <| snd <| LangSvg.valToIndexedTree v) ]
+                  --TODO: parse val to svgs
 --                , Html.button
 --                    [ Attr.style
 --                        [ ("position", "absolute")

@@ -65,13 +65,16 @@ upstate evt old = case Debug.log "Event" evt of
     CodeUpdate newcode -> { old | code <- newcode }
 
     MousePos (mx, my) ->
-      case old.movingObj of
+      case (old.mode, old.movingObj) of
 
-        Nothing -> old
+        (NoDirectMan, _) -> old
 
-        Just (objid, kind, zone, Nothing) ->
+        (_, Nothing) -> old
 
-          let (_,attrs) = buildSvg (objid, Utils.justGet objid old.workingSlate) in
+        (_, Just (objid, kind, zone, Nothing)) ->
+
+          let (_,attrs) =
+            buildSvg False (objid, Utils.justGet objid old.workingSlate) in
           let numAttr = toNum << Utils.find_ attrs in
           let mapNumAttr f a =
             let (n,trace) = toNumTr (Utils.find_ attrs a) in
@@ -203,13 +206,16 @@ upstate evt old = case Debug.log "Event" evt of
           in
           { old | movingObj <- Just (objid, kind, zone, Just onNewPos) }
 
-        Just (objid, kind, zone, Just onNewPos) ->
+        (_, Just (objid, kind, zone, Just onNewPos)) ->
           let (newE,newSlate) = onNewPos (mx, my) in
           { old | code <- sExp newE
                 , inputExp <- Just newE
                 , workingSlate <- newSlate }
 
-    SelectObject id kind zone -> { old | movingObj <- Just (id, kind, zone, Nothing) }
+    SelectObject id kind zone ->
+      case old.mode of
+        NoDirectMan -> Debug.crash "SelectObject shouldn't be triggered in NoDirectMan mode"
+        _           -> { old | movingObj <- Just (id, kind, zone, Nothing) }
 
     DeselectObject ->
       let mode' =
