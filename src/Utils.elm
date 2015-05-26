@@ -18,6 +18,14 @@ find err d k =
 
 find_ = find ""
 
+update : (comparable, v) -> List (comparable, v) -> List (comparable, v)
+update (k1, v1) vals =
+  case vals of
+    [] -> []
+    (k0, v0) :: vs ->
+      if | k0 == k1  -> (k0, v1) :: vs
+         | otherwise -> (k0, v0) :: update (k1, v1) vs
+
 zip : List a -> List b -> List (a,b)
 zip xs ys = case (xs, ys) of
   (x::xs', y::ys') -> (x,y) :: zip xs' ys'
