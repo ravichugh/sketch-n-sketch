@@ -75,6 +75,7 @@ visualsBox objects dim switch =
     , Attr.style 
       [ ("width", "100%")
       , ("height", "100%")
+      -- , ("draggable", "false") -- TODO: get rid of annoying drag...
       , ("border", "2px solid black")
       ]
     ]
@@ -110,7 +111,23 @@ zoneEvents id shape zone =
 zone svgFunc id shape zone l =
   svgFunc (zoneEvents id shape zone ++ l) []
 
-cursorStyle s = [ LangSvg.attr "cursor" s ]
+cursorStyle s = LangSvg.attr "cursor" s
+
+cursorOfZone zone = if
+  -- rect zones
+  | zone == "Interior"       -> cursorStyle "move"
+  | zone == "RightEdge"      -> cursorStyle "ew-resize"
+  | zone == "BotRightCorner" -> cursorStyle "nwse-resize"
+  | zone == "BotEdge"        -> cursorStyle "ns-resize"
+  | zone == "BotLeftCorner"  -> cursorStyle "nesw-resize"
+  | zone == "LeftEdge"       -> cursorStyle "ew-resize"
+  | zone == "TopLeftCorner"  -> cursorStyle "nwse-resize"
+  | zone == "TopEdge"        -> cursorStyle "ns-resize"
+  | zone == "TopRightCorner" -> cursorStyle "nesw-resize"
+  -- circle/ellipse zones
+  | zone == "Edge"           -> cursorStyle "pointer"
+  -- default
+  | otherwise                -> cursorStyle "default"
 
 -- TODO use zone
 zoneBorder svgFunc id shape zone flag =
@@ -119,23 +136,15 @@ zoneBorder svgFunc id shape zone flag =
   (++) [ LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
        , LangSvg.attr "strokeWidth" (if flag then "5" else "0")
        , LangSvg.attr "fill" "rgba(0,0,0,0)"
-       ] <<
-  (++) (if | zone == "Interior"       -> cursorStyle "move" 
-           | zone == "RightEdge"      -> cursorStyle "ew-resize"
-           | zone == "BotRightCorner" -> cursorStyle "nwse-resize"
-           | zone == "BotEdge"        -> cursorStyle "ns-resize"
-           | zone == "BotLeftCorner"  -> cursorStyle "nesw-resize"
-           | zone == "LeftEdge"       -> cursorStyle "ew-resize"
-           | zone == "TopLeftCorner"  -> cursorStyle "nwse-resize"
-           | zone == "TopEdge"        -> cursorStyle "ns-resize"
-           | zone == "TopRightCorner" -> cursorStyle "nesw-resize"
-           | otherwise                -> [])
+       , cursorOfZone zone
+       ]
 
 zonePoint id shape zone =
   flip Svg.circle [] <<
   (++) (zoneEvents id shape zone) <<
   (++) [ LangSvg.attr "r" "6"
        , LangSvg.attr "fill" "rgba(255,0,0,0.5)"
+       , cursorStyle "pointer"
        ]
 
 zonePoints id shape pts =
@@ -145,6 +154,7 @@ zonePoints id shape pts =
 zoneLine id shape zone (x1,y1) (x2,y2) =
   zoneBorder Svg.line id shape zone True [
       attrNumTr "x1" x1 , attrNumTr "y1" y1 , attrNumTr "x2" x2 , attrNumTr "y2" y2
+    , cursorStyle "pointer"
     ]
 
 --Zone building function (still under construction/prone to change)                
