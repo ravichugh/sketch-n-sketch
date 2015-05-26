@@ -70,8 +70,14 @@ codeBox code switch =
 --Build viusal pane and populate with the model's objects
 visualsBox : List Object -> Float -> Bool -> Html.Html
 visualsBox objects dim switch =
-  Svg.svg [ Attr.style [ ("width", "100%"), ("height", "100%"), ("border", "2px solid black")] ]
-          (List.map fst objects)
+  Svg.svg 
+    [ Attr.style 
+      [ ("width", "100%")
+      , ("height", "100%")
+      , ("border", "2px solid black")
+      ]
+    ]
+    (List.map fst objects)
 
 --Umbrella function for taking and indexed tree and calling buildSvg over it
 buildVisual : LangSvg.IndexedTree -> List (Svg.Svg, List Attr)
@@ -284,12 +290,60 @@ regularView (w,h) model =
                       ]
                     ]
                     --display code & visuals
-                    ([renderView (w,h) model
-                    , Html.button
+                    (orientButtonToggler (w,h) model)
+
+orientButtonToggler : (Int, Int) -> Model -> List Html.Html
+orientButtonToggler (w,h) model = 
+  let
+    testlist = 
+            List.reverse 
+            <| List.map (\i -> 
+                Html.option 
+                    --callExp (a lazy function in Interfaceutils) 
+                    --now searches the microtests for the corresponding
+                    --test given a test number. note: callExp is lazy
+                    [ Events.onMouseOver events.address 
+                        (CodeUpdate (sExpK 1 (callExp i)))
+                    , Events.onClick events.address 
+                        (Render (Just (callExp i)))
+                    ] 
+                    [Html.text (toString i)]
+                ) [15..42]
+    vAxis = w // 2 - 50
+    vSpace = h // 4
+    hAxis = w // 4
+    hSpace = h // 2 - 40
+  in
+    case model.ui.orient of
+      Vertical -> [ renderView (w,h) model
+                  , renderButton vAxis vSpace
+                  , modeToggle vAxis (vSpace + 60) model
+                  , testToggle vAxis (vSpace + 120) testlist
+                  ]
+                  ++
+                  (case model.mode of
+                      SyncSelect _ -> []
+                      Live _ -> []
+                      AdHoc -> [syncButton vAxis (vSpace + 180)]
+                  )
+      Horizontal -> [ renderView (w,h) model
+                    , renderButton hAxis hSpace
+                    , modeToggle (hAxis + 120) hSpace model
+                    , testToggle (hAxis + 240) hSpace testlist
+                    ]
+                    ++
+                    (case model.mode of
+                        SyncSelect _ -> []
+                        Live _ -> []
+                        AdHoc -> [syncButton (hAxis + 360) hSpace]
+                    )
+
+renderButton : Int -> Int -> Html.Html
+renderButton left top = Html.button
                         [ Attr.style
                             [ ("position", "absolute")
-                            , ("left", dimToPix (w // 2 - 50))
-                            , ("top", dimToPix (h // 4))
+                            , ("left", dimToPix left)
+                            , ("top", dimToPix top)
                             , ("type", "button")
                             , ("width", "100px")
                             , ("height", "40px")
@@ -299,11 +353,13 @@ regularView (w,h) model =
                         , Attr.name "Render the Code"
                         ]
                         [Html.text "Render Code"]
-                    , Html.select
+
+modeToggle : Int -> Int -> Model -> Html.Html
+modeToggle left top model = Html.select
                         [ Attr.style
                             [ ("position", "absolute")
-                            , ("left", dimToPix (w // 2 - 50))
-                            , ("top", dimToPix (h // 4 + 60))
+                            , ("left", dimToPix left)
+                            , ("top", dimToPix top)
                             , ("type", "button")
                             , ("width", "100px")
                             , ("height", "40px")
@@ -317,29 +373,25 @@ regularView (w,h) model =
                             , Html.option [Events.onClick events.address (SwitchMode AdHoc)] 
                                 [Html.text "Ad Hoc"]
                         ]
-                    , Html.text "MicroTests" 
-                    , Html.select
+
+testToggle left top testlist = Html.select
                         [ Attr.style
                             [ ("position", "absolute")
-                            , ("left", dimToPix (w // 2 - 50))
-                            , ("top", dimToPix (h // 4 + 120))
+                            , ("left", dimToPix left)
+                            , ("top", dimToPix top)
                             , ("type", "button")
                             , ("width", "100px")
                             , ("height", "40px")
                             ]
                         ]
                         testlist
-                    ]
-                    ++
-                    (case model.mode of
-                        SyncSelect _ -> []
-                        Live _ -> []
-                        AdHoc -> 
-                            [Html.button
+
+syncButton : Int -> Int -> Html.Html
+syncButton left top = Html.button
                                 [ Attr.style
                                     [ ("position", "absolute")
-                                    , ("left", dimToPix (w // 2 - 50))
-                                    , ("top", dimToPix (h // 4 + 180))
+                                    , ("left", dimToPix left)
+                                    , ("top", dimToPix top)
                                     , ("type", "button")
                                     , ("width", "100px")
                                     , ("height", "40px")
@@ -349,45 +401,63 @@ regularView (w,h) model =
                                 , Attr.name "Sync the code to the canvas"
                                 ]
                                 [Html.text "Synchronize"]
-                            ]
-                    ))
 
 --When view is manipulatable, call this function for code & visuals
 --to build corresponding panes
 renderView : (Int, Int) -> Model -> Html.Html
 renderView (w,h) model = 
-    let
-        dim = (Basics.toFloat (Basics.min w h)) / 2
-    in
-        Html.div
-            [ Attr.style
-                [ ("width", toString w)
-                , ("height", toString h)
-                ]
-            ]
-            [ Html.div 
-                [ Attr.style
-                    [ ("width", dimToPix (w // 2 - 60))
-                    , ("height", dimToPix h)
-                    , ("margin", "0")
-                    , ("position", "absolute")
-                    , ("left", "0px")
-                    , ("top", "0px")
+  Html.div
+    [ Attr.style
+      [ ("width", toString w)
+      , ("height", toString h)
+      ]
+    ]
+    (orientViewToggler (w,h) model)
+
+orientViewToggler : (Int,Int) -> Model -> List Html.Html
+orientViewToggler (w,h) model =
+  let
+    dim = (Basics.toFloat (Basics.min w h)) / 2
+    vWidth = w // 2 - 60
+    vLeft = w // 2 + 60
+    hHeight = h // 2 - 50
+    hTop = h // 2 + 50
+  in
+    case model.ui.orient of
+      Vertical -> [ codeBoxPlacer vWidth h 0 0 model
+                  , visualsBoxPlacer vWidth h vLeft 0 dim model 
+                  ]
+      Horizontal -> [ codeBoxPlacer w hHeight 0 0 model
+                    , visualsBoxPlacer w hHeight 0 hTop dim model 
                     ]
-                ]
-                [codeBox model.code (syncBool model.mode)]
-            , Html.div
-                [ Attr.style
-                    [ ("width", dimToPix (w // 2 - 60))
-                    , ("height", dimToPix h)
-                    , ("margin", "0")
-                    , ("position", "absolute")
-                    , ("left", dimToPix (w // 2 + 60))
-                    , ("top", "0px")
-                    ]
-                ]    
-                [visualsBox (buildVisual model.workingSlate) dim (syncBool model.mode)]
-            ]
+
+codeBoxPlacer : Int -> Int -> Int -> Int -> Model -> Html.Html
+codeBoxPlacer w h left top model = 
+  Html.div 
+    [ Attr.style
+      [ ("width", dimToPix w)
+      , ("height", dimToPix h)
+      , ("margin", "0")
+      , ("position", "absolute")
+      , ("left", dimToPix left)
+      , ("top", dimToPix top)
+      ]
+    ]
+    [codeBox model.code (syncBool model.mode)]
+
+visualsBoxPlacer : Int -> Int -> Int -> Int -> Float -> Model -> Html.Html
+visualsBoxPlacer w h left top dim model = 
+  Html.div
+    [ Attr.style
+      [ ("width", dimToPix w)
+      , ("height", dimToPix h)
+      , ("margin", "0")
+      , ("position", "absolute")
+      , ("left", dimToPix left)
+      , ("top", dimToPix top)
+      ]
+    ]    
+    [visualsBox (buildVisual model.workingSlate) dim (syncBool model.mode)]
 
 --Build an Html of the iterations of renderOption over the possibleChanges
 selectView : (Int, Int) -> Model -> PossibleChanges -> Html.Html
