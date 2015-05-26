@@ -29,7 +29,7 @@ fillHole = fillHole_ True
 fillHole_ new vc subst = case vc of
   VHole i          -> case Dict.get i subst of
                         Just (vOld,vNew) -> if new then vNew else vOld
-  VConst _ _       -> vc
+  VConst _         -> vc
   VBase _          -> vc
   VClosure _ _ _ _ -> vc   -- not recursing into closures
   VList vs         -> VList (List.map (\v -> fillHole_ new v subst) vs)
@@ -51,7 +51,7 @@ diff v1 v2 =
       Utils.mapMaybe snd res
 
 eqV (v1,v2) = case (v1, v2) of            -- equality modulo traces
-  (VConst i tr, VConst j _) -> i == j
+  (VConst it, VConst jt) -> fst it == fst jt
   (VList vs1, VList vs2) ->
     case Utils.maybeZip vs1 vs2 of
       Nothing -> False
@@ -66,10 +66,10 @@ diffNoCheck v1 v2 =
 
 diff_ : Int -> Val -> Val -> Maybe (Int, VDiff)
 diff_ k v1 v2 = case (v1, v2) of
-  (VBase Star, VConst _ _) -> Just (k, Same v2)
-  (VConst i tr, VConst j _) ->
-    if | i == j    -> Just (k, Same (VConst i tr))  -- cf. comment above
-       | otherwise -> let d = Dict.singleton k (v1, (VConst j tr)) in
+  (VBase Star, VConst _) -> Just (k, Same v2)
+  (VConst (i,tr), VConst (j,_)) ->
+    if | i == j    -> Just (k, Same (VConst (i,tr)))  -- cf. comment above
+       | otherwise -> let d = Dict.singleton k (v1, (VConst (j,tr))) in
                       Just (k+1, Diff (VHole k) d)
   (VList vs1, VList vs2) ->
     case Utils.maybeZip vs1 vs2 of
@@ -114,7 +114,7 @@ locsOfTrace =
   foo
 
 solveOneLeaf : Subst -> Val -> List (LocId, Num)
-solveOneLeaf s (VConst i tr) =
+solveOneLeaf s (VConst (i, tr)) =
   List.map
     (\l -> let s' = Dict.remove l s in
            let n  = solve s' (Equation i tr) in
@@ -158,7 +158,7 @@ plusplus = Utils.lift_2_2 (+)
 
 compareVals : (Val, Val) -> Num
 compareVals (v1, v2) = case (v1, v2) of
-  (VConst i _, VConst j _) -> abs (i-j)
+  (VConst it, VConst jt)   -> abs (fst it - fst jt)
   (VList vs1, VList vs2)   -> case Utils.maybeZip vs1 vs2 of
                                 Nothing -> largeInt
                                 Just l  -> Utils.sum (List.map compareVals l)
@@ -172,7 +172,7 @@ largeInt = 99999999
 getFillers : HoleSubst -> List Val
 getFillers = List.map (snd << snd) << Dict.toList
 
-leafToStar v = case v of {VConst _ _ -> VBase Star; _ -> v}
+leafToStar v = case v of {VConst _ -> VBase Star; _ -> v}
 
 sync : Exp -> Val -> Val -> Result String (List ((Exp, Val), Num))
 sync e v v' =
@@ -242,13 +242,13 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
 
     -- processing attributes of current node
     let processAttr v' (extra,dAttrs) = case v' of
-      VList [VBase (String a), VConst _ tr] ->
+      VList [VBase (String a), VConst (_,tr)] ->
         (extra, Dict.insert a tr dAttrs)
       VList [VBase (String "points"), VList pts] ->
         let acc' =
           Utils.foldli (\(i,vPt) acc ->
             case vPt of
-              VList [VConst _ trx, VConst _ try] ->
+              VList [VConst (_,trx), VConst (_,try)] ->
                 let (ax,ay) = (addi "x" i, addi "y" i) in
                 acc |> Dict.insert ax trx
                     |> Dict.insert ay try) dAttrs pts in
