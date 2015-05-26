@@ -93,6 +93,17 @@ removeFirst x ys = case ys of
   []     -> []
   y::ys' -> if x == y then ys' else y :: removeFirst x ys'
 
+adjacentPairs : Bool -> List a -> List (a, a)
+adjacentPairs includeLast (x0::xs) =
+  let f xi (xPrev,acc) = (xi, (xPrev,xi) :: acc) in
+  let (xn,pairs) = List.foldl f (x0,[]) xs in
+  if | includeLast -> List.reverse ((xn,x0) :: pairs)
+     | otherwise   -> List.reverse (pairs)
+
+-- -- 0-based
+-- geti : Int -> List a -> a
+-- geti i = fromJust << List.head << List.drop (i-1)
+
 delimit a b s = String.concat [a, s, b]
 
 parens = delimit "(" ")"
@@ -124,6 +135,9 @@ fromOk s mx = case mx of
 fromOk_ = fromOk ""
 
 justGet k d = fromJust <| Dict.get k d
+
+head_ = fromJust << List.head
+tail_ = fromJust << List.tail
 
 mapMaybe : (a -> b) -> Maybe a -> Maybe b
 mapMaybe f mx = case mx of {Just x -> Just (f x); Nothing -> Nothing}

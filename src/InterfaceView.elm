@@ -70,7 +70,8 @@ codeBox code switch =
 --Build viusal pane and populate with the model's objects
 visualsBox : List Object -> Float -> Bool -> Html.Html
 visualsBox objects dim switch =
-  Svg.svg [ Attr.style [ ("width", "100%"), ("height", "100%") ] ]
+  Svg.svg [ onMouseUp DeselectObject
+          , Attr.style [ ("width", "100%"), ("height", "100%") ] ]
           (List.map fst objects)
 
 --Umbrella function for taking and indexed tree and calling buildSvg over it
@@ -96,7 +97,7 @@ onMouseUp   = Svg.Events.onMouseUp   << Signal.message events.address
 
 zoneEvents id shape zone =
   [ onMouseDown (SelectObject id shape zone)
-  , onMouseUp (DeselectObject id) ]
+  , onMouseUp DeselectObject ]
 
 zone svgFunc id shape zone l =
   svgFunc (zoneEvents id shape zone ++ l) []
@@ -117,29 +118,19 @@ zonePoint id shape zone =
        , LangSvg.attr "fill" "rgba(255,0,0,0.5)"
        ]
 
-zonePoints id shape (LangSvg.APoints pts) =
+zonePoints id shape pts =
   flip Utils.mapi pts <| \(i, (x,y)) ->
     zonePoint id shape (addi "Point" i) [ attrNum "cx" x, attrNum "cy" y ]
+
+zoneLine id shape zone (x1,y1) (x2,y2) =
+  zoneBorder Svg.line id shape zone True [
+      attrNum "x1" x1 , attrNum "y1" y1 , attrNum "x2" x2 , attrNum "y2" y2
+    ]
 
 --Zone building function (still under construction/prone to change)                
 makeZones : String -> LangSvg.NodeId -> List Attr -> List Svg.Svg
 makeZones shape id l =
   case shape of
-
-    "circle" ->
-        let [cx,cy,r] = List.map (toNum << Utils.find_ l) ["cx","cy","r"] in
-        let gutterPct = 0.100 in
-        let zInterior =
-          zoneBorder Svg.circle id shape "Interior" False [
-              attrNum "cx" cx , attrNum "cy" cy
-            , attrNum "r" (r * (1 - 2*gutterPct))
-            ] in
-        let zEdge =
-          zoneBorder Svg.circle id shape "Edge" True [
-              attrNum "cx" cx , attrNum "cy" cy
-            , attrNum "r" (r * (1))
-            ] in
-        [zEdge, zInterior]
 
     "rect" ->
         let mk zone x_ y_ w_ h_ =
@@ -167,46 +158,52 @@ makeZones shape id l =
           , mk "TopRightCorner" x2 y0 wSlim hSlim
           ]
 
-    "ellipse" ->
-        let [cx,cy,rx,ry] = List.map (toNum << Utils.find_ l) ["cx","cy","rx","ry"] in
-        let gutterPct = 0.100 in
-        let zInterior =
-          zoneBorder Svg.ellipse id shape "Interior" False [
-              attrNum "cx" cx , attrNum "cy" cy
-            , attrNum "rx" (rx * (1 - 2*gutterPct))
-            , attrNum "ry" (ry * (1 - 2*gutterPct))
-            ] in
-        let zEdge =
-          zoneBorder Svg.ellipse id shape "Edge" True [
-              attrNum "cx" cx , attrNum "cy" cy
-            , attrNum "rx" (rx * (1))
-            , attrNum "ry" (ry * (1))
-            ] in
-        [zEdge, zInterior]
+    "circle"  -> makeZonesEllipse shape id l
+    "ellipse" -> makeZonesEllipse shape id l
 
     "line" ->
         let [x1,y1,x2,y2] = List.map (toNum << Utils.find_ l) ["x1","y1","x2","y2"] in
-        let zPts = zonePoints id shape (LangSvg.APoints [(x1,y1),(x2,y2)]) in
-        let zLine =
-          -- TODO use zone instead, since stroke* is getting defined here
-          zoneBorder Svg.line id shape "Edge" False [
-              attrNum "x1" x1 , attrNum "y1" y1
-            , attrNum "x2" x2 , attrNum "y2" y2
-            , LangSvg.compileAttr "stroke" (Utils.find_ l "stroke")
-            , LangSvg.compileAttr "strokeWidth" (Utils.find_ l "strokeWidth")
-            ] in
+        let zLine = zoneLine id shape "Edge" (x1,y1) (x2,y2) in
+        let zPts = zonePoints id shape [(x1,y1),(x2,y2)] in
         zLine :: zPts
 
-    "polygon" ->
-        let pts = Utils.find_ l "points" in
-        let zPts = zonePoints id shape pts in
-        let zInterior =
-          zoneBorder Svg.polygon id shape "Interior" False [
-              LangSvg.compileAttr "points" pts
-            ] in
-        zInterior :: zPts
+    "polygon"  -> makeZonesPoly shape id l
+    "polyline" -> makeZonesPoly shape id l
 
     _ -> []
+
+makeZonesEllipse shape id l =
+  let _ = Utils.assert "makeZonesEllipse" (shape == "circle" || shape == "ellipse") in
+  let foo =
+    let [cx,cy] = List.map (toNum << Utils.find_ l) ["cx","cy"] in
+    [ attrNum "cx" cx , attrNum "cy" cy ] in
+  let (f,bar) =
+    if shape == "circle" then
+      let [r] = List.map (toNum << Utils.find_ l) ["r"] in
+      (Svg.circle, [ attrNum "r" r ])
+    else
+      let [rx,ry] = List.map (toNum << Utils.find_ l) ["rx","ry"] in
+      (Svg.ellipse, [ attrNum "rx" rx , attrNum "ry" ry ]) in
+  let zInterior = zoneBorder f id shape "Interior" False (foo ++ bar) in
+  let zEdge = zoneBorder f id shape "Edge" True (foo ++ bar) in
+  [zEdge, zInterior]
+
+makeZonesPoly shape id l =
+  let _ = Utils.assert "makeZonesPoly" (shape == "polygon" || shape == "polyline") in
+  let pts = LangSvg.toPoints <| Utils.find_ l "points" in
+  let zPts = zonePoints id shape pts in
+  let zLines =
+    let pairs = Utils.adjacentPairs (shape == "polygon") pts in
+    let f (i,(pti,ptj)) = zoneLine id shape (addi "Edge" i) pti ptj in
+    Utils.mapi f pairs in
+  let zInterior =
+    zoneBorder Svg.polygon id shape "Interior" False [
+        LangSvg.compileAttr "points" (LangSvg.APoints pts)
+      ] in
+  let firstEqLast xs = Utils.head_ xs == Utils.head_ (List.reverse xs) in
+  if | shape == "polygon" -> zInterior :: (zLines ++ zPts)
+     | firstEqLast pts    -> zInterior :: (zLines ++ zPts)
+     | otherwise          -> zLines ++ zPts
 
 --Umbrella function for viewing a given model
 view : (Int, Int) -> Model -> Html.Html

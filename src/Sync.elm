@@ -296,11 +296,15 @@ getZones : ShapeKind -> ExtraInfo -> List (Zone, List AttrName)
 getZones kind extra =
   let xy i = [addi "x" i, addi "y" i] in
   let pt i = (addi "Point" i, xy i) in
+  let edge n i =
+    if | i <  n -> (addi "Edge" i, xy i ++ xy (i+1))
+       | i == n -> (addi "Edge" i, xy i ++ xy 1) in
+  let interior n = ("Interior", List.concatMap xy [1..n]) in
   case (kind, extra) of
     ("polyline", NumPoints n) ->
-      List.map pt [1..n]
+      List.map pt [1..n] ++ List.map (edge n) [1..n-1]
     ("polygon", NumPoints n) ->
-      List.map pt [1..n] ++ [("Interior", List.concatMap xy [1..n])]
+      List.map pt [1..n] ++ List.map (edge n) [1..n] ++ [interior n]
     _ ->
       Utils.fromJust (Utils.maybeFind kind LangSvg.zones)
 
