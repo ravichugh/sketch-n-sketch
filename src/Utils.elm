@@ -91,6 +91,10 @@ removeFirst x ys = case ys of
   []     -> []
   y::ys' -> if x == y then ys' else y :: removeFirst x ys'
 
+-- 0-based
+geti : Int -> List a -> a
+geti i = fromJust << List.head << List.drop (i-1)
+
 delimit a b s = String.concat [a, s, b]
 
 parens = delimit "(" ")"
@@ -135,6 +139,8 @@ mapSnd f (x,y) = (x, f y)
 fst3 (x,_,_) = x
 snd3 (_,x,_) = x
 thd3 (_,_,x) = x
+
+mapThd3 f (x,y,z) = (x, y, f z)
 
 setIsEmpty  = (==) [] << Set.toList
 dictIsEmpty = (==) [] << Dict.toList

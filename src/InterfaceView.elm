@@ -264,22 +264,6 @@ view (w,h) model =
 
 
 regularView (w,h) model =
-    let
-        testlist = 
-            List.reverse 
-            <| List.map (\i -> 
-                Html.option 
-                    --callExp (a lazy function in Interfaceutils) 
-                    --now searches the microtests for the corresponding
-                    --test given a test number. note: callExp is lazy
-                    [ Events.onMouseOver events.address 
-                        (CodeUpdate (sExpK 1 (callExp i)))
-                    , Events.onClick events.address 
-                        (Render (Just (callExp i)))
-                    ] 
-                    [Html.text (toString i)]
-                ) [15..42]
-    in
                   Html.div
                     [ Attr.style
                       [ ("position", "absolute")
@@ -299,14 +283,7 @@ orientButtonToggler (w,h) model =
             List.reverse 
             <| List.map (\i -> 
                 Html.option 
-                    --callExp (a lazy function in Interfaceutils) 
-                    --now searches the microtests for the corresponding
-                    --test given a test number. note: callExp is lazy
-                    [ Events.onMouseOver events.address 
-                        (CodeUpdate (sExpK 1 (callExp i)))
-                    , Events.onClick events.address 
-                        (Render (Just (callExp i)))
-                    ] 
+                    [ Events.onMouseOver events.address (SelectTest i) ]
                     [Html.text (toString i)]
                 ) [15..42]
     vAxis = w // 2 - 50

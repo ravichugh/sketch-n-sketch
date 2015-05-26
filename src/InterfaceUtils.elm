@@ -60,6 +60,7 @@ type Event = CodeUpdate String
            | Sync
            | SwitchMode Mode
            | SelectOption ((Exp, Val), Float)
+           | SelectTest Int
            | Render (Maybe Exp)
            | UIupdate UI
 
@@ -101,15 +102,6 @@ indexedTreeToVal slate =
         VList [VBase (String kind), VList vs1, VList vs2]
   in
   foo (Utils.justGet 1 slate)
-
-callExp i = Lazy.force <| callTest i
-
-callTest : Int -> Lazy.Lazy Exp
-callTest i = 
-    let 
-        testlist = (Utils.mapi (\(x,y) -> (x,y.e)) (List.map Utils.thd3 tests))
-    in
-        Lazy.lazy (\() -> Utils.find_ testlist (i - 14)) 
 
 switchOrient m = case m of
   Vertical -> Horizontal

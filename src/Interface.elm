@@ -148,6 +148,13 @@ upstate evt old = case Debug.log "Event" evt of
 
     SelectOption ((e,v), f) -> { old | inputExp <- Just e, mode <- AdHoc }
 
+    SelectTest i ->
+      let {e,v} = (Utils.geti (i - 14) MainSvg.tests') () in
+      let (tree) = LangSvg.valToIndexedTree v in -- TODO add rootId
+      { old | inputExp <- Just e
+            , code <- sExp e
+            , workingSlate <- tree }
+
     SwitchMode m -> { old | mode <- m }
 
     UIupdate u -> { old | ui <- u }
