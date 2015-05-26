@@ -64,7 +64,7 @@ upstate evt old = case Debug.log "Event" evt of
     Render ->
       let e = parseE old.code in
       let v = Eval.run e in
-      let (rootId,slate) = LangSvg.valToIndexedTree tempTest.v in
+      let (rootId,slate) = LangSvg.valToIndexedTree v in
       { old | inputExp <- Just e, rootId <- rootId , workingSlate <- slate }
 
     CodeUpdate newcode -> { old | code <- newcode }
