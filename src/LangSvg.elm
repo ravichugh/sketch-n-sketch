@@ -213,7 +213,7 @@ children n = case n of {TextNode _ -> []; SvgNode _ _ l -> l}
 valToIndexedTree : Val -> (NodeId, IndexedTree)
 valToIndexedTree v =
   let (nextId,tree) = valToIndexedTree_ v (1, Dict.empty) in
-  let rootId = Debug.log "rootId" (nextId - 1) in
+  let rootId = nextId - 1 in
   (rootId, tree)
 
 valToIndexedTree_ v (nextId, d) = case v of
