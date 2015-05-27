@@ -207,14 +207,47 @@ makeZonesPoly shape id l =
 --------------------------------------------------------------------------------
 -- User Interface Layout
 
-debugLayout = False
+-- Configuration Parameters
+-- Only constants in this record may be changed.
+--
+params =
+  { strVersion = "v0.0"
+  , debugLayout = False    -- displays colors for high-level layout structure
+  , wGut = 10              -- width of left/right side gutters (spans entire height)
+  , topSection =
+     { h = 40              -- height of top space
+     , wBtnO = 200         -- width...
+     , hBtnO = 30          -- ... and height of orientation button
+     , wJunk = 225         -- gap between title and orientation button
+     }
+  , botSection =
+     { h = 30              -- height of bot space
+     }
+  , mainSection =
+     { widgets =           -- Render/Sync buttons; Mode/Tests dropdowns
+        { wBtn = 90        -- width
+        , hBtn = 30        -- height
+        }
+     , vertical =
+        { hWidget = 50     -- vertical space between widgets
+        , wGut = 10        -- width of gutters in between code/widgets/canvas
+        }
+     , horizontal =
+        { wWidget = 100    -- horizontal space between widgets
+        , hGut = 10        -- height of gutters in between code/widgets/canvas
+        }
+     }
+  }
 
-strVersion  = "v0.0"
-strTitle    = "sketch-n-sketch " ++ strVersion
+-- End Configuration Parameters
+------------------------------------------------------------------------------
+
+
+strTitle = "sketch-n-sketch " ++ params.strVersion
 
 colorDebug c1 =
-  if | debugLayout -> GE.color c1
-     | otherwise   -> GE.color Color.darkGray
+  if | params.debugLayout -> GE.color c1
+     | otherwise          -> GE.color Color.darkGray
 
 codebox : Int -> Int -> Model -> GE.Element
 codebox w h model =
@@ -257,8 +290,8 @@ syncButton_ w h model =
     AdHoc -> [syncButton w h]
     _     -> []
 
-wBtn = 90
-hBtn = 30
+wBtn = params.mainSection.widgets.wBtn
+hBtn = params.mainSection.widgets.hBtn
 
 buttonAttrs w h =
   Attr.style
@@ -270,11 +303,11 @@ buttonAttrs w h =
 mainSectionVertical : Int -> Int -> Model -> GE.Element
 mainSectionVertical w h model =
   let
-    wGut    = 10
+    wGut    = params.mainSection.vertical.wGut
     wMiddle = wBtn
     wCode   = (w - wMiddle - wGut - wGut) // 2
     wCanvas = wCode
-    hWidget = 50
+    hWidget = params.mainSection.vertical.hWidget
   in
 
   let codeSection = codebox wCode h model in
@@ -294,11 +327,11 @@ mainSectionVertical w h model =
 mainSectionHorizontal : Int -> Int -> Model -> GE.Element
 mainSectionHorizontal w h model =
   let
-    hGut    = 10
+    hGut    = params.mainSection.horizontal.hGut
     hMiddle = hBtn
     hCode   = (h - hMiddle - hGut - hGut) // 2
     hCanvas = hCode
-    wWidget = 100
+    wWidget = params.mainSection.horizontal.wWidget
   in
 
   let codeSection = codebox w hCode model in
@@ -395,9 +428,9 @@ view : (Int, Int) -> Model -> GE.Element
 view (w,h) model =
   let
     wAll = w - (2 * wGut) - 1
-    wGut = 10
-    hTop = 40
-    hBot = 30
+    wGut = params.wGut
+    hTop = params.topSection.h
+    hBot = params.botSection.h
     hMid = h - hTop - hBot - 1
     hTot = hTop + hMid + hBot
   in
@@ -410,9 +443,9 @@ view (w,h) model =
                        , height <- Just 18
                        , bold <- True }
 
-      wBtnO = 200
-      hBtnO = 30
-      wJunk = 225 -- tweak this to alter gap between title and button
+      wBtnO = params.topSection.wBtnO
+      hBtnO = params.topSection.hBtnO
+      wJunk = params.topSection.wJunk
 
       wSep  = GE.spacer (wAll - (wBtnO + wJunk)) 1
       btnO  = Html.toElement wBtnO hBtnO <| orientationButton wBtnO hBtnO model
