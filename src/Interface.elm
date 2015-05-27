@@ -53,6 +53,11 @@ sampleModel =
     , ui           = {orient = Vertical}
     }
 
+refreshMode m e =
+  case m of
+    Live _ -> Live <| Sync.prepareLiveUpdates e (Eval.run e)
+    m      -> m
+
 upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
 
@@ -60,7 +65,11 @@ upstate evt old = case Debug.log "Event" evt of
       let e = parseE old.code in
       let v = Eval.run e in
       let (rootId,slate) = LangSvg.valToIndexedTree v in
-      { old | inputExp <- Just e, rootId <- rootId , workingSlate <- slate }
+      { old | inputExp <- Just e
+            , movingObj <- Nothing
+            , rootId <- rootId
+            , workingSlate <- slate
+            , mode <- refreshMode old.mode e }
 
     CodeUpdate newcode -> { old | code <- newcode }
 
@@ -91,14 +100,8 @@ upstate evt old = case Debug.log "Event" evt of
             Just _  -> { old | movingObj <- Just (id, kind, zone, Nothing) }
 
     DeselectObject ->
-      let mode' =
-        case old.mode of
-          Live _ -> let e = Utils.fromJust old.inputExp in
-                    Live <| Sync.prepareLiveUpdates e (Eval.run e)
-          m      -> m   -- since top-level SVG may have triggered this event,
-                        -- preserve the current mode
-      in
-      { old | movingObj <- Nothing , mode <- mode' }
+      { old | movingObj <- Nothing
+            , mode <- refreshMode old.mode (Utils.fromJust old.inputExp) }
 
     Sync -> 
         case (old.mode, old.inputExp) of

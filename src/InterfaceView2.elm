@@ -43,44 +43,9 @@ import Svg.Lazy
 --Error Checking Libraries
 import Debug
 
--- View --
-codeBox : String -> Bool -> Html.Html
-codeBox code switch =
-    let
-        --depending on switch, toggle manipulatability
-        event = case switch of
-            True -> []
-            False ->  [(Events.on "input" Events.targetValue
-                (Signal.message events.address << CodeUpdate))]
-    in
-        --build text area
-        Html.textarea
-            ([ Attr.id "codeBox"
-            , Attr.style
-                [ ("height", "100%")
-                , ("width",  "100%")
-                , ("resize", "none")
-                , ("overflow", "scroll")
-                ]
-            , Attr.value code
-            ]
-            ++
-            --add event, if it exsists
-            event)
-            []
 
---Build viusal pane and populate with the model's objects
-visualsBox : Svg.Svg -> Html.Html
-visualsBox canvas =
-  Svg.svg 
-    [ onMouseUp DeselectObject
-    , Attr.style 
-      [ ("width", "100%")
-      , ("height", "100%")
-      , ("border", "2px solid black")
-      ]
-    ]
-    [ canvas ]
+--------------------------------------------------------------------------------
+-- Compiling to Svg
 
 buildSvg : Bool -> LangSvg.IndexedTree -> LangSvg.NodeId -> Svg.Svg
 buildSvg showZones d i =
@@ -94,6 +59,10 @@ buildSvg showZones d i =
       let children = List.map (buildSvg showZones d) js in
       let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs) children in
       Svg.svg [] (mainshape :: zones)
+
+
+--------------------------------------------------------------------------------
+-- Defining Zones
 
 -- compileAttr will throw away the trace anyway
 attrNum k n    = LangSvg.compileAttr k (LangSvg.ANum (n, dummyTrace))
@@ -234,147 +203,166 @@ makeZonesPoly shape id l =
      | firstEqLast pts    -> zInterior :: (zLines ++ zPts)
      | otherwise          -> zLines ++ zPts
 
---Umbrella function for viewing a given model
-view : (Int, Int) -> Model -> GE.Element
-view (w,h) model =
-  let 
-    wAll = w - (2 * wGut) - 1
-    wGut = 10
-    hTop = 40
-    hBot = 30
-    hMid = h - hTop - hBot - 1
-    hTot = hTop + hMid + hBot
 
-    ui = model.ui
-    windowsplit = (wAll, hMid)
-    viewtype = case model.mode of
-      NoDirectMan  -> regularView windowsplit model
-      AdHoc        -> regularView windowsplit model
-      Live _       -> regularView windowsplit model
-      SyncSelect l -> selectView windowsplit model l
+--------------------------------------------------------------------------------
+-- User Interface Layout
+
+debugLayout = False
+strVersion  = "v0.0"
+strTitle    = "sketch-n-sketch " ++ strVersion
+
+colorDebug c1 =
+  if | debugLayout -> GE.color c1
+     | otherwise   -> GE.color Color.darkGray
+
+codebox : Int -> Int -> Model -> GE.Element
+codebox w h model =
+  let event =
+    if | syncBool model.mode -> []
+       | otherwise ->
+           [Events.on "input" Events.targetValue
+              (Signal.message events.address << CodeUpdate)]
   in
+    Html.toElement w h <|
+      Html.textarea
+        ([ Attr.id "codeBox"
+         , Attr.style
+             [ ("height", "99%") , ("width",  "99%")
+             , ("resize", "none") , ("overflow", "scroll") ]
+         , Attr.value model.code
+         ] ++ event)
+        []
 
-  let topSection =
-    let titleStyle =
-      { defaultStyle | typeface <- ["Courier", "monospace"]
-                     , height <- Just 18
-                     , bold <- True } in
-    let title =
-      GE.leftAligned <|
-        T.style titleStyle (T.fromString "sketch-n-sketch v0.0") in
-    let button =
-      Html.button  
-          [ Attr.style
-            [ ("position", "absolute")
-            , ("font-family", "Courier, monospace")
-            , ("type", "button")
-            , ("width", "200px")
-            , ("height", "30px")
-            ]
-          , Events.onClick events.address
-              (UIupdate ({ ui | orient <- switchOrient ui.orient}))
-          ]
-          [Html.text ("Orientation: " ++ (toString model.ui.orient))]
-    in
-      GE.size wAll hTop <|
-        GE.flow GE.right
-          [ title
-          , GE.spacer (wAll - 430) 1
-          , Html.toElement 10 10 button
-          ]
-  in
+canvas : Int -> Int -> Model -> GE.Element
+canvas w h model =
+  let showZones = case model.mode of {NoDirectMan -> False; _ -> True} in
+  let svg = buildSvg showZones model.workingSlate model.rootId in
+  Html.toElement w h <|
+    Svg.svg
+      [ onMouseUp DeselectObject
+      , Attr.style [ ("width", "99%") , ("height", "99%")
+                   , ("border", "4px solid darkGray") ] ]
+      [ svg ]
 
-  let midSection = GE.size wAll hMid <| Html.toElement w h viewtype in
-  let botSection = GE.spacer wAll hBot in
-  let sideGutter = GE.color Color.darkGray <| GE.spacer wGut hTot in
+middleWidgets w h model =
+  [ Html.fromElement <| GE.spacer w h
+  , renderButton w h
+  , modeToggle w h model
+  , dropdownExamples w h
+  ] ++ syncButton_ w h model
 
-  GE.flow GE.right
-    [ sideGutter
-    , GE.flow GE.down
-        [ GE.color Color.lightGray <| topSection
-        , midSection
-        , GE.color Color.lightGray <| botSection
-        ]
-    , sideGutter
+syncButton_ w h model =
+  case model.mode of
+    AdHoc -> [syncButton w h]
+    _     -> []
+
+wBtn = 90
+hBtn = 30
+
+buttonAttrs w h =
+  Attr.style
+    [ ("type", "button")
+    , ("width", dimToPix w)
+    , ("height", dimToPix h)
     ]
 
-
-regularView (w,h) model =
-  Html.div
-    [ Attr.style
-      [ ("position", "absolute")
-      , ("width", toString w)
-      , ("height", toString h)
-      , ("left", dimToPix 0)
-      , ("top", dimToPix (h // 9))
-      ]
-    ]
-    --display code & visuals
-    (orientButtonToggler (w,h) model)
-
-orientButtonToggler : (Int, Int) -> Model -> List Html.Html
-orientButtonToggler (w,h) model = 
+mainSectionVertical : Int -> Int -> Model -> GE.Element
+mainSectionVertical w h model =
   let
-    testlist = 
-      testIndices
-        |> List.map (\i ->
-             Html.option
-               -- TODO: works in Firefox, but not in Chrome/Safari
-               [ Events.onMouseOver events.address (SelectTest i) ]
-               [ Html.text (toString i)] )
-        |> List.reverse
-    vAxis = w // 2 - 50
-    vSpace = h // 4
-    hAxis = w // 4
-    hSpace = h // 2 - 40
+    wGut    = 10
+    wMiddle = wBtn
+    wCode   = (w - wMiddle - wGut - wGut) // 2
+    wCanvas = wCode
+    hWidget = 50
   in
-    case model.ui.orient of
-      Vertical -> [ renderView (w,h) model
-                  , renderButton vAxis vSpace
-                  , modeToggle vAxis (vSpace + 60) model
-                  , dropdownExamples vAxis (vSpace + 120) testlist
-                  ]
-                  ++
-                  (case model.mode of
-                      SyncSelect _ -> []
-                      NoDirectMan -> []
-                      Live _ -> []
-                      AdHoc -> [syncButton vAxis (vSpace + 180)]
-                  )
-      Horizontal -> [ renderView (w,h) model
-                    , renderButton hAxis hSpace
-                    , modeToggle (hAxis + 120) hSpace model
-                    , dropdownExamples (hAxis + 240) hSpace testlist
-                    ]
-                    ++
-                    (case model.mode of
-                        SyncSelect _ -> []
-                        Live _ -> []
-                        AdHoc -> [syncButton (hAxis + 360) hSpace]
-                    )
+
+  let codeSection = codebox wCode h model in
+  let canvasSection = canvas wCanvas h model in
+  let gutter = colorDebug Color.darkBlue <| GE.spacer wGut h in
+
+  let middleSection =
+    colorDebug Color.lightBlue <|
+      GE.size wMiddle h <|
+        GE.flow GE.down <|
+          List.map (Html.toElement wMiddle hWidget)
+                   (middleWidgets wBtn hBtn model) in
+
+  GE.flow GE.right <|
+    [ codeSection, gutter, middleSection, gutter, canvasSection ]
+
+mainSectionHorizontal : Int -> Int -> Model -> GE.Element
+mainSectionHorizontal w h model =
+  let
+    hGut    = 10
+    hMiddle = hBtn
+    hCode   = (h - hMiddle - hGut - hGut) // 2
+    hCanvas = hCode
+    wWidget = 100
+  in
+
+  let codeSection = codebox w hCode model in
+  let canvasSection = canvas w hCanvas model in
+  let gutter = colorDebug Color.darkBlue <| GE.spacer w hGut in
+
+  let middleSection =
+    colorDebug Color.lightBlue <|
+      GE.size w hMiddle <|
+        GE.flow GE.right <|
+          List.map (Html.toElement wWidget hMiddle)
+                   (middleWidgets wBtn hBtn model) in
+
+  GE.flow GE.down <|
+    [ codeSection, gutter, middleSection, gutter, canvasSection ]
 
 renderButton : Int -> Int -> Html.Html
-renderButton left top =
+renderButton w h =
   Html.button
-    [ Attr.style
-        [ ("position", "absolute")
-        , ("left", dimToPix left)
-        , ("top", dimToPix top)
-        , ("type", "button")
-        , ("width", "100px")
-        , ("height", "40px")
-        ]
+    [ buttonAttrs w h
     , Events.onClick events.address Render
     , Attr.value "Render"
     , Attr.name "Render the Code"
     ]
     [Html.text "Render Code"]
 
+syncButton : Int -> Int -> Html.Html
+syncButton w h =
+  Html.button
+    [ buttonAttrs w h
+    , Events.onClick events.address Sync
+    , Attr.value "Sync"
+    , Attr.name "Sync the code to the canvas"
+    ]
+    [Html.text "Synchronize"]
+
+dropdownExamples : Int -> Int -> Html.Html
+dropdownExamples w h =
+  let testlist =
+    testIndices
+      |> List.map (\i ->
+           Html.option
+             -- TODO: works in Firefox, but not in Chrome/Safari
+             [ Events.onMouseOver events.address (SelectTest i) ]
+             [ Html.text (toString i)] )
+      |> List.reverse
+  in
+  Html.select [ buttonAttrs w h ] testlist
+
 modeToggle : Int -> Int -> Model -> Html.Html
-modeToggle left top model =
+modeToggle w h model =
   let opt s m =
-    -- TODO: works in Firefox, but not in Chrome/Safari
-    Html.option [Events.onClick events.address (SwitchMode m)] [Html.text s] in
+    let yes =
+      case (model.mode, m) of
+        (Live _, Live _)           -> True
+        (AdHoc, AdHoc)             -> True
+        (NoDirectMan, NoDirectMan) -> True
+        _                          -> False
+    in
+    -- TODO: onClick works in Firefox, but not in Chrome/Safari
+    Html.option
+        [ Attr.selected yes
+        , Events.onClick events.address (SwitchMode m) ]
+        [Html.text s]
+  in
   let optionLive =
     -- may want to delay this to when Live is selected
     let e = Utils.fromJust model.inputExp in
@@ -384,153 +372,70 @@ modeToggle left top model =
   let optionAdHoc = opt "Ad Hoc" AdHoc in
   let optionFreeze = opt "Freeze" NoDirectMan in
   Html.select
-    [ Attr.style
-        [ ("position", "absolute")
-        , ("left", dimToPix left)
-        , ("top", dimToPix top)
-        , ("type", "button")
-        , ("width", "100px")
-        , ("height", "40px")
-        ]
-    ]
+    [ buttonAttrs w h ]
     [ optionLive, optionAdHoc, optionFreeze ]
 
-dropdownExamples left top l =
-  Html.select
-    [ Attr.style
-        [ ("position", "absolute")
-        , ("left", dimToPix left)
-        , ("top", dimToPix top)
-        , ("type", "button")
-        , ("width", "100px")
-        , ("height", "40px")
-        ]
-    ]
-    l
-
-syncButton : Int -> Int -> Html.Html
-syncButton left top =
+orientationButton w h model =
+  let ui = model.ui in
   Html.button
-    [ Attr.style
+      [ Attr.style
         [ ("position", "absolute")
-        , ("left", dimToPix left)
-        , ("top", dimToPix top)
+        , ("font-family", "Courier, monospace")
         , ("type", "button")
-        , ("width", "100px")
-        , ("height", "40px")
+        , ("width", dimToPix w)
+        , ("height", dimToPix h)
         ]
-    , Events.onClick events.address Sync
-    , Attr.value "Sync"
-    , Attr.name "Sync the code to the canvas"
-    ]
-    [Html.text "Synchronize"]
-
---When view is manipulatable, call this function for code & visuals
---to build corresponding panes
-renderView : (Int, Int) -> Model -> Html.Html
-renderView (w,h) model = 
-  Html.div
-    [ Attr.style
-      [ ("width", toString w)
-      , ("height", toString h)
+      , Events.onClick events.address
+          (UIupdate ({ ui | orient <- switchOrient ui.orient}))
       ]
-    ]
-    (orientViewToggler (w,h) model)
+      [Html.text ("Orientation: " ++ (toString model.ui.orient))]
 
-orientViewToggler : (Int,Int) -> Model -> List Html.Html
-orientViewToggler (w,h) model =
+view : (Int, Int) -> Model -> GE.Element
+view (w,h) model =
   let
-    dim = (Basics.toFloat (Basics.min w h)) / 2
-    vWidth = w // 2 - 60
-    vLeft = w // 2 + 60
-    hHeight = h // 2 - 50
-    hTop = h // 2 + 50
+    wAll = w - (2 * wGut) - 1
+    wGut = 10
+    hTop = 40
+    hBot = 30
+    hMid = h - hTop - hBot - 1
+    hTot = hTop + hMid + hBot
   in
-    case model.ui.orient of
-      Vertical -> [ codeBoxPlacer vWidth h 0 0 model
-                  , visualsBoxPlacer vWidth h vLeft 0 dim model 
-                  ]
-      Horizontal -> [ codeBoxPlacer w hHeight 0 0 model
-                    , visualsBoxPlacer w hHeight 0 hTop dim model 
-                    ]
 
-codeBoxPlacer : Int -> Int -> Int -> Int -> Model -> Html.Html
-codeBoxPlacer w h left top model = 
-  Html.div 
-    [ Attr.style
-      [ ("width", dimToPix w)
-      , ("height", dimToPix h)
-      , ("margin", "0")
-      , ("position", "absolute")
-      , ("left", dimToPix left)
-      , ("top", dimToPix top)
-      ]
-    ]
-    [codeBox model.code (syncBool model.mode)]
-
-visualsBoxPlacer : Int -> Int -> Int -> Int -> Float -> Model -> Html.Html
-visualsBoxPlacer w h left top dim model = 
-  let showZones = case model.mode of {NoDirectMan -> False; _ -> True} in
-  Html.div
-    [ Attr.style
-      [ ("width", dimToPix w)
-      , ("height", dimToPix h)
-      , ("margin", "0")
-      , ("position", "absolute")
-      , ("left", dimToPix left)
-      , ("top", dimToPix top)
-      ]
-    ]    
-    [ visualsBox (buildSvg showZones model.workingSlate model.rootId) ]
-
---Build an Html of the iterations of renderOption over the possibleChanges
-selectView : (Int, Int) -> Model -> PossibleChanges -> Html.Html
-selectView (w,h) model possibleChanges =
+  let topSection =
     let
-        dim = (Basics.toFloat (Basics.min w h)) / 2
+      title = GE.leftAligned <| T.style titleStyle (T.fromString strTitle)
+      titleStyle =
+        { defaultStyle | typeface <- ["Courier", "monospace"]
+                       , height <- Just 18
+                       , bold <- True }
+
+      wBtnO = 200
+      hBtnO = 30
+      wJunk = 225 -- tweak this to alter gap between title and button
+
+      wSep  = GE.spacer (wAll - (wBtnO + wJunk)) 1
+      btnO  = Html.toElement wBtnO hBtnO <| orientationButton wBtnO hBtnO model
     in
-        Html.div
-        []
-        --index the possible changes and render these options
-        (renderOption (w, h // 4) (Utils.mapi (\x -> x) possibleChanges) model dim)
-            
---Given a possible Change, build code from Expr and visuals from the val, rank by priority w/ mapi
-renderOption : (Int, Int) -> List (Int, ((Exp, Val), Float)) -> Model -> Float -> List Html.Html
-renderOption (w,h) possiblechanges model dim =
-    case possiblechanges of
-        --if there is a possible change remaining, display this option
-        (i, ((e,v), f))::ps -> 
-            (Html.div
-                [ Attr.style
-                    [ ("width", toString w)
-                    , ("height", toString h)
-                    , ("top", dimToPix (h * (i-1)))
-                    , ("position", "absolute")
-                    ]
-                ]
-                [ Html.div 
-                    [ Attr.style
-                        [ ("width", dimToPix (w // 2 - 30))
-                        , ("height", dimToPix h)
-                        , ("margin", "0")
-                        , ("position", "absolute")
-                        , ("left", "0px")
-                        , ("top", "0px") -- String.append (toString <| h * (i-1)) "px")
-                        ]
-                    ]
-                    [codeBox (sExp e) (syncBool model.mode)]
-                , Html.div
-                    [ Attr.style
-                        [ ("width", dimToPix (w // 2 - 50))
-                        , ("height", dimToPix h)
-                        , ("margin", "0")
-                        , ("position", "absolute")
-                        , ("left", dimToPix (w // 2))
-                        , ("top", "0px") --String.append (toString <| h * (i-1)) "px")
-                        ]
-                    ]    
-                    [ let (i,d) = LangSvg.valToIndexedTree v in
-                      visualsBox (buildSvg False d i) ]
-                --attach remaining option htmls
-                ]) :: renderOption (w,h) ps model dim
-        [] -> []
+      GE.size wAll hTop <| GE.flow GE.right [ title , wSep, btnO ]
+  in
+
+  let midSection =
+    GE.size wAll hMid <|
+      case (model.mode, model.ui.orient) of
+        (SyncSelect _, _) -> Debug.crash "view SyncSelect"
+        (_, Vertical)     -> mainSectionVertical wAll hMid model
+        (_, Horizontal)   -> mainSectionHorizontal wAll hMid model in
+
+  let botSection = GE.spacer wAll hBot in
+  let sideGutter = colorDebug Color.black <| GE.spacer wGut hTot in
+
+  GE.flow GE.right
+    [ sideGutter
+    , GE.flow GE.down
+        [ colorDebug Color.lightYellow <| topSection
+        , midSection
+        , colorDebug Color.lightYellow <| botSection
+        ]
+    , sideGutter
+    ]
+
