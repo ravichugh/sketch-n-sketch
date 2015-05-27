@@ -84,7 +84,11 @@ upstate evt old = case Debug.log "Event" evt of
     SelectObject id kind zone ->
       case old.mode of
         NoDirectMan -> Debug.crash "SelectObject shouldn't be triggered in NoDirectMan mode"
-        _           -> { old | movingObj <- Just (id, kind, zone, Nothing) }
+        AdHoc       -> { old | movingObj <- Just (id, kind, zone, Nothing) }
+        Live triggers ->
+          case Utils.justGet zone (Utils.justGet id triggers) of
+            Nothing -> { old | movingObj <- Nothing }
+            Just _  -> { old | movingObj <- Just (id, kind, zone, Nothing) }
 
     DeselectObject ->
       let mode' =
@@ -253,7 +257,8 @@ createMousePosCallback mx my objid kind zone old =
         AdHoc -> (Utils.fromJust old.inputExp, newSlate)
         Live triggers ->
           case Utils.justGet zone (Utils.justGet objid triggers) of
-            Nothing -> (Utils.fromJust old.inputExp, newSlate)
+            -- Nothing -> (Utils.fromJust old.inputExp, newSlate)
+            Nothing -> Debug.crash "shouldn't happen due to upstate SelectObject"
             Just trigger ->
               let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
               if not Sync.tryToBeSmart then

@@ -150,11 +150,14 @@ solve subst (Equation sum tr) =
                       Nothing -> (0, 1)
                       Just i  -> (i, 0)
     TrOp Plus ts -> List.foldl plusplus (0,0) (List.map evalTrace ts)
+    -- TrOp Minus [t1,t2] -> List.foldl minusminus (0,0) (List.map evalTrace [t1,t2])
+    TrOp op _     -> Debug.crash <| "Sync.evalTrace, unsupported op: " ++ strOp op
   in
   let (partialSum,n) = evalTrace tr in
   (sum - partialSum) / n
 
 plusplus = Utils.lift_2_2 (+)
+-- minusminus = Utils.lift_2_2 (-)
 
 compareVals : (Val, Val) -> Num
 compareVals (v1, v2) = case (v1, v2) of

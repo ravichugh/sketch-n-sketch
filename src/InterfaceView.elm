@@ -111,6 +111,7 @@ zone svgFunc id shape zone l =
 
 cursorStyle s = LangSvg.attr "cursor" s
 
+-- TODO should take into account disabled zones in Live mode
 cursorOfZone zone = if
   -- rect zones
   | zone == "Interior"       -> cursorStyle "move"
