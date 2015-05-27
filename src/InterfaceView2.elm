@@ -208,6 +208,7 @@ makeZonesPoly shape id l =
 -- User Interface Layout
 
 debugLayout = False
+
 strVersion  = "v0.0"
 strTitle    = "sketch-n-sketch " ++ strVersion
 
