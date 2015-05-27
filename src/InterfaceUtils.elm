@@ -102,3 +102,8 @@ switchOrient m = case m of
   Horizontal -> Vertical
 
 dimToPix d = String.append (toString d) "px"
+
+-- TODO: get rid of this eventually
+firstTestIndex = 15
+lastTestIndex  = List.length MainSvg.tests + firstTestIndex - 1
+testIndices    = [firstTestIndex .. lastTestIndex]

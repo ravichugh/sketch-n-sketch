@@ -246,7 +246,7 @@ upstate evt old = case Debug.log "Event" evt of
     SelectOption ((e,v), f) -> { old | inputExp <- Just e, mode <- AdHoc }
 
     SelectTest i ->
-      let {e,v} = (Utils.geti (i - 14) MainSvg.tests') () in
+      let {e,v} = (Utils.geti (i - (firstTestIndex - 1)) MainSvg.tests') () in
       let (rootId,tree) = LangSvg.valToIndexedTree v in
       let m =
         case old.mode of

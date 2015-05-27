@@ -91,8 +91,11 @@ buildSvg : Bool -> (LangSvg.NodeId, LangSvg.IndexedTreeNode) -> (Svg.Svg, List A
 buildSvg showZones (nodeID, node) = case node of
     LangSvg.TextNode text ->
       let str = LangSvg.AString in
-      (VirtualDom.text text, [("shape", str "TEXT"), ("text", str text)])
+      -- rkc TODO: is the "shape" attribute needed for anything?
+      -- (VirtualDom.text text, [("shape", str "TEXT"), ("text", str text)])
+      (VirtualDom.text text, [("text", str text)])
     LangSvg.SvgNode shape attrs childrenids ->
+      -- TODO: figure out: (LangSvg.attr "draggable" "false")
       let zones =
         if | showZones -> makeZones shape nodeID attrs
            | otherwise -> [] in
@@ -297,28 +300,29 @@ view (w,h) model =
 
 
 regularView (w,h) model =
-                  Html.div
-                    [ Attr.style
-                      [ ("position", "absolute")
-                      , ("width", toString w)
-                      , ("height", toString h)
-                      , ("left", dimToPix 0)
-                      , ("top", dimToPix (h // 9))
-                      ]
-                    ]
-                    --display code & visuals
-                    (orientButtonToggler (w,h) model)
+  Html.div
+    [ Attr.style
+      [ ("position", "absolute")
+      , ("width", toString w)
+      , ("height", toString h)
+      , ("left", dimToPix 0)
+      , ("top", dimToPix (h // 9))
+      ]
+    ]
+    --display code & visuals
+    (orientButtonToggler (w,h) model)
 
 orientButtonToggler : (Int, Int) -> Model -> List Html.Html
 orientButtonToggler (w,h) model = 
   let
     testlist = 
-            List.reverse 
-            <| List.map (\i -> 
-                Html.option 
-                    [ Events.onMouseOver events.address (SelectTest i) ]
-                    [Html.text (toString i)]
-                ) [15..42]
+      testIndices
+        |> List.map (\i ->
+             Html.option
+               -- TODO: works in Firefox, but not in Chrome/Safari
+               [ Events.onMouseOver events.address (SelectTest i) ]
+               [ Html.text (toString i)] )
+        |> List.reverse
     vAxis = w // 2 - 50
     vSpace = h // 4
     hAxis = w // 4
@@ -328,7 +332,7 @@ orientButtonToggler (w,h) model =
       Vertical -> [ renderView (w,h) model
                   , renderButton vAxis vSpace
                   , modeToggle vAxis (vSpace + 60) model
-                  , testToggle vAxis (vSpace + 120) testlist
+                  , dropdownExamples vAxis (vSpace + 120) testlist
                   ]
                   ++
                   (case model.mode of
@@ -340,7 +344,7 @@ orientButtonToggler (w,h) model =
       Horizontal -> [ renderView (w,h) model
                     , renderButton hAxis hSpace
                     , modeToggle (hAxis + 120) hSpace model
-                    , testToggle (hAxis + 240) hSpace testlist
+                    , dropdownExamples (hAxis + 240) hSpace testlist
                     ]
                     ++
                     (case model.mode of
@@ -350,24 +354,26 @@ orientButtonToggler (w,h) model =
                     )
 
 renderButton : Int -> Int -> Html.Html
-renderButton left top = Html.button
-                        [ Attr.style
-                            [ ("position", "absolute")
-                            , ("left", dimToPix left)
-                            , ("top", dimToPix top)
-                            , ("type", "button")
-                            , ("width", "100px")
-                            , ("height", "40px")
-                            ]
-                        , Events.onClick events.address Render
-                        , Attr.value "Render"
-                        , Attr.name "Render the Code"
-                        ]
-                        [Html.text "Render Code"]
+renderButton left top =
+  Html.button
+    [ Attr.style
+        [ ("position", "absolute")
+        , ("left", dimToPix left)
+        , ("top", dimToPix top)
+        , ("type", "button")
+        , ("width", "100px")
+        , ("height", "40px")
+        ]
+    , Events.onClick events.address Render
+    , Attr.value "Render"
+    , Attr.name "Render the Code"
+    ]
+    [Html.text "Render Code"]
 
 modeToggle : Int -> Int -> Model -> Html.Html
 modeToggle left top model =
   let opt s m =
+    -- TODO: works in Firefox, but not in Chrome/Safari
     Html.option [Events.onClick events.address (SwitchMode m)] [Html.text s] in
   let optionLive =
     -- may want to delay this to when Live is selected
@@ -389,33 +395,35 @@ modeToggle left top model =
     ]
     [ optionLive, optionAdHoc, optionFreeze ]
 
-testToggle left top testlist = Html.select
-                        [ Attr.style
-                            [ ("position", "absolute")
-                            , ("left", dimToPix left)
-                            , ("top", dimToPix top)
-                            , ("type", "button")
-                            , ("width", "100px")
-                            , ("height", "40px")
-                            ]
-                        ]
-                        testlist
+dropdownExamples left top l =
+  Html.select
+    [ Attr.style
+        [ ("position", "absolute")
+        , ("left", dimToPix left)
+        , ("top", dimToPix top)
+        , ("type", "button")
+        , ("width", "100px")
+        , ("height", "40px")
+        ]
+    ]
+    l
 
 syncButton : Int -> Int -> Html.Html
-syncButton left top = Html.button
-                                [ Attr.style
-                                    [ ("position", "absolute")
-                                    , ("left", dimToPix left)
-                                    , ("top", dimToPix top)
-                                    , ("type", "button")
-                                    , ("width", "100px")
-                                    , ("height", "40px")
-                                    ]
-                                , Events.onClick events.address Sync
-                                , Attr.value "Sync"
-                                , Attr.name "Sync the code to the canvas"
-                                ]
-                                [Html.text "Synchronize"]
+syncButton left top =
+  Html.button
+    [ Attr.style
+        [ ("position", "absolute")
+        , ("left", dimToPix left)
+        , ("top", dimToPix top)
+        , ("type", "button")
+        , ("width", "100px")
+        , ("height", "40px")
+        ]
+    , Events.onClick events.address Sync
+    , Attr.value "Sync"
+    , Attr.name "Sync the code to the canvas"
+    ]
+    [Html.text "Synchronize"]
 
 --When view is manipulatable, call this function for code & visuals
 --to build corresponding panes
@@ -510,7 +518,7 @@ renderOption (w,h) possiblechanges model dim =
                         , ("top", "0px") -- String.append (toString <| h * (i-1)) "px")
                         ]
                     ]
-                    [codeBox (sExpK 1 e) (syncBool model.mode)]
+                    [codeBox (sExp e) (syncBool model.mode)]
                 , Html.div
                     [ Attr.style
                         [ ("width", dimToPix (w // 2 - 50))

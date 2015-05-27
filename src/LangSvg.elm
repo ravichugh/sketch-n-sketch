@@ -2,6 +2,7 @@ module LangSvg where
 -- module LangSvg (valToHtml, valToIndexedTree, printIndexedTree) where
 
 import Html
+import Html.Attributes as HA
 import Svg
 import Svg.Attributes as A
 import VirtualDom
@@ -170,6 +171,7 @@ funcsAttr = [
   , ("cx", A.cx)
   , ("cy", A.cy)
   , ("d", A.d)
+  , ("draggable", HA.draggable) -- TODO figure this out
   , ("fill", A.fill)
   , ("height", A.height)
   , ("opacity", A.opacity)
