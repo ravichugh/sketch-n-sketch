@@ -68,8 +68,6 @@ type Event = CodeUpdate String
            | Render
            | UIupdate UI
 
-type alias Object = (Svg.Svg, List Attr)
-
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
 

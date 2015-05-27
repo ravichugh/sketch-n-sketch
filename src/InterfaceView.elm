@@ -68,8 +68,8 @@ codeBox code switch =
             []
 
 --Build viusal pane and populate with the model's objects
-visualsBox : List Object -> Html.Html
-visualsBox objects =
+visualsBox : Svg.Svg -> Html.Html
+visualsBox canvas =
   Svg.svg 
     [ onMouseUp DeselectObject
     , Attr.style 
@@ -78,29 +78,22 @@ visualsBox objects =
       , ("border", "2px solid black")
       ]
     ]
-    (List.map fst objects)
+    [ canvas ]
 
---Umbrella function for taking and indexed tree and calling buildSvg over it
-buildVisual : Bool -> LangSvg.IndexedTree -> List (Svg.Svg, List Attr)
-buildVisual showZones valDict =
-  List.map (buildSvg showZones) (Dict.toList valDict)
-
---Function for handling attributes and children of an indexed tree and building them
---into Svgs with attr lists to be updated as necessary
-buildSvg : Bool -> (LangSvg.NodeId, LangSvg.IndexedTreeNode) -> (Svg.Svg, List Attr)
-buildSvg showZones (nodeID, node) = case node of
+buildSvg : Bool -> LangSvg.IndexedTree -> LangSvg.NodeId -> Svg.Svg
+buildSvg showZones d i =
+  case Utils.justGet i d of
     LangSvg.TextNode text ->
       let str = LangSvg.AString in
-      -- rkc TODO: is the "shape" attribute needed for anything?
-      -- (VirtualDom.text text, [("shape", str "TEXT"), ("text", str text)])
-      (VirtualDom.text text, [("text", str text)])
-    LangSvg.SvgNode shape attrs childrenids ->
+      VirtualDom.text text
+    LangSvg.SvgNode shape attrs js ->
       -- TODO: figure out: (LangSvg.attr "draggable" "false")
       let zones =
-        if | showZones -> makeZones shape nodeID attrs
+        if | showZones -> makeZones shape i attrs
            | otherwise -> [] in
-      let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs) [] in
-      (Svg.svg [] (mainshape :: zones), attrs)
+      let children = List.map (buildSvg showZones d) js in
+      let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs) children in
+      Svg.svg [] (mainshape :: zones)
 
 -- compileAttr will throw away the trace anyway
 attrNum k n    = LangSvg.compileAttr k (LangSvg.ANum (n, dummyTrace))
@@ -481,7 +474,7 @@ visualsBoxPlacer w h left top dim model =
       , ("top", dimToPix top)
       ]
     ]    
-    [visualsBox (buildVisual showZones model.workingSlate)]
+    [ visualsBox (buildSvg showZones model.workingSlate model.rootId) ]
 
 --Build an Html of the iterations of renderOption over the possibleChanges
 selectView : (Int, Int) -> Model -> PossibleChanges -> Html.Html
@@ -529,7 +522,8 @@ renderOption (w,h) possiblechanges model dim =
                         , ("top", "0px") --String.append (toString <| h * (i-1)) "px")
                         ]
                     ]    
-                    [visualsBox (buildVisual False <| snd <| LangSvg.valToIndexedTree v) ]
+                    [ let (i,d) = LangSvg.valToIndexedTree v in
+                      visualsBox (buildSvg False d i) ]
                   --TODO: parse val to svgs
 --                , Html.button
 --                    [ Attr.style

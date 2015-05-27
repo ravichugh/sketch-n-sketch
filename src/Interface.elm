@@ -73,8 +73,7 @@ upstate evt old = case Debug.log "Event" evt of
 
         (_, Just (objid, kind, zone, Nothing)) ->
 
-          let (_,attrs) =
-            buildSvg False (objid, Utils.justGet objid old.workingSlate) in
+          let (LangSvg.SvgNode _ attrs _) = Utils.justGet objid old.workingSlate in
           let numAttr = toNum << Utils.find_ attrs in
           let mapNumAttr f a =
             let (n,trace) = toNumTr (Utils.find_ attrs a) in
