@@ -11,7 +11,7 @@ import MainSvg
 import Utils
 import MicroTests
 import InterfaceUtils exposing (..)
-import InterfaceView exposing (..)
+import InterfaceView2 exposing (..)
 import LangSvg exposing (IndexedTree, NodeId, ShapeKind, toNum, toNumTr, toPoints, addi)
 import VirtualDom
 
@@ -272,7 +272,7 @@ createMousePosCallback mx my objid kind zone old =
               in
               (newE, newSlate')
 
-main : Signal Html.Html
+main : Signal GE.Element
 main = let sigModel = Signal.foldp upstate sampleModel
                         <| Signal.mergeMany
                             [ events.signal
