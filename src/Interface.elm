@@ -248,8 +248,14 @@ upstate evt old = case Debug.log "Event" evt of
     SelectTest i ->
       let {e,v} = (Utils.geti (i - 14) MainSvg.tests') () in
       let (rootId,tree) = LangSvg.valToIndexedTree v in
+      let m =
+        case old.mode of
+          Live _ -> Live (Sync.prepareLiveUpdates e v)
+          _      -> old.mode
+      in
       { old | inputExp <- Just e
             , code <- sExp e
+            , mode <- m
             , rootId <- rootId
             , workingSlate <- tree }
 
