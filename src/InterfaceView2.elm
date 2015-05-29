@@ -47,16 +47,16 @@ import Debug
 --------------------------------------------------------------------------------
 -- Compiling to Svg
 
-buildSvg : Bool -> LangSvg.IndexedTree -> LangSvg.NodeId -> Svg.Svg
-buildSvg showZones d i =
+buildSvg : Bool -> Bool -> LangSvg.IndexedTree -> LangSvg.NodeId -> Svg.Svg
+buildSvg addZones showZones d i =
   case Utils.justGet i d of
     LangSvg.TextNode text -> VirtualDom.text text
     LangSvg.SvgNode shape attrs js ->
       -- TODO: figure out: (LangSvg.attr "draggable" "false")
       let zones =
-        if | showZones -> makeZones shape i attrs
+        if | addZones  -> makeZones showZones shape i attrs
            | otherwise -> [] in
-      let children = List.map (buildSvg showZones d) js in
+      let children = List.map (buildSvg addZones showZones d) js in
       let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs) children in
       Svg.svg [] (mainshape :: zones)
 
@@ -98,41 +98,45 @@ cursorOfZone zone = if
   | otherwise                -> cursorStyle "default"
 
 -- TODO use zone
-zoneBorder svgFunc id shape zone flag =
+zoneBorder svgFunc id shape zone flag show =
   flip svgFunc [] <<
   (++) (zoneEvents id shape zone) <<
-  (++) [ LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
+  (++) [ if flag && show
+         then LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
+         else LangSvg.attr "stroke" "rgba(0,0,0,0.0)"
        , LangSvg.attr "strokeWidth" (if flag then "5" else "0")
        , LangSvg.attr "fill" "rgba(0,0,0,0)"
        , cursorOfZone zone
        ]
 
-zonePoint id shape zone =
+zonePoint id shape zone show =
   flip Svg.circle [] <<
   (++) (zoneEvents id shape zone) <<
   (++) [ LangSvg.attr "r" "6"
-       , LangSvg.attr "fill" "rgba(255,0,0,0.5)"
+       , if show
+         then LangSvg.attr "fill" "rgba(255,0,0,0.5)"
+         else LangSvg.attr "fill" "rgba(0,0,0,0.0)"
        , cursorStyle "pointer"
        ]
 
-zonePoints id shape pts =
+zonePoints id shape show pts =
   flip Utils.mapi pts <| \(i, (x,y)) ->
-    zonePoint id shape (addi "Point" i) [ attrNumTr "cx" x, attrNumTr "cy" y ]
+    zonePoint id shape (addi "Point" i) show [ attrNumTr "cx" x, attrNumTr "cy" y ]
 
-zoneLine id shape zone (x1,y1) (x2,y2) =
-  zoneBorder Svg.line id shape zone True [
+zoneLine id shape zone show (x1,y1) (x2,y2) =
+  zoneBorder Svg.line id shape zone True show [
       attrNumTr "x1" x1 , attrNumTr "y1" y1 , attrNumTr "x2" x2 , attrNumTr "y2" y2
     , cursorStyle "pointer"
     ]
 
 --Zone building function (still under construction/prone to change)                
-makeZones : String -> LangSvg.NodeId -> List Attr -> List Svg.Svg
-makeZones shape id l =
+makeZones : Bool -> String -> LangSvg.NodeId -> List Attr -> List Svg.Svg
+makeZones showZones shape id l =
   case shape of
 
     "rect" ->
         let mk zone x_ y_ w_ h_ =
-          zoneBorder Svg.rect id shape zone True [
+          zoneBorder Svg.rect id shape zone True showZones [
               attrNum "x" x_ , attrNum "y" y_
             , attrNum "width" w_ , attrNum "height" h_
             ]
@@ -156,21 +160,21 @@ makeZones shape id l =
           , mk "TopRightCorner" x2 y0 wSlim hSlim
           ]
 
-    "circle"  -> makeZonesEllipse shape id l
-    "ellipse" -> makeZonesEllipse shape id l
+    "circle"  -> makeZonesEllipse showZones shape id l
+    "ellipse" -> makeZonesEllipse showZones shape id l
 
     "line" ->
         let [x1,y1,x2,y2] = List.map (toNumTr << Utils.find_ l) ["x1","y1","x2","y2"] in
-        let zLine = zoneLine id shape "Edge" (x1,y1) (x2,y2) in
-        let zPts = zonePoints id shape [(x1,y1),(x2,y2)] in
+        let zLine = zoneLine id shape "Edge" showZones (x1,y1) (x2,y2) in
+        let zPts = zonePoints id shape showZones [(x1,y1),(x2,y2)] in
         zLine :: zPts
 
-    "polygon"  -> makeZonesPoly shape id l
-    "polyline" -> makeZonesPoly shape id l
+    "polygon"  -> makeZonesPoly showZones shape id l
+    "polyline" -> makeZonesPoly showZones shape id l
 
     _ -> []
 
-makeZonesEllipse shape id l =
+makeZonesEllipse showZones shape id l =
   let _ = Utils.assert "makeZonesEllipse" (shape == "circle" || shape == "ellipse") in
   let foo =
     let [cx,cy] = List.map (toNum << Utils.find_ l) ["cx","cy"] in
@@ -182,20 +186,20 @@ makeZonesEllipse shape id l =
     else
       let [rx,ry] = List.map (toNum << Utils.find_ l) ["rx","ry"] in
       (Svg.ellipse, [ attrNum "rx" rx , attrNum "ry" ry ]) in
-  let zInterior = zoneBorder f id shape "Interior" False (foo ++ bar) in
-  let zEdge = zoneBorder f id shape "Edge" True (foo ++ bar) in
+  let zInterior = zoneBorder f id shape "Interior" False showZones (foo ++ bar) in
+  let zEdge = zoneBorder f id shape "Edge" True showZones (foo ++ bar) in
   [zEdge, zInterior]
 
-makeZonesPoly shape id l =
+makeZonesPoly showZones shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "polygon" || shape == "polyline") in
   let pts = LangSvg.toPoints <| Utils.find_ l "points" in
-  let zPts = zonePoints id shape pts in
+  let zPts = zonePoints id shape showZones pts in
   let zLines =
     let pairs = Utils.adjacentPairs (shape == "polygon") pts in
-    let f (i,(pti,ptj)) = zoneLine id shape (addi "Edge" i) pti ptj in
+    let f (i,(pti,ptj)) = zoneLine id shape (addi "Edge" i) showZones pti ptj in
     Utils.mapi f pairs in
   let zInterior =
-    zoneBorder Svg.polygon id shape "Interior" False [
+    zoneBorder Svg.polygon id shape "Interior" False showZones [
         LangSvg.compileAttr "points" (LangSvg.APoints pts)
       ] in
   let firstEqLast xs = Utils.head_ xs == Utils.head_ (List.reverse xs) in
@@ -216,7 +220,7 @@ params =
   , wGut = 10              -- width of left/right side gutters (spans entire height)
   , topSection =
      { h = 40              -- height of top space
-     , wBtnO = 200         -- width...
+     , wBtnO = 150         -- width...
      , hBtnO = 30          -- ... and height of orientation button
      , wJunk = 225         -- gap between title and orientation button
      }
@@ -225,16 +229,26 @@ params =
      }
   , mainSection =
      { widgets =           -- Render/Sync buttons; Mode/Tests dropdowns
-        { wBtn = 90        -- width
-        , hBtn = 30        -- height
+        { wBtn = 85
+        , hBtn = 30
+        , font = "Tahoma, sans-serif"
+        , fontSize = "12px"
         }
      , vertical =
-        { hWidget = 50     -- vertical space between widgets
+        { hWidget = 40     -- vertical space between widgets
         , wGut = 10        -- width of gutters in between code/widgets/canvas
         }
      , horizontal =
         { wWidget = 100    -- horizontal space between widgets
         , hGut = 10        -- height of gutters in between code/widgets/canvas
+        }
+     , canvas =
+        { border = "0px solid darkGray"
+        }
+     , codebox =
+        { border = "none"
+        , font = "Courier, monospace"
+        , fontSize = "14px"
         }
      }
   }
@@ -260,30 +274,44 @@ codebox w h model =
     Html.toElement w h <|
       Html.textarea
         ([ Attr.id "codeBox"
+         , Attr.spellcheck False
          , Attr.style
-             [ ("height", "99%") , ("width",  "99%")
-             , ("resize", "none") , ("overflow", "scroll") ]
+             [ ("font-family", params.mainSection.codebox.font)
+             , ("font-size", params.mainSection.codebox.fontSize)
+             , ("border", params.mainSection.codebox.border)
+             , ("height", "99%") , ("width", "99%")
+             , ("resize", "none")
+             , ("overflow", "auto")
+             -- TODO "overflow-x" horizontal scrollbar still not showing up.
+             ]
          , Attr.value model.code
          ] ++ event)
         []
 
 canvas : Int -> Int -> Model -> GE.Element
 canvas w h model =
-  let showZones = case model.mode of {NoDirectMan -> False; _ -> True} in
-  let svg = buildSvg showZones model.workingSlate model.rootId in
+  let addZones = case model.mode of {NoDirectMan -> False; _ -> True} in
+  let svg = buildSvg addZones model.showZones model.workingSlate model.rootId in
   Html.toElement w h <|
     Svg.svg
       [ onMouseUp DeselectObject
       , Attr.style [ ("width", "99%") , ("height", "99%")
-                   , ("border", "4px solid darkGray") ] ]
+                   , ("border", params.mainSection.canvas.border)
+                   ] ]
       [ svg ]
 
 middleWidgets w h model =
-  [ Html.fromElement <| GE.spacer w h
-  , renderButton w h
-  , modeToggle w h model
+  [ gapWidget w h
   , dropdownExamples w h
+  , gapWidget w h
+  , renderButton w h
+  , printButton w h
+  , gapWidget w h
+  ] ++ zoneButton model w h ++
+  [ modeToggle w h model
   ] ++ syncButton_ w h model
+
+gapWidget w h = Html.fromElement <| GE.spacer w h
 
 syncButton_ w h model =
   case model.mode of
@@ -295,9 +323,10 @@ hBtn = params.mainSection.widgets.hBtn
 
 buttonAttrs w h =
   Attr.style
-    [ ("type", "button")
-    , ("width", dimToPix w)
+    [ ("width", dimToPix w)
     , ("height", dimToPix h)
+    , ("font-family", params.mainSection.widgets.font)
+    , ("font-size", params.mainSection.widgets.fontSize)
     ]
 
 mainSectionVertical : Int -> Int -> Model -> GE.Element
@@ -348,25 +377,29 @@ mainSectionHorizontal w h model =
   GE.flow GE.down <|
     [ codeSection, gutter, middleSection, gutter, canvasSection ]
 
-renderButton : Int -> Int -> Html.Html
-renderButton w h =
+simpleButton : Event -> String -> String -> String -> Int -> Int -> Html.Html
+simpleButton evt value name text w h =
   Html.button
     [ buttonAttrs w h
-    , Events.onClick events.address Render
-    , Attr.value "Render"
-    , Attr.name "Render the Code"
+    , Events.onClick events.address evt
+    , Attr.value value
+    , Attr.name name
     ]
-    [Html.text "Render Code"]
+    [Html.text text]
 
-syncButton : Int -> Int -> Html.Html
-syncButton w h =
-  Html.button
-    [ buttonAttrs w h
-    , Events.onClick events.address Sync
-    , Attr.value "Sync"
-    , Attr.name "Sync the code to the canvas"
-    ]
-    [Html.text "Synchronize"]
+renderButton =
+  simpleButton Render "Render" "Run and Render to SVG" "Render SVG"
+
+printButton =
+  simpleButton Print "Print" "Run and Print to SVG" "Print SVG"
+
+syncButton =
+  simpleButton Sync "Sync" "Sync the code to the canvas" "Sync"
+
+zoneButton model w h =
+  if model.mode == NoDirectMan then [ gapWidget w h ]
+  else let cap = if model.showZones then "Hide Zones" else "Show Zones" in
+       [ simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap w h ]
 
 dropdownExamples : Int -> Int -> Html.Html
 dropdownExamples w h =
@@ -412,13 +445,7 @@ modeToggle w h model =
 orientationButton w h model =
   let ui = model.ui in
   Html.button
-      [ Attr.style
-        [ ("position", "absolute")
-        , ("font-family", "Courier, monospace")
-        , ("type", "button")
-        , ("width", dimToPix w)
-        , ("height", dimToPix h)
-        ]
+      [ buttonAttrs w h
       , Events.onClick events.address
           (UIupdate ({ ui | orient <- switchOrient ui.orient}))
       ]

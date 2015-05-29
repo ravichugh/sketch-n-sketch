@@ -23,6 +23,7 @@ type alias Model =
   , workingSlate : IndexedTree
   , mode : Mode
   , ui : UI
+  , showZones : Bool
   }
 
 type alias UI = 
@@ -66,6 +67,8 @@ type Event = CodeUpdate String
            | SelectOption ((Exp, Val), Float)
            | SelectTest Int
            | Render
+           | Print
+           | ToggleZones
            | UIupdate UI
 
 events : Signal.Mailbox Event

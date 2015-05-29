@@ -51,6 +51,7 @@ sampleModel =
     , workingSlate = slate
     , mode         = Live <| Sync.prepareLiveUpdates tempTest.e tempTest.v
     , ui           = {orient = Vertical}
+    , showZones    = False
     }
 
 refreshMode m e =
@@ -70,6 +71,10 @@ upstate evt old = case Debug.log "Event" evt of
             , rootId <- rootId
             , workingSlate <- slate
             , mode <- refreshMode old.mode e }
+
+    Print ->
+      let _ = Debug.log "TODO: Print" in
+      old
 
     CodeUpdate newcode -> { old | code <- newcode }
 
@@ -138,6 +143,8 @@ upstate evt old = case Debug.log "Event" evt of
     SwitchMode m -> { old | mode <- m }
 
     UIupdate u -> { old | ui <- u }
+
+    ToggleZones -> { old | showZones <- not old.showZones }
 
     _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
 
