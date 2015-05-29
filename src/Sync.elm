@@ -150,6 +150,7 @@ solve subst (Equation sum tr) =
                       Nothing -> (0, 1)
                       Just i  -> (i, 0)
     TrOp Plus ts -> List.foldl plusplus (0,0) (List.map evalTrace ts)
+    -- TODO: handle minus directly, to improve performance
     -- TrOp Minus [t1,t2] -> List.foldl minusminus (0,0) (List.map evalTrace [t1,t2])
     TrOp op _     -> Debug.crash <| "Sync.evalTrace, unsupported op: " ++ strOp op
   in
