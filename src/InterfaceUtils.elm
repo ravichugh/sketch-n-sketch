@@ -6,7 +6,6 @@ import Eval
 import Sync exposing (Triggers)
 import Utils
 import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr, Zone)
-import MainSvg exposing (tests)
 
 import List 
 import Dict
@@ -68,7 +67,7 @@ type Event = CodeUpdate String
            | SelectOption
            | Revert
            | SwitchMode Mode
-           | SelectTest Int
+           | SelectExample String (() -> {e:Exp, v:Val})
            | Render
            | PrintSvg
            | ToggleZones
@@ -110,7 +109,3 @@ dimToPix d = String.append (toString d) "px"
 mkLive e v = Live <| Sync.prepareLiveUpdates e v
 mkLive_ e  = mkLive e (Eval.run e)
 
--- TODO: get rid of this eventually
-firstTestIndex = 15
-lastTestIndex  = List.length MainSvg.tests + firstTestIndex - 1
-testIndices    = [firstTestIndex .. lastTestIndex]

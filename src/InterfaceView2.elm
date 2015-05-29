@@ -445,16 +445,16 @@ revertButton =
 
 dropdownExamples : Int -> Int -> Html.Html
 dropdownExamples w h =
-  let testlist =
-    testIndices
-      |> List.map (\i ->
-           Html.option
-             -- TODO: works in Firefox, but not in Chrome/Safari
-             [ Events.onMouseOver events.address (SelectTest i) ]
-             [ Html.text (toString i)] )
-      |> List.reverse
+  let examples =
+    let foo (name,thunk) =
+      Html.option
+          -- TODO: works in Firefox, but not in Chrome/Safari
+          [ Events.onMouseOver events.address (SelectExample name thunk) ]
+          [ Html.text name ]
+    in
+    List.map foo MainSvg.sampleTests
   in
-  Html.select [ buttonAttrs w h ] testlist
+  Html.select [ buttonAttrs w h ] examples
 
 modeToggle : Int -> Int -> Model -> Html.Html
 modeToggle w h model =

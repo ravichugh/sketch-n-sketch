@@ -41,15 +41,18 @@ import Svg.Lazy
 import Debug
 
 
-tempTest = MicroTests.test42 ()
 sampleModel =
-  let (rootId,slate) = LangSvg.valToIndexedTree tempTest.v in
-    { code         = sExp tempTest.e
-    , inputExp     = Just tempTest.e
+  let
+    (_,f) = Utils.head_ MainSvg.sampleTests
+    {e,v} = f ()
+    (rootId,slate) = LangSvg.valToIndexedTree v
+  in
+    { code         = sExp e
+    , inputExp     = Just e
     , movingObj    = Nothing
     , rootId       = rootId
     , workingSlate = slate
-    , mode         = mkLive tempTest.e tempTest.v
+    , mode         = mkLive e v
     , ui           = {orient = Vertical}
     , showZones    = False
     }
@@ -151,8 +154,8 @@ upstate evt old = case Debug.log "Event" evt of
       let (rootId,tree) = LangSvg.valToIndexedTree (Eval.run e) in
       { old | rootId <- rootId , workingSlate <- tree , mode <- AdHoc }
 
-    SelectTest i ->
-      let {e,v} = (Utils.geti (i - (firstTestIndex - 1)) MainSvg.tests') () in
+    SelectExample name thunk ->
+      let {e,v} = thunk () in
       let (rootId,tree) = LangSvg.valToIndexedTree v in
       let m =
         case old.mode of
