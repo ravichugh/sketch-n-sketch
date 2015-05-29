@@ -7,12 +7,13 @@ import Lang exposing (..) --For access to what makes up the Vals
 import LangParser exposing (parseE, parseV)
 import Sync
 import Eval exposing (run)
-import MainSvg
 import Utils
 import MicroTests
 import InterfaceUtils exposing (..)
-import InterfaceView exposing (..)
+import InterfaceView2 exposing (..)
 import LangSvg exposing (IndexedTree, NodeId, ShapeKind, toNum, toNumTr, toPoints, addi)
+import Examples
+
 import VirtualDom
 
 --Core Libraries
@@ -41,17 +42,27 @@ import Svg.Lazy
 import Debug
 
 
-tempTest = MicroTests.test42 ()
 sampleModel =
-  let (rootId,slate) = LangSvg.valToIndexedTree tempTest.v in
-    { code         = sExp tempTest.e
-    , inputExp     = Just tempTest.e
+  let
+    (_,f) = Utils.head_ Examples.list
+    {e,v} = f ()
+    (rootId,slate) = LangSvg.valToIndexedTree v
+  in
+    { code         = sExp e
+    , inputExp     = Just e
     , movingObj    = Nothing
     , rootId       = rootId
     , workingSlate = slate
-    , mode         = Live <| Sync.prepareLiveUpdates tempTest.e tempTest.v
+    , mode         = mkLive e v
     , ui           = {orient = Vertical}
+    , showZones    = False
     }
+
+refreshMode m e =
+  case m of
+    Live _ -> mkLive_ e
+    Print  -> mkLive_ e
+    m      -> m
 
 upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
@@ -60,7 +71,13 @@ upstate evt old = case Debug.log "Event" evt of
       let e = parseE old.code in
       let v = Eval.run e in
       let (rootId,slate) = LangSvg.valToIndexedTree v in
-      { old | inputExp <- Just e, rootId <- rootId , workingSlate <- slate }
+      { old | inputExp <- Just e
+            , movingObj <- Nothing
+            , rootId <- rootId
+            , workingSlate <- slate
+            , mode <- refreshMode old.mode e }
+
+    PrintSvg -> { old | movingObj <- Nothing , mode <- Print }
 
     CodeUpdate newcode -> { old | code <- newcode }
 
@@ -89,16 +106,11 @@ upstate evt old = case Debug.log "Event" evt of
           case Utils.justGet zone (Utils.justGet id triggers) of
             Nothing -> { old | movingObj <- Nothing }
             Just _  -> { old | movingObj <- Just (id, kind, zone, Nothing) }
+        SyncSelect _ _ -> old
 
     DeselectObject ->
-      let mode' =
-        case old.mode of
-          Live _ -> let e = Utils.fromJust old.inputExp in
-                    Live <| Sync.prepareLiveUpdates e (Eval.run e)
-          m      -> m   -- since top-level SVG may have triggered this event,
-                        -- preserve the current mode
-      in
-      { old | movingObj <- Nothing , mode <- mode' }
+      { old | movingObj <- Nothing
+            , mode <- refreshMode old.mode (Utils.fromJust old.inputExp) }
 
     Sync -> 
         case (old.mode, old.inputExp) of
@@ -111,19 +123,44 @@ upstate evt old = case Debug.log "Event" evt of
                     newval    = indexedTreeToVal old.rootId old.workingSlate
                 in
                   case Sync.sync ip inputval' newval of
-                    Ok [] -> old
+                    Ok [] -> { old | mode <- mkLive_ ip  }
                     Ok ls -> let _ = Debug.log "# of sync options" (List.length ls) in
-                             { old | mode <- SyncSelect ls }
-                    Err e -> Debug.crash ("upstate Sync: ++ " ++ e)
+                             upstate (TraverseOption 1) { old | mode <- SyncSelect 0 ls }
+                    Err e -> let _ = Debug.log ("bad sync: ++ " ++ e) () in
+                             { old | mode <- SyncSelect 0 [] }
 
-    SelectOption ((e,v), f) -> { old | inputExp <- Just e, mode <- AdHoc }
+    SelectOption ->
+      let (SyncSelect i l) = old.mode in
+      let ((ei,vi),_) = Utils.geti i l in
+      let (rootId,tree) = LangSvg.valToIndexedTree vi in
+      { old | code <- sExp ei
+            , inputExp <- Just ei
+            , rootId <- rootId
+            , workingSlate <- tree
+            , mode <- mkLive ei vi }
 
-    SelectTest i ->
-      let {e,v} = (Utils.geti (i - (firstTestIndex - 1)) MainSvg.tests') () in
+    TraverseOption offset ->
+      let (SyncSelect i l) = old.mode in
+      let j = i + offset in
+      let ((ei,vi),_) = Utils.geti j l in
+      let (rootId,tree) = LangSvg.valToIndexedTree vi in
+      { old | code <- sExp ei
+            , inputExp <- Just ei
+            , rootId <- rootId
+            , workingSlate <- tree
+            , mode <- SyncSelect j l }
+
+    Revert ->
+      let e = Utils.fromJust old.inputExp in
+      let (rootId,tree) = LangSvg.valToIndexedTree (Eval.run e) in
+      { old | rootId <- rootId , workingSlate <- tree , mode <- AdHoc }
+
+    SelectExample name thunk ->
+      let {e,v} = thunk () in
       let (rootId,tree) = LangSvg.valToIndexedTree v in
       let m =
         case old.mode of
-          Live _ -> Live (Sync.prepareLiveUpdates e v)
+          Live _ -> mkLive e v
           _      -> old.mode
       in
       { old | inputExp <- Just e
@@ -136,8 +173,9 @@ upstate evt old = case Debug.log "Event" evt of
 
     UIupdate u -> { old | ui <- u }
 
-    _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
+    ToggleZones -> { old | showZones <- not old.showZones }
 
+    _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
 
 createMousePosCallback mx my objid kind zone old =
 
@@ -272,7 +310,7 @@ createMousePosCallback mx my objid kind zone old =
               in
               (newE, newSlate')
 
-main : Signal Html.Html
+main : Signal GE.Element
 main = let sigModel = Signal.foldp upstate sampleModel
                         <| Signal.mergeMany
                             [ events.signal

@@ -91,7 +91,14 @@ tests =
   , (600, 300, MicroTests.test43)
   ]
 
-tests' = List.map Utils.thd3 tests
+sampleTests =
+  tests
+    |> List.map Utils.thd3
+    |> Utils.mapi (\(i,f) ->
+         let name = "test" ++ toString (i+14) in
+         let thunk () = let {e,v} = f () in {e=e, v=v} in
+         (name, thunk))
+    |> List.reverse
 
 main : Element
 main =

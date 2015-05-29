@@ -108,9 +108,9 @@ adjacentPairs includeLast (x0::xs) =
   if | includeLast -> List.reverse ((xn,x0) :: pairs)
      | otherwise   -> List.reverse (pairs)
 
--- 0-based
+-- 1-based
 geti : Int -> List a -> a
-geti i = fromJust << List.head << List.drop (i-1)
+geti i = fromJust_ "Utils.geti" << List.head << List.drop (i-1)
 
 delimit a b s = String.concat [a, s, b]
 
@@ -142,10 +142,10 @@ fromOk s mx = case mx of
 
 fromOk_ = fromOk ""
 
-justGet k d = fromJust <| Dict.get k d
+justGet k d = fromJust_ "Utils.justGet" <| Dict.get k d
 
-head_ = fromJust << List.head
-tail_ = fromJust << List.tail
+head_ = fromJust_ "Utils.head_" << List.head
+tail_ = fromJust_ "Utils.tail_" << List.tail
 
 mapMaybe : (a -> b) -> Maybe a -> Maybe b
 mapMaybe f mx = case mx of {Just x -> Just (f x); Nothing -> Nothing}

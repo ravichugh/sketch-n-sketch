@@ -301,14 +301,14 @@ test31 () =
        (polygon 'black' 'DUMMY' 0
          [[(+ x0 delta) y0]
           [(+ x0 w) y0]
-          [(+ x0 w) (- (+ y0 h) delta)]])
+          [(+ x0 w) (minus (+ y0 h) delta)]])
        (polygon 'black' 'DUMMY' 0
          [[x0 (+ y0 delta)]
-          [x0 (- (+ y0 h) delta)]
-          [(- (+ x0 (div w 2)) delta) (+ y0 (div h 2))]])
+          [x0 (minus (+ y0 h) delta)]
+          [(minus (+ x0 (div w 2)) delta) (+ y0 (div h 2))]])
        (polygon 'black' 'DUMMY' 0
          [[(+ x0 delta) (+ y0 h)]
-          [(- (+ x0 w) delta) (+ y0 h)]
+          [(minus (+ x0 w) delta) (+ y0 h)]
           [(+ x0 (div w 2)) (+ (+ y0 (div h 2)) delta)]])
      ]))"
     "[]"
@@ -320,14 +320,14 @@ test32 () =
        (polyline 'none' 'black' 1
          [[(+ x0 delta) y0]
           [(+ x0 w) y0]
-          [(+ x0 w) (- (+ y0 h) delta)]])
+          [(+ x0 w) (minus (+ y0 h) delta)]])
        (polyline 'none' 'black' 1
          [[x0 (+ y0 delta)]
-          [x0 (- (+ y0 h) delta)]
-          [(- (+ x0 (div w 2)) delta) (+ y0 (div h 2))]])
+          [x0 (minus (+ y0 h) delta)]
+          [(minus (+ x0 (div w 2)) delta) (+ y0 (div h 2))]])
        (polyline 'none' 'black' 1
          [[(+ x0 delta) (+ y0 h)]
-          [(- (+ x0 w) delta) (+ y0 h)]
+          [(minus (+ x0 w) delta) (+ y0 h)]
           [(+ x0 (div w 2)) (+ (+ y0 (div h 2)) delta)]])
      ]))"
     "[]"

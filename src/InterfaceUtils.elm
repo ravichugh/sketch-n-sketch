@@ -2,10 +2,10 @@
 -- This provide utility and helper functions to Interface.elm
 module InterfaceUtils where
 import Lang exposing (..) --For access to what makes up the Vals
+import Eval
 import Sync exposing (Triggers)
 import Utils
 import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr, Zone)
-import MainSvg exposing (tests)
 
 import List 
 import Dict
@@ -23,6 +23,7 @@ type alias Model =
   , workingSlate : IndexedTree
   , mode : Mode
   , ui : UI
+  , showZones : Bool
   }
 
 type alias UI = 
@@ -38,14 +39,14 @@ type alias MouseTrigger = (Int, Int) -> (Exp, IndexedTree)
 type alias PossibleChanges = List ((Exp, Val), Float)
 
 type Mode
-  = AdHoc | SyncSelect PossibleChanges | Live Triggers
+  = AdHoc | SyncSelect Int PossibleChanges | Live Triggers
   | NoDirectMan
+  | Print
 
+-- TODO
 syncBool m = case m of
-  NoDirectMan  -> False -- TODO: dummy...
-  Live _       -> False -- TODO: dummy...
-  AdHoc        -> False
-  SyncSelect _ -> True
+  SyncSelect _ _ -> True
+  _              -> False
 
 --Event
 --CodeUpdate : carries updated string of code with it
@@ -62,10 +63,14 @@ type Event = CodeUpdate String
            | DeselectObject
            | MousePos (Int, Int)
            | Sync
+           | TraverseOption Int -- offset from current index (+1 or -1)
+           | SelectOption
+           | Revert
            | SwitchMode Mode
-           | SelectOption ((Exp, Val), Float)
-           | SelectTest Int
+           | SelectExample String (() -> {e:Exp, v:Val})
            | Render
+           | PrintSvg
+           | ToggleZones
            | UIupdate UI
 
 events : Signal.Mailbox Event
@@ -101,7 +106,6 @@ switchOrient m = case m of
 
 dimToPix d = String.append (toString d) "px"
 
--- TODO: get rid of this eventually
-firstTestIndex = 15
-lastTestIndex  = List.length MainSvg.tests + firstTestIndex - 1
-testIndices    = [firstTestIndex .. lastTestIndex]
+mkLive e v = Live <| Sync.prepareLiveUpdates e v
+mkLive_ e  = mkLive e (Eval.run e)
+
