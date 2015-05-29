@@ -9,11 +9,12 @@ import Lang exposing (..) --For access to what makes up the Vals
 import LangParser exposing (parseE, parseV)
 import Sync exposing (sync, Triggers)
 import Eval exposing (run)
-import MainSvg
 import Utils
 import MicroTests
 import InterfaceUtils exposing (..)
 import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr, toNum, toNumTr, addi)
+import Examples
+
 import VirtualDom
 
 --Core Libraries
@@ -452,7 +453,7 @@ dropdownExamples w h =
           [ Events.onMouseOver events.address (SelectExample name thunk) ]
           [ Html.text name ]
     in
-    List.map foo MainSvg.sampleTests
+    List.map foo Examples.list
   in
   Html.select [ buttonAttrs w h ] examples
 

@@ -7,12 +7,13 @@ import Lang exposing (..) --For access to what makes up the Vals
 import LangParser exposing (parseE, parseV)
 import Sync
 import Eval exposing (run)
-import MainSvg
 import Utils
 import MicroTests
 import InterfaceUtils exposing (..)
 import InterfaceView2 exposing (..)
 import LangSvg exposing (IndexedTree, NodeId, ShapeKind, toNum, toNumTr, toPoints, addi)
+import Examples
+
 import VirtualDom
 
 --Core Libraries
@@ -43,7 +44,7 @@ import Debug
 
 sampleModel =
   let
-    (_,f) = Utils.head_ MainSvg.sampleTests
+    (_,f) = Utils.head_ Examples.list
     {e,v} = f ()
     (rootId,slate) = LangSvg.valToIndexedTree v
   in
