@@ -505,12 +505,6 @@ view (w,h) model =
       GE.size wAll hTop <| GE.flow GE.right [ title , wSep, btnO ]
   in
 
-  -- let midSection =
-  --   GE.size wAll hMid <|
-  --     case (model.mode, model.ui.orient) of
-  --       (SyncSelect _, _) -> Debug.crash "view SyncSelect"
-  --       (_, Vertical)     -> mainSectionVertical wAll hMid model
-  --       (_, Horizontal)   -> mainSectionHorizontal wAll hMid model in
   let midSection =
     GE.size wAll hMid <|
       case model.ui.orient of
