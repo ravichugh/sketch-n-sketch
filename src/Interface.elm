@@ -73,7 +73,7 @@ upstate evt old = case Debug.log "Event" evt of
             , mode <- refreshMode old.mode e }
 
     Print ->
-      let _ = Debug.log "TODO: Print" in
+      let _ = Debug.log "TODO: Print" () in
       old
 
     CodeUpdate newcode -> { old | code <- newcode }
