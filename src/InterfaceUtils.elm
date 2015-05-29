@@ -2,6 +2,7 @@
 -- This provide utility and helper functions to Interface.elm
 module InterfaceUtils where
 import Lang exposing (..) --For access to what makes up the Vals
+import Eval
 import Sync exposing (Triggers)
 import Utils
 import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr, Zone)
@@ -39,14 +40,14 @@ type alias MouseTrigger = (Int, Int) -> (Exp, IndexedTree)
 type alias PossibleChanges = List ((Exp, Val), Float)
 
 type Mode
-  = AdHoc | SyncSelect PossibleChanges | Live Triggers
+  = AdHoc | SyncSelect Int PossibleChanges | Live Triggers
   | NoDirectMan
 
 syncBool m = case m of
   NoDirectMan  -> False -- TODO: dummy...
   Live _       -> False -- TODO: dummy...
   AdHoc        -> False
-  SyncSelect _ -> True
+  SyncSelect _ _ -> True
 
 --Event
 --CodeUpdate : carries updated string of code with it
@@ -63,8 +64,10 @@ type Event = CodeUpdate String
            | DeselectObject
            | MousePos (Int, Int)
            | Sync
+           | TraverseOption Int -- offset from current index (+1 or -1)
+           | SelectOption
+           | Revert
            | SwitchMode Mode
-           | SelectOption ((Exp, Val), Float)
            | SelectTest Int
            | Render
            | Print
@@ -103,6 +106,9 @@ switchOrient m = case m of
   Horizontal -> Vertical
 
 dimToPix d = String.append (toString d) "px"
+
+mkLive e v = Live <| Sync.prepareLiveUpdates e v
+mkLive_ e  = mkLive e (Eval.run e)
 
 -- TODO: get rid of this eventually
 firstTestIndex = 15

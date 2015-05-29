@@ -187,23 +187,27 @@ sync e v v' =
       let newNew = getFillers holeSubst in
       let subst0 = LangParser.substOf e in
       let substs = inferSubsts subst0 newNew in
-      Ok <| List.sortBy snd <|
-        List.filterMap (\s ->
-          let e1 = applySubst s e in
-          let v1 = Eval.run e1 in
-          let vcStar = mapVal leafToStar vc in
-          case diffNoCheck (fillHole vcStar holeSubst) v1 of
-            Nothing -> Debug.crash "sync: shouldn't happen?"
-            Just (Same _) ->
-              let n = compareVals (v, v1) in
-              Just ((e1, v1), n)
-            Just (Diff _ holeSubst') ->
-              let oldNew = getFillers holeSubst' in
-              if | newNew /= oldNew -> Nothing
-                 | otherwise ->
-                     let n = compareVals (v, v1) in
-                     Just ((e1, v1), n)
-        ) substs
+      let res =
+        List.sortBy snd <|
+          List.filterMap (\s ->
+            let e1 = applySubst s e in
+            let v1 = Eval.run e1 in
+            let vcStar = mapVal leafToStar vc in
+            case diffNoCheck (fillHole vcStar holeSubst) v1 of
+              Nothing -> Debug.crash "sync: shouldn't happen?"
+              Just (Same _) ->
+                let n = compareVals (v, v1) in
+                Just ((e1, v1), n)
+              Just (Diff _ holeSubst') ->
+                let oldNew = getFillers holeSubst' in
+                if | newNew /= oldNew -> Nothing
+                   | otherwise ->
+                       let n = compareVals (v, v1) in
+                       Just ((e1, v1), n)
+          ) substs
+      in
+      -- TODO: is this a good idea?
+      if res == [] then Err "bad change 2" else Ok res
 
 
 

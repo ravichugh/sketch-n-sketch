@@ -221,7 +221,7 @@ params =
   , topSection =
      { h = 40              -- height of top space
      , wBtnO = 150         -- width...
-     , hBtnO = 30          -- ... and height of orientation button
+     , hBtnO = 25          -- ... and height of orientation button
      , wJunk = 225         -- gap between title and orientation button
      }
   , botSection =
@@ -230,7 +230,7 @@ params =
   , mainSection =
      { widgets =           -- Render/Sync buttons; Mode/Tests dropdowns
         { wBtn = 85
-        , hBtn = 30
+        , hBtn = 25
         , font = "Tahoma, sans-serif"
         , fontSize = "12px"
         }
@@ -263,6 +263,7 @@ colorDebug c1 =
   if | params.debugLayout -> GE.color c1
      | otherwise          -> GE.color Color.darkGray
 
+-- TODO: set readonly based on mode
 codebox : Int -> Int -> Model -> GE.Element
 codebox w h model =
   let event =
@@ -301,15 +302,28 @@ canvas w h model =
       [ svg ]
 
 middleWidgets w h model =
-  [ gapWidget w h
-  , dropdownExamples w h
-  , gapWidget w h
-  , renderButton w h
-  , printButton w h
-  , gapWidget w h
-  ] ++ zoneButton model w h ++
-  [ modeToggle w h model
-  ] ++ syncButton_ w h model
+  case model.mode of
+    SyncSelect _ [] ->
+      [ gapWidget w h
+      , gapWidget w h
+      , revertButton w h
+      ]
+    SyncSelect i l ->
+      [ gapWidget w h
+      , prevButton i w h
+      , chooseButton w h
+      , nextButton i l w h
+      ]
+    _ ->
+      [ gapWidget w h
+      , dropdownExamples w h
+      , gapWidget w h
+      , renderButton w h
+      , printButton w h
+      , gapWidget w h
+      ] ++ zoneButton model w h ++
+      [ modeToggle w h model
+      ] ++ syncButton_ w h model
 
 gapWidget w h = Html.fromElement <| GE.spacer w h
 
@@ -401,6 +415,21 @@ zoneButton model w h =
   else let cap = if model.showZones then "Hide Zones" else "Show Zones" in
        [ simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap w h ]
 
+chooseButton =
+  simpleButton SelectOption "Choose" "Choose" "Select This"
+
+prevButton i =
+  if | i > 1     -> simpleButton (TraverseOption -1) "Prev" "Prev" "Show Prev"
+     | otherwise -> gapWidget
+
+nextButton i l =
+  let n = List.length l in
+  if | i < n     -> simpleButton (TraverseOption 1) "Next" "Next" "Show Next"
+     | otherwise -> gapWidget
+
+revertButton =
+  simpleButton Revert "Revert" "Revert" "Revert"
+
 dropdownExamples : Int -> Int -> Html.Html
 dropdownExamples w h =
   let testlist =
@@ -430,12 +459,8 @@ modeToggle w h model =
         , Events.onClick events.address (SwitchMode m) ]
         [Html.text s]
   in
-  let optionLive =
-    -- may want to delay this to when Live is selected
-    let e = Utils.fromJust model.inputExp in
-    let v = Eval.run e in
-    let mode = Live <| Sync.prepareLiveUpdates e v in
-    opt "Live" mode in
+  -- may want to delay this to when Live is selected
+  let optionLive = opt "Live" (mkLive_ (Utils.fromJust model.inputExp)) in
   let optionAdHoc = opt "Ad Hoc" AdHoc in
   let optionFreeze = opt "Freeze" NoDirectMan in
   Html.select
@@ -480,12 +505,17 @@ view (w,h) model =
       GE.size wAll hTop <| GE.flow GE.right [ title , wSep, btnO ]
   in
 
+  -- let midSection =
+  --   GE.size wAll hMid <|
+  --     case (model.mode, model.ui.orient) of
+  --       (SyncSelect _, _) -> Debug.crash "view SyncSelect"
+  --       (_, Vertical)     -> mainSectionVertical wAll hMid model
+  --       (_, Horizontal)   -> mainSectionHorizontal wAll hMid model in
   let midSection =
     GE.size wAll hMid <|
-      case (model.mode, model.ui.orient) of
-        (SyncSelect _, _) -> Debug.crash "view SyncSelect"
-        (_, Vertical)     -> mainSectionVertical wAll hMid model
-        (_, Horizontal)   -> mainSectionHorizontal wAll hMid model in
+      case model.ui.orient of
+        Vertical   -> mainSectionVertical wAll hMid model
+        Horizontal -> mainSectionHorizontal wAll hMid model in
 
   let botSection = GE.spacer wAll hBot in
   let sideGutter = colorDebug Color.black <| GE.spacer wGut hTot in

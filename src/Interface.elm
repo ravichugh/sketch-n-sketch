@@ -49,14 +49,14 @@ sampleModel =
     , movingObj    = Nothing
     , rootId       = rootId
     , workingSlate = slate
-    , mode         = Live <| Sync.prepareLiveUpdates tempTest.e tempTest.v
+    , mode         = mkLive tempTest.e tempTest.v
     , ui           = {orient = Vertical}
     , showZones    = False
     }
 
 refreshMode m e =
   case m of
-    Live _ -> Live <| Sync.prepareLiveUpdates e (Eval.run e)
+    Live _ -> mkLive_ e
     m      -> m
 
 upstate : Event -> Model -> Model
@@ -103,6 +103,7 @@ upstate evt old = case Debug.log "Event" evt of
           case Utils.justGet zone (Utils.justGet id triggers) of
             Nothing -> { old | movingObj <- Nothing }
             Just _  -> { old | movingObj <- Just (id, kind, zone, Nothing) }
+        SyncSelect _ _ -> old
 
     DeselectObject ->
       { old | movingObj <- Nothing
@@ -119,19 +120,44 @@ upstate evt old = case Debug.log "Event" evt of
                     newval    = indexedTreeToVal old.rootId old.workingSlate
                 in
                   case Sync.sync ip inputval' newval of
-                    Ok [] -> old
+                    Ok [] -> { old | mode <- mkLive_ ip  }
                     Ok ls -> let _ = Debug.log "# of sync options" (List.length ls) in
-                             { old | mode <- SyncSelect ls }
-                    Err e -> Debug.crash ("upstate Sync: ++ " ++ e)
+                             upstate (TraverseOption 1) { old | mode <- SyncSelect 0 ls }
+                    Err e -> let _ = Debug.log ("bad sync: ++ " ++ e) () in
+                             { old | mode <- SyncSelect 0 [] }
 
-    SelectOption ((e,v), f) -> { old | inputExp <- Just e, mode <- AdHoc }
+    SelectOption ->
+      let (SyncSelect i l) = old.mode in
+      let ((ei,vi),_) = Utils.geti i l in
+      let (rootId,tree) = LangSvg.valToIndexedTree vi in
+      { old | code <- sExp ei
+            , inputExp <- Just ei
+            , rootId <- rootId
+            , workingSlate <- tree
+            , mode <- mkLive ei vi }
+
+    TraverseOption offset ->
+      let (SyncSelect i l) = old.mode in
+      let j = i + offset in
+      let ((ei,vi),_) = Utils.geti j l in
+      let (rootId,tree) = LangSvg.valToIndexedTree vi in
+      { old | code <- sExp ei
+            , inputExp <- Just ei
+            , rootId <- rootId
+            , workingSlate <- tree
+            , mode <- SyncSelect j l }
+
+    Revert ->
+      let e = Utils.fromJust old.inputExp in
+      let (rootId,tree) = LangSvg.valToIndexedTree (Eval.run e) in
+      { old | rootId <- rootId , workingSlate <- tree , mode <- AdHoc }
 
     SelectTest i ->
       let {e,v} = (Utils.geti (i - (firstTestIndex - 1)) MainSvg.tests') () in
       let (rootId,tree) = LangSvg.valToIndexedTree v in
       let m =
         case old.mode of
-          Live _ -> Live (Sync.prepareLiveUpdates e v)
+          Live _ -> mkLive e v
           _      -> old.mode
       in
       { old | inputExp <- Just e
@@ -147,7 +173,6 @@ upstate evt old = case Debug.log "Event" evt of
     ToggleZones -> { old | showZones <- not old.showZones }
 
     _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
-
 
 createMousePosCallback mx my objid kind zone old =
 
