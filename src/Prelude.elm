@@ -36,16 +36,16 @@ src = "
 (let tl   (\\[x|xs] xs)
 
 (let plus  (\\(x y) (+ x y))
-(let minus (\\(x y) (- x y))
-(let neg   (\\x     (- 0 x))
 
 (letrec mult (\\(m n)
-  (if (< m 1) 0 (+ n (mult (- m 1) n))))
+  (if (< m 1) 0 (+ n (mult (+ m -1) n))))
+
+(let minus (\\(x y) (+ x (mult y -1)))
 
 (letrec div (\\(m n)
   (if (< m n) 0
   (if (< n 2) m
-    (+ 1 (div (- m n) n)))))
+    (+ 1 (div (minus m n) n)))))
 
 (let circle (\\(fill x y r)
   ['circle'
@@ -103,9 +103,21 @@ src = "
 (let path_      (path 'transparent' 'brown' 5)
 
 
-0)))))))))))))))))))))))))))))))))))))
+0))))))))))))))))))))))))))))))))))))
 
 "
+
+-- (let plus  (\\(x y) (+ x y))
+-- (let minus (\\(x y) (- x y))
+-- (let neg   (\\x     (- 0 x))
+-- 
+-- (letrec mult (\\(m n)
+--   (if (< m 1) 0 (+ n (mult (- m 1) n))))
+-- 
+-- (letrec div (\\(m n)
+--   (if (< m n) 0
+--   (if (< n 2) m
+--     (+ 1 (div (- m n) n)))))
 
 -- prelude : Exp -> Exp
 -- prelude body =
