@@ -42,12 +42,12 @@ type alias PossibleChanges = List ((Exp, Val), Float)
 type Mode
   = AdHoc | SyncSelect Int PossibleChanges | Live Triggers
   | NoDirectMan
+  | Print
 
+-- TODO
 syncBool m = case m of
-  NoDirectMan  -> False -- TODO: dummy...
-  Live _       -> False -- TODO: dummy...
-  AdHoc        -> False
   SyncSelect _ _ -> True
+  _              -> False
 
 --Event
 --CodeUpdate : carries updated string of code with it
@@ -70,7 +70,7 @@ type Event = CodeUpdate String
            | SwitchMode Mode
            | SelectTest Int
            | Render
-           | Print
+           | PrintSvg
            | ToggleZones
            | UIupdate UI
 

@@ -246,6 +246,34 @@ strEdges =
 
 
 ------------------------------------------------------------------------------
+-- Printing to SVG format
+
+printSvg : NodeId -> IndexedTree -> String
+printSvg rootId slate = printNode 0 slate rootId
+
+printNode k slate i =
+  case Utils.justGet i slate of
+    TextNode s -> s
+    SvgNode kind l1 [] ->
+      Utils.delimit "<" ">" (kind ++ printAttrs l1) ++
+      Utils.delimit "</" ">" kind
+    SvgNode kind l1 l2 ->
+      Utils.delimit "<" ">" (kind ++ printAttrs l1) ++ "\n" ++
+      printNodes (k+1) slate l2 ++ "\n" ++
+      tab k ++ Utils.delimit "</" ">" kind
+
+printNodes k slate =
+  Utils.lines << List.map ((++) (tab k) << printNode k slate)
+
+printAttrs l = case l of
+  [] -> ""
+  _  -> " " ++ Utils.spaces (List.map printAttr l)
+
+printAttr (k,v) =
+  k ++ "=" ++ Utils.delimit "'" "'" (strAVal v)
+
+
+------------------------------------------------------------------------------
 -- Zones
 
 type alias Zone = String

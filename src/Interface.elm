@@ -57,6 +57,7 @@ sampleModel =
 refreshMode m e =
   case m of
     Live _ -> mkLive_ e
+    Print  -> mkLive_ e
     m      -> m
 
 upstate : Event -> Model -> Model
@@ -72,9 +73,7 @@ upstate evt old = case Debug.log "Event" evt of
             , workingSlate <- slate
             , mode <- refreshMode old.mode e }
 
-    Print ->
-      let _ = Debug.log "TODO: Print" () in
-      old
+    PrintSvg -> { old | movingObj <- Nothing , mode <- Print }
 
     CodeUpdate newcode -> { old | code <- newcode }
 

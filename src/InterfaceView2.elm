@@ -272,25 +272,38 @@ codebox w h model =
            [Events.on "input" Events.targetValue
               (Signal.message events.address << CodeUpdate)]
   in
-    Html.toElement w h <|
-      Html.textarea
-        ([ Attr.id "codeBox"
-         , Attr.spellcheck False
-         , Attr.style
-             [ ("font-family", params.mainSection.codebox.font)
-             , ("font-size", params.mainSection.codebox.fontSize)
-             , ("border", params.mainSection.codebox.border)
-             , ("height", "99%") , ("width", "99%")
-             , ("resize", "none")
-             , ("overflow", "auto")
-             -- TODO "overflow-x" horizontal scrollbar still not showing up.
-             ]
-         , Attr.value model.code
-         ] ++ event)
-        []
+    codebox_ w h event model.code
+
+codebox_ w h event s =
+  Html.toElement w h <|
+    Html.textarea
+      ([ Attr.id "codeBox"
+       , Attr.spellcheck False
+       , Attr.style
+           [ ("font-family", params.mainSection.codebox.font)
+           , ("font-size", params.mainSection.codebox.fontSize)
+           , ("border", params.mainSection.codebox.border)
+           , ("height", "99%") , ("width", "99%")
+           , ("resize", "none")
+           , ("overflow", "auto")
+           -- TODO "overflow-x" horizontal scrollbar still not showing up.
+           ]
+       , Attr.value s
+       ] ++ event)
+      []
 
 canvas : Int -> Int -> Model -> GE.Element
 canvas w h model =
+  case model.mode of
+    Print ->
+      let v = Eval.run (parseE model.code) in
+      let (i,tree) = LangSvg.valToIndexedTree v in
+      let s = LangSvg.printSvg i tree in
+      codebox_ w h [] s
+    _ ->
+      canvas_ w h model
+
+canvas_ w h model =
   let addZones = case model.mode of {NoDirectMan -> False; _ -> True} in
   let svg = buildSvg addZones model.showZones model.workingSlate model.rootId in
   Html.toElement w h <|
@@ -405,7 +418,7 @@ renderButton =
   simpleButton Render "Render" "Run and Render to SVG" "Render SVG"
 
 printButton =
-  simpleButton Print "Print" "Run and Print to SVG" "Print SVG"
+  simpleButton PrintSvg "Print" "Run and Print to SVG" "Print SVG"
 
 syncButton =
   simpleButton Sync "Sync" "Sync the code to the canvas" "Sync"
