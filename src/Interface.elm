@@ -50,11 +50,13 @@ sampleModel =
   in
     { code         = sExp e
     , inputExp     = Just e
-    , movingObj    = Nothing
     , rootId       = rootId
     , workingSlate = slate
     , mode         = mkLive e v
-    , ui           = {orient = Vertical}
+    , mouseMode    = MouseNothing
+    , orient       = Vertical
+    , midOffsetX   = 0
+    , midOffsetY   = -100
     , showZones    = False
     }
 
@@ -72,27 +74,33 @@ upstate evt old = case Debug.log "Event" evt of
       let v = Eval.run e in
       let (rootId,slate) = LangSvg.valToIndexedTree v in
       { old | inputExp <- Just e
-            , movingObj <- Nothing
             , rootId <- rootId
             , workingSlate <- slate
             , mode <- refreshMode old.mode e }
 
-    PrintSvg -> { old | movingObj <- Nothing , mode <- Print }
+    PrintSvg -> { old | mode <- Print }
 
     CodeUpdate newcode -> { old | code <- newcode }
 
+    StartResizingMid -> { old | mouseMode <- MouseResizeMid Nothing }
+
     MousePos (mx, my) ->
-      case (old.mode, old.movingObj) of
-
-        (NoDirectMan, _) -> old
-
-        (_, Nothing) -> old
-
-        (_, Just (objid, kind, zone, Nothing)) ->
+      case old.mouseMode of
+        MouseNothing -> old
+        MouseResizeMid Nothing ->
+          let f =
+            case old.orient of
+              Vertical   -> \(mx',_) -> (old.midOffsetX + mx' - mx, old.midOffsetY)
+              Horizontal -> \(_,my') -> (old.midOffsetY, old.midOffsetY + my' - my)
+          in
+          { old | mouseMode <- MouseResizeMid (Just f) }
+        MouseResizeMid (Just f) ->
+          let (x,y) = f (mx, my) in
+          { old | midOffsetX <- x , midOffsetY <- y }
+        MouseObject (objid, kind, zone, Nothing) ->
           let onNewPos = createMousePosCallback mx my objid kind zone old in
-          { old | movingObj <- Just (objid, kind, zone, Just onNewPos) }
-
-        (_, Just (objid, kind, zone, Just onNewPos)) ->
+          { old | mouseMode <- MouseObject (objid, kind, zone, Just onNewPos) }
+        MouseObject (_, _, _, Just onNewPos) ->
           let (newE,newSlate) = onNewPos (mx, my) in
           { old | code <- sExp newE
                 , inputExp <- Just newE
@@ -100,16 +108,15 @@ upstate evt old = case Debug.log "Event" evt of
 
     SelectObject id kind zone ->
       case old.mode of
-        NoDirectMan -> Debug.crash "SelectObject shouldn't be triggered in NoDirectMan mode"
-        AdHoc       -> { old | movingObj <- Just (id, kind, zone, Nothing) }
+        AdHoc       -> { old | mouseMode <- MouseObject (id, kind, zone, Nothing) }
         Live triggers ->
           case Utils.justGet zone (Utils.justGet id triggers) of
-            Nothing -> { old | movingObj <- Nothing }
-            Just _  -> { old | movingObj <- Just (id, kind, zone, Nothing) }
+            Nothing -> { old | mouseMode <- MouseNothing }
+            Just _  -> { old | mouseMode <- MouseObject (id, kind, zone, Nothing) }
         SyncSelect _ _ -> old
 
     DeselectObject ->
-      { old | movingObj <- Nothing
+      { old | mouseMode <- MouseNothing
             , mode <- refreshMode old.mode (Utils.fromJust old.inputExp) }
 
     Sync -> 
@@ -171,7 +178,7 @@ upstate evt old = case Debug.log "Event" evt of
 
     SwitchMode m -> { old | mode <- m }
 
-    UIupdate u -> { old | ui <- u }
+    SwitchOrient -> { old | orient <- switchOrient old.orient }
 
     ToggleZones -> { old | showZones <- not old.showZones }
 

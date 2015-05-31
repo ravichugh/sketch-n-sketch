@@ -290,6 +290,7 @@ codebox_ w h event s =
            -- TODO "overflow-x" horizontal scrollbar still not showing up.
            ]
        , Attr.value s
+       , Events.onMouseUp events.address DeselectObject
        ] ++ event)
       []
 
@@ -305,8 +306,7 @@ canvas w h model =
       canvas_ w h model
 
 canvas_ w h model =
-  let addZones = case model.mode of {NoDirectMan -> False; _ -> True} in
-  let svg = buildSvg addZones model.showZones model.workingSlate model.rootId in
+  let svg = buildSvg True model.showZones model.workingSlate model.rootId in
   Html.toElement w h <|
     Svg.svg
       [ onMouseUp DeselectObject
@@ -357,19 +357,33 @@ buttonAttrs w h =
     , ("font-size", params.mainSection.widgets.fontSize)
     ]
 
+gutterForResizing orient w h =
+  let s = if orient == Vertical then "ew-resize" else "ns-resize" in
+  colorDebug Color.darkBlue <|
+    Html.toElement w h <|
+      Html.div
+          [ Events.onMouseDown events.address StartResizingMid
+          , Events.onMouseUp events.address DeselectObject
+          , Attr.style
+              [ ("width", dimToPix w) , ("height", dimToPix h)
+              , ("cursor", s) ]
+          ]
+          [ ]
+
 mainSectionVertical : Int -> Int -> Model -> GE.Element
 mainSectionVertical w h model =
   let
     wGut    = params.mainSection.vertical.wGut
     wMiddle = wBtn
-    wCode   = (w - wMiddle - wGut - wGut) // 2
-    wCanvas = wCode
+    wCode_  = (w - wMiddle - wGut - wGut) // 2
+    wCode   = wCode_ + model.midOffsetX
+    wCanvas = wCode_ - model.midOffsetX
     hWidget = params.mainSection.vertical.hWidget
   in
 
   let codeSection = codebox wCode h model in
   let canvasSection = canvas wCanvas h model in
-  let gutter = colorDebug Color.darkBlue <| GE.spacer wGut h in
+  let gutter = gutterForResizing model.orient wGut h in
 
   let middleSection =
     colorDebug Color.lightBlue <|
@@ -386,14 +400,15 @@ mainSectionHorizontal w h model =
   let
     hGut    = params.mainSection.horizontal.hGut
     hMiddle = hBtn
-    hCode   = (h - hMiddle - hGut - hGut) // 2
-    hCanvas = hCode
+    hCode_  = (h - hMiddle - hGut - hGut) // 2
+    hCode   = hCode_ + model.midOffsetY
+    hCanvas = hCode_ - model.midOffsetY
     wWidget = params.mainSection.horizontal.wWidget
   in
 
   let codeSection = codebox w hCode model in
   let canvasSection = canvas w hCanvas model in
-  let gutter = colorDebug Color.darkBlue <| GE.spacer w hGut in
+  let gutter = gutterForResizing model.orient w hGut in
 
   let middleSection =
     colorDebug Color.lightBlue <|
@@ -425,9 +440,8 @@ syncButton =
   simpleButton Sync "Sync" "Sync the code to the canvas" "Sync"
 
 zoneButton model w h =
-  if model.mode == NoDirectMan then [ gapWidget w h ]
-  else let cap = if model.showZones then "Hide Zones" else "Show Zones" in
-       [ simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap w h ]
+  let cap = if model.showZones then "Hide Zones" else "Show Zones" in
+  [ simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap w h ]
 
 chooseButton =
   simpleButton SelectOption "Choose" "Choose" "Select This"
@@ -464,7 +478,6 @@ modeToggle w h model =
       case (model.mode, m) of
         (Live _, Live _)           -> True
         (AdHoc, AdHoc)             -> True
-        (NoDirectMan, NoDirectMan) -> True
         _                          -> False
     in
     -- TODO: onClick works in Firefox, but not in Chrome/Safari
@@ -476,19 +489,16 @@ modeToggle w h model =
   -- may want to delay this to when Live is selected
   let optionLive = opt "Live" (mkLive_ (Utils.fromJust model.inputExp)) in
   let optionAdHoc = opt "Ad Hoc" AdHoc in
-  let optionFreeze = opt "Freeze" NoDirectMan in
   Html.select
     [ buttonAttrs w h ]
-    [ optionLive, optionAdHoc, optionFreeze ]
+    [ optionLive, optionAdHoc ]
 
 orientationButton w h model =
-  let ui = model.ui in
   Html.button
       [ buttonAttrs w h
-      , Events.onClick events.address
-          (UIupdate ({ ui | orient <- switchOrient ui.orient}))
+      , Events.onClick events.address SwitchOrient
       ]
-      [Html.text ("Orientation: " ++ (toString model.ui.orient))]
+      [Html.text ("Orientation: " ++ (toString model.orient))]
 
 view : (Int, Int) -> Model -> GE.Element
 view (w,h) model =
@@ -521,7 +531,7 @@ view (w,h) model =
 
   let midSection =
     GE.size wAll hMid <|
-      case model.ui.orient of
+      case model.orient of
         Vertical   -> mainSectionVertical wAll hMid model
         Horizontal -> mainSectionHorizontal wAll hMid model in
 
@@ -537,4 +547,6 @@ view (w,h) model =
         ]
     , sideGutter
     ]
+
+-- TODO: add onMouseUp DeselectObject event to all GE.Elements...
 
