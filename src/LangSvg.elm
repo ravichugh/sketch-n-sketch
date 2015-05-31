@@ -113,7 +113,7 @@ valOfAttr (k,a) = VList [VBase (String k), valOfAVal a]
 valToPath = Utils.spaces << valToPath_
 
 valToPath_ vs =
-  let pt (i,_) (j,_) = toString i ++ " " ++ toString j in
+  let pt i j = toString i ++ " " ++ toString j in
   case vs of
     [] -> []
     VBase (String cmd) :: vs' ->
@@ -140,9 +140,9 @@ valToPath_ vs =
 projConsts k vs =
   if k == 0 then ([], vs)
   else case vs of
-         VConst it ::vs' ->
+         VConst (i,_) ::vs' ->
            let (l1,l2) = projConsts (k-1) vs' in
-           (it::l1, l2)
+           (i::l1, l2)
 
 matchCmd cmd s =
   let [c] = String.toList cmd in
