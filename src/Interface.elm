@@ -243,58 +243,8 @@ createMousePosCallback mx my objid kind zone old =
           case LangSvg.realZoneOf zone of
             LangSvg.ZPoint i -> ret [fx (addi "x" i), fy (addi "y" i)]
 
-        -- TODO rethink/refactor polygon zones
-
-        ("polygon", "Interior") ->
-          let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
-          let pts = toPoints <| Utils.find_ nodeAttrs "points" in
-          let accs =
-            let foo (j,(xj,yj)) (acc1,acc2) =
-              let (xj',yj') = (posX' xj, posY' yj) in
-              let acc2' = (addi "x"j, LangSvg.ANum xj') :: (addi "y"j, LangSvg.ANum yj') :: acc2 in
-              ((xj',yj')::acc1, acc2')
-            in
-            Utils.foldli foo ([],[]) pts
-          in
-          let (acc1,acc2) = Utils.reverse2 accs in
-          ([("points", LangSvg.APoints acc1)], acc2)
-
-        ("polygon", _) ->
-          case LangSvg.realZoneOf zone of
-            LangSvg.ZPoint i ->
-              let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
-              let pts = toPoints <| Utils.find_ nodeAttrs "points" in
-              let accs =
-                let foo (j,(xj,yj)) (acc1,acc2) =
-                  if | i /= j -> ((xj,yj)::acc1, acc2)
-                     | otherwise ->
-                         let (xj',yj') = (posX' xj, posY' yj) in
-                         let acc2' = (addi "x"i, LangSvg.ANum xj') :: (addi "y"i, LangSvg.ANum yj') :: acc2 in
-                         ((xj',yj')::acc1, acc2')
-                in
-                Utils.foldli foo ([],[]) pts
-              in
-              let (acc1,acc2) = Utils.reverse2 accs in
-              ([("points", LangSvg.APoints acc1)], acc2)
-            LangSvg.ZEdge i ->
-              let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
-              let pts = toPoints <| Utils.find_ nodeAttrs "points" in
-              let n = List.length pts in
-              let accs =
-                let foo (j,(xj,yj)) (acc1,acc2) =
-                  if | i == j || (i == n && j == 1) || (i < n && j == i+1) ->
-                         let (xj',yj') = (posX' xj, posY' yj) in
-                         let acc2' = (addi "x"j, LangSvg.ANum xj') :: (addi "y"j, LangSvg.ANum yj') :: acc2 in
-                         ((xj',yj')::acc1, acc2')
-                     | otherwise ->
-                         ((xj,yj)::acc1, acc2)
-                in
-                Utils.foldli foo ([],[]) pts
-              in
-              let (acc1,acc2) = Utils.reverse2 accs in
-              ([("points", LangSvg.APoints acc1)], acc2)
-
-        ("polyline", _) -> Debug.crash "TODO polyline zone callbacks"
+        ("polygon", _)  -> createCallbackPoly zone kind objid old posX' posY'
+        ("polyline", _) -> createCallbackPoly zone kind objid old posX' posY'
 
     in
     let newSlate = List.foldr (upslate objid) old.workingSlate newRealAttrs in
@@ -316,6 +266,69 @@ createMousePosCallback mx my objid kind zone old =
                   ) newSlate otherChanges
               in
               (newE, newSlate')
+
+createCallbackPoly zone shape =
+  let _ = Utils.assert "createCallbackPoly" (shape == "polygon" || shape == "polyline") in
+  case LangSvg.realZoneOf zone of
+    LangSvg.Z "Interior" -> polyInterior shape
+    LangSvg.ZPoint i     -> polyPoint i shape
+    LangSvg.ZEdge i      -> polyEdge i shape
+
+-- TODO:
+--  - differentiate between "polygon" and "polyline" for interior
+--  - rethink/refactor point/edge zones
+
+polyInterior shape objid old posX' posY' =
+  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
+  let pts = toPoints <| Utils.find_ nodeAttrs "points" in
+  let accs =
+    let foo (j,(xj,yj)) (acc1,acc2) =
+      let (xj',yj') = (posX' xj, posY' yj) in
+      let acc2' = (addi "x"j, LangSvg.ANum xj') :: (addi "y"j, LangSvg.ANum yj') :: acc2 in
+      ((xj',yj')::acc1, acc2')
+    in
+    Utils.foldli foo ([],[]) pts
+  in
+  let (acc1,acc2) = Utils.reverse2 accs in
+  ([("points", LangSvg.APoints acc1)], acc2)
+
+polyPoint i shape objid old posX' posY' =
+  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
+  let pts = toPoints <| Utils.find_ nodeAttrs "points" in
+  let accs =
+    let foo (j,(xj,yj)) (acc1,acc2) =
+      if | i /= j -> ((xj,yj)::acc1, acc2)
+         | otherwise ->
+             let (xj',yj') = (posX' xj, posY' yj) in
+             let acc2' = (addi "x"i, LangSvg.ANum xj')
+                         :: (addi "y"i, LangSvg.ANum yj')
+                         :: acc2 in
+             ((xj',yj')::acc1, acc2')
+    in
+    Utils.foldli foo ([],[]) pts
+  in
+  let (acc1,acc2) = Utils.reverse2 accs in
+  ([("points", LangSvg.APoints acc1)], acc2)
+
+polyEdge i shape objid old posX' posY' =
+  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
+  let pts = toPoints <| Utils.find_ nodeAttrs "points" in
+  let n = List.length pts in
+  let accs =
+    let foo (j,(xj,yj)) (acc1,acc2) =
+      if | i == j || (i == n && j == 1) || (i < n && j == i+1) ->
+             let (xj',yj') = (posX' xj, posY' yj) in
+             let acc2' = (addi "x"j, LangSvg.ANum xj')
+                         :: (addi "y"j, LangSvg.ANum yj')
+                         :: acc2 in
+             ((xj',yj')::acc1, acc2')
+         | otherwise ->
+             ((xj,yj)::acc1, acc2)
+    in
+    Utils.foldli foo ([],[]) pts
+  in
+  let (acc1,acc2) = Utils.reverse2 accs in
+  ([("points", LangSvg.APoints acc1)], acc2)
 
 main : Signal GE.Element
 main = let sigModel = Signal.foldp upstate sampleModel
