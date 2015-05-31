@@ -144,20 +144,24 @@ combine solutions =
 -- assumes that a single variable is being solved for
 simpleSolve : Subst -> Equation -> Maybe Num
 simpleSolve subst (Equation sum tr) =
-  let evalTrace t = case t of
-    TrLoc (k,_)  -> case Dict.get k subst of
-                      Nothing -> (0, 1)
-                      Just i  -> (i, 0)
-    TrOp Plus ts -> List.foldl plusplus (0,0) (List.map evalTrace ts)
-    -- TODO: handle minus directly, to improve performance
-    -- TrOp Minus [t1,t2] -> List.foldl minusminus (0,0) (List.map evalTrace [t1,t2])
-    TrOp op _     -> Debug.crash <| "Sync.evalTrace, unsupported op: " ++ strOp op
+  let walkTrace t = case t of
+    TrLoc (k,_) ->
+      case Dict.get k subst of
+        Nothing -> Just (0, 1)
+        Just i  -> Just (i, 0)
+    TrOp Plus ts ->
+      let foo mx macc =
+        case (mx, macc) of
+          (Just (a,b), Just (acc1,acc2)) -> Just (a+acc1, b+acc2)
+          _                              -> Nothing
+      in
+        List.foldl foo (Just (0,0)) (List.map walkTrace ts)
+    _ ->
+      Nothing
   in
-  let (partialSum,n) = evalTrace tr in
-  Just <| (sum - partialSum) / n
-
-plusplus = Utils.lift_2_2 (+)
--- minusminus = Utils.lift_2_2 (-)
+  Utils.mapMaybe
+    (\(partialSum,n) -> (sum - partialSum) / n)
+    (walkTrace tr)
 
 compareVals : (Val, Val) -> Num
 compareVals (v1, v2) = case (v1, v2) of
