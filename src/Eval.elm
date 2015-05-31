@@ -104,12 +104,12 @@ eval env e =
 
 evalOp env op es =
   case List.map (eval_ env) es of
-    [VConst it, VConst jt] ->
+    [VConst (i,it), VConst (j,jt)] ->
       case op of
-        Plus  -> VConst (fst it + fst jt, TrOp op [snd it, snd jt])
-        Minus -> VConst (fst it - fst jt, TrOp op [snd it, snd jt])
-        Mult  -> VConst (fst it * fst jt, TrOp op [snd it, snd jt])
-        Lt    -> vBool  (fst it < fst jt)
+        Plus  -> VConst (evalDelta op [i,j], TrOp op [it,jt])
+        Minus -> VConst (evalDelta op [i,j], TrOp op [it,jt])
+        Mult  -> VConst (evalDelta op [i,j], TrOp op [it,jt])
+        Lt    -> vBool  (i < j)
 
 evalBranches env v =
   List.foldl (\(p,e) acc ->
@@ -119,6 +119,15 @@ evalBranches env v =
       _                    -> Nothing
 
   ) Nothing
+
+evalDelta op [i,j] =
+  let f =
+    case op of
+      Plus  -> (+)
+      Minus -> (-)
+      Mult  -> (*)
+  in
+  f i j
 
 run : Exp -> Val
 run e =
