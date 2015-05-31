@@ -115,10 +115,9 @@ locsOfTrace =
 
 solveOneLeaf : Subst -> Val -> List (LocId, Num)
 solveOneLeaf s (VConst (i, tr)) =
-  List.map
+  List.filterMap
     (\l -> let s' = Dict.remove l s in
-           let n  = solve s' (Equation i tr) in
-           (l, n))
+           Utils.mapMaybe (\n -> (l,n)) (simpleSolve s' (Equation i tr)))
     (List.map fst <| Set.toList <| locsOfTrace tr)
 
 inferSubsts : Subst -> List Val -> List Subst
@@ -143,8 +142,8 @@ combine solutions =
   List.foldl f (Just Dict.empty) solutions
 
 -- assumes that a single variable is being solved for
-solve : Subst -> Equation -> Num
-solve subst (Equation sum tr) =
+simpleSolve : Subst -> Equation -> Maybe Num
+simpleSolve subst (Equation sum tr) =
   let evalTrace t = case t of
     TrLoc (k,_)  -> case Dict.get k subst of
                       Nothing -> (0, 1)
@@ -155,7 +154,7 @@ solve subst (Equation sum tr) =
     TrOp op _     -> Debug.crash <| "Sync.evalTrace, unsupported op: " ++ strOp op
   in
   let (partialSum,n) = evalTrace tr in
-  (sum - partialSum) / n
+  Just <| (sum - partialSum) / n
 
 plusplus = Utils.lift_2_2 (+)
 -- minusminus = Utils.lift_2_2 (-)
@@ -399,8 +398,10 @@ makeTrigger e d0 d2 subst i zone = \newAttrs ->
       let k = whichLoc d0 d2 i zone attr in
       let subst' = Dict.remove k subst in
       let tr = justGet attr (Utils.thd3 (justGet i d0)) in
-      let kSolution = solve subst' (Equation newNum tr) in
-      (Dict.insert k kSolution acc1, Set.insert k acc2) in
+      case simpleSolve subst' (Equation newNum tr) of
+        Nothing -> (acc1, acc2)
+        Just kSolution -> (Dict.insert k kSolution acc1, Set.insert k acc2)
+    in
     List.foldl f (subst, Set.empty) newAttrs in
   let g i (_,_,di) acc =
     let h attr tr acc =
