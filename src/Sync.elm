@@ -116,9 +116,9 @@ locsOfTrace =
 solveOneLeaf : Subst -> Val -> List (LocId, Num)
 solveOneLeaf s (VConst (i, tr)) =
   List.filterMap
-    (\l -> let s' = Dict.remove l s in
-           Utils.mapMaybe (\n -> (l,n)) (solve s' (i, tr)))
-    (List.map fst <| Set.toList <| locsOfTrace tr)
+    (\k -> let s' = Dict.remove k s in
+           Utils.mapMaybe (\n -> (k,n)) (solve s' (i, tr)))
+    (List.map Utils.fst3 <| Set.toList <| locsOfTrace tr)
 
 inferSubsts : Subst -> List Val -> List Subst
 inferSubsts s0 vs =
@@ -150,7 +150,7 @@ solve subst eqn =
 
 evalTrace : Subst -> Trace -> Maybe Num
 evalTrace subst t = case t of
-  TrLoc (k,_) -> Dict.get k subst
+  TrLoc (k,_,_) -> Dict.get k subst
   TrOp op ts ->
     Utils.mapMaybe
       (Eval.evalDelta op)
@@ -163,11 +163,11 @@ evalLoc : Subst -> Trace -> Maybe (Maybe Num)
 evalLoc subst tr =
   case tr of
     TrOp _ _    -> Nothing
-    TrLoc (k,_) -> Just (Dict.get k subst)
+    TrLoc (k,_,_) -> Just (Dict.get k subst)
 
 solveTopDown subst (n, t) = case t of
 
-  TrLoc (k,_) ->
+  TrLoc (k,_,_) ->
     case Dict.get k subst of
       Nothing -> Just n
       Just _  -> Nothing
@@ -213,7 +213,7 @@ solveL op n j = case op of
 
 simpleSolve subst (sum, tr) =
   let walkTrace t = case t of
-    TrLoc (k,_) ->
+    TrLoc (k,_,_) ->
       case Dict.get k subst of
         Nothing -> Just (0, 1)
         Just i  -> Just (i, 0)
@@ -430,7 +430,7 @@ strRow (zone, m) = case m of
 strLocs = Utils.braces << Utils.commas << List.map strLoc_
 
 strLoc_ l =
-  let (_,mx) = l in
+  let (_,_,mx) = l in
   if | mx == ""  -> strLoc l
      | otherwise -> mx
 
@@ -477,7 +477,7 @@ makeTrigger e d0 d2 subst i zone = \newAttrs ->
     List.foldl f (subst, Set.empty) newAttrs in
   let g i (_,_,di) acc =
     let h attr tr acc =
-      let locs = Set.map fst (locsOfTrace tr) in
+      let locs = Set.map Utils.fst3 (locsOfTrace tr) in
       if | Utils.setIsEmpty (locs `Set.intersect` changedLocs) -> acc
          | otherwise -> Dict.insert attr (evalTr subst' tr) acc
 
@@ -517,7 +517,7 @@ whichLoc d0 d2 i z attr =
       |> snd |> Utils.maybeFind z |> Utils.fromJust
       |> Utils.fromJust_ "guaranteed not to fail b/c of check in makeTriggers"
       |> fst |> Set.fromList in
-  let [(k,_)] = Set.toList (trLocs `Set.intersect` zoneLocs) in
+  let [(k,_,_)] = Set.toList (trLocs `Set.intersect` zoneLocs) in
   k
 
 evalTr subst tr = Utils.fromJust_ "evalTr" (evalTrace subst tr)

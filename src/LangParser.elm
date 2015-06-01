@@ -14,7 +14,9 @@ import Prelude
 ------------------------------------------------------------------------------
 
 (prelude, initK) = freshen_ 1 (parseE_ identity Prelude.src)
-isPreludeLoc (k,_) = k < initK
+
+isPreludeLoc : Loc -> Bool
+isPreludeLoc (k,_,_) = k < initK
 
 ------------------------------------------------------------------------------
 
@@ -30,7 +32,7 @@ substOf e = substOfExps_ Dict.empty [prelude, e]
 
 freshen_ : Int -> Exp -> (Exp, Int)
 freshen_ k e = case e of
-  EConst i _ -> (EConst i (k, ""), k + 1)
+  EConst i l -> let (0,b,"") = l in (EConst i (k, b, ""), k + 1)
   EBase v    -> (EBase v, k)
   EVar x     -> (EVar x, k)
   EFun ps e  -> let (e',k') = freshen_ k e in (EFun ps e', k')
@@ -58,7 +60,7 @@ freshenExps k es =
     (e1::es', k1)) ([],k) es
 
 addBreadCrumbs pe = case pe of
-  (PVar x, EConst n (k, "")) -> EConst n (k, x)
+  (PVar x, EConst n (k, b, "")) -> EConst n (k, b, x)
   (PList ps mp, EList es me) ->
     case Utils.maybeZip ps es of
       Nothing  -> EList es me
@@ -73,9 +75,11 @@ addBreadCrumbs pe = case pe of
 -- this will be done while parsing eventually...
 
 substOf_ s e = case e of
-  EConst i l -> case Dict.get (fst l) s of
-                  Nothing -> Dict.insert (fst l) i s
-                  Just j  -> if | i == j -> s
+  EConst i l ->
+    let (k,_,_) = l in
+    case Dict.get k s of
+      Nothing -> Dict.insert k i s
+      Just j  -> if | i == j -> s
   EBase _    -> s
   EVar _     -> s 
   EFun _ e'  -> substOf_ s e'
@@ -120,11 +124,21 @@ parseFloat =
 parseSign =
   P.option 1 (P.satisfy ((==) '-') >>> P.return (-1))
 
-parseNum : P.Parser Num
+parseExclaim =
+  (P.satisfy ((==) '!')) >>> P.return (Just ())
+
+parseFrozen =
+  P.option Nothing parseExclaim >>= \m ->
+    case m of
+      Just () -> P.return true
+      Nothing -> P.return false
+
+parseNum : P.Parser (Num, Frozen)
 parseNum =
   parseSign                             >>= \i ->
   parseFloat <++ (toFloat <$> parseInt) >>= \n ->
-    P.return (i * n)
+  parseFrozen                           >>= \b ->
+    P.return (i * n, b)
 
 -- TODO allow '_', disambiguate from wildcard in parsePat
 parseIdent : P.Parser String
@@ -155,8 +169,8 @@ token_ = white << P.token
 delimit a b = P.between (token_ a) (token_ b)
 parens      = delimit "(" ")"
 
-parseNumV = (VConst << flip (,) dummyTrace) <$> parseNum
-parseNumE = flip EConst dummyLoc   <$> parseNum
+parseNumV = parseNum >>= \(n,b) -> P.return (VConst (n, dummyTrace_ b))
+parseNumE = parseNum >>= \(n,b) -> P.return (EConst n (dummyLoc_ b))
 
 parseEBase =
       (always eTrue  <$> P.token "true")

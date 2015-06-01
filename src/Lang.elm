@@ -8,10 +8,13 @@ import Utils
 
 ------------------------------------------------------------------------------
 
-type alias Loc = (LocId, Ident)  -- "" rather than Nothing b/c comparable
+type alias Loc = (LocId, Frozen, Ident)  -- "" rather than Nothing b/c comparable
 type alias LocId = Int
 type alias Ident = String
 type alias Num = Float
+
+type alias Frozen = Int  -- b/c Bool isn't comparable
+(true, false) = (1, 0)
 
 type Pat
   = PVar Ident
@@ -90,8 +93,9 @@ strOp op = case op of
   Div   -> "/"
   Lt    -> "<"
 
-strLoc (k, mx) =
+strLoc (k, b, mx) =
   "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx)
+                    ++ (if b == true then "!" else "")
 
 strTrace tr = case tr of
   TrLoc l   -> strLoc l
@@ -119,7 +123,10 @@ sExp_ showLocs k e =
   case e of
     EBase v -> strBaseVal v
     EConst i l ->
-      toString i ++ if showLocs then Utils.braces (strLoc l) else ""
+      let (_,b,_) = l in
+      toString i
+        ++ (if b == true then "!" else "")
+        ++ if showLocs then Utils.braces (strLoc l) else ""
     EVar x -> x
     EFun [p] e ->
       Utils.parens <| "\\" ++ strPat p ++ indent e
@@ -214,8 +221,10 @@ type alias Subst = Dict.Dict LocId Num
 
 applySubst : Subst -> Exp -> Exp
 applySubst subst e = case e of
-  EConst n l -> case Dict.get (fst l) subst of Just i -> EConst i l
-                                            -- Nothing -> EConst n l
+  EConst n l ->
+    case Dict.get (Utils.fst3 l) subst of
+      Just i -> EConst i l
+   -- Nothing -> EConst n l
   EBase _    -> e
   EVar _     -> e
   EFun ps e' -> EFun ps (applySubst subst e')
@@ -232,9 +241,12 @@ applySubst subst e = case e of
 ------------------------------------------------------------------------------
 -- Abstract Syntax Helpers
 
-dummyLoc = (0, "")
-dummyTrace = TrLoc dummyLoc
-eConst = flip EConst dummyLoc
+dummyLoc_ b = (0, b, "")
+dummyTrace_ b = TrLoc (dummyLoc_ b)
+
+dummyLoc = dummyLoc_ false
+dummyTrace = dummyTrace_ false
+
 ePlus e1 e2 = EOp Plus [e1,e2]
 
 eBool  = EBase << Bool
