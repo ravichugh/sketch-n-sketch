@@ -284,11 +284,12 @@ codebox_ w h event s =
            [ ("font-family", params.mainSection.codebox.font)
            , ("font-size", params.mainSection.codebox.fontSize)
            , ("border", params.mainSection.codebox.border)
-           , ("white-space", "nowrap")
+           -- TODO: "pre" preserves breaks on Firefox,
+           --   but still no horizontal scrollbars on Chome/Safari
+           , ("whiteSpace", "pre")
            , ("height", "99%") , ("width", "99%")
            , ("resize", "none")
            , ("overflow", "auto")
-           -- TODO "overflow-x" horizontal scrollbar still not showing up.
            ]
        , Attr.value s
        , Events.onMouseUp events.address DeselectObject
