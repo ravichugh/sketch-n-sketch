@@ -284,6 +284,7 @@ codebox_ w h event s =
            [ ("font-family", params.mainSection.codebox.font)
            , ("font-size", params.mainSection.codebox.fontSize)
            , ("border", params.mainSection.codebox.border)
+           , ("white-space", "nowrap")
            , ("height", "99%") , ("width", "99%")
            , ("resize", "none")
            , ("overflow", "auto")
