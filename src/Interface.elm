@@ -50,11 +50,13 @@ sampleModel =
   in
     { code         = sExp e
     , inputExp     = Just e
-    , movingObj    = Nothing
     , rootId       = rootId
     , workingSlate = slate
     , mode         = mkLive e v
-    , ui           = {orient = Vertical}
+    , mouseMode    = MouseNothing
+    , orient       = Vertical
+    , midOffsetX   = 0
+    , midOffsetY   = -100
     , showZones    = False
     }
 
@@ -72,27 +74,34 @@ upstate evt old = case Debug.log "Event" evt of
       let v = Eval.run e in
       let (rootId,slate) = LangSvg.valToIndexedTree v in
       { old | inputExp <- Just e
-            , movingObj <- Nothing
+            , code <- sExp e
             , rootId <- rootId
             , workingSlate <- slate
             , mode <- refreshMode old.mode e }
 
-    PrintSvg -> { old | movingObj <- Nothing , mode <- Print }
+    PrintSvg -> { old | mode <- Print }
 
     CodeUpdate newcode -> { old | code <- newcode }
 
+    StartResizingMid -> { old | mouseMode <- MouseResizeMid Nothing }
+
     MousePos (mx, my) ->
-      case (old.mode, old.movingObj) of
-
-        (NoDirectMan, _) -> old
-
-        (_, Nothing) -> old
-
-        (_, Just (objid, kind, zone, Nothing)) ->
+      case old.mouseMode of
+        MouseNothing -> old
+        MouseResizeMid Nothing ->
+          let f =
+            case old.orient of
+              Vertical   -> \(mx',_) -> (old.midOffsetX + mx' - mx, old.midOffsetY)
+              Horizontal -> \(_,my') -> (old.midOffsetY, old.midOffsetY + my' - my)
+          in
+          { old | mouseMode <- MouseResizeMid (Just f) }
+        MouseResizeMid (Just f) ->
+          let (x,y) = f (mx, my) in
+          { old | midOffsetX <- x , midOffsetY <- y }
+        MouseObject (objid, kind, zone, Nothing) ->
           let onNewPos = createMousePosCallback mx my objid kind zone old in
-          { old | movingObj <- Just (objid, kind, zone, Just onNewPos) }
-
-        (_, Just (objid, kind, zone, Just onNewPos)) ->
+          { old | mouseMode <- MouseObject (objid, kind, zone, Just onNewPos) }
+        MouseObject (_, _, _, Just onNewPos) ->
           let (newE,newSlate) = onNewPos (mx, my) in
           { old | code <- sExp newE
                 , inputExp <- Just newE
@@ -100,16 +109,15 @@ upstate evt old = case Debug.log "Event" evt of
 
     SelectObject id kind zone ->
       case old.mode of
-        NoDirectMan -> Debug.crash "SelectObject shouldn't be triggered in NoDirectMan mode"
-        AdHoc       -> { old | movingObj <- Just (id, kind, zone, Nothing) }
+        AdHoc       -> { old | mouseMode <- MouseObject (id, kind, zone, Nothing) }
         Live triggers ->
           case Utils.justGet zone (Utils.justGet id triggers) of
-            Nothing -> { old | movingObj <- Nothing }
-            Just _  -> { old | movingObj <- Just (id, kind, zone, Nothing) }
+            Nothing -> { old | mouseMode <- MouseNothing }
+            Just _  -> { old | mouseMode <- MouseObject (id, kind, zone, Nothing) }
         SyncSelect _ _ -> old
 
     DeselectObject ->
-      { old | movingObj <- Nothing
+      { old | mouseMode <- MouseNothing
             , mode <- refreshMode old.mode (Utils.fromJust old.inputExp) }
 
     Sync -> 
@@ -171,7 +179,7 @@ upstate evt old = case Debug.log "Event" evt of
 
     SwitchMode m -> { old | mode <- m }
 
-    UIupdate u -> { old | ui <- u }
+    SwitchOrient -> { old | orient <- switchOrient old.orient }
 
     ToggleZones -> { old | showZones <- not old.showZones }
 
@@ -236,58 +244,8 @@ createMousePosCallback mx my objid kind zone old =
           case LangSvg.realZoneOf zone of
             LangSvg.ZPoint i -> ret [fx (addi "x" i), fy (addi "y" i)]
 
-        -- TODO rethink/refactor polygon zones
-
-        ("polygon", "Interior") ->
-          let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
-          let pts = toPoints <| Utils.find_ nodeAttrs "points" in
-          let accs =
-            let foo (j,(xj,yj)) (acc1,acc2) =
-              let (xj',yj') = (posX' xj, posY' yj) in
-              let acc2' = (addi "x"j, LangSvg.ANum xj') :: (addi "y"j, LangSvg.ANum yj') :: acc2 in
-              ((xj',yj')::acc1, acc2')
-            in
-            Utils.foldli foo ([],[]) pts
-          in
-          let (acc1,acc2) = Utils.reverse2 accs in
-          ([("points", LangSvg.APoints acc1)], acc2)
-
-        ("polygon", _) ->
-          case LangSvg.realZoneOf zone of
-            LangSvg.ZPoint i ->
-              let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
-              let pts = toPoints <| Utils.find_ nodeAttrs "points" in
-              let accs =
-                let foo (j,(xj,yj)) (acc1,acc2) =
-                  if | i /= j -> ((xj,yj)::acc1, acc2)
-                     | otherwise ->
-                         let (xj',yj') = (posX' xj, posY' yj) in
-                         let acc2' = (addi "x"i, LangSvg.ANum xj') :: (addi "y"i, LangSvg.ANum yj') :: acc2 in
-                         ((xj',yj')::acc1, acc2')
-                in
-                Utils.foldli foo ([],[]) pts
-              in
-              let (acc1,acc2) = Utils.reverse2 accs in
-              ([("points", LangSvg.APoints acc1)], acc2)
-            LangSvg.ZEdge i ->
-              let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
-              let pts = toPoints <| Utils.find_ nodeAttrs "points" in
-              let n = List.length pts in
-              let accs =
-                let foo (j,(xj,yj)) (acc1,acc2) =
-                  if | i == j || (i == n && j == 1) || (i < n && j == i+1) ->
-                         let (xj',yj') = (posX' xj, posY' yj) in
-                         let acc2' = (addi "x"j, LangSvg.ANum xj') :: (addi "y"j, LangSvg.ANum yj') :: acc2 in
-                         ((xj',yj')::acc1, acc2')
-                     | otherwise ->
-                         ((xj,yj)::acc1, acc2)
-                in
-                Utils.foldli foo ([],[]) pts
-              in
-              let (acc1,acc2) = Utils.reverse2 accs in
-              ([("points", LangSvg.APoints acc1)], acc2)
-
-        ("polyline", _) -> Debug.crash "TODO polyline zone callbacks"
+        ("polygon", _)  -> createCallbackPoly zone kind objid old posX' posY'
+        ("polyline", _) -> createCallbackPoly zone kind objid old posX' posY'
 
     in
     let newSlate = List.foldr (upslate objid) old.workingSlate newRealAttrs in
@@ -309,6 +267,69 @@ createMousePosCallback mx my objid kind zone old =
                   ) newSlate otherChanges
               in
               (newE, newSlate')
+
+createCallbackPoly zone shape =
+  let _ = Utils.assert "createCallbackPoly" (shape == "polygon" || shape == "polyline") in
+  case LangSvg.realZoneOf zone of
+    LangSvg.Z "Interior" -> polyInterior shape
+    LangSvg.ZPoint i     -> polyPoint i shape
+    LangSvg.ZEdge i      -> polyEdge i shape
+
+-- TODO:
+--  - differentiate between "polygon" and "polyline" for interior
+--  - rethink/refactor point/edge zones
+
+polyInterior shape objid old posX' posY' =
+  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
+  let pts = toPoints <| Utils.find_ nodeAttrs "points" in
+  let accs =
+    let foo (j,(xj,yj)) (acc1,acc2) =
+      let (xj',yj') = (posX' xj, posY' yj) in
+      let acc2' = (addi "x"j, LangSvg.ANum xj') :: (addi "y"j, LangSvg.ANum yj') :: acc2 in
+      ((xj',yj')::acc1, acc2')
+    in
+    Utils.foldli foo ([],[]) pts
+  in
+  let (acc1,acc2) = Utils.reverse2 accs in
+  ([("points", LangSvg.APoints acc1)], acc2)
+
+polyPoint i shape objid old posX' posY' =
+  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
+  let pts = toPoints <| Utils.find_ nodeAttrs "points" in
+  let accs =
+    let foo (j,(xj,yj)) (acc1,acc2) =
+      if | i /= j -> ((xj,yj)::acc1, acc2)
+         | otherwise ->
+             let (xj',yj') = (posX' xj, posY' yj) in
+             let acc2' = (addi "x"i, LangSvg.ANum xj')
+                         :: (addi "y"i, LangSvg.ANum yj')
+                         :: acc2 in
+             ((xj',yj')::acc1, acc2')
+    in
+    Utils.foldli foo ([],[]) pts
+  in
+  let (acc1,acc2) = Utils.reverse2 accs in
+  ([("points", LangSvg.APoints acc1)], acc2)
+
+polyEdge i shape objid old posX' posY' =
+  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
+  let pts = toPoints <| Utils.find_ nodeAttrs "points" in
+  let n = List.length pts in
+  let accs =
+    let foo (j,(xj,yj)) (acc1,acc2) =
+      if | i == j || (i == n && j == 1) || (i < n && j == i+1) ->
+             let (xj',yj') = (posX' xj, posY' yj) in
+             let acc2' = (addi "x"j, LangSvg.ANum xj')
+                         :: (addi "y"j, LangSvg.ANum yj')
+                         :: acc2 in
+             ((xj',yj')::acc1, acc2')
+         | otherwise ->
+             ((xj,yj)::acc1, acc2)
+    in
+    Utils.foldli foo ([],[]) pts
+  in
+  let (acc1,acc2) = Utils.reverse2 accs in
+  ([("points", LangSvg.APoints acc1)], acc2)
 
 main : Signal GE.Element
 main = let sigModel = Signal.foldp upstate sampleModel

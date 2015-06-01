@@ -444,8 +444,14 @@ test42 () =
        (svg (map (\\i (rect 'lightblue' (+ x0 (mult i sep)) y0 60 130)) [0 1 2])))"
     "[]"
 
--- output of test31, so that Interior of polygons are draggable
 test43 () =
+  makeTest
+    "(let [x0 y0 sep] [40 28 110]
+       (svg (map (\\i (rect 'lightblue' (+ x0 (* i sep)) y0 60 130)) [0 1 2])))"
+    "[]"
+
+-- output of test31, so that Interior of polygons are draggable
+test44 () =
   makeTest
     "['svg' [] [['rect' [['x' 50] ['y' 50] ['width' 200] ['height' 200] ['fill'
         'white']] []] ['polygon' [['fill' 'black'] ['points' [[60 50] [250 50] [250

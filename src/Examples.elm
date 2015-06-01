@@ -15,21 +15,23 @@ makeExample name s =
 
 logo = "
   (let [x0 y0 w h delta] [50 50 200 200 10]
+  (let [xw yh w2 h2] [(+ x0 w) (+ y0 h) (div w 2) (div h 2)]
+  (let poly (\\pts (polygon 'black' 'none' 0 pts))
   (svg [
     (rect 'white' x0 y0 w h)
-    (polygon 'black' 'DUMMY' 0
+    (poly
       [[(+ x0 delta) y0]
-       [(+ x0 w) y0]
-       [(+ x0 w) (minus (+ y0 h) delta)]])
-    (polygon 'black' 'DUMMY' 0
+       [xw y0]
+       [xw (- yh delta)]])
+    (poly
       [[x0 (+ y0 delta)]
-       [x0 (minus (+ y0 h) delta)]
-       [(minus (+ x0 (div w 2)) delta) (+ y0 (div h 2))]])
-    (polygon 'black' 'DUMMY' 0
-      [[(+ x0 delta) (+ y0 h)]
-       [(minus (+ x0 w) delta) (+ y0 h)]
-       [(+ x0 (div w 2)) (+ (+ y0 (div h 2)) delta)]])
-  ]))
+       [x0 (- yh delta)]
+       [(- (+ x0 w2) delta) (+ y0 h2)]])
+    (poly
+      [[(+ x0 delta) yh]
+       [(- xw delta) yh]
+       [(+ x0 w2) (+ (+ y0 h2) delta)]])
+  ]))))
 "
 
 threeBoxes = "

@@ -18,30 +18,30 @@ import Lazy
 type alias Model =
   { code : String
   , inputExp : Maybe Exp
-  , movingObj : Maybe (NodeId, ShapeKind, Zone, Maybe MouseTrigger)
   , rootId : NodeId
   , workingSlate : IndexedTree
   , mode : Mode
-  , ui : UI
+  , mouseMode : MouseMode
+  , orient : Orientation
+  , midOffsetX : Int  -- extra codebox width in vertical orientation
+  , midOffsetY : Int  -- extra codebox width in horizontal orientation
   , showZones : Bool
   }
 
-type alias UI = 
-  { orient : Orientation
-  --, windowSplit : (Int, Int) --TODO: for changing window dimensions of
-  --codebox and visualsbox
-  }
+type Mode
+  = AdHoc | SyncSelect Int PossibleChanges | Live Triggers
+  | Print
+
+type MouseMode
+  = MouseNothing
+  | MouseObject (NodeId, ShapeKind, Zone, Maybe (MouseTrigger (Exp, IndexedTree)))
+  | MouseResizeMid (Maybe (MouseTrigger (Int, Int)))
+
+type alias MouseTrigger a = (Int, Int) -> a
 
 type Orientation = Vertical | Horizontal
 
-type alias MouseTrigger = (Int, Int) -> (Exp, IndexedTree)
-
 type alias PossibleChanges = List ((Exp, Val), Float)
-
-type Mode
-  = AdHoc | SyncSelect Int PossibleChanges | Live Triggers
-  | NoDirectMan
-  | Print
 
 -- TODO
 syncBool m = case m of
@@ -71,7 +71,8 @@ type Event = CodeUpdate String
            | Render
            | PrintSvg
            | ToggleZones
-           | UIupdate UI
+           | SwitchOrient
+           | StartResizingMid
 
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""

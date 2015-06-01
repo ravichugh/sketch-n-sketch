@@ -102,24 +102,26 @@ diff_ k v1 v2 = case (v1, v2) of
 
 ------------------------------------------------------------------------------
 
-type Equation = Equation Num Trace
+type alias Equation = (Num, Trace)
 
 locsOfTrace : Trace -> Set.Set Loc
 locsOfTrace =
   let foo t = case t of
-    TrLoc l   -> if | LangParser.isPreludeLoc l -> Set.empty
-                    | otherwise                 -> Set.singleton l
+    TrLoc l ->
+      let (_,frozen,_) = l in
+      if | LangParser.isPreludeLoc l -> Set.empty
+         | frozen == true            -> Set.empty
+         | otherwise                 -> Set.singleton l
     TrOp _ ts -> List.foldl Set.union Set.empty (List.map foo ts)
   in
   foo
 
 solveOneLeaf : Subst -> Val -> List (LocId, Num)
 solveOneLeaf s (VConst (i, tr)) =
-  List.map
-    (\l -> let s' = Dict.remove l s in
-           let n  = solve s' (Equation i tr) in
-           (l, n))
-    (List.map fst <| Set.toList <| locsOfTrace tr)
+  List.filterMap
+    (\k -> let s' = Dict.remove k s in
+           Utils.mapMaybe (\n -> (k,n)) (solve s' (i, tr)))
+    (List.map Utils.fst3 <| Set.toList <| locsOfTrace tr)
 
 inferSubsts : Subst -> List Val -> List Subst
 inferSubsts s0 vs =
@@ -142,23 +144,95 @@ combine solutions =
   in
   List.foldl f (Just Dict.empty) solutions
 
--- assumes that a single variable is being solved for
-solve : Subst -> Equation -> Num
-solve subst (Equation sum tr) =
-  let evalTrace t = case t of
-    TrLoc (k,_)  -> case Dict.get k subst of
-                      Nothing -> (0, 1)
-                      Just i  -> (i, 0)
-    TrOp Plus ts -> List.foldl plusplus (0,0) (List.map evalTrace ts)
-    -- TODO: handle minus directly, to improve performance
-    -- TrOp Minus [t1,t2] -> List.foldl minusminus (0,0) (List.map evalTrace [t1,t2])
-    TrOp op _     -> Debug.crash <| "Sync.evalTrace, unsupported op: " ++ strOp op
-  in
-  let (partialSum,n) = evalTrace tr in
-  (sum - partialSum) / n
+solve : Subst -> Equation -> Maybe Num
+solve subst eqn =
+  (solveTopDown subst eqn) `Utils.plusMaybe` (simpleSolve subst eqn)
 
-plusplus = Utils.lift_2_2 (+)
--- minusminus = Utils.lift_2_2 (-)
+  -- both solveTopDown and simpleSolve
+  -- assumes that a single variable is being solved for
+
+evalTrace : Subst -> Trace -> Maybe Num
+evalTrace subst t = case t of
+  TrLoc (k,_,_) -> Dict.get k subst
+  TrOp op ts ->
+    Utils.mapMaybe
+      (Eval.evalDelta op)
+      (Utils.projJusts (List.map (evalTrace subst) ts))
+
+evalLoc : Subst -> Trace -> Maybe (Maybe Num)
+  -- Just (Just i)   tr is a location bound in subst
+  -- Just Nothing    tr is a location not bound (i.e. it's being solved for)
+  -- Nothing         tr is not a location
+evalLoc subst tr =
+  case tr of
+    TrOp _ _    -> Nothing
+    TrLoc (k,_,_) -> Just (Dict.get k subst)
+
+solveTopDown subst (n, t) = case t of
+
+  TrLoc (k,_,_) ->
+    case Dict.get k subst of
+      Nothing -> Just n
+      Just _  -> Nothing
+
+  TrOp op [t1,t2] ->
+    let left  = (evalTrace subst t1, evalLoc   subst t2) in
+    let right = (evalLoc   subst t1, evalTrace subst t2) in
+    case (isNumBinop op, left, right) of
+
+      -- four cases are of the following form,
+      -- where k is the single location variable being solved for:
+      --
+      --    1.   n =  i op k
+      --    2.   n =  i op t2
+      --    3.   n =  k op j
+      --    4.   n = t1 op j
+
+      (True, (Just i, Just Nothing), _) -> Just (solveR op n i)
+      (True, (Just i, Nothing), _)      -> solveTopDown subst (solveR op n i, t2)
+      (True, _, (Just Nothing, Just j)) -> Just (solveL op n j)
+      (True, _, (Nothing, Just j))      -> solveTopDown subst (solveL op n j, t1)
+
+      _ ->
+        let _ = Debug.log "Sync.solve" <| strTrace t in
+        Nothing
+
+isNumBinop = (/=) Lt
+
+-- n = i op j
+solveR op n i = case op of
+  Plus  -> n - i
+  Minus -> i - n
+  Mult  -> n / i
+  Div   -> i / n
+
+-- n = i op j
+solveL op n j = case op of
+  Plus  -> n - j
+  Minus -> j + n
+  Mult  -> n / j
+  Div   -> j * n
+
+
+simpleSolve subst (sum, tr) =
+  let walkTrace t = case t of
+    TrLoc (k,_,_) ->
+      case Dict.get k subst of
+        Nothing -> Just (0, 1)
+        Just i  -> Just (i, 0)
+    TrOp Plus ts ->
+      let foo mx macc =
+        case (mx, macc) of
+          (Just (a,b), Just (acc1,acc2)) -> Just (a+acc1, b+acc2)
+          _                              -> Nothing
+      in
+        List.foldl foo (Just (0,0)) (List.map walkTrace ts)
+    _ ->
+      Nothing
+  in
+  Utils.mapMaybe
+    (\(partialSum,n) -> (sum - partialSum) / n)
+    (walkTrace tr)
 
 compareVals : (Val, Val) -> Num
 compareVals (v1, v2) = case (v1, v2) of
@@ -359,7 +433,7 @@ strRow (zone, m) = case m of
 strLocs = Utils.braces << Utils.commas << List.map strLoc_
 
 strLoc_ l =
-  let (_,mx) = l in
+  let (_,_,mx) = l in
   if | mx == ""  -> strLoc l
      | otherwise -> mx
 
@@ -399,12 +473,14 @@ makeTrigger e d0 d2 subst i zone = \newAttrs ->
       let k = whichLoc d0 d2 i zone attr in
       let subst' = Dict.remove k subst in
       let tr = justGet attr (Utils.thd3 (justGet i d0)) in
-      let kSolution = solve subst' (Equation newNum tr) in
-      (Dict.insert k kSolution acc1, Set.insert k acc2) in
+      case solve subst' (newNum, tr) of
+        Nothing -> (acc1, acc2)
+        Just kSolution -> (Dict.insert k kSolution acc1, Set.insert k acc2)
+    in
     List.foldl f (subst, Set.empty) newAttrs in
   let g i (_,_,di) acc =
     let h attr tr acc =
-      let locs = Set.map fst (locsOfTrace tr) in
+      let locs = Set.map Utils.fst3 (locsOfTrace tr) in
       if | Utils.setIsEmpty (locs `Set.intersect` changedLocs) -> acc
          | otherwise -> Dict.insert attr (evalTr subst' tr) acc
 
@@ -444,13 +520,8 @@ whichLoc d0 d2 i z attr =
       |> snd |> Utils.maybeFind z |> Utils.fromJust
       |> Utils.fromJust_ "guaranteed not to fail b/c of check in makeTriggers"
       |> fst |> Set.fromList in
-  let [(k,_)] = Set.toList (trLocs `Set.intersect` zoneLocs) in
+  let [(k,_,_)] = Set.toList (trLocs `Set.intersect` zoneLocs) in
   k
 
-evalTr : Subst -> Trace -> Num
-evalTr subst tr = case tr of
-  TrLoc (k,_)  -> justGet k subst
-  TrOp Plus ts -> List.foldl (+) 0 (List.map (evalTr subst) ts)
-  TrOp Minus ts -> List.foldl (-) 0 (List.map (evalTr subst) ts)
-  TrOp op _    -> Debug.crash <| "Sync.evalTr, unsupported op: " ++ strOp op
+evalTr subst tr = Utils.fromJust_ "evalTr" (evalTrace subst tr)
 
