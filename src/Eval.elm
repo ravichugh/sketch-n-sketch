@@ -1,4 +1,4 @@
-module Eval (run, parseAndRun) where
+module Eval (run, parseAndRun, evalDelta) where
 
 import Debug
 
@@ -109,6 +109,7 @@ evalOp env op es =
         Plus  -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Minus -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Mult  -> VConst (evalDelta op [i,j], TrOp op [it,jt])
+        Div   -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Lt    -> vBool  (i < j)
 
 evalBranches env v =
@@ -126,6 +127,7 @@ evalDelta op [i,j] =
       Plus  -> (+)
       Minus -> (-)
       Mult  -> (*)
+      Div   -> (/)
   in
   f i j
 

@@ -18,7 +18,7 @@ type Pat
   | PList (List Pat) (Maybe Pat)
 
 type Op
-  = Plus | Minus | Mult
+  = Plus | Minus | Mult | Div
   | Lt
 
 type Exp
@@ -83,7 +83,12 @@ strVal_ showTraces v =
     VList vs         -> Utils.bracks (String.join " " (List.map foo vs))
     VHole i          -> "HOLE_" ++ toString i
 
-strOp op = case op of {Plus -> "+"; Minus -> "-"; Mult -> "*"; Lt -> "<"}
+strOp op = case op of
+  Plus  -> "+"
+  Minus -> "-"
+  Mult  -> "*"
+  Div   -> "/"
+  Lt    -> "<"
 
 strLoc (k, mx) =
   "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx)

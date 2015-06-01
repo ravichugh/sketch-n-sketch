@@ -156,6 +156,13 @@ bindMaybe f mx = case mx of {Just x -> f x; Nothing -> Nothing}
 plusMaybe : Maybe a -> Maybe a -> Maybe a
 plusMaybe mx my = case mx of {Just _ -> mx; Nothing -> my}
 
+projJusts : List (Maybe a) -> Maybe (List a)
+projJusts =
+  List.foldr (\mx acc ->
+    case (mx, acc) of
+      (Just x, Just xs) -> Just (x::xs)
+      _                 -> Nothing) (Just [])
+
 mapSnd : (b -> b') -> (a, b) -> (a, b')
 mapSnd f (x,y) = (x, f y)
 

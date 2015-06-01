@@ -35,8 +35,6 @@ src = "
 (let hd   (\\[x|xs] x)
 (let tl   (\\[x|xs] xs)
 
-(let plus  (\\(x y) (+ x y))
-
 (letrec mult (\\(m n)
   (if (< m 1) 0 (+ n (mult (+ m -1) n))))
 
@@ -46,6 +44,8 @@ src = "
   (if (< m n) 0
   (if (< n 2) m
     (+ 1 (div (minus m n) n)))))
+
+(let neg (\\x (- 0 x))
 
 (let circle (\\(fill x y r)
   ['circle'
@@ -106,24 +106,3 @@ src = "
 0))))))))))))))))))))))))))))))))))))
 
 "
-
--- (let plus  (\\(x y) (+ x y))
--- (let minus (\\(x y) (- x y))
--- (let neg   (\\x     (- 0 x))
--- 
--- (letrec mult (\\(m n)
---   (if (< m 1) 0 (+ n (mult (- m 1) n))))
--- 
--- (letrec div (\\(m n)
---   (if (< m n) 0
---   (if (< n 2) m
---     (+ 1 (div (- m n) n)))))
-
--- prelude : Exp -> Exp
--- prelude body =
---   let foo e = case e of
---     ELet b p e1 e2 -> ELet b p e1 (foo e2)
---     EConst 0 _     -> body
---   in
---   foo exp
-
