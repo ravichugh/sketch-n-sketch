@@ -143,9 +143,9 @@ combine solutions =
 
 solve : Subst -> Equation -> Maybe Num
 solve subst eqn =
-  (solve_ subst eqn) `Utils.plusMaybe` (simpleSolve subst eqn)
+  (solveTopDown subst eqn) `Utils.plusMaybe` (simpleSolve subst eqn)
 
-  -- both solve_ and simpleSolve
+  -- both solveTopDown and simpleSolve
   -- assumes that a single variable is being solved for
 
 evalTrace : Subst -> Trace -> Maybe Num
@@ -165,7 +165,7 @@ evalLoc subst tr =
     TrOp _ _    -> Nothing
     TrLoc (k,_) -> Just (Dict.get k subst)
 
-solve_ subst (n, t) = case t of
+solveTopDown subst (n, t) = case t of
 
   TrLoc (k,_) ->
     case Dict.get k subst of
@@ -175,39 +175,41 @@ solve_ subst (n, t) = case t of
   TrOp op [t1,t2] ->
     let left  = (evalTrace subst t1, evalLoc   subst t2) in
     let right = (evalLoc   subst t1, evalTrace subst t2) in
-    case (op, left, right) of
+    case (isNumBinop op, left, right) of
 
-      -- each of the following sets of cases are of the form,
+      -- four cases are of the following form,
       -- where k is the single location variable being solved for:
       --
       --    1.   n =  i op k
       --    2.   n =  i op t2
-      --    3.   n =  k op i
-      --    4.   n = t1 op i
+      --    3.   n =  k op j
+      --    4.   n = t1 op j
 
-      (Plus, (Just i, Just Nothing), _)  -> Just (n-i)
-      (Plus, (Just i, Nothing), _)       -> solve_ subst (n-i, t2)
-      (Plus, _, (Just Nothing, Just i))  -> Just (n-i)
-      (Plus, _, (Nothing, Just i))       -> solve_ subst (n-i, t1)
-
-      (Mult, (Just i, Just Nothing), _)  -> Just (n/i)
-      (Mult, (Just i, Nothing), _)       -> solve_ subst (n/i, t2)
-      (Mult, _, (Just Nothing, Just i))  -> Just (n/i)
-      (Mult, _, (Nothing, Just i))       -> solve_ subst (n/i, t1)
-
-      (Minus, (Just i, Just Nothing), _) -> Just (i-n)
-      (Minus, (Just i, Nothing), _)      -> solve_ subst (i-n, t2)
-      (Minus, _, (Just Nothing, Just i)) -> Just (n+i)
-      (Minus, _, (Nothing, Just i))      -> solve_ subst (n+i, t1)
-
-      (Div, (Just i, Just Nothing), _)   -> Just (i/n)
-      (Div, (Just i, Nothing), _)        -> solve_ subst (i/n, t2)
-      (Div, _, (Just Nothing, Just i))   -> Just (n*i)
-      (Div, _, (Nothing, Just i))        -> solve_ subst (n*i, t1)
+      (True, (Just i, Just Nothing), _) -> Just (solveR op n i)
+      (True, (Just i, Nothing), _)      -> solveTopDown subst (solveR op n i, t2)
+      (True, _, (Just Nothing, Just j)) -> Just (solveL op n j)
+      (True, _, (Nothing, Just j))      -> solveTopDown subst (solveL op n j, t1)
 
       _ ->
         let _ = Debug.log "Sync.solve" <| strTrace t in
         Nothing
+
+isNumBinop = (/=) Lt
+
+-- n = i op j
+solveR op n i = case op of
+  Plus  -> n - i
+  Minus -> i - n
+  Mult  -> n / i
+  Div   -> i / n
+
+-- n = i op j
+solveL op n j = case op of
+  Plus  -> n - j
+  Minus -> j + n
+  Mult  -> n / j
+  Div   -> j * n
+
 
 simpleSolve subst (sum, tr) =
   let walkTrace t = case t of
