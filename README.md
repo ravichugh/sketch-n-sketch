@@ -68,8 +68,8 @@ Sketch-N-Sketch: Program Synthesis for Direct Manipulation
   e  ::=  ...
       |   []
       |   [e1 | e2]
-      |   [e1 .... en]           -- desugars to [e1 | e2 | ... | en | []]
-      |   [e1 .... en | erest]   -- desugars to [e1 | e2 | ... | en | erest]
+      |   [e1 .... en]           -- desugars to [e1 | [e2 | ... | [en | []]]]
+      |   [e1 .... en | erest]   -- desugars to [e1 | [e2 | ... | [en | erest]]]
 ```
 
 ### Patterns
@@ -112,6 +112,10 @@ Sketch-N-Sketch: Program Synthesis for Direct Manipulation
       |   (let p e1 e2)
       |   (letrec f (\x e1) e2)
 ```
+
+### SVG
+
+TODO
 
 ### Standard Prelude
 
