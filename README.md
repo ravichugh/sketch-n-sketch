@@ -31,6 +31,7 @@ Sketch-N-Sketch: Program Synthesis for Direct Manipulation
   e  ::=
       |   n         -- numbers (all are floating point)
       |   s         -- strings (use single-quotes, not double)
+      |   b         -- booleans
 ```
 
 ```
@@ -42,6 +43,10 @@ Sketch-N-Sketch: Program Synthesis for Direct Manipulation
 
 ```
   s  ::=  'hello' | 'world' | ...
+```
+
+```
+  b  ::=  true | false
 ```
 
 ### Primitive Operators
@@ -113,11 +118,29 @@ Sketch-N-Sketch: Program Synthesis for Direct Manipulation
       |   (letrec f (\x e1) e2)
 ```
 
-### SVG
-
-TODO
-
 ### Standard Prelude
 
 See `Prelude.elm` for the standard library included by every program.
+
+### SVG
+
+The result of a `little` program should be an "HTML node."
+Nodes are either text elements or SVG elements, represented as
+
+```
+  h  ::=  ['TEXT' e]
+      |   [shapeKind attrs children]
+```
+
+where
+
+```
+  shapeKind  ::=  'svg' | 'circle' | 'rect' | 'polygon' | 'text' | ...
+  attrs      ::=  [ ['attr1' e1] ... ['attrn' e2] ]
+  children   ::=  [ h1 ... hn ]
+```
+
+TODO explain attrs for different shapes
+
+See `Prelude.elm` for a small library of SVG-manipulating functions.
 
