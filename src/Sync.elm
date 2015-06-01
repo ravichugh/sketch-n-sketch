@@ -107,8 +107,11 @@ type alias Equation = (Num, Trace)
 locsOfTrace : Trace -> Set.Set Loc
 locsOfTrace =
   let foo t = case t of
-    TrLoc l   -> if | LangParser.isPreludeLoc l -> Set.empty
-                    | otherwise                 -> Set.singleton l
+    TrLoc l ->
+      let (_,frozen,_) = l in
+      if | LangParser.isPreludeLoc l -> Set.empty
+         | frozen == true            -> Set.empty
+         | otherwise                 -> Set.singleton l
     TrOp _ ts -> List.foldl Set.union Set.empty (List.map foo ts)
   in
   foo
