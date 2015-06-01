@@ -74,6 +74,7 @@ upstate evt old = case Debug.log "Event" evt of
       let v = Eval.run e in
       let (rootId,slate) = LangSvg.valToIndexedTree v in
       { old | inputExp <- Just e
+            , code <- sExp e
             , rootId <- rootId
             , workingSlate <- slate
             , mode <- refreshMode old.mode e }
