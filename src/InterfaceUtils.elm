@@ -10,13 +10,11 @@ import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr, Zone)
 import List 
 import Dict
 import Debug
-import String
 
-import Svg
-import Lazy
+import Html exposing (Html)
 
 type alias Model =
-  { code : String
+  { code : (String, Html)
   , inputExp : Maybe Exp
   , rootId : NodeId
   , workingSlate : IndexedTree
@@ -105,7 +103,7 @@ switchOrient m = case m of
   Vertical -> Horizontal
   Horizontal -> Vertical
 
-dimToPix d = String.append (toString d) "px"
+dimToPix d = toString d ++ "px"
 
 mkLive e v = Live <| Sync.prepareLiveUpdates e v
 mkLive_ e  = mkLive e (Eval.run e)

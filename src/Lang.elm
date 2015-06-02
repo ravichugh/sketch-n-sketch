@@ -3,6 +3,7 @@ module Lang where
 import String
 import Debug
 import Dict
+import Set
 
 import Utils
 
@@ -15,6 +16,9 @@ type alias Num = Float
 
 type alias Frozen = Int  -- b/c Bool isn't comparable
 (true, false) = (1, 0)
+
+type alias LocSet = Set.Set Loc
+type alias LocIdSet = Set.Set LocId
 
 type Pat
   = PVar Ident
@@ -116,6 +120,8 @@ sExpK k     = (++) (tab k) << sExp_ False k
 sExpLocsK k = (++) (tab k) << sExp_ True k
 sExp        = sExpK 0
 sExpLocs    = sExpLocsK 0
+
+-- TODO remove
 
 sExp_ showLocs k e =
   let foo = sExp_ showLocs in

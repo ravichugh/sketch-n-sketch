@@ -5,6 +5,7 @@
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
 import LangParser exposing (parseE, parseV)
+import LangUnparser exposing (unparseE)
 import Sync
 import Eval exposing (run)
 import Utils
@@ -48,7 +49,7 @@ sampleModel =
     {e,v} = f ()
     (rootId,slate) = LangSvg.valToIndexedTree v
   in
-    { code         = sExp e
+    { code         = unparseE e
     , inputExp     = Just e
     , rootId       = rootId
     , workingSlate = slate
@@ -70,18 +71,18 @@ upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
 
     Render ->
-      let e = parseE old.code in
+      let e = parseE (fst old.code) in
       let v = Eval.run e in
       let (rootId,slate) = LangSvg.valToIndexedTree v in
       { old | inputExp <- Just e
-            , code <- sExp e
+            , code <- unparseE e
             , rootId <- rootId
             , workingSlate <- slate
             , mode <- refreshMode old.mode e }
 
     PrintSvg -> { old | mode <- Print }
 
-    CodeUpdate newcode -> { old | code <- newcode }
+    CodeUpdate newcode -> { old | code <- (newcode, Html.div [] []) }
 
     StartResizingMid -> { old | mouseMode <- MouseResizeMid Nothing }
 
@@ -103,7 +104,7 @@ upstate evt old = case Debug.log "Event" evt of
           { old | mouseMode <- MouseObject (objid, kind, zone, Just onNewPos) }
         MouseObject (_, _, _, Just onNewPos) ->
           let (newE,newSlate) = onNewPos (mx, my) in
-          { old | code <- sExp newE
+          { old | code <- unparseE newE
                 , inputExp <- Just newE
                 , workingSlate <- newSlate }
 
@@ -141,7 +142,7 @@ upstate evt old = case Debug.log "Event" evt of
       let (SyncSelect i l) = old.mode in
       let ((ei,vi),_) = Utils.geti i l in
       let (rootId,tree) = LangSvg.valToIndexedTree vi in
-      { old | code <- sExp ei
+      { old | code <- unparseE ei
             , inputExp <- Just ei
             , rootId <- rootId
             , workingSlate <- tree
@@ -152,7 +153,7 @@ upstate evt old = case Debug.log "Event" evt of
       let j = i + offset in
       let ((ei,vi),_) = Utils.geti j l in
       let (rootId,tree) = LangSvg.valToIndexedTree vi in
-      { old | code <- sExp ei
+      { old | code <- unparseE ei
             , inputExp <- Just ei
             , rootId <- rootId
             , workingSlate <- tree
@@ -172,7 +173,7 @@ upstate evt old = case Debug.log "Event" evt of
           _      -> old.mode
       in
       { old | inputExp <- Just e
-            , code <- sExp e
+            , code <- unparseE e
             , mode <- m
             , rootId <- rootId
             , workingSlate <- tree }

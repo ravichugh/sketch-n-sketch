@@ -301,7 +301,6 @@ sync e v v' =
 --   e.g. for polygons, x1,y1,x2,y2,x3,y3,...
 
 type alias AttrName = String
-type alias LocSet = Set.Set Loc
 type alias Locs = List Loc
 type ExtraInfo = None | NumPoints Int
 

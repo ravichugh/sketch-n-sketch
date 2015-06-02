@@ -7,6 +7,7 @@ module InterfaceView2 where
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
 import LangParser exposing (parseE, parseV)
+import LangUnparser
 import Sync exposing (sync, Triggers)
 import Eval exposing (run)
 import Utils
@@ -273,7 +274,17 @@ codebox w h model =
            [Events.on "input" Events.targetValue
               (Signal.message events.address << CodeUpdate)]
   in
-    codebox_ w h event model.code
+    temp_codebox_ w h event model.code
+
+temp_codebox_ w h _ (_,node) =
+  Html.toElement w h <|
+    LangUnparser.topLevelDiv w h [ node ]
+    -- LangUnparser.topLevelDiv w h <|
+    --   [Html.div
+    --     []
+    --     [ Html.div [] [Html.text "hello"]
+    --     , Html.div [] [Html.text "world"]
+    --     ]]
 
 codebox_ w h event s =
   Html.toElement w h <|
@@ -300,7 +311,7 @@ canvas : Int -> Int -> Model -> GE.Element
 canvas w h model =
   case model.mode of
     Print ->
-      let v = Eval.run (parseE model.code) in
+      let v = Eval.run (parseE (fst model.code)) in
       let (i,tree) = LangSvg.valToIndexedTree v in
       let s = LangSvg.printSvg i tree in
       codebox_ w h [] s
