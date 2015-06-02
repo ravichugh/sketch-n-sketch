@@ -188,10 +188,14 @@ solveTopDown subst (n, t) = case t of
       --    3.   n =  k op j
       --    4.   n = t1 op j
 
-      (True, (Just i, Just Nothing), _) -> Just (solveR op n i)
-      (True, (Just i, Nothing), _)      -> solveTopDown subst (solveR op n i, t2)
-      (True, _, (Just Nothing, Just j)) -> Just (solveL op n j)
-      (True, _, (Nothing, Just j))      -> solveTopDown subst (solveL op n j, t1)
+      (True, (Just i, Just Nothing), _) -> solveR op n i
+      (True, (Just i, Nothing), _)      -> Utils.bindMaybe
+                                             (\n -> solveTopDown subst (n, t2))
+                                             (solveR op n i)
+      (True, _, (Just Nothing, Just j)) -> solveL op n j
+      (True, _, (Nothing, Just j))      -> Utils.bindMaybe
+                                             (\n -> solveTopDown subst (n, t1))
+                                             (solveL op n j)
 
       _ ->
         let _ = Debug.log "Sync.solve" <| strTrace t in
@@ -199,19 +203,23 @@ solveTopDown subst (n, t) = case t of
 
 isNumBinop = (/=) Lt
 
+maybeFloat n =
+  if | isNaN n || isInfinite n -> Debug.log "maybeFloat Nothing" Nothing
+     | otherwise               -> Just n
+
 -- n = i op j
 solveR op n i = case op of
-  Plus  -> n - i
-  Minus -> i - n
-  Mult  -> n / i
-  Div   -> i / n
+  Plus  -> maybeFloat <| n - i
+  Minus -> maybeFloat <| i - n
+  Mult  -> maybeFloat <| n / i
+  Div   -> maybeFloat <| i / n
 
 -- n = i op j
 solveL op n j = case op of
-  Plus  -> n - j
-  Minus -> j + n
-  Mult  -> n / j
-  Div   -> j * n
+  Plus  -> maybeFloat <| n - j
+  Minus -> maybeFloat <| j + n
+  Mult  -> maybeFloat <| n / j
+  Div   -> maybeFloat <| j * n
 
 
 simpleSolve subst (sum, tr) =
@@ -351,6 +359,15 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
 
 -- Step 2 --
 
+-- TODO
+--   equations are no longer always solvable.
+--   so perhaps (symbolically) take into account whether a
+--   solution may be Nothing (e.g. because of a division)
+--   when computing which Locs may be assigned to a zone.
+--   this would go after the cartProdWithDiff...
+--   would also need to take into account whether an equation
+--   is "top-down solvable" w.r.t to the desired location...
+
 shapesToZoneTable : Dict0 -> Dict1
 shapesToZoneTable d0 =
   let foo i stuff acc =
@@ -399,18 +416,29 @@ assignTriggers : Dict1 -> Dict2
 assignTriggers d1 =
   let f i (kind,zoneLists) (setSeen1,acc) =
     let g (zone,sets) (setSeen2,acc) =
-      case (Utils.findFirst (not << flip Set.member setSeen2) sets, sets) of
+      let rankedSets = List.sortBy scoreOfLocs sets in
+      let pred = not << flip Set.member setSeen2 in
+      case (Utils.findFirst pred rankedSets, rankedSets) of
         (Nothing, [])         -> (setSeen2, (zone,Nothing)::acc)
         (Nothing, set::sets') -> (setSeen2, (zone,Just(set,sets'))::acc)
         (Just x,  _)          ->
           let setSeen3 = Set.insert x setSeen2 in
-          let acc' = (zone, Just (x, Utils.removeFirst x sets)) :: acc in
+          let acc' = (zone, Just (x, Utils.removeFirst x rankedSets)) :: acc in
           (setSeen3, acc')
     in
     let (setSeen,zoneLists') = List.foldl g (setSeen1,[]) zoneLists in
     (setSeen, Dict.insert i (kind, List.reverse zoneLists') acc)
   in
   snd <| Dict.foldl f (Set.empty, Dict.empty) d1
+
+scoreOfLocs : Locs -> Int
+scoreOfLocs locs =
+  let foo (_,b,mx) acc =
+    let _ = Utils.assert "scoreOfLocs" (b == false) in
+    if | mx == ""  -> acc
+       | otherwise -> acc + 1
+  in
+  -1 * (List.foldl foo 0 locs)
 
 -- Step 4 --
 
@@ -468,12 +496,16 @@ makeTriggers e d0 d2 =
 makeTrigger : Exp -> Dict0 -> Dict2 -> Subst -> NodeId -> Zone -> Trigger
 makeTrigger e d0 d2 subst i zone = \newAttrs ->
   -- TODO symbolically compute changes !!!
+  -- once this is done, might be able to rank trigger sets by int/float
   let (subst',changedLocs) =
     let f (attr,newNum) (acc1,acc2) =
       let k = whichLoc d0 d2 i zone attr in
       let subst' = Dict.remove k subst in
       let tr = justGet attr (Utils.thd3 (justGet i d0)) in
       case solve subst' (newNum, tr) of
+        -- solve will no longer always return an answer, so one of
+        -- the locations assigned to this trigger may not have an
+        -- effect after all... (see Dict1 comment)
         Nothing -> (acc1, acc2)
         Just kSolution -> (Dict.insert k kSolution acc1, Set.insert k acc2)
     in
