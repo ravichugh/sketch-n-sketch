@@ -23,6 +23,7 @@ import Dict
 import String 
 import Graphics.Element as GE 
 import Graphics.Collage as GC
+import Graphics.Input as GI
 import Text as T exposing (defaultStyle)
 import Color
 
@@ -230,13 +231,13 @@ params =
      }
   , mainSection =
      { widgets =           -- Render/Sync buttons; Mode/Tests dropdowns
-        { wBtn = 85
-        , hBtn = 25
+        { wBtn = 98
+        , hBtn = 38
         , font = "Tahoma, sans-serif"
         , fontSize = "12px"
         }
      , vertical =
-        { hWidget = 40     -- vertical space between widgets
+        { hWidget = 50     -- vertical space between widgets
         , wGut = 10        -- width of gutters in between code/widgets/canvas
         }
      , horizontal =
@@ -317,29 +318,33 @@ canvas_ w h model =
                    ] ]
       [ svg ]
 
-middleWidgets w h model =
-  case model.mode of
-    SyncSelect _ [] ->
-      [ gapWidget w h
-      , gapWidget w h
-      , revertButton w h
-      ]
-    SyncSelect i l ->
-      [ gapWidget w h
-      , prevButton i w h
-      , chooseButton w h
-      , nextButton i l w h
-      ]
-    _ ->
-      [ gapWidget w h
-      , dropdownExamples w h
-      , gapWidget w h
-      , renderButton w h
-      , printButton w h
-      , gapWidget w h
-      ] ++ zoneButton model w h ++
-      [ modeToggle w h model
-      ] ++ syncButton_ w h model
+middleWidgets w h middle widget model =
+    case model.mode of
+      SyncSelect _ [] ->
+        List.map (Html.toElement middle widget)
+        [ gapWidget w h
+        , gapWidget w h
+        , revertButton w h
+        ]
+      SyncSelect i l ->
+        List.map (Html.toElement middle widget)
+        [ gapWidget w h
+        , prevButton i w h
+        , chooseButton w h
+        , nextButton i l w h
+        ]
+      _ ->
+        dropdownExamples ::
+        List.map (Html.toElement middle widget)
+        ([ gapWidget w h
+        , gapWidget w h
+        , renderButton w h
+        , printButton w h
+        , gapWidget w h
+        ] ++ zoneButton model w h ++
+        [ modeToggle w h model
+        ] ++ syncButton_ w h model
+        )
 
 gapWidget w h = Html.fromElement <| GE.spacer w h
 
@@ -391,9 +396,7 @@ mainSectionVertical w h model =
     colorDebug Color.lightBlue <|
       GE.size wMiddle h <|
         GE.flow GE.down <|
-          List.map (Html.toElement wMiddle hWidget)
-                   (middleWidgets wBtn hBtn model) in
-
+          middleWidgets wBtn hBtn wMiddle hWidget model in
   GE.flow GE.right <|
     [ codeSection, gutter, middleSection, gutter, canvasSection ]
 
@@ -416,9 +419,7 @@ mainSectionHorizontal w h model =
     colorDebug Color.lightBlue <|
       GE.size w hMiddle <|
         GE.flow GE.right <|
-          List.map (Html.toElement wWidget hMiddle)
-                   (middleWidgets wBtn hBtn model) in
-
+          middleWidgets w h hMiddle wWidget model in
   GE.flow GE.down <|
     [ codeSection, gutter, middleSection, gutter, canvasSection ]
 
@@ -460,18 +461,16 @@ nextButton i l =
 revertButton =
   simpleButton Revert "Revert" "Revert" "Revert"
 
-dropdownExamples : Int -> Int -> Html.Html
-dropdownExamples w h =
+dropdownExamples : GE.Element
+dropdownExamples =
   let examples =
     let foo (name,thunk) =
-      Html.option
-          -- TODO: works in Firefox, but not in Chrome/Safari
-          [ Events.onMouseOver events.address (SelectExample name thunk) ]
-          [ Html.text name ]
+          -- TODO: works in Firefox, but not in Chrome/Safari Events.onMouseOver events.address
+          (name, (SelectExample name thunk))
     in
     List.map foo Examples.list
   in
-  Html.select [ buttonAttrs w h ] examples
+  GI.dropDown (Signal.message events.address) examples
 
 modeToggle : Int -> Int -> Model -> Html.Html
 modeToggle w h model =
