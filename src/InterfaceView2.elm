@@ -234,7 +234,7 @@ params =
         { wBtn = 100
         , hBtn = 25
         , font = "Tahoma, sans-serif"
-        , fontSize = "12px"
+        , fontSize = "10pt"
         }
      , vertical =
         { hExtra = 15      -- extra vertical space around widgets
@@ -250,7 +250,7 @@ params =
      , codebox =
         { border = "none"
         , font = "Courier, monospace"
-        , fontSize = "14px"
+        , fontSize = "12pt"
         }
      }
   }
@@ -458,11 +458,6 @@ nextButton i l =
 revertButton =
   simpleButton Revert "Revert" "Revert" "Revert"
 
--- Re: dropdown boxes
---
--- used to use Html.select / Html.option / Events.onMouseOver,
--- but didn't work in Chrome and Safari. so now using GI.dropDown.
-
 dropdownExamples : Int -> Int -> GE.Element
 dropdownExamples w h =
   let examples =
@@ -535,3 +530,61 @@ view (w,h) model =
 
 -- TODO: add onMouseUp DeselectObject event to all GE.Elements...
 
+------------------------------------------------------------------------------
+
+-- Re: dropdown boxes
+--
+-- used to use Html.select / Html.option / Events.onMouseOver,
+-- but didn't work in Chrome and Safari. tried
+--   Events.onMouseOver
+--   Events.onClick
+--   Events.on "onchange" Json.Decode.value
+
+-- so now using GI.dropDown instead
+--
+-- keeping the following around for reference:
+
+{-
+
+import Json.Decode
+
+dropdownExamples : Int -> Int -> Html.Html
+dropdownExamples w h =
+  let examples =
+    let foo (name,thunk) =
+      Html.option
+          -- TODO: works in Firefox, but not in Chrome/Safari
+          [ Events.onMouseOver events.address (SelectExample name thunk) ]
+          [ Html.text name ]
+    in
+    List.map foo Examples.list
+  in
+  Html.select [ buttonAttrs w h ] examples
+
+modeToggle : Int -> Int -> Model -> Html.Html
+modeToggle w h model =
+  let opt s m =
+    let yes =
+      case (model.mode, m) of
+        (Live _, Live _)           -> True
+        (AdHoc, AdHoc)             -> True
+        _                          -> False
+    in
+    -- TODO: onClick works in Firefox, but not in Chrome/Safari
+    -- TODO: same goes for Events.on "change"
+    Html.option
+        [ Attr.selected yes
+        , Events.on "onchange" Json.Decode.value
+            (\_ -> Signal.message events.address SwitchOrient)
+        , Events.onClick events.address (SwitchMode m)
+        ]
+        [Html.text s]
+  in
+  -- may want to delay this to when Live is selected
+  let optionLive = opt "Live" (mkLive_ (Utils.fromJust model.inputExp)) in
+  let optionAdHoc = opt "Ad Hoc" AdHoc in
+  Html.select
+    [ buttonAttrs w h ]
+    [ optionLive, optionAdHoc ]
+
+-}

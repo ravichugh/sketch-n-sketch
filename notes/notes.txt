@@ -75,3 +75,46 @@ using simple geometries would be good.
 would be useful for projects such as presentations and informational pieces.
 This would be particularly noticeable when arranging text in relation to other
 objects on a canvas.
+
+
+
+------------------------------------------------------------------------------
+Styling Dropdowns
+
+locally changed
+  elm-stuff/packages/elm-lang/core/2.0.1/src/Native/Graphics/Input.js
+
+
+	function renderDropDown(model)
+	{
+		var drop = Element.createNode('select');
+    // rkc begin: seems to be ignored by WebKit
+    drop.style["font-family"] = 'Tahoma, sans-serif';
+    drop.style["font-size"] = '10pt';
+    // rkc end
+		drop.style.border = '0 solid';
+		drop.style.pointerEvents = 'auto';
+		drop.style.display = 'block';
+
+		drop.elm_values = List.toArray(model.values);
+		drop.elm_handler = model.handler;
+		var values = drop.elm_values;
+
+		for (var i = 0; i < values.length; ++i)
+		{
+			var option = Element.createNode('option');
+			var name = values[i]._0;
+      // rkc begin: seems to be ignored by WebKit
+      option.style["font-family"] = 'Tahoma, sans-serif';
+      option.style["font-size"] = '10pt';
+      // rkc end
+			option.value = name;
+			option.innerHTML = name;
+			drop.appendChild(option);
+		}
+		drop.addEventListener('change', function() {
+			Signal.sendMessage(drop.elm_handler(drop.elm_values[drop.selectedIndex]._1));
+		});
+
+		return drop;
+	}
