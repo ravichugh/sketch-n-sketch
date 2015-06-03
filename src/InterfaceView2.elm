@@ -419,7 +419,7 @@ mainSectionHorizontal w h model =
     colorDebug Color.lightBlue <|
       GE.size w hMiddle <|
         GE.flow GE.right <|
-          middleWidgets w h hMiddle wWidget model in
+          middleWidgets wBtn hBtn wWidget hMiddle model in
   GE.flow GE.down <|
     [ codeSection, gutter, middleSection, gutter, canvasSection ]
 
