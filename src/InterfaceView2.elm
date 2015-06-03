@@ -231,17 +231,17 @@ params =
      }
   , mainSection =
      { widgets =           -- Render/Sync buttons; Mode/Tests dropdowns
-        { wBtn = 98
-        , hBtn = 38
+        { wBtn = 100
+        , hBtn = 25
         , font = "Tahoma, sans-serif"
         , fontSize = "12px"
         }
      , vertical =
-        { hWidget = 50     -- vertical space between widgets
+        { hExtra = 15      -- extra vertical space around widgets
         , wGut = 10        -- width of gutters in between code/widgets/canvas
         }
      , horizontal =
-        { wWidget = 100    -- horizontal space between widgets
+        { wExtra = 15      -- extra horizontal space around widgets
         , hGut = 10        -- height of gutters in between code/widgets/canvas
         }
      , canvas =
@@ -318,41 +318,29 @@ canvas_ w h model =
                    ] ]
       [ svg ]
 
-middleWidgets w h middle widget model =
+middleWidgets w h wWrap hWrap model =
+  List.map (GE.container wWrap hWrap GE.middle) <|
     case model.mode of
       SyncSelect _ [] ->
-        List.map (Html.toElement middle widget)
         [ gapWidget w h
-        , gapWidget w h
         , revertButton w h
         ]
       SyncSelect i l ->
-        List.map (Html.toElement middle widget)
-        [ gapWidget w h
-        , prevButton i w h
+        [ prevButton i w h
         , chooseButton w h
         , nextButton i l w h
         ]
       _ ->
-        [ GE.spacer w h
-        , dropdownExamples
-        ]
-        ++
-        List.map (Html.toElement middle widget)
-        ([ gapWidget w h
+        [ dropdownExamples w h
         , gapWidget w h
         , renderButton w h
         , printButton w h
         , gapWidget w h
-        ] ++ (zoneButton model w h)
-        ++ (syncButton_ w h model)
-        )
-        ++
-        [ GE.spacer w h
-        , modeToggle w h model
-        ] 
+        ] ++ (zoneButton model w h) ++
+        [ modeToggle w h model
+        ] ++ (syncButton_ w h model)
 
-gapWidget w h = Html.fromElement <| GE.spacer w h
+gapWidget w h = GE.spacer w h
 
 syncButton_ w h model =
   case model.mode of
@@ -391,7 +379,8 @@ mainSectionVertical w h model =
     wCode_  = (w - wMiddle - wGut - wGut) // 2
     wCode   = wCode_ + model.midOffsetX
     wCanvas = wCode_ - model.midOffsetX
-    hWidget = params.mainSection.vertical.hWidget
+    hWidget = params.mainSection.widgets.hBtn
+                + params.mainSection.vertical.hExtra
   in
 
   let codeSection = codebox wCode h model in
@@ -414,7 +403,8 @@ mainSectionHorizontal w h model =
     hCode_  = (h - hMiddle - hGut - hGut) // 2
     hCode   = hCode_ + model.midOffsetY
     hCanvas = hCode_ - model.midOffsetY
-    wWidget = params.mainSection.horizontal.wWidget
+    wWidget = params.mainSection.widgets.wBtn
+                + params.mainSection.horizontal.wExtra
   in
 
   let codeSection = codebox w hCode model in
@@ -429,15 +419,16 @@ mainSectionHorizontal w h model =
   GE.flow GE.down <|
     [ codeSection, gutter, middleSection, gutter, canvasSection ]
 
-simpleButton : Event -> String -> String -> String -> Int -> Int -> Html.Html
+simpleButton : Event -> String -> String -> String -> Int -> Int -> GE.Element
 simpleButton evt value name text w h =
-  Html.button
-    [ buttonAttrs w h
-    , Events.onClick events.address evt
-    , Attr.value value
-    , Attr.name name
-    ]
-    [Html.text text]
+  Html.toElement w h <|
+    Html.button
+      [ buttonAttrs w h
+      , Events.onClick events.address evt
+      , Attr.value value
+      , Attr.name name
+      ]
+      [Html.text text]
 
 renderButton =
   simpleButton Render "Render" "Run and Render to SVG" "Render SVG"
@@ -467,37 +458,18 @@ nextButton i l =
 revertButton =
   simpleButton Revert "Revert" "Revert" "Revert"
 
-dropdownExamples : GE.Element
-dropdownExamples =
+-- Re: dropdown boxes
+--
+-- used to use Html.select / Html.option / Events.onMouseOver,
+-- but didn't work in Chrome and Safari. so now using GI.dropDown.
+
+dropdownExamples : Int -> Int -> GE.Element
+dropdownExamples w h =
   let examples =
-    let foo (name,thunk) =
-      (name, (SelectExample name thunk))
-    in
+    let foo (name,thunk) = (name, (SelectExample name thunk)) in
     List.map foo Examples.list
   in
   GI.dropDown (Signal.message events.address) examples
-
---modeToggle : Int -> Int -> Model -> Html.Html
---modeToggle w h model =
---  let opt s m =
---    let yes =
---      case (model.mode, m) of
---        (Live _, Live _)           -> True
---        (AdHoc, AdHoc)             -> True
---        _                          -> False
---    in
---    -- TODO: onClick works in Firefox, but not in Chrome/Safari
---    Html.option
---        [ Attr.selected yes
---        , Events.onClick events.address (SwitchMode m) ]
---        [Html.text s]
---  in
---  -- may want to delay this to when Live is selected
---  let optionLive = opt "Live" (mkLive_ (Utils.fromJust model.inputExp)) in
---  let optionAdHoc = opt "Ad Hoc" AdHoc in
---  Html.select
---    [ buttonAttrs w h ]
---    [ optionLive, optionAdHoc ]
 
 modeToggle : Int -> Int -> Model -> GE.Element
 modeToggle w h model =
@@ -505,7 +477,6 @@ modeToggle w h model =
   let optionLive = opt "Live" (mkLive_ (Utils.fromJust model.inputExp)) in
   let optionAdHoc = opt "Ad Hoc" AdHoc in
   GI.dropDown (Signal.message events.address) [optionLive, optionAdHoc]
-
 
 orientationButton w h model =
   Html.button
