@@ -416,7 +416,8 @@ assignTriggers : Dict1 -> Dict2
 assignTriggers d1 =
   let f i (kind,zoneLists) (setSeen1,acc) =
     let g (zone,sets) (setSeen2,acc) =
-      let rankedSets = List.sortBy scoreOfLocs sets in
+      -- let rankedSets = List.sortBy scoreOfLocs sets in
+      let rankedSets = sets in
       let pred = not << flip Set.member setSeen2 in
       case (Utils.findFirst pred rankedSets, rankedSets) of
         (Nothing, [])         -> (setSeen2, (zone,Nothing)::acc)
@@ -433,16 +434,12 @@ assignTriggers d1 =
 
 scoreOfLocs : Locs -> Int
 scoreOfLocs locs =
-  0
--- TODO
-{-
   let foo (_,b,mx) acc =
     let _ = Utils.assert "scoreOfLocs" (b == false) in
     if | mx == ""  -> acc
        | otherwise -> acc + 1
   in
   -1 * (List.foldl foo 0 locs)
--}
 
 -- Step 4 --
 
