@@ -197,6 +197,8 @@ solveTopDown subst (n, t) = case t of
                                              (\n -> solveTopDown subst (n, t1))
                                              (solveL op n j)
 
+      -- TODO sin/cos
+
       _ ->
         let _ = Debug.log "Sync.solve" <| strTrace t in
         Nothing

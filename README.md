@@ -53,11 +53,15 @@ Sketch-N-Sketch: Program Synthesis for Direct Manipulation
 
 ```
   e  ::=  ...
-      |   (op e1 e2)
+      |   (op0)
+      |   (op1 e1)
+      |   (op2 e1 e2)
 ```
 
 ```
-  op ::=  + | - | * | / | <
+  op0  ::=  pi
+  op1  ::=  cos | sin | arccos | arcsin
+  op2  ::=  + | - | * | / | <
 ```
 
 ### Conditionals

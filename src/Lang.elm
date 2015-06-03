@@ -21,7 +21,12 @@ type Pat
   | PList (List Pat) (Maybe Pat)
 
 type Op
-  = Plus | Minus | Mult | Div
+  -- nullary ops
+  = Pi
+  -- unary ops
+  | Cos | Sin | ArcCos | ArcSin
+  -- binary ops
+  | Plus | Minus | Mult | Div
   | Lt
 
 type Exp
@@ -92,6 +97,11 @@ strOp op = case op of
   Mult  -> "*"
   Div   -> "/"
   Lt    -> "<"
+  Pi    -> "pi"
+  Cos   -> "cos"
+  Sin   -> "sin"
+  ArcCos -> "arccos"
+  ArcSin -> "arcsin"
 
 strLoc (k, b, mx) =
   "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx)
@@ -143,8 +153,8 @@ sExp_ showLocs k e =
         if fitsOnLine s2
         then s1 ++ " " ++ s2
         else String.join ("\n" ++ tab (k+1)) (s1::ss)
-    EOp op [e1,e2] ->
-      Utils.parens <| String.join " " [strOp op, foo k e1, foo k e2]
+    EOp op es ->
+      Utils.parens <| String.join " " (strOp op :: List.map (foo k) es)
     EIf e1 e2 e3 ->
       Utils.parens <|
         "if " ++ foo k e1 ++ "\n" ++

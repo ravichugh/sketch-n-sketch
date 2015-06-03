@@ -90,6 +90,7 @@ tests =
   , (600, 200, MicroTests.test42)
   , (600, 200, MicroTests.test43)
   , (600, 300, MicroTests.test44)
+  , (600, 300, MicroTests.test45)
   ]
 
 sampleTests =
