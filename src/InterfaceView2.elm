@@ -334,17 +334,23 @@ middleWidgets w h middle widget model =
         , nextButton i l w h
         ]
       _ ->
-        dropdownExamples ::
+        [ GE.spacer w h
+        , dropdownExamples
+        ]
+        ++
         List.map (Html.toElement middle widget)
         ([ gapWidget w h
         , gapWidget w h
         , renderButton w h
         , printButton w h
         , gapWidget w h
-        ] ++ zoneButton model w h ++
-        [ modeToggle w h model
-        ] ++ syncButton_ w h model
+        ] ++ (zoneButton model w h)
+        ++ (syncButton_ w h model)
         )
+        ++
+        [ GE.spacer w h
+        , modeToggle w h model
+        ] 
 
 gapWidget w h = Html.fromElement <| GE.spacer w h
 
@@ -465,34 +471,41 @@ dropdownExamples : GE.Element
 dropdownExamples =
   let examples =
     let foo (name,thunk) =
-          -- TODO: works in Firefox, but not in Chrome/Safari Events.onMouseOver events.address
-          (name, (SelectExample name thunk))
+      (name, (SelectExample name thunk))
     in
     List.map foo Examples.list
   in
   GI.dropDown (Signal.message events.address) examples
 
-modeToggle : Int -> Int -> Model -> Html.Html
+--modeToggle : Int -> Int -> Model -> Html.Html
+--modeToggle w h model =
+--  let opt s m =
+--    let yes =
+--      case (model.mode, m) of
+--        (Live _, Live _)           -> True
+--        (AdHoc, AdHoc)             -> True
+--        _                          -> False
+--    in
+--    -- TODO: onClick works in Firefox, but not in Chrome/Safari
+--    Html.option
+--        [ Attr.selected yes
+--        , Events.onClick events.address (SwitchMode m) ]
+--        [Html.text s]
+--  in
+--  -- may want to delay this to when Live is selected
+--  let optionLive = opt "Live" (mkLive_ (Utils.fromJust model.inputExp)) in
+--  let optionAdHoc = opt "Ad Hoc" AdHoc in
+--  Html.select
+--    [ buttonAttrs w h ]
+--    [ optionLive, optionAdHoc ]
+
+modeToggle : Int -> Int -> Model -> GE.Element
 modeToggle w h model =
-  let opt s m =
-    let yes =
-      case (model.mode, m) of
-        (Live _, Live _)           -> True
-        (AdHoc, AdHoc)             -> True
-        _                          -> False
-    in
-    -- TODO: onClick works in Firefox, but not in Chrome/Safari
-    Html.option
-        [ Attr.selected yes
-        , Events.onClick events.address (SwitchMode m) ]
-        [Html.text s]
-  in
-  -- may want to delay this to when Live is selected
+  let opt s m = (s, (SwitchMode m)) in
   let optionLive = opt "Live" (mkLive_ (Utils.fromJust model.inputExp)) in
   let optionAdHoc = opt "Ad Hoc" AdHoc in
-  Html.select
-    [ buttonAttrs w h ]
-    [ optionLive, optionAdHoc ]
+  GI.dropDown (Signal.message events.address) [optionLive, optionAdHoc]
+
 
 orientationButton w h model =
   Html.button
