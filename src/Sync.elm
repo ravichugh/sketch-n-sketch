@@ -433,12 +433,16 @@ assignTriggers d1 =
 
 scoreOfLocs : Locs -> Int
 scoreOfLocs locs =
+  0
+-- TODO
+{-
   let foo (_,b,mx) acc =
     let _ = Utils.assert "scoreOfLocs" (b == false) in
     if | mx == ""  -> acc
        | otherwise -> acc + 1
   in
   -1 * (List.foldl foo 0 locs)
+-}
 
 -- Step 4 --
 
