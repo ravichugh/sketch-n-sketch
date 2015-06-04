@@ -24,6 +24,7 @@ import Dict
 import String 
 import Graphics.Element as GE 
 import Graphics.Collage as GC
+import Graphics.Input as GI
 import Text as T exposing (defaultStyle)
 import Color
 
@@ -231,17 +232,17 @@ params =
      }
   , mainSection =
      { widgets =           -- Render/Sync buttons; Mode/Tests dropdowns
-        { wBtn = 85
+        { wBtn = 100
         , hBtn = 25
         , font = "Tahoma, sans-serif"
-        , fontSize = "12px"
+        , fontSize = "10pt"
         }
      , vertical =
-        { hWidget = 40     -- vertical space between widgets
+        { hExtra = 15      -- extra vertical space around widgets
         , wGut = 10        -- width of gutters in between code/widgets/canvas
         }
      , horizontal =
-        { wWidget = 100    -- horizontal space between widgets
+        { wExtra = 15      -- extra horizontal space around widgets
         , hGut = 10        -- height of gutters in between code/widgets/canvas
         }
      , canvas =
@@ -250,7 +251,7 @@ params =
      , codebox =
         { border = "none"
         , font = "Courier, monospace"
-        , fontSize = "14px"
+        , fontSize = "12pt"
         }
      }
   }
@@ -328,31 +329,29 @@ canvas_ w h model =
                    ] ]
       [ svg ]
 
-middleWidgets w h model =
-  case model.mode of
-    SyncSelect _ [] ->
-      [ gapWidget w h
-      , gapWidget w h
-      , revertButton w h
-      ]
-    SyncSelect i l ->
-      [ gapWidget w h
-      , prevButton i w h
-      , chooseButton w h
-      , nextButton i l w h
-      ]
-    _ ->
-      [ gapWidget w h
-      , dropdownExamples w h
-      , gapWidget w h
-      , renderButton w h
-      , printButton w h
-      , gapWidget w h
-      ] ++ zoneButton model w h ++
-      [ modeToggle w h model
-      ] ++ syncButton_ w h model
+middleWidgets w h wWrap hWrap model =
+  List.map (GE.container wWrap hWrap GE.middle) <|
+    case model.mode of
+      SyncSelect _ [] ->
+        [ gapWidget w h
+        , revertButton w h
+        ]
+      SyncSelect i l ->
+        [ prevButton i w h
+        , chooseButton w h
+        , nextButton i l w h
+        ]
+      _ ->
+        [ dropdownExamples w h
+        , gapWidget w h
+        , renderButton w h
+        , printButton w h
+        , gapWidget w h
+        ] ++ (zoneButton model w h) ++
+        [ modeToggle w h model
+        ] ++ (syncButton_ w h model)
 
-gapWidget w h = Html.fromElement <| GE.spacer w h
+gapWidget w h = GE.spacer w h
 
 syncButton_ w h model =
   case model.mode of
@@ -391,7 +390,8 @@ mainSectionVertical w h model =
     wCode_  = (w - wMiddle - wGut - wGut) // 2
     wCode   = wCode_ + model.midOffsetX
     wCanvas = wCode_ - model.midOffsetX
-    hWidget = params.mainSection.vertical.hWidget
+    hWidget = params.mainSection.widgets.hBtn
+                + params.mainSection.vertical.hExtra
   in
 
   let codeSection = codebox wCode h model in
@@ -402,9 +402,7 @@ mainSectionVertical w h model =
     colorDebug Color.lightBlue <|
       GE.size wMiddle h <|
         GE.flow GE.down <|
-          List.map (Html.toElement wMiddle hWidget)
-                   (middleWidgets wBtn hBtn model) in
-
+          middleWidgets wBtn hBtn wMiddle hWidget model in
   GE.flow GE.right <|
     [ codeSection, gutter, middleSection, gutter, canvasSection ]
 
@@ -416,7 +414,8 @@ mainSectionHorizontal w h model =
     hCode_  = (h - hMiddle - hGut - hGut) // 2
     hCode   = hCode_ + model.midOffsetY
     hCanvas = hCode_ - model.midOffsetY
-    wWidget = params.mainSection.horizontal.wWidget
+    wWidget = params.mainSection.widgets.wBtn
+                + params.mainSection.horizontal.wExtra
   in
 
   let codeSection = codebox w hCode model in
@@ -427,21 +426,20 @@ mainSectionHorizontal w h model =
     colorDebug Color.lightBlue <|
       GE.size w hMiddle <|
         GE.flow GE.right <|
-          List.map (Html.toElement wWidget hMiddle)
-                   (middleWidgets wBtn hBtn model) in
-
+          middleWidgets wBtn hBtn wWidget hMiddle model in
   GE.flow GE.down <|
     [ codeSection, gutter, middleSection, gutter, canvasSection ]
 
-simpleButton : Event -> String -> String -> String -> Int -> Int -> Html.Html
+simpleButton : Event -> String -> String -> String -> Int -> Int -> GE.Element
 simpleButton evt value name text w h =
-  Html.button
-    [ buttonAttrs w h
-    , Events.onClick events.address evt
-    , Attr.value value
-    , Attr.name name
-    ]
-    [Html.text text]
+  Html.toElement w h <|
+    Html.button
+      [ buttonAttrs w h
+      , Events.onClick events.address evt
+      , Attr.value value
+      , Attr.name name
+      ]
+      [Html.text text]
 
 renderButton =
   simpleButton Render "Render" "Run and Render to SVG" "Render SVG"
@@ -471,40 +469,20 @@ nextButton i l =
 revertButton =
   simpleButton Revert "Revert" "Revert" "Revert"
 
-dropdownExamples : Int -> Int -> Html.Html
+dropdownExamples : Int -> Int -> GE.Element
 dropdownExamples w h =
   let examples =
-    let foo (name,thunk) =
-      Html.option
-          -- TODO: works in Firefox, but not in Chrome/Safari
-          [ Events.onMouseOver events.address (SelectExample name thunk) ]
-          [ Html.text name ]
-    in
+    let foo (name,thunk) = (name, (SelectExample name thunk)) in
     List.map foo Examples.list
   in
-  Html.select [ buttonAttrs w h ] examples
+  GI.dropDown (Signal.message events.address) examples
 
-modeToggle : Int -> Int -> Model -> Html.Html
+modeToggle : Int -> Int -> Model -> GE.Element
 modeToggle w h model =
-  let opt s m =
-    let yes =
-      case (model.mode, m) of
-        (Live _, Live _)           -> True
-        (AdHoc, AdHoc)             -> True
-        _                          -> False
-    in
-    -- TODO: onClick works in Firefox, but not in Chrome/Safari
-    Html.option
-        [ Attr.selected yes
-        , Events.onClick events.address (SwitchMode m) ]
-        [Html.text s]
-  in
-  -- may want to delay this to when Live is selected
+  let opt s m = (s, (SwitchMode m)) in
   let optionLive = opt "Live" (mkLive_ (Utils.fromJust model.inputExp)) in
   let optionAdHoc = opt "Ad Hoc" AdHoc in
-  Html.select
-    [ buttonAttrs w h ]
-    [ optionLive, optionAdHoc ]
+  GI.dropDown (Signal.message events.address) [optionLive, optionAdHoc]
 
 orientationButton w h model =
   Html.button
@@ -563,3 +541,61 @@ view (w,h) model =
 
 -- TODO: add onMouseUp DeselectObject event to all GE.Elements...
 
+------------------------------------------------------------------------------
+
+-- Re: dropdown boxes
+--
+-- used to use Html.select / Html.option / Events.onMouseOver,
+-- but didn't work in Chrome and Safari. tried
+--   Events.onMouseOver
+--   Events.onClick
+--   Events.on "onchange" Json.Decode.value
+
+-- so now using GI.dropDown instead
+--
+-- keeping the following around for reference:
+
+{-
+
+import Json.Decode
+
+dropdownExamples : Int -> Int -> Html.Html
+dropdownExamples w h =
+  let examples =
+    let foo (name,thunk) =
+      Html.option
+          -- TODO: works in Firefox, but not in Chrome/Safari
+          [ Events.onMouseOver events.address (SelectExample name thunk) ]
+          [ Html.text name ]
+    in
+    List.map foo Examples.list
+  in
+  Html.select [ buttonAttrs w h ] examples
+
+modeToggle : Int -> Int -> Model -> Html.Html
+modeToggle w h model =
+  let opt s m =
+    let yes =
+      case (model.mode, m) of
+        (Live _, Live _)           -> True
+        (AdHoc, AdHoc)             -> True
+        _                          -> False
+    in
+    -- TODO: onClick works in Firefox, but not in Chrome/Safari
+    -- TODO: same goes for Events.on "change"
+    Html.option
+        [ Attr.selected yes
+        , Events.on "onchange" Json.Decode.value
+            (\_ -> Signal.message events.address SwitchOrient)
+        , Events.onClick events.address (SwitchMode m)
+        ]
+        [Html.text s]
+  in
+  -- may want to delay this to when Live is selected
+  let optionLive = opt "Live" (mkLive_ (Utils.fromJust model.inputExp)) in
+  let optionAdHoc = opt "Ad Hoc" AdHoc in
+  Html.select
+    [ buttonAttrs w h ]
+    [ optionLive, optionAdHoc ]
+
+-}

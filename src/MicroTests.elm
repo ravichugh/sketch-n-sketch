@@ -461,3 +461,21 @@ test44 () =
         ['stroke' 'DUMMY'] ['strokeWidth' 0]] []]]]"
     "[]"
 
+test45 () =
+  makeTest
+    "(let ngon (\\(n cx cy d)
+       (let dangle (/ (* 3 (pi)) 2)
+       (let anglei (\\i (+ dangle (/ (* i (* 2 (pi))) n)))
+       (let xi     (\\i (+ cx (* d (cos (anglei i)))))
+       (let yi     (\\i (+ cy (* d (sin (anglei i)))))
+       (let pti    (\\i [(xi i) (yi i)])
+         (polygon_ (map pti (list0N (- n 1))))))))))
+     (svg [
+       (ngon 3 100 200 40)
+       (ngon 4 200 200 30)
+       (ngon 5 300 300 50)
+       (ngon 7 300 100 40)
+       (ngon 15 100 400 40)
+     ]))"
+    "[]"
+

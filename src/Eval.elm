@@ -111,6 +111,15 @@ evalOp env op es =
         Mult  -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Div   -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Lt    -> vBool  (i < j)
+    [] ->
+      case op of
+        Pi    -> VConst (pi, TrOp op [])
+    [VConst (n,t)] ->
+      case op of
+        Cos    -> VConst (cos n, TrOp op [t])
+        Sin    -> VConst (sin n, TrOp op [t])
+        ArcCos -> VConst (acos n, TrOp op [t])
+        ArcSin -> VConst (asin n, TrOp op [t])
 
 evalBranches env v =
   List.foldl (\(p,e) acc ->

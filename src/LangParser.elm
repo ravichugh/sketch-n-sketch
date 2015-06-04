@@ -237,6 +237,8 @@ parseExp = P.recursively <| \_ ->
   <++ white parseEBase
   <++ parseVar
   <++ parseFun
+  <++ parseConst
+  <++ parseUnop
   <++ parseBinop
   <++ parseIf
   <++ parseCase
@@ -294,17 +296,38 @@ parseLet =
 
 parseBinop =
   parens <|
-    parseOp  >>= \op ->
+    parseBOp >>= \op ->
     parseExp >>= \e1 ->
     oneWhite >>>
     parseExp >>= \e2 ->
       P.return (EOp op [e1,e2])
 
-parseOp =
+parseBOp =
       (always Plus  <$> token_ "+")
   <++ (always Minus <$> token_ "-")
   <++ (always Mult  <$> token_ "*")
+  <++ (always Div   <$> token_ "/")
   <++ (always Lt    <$> token_ "<")
+
+parseUnop =
+  parens <|
+    parseUOp >>= \op ->
+    parseExp >>= \e1 ->
+      P.return (EOp op [e1])
+
+parseUOp =
+      (always Cos     <$> token_ "cos")
+  <++ (always Sin     <$> token_ "sin")
+  <++ (always ArcCos  <$> token_ "arccos")
+  <++ (always ArcSin  <$> token_ "arcsin")
+
+parseConst =
+  parens <|
+    parseNullOp >>= \op ->
+      P.return (EOp op [])
+
+parseNullOp =
+      (always Pi      <$> token_ "pi")
 
 parseIf =
   parens <|

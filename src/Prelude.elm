@@ -30,10 +30,13 @@ src = "
 
 (let zip (map2 (\\(x y) [x y]))
 
+(let nil  []
 (let cons (\\(x xs) [x | xs])
 (let snoc (\\(x ys) (append ys [x]))
 (let hd   (\\[x|xs] x)
 (let tl   (\\[x|xs] xs)
+
+(letrec list0N (\\i (if (< i 0) nil (cons i (list0N (- i 1)))))
 
 (letrec mult (\\(m n)
   (if (< m 1) 0 (+ n (mult (+ m -1) n))))
@@ -103,6 +106,6 @@ src = "
 (let path_      (path 'transparent' 'brown' 5)
 
 
-0))))))))))))))))))))))))))))))))))))
+0))))))))))))))))))))))))))))))))))))))
 
 "

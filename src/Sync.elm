@@ -197,6 +197,8 @@ solveTopDown subst (n, t) = case t of
                                              (\n -> solveTopDown subst (n, t1))
                                              (solveL op n j)
 
+      -- TODO sin/cos
+
       _ ->
         let _ = Debug.log "Sync.solve" <| strTrace t in
         Nothing
@@ -415,7 +417,8 @@ assignTriggers : Dict1 -> Dict2
 assignTriggers d1 =
   let f i (kind,zoneLists) (setSeen1,acc) =
     let g (zone,sets) (setSeen2,acc) =
-      let rankedSets = List.sortBy scoreOfLocs sets in
+      -- let rankedSets = List.sortBy scoreOfLocs sets in
+      let rankedSets = sets in
       let pred = not << flip Set.member setSeen2 in
       case (Utils.findFirst pred rankedSets, rankedSets) of
         (Nothing, [])         -> (setSeen2, (zone,Nothing)::acc)
