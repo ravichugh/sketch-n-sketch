@@ -14,13 +14,15 @@ Sketch-N-Sketch: Program Synthesis for Direct Manipulation
       |   (e1 e2 e3 ... en)
       |   (let p e1 e2)
       |   (letrec f (\x e1) e2)
-      |   (op e1 e2)
       |   (if e1 e2 e3)
       |   (case e (p1 e1) ... (pn en))
       |   []
       |   [e1 | e2]
       |   [e1 .... en]
       |   [e1 .... en | erest]
+      |   (op0)
+      |   (op1 e1)
+      |   (op2 e1 e2)
 ```
 
 ## Syntax Guide

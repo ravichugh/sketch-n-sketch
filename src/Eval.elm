@@ -130,15 +130,17 @@ evalBranches env v =
 
   ) Nothing
 
-evalDelta op [i,j] =
-  let f =
-    case op of
-      Plus  -> (+)
-      Minus -> (-)
-      Mult  -> (*)
-      Div   -> (/)
-  in
-  f i j
+evalDelta op is =
+  case (op, is) of
+    (Plus,   [i,j]) -> (+) i j
+    (Minus,  [i,j]) -> (-) i j
+    (Mult,   [i,j]) -> (*) i j
+    (Div,    [i,j]) -> (/) i j
+    (Cos,    [n])   -> cos n
+    (Sin,    [n])   -> sin n
+    (ArcCos, [n])   -> acos n
+    (ArcSin, [n])   -> asin n
+    (Pi,     [])    -> pi
 
 run : Exp -> Val
 run e =
