@@ -77,5 +77,19 @@ Need to look into how to define functions at the top of the input.
           (mult 100 j)))
       (indexedzip  [2 4 1]))))))
 ```
+The above code runs, but gives an inexhaustive pattern match error in Lang.
 
 Catching parse errors would be nice - highlighting problematic spots would be even better.
+
+```
+(letrec indexedzip_
+ (\(acc xs)
+    (case xs
+      ([x | xx] [[acc x] | (indexedzip_ (+ acc 1) xx)])
+      (_ [])))
+(let indexedzip (\xs (indexedzip_ 0 xs))
+(let xaxis (rect 'black' (- x0 50) (+ y0 400) 300 10)
+(let yaxis (rect 'black' (- x0 50) y0 10 300)
+(let bars (map (\[i j] (rect 'red' (+ x0 (* i sep)) (+ y0 (- 400 (* 100 j))) 50 (* 100 j))) (indexedzip [2 4 1]))
+(let [x0 y0 sep] [28 28 60]
+  (svg ([xaxis | yaxis | bars]))))))))`
