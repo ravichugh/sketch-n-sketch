@@ -2,7 +2,7 @@ module Sync (sync, prepareLiveUpdates, printZoneTable, Triggers, tryToBeSmart) w
 
 import Dict exposing (Dict)
 import Set
-import Utils
+import Utils exposing (justGet)
 import Debug
 import String
 
@@ -318,8 +318,10 @@ type alias LocSet = Set.Set Loc
 type alias Locs = List Loc
 type ExtraInfo = None | NumPoints Int
 
+type alias NumAttrs = Int
+
 type alias Dict0 = Dict NodeId (ShapeKind, ExtraInfo, Dict AttrName Trace)
-type alias Dict1 = Dict NodeId (ShapeKind, List (Zone, (List Locs)))
+type alias Dict1 = Dict NodeId (ShapeKind, List (Zone, (NumAttrs, List Locs)))
 type alias Dict2 = Dict NodeId (ShapeKind, List (Zone, Maybe (Locs, List Locs)))
 
 printZoneTable : Val -> String
@@ -389,20 +391,28 @@ shapesToZoneTable d0 =
   Dict.foldl foo Dict.empty d0
 
 shapeToZoneInfo :
-  (ShapeKind, ExtraInfo, Dict AttrName Trace) -> List (Zone, (List Locs))
+  (ShapeKind, ExtraInfo, Dict AttrName Trace) -> List (Zone, (NumAttrs, List Locs))
 shapeToZoneInfo (kind, extra, d) =
   let zones = getZones kind extra in
   let f (s,l) acc =
+    let numAttrs = List.length l in
     let sets =
       l |> List.map (\a -> locsOfTrace <| justGet a d)
-        |> Utils.cartProdWithDiff in
-    (s, sets) :: acc
+        |> createLocLists in
+    (s, (numAttrs, sets)) :: acc
   in
   List.foldr f [] zones
 
-justGet k d = Utils.fromJust (Dict.get k d)
+allowOverConstrained = True -- CONFIG
 
-justGet_ err k d = Utils.fromJust_ err (Dict.get k d)
+createLocLists sets =
+  let foo = Utils.cartProdWithDiff sets in
+  let bar =
+    if | not allowOverConstrained -> []
+       | otherwise ->
+           sets |> Utils.intersectMany |> Set.toList |> List.map Utils.singleton
+  in
+  foo ++ bar
 
 getZones : ShapeKind -> ExtraInfo -> List (Zone, List AttrName)
 getZones kind extra =
@@ -425,17 +435,28 @@ getZones kind extra =
 -- NOTE: choosing same name setSeen for both accumulators leads
 --       to JS undefined error. perhaps due to a shadowing bug?
 
+getTriggerType numAttrs locs =
+  let n = List.length locs in
+  if | n == numAttrs -> ()
+     | n == 1        -> ()
+
+-- TODO now that there are singleton loc-sets, need a better
+-- way to try to cover them
+
 assignTriggers : Dict1 -> Dict2
 assignTriggers d1 =
   let f i (kind,zoneLists) (setSeen1,acc) =
-    let g (zone,sets) (setSeen2,acc) =
+    let g (zone,(numAttrs,sets)) (setSeen2,acc) =
       -- let rankedSets = List.sortBy scoreOfLocs sets in
       let rankedSets = sets in
       let pred = not << flip Set.member setSeen2 in
       case (Utils.findFirst pred rankedSets, rankedSets) of
         (Nothing, [])         -> (setSeen2, (zone,Nothing)::acc)
-        (Nothing, set::sets') -> (setSeen2, (zone,Just(set,sets'))::acc)
+        (Nothing, set::sets') ->
+          let _ = getTriggerType numAttrs set in
+          (setSeen2, (zone, Just (set, sets'))::acc)
         (Just x,  _)          ->
+          let _ = getTriggerType numAttrs x in
           let setSeen3 = Set.insert x setSeen2 in
           let acc' = (zone, Just (x, Utils.removeFirst x rankedSets)) :: acc in
           (setSeen3, acc')
@@ -524,6 +545,9 @@ makeTrigger e d0 d2 subst i zone = \newAttrs ->
         Just kSolution -> (Dict.insert k kSolution acc1, Set.insert k acc2)
     in
     List.foldl f (subst, Set.empty) newAttrs in
+    -- if using overconstrained triggers, then some of the newAttr values
+    -- from the UI make be "immediately destroyed" by subsequent ones...
+
   let g i (_,_,di) acc =
     let h attr tr acc =
       let locs = Set.map Utils.fst3 (locsOfTrace tr) in

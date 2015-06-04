@@ -464,12 +464,12 @@ test44 () =
 test45 () =
   makeTest
     "(let ngon (\\(n cx cy d)
-       (let dangle (/ (* 3 (pi)) 2)
-       (let anglei (\\i (+ dangle (/ (* i (* 2 (pi))) n)))
+       (let dangle (/ (* 3! (pi)) 2!)
+       (let anglei (\\i (+ dangle (/ (* i (* 2! (pi))) n)))
        (let xi     (\\i (+ cx (* d (cos (anglei i)))))
        (let yi     (\\i (+ cy (* d (sin (anglei i)))))
        (let pti    (\\i [(xi i) (yi i)])
-         (polygon_ (map pti (list0N (- n 1))))))))))
+         (polygon_ (map pti (list0N (- n 1!))))))))))
      (svg [
        (ngon 3 100 200 40)
        (ngon 4 200 200 30)
@@ -483,12 +483,12 @@ test45 () =
 test46 () =
   makeTest
     "(let ngon (\\(n cx cy len1 len2)
-       (let dangle (/ (* 3 (pi)) 2)
-       (let anglei (\\i (+ dangle (/ (* i (* 2 (pi))) n)))
+       (let dangle (/ (* 3! (pi)) 2!)
+       (let anglei (\\i (+ dangle (/ (* i (* 2! (pi))) n)))
        (let xi     (\\i (+ cx (* len1 (cos (anglei i)))))
        (let yi     (\\i (+ cy (* len2 (sin (anglei i)))))
        (let pti    (\\i [(xi i) (yi i)])
-         (polygon_ (map pti (list0N (- n 1))))))))))
+         (polygon_ (map pti (list0N (- n 1!))))))))))
      (svg [
        (ngon 3 100 200 40 40)
        (ngon 4 200 200 30 30)

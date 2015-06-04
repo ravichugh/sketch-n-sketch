@@ -186,6 +186,12 @@ upstate evt old = case Debug.log "Event" evt of
 
     _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
 
+type alias OnMouse =
+  { posX : Num -> Num , posY : Num -> Num
+  , negX : Num -> Num , negY : Num -> Num
+  -- , posXposY : Num -> Num
+  }
+
 createMousePosCallback mx my objid kind zone old =
 
   let (LangSvg.SvgNode _ attrs _) = Utils.justGet objid old.workingSlate in
@@ -201,10 +207,19 @@ createMousePosCallback mx my objid kind zone old =
     let negX n = n + toFloat mx - toFloat mx' in
     let negY n = n + toFloat my - toFloat my' in
 
-    let posX' (n,tr) = (posX n, tr) in
-    let posY' (n,tr) = (posY n, tr) in
-    let negX' (n,tr) = (negX n, tr) in
-    let negY' (n,tr) = (negY n, tr) in
+    -- let posXposY n =
+    --   let dx = toFloat mx - toFloat mx' in
+    --   let dy = toFloat my - toFloat my' in
+    --   if | abs dx >= abs dy  -> n - dx
+    --      | otherwise         -> n - dy in
+
+    let onMouse =
+      { posX = posX, posY = posY, negX = negX, negY = negY } in
+
+    -- let posX' (n,tr) = (posX n, tr) in
+    -- let posY' (n,tr) = (posY n, tr) in
+    -- let negX' (n,tr) = (negX n, tr) in
+    -- let negY' (n,tr) = (negY n, tr) in
 
     let fx  = mapNumAttr posX in
     let fy  = mapNumAttr posY in
@@ -245,8 +260,10 @@ createMousePosCallback mx my objid kind zone old =
           case LangSvg.realZoneOf zone of
             LangSvg.ZPoint i -> ret [fx (addi "x" i), fy (addi "y" i)]
 
-        ("polygon", _)  -> createCallbackPoly zone kind objid old posX' posY'
-        ("polyline", _) -> createCallbackPoly zone kind objid old posX' posY'
+        -- ("polygon", _)  -> createCallbackPoly zone kind objid old posX' posY'
+        -- ("polyline", _) -> createCallbackPoly zone kind objid old posX' posY'
+        ("polygon", _)  -> createCallbackPoly zone kind objid old onMouse
+        ("polyline", _) -> createCallbackPoly zone kind objid old onMouse
 
     in
     let newSlate = List.foldr (upslate objid) old.workingSlate newRealAttrs in
@@ -280,12 +297,15 @@ createCallbackPoly zone shape =
 --  - differentiate between "polygon" and "polyline" for interior
 --  - rethink/refactor point/edge zones
 
-polyInterior shape objid old posX' posY' =
+lift : (Num -> Num) -> (NumTr -> NumTr)
+lift f (n,t) = (f n, t)
+
+polyInterior shape objid old onMouse =
   let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
   let pts = toPoints <| Utils.find_ nodeAttrs "points" in
   let accs =
     let foo (j,(xj,yj)) (acc1,acc2) =
-      let (xj',yj') = (posX' xj, posY' yj) in
+      let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
       let acc2' = (addi "x"j, LangSvg.ANum xj') :: (addi "y"j, LangSvg.ANum yj') :: acc2 in
       ((xj',yj')::acc1, acc2')
     in
@@ -294,14 +314,14 @@ polyInterior shape objid old posX' posY' =
   let (acc1,acc2) = Utils.reverse2 accs in
   ([("points", LangSvg.APoints acc1)], acc2)
 
-polyPoint i shape objid old posX' posY' =
+polyPoint i shape objid old onMouse =
   let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
   let pts = toPoints <| Utils.find_ nodeAttrs "points" in
   let accs =
     let foo (j,(xj,yj)) (acc1,acc2) =
       if | i /= j -> ((xj,yj)::acc1, acc2)
          | otherwise ->
-             let (xj',yj') = (posX' xj, posY' yj) in
+             let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
              let acc2' = (addi "x"i, LangSvg.ANum xj')
                          :: (addi "y"i, LangSvg.ANum yj')
                          :: acc2 in
@@ -312,14 +332,14 @@ polyPoint i shape objid old posX' posY' =
   let (acc1,acc2) = Utils.reverse2 accs in
   ([("points", LangSvg.APoints acc1)], acc2)
 
-polyEdge i shape objid old posX' posY' =
+polyEdge i shape objid old onMouse =
   let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
   let pts = toPoints <| Utils.find_ nodeAttrs "points" in
   let n = List.length pts in
   let accs =
     let foo (j,(xj,yj)) (acc1,acc2) =
       if | i == j || (i == n && j == 1) || (i < n && j == i+1) ->
-             let (xj',yj') = (posX' xj, posY' yj) in
+             let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
              let acc2' = (addi "x"j, LangSvg.ANum xj')
                          :: (addi "y"j, LangSvg.ANum yj')
                          :: acc2 in
