@@ -479,3 +479,22 @@ test45 () =
      ]))"
     "[]"
 
+-- disjoint length params for x and y
+test46 () =
+  makeTest
+    "(let ngon (\\(n cx cy len1 len2)
+       (let dangle (/ (* 3 (pi)) 2)
+       (let anglei (\\i (+ dangle (/ (* i (* 2 (pi))) n)))
+       (let xi     (\\i (+ cx (* len1 (cos (anglei i)))))
+       (let yi     (\\i (+ cy (* len2 (sin (anglei i)))))
+       (let pti    (\\i [(xi i) (yi i)])
+         (polygon_ (map pti (list0N (- n 1))))))))))
+     (svg [
+       (ngon 3 100 200 40 40)
+       (ngon 4 200 200 30 30)
+       (ngon 5 300 300 50 50)
+       (ngon 7 300 100 40 40)
+       (ngon 15 100 400 40 40)
+     ]))"
+    "[]"
+

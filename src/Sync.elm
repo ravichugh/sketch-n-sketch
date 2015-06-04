@@ -197,16 +197,27 @@ solveTopDown subst (n, t) = case t of
                                              (\n -> solveTopDown subst (n, t1))
                                              (solveL op n j)
 
-      -- TODO sin/cos
-
       _ ->
         let _ = Debug.log "Sync.solve" <| strTrace t in
         Nothing
 
+  TrOp Cos [t1] ->
+    case evalTrace subst t1 of
+      Just i  -> maybeFloat <| acos i
+      Nothing -> Nothing
+
+  TrOp Sin [t1] ->
+    case evalTrace subst t1 of
+      Just i  -> maybeFloat <| asin i
+      Nothing -> Nothing
+
+
 isNumBinop = (/=) Lt
 
 maybeFloat n =
+  let thresh = 1000 in
   if | isNaN n || isInfinite n -> Debug.log "maybeFloat Nothing" Nothing
+     | abs n > thresh          -> Debug.log "maybeFloat (above thresh)" Nothing
      | otherwise               -> Just n
 
 -- n = i op j

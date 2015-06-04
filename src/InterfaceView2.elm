@@ -222,7 +222,7 @@ params =
   , wGut = 10              -- width of left/right side gutters (spans entire height)
   , topSection =
      { h = 40              -- height of top space
-     , wBtnO = 150         -- width...
+     , wBtnO = 180         -- width...
      , hBtnO = 25          -- ... and height of orientation button
      , wJunk = 225         -- gap between title and orientation button
      }

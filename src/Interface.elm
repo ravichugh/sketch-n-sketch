@@ -131,6 +131,7 @@ upstate evt old = case Debug.log "Event" evt of
                     newval    = indexedTreeToVal old.rootId old.workingSlate
                 in
                   case Sync.sync ip inputval' newval of
+                    -- TODO: add revert and hard-coded options
                     Ok [] -> { old | mode <- mkLive_ ip  }
                     Ok ls -> let _ = Debug.log "# of sync options" (List.length ls) in
                              upstate (TraverseOption 1) { old | mode <- SyncSelect 0 ls }
