@@ -38,6 +38,12 @@ src = "
 
 (letrec list0N (\\i (if (< i 0) nil (cons i (list0N (- i 1)))))
 
+(letrec intermingle (\\(xs ys)
+  (case [xs ys]
+    ([[x|xs1] [y|ys1]] (cons x (cons y (intermingle xs1 ys1))))
+    ([[]      []]      nil)
+    (_                 (append xs ys))))
+
 (letrec mult (\\(m n)
   (if (< m 1) 0 (+ n (mult (+ m -1) n))))
 
@@ -106,6 +112,6 @@ src = "
 (let path_      (path 'transparent' 'brown' 5)
 
 
-0))))))))))))))))))))))))))))))))))))))
+0)))))))))))))))))))))))))))))))))))))))
 
 "

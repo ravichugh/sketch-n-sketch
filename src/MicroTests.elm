@@ -499,18 +499,38 @@ test46 () =
      ]))"
     "[]"
 
+-- kind of a cool buggy program...
 test47 () =
   makeTest
-    "(let ngonpts (\\(n cx cy len1 len2 dangle)
+    "(let rot (/ (* 3! (pi)) 2!)
+     (let ngonpts (\\(n cx cy len dangle)
        (let anglei (\\i (+ dangle (/ (* i (* 2! (pi))) n)))
-       (let xi     (\\i (+ cx (* len1 (cos (anglei i)))))
-       (let yi     (\\i (+ cy (* len2 (sin (anglei i)))))
+       (let xi     (\\i (+ cx (* len (cos (anglei i)))))
+       (let yi     (\\i (+ cy (* len (sin (anglei i)))))
        (let pti    (\\i [(xi i) (yi i)])
          (map pti (list0N (- n 1!))))))))
      (svg [
-       (polygon_ (ngonpts 3 100 200 40 40 0))
-       (polygon_ (ngonpts 3 100 200 40 40 (/ (pi) 3)))
-     ]))"
+       (polygon_ (ngonpts 5 100 200 40 0))
+       (polygon_ (ngonpts 5 100 200 40 (/ (pi) 5)))
+       (polygon_ (ngonpts 5 100 100 40 0))
+       (polygon_ (ngonpts 5 100 100 10 (/ (pi) 5)))
+       (polygon_
+         (intermingle
+           (ngonpts 5 400 300 40 rot)
+           (ngonpts 5 400 300 40 (+ rot (/ (pi) 5)))))
+       (polygon_
+         (intermingle
+           (ngonpts 3 50 400 40 rot)
+           (ngonpts 3 50 400 40 (+ rot (/ (pi) 3)))))
+       (polygon_
+         (intermingle
+           (ngonpts 5 400 200 40 rot)
+           (ngonpts 5 400 200 10 (+ rot (/ (pi) 5)))))
+       (polygon_
+         (intermingle
+           (ngonpts 3 400 400 40 rot)
+           (ngonpts 3 400 400 10 (+ rot (/ (pi) 3)))))
+     ])))"
     "[]"
 
 tests =
