@@ -59,51 +59,7 @@ showOne (w,h,test) =
       (List.intersperse (E.spacer 10 10) (l ++ [br,hr,br]))
   ]
 
-tests =
-  [ (600, 100, MicroTests.test15)
-  , (600, 100, MicroTests.test16)
-  , (600, 100, MicroTests.test17)
-  , (600, 100, MicroTests.test18)
-  , (600, 100, MicroTests.test19)
-  , (600, 100, MicroTests.test20)
-  , (600, 100, MicroTests.test21)
-  , (600, 600, MicroTests.test22)
-  , (600, 200, MicroTests.test23)
-  , (600, 200, MicroTests.test24)
-  , (600, 200, MicroTests.test25)
-  , (600, 200, MicroTests.test26)
-  , (600, 200, MicroTests.test27)
-  , (600, 200, MicroTests.test28)
-  , (600, 200, MicroTests.test29)
-  , (600, 200, MicroTests.test30)
-  , (600, 600, MicroTests.test31)
-  , (600, 300, MicroTests.test32)
-  , (600, 300, MicroTests.test33)
-  , (600, 200, MicroTests.test34)
-  , (600, 200, MicroTests.test35)
-  , (600, 330, MicroTests.test36)
-  , (600, 330, MicroTests.test37)
-  , (600, 200, MicroTests.test38)
-  , (600, 200, MicroTests.test39)
-  , (600, 200, MicroTests.test40)
-  , (600, 200, MicroTests.test41)
-  , (600, 200, MicroTests.test42)
-  , (600, 200, MicroTests.test43)
-  , (600, 300, MicroTests.test44)
-  , (600, 300, MicroTests.test45)
-  , (600, 300, MicroTests.test46)
-  ]
-
-sampleTests =
-  tests
-    |> List.map Utils.thd3
-    |> Utils.mapi (\(i,f) ->
-         let name = "test" ++ toString (i+14) in
-         let thunk () = let {e,v} = f () in {e=e, v=v} in
-         (name, thunk))
-    |> List.reverse
-
 main : Element
 main =
-  E.flow E.down (List.map (showOne << Utils.mapThd3 (\f -> f ())) tests)
+  E.flow E.down (List.map (showOne << Utils.mapThd3 (\f -> f ())) MicroTests.tests)
 

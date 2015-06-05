@@ -3,7 +3,7 @@ module Examples where
 import Lang
 import LangParser
 import Eval
-import MainSvg
+import MicroTests
 
 makeExample name s =
   let thunk () =
@@ -60,5 +60,5 @@ examples =
   , makeExample "Logo" logo
   ]
 
-list = examples ++ MainSvg.sampleTests
+list = examples ++ MicroTests.sampleTests
 

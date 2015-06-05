@@ -3,6 +3,7 @@ module MicroTests where
 import Lang exposing (strVal)
 import LangParser exposing (parseV, parseE)
 import Eval
+import Utils
 
 _ `ignore` _ = ()
 
@@ -497,4 +498,63 @@ test46 () =
        (ngon 15 100 400 40 40)
      ]))"
     "[]"
+
+test47 () =
+  makeTest
+    "(let ngonpts (\\(n cx cy len1 len2 dangle)
+       (let anglei (\\i (+ dangle (/ (* i (* 2! (pi))) n)))
+       (let xi     (\\i (+ cx (* len1 (cos (anglei i)))))
+       (let yi     (\\i (+ cy (* len2 (sin (anglei i)))))
+       (let pti    (\\i [(xi i) (yi i)])
+         (map pti (list0N (- n 1!))))))))
+     (svg [
+       (polygon_ (ngonpts 3 100 200 40 40 0))
+       (polygon_ (ngonpts 3 100 200 40 40 (/ (pi) 3)))
+     ]))"
+    "[]"
+
+tests =
+  [ (600, 100, test15)
+  , (600, 100, test16)
+  , (600, 100, test17)
+  , (600, 100, test18)
+  , (600, 100, test19)
+  , (600, 100, test20)
+  , (600, 100, test21)
+  , (600, 600, test22)
+  , (600, 200, test23)
+  , (600, 200, test24)
+  , (600, 200, test25)
+  , (600, 200, test26)
+  , (600, 200, test27)
+  , (600, 200, test28)
+  , (600, 200, test29)
+  , (600, 200, test30)
+  , (600, 600, test31)
+  , (600, 300, test32)
+  , (600, 300, test33)
+  , (600, 200, test34)
+  , (600, 200, test35)
+  , (600, 330, test36)
+  , (600, 330, test37)
+  , (600, 200, test38)
+  , (600, 200, test39)
+  , (600, 200, test40)
+  , (600, 200, test41)
+  , (600, 200, test42)
+  , (600, 200, test43)
+  , (600, 300, test44)
+  , (600, 300, test45)
+  , (600, 300, test46)
+  , (600, 300, test47)
+  ]
+
+sampleTests =
+  tests
+    |> List.map Utils.thd3
+    |> Utils.mapi (\(i,f) ->
+         let name = "test" ++ toString (i+14) in
+         let thunk () = let {e,v} = f () in {e=e, v=v} in
+         (name, thunk))
+    |> List.reverse
 
