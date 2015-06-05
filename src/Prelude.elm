@@ -4,6 +4,8 @@ src = "
 
 (let id (\\x x)
 
+(let compose (\\(f g) (\\x (f (g x))))
+
 (letrec map (\\(f xs)
   (case xs ([] []) ([hd|tl] [(f hd)|(map f tl)])))
 
@@ -36,7 +38,11 @@ src = "
 (let hd   (\\[x|xs] x)
 (let tl   (\\[x|xs] xs)
 
-(letrec list0N (\\i (if (< i 0) nil (cons i (list0N (- i 1)))))
+(let reverse (foldl cons nil)
+
+(let list0N
+  (letrec foo (\\i (if (< i 0) nil (cons i (foo (- i 1)))))
+  (compose reverse foo))
 
 (letrec intermingle (\\(xs ys)
   (case [xs ys]
@@ -112,6 +118,6 @@ src = "
 (let path_      (path 'transparent' 'brown' 5)
 
 
-0)))))))))))))))))))))))))))))))))))))))
+0)))))))))))))))))))))))))))))))))))))))))
 
 "
