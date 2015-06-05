@@ -549,12 +549,13 @@ test48 () =
 
      (let upright (/ (* 3! (pi)) 2!)
      (let [x0 y0 sep ni nj] [100 100 100 3! 7!]
+     (let [outerLen innerLen] [50 20]
      (svg
        (map (\\i
               (let off (mult (- i ni) sep)
-              (nstar i (+ x0 off) (+ y0 off) 50 20 upright)))
+              (nstar i (+ x0 off) (+ y0 off) outerLen innerLen upright)))
             (range ni nj))
-     ))))"
+     )))))"
     "[]"
 
 tests =
