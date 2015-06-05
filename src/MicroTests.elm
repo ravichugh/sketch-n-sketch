@@ -533,6 +533,30 @@ test47 () =
      ])))"
     "[]"
 
+test48 () =
+  makeTest
+    "(let nstar (\\(n cx cy len1 len2 rot)
+       (let pti (\\[i len]
+         (let anglei (+ rot (/ (* i (pi)) n))
+         (let xi (+ cx (* len (cos anglei)))
+         (let yi (+ cy (* len (sin anglei)))
+           [xi yi]))))
+       (let lengths
+         (map (\\b (if b len1 len2))
+              (concat (repeat n [true false])))
+       (let indices (list0N (- (* 2! n) 1!))
+         (polygon_ (map pti (zip indices lengths)))))))
+
+     (let upright (/ (* 3! (pi)) 2!)
+     (let [x0 y0 sep ni nj] [100 100 100 3! 7!]
+     (svg
+       (map (\\i
+              (let off (mult (- i ni) sep)
+              (nstar i (+ x0 off) (+ y0 off) 50 20 upright)))
+            (range ni nj))
+     ))))"
+    "[]"
+
 tests =
   [ (600, 100, test15)
   , (600, 100, test16)
@@ -567,6 +591,7 @@ tests =
   , (600, 300, test45)
   , (600, 300, test46)
   , (600, 300, test47)
+  , (600, 300, test48)
   ]
 
 sampleTests =

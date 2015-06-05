@@ -26,7 +26,7 @@ parse p s =
   case runParser p s of
     [(s,"")] -> s
     [(_,_)]  -> crash "incomplete parse"
-    []       -> crash ("no parse\n" ++ toString (String.toList s))
+    []       -> crash ("no parse\n" ++ s)
     l        -> crash ("ambiguous parse\n" ++ toString l)
 
 return : a -> Parser a
