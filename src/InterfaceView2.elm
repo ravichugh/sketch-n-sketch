@@ -252,7 +252,7 @@ canvas : Int -> Int -> Model -> GE.Element
 canvas w h model =
   case model.mode of
     Print ->
-      let v = Eval.run (parseE model.code) in
+      let v = Eval.run (Utils.fromOk_ (parseE model.code)) in
       let (i,tree) = LangSvg.valToIndexedTree v in
       let s = LangSvg.printSvg i tree in
       codebox_ w h [] s

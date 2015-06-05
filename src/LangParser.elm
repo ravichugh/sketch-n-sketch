@@ -13,7 +13,7 @@ import Prelude
 
 ------------------------------------------------------------------------------
 
-(prelude, initK) = freshen_ 1 (parseE_ identity Prelude.src)
+(prelude, initK) = freshen_ 1 <| Utils.fromOk_ <| parseE_ identity Prelude.src
 
 isPreludeLoc : Loc -> Bool
 isPreludeLoc (k,_,_) = k < initK
@@ -227,6 +227,7 @@ parseE_ f = P.parse <|
   white P.end >>>
     P.return (f e)
 
+parseE : String -> Result String Exp
 parseE = parseE_ freshen
 
 parseVar = EVar <$> (white parseIdent)

@@ -70,14 +70,17 @@ upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
 
     Render ->
-      let e = parseE old.code in
-      let v = Eval.run e in
-      let (rootId,slate) = LangSvg.valToIndexedTree v in
-      { old | inputExp <- Just e
-            , code <- sExp e
-            , rootId <- rootId
-            , workingSlate <- slate
-            , mode <- refreshMode old.mode e }
+      case parseE old.code of
+        Ok e ->
+          let v = Eval.run e in
+          let (rootId,slate) = LangSvg.valToIndexedTree v in
+          { old | inputExp <- Just e
+                , code <- sExp e
+                , rootId <- rootId
+                , workingSlate <- slate
+                , mode <- refreshMode old.mode e }
+        Err err ->
+          { old | code <- "PARSE ERROR!\n\n" ++ err }
 
     PrintSvg -> { old | mode <- Print }
 

@@ -20,14 +20,13 @@ runParser p =
     P f         -> f
     LazyP thunk -> force thunk
 
-parse : Parser a -> String -> a
+parse : Parser a -> String -> Result String a
 parse p s =
-  let crash err = Debug.crash <| "OurParser.parse: " ++ err in
   case runParser p s of
-    [(s,"")] -> s
-    [(_,_)]  -> crash "incomplete parse"
-    []       -> crash ("no parse\n" ++ s)
-    l        -> crash ("ambiguous parse\n" ++ toString l)
+    [(s,"")] -> Ok s
+    [(_,_)]  -> Err "incomplete parse"
+    []       -> Err ("no parse\n\n" ++ s)
+    l        -> Err ("ambiguous parse\n\n" ++ toString l)
 
 return : a -> Parser a
 return x = P (\s -> [(x,s)])

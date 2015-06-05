@@ -148,5 +148,5 @@ run e =
   eval_ initEnv e
 
 parseAndRun : String -> String
-parseAndRun = strVal << run << LangParser.parseE
+parseAndRun = strVal << run << Utils.fromOk_ << LangParser.parseE
 
