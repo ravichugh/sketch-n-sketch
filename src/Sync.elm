@@ -443,8 +443,45 @@ getTriggerType numAttrs locs =
 -- TODO now that there are singleton loc-sets, need a better
 -- way to try to cover them
 
+{-
+  old approach:
+    if all locsets in rankedSets have been assigned at least once,
+    then just pick the first set in rankedSets.possible sets have already.
+
+  new approach:
+    evenly distribute the number of times each locset is assigned.
+-}
+
 assignTriggers : Dict1 -> Dict2
-assignTriggers d1 =
+assignTriggers = assignTriggersV2
+
+assignTriggersV2 d1 =
+  let f i (kind,zoneLists) (dictSetSeen1,acc) =
+    let g (zone,(numAttrs,sets)) (dictSetSeen2,acc) =
+      -- let rankedSets = List.sortBy scoreOfLocs sets in
+      let rankedSets = sets in
+      let maybeChosenSet =
+        List.foldl (\thisSet acc ->
+          case acc of
+            Nothing -> Just thisSet
+            Just bestSet ->
+            if | getCount bestSet dictSetSeen2 < getCount thisSet dictSetSeen2 -> acc
+               | otherwise -> Just thisSet) Nothing rankedSets in
+      case maybeChosenSet of
+        Nothing -> (dictSetSeen2, (zone, Nothing) :: acc)
+        Just chosenSet ->
+          (updateCount chosenSet dictSetSeen2, (zone, Just (chosenSet, rankedSets)) :: acc)
+    in
+    let (dictSetSeen,zoneLists') = List.foldl g (dictSetSeen1,[]) zoneLists in
+    (dictSetSeen, Dict.insert i (kind, List.reverse zoneLists') acc)
+  in
+  snd <| Dict.foldl f (Dict.empty, Dict.empty) d1
+
+getCount set dict    = Maybe.withDefault 0 (Dict.get set dict)
+updateCount set dict = Dict.insert set (1 + getCount set dict) dict
+
+assignTriggersV1 : Dict1 -> Dict2
+assignTriggersV1 d1 =
   let f i (kind,zoneLists) (setSeen1,acc) =
     let g (zone,(numAttrs,sets)) (setSeen2,acc) =
       -- let rankedSets = List.sortBy scoreOfLocs sets in
