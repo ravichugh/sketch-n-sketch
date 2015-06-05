@@ -92,4 +92,12 @@ Catching parse errors would be nice - highlighting problematic spots would be ev
 (let yaxis (rect 'black' (- x0 50) y0 10 300)
 (let bars (map (\[i j] (rect 'red' (+ x0 (* i sep)) (+ y0 (- 400 (* 100 j))) 50 (* 100 j))) (indexedzip [2 4 1]))
 (let [x0 y0 sep] [28 28 60]
-  (svg ([xaxis | yaxis | bars]))))))))`
+  (svg ([xaxis | yaxis]))))))))
+```
+
+```
+(let node (\[x y] (circle 'blue' x y 20))
+(let edge (\([x y] [i j]) (line 'green' x y i j))
+(let genpairs (\xs (map (\
+(svg (map node [[100 200]])))
+```
