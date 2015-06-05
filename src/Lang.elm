@@ -246,6 +246,8 @@ applySubst subst e = case e of
     ELet b p (applySubst subst e1) (applySubst subst e2) -- TODO
   EIf e1 e2 e3 ->
     EIf (applySubst subst e1) (applySubst subst e2) (applySubst subst e3)
+  ECase e l ->
+    ECase (applySubst subst e) (List.map (\(p,ei) -> (p, applySubst subst ei)) l)
 
 
 ------------------------------------------------------------------------------
