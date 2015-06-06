@@ -97,7 +97,17 @@ Catching parse errors would be nice - highlighting problematic spots would be ev
 
 ```
 (let node (\[x y] (circle 'blue' x y 20))
-(let edge (\([x y] [i j]) (line 'green' x y i j))
-(let genpairs (\xs (map (\
-(svg (map node [[100 200]])))
+(let edge (\[[x y] [i j]] (line 'green' x y i j))
+(letrec genpairs (\xs 
+  (case xs 
+    ([x | y | xx] [[x y] | (genpairs [x | xx]) | (genpairs ([y | xx]))]) 
+    (_ [])
+  )
+)
+(svg (map edge 
+  (genpairs [[100 200] [200 300]])
+  )
+)
 ```
+
+The line function isn't working quite yet.
