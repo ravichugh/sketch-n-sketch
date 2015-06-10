@@ -1,7 +1,7 @@
 module MicroTests where
 
 import Lang exposing (strVal)
-import LangParser exposing (parseV)
+import LangParser
 import Eval
 import Utils
 
@@ -12,6 +12,7 @@ _ `ignore` _ = ()
 -- right now, these always get run
 
 parseE = Utils.fromOk_ << LangParser.parseE
+parseV = Utils.fromOk_ << LangParser.parseV
 
 testParser = ()
 
@@ -52,6 +53,7 @@ testParser = ()
 
 --------------------------------------------------------------------------------
 
+makeTest : String -> String -> {e:Lang.Exp, v:Lang.Val, vnew:Lang.Val}
 makeTest se sv' =
   let e  = parseE se
       v  = Eval.run e
