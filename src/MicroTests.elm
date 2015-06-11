@@ -562,6 +562,24 @@ test48 () =
      )))))"
     "[]"
 
+--A simple graph (nodes and edges)
+test49 () =
+    makeTest
+      "(let node (\\[x y] (circle 'lightblue' x y 20))
+       (let edge (\\[[x y] [i j]] (line 'lightgreen' 5 x y i j))
+       (letrec genpairs
+          (\\xs
+            (case xs
+              ([x y | xx] [[x y] | (append (genpairs  (cons x xx)) (genpairs  (cons y xx)))])
+              ([x] [])
+              ([] [])))
+       (let pts [[200 50] [400 50] [100 223] [200 389] [400 391] [500 223]]
+       (let nodes (map node pts)
+       (let pairs (genpairs  pts)
+       (let edges (map edge pairs)
+         (svg (append edges nodes)))))))))"
+      "[]"
+
 tests =
   [ (600, 100, test15)
   , (600, 100, test16)
@@ -597,6 +615,7 @@ tests =
   , (600, 300, test46)
   , (600, 300, test47)
   , (600, 300, test48)
+  , (600, 600, test49)
   ]
 
 sampleTests =
