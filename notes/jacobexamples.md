@@ -46,3 +46,16 @@ Version 1: Looks like flag, but interactivity is slow and wonky
 
 ```
 
+##Pie Chart Example
+
+Version 1 : Sliced circle, interacting with central zones of lines does not seem to be propagating upwards
+
+```
+(let [x y rad] [350 250 175]
+(let slice (\(xend yend) (line 'white' 6 x y xend yend))
+  (svg
+    [(circle 'orange' x y rad)
+    (slice (+ x rad) y)
+    (slice x (- rad y))
+    (slice (- x rad) y)])))
+```
