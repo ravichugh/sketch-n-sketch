@@ -59,3 +59,23 @@ Version 1 : Sliced circle, interacting with central zones of lines does not seem
     (slice x (- rad y))
     (slice (- x rad) y)])))
 ```
+Version 2 : Updated using polar coordinates and angles, scales but lines don't move
+
+```
+
+(let toRadian
+  (\a
+    (* (/ (pi) 180!) a))
+(let [x y rad] [350 250 175]
+(let cut 
+  (\ang
+    (let xend (* rad (cos ang))
+    (let yend (* rad (sin ang))
+    (line 'white' 6 x y (+ x xend) (+ y yend)))))
+(let angles [0 45 90 180]
+(let radangs (map toRadian angles)
+(let cuts (map cut radangs)
+  (svg
+    (append [(circle 'orange' x y rad)] cuts))))))))
+
+```
