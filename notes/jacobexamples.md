@@ -23,24 +23,24 @@ Version 1: Looks like flag, but interactivity is slow and wonky
     (let indices (list0N  (- (* 2! n) 1!))
       (polygon 'red' 'DUMMY' 0 (map pti (zip indices lengths)))))))
 (let upright (/ (* 3! (pi)) 2!)
-(let [x0 y0 sep ni nj pts xrect] [108 113 145 0! 3! 6! 46]
+(let [x0 y0 sep ni nj pts lstripe wstripe] [108 113 145 0! 3! 6! 50 30]
 (let [outerLen innerLen] [50 20]
 (let stripes
   (map
     (\i
       (rect
         'lightblue'
-        xrect
-        (mult y0 i)
-        (mult x0 5.2)
-        (mult 2 (- outerLen innerLen))))
+        lstripe
+        (* y0 i)
+        (* x0 5.2)
+        (* 2 wstripe)))
     [1! 3!])
   (svg 
     (append
       stripes
       (map
         (\i
-          (let off (mult i sep)
+          (let off (* i sep)
             (nstar pts (+ x0 off) (+ y0 sep) outerLen innerLen upright)))
         (range ni nj)))))))))
 
@@ -77,5 +77,26 @@ Version 2 : Updated using polar coordinates and angles, scales but lines don't m
 (let cuts (map cut radangs)
   (svg
     (append [(circle 'orange' x y rad)] cuts))))))))
+
+```
+
+Version 3: Allowed pie cuts to be moveable
+
+```
+
+(let toRadian
+  (\a
+    (* (/ (pi) 180!) a))
+(let [x y rad] [350 250 175]
+(let cut 
+  (\ang
+    (let xend (* rad (cos ang))
+    (let yend (* rad (sin ang))
+    (line 'white' 6 (+ x rad) (+ y rad) (+ x xend) (+ y yend)))))
+(let angles [0 45 90 180]
+(let radangs (map toRadian angles)
+(let cuts (map cut radangs)
+  (svg
+    (append [(circle 'orange' (+ x rad) (+ y rad) rad)] cuts))))))))
 
 ```
