@@ -15,6 +15,8 @@ makeExample name s =
   (name, thunk)
 
 logo = "
+  ; sketch-n-sketch logo
+  ;
   (let [x0 y0 w h delta] [50 50 200 200 10]
   (let [xw yh w2 h2] [(+ x0 w) (+ y0 h) (div w 2) (div h 2)]
   (let poly (\\pts (polygon 'black' 'none' 0 pts))

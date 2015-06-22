@@ -53,6 +53,9 @@ freshen_ k e = case e of
     let es = List.map snd l in
     let (e'::es', k') = freshenExps k (e::es) in
     (ECase e' (Utils.zip (List.map fst l) es'), k')
+  EComment s e1 ->
+    let (e1',k') = freshen_ k e1 in
+    (EComment s e1', k')
 
 freshenExps k es =
   List.foldr (\e (es',k') ->
@@ -91,6 +94,7 @@ substOf_ s e = case e of
   EIf e1 e2 e3 -> substOfExps_ s [e1,e2,e3]
   ECase e1 l   -> substOfExps_ s (e1 :: List.map snd l)
   ELet _ _ e1 e2 -> substOfExps_ s [e1,e2]  -- TODO
+  EComment _ e1 -> substOf_ s e1
 
 substOfExps_ s es = case es of
   []     -> s
@@ -246,6 +250,7 @@ parseExp = P.recursively <| \_ ->
   <++ parseExpList
   <++ parseLet
   <++ parseApp
+  <++ parseCommentExp
 
 parseFun =
   parens <|
@@ -356,4 +361,11 @@ parseBranches = P.recursively <| \_ ->
 parseBranch =
   parens <|
     parsePat >>= \p -> oneWhite >>> parseExp >>= \e -> P.return (p,e)
+
+parseCommentExp =
+  token_ ";" >>>
+  P.many (P.satisfy ((/=) '\n')) >>= \cs ->
+  P.satisfy ((==) '\n') >>>
+  parseExp >>= \e ->
+    P.return (EComment (String.fromList cs) e)
 

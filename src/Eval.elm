@@ -94,6 +94,8 @@ eval env e =
         case (PVar f, v1') `cons` Just env of
           Just env' -> eval env' e2
 
+  EComment _ e1 -> eval env e1
+
   -- abstract syntactic sugar
   EFun ps e  -> eval env (eFun ps e)
   EApp e1 es -> eval env (eApp e1 es)

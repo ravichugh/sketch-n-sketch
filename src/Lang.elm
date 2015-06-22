@@ -40,6 +40,7 @@ type Exp
   | EIf Exp Exp Exp
   | ECase Exp (List (Pat, Exp))
   | ELet Bool Pat Exp Exp
+  | EComment String Exp
 
     -- EFun [] e     impossible
     -- EFun [p] e    (\p. e)
@@ -184,6 +185,9 @@ sExp_ showLocs k e =
         tab (k+1) ++ Utils.parens (strPat pi ++ " " ++ foo (k+1) ei) in
       Utils.parens <|
         "case " ++ foo k e1 ++ "\n" ++ Utils.lines (List.map bar l)
+    EComment s e1 ->
+      ";" ++ s ++ "\n" ++
+      tab k ++ foo k e1
 
 maybeIndent showLocs k e =
   let s = sExp_ showLocs (k+1) e in
@@ -214,6 +218,7 @@ mapExp f e =
     EIf e1 e2 e3   -> f (EIf (foo e1) (foo e2) (foo e3))
     ECase e1 l     -> f (ECase (foo e1) (List.map (\(p,ei) -> (p, foo ei)) l))
     ELet b p e1 e2 -> f (ELet b p (foo e1) (foo e2))
+    EComment s e1  -> f (EComment s (foo e1))
 
 mapVal : (Val -> Val) -> Val -> Val
 mapVal f v = case v of
@@ -248,6 +253,8 @@ applySubst subst e = case e of
     EIf (applySubst subst e1) (applySubst subst e2) (applySubst subst e3)
   ECase e l ->
     ECase (applySubst subst e) (List.map (\(p,ei) -> (p, applySubst subst ei)) l)
+  EComment s e1 ->
+    EComment s (applySubst subst e1)
 
 
 ------------------------------------------------------------------------------
