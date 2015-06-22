@@ -682,6 +682,23 @@ test53 () =
           (map blkline [[[x7 y5] [x7 y6]] [[x8 y5] [x8 y6]]])))))))"
     "[]"
 
+--testing out slider bar
+--pass x, y, min, max
+test54 () =
+  makeTest
+    "(let [min y max h1 w2 cx cy] [77 459 500! 50! 50! 73 50!]
+    (let [sx sy] [309 216]
+    (let samplecirc (circle 'orange' sx sy cx)
+    (let button (\n (rect 'lightgray' n y w2 h1))
+    (let bar (rect 'gray' min y max h1)
+    (let slider
+      (if (< cx (+ min max))
+        (if (< cx min)
+          (button  min)
+          (button  cx))
+        (button  (+ min max)))
+      (svg  [bar slider samplecirc])))))))"
+    "[]"
 
 tests =
   [ (600, 100, test15)
@@ -723,6 +740,7 @@ tests =
   , (600, 600, test51)
   , (600, 600, test52)
   , (600, 600, test53)
+  , (600, 600, test54)
   ]
 
 sampleTests =

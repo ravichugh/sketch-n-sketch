@@ -249,3 +249,25 @@ And without black shapes:
          [[x6 y3] [x8 y2] [x8 y3] [x6 y4]]])
       (map blkline [[[x7 y5] [x7 y6]] [[x8 y5] [x8 y6]]])))))))
 ```
+
+##Slider Bar Example
+Building a slider bar that can be used to toggle other parameters
+
+```
+(let [x y w1 h1 w2 cx cy] [41 360 500! 50! 50! 213 50!]
+(let bar (rect 'gray' x y w1 h1)
+(let slider (if (< cx (+ x w1)) (rect 'lightgray' cx y w2 h1) (rect 'lightgray' (+ x w1) y w2 h1))
+  (svg  [bar slider]))))
+```
+
+```
+(let [x y w1 h1 w2 cx cy] [125 346 500! 50! 50! 421 50!]
+(let bar (rect 'gray' x y w1 h1)
+(let slider
+  (if (< cx (+ x w1))
+    (if (< cx x)
+      (rect 'lightgray' x y w2 h1)
+      (rect 'lightgray' cx y w2 h1))
+    (rect 'lightgray' (+ x w1) y w2 h1))
+  (svg  [bar slider]))))
+```
