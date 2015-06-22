@@ -100,3 +100,34 @@ Version 3: Allowed pie cuts to be moveable
     (append [(circle 'orange' (+ x rad) (+ y rad) rad)] cuts))))))))
 
 ```
+
+## Frank Lloyd Wright Example
+
+http://www.artic.edu/aic/collections/citi/images/standard/WebLarge/WebImg_000207/123332_2318933.jpg
+
+Version 1: First pass using polygons
+
+```
+(let [w x y z] [200 300 400 500]
+(let bwpoly (polygon 'white' 'black' 3)
+  (svg
+    [(bwpoly [[110 120] [130 140] [w x] [y z]])
+    (bwpoly [[110 120] [130 140] [w x] [y z]])
+    (bwpoly [[110 120] [130 140] [w x] [y z]])
+    (bwpoly [[110 120] [130 140] [w x] [y z]])])))
+```
+
+Version 2: Working Copy
+
+```
+(let [x1 x2 x3 x4 x5 x6 x7 x8] [45 170 298 544 417 783 183 649]
+(let [y1 y2 y3 y4 y5 y6 y7 y8] [45 170 267 385 446 860 205 328]
+(let bwpoly (polygon 'white' 'black' 3)
+  (svg 
+    [(bwpoly  [[x1 y6] [x1 y1] [x6 y1] [x6 y6]])
+     (bwpoly  [[x1 y1] [x5 y7] [x3 y3] [x1 y2]])
+     (bwpoly  [[x6 y1] [x5 y7] [x4 y3] [x6 y2]])
+     (bwpoly  [[x5 y7] [x3 y3] [x5 y8] [x4 y3]])
+     (bwpoly  [[x1 y4] [x3 y3] [x5 y8] [x7 y5]])
+     (bwpoly  [[x6 y4] [x4 y3] [x5 y8] [x8 y5]])]))))
+```
