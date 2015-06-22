@@ -153,3 +153,52 @@ Version 3: Code cleanup and adding additional shapes and colors
          [[x6 y4] [x4 y3] [x5 y8] [x8 y5]]])
       (map blkline [[[x7 y5] [x7 y6]] [[x8 y5] [x8 y6]]])))))))
 ```
+
+Version 4: Flatter copy + black shapes
+
+```
+(let [x1 x2 x3 x4 x5 x6 x7 x8] [24 170 258 565 414 812 154 677]
+(let [y1 y2 y3 y4 y5 y6 y7 y8] [44 101 177 251 288 778 142 216]
+(let bwpoly (polygon 'white' 'black' 3)
+(let bbpoly (polygon 'black' 'black' 3)
+(let blkline (\[[a b] [c d]] (line 'black' 3 a b c d))
+  (svg 
+    (concat
+      [(map
+        bwpoly
+        [[[x1 y6] [x1 y1] [x6 y1] [x6 y6]]
+         [[x1 y1] [x5 y7] [x3 y3] [x1 y2]]
+         [[x6 y1] [x5 y7] [x4 y3] [x6 y2]]
+         [[x5 y7] [x3 y3] [x5 y8] [x4 y3]]
+         [[x1 y4] [x3 y3] [x5 y8] [x7 y5]]
+         [[x6 y4] [x4 y3] [x5 y8] [x8 y5]]])
+      (map blkline [[[x7 y5] [x7 y6]] [[x8 y5] [x8 y6]]])
+      (map
+        bbpoly
+        [[[x3 y6] [x3 y5] [x5 y4] [x4 y5] [x4 y6]]
+         [[x1 y3] [x7 y2] [x7 y3] [x1 y4]]
+         [[x6 y3] [x8 y2] [x8 y3] [x6 y4]]])])))))))
+```
+
+And without black shapes:
+
+```
+(let [x1 x2 x3 x4 x5 x6 x7 x8] [64 170 280 555 419 794 186 649]
+(let [y1 y2 y3 y4 y5 y6 y7 y8] [45 99 154 214 256 860 125 180]
+(let bwpoly (polygon 'white' 'black' 3)
+(let blkline (\[[a b] [c d]] (line 'black' 3 a b c d))
+  (svg 
+    (append
+      (map
+        bwpoly
+        [[[x1 y6] [x1 y1] [x6 y1] [x6 y6]]
+         [[x1 y1] [x5 y7] [x3 y3] [x1 y2]]
+         [[x6 y1] [x5 y7] [x4 y3] [x6 y2]]
+         [[x5 y7] [x3 y3] [x5 y8] [x4 y3]]
+         [[x1 y4] [x3 y3] [x5 y8] [x7 y5]]
+         [[x6 y4] [x4 y3] [x5 y8] [x8 y5]]
+         [[x3 y6] [x3 y5] [x5 y4] [x4 y5] [x4 y6]]
+         [[x1 y3] [x7 y2] [x7 y3] [x1 y4]]
+         [[x6 y3] [x8 y2] [x8 y3] [x6 y4]]])
+      (map blkline [[[x7 y5] [x7 y6]] [[x8 y5] [x8 y6]]])))))))
+```

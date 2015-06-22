@@ -580,6 +580,28 @@ test49 () =
          (svg (append edges nodes)))))))))"
       "[]"
 
+test50 () =
+  makeTest
+    "(let [x1 x2 x3 x4 x5 x6 x7 x8] [64 170 280 555 419 794 186 649]
+    (let [y1 y2 y3 y4 y5 y6 y7 y8] [45 99 154 214 256 860 125 180]
+    (let bwpoly (polygon 'white' 'black' 3)
+    (let blkline (\\[[a b] [c d]] (line 'black' 3 a b c d))
+      (svg 
+        (append
+          (map
+            bwpoly
+            [[[x1 y6] [x1 y1] [x6 y1] [x6 y6]]
+             [[x1 y1] [x5 y7] [x3 y3] [x1 y2]]
+             [[x6 y1] [x5 y7] [x4 y3] [x6 y2]]
+             [[x5 y7] [x3 y3] [x5 y8] [x4 y3]]
+             [[x1 y4] [x3 y3] [x5 y8] [x7 y5]]
+             [[x6 y4] [x4 y3] [x5 y8] [x8 y5]]
+             [[x3 y6] [x3 y5] [x5 y4] [x4 y5] [x4 y6]]
+             [[x1 y3] [x7 y2] [x7 y3] [x1 y4]]
+             [[x6 y3] [x8 y2] [x8 y3] [x6 y4]]])
+          (map blkline [[[x7 y5] [x7 y6]] [[x8 y5] [x8 y6]]])))))))"
+    "[]"
+
 tests =
   [ (600, 100, test15)
   , (600, 100, test16)
@@ -616,6 +638,7 @@ tests =
   , (600, 300, test47)
   , (600, 300, test48)
   , (600, 600, test49)
+  , (600, 600, test50)
   ]
 
 sampleTests =
