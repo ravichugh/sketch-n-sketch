@@ -1,4 +1,5 @@
-module Sync (sync, prepareLiveUpdates, printZoneTable, Triggers, tryToBeSmart) where
+module Sync (Options, defaultOptions, sync, prepareLiveUpdates,
+             printZoneTable, Triggers, tryToBeSmart) where
 
 import Dict exposing (Dict)
 import Set
@@ -10,6 +11,13 @@ import Lang exposing (..)
 import LangSvg exposing (NodeId, ShapeKind, Zone, addi)
 import Eval
 import LangParser
+
+
+type alias Options =
+  { thawedByDefault : Bool }
+
+defaultOptions =
+  { thawedByDefault = True }
 
 
 ------------------------------------------------------------------------------
@@ -104,28 +112,30 @@ diff_ k v1 v2 = case (v1, v2) of
 
 type alias Equation = (Num, Trace)
 
-locsOfTrace : Trace -> Set.Set Loc
-locsOfTrace =
+locsOfTrace : Options -> Trace -> Set.Set Loc
+locsOfTrace opts =
+  let frozenByDefault = not opts.thawedByDefault in
   let foo t = case t of
     TrLoc l ->
-      let (_,frozen,_) = l in
-      if | LangParser.isPreludeLoc l -> Set.empty
-         | frozen == true            -> Set.empty
-         | otherwise                 -> Set.singleton l
+      let (_,b,_) = l in
+      if | LangParser.isPreludeLoc l     -> Set.empty
+         | b == frozen                   -> Set.empty
+         | b == unann && frozenByDefault -> Set.empty
+         | otherwise                     -> Set.singleton l
     TrOp _ ts -> List.foldl Set.union Set.empty (List.map foo ts)
   in
   foo
 
-solveOneLeaf : Subst -> Val -> List (LocId, Num)
-solveOneLeaf s (VConst (i, tr)) =
+solveOneLeaf : Options -> Subst -> Val -> List (LocId, Num)
+solveOneLeaf opts s (VConst (i, tr)) =
   List.filterMap
     (\k -> let s' = Dict.remove k s in
            Utils.mapMaybe (\n -> (k,n)) (solve s' (i, tr)))
-    (List.map Utils.fst3 <| Set.toList <| locsOfTrace tr)
+    (List.map Utils.fst3 <| Set.toList <| locsOfTrace opts tr)
 
-inferSubsts : Subst -> List Val -> List Subst
-inferSubsts s0 vs =
-  List.map (solveOneLeaf s0) vs
+inferSubsts : Options -> Subst -> List Val -> List Subst
+inferSubsts opts s0 vs =
+  List.map (solveOneLeaf opts s0) vs
     |> Utils.oneOfEach
     |> List.map combine
     |> List.map (Utils.mapMaybe (\s' -> Dict.union s' s0))  -- pref to s'
@@ -273,8 +283,8 @@ getFillers = List.map (snd << snd) << Dict.toList
 
 leafToStar v = case v of {VConst _ -> VBase Star; _ -> v}
 
-sync : Exp -> Val -> Val -> Result String (List ((Exp, Val), Num))
-sync e v v' =
+sync : Options -> Exp -> Val -> Val -> Result String (List ((Exp, Val), Num))
+sync opts e v v' =
   case diff v v' of
     Nothing       -> Err "bad change"
     -- Just (Same _) -> Err "no change"
@@ -282,7 +292,7 @@ sync e v v' =
     Just (Diff vc holeSubst) ->
       let newNew = getFillers holeSubst in
       let subst0 = LangParser.substOf e in
-      let substs = inferSubsts subst0 newNew in
+      let substs = inferSubsts opts subst0 newNew in
       let res =
         List.sortBy snd <|
           List.filterMap (\s ->
@@ -326,8 +336,9 @@ type alias Dict2 = Dict NodeId (ShapeKind, List (Zone, Maybe (Locs, List Locs)))
 
 printZoneTable : Val -> String
 printZoneTable v =
+  let so = defaultOptions in
   nodeToAttrLocs v           -- Step 1: Val   -> Dict0
-    |> shapesToZoneTable     -- Step 2: Dict0 -> Dict1
+    |> shapesToZoneTable so  -- Step 2: Dict0 -> Dict1
     |> assignTriggers        -- Step 3: Dict1 -> Dict2
     |> strTable              -- Step 4: Dict2 -> String
 
@@ -383,21 +394,22 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
 --   would also need to take into account whether an equation
 --   is "top-down solvable" w.r.t to the desired location...
 
-shapesToZoneTable : Dict0 -> Dict1
-shapesToZoneTable d0 =
+shapesToZoneTable : Options -> Dict0 -> Dict1
+shapesToZoneTable opts d0 =
   let foo i stuff acc =
     let (kind,_,_) = stuff in
-    Dict.insert i (kind, shapeToZoneInfo stuff) acc in
+    Dict.insert i (kind, shapeToZoneInfo opts stuff) acc in
   Dict.foldl foo Dict.empty d0
 
 shapeToZoneInfo :
+  Options ->
   (ShapeKind, ExtraInfo, Dict AttrName Trace) -> List (Zone, (NumAttrs, List Locs))
-shapeToZoneInfo (kind, extra, d) =
+shapeToZoneInfo opts (kind, extra, d) =
   let zones = getZones kind extra in
   let f (s,l) acc =
     let numAttrs = List.length l in
     let sets =
-      l |> List.map (\a -> locsOfTrace <| justGet a d)
+      l |> List.map (\a -> locsOfTrace opts <| justGet a d)
         |> createLocLists in
     (s, (numAttrs, sets)) :: acc
   in
@@ -506,7 +518,7 @@ assignTriggersV1 d1 =
 scoreOfLocs : Locs -> Int
 scoreOfLocs locs =
   let foo (_,b,mx) acc =
-    let _ = Utils.assert "scoreOfLocs" (b == false) in
+    let _ = Utils.assert "scoreOfLocs" (b == unann) in
     if | mx == ""  -> acc
        | otherwise -> acc + 1
   in
@@ -544,34 +556,34 @@ type alias Trigger  = List (AttrName, Num) -> (Exp, Dict NodeId (Dict AttrName N
 
 tryToBeSmart = False
 
-prepareLiveUpdates : Exp -> Val -> Triggers
-prepareLiveUpdates e v =
+prepareLiveUpdates : Options -> Exp -> Val -> Triggers
+prepareLiveUpdates opts e v =
   let d0 = nodeToAttrLocs v in
-  let d1 = shapesToZoneTable d0 in
+  let d1 = shapesToZoneTable opts d0 in
   let d2 = assignTriggers d1 in
-  makeTriggers e d0 d2
+  makeTriggers opts e d0 d2
 
 -- TODO refactor Dict data structures above to make this more efficient
 
-makeTriggers : Exp -> Dict0 -> Dict2 -> Triggers
-makeTriggers e d0 d2 =
+makeTriggers : Options -> Exp -> Dict0 -> Dict2 -> Triggers
+makeTriggers opts e d0 d2 =
   let subst = LangParser.substOf e in
   let f i (_,zones) =
     let g (zone,m) =
       Dict.insert zone <|
         case m of
           Nothing -> Nothing
-          Just _  -> Just (makeTrigger e d0 d2 subst i zone) in
+          Just _  -> Just (makeTrigger opts e d0 d2 subst i zone) in
     List.foldl g Dict.empty zones in
   Dict.map f d2
 
-makeTrigger : Exp -> Dict0 -> Dict2 -> Subst -> NodeId -> Zone -> Trigger
-makeTrigger e d0 d2 subst i zone = \newAttrs ->
+makeTrigger : Options -> Exp -> Dict0 -> Dict2 -> Subst -> NodeId -> Zone -> Trigger
+makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
   -- TODO symbolically compute changes !!!
   -- once this is done, might be able to rank trigger sets by int/float
   let (subst',changedLocs) =
     let f (attr,newNum) (acc1,acc2) =
-      let k = whichLoc d0 d2 i zone attr in
+      let k = whichLoc opts d0 d2 i zone attr in
       let subst' = Dict.remove k subst in
       let tr = justGet attr (Utils.thd3 (justGet i d0)) in
       case solve subst' (newNum, tr) of
@@ -587,7 +599,7 @@ makeTrigger e d0 d2 subst i zone = \newAttrs ->
 
   let g i (_,_,di) acc =
     let h attr tr acc =
-      let locs = Set.map Utils.fst3 (locsOfTrace tr) in
+      let locs = Set.map Utils.fst3 (locsOfTrace opts tr) in
       if | Utils.setIsEmpty (locs `Set.intersect` changedLocs) -> acc
          | otherwise -> Dict.insert attr (evalTr subst' tr) acc
 
@@ -618,10 +630,10 @@ makeTrigger e d0 d2 subst i zone = \newAttrs ->
   (e', Dict.foldl g Dict.empty d0)
 
 -- TODO sloppy way of doing this for now...
-whichLoc : Dict0 -> Dict2 -> NodeId -> Zone -> AttrName -> LocId
-whichLoc d0 d2 i z attr =
+whichLoc : Options -> Dict0 -> Dict2 -> NodeId -> Zone -> AttrName -> LocId
+whichLoc opts d0 d2 i z attr =
   let trLocs =
-    justGet i d0 |> Utils.thd3 |> justGet attr |> locsOfTrace in
+    justGet i d0 |> Utils.thd3 |> justGet attr |> locsOfTrace opts in
   let zoneLocs =
     justGet i d2
       |> snd |> Utils.maybeFind z |> Utils.fromJust

@@ -128,14 +128,10 @@ parseFloat =
 parseSign =
   P.option 1 (P.satisfy ((==) '-') >>> P.return (-1))
 
-parseExclaim =
-  (P.satisfy ((==) '!')) >>> P.return (Just ())
-
 parseFrozen =
-  P.option Nothing parseExclaim >>= \m ->
-    case m of
-      Just () -> P.return true
-      Nothing -> P.return false
+  string_ frozen <++ string_ thawed <++ string_ unann
+
+string_ s = always s <$> P.token s
 
 parseNum : P.Parser (Num, Frozen)
 parseNum =

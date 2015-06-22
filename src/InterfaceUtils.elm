@@ -26,6 +26,7 @@ type alias Model =
   , midOffsetX : Int  -- extra codebox width in vertical orientation
   , midOffsetY : Int  -- extra codebox width in horizontal orientation
   , showZones : Bool
+  , syncOptions : Sync.Options
   }
 
 type Mode
@@ -71,6 +72,7 @@ type Event = CodeUpdate String
            | Render
            | PrintSvg
            | ToggleZones
+           | ToggleThawed
            | SwitchOrient
            | StartResizingMid
 
@@ -107,6 +109,6 @@ switchOrient m = case m of
 
 dimToPix d = String.append (toString d) "px"
 
-mkLive e v = Live <| Sync.prepareLiveUpdates e v
-mkLive_ e  = mkLive e (Eval.run e)
+mkLive opts e v = Live <| Sync.prepareLiveUpdates opts e v
+mkLive_ opts e  = mkLive opts e (Eval.run e)
 

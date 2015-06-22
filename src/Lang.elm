@@ -13,8 +13,8 @@ type alias LocId = Int
 type alias Ident = String
 type alias Num = Float
 
-type alias Frozen = Int  -- b/c Bool isn't comparable
-(true, false) = (1, 0)
+type alias Frozen = String -- b/c comparable
+(frozen, unann, thawed) = ("!", "", "?")
 
 type Pat
   = PVar Ident
@@ -105,8 +105,7 @@ strOp op = case op of
   ArcSin -> "arcsin"
 
 strLoc (k, b, mx) =
-  "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx)
-                    ++ (if b == true then "!" else "")
+  "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx) ++ b
 
 strTrace tr = case tr of
   TrLoc l   -> strLoc l
@@ -136,7 +135,7 @@ sExp_ showLocs k e =
     EConst i l ->
       let (_,b,_) = l in
       toString i
-        ++ (if b == true then "!" else "")
+        ++ b
         ++ if showLocs then Utils.braces (strLoc l) else ""
     EVar x -> x
     EFun [p] e ->
@@ -263,8 +262,8 @@ applySubst subst e = case e of
 dummyLoc_ b = (0, b, "")
 dummyTrace_ b = TrLoc (dummyLoc_ b)
 
-dummyLoc = dummyLoc_ false
-dummyTrace = dummyTrace_ false
+dummyLoc = dummyLoc_ unann
+dummyTrace = dummyTrace_ unann
 
 ePlus e1 e2 = EOp Plus [e1,e2]
 

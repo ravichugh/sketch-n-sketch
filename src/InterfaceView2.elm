@@ -287,8 +287,9 @@ middleWidgets w h wWrap hWrap model =
         , renderButton w h
         , printButton w h
         , gapWidget w h
-        ] ++ (zoneButton model w h) ++
-        [ modeToggle w h model
+        , zoneButton model w h
+        , frozenButton model w h
+        , modeToggle w h model
         ] ++ (syncButton_ w h model)
 
 gapWidget w h = GE.spacer w h
@@ -392,7 +393,11 @@ syncButton =
 
 zoneButton model w h =
   let cap = if model.showZones then "Hide Zones" else "Show Zones" in
-  [ simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap w h ]
+  simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap w h
+
+frozenButton model w h =
+  let cap = if model.syncOptions.thawedByDefault then "Default: n?" else "Default: n!" in
+  simpleButton ToggleThawed "ToggleThawed " "Toggle ?/!" cap w h
 
 chooseButton =
   simpleButton SelectOption "Choose" "Choose" "Select This"
@@ -420,7 +425,7 @@ dropdownExamples w h =
 modeToggle : Int -> Int -> Model -> GE.Element
 modeToggle w h model =
   let opt s m = (s, (SwitchMode m)) in
-  let optionLive = opt "Live" (mkLive_ (Utils.fromJust model.inputExp)) in
+  let optionLive = opt "Live" (mkLive_ model.syncOptions (Utils.fromJust model.inputExp)) in
   let optionAdHoc = opt "Ad Hoc" AdHoc in
   GI.dropDown (Signal.message events.address) [optionLive, optionAdHoc]
 
@@ -532,7 +537,7 @@ modeToggle w h model =
         [Html.text s]
   in
   -- may want to delay this to when Live is selected
-  let optionLive = opt "Live" (mkLive_ (Utils.fromJust model.inputExp)) in
+  let optionLive = opt "Live" (mkLive_ model.syncOptions (Utils.fromJust model.inputExp)) in
   let optionAdHoc = opt "Ad Hoc" AdHoc in
   Html.select
     [ buttonAttrs w h ]

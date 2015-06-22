@@ -52,19 +52,22 @@ sampleModel =
     , inputExp     = Just e
     , rootId       = rootId
     , workingSlate = slate
-    , mode         = mkLive e v
+    , mode         = mkLive Sync.defaultOptions e v
     , mouseMode    = MouseNothing
     , orient       = Vertical
     , midOffsetX   = 0
     , midOffsetY   = -100
     , showZones    = False
+    , syncOptions  = Sync.defaultOptions
     }
 
-refreshMode m e =
-  case m of
-    Live _ -> mkLive_ e
-    Print  -> mkLive_ e
+refreshMode model e =
+  case model.mode of
+    Live _ -> mkLive_ model.syncOptions e
+    Print  -> mkLive_ model.syncOptions e
     m      -> m
+
+refreshMode_ model = refreshMode model (Utils.fromJust model.inputExp)
 
 upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
@@ -78,7 +81,7 @@ upstate evt old = case Debug.log "Event" evt of
                 , code <- sExp e
                 , rootId <- rootId
                 , workingSlate <- slate
-                , mode <- refreshMode old.mode e }
+                , mode <- refreshMode old e }
         Err err ->
           { old | code <- "PARSE ERROR!\n\n" ++ err }
 
@@ -121,7 +124,7 @@ upstate evt old = case Debug.log "Event" evt of
 
     DeselectObject ->
       { old | mouseMode <- MouseNothing
-            , mode <- refreshMode old.mode (Utils.fromJust old.inputExp) }
+            , mode <- refreshMode_ old }
 
     Sync -> 
         case (old.mode, old.inputExp) of
@@ -133,9 +136,9 @@ upstate evt old = case Debug.log "Event" evt of
                                          |> indexedTreeToVal old.rootId
                     newval    = indexedTreeToVal old.rootId old.workingSlate
                 in
-                  case Sync.sync ip inputval' newval of
+                  case Sync.sync old.syncOptions ip inputval' newval of
                     -- TODO: add revert and hard-coded options
-                    Ok [] -> { old | mode <- mkLive_ ip  }
+                    Ok [] -> { old | mode <- mkLive_ old.syncOptions ip  }
                     Ok ls -> let _ = Debug.log "# of sync options" (List.length ls) in
                              upstate (TraverseOption 1) { old | mode <- SyncSelect 0 ls }
                     Err e -> let _ = Debug.log ("bad sync: ++ " ++ e) () in
@@ -149,7 +152,7 @@ upstate evt old = case Debug.log "Event" evt of
             , inputExp <- Just ei
             , rootId <- rootId
             , workingSlate <- tree
-            , mode <- mkLive ei vi }
+            , mode <- mkLive old.syncOptions ei vi }
 
     TraverseOption offset ->
       let (SyncSelect i l) = old.mode in
@@ -172,7 +175,7 @@ upstate evt old = case Debug.log "Event" evt of
       let (rootId,tree) = LangSvg.valToIndexedTree v in
       let m =
         case old.mode of
-          Live _ -> mkLive e v
+          Live _ -> mkLive old.syncOptions e v
           _      -> old.mode
       in
       { old | inputExp <- Just e
@@ -186,6 +189,12 @@ upstate evt old = case Debug.log "Event" evt of
     SwitchOrient -> { old | orient <- switchOrient old.orient }
 
     ToggleZones -> { old | showZones <- not old.showZones }
+
+    ToggleThawed ->
+      let so = old.syncOptions in
+      let so' = { so | thawedByDefault <- not so.thawedByDefault } in
+      let model' = { old | syncOptions <- so' } in
+      { model' | mode <- refreshMode_ model' }
 
     _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
 
