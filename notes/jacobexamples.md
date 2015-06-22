@@ -119,9 +119,11 @@ Version 1: First pass using polygons
 
 Version 2: Working Copy
 
+Interesting idea, possibility of making topigraphical maps?
+
 ```
-(let [x1 x2 x3 x4 x5 x6 x7 x8] [45 170 298 544 417 783 183 649]
-(let [y1 y2 y3 y4 y5 y6 y7 y8] [45 170 267 385 446 860 205 328]
+(let [x1 x2 x3 x4 x5 x6 x7 x8] [43 170 295 544 417 783 183 649]
+(let [y1 y2 y3 y4 y5 y6 y7 y8] [45 154 270 376 446 860 213 328]
 (let bwpoly (polygon 'white' 'black' 3)
   (svg 
     [(bwpoly  [[x1 y6] [x1 y1] [x6 y1] [x6 y6]])
@@ -130,4 +132,24 @@ Version 2: Working Copy
      (bwpoly  [[x5 y7] [x3 y3] [x5 y8] [x4 y3]])
      (bwpoly  [[x1 y4] [x3 y3] [x5 y8] [x7 y5]])
      (bwpoly  [[x6 y4] [x4 y3] [x5 y8] [x8 y5]])]))))
+```
+
+Version 3: Code cleanup and adding additional shapes and colors
+
+```
+(let [x1 x2 x3 x4 x5 x6 x7 x8] [43 170 295 544 417 783 183 649]
+(let [y1 y2 y3 y4 y5 y6 y7 y8] [45 154 270 376 446 860 213 328]
+(let bwpoly (polygon 'white' 'black' 3)
+(let blkline (\[[a b] [c d]] (line 'black' 3 a b c d))
+  (svg 
+    (append
+      (map
+        bwpoly
+        [[[x1 y6] [x1 y1] [x6 y1] [x6 y6]]
+         [[x1 y1] [x5 y7] [x3 y3] [x1 y2]]
+         [[x6 y1] [x5 y7] [x4 y3] [x6 y2]]
+         [[x5 y7] [x3 y3] [x5 y8] [x4 y3]]
+         [[x1 y4] [x3 y3] [x5 y8] [x7 y5]]
+         [[x6 y4] [x4 y3] [x5 y8] [x8 y5]]])
+      (map blkline [[[x7 y5] [x7 y6]] [[x8 y5] [x8 y6]]])))))))
 ```
