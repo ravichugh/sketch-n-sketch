@@ -562,8 +562,27 @@ test48 () =
      )))))"
     "[]"
 
---A simple graph (nodes and edges)
+--piechart example, incomplete
 test49 () =
+  makeTest
+    "(let toRadian
+    (\\a
+      (* (/ (pi) 180!) a))
+    (let [x y rad] [350 250 175]
+    (let cut 
+      (\\ang
+        (let xend (* rad (cos ang))
+        (let yend (* rad (sin ang))
+        (line 'white' 6 x y (+ x xend) (+ y yend)))))
+    (let angles [0 45 90 180]
+    (let radangs (map toRadian angles)
+    (let cuts (map cut radangs)
+      (svg
+        (append [(circle 'orange' x y rad)] cuts))))))))"
+    "[]"
+
+--A simple graph (nodes and edges)
+test50 () =
     makeTest
       "(let node (\\[x y] (circle 'lightblue' x y 20))
        (let edge (\\[[x y] [i j]] (line 'lightgreen' 5 x y i j))
@@ -580,11 +599,72 @@ test49 () =
          (svg (append edges nodes)))))))))"
       "[]"
 
-test50 () =
+--Chicago Flag Example
+test51 () =
   makeTest
-    "(let [x1 x2 x3 x4 x5 x6 x7 x8] [64 170 280 555 419 794 186 649]
-    (let [y1 y2 y3 y4 y5 y6 y7 y8] [45 99 154 214 256 860 125 180]
+    "(let nstar
+    (\\(n cx cy len1 len2 rot)
+      (let pti
+        (\\[i len]
+          (let anglei (+ rot (/ (* i (pi)) n))
+          (let xi (+ cx (* len (cos anglei)))
+          (let yi (+ cy (* len (sin anglei)))
+            [xi yi]))))
+      (let lengths
+        (map
+          (\\b
+            (if b
+              len1
+              len2))
+          (concat  (repeat n [true false])))
+      (let indices (list0N  (- (* 2! n) 1!))
+        (polygon 'red' 'DUMMY' 0 (map pti (zip indices lengths)))))))
+    (let upright (/ (* 3! (pi)) 2!)
+    (let [x0 y0 space sep ni nj pts lstripe wstripe] [108 113 454! 145 0! 3! 6! 50 60]
+    (let [outerLen innerLen] [50 20]
+    (let stripes
+      (map
+        (\\i
+          (rect
+            'lightblue'
+            lstripe
+            (* y0 i)
+            (+ x0 space)
+            wstripe))
+        [1! 3!])
+      (svg 
+        (append
+          stripes
+          (map
+            (\\i
+              (let off (* i sep)
+                (nstar pts (+ x0 off) (+ y0 sep) outerLen innerLen upright)))
+            (range ni nj)))))))))"
+    "[]"
+
+--Frank Lloyd Wright Initial, possibility for topographical maps example?
+test52 () =
+  makeTest
+    "(let [x1 x2 x3 x4 x5 x6 x7 x8] [43 170 295 544 417 783 183 649]
+    (let [y1 y2 y3 y4 y5 y6 y7 y8] [45 154 270 376 446 860 213 328]
     (let bwpoly (polygon 'white' 'black' 3)
+      (svg 
+        [(bwpoly  [[x1 y6] [x1 y1] [x6 y1] [x6 y6]])
+         (bwpoly  [[x1 y1] [x5 y7] [x3 y3] [x1 y2]])
+         (bwpoly  [[x6 y1] [x5 y7] [x4 y3] [x6 y2]])
+         (bwpoly  [[x5 y7] [x3 y3] [x5 y8] [x4 y3]])
+         (bwpoly  [[x1 y4] [x3 y3] [x5 y8] [x7 y5]])
+         (bwpoly  [[x6 y4] [x4 y3] [x5 y8] [x8 y5]])]))))"
+    "[]"
+
+--A Frank Lloyd Wright Design
+--Still In Progress: 
+--http://www.artic.edu/aic/collections/citi/images/standard/WebLarge/WebImg_000207/123332_2318933.jpg
+test53 () =
+  makeTest
+    "(let [x1 x2 x3 x4 x5 x6 x7 x8] [64 170 280 555 412 794 186 649]
+    (let [y1 y2 y3 y4 y5 y6 y7 y8] [45 99 154 214 256 860 125 184]
+    (let bwpoly (polygon 'lightyellow' 'black' 3)
     (let blkline (\\[[a b] [c d]] (line 'black' 3 a b c d))
       (svg 
         (append
@@ -601,6 +681,7 @@ test50 () =
              [[x6 y3] [x8 y2] [x8 y3] [x6 y4]]])
           (map blkline [[[x7 y5] [x7 y6]] [[x8 y5] [x8 y6]]])))))))"
     "[]"
+
 
 tests =
   [ (600, 100, test15)
@@ -639,6 +720,9 @@ tests =
   , (600, 300, test48)
   , (600, 600, test49)
   , (600, 600, test50)
+  , (600, 600, test51)
+  , (600, 600, test52)
+  , (600, 600, test53)
   ]
 
 sampleTests =
