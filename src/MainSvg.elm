@@ -38,7 +38,7 @@ showOne (w,h,test) =
       _ ->
         let l2 = [ showString "Updated Canvas", valToElt w h vnew ] in
         let l3 =
-          case Sync.sync e v vnew of
+          case Sync.inferLocalUpdates Sync.defaultOptions e v vnew of
             Err e -> [[ E.show e ]]
             Ok results ->
               flip Utils.mapi results <| \(i,((ei,vi),vdiff)) ->
