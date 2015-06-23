@@ -333,3 +333,22 @@ Building a slider bar that can be used to toggle other parameters
          [[x1 y5] [x1 y4]]
          [[x1 y4] [x3 y4]]
          [[x3 y4] [x3 y5]]]))))))))
+
+##Frank Lloyd Wrigth 2
+
+(let [x0 x1 x2 x3 x4 x5 x6 x7 x8] [50 100 150 200 250 300 350 400 450]
+    (let [y0 y1 y2 y3 y4 y5 y6 y7 y8] [50 100 150 200 250 300 350 400 450]
+    (let bluepoly (polygon 'blue' 'black' 3)
+    (let redpoly (polygon 'red' 'black' 3)
+    (let ypairup (\\(a bs) (map (\\b [a b])))
+    (let xpairup (\\(a bs) (map (\\b [b a])))
+    (let rowtop (xpairup y0 [x0 x1 x2 x3 x4 x5 x6 x7 x8])
+    (let rowbot (xpairup y8 [x0 x1 x2 x3 x4 x5 x6 x7 x8])
+    (let colleft (ypairup x0 [y0 y1 y2 y3 y4 y5 y6 y7 y8])
+    (let colright (ypairup x8 [y0 y1 y2 y3 y4 y5 y6 y7 y8])
+    (let blkline (\\[[a b] [c d]] (line 'black' 3 a b c d))
+      (svg 
+        (map blkline
+          (append
+            (zip rowtop rowbot)
+            (zip colleft colright)))))))))))))))

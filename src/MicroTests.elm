@@ -813,6 +813,36 @@ test57 () =
                [[x3 y4] [x3 y5]]])))))))))"
     "[]"
 
+--Second Frank Lloyd Wright Example
+test58 () =
+  makeTest
+    "(let [x0 x1 x2 x3 x4 x5 x6 x7 x8] [50 100 150 200 250 300 350 400 450]
+    (let [y0 y1 y2 y3 y4 y5 y6 y7 y8] [50 100 150 200 250 300 350 400 450]
+    (let bluepoly (polygon 'blue' 'black' 3)
+    (let redpoly (polygon 'red' 'black' 3)
+    (let ypairup (\\(a bs) (map (\\b [a b]) bs))
+    (let xpairup (\\(a bs) (map (\\b [b a]) bs))
+    (let rowtop (xpairup y0 [x0 x1 x2 x3 x4 x5 x6 x7 x8])
+    (let rowbot (xpairup y8 [x0 x1 x2 x3 x4 x5 x6 x7 x8])
+    (let colleft (ypairup x0 [y0 y1 y2 y3 y4 y5 y6 y7 y8])
+    (let colright (ypairup x8 [y0 y1 y2 y3 y4 y5 y6 y7 y8])
+    (let blkline (\\[[a b] [c d]] (line 'black' 3 a b c d))
+      (svg
+        (append
+          (map blkline
+            (append
+              (zip rowtop rowbot)
+              (zip colleft colright)))
+          (append
+            (map redpoly 
+              [[[x0 y0] [x1 y0] [x1 y1] [x0 y1]]
+              [[x1 y1] [x2 y1] [x2 y2] [x1 y2]]
+              [[x2 y2] [x3 y2] [x3 y3] [x2 y3]]])
+            (map (\\[x y r] (circle 'yellow' x y r)) 
+              [[x5 y2 x1] [x5 y5 x0] [x5 y7 25]]))
+        )))))))))))))"
+    "[]"
+
 tests =
   [ (600, 100, test15)
   , (600, 100, test16)
@@ -857,6 +887,7 @@ tests =
   , (600, 600, test55)
   , (600, 600, test56)
   , (600, 600, test57)
+  , (600, 600, test58)
   ]
 
 sampleTests =
