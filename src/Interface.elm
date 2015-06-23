@@ -132,8 +132,9 @@ upstate evt old = case Debug.log "Event" evt of
         SyncSelect _ _ -> old
 
     DeselectObject ->
-      { old | mouseMode <- MouseNothing
-            , mode <- refreshMode_ old }
+      case old.mode of
+        Print -> old
+        _     -> { old | mouseMode <- MouseNothing, mode <- refreshMode_ old }
 
     Sync -> 
       case (old.mode, old.inputExp) of
