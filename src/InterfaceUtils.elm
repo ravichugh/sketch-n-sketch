@@ -48,16 +48,6 @@ type alias PossibleChanges =
   , List (Exp, Val)   -- local changes ++ [structural change, revert change]
   )
 
---Event
---CodeUpdate : carries updated string of code with it
---SelectObject : carries an id of an object and an identifying string for a zone
---DeselectObject : carries an id of an object which shall no longer be selected
---                  for alteration.
---MousePos : carries a position of mouse on a down click
---Sync : signals the system to enter selectMode
---SelectOption : carries a possiblechange pane from sync to be displayed as the new
---              console
---Render : display a given val from the code
 type Event = CodeUpdate String
            | SelectObject Int ShapeKind Zone
            | DeselectObject
