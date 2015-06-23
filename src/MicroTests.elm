@@ -700,7 +700,7 @@ test54 () =
       (svg  [bar slider samplecirc])))))))"
     "[]"
 
---original colonial flag (TODO: still in progress, star placement)
+--original colonial flag
 test55 () =
   makeTest
     "(let nstar
@@ -719,9 +719,9 @@ test55 () =
               len2))
           (concat  (repeat n [true false])))
       (let indices (list0N  (- (* 2! n) 1!))
-        (polygon 'orange' 'DUMMY' 0 (map pti (zip indices lengths)))))))
-    (let rotate (\\a (/ (* (+ 3! a) (pi)) 2!))
-    (let [x0 y0 wstripe sep ni nj pts xstripe hstripe radius] [108 20 500! 45 0! 12! 5! 52 20 80]
+        (polygon 'white' 'DUMMY' 0 (map pti (zip indices lengths)))))))
+    (let rotate (\\a (/ (* (+ 9! a) (pi)) 6!))
+    (let [x0 y0 wstripe xoff yoff ni nj pts xstripe hstripe radius] [108 20 500! 135 90 0! 12! 5! 52 20 55]
     (let [outerLen innerLen] [10 4]
     (let block (rect '#09096d' xstripe y0 (/ wstripe 3) (* 7 hstripe))
     (let stripes
@@ -734,14 +734,13 @@ test55 () =
           base
           (map
             (\\i
-              (let off (* i sep)
                 (nstar
                   pts
-                  (+ sep (* radius (cos (rotate  i))))
-                  (+ sep (* radius (sin (rotate  i))))
+                  (+ xoff (* radius (cos (rotate  i))))
+                  (+ yoff (* radius (sin (rotate  i))))
                   outerLen
                   innerLen
-                  (rotate  i))))
+                  (rotate  i)))
           (range ni nj)))))))))))"
     "[]"
 
