@@ -27,6 +27,7 @@ type alias Model =
   , midOffsetY : Int  -- extra codebox width in horizontal orientation
   , showZones : Bool
   , syncOptions : Sync.Options
+  , editingMode : Bool
   }
 
 type Mode
@@ -69,8 +70,9 @@ type Event = CodeUpdate String
            | Revert
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val})
-           | Render
-           | PrintSvg
+           | Edit
+           | Run
+           | ToggleOutput
            | ToggleZones
            | ToggleThawed
            | SwitchOrient

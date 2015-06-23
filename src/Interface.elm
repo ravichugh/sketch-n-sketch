@@ -59,6 +59,7 @@ sampleModel =
     , midOffsetY   = -100
     , showZones    = False
     , syncOptions  = Sync.defaultOptions
+    , editingMode  = False
     }
 
 refreshMode model e =
@@ -72,7 +73,9 @@ refreshMode_ model = refreshMode model (Utils.fromJust model.inputExp)
 upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
 
-    Render ->
+    Edit -> { old | editingMode <- True }
+
+    Run ->
       case parseE old.code of
         Ok e ->
           let v = Eval.run e in
@@ -81,11 +84,17 @@ upstate evt old = case Debug.log "Event" evt of
                 , code <- sExp e
                 , rootId <- rootId
                 , workingSlate <- slate
+                , editingMode <- False
                 , mode <- refreshMode old e }
         Err err ->
           { old | code <- "PARSE ERROR!\n\n" ++ err }
 
-    PrintSvg -> { old | mode <- Print }
+    ToggleOutput ->
+      let m = case old.mode of
+        Print -> refreshMode_ old
+        _     -> Print
+      in
+      { old | mode <- m }
 
     CodeUpdate newcode -> { old | code <- newcode }
 

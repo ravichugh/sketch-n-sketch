@@ -216,7 +216,6 @@ colorDebug c1 =
   if | params.debugLayout -> GE.color c1
      | otherwise          -> GE.color Color.darkGray
 
--- TODO: set readonly based on mode
 codebox : Int -> Int -> Model -> GE.Element
 codebox w h model =
   let event =
@@ -225,13 +224,14 @@ codebox w h model =
            [Events.on "input" Events.targetValue
               (Signal.message events.address << CodeUpdate)]
   in
-    codebox_ w h event model.code
+    codebox_ w h event model.code (not model.editingMode)
 
-codebox_ w h event s =
+codebox_ w h event s readOnly =
   Html.toElement w h <|
     Html.textarea
       ([ Attr.id "codeBox"
        , Attr.spellcheck False
+       , Attr.readonly readOnly
        , Attr.style
            [ ("font-family", params.mainSection.codebox.font)
            , ("font-size", params.mainSection.codebox.fontSize)
@@ -255,12 +255,13 @@ canvas w h model =
       let v = Eval.run (Utils.fromOk_ (parseE model.code)) in
       let (i,tree) = LangSvg.valToIndexedTree v in
       let s = LangSvg.printSvg i tree in
-      codebox_ w h [] s
+      codebox_ w h [] s (not model.editingMode)
     _ ->
       canvas_ w h model
 
 canvas_ w h model =
-  let svg = buildSvg True model.showZones model.workingSlate model.rootId in
+  let addZones = not model.editingMode in
+  let svg = buildSvg addZones model.showZones model.workingSlate model.rootId in
   Html.toElement w h <|
     Svg.svg
       [ onMouseUp DeselectObject
@@ -271,26 +272,38 @@ canvas_ w h model =
 
 middleWidgets w h wWrap hWrap model =
   List.map (GE.container wWrap hWrap GE.middle) <|
-    case model.mode of
-      SyncSelect _ [] ->
+    case (model.editingMode, model.mode) of
+      (False, SyncSelect _ []) ->
         [ gapWidget w h
+        , gapWidget w h
+        , gapWidget w h
         , revertButton w h
         ]
-      SyncSelect i l ->
-        [ prevButton i w h
+      (False, SyncSelect i l) ->
+        [ gapWidget w h
+        , gapWidget w h
+        , prevButton i w h
         , chooseButton w h
         , nextButton i l w h
         ]
-      _ ->
+      (False, Print) ->
         [ dropdownExamples w h
-        , gapWidget w h
-        , renderButton w h
-        , printButton w h
+        , editRunButton model w h
+        , outputButton model w h
+        ]
+      (False, _) ->
+        [ dropdownExamples w h
+        , editRunButton model w h
+        , outputButton model w h
         , gapWidget w h
         , zoneButton model w h
         , frozenButton model w h
         , modeToggle w h model
         ] ++ (syncButton_ w h model)
+      (True, _) ->
+        [ dropdownExamples w h
+        , editRunButton model w h
+        ]
 
 gapWidget w h = GE.spacer w h
 
@@ -382,22 +395,25 @@ simpleButton evt value name text w h =
       ]
       [Html.text text]
 
-renderButton =
-  simpleButton Render "Render" "Run and Render to SVG" "Render SVG"
+editRunButton model =
+  case model.editingMode of
+    True  -> simpleButton Run "Run" "Run" "Run"
+    False -> simpleButton Edit "Edit" "Edit" "Edit"
 
-printButton =
-  simpleButton PrintSvg "Print" "Run and Print to SVG" "Print SVG"
+outputButton model =
+  let cap = if model.mode == Print then "[Out] SVG" else "[Out] Canvas" in
+  simpleButton ToggleOutput "Toggle Output" "Toggle Output" cap
 
 syncButton =
   simpleButton Sync "Sync" "Sync the code to the canvas" "Sync"
 
-zoneButton model w h =
-  let cap = if model.showZones then "Hide Zones" else "Show Zones" in
-  simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap w h
+zoneButton model =
+  let cap = if model.showZones then "[Zones] Shown" else "[Zones] Hidden" in
+  simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap
 
-frozenButton model w h =
-  let cap = if model.syncOptions.thawedByDefault then "Default: n?" else "Default: n!" in
-  simpleButton ToggleThawed "ToggleThawed " "Toggle ?/!" cap w h
+frozenButton model =
+  let cap = if model.syncOptions.thawedByDefault then "[Default] n?" else "[Default] n!" in
+  simpleButton ToggleThawed "ToggleThawed " "Toggle ?/!" cap
 
 chooseButton =
   simpleButton SelectOption "Choose" "Choose" "Select This"
@@ -434,7 +450,7 @@ orientationButton w h model =
       [ buttonAttrs w h
       , Events.onClick events.address SwitchOrient
       ]
-      [Html.text ("Orientation: " ++ (toString model.orient))]
+      [Html.text ("[Orientation] " ++ (toString model.orient))]
 
 view : (Int, Int) -> Model -> GE.Element
 view (w,h) model =
