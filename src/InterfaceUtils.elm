@@ -52,7 +52,7 @@ type alias PossibleChanges =
 
 type Event = CodeUpdate String
            | SelectObject Int ShapeKind Zone
-           | DeselectObject
+           | MouseUp
            | MousePos (Int, Int)
            | Sync
            | TraverseOption Int -- offset from current index (+1 or -1)

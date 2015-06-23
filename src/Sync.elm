@@ -355,6 +355,7 @@ inferStructuralUpdate eOld v v' =
 
   let bindings =
     List.map (\(i,vi) ->
+      -- going through parser to avoid adding EVal
       let ei = Utils.fromOk "Sync.addNew" (LangParser.parseE (strVal vi)) in
       (idNewShape i, ei)) diff in
 

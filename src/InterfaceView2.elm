@@ -76,7 +76,7 @@ onMouseUp   = Svg.Events.onMouseUp   << Signal.message events.address
 
 zoneEvents id shape zone =
   [ onMouseDown (SelectObject id shape zone)
-  , onMouseUp DeselectObject ]
+  , onMouseUp MouseUp ]
 
 zone svgFunc id shape zone l =
   svgFunc (zoneEvents id shape zone ++ l) []
@@ -244,7 +244,7 @@ codebox_ w h event s readOnly =
            , ("overflow", "auto")
            ]
        , Attr.value s
-       , Events.onMouseUp events.address DeselectObject
+       , Events.onMouseUp events.address MouseUp
        ] ++ event)
       []
 
@@ -264,7 +264,7 @@ canvas_ w h model =
   let svg = buildSvg addZones model.showZones model.workingSlate model.rootId in
   Html.toElement w h <|
     Svg.svg
-      [ onMouseUp DeselectObject
+      [ onMouseUp MouseUp
       , Attr.style [ ("width", "99%") , ("height", "99%")
                    , ("border", params.mainSection.canvas.border)
                    ] ]
@@ -323,7 +323,7 @@ gutterForResizing orient w h =
     Html.toElement w h <|
       Html.div
           [ Events.onMouseDown events.address StartResizingMid
-          , Events.onMouseUp events.address DeselectObject
+          , Events.onMouseUp events.address MouseUp
           , Attr.style
               [ ("width", dimToPix w) , ("height", dimToPix h)
               , ("cursor", s) ]

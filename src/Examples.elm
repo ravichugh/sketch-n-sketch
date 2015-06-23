@@ -59,8 +59,7 @@ sixBoxesB = "
 blank = "
   ;
   ; Write a little program below.
-  ;
-  ; Or choose an example from the list on the right.
+  ; Or choose an example from the list.
   ;
   (svg [(rect 'maroon' 100 15 200 50)])
 "
