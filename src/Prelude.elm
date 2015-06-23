@@ -8,6 +8,10 @@ src = "
 
 (let compose (\\(f g) (\\x (f (g x))))
 
+(let fst (\\[x|_] x)
+
+(letrec len (\\xs (case xs ([] 0) ([_ | xs1] (+ 1 (len xs1)))))
+
 (letrec map (\\(f xs)
   (case xs ([] []) ([hd|tl] [(f hd)|(map f tl)])))
 
@@ -51,6 +55,8 @@ src = "
   (letrec foo (\\i (if (< i 0) nil (cons i (foo (- i 1)))))
   (compose reverse foo))
 
+(let list1N (\\n (range 1 n))
+
 (let repeat (\\(n x) (map (always x) (range 1 n)))
 
 (letrec intermingle (\\(xs ys)
@@ -70,6 +76,8 @@ src = "
     (+ 1 (div (minus m n) n)))))
 
 (let neg (\\x (- 0 x))
+
+(let not (\\b (if b false true))
 
 (let circle (\\(fill x y r)
   ['circle'
@@ -126,7 +134,25 @@ src = "
 (let polygon_   (polygon 'green' 'purple' 3)
 (let path_      (path 'transparent' 'brown' 5)
 
+; TODO add constant literals to patterns, and match 'svg'
+;
+; accDiff pre-condition: indices in increasing order
+;   (so can't just use foldr instead of reverse . foldl)
+;
+(let updateCanvas (\\([_ svgAttrs oldShapes] diff)
+  (let oldShapesI (zip (list1N (len oldShapes)) oldShapes)
+  (let initAcc [[] diff]
+  (let f (\\([i oldShape] [accShapes accDiff])
+    (case accDiff
+      ([]
+        [(cons oldShape accShapes) accDiff])
+      ([[j newShape] | accDiffRest]
+        (if (= i j)
+          [(cons newShape accShapes) accDiffRest]
+          [(cons oldShape accShapes) accDiff]))))
+  (let newShapes (reverse (fst (foldl f initAcc oldShapesI)))
+    ['svg' svgAttrs newShapes])))))
 
-0))))))))))))))))))))))))))))))))))))))))))))
+0)))))))))))))))))))))))))))))))))))))))))))))))))
 
 "

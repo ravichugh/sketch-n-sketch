@@ -113,6 +113,7 @@ evalOp env op es =
         Mult  -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Div   -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Lt    -> vBool  (i < j)
+        Eq    -> vBool  (i == j)
     [] ->
       case op of
         Pi    -> VConst (pi, TrOp op [])

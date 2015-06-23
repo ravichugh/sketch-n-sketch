@@ -310,6 +310,7 @@ parseBOp =
   <++ (always Mult  <$> token_ "*")
   <++ (always Div   <$> token_ "/")
   <++ (always Lt    <$> token_ "<")
+  <++ (always Eq    <$> token_ "=")
 
 parseUnop =
   parens <|

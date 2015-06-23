@@ -150,9 +150,7 @@ upstate evt old = case Debug.log "Event" evt of
                                  |> snd
                                  |> indexedTreeToVal old.rootId
             newval    = indexedTreeToVal old.rootId old.workingSlate
-            dummyE    = Utils.fromOk_ (parseE "; TODO infer structural update
-                                               (svg [])")
-            struct    = (dummyE, Eval.run dummyE)
+            struct    = Sync.inferStructuralUpdate ip inputval' newval
             revert    = (ip, inputval)
           in
             case Sync.inferLocalUpdates old.syncOptions ip inputval' newval of

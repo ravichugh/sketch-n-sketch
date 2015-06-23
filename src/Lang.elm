@@ -27,7 +27,7 @@ type Op
   | Cos | Sin | ArcCos | ArcSin
   -- binary ops
   | Plus | Minus | Mult | Div
-  | Lt
+  | Lt | Eq
 
 type Exp
   = EConst Num Loc
@@ -284,3 +284,8 @@ eFun ps e = case ps of
   [p]     -> EFun [p] e
   p::ps'  -> EFun [p] (eFun ps' e)
 
+ePair e1 e2 = EList [e1,e2] Nothing
+
+eLets xes eBody = case xes of
+  (x,e)::xes' -> ELet False (PVar x) e (eLets xes' eBody)
+  []          -> eBody

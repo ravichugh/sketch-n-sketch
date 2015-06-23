@@ -233,6 +233,8 @@ valToIndexedTree_ v (nextId, d) = case v of
     let node = SvgNode kind (List.map valToAttr vs1) (List.reverse children) in
     (1 + nextId', Dict.insert nextId' node d')
 
+  _ -> Debug.crash ("LangSvg.valToIndexTree_: " ++ strVal v)
+
 printIndexedTree : Val -> String
 printIndexedTree = valToIndexedTree >> snd >> strEdges
 

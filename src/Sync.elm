@@ -1,5 +1,5 @@
 module Sync (Options, defaultOptions,
-             inferLocalUpdates, prepareLiveUpdates,
+             inferLocalUpdates, inferStructuralUpdate, prepareLiveUpdates,
              printZoneTable, Triggers, tryToBeSmart) where
 
 import Dict exposing (Dict)
@@ -317,6 +317,63 @@ inferLocalUpdates opts e v v' =
       in
       -- TODO: is this a good idea?
       if res == [] then Err "bad change 2" else Ok res
+
+
+------------------------------------------------------------------------------
+
+stripSvg (VList [VBase (String "svg"), VList vs1, VList vs2]) = (vs1, vs2)
+
+idOldShapes  = "oldCanvas"
+idNewShape i = "newShape" ++ toString i
+eOldShapes   = EVar idOldShapes
+eNewShape i  = EVar (idNewShape i)
+
+addComments = False -- CONFIG
+
+comment s e =
+  if | addComments -> EComment s e
+     | otherwise   -> e
+
+inferStructuralUpdate : Exp -> Val -> Val -> (Exp, Val)
+inferStructuralUpdate eOld v v' =
+  let (attrs1,children1) = stripSvg v in
+  let (attrs2,children2) = stripSvg v' in
+  let _ = Utils.assert "Sync.inferStruct" (attrs1 == attrs2) in
+
+  let diff =
+    let foo (i,(vi,vi')) acc =
+      if | vi == vi' -> acc
+         | otherwise -> (i,vi') :: acc in
+    List.reverse (Utils.foldli foo [] (Utils.zip children1 children2)) in
+
+  let eNewCanvas =
+    let es =
+      List.map (\(i,_) ->
+        let n = toFloat i in
+        ePair (EConst n dummyLoc) (eNewShape i)) diff in
+      EApp (EVar "updateCanvas") [eOldShapes, EList es Nothing] in
+
+  let bindings =
+    List.map (\(i,vi) ->
+      let ei = Utils.fromOk "Sync.addNew" (LangParser.parseE (strVal vi)) in
+      (idNewShape i, ei)) diff in
+
+  let eNew_ =
+    comment " Here's your original program..." <|
+    comment "" <|
+      eLets [(idOldShapes, eOld)] <|
+        comment "" <|
+        comment " ... and here are the hard-coded updates:" <|
+        comment "" <|
+          eLets bindings <|
+            comment "" <|
+            comment " Refactor if you'd like!" <|
+            comment "" <|
+              eNewCanvas in
+
+  -- going through parser so that new location ids are assigned
+  let eNew = Utils.fromOk "Sync.inferStruct" (LangParser.parseE (sExp eNew_)) in
+  (eNew, Eval.run eNew)
 
 
 ------------------------------------------------------------------------------
