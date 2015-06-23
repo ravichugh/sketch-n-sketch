@@ -7,8 +7,8 @@ module InterfaceView2 where
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
 import LangParser exposing (parseE, parseV)
-import Sync exposing (sync, Triggers)
-import Eval exposing (run)
+import Sync
+import Eval
 import Utils
 import MicroTests
 import InterfaceUtils exposing (..)
@@ -255,7 +255,7 @@ canvas w h model =
       let v = Eval.run (Utils.fromOk_ (parseE model.code)) in
       let (i,tree) = LangSvg.valToIndexedTree v in
       let s = LangSvg.printSvg i tree in
-      codebox_ w h [] s (not model.editingMode)
+      codebox_ w h [] s True
     _ ->
       canvas_ w h model
 
@@ -273,18 +273,12 @@ canvas_ w h model =
 middleWidgets w h wWrap hWrap model =
   List.map (GE.container wWrap hWrap GE.middle) <|
     case (model.editingMode, model.mode) of
-      (False, SyncSelect _ []) ->
-        [ gapWidget w h
-        , gapWidget w h
-        , gapWidget w h
-        , revertButton w h
-        ]
-      (False, SyncSelect i l) ->
+      (False, SyncSelect i options) ->
         [ gapWidget w h
         , gapWidget w h
         , prevButton i w h
-        , chooseButton w h
-        , nextButton i l w h
+        , chooseButton i options w h
+        , nextButton i options w h
         ]
       (False, Print) ->
         [ dropdownExamples w h
@@ -298,7 +292,7 @@ middleWidgets w h wWrap hWrap model =
         , gapWidget w h
         , zoneButton model w h
         , frozenButton model w h
-        , modeToggle w h model
+        , modeButton model w h
         ] ++ (syncButton_ w h model)
       (True, _) ->
         [ dropdownExamples w h
@@ -384,21 +378,24 @@ mainSectionHorizontal w h model =
   GE.flow GE.down <|
     [ codeSection, gutter, middleSection, gutter, canvasSection ]
 
-simpleButton : Event -> String -> String -> String -> Int -> Int -> GE.Element
-simpleButton evt value name text w h =
+simpleButton_ : Bool -> Event -> String -> String -> String -> Int -> Int -> GE.Element
+simpleButton_ disabled evt value name text w h =
   Html.toElement w h <|
     Html.button
       [ buttonAttrs w h
       , Events.onClick events.address evt
       , Attr.value value
       , Attr.name name
+      , Attr.disabled disabled
       ]
       [Html.text text]
 
+simpleButton = simpleButton_ False
+
 editRunButton model =
   case model.editingMode of
-    True  -> simpleButton Run "Run" "Run" "Run"
-    False -> simpleButton Edit "Edit" "Edit" "Edit"
+    True  -> simpleButton Run "Run" "Run" "Run Code"
+    False -> simpleButton Edit "Edit" "Edit" "Edit Code"
 
 outputButton model =
   let cap = if model.mode == Print then "[Out] SVG" else "[Out] Canvas" in
@@ -415,20 +412,17 @@ frozenButton model =
   let cap = if model.syncOptions.thawedByDefault then "[Default] n?" else "[Default] n!" in
   simpleButton ToggleThawed "ToggleThawed " "Toggle ?/!" cap
 
-chooseButton =
-  simpleButton SelectOption "Choose" "Choose" "Select This"
+chooseButton i (n,_) =
+  let cap = if i == n + 2 then "Revert" else "Select This" in
+  simpleButton SelectOption "Choose" "Choose" cap
 
 prevButton i =
   if | i > 1     -> simpleButton (TraverseOption -1) "Prev" "Prev" "Show Prev"
      | otherwise -> gapWidget
 
-nextButton i l =
-  let n = List.length l in
-  if | i < n     -> simpleButton (TraverseOption 1) "Next" "Next" "Show Next"
+nextButton i (n,l) =
+  if | i < n + 2 -> simpleButton (TraverseOption 1) "Next" "Next" "Show Next"
      | otherwise -> gapWidget
-
-revertButton =
-  simpleButton Revert "Revert" "Revert" "Revert"
 
 dropdownExamples : Int -> Int -> GE.Element
 dropdownExamples w h =
@@ -438,12 +432,23 @@ dropdownExamples w h =
   in
   GI.dropDown (Signal.message events.address) examples
 
+modeButton model =
+  let evt = SwitchMode AdHoc in -- noop in AdHoc mode
+  if model.mode == AdHoc
+  then simpleButton_ True  evt "SwitchMode" "SwitchMode" "[Mode] Ad Hoc"
+  else simpleButton_ False evt "SwitchMode" "SwitchMode" "[Mode] Live"
+
+{-
 modeToggle : Int -> Int -> Model -> GE.Element
 modeToggle w h model =
   let opt s m = (s, (SwitchMode m)) in
   let optionLive = opt "Live" (mkLive_ model.syncOptions (Utils.fromJust model.inputExp)) in
   let optionAdHoc = opt "Ad Hoc" AdHoc in
-  GI.dropDown (Signal.message events.address) [optionLive, optionAdHoc]
+  GI.dropDown (Signal.message events.address) <|
+    case model.mode of
+      AdHoc -> [optionAdHoc]
+      _     -> [optionLive, optionAdHoc]
+-}
 
 orientationButton w h model =
   Html.button

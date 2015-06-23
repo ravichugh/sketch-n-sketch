@@ -43,7 +43,10 @@ type alias MouseTrigger a = (Int, Int) -> a
 
 type Orientation = Vertical | Horizontal
 
-type alias PossibleChanges = List ((Exp, Val), Float)
+type alias PossibleChanges =
+  ( Int               -- num local changes
+  , List (Exp, Val)   -- local changes ++ [structural change, revert change]
+  )
 
 --Event
 --CodeUpdate : carries updated string of code with it
@@ -62,7 +65,6 @@ type Event = CodeUpdate String
            | Sync
            | TraverseOption Int -- offset from current index (+1 or -1)
            | SelectOption
-           | Revert
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val})
            | Edit

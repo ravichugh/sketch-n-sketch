@@ -145,18 +145,27 @@ upstate evt old = case Debug.log "Event" evt of
                                  |> snd
                                  |> indexedTreeToVal old.rootId
             newval    = indexedTreeToVal old.rootId old.workingSlate
+            dummyE    = Utils.fromOk_ (parseE "; TODO infer structural update
+                                               (svg [])")
+            struct    = (dummyE, Eval.run dummyE)
+            revert    = (ip, inputval)
           in
-            case Sync.sync old.syncOptions ip inputval' newval of
-              -- TODO: add revert and hard-coded options
+            case Sync.inferLocalUpdates old.syncOptions ip inputval' newval of
               Ok [] -> { old | mode <- mkLive_ old.syncOptions ip  }
-              Ok ls -> let _ = Debug.log "# of sync options" (List.length ls) in
-                       upstate (TraverseOption 1) { old | mode <- SyncSelect 0 ls }
-              Err e -> let _ = Debug.log ("bad sync: ++ " ++ e) () in
-                       { old | mode <- SyncSelect 0 [] }
+              Ok ls ->
+                let n = Debug.log "# of sync options" (List.length ls) in
+                let ls' = List.map fst ls in
+                let m = SyncSelect 0 (n, ls' ++ [struct, revert]) in
+                upstate (TraverseOption 1) { old | mode <- m }
+              Err e ->
+                let _ = Debug.log ("bad sync: ++ " ++ e) () in
+                let m = SyncSelect 0 (0, [struct, revert]) in
+                upstate (TraverseOption 1) { old | mode <- m }
 
     SelectOption ->
-      let (SyncSelect i l) = old.mode in
-      let ((ei,vi),_) = Utils.geti i l in
+      let (SyncSelect i options) = old.mode in
+      let (_,l) = options in
+      let (ei,vi) = Utils.geti i l in
       let (rootId,tree) = LangSvg.valToIndexedTree vi in
       { old | code <- sExp ei
             , inputExp <- Just ei
@@ -165,20 +174,16 @@ upstate evt old = case Debug.log "Event" evt of
             , mode <- mkLive old.syncOptions ei vi }
 
     TraverseOption offset ->
-      let (SyncSelect i l) = old.mode in
+      let (SyncSelect i options) = old.mode in
+      let (_,l) = options in
       let j = i + offset in
-      let ((ei,vi),_) = Utils.geti j l in
+      let (ei,vi) = Utils.geti j l in
       let (rootId,tree) = LangSvg.valToIndexedTree vi in
       { old | code <- sExp ei
             , inputExp <- Just ei
             , rootId <- rootId
             , workingSlate <- tree
-            , mode <- SyncSelect j l }
-
-    Revert ->
-      let e = Utils.fromJust old.inputExp in
-      let (rootId,tree) = LangSvg.valToIndexedTree (Eval.run e) in
-      { old | rootId <- rootId , workingSlate <- tree , mode <- AdHoc }
+            , mode <- SyncSelect j options }
 
     SelectExample name thunk ->
       let {e,v} = thunk () in

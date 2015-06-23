@@ -1,4 +1,5 @@
-module Sync (Options, defaultOptions, sync, prepareLiveUpdates,
+module Sync (Options, defaultOptions,
+             inferLocalUpdates, prepareLiveUpdates,
              printZoneTable, Triggers, tryToBeSmart) where
 
 import Dict exposing (Dict)
@@ -283,8 +284,10 @@ getFillers = List.map (snd << snd) << Dict.toList
 
 leafToStar v = case v of {VConst _ -> VBase Star; _ -> v}
 
-sync : Options -> Exp -> Val -> Val -> Result String (List ((Exp, Val), Num))
-sync opts e v v' =
+-- historically, inferLocalUpdates was called "sync"
+
+inferLocalUpdates : Options -> Exp -> Val -> Val -> Result String (List ((Exp, Val), Num))
+inferLocalUpdates opts e v v' =
   case diff v v' of
     Nothing       -> Err "bad change"
     -- Just (Same _) -> Err "no change"
@@ -314,7 +317,6 @@ sync opts e v v' =
       in
       -- TODO: is this a good idea?
       if res == [] then Err "bad change 2" else Ok res
-
 
 
 ------------------------------------------------------------------------------
