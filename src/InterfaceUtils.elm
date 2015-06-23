@@ -45,11 +45,6 @@ type Orientation = Vertical | Horizontal
 
 type alias PossibleChanges = List ((Exp, Val), Float)
 
--- TODO
-syncBool m = case m of
-  SyncSelect _ _ -> True
-  _              -> False
-
 --Event
 --CodeUpdate : carries updated string of code with it
 --SelectObject : carries an id of an object and an identifying string for a zone

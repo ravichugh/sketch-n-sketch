@@ -219,9 +219,9 @@ colorDebug c1 =
 codebox : Int -> Int -> Model -> GE.Element
 codebox w h model =
   let event =
-    if | syncBool model.mode -> []
-       | otherwise ->
-           [Events.on "input" Events.targetValue
+    case model.mode of
+      SyncSelect _ _ -> []
+      _ -> [Events.on "input" Events.targetValue
               (Signal.message events.address << CodeUpdate)]
   in
     codebox_ w h event model.code (not model.editingMode)
