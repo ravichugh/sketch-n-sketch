@@ -281,12 +281,12 @@ middleWidgets w h wWrap hWrap model =
         , nextButton i options w h
         ]
       (False, Print) ->
-        [ dropdownExamples w h
+        [ dropdownExamples model w h
         , editRunButton model w h
         , outputButton model w h
         ]
       (False, _) ->
-        [ dropdownExamples w h
+        [ dropdownExamples model w h
         , editRunButton model w h
         , outputButton model w h
         , gapWidget w h
@@ -295,7 +295,7 @@ middleWidgets w h wWrap hWrap model =
         , modeButton model w h
         ] ++ (syncButton_ w h model)
       (True, _) ->
-        [ dropdownExamples w h
+        [ dropdownExamples model w h
         , editRunButton model w h
         ]
 
@@ -392,14 +392,16 @@ simpleButton_ disabled evt value name text w h =
 
 simpleButton = simpleButton_ False
 
-editRunButton model =
+editRunButton model w h =
+  let disabled = model.mode == AdHoc in
   case model.editingMode of
-    True  -> simpleButton Run "Run" "Run" "Run Code"
-    False -> simpleButton Edit "Edit" "Edit" "Edit Code"
+    True  -> simpleButton_ disabled Run "Run" "Run" "Run Code" w h
+    False -> simpleButton_ disabled Edit "Edit" "Edit" "Edit Code" w h
 
-outputButton model =
+outputButton model w h =
+  let disabled = model.mode == AdHoc in
   let cap = if model.mode == Print then "[Out] SVG" else "[Out] Canvas" in
-  simpleButton ToggleOutput "Toggle Output" "Toggle Output" cap
+  simpleButton_ disabled ToggleOutput "Toggle Output" "Toggle Output" cap w h
 
 syncButton =
   simpleButton Sync "Sync" "Sync the code to the canvas" "Sync"
@@ -427,19 +429,23 @@ nextButton i (n,l) =
   let enabled = i < n + 2 in
   simpleButton_ (not enabled) (TraverseOption 1) "Next" "Next" "Show Next"
 
-dropdownExamples : Int -> Int -> GE.Element
-dropdownExamples w h =
+dropdownExamples : Model -> Int -> Int -> GE.Element
+dropdownExamples model w h =
   let examples =
-    let foo (name,thunk) = (name, (SelectExample name thunk)) in
-    List.map foo Examples.list
+    case model.mode of
+      AdHoc ->
+        let foo (name,thunk) = (name, Noop) in
+        List.map foo (List.filter ((==) model.exName << fst) Examples.list)
+      _ ->
+        let foo (name,thunk) = (name, (SelectExample name thunk)) in
+        List.map foo Examples.list
   in
   GI.dropDown (Signal.message events.address) examples
 
 modeButton model =
-  let evt = SwitchMode AdHoc in -- noop in AdHoc mode
   if model.mode == AdHoc
-  then simpleButton_ True  evt "SwitchMode" "SwitchMode" "[Mode] Ad Hoc"
-  else simpleButton_ False evt "SwitchMode" "SwitchMode" "[Mode] Live"
+  then simpleButton_ True Noop "SwitchMode" "SwitchMode" "[Mode] Ad Hoc"
+  else simpleButton_ False (SwitchMode AdHoc) "SwitchMode" "SwitchMode" "[Mode] Live"
 
 {-
 modeToggle : Int -> Int -> Model -> GE.Element

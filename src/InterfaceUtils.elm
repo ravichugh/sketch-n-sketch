@@ -66,6 +66,7 @@ type Event = CodeUpdate String
            | ToggleThawed
            | SwitchOrient
            | StartResizingMid
+           | Noop
 
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""

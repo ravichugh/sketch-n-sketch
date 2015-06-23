@@ -75,6 +75,8 @@ refreshMode_ model = refreshMode model (Utils.fromJust model.inputExp)
 upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
 
+    Noop -> old
+
     Edit -> { old | editingMode <- True }
 
     Run ->
