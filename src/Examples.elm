@@ -56,8 +56,18 @@ sixBoxesB = "
          (cartProd [0 1 2] [0 1]))))
 "
 
+blank = "
+  ;
+  ; Write a little program below.
+  ;
+  ; Or choose an example from the list on the right.
+  ;
+  (svg [(rect 'maroon' 100 15 200 50)])
+"
+
 examples =
-  [ makeExample "3 Boxes" threeBoxes
+  [ makeExample "Scratch" blank
+  , makeExample "3 Boxes" threeBoxes
   , makeExample "6 Boxes A" sixBoxesA
   , makeExample "6 Boxes B" sixBoxesB
   , makeExample "Logo" logo

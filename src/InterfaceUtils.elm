@@ -16,7 +16,9 @@ import Svg
 import Lazy
 
 type alias Model =
-  { code : String
+  { scratchCode : String
+  , exName : String
+  , code : String
   , inputExp : Maybe Exp
   , rootId : NodeId
   , workingSlate : IndexedTree
