@@ -413,16 +413,19 @@ frozenButton model =
   simpleButton ToggleThawed "ToggleThawed " "Toggle ?/!" cap
 
 chooseButton i (n,_) =
-  let cap = if i == n + 2 then "Revert" else "Select This" in
+  let cap =
+    if i == n + 2 then "Revert"
+    else "Select " ++ Utils.parens (toString i ++ "/" ++ toString (n+1))
+  in
   simpleButton SelectOption "Choose" "Choose" cap
 
 prevButton i =
-  if | i > 1     -> simpleButton (TraverseOption -1) "Prev" "Prev" "Show Prev"
-     | otherwise -> gapWidget
+  let enabled = i > 1 in
+  simpleButton_ (not enabled) (TraverseOption -1) "Prev" "Prev" "Show Prev"
 
 nextButton i (n,l) =
-  if | i < n + 2 -> simpleButton (TraverseOption 1) "Next" "Next" "Show Next"
-     | otherwise -> gapWidget
+  let enabled = i < n + 2 in
+  simpleButton_ (not enabled) (TraverseOption 1) "Next" "Next" "Show Next"
 
 dropdownExamples : Int -> Int -> GE.Element
 dropdownExamples w h =
