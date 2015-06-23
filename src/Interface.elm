@@ -136,22 +136,23 @@ upstate evt old = case Debug.log "Event" evt of
             , mode <- refreshMode_ old }
 
     Sync -> 
-        case (old.mode, old.inputExp) of
-            (Live _, _) -> Debug.crash "upstate Sync: shouldn't happen anymore"
-            (AdHoc, Just ip) ->
-                let inputval  = Eval.run ip
-                    inputval' = inputval |> LangSvg.valToIndexedTree
-                                         |> snd
-                                         |> indexedTreeToVal old.rootId
-                    newval    = indexedTreeToVal old.rootId old.workingSlate
-                in
-                  case Sync.sync old.syncOptions ip inputval' newval of
-                    -- TODO: add revert and hard-coded options
-                    Ok [] -> { old | mode <- mkLive_ old.syncOptions ip  }
-                    Ok ls -> let _ = Debug.log "# of sync options" (List.length ls) in
-                             upstate (TraverseOption 1) { old | mode <- SyncSelect 0 ls }
-                    Err e -> let _ = Debug.log ("bad sync: ++ " ++ e) () in
-                             { old | mode <- SyncSelect 0 [] }
+      case (old.mode, old.inputExp) of
+        (Live _, _) -> Debug.crash "upstate Sync: shouldn't happen anymore"
+        (AdHoc, Just ip) ->
+          let
+            inputval  = Eval.run ip
+            inputval' = inputval |> LangSvg.valToIndexedTree
+                                 |> snd
+                                 |> indexedTreeToVal old.rootId
+            newval    = indexedTreeToVal old.rootId old.workingSlate
+          in
+            case Sync.sync old.syncOptions ip inputval' newval of
+              -- TODO: add revert and hard-coded options
+              Ok [] -> { old | mode <- mkLive_ old.syncOptions ip  }
+              Ok ls -> let _ = Debug.log "# of sync options" (List.length ls) in
+                       upstate (TraverseOption 1) { old | mode <- SyncSelect 0 ls }
+              Err e -> let _ = Debug.log ("bad sync: ++ " ++ e) () in
+                       { old | mode <- SyncSelect 0 [] }
 
     SelectOption ->
       let (SyncSelect i l) = old.mode in
