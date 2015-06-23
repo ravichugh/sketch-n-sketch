@@ -117,6 +117,8 @@ src = "
   [shapeKind (snoc newAttr oldAttrs) children])
 
 (let svg (\\shapes ['svg' [] shapes])
+  
+(let viewbox (\\(x y w h) ['viewbox' 'x y w h'])
 
 (let circle_    (circle 'red')
 (let ellipse_   (ellipse 'orange')
@@ -127,6 +129,6 @@ src = "
 (let path_      (path 'transparent' 'brown' 5)
 
 
-0))))))))))))))))))))))))))))))))))))))))))))
+0)))))))))))))))))))))))))))))))))))))))))))))
 
 "

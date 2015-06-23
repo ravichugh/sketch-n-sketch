@@ -689,7 +689,7 @@ test54 () =
     "(let [min y max h1 w2 cx cy] [77 459 500! 50! 50! 73 50!]
     (let [sx sy] [309 216]
     (let samplecirc (circle 'orange' sx sy cx)
-    (let button (\n (rect 'lightgray' n y w2 h1))
+    (let button (\\n (rect 'lightgray' n y w2 h1))
     (let bar (rect 'gray' min y max h1)
     (let slider
       (if (< cx (+ min max))
@@ -698,6 +698,120 @@ test54 () =
           (button  cx))
         (button  (+ min max)))
       (svg  [bar slider samplecirc])))))))"
+    "[]"
+
+--original colonial flag (TODO: still in progress, star placement)
+test55 () =
+  makeTest
+    "(let nstar
+    (\\(n cx cy len1 len2 rot)
+      (let pti
+        (\\[i len]
+          (let anglei (+ rot (/ (* i (pi)) n))
+          (let xi (+ cx (* len (cos anglei)))
+          (let yi (+ cy (* len (sin anglei)))
+            [xi yi]))))
+      (let lengths
+        (map
+          (\\b
+            (if b
+              len1
+              len2))
+          (concat  (repeat n [true false])))
+      (let indices (list0N  (- (* 2! n) 1!))
+        (polygon 'orange' 'DUMMY' 0 (map pti (zip indices lengths)))))))
+    (let rotate (\\a (/ (* (+ 3! a) (pi)) 2!))
+    (let [x0 y0 wstripe sep ni nj pts xstripe hstripe radius] [108 20 500! 45 0! 12! 5! 52 20 80]
+    (let [outerLen innerLen] [10 4]
+    (let block (rect '#09096d' xstripe y0 (/ wstripe 3) (* 7 hstripe))
+    (let stripes
+      (map
+        (\\i (rect 'red' xstripe (* hstripe i) wstripe hstripe))
+        [1! 3! 5! 7! 9! 11! 13!])
+    (let base (append stripes [block])
+      (svg 
+        (append
+          base
+          (map
+            (\\i
+              (let off (* i sep)
+                (nstar
+                  pts
+                  (+ sep (* radius (cos (rotate  i))))
+                  (+ sep (* radius (sin (rotate  i))))
+                  outerLen
+                  innerLen
+                  (rotate  i))))
+          (range ni nj)))))))))))"
+    "[]"
+
+--current US Flag (TODO: still in progress, need mod)
+test56 () =
+  makeTest
+    "(let nstar
+    (\\(n cx cy len1 len2 rot)
+      (let pti
+        (\\[i len]
+          (let anglei (+ rot (/ (* i (pi)) n))
+          (let xi (+ cx (* len (cos anglei)))
+          (let yi (+ cy (* len (sin anglei)))
+            [xi yi]))))
+      (let lengths
+        (map
+          (\\b
+            (if b
+              len1
+              len2))
+          (concat  (repeat n [true false])))
+      (let indices (list0N  (- (* 2! n) 1!))
+        (polygon 'orange' 'DUMMY' 0 (map pti (zip indices lengths)))))))
+    (let upright (/ (* 3! (pi)) 2!)
+    (let [x0 y0 wstripe sep ni nj pts xstripe hstripe radius] [108 20 500! 45 0! 49! 5! 52 20 80]
+    (let [outerLen innerLen] [10 4]
+    (let block (rect '#09096d' xstripe y0 (* wstripe (/ 2 5)) (* 7 hstripe))
+    (let stripes
+      (map
+        (\\i (rect 'red' xstripe (* hstripe i) wstripe hstripe))
+        [1! 3! 5! 7! 9! 11! 13!])
+    (let base (append stripes [block])
+      (svg 
+        (append
+          base
+          (map
+            (\\i
+              (let off (* i sep)
+                (nstar
+                  pts
+                  (+ x0 off)
+                  (+ y0 sep)
+                  outerLen
+                  innerLen
+                  upright)))
+          (range ni nj)))))))))))"
+    "[]"
+
+--French Sudan Flag
+test57 () =
+  makeTest
+    "(let [x0 y0 w h r] [50 29 150 300 20]
+    (let stripe (\\[color x] (rect color x y0 w h))
+    (let figline (\\[[a b] [c d]] (line 'black' (/ r 2) a b c d))
+    (let [x1 x2 x3] [225 275 325]
+    (let [y1 y2 y3 y4 y5] [110 110 150 220 260]
+      (svg 
+        (append
+          (map stripe [['blue' x0] ['white' (+ x0 w)] ['red' (+ x0 (* 2 w))]])
+          (snoc
+            (circle 'black' x2 y1 r)
+            (map
+              figline
+              [[[x2 y1] [x2 y4]]
+               [[x1 y2] [x1 y3]]
+               [[x1 y3] [x3 y3]]
+               [[x3 y2] [x3 y3]]
+               [[x1 y5] [x1 y4]]
+               [[x1 y4] [x3 y4]]
+               [[x3 y4] [x3 y5]]])))))))))"
     "[]"
 
 tests =
@@ -741,6 +855,9 @@ tests =
   , (600, 600, test52)
   , (600, 600, test53)
   , (600, 600, test54)
+  , (600, 600, test55)
+  , (600, 600, test56)
+  , (600, 600, test57)
   ]
 
 sampleTests =

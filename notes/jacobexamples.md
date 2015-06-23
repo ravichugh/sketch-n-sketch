@@ -271,3 +271,101 @@ Building a slider bar that can be used to toggle other parameters
     (rect 'lightgray' (+ x w1) y w2 h1))
   (svg  [bar slider]))))
 ```
+
+##American Colonial Flag Example
+
+(let nstar
+    (\\(n cx cy len1 len2 rot)
+      (let pti
+        (\\[i len]
+          (let anglei (+ rot (/ (* i (pi)) n))
+          (let xi (+ cx (* len (cos anglei)))
+          (let yi (+ cy (* len (sin anglei)))
+            [xi yi]))))
+      (let lengths
+        (map
+          (\\b
+            (if b
+              len1
+              len2))
+          (concat  (repeat n [true false])))
+      (let indices (list0N  (- (* 2! n) 1!))
+        (polygon 'orange' 'DUMMY' 0 (map pti (zip indices lengths)))))))
+    (let rotate (\\a (/ (* (+ 3! a) (pi)) 2!))
+    (let [x0 y0 wstripe sep ni nj pts xstripe hstripe radius] [108 20 500! 45 0! 12! 5! 52 20 80]
+    (let [outerLen innerLen] [10 4]
+    (let block (rect '#09096d' xstripe y0 (/ wstripe 3) (* 7 hstripe))
+    (let stripes
+      (map
+        (\\i (rect 'red' xstripe (* hstripe i) wstripe hstripe))
+        [1! 3! 5! 7! 9! 11! 13!])
+    (let base (append stripes [block])
+      (svg 
+        (append
+          base
+          (map
+            (\\i
+              (let off (* i sep)
+                (nstar pts (+ off (* radius (cos (rotate i)))) (+ off (* radius (sin (rotate i)))) outerLen innerLen (rotate i))))
+            (range ni nj)))))))))))
+
+(let nstar
+    (\(n cx cy len1 len2 rot)
+      (let pti
+        (\[i len]
+          (let anglei (+ rot (/ (* i (pi)) n))
+          (let xi (+ cx (* len (cos anglei)))
+          (let yi (+ cy (* len (sin anglei)))
+            [xi yi]))))
+      (let lengths
+        (map
+          (\b
+            (if b
+              len1
+              len2))
+          (concat  (repeat n [true false])))
+      (let indices (list0N  (- (* 2! n) 1!))
+        (polygon 'orange' 'DUMMY' 0 (map pti (zip indices lengths)))))))
+    (let rotate (\a (/ (* (+ 3! a) (pi)) 2!))
+    (let [x0 y0 wstripe sep ni nj pts xstripe hstripe radius] [108 20 500! 45 0! 12! 5! 52 20 80]
+    (let [outerLen innerLen] [10 4]
+    (let block (rect '#09096d' xstripe y0 (/ wstripe 3) (* 7 hstripe))
+    (let stripes
+      (map
+        (\i (rect 'red' xstripe (* hstripe i) wstripe hstripe))
+        [1! 3! 5! 7! 9! 11! 13!])
+    (let base (append stripes [block])
+      (svg 
+        (append
+          base
+          (map
+            (\i
+              (let off (* i sep)
+                (nstar
+                  pts
+                  (+ sep (* radius (cos (rotate  i))))
+                  (+ sep (* radius (sin (rotate  i))))
+                  outerLen
+                  innerLen
+                  (rotate  i))))
+          (range ni nj)))))))))))
+
+##French Sudan Flag
+
+(let [x0 y0 w h r] [50 29 150 300 40]
+(let stripe (\[color x] (rect color x y0 w h))
+(let figline (\[[a b] [c d]] (line 'black' (/ r 4) a b c d))
+(let [x1 x2 x3] [348 450 550]
+(let [y1 y2 y3 y4 y5] [100 120 150 190 247]
+  (svg 
+    (append
+      (map stripe [['blue' x0] ['orange' (+ x0 w)] ['red' (+ x0 (* 2 w))]])
+      (map
+        figline
+        [[[x2 y1] [x2 y4]]
+         [[x1 y2] [x1 y3]]
+         [[x1 y3] [x3 y3]]
+         [[x3 y2] [x3 y3]]
+         [[x1 y5] [x1 y4]]
+         [[x1 y4] [x3 y4]]
+         [[x3 y4] [x3 y5]]]))))))))
