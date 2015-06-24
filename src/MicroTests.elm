@@ -721,12 +721,12 @@ test55 () =
       (let indices (list0N  (- (* 2! n) 1!))
         (polygon 'white' 'DUMMY' 0 (map pti (zip indices lengths)))))))
     (let rotate (\\a (/ (* (+ 9! a) (pi)) 6!))
-    (let [x0 y0 sep ni nj pts wstripe hstripe radius] [108 20 20! 0! 12! 5! 500 20 55]
+    (let [x0 y0 ni nj pts w h radius] [108 20 0! 12! 5! 500 20 55]
     (let [outerLen innerLen] [10 4]
-    (let block (rect '#09096d' x0 y0 (/ wstripe 3) (* 7 hstripe))
+    (let block (rect '#09096d' x0 y0 (/ w 3) (* 7 h))
     (let stripes
       (map
-        (\\i (rect 'red' x0 (+ y0 (* i sep)) wstripe hstripe))
+        (\\i (rect 'red' x0 (+ y0 (* i h)) w h))
         [0! 2! 4! 6! 8! 10! 12!])
     (let base (append stripes [block])
       (svg 
@@ -734,13 +734,14 @@ test55 () =
           base
           (map
             (\\i
+              (let scale (- (+ w h))
                 (nstar
                   pts
                   (+ (+ x0 85!) (* radius (cos (rotate  i))))
                   (+ (+ y0 70!) (* radius (sin (rotate  i))))
                   outerLen
                   innerLen
-                  (rotate  i)))
+                  (rotate  i))))
           (range ni nj)))))))))))"
     "[]"
 
@@ -825,7 +826,8 @@ test58 () =
           (map blkline (append verticals horizontals))
           (append
             (append
-              (map redpoly [[0 1] [1 2] [2 3] [3 4]])
+              (let [p0 p1 p2 p3 p4] [0 1 2 3 4]
+                (map redpoly [[p0 p1] [p1 p2] [p2 p3] [p3 p4]]))
               (map (\\[x y] (ellipse 'blue' x y (* w 4) h)) [[(xoff 5) (yoff 9)]]))
             (map
               (\\[x y r] (circle 'yellow' x y r))
