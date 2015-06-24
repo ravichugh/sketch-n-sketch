@@ -721,13 +721,13 @@ test55 () =
       (let indices (list0N  (- (* 2! n) 1!))
         (polygon 'white' 'DUMMY' 0 (map pti (zip indices lengths)))))))
     (let rotate (\\a (/ (* (+ 9! a) (pi)) 6!))
-    (let [x0 y0 wstripe xoff yoff ni nj pts xstripe hstripe radius] [108 20 500! 135 90 0! 12! 5! 52 20 55]
+    (let [x0 y0 sep ni nj pts wstripe hstripe radius] [108 20 20! 0! 12! 5! 500 20 55]
     (let [outerLen innerLen] [10 4]
-    (let block (rect '#09096d' xstripe y0 (/ wstripe 3) (* 7 hstripe))
+    (let block (rect '#09096d' x0 y0 (/ wstripe 3) (* 7 hstripe))
     (let stripes
       (map
-        (\\i (rect 'red' xstripe (* hstripe i) wstripe hstripe))
-        [1! 3! 5! 7! 9! 11! 13!])
+        (\\i (rect 'red' x0 (+ y0 (* i sep)) wstripe hstripe))
+        [0! 2! 4! 6! 8! 10! 12!])
     (let base (append stripes [block])
       (svg 
         (append
@@ -736,8 +736,8 @@ test55 () =
             (\\i
                 (nstar
                   pts
-                  (+ xoff (* radius (cos (rotate  i))))
-                  (+ yoff (* radius (sin (rotate  i))))
+                  (+ (+ x0 85) (* radius (cos (rotate  i))))
+                  (+ (+ y0 70) (* radius (sin (rotate  i))))
                   outerLen
                   innerLen
                   (rotate  i)))
