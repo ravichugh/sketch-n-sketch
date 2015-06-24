@@ -352,3 +352,129 @@ Building a slider bar that can be used to toggle other parameters
           (append
             (zip rowtop rowbot)
             (zip colleft colright)))))))))))))))
+
+(let [x0 y0] [50 50]
+    (let [w1 w2 w3 w4 w5 w6 w7 w8] [(+ x0 50) (+ w1 50) (+ w2 50) (+ w3 50) (+ w4 50) (+ w5 50) (+ w6 50) (+ w7 50)]
+    (let [y0 y1 y2 y3 y4 y5 y6 y7 y8] [50 100 150 200 250 300 350 400 450]
+    (let bluepoly (polygon 'blue' 'black' 3)
+    (let redpoly (polygon 'red' 'black' 3)
+    (let ypairup (\\(a bs) (map (\\b [a b]) bs))
+    (let xpairup (\\(a bs) (map (\\b [b a]) bs))
+    (let rowtop (xpairup y0 [w1 w2 w3 w4 w5 w6 w7 w8])
+    (let rowbot (xpairup y8 [w1 w2 w3 w4 w5 w6 w7 w8])
+    (let colleft (ypairup x0 [y0 y1 y2 y3 y4 y5 y6 y7 y8])
+    (let colright (ypairup x8 [y0 y1 y2 y3 y4 y5 y6 y7 y8])
+    (let blkline (\\[[a b] [c d]] (line 'black' 3 a b c d))
+      (svg
+        (append
+          (map blkline
+            (append
+              (zip rowtop rowbot)
+              (zip colleft colright)))
+          (append
+            (map redpoly 
+              [[[x0 y0] [x1 y0] [x1 y1] [x0 y1]]
+              [[x1 y1] [x2 y1] [x2 y2] [x1 y2]]
+              [[x2 y2] [x3 y2] [x3 y3] [x2 y3]]])
+            (map (\\[x y r] (circle 'yellow' x y r)) 
+              [[x5 y2 x1] [x5 y5 x0] [x5 y7 25]]))
+        ))))))))))))))
+
+(let [x0 y0 w h max] [50 50 50 50 10!]
+(let blkline (\[[a b] [c d]] (line 'black' 3 a b c d))
+(let redpoly (polygon 'red' 'black' 3)
+(let dimension [0! 1! 2! 3! 4! 5! 6! 7! 8! 9! 10!]
+(let verticals
+  (zip
+    (map (\n [(+ x0 (* w n)) y0]) dimension)
+    (map (\n [(+ x0 (* w n)) (+ y0 (* h max))]) dimension))
+(let horizontals
+  (zip
+    (map (\n [x0 (+ y0 (* h n))]) dimension)
+    (map (\n [(+ x0 (* w max)) (+ y0 (* h n))]) dimension))
+  (svg
+    (map blkline
+      (append verticals horizontals)))
+))))))
+
+(let [x0 y0 w h max] [50 50 50 50 10!]
+(let blkline (\[[a b] [c d]] (line 'black' 3 a b c d))
+(let redpoly (polygon 'red' 'black' 3)
+(let dimension [0! 1! 2! 3! 4! 5! 6! 7! 8! 9! 10!]
+(let xoff (\n (+ x0 (* w n)))
+(let yoff (\n (+ y0 (* h n)))
+(let verticals
+  (zip
+    (map (\n [(xoff n) y0]) dimension)
+    (map (\n [(xoff n) (+ y0 (* h max))]) dimension))
+(let horizontals
+  (zip
+    (map (\n [x0 (yoff n)]) dimension)
+    (map (\n [(+ x0 (* w max)) (yoff n)]) dimension))
+  (svg
+    (append
+      (map redpoly
+        [[[(xoff 0!) (yoff 0!)] [(xoff 1!) (yoff 0!)] [(xoff 1!) (yoff 1!)] [(xoff 0!) (yoff 1!)]]])
+      (map blkline
+        (append verticals horizontals))))
+))))))))
+
+(let [x0 y0 w h max] [50 50 50 50 10!]
+    (let xoff (\\n (+ x0 (* w n)))
+    (let yoff (\\n (+ y0 (* h n)))
+    (let blkline (\\[[a b] [c d]] (line 'black' 3 a b c d))
+    (let redpoly (\\[a b] (polygon 'red' 'black' 3 
+      [[(xoff a) (yoff a)] [(xoff a) (yoff b)] [(xoff b) (yoff b)] [(xoff b) (yoff a)]]))
+    (let dimension [0! 1! 2! 3! 4! 5! 6! 7! 8! 9! 10!]
+    (let verticals
+      (zip
+        (map (\\n [(xoff n) y0]) dimension)
+        (map (\\n [(xoff n) (+ y0 (* h max))]) dimension))
+    (let horizontals
+      (zip
+        (map (\\n [x0 (yoff n)]) dimension)
+        (map (\\n [(+ x0 (* w max)) (yoff n)]) dimension))
+      (svg
+        (append
+          (map blkline
+            (append verticals horizontals))
+          (append
+            (map redpoly
+              [[0 1] [1 2] [2 3] [3 4]])
+            (map (\\[x y r] (circle 'yellow' x y r)) 
+              [[(xoff 6) (yoff 3) (* 3 w)] [(xoff 6) (yoff 7) (* 2 w)] [(xoff 6) (yoff 9) w]]))))))))))))
+
+(let [x0 y0 w h max] [72 72 45 56 10!]
+    (let xoff (\\n (+ x0 (* w n)))
+    (let yoff (\\n (+ y0 (* h n)))
+    (let redpoly
+      (\\[a b]
+        (polygon
+          'red'
+          'black'
+          3
+          [[(xoff  a) (yoff  a)]
+           [(xoff  a) (yoff  b)]
+           [(xoff  b) (yoff  b)]
+           [(xoff  b) (yoff  a)]]))
+    (let dimension [0! 1! 2! 3! 4! 5! 6! 7! 8! 9! 10!]
+    (let verticals
+      (zip
+        (map (\\n [(xoff  n) y0]) dimension)
+        (map (\\n [(xoff  n) (+ y0 (* h max))]) dimension))
+    (let horizontals
+      (zip
+        (map (\\n [x0 (yoff  n)]) dimension)
+        (map (\\n [(+ x0 (* w max)) (yoff  n)]) dimension))
+      (svg 
+        (append
+          (map blkline (append verticals horizontals))
+          (append
+            (append
+              (map redpoly [[0 1] [1 2] [2 3] [3 4]])
+              (map (\\[x y] (ellipse 'blue' x y (* w 4) h))) [[(xoff 2) (yoff 7)]]))
+            (map
+              (\\[x y r] (circle 'yellow' x y r))
+              [[(xoff  6) (yoff  2) (+ w h)]
+               [(xoff  6) (yoff  7) max]
+               [(xoff  6) (yoff  5) (/ (+ w h) 2)]])))))))))))
