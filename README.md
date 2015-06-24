@@ -1,6 +1,21 @@
+<img src="img/sketch-n-sketch-logo.png"
+     align="right" style="padding: 0px;" height="75px" />
+
 # Sketch-N-Sketch
 
-Sketch-N-Sketch: Program Synthesis for Direct Manipulation
+<!-- <br/> -->
+
+<!-- Sketch-N-Sketch: Program Synthesis for Direct Manipulation -->
+
+Direct manipulation interfaces are useful in many domains, but the lack of
+programmability in a high-level language makes it difficult to develop complex
+and reusable content. We envision *prodirect manipulation* editors that allow
+users to freely mix between programmatic and direct manipulation.
+
+<span style="display: inline-block; width: 222px; text-align: right;">**Prodirect Manipulation**</span>
+  = Programmatic + Direct Manipulation <br/>
+<span style="display: inline-block; width: 222px; text-align: right;">**Sketch-N-Sketch**</span>
+  = Prodirect Manipulation Editor for SVG
 
 ## Quick Syntax Reference
 
@@ -23,6 +38,7 @@ Sketch-N-Sketch: Program Synthesis for Direct Manipulation
       |   (op0)
       |   (op1 e1)
       |   (op2 e1 e2)
+      |   ;single-line-comment e
 ```
 
 ## Syntax Guide
@@ -41,6 +57,7 @@ Sketch-N-Sketch: Program Synthesis for Direct Manipulation
       |   3.14
       |   -3.14
       |   3.14!     -- frozen constants (may not be changed by sync)
+      |   3.14?     -- thawed constants (may be changed by sync)
 ```
 
 ```
@@ -63,7 +80,7 @@ Sketch-N-Sketch: Program Synthesis for Direct Manipulation
 ```
   op0  ::=  pi
   op1  ::=  cos | sin | arccos | arcsin
-  op2  ::=  + | - | * | / | <
+  op2  ::=  + | - | * | / | < | =
 ```
 
 ### Conditionals
@@ -126,7 +143,7 @@ Sketch-N-Sketch: Program Synthesis for Direct Manipulation
 
 ### Standard Prelude
 
-See `Prelude.elm` for the standard library included by every program.
+See [`Prelude.elm`][Prelude] for the standard library included by every program.
 
 ### SVG
 
@@ -148,5 +165,6 @@ where
 
 TODO explain attrs for different shapes
 
-See `Prelude.elm` for a small library of SVG-manipulating functions.
+See [`Prelude.elm`][Prelude] for a small library of SVG-manipulating functions.
 
+[Prelude]: https://github.com/ravichugh/sketch-n-sketch/blob/master/src/Prelude.elm
