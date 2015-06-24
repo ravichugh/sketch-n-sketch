@@ -53,6 +53,9 @@ foldri f init xs = List.reverse (foldli f init xs)
 
 reverse2 (xs,ys) = (List.reverse xs, List.reverse ys)
 
+singleton : a -> List a
+singleton x = [x]
+
 split : Int -> List a -> (List a, List a)
 split n xs = (List.take n xs, List.drop n xs)
 
@@ -78,6 +81,9 @@ oneOfEach xss = case xss of
 --
 cartProdWithDiff : List (Set.Set comparable) -> List (List comparable)
 cartProdWithDiff = oneOfEach << List.map Set.toList << manySetDiffs
+
+intersectMany : List (Set.Set comparable) -> Set.Set comparable
+intersectMany (set::sets) = List.foldl Set.intersect set sets
 
 manySetDiffs : List (Set.Set comparable) -> List (Set.Set comparable)
 manySetDiffs sets =
@@ -174,4 +180,5 @@ mapThd3 f (x,y,z) = (x, y, f z)
 
 setIsEmpty  = (==) [] << Set.toList
 dictIsEmpty = (==) [] << Dict.toList
+setCardinal = List.length << Set.toList
 

@@ -54,14 +54,30 @@ type AVal
   | AString String
   | APoints (List Point)
   | ARgba Rgba
-  | APath (List Val) -- untyped
+  | APath2 (List PathCmd, PathCounts)
+  -- | APath (List Val) -- untyped
 
 type alias Point = (NumTr, NumTr)
 type alias Rgba  = (NumTr, NumTr, NumTr, NumTr)
 
+type PathCmd
+  = CmdZ   Cmd
+  | CmdMLT Cmd IdPoint
+  | CmdHV  Cmd NumTr
+  | CmdC   Cmd IdPoint IdPoint IdPoint
+  | CmdSQ  Cmd IdPoint IdPoint
+  | CmdA   Cmd NumTr NumTr NumTr NumTr NumTr IdPoint
+
+type alias PathCounts = {numPoints : Int}
+
+type alias Cmd = String -- single uppercase/lowercase letter
+
+type alias IdPoint = (Maybe Int, Point)
+
 toNum    (ANum (i,_)) = i
 toNumTr  (ANum (i,t)) = (i,t)
 toPoints (APoints pts) = pts
+toPath   (APath2 p) = p
 
 valToAttr (VList [VBase (String k), v]) =
   case (k, v) of
@@ -70,7 +86,8 @@ valToAttr (VList [VBase (String k), v]) =
     ("points", VList vs)  -> (k, APoints <| List.map valToPoint vs)
     ("fill", VList vs)    -> (k, ARgba <| valToRgba vs)
     ("stroke", VList vs)  -> (k, ARgba <| valToRgba vs)
-    ("d", VList vs)       -> (k, APath vs)
+    ("d", VList vs)       -> (k, APath2 (valsToPath2 vs))
+    -- ("d", VList vs)       -> (k, APath vs)
 
 valToPoint (VList [VConst x, VConst y]) = (x,y)
 pointToVal (x,y) = (VList [VConst x, VConst y])
@@ -91,14 +108,16 @@ strAVal a = case a of
   ANum it   -> toString (fst it)
   APoints l -> Utils.spaces (List.map strPoint l)
   ARgba tup -> strRgba tup
-  APath vs  -> valToPath vs
+  APath2 p  -> strAPath2 (fst p)
+  -- APath vs  -> valToPath vs
 
 valOfAVal a = case a of
   AString s -> VBase (String s)
   ANum it   -> VConst it
   APoints l -> VList (List.map pointToVal l)
   ARgba tup -> VList (rgbaToVal tup)
-  APath vs  -> VList vs
+  APath2 l  -> Debug.crash "valOfAVal: APath2"
+  -- APath vs  -> VList vs
 
 valOfAttr (k,a) = VList [VBase (String k), valOfAVal a]
 
@@ -110,10 +129,83 @@ valOfAttr (k,a) = VList [VBase (String k), valOfAVal a]
 --    to make it less verbose and easier to copy-and-paste raw SVG examples
 --  . looks like commas are optional
 
+valsToPath2 = valsToPath2_ {numPoints = 0}
+
+valsToPath2_ : PathCounts -> List Val -> (List PathCmd, PathCounts)
+valsToPath2_ counts vs = case vs of
+  [] -> ([], counts)
+  VBase (String cmd) :: vs' ->
+    if | matchCmd cmd "Z" -> CmdZ cmd +++ valsToPath2_ counts vs'
+       | matchCmd cmd "MLT" ->
+           let ([x,y],vs'') = projConsts 2 vs' in
+           let (counts',[pt]) = addIdPoints cmd counts [(x,y)] in
+           CmdMLT cmd pt +++ valsToPath2_ counts' vs''
+       | matchCmd cmd "HV" ->
+           let ([i],vs'') = projConsts 1 vs' in
+           CmdHV cmd i +++ valsToPath2_ counts vs''
+       | matchCmd cmd "C" ->
+           let ([x1,y1,x2,y2,x,y],vs'') = projConsts 6 vs' in
+           let (counts',[pt1,pt2,pt3]) = addIdPoints cmd counts [(x1,y1),(x2,y2),(x,y)] in
+           CmdC cmd pt1 pt2 pt3 +++ valsToPath2_ counts' vs''
+       | matchCmd cmd "SQ" ->
+           let ([x1,y1,x,y],vs'') = projConsts 4 vs' in
+           let (counts',[pt1,pt2]) = addIdPoints cmd counts [(x1,y1),(x,y)] in
+           CmdSQ cmd pt1 pt2 +++ valsToPath2_ counts' vs''
+       | matchCmd cmd "A" ->
+           let ([rx,ry,axis,flag,sweep,x,y],vs'') = projConsts 7 vs' in
+           let (counts',[pt]) = addIdPoints cmd counts [(x,y)] in
+           CmdA cmd rx ry axis flag sweep pt +++ valsToPath2_ counts' vs''
+
+x +++ (xs,stuff) = (x::xs, stuff)
+
+addIdPoints : Cmd -> PathCounts -> List Point -> (PathCounts, List IdPoint)
+addIdPoints cmd counts pts =
+  let [c] = String.toList cmd in
+  if | Char.isLower c -> (counts, List.map ((,) Nothing) pts)
+     | Char.isUpper c ->
+         let (counts',l) =
+           List.foldl (\pt (acc1,acc2) ->
+             let nextId = 1 + acc1.numPoints in
+             let acc1'  = {acc1 | numPoints <- nextId} in
+             let acc2'  = (Just nextId, pt) :: acc2 in
+             (acc1', acc2')) (counts, []) pts
+         in
+         (counts', List.reverse l)
+
+strAPath2 =
+  let strPt (_,(it,jt)) = toString (fst it) ++ " " ++ toString (fst jt) in
+  let strNum (n,_) = toString n in
+
+  let strPathCmd c = case c of
+    CmdZ   s              -> s
+    CmdMLT s pt           -> Utils.spaces [s, strPt pt]
+    CmdHV  s n            -> Utils.spaces [s, strNum n]
+    CmdC   s pt1 pt2 pt3  -> Utils.spaces (s :: List.map strPt [pt1,pt2,pt3])
+    CmdSQ  s pt1 pt2      -> Utils.spaces (s :: List.map strPt [pt1,pt2])
+    CmdA   s a b c d e pt ->
+      Utils.spaces (s :: List.map strNum [a,b,c,d,e] ++ [strPt pt])
+  in
+  Utils.spaces << List.map strPathCmd
+
+projConsts k vs =
+  if k == 0 then ([], vs)
+  else case vs of
+         VConst it ::vs' ->
+           let (l1,l2) = projConsts (k-1) vs' in
+           (it::l1, l2)
+
+matchCmd cmd s =
+  let [c] = String.toList cmd in
+  let cs  = String.toList s in
+  List.member c (cs ++ List.map Char.toLower cs)
+
+
+{- old way of doing things with APath...
+
 valToPath = Utils.spaces << valToPath_
 
 valToPath_ vs =
-  let pt i j = toString i ++ " " ++ toString j in
+  let pt (i,_) (j,_) = toString i ++ " " ++ toString j in
   case vs of
     [] -> []
     VBase (String cmd) :: vs' ->
@@ -137,17 +229,7 @@ valToPath_ vs =
              let blah = Utils.spaces (List.map toString ns) in
              cmd :: blah :: valToPath_ vs'' -- not worrying about commas
 
-projConsts k vs =
-  if k == 0 then ([], vs)
-  else case vs of
-         VConst (i,_) ::vs' ->
-           let (l1,l2) = projConsts (k-1) vs' in
-           (i::l1, l2)
-
-matchCmd cmd s =
-  let [c] = String.toList cmd in
-  let cs  = String.toList s in
-  List.member c (cs ++ List.map Char.toLower cs)
+-}
 
 
 ------------------------------------------------------------------------------
@@ -232,6 +314,8 @@ valToIndexedTree_ v (nextId, d) = case v of
     let (nextId',d',children) = List.foldl processChild (nextId,d,[]) vs2 in
     let node = SvgNode kind (List.map valToAttr vs1) (List.reverse children) in
     (1 + nextId', Dict.insert nextId' node d')
+
+  _ -> Debug.crash ("LangSvg.valToIndexTree_: " ++ strVal v)
 
 printIndexedTree : Val -> String
 printIndexedTree = valToIndexedTree >> snd >> strEdges
@@ -329,11 +413,11 @@ zones = [
       ])
   -- TODO
   , ("g", [])
-  , ("path", [])
   , ("text", [])
   , ("tspan", [])
   -- NOTE: these are computed in Sync.getZones
-  , ("polygon", [ ])
-  , ("polyline", [ ])
+  -- , ("polygon", [])
+  -- , ("polyline", [])
+  -- , ("path", [])
   ]
 

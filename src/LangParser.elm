@@ -13,7 +13,7 @@ import Prelude
 
 ------------------------------------------------------------------------------
 
-(prelude, initK) = freshen_ 1 (parseE_ identity Prelude.src)
+(prelude, initK) = freshen_ 1 <| Utils.fromOk_ <| parseE_ identity Prelude.src
 
 isPreludeLoc : Loc -> Bool
 isPreludeLoc (k,_,_) = k < initK
@@ -53,6 +53,9 @@ freshen_ k e = case e of
     let es = List.map snd l in
     let (e'::es', k') = freshenExps k (e::es) in
     (ECase e' (Utils.zip (List.map fst l) es'), k')
+  EComment s e1 ->
+    let (e1',k') = freshen_ k e1 in
+    (EComment s e1', k')
 
 freshenExps k es =
   List.foldr (\e (es',k') ->
@@ -91,6 +94,7 @@ substOf_ s e = case e of
   EIf e1 e2 e3 -> substOfExps_ s [e1,e2,e3]
   ECase e1 l   -> substOfExps_ s (e1 :: List.map snd l)
   ELet _ _ e1 e2 -> substOfExps_ s [e1,e2]  -- TODO
+  EComment _ e1 -> substOf_ s e1
 
 substOfExps_ s es = case es of
   []     -> s
@@ -124,14 +128,10 @@ parseFloat =
 parseSign =
   P.option 1 (P.satisfy ((==) '-') >>> P.return (-1))
 
-parseExclaim =
-  (P.satisfy ((==) '!')) >>> P.return (Just ())
-
 parseFrozen =
-  P.option Nothing parseExclaim >>= \m ->
-    case m of
-      Just () -> P.return true
-      Nothing -> P.return false
+  string_ frozen <++ string_ thawed <++ string_ unann
+
+string_ s = always s <$> P.token s
 
 parseNum : P.Parser (Num, Frozen)
 parseNum =
@@ -227,6 +227,7 @@ parseE_ f = P.parse <|
   white P.end >>>
     P.return (f e)
 
+parseE : String -> Result String Exp
 parseE = parseE_ freshen
 
 parseVar = EVar <$> (white parseIdent)
@@ -245,6 +246,7 @@ parseExp = P.recursively <| \_ ->
   <++ parseExpList
   <++ parseLet
   <++ parseApp
+  <++ parseCommentExp
 
 parseFun =
   parens <|
@@ -308,6 +310,7 @@ parseBOp =
   <++ (always Mult  <$> token_ "*")
   <++ (always Div   <$> token_ "/")
   <++ (always Lt    <$> token_ "<")
+  <++ (always Eq    <$> token_ "=")
 
 parseUnop =
   parens <|
@@ -355,4 +358,11 @@ parseBranches = P.recursively <| \_ ->
 parseBranch =
   parens <|
     parsePat >>= \p -> oneWhite >>> parseExp >>= \e -> P.return (p,e)
+
+parseCommentExp =
+  token_ ";" >>>
+  P.many (P.satisfy ((/=) '\n')) >>= \cs ->
+  P.satisfy ((==) '\n') >>>
+  parseExp >>= \e ->
+    P.return (EComment (String.fromList cs) e)
 

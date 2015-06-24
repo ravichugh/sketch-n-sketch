@@ -94,6 +94,8 @@ eval env e =
         case (PVar f, v1') `cons` Just env of
           Just env' -> eval env' e2
 
+  EComment _ e1 -> eval env e1
+
   -- abstract syntactic sugar
   EFun ps e  -> eval env (eFun ps e)
   EApp e1 es -> eval env (eApp e1 es)
@@ -111,6 +113,7 @@ evalOp env op es =
         Mult  -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Div   -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Lt    -> vBool  (i < j)
+        Eq    -> vBool  (i == j)
     [] ->
       case op of
         Pi    -> VConst (pi, TrOp op [])
@@ -148,5 +151,5 @@ run e =
   eval_ initEnv e
 
 parseAndRun : String -> String
-parseAndRun = strVal << run << LangParser.parseE
+parseAndRun = strVal << run << Utils.fromOk_ << LangParser.parseE
 

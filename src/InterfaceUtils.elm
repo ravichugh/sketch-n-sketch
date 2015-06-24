@@ -14,7 +14,10 @@ import Debug
 import Html exposing (Html)
 
 type alias Model =
-  { code : (String, Html)
+  { scratchCode : String
+  , exName : String
+  -- , code : String
+  , code : (String, Html)
   , inputExp : Maybe Exp
   , rootId : NodeId
   , workingSlate : IndexedTree
@@ -24,6 +27,8 @@ type alias Model =
   , midOffsetX : Int  -- extra codebox width in vertical orientation
   , midOffsetY : Int  -- extra codebox width in horizontal orientation
   , showZones : Bool
+  , syncOptions : Sync.Options
+  , editingMode : Bool
   }
 
 type Mode
@@ -39,38 +44,28 @@ type alias MouseTrigger a = (Int, Int) -> a
 
 type Orientation = Vertical | Horizontal
 
-type alias PossibleChanges = List ((Exp, Val), Float)
+type alias PossibleChanges =
+  ( Int               -- num local changes
+  , List (Exp, Val)   -- local changes ++ [structural change, revert change]
+  )
 
--- TODO
-syncBool m = case m of
-  SyncSelect _ _ -> True
-  _              -> False
-
---Event
---CodeUpdate : carries updated string of code with it
---SelectObject : carries an id of an object and an identifying string for a zone
---DeselectObject : carries an id of an object which shall no longer be selected
---                  for alteration.
---MousePos : carries a position of mouse on a down click
---Sync : signals the system to enter selectMode
---SelectOption : carries a possiblechange pane from sync to be displayed as the new
---              console
---Render : display a given val from the code
 type Event = CodeUpdate String
            | SelectObject Int ShapeKind Zone
-           | DeselectObject
+           | MouseUp
            | MousePos (Int, Int)
            | Sync
            | TraverseOption Int -- offset from current index (+1 or -1)
            | SelectOption
-           | Revert
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val})
-           | Render
-           | PrintSvg
+           | Edit
+           | Run
+           | ToggleOutput
            | ToggleZones
+           | ToggleThawed
            | SwitchOrient
            | StartResizingMid
+           | Noop
 
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
@@ -105,6 +100,6 @@ switchOrient m = case m of
 
 dimToPix d = toString d ++ "px"
 
-mkLive e v = Live <| Sync.prepareLiveUpdates e v
-mkLive_ e  = mkLive e (Eval.run e)
+mkLive opts e v = Live <| Sync.prepareLiveUpdates opts e v
+mkLive_ opts e  = mkLive opts e (Eval.run e)
 

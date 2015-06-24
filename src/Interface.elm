@@ -5,7 +5,7 @@
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
 import LangParser exposing (parseE, parseV)
-import LangUnparser exposing (unparseE)
+import LangUnparser as Un
 import Sync
 import Eval exposing (run)
 import Utils
@@ -45,44 +45,63 @@ import Debug
 
 sampleModel =
   let
-    (_,f) = Utils.head_ Examples.list
+    (name,f) = Utils.head_ Examples.list
     {e,v} = f ()
     (rootId,slate) = LangSvg.valToIndexedTree v
   in
-    { code         = unparseE e
+    { scratchCode  = Examples.blank
+    , exName       = name
+    , code         = Un.lift <| sExp e
     , inputExp     = Just e
     , rootId       = rootId
     , workingSlate = slate
-    , mode         = mkLive e v
+    , mode         = mkLive Sync.defaultOptions e v
     , mouseMode    = MouseNothing
     , orient       = Vertical
     , midOffsetX   = 0
     , midOffsetY   = -100
     , showZones    = False
+    , syncOptions  = Sync.defaultOptions
+    , editingMode  = False
     }
 
-refreshMode m e =
-  case m of
-    Live _ -> mkLive_ e
-    Print  -> mkLive_ e
+refreshMode model e =
+  case model.mode of
+    Live _ -> mkLive_ model.syncOptions e
+    Print  -> mkLive_ model.syncOptions e
     m      -> m
+
+refreshMode_ model = refreshMode model (Utils.fromJust model.inputExp)
 
 upstate : Event -> Model -> Model
 upstate evt old = case Debug.log "Event" evt of
 
-    Render ->
-      let e = parseE (fst old.code) in
-      let v = Eval.run e in
-      let (rootId,slate) = LangSvg.valToIndexedTree v in
-      { old | inputExp <- Just e
-            , code <- unparseE e
-            , rootId <- rootId
-            , workingSlate <- slate
-            , mode <- refreshMode old.mode e }
+    Noop -> old
 
-    PrintSvg -> { old | mode <- Print }
+    Edit -> { old | editingMode <- True }
 
-    CodeUpdate newcode -> { old | code <- (newcode, Html.div [] []) }
+    Run ->
+      case parseE (fst old.code) of
+        Ok e ->
+          let v = Eval.run e in
+          let (rootId,slate) = LangSvg.valToIndexedTree v in
+          { old | inputExp <- Just e
+                , code <- Un.lift <| sExp e
+                , rootId <- rootId
+                , workingSlate <- slate
+                , editingMode <- False
+                , mode <- refreshMode old e }
+        Err err ->
+          { old | code <- Un.lift <| "PARSE ERROR!\n\n" ++ err }
+
+    ToggleOutput ->
+      let m = case old.mode of
+        Print -> refreshMode_ old
+        _     -> Print
+      in
+      { old | mode <- m }
+
+    CodeUpdate newcode -> { old | code <- Un.lift newcode }
 
     StartResizingMid -> { old | mouseMode <- MouseResizeMid Nothing }
 
@@ -104,7 +123,7 @@ upstate evt old = case Debug.log "Event" evt of
           { old | mouseMode <- MouseObject (objid, kind, zone, Just onNewPos) }
         MouseObject (_, _, _, Just onNewPos) ->
           let (newE,newSlate) = onNewPos (mx, my) in
-          { old | code <- unparseE newE
+          { old | code <- Un.unparseE newE
                 , inputExp <- Just newE
                 , workingSlate <- newSlate }
 
@@ -117,63 +136,76 @@ upstate evt old = case Debug.log "Event" evt of
             Just _  -> { old | mouseMode <- MouseObject (id, kind, zone, Nothing) }
         SyncSelect _ _ -> old
 
-    DeselectObject ->
-      { old | mouseMode <- MouseNothing
-            , mode <- refreshMode old.mode (Utils.fromJust old.inputExp) }
+    MouseUp ->
+      case old.mode of
+        Print -> old
+        _     -> { old | mouseMode <- MouseNothing, mode <- refreshMode_ old }
 
     Sync -> 
-        case (old.mode, old.inputExp) of
-            (Live _, _) -> Debug.crash "upstate Sync: shouldn't happen anymore"
-            (AdHoc, Just ip) ->
-                let inputval  = Eval.run ip
-                    inputval' = inputval |> LangSvg.valToIndexedTree
-                                         |> snd
-                                         |> indexedTreeToVal old.rootId
-                    newval    = indexedTreeToVal old.rootId old.workingSlate
-                in
-                  case Sync.sync ip inputval' newval of
-                    Ok [] -> { old | mode <- mkLive_ ip  }
-                    Ok ls -> let _ = Debug.log "# of sync options" (List.length ls) in
-                             upstate (TraverseOption 1) { old | mode <- SyncSelect 0 ls }
-                    Err e -> let _ = Debug.log ("bad sync: ++ " ++ e) () in
-                             { old | mode <- SyncSelect 0 [] }
+      case (old.mode, old.inputExp) of
+        (Live _, _) -> Debug.crash "upstate Sync: shouldn't happen anymore"
+        (AdHoc, Just ip) ->
+          let
+            inputval  = Eval.run ip
+            inputval' = inputval |> LangSvg.valToIndexedTree
+                                 |> snd
+                                 |> indexedTreeToVal old.rootId
+            newval    = indexedTreeToVal old.rootId old.workingSlate
+            struct    = Sync.inferStructuralUpdate ip inputval' newval
+            revert    = (ip, inputval)
+          in
+            case Sync.inferLocalUpdates old.syncOptions ip inputval' newval of
+              Ok [] -> { old | mode <- mkLive_ old.syncOptions ip  }
+              Ok ls ->
+                let n = Debug.log "# of sync options" (List.length ls) in
+                let ls' = List.map fst ls in
+                let m = SyncSelect 0 (n, ls' ++ [struct, revert]) in
+                upstate (TraverseOption 1) { old | mode <- m }
+              Err e ->
+                let _ = Debug.log ("bad sync: ++ " ++ e) () in
+                let m = SyncSelect 0 (0, [struct, revert]) in
+                upstate (TraverseOption 1) { old | mode <- m }
 
     SelectOption ->
-      let (SyncSelect i l) = old.mode in
-      let ((ei,vi),_) = Utils.geti i l in
+      let (SyncSelect i options) = old.mode in
+      let (_,l) = options in
+      let (ei,vi) = Utils.geti i l in
       let (rootId,tree) = LangSvg.valToIndexedTree vi in
-      { old | code <- unparseE ei
+      { old | code <- Un.unparseE ei
             , inputExp <- Just ei
             , rootId <- rootId
             , workingSlate <- tree
-            , mode <- mkLive ei vi }
+            , mode <- mkLive old.syncOptions ei vi }
 
     TraverseOption offset ->
-      let (SyncSelect i l) = old.mode in
+      let (SyncSelect i options) = old.mode in
+      let (_,l) = options in
       let j = i + offset in
-      let ((ei,vi),_) = Utils.geti j l in
+      let (ei,vi) = Utils.geti j l in
       let (rootId,tree) = LangSvg.valToIndexedTree vi in
-      { old | code <- unparseE ei
+      { old | code <- Un.unparseE ei
             , inputExp <- Just ei
             , rootId <- rootId
             , workingSlate <- tree
-            , mode <- SyncSelect j l }
+            , mode <- SyncSelect j options }
 
-    Revert ->
-      let e = Utils.fromJust old.inputExp in
-      let (rootId,tree) = LangSvg.valToIndexedTree (Eval.run e) in
-      { old | rootId <- rootId , workingSlate <- tree , mode <- AdHoc }
+    SelectExample "Scratch" _ ->
+      upstate Run { old | exName <- "Scratch"
+                        , code <- Un.lift old.scratchCode }
 
     SelectExample name thunk ->
       let {e,v} = thunk () in
       let (rootId,tree) = LangSvg.valToIndexedTree v in
       let m =
         case old.mode of
-          Live _ -> mkLive e v
+          Live _ -> mkLive old.syncOptions e v
           _      -> old.mode
       in
-      { old | inputExp <- Just e
-            , code <- unparseE e
+      { old | scratchCode <- if | old.exName == "Scratch" -> fst old.code -- TODO
+                                | otherwise               -> old.scratchCode
+            , exName <- name
+            , inputExp <- Just e
+            , code <- Un.lift <| sExp e
             , mode <- m
             , rootId <- rootId
             , workingSlate <- tree }
@@ -184,7 +216,23 @@ upstate evt old = case Debug.log "Event" evt of
 
     ToggleZones -> { old | showZones <- not old.showZones }
 
+    ToggleThawed ->
+      let so = old.syncOptions in
+      let so' = { so | thawedByDefault <- not so.thawedByDefault } in
+      let model' = { old | syncOptions <- so' } in
+      { model' | mode <- refreshMode_ model' }
+
     _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
+
+
+--------------------------------------------------------------------------------
+-- Mouse Callbacks for Zones
+
+type alias OnMouse =
+  { posX : Num -> Num , posY : Num -> Num
+  , negX : Num -> Num , negY : Num -> Num
+  -- , posXposY : Num -> Num
+  }
 
 createMousePosCallback mx my objid kind zone old =
 
@@ -201,10 +249,19 @@ createMousePosCallback mx my objid kind zone old =
     let negX n = n + toFloat mx - toFloat mx' in
     let negY n = n + toFloat my - toFloat my' in
 
-    let posX' (n,tr) = (posX n, tr) in
-    let posY' (n,tr) = (posY n, tr) in
-    let negX' (n,tr) = (negX n, tr) in
-    let negY' (n,tr) = (negY n, tr) in
+    -- let posXposY n =
+    --   let dx = toFloat mx - toFloat mx' in
+    --   let dy = toFloat my - toFloat my' in
+    --   if | abs dx >= abs dy  -> n - dx
+    --      | otherwise         -> n - dy in
+
+    let onMouse =
+      { posX = posX, posY = posY, negX = negX, negY = negY } in
+
+    -- let posX' (n,tr) = (posX n, tr) in
+    -- let posY' (n,tr) = (posY n, tr) in
+    -- let negX' (n,tr) = (negX n, tr) in
+    -- let negY' (n,tr) = (negY n, tr) in
 
     let fx  = mapNumAttr posX in
     let fy  = mapNumAttr posY in
@@ -245,8 +302,12 @@ createMousePosCallback mx my objid kind zone old =
           case LangSvg.realZoneOf zone of
             LangSvg.ZPoint i -> ret [fx (addi "x" i), fy (addi "y" i)]
 
-        ("polygon", _)  -> createCallbackPoly zone kind objid old posX' posY'
-        ("polyline", _) -> createCallbackPoly zone kind objid old posX' posY'
+        -- ("polygon", _)  -> createCallbackPoly zone kind objid old posX' posY'
+        -- ("polyline", _) -> createCallbackPoly zone kind objid old posX' posY'
+        ("polygon", _)  -> createCallbackPoly zone kind objid old onMouse
+        ("polyline", _) -> createCallbackPoly zone kind objid old onMouse
+
+        ("path", _) -> createCallbackPath zone kind objid old onMouse
 
     in
     let newSlate = List.foldr (upslate objid) old.workingSlate newRealAttrs in
@@ -269,6 +330,8 @@ createMousePosCallback mx my objid kind zone old =
               in
               (newE, newSlate')
 
+-- Callbacks for Polygons/Polylines
+
 createCallbackPoly zone shape =
   let _ = Utils.assert "createCallbackPoly" (shape == "polygon" || shape == "polyline") in
   case LangSvg.realZoneOf zone of
@@ -280,12 +343,15 @@ createCallbackPoly zone shape =
 --  - differentiate between "polygon" and "polyline" for interior
 --  - rethink/refactor point/edge zones
 
-polyInterior shape objid old posX' posY' =
+lift : (Num -> Num) -> (NumTr -> NumTr)
+lift f (n,t) = (f n, t)
+
+polyInterior shape objid old onMouse =
   let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
   let pts = toPoints <| Utils.find_ nodeAttrs "points" in
   let accs =
     let foo (j,(xj,yj)) (acc1,acc2) =
-      let (xj',yj') = (posX' xj, posY' yj) in
+      let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
       let acc2' = (addi "x"j, LangSvg.ANum xj') :: (addi "y"j, LangSvg.ANum yj') :: acc2 in
       ((xj',yj')::acc1, acc2')
     in
@@ -294,14 +360,14 @@ polyInterior shape objid old posX' posY' =
   let (acc1,acc2) = Utils.reverse2 accs in
   ([("points", LangSvg.APoints acc1)], acc2)
 
-polyPoint i shape objid old posX' posY' =
+polyPoint i shape objid old onMouse =
   let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
   let pts = toPoints <| Utils.find_ nodeAttrs "points" in
   let accs =
     let foo (j,(xj,yj)) (acc1,acc2) =
       if | i /= j -> ((xj,yj)::acc1, acc2)
          | otherwise ->
-             let (xj',yj') = (posX' xj, posY' yj) in
+             let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
              let acc2' = (addi "x"i, LangSvg.ANum xj')
                          :: (addi "y"i, LangSvg.ANum yj')
                          :: acc2 in
@@ -312,14 +378,14 @@ polyPoint i shape objid old posX' posY' =
   let (acc1,acc2) = Utils.reverse2 accs in
   ([("points", LangSvg.APoints acc1)], acc2)
 
-polyEdge i shape objid old posX' posY' =
+polyEdge i shape objid old onMouse =
   let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
   let pts = toPoints <| Utils.find_ nodeAttrs "points" in
   let n = List.length pts in
   let accs =
     let foo (j,(xj,yj)) (acc1,acc2) =
       if | i == j || (i == n && j == 1) || (i < n && j == i+1) ->
-             let (xj',yj') = (posX' xj, posY' yj) in
+             let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
              let acc2' = (addi "x"j, LangSvg.ANum xj')
                          :: (addi "y"j, LangSvg.ANum yj')
                          :: acc2 in
@@ -331,6 +397,58 @@ polyEdge i shape objid old posX' posY' =
   in
   let (acc1,acc2) = Utils.reverse2 accs in
   ([("points", LangSvg.APoints acc1)], acc2)
+
+-- Callbacks for Paths
+
+createCallbackPath zone shape =
+  let _ = Utils.assert "createCallbackPath" (shape == "path") in
+  case LangSvg.realZoneOf zone of
+    LangSvg.ZPoint i -> pathPoint i
+
+pathPoint i objid old onMouse =
+
+  let updatePt (mj,(x,y)) =
+    if | mj == Just i -> (mj, (lift onMouse.posX x, lift onMouse.posY y))
+       | otherwise    -> (mj, (x, y)) in
+  let addFakePts =
+    List.foldl <| \(mj,(x,y)) acc ->
+      if | mj == Just i -> (addi "x"i, LangSvg.ANum x)
+                           :: (addi "y"i, LangSvg.ANum y)
+                           :: acc
+         | otherwise    -> acc in
+
+  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
+  let (cmds,counts) = LangSvg.toPath <| Utils.find_ nodeAttrs "d" in
+  let accs =
+    let foo c (acc1,acc2) =
+      let (c',acc2') = case c of
+        LangSvg.CmdZ s ->
+          (LangSvg.CmdZ s, acc2)
+        LangSvg.CmdMLT s pt ->
+          let pt' = updatePt pt in
+          (LangSvg.CmdMLT s pt', addFakePts acc2 [pt'])
+        LangSvg.CmdHV s n ->
+          (LangSvg.CmdHV s n, acc2)
+        LangSvg.CmdC s pt1 pt2 pt3 ->
+          let [pt1',pt2',pt3'] = List.map updatePt [pt1,pt2,pt3] in
+          (LangSvg.CmdC s pt1' pt2' pt3', addFakePts acc2 [pt1',pt2',pt3'])
+        LangSvg.CmdSQ s pt1 pt2 ->
+          let [pt1',pt2'] = List.map updatePt [pt1,pt2] in
+          (LangSvg.CmdSQ s pt1' pt2' , addFakePts acc2 [pt1',pt2'])
+        LangSvg.CmdA s a b c d e pt ->
+          let pt' = updatePt pt in
+          (LangSvg.CmdA s a b c d e pt', addFakePts acc2 [pt'])
+      in
+      (c' :: acc1, acc2')
+    in
+    List.foldr foo ([],[]) cmds
+  in
+  let (acc1,acc2) = Utils.reverse2 accs in
+  ([("d", LangSvg.APath2 (acc1, counts))], acc2)
+
+
+--------------------------------------------------------------------------------
+-- Main
 
 main : Signal GE.Element
 main = let sigModel = Signal.foldp upstate sampleModel

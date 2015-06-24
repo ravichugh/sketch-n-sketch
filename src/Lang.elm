@@ -14,8 +14,8 @@ type alias LocId = Int
 type alias Ident = String
 type alias Num = Float
 
-type alias Frozen = Int  -- b/c Bool isn't comparable
-(true, false) = (1, 0)
+type alias Frozen = String -- b/c comparable
+(frozen, unann, thawed) = ("!", "", "?")
 
 type alias LocSet = Set.Set Loc
 type alias LocIdSet = Set.Set LocId
@@ -31,7 +31,7 @@ type Op
   | Cos | Sin | ArcCos | ArcSin
   -- binary ops
   | Plus | Minus | Mult | Div
-  | Lt
+  | Lt | Eq
 
 type Exp
   = EConst Num Loc
@@ -44,6 +44,7 @@ type Exp
   | EIf Exp Exp Exp
   | ECase Exp (List (Pat, Exp))
   | ELet Bool Pat Exp Exp
+  | EComment String Exp
 
     -- EFun [] e     impossible
     -- EFun [p] e    (\p. e)
@@ -108,8 +109,7 @@ strOp op = case op of
   ArcSin -> "arcsin"
 
 strLoc (k, b, mx) =
-  "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx)
-                    ++ (if b == true then "!" else "")
+  "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx) ++ b
 
 strTrace tr = case tr of
   TrLoc l   -> strLoc l
@@ -141,7 +141,7 @@ sExp_ showLocs k e =
     EConst i l ->
       let (_,b,_) = l in
       toString i
-        ++ (if b == true then "!" else "")
+        ++ b
         ++ if showLocs then Utils.braces (strLoc l) else ""
     EVar x -> x
     EFun [p] e ->
@@ -190,6 +190,9 @@ sExp_ showLocs k e =
         tab (k+1) ++ Utils.parens (strPat pi ++ " " ++ foo (k+1) ei) in
       Utils.parens <|
         "case " ++ foo k e1 ++ "\n" ++ Utils.lines (List.map bar l)
+    EComment s e1 ->
+      ";" ++ s ++ "\n" ++
+      tab k ++ foo k e1
 
 maybeIndent showLocs k e =
   let s = sExp_ showLocs (k+1) e in
@@ -220,6 +223,7 @@ mapExp f e =
     EIf e1 e2 e3   -> f (EIf (foo e1) (foo e2) (foo e3))
     ECase e1 l     -> f (ECase (foo e1) (List.map (\(p,ei) -> (p, foo ei)) l))
     ELet b p e1 e2 -> f (ELet b p (foo e1) (foo e2))
+    EComment s e1  -> f (EComment s (foo e1))
 
 mapVal : (Val -> Val) -> Val -> Val
 mapVal f v = case v of
@@ -252,6 +256,10 @@ applySubst subst e = case e of
     ELet b p (applySubst subst e1) (applySubst subst e2) -- TODO
   EIf e1 e2 e3 ->
     EIf (applySubst subst e1) (applySubst subst e2) (applySubst subst e3)
+  ECase e l ->
+    ECase (applySubst subst e) (List.map (\(p,ei) -> (p, applySubst subst ei)) l)
+  EComment s e1 ->
+    EComment s (applySubst subst e1)
 
 
 ------------------------------------------------------------------------------
@@ -260,8 +268,8 @@ applySubst subst e = case e of
 dummyLoc_ b = (0, b, "")
 dummyTrace_ b = TrLoc (dummyLoc_ b)
 
-dummyLoc = dummyLoc_ false
-dummyTrace = dummyTrace_ false
+dummyLoc = dummyLoc_ unann
+dummyTrace = dummyTrace_ unann
 
 ePlus e1 e2 = EOp Plus [e1,e2]
 
@@ -282,3 +290,8 @@ eFun ps e = case ps of
   [p]     -> EFun [p] e
   p::ps'  -> EFun [p] (eFun ps' e)
 
+ePair e1 e2 = EList [e1,e2] Nothing
+
+eLets xes eBody = case xes of
+  (x,e)::xes' -> ELet False (PVar x) e (eLets xes' eBody)
+  []          -> eBody

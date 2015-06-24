@@ -1,4 +1,4 @@
-module LangUnparser (topLevelDiv, unparseE_, unparseE) where
+module LangUnparser (topLevelDiv, unparseE_, unparseE, lift) where
 
 import Lang exposing (..)
 -- TODO import Config exposing (..)
@@ -160,7 +160,7 @@ unparse info e =
       let (locid,b,_) = Debug.log "unparse EConst" <| l in
       let s =
         toString i
-          ++ (if b == true then "!" else "")
+          ++ b
           ++ if info.showLocs then Utils.braces (strLoc l) else ""
       in
       if -- | Set.member locid info.highlightedLocs -> (s, T.bold (T.fromString s))
@@ -248,6 +248,10 @@ unparse info e =
       lift <| Utils.parens <|
         "case " ++ foo k e1 ++ "\n" ++ Utils.lines (List.map bar l)
 
+    -- TODO
+    EComment s e1 ->
+      lift <| foo k e1
+
 maybeIndent info e =
   let k = info.tab in
   let out = unparse { info | tab <- k+1 } e in
@@ -266,9 +270,9 @@ dummyInfo =
   , highlightedLocs = Set.empty
   }
 
-unparseE_ : LocIdSet -> Exp -> (String, Html.Html)
+unparseE_ : LocIdSet -> Exp -> Thing
 unparseE_ locs e = unparse { dummyInfo | highlightedLocs <- locs} e
 
-unparseE : Exp -> (String, Html.Html)
+unparseE : Exp -> Thing
 unparseE = unparseE_ Set.empty
 

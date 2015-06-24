@@ -1,14 +1,18 @@
 module MicroTests where
 
 import Lang exposing (strVal)
-import LangParser exposing (parseV, parseE)
+import LangParser
 import Eval
+import Utils
 
 _ `ignore` _ = ()
 
 --------------------------------------------------------------------------------
 
 -- right now, these always get run
+
+parseE = Utils.fromOk_ << LangParser.parseE
+parseV = Utils.fromOk_ << LangParser.parseV
 
 testParser = ()
 
@@ -49,6 +53,7 @@ testParser = ()
 
 --------------------------------------------------------------------------------
 
+makeTest : String -> String -> {e:Lang.Exp, v:Lang.Val, vnew:Lang.Val}
 makeTest se sv' =
   let e  = parseE se
       v  = Eval.run e
@@ -335,8 +340,8 @@ test32 () =
 test33 () =
   makeTest
     "(svg
-     [ (path_ ['M' 20 20 'L' 60 20 'L' 60 80 'Z'])
-       (path_ ['M' 10 10 'H' 90 'V' 90 'H' 10 'L' 10 10 'Z'])
+     [ (path_ ['M' 10 10 'H' 90 'V' 90 'H' 10 'L' 10 10 'Z'])
+       (path_ ['M' 20 20 'L' 60 20 'L' 60 80 'Z'])
        (path_ ['M' 150 0 'L' 75 200 'L' 225 200 'Z'])
      ])"
     "[]"
@@ -464,12 +469,12 @@ test44 () =
 test45 () =
   makeTest
     "(let ngon (\\(n cx cy d)
-       (let dangle (/ (* 3 (pi)) 2)
-       (let anglei (\\i (+ dangle (/ (* i (* 2 (pi))) n)))
+       (let dangle (/ (* 3! (pi)) 2!)
+       (let anglei (\\i (+ dangle (/ (* i (* 2! (pi))) n)))
        (let xi     (\\i (+ cx (* d (cos (anglei i)))))
        (let yi     (\\i (+ cy (* d (sin (anglei i)))))
        (let pti    (\\i [(xi i) (yi i)])
-         (polygon_ (map pti (list0N (- n 1))))))))))
+         (polygon_ (map pti (list0N (- n 1!))))))))))
      (svg [
        (ngon 3 100 200 40)
        (ngon 4 200 200 30)
@@ -478,4 +483,147 @@ test45 () =
        (ngon 15 100 400 40)
      ]))"
     "[]"
+
+-- disjoint length params for x and y
+test46 () =
+  makeTest
+    "(let ngon (\\(n cx cy len1 len2)
+       (let dangle (/ (* 3! (pi)) 2!)
+       (let anglei (\\i (+ dangle (/ (* i (* 2! (pi))) n)))
+       (let xi     (\\i (+ cx (* len1 (cos (anglei i)))))
+       (let yi     (\\i (+ cy (* len2 (sin (anglei i)))))
+       (let pti    (\\i [(xi i) (yi i)])
+         (polygon_ (map pti (list0N (- n 1!))))))))))
+     (svg [
+       (ngon 3 100 200 40 40)
+       (ngon 4 200 200 30 30)
+       (ngon 5 300 300 50 50)
+       (ngon 7 300 100 40 40)
+       (ngon 15 100 400 40 40)
+     ]))"
+    "[]"
+
+-- kind of a cool buggy program...
+test47 () =
+  makeTest
+    "(let rot (/ (* 3! (pi)) 2!)
+     (let ngonpts (\\(n cx cy len dangle)
+       (let anglei (\\i (+ dangle (/ (* i (* 2! (pi))) n)))
+       (let xi     (\\i (+ cx (* len (cos (anglei i)))))
+       (let yi     (\\i (+ cy (* len (sin (anglei i)))))
+       (let pti    (\\i [(xi i) (yi i)])
+         (map pti (list0N (- n 1!))))))))
+     (svg [
+       (polygon_ (ngonpts 5 100 200 40 0))
+       (polygon_ (ngonpts 5 100 200 40 (/ (pi) 5)))
+       (polygon_ (ngonpts 5 100 100 40 0))
+       (polygon_ (ngonpts 5 100 100 10 (/ (pi) 5)))
+       (polygon_
+         (intermingle
+           (ngonpts 5 400 300 40 rot)
+           (ngonpts 5 400 300 40 (+ rot (/ (pi) 5)))))
+       (polygon_
+         (intermingle
+           (ngonpts 3 50 400 40 rot)
+           (ngonpts 3 50 400 40 (+ rot (/ (pi) 3)))))
+       (polygon_
+         (intermingle
+           (ngonpts 5 400 200 40 rot)
+           (ngonpts 5 400 200 10 (+ rot (/ (pi) 5)))))
+       (polygon_
+         (intermingle
+           (ngonpts 3 400 400 40 rot)
+           (ngonpts 3 400 400 10 (+ rot (/ (pi) 3)))))
+     ])))"
+    "[]"
+
+test48 () =
+  makeTest
+    "(let nstar (\\(n cx cy len1 len2 rot)
+       (let pti (\\[i len]
+         (let anglei (+ rot (/ (* i (pi)) n))
+         (let xi (+ cx (* len (cos anglei)))
+         (let yi (+ cy (* len (sin anglei)))
+           [xi yi]))))
+       (let lengths
+         (map (\\b (if b len1 len2))
+              (concat (repeat n [true false])))
+       (let indices (list0N (- (* 2! n) 1!))
+         (polygon_ (map pti (zip indices lengths)))))))
+
+     (let upright (/ (* 3! (pi)) 2!)
+     (let [x0 y0 sep ni nj] [100 100 100 3! 7!]
+     (let [outerLen innerLen] [50 20]
+     (svg
+       (map (\\i
+              (let off (mult (- i ni) sep)
+              (nstar i (+ x0 off) (+ y0 off) outerLen innerLen upright)))
+            (range ni nj))
+     )))))"
+    "[]"
+
+--A simple graph (nodes and edges)
+test49 () =
+    makeTest
+      "(let node (\\[x y] (circle 'lightblue' x y 20))
+       (let edge (\\[[x y] [i j]] (line 'lightgreen' 5 x y i j))
+       (letrec genpairs
+          (\\xs
+            (case xs
+              ([x y | xx] [[x y] | (append (genpairs  (cons x xx)) (genpairs  (cons y xx)))])
+              ([x] [])
+              ([] [])))
+       (let pts [[200 50] [400 50] [100 223] [200 389] [400 391] [500 223]]
+       (let nodes (map node pts)
+       (let pairs (genpairs  pts)
+       (let edges (map edge pairs)
+         (svg (append edges nodes)))))))))"
+      "[]"
+
+tests =
+  [ (600, 100, test15)
+  , (600, 100, test16)
+  , (600, 100, test17)
+  , (600, 100, test18)
+  , (600, 100, test19)
+  , (600, 100, test20)
+  , (600, 100, test21)
+  , (600, 600, test22)
+  , (600, 200, test23)
+  , (600, 200, test24)
+  , (600, 200, test25)
+  , (600, 200, test26)
+  , (600, 200, test27)
+  , (600, 200, test28)
+  , (600, 200, test29)
+  , (600, 200, test30)
+  , (600, 600, test31)
+  , (600, 300, test32)
+  , (600, 300, test33)
+  , (600, 200, test34)
+  , (600, 200, test35)
+  , (600, 330, test36)
+  , (600, 330, test37)
+  , (600, 200, test38)
+  , (600, 200, test39)
+  , (600, 200, test40)
+  , (600, 200, test41)
+  , (600, 200, test42)
+  , (600, 200, test43)
+  , (600, 300, test44)
+  , (600, 300, test45)
+  , (600, 300, test46)
+  , (600, 300, test47)
+  , (600, 300, test48)
+  , (600, 600, test49)
+  ]
+
+sampleTests =
+  tests
+    |> List.map Utils.thd3
+    |> Utils.mapi (\(i,f) ->
+         let name = "test" ++ toString (i+14) in
+         let thunk () = let {e,v} = f () in {e=e, v=v} in
+         (name, thunk))
+    |> List.reverse
 

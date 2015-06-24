@@ -118,3 +118,11 @@ locally changed
 
 		return drop;
 	}
+
+
+------------------------------------------------------------------------------
+unexpected results with following k' bug...
+
+  EComment s e1 ->
+    let (e1',k') = freshen_ k' e1 in
+    (EComment s e1', k')

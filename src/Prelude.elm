@@ -4,6 +4,14 @@ src = "
 
 (let id (\\x x)
 
+(let always (\\(x _) x)
+
+(let compose (\\(f g) (\\x (f (g x))))
+
+(let fst (\\[x|_] x)
+
+(letrec len (\\xs (case xs ([] 0) ([_ | xs1] (+ 1 (len xs1)))))
+
 (letrec map (\\(f xs)
   (case xs ([] []) ([hd|tl] [(f hd)|(map f tl)])))
 
@@ -36,7 +44,26 @@ src = "
 (let hd   (\\[x|xs] x)
 (let tl   (\\[x|xs] xs)
 
-(letrec list0N (\\i (if (< i 0) nil (cons i (list0N (- i 1)))))
+(let reverse (foldl cons nil)
+
+(letrec range (\\(i j)
+  (if (< i (+ j 1))
+      (cons i (range (+ i 1) j))
+      nil))
+
+(let list0N
+  (letrec foo (\\i (if (< i 0) nil (cons i (foo (- i 1)))))
+  (compose reverse foo))
+
+(let list1N (\\n (range 1 n))
+
+(let repeat (\\(n x) (map (always x) (range 1 n)))
+
+(letrec intermingle (\\(xs ys)
+  (case [xs ys]
+    ([[x|xs1] [y|ys1]] (cons x (cons y (intermingle xs1 ys1))))
+    ([[]      []]      nil)
+    (_                 (append xs ys))))
 
 (letrec mult (\\(m n)
   (if (< m 1) 0 (+ n (mult (+ m -1) n))))
@@ -49,6 +76,8 @@ src = "
     (+ 1 (div (minus m n) n)))))
 
 (let neg (\\x (- 0 x))
+
+(let not (\\b (if b false true))
 
 (let circle (\\(fill x y r)
   ['circle'
@@ -103,9 +132,27 @@ src = "
 (let square_    (square '#999999')
 (let line_      (line 'blue' 2)
 (let polygon_   (polygon 'green' 'purple' 3)
-(let path_      (path 'transparent' 'brown' 5)
+(let path_      (path 'transparent' 'goldenrod' 5)
 
+; TODO add constant literals to patterns, and match 'svg'
+;
+; accDiff pre-condition: indices in increasing order
+;   (so can't just use foldr instead of reverse . foldl)
+;
+(let updateCanvas (\\([_ svgAttrs oldShapes] diff)
+  (let oldShapesI (zip (list1N (len oldShapes)) oldShapes)
+  (let initAcc [[] diff]
+  (let f (\\([i oldShape] [accShapes accDiff])
+    (case accDiff
+      ([]
+        [(cons oldShape accShapes) accDiff])
+      ([[j newShape] | accDiffRest]
+        (if (= i j)
+          [(cons newShape accShapes) accDiffRest]
+          [(cons oldShape accShapes) accDiff]))))
+  (let newShapes (reverse (fst (foldl f initAcc oldShapesI)))
+    ['svg' svgAttrs newShapes])))))
 
-0))))))))))))))))))))))))))))))))))))))
+0)))))))))))))))))))))))))))))))))))))))))))))))))
 
 "

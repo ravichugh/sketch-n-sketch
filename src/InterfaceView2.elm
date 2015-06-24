@@ -8,13 +8,14 @@ module InterfaceView2 where
 import Lang exposing (..) --For access to what makes up the Vals
 import LangParser exposing (parseE, parseV)
 import LangUnparser
-import Sync exposing (sync, Triggers)
-import Eval exposing (run)
+import Sync
+import Eval
 import Utils
 import MicroTests
 import InterfaceUtils exposing (..)
 import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr, toNum, toNumTr, addi)
 import Examples
+import Config exposing (params)
 
 import VirtualDom
 
@@ -76,7 +77,7 @@ onMouseUp   = Svg.Events.onMouseUp   << Signal.message events.address
 
 zoneEvents id shape zone =
   [ onMouseDown (SelectObject id shape zone)
-  , onMouseUp DeselectObject ]
+  , onMouseUp MouseUp ]
 
 zone svgFunc id shape zone l =
   svgFunc (zoneEvents id shape zone ++ l) []
@@ -132,7 +133,6 @@ zoneLine id shape zone show (x1,y1) (x2,y2) =
     , cursorStyle "pointer"
     ]
 
---Zone building function (still under construction/prone to change)                
 makeZones : Bool -> String -> LangSvg.NodeId -> List Attr -> List Svg.Svg
 makeZones showZones shape id l =
   case shape of
@@ -175,6 +175,8 @@ makeZones showZones shape id l =
     "polygon"  -> makeZonesPoly showZones shape id l
     "polyline" -> makeZonesPoly showZones shape id l
 
+    "path" -> makeZonesPath showZones shape id l
+
     _ -> []
 
 makeZonesEllipse showZones shape id l =
@@ -210,55 +212,24 @@ makeZonesPoly showZones shape id l =
      | firstEqLast pts    -> zInterior :: (zLines ++ zPts)
      | otherwise          -> zLines ++ zPts
 
+makeZonesPath showZones shape id l =
+  let _ = Utils.assert "makeZonesPoly" (shape == "path") in
+  let cmds = fst <| LangSvg.toPath <| Utils.find_ l "d" in
+  let (mi,pt) +++ acc = case mi of {Nothing -> acc; _ -> pt :: acc} in
+  let pts =
+    List.foldr (\c acc -> case c of
+      LangSvg.CmdZ   s              -> acc
+      LangSvg.CmdMLT s pt           -> pt +++ acc
+      LangSvg.CmdHV  s n            -> acc
+      LangSvg.CmdC   s pt1 pt2 pt3  -> pt1 +++ (pt2 +++ (pt3 +++ acc))
+      LangSvg.CmdSQ  s pt1 pt2      -> pt1 +++ (pt2 +++ acc)
+      LangSvg.CmdA   s a b c d e pt -> pt +++ acc) [] cmds
+  in
+  zonePoints id shape showZones pts
+
 
 --------------------------------------------------------------------------------
--- User Interface Layout
-
--- Configuration Parameters
--- Only constants in this record may be changed.
---
-params =
-  { strVersion = "v0.0"
-  , debugLayout = False    -- displays colors for high-level layout structure
-  , wGut = 10              -- width of left/right side gutters (spans entire height)
-  , topSection =
-     { h = 40              -- height of top space
-     , wBtnO = 150         -- width...
-     , hBtnO = 25          -- ... and height of orientation button
-     , wJunk = 225         -- gap between title and orientation button
-     }
-  , botSection =
-     { h = 30              -- height of bot space
-     }
-  , mainSection =
-     { widgets =           -- Render/Sync buttons; Mode/Tests dropdowns
-        { wBtn = 100
-        , hBtn = 25
-        , font = "Tahoma, sans-serif"
-        , fontSize = "10pt"
-        }
-     , vertical =
-        { hExtra = 15      -- extra vertical space around widgets
-        , wGut = 10        -- width of gutters in between code/widgets/canvas
-        }
-     , horizontal =
-        { wExtra = 15      -- extra horizontal space around widgets
-        , hGut = 10        -- height of gutters in between code/widgets/canvas
-        }
-     , canvas =
-        { border = "0px solid darkGray"
-        }
-     , codebox =
-        { border = "none"
-        , font = "Courier, monospace"
-        , fontSize = "12pt"
-        }
-     }
-  }
-
--- End Configuration Parameters
-------------------------------------------------------------------------------
-
+-- User Interface
 
 strTitle = "sketch-n-sketch " ++ params.strVersion
 
@@ -266,16 +237,16 @@ colorDebug c1 =
   if | params.debugLayout -> GE.color c1
      | otherwise          -> GE.color Color.darkGray
 
--- TODO: set readonly based on mode
 codebox : Int -> Int -> Model -> GE.Element
 codebox w h model =
   let event =
-    if | syncBool model.mode -> []
-       | otherwise ->
-           [Events.on "input" Events.targetValue
+    case model.mode of
+      SyncSelect _ _ -> []
+      _ -> [Events.on "input" Events.targetValue
               (Signal.message events.address << CodeUpdate)]
   in
-    temp_codebox_ w h event model.code
+    codebox_ w h event (fst model.code) (not model.editingMode)
+    -- temp_codebox_ w h event model.code
 
 temp_codebox_ w h _ (_,node) =
   Html.toElement w h <|
@@ -287,11 +258,12 @@ temp_codebox_ w h _ (_,node) =
     --     , Html.div [] [Html.text "world"]
     --     ]]
 
-codebox_ w h event s =
+codebox_ w h event s readOnly =
   Html.toElement w h <|
     Html.textarea
       ([ Attr.id "codeBox"
        , Attr.spellcheck False
+       , Attr.readonly readOnly
        , Attr.style
            [ ("font-family", params.mainSection.codebox.font)
            , ("font-size", params.mainSection.codebox.fontSize)
@@ -304,7 +276,7 @@ codebox_ w h event s =
            , ("overflow", "auto")
            ]
        , Attr.value s
-       , Events.onMouseUp events.address DeselectObject
+       , Events.onMouseUp events.address MouseUp
        ] ++ event)
       []
 
@@ -312,18 +284,19 @@ canvas : Int -> Int -> Model -> GE.Element
 canvas w h model =
   case model.mode of
     Print ->
-      let v = Eval.run (parseE (fst model.code)) in
+      let v = Eval.run (Utils.fromOk_ (parseE (fst model.code))) in
       let (i,tree) = LangSvg.valToIndexedTree v in
       let s = LangSvg.printSvg i tree in
-      codebox_ w h [] s
+      codebox_ w h [] s True
     _ ->
       canvas_ w h model
 
 canvas_ w h model =
-  let svg = buildSvg True model.showZones model.workingSlate model.rootId in
+  let addZones = not model.editingMode in
+  let svg = buildSvg addZones model.showZones model.workingSlate model.rootId in
   Html.toElement w h <|
     Svg.svg
-      [ onMouseUp DeselectObject
+      [ onMouseUp MouseUp
       , Attr.style [ ("width", "99%") , ("height", "99%")
                    , ("border", params.mainSection.canvas.border)
                    ] ]
@@ -331,25 +304,32 @@ canvas_ w h model =
 
 middleWidgets w h wWrap hWrap model =
   List.map (GE.container wWrap hWrap GE.middle) <|
-    case model.mode of
-      SyncSelect _ [] ->
+    case (model.editingMode, model.mode) of
+      (False, SyncSelect i options) ->
         [ gapWidget w h
-        , revertButton w h
-        ]
-      SyncSelect i l ->
-        [ prevButton i w h
-        , chooseButton w h
-        , nextButton i l w h
-        ]
-      _ ->
-        [ dropdownExamples w h
         , gapWidget w h
-        , renderButton w h
-        , printButton w h
+        , prevButton i w h
+        , chooseButton i options w h
+        , nextButton i options w h
+        ]
+      (False, Print) ->
+        [ dropdownExamples model w h
+        , editRunButton model w h
+        , outputButton model w h
+        ]
+      (False, _) ->
+        [ dropdownExamples model w h
+        , editRunButton model w h
+        , outputButton model w h
         , gapWidget w h
-        ] ++ (zoneButton model w h) ++
-        [ modeToggle w h model
+        , zoneButton model w h
+        , frozenButton model w h
+        , modeButton model w h
         ] ++ (syncButton_ w h model)
+      (True, _) ->
+        [ dropdownExamples model w h
+        , editRunButton model w h
+        ]
 
 gapWidget w h = GE.spacer w h
 
@@ -375,7 +355,7 @@ gutterForResizing orient w h =
     Html.toElement w h <|
       Html.div
           [ Events.onMouseDown events.address StartResizingMid
-          , Events.onMouseUp events.address DeselectObject
+          , Events.onMouseUp events.address MouseUp
           , Attr.style
               [ ("width", dimToPix w) , ("height", dimToPix h)
               , ("cursor", s) ]
@@ -430,66 +410,93 @@ mainSectionHorizontal w h model =
   GE.flow GE.down <|
     [ codeSection, gutter, middleSection, gutter, canvasSection ]
 
-simpleButton : Event -> String -> String -> String -> Int -> Int -> GE.Element
-simpleButton evt value name text w h =
+simpleButton_ : Bool -> Event -> String -> String -> String -> Int -> Int -> GE.Element
+simpleButton_ disabled evt value name text w h =
   Html.toElement w h <|
     Html.button
       [ buttonAttrs w h
       , Events.onClick events.address evt
       , Attr.value value
       , Attr.name name
+      , Attr.disabled disabled
       ]
       [Html.text text]
 
-renderButton =
-  simpleButton Render "Render" "Run and Render to SVG" "Render SVG"
+simpleButton = simpleButton_ False
 
-printButton =
-  simpleButton PrintSvg "Print" "Run and Print to SVG" "Print SVG"
+editRunButton model w h =
+  let disabled = model.mode == AdHoc in
+  case model.editingMode of
+    True  -> simpleButton_ disabled Run "Run" "Run" "Run Code" w h
+    False -> simpleButton_ disabled Edit "Edit" "Edit" "Edit Code" w h
+
+outputButton model w h =
+  let disabled = model.mode == AdHoc in
+  let cap = if model.mode == Print then "[Out] SVG" else "[Out] Canvas" in
+  simpleButton_ disabled ToggleOutput "Toggle Output" "Toggle Output" cap w h
 
 syncButton =
   simpleButton Sync "Sync" "Sync the code to the canvas" "Sync"
 
-zoneButton model w h =
-  let cap = if model.showZones then "Hide Zones" else "Show Zones" in
-  [ simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap w h ]
+zoneButton model =
+  let cap = if model.showZones then "[Zones] Shown" else "[Zones] Hidden" in
+  simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap
 
-chooseButton =
-  simpleButton SelectOption "Choose" "Choose" "Select This"
+frozenButton model =
+  let cap = if model.syncOptions.thawedByDefault then "[Default] n?" else "[Default] n!" in
+  simpleButton ToggleThawed "ToggleThawed " "Toggle ?/!" cap
+
+chooseButton i (n,_) =
+  let cap =
+    if i == n + 2 then "Revert"
+    else "Select " ++ Utils.parens (toString i ++ "/" ++ toString (n+1))
+  in
+  simpleButton SelectOption "Choose" "Choose" cap
 
 prevButton i =
-  if | i > 1     -> simpleButton (TraverseOption -1) "Prev" "Prev" "Show Prev"
-     | otherwise -> gapWidget
+  let enabled = i > 1 in
+  simpleButton_ (not enabled) (TraverseOption -1) "Prev" "Prev" "Show Prev"
 
-nextButton i l =
-  let n = List.length l in
-  if | i < n     -> simpleButton (TraverseOption 1) "Next" "Next" "Show Next"
-     | otherwise -> gapWidget
+nextButton i (n,l) =
+  let enabled = i < n + 2 in
+  simpleButton_ (not enabled) (TraverseOption 1) "Next" "Next" "Show Next"
 
-revertButton =
-  simpleButton Revert "Revert" "Revert" "Revert"
-
-dropdownExamples : Int -> Int -> GE.Element
-dropdownExamples w h =
+dropdownExamples : Model -> Int -> Int -> GE.Element
+dropdownExamples model w h =
   let examples =
-    let foo (name,thunk) = (name, (SelectExample name thunk)) in
-    List.map foo Examples.list
+    case model.mode of
+      AdHoc ->
+        let foo (name,thunk) = (name, Noop) in
+        List.map foo (List.filter ((==) model.exName << fst) Examples.list)
+      _ ->
+        let foo (name,thunk) = (name, (SelectExample name thunk)) in
+        List.map foo Examples.list
   in
   GI.dropDown (Signal.message events.address) examples
 
+modeButton model =
+  if model.mode == AdHoc
+  then simpleButton_ True Noop "SwitchMode" "SwitchMode" "[Mode] Ad Hoc"
+  else simpleButton_ False (SwitchMode AdHoc) "SwitchMode" "SwitchMode" "[Mode] Live"
+
+{-
 modeToggle : Int -> Int -> Model -> GE.Element
 modeToggle w h model =
   let opt s m = (s, (SwitchMode m)) in
-  let optionLive = opt "Live" (mkLive_ (Utils.fromJust model.inputExp)) in
+  let optionLive = opt "Live" (mkLive_ model.syncOptions (Utils.fromJust model.inputExp)) in
   let optionAdHoc = opt "Ad Hoc" AdHoc in
-  GI.dropDown (Signal.message events.address) [optionLive, optionAdHoc]
+  GI.dropDown (Signal.message events.address) <|
+    case model.mode of
+      AdHoc -> [optionAdHoc]
+      _     -> [optionLive, optionAdHoc]
+-}
 
 orientationButton w h model =
   Html.button
       [ buttonAttrs w h
       , Events.onClick events.address SwitchOrient
       ]
-      [Html.text ("Orientation: " ++ (toString model.orient))]
+      [Html.text ("[Orientation] " ++ (toString model.orient))]
 
 view : (Int, Int) -> Model -> GE.Element
 view (w,h) model =
@@ -592,7 +599,7 @@ modeToggle w h model =
         [Html.text s]
   in
   -- may want to delay this to when Live is selected
-  let optionLive = opt "Live" (mkLive_ (Utils.fromJust model.inputExp)) in
+  let optionLive = opt "Live" (mkLive_ model.syncOptions (Utils.fromJust model.inputExp)) in
   let optionAdHoc = opt "Ad Hoc" AdHoc in
   Html.select
     [ buttonAttrs w h ]
