@@ -789,14 +789,16 @@ test56 () =
           (range ni nj)))))))))))"
     "[]"
 
---French Sudan Flag
+--French Sudan Flag (200, 105)
 test57 () =
   makeTest
-    "(let [x0 y0 w h r] [50 29 150 300 20]
+    "(let [x0 y0 w h r] [50 30 150 300 20]
+    (let xoff (+ x0 w)
+    (let yoff (+ y0 (/ h 4))
     (let stripe (\\[color x] (rect color x y0 w h))
     (let figline (\\[[a b] [c d]] (line 'black' (/ r 2) a b c d))
-    (let [x1 x2 x3] [225 275 325]
-    (let [y1 y2 y3 y4 y5] [110 110 150 220 260]
+    (let [x1 x2 x3] [(+ xoff 25) (+ xoff 75) (+ xoff 125)]
+    (let [y1 y2 y3 y4] [yoff (+ yoff 45) (+ yoff 115) (+ yoff 150)]
       (svg 
         (append
           (map stripe [['blue' x0] ['white' (+ x0 w)] ['red' (+ x0 (* 2 w))]])
@@ -804,19 +806,19 @@ test57 () =
             (circle 'black' x2 y1 r)
             (map
               figline
-              [[[x2 y1] [x2 y4]]
-               [[x1 y2] [x1 y3]]
+              [[[x1 y1] [x1 y2]]
+               [[x1 y2] [x3 y2]]
+               [[x3 y1] [x3 y2]]
+               [[x1 y4] [x1 y3]]
                [[x1 y3] [x3 y3]]
-               [[x3 y2] [x3 y3]]
-               [[x1 y5] [x1 y4]]
-               [[x1 y4] [x3 y4]]
-               [[x3 y4] [x3 y5]]])))))))))"
+               [[x3 y3] [x3 y4]]
+               [[x2 y1] [x2 y3]]])))))))))))"
     "[]"
 
 --Second Frank Lloyd Wright Example
 test58 () =
   makeTest
-    "(let [x0 x1 x2 x3 x4 x5 x6 x7 x8] [50 100 150 200 250 300 350 400 450]
+    "(let [x0 w1 x2 x3 x4 x5 x6 x7 x8] [50 100 150 200 250 300 350 400 450]
     (let [y0 y1 y2 y3 y4 y5 y6 y7 y8] [50 100 150 200 250 300 350 400 450]
     (let bluepoly (polygon 'blue' 'black' 3)
     (let redpoly (polygon 'red' 'black' 3)
