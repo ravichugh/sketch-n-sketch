@@ -736,8 +736,8 @@ test55 () =
             (\\i
                 (nstar
                   pts
-                  (+ (+ x0 85) (* radius (cos (rotate  i))))
-                  (+ (+ y0 70) (* radius (sin (rotate  i))))
+                  (+ (+ x0 85!) (* radius (cos (rotate  i))))
+                  (+ (+ y0 70!) (* radius (sin (rotate  i))))
                   outerLen
                   innerLen
                   (rotate  i)))
