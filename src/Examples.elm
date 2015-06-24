@@ -64,12 +64,38 @@ blank = "
   (svg [(rect 'maroon' 100 15 200 50)])
 "
 
+elmLogo = "
+  ; Elm logo, based on:
+  ; https://github.com/evancz/elm-svg/blob/1.0.2/examples/Logo.elm
+  ;
+  ; Notice how the 'viewBox' attribute puts the canvas in
+  ; \"full screen\" mode. Also, although we don't currently handle
+  ; rotations (i.e. 'transform's) specially, the resulting zone
+  ; is still useful; toggle the Zones option to see.
+  ;
+  (let foo (\\(color pts) (polygon color 'black' 0 pts))
+  [ 'svg' [['x' '0'] ['y' '0'] ['viewBox' '0 0 323.141 322.95']]
+    [
+    (foo '#F0AD00' [[161 152] [231 82] [91 82]])
+    (foo '#7FD13B' [[8 0] [79 70] [232 70] [161 0]])
+    (addAttr
+       (rect '#7FD13B' 192 107 107 108)
+       ['transform' 'matrix(0.7071 0.7071 -0.7071 0.7071 186.4727 -127.2386)'])
+    (foo '#60B5CC' [[323 143] [323 0] [179 0]])
+    (foo '#5A6378' [[152 161] [0 8] [0 314]])
+    (foo '#F0AD00' [[255 246] [323 314] [323 178]])
+    (foo '#60B5CC' [[161 170] [8 323] [314 323]])
+    ]
+  ])
+"
+
 examples =
   [ makeExample "Scratch" blank
   , makeExample "3 Boxes" threeBoxes
   , makeExample "6 Boxes A" sixBoxesA
   , makeExample "6 Boxes B" sixBoxesB
   , makeExample "Logo" logo
+  , makeExample "Elm Logo" elmLogo
   ]
 
 list = examples ++ MicroTests.sampleTests
