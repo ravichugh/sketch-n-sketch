@@ -132,7 +132,6 @@ zoneLine id shape zone show (x1,y1) (x2,y2) =
     , cursorStyle "pointer"
     ]
 
---Zone building function (still under construction/prone to change)                
 makeZones : Bool -> String -> LangSvg.NodeId -> List Attr -> List Svg.Svg
 makeZones showZones shape id l =
   case shape of
@@ -175,6 +174,8 @@ makeZones showZones shape id l =
     "polygon"  -> makeZonesPoly showZones shape id l
     "polyline" -> makeZonesPoly showZones shape id l
 
+    "path" -> makeZonesPath showZones shape id l
+
     _ -> []
 
 makeZonesEllipse showZones shape id l =
@@ -209,6 +210,25 @@ makeZonesPoly showZones shape id l =
   if | shape == "polygon" -> zInterior :: (zLines ++ zPts)
      | firstEqLast pts    -> zInterior :: (zLines ++ zPts)
      | otherwise          -> zLines ++ zPts
+
+makeZonesPath showZones shape id l =
+  let _ = Utils.assert "makeZonesPoly" (shape == "path") in
+  let cmds = fst <| LangSvg.toPath <| Utils.find_ l "d" in
+  let (mi,pt) +++ acc = case mi of {Nothing -> acc; _ -> pt :: acc} in
+  let pts =
+    List.foldr (\c acc -> case c of
+      LangSvg.CmdZ   s              -> acc
+      LangSvg.CmdMLT s pt           -> pt +++ acc
+      LangSvg.CmdHV  s n            -> acc
+      LangSvg.CmdC   s pt1 pt2 pt3  -> pt1 +++ (pt2 +++ (pt3 +++ acc))
+      LangSvg.CmdSQ  s pt1 pt2      -> pt1 +++ (pt2 +++ acc)
+      LangSvg.CmdA   s a b c d e pt -> pt +++ acc) [] cmds
+  in
+  zonePoints id shape showZones pts
+
+
+--------------------------------------------------------------------------------
+-- User Interface
 
 strTitle = "sketch-n-sketch " ++ params.strVersion
 

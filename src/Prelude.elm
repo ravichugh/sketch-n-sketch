@@ -132,7 +132,7 @@ src = "
 (let square_    (square '#999999')
 (let line_      (line 'blue' 2)
 (let polygon_   (polygon 'green' 'purple' 3)
-(let path_      (path 'transparent' 'brown' 5)
+(let path_      (path 'transparent' 'goldenrod' 5)
 
 ; TODO add constant literals to patterns, and match 'svg'
 ;

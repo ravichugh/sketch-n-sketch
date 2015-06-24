@@ -222,6 +222,10 @@ upstate evt old = case Debug.log "Event" evt of
 
     _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
 
+
+--------------------------------------------------------------------------------
+-- Mouse Callbacks for Zones
+
 type alias OnMouse =
   { posX : Num -> Num , posY : Num -> Num
   , negX : Num -> Num , negY : Num -> Num
@@ -301,6 +305,8 @@ createMousePosCallback mx my objid kind zone old =
         ("polygon", _)  -> createCallbackPoly zone kind objid old onMouse
         ("polyline", _) -> createCallbackPoly zone kind objid old onMouse
 
+        ("path", _) -> createCallbackPath zone kind objid old onMouse
+
     in
     let newSlate = List.foldr (upslate objid) old.workingSlate newRealAttrs in
       case old.mode of
@@ -321,6 +327,8 @@ createMousePosCallback mx my objid kind zone old =
                   ) newSlate otherChanges
               in
               (newE, newSlate')
+
+-- Callbacks for Polygons/Polylines
 
 createCallbackPoly zone shape =
   let _ = Utils.assert "createCallbackPoly" (shape == "polygon" || shape == "polyline") in
@@ -387,6 +395,58 @@ polyEdge i shape objid old onMouse =
   in
   let (acc1,acc2) = Utils.reverse2 accs in
   ([("points", LangSvg.APoints acc1)], acc2)
+
+-- Callbacks for Paths
+
+createCallbackPath zone shape =
+  let _ = Utils.assert "createCallbackPath" (shape == "path") in
+  case LangSvg.realZoneOf zone of
+    LangSvg.ZPoint i -> pathPoint i
+
+pathPoint i objid old onMouse =
+
+  let updatePt (mj,(x,y)) =
+    if | mj == Just i -> (mj, (lift onMouse.posX x, lift onMouse.posY y))
+       | otherwise    -> (mj, (x, y)) in
+  let addFakePts =
+    List.foldl <| \(mj,(x,y)) acc ->
+      if | mj == Just i -> (addi "x"i, LangSvg.ANum x)
+                           :: (addi "y"i, LangSvg.ANum y)
+                           :: acc
+         | otherwise    -> acc in
+
+  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
+  let (cmds,counts) = LangSvg.toPath <| Utils.find_ nodeAttrs "d" in
+  let accs =
+    let foo c (acc1,acc2) =
+      let (c',acc2') = case c of
+        LangSvg.CmdZ s ->
+          (LangSvg.CmdZ s, acc2)
+        LangSvg.CmdMLT s pt ->
+          let pt' = updatePt pt in
+          (LangSvg.CmdMLT s pt', addFakePts acc2 [pt'])
+        LangSvg.CmdHV s n ->
+          (LangSvg.CmdHV s n, acc2)
+        LangSvg.CmdC s pt1 pt2 pt3 ->
+          let [pt1',pt2',pt3'] = List.map updatePt [pt1,pt2,pt3] in
+          (LangSvg.CmdC s pt1' pt2' pt3', addFakePts acc2 [pt1',pt2',pt3'])
+        LangSvg.CmdSQ s pt1 pt2 ->
+          let [pt1',pt2'] = List.map updatePt [pt1,pt2] in
+          (LangSvg.CmdSQ s pt1' pt2' , addFakePts acc2 [pt1',pt2'])
+        LangSvg.CmdA s a b c d e pt ->
+          let pt' = updatePt pt in
+          (LangSvg.CmdA s a b c d e pt', addFakePts acc2 [pt'])
+      in
+      (c' :: acc1, acc2')
+    in
+    List.foldr foo ([],[]) cmds
+  in
+  let (acc1,acc2) = Utils.reverse2 accs in
+  ([("d", LangSvg.APath2 (acc1, counts))], acc2)
+
+
+--------------------------------------------------------------------------------
+-- Main
 
 main : Signal GE.Element
 main = let sigModel = Signal.foldp upstate sampleModel

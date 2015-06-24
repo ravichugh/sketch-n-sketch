@@ -386,7 +386,7 @@ inferStructuralUpdate eOld v v' =
 type alias AttrName = String
 type alias LocSet = Set.Set Loc
 type alias Locs = List Loc
-type ExtraInfo = None | NumPoints Int
+type ExtraInfo = None | NumPoints Int | NumsPath LangSvg.PathCounts
 
 type alias NumAttrs = Int
 
@@ -418,8 +418,10 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
 
     -- processing attributes of current node
     let processAttr v' (extra,dAttrs) = case v' of
+
       VList [VBase (String a), VConst (_,tr)] ->
         (extra, Dict.insert a tr dAttrs)
+
       VList [VBase (String "points"), VList pts] ->
         let acc' =
           Utils.foldli (\(i,vPt) acc ->
@@ -429,6 +431,27 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
                 acc |> Dict.insert ax trx
                     |> Dict.insert ay try) dAttrs pts in
         (NumPoints (List.length pts), acc')
+
+      VList [VBase (String "d"), VList vs] ->
+        let addPt (mi,(xt,yt)) dict =
+          case mi of
+            Nothing -> dict
+            Just i  -> dict |> Dict.insert (addi "x" i) (snd xt)
+                            |> Dict.insert (addi "y" i) (snd yt)
+        in
+        let addPts pts dict = List.foldl addPt dict pts in
+        let (cmds,counts) = LangSvg.valsToPath2 vs in
+        let dAttrs' =
+          List.foldl (\c acc -> case c of
+            LangSvg.CmdZ   s              -> acc
+            LangSvg.CmdMLT s pt           -> acc |> addPt pt
+            LangSvg.CmdHV  s n            -> acc
+            LangSvg.CmdC   s pt1 pt2 pt3  -> acc |> addPts [pt1,pt2,pt3]
+            LangSvg.CmdSQ  s pt1 pt2      -> acc |> addPts [pt1,pt2]
+            LangSvg.CmdA   s a b c d e pt -> acc |> addPt pt) dAttrs cmds
+        in
+        (NumsPath counts, dAttrs')
+
       -- NOTE:
       --   string-valued and RGBA attributes are ignored.
       --   see LangSvg.valToSvg for spec of attributes.
@@ -499,8 +522,12 @@ getZones kind extra =
       List.map pt [1..n] ++ List.map (edge n) [1..n-1]
     ("polygon", NumPoints n) ->
       List.map pt [1..n] ++ List.map (edge n) [1..n] ++ [interior n]
+    ("path", NumsPath {numPoints}) ->
+      List.map pt [1..numPoints]
     _ ->
-      Utils.fromJust (Utils.maybeFind kind LangSvg.zones)
+      Utils.fromJust_
+        ("Sync.getZones " ++ kind)
+        (Utils.maybeFind kind LangSvg.zones)
 
 -- Step 3 --
 
