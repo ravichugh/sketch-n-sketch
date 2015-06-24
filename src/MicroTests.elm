@@ -747,46 +747,25 @@ test55 () =
 --current US Flag (TODO: still in progress, need mod)
 test56 () =
   makeTest
-    "(let nstar
-    (\\(n cx cy len1 len2 rot)
-      (let pti
-        (\\[i len]
-          (let anglei (+ rot (/ (* i (pi)) n))
-          (let xi (+ cx (* len (cos anglei)))
-          (let yi (+ cy (* len (sin anglei)))
-            [xi yi]))))
-      (let lengths
-        (map
-          (\\b
-            (if b
-              len1
-              len2))
-          (concat  (repeat n [true false])))
-      (let indices (list0N  (- (* 2! n) 1!))
-        (polygon 'orange' 'DUMMY' 0 (map pti (zip indices lengths)))))))
-    (let upright (/ (* 3! (pi)) 2!)
-    (let [x0 y0 wstripe sep ni nj pts xstripe hstripe radius] [108 20 500! 45 0! 49! 5! 52 20 80]
+    "(let [x0 y0 sep ni nj pts wstripe hstripe radius] [108 20 20! 0! 12! 5! 500 20 55]
     (let [outerLen innerLen] [10 4]
-    (let block (rect '#09096d' xstripe y0 (* wstripe (/ 2 5)) (* 7 hstripe))
+    (let block (rect '#09096d' x0 y0 (* wstripe (/ 2 5)) (* 7 hstripe))
     (let stripes
       (map
-        (\\i (rect 'red' xstripe (* hstripe i) wstripe hstripe))
-        [1! 3! 5! 7! 9! 11! 13!])
+        (\\i (rect 'red' x0 (+ y0 (* i sep)) wstripe hstripe))
+        [0! 2! 4! 6! 8! 10! 12!])
     (let base (append stripes [block])
       (svg 
         (append
           base
           (map
-            (\\i
-              (let off (* i sep)
-                (nstar
-                  pts
-                  (+ x0 off)
-                  (+ y0 sep)
-                  outerLen
-                  innerLen
-                  upright)))
-          (range ni nj)))))))))))"
+            (\\[i j]
+                (circle
+                  'white'
+                  (+ x0 (* i sep))
+                  (+ y0 (* j sep))
+                  (- outerLen innerLen)))
+          (cartProd (range 1 10) (range 1 5))))))))))"
     "[]"
 
 --French Sudan Flag (200, 105)
