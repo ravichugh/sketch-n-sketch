@@ -1,5 +1,5 @@
 <img src="img/sketch-n-sketch-logo.png"
-     align="right" style="padding: 0px;" height="75px" />
+     align="right" style="padding: 0px;" height="40px" />
 
 # Sketch-N-Sketch
 
@@ -12,10 +12,16 @@ programmability in a high-level language makes it difficult to develop complex
 and reusable content. We envision *prodirect manipulation* editors that allow
 users to freely mix between programmatic and direct manipulation.
 
+<!-- TODO widths on GitHub -->
+
 <span style="display: inline-block; width: 222px; text-align: right;">**Prodirect Manipulation**</span>
   = Programmatic + Direct Manipulation <br/>
 <span style="display: inline-block; width: 222px; text-align: right;">**Sketch-N-Sketch**</span>
   = Prodirect Manipulation Editor for SVG
+
+## Demo
+
+[`v0.0`]("") `(Jul 2015)` Alpha Version
 
 ## Quick Syntax Reference
 
