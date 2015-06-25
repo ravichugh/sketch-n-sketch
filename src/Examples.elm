@@ -89,6 +89,28 @@ elmLogo = "
   ])
 "
 
+rings = "
+  (let [x0 y0 w r dx dy] [30 30 7 20 32 20]
+  (let dxHalf (div dx 2)
+  (let row1
+    (map (\\[i c] (ring c w (+ x0 (mult i dx)) y0 r))
+         (zip [0 1 2] ['blue' 'black' 'red']))
+  (let row2
+    (map (\\[i c] (ring c w (+ (+ x0 dxHalf) (mult i dx)) (+ y0 dy) r))
+         (zip [0 1] ['yellow' 'green']))
+    (svg (append row1 row2))))))
+"
+
+polygons = "
+  ; TODO polygons, based on tests 45,46,47
+  (svg [])
+"
+
+stars = "
+  ; TODO stars, based on test48
+  (svg [])
+"
+
 sliders = "
   ;
   ; The ni constants get adjusted by the sliders,
@@ -149,6 +171,11 @@ sliders = "
     (svg (append sliders displays)))))))))
 "
 
+todo = "
+  ; TODO
+  (svg [])
+"
+
 examples =
   [ makeExample "Scratch" blank
   , makeExample "3 Boxes" threeBoxes
@@ -156,7 +183,14 @@ examples =
   , makeExample "6 Boxes B" sixBoxesB
   , makeExample "Logo" logo
   , makeExample "Elm Logo" elmLogo
+  , makeExample "Rings" rings
+  , makeExample "Polygons" polygons
+  , makeExample "Stars" stars
   , makeExample "Sliders" sliders
+  , makeExample "US-13 Flag" todo
+  , makeExample "US-50 Flag" todo
+  , makeExample "French Sudan Flag" todo
+  , makeExample "Ferris Wheel" todo
   ]
 
 list = examples ++ MicroTests.sampleTests
