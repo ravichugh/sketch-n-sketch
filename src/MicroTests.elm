@@ -786,16 +786,22 @@ test56 () =
 --French Sudan Flag (200, 105)
 test57 () =
   makeTest
-    "(let [x0 y0 w h r] [50 30 150 300 20]
+    "(let [x0 y0 w h] [50 30 150 300]
+    (let xoff (+ x0 w)
+    (let yoff (+ y0 (/ h 4))
     (let stripe (\\[color x] (rect color x y0 w h))
-    (let figline (\\[[a b] [c d]] (line 'black' (/ r 2) a b c d))
-    (let [x1 x2 x3] (map (\\n (+ x0 (* w n))) [2 2.3 2.6])
-    (let [y1 y2 y3 y4] (map (\\n (+ y0 (/ h n))) [4.3 3.3 1.9 1.4])
+    (let minrad
+      (if (< (/ w 7.5!) (/ h 15!))
+        (/ w 7.5!)
+        (/ h 15!))
+    (let figline (\\[[a b] [c d]] (line 'black' (/ minrad 2) a b c d))
+    (let [x1 x2 x3] (map (\\n (+ x0 (* w n))) [1.2 1.5 1.8])
+    (let [y1 y2 y3 y4] (map (\\n (+ y0 (/ h n))) [4.3 2.8 1.9 1.4])
       (svg 
         (append
           (map stripe [['blue' x0] ['white' (+ x0 w)] ['red' (+ x0 (* 2 w))]])
           (snoc
-            (ellipse 'black' x2 y1 (/ w 7.5) (/ h 15))
+            (ellipse 'black' x2 y1 (/ w 7.5!) (/ h 15!))
             (map
               figline
               [[[x1 y1] [x1 y2]]
@@ -804,7 +810,7 @@ test57 () =
                [[x1 y4] [x1 y3]]
                [[x1 y3] [x3 y3]]
                [[x3 y3] [x3 y4]]
-               [[x2 y1] [x2 y3]]]))))))"
+               [[x2 y1] [x2 y3]]]))))))))))))"
     "[]"
 
 --Second Frank Lloyd Wright Example - linked box widths & heights
