@@ -34,7 +34,9 @@ type alias Model =
 
 type Mode
   = AdHoc | SyncSelect Int PossibleChanges | Live Triggers
-  | Print
+  | Print RawSvg
+
+type alias RawSvg = String
 
 type MouseMode
   = MouseNothing

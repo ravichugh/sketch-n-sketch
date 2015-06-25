@@ -66,9 +66,9 @@ sampleModel =
 
 refreshMode model e =
   case model.mode of
-    Live _ -> mkLive_ model.syncOptions e
-    Print  -> mkLive_ model.syncOptions e
-    m      -> m
+    Live _  -> mkLive_ model.syncOptions e
+    Print _ -> mkLive_ model.syncOptions e
+    m       -> m
 
 refreshMode_ model = refreshMode model (Utils.fromJust model.inputExp)
 
@@ -95,8 +95,8 @@ upstate evt old = case Debug.log "Event" evt of
 
     ToggleOutput ->
       let m = case old.mode of
-        Print -> refreshMode_ old
-        _     -> Print
+        Print _ -> refreshMode_ old
+        _       -> Print (LangSvg.printSvg old.rootId old.workingSlate)
       in
       { old | mode <- m }
 
@@ -137,8 +137,8 @@ upstate evt old = case Debug.log "Event" evt of
 
     MouseUp ->
       case old.mode of
-        Print -> old
-        _     -> { old | mouseMode <- MouseNothing, mode <- refreshMode_ old }
+        Print _ -> old
+        _       -> { old | mouseMode <- MouseNothing, mode <- refreshMode_ old }
 
     Sync -> 
       case (old.mode, old.inputExp) of

@@ -271,13 +271,8 @@ codebox_ w h event s readOnly =
 canvas : Int -> Int -> Model -> GE.Element
 canvas w h model =
   case model.mode of
-    Print ->
-      let v = Eval.run (Utils.fromOk_ (parseE model.code)) in
-      let (i,tree) = LangSvg.valToIndexedTree v in
-      let s = LangSvg.printSvg i tree in
-      codebox_ w h [] s True
-    _ ->
-      canvas_ w h model
+    Print s -> codebox_ w h [] s True
+    _       -> canvas_ w h model
 
 canvas_ w h model =
   let addZones = not model.editingMode in
@@ -300,7 +295,7 @@ middleWidgets w h wWrap hWrap model =
         , chooseButton i options w h
         , nextButton i options w h
         ]
-      (False, Print) ->
+      (False, Print _) ->
         [ dropdownExamples model w h
         , editRunButton model w h
         , outputButton model w h
@@ -420,7 +415,11 @@ editRunButton model w h =
 
 outputButton model w h =
   let disabled = model.mode == AdHoc in
-  let cap = if model.mode == Print then "[Out] SVG" else "[Out] Canvas" in
+  let cap =
+     case model.mode of
+       Print _ -> "[Out] SVG"
+       _       -> "[Out] Canvas"
+  in
   simpleButton_ disabled ToggleOutput "Toggle Output" "Toggle Output" cap w h
 
 syncButton =
