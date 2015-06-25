@@ -157,6 +157,10 @@ sExp_ showLocs k e =
     EOp op es ->
       Utils.parens <| String.join " " (strOp op :: List.map (foo k) es)
     EIf e1 e2 e3 ->
+      let s =
+        Utils.parens <| Utils.spaces [ "if", foo k e1, foo k e2, foo k e3 ] in
+      if fitsOnLine s then s
+      else
       Utils.parens <|
         "if " ++ foo k e1 ++ "\n" ++
           tab (k+1) ++ foo (k+1) e2 ++ "\n" ++

@@ -91,7 +91,7 @@ elmLogo = "
 
 sliders = "
   ;
-  ; These constants get adjusted by the sliders,
+  ; The ni constants get adjusted by the sliders,
   ; and then clamped to fit within the [min, max] range.
   ; Try editing the min and max constants.
   ;
