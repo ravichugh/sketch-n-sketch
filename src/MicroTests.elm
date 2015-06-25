@@ -730,9 +730,14 @@ test55 () =
       (let indices (list0N  (- (* 2! n) 1!))
         (polygon 'white' 'DUMMY' 0 (map pti (zip indices lengths)))))))
     (let rotate (\\a (/ (* (+ 9! a) (pi)) 6!))
-    (let [x0 y0 ni nj pts w h radius] [108 20 0! 12! 5! 500 20 55]
+    (let [x0 y0 ni nj pts w h] [108 20 0! 12! 5! 500 20]
+    (let [blockw blockh] [(/ w 3!) (* 7! h)]
+    (let min
+      (if (< blockw blockh)
+        (* 0.4! blockw)
+        (* 0.4! blockh))
     (let [outerLen innerLen] [10 4]
-    (let block (rect '#09096d' x0 y0 (/ w 3) (* 7 h))
+    (let block (rect '#09096d' x0 y0 blockw blockh)
     (let stripes
       (map
         (\\i (rect 'red' x0 (+ y0 (* i h)) w h))
@@ -745,20 +750,19 @@ test55 () =
             (\\i
                 (nstar
                   pts
-                  (+ (+ x0 85!) (* radius (cos (rotate  i))))
-                  (+ (+ y0 70!) (* radius (sin (rotate  i))))
+                  (+ (+ x0 (/ w 6!)) (* min (cos (rotate  i))))
+                  (+ (+ y0 (* h 3.5!)) (* min (sin (rotate  i))))
                   outerLen
                   innerLen
                   (rotate  i)))
-          (range ni nj)))))))))))"
+          (range ni nj)))))))))))))"
     "[]"
 
 --current US Flag (TODO: still in progress, need mod)
 test56 () =
   makeTest
-    "(let [x0 y0 ni nj pts w h radius] [108 20 0! 12! 5! 500 20 55]
-    (let [outerLen innerLen] [10 4]
-    (let block (rect '#09096d' x0 y0 (* w (/ 2 5)) (* 7! h))
+    "(let [x0 y0 ni nj pts w h rad] [108 20 0! 12! 5! 500 20 6]
+    (let block (rect '#09096d' x0 y0 (* w (/ 2! 5!)) (* 7! h))
     (let stripes
       (map
         (\\i (rect 'red' x0 (+ y0 (* i h)) w h))
@@ -769,13 +773,14 @@ test56 () =
           base
           (map
             (\\[i j]
-              (let xsep (/ w 25)
+              (let xsep (/ w 15!)
+              (let ysep (* h 1.3)
                 (circle
                   'white'
                   (+ x0 (* i xsep))
-                  (+ y0 (* j h))
-                  (- outerLen innerLen))))
-          (cartProd (range 0 9) (range 1 5))))))))))"
+                  (+ y0 (* j ysep))
+                  rad))))
+          (append (cartProd (range 0.5 5.5) (range 0.75 4.75)) (cartProd (range 1 5) (range 1.2 4.2))))))))))"
     "[]"
 
 --French Sudan Flag (200, 105)
@@ -845,18 +850,43 @@ test58 () =
 
 test59 () =
   makeTest
-    "(let [x0 y0 min max dim cx] [80! 400 70! 500! 50! 80]
-    (let [sx sy] [309 216]
-    (let samplecirc (circle 'orange' sx sy cx)
-    (let button (\\n (square 'lightgray' n y0 dim))
-    (let bar (rect 'gray' x0 y0 max dim)
-    (let slider
-      (if (< cx max)
-        (if (< min cx)
-          (button (+ cx x0))
-          (button x0))
-        (button (- (+ x0 max) dim)))
-      (svg  [samplecirc bar slider])))))))"
+    "(let [x0 y0 w h max] [72 72 45 56 10!]
+    (let xoff (\\n (+ x0 (* w n)))
+    (let yoff (\\n (+ y0 (* h n)))
+    (let redpoly
+      (\\[a b]
+        (polygon
+          'red'
+          'black'
+          3
+          [[(xoff  a) (yoff  a)]
+           [(xoff  a) (yoff  b)]
+           [(xoff  b) (yoff  b)]
+           [(xoff  b) (yoff  a)]]))
+    (let bwpoly
+      (\\[a b]
+        (polygon
+          'white'
+          'black'
+          3
+          [[(xoff  a) (yoff  a)]
+           [(xoff  a) (yoff  b)]
+           [(xoff  b) (yoff  b)]
+           [(xoff  b) (yoff  a)]]))
+      (svg 
+        (append
+          (let [d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 d10] [0 1 2 3 4 5 6 7 8 9 10]
+            (map bwpoly [[d0 d1] [d1 d2] [d2 d3] [d3 d4] [d4 d5] [d5 d6] [d6 d7] [d7 d8] [d8 d9] [d9 d10]]))
+          (append
+            (append
+              (let [p0 p1 p2 p3 p4] [0 1 2 3 4]
+                (map redpoly [[p0 p1] [p1 p2] [p2 p3] [p3 p4]]))
+              (map (\\[x y] (ellipse 'blue' x y (* w 4) h)) [[(xoff 5) (yoff 9)]]))
+            (map
+              (\\[x y r] (circle 'yellow' x y r))
+              [[(xoff  6) (yoff  2) (+ w h)]
+               [(xoff  6) (yoff  7) max]
+               [(xoff  6) (yoff  5) (/ (+ w h) 2)]]))))))))))"
     "[]"
 
 tests =
@@ -904,6 +934,7 @@ tests =
   , (600, 600, test56)
   , (600, 600, test57)
   , (600, 600, test58)
+  , (600, 600, test59)
   ]
 
 sampleTests =

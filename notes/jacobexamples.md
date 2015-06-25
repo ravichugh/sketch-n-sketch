@@ -285,6 +285,30 @@ Building a slider bar that can be used to toggle other parameters
         (button (+ x0 max)))
       (svg  [samplecirc bar slider])))))))
 ```
+
+(let toRadian
+      (\\a
+        (* (/ (pi) 180!) a))
+    (let [sx sy rad] [350 250 175]
+    (let cut 
+      (\\ang
+        (let xend (* rad (cos ang))
+        (let yend (* rad (sin ang))
+        (line 'white' 6 x y (+ x xend) (+ y yend)))))
+    (let [a1 a2 a3 a4] [0 45 90 180]
+    (let radangs (map toRadian [a1 a2 a3 a4])
+    (let cuts (map cut radangs)
+    (let samplecirc (circle 'orange' sx sy rad)
+    (let [x0 y0 min max dim] [80! 400 0! 360! 50!]
+    (let button (\\n (square 'lightgray' n y0 dim))
+    (let bar (rect 'gray' x0 y0 max dim)
+    (let slider
+      (if (< a1 max)
+        (if (< min a1)
+          (button (+ a1 x0))
+          (button x0))
+        (button (- (+ x0 max) dim)))
+      (svg  [samplecirc cuts bar slider]))))))))))))
 ##American Colonial Flag Example
 
 (let nstar
@@ -617,3 +641,100 @@ Building a slider bar that can be used to toggle other parameters
               [[(xoff  6) (yoff  2) (+ w h)]
                [(xoff  6) (yoff  7) max]
                [(xoff  6) (yoff  5) (/ (+ w h) 2)]])))))))))))
+
+(let [x0 y0 w h max] [72 72 45 56 10!]
+    (let xoff (\\n (+ x0 (* w n)))
+    (let yoff (\\n (+ y0 (* h n)))
+    (let blkline (\\[[a b] [c d]] (line 'black' 3 a b c d))
+    (let redpoly
+      (\\[a b]
+        (polygon
+          'red'
+          'black'
+          3
+          [[(xoff  a) (yoff  a)]
+           [(xoff  a) (yoff  b)]
+           [(xoff  b) (yoff  b)]
+           [(xoff  b) (yoff  a)]]))
+    (let bwpoly
+      (\\[a b]
+        (polygon
+          'white'
+          'black'
+          3
+          [[(xoff  a) (yoff  a)]
+           [(xoff  a) (yoff  b)]
+           [(xoff  b) (yoff  b)]
+           [(xoff  b) (yoff  a)]]))
+    (let [d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 d10] [0 1 2 3 4 5 6 7 8 9 10]
+      (svg 
+        (append
+          (map bwpoly [[d0 d1] [d1 d2] [d2 d3] [d3 d4] [d4 d5] [d5 d6] [d6 d7] [d7 d8] [d8 d9] [d9 d10]])
+          (append
+            (append
+              (let [p0 p1 p2 p3 p4] [0 1 2 3 4]
+                (map redpoly [[p0 p1] [p1 p2] [p2 p3] [p3 p4]]))
+              (map (\\[x y] (ellipse 'blue' x y (* w 4) h)) [[(xoff 5) (yoff 9)]]))
+            (map
+              (\\[x y r] (circle 'yellow' x y r))
+              [[(xoff  6) (yoff  2) (+ w h)]
+               [(xoff  6) (yoff  7) max]
+               [(xoff  6) (yoff  5) (/ (+ w h) 2)]]))))))))))))
+
+(let [x0 y0 w h max] [72 72 45 56 10!]
+    (let xoff (\\n (+ x0 (* w n)))
+    (let yoff (\\n (+ y0 (* h n)))
+    (let redpoly
+      (\\[a b]
+        (polygon
+          'red'
+          'black'
+          3
+          [[(xoff  a) (yoff  a)]
+           [(xoff  a) (yoff  b)]
+           [(xoff  b) (yoff  b)]
+           [(xoff  b) (yoff  a)]]))
+    (let bwpoly
+      (\\[a b]
+        (polygon
+          'white'
+          'black'
+          3
+          [[(xoff  a) (yoff  a)]
+           [(xoff  a) (yoff  b)]
+           [(xoff  b) (yoff  b)]
+           [(xoff  b) (yoff  a)]]))
+      (svg 
+        (append
+          (let [d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 d10] [0 1 2 3 4 5 6 7 8 9 10]
+            (map bwpoly [[d0 d1] [d1 d2] [d2 d3] [d3 d4] [d4 d5] [d5 d6] [d6 d7] [d7 d8] [d8 d9] [d9 d10]]))
+          (append
+            (append
+              (let [p0 p1 p2 p3 p4] [0 1 2 3 4]
+                (map redpoly [[p0 p1] [p1 p2] [p2 p3] [p3 p4]]))
+              (map (\\[x y] (ellipse 'blue' x y (* w 4) h)) [[(xoff 5) (yoff 9)]]))
+            (map
+              (\\[x y r] (circle 'yellow' x y r))
+              [[(xoff  6) (yoff  2) (+ w h)]
+               [(xoff  6) (yoff  7) max]
+               [(xoff  6) (yoff  5) (/ (+ w h) 2)]]))))))))))
+
+(let [x0 y0 ni nj pts w h rad] [108 20 0! 12! 5! 500 20 6]
+    (let block (rect '#09096d' x0 y0 (* w (/ 2! 5!)) (* 7! h))
+    (let stripes
+      (map
+        (\\i (rect 'red' x0 (+ y0 (* i h)) w h))
+        [0! 2! 4! 6! 8! 10! 12!])
+    (let base (append stripes [block])
+      (svg 
+        (append
+          base
+          (map
+            (\\[i j]
+              (let xsep (/ w 25!)
+                (circle
+                  'white'
+                  (+ x0 (* i xsep))
+                  (+ y0 (* j h))
+                  rad)))
+          (append (cartProd (range 0.5 6.5) (range 0.75 4.75)) (cartProd (range 1 5) (range 1 4))))))))))
