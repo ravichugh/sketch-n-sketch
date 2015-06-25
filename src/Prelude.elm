@@ -163,6 +163,21 @@ src = "
   (let newShapes (reverse (fst (foldl f initAcc oldShapesI)))
     ['svg' svgAttrs newShapes])))))
 
-0)))))))))))))))))))))))))))))))))))))))))))))))))))
+(let hIntSlider (\\(dropBall xStart xEnd y minVal maxVal curVal)
+  (let [rPoint wLine rBall] [4! 3! 10!]
+  (let [xDiff valDiff] [(- xEnd xStart) (- maxVal minVal)]
+  (let xBall (+ xStart (* xDiff (/ (- curVal minVal) valDiff)))
+  (let xBall_ (clamp xStart xEnd xBall)
+  (let rBall_ (if dropBall (if (= xBall_ xBall) rBall 0) rBall)
+  (let val (round (clamp minVal maxVal curVal))
+  (let shapes
+    [ (line 'black' wLine xStart y xEnd y)
+      (circle 'black' xStart y rPoint)
+      (circle 'black' xEnd y rPoint)
+      (circle 'black' xBall y rBall_)
+      (text (+ xEnd 10) (+ y 5) (toString val)) ]
+  [val shapes]))))))))
+
+0))))))))))))))))))))))))))))))))))))))))))))))))))))
 
 "
