@@ -339,10 +339,12 @@ printNode k slate i =
   case Utils.justGet i slate of
     TextNode s -> s
     SvgNode kind l1 [] ->
-      Utils.delimit "<" ">" (kind ++ printAttrs l1) ++
+      let l1' = addAttrs kind l1 in
+      Utils.delimit "<" ">" (kind ++ printAttrs l1') ++
       Utils.delimit "</" ">" kind
     SvgNode kind l1 l2 ->
-      Utils.delimit "<" ">" (kind ++ printAttrs l1) ++ "\n" ++
+      let l1' = addAttrs kind l1 in
+      Utils.delimit "<" ">" (kind ++ printAttrs l1') ++ "\n" ++
       printNodes (k+1) slate l2 ++ "\n" ++
       tab k ++ Utils.delimit "</" ">" kind
 
@@ -355,6 +357,10 @@ printAttrs l = case l of
 
 printAttr (k,v) =
   k ++ "=" ++ Utils.delimit "'" "'" (strAVal v)
+
+addAttrs kind attrs =
+  if | kind == "svg" -> ("xmlns", AString "http://www.w3.org/2000/svg") :: attrs
+     | otherwise     -> attrs
 
 
 ------------------------------------------------------------------------------
