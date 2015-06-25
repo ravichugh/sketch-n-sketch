@@ -271,7 +271,20 @@ Building a slider bar that can be used to toggle other parameters
     (rect 'lightgray' (+ x w1) y w2 h1))
   (svg  [bar slider]))))
 ```
-
+```
+(let [x0 y0 min max dim cx] [80! 400! 70! 300! 50! 80]
+    (let [sx sy] [309 216]
+    (let samplecirc (circle 'orange' sx sy cx)
+    (let button (\\n (square 'lightgray' n y0 dim))
+    (let bar (rect 'gray' x0 y0 max dim)
+    (let slider
+      (if (< cx max)
+        (if (< min cx)
+          (button (+ cx x0))
+          (button x0))
+        (button (+ x0 max)))
+      (svg  [samplecirc bar slider])))))))
+```
 ##American Colonial Flag Example
 
 (let nstar
@@ -314,6 +327,90 @@ Building a slider bar that can be used to toggle other parameters
                   (rotate  i)))
           (range ni nj)))))))))))
 
+##Modern American Flag example
+
+(let nstar
+    (\\(n cx cy len1 len2 rot)
+      (let pti
+        (\\[i len]
+          (let anglei (+ rot (/ (* i (pi)) n))
+          (let xi (+ cx (* len (cos anglei)))
+          (let yi (+ cy (* len (sin anglei)))
+            [xi yi]))))
+      (let lengths
+        (map
+          (\\b
+            (if b
+              len1
+              len2))
+          (concat  (repeat n [true false])))
+      (let indices (list0N  (- (* 2! n) 1!))
+        (polygon 'orange' 'DUMMY' 0 (map pti (zip indices lengths)))))))
+    (let upright (/ (* 3! (pi)) 2!)
+    (let [x0 y0 wstripe sep ni nj pts xstripe hstripe radius] [108 20 500! 45 0! 49! 5! 52 20 80]
+    (let [outerLen innerLen] [10 4]
+    (let block (rect '#09096d' xstripe y0 (* wstripe (/ 2 5)) (* 7 hstripe))
+    (let stripes
+      (map
+        (\\i (rect 'red' xstripe (* hstripe i) wstripe hstripe))
+        [1! 3! 5! 7! 9! 11! 13!])
+    (let base (append stripes [block])
+      (svg 
+        (append
+          base
+          (map
+            (\\i
+              (let off (* i sep)
+                (nstar
+                  pts
+                  (+ x0 off)
+                  (+ y0 sep)
+                  outerLen
+                  innerLen
+                  upright)))
+          (range ni nj)))))))))))
+
+(let [x0 y0 wstripe sep ni nj pts xstripe hstripe radius] [108 20 500! 45 0! 49! 5! 52 20 80]
+    (let [outerLen innerLen] [10 4]
+    (let block (rect '#09096d' xstripe y0 (* wstripe (/ 2 5)) (* 7 hstripe))
+    (let stripes
+      (map
+        (\\i (rect 'red' xstripe (* hstripe i) wstripe hstripe))
+        [1! 3! 5! 7! 9! 11! 13!])
+    (let base (append stripes [block])
+      (svg 
+        (append
+          base
+          (map
+            (\\i
+              (let off (* i sep)
+                (circle
+                  'orange'
+                  (+ x0 off)
+                  (+ y0 sep)
+                  (- outerLen innerLen))))
+          (range ni nj)))))))))
+
+(let [x0 y0 sep ni nj pts wstripe hstripe radius] [108 20 20! 0! 12! 5! 500 20 55]
+    (let [outerLen innerLen] [10 4]
+    (let block (rect '#09096d' x0 y0 (* wstripe (/ 2 5)) (* 7 hstripe))
+    (let stripes
+      (map
+        (\\i (rect 'red' x0 (+ y0 (* i sep)) wstripe hstripe))
+        [0! 2! 4! 6! 8! 10! 12!])
+    (let base (append stripes [block])
+      (svg 
+        (append
+          base
+          (map
+            (\\[i j]
+                (circle
+                  'orange'
+                  (+ x0 (* i sep))
+                  (+ y0 (* j sep))
+                  (- outerLen innerLen)))
+          (cartProd (range 0 9) (range 0 4)))))))))
+
 ##French Sudan Flag
 
 (let [x0 y0 w h r] [50 29 150 300 40]
@@ -333,6 +430,48 @@ Building a slider bar that can be used to toggle other parameters
          [[x1 y5] [x1 y4]]
          [[x1 y4] [x3 y4]]
          [[x3 y4] [x3 y5]]]))))))))
+
+(let [x0 y0 w h r] [50 30 150 300 20]
+    (let xoff (+ x0 w)
+    (let yoff (+ y0 (/ h 4))
+    (let stripe (\\[color x] (rect color x y0 w h))
+    (let figline (\\[[a b] [c d]] (line 'black' (/ r 2) a b c d))
+    (let [x1 x2 x3] [(+ xoff 25) (+ xoff 75) (+ xoff 125)]
+    (let [y1 y2 y3 y4] [yoff (+ yoff 45) (+ yoff 115) (+ yoff 150)]
+      (svg 
+        (append
+          (map stripe [['blue' x0] ['white' (+ x0 w)] ['red' (+ x0 (* 2 w))]])
+          (snoc
+            (ellipse 'black' x2 y1 (/ w 10) (/ h 15))
+            (map
+              figline
+              [[[x1 y1] [x1 y2]]
+               [[x1 y2] [x3 y2]]
+               [[x3 y1] [x3 y2]]
+               [[x1 y4] [x1 y3]]
+               [[x1 y3] [x3 y3]]
+               [[x3 y3] [x3 y4]]
+               [[x2 y1] [x2 y3]]]))))))))))))
+
+(let [x0 y0 w h r] [50 30 150 300 20]
+    (let stripe (\\[color x] (rect color x y0 w h))
+    (let figline (\\[[a b] [c d]] (line 'black' (/ r 2) a b c d))
+    (let [x1 x2 x3] (map (\\n (+ x0 (* w n))) [2 2.3 2.6])
+    (let [y1 y2 y3 y4] (map (\\n (+ y0 (/ h n))) [4.3 3.3 1.9 1.4])
+      (svg 
+        (append
+          (map stripe [['blue' x0] ['white' (+ x0 w)] ['red' (+ x0 (* 2 w))]])
+          (snoc
+            (ellipse 'black' x2 y1 (/ w 7.5) (/ h 15))
+            (map
+              figline
+              [[[x1 y1] [x1 y2]]
+               [[x1 y2] [x3 y2]]
+               [[x3 y1] [x3 y2]]
+               [[x1 y4] [x1 y3]]
+               [[x1 y3] [x3 y3]]
+               [[x3 y3] [x3 y4]]
+               [[x2 y1] [x2 y3]]]))))))
 
 ##Frank Lloyd Wrigth 2
 

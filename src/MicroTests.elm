@@ -568,17 +568,26 @@ test49 () =
     "(let toRadian
     (\\a
       (* (/ (pi) 180!) a))
-    (let [x y rad] [350 250 175]
+    (let [sx sy rad] [245 200 175]
     (let cut 
       (\\ang
         (let xend (* rad (cos ang))
         (let yend (* rad (sin ang))
-        (line 'white' 6 x y (+ x xend) (+ y yend)))))
-    (let angles [0 45 90 180]
-    (let radangs (map toRadian angles)
+        (line 'white' 6 sx sy (+ sx xend) (+ sy yend)))))
+    (let [x0 y0 min max dim p] [80! 470 0! 360! 50! 1]
+    (let [a1 a2 a3 a4] [p 45 90 180]
+    (let radangs (map toRadian [a1 a2 a3 a4])
     (let cuts (map cut radangs)
-      (svg
-        (append [(circle 'orange' x y rad)] cuts))))))))"
+    (let samplecirc (circle 'orange' sx sy rad)
+    (let button (\\n (square 'lightgray' n y0 dim))
+    (let bar (rect 'gray' x0 y0 max dim)
+    (let slider
+      (if (< a1 max)
+        (if (< min a1)
+          (button (+ a1 x0))
+          (button x0))
+        (button (- (+ x0 max) dim)))
+      (svg  (append [samplecirc bar slider] cuts)))))))))))))"
     "[]"
 
 --A simple graph (nodes and edges)
@@ -683,21 +692,21 @@ test53 () =
     "[]"
 
 --testing out slider bar
---pass x, y, min, max
+--pass x, y, min, max (maybe start pos)
 test54 () =
   makeTest
-    "(let [min y max h1 w2 cx cy] [77 459 500! 50! 50! 73 50!]
+    "(let [x0 y0 min max dim cx] [80! 400 70! 500! 50! 80]
     (let [sx sy] [309 216]
     (let samplecirc (circle 'orange' sx sy cx)
-    (let button (\\n (rect 'lightgray' n y w2 h1))
-    (let bar (rect 'gray' min y max h1)
+    (let button (\\n (square 'lightgray' n y0 dim))
+    (let bar (rect 'gray' x0 y0 max dim)
     (let slider
-      (if (< cx (+ min max))
-        (if (< cx min)
-          (button  min)
-          (button  cx))
-        (button  (+ min max)))
-      (svg  [bar slider samplecirc])))))))"
+      (if (< cx max)
+        (if (< min cx)
+          (button (+ cx x0))
+          (button x0))
+        (button (- (+ x0 max) dim)))
+      (svg  [samplecirc bar slider])))))))"
     "[]"
 
 --original colonial flag
@@ -734,26 +743,25 @@ test55 () =
           base
           (map
             (\\i
-              (let scale (- (+ w h))
                 (nstar
                   pts
                   (+ (+ x0 85!) (* radius (cos (rotate  i))))
                   (+ (+ y0 70!) (* radius (sin (rotate  i))))
                   outerLen
                   innerLen
-                  (rotate  i))))
+                  (rotate  i)))
           (range ni nj)))))))))))"
     "[]"
 
 --current US Flag (TODO: still in progress, need mod)
 test56 () =
   makeTest
-    "(let [x0 y0 sep ni nj pts wstripe hstripe radius] [108 20 20! 0! 12! 5! 500 20 55]
+    "(let [x0 y0 ni nj pts w h radius] [108 20 0! 12! 5! 500 20 55]
     (let [outerLen innerLen] [10 4]
-    (let block (rect '#09096d' x0 y0 (* wstripe (/ 2 5)) (* 7 hstripe))
+    (let block (rect '#09096d' x0 y0 (* w (/ 2 5)) (* 7! h))
     (let stripes
       (map
-        (\\i (rect 'red' x0 (+ y0 (* i sep)) wstripe hstripe))
+        (\\i (rect 'red' x0 (+ y0 (* i h)) w h))
         [0! 2! 4! 6! 8! 10! 12!])
     (let base (append stripes [block])
       (svg 
@@ -761,29 +769,28 @@ test56 () =
           base
           (map
             (\\[i j]
+              (let xsep (/ w 25)
                 (circle
                   'white'
-                  (+ x0 (* i sep))
-                  (+ y0 (* j sep))
-                  (- outerLen innerLen)))
-          (cartProd (range 1 10) (range 1 5))))))))))"
+                  (+ x0 (* i xsep))
+                  (+ y0 (* j h))
+                  (- outerLen innerLen))))
+          (cartProd (range 0 9) (range 1 5))))))))))"
     "[]"
 
 --French Sudan Flag (200, 105)
 test57 () =
   makeTest
     "(let [x0 y0 w h r] [50 30 150 300 20]
-    (let xoff (+ x0 w)
-    (let yoff (+ y0 (/ h 4))
     (let stripe (\\[color x] (rect color x y0 w h))
     (let figline (\\[[a b] [c d]] (line 'black' (/ r 2) a b c d))
-    (let [x1 x2 x3] [(+ xoff 25) (+ xoff 75) (+ xoff 125)]
-    (let [y1 y2 y3 y4] [yoff (+ yoff 45) (+ yoff 115) (+ yoff 150)]
+    (let [x1 x2 x3] (map (\\n (+ x0 (* w n))) [2 2.3 2.6])
+    (let [y1 y2 y3 y4] (map (\\n (+ y0 (/ h n))) [4.3 3.3 1.9 1.4])
       (svg 
         (append
           (map stripe [['blue' x0] ['white' (+ x0 w)] ['red' (+ x0 (* 2 w))]])
           (snoc
-            (circle 'black' x2 y1 r)
+            (ellipse 'black' x2 y1 (/ w 7.5) (/ h 15))
             (map
               figline
               [[[x1 y1] [x1 y2]]
@@ -792,7 +799,7 @@ test57 () =
                [[x1 y4] [x1 y3]]
                [[x1 y3] [x3 y3]]
                [[x3 y3] [x3 y4]]
-               [[x2 y1] [x2 y3]]])))))))))))"
+               [[x2 y1] [x2 y3]]]))))))"
     "[]"
 
 --Second Frank Lloyd Wright Example - linked box widths & heights
@@ -834,6 +841,22 @@ test58 () =
               [[(xoff  6) (yoff  2) (+ w h)]
                [(xoff  6) (yoff  7) max]
                [(xoff  6) (yoff  5) (/ (+ w h) 2)]]))))))))))))"
+    "[]"
+
+test59 () =
+  makeTest
+    "(let [x0 y0 min max dim cx] [80! 400 70! 500! 50! 80]
+    (let [sx sy] [309 216]
+    (let samplecirc (circle 'orange' sx sy cx)
+    (let button (\\n (square 'lightgray' n y0 dim))
+    (let bar (rect 'gray' x0 y0 max dim)
+    (let slider
+      (if (< cx max)
+        (if (< min cx)
+          (button (+ cx x0))
+          (button x0))
+        (button (- (+ x0 max) dim)))
+      (svg  [samplecirc bar slider])))))))"
     "[]"
 
 tests =
