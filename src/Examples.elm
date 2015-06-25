@@ -167,6 +167,21 @@ sliders = "
     (svg (append sliders displays)))))))))
 "
 
+clique = "
+  (let node (\\[x y] (circle 'lightblue' x y 20))
+  (let edge (\\[[x y] [i j]] (line 'lightgreen' 5 x y i j))
+  (letrec genpairs
+     (\\xs
+       (case xs
+         ([x y | xx] [[x y] | (append (genpairs (cons x xx)) (genpairs (cons y xx)))])
+         ([x] [])
+         ([] [])))
+  (let pts [[200 50] [400 50] [100 223] [200 389] [400 391] [500 223]]
+  (let nodes (map node pts)
+  (let pairs (genpairs  pts)
+  (let edges (map edge pairs)
+    (svg (append edges nodes)))))))))
+"
 todo = "
   ; TODO
   (svg [])
@@ -187,6 +202,7 @@ examples =
   , makeExample "US-50 Flag" todo
   , makeExample "French Sudan Flag" todo
   , makeExample "Ferris Wheel" todo
+  , makeExample "Clique" clique
   ]
 
 list = examples ++ MicroTests.sampleTests
