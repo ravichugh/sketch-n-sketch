@@ -48,7 +48,7 @@ sampleModel =
     {e,v} = f ()
     (rootId,slate) = LangSvg.valToIndexedTree v
   in
-    { scratchCode  = Examples.blank
+    { scratchCode  = Examples.scratch
     , exName       = name
     , code         = sExp e
     , inputExp     = Just e
@@ -188,10 +188,11 @@ upstate evt old = case Debug.log "Event" evt of
             , workingSlate <- tree
             , mode <- SyncSelect j options }
 
-    SelectExample "Scratch" _ ->
-      upstate Run { old | exName <- "Scratch", code <- old.scratchCode }
-
     SelectExample name thunk ->
+      if name == Examples.scratchName then
+        upstate Run { old | exName <- name, code <- old.scratchCode }
+      else
+
       let {e,v} = thunk () in
       let (rootId,tree) = LangSvg.valToIndexedTree v in
       let m =
@@ -199,8 +200,10 @@ upstate evt old = case Debug.log "Event" evt of
           Live _ -> mkLive old.syncOptions e v
           _      -> old.mode
       in
-      { old | scratchCode <- if | old.exName == "Scratch" -> old.code
-                                | otherwise               -> old.scratchCode
+      let scratchCode' =
+        if old.exName == Examples.scratchName then old.code else old.scratchCode
+      in
+      { old | scratchCode <- scratchCode'
             , exName <- name
             , inputExp <- Just e
             , code <- sExp e

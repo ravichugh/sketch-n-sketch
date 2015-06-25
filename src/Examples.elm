@@ -1,4 +1,4 @@
-module Examples where
+module Examples (list, scratchName, scratch) where
 
 import Lang
 import LangParser
@@ -56,10 +56,15 @@ sixBoxesB = "
          (cartProd [0 1 2] [0 1]))))
 "
 
-blank = "
+scratch = "
   ;
   ; Write a little program below.
   ; Or choose an example from the list.
+  ;
+  ; Changes made to this *Scratch* example will be saved and
+  ; restored when navigating to and from other examples.
+  ; For the remaining named examples, changes will be discarded
+  ; when choosing a different example.
   ;
   (svg [(rect 'maroon' 100 15 200 50)])
 "
@@ -187,8 +192,10 @@ todo = "
   (svg [])
 "
 
+scratchName = "*Scratch*"
+
 examples =
-  [ makeExample "Scratch" blank
+  [ makeExample scratchName scratch
   , makeExample "3 Boxes" threeBoxes
   , makeExample "6 Boxes A" sixBoxesA
   , makeExample "6 Boxes B" sixBoxesB
