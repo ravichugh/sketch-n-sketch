@@ -79,6 +79,12 @@ src = "
 
 (let not (\\b (if b false true))
 
+(let clamp (\\(i j n) (if (< n i) i (if (< j n) j n)))
+
+;
+; SVG Manipulating Functions
+;
+
 (let circle (\\(fill x y r)
   ['circle'
      [['cx' x] ['cy' y] ['r' r] ['fill' fill]]
@@ -121,6 +127,10 @@ src = "
      [ ['fill' fill] ['stroke' stroke] ['strokeWidth' w] ['d' d] ]
      []])
 
+(let text (\\(x y s)
+   ['text' [['x' x] ['y' y] ['style' 'fill:black']]
+           [['TEXT' s]]])
+
 (let addAttr (\\([shapeKind oldAttrs children] newAttr)
   [shapeKind (snoc newAttr oldAttrs) children])
 
@@ -153,6 +163,6 @@ src = "
   (let newShapes (reverse (fst (foldl f initAcc oldShapesI)))
     ['svg' svgAttrs newShapes])))))
 
-0)))))))))))))))))))))))))))))))))))))))))))))))))
+0)))))))))))))))))))))))))))))))))))))))))))))))))))
 
 "

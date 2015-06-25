@@ -98,6 +98,7 @@ strOp op = case op of
   Mult  -> "*"
   Div   -> "/"
   Lt    -> "<"
+  Eq    -> "="
   Pi    -> "pi"
   Cos   -> "cos"
   Sin   -> "sin"
@@ -175,7 +176,7 @@ sExp_ showLocs k e =
             Just e  -> s ++ "\n" ++ tab k ++ "|" ++ foo k e
     ELet b p e1 e2 ->
       Utils.parens <|
-        let k' = case e2 of {ELet _ _ _ _ -> k; _ -> k+1} in
+        let k' = if isLet e2 then k else k + 1 in
         (if b then "letrec " else "let ") ++ strPat p ++
           indent e1 ++ "\n" ++
           tab k' ++ foo k' e2
@@ -198,6 +199,11 @@ fitsOnLine s =
   if | String.length s > 70               -> False
      | List.member '\n' (String.toList s) -> False
      | otherwise                          -> True
+
+isLet e = case e of
+  ELet _ _ _ _  -> True
+  EComment _ e1 -> isLet e1
+  _             -> False
 
 
 ------------------------------------------------------------------------------

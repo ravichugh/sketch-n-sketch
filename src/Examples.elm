@@ -89,6 +89,60 @@ elmLogo = "
   ])
 "
 
+sliders = "
+  ;
+  ; These constants get adjusted by the sliders,
+  ; and then clamped to fit within the [min, max] range.
+  ; Try editing the min and max constants.
+  ;
+  (let [min max] [0! 10!]
+  (let [n1 n2 n3 n4] [5 5 5 5]
+  (let [m1 m2 m3 m4] (map (clamp min max) [n1 n2 n3 n4])
+  ;
+  ; Both the horizontal and vertical slider abstractions
+  ; below take a dropBall parameter:
+  ;  - if true, the ball can slide off the rail;
+  ;  - if false, the ball disappears when off the rail.
+  ;
+  (let hSlider (\\(dropBall xStart xEnd y minVal maxVal curVal)
+    (let [rPoint wLine rBall] [4! 3! 10!]
+    (let [xDiff valDiff] [(- xEnd xStart) (- maxVal minVal)]
+    (let xBall (+ xStart (* xDiff (/ (- curVal minVal) valDiff)))
+    (let xBall_ (clamp xStart xEnd xBall)
+    (let rBall_ (if dropBall (if (= xBall_ xBall) rBall 0) rBall)
+      [ (circle 'black' xStart y rPoint)
+        (circle 'black' xEnd y rPoint)
+        (line 'black' wLine xStart y xEnd y)
+        (circle 'black' xBall y rBall_)
+      ]))))))
+  ;
+  (let vSlider (\\(dropBall yStart yEnd x minVal maxVal curVal)
+    (let [rPoint wLine rBall] [4! 3! 10!]
+    (let [yDiff valDiff] [(- yEnd yStart) (- maxVal minVal)]
+    (let yBall (+ yStart (* yDiff (/ (- curVal minVal) valDiff)))
+    (let yBall_ (clamp yStart yEnd yBall)
+    (let rBall_ (if dropBall (if (= yBall_ yBall) rBall 0) rBall)
+      [ (circle 'black' x yStart rPoint)
+        (circle 'black' x yEnd rPoint)
+        (line 'black' wLine x yStart x yEnd)
+        (circle 'black' x yBall rBall_)
+      ]))))))
+  ;
+  ; TODO display m values on canvas
+  ; TODO y (resp x) needs to be thawed in s1/s2 (resp s3/s4)
+  ;      until change to loc-mappings...
+  ;
+  (let s1 (hSlider false 30! 230! 30 min max n1)
+  (let s2 (hSlider true 30! 230! 60 min max n2)
+  (let s3 (vSlider false 100! 300 80 min max n3)
+  (let s4 (vSlider true 100! 300 180 min max n4)
+  (let sliders (foldl append nil [s1 s2 s3 s4])
+  ;
+  (let displays []
+  ;
+    (svg (append sliders displays)))))))))))))
+"
+
 examples =
   [ makeExample "Scratch" blank
   , makeExample "3 Boxes" threeBoxes
@@ -96,6 +150,7 @@ examples =
   , makeExample "6 Boxes B" sixBoxesB
   , makeExample "Logo" logo
   , makeExample "Elm Logo" elmLogo
+  , makeExample "Sliders" sliders
   ]
 
 list = examples ++ MicroTests.sampleTests
