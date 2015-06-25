@@ -165,10 +165,10 @@ sliders = "
       (foldl append nil [s1 s2 s3 s4])))))
   ;
   (let displays
-    (let t1 (text 300 100 (+ 'm1=' (toString m1)))
-    (let t2 (text 300 120 (+ 'm2=' (toString m2)))
-    (let t3 (text 300 140 (+ 'm3=' (toString m3)))
-    (let t4 (text 300 160 (+ 'm4=' (toString m4)))
+    (let t1 (text 300 100 (+ 'm1 = ' (toString m1)))
+    (let t2 (text 300 120 (+ 'm2 = ' (toString m2)))
+    (let t3 (text 300 140 (+ 'm3 = ' (toString m3)))
+    (let t4 (text 300 160 (+ 'm4 = ' (toString m4)))
       [t1 t2 t3 t4]))))
   ;
     (svg (append sliders displays)))))))))

@@ -149,9 +149,11 @@ parseIdent =
     P.return (String.fromList (c::cs))
 
 parseStrLit =
-  -- TODO issue with spaces in strlits...
   let pred c = isAlphaNumeric c || List.member c (String.toList "#., -():=") in
-  delimit "'" "'" (String.fromList <$> P.many (P.satisfy pred))
+  P.between        -- NOTE: not calling delimit...
+    (token_ "'")   --   okay to chew up whitespace here,
+    (P.token "'")  --   but _not_ here!
+    (String.fromList <$> P.many (P.satisfy pred))
 
 oneWhite : P.Parser ()
 oneWhite = always () <$> P.satisfy isWhitespace

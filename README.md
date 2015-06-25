@@ -86,7 +86,7 @@ users to freely mix between programmatic and direct manipulation.
 ```
   op0  ::=  pi
   op1  ::=  cos | sin | arccos | arcsin
-        |   floor | ceiling
+        |   floor | ceiling | round
         |   toString
   op2  ::=  + | - | * | /
         |   < | =
