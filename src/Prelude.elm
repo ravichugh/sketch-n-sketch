@@ -163,13 +163,31 @@ src = "
   (let newShapes (reverse (fst (foldl f initAcc oldShapesI)))
     ['svg' svgAttrs newShapes])))))
 
-(let hIntSlider (\\(dropBall xStart xEnd y minVal maxVal curVal)
+; \"constant folding\"
+(let twoPi (* 2 (pi))
+(let halfPi (/ (pi) 2)
+
+(let nStar (\\(fill stroke w n len1 len2 rot cx cy)
+  (let pti (\\[i len]
+    (let anglei (+ (- (/ (* i (pi)) n) rot) halfPi)
+    (let xi (+ cx (* len (cos anglei)))
+    (let yi (+ cy (neg (* len (sin anglei))))
+      [xi yi]))))
+  (let lengths
+    (map (\\b (if b len1 len2))
+         (concat (repeat n [true false])))
+  (let indices (list0N (- (* 2! n) 1!))
+    (polygon fill stroke w (map pti (zip indices lengths)))))))
+
+(let hSlider_ (\\(dropBall roundInt xStart xEnd y minVal maxVal curVal)
   (let [rPoint wLine rBall] [4! 3! 10!]
   (let [xDiff valDiff] [(- xEnd xStart) (- maxVal minVal)]
   (let xBall (+ xStart (* xDiff (/ (- curVal minVal) valDiff)))
   (let xBall_ (clamp xStart xEnd xBall)
   (let rBall_ (if dropBall (if (= xBall_ xBall) rBall 0) rBall)
-  (let val (round (clamp minVal maxVal curVal))
+  (let val
+    (let val_ (clamp minVal maxVal curVal)
+    (if roundInt (round val_) val_))
   (let shapes
     [ (line 'black' wLine xStart y xEnd y)
       (circle 'black' xStart y rPoint)
@@ -178,6 +196,8 @@ src = "
       (text (+ xEnd 10) (+ y 5) (toString val)) ]
   [val shapes]))))))))
 
-0))))))))))))))))))))))))))))))))))))))))))))))))))))
+(let hSlider (hSlider_ true)
+
+0))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
 "

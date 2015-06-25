@@ -14,6 +14,8 @@ makeExample name s =
   in
   (name, thunk)
 
+--------------------------------------------------------------------------------
+
 logo = "
   ; sketch-n-sketch logo
   ;
@@ -131,7 +133,7 @@ sliders = "
   ;  - if true, the ball can slide off the rail;
   ;  - if false, the ball disappears when off the rail.
   ;
-  (let hSlider (\\(dropBall xStart xEnd y minVal maxVal curVal)
+  (let horizSlider (\\(dropBall xStart xEnd y minVal maxVal curVal)
     (let [rPoint wLine rBall] [4! 3! 10!]
     (let [xDiff valDiff] [(- xEnd xStart) (- maxVal minVal)]
     (let xBall (+ xStart (* xDiff (/ (- curVal minVal) valDiff)))
@@ -143,7 +145,7 @@ sliders = "
         (circle 'black' xBall y rBall_)
       ]))))))
   ;
-  (let vSlider (\\(dropBall yStart yEnd x minVal maxVal curVal)
+  (let vertSlider (\\(dropBall yStart yEnd x minVal maxVal curVal)
     (let [rPoint wLine rBall] [4! 3! 10!]
     (let [yDiff valDiff] [(- yEnd yStart) (- maxVal minVal)]
     (let yBall (+ yStart (* yDiff (/ (- curVal minVal) valDiff)))
@@ -156,10 +158,10 @@ sliders = "
       ]))))))
   ;
   (let sliders
-    (let s1 (hSlider false 30! 230! 30! min max n1)
-    (let s2 (hSlider true 30! 230! 70! min max n2)
-    (let s3 (vSlider false 110! 300! 110! min max n3)
-    (let s4 (vSlider true 110! 300! 150! min max n4)
+    (let s1 (horizSlider false 30! 230! 30! min max n1)
+    (let s2 (horizSlider true 30! 230! 70! min max n2)
+    (let s3 (vertSlider false 110! 300! 110! min max n3)
+    (let s4 (vertSlider true 110! 300! 150! min max n4)
       (foldl append nil [s1 s2 s3 s4])))))
   ;
   (let displays
@@ -187,6 +189,29 @@ clique = "
   (let edges (map edge pairs)
     (svg (append edges nodes)))))))))
 "
+
+ferris = "
+  ;
+  ; Take this ferris wheel for a spin!
+  ;
+  (let [numSpokes_ spokeLen_ rotAngle_] [5 80 0]
+  ;
+  (let [numSpokes s1] (hSlider true 20! 420! 20! 3! 10! numSpokes_)
+  (let [spokeLen s2] (hSlider true 20! 420! 50! 40! 200! spokeLen_)
+  (let [rotAngle s3] (hSlider false 20! 420! 80! (neg twoPi) twoPi rotAngle_)
+  ;
+  (let sliders (concat [s1 s2 s3])
+  (let wheel
+    (let [cx cy] [220! 300!]
+    (let rim (ring 'darkgray' 8! cx cy spokeLen)
+    (let frame (nStar 'goldenrod' 'goldenrod' 0 numSpokes spokeLen 8 rotAngle cx cy)
+    [frame rim])))
+  ;
+  (svg (append sliders wheel))))))))
+"
+
+--------------------------------------------------------------------------------
+
 todo = "
   ; TODO
   (svg [])
@@ -208,7 +233,7 @@ examples =
   , makeExample "US-13 Flag" todo
   , makeExample "US-50 Flag" todo
   , makeExample "French Sudan Flag" todo
-  , makeExample "Ferris Wheel" todo
+  , makeExample "Ferris Wheel" ferris
   , makeExample "Clique" clique
   ]
 

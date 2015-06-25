@@ -222,6 +222,9 @@ solveTopDown subst (n, t) = case t of
       Just i  -> maybeFloat <| asin i
       Nothing -> Nothing
 
+  _ ->
+    let _ = Debug.log "TODO solveTopDown" t in
+    Nothing
 
 isNumBinop = (/=) Lt
 
