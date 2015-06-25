@@ -326,6 +326,7 @@ parseUOp =
   <++ (always ArcSin  <$> token_ "arcsin")
   <++ (always Floor   <$> token_ "floor")
   <++ (always Ceil    <$> token_ "ceiling")
+  <++ (always Round   <$> token_ "round")
   <++ (always ToStr   <$> token_ "toString")
 
 parseConst =

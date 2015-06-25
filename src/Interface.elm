@@ -130,7 +130,8 @@ upstate evt old = case Debug.log "Event" evt of
       case old.mode of
         AdHoc       -> { old | mouseMode <- MouseObject (id, kind, zone, Nothing) }
         Live triggers ->
-          case Utils.justGet zone (Utils.justGet id triggers) of
+          let dZones = Utils.justGet_ "#1" id triggers in
+          case Utils.justGet_ ("#2" ++ toString (id,kind,zone) ++ toString (Dict.toList dZones)) zone dZones of
             Nothing -> { old | mouseMode <- MouseNothing }
             Just _  -> { old | mouseMode <- MouseObject (id, kind, zone, Nothing) }
         SyncSelect _ _ -> old
@@ -237,7 +238,7 @@ type alias OnMouse =
 
 createMousePosCallback mx my objid kind zone old =
 
-  let (LangSvg.SvgNode _ attrs _) = Utils.justGet objid old.workingSlate in
+  let (LangSvg.SvgNode _ attrs _) = Utils.justGet_ "#3" objid old.workingSlate in
   let numAttr = toNum << Utils.find_ attrs in
   let mapNumAttr f a =
     let (n,trace) = toNumTr (Utils.find_ attrs a) in
@@ -315,7 +316,7 @@ createMousePosCallback mx my objid kind zone old =
       case old.mode of
         AdHoc -> (Utils.fromJust old.inputExp, newSlate)
         Live triggers ->
-          case Utils.justGet zone (Utils.justGet objid triggers) of
+          case Utils.justGet_ "#4" zone (Utils.justGet_ "#5" objid triggers) of
             -- Nothing -> (Utils.fromJust old.inputExp, newSlate)
             Nothing -> Debug.crash "shouldn't happen due to upstate SelectObject"
             Just trigger ->

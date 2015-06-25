@@ -25,7 +25,7 @@ type Op
   = Pi
   -- unary ops
   | Cos | Sin | ArcCos | ArcSin
-  | Floor | Ceil
+  | Floor | Ceil | Round
   | ToStr
   -- binary ops
   | Plus | Minus | Mult | Div
@@ -108,6 +108,7 @@ strOp op = case op of
   ArcSin -> "arcsin"
   Floor -> "floor"
   Ceil  -> "ceiling"
+  Round -> "round"
   ToStr -> "toString"
 
 strLoc (k, b, mx) =

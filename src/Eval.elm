@@ -128,6 +128,7 @@ evalOp env op es =
         ArcSin -> VConst (asin n, TrOp op [t])
         Floor  -> VConst (toFloat <| floor n, TrOp op [t])
         Ceil   -> VConst (toFloat <| ceiling n, TrOp op [t])
+        Round  -> VConst (toFloat <| round n, TrOp op [t])
         ToStr  -> VBase (String (toString n))
 
 evalBranches env v =
