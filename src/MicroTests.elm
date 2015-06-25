@@ -830,7 +830,7 @@ test58 () =
            [(xoff  a) (yoff  b)]
            [(xoff  b) (yoff  b)]
            [(xoff  b) (yoff  a)]]))
-    (let dimension [0! 1! 2! 3! 4! 5! 6! 7! 8! 9! 10!]
+    (let dimension [0! 1 2 3 4 5 6 7 8 9 10!]
     (let verticals
       (zip
         (map (\\n [(xoff  n) y0]) dimension)
@@ -850,15 +850,16 @@ test58 () =
             (map
               (\\[x y r] (circle 'yellow' x y r))
               [[(xoff  6) (yoff  2) (+ w h)]
-               [(xoff  6) (yoff  7) max]
+               [(xoff  6) (yoff  7) (/ (+ w h) 4)]
                [(xoff  6) (yoff  5) (/ (+ w h) 2)]]))))))))))))"
     "[]"
 
 test59 () =
   makeTest
-    "(let [x0 y0 w h max] [72 72 45 56 10!]
+    "(let [x0 y0 w h max] [69 55 53.2 74.4 10!]
     (let xoff (\\n (+ x0 (* w n)))
     (let yoff (\\n (+ y0 (* h n)))
+    (let blkline (\\[[a b] [c d]] (line 'black' 3 a b c d))
     (let redpoly
       (\\[a b]
         (polygon
@@ -869,30 +870,29 @@ test59 () =
            [(xoff  a) (yoff  b)]
            [(xoff  b) (yoff  b)]
            [(xoff  b) (yoff  a)]]))
-    (let bwpoly
-      (\\[a b]
-        (polygon
-          'white'
-          'black'
-          3
-          [[(xoff  a) (yoff  a)]
-           [(xoff  a) (yoff  b)]
-           [(xoff  b) (yoff  b)]
-           [(xoff  b) (yoff  a)]]))
+    (let dimension
+      [0! 1 2 2.9 2.4 1.5 9.1 7.9 8.2 8.7 10!]
+    (let verticals
+      (zip
+        (map (\\n [(xoff  n) y0]) dimension)
+        (map (\\n [(xoff  n) (+ y0 (* h max))]) dimension))
+    (let horizontals
+      (zip
+        (map (\\n [x0 (yoff  n)]) dimension)
+        (map (\\n [(+ x0 (* w max)) (yoff  n)]) dimension))
       (svg 
         (append
-          (let [d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 d10] [0 1 2 3 4 5 6 7 8 9 10]
-            (map bwpoly [[d0 d1] [d1 d2] [d2 d3] [d3 d4] [d4 d5] [d5 d6] [d6 d7] [d7 d8] [d8 d9] [d9 d10]]))
+          (map blkline (append verticals horizontals))
           (append
             (append
-              (let [p0 p1 p2 p3 p4] [0 1 2 3 4]
+              (let [p0 p1 p2 p3 p4] [0 1 2 2.9 5]
                 (map redpoly [[p0 p1] [p1 p2] [p2 p3] [p3 p4]]))
-              (map (\\[x y] (ellipse 'blue' x y (* w 4) h)) [[(xoff 5) (yoff 9)]]))
+              (map (\\[x y] (ellipse 'blue' x y (* w 4) h)) [[(xoff  5) (yoff  9)]]))
             (map
               (\\[x y r] (circle 'yellow' x y r))
-              [[(xoff  6) (yoff  2) (+ w h)]
-               [(xoff  6) (yoff  7) max]
-               [(xoff  6) (yoff  5) (/ (+ w h) 2)]]))))))))))"
+              [[(xoff  6) (yoff  1.75) (+ w h)]
+               [(xoff  6) (yoff  7) (/ (+ w h) 4)]
+               [(xoff  6) (yoff  5) (/ (+ w h) 2)]]))))))))))))"
     "[]"
 
 tests =
