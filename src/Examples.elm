@@ -150,15 +150,11 @@ sliders = "
         (circle 'black' x yBall rBall_)
       ]))))))
   ;
-  ; TODO display m values on canvas
-  ; TODO y (resp x) needs to be thawed in s1/s2 (resp s3/s4)
-  ;      until change to loc-mappings...
-  ;
   (let sliders
-    (let s1 (hSlider false 30! 230! 30 min max n1)
-    (let s2 (hSlider true 30! 230! 60 min max n2)
-    (let s3 (vSlider false 100! 300 80 min max n3)
-    (let s4 (vSlider true 100! 300 180 min max n4)
+    (let s1 (hSlider false 30! 230! 30! min max n1)
+    (let s2 (hSlider true 30! 230! 70! min max n2)
+    (let s3 (vSlider false 110! 300! 110! min max n3)
+    (let s4 (vSlider true 110! 300! 150! min max n4)
       (foldl append nil [s1 s2 s3 s4])))))
   ;
   (let displays

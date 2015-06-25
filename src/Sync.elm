@@ -501,7 +501,9 @@ shapeToZoneInfo opts (kind, extra, d) =
 allowOverConstrained = True -- CONFIG
 
 createLocLists sets =
-  let foo = Utils.cartProdWithDiff sets in
+  -- let foo = Utils.cartProdWithDiff sets in
+  let removeEmpties = List.filter ((/=) 0 << Utils.setCardinal) in
+  let foo = Utils.cartProdWithDiff (removeEmpties sets) in
   let bar =
     if | not allowOverConstrained -> []
        | otherwise ->
@@ -670,6 +672,8 @@ makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
   -- once this is done, might be able to rank trigger sets by int/float
   let (subst',changedLocs) =
     let f (attr,newNum) (acc1,acc2) =
+      {- 6/25: now that assigned locs do not appear in every attribute,
+               whichLoc may return Nothing
       let k = whichLoc opts d0 d2 i zone attr in
       let subst' = Dict.remove k subst in
       let tr = justGet attr (Utils.thd3 (justGet i d0)) in
@@ -679,6 +683,18 @@ makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
         -- effect after all... (see Dict1 comment)
         Nothing -> (acc1, acc2)
         Just kSolution -> (Dict.insert k kSolution acc1, Set.insert k acc2)
+      -}
+      case whichLoc opts d0 d2 i zone attr of
+        Nothing -> (acc1, acc2)
+        Just k ->
+          let subst' = Dict.remove k subst in
+          let tr = justGet attr (Utils.thd3 (justGet i d0)) in
+          case solve subst' (newNum, tr) of
+            -- solve will no longer always return an answer, so one of
+            -- the locations assigned to this trigger may not have an
+            -- effect after all... (see Dict1 comment)
+            Nothing -> (acc1, acc2)
+            Just kSolution -> (Dict.insert k kSolution acc1, Set.insert k acc2)
     in
     List.foldl f (subst, Set.empty) newAttrs in
     -- if using overconstrained triggers, then some of the newAttr values
@@ -717,7 +733,7 @@ makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
   (e', Dict.foldl g Dict.empty d0)
 
 -- TODO sloppy way of doing this for now...
-whichLoc : Options -> Dict0 -> Dict2 -> NodeId -> Zone -> AttrName -> LocId
+whichLoc : Options -> Dict0 -> Dict2 -> NodeId -> Zone -> AttrName -> Maybe LocId
 whichLoc opts d0 d2 i z attr =
   let trLocs =
     justGet i d0 |> Utils.thd3 |> justGet attr |> locsOfTrace opts in
@@ -726,8 +742,10 @@ whichLoc opts d0 d2 i z attr =
       |> snd |> Utils.maybeFind z |> Utils.fromJust
       |> Utils.fromJust_ "guaranteed not to fail b/c of check in makeTriggers"
       |> fst |> Set.fromList in
-  let [(k,_,_)] = Set.toList (trLocs `Set.intersect` zoneLocs) in
-  k
+  case Set.toList (trLocs `Set.intersect` zoneLocs) of
+    [(k,_,_)] -> Just k
+    []        -> Nothing
+    _         -> Debug.crash "whichLoc"
 
 evalTr subst tr = Utils.fromJust_ "evalTr" (evalTrace subst tr)
 
