@@ -135,7 +135,7 @@ src = "
   [shapeKind (snoc newAttr oldAttrs) children])
 
 (let svg (\\shapes ['svg' [] shapes])
-
+  
 (let circle_    (circle 'red')
 (let ellipse_   (ellipse 'orange')
 (let rect_      (rect '#999999')
