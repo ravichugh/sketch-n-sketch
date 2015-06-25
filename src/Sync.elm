@@ -4,7 +4,7 @@ module Sync (Options, defaultOptions,
 
 import Dict exposing (Dict)
 import Set
-import Utils exposing (justGet)
+import Utils exposing (justGet_)
 import Debug
 import String
 
@@ -412,7 +412,8 @@ nodeToAttrLocs = snd << flip nodeToAttrLocs_ (1, Dict.empty)
 
 nodeToAttrLocs_ v (nextId,dShapes) = case v of
 
-  VList [VBase (String "TEXT"), VBase (String s)] -> (nextId, dShapes)
+  VList [VBase (String "TEXT"), VBase (String s)] ->
+    (1 + nextId, Dict.insert 1 ("DUMMYTEXT", None, Dict.empty) dShapes)
 
   VList [VBase (String kind), VList vs', VList children] ->
 
@@ -492,7 +493,7 @@ shapeToZoneInfo opts (kind, extra, d) =
   let f (s,l) acc =
     let numAttrs = List.length l in
     let sets =
-      l |> List.map (\a -> locsOfTrace opts <| justGet a d)
+      l |> List.map (\a -> locsOfTrace opts <| justGet_ "%1" a d)
         |> createLocLists in
     (s, (numAttrs, sets)) :: acc
   in
@@ -688,7 +689,7 @@ makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
         Nothing -> (acc1, acc2)
         Just k ->
           let subst' = Dict.remove k subst in
-          let tr = justGet attr (Utils.thd3 (justGet i d0)) in
+          let tr = justGet_ "%2" attr (Utils.thd3 (justGet_ "%3" i d0)) in
           case solve subst' (newNum, tr) of
             -- solve will no longer always return an answer, so one of
             -- the locations assigned to this trigger may not have an
@@ -736,9 +737,9 @@ makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
 whichLoc : Options -> Dict0 -> Dict2 -> NodeId -> Zone -> AttrName -> Maybe LocId
 whichLoc opts d0 d2 i z attr =
   let trLocs =
-    justGet i d0 |> Utils.thd3 |> justGet attr |> locsOfTrace opts in
+    justGet_ "%4" i d0 |> Utils.thd3 |> justGet_ "%5" attr |> locsOfTrace opts in
   let zoneLocs =
-    justGet i d2
+    justGet_ "%6" i d2
       |> snd |> Utils.maybeFind z |> Utils.fromJust
       |> Utils.fromJust_ "guaranteed not to fail b/c of check in makeTriggers"
       |> fst |> Set.fromList in

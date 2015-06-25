@@ -150,6 +150,8 @@ fromOk_ = fromOk ""
 
 justGet k d = fromJust_ "Utils.justGet" <| Dict.get k d
 
+justGet_ s k d = fromJust_ ("Utils.justGet " ++ s) <| Dict.get k d
+
 head_ = fromJust_ "Utils.head_" << List.head
 tail_ = fromJust_ "Utils.tail_" << List.tail
 

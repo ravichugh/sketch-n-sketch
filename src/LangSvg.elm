@@ -421,6 +421,10 @@ zones = [
   , ("g", [])
   , ("text", [])
   , ("tspan", [])
+
+  -- symptom of the Sync.Dict0 type. see Sync.nodeToAttrLocs_.
+  , ("DUMMYTEXT", [])
+
   -- NOTE: these are computed in Sync.getZones
   -- , ("polygon", [])
   -- , ("polyline", [])
