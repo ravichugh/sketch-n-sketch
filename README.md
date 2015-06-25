@@ -86,7 +86,10 @@ users to freely mix between programmatic and direct manipulation.
 ```
   op0  ::=  pi
   op1  ::=  cos | sin | arccos | arcsin
-  op2  ::=  + | - | * | / | < | =
+        |   floor | ceiling
+        |   toString
+  op2  ::=  + | - | * | /
+        |   < | =
 ```
 
 ### Conditionals

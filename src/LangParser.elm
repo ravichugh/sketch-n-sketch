@@ -149,7 +149,8 @@ parseIdent =
     P.return (String.fromList (c::cs))
 
 parseStrLit =
-  let pred c = isAlphaNumeric c || List.member c (String.toList "#., -():") in
+  -- TODO issue with spaces in strlits...
+  let pred c = isAlphaNumeric c || List.member c (String.toList "#., -():=") in
   delimit "'" "'" (String.fromList <$> P.many (P.satisfy pred))
 
 oneWhite : P.Parser ()
@@ -323,6 +324,9 @@ parseUOp =
   <++ (always Sin     <$> token_ "sin")
   <++ (always ArcCos  <$> token_ "arccos")
   <++ (always ArcSin  <$> token_ "arcsin")
+  <++ (always Floor   <$> token_ "floor")
+  <++ (always Ceil    <$> token_ "ceiling")
+  <++ (always ToStr   <$> token_ "toString")
 
 parseConst =
   parens <|

@@ -114,6 +114,9 @@ evalOp env op es =
         Div   -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Lt    -> vBool  (i < j)
         Eq    -> vBool  (i == j)
+    [VBase (String s1), VBase (String s2)] ->
+      case op of
+        Plus  -> VBase (String (s1 ++ s2))
     [] ->
       case op of
         Pi    -> VConst (pi, TrOp op [])
@@ -123,6 +126,9 @@ evalOp env op es =
         Sin    -> VConst (sin n, TrOp op [t])
         ArcCos -> VConst (acos n, TrOp op [t])
         ArcSin -> VConst (asin n, TrOp op [t])
+        Floor  -> VConst (toFloat <| floor n, TrOp op [t])
+        Ceil   -> VConst (toFloat <| ceiling n, TrOp op [t])
+        ToStr  -> VBase (String (toString n))
 
 evalBranches env v =
   List.foldl (\(p,e) acc ->

@@ -93,7 +93,7 @@ sliders = "
   ;
   ; The ni constants get adjusted by the sliders,
   ; and then clamped to fit within the [min, max] range.
-  ; Try editing the min and max constants.
+  ; Also try changing the min and max constants below.
   ;
   (let [min max] [0! 10!]
   (let [n1 n2 n3 n4] [5 5 5 5]
@@ -132,15 +132,21 @@ sliders = "
   ; TODO y (resp x) needs to be thawed in s1/s2 (resp s3/s4)
   ;      until change to loc-mappings...
   ;
-  (let s1 (hSlider false 30! 230! 30 min max n1)
-  (let s2 (hSlider true 30! 230! 60 min max n2)
-  (let s3 (vSlider false 100! 300 80 min max n3)
-  (let s4 (vSlider true 100! 300 180 min max n4)
-  (let sliders (foldl append nil [s1 s2 s3 s4])
+  (let sliders
+    (let s1 (hSlider false 30! 230! 30 min max n1)
+    (let s2 (hSlider true 30! 230! 60 min max n2)
+    (let s3 (vSlider false 100! 300 80 min max n3)
+    (let s4 (vSlider true 100! 300 180 min max n4)
+      (foldl append nil [s1 s2 s3 s4])))))
   ;
-  (let displays []
+  (let displays
+    (let t1 (text 300 100 (+ 'm1=' (toString m1)))
+    (let t2 (text 300 120 (+ 'm2=' (toString m2)))
+    (let t3 (text 300 140 (+ 'm3=' (toString m3)))
+    (let t4 (text 300 160 (+ 'm4=' (toString m4)))
+      [t1 t2 t3 t4]))))
   ;
-    (svg (append sliders displays)))))))))))))
+    (svg (append sliders displays)))))))))
 "
 
 examples =
