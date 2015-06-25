@@ -81,6 +81,9 @@ src = "
 
 (let clamp (\\(i j n) (if (< n i) i (if (< j n) j n)))
 
+(let joinStrings (\\(sep ss)
+  (foldr (\\(str acc) (if (= acc '') str (+ str (+ sep acc)))) '' ss))
+
 ;
 ; SVG Manipulating Functions
 ;
@@ -135,7 +138,12 @@ src = "
   [shapeKind (snoc newAttr oldAttrs) children])
 
 (let svg (\\shapes ['svg' [] shapes])
-  
+(let svgViewBox (\\(xMax yMax shapes)
+  (let [sx sy] [(toString xMax) (toString yMax)]
+  ['svg'
+    [['x' '0'] ['y' '0'] ['viewBox' (joinStrings ' ' ['0' '0' sx sy])]]
+    shapes]))
+
 (let circle_    (circle 'red')
 (let ellipse_   (ellipse 'orange')
 (let rect_      (rect '#999999')
@@ -198,6 +206,6 @@ src = "
 
 (let hSlider (hSlider_ true)
 
-0))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+0))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
 "

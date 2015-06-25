@@ -117,6 +117,7 @@ evalOp env op es =
     [VBase (String s1), VBase (String s2)] ->
       case op of
         Plus  -> VBase (String (s1 ++ s2))
+        Eq    -> vBool (s1 == s2)
     [] ->
       case op of
         Pi    -> VConst (pi, TrOp op [])
