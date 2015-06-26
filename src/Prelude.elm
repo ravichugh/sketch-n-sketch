@@ -144,6 +144,12 @@ src = "
     [['x' '0'] ['y' '0'] ['viewBox' (joinStrings ' ' ['0' '0' sx sy])]]
     shapes]))
 
+(let rectCenter (\\(fill cx cy w h)
+  (rect fill (- cx (/ w 2)) (- cy (/ h 2)) w h))
+
+(let square (\\(fill x y w) (rect fill x y w w))
+(let squareCenter (\\(fill cx cy w) (rectCenter fill cx cy w w))
+
 (let circle_    (circle 'red')
 (let ellipse_   (ellipse 'orange')
 (let rect_      (rect '#999999')
@@ -174,6 +180,19 @@ src = "
 ; \"constant folding\"
 (let twoPi (* 2 (pi))
 (let halfPi (/ (pi) 2)
+
+; TODO explain coordinate system for these functions
+
+(let nPointsOnUnitCircle (\\(n rot)
+  (let off (- halfPi rot)
+  (let foo (\\i
+    (let ang (+ off (* (/ i n) twoPi))
+    [(cos ang) (neg (sin ang))]))
+  (map foo (list0N (- n 1))))))
+
+(let nPointsOnCircle (\\(n rot cx cy r)
+  (let pts (nPointsOnUnitCircle n rot)
+  (map (\\[x y] [(+ cx (* x r)) (+ cy (* y r))]) pts)))
 
 (let nStar (\\(fill stroke w n len1 len2 rot cx cy)
   (let pti (\\[i len]
@@ -206,6 +225,6 @@ src = "
 
 (let hSlider (hSlider_ true)
 
-0))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+0)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
 "

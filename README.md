@@ -177,3 +177,16 @@ TODO explain attrs for different shapes
 See [`Prelude.elm`][Prelude] for a small library of SVG-manipulating functions.
 
 [Prelude]: https://github.com/ravichugh/sketch-n-sketch/blob/master/src/Prelude.elm
+
+## Little "REPL"
+
+```
+ % elm-repl
+Elm REPL 0.4 (Elm Platform 0.15)
+...
+> import Eval exposing (parseAndRun)
+> parseAndRun "(+ 'hello ' 'world')"
+"'hello world'" : String
+> parseAndRun "(list0N 10)"
+"[0 1 2 3 4 5 6 7 8 9 10]" : String
+```

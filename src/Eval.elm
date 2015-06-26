@@ -152,6 +152,10 @@ evalDelta op is =
     (ArcCos, [n])   -> acos n
     (ArcSin, [n])   -> asin n
     (Pi,     [])    -> pi
+    (Floor,  [n])   -> toFloat <| floor n
+    (Ceil,   [n])   -> toFloat <| ceiling n
+    (Round,  [n])   -> toFloat <| round n
+    _               -> Debug.crash <| "Eval.evalDelta " ++ strOp op
 
 run : Exp -> Val
 run e =

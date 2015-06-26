@@ -114,8 +114,27 @@ polygons = "
 "
 
 stars = "
-  ; TODO stars, based on test48
-  (svg [])
+  ;
+  (let nStar (\\(fill stroke w n len1 len2 rot cx cy)
+    (let pti (\\[i len]
+      (let anglei (+ (- (/ (* i (pi)) n) rot) halfPi)
+      (let xi (+ cx (* len (cos anglei)))
+      (let yi (+ cy (neg (* len (sin anglei))))
+        [xi yi]))))
+    (let lengths
+      (map (\\b (if b len1 len2))
+           (concat (repeat n [true false])))
+    (let indices (list0N (- (* 2! n) 1!))
+      (polygon fill stroke w (map pti (zip indices lengths)))))))
+  ;
+  (let [x0 y0 sep ni nj] [100 100 100 3! 7!]
+  (let [outerLen innerLen] [50 20]
+  (let iStar (\\i
+     (let off (mult (- i ni) sep)
+     (let [xi yi] [(+ x0 off) (+ y0 off)]
+     (nStar 'goldenrod' 'black' 3 i outerLen innerLen 0! xi yi))))
+  ;
+  (svg (map iStar (range ni nj)))))))
 "
 
 sliders = "
@@ -341,9 +360,18 @@ ferris = "
   (let sliders (concat [s1 s2 s3])
   (let wheel
     (let [cx cy] [220! 300!]
-    (let rim (ring 'darkgray' 8! cx cy spokeLen)
-    (let frame (nStar 'goldenrod' 'goldenrod' 0 numSpokes spokeLen 8 rotAngle cx cy)
-    [frame rim])))
+    (let rim [(ring 'darkgray' 8! cx cy spokeLen)]
+    (let center [(circle 'black' cx cy 20!)]
+    (let frame [(nStar 'goldenrod' 'darkgray' 3! numSpokes spokeLen 0! rotAngle cx cy)]
+    (let spokePts (nPointsOnCircle numSpokes rotAngle cx cy spokeLen)
+    (let caps (map (\\[x y] (circle 'black' x y 7!)) spokePts)
+    (let cars
+      (let wCar 30!
+      (let wHalfCar (/ wCar 2!)
+      (map (\\[x y] (squareCenter 'lightgray' x y wCar)) spokePts)))
+    (concat [rim center frame]))))))))
+    ; TODO dynamically generating shapes...
+    ; (concat [rim cars frame caps])))))))
   ;
   (svg (append sliders wheel))))))))
 "
