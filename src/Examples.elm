@@ -427,6 +427,20 @@ activeTrans = "
   (svg [groupBox grayPath greenPath]))))))))
 "
 
+rgba = "
+  (let [r_ g_ b_ a_] [22 74 237 0.5]
+  ;
+  (let [r s1] (hSlider true 20! 420! 20! 0! 255! r_)
+  (let [g s2] (hSlider true 20! 420! 50! 0! 255! g_)
+  (let [b s3] (hSlider true 20! 420! 80! 0! 255! b_)
+  (let [a s4] (hSlider false 20! 420! 110! 0.0! 1.0! a_)
+  ;
+  (let ball (circle [r g b a] 220! 300! 100!)
+  (let sliders (concat [s1 s2 s3 s4])
+  ;
+    (svg (cons ball sliders)))))))))
+"
+
 --------------------------------------------------------------------------------
 
 todo = "
@@ -448,6 +462,7 @@ examples =
   , makeExample "Polygons" polygons
   , makeExample "Stars" stars
   , makeExample "Sliders" sliders
+  , makeExample "Color Picker" rgba
   , makeExample "US-13 Flag" usFlag13
   , makeExample "US-50 Flag" usFlag50
   , makeExample "French Sudan Flag" frenchSudan
