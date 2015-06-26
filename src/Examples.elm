@@ -219,26 +219,28 @@ frenchSudan = "
 "
 
 usFlag50 = "
-    (let [x0 y0 ni nj pts w h rad] [108 20 0! 12! 5! 500 20 6]
-    (let block (rect '#09096d' x0 y0 (* w (/ 2! 5!)) (* 7! h))
+    (let [x0 y0 ni nj pts w h rad] [108 20 0! 12! 5! 510 272 6]
+    (let hstripe (/ h 13!)
+    (let block (rect '#09096d' x0 y0 (* w (/ 2! 5!)) (* 7! hstripe))
     (let stripes
       (map
-        (\\i (rect 'red' x0 (+ y0 (* i h)) w h))
+        (\\i (rect 'red' x0 (+ y0 (* i hstripe)) w hstripe))
         [0! 2! 4! 6! 8! 10! 12!])
     (let base (append stripes [block])
-      (svg 
+      (svg
+        (cons (rect 'white' (- x0 10) (- y0 10) (+ w 20) (+ h 20)) 
         (append
           base
           (map
             (\\[i j]
               (let xsep (/ w 15!)
-              (let ysep (* h 1.3)
+              (let ysep (* hstripe 1.3)
                 (circle
                   'white'
                   (+ x0 (* i xsep))
                   (+ y0 (* j ysep))
                   rad))))
-          (append (cartProd (range 0.5 5.5) (range 0.75 4.75)) (cartProd (range 1 5) (range 1.2 4.2))))))))))
+          (append (cartProd (range 0.5 5.5) (range 0.75 4.75)) (cartProd (range 1 5) (range 1.2 4.2))))))))))))
 "
 
 usFlag13 ="
@@ -260,8 +262,9 @@ usFlag13 ="
       (let indices (list0N  (- (* 2! n) 1!))
         (polygon 'white' 'DUMMY' 0 (map pti (zip indices lengths)))))))
     (let rotate (\\a (/ (* (+ 9! a) (pi)) 6!))
-    (let [x0 y0 ni nj pts w h] [108 20 0! 12! 5! 500 20]
-    (let [blockw blockh] [(/ w 3!) (* 7! h)]
+    (let [x0 y0 ni nj pts w h] [108 20 0! 12! 5! 500 260]
+    (let hstripe (/ h 13!)
+    (let [blockw blockh] [(/ w 3!) (* 7! hstripe)]
     (let min
       (if (< blockw blockh)
         (* 0.4! blockw)
@@ -270,10 +273,11 @@ usFlag13 ="
     (let block (rect '#09096d' x0 y0 blockw blockh)
     (let stripes
       (map
-        (\\i (rect 'red' x0 (+ y0 (* i h)) w h))
+        (\\i (rect 'red' x0 (+ y0 (* i hstripe)) w hstripe))
         [0! 2! 4! 6! 8! 10! 12!])
     (let base (append stripes [block])
-      (svg 
+      (svg
+        (cons (rect 'white' (- x0 10) (- y0 10) (+ w 20) (+ h 20))
         (append
           base
           (map
@@ -281,11 +285,11 @@ usFlag13 ="
                 (nstar
                   pts
                   (+ (+ x0 (/ w 6!)) (* min (cos (rotate  i))))
-                  (+ (+ y0 (* h 3.5!)) (* min (sin (rotate  i))))
+                  (+ (+ y0 (* hstripe 3.5!)) (* min (sin (rotate  i))))
                   outerLen
                   innerLen
                   (rotate  i)))
-          (range ni nj)))))))))))))
+          (range ni nj)))))))))))))))
 "
 
 flw1 = "
@@ -327,7 +331,50 @@ flw1 = "
                [(xoff  6) (yoff  7) (/ (+ w h) 4)]
                [(xoff  6) (yoff  5) (/ (+ w h) 2)]]))))))))))))
 "
-
+chicago = "
+  ;
+  ; The Flag of Chicago
+  ;
+  (let nstar
+    (\\(n cx cy len1 len2 rot)
+      (let pti
+        (\\[i len]
+          (let anglei (+ rot (/ (* i (pi)) n))
+          (let xi (+ cx (* len (cos anglei)))
+          (let yi (+ cy (* len (sin anglei)))
+            [xi yi]))))
+      (let lengths
+        (map
+          (\\b
+            (if b
+              len1
+              len2))
+          (concat  (repeat n [true false])))
+      (let indices (list0N  (- (* 2! n) 1!))
+        (polygon 'red' 'DUMMY' 0 (map pti (zip indices lengths)))))))
+    (let upright (/ (* 3! (pi)) 2!)
+    (let [x0 y0 ni nj pts w h] [108 113 0.5! 3.5! 6! 454 300]
+    (let [outerLen innerLen] [30 12]
+    (let stripes
+      (map
+        (\\i
+          (rect
+            'lightblue'
+            x0
+            (+ y0 (* i h))
+            w
+            (/ h 6!)))
+        [(/ 1! 6!) (/ 2! 3!)])
+      (svg 
+        (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!))
+        (append
+          stripes
+          (map
+            (\\i
+              (let off (* i (/ w 4!))
+                (nstar pts (+ x0 off) (+ y0 (/ h 2!)) outerLen innerLen upright)))
+            (range ni nj))))))))))
+"
 ferris = "
   ;
   ; Take this ferris wheel for a spin!
@@ -370,6 +417,7 @@ examples =
   , makeExample "Sliders" sliders
   , makeExample "US-13 Flag" usFlag13
   , makeExample "US-50 Flag" usFlag50
+  , makeExample "Chicago Flag" chicago
   , makeExample "French Sudan Flag" frenchSudan
   , makeExample "Frank Lloyd Wright" flw1
   , makeExample "Ferris Wheel" ferris

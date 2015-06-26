@@ -629,26 +629,27 @@ test51 () =
       (let indices (list0N  (- (* 2! n) 1!))
         (polygon 'red' 'DUMMY' 0 (map pti (zip indices lengths)))))))
     (let upright (/ (* 3! (pi)) 2!)
-    (let [x0 y0 space sep ni nj pts lstripe wstripe] [108 113 454! 145 0! 3! 6! 50 60]
-    (let [outerLen innerLen] [50 20]
+    (let [x0 y0 ni nj pts w h] [108 113 0.5! 3.5! 6! 454 300]
+    (let [outerLen innerLen] [30 12]
     (let stripes
       (map
         (\\i
           (rect
             'lightblue'
-            lstripe
-            (* y0 i)
-            (+ x0 space)
-            wstripe))
-        [1! 3!])
+            x0
+            (+ y0 (* i h))
+            w
+            (/ h 6!)))
+        [(/ 1! 6!) (/ 2! 3!)])
       (svg 
+        (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!))
         (append
           stripes
           (map
             (\\i
-              (let off (* i sep)
-                (nstar pts (+ x0 off) (+ y0 sep) outerLen innerLen upright)))
-            (range ni nj)))))))))"
+              (let off (* i (/ w 4!))
+                (nstar pts (+ x0 off) (+ y0 (/ h 2!)) outerLen innerLen upright)))
+            (range ni nj))))))))))"
     "[]"
 
 --Frank Lloyd Wright Initial, possibility for topographical maps example?
