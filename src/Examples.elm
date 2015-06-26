@@ -81,8 +81,7 @@ elmLogo = "
   ; is still useful; toggle the Zones option to see.
   ;
   (let foo (\\(color pts) (polygon color 'black' 0 pts))
-  [ 'svg' [['x' '0'] ['y' '0'] ['viewBox' '0 0 323.141 322.95']]
-    [
+  (svgViewBox 323.141 322.95 [
     (foo '#F0AD00' [[161 152] [231 82] [91 82]])
     (foo '#7FD13B' [[8 0] [79 70] [232 70] [161 0]])
     (addAttr
@@ -92,8 +91,7 @@ elmLogo = "
     (foo '#5A6378' [[152 161] [0 8] [0 314]])
     (foo '#F0AD00' [[255 246] [323 314] [323 178]])
     (foo '#60B5CC' [[161 170] [8 323] [314 323]])
-    ]
-  ])
+  ]))
 "
 
 rings = "
