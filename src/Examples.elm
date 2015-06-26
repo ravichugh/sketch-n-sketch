@@ -374,6 +374,59 @@ ferris = "
   (svg (append sliders wheel))))))))
 "
 
+activeTrans = "
+  ;
+  ; Logo based on Active Transportation Alliance (http://activetrans.org/)
+  ;
+  ; TODO points, curves, stretchable skyline
+  ;
+  (let grayPts
+    [[75 497]
+     [33 414]
+     [33 153]
+     [53 128]
+     [82 135]
+     [83 160]
+     [114 149]
+     [113 98]
+     [143 82]
+     [158 101]
+     [160 46]
+     [194 23]
+     [221 56]
+     [227 222]
+     [245 224]
+     [246 181]
+     [288 156]
+     [286 113]
+     [320 88]
+     [374 106]
+     [375 155]
+     [397 136]
+     [424 145]
+     [425 207]]
+  ;
+  (let greenPts [[490 470] [264 626] [167 538] [445 252] [486 258]]
+  ;
+  (let [xOff yOff] [0 0]
+  (let groupBox (rect 'transparent' xOff yOff 500! 700!)
+  ;
+  ; TODO for both lists of points, the only curve will be between
+  ; the first two points
+  (let makePath (\\(color pts)
+    (let offsetPts (map (\\[x y] [(+ x xOff) (+ y yOff)]) pts)
+    (let [[x0 y0] | rest] offsetPts
+    (let commands
+      (append
+        ['M' x0 y0]
+        (foldr (\\([xi yi] acc) (append ['L' xi yi] acc)) ['Z'] rest))
+    (path color 'black' 0 commands)))))
+  ;
+  (let grayPath (makePath '#505050' grayPts)
+  (let greenPath (makePath '#66CC66' greenPts)
+  (svg [groupBox grayPath greenPath]))))))))
+"
+
 --------------------------------------------------------------------------------
 
 todo = "
@@ -390,6 +443,7 @@ examples =
   , makeExample "6 Boxes B" sixBoxesB
   , makeExample "Logo" logo
   , makeExample "Elm Logo" elmLogo
+  , makeExample "Active Trans Logo" activeTrans
   , makeExample "Rings" rings
   , makeExample "Polygons" polygons
   , makeExample "Stars" stars
