@@ -845,3 +845,195 @@ Building a slider bar that can be used to toggle other parameters
           [[(xoff  6) (yoff  1.75) (+ w h)]
            [(xoff  6) (yoff  7) (/ (+ w h) 4)]
            [(xoff  6) (yoff  5) (/ (+ w h) 2)]]))))))))))))
+
+(let nstar
+    (\\(n cx cy len1 len2 rot)
+      (let pti
+        (\\[i len]
+          (let anglei (+ rot (/ (* i (pi)) n))
+          (let xi (+ cx (* len (cos anglei)))
+          (let yi (+ cy (* len (sin anglei)))
+            [xi yi]))))
+      (let lengths
+        (map
+          (\\b
+            (if b
+              len1
+              len2))
+          (concat  (repeat n [true false])))
+      (let indices (list0N  (- (* 2! n) 1!))
+        (polygon 'white' 'DUMMY' 0 (map pti (zip indices lengths)))))))
+    (let rotate (\\a (/ (* (+ 9! a) (pi)) 6!))
+    (let [x0 y0 ni nj pts w h] [108 20 0! 12! 5! 500 260]
+    (let hstripe (/ h 13!)
+    (let [blockw blockh] [(/ w 3!) (* 7! hstripe)]
+    (let min
+      (if (< blockw blockh)
+        (* 0.4! blockw)
+        (* 0.4! blockh))
+    (let [outerLen innerLen] [10 4]
+    (let block (rect '#09096d' x0 y0 blockw blockh)
+    (let stripes
+      (map
+        (\\i (rect 'red' x0 (+ y0 (* i hstripe)) w hstripe))
+        [0! 2! 4! 6! 8! 10! 12!])
+    (let base (append stripes [block])
+      (svg
+        (cons (rect 'white' (- x0 10) (- y0 10) (+ w 15) (+ h 15))
+        (append
+          base
+          (map
+            (\\i
+                (nstar
+                  pts
+                  (+ (+ x0 (/ w 6!)) (* min (cos (rotate  i))))
+                  (+ (+ y0 (* hstripe 3.5!)) (* min (sin (rotate  i))))
+                  outerLen
+                  innerLen
+                  (rotate  i)))
+          (range ni nj)))))))))))))))
+
+(let [x0 y0 ni nj pts w h rad] [108 20 0! 12! 5! 500 200 6]
+    (let hstripe (/ h 13!)
+    (let block (rect '#09096d' x0 y0 (* w (/ 2! 5!)) (* 7! hstripe))
+    (let stripes
+      (map
+        (\\i (rect 'red' x0 (+ y0 (* i hstripe)) w hstripe))
+        [0! 2! 4! 6! 8! 10! 12!])
+    (let base (append stripes [block])
+      (svg
+        (cons (rect 'white' (- x0 10) (- y0 10) (+ w 20) (+ h 20)) 
+        (append
+          base
+          (map
+            (\\[i j]
+              (let xsep (/ w 15!)
+              (let ysep (* hstripe 1.3)
+                (circle
+                  'white'
+                  (+ x0 (* i xsep))
+                  (+ y0 (* j ysep))
+                  rad))))
+          (append (cartProd (range 0.5 5.5) (range 0.75 4.75)) (cartProd (range 1 5) (range 1.2 4.2)))))))))))
+
+(let nstar
+    (\\(n cx cy len1 len2 rot)
+      (let pti
+        (\\[i len]
+          (let anglei (+ rot (/ (* i (pi)) n))
+          (let xi (+ cx (* len (cos anglei)))
+          (let yi (+ cy (* len (sin anglei)))
+            [xi yi]))))
+      (let lengths
+        (map
+          (\\b
+            (if b
+              len1
+              len2))
+          (concat  (repeat n [true false])))
+      (let indices (list0N  (- (* 2! n) 1!))
+        (polygon 'red' 'DUMMY' 0 (map pti (zip indices lengths)))))))
+    (let upright (/ (* 3! (pi)) 2!)
+    (let [x0 y0 space sep ni nj pts w h] [108 113 145 0! 3! 6! 454 250]
+    (let [outerLen innerLen] [25 10]
+    (let stripes
+      (map
+        (\\i
+          (rect
+            'lightblue'
+            x0
+            (* y0 i)
+            w
+            (/ h 5!)))
+        [1! 3!])
+      (svg 
+        (append
+          stripes
+          (map
+            (\\i
+              (let off (* i sep)
+                (nstar pts (+ x0 off) (+ y0 sep) outerLen innerLen upright)))
+            (range ni nj)))))))))
+
+
+  ;
+  ; A piechart
+  ;
+  (let [percent1_ percent2_ percent3_] [60 20 10]
+  (let [percent1 s1] (hSlider true 20! 420! 20! 0! 100! percent1_)
+  (let [percent2 s2] (hSlider true 20! 420! 50! 0! 100! percent2_)
+  (let [percent3 s3] (hSlider true 20! 420! 80! 0! 100! percent3_)
+  ;
+  (let sliders (concat [s1 s2 s3])
+  (let pToAngle (\\p (* 360! (/ p 100!)))
+  (let pToRadian
+    (\\a
+      (* (/ (pi) 180!) (pToAngle a)))
+  (let pie
+    (let [cx cy r] [220! 300! 175]
+    (let slice (\\(rad ang) [(* rad (cos ang)) (* rad (sin ang))])
+    (let angles (map (\\p [r (pToRadian p)]) [percent1_ (+ percent1_ percent2_) (+ percent1_ (+ percent2_ percent3_))])
+    (let [[x1 y1] [x2 y2] [x3 y3]] (map slice angles)
+    (let wedge1 (path 'green' 'grey' 2 ['M' x1 y1 'A' 45 45 0 0 0 x2 y2 'L' cx cy 'Z'])
+    (let wedge2 (path 'green' 'grey' 2 ['M' x2 y2 'A' 45 45 0 0 0 x3 y3 'L' cx cy 'Z'])
+    (let wedge2 (path 'green' 'grey' 2 ['M' x3 y3 'A' 45 45 0 0 0 x1 y1 'L' cx cy 'Z'])
+    [wedge1 wedge2 wedge3])))))))
+  ;
+  (svg (append sliders pie))))))))))
+
+  ;
+  ; A piechart
+  ;
+  (let [percent1_ percent2_ percent3_] [60 20 10]
+  (let [percent1 s1] (hSlider true 20! 420! 20! 0! 100! percent1_)
+  (let [percent2 s2] (hSlider true 20! 420! 50! 0! 100! percent2_)
+  (let [percent3 s3] (hSlider true 20! 420! 80! 0! 100! percent3_)
+  ;
+  (let sliders (concat [s1 s2 s3])
+  (let pToRadian
+    (\\p
+      (* (/ (pi) 180!) (* 360! (/ p 100!))))
+  (let pie
+    (let [cx cy r] [220! 300! 175]
+    (let polarcoords (map (\\p [r (pToRadian p)]) [percent1 (+ percent1 percent2) (+ percent1 (+ percent2 percent3))])
+    (let slice (\\[rad ang] [(* rad (cos ang)) (* rad (sin ang))])
+    (let [[x1 y1] [x2 y2] [x3 y3]] (map slice polarcoords)
+    (let wedge1 (path 'green' 'grey' 2 ['M' x1 y1 'A' 45 45 0 0 0 x2 y2 'L' cx cy 'Z'])
+    (let wedge2 (path 'yellow' 'grey' 2 ['M' x2 y2 'A' 45 45 0 0 0 x3 y3 'L' cx cy 'Z'])
+    (let wedge3 (path 'lightblue' 'grey' 2 ['M' x3 y3 'A' 45 45 0 0 0 x1 y1 'L' cx cy 'Z'])
+    [wedge1 wedge2 wedge3])))))))
+  ;
+  (svg (append sliders pie)))))))))
+
+--works
+    (let [percent1_ percent2_ percent3_] [60 20 10]
+  (let [percent1 s1] (hSlider true 20! 420! 20! 0! 100! percent1_)
+  (let [percent2 s2] (hSlider true 20! 420! 50! 0! 100! percent2_)
+  (let [percent3 s3] (hSlider true 20! 420! 80! 0! 100! percent3_)
+  ;
+  (let sliders (concat [s1 s2 s3])
+  (let pToRadian
+    (\\p
+      (* (/ (pi) 180!) (* 360! (/ p 100!))))
+  ;
+  (svg sliders)))))))
+
+--doesn't work
+  (let [percent1_ percent2_ percent3_] [60 20 10]
+  (let [percent1 s1] (hSlider true 20! 420! 20! 0! 100! percent1_)
+  (let [percent2 s2] (hSlider true 20! 420! 50! 0! 100! percent2_)
+  (let [percent3 s3] (hSlider true 20! 420! 80! 0! 100! percent3_)
+  ;
+  (let sliders (concat [s1 s2 s3])
+  (let pie
+    (let [cx cy r] [220! 300! 175]
+    (let pToRadian (\\p (* (/ (pi) 180!) (* 360! (/ p 100!))))
+    (let polarcoords (map (\\p [r (pToRadian p)]) [percent1 (+ percent1 percent2) (+ percent1 (+ percent2 percent3))])
+    (let slice (\\(rad ang) [(* rad (cos ang)) (* rad (sin ang))])
+    (let [[x1 y1] [x2 y2] [x3 y3]] (map slice polarcoords)
+    (let wedge1 (path 'green' 'grey' 2 ['M' x1 y1 'A' 45 45 0 0 0 x2 y2 'L' cx cy 'Z'])
+    (let wedge2 (path 'yellow' 'grey' 2 ['M' x2 y2 'A' 45 45 0 0 0 x3 y3 'L' cx cy 'Z'])
+    (let wedge3 (path 'lightblue' 'grey' 2 ['M' x3 y3 'A' 45 45 0 0 0 x1 y1 'L' cx cy 'Z'])
+    [wedge1 wedge2 wedge3]))))))))
+  ;
+  (svg (append sliders pie))))))))

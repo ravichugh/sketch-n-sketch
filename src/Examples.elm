@@ -192,6 +192,9 @@ sliders = "
 "
 
 clique = "
+  ;
+  ; A six node clique
+  ;
   (let node (\\[x y] (circle 'lightblue' x y 20))
   (let edge (\\[[x y] [i j]] (line 'lightgreen' 5 x y i j))
   (letrec genpairs
@@ -208,22 +211,27 @@ clique = "
 "
 
 frenchSudan = "
-    (let [x0 y0 w h] [50 30 150 300]
-    (let xoff (+ x0 w)
-    (let yoff (+ y0 (/ h 4))
-    (let stripe (\\[color x] (rect color x y0 w h))
+    ;
+    ; The Flag of French Sudan
+    ;
+    (let [x0 y0 w h] [50 30 450 300]
+    (let wstripe (/ w 3!)
+    (let xoff (+ x0 wstripe)
+    (let yoff (+ y0 (/ h 4!))
+    (let stripe (\\[color x] (rect color x y0 wstripe h))
     (let minrad
-      (if (< (/ w 7.5!) (/ h 15!))
-        (/ w 7.5!)
+      (if (< (/ wstripe 7.5!) (/ h 15!))
+        (/ wstripe 7.5!)
         (/ h 15!))
-    (let figline (\\[[a b] [c d]] (line 'black' (/ minrad 2) a b c d))
-    (let [x1 x2 x3] (map (\\n (+ x0 (* w n))) [1.2 1.5 1.8])
-    (let [y1 y2 y3 y4] (map (\\n (+ y0 (/ h n))) [4.3 2.8 1.9 1.4])
-      (svg 
+    (let figline (\\[[a b] [c d]] (line 'black' (/ minrad 2!) a b c d))
+    (let [x1 x2 x3] (map (\\n (+ x0 (* wstripe n))) [1.2! 1.5! 1.8!])
+    (let [y1 y2 y3 y4] (map (\\n (+ y0 (/ h n))) [4.3! 2.8! 1.9! 1.4!])
+      (svg
+        (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!)) 
         (append
-          (map stripe [['blue' x0] ['white' (+ x0 w)] ['red' (+ x0 (* 2 w))]])
+          (map stripe [['blue' x0] ['white' (+ x0 wstripe)] ['red' (+ x0 (* 2! wstripe))]])
           (snoc
-            (ellipse 'black' x2 y1 (/ w 7.5!) (/ h 15!))
+            (ellipse 'black' x2 y1 (/ wstripe 7.5!) (/ h 15!))
             (map
               figline
               [[[x1 y1] [x1 y2]]
@@ -232,33 +240,41 @@ frenchSudan = "
                [[x1 y4] [x1 y3]]
                [[x1 y3] [x3 y3]]
                [[x3 y3] [x3 y4]]
-               [[x2 y1] [x2 y3]]]))))))))))))
+               [[x2 y1] [x2 y3]]]))))))))))))))
 "
 
 usFlag50 = "
-    (let [x0 y0 ni nj pts w h rad] [108 20 0! 12! 5! 500 20 6]
-    (let block (rect '#09096d' x0 y0 (* w (/ 2! 5!)) (* 7! h))
+    ;
+    ; Current Flag of the United States
+    ;
+    (let [x0 y0 ni nj pts w h rad] [108 20 0! 12! 5! 510 272 6]
+    (let hstripe (/ h 13!)
+    (let block (rect '#09096d' x0 y0 (* w (/ 2! 5!)) (* 7! hstripe))
     (let stripes
       (map
-        (\\i (rect 'red' x0 (+ y0 (* i h)) w h))
+        (\\i (rect 'red' x0 (+ y0 (* i hstripe)) w hstripe))
         [0! 2! 4! 6! 8! 10! 12!])
     (let base (append stripes [block])
-      (svg 
+      (svg
+        (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!)) 
         (append
           base
           (map
             (\\[i j]
               (let xsep (/ w 15!)
-              (let ysep (* h 1.3)
+              (let ysep (* hstripe 1.3!)
                 (circle
                   'white'
                   (+ x0 (* i xsep))
                   (+ y0 (* j ysep))
                   rad))))
-          (append (cartProd (range 0.5 5.5) (range 0.75 4.75)) (cartProd (range 1 5) (range 1.2 4.2))))))))))
+          (append (cartProd (range 0.5! 5.5!) (range 0.75! 4.75!)) (cartProd (range 1! 5!) (range 1.2! 4.2!))))))))))))
 "
 
 usFlag13 ="
+    ;
+    ; Original flag of the United States
+    ;
     (let nstar
     (\\(n cx cy len1 len2 rot)
       (let pti
@@ -277,8 +293,9 @@ usFlag13 ="
       (let indices (list0N  (- (* 2! n) 1!))
         (polygon 'white' 'DUMMY' 0 (map pti (zip indices lengths)))))))
     (let rotate (\\a (/ (* (+ 9! a) (pi)) 6!))
-    (let [x0 y0 ni nj pts w h] [108 20 0! 12! 5! 500 20]
-    (let [blockw blockh] [(/ w 3!) (* 7! h)]
+    (let [x0 y0 ni nj pts w h] [108 20 0! 12! 5! 500 260]
+    (let hstripe (/ h 13!)
+    (let [blockw blockh] [(/ w 3!) (* 7! hstripe)]
     (let min
       (if (< blockw blockh)
         (* 0.4! blockw)
@@ -287,10 +304,11 @@ usFlag13 ="
     (let block (rect '#09096d' x0 y0 blockw blockh)
     (let stripes
       (map
-        (\\i (rect 'red' x0 (+ y0 (* i h)) w h))
+        (\\i (rect 'red' x0 (+ y0 (* i hstripe)) w hstripe))
         [0! 2! 4! 6! 8! 10! 12!])
     (let base (append stripes [block])
-      (svg 
+      (svg
+        (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!))
         (append
           base
           (map
@@ -298,17 +316,22 @@ usFlag13 ="
                 (nstar
                   pts
                   (+ (+ x0 (/ w 6!)) (* min (cos (rotate  i))))
-                  (+ (+ y0 (* h 3.5!)) (* min (sin (rotate  i))))
+                  (+ (+ y0 (* hstripe 3.5!)) (* min (sin (rotate  i))))
                   outerLen
                   innerLen
                   (rotate  i)))
-          (range ni nj)))))))))))))
+          (range ni nj)))))))))))))))
 "
 
 flw1 = "
-    (let [x0 y0 w h max] [69 55 53.2 74.4 10!]
-    (let xoff (\\n (+ x0 (* w n)))
-    (let yoff (\\n (+ y0 (* h n)))
+    ;
+    ; A Frank Lloyd Wright design based on
+    ;
+    (let [x0 y0 w h max] [69 55 532 744 10!]
+    (let wbox (/ w 10!)
+    (let hbox (/ h 10!)
+    (let xoff (\\n (+ x0 (* wbox n)))
+    (let yoff (\\n (+ y0 (* hbox n)))
     (let blkline (\\[[a b] [c d]] (line 'black' 3 a b c d))
     (let redpoly
       (\\[a b]
@@ -325,26 +348,70 @@ flw1 = "
     (let verticals
       (zip
         (map (\\n [(xoff  n) y0]) dimension)
-        (map (\\n [(xoff  n) (+ y0 (* h max))]) dimension))
+        (map (\\n [(xoff  n) (+ y0 (* hbox max))]) dimension))
     (let horizontals
       (zip
         (map (\\n [x0 (yoff  n)]) dimension)
-        (map (\\n [(+ x0 (* w max)) (yoff  n)]) dimension))
-      (svg 
+        (map (\\n [(+ x0 (* wbox max)) (yoff  n)]) dimension))
+      (svg
+        (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!)) 
         (append
           (map blkline (append verticals horizontals))
           (append
             (append
               (let [p0 p1 p2 p3 p4] [0 1 2 2.9 5]
                 (map redpoly [[p0 p1] [p1 p2] [p2 p3] [p3 p4]]))
-              (map (\\[x y] (ellipse 'blue' x y (* w 4) h)) [[(xoff  5) (yoff  9)]]))
+              (map (\\[x y] (ellipse 'blue' x y (* wbox 4) hbox)) [[(xoff  5) (yoff  9)]]))
             (map
               (\\[x y r] (circle 'yellow' x y r))
-              [[(xoff  6) (yoff  1.75) (+ w h)]
-               [(xoff  6) (yoff  7) (/ (+ w h) 4)]
-               [(xoff  6) (yoff  5) (/ (+ w h) 2)]]))))))))))))
+              [[(xoff  6) (yoff  1.75) (+ wbox hbox)]
+               [(xoff  6) (yoff  7) (/ (+ wbox hbox) 4)]
+               [(xoff  6) (yoff  5) (/ (+ wbox hbox) 2)]])))))))))))))))
 "
-
+chicago = "
+  ;
+  ; The flag of Chicago
+  ;
+  (let nstar
+    (\\(n cx cy len1 len2 rot)
+      (let pti
+        (\\[i len]
+          (let anglei (+ rot (/ (* i (pi)) n))
+          (let xi (+ cx (* len (cos anglei)))
+          (let yi (+ cy (* len (sin anglei)))
+            [xi yi]))))
+      (let lengths
+        (map
+          (\\b
+            (if b
+              len1
+              len2))
+          (concat  (repeat n [true false])))
+      (let indices (list0N  (- (* 2! n) 1!))
+        (polygon 'red' 'DUMMY' 0 (map pti (zip indices lengths)))))))
+    (let upright (/ (* 3! (pi)) 2!)
+    (let [x0 y0 ni nj pts w h] [108 113 0.5! 3.5! 6! 454 300]
+    (let [outerLen innerLen] [30 12]
+    (let stripes
+      (map
+        (\\i
+          (rect
+            'lightblue'
+            x0
+            (+ y0 (* i h))
+            w
+            (/ h 6!)))
+        [(/ 1! 6!) (/ 2! 3!)])
+      (svg 
+        (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!))
+        (append
+          stripes
+          (map
+            (\\i
+              (let off (* i (/ w 4!))
+                (nstar pts (+ x0 off) (+ y0 (/ h 2!)) outerLen innerLen upright)))
+            (range ni nj))))))))))
+"
 ferris = "
   ;
   ; Take this ferris wheel for a spin!
@@ -439,6 +506,31 @@ rgba = "
     (svg (cons ball sliders)))))))))
 "
 
+piechart = "
+  ;
+  ; A piechart
+  ; WARNING: wonky behavior
+  ;
+  (let [percent1_ percent2_ percent3_] [60 20 10]
+  (let [percent1 s1] (hSlider true 20! 420! 20! 0! 100! percent1_)
+  (let [percent2 s2] (hSlider true 20! 420! 50! 0! 100! percent2_)
+  (let [percent3 s3] (hSlider true 20! 420! 80! 0! 100! percent3_)
+  ;
+  (let sliders (concat [s1 s2 s3])
+  (let pie
+    (let [cx cy r] [220! 300! 175]
+    (let pToRadian (\\p (* (/ (pi) 180!) (* 360! (/ p 100!))))
+    (let polarcoords (map (\\a [r a]) (map pToRadian [percent1 (+ percent1 percent2) (+ percent1 (+ percent2 percent3))]))
+    (let slice (\\[rad ang] [(* rad (cos ang)) (* rad (sin ang))])
+    (let [[x1 y1] [x2 y2] [x3 y3]] (map slice polarcoords)
+    (let wedge1 (path 'green' 'grey' 2 ['M' (+ cx x1) (+ cy y1) 'A' 45 45 0 0 0 (+ cx x2) (+ cy y2) 'L' cx cy 'Z'])
+    (let wedge2 (path 'yellow' 'grey' 2 ['M' (+ cx x2) (+ cy y2) 'A' 45 45 0 0 0 (+ cx x3) (+ cy y3) 'L' cx cy 'Z'])
+    (let wedge3 (path 'lightblue' 'grey' 2 ['M' (+ cx x3) (+ cy y3) 'A' 45 45 0 0 0 (+ cx x1) (+ cy y1) 'L' cx cy 'Z'])
+    [wedge1 wedge2 wedge3]))))))))
+  ;
+  (svg (append sliders pie))))))))
+"
+
 --------------------------------------------------------------------------------
 
 todo = "
@@ -463,10 +555,12 @@ examples =
   , makeExample "Color Picker" rgba
   , makeExample "US-13 Flag" usFlag13
   , makeExample "US-50 Flag" usFlag50
+  , makeExample "Chicago Flag" chicago
   , makeExample "French Sudan Flag" frenchSudan
   , makeExample "Frank Lloyd Wright" flw1
   , makeExample "Ferris Wheel" ferris
   , makeExample "Clique" clique
+  , makeExample "Pie Chart" piechart
   ]
 
 list = examples ++ MicroTests.sampleTests
