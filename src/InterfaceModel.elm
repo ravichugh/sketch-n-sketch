@@ -1,6 +1,4 @@
--- InterfaceUtils.elm
--- This provide utility and helper functions to Interface.elm
-module InterfaceUtils where
+module InterfaceModel where
 import Lang exposing (..) --For access to what makes up the Vals
 import Eval
 import Sync exposing (Triggers)

@@ -1,5 +1,3 @@
---A set of functions to assist with viewing in
---Interface.elm
 module InterfaceView2 where
 --imports copied from Interface.elm
 --TODO: some of these could probably be cleaned up
@@ -11,7 +9,7 @@ import Sync
 import Eval
 import Utils
 import MicroTests
-import InterfaceUtils exposing (..)
+import InterfaceModel exposing (..)
 import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr, toNum, toNumTr, addi)
 import Examples
 import Config exposing (params)

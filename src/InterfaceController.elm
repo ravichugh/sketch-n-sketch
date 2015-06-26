@@ -1,15 +1,10 @@
--- Interface.elm
--- This defines and renders an interactive interface for editing the
--- program and output of the language as defined in int-trees.
-
---Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
 import LangParser exposing (parseE, parseV)
 import Sync
 import Eval exposing (run)
 import Utils
 import MicroTests
-import InterfaceUtils exposing (..)
+import InterfaceModel exposing (..)
 import InterfaceView2 exposing (..)
 import LangSvg exposing (IndexedTree, NodeId, ShapeKind, toNum, toNumTr, toPoints, addi)
 import Examples
