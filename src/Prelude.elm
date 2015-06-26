@@ -95,7 +95,7 @@ src = "
 
 (let ring (\\(c w x y r)
   ['circle'
-     [ ['cx' x] ['cy' y] ['r' r] ['fill' 'none'] ['stroke' c] ['strokeWidth' w] ]
+     [ ['cx' x] ['cy' y] ['r' r] ['fill' 'none'] ['stroke' c] ['stroke-width' w] ]
      []])
 
 (let ellipse (\\(fill x y rx ry)
@@ -112,22 +112,22 @@ src = "
 
 (let line (\\(fill w x1 y1 x2 y2)
   ['line'
-     [ ['x1' x1] ['y1' y1] ['x2' x2] ['y2' y2] ['stroke' fill] ['strokeWidth' w] ]
+     [ ['x1' x1] ['y1' y1] ['x2' x2] ['y2' y2] ['stroke' fill] ['stroke-width' w] ]
      []])
 
 (let polygon (\\(fill stroke w pts)
   ['polygon'
-     [ ['fill' fill] ['points' pts] ['stroke' stroke] ['strokeWidth' w] ]
+     [ ['fill' fill] ['points' pts] ['stroke' stroke] ['stroke-width' w] ]
      []])
 
 (let polyline (\\(fill stroke w pts)
   ['polyline'
-     [ ['fill' fill] ['points' pts] ['stroke' stroke] ['strokeWidth' w] ]
+     [ ['fill' fill] ['points' pts] ['stroke' stroke] ['stroke-width' w] ]
      []])
 
 (let path (\\(fill stroke w d)
   ['path'
-     [ ['fill' fill] ['stroke' stroke] ['strokeWidth' w] ['d' d] ]
+     [ ['fill' fill] ['stroke' stroke] ['stroke-width' w] ['d' d] ]
      []])
 
 (let text (\\(x y s)
