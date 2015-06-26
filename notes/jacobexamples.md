@@ -954,3 +954,86 @@ Building a slider bar that can be used to toggle other parameters
               (let off (* i sep)
                 (nstar pts (+ x0 off) (+ y0 sep) outerLen innerLen upright)))
             (range ni nj)))))))))
+
+
+  ;
+  ; A piechart
+  ;
+  (let [percent1_ percent2_ percent3_] [60 20 10]
+  (let [percent1 s1] (hSlider true 20! 420! 20! 0! 100! percent1_)
+  (let [percent2 s2] (hSlider true 20! 420! 50! 0! 100! percent2_)
+  (let [percent3 s3] (hSlider true 20! 420! 80! 0! 100! percent3_)
+  ;
+  (let sliders (concat [s1 s2 s3])
+  (let pToAngle (\\p (* 360! (/ p 100!)))
+  (let pToRadian
+    (\\a
+      (* (/ (pi) 180!) (pToAngle a)))
+  (let pie
+    (let [cx cy r] [220! 300! 175]
+    (let slice (\\(rad ang) [(* rad (cos ang)) (* rad (sin ang))])
+    (let angles (map (\\p [r (pToRadian p)]) [percent1_ (+ percent1_ percent2_) (+ percent1_ (+ percent2_ percent3_))])
+    (let [[x1 y1] [x2 y2] [x3 y3]] (map slice angles)
+    (let wedge1 (path 'green' 'grey' 2 ['M' x1 y1 'A' 45 45 0 0 0 x2 y2 'L' cx cy 'Z'])
+    (let wedge2 (path 'green' 'grey' 2 ['M' x2 y2 'A' 45 45 0 0 0 x3 y3 'L' cx cy 'Z'])
+    (let wedge2 (path 'green' 'grey' 2 ['M' x3 y3 'A' 45 45 0 0 0 x1 y1 'L' cx cy 'Z'])
+    [wedge1 wedge2 wedge3])))))))
+  ;
+  (svg (append sliders pie))))))))))
+
+  ;
+  ; A piechart
+  ;
+  (let [percent1_ percent2_ percent3_] [60 20 10]
+  (let [percent1 s1] (hSlider true 20! 420! 20! 0! 100! percent1_)
+  (let [percent2 s2] (hSlider true 20! 420! 50! 0! 100! percent2_)
+  (let [percent3 s3] (hSlider true 20! 420! 80! 0! 100! percent3_)
+  ;
+  (let sliders (concat [s1 s2 s3])
+  (let pToRadian
+    (\\p
+      (* (/ (pi) 180!) (* 360! (/ p 100!))))
+  (let pie
+    (let [cx cy r] [220! 300! 175]
+    (let polarcoords (map (\\p [r (pToRadian p)]) [percent1 (+ percent1 percent2) (+ percent1 (+ percent2 percent3))])
+    (let slice (\\[rad ang] [(* rad (cos ang)) (* rad (sin ang))])
+    (let [[x1 y1] [x2 y2] [x3 y3]] (map slice polarcoords)
+    (let wedge1 (path 'green' 'grey' 2 ['M' x1 y1 'A' 45 45 0 0 0 x2 y2 'L' cx cy 'Z'])
+    (let wedge2 (path 'yellow' 'grey' 2 ['M' x2 y2 'A' 45 45 0 0 0 x3 y3 'L' cx cy 'Z'])
+    (let wedge3 (path 'lightblue' 'grey' 2 ['M' x3 y3 'A' 45 45 0 0 0 x1 y1 'L' cx cy 'Z'])
+    [wedge1 wedge2 wedge3])))))))
+  ;
+  (svg (append sliders pie)))))))))
+
+--works
+    (let [percent1_ percent2_ percent3_] [60 20 10]
+  (let [percent1 s1] (hSlider true 20! 420! 20! 0! 100! percent1_)
+  (let [percent2 s2] (hSlider true 20! 420! 50! 0! 100! percent2_)
+  (let [percent3 s3] (hSlider true 20! 420! 80! 0! 100! percent3_)
+  ;
+  (let sliders (concat [s1 s2 s3])
+  (let pToRadian
+    (\\p
+      (* (/ (pi) 180!) (* 360! (/ p 100!))))
+  ;
+  (svg sliders)))))))
+
+--doesn't work
+  (let [percent1_ percent2_ percent3_] [60 20 10]
+  (let [percent1 s1] (hSlider true 20! 420! 20! 0! 100! percent1_)
+  (let [percent2 s2] (hSlider true 20! 420! 50! 0! 100! percent2_)
+  (let [percent3 s3] (hSlider true 20! 420! 80! 0! 100! percent3_)
+  ;
+  (let sliders (concat [s1 s2 s3])
+  (let pie
+    (let [cx cy r] [220! 300! 175]
+    (let pToRadian (\\p (* (/ (pi) 180!) (* 360! (/ p 100!))))
+    (let polarcoords (map (\\p [r (pToRadian p)]) [percent1 (+ percent1 percent2) (+ percent1 (+ percent2 percent3))])
+    (let slice (\\(rad ang) [(* rad (cos ang)) (* rad (sin ang))])
+    (let [[x1 y1] [x2 y2] [x3 y3]] (map slice polarcoords)
+    (let wedge1 (path 'green' 'grey' 2 ['M' x1 y1 'A' 45 45 0 0 0 x2 y2 'L' cx cy 'Z'])
+    (let wedge2 (path 'yellow' 'grey' 2 ['M' x2 y2 'A' 45 45 0 0 0 x3 y3 'L' cx cy 'Z'])
+    (let wedge3 (path 'lightblue' 'grey' 2 ['M' x3 y3 'A' 45 45 0 0 0 x1 y1 'L' cx cy 'Z'])
+    [wedge1 wedge2 wedge3]))))))))
+  ;
+  (svg (append sliders pie))))))))
