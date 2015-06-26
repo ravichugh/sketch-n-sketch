@@ -292,10 +292,11 @@ type alias Attr = (String, AVal)
 type IndexedTreeNode
   = TextNode String
   | SvgNode ShapeKind (List Attr) (List NodeId)
+type alias RootedIndexedTree = (NodeId, IndexedTree)
 
 children n = case n of {TextNode _ -> []; SvgNode _ _ l -> l}
 
-valToIndexedTree : Val -> (NodeId, IndexedTree)
+valToIndexedTree : Val -> RootedIndexedTree
 valToIndexedTree v =
   let (nextId,tree) = valToIndexedTree_ v (1, Dict.empty) in
   let rootId = nextId - 1 in
@@ -332,8 +333,8 @@ strEdges =
 ------------------------------------------------------------------------------
 -- Printing to SVG format
 
-printSvg : NodeId -> IndexedTree -> String
-printSvg rootId slate = printNode 0 slate rootId
+printSvg : RootedIndexedTree -> String
+printSvg (rootId, tree) = printNode 0 tree rootId
 
 printNode k slate i =
   case Utils.justGet i slate of

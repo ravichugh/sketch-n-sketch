@@ -8,7 +8,7 @@ import Eval
 import Utils
 import MicroTests
 import InterfaceModel exposing (..)
-import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr, toNum, toNumTr, addi)
+import LangSvg exposing (toNum, toNumTr, addi)
 import Examples
 import Config exposing (params)
 
@@ -51,16 +51,19 @@ dimToPix d = String.append (toString d) "px"
 --------------------------------------------------------------------------------
 -- Compiling to Svg
 
-buildSvg : Bool -> Bool -> LangSvg.IndexedTree -> LangSvg.NodeId -> Svg.Svg
-buildSvg addZones showZones d i =
-  case Utils.justGet i d of
+buildSvg : Bool -> Bool -> LangSvg.RootedIndexedTree -> Svg.Svg
+buildSvg addZones showZones (i,d) = buildSvg_ addZones showZones d i
+
+buildSvg_ : Bool -> Bool -> LangSvg.IndexedTree -> LangSvg.NodeId -> Svg.Svg
+buildSvg_ addZones showZones d i =
+  case Utils.justGet_ ("buildSvg_ " ++ toString i) i d of
     LangSvg.TextNode text -> VirtualDom.text text
     LangSvg.SvgNode shape attrs js ->
       -- TODO: figure out: (LangSvg.attr "draggable" "false")
       let zones =
         if | addZones  -> makeZones showZones shape i attrs
            | otherwise -> [] in
-      let children = List.map (buildSvg addZones showZones d) js in
+      let children = List.map (buildSvg_ addZones showZones d) js in
       let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs) children in
       Svg.svg [] (mainshape :: zones)
 
@@ -133,7 +136,7 @@ zoneLine id shape zone show (x1,y1) (x2,y2) =
     , cursorStyle "pointer"
     ]
 
-makeZones : Bool -> String -> LangSvg.NodeId -> List Attr -> List Svg.Svg
+makeZones : Bool -> String -> LangSvg.NodeId -> List LangSvg.Attr -> List Svg.Svg
 makeZones showZones shape id l =
   case shape of
 
@@ -277,7 +280,7 @@ canvas w h model =
 
 canvas_ w h model =
   let addZones = not model.editingMode in
-  let svg = buildSvg addZones model.showZones model.workingSlate model.rootId in
+  let svg = buildSvg addZones model.showZones model.slate in
   Html.toElement w h <|
     Svg.svg
       [ onMouseUp MouseUp

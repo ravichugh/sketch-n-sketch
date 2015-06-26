@@ -369,9 +369,7 @@ ferris = "
       (let wCar 30!
       (let wHalfCar (/ wCar 2!)
       (map (\\[x y] (squareCenter 'lightgray' x y wCar)) spokePts)))
-    (concat [rim center frame]))))))))
-    ; TODO dynamically generating shapes...
-    ; (concat [rim cars frame caps])))))))
+    (concat [rim cars center frame caps]))))))))
   ;
   (svg (append sliders wheel))))))))
 "

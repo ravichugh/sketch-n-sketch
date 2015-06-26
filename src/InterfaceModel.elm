@@ -4,7 +4,7 @@ import Lang exposing (..)
 import Eval
 import Sync exposing (Triggers)
 import Utils
-import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr, Zone)
+import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Zone)
 import Examples
 
 import List 
@@ -20,8 +20,7 @@ type alias Model =
   , exName : String
   , code : String
   , inputExp : Maybe Exp
-  , rootId : NodeId
-  , workingSlate : IndexedTree
+  , slate : RootedIndexedTree
   , mode : Mode
   , mouseMode : MouseMode
   , orient : Orientation
@@ -40,7 +39,7 @@ type alias RawSvg = String
 
 type MouseMode
   = MouseNothing
-  | MouseObject (NodeId, ShapeKind, Zone, Maybe (MouseTrigger (Exp, IndexedTree)))
+  | MouseObject (NodeId, ShapeKind, Zone, Maybe (MouseTrigger (Exp, RootedIndexedTree)))
   | MouseResizeMid (Maybe (MouseTrigger (Int, Int)))
 
 type alias MouseTrigger a = (Int, Int) -> a
@@ -79,15 +78,13 @@ mkLive_ opts e  = mkLive opts e (Eval.run e)
 sampleModel =
   let
     (name,f) = Utils.head_ Examples.list
-    {e,v} = f ()
-    (rootId,slate) = LangSvg.valToIndexedTree v
+    {e,v}    = f ()
   in
     { scratchCode  = Examples.scratch
     , exName       = name
     , code         = sExp e
     , inputExp     = Just e
-    , rootId       = rootId
-    , workingSlate = slate
+    , slate        = LangSvg.valToIndexedTree v
     , mode         = mkLive Sync.defaultOptions e v
     , mouseMode    = MouseNothing
     , orient       = Vertical

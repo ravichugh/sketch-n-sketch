@@ -8,7 +8,7 @@ import Utils
 import MicroTests
 import InterfaceModel exposing (..)
 import InterfaceView2 exposing (..)
-import LangSvg exposing (IndexedTree, NodeId, ShapeKind, toNum, toNumTr, toPoints, addi)
+import LangSvg exposing (toNum, toNumTr, toPoints, addi)
 import Examples
 
 import VirtualDom
@@ -37,17 +37,17 @@ import Debug
 
 --------------------------------------------------------------------------------
 
-indexedTreeToVal : NodeId -> LangSvg.IndexedTree -> Val
-indexedTreeToVal rootId slate =
+slateToVal : LangSvg.RootedIndexedTree -> Val
+slateToVal (rootId, tree) =
   let foo n =
     case n of
       LangSvg.TextNode s -> VList [VBase (String "TEXT"), VBase (String s)]
       LangSvg.SvgNode kind l1 l2 ->
         let vs1 = List.map LangSvg.valOfAttr l1 in
-        let vs2 = List.map (foo << flip Utils.justGet slate) l2 in
+        let vs2 = List.map (foo << flip Utils.justGet tree) l2 in
         VList [VBase (String kind), VList vs1, VList vs2]
   in
-  foo (Utils.justGet rootId slate)
+  foo (Utils.justGet rootId tree)
 
 upslate : LangSvg.NodeId -> (String, LangSvg.AVal) -> LangSvg.IndexedTree -> LangSvg.IndexedTree
 upslate id newattr nodes = case Dict.get id nodes of
@@ -84,12 +84,9 @@ upstate evt old = case Debug.log "Event" evt of
     Run ->
       case parseE old.code of
         Ok e ->
-          let v = Eval.run e in
-          let (rootId,slate) = LangSvg.valToIndexedTree v in
           { old | inputExp <- Just e
                 , code <- sExp e
-                , rootId <- rootId
-                , workingSlate <- slate
+                , slate <- LangSvg.valToIndexedTree (Eval.run e)
                 , editingMode <- False
                 , mode <- refreshMode old e }
         Err err ->
@@ -98,7 +95,7 @@ upstate evt old = case Debug.log "Event" evt of
     ToggleOutput ->
       let m = case old.mode of
         Print _ -> refreshMode_ old
-        _       -> Print (LangSvg.printSvg old.rootId old.workingSlate)
+        _       -> Print (LangSvg.printSvg old.slate)
       in
       { old | mode <- m }
 
@@ -126,7 +123,7 @@ upstate evt old = case Debug.log "Event" evt of
           let (newE,newSlate) = onNewPos (mx, my) in
           { old | code <- sExp newE
                 , inputExp <- Just newE
-                , workingSlate <- newSlate }
+                , slate <- newSlate }
 
     SelectObject id kind zone ->
       case old.mode of
@@ -150,9 +147,8 @@ upstate evt old = case Debug.log "Event" evt of
           let
             inputval  = Eval.run ip
             inputval' = inputval |> LangSvg.valToIndexedTree
-                                 |> snd
-                                 |> indexedTreeToVal old.rootId
-            newval    = indexedTreeToVal old.rootId old.workingSlate
+                                 |> slateToVal
+            newval    = slateToVal old.slate
             struct    = Sync.inferStructuralUpdate ip inputval' newval
             revert    = (ip, inputval)
           in
@@ -172,11 +168,9 @@ upstate evt old = case Debug.log "Event" evt of
       let (SyncSelect i options) = old.mode in
       let (_,l) = options in
       let (ei,vi) = Utils.geti i l in
-      let (rootId,tree) = LangSvg.valToIndexedTree vi in
       { old | code <- sExp ei
             , inputExp <- Just ei
-            , rootId <- rootId
-            , workingSlate <- tree
+            , slate <- LangSvg.valToIndexedTree vi
             , mode <- mkLive old.syncOptions ei vi }
 
     TraverseOption offset ->
@@ -184,11 +178,9 @@ upstate evt old = case Debug.log "Event" evt of
       let (_,l) = options in
       let j = i + offset in
       let (ei,vi) = Utils.geti j l in
-      let (rootId,tree) = LangSvg.valToIndexedTree vi in
       { old | code <- sExp ei
             , inputExp <- Just ei
-            , rootId <- rootId
-            , workingSlate <- tree
+            , slate <- LangSvg.valToIndexedTree vi
             , mode <- SyncSelect j options }
 
     SelectExample name thunk ->
@@ -197,7 +189,6 @@ upstate evt old = case Debug.log "Event" evt of
       else
 
       let {e,v} = thunk () in
-      let (rootId,tree) = LangSvg.valToIndexedTree v in
       let m =
         case old.mode of
           Live _ -> mkLive old.syncOptions e v
@@ -211,8 +202,7 @@ upstate evt old = case Debug.log "Event" evt of
             , inputExp <- Just e
             , code <- sExp e
             , mode <- m
-            , rootId <- rootId
-            , workingSlate <- tree }
+            , slate <- LangSvg.valToIndexedTree v }
 
     SwitchMode m -> { old | mode <- m }
 
@@ -240,7 +230,7 @@ type alias OnMouse =
 
 createMousePosCallback mx my objid kind zone old =
 
-  let (LangSvg.SvgNode _ attrs _) = Utils.justGet_ "#3" objid old.workingSlate in
+  let (LangSvg.SvgNode _ attrs _) = Utils.justGet_ "#3" objid (snd old.slate) in
   let numAttr = toNum << Utils.find_ attrs in
   let mapNumAttr f a =
     let (n,trace) = toNumTr (Utils.find_ attrs a) in
@@ -314,9 +304,9 @@ createMousePosCallback mx my objid kind zone old =
         ("path", _) -> createCallbackPath zone kind objid old onMouse
 
     in
-    let newSlate = List.foldr (upslate objid) old.workingSlate newRealAttrs in
+    let newTree = List.foldr (upslate objid) (snd old.slate) newRealAttrs in
       case old.mode of
-        AdHoc -> (Utils.fromJust old.inputExp, newSlate)
+        AdHoc -> (Utils.fromJust old.inputExp, (fst old.slate, newTree))
         Live triggers ->
           case Utils.justGet_ "#4" zone (Utils.justGet_ "#5" objid triggers) of
             -- Nothing -> (Utils.fromJust old.inputExp, newSlate)
@@ -324,7 +314,9 @@ createMousePosCallback mx my objid kind zone old =
             Just trigger ->
               let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
               if not Sync.tryToBeSmart then
-                (newE, snd <| LangSvg.valToIndexedTree <| Eval.run newE) else
+                (newE, LangSvg.valToIndexedTree <| Eval.run newE) else
+              Debug.crash "Controller tryToBeSmart"
+              {-
               let newSlate' =
                 Dict.foldl (\j dj acc1 ->
                   let _ = Debug.crash "TODO: dummyTrace is probably a problem..." in
@@ -333,6 +325,7 @@ createMousePosCallback mx my objid kind zone old =
                   ) newSlate otherChanges
               in
               (newE, newSlate')
+              -}
 
 -- Callbacks for Polygons/Polylines
 
@@ -351,7 +344,7 @@ lift : (Num -> Num) -> (NumTr -> NumTr)
 lift f (n,t) = (f n, t)
 
 polyInterior shape objid old onMouse =
-  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
+  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
   let pts = toPoints <| Utils.find_ nodeAttrs "points" in
   let accs =
     let foo (j,(xj,yj)) (acc1,acc2) =
@@ -365,7 +358,7 @@ polyInterior shape objid old onMouse =
   ([("points", LangSvg.APoints acc1)], acc2)
 
 polyPoint i shape objid old onMouse =
-  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
+  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
   let pts = toPoints <| Utils.find_ nodeAttrs "points" in
   let accs =
     let foo (j,(xj,yj)) (acc1,acc2) =
@@ -383,7 +376,7 @@ polyPoint i shape objid old onMouse =
   ([("points", LangSvg.APoints acc1)], acc2)
 
 polyEdge i shape objid old onMouse =
-  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
+  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
   let pts = toPoints <| Utils.find_ nodeAttrs "points" in
   let n = List.length pts in
   let accs =
@@ -421,7 +414,7 @@ pathPoint i objid old onMouse =
                            :: acc
          | otherwise    -> acc in
 
-  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid old.workingSlate in
+  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
   let (cmds,counts) = LangSvg.toPath <| Utils.find_ nodeAttrs "d" in
   let accs =
     let foo c (acc1,acc2) =
