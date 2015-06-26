@@ -1,3 +1,5 @@
+module InterfaceController where
+
 import Lang exposing (..) --For access to what makes up the Vals
 import LangParser exposing (parseE, parseV)
 import Sync
@@ -18,10 +20,6 @@ import String
 import Graphics.Element as GE 
 import Graphics.Collage as GC
 
---Signaling Libraries
-import Mouse 
-import Window 
-
 --Html Libraries
 import Html 
 import Html.Attributes as Attr
@@ -37,27 +35,7 @@ import Svg.Lazy
 import Debug
 
 
-sampleModel =
-  let
-    (name,f) = Utils.head_ Examples.list
-    {e,v} = f ()
-    (rootId,slate) = LangSvg.valToIndexedTree v
-  in
-    { scratchCode  = Examples.scratch
-    , exName       = name
-    , code         = sExp e
-    , inputExp     = Just e
-    , rootId       = rootId
-    , workingSlate = slate
-    , mode         = mkLive Sync.defaultOptions e v
-    , mouseMode    = MouseNothing
-    , orient       = Vertical
-    , midOffsetX   = 0
-    , midOffsetY   = -100
-    , showZones    = False
-    , syncOptions  = Sync.defaultOptions
-    , editingMode  = False
-    }
+--------------------------------------------------------------------------------
 
 refreshMode model e =
   case model.mode of
@@ -443,18 +421,3 @@ pathPoint i objid old onMouse =
   let (acc1,acc2) = Utils.reverse2 accs in
   ([("d", LangSvg.APath2 (acc1, counts))], acc2)
 
-
---------------------------------------------------------------------------------
--- Main
-
-main : Signal GE.Element
-main = let sigModel = Signal.foldp upstate sampleModel
-                        <| Signal.mergeMany
-                            [ events.signal
-                            , Signal.map2 (,) Mouse.isDown Mouse.position
-                                |> Signal.filter (\(x,y) -> x) (False, (0,0))
-                                |> Signal.map (\(x,y) -> y)
-                                |> Signal.map2 adjustCoords Window.dimensions
-                                |> Signal.map MousePos
-                            ]
-       in Signal.map2 view Window.dimensions sigModel

@@ -1,9 +1,11 @@
 module InterfaceModel where
-import Lang exposing (..) --For access to what makes up the Vals
+
+import Lang exposing (..)
 import Eval
 import Sync exposing (Triggers)
 import Utils
 import LangSvg exposing (IndexedTree, NodeId, ShapeKind, Attr, Zone)
+import Examples
 
 import List 
 import Dict
@@ -71,9 +73,6 @@ type Event = CodeUpdate String
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
 
-adjustCoords : (Int, Int) -> (Int, Int) -> (Int, Int)
-adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
-        
 upslate : LangSvg.NodeId -> (String, LangSvg.AVal) -> LangSvg.IndexedTree -> LangSvg.IndexedTree
 upslate id newattr nodes = case Dict.get id nodes of
     Nothing   -> Debug.crash "upslate"
@@ -103,4 +102,26 @@ dimToPix d = String.append (toString d) "px"
 
 mkLive opts e v = Live <| Sync.prepareLiveUpdates opts e v
 mkLive_ opts e  = mkLive opts e (Eval.run e)
+
+sampleModel =
+  let
+    (name,f) = Utils.head_ Examples.list
+    {e,v} = f ()
+    (rootId,slate) = LangSvg.valToIndexedTree v
+  in
+    { scratchCode  = Examples.scratch
+    , exName       = name
+    , code         = sExp e
+    , inputExp     = Just e
+    , rootId       = rootId
+    , workingSlate = slate
+    , mode         = mkLive Sync.defaultOptions e v
+    , mouseMode    = MouseNothing
+    , orient       = Vertical
+    , midOffsetX   = 0
+    , midOffsetY   = -100
+    , showZones    = False
+    , syncOptions  = Sync.defaultOptions
+    , editingMode  = False
+    }
 
