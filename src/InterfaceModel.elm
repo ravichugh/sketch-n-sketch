@@ -73,33 +73,6 @@ type Event = CodeUpdate String
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
 
-upslate : LangSvg.NodeId -> (String, LangSvg.AVal) -> LangSvg.IndexedTree -> LangSvg.IndexedTree
-upslate id newattr nodes = case Dict.get id nodes of
-    Nothing   -> Debug.crash "upslate"
-    Just node -> case node of
-        LangSvg.TextNode x -> nodes
-        LangSvg.SvgNode shape attrs children -> 
-            let newnode = LangSvg.SvgNode shape (Utils.update newattr attrs) children
-            in Dict.insert id newnode nodes
-
-indexedTreeToVal : NodeId -> LangSvg.IndexedTree -> Val
-indexedTreeToVal rootId slate =
-  let foo n =
-    case n of
-      LangSvg.TextNode s -> VList [VBase (String "TEXT"), VBase (String s)]
-      LangSvg.SvgNode kind l1 l2 ->
-        let vs1 = List.map LangSvg.valOfAttr l1 in
-        let vs2 = List.map (foo << flip Utils.justGet slate) l2 in
-        VList [VBase (String kind), VList vs1, VList vs2]
-  in
-  foo (Utils.justGet rootId slate)
-
-switchOrient m = case m of
-  Vertical -> Horizontal
-  Horizontal -> Vertical
-
-dimToPix d = String.append (toString d) "px"
-
 mkLive opts e v = Live <| Sync.prepareLiveUpdates opts e v
 mkLive_ opts e  = mkLive opts e (Eval.run e)
 

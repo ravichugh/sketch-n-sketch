@@ -1,6 +1,4 @@
-module InterfaceView2 where
---imports copied from Interface.elm
---TODO: some of these could probably be cleaned up
+module InterfaceView2 (view) where
 
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
@@ -43,6 +41,11 @@ import Svg.Lazy
 
 --Error Checking Libraries
 import Debug
+
+
+--------------------------------------------------------------------------------
+
+dimToPix d = String.append (toString d) "px"
 
 
 --------------------------------------------------------------------------------
