@@ -413,9 +413,9 @@ flw1 = "
 --              (map (\\[x y] (ellipse 'blue' x y (* wbox 4) hbox)) [[(xoff  5 x) (yoff  9)]]))
 --            (map
 --              (\[x y r] (circle 'yellow' x y r))
---              [[(xoff  6) (yoff  1.75 y) (+ wbox hbox)]
---               [(xoff  6) (yoff  7 y) (/ (+ wbox hbox) 4)]
---               [(xoff  6) (yoff  5 y) (/ (+ wbox hbox) 2)]])))))))
+--              [[(xoff  6 x) (yoff  1.75 y) (+ wbox hbox)]
+--               [(xoff  6 x) (yoff  7 y) (/ (+ wbox hbox) 4)]
+--               [(xoff  6 x) (yoff  5 y) (/ (+ wbox hbox) 2)]])))))))
 --  (let grid (cartProd (range 0! 3!) (range 0! 1!))
 --    (svg 
 --      (cons
@@ -565,7 +565,7 @@ rgba = "
 piechart = "
   ;
   ; A piechart
-  ; WARNING: wonky behavior
+  ; TODO: wonky behavior when arcs grow very large
   ;
   (let [percent1_ percent2_ percent3_ percent4_ percent5_] [35 31 16 10 8]
   (let [percent1 s1] (hSlider true 20! 420! 20! 0! 100! percent1_)
@@ -581,17 +581,21 @@ piechart = "
   ;
   (let sliders (concat [s1 s2 s3 s4 s5])
   (let pie
-    (let [cx cy r] [220! 390! 180]
-    (let pToRadian (\\p (* (/ (pi) 180!) (* 360! (/ p total))))
+    (let [cx cy r t border] [280! 440! 180 4 'grey']
+    (let pToRadian (\\p (* (/ (pi) r) (* 360! (/ p total))))
     (let polarcoords (map (\\a [r a]) (map pToRadian [percent1 p2 p3 p4 p5]))
     (let slice (\\[rad ang] [(* rad (cos ang)) (* rad (sin ang))])
     (let [[x1 y1] [x2 y2] [x3 y3] [x4 y4] [x5 y5]] (map slice polarcoords)
-    (let wedge1 (path '#468966' 'lightgrey' 2 ['M' cx cy 'L' (+ cx 175) cy 'A' 180 180 0 0 1 (+ cx x1) (+ cy y1) 'Z'])
-    (let wedge2 (path '#FFF0A5' 'lightgrey' 2 ['M' cx cy 'L' (+ cx x1) (+ cy y1) 'A' 180 180 0 0 1 (+ cx x2) (+ cy y2) 'Z'])
-    (let wedge3 (path '#FFB03B' 'lightgrey' 2 ['M' cx cy 'L' (+ cx x2) (+ cy y2) 'A' 180 180 0 0 1 (+ cx x3) (+ cy y3) 'Z'])
-    (let wedge4 (path '#B64926' 'lightgrey' 2 ['M' cx cy 'L' (+ cx x3) (+ cy y3) 'A' 180 180 0 0 1 (+ cx x4) (+ cy y4) 'Z'])
-    (let wedge5 (path '#8E2800' 'lightgrey' 2 ['M' cx cy 'L' (+ cx x4) (+ cy y4) 'A' 180 180 0 0 1 (+ cx 175) cy 'Z'])
-    [wedge1 wedge2 wedge3 wedge4 wedge5]))))))))))
+    (let wedge (\\[color [sx sy] [ex ey]] (path color border t ['M' cx cy 'L' sx sy 'A' 180 180 0 0 1 ex ey 'Z']))
+    (let wedges 
+      (map
+        wedge
+          [['#8DEEEE' [(+ cx 175) cy] [(+ cx x1) (+ cy y1)]]
+          ['#66CCCC' [(+ cx x1) (+ cy y1)] [(+ cx x2) (+ cy y2)]]
+          ['#49E9BD' [(+ cx x2) (+ cy y2)] [(+ cx x3) (+ cy y3)]]
+          ['#5EDA9E' [(+ cx x3) (+ cy y3)] [(+ cx x4) (+ cy y4)]]
+          ['#00FA9A' [(+ cx x4) (+ cy y4)] [(+ cx 175) cy]]])
+    wedges)))))))
   ;
   (svg (append sliders pie)))))))))))))))
 "
