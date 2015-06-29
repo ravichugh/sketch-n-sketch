@@ -444,11 +444,10 @@ activeTrans = "
   ;
   ; Logo based on Active Transportation Alliance (http://activetrans.org/)
   ;
-  ; TODO points, curves, stretchable skyline
   ;
   (let [h] [0]
   (let grayPts
-    [[75 497]
+    [[97 546]
      [33 414]
      [33 (+ 153 h)]
      [53 (+ 128 h)]
@@ -459,53 +458,53 @@ activeTrans = "
      [143 (+ 82 h)]
      [158 (+ 101 h)]
      [160 (+ 46 h)]
-     [194 (+ 23 h)]
+     [192 (+ 27 h)]
      [221 (+ 56 h)]
      [227 (+ 222 h)]
      [245 (+ 224 h)]
      [246 (+ 181 h)]
      [288 (+ 156 h)]
      [286 (+ 113 h)]
-     [320 (+ 88 h)]
+     [312 (+ 88 h)]
      [374 (+ 106 h)]
      [375 (+ 155 h)]
      [397 (+ 136 h)]
      [424 (+ 145 h)]
-     [425 (+ 207 h)]]
+     [425 207]]
   ;
-  (let greenPts [[490 470] [264 626] [167 538] [445 252] [486 258]]
+  (let greenPts [[247 663] [461 419] [466 230] [439 230] [178 614]]
+  (let [grayctrl greenctrl] [[47 489] [451 542]]
   ;
   (let [xOff yOff] [0 0]
   (let groupBox (rect 'transparent' xOff yOff 500! 700!)
   ;
-  ; TODO for both lists of points, the only curve will be between
-  ; the first two points
-  (let makePath (\\(color pts)
-    (let offsetPts (map (\\[x y] [(+ x xOff) (+ y yOff)]) pts)
-    (let [[x0 y0] | rest] offsetPts
-    (let commands
-      (append
-        ['M' x0 y0]
-        (foldr (\\([xi yi] acc) (append ['L' xi yi] acc)) ['Z'] rest))
-    (path color 'black' 0 commands)))))
+  (let makePath
+    (\(color pts [xc yc])
+      (let offsetPts (map (\[x y] [(+ x xOff) (+ y yOff)]) pts)
+      (let [[x0 y0] [x1 y1] | rest] offsetPts
+      (let commands
+        (append
+          (append ['M' x0 y0] ['Q' xc yc x1 y1])
+          (foldr (\([xi yi] acc) (append ['L' xi yi] acc)) ['Z'] rest))
+        (path color 'black' 0 commands)))))
   ;
-  (let grayPath (makePath '#505050' grayPts)
-  (let greenPath (makePath '#66CC66' greenPts)
-  (svg [groupBox grayPath greenPath])))))))))
-"
+  (let grayPath (makePath '#505050' grayPts grayctrl)
+  (let greenPath (makePath '#61B329' greenPts greenctrl)
+    (svg  [groupBox grayPath greenPath]))))))))))
+  "
 
-rgba = "
-  (let [r_ g_ b_ a_] [22 74 237 0.5]
-  ;
-  (let [r s1] (hSlider true 20! 420! 20! 0! 255! r_)
-  (let [g s2] (hSlider true 20! 420! 50! 0! 255! g_)
-  (let [b s3] (hSlider true 20! 420! 80! 0! 255! b_)
-  (let [a s4] (hSlider false 20! 420! 110! 0.0! 1.0! a_)
-  ;
-  (let ball (circle [r g b a] 220! 300! 100!)
-  (let sliders (concat [s1 s2 s3 s4])
-  ;
-    (svg (cons ball sliders)))))))))
+  rgba = "
+    (let [r_ g_ b_ a_] [22 74 237 0.5]
+    ;
+    (let [r s1] (hSlider true 20! 420! 20! 0! 255! r_)
+    (let [g s2] (hSlider true 20! 420! 50! 0! 255! g_)
+    (let [b s3] (hSlider true 20! 420! 80! 0! 255! b_)
+    (let [a s4] (hSlider false 20! 420! 110! 0.0! 1.0! a_)
+    ;
+    (let ball (circle [r g b a] 220! 300! 100!)
+    (let sliders (concat [s1 s2 s3 s4])
+    ;
+      (svg (cons ball sliders)))))))))
 "
 
 piechart = "
