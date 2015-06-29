@@ -446,31 +446,32 @@ activeTrans = "
   ;
   ; TODO points, curves, stretchable skyline
   ;
+  (let [h] [0]
   (let grayPts
     [[75 497]
      [33 414]
-     [33 153]
-     [53 128]
-     [82 135]
-     [83 160]
-     [114 149]
-     [113 98]
-     [143 82]
-     [158 101]
-     [160 46]
-     [194 23]
-     [221 56]
-     [227 222]
-     [245 224]
-     [246 181]
-     [288 156]
-     [286 113]
-     [320 88]
-     [374 106]
-     [375 155]
-     [397 136]
-     [424 145]
-     [425 207]]
+     [33 (+ 153 h)]
+     [53 (+ 128 h)]
+     [82 (+ 135 h)]
+     [83 (+ 160 h)]
+     [114 (+ 149 h)]
+     [113 (+ 98 h)]
+     [143 (+ 82 h)]
+     [158 (+ 101 h)]
+     [160 (+ 46 h)]
+     [194 (+ 23 h)]
+     [221 (+ 56 h)]
+     [227 (+ 222 h)]
+     [245 (+ 224 h)]
+     [246 (+ 181 h)]
+     [288 (+ 156 h)]
+     [286 (+ 113 h)]
+     [320 (+ 88 h)]
+     [374 (+ 106 h)]
+     [375 (+ 155 h)]
+     [397 (+ 136 h)]
+     [424 (+ 145 h)]
+     [425 (+ 207 h)]]
   ;
   (let greenPts [[490 470] [264 626] [167 538] [445 252] [486 258]]
   ;
@@ -490,7 +491,7 @@ activeTrans = "
   ;
   (let grayPath (makePath '#505050' grayPts)
   (let greenPath (makePath '#66CC66' greenPts)
-  (svg [groupBox grayPath greenPath]))))))))
+  (svg [groupBox grayPath greenPath])))))))))
 "
 
 rgba = "
@@ -526,21 +527,21 @@ piechart = "
   ;
   (let sliders (concat [s1 s2 s3 s4 s5])
   (let pie
-    (let [cx cy r] [220! 390! 175]
+    (let [cx cy r] [220! 390! 180]
     (let pToRadian (\\p (* (/ (pi) 180!) (* 360! (/ p total))))
     (let polarcoords (map (\\a [r a]) (map pToRadian [percent1 p2 p3 p4 p5]))
     (let slice (\\[rad ang] [(* rad (cos ang)) (* rad (sin ang))])
     (let [[x1 y1] [x2 y2] [x3 y3] [x4 y4] [x5 y5]] (map slice polarcoords)
-    (let wedge1 (path '#468966' 'lightgrey' 3 ['M' cx cy 'L' (+ cx 175) cy 'A' 180 180 0 0 1 (+ cx x1) (+ cy y1) 'Z'])
-    (let wedge2 (path '#FFF0A5' 'lightgrey' 3 ['M' cx cy 'L' (+ cx x1) (+ cy y1) 'A' 180 180 0 0 1 (+ cx x2) (+ cy y2) 'Z'])
-    (let wedge3 (path '#FFB03B' 'lightgrey' 3 ['M' cx cy 'L' (+ cx x2) (+ cy y2) 'A' 180 180 0 0 1 (+ cx x3) (+ cy y3) 'Z'])
-    (let wedge4 (path '#B64926' 'lightgrey' 3 ['M' cx cy 'L' (+ cx x3) (+ cy y3) 'A' 180 180 0 0 1 (+ cx x4) (+ cy y4) 'Z'])
-    (let wedge5 (path '#8E2800' 'lightgrey' 3 ['M' cx cy 'L' (+ cx x4) (+ cy y4) 'A' 180 180 0 0 1 (+ cx 175) cy 'Z'])
+    (let wedge1 (path '#468966' 'lightgrey' 2 ['M' cx cy 'L' (+ cx 175) cy 'A' 180 180 0 0 1 (+ cx x1) (+ cy y1) 'Z'])
+    (let wedge2 (path '#FFF0A5' 'lightgrey' 2 ['M' cx cy 'L' (+ cx x1) (+ cy y1) 'A' 180 180 0 0 1 (+ cx x2) (+ cy y2) 'Z'])
+    (let wedge3 (path '#FFB03B' 'lightgrey' 2 ['M' cx cy 'L' (+ cx x2) (+ cy y2) 'A' 180 180 0 0 1 (+ cx x3) (+ cy y3) 'Z'])
+    (let wedge4 (path '#B64926' 'lightgrey' 2 ['M' cx cy 'L' (+ cx x3) (+ cy y3) 'A' 180 180 0 0 1 (+ cx x4) (+ cy y4) 'Z'])
+    (let wedge5 (path '#8E2800' 'lightgrey' 2 ['M' cx cy 'L' (+ cx x4) (+ cy y4) 'A' 180 180 0 0 1 (+ cx 175) cy 'Z'])
     [wedge1 wedge2 wedge3 wedge4 wedge5]))))))))))
   ;
   (svg (append sliders pie)))))))))))))))
 "
---M200,200  L" + x1 + "," + y1 + "  A180,180 0 0,1 " + x2 + "," + y2 + " z"
+
 --------------------------------------------------------------------------------
 
 todo = "
