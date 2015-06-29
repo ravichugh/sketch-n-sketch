@@ -369,6 +369,61 @@ flw1 = "
                [(xoff  6) (yoff  7) (/ (+ wbox hbox) 4)]
                [(xoff  6) (yoff  5) (/ (+ wbox hbox) 2)]])))))))))))))))
 "
+
+--flw2 = "
+--  ;
+--  ; A Frank Lloyd Wright design based on:
+--  ; http://www.glass-by-design.com/images3/skylight3.jpg
+--  ;
+--  ; This is a tiled version of that design
+--  ;
+--  (let [x0 y0 w h max] [69 55 190 301 10!]
+--  (let wbox (/ w 10!)
+--  (let hbox (/ h 10!)
+--  (let xoff (\\(n x) (* x (+ x0 (* wbox n))))
+--  (let yoff (\\(n y) (* y (+ y0 (* hbox n))))
+--  (let blkline (\\[[a b] [c d]] (line 'black' 3 a b c d))
+--  (let redpoly
+--    (\[a b x y]
+--      (polygon
+--        'red'
+--        'black'
+--        3
+--        [[(xoff  a x) (yoff  a y)]
+--         [(xoff  a x) (yoff  b y)]
+--         [(xoff  b x) (yoff  b y)]
+--         [(xoff  b x) (yoff  a y)]]))
+--  (let dimension [0! 1 2 2.9 2.4 1.5 9.1 7.9 8.2 8.7 10!]
+--  (let [p0 p1 p2 p3 p4] [0 1 2 2.9 5]
+--  (let singletile
+--    (\\[x y]
+--      (let verticals
+--        (zip
+--          (map (\\n [(xoff  n) y0]) dimension)
+--          (map (\\n [(xoff  n) (+ y0 (* hbox max))]) dimension))
+--      (let horizontals
+--        (zip
+--          (map (\\n [x0 (yoff  n)]) dimension)
+--          (map (\\n [(+ x0 (* wbox max)) (yoff  n)]) dimension))
+--      (append
+--          (map blkline (append verticals horizontals))
+--          (append
+--            (append
+--              (map redpoly [[p0 p1] [p1 p2] [p2 p3] [p3 p4]])
+--              (map (\\[x y] (ellipse 'blue' x y (* wbox 4) hbox)) [[(xoff  5 x) (yoff  9)]]))
+--            (map
+--              (\[x y r] (circle 'yellow' x y r))
+--              [[(xoff  6) (yoff  1.75 y) (+ wbox hbox)]
+--               [(xoff  6) (yoff  7 y) (/ (+ wbox hbox) 4)]
+--               [(xoff  6) (yoff  5 y) (/ (+ wbox hbox) 2)]])))))))
+--  (let grid (cartProd (range 0! 3!) (range 0! 1!))
+--    (svg 
+--      (cons
+--        (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!))
+--        (map singletile grid)
+--        ))))))))))
+--"
+
 chicago = "
   ;
   ; The flag of Chicago
@@ -449,33 +504,33 @@ activeTrans = "
   (let grayPts
     [[97 546]
      [33 414]
-     [33 (+ 153 h)]
-     [53 (+ 128 h)]
-     [82 (+ 135 h)]
-     [83 (+ 160 h)]
-     [114 (+ 149 h)]
-     [113 (+ 98 h)]
-     [143 (+ 82 h)]
-     [158 (+ 101 h)]
-     [160 (+ 46 h)]
-     [192 (+ 27 h)]
-     [221 (+ 56 h)]
-     [227 (+ 222 h)]
-     [245 (+ 224 h)]
-     [246 (+ 181 h)]
-     [288 (+ 156 h)]
-     [286 (+ 113 h)]
-     [312 (+ 88 h)]
-     [374 (+ 106 h)]
-     [375 (+ 155 h)]
-     [397 (+ 136 h)]
-     [424 (+ 145 h)]
+     [33! (+ h 153!)]
+     [53! (+ h 128!)]
+     [82! (+ h 135!)]
+     [83! (+ h 160!)]
+     [114! (+ h 149!)]
+     [113! (+ h 98!)]
+     [143! (+ h 82!)]
+     [158! (+ h 101!)]
+     [160! (+ h 46!)]
+     [192! (+ h 27!)]
+     [221! (+ h 56!)]
+     [227! (+ h 222!)]
+     [245! (+ h 224!)]
+     [246! (+ h 181!)]
+     [288! (+ h 156!)]
+     [286! (+ h 113!)]
+     [312! (+ h 88!)]
+     [374! (+ h 106!)]
+     [375! (+ h 155!)]
+     [397! (+ h 136!)]
+     [424! (+ h 145!)]
      [425 207]]
   ;
   (let greenPts [[247 663] [461 419] [466 230] [439 230] [178 614]]
   (let [grayctrl greenctrl] [[47 489] [451 542]]
   ;
-  (let [xOff yOff] [0 0]
+  (let [xOff yOff] [0! 0!]
   (let groupBox (rect 'transparent' xOff yOff 500! 700!)
   ;
   (let makePath
@@ -491,7 +546,7 @@ activeTrans = "
   (let grayPath (makePath '#505050' grayPts grayctrl)
   (let greenPath (makePath '#61B329' greenPts greenctrl)
     (svg  [groupBox grayPath greenPath]))))))))))
-  "
+"
 
 rgba = "
     (let [r_ g_ b_ a_] [22 74 237 0.5]
