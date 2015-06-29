@@ -519,20 +519,26 @@ piechart = "
   (let [percent4 s4] (hSlider true 20! 420! 110! 0! 100! percent4_)
   (let [percent5 s5] (hSlider true 20! 420! 140! 0! 100! percent5_)
   (let total (+ percent1 (+ percent2 (+ percent3 (+ percent4 percent5))))
+  (let p2 (+ percent1 percent2)
+  (let p3 (+ p2 percent3)
+  (let p4 (+ p3 percent4)
+  (let p5 (+ p4 percent5)
   ;
   (let sliders (concat [s1 s2 s3 s4 s5])
   (let pie
     (let [cx cy r] [220! 390! 175]
     (let pToRadian (\\p (* (/ (pi) 180!) (* 360! (/ p total))))
-    (let polarcoords (map (\\a [r a]) (map pToRadian [percent1 percent2 percent3 percent4 percent5]))
+    (let polarcoords (map (\\a [r a]) (map pToRadian [percent1 p2 p3 p4 p5]))
     (let slice (\\[rad ang] [(* rad (cos ang)) (* rad (sin ang))])
     (let [[x1 y1] [x2 y2] [x3 y3] [x4 y4] [x5 y5]] (map slice polarcoords)
-    (let wedge1 (path 'green' 'grey' 2 ['M' cx cy 'L' (+ cx 175) cy 'A' 180 180 0 0 1 (+ cx x1) (+ cy y1) 'Z'])
-    (let wedge2 (path 'yellow' 'grey' 2 ['M' cx cy 'L' (+ cx x1) (+ cy y1) 'A' 180 180 0 0 1 (+ cx x2) (+ cy y2) 'Z'])
-    (let wedge3 (path 'lightblue' 'grey' 2 ['M' cx cy 'L' (+ cx x2) (+ cy y2) 'A' 180 180 0 0 1 (+ cx x3) (+ cy y3) 'Z'])
-    [wedge1 wedge2 wedge3]))))))))
+    (let wedge1 (path '#468966' 'lightgrey' 3 ['M' cx cy 'L' (+ cx 175) cy 'A' 180 180 0 0 1 (+ cx x1) (+ cy y1) 'Z'])
+    (let wedge2 (path '#FFF0A5' 'lightgrey' 3 ['M' cx cy 'L' (+ cx x1) (+ cy y1) 'A' 180 180 0 0 1 (+ cx x2) (+ cy y2) 'Z'])
+    (let wedge3 (path '#FFB03B' 'lightgrey' 3 ['M' cx cy 'L' (+ cx x2) (+ cy y2) 'A' 180 180 0 0 1 (+ cx x3) (+ cy y3) 'Z'])
+    (let wedge4 (path '#B64926' 'lightgrey' 3 ['M' cx cy 'L' (+ cx x3) (+ cy y3) 'A' 180 180 0 0 1 (+ cx x4) (+ cy y4) 'Z'])
+    (let wedge5 (path '#8E2800' 'lightgrey' 3 ['M' cx cy 'L' (+ cx x4) (+ cy y4) 'A' 180 180 0 0 1 (+ cx 175) cy 'Z'])
+    [wedge1 wedge2 wedge3 wedge4 wedge5]))))))))))
   ;
-  (svg (append sliders pie)))))))))))
+  (svg (append sliders pie)))))))))))))))
 "
 --M200,200  L" + x1 + "," + y1 + "  A180,180 0 0,1 " + x2 + "," + y2 + " z"
 --------------------------------------------------------------------------------
