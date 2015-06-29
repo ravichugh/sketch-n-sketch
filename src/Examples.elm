@@ -479,13 +479,13 @@ activeTrans = "
   (let groupBox (rect 'transparent' xOff yOff 500! 700!)
   ;
   (let makePath
-    (\(color pts [xc yc])
-      (let offsetPts (map (\[x y] [(+ x xOff) (+ y yOff)]) pts)
+    (\\(color pts [xc yc])
+      (let offsetPts (map (\\[x y] [(+ x xOff) (+ y yOff)]) pts)
       (let [[x0 y0] [x1 y1] | rest] offsetPts
       (let commands
         (append
           (append ['M' x0 y0] ['Q' xc yc x1 y1])
-          (foldr (\([xi yi] acc) (append ['L' xi yi] acc)) ['Z'] rest))
+          (foldr (\\([xi yi] acc) (append ['L' xi yi] acc)) ['Z'] rest))
         (path color 'black' 0 commands)))))
   ;
   (let grayPath (makePath '#505050' grayPts grayctrl)
@@ -493,7 +493,7 @@ activeTrans = "
     (svg  [groupBox grayPath greenPath]))))))))))
   "
 
-  rgba = "
+rgba = "
     (let [r_ g_ b_ a_] [22 74 237 0.5]
     ;
     (let [r s1] (hSlider true 20! 420! 20! 0! 255! r_)
