@@ -325,7 +325,8 @@ usFlag13 ="
 
 flw1 = "
     ;
-    ; A Frank Lloyd Wright design based on
+    ; A Frank Lloyd Wright design based on:
+    ; http://www.glass-by-design.com/images3/skylight3.jpg
     ;
     (let [x0 y0 w h max] [69 55 532 744 10!]
     (let wbox (/ w 10!)
@@ -511,26 +512,29 @@ piechart = "
   ; A piechart
   ; WARNING: wonky behavior
   ;
-  (let [percent1_ percent2_ percent3_] [60 20 10]
+  (let [percent1_ percent2_ percent3_ percent4_ percent5_] [35 31 16 10 8]
   (let [percent1 s1] (hSlider true 20! 420! 20! 0! 100! percent1_)
   (let [percent2 s2] (hSlider true 20! 420! 50! 0! 100! percent2_)
   (let [percent3 s3] (hSlider true 20! 420! 80! 0! 100! percent3_)
+  (let [percent4 s4] (hSlider true 20! 420! 110! 0! 100! percent4_)
+  (let [percent5 s5] (hSlider true 20! 420! 140! 0! 100! percent5_)
+  (let total (+ percent1 (+ percent2 (+ percent3 (+ percent4 percent5))))
   ;
-  (let sliders (concat [s1 s2 s3])
+  (let sliders (concat [s1 s2 s3 s4 s5])
   (let pie
-    (let [cx cy r] [220! 300! 175]
-    (let pToRadian (\\p (* (/ (pi) 180!) (* 360! (/ p 100!))))
-    (let polarcoords (map (\\a [r a]) (map pToRadian [percent1 (+ percent1 percent2) (+ percent1 (+ percent2 percent3))]))
+    (let [cx cy r] [220! 390! 175]
+    (let pToRadian (\\p (* (/ (pi) 180!) (* 360! (/ p total))))
+    (let polarcoords (map (\\a [r a]) (map pToRadian [percent1 percent2 percent3 percent4 percent5]))
     (let slice (\\[rad ang] [(* rad (cos ang)) (* rad (sin ang))])
-    (let [[x1 y1] [x2 y2] [x3 y3]] (map slice polarcoords)
-    (let wedge1 (path 'green' 'grey' 2 ['M' (+ cx x1) (+ cy y1) 'A' 45 45 0 0 0 (+ cx x2) (+ cy y2) 'L' cx cy 'Z'])
-    (let wedge2 (path 'yellow' 'grey' 2 ['M' (+ cx x2) (+ cy y2) 'A' 45 45 0 0 0 (+ cx x3) (+ cy y3) 'L' cx cy 'Z'])
-    (let wedge3 (path 'lightblue' 'grey' 2 ['M' (+ cx x3) (+ cy y3) 'A' 45 45 0 0 0 (+ cx x1) (+ cy y1) 'L' cx cy 'Z'])
+    (let [[x1 y1] [x2 y2] [x3 y3] [x4 y4] [x5 y5]] (map slice polarcoords)
+    (let wedge1 (path 'green' 'grey' 2 ['M' cx cy 'L' (+ cx 175) cy 'A' 180 180 0 0 1 (+ cx x1) (+ cy y1) 'Z'])
+    (let wedge2 (path 'yellow' 'grey' 2 ['M' cx cy 'L' (+ cx x1) (+ cy y1) 'A' 180 180 0 0 1 (+ cx x2) (+ cy y2) 'Z'])
+    (let wedge3 (path 'lightblue' 'grey' 2 ['M' cx cy 'L' (+ cx x2) (+ cy y2) 'A' 180 180 0 0 1 (+ cx x3) (+ cy y3) 'Z'])
     [wedge1 wedge2 wedge3]))))))))
   ;
-  (svg (append sliders pie))))))))
+  (svg (append sliders pie)))))))))))
 "
-
+--M200,200  L" + x1 + "," + y1 + "  A180,180 0 0,1 " + x2 + "," + y2 + " z"
 --------------------------------------------------------------------------------
 
 todo = "
