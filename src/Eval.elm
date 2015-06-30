@@ -86,7 +86,7 @@ eval env e =
         case (PVar f, v1) `cons` ((p, v2) `cons` Just env') of
           Just env'' -> eval env'' e
 
-  ELet True (PVar f) e1 e2 ->
+  ELet _ True (PVar f) e1 e2 ->
     case eval_ env e1 of
       VClosure Nothing x body env' ->
         let _   = Utils.assert "eval letrec" (env == env') in
@@ -99,10 +99,10 @@ eval env e =
   -- abstract syntactic sugar
   EFun ps e  -> eval env (eFun ps e)
   EApp e1 es -> eval env (eApp e1 es)
-  ELet False p e1 e2 -> eval env (EApp (EFun [p] e2) [e1])
+  ELet _ False p e1 e2 -> eval env (EApp (EFun [p] e2) [e1])
 
   -- errors
-  ELet True (PList _ _) _ _ -> Debug.crash "eval: multi letrec"
+  ELet _ True (PList _ _) _ _ -> Debug.crash "eval: multi letrec"
 
 evalOp env op es =
   case List.map (eval_ env) es of

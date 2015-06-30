@@ -41,7 +41,7 @@ type Exp
   | EList (List Exp) (Maybe Exp)
   | EIf Exp Exp Exp
   | ECase Exp (List (Pat, Exp))
-  | ELet Bool Pat Exp Exp
+  | ELet LetKind Rec Pat Exp Exp
   | EComment String Exp
 
     -- EFun [] e     impossible
@@ -51,6 +51,9 @@ type Exp
     -- EApp f []     impossible
     -- EApp f [x]    (f x)
     -- EApp f xs     (f x1 ... xn) === ((... ((f x1) x2) ...) xn)
+
+type LetKind = Let | Def
+type alias Rec = Bool
 
 type Val
   = VConst NumTr
@@ -184,12 +187,16 @@ sExp_ showLocs k e =
           case mrest of
             Nothing -> s
             Just e  -> s ++ "\n" ++ tab k ++ "|" ++ foo k e
-    ELet b p e1 e2 ->
+    ELet Let b p e1 e2 ->
       Utils.parens <|
         let k' = if isLet e2 then k else k + 1 in
         (if b then "letrec " else "let ") ++ strPat p ++
           indent e1 ++ "\n" ++
           tab k' ++ foo k' e2
+    ELet Def b p e1 e2 ->
+      let s = if b then "defrec " else "def " in
+      Utils.parens (s ++ strPat p ++ indent e1) ++ "\n" ++
+      tab k ++ foo k e2
     ECase e1 l ->
       let bar (pi,ei) =
         tab (k+1) ++ Utils.parens (strPat pi ++ " " ++ foo (k+1) ei) in
@@ -211,7 +218,7 @@ fitsOnLine s =
      | otherwise                          -> True
 
 isLet e = case e of
-  ELet _ _ _ _  -> True
+  ELet _ _ _ _ _  -> True
   EComment _ e1 -> isLet e1
   _             -> False
 
@@ -232,7 +239,7 @@ mapExp f e =
     EList es m     -> f (EList (List.map foo es) (Utils.mapMaybe foo m))
     EIf e1 e2 e3   -> f (EIf (foo e1) (foo e2) (foo e3))
     ECase e1 l     -> f (ECase (foo e1) (List.map (\(p,ei) -> (p, foo ei)) l))
-    ELet b p e1 e2 -> f (ELet b p (foo e1) (foo e2))
+    ELet k b p e1 e2 -> f (ELet k b p (foo e1) (foo e2))
     EComment s e1  -> f (EComment s (foo e1))
 
 mapVal : (Val -> Val) -> Val -> Val
@@ -262,8 +269,8 @@ applySubst subst e = case e of
   EList es m -> EList (List.map (applySubst subst) es)
                       (Utils.mapMaybe (applySubst subst) m)
   EApp f es  -> EApp (applySubst subst f) (List.map (applySubst subst) es)
-  ELet b p e1 e2 ->
-    ELet b p (applySubst subst e1) (applySubst subst e2) -- TODO
+  ELet k b p e1 e2 ->
+    ELet k b p (applySubst subst e1) (applySubst subst e2) -- TODO
   EIf e1 e2 e3 ->
     EIf (applySubst subst e1) (applySubst subst e2) (applySubst subst e3)
   ECase e l ->
@@ -303,5 +310,5 @@ eFun ps e = case ps of
 ePair e1 e2 = EList [e1,e2] Nothing
 
 eLets xes eBody = case xes of
-  (x,e)::xes' -> ELet False (PVar x) e (eLets xes' eBody)
+  (x,e)::xes' -> ELet Let False (PVar x) e (eLets xes' eBody)
   []          -> eBody

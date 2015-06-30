@@ -40,8 +40,14 @@ logo = "
 "
 
 threeBoxes = "
-  (let [x0 y0 sep] [40 28 110]
-  (svg (map (\\i (rect 'lightblue' (+ x0 (mult i sep)) y0 60 130)) [0 1 2])))
+(def threeBoxesInt
+  (let [x0 y0 w h sep] [40 28 60 130 110]
+  (let boxi (\\i
+    (let xi (+ x0 (mult i sep))
+    (rect 'lightblue' xi y0 w h)))
+  (svg (map boxi [0 1 2])))))
+;
+threeBoxesInt
 "
 
 sixBoxesA = "

@@ -34,7 +34,9 @@ users to freely mix between programmatic and direct manipulation.
       |   (e1 e2)
       |   (e1 e2 e3 ... en)
       |   (let p e1 e2)
-      |   (letrec f (\x e1) e2)
+      |   (letrec p e1 e2)
+      |   (def p e1) e2
+      |   (defrec p e1) e2
       |   (if e1 e2 e3)
       |   (case e (p1 e1) ... (pn en))
       |   []
@@ -148,6 +150,8 @@ users to freely mix between programmatic and direct manipulation.
   e  ::=  ...
       |   (let p e1 e2)
       |   (letrec f (\x e1) e2)
+      |   (def p e1) e2           -- desugars to (let p e1 e2)
+      |   (defrec f (\x e1)) e2   -- desugars to (letrec f (\x e1) e2)
 ```
 
 ### Standard Prelude

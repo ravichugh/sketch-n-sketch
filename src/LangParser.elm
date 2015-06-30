@@ -45,10 +45,10 @@ freshen_ k e = case e of
                              (EList es' (Just e'), k'')
   EIf e1 e2 e3 -> let ([e1',e2',e3'],k') = freshenExps k [e1,e2,e3] in
                   (EIf e1' e2' e3', k')
-  ELet b p e1 e2 ->
+  ELet kind b p e1 e2 ->
     let ([e1',e2'],k') = freshenExps k [e1,e2] in
     let e1'' = addBreadCrumbs (p, e1') in
-    (ELet b p e1'' e2', k')
+    (ELet kind b p e1'' e2', k')
   ECase e l ->
     let es = List.map snd l in
     let (e'::es', k') = freshenExps k (e::es) in
@@ -93,7 +93,7 @@ substOf_ s e = case e of
                   Just e  -> substOfExps_ s (e::es)
   EIf e1 e2 e3 -> substOfExps_ s [e1,e2,e3]
   ECase e1 l   -> substOfExps_ s (e1 :: List.map snd l)
-  ELet _ _ e1 e2 -> substOfExps_ s [e1,e2]  -- TODO
+  ELet _ _ _ e1 e2 -> substOfExps_ s [e1,e2]  -- TODO
   EComment _ e1 -> substOf_ s e1
 
 substOfExps_ s es = case es of
@@ -248,6 +248,7 @@ parseExp = P.recursively <| \_ ->
   <++ parseCase
   <++ parseExpList
   <++ parseLet
+  <++ parseDef
   <++ parseApp
   <++ parseCommentExp
 
@@ -297,7 +298,21 @@ parseLet =
     parseExp >>= \e1 ->
     oneWhite >>>
     parseExp >>= \e2 ->
-      P.return (ELet b p e1 e2)
+      P.return (ELet Let b p e1 e2)
+
+parseDefRec =
+      (always True  <$> token_ "defrec")
+  <++ (always False <$> token_ "def")
+
+parseDef =
+  parens (
+    parseDefRec >>= \b ->
+    parsePat >>= \p ->
+    parseExp >>= \e1 -> P.return (b,p,e1)
+  ) >>= \(b,p,e1) ->
+  oneWhite >>>
+  parseExp >>= \e2 ->
+    P.return (ELet Def b p e1 e2)
 
 parseBinop =
   parens <|
