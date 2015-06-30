@@ -225,6 +225,23 @@ src = "
 
 (let hSlider (hSlider_ true)
 
-0)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+(let button_ (\\(dropBall xStart y caption xCur)
+  (let [rPoint wLine rBall wSlider] [4! 3! 10! 70!]
+  (let xEnd (+ xStart wSlider)
+  (let xBall (+ xStart (* xCur wSlider))
+  (let xBall_ (clamp xStart xEnd xBall)
+  (let rBall_ (if dropBall (if (= xBall_ xBall) rBall 0) rBall)
+  (let val (< xCur 0.5)
+  (let shapes
+    [ (circle 'black' xStart y rPoint)
+      (circle 'black' xEnd y rPoint)
+      (line 'black' wLine xStart y xEnd y)
+      (circle (if val 'darkgreen' 'darkred') xBall y rBall_)
+      (text (+ xEnd 10) (+ y 5) (+ caption (toString val))) ]
+  [val shapes]))))))))
+
+(let button (button_ true)
+
+0)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
 "

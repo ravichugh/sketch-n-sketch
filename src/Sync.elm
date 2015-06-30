@@ -470,6 +470,8 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
 
     (nextId' + 1, Dict.insert nextId' (kind, extra, attrs) dShapes')
 
+  _ -> Debug.crash <| "Sync.nodeToAttrLocs_: " ++ strVal v
+
 -- Step 2 --
 
 -- TODO

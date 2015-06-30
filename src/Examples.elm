@@ -191,6 +191,27 @@ sliders = "
     (svg (append sliders displays)))))))))
 "
 
+buttons = "
+  ;
+  (let button_ (\\(dropBall xStart y caption xCur)
+    (let [rPoint wLine rBall wSlider] [4! 3! 10! 70!]
+    (let xEnd (+ xStart wSlider)
+    (let xBall (+ xStart (* xCur wSlider))
+    (let xBall_ (clamp xStart xEnd xBall)
+    (let rBall_ (if dropBall (if (= xBall_ xBall) rBall 0) rBall)
+    (let val (< xCur 0.5)
+    (let shapes
+      [ (circle 'black' xStart y rPoint)
+        (circle 'black' xEnd y rPoint)
+        (line 'black' wLine xStart y xEnd y)
+        (circle (if val 'darkgreen' 'darkred') xBall y rBall_)
+        (text (+ xEnd 10) (+ y 5) (+ caption (toString val))) ]
+    [val shapes]))))))))
+  ;
+  (let [b b1] (button_ true 20! 20! 'b = ' 0.25)
+    (svg b1)))
+"
+
 clique = "
   ;
   ; A six node clique
@@ -444,6 +465,7 @@ activeTrans = "
   ; Logo based on Active Transportation Alliance (http://activetrans.org/)
   ;
   ; TODO points, curves, stretchable skyline
+  ; TODO make the background a circle
   ;
   (let grayPts
     [[75 497]
@@ -473,8 +495,10 @@ activeTrans = "
   ;
   (let greenPts [[490 470] [264 626] [167 538] [445 252] [486 258]]
   ;
+  (let [cGreen cGray] ['#66CC66' '#505050']
+  (let [b buttonShapes] (button 20! 20! '' 0.25)
   (let [xOff yOff] [0 0]
-  (let groupBox (rect 'transparent' xOff yOff 500! 700!)
+  (let groupBox (rect (if b 'transparent' cGreen) xOff yOff 500! 700!)
   ;
   ; TODO for both lists of points, the only curve will be between
   ; the first two points
@@ -487,9 +511,9 @@ activeTrans = "
         (foldr (\\([xi yi] acc) (append ['L' xi yi] acc)) ['Z'] rest))
     (path color 'black' 0 commands)))))
   ;
-  (let grayPath (makePath '#505050' grayPts)
-  (let greenPath (makePath '#66CC66' greenPts)
-  (svg [groupBox grayPath greenPath]))))))))
+  (let grayPath (makePath (if b cGray 'white') grayPts)
+  (let greenPath (makePath (if b cGreen 'white') greenPts)
+  (svg (append [groupBox grayPath greenPath] buttonShapes)))))))))))
 "
 
 rgba = "
@@ -552,6 +576,7 @@ examples =
   , makeExample "Polygons" polygons
   , makeExample "Stars" stars
   , makeExample "Sliders" sliders
+  , makeExample "Buttons" buttons
   , makeExample "Color Picker" rgba
   , makeExample "US-13 Flag" usFlag13
   , makeExample "US-50 Flag" usFlag50

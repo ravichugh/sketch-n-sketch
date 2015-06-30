@@ -131,6 +131,9 @@ evalOp env op es =
         Ceil   -> VConst (toFloat <| ceiling n, TrOp op [t])
         Round  -> VConst (toFloat <| round n, TrOp op [t])
         ToStr  -> VBase (String (toString n))
+    [VBase (Bool b)] ->
+      case op of
+        ToStr  -> VBase (String (toString b))
 
 evalBranches env v =
   List.foldl (\(p,e) acc ->
