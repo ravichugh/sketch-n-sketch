@@ -619,7 +619,7 @@ piechart1 = "
           ['#00FA9A' f5 [(+ cx x4) (+ cy y4)] [(+ cx x5) (+ cy y5)]]])
     wedges))))))))))
   ;
-  (svg (cons (circle 'black' cx cy (* 1.1 r)) (append sliders pie)))))))))))))))))
+  (svg (cons (circle 'lightgray' cx cy (* 1.1 r)) (append sliders pie)))))))))))))))))
 "
 
 botanic = "
@@ -653,7 +653,84 @@ botanic = "
     (svg  [(rect '#83F52C' xOff yOff w h) leftleaf rightleaf centerbud]))))))))))))
 "
 
+stickfigures = "
+    ;
+    ; A diagram of a sketch-n-sketch demo w/ audience
+    ;
+    (let [x0 y0 w h] [200 200 450 300]
+    (let wstripe (/ w 6!)
+    (let xoff (+ x0 wstripe)
+    (let yoff (+ y0 (/ h 4!))
+    (let minrad
+      (if (< (/ wstripe 7.5!) (/ h 30!))
+        (/ wstripe 7.5!)
+        (/ h 15!))
+    (let min
+      (if (< w h)
+        (* 0.6! w)
+        (* 0.6! h))
+    (let rotate (\\a (/ (* (+ 1! a) (pi)) 4!))
+    (let figure 
+      (\\(x y) 
+        (let [x1 x2 x3] (map (\\n (+ x (* wstripe n))) [1.2! 1.5! 1.8!])
+        (let [y1 y2 y3 y4] (map (\\n (+ y (/ (/ h 2!) n))) [4.3! 2.8! 1.9! 1.4!])
+        (let figline (\\[[a b] [c d]] (line 'black' (/ minrad 2!) a b c d))
+          (snoc
+            (ellipse 'black' x2 y1 (/ wstripe 7.5!) (/ h 30!))
+            (map
+              figline
+                [[[x1 y1] [x1 y2]]
+                [[x1 y2] [x3 y2]]
+                [[x3 y1] [x3 y2]]
+                [[x1 y4] [x1 y3]]
+                [[x1 y3] [x3 y3]]
+                [[x3 y3] [x3 y4]]
+                [[x2 y1] [x2 y3]]]))))))
+    (let logo
+      (\\(x y)
+        (let [x0 y0 w h delta] [x y 90 90 3.5]
+        (let [xw yh w2 h2] [(+ x0 w) (+ y0 h) (div w 2) (div h 2)]
+        (let poly (\\pts (polygon 'black' 'none' 0 pts))
+          [
+          (rect 'white' x0 y0 w h)
+          (poly
+            [[(+ x0 delta) y0]
+             [xw y0]
+             [xw (- yh delta)]])
+          (poly
+            [[x0 (+ y0 delta)]
+             [x0 (- yh delta)]
+             [(- (+ x0 w2) delta) (+ y0 h2)]])
+          (poly
+            [[(+ x0 delta) yh]
+             [(- xw delta) yh]
+             [(+ x0 w2) (+ (+ y0 h2) delta)]])
+        ]))))
+      (svg
+        (append
+          [(rect '#BFEFFF' (- x0 200!) (- y0 200!) (* 3! w) (* 3! h))
+          (rect 'gray' (+ x0 75!) (+ y0 30!) 100 100)]
+          (append
+            (logo (+ x0 80!) (+ y0 36!))
+            (concatMap 
+              (\\i 
+                (figure 
+                  (+ x0 (* min (cos (rotate i))))
+                  (+ y0 (* min (sin (rotate i))))))
+              (range 0! 7!))))))))))))))
+"
 
+
+--(map
+--            (\\i
+--                (nstar
+--                  pts
+--                  (+ (+ x0 (/ w 6!)) (* min (cos (rotate  i))))
+--                  (+ (+ y0 (* hstripe 3.5!)) (* min (sin (rotate  i))))
+--                  outerLen
+--                  innerLen
+--                  (rotate  i)))
+--          (range ni nj)))))))))))))))
 --------------------------------------------------------------------------------
 
 todo = "
@@ -685,8 +762,9 @@ examples =
   , makeExample "Frank Lloyd Wright" flw1
   , makeExample "F.L. Wright Tiled" flw2
   , makeExample "Ferris Wheel" ferris
-  , makeExample "Clique" clique
   , makeExample "Pie Chart" piechart1
+  , makeExample "Stick Figures" stickfigures
+  , makeExample "Clique" clique
   ]
 
 list = examples ++ MicroTests.sampleTests
