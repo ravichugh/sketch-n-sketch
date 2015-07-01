@@ -581,43 +581,45 @@ rgba = "
     ;
       (svg (cons ball sliders)))))))))
 "
-
-piechart = "
+piechart1 = "
   ;
   ; A piechart
-  ; TODO: wonky behavior when arcs grow very large
   ;
-  (let [percent1_ percent2_ percent3_ percent4_ percent5_] [35 31 16 10 8]
-  (let [percent1 s1] (hSlider true 20! 420! 20! 0! 100! percent1_)
-  (let [percent2 s2] (hSlider true 20! 420! 50! 0! 100! percent2_)
-  (let [percent3 s3] (hSlider true 20! 420! 80! 0! 100! percent3_)
-  (let [percent4 s4] (hSlider true 20! 420! 110! 0! 100! percent4_)
-  (let [percent5 s5] (hSlider true 20! 420! 140! 0! 100! percent5_)
-  (let total (+ percent1 (+ percent2 (+ percent3 (+ percent4 percent5))))
-  (let p2 (+ percent1 percent2)
-  (let p3 (+ p2 percent3)
-  (let p4 (+ p3 percent4)
-  (let p5 (+ p4 percent5)
+  (let [count1_ count2_ count3_ count4_ count5_] [35 31 16 10 8]
+  (let [count1 s1] (hSlider true 20! 420! 20! 0! 100! count1_)
+  (let [count2 s2] (hSlider true 20! 420! 50! 0! 100! count2_)
+  (let [count3 s3] (hSlider true 20! 420! 80! 0! 100! count3_)
+  (let [count4 s4] (hSlider true 20! 420! 110! 0! 100! count4_)
+  (let [count5 s5] (hSlider true 20! 420! 140! 0! 100! count5_)
+  (let total (+ count1 (+ count2 (+ count3 (+ count4 count5))))
+  (let p2 (+ count1 count2)
+  (let p3 (+ p2 count3)
+  (let p4 (+ p3 count4)
+  (let p5 (+ p4 count5)
   ;
   (let sliders (concat [s1 s2 s3 s4 s5])
+  (let [cx cy r t border] [280! 440! 180 4 'grey']
   (let pie
-    (let [cx cy r t border] [280! 440! 180 4 'grey']
-    (let pToRadian (\\p (* (/ (pi) r) (* 360! (/ p total))))
-    (let polarcoords (map (\\a [r a]) (map pToRadian [percent1 p2 p3 p4 p5]))
-    (let slice (\\[rad ang] [(* rad (cos ang)) (* rad (sin ang))])
-    (let [[x1 y1] [x2 y2] [x3 y3] [x4 y4] [x5 y5]] (map slice polarcoords)
-    (let wedge (\\[color [sx sy] [ex ey]] (path color border t ['M' cx cy 'L' sx sy 'A' 180 180 0 0 1 ex ey 'Z']))
+    (let pToDegrees (\\p (* 360! (/ p total)))
+    (let [d1 d2 d3 d4 d5] (map pToDegrees [count1 p2 p3 p4 p5])
+    (let flag (\\d (if (< 180 d) 1 0))
+    (let flagged (map (\\[d fr] [d (flag fr)]) [[d1 d1] [d2 (- d2 d1)] [d3 (- d3 d2)] [d4 (- d4 d3)] [d5 (- d5 d4)]])
+    (let toRadian (\\[d f] [(* (/ (pi) 180!) d) f])
+    (let polarcoords (map toRadian flagged)
+    (let slice (\\[ang flg] [flg (* r (cos ang)) (* r (sin ang))])
+    (let [[f1 x1 y1] [f2 x2 y2] [f3 x3 y3] [f4 x4 y4] [f5 x5 y5]] (map slice polarcoords)
+    (let wedge (\\[color f [sx sy] [ex ey]] (path color border t ['M' cx cy 'L' sx sy 'A' 180 180 0 f 1 ex ey 'Z']))
     (let wedges 
       (map
         wedge
-          [['#8DEEEE' [(+ cx 175) cy] [(+ cx x1) (+ cy y1)]]
-          ['#66CCCC' [(+ cx x1) (+ cy y1)] [(+ cx x2) (+ cy y2)]]
-          ['#49E9BD' [(+ cx x2) (+ cy y2)] [(+ cx x3) (+ cy y3)]]
-          ['#5EDA9E' [(+ cx x3) (+ cy y3)] [(+ cx x4) (+ cy y4)]]
-          ['#00FA9A' [(+ cx x4) (+ cy y4)] [(+ cx 175) cy]]])
-    wedges)))))))
+          [['#8DEEEE' f1 [(+ cx 180!) cy] [(+ cx x1) (+ cy y1)]]
+          ['#66CCCC' f2 [(+ cx x1) (+ cy y1)] [(+ cx x2) (+ cy y2)]]
+          ['#49E9BD' f3 [(+ cx x2) (+ cy y2)] [(+ cx x3) (+ cy y3)]]
+          ['#5EDA9E' f4 [(+ cx x3) (+ cy y3)] [(+ cx x4) (+ cy y4)]]
+          ['#00FA9A' f5 [(+ cx x4) (+ cy y4)] [(+ cx x5) (+ cy y5)]]])
+    wedges))))))))))
   ;
-  (svg (append sliders pie)))))))))))))))
+  (svg (cons (circle 'black' cx cy (* 1.1 r)) (append sliders pie)))))))))))))))))
 "
 
 botanic = "
@@ -684,7 +686,7 @@ examples =
   , makeExample "F.L. Wright Tiled" flw2
   , makeExample "Ferris Wheel" ferris
   , makeExample "Clique" clique
-  , makeExample "Pie Chart" piechart
+  , makeExample "Pie Chart" piechart1
   ]
 
 list = examples ++ MicroTests.sampleTests
