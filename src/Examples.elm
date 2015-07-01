@@ -352,7 +352,8 @@ usFlag13 ="
 
 flw1 = "
     ;
-    ; A Frank Lloyd Wright design based on
+    ; A Frank Lloyd Wright design based on:
+    ; http://www.glass-by-design.com/images3/skylight3.jpg
     ;
     (let [x0 y0 w h max] [69 55 532 744 10!]
     (let wbox (/ w 10!)
@@ -395,6 +396,51 @@ flw1 = "
                [(xoff  6) (yoff  7) (/ (+ wbox hbox) 4)]
                [(xoff  6) (yoff  5) (/ (+ wbox hbox) 2)]])))))))))))))))
 "
+
+flw2 = "
+  ;
+  ; A Frank Lloyd Wright design based on:
+  ; http://www.glass-by-design.com/images3/skylight3.jpg
+  ;
+  ; This is a tiled version of that design
+  ;
+  (let [x0 y0 w h max] [69 55 200 320 10!]
+  (let wbox (/ w 10!)
+  (let hbox (/ h 10!)
+  (let xoff (\\(n x) (+ x0 (+ (* x w) (* wbox n))))
+  (let yoff (\\(n y) (+ y0 (+ (* y h) (* hbox n))))
+  (let blkline (\\[[a b] [c d]] (line 'black' 3 a b c d))
+  (let redpoly
+    (\\[a b x y]
+      (polygon
+        'red'
+        'black'
+        3
+        [[(xoff a x) (yoff a y)]
+         [(xoff a x) (yoff b y)]
+         [(xoff b x) (yoff b y)]
+         [(xoff b x) (yoff a y)]]))
+  (let dimension [0! 4 5 6 7 10!]
+  (let [p0 p1 p2 p3 p4] [0 1 2 2.9 5]
+  (let singletile
+    (\\[x y] 
+      (let verticals
+        (zip
+          (map (\\n [(xoff n x) (+ y0 (* y h))]) dimension)
+          (map (\\n [(xoff n x) (+ y0 (* (+ y 1) h))]) dimension))
+      (let horizontals
+        (zip
+          (map (\\n [(+ x0 (* x w)) (yoff n y)]) dimension)
+          (map (\\n [(+ x0 (* (+ 1 x) w)) (yoff n y)]) dimension))
+        (append
+          (map blkline (append verticals horizontals))
+          (map redpoly [[p0 p1 x y] [p1 p2 x y] [p2 p3 x y] [p3 p4 x y]])))))
+  (let grid (cartProd [0! 1! 2!] [0! 1!])
+    (svg 
+      (cons (rect 'white' (- x0 10!) (- y0 10!) (+ (* 3 w) 20!) (+ (* 2 h) 20!))
+        (concatMap singletile grid))))))))))))))
+"
+
 chicago = "
   ;
   ; The flag of Chicago
@@ -470,96 +516,141 @@ activeTrans = "
   ;
   ; Logo based on Active Transportation Alliance (http://activetrans.org/)
   ;
-  ; TODO points, curves, stretchable skyline
-  ; TODO make the background a circle
   ;
+  (let [h] [0]
   (let grayPts
-    [[75 497]
+    [[97 546]
      [33 414]
-     [33 153]
-     [53 128]
-     [82 135]
-     [83 160]
-     [114 149]
-     [113 98]
-     [143 82]
-     [158 101]
-     [160 46]
-     [194 23]
-     [221 56]
-     [227 222]
-     [245 224]
-     [246 181]
-     [288 156]
-     [286 113]
-     [320 88]
-     [374 106]
-     [375 155]
-     [397 136]
-     [424 145]
+     [33! (+ h 153!)]
+     [53! (+ h 128!)]
+     [82! (+ h 135!)]
+     [83! (+ h 160!)]
+     [114! (+ h 149!)]
+     [113! (+ h 98!)]
+     [143! (+ h 82!)]
+     [158! (+ h 101!)]
+     [160! (+ h 46!)]
+     [192! (+ h 27!)]
+     [221! (+ h 56!)]
+     [227! (+ h 222!)]
+     [245! (+ h 224!)]
+     [246! (+ h 181!)]
+     [288! (+ h 156!)]
+     [286! (+ h 113!)]
+     [312! (+ h 88!)]
+     [374! (+ h 106!)]
+     [375! (+ h 155!)]
+     [397! (+ h 136!)]
+     [424! (+ h 145!)]
      [425 207]]
   ;
-  (let greenPts [[490 470] [264 626] [167 538] [445 252] [486 258]]
+  (let greenPts [[247 663] [461 419] [466 230] [439 230] [178 614]]
+  (let [grayctrl greenctrl] [[47 489] [451 542]]
   ;
   (let [cGreen cGray] ['#66CC66' '#505050']
   (let [b buttonShapes] (button 20! 20! '' 0.25)
-  (let [xOff yOff] [0 0]
+  (let [xOff yOff] [0! 0!]
+  ; TODO unfreeze
   (let groupBox (rect (if b 'transparent' cGreen) xOff yOff 500! 700!)
   ;
-  ; TODO for both lists of points, the only curve will be between
-  ; the first two points
-  (let makePath (\\(color pts)
-    (let offsetPts (map (\\[x y] [(+ x xOff) (+ y yOff)]) pts)
-    (let [[x0 y0] | rest] offsetPts
-    (let commands
-      (append
-        ['M' x0 y0]
-        (foldr (\\([xi yi] acc) (append ['L' xi yi] acc)) ['Z'] rest))
-    (path color 'black' 0 commands)))))
+  (let makePath
+    (\\(color pts [xc yc])
+      (let offsetPts (map (\\[x y] [(+ x xOff) (+ y yOff)]) pts)
+      (let [[x0 y0] [x1 y1] | rest] offsetPts
+      (let commands
+        (append
+          (append ['M' x0 y0] ['Q' xc yc x1 y1])
+          (foldr (\\([xi yi] acc) (append ['L' xi yi] acc)) ['Z'] rest))
+        (path color 'black' 0 commands)))))
   ;
-  (let grayPath (makePath (if b cGray 'white') grayPts)
-  (let greenPath (makePath (if b cGreen 'white') greenPts)
-  (svg (append [groupBox grayPath greenPath] buttonShapes)))))))))))
+  (let grayPath (makePath (if b cGray 'white') grayPts grayctrl)
+  (let greenPath (makePath (if b cGreen 'white') greenPts greenctrl)
+    (svg (append [groupBox grayPath greenPath] buttonShapes)))))))))))))
 "
 
 rgba = "
-  (let [r_ g_ b_ a_] [22 74 237 0.5]
-  ;
-  (let [r s1] (hSlider true 20! 420! 20! 0! 255! r_)
-  (let [g s2] (hSlider true 20! 420! 50! 0! 255! g_)
-  (let [b s3] (hSlider true 20! 420! 80! 0! 255! b_)
-  (let [a s4] (hSlider false 20! 420! 110! 0.0! 1.0! a_)
-  ;
-  (let ball (circle [r g b a] 220! 300! 100!)
-  (let sliders (concat [s1 s2 s3 s4])
-  ;
-    (svg (cons ball sliders)))))))))
+    (let [r_ g_ b_ a_] [22 74 237 0.5]
+    ;
+    (let [r s1] (hSlider true 20! 420! 20! 0! 255! r_)
+    (let [g s2] (hSlider true 20! 420! 50! 0! 255! g_)
+    (let [b s3] (hSlider true 20! 420! 80! 0! 255! b_)
+    (let [a s4] (hSlider false 20! 420! 110! 0.0! 1.0! a_)
+    ;
+    (let ball (circle [r g b a] 220! 300! 100!)
+    (let sliders (concat [s1 s2 s3 s4])
+    ;
+      (svg (cons ball sliders)))))))))
 "
 
 piechart = "
   ;
   ; A piechart
-  ; WARNING: wonky behavior
+  ; TODO: wonky behavior when arcs grow very large
   ;
-  (let [percent1_ percent2_ percent3_] [60 20 10]
+  (let [percent1_ percent2_ percent3_ percent4_ percent5_] [35 31 16 10 8]
   (let [percent1 s1] (hSlider true 20! 420! 20! 0! 100! percent1_)
   (let [percent2 s2] (hSlider true 20! 420! 50! 0! 100! percent2_)
   (let [percent3 s3] (hSlider true 20! 420! 80! 0! 100! percent3_)
+  (let [percent4 s4] (hSlider true 20! 420! 110! 0! 100! percent4_)
+  (let [percent5 s5] (hSlider true 20! 420! 140! 0! 100! percent5_)
+  (let total (+ percent1 (+ percent2 (+ percent3 (+ percent4 percent5))))
+  (let p2 (+ percent1 percent2)
+  (let p3 (+ p2 percent3)
+  (let p4 (+ p3 percent4)
+  (let p5 (+ p4 percent5)
   ;
-  (let sliders (concat [s1 s2 s3])
+  (let sliders (concat [s1 s2 s3 s4 s5])
   (let pie
-    (let [cx cy r] [220! 300! 175]
-    (let pToRadian (\\p (* (/ (pi) 180!) (* 360! (/ p 100!))))
-    (let polarcoords (map (\\a [r a]) (map pToRadian [percent1 (+ percent1 percent2) (+ percent1 (+ percent2 percent3))]))
+    (let [cx cy r t border] [280! 440! 180 4 'grey']
+    (let pToRadian (\\p (* (/ (pi) r) (* 360! (/ p total))))
+    (let polarcoords (map (\\a [r a]) (map pToRadian [percent1 p2 p3 p4 p5]))
     (let slice (\\[rad ang] [(* rad (cos ang)) (* rad (sin ang))])
-    (let [[x1 y1] [x2 y2] [x3 y3]] (map slice polarcoords)
-    (let wedge1 (path 'green' 'grey' 2 ['M' (+ cx x1) (+ cy y1) 'A' 45 45 0 0 0 (+ cx x2) (+ cy y2) 'L' cx cy 'Z'])
-    (let wedge2 (path 'yellow' 'grey' 2 ['M' (+ cx x2) (+ cy y2) 'A' 45 45 0 0 0 (+ cx x3) (+ cy y3) 'L' cx cy 'Z'])
-    (let wedge3 (path 'lightblue' 'grey' 2 ['M' (+ cx x3) (+ cy y3) 'A' 45 45 0 0 0 (+ cx x1) (+ cy y1) 'L' cx cy 'Z'])
-    [wedge1 wedge2 wedge3]))))))))
+    (let [[x1 y1] [x2 y2] [x3 y3] [x4 y4] [x5 y5]] (map slice polarcoords)
+    (let wedge (\\[color [sx sy] [ex ey]] (path color border t ['M' cx cy 'L' sx sy 'A' 180 180 0 0 1 ex ey 'Z']))
+    (let wedges 
+      (map
+        wedge
+          [['#8DEEEE' [(+ cx 175) cy] [(+ cx x1) (+ cy y1)]]
+          ['#66CCCC' [(+ cx x1) (+ cy y1)] [(+ cx x2) (+ cy y2)]]
+          ['#49E9BD' [(+ cx x2) (+ cy y2)] [(+ cx x3) (+ cy y3)]]
+          ['#5EDA9E' [(+ cx x3) (+ cy y3)] [(+ cx x4) (+ cy y4)]]
+          ['#00FA9A' [(+ cx x4) (+ cy y4)] [(+ cx 175) cy]]])
+    wedges)))))))
   ;
-  (svg (append sliders pie))))))))
+  (svg (append sliders pie)))))))))))))))
 "
+
+botanic = "
+  ;
+  ; Logo: Chicago Botanic Garden
+  ;
+  (let [xOff yOff w h] [0! 0! 623 622]
+  (let [xOut xcOut1 ycOut1 xcOut2 ycOut2 xcOut3 ycOut3] [292 40 141 97 202 23 24]
+  (let [xMid yTip yMid xBud yBud] [320! 272 460 -51 272]
+  (let left [[xMid yMid] [(- xMid xOut) yTip]]
+  (let right [[xMid yMid] [(+ xMid xOut) yTip]]
+  (let bud [[xMid (- yMid 92)] [(+ xMid xBud) yBud] [(- xMid xBud) yBud]]
+  (let makePath
+    (\\(c pts [xc1 yc1] [xc2 yc2])
+      (let offsetPts (map (\\[x y] [(+ x xOff) (+ y yOff)]) pts)
+      (let [[x0 y0] [x1 y1]] offsetPts
+      (let commands ['M' x0 y0 'Q' xc1 yc1 x1 y1 'M' x1 y1 'Q' xc2 yc2 x0 y0]
+        (path c 'black' 0 commands)))))
+  (let makeArc
+    (\\(c pts [xc1 yc1] [xc2 yc2])
+      (let offsetPts (map (\\[x y] [(+ x xOff) (+ y yOff)]) pts)
+      (let [[x0 y0] [x1 y1] [x2 y2]] offsetPts
+      (let commands ['M' x0 y0 'L' x1 y1 'A' 45 45 0 0 1 x2 y2 'L' x2 y2 'Z']
+        (path c 'black' 0 commands)))))
+  (let leftleaf
+    (makePath 'white' left [(- xMid xcOut1) ycOut1] [(- xMid xcOut2) ycOut2])
+  (let rightleaf
+    (makePath 'white' right [(+ xMid xcOut1) ycOut1] [(+ xMid xcOut2) ycOut2])
+  (let centerbud
+    (makeArc 'white' bud [(+ xMid xcOut3) ycOut3] [(+ xMid xcOut3) ycOut3])
+    (svg  [(rect '#83F52C' xOff yOff w h) leftleaf rightleaf centerbud]))))))))))))
+"
+
 
 --------------------------------------------------------------------------------
 
@@ -578,6 +669,7 @@ examples =
   , makeExample "Logo" logo
   , makeExample "Elm Logo" elmLogo
   , makeExample "Active Trans Logo" activeTrans
+  , makeExample "Botanic Garden Logo" botanic
   , makeExample "Rings" rings
   , makeExample "Polygons" polygons
   , makeExample "Stars" stars
@@ -589,6 +681,7 @@ examples =
   , makeExample "Chicago Flag" chicago
   , makeExample "French Sudan Flag" frenchSudan
   , makeExample "Frank Lloyd Wright" flw1
+  , makeExample "F.L. Wright Tiled" flw2
   , makeExample "Ferris Wheel" ferris
   , makeExample "Clique" clique
   , makeExample "Pie Chart" piechart
