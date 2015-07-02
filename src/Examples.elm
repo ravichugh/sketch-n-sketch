@@ -239,7 +239,11 @@ clique = "
 
 frenchSudan = "
     ;
-    ; The Flag of French Sudan
+    ; The Flag of French Sudan, based on:
+    ;
+    ; A few ways to manipulate:
+    ; - Grab any part of the stick figure and move it
+    ; in various directions
     ;
     (let [x0 y0 w h] [50 30 450 300]
     (let wstripe (/ w 3!)
@@ -253,6 +257,7 @@ frenchSudan = "
     (let figline (\\[[a b] [c d]] (line 'black' (/ minrad 2!) a b c d))
     (let [x1 x2 x3] (map (\\n (+ x0 (* wstripe n))) [1.2! 1.5! 1.8!])
     (let [y1 y2 y3 y4] (map (\\n (+ y0 (/ h n))) [4.3! 2.8! 1.9! 1.4!])
+    ;
       (svg
         (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!)) 
         (append
@@ -274,6 +279,10 @@ usFlag50 = "
     ;
     ; Current Flag of the United States
     ;
+    ; A few ways to manipulate:
+    ; - Grab various parts of the red stripes or blue block and pull in various directions
+    ; - grab the edges of the circles and and increase or decrease the radius
+    ;
     (let [x0 y0 ni nj pts w h rad] [108 20 0! 12! 5! 510 272 6]
     (let hstripe (/ h 13!)
     (let block (rect '#09096d' x0 y0 (* w (/ 2! 5!)) (* 7! hstripe))
@@ -282,6 +291,7 @@ usFlag50 = "
         (\\i (rect 'red' x0 (+ y0 (* i hstripe)) w hstripe))
         [0! 2! 4! 6! 8! 10! 12!])
     (let base (append stripes [block])
+    ;
       (svg
         (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!)) 
         (append
@@ -298,28 +308,17 @@ usFlag50 = "
           (append (cartProd (range 0.5! 5.5!) (range 0.75! 4.75!)) (cartProd (range 1! 5!) (range 1.2! 4.2!))))))))))))
 "
 
-usFlag13 ="
+usFlag13 = "
     ;
     ; Original flag of the United States
     ;
-    (let nstar
-    (\\(n cx cy len1 len2 rot)
-      (let pti
-        (\\[i len]
-          (let anglei (+ rot (/ (* i (pi)) n))
-          (let xi (+ cx (* len (cos anglei)))
-          (let yi (+ cy (* len (sin anglei)))
-            [xi yi]))))
-      (let lengths
-        (map
-          (\\b
-            (if b
-              len1
-              len2))
-          (concat  (repeat n [true false])))
-      (let indices (list0N  (- (* 2! n) 1!))
-        (polygon 'white' 'DUMMY' 0 (map pti (zip indices lengths)))))))
-    (let rotate (\\a (/ (* (+ 9! a) (pi)) 6!))
+    ; A few ways to mainpulate this example:
+    ; - Grab bottom right corner to increase overall size
+    ; - Grab the edge of a red stripe to increase width
+    ; - Grab the points of one of the stars to change 
+    ; the size of its points
+    ;
+    (let rotate (\\a (/ (* a (pi)) 6.5!))
     (let [x0 y0 ni nj pts w h] [108 20 0! 12! 5! 500 260]
     (let hstripe (/ h 13!)
     (let [blockw blockh] [(/ w 3!) (* 7! hstripe)]
@@ -334,25 +333,29 @@ usFlag13 ="
         (\\i (rect 'red' x0 (+ y0 (* i hstripe)) w hstripe))
         [0! 2! 4! 6! 8! 10! 12!])
     (let base (append stripes [block])
+    ;
       (svg
         (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!))
         (append
           base
           (map
             (\\i
-                (nstar
+                (nStar
+                  'white'
+                  'none'
+                  0
                   pts
-                  (+ (+ x0 (/ w 6!)) (* min (cos (rotate  i))))
-                  (+ (+ y0 (* hstripe 3.5!)) (* min (sin (rotate  i))))
-                  outerLen
                   innerLen
-                  (rotate  i)))
-          (range ni nj)))))))))))))))
+                  outerLen
+                  (rotate  i)
+                  (+ (+ x0 (/ w 6!)) (* min (cos (rotate  i))))
+                  (+ (+ y0 (* hstripe 3.5!)) (* min (sin (rotate  i))))))
+          (range ni nj))))))))))))))
 "
 
 flw1 = "
     ;
-    ; A Frank Lloyd Wright design based on:
+    ; A Frank Lloyd Wright design inspired by:
     ; http://www.glass-by-design.com/images3/skylight3.jpg
     ;
     (let [x0 y0 w h max] [69 55 532 744 10!]
@@ -404,6 +407,11 @@ flw2 = "
   ;
   ; This is a tiled version of that design
   ;
+  ; Possible ways to manipulate:
+  ; - Grab edges of red polygons, yellow circles, or blue ellipses
+  ; and pull in various directions
+  ; - Grab ends of lines and move in various directions
+  ;
   (let [x0 y0 w h max] [69 55 200 320 10!]
   (let wbox (/ w 10!)
   (let hbox (/ h 10!)
@@ -433,9 +441,18 @@ flw2 = "
           (map (\\n [(+ x0 (* x w)) (yoff n y)]) dimension)
           (map (\\n [(+ x0 (* (+ 1 x) w)) (yoff n y)]) dimension))
         (append
-          (map blkline (append verticals horizontals))
-          (map redpoly [[p0 p1 x y] [p1 p2 x y] [p2 p3 x y] [p3 p4 x y]])))))
+          (append
+            (map blkline (append verticals horizontals))
+            (map (\\[xc yc r] (circle 'yellow' xc yc r))
+              [[(xoff 6 x) (yoff 1.75 y) (+ wbox hbox)]
+               [(xoff 6 x) (yoff 7 y) (/ (+ wbox hbox) 4)]
+               [(xoff 6 x) (yoff 5 y) (/ (+ wbox hbox) 2)]]))
+          (cons
+            (ellipse 'blue' (xoff 5 x) (yoff 9 y) (* wbox 4) hbox)
+            (map redpoly [[p0 p1 x y] [p1 p2 x y] [p2 p3 x y] [p3 p4 x y]])
+            )))))
   (let grid (cartProd [0! 1! 2!] [0! 1!])
+  ;
     (svg 
       (cons (rect 'white' (- x0 10!) (- y0 10!) (+ (* 3 w) 20!) (+ (* 2 h) 20!))
         (concatMap singletile grid))))))))))))))
@@ -445,45 +462,31 @@ chicago = "
   ;
   ; The flag of Chicago
   ;
-  (let nstar
-    (\\(n cx cy len1 len2 rot)
-      (let pti
-        (\\[i len]
-          (let anglei (+ rot (/ (* i (pi)) n))
-          (let xi (+ cx (* len (cos anglei)))
-          (let yi (+ cy (* len (sin anglei)))
-            [xi yi]))))
-      (let lengths
+  ; Possible ways to manipulate
+  ; - Grab stripes or stars and pull in various directions
+  ;
+  (let [x0 y0 ni nj pts w h] [108 113 0.5! 3.5! 6! 454 300]
+  (let [outerLen innerLen] [30 12]
+  (let stripes
+    (map
+      (\\i
+        (rect
+          'lightblue'
+          x0
+          (+ y0 (* i h))
+          w
+          (/ h 6!)))
+      [(/ 1! 6!) (/ 2! 3!)])
+  ;
+    (svg 
+      (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!))
+      (append
+        stripes
         (map
-          (\\b
-            (if b
-              len1
-              len2))
-          (concat  (repeat n [true false])))
-      (let indices (list0N  (- (* 2! n) 1!))
-        (polygon 'red' 'DUMMY' 0 (map pti (zip indices lengths)))))))
-    (let upright (/ (* 3! (pi)) 2!)
-    (let [x0 y0 ni nj pts w h] [108 113 0.5! 3.5! 6! 454 300]
-    (let [outerLen innerLen] [30 12]
-    (let stripes
-      (map
-        (\\i
-          (rect
-            'lightblue'
-            x0
-            (+ y0 (* i h))
-            w
-            (/ h 6!)))
-        [(/ 1! 6!) (/ 2! 3!)])
-      (svg 
-        (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!))
-        (append
-          stripes
-          (map
-            (\\i
-              (let off (* i (/ w 4!))
-                (nstar pts (+ x0 off) (+ y0 (/ h 2!)) outerLen innerLen upright)))
-            (range ni nj))))))))))
+          (\\i
+            (let off (* i (/ w 4!))
+              (nStar 'red' 'none' 0 pts outerLen innerLen 0 (+ x0 off) (+ y0 (/ h 2!)))))
+          (range ni nj))))))))
 "
 ferris = "
   ;
@@ -516,6 +519,10 @@ activeTrans = "
   ;
   ; Logo based on Active Transportation Alliance (http://activetrans.org/)
   ;
+  ; Possible ways to manipulate:
+  ; - Grab edge of city skyline and pull up and down
+  ; - Click 'Show Zones' and mess with the curves at the bottom of the logo
+  ; - Toggle the color switch on the top left
   ;
   (let [h] [0]
   (let grayPts
@@ -569,6 +576,11 @@ activeTrans = "
 "
 
 rgba = "
+    ;
+    ; A Color Picker
+    ; 
+    ; Move the sliders to change the rgba value of the circle!
+    ;
     (let [r_ g_ b_ a_] [22 74 237 0.5]
     ;
     (let [r s1] (hSlider true 20! 420! 20! 0! 255! r_)
@@ -583,7 +595,9 @@ rgba = "
 "
 piechart1 = "
   ;
-  ; A piechart
+  ; A Pie Chart
+  ;
+  ; Move the sliders to change the size of a particular slice
   ;
   (let [count1_ count2_ count3_ count4_ count5_] [35 31 16 10 8]
   (let [count1 s1] (hSlider true 20! 420! 20! 0! 100! count1_)
@@ -599,6 +613,7 @@ piechart1 = "
   ;
   (let sliders (concat [s1 s2 s3 s4 s5])
   (let [cx cy r t border] [280! 440! 180 4 'grey']
+  ;
   (let pie
     (let pToDegrees (\\p (* 360! (/ p total)))
     (let [d1 d2 d3 d4 d5] (map pToDegrees [count1 p2 p3 p4 p5])
@@ -626,36 +641,45 @@ botanic = "
   ;
   ; Logo: Chicago Botanic Garden
   ;
+  ; Click 'Show Zones' to see the control points for the various Bezier curves
+  ; in this example.
+  ; 
   (let [xOff yOff w h] [0! 0! 623 622]
   (let [xOut xcOut1 ycOut1 xcOut2 ycOut2 xcOut3 ycOut3] [292 40 141 97 202 23 24]
   (let [xMid yTip yMid xBud yBud] [320! 272 460 -51 272]
   (let left [[xMid yMid] [(- xMid xOut) yTip]]
   (let right [[xMid yMid] [(+ xMid xOut) yTip]]
   (let bud [[xMid (- yMid 92)] [(+ xMid xBud) yBud] [(- xMid xBud) yBud]]
+  ;
   (let makePath
     (\\(c pts [xc1 yc1] [xc2 yc2])
       (let offsetPts (map (\\[x y] [(+ x xOff) (+ y yOff)]) pts)
       (let [[x0 y0] [x1 y1]] offsetPts
       (let commands ['M' x0 y0 'Q' xc1 yc1 x1 y1 'M' x1 y1 'Q' xc2 yc2 x0 y0]
         (path c 'black' 0 commands)))))
+  ;
   (let makeArc
     (\\(c pts [xc1 yc1] [xc2 yc2])
       (let offsetPts (map (\\[x y] [(+ x xOff) (+ y yOff)]) pts)
       (let [[x0 y0] [x1 y1] [x2 y2]] offsetPts
       (let commands ['M' x0 y0 'L' x1 y1 'A' 45 45 0 0 1 x2 y2 'L' x2 y2 'Z']
         (path c 'black' 0 commands)))))
+  ;
   (let leftleaf
     (makePath 'white' left [(- xMid xcOut1) ycOut1] [(- xMid xcOut2) ycOut2])
   (let rightleaf
     (makePath 'white' right [(+ xMid xcOut1) ycOut1] [(+ xMid xcOut2) ycOut2])
   (let centerbud
     (makeArc 'white' bud [(+ xMid xcOut3) ycOut3] [(+ xMid xcOut3) ycOut3])
+  ;
     (svg  [(rect '#83F52C' xOff yOff w h) leftleaf rightleaf centerbud]))))))))))))
 "
 
-stickfigures = "
+cultoflambda = "
     ;
-    ; A diagram of a sketch-n-sketch demo w/ audience
+    ; Cult of Lambda
+    ;
+    ; Some fun 
     ;
     (let [x0 y0 w h] [200 200 450 300]
     (let wstripe (/ w 6!)
@@ -706,6 +730,7 @@ stickfigures = "
              [(- xw delta) yh]
              [(+ x0 w2) (+ (+ y0 h2) delta)]])
         ]))))
+    ;
       (svg
         (append
           [(rect '#BFEFFF' (- x0 200!) (- y0 200!) (* 3! w) (* 3! h))
@@ -720,17 +745,67 @@ stickfigures = "
               (range 0! 7!))))))))))))))
 "
 
-
---(map
---            (\\i
---                (nstar
---                  pts
---                  (+ (+ x0 (/ w 6!)) (* min (cos (rotate  i))))
---                  (+ (+ y0 (* hstripe 3.5!)) (* min (sin (rotate  i))))
---                  outerLen
---                  innerLen
---                  (rotate  i)))
---          (range ni nj)))))))))))))))
+stickfigures = "
+  ;
+  ; A diagram of a sketch-n-sketch demo w/ audience
+  ;
+  (let [x0 y0 w h] [196 195 334.6666666666666 801.5999999999998]
+  (let wstripe (/ w 6!)
+  (let xoff (+ x0 wstripe)
+  (let yoff (+ y0 (/ h 4!))
+  (let minrad (if (< (/ wstripe 7.5!) (/ h 30!)) (/ wstripe 7.5!) (/ h 15!))
+  (let min (if (< w h) (* 0.6! w) (* 0.6! h))
+  (let rotate (\\a (/ (* (+ 1! a) (pi)) 4!))
+  (let figure
+    (\\(x y)
+      (let [x1 x2 x3] (map (\\n (+ x (* wstripe n))) [1.2! 1.5! 1.8!])
+      (let [y1 y2 y3 y4] (map (\\n (+ y (/ (/ h 2!) n))) [4.3! 2.8! 1.9! 1.4!])
+      (let figline (\\[[a b] [c d]] (line 'black' (/ minrad 2!) a b c d))
+        (snoc
+          (circle 'black' x2 y1 (/ wstripe 3.75!))
+          (map
+            figline
+            [[[x1 y1] [x1 y2]]
+             [[x1 y2] [x3 y2]]
+             [[x3 y1] [x3 y2]]
+             [[x1 y4] [x1 y3]]
+             [[x1 y3] [x3 y3]]
+             [[x3 y3] [x3 y4]]
+             [[x2 y1] [x2 y3]]]))))))
+  (let logo
+    (\\(x y)
+      (let [x0 y0 w h delta] [x y 90 90 3.5]
+      (let [xw yh w2 h2] [(+ x0 w) (+ y0 h) (div w 2) (div h 2)]
+      (let poly (\\pts (polygon 'black' 'none' 0 pts))
+        [(rect 'white' x0 y0 w h)
+         (poly  [[(+ x0 delta) y0] [xw y0] [xw (- yh delta)]])
+         (poly  [[x0 (+ y0 delta)] [x0 (- yh delta)] [(- (+ x0 w2) delta) (+ y0 h2)]])
+         (poly  [[(+ x0 delta) yh] [(- xw delta) yh] [(+ x0 w2) (+ (+ y0 h2) delta)]])]))))
+  ;
+    (svg 
+      (append
+        [(polygon
+          '#CD7F32'
+          'none'
+          0
+          [[508 511]
+           [497 347]
+           [200 354]
+           [188 512]
+           [171 334]
+           [133 287]
+           [133 435]
+           [110 257]
+           [453 252]
+           [520 324]])
+         (polygon 'none' 'black' 4 [[106 256] [453 250] [524 325] [183 334]])
+         (rect 'gray' (+ x0 75!) (+ y0 30!) 103 102)]
+        (append
+          (logo (+ x0 80!) (+ y0 36!))
+          (concatMap
+            (\\[x y] (figure x y))
+            [[200 393] [-13 300] [584 300] [700 200] [650 425]])))))))))))))
+"
 --------------------------------------------------------------------------------
 
 todo = "
@@ -764,6 +839,7 @@ examples =
   , makeExample "Ferris Wheel" ferris
   , makeExample "Pie Chart" piechart1
   , makeExample "Stick Figures" stickfigures
+  , makeExample "Cult of Lambda" cultoflambda 
   , makeExample "Clique" clique
   ]
 
