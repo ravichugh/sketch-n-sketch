@@ -79,6 +79,8 @@ src = "
 
 (def not (\\b (if b false true)))
 
+(def implies (\\(p q) (if p q true)))
+
 (def clamp (\\(i j n) (if (< n i) i (if (< j n) j n))))
 
 (def joinStrings (\\(sep ss)
@@ -206,7 +208,8 @@ src = "
   (let indices (list0N (- (* 2! n) 1!))
     (polygon fill stroke w (map pti (zip indices lengths))))))))
 
-(def hSlider_ (\\(dropBall roundInt xStart xEnd y minVal maxVal curVal)
+; TODO refactor as in paper
+(def hSlider_ (\\(dropBall roundInt xStart xEnd y minVal maxVal caption curVal)
   (let [rPoint wLine rBall] [4! 3! 10!]
   (let [xDiff valDiff] [(- xEnd xStart) (- maxVal minVal)]
   (let xBall (+ xStart (* xDiff (/ (- curVal minVal) valDiff)))
@@ -220,7 +223,7 @@ src = "
       (circle 'black' xStart y rPoint)
       (circle 'black' xEnd y rPoint)
       (circle 'black' xBall y rBall_)
-      (text (+ xEnd 10) (+ y 5) (toString val)) ]
+      (text (+ xEnd 10) (+ y 5) (+ caption (toString val))) ]
   [val shapes])))))))))
 
 (def hSlider (hSlider_ true))

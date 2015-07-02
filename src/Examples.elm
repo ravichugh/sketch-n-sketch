@@ -218,6 +218,16 @@ buttons = "
     (svg b1)))
 "
 
+widgets = "
+  ; library widgets
+  ;
+  (let [n  s1] (hSlider false 20! 90!  20! 0! 5! 'n = ' 3.1415)
+  (let [i  s2] (hSlider true  20! 90!  50! 0! 5! 'i = ' 3.1415)
+  (let [b1 s3] (button        20!      80!       'b1 = ' 0.25)
+  (let [b2 s4] (button        20!     110!       'b2 = ' 0.75)
+    (svg (concat [s1 s2 s3 s4]))))))
+"
+
 clique = "
   ;
   ; A six node clique
@@ -488,17 +498,22 @@ chicago = "
               (nStar 'red' 'none' 0 pts outerLen innerLen 0 (+ x0 off) (+ y0 (/ h 2!)))))
           (range ni nj))))))))
 "
+
 ferris = "
   ;
   ; Take this ferris wheel for a spin!
+  ; try: unfreezing cx and cy and translating wheel
+  ;      unfreezing center radius and stretching it
+  ;      unfreezing wCar and changing size of box
   ;
   (let [numSpokes_ spokeLen_ rotAngle_] [5 80 0]
+  (let showSliders true
   ;
-  (let [numSpokes s1] (hSlider true 20! 420! 20! 3! 10! numSpokes_)
-  (let [spokeLen s2] (hSlider true 20! 420! 50! 40! 200! spokeLen_)
-  (let [rotAngle s3] (hSlider false 20! 420! 80! (neg twoPi) twoPi rotAngle_)
+  (let [numSpokes s1] (hSlider true 20! 420! 20! 3! 10! '' numSpokes_)
+  (let [spokeLen s2] (hSlider true 20! 420! 50! 40! 200! '' spokeLen_)
+  (let [rotAngle s3] (hSlider false 20! 420! 80! (neg twoPi) twoPi '' rotAngle_)
   ;
-  (let sliders (concat [s1 s2 s3])
+  (let sliders (if showSliders (concat [s1 s2 s3]) [])
   (let wheel
     (let [cx cy] [220! 300!]
     (let rim [(ring 'darkgray' 8! cx cy spokeLen)]
@@ -512,7 +527,7 @@ ferris = "
       (map (\\[x y] (squareCenter 'lightgray' x y wCar)) spokePts)))
     (concat [rim cars center frame caps]))))))))
   ;
-  (svg (append sliders wheel))))))))
+  (svg (append sliders wheel)))))))))
 "
 
 activeTrans = "
@@ -583,10 +598,10 @@ rgba = "
     ;
     (let [r_ g_ b_ a_] [22 74 237 0.5]
     ;
-    (let [r s1] (hSlider true 20! 420! 20! 0! 255! r_)
-    (let [g s2] (hSlider true 20! 420! 50! 0! 255! g_)
-    (let [b s3] (hSlider true 20! 420! 80! 0! 255! b_)
-    (let [a s4] (hSlider false 20! 420! 110! 0.0! 1.0! a_)
+    (let [r s1] (hSlider true 20! 420! 20! 0! 255! '' r_)
+    (let [g s2] (hSlider true 20! 420! 50! 0! 255! '' g_)
+    (let [b s3] (hSlider true 20! 420! 80! 0! 255! '' b_)
+    (let [a s4] (hSlider false 20! 420! 110! 0.0! 1.0! '' a_)
     ;
     (let ball (circle [r g b a] 220! 300! 100!)
     (let sliders (concat [s1 s2 s3 s4])
@@ -600,11 +615,11 @@ piechart1 = "
   ; Move the sliders to change the size of a particular slice
   ;
   (let [count1_ count2_ count3_ count4_ count5_] [35 31 16 10 8]
-  (let [count1 s1] (hSlider true 20! 420! 20! 0! 100! count1_)
-  (let [count2 s2] (hSlider true 20! 420! 50! 0! 100! count2_)
-  (let [count3 s3] (hSlider true 20! 420! 80! 0! 100! count3_)
-  (let [count4 s4] (hSlider true 20! 420! 110! 0! 100! count4_)
-  (let [count5 s5] (hSlider true 20! 420! 140! 0! 100! count5_)
+  (let [count1 s1] (hSlider true 20! 420! 20! 0! 100! '' count1_)
+  (let [count2 s2] (hSlider true 20! 420! 50! 0! 100! '' count2_)
+  (let [count3 s3] (hSlider true 20! 420! 80! 0! 100! '' count3_)
+  (let [count4 s4] (hSlider true 20! 420! 110! 0! 100! '' count4_)
+  (let [count5 s5] (hSlider true 20! 420! 140! 0! 100! '' count5_)
   (let total (+ count1 (+ count2 (+ count3 (+ count4 count5))))
   (let p2 (+ count1 count2)
   (let p3 (+ p2 count3)
@@ -826,6 +841,7 @@ examples =
   , makeExample "Stars" stars
   , makeExample "Sliders" sliders
   , makeExample "Buttons" buttons
+  , makeExample "Widgets" widgets
   , makeExample "Color Picker" rgba
   , makeExample "US-13 Flag" usFlag13
   , makeExample "US-50 Flag" usFlag50
