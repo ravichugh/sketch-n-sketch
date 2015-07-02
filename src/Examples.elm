@@ -681,7 +681,7 @@ cultoflambda = "
     ;
     ; Some fun 
     ;
-    (let [x0 y0 w h] [200 200 450 300]
+    (let [x0 y0 w h] [0 0 500 500]
     (let wstripe (/ w 6!)
     (let xoff (+ x0 wstripe)
     (let yoff (+ y0 (/ h 4!))
@@ -691,16 +691,16 @@ cultoflambda = "
         (/ h 15!))
     (let min
       (if (< w h)
-        (* 0.6! w)
-        (* 0.6! h))
+        (* 0.4! w)
+        (* 0.4! h))
     (let rotate (\\a (/ (* (+ 1! a) (pi)) 4!))
     (let figure 
       (\\(x y) 
         (let [x1 x2 x3] (map (\\n (+ x (* wstripe n))) [1.2! 1.5! 1.8!])
         (let [y1 y2 y3 y4] (map (\\n (+ y (/ (/ h 2!) n))) [4.3! 2.8! 1.9! 1.4!])
-        (let figline (\\[[a b] [c d]] (line 'black' (/ minrad 2!) a b c d))
+        (let figline (\\[[a b] [c d]] (line 'orange' (/ minrad 2!) a b c d))
           (snoc
-            (ellipse 'black' x2 y1 (/ wstripe 7.5!) (/ h 30!))
+            (ellipse 'orange' x2 y1 (/ wstripe 7.5!) (/ h 30!))
             (map
               figline
                 [[[x1 y1] [x1 y2]]
@@ -712,76 +712,72 @@ cultoflambda = "
                 [[x2 y1] [x2 y3]]]))))))
     (let logo
       (\\(x y)
-        (let [x0 y0 w h delta] [x y 90 90 3.5]
-        (let [xw yh w2 h2] [(+ x0 w) (+ y0 h) (div w 2) (div h 2)]
+        (let [xl yl wl hl delta] [x y w h 3.5]
+        (let [xw yh w2 h2] [(+ xl wl) (+ yl hl) (div wl 2) (div hl 2)]
         (let poly (\\pts (polygon 'black' 'none' 0 pts))
           [
-          (rect 'white' x0 y0 w h)
+          (rect 'white' xl yl wl hl)
           (poly
-            [[(+ x0 delta) y0]
-             [xw y0]
+            [[(+ xl delta) yl]
+             [xw yl]
              [xw (- yh delta)]])
           (poly
-            [[x0 (+ y0 delta)]
-             [x0 (- yh delta)]
-             [(- (+ x0 w2) delta) (+ y0 h2)]])
+            [[xl (+ yl delta)]
+             [xl (- yh delta)]
+             [(- (+ xl w2) delta) (+ yl h2)]])
           (poly
-            [[(+ x0 delta) yh]
+            [[(+ xl delta) yh]
              [(- xw delta) yh]
-             [(+ x0 w2) (+ (+ y0 h2) delta)]])
+             [(+ xl w2) (+ (+ yl h2) delta)]])
         ]))))
     ;
       (svg
         (append
-          [(rect '#BFEFFF' (- x0 200!) (- y0 200!) (* 3! w) (* 3! h))
-          (rect 'gray' (+ x0 75!) (+ y0 30!) 100 100)]
-          (append
-            (logo (+ x0 80!) (+ y0 36!))
-            (concatMap 
-              (\\i 
-                (figure 
-                  (+ x0 (* min (cos (rotate i))))
-                  (+ y0 (* min (sin (rotate i))))))
-              (range 0! 7!))))))))))))))
+          (logo (+ x0 80!) (+ y0 36!))
+          (concatMap 
+            (\\i 
+              (figure 
+                (+ (* 0.5 w) (+ x0 (* min (cos (rotate i)))))
+                (+ (* 0.5 h) (+ y0 (* min (sin (rotate i)))))))
+            (range 0! 7!)))))))))))))
 "
 
 stickfigures = "
   ;
   ; A diagram of a sketch-n-sketch demo w/ audience
   ;
-  (let [x0 y0 w h] [196 195 334.6666666666666 801.5999999999998]
+  (let [x0 y0 w h] [60 -22 417! 915!]
   (let wstripe (/ w 6!)
   (let xoff (+ x0 wstripe)
   (let yoff (+ y0 (/ h 4!))
   (let minrad (if (< (/ wstripe 7.5!) (/ h 30!)) (/ wstripe 7.5!) (/ h 15!))
   (let min (if (< w h) (* 0.6! w) (* 0.6! h))
-  (let rotate (\\a (/ (* (+ 1! a) (pi)) 4!))
   (let figure
     (\\(x y)
       (let [x1 x2 x3] (map (\\n (+ x (* wstripe n))) [1.2! 1.5! 1.8!])
-      (let [y1 y2 y3 y4] (map (\\n (+ y (/ (/ h 2!) n))) [4.3! 2.8! 1.9! 1.4!])
+      (let [y1 yh y2 y3 y4] (map (\\n (+ y (/ (/ h 2!) n))) [4.3! 2.2! 2.8! 1.9! 1.4!])
       (let figline (\\[[a b] [c d]] (line 'black' (/ minrad 2!) a b c d))
         (snoc
           (circle 'black' x2 y1 (/ wstripe 3.75!))
           (map
             figline
-            [[[x1 y1] [x1 y2]]
+            [[[x1 yh] [x1 y2]]
              [[x1 y2] [x3 y2]]
-             [[x3 y1] [x3 y2]]
+             [[x3 yh] [x3 y2]]
              [[x1 y4] [x1 y3]]
              [[x1 y3] [x3 y3]]
              [[x3 y3] [x3 y4]]
              [[x2 y1] [x2 y3]]]))))))
   (let logo
     (\\(x y)
-      (let [x0 y0 w h delta] [x y 90 90 3.5]
-      (let [xw yh w2 h2] [(+ x0 w) (+ y0 h) (div w 2) (div h 2)]
+      (let [xl yl wl hl delta] [x y 90 90 6.5]
+      (let [xw yh w2 h2] [(+ xl wl) (+ yl hl) (div wl 2) (div hl 2)]
       (let poly (\\pts (polygon 'black' 'none' 0 pts))
-        [(rect 'white' x0 y0 w h)
-         (poly  [[(+ x0 delta) y0] [xw y0] [xw (- yh delta)]])
-         (poly  [[x0 (+ y0 delta)] [x0 (- yh delta)] [(- (+ x0 w2) delta) (+ y0 h2)]])
-         (poly  [[(+ x0 delta) yh] [(- xw delta) yh] [(+ x0 w2) (+ (+ y0 h2) delta)]])]))))
-  ;
+        [(rect 'white' xl yl wl hl)
+         (poly  [[(+ xl delta) yl] [xw yl] [xw (- yh delta)]])
+         (poly  [[xl (+ yl delta)] [xl (- yh delta)] [(- (+ xl w2) delta) (+ yl h2)]])
+         (poly  [[(+ xl delta) yh] [(- xw delta) yh] [(+ xl w2) (+ (+ yl h2) delta)]])]))))
+    ;
     (svg 
       (append
         [(polygon
@@ -796,15 +792,16 @@ stickfigures = "
            [133 287]
            [133 435]
            [110 257]
-           [453 252]
+           [443 250]
            [520 324]])
-         (polygon 'none' 'black' 4 [[106 256] [453 250] [524 325] [183 334]])
-         (rect 'gray' (+ x0 75!) (+ y0 30!) 103 102)]
+         (polygon 'none' 'black' 4 [[106 256] [445 251] [524 325] [183 334]])
+         (rect 'gray' 230! 184! 103 102)
+         (polygon 'gray' 'black' 2 [[250 295] [357 294] [393 312] [282 312]])]
         (append
-          (logo (+ x0 80!) (+ y0 36!))
+          (logo 238 190)
           (concatMap
-            (\\[x y] (figure x y))
-            [[200 393] [-13 300] [584 300] [700 200] [650 425]])))))))))))))
+            (\\[x y] (figure (+ x0 x) (+ y0 y)))
+            [[-24 245] [-96 140] [325 321] [405 184] [474 298]]))))))))))))
 "
 --------------------------------------------------------------------------------
 
