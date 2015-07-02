@@ -712,7 +712,7 @@ cultoflambda = "
                 [[x2 y1] [x2 y3]]]))))))
     (let logo
       (\\(x y)
-        (let [xl yl wl hl delta] [x y w h 3.5]
+        (let [xl yl wl hl delta] [x y w h 27.5]
         (let [xw yh w2 h2] [(+ xl wl) (+ yl hl) (div wl 2) (div hl 2)]
         (let poly (\\pts (polygon 'black' 'none' 0 pts))
           [
@@ -737,8 +737,8 @@ cultoflambda = "
           (concatMap 
             (\\i 
               (figure 
-                (+ (* 0.5 w) (+ x0 (* min (cos (rotate i)))))
-                (+ (* 0.5 h) (+ y0 (* min (sin (rotate i)))))))
+                (+ (* 0.41! w) (+ x0 (* min (cos (rotate i)))))
+                (+ (* 0.38! h) (+ y0 (* min (sin (rotate i)))))))
             (range 0! 7!)))))))))))))
 "
 
