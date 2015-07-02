@@ -116,8 +116,18 @@ valOfAVal a = case a of
   ANum it   -> VConst it
   APoints l -> VList (List.map pointToVal l)
   ARgba tup -> VList (rgbaToVal tup)
-  APath2 l  -> Debug.crash "valOfAVal: APath2"
+  APath2 p  -> VList (List.concatMap valsOfPathCmd (fst p))
   -- APath vs  -> VList vs
+
+valsOfPathCmd c =
+  let fooPt (_,(x,y)) = [VConst x, VConst y] in
+  case c of
+    CmdZ   s              -> vStr s :: []
+    CmdMLT s pt           -> vStr s :: fooPt pt
+    CmdHV  s n            -> vStr s :: [VConst n]
+    CmdC   s pt1 pt2 pt3  -> vStr s :: List.concatMap fooPt [pt1,pt2,pt3]
+    CmdSQ  s pt1 pt2      -> vStr s :: List.concatMap fooPt [pt1,pt2]
+    CmdA   s a b c d e pt -> vStr s :: List.map VConst [a,b,c,d,e] ++ fooPt pt
 
 valOfAttr (k,a) = VList [VBase (String k), valOfAVal a]
 
