@@ -1,5 +1,5 @@
 html:
-	elm-make Main.elm --output ../build/sns.html
+	elm-make Main.elm --output ../build/out/sns.js
 
 loc:
 	wc -l \
