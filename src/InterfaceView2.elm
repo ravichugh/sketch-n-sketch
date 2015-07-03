@@ -234,7 +234,7 @@ makeZonesPath showZones shape id l =
 --------------------------------------------------------------------------------
 -- User Interface
 
-strTitle = "sketch-n-sketch " ++ params.strVersion
+strTitle = " sketch-n-sketch " ++ params.strVersion
 
 colorDebug c1 =
   if | params.debugLayout -> GE.color c1
@@ -506,16 +506,24 @@ view (w,h) model =
       titleStyle =
         { defaultStyle | typeface <- ["Courier", "monospace"]
                        , height <- Just 18
-                       , bold <- True }
+                       , bold <- False }
+
+      wLogo = params.topSection.wLogo
+      logo  = GE.image wLogo wLogo "sketch-n-sketch-logo.png"
 
       wBtnO = params.topSection.wBtnO
       hBtnO = params.topSection.hBtnO
       wJunk = params.topSection.wJunk
 
-      wSep  = GE.spacer (wAll - (wBtnO + wJunk)) 1
+      wSep  = GE.spacer (wAll - (wLogo + wBtnO + wJunk)) 1
       btnO  = Html.toElement wBtnO hBtnO <| orientationButton wBtnO hBtnO model
     in
-      GE.size wAll hTop <| GE.flow GE.right [ title , wSep, btnO ]
+      GE.size wAll hTop <|
+        GE.flow GE.right
+          [ GE.container wLogo hTop GE.middle logo
+          , GE.container (wAll - wLogo) hTop GE.middle <|
+              GE.flow GE.right [ title, wSep, btnO ]
+          ]
   in
 
   let midSection =

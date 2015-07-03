@@ -8,10 +8,11 @@ params =
   , debugLayout = False    -- displays colors for high-level layout structure
   , wGut = 10              -- width of left/right side gutters (spans entire height)
   , topSection =
-     { h = 40              -- height of top space
+     { h = 38              -- height of top space
+     , wLogo = 25          -- width/height of logo
      , wBtnO = 180         -- width...
      , hBtnO = 25          -- ... and height of orientation button
-     , wJunk = 225         -- gap between title and orientation button
+     , wJunk = 230         -- gap between title and orientation button
      }
   , botSection =
      { h = 30              -- height of bot space
