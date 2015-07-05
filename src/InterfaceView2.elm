@@ -77,10 +77,15 @@ attrNumTr k nt = LangSvg.compileAttr k (LangSvg.ANum nt)
 
 onMouseDown = Svg.Events.onMouseDown << Signal.message events.address
 onMouseUp   = Svg.Events.onMouseUp   << Signal.message events.address
+onMouseOver = Svg.Events.onMouseOver << Signal.message events.address
+onMouseOut  = Svg.Events.onMouseOut  << Signal.message events.address
 
 zoneEvents id shape zone =
   [ onMouseDown (SelectObject id shape zone)
-  , onMouseUp MouseUp ]
+  , onMouseUp MouseUp
+  , onMouseOver (UpdateModel (\m -> { m | hovering <- Just (id, shape, zone) }))
+  , onMouseOut (UpdateModel (\m -> { m | hovering <- Nothing }))
+  ]
 
 zone svgFunc id shape zone l =
   svgFunc (zoneEvents id shape zone ++ l) []
@@ -236,9 +241,11 @@ makeZonesPath showZones shape id l =
 
 strTitle = " sketch-n-sketch " ++ params.strVersion
 
-colorDebug c1 =
+colorDebug_ c1 c2 =
   if | params.debugLayout -> GE.color c1
-     | otherwise          -> GE.color Color.darkGray
+     | otherwise          -> GE.color c2
+
+colorDebug c1 = colorDebug_ c1 Color.darkGray
 
 codebox : Int -> Int -> Model -> GE.Element
 codebox w h model =
@@ -357,12 +364,22 @@ mainSectionVertical w h model =
     wCode_  = (w - wMiddle - wGut - wGut) // 2
     wCode   = wCode_ + model.midOffsetX
     wCanvas = wCode_ - model.midOffsetX
+    hCanvas = h - hZInfo
+    hZInfo  = params.mainSection.canvas.hZoneInfo
     hWidget = params.mainSection.widgets.hBtn
                 + params.mainSection.vertical.hExtra
   in
 
   let codeSection = codebox wCode h model in
-  let canvasSection = canvas wCanvas h model in
+
+  let canvasSection =
+    GE.size wCanvas h <|
+      GE.flow GE.down
+        [ canvas wCanvas hCanvas model
+        , hoverZoneInfo model (wCanvas+1) hZInfo -- NOTE: +1 is a band-aid
+        ]
+  in
+
   let gutter = gutterForResizing model.orient wGut h in
 
   let middleSection =
@@ -380,13 +397,22 @@ mainSectionHorizontal w h model =
     hMiddle = hBtn
     hCode_  = (h - hMiddle - hGut - hGut) // 2
     hCode   = hCode_ + model.midOffsetY
-    hCanvas = hCode_ - model.midOffsetY
+    hCanvas = hCode_ - model.midOffsetY - hZInfo
+    hZInfo  = params.mainSection.canvas.hZoneInfo
     wWidget = params.mainSection.widgets.wBtn
                 + params.mainSection.horizontal.wExtra
   in
 
   let codeSection = codebox w hCode model in
-  let canvasSection = canvas w hCanvas model in
+
+  let canvasSection =
+    GE.size w (hCanvas + hZInfo) <|
+      GE.flow GE.down
+        [ canvas w hCanvas model
+        , hoverZoneInfo model w (hZInfo+1) -- NOTE: +1 is a band-aid
+        ]
+  in
+
   let gutter = gutterForResizing model.orient w hGut in
 
   let middleSection =
@@ -488,6 +514,39 @@ orientationButton w h model =
       , Events.onClick events.address SwitchOrient
       ]
       [Html.text ("[Orientation] " ++ (toString model.orient))]
+
+hoverZoneInfo : Model -> Int -> Int -> GE.Element
+hoverZoneInfo model w h =
+  colorDebug Color.orange <|
+    GE.container w h GE.topLeft <|
+      case model.mouseMode of
+        MouseNothing ->
+          let eStr = GE.leftAligned << T.monospace << T.fromString in
+          case hoverInfo model of
+            Nothing -> GE.empty
+            Just (i,k,z,l) ->
+              let numLocs = List.map (\(s,n) -> toString n ++ Utils.braces s) l in
+              let line1 = (k ++ toString i) ++ " " ++ z in
+              let line2 = Utils.spaces numLocs in
+              eStr (" " ++ line1 ++ "\n " ++ line2)
+        _ ->
+          GE.empty
+
+hoverInfo : Model -> Maybe (Int, LangSvg.ShapeKind, LangSvg.Zone, List (String, Num))
+hoverInfo model =
+  let err y = "hoverInfo: " ++ toString y in
+  case (model.mode, model.hovering) of
+    (Live info, Just (i,k,z)) ->
+      flip Utils.bindMaybe (Dict.get i info.assignments) <| \d ->
+      flip Utils.bindMaybe (Dict.get z d)                <| \locs ->
+        let l =
+          List.map (\(lid,_,x) ->
+            let n = Utils.justGet_ (err (i,z,lid)) lid info.initSubst in
+            if | x == ""   -> ("loc_" ++ toString lid, n)
+               | otherwise -> (x, n)) locs
+        in
+        Just (i,k,z,l)
+    _ -> Nothing
 
 view : (Int, Int) -> Model -> GE.Element
 view (w,h) model =

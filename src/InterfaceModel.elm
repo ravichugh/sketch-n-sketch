@@ -2,7 +2,7 @@ module InterfaceModel where
 
 import Lang exposing (..)
 import Eval
-import Sync exposing (Triggers)
+import Sync
 import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Zone)
 import Examples
@@ -29,10 +29,11 @@ type alias Model =
   , showZones : Bool
   , syncOptions : Sync.Options
   , editingMode : Bool
+  , hovering : Maybe (Int, ShapeKind, Zone)
   }
 
 type Mode
-  = AdHoc | SyncSelect Int PossibleChanges | Live Triggers
+  = AdHoc | SyncSelect Int PossibleChanges | Live Sync.LiveInfo
   | Print RawSvg
 
 type alias RawSvg = String
@@ -68,6 +69,8 @@ type Event = CodeUpdate String
            | SwitchOrient
            | StartResizingMid
            | Noop
+           | UpdateModel (Model -> Model)
+               -- TODO could write other events in terms of UpdateModel
 
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
@@ -93,5 +96,6 @@ sampleModel =
     , showZones    = False
     , syncOptions  = Sync.defaultOptions
     , editingMode  = False
+    , hovering     = Nothing
     }
 

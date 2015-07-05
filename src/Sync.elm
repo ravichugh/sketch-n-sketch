@@ -1,6 +1,6 @@
 module Sync (Options, defaultOptions,
              inferLocalUpdates, inferStructuralUpdate, prepareLiveUpdates,
-             printZoneTable, Triggers, tryToBeSmart) where
+             printZoneTable, LiveInfo, Triggers, tryToBeSmart) where
 
 import Dict exposing (Dict)
 import Set
@@ -649,20 +649,29 @@ strLoc_ l =
 type alias Triggers = Dict NodeId (Dict Zone (Maybe Trigger))
 type alias Trigger  = List (AttrName, Num) -> (Exp, Dict NodeId (Dict AttrName Num))
 
+type alias LiveInfo =
+  { triggers    : Triggers
+  , assignments : Dict NodeId (Dict Zone Locs)
+  , initSubst   : Subst
+  }
+
 tryToBeSmart = False
 
-prepareLiveUpdates : Options -> Exp -> Val -> Triggers
+prepareLiveUpdates : Options -> Exp -> Val -> LiveInfo
 prepareLiveUpdates opts e v =
   let d0 = nodeToAttrLocs v in
   let d1 = shapesToZoneTable opts d0 in
   let d2 = assignTriggers d1 in
-  makeTriggers opts e d0 d2
+  let initSubst = LangParser.substOf e in
+    { triggers    = makeTriggers initSubst opts e d0 d2
+    , assignments = zoneAssignments d2
+    , initSubst   = initSubst
+    }
 
 -- TODO refactor Dict data structures above to make this more efficient
 
-makeTriggers : Options -> Exp -> Dict0 -> Dict2 -> Triggers
-makeTriggers opts e d0 d2 =
-  let subst = LangParser.substOf e in
+makeTriggers : Subst -> Options -> Exp -> Dict0 -> Dict2 -> Triggers
+makeTriggers subst opts e d0 d2 =
   let f i (_,zones) =
     let g (zone,m) =
       Dict.insert zone <|
@@ -754,4 +763,17 @@ whichLoc opts d0 d2 i z attr =
     _         -> Debug.crash "whichLoc"
 
 evalTr subst tr = Utils.fromJust_ "evalTr" (evalTrace subst tr)
+
+------------------------------------------------------------------------------
+
+-- TODO compute this along with everything else
+-- could also make this a single dictionary: Dict (NodeId, Zone) Locs
+zoneAssignments : Dict2 -> Dict NodeId (Dict Zone Locs)
+zoneAssignments =
+  Dict.map <| \i (_,l) ->
+    List.foldl (\(z,m) acc ->
+      case m of
+        Just (locs,_) -> Dict.insert z locs acc
+        Nothing       -> acc
+    ) Dict.empty l
 

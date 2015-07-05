@@ -128,8 +128,8 @@ upstate evt old = case Debug.log "Event" evt of
     SelectObject id kind zone ->
       case old.mode of
         AdHoc       -> { old | mouseMode <- MouseObject (id, kind, zone, Nothing) }
-        Live triggers ->
-          let dZones = Utils.justGet_ "#1" id triggers in
+        Live info ->
+          let dZones = Utils.justGet_ "#1" id info.triggers in
           case Utils.justGet_ ("#2" ++ toString (id,kind,zone) ++ toString (Dict.toList dZones)) zone dZones of
             Nothing -> { old | mouseMode <- MouseNothing }
             Just _  -> { old | mouseMode <- MouseObject (id, kind, zone, Nothing) }
@@ -215,6 +215,8 @@ upstate evt old = case Debug.log "Event" evt of
       let so' = { so | thawedByDefault <- not so.thawedByDefault } in
       let model' = { old | syncOptions <- so' } in
       { model' | mode <- refreshMode_ model' }
+
+    UpdateModel f -> f old
 
     _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
 
@@ -307,8 +309,8 @@ createMousePosCallback mx my objid kind zone old =
     let newTree = List.foldr (upslate objid) (snd old.slate) newRealAttrs in
       case old.mode of
         AdHoc -> (Utils.fromJust old.inputExp, (fst old.slate, newTree))
-        Live triggers ->
-          case Utils.justGet_ "#4" zone (Utils.justGet_ "#5" objid triggers) of
+        Live info ->
+          case Utils.justGet_ "#4" zone (Utils.justGet_ "#5" objid info.triggers) of
             -- Nothing -> (Utils.fromJust old.inputExp, newSlate)
             Nothing -> Debug.crash "shouldn't happen due to upstate SelectObject"
             Just trigger ->

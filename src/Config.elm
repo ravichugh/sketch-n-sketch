@@ -15,7 +15,7 @@ params =
      , wJunk = 230         -- gap between title and orientation button
      }
   , botSection =
-     { h = 30              -- height of bot space
+     { h = 15              -- height of bot space
      }
   , mainSection =
      { widgets =           -- Render/Sync buttons; Mode/Tests dropdowns
@@ -34,6 +34,7 @@ params =
         }
      , canvas =
         { border = "0px solid darkGray"
+        , hZoneInfo = 40   -- height of area to display hover zone info
         }
      , codebox =
         { border = "none"
