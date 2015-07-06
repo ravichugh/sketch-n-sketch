@@ -793,7 +793,13 @@ stickfigures = "
          (poly  [[xl (+ yl delta)] [xl (- yh delta)] [(- (+ xl w2) delta) (+ yl h2)]])
          (poly  [[(+ xl delta) yh] [(- xw delta) yh] [(+ xl w2) (+ (+ yl h2) delta)]])]))))
     ;
-    (svg 
+    (let textBoxes
+      [ (addAttr (text 160 160 'Laptop on Table') ['font-size' 40])
+        (addAttr (text 30 600 'Demonstrators') ['font-size' 40])
+        (addAttr (text 550 660 'Audience') ['font-size' 40])
+      ]
+    ;
+    (svg (append textBoxes
       (append
         [(polygon
           '#CD7F32'
@@ -816,7 +822,7 @@ stickfigures = "
           (logo 238 190)
           (concatMap
             (\\[x y] (figure (+ x0 x) (+ y0 y)))
-            [[-24 245] [-96 140] [325 321] [405 184] [474 298]]))))))))))))
+            [[-24 245] [-96 140] [325 321] [405 184] [474 298]]))))))))))))))
 "
 --------------------------------------------------------------------------------
 
