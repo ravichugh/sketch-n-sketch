@@ -265,6 +265,7 @@ funcsAttr = [
   , ("d", A.d)
   , ("draggable", HA.draggable) -- TODO figure this out
   , ("fill", A.fill)
+  , ("font-family", A.fontFamily)
   , ("font-size", A.fontSize)
   , ("height", A.height)
   , ("opacity", A.opacity)

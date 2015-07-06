@@ -133,7 +133,8 @@ src = "
      []]))
 
 (def text (\\(x y s)
-   ['text' [['x' x] ['y' y] ['style' 'fill:black']]
+   ['text' [['x' x] ['y' y] ['style' 'fill:black']
+            ['font-family' 'Tahoma, sans-serif']]
            [['TEXT' s]]]))
 
 (def addAttr (\\([shapeKind oldAttrs children] newAttr)
