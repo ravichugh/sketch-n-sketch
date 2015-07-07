@@ -861,6 +861,48 @@ stickfigures = "
             (\\[x y] (figure (+ x0 x) (+ y0 y)))
             [[-24 245] [-96 140] [325 321] [405 184] [474 298]]))))))))))))))
 "
+
+fractalTree = "
+  ; A fractal tree
+  (defrec mod (\\(x m) (if (< x m) x (mod (- x m) m))))
+  (def nsin (\\n (if (< n (/ 3.14159 2)) (sin n) (cos (mod n (/ 3.14159 2))))))
+  (def ncos (\\n (if (< n (/ 3.14159 2)) (cos n) (sin (mod n (/ 3.14159 2))))))
+  (def [initwd initlen] [10! 150!])
+  (def [steps stepslider] (hSlider true 20! 420! 550! 3! 8! 'Steps ' 4))
+  (def [bendn bendnslider] (hSlider true 20! 420! 580! 1! 8! 'Bend ' 1))
+  (def initangle (/ 3.14159! 2!))
+  (def bend (/ 3.14159! bendn))
+  (defrec exp (\\(base pow)
+    (if (< pow 1) 1 (* base (exp base (- pow 1))))))
+  (def mkleftx (\\(stepnum theta px) 
+    (- px (* (/ initlen stepnum) (ncos (+ theta (* (exp 0.5 stepnum) bend)))))))
+  (def mkrightx (\\(stepnum theta px)
+    (+ px (* (/ initlen stepnum) (ncos (- theta (* (exp 0.5 stepnum) bend)))))))
+  (def mklefty (\\(stepnum theta py)
+    (- py (* (/ initlen stepnum) (nsin (+ theta (* (exp 0.5 stepnum) bend)))))))
+  (def mkrighty (\\(stepnum theta py)
+    (- py (* (/ initlen stepnum) (nsin (- theta (* (exp 0.5 stepnum) bend)))))))
+  (defrec genchildren (\\(stepnum maxstep theta px2 py2) 
+    (if (< maxstep stepnum) 
+      [] 
+      (append 
+        [ (line 'black' (/ initwd stepnum) px2 py2 
+            (mkleftx stepnum theta px2)
+            (mklefty stepnum theta py2))
+          (line 'black' (/ initwd stepnum) px2 py2
+            (mkrightx stepnum theta px2)
+            (mkrighty stepnum theta py2))]
+        (append
+          (genchildren (+ stepnum 1) maxstep (+ theta (* (exp 0.5 stepnum) bend))
+            (mkleftx stepnum theta px2)
+            (mklefty stepnum theta py2))
+          (genchildren (+ stepnum 1) maxstep (- theta (* (exp 0.5 stepnum) bend))
+            (mkrightx stepnum theta px2)
+            (mkrighty stepnum theta py2)))))))
+  (def trunk (line 'black' initwd 210 400 210 250))
+  (def branches (genchildren 2 steps initangle 210 250))
+  (svg (concat [ [ trunk | branches ] bendnslider stepslider]))
+"
 --------------------------------------------------------------------------------
 
 todo = "
@@ -895,6 +937,7 @@ examples =
   , makeExample "Ferris Wheel" ferris
   , makeExample "Pie Chart" piechart1
   , makeExample "Solar System" solarSystem
+  , makeExample "Fractal Tree" fractalTree
   , makeExample "Stick Figures" stickfigures
   , makeExample "Cult of Lambda" cultoflambda 
   , makeExample "Clique" clique
