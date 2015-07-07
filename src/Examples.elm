@@ -894,6 +894,7 @@ examples =
   , makeExample "F.L. Wright Tiled" flw2
   , makeExample "Ferris Wheel" ferris
   , makeExample "Pie Chart" piechart1
+  , makeExample "Solar System" solarSystem
   , makeExample "Stick Figures" stickfigures
   , makeExample "Cult of Lambda" cultoflambda 
   , makeExample "Clique" clique
