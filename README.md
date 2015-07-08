@@ -49,6 +49,9 @@ users to freely mix between programmatic and direct manipulation.
       |   ;single-line-comment e
 ```
 
+Extra parentheses are not permitted.
+(Don't you think there are enough already?)
+
 ## Syntax Guide
 
 ### Constants
