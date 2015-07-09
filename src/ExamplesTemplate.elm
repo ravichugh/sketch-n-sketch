@@ -52,6 +52,7 @@ LITTLE_TO_ELM paths2
 LITTLE_TO_ELM paths3
 LITTLE_TO_ELM paths4
 LITTLE_TO_ELM paths5
+LITTLE_TO_ELM sailBoat
 
 examples =
   [ makeExample scratchName scratch
@@ -83,6 +84,7 @@ examples =
   , makeExample "Solar System" solarSystem
   , makeExample "Fractal Tree" fractalTree
   , makeExample "Stick Figures" stickFigures
+  , makeExample "Sailboat" sailBoat
   , makeExample "Cult of Lambda" cultOfLambda 
   , makeExample "Misc Shapes" miscShapes
   , makeExample "Paths 1" paths1
@@ -93,4 +95,3 @@ examples =
   ]
 
 list = examples -- ++ MicroTests.sampleTests
-

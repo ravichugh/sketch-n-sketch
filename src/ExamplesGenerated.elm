@@ -1134,6 +1134,30 @@ paths5 = "
 
 "
 
+sailBoat = "
+; A sail boat on the ocean
+;
+; The ocean, made with paths
+(def [sealevel amplitude] [100 40])
+(def [oceancolor backgroundcolor] [[28 107 160 50] [255 255 255 100]])
+(def wave (\\([sx sy] [ex ey] amplitude)
+            [ (path oceancolor 'black' 0 
+                [ 'M' sx sy 
+                  'Q' (+ sx (/ (- ex sx) 4)) (- sy amplitude) 
+                  (+ sx (/ (- ex sx) 2)) sy
+                  'Z'])
+              (path backgroundcolor 'black' 0
+                  [ 'M' (+ sx (/ (- ex sx) 2)) sy
+                    'Q' (+ sx (* (- ex sx) 0.75)) (+ sy amplitude)
+                    ex ey 
+                    'Z' ])]))
+(svg 
+  (cons 
+    (rect 'lightgray' 0 0 1000 1000) 
+    (wave [100 100] [400 100] amplitude)))
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -1165,6 +1189,7 @@ examples =
   , makeExample "Solar System" solarSystem
   , makeExample "Fractal Tree" fractalTree
   , makeExample "Stick Figures" stickFigures
+  , makeExample "Sailboat" sailBoat
   , makeExample "Cult of Lambda" cultOfLambda 
   , makeExample "Misc Shapes" miscShapes
   , makeExample "Paths 1" paths1
@@ -1175,4 +1200,3 @@ examples =
   ]
 
 list = examples -- ++ MicroTests.sampleTests
-
