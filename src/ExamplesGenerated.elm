@@ -352,6 +352,43 @@ widgets = "
 
 "
 
+xySlider = "
+; A two dimensional slider in a similar style to the other sliders
+(def xySlider_
+  (\\(dropBall roundInt xStart xEnd yStart yEnd minx maxx miny maxy xcaption ycaption curx cury)
+    (def [rCorner wEdge rBall] [4! 3! 10!])
+    (def [xDiff yDiff xValDiff yValDiff] [(- xEnd xStart) (- yEnd yStart) (- maxx minx) (- maxy miny)])
+    (def ballx (+ xStart (* xDiff (/ (- curx minx) xValDiff))))
+    (def bally (+ yStart (* yDiff (/ (- cury miny) yValDiff))))
+    (def ballx_ (clamp xStart xEnd ballx))
+    (def bally_ (clamp yStart yEnd bally))
+    (def rball_ (if dropBall (if (< maxx curx) 0 rBall) rBall))
+    (def rball__ (if dropBall (if (< maxy cury) 0 rball_) rBall))
+    (def xval
+      (def xval_ (clamp minx maxx curx))
+      (if roundInt (round xval_) xval_))
+    (def yval
+      (def yval_ (clamp miny maxy cury))
+      (if roundInt (round yval_) yval_))
+    (def shapes
+      [ (line 'black' wEdge xStart yStart xEnd yStart)
+        (line 'black' wEdge xStart yStart xStart yEnd)
+        (line 'black' wEdge xStart yEnd xEnd yEnd)
+        (line 'black' wEdge xEnd yStart xEnd yEnd)
+        (circle 'black' xStart yStart rCorner)
+        (circle 'black' xStart yEnd rCorner)
+        (circle 'black' xEnd yStart rCorner)
+        (circle 'black' xEnd yEnd rCorner)
+        (circle 'black' ballx_ bally_ rball__)
+        (text (- (+ xStart (/ xDiff 2)) 40) (+ yEnd 20) (+ xcaption (toString xval)))
+        (text (+ xEnd 10) (+ yStart (/ yDiff 2)) (+ ycaption (toString yval))) ])
+  [ [ xval yval ] shapes ]))
+(def xySlider (xySlider_ false))
+(def [ [ a b ] slider ] (xySlider false 20! 420! 20! 420! 0! 100! 0! 100! 'X Axis: ' 'Y Axis: ' 20 20))
+(svg slider)
+
+"
+
 rgba = "
 ;
 ; A Color Picker
@@ -369,6 +406,72 @@ rgba = "
 (let sliders (concat [s1 s2 s3 s4])
 ;
   (svg (cons ball sliders)))))))))
+
+"
+
+boxGrid = "
+; A grid of boxes that can be enlarged with a slider
+;
+; Specifies the overlaid slider
+(def xySlider_
+  (\\(dropBall roundInt xStart xEnd yStart yEnd minx maxx miny maxy xcaption ycaption curx cury)
+    (def [rCorner wEdge rBall] [4! 3! 10!])
+    (def [xDiff yDiff xValDiff yValDiff] [(- xEnd xStart) (- yEnd yStart) (- maxx minx) (- maxy miny)])
+    (def ballx (+ xStart (* xDiff (/ (- curx minx) xValDiff))))
+    (def bally (+ yStart (* yDiff (/ (- cury miny) yValDiff))))
+    (def ballx_ (clamp xStart xEnd ballx))
+    (def bally_ (clamp yStart yEnd bally))
+    (def rball_ (if dropBall (if (< maxx curx) 0 rBall) rBall))
+    (def rball__ (if dropBall (if (< maxy cury) 0 rball_) rBall))
+    (def xval
+      (def xval_ (clamp minx maxx curx))
+      (if roundInt (round xval_) xval_))
+    (def yval
+      (def yval_ (clamp miny maxy cury))
+      (if roundInt (round yval_) yval_))
+    (def shapes
+      [ (line 'black' wEdge xStart yStart xEnd yStart)
+        (line 'black' wEdge xStart yStart xStart yEnd)
+        (line 'black' wEdge xStart yEnd xEnd yEnd)
+        (line 'black' wEdge xEnd yStart xEnd yEnd)
+        (circle 'black' xStart yStart rCorner)
+        (circle 'black' xStart yEnd rCorner)
+        (circle 'black' xEnd yStart rCorner)
+        (circle 'black' xEnd yEnd rCorner)
+        (circle 'black' ballx_ bally_ rball__)
+        (text (- (+ xStart (/ xDiff 2)) 40) (+ yEnd 20) (+ xcaption (toString xval)))
+        (text (+ xEnd 10) (+ yStart (/ yDiff 2)) (+ ycaption (toString yval))) ])
+  [ [ xval yval ] shapes ]))
+(def xySlider (xySlider_ false))
+;
+; Some overall variables
+(def [x0 y0 sep] [30! 30! 60!])
+;
+; The slider itself
+(def [ [ nx ny ] boxSlider ] 
+  (xySlider true 
+    (- x0 10!)
+    ;(+ x0 (* nx (* sep 50!))) 
+    60000!
+    (- y0 10!) 
+    ;(+ y0 (* ny (* sep 50!)))
+    60000!
+    0!
+    1000!
+    0!
+    1000!
+    ''
+    ''
+    3
+    2))
+;
+; Specifies the boxes in terms of the slider
+(svg 
+  (append
+    (map
+      (\\[i j] (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 50!))
+      (cartProd (range 0! (- nx 1)) (range 0! (- ny 1))))
+    boxSlider))
 
 "
 
@@ -752,7 +855,7 @@ fractalTree = "
 (def ncos (\\n (if (< n (/ 3.14159 2)) (cos n) (sin (mod n (/ 3.14159 2))))))
 (def [initwd initlen] [10! 150!])
 (def [steps stepslider] (hSlider true 20! 420! 550! 3! 8! 'Steps ' 4))
-(def [bendn bendnslider] (hSlider true 20! 420! 580! 1! 8! 'Bend ' 1))
+(def [bendn bendnslider] (hSlider false 20! 420! 580! 1! 8! 'Bend ' 1))
 (def initangle (/ 3.14159! 2!))
 (def bend (/ 3.14159! bendn))
 (defrec exp (\\(base pow)
@@ -967,6 +1070,9 @@ paths1 = "
 "
 
 paths2 = "
+; Adapted from:
+; https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
+;
 (svg [
   (path_ ['M' 10 10   'C' 20 20 40 20 50 10])
   (path_ ['M' 70 10   'C' 70 20 120 20 120 10])
@@ -991,6 +1097,9 @@ paths3 = "
 "
 
 paths4 = "
+; Adapted from:
+; https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
+;
 (svg [
   (addAttr
     (path 'green' 'black' 2
@@ -1006,6 +1115,9 @@ paths4 = "
 "
 
 paths5 = "
+; Adapted from:
+; https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
+;
 (svg [
   (path 'green' 'black' 2
     ['M' 80 80 'A' 45 45 0 0 0 125 125 'L' 125 80 'Z'])
@@ -1036,7 +1148,9 @@ examples =
   , makeExample "Sliders" sliders
   , makeExample "Buttons" buttons
   , makeExample "Widgets" widgets
+  , makeExample "xySlider" xySlider
   , makeExample "Color Picker" rgba
+  , makeExample "Box Grid" boxGrid
   , makeExample "US-13 Flag" usFlag13
   , makeExample "US-50 Flag" usFlag50
   , makeExample "Chicago Flag" chicago

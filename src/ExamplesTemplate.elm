@@ -30,7 +30,9 @@ LITTLE_TO_ELM stars
 LITTLE_TO_ELM sliders
 LITTLE_TO_ELM buttons
 LITTLE_TO_ELM widgets
+LITTLE_TO_ELM xySlider
 LITTLE_TO_ELM rgba
+LITTLE_TO_ELM boxGrid
 LITTLE_TO_ELM usFlag13
 LITTLE_TO_ELM usFlag50
 LITTLE_TO_ELM chicago
@@ -67,7 +69,9 @@ examples =
   , makeExample "Sliders" sliders
   , makeExample "Buttons" buttons
   , makeExample "Widgets" widgets
+  , makeExample "xySlider" xySlider
   , makeExample "Color Picker" rgba
+  , makeExample "Box Grid" boxGrid
   , makeExample "US-13 Flag" usFlag13
   , makeExample "US-50 Flag" usFlag50
   , makeExample "Chicago Flag" chicago

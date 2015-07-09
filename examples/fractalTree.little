@@ -4,7 +4,7 @@
 (def ncos (\n (if (< n (/ 3.14159 2)) (cos n) (sin (mod n (/ 3.14159 2))))))
 (def [initwd initlen] [10! 150!])
 (def [steps stepslider] (hSlider true 20! 420! 550! 3! 8! 'Steps ' 4))
-(def [bendn bendnslider] (hSlider true 20! 420! 580! 1! 8! 'Bend ' 1))
+(def [bendn bendnslider] (hSlider false 20! 420! 580! 1! 8! 'Bend ' 1))
 (def initangle (/ 3.14159! 2!))
 (def bend (/ 3.14159! bendn))
 (defrec exp (\(base pow)

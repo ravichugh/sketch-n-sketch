@@ -1,0 +1,33 @@
+; A two dimensional slider in a similar style to the other sliders
+(def xySlider_
+  (\(dropBall roundInt xStart xEnd yStart yEnd minx maxx miny maxy xcaption ycaption curx cury)
+    (def [rCorner wEdge rBall] [4! 3! 10!])
+    (def [xDiff yDiff xValDiff yValDiff] [(- xEnd xStart) (- yEnd yStart) (- maxx minx) (- maxy miny)])
+    (def ballx (+ xStart (* xDiff (/ (- curx minx) xValDiff))))
+    (def bally (+ yStart (* yDiff (/ (- cury miny) yValDiff))))
+    (def ballx_ (clamp xStart xEnd ballx))
+    (def bally_ (clamp yStart yEnd bally))
+    (def rball_ (if dropBall (if (< maxx curx) 0 rBall) rBall))
+    (def rball__ (if dropBall (if (< maxy cury) 0 rball_) rBall))
+    (def xval
+      (def xval_ (clamp minx maxx curx))
+      (if roundInt (round xval_) xval_))
+    (def yval
+      (def yval_ (clamp miny maxy cury))
+      (if roundInt (round yval_) yval_))
+    (def shapes
+      [ (line 'black' wEdge xStart yStart xEnd yStart)
+        (line 'black' wEdge xStart yStart xStart yEnd)
+        (line 'black' wEdge xStart yEnd xEnd yEnd)
+        (line 'black' wEdge xEnd yStart xEnd yEnd)
+        (circle 'black' xStart yStart rCorner)
+        (circle 'black' xStart yEnd rCorner)
+        (circle 'black' xEnd yStart rCorner)
+        (circle 'black' xEnd yEnd rCorner)
+        (circle 'black' ballx_ bally_ rball__)
+        (text (- (+ xStart (/ xDiff 2)) 40) (+ yEnd 20) (+ xcaption (toString xval)))
+        (text (+ xEnd 10) (+ yStart (/ yDiff 2)) (+ ycaption (toString yval))) ])
+  [ [ xval yval ] shapes ]))
+(def xySlider (xySlider_ false))
+(def [ [ a b ] slider ] (xySlider false 20! 420! 20! 420! 0! 100! 0! 100! 'X Axis: ' 'Y Axis: ' 20 20))
+(svg slider)
