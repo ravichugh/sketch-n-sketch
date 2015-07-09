@@ -200,15 +200,15 @@ Elm REPL 0.4 (Elm Platform 0.15)
 
 ## Adding Examples
 
-If you want to add a new example to the dropdown menu:
+To add a new example to the dropdown menu:
 
-1. Create a `examples/newExample.little` file for your `newExample`.
+1. Create a file `examples/newExample.little` for your `newExample`.
 
 2. In `ExamplesTemplate.elm`, add the lines:
 
-   * `LITTLE_TO_ELM yourExample`
-   * `, makeExample "newExampleName" newExample`
+   * `LITTLE_TO_ELM newExample`
+   * `, makeExample "New Example Name" newExample`
 
 3. From the `src/` directory, run `make examples`.
 
-4. Re-launch Sketch-N-Sketch.
+4. Launch Sketch-N-Sketch.
