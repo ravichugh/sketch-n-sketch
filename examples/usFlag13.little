@@ -1,0 +1,42 @@
+;
+; Original flag of the United States
+;
+; A few ways to mainpulate this example:
+; - Grab bottom right corner to increase overall size
+; - Grab the edge of a red stripe to increase width
+; - Grab the points of one of the stars to change 
+; the size of its points
+;
+(let rotate (\a (/ (* a (pi)) 6.5!))
+(let [x0 y0 ni nj pts w h] [108 20 0! 12! 5! 500 260]
+(let hstripe (/ h 13!)
+(let [blockw blockh] [(/ w 3!) (* 7! hstripe)]
+(let min
+  (if (< blockw blockh)
+    (* 0.4! blockw)
+    (* 0.4! blockh))
+(let [outerLen innerLen] [10 4]
+(let block (rect '#09096d' x0 y0 blockw blockh)
+(let stripes
+  (map
+    (\i (rect 'red' x0 (+ y0 (* i hstripe)) w hstripe))
+    [0! 2! 4! 6! 8! 10! 12!])
+(let base (append stripes [block])
+;
+  (svg
+    (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!))
+    (append
+      base
+      (map
+        (\i
+            (nStar
+              'white'
+              'none'
+              0
+              pts
+              innerLen
+              outerLen
+              (rotate  i)
+              (+ (+ x0 (/ w 6!)) (* min (cos (rotate  i))))
+              (+ (+ y0 (* hstripe 3.5!)) (* min (sin (rotate  i))))))
+      (range ni nj))))))))))))))

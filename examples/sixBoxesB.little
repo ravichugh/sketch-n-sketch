@@ -1,0 +1,4 @@
+(let [x0 y0 xsep ysep] [10 28 60 60]
+(svg
+  (map (\[i j] (square_ (+ x0 (mult i xsep)) (+ y0 (mult j ysep)) 50))
+       (cartProd [0 1 2] [0 1]))))

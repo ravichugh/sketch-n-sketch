@@ -1,0 +1,21 @@
+;
+(let nStar (\(fill stroke w n len1 len2 rot cx cy)
+  (let pti (\[i len]
+    (let anglei (+ (- (/ (* i (pi)) n) rot) halfPi)
+    (let xi (+ cx (* len (cos anglei)))
+    (let yi (+ cy (neg (* len (sin anglei))))
+      [xi yi]))))
+  (let lengths
+    (map (\b (if b len1 len2))
+         (concat (repeat n [true false])))
+  (let indices (list0N (- (* 2! n) 1!))
+    (polygon fill stroke w (map pti (zip indices lengths)))))))
+;
+(let [x0 y0 sep ni nj] [100 100 100 3! 7!]
+(let [outerLen innerLen] [50 20]
+(let iStar (\i
+   (let off (mult (- i ni) sep)
+   (let [xi yi] [(+ x0 off) (+ y0 off)]
+   (nStar 'goldenrod' 'black' 3 i outerLen innerLen 0! xi yi))))
+;
+(svg (map iStar (range ni nj)))))))

@@ -9,7 +9,9 @@ def readLittle(name):
   yield (name + ' = \"\n')
 
   for s in open(f):
-    yield s.replace('\\','\\\\')
+    s = s.replace('\\','\\\\')
+    s = s.replace('\"','\\\"')
+    yield s
 
-  yield ('\n\"\n')
+  yield ('\n\"\n\n')
 

@@ -9,7 +9,7 @@ import MicroTests
 import InterfaceModel exposing (..)
 import InterfaceView2 exposing (..)
 import LangSvg exposing (toNum, toNumTr, toPoints, addi)
-import Examples
+import ExamplesGenerated as Examples
 
 import VirtualDom
 

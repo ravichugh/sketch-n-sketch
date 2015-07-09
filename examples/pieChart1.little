@@ -1,0 +1,41 @@
+;
+; A Pie Chart
+;
+; Move the sliders to change the size of a particular slice
+;
+(let [count1_ count2_ count3_ count4_ count5_] [35 31 16 10 8]
+(let [count1 s1] (hSlider true 20! 420! 20! 0! 100! '' count1_)
+(let [count2 s2] (hSlider true 20! 420! 50! 0! 100! '' count2_)
+(let [count3 s3] (hSlider true 20! 420! 80! 0! 100! '' count3_)
+(let [count4 s4] (hSlider true 20! 420! 110! 0! 100! '' count4_)
+(let [count5 s5] (hSlider true 20! 420! 140! 0! 100! '' count5_)
+(let total (+ count1 (+ count2 (+ count3 (+ count4 count5))))
+(let p2 (+ count1 count2)
+(let p3 (+ p2 count3)
+(let p4 (+ p3 count4)
+(let p5 (+ p4 count5)
+;
+(let sliders (concat [s1 s2 s3 s4 s5])
+(let [cx cy r t border] [280! 440! 180 4 'grey']
+;
+(let pie
+  (let pToDegrees (\p (* 360! (/ p total)))
+  (let [d1 d2 d3 d4 d5] (map pToDegrees [count1 p2 p3 p4 p5])
+  (let flag (\d (if (< 180 d) 1 0))
+  (let flagged (map (\[d fr] [d (flag fr)]) [[d1 d1] [d2 (- d2 d1)] [d3 (- d3 d2)] [d4 (- d4 d3)] [d5 (- d5 d4)]])
+  (let toRadian (\[d f] [(* (/ (pi) 180!) d) f])
+  (let polarcoords (map toRadian flagged)
+  (let slice (\[ang flg] [flg (* r (cos ang)) (* r (sin ang))])
+  (let [[f1 x1 y1] [f2 x2 y2] [f3 x3 y3] [f4 x4 y4] [f5 x5 y5]] (map slice polarcoords)
+  (let wedge (\[color f [sx sy] [ex ey]] (path color border t ['M' cx cy 'L' sx sy 'A' 180 180 0 f 1 ex ey 'Z']))
+  (let wedges 
+    (map
+      wedge
+        [['#8DEEEE' f1 [(+ cx 180!) cy] [(+ cx x1) (+ cy y1)]]
+        ['#66CCCC' f2 [(+ cx x1) (+ cy y1)] [(+ cx x2) (+ cy y2)]]
+        ['#49E9BD' f3 [(+ cx x2) (+ cy y2)] [(+ cx x3) (+ cy y3)]]
+        ['#5EDA9E' f4 [(+ cx x3) (+ cy y3)] [(+ cx x4) (+ cy y4)]]
+        ['#00FA9A' f5 [(+ cx x4) (+ cy y4)] [(+ cx x5) (+ cy y5)]]])
+  wedges))))))))))
+;
+(svg (cons (circle 'lightgray' cx cy (* 1.1 r)) (append sliders pie)))))))))))))))))

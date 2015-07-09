@@ -5,7 +5,7 @@ import Eval
 import Sync
 import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Zone)
-import Examples
+import ExamplesGenerated as Examples
 
 import List 
 import Dict

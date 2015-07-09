@@ -1,0 +1,28 @@
+;
+; Take this ferris wheel for a spin!
+; try: unfreezing cx and cy and translating wheel
+;      unfreezing center radius and stretching it
+;      unfreezing wCar and changing size of box
+;
+(let [numSpokes_ spokeLen_ rotAngle_] [5 80 0]
+(let showSliders true
+;
+(let [numSpokes s1] (hSlider true 20! 420! 20! 3! 10! '' numSpokes_)
+(let [spokeLen s2] (hSlider true 20! 420! 50! 40! 200! '' spokeLen_)
+(let [rotAngle s3] (hSlider false 20! 420! 80! (neg twoPi) twoPi '' rotAngle_)
+;
+(let sliders (if showSliders (concat [s1 s2 s3]) [])
+(let wheel
+  (let [cx cy] [220! 300!]
+  (let rim [(ring 'darkgray' 8! cx cy spokeLen)]
+  (let center [(circle 'black' cx cy 20!)]
+  (let frame [(nStar 'goldenrod' 'darkgray' 3! numSpokes spokeLen 0! rotAngle cx cy)]
+  (let spokePts (nPointsOnCircle numSpokes rotAngle cx cy spokeLen)
+  (let caps (map (\[x y] (circle 'black' x y 7!)) spokePts)
+  (let cars
+    (let wCar 30!
+    (let wHalfCar (/ wCar 2!)
+    (map (\[x y] (squareCenter 'lightgray' x y wCar)) spokePts)))
+  (concat [rim cars center frame caps]))))))))
+;
+(svg (append sliders wheel)))))))))

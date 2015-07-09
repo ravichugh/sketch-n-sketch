@@ -1,0 +1,55 @@
+;
+; A Frank Lloyd Wright design based on:
+; http://www.glass-by-design.com/images3/skylight3.jpg
+;
+; This is a tiled version of that design
+;
+; Possible ways to manipulate:
+; - Grab edges of red polygons, yellow circles, or blue ellipses
+; and pull in various directions
+; - Grab ends of lines and move in various directions
+;
+(let [x0 y0 w h max] [69 55 200 320 10!]
+(let wbox (/ w 10!)
+(let hbox (/ h 10!)
+(let xoff (\(n x) (+ x0 (+ (* x w) (* wbox n))))
+(let yoff (\(n y) (+ y0 (+ (* y h) (* hbox n))))
+(let blkline (\[[a b] [c d]] (line 'black' 3 a b c d))
+(let redpoly
+  (\[a b x y]
+    (polygon
+      'red'
+      'black'
+      3
+      [[(xoff a x) (yoff a y)]
+       [(xoff a x) (yoff b y)]
+       [(xoff b x) (yoff b y)]
+       [(xoff b x) (yoff a y)]]))
+(let dimension [0! 4 5 6 7 10!]
+(let [p0 p1 p2 p3 p4] [0 1 2 2.9 5]
+(let singletile
+  (\[x y] 
+    (let verticals
+      (zip
+        (map (\n [(xoff n x) (+ y0 (* y h))]) dimension)
+        (map (\n [(xoff n x) (+ y0 (* (+ y 1) h))]) dimension))
+    (let horizontals
+      (zip
+        (map (\n [(+ x0 (* x w)) (yoff n y)]) dimension)
+        (map (\n [(+ x0 (* (+ 1 x) w)) (yoff n y)]) dimension))
+      (append
+        (append
+          (map blkline (append verticals horizontals))
+          (map (\[xc yc r] (circle 'yellow' xc yc r))
+            [[(xoff 6 x) (yoff 1.75 y) (+ wbox hbox)]
+             [(xoff 6 x) (yoff 7 y) (/ (+ wbox hbox) 4)]
+             [(xoff 6 x) (yoff 5 y) (/ (+ wbox hbox) 2)]]))
+        (cons
+          (ellipse 'blue' (xoff 5 x) (yoff 9 y) (* wbox 4) hbox)
+          (map redpoly [[p0 p1 x y] [p1 p2 x y] [p2 p3 x y] [p3 p4 x y]])
+          )))))
+(let grid (cartProd [0! 1! 2!] [0! 1!])
+;
+  (svg 
+    (cons (rect 'white' (- x0 10!) (- y0 10!) (+ (* 3 w) 20!) (+ (* 2 h) 20!))
+      (concatMap singletile grid))))))))))))))

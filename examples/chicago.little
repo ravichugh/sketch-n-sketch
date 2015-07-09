@@ -1,0 +1,28 @@
+;
+; The flag of Chicago
+;
+; Possible ways to manipulate
+; - Grab stripes or stars and pull in various directions
+;
+(let [x0 y0 ni nj pts w h] [108 113 0.5! 3.5! 6! 454 300]
+(let [outerLen innerLen] [30 12]
+(let stripes
+  (map
+    (\i
+      (rect
+        'lightblue'
+        x0
+        (+ y0 (* i h))
+        w
+        (/ h 6!)))
+    [(/ 1! 6!) (/ 2! 3!)])
+;
+  (svg 
+    (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!))
+    (append
+      stripes
+      (map
+        (\i
+          (let off (* i (/ w 4!))
+            (nStar 'red' 'none' 0 pts outerLen innerLen 0 (+ x0 off) (+ y0 (/ h 2!)))))
+        (range ni nj))))))))

@@ -180,7 +180,7 @@ prelude = "
   (let newShapes (reverse (fst (foldl f initAcc oldShapesI)))
     ['svg' svgAttrs newShapes]))))))
 
-; constant folding
+; \"constant folding\"
 (def twoPi (* 2 (pi)))
 (def halfPi (/ (pi) 2))
 
@@ -249,6 +249,7 @@ prelude = "
 0
 
 "
+
 
 src = prelude
 

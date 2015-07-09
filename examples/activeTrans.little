@@ -1,0 +1,57 @@
+;
+; Logo based on Active Transportation Alliance (http://activetrans.org/)
+;
+; Possible ways to manipulate:
+; - Grab edge of city skyline and pull up and down
+; - Click 'Show Zones' and mess with the curves at the bottom of the logo
+; - Toggle the color switch on the top left
+;
+(let [h] [0]
+(let grayPts
+  [[97 546]
+   [33 414]
+   [33! (+ h 153!)]
+   [53! (+ h 128!)]
+   [82! (+ h 135!)]
+   [83! (+ h 160!)]
+   [114! (+ h 149!)]
+   [113! (+ h 98!)]
+   [143! (+ h 82!)]
+   [158! (+ h 101!)]
+   [160! (+ h 46!)]
+   [192! (+ h 27!)]
+   [221! (+ h 56!)]
+   [227! (+ h 222!)]
+   [245! (+ h 224!)]
+   [246! (+ h 181!)]
+   [288! (+ h 156!)]
+   [286! (+ h 113!)]
+   [312! (+ h 88!)]
+   [374! (+ h 106!)]
+   [375! (+ h 155!)]
+   [397! (+ h 136!)]
+   [424! (+ h 145!)]
+   [425 207]]
+;
+(let greenPts [[247 663] [461 419] [466 230] [439 230] [178 614]]
+(let [grayctrl greenctrl] [[47 489] [451 542]]
+;
+(let [cGreen cGray] ['#66CC66' '#505050']
+(let [b buttonShapes] (button 20! 20! '' 0.25)
+(let [xOff yOff] [0! 0!]
+; TODO unfreeze
+(let groupBox (rect (if b 'transparent' cGreen) xOff yOff 500! 700!)
+;
+(let makePath
+  (\(color pts [xc yc])
+    (let offsetPts (map (\[x y] [(+ x xOff) (+ y yOff)]) pts)
+    (let [[x0 y0] [x1 y1] | rest] offsetPts
+    (let commands
+      (append
+        (append ['M' x0 y0] ['Q' xc yc x1 y1])
+        (foldr (\([xi yi] acc) (append ['L' xi yi] acc)) ['Z'] rest))
+      (path color 'black' 0 commands)))))
+;
+(let grayPath (makePath (if b cGray 'white') grayPts grayctrl)
+(let greenPath (makePath (if b cGreen 'white') greenPts greenctrl)
+  (svg (append [groupBox grayPath greenPath] buttonShapes)))))))))))))

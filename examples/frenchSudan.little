@@ -1,0 +1,35 @@
+;
+; The Flag of French Sudan, based on:
+;
+; A few ways to manipulate:
+; - Grab any part of the stick figure and move it
+; in various directions
+;
+(let [x0 y0 w h] [50 30 450 300]
+(let wstripe (/ w 3!)
+(let xoff (+ x0 wstripe)
+(let yoff (+ y0 (/ h 4!))
+(let stripe (\[color x] (rect color x y0 wstripe h))
+(let minrad
+  (if (< (/ wstripe 7.5!) (/ h 15!))
+    (/ wstripe 7.5!)
+    (/ h 15!))
+(let figline (\[[a b] [c d]] (line 'black' (/ minrad 2!) a b c d))
+(let [x1 x2 x3] (map (\n (+ x0 (* wstripe n))) [1.2! 1.5! 1.8!])
+(let [y1 y2 y3 y4] (map (\n (+ y0 (/ h n))) [4.3! 2.8! 1.9! 1.4!])
+;
+  (svg
+    (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!)) 
+    (append
+      (map stripe [['blue' x0] ['white' (+ x0 wstripe)] ['red' (+ x0 (* 2! wstripe))]])
+      (snoc
+        (ellipse 'black' x2 y1 (/ wstripe 7.5!) (/ h 15!))
+        (map
+          figline
+          [[[x1 y1] [x1 y2]]
+           [[x1 y2] [x3 y2]]
+           [[x3 y1] [x3 y2]]
+           [[x1 y4] [x1 y3]]
+           [[x1 y3] [x3 y3]]
+           [[x3 y3] [x3 y4]]
+           [[x2 y1] [x2 y3]]]))))))))))))))

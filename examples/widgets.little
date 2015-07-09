@@ -1,0 +1,7 @@
+; library widgets
+;
+(let [n  s1] (hSlider false 20! 90!  20! 0! 5! 'n = ' 3.1415)
+(let [i  s2] (hSlider true  20! 90!  50! 0! 5! 'i = ' 3.1415)
+(let [b1 s3] (button        20!      80!       'b1 = ' 0.25)
+(let [b2 s4] (button        20!     110!       'b2 = ' 0.75)
+  (svg (concat [s1 s2 s3 s4]))))))

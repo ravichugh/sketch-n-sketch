@@ -197,3 +197,18 @@ Elm REPL 0.4 (Elm Platform 0.15)
 > parseAndRun "(list0N 10)"
 "[0 1 2 3 4 5 6 7 8 9 10]" : String
 ```
+
+## Adding Examples
+
+If you want to add a new example to the dropdown menu:
+
+1. Create a `examples/newExample.little` file for your `newExample`.
+
+2. In `ExamplesTemplate.elm`, add the lines:
+
+   * `LITTLE_TO_ELM yourExample`
+   * `, makeExample "newExampleName" newExample`
+
+3. From the `src/` directory, run `make examples`.
+
+4. Re-launch Sketch-N-Sketch.

@@ -1,0 +1,53 @@
+;
+; The ni constants get adjusted by the sliders,
+; and then clamped to fit within the [min, max] range.
+; Also try changing the min and max constants below.
+;
+(let [min max] [0! 10!]
+(let [n1 n2 n3 n4] [5 5 5 5]
+(let [m1 m2 m3 m4] (map (clamp min max) [n1 n2 n3 n4])
+;
+; Both the horizontal and vertical slider abstractions
+; below take a dropBall parameter:
+;  - if true, the ball can slide off the rail;
+;  - if false, the ball disappears when off the rail.
+;
+(let horizSlider (\(dropBall xStart xEnd y minVal maxVal curVal)
+  (let [rPoint wLine rBall] [4! 3! 10!]
+  (let [xDiff valDiff] [(- xEnd xStart) (- maxVal minVal)]
+  (let xBall (+ xStart (* xDiff (/ (- curVal minVal) valDiff)))
+  (let xBall_ (clamp xStart xEnd xBall)
+  (let rBall_ (if dropBall (if (= xBall_ xBall) rBall 0) rBall)
+    [ (circle 'black' xStart y rPoint)
+      (circle 'black' xEnd y rPoint)
+      (line 'black' wLine xStart y xEnd y)
+      (circle 'black' xBall y rBall_)
+    ]))))))
+;
+(let vertSlider (\(dropBall yStart yEnd x minVal maxVal curVal)
+  (let [rPoint wLine rBall] [4! 3! 10!]
+  (let [yDiff valDiff] [(- yEnd yStart) (- maxVal minVal)]
+  (let yBall (+ yStart (* yDiff (/ (- curVal minVal) valDiff)))
+  (let yBall_ (clamp yStart yEnd yBall)
+  (let rBall_ (if dropBall (if (= yBall_ yBall) rBall 0) rBall)
+    [ (circle 'black' x yStart rPoint)
+      (circle 'black' x yEnd rPoint)
+      (line 'black' wLine x yStart x yEnd)
+      (circle 'black' x yBall rBall_)
+    ]))))))
+;
+(let sliders
+  (let s1 (horizSlider false 30! 230! 30! min max n1)
+  (let s2 (horizSlider true 30! 230! 70! min max n2)
+  (let s3 (vertSlider false 110! 300! 110! min max n3)
+  (let s4 (vertSlider true 110! 300! 150! min max n4)
+    (foldl append nil [s1 s2 s3 s4])))))
+;
+(let displays
+  (let t1 (text 300 100 (+ 'm1 = ' (toString m1)))
+  (let t2 (text 300 120 (+ 'm2 = ' (toString m2)))
+  (let t3 (text 300 140 (+ 'm3 = ' (toString m3)))
+  (let t4 (text 300 160 (+ 'm4 = ' (toString m4)))
+    [t1 t2 t3 t4]))))
+;
+  (svg (append sliders displays)))))))))
