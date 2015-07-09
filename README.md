@@ -159,7 +159,7 @@ Extra parentheses are not permitted.
 
 ### Standard Prelude
 
-See [`Prelude.elm`][Prelude] for the standard library included by every program.
+See [`prelude.little`][Prelude] for the standard library included by every program.
 
 ### SVG
 
@@ -181,9 +181,9 @@ where
 
 TODO explain attrs for different shapes
 
-See [`Prelude.elm`][Prelude] for a small library of SVG-manipulating functions.
+See [`prelude.little`][Prelude] for a small library of SVG-manipulating functions.
 
-[Prelude]: https://github.com/ravichugh/sketch-n-sketch/blob/master/src/Prelude.elm
+[Prelude]: https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little
 
 ## Little "REPL"
 

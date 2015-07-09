@@ -9,7 +9,7 @@ import Lang exposing (..)
 import OurParser exposing ((>>=),(>>>),(<$>),(+++),(<++))
 import OurParser as P
 import Utils
-import Prelude
+import PreludeGenerated as Prelude
 
 ------------------------------------------------------------------------------
 
