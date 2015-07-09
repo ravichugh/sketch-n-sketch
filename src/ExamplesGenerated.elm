@@ -1073,6 +1073,9 @@ paths2 = "
 ; Adapted from:
 ; https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
 ;
+; Turn on the zones to see the Bezier control points.
+; Try replacing \"svg\" with \"svgViewBox 200 200\".
+;
 (svg [
   (path_ ['M' 10 10   'C' 20 20 40 20 50 10])
   (path_ ['M' 70 10   'C' 70 20 120 20 120 10])
