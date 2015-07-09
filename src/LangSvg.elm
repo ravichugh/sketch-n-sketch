@@ -74,8 +74,21 @@ type alias Cmd = String -- single uppercase/lowercase letter
 
 type alias IdPoint = (Maybe Int, Point)
 
-toNum    (ANum (i,_)) = i
-toNumTr  (ANum (i,t)) = (i,t)
+-- toNum    (ANum (i,_)) = i
+-- toNumTr  (ANum (i,t)) = (i,t)
+
+-- temporary way to ignore numbers specified as strings (also see Sync)
+
+toNum a = case a of
+  ANum (n,_) -> n
+  AString s  -> case String.toFloat s of
+                  Ok n -> n
+
+toNumTr a = case a of
+  ANum (n,t) -> (n,t)
+  AString s  -> case String.toFloat s of
+                  Ok n -> (n, dummyTrace)
+
 toPoints (APoints pts) = pts
 toPath   (APath2 p) = p
 

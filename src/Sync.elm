@@ -498,7 +498,11 @@ shapeToZoneInfo opts (kind, extra, d) =
   let f (s,l) acc =
     let numAttrs = List.length l in
     let sets =
-      l |> List.map (\a -> locsOfTrace opts <| justGet_ "%1" a d)
+      -- temporary way to ignore numbers specified as strings
+      -- l |> List.map (\a -> locsOfTrace opts <| justGet_ "%1" a d)
+      l |> List.map (\a -> case Dict.get a d of
+                             Just tr -> locsOfTrace opts tr
+                             Nothing -> Set.empty)
         |> createLocLists in
     (s, (numAttrs, sets)) :: acc
   in
@@ -751,7 +755,12 @@ makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
 whichLoc : Options -> Dict0 -> Dict2 -> NodeId -> Zone -> AttrName -> Maybe LocId
 whichLoc opts d0 d2 i z attr =
   let trLocs =
-    justGet_ "%4" i d0 |> Utils.thd3 |> justGet_ "%5" attr |> locsOfTrace opts in
+    -- temporary way to ignore numbers specified as strings
+    -- justGet_ "%4" i d0 |> Utils.thd3 |> justGet_ "%5" attr |> locsOfTrace opts in
+    justGet_ "%4" i d0 |> Utils.thd3 |> Dict.get attr |>
+      \m -> case m of
+        Just tr -> locsOfTrace opts tr
+        Nothing -> Set.empty in
   let zoneLocs =
     justGet_ "%6" i d2
       |> snd |> Utils.maybeFind z |> Utils.fromJust
