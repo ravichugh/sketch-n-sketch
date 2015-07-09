@@ -1,0 +1,13 @@
+; Adapted from:
+; https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
+;
+(svg [
+  (path 'green' 'black' 2
+    ['M' 80 80 'A' 45 45 0 0 0 125 125 'L' 125 80 'Z'])
+  (path 'red' 'black' 2
+    ['M' 230 80 'A' 45 45 0 1 0 275 125 'L' 275 80 'Z'])
+  (path 'purple' 'black' 2
+    ['M' 80 230 'A' 45 45 0 0 1 125 275 'L' 125 230 'Z'])
+  (path 'blue' 'black' 2
+    ['M' 230 230 'A' 45 45 0 1 1 275 275 'L' 275 230 'Z'])
+])

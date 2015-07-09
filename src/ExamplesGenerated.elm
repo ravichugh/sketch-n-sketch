@@ -220,8 +220,20 @@ rings = "
 "
 
 polygons = "
-; TODO polygons, based on tests 45,46,47
-(svg [])
+(let ngon (\\(n cx cy len1 len2)
+  (let dangle (/ (* 3! (pi)) 2!)
+  (let anglei (\\i (+ dangle (/ (* i (* 2! (pi))) n)))
+  (let xi     (\\i (+ cx (* len1 (cos (anglei i)))))
+  (let yi     (\\i (+ cy (* len2 (sin (anglei i)))))
+  (let pti    (\\i [(xi i) (yi i)])
+    (polygon 'yellow' 'maroon' 4 (map pti (list0N (- n 1!))))))))))
+(svg [
+  (ngon 3 100 200 40 40)
+  (ngon 4 200 200 30 30)
+  (ngon 5 300 300 50 50)
+  (ngon 7 300 100 40 40)
+  (ngon 15 100 400 40 40)
+]))
 
 "
 
@@ -933,6 +945,80 @@ clique = "
 
 "
 
+miscShapes = "
+(let [x y] [200 150] (svg [
+  (rect '#999999'  50 10 80 130)
+  (circle 'lightblue' 300 100 50)
+  (ellipse 'orange' 40 280 30 50)
+  (polygon 'lightgreen' 'black' 5 [[110 110] [300 110] [x y]])
+  (polygon 'lightgreen' 'black' 5 [[110 210] [300 210] [x y]])
+  (line 'blue' 4 10 20 300 40)
+]))
+
+"
+
+paths1 = "
+(svg [
+  (path_ ['M' 10 10 'H' 90 'V' 90 'H' 10 'L' 10 10 'Z'])
+  (path_ ['M' 20 20 'L' 60 20 'L' 60 80 'Z'])
+  (path_ ['M' 150 0 'L' 75 200 'L' 225 200 'Z'])
+])
+
+"
+
+paths2 = "
+(svg [
+  (path_ ['M' 10 10   'C' 20 20 40 20 50 10])
+  (path_ ['M' 70 10   'C' 70 20 120 20 120 10])
+  (path_ ['M' 130 10  'C' 120 20 180 20 170 10])
+  (path_ ['M' 10 60   'C' 20 80 40 80 50 60])
+  (path_ ['M' 70 60   'C' 70 80 110 80 110 60])
+  (path_ ['M' 130 60  'C' 120 80 180 80 170 60])
+  (path_ ['M' 10 110  'C' 20 140 40 140 50 110])
+  (path_ ['M' 70 110  'C' 70 140 110 140 110 110])
+  (path_ ['M' 130 110 'C' 120 140 180 140 170 110])
+])
+
+"
+
+paths3 = "
+(svg [
+  (path_ ['M' 10 80 'C' 40 10 65 10 95 80 'S' 150 150 180 80])
+  (path_ ['M' 10 80 'Q' 95 10 180 80])
+  (path_ ['M' 10 80 'Q' 52.5 10 95 80 'T' 180 80])
+])
+
+"
+
+paths4 = "
+(svg [
+  (addAttr
+    (path 'green' 'black' 2
+      ['M' 10 315
+       'L' 110 215
+       'A' 30 50 0 0 1 162.55 162.45
+       'L' 172.55 152.45
+       'A' 30 50 -45 0 1 215.1 109.9
+       'L' 315 10])
+    ['opacity' 0.5])
+])
+
+"
+
+paths5 = "
+(svg [
+  (path 'green' 'black' 2
+    ['M' 80 80 'A' 45 45 0 0 0 125 125 'L' 125 80 'Z'])
+  (path 'red' 'black' 2
+    ['M' 230 80 'A' 45 45 0 1 0 275 125 'L' 275 80 'Z'])
+  (path 'purple' 'black' 2
+    ['M' 80 230 'A' 45 45 0 0 1 125 275 'L' 125 230 'Z'])
+  (path 'blue' 'black' 2
+    ['M' 230 230 'A' 45 45 0 1 1 275 275 'L' 275 230 'Z'])
+])
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -946,6 +1032,7 @@ examples =
   , makeExample "Rings" rings
   , makeExample "Polygons" polygons
   , makeExample "Stars" stars
+  , makeExample "Clique" clique
   , makeExample "Sliders" sliders
   , makeExample "Buttons" buttons
   , makeExample "Widgets" widgets
@@ -962,8 +1049,13 @@ examples =
   , makeExample "Fractal Tree" fractalTree
   , makeExample "Stick Figures" stickFigures
   , makeExample "Cult of Lambda" cultOfLambda 
-  , makeExample "Clique" clique
+  , makeExample "Misc Shapes" miscShapes
+  , makeExample "Paths 1" paths1
+  , makeExample "Paths 2" paths2
+  , makeExample "Paths 3" paths3
+  , makeExample "Paths 4" paths4
+  , makeExample "Paths 5" paths5
   ]
 
-list = examples ++ MicroTests.sampleTests
+list = examples -- ++ MicroTests.sampleTests
 

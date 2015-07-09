@@ -44,6 +44,12 @@ LITTLE_TO_ELM fractalTree
 LITTLE_TO_ELM stickFigures
 LITTLE_TO_ELM cultOfLambda
 LITTLE_TO_ELM clique
+LITTLE_TO_ELM miscShapes
+LITTLE_TO_ELM paths1
+LITTLE_TO_ELM paths2
+LITTLE_TO_ELM paths3
+LITTLE_TO_ELM paths4
+LITTLE_TO_ELM paths5
 
 examples =
   [ makeExample scratchName scratch
@@ -57,6 +63,7 @@ examples =
   , makeExample "Rings" rings
   , makeExample "Polygons" polygons
   , makeExample "Stars" stars
+  , makeExample "Clique" clique
   , makeExample "Sliders" sliders
   , makeExample "Buttons" buttons
   , makeExample "Widgets" widgets
@@ -73,8 +80,13 @@ examples =
   , makeExample "Fractal Tree" fractalTree
   , makeExample "Stick Figures" stickFigures
   , makeExample "Cult of Lambda" cultOfLambda 
-  , makeExample "Clique" clique
+  , makeExample "Misc Shapes" miscShapes
+  , makeExample "Paths 1" paths1
+  , makeExample "Paths 2" paths2
+  , makeExample "Paths 3" paths3
+  , makeExample "Paths 4" paths4
+  , makeExample "Paths 5" paths5
   ]
 
-list = examples ++ MicroTests.sampleTests
+list = examples -- ++ MicroTests.sampleTests
 
