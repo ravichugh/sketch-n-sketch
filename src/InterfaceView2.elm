@@ -83,8 +83,8 @@ onMouseOut  = Svg.Events.onMouseOut  << Signal.message events.address
 zoneEvents id shape zone =
   [ onMouseDown (SelectObject id shape zone)
   , onMouseUp MouseUp
-  , onMouseOver (UpdateModel (\m -> { m | hovering <- Just (id, shape, zone) }))
-  , onMouseOut (UpdateModel (\m -> { m | hovering <- Nothing }))
+  , onMouseOver (UpdateModel (\m -> { m | caption <- Just (Hovering (id, shape, zone)) }))
+  , onMouseOut (UpdateModel (\m -> { m | caption <- Nothing }))
   ]
 
 zone svgFunc id shape zone l =
@@ -376,7 +376,7 @@ mainSectionVertical w h model =
     GE.size wCanvas h <|
       GE.flow GE.down
         [ canvas wCanvas hCanvas model
-        , hoverZoneInfo model (wCanvas+1) hZInfo -- NOTE: +1 is a band-aid
+        , caption model (wCanvas+1) hZInfo -- NOTE: +1 is a band-aid
         ]
   in
 
@@ -409,7 +409,7 @@ mainSectionHorizontal w h model =
     GE.size w (hCanvas + hZInfo) <|
       GE.flow GE.down
         [ canvas w hCanvas model
-        , hoverZoneInfo model w (hZInfo+1) -- NOTE: +1 is a band-aid
+        , caption model w (hZInfo+1) -- NOTE: +1 is a band-aid
         ]
   in
 
@@ -515,38 +515,34 @@ orientationButton w h model =
       ]
       [Html.text ("[Orientation] " ++ (toString model.orient))]
 
-hoverZoneInfo : Model -> Int -> Int -> GE.Element
-hoverZoneInfo model w h =
+caption : Model -> Int -> Int -> GE.Element
+caption model w h =
+  let eStr = GE.leftAligned << T.monospace << T.fromString in
   colorDebug Color.orange <|
     GE.container w h GE.topLeft <|
-      case model.mouseMode of
-        MouseNothing ->
-          let eStr = GE.leftAligned << T.monospace << T.fromString in
-          case hoverInfo model of
+      case (model.caption, model.mode, model.mouseMode) of
+        (Just (Hovering (i,k,z)), Live info, MouseNothing) ->
+          case hoverInfo info (i,k,z) of
             Nothing -> GE.empty
-            Just (i,k,z,l) ->
+            Just l ->
               let numLocs = List.map (\(s,n) -> toString n ++ Utils.braces s) l in
               let line1 = (k ++ toString i) ++ " " ++ z in
               let line2 = Utils.spaces numLocs in
               eStr (" " ++ line1 ++ "\n " ++ line2)
+        (Just (LangError err), _, _) ->
+          eStr err
         _ ->
           GE.empty
 
-hoverInfo : Model -> Maybe (Int, LangSvg.ShapeKind, LangSvg.Zone, List (String, Num))
-hoverInfo model =
+hoverInfo info (i,k,z) =
   let err y = "hoverInfo: " ++ toString y in
-  case (model.mode, model.hovering) of
-    (Live info, Just (i,k,z)) ->
-      flip Utils.bindMaybe (Dict.get i info.assignments) <| \d ->
-      flip Utils.bindMaybe (Dict.get z d)                <| \locs ->
-        let l =
-          List.map (\(lid,_,x) ->
-            let n = Utils.justGet_ (err (i,z,lid)) lid info.initSubst in
-            if | x == ""   -> ("loc_" ++ toString lid, n)
-               | otherwise -> (x, n)) locs
-        in
-        Just (i,k,z,l)
-    _ -> Nothing
+  flip Utils.bindMaybe (Dict.get i info.assignments) <| \d ->
+  flip Utils.bindMaybe (Dict.get z d)                <| \locs ->
+    Just <|
+      List.map (\(lid,_,x) ->
+        let n = Utils.justGet_ (err (i,z,lid)) lid info.initSubst in
+        if | x == ""   -> ("loc_" ++ toString lid, n)
+           | otherwise -> (x, n)) locs
 
 view : (Int, Int) -> Model -> GE.Element
 view (w,h) model =

@@ -88,9 +88,10 @@ upstate evt old = case Debug.log "Event" evt of
                 , code <- sExp e
                 , slate <- LangSvg.valToIndexedTree (Eval.run e)
                 , editingMode <- False
+                , caption <- Nothing
                 , mode <- refreshMode old e }
         Err err ->
-          { old | code <- "PARSE ERROR!\n\n" ++ err }
+          { old | caption <- Just (LangError ("PARSE ERROR!\n" ++ err)) }
 
     ToggleOutput ->
       let m = case old.mode of

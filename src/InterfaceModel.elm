@@ -29,7 +29,7 @@ type alias Model =
   , showZones : Bool
   , syncOptions : Sync.Options
   , editingMode : Bool
-  , hovering : Maybe (Int, ShapeKind, Zone)
+  , caption : Maybe Caption
   }
 
 type Mode
@@ -51,6 +51,10 @@ type alias PossibleChanges =
   ( Int               -- num local changes
   , List (Exp, Val)   -- local changes ++ [structural change, revert change]
   )
+
+type Caption
+  = Hovering (Int, ShapeKind, Zone)
+  | LangError String
 
 type Event = CodeUpdate String
            | SelectObject Int ShapeKind Zone
@@ -96,6 +100,6 @@ sampleModel =
     , showZones    = False
     , syncOptions  = Sync.defaultOptions
     , editingMode  = False
-    , hovering     = Nothing
+    , caption      = Nothing
     }
 
