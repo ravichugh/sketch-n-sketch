@@ -1144,25 +1144,60 @@ paths5 = "
 sailBoat = "
 ; A sail boat on the ocean
 ;
-; The ocean, made with paths
-(def [sealevel amplitude] [100 40])
-(def [oceancolor backgroundcolor] [[28 107 160 50] [255 255 255 100]])
+; Try mainupulating:
+;   - The position of the boat by dragging the sail
+;   - The height of the waves by moving the path control points with zones on
+;   - The frequency of the waves
+;   - The sea level
+;
+(def [sealevel amplitude period boatpos] [300 40 200 400])
+(def [oceancolor backgroundcolor] [[28 107 160 50] [135 206 250 100]])
 (def wave (\\([sx sy] [ex ey] amplitude)
             [ (path oceancolor 'black' 0 
                 [ 'M' sx sy 
-                  'Q' (+ sx (/ (- ex sx) 4)) (- sy amplitude) 
-                  (+ sx (/ (- ex sx) 2)) sy
+                  'Q' (+ sx (/ period 4!)) (- sy amplitude) 
+                  (+ sx (/ period 2!)) sy
                   'Z'])
               (path backgroundcolor 'black' 0
-                  [ 'M' (+ sx (/ (- ex sx) 2)) sy
-                    'Q' (+ sx (* (- ex sx) 0.75)) (+ sy amplitude)
+                  [ 'M' (+ sx (/ period 2!)) sy
+                    'Q' (+ sx (* period 0.75!)) (+ sy amplitude)
                     ex ey 
                     'Z' ])]))
+(def nodes (map2 (\\(a b) [(* a period) b]) (range 0! (round (/ 3000 period))) (repeat (round (/ 4000 period)) sealevel)))
+(defrec mkwaves 
+  (\\l (case l 
+    ([] [])
+    ([x] [])
+    ([a b | rest] (append (wave a b amplitude) (mkwaves [ b | rest ]))))))
+(def backdrop (rect backgroundcolor -400! -400! 2400! 2400!))
+(def sun (circle 'yellow' 50 0 70))
+(def deepwater (rect oceancolor -400! sealevel 2400! 4000!))
+(def quadraticbezier (\\(s c e t) (+ (+ 
+    (* (* (- 1 t) (- 1 t)) s) 
+    (* (* (* 2 (- 1 t)) t) c)) 
+    (* (* t t) e))))
+(defrec mod (\\(x m) (if (< x m) x (mod (- x m) m))))
+(def tphase (/ (mod boatpos (/ period 2)) (/ period 2)))
+(def pickdir (\\(sl amp) (if 
+    (< (mod boatpos period) (/ period 2))
+      (- sl amp) 
+      (+ sl amp))))
+(def boat
+  (def boaty (quadraticbezier sealevel (pickdir sealevel amplitude) sealevel tphase))
+  (def hull (path 'saddlebrown' 'black' 0
+    [ 'M' (- boatpos 30) (- boaty 10)
+      'C' (- boatpos 30) (+ boaty 15)
+      (+ boatpos 30) (+ boaty 15)
+      (+ boatpos 30) (- boaty 10)
+      'Z']))
+  (def mast (rect 'saddlebrown' (+ boatpos 10) (- boaty 60) 5 50))
+  (def sail (rect 'beige' (- boatpos 15!) (- boaty 50!) 50 30))
+  [mast hull sail])
 (svg 
-  (cons 
-    (rect 'lightgray' 0 0 1000 1000) 
-    (wave [100 100] [400 100] amplitude)))
-
+  (concat [
+    [ backdrop sun deepwater ]
+    (mkwaves nodes)
+    boat]))
 "
 
 
