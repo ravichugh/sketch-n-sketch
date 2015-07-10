@@ -1,9 +1,11 @@
 ;
-; Logo based on Active Transportation Alliance (http://activetrans.org/)
+; Logo based on Active Transportation Alliance
+; (http://activetrans.org/)
 ;
 ; Possible ways to manipulate:
 ; - Grab edge of city skyline and pull up and down
-; - Click 'Show Zones' and mess with the curves at the bottom of the logo
+; - Click 'Show Zones' and mess with the curves at
+;     the bottom of the logo
 ; - Toggle the color switch on the top left
 ;
 (let [h] [0]
@@ -39,7 +41,7 @@
 (let [cGreen cGray] ['#66CC66' '#505050']
 (let [b buttonShapes] (button 20! 20! '' 0.25)
 (let [xOff yOff] [0! 0!]
-; TODO unfreeze
+;
 (let groupBox (rect (if b 'transparent' cGreen) xOff yOff 500! 700!)
 ;
 (let makePath

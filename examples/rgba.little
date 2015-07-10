@@ -1,7 +1,8 @@
 ;
 ; A Color Picker
 ; 
-; Move the sliders to change the rgba value of the circle!
+; Move the sliders to change the rgba
+; value of the circle!
 ;
 (let [r_ g_ b_ a_] [22 74 237 0.5]
 ;

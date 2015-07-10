@@ -5,8 +5,8 @@
 ; This is a tiled version of that design
 ;
 ; Possible ways to manipulate:
-; - Grab edges of red polygons, yellow circles, or blue ellipses
-; and pull in various directions
+; - Grab edges of red polygons, yellow circles, or
+;     blue ellipses and pull in various directions
 ; - Grab ends of lines and move in various directions
 ;
 (let [x0 y0 w h max] [69 55 200 320 10!]

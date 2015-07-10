@@ -1,8 +1,8 @@
 ;
 ; Logo: Chicago Botanic Garden
 ;
-; Click 'Show Zones' to see the control points for the various Bezier curves
-; in this example.
+; Click 'Show Zones' to see the control points for
+; the various Bezier curves.
 ; 
 (let [xOff yOff w h] [0! 0! 623 622]
 (let [xOut xcOut1 ycOut1 xcOut2 ycOut2 xcOut3 ycOut3] [292 40 141 97 202 23 24]

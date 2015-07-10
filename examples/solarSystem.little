@@ -1,4 +1,9 @@
 ; Visualization of the solar system 
+;
+; The slider on top controls the "animation."
+; Try changing the size of a planet in one frame,
+;   and see what happens in the others.
+;
 (def aupx 12)
 (def [ox oy] [200 400])
 ; Relative radii of the planet orbits, in au
@@ -26,8 +31,10 @@
 (def uranus  (planet 'blue'       uraorb urayr 6))
 (def neptune (planet 'darkblue'   neporb nepyr 6))
 ; Visual for the rings
-(def rings (reverse (map (\orb (ring 'lightgrey' 2! ox oy (* aupx orb)))
-                [ merorb venorb earorb marorb juporb satorb uraorb neporb ])))
+(def rings
+  (reverse
+    (map (\orb (ring 'lightgrey' 2! ox oy (* aupx orb)))
+         [ merorb venorb earorb marorb juporb satorb uraorb neporb ])))
 (def [time timeslider] (hSlider true 20! 600! 20! 1! 1000! 'Day ' 1))
 (def rev (\(x f) (f x)))
 (def planets (map (rev (/ time 365)) [mercury venus earth mars jupiter saturn uranus neptune]))

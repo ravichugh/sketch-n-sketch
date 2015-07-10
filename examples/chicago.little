@@ -2,19 +2,14 @@
 ; The flag of Chicago
 ;
 ; Possible ways to manipulate
-; - Grab stripes or stars and pull in various directions
+; - Pull stripes or stars in various directions
+; - Group box in background
 ;
-(let [x0 y0 ni nj pts w h] [108 113 0.5! 3.5! 6! 454 300]
+(let [x0 y0 ni nj pts w h] [40 40 0.5! 3.5! 6! 454 300]
 (let [outerLen innerLen] [30 12]
 (let stripes
   (map
-    (\i
-      (rect
-        'lightblue'
-        x0
-        (+ y0 (* i h))
-        w
-        (/ h 6!)))
+    (\i (rect 'lightblue' x0 (+ y0 (* i h)) w (/ h 6!)))
     [(/ 1! 6!) (/ 2! 3!)])
 ;
   (svg 

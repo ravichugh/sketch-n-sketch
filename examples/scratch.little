@@ -2,9 +2,9 @@
 ; Write a little program below.
 ; Or choose an example from the list.
 ;
-; Changes made to this *Scratch* example will be saved and
+; Changes to this *Scratch* example will be saved and
 ; restored when navigating to and from other examples.
-; For the remaining named examples, changes will be discarded
-; when choosing a different example.
+; For the remaining named examples, changes will be
+; discarded when choosing a different example.
 ;
 (svg [(rect 'maroon' 100 15 200 50)])

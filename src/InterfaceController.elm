@@ -130,10 +130,12 @@ upstate evt old = case Debug.log "Event" evt of
       case old.mode of
         AdHoc       -> { old | mouseMode <- MouseObject (id, kind, zone, Nothing) }
         Live info ->
-          let dZones = Utils.justGet_ "#1" id info.triggers in
-          case Dict.get zone dZones of
-            Just (Just _) -> { old | mouseMode <- MouseObject (id, kind, zone, Nothing) }
-            _             -> { old | mouseMode <- MouseNothing }
+          case Dict.get id info.triggers of
+            Nothing -> { old | mouseMode <- MouseNothing }
+            Just dZones ->
+              case Dict.get zone dZones of
+                Just (Just _) -> { old | mouseMode <- MouseObject (id, kind, zone, Nothing) }
+                _             -> { old | mouseMode <- MouseNothing }
         SyncSelect _ _ -> old
 
     MouseUp ->

@@ -1,11 +1,14 @@
 ;
 ; Current Flag of the United States
+; (using circles for now, since 50 stars is slow)
 ;
 ; A few ways to manipulate:
-; - Grab various parts of the red stripes or blue block and pull in various directions
-; - grab the edges of the circles and and increase or decrease the radius
+; - Grab various parts of the red stripes or
+;     blue block and pull in various directions
+; - Grab the edges of the circles and and
+;     increase or decrease the radius
 ;
-(let [x0 y0 ni nj pts w h rad] [108 20 0! 12! 5! 510 272 6]
+(let [x0 y0 ni nj pts w h rad] [20 20 0! 12! 5! 510 272 6]
 (let hstripe (/ h 13!)
 (let block (rect '#09096d' x0 y0 (* w (/ 2! 5!)) (* 7! hstripe))
 (let stripes
@@ -16,15 +19,10 @@
 ;
   (svg
     (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!)) 
-    (append
-      base
-      (map
-        (\[i j]
-          (let xsep (/ w 15!)
-          (let ysep (* hstripe 1.3!)
-            (circle
-              'white'
-              (+ x0 (* i xsep))
-              (+ y0 (* j ysep))
-              rad))))
-      (append (cartProd (range 0.5! 5.5!) (range 0.75! 4.75!)) (cartProd (range 1! 5!) (range 1.2! 4.2!))))))))))))
+    (append base
+      (map (\[i j]
+        (let xsep (/ w 15!)
+        (let ysep (* hstripe 1.3!)
+          (circle 'white' (+ x0 (* i xsep)) (+ y0 (* j ysep)) rad))))
+        (append (cartProd (range 0.5! 5.5!) (range 0.75! 4.75!))
+                (cartProd (range 1! 5!) (range 1.2! 4.2!))))))))))))
