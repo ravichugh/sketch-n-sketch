@@ -3,7 +3,7 @@
 ;
 ; A few ways to manipulate:
 ; - Grab any part of the stick figure and move it
-; in various directions
+;     in various directions
 ;
 (let [x0 y0 w h] [50 30 450 300]
 (let wstripe (/ w 3!)

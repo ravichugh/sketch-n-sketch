@@ -21,10 +21,10 @@ scratch = "
 ; Write a little program below.
 ; Or choose an example from the list.
 ;
-; Changes made to this *Scratch* example will be saved and
+; Changes to this *Scratch* example will be saved and
 ; restored when navigating to and from other examples.
-; For the remaining named examples, changes will be discarded
-; when choosing a different example.
+; For the remaining named examples, changes will be
+; discarded when choosing a different example.
 ;
 (svg [(rect 'maroon' 100 15 200 50)])
 
@@ -43,6 +43,8 @@ threeBoxesInt
 "
 
 sixBoxesA = "
+; Both x- and y-spacing is controlled by sep.
+;
 (let [x0 y0 sep] [10 28 60]
 (svg
   (map (\\[i j] (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 50))
@@ -51,6 +53,8 @@ sixBoxesA = "
 "
 
 sixBoxesB = "
+; x-spacing is controlled by xsep, y-spacing by ysep.
+;
 (let [x0 y0 xsep ysep] [10 28 60 60]
 (svg
   (map (\\[i j] (square_ (+ x0 (mult i xsep)) (+ y0 (mult j ysep)) 50))
@@ -108,11 +112,13 @@ elmLogo = "
 
 activeTrans = "
 ;
-; Logo based on Active Transportation Alliance (http://activetrans.org/)
+; Logo based on Active Transportation Alliance
+; (http://activetrans.org/)
 ;
 ; Possible ways to manipulate:
 ; - Grab edge of city skyline and pull up and down
-; - Click 'Show Zones' and mess with the curves at the bottom of the logo
+; - Click 'Show Zones' and mess with the curves at
+;     the bottom of the logo
 ; - Toggle the color switch on the top left
 ;
 (let [h] [0]
@@ -148,7 +154,7 @@ activeTrans = "
 (let [cGreen cGray] ['#66CC66' '#505050']
 (let [b buttonShapes] (button 20! 20! '' 0.25)
 (let [xOff yOff] [0! 0!]
-; TODO unfreeze
+;
 (let groupBox (rect (if b 'transparent' cGreen) xOff yOff 500! 700!)
 ;
 (let makePath
@@ -171,8 +177,8 @@ botanic = "
 ;
 ; Logo: Chicago Botanic Garden
 ;
-; Click 'Show Zones' to see the control points for the various Bezier curves
-; in this example.
+; Click 'Show Zones' to see the control points for
+; the various Bezier curves.
 ; 
 (let [xOff yOff w h] [0! 0! 623 622]
 (let [xOut xcOut1 ycOut1 xcOut2 ycOut2 xcOut3 ycOut3] [292 40 141 97 202 23 24]
@@ -209,13 +215,16 @@ botanic = "
 rings = "
 (let [x0 y0 w r dx dy] [30 30 7 20 32 20]
 (let dxHalf (div dx 2)
+;
 (let row1
   (map (\\[i c] (ring c w (+ x0 (mult i dx)) y0 r))
        (zip [0 1 2] ['blue' 'black' 'red']))
+;
 (let row2
   (map (\\[i c] (ring c w (+ (+ x0 dxHalf) (mult i dx)) (+ y0 dy) r))
        (zip [0 1] ['yellow' 'green']))
-  (svg (append row1 row2))))))
+;
+(svg (append row1 row2))))))
 
 "
 
@@ -226,7 +235,8 @@ polygons = "
   (let xi     (\\i (+ cx (* len1 (cos (anglei i)))))
   (let yi     (\\i (+ cy (* len2 (sin (anglei i)))))
   (let pti    (\\i [(xi i) (yi i)])
-    (polygon 'yellow' 'maroon' 4 (map pti (list0N (- n 1!))))))))))
+  (let pts    (map pti (list0N (- n 1!)))
+    (polygon 'yellow' 'maroon' 4 pts))))))))
 (svg [
   (ngon 3 100 200 40 40)
   (ngon 4 200 200 30 30)
@@ -393,7 +403,8 @@ rgba = "
 ;
 ; A Color Picker
 ; 
-; Move the sliders to change the rgba value of the circle!
+; Move the sliders to change the rgba
+; value of the circle!
 ;
 (let [r_ g_ b_ a_] [22 74 237 0.5]
 ;
@@ -409,72 +420,7 @@ rgba = "
 
 "
 
-boxGrid = "
-; A grid of boxes that can be enlarged with a slider
-;
-; Specifies the overlaid slider
-(def xySlider_
-  (\\(dropBall roundInt xStart xEnd yStart yEnd minx maxx miny maxy xcaption ycaption curx cury)
-    (def [rCorner wEdge rBall] [4! 3! 10!])
-    (def [xDiff yDiff xValDiff yValDiff] [(- xEnd xStart) (- yEnd yStart) (- maxx minx) (- maxy miny)])
-    (def ballx (+ xStart (* xDiff (/ (- curx minx) xValDiff))))
-    (def bally (+ yStart (* yDiff (/ (- cury miny) yValDiff))))
-    (def ballx_ (clamp xStart xEnd ballx))
-    (def bally_ (clamp yStart yEnd bally))
-    (def rball_ (if dropBall (if (< maxx curx) 0 rBall) rBall))
-    (def rball__ (if dropBall (if (< maxy cury) 0 rball_) rBall))
-    (def xval
-      (def xval_ (clamp minx maxx curx))
-      (if roundInt (round xval_) xval_))
-    (def yval
-      (def yval_ (clamp miny maxy cury))
-      (if roundInt (round yval_) yval_))
-    (def shapes
-      [ (line 'black' wEdge xStart yStart xEnd yStart)
-        (line 'black' wEdge xStart yStart xStart yEnd)
-        (line 'black' wEdge xStart yEnd xEnd yEnd)
-        (line 'black' wEdge xEnd yStart xEnd yEnd)
-        (circle 'black' xStart yStart rCorner)
-        (circle 'black' xStart yEnd rCorner)
-        (circle 'black' xEnd yStart rCorner)
-        (circle 'black' xEnd yEnd rCorner)
-        (circle 'black' ballx_ bally_ rball__)
-        (text (- (+ xStart (/ xDiff 2)) 40) (+ yEnd 20) (+ xcaption (toString xval)))
-        (text (+ xEnd 10) (+ yStart (/ yDiff 2)) (+ ycaption (toString yval))) ])
-  [ [ xval yval ] shapes ]))
-(def xySlider (xySlider_ false))
-;
-; Some overall variables
-(def [x0 y0 sep] [30! 30! 60!])
-;
-; The slider itself
-(def [ [ nx ny ] boxSlider ] 
-  (xySlider true 
-    (- x0 10!)
-    ;(+ x0 (* nx (* sep 50!))) 
-    60000!
-    (- y0 10!) 
-    ;(+ y0 (* ny (* sep 50!)))
-    60000!
-    0!
-    1000!
-    0!
-    1000!
-    ''
-    ''
-    3
-    2))
-;
-; Specifies the boxes in terms of the slider
-(svg 
-  (append
-    (map
-      (\\[i j] (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 50!))
-      (cartProd (range 0! (- nx 1)) (range 0! (- ny 1))))
-    boxSlider))
-
-"
-
+-- LITTLE_TO_ELM boxGrid
 usFlag13 = "
 ;
 ; Original flag of the United States
@@ -483,10 +429,10 @@ usFlag13 = "
 ; - Grab bottom right corner to increase overall size
 ; - Grab the edge of a red stripe to increase width
 ; - Grab the points of one of the stars to change 
-; the size of its points
+;     the size of its points
 ;
 (let rotate (\\a (/ (* a (pi)) 6.5!))
-(let [x0 y0 ni nj pts w h] [108 20 0! 12! 5! 500 260]
+(let [x0 y0 ni nj pts w h] [20 20 0! 12! 5! 500 260]
 (let hstripe (/ h 13!)
 (let [blockw blockh] [(/ w 3!) (* 7! hstripe)]
 (let min
@@ -503,33 +449,28 @@ usFlag13 = "
 ;
   (svg
     (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!))
-    (append
-      base
-      (map
-        (\\i
-            (nStar
-              'white'
-              'none'
-              0
-              pts
-              innerLen
-              outerLen
-              (rotate  i)
-              (+ (+ x0 (/ w 6!)) (* min (cos (rotate  i))))
-              (+ (+ y0 (* hstripe 3.5!)) (* min (sin (rotate  i))))))
-      (range ni nj))))))))))))))
+    (append base
+      (map (\\i
+         (nStar 'white' 'none' 0 pts innerLen outerLen
+           (rotate  i)
+           (+ (+ x0 (/ w 6!)) (* min (cos (rotate i))))
+           (+ (+ y0 (* hstripe 3.5!)) (* min (sin (rotate i))))))
+        (range ni nj))))))))))))))
 
 "
 
 usFlag50 = "
 ;
 ; Current Flag of the United States
+; (using circles for now, since 50 stars is slow)
 ;
 ; A few ways to manipulate:
-; - Grab various parts of the red stripes or blue block and pull in various directions
-; - grab the edges of the circles and and increase or decrease the radius
+; - Grab various parts of the red stripes or
+;     blue block and pull in various directions
+; - Grab the edges of the circles and and
+;     increase or decrease the radius
 ;
-(let [x0 y0 ni nj pts w h rad] [108 20 0! 12! 5! 510 272 6]
+(let [x0 y0 ni nj pts w h rad] [20 20 0! 12! 5! 510 272 6]
 (let hstripe (/ h 13!)
 (let block (rect '#09096d' x0 y0 (* w (/ 2! 5!)) (* 7! hstripe))
 (let stripes
@@ -540,18 +481,13 @@ usFlag50 = "
 ;
   (svg
     (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!)) 
-    (append
-      base
-      (map
-        (\\[i j]
-          (let xsep (/ w 15!)
-          (let ysep (* hstripe 1.3!)
-            (circle
-              'white'
-              (+ x0 (* i xsep))
-              (+ y0 (* j ysep))
-              rad))))
-      (append (cartProd (range 0.5! 5.5!) (range 0.75! 4.75!)) (cartProd (range 1! 5!) (range 1.2! 4.2!))))))))))))
+    (append base
+      (map (\\[i j]
+        (let xsep (/ w 15!)
+        (let ysep (* hstripe 1.3!)
+          (circle 'white' (+ x0 (* i xsep)) (+ y0 (* j ysep)) rad))))
+        (append (cartProd (range 0.5! 5.5!) (range 0.75! 4.75!))
+                (cartProd (range 1! 5!) (range 1.2! 4.2!))))))))))))
 
 "
 
@@ -560,19 +496,14 @@ chicago = "
 ; The flag of Chicago
 ;
 ; Possible ways to manipulate
-; - Grab stripes or stars and pull in various directions
+; - Pull stripes or stars in various directions
+; - Group box in background
 ;
-(let [x0 y0 ni nj pts w h] [108 113 0.5! 3.5! 6! 454 300]
+(let [x0 y0 ni nj pts w h] [40 40 0.5! 3.5! 6! 454 300]
 (let [outerLen innerLen] [30 12]
 (let stripes
   (map
-    (\\i
-      (rect
-        'lightblue'
-        x0
-        (+ y0 (* i h))
-        w
-        (/ h 6!)))
+    (\\i (rect 'lightblue' x0 (+ y0 (* i h)) w (/ h 6!)))
     [(/ 1! 6!) (/ 2! 3!)])
 ;
   (svg 
@@ -593,7 +524,7 @@ frenchSudan = "
 ;
 ; A few ways to manipulate:
 ; - Grab any part of the stick figure and move it
-; in various directions
+;     in various directions
 ;
 (let [x0 y0 w h] [50 30 450 300]
 (let wstripe (/ w 3!)
@@ -682,8 +613,8 @@ flw2 = "
 ; This is a tiled version of that design
 ;
 ; Possible ways to manipulate:
-; - Grab edges of red polygons, yellow circles, or blue ellipses
-; and pull in various directions
+; - Grab edges of red polygons, yellow circles, or
+;     blue ellipses and pull in various directions
 ; - Grab ends of lines and move in various directions
 ;
 (let [x0 y0 w h max] [69 55 200 320 10!]
@@ -736,27 +667,30 @@ flw2 = "
 ferris = "
 ;
 ; Take this ferris wheel for a spin!
-; try: unfreezing cx and cy and translating wheel
-;      unfreezing center radius and stretching it
-;      unfreezing wCar and changing size of box
+;
+; Try:
+;  - Stretching the passenger cars
+;  - Stretching the central hub
+;  - Dragging the central hub
+;  - Setting showSliders to false
 ;
 (let [numSpokes_ spokeLen_ rotAngle_] [5 80 0]
 (let showSliders true
 ;
-(let [numSpokes s1] (hSlider true 20! 420! 20! 3! 10! '' numSpokes_)
+(let [numSpokes s1] (hSlider true 20! 420! 20! 3! 15! '' numSpokes_)
 (let [spokeLen s2] (hSlider true 20! 420! 50! 40! 200! '' spokeLen_)
 (let [rotAngle s3] (hSlider false 20! 420! 80! (neg twoPi) twoPi '' rotAngle_)
 ;
 (let sliders (if showSliders (concat [s1 s2 s3]) [])
 (let wheel
-  (let [cx cy] [220! 300!]
+  (let [cx cy] [220 300]
   (let rim [(ring 'darkgray' 8! cx cy spokeLen)]
-  (let center [(circle 'black' cx cy 20!)]
+  (let center [(circle 'black' cx cy 20)]
   (let frame [(nStar 'goldenrod' 'darkgray' 3! numSpokes spokeLen 0! rotAngle cx cy)]
   (let spokePts (nPointsOnCircle numSpokes rotAngle cx cy spokeLen)
   (let caps (map (\\[x y] (circle 'black' x y 7!)) spokePts)
   (let cars
-    (let wCar 30!
+    (let wCar 30
     (let wHalfCar (/ wCar 2!)
     (map (\\[x y] (squareCenter 'lightgray' x y wCar)) spokePts)))
   (concat [rim cars center frame caps]))))))))
@@ -812,6 +746,11 @@ pieChart1 = "
 
 solarSystem = "
 ; Visualization of the solar system 
+;
+; The slider on top controls the \"animation.\"
+; Try changing the size of a planet in one frame,
+;   and see what happens in the others.
+;
 (def aupx 12)
 (def [ox oy] [200 400])
 ; Relative radii of the planet orbits, in au
@@ -839,8 +778,10 @@ solarSystem = "
 (def uranus  (planet 'blue'       uraorb urayr 6))
 (def neptune (planet 'darkblue'   neporb nepyr 6))
 ; Visual for the rings
-(def rings (reverse (map (\\orb (ring 'lightgrey' 2! ox oy (* aupx orb)))
-                [ merorb venorb earorb marorb juporb satorb uraorb neporb ])))
+(def rings
+  (reverse
+    (map (\\orb (ring 'lightgrey' 2! ox oy (* aupx orb)))
+         [ merorb venorb earorb marorb juporb satorb uraorb neporb ])))
 (def [time timeslider] (hSlider true 20! 600! 20! 1! 1000! 'Day ' 1))
 (def rev (\\(x f) (f x)))
 (def planets (map (rev (/ time 365)) [mercury venus earth mars jupiter saturn uranus neptune]))
@@ -850,6 +791,7 @@ solarSystem = "
 
 fractalTree = "
 ; A fractal tree
+;
 (defrec mod (\\(x m) (if (< x m) x (mod (- x m) m))))
 (def nsin (\\n (if (< n (/ 3.14159 2)) (sin n) (cos (mod n (/ 3.14159 2))))))
 (def ncos (\\n (if (< n (/ 3.14159 2)) (cos n) (sin (mod n (/ 3.14159 2))))))
@@ -1153,13 +1095,13 @@ examples =
   , makeExample "Widgets" widgets
   , makeExample "xySlider" xySlider
   , makeExample "Color Picker" rgba
-  , makeExample "Box Grid" boxGrid
+  -- , makeExample "Box Grid" boxGrid
+  , makeExample "Chicago Flag" chicago
   , makeExample "US-13 Flag" usFlag13
   , makeExample "US-50 Flag" usFlag50
-  , makeExample "Chicago Flag" chicago
   , makeExample "French Sudan Flag" frenchSudan
   , makeExample "Frank Lloyd Wright" flw1
-  , makeExample "F.L. Wright Tiled" flw2
+  , makeExample "Frank Lloyd Wright B" flw2
   , makeExample "Ferris Wheel" ferris
   , makeExample "Pie Chart" pieChart1
   , makeExample "Solar System" solarSystem
