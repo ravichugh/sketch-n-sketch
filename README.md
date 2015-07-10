@@ -19,9 +19,17 @@ users to freely mix between programmatic and direct manipulation.
 <span style="display: inline-block; width: 222px; text-align: right;">**Sketch-N-Sketch**</span>
   = Prodirect Manipulation Editor for SVG
 
+This
+<a href="http://people.cs.uchicago.edu/~rchugh/static/papers/sketch-n-sketch-draft.pdf">technical report</a>
+describes the ideas behind our approach.
+
 ## Demo
 
+<a href="http://ravichugh.github.io/sketch-n-sketch/v0.0/">ravichugh.github.io/sketch-n-sketch/v0.0/</a>
+
+<!--
 [`v0.0`]("") `(Jul 2015)` Alpha Version
+-->
 
 ## Quick Syntax Reference
 
