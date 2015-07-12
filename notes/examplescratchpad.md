@@ -7,74 +7,215 @@
       ([x | xx] [[acc x] | (indexedzip_ (+ acc 1) xx)])
       (_ [])))
 (let indexedzip (\xs (indexedzip_ 0 xs))
-(let [x0 y0 sep] [28 28 60]
-  (svg 
-    (map
-      (\[i j]
-        (rect
-          'red'
-          (+ x0 (mult i sep))
-          (+ y0 (minus 400 (mult 100 j)))
-          50
-          (mult 100 j)))
-      (indexedzip  [2 4 1]))))))
-```
-
-```
-(letrec indexedzip_
-  (\(acc xs)
-    (case xs
-      ([x | xx] [[acc x] | (indexedzip_ (+ acc 1) xx)])
-      (_ [])))
-(let indexedzip (\xs (indexedzip_ 0 xs))
-(let [x0 y0 sep] [28 28 60]
-(let xaxis (rect 'black' (- x0 8) (+ y0 400) 300 10)
-(let yaxis (rect 'black' (- x0 8) y0 10 300)
+(let [x0 y0 sep] [28 28 20]
+(let xaxis (rect 'black' (- x0 8) (+ y0 400) 800 5)
+(let yaxis (rect 'black' (- x0 8) y0 5 400)
+(letrec range
+  (\(b t)
+    (if (< b t)
+      [b | (range (+ b 1) t)]
+      [t]))
+(let data (map (\a (sin a)) (map (\b (* b 0.25)) (range 0 40)))
 (let bars
   (map
-    (\[i j] (rect 'red' (+ x0 (* i sep)) (+ y0 (- 400 (* 100 j))) 50 (* 100 j)))
-    (indexedzip  [2 4 1]))
-  (svg  [xaxis | yaxis | bars])))))))
+    (\[i j] (rect 'lightblue' (+ x0 (* i sep)) (+ y0 (- 400 (* 100 j))) 20 (* 100 j)))
+    (indexedzip  data))
+  (svg  [xaxis yaxis | bars])))))))))
 ```
 
 ##Graph (nodes and edges)
 
 ```
-(let node (\[x y] (circle 'blue' x y 20))
-(let edge (\[[x y] [i j]] (line_ x y i j))
-(letrec genpairs (\xs 
-  (case xs 
-    ([x y | xx] [[x y] (append (genpairs [x | xx]) (genpairs ([y | xx])))]) 
-    (_ [])
-  )
-)
-(let pts [[100 200] [200 300]]
-(let edges (map edge (genpairs pts))
+(let node (\[x y] (circle 'lightblue' x y 20))
+(let edge (\[[x y] [i j]] (line 'lightgreen' 5 x y i j))
+(letrec genpairs
+  (\xs
+    (case xs
+      ([x y | xx] [[x y] | (append (genpairs  (cons x xx)) (genpairs  (cons y xx)))])
+      ([x] [])
+      ([] [])))
+(let pts [[200 50] [400 50] [100 223] [200 389] [400 391] [500 223]]
 (let nodes (map node pts)
-(svg (append edges nodes))
-))))))
+(let pairs (genpairs  pts)
+(let edges (map edge pairs)
+  (svg  (append edges nodes)))))))))
 ```
 
-The line function isn't working quite yet.
+##Fractal Tree
+
+Generate the branches by starting with a child list, then recursively generating children until number of steps is depleted.
 
 ```
-(let (edge (\[[x y] [i j]] (line 'green' x y i j))
-(let lin (edge [[100 200] [200 300]])
-(svg [lin]))))
+; A fractal tree
+(defrec mod (\(x m) (if (< x m) x (mod (- x m) m))))
+(def nsin (\n (if (< n (/ 3.14159 2)) (sin n) (cos (mod n (/ 3.14159 2))))))
+(def ncos (\n (if (< n (/ 3.14159 2)) (cos n) (sin (mod n (/ 3.14159 2))))))
+(def [initwd initlen] [10! 150!])
+(def [steps stepslider] (hSlider true 20! 420! 550! 3! 8! 'Steps ' 4))
+(def [bendn bendnslider] (hSlider true 20! 420! 580! 1! 8! 'Bend ' 1))
+(def initangle (/ 3.14159! 2!))
+(def bend (/ 3.14159! bendn))
+(defrec exp (\(base pow)
+  (if (< pow 1) 1 (* base (exp base (- pow 1))))))
+(def mkleftx (\(stepnum theta px) 
+  (- px (* (/ initlen stepnum) (ncos (+ theta (* (exp 0.5 stepnum) bend)))))))
+(def mkrightx (\(stepnum theta px)
+  (+ px (* (/ initlen stepnum) (ncos (- theta (* (exp 0.5 stepnum) bend)))))))
+(def mklefty (\(stepnum theta py)
+  (- py (* (/ initlen stepnum) (nsin (+ theta (* (exp 0.5 stepnum) bend)))))))
+(def mkrighty (\(stepnum theta py)
+  (- py (* (/ initlen stepnum) (nsin (- theta (* (exp 0.5 stepnum) bend)))))))
+(defrec genchildren (\(stepnum maxstep theta px2 py2) 
+  (if (< maxstep stepnum) 
+    [] 
+    (append 
+      [ (line 'black' (/ initwd stepnum) px2 py2 
+          (mkleftx stepnum theta px2)
+          (mklefty stepnum theta py2))
+        (line 'black' (/ initwd stepnum) px2 py2
+          (mkrightx stepnum theta px2)
+          (mkrighty stepnum theta py2))]
+      (append
+        (genchildren (+ stepnum 1) maxstep (+ theta (* (exp 0.5 stepnum) bend))
+          (mkleftx stepnum theta px2)
+          (mklefty stepnum theta py2))
+        (genchildren (+ stepnum 1) maxstep (- theta (* (exp 0.5 stepnum) bend))
+          (mkrightx stepnum theta px2)
+          (mkrighty stepnum theta py2)))))))
+(def trunk (line 'black' initwd 210 400 210 250))
+(def branches (genchildren 2 steps initangle 210 250))
+(svg (concat [ [ trunk | branches ] bendnslider stepslider]))
 ```
 
+##Solar System
+A representation of the solar system that can be advanced through time, where the relative positions of the planets in their orbits are correct as well as the relative radii of the orbits themselves.
+
 ```
-(let node (\[x y] (circle 'blue' x y 20))
-(let edge (\[[x y] [i j]] (line 'green' x y i j))
-(letrec genpairs (\xs 
-  (case xs 
-    ([x | y | xx] [[x y] | (genpairs [x | xx]) | (genpairs ([y | xx]))]) 
-    (_ [])
-  )
+; Visualization of the solar system 
+(def aupx 12)
+(def [ox oy] [200 400])
+; Relative radii of the planet orbits, in au
+(def [ merorb venorb earorb marorb juporb satorb uraorb neporb ] 
+     [ 0.387! 0.723! 1! 1.524! 5.203! 9.539! 19.18! 30.06! ]
 )
-(let pts [[100 200] [200 300]]
-(let edges (map edge (genpairs pts))
-
-(svg [])
-)))))
+; Relative orbital period to the Earth
+(def [ meryr venyr earyr maryr jupyr satyr urayr nepyr ]
+     [ 0.2409! 0.616! 1! 1.9! 12! 29.5! 84! 165! ]
+)
+; Function to place a body
+(def planet (\(color orb yr radius)
+  (\t (circle color  (+ ox (* aupx (* orb (cos (* t (/ 6.28318 yr))))))
+                       (+ oy (* aupx (* orb (sin (* t (/ -6.28318 yr))))))
+                       radius))))
+; Visual for each body
+; Each takes a time to be displayed at
+(def sun (circle 'yellow' ox oy 10))
+(def mercury (planet 'lightred'   merorb meryr 4))
+(def venus   (planet 'orange'     venorb venyr 5))
+(def earth   (planet 'green'      earorb earyr 5))
+(def mars    (planet 'red'        marorb maryr 4))
+(def jupiter (planet 'brown'      juporb jupyr 6))
+(def saturn  (planet 'sandybrown' satorb satyr 6))
+(def uranus  (planet 'blue'       uraorb urayr 6))
+(def neptune (planet 'darkblue'   neporb nepyr 6))
+; Visual for the rings
+(def rings (reverse (map (\orb (ring 'lightgrey' 2! ox oy (* aupx orb)))
+                [ merorb venorb earorb marorb juporb satorb uraorb neporb ])))
+(def [time timeslider] (hSlider true 20! 600! 20! 1! 1000! 'Day ' 1))
+(def rev (\(x f) (f x)))
+(def planets (map (rev (/ time 365)) [mercury venus earth mars jupiter saturn uranus neptune]))
+(svg (concat [ rings [sun | planets] timeslider ]))
 ```
+
+##2D Slider
+A two dimensional slider in a similar style to the slider that already exists.
+
+```
+(def xySlider_
+  (\(dropBall roundInt xStart xEnd yStart yEnd minx maxx miny maxy xcaption ycaption curx cury)
+    (def [rCorner wEdge rBall] [4! 3! 10!])
+    (def [xDiff yDiff xValDiff yValDiff] [(- xEnd xStart) (- yEnd yStart) (- maxx minx) (- maxy miny)])
+    (def ballx (+ xStart (* xDiff (/ (- curx minx) xValDiff))))
+    (def bally (+ yStart (* yDiff (/ (- cury miny) yValDiff))))
+    (def ballx_ (clamp xStart xEnd ballx))
+    (def bally_ (clamp yStart yEnd bally))
+    (def rball_ (if dropBall (if (< maxx curx) 0 rBall) rBall))
+    (def rball__ (if dropBall (if (< maxy cury) 0 rball_) rBall))
+    (def xval
+      (def xval_ (clamp minx maxx curx))
+      (if roundInt (round xval_) xval_))
+    (def yval
+      (def yval_ (clamp miny maxy cury))
+      (if roundInt (round yval_) yval_))
+    (def shapes
+      [ (line 'black' wEdge xStart yStart xEnd yStart)
+        (line 'black' wEdge xStart yStart xStart yEnd)
+        (line 'black' wEdge xStart yEnd xEnd yEnd)
+        (line 'black' wEdge xEnd yStart xEnd yEnd)
+        (circle 'black' xStart yStart rCorner)
+        (circle 'black' xStart yEnd rCorner)
+        (circle 'black' xEnd yStart rCorner)
+        (circle 'black' xEnd yEnd rCorner)
+        (circle 'black' ballx_ bally_ rball__)
+        (text (- (+ xStart (/ xDiff 2)) 40) (+ yEnd 20) (+ xcaption (toString xval)))
+        (text (+ xEnd 10) (+ yStart (/ yDiff 2)) (+ ycaption (toString yval))) ])
+  [ [ xval yval ] shapes ]))
+(def xySlider (xySlider_ false))
+(def [ [ a b ] slider ] (xySlider false 20! 420! 20! 420! 0! 100! 0! 100! 'X Axis: ' 'Y Axis: ' 20 20))
+(svg slider)
+```
+
+##Color Picker with 2d Slider
+
+Because color theory is subtle and complex, however compelling, I'm going to do two separate 2D sliders - one for RG and the other for BA and see how that looks.
+
+```
+; The slider
+(def xySlider_
+  (\(dropBall roundInt xStart xEnd yStart yEnd minx maxx miny maxy xcaption ycaption curx cury)
+    (def [rCorner wEdge rBall] [4! 3! 10!])
+    (def [xDiff yDiff xValDiff yValDiff] [(- xEnd xStart) (- yEnd yStart) (- maxx minx) (- maxy miny)])
+    (def ballx (+ xStart (* xDiff (/ (- curx minx) xValDiff))))
+    (def bally (+ yStart (* yDiff (/ (- cury miny) yValDiff))))
+    (def ballx_ (clamp xStart xEnd ballx))
+    (def bally_ (clamp yStart yEnd bally))
+    (def rball_ (if dropBall (if (< maxx curx) 0 rBall) rBall))
+    (def rball__ (if dropBall (if (< maxy cury) 0 rball_) rBall))
+    (def xval
+      (def xval_ (clamp minx maxx curx))
+      (if roundInt (round xval_) xval_))
+    (def yval
+      (def yval_ (clamp miny maxy cury))
+      (if roundInt (round yval_) yval_))
+    (def shapes
+      [ (line 'black' wEdge xStart yStart xEnd yStart)
+        (line 'black' wEdge xStart yStart xStart yEnd)
+        (line 'black' wEdge xStart yEnd xEnd yEnd)
+        (line 'black' wEdge xEnd yStart xEnd yEnd)
+        (circle 'black' xStart yStart rCorner)
+        (circle 'black' xStart yEnd rCorner)
+        (circle 'black' xEnd yStart rCorner)
+        (circle 'black' xEnd yEnd rCorner)
+        (circle 'black' ballx_ bally_ rball__)
+        (text (- (+ xStart (/ xDiff 2)) 40) (+ yEnd 20) (+ xcaption (toString xval)))
+        (text (+ xEnd 10) (+ yStart (/ yDiff 2)) (+ ycaption (toString yval))) ])
+  [ [ xval yval ] shapes ]))
+(def xySlider (xySlider_ false))
+;
+; RG and BA sliders
+(def [ [ red green ] rgSlider ] (xySlider true 20! 200! 20! 200! 0! 255! 0! 255! 'Red: ' 'Green: ' 78 215))
+(def [ [ blue alpha ] baSlider ] (xySlider true 20! 200! 240! 430! 0! 255! 0! 255! 'Blue: ' 'Alpha: ' 220 100))
+(def colorBall (circle [ red green blue alpha ] 400 220 100!))
+(svg (cons colorBall (append rgSlider baSlider)))
+```
+
+##Phasic Things
+Waves, rotation, and phase are all things that are difficult to capture in a normal graphical editor and even more difficult to manipulate. This could provide some compelling examples for both normal direct manipulation as well as sliders.
+
+Possible examples:
+* A boat on a sea, waves and boat's position on top is determined using trig
+* Interference pattern, as visualized by changing alpha of a radial or linear gradient. Frequency of emission sources could be manipulated with sliders.
+* Rotation of a cube, with shading easily determined by value of one rotational parameter (unidirectional light)
+* Turning a page in a book (would require some math for the curve at the edge of the page)
+* A bouncing ball with path shown
+* A hanging spring or a swinging pendulum, where the size of the block determines the 'mass' and the resulting period/aplitude
