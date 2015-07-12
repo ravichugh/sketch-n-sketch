@@ -219,3 +219,8 @@ Possible examples:
 * Turning a page in a book (would require some math for the curve at the edge of the page)
 * A bouncing ball with path shown
 * A hanging spring or a swinging pendulum, where the size of the block determines the 'mass' and the resulting period/aplitude
+
+##Relate and introduceParameter
+Two example use cases:
+* User places three otherwise identical boxes in a near-horizontal line, then asks the program to 'relate' them. Ideally, the program should deduce that the only varying parameters (the x and y positions of the boxes) can be modeled (like with a best fit line) by introducing a few parameters. Namely, by introducing a named constant for the y position that all three boxes share and by introducing two named constants for the x position that are a part of a linear function (an x0 and a separation, effectively).
+* User creates a larger, more complicated shape/graphic by building it up from smaller polygons (such as using triangles and rectangles to make the city skyline in the Active Trans Logo example). These are ultimately inteded to be one shape, so the user then 'groups' the shapes and fuses them into one polyline. The user then selects the points that makes up the skyline (just the top ones) and asks the program to 'relate' them. Ideally, the program should output an option where a parameter was introduced into the y values of the points, where the other points are assigned as offsets to the 'base' point. Then, if the user picks this choice, they would be able to manipulate the skyline as in the example.
