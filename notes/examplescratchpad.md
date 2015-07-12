@@ -229,3 +229,20 @@ Two example use cases:
 Perhaps in the case when the Vals passed to the 'relate' function have exactly the same structure, the algorithm could consist of successive best fits on each of the constants at a leaf of the Val. So, in the case of the boxes, there are two parameters on which fits are done, the x and the y (the other attributes, being identical, presumably are already related by a named constant). The fits done are in increasing complexity, from linear to quadratic, to more exotic ones like logarithmic and fourier. The r^2 values for these could then act as a ranking to determine which ones are to be higher ranked than the others.
 
 These fits could also be compared to a few special ones that human users will tend to place along, like vertical and horizontal lines. grids and circles might be hard to detect and parameterize, but they are also common placement patterns that would be good to detect.
+
+Work in progress:
+
+```
+\begin{LaTeX}
+
+If $V_i \sim V_n$ for $ i \in [0,m], n \in [0,m] $,
+$relate(V_0, ..., V_m) = \{ V^0, ..., V^K \}$ where 
+
+$V^N \in introduceParameter(n_0, ..., n_m) $ for $ n \in V_i $.
+
+$n$ is meant to be a constant in the input $V_i$ Vals. The arguments to $introduceParameter()$ are meant to be the constants that correspond to the same 'structural location' in all of the input $V_i$. $introduceParameter()$ returns a set of $V^N$, each of which is a set of replacement Vals that correspond to one possible parameter introduction. So, that's where any fitting might happen. The parameter introductions potentially result in new expressions $e_i$ that replace the previous $n_i$ in the $V_i$. The options that are then shown are all the substitutions that correspond to the elements of the $V^N$.
+
+Could this be expressed with our current substitution notation? To complete this specification, I think I need to look at exactly how we did things in the technical paper.
+
+\end{LaTeX}
+```
