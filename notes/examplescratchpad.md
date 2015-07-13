@@ -232,8 +232,7 @@ These fits could also be compared to a few special ones that human users will te
 
 Work in progress:
 
-```
-\begin{LaTeX}
+```latex
 
 If $V_i \sim V_n$ for $ i \in [0,m], n \in [0,m] $,
 $relate(V_0, ..., V_m) = \{ V^0, ..., V^K \}$ where 
@@ -244,5 +243,39 @@ $n$ is meant to be a constant in the input $V_i$ Vals. The arguments to $introdu
 
 Could this be expressed with our current substitution notation? To complete this specification, I think I need to look at exactly how we did things in the technical paper.
 
-\end{LaTeX}
 ```
+
+I think this can be done with the currently existing substitution syntax, as I think it allows substitution of any numeric constant `$n^l$` with any Val `$V$`. So, we could substitute constants with expressions. One thing we are missing, however, is something that would allow the insertion of new expressions altogether. This comes into play when a parameter is introduced into the program and there is no natural place to put the name for it. For instance, in the `little` program below:
+
+```clojure
+(def [x0 w h] [20 50 50])
+(def box1 'blue' x0 100 w h)
+(def box2 'blue' (* x0 3) 110 w h)
+(def box3 'blue' (* x0 7) 90 w h)
+(svg [box1 box2 box3])
+```
+
+>A parameter that should be introduced is into the `y` field of the boxes, and a natural place to put it is in the def at the top of the program. Thus, we can use the substitution syntax that already exists to replace the final constant in the substitution in the AST with an expression that includes that constant along with another substitution. However, in the program below:
+
+Actually, I don't think that this is true. Substitutions in the AST still only happen at numeric literals, and I don't think this can be extended to include the naming of new parameters.
+
+```clojure
+(def box1 'blue' 20 100 50 50)
+(def box2 'blue' 60 110 50 50)
+(def box3 'blue' 140 90 50 50)
+(svg [box1 box2 box3])
+```
+
+>There exists no place to make such a parameter introduction. There is no location in the AST that corresponds to a numeric constant that can be replaced to include the naming of another variable.
+
+See above.
+
+What we need is a syntax for substituting expressions in the AST. Why not:
+
+```latex
+Define \emph{Expression Substitution} as $\varepsilon(e^{l_0}, ..., e^{l_n}) = \varepsilon_0$ such that:
+
+$\varepsilon_0 e = e'$ where $e^{l_i} \in e'$ is such that $e^{l_i} = e^{l_n} \forall i \in \[0,n\]$.
+```
+
+Then, we run into another limitation of our current notation, which is that traces don't include location information about expressions, only numeric constants. In order to encode structure changing updates, I think we need to somehow capture that information in such a way that the `relate` and `introduceParameter` functions can use them.
