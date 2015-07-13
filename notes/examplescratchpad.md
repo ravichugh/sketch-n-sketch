@@ -270,12 +270,24 @@ Actually, I don't think that this is true. Substitutions in the AST still only h
 
 See above.
 
-What we need is a syntax for substituting expressions in the AST. Why not:
+What we need is a syntax for substituting expressions in the AST. If we allow an 'empty' expression that can have a location that corresponds to the start of the program, why not:
 
 ```latex
 Define \emph{Expression Substitution} as $\varepsilon(e^{l_0}, ..., e^{l_n}) = \varepsilon_0$ such that:
 
-$\varepsilon_0 e = e'$ where $e^{l_i} \in e'$ is such that $e^{l_i} = e^{l_n} \forall i \in \[0,n\]$.
+$\varepsilon_0 e = e'$ where $e^{l_i} \in e'$ is such that $e^{l_i} = e^{l_n} \forall i \in [0,n]$.
 ```
 
+Alternately, we could just extend the definition of substitution to include expression substitution.
+
 Then, we run into another limitation of our current notation, which is that traces don't include location information about expressions, only numeric constants. In order to encode structure changing updates, I think we need to somehow capture that information in such a way that the `relate` and `introduceParameter` functions can use them.
+
+To introduce location information for expressions into traces, why not simply add another field to expressions in traces? So:
+
+```latex
+Before: trace $t = (* n^{l_a} (+ n^{l_b} n^{l_c}))$
+
+Now: trace $t = (* l_n n^(l_a) (+ l_m n^{l_b} n^{l_c}))$ where $l_n, l_m$ are locations in the AST in the usual definition.
+```
+
+A naive method of using this would be to just pass the entire AST to `relate` along with the Vals that it's attempting to relate. The Vals, which have traces that include the locations of each expression, can be used to deduce expression substitutions that will satisfy some sort of constraints that capture the 'close' output that we're looking for. Then, `relate` would return multiple new ASTs that would be presented to the user to choose between.
