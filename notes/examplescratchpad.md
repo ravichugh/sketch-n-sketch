@@ -291,3 +291,62 @@ Now: trace $t = (* l_n n^(l_a) (+ l_m n^{l_b} n^{l_c}))$ where $l_n, l_m$ are lo
 ```
 
 A naive method of using this would be to just pass the entire AST to `relate` along with the Vals that it's attempting to relate. The Vals, which have traces that include the locations of each expression, can be used to deduce expression substitutions that will satisfy some sort of constraints that capture the 'close' output that we're looking for. Then, `relate` would return multiple new ASTs that would be presented to the user to choose between.
+
+###Fitting in introduceParameter
+
+Starting with a very simple case, we could make a few guesses as to how best to model the numerical constants given:
+
+* As a single constant `a`
+* As a linear function `a * i + b`
+* As a quadratic function `a * i^2 + b * i + c`
+* etc.
+
+For each guess, we could order the constants from least to greatest, assign an index to them based on this ordering, then perform a 'best fit' (likely via some form of regression). Then, we would order each option by some parameter of 'closeness' (like an r^2 value, for example). This approach assumes/generates the very typical pattern:
+
+```clojure
+(map placementFunction (range 0 n))
+```
+
+Where `placementFunction` is only for one parameter (like the `y` value in the previous example). This could work well for the common case of a sequence of placements along a line or other parameters that are linearly/quadratically related. What this misses is inter-variable dependence, might generate different orderings for different parameters of the shape (which might be able to be resolved by scanning before and pre-selecting one ordering or a few probable orderings to go into all relationship guesses), and at this juncture needs a template function for each possible shape.
+
+To get an example going; in the limited case of performing a parameter introduction on one known attribute for a group of shapes that are all the same shape, `introduceParameter` might take the form:
+
+```elm
+type alias FitParameter = Num
+type alias Index = Num 
+type FitFunction = (FitParameter -> Index -> Val)
+                 | (FitParameter -> FitParameter -> Index -> Val)
+                 | ...
+                 | (FitParameter_0 -> ... -> FitParameter_(N-1) -> Index -> Val)
+type TemplateFunction = FitFunction -> (Index -> Val)
+-- Ex. templateFunction1 linearFit = map (\y -> square 10 (linearFit a b y) 7)
+-- a and b deduced from guessLinear
+
+introduceParamater : List Val -> Expression -> List Expression
+introduceParameter valsToRelate inputProgram =
+  let thingsToFit = getQuantities valsToRelate
+      -- Each element of list is (constantPlacementFunction, const)
+      constantGuesses = map (\(tFunc, ns) -> guessConstant tFunc ns) thingsToFit
+      -- Each element of list is (linearPlacementFunction, slope, intercept)
+      linearGuesses = map (\(tFunc, ns) -> guessLinear tFunc ns) thingsToFit
+      ...
+      -- Substitution helpers
+      makeAssignments : List (FitParameter, Name) -> Expression
+      makeAssignments = --Whatever the internal syntax is for (def [name1, name2] [param1, param2])...
+      insertPlacementFuncs : (Index -> Val) -> Expression
+      insertPlacementFuncs = --Whatever the internal syntax is for
+          -- (def placementFunction (\(name0 ... nameN) (shape ...)))
+          -- (def shapes (map placementFunction (range 0 M)))
+      -- Actually perform substitution
+      ...
+  -- Return new, substituted expressions
+  in concat [ ... ]
+  
+getQuantities : List Val -> List (TemplateFunction, List Num)
+
+guessConstant : TemplateFunction -> List Num -> (Index -> Val, (FitParameter, Name(?)))
+guessLinear : TemplateFunction -> List Num -> (Index -> Val, (FitParameter, Name(?)), (FitParameter, Name(?)))
+guess<NParamsNeeded> : TemplateFunction -> List Num -> (Index -> Val, FitParameter_0, ..., FitParameter_(N-1))
+```
+
+Before I get too much more into the weeds, I think some conference is necessary to figure out if this is really the way that we want to go with this.
