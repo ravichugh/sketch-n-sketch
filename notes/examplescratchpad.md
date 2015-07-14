@@ -350,3 +350,72 @@ guess<NParamsNeeded> : TemplateFunction -> List Num -> (Index -> Val, FitParamet
 ```
 
 Before I get too much more into the weeds, I think some conference is necessary to figure out if this is really the way that we want to go with this.
+
+##Eye Icon
+
+Copy of (https://commons.wikimedia.org/wiki/Category:SVG_eye_icons#/media/File:Eye_open_font_awesome.svg) in an attempt to suss out pain points.
+
+```clojure
+; An eye icon
+; Copy of https://commons.wikimedia.org/wiki/Category:SVG_eye_icons#/media/File:Eye_open_font_awesome.svg
+(def [outerStartx outerStarty innerStartx innerStarty] [16! 240! 50 256!])
+(def [outerWidth innerWidth outerHeight innerHeight sharpness] [480 412 -60 0 16])
+(def [corneax corneay cornear] [256! 216 120])
+(def midline 256!)
+(def outerBorder
+  (path
+    'black'
+    'black'
+    0
+    ['M'
+     outerStartx
+     outerStarty
+     'Q'
+     midline
+     outerHeight
+     (+ outerStartx outerWidth)
+     outerStarty
+     'Q'
+     (+ (+ outerStartx outerWidth) sharpness)
+     256!
+     (+ outerStartx outerWidth)
+     (+ outerStarty 32!)
+     'Q'
+     midline
+     (- 512! outerHeight)
+     outerStartx
+     (+ outerStarty 32!)
+     'Q'
+     (- outerStartx sharpness)
+     256!
+     outerStartx
+     outerStarty
+     'Z']))
+(def innerBorder
+  (path
+    'white'
+    'black'
+    0
+    ['M'
+     innerStartx
+     innerStarty
+     'Q'
+     midline
+     innerHeight
+     (+ innerStartx innerWidth)
+     innerStarty
+     'Q'
+     midline
+     (- 512! innerHeight)
+     innerStartx
+     innerStarty
+     'Z']))
+(def cornea (circle 'black' corneax corneay cornear))
+(def glint (path 'white' 'black' 0
+  [ 'M' corneax (- corneay 60)
+    'a' 25 25 90 0 1
+    corneax (- corneay 25)
+    'Z'
+  ]))
+(svg  [outerBorder innerBorder cornea glint])
+```
