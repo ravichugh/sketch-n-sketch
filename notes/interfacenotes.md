@@ -1,3 +1,48 @@
+# TODO
+
+* catch eval errors
+* retain whitespace in parsing
+* parse error messages
+* local storage for edits and options
+* rotation zones
+* color picker zones
+* text zones
+* little options
+* freeze annotations on variables (and uses)
+* scrollbars / zoom
+* ball of clay tool
+* svg to little tool
+* defs and other thin wrapper
+* highlight zone assignments
+* cursors based on zone assignment
+
+* better structural diff
+
+* refactor data structs / tryToBeSmart
+* symbolic trigger solutions
+
+* ~~option to revert changes~~
+* ~~structure changing updates~~
+* ~~comments in source code~~
+* ~~allow \verb+!+ by default instead of \verb+?+~~
+* ~~scratchpad~~
+* ~~paths~~
+* ~~fix SVG format~~
+* ~~more kinds of plausible updates...~~
+* ~~rename Interface and Main files~~
+* ~~\verb+(def x e1) e2 === (let x e1 e2)+ ~~
+* ~~valOfAPath2 bug~~
+* ~~logo~~
+* ~~fav icon~~
+* ~~JavaScript catch-all~~
+* ~~manually change font in JS again~~
+* ~~print zone/locset~~
+* ~~separate little files~~
+* ~~string attribute bug~~
+* ~~zone bug with ferris/pie~~
+* ~~parse errors in zone info area~~
+* ~~remove MicroTests from dropdown~~
+
 # Things to do
 
 * ~~Move index attribute into attrs for Objects~~
