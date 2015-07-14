@@ -360,7 +360,7 @@ Copy of (https://commons.wikimedia.org/wiki/Category:SVG_eye_icons#/media/File:E
 ; Copy of https://commons.wikimedia.org/wiki/Category:SVG_eye_icons#/media/File:Eye_open_font_awesome.svg
 (def [outerStartx outerStarty innerStartx innerStarty] [16! 240! 50 256!])
 (def [outerWidth innerWidth outerHeight innerHeight sharpness] [480 412 -60 0 16])
-(def [corneax corneay cornear] [256! 216 120])
+(def [corneax corneay cornear glintr glintWidth] [256! 216! 120! 50! 24])
 (def midline 256!)
 (def outerBorder
   (path
@@ -411,11 +411,46 @@ Copy of (https://commons.wikimedia.org/wiki/Category:SVG_eye_icons#/media/File:E
      innerStarty
      'Z']))
 (def cornea (circle 'black' corneax corneay cornear))
-(def glint (path 'white' 'black' 0
-  [ 'M' corneax (- corneay 60)
-    'a' 25 25 90 0 1
-    corneax (- corneay 25)
-    'Z'
-  ]))
+(def glint
+  (path
+    'white'
+    'black'
+    0
+    ['M'
+     corneax
+     (- corneay (+ glintr glintWidth))
+     'A'
+     (/ glintWidth 2!)
+     (/ glintWidth 2!)
+     0
+     0
+     1
+     corneax
+     (- corneay glintr)
+     'A'
+     glintr
+     glintr
+     0
+     0
+     0
+     (- corneax glintr)
+     corneay
+     'A'
+     (/ glintWidth 2!)
+     (/ glintWidth 2!)
+     0
+     0
+     1
+     (- corneax (+ glintr glintWidth))
+     corneay
+     'A'
+     (+ glintr glintWidth)
+     (+ glintr glintWidth)
+     0
+     0
+     1
+     corneax
+     (- corneay (+ glintr glintWidth))
+     'Z']))
 (svg  [outerBorder innerBorder cornea glint])
 ```
