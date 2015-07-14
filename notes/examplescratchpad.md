@@ -492,3 +492,74 @@ When making this logo, I found that I naturally used a slider to adjust the size
 (def redDot (circle '#900' centerx 128! 64!))
 (svg [blueCirc whiteRing greenCirc whiteWedge whiteBar redDot])
 ```
+
+##Haskell.org Logo
+
+Making this logo, it became apparent that the combination of a rotation parameter for primitive shapes (at least) and a 'fuse' functionality (or group funtionality, at least) would be very useful. The lambda, in particular, was tedious to calculate the intercept points for every vertex, while rotating rectangles (or shearing them, which would be perfect) would have been drastically easier. After rotating/shearing the primitives into place, a 'fuse' would have then allowed group manipulation (e.g. adding an 'x' offset to everything in the lambda, as opposed to doing it by hand).
+
+```clojure
+; Haskell.org Logo
+; SVG version of https://www.haskell.org/static/img/logo.png?etag=rJR84DMh
+;
+; Try making a slider for the bend amount to adjust that parameter indirectly.
+;
+(def [wedgeWidth lambdaWidth equalsWidth] [120 120 90])
+(def [wedgePos lambdaPos equalsPos] [0! 170 440])
+(def [totalHeight totalWidth] [512! 752!])
+(def bend (/ 3.14159! 5.3))
+(def equalsSep 40)
+(def [wedgeColor lambdaColor equalsColor] 
+        [[69 58 98 100]
+         [97 82 138 100]
+         [143 78 139 100]])
+(def tan (\theta (/ (sin theta) (cos theta))))
+(def leftWedge (path wedgeColor 'black' 0
+    [ 'M' wedgePos 0!
+      'L' (+ wedgePos (* (/ totalHeight 2!) (tan bend))) (/ totalHeight 2!)
+      'L' wedgePos totalHeight
+      'L' (+ wedgePos wedgeWidth) totalHeight
+      'L' (+ wedgePos (+ wedgeWidth (* (/ totalHeight 2!) (tan bend))))
+          (/ totalHeight 2!)
+      'L' (+ wedgeWidth wedgePos) 0!
+      'Z']))
+(def lambda (path lambdaColor 'black' 0
+    [ 'M' lambdaPos 
+          0!
+      'L' (+ lambdaPos (* (/ totalHeight 2!) (tan bend))) 
+          (/ totalHeight 2!)
+      'L' lambdaPos 
+          totalHeight
+      'L' (+ lambdaPos lambdaWidth) 
+          totalHeight
+      'L' (+ (+ lambdaPos (* (/ totalHeight 2!) (tan bend))) (/ lambdaWidth 2!)) 
+          (+ (/ totalHeight 2!) (/ lambdaWidth (* 2! (tan bend))))
+      'L' (+ lambdaPos (* totalHeight (tan bend)))
+          totalHeight
+      'L' (+ lambdaPos (+ lambdaWidth (* totalHeight (tan bend))))
+          totalHeight
+      'L' (+ lambdaPos lambdaWidth)
+          0!
+      'Z']))
+(def equals 
+  [ (path equalsColor 'black' 0
+      [ 'M' equalsPos
+            (- (- (/ totalHeight 2!) (* equalsSep 0.25!)) (* equalsWidth (cos bend)))
+        'L' totalWidth
+            (- (- (/ totalHeight 2!) (* equalsSep 0.25!)) (* equalsWidth (cos bend)))
+        'L' totalWidth
+            (- (/ totalHeight 2!) (* equalsSep 0.25!))
+        'L' (+ equalsPos (* equalsWidth (sin bend)))
+            (- (/ totalHeight 2!) (* equalsSep 0.25!))
+        'Z'])
+    (path equalsColor 'black' 0
+      [ 'M' (+ equalsPos (+ (* equalsWidth (sin bend)) (* equalsSep (tan bend))))
+            (+ (/ totalHeight 2!) (* equalsSep 0.75!))
+        'L' totalWidth
+            (+ (/ totalHeight 2!) (* equalsSep 0.75!))
+        'L' totalWidth
+            (+ (+ (/ totalHeight 2!) (* equalsSep 0.75!)) (* equalsWidth (cos bend)))
+        'L' (+ equalsPos (+ (* 2! (* equalsWidth (sin bend))) (* equalsSep (tan bend))))
+            (+ (+ (/ totalHeight 2!) (* equalsSep 0.75!)) (* equalsWidth (cos bend)))
+        'Z'])])
+(svg (append [leftWedge lambda] equals))
+```
