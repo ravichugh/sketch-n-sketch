@@ -1,0 +1,104 @@
+; An eye icon
+; Recreation of https://commons.wikimedia.org/wiki/Category:SVG_eye_icons#/media/File:Eye_open_font_awesome.svg
+;
+; Try unfreezing:
+;   glintr, and manipulating the glint control points
+;   cornear, and manipulating the cornea radius
+;   glintWidth, and manipulating the glint control points
+;   Any of the outer/inner parameters, and seeing what happens!
+;
+(def [outerStartx outerStarty innerStartx innerStarty] [16! 240! 50 256!])
+(def [outerWidth innerWidth outerHeight innerHeight sharpness] [480 412 -60 0 16])
+(def [corneax corneay cornear glintr glintWidth] [256! 216! 120! 50! 24])
+(def midline 256!)
+(def outerBorder
+  (path
+    'black'
+    'black'
+    0
+    ['M'
+     outerStartx
+     outerStarty
+     'Q'
+     midline
+     outerHeight
+     (+ outerStartx outerWidth)
+     outerStarty
+     'Q'
+     (+ (+ outerStartx outerWidth) sharpness)
+     256!
+     (+ outerStartx outerWidth)
+     (+ outerStarty 32!)
+     'Q'
+     midline
+     (- 512! outerHeight)
+     outerStartx
+     (+ outerStarty 32!)
+     'Q'
+     (- outerStartx sharpness)
+     256!
+     outerStartx
+     outerStarty
+     'Z']))
+(def innerBorder
+  (path
+    'white'
+    'black'
+    0
+    ['M'
+     innerStartx
+     innerStarty
+     'Q'
+     midline
+     innerHeight
+     (+ innerStartx innerWidth)
+     innerStarty
+     'Q'
+     midline
+     (- 512! innerHeight)
+     innerStartx
+     innerStarty
+     'Z']))
+(def cornea (circle 'black' corneax corneay cornear))
+(def glint
+  (path
+    'white'
+    'black'
+    0
+    ['M'
+     corneax
+     (- corneay (+ glintr glintWidth))
+     'A'
+     (/ glintWidth 2!)
+     (/ glintWidth 2!)
+     0
+     0
+     1
+     corneax
+     (- corneay glintr)
+     'A'
+     glintr
+     glintr
+     0
+     0
+     0
+     (- corneax glintr)
+     corneay
+     'A'
+     (/ glintWidth 2!)
+     (/ glintWidth 2!)
+     0
+     0
+     1
+     (- corneax (+ glintr glintWidth))
+     corneay
+     'A'
+     (+ glintr glintWidth)
+     (+ glintr glintWidth)
+     0
+     0
+     1
+     corneax
+     (- corneay (+ glintr glintWidth))
+     'Z']))
+(svg  [outerBorder innerBorder cornea glint])
