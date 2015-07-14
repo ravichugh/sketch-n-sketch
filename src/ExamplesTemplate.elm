@@ -55,6 +55,7 @@ LITTLE_TO_ELM paths5
 LITTLE_TO_ELM sailBoat
 LITTLE_TO_ELM eyeIcon
 LITTLE_TO_ELM wikimedia
+LITTLE_TO_ELM haskell
 
 examples =
   [ makeExample scratchName scratch
@@ -89,6 +90,7 @@ examples =
   , makeExample "Sailboat" sailBoat
   , makeExample "Eye Icon" eyeIcon
   , makeExample "Wikimedia Logo" wikimedia
+  , makeExample "Haskell.org Logo" haskell
   , makeExample "Cult of Lambda" cultOfLambda 
   , makeExample "Misc Shapes" miscShapes
   , makeExample "Paths 1" paths1
