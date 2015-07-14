@@ -1307,6 +1307,40 @@ eyeIcon = "
 (svg  [outerBorder innerBorder cornea glint])
 "
 
+wikimedia = "
+; Wikimedia Logo
+; Recreation of https://upload.wikimedia.org/wikipedia/commons/8/81/Wikimedia-logo.svg
+;
+; The white objects are an example of using masks as opposed to paths to create
+; more complicated forms, such as the green 'wings' and broken ring of this logo.
+;
+(def [greenr innerBluer outerBluer] [110! 134! 180!])
+(def [wedgeTheta barWidth barHeight] [(/ 3.14159! 4!) 32 150])
+(def [dotRed wingGreen ringBlue] ['#900' '#396' '#069'])
+(def [centerx centery] [256! 256!])
+(def greenCirc (circle wingGreen centerx centery greenr))
+(def whiteRing (circle 'white' centerx centery innerBluer))
+(def blueCirc (circle ringBlue centerx centery outerBluer))
+(def rightPtx (+ centerx (* outerBluer (sin wedgeTheta))))
+(def leftPtx (- centery (* outerBluer (sin wedgeTheta))))
+(def pty (- (- centery 16) (* outerBluer (cos wedgeTheta))))
+(def whiteWedge 
+    (path 'white' 'black' 0 
+        [ 'M' centerx 
+              (- centery 16)
+          'L' rightPtx 
+              pty
+          'A' outerBluer 
+              outerBluer
+              0 0 0
+              leftPtx
+              pty
+          'Z']))
+(def whiteBar (rect 'white' (- centerx (/ barWidth 2!)) (- centery 32!) barWidth barHeight))
+(def redDot (circle '#900' centerx 128! 64!))
+(svg [blueCirc whiteRing greenCirc whiteWedge whiteBar redDot])
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -1340,6 +1374,7 @@ examples =
   , makeExample "Stick Figures" stickFigures
   , makeExample "Sailboat" sailBoat
   , makeExample "Eye Icon" eyeIcon
+  , makeExample "Wikimedia Logo" wikimedia
   , makeExample "Cult of Lambda" cultOfLambda 
   , makeExample "Misc Shapes" miscShapes
   , makeExample "Paths 1" paths1

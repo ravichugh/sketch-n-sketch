@@ -54,6 +54,7 @@ LITTLE_TO_ELM paths4
 LITTLE_TO_ELM paths5
 LITTLE_TO_ELM sailBoat
 LITTLE_TO_ELM eyeIcon
+LITTLE_TO_ELM wikimedia
 
 examples =
   [ makeExample scratchName scratch
@@ -87,6 +88,7 @@ examples =
   , makeExample "Stick Figures" stickFigures
   , makeExample "Sailboat" sailBoat
   , makeExample "Eye Icon" eyeIcon
+  , makeExample "Wikimedia Logo" wikimedia
   , makeExample "Cult of Lambda" cultOfLambda 
   , makeExample "Misc Shapes" miscShapes
   , makeExample "Paths 1" paths1
