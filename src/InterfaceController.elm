@@ -3,7 +3,7 @@ module InterfaceController (upstate) where
 import Lang exposing (..) --For access to what makes up the Vals
 import LangParser exposing (parseE, parseV)
 import Sync
-import Eval exposing (run)
+import Eval
 import Utils
 import MicroTests
 import InterfaceModel exposing (..)
@@ -86,7 +86,7 @@ upstate evt old = case Debug.log "Event" evt of
         Ok e ->
           { old | inputExp <- Just e
                 , code <- sExp e
-                , slate <- LangSvg.valToIndexedTree (Eval.run e)
+                , slate <- LangSvg.valToIndexedTree (Eval.run_ e)
                 , editingMode <- False
                 , caption <- Nothing
                 , mode <- refreshMode old e }
@@ -148,7 +148,7 @@ upstate evt old = case Debug.log "Event" evt of
         (Live _, _) -> Debug.crash "upstate Sync: shouldn't happen anymore"
         (AdHoc, Just ip) ->
           let
-            inputval  = Eval.run ip
+            inputval  = Eval.run_ ip
             inputval' = inputval |> LangSvg.valToIndexedTree
                                  |> slateToVal
             newval    = slateToVal old.slate
@@ -319,7 +319,7 @@ createMousePosCallback mx my objid kind zone old =
             Just trigger ->
               let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
               if not Sync.tryToBeSmart then
-                (newE, LangSvg.valToIndexedTree <| Eval.run newE) else
+                (newE, LangSvg.valToIndexedTree <| Eval.run_ newE) else
               Debug.crash "Controller tryToBeSmart"
               {-
               let newSlate' =

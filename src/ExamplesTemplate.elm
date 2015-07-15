@@ -9,7 +9,7 @@ import Utils
 makeExample name s =
   let thunk () =
     let e = Utils.fromOk_ (LangParser.parseE s) in
-    let v = Eval.run e in
+    let v = Eval.run_ e in
     {e=e, v=v}
   in
   (name, thunk)

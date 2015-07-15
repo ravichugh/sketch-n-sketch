@@ -171,6 +171,12 @@ projJusts =
       (Just x, Just xs) -> Just (x::xs)
       _                 -> Nothing) (Just [])
 
+mapOk : (a -> b) -> Result err a -> Result err b
+mapOk f mx = case mx of {Ok x -> Ok (f x); Err err -> Err err}
+
+bindOk : (a -> Result err b) -> Result err a -> Result err b
+bindOk f mx = case mx of {Ok x -> f x; Err err -> Err err}
+
 mapSnd : (b -> b') -> (a, b) -> (a, b')
 mapSnd f (x,y) = (x, f y)
 

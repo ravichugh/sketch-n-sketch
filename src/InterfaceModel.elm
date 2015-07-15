@@ -80,7 +80,7 @@ events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
 
 mkLive opts e v = Live <| Sync.prepareLiveUpdates opts e v
-mkLive_ opts e  = mkLive opts e (Eval.run e)
+mkLive_ opts e  = mkLive opts e (Eval.run_ e)
 
 sampleModel =
   let

@@ -9,7 +9,7 @@ _ `ignore` _ = ()
 
 --------------------------------------------------------------------------------
 
--- right now, these always get run
+-- right now, these always get run_
 
 parseE = Utils.fromOk_ << LangParser.parseE
 parseV = Utils.fromOk_ << LangParser.parseV
@@ -56,7 +56,7 @@ testParser = ()
 makeTest : String -> String -> {e:Lang.Exp, v:Lang.Val, vnew:Lang.Val}
 makeTest se sv' =
   let e  = parseE se
-      v  = Eval.run e
+      v  = Eval.run_ e
       v' = parseV sv'
   in
   {e=e, v=v, vnew=v'}
@@ -152,28 +152,28 @@ test15 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
        (svg (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2])))"
-    (strVal (Eval.run (parseE
+    (strVal (Eval.run_ (parseE
       "(svg [(circle_ 10 28 10) (circle_ 40 28 10) (circle_ 100 28 10)])")))
 
 test16 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
        (svg (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2])))"
-    (strVal (Eval.run (parseE
+    (strVal (Eval.run_ (parseE
       "(svg [(circle_ 150 28 10) (circle_ 40 28 10) (circle_ 70 28 10)])")))
 
 test17 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
        (svg (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2])))"
-    (strVal (Eval.run (parseE
+    (strVal (Eval.run_ (parseE
       "(svg [(circle_ 10 28 10) (circle_ 150 28 10) (circle_ 70 28 10)])")))
 
 test18 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
        (svg (map (\\i (square_ (+ x0 (mult i sep)) y0 20)) [0 1 2])))"
-    (strVal (Eval.run (parseE
+    (strVal (Eval.run_ (parseE
       "(svg [(square_ 150 28 20) (square_ 40 28 20) (square_ 70 28 20)])")))
 
 test19 () =
@@ -185,7 +185,7 @@ test19 () =
 test20 () =
   makeTest
     "(let i 200 (svg [(line_ 10 20 i 40) (line_ 10 70 i 40)]))"
-    (strVal (Eval.run (parseE
+    (strVal (Eval.run_ (parseE
       "(svg [(line_ 10 20 300 40) (line_ 10 70 200 40)])")))
 
 test21 () =
@@ -222,7 +222,7 @@ test23 () =
     "(let [x0 y0 sep] [10 28 30] (svg
        (map2 (\\(i j) (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 20))
              [0 1 2] [0 1 2])))"
-    (strVal (Eval.run (parseE
+    (strVal (Eval.run_ (parseE
       "(svg [(square_ 150 28 20) (square_ 40 58 20) (square_ 70 88 20)])")))
 
 test24 () =
@@ -230,7 +230,7 @@ test24 () =
     "(let [x0 y0 sep] [10 28 30] (svg
        (map2 (\\(i j) (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 20))
              [0 1 2] [0 1 2])))"
-    (strVal (Eval.run (parseE
+    (strVal (Eval.run_ (parseE
       "(svg [(square_ 10 28 20) (square_ 40 58 20) (square_ 100 88 20)])")))
 
 -- two equations that constrain the same variable, but both have same solution
@@ -239,7 +239,7 @@ test25 () =
     "(let [x0 y0 sep] [10 28 30] (svg
        (map2 (\\(i j) (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 20))
              [0 1 2] [0 1 2])))"
-    (strVal (Eval.run (parseE
+    (strVal (Eval.run_ (parseE
       "(svg [(square_ 10 28 20) (square_ 40 58 20) (square_ 100 118 20)])")))
 
 test26 () =
@@ -289,14 +289,14 @@ test29 () =
   makeTest
     "(let [x0 y0 sep] [10 28 30]
        (svg (map (\\i (circle_ (+ x0 (mult i sep)) y0 10)) [0 1 2])))"
-    (strVal (Eval.run (parseE
+    (strVal (Eval.run_ (parseE
       "(svg [(circle_ 10 28 10) (circle_ 40 28 10) (circle_ 101 28 10)])")))
 
 test30 () =
   makeTest
     "(let [x0 y0 sep rx ry] [10 28 60 15 10]
        (svg (map (\\i (ellipse_ (+ x0 (mult i sep)) y0 rx ry)) [0 1 2])))"
-    (strVal (Eval.run (parseE
+    (strVal (Eval.run_ (parseE
       "(svg [(ellipse_ 10 28 15 10) (ellipse_ 70 28 25 40) (ellipse_ 130 28 15 10)])")))
 
 test31 () =
