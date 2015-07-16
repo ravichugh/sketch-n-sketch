@@ -27,6 +27,10 @@ import Color
 --Signaling Libraries
 import Mouse 
 import Window 
+import Task exposing (Task, andThen)
+
+--Storage Libraries
+import InterfaceStorage exposing (taskMailbox, saveStateLocally, loadLocalState)
 
 --Html Libraries
 import Html 
@@ -320,9 +324,15 @@ middleWidgets w h wWrap hWrap model =
         , frozenButton model w h
         , modeButton model w h
         ] ++ (syncButton_ w h model)
+        ++
+        [ saveButton model w h
+        , loadButton w h
+        ]
       (True, _) ->
         [ dropdownExamples model w h
         , editRunButton model w h
+        , saveButton model w h
+        , loadButton w h
         ]
 
 gapWidget w h = GE.spacer w h
@@ -477,6 +487,30 @@ prevButton i =
 nextButton i (n,l) =
   let enabled = i < n + 2 in
   simpleButton_ (not enabled) (TraverseOption 1) "Next" "Next" "Show Next"
+
+saveButton : Model -> Int -> Int -> GE.Element
+saveButton model w h =
+    Html.toElement w h <|
+      Html.button
+        [ buttonAttrs w h
+        , Events.onClick taskMailbox.address (saveStateLocally model)
+        , Attr.value "Save"
+        , Attr.name "Save State"
+        , Attr.disabled False
+        ]
+        [ Html.text "Save State" ]
+
+loadButton : Int -> Int -> GE.Element
+loadButton w h =
+    Html.toElement w h <| 
+      Html.button
+        [ buttonAttrs w h
+        , Events.onClick taskMailbox.address loadLocalState
+        , Attr.value "Load"
+        , Attr.name "Load State"
+        , Attr.disabled False
+        ]
+        [ Html.text "Load State" ]
 
 dropdownExamples : Model -> Int -> Int -> GE.Element
 dropdownExamples model w h =

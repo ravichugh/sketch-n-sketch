@@ -15,6 +15,8 @@ import String
 import Svg
 import Lazy
 
+import Task exposing (Task, succeed, andThen)
+
 type alias Model =
   { scratchCode : String
   , exName : String
