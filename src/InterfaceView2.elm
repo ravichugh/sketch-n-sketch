@@ -495,10 +495,11 @@ saveButton model w h =
         [ buttonAttrs w h
         , Events.onClick taskMailbox.address (saveStateLocally model)
         , Attr.value "Save"
-        , Attr.name "Save State"
+        , Attr.name "Save"
+        , Attr.title "Saves Code and Page Layout to Persistent Browser Storage"
         , Attr.disabled False
         ]
-        [ Html.text "Save State" ]
+        [ Html.text "Save" ]
 
 loadButton : Int -> Int -> GE.Element
 loadButton w h =
@@ -507,10 +508,12 @@ loadButton w h =
         [ buttonAttrs w h
         , Events.onClick taskMailbox.address loadLocalState
         , Attr.value "Load"
-        , Attr.name "Load State"
+        , Attr.name "Load"
+        , Attr.title 
+            "Loads Code and Page Layout from Persistent Browser Storage"
         , Attr.disabled False
         ]
-        [ Html.text "Load State" ]
+        [ Html.text "Load" ]
 
 dropdownExamples : Model -> Int -> Int -> GE.Element
 dropdownExamples model w h =

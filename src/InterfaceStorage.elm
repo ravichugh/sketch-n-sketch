@@ -33,7 +33,7 @@ taskMailbox = mailbox (succeed ())
 
 -- Type for the partial object that we store in localStorage
 type alias PartialObject = 
-    { scratchCode : String
+    { code : String
     , orient      : Orientation
     , showZones   : Bool
     , midOffsetX  : Int
@@ -42,7 +42,7 @@ type alias PartialObject =
 
 -- JSON encoder for our Model
 -- Note that this only converts the fields we care about saving:
--- * scratchCode : String
+-- * code : String
 -- * orient      : Orientation (Vertical | Horizontal)
 -- * showZones   : Bool
 -- * midOffsetX  : Int
@@ -50,7 +50,7 @@ type alias PartialObject =
 modelToValue : Model -> Encode.Value
 modelToValue model =
     Encode.object <|
-      [ ("scratchCode", Encode.string model.scratchCode)
+      [ ("code", Encode.string model.code)
       , ("orient", Encode.string 
             (case model.orient of
                 InterfaceModel.Vertical -> "Vertical"
@@ -66,7 +66,7 @@ modelToValue model =
 strToModel : Decoder Model
 strToModel =
     let partialObjectDecoder = object5 PartialObject
-            ("scratchCode" := string)
+            ("code" := string)
             ("orient" := customDecoder string 
                 (\v -> case v of
                     "Vertical" -> Ok InterfaceModel.Vertical
@@ -79,7 +79,7 @@ strToModel =
             ("midOffsetY"  := int)
     in customDecoder partialObjectDecoder
         (\partial -> 
-            Ok { sampleModel | scratchCode <- partial.scratchCode
+            Ok { sampleModel | code <- partial.code
                              , orient <- partial.orient
                              , showZones <- partial.showZones
                              , midOffsetX <- partial.midOffsetX
@@ -100,4 +100,5 @@ loadLocalState = getItem "stateSave" strToModel
 
 -- Function to update model upon state load
 installLocalState : Model -> Model -> Model
-installLocalState loadedModel oldModel = loadedModel
+installLocalState loadedModel oldModel = 
+    { loadedModel | slate <- oldModel.slate }
