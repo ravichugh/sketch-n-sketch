@@ -19,7 +19,10 @@ It seems that the biggest change will be the addition of a few new events, namel
 
 Further, there will be the addition of a new mailbox and a new port - a taskMailbox to recieve the save/retrieve tasks, and the port that is mentioned in Reference.elm as being nececcary. 
 
-**Next, implement saving/retrieval of the entire Model with a button press**
+Code/Page Layout saving implemented; only supports one save file. Works during
+and between browser sessions.
+
+**Do we want Slate saving? Do we want multiple save files?**
 
 ##Saving to Disk
 It looks like the HTML5 fileReader object is the modern and 'correct' way to do this. It looks like there is a library https://github.com/piotrcyr/elm-filereader that managed to implement this in 2014 without using any ports, which would be desirable. However, it doesn't look like it's been updated to 0.15, and the level of completion of the library is in question. 
