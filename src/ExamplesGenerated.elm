@@ -1408,6 +1408,44 @@ haskell = "
 (svg (append [leftWedge lambda] equals))
 "
 
+matrices = "
+; Definitions for 2D matrices and transform application
+;
+; Similar to the SVG transform operation
+; See https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/transform
+;
+(def [theta tx ty m s] [(/ 3.14159! 4) 75 75 1.25 2])
+(defrec rmult_ (\\(r v) (case [r v]
+  ([ [] x ] 0)
+  ([ x [] ] 0)
+  ([ [a | aa] [b | bb] ] (+ (* a b) (rmult_ aa bb))))))
+(defrec mmult (\\(m v) (case m
+  ([] [])
+  ([r|rest] (if (= (len r) (len v)) (cons (rmult_ r v) (mmult rest v)) [])))))
+(defrec toPts (\\l (case l
+  ([] [])
+  ([ [x y k] | rest ] (cons [x y] (toPts rest))))))
+(defrec toPath_ (\\l (case l
+  ([] [])
+  ([ [x y] | rest ] (append [ 'L' x y ] (toPath_ rest))))))
+(def toPath (\\l (case l
+  ([] [])
+  ([ [x1 y1] | rest ] (path 'lightblue' 'gray' 1 (append [ 'M' x1 y1 | (toPath_ rest)] ['Z']))))))
+(def id [ [1! 0! 0!] [0! 1! 0!] [0! 0! 1!] ])
+(def translatert (map (mmult [ [1! 0! tx] [0! 1! 0!] [0! 0! 1!]])))
+(def translatedn (map (mmult [ [1! 0! 0!] [0! 1! ty] [0! 0! 1!]])))
+(def rotate (map (mmult [ [(cos theta) (* -1! (sin theta)) 0!] [(sin theta) (cos theta) 0!] [0! 0! 1!]])))
+(def shear (map (mmult [ [1! m 0!] [0! 1! 0!] [0! 0! 1!]])))
+(def scale (map (mmult [ [s 0! 0!] [0! s 0!] [0! 0! 1!] ])))
+(def ps [ [-25! -25! 1!] [-25! 25! 1!] [25! 25! 1!] [25! -25! 1!] ])
+(def square1 (toPath (toPts (translatedn (translatert ps)))))
+(def square2 (toPath (toPts (translatedn (translatert (translatert ps))))))
+(def rotsquare (toPath (toPts (translatert (translatert (translatert (translatedn (rotate ps))))))))
+(def shearsquare (toPath (toPts (translatert (translatert (translatert (translatert (translatedn (shear ps)))))))))
+(def scalesquare (toPath (toPts (translatert (translatert (translatert (translatert (translatert (translatert (translatedn (scale ps)))))))))))
+(svg [square1 square2 rotsquare shearsquare scalesquare])
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -1443,6 +1481,7 @@ examples =
   , makeExample "Eye Icon" eyeIcon
   , makeExample "Wikimedia Logo" wikimedia
   , makeExample "Haskell.org Logo" haskell
+  , makeExample "Matrix Transformations" matrices
   , makeExample "Cult of Lambda" cultOfLambda 
   , makeExample "Misc Shapes" miscShapes
   , makeExample "Paths 1" paths1

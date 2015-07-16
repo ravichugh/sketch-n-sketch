@@ -56,6 +56,7 @@ LITTLE_TO_ELM sailBoat
 LITTLE_TO_ELM eyeIcon
 LITTLE_TO_ELM wikimedia
 LITTLE_TO_ELM haskell
+LITTLE_TO_ELM matrices
 
 examples =
   [ makeExample scratchName scratch
@@ -91,6 +92,7 @@ examples =
   , makeExample "Eye Icon" eyeIcon
   , makeExample "Wikimedia Logo" wikimedia
   , makeExample "Haskell.org Logo" haskell
+  , makeExample "Matrix Transformations" matrices
   , makeExample "Cult of Lambda" cultOfLambda 
   , makeExample "Misc Shapes" miscShapes
   , makeExample "Paths 1" paths1
