@@ -4,6 +4,7 @@
 
 Here's a brief video that shows what it's like
 to work in Sketch-N-Sketch.
+Note that this screencast contains no voice-over narration.
 
 <br>
 
