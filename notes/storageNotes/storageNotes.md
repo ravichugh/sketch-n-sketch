@@ -22,7 +22,7 @@ Further, there will be the addition of a new mailbox and a new port - a taskMail
 Code/Page Layout saving implemented; only supports one save file. Works during
 and between browser sessions.
 
-**Do we want Slate saving? Do we want multiple save files?**
+We don't want slate saving, but there were some layout changes that we discussed. The dropdown menu is an implicit 'load' selection, so the inclusion of a separate load button is not necessary. Instead, the load button will become a 'revert' button that reverts the contents of the code box to the last save. Note that all revert functionality should also put the state back into where there is a 'run code' option available, as the slate is not rerendered (the code that they wrote might cause a crash, the possiblity of which is why they saved). Also, we need a method of saving multiple files to the browser. This will necessitate the introduction of a pop-up dialog that asks the user to provide a save name whenever they are saving a file that has not been saved before or are saving changers to an example.
 
 ##Saving to Disk
 It looks like the HTML5 fileReader object is the modern and 'correct' way to do this. It looks like there is a library https://github.com/piotrcyr/elm-filereader that managed to implement this in 2014 without using any ports, which would be desirable. However, it doesn't look like it's been updated to 0.15, and the level of completion of the library is in question. 
