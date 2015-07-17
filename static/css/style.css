@@ -268,25 +268,19 @@ ul h4 {
 	margin: 0 0 35px 0;
 }
 
+.blog_post {
+	width: 980px;
+	overflow: hidden;
+	margin: 0 0 35px 0;
+  text-align: justify;
+  text-justify: inter-word;
+}
+
 .post1 {
 	width: 665px;
 	overflow: hidden;
 	margin: 0 0 35px 0;
 }
-
-/*
-#post2 {
-	width: 280px;
-	float: left;
-	overflow: hidden;
-}
-
-#post3 {
-	overflow: hidden;
-	margin: 0 0 0 315px;
-	width: 280px;
-}
-*/
 
 #search input.form-submit {
 	border: 0;
@@ -373,4 +367,26 @@ table.projects td {
 .sidebar_img {
   border: 5px solid #c0c0c0;
   width: 215px;
+}
+
+.img_on_right {
+  float:right;
+  padding: 10px 0 10px 25px;
+  max-width: 300px;
+  max-height: 300px;
+/*
+  margin: 0 0 0 15px;
+  border: 2px solid #c0c0c0;
+*/
+}
+
+.blog_post h3 {
+  /* text-decoration: underline; */
+  padding: 25px 0 0 0;
+}
+
+pre {
+  padding: 10px 0 10px 30px;
+  color: cornflowerblue;
+  font-weight: bold;
 }

@@ -1,6 +1,6 @@
 # Sneak Preview
 
-*July 9, 2015*
+*July 9, 2015* <br><br>
 
 Here's a brief video that shows what it's like
 to work in Sketch-N-Sketch.
