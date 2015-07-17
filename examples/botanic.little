@@ -1,7 +1,7 @@
 ;
 ; Logo: Chicago Botanic Garden
 ;
-; Click 'Show Zones' to see the control points for
+; Click '[Zones]' to see the control points for
 ; the various Bezier curves.
 ; 
 (let [xOff yOff w h] [0! 0! 623 622]

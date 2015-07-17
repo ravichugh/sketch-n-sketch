@@ -1,14 +1,15 @@
-;
 ; A Pie Chart
 ;
 ; Move the sliders to change the size of a particular slice
 ;
 (let [count1_ count2_ count3_ count4_ count5_] [35 31 16 10 8]
-(let [count1 s1] (hSlider true 20! 420! 20! 0! 100! '' count1_)
-(let [count2 s2] (hSlider true 20! 420! 50! 0! 100! '' count2_)
-(let [count3 s3] (hSlider true 20! 420! 80! 0! 100! '' count3_)
-(let [count4 s4] (hSlider true 20! 420! 110! 0! 100! '' count4_)
-(let [count5 s5] (hSlider true 20! 420! 140! 0! 100! '' count5_)
+(let [color1 color2 color3 color4 color5] ['#8DEEEE' '#66CCCC' '#49E9BD' '#5EDA9E' '#00FA9A']
+(let [h1 h2 h3 h4 h5] [20! 50! 80! 110! 140!]
+(let [count1 s1] (hSlider true 20! 420! h1 0! 100! '' count1_)
+(let [count2 s2] (hSlider true 20! 420! h2 0! 100! '' count2_)
+(let [count3 s3] (hSlider true 20! 420! h3 0! 100! '' count3_)
+(let [count4 s4] (hSlider true 20! 420! h4 0! 100! '' count4_)
+(let [count5 s5] (hSlider true 20! 420! h5 0! 100! '' count5_)
 (let total (+ count1 (+ count2 (+ count3 (+ count4 count5))))
 (let p2 (+ count1 count2)
 (let p3 (+ p2 count3)
@@ -16,6 +17,7 @@
 (let p5 (+ p4 count5)
 ;
 (let sliders (concat [s1 s2 s3 s4 s5])
+(let swatches (map (\[h c] (square c 460! (- h 10!) 20!)) [[h1 color1] [h2 color2] [h3 color3] [h4 color4] [h5 color5]])
 (let [cx cy r t border] [280! 440! 180 4 'grey']
 ;
 (let pie
@@ -31,11 +33,11 @@
   (let wedges 
     (map
       wedge
-        [['#8DEEEE' f1 [(+ cx 180!) cy] [(+ cx x1) (+ cy y1)]]
-        ['#66CCCC' f2 [(+ cx x1) (+ cy y1)] [(+ cx x2) (+ cy y2)]]
-        ['#49E9BD' f3 [(+ cx x2) (+ cy y2)] [(+ cx x3) (+ cy y3)]]
-        ['#5EDA9E' f4 [(+ cx x3) (+ cy y3)] [(+ cx x4) (+ cy y4)]]
-        ['#00FA9A' f5 [(+ cx x4) (+ cy y4)] [(+ cx x5) (+ cy y5)]]])
+        [[color1 f1 [(+ cx 180!) cy] [(+ cx x1) (+ cy y1)]]
+        [color2 f2 [(+ cx x1) (+ cy y1)] [(+ cx x2) (+ cy y2)]]
+        [color3 f3 [(+ cx x2) (+ cy y2)] [(+ cx x3) (+ cy y3)]]
+        [color4 f4 [(+ cx x3) (+ cy y3)] [(+ cx x4) (+ cy y4)]]
+        [color5 f5 [(+ cx x4) (+ cy y4)] [(+ cx x5) (+ cy y5)]]])
   wedges))))))))))
 ;
-(svg (cons (circle 'lightgray' cx cy (* 1.1 r)) (append sliders pie)))))))))))))))))
+(svg (cons (circle 'lightgray' cx cy (* 1.1 r)) (append (append sliders swatches) pie))))))))))))))))))))
