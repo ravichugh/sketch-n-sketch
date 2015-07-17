@@ -387,6 +387,7 @@ table.projects td {
 
 pre {
   padding: 10px 0 10px 30px;
+  /* color: firebrick; */
   color: cornflowerblue;
-  font-weight: bold;
+  /* font-weight: bold; */
 }

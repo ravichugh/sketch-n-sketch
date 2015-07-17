@@ -9,10 +9,12 @@ an SVG canvas, allow them to directly manipulate the output, and then
 automatically infer changes to the program that matches the new output.
 Second, to allow users to design content as usual in direct manipulation
 interfaces, and then infer programs that capture the high-level intent
-of the design. The first workflow is what we call *live mode*, where
+of the design.
+
+The first workflow is what we call ***live mode***, where
 Sketch-N-Sketch infers program updates in real-time along with the
 user's changes, without asking the user for any help. We call the
-second workflow *ad hoc mode*, where we attempt to infer more complicated
+second workflow ***ad hoc mode***, where we attempt to infer more complicated
 program updates and will rely on the user to help identify the
 desired program. Smoothly integrating both of these modes will allow
 programmers and designers to get the best of both worlds.
@@ -60,11 +62,11 @@ together in real-time.
 
 <img class="img_on_right" src="../static/images/post01/three-boxes.png" />
 
-The screenshot on the right shows the zones displayed
-to the user. When there are multiple program updates that may be assigned
-to a user action, Sketch-N-Sketch uses heuristics to break the ambiguity
-without asking the programmer. Try dragging the interior "zone" of each of
-the boxes to see what parts of the program are affected.
+The screenshot on the right shows the ***zones*** (interior, edges, corners, etc.)
+displayed to the user. When multiple program updates may be assigned to a user
+action, Sketch-N-Sketch uses heuristics to break the ambiguity
+without asking the programmer. Try dragging the interior zone of each
+box to see what parts of the program are affected.
 
 Notice that, by default, Sketch-N-Sketch may change any of the numeric
 constants in the program in order to match the updates to the canvas.
@@ -361,8 +363,8 @@ in tandem using Sketch-N-Sketch.
 
 ### Example: [Ferris Wheel][ExFerris]
 
-For our final case study, we designed a ferris wheel that consists
-of some number of equal-length spokes emanating from a central
+For the final case study we will discuss, we designed a ferris wheel that
+consists of some number of equal-length spokes emanating from a central
 hub, each of which has a passenger car at its end. Furthermore,
 we wanted the ability to rotate the wheel while
 keeping the passenger cars vertical, in order to accurately
@@ -402,11 +404,11 @@ we can adjust `radiusCenter` to change the size of the central hub by
 manipulating its edge zone; and
 we can adjust the width `sizeCar` of all passenger cars by
 manipulating any one of their edge zones.
+
 While this workflow in Sketch-N-Sketch is already unique and quite useful,
 it would be nice to also have a way to adjust `numSpokes`
 and `rotAngle` in the visual editor. However, no zones are connected
 to these parameters.
-
 Therefore, we add `slider`s to expose control over `numSpokes`,
 `rotAngle`, and `spokeLen` from the GUI editor.
 
@@ -435,7 +437,7 @@ design once we have finished modifying it.
 We can set the `show` parameter to `false` in order to hide
 the sliders from the output. From there, we use the export
 facility in Sketch-N-Sketch to generate the raw SVG for our design, which
-we can copy and paste into other SVG editors.
+we can copy and paste into other SVG editors or HTML documents.
 
 <!-- ### "Animations" -->
 
@@ -445,8 +447,9 @@ we can copy and paste into other SVG editors.
 <img class="img_on_right" src="../static/images/post01/us13-flag.png" />
 
 Our Git repo contains several more [examples][Examples] to play with.
+
 Note that performance does start to lag a bit as the number of shapes
-grows large. We have not yet played any optimization tricks, but we
+grows larger. We have not yet played any optimization tricks, but we
 will in the future.
 
 
