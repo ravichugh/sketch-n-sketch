@@ -1,0 +1,376 @@
+/*
+Design by Free CSS Templates
+http://www.freecsstemplates.org
+Released for free under a Creative Commons Attribution 3.0 License
+
+Name       : Resolved
+Description: A two-column, fixed-width design with dark color scheme.
+Version    : 1.0
+Released   : 20120125
+*/
+
+/*
+
+ rkc: changing width
+
+ content             : 595
+ sidebar             : 225
+ margin              : 140 = 4 * 35
+ gap content-sidebar : 20 (set left margin of sidebar to 595 + 35 + 35 + 20)
+ ---------------------------------------------------------------------------
+ wrapper / page      : 980px
+
+ to make everything wider,
+  (A) set width of wrapper and page to some n = 980 + delta
+  (B) set width of content and post1 to 595 + delta
+  (C) set left-margin of sidebar to 685 + delta
+
+ */
+
+* {
+	margin: 0;
+	padding: 0;
+}
+
+a {
+	text-decoration: none;
+  font-weight: bold;
+  color: #0268cd;
+	/* color: #6B2E42; */
+}
+
+a:hover {
+	text-decoration: none;
+}
+
+body {
+	background: #C9CFCD;
+	font-size: 11pt;
+	color: #323232;
+	line-height: 1.75em;
+}
+
+body,input {
+	/* font-family: Arial, sans-serif; */
+	/* font-family: Verdana, sans-serif; */
+	font-family: Geneva, Verdana, sans-serif;
+}
+
+strong {
+	color: #222222;
+}
+
+br.clearfix {
+	clear: both;
+}
+
+h1,h2,h3,h4 {
+	letter-spacing: -1px;
+	text-transform: lowercase;
+	font-weight: normal;
+}
+
+h2 {
+	font-size: 2.25em;
+}
+
+h2,h3,h4 {
+	color: #000405;
+	font-family: Geneva, serif;
+	margin-bottom: 1em;
+}
+
+h3 {
+	font-size: 1.75em;
+}
+
+h4 {
+	font-size: 1.5em;
+}
+
+img.alignleft {
+	float: left;
+	margin: 5px 20px 20px 0;
+}
+
+img.aligntop {
+	margin: 5px 0 20px 0;
+}
+
+p {
+	/* margin-bottom: 1.5em; */
+	margin: 0.5em 0 0.5em 0;
+}
+
+ul {
+	margin-bottom: 1.5em;
+}
+
+ul h4 {
+	margin-bottom: 0.35em;
+}
+
+.content {
+	background: #FFFFFF;
+	/* width: 595px; */
+	width: 665px;
+	color: #6E6E6E;
+	/* padding: 45px 35px 0 35px; */
+	padding: 35px 35px 0 35px;
+	float: left;
+	border-bottom: solid 2px #BBC1BF;
+}
+
+.content_next {
+	background: #FFFFFF;
+	width: 665px;
+	color: #6E6E6E;
+	padding: 35px 35px 0 35px;
+	float: left;
+	border-bottom: solid 2px #BBC1BF;
+  margin: 15pt 0 0 0;
+  /* margin: 10pt 0 0 0; */
+}
+
+.content h2, .content h3, .content h4 {
+	color: #171717;
+}
+
+/* content_wide duplicates content */
+
+.content_wide {
+	background: #FFFFFF;
+	/* width: 595px; */
+	width: 980px;
+	color: #6E6E6E;
+	padding: 35px 35px 0 35px;
+	float: left;
+	border-bottom: solid 2px #BBC1BF;
+}
+
+.content_wide_next {
+	background: #FFFFFF;
+	width: 980px;
+	color: #6E6E6E;
+	padding: 35px 35px 0 35px;
+	float: left;
+	border-bottom: solid 2px #BBC1BF;
+  margin: 15pt 0 0 0;
+  /* margin: 10pt 0 0 0; */
+}
+
+.content_wide h2, .content_wide h3, .content_wide h4 {
+	color: #171717;
+}
+
+#footer {
+	padding: 30px 0 80px 0;
+	text-align: center;
+	margin: 0 0 20px 0;
+	color: #808384;
+	text-transform: lowercase;
+}
+
+#footer a {
+	color: #808384;
+}
+
+#header {
+	height: 80px;
+	position: relative;
+	padding: 35px;
+}
+
+#logo {
+	position: absolute;
+	left: 35px;
+	line-height: 110px;
+	height: 110px;
+	top: 35px;
+}
+
+#logo a {
+	text-decoration: none;
+	color: #000405;
+}
+
+#logo h1 {
+	font-family: Geneva, serif;
+	font-size: 3em;
+}
+
+#menu {
+	line-height: 60px;
+	position: absolute;
+	font-family: Geneva, serif;
+	background: #333333;
+	top: 66px;
+	right: 0;
+	height: 60px;
+	/* border: solid 4px #0268cd; */
+	border: solid 0px #0268cd;
+}
+
+#menu a {
+	font-size: 1.5em;
+	text-transform: lowercase;
+	letter-spacing: -1px;
+	color: #FFFFFF;
+	text-decoration: none;
+}
+
+#menu ul {
+	padding: 0 15px 0 15px;
+	list-style: none;
+}
+
+#menu ul li {
+	display: inline;
+	padding: 0 10px 0 10px;
+}
+
+#page {
+	/* margin: 20px 0 20px 0; */
+	margin: 0px 0 20px 0;
+	position: relative;
+	/* width: 980px; */
+	width: 1050px;
+	padding: 0;
+}
+
+#page .section-list {
+	padding-left: 0;
+	list-style: none;
+}
+
+#page .section-list li {
+	clear: both;
+	padding: 20px 0 20px 0;
+}
+
+#page ul {
+	list-style: none;
+}
+
+#page ul li {
+	padding: 10px 0 10px 0;
+	border-top: solid 1px #D9D9D9;
+}
+
+#page ul li.first {
+	padding-top: 0;
+	border-top: 0;
+}
+
+.post0 {
+	width: 980px;
+	overflow: hidden;
+	margin: 0 0 35px 0;
+}
+
+.post1 {
+	width: 665px;
+	overflow: hidden;
+	margin: 0 0 35px 0;
+}
+
+/*
+#post2 {
+	width: 280px;
+	float: left;
+	overflow: hidden;
+}
+
+#post3 {
+	overflow: hidden;
+	margin: 0 0 0 315px;
+	width: 280px;
+}
+*/
+
+#search input.form-submit {
+	border: 0;
+	background: #6B2E42;
+	margin-left: 1em;
+	color: #FFFFFF;
+	padding: 5px;
+	font-family: Geneva, serif;
+}
+
+#search input.form-text {
+	border: solid 1px #84908D;
+	padding: 5px;
+}
+
+/* TODO make this a class instead of id */
+#sidebar_next {
+	background: #FFFFFF;
+	/* margin: 0 0 0 685px; */
+	margin: 0 0 0 755px;
+	color: #6E6E6E;
+	/* padding: 45px 35px 45px 35px; */
+	padding: 35px 35px 45px 35px;
+	width: 225px;
+	border-bottom: solid 2px #BBC1BF;
+  text-align: center;
+  margin: 15px 0 0 755px;
+}
+
+#sidebar {
+	background: #FFFFFF;
+	/* margin: 0 0 0 685px; */
+	margin: 0 0 0 755px;
+	color: #6E6E6E;
+	/* padding: 45px 35px 45px 35px; */
+	padding: 35px 35px 45px 35px;
+	width: 225px;
+	border-bottom: solid 2px #BBC1BF;
+  text-align: center;
+}
+
+#sidebar h2, #sidebar h3, #sidebar h4 {
+	color: #000000;
+}
+
+#sidebar ul {
+	list-style: none;
+}
+
+#sidebar ul li {
+	padding: 10px 0 10px 0;
+	border-top: solid 1px #D9D9D9;
+}
+
+#sidebar ul li.first {
+	border-top: 0;
+	padding-top: 0;
+}
+
+#wrapper {
+	/* width: 980px; */
+	width: 1050px;
+	/* margin: 35px auto 0 auto; */
+	margin: 0 auto 0 auto;
+	position: relative;
+}
+
+.newsdate {
+  /* font-family: Consolas, Monaco, Courier, monospace; */
+}
+
+table.projects {
+  border: 0pt solid;
+}
+
+table.projects td {
+  padding: 2pt;
+}
+
+.withborder {
+  border: 5px solid #c0c0c0;
+}
+
+.sidebar_img {
+  border: 5px solid #c0c0c0;
+  width: 215px;
+}

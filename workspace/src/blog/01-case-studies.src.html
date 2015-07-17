@@ -1,0 +1,109 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <title></title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+  <html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <!-- LOAD_SRC src/head.src.html -->
+  </head>
+</head>
+<body>
+<body>
+  <div id="wrapper">
+
+    <div id="header">
+      <div id="logo"> <h1>Sketch-N-Sketch [Blog]</h1> </div>
+      <!-- LOAD_SRC src/menu.src.html -->
+    </div>
+
+    <div id="page">
+
+      <div class="content_wide">
+      <div class="post0">
+<h1 id="initial-case-studies">Initial Case Studies</h1>
+<p><em>July 20, 2015</em></p>
+<p>Note: Much of the discussion below draws from <a href="http://arxiv.org/abs/1507.02988">this report</a>.</p>
+<p>We will now discuss several examples, using them to highlight observations drawn from our experience. At the time of this writing, we have used  to develop more than  examples, totaling approximately  lines of  code. Our current implementation does not allow new shapes to be added directly using the GUI. Nevertheless, we have used  to effectively program and manipulate several designs that would be difficult using existing direct manipulation tools, such as  and .</p>
+<h3 id="example-n-boxes">Example: N Boxes</h3>
+<p>The  program is our ``hello world'' example for prodirect manipulation. The number of boxes and their location, width, and height are simple parameters to change in the program. In addition, the location, width, and height can easily be changed in the direct manipulation editor. When manipulated in live mode, all of the boxes are updated together in real-time. The screenshot on the right shows the zones displayed to the user. Each of the three updates depicted in  can be achieved by choosing the desired update in ad hoc mode, or by manipulating a zone in live mode. %% or by freezing the appropriate constant in live mode.</p>
+<h3 id="example-elm-logo">Example: Elm Logo</h3>
+<p>The Elm logo is a tangram consisting of seven polygons. We implemented this logo by massaging the definition from the SVG format to the representation in . This process will be automatic once we add support for importing SVG images directly.</p>
+<p>There are two noteworthy aspects of this example in . The first is that our definition uses the  attribute to define a local coordinate system for shapes within the canvas. Because of the thin wrapper around SVG, the result in  is that the output canvas is scaled to fit the size of the canvas, no matter how large or small the application window it is. As a result, even though our current implementation does not provide a way to pan within or scale a canvas, one can use  in order to render the output in ``full screen'' mode.</p>
+<p>The second interesting aspect is the square, which is rotated using the SVG  command within the  attribute. Again, even though we currently provide no special support for these features, the zone we display for the square (though not rotated to match) can still be used to directly manipulate it.</p>
+<h3 id="example-sketch-n-sketch-logo">Example: Sketch-N-Sketch Logo</h3>
+<p>The high-level relationships between the shapes in the Elm logo are not captured by the definition in SVG format, nor in its direct translation to . As a result, directly manipulating any one of the pieces does not affect the others, therefore breaking the intended abstraction of the logo.</p>
+<p>Our next example, a logo for , uses the abstraction facilities afforded by a programming language to declare relationships between multiple shapes.</p>
+Our logo pays homage to the Elm logo. To implement it, we use the abstraction facilities afforded by a programming language to declare relationships between the shapes. The definition is parameterized by a position  for the top-left corner, a width  and height , and a  parameter that determines the size of the gap between the three shapes: %
+
+<p>% The rest of the definition (not shown) computes the three polygons in terms of these parameters. It is, thus, simple to change any of these values and re-run the program to generate an updated logo.</p>
+<p>Better yet is the ability to manipulate the parameters  through the canvas in live mode. For example, say that we want to stretch the logo, that is, by changing the  and  parameters. If we click and drag bottom-right corner ( a  zone) of the bottom triangle in live mode, the height of the logo is adjusted but not the width; instead, the x-position of the logo is. In other words, the location set assigned to this particular zone happens to be  instead of  as we might have liked.</p>
+<p>We can proceed in a couple of ways. One option is to edit the code to freeze the , , and  values, thereby directing  towards assigning the desired location set and trigger to this  zone. With this change, directly manipulating this corner point allows us to stretch the logo in either direction.</p>
+<p>Another option is to create a dummy, transparent rectangle in the background with dimensions  and  to surround the logo. The  zone of this box will, predictably, be assigned the location set , thus providing direct manipulation control over the desired attributes of the logo. This second option, creating an explicit ``group box,'' is a design pattern that is often useful for mixing programmatic and direct manipulation ( prodirect manipulation) in the current version of . In future work, it may be useful to provide some built-in support for grouping shapes.</p>
+<h3 id="example-chicago-flag">Example: Chicago Flag</h3>
+<p>It is useful to define abstractions on top of the primitive SVG shapes. We define an  function (and include it in ) that creates an -sided star centered at  and rotated  radians in the clockwise direction, where the distance from the center to the outer points is  and the distance to the inner points is .</p>
+
+<p>We use  to implement the City of Chicago flag, which contains four evenly-spaced six-sided stars. By directly manipulating the  zones of a star in live mode, we can control the outer and inner distances of all four stars. Modifying length parameters this way can be surprising. For example, using negative lengths leads to interesting patterns, even though one might not think to try them when programming without immediate visual feedback.</p>
+<p>Like with the  logo, we define a transparent group box (visible when displaying zones, as in the screenshot) to give direct manipulation control over the width and height of the flag. Unlike that example, however, there is no way to produce the same exact result by manipulating only one of the polygons. If the user changes, say, the bottom stripe by moving the mouse cursor a given distance, the overall dimensions of the flag will change, but  by the amount the cursor has moved. As a result, the relationship between stretching one of the stripes and the overall flag is not a smooth, intuitive one. Using a group box, however, provides the simple and expected behavior.</p>
+<h3 id="example-chicago-botanic-garden-logo">Example: Chicago Botanic Garden Logo</h3>
+<p>The symmetric design of this logo uses curves, defined with B'{e}zier  commands. By programming in , we can define the coordinates and control points such that they are reflected across a vertical axis running down the middle of the logo. Then, in live mode, direct manipulation of any position or control point (the ``floating''  zones in the screenshot) in either half is immediately reflected in the other half.</p>
+<h3 id="example-us-flags">Example: US Flags</h3>
+<h3 id="example-frank-lloyd-wright-patterns">Example: Frank Lloyd Wright Patterns</h3>
+<h3 id="custom-ui-widgets">Custom UI Widgets</h3>
+<p>%% Using our prodirect manipulation synthesis and design, The approach in  provides control over many parameters in a program by directly manipulating zones in the visual editor. Some parameters --- such as the number of boxes in , or boolean values, which are not paired with traces --- are hard to directly manipulate, however. In such cases, the only option we have seen so far is to edit the program. %% Some parameters, however, are hard to directly manipulate. %% For example, the number of boxes in  %% cannot be changed directly. Furthermore, because  does not %% currently provide a way of adding shapes using the GUI, the only %% option so far is to edit the program.</p>
+<p>%% We observe that using only what  already provides, %% we can implement <code>helper'' shapes whose properties affect We observe that we can implement</code>helper'' shapes whose properties affect other parameters of interest. For example,  defines visual slider abstractions that are used by the program below (and depicted in the screenshot above). There are four sliders, one for a floating-point number , one for an integer , and two for booleans  and  (we refer to boolean sliders as ``buttons''). %% For example,  %% defines visual slider abstractions that can %% track a number (passed in through the variable)  %% within the range  to . %% The screenshot above shows two sliders, one for a %% floating-point number  and one for an integer .</p>
+
+<p>%% (let [n s1] (hSlider false 20! 90! 20! 0! 5! 'n = ' 3.1415) %% (let [i s2] (hSlider true 20! 90! 50! 0! 5! 'i = ' 3.1415) %% (let [b1 s3] (button 20! 80! 'b1 = ' 0.25) %% (let [b2 s4] (button 20! 110! 'b2 = ' 0.75) %% (svg (concat [s1 s2 s3 s4]))))))</p>
+<p> manipulating the sliders  manipulates the constants at locations <span class="math">$\varLoc_1$</span>, <span class="math">$\varLoc_2$</span>, <span class="math">$\varLoc_3$</span>, and <span class="math">$\varLoc_4$</span> (and, hence, the values bound to , , , and ).</p>
+<p>%%  manipulating the sliders  %% manipulates the constants at locations <span class="math">$\varLoc_1$</span> and %% <span class="math">$\varLoc_2$</span> (and, hence,  and ).</p>
+<p>%%  manipulating a slider  %% manipulates the corresponding value in the following program.</p>
+<p>Both  and  are defined in terms of a  helper function (). The former returns  clamped to the range <span class="math">[</span><span class="math">,  </span><span class="math">]</span>, if necessary; the latter, furthermore, rounds  to the nearest integer. We refer to the number supplied as the  parameter to %% be the <code>source,'' or</code>raw,'' number used to derive the <code>target'' be the</code>source'' number used to derive the <code>target'' value, which is the first element of the pair returned by \verb+slider+. The second element of the pair is the list of shapes that comprise its visuals. The idea is to place a</code>ball'' on the line between  and  at a distance %% proportional to . proportional to . The visual editor does nothing to prevent the user from dragging the ball beyond the endpoints of the line. %% One interesting %% choice is what to do when the user drags the ball beyond the endpoints %% of the line (which cannot be prevented without additional support). %% The approach we choose is to hide the ball So, the approach we choose is to hide the ball ( by setting its radius  to ) when it is out of range.</p>
+<p>%% We will walk through the definition of  to %% explain how we are able to implement this abstraction. %% (some variables have been removed from the version in  %% to save space).</p>
+<p>%% intention is that all args except curVal should be frozen. %% currently no way for ball to stop at endpoints, so a couple %% of options (definable within little).</p>
+<p>%% We employ the same approach to implement a ``button'' for directly We employ the same approach to implement  for directly manipulating booleans (not shown in ). In particular, a button is tied to a source value between  and , where values less than (resp. greater than)  represent  (resp. ). %% We omit the definition of this  abstraction %% (included in ). The last two sliders in the screenshot are buttons that control the boolean variables  and .</p>
+<p>Helper shapes in  like sliders and buttons, which we refer to as custom , are similar to the notions of ~ and ~, both of which aim to provide GUI-based control over properties that are not traditionally easy to directly manipulate~. What is interesting about our development is that the  editor does not provide any special support for indirect manipulation via user interface widgets; instead, they are derivable using the basic prodirect manipulation approach we have described.</p>
+<h3 id="example-active-trans-logo">Example: Active Trans Logo</h3>
+<p>The logo of the Active Transportation Alliance contains two paths, each of which has a single curved edge and some number of straight edges. In our current implementation,  does not provide a GUI-based way to create shapes or add extra points to existing shapes. Therefore, these two paths must be generated using  code, at least initially.</p>
+<p>Nevertheless, we found that we can quickly and easily begin implementing this logo as follows. First, we implement a  function that stitches together a path based on a list of points and a single B'{e}zier control point. Next, we define two intially-empty lists,  and , that will store the points of each path. Then, we use  to construct two paths out of these lists.</p>
+
+<p>Now the task is to define the list of points for each path. We would like to do this visually by directly manipulating points into the desired positions, but we need some points to begin with. As is,  and  are empty, so there are no shapes to render.</p>
+<p>One option is to use a text editor to populate the list with dummy points, but this could be tedious for a large number of points, especially because they should be reasonably spaced out so that they can be manipulated in the visual editor. Instead, we wrote a  function to generate such a list of points and evaluated it using the Elm REPL (read-eval-print loop). We then copied this list into our program, rendered it, and proceeded to directly manipulate the points. Our helper function essentially created a ``ball of clay'' that we massaged into the desired shapes. In future work, the visual editor might provide support for generating complex shapes using templates such as this one.</p>
+<p>Once we settled on the desired shapes of our paths, we returned to the program to introduce structure that relates the topmost points of the top shape (corresponding to the city skyline). As a result, dragging any one of these points up or down in live mode affects all of the others. So, if the skyline grows taller (which has been known to happen in Chicago), we can easily adapt the logo to match.</p>
+<p>Lastly, we include a button in our development and use it to toggle between a <code>positive'' version, where the shapes are colored and the background is white, and a</code>negative'' version, where the shapes are white and the background is colored. %% These two versions of the Active Trans logo are easy to develop These two versions of the logo are easy to develop in tandem using .</p>
+<h3 id="example-ferris-wheel">Example: Ferris Wheel</h3>
+<p>For our final case study, we designed a ferris wheel that consists of some number of equal-length spokes emanating from a central hub, each of which has a passenger car at its end. Furthermore, we wanted the ability to rotate the wheel while keeping the passenger cars vertical, in order to accurately portray the physical characteristics of a ferris wheel in motion. It is hard to imagine how one could develop these relationships in a modular way using tools like  or .</p>
+<p>In , we combine programmatic, direct manipulation, and indirect manipulation (via user-defined sliders) to develop our design in a way that is highly-reusable and easy to edit. % First, we write a function</p>
+
+<p>that, given several parameters, draws the desired circles, lines, and rectangles. The function is straightforward to write, making use of a  function</p>
+
+<p>that generates a list of  points evenly spaced around a circle of  radius centered at . A drawing that results from  is shown in the bottom of .</p>
+<p>We can directly manipulate several parameters of the ferris wheel: we can adjust the location  of the wheel by dragging the  zone of the central hub; we can adjust  to change the size of the central hub by manipulating its  zone; and we can adjust the width  of all passenger cars by manipulating any one of their  zones. While this workflow in  is already unique and quite useful, it would be nice to also have a way to adjust  and  in the visual editor. However, no zones are connected to these parameters.</p>
+<p>%% The last part of our development, then, is to include s Therefore, we add s to expose control over , , and  from the GUI editor. %% In the following, notice how %% , , and  are the clamped-down %% %% versions of the seed numbers , , and , %% versions of the source numbers , , and , %% respectively, and are used as arguments to . %% %% We explicitly thaw the seed constants to emphasize that these %% %% may vary.</p>
+<p>%% (let [show n1 n2 n3] [true 5? 80? 0?] %% (let [num s1] (horizSlider ... n1) %% (let [len s2] (horizSlider ... n2) %% (let [rot s3] (horizSlider ... n3)</p>
+%%
+
+
+<p>The resulting canvas is shown in . With this setup, we can easily tweak any of the parameters to  in live mode without having to modify the program. If we wanted to change something about the ferris wheel abstraction, of course, we could easily switch to programmatic manipulation as needed.</p>
+<p>To wrap up, we note how easy it is to export our ferris wheel design once we have finished modifying it. We can set the  parameter to  in order to hide the sliders from the output. From there, we use the export facility in  to generate the raw SVG for our design, which we can copy and paste into other SVG editors.</p>
+<h3 id="animations">&quot;Animations&quot;</h3>
+      </div>
+      </div>
+
+      <br class="clearfix" />
+
+    </div> <!-- end id="page" -->
+
+  </div> <!-- end id="wrapper" -->
+
+  <!-- LOAD_SRC src/footer.src.html -->
+
+  <!-- LOAD_SRC src/ga-tracker.src.html -->
+
+</body>
+</html>
+</body>
+</html>
