@@ -1,11 +1,9 @@
+<!--
 <img src="img/sketch-n-sketch-logo.png"
      align="right" style="padding: 0px;" height="40px" />
+-->
 
 # Sketch-N-Sketch
-
-<!-- <br/> -->
-
-<!-- Sketch-N-Sketch: Program Synthesis for Direct Manipulation -->
 
 Direct manipulation interfaces are useful in many domains, but the lack of
 programmability in a high-level language makes it difficult to develop complex
@@ -19,17 +17,11 @@ users to freely mix between programmatic and direct manipulation.
 <span style="display: inline-block; width: 222px; text-align: right;">**Sketch-N-Sketch**</span>
   = Prodirect Manipulation Editor for SVG
 
-This
-<a href="http://people.cs.uchicago.edu/~rchugh/static/papers/sketch-n-sketch-draft.pdf">technical report</a>
-describes the ideas behind our approach.
+## [Project Page][ProjectPage]
 
-## Demo
+Check out the [main project page][ProjectPage] for more details
+and to try out the latest release.
 
-<a href="http://ravichugh.github.io/sketch-n-sketch/v0.0/">ravichugh.github.io/sketch-n-sketch/v0.0/</a>
-
-<!--
-[`v0.0`]("") `(Jul 2015)` Alpha Version
--->
 
 ## Quick Syntax Reference
 
@@ -191,8 +183,6 @@ TODO explain attrs for different shapes
 
 See [`prelude.little`][Prelude] for a small library of SVG-manipulating functions.
 
-[Prelude]: https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little
-
 ## Little "REPL"
 
 ```
@@ -220,3 +210,8 @@ To add a new example to the dropdown menu:
 3. From the `src/` directory, run `make examples`.
 
 4. Launch Sketch-N-Sketch.
+
+
+[Prelude]: https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little
+[ProjectPage]: http://ravichugh.github.io/sketch-n-sketch
+
