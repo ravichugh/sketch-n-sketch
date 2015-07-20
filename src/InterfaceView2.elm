@@ -491,7 +491,7 @@ saveButton model w h =
     Html.toElement w h <|
       Html.button
         [ buttonAttrs w h
-        , Events.onClick taskMailbox.address (saveStateLocally model)
+        , Events.onClick taskMailbox.address (saveStateLocally model.exName model)
         , Attr.value "Save"
         , Attr.name "Save"
         , Attr.title "Saves Code and Page Layout to Persistent Browser Storage"
@@ -629,15 +629,22 @@ view (w,h) model =
   let botSection = GE.spacer wAll hBot in
   let sideGutter = colorDebug Color.black <| GE.spacer wGut hTot in
 
-  let saveElements = (if
-        | model.mode == SaveDialog -> [] --TODO add dimming element and center
+  let saveElement = (if
+        | model.mode == SaveDialog -> 
+           let dim = GE.color Color.black <| GE.opacity 50 <| GE.spacer w h
+               pickBox = colorDebug Color.lightBlue <| GE.container w h GE.middle 
+                            <| GE.container 400 200 GE.middle 
+                            <| GE.flow GE.down
+                                [ GE.show "Boop!" ]
+           in GE.below dim pickBox
+                                         --TODO add dimming element and center
                                          -- input field + button that sends
                                          -- appropriate task + UpdateModel
-        | otherwise -> []) in
+        | otherwise -> GE.empty) in
 
-  GE.flow GE.right
-    <| List.append
-        saveElements
+  GE.above
+    saveElement
+    (GE.flow GE.right
         [ sideGutter
         , GE.flow GE.down
             [ colorDebug Color.lightYellow <| topSection
@@ -646,6 +653,7 @@ view (w,h) model =
             ]
         , sideGutter
         ]
+    )
 
 -- TODO: add onMouseUp DeselectObject event to all GE.Elements...
 

@@ -68,7 +68,6 @@ type Event = CodeUpdate String
            | SelectOption
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val})
-           | SelectSave String
            | Edit
            | Run
            | ToggleOutput

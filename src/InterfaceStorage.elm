@@ -20,6 +20,7 @@ import Task exposing (Task, succeed, andThen)
 import Signal exposing (Mailbox, mailbox, send)
 -- Types for our Model
 import InterfaceModel exposing (Model, Orientation, Event, sampleModel, events)
+import ExamplesGenerated as Examples
 
 -- The mailbox that recieves Tasks
 taskMailbox : Mailbox (Task String ())
@@ -88,8 +89,16 @@ strToModel =
         )
 
 -- Task to save state to local browser storage
-saveStateLocally : Model -> Task String ()
-saveStateLocally = setItem "stateSave" << modelToValue
+saveStateLocally : String -> Model -> Task String ()
+saveStateLocally saveName model = if
+    | List.all ((/=) saveName) model.localSaves
+        && List.all ((/=) saveName << fst) Examples.list -> setItem saveName <| modelToValue model
+    | otherwise -> send events.address <|
+        InterfaceModel.UpdateModel installSaveState
+
+-- Changes state to SaveDialog
+installSaveState : Model -> Model
+installSaveState oldModel = { oldModel | mode <- InterfaceModel.SaveDialog }
 
 -- Task to load state from local browser storage
 loadLocalState : Task String ()
