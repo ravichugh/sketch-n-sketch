@@ -318,16 +318,14 @@ middleWidgets w h wWrap hWrap model =
       (False, _) ->
         [ dropdownExamples model w h
         , editRunButton model w h
+        , saveButton model w h
+        , loadButton model w h
         , outputButton model w h
         , gapWidget w h
         , zoneButton model w h
         , frozenButton model w h
         , modeButton model w h
         ] ++ (syncButton_ w h model)
-        ++
-        [ saveButton model w h
-        , loadButton w h
-        ]
       (True, _) ->
         [ dropdownExamples model w h
         , editRunButton model w h
@@ -507,13 +505,13 @@ loadButton w h =
       Html.button
         [ buttonAttrs w h
         , Events.onClick taskMailbox.address loadLocalState
-        , Attr.value "Load"
-        , Attr.name "Load"
+        , Attr.value "Revert"
+        , Attr.name "Revert"
         , Attr.title 
-            "Loads Code and Page Layout from Persistent Browser Storage"
+            "Reverts Code and Page Layout to last save"
         , Attr.disabled False
         ]
-        [ Html.text "Load" ]
+        [ Html.text "Revert" ]
 
 dropdownExamples : Model -> Int -> Int -> GE.Element
 dropdownExamples model w h =
