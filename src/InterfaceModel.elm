@@ -32,11 +32,12 @@ type alias Model =
   , syncOptions : Sync.Options
   , editingMode : Bool
   , caption : Maybe Caption
+  , localSaves : List String
   }
 
 type Mode
   = AdHoc | SyncSelect Int PossibleChanges | Live Sync.LiveInfo
-  | Print RawSvg
+  | Print RawSvg | SaveDialog
 
 type alias RawSvg = String
 
@@ -67,6 +68,7 @@ type Event = CodeUpdate String
            | SelectOption
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val})
+           | SelectSave String
            | Edit
            | Run
            | ToggleOutput
@@ -103,5 +105,6 @@ sampleModel =
     , syncOptions  = Sync.defaultOptions
     , editingMode  = False
     , caption      = Nothing
+    , localSaves   = []
     }
 

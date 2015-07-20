@@ -319,7 +319,7 @@ middleWidgets w h wWrap hWrap model =
         [ dropdownExamples model w h
         , editRunButton model w h
         , saveButton model w h
-        , loadButton model w h
+        , loadButton w h
         , outputButton model w h
         , gapWidget w h
         , zoneButton model w h
@@ -515,16 +515,20 @@ loadButton w h =
 
 dropdownExamples : Model -> Int -> Int -> GE.Element
 dropdownExamples model w h =
-  let examples =
+  let choices =
     case model.mode of
-      AdHoc ->
-        let foo (name,thunk) = (name, Noop) in
-        List.map foo (List.filter ((==) model.exName << fst) Examples.list)
+      AdHoc -> [(model.exName, Noop)]
       _ ->
-        let foo (name,thunk) = (name, (SelectExample name thunk)) in
-        List.map foo Examples.list
+        let foo (name,thunk) = (name, (SelectExample name thunk)) 
+            bar saveName = (saveName, UpdateModel (\oldmodel -> oldmodel))
+            --TODO make this so that a task is sent to the taskMailbox instead
+            --of the events mailbox down at the bottom and that it involves
+            --picking the appropriate load and such
+        in List.append
+            (List.map bar model.localSaves)
+            (List.map foo Examples.list)
   in
-  GI.dropDown (Signal.message events.address) examples
+    GI.dropDown (Signal.message events.address) choices
 
 modeButton model =
   if model.mode == AdHoc
@@ -625,15 +629,23 @@ view (w,h) model =
   let botSection = GE.spacer wAll hBot in
   let sideGutter = colorDebug Color.black <| GE.spacer wGut hTot in
 
+  let saveElements = (if
+        | model.mode == SaveDialog -> [] --TODO add dimming element and center
+                                         -- input field + button that sends
+                                         -- appropriate task + UpdateModel
+        | otherwise -> []) in
+
   GE.flow GE.right
-    [ sideGutter
-    , GE.flow GE.down
-        [ colorDebug Color.lightYellow <| topSection
-        , midSection
-        , colorDebug Color.lightYellow <| botSection
+    <| List.append
+        saveElements
+        [ sideGutter
+        , GE.flow GE.down
+            [ colorDebug Color.lightYellow <| topSection
+            , midSection
+            , colorDebug Color.lightYellow <| botSection
+            ]
+        , sideGutter
         ]
-    , sideGutter
-    ]
 
 -- TODO: add onMouseUp DeselectObject event to all GE.Elements...
 
