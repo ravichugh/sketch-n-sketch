@@ -631,29 +631,48 @@ view (w,h) model =
 
   let saveElement = (if
         | model.mode == SaveDialog -> 
-           let dim = GE.color Color.black <| GE.opacity 50 <| GE.spacer w h
-               pickBox = colorDebug Color.lightBlue <| GE.container w h GE.middle 
+           let dim = GE.color Color.black <| GE.opacity 0.5 <| GE.spacer w h
+               pickBox = GE.color Color.black
+                            <| GE.opacity 0.5 
+                            <| GE.container w h GE.middle 
+                            <| GE.color Color.lightBlue
+                            <| Html.toElement 400 200
+                            <| Html.div [Attr.style [("opacity", "1")]]
+                            <| (\x -> [x])
+                            <| Html.fromElement
                             <| GE.container 400 200 GE.middle 
                             <| GE.flow GE.down
                                 [ GE.show "Boop!" ]
-           in GE.below dim pickBox
+           in pickBox
                                          --TODO add dimming element and center
                                          -- input field + button that sends
                                          -- appropriate task + UpdateModel
         | otherwise -> GE.empty) in
 
-  GE.above
-    saveElement
-    (GE.flow GE.right
-        [ sideGutter
-        , GE.flow GE.down
+  if | model.mode == SaveDialog ->
+          GE.flow GE.inward
+            [ saveElement
+            , (GE.flow GE.right
+                [ sideGutter
+                , GE.flow GE.down
+                    [ colorDebug Color.lightYellow <| topSection
+                    , midSection
+                    , colorDebug Color.lightYellow <| botSection
+                    ]
+                , sideGutter
+                ]
+              )
+            ]
+     | otherwise -> 
+        GE.flow GE.right
+          [ sideGutter
+          , GE.flow GE.down
             [ colorDebug Color.lightYellow <| topSection
             , midSection
             , colorDebug Color.lightYellow <| botSection
             ]
-        , sideGutter
-        ]
-    )
+          , sideGutter
+          ]
 
 -- TODO: add onMouseUp DeselectObject event to all GE.Elements...
 
