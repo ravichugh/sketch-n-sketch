@@ -184,3 +184,18 @@ setIsEmpty  = (==) [] << Set.toList
 dictIsEmpty = (==) [] << Dict.toList
 setCardinal = List.length << Set.toList
 
+-- Maps a value in [0,360) to an RGB value that lies on the rainbow.
+-- Note that you cannot get white or black from this.
+-- Note that the choice of 0 to 360 implies degrees as a natural representation.
+numToColor : number -> (Int, Int, Int)
+numToColor val =
+    let quant = toFloat <| val % 360
+        max = 200
+        min = 55
+        diff = max - min
+    in if | 0   <= quant && quant < 60  -> (max, round <| min + diff * (1 - (60 - quant) / 60),  min)
+          | 60  <= quant && quant < 120 -> (round <| max - diff * (1 - (120 - quant) / 60), max, min)
+          | 120 <= quant && quant < 180 -> (min, max, round <| min + diff * (1 - (180 - quant) / 60))
+          | 180 <= quant && quant < 240 -> (min, round <| max - diff * (1 - (240 - quant) / 60), max)
+          | 240 <= quant && quant < 300 -> (round <| min + diff * (1 - (300 - quant) / 60), min, max)
+          | 300 <= quant && quant < 360 -> (max, min, round <| max - diff * (1 - (360 - quant) / 60))
