@@ -4,7 +4,8 @@
 -- interface.
 --
 
-module InterfaceStorage (taskMailbox, saveStateLocally, loadLocalState, getLocalSaves) where
+module InterfaceStorage (taskMailbox, saveStateLocally, loadLocalState,
+                         getLocalSaves, checkAndSave) where
 
 -- Storage library, for in browser storage
 import Storage exposing (getItem, setItem, keys)
@@ -21,6 +22,9 @@ import Signal exposing (Mailbox, mailbox, send)
 -- Types for our Model
 import InterfaceModel exposing (Model, Orientation, Event, sampleModel, events)
 import ExamplesGenerated as Examples
+
+-- So we can crash appropriately
+import Debug
 
 -- The mailbox that recieves Tasks
 taskMailbox : Mailbox (Task String ())
@@ -91,18 +95,47 @@ strToModel =
 -- Task to save state to local browser storage
 saveStateLocally : String -> Model -> Task String ()
 saveStateLocally saveName model = if
-    | List.all ((/=) saveName) model.localSaves
-        && List.all ((/=) saveName << fst) Examples.list -> setItem saveName <| modelToValue model
+    | List.all ((/=) saveName << fst) Examples.list -> setItem saveName <|
+        modelToValue { model | exName <- saveName }
     | otherwise -> send events.address <|
         InterfaceModel.UpdateModel installSaveState
 
 -- Changes state to SaveDialog
 installSaveState : Model -> Model
-installSaveState oldModel = { oldModel | mode <- InterfaceModel.SaveDialog }
+installSaveState oldModel = 
+    { oldModel | mode <- InterfaceModel.SaveDialog oldModel.mode}
+
+-- Task to validate save field input
+checkAndSave : String -> Model -> Task String ()
+checkAndSave saveName model = if
+    | List.all ((/=) saveName << fst) Examples.list -> 
+                setItem saveName (modelToValue model)
+                `andThen` \x -> send events.address <|
+                    InterfaceModel.UpdateModel (removeDialog saveName)
+    | otherwise -> send events.address <|
+                    InterfaceModel.UpdateModel invalidInput
+
+-- Changes state back from SaveDialog and adds new save name to field
+removeDialog : String -> Model -> Model
+removeDialog saveName oldModel = case oldModel.mode of
+    InterfaceModel.SaveDialog oldmode -> 
+        { oldModel | mode <- oldmode 
+                   , localSaves <- saveName :: oldModel.localSaves 
+        }
+    _ -> Debug.crash "Called removeDialog when not in SaveDialog state"
+
+-- Indicates that input was invalid
+invalidInput : Model -> Model
+invalidInput oldmodel =
+    let oldcontents = oldmodel.fieldContents
+    in
+        { oldmodel | fieldContents <- 
+            { oldcontents | string <- "Invalid save name" }
+        }
 
 -- Task to load state from local browser storage
-loadLocalState : Task String ()
-loadLocalState = getItem "stateSave" strToModel
+loadLocalState : String -> Task String ()
+loadLocalState saveName = getItem saveName strToModel
     `andThen` \loadedModel -> 
         send events.address <| 
             InterfaceModel.UpdateModel <| installLocalState loadedModel
@@ -110,7 +143,10 @@ loadLocalState = getItem "stateSave" strToModel
 -- Function to update model upon state load
 installLocalState : Model -> Model -> Model
 installLocalState loadedModel oldModel = 
-    { loadedModel | slate <- oldModel.slate }
+    { loadedModel | slate <- oldModel.slate 
+                  , localSaves <- oldModel.localSaves
+                  , editingMode <- True
+    }
 
 -- Gets the names of all of the local saves, returned in a list of strings
 getLocalSaves : Task String ()

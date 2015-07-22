@@ -21,6 +21,7 @@ import String
 import Graphics.Element as GE 
 import Graphics.Collage as GC
 import Graphics.Input as GI
+import Graphics.Input.Field as GIF
 import Text as T exposing (defaultStyle)
 import Color
 
@@ -30,7 +31,8 @@ import Window
 import Task exposing (Task, andThen)
 
 --Storage Libraries
-import InterfaceStorage exposing (taskMailbox, saveStateLocally, loadLocalState)
+import InterfaceStorage exposing (taskMailbox, saveStateLocally, loadLocalState,
+                                  checkAndSave)
 
 --Html Libraries
 import Html 
@@ -319,7 +321,7 @@ middleWidgets w h wWrap hWrap model =
         [ dropdownExamples model w h
         , editRunButton model w h
         , saveButton model w h
-        , loadButton w h
+        , loadButton model w h
         , outputButton model w h
         , gapWidget w h
         , zoneButton model w h
@@ -330,7 +332,7 @@ middleWidgets w h wWrap hWrap model =
         [ dropdownExamples model w h
         , editRunButton model w h
         , saveButton model w h
-        , loadButton w h
+        , loadButton model w h
         ]
 
 gapWidget w h = GE.spacer w h
@@ -499,12 +501,12 @@ saveButton model w h =
         ]
         [ Html.text "Save" ]
 
-loadButton : Int -> Int -> GE.Element
-loadButton w h =
+loadButton : Model -> Int -> Int -> GE.Element
+loadButton model w h =
     Html.toElement w h <| 
       Html.button
         [ buttonAttrs w h
-        , Events.onClick taskMailbox.address loadLocalState
+        , Events.onClick taskMailbox.address  <| loadLocalState model.exName
         , Attr.value "Revert"
         , Attr.name "Revert"
         , Attr.title 
@@ -517,10 +519,10 @@ dropdownExamples : Model -> Int -> Int -> GE.Element
 dropdownExamples model w h =
   let choices =
     case model.mode of
-      AdHoc -> [(model.exName, Noop)]
+      AdHoc -> [(model.exName, Signal.send events.address Noop)]
       _ ->
-        let foo (name,thunk) = (name, (SelectExample name thunk)) 
-            bar saveName = (saveName, UpdateModel (\oldmodel -> oldmodel))
+        let foo (name,thunk) = (name, Signal.send events.address (SelectExample name thunk)) 
+            bar saveName = (saveName, loadLocalState saveName)
             --TODO make this so that a task is sent to the taskMailbox instead
             --of the events mailbox down at the bottom and that it involves
             --picking the appropriate load and such
@@ -528,7 +530,7 @@ dropdownExamples model w h =
             (List.map bar model.localSaves)
             (List.map foo Examples.list)
   in
-    GI.dropDown (Signal.message events.address) choices
+    GI.dropDown (Signal.message taskMailbox.address) choices
 
 modeButton model =
   if model.mode == AdHoc
@@ -629,27 +631,104 @@ view (w,h) model =
   let botSection = GE.spacer wAll hBot in
   let sideGutter = colorDebug Color.black <| GE.spacer wGut hTot in
 
-  let saveElement = (if
-        | model.mode == SaveDialog -> 
-           let dim = GE.color Color.black <| GE.opacity 0.5 <| GE.spacer w h
-               pickBox = GE.color Color.black
-                            <| GE.opacity 0.5 
-                            <| GE.container w h GE.middle 
+  let saveElement = case model.mode of
+        SaveDialog x -> 
+            -- Note that dimBox must not be a parent of the pickBox, as
+            -- opacity is always inherited by all children
+            let dimBox = GE.color Color.black
+                            <| GE.opacity 0.5
+                            <| GE.spacer w h
+                pickBox = GE.container w h GE.middle  
                             <| GE.color Color.lightBlue
-                            <| Html.toElement 400 200
-                            <| Html.div [Attr.style [("opacity", "1")]]
-                            <| (\x -> [x])
-                            <| Html.fromElement
-                            <| GE.container 400 200 GE.middle 
+                            <| GE.container 400 200 GE.middle
                             <| GE.flow GE.down
-                                [ GE.show "Boop!" ]
-           in pickBox
+                                [ GIF.field GIF.defaultStyle
+                                    (\cont -> Signal.message events.address
+                                            <| UpdateModel
+                                                (\model ->
+                                                    { model | fieldContents <-
+                                                                cont
+                                                    }
+                                                )
+                                    )
+                                    "Input File Name"
+                                    model.fieldContents
+                                , GI.button
+                                    (Signal.message taskMailbox.address
+                                        <| checkAndSave 
+                                                    model.fieldContents.string
+                                                    model
+                                    )
+                                    "Create Save"
+                                ]
+            in GE.flow GE.outward [ dimBox, pickBox ]
+--                dimBox = Html.div
+--                            [ Attr.style
+--                                [ ("opacity", "0.5")
+--                                , ("backgroundColor", "black")
+--                                , ("position", "absolute")
+--                                , ("left", "0px")
+--                                , ("top", "0px")
+--                                , ("width", toString w ++ "px")
+--                                , ("height", toString h ++ "px")
+--                                ]
+--                            ] []
+--                pickBox = Html.div
+--                            [ Attr.style
+--                                [ ("opacity", "1")
+--                                , ("backgroundColor", "lightBlue")
+--                                , ("width", toString 400)
+--                                , ("height", toString 200)
+--                                , ("position", "absolute")
+--                                , ("left", toString (w / 2 - 200) ++ "px")
+--                                , ("top", toString (h / 2 - 100) ++ "px")
+--                                ]
+--                            ]
+--                            [ Html.input
+--                                [ Attr.style
+--                                    [ ("type", "text") 
+--                                    , ("placeholder", "Input File Name")
+--                                    --, ("value", model.fieldContents.string)
+--                                    ]
+--                                , Events.on "input" Events.targetValue
+--                                    <| \str -> Signal.message events.address
+--                                        <| UpdateModel
+--                                            (\m -> m)
+--                                ]
+--                                []
+--                            , Html.button
+--                                []
+--                                [ Html.text "empty" ]
+--                            ]
+--                            [ Html.fromElement
+--                                <| GE.flow GE.down
+--                                    [ GIF.field
+--                                        GIF.defaultStyle
+--                                        (\cont -> Signal.message events.address
+--                                            <| UpdateModel
+--                                                (\model ->
+--                                                    { model | fieldContents <-
+--                                                                (Debug.log "c"
+--                                                                cont)}))
+--                                        "Input File Name"
+--                                        model.fieldContents
+--                                    , GI.button
+--                                        (Signal.message events.address
+--                                            <| UpdateModel
+--                                                (\model ->
+--                                                    { model | fieldContents <-
+--                                                                GIF.noContent}))
+--                                        "empty"
+--                                    ]
+--                            ]
+           --in Html.toElement w h <| Html.div [] [dimBox, pickBox]
                                          --TODO add dimming element and center
                                          -- input field + button that sends
                                          -- appropriate task + UpdateModel
-        | otherwise -> GE.empty) in
+        _ -> GE.empty in
 
-  if | model.mode == SaveDialog ->
+  case model.mode of
+    SaveDialog m ->
           GE.flow GE.inward
             [ saveElement
             , (GE.flow GE.right
@@ -663,7 +742,7 @@ view (w,h) model =
                 ]
               )
             ]
-     | otherwise -> 
+    _ -> 
         GE.flow GE.right
           [ sideGutter
           , GE.flow GE.down

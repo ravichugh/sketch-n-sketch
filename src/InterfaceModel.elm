@@ -7,6 +7,8 @@ import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Zone)
 import ExamplesGenerated as Examples
 
+import Graphics.Input.Field exposing (Content, noContent)
+
 import List 
 import Dict
 import Debug
@@ -33,11 +35,13 @@ type alias Model =
   , editingMode : Bool
   , caption : Maybe Caption
   , localSaves : List String
+  , fieldContents : Content
   }
 
 type Mode
   = AdHoc | SyncSelect Int PossibleChanges | Live Sync.LiveInfo
-  | Print RawSvg | SaveDialog
+  | Print RawSvg | SaveDialog Mode -- SaveDialog saves last mode
+
 
 type alias RawSvg = String
 
@@ -90,20 +94,21 @@ sampleModel =
     (name,f) = Utils.head_ Examples.list
     {e,v}    = f ()
   in
-    { scratchCode  = Examples.scratch
-    , exName       = name
-    , code         = sExp e
-    , inputExp     = Just e
-    , slate        = LangSvg.valToIndexedTree v
-    , mode         = mkLive Sync.defaultOptions e v
-    , mouseMode    = MouseNothing
-    , orient       = Vertical
-    , midOffsetX   = 0
-    , midOffsetY   = -100
-    , showZones    = False
-    , syncOptions  = Sync.defaultOptions
-    , editingMode  = False
-    , caption      = Nothing
-    , localSaves   = []
+    { scratchCode   = Examples.scratch
+    , exName        = name
+    , code          = sExp e
+    , inputExp      = Just e
+    , slate         = LangSvg.valToIndexedTree v
+    , mode          = mkLive Sync.defaultOptions e v
+    , mouseMode     = MouseNothing
+    , orient        = Vertical
+    , midOffsetX    = 0
+    , midOffsetY    = -100
+    , showZones     = False
+    , syncOptions   = Sync.defaultOptions
+    , editingMode   = False
+    , caption       = Nothing
+    , localSaves    = []
+    , fieldContents = noContent
     }
 
