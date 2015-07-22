@@ -32,12 +32,13 @@ import Task exposing (Task, andThen)
 
 --Storage Libraries
 import InterfaceStorage exposing (taskMailbox, saveStateLocally, loadLocalState,
-                                  checkAndSave)
+                                  checkAndSave, getLocalSaves)
 
 --Html Libraries
 import Html 
 import Html.Attributes as Attr
 import Html.Events as Events
+import Json.Decode
 
 --Svg Libraries
 import Svg
@@ -273,12 +274,12 @@ codebox_ w h event s readOnly =
            [ ("font-family", params.mainSection.codebox.font)
            , ("font-size", params.mainSection.codebox.fontSize)
            , ("border", params.mainSection.codebox.border)
-           -- TODO: "pre" preserves breaks on Firefox,
-           --   but still no horizontal scrollbars on Chome/Safari
            , ("whiteSpace", "pre")
            , ("height", "99%") , ("width", "99%")
            , ("resize", "none")
            , ("overflow", "auto")
+           -- Horizontal Scrollbars in Chrome
+           , ("word-wrap", "normal")
            ]
        , Attr.value s
        , Events.onMouseUp events.address MouseUp
@@ -523,9 +524,6 @@ dropdownExamples model w h =
       _ ->
         let foo (name,thunk) = (name, Signal.send events.address (SelectExample name thunk)) 
             bar saveName = (saveName, loadLocalState saveName)
-            --TODO make this so that a task is sent to the taskMailbox instead
-            --of the events mailbox down at the bottom and that it involves
-            --picking the appropriate load and such
         in List.append
             (List.map bar model.localSaves)
             (List.map foo Examples.list)
@@ -594,15 +592,15 @@ view (w,h) model =
     hBot = params.botSection.h
     hMid = h - hTop - hBot - 1
     hTot = hTop + hMid + hBot
+    titleStyle =
+        { defaultStyle | typeface <- ["Courier", "monospace"]
+                       , height <- Just 18
+                       , bold <- False }
   in
 
   let topSection =
     let
       title = GE.leftAligned <| T.style titleStyle (T.fromString strTitle)
-      titleStyle =
-        { defaultStyle | typeface <- ["Courier", "monospace"]
-                       , height <- Just 18
-                       , bold <- False }
 
       wLogo = params.topSection.wLogo
       logo  = GE.image wLogo wLogo "sketch-n-sketch-logo.png"
@@ -639,119 +637,96 @@ view (w,h) model =
                             <| GE.opacity 0.5
                             <| GE.spacer w h
                 pickBox = GE.container w h GE.middle  
-                            <| GE.color Color.lightBlue
+                            <| GE.color Color.darkGray
                             <| GE.container 400 200 GE.middle
                             <| GE.flow GE.down
-                                [ GIF.field GIF.defaultStyle
-                                    (\cont -> Signal.message events.address
-                                            <| UpdateModel
-                                                (\model ->
-                                                    { model | fieldContents <-
-                                                                cont
-                                                    }
-                                                )
-                                    )
-                                    "Input File Name"
-                                    model.fieldContents
-                                , GI.button
-                                    (Signal.message taskMailbox.address
-                                        <| checkAndSave 
-                                                    model.fieldContents.string
-                                                    model
-                                    )
-                                    "Create Save"
-                                ]
+                                 [ GE.flow GE.right
+                                    [ GE.spacer 42 18 
+                                    , GE.centered <|
+                                        T.style titleStyle
+                                        (T.fromString "Save Work to Browser")
+                                    ]
+                                 , GE.spacer 160 20
+                                 , GE.flow GE.right
+                                    [ GE.height 40 <| GIF.field GIF.defaultStyle
+                                        (\cont -> Signal.message events.address
+                                                <| UpdateModel
+                                                    (\model ->
+                                                        { model | fieldContents <-
+                                                                    cont
+                                                        }
+                                                    )
+                                        )
+                                        "Input File Name"
+                                        model.fieldContents
+                                    , GI.button
+                                        (Signal.message taskMailbox.address
+                                            <| checkAndSave 
+                                                        model.fieldContents.string
+                                                        model
+                                        )
+                                        "Create Save"
+                                    ]
+                                 , GE.spacer 160 20
+                                 , GE.flow GE.right
+                                    [ GE.spacer 47 50 
+                                    , GE.centered <|
+                                        T.height 12 <|
+                                        (T.fromString <| 
+                                        "Note: This will overwrite saves with\n"
+                                        ++ "the same name. You must choose a\n"
+                                        ++ "name different than a built-in example.")
+                                    ]
+                                    
+                                 ]
             in GE.flow GE.outward [ dimBox, pickBox ]
---                dimBox = Html.div
---                            [ Attr.style
---                                [ ("opacity", "0.5")
---                                , ("backgroundColor", "black")
---                                , ("position", "absolute")
---                                , ("left", "0px")
---                                , ("top", "0px")
---                                , ("width", toString w ++ "px")
---                                , ("height", toString h ++ "px")
---                                ]
---                            ] []
---                pickBox = Html.div
---                            [ Attr.style
---                                [ ("opacity", "1")
---                                , ("backgroundColor", "lightBlue")
---                                , ("width", toString 400)
---                                , ("height", toString 200)
---                                , ("position", "absolute")
---                                , ("left", toString (w / 2 - 200) ++ "px")
---                                , ("top", toString (h / 2 - 100) ++ "px")
---                                ]
---                            ]
---                            [ Html.input
---                                [ Attr.style
---                                    [ ("type", "text") 
---                                    , ("placeholder", "Input File Name")
---                                    --, ("value", model.fieldContents.string)
---                                    ]
---                                , Events.on "input" Events.targetValue
---                                    <| \str -> Signal.message events.address
---                                        <| UpdateModel
---                                            (\m -> m)
---                                ]
---                                []
---                            , Html.button
---                                []
---                                [ Html.text "empty" ]
---                            ]
---                            [ Html.fromElement
---                                <| GE.flow GE.down
---                                    [ GIF.field
---                                        GIF.defaultStyle
---                                        (\cont -> Signal.message events.address
---                                            <| UpdateModel
---                                                (\model ->
---                                                    { model | fieldContents <-
---                                                                (Debug.log "c"
---                                                                cont)}))
---                                        "Input File Name"
---                                        model.fieldContents
---                                    , GI.button
---                                        (Signal.message events.address
---                                            <| UpdateModel
---                                                (\model ->
---                                                    { model | fieldContents <-
---                                                                GIF.noContent}))
---                                        "empty"
---                                    ]
---                            ]
-           --in Html.toElement w h <| Html.div [] [dimBox, pickBox]
-                                         --TODO add dimming element and center
-                                         -- input field + button that sends
-                                         -- appropriate task + UpdateModel
         _ -> GE.empty in
 
-  case model.mode of
-    SaveDialog m ->
-          GE.flow GE.inward
-            [ saveElement
-            , (GE.flow GE.right
+  -- Runs a task at startup by making the whole window hoverable briefly, which
+  -- fires the task to the taskMailbox basically right away (the user's mouse is
+  -- presumably over the window).
+  case model.startup of 
+      True -> GI.hoverable (\_ -> 
+                Signal.message taskMailbox.address 
+                    (getLocalSaves -- Insert more tasks to run at startup here
+                        `andThen` 
+                            \_ -> Signal.send events.address 
+                                (UpdateModel (\m -> { m | startup <- False}))))
+              <| GE.flow GE.right
                 [ sideGutter
                 , GE.flow GE.down
-                    [ colorDebug Color.lightYellow <| topSection
-                    , midSection
-                    , colorDebug Color.lightYellow <| botSection
-                    ]
+                  [ colorDebug Color.lightYellow <| topSection
+                  , midSection
+                  , colorDebug Color.lightYellow <| botSection
+                  ]
                 , sideGutter
                 ]
-              )
-            ]
-    _ -> 
-        GE.flow GE.right
-          [ sideGutter
-          , GE.flow GE.down
-            [ colorDebug Color.lightYellow <| topSection
-            , midSection
-            , colorDebug Color.lightYellow <| botSection
-            ]
-          , sideGutter
-          ]
+      False ->
+        case model.mode of
+          SaveDialog m ->
+                GE.flow GE.inward
+                  [ saveElement
+                  , (GE.flow GE.right
+                      [ sideGutter
+                      , GE.flow GE.down
+                          [ colorDebug Color.lightYellow <| topSection
+                          , midSection
+                          , colorDebug Color.lightYellow <| botSection
+                          ]
+                      , sideGutter
+                      ]
+                    )
+                  ]
+          _ -> 
+              GE.flow GE.right
+                [ sideGutter
+                , GE.flow GE.down
+                  [ colorDebug Color.lightYellow <| topSection
+                  , midSection
+                  , colorDebug Color.lightYellow <| botSection
+                  ]
+                , sideGutter
+                ]
 
 -- TODO: add onMouseUp DeselectObject event to all GE.Elements...
 

@@ -26,7 +26,7 @@ main =
               |> Signal.map Model.MousePos
           ]
    in
-   Signal.map2 View.view Window.dimensions sigModel
+     Signal.map2 View.view Window.dimensions sigModel
 
 adjustCoords : (Int, Int) -> (Int, Int) -> (Int, Int)
 adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)

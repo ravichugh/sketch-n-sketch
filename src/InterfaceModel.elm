@@ -36,6 +36,7 @@ type alias Model =
   , caption : Maybe Caption
   , localSaves : List String
   , fieldContents : Content
+  , startup : Bool
   }
 
 type Mode
@@ -110,5 +111,6 @@ sampleModel =
     , caption       = Nothing
     , localSaves    = []
     , fieldContents = noContent
+    , startup       = False
     }
 

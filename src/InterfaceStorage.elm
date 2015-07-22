@@ -23,6 +23,9 @@ import Signal exposing (Mailbox, mailbox, send)
 import InterfaceModel exposing (Model, Orientation, Event, sampleModel, events)
 import ExamplesGenerated as Examples
 
+-- So we can clear the slate
+import LangSvg exposing (emptyTree)
+
 -- So we can crash appropriately
 import Debug
 
@@ -38,7 +41,7 @@ taskMailbox = mailbox (succeed ())
 
 -- Type for the partial object that we store in localStorage
 type alias PartialObject = 
-    { code : String
+    { code        : String
     , orient      : Orientation
     , showZones   : Bool
     , midOffsetX  : Int
@@ -96,7 +99,7 @@ strToModel =
 saveStateLocally : String -> Model -> Task String ()
 saveStateLocally saveName model = if
     | List.all ((/=) saveName << fst) Examples.list -> setItem saveName <|
-        modelToValue { model | exName <- saveName }
+        modelToValue model
     | otherwise -> send events.address <|
         InterfaceModel.UpdateModel installSaveState
 
@@ -119,9 +122,13 @@ checkAndSave saveName model = if
 removeDialog : String -> Model -> Model
 removeDialog saveName oldModel = case oldModel.mode of
     InterfaceModel.SaveDialog oldmode -> 
-        { oldModel | mode <- oldmode 
-                   , localSaves <- saveName :: oldModel.localSaves 
-        }
+        if | saveName /= oldModel.exName ->
+                { oldModel | mode <- oldmode 
+                           , exName <- saveName
+                           , localSaves <- saveName :: oldModel.localSaves 
+                }
+           | otherwise ->
+               { oldModel | mode <- oldmode }
     _ -> Debug.crash "Called removeDialog when not in SaveDialog state"
 
 -- Indicates that input was invalid
@@ -138,12 +145,13 @@ loadLocalState : String -> Task String ()
 loadLocalState saveName = getItem saveName strToModel
     `andThen` \loadedModel -> 
         send events.address <| 
-            InterfaceModel.UpdateModel <| installLocalState loadedModel
+            InterfaceModel.UpdateModel <| installLocalState saveName loadedModel
 
 -- Function to update model upon state load
-installLocalState : Model -> Model -> Model
-installLocalState loadedModel oldModel = 
-    { loadedModel | slate <- oldModel.slate 
+installLocalState : String -> Model -> Model -> Model
+installLocalState saveName loadedModel oldModel = 
+    { loadedModel | slate <- emptyTree
+                  , exName <- saveName
                   , localSaves <- oldModel.localSaves
                   , editingMode <- True
     }
@@ -151,7 +159,7 @@ installLocalState loadedModel oldModel =
 -- Gets the names of all of the local saves, returned in a list of strings
 getLocalSaves : Task String ()
 getLocalSaves = keys `andThen` \saves -> send events.address <|
-    InterfaceModel.UpdateModel <| installLocalSaves saves
+    InterfaceModel.UpdateModel <| installLocalSaves <| Debug.log "Loaded" saves
 
 -- Installs the list of local saves
 installLocalSaves : List String -> Model -> Model
