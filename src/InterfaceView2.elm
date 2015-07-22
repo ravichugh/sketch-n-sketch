@@ -32,7 +32,7 @@ import Task exposing (Task, andThen)
 
 --Storage Libraries
 import InterfaceStorage exposing (taskMailbox, saveStateLocally, loadLocalState,
-                                  checkAndSave, getLocalSaves)
+                                  checkAndSave, getLocalSaves, clearLocalSaves)
 
 --Html Libraries
 import Html 
@@ -511,7 +511,7 @@ loadButton model w h =
         , Attr.value "Revert"
         , Attr.name "Revert"
         , Attr.title 
-            "Reverts Code and Page Layout to last save"
+            "Reverts Code and Page Layout to last save by this name"
         , Attr.disabled False
         ]
         [ Html.text "Revert" ]
@@ -524,9 +524,11 @@ dropdownExamples model w h =
       _ ->
         let foo (name,thunk) = (name, Signal.send events.address (SelectExample name thunk)) 
             bar saveName = (saveName, loadLocalState saveName)
-        in List.append
-            (List.map bar model.localSaves)
-            (List.map foo Examples.list)
+        in List.concat
+            [ (List.map bar model.localSaves)
+            , (List.map foo Examples.list)
+            , [("*Clear Local Saves*", clearLocalSaves)]
+            ]
   in
     GI.dropDown (Signal.message taskMailbox.address) choices
 
@@ -684,15 +686,19 @@ view (w,h) model =
 
   -- Runs a task at startup by making the whole window hoverable briefly, which
   -- fires the task to the taskMailbox basically right away (the user's mouse is
-  -- presumably over the window).
+  -- presumably over the window). Note that it is important to add the event
+  -- handler to a dummy object that is removed, as adding it to the whole body
+  -- results in nothing being clickable after the load is successful.
   case model.startup of 
-      True -> GI.hoverable (\_ -> 
+      True -> GE.flow GE.inward 
+          [ GI.hoverable (\_ -> 
                 Signal.message taskMailbox.address 
                     (getLocalSaves -- Insert more tasks to run at startup here
                         `andThen` 
                             \_ -> Signal.send events.address 
                                 (UpdateModel (\m -> { m | startup <- False}))))
-              <| GE.flow GE.right
+            <| GE.spacer w h
+          , GE.flow GE.right
                 [ sideGutter
                 , GE.flow GE.down
                   [ colorDebug Color.lightYellow <| topSection
@@ -701,6 +707,7 @@ view (w,h) model =
                   ]
                 , sideGutter
                 ]
+          ]
       False ->
         case model.mode of
           SaveDialog m ->

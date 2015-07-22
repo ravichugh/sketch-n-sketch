@@ -111,6 +111,6 @@ sampleModel =
     , caption       = Nothing
     , localSaves    = []
     , fieldContents = noContent
-    , startup       = False
+    , startup       = True
     }
 

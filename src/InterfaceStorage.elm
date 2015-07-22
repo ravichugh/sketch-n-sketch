@@ -5,10 +5,10 @@
 --
 
 module InterfaceStorage (taskMailbox, saveStateLocally, loadLocalState,
-                         getLocalSaves, checkAndSave) where
+                         getLocalSaves, checkAndSave, clearLocalSaves) where
 
 -- Storage library, for in browser storage
-import Storage exposing (getItem, setItem, keys)
+import Storage exposing (getItem, setItem, keys, clear)
 
 -- JSON encode/decode libraries, as local storage only stores values as Strings
 import Json.Encode as Encode
@@ -164,3 +164,9 @@ getLocalSaves = keys `andThen` \saves -> send events.address <|
 -- Installs the list of local saves
 installLocalSaves : List String -> Model -> Model
 installLocalSaves saves oldModel = { oldModel | localSaves <- saves }
+
+-- Clears all local saves
+clearLocalSaves : Task String ()
+clearLocalSaves = clear `andThen` \_ -> send events.address <|
+    InterfaceModel.UpdateModel <| \m -> { m | exName <- Examples.scratchName
+                                            , localSaves <- [] }
