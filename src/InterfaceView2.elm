@@ -32,13 +32,13 @@ import Task exposing (Task, andThen)
 
 --Storage Libraries
 import InterfaceStorage exposing (taskMailbox, saveStateLocally, loadLocalState,
-                                  checkAndSave, getLocalSaves, clearLocalSaves)
+                                  checkAndSave, getLocalSaves, clearLocalSaves,
+                                  removeDialog)
 
 --Html Libraries
 import Html 
 import Html.Attributes as Attr
 import Html.Events as Events
-import Json.Decode
 
 --Svg Libraries
 import Svg
@@ -316,6 +316,8 @@ middleWidgets w h wWrap hWrap model =
       (False, Print _) ->
         [ dropdownExamples model w h
         , editRunButton model w h
+        , saveButton model w h
+        , loadButton model w h
         , outputButton model w h
         ]
       (False, _) ->
@@ -585,6 +587,83 @@ hoverInfo info (i,k,z) =
         if | x == ""   -> ("loc_" ++ toString lid, n)
            | otherwise -> (x, n)) locs
 
+-- The pop-up save dialog box
+saveElement : Model -> Int -> Int -> GE.Element
+saveElement model w h = case model.mode of
+  SaveDialog x -> 
+      -- Note that dimBox must not be a parent of the pickBox, as
+      -- opacity of a parent clobbers that of all its children
+      let dimBox = GE.color Color.black
+                      <| GE.opacity 0.5
+                      <| GE.spacer w h
+          pickBox = GE.container w h GE.middle  
+                      <| GE.color Color.darkGray
+                      <| GE.container 400 200 GE.middle
+                      <| GE.flow GE.down
+                           [ GE.flow GE.right
+                              [ GE.spacer 42 18 
+                              , GE.centered <|
+                                  T.style titleStyle
+                                  (T.fromString "Save Work to Browser")
+                              ]
+                           , GE.spacer 160 20
+                           , GE.flow GE.right
+                              [ Html.toElement 200 40
+                                  <| Html.input
+                                     ([ Attr.type' "text"
+                                      , Attr.style 
+                                          [ ("height", "32px")
+                                          , ("width", "192px")
+                                          , ("padding", "4px")
+                                          , ("border-width", "0px")
+                                          ]
+                                      , Attr.placeholder "Input File name"
+                                      , Attr.autofocus True
+                                      , Events.on "input" Events.targetValue
+                                          (\cont -> Signal.message events.address
+                                            <| UpdateModel
+                                              (\model ->
+                                                  { model | fieldContents <-
+                                                              cont
+                                                  }
+                                              )
+                                          )
+                                      ] ++ (case model.fieldContents of
+                                          "" -> []
+                                          x  -> [ Attr.value x ]))
+                                      []
+                              , GI.button
+                                  (Signal.message taskMailbox.address
+                                      <| checkAndSave 
+                                                  model.fieldContents
+                                                  model
+                                  )
+                                  "Create Save"
+                              ]
+                           , GE.size 75 30 <| GI.button
+                                (Signal.message events.address <|
+                                    UpdateModel <| removeDialog False "")
+                                "Cancel"
+                           , GE.spacer 160 10
+                           , GE.flow GE.right
+                              [ GE.spacer 47 50 
+                              , GE.centered <|
+                                  T.height 12 <|
+                                  (T.fromString <| 
+                                  "Note: This will overwrite saves with\n"
+                                  ++ "the same name. You must choose a\n"
+                                  ++ "name different than a built-in example.")
+                              ]
+                              
+                           ]
+      in GE.flow GE.outward [ dimBox, pickBox ]
+  _ -> GE.empty 
+    
+titleStyle =
+  { defaultStyle | typeface <- ["Courier", "monospace"]
+                 , height <- Just 18
+                 , bold <- False }
+
 view : (Int, Int) -> Model -> GE.Element
 view (w,h) model =
   let
@@ -594,10 +673,6 @@ view (w,h) model =
     hBot = params.botSection.h
     hMid = h - hTop - hBot - 1
     hTot = hTop + hMid + hBot
-    titleStyle =
-        { defaultStyle | typeface <- ["Courier", "monospace"]
-                       , height <- Just 18
-                       , bold <- False }
   in
 
   let topSection =
@@ -631,58 +706,6 @@ view (w,h) model =
   let botSection = GE.spacer wAll hBot in
   let sideGutter = colorDebug Color.black <| GE.spacer wGut hTot in
 
-  let saveElement = case model.mode of
-        SaveDialog x -> 
-            -- Note that dimBox must not be a parent of the pickBox, as
-            -- opacity is always inherited by all children
-            let dimBox = GE.color Color.black
-                            <| GE.opacity 0.5
-                            <| GE.spacer w h
-                pickBox = GE.container w h GE.middle  
-                            <| GE.color Color.darkGray
-                            <| GE.container 400 200 GE.middle
-                            <| GE.flow GE.down
-                                 [ GE.flow GE.right
-                                    [ GE.spacer 42 18 
-                                    , GE.centered <|
-                                        T.style titleStyle
-                                        (T.fromString "Save Work to Browser")
-                                    ]
-                                 , GE.spacer 160 20
-                                 , GE.flow GE.right
-                                    [ GE.height 40 <| GIF.field GIF.defaultStyle
-                                        (\cont -> Signal.message events.address
-                                                <| UpdateModel
-                                                    (\model ->
-                                                        { model | fieldContents <-
-                                                                    cont
-                                                        }
-                                                    )
-                                        )
-                                        "Input File Name"
-                                        model.fieldContents
-                                    , GI.button
-                                        (Signal.message taskMailbox.address
-                                            <| checkAndSave 
-                                                        model.fieldContents.string
-                                                        model
-                                        )
-                                        "Create Save"
-                                    ]
-                                 , GE.spacer 160 20
-                                 , GE.flow GE.right
-                                    [ GE.spacer 47 50 
-                                    , GE.centered <|
-                                        T.height 12 <|
-                                        (T.fromString <| 
-                                        "Note: This will overwrite saves with\n"
-                                        ++ "the same name. You must choose a\n"
-                                        ++ "name different than a built-in example.")
-                                    ]
-                                    
-                                 ]
-            in GE.flow GE.outward [ dimBox, pickBox ]
-        _ -> GE.empty in
 
   -- Runs a task at startup by making the whole window hoverable briefly, which
   -- fires the task to the taskMailbox basically right away (the user's mouse is
@@ -712,7 +735,7 @@ view (w,h) model =
         case model.mode of
           SaveDialog m ->
                 GE.flow GE.inward
-                  [ saveElement
+                  [ saveElement model w h
                   , (GE.flow GE.right
                       [ sideGutter
                       , GE.flow GE.down

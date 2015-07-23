@@ -5,7 +5,8 @@
 --
 
 module InterfaceStorage (taskMailbox, saveStateLocally, loadLocalState,
-                         getLocalSaves, checkAndSave, clearLocalSaves) where
+                         getLocalSaves, checkAndSave, clearLocalSaves,
+                         removeDialog) where
 
 -- Storage library, for in browser storage
 import Storage exposing (getItem, setItem, keys, clear)
@@ -17,8 +18,11 @@ import Json.Decode exposing (Decoder, (:=), object5, string, int, bool, customDe
 -- Task Library
 import Task exposing (Task, succeed, andThen)
 
+-- String library
+import String exposing (all)
 -- Signalling functions
 import Signal exposing (Mailbox, mailbox, send)
+
 -- Types for our Model
 import InterfaceModel exposing (Model, Orientation, Event, sampleModel, events)
 import ExamplesGenerated as Examples
@@ -111,24 +115,30 @@ installSaveState oldModel =
 -- Task to validate save field input
 checkAndSave : String -> Model -> Task String ()
 checkAndSave saveName model = if
-    | List.all ((/=) saveName << fst) Examples.list -> 
+    | List.all ((/=) saveName << fst) Examples.list
+        && saveName /= ""
+        && not (all (\c -> c == ' ' || c == '\t') saveName) ->
                 setItem saveName (modelToValue model)
                 `andThen` \x -> send events.address <|
-                    InterfaceModel.UpdateModel (removeDialog saveName)
+                    InterfaceModel.UpdateModel <| removeDialog True saveName
     | otherwise -> send events.address <|
                     InterfaceModel.UpdateModel invalidInput
 
--- Changes state back from SaveDialog and adds new save name to field
-removeDialog : String -> Model -> Model
-removeDialog saveName oldModel = case oldModel.mode of
-    InterfaceModel.SaveDialog oldmode -> 
-        if | saveName /= oldModel.exName ->
-                { oldModel | mode <- oldmode 
-                           , exName <- saveName
-                           , localSaves <- saveName :: oldModel.localSaves 
-                }
-           | otherwise ->
-               { oldModel | mode <- oldmode }
+-- Changes state back from SaveDialog and may or may not add new save
+removeDialog : Bool -> String -> Model -> Model
+removeDialog makeSave saveName oldModel = case oldModel.mode of
+    InterfaceModel.SaveDialog oldmode -> case makeSave of
+        True -> 
+          if | saveName /= oldModel.exName &&
+                  List.all ((/=) saveName) oldModel.localSaves ->
+                    { oldModel | mode <- oldmode 
+                               , exName <- saveName
+                               , localSaves <- saveName :: oldModel.localSaves 
+                    }
+             | otherwise ->
+                 { oldModel | mode <- oldmode 
+                            , exName <- saveName }
+        False -> { oldModel | mode <- oldmode }
     _ -> Debug.crash "Called removeDialog when not in SaveDialog state"
 
 -- Indicates that input was invalid
@@ -136,9 +146,7 @@ invalidInput : Model -> Model
 invalidInput oldmodel =
     let oldcontents = oldmodel.fieldContents
     in
-        { oldmodel | fieldContents <- 
-            { oldcontents | string <- "Invalid save name" }
-        }
+        { oldmodel | fieldContents <- "Invalid File Name" } 
 
 -- Task to load state from local browser storage
 loadLocalState : String -> Task String ()

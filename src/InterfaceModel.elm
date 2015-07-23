@@ -7,8 +7,6 @@ import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Zone)
 import ExamplesGenerated as Examples
 
-import Graphics.Input.Field exposing (Content, noContent)
-
 import List 
 import Dict
 import Debug
@@ -35,7 +33,7 @@ type alias Model =
   , editingMode : Bool
   , caption : Maybe Caption
   , localSaves : List String
-  , fieldContents : Content
+  , fieldContents : String
   , startup : Bool
   }
 
@@ -110,7 +108,7 @@ sampleModel =
     , editingMode   = False
     , caption       = Nothing
     , localSaves    = []
-    , fieldContents = noContent
+    , fieldContents = ""
     , startup       = True
     }
 
