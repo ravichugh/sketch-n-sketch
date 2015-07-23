@@ -27,8 +27,7 @@ We don't want slate saving, but there were some layout changes that we discussed
 Multiple saving functionality has been implemented. Some strangeness with
 chrome vs. firefox.
 
-**Style pop up box more nicely, see if highlighting can be allowed. Somehow load
-all past local browser saves upon startup.**
+Pop up box has styling (though it could definitely be nicer), and added framework to fire tasks at startup. Barring potential small changes, local saves is ostensibly complete.
 
 ##Saving to Disk
 It looks like the HTML5 fileReader object is the modern and 'correct' way to do this. It looks like there is a library https://github.com/piotrcyr/elm-filereader that managed to implement this in 2014 without using any ports, which would be desirable. However, it doesn't look like it's been updated to 0.15, and the level of completion of the library is in question. 
@@ -73,4 +72,4 @@ It seems that any dynamically added event listener (which is what the elm-runtim
             })```) must explicitly reference the files attribute of the returned
 DOM object, e.g. using `this.files`, which Elm has no way of knowing or automatically generating by the looks of it, as the existing JSON.decode will operate on JSON objects, but not on DOM nodes. So, I think a Native library will be needed to address this, and that's a can of worms that I've been slowly working my way through anyways. Somewhat frustrating, but necessary if we're going to allow downloading/uploading of files (which is a massive boon to usability).
 
-**Let Ravi know about the writing of a simple Native library, and think of sensible Graphics.Input-like abstraction to handle reading of files. Also figure out how FileReader is meant to work**
+**Holding off on this until a later time, as writing a Native library will require a significant investment of time.**
