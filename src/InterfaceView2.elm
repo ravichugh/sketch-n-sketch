@@ -493,16 +493,20 @@ nextButton i (n,l) =
 
 saveButton : Model -> Int -> Int -> GE.Element
 saveButton model w h =
-    Html.toElement w h <|
-      Html.button
-        [ buttonAttrs w h
-        , Events.onClick taskMailbox.address (saveStateLocally model.exName model)
-        , Attr.value "Save"
-        , Attr.name "Save"
-        , Attr.title "Saves Code and Page Layout to Persistent Browser Storage"
-        , Attr.disabled False
-        ]
-        [ Html.text "Save" ]
+    let dispname = if | List.any ((==) model.exName << fst) Examples.list ->
+                            "Save As"
+                      | otherwise -> "Save"
+    in 
+      Html.toElement w h <|
+        Html.button
+          [ buttonAttrs w h
+          , Events.onClick taskMailbox.address (saveStateLocally model.exName model)
+          , Attr.value dispname
+          , Attr.name dispname
+          , Attr.title "Saves Code and Page Layout to Persistent Browser Storage"
+          , Attr.disabled False
+          ]
+          [ Html.text dispname ]
 
 loadButton : Model -> Int -> Int -> GE.Element
 loadButton model w h =
@@ -606,44 +610,43 @@ saveElement model w h = case model.mode of
                                   T.style titleStyle
                                   (T.fromString "Save Work to Browser")
                               ]
-                           , GE.spacer 160 20
+                           , GE.spacer 160 10
                            , GE.flow GE.right
                               [ Html.toElement 200 40
                                   <| Html.input
-                                     ([ Attr.type' "text"
+                                      [ Attr.type' "text"
                                       , Attr.style 
                                           [ ("height", "32px")
                                           , ("width", "192px")
                                           , ("padding", "4px")
                                           , ("border-width", "0px")
+                                          , ("pointer-events", "auto")
                                           ]
-                                      , Attr.placeholder "Input File name"
+                                      , Attr.value model.fieldContents.value
+                                      , Attr.placeholder
+                                            model.fieldContents.hint
                                       , Attr.autofocus True
                                       , Events.on "input" Events.targetValue
                                           (\cont -> Signal.message events.address
                                             <| UpdateModel
                                               (\model ->
                                                   { model | fieldContents <-
-                                                              cont
+                                                              { value = cont
+                                                              , hint =
+                                                                  model.fieldContents.hint }  
                                                   }
                                               )
                                           )
-                                      ] ++ (case model.fieldContents of
-                                          "" -> []
-                                          x  -> [ Attr.value x ]))
+                                      ]
                                       []
                               , GI.button
                                   (Signal.message taskMailbox.address
                                       <| checkAndSave 
-                                                  model.fieldContents
+                                                  model.fieldContents.value
                                                   model
                                   )
                                   "Create Save"
                               ]
-                           , GE.size 75 30 <| GI.button
-                                (Signal.message events.address <|
-                                    UpdateModel <| removeDialog False "")
-                                "Cancel"
                            , GE.spacer 160 10
                            , GE.flow GE.right
                               [ GE.spacer 47 50 
@@ -654,7 +657,14 @@ saveElement model w h = case model.mode of
                                   ++ "the same name. You must choose a\n"
                                   ++ "name different than a built-in example.")
                               ]
-                              
+                           , GE.spacer 160 10
+                           , GE.flow GE.right
+                               [ GE.spacer 112 30 
+                               , GE.size 75 30 <| GI.button
+                                  (Signal.message events.address <|
+                                    UpdateModel <| removeDialog False "")
+                                  "Cancel"
+                               ]
                            ]
       in GE.flow GE.outward [ dimBox, pickBox ]
   _ -> GE.empty 

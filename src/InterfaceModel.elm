@@ -33,7 +33,7 @@ type alias Model =
   , editingMode : Bool
   , caption : Maybe Caption
   , localSaves : List String
-  , fieldContents : String
+  , fieldContents : DialogInfo 
   , startup : Bool
   }
 
@@ -41,6 +41,9 @@ type Mode
   = AdHoc | SyncSelect Int PossibleChanges | Live Sync.LiveInfo
   | Print RawSvg | SaveDialog Mode -- SaveDialog saves last mode
 
+type alias DialogInfo = { value : String
+                        , hint   : String
+                        }
 
 type alias RawSvg = String
 
@@ -108,7 +111,7 @@ sampleModel =
     , editingMode   = False
     , caption       = Nothing
     , localSaves    = []
-    , fieldContents = ""
+    , fieldContents = { value = "", hint = "Input File Name" }
     , startup       = True
     }
 

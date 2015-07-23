@@ -96,6 +96,8 @@ strToModel =
                              , showZones <- partial.showZones
                              , midOffsetX <- partial.midOffsetX
                              , midOffsetY <- partial.midOffsetY
+                             , fieldContents <- { value = ""
+                                                , hint = "Input File Name" }
             }
         )
 
@@ -146,14 +148,20 @@ invalidInput : Model -> Model
 invalidInput oldmodel =
     let oldcontents = oldmodel.fieldContents
     in
-        { oldmodel | fieldContents <- "Invalid File Name" } 
+        { oldmodel | fieldContents <- { value = ""
+                                      , hint = "Invalid File Name" } }
 
 -- Task to load state from local browser storage
 loadLocalState : String -> Task String ()
-loadLocalState saveName = getItem saveName strToModel
-    `andThen` \loadedModel -> 
-        send events.address <| 
-            InterfaceModel.UpdateModel <| installLocalState saveName loadedModel
+loadLocalState saveName = 
+    case List.filter ((==) saveName << fst) Examples.list of
+        (name, thunk) :: rest ->
+            send events.address <| InterfaceModel.SelectExample saveName thunk
+        _ -> getItem saveName strToModel
+                `andThen` \loadedModel -> 
+                    send events.address <| 
+                        InterfaceModel.UpdateModel <| 
+                            installLocalState saveName loadedModel
 
 -- Function to update model upon state load
 installLocalState : String -> Model -> Model -> Model
