@@ -1,10 +1,26 @@
-module OurParser where
+module OurParser2 where
 
 import String
 import Debug
-import Lazy exposing (..)
+import Lazy exposing (Lazy, lazy, force)
 
-type alias Parser_ a = String -> List (a, String)
+type alias Pos         = { line : Int, col : Int}
+type alias WithPos a   = { val : a, pos : Pos }
+type alias WithInfo a  = { val : a, start : Pos, end : Pos }
+
+startPos               = { line = 1, col = 1}
+withPos val pos        = { val = val, pos = pos }
+withInfo val start end = { val = val, start = start, end = end }
+
+offsetBy : Pos -> String -> Pos
+offsetBy start s =
+  List.foldl addOneChar start (String.toList s)
+
+addOneChar c start =
+  if | c == '\n' -> { line = 1 + start.line, col = 1 }
+     | otherwise -> { start | col <- 1 + start.col }
+
+type alias Parser_ a = WithPos String -> List (WithInfo a, WithPos String)
 
 type Parser a
   = P     (Parser_ a)
@@ -14,24 +30,27 @@ type Parser a
 recursively : (() -> Parser a) -> Parser a
 recursively thunk = LazyP (lazy (\_ -> runParser (thunk ())))
 
-runParser : Parser a -> String -> List (a, String)
+runParser : Parser a -> WithPos String -> List (WithInfo a, WithPos String)
 runParser p =
   case p of
     P f         -> f
     LazyP thunk -> force thunk
 
-parse : Parser a -> String -> Result String a
+parse : Parser a -> String -> Result String (WithInfo a)
 parse p s =
-  case runParser p s of
-    [(s,"")] -> Ok s
-    [(_,_)]  -> Err "incomplete parse"
-    []       -> Err ("no parse\n\n" ++ s)
-    l        -> Err ("ambiguous parse\n\n" ++ toString l)
+  case runParser p (withPos s startPos) of
+    [(s,{val})] -> if
+      | val == "" -> Ok s
+      | otherwise -> Err "incomplete parse"
+    [] -> Err ("no parse\n\n" ++ s)
+    l  -> Err ("ambiguous parse\n\n" ++ toString l)
 
 return : a -> Parser a
-return x = P (\s -> [(x,s)])
+return x = P (\s -> [(WithInfo x s.pos s.pos, s)])
 
-bind : Parser a -> (a -> Parser b) -> Parser b
+returnWithInfo x start end = P (\s -> [(WithInfo x start end, s)])
+
+bind : Parser a -> (WithInfo a -> Parser b) -> Parser b
 bind pa f = P <| \s ->
   List.concat (List.map (\(a,s') -> runParser (f a) s') (runParser pa s))
 
@@ -43,29 +62,33 @@ sequence p1 p2 = bind p1 (always p2)
 
 satisfy : (Char -> Bool) -> Parser Char
 satisfy f = P <| \s ->
-  case String.uncons s of
-    Just (c,s') -> if | f c       -> [(c,s')]
-                      | otherwise -> []
-    Nothing     -> []
+  case String.uncons s.val of
+    Just (c,s') -> if
+      | not (f c) -> []
+      | otherwise ->
+          let start = s.pos in
+          let end   = start `offsetBy` String.fromChar c in
+          [(withInfo c start end, withPos s' end)]
+    Nothing -> []
 
 char : Char -> Parser Char
 char c = satisfy ((==) c)
 
 string : String -> Parser String
 string str = P <| \s ->
-  if String.startsWith str s
-  then let n = String.length str in [(str, String.dropLeft n s)]
-  else []
+  if not (String.startsWith str s.val) then []
+  else
+    let n     = String.length str in
+    let start = s.pos in
+    let end   = start `offsetBy` str in
+    [(withInfo str start end, withPos (String.dropLeft n s.val) end)]
 
 map : (a -> b) -> Parser a -> Parser b
 map f p = P <| \s ->
-  List.map (\(x,s') -> (f x, s')) (runParser p s)
+  List.map (\(x,s') -> (withInfo (f x.val) x.start x.end, s')) (runParser p s)
 
 token : String -> Parser ()
 token = map (always ()) << string
-
-end : Parser ()
-end = P <| \s -> if | s == "" -> [((),"")] | otherwise -> []
 
 fail : Parser a
 fail = P (always [])
@@ -87,7 +110,10 @@ munch f = P <| \s ->
       Just (c,s') -> if | f c       -> walk (String.cons c acc) s'
                         | otherwise -> (String.reverse acc, s)
   in
-  [walk "" s]
+  let (pre,suf) = walk "" s.val in
+  let start     = s.pos in
+  let end       = start `offsetBy` pre in
+  [(withInfo pre start end, withPos suf end)]
 
 munch1 : (Char -> Bool) -> Parser String
 munch1 f = P <| \s ->
@@ -106,10 +132,10 @@ choice ps =
 
 between : Parser open_ -> Parser close_ -> Parser a -> Parser a
 between p1 p2 p =
-  p1 >>>
+  p1 >>= \a ->
   p  >>= \x ->
-  p2 >>>
-    return x
+  p2 >>= \b ->
+    returnWithInfo x.val a.start b.end
 
 option : a -> Parser a -> Parser a
 option default p = p +++ return default
@@ -124,7 +150,7 @@ some : Parser a -> Parser (List a)
 some p =
   p      >>= \x  ->
   many p >>= \xs ->
-    return (x::xs)
+    returnWithInfo (x.val :: xs.val) x.start xs.end
 
 sepBy : Parser a -> Parser sep -> Parser (List a)
 sepBy p sep = return [] +++ sepBy1 p sep
@@ -133,8 +159,8 @@ sepBy1 : Parser a -> Parser sep -> Parser (List a)
 sepBy1 p sep =
   p                >>= \x ->
   many (sep >>> p) >>= \xs ->
-    return (x::xs)
-  
+    returnWithInfo (x.val :: xs.val) x.start xs.end
+ 
 (+++) = or
 (<++) = left_or
 (<$>) = map
