@@ -43,6 +43,8 @@ freshen_ k e = case e of
                   Nothing -> (EList es' Nothing, k')
                   Just e  -> let (e',k'') = freshen_ k' e in
                              (EList es' (Just e'), k'')
+  EIndList rs -> let (rs', k') = freshenRanges k rs
+                 in (EIndList rs', k')
   EIf e1 e2 e3 -> let ([e1',e2',e3'],k') = freshenExps k [e1,e2,e3] in
                   (EIf e1' e2' e3', k')
   ELet kind b p e1 e2 ->
@@ -61,6 +63,13 @@ freshenExps k es =
   List.foldr (\e (es',k') ->
     let (e1,k1) = freshen_ k' e in
     (e1::es', k1)) ([],k) es
+
+freshenRanges : Int -> List ERange
+freshenRanges k rs =
+  List.foldr (\(l,u) (rs',k') ->
+    let (l1,k1) = freshen_ k' l1
+        (u1,k2) = freshen_ k1 u1
+    in ((l1,u1) :: rs', k2)) ([],k) rs
 
 addBreadCrumbs pe = case pe of
   (PVar x, EConst n (k, b, "")) -> EConst n (k, b, x)
@@ -91,6 +100,7 @@ substOf_ s e = case e of
   EList es m -> case m of
                   Nothing -> substOfExps_ s es
                   Just e  -> substOfExps_ s (e::es)
+  EIndList rs -> substOfRanges_ s rs
   EIf e1 e2 e3 -> substOfExps_ s [e1,e2,e3]
   ECase e1 l   -> substOfExps_ s (e1 :: List.map snd l)
   ELet _ _ _ e1 e2 -> substOfExps_ s [e1,e2]  -- TODO
@@ -100,6 +110,9 @@ substOfExps_ s es = case es of
   []     -> s
   e::es' -> substOfExps_ (substOf_ s e) es'
 
+substOfRanges_ s rs = case rs of
+  [] -> s
+  (l,u) :: rs' -> substOfRanges_ (substOf_ (substOf_ s l) u) rs'
 
 ------------------------------------------------------------------------------
 

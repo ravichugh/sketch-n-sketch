@@ -66,6 +66,10 @@ eval env e =
       Just rest -> case eval_ env rest of
                      VList vs' -> ret <| VList (vs ++ vs')
 
+  EIndList rs -> 
+      let vrs = List.map (\(l,u) -> (eval_ env l, eval_ env u)) rs
+      in ret <| VIndList vrs
+
   EIf e1 e2 e3 ->
     case eval_ env e1 of
       VBase (Bool True)  -> eval env e2
