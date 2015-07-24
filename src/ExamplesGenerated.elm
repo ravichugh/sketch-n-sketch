@@ -1,14 +1,14 @@
 module ExamplesGenerated (list, scratchName, scratch) where
 
 import Lang
-import LangParser
+import LangParser2 as Parser
 import Eval
 import MicroTests
 import Utils
 
 makeExample name s =
   let thunk () =
-    let e = Utils.fromOk_ (LangParser.parseE s) in
+    let e = Utils.fromOk_ (Parser.parseE s) in
     let v = Eval.run e in
     {e=e, v=v}
   in
@@ -16,8 +16,8 @@ makeExample name s =
 
 scratchName = "*Scratch*"
 
-scratch = "
-;
+scratch =
+ ";
 ; Write a little program below.
 ; Or choose an example from the list.
 ;
@@ -30,8 +30,8 @@ scratch = "
 
 "
 
-threeBoxes = "
-(def threeBoxesInt
+threeBoxes =
+ "(def threeBoxesInt
   (let [x0 y0 w h sep] [40 28 60 130 110]
   (let boxi (\\i
     (let xi (+ x0 (mult i sep))
@@ -42,8 +42,8 @@ threeBoxesInt
 
 "
 
-sixBoxesA = "
-; Both x- and y-spacing is controlled by sep.
+sixBoxesA =
+ "; Both x- and y-spacing is controlled by sep.
 ;
 (let [x0 y0 sep] [10 28 60]
 (svg
@@ -52,8 +52,8 @@ sixBoxesA = "
 
 "
 
-sixBoxesB = "
-; x-spacing is controlled by xsep, y-spacing by ysep.
+sixBoxesB =
+ "; x-spacing is controlled by xsep, y-spacing by ysep.
 ;
 (let [x0 y0 xsep ysep] [10 28 60 60]
 (svg
@@ -62,8 +62,8 @@ sixBoxesB = "
 
 "
 
-logo = "
-; sketch-n-sketch logo
+logo =
+ "; sketch-n-sketch logo
 ;
 (let [x0 y0 w h delta] [50 50 200 200 10]
 (let [xw yh w2 h2] [(+ x0 w) (+ y0 h) (div w 2) (div h 2)]
@@ -86,8 +86,8 @@ logo = "
 
 "
 
-elmLogo = "
-; Elm logo, based on:
+elmLogo =
+ "; Elm logo, based on:
 ; https://github.com/evancz/elm-svg/blob/1.0.2/examples/Logo.elm
 ;
 ; Notice how the 'viewBox' attribute puts the canvas in
@@ -110,8 +110,8 @@ elmLogo = "
 
 "
 
-activeTrans = "
-;
+activeTrans =
+ ";
 ; Logo based on Active Transportation Alliance
 ; (http://activetrans.org/)
 ;
@@ -173,8 +173,8 @@ activeTrans = "
 
 "
 
-botanic = "
-;
+botanic =
+ ";
 ; Logo: Chicago Botanic Garden
 ;
 ; Click '[Zones]' to see the control points for
@@ -212,8 +212,8 @@ botanic = "
 
 "
 
-rings = "
-(let [x0 y0 w r dx dy] [30 30 7 20 32 20]
+rings =
+ "(let [x0 y0 w r dx dy] [30 30 7 20 32 20]
 (let dxHalf (div dx 2)
 ;
 (let row1
@@ -228,8 +228,8 @@ rings = "
 
 "
 
-polygons = "
-(let ngon (\\(n cx cy len1 len2)
+polygons =
+ "(let ngon (\\(n cx cy len1 len2)
   (let dangle (/ (* 3! (pi)) 2!)
   (let anglei (\\i (+ dangle (/ (* i (* 2! (pi))) n)))
   (let xi     (\\i (+ cx (* len1 (cos (anglei i)))))
@@ -247,8 +247,8 @@ polygons = "
 
 "
 
-stars = "
-;
+stars =
+ ";
 (let nStar (\\(fill stroke w n len1 len2 rot cx cy)
   (let pti (\\[i len]
     (let anglei (+ (- (/ (* i (pi)) n) rot) halfPi)
@@ -272,8 +272,8 @@ stars = "
 
 "
 
-sliders = "
-;
+sliders =
+ ";
 ; The ni constants get adjusted by the sliders,
 ; and then clamped to fit within the [min, max] range.
 ; Also try changing the min and max constants below.
@@ -329,8 +329,8 @@ sliders = "
 
 "
 
-buttons = "
-;
+buttons =
+ ";
 (let button_ (\\(dropBall xStart y caption xCur)
   (let [rPoint wLine rBall wSlider] [4! 3! 10! 70!]
   (let xEnd (+ xStart wSlider)
@@ -351,8 +351,8 @@ buttons = "
 
 "
 
-widgets = "
-; library widgets
+widgets =
+ "; library widgets
 ;
 (let [n  s1] (hSlider false 20! 90!  20! 0! 5! 'n = ' 3.1415)
 (let [i  s2] (hSlider true  20! 90!  50! 0! 5! 'i = ' 3.1415)
@@ -362,8 +362,8 @@ widgets = "
 
 "
 
-xySlider = "
-; A two dimensional slider in a similar style to the other sliders
+xySlider =
+ "; A two dimensional slider in a similar style to the other sliders
 (def xySlider_
   (\\(dropBall roundInt xStart xEnd yStart yEnd minx maxx miny maxy xcaption ycaption curx cury)
     (def [rCorner wEdge rBall] [4! 3! 10!])
@@ -399,8 +399,8 @@ xySlider = "
 
 "
 
-rgba = "
-;
+rgba =
+ ";
 ; A Color Picker
 ; 
 ; Move the sliders to change the rgba
@@ -420,8 +420,8 @@ rgba = "
 
 "
 
-boxGrid = "
-; A grid of boxes that can be enlarged with a slider
+boxGrid =
+ "; A grid of boxes that can be enlarged with a slider
 ;
 ; Specifies the overlaid slider
 (def xySlider_
@@ -486,8 +486,8 @@ boxGrid = "
 
 "
 
-usFlag13 = "
-;
+usFlag13 =
+ ";
 ; Original flag of the United States
 ;
 ; A few ways to mainpulate this example:
@@ -524,8 +524,8 @@ usFlag13 = "
 
 "
 
-usFlag50 = "
-;
+usFlag50 =
+ ";
 ; Current Flag of the United States
 ; (using circles for now, since 50 stars is slow)
 ;
@@ -556,8 +556,8 @@ usFlag50 = "
 
 "
 
-chicago = "
-;
+chicago =
+ ";
 ; The flag of Chicago
 ;
 ; Possible ways to manipulate
@@ -583,8 +583,8 @@ chicago = "
 
 "
 
-frenchSudan = "
-;
+frenchSudan =
+ ";
 ; The Flag of French Sudan, based on:
 ;
 ; A few ways to manipulate:
@@ -622,8 +622,8 @@ frenchSudan = "
 
 "
 
-flw1 = "
-;
+flw1 =
+ ";
 ; A Frank Lloyd Wright design inspired by:
 ; http://www.glass-by-design.com/images3/skylight3.jpg
 ;
@@ -670,8 +670,8 @@ flw1 = "
 
 "
 
-flw2 = "
-;
+flw2 =
+ ";
 ; A Frank Lloyd Wright design based on:
 ; http://www.glass-by-design.com/images3/skylight3.jpg
 ;
@@ -729,8 +729,8 @@ flw2 = "
 
 "
 
-ferris = "
-;
+ferris =
+ ";
 ; Take this ferris wheel for a spin!
 ;
 ; Try:
@@ -764,8 +764,8 @@ ferris = "
 
 "
 
-pieChart1 = "
-; A Pie Chart
+pieChart1 =
+ "; A Pie Chart
 ;
 ; Move the sliders to change the size of a particular slice
 ;
@@ -810,8 +810,8 @@ pieChart1 = "
 (svg (cons (circle 'lightgray' cx cy (* 1.1 r)) (append (append sliders swatches) pie))))))))))))))))))))
 "
 
-solarSystem = "
-; Visualization of the solar system 
+solarSystem =
+ "; Visualization of the solar system 
 ;
 ; The slider on top controls the \"animation.\"
 ; Try changing the size of a planet in one frame,
@@ -855,8 +855,8 @@ solarSystem = "
 
 "
 
-fractalTree = "
-; A fractal tree
+fractalTree =
+ "; A fractal tree
 ;
 (defrec mod (\\(x m) (if (< x m) x (mod (- x m) m))))
 (def nsin (\\n (if (< n (/ 3.14159 2)) (sin n) (cos (mod n (/ 3.14159 2))))))
@@ -899,8 +899,8 @@ fractalTree = "
 
 "
 
-stickFigures = "
-;
+stickFigures =
+ ";
 ; A diagram of a sketch-n-sketch demo w/ audience
 ;
 (let [x0 y0 w h] [60 -22 417! 915!]
@@ -968,8 +968,8 @@ stickFigures = "
 
 "
 
-cultOfLambda = "
-;
+cultOfLambda =
+ ";
 ; Cult of Lambda
 ;
 ; Some fun 
@@ -1036,8 +1036,8 @@ cultOfLambda = "
 
 "
 
-clique = "
-;
+clique =
+ ";
 ; A six node clique
 ;
 (let node (\\[x y] (circle 'lightblue' x y 20))
@@ -1056,8 +1056,8 @@ clique = "
 
 "
 
-miscShapes = "
-(let [x y] [200 150] (svg [
+miscShapes =
+ "(let [x y] [200 150] (svg [
   (rect '#999999'  50 10 80 130)
   (circle 'lightblue' 300 100 50)
   (ellipse 'orange' 40 280 30 50)
@@ -1068,8 +1068,8 @@ miscShapes = "
 
 "
 
-paths1 = "
-(svg [
+paths1 =
+ "(svg [
   (path_ ['M' 10 10 'H' 90 'V' 90 'H' 10 'L' 10 10 'Z'])
   (path_ ['M' 20 20 'L' 60 20 'L' 60 80 'Z'])
   (path_ ['M' 150 0 'L' 75 200 'L' 225 200 'Z'])
@@ -1077,8 +1077,8 @@ paths1 = "
 
 "
 
-paths2 = "
-; Adapted from:
+paths2 =
+ "; Adapted from:
 ; https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
 ;
 ; Turn on the zones to see the Bezier control points.
@@ -1098,8 +1098,8 @@ paths2 = "
 
 "
 
-paths3 = "
-(svg [
+paths3 =
+ "(svg [
   (path_ ['M' 10 80 'C' 40 10 65 10 95 80 'S' 150 150 180 80])
   (path_ ['M' 10 80 'Q' 95 10 180 80])
   (path_ ['M' 10 80 'Q' 52.5 10 95 80 'T' 180 80])
@@ -1107,8 +1107,8 @@ paths3 = "
 
 "
 
-paths4 = "
-; Adapted from:
+paths4 =
+ "; Adapted from:
 ; https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
 ;
 (svg [
@@ -1125,8 +1125,8 @@ paths4 = "
 
 "
 
-paths5 = "
-; Adapted from:
+paths5 =
+ "; Adapted from:
 ; https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
 ;
 (svg [
@@ -1142,8 +1142,8 @@ paths5 = "
 
 "
 
-sailBoat = "
-; A sail boat on the ocean
+sailBoat =
+ "; A sail boat on the ocean
 ;
 ; Try mainupulating:
 ;   - The position of the boat by dragging the sail
@@ -1201,8 +1201,8 @@ sailBoat = "
     boat]))
 "
 
-eyeIcon = "
-; An eye icon
+eyeIcon =
+ "; An eye icon
 ; Recreation of https://commons.wikimedia.org/wiki/Category:SVG_eye_icons#/media/File:Eye_open_font_awesome.svg
 ;
 ; Try unfreezing:
@@ -1308,8 +1308,8 @@ eyeIcon = "
 (svg  [outerBorder innerBorder cornea glint])
 "
 
-wikimedia = "
-; Wikimedia Logo
+wikimedia =
+ "; Wikimedia Logo
 ; Recreation of https://upload.wikimedia.org/wikipedia/commons/8/81/Wikimedia-logo.svg
 ;
 ; The white objects are an example of using masks as opposed to paths to create
@@ -1342,8 +1342,8 @@ wikimedia = "
 (svg [blueCirc whiteRing greenCirc whiteWedge whiteBar redDot])
 "
 
-haskell = "
-; Haskell.org Logo
+haskell =
+ "; Haskell.org Logo
 ; SVG version of https://www.haskell.org/static/img/logo.png?etag=rJR84DMh
 ;
 ; Try making a slider for the bend amount to adjust that parameter indirectly.
@@ -1409,8 +1409,8 @@ haskell = "
 (svg (append [leftWedge lambda] equals))
 "
 
-matrices = "
-; Definitions for 2D matrices and transform application
+matrices =
+ "; Definitions for 2D matrices and transform application
 ;
 ; Similar to the SVG transform operation
 ; See https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/transform

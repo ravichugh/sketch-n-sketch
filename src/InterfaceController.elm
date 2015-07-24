@@ -1,7 +1,7 @@
 module InterfaceController (upstate) where
 
 import Lang exposing (..) --For access to what makes up the Vals
-import LangParser exposing (parseE, parseV)
+import LangParser2 exposing (parseE, parseV)
 import Sync
 import Eval exposing (run)
 import Utils

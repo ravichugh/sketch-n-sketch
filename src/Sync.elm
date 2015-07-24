@@ -11,7 +11,7 @@ import String
 import Lang exposing (..)
 import LangSvg exposing (NodeId, ShapeKind, Zone, addi)
 import Eval
-import LangParser
+import LangParser2 as Parser
 
 
 type alias Options =
@@ -119,7 +119,7 @@ locsOfTrace opts =
   let foo t = case t of
     TrLoc l ->
       let (_,b,_) = l in
-      if | LangParser.isPreludeLoc l     -> Set.empty
+      if | Parser.isPreludeLoc l         -> Set.empty
          | b == frozen                   -> Set.empty
          | b == unann && frozenByDefault -> Set.empty
          | otherwise                     -> Set.singleton l
@@ -297,7 +297,7 @@ inferLocalUpdates opts e v v' =
     Just (Same _) -> Ok []
     Just (Diff vc holeSubst) ->
       let newNew = getFillers holeSubst in
-      let subst0 = LangParser.substOf e in
+      let subst0 = Parser.substOf e in
       let substs = inferSubsts opts subst0 newNew in
       let res =
         List.sortBy snd <|
@@ -328,13 +328,13 @@ stripSvg (VList [VBase (String "svg"), VList vs1, VList vs2]) = (vs1, vs2)
 
 idOldShapes  = "oldCanvas"
 idNewShape i = "newShape" ++ toString i
-eOldShapes   = EVar idOldShapes
-eNewShape i  = EVar (idNewShape i)
+eOldShapes   = eVar idOldShapes
+eNewShape i  = eVar (idNewShape i)
 
 addComments = False -- CONFIG
 
 comment s e =
-  if | addComments -> EComment s e
+  if | addComments -> eComment s e
      | otherwise   -> e
 
 inferStructuralUpdate : Exp -> Val -> Val -> (Exp, Val)
@@ -353,13 +353,13 @@ inferStructuralUpdate eOld v v' =
     let es =
       List.map (\(i,_) ->
         let n = toFloat i in
-        ePair (EConst n dummyLoc) (eNewShape i)) diff in
-      EApp (EVar "updateCanvas") [eOldShapes, EList es Nothing] in
+        ePair (eConst n dummyLoc) (eNewShape i)) diff in
+      eApp (eVar "updateCanvas") [eOldShapes, eList es Nothing] in
 
   let bindings =
     List.map (\(i,vi) ->
       -- going through parser to avoid adding EVal
-      let ei = Utils.fromOk "Sync.addNew" (LangParser.parseE (strVal vi)) in
+      let ei = Utils.fromOk "Sync.addNew" (Parser.parseE (strVal vi)) in
       (idNewShape i, ei)) diff in
 
   let eNew_ =
@@ -376,7 +376,7 @@ inferStructuralUpdate eOld v v' =
               eNewCanvas in
 
   -- going through parser so that new location ids are assigned
-  let eNew = Utils.fromOk "Sync.inferStruct" (LangParser.parseE (sExp eNew_)) in
+  let eNew = Utils.fromOk "Sync.inferStruct" (Parser.parseE (sExp eNew_)) in
   (eNew, Eval.run eNew)
 
 
@@ -666,7 +666,7 @@ prepareLiveUpdates opts e v =
   let d0 = nodeToAttrLocs v in
   let d1 = shapesToZoneTable opts d0 in
   let d2 = assignTriggers d1 in
-  let initSubst = LangParser.substOf e in
+  let initSubst = Parser.substOf e in
     { triggers    = makeTriggers initSubst opts e d0 d2
     , assignments = zoneAssignments d2
     , initSubst   = initSubst
