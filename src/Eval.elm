@@ -160,9 +160,10 @@ evalDelta op is =
     (Round,  [n])   -> toFloat <| round n
     _               -> Debug.crash <| "Eval.evalDelta " ++ strOp op
 
+initEnv = snd (eval [] prelude)
+
 run : Exp -> Val
 run e =
-  let initEnv = snd (eval [] prelude) in
   eval_ initEnv e
 
 parseAndRun : String -> String
