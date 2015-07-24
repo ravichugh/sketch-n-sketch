@@ -716,57 +716,46 @@ view (w,h) model =
   let botSection = GE.spacer wAll hBot in
   let sideGutter = colorDebug Color.black <| GE.spacer wGut hTot in
 
+  let basicUI =
+    GE.flow GE.right
+       [ sideGutter
+       , GE.flow GE.down
+           [ colorDebug Color.lightYellow <| topSection
+           , midSection
+           , colorDebug Color.lightYellow <| botSection
+           ]
+       , sideGutter
+       ]
+  in
 
   -- Runs a task at startup by making the whole window hoverable briefly, which
   -- fires the task to the taskMailbox basically right away (the user's mouse is
   -- presumably over the window). Note that it is important to add the event
   -- handler to a dummy object that is removed, as adding it to the whole body
   -- results in nothing being clickable after the load is successful.
-  case model.startup of 
-      True -> GE.flow GE.inward 
-          [ GI.hoverable (\_ -> 
-                Signal.message taskMailbox.address 
-                    (getLocalSaves -- Insert more tasks to run at startup here
-                        `andThen` 
-                            \_ -> Signal.send events.address 
-                                (UpdateModel (\m -> { m | startup <- False}))))
-            <| GE.spacer w h
-          , GE.flow GE.right
-                [ sideGutter
-                , GE.flow GE.down
-                  [ colorDebug Color.lightYellow <| topSection
-                  , midSection
-                  , colorDebug Color.lightYellow <| botSection
-                  ]
-                , sideGutter
-                ]
-          ]
-      False ->
-        case model.mode of
-          SaveDialog m ->
-                GE.flow GE.inward
-                  [ saveElement model w h
-                  , (GE.flow GE.right
-                      [ sideGutter
-                      , GE.flow GE.down
-                          [ colorDebug Color.lightYellow <| topSection
-                          , midSection
-                          , colorDebug Color.lightYellow <| botSection
-                          ]
-                      , sideGutter
-                      ]
-                    )
-                  ]
-          _ -> 
-              GE.flow GE.right
-                [ sideGutter
-                , GE.flow GE.down
-                  [ colorDebug Color.lightYellow <| topSection
-                  , midSection
-                  , colorDebug Color.lightYellow <| botSection
-                  ]
-                , sideGutter
-                ]
+
+  case (model.startup, model.mode) of
+    (True, _) ->
+      let foo _ =
+        Signal.message taskMailbox.address <|
+          -- Insert more tasks to run at startup here
+          getLocalSaves `andThen` \_ ->
+          Signal.send
+            events.address
+            (UpdateModel (\m -> { m | startup <- False}))
+      in
+      GE.flow GE.inward
+        [ GI.hoverable foo <| GE.spacer w h
+        , basicUI
+        ]
+    (False, SaveDialog m) ->
+      GE.flow GE.inward
+        [ saveElement model w h
+        , basicUI
+        ]
+    _ ->
+      basicUI
+
 
 -- TODO: add onMouseUp DeselectObject event to all GE.Elements...
 
