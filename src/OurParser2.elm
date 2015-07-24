@@ -9,8 +9,7 @@ type alias WithPos a   = { val : a, pos : Pos }
 type alias WithInfo a  = { val : a, start : Pos, end : Pos }
 
 startPos               = { line = 1, col = 1}
-withPos val pos        = { val = val, pos = pos }
-withInfo val start end = { val = val, start = start, end = end }
+dummyPos               = { line = -1, col = -1 }
 
 offsetBy : Pos -> String -> Pos
 offsetBy start s =
@@ -38,12 +37,12 @@ runParser p =
 
 parse : Parser a -> String -> Result String (WithInfo a)
 parse p s =
-  case runParser p (withPos s startPos) of
+  case runParser p (WithPos s startPos) of
     [(s,{val})] -> if
       | val == "" -> Ok s
       | otherwise -> Err "incomplete parse"
     [] -> Err ("no parse\n\n" ++ s)
-    l  -> Err ("ambiguous parse\n\n" ++ toString l)
+    l  -> Err ("ambiguous parse\n\n" ++ toString (List.map (.val << fst) l))
 
 return : a -> Parser a
 return x = P (\s -> [(WithInfo x s.pos s.pos, s)])
@@ -68,7 +67,7 @@ satisfy f = P <| \s ->
       | otherwise ->
           let start = s.pos in
           let end   = start `offsetBy` String.fromChar c in
-          [(withInfo c start end, withPos s' end)]
+          [(WithInfo c start end, WithPos s' end)]
     Nothing -> []
 
 char : Char -> Parser Char
@@ -81,14 +80,17 @@ string str = P <| \s ->
     let n     = String.length str in
     let start = s.pos in
     let end   = start `offsetBy` str in
-    [(withInfo str start end, withPos (String.dropLeft n s.val) end)]
+    [(WithInfo str start end, WithPos (String.dropLeft n s.val) end)]
 
 map : (a -> b) -> Parser a -> Parser b
 map f p = P <| \s ->
-  List.map (\(x,s') -> (withInfo (f x.val) x.start x.end, s')) (runParser p s)
+  List.map (\(x,s') -> (WithInfo (f x.val) x.start x.end, s')) (runParser p s)
 
 token : String -> Parser ()
 token = map (always ()) << string
+
+end : Parser ()
+end = token ""
 
 fail : Parser a
 fail = P (always [])
@@ -113,7 +115,7 @@ munch f = P <| \s ->
   let (pre,suf) = walk "" s.val in
   let start     = s.pos in
   let end       = start `offsetBy` pre in
-  [(withInfo pre start end, withPos suf end)]
+  [(WithInfo pre start end, WithPos suf end)]
 
 munch1 : (Char -> Bool) -> Parser String
 munch1 f = P <| \s ->
@@ -137,30 +139,34 @@ between p1 p2 p =
   p2 >>= \b ->
     returnWithInfo x.val a.start b.end
 
+-- NOTES:
+--  - the following are "munching" versions (<++ instead of +++)
+--  - lists of things are wrapped "deeply"
+
 option : a -> Parser a -> Parser a
-option default p = p +++ return default
+option default p = p <++ return default
 
 optional : Parser a -> Parser ()
-optional p = (p >>> return ()) +++ return ()
+optional p = (p >>> return ()) <++ return ()
 
-many : Parser a -> Parser (List a)
-many p = return [] +++ some p
+many : Parser a -> Parser (List (WithInfo a))
+many p = some p <++ return []
 
-some : Parser a -> Parser (List a)
+some : Parser a -> Parser (List (WithInfo a))
 some p =
   p      >>= \x  ->
   many p >>= \xs ->
-    returnWithInfo (x.val :: xs.val) x.start xs.end
+    returnWithInfo (x :: xs.val) x.start xs.end
 
-sepBy : Parser a -> Parser sep -> Parser (List a)
-sepBy p sep = return [] +++ sepBy1 p sep
+sepBy : Parser a -> Parser sep -> Parser (List (WithInfo a))
+sepBy p sep = sepBy1 p sep <++ return []
 
-sepBy1 : Parser a -> Parser sep -> Parser (List a)
+sepBy1 : Parser a -> Parser sep -> Parser (List (WithInfo a))
 sepBy1 p sep =
   p                >>= \x ->
   many (sep >>> p) >>= \xs ->
-    returnWithInfo (x.val :: xs.val) x.start xs.end
- 
+    returnWithInfo (x :: xs.val) x.start xs.end
+
 (+++) = or
 (<++) = left_or
 (<$>) = map
