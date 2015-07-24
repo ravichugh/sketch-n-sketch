@@ -6,6 +6,7 @@ import Sync
 import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Zone)
 import ExamplesGenerated as Examples
+import LangUnparser exposing (unparseE)
 
 import List 
 import Dict
@@ -89,7 +90,7 @@ sampleModel =
   in
     { scratchCode  = Examples.scratch
     , exName       = name
-    , code         = sExp e
+    , code         = unparseE e
     , inputExp     = Just e
     , slate        = LangSvg.valToIndexedTree v
     , mode         = mkLive Sync.defaultOptions e v

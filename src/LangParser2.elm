@@ -418,9 +418,10 @@ parseBranch =
     parsePat >>= \p -> oneWhite >>> parseExp >>= \e -> P.return (p,e)
 
 parseCommentExp =
-  token_ ";" >>>
+  token_ ";"                     >>= \semi ->
   P.many (P.satisfy ((/=) '\n')) >>= \cs ->
-  P.satisfy ((==) '\n') >>>
-  parseExp >>= \e ->
-    P.return (EComment (String.fromList (unwrapChars cs)) e)
-
+  P.satisfy ((==) '\n')          >>= \newline ->
+  parseExp                       >>= \e ->
+    P.returnWithInfo
+      (EComment (String.fromList (unwrapChars cs)) e)
+      semi.start newline.end
