@@ -2,11 +2,13 @@
 import InterfaceModel as Model exposing (events)
 import InterfaceView2 as View
 import InterfaceController as Controller
+import InterfaceStorage exposing (taskMailbox)
 
 import Graphics.Element exposing (Element)
 import Mouse 
 import Window 
 
+import Task exposing (Task)
 
 --------------------------------------------------------------------------------
 -- Main
@@ -24,8 +26,12 @@ main =
               |> Signal.map Model.MousePos
           ]
    in
-   Signal.map2 View.view Window.dimensions sigModel
+     Signal.map2 View.view Window.dimensions sigModel
 
 adjustCoords : (Int, Int) -> (Int, Int) -> (Int, Int)
 adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
 
+-- The necessary port for Tasks/Storage
+-- Due to current Elm limitations, this must be in the Main module
+port taskPort : Signal (Task String ())
+port taskPort = taskMailbox.signal

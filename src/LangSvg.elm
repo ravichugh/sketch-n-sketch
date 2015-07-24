@@ -321,6 +321,9 @@ type alias RootedIndexedTree = (NodeId, IndexedTree)
 
 children n = case n of {TextNode _ -> []; SvgNode _ _ l -> l}
 
+emptyTree : RootedIndexedTree
+emptyTree = valToIndexedTree <| VList [VBase (String "svg"), VList [], VList []]
+
 valToIndexedTree : Val -> RootedIndexedTree
 valToIndexedTree v =
   let (nextId,tree) = valToIndexedTree_ v (1, Dict.empty) in

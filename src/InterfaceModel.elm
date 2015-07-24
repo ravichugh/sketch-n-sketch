@@ -15,6 +15,8 @@ import String
 import Svg
 import Lazy
 
+import Task exposing (Task, succeed, andThen)
+
 type alias Model =
   { scratchCode : String
   , exName : String
@@ -30,11 +32,18 @@ type alias Model =
   , syncOptions : Sync.Options
   , editingMode : Bool
   , caption : Maybe Caption
+  , localSaves : List String
+  , fieldContents : DialogInfo 
+  , startup : Bool
   }
 
 type Mode
   = AdHoc | SyncSelect Int PossibleChanges | Live Sync.LiveInfo
-  | Print RawSvg
+  | Print RawSvg | SaveDialog Mode -- SaveDialog saves last mode
+
+type alias DialogInfo = { value : String
+                        , hint   : String
+                        }
 
 type alias RawSvg = String
 
@@ -87,19 +96,22 @@ sampleModel =
     (name,f) = Utils.head_ Examples.list
     {e,v}    = f ()
   in
-    { scratchCode  = Examples.scratch
-    , exName       = name
-    , code         = sExp e
-    , inputExp     = Just e
-    , slate        = LangSvg.valToIndexedTree v
-    , mode         = mkLive Sync.defaultOptions e v
-    , mouseMode    = MouseNothing
-    , orient       = Vertical
-    , midOffsetX   = 0
-    , midOffsetY   = -100
-    , showZones    = False
-    , syncOptions  = Sync.defaultOptions
-    , editingMode  = False
-    , caption      = Nothing
+    { scratchCode   = Examples.scratch
+    , exName        = name
+    , code          = sExp e
+    , inputExp      = Just e
+    , slate         = LangSvg.valToIndexedTree v
+    , mode          = mkLive Sync.defaultOptions e v
+    , mouseMode     = MouseNothing
+    , orient        = Vertical
+    , midOffsetX    = 0
+    , midOffsetY    = -100
+    , showZones     = False
+    , syncOptions   = Sync.defaultOptions
+    , editingMode   = False
+    , caption       = Nothing
+    , localSaves    = []
+    , fieldContents = { value = "", hint = "Input File Name" }
+    , startup       = True
     }
 

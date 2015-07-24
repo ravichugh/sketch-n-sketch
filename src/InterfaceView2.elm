@@ -21,12 +21,19 @@ import String
 import Graphics.Element as GE 
 import Graphics.Collage as GC
 import Graphics.Input as GI
+import Graphics.Input.Field as GIF
 import Text as T exposing (defaultStyle)
 import Color
 
 --Signaling Libraries
 import Mouse 
 import Window 
+import Task exposing (Task, andThen)
+
+--Storage Libraries
+import InterfaceStorage exposing (taskMailbox, saveStateLocally, loadLocalState,
+                                  checkAndSave, getLocalSaves, clearLocalSaves,
+                                  removeDialog)
 
 --Html Libraries
 import Html 
@@ -267,12 +274,12 @@ codebox_ w h event s readOnly =
            [ ("font-family", params.mainSection.codebox.font)
            , ("font-size", params.mainSection.codebox.fontSize)
            , ("border", params.mainSection.codebox.border)
-           -- TODO: "pre" preserves breaks on Firefox,
-           --   but still no horizontal scrollbars on Chome/Safari
            , ("whiteSpace", "pre")
            , ("height", "99%") , ("width", "99%")
            , ("resize", "none")
            , ("overflow", "auto")
+           -- Horizontal Scrollbars in Chrome
+           , ("word-wrap", "normal")
            ]
        , Attr.value s
        , Events.onMouseUp events.address MouseUp
@@ -309,11 +316,15 @@ middleWidgets w h wWrap hWrap model =
       (False, Print _) ->
         [ dropdownExamples model w h
         , editRunButton model w h
+        , saveButton model w h
+        , loadButton model w h
         , outputButton model w h
         ]
       (False, _) ->
         [ dropdownExamples model w h
         , editRunButton model w h
+        , saveButton model w h
+        , loadButton model w h
         , outputButton model w h
         , gapWidget w h
         , zoneButton model w h
@@ -323,6 +334,8 @@ middleWidgets w h wWrap hWrap model =
       (True, _) ->
         [ dropdownExamples model w h
         , editRunButton model w h
+        , saveButton model w h
+        , loadButton model w h
         ]
 
 gapWidget w h = GE.spacer w h
@@ -478,18 +491,52 @@ nextButton i (n,l) =
   let enabled = i < n + 2 in
   simpleButton_ (not enabled) (TraverseOption 1) "Next" "Next" "Show Next"
 
+saveButton : Model -> Int -> Int -> GE.Element
+saveButton model w h =
+    let dispname = if | List.any ((==) model.exName << fst) Examples.list ->
+                            "Save As"
+                      | otherwise -> "Save"
+    in 
+      Html.toElement w h <|
+        Html.button
+          [ buttonAttrs w h
+          , Events.onClick taskMailbox.address (saveStateLocally model.exName model)
+          , Attr.value dispname
+          , Attr.name dispname
+          , Attr.title "Saves Code and Page Layout to Persistent Browser Storage"
+          , Attr.disabled False
+          ]
+          [ Html.text dispname ]
+
+loadButton : Model -> Int -> Int -> GE.Element
+loadButton model w h =
+    Html.toElement w h <| 
+      Html.button
+        [ buttonAttrs w h
+        , Events.onClick taskMailbox.address  <| loadLocalState model.exName
+        , Attr.value "Revert"
+        , Attr.name "Revert"
+        , Attr.title 
+            "Reverts Code and Page Layout to last save by this name"
+        , Attr.disabled False
+        ]
+        [ Html.text "Revert" ]
+
 dropdownExamples : Model -> Int -> Int -> GE.Element
 dropdownExamples model w h =
-  let examples =
+  let choices =
     case model.mode of
-      AdHoc ->
-        let foo (name,thunk) = (name, Noop) in
-        List.map foo (List.filter ((==) model.exName << fst) Examples.list)
+      AdHoc -> [(model.exName, Signal.send events.address Noop)]
       _ ->
-        let foo (name,thunk) = (name, (SelectExample name thunk)) in
-        List.map foo Examples.list
+        let foo (name,thunk) = (name, Signal.send events.address (SelectExample name thunk)) 
+            bar saveName = (saveName, loadLocalState saveName)
+        in List.concat
+            [ (List.map bar model.localSaves)
+            , (List.map foo Examples.list)
+            , [("*Clear Local Saves*", clearLocalSaves)]
+            ]
   in
-  GI.dropDown (Signal.message events.address) examples
+    GI.dropDown (Signal.message taskMailbox.address) choices
 
 modeButton model =
   if model.mode == AdHoc
@@ -544,6 +591,89 @@ hoverInfo info (i,k,z) =
         if | x == ""   -> ("loc_" ++ toString lid, n)
            | otherwise -> (x, n)) locs
 
+-- The pop-up save dialog box
+saveElement : Model -> Int -> Int -> GE.Element
+saveElement model w h = case model.mode of
+  SaveDialog x -> 
+      -- Note that dimBox must not be a parent of the pickBox, as
+      -- opacity of a parent clobbers that of all its children
+      let dimBox = GE.color Color.black
+                      <| GE.opacity 0.5
+                      <| GE.spacer w h
+          pickBox = GE.container w h GE.middle  
+                      <| GE.color Color.darkGray
+                      <| GE.container 400 200 GE.middle
+                      <| GE.flow GE.down
+                           [ GE.flow GE.right
+                              [ GE.spacer 42 18 
+                              , GE.centered <|
+                                  T.style titleStyle
+                                  (T.fromString "Save Work to Browser")
+                              ]
+                           , GE.spacer 160 10
+                           , GE.flow GE.right
+                              [ Html.toElement 200 40
+                                  <| Html.input
+                                      [ Attr.type' "text"
+                                      , Attr.style 
+                                          [ ("height", "32px")
+                                          , ("width", "192px")
+                                          , ("padding", "4px")
+                                          , ("border-width", "0px")
+                                          , ("pointer-events", "auto")
+                                          ]
+                                      , Attr.value model.fieldContents.value
+                                      , Attr.placeholder
+                                            model.fieldContents.hint
+                                      , Attr.autofocus True
+                                      , Events.on "input" Events.targetValue
+                                          (\cont -> Signal.message events.address
+                                            <| UpdateModel
+                                              (\model ->
+                                                  { model | fieldContents <-
+                                                              { value = cont
+                                                              , hint =
+                                                                  model.fieldContents.hint }  
+                                                  }
+                                              )
+                                          )
+                                      ]
+                                      []
+                              , GI.button
+                                  (Signal.message taskMailbox.address
+                                      <| checkAndSave 
+                                                  model.fieldContents.value
+                                                  model
+                                  )
+                                  "Create Save"
+                              ]
+                           , GE.spacer 160 10
+                           , GE.flow GE.right
+                              [ GE.spacer 47 50 
+                              , GE.centered <|
+                                  T.height 12 <|
+                                  (T.fromString <| 
+                                  "Note: This will overwrite saves with\n"
+                                  ++ "the same name. You must choose a\n"
+                                  ++ "name different than a built-in example.")
+                              ]
+                           , GE.spacer 160 10
+                           , GE.flow GE.right
+                               [ GE.spacer 112 30 
+                               , GE.size 75 30 <| GI.button
+                                  (Signal.message events.address <|
+                                    UpdateModel <| removeDialog False "")
+                                  "Cancel"
+                               ]
+                           ]
+      in GE.flow GE.outward [ dimBox, pickBox ]
+  _ -> GE.empty 
+    
+titleStyle =
+  { defaultStyle | typeface <- ["Courier", "monospace"]
+                 , height <- Just 18
+                 , bold <- False }
+
 view : (Int, Int) -> Model -> GE.Element
 view (w,h) model =
   let
@@ -558,10 +688,6 @@ view (w,h) model =
   let topSection =
     let
       title = GE.leftAligned <| T.style titleStyle (T.fromString strTitle)
-      titleStyle =
-        { defaultStyle | typeface <- ["Courier", "monospace"]
-                       , height <- Just 18
-                       , bold <- False }
 
       wLogo = params.topSection.wLogo
       logo  = GE.image wLogo wLogo "sketch-n-sketch-logo.png"
@@ -590,15 +716,46 @@ view (w,h) model =
   let botSection = GE.spacer wAll hBot in
   let sideGutter = colorDebug Color.black <| GE.spacer wGut hTot in
 
-  GE.flow GE.right
-    [ sideGutter
-    , GE.flow GE.down
-        [ colorDebug Color.lightYellow <| topSection
-        , midSection
-        , colorDebug Color.lightYellow <| botSection
+  let basicUI =
+    GE.flow GE.right
+       [ sideGutter
+       , GE.flow GE.down
+           [ colorDebug Color.lightYellow <| topSection
+           , midSection
+           , colorDebug Color.lightYellow <| botSection
+           ]
+       , sideGutter
+       ]
+  in
+
+  -- Runs a task at startup by making the whole window hoverable briefly, which
+  -- fires the task to the taskMailbox basically right away (the user's mouse is
+  -- presumably over the window). Note that it is important to add the event
+  -- handler to a dummy object that is removed, as adding it to the whole body
+  -- results in nothing being clickable after the load is successful.
+
+  case (model.startup, model.mode) of
+    (True, _) ->
+      let foo _ =
+        Signal.message taskMailbox.address <|
+          -- Insert more tasks to run at startup here
+          getLocalSaves `andThen` \_ ->
+          Signal.send
+            events.address
+            (UpdateModel (\m -> { m | startup <- False}))
+      in
+      GE.flow GE.inward
+        [ GI.hoverable foo <| GE.spacer w h
+        , basicUI
         ]
-    , sideGutter
-    ]
+    (False, SaveDialog m) ->
+      GE.flow GE.inward
+        [ saveElement model w h
+        , basicUI
+        ]
+    _ ->
+      basicUI
+
 
 -- TODO: add onMouseUp DeselectObject event to all GE.Elements...
 
