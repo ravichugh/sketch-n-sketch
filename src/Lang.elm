@@ -39,6 +39,7 @@ type Exp
   | EApp Exp (List Exp)
   | EOp Op (List Exp)
   | EList (List Exp) (Maybe Exp)
+  | EIndList (List Range)
   | EIf Exp Exp Exp
   | ECase Exp (List (Pat, Exp))
   | ELet LetKind Rec Pat Exp Exp
@@ -54,6 +55,8 @@ type Exp
 
 type LetKind = Let | Def
 type alias Rec = Bool
+
+type alias Range = (Num, Num)
 
 type Val
   = VConst NumTr
