@@ -437,6 +437,24 @@ mainSectionHorizontal w h model =
     [ codeSection, gutter, middleSection, gutter, canvasSection ]
 
 simpleButton_ : Bool -> Event -> String -> String -> String -> Int -> Int -> GE.Element
+simpleButton_ disabled evt value name text w h = 
+    GE.flow GE.outward
+      [ GI.customButton (Signal.message events.address evt)
+          (Html.toElement w h <| Html.img 
+            [ Attr.style
+                [ ("src", "button_raised.svg")
+                , ("width", toString w)
+                , ("height", toString h)
+                ]
+            ] [])
+          (GE.image w h "button_highlighted.svg")
+          (GE.image w h "button_depressed.svg")
+      , GE.centered <| T.color Color.white <| T.fromString text
+      ]
+
+--Redefining simpleButton_ in terms of Elements...
+{-
+simpleButton_ : Bool -> Event -> String -> String -> String -> Int -> Int -> GE.Element
 simpleButton_ disabled evt value name text w h =
   Html.toElement w h <|
     Html.button
@@ -447,6 +465,7 @@ simpleButton_ disabled evt value name text w h =
       , Attr.disabled disabled
       ]
       [Html.text text]
+-}
 
 simpleButton = simpleButton_ False
 
