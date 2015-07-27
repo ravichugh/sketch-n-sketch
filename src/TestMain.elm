@@ -10,7 +10,6 @@ import Debug
 import Lang exposing (..)
 import LangParser
 import Sync
-import MicroTests
 import Utils
 
 print = Graphics.Element.leftAligned << Text.monospace << Text.fromString

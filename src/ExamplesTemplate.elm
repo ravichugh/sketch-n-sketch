@@ -1,14 +1,14 @@
 module ExamplesGenerated (list, scratchName, scratch) where
 
 import Lang
-import LangParser
+import LangParser2 as Parser
 import Eval
 import MicroTests
 import Utils
 
 makeExample name s =
   let thunk () =
-    let e = Utils.fromOk_ (LangParser.parseE s) in
+    let e = Utils.fromOk_ (Parser.parseE s) in
     let v = Eval.run e in
     {e=e, v=v}
   in

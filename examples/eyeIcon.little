@@ -16,48 +16,20 @@
     'black'
     'black'
     0
-    ['M'
-     outerStartx
-     outerStarty
-     'Q'
-     midline
-     outerHeight
-     (+ outerStartx outerWidth)
-     outerStarty
-     'Q'
-     (+ (+ outerStartx outerWidth) sharpness)
-     256!
-     (+ outerStartx outerWidth)
-     (+ outerStarty 32!)
-     'Q'
-     midline
-     (- 512! outerHeight)
-     outerStartx
-     (+ outerStarty 32!)
-     'Q'
-     (- outerStartx sharpness)
-     256!
-     outerStartx
-     outerStarty
+    ['M' outerStartx outerStarty
+     'Q' midline outerHeight (+ outerStartx outerWidth) outerStarty
+     'Q' (+ (+ outerStartx outerWidth) sharpness) 256! (+ outerStartx outerWidth) (+ outerStarty 32!)
+     'Q' midline (- 512! outerHeight) outerStartx (+ outerStarty 32!)
+     'Q' (- outerStartx sharpness) 256! outerStartx outerStarty
      'Z']))
 (def innerBorder
   (path
     'white'
     'black'
     0
-    ['M'
-     innerStartx
-     innerStarty
-     'Q'
-     midline
-     innerHeight
-     (+ innerStartx innerWidth)
-     innerStarty
-     'Q'
-     midline
-     (- 512! innerHeight)
-     innerStartx
-     innerStarty
+    ['M' innerStartx innerStarty
+     'Q' midline innerHeight (+ innerStartx innerWidth) innerStarty
+     'Q' midline (- 512! innerHeight) innerStartx innerStarty
      'Z']))
 (def cornea (circle 'black' corneax corneay cornear))
 (def glint
@@ -65,40 +37,10 @@
     'white'
     'black'
     0
-    ['M'
-     corneax
-     (- corneay (+ glintr glintWidth))
-     'A'
-     (/ glintWidth 2!)
-     (/ glintWidth 2!)
-     0
-     0
-     1
-     corneax
-     (- corneay glintr)
-     'A'
-     glintr
-     glintr
-     0
-     0
-     0
-     (- corneax glintr)
-     corneay
-     'A'
-     (/ glintWidth 2!)
-     (/ glintWidth 2!)
-     0
-     0
-     1
-     (- corneax (+ glintr glintWidth))
-     corneay
-     'A'
-     (+ glintr glintWidth)
-     (+ glintr glintWidth)
-     0
-     0
-     1
-     corneax
-     (- corneay (+ glintr glintWidth))
+    ['M' corneax (- corneay (+ glintr glintWidth))
+     'A' (/ glintWidth 2!) (/ glintWidth 2!) 0 0 1 corneax (- corneay glintr)
+     'A' glintr glintr 0 0 0 (- corneax glintr) corneay
+     'A' (/ glintWidth 2!) (/ glintWidth 2!) 0 0 1 (- corneax (+ glintr glintWidth)) corneay
+     'A' (+ glintr glintWidth) (+ glintr glintWidth) 0 0 1 corneax (- corneay (+ glintr glintWidth))
      'Z']))
 (svg  [outerBorder innerBorder cornea glint])

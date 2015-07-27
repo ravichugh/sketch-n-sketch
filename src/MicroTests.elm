@@ -1,7 +1,7 @@
 module MicroTests where
 
 import Lang exposing (strVal)
-import LangParser
+import LangParser2 as Parser
 import Eval
 import Utils
 
@@ -11,8 +11,8 @@ _ `ignore` _ = ()
 
 -- right now, these always get run
 
-parseE = Utils.fromOk_ << LangParser.parseE
-parseV = Utils.fromOk_ << LangParser.parseV
+parseE = Utils.fromOk_ << Parser.parseE
+parseV = .val << .val << Utils.fromOk_ << Parser.parseV
 
 testParser = ()
 

@@ -9,7 +9,6 @@ import Color
 import Debug
 
 import Lang exposing (..)
-import LangParser
 import LangSvg
 import MicroTests
 import Sync

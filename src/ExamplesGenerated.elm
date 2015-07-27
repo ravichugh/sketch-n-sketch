@@ -1,14 +1,14 @@
 module ExamplesGenerated (list, scratchName, scratch) where
 
 import Lang
-import LangParser
+import LangParser2 as Parser
 import Eval
 import MicroTests
 import Utils
 
 makeExample name s =
   let thunk () =
-    let e = Utils.fromOk_ (LangParser.parseE s) in
+    let e = Utils.fromOk_ (Parser.parseE s) in
     let v = Eval.run e in
     {e=e, v=v}
   in
@@ -16,8 +16,8 @@ makeExample name s =
 
 scratchName = "*Scratch*"
 
-scratch = "
-;
+scratch =
+ " 
 ; Write a little program below.
 ; Or choose an example from the list.
 ;
@@ -25,45 +25,52 @@ scratch = "
 ; restored when navigating to and from other examples.
 ; For the remaining named examples, changes will be
 ; discarded when choosing a different example.
-;
+ 
 (svg [(rect 'maroon' 100 15 200 50)])
 
 "
 
-threeBoxes = "
+threeBoxes =
+ "
 (def threeBoxesInt
   (let [x0 y0 w h sep] [40 28 60 130 110]
   (let boxi (\\i
     (let xi (+ x0 (mult i sep))
     (rect 'lightblue' xi y0 w h)))
   (svg (map boxi [0 1 2])))))
-;
+ 
 threeBoxesInt
 
 "
 
-sixBoxesA = "
-; Both x- and y-spacing is controlled by sep.
-;
+sixBoxesA =
+ "; Both x- and y-spacing is controlled by sep.
+
 (let [x0 y0 sep] [10 28 60]
 (svg
-  (map (\\[i j] (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 50))
-       (cartProd [0 1 2] [0 1]))))
+  (map (\\[i j]
+    (let xi (+ x0 (mult i sep)) 
+    (let yj (+ y0 (mult j sep))
+    (square_ xi yj 50))))
+  (cartProd [0 1 2] [0 1]))))
 
 "
 
-sixBoxesB = "
-; x-spacing is controlled by xsep, y-spacing by ysep.
-;
+sixBoxesB =
+ "; x-spacing is controlled by xsep, y-spacing by ysep.
+ 
 (let [x0 y0 xsep ysep] [10 28 60 60]
 (svg
-  (map (\\[i j] (square_ (+ x0 (mult i xsep)) (+ y0 (mult j ysep)) 50))
-       (cartProd [0 1 2] [0 1]))))
+  (map (\\[i j]
+    (let xi (+ x0 (mult i xsep)) 
+    (let yj (+ y0 (mult j ysep))
+    (square_ xi yj 50))))
+  (cartProd [0 1 2] [0 1]))))
 
 "
 
-logo = "
-; sketch-n-sketch logo
+logo =
+ "; sketch-n-sketch logo
 ;
 (let [x0 y0 w h delta] [50 50 200 200 10]
 (let [xw yh w2 h2] [(+ x0 w) (+ y0 h) (div w 2) (div h 2)]
@@ -86,8 +93,8 @@ logo = "
 
 "
 
-elmLogo = "
-; Elm logo, based on:
+elmLogo =
+ "; Elm logo, based on:
 ; https://github.com/evancz/elm-svg/blob/1.0.2/examples/Logo.elm
 ;
 ; Notice how the 'viewBox' attribute puts the canvas in
@@ -110,8 +117,8 @@ elmLogo = "
 
 "
 
-activeTrans = "
-;
+activeTrans =
+ ";
 ; Logo based on Active Transportation Alliance
 ; (http://activetrans.org/)
 ;
@@ -173,8 +180,8 @@ activeTrans = "
 
 "
 
-botanic = "
-;
+botanic =
+ ";
 ; Logo: Chicago Botanic Garden
 ;
 ; Click '[Zones]' to see the control points for
@@ -212,24 +219,28 @@ botanic = "
 
 "
 
-rings = "
+rings =
+ "
 (let [x0 y0 w r dx dy] [30 30 7 20 32 20]
 (let dxHalf (div dx 2)
-;
+ 
 (let row1
   (map (\\[i c] (ring c w (+ x0 (mult i dx)) y0 r))
        (zip [0 1 2] ['blue' 'black' 'red']))
-;
+ 
 (let row2
-  (map (\\[i c] (ring c w (+ (+ x0 dxHalf) (mult i dx)) (+ y0 dy) r))
+  (map (\\[i c]
+         (let x (+ (+ x0 dxHalf) (mult i dx))
+         (let y (+ y0 dy)
+           (ring c w x y r))))
        (zip [0 1] ['yellow' 'green']))
-;
+ 
 (svg (append row1 row2))))))
 
 "
 
-polygons = "
-(let ngon (\\(n cx cy len1 len2)
+polygons =
+ "(let ngon (\\(n cx cy len1 len2)
   (let dangle (/ (* 3! (pi)) 2!)
   (let anglei (\\i (+ dangle (/ (* i (* 2! (pi))) n)))
   (let xi     (\\i (+ cx (* len1 (cos (anglei i)))))
@@ -247,8 +258,8 @@ polygons = "
 
 "
 
-stars = "
-;
+stars =
+ " 
 (let nStar (\\(fill stroke w n len1 len2 rot cx cy)
   (let pti (\\[i len]
     (let anglei (+ (- (/ (* i (pi)) n) rot) halfPi)
@@ -260,20 +271,20 @@ stars = "
          (concat (repeat n [true false])))
   (let indices (list0N (- (* 2! n) 1!))
     (polygon fill stroke w (map pti (zip indices lengths)))))))
-;
+ 
 (let [x0 y0 sep ni nj] [100 100 100 3! 7!]
 (let [outerLen innerLen] [50 20]
 (let iStar (\\i
    (let off (mult (- i ni) sep)
    (let [xi yi] [(+ x0 off) (+ y0 off)]
    (nStar 'goldenrod' 'black' 3 i outerLen innerLen 0! xi yi))))
-;
+ 
 (svg (map iStar (range ni nj)))))))
 
 "
 
-sliders = "
-;
+sliders =
+ ";
 ; The ni constants get adjusted by the sliders,
 ; and then clamped to fit within the [min, max] range.
 ; Also try changing the min and max constants below.
@@ -329,8 +340,8 @@ sliders = "
 
 "
 
-buttons = "
-;
+buttons =
+ ";
 (let button_ (\\(dropBall xStart y caption xCur)
   (let [rPoint wLine rBall wSlider] [4! 3! 10! 70!]
   (let xEnd (+ xStart wSlider)
@@ -351,8 +362,8 @@ buttons = "
 
 "
 
-widgets = "
-; library widgets
+widgets =
+ "; library widgets
 ;
 (let [n  s1] (hSlider false 20! 90!  20! 0! 5! 'n = ' 3.1415)
 (let [i  s2] (hSlider true  20! 90!  50! 0! 5! 'i = ' 3.1415)
@@ -362,8 +373,8 @@ widgets = "
 
 "
 
-xySlider = "
-; A two dimensional slider in a similar style to the other sliders
+xySlider =
+ "; A two dimensional slider in a similar style to the other sliders
 (def xySlider_
   (\\(dropBall roundInt xStart xEnd yStart yEnd minx maxx miny maxy xcaption ycaption curx cury)
     (def [rCorner wEdge rBall] [4! 3! 10!])
@@ -399,8 +410,8 @@ xySlider = "
 
 "
 
-rgba = "
-;
+rgba =
+ ";
 ; A Color Picker
 ; 
 ; Move the sliders to change the rgba
@@ -420,8 +431,8 @@ rgba = "
 
 "
 
-boxGrid = "
-; A grid of boxes that can be enlarged with a slider
+boxGrid =
+ "; A grid of boxes that can be enlarged with a slider
 ;
 ; Specifies the overlaid slider
 (def xySlider_
@@ -486,8 +497,8 @@ boxGrid = "
 
 "
 
-usFlag13 = "
-;
+usFlag13 =
+ ";
 ; Original flag of the United States
 ;
 ; A few ways to mainpulate this example:
@@ -524,8 +535,8 @@ usFlag13 = "
 
 "
 
-usFlag50 = "
-;
+usFlag50 =
+ ";
 ; Current Flag of the United States
 ; (using circles for now, since 50 stars is slow)
 ;
@@ -556,35 +567,35 @@ usFlag50 = "
 
 "
 
-chicago = "
-;
+chicago =
+ " 
 ; The flag of Chicago
 ;
 ; Possible ways to manipulate
 ; - Pull stripes or stars in various directions
 ; - Group box in background
-;
+ 
 (let [x0 y0 ni nj pts w h] [40 40 0.5! 3.5! 6! 454 300]
 (let [outerLen innerLen] [30 12]
 (let stripes
   (map
     (\\i (rect 'lightblue' x0 (+ y0 (* i h)) w (/ h 6!)))
     [(/ 1! 6!) (/ 2! 3!)])
-;
-  (svg 
-    (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!))
-    (append
-      stripes
-      (map
-        (\\i
-          (let off (* i (/ w 4!))
-            (nStar 'red' 'none' 0 pts outerLen innerLen 0 (+ x0 off) (+ y0 (/ h 2!)))))
-        (range ni nj))))))))
+ 
+(svg 
+  (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!))
+  (append
+    stripes
+    (map
+      (\\i (let off (* i (/ w 4!))
+          (nStar 'red' 'none' 0 pts outerLen innerLen 0
+            (+ x0 off) (+ y0 (/ h 2!)))))
+      (range ni nj))))))))
 
 "
 
-frenchSudan = "
-;
+frenchSudan =
+ ";
 ; The Flag of French Sudan, based on:
 ;
 ; A few ways to manipulate:
@@ -622,8 +633,8 @@ frenchSudan = "
 
 "
 
-flw1 = "
-;
+flw1 =
+ ";
 ; A Frank Lloyd Wright design inspired by:
 ; http://www.glass-by-design.com/images3/skylight3.jpg
 ;
@@ -670,8 +681,8 @@ flw1 = "
 
 "
 
-flw2 = "
-;
+flw2 =
+ ";
 ; A Frank Lloyd Wright design based on:
 ; http://www.glass-by-design.com/images3/skylight3.jpg
 ;
@@ -729,8 +740,8 @@ flw2 = "
 
 "
 
-ferris = "
-;
+ferris =
+ ";
 ; Take this ferris wheel for a spin!
 ;
 ; Try:
@@ -764,8 +775,8 @@ ferris = "
 
 "
 
-pieChart1 = "
-; A Pie Chart
+pieChart1 =
+ "; A Pie Chart
 ;
 ; Move the sliders to change the size of a particular slice
 ;
@@ -810,28 +821,32 @@ pieChart1 = "
 (svg (cons (circle 'lightgray' cx cy (* 1.1 r)) (append (append sliders swatches) pie))))))))))))))))))))
 "
 
-solarSystem = "
-; Visualization of the solar system 
+solarSystem =
+ "; Visualization of the solar system 
 ;
 ; The slider on top controls the \"animation.\"
 ; Try changing the size of a planet in one frame,
 ;   and see what happens in the others.
-;
+ 
 (def aupx 12)
 (def [ox oy] [200 400])
+
 ; Relative radii of the planet orbits, in au
 (def [ merorb venorb earorb marorb juporb satorb uraorb neporb ] 
      [ 0.387! 0.723! 1! 1.524! 5.203! 9.539! 19.18! 30.06! ]
 )
+
 ; Relative orbital period to the Earth
 (def [ meryr venyr earyr maryr jupyr satyr urayr nepyr ]
      [ 0.2409! 0.616! 1! 1.9! 12! 29.5! 84! 165! ]
 )
+
 ; Function to place a body
 (def planet (\\(color orb yr radius)
   (\\t (circle color  (+ ox (* aupx (* orb (cos (* t (/ 6.28318 yr))))))
                        (+ oy (* aupx (* orb (sin (* t (/ -6.28318 yr))))))
                        radius))))
+
 ; Visual for each body
 ; Each takes a time to be displayed at
 (def sun (circle 'yellow' ox oy 10))
@@ -843,20 +858,25 @@ solarSystem = "
 (def saturn  (planet 'sandybrown' satorb satyr 6))
 (def uranus  (planet 'blue'       uraorb urayr 6))
 (def neptune (planet 'darkblue'   neporb nepyr 6))
+
 ; Visual for the rings
 (def rings
   (reverse
     (map (\\orb (ring 'lightgrey' 2! ox oy (* aupx orb)))
          [ merorb venorb earorb marorb juporb satorb uraorb neporb ])))
+
 (def [time timeslider] (hSlider true 20! 600! 20! 1! 1000! 'Day ' 1))
 (def rev (\\(x f) (f x)))
-(def planets (map (rev (/ time 365)) [mercury venus earth mars jupiter saturn uranus neptune]))
+(def planets
+  (map (rev (/ time 365))
+       [mercury venus earth mars jupiter saturn uranus neptune]))
+
 (svg (concat [ rings [sun | planets] timeslider ]))
 
 "
 
-fractalTree = "
-; A fractal tree
+fractalTree =
+ "; A fractal tree
 ;
 (defrec mod (\\(x m) (if (< x m) x (mod (- x m) m))))
 (def nsin (\\n (if (< n (/ 3.14159 2)) (sin n) (cos (mod n (/ 3.14159 2))))))
@@ -899,8 +919,8 @@ fractalTree = "
 
 "
 
-stickFigures = "
-;
+stickFigures =
+ ";
 ; A diagram of a sketch-n-sketch demo w/ audience
 ;
 (let [x0 y0 w h] [60 -22 417! 915!]
@@ -968,8 +988,8 @@ stickFigures = "
 
 "
 
-cultOfLambda = "
-;
+cultOfLambda =
+ ";
 ; Cult of Lambda
 ;
 ; Some fun 
@@ -1036,8 +1056,8 @@ cultOfLambda = "
 
 "
 
-clique = "
-;
+clique =
+ ";
 ; A six node clique
 ;
 (let node (\\[x y] (circle 'lightblue' x y 20))
@@ -1056,8 +1076,8 @@ clique = "
 
 "
 
-miscShapes = "
-(let [x y] [200 150] (svg [
+miscShapes =
+ "(let [x y] [200 150] (svg [
   (rect '#999999'  50 10 80 130)
   (circle 'lightblue' 300 100 50)
   (ellipse 'orange' 40 280 30 50)
@@ -1068,8 +1088,8 @@ miscShapes = "
 
 "
 
-paths1 = "
-(svg [
+paths1 =
+ "(svg [
   (path_ ['M' 10 10 'H' 90 'V' 90 'H' 10 'L' 10 10 'Z'])
   (path_ ['M' 20 20 'L' 60 20 'L' 60 80 'Z'])
   (path_ ['M' 150 0 'L' 75 200 'L' 225 200 'Z'])
@@ -1077,8 +1097,8 @@ paths1 = "
 
 "
 
-paths2 = "
-; Adapted from:
+paths2 =
+ "; Adapted from:
 ; https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
 ;
 ; Turn on the zones to see the Bezier control points.
@@ -1098,8 +1118,8 @@ paths2 = "
 
 "
 
-paths3 = "
-(svg [
+paths3 =
+ "(svg [
   (path_ ['M' 10 80 'C' 40 10 65 10 95 80 'S' 150 150 180 80])
   (path_ ['M' 10 80 'Q' 95 10 180 80])
   (path_ ['M' 10 80 'Q' 52.5 10 95 80 'T' 180 80])
@@ -1107,8 +1127,8 @@ paths3 = "
 
 "
 
-paths4 = "
-; Adapted from:
+paths4 =
+ "; Adapted from:
 ; https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
 ;
 (svg [
@@ -1125,8 +1145,8 @@ paths4 = "
 
 "
 
-paths5 = "
-; Adapted from:
+paths5 =
+ "; Adapted from:
 ; https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
 ;
 (svg [
@@ -1142,17 +1162,18 @@ paths5 = "
 
 "
 
-sailBoat = "
-; A sail boat on the ocean
+sailBoat =
+ "; A sail boat on the ocean
 ;
 ; Try mainupulating:
 ;   - The position of the boat by dragging the sail
 ;   - The height of the waves by moving the path control points with zones on
 ;   - The frequency of the waves
 ;   - The sea level
-;
+ 
 (def [sealevel amplitude period boatpos] [300 40 200 400])
 (def [oceancolor backgroundcolor] [[28 107 160 50] [135 206 250 100]])
+
 (def wave (\\([sx sy] [ex ey] amplitude)
             [ (path oceancolor 'black' 0 
                 [ 'M' sx sy 
@@ -1164,12 +1185,18 @@ sailBoat = "
                     'Q' (+ sx (* period 0.75!)) (+ sy amplitude)
                     ex ey 
                     'Z' ])]))
-(def nodes (map2 (\\(a b) [(* a period) b]) (range 0! (round (/ 3000 period))) (repeat (round (/ 4000 period)) sealevel)))
+
+(def nodes
+  (map2 (\\(a b) [(* a period) b])
+        (range 0! (round (/ 3000 period)))
+        (repeat (round (/ 4000 period)) sealevel)))
+
 (defrec mkwaves 
   (\\l (case l 
     ([] [])
     ([x] [])
     ([a b | rest] (append (wave a b amplitude) (mkwaves [ b | rest ]))))))
+
 (def backdrop (rect backgroundcolor -400! -400! 2400! 2400!))
 (def sun (circle 'yellow' 50 0 70))
 (def deepwater (rect oceancolor -400! sealevel 2400! 4000!))
@@ -1177,32 +1204,36 @@ sailBoat = "
     (* (* (- 1 t) (- 1 t)) s) 
     (* (* (* 2 (- 1 t)) t) c)) 
     (* (* t t) e))))
+
 (defrec mod (\\(x m) (if (< x m) x (mod (- x m) m))))
 (def tphase (/ (mod boatpos (/ period 2)) (/ period 2)))
 (def pickdir (\\(sl amp) (if 
     (< (mod boatpos period) (/ period 2))
       (- sl amp) 
       (+ sl amp))))
+
 (def boat
-  (def boaty (quadraticbezier sealevel (pickdir sealevel amplitude) sealevel tphase))
-  (def hull (path 'saddlebrown' 'black' 0
+  (let boaty (quadraticbezier sealevel (pickdir sealevel amplitude) sealevel tphase)
+  (let hull (path 'saddlebrown' 'black' 0
     [ 'M' (- boatpos 30) (- boaty 10)
       'C' (- boatpos 30) (+ boaty 15)
       (+ boatpos 30) (+ boaty 15)
       (+ boatpos 30) (- boaty 10)
-      'Z']))
-  (def mast (rect 'saddlebrown' (+ boatpos 10) (- boaty 60) 5 50))
-  (def sail (rect 'beige' (- boatpos 15!) (- boaty 50!) 50 30))
-  [mast hull sail])
+      'Z'])
+  (let mast (rect 'saddlebrown' (+ boatpos 10) (- boaty 60) 5 50)
+  (let sail (rect 'beige' (- boatpos 15!) (- boaty 50!) 50 30)
+  [mast hull sail])))))
+
 (svg 
   (concat [
     [ backdrop sun deepwater ]
     (mkwaves nodes)
     boat]))
+
 "
 
-eyeIcon = "
-; An eye icon
+eyeIcon =
+ "; An eye icon
 ; Recreation of https://commons.wikimedia.org/wiki/Category:SVG_eye_icons#/media/File:Eye_open_font_awesome.svg
 ;
 ; Try unfreezing:
@@ -1220,48 +1251,20 @@ eyeIcon = "
     'black'
     'black'
     0
-    ['M'
-     outerStartx
-     outerStarty
-     'Q'
-     midline
-     outerHeight
-     (+ outerStartx outerWidth)
-     outerStarty
-     'Q'
-     (+ (+ outerStartx outerWidth) sharpness)
-     256!
-     (+ outerStartx outerWidth)
-     (+ outerStarty 32!)
-     'Q'
-     midline
-     (- 512! outerHeight)
-     outerStartx
-     (+ outerStarty 32!)
-     'Q'
-     (- outerStartx sharpness)
-     256!
-     outerStartx
-     outerStarty
+    ['M' outerStartx outerStarty
+     'Q' midline outerHeight (+ outerStartx outerWidth) outerStarty
+     'Q' (+ (+ outerStartx outerWidth) sharpness) 256! (+ outerStartx outerWidth) (+ outerStarty 32!)
+     'Q' midline (- 512! outerHeight) outerStartx (+ outerStarty 32!)
+     'Q' (- outerStartx sharpness) 256! outerStartx outerStarty
      'Z']))
 (def innerBorder
   (path
     'white'
     'black'
     0
-    ['M'
-     innerStartx
-     innerStarty
-     'Q'
-     midline
-     innerHeight
-     (+ innerStartx innerWidth)
-     innerStarty
-     'Q'
-     midline
-     (- 512! innerHeight)
-     innerStartx
-     innerStarty
+    ['M' innerStartx innerStarty
+     'Q' midline innerHeight (+ innerStartx innerWidth) innerStarty
+     'Q' midline (- 512! innerHeight) innerStartx innerStarty
      'Z']))
 (def cornea (circle 'black' corneax corneay cornear))
 (def glint
@@ -1269,52 +1272,23 @@ eyeIcon = "
     'white'
     'black'
     0
-    ['M'
-     corneax
-     (- corneay (+ glintr glintWidth))
-     'A'
-     (/ glintWidth 2!)
-     (/ glintWidth 2!)
-     0
-     0
-     1
-     corneax
-     (- corneay glintr)
-     'A'
-     glintr
-     glintr
-     0
-     0
-     0
-     (- corneax glintr)
-     corneay
-     'A'
-     (/ glintWidth 2!)
-     (/ glintWidth 2!)
-     0
-     0
-     1
-     (- corneax (+ glintr glintWidth))
-     corneay
-     'A'
-     (+ glintr glintWidth)
-     (+ glintr glintWidth)
-     0
-     0
-     1
-     corneax
-     (- corneay (+ glintr glintWidth))
+    ['M' corneax (- corneay (+ glintr glintWidth))
+     'A' (/ glintWidth 2!) (/ glintWidth 2!) 0 0 1 corneax (- corneay glintr)
+     'A' glintr glintr 0 0 0 (- corneax glintr) corneay
+     'A' (/ glintWidth 2!) (/ glintWidth 2!) 0 0 1 (- corneax (+ glintr glintWidth)) corneay
+     'A' (+ glintr glintWidth) (+ glintr glintWidth) 0 0 1 corneax (- corneay (+ glintr glintWidth))
      'Z']))
 (svg  [outerBorder innerBorder cornea glint])
+
 "
 
-wikimedia = "
-; Wikimedia Logo
+wikimedia =
+ "; Wikimedia Logo
 ; Recreation of https://upload.wikimedia.org/wikipedia/commons/8/81/Wikimedia-logo.svg
-;
+ 
 ; The white objects are an example of using masks as opposed to paths to create
 ; more complicated forms, such as the green 'wings' and broken ring of this logo.
-;
+ 
 (def [greenr innerBluer outerBluer] [110! 134! 180!])
 (def [wedgeTheta barWidth barHeight] [(/ 3.14159! 4!) 32 150])
 (def [dotRed wingGreen ringBlue] ['#900' '#396' '#069'])
@@ -1327,23 +1301,19 @@ wikimedia = "
 (def pty (- (- centery 16) (* outerBluer (cos wedgeTheta))))
 (def whiteWedge 
     (path 'white' 'black' 0 
-        [ 'M' centerx 
-              (- centery 16)
-          'L' rightPtx 
-              pty
-          'A' outerBluer 
-              outerBluer
-              0 0 0
-              leftPtx
-              pty
+        [ 'M' centerx (- centery 16)
+          'L' rightPtx pty
+          'A' outerBluer outerBluer 0 0 0 leftPtx pty
           'Z']))
 (def whiteBar (rect 'white' (- centerx (/ barWidth 2!)) (- centery 32!) barWidth barHeight))
 (def redDot (circle '#900' centerx 128! 64!))
+
 (svg [blueCirc whiteRing greenCirc whiteWedge whiteBar redDot])
+
 "
 
-haskell = "
-; Haskell.org Logo
+haskell =
+ "; Haskell.org Logo
 ; SVG version of https://www.haskell.org/static/img/logo.png?etag=rJR84DMh
 ;
 ; Try making a slider for the bend amount to adjust that parameter indirectly.
@@ -1409,8 +1379,8 @@ haskell = "
 (svg (append [leftWedge lambda] equals))
 "
 
-matrices = "
-; Definitions for 2D matrices and transform application
+matrices =
+ "; Definitions for 2D matrices and transform application
 ;
 ; Similar to the SVG transform operation
 ; See https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/transform
