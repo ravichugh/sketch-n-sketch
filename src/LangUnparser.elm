@@ -122,6 +122,10 @@ unparse e = case e.val of
 unparseE : Exp -> String
 unparseE e = whitespace startPos e.start ++ unparse e
 
+-- NOTE: use this to go back to original unparser
+-- unparseE = sExp
+
+
 ------------------------------------------------------------------------------
 
 {-
