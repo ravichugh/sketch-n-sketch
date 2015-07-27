@@ -225,20 +225,6 @@ parseListLiteralOrMultiCons p f g = P.recursively <| \_ ->
       (parseListLiteral p f)
   <++ (parseMultiCons p g)
 
--- Just like parseList... redundant?
-{-
-parseIndList : 
-  String -> P.Parser sep -> String -> P.Parser a -> (List a -> b)-> P.Parser b
-
-parseIndList = parseIndList_ P.sepBy
-
-parseIndList_ sepBy start sep end p f =
-    token_ start >>>
-    sepBy p sep  >>= \xs ->
-    token_ end    >>>
-      P.return (f xs)
--}
-
 parseIndListLiteral p f = parseList "[|" listSep "|]" p f
 
 parseV = P.parse <|

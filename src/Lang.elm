@@ -106,7 +106,6 @@ strVal_ showTraces v =
     VBase b          -> strBaseVal b
     VClosure _ _ _ _ -> "<fun>"
     VList vs         -> Utils.bracks (String.join " " (List.map foo vs))
---    VIndList rs      -> Utils.ibracks (String.join " " (List.map strRange rs))
     VHole i          -> "HOLE_" ++ toString i
 
 strOp op = case op of
@@ -265,21 +264,10 @@ mapExp f e =
 mapVal : (Val -> Val) -> Val -> Val
 mapVal f v = case v of
   VList vs         -> f (VList (List.map (mapVal f) vs))
---  VIndList rs      -> f (VIndList (List.concat <|
---                            (List.map vRangeToList rs)))
   VConst _         -> f v
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
   VHole _          -> f v
-
--- Needed only in map portion
---vRangeToList : VRange -> Val
---vRangeToList (l,u) = 
---    let vConstList (VConst (lnum, ltr), VConst (unum, _)) =
---        if | lnum > unum -> []
---           | lnum == unum -> [l]
---           | otherwise -> l :: vConstList (VConst (lnum + 1, ltr), u)
---    in vConstList
 
 ------------------------------------------------------------------------------
 -- Substitutions
