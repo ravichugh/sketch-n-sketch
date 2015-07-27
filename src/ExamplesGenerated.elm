@@ -827,22 +827,26 @@ solarSystem =
 ; The slider on top controls the \"animation.\"
 ; Try changing the size of a planet in one frame,
 ;   and see what happens in the others.
-;
+ 
 (def aupx 12)
 (def [ox oy] [200 400])
+
 ; Relative radii of the planet orbits, in au
 (def [ merorb venorb earorb marorb juporb satorb uraorb neporb ] 
      [ 0.387! 0.723! 1! 1.524! 5.203! 9.539! 19.18! 30.06! ]
 )
+
 ; Relative orbital period to the Earth
 (def [ meryr venyr earyr maryr jupyr satyr urayr nepyr ]
      [ 0.2409! 0.616! 1! 1.9! 12! 29.5! 84! 165! ]
 )
+
 ; Function to place a body
 (def planet (\\(color orb yr radius)
   (\\t (circle color  (+ ox (* aupx (* orb (cos (* t (/ 6.28318 yr))))))
                        (+ oy (* aupx (* orb (sin (* t (/ -6.28318 yr))))))
                        radius))))
+
 ; Visual for each body
 ; Each takes a time to be displayed at
 (def sun (circle 'yellow' ox oy 10))
@@ -854,14 +858,19 @@ solarSystem =
 (def saturn  (planet 'sandybrown' satorb satyr 6))
 (def uranus  (planet 'blue'       uraorb urayr 6))
 (def neptune (planet 'darkblue'   neporb nepyr 6))
+
 ; Visual for the rings
 (def rings
   (reverse
     (map (\\orb (ring 'lightgrey' 2! ox oy (* aupx orb)))
          [ merorb venorb earorb marorb juporb satorb uraorb neporb ])))
+
 (def [time timeslider] (hSlider true 20! 600! 20! 1! 1000! 'Day ' 1))
 (def rev (\\(x f) (f x)))
-(def planets (map (rev (/ time 365)) [mercury venus earth mars jupiter saturn uranus neptune]))
+(def planets
+  (map (rev (/ time 365))
+       [mercury venus earth mars jupiter saturn uranus neptune]))
+
 (svg (concat [ rings [sun | planets] timeslider ]))
 
 "
@@ -1231,48 +1240,20 @@ eyeIcon =
     'black'
     'black'
     0
-    ['M'
-     outerStartx
-     outerStarty
-     'Q'
-     midline
-     outerHeight
-     (+ outerStartx outerWidth)
-     outerStarty
-     'Q'
-     (+ (+ outerStartx outerWidth) sharpness)
-     256!
-     (+ outerStartx outerWidth)
-     (+ outerStarty 32!)
-     'Q'
-     midline
-     (- 512! outerHeight)
-     outerStartx
-     (+ outerStarty 32!)
-     'Q'
-     (- outerStartx sharpness)
-     256!
-     outerStartx
-     outerStarty
+    ['M' outerStartx outerStarty
+     'Q' midline outerHeight (+ outerStartx outerWidth) outerStarty
+     'Q' (+ (+ outerStartx outerWidth) sharpness) 256! (+ outerStartx outerWidth) (+ outerStarty 32!)
+     'Q' midline (- 512! outerHeight) outerStartx (+ outerStarty 32!)
+     'Q' (- outerStartx sharpness) 256! outerStartx outerStarty
      'Z']))
 (def innerBorder
   (path
     'white'
     'black'
     0
-    ['M'
-     innerStartx
-     innerStarty
-     'Q'
-     midline
-     innerHeight
-     (+ innerStartx innerWidth)
-     innerStarty
-     'Q'
-     midline
-     (- 512! innerHeight)
-     innerStartx
-     innerStarty
+    ['M' innerStartx innerStarty
+     'Q' midline innerHeight (+ innerStartx innerWidth) innerStarty
+     'Q' midline (- 512! innerHeight) innerStartx innerStarty
      'Z']))
 (def cornea (circle 'black' corneax corneay cornear))
 (def glint
@@ -1280,52 +1261,23 @@ eyeIcon =
     'white'
     'black'
     0
-    ['M'
-     corneax
-     (- corneay (+ glintr glintWidth))
-     'A'
-     (/ glintWidth 2!)
-     (/ glintWidth 2!)
-     0
-     0
-     1
-     corneax
-     (- corneay glintr)
-     'A'
-     glintr
-     glintr
-     0
-     0
-     0
-     (- corneax glintr)
-     corneay
-     'A'
-     (/ glintWidth 2!)
-     (/ glintWidth 2!)
-     0
-     0
-     1
-     (- corneax (+ glintr glintWidth))
-     corneay
-     'A'
-     (+ glintr glintWidth)
-     (+ glintr glintWidth)
-     0
-     0
-     1
-     corneax
-     (- corneay (+ glintr glintWidth))
+    ['M' corneax (- corneay (+ glintr glintWidth))
+     'A' (/ glintWidth 2!) (/ glintWidth 2!) 0 0 1 corneax (- corneay glintr)
+     'A' glintr glintr 0 0 0 (- corneax glintr) corneay
+     'A' (/ glintWidth 2!) (/ glintWidth 2!) 0 0 1 (- corneax (+ glintr glintWidth)) corneay
+     'A' (+ glintr glintWidth) (+ glintr glintWidth) 0 0 1 corneax (- corneay (+ glintr glintWidth))
      'Z']))
 (svg  [outerBorder innerBorder cornea glint])
+
 "
 
 wikimedia =
  "; Wikimedia Logo
 ; Recreation of https://upload.wikimedia.org/wikipedia/commons/8/81/Wikimedia-logo.svg
-;
+ 
 ; The white objects are an example of using masks as opposed to paths to create
 ; more complicated forms, such as the green 'wings' and broken ring of this logo.
-;
+ 
 (def [greenr innerBluer outerBluer] [110! 134! 180!])
 (def [wedgeTheta barWidth barHeight] [(/ 3.14159! 4!) 32 150])
 (def [dotRed wingGreen ringBlue] ['#900' '#396' '#069'])
@@ -1338,19 +1290,15 @@ wikimedia =
 (def pty (- (- centery 16) (* outerBluer (cos wedgeTheta))))
 (def whiteWedge 
     (path 'white' 'black' 0 
-        [ 'M' centerx 
-              (- centery 16)
-          'L' rightPtx 
-              pty
-          'A' outerBluer 
-              outerBluer
-              0 0 0
-              leftPtx
-              pty
+        [ 'M' centerx (- centery 16)
+          'L' rightPtx pty
+          'A' outerBluer outerBluer 0 0 0 leftPtx pty
           'Z']))
 (def whiteBar (rect 'white' (- centerx (/ barWidth 2!)) (- centery 32!) barWidth barHeight))
 (def redDot (circle '#900' centerx 128! 64!))
+
 (svg [blueCirc whiteRing greenCirc whiteWedge whiteBar redDot])
+
 "
 
 haskell =

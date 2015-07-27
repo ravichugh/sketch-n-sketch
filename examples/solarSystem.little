@@ -3,22 +3,26 @@
 ; The slider on top controls the "animation."
 ; Try changing the size of a planet in one frame,
 ;   and see what happens in the others.
-;
+ 
 (def aupx 12)
 (def [ox oy] [200 400])
+
 ; Relative radii of the planet orbits, in au
 (def [ merorb venorb earorb marorb juporb satorb uraorb neporb ] 
      [ 0.387! 0.723! 1! 1.524! 5.203! 9.539! 19.18! 30.06! ]
 )
+
 ; Relative orbital period to the Earth
 (def [ meryr venyr earyr maryr jupyr satyr urayr nepyr ]
      [ 0.2409! 0.616! 1! 1.9! 12! 29.5! 84! 165! ]
 )
+
 ; Function to place a body
 (def planet (\(color orb yr radius)
   (\t (circle color  (+ ox (* aupx (* orb (cos (* t (/ 6.28318 yr))))))
                        (+ oy (* aupx (* orb (sin (* t (/ -6.28318 yr))))))
                        radius))))
+
 ; Visual for each body
 ; Each takes a time to be displayed at
 (def sun (circle 'yellow' ox oy 10))
@@ -30,12 +34,17 @@
 (def saturn  (planet 'sandybrown' satorb satyr 6))
 (def uranus  (planet 'blue'       uraorb urayr 6))
 (def neptune (planet 'darkblue'   neporb nepyr 6))
+
 ; Visual for the rings
 (def rings
   (reverse
     (map (\orb (ring 'lightgrey' 2! ox oy (* aupx orb)))
          [ merorb venorb earorb marorb juporb satorb uraorb neporb ])))
+
 (def [time timeslider] (hSlider true 20! 600! 20! 1! 1000! 'Day ' 1))
 (def rev (\(x f) (f x)))
-(def planets (map (rev (/ time 365)) [mercury venus earth mars jupiter saturn uranus neptune]))
+(def planets
+  (map (rev (/ time 365))
+       [mercury venus earth mars jupiter saturn uranus neptune]))
+
 (svg (concat [ rings [sun | planets] timeslider ]))
