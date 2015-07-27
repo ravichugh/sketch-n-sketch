@@ -424,4 +424,4 @@ parseCommentExp =
   parseExp                       >>= \e ->
     P.returnWithInfo
       (EComment (String.fromList (unwrapChars cs)) e)
-      semi.start newline.end
+      semi.start e.end
