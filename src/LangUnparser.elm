@@ -10,9 +10,7 @@ import Debug
 
 ------------------------------------------------------------------------------
 
-parserDebug s x =
-  if | Config.debugParser -> Debug.log s x
-     | otherwise          -> x
+debugLog = Config.debugLog Config.debugParser
 
 ------------------------------------------------------------------------------
 
@@ -37,7 +35,7 @@ cols i j = if
 
 whitespace : Pos -> Pos -> String
 whitespace endPrev startNext =
-  parserDebug ("whiteSpace " ++ toString (endPrev, startNext)) <|
+  debugLog ("whiteSpace " ++ toString (endPrev, startNext)) <|
     if endPrev.line == startNext.line
     then cols endPrev.col startNext.col
     else lines endPrev.line startNext.line ++ cols 1 startNext.col
