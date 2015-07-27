@@ -129,7 +129,10 @@ unparse e = case e.val of
     let varOp = { op | val <- EVar (strOp op.val) } in
     parensAndSpaces e.start e.end (varOp::es) unparse
       -- HACK: varOp so that parensAndSpaces can be used
-  EIf e1 e2 e3 -> parensAndSpaces e.start e.end [e1,e2,e3] unparse
+  -- EIf e1 e2 e3 -> parensAndSpaces e.start e.end [e1,e2,e3] unparse
+  EIf e1 e2 e3 ->
+    let _ = Debug.log "TODO EIf" in
+    sExp e
   ELet Let b p e1 e2 ->
     -- haven't recorded pos for "let"
     let sLet = if b then "letrec" else "let" in
@@ -149,8 +152,20 @@ unparse e = case e.val of
     in
     s1 ++ space e.end e2.start ++ unparse e2
   ECase e1 l ->
-    let _ = Debug.log "TODO: ECase" () in
-    sExp e
+    let sCase = "case" in
+    let nCase = 1 + String.length sCase in
+    let (sBranches, lastBranchEnd) =
+      let f branch =
+        let (p,e) = branch.val in
+        parens branch.start p.start e.end branch.end
+          <| unparsePat p ++ space p.end e.start ++ unparse e
+      in
+      spaces l f in
+    let (firstBranch::_) = l in
+    parens e.start (incCol e.start) lastBranchEnd e.end
+      <| sCase ++ space (bumpCol nCase e.start) e1.start
+      ++ unparse e1 ++ space e1.end firstBranch.start
+      ++ sBranches
   EComment s e1 ->
     let white = whitespace (incLine e.start) e1.start in
     ";" ++ s ++ "\n" ++ white ++ unparse e1
