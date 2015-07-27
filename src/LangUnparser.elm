@@ -53,41 +53,15 @@ parens = delimit "(" ")"
 
 space = whitespace   -- at least one " "
 
--- TODO:
---  make spaces/delimitAndSpaces more general, to take different
---  types of (f,thing) pairs (i.e. Exp,Pat,String)
+-- NOTE: delimit/space functions that build on this are at the end
 
-spaces : List (WithInfo a) -> (WithInfo a -> String) -> (String, Pos)
-spaces things f =
-  let (hd::tl) = things in
-  let foo cur (acc, endPrev) =
-    let acc'     = f cur :: space endPrev cur.start :: acc in
-    let endPrev' = cur.end in
-    (acc', endPrev')
-  in
-  let (l, endLast) = List.foldl foo ([f hd], hd.end) tl in
-  (String.join "" (List.reverse l), endLast)
-
-delimitAndSpaces
-   : String -> String -> Pos -> Pos -> List (WithInfo a)
-  -> (WithInfo a -> String) -> String
-delimitAndSpaces open close start end things f =
-  case things of
-    [] ->
-      open ++ whitespace (incCol start) (decCol end) ++ close
-    hd :: _ ->
-      let startFirst   = hd.start in
-      let (s, endLast) = spaces things f in
-      delimit open close start startFirst endLast end s
-
-parensAndSpaces = delimitAndSpaces "(" ")"
-bracksAndSpaces = delimitAndSpaces "[" "]"
+------------------------------------------------------------------------------
 
 unparsePat : Pat -> String
 unparsePat p = case p.val of
   PVar x -> x
   PList ps Nothing ->
-    bracksAndSpaces p.start p.end ps unparsePat
+    bracksAndSpaces p.start p.end (List.map UPat ps)
   PList ps (Just pRest) ->
     let _ = Debug.log "TODO: unparsePat" () in
     strPat p
@@ -109,26 +83,25 @@ unparse e = case e.val of
   EFun ps e1 ->
     let lambda = WithInfo "\\" (bumpCol 1 e.start) (bumpCol 2 e.start) in
     let (p1::_) = ps in
-    let (sPats, pLastEnd) = spaces ps unparsePat in
+    let (sPats, pLastEnd) = spaces (List.map UPat ps) in
     parens e.start lambda.start e1.end e.end
       <| lambda.val ++ space lambda.end (decCol p1.start)
       ++ parens (decCol p1.start) p1.start pLastEnd (incCol pLastEnd) sPats
       ++ space pLastEnd e1.start
       ++ unparse e1
-  EApp e1 es -> parensAndSpaces e.start e.end (e1::es) unparse
-  EList es Nothing -> bracksAndSpaces e.start e.end es unparse
+  EApp e1 es -> parensAndSpaces e.start e.end (List.map UExp (e1::es))
+  EList es Nothing -> bracksAndSpaces e.start e.end (List.map UExp es)
   EList es (Just eRest) ->
     -- haven't recorded pos for "|"
     let _ = Debug.log "TODO: test this" () in
     let ((e1::_),(en::_)) = (es, List.reverse es) in
-    let s1 = delimitAndSpaces "[" "|" e.start (bumpCol 2 en.end) es unparse in
+    let s1 = delimitAndSpaces "[" "|" e.start (bumpCol 2 en.end) (List.map UExp es) in
        s1 ++ space (bumpCol 2 en.end) eRest.start
     ++ unparse eRest ++ space eRest.end e.end
     ++ "]"
   EOp op es ->
-    let varOp = { op | val <- EVar (strOp op.val) } in
-    parensAndSpaces e.start e.end (varOp::es) unparse
-      -- HACK: varOp so that parensAndSpaces can be used
+    let sOp = { op | val <- strOp op.val } in
+    parensAndSpaces e.start e.end (UStr sOp :: List.map UExp es)
   -- EIf e1 e2 e3 -> parensAndSpaces e.start e.end [e1,e2,e3] unparse
   EIf e1 e2 e3 ->
     let _ = Debug.log "TODO EIf" in
@@ -154,13 +127,7 @@ unparse e = case e.val of
   ECase e1 l ->
     let sCase = "case" in
     let nCase = 1 + String.length sCase in
-    let (sBranches, lastBranchEnd) =
-      let f branch =
-        let (p,e) = branch.val in
-        parens branch.start p.start e.end branch.end
-          <| unparsePat p ++ space p.end e.start ++ unparse e
-      in
-      spaces l f in
+    let (sBranches, lastBranchEnd) = spaces (List.map UBra l) in
     let (firstBranch::_) = l in
     parens e.start (incCol e.start) lastBranchEnd e.end
       <| sCase ++ space (bumpCol nCase e.start) e1.start
@@ -172,4 +139,67 @@ unparse e = case e.val of
 
 unparseE : Exp -> String
 unparseE e = whitespace startPos e.start ++ unparse e
+
+------------------------------------------------------------------------------
+
+{-
+
+NOTE:
+  Defining Unparsable at the end, since otherwise there's the following
+  undefined error (probably due to the mutual recursion):
+
+  Cannot read property 'arity' of undefined
+
+-}
+
+type Unparsable
+  = UExp (WithInfo Exp_)    -- = Exp
+  | UPat (WithInfo Pat_)    -- = Pat
+  | UBra (WithInfo Branch_) -- = Branch
+  | UStr (WithInfo String)
+
+strU thing = case thing of
+  UExp e -> unparse e
+  UPat p -> unparsePat p
+  UStr s -> identity s.val
+  UBra b ->
+    let (p,e) = b.val in
+    let s = unparsePat p ++ space p.end e.start ++ unparse e in
+    parens b.start p.start e.end b.end s
+
+startU thing = case thing of
+  UExp x -> x.start
+  UPat x -> x.start
+  UStr x -> x.start
+  UBra x -> x.start
+
+endU thing = case thing of
+  UExp x -> x.end
+  UPat x -> x.end
+  UStr x -> x.end
+  UBra x -> x.end
+
+spaces : List Unparsable -> (String, Pos)
+spaces things =
+  let (hd::tl) = things in
+  let foo cur (acc, endPrev) =
+    let acc'     = strU cur :: space endPrev (startU cur) :: acc in
+    let endPrev' = endU cur in
+    (acc', endPrev')
+  in
+  let (l, endLast) = List.foldl foo ([strU hd], endU hd) tl in
+  (String.join "" (List.reverse l), endLast)
+
+delimitAndSpaces : String -> String -> Pos -> Pos -> List Unparsable -> String
+delimitAndSpaces open close start end things =
+  case things of
+    [] ->
+      open ++ whitespace (incCol start) (decCol end) ++ close
+    hd :: _ ->
+      let startFirst   = startU hd in
+      let (s, endLast) = spaces things in
+      delimit open close start startFirst endLast end s
+
+parensAndSpaces = delimitAndSpaces "(" ")"
+bracksAndSpaces = delimitAndSpaces "[" "]"
 
