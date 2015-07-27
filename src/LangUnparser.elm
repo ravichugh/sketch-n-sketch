@@ -109,6 +109,7 @@ unparse e = case e.val of
     let tok = makeToken (incCol e.start) (if b then "letrec" else "let") in
     parensAndSpaces e.start e.end (UStr tok :: UPat p :: List.map UExp [e1,e2])
   ELet Def b p e1 e2 ->
+    -- TODO don't used nested defs until this is re-worked
     let tok = makeToken (incCol e.start) (if b then "defrec" else "def") in
     let s1 = parensAndSpaces e.start e.end [UStr tok, UPat p, UExp e1] in
     s1 ++ space e.end e2.start ++ unparse e2
