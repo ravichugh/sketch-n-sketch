@@ -17,7 +17,7 @@ makeExample name s =
 scratchName = "*Scratch*"
 
 scratch =
- ";
+ " 
 ; Write a little program below.
 ; Or choose an example from the list.
 ;
@@ -25,40 +25,47 @@ scratch =
 ; restored when navigating to and from other examples.
 ; For the remaining named examples, changes will be
 ; discarded when choosing a different example.
-;
+ 
 (svg [(rect 'maroon' 100 15 200 50)])
 
 "
 
 threeBoxes =
- "(def threeBoxesInt
+ "
+(def threeBoxesInt
   (let [x0 y0 w h sep] [40 28 60 130 110]
   (let boxi (\\i
     (let xi (+ x0 (mult i sep))
     (rect 'lightblue' xi y0 w h)))
   (svg (map boxi [0 1 2])))))
-;
+ 
 threeBoxesInt
 
 "
 
 sixBoxesA =
  "; Both x- and y-spacing is controlled by sep.
-;
+
 (let [x0 y0 sep] [10 28 60]
 (svg
-  (map (\\[i j] (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 50))
-       (cartProd [0 1 2] [0 1]))))
+  (map (\\[i j]
+    (let xi (+ x0 (mult i sep)) 
+    (let yj (+ y0 (mult j sep))
+    (square_ xi yj 50))))
+  (cartProd [0 1 2] [0 1]))))
 
 "
 
 sixBoxesB =
  "; x-spacing is controlled by xsep, y-spacing by ysep.
-;
+ 
 (let [x0 y0 xsep ysep] [10 28 60 60]
 (svg
-  (map (\\[i j] (square_ (+ x0 (mult i xsep)) (+ y0 (mult j ysep)) 50))
-       (cartProd [0 1 2] [0 1]))))
+  (map (\\[i j]
+    (let xi (+ x0 (mult i xsep)) 
+    (let yj (+ y0 (mult j ysep))
+    (square_ xi yj 50))))
+  (cartProd [0 1 2] [0 1]))))
 
 "
 
@@ -213,17 +220,21 @@ botanic =
 "
 
 rings =
- "(let [x0 y0 w r dx dy] [30 30 7 20 32 20]
+ "
+(let [x0 y0 w r dx dy] [30 30 7 20 32 20]
 (let dxHalf (div dx 2)
-;
+ 
 (let row1
   (map (\\[i c] (ring c w (+ x0 (mult i dx)) y0 r))
        (zip [0 1 2] ['blue' 'black' 'red']))
-;
+ 
 (let row2
-  (map (\\[i c] (ring c w (+ (+ x0 dxHalf) (mult i dx)) (+ y0 dy) r))
+  (map (\\[i c]
+         (let x (+ (+ x0 dxHalf) (mult i dx))
+         (let y (+ y0 dy)
+           (ring c w x y r))))
        (zip [0 1] ['yellow' 'green']))
-;
+ 
 (svg (append row1 row2))))))
 
 "
@@ -248,7 +259,7 @@ polygons =
 "
 
 stars =
- ";
+ " 
 (let nStar (\\(fill stroke w n len1 len2 rot cx cy)
   (let pti (\\[i len]
     (let anglei (+ (- (/ (* i (pi)) n) rot) halfPi)
@@ -260,14 +271,14 @@ stars =
          (concat (repeat n [true false])))
   (let indices (list0N (- (* 2! n) 1!))
     (polygon fill stroke w (map pti (zip indices lengths)))))))
-;
+ 
 (let [x0 y0 sep ni nj] [100 100 100 3! 7!]
 (let [outerLen innerLen] [50 20]
 (let iStar (\\i
    (let off (mult (- i ni) sep)
    (let [xi yi] [(+ x0 off) (+ y0 off)]
    (nStar 'goldenrod' 'black' 3 i outerLen innerLen 0! xi yi))))
-;
+ 
 (svg (map iStar (range ni nj)))))))
 
 "
@@ -557,29 +568,29 @@ usFlag50 =
 "
 
 chicago =
- ";
+ " 
 ; The flag of Chicago
 ;
 ; Possible ways to manipulate
 ; - Pull stripes or stars in various directions
 ; - Group box in background
-;
+ 
 (let [x0 y0 ni nj pts w h] [40 40 0.5! 3.5! 6! 454 300]
 (let [outerLen innerLen] [30 12]
 (let stripes
   (map
     (\\i (rect 'lightblue' x0 (+ y0 (* i h)) w (/ h 6!)))
     [(/ 1! 6!) (/ 2! 3!)])
-;
-  (svg 
-    (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!))
-    (append
-      stripes
-      (map
-        (\\i
-          (let off (* i (/ w 4!))
-            (nStar 'red' 'none' 0 pts outerLen innerLen 0 (+ x0 off) (+ y0 (/ h 2!)))))
-        (range ni nj))))))))
+ 
+(svg 
+  (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!))
+  (append
+    stripes
+    (map
+      (\\i (let off (* i (/ w 4!))
+          (nStar 'red' 'none' 0 pts outerLen innerLen 0
+            (+ x0 off) (+ y0 (/ h 2!)))))
+      (range ni nj))))))))
 
 "
 

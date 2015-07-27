@@ -1,12 +1,16 @@
+
 (let [x0 y0 w r dx dy] [30 30 7 20 32 20]
 (let dxHalf (div dx 2)
-;
+ 
 (let row1
   (map (\[i c] (ring c w (+ x0 (mult i dx)) y0 r))
        (zip [0 1 2] ['blue' 'black' 'red']))
-;
+ 
 (let row2
-  (map (\[i c] (ring c w (+ (+ x0 dxHalf) (mult i dx)) (+ y0 dy) r))
+  (map (\[i c]
+         (let x (+ (+ x0 dxHalf) (mult i dx))
+         (let y (+ y0 dy)
+           (ring c w x y r))))
        (zip [0 1] ['yellow' 'green']))
-;
+ 
 (svg (append row1 row2))))))
