@@ -31,7 +31,7 @@ substOf e = substOfExps_ Dict.empty [prelude, e]
 -- this will be done while parsing eventually...
 
 freshen_ : Int -> Exp -> (Exp, Int)
-freshen_ k e = case Debug.log "e" e of
+freshen_ k e = case e of
   EConst i l -> let (0,b,"") = l in (EConst i (k, b, ""), k + 1)
   EBase v    -> (EBase v, k)
   EVar x     -> (EVar x, k)
