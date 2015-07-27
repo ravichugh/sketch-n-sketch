@@ -31,7 +31,7 @@ substOf e = substOfExps_ Dict.empty [prelude, e]
 -- this will be done while parsing eventually...
 
 freshen_ : Int -> Exp -> (Exp, Int)
-freshen_ k e = case e of
+freshen_ k e = case Debug.log "e" e of
   EConst i l -> let (0,b,"") = l in (EConst i (k, b, ""), k + 1)
   EBase v    -> (EBase v, k)
   EVar x     -> (EVar x, k)
@@ -64,12 +64,13 @@ freshenExps k es =
     let (e1,k1) = freshen_ k' e in
     (e1::es', k1)) ([],k) es
 
-freshenRanges : Int -> List ERange
-freshenRanges k rs =
+freshenRanges : Int -> List ERange -> (List ERange, Int)
+freshenRanges k rs =  
   List.foldr (\(l,u) (rs',k') ->
-    let (l1,k1) = freshen_ k' l1
-        (u1,k2) = freshen_ k1 u1
-    in ((l1,u1) :: rs', k2)) ([],k) rs
+    let (l1,k1) = freshen_ k' l
+        (u1,k2) = freshen_ k1 u
+    in ((l1,u1) :: rs', k2)
+  ) ([],k) rs
 
 addBreadCrumbs pe = case pe of
   (PVar x, EConst n (k, b, "")) -> EConst n (k, b, x)
@@ -224,6 +225,22 @@ parseListLiteralOrMultiCons p f g = P.recursively <| \_ ->
       (parseListLiteral p f)
   <++ (parseMultiCons p g)
 
+-- Just like parseList... redundant?
+{-
+parseIndList : 
+  String -> P.Parser sep -> String -> P.Parser a -> (List a -> b)-> P.Parser b
+
+parseIndList = parseIndList_ P.sepBy
+
+parseIndList_ sepBy start sep end p f =
+    token_ start >>>
+    sepBy p sep  >>= \xs ->
+    token_ end    >>>
+      P.return (f xs)
+-}
+
+parseIndListLiteral p f = parseList "[|" listSep "|]" p f
+
 parseV = P.parse <|
   parseVal    >>= \v ->
   white P.end >>>
@@ -260,6 +277,7 @@ parseExp = P.recursively <| \_ ->
   <++ parseIf
   <++ parseCase
   <++ parseExpList
+  <++ parseExpIndList
   <++ parseLet
   <++ parseDef
   <++ parseApp
@@ -299,6 +317,19 @@ parseExpArgs = parseList1 "" listSep "" parseExp identity
 parseExpList =
   parseListLiteralOrMultiCons
     parseExp (\xs -> EList xs Nothing) (\xs y -> EList xs (Just y))
+
+--Like parseExpList but with parseIndListLIteral instead of pLLOMC
+parseExpIndList = parseIndListLiteral parseERange EIndList
+
+-- Only want to allow Number Literals at the moment
+parseERange =
+  ( white parseNumE >>= \l ->
+    white (token_ "..") >>>
+    white parseNumE >>= \u ->
+        P.return (l, u) )
+  <++
+  ( white parseNumE >>= \l ->
+        P.return (l,l) )
 
 parseRec =
       (always True  <$> token_ "letrec")

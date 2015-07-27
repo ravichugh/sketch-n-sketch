@@ -122,7 +122,7 @@ delimit a b s = String.concat [a, s, b]
 
 parens = delimit "(" ")"
 bracks = delimit "[" "]"
-bracks = delimit "[|" "|]"
+ibracks = delimit "[|" "|]"
 braces = delimit "{" "}"
 
 spaces = String.join " "

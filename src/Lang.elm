@@ -64,7 +64,6 @@ type Val
   | VBase BaseVal
   | VClosure (Maybe Ident) Pat Exp Env
   | VList (List Val)
-  | VIndList (List VRange)
   | VHole Int
 
 type alias NumTr = (Num, Trace)
@@ -73,9 +72,6 @@ type BaseVal -- unlike Ints, these cannot be changed by Sync
   = Bool Bool
   | String String
   | Star -- placeholder used by sync
-
--- Enforce invariant that VRange is only ever (VConst ..., VConst ...)
-type VRange = (Val, Val)
 
 type Trace = TrLoc Loc | TrOp Op (List Trace)
 
@@ -91,8 +87,11 @@ strBaseVal v = case v of
   String s   -> "\'" ++ s ++ "\'"
   Star       -> "X"
 
-strRange : VRange -> String
-strRange (l,u) = strVal l ++ " .. " ++ strVal u
+strRange : Bool -> Int -> ERange -> String
+strRange showLocs k (EConst nl ll, EConst nu lu) = 
+    if | nl == nu -> sExp_ showLocs k (EConst nl ll)
+       | otherwise -> 
+           sExp_ showLocs k (EConst nl ll) ++ ".." ++ sExp_ showLocs k (EConst nu lu)
 
 strVal     = strVal_ False
 strValLocs = strVal_ True
@@ -107,7 +106,7 @@ strVal_ showTraces v =
     VBase b          -> strBaseVal b
     VClosure _ _ _ _ -> "<fun>"
     VList vs         -> Utils.bracks (String.join " " (List.map foo vs))
-    VIndList rs      -> Utils.ibracks (String.join " " (Listmap strRange rs))
+--    VIndList rs      -> Utils.ibracks (String.join " " (List.map strRange rs))
     VHole i          -> "HOLE_" ++ toString i
 
 strOp op = case op of
@@ -202,7 +201,7 @@ sExp_ showLocs k e =
             Just e  -> s ++ "\n" ++ tab k ++ "|" ++ foo k e
     EIndList rs ->
       Utils.ibracks <|
-        let rstrs = List.map strRange rs
+        let rstrs = List.map (strRange showLocs k) rs
             totstr = Utils.spaces rstrs
         in if fitsOnLine totstr then
           totstr
@@ -257,7 +256,7 @@ mapExp f e =
     EApp e1 es     -> f (EApp (foo e1) (List.map foo es))
     EOp op es      -> f (EOp op (List.map foo es))
     EList es m     -> f (EList (List.map foo es) (Utils.mapMaybe foo m))
-    EIndList rs    -> f (EIndList rs) --TODO Hmm... Do we want to allow maps?
+    EIndList rs    -> f (EIndList rs)
     EIf e1 e2 e3   -> f (EIf (foo e1) (foo e2) (foo e3))
     ECase e1 l     -> f (ECase (foo e1) (List.map (\(p,ei) -> (p, foo ei)) l))
     ELet k b p e1 e2 -> f (ELet k b p (foo e1) (foo e2))
@@ -266,21 +265,21 @@ mapExp f e =
 mapVal : (Val -> Val) -> Val -> Val
 mapVal f v = case v of
   VList vs         -> f (VList (List.map (mapVal f) vs))
-  VIndList rs      -> f (VIndList (List.concat <|
-                            List.map (mapVal f << vRangeToVList) rs))
+--  VIndList rs      -> f (VIndList (List.concat <|
+--                            (List.map vRangeToList rs)))
   VConst _         -> f v
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
   VHole _          -> f v
 
 -- Needed only in map portion
-vRangeToVList : VRange -> Val
-vRangeToVList (l,u) = 
-    let vConstList (VConst (lnum, ltr), VConst (unum, _)) =
-        if | lnum > unum -> []
-           | lnum == unum -> [l]
-           | otherwise -> l :: vConstList (VConst (lnum + 1, ltr), u)
-    in VList vConstList
+--vRangeToList : VRange -> Val
+--vRangeToList (l,u) = 
+--    let vConstList (VConst (lnum, ltr), VConst (unum, _)) =
+--        if | lnum > unum -> []
+--           | lnum == unum -> [l]
+--           | otherwise -> l :: vConstList (VConst (lnum + 1, ltr), u)
+--    in vConstList
 
 ------------------------------------------------------------------------------
 -- Substitutions

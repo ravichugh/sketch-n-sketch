@@ -67,8 +67,8 @@ eval env e =
                      VList vs' -> ret <| VList (vs ++ vs')
 
   EIndList rs -> 
-      let vrs = List.map (\(l,u) -> (eval_ env l, eval_ env u)) rs
-      in ret <| VIndList vrs
+      let vrs = List.concat <| List.map rangeToList rs
+      in ret <| VList vrs
 
   EIf e1 e2 e3 ->
     case eval_ env e1 of
@@ -173,3 +173,17 @@ run e =
 parseAndRun : String -> String
 parseAndRun = strVal << run << Utils.fromOk_ << LangParser.parseE
 
+-- Inflates a range to a list, which is then Concat-ed in eval
+rangeToList : ERange -> List Val
+rangeToList r = case r of
+    (EConst nl ll, EConst nu lu) ->
+       let tossTrLoc = TrLoc (-1, "!", "") -- All middle ones are frozen 
+           walkVal : Num -> Num -> Loc -> List Val
+           walkVal curnum endnum endloc =
+               if | curnum < endnum -> 
+                        VConst (curnum, tossTrLoc) ::
+                            walkVal (curnum + 1) endnum endloc
+                  | otherwise -> [ VConst (endnum, TrLoc endloc) ]
+       in if | nl == nu -> [ VConst (nl, TrLoc ll) ]
+             | otherwise -> (VConst (nl, TrLoc ll)) :: walkVal (nl + 1) nu lu
+    _ -> Debug.crash "Range not specified with numeric constants"
