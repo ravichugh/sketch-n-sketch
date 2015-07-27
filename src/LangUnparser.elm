@@ -66,6 +66,14 @@ unparsePat p = case p.val of
     let _ = Debug.log "TODO: unparsePat" () in
     strPat p
 
+-- NOTE:
+--   haven't recorded pos for "\", "let", "case", "if", etc.
+--   so makeToken picks a canonical position
+
+makeToken start s =
+  let n = String.length s in
+  WithInfo s start (bumpCol n start)
+
 -- TODO: compute whitespace once per AST-skeleton
 
 unparse : Exp -> String
@@ -74,65 +82,39 @@ unparse e = case e.val of
   EConst i l -> let (_,b,_) = l in toString i ++ b
   EVar x -> x
   EFun [p] e1 ->
-    -- haven't recorded pos for "\", so always "(\"
-    let lambda = WithInfo "\\" (bumpCol 1 e.start) (bumpCol 2 e.start) in
-    parens e.start lambda.start e1.end e.end
-      <| lambda.val ++ space lambda.end p.start
-      ++ unparsePat p ++ space p.end e1.start
-      ++ unparse e1
+    let tok = makeToken (incCol e.start) "\\" in
+    parensAndSpaces e.start e.end [UStr tok, UPat p, UExp e1]
   EFun ps e1 ->
-    let lambda = WithInfo "\\" (bumpCol 1 e.start) (bumpCol 2 e.start) in
-    let (p1::_) = ps in
-    let (sPats, pLastEnd) = spaces (List.map UPat ps) in
-    parens e.start lambda.start e1.end e.end
-      <| lambda.val ++ space lambda.end (decCol p1.start)
-      ++ parens (decCol p1.start) p1.start pLastEnd (incCol pLastEnd) sPats
-      ++ space pLastEnd e1.start
-      ++ unparse e1
+    let tok = makeToken (incCol e.start) "\\" in
+    parensAndSpaces e.start e.end [UStr tok, UParens (List.map UPat ps), UExp e1]
   EApp e1 es -> parensAndSpaces e.start e.end (List.map UExp (e1::es))
   EList es Nothing -> bracksAndSpaces e.start e.end (List.map UExp es)
   EList es (Just eRest) ->
-    -- haven't recorded pos for "|"
     let _ = Debug.log "TODO: test this" () in
-    let ((e1::_),(en::_)) = (es, List.reverse es) in
-    let s1 = delimitAndSpaces "[" "|" e.start (bumpCol 2 en.end) (List.map UExp es) in
-       s1 ++ space (bumpCol 2 en.end) eRest.start
-    ++ unparse eRest ++ space eRest.end e.end
-    ++ "]"
+    let (en::_) = List.reverse es in
+    let tok1 = makeToken e.start   "[" in
+    let tok2 = makeToken en.end    "|" in
+    let tok3 = makeToken eRest.end "]" in
+       delimitAndSpaces tok1.val tok2.val tok1.start tok2.end (List.map UExp es)
+    ++ space tok2.end eRest.start
+    ++ unparse eRest ++ space eRest.end tok3.start
+    ++ tok3.val
   EOp op es ->
     let sOp = { op | val <- strOp op.val } in
     parensAndSpaces e.start e.end (UStr sOp :: List.map UExp es)
-  -- EIf e1 e2 e3 -> parensAndSpaces e.start e.end [e1,e2,e3] unparse
   EIf e1 e2 e3 ->
-    let _ = Debug.log "TODO EIf" in
-    sExp e
+    let tok = makeToken (incCol e.start) "if" in
+    parensAndSpaces e.start e.end (UStr tok :: List.map UExp [e1,e2,e3])
   ELet Let b p e1 e2 ->
-    -- haven't recorded pos for "let"
-    let sLet = if b then "letrec" else "let" in
-    parens e.start (incCol e.start) e2.end e.end
-      <| sLet ++ space (bumpCol (1 + String.length sLet) e.start) p.start
-      ++ unparsePat p ++ space p.end e1.start
-      ++ unparse e1 ++ space e1.end e2.start
-      ++ unparse e2
+    let tok = makeToken (incCol e.start) (if b then "letrec" else "let") in
+    parensAndSpaces e.start e.end (UStr tok :: UPat p :: List.map UExp [e1,e2])
   ELet Def b p e1 e2 ->
-    -- haven't recorded pos for "def"
-    let sDef = if b then "defrec" else "def" in
-    let s1 =
-      parens e.start (incCol e.start) e1.end e.end
-        <| sDef ++ space (bumpCol (1 + String.length sDef) e.start) p.start
-        ++ unparsePat p ++ space p.end e1.start
-        ++ unparse e1
-    in
+    let tok = makeToken (incCol e.start) (if b then "defrec" else "def") in
+    let s1 = parensAndSpaces e.start e.end [UStr tok, UPat p, UExp e1] in
     s1 ++ space e.end e2.start ++ unparse e2
   ECase e1 l ->
-    let sCase = "case" in
-    let nCase = 1 + String.length sCase in
-    let (sBranches, lastBranchEnd) = spaces (List.map UBra l) in
-    let (firstBranch::_) = l in
-    parens e.start (incCol e.start) lastBranchEnd e.end
-      <| sCase ++ space (bumpCol nCase e.start) e1.start
-      ++ unparse e1 ++ space e1.end firstBranch.start
-      ++ sBranches
+    let tok = makeToken (incCol e.start) "case" in
+    parensAndSpaces e.start e.end (UStr tok :: UExp e1 :: List.map UBra l)
   EComment s e1 ->
     let white = whitespace (incLine e.start) e1.start in
     ";" ++ s ++ "\n" ++ white ++ unparse e1
@@ -157,6 +139,9 @@ type Unparsable
   | UPat (WithInfo Pat_)    -- = Pat
   | UBra (WithInfo Branch_) -- = Branch
   | UStr (WithInfo String)
+  | UParens (List Unparsable)
+      -- no start/pos info, so using first/last elements as
+      -- canonical positions
 
 strU thing = case thing of
   UExp e -> unparse e
@@ -166,6 +151,9 @@ strU thing = case thing of
     let (p,e) = b.val in
     let s = unparsePat p ++ space p.end e.start ++ unparse e in
     parens b.start p.start e.end b.end s
+  UParens l ->
+    let (start, end) = (startU thing, endU thing) in
+    parens start (incCol start) (decCol end) end (fst (spaces l))
 
 startU thing = case thing of
   UExp x -> x.start
@@ -173,11 +161,15 @@ startU thing = case thing of
   UStr x -> x.start
   UBra x -> x.start
 
+  UParens (first::_) -> decCol (startU first)
+
 endU thing = case thing of
   UExp x -> x.end
   UPat x -> x.end
   UStr x -> x.end
   UBra x -> x.end
+
+  UParens l -> let (last::_) = List.reverse l in incCol (endU last)
 
 spaces : List Unparsable -> (String, Pos)
 spaces things =
