@@ -55,7 +55,7 @@ type AVal
   | APoints (List Point)
   | ARgba Rgba
   | APath2 (List PathCmd, PathCounts)
-  -- | APath (List Val) -- untyped
+  | ATransform (List TransformCmd)
 
 type alias Point = (NumTr, NumTr)
 type alias Rgba  = (NumTr, NumTr, NumTr, NumTr)
@@ -67,6 +67,9 @@ type PathCmd
   | CmdC   Cmd IdPoint IdPoint IdPoint
   | CmdSQ  Cmd IdPoint IdPoint
   | CmdA   Cmd NumTr NumTr NumTr NumTr NumTr IdPoint
+
+type TransformCmd
+  = Rot NumTr NumTr NumTr
 
 type alias PathCounts = {numPoints : Int}
 
@@ -100,7 +103,7 @@ valToAttr (VList [VBase (String k), v]) =
     ("fill", VList vs)    -> (k, ARgba <| valToRgba vs)
     ("stroke", VList vs)  -> (k, ARgba <| valToRgba vs)
     ("d", VList vs)       -> (k, APath2 (valsToPath2 vs))
-    -- ("d", VList vs)       -> (k, APath vs)
+    ("transform", v1)     -> (k, ATransform (valToTransform v1))
 
 valToPoint (VList [VConst x, VConst y]) = (x,y)
 pointToVal (x,y) = (VList [VConst x, VConst y])
@@ -122,7 +125,7 @@ strAVal a = case a of
   APoints l -> Utils.spaces (List.map strPoint l)
   ARgba tup -> strRgba tup
   APath2 p  -> strAPath2 (fst p)
-  -- APath vs  -> valToPath vs
+  ATransform l -> Utils.spaces (List.map strTransformCmd l)
 
 valOfAVal a = case a of
   AString s -> VBase (String s)
@@ -130,7 +133,6 @@ valOfAVal a = case a of
   APoints l -> VList (List.map pointToVal l)
   ARgba tup -> VList (rgbaToVal tup)
   APath2 p  -> VList (List.concatMap valsOfPathCmd (fst p))
-  -- APath vs  -> VList vs
 
 valsOfPathCmd c =
   let fooPt (_,(x,y)) = [VConst x, VConst y] in
@@ -222,6 +224,19 @@ matchCmd cmd s =
   let cs  = String.toList s in
   List.member c (cs ++ List.map Char.toLower cs)
 
+-- transform commands
+
+valToTransform (VList vs) = List.map valToTransformCmd vs
+
+valToTransformCmd (VList (VBase (String k) :: vs)) =
+  case (k, vs) of
+    ("rotate", [VConst n1, VConst n2, VConst n3]) -> Rot n1 n2 n3
+
+strTransformCmd cmd = case cmd of
+  Rot n1 n2 n3 ->
+    let nums = List.map (toString << fst) [n1,n2,n3] in
+    "rotate" ++ Utils.parens (Utils.spaces nums)
+
 
 {- old way of doing things with APath...
 
@@ -302,7 +317,7 @@ funcsAttr = [
   , ("y2", A.y2)
   ]
 
-find d s = Utils.find ("MainSvg.find: " ++ s) d s
+find d s = Utils.find ("LangSvg.find: " ++ s) d s
 
 attr = find funcsAttr
 svg  = find funcsSvg

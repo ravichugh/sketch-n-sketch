@@ -1,7 +1,7 @@
 module PreludeGenerated (src) where
 
-prelude = "
-
+prelude =
+ "
 (def id (\\x x))
 
 (def always (\\(x _) x))
@@ -85,6 +85,14 @@ prelude = "
 
 (def joinStrings (\\(sep ss)
   (foldr (\\(str acc) (if (= acc '') str (+ str (+ sep acc)))) '' ss)))
+
+(def concatStrings (joinStrings ''))
+
+(def spaces (joinStrings ' '))
+
+(def delimit (\\(a b s) (concatStrings [a s b])))
+
+(def parens (delimit '(' ')'))
 
 ;
 ; SVG Manipulating Functions

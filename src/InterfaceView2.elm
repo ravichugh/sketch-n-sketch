@@ -154,10 +154,15 @@ makeZones showZones shape id l =
 
     "rect" ->
         let mk zone x_ y_ w_ h_ =
-          zoneBorder Svg.rect id shape zone True showZones [
-              attrNum "x" x_ , attrNum "y" y_
+          let rot =
+            case Utils.maybeFind "transform" l of
+              Nothing  -> []
+              Just cmd -> [LangSvg.compileAttr "transform" cmd]
+          in
+          zoneBorder Svg.rect id shape zone True showZones <|
+            [ attrNum "x" x_ , attrNum "y" y_
             , attrNum "width" w_ , attrNum "height" h_
-            ]
+            ] ++ rot
         in
         let
           [x,y,w,h]     = List.map (toNum << Utils.find_ l) ["x","y","width","height"]

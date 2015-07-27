@@ -1,9 +1,9 @@
 # TODO
 
-* catch eval errors
-* retain whitespace in parsing
+* debug perf ~~catch eval errors~~
+* ~~retain whitespace in parsing~~
 * parse error messages
-* local storage for edits and options
+* ~~local storage for edits and options~~
 * rotation zones
 * color picker zones
 * text zones
@@ -16,10 +16,13 @@
 * highlight zone assignments
 * cursors based on zone assignment
 
+
 * better structural diff
+
 
 * refactor data structs / tryToBeSmart
 * symbolic trigger solutions
+
 
 * ~~option to revert changes~~
 * ~~structure changing updates~~
