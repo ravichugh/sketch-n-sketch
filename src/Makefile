@@ -17,6 +17,7 @@ loc:
     InterfaceStorage.elm Storage.elm \
     Main.elm Config.elm \
     PreludeTemplate.elm ExamplesTemplate.elm \
+    ColorNum.elm
 
 littleloc:
 	wc -l ../examples/*

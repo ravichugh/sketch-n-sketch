@@ -133,9 +133,10 @@ strAVal a = case a of
   APath2 p  -> strAPath2 (fst p)
   ATransform l -> Utils.spaces (List.map strTransformCmd l)
   AColorNum n ->
-    let (r,g,b) = Utils.numToColor 500 (fst n) in
-    strRgba_ [r,g,b,1]
-    -- strRgba_ (ColorNum.convert (fst n))
+    -- slight optimization:
+    strRgba_ (ColorNum.convert (fst n))
+    -- let (r,g,b) = Utils.numToColor 500 (fst n) in
+    -- strRgba_ [r,g,b,1]
 
 valOfAVal a = case a of
   AString s -> VBase (String s)
