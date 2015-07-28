@@ -75,6 +75,8 @@ switchOrient m = case m of
   Vertical -> Horizontal
   Horizontal -> Vertical
 
+toggleShowZones x = (1 + x) % showZonesModes
+
 
 --------------------------------------------------------------------------------
 -- Updating the Model
@@ -216,7 +218,7 @@ upstate evt old = case debugLog "Event" evt of
 
     SwitchOrient -> { old | orient <- switchOrient old.orient }
 
-    ToggleZones -> { old | showZones <- not old.showZones }
+    ToggleZones -> { old | showZones <- toggleShowZones old.showZones }
 
     ToggleThawed ->
       let so = old.syncOptions in

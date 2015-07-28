@@ -58,10 +58,10 @@ dimToPix d = String.append (toString d) "px"
 --------------------------------------------------------------------------------
 -- Compiling to Svg
 
-buildSvg : Bool -> Bool -> LangSvg.RootedIndexedTree -> Svg.Svg
+buildSvg : Bool -> ShowZones -> LangSvg.RootedIndexedTree -> Svg.Svg
 buildSvg addZones showZones (i,d) = buildSvg_ addZones showZones d i
 
-buildSvg_ : Bool -> Bool -> LangSvg.IndexedTree -> LangSvg.NodeId -> Svg.Svg
+buildSvg_ : Bool -> ShowZones -> LangSvg.IndexedTree -> LangSvg.NodeId -> Svg.Svg
 buildSvg_ addZones showZones d i =
   case Utils.justGet_ ("buildSvg_ " ++ toString i) i d of
     LangSvg.TextNode text -> VirtualDom.text text
@@ -116,6 +116,8 @@ cursorOfZone zone = if
   -- default
   | otherwise                -> cursorStyle "default"
 
+-- Stuff for Basic Zones -------------------------------------------------------
+
 -- TODO use zone
 zoneBorder svgFunc id shape zone flag show =
   flip svgFunc [] <<
@@ -148,21 +150,66 @@ zoneLine id shape zone show (x1,y1) (x2,y2) =
     , cursorStyle "pointer"
     ]
 
-makeZones : Bool -> String -> LangSvg.NodeId -> List LangSvg.Attr -> List Svg.Svg
+-- Stuff for Rotate Zones ------------------------------------------------------
+
+rotZoneDelta = 20
+
+zoneRotate showZones (cx,cy) r rot =
+  if | showZones == showZonesRot -> zoneRotate_ cx cy r rot
+     | otherwise                 -> []
+
+zoneRotate_ cx cy r rot =
+  let (a, stroke, strokeWidth, rBall) = (20, "silver", "2", "7") in
+  let circle =
+    flip Svg.circle [] <|
+      [ LangSvg.attr "fill" "none"
+      , LangSvg.attr "stroke" stroke , LangSvg.attr "strokeWidth" strokeWidth
+      , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString cy)
+      , LangSvg.attr "r"  (toString r)
+      ] ++ rot
+  in
+  let ball =
+    flip Svg.circle [] <|
+      [ LangSvg.attr "fill" stroke
+      , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString (cy - r))
+      , LangSvg.attr "r"  rBall
+      ] ++ rot
+  in
+  let line =
+    flip Svg.line [] <|
+      [ LangSvg.attr "stroke" stroke , LangSvg.attr "strokeWidth" strokeWidth
+      , LangSvg.attr "x1" (toString cx) , LangSvg.attr "y1" (toString cy)
+      , LangSvg.attr "x2" (toString cx) , LangSvg.attr "y2" (toString (cy - r))
+      ] ++ rot
+  in
+  [circle, line, ball]
+
+maybeTransformAttr l =
+  case Utils.maybeFind "transform" l of
+    Nothing   -> []
+    Just cmds -> [LangSvg.compileAttr "transform" cmds]
+
+halfwayBetween (x1,y1) (x2,y2) = ((x1 + x2) / 2, (y1 + y2) / 2)
+distance (x1,y1) (x2,y2)       = sqrt ((x2-x1)^2 + (y2-y1)^2)
+
+projPt (x,y)                   = (fst x, fst y)
+halfwayBetween_ pt1 pt2        = halfwayBetween (projPt pt1) (projPt pt2)
+distance_ pt1 pt2              = distance (projPt pt1) (projPt pt2)
+
+--------------------------------------------------------------------------------
+
+makeZones : ShowZones -> String -> LangSvg.NodeId -> List LangSvg.Attr -> List Svg.Svg
 makeZones showZones shape id l =
+  let showBasicZones = showZones == showZonesBasic in
   case shape of
 
     "rect" ->
+        let transform = maybeTransformAttr l in
         let mk zone x_ y_ w_ h_ =
-          let rot =
-            case Utils.maybeFind "transform" l of
-              Nothing  -> []
-              Just cmd -> [LangSvg.compileAttr "transform" cmd]
-          in
-          zoneBorder Svg.rect id shape zone True showZones <|
+          zoneBorder Svg.rect id shape zone True showBasicZones <|
             [ attrNum "x" x_ , attrNum "y" y_
             , attrNum "width" w_ , attrNum "height" h_
-            ] ++ rot
+            ] ++ transform
         in
         let
           [x,y,w,h]     = List.map (toNum << Utils.find_ l) ["x","y","width","height"]
@@ -171,6 +218,11 @@ makeZones showZones shape id l =
           (y0,y1,y2)    = (y, y + gut*h, y + (1-gut)*h)
           (wSlim,wWide) = (gut*w, (1-2*gut)*w)
           (hSlim,hWide) = (gut*h, (1-2*gut)*h)
+        in
+        let zRot =
+          let c = (x + (w/2), y + (h/2)) in
+          let r = rotZoneDelta + (h/2) in
+          zoneRotate showZones c r transform
         in
           [ mk "Interior"       x1 y1 wWide hWide
           , mk "RightEdge"      x2 y1 wSlim hWide
@@ -181,39 +233,43 @@ makeZones showZones shape id l =
           , mk "TopLeftCorner"  x0 y0 wSlim hSlim
           , mk "TopEdge"        x1 y0 wWide hSlim
           , mk "TopRightCorner" x2 y0 wSlim hSlim
-          ]
+          ] ++ zRot
 
-    "circle"  -> makeZonesEllipse showZones shape id l
-    "ellipse" -> makeZonesEllipse showZones shape id l
+    "circle"  -> makeZonesCircle  showBasicZones showZones id l
+    "ellipse" -> makeZonesEllipse showBasicZones showZones id l
 
     "line" ->
         let [x1,y1,x2,y2] = List.map (toNumTr << Utils.find_ l) ["x1","y1","x2","y2"] in
-        let zLine = zoneLine id shape "Edge" showZones (x1,y1) (x2,y2) in
-        let zPts = zonePoints id shape showZones [(x1,y1),(x2,y2)] in
-        zLine :: zPts
+        let (pt1,pt2) = ((x1,y1), (x2,y2)) in
+        let zLine = zoneLine id shape "Edge" showBasicZones pt1 pt2 in
+        let zPts = zonePoints id shape showBasicZones [pt1,pt2] in
+        let zRot =
+          let c = halfwayBetween_ pt1 pt2 in
+          let r = (distance_ pt1 pt2 / 2) - rotZoneDelta in
+          zoneRotate showZones c r (maybeTransformAttr l) in
+        zLine :: zPts ++ zRot
 
-    "polygon"  -> makeZonesPoly showZones shape id l
-    "polyline" -> makeZonesPoly showZones shape id l
+    "polygon"  -> makeZonesPoly showBasicZones shape id l
+    "polyline" -> makeZonesPoly showBasicZones shape id l
 
-    "path" -> makeZonesPath showZones shape id l
+    "path" -> makeZonesPath showBasicZones shape id l
 
     _ -> []
 
-makeZonesEllipse showZones shape id l =
-  let _ = Utils.assert "makeZonesEllipse" (shape == "circle" || shape == "ellipse") in
-  let foo =
-    let [cx,cy] = List.map (toNum << Utils.find_ l) ["cx","cy"] in
-    [ attrNum "cx" cx , attrNum "cy" cy ] in
-  let (f,bar) =
-    if shape == "circle" then
-      let [r] = List.map (toNum << Utils.find_ l) ["r"] in
-      (Svg.circle, [ attrNum "r" r ])
-    else
-      let [rx,ry] = List.map (toNum << Utils.find_ l) ["rx","ry"] in
-      (Svg.ellipse, [ attrNum "rx" rx , attrNum "ry" ry ]) in
-  let zInterior = zoneBorder f id shape "Interior" False showZones (foo ++ bar) in
-  let zEdge = zoneBorder f id shape "Edge" True showZones (foo ++ bar) in
-  [zEdge, zInterior]
+-- TODO showBasicZones is derived from showZones
+makeZonesCircle showBasicZones showZones id l =
+  let [cx,cy,r] = List.map (toNum << Utils.find_ l) ["cx","cy","r"] in
+  let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "r" r ] in
+     [zoneBorder Svg.circle id "circle" "Edge" True showBasicZones attrs]
+  ++ [zoneBorder Svg.circle id "circle" "Interior" False showBasicZones attrs]
+  ++ (zoneRotate showZones (cx,cy) (r + rotZoneDelta) (maybeTransformAttr l))
+
+makeZonesEllipse showBasicZones showZones id l =
+  let [cx,cy,rx,ry] = List.map (toNum << Utils.find_ l) ["cx","cy","rx","ry"] in
+  let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "rx" rx, attrNum "ry" ry ] in
+     [zoneBorder Svg.ellipse id "ellipse" "Edge" True showBasicZones attrs]
+  ++ [zoneBorder Svg.ellipse id "ellipse" "Interior" False showBasicZones attrs]
+  ++ (zoneRotate showZones (cx,cy) (ry + rotZoneDelta) (maybeTransformAttr l))
 
 makeZonesPoly showZones shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "polygon" || shape == "polyline") in
@@ -474,7 +530,11 @@ syncButton =
   simpleButton Sync "Sync" "Sync the code to the canvas" "Sync"
 
 zoneButton model =
-  let cap = if model.showZones then "[Zones] Shown" else "[Zones] Hidden" in
+  let cap =
+    if | model.showZones == showZonesNone  -> "Zones [Hidden]"
+       | model.showZones == showZonesBasic -> "Zones [Basic]"
+       | model.showZones == showZonesRot   -> "Zones [Rotation]"
+  in
   simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap
 
 frozenButton model =
