@@ -219,6 +219,8 @@ prelude =
 
 (def zones (\\s (map (\\shape (addAttr shape ['zones' s])))))
 
+(def hideZonesTail (\\[hd | tl] [hd | (zones 'none' tl)]))
+
 ; TODO refactor as in paper
 (def hSlider_ (\\(dropBall roundInt xStart xEnd y minVal maxVal caption curVal)
   (let [rPoint wLine rBall] [4! 3! 10!]

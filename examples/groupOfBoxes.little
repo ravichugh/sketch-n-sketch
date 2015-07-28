@@ -1,0 +1,22 @@
+
+; Try:
+;  - replacing nBoxes with (hideZonesTail nBoxes)
+
+(def [x0 y0 w h sep] [50 200 60 130 110])
+
+(def [n slider] (hSlider true 50! 300! 30! 1! 10! 'n = '
+                 3))
+
+(def xi (\i (+ x0 (mult i sep))))
+
+(def nBoxes
+  (let boxi (\i (rect 'lightblue' (xi i) y0 w h))
+  (map boxi (list0N (- n 1)))))
+
+(def groupBox
+  (let [dw dh] [50 50]
+  (rect 'lightyellow'
+        (- x0 (/ dw 2)) (- y0 (/ dh 2))
+        (+ (+ (- (xi (- n 1)) x0) w) dw) (+ h dh))))
+
+(svg (append slider (cons groupBox nBoxes)))

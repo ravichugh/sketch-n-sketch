@@ -18,6 +18,7 @@ scratchName = "*Scratch*"
 
 LITTLE_TO_ELM scratch
 LITTLE_TO_ELM threeBoxes
+LITTLE_TO_ELM groupOfBoxes
 LITTLE_TO_ELM sixBoxesA
 LITTLE_TO_ELM sixBoxesB
 LITTLE_TO_ELM logo
@@ -61,6 +62,7 @@ LITTLE_TO_ELM matrices
 examples =
   [ makeExample scratchName scratch
   , makeExample "3 Boxes" threeBoxes
+  , makeExample "N Boxes" groupOfBoxes
   , makeExample "6 Boxes A" sixBoxesA
   , makeExample "6 Boxes B" sixBoxesB
   , makeExample "Logo" logo

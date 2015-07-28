@@ -43,6 +43,32 @@ threeBoxesInt
 
 "
 
+groupOfBoxes =
+ "
+; Try:
+;  - replacing nBoxes with (hideZonesTail nBoxes)
+
+(def [x0 y0 w h sep] [50 200 60 130 110])
+
+(def [n slider] (hSlider true 50! 300! 30! 1! 10! 'n = '
+                 3))
+
+(def xi (\\i (+ x0 (mult i sep))))
+
+(def nBoxes
+  (let boxi (\\i (rect 'lightblue' (xi i) y0 w h))
+  (map boxi (list0N (- n 1)))))
+
+(def groupBox
+  (let [dw dh] [50 50]
+  (rect 'lightyellow'
+        (- x0 (/ dw 2)) (- y0 (/ dh 2))
+        (+ (+ (- (xi (- n 1)) x0) w) dw) (+ h dh))))
+
+(svg (append slider (cons groupBox nBoxes)))
+
+"
+
 sixBoxesA =
  "; Both x- and y-spacing is controlled by sep.
 
@@ -1170,7 +1196,7 @@ sailBoat =
 ;   - The height of the waves by moving the path control points with zones on
 ;   - The frequency of the waves
 ;   - The sea level
- 
+
 (def [sealevel amplitude period boatpos] [300 40 200 400])
 (def [oceancolor backgroundcolor] [[28 107 160 50] [135 206 250 100]])
 
@@ -1421,6 +1447,7 @@ matrices =
 examples =
   [ makeExample scratchName scratch
   , makeExample "3 Boxes" threeBoxes
+  , makeExample "N Boxes" groupOfBoxes
   , makeExample "6 Boxes A" sixBoxesA
   , makeExample "6 Boxes B" sixBoxesB
   , makeExample "Logo" logo
