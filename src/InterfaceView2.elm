@@ -499,37 +499,29 @@ mainSectionHorizontal w h model =
 
 simpleEventButton_ : Bool -> Event -> String -> String -> String -> Int -> Int -> GE.Element
 simpleEventButton_ disabled evt value name text w h = 
-    GE.flow GE.outward
-      [ GI.customButton (Signal.message events.address evt)
+    case disabled of
+        True -> GI.customButton (Signal.message events.address Noop)
           (makeButton Raised w h text)
           (makeButton Highlighted w h text)
           (makeButton Depressed w h text)
-      ]
-
+        False -> GI.customButton (Signal.message events.address evt)
+          (makeButton Raised w h text)
+          (makeButton Highlighted w h text)
+          (makeButton Depressed w h text)
 
 simpleTaskButton_ : Bool -> Task String () -> String -> String -> String -> Int -> Int -> GE.Element
 simpleTaskButton_ disabled evt value name text w h = 
-    GE.flow GE.outward
-      [ GI.customButton (Signal.message taskMailbox.address evt)
-          (makeButton Raised w h text)
-          (makeButton Highlighted w h text)
-          (makeButton Depressed w h text)
-      ]
-
---Redefining simpleButton_ in terms of Elements...
-{-
-simpleButton_ : Bool -> Event -> String -> String -> String -> Int -> Int -> GE.Element
-simpleButton_ disabled evt value name text w h =
-  Html.toElement w h <|
-    Html.button
-      [ buttonAttrs w h
-      , Events.onClick events.address evt
-      , Attr.value value
-      , Attr.name name
-      , Attr.disabled disabled
-      ]
-      [Html.text text]
--}
+    case disabled of
+        True ->
+            GI.customButton (Signal.message taskMailbox.address (Task.succeed ()))
+              (makeButton Raised w h text)
+              (makeButton Highlighted w h text)
+              (makeButton Depressed w h text)
+        False ->
+            GI.customButton (Signal.message taskMailbox.address evt)
+              (makeButton Raised w h text)
+              (makeButton Highlighted w h text)
+              (makeButton Depressed w h text)
 
 simpleButton = simpleEventButton_ False
 simpleTaskButton = simpleTaskButton_ False
@@ -581,32 +573,10 @@ saveButton model w h =
                             "Save As"
                       | otherwise -> "Save"
     in simpleTaskButton (saveStateLocally model.exName model) dispname dispname dispname w h
---    in 
---      Html.toElement w h <|
---        Html.button
---          [ buttonAttrs w h
---          , Events.onClick taskMailbox.address (saveStateLocally model.exName model)
---          , Attr.value dispname
---          , Attr.name dispname
---          , Attr.title "Saves Code and Page Layout to Persistent Browser Storage"
---          , Attr.disabled False
---          ]
---          [ Html.text dispname ]
 
 loadButton : Model -> Int -> Int -> GE.Element
 loadButton model w h =
     simpleTaskButton (loadLocalState model.exName) "Revert" "Revert" "Revert" w h
---    Html.toElement w h <| 
---      Html.button
---        [ buttonAttrs w h
---        , Events.onClick taskMailbox.address  <| loadLocalState model.exName
---        , Attr.value "Revert"
---        , Attr.name "Revert"
---        , Attr.title 
---            "Reverts Code and Page Layout to last save by this name"
---        , Attr.disabled False
---        ]
---        [ Html.text "Revert" ]
 
 dropdownExamples : Model -> Int -> Int -> GE.Element
 dropdownExamples model w h =
@@ -648,24 +618,6 @@ dropdownExamples model w h =
                 (\selected -> Signal.message taskMailbox.address <|
                                 findTask selected choices)
         ] options
---Redefining dropdownExamples in terms of Html...
-{-
-dropdownExamples : Model -> Int -> Int -> GE.Element
-dropdownExamples model w h =
-  let choices =
-    case model.mode of
-      AdHoc -> [(model.exName, Signal.send events.address Noop)]
-      _ ->
-        let foo (name,thunk) = (name, Signal.send events.address (SelectExample name thunk)) 
-            bar saveName = (saveName, loadLocalState saveName)
-        in List.concat
-            [ (List.map bar model.localSaves)
-            , (List.map foo Examples.list)
-            , [("*Clear Local Saves*", clearLocalSaves)]
-            ]
-  in
-    GI.dropDown (Signal.message taskMailbox.address) choices
--}
 
 modeButton model =
   if model.mode == AdHoc
@@ -688,11 +640,6 @@ orientationButton w h model =
     let text = "[Orientation] " ++ toString model.orient
     in
       simpleButton SwitchOrient text text text w h
---  Html.button
---      [ buttonAttrs w h
---      , Events.onClick events.address SwitchOrient
---      ]
---      [Html.text ("[Orientation] " ++ (toString model.orient))]
 
 caption : Model -> Int -> Int -> GE.Element
 caption model w h =
