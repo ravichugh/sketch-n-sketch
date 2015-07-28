@@ -274,6 +274,7 @@ mapExp f e =
     EApp e1 es     -> g (EApp (foo e1) (List.map foo es))
     EOp op es      -> g (EOp op (List.map foo es))
     EList es m     -> g (EList (List.map foo es) (Utils.mapMaybe foo m))
+    EIndList rs    -> g (EIndList rs)
     EIf e1 e2 e3   -> g (EIf (foo e1) (foo e2) (foo e3))
     ECase e1 l     -> g (ECase (foo e1) (List.map (mapValField (\(p,ei) -> (p, foo ei))) l))
     EComment s e1  -> g (EComment s (foo e1))
