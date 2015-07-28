@@ -176,7 +176,7 @@ parseAndRun = strVal << run << Utils.fromOk_ << Parser.parseE
 
 -- Inflates a range to a list, which is then Concat-ed in eval
 rangeToList : ERange -> List Val
-rangeToList r = case r of
+rangeToList (l,u) = case (l.val, u.val) of
     (EConst nl ll, EConst nu lu) ->
        let --tossTrLoc = TrLoc (-1, "!", "") -- Is it okay to have plus with only
                                             -- one trace?
