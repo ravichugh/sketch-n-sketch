@@ -177,11 +177,13 @@ parseAndRun = strVal << run << Utils.fromOk_ << LangParser.parseE
 rangeToList : ERange -> List Val
 rangeToList r = case r of
     (EConst nl ll, EConst nu lu) ->
-       let tossTrLoc = TrLoc (-1, "!", "") -- All middle ones are frozen 
+       let --tossTrLoc = TrLoc (-1, "!", "") -- Is it okay to have plus with only
+                                            -- one trace?
+           trace = TrOp Range [ TrOp Plus [ TrLoc ll ] ]
            walkVal : Num -> Num -> Loc -> List Val
            walkVal curnum endnum endloc =
                if | curnum < endnum -> 
-                        VConst (curnum, tossTrLoc) ::
+                        VConst (curnum, trace) ::
                             walkVal (curnum + 1) endnum endloc
                   | otherwise -> [ VConst (endnum, TrLoc endloc) ]
        in if | nl == nu -> [ VConst (nl, TrLoc ll) ]

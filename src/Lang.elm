@@ -30,6 +30,8 @@ type Op
   -- binary ops
   | Plus | Minus | Mult | Div
   | Lt | Eq
+  -- internal ops
+  | Range
 
 type Exp
   = EConst Num Loc
