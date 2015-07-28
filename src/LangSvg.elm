@@ -19,6 +19,7 @@ import Set
 import String
 import Char
 import Dict exposing (Dict)
+import ColorNum
 
 import Lang exposing (..)
 import Utils
@@ -54,6 +55,7 @@ type AVal
   | AString String
   | APoints (List Point)
   | ARgba Rgba
+  | AColorNum NumTr -- Utils.numToColor [0,500)
   | APath2 (List PathCmd, PathCounts)
   | ATransform (List TransformCmd)
 
@@ -97,13 +99,15 @@ toPath   (APath2 p) = p
 
 valToAttr (VList [VBase (String k), v]) =
   case (k, v) of
-    (_, VConst it)        -> (k, ANum it)
-    (_, VBase (String s)) -> (k, AString s)
     ("points", VList vs)  -> (k, APoints <| List.map valToPoint vs)
     ("fill", VList vs)    -> (k, ARgba <| valToRgba vs)
+    ("fill", VConst it)   -> (k, AColorNum it)
     ("stroke", VList vs)  -> (k, ARgba <| valToRgba vs)
+    -- TODO "stroke" AColorNum
     ("d", VList vs)       -> (k, APath2 (valsToPath2 vs))
     ("transform", v1)     -> (k, ATransform (valToTransform v1))
+    (_, VConst it)        -> (k, ANum it)
+    (_, VBase (String s)) -> (k, AString s)
 
 valToPoint (VList [VConst x, VConst y]) = (x,y)
 pointToVal (x,y) = (VList [VConst x, VConst y])
@@ -116,8 +120,10 @@ strPoint (x_,y_) =
   toString x ++ "," ++ toString y
 
 strRgba (r_,g_,b_,a_) =
-  let [r,g,b,a] = List.map fst [r_,g_,b_,a_] in
-  "rgba" ++ Utils.parens (Utils.commas (List.map toString [r,g,b,a]))
+  strRgba_ (List.map fst [r_,g_,b_,a_])
+
+strRgba_ rgba =
+  "rgba" ++ Utils.parens (Utils.commas (List.map toString rgba))
 
 strAVal a = case a of
   AString s -> s
@@ -126,6 +132,10 @@ strAVal a = case a of
   ARgba tup -> strRgba tup
   APath2 p  -> strAPath2 (fst p)
   ATransform l -> Utils.spaces (List.map strTransformCmd l)
+  AColorNum n ->
+    let (r,g,b) = Utils.numToColor 500 (fst n) in
+    strRgba_ [r,g,b,1]
+    -- strRgba_ (ColorNum.convert (fst n))
 
 valOfAVal a = case a of
   AString s -> VBase (String s)
@@ -133,6 +143,7 @@ valOfAVal a = case a of
   APoints l -> VList (List.map pointToVal l)
   ARgba tup -> VList (rgbaToVal tup)
   APath2 p  -> VList (List.concatMap valsOfPathCmd (fst p))
+  AColorNum nt -> VConst nt
 
 valsOfPathCmd c =
   let fooPt (_,(x,y)) = [VConst x, VConst y] in

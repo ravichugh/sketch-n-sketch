@@ -1,8 +1,11 @@
 
 ; Try:
-;  - replacing nBoxes with (hideZonesTail nBoxes)
+;  - replacing (basicZonesTail nBoxes) with nBoxes
 
 (def [x0 y0 w h sep] [50 200 60 130 110])
+(def colorNum 100)
+(def rotBox 0)
+(def rotGroup 0)
 
 (def [n slider] (hSlider true 50! 300! 30! 1! 10! 'n = '
                  3))
@@ -10,13 +13,21 @@
 (def xi (\i (+ x0 (mult i sep))))
 
 (def nBoxes
-  (let boxi (\i (rect 'lightblue' (xi i) y0 w h))
+  (let boxi (\i
+    (rotate
+      (rect colorNum (xi i) y0 w h)
+      rotBox (+ (xi i) (/ w 2)) (+ y0 (/ h 2))))
   (map boxi (list0N (- n 1)))))
 
 (def groupBox
   (let [dw dh] [50 50]
-  (rect 'lightyellow'
-        (- x0 (/ dw 2)) (- y0 (/ dh 2))
-        (+ (+ (- (xi (- n 1)) x0) w) dw) (+ h dh))))
+  (let xg (- x0 (/ dw 2))
+  (let yg (- y0 (/ dh 2))
+  (let wg (+ (+ (- (xi (- n 1)) x0) w) dw)
+  (let hg (+ h dh)
+    (rotate
+      (rect 'lightyellow' xg yg wg hg)
+      rotGroup (+ xg (/ wg 2)) (+ yg (/ hg 2)))))))))
 
-(svg (append slider (cons groupBox nBoxes)))
+(svg (concat
+  [ slider [groupBox] (basicZonesTail nBoxes) ]))

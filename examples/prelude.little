@@ -222,7 +222,8 @@
 
 (def zones (\s (map (\shape (addAttr shape ['zones' s])))))
 
-(def hideZonesTail (\[hd | tl] [hd | (zones 'none' tl)]))
+(def hideZonesTail  (\[hd | tl] [hd | (zones 'none'  tl)]))
+(def basicZonesTail (\[hd | tl] [hd | (zones 'basic' tl)]))
 
 ; TODO refactor as in paper
 (def hSlider_ (\(dropBall roundInt xStart xEnd y minVal maxVal caption curVal)
@@ -264,6 +265,9 @@
                (zones 'basic' shapes2))]))))))))))
 
 (def button (button_ true))
+
+(def rotate (\(shape n1 n2 n3)
+  (addAttr shape ['transform' [['rotate' n1 n2 n3]]])))
 
 ; 0
 ['svg' [] []]

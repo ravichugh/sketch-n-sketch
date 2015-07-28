@@ -93,7 +93,8 @@ buildSvg_ addZones showZones d i =
           (True, Just (LangSvg.AString "none", l)) ->
             (makeZones zoneOptions0 shape i attrs, l)
           (True, Just (LangSvg.AString "basic", l)) ->
-            (makeZones { options | addRot <- False } shape i attrs, l)
+            let options' = { options | addRot <- False, addColor <- False } in
+            (makeZones options' shape i attrs, l)
       in
       let children = List.map (buildSvg_ addZones showZones d) js in
       let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs') children in
@@ -180,7 +181,7 @@ zoneLine id shape zone show (x1,y1) (x2,y2) =
 rotZoneDelta = 20
 
 zoneRotate b (cx,cy) r rot =
-  if b then zoneRotate_ cx cy r rot else []
+  if b && rot /= [] then zoneRotate_ cx cy r rot else []
 
 zoneRotate_ cx cy r rot =
   let (a, stroke, strokeWidth, rBall) = (20, "silver", "2", "7") in
@@ -210,8 +211,9 @@ zoneRotate_ cx cy r rot =
 
 maybeTransformAttr l =
   case Utils.maybeFind "transform" l of
-    Nothing   -> []
-    Just cmds -> [LangSvg.compileAttr "transform" cmds]
+    Just (LangSvg.ATransform cmds) ->
+      [LangSvg.compileAttr "transform" (LangSvg.ATransform cmds)]
+    _ -> []
 
 halfwayBetween (x1,y1) (x2,y2) = ((x1 + x2) / 2, (y1 + y2) / 2)
 distance (x1,y1) (x2,y2)       = sqrt ((x2-x1)^2 + (y2-y1)^2)
@@ -222,14 +224,20 @@ distance_ pt1 pt2              = distance (projPt pt1) (projPt pt2)
 
 -- Stuff for Color Zones -------------------------------------------------------
 
-wGradient = 200
+wGradient = 250
 
 numToColor = Utils.numToColor wGradient
 
-zoneColor b x y =
-  if b then zoneColor_ x y else []
+maybeRgbaAttr k l =
+  case Utils.maybeFind k l of
+    Just (LangSvg.AColorNum n) ->
+      [LangSvg.compileAttr "fill" (LangSvg.AColorNum n)]
+    _ -> []
 
-zoneColor_ x y =
+zoneColor b x y rgba =
+  if b && rgba /= [] then zoneColor_ x y rgba else []
+
+zoneColor_ x y rgba =
   let (w, h, a, stroke, strokeWidth, rBall) =
       (wGradient, 20, 20, "silver", "2", "7") in
   let yOff = a + rotZoneDelta in
@@ -248,6 +256,7 @@ zoneColor_ x y =
       , LangSvg.attr "width" (toString w) , LangSvg.attr "height" (toString h)
       ]
   in
+  -- TODO would probably be faster with an image...
   let gradient =
     List.map (\i ->
       let (r,g,b) = numToColor i in
@@ -290,7 +299,7 @@ makeZones options shape id l =
           zoneRotate options.addRot c r transform
         in
         let zColor =
-          zoneColor options.addColor x y
+          zoneColor options.addColor x y (maybeRgbaAttr "fill" l)
         in
           [ mk "Interior"       x1 y1 wWide hWide
           , mk "RightEdge"      x2 y1 wSlim hWide
@@ -331,7 +340,7 @@ makeZonesCircle options id l =
      [zoneBorder Svg.circle id "circle" "Edge" True options.showBasic attrs]
   ++ [zoneBorder Svg.circle id "circle" "Interior" False options.showBasic attrs]
   ++ (zoneRotate options.addRot (cx,cy) (r + rotZoneDelta) (maybeTransformAttr l))
-  ++ (zoneColor options.addColor (cx - r) (cy - r))
+  ++ (zoneColor options.addColor (cx - r) (cy - r) (maybeRgbaAttr "fill" l))
 
 makeZonesEllipse options id l =
   let [cx,cy,rx,ry] = List.map (toNum << Utils.find_ l) ["cx","cy","rx","ry"] in
@@ -339,7 +348,7 @@ makeZonesEllipse options id l =
      [zoneBorder Svg.ellipse id "ellipse" "Edge" True options.showBasic attrs]
   ++ [zoneBorder Svg.ellipse id "ellipse" "Interior" False options.showBasic attrs]
   ++ (zoneRotate options.addRot (cx,cy) (ry + rotZoneDelta) (maybeTransformAttr l))
-  ++ (zoneColor options.addColor (cx - rx) (cy - ry))
+  ++ (zoneColor options.addColor (cx - rx) (cy - ry) (maybeRgbaAttr "fill" l))
 
 makeZonesPoly options shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "polygon" || shape == "polyline") in
@@ -355,7 +364,7 @@ makeZonesPoly options shape id l =
       ] in
   let zRot =
     let (((x0,_),(y0,_))::_) = pts in
-    zoneColor options.addColor x0 y0 in
+    zoneColor options.addColor x0 y0 (maybeRgbaAttr "fill" l) in
   let firstEqLast xs = Utils.head_ xs == Utils.head_ (List.reverse xs) in
   if | shape == "polygon" -> zInterior :: (zLines ++ zPts ++ zRot)
      | firstEqLast pts    -> zInterior :: (zLines ++ zPts ++ zRot)
