@@ -1,7 +1,8 @@
 module InterfaceController (upstate) where
 
 import Lang exposing (..) --For access to what makes up the Vals
-import LangParser exposing (parseE, parseV)
+import LangParser2 exposing (parseE, parseV)
+import LangUnparser exposing (unparseE)
 import Sync
 import Eval exposing (run)
 import Utils
@@ -10,6 +11,7 @@ import InterfaceModel exposing (..)
 import InterfaceView2 exposing (..)
 import LangSvg exposing (toNum, toNumTr, toPoints, addi)
 import ExamplesGenerated as Examples
+import Config
 
 import VirtualDom
 
@@ -34,6 +36,9 @@ import Svg.Lazy
 --Error Checking Libraries
 import Debug
 
+--------------------------------------------------------------------------------
+
+debugLog = Config.debugLog Config.debugController
 
 --------------------------------------------------------------------------------
 
@@ -75,7 +80,7 @@ switchOrient m = case m of
 -- Updating the Model
 
 upstate : Event -> Model -> Model
-upstate evt old = case Debug.log "Event" evt of
+upstate evt old = case debugLog "Event" evt of
 
     Noop -> old
 
@@ -85,7 +90,7 @@ upstate evt old = case Debug.log "Event" evt of
       case parseE old.code of
         Ok e ->
           { old | inputExp <- Just e
-                , code <- sExp e
+                , code <- unparseE e
                 , slate <- LangSvg.valToIndexedTree (Eval.run e)
                 , editingMode <- False
                 , caption <- Nothing
@@ -122,7 +127,7 @@ upstate evt old = case Debug.log "Event" evt of
           { old | mouseMode <- MouseObject (objid, kind, zone, Just onNewPos) }
         MouseObject (_, _, _, Just onNewPos) ->
           let (newE,newSlate) = onNewPos (mx, my) in
-          { old | code <- sExp newE
+          { old | code <- unparseE newE
                 , inputExp <- Just newE
                 , slate <- newSlate }
 
@@ -158,12 +163,12 @@ upstate evt old = case Debug.log "Event" evt of
             case Sync.inferLocalUpdates old.syncOptions ip inputval' newval of
               Ok [] -> { old | mode <- mkLive_ old.syncOptions ip  }
               Ok ls ->
-                let n = Debug.log "# of sync options" (List.length ls) in
+                let n = debugLog "# of sync options" (List.length ls) in
                 let ls' = List.map fst ls in
                 let m = SyncSelect 0 (n, ls' ++ [struct, revert]) in
                 upstate (TraverseOption 1) { old | mode <- m }
               Err e ->
-                let _ = Debug.log ("bad sync: ++ " ++ e) () in
+                let _ = debugLog ("bad sync: ++ " ++ e) () in
                 let m = SyncSelect 0 (0, [struct, revert]) in
                 upstate (TraverseOption 1) { old | mode <- m }
 
@@ -171,7 +176,7 @@ upstate evt old = case Debug.log "Event" evt of
       let (SyncSelect i options) = old.mode in
       let (_,l) = options in
       let (ei,vi) = Utils.geti i l in
-      { old | code <- sExp ei
+      { old | code <- unparseE ei
             , inputExp <- Just ei
             , slate <- LangSvg.valToIndexedTree vi
             , mode <- mkLive old.syncOptions ei vi }
@@ -181,7 +186,7 @@ upstate evt old = case Debug.log "Event" evt of
       let (_,l) = options in
       let j = i + offset in
       let (ei,vi) = Utils.geti j l in
-      { old | code <- sExp ei
+      { old | code <- unparseE ei
             , inputExp <- Just ei
             , slate <- LangSvg.valToIndexedTree vi
             , mode <- SyncSelect j options }
@@ -203,7 +208,7 @@ upstate evt old = case Debug.log "Event" evt of
       { old | scratchCode <- scratchCode'
             , exName <- name
             , inputExp <- Just e
-            , code <- sExp e
+            , code <- unparseE e
             , mode <- m
             , slate <- LangSvg.valToIndexedTree v }
 

@@ -1,6 +1,9 @@
 ; Both x- and y-spacing is controlled by sep.
-;
+
 (let [x0 y0 sep] [10 28 60]
 (svg
-  (map (\[i j] (square_ (+ x0 (mult i sep)) (+ y0 (mult j sep)) 50))
-       (cartProd [0 1 2] [0 1]))))
+  (map (\[i j]
+    (let xi (+ x0 (mult i sep)) 
+    (let yj (+ y0 (mult j sep))
+    (square_ xi yj 50))))
+  (cartProd [0 1 2] [0 1]))))

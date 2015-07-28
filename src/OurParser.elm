@@ -83,9 +83,9 @@ munch : (Char -> Bool) -> Parser String
 munch f = P <| \s ->
   let walk acc s =
     case String.uncons s of
-      Nothing     -> (acc, s)
+      Nothing     -> (String.reverse acc, s)
       Just (c,s') -> if | f c       -> walk (String.cons c acc) s'
-                        | otherwise -> (acc, s)
+                        | otherwise -> (String.reverse acc, s)
   in
   [walk "" s]
 

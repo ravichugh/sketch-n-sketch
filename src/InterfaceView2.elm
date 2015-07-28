@@ -2,7 +2,7 @@ module InterfaceView2 (view) where
 
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
-import LangParser exposing (parseE, parseV)
+import LangParser2 exposing (parseE, parseV)
 import Sync
 import Eval
 import Utils

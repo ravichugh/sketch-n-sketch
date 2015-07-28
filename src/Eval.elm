@@ -3,15 +3,15 @@ module Eval (run, parseAndRun, evalDelta) where
 import Debug
 
 import Lang exposing (..)
-import LangParser exposing (prelude)
+import LangParser2 as Parser
 import Utils
 
 ------------------------------------------------------------------------------
 -- Big-Step Operational Semantics
 
 match : (Pat, Val) -> Maybe Env
-match pv = case pv of
-  (PVar x, v) -> Just [(x,v)]
+match (p,v) = case (p.val, v) of
+  (PVar x, _) -> Just [(x,v)]
   (PList ps Nothing, VList vs) ->
     Utils.bindMaybe matchList (Utils.maybeZip ps vs)
   (PList ps (Just rest), VList vs) ->
@@ -43,6 +43,8 @@ lookupVar env x =
 -- eval propagates output environment in order to extract
 -- initial environment from prelude
 
+-- eval inserts dummyPos during evaluation
+
 eval_ : Env -> Exp -> Val
 eval_ env e = fst <| eval env e
 
@@ -51,13 +53,13 @@ eval env e =
 
   let ret v = (v, env) in
 
-  case e of
+  case e.val of
 
   EConst i l -> ret <| VConst (i, TrLoc l)
   EBase v    -> ret <| VBase v
   EVar x     -> ret <| lookupVar env x
   EFun [p] e -> ret <| VClosure Nothing p e env
-  EOp op es  -> ret <| evalOp env op es
+  EOp op es  -> ret <| evalOp env op.val es
 
   EList es m ->
     let vs = List.map (eval_ env) es in
@@ -87,26 +89,25 @@ eval env e =
         case (p, v2) `cons` Just env' of
           Just env'' -> eval env'' e
       VClosure (Just f) p e env' ->
-        case (PVar f, v1) `cons` ((p, v2) `cons` Just env') of
+        case (pVar f, v1) `cons` ((p, v2) `cons` Just env') of
           Just env'' -> eval env'' e
 
-  ELet _ True (PVar f) e1 e2 ->
-    case eval_ env e1 of
-      VClosure Nothing x body env' ->
+  ELet _ True p e1 e2 ->
+    case (p.val, eval_ env e1) of
+      (PVar f, VClosure Nothing x body env') ->
         let _   = Utils.assert "eval letrec" (env == env') in
         let v1' = VClosure (Just f) x body env in
-        case (PVar f, v1') `cons` Just env of
+        case (pVar f, v1') `cons` Just env of
           Just env' -> eval env' e2
+      (PList _ _, _) ->
+        Debug.crash "eval: multi letrec"
 
   EComment _ e1 -> eval env e1
 
   -- abstract syntactic sugar
   EFun ps e  -> eval env (eFun ps e)
   EApp e1 es -> eval env (eApp e1 es)
-  ELet _ False p e1 e2 -> eval env (EApp (EFun [p] e2) [e1])
-
-  -- errors
-  ELet _ True (PList _ _) _ _ -> Debug.crash "eval: multi letrec"
+  ELet _ False p e1 e2 -> eval env (eApp (eFun [p] e2) [e1])
 
 evalOp env op es =
   case List.map (eval_ env) es of
@@ -139,14 +140,14 @@ evalOp env op es =
       case op of
         ToStr  -> VBase (String (toString b))
 
-evalBranches env v =
+evalBranches env v l =
   List.foldl (\(p,e) acc ->
     case (acc, (p,v) `cons` Just env) of
       (Just done, _)       -> Just done
       (Nothing, Just env') -> Just (eval_ env' e)
       _                    -> Nothing
 
-  ) Nothing
+  ) Nothing (List.map .val l)
 
 evalDelta op is =
   case (op, is) of
@@ -164,14 +165,14 @@ evalDelta op is =
     (Round,  [n])   -> toFloat <| round n
     _               -> Debug.crash <| "Eval.evalDelta " ++ strOp op
 
-initEnv = snd (eval [] prelude)
+initEnv = snd (eval [] Parser.prelude)
 
 run : Exp -> Val
 run e =
   eval_ initEnv e
 
 parseAndRun : String -> String
-parseAndRun = strVal << run << Utils.fromOk_ << LangParser.parseE
+parseAndRun = strVal << run << Utils.fromOk_ << Parser.parseE
 
 -- Inflates a range to a list, which is then Concat-ed in eval
 rangeToList : ERange -> List Val

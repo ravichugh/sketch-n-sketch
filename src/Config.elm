@@ -1,5 +1,16 @@
 module Config where
 
+import Debug
+
+--------------------------------------------------------------------------------
+
+debugParser = False
+debugController = False
+
+debugLog b s x =
+  if | b         -> Debug.log s x
+     | otherwise -> x
+
 --------------------------------------------------------------------------------
 -- User Interface Layout
 

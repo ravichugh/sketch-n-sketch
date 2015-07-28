@@ -1,0 +1,9 @@
+src/elm-stuff/
+src/elm.js
+src/build-artifacts/
+src/scripts/littleReader.pyc
+build/out/sns.js
+*swp
+src/*swp
+src/*swo
+examples/*swp
