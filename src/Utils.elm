@@ -107,6 +107,15 @@ removeFirst x ys = case ys of
   []     -> []
   y::ys' -> if x == y then ys' else y :: removeFirst x ys'
 
+maybeRemoveFirst : a -> List (a,b) -> Maybe (b, List (a,b))
+maybeRemoveFirst x ys = case ys of
+  []         -> Nothing
+  (a,b)::ys' -> if
+    | x == a    -> Just (b, ys')
+    | otherwise -> case maybeRemoveFirst x ys' of
+                     Nothing      -> Nothing
+                     Just (b', l) -> Just (b', (a,b) :: l)
+
 adjacentPairs : Bool -> List a -> List (a, a)
 adjacentPairs includeLast (x0::xs) =
   let f xi (xPrev,acc) = (xi, (xPrev,xi) :: acc) in

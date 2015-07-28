@@ -54,6 +54,21 @@ import Debug
 
 dimToPix d = String.append (toString d) "px"
 
+--------------------------------------------------------------------------------
+-- Zone Options (per shape)
+
+type alias ZoneOptions =
+  { showBasic : Bool , addBasic : Bool , addRot : Bool }
+
+zoneOptions0 =
+  { showBasic = False , addBasic = False , addRot = False }
+
+optionsOf : ShowZones -> ZoneOptions
+optionsOf x =
+  if | x == showZonesNone  -> { zoneOptions0 | addBasic <- True }
+     | x == showZonesBasic -> { zoneOptions0 | addBasic <- True, showBasic <- True }
+     | x == showZonesRot   -> { zoneOptions0 | addRot <- True }
+
 
 --------------------------------------------------------------------------------
 -- Compiling to Svg
@@ -67,11 +82,20 @@ buildSvg_ addZones showZones d i =
     LangSvg.TextNode text -> VirtualDom.text text
     LangSvg.SvgNode shape attrs js ->
       -- TODO: figure out: (LangSvg.attr "draggable" "false")
-      let zones =
-        if | addZones  -> makeZones showZones shape i attrs
-           | otherwise -> [] in
+      let (zones, attrs') =
+        let options = optionsOf showZones in
+        case (addZones, Utils.maybeRemoveFirst "zones" attrs) of
+          (False, Nothing)     -> ([], attrs)
+          (False, Just (_, l)) -> ([], l)
+          (True, Nothing) ->
+            (makeZones options shape i attrs, attrs)
+          (True, Just (LangSvg.AString "none", l)) ->
+            (makeZones zoneOptions0 shape i attrs, l)
+          (True, Just (LangSvg.AString "basic", l)) ->
+            (makeZones { options | addRot <- False } shape i attrs, l)
+      in
       let children = List.map (buildSvg_ addZones showZones d) js in
-      let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs) children in
+      let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs') children in
       Svg.svg [] (mainshape :: zones)
 
 
@@ -154,9 +178,8 @@ zoneLine id shape zone show (x1,y1) (x2,y2) =
 
 rotZoneDelta = 20
 
-zoneRotate showZones (cx,cy) r rot =
-  if | showZones == showZonesRot -> zoneRotate_ cx cy r rot
-     | otherwise                 -> []
+zoneRotate b (cx,cy) r rot =
+  if b then zoneRotate_ cx cy r rot else []
 
 zoneRotate_ cx cy r rot =
   let (a, stroke, strokeWidth, rBall) = (20, "silver", "2", "7") in
@@ -198,15 +221,14 @@ distance_ pt1 pt2              = distance (projPt pt1) (projPt pt2)
 
 --------------------------------------------------------------------------------
 
-makeZones : ShowZones -> String -> LangSvg.NodeId -> List LangSvg.Attr -> List Svg.Svg
-makeZones showZones shape id l =
-  let showBasicZones = showZones == showZonesBasic in
+makeZones : ZoneOptions -> String -> LangSvg.NodeId -> List LangSvg.Attr -> List Svg.Svg
+makeZones options shape id l =
   case shape of
 
     "rect" ->
         let transform = maybeTransformAttr l in
         let mk zone x_ y_ w_ h_ =
-          zoneBorder Svg.rect id shape zone True showBasicZones <|
+          zoneBorder Svg.rect id shape zone True options.showBasic <|
             [ attrNum "x" x_ , attrNum "y" y_
             , attrNum "width" w_ , attrNum "height" h_
             ] ++ transform
@@ -222,7 +244,7 @@ makeZones showZones shape id l =
         let zRot =
           let c = (x + (w/2), y + (h/2)) in
           let r = rotZoneDelta + (h/2) in
-          zoneRotate showZones c r transform
+          zoneRotate options.addRot c r transform
         in
           [ mk "Interior"       x1 y1 wWide hWide
           , mk "RightEdge"      x2 y1 wSlim hWide
@@ -235,41 +257,40 @@ makeZones showZones shape id l =
           , mk "TopRightCorner" x2 y0 wSlim hSlim
           ] ++ zRot
 
-    "circle"  -> makeZonesCircle  showBasicZones showZones id l
-    "ellipse" -> makeZonesEllipse showBasicZones showZones id l
+    "circle"  -> makeZonesCircle  options.showBasic options.addRot id l
+    "ellipse" -> makeZonesEllipse options.showBasic options.addRot id l
 
     "line" ->
         let [x1,y1,x2,y2] = List.map (toNumTr << Utils.find_ l) ["x1","y1","x2","y2"] in
         let (pt1,pt2) = ((x1,y1), (x2,y2)) in
-        let zLine = zoneLine id shape "Edge" showBasicZones pt1 pt2 in
-        let zPts = zonePoints id shape showBasicZones [pt1,pt2] in
+        let zLine = zoneLine id shape "Edge" options.showBasic pt1 pt2 in
+        let zPts = zonePoints id shape options.showBasic [pt1,pt2] in
         let zRot =
           let c = halfwayBetween_ pt1 pt2 in
           let r = (distance_ pt1 pt2 / 2) - rotZoneDelta in
-          zoneRotate showZones c r (maybeTransformAttr l) in
+          zoneRotate options.addRot c r (maybeTransformAttr l) in
         zLine :: zPts ++ zRot
 
-    "polygon"  -> makeZonesPoly showBasicZones shape id l
-    "polyline" -> makeZonesPoly showBasicZones shape id l
+    "polygon"  -> makeZonesPoly options.showBasic shape id l
+    "polyline" -> makeZonesPoly options.showBasic shape id l
 
-    "path" -> makeZonesPath showBasicZones shape id l
+    "path" -> makeZonesPath options.showBasic shape id l
 
     _ -> []
 
--- TODO showBasicZones is derived from showZones
-makeZonesCircle showBasicZones showZones id l =
+makeZonesCircle showBasic addRot id l =
   let [cx,cy,r] = List.map (toNum << Utils.find_ l) ["cx","cy","r"] in
   let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "r" r ] in
-     [zoneBorder Svg.circle id "circle" "Edge" True showBasicZones attrs]
-  ++ [zoneBorder Svg.circle id "circle" "Interior" False showBasicZones attrs]
-  ++ (zoneRotate showZones (cx,cy) (r + rotZoneDelta) (maybeTransformAttr l))
+     [zoneBorder Svg.circle id "circle" "Edge" True showBasic attrs]
+  ++ [zoneBorder Svg.circle id "circle" "Interior" False showBasic attrs]
+  ++ (zoneRotate addRot (cx,cy) (r + rotZoneDelta) (maybeTransformAttr l))
 
-makeZonesEllipse showBasicZones showZones id l =
+makeZonesEllipse showBasic addRot id l =
   let [cx,cy,rx,ry] = List.map (toNum << Utils.find_ l) ["cx","cy","rx","ry"] in
   let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "rx" rx, attrNum "ry" ry ] in
-     [zoneBorder Svg.ellipse id "ellipse" "Edge" True showBasicZones attrs]
-  ++ [zoneBorder Svg.ellipse id "ellipse" "Interior" False showBasicZones attrs]
-  ++ (zoneRotate showZones (cx,cy) (ry + rotZoneDelta) (maybeTransformAttr l))
+     [zoneBorder Svg.ellipse id "ellipse" "Edge" True showBasic attrs]
+  ++ [zoneBorder Svg.ellipse id "ellipse" "Interior" False showBasic attrs]
+  ++ (zoneRotate addRot (cx,cy) (ry + rotZoneDelta) (maybeTransformAttr l))
 
 makeZonesPoly showZones shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "polygon" || shape == "polyline") in
