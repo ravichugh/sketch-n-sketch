@@ -2,6 +2,12 @@ module PreludeGenerated (src) where
 
 prelude =
  "
+; prelude.little
+;
+; This little library is accessible by every program.
+; This is not an example that generates an SVG canvas,
+; but we include it here for reference.
+
 (def id (\\x x))
 
 (def always (\\(x _) x))
@@ -262,7 +268,8 @@ prelude =
 
 (def button (button_ true))
 
-0
+; 0
+['svg' [] []]
 
 "
 

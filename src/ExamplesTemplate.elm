@@ -5,6 +5,7 @@ import LangParser2 as Parser
 import Eval
 import MicroTests
 import Utils
+import PreludeGenerated as Prelude
 
 makeExample name s =
   let thunk () =
@@ -61,6 +62,7 @@ LITTLE_TO_ELM matrices
 
 examples =
   [ makeExample scratchName scratch
+  , makeExample "*Prelude*" Prelude.src
   , makeExample "3 Boxes" threeBoxes
   , makeExample "N Boxes" groupOfBoxes
   , makeExample "6 Boxes A" sixBoxesA
