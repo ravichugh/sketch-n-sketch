@@ -1,0 +1,16 @@
+<svg xmlns='http://www.w3.org/2000/svg' x='0' y='0' viewBox='0 0 150 32.5'>
+  <rect x='2' y='28.5' width='146' height='4' fill='rgba(120, 120, 120, 1)'></rect>
+  <rect x='0' y='28.5' width='150' height='2' fill='rgba(120, 120, 120, 1)'></rect>
+  <circle cx='2' cy='30.5' r='2' fill='rgba(120, 120, 120, 1)'></circle>
+  <circle cx='148' cy='30.5' r='2' fill='rgba(120, 120, 120, 1)'></circle>
+  <rect x='2' y='28' width='146' height='4' fill='deepskyblue'></rect>
+  <rect x='0' y='28' width='150' height='2' fill='deepskyblue'></rect>
+  <circle cx='2' cy='30' r='2' fill='deepskyblue'></circle>
+  <circle cx='148' cy='30' r='2' fill='deepskyblue'></circle>
+  <rect x='2' y='0' width='146' height='30' fill='dodgerblue'></rect>
+  <rect x='0' y='2' width='150' height='26' fill='dodgerblue'></rect>
+  <circle cx='2' cy='2' r='2' fill='dodgerblue'></circle>
+  <circle cx='148' cy='2' r='2' fill='dodgerblue'></circle>
+  <circle cx='2' cy='28' r='2' fill='dodgerblue'></circle>
+  <circle cx='148' cy='28' r='2' fill='dodgerblue'></circle>
+</svg>
