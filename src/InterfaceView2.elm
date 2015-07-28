@@ -613,6 +613,8 @@ dropdownExamples model w h =
           , ("display", "block")
           , ("width", "120px")
           , ("height", "24px")
+          , ("font-family", "sans-serif")
+          , ("font-size", "1em")
           ] 
         , Events.on "change" Events.targetValue 
                 (\selected -> Signal.message taskMailbox.address <|
