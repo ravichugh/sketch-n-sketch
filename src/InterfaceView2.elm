@@ -54,6 +54,59 @@ import Debug
 
 dimToPix d = String.append (toString d) "px"
 
+interfaceColor = Color.rgba 3 22 52 1
+textColor = "lightgray"
+
+-- Creates an Html button with the text properly offset
+type ButtonStatus = Raised | Highlighted | Depressed
+makeButton : ButtonStatus -> Int -> Int -> String -> GE.Element
+makeButton status w h text = case status of
+    Raised -> GE.flow GE.outward 
+                [ GE.image w h "button_raised.svg"
+                , Html.toElement w h <|
+                    Html.div
+                      [ Attr.style
+                          [ ("color", textColor)
+                          , ("font-family", "sans-serif")
+                          , ("text-align", "center")
+                          , ("width", dimToPix w)
+                          , ("height", dimToPix h)
+                          , ("transform", 
+                                "translate(0px," ++ dimToPix (h // 8) ++ ")")
+                          ]
+                      ] [ Html.text text ]
+                ]
+    Highlighted -> GE.flow GE.outward
+                [ GE.image w h "button_highlighted.svg"
+                , Html.toElement w h <|
+                    Html.div
+                      [ Attr.style
+                          [ ("color", textColor)
+                          , ("font-family", "sans-serif")
+                          , ("text-align", "center")
+                          , ("width", dimToPix w)
+                          , ("height", dimToPix h)
+                          , ("transform", 
+                                "translate(0px," ++ dimToPix (h // 8) ++ ")")
+                          ]
+                      ] [ Html.text text ]
+                ]
+    Depressed -> GE.flow GE.outward
+                [ GE.image w h "button_depressed.svg"
+                , Html.toElement w h <|
+                    Html.div
+                      [ Attr.style
+                          [ ("color", textColor)
+                          , ("font-family", "sans-serif")
+                          , ("text-align", "center")
+                          , ("width", dimToPix w)
+                          , ("height", dimToPix h)
+                          , ("transform", 
+                                "translate(0px," ++ dimToPix (h // 8 + h // 20) ++ ")")
+                          ]
+                      ] [ Html.text text ]
+                ]
+        
 
 --------------------------------------------------------------------------------
 -- Compiling to Svg
@@ -252,7 +305,7 @@ colorDebug_ c1 c2 =
   if | params.debugLayout -> GE.color c1
      | otherwise          -> GE.color c2
 
-colorDebug c1 = colorDebug_ c1 Color.darkGray
+colorDebug c1 = colorDebug_ c1 interfaceColor
 
 codebox : Int -> Int -> Model -> GE.Element
 codebox w h model =
@@ -265,26 +318,34 @@ codebox w h model =
     codebox_ w h event model.code (not model.editingMode)
 
 codebox_ w h event s readOnly =
-  Html.toElement w h <|
-    Html.textarea
-      ([ Attr.id "codeBox"
-       , Attr.spellcheck False
-       , Attr.readonly readOnly
-       , Attr.style
-           [ ("font-family", params.mainSection.codebox.font)
-           , ("font-size", params.mainSection.codebox.fontSize)
-           , ("border", params.mainSection.codebox.border)
-           , ("whiteSpace", "pre")
-           , ("height", "99%") , ("width", "99%")
-           , ("resize", "none")
-           , ("overflow", "auto")
-           -- Horizontal Scrollbars in Chrome
-           , ("word-wrap", "normal")
-           ]
-       , Attr.value s
-       , Events.onMouseUp events.address MouseUp
-       ] ++ event)
-      []
+  let innerPadding = 4
+  in
+    Html.toElement w h <|
+      Html.textarea
+        ([ Attr.id "codeBox"
+         , Attr.spellcheck False
+         , Attr.readonly readOnly
+         , Attr.style
+             [ ("font-family", params.mainSection.codebox.font)
+             , ("font-size", params.mainSection.codebox.fontSize)
+             , ("border", params.mainSection.codebox.border)
+             , ("whiteSpace", "pre")
+             , ("height", "100%")
+             , ("width", "100%") 
+             , ("resize", "none")
+             , ("overflow", "auto")
+             -- Horizontal Scrollbars in Chrome
+             , ("word-wrap", "normal")
+             , ("background-color", "whitesmoke")
+             , ("padding", toString innerPadding ++ "px")
+             -- Makes the 100% for width/height work as intended
+             , ("box-sizing", "border-box")
+             , ("box-shadow", "inset 0 0 10px 6px lightgray")
+             ]
+         , Attr.value s
+         , Events.onMouseUp events.address MouseUp
+         ] ++ event)
+        []
 
 canvas : Int -> Int -> Model -> GE.Element
 canvas w h model =
@@ -298,7 +359,7 @@ canvas_ w h model =
   Html.toElement w h <|
     Svg.svg
       [ onMouseUp MouseUp
-      , Attr.style [ ("width", "99%") , ("height", "99%")
+      , Attr.style [ ("width", "100%") , ("height", "100%")
                    , ("border", params.mainSection.canvas.border)
                    ] ]
       [ svg ]
@@ -436,14 +497,23 @@ mainSectionHorizontal w h model =
   GE.flow GE.down <|
     [ codeSection, gutter, middleSection, gutter, canvasSection ]
 
-simpleButton_ : Bool -> Event -> String -> String -> String -> Int -> Int -> GE.Element
-simpleButton_ disabled evt value name text w h = 
+simpleEventButton_ : Bool -> Event -> String -> String -> String -> Int -> Int -> GE.Element
+simpleEventButton_ disabled evt value name text w h = 
     GE.flow GE.outward
       [ GI.customButton (Signal.message events.address evt)
-          (GE.image w h "button_raised.svg")
-          (GE.image w h "button_highlighted.svg")
-          (GE.image w h "button_depressed.svg")
-      , GE.container w h GE.middle <| GE.centered <| T.color Color.white <| T.fromString text
+          (makeButton Raised w h text)
+          (makeButton Highlighted w h text)
+          (makeButton Depressed w h text)
+      ]
+
+
+simpleTaskButton_ : Bool -> Task String () -> String -> String -> String -> Int -> Int -> GE.Element
+simpleTaskButton_ disabled evt value name text w h = 
+    GE.flow GE.outward
+      [ GI.customButton (Signal.message taskMailbox.address evt)
+          (makeButton Raised w h text)
+          (makeButton Highlighted w h text)
+          (makeButton Depressed w h text)
       ]
 
 --Redefining simpleButton_ in terms of Elements...
@@ -461,13 +531,14 @@ simpleButton_ disabled evt value name text w h =
       [Html.text text]
 -}
 
-simpleButton = simpleButton_ False
+simpleButton = simpleEventButton_ False
+simpleTaskButton = simpleTaskButton_ False
 
 editRunButton model w h =
   let disabled = model.mode == AdHoc in
   case model.editingMode of
-    True  -> simpleButton_ disabled Run "Run" "Run" "Run Code" w h
-    False -> simpleButton_ disabled Edit "Edit" "Edit" "Edit Code" w h
+    True  -> simpleEventButton_ disabled Run "Run" "Run" "Run Code" w h
+    False -> simpleEventButton_ disabled Edit "Edit" "Edit" "Edit Code" w h
 
 outputButton model w h =
   let disabled = model.mode == AdHoc in
@@ -476,7 +547,7 @@ outputButton model w h =
        Print _ -> "[Out] SVG"
        _       -> "[Out] Canvas"
   in
-  simpleButton_ disabled ToggleOutput "Toggle Output" "Toggle Output" cap w h
+  simpleEventButton_ disabled ToggleOutput "Toggle Output" "Toggle Output" cap w h
 
 syncButton =
   simpleButton Sync "Sync" "Sync the code to the canvas" "Sync"
@@ -498,43 +569,87 @@ chooseButton i (n,_) =
 
 prevButton i =
   let enabled = i > 1 in
-  simpleButton_ (not enabled) (TraverseOption -1) "Prev" "Prev" "Show Prev"
+  simpleEventButton_ (not enabled) (TraverseOption -1) "Prev" "Prev" "Show Prev"
 
 nextButton i (n,l) =
   let enabled = i < n + 2 in
-  simpleButton_ (not enabled) (TraverseOption 1) "Next" "Next" "Show Next"
+  simpleEventButton_ (not enabled) (TraverseOption 1) "Next" "Next" "Show Next"
 
 saveButton : Model -> Int -> Int -> GE.Element
 saveButton model w h =
     let dispname = if | List.any ((==) model.exName << fst) Examples.list ->
                             "Save As"
                       | otherwise -> "Save"
-    in 
-      Html.toElement w h <|
-        Html.button
-          [ buttonAttrs w h
-          , Events.onClick taskMailbox.address (saveStateLocally model.exName model)
-          , Attr.value dispname
-          , Attr.name dispname
-          , Attr.title "Saves Code and Page Layout to Persistent Browser Storage"
-          , Attr.disabled False
-          ]
-          [ Html.text dispname ]
+    in simpleTaskButton (saveStateLocally model.exName model) dispname dispname dispname w h
+--    in 
+--      Html.toElement w h <|
+--        Html.button
+--          [ buttonAttrs w h
+--          , Events.onClick taskMailbox.address (saveStateLocally model.exName model)
+--          , Attr.value dispname
+--          , Attr.name dispname
+--          , Attr.title "Saves Code and Page Layout to Persistent Browser Storage"
+--          , Attr.disabled False
+--          ]
+--          [ Html.text dispname ]
 
 loadButton : Model -> Int -> Int -> GE.Element
 loadButton model w h =
-    Html.toElement w h <| 
-      Html.button
-        [ buttonAttrs w h
-        , Events.onClick taskMailbox.address  <| loadLocalState model.exName
-        , Attr.value "Revert"
-        , Attr.name "Revert"
-        , Attr.title 
-            "Reverts Code and Page Layout to last save by this name"
-        , Attr.disabled False
-        ]
-        [ Html.text "Revert" ]
+    simpleTaskButton (loadLocalState model.exName) "Revert" "Revert" "Revert" w h
+--    Html.toElement w h <| 
+--      Html.button
+--        [ buttonAttrs w h
+--        , Events.onClick taskMailbox.address  <| loadLocalState model.exName
+--        , Attr.value "Revert"
+--        , Attr.name "Revert"
+--        , Attr.title 
+--            "Reverts Code and Page Layout to last save by this name"
+--        , Attr.disabled False
+--        ]
+--        [ Html.text "Revert" ]
 
+dropdownExamples : Model -> Int -> Int -> GE.Element
+dropdownExamples model w h =
+  let 
+    choices = case model.mode of
+      AdHoc -> [(model.exName, Signal.send events.address Noop)]
+      _ ->
+        let foo (name,thunk) = (name, Signal.send events.address (SelectExample name thunk)) 
+            bar saveName = (saveName, loadLocalState saveName)
+        in List.concat
+            [ (List.map bar model.localSaves)
+            , (List.map foo Examples.list)
+            , [("*Clear Local Saves*", clearLocalSaves)]
+            ]
+    options = List.map (\(name,task) -> 
+        if | name == model.exName ->
+              Html.option
+                [ Attr.value name
+                , Attr.selected True
+                ] 
+                [ Html.text name ]
+           | otherwise ->
+              Html.option
+                [ Attr.value name
+                ] 
+                [ Html.text name ]) choices
+    findTask name choices = case choices of
+        (n,t) :: rest -> if | n == name -> t
+                            | otherwise -> findTask name rest
+  in Html.toElement 120 24 <| Html.select 
+        [ Attr.style 
+          [ ("pointer-events", "auto")
+          , ("border", "0 solid")
+          , ("display", "block")
+          , ("width", "120px")
+          , ("height", "24px")
+          ] 
+        , Events.on "change" Events.targetValue 
+                (\selected -> Signal.message taskMailbox.address <|
+                                findTask selected choices)
+        ] options
+--Redefining dropdownExamples in terms of Html...
+{-
 dropdownExamples : Model -> Int -> Int -> GE.Element
 dropdownExamples model w h =
   let choices =
@@ -550,11 +665,12 @@ dropdownExamples model w h =
             ]
   in
     GI.dropDown (Signal.message taskMailbox.address) choices
+-}
 
 modeButton model =
   if model.mode == AdHoc
-  then simpleButton_ True Noop "SwitchMode" "SwitchMode" "[Mode] Ad Hoc"
-  else simpleButton_ False (SwitchMode AdHoc) "SwitchMode" "SwitchMode" "[Mode] Live"
+  then simpleEventButton_ True Noop "SwitchMode" "SwitchMode" "[Mode] Ad Hoc"
+  else simpleEventButton_ False (SwitchMode AdHoc) "SwitchMode" "SwitchMode" "[Mode] Live"
 
 {-
 modeToggle : Int -> Int -> Model -> GE.Element
@@ -568,16 +684,19 @@ modeToggle w h model =
       _     -> [optionLive, optionAdHoc]
 -}
 
-orientationButton w h model =
-  Html.button
-      [ buttonAttrs w h
-      , Events.onClick events.address SwitchOrient
-      ]
-      [Html.text ("[Orientation] " ++ (toString model.orient))]
+orientationButton w h model = 
+    let text = "[Orientation] " ++ toString model.orient
+    in
+      simpleButton SwitchOrient text text text w h
+--  Html.button
+--      [ buttonAttrs w h
+--      , Events.onClick events.address SwitchOrient
+--      ]
+--      [Html.text ("[Orientation] " ++ (toString model.orient))]
 
 caption : Model -> Int -> Int -> GE.Element
 caption model w h =
-  let eStr = GE.leftAligned << T.monospace << T.fromString in
+  let eStr = GE.leftAligned << T.color Color.white << T.monospace << T.fromString in
   colorDebug Color.orange <|
     GE.container w h GE.topLeft <|
       case (model.caption, model.mode, model.mouseMode) of
@@ -685,7 +804,8 @@ saveElement model w h = case model.mode of
 titleStyle =
   { defaultStyle | typeface <- ["Courier", "monospace"]
                  , height <- Just 18
-                 , bold <- False }
+                 , bold <- False 
+                 , color <- Color.white}
 
 view : (Int, Int) -> Model -> GE.Element
 view (w,h) model =
@@ -703,14 +823,14 @@ view (w,h) model =
       title = GE.leftAligned <| T.style titleStyle (T.fromString strTitle)
 
       wLogo = params.topSection.wLogo
-      logo  = GE.image wLogo wLogo "sketch-n-sketch-logo.png"
+      logo  = GE.image wLogo wLogo "light_logo.svg"
 
       wBtnO = params.topSection.wBtnO
       hBtnO = params.topSection.hBtnO
       wJunk = params.topSection.wJunk
 
       wSep  = GE.spacer (wAll - (wLogo + wBtnO + wJunk)) 1
-      btnO  = Html.toElement wBtnO hBtnO <| orientationButton wBtnO hBtnO model
+      btnO  = orientationButton wBtnO hBtnO model
     in
       GE.size wAll hTop <|
         GE.flow GE.right
