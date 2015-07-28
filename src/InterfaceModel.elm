@@ -65,10 +65,11 @@ type alias PossibleChanges =
 -- using Int instead of datatype so serialization/deserialization in
 -- InterfaceStorage is more succinct (Enum typeclass would be nice here...)
 type alias ShowZones = Int
-showZonesModes = 3
-showZonesNone  = 0
-showZonesBasic = 1
-showZonesRot   = 2
+
+showZonesModes = 4
+
+[showZonesNone, showZonesBasic, showZonesRot, showZonesColor] =
+  [ 0 .. (showZonesModes - 1) ]
 
 type Caption
   = Hovering (Int, ShapeKind, Zone)
