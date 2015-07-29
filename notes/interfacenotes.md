@@ -4,8 +4,8 @@
 * ~~retain whitespace in parsing~~
 * parse error messages
 * ~~local storage for edits and options~~
-* rotation zones
-* color picker zones
+* ~~rotation zones~~
+* ~~color picker zones~~
 * text zones
 * little options
 * freeze annotations on variables (and uses)

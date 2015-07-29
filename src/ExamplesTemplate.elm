@@ -38,6 +38,7 @@ LITTLE_TO_ELM boxGrid
 LITTLE_TO_ELM usFlag13
 LITTLE_TO_ELM usFlag50
 LITTLE_TO_ELM chicago
+LITTLE_TO_ELM chicagoColors
 LITTLE_TO_ELM frenchSudan
 LITTLE_TO_ELM flw1
 LITTLE_TO_ELM flw2
@@ -82,6 +83,7 @@ examples =
   , makeExample "Color Picker" rgba
   , makeExample "Box Grid" boxGrid
   , makeExample "Chicago Flag" chicago
+  , makeExample "Chicago Flag 2" chicagoColors
   , makeExample "US-13 Flag" usFlag13
   , makeExample "US-50 Flag" usFlag50
   , makeExample "French Sudan Flag" frenchSudan

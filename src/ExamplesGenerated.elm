@@ -613,22 +613,61 @@ chicago =
 ; - Pull stripes or stars in various directions
 ; - Group box in background
  
-(let [x0 y0 ni nj pts w h] [40 40 0.5! 3.5! 6! 454 300]
-(let [outerLen innerLen] [30 12]
-(let stripes
-  (map
-    (\\i (rect 'lightblue' x0 (+ y0 (* i h)) w (/ h 6!)))
-    [(/ 1! 6!) (/ 2! 3!)])
- 
-(svg 
-  (cons (rect 'white' (- x0 10!) (- y0 10!) (+ w 20!) (+ h 20!))
-  (append
-    stripes
-    (map
-      (\\i (let off (* i (/ w 4!))
-          (nStar 'red' 'none' 0 pts outerLen innerLen 0
-            (+ x0 off) (+ y0 (/ h 2!)))))
-      (range ni nj))))))))
+(def [x0 y0 ni nj pts w h] [40 40 0.5! 3.5! 6! 454 300])
+(def [outerLen innerLen] [30 12])
+
+(def background
+  (let [d1 d2] [10! 20!]
+  [ (rect 'white' (- x0 d1) (- y0 d1) (+ w d2) (+ h d2)) ]))
+
+(def stripes
+  (map (\\i
+    (rect 'lightblue' x0 (+ y0 (* i h)) w (/ h 6!)))
+  [(/ 1! 6!) (/ 2! 3!)]))
+
+(def stars
+  (map (\\i
+    (let off (* i (/ w 4!))
+    (nStar 'red' 'none' 0 pts outerLen innerLen 0
+      (+ x0 off) (+ y0 (/ h 2!)))))
+  (range ni nj)))
+
+(svg (concat [background stripes stars]))
+
+"
+
+chicagoColors =
+ "
+; Version of Chicago Flag with color pickers.
+; Toggle the Zones option.
+; Notice the use of (basicZonesTail ...).
+
+(def [x0 y0 ni nj pts w h] [40 40 0.5! 3.5! 6! 454 300])
+(def [outerLen innerLen] [30 12])
+
+(def starColor 412)
+(def stripeColor 86)
+
+(def background
+  (let [d1 d2] [10! 20!]
+  [ (rect 'white' (- x0 d1) (- y0 d1) (+ w d2) (+ h d2)) ]))
+
+(def stripes
+  (map (\\i
+    (rect stripeColor x0 (+ y0 (* i h)) w (/ h 6!)))
+  [(/ 1! 6!) (/ 2! 3!)]))
+
+(def stars
+  (map (\\i
+    (let off (* i (/ w 4!))
+    (nStar starColor 'none' 0 pts outerLen innerLen 0
+      (+ x0 off) (+ y0 (/ h 2!)))))
+  (range ni nj)))
+
+(svg (concat
+  [ background
+    (basicZonesTail stripes)
+    (basicZonesTail stars) ]))
 
 "
 
@@ -1478,6 +1517,7 @@ examples =
   , makeExample "Color Picker" rgba
   , makeExample "Box Grid" boxGrid
   , makeExample "Chicago Flag" chicago
+  , makeExample "Chicago Flag 2" chicagoColors
   , makeExample "US-13 Flag" usFlag13
   , makeExample "US-50 Flag" usFlag50
   , makeExample "French Sudan Flag" frenchSudan
