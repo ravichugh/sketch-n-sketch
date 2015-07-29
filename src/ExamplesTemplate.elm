@@ -60,6 +60,7 @@ LITTLE_TO_ELM eyeIcon
 LITTLE_TO_ELM wikimedia
 LITTLE_TO_ELM haskell
 LITTLE_TO_ELM matrices
+LITTLE_TO_ELM rotTest
 
 examples =
   [ makeExample scratchName scratch
@@ -106,6 +107,7 @@ examples =
   , makeExample "Paths 3" paths3
   , makeExample "Paths 4" paths4
   , makeExample "Paths 5" paths5
+  , makeExample "Sample Rotations" rotTest
   ]
 
 list = examples -- ++ MicroTests.sampleTests

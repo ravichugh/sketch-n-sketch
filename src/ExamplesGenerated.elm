@@ -1494,6 +1494,37 @@ matrices =
 (svg [square1 square2 rotsquare shearsquare scalesquare])
 "
 
+rotTest =
+ "
+(def [x y w h] [257 54 152 261])
+(def rot 38.166250526006905)
+(def colorNum 100)
+
+(def [x_ y_] [(+ x (/ w 2)) (+ y (/ h 2))])
+
+; thin wrapper v1
+(def transform
+  (spaces
+     ['translate' (parens (spaces [(toString x_) (toString y_)]))
+      'rotate'    (parens (toString rot))
+      'translate' (parens (spaces [(toString (neg x_)) (toString (neg y_))]))
+   ]))
+
+; thin wrapper v2
+(def transform2
+  (+ 'rotate' (parens (spaces [(toString rot) (toString x_) (toString y_)]))))
+
+; specific transform encoding
+(def transform3 [['rotate' rot x_ y_]])
+
+(def r (rotate (rect colorNum x y w h) rot x_ y_))
+
+(def e (rotate (ellipse 240 x_ y_ 10 20) -10 x_ y_))
+
+(svg [r e])
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -1540,6 +1571,7 @@ examples =
   , makeExample "Paths 3" paths3
   , makeExample "Paths 4" paths4
   , makeExample "Paths 5" paths5
+  , makeExample "Sample Rotations" rotTest
   ]
 
 list = examples -- ++ MicroTests.sampleTests
