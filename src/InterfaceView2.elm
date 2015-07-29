@@ -147,12 +147,11 @@ cursorOfZone zone = if
 
 -- Stuff for Basic Zones -------------------------------------------------------
 
--- TODO add transform params...
-
 -- TODO use zone
-zoneBorder svgFunc id shape zone flag show =
+zoneBorder svgFunc id shape zone flag show transform =
   flip svgFunc [] <<
   (++) (zoneEvents id shape zone) <<
+  (++) transform <<
   (++) [ if flag && show
          then LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
          else LangSvg.attr "stroke" "rgba(0,0,0,0.0)"
@@ -161,9 +160,10 @@ zoneBorder svgFunc id shape zone flag show =
        , cursorOfZone zone
        ]
 
-zonePoint id shape zone show =
+zonePoint id shape zone show transform =
   flip Svg.circle [] <<
   (++) (zoneEvents id shape zone) <<
+  (++) transform <<
   (++) [ LangSvg.attr "r" "6"
        , if show
          then LangSvg.attr "fill" "rgba(255,0,0,0.5)"
@@ -171,13 +171,15 @@ zonePoint id shape zone show =
        , cursorStyle "pointer"
        ]
 
-zonePoints id shape show pts =
+zonePoints id shape show transform pts =
   flip Utils.mapi pts <| \(i, (x,y)) ->
-    zonePoint id shape (addi "Point" i) show [ attrNumTr "cx" x, attrNumTr "cy" y ]
+    zonePoint id shape (addi "Point" i) show transform
+      [ attrNumTr "cx" x, attrNumTr "cy" y ]
 
-zoneLine id shape zone show (x1,y1) (x2,y2) =
-  zoneBorder Svg.line id shape zone True show [
-      attrNumTr "x1" x1 , attrNumTr "y1" y1 , attrNumTr "x2" x2 , attrNumTr "y2" y2
+zoneLine id shape zone show transform (x1,y1) (x2,y2) =
+  zoneBorder Svg.line id shape zone True show transform [
+      attrNumTr "x1" x1 , attrNumTr "y1" y1
+    , attrNumTr "x2" x2 , attrNumTr "y2" y2
     , cursorStyle "pointer"
     ]
 
@@ -307,10 +309,10 @@ makeZones options shape id l =
     "rect" ->
         let transform = maybeTransformAttr l in
         let mk zone x_ y_ w_ h_ =
-          zoneBorder Svg.rect id shape zone True options.showBasic <|
+          zoneBorder Svg.rect id shape zone True options.showBasic transform <|
             [ attrNum "x" x_ , attrNum "y" y_
             , attrNum "width" w_ , attrNum "height" h_
-            ] ++ transform
+            ]
         in
         let
           [x,y,w,h]     = List.map (toNum << Utils.find_ l) ["x","y","width","height"]
@@ -344,10 +346,11 @@ makeZones options shape id l =
     "ellipse" -> makeZonesEllipse options id l
 
     "line" ->
+        let transform = maybeTransformAttr l in
         let [x1,y1,x2,y2] = List.map (toNumTr << Utils.find_ l) ["x1","y1","x2","y2"] in
         let (pt1,pt2) = ((x1,y1), (x2,y2)) in
-        let zLine = zoneLine id shape "Edge" options.showBasic pt1 pt2 in
-        let zPts = zonePoints id shape options.showBasic [pt1,pt2] in
+        let zLine = zoneLine id shape "Edge" options.showBasic transform pt1 pt2 in
+        let zPts = zonePoints id shape options.showBasic transform [pt1,pt2] in
         let zRot =
           let c = halfwayBetween_ pt1 pt2 in
           let r = (distance_ pt1 pt2 / 2) - rotZoneDelta in
@@ -362,31 +365,34 @@ makeZones options shape id l =
     _ -> []
 
 makeZonesCircle options id l =
+  let transform = maybeTransformAttr l in
   let [cx,cy,r] = List.map (toNum << Utils.find_ l) ["cx","cy","r"] in
   let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "r" r ] in
-     [zoneBorder Svg.circle id "circle" "Edge" True options.showBasic attrs]
-  ++ [zoneBorder Svg.circle id "circle" "Interior" False options.showBasic attrs]
+     [zoneBorder Svg.circle id "circle" "Edge" True options.showBasic attrs transform]
+  ++ [zoneBorder Svg.circle id "circle" "Interior" False options.showBasic attrs transform]
   ++ (zoneRotate options.addRot id "circle" (cx,cy) (r + rotZoneDelta) (maybeTransformCmds l))
   ++ (zoneColor options.addColor id "circle" (cx - r) (cy - r) (maybeColorNumAttr "fill" l))
 
 makeZonesEllipse options id l =
+  let transform = maybeTransformAttr l in
   let [cx,cy,rx,ry] = List.map (toNum << Utils.find_ l) ["cx","cy","rx","ry"] in
   let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "rx" rx, attrNum "ry" ry ] in
-     [zoneBorder Svg.ellipse id "ellipse" "Edge" True options.showBasic attrs]
-  ++ [zoneBorder Svg.ellipse id "ellipse" "Interior" False options.showBasic attrs]
+     [zoneBorder Svg.ellipse id "ellipse" "Edge" True options.showBasic attrs transform]
+  ++ [zoneBorder Svg.ellipse id "ellipse" "Interior" False options.showBasic attrs transform]
   ++ (zoneRotate options.addRot id "circle" (cx,cy) (ry + rotZoneDelta) (maybeTransformCmds l))
   ++ (zoneColor options.addColor id "ellipse" (cx - rx) (cy - ry) (maybeColorNumAttr "fill" l))
 
 makeZonesPoly options shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "polygon" || shape == "polyline") in
+  let transform = maybeTransformAttr l in
   let pts = LangSvg.toPoints <| Utils.find_ l "points" in
-  let zPts = zonePoints id shape options.showBasic pts in
+  let zPts = zonePoints id shape options.showBasic transform pts in
   let zLines =
     let pairs = Utils.adjacentPairs (shape == "polygon") pts in
-    let f (i,(pti,ptj)) = zoneLine id shape (addi "Edge" i) options.showBasic pti ptj in
+    let f (i,(pti,ptj)) = zoneLine id shape (addi "Edge" i) options.showBasic transform pti ptj in
     Utils.mapi f pairs in
   let zInterior =
-    zoneBorder Svg.polygon id shape "Interior" False options.showBasic [
+    zoneBorder Svg.polygon id shape "Interior" False options.showBasic transform [
         LangSvg.compileAttr "points" (LangSvg.APoints pts)
       ] in
   let zRot =
@@ -399,6 +405,7 @@ makeZonesPoly options shape id l =
 
 makeZonesPath showZones shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "path") in
+  let transform = maybeTransformAttr l in
   let cmds = fst <| LangSvg.toPath <| Utils.find_ l "d" in
   let (mi,pt) +++ acc = case mi of {Nothing -> acc; _ -> pt :: acc} in
   let pts =
@@ -410,7 +417,7 @@ makeZonesPath showZones shape id l =
       LangSvg.CmdSQ  s pt1 pt2      -> pt1 +++ (pt2 +++ acc)
       LangSvg.CmdA   s a b c d e pt -> pt +++ acc) [] cmds
   in
-  zonePoints id shape showZones pts
+  zonePoints id shape showZones transform pts
 
 
 --------------------------------------------------------------------------------
