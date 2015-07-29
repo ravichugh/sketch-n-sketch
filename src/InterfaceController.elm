@@ -320,7 +320,10 @@ createMousePosCallback mx my objid kind zone old =
 
         ("path", _) -> createCallbackPath zone kind objid old onMouse
 
-        (_, "ColorBall") -> ret [fxColorBall "fill"]
+        (_, "FillBall")   -> ret [fxColorBall "fill"]
+        (_, "RotateBall") -> createCallbackRotate (toFloat mx) (toFloat my)
+                                                  (toFloat mx') (toFloat my')
+                                                  kind objid old
 
     in
     let newTree = List.foldr (upslate objid) (snd old.slate) newRealAttrs in
@@ -461,4 +464,17 @@ pathPoint i objid old onMouse =
   in
   let (acc1,acc2) = Utils.reverse2 accs in
   ([("d", LangSvg.APath2 (acc1, counts))], acc2)
+
+-- Callbacks for Rotate zones
+
+createCallbackRotate mx0 my0 mx1 my1 shape objid old =
+  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
+  let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ nodeAttrs "transform" in
+  let rot' =
+    let a0 = Utils.radiansToDegrees <| atan ((mx0 - fst cx) / (fst cy - my0)) in
+    let a1 = Utils.radiansToDegrees <| atan ((fst cy - my1) / (mx1 - fst cx)) in
+    (fst rot + (90 - a0 - a1), snd rot) in
+  let real = [("transform", LangSvg.ATransform [LangSvg.Rot rot' cx cy])] in
+  let fake = [("transformRot", LangSvg.ANum rot')] in
+  (real, fake)
 

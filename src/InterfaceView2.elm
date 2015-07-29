@@ -140,11 +140,14 @@ cursorOfZone zone = if
   -- circle/ellipse zones
   | zone == "Edge"           -> cursorStyle "pointer"
   -- indirect manipulation zones
-  | zone == "ColorBall"      -> cursorStyle "pointer"
+  | zone == "FillBall"       -> cursorStyle "pointer"
+  | zone == "RotateBall"     -> cursorStyle "pointer"
   -- default
   | otherwise                -> cursorStyle "default"
 
 -- Stuff for Basic Zones -------------------------------------------------------
+
+-- TODO add transform params...
 
 -- TODO use zone
 zoneBorder svgFunc id shape zone flag show =
@@ -182,40 +185,55 @@ zoneLine id shape zone show (x1,y1) (x2,y2) =
 
 rotZoneDelta = 20
 
-zoneRotate b (cx,cy) r rot =
-  if b && rot /= [] then zoneRotate_ cx cy r rot else []
+maybeTransformCmds l =
+  case Utils.maybeFind "transform" l of
+    Just (LangSvg.ATransform cmds) -> Just cmds
+    _                              -> Nothing
 
-zoneRotate_ cx cy r rot =
-  let (a, stroke, strokeWidth, rBall) = (20, "silver", "2", "7") in
+transformAttr cmds =
+  [LangSvg.compileAttr "transform" (LangSvg.ATransform cmds)]
+
+maybeTransformAttr l =
+  case maybeTransformCmds l of
+    Just cmds -> transformAttr cmds
+    Nothing   -> []
+
+zoneRotate b id shape (cx,cy) r m =
+  case (b, m) of
+    (True, Just cmds) -> zoneRotate_ id shape cx cy r cmds
+    _                 -> []
+
+zoneRotate_ id shape cx cy r cmds =
+  let (a, stroke, strokeWidth, rBall) =
+      (20, "rgba(192,192,192,0.5)", "5", "7") in
+  let (fillBall, swBall) = ("silver", "2") in
+  let transform = transformAttr cmds in
   let circle =
     flip Svg.circle [] <|
       [ LangSvg.attr "fill" "none"
       , LangSvg.attr "stroke" stroke , LangSvg.attr "strokeWidth" strokeWidth
       , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString cy)
       , LangSvg.attr "r"  (toString r)
-      ] ++ rot
+      ]
   in
   let ball =
     flip Svg.circle [] <|
-      [ LangSvg.attr "fill" stroke
+      [ LangSvg.attr "stroke" "black" , LangSvg.attr "strokeWidth" swBall
+      , LangSvg.attr "fill" fillBall
       , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString (cy - r))
       , LangSvg.attr "r"  rBall
-      ] ++ rot
+      , cursorOfZone "RotateBall"
+      ] ++ transform
+        ++ zoneEvents id shape "RotateBall"
   in
   let line =
     flip Svg.line [] <|
       [ LangSvg.attr "stroke" stroke , LangSvg.attr "strokeWidth" strokeWidth
       , LangSvg.attr "x1" (toString cx) , LangSvg.attr "y1" (toString cy)
       , LangSvg.attr "x2" (toString cx) , LangSvg.attr "y2" (toString (cy - r))
-      ] ++ rot
+      ] ++ transform
   in
   [circle, line, ball]
-
-maybeTransformAttr l =
-  case Utils.maybeFind "transform" l of
-    Just (LangSvg.ATransform cmds) ->
-      [LangSvg.compileAttr "transform" (LangSvg.ATransform cmds)]
-    _ -> []
 
 halfwayBetween (x1,y1) (x2,y2) = ((x1 + x2) / 2, (y1 + y2) / 2)
 distance (x1,y1) (x2,y2)       = sqrt ((x2-x1)^2 + (y2-y1)^2)
@@ -254,8 +272,8 @@ zoneColor_ id shape x y n =
       , LangSvg.attr "fill" stroke
       , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString cy)
       , LangSvg.attr "r"  rBall
-      , cursorOfZone "ColorBall"
-      ] ++ zoneEvents id shape "ColorBall"
+      , cursorOfZone "FillBall"
+      ] ++ zoneEvents id shape "FillBall"
   in
   let box =
     flip Svg.rect [] <|
@@ -305,7 +323,7 @@ makeZones options shape id l =
         let zRot =
           let c = (x + (w/2), y + (h/2)) in
           let r = rotZoneDelta + (h/2) in
-          zoneRotate options.addRot c r transform
+          zoneRotate options.addRot id shape c r (maybeTransformCmds l)
         in
         let zColor =
           zoneColor options.addColor id shape x y (maybeColorNumAttr "fill" l)
@@ -333,7 +351,7 @@ makeZones options shape id l =
         let zRot =
           let c = halfwayBetween_ pt1 pt2 in
           let r = (distance_ pt1 pt2 / 2) - rotZoneDelta in
-          zoneRotate options.addRot c r (maybeTransformAttr l) in
+          zoneRotate options.addRot id shape c r (maybeTransformCmds l) in
         zLine :: zPts ++ zRot
 
     "polygon"  -> makeZonesPoly options shape id l
@@ -348,7 +366,7 @@ makeZonesCircle options id l =
   let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "r" r ] in
      [zoneBorder Svg.circle id "circle" "Edge" True options.showBasic attrs]
   ++ [zoneBorder Svg.circle id "circle" "Interior" False options.showBasic attrs]
-  ++ (zoneRotate options.addRot (cx,cy) (r + rotZoneDelta) (maybeTransformAttr l))
+  ++ (zoneRotate options.addRot id "circle" (cx,cy) (r + rotZoneDelta) (maybeTransformCmds l))
   ++ (zoneColor options.addColor id "circle" (cx - r) (cy - r) (maybeColorNumAttr "fill" l))
 
 makeZonesEllipse options id l =
@@ -356,7 +374,7 @@ makeZonesEllipse options id l =
   let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "rx" rx, attrNum "ry" ry ] in
      [zoneBorder Svg.ellipse id "ellipse" "Edge" True options.showBasic attrs]
   ++ [zoneBorder Svg.ellipse id "ellipse" "Interior" False options.showBasic attrs]
-  ++ (zoneRotate options.addRot (cx,cy) (ry + rotZoneDelta) (maybeTransformAttr l))
+  ++ (zoneRotate options.addRot id "circle" (cx,cy) (ry + rotZoneDelta) (maybeTransformCmds l))
   ++ (zoneColor options.addColor id "ellipse" (cx - rx) (cy - ry) (maybeColorNumAttr "fill" l))
 
 makeZonesPoly options shape id l =

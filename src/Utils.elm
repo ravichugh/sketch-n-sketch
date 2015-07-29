@@ -194,6 +194,8 @@ thd3 (_,_,x) = x
 
 mapThd3 f (x,y,z) = (x, y, f z)
 
+fourth4 (_,_,_,x) = x
+
 setIsEmpty  = (==) [] << Set.toList
 dictIsEmpty = (==) [] << Dict.toList
 setCardinal = List.length << Set.toList
@@ -226,3 +228,6 @@ numToColor_ val =
           | i == 3 -> (min, round <| max - diff * (1 - (240 - n) / 60), max)
           | i == 4 -> (round <| min + diff * (1 - (300 - n) / 60), min, max)
           | i == 5 -> (max, min, round <| max - diff * (1 - (360 - n) / 60))
+
+radiansToDegrees : Float -> Float
+radiansToDegrees rad = (rad / pi) * 180

@@ -101,6 +101,8 @@ toNumTr a = case a of
 toPoints (APoints pts) = pts
 toPath   (APath2 p) = p
 
+toTransformRot (ATransform [Rot n1 n2 n3]) = (n1,n2,n3)
+
 valToAttr (VList [VBase (String k), v]) =
   case (k, v) of
     ("points", VList vs)  -> (k, APoints <| List.map valToPoint vs)
