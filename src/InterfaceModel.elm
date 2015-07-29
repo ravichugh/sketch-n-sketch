@@ -29,7 +29,7 @@ type alias Model =
   , orient : Orientation
   , midOffsetX : Int  -- extra codebox width in vertical orientation
   , midOffsetY : Int  -- extra codebox width in horizontal orientation
-  , showZones : Bool
+  , showZones : ShowZones
   , syncOptions : Sync.Options
   , editingMode : Bool
   , caption : Maybe Caption
@@ -61,6 +61,15 @@ type alias PossibleChanges =
   ( Int               -- num local changes
   , List (Exp, Val)   -- local changes ++ [structural change, revert change]
   )
+
+-- using Int instead of datatype so serialization/deserialization in
+-- InterfaceStorage is more succinct (Enum typeclass would be nice here...)
+type alias ShowZones = Int
+
+showZonesModes = 4
+
+[showZonesNone, showZonesBasic, showZonesRot, showZonesColor] =
+  [ 0 .. (showZonesModes - 1) ]
 
 type Caption
   = Hovering (Int, ShapeKind, Zone)
@@ -107,7 +116,7 @@ sampleModel =
     , orient        = Vertical
     , midOffsetX    = 0
     , midOffsetY    = -100
-    , showZones     = False
+    , showZones     = showZonesNone
     , syncOptions   = Sync.defaultOptions
     , editingMode   = False
     , caption       = Nothing

@@ -9,12 +9,15 @@ examples:
 
 loc:
 	wc -l \
-    Lang.elm LangSvg.elm Eval.elm Sync.elm \
-    InterfaceModel.elm InterfaceView2.elm InterfaceController.elm Main.elm \
-    Config.elm \
-    PreludeTemplate.elm ExamplesTemplate.elm \
+    Lang.elm LangSvg.elm \
     LangParser2.elm LangUnparser.elm \
-    OurParser2.elm Utils.elm
+    OurParser2.elm Utils.elm \
+    Eval.elm Sync.elm \
+    InterfaceModel.elm InterfaceView2.elm InterfaceController.elm \
+    InterfaceStorage.elm Storage.elm \
+    Main.elm Config.elm \
+    PreludeTemplate.elm ExamplesTemplate.elm \
+    ColorNum.elm
 
 littleloc:
 	wc -l ../examples/*

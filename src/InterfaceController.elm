@@ -75,6 +75,8 @@ switchOrient m = case m of
   Vertical -> Horizontal
   Horizontal -> Vertical
 
+toggleShowZones x = (1 + x) % showZonesModes
+
 
 --------------------------------------------------------------------------------
 -- Updating the Model
@@ -216,7 +218,7 @@ upstate evt old = case debugLog "Event" evt of
 
     SwitchOrient -> { old | orient <- switchOrient old.orient }
 
-    ToggleZones -> { old | showZones <- not old.showZones }
+    ToggleZones -> { old | showZones <- toggleShowZones old.showZones }
 
     ToggleThawed ->
       let so = old.syncOptions in
@@ -248,6 +250,8 @@ createMousePosCallback mx my objid kind zone old =
 
   \(mx',my') ->
 
+    let scaledPosX scale n = n + scale * (toFloat mx' - toFloat mx) in
+
     let posX n = n - toFloat mx + toFloat mx' in
     let posY n = n - toFloat my + toFloat my' in
     let negX n = n + toFloat mx - toFloat mx' in
@@ -272,10 +276,22 @@ createMousePosCallback mx my objid kind zone old =
     let fx_ = mapNumAttr negX in
     let fy_ = mapNumAttr negY in
 
+    let fxColorBall =
+      mapNumAttr (LangSvg.clampColorNum << scaledPosX scaleColorBall) in
+
     let ret l = (l, l) in
 
     let (newRealAttrs,newFakeAttrs) =
       case (kind, zone) of
+
+        -- first match zones that can be attached to different shape kinds...
+
+        (_, "FillBall")   -> ret [fxColorBall "fill"]
+        (_, "RotateBall") -> createCallbackRotate (toFloat mx) (toFloat my)
+                                                  (toFloat mx') (toFloat my')
+                                                  kind objid old
+
+        -- ... and then match each kind of shape separately
 
         ("rect", "Interior")       -> ret [fx "x", fy "y"]
         ("rect", "RightEdge")      -> ret [fx "width"]
@@ -306,8 +322,6 @@ createMousePosCallback mx my objid kind zone old =
           case LangSvg.realZoneOf zone of
             LangSvg.ZPoint i -> ret [fx (addi "x" i), fy (addi "y" i)]
 
-        -- ("polygon", _)  -> createCallbackPoly zone kind objid old posX' posY'
-        -- ("polyline", _) -> createCallbackPoly zone kind objid old posX' posY'
         ("polygon", _)  -> createCallbackPoly zone kind objid old onMouse
         ("polyline", _) -> createCallbackPoly zone kind objid old onMouse
 
@@ -452,4 +466,17 @@ pathPoint i objid old onMouse =
   in
   let (acc1,acc2) = Utils.reverse2 accs in
   ([("d", LangSvg.APath2 (acc1, counts))], acc2)
+
+-- Callbacks for Rotate zones
+
+createCallbackRotate mx0 my0 mx1 my1 shape objid old =
+  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
+  let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ nodeAttrs "transform" in
+  let rot' =
+    let a0 = Utils.radiansToDegrees <| atan ((mx0 - fst cx) / (fst cy - my0)) in
+    let a1 = Utils.radiansToDegrees <| atan ((fst cy - my1) / (mx1 - fst cx)) in
+    (fst rot + (90 - a0 - a1), snd rot) in
+  let real = [("transform", LangSvg.ATransform [LangSvg.Rot rot' cx cy])] in
+  let fake = [("transformRot", LangSvg.ANum rot')] in
+  (real, fake)
 
