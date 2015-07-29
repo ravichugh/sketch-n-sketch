@@ -37,7 +37,7 @@ type Op_
   | Plus | Minus | Mult | Div
   | Lt | Eq
   -- internal ops
-  | Range
+  | RangeOffset Int
 
 
 type Exp_
@@ -99,10 +99,12 @@ strBaseVal v = case v of
   Star       -> "X"
 
 strRange : Bool -> Int -> ERange -> String
-strRange showLocs k (EConst nl ll, EConst nu lu) = 
-    if | nl == nu -> sExp_ showLocs k (EConst nl ll)
+strRange showLocs k (el, eu) =
+  let (EConst nl _) = el.val in
+  let (EConst nu _) = eu.val in
+    if | nl == nu -> sExp_ showLocs k el
        | otherwise -> 
-           sExp_ showLocs k (EConst nl ll) ++ ".." ++ sExp_ showLocs k (EConst nu lu)
+           sExp_ showLocs k el ++ ".." ++ sExp_ showLocs k eu
 
 strVal     = strVal_ False
 strValLocs = strVal_ True

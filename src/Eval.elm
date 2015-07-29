@@ -177,16 +177,12 @@ parseAndRun = strVal << run << Utils.fromOk_ << Parser.parseE
 -- Inflates a range to a list, which is then Concat-ed in eval
 rangeToList : ERange -> List Val
 rangeToList (l,u) = case (l.val, u.val) of
-    (EConst nl ll, EConst nu lu) ->
-       let --tossTrLoc = TrLoc (-1, "!", "") -- Is it okay to have plus with only
-                                            -- one trace?
-           trace = TrOp Range [ TrOp Plus [ TrLoc ll ] ]
-           walkVal : Num -> Num -> Loc -> List Val
-           walkVal curnum endnum endloc =
-               if | curnum < endnum -> 
-                        VConst (curnum, trace) ::
-                            walkVal (curnum + 1) endnum endloc
-                  | otherwise -> [ VConst (endnum, TrLoc endloc) ]
-       in if | nl == nu -> [ VConst (nl, TrLoc ll) ]
-             | otherwise -> (VConst (nl, TrLoc ll)) :: walkVal (nl + 1) nu lu
+    (EConst nl tl, EConst nu tu) ->
+       let walkVal i =
+         let j = toFloat i in
+         if | (nl + j) < nu -> VConst (nl + j, TrOp (RangeOffset i) [TrLoc tl]) :: walkVal (i + 1)
+            | otherwise     -> [ VConst (nu, TrLoc tu) ]
+       in
+       if | nl == nu  -> [ VConst (nl, TrLoc tl) ]
+          | otherwise -> walkVal 1
     _ -> Debug.crash "Range not specified with numeric constants"
