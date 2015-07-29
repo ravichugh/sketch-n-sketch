@@ -190,11 +190,11 @@ evalDelta op is =
     (Round,  [n])   -> toFloat <| round n
     _               -> Debug.crash <| "Eval.evalDelta " ++ strOp op
 
+
+(Ok (_, initEnv)) = eval [] prelude
+
 run : Exp -> Res Val
-run e =
-  Utils.bindOk
-    (\(_,initEnv) -> eval_ initEnv e)
-    (eval [] prelude)
+run = eval_ initEnv
 
 run_ : Exp -> Val
 run_ = Utils.fromOk_ << run
