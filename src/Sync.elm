@@ -390,6 +390,7 @@ type alias AttrName = String
 type alias LocSet = Set.Set Loc
 type alias Locs = List Loc
 type ExtraInfo = None | NumPoints Int | NumsPath LangSvg.PathCounts
+               | ColorNum Trace
 
 type alias NumAttrs = Int
 
@@ -422,6 +423,10 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
 
     -- processing attributes of current node
     let processAttr v' (extra,dAttrs) = case v' of
+
+      -- TODO: allow multiple pickers in ExtraInfo
+      VList [VBase (String "fill"), VConst (_,tr)] ->
+        (ColorNum tr, Dict.insert "fill" tr dAttrs)
 
       VList [VBase (String a), VConst (_,tr)] ->
         (extra, Dict.insert a tr dAttrs)
@@ -536,6 +541,11 @@ getZones kind extra =
       List.map pt [1..n] ++ List.map (edge n) [1..n] ++ [interior n]
     ("path", NumsPath {numPoints}) ->
       List.map pt [1..numPoints]
+    (_, ColorNum tr) ->
+      Utils.fromJust_
+        ("Sync.getZones " ++ kind)
+        (Utils.maybeFind kind LangSvg.zones)
+      ++ [("ColorBall", ["fill"])]
     _ ->
       Utils.fromJust_
         ("Sync.getZones " ++ kind)

@@ -59,6 +59,8 @@ type AVal
   | APath2 (List PathCmd, PathCounts)
   | ATransform (List TransformCmd)
 
+maxColorNum = 500
+
 type alias Point = (NumTr, NumTr)
 type alias Rgba  = (NumTr, NumTr, NumTr, NumTr)
 
@@ -91,6 +93,7 @@ toNum a = case a of
 
 toNumTr a = case a of
   ANum (n,t) -> (n,t)
+  AColorNum (n,t) -> (n,t)
   AString s  -> case String.toFloat s of
                   Ok n -> (n, dummyTrace)
 
@@ -135,7 +138,7 @@ strAVal a = case a of
   AColorNum n ->
     -- slight optimization:
     strRgba_ (ColorNum.convert (fst n))
-    -- let (r,g,b) = Utils.numToColor 500 (fst n) in
+    -- let (r,g,b) = Utils.numToColor maxColorNum (fst n) in
     -- strRgba_ [r,g,b,1]
 
 valOfAVal a = case a of

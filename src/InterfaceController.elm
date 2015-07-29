@@ -250,6 +250,8 @@ createMousePosCallback mx my objid kind zone old =
 
   \(mx',my') ->
 
+    let scaledPosX scale n = n + scale * (toFloat mx' - toFloat mx) in
+
     let posX n = n - toFloat mx + toFloat mx' in
     let posY n = n - toFloat my + toFloat my' in
     let negX n = n + toFloat mx - toFloat mx' in
@@ -268,6 +270,8 @@ createMousePosCallback mx my objid kind zone old =
     -- let posY' (n,tr) = (posY n, tr) in
     -- let negX' (n,tr) = (negX n, tr) in
     -- let negY' (n,tr) = (negY n, tr) in
+
+    let fxScaled scale = mapNumAttr (scaledPosX scale) in
 
     let fx  = mapNumAttr posX in
     let fy  = mapNumAttr posY in
@@ -314,6 +318,8 @@ createMousePosCallback mx my objid kind zone old =
         ("polyline", _) -> createCallbackPoly zone kind objid old onMouse
 
         ("path", _) -> createCallbackPath zone kind objid old onMouse
+
+        (_, "ColorBall") -> ret [fxScaled scaleColorBall "fill"]
 
     in
     let newTree = List.foldr (upslate objid) (snd old.slate) newRealAttrs in

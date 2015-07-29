@@ -1,4 +1,4 @@
-module InterfaceView2 (view) where
+module InterfaceView2 (view, scaleColorBall) where
 
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
@@ -139,6 +139,8 @@ cursorOfZone zone = if
   | zone == "TopRightCorner" -> cursorStyle "nesw-resize"
   -- circle/ellipse zones
   | zone == "Edge"           -> cursorStyle "pointer"
+  -- indirect manipulation zones
+  | zone == "ColorBall"      -> cursorStyle "pointer"
   -- default
   | otherwise                -> cursorStyle "default"
 
@@ -225,28 +227,35 @@ distance_ pt1 pt2              = distance (projPt pt1) (projPt pt2)
 -- Stuff for Color Zones -------------------------------------------------------
 
 wGradient = 250
+scaleColorBall = 1 / (wGradient / LangSvg.maxColorNum)
 
 numToColor = Utils.numToColor wGradient
 
-maybeRgbaAttr k l =
+maybeColorNumAttr k l =
   case Utils.maybeFind k l of
-    Just (LangSvg.AColorNum n) ->
-      [LangSvg.compileAttr "fill" (LangSvg.AColorNum n)]
-    _ -> []
+    Just (LangSvg.AColorNum n) -> Just n
+    _                          -> Nothing
 
-zoneColor b x y rgba =
-  if b && rgba /= [] then zoneColor_ x y rgba else []
+zoneColor b id shape x y rgba =
+  case (b, rgba) of
+    (True, Just n) -> zoneColor_ id shape x y n
+    _              -> []
 
-zoneColor_ x y rgba =
+zoneColor_ id shape x y n =
+  let rgba = [LangSvg.compileAttr "fill" (LangSvg.AColorNum n)] in
   let (w, h, a, stroke, strokeWidth, rBall) =
       (wGradient, 20, 20, "silver", "2", "7") in
   let yOff = a + rotZoneDelta in
   let ball =
+    let cx = x + (fst n / LangSvg.maxColorNum) * wGradient in
+    let cy = y - yOff + (h/2) in
     flip Svg.circle [] <|
-      [ LangSvg.attr "fill" stroke
-      , LangSvg.attr "cx" (toString x) , LangSvg.attr "cy" (toString (y - yOff + (h/2)))
+      [ LangSvg.attr "stroke" "black" , LangSvg.attr "strokeWidth" strokeWidth
+      , LangSvg.attr "fill" stroke
+      , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString cy)
       , LangSvg.attr "r"  rBall
-      ]
+      , cursorOfZone "ColorBall"
+      ] ++ zoneEvents id shape "ColorBall"
   in
   let box =
     flip Svg.rect [] <|
@@ -299,7 +308,7 @@ makeZones options shape id l =
           zoneRotate options.addRot c r transform
         in
         let zColor =
-          zoneColor options.addColor x y (maybeRgbaAttr "fill" l)
+          zoneColor options.addColor id shape x y (maybeColorNumAttr "fill" l)
         in
           [ mk "Interior"       x1 y1 wWide hWide
           , mk "RightEdge"      x2 y1 wSlim hWide
@@ -340,7 +349,7 @@ makeZonesCircle options id l =
      [zoneBorder Svg.circle id "circle" "Edge" True options.showBasic attrs]
   ++ [zoneBorder Svg.circle id "circle" "Interior" False options.showBasic attrs]
   ++ (zoneRotate options.addRot (cx,cy) (r + rotZoneDelta) (maybeTransformAttr l))
-  ++ (zoneColor options.addColor (cx - r) (cy - r) (maybeRgbaAttr "fill" l))
+  ++ (zoneColor options.addColor id "circle" (cx - r) (cy - r) (maybeColorNumAttr "fill" l))
 
 makeZonesEllipse options id l =
   let [cx,cy,rx,ry] = List.map (toNum << Utils.find_ l) ["cx","cy","rx","ry"] in
@@ -348,7 +357,7 @@ makeZonesEllipse options id l =
      [zoneBorder Svg.ellipse id "ellipse" "Edge" True options.showBasic attrs]
   ++ [zoneBorder Svg.ellipse id "ellipse" "Interior" False options.showBasic attrs]
   ++ (zoneRotate options.addRot (cx,cy) (ry + rotZoneDelta) (maybeTransformAttr l))
-  ++ (zoneColor options.addColor (cx - rx) (cy - ry) (maybeRgbaAttr "fill" l))
+  ++ (zoneColor options.addColor id "ellipse" (cx - rx) (cy - ry) (maybeColorNumAttr "fill" l))
 
 makeZonesPoly options shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "polygon" || shape == "polyline") in
@@ -364,7 +373,7 @@ makeZonesPoly options shape id l =
       ] in
   let zRot =
     let (((x0,_),(y0,_))::_) = pts in
-    zoneColor options.addColor x0 y0 (maybeRgbaAttr "fill" l) in
+    zoneColor options.addColor id shape x0 y0 (maybeColorNumAttr "fill" l) in
   let firstEqLast xs = Utils.head_ xs == Utils.head_ (List.reverse xs) in
   if | shape == "polygon" -> zInterior :: (zLines ++ zPts ++ zRot)
      | firstEqLast pts    -> zInterior :: (zLines ++ zPts ++ zRot)
