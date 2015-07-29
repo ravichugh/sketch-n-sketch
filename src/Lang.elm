@@ -68,7 +68,7 @@ type LetKind = Let | Def
 type alias Rec = Bool
 
 -- Enforce invariant that ERange is only ever (EConst ..., EConst ...)
-type alias ERange = (Exp, Exp)
+type alias ERange = P.WithInfo (Exp, Exp)
 
 type Val
   = VConst NumTr
@@ -99,9 +99,11 @@ strBaseVal v = case v of
   Star       -> "X"
 
 strRange : Bool -> Int -> ERange -> String
-strRange showLocs k (el, eu) =
-  let (EConst nl _) = el.val in
-  let (EConst nu _) = eu.val in
+strRange showLocs k r =
+  let (el,eu) = r.val
+      (EConst nl _) = el.val 
+      (EConst nu _) = eu.val 
+  in
     if | nl == nu -> sExp_ showLocs k el
        | otherwise -> 
            sExp_ showLocs k el ++ ".." ++ sExp_ showLocs k eu
@@ -307,8 +309,12 @@ applySubst subst e = (\e_ -> P.WithInfo e_ e.start e.end) <| case e.val of
   EOp op es  -> EOp op (List.map (applySubst subst) es)
   EList es m -> EList (List.map (applySubst subst) es)
                       (Utils.mapMaybe (applySubst subst) m)
-  EIndList rs -> EIndList (List.map (\(l,u) -> 
-                    (applySubst subst l, applySubst subst u)) rs)
+  EIndList rs -> EIndList <| 
+                  (List.map 
+                    (\r -> r.val |> \(l,u) -> 
+                      { r | val <- (applySubst subst l, applySubst subst u)}
+                    )
+                  ) rs
   EApp f es  -> EApp (applySubst subst f) (List.map (applySubst subst) es)
   ELet k b p e1 e2 ->
     ELet k b p (applySubst subst e1) (applySubst subst e2) -- TODO

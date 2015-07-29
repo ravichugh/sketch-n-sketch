@@ -176,13 +176,16 @@ parseAndRun = strVal << run << Utils.fromOk_ << Parser.parseE
 
 -- Inflates a range to a list, which is then Concat-ed in eval
 rangeToList : ERange -> List Val
-rangeToList (l,u) = case (l.val, u.val) of
-    (EConst nl tl, EConst nu tu) ->
-       let walkVal i =
-         let j = toFloat i in
-         if | (nl + j) < nu -> VConst (nl + j, TrOp (RangeOffset i) [TrLoc tl]) :: walkVal (i + 1)
-            | otherwise     -> [ VConst (nu, TrLoc tu) ]
-       in
-       if | nl == nu  -> [ VConst (nl, TrLoc tl) ]
-          | otherwise -> walkVal 1
-    _ -> Debug.crash "Range not specified with numeric constants"
+rangeToList r = 
+    let (l,u) = r.val
+    in
+      case (l.val, u.val) of
+        (EConst nl tl, EConst nu tu) ->
+           let walkVal i =
+             let j = toFloat i in
+             if | (nl + j) < nu -> VConst (nl + j, TrOp (RangeOffset i) [TrLoc tl]) :: walkVal (i + 1)
+                | otherwise     -> [ VConst (nu, TrLoc tu) ]
+           in
+           if | nl == nu  -> [ VConst (nl, TrLoc tl) ]
+              | otherwise -> walkVal 0
+        _ -> Debug.crash "Range not specified with numeric constants"
