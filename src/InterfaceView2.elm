@@ -59,54 +59,29 @@ textColor = "lightgray"
 
 -- Creates an Html button with the text properly offset
 type ButtonStatus = Raised | Highlighted | Depressed
+
 makeButton : ButtonStatus -> Int -> Int -> String -> GE.Element
-makeButton status w h text = case status of
-    Raised -> GE.flow GE.outward 
-                [ GE.image w h "button_raised.svg"
-                , Html.toElement w h <|
-                    Html.div
-                      [ Attr.style
-                          [ ("color", textColor)
-                          , ("font-family", "sans-serif")
-                          , ("text-align", "center")
-                          , ("width", dimToPix w)
-                          , ("height", dimToPix h)
-                          , ("transform", 
-                                "translate(0px," ++ dimToPix (h // 8) ++ ")")
-                          ]
-                      ] [ Html.text text ]
-                ]
-    Highlighted -> GE.flow GE.outward
-                [ GE.image w h "button_highlighted.svg"
-                , Html.toElement w h <|
-                    Html.div
-                      [ Attr.style
-                          [ ("color", textColor)
-                          , ("font-family", "sans-serif")
-                          , ("text-align", "center")
-                          , ("width", dimToPix w)
-                          , ("height", dimToPix h)
-                          , ("transform", 
-                                "translate(0px," ++ dimToPix (h // 8) ++ ")")
-                          ]
-                      ] [ Html.text text ]
-                ]
-    Depressed -> GE.flow GE.outward
-                [ GE.image w h "button_depressed.svg"
-                , Html.toElement w h <|
-                    Html.div
-                      [ Attr.style
-                          [ ("color", textColor)
-                          , ("font-family", "sans-serif")
-                          , ("text-align", "center")
-                          , ("width", dimToPix w)
-                          , ("height", dimToPix h)
-                          , ("transform", 
-                                "translate(0px," ++ dimToPix (h // 8 + h // 20) ++ ")")
-                          ]
-                      ] [ Html.text text ]
-                ]
-        
+makeButton status w h text =
+  let img = case status of
+    Raised      -> "button_raised.svg"
+    Highlighted -> "button_highlighted.svg"
+    Depressed   -> "button_depressed.svg"
+  in
+  GE.flow GE.outward
+    [ GE.image w h img
+    , Html.toElement w h <|
+        Html.div
+          [ Attr.style
+              [ ("color", textColor)
+              , ("font-family", "sans-serif")
+              , ("text-align", "center")
+              , ("width", dimToPix w)
+              , ("height", dimToPix h)
+              , ("transform", "translate(0px," ++ dimToPix (h // 8) ++ ")")
+              ]
+          ] [ Html.text text ]
+    ]
+
 
 --------------------------------------------------------------------------------
 -- Compiling to Svg
@@ -497,31 +472,18 @@ mainSectionHorizontal w h model =
   GE.flow GE.down <|
     [ codeSection, gutter, middleSection, gutter, canvasSection ]
 
-simpleEventButton_ : Bool -> Event -> String -> String -> String -> Int -> Int -> GE.Element
-simpleEventButton_ disabled evt value name text w h = 
-    case disabled of
-        True -> GI.customButton (Signal.message events.address Noop)
-          (makeButton Raised w h text)
-          (makeButton Highlighted w h text)
-          (makeButton Depressed w h text)
-        False -> GI.customButton (Signal.message events.address evt)
-          (makeButton Raised w h text)
-          (makeButton Highlighted w h text)
-          (makeButton Depressed w h text)
+simpleButton_
+   : Signal.Address a -> a -> Bool -> a -> String -> String -> String
+  -> Int -> Int -> GE.Element
+simpleButton_ addy defaultMsg disabled msg value name text w h =
+  let msg = if disabled then defaultMsg else msg in
+  GI.customButton (Signal.message addy msg)
+    (makeButton Raised w h text)
+    (makeButton Highlighted w h text)
+    (makeButton Depressed w h text)
 
-simpleTaskButton_ : Bool -> Task String () -> String -> String -> String -> Int -> Int -> GE.Element
-simpleTaskButton_ disabled evt value name text w h = 
-    case disabled of
-        True ->
-            GI.customButton (Signal.message taskMailbox.address (Task.succeed ()))
-              (makeButton Raised w h text)
-              (makeButton Highlighted w h text)
-              (makeButton Depressed w h text)
-        False ->
-            GI.customButton (Signal.message taskMailbox.address evt)
-              (makeButton Raised w h text)
-              (makeButton Highlighted w h text)
-              (makeButton Depressed w h text)
+simpleEventButton_ = simpleButton_ events.address Noop
+simpleTaskButton_  = simpleButton_ taskMailbox.address (Task.succeed ())
 
 simpleButton = simpleEventButton_ False
 simpleTaskButton = simpleTaskButton_ False
