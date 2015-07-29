@@ -54,7 +54,7 @@ import Debug
 
 dimToPix d = String.append (toString d) "px"
 
-interfaceColor = Color.rgba 3 22 52 1
+interfaceColor = Color.rgba 41 128 185 1.0
 textColor = "lightgray"
 
 -- Creates an Html button with the text properly offset
@@ -62,10 +62,10 @@ type ButtonStatus = Raised | Highlighted | Depressed
 
 makeButton : ButtonStatus -> Int -> Int -> String -> GE.Element
 makeButton status w h text =
-  let img = case status of
-    Raised      -> "button_raised.svg"
-    Highlighted -> "button_highlighted.svg"
-    Depressed   -> "button_depressed.svg"
+  let (img,dip) = case status of
+    Raised      -> ("button_raised.svg", dimToPix (h // 8))
+    Highlighted -> ("button_highlighted.svg", dimToPix (h // 8))
+    Depressed   -> ("button_depressed.svg", dimToPix (h // 8 + h // 20))
   in
   GE.flow GE.outward
     [ GE.image w h img
@@ -77,7 +77,7 @@ makeButton status w h text =
               , ("text-align", "center")
               , ("width", dimToPix w)
               , ("height", dimToPix h)
-              , ("transform", "translate(0px," ++ dimToPix (h // 8) ++ ")")
+              , ("transform", "translate(0px," ++ dip ++ ")")
               ]
           ] [ Html.text text ]
     ]
