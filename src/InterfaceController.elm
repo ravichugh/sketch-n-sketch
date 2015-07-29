@@ -284,6 +284,15 @@ createMousePosCallback mx my objid kind zone old =
     let (newRealAttrs,newFakeAttrs) =
       case (kind, zone) of
 
+        -- first match zones that can be attached to different shape kinds...
+
+        (_, "FillBall")   -> ret [fxColorBall "fill"]
+        (_, "RotateBall") -> createCallbackRotate (toFloat mx) (toFloat my)
+                                                  (toFloat mx') (toFloat my')
+                                                  kind objid old
+
+        -- ... and then match each kind of shape separately
+
         ("rect", "Interior")       -> ret [fx "x", fy "y"]
         ("rect", "RightEdge")      -> ret [fx "width"]
         ("rect", "BotRightCorner") -> ret [fx "width", fy "height"]
@@ -313,17 +322,10 @@ createMousePosCallback mx my objid kind zone old =
           case LangSvg.realZoneOf zone of
             LangSvg.ZPoint i -> ret [fx (addi "x" i), fy (addi "y" i)]
 
-        -- ("polygon", _)  -> createCallbackPoly zone kind objid old posX' posY'
-        -- ("polyline", _) -> createCallbackPoly zone kind objid old posX' posY'
         ("polygon", _)  -> createCallbackPoly zone kind objid old onMouse
         ("polyline", _) -> createCallbackPoly zone kind objid old onMouse
 
         ("path", _) -> createCallbackPath zone kind objid old onMouse
-
-        (_, "FillBall")   -> ret [fxColorBall "fill"]
-        (_, "RotateBall") -> createCallbackRotate (toFloat mx) (toFloat my)
-                                                  (toFloat mx') (toFloat my')
-                                                  kind objid old
 
     in
     let newTree = List.foldr (upslate objid) (snd old.slate) newRealAttrs in

@@ -544,18 +544,20 @@ getZones kind extra ee =
     if | i <  n -> (addi "Edge" i, xy i ++ xy (i+1))
        | i == n -> (addi "Edge" i, xy i ++ xy 1) in
   let interior n = ("Interior", List.concatMap xy [1..n]) in
-  case (kind, extra) of
-    ("polyline", NumPoints n) ->
-      List.map pt [1..n] ++ List.map (edge n) [1..n-1]
-    ("polygon", NumPoints n) ->
-      List.map pt [1..n] ++ List.map (edge n) [1..n] ++ [interior n]
-    ("path", NumsPath {numPoints}) ->
-      List.map pt [1..numPoints]
-    _ ->
-      Utils.fromJust_
-        ("Sync.getZones " ++ kind)
-        (Utils.maybeFind kind LangSvg.zones)
-      ++ widgetZones ee
+  let basicZones =
+    case (kind, extra) of
+      ("polyline", NumPoints n) ->
+        List.map pt [1..n] ++ List.map (edge n) [1..n-1]
+      ("polygon", NumPoints n) ->
+        List.map pt [1..n] ++ List.map (edge n) [1..n] ++ [interior n]
+      ("path", NumsPath {numPoints}) ->
+        List.map pt [1..numPoints]
+      _ ->
+        Utils.fromJust_
+          ("Sync.getZones " ++ kind)
+          (Utils.maybeFind kind LangSvg.zones)
+  in
+  basicZones ++ widgetZones ee
 
 widgetZones = List.map <| \x -> case x of
   ("fill"         , ("FillBall"   , _)) -> ("FillBall"   , ["fill"])
