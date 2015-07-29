@@ -59,7 +59,8 @@ type AVal
   | APath2 (List PathCmd, PathCounts)
   | ATransform (List TransformCmd)
 
-maxColorNum = 500
+maxColorNum   = 500
+clampColorNum = Utils.clamp 0 (maxColorNum - 1)
 
 type alias Point = (NumTr, NumTr)
 type alias Rgba  = (NumTr, NumTr, NumTr, NumTr)

@@ -53,6 +53,11 @@ foldri f init xs = List.reverse (foldli f init xs)
 
 reverse2 (xs,ys) = (List.reverse xs, List.reverse ys)
 
+clamp i j n =
+  if | n < i     -> i
+     | j < n     -> j
+     | otherwise -> n
+
 singleton : a -> List a
 singleton x = [x]
 

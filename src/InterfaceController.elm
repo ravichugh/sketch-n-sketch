@@ -271,12 +271,13 @@ createMousePosCallback mx my objid kind zone old =
     -- let negX' (n,tr) = (negX n, tr) in
     -- let negY' (n,tr) = (negY n, tr) in
 
-    let fxScaled scale = mapNumAttr (scaledPosX scale) in
-
     let fx  = mapNumAttr posX in
     let fy  = mapNumAttr posY in
     let fx_ = mapNumAttr negX in
     let fy_ = mapNumAttr negY in
+
+    let fxColorBall =
+      mapNumAttr (LangSvg.clampColorNum << scaledPosX scaleColorBall) in
 
     let ret l = (l, l) in
 
@@ -319,7 +320,7 @@ createMousePosCallback mx my objid kind zone old =
 
         ("path", _) -> createCallbackPath zone kind objid old onMouse
 
-        (_, "ColorBall") -> ret [fxScaled scaleColorBall "fill"]
+        (_, "ColorBall") -> ret [fxColorBall "fill"]
 
     in
     let newTree = List.foldr (upslate objid) (snd old.slate) newRealAttrs in
