@@ -54,18 +54,34 @@ import Debug
 
 dimToPix d = String.append (toString d) "px"
 
-interfaceColor = Color.rgba 41 128 185 1.0
-textColor = "lightgray"
+interfaceColor = Color.rgba 52 73 94 1.0
+textColor = "white"
+
+titleStyle =
+  { defaultStyle | typeface <- ["Courier", "monospace"]
+                 , height <- Just 18
+                 , bold <- False 
+                 , color <- Color.white}
 
 -- Creates an Html button with the text properly offset
 type ButtonStatus = Raised | Highlighted | Depressed
 
+-- Currently assumes:
+--  font-size is 16px
+--  the top of the button occupies 90% of the height of the button
+--  the depressed button should move the text down 3/50 of the total height of the
+--   button
 makeButton : ButtonStatus -> Int -> Int -> String -> GE.Element
 makeButton status w h text =
-  let (img,dip) = case status of
-    Raised      -> ("button_raised.svg", dimToPix (h // 8))
-    Highlighted -> ("button_highlighted.svg", dimToPix (h // 8))
-    Depressed   -> ("button_depressed.svg", dimToPix (h // 8 + h // 20))
+  let fontsize = 16
+      topprop = 0.9
+      depdip = 0.06
+      raisedoffset = round <| 0.5 * topprop * toFloat h - 0.5 * fontsize
+      depressedoffset = round <| toFloat raisedoffset + depdip * toFloat h
+      (img,dip) = case status of
+    Raised      -> ("button_raised.svg", dimToPix raisedoffset)
+    Highlighted -> ("button_highlighted.svg", dimToPix raisedoffset)
+    Depressed   -> ("button_depressed.svg", dimToPix depressedoffset)
   in
   GE.flow GE.outward
     [ GE.image w h img
@@ -476,8 +492,8 @@ simpleButton_
    : Signal.Address a -> a -> Bool -> a -> String -> String -> String
   -> Int -> Int -> GE.Element
 simpleButton_ addy defaultMsg disabled msg value name text w h =
-  let msg = if disabled then defaultMsg else msg in
-  GI.customButton (Signal.message addy msg)
+  let smsg = if disabled then defaultMsg else msg in
+  GI.customButton (Signal.message addy smsg)
     (makeButton Raised w h text)
     (makeButton Highlighted w h text)
     (makeButton Depressed w h text)
@@ -644,7 +660,7 @@ saveElement model w h = case model.mode of
                       <| GE.opacity 0.5
                       <| GE.spacer w h
           pickBox = GE.container w h GE.middle  
-                      <| GE.color Color.darkGray
+                      <| GE.color interfaceColor
                       <| GE.container 400 200 GE.middle
                       <| GE.flow GE.down
                            [ GE.flow GE.right
@@ -664,6 +680,7 @@ saveElement model w h = case model.mode of
                                           , ("padding", "4px")
                                           , ("border-width", "0px")
                                           , ("pointer-events", "auto")
+                                          , ("box-shadow", "inset 0 0 10px 3px lightgray")
                                           ]
                                       , Attr.value model.fieldContents.value
                                       , Attr.placeholder
@@ -682,19 +699,20 @@ saveElement model w h = case model.mode of
                                           )
                                       ]
                                       []
-                              , GI.button
-                                  (Signal.message taskMailbox.address
-                                      <| checkAndSave 
-                                                  model.fieldContents.value
-                                                  model
+                              , GE.spacer 10 40
+                              , simpleTaskButton
+                                  ( checkAndSave model.fieldContents.value
+                                                 model
                                   )
-                                  "Create Save"
+                                  "Create Save" "Create Save" "Create Save"
+                                  100 40
                               ]
                            , GE.spacer 160 10
                            , GE.flow GE.right
                               [ GE.spacer 47 50 
                               , GE.centered <|
                                   T.height 12 <|
+                                  T.color Color.white <|
                                   (T.fromString <| 
                                   "Note: This will overwrite saves with\n"
                                   ++ "the same name. You must choose a\n"
@@ -703,20 +721,15 @@ saveElement model w h = case model.mode of
                            , GE.spacer 160 10
                            , GE.flow GE.right
                                [ GE.spacer 112 30 
-                               , GE.size 75 30 <| GI.button
-                                  (Signal.message events.address <|
-                                    UpdateModel <| removeDialog False "")
-                                  "Cancel"
+                               , simpleButton
+                                  (UpdateModel <| removeDialog False "")
+                                  "Cancel" "Cancel" "Cancel"
+                                  75 30
                                ]
                            ]
       in GE.flow GE.outward [ dimBox, pickBox ]
   _ -> GE.empty 
     
-titleStyle =
-  { defaultStyle | typeface <- ["Courier", "monospace"]
-                 , height <- Just 18
-                 , bold <- False 
-                 , color <- Color.white}
 
 view : (Int, Int) -> Model -> GE.Element
 view (w,h) model =
@@ -731,7 +744,8 @@ view (w,h) model =
 
   let topSection =
     let
-      title = GE.leftAligned <| T.style titleStyle (T.fromString strTitle)
+      title = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <| 
+                GE.leftAligned <| T.style titleStyle (T.fromString strTitle)
 
       wLogo = params.topSection.wLogo
       logo  = GE.image wLogo wLogo "light_logo.svg"

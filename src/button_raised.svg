@@ -1,16 +1,16 @@
 <svg xmlns='http://www.w3.org/2000/svg' x='0' y='0' viewBox='0 0 120 25' preserveAspectRatio="none">
-  <rect x='2' y='21' width='116' height='4' fill='rgba(80, 80, 80, 1)'></rect>
-  <rect x='0' y='21' width='120' height='2' fill='rgba(80, 80, 80, 1)'></rect>
-  <circle cx='2' cy='23' r='2' fill='rgba(80, 80, 80, 1)'></circle>
-  <circle cx='118' cy='23' r='2' fill='rgba(80, 80, 80, 1)'></circle>
-  <rect x='2' y='20.5' width='116' height='4' fill='rgba(3, 80, 79, 1)'></rect>
-  <rect x='0' y='20.5' width='120' height='2' fill='rgba(3, 80, 79, 1)'></rect>
-  <circle cx='2' cy='22.5' r='2' fill='rgba(3, 80, 79, 1)'></circle>
-  <circle cx='118' cy='22.5' r='2' fill='rgba(3, 80, 79, 1)'></circle>
-  <rect x='2' y='0' width='116' height='22.5' fill='rgba(3, 101, 100, 1)'></rect>
-  <rect x='0' y='2' width='120' height='18.5' fill='rgba(3, 101, 100, 1)'></rect>
-  <circle cx='2' cy='2' r='2' fill='rgba(3, 101, 100, 1)'></circle>
-  <circle cx='118' cy='2' r='2' fill='rgba(3, 101, 100, 1)'></circle>
-  <circle cx='2' cy='20.5' r='2' fill='rgba(3, 101, 100, 1)'></circle>
-  <circle cx='118' cy='20.5' r='2' fill='rgba(3, 101, 100, 1)'></circle>
+  <rect x='2' y='21' width='116' height='4' fill='rgba(180, 180, 180, 1)'></rect>
+  <rect x='0' y='21' width='120' height='2' fill='rgba(180, 180, 180, 1)'></rect>
+  <circle cx='2' cy='23' r='2' fill='rgba(180, 180, 180, 1)'></circle>
+  <circle cx='118' cy='23' r='2' fill='rgba(180, 180, 180, 1)'></circle>
+  <rect x='2' y='20.5' width='116' height='4' fill='rgba(192, 57, 43, 1)'></rect>
+  <rect x='0' y='20.5' width='120' height='2' fill='rgba(192, 57, 43, 1)'></rect>
+  <circle cx='2' cy='22.5' r='2' fill='rgba(192, 57, 43, 1)'></circle>
+  <circle cx='118' cy='22.5' r='2' fill='rgba(192, 57, 43, 1)'></circle>
+  <rect x='2' y='0' width='116' height='22.5' fill='rgba(231, 76, 60, 1)'></rect>
+  <rect x='0' y='2' width='120' height='18.5' fill='rgba(231, 76, 60, 1)'></rect>
+  <circle cx='2' cy='2' r='2' fill='rgba(231, 76, 60, 1)'></circle>
+  <circle cx='118' cy='2' r='2' fill='rgba(231, 76, 60, 1)'></circle>
+  <circle cx='2' cy='20.5' r='2' fill='rgba(231, 76, 60, 1)'></circle>
+  <circle cx='118' cy='20.5' r='2' fill='rgba(231, 76, 60, 1)'></circle>
 </svg>
