@@ -617,8 +617,8 @@ gutterForResizing orient w h =
           ]
           [ ]
 
-mainSectionVertical : Int -> Int -> Model -> GE.Element
-mainSectionVertical w h model =
+mainSectionVertical : Int -> Int -> Model -> GE.Element -> GE.Element
+mainSectionVertical w h model renderedCodeBox =
   let
     wGut    = params.mainSection.vertical.wGut
     wMiddle = wBtn
@@ -631,7 +631,8 @@ mainSectionVertical w h model =
                 + params.mainSection.vertical.hExtra
   in
 
-  let codeSection = codebox wCode h model in
+  --let codeSection = codebox wCode h model in
+  let codeSection = renderedCodeBox in
 
   let canvasSection =
     GE.size wCanvas h <|
@@ -657,8 +658,8 @@ mainSectionVertical w h model =
   GE.flow GE.right <|
     [ codeSection, gutter, middleSection, gutter, canvasSection ]
 
-mainSectionHorizontal : Int -> Int -> Model -> GE.Element
-mainSectionHorizontal w h model =
+mainSectionHorizontal : Int -> Int -> Model -> GE.Element -> GE.Element
+mainSectionHorizontal w h model renderedCodeBox =
   let
     hGut    = params.mainSection.horizontal.hGut
     hMiddle = hBtn
@@ -670,7 +671,8 @@ mainSectionHorizontal w h model =
                 + params.mainSection.horizontal.wExtra
   in
 
-  let codeSection = codebox w hCode model in
+  --let codeSection = codebox w hCode model in
+  let codeSection = renderedCodeBox in
 
   let canvasSection =
     GE.size w (hCanvas + hZInfo) <|
@@ -982,8 +984,8 @@ saveElement model w h = case model.mode of
   _ -> GE.empty 
     
 
-view : (Int, Int) -> Model -> GE.Element
-view (w,h) model =
+view : (Int, Int) -> Model -> GE.Element -> GE.Element
+view (w,h) model renderedCodeBox =
   let
     wAll = w - (2 * wGut) - 1
     wGut = params.wGut
@@ -1020,8 +1022,8 @@ view (w,h) model =
   let midSection =
     GE.size wAll hMid <|
       case model.orient of
-        Vertical   -> mainSectionVertical wAll hMid model
-        Horizontal -> mainSectionHorizontal wAll hMid model in
+        Vertical   -> mainSectionVertical wAll hMid model renderedCodeBox
+        Horizontal -> mainSectionHorizontal wAll hMid model renderedCodeBox in
 
   let botSection = GE.spacer wAll hBot in
   let sideGutter = colorDebug Color.black <| GE.spacer wGut hTot in
