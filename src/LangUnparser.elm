@@ -105,7 +105,8 @@ unparse e = case e.val of
     let sOp = { op | val <- strOp op.val } in
     parensAndSpaces e.start e.end (UStr sOp :: List.map UExp es)
   EIf e1 e2 e3 ->
-    let tok = makeToken (incCol e.start) "if" in
+    let tok = makeToken (incCol e.start) "i
+        f" in
     parensAndSpaces e.start e.end (UStr tok :: List.map UExp [e1,e2,e3])
   ELet Let b p e1 e2 ->
     let tok = makeToken (incCol e.start) (if b then "letrec" else "let") in
@@ -125,15 +126,13 @@ unparse e = case e.val of
 unparseE : Exp -> String
 unparseE e = whitespace startPos e.start ++ unparse e
 
--- Currently does not remember whitespace before/after ".."
--- Could be added by changing ERange type to (Exp, Exp, Exp) where the inner Exp
--- is an EBase String (that should remember the position information properly)
+-- Currently only remembers whitespace after ".."
 unparseRange : ERange -> List Unparsable
 unparseRange r = case r.val of (l,u) -> case (l.val,u.val) of
     (EConst lv lt, EConst uv ut) -> 
         if | lv == uv -> [ UExp l ]
            | otherwise -> [ UExp l
-                          , UStr { val = "..", start = l.end, end = u.start }
+                          , UStr { val = "..", start = l.end, end = bumpCol 2 l.end }
                           , UExp u
                           ]
 
