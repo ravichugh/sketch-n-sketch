@@ -1,6 +1,12 @@
 module PreludeGenerated (src) where
 
-prelude = "
+prelude =
+ "
+; prelude.little
+;
+; This little library is accessible by every program.
+; This is not an example that generates an SVG canvas,
+; but we include it here for reference.
 
 (def id (\\x x))
 
@@ -85,6 +91,14 @@ prelude = "
 
 (def joinStrings (\\(sep ss)
   (foldr (\\(str acc) (if (= acc '') str (+ str (+ sep acc)))) '' ss)))
+
+(def concatStrings (joinStrings ''))
+
+(def spaces (joinStrings ' '))
+
+(def delimit (\\(a b s) (concatStrings [a s b])))
+
+(def parens (delimit '(' ')'))
 
 ;
 ; SVG Manipulating Functions
@@ -209,6 +223,11 @@ prelude = "
   (let indices (list0N (- (* 2! n) 1!))
     (polygon fill stroke w (map pti (zip indices lengths))))))))
 
+(def zones (\\s (map (\\shape (addAttr shape ['zones' s])))))
+
+(def hideZonesTail  (\\[hd | tl] [hd | (zones 'none'  tl)]))
+(def basicZonesTail (\\[hd | tl] [hd | (zones 'basic' tl)]))
+
 ; TODO refactor as in paper
 (def hSlider_ (\\(dropBall roundInt xStart xEnd y minVal maxVal caption curVal)
   (let [rPoint wLine rBall] [4! 3! 10!]
@@ -219,13 +238,15 @@ prelude = "
   (let val
     (let val_ (clamp minVal maxVal curVal)
     (if roundInt (round val_) val_))
-  (let shapes
+  (let shapes1
     [ (line 'black' wLine xStart y xEnd y)
       (circle 'black' xStart y rPoint)
       (circle 'black' xEnd y rPoint)
-      (circle 'black' xBall y rBall_)
       (text (+ xEnd 10) (+ y 5) (+ caption (toString val))) ]
-  [val shapes])))))))))
+  (let shapes2
+    [ (circle 'black' xBall y rBall_) ]
+  [val (append (zones 'none' shapes1)
+               (zones 'basic' shapes2))]))))))))))
 
 (def hSlider (hSlider_ true))
 
@@ -236,17 +257,23 @@ prelude = "
   (let xBall_ (clamp xStart xEnd xBall)
   (let rBall_ (if dropBall (if (= xBall_ xBall) rBall 0) rBall)
   (let val (< xCur 0.5)
-  (let shapes
+  (let shapes1
     [ (circle 'black' xStart y rPoint)
       (circle 'black' xEnd y rPoint)
       (line 'black' wLine xStart y xEnd y)
-      (circle (if val 'darkgreen' 'darkred') xBall y rBall_)
       (text (+ xEnd 10) (+ y 5) (+ caption (toString val))) ]
-  [val shapes])))))))))
+  (let shapes2
+    [ (circle (if val 'darkgreen' 'darkred') xBall y rBall_) ]
+  [val (append (zones 'none' shapes1)
+               (zones 'basic' shapes2))]))))))))))
 
 (def button (button_ true))
 
-0
+(def rotate (\\(shape n1 n2 n3)
+  (addAttr shape ['transform' [['rotate' n1 n2 n3]]])))
+
+; 0
+['svg' [] []]
 
 "
 

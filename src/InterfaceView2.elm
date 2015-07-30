@@ -1,4 +1,4 @@
-module InterfaceView2 (view) where
+module InterfaceView2 (view, scaleColorBall) where
 
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
@@ -98,25 +98,49 @@ makeButton status w h text =
               ]
           ] [ Html.text text ]
     ]
+--------------------------------------------------------------------------------
+-- Zone Options (per shape)
 
+type alias ZoneOptions =
+  { showBasic : Bool , addBasic : Bool , addRot : Bool , addColor : Bool }
+
+zoneOptions0 =
+  { showBasic = False , addBasic = False , addRot = False , addColor = False }
+
+optionsOf : ShowZones -> ZoneOptions
+optionsOf x =
+  if | x == showZonesNone  -> { zoneOptions0 | addBasic <- True }
+     | x == showZonesBasic -> { zoneOptions0 | addBasic <- True, showBasic <- True }
+     | x == showZonesRot   -> { zoneOptions0 | addRot <- True }
+     | x == showZonesColor -> { zoneOptions0 | addColor <- True }
 
 --------------------------------------------------------------------------------
 -- Compiling to Svg
 
-buildSvg : Bool -> Bool -> LangSvg.RootedIndexedTree -> Svg.Svg
+buildSvg : Bool -> ShowZones -> LangSvg.RootedIndexedTree -> Svg.Svg
 buildSvg addZones showZones (i,d) = buildSvg_ addZones showZones d i
 
-buildSvg_ : Bool -> Bool -> LangSvg.IndexedTree -> LangSvg.NodeId -> Svg.Svg
+buildSvg_ : Bool -> ShowZones -> LangSvg.IndexedTree -> LangSvg.NodeId -> Svg.Svg
 buildSvg_ addZones showZones d i =
   case Utils.justGet_ ("buildSvg_ " ++ toString i) i d of
     LangSvg.TextNode text -> VirtualDom.text text
     LangSvg.SvgNode shape attrs js ->
       -- TODO: figure out: (LangSvg.attr "draggable" "false")
-      let zones =
-        if | addZones  -> makeZones showZones shape i attrs
-           | otherwise -> [] in
+      let (zones, attrs') =
+        let options = optionsOf showZones in
+        case (addZones, Utils.maybeRemoveFirst "zones" attrs) of
+          (False, Nothing)     -> ([], attrs)
+          (False, Just (_, l)) -> ([], l)
+          (True, Nothing) ->
+            (makeZones options shape i attrs, attrs)
+          (True, Just (LangSvg.AString "none", l)) ->
+            (makeZones zoneOptions0 shape i attrs, l)
+          (True, Just (LangSvg.AString "basic", l)) ->
+            let options' = { options | addRot <- False, addColor <- False } in
+            (makeZones options' shape i attrs, l)
+      in
       let children = List.map (buildSvg_ addZones showZones d) js in
-      let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs) children in
+      let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs') children in
       Svg.svg [] (mainshape :: zones)
 
 
@@ -158,13 +182,19 @@ cursorOfZone zone = if
   | zone == "TopRightCorner" -> cursorStyle "nesw-resize"
   -- circle/ellipse zones
   | zone == "Edge"           -> cursorStyle "pointer"
+  -- indirect manipulation zones
+  | zone == "FillBall"       -> cursorStyle "pointer"
+  | zone == "RotateBall"     -> cursorStyle "pointer"
   -- default
   | otherwise                -> cursorStyle "default"
 
+-- Stuff for Basic Zones -------------------------------------------------------
+
 -- TODO use zone
-zoneBorder svgFunc id shape zone flag show =
+zoneBorder svgFunc id shape zone flag show transform =
   flip svgFunc [] <<
   (++) (zoneEvents id shape zone) <<
+  (++) transform <<
   (++) [ if flag && show
          then LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
          else LangSvg.attr "stroke" "rgba(0,0,0,0.0)"
@@ -173,9 +203,10 @@ zoneBorder svgFunc id shape zone flag show =
        , cursorOfZone zone
        ]
 
-zonePoint id shape zone show =
+zonePoint id shape zone show transform =
   flip Svg.circle [] <<
   (++) (zoneEvents id shape zone) <<
+  (++) transform <<
   (++) [ LangSvg.attr "r" "6"
        , if show
          then LangSvg.attr "fill" "rgba(255,0,0,0.5)"
@@ -183,24 +214,146 @@ zonePoint id shape zone show =
        , cursorStyle "pointer"
        ]
 
-zonePoints id shape show pts =
+zonePoints id shape show transform pts =
   flip Utils.mapi pts <| \(i, (x,y)) ->
-    zonePoint id shape (addi "Point" i) show [ attrNumTr "cx" x, attrNumTr "cy" y ]
+    zonePoint id shape (addi "Point" i) show transform
+      [ attrNumTr "cx" x, attrNumTr "cy" y ]
 
-zoneLine id shape zone show (x1,y1) (x2,y2) =
-  zoneBorder Svg.line id shape zone True show [
-      attrNumTr "x1" x1 , attrNumTr "y1" y1 , attrNumTr "x2" x2 , attrNumTr "y2" y2
+zoneLine id shape zone show transform (x1,y1) (x2,y2) =
+  zoneBorder Svg.line id shape zone True show transform [
+      attrNumTr "x1" x1 , attrNumTr "y1" y1
+    , attrNumTr "x2" x2 , attrNumTr "y2" y2
     , cursorStyle "pointer"
     ]
 
-makeZones : Bool -> String -> LangSvg.NodeId -> List LangSvg.Attr -> List Svg.Svg
-makeZones showZones shape id l =
+-- Stuff for Rotate Zones ------------------------------------------------------
+
+rotZoneDelta = 20
+
+maybeTransformCmds l =
+  case Utils.maybeFind "transform" l of
+    Just (LangSvg.ATransform cmds) -> Just cmds
+    _                              -> Nothing
+
+transformAttr cmds =
+  [LangSvg.compileAttr "transform" (LangSvg.ATransform cmds)]
+
+maybeTransformAttr l =
+  case maybeTransformCmds l of
+    Just cmds -> transformAttr cmds
+    Nothing   -> []
+
+zoneRotate b id shape (cx,cy) r m =
+  case (b, m) of
+    (True, Just cmds) -> zoneRotate_ id shape cx cy r cmds
+    _                 -> []
+
+zoneRotate_ id shape cx cy r cmds =
+  let (a, stroke, strokeWidth, rBall) =
+      (20, "rgba(192,192,192,0.5)", "5", "7") in
+  let (fillBall, swBall) = ("silver", "2") in
+  let transform = transformAttr cmds in
+  let circle =
+    flip Svg.circle [] <|
+      [ LangSvg.attr "fill" "none"
+      , LangSvg.attr "stroke" stroke , LangSvg.attr "strokeWidth" strokeWidth
+      , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString cy)
+      , LangSvg.attr "r"  (toString r)
+      ]
+  in
+  let ball =
+    flip Svg.circle [] <|
+      [ LangSvg.attr "stroke" "black" , LangSvg.attr "strokeWidth" swBall
+      , LangSvg.attr "fill" fillBall
+      , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString (cy - r))
+      , LangSvg.attr "r"  rBall
+      , cursorOfZone "RotateBall"
+      ] ++ transform
+        ++ zoneEvents id shape "RotateBall"
+  in
+  let line =
+    flip Svg.line [] <|
+      [ LangSvg.attr "stroke" stroke , LangSvg.attr "strokeWidth" strokeWidth
+      , LangSvg.attr "x1" (toString cx) , LangSvg.attr "y1" (toString cy)
+      , LangSvg.attr "x2" (toString cx) , LangSvg.attr "y2" (toString (cy - r))
+      ] ++ transform
+  in
+  [circle, line, ball]
+
+halfwayBetween (x1,y1) (x2,y2) = ((x1 + x2) / 2, (y1 + y2) / 2)
+distance (x1,y1) (x2,y2)       = sqrt ((x2-x1)^2 + (y2-y1)^2)
+
+projPt (x,y)                   = (fst x, fst y)
+halfwayBetween_ pt1 pt2        = halfwayBetween (projPt pt1) (projPt pt2)
+distance_ pt1 pt2              = distance (projPt pt1) (projPt pt2)
+
+-- Stuff for Color Zones -------------------------------------------------------
+
+wGradient = 250
+scaleColorBall = 1 / (wGradient / LangSvg.maxColorNum)
+
+numToColor = Utils.numToColor wGradient
+
+maybeColorNumAttr k l =
+  case Utils.maybeFind k l of
+    Just (LangSvg.AColorNum n) -> Just n
+    _                          -> Nothing
+
+zoneColor b id shape x y rgba =
+  case (b, rgba) of
+    (True, Just n) -> zoneColor_ id shape x y n
+    _              -> []
+
+zoneColor_ id shape x y n =
+  let rgba = [LangSvg.compileAttr "fill" (LangSvg.AColorNum n)] in
+  let (w, h, a, stroke, strokeWidth, rBall) =
+      (wGradient, 20, 20, "silver", "2", "7") in
+  let yOff = a + rotZoneDelta in
+  let ball =
+    let cx = x + (fst n / LangSvg.maxColorNum) * wGradient in
+    let cy = y - yOff + (h/2) in
+    flip Svg.circle [] <|
+      [ LangSvg.attr "stroke" "black" , LangSvg.attr "strokeWidth" strokeWidth
+      , LangSvg.attr "fill" stroke
+      , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString cy)
+      , LangSvg.attr "r"  rBall
+      , cursorOfZone "FillBall"
+      ] ++ zoneEvents id shape "FillBall"
+  in
+  let box =
+    flip Svg.rect [] <|
+      [ LangSvg.attr "fill" "none"
+      , LangSvg.attr "stroke" stroke , LangSvg.attr "strokeWidth" strokeWidth
+      , LangSvg.attr "x" (toString x) , LangSvg.attr "y" (toString (y - yOff))
+      , LangSvg.attr "width" (toString w) , LangSvg.attr "height" (toString h)
+      ]
+  in
+  -- TODO would probably be faster with an image...
+  let gradient =
+    List.map (\i ->
+      let (r,g,b) = numToColor i in
+      let fill =
+        "rgb" ++ Utils.parens (String.join "," (List.map toString [r,g,b]))
+      in
+      flip Svg.rect [] <|
+        [ LangSvg.attr "fill" fill
+        , LangSvg.attr "x" (toString (x+i)) , LangSvg.attr "y" (toString (y - yOff))
+        , LangSvg.attr "width" "1" , LangSvg.attr "height" (toString h)
+        ]) [0 .. w]
+  in
+  gradient ++ [box, ball]
+
+--------------------------------------------------------------------------------
+
+makeZones : ZoneOptions -> String -> LangSvg.NodeId -> List LangSvg.Attr -> List Svg.Svg
+makeZones options shape id l =
   case shape of
 
     "rect" ->
+        let transform = maybeTransformAttr l in
         let mk zone x_ y_ w_ h_ =
-          zoneBorder Svg.rect id shape zone True showZones [
-              attrNum "x" x_ , attrNum "y" y_
+          zoneBorder Svg.rect id shape zone True options.showBasic transform <|
+            [ attrNum "x" x_ , attrNum "y" y_
             , attrNum "width" w_ , attrNum "height" h_
             ]
         in
@@ -212,6 +365,14 @@ makeZones showZones shape id l =
           (wSlim,wWide) = (gut*w, (1-2*gut)*w)
           (hSlim,hWide) = (gut*h, (1-2*gut)*h)
         in
+        let zRot =
+          let c = (x + (w/2), y + (h/2)) in
+          let r = rotZoneDelta + (h/2) in
+          zoneRotate options.addRot id shape c r (maybeTransformCmds l)
+        in
+        let zColor =
+          zoneColor options.addColor id shape x y (maybeColorNumAttr "fill" l)
+        in
           [ mk "Interior"       x1 y1 wWide hWide
           , mk "RightEdge"      x2 y1 wSlim hWide
           , mk "BotRightCorner" x2 y2 wSlim hSlim
@@ -221,59 +382,73 @@ makeZones showZones shape id l =
           , mk "TopLeftCorner"  x0 y0 wSlim hSlim
           , mk "TopEdge"        x1 y0 wWide hSlim
           , mk "TopRightCorner" x2 y0 wSlim hSlim
-          ]
+          ] ++ zRot
+            ++ zColor
 
-    "circle"  -> makeZonesEllipse showZones shape id l
-    "ellipse" -> makeZonesEllipse showZones shape id l
+    "circle"  -> makeZonesCircle  options id l
+    "ellipse" -> makeZonesEllipse options id l
 
     "line" ->
+        let transform = maybeTransformAttr l in
         let [x1,y1,x2,y2] = List.map (toNumTr << Utils.find_ l) ["x1","y1","x2","y2"] in
-        let zLine = zoneLine id shape "Edge" showZones (x1,y1) (x2,y2) in
-        let zPts = zonePoints id shape showZones [(x1,y1),(x2,y2)] in
-        zLine :: zPts
+        let (pt1,pt2) = ((x1,y1), (x2,y2)) in
+        let zLine = zoneLine id shape "Edge" options.showBasic transform pt1 pt2 in
+        let zPts = zonePoints id shape options.showBasic transform [pt1,pt2] in
+        let zRot =
+          let c = halfwayBetween_ pt1 pt2 in
+          let r = (distance_ pt1 pt2 / 2) - rotZoneDelta in
+          zoneRotate options.addRot id shape c r (maybeTransformCmds l) in
+        zLine :: zPts ++ zRot
 
-    "polygon"  -> makeZonesPoly showZones shape id l
-    "polyline" -> makeZonesPoly showZones shape id l
+    "polygon"  -> makeZonesPoly options shape id l
+    "polyline" -> makeZonesPoly options shape id l
 
-    "path" -> makeZonesPath showZones shape id l
+    "path" -> makeZonesPath options.showBasic shape id l
 
     _ -> []
 
-makeZonesEllipse showZones shape id l =
-  let _ = Utils.assert "makeZonesEllipse" (shape == "circle" || shape == "ellipse") in
-  let foo =
-    let [cx,cy] = List.map (toNum << Utils.find_ l) ["cx","cy"] in
-    [ attrNum "cx" cx , attrNum "cy" cy ] in
-  let (f,bar) =
-    if shape == "circle" then
-      let [r] = List.map (toNum << Utils.find_ l) ["r"] in
-      (Svg.circle, [ attrNum "r" r ])
-    else
-      let [rx,ry] = List.map (toNum << Utils.find_ l) ["rx","ry"] in
-      (Svg.ellipse, [ attrNum "rx" rx , attrNum "ry" ry ]) in
-  let zInterior = zoneBorder f id shape "Interior" False showZones (foo ++ bar) in
-  let zEdge = zoneBorder f id shape "Edge" True showZones (foo ++ bar) in
-  [zEdge, zInterior]
+makeZonesCircle options id l =
+  let transform = maybeTransformAttr l in
+  let [cx,cy,r] = List.map (toNum << Utils.find_ l) ["cx","cy","r"] in
+  let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "r" r ] in
+     [zoneBorder Svg.circle id "circle" "Edge" True options.showBasic attrs transform]
+  ++ [zoneBorder Svg.circle id "circle" "Interior" False options.showBasic attrs transform]
+  ++ (zoneRotate options.addRot id "circle" (cx,cy) (r + rotZoneDelta) (maybeTransformCmds l))
+  ++ (zoneColor options.addColor id "circle" (cx - r) (cy - r) (maybeColorNumAttr "fill" l))
 
-makeZonesPoly showZones shape id l =
+makeZonesEllipse options id l =
+  let transform = maybeTransformAttr l in
+  let [cx,cy,rx,ry] = List.map (toNum << Utils.find_ l) ["cx","cy","rx","ry"] in
+  let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "rx" rx, attrNum "ry" ry ] in
+     [zoneBorder Svg.ellipse id "ellipse" "Edge" True options.showBasic attrs transform]
+  ++ [zoneBorder Svg.ellipse id "ellipse" "Interior" False options.showBasic attrs transform]
+  ++ (zoneRotate options.addRot id "circle" (cx,cy) (ry + rotZoneDelta) (maybeTransformCmds l))
+  ++ (zoneColor options.addColor id "ellipse" (cx - rx) (cy - ry) (maybeColorNumAttr "fill" l))
+
+makeZonesPoly options shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "polygon" || shape == "polyline") in
+  let transform = maybeTransformAttr l in
   let pts = LangSvg.toPoints <| Utils.find_ l "points" in
-  let zPts = zonePoints id shape showZones pts in
+  let zPts = zonePoints id shape options.showBasic transform pts in
   let zLines =
     let pairs = Utils.adjacentPairs (shape == "polygon") pts in
-    let f (i,(pti,ptj)) = zoneLine id shape (addi "Edge" i) showZones pti ptj in
+    let f (i,(pti,ptj)) = zoneLine id shape (addi "Edge" i) options.showBasic transform pti ptj in
     Utils.mapi f pairs in
   let zInterior =
-    zoneBorder Svg.polygon id shape "Interior" False showZones [
+    zoneBorder Svg.polygon id shape "Interior" False options.showBasic transform [
         LangSvg.compileAttr "points" (LangSvg.APoints pts)
       ] in
+  let zRot =
+    let (((x0,_),(y0,_))::_) = pts in
+    zoneColor options.addColor id shape x0 y0 (maybeColorNumAttr "fill" l) in
   let firstEqLast xs = Utils.head_ xs == Utils.head_ (List.reverse xs) in
-  if | shape == "polygon" -> zInterior :: (zLines ++ zPts)
-     | firstEqLast pts    -> zInterior :: (zLines ++ zPts)
-     | otherwise          -> zLines ++ zPts
+  if | shape == "polygon" -> zInterior :: (zLines ++ zPts ++ zRot)
+     | firstEqLast pts    -> zInterior :: (zLines ++ zPts ++ zRot)
+     | otherwise          -> zLines ++ zPts ++ zRot
 
 makeZonesPath showZones shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "path") in
+  let transform = maybeTransformAttr l in
   let cmds = fst <| LangSvg.toPath <| Utils.find_ l "d" in
   let (mi,pt) +++ acc = case mi of {Nothing -> acc; _ -> pt :: acc} in
   let pts =
@@ -285,7 +460,7 @@ makeZonesPath showZones shape id l =
       LangSvg.CmdSQ  s pt1 pt2      -> pt1 +++ (pt2 +++ acc)
       LangSvg.CmdA   s a b c d e pt -> pt +++ acc) [] cmds
   in
-  zonePoints id shape showZones pts
+  zonePoints id shape showZones transform pts
 
 
 --------------------------------------------------------------------------------
@@ -529,7 +704,12 @@ syncButton =
   simpleButton Sync "Sync" "Sync the code to the canvas" "Sync"
 
 zoneButton model =
-  let cap = if model.showZones then "[Zones] Shown" else "[Zones] Hidden" in
+  let cap =
+    if | model.showZones == showZonesNone  -> "Zones [Hidden]"
+       | model.showZones == showZonesBasic -> "Zones [Basic]"
+       | model.showZones == showZonesRot   -> "Zones [Rotation]"
+       | model.showZones == showZonesColor -> "Zones [Color]"
+  in
   simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap
 
 frozenButton model =
@@ -825,60 +1005,3 @@ view (w,h) model =
 -- TODO: add onMouseUp DeselectObject event to all GE.Elements...
 
 ------------------------------------------------------------------------------
-
--- Re: dropdown boxes
---
--- used to use Html.select / Html.option / Events.onMouseOver,
--- but didn't work in Chrome and Safari. tried
---   Events.onMouseOver
---   Events.onClick
---   Events.on "onchange" Json.Decode.value
-
--- so now using GI.dropDown instead
---
--- keeping the following around for reference:
-
-{-
-
-import Json.Decode
-
-dropdownExamples : Int -> Int -> Html.Html
-dropdownExamples w h =
-  let examples =
-    let foo (name,thunk) =
-      Html.option
-          -- TODO: works in Firefox, but not in Chrome/Safari
-          [ Events.onMouseOver events.address (SelectExample name thunk) ]
-          [ Html.text name ]
-    in
-    List.map foo Examples.list
-  in
-  Html.select [ buttonAttrs w h ] examples
-
-modeToggle : Int -> Int -> Model -> Html.Html
-modeToggle w h model =
-  let opt s m =
-    let yes =
-      case (model.mode, m) of
-        (Live _, Live _)           -> True
-        (AdHoc, AdHoc)             -> True
-        _                          -> False
-    in
-    -- TODO: onClick works in Firefox, but not in Chrome/Safari
-    -- TODO: same goes for Events.on "change"
-    Html.option
-        [ Attr.selected yes
-        , Events.on "onchange" Json.Decode.value
-            (\_ -> Signal.message events.address SwitchOrient)
-        , Events.onClick events.address (SwitchMode m)
-        ]
-        [Html.text s]
-  in
-  -- may want to delay this to when Live is selected
-  let optionLive = opt "Live" (mkLive_ model.syncOptions (Utils.fromJust model.inputExp)) in
-  let optionAdHoc = opt "Ad Hoc" AdHoc in
-  Html.select
-    [ buttonAttrs w h ]
-    [ optionLive, optionAdHoc ]
-
--}

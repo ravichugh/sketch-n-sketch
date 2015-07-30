@@ -5,6 +5,7 @@ import LangParser2 as Parser
 import Eval
 import MicroTests
 import Utils
+import PreludeGenerated as Prelude
 
 makeExample name s =
   let thunk () =
@@ -18,6 +19,7 @@ scratchName = "*Scratch*"
 
 LITTLE_TO_ELM scratch
 LITTLE_TO_ELM threeBoxes
+LITTLE_TO_ELM groupOfBoxes
 LITTLE_TO_ELM sixBoxesA
 LITTLE_TO_ELM sixBoxesB
 LITTLE_TO_ELM logo
@@ -36,6 +38,7 @@ LITTLE_TO_ELM boxGrid
 LITTLE_TO_ELM usFlag13
 LITTLE_TO_ELM usFlag50
 LITTLE_TO_ELM chicago
+LITTLE_TO_ELM chicagoColors
 LITTLE_TO_ELM frenchSudan
 LITTLE_TO_ELM flw1
 LITTLE_TO_ELM flw2
@@ -57,10 +60,13 @@ LITTLE_TO_ELM eyeIcon
 LITTLE_TO_ELM wikimedia
 LITTLE_TO_ELM haskell
 LITTLE_TO_ELM matrices
+LITTLE_TO_ELM rotTest
 
 examples =
   [ makeExample scratchName scratch
+  , makeExample "*Prelude*" Prelude.src
   , makeExample "3 Boxes" threeBoxes
+  , makeExample "N Boxes" groupOfBoxes
   , makeExample "6 Boxes A" sixBoxesA
   , makeExample "6 Boxes B" sixBoxesB
   , makeExample "Logo" logo
@@ -78,6 +84,7 @@ examples =
   , makeExample "Color Picker" rgba
   , makeExample "Box Grid" boxGrid
   , makeExample "Chicago Flag" chicago
+  , makeExample "Chicago Flag 2" chicagoColors
   , makeExample "US-13 Flag" usFlag13
   , makeExample "US-50 Flag" usFlag50
   , makeExample "French Sudan Flag" frenchSudan
@@ -100,6 +107,7 @@ examples =
   , makeExample "Paths 3" paths3
   , makeExample "Paths 4" paths4
   , makeExample "Paths 5" paths5
+  , makeExample "Sample Rotations" rotTest
   ]
 
 list = examples -- ++ MicroTests.sampleTests

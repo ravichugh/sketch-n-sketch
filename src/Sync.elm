@@ -389,11 +389,14 @@ inferStructuralUpdate eOld v v' =
 type alias AttrName = String
 type alias LocSet = Set.Set Loc
 type alias Locs = List Loc
+
+-- band-aids for extra metadata...
 type ExtraInfo = None | NumPoints Int | NumsPath LangSvg.PathCounts
+type alias ExtraExtraInfo = List (AttrName, (Zone, Trace))
 
 type alias NumAttrs = Int
 
-type alias Dict0 = Dict NodeId (ShapeKind, ExtraInfo, Dict AttrName Trace)
+type alias Dict0 = Dict NodeId (ShapeKind, ExtraInfo, ExtraExtraInfo, Dict AttrName Trace)
 type alias Dict1 = Dict NodeId (ShapeKind, List (Zone, (NumAttrs, List Locs)))
 type alias Dict2 = Dict NodeId (ShapeKind, List (Zone, Maybe (Locs, List Locs)))
 
@@ -413,18 +416,29 @@ printZoneTable v =
 nodeToAttrLocs : Val -> Dict0
 nodeToAttrLocs = snd << flip nodeToAttrLocs_ (1, Dict.empty)
 
+nodeToAttrLocs_ : Val -> (Int, Dict0) -> (Int, Dict0)
 nodeToAttrLocs_ v (nextId,dShapes) = case v of
 
   VList [VBase (String "TEXT"), VBase (String s)] ->
-    (1 + nextId, Dict.insert 1 ("DUMMYTEXT", None, Dict.empty) dShapes)
+    (1 + nextId, Dict.insert 1 ("DUMMYTEXT", None, [], Dict.empty) dShapes)
 
   VList [VBase (String kind), VList vs', VList children] ->
 
     -- processing attributes of current node
-    let processAttr v' (extra,dAttrs) = case v' of
+    let processAttr v' (extra,extraextra,dAttrs) = case v' of
+
+      VList [VBase (String "fill"), VConst (_,tr)] ->
+        let ee = ("fill", ("FillBall", tr)) :: extraextra in
+        (extra, ee, Dict.insert "fill" tr dAttrs)
+
+      -- NOTE: requires for a single cmd, and "transformRot" is a fake attr....
+      VList [VBase (String "transform"),
+             VList [VList [VBase (String "rotate"), VConst (_, tr), _, _]]] ->
+        let ee = ("transformRot", ("RotateBall", tr)) :: extraextra in
+        (extra, ee, Dict.insert "transformRot" tr dAttrs)
 
       VList [VBase (String a), VConst (_,tr)] ->
-        (extra, Dict.insert a tr dAttrs)
+        (extra, extraextra, Dict.insert a tr dAttrs)
 
       VList [VBase (String "points"), VList pts] ->
         let acc' =
@@ -434,7 +448,7 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
                 let (ax,ay) = (addi "x" i, addi "y" i) in
                 acc |> Dict.insert ax trx
                     |> Dict.insert ay try) dAttrs pts in
-        (NumPoints (List.length pts), acc')
+        (NumPoints (List.length pts), extraextra, acc')
 
       VList [VBase (String "d"), VList vs] ->
         let addPt (mi,(xt,yt)) dict =
@@ -454,21 +468,21 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
             LangSvg.CmdSQ  s pt1 pt2      -> acc |> addPts [pt1,pt2]
             LangSvg.CmdA   s a b c d e pt -> acc |> addPt pt) dAttrs cmds
         in
-        (NumsPath counts, dAttrs')
+        (NumsPath counts, extraextra, dAttrs')
 
       -- NOTE:
       --   string-valued and RGBA attributes are ignored.
       --   see LangSvg.valToSvg for spec of attributes.
       _ ->
-        (extra, dAttrs)
+        (extra, extraextra, dAttrs)
     in
-    let (extra,attrs) = List.foldl processAttr (None, Dict.empty) vs' in
+    let (extra,ee,attrs) = List.foldl processAttr (None, [], Dict.empty) vs' in
 
     -- recursing into sub-nodes
     let (nextId',dShapes') =
       List.foldl nodeToAttrLocs_ (nextId,dShapes) children in
 
-    (nextId' + 1, Dict.insert nextId' (kind, extra, attrs) dShapes')
+    (nextId' + 1, Dict.insert nextId' (kind, extra, ee, attrs) dShapes')
 
   _ -> Debug.crash <| "Sync.nodeToAttrLocs_: " ++ strVal v
 
@@ -486,15 +500,16 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
 shapesToZoneTable : Options -> Dict0 -> Dict1
 shapesToZoneTable opts d0 =
   let foo i stuff acc =
-    let (kind,_,_) = stuff in
+    let (kind,_,_,_) = stuff in
     Dict.insert i (kind, shapeToZoneInfo opts stuff) acc in
   Dict.foldl foo Dict.empty d0
 
 shapeToZoneInfo :
   Options ->
-  (ShapeKind, ExtraInfo, Dict AttrName Trace) -> List (Zone, (NumAttrs, List Locs))
-shapeToZoneInfo opts (kind, extra, d) =
-  let zones = getZones kind extra in
+  (ShapeKind, ExtraInfo, ExtraExtraInfo, Dict AttrName Trace) ->
+  List (Zone, (NumAttrs, List Locs))
+shapeToZoneInfo opts (kind, extra, ee, d) =
+  let zones = getZones kind extra ee in
   let f (s,l) acc =
     let numAttrs = List.length l in
     let sets =
@@ -521,25 +536,32 @@ createLocLists sets =
   in
   foo ++ bar
 
-getZones : ShapeKind -> ExtraInfo -> List (Zone, List AttrName)
-getZones kind extra =
+getZones : ShapeKind -> ExtraInfo -> ExtraExtraInfo -> List (Zone, List AttrName)
+getZones kind extra ee =
   let xy i = [addi "x" i, addi "y" i] in
   let pt i = (addi "Point" i, xy i) in
   let edge n i =
     if | i <  n -> (addi "Edge" i, xy i ++ xy (i+1))
        | i == n -> (addi "Edge" i, xy i ++ xy 1) in
   let interior n = ("Interior", List.concatMap xy [1..n]) in
-  case (kind, extra) of
-    ("polyline", NumPoints n) ->
-      List.map pt [1..n] ++ List.map (edge n) [1..n-1]
-    ("polygon", NumPoints n) ->
-      List.map pt [1..n] ++ List.map (edge n) [1..n] ++ [interior n]
-    ("path", NumsPath {numPoints}) ->
-      List.map pt [1..numPoints]
-    _ ->
-      Utils.fromJust_
-        ("Sync.getZones " ++ kind)
-        (Utils.maybeFind kind LangSvg.zones)
+  let basicZones =
+    case (kind, extra) of
+      ("polyline", NumPoints n) ->
+        List.map pt [1..n] ++ List.map (edge n) [1..n-1]
+      ("polygon", NumPoints n) ->
+        List.map pt [1..n] ++ List.map (edge n) [1..n] ++ [interior n]
+      ("path", NumsPath {numPoints}) ->
+        List.map pt [1..numPoints]
+      _ ->
+        Utils.fromJust_
+          ("Sync.getZones " ++ kind)
+          (Utils.maybeFind kind LangSvg.zones)
+  in
+  basicZones ++ widgetZones ee
+
+widgetZones = List.map <| \x -> case x of
+  ("fill"         , ("FillBall"   , _)) -> ("FillBall"   , ["fill"])
+  ("transformRot" , ("RotateBall" , _)) -> ("RotateBall" , ["transformRot"])
 
 -- Step 3 --
 
@@ -707,7 +729,7 @@ makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
         Nothing -> (acc1, acc2)
         Just k ->
           let subst' = Dict.remove k subst in
-          let tr = justGet_ "%2" attr (Utils.thd3 (justGet_ "%3" i d0)) in
+          let tr = justGet_ "%2" attr (Utils.fourth4 (justGet_ "%3" i d0)) in
           case solve subst' (newNum, tr) of
             -- solve will no longer always return an answer, so one of
             -- the locations assigned to this trigger may not have an
@@ -719,7 +741,7 @@ makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
     -- if using overconstrained triggers, then some of the newAttr values
     -- from the UI make be "immediately destroyed" by subsequent ones...
 
-  let g i (_,_,di) acc =
+  let g i (_,_,_,di) acc =
     let h attr tr acc =
       let locs = Set.map Utils.fst3 (locsOfTrace opts tr) in
       if | Utils.setIsEmpty (locs `Set.intersect` changedLocs) -> acc
@@ -757,7 +779,7 @@ whichLoc opts d0 d2 i z attr =
   let trLocs =
     -- temporary way to ignore numbers specified as strings
     -- justGet_ "%4" i d0 |> Utils.thd3 |> justGet_ "%5" attr |> locsOfTrace opts in
-    justGet_ "%4" i d0 |> Utils.thd3 |> Dict.get attr |>
+    justGet_ "%4" i d0 |> Utils.fourth4 |> Dict.get attr |>
       \m -> case m of
         Just tr -> locsOfTrace opts tr
         Nothing -> Set.empty in

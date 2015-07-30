@@ -47,7 +47,7 @@ taskMailbox = mailbox (succeed ())
 type alias PartialObject = 
     { code        : String
     , orient      : Orientation
-    , showZones   : Bool
+    , showZones   : InterfaceModel.ShowZones -- Int
     , midOffsetX  : Int
     , midOffsetY  : Int
     }
@@ -69,7 +69,7 @@ modelToValue model =
                 InterfaceModel.Horizontal -> "Horizontal"
             )
         )
-      , ("showZones", Encode.bool model.showZones)
+      , ("showZones", Encode.int model.showZones)
       , ("midOffsetX", Encode.int model.midOffsetX)
       , ("midOffsetY", Encode.int model.midOffsetY)
       ]
@@ -86,7 +86,7 @@ strToModel =
                     _ -> Err "Ill-formatted orientation"
                 )
             )
-            ("showZones"   := bool)
+            ("showZones"   := int)
             ("midOffsetX"  := int)
             ("midOffsetY"  := int)
     in customDecoder partialObjectDecoder

@@ -19,6 +19,7 @@ import Set
 import String
 import Char
 import Dict exposing (Dict)
+import ColorNum
 
 import Lang exposing (..)
 import Utils
@@ -54,8 +55,12 @@ type AVal
   | AString String
   | APoints (List Point)
   | ARgba Rgba
+  | AColorNum NumTr -- Utils.numToColor [0,500)
   | APath2 (List PathCmd, PathCounts)
-  -- | APath (List Val) -- untyped
+  | ATransform (List TransformCmd)
+
+maxColorNum   = 500
+clampColorNum = Utils.clamp 0 (maxColorNum - 1)
 
 type alias Point = (NumTr, NumTr)
 type alias Rgba  = (NumTr, NumTr, NumTr, NumTr)
@@ -67,6 +72,9 @@ type PathCmd
   | CmdC   Cmd IdPoint IdPoint IdPoint
   | CmdSQ  Cmd IdPoint IdPoint
   | CmdA   Cmd NumTr NumTr NumTr NumTr NumTr IdPoint
+
+type TransformCmd
+  = Rot NumTr NumTr NumTr
 
 type alias PathCounts = {numPoints : Int}
 
@@ -86,21 +94,26 @@ toNum a = case a of
 
 toNumTr a = case a of
   ANum (n,t) -> (n,t)
+  AColorNum (n,t) -> (n,t)
   AString s  -> case String.toFloat s of
                   Ok n -> (n, dummyTrace)
 
 toPoints (APoints pts) = pts
 toPath   (APath2 p) = p
 
+toTransformRot (ATransform [Rot n1 n2 n3]) = (n1,n2,n3)
+
 valToAttr (VList [VBase (String k), v]) =
   case (k, v) of
-    (_, VConst it)        -> (k, ANum it)
-    (_, VBase (String s)) -> (k, AString s)
     ("points", VList vs)  -> (k, APoints <| List.map valToPoint vs)
     ("fill", VList vs)    -> (k, ARgba <| valToRgba vs)
+    ("fill", VConst it)   -> (k, AColorNum it)
     ("stroke", VList vs)  -> (k, ARgba <| valToRgba vs)
+    -- TODO "stroke" AColorNum
     ("d", VList vs)       -> (k, APath2 (valsToPath2 vs))
-    -- ("d", VList vs)       -> (k, APath vs)
+    ("transform", v1)     -> (k, ATransform (valToTransform v1))
+    (_, VConst it)        -> (k, ANum it)
+    (_, VBase (String s)) -> (k, AString s)
 
 valToPoint (VList [VConst x, VConst y]) = (x,y)
 pointToVal (x,y) = (VList [VConst x, VConst y])
@@ -113,8 +126,10 @@ strPoint (x_,y_) =
   toString x ++ "," ++ toString y
 
 strRgba (r_,g_,b_,a_) =
-  let [r,g,b,a] = List.map fst [r_,g_,b_,a_] in
-  "rgba" ++ Utils.parens (Utils.commas (List.map toString [r,g,b,a]))
+  strRgba_ (List.map fst [r_,g_,b_,a_])
+
+strRgba_ rgba =
+  "rgba" ++ Utils.parens (Utils.commas (List.map toString rgba))
 
 strAVal a = case a of
   AString s -> s
@@ -122,7 +137,12 @@ strAVal a = case a of
   APoints l -> Utils.spaces (List.map strPoint l)
   ARgba tup -> strRgba tup
   APath2 p  -> strAPath2 (fst p)
-  -- APath vs  -> valToPath vs
+  ATransform l -> Utils.spaces (List.map strTransformCmd l)
+  AColorNum n ->
+    -- slight optimization:
+    strRgba_ (ColorNum.convert (fst n))
+    -- let (r,g,b) = Utils.numToColor maxColorNum (fst n) in
+    -- strRgba_ [r,g,b,1]
 
 valOfAVal a = case a of
   AString s -> VBase (String s)
@@ -130,7 +150,7 @@ valOfAVal a = case a of
   APoints l -> VList (List.map pointToVal l)
   ARgba tup -> VList (rgbaToVal tup)
   APath2 p  -> VList (List.concatMap valsOfPathCmd (fst p))
-  -- APath vs  -> VList vs
+  AColorNum nt -> VConst nt
 
 valsOfPathCmd c =
   let fooPt (_,(x,y)) = [VConst x, VConst y] in
@@ -222,6 +242,19 @@ matchCmd cmd s =
   let cs  = String.toList s in
   List.member c (cs ++ List.map Char.toLower cs)
 
+-- transform commands
+
+valToTransform (VList vs) = List.map valToTransformCmd vs
+
+valToTransformCmd (VList (VBase (String k) :: vs)) =
+  case (k, vs) of
+    ("rotate", [VConst n1, VConst n2, VConst n3]) -> Rot n1 n2 n3
+
+strTransformCmd cmd = case cmd of
+  Rot n1 n2 n3 ->
+    let nums = List.map (toString << fst) [n1,n2,n3] in
+    "rotate" ++ Utils.parens (Utils.spaces nums)
+
 
 {- old way of doing things with APath...
 
@@ -302,7 +335,7 @@ funcsAttr = [
   , ("y2", A.y2)
   ]
 
-find d s = Utils.find ("MainSvg.find: " ++ s) d s
+find d s = Utils.find ("LangSvg.find: " ++ s) d s
 
 attr = find funcsAttr
 svg  = find funcsSvg
