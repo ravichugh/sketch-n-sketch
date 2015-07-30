@@ -64,7 +64,7 @@ titleStyle =
                  , color <- Color.white}
 
 -- Creates an Html button with the text properly offset
-type ButtonStatus = Raised | Highlighted | Depressed
+type ButtonStatus = Raised | Highlighted | Depressed | Disabled
 
 -- Currently assumes:
 --  font-size is 16px
@@ -82,6 +82,7 @@ makeButton status w h text =
     Raised      -> ("button_raised.svg", dimToPix raisedoffset)
     Highlighted -> ("button_highlighted.svg", dimToPix raisedoffset)
     Depressed   -> ("button_depressed.svg", dimToPix depressedoffset)
+    Disabled    -> ("button_disabled.svg", dimToPix raisedoffset)
   in
   GE.flow GE.outward
     [ GE.image w h img
@@ -492,11 +493,16 @@ simpleButton_
    : Signal.Address a -> a -> Bool -> a -> String -> String -> String
   -> Int -> Int -> GE.Element
 simpleButton_ addy defaultMsg disabled msg value name text w h =
-  let smsg = if disabled then defaultMsg else msg in
-  GI.customButton (Signal.message addy smsg)
-    (makeButton Raised w h text)
-    (makeButton Highlighted w h text)
-    (makeButton Depressed w h text)
+  if disabled then 
+      GI.customButton (Signal.message addy defaultMsg)
+        (makeButton Disabled w h text)
+        (makeButton Disabled w h text)
+        (makeButton Disabled w h text)
+  else
+      GI.customButton (Signal.message addy msg)
+        (makeButton Raised w h text)
+        (makeButton Highlighted w h text)
+        (makeButton Depressed w h text)
 
 simpleEventButton_ = simpleButton_ events.address Noop
 simpleTaskButton_  = simpleButton_ taskMailbox.address (Task.succeed ())
@@ -755,7 +761,8 @@ view (w,h) model =
       wJunk = params.topSection.wJunk
 
       wSep  = GE.spacer (wAll - (wLogo + wBtnO + wJunk)) 1
-      btnO  = orientationButton wBtnO hBtnO model
+      btnO  = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
+                orientationButton wBtnO hBtnO model
     in
       GE.size wAll hTop <|
         GE.flow GE.right
