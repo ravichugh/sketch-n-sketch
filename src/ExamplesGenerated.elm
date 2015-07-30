@@ -1525,6 +1525,111 @@ rotTest =
 
 "
 
+interfaceButtons =
+ "(def [w h depth shadow r] [120 22.5 4 0.5 2])
+(def [topcolor botcolor shadowcol] [[231 76 60 1] [192 57 43 1] [180 180 180 1]])
+(def tbbox (rect topcolor r 0! (- w (* 2! r)) h))
+(def lrbox (rect topcolor 0! r w (- h (* 2! r))))
+(def tlcirc (circle topcolor r r r))
+(def trcirc (circle topcolor (- w r) r r))
+(def blcirc (circle topcolor r (- h r) r))
+(def brcirc (circle topcolor (- w r) (- h r) r))
+
+(def btbbox (rect botcolor r (- h r) (- w (* 2! r)) depth))
+(def blrbox (rect botcolor 0! (- h r) w (- depth r)))
+(def belcirc (circle botcolor r (- (+ h depth) (* 2! r)) r))
+(def bercirc (circle botcolor (- w r) (- (+ h depth) (* 2! r)) r))
+
+(def stbbox (rect shadowcol r (+ shadow (- h r)) (- w (* 2! r)) depth))
+(def slrbox (rect shadowcol 0! (+ shadow (- h r)) w (- depth r)))
+(def selcirc (circle shadowcol r (+ shadow (- (+ h depth) (* 2! r))) r))
+(def sercirc (circle shadowcol (- w r) (+ shadow (- (+ h depth) (* 2! r))) r))
+
+(def btop    [tbbox lrbox tlcirc trcirc blcirc brcirc] )
+(def bbot    [btbbox blrbox belcirc bercirc] )
+(def bshadow [stbbox slrbox selcirc sercirc] )
+
+(def raisedButton (svgViewBox 120 (+ depth (+ shadow (- h r))) (concat [bshadow bbot btop])))
+
+(def [w h depth shadow r] [120 22.5 4 0.5 2])
+(def [topcolor botcolor shadowcol] [[233 94 80 1] [198 77 64 1] [180 180 180 1]])
+(def tbbox (rect topcolor r 0! (- w (* 2! r)) h))
+(def lrbox (rect topcolor 0! r w (- h (* 2! r))))
+(def tlcirc (circle topcolor r r r))
+(def trcirc (circle topcolor (- w r) r r))
+(def blcirc (circle topcolor r (- h r) r))
+(def brcirc (circle topcolor (- w r) (- h r) r))
+
+(def btbbox (rect botcolor r (- h r) (- w (* 2! r)) depth))
+(def blrbox (rect botcolor 0! (- h r) w (- depth r)))
+(def belcirc (circle botcolor r (- (+ h depth) (* 2! r)) r))
+(def bercirc (circle botcolor (- w r) (- (+ h depth) (* 2! r)) r))
+
+(def stbbox (rect shadowcol r (+ shadow (- h r)) (- w (* 2! r)) depth))
+(def slrbox (rect shadowcol 0! (+ shadow (- h r)) w (- depth r)))
+(def selcirc (circle shadowcol r (+ shadow (- (+ h depth) (* 2! r))) r))
+(def sercirc (circle shadowcol (- w r) (+ shadow (- (+ h depth) (* 2! r))) r))
+
+(def btop    [tbbox lrbox tlcirc trcirc blcirc brcirc] )
+(def bbot    [btbbox blrbox belcirc bercirc] )
+(def bshadow [stbbox slrbox selcirc sercirc] )
+
+(def highlightedButton (svgViewBox 120 (+ depth (+ shadow (- h r))) (concat [bshadow bbot btop])))
+
+(def [w h depth shadow r] [120 22.5 4 0.5 2])
+(def [topcolor botcolor shadowcol] [[233 94 80 1] [198 77 64 1] [180 180 180 1]])
+(def offset (* depth 0.375!))
+
+(def tbbox (rect topcolor r offset (- w (* 2! r)) h))
+(def lrbox (rect topcolor 0! (+ r offset) w (- h (* 2! r))))
+(def tlcirc (circle topcolor r (+ r offset) r))
+(def trcirc (circle topcolor (- w r) (+ r offset) r))
+(def blcirc (circle topcolor r (+ (- h r) offset) r))
+(def brcirc (circle topcolor (- w r) (+ (- h r) offset) r))
+
+(def btbbox (rect botcolor r (- h r) (- w (* 2! r)) depth))
+(def blrbox (rect botcolor 0! (- h r) w (- depth r)))
+(def belcirc (circle botcolor r (- (+ h depth) (* 2! r)) r))
+(def bercirc (circle botcolor (- w r) (- (+ h depth) (* 2! r)) r))
+
+(def btop    [tbbox lrbox tlcirc trcirc blcirc brcirc] )
+(def bbot    [btbbox blrbox belcirc bercirc] )
+
+(def depressedButton (svgViewBox 120 (+ depth (+ shadow (- h r))) (concat [bbot btop])))
+
+(def [w h depth shadow r] [120 22.5 4 0.5 2])
+(def [topcolor botcolor shadowcol] [[236 112 99 1] [205 97 85 1] [180 180 180 1]])
+(def tbbox (rect topcolor r 0! (- w (* 2! r)) h))
+(def lrbox (rect topcolor 0! r w (- h (* 2! r))))
+(def tlcirc (circle topcolor r r r))
+(def trcirc (circle topcolor (- w r) r r))
+(def blcirc (circle topcolor r (- h r) r))
+(def brcirc (circle topcolor (- w r) (- h r) r))
+
+(def btbbox (rect botcolor r (- h r) (- w (* 2! r)) depth))
+(def blrbox (rect botcolor 0! (- h r) w (- depth r)))
+(def belcirc (circle botcolor r (- (+ h depth) (* 2! r)) r))
+(def bercirc (circle botcolor (- w r) (- (+ h depth) (* 2! r)) r))
+
+(def stbbox (rect shadowcol r (+ shadow (- h r)) (- w (* 2! r)) depth))
+(def slrbox (rect shadowcol 0! (+ shadow (- h r)) w (- depth r)))
+(def selcirc (circle shadowcol r (+ shadow (- (+ h depth) (* 2! r))) r))
+(def sercirc (circle shadowcol (- w r) (+ shadow (- (+ h depth) (* 2! r))) r))
+
+(def btop    [tbbox lrbox tlcirc trcirc blcirc brcirc] )
+(def bbot    [btbbox blrbox belcirc bercirc] )
+(def bshadow [stbbox slrbox selcirc sercirc] )
+
+(def disabledButton (svgViewBox 120 (+ depth (+ shadow (- h r))) (concat [bshadow bbot btop])))
+
+(def [picknum pickslider] (hSlider true 20! 300! 40! 1! 4! 'Button State ' 1))
+
+(def showbutton (\\i (if (< i 2) raisedButton (if (< i 3) highlightedButton (if (< i 4) depressedButton disabledButton)))))
+
+(svg (cons (showbutton picknum) pickslider))
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -1566,6 +1671,7 @@ examples =
   , makeExample "Matrix Transformations" matrices
   , makeExample "Cult of Lambda" cultOfLambda 
   , makeExample "Misc Shapes" miscShapes
+  , makeExample "Interface Buttons" interfaceButtons
   , makeExample "Paths 1" paths1
   , makeExample "Paths 2" paths2
   , makeExample "Paths 3" paths3
