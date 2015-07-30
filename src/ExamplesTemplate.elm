@@ -61,6 +61,7 @@ LITTLE_TO_ELM wikimedia
 LITTLE_TO_ELM haskell
 LITTLE_TO_ELM matrices
 LITTLE_TO_ELM rotTest
+LITTLE_TO_ELM interfaceButtons
 
 examples =
   [ makeExample scratchName scratch
@@ -102,6 +103,7 @@ examples =
   , makeExample "Matrix Transformations" matrices
   , makeExample "Cult of Lambda" cultOfLambda 
   , makeExample "Misc Shapes" miscShapes
+  , makeExample "Interface Buttons" interfaceButtons
   , makeExample "Paths 1" paths1
   , makeExample "Paths 2" paths2
   , makeExample "Paths 3" paths3
