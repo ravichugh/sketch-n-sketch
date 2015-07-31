@@ -1,10 +1,9 @@
-
 import InterfaceModel as Model exposing (events)
 import InterfaceView2 as View
 import InterfaceController as Controller
 import InterfaceStorage exposing (taskMailbox)
 import CodeBox exposing (htmlFromAce, eventsFromAce, interpretAceEvents,
-                         interpretAceHtml)
+                         interpretAceHtml, AceMessage, JsHtml)
 
 import Graphics.Element exposing (Element)
 import Mouse 
@@ -44,15 +43,18 @@ port taskPort = taskMailbox.signal
 
 -- Port for messages to the code box
 -- The model (will) contain all the information needed to deduce highlights and such
-port aceInTheHole : Signal Model.Model
-port aceInTheHole = Signal.dropRepeats sigModel
+port aceInTheHole : Signal String
+port aceInTheHole = Signal.dropRepeats (Signal.map (\m -> m.code) sigModel)
 
 -- Port for Event messages from the code box
 -- port theTurn : Signal AceMessage (type not exposed)
 port theTurn : Signal CodeBox.AceMessage
-port theTurn = eventsFromAce.signal
+--port theTurn = eventsFromAce.signal
 
 -- Port for Html messages from the code box (e.g. the rendered code box)
 -- port theRiver : Signal JsHtml (type not exposed)
 port theRiver : Signal CodeBox.JsHtml
-port theRiver = htmlFromAce.signal
+--port theRiver = htmlFromAce.signal
+
+port testtest : Signal String
+--port testtest = (Signal.mailbox "").signal
