@@ -526,14 +526,19 @@ canvas w h model =
     _       -> canvas_ w h model
 
 canvas_ w h model =
-  let addZones = not model.editingMode in
+  -- let addZones = not model.editingMode in
+  let addZones = case (model.editingMode, model.mode) of
+    (False, AdHoc)  -> True
+    (False, Live _) -> True
+    _               -> False
+  in
   let svg = buildSvg addZones model.showZones model.slate in
   Html.toElement w h <|
     Svg.svg
       [ onMouseUp MouseUp
       , Attr.style [ ("width", "100%") , ("height", "100%")
                    , ("border", params.mainSection.canvas.border)
-                   , highlightThisIf (not model.editingMode)
+                   , highlightThisIf addZones
                    ] ]
       [ svg ]
 
