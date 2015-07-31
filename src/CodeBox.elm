@@ -44,8 +44,8 @@ type alias AceMessage = {}
 -- codebox : Signal AceMessage
 -- codebox = Signal.map interpret fromAce.signal
 
-interpretAceHtml : JsHtml -> Element
+interpretAceHtml : JsHtml -> GE.Element
 interpretAceHtml ahtml = GE.spacer 0 0
 
 interpretAceEvents : AceMessage -> Event
-interpretAceEvents amsg = Noop
+interpretAceEvents amsg = InterfaceModel.Noop

@@ -15,7 +15,7 @@ import Task exposing (Task)
 --------------------------------------------------------------------------------
 -- Main
 
-sigModel : Signal Model
+sigModel : Signal Model.Model
 sigModel =
   Signal.foldp Controller.upstate Model.sampleModel <|
     Signal.mergeMany
@@ -44,13 +44,15 @@ port taskPort = taskMailbox.signal
 
 -- Port for messages to the code box
 -- The model (will) contain all the information needed to deduce highlights and such
-port aceInTheHole : Signal Model
+port aceInTheHole : Signal Model.Model
 port aceInTheHole = Signal.dropRepeats sigModel
 
 -- Port for Event messages from the code box
 -- port theTurn : Signal AceMessage (type not exposed)
+port theTurn : Signal CodeBox.AceMessage
 port theTurn = eventsFromAce.signal
 
 -- Port for Html messages from the code box (e.g. the rendered code box)
 -- port theRiver : Signal JsHtml (type not exposed)
+port theRiver : Signal CodeBox.JsHtml
 port theRiver = htmlFromAce.signal
