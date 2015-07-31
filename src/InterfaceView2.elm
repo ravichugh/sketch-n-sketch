@@ -632,7 +632,11 @@ mainSectionVertical w h model renderedCodeBox =
   in
 
   --let codeSection = codebox wCode h model in
-  let codeSection = renderedCodeBox in
+  --let codeSection = renderedCodeBox in
+  let codeSection = Html.toElement wCode h
+        <| Html.div [Attr.id "editor"
+                    , Attr.style [("height", "600px")]
+                    ] [] in
 
   let canvasSection =
     GE.size wCanvas h <|
@@ -672,7 +676,11 @@ mainSectionHorizontal w h model renderedCodeBox =
   in
 
   --let codeSection = codebox w hCode model in
-  let codeSection = renderedCodeBox in
+  --let codeSection = renderedCodeBox in
+  let codeSection = Html.toElement w hCode
+        <| Html.div [Attr.id "editor"
+                    , Attr.style [("height", "600px")]
+                    ] [] in
 
   let canvasSection =
     GE.size w (hCanvas + hZInfo) <|

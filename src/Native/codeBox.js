@@ -51,9 +51,12 @@
 // the potential to extend it even further.
 
 // For convenience during development, the page controller is here
-var runtime = Elm.fullscreen(Elm.Main, { testtest : "" });
+var runtime = Elm.fullscreen(Elm.Main, { 
+    theTurn : {},
+    theRiver : {} 
+});
 
-window.onerror = function(msg, url, linenumber) {
+window.oncrash = function(msg, url, linenumber) {
   var s = '';
   s += 'We crashed... Sorry! Hit OK to restart.\n\n';
   s += 'Error message: ' + msg + '\n\n';
@@ -62,17 +65,25 @@ window.onerror = function(msg, url, linenumber) {
   location.reload();
 }
 
-
 //The total object that we'll be returning
-var editorElement = document.createElement("div");
-editorElement.id = "editor";
+//var editorElement = document.createElement("div");
+//editorElement.id = "editor";
 
-content = document.createTextNode("(svg [])");
-editorElement.appendChild(content);
+//content = document.createTextNode("(svg [])");
+//editorElement.appendChild(content);
 
-var editor = ace.edit(editorElement);
+//codebox = document.getElementById("codebox");
+//codebox.appendChild(content);
 
+//console.log(codebox)
+
+var editor = ace.edit("editor");
+editor.setTheme("ace/theme/chrome");
+editor.getSession().setMode("ace/mode/lisp");
+
+console.log(document.getElementById("editor"));
+//codebox.innerHTML = editor;
 
 // runtime is defined in the html wrapper
-runtime.ports.testtest.send(string(editor));
-console.log(editorElement);
+//runtime.ports.theRiver.send(editor);
+console.log(editor);
