@@ -11,6 +11,10 @@ import Window
 
 import Task exposing (Task)
 
+--TEMP FOR DEVELOPMENT
+import Html
+import Debug
+
 --------------------------------------------------------------------------------
 -- Main
 
@@ -24,14 +28,14 @@ sigModel =
           |> Signal.map (\(x,y) -> y)
           |> Signal.map2 adjustCoords Window.dimensions
           |> Signal.map Model.MousePos
-      , Signal.map interpretAceEvents eventsFromAce.signal
+      , Signal.map interpretAceEvents theTurn --eventsFromAce.signal
       ]
 
 sigCodeBox : Signal Element
-sigCodeBox = Signal.map interpretAceHtml htmlFromAce.signal
+sigCodeBox = Signal.map (interpretAceHtml << Debug.log "h") theRiver --htmlFromAce.signal
 
 main : Signal Element
-main = Signal.map3 View.view Window.dimensions sigModel sigCodeBox
+main = Debug.log "Html type" (Html.div [] []) |> \_ -> Signal.map3 View.view Window.dimensions sigModel sigCodeBox
 
 adjustCoords : (Int, Int) -> (Int, Int) -> (Int, Int)
 adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
@@ -55,6 +59,3 @@ port theTurn : Signal CodeBox.AceMessage
 -- port theRiver : Signal JsHtml (type not exposed)
 port theRiver : Signal CodeBox.JsHtml
 --port theRiver = htmlFromAce.signal
-
-port testtest : Signal String
---port testtest = (Signal.mailbox "").signal
