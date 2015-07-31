@@ -131,7 +131,7 @@ unparseRange r = case r.val of (l,u) -> case (l.val,u.val) of
     (EConst lv lt, EConst uv ut) -> 
         if | lv == uv -> [ UExp l ]
            | otherwise -> [ UExp l
-                          , makeToken l.end ".."
+                          , UStr <| makeToken l.end ".."
                           , UExp u
                           ]
 
