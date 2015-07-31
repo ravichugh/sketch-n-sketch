@@ -484,6 +484,11 @@ codebox w h model =
   in
     codebox_ w h event model.code (not model.editingMode)
 
+highlightThisIf b =
+  if b
+  then ("box-shadow", "inset 0 0 10px 4px rgba(231, 76, 60,0.5)")
+  else ("box-shadow", "inset 0 0 10px 4px darkgray")
+
 codebox_ w h event s readOnly =
   let innerPadding = 4
   in
@@ -507,7 +512,7 @@ codebox_ w h event s readOnly =
              , ("padding", toString innerPadding ++ "px")
              -- Makes the 100% for width/height work as intended
              , ("box-sizing", "border-box")
-             , ("box-shadow", "inset 0 0 10px 6px lightgray")
+             , highlightThisIf (not readOnly)
              ]
          , Attr.value s
          , Events.onMouseUp events.address MouseUp
@@ -528,6 +533,7 @@ canvas_ w h model =
       [ onMouseUp MouseUp
       , Attr.style [ ("width", "100%") , ("height", "100%")
                    , ("border", params.mainSection.canvas.border)
+                   , highlightThisIf (not model.editingMode)
                    ] ]
       [ svg ]
 
