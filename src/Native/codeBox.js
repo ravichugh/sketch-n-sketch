@@ -49,3 +49,30 @@
 //
 // With this, we'll have all the really nice things from Ace that we wanted with
 // the potential to extend it even further.
+
+// For convenience during development, the page controller is here
+var runtime = Elm.fullscreen(Elm.Main, { testtest : "" });
+
+window.onerror = function(msg, url, linenumber) {
+  var s = '';
+  s += 'We crashed... Sorry! Hit OK to restart.\n\n';
+  s += 'Error message: ' + msg + '\n\n';
+  s += 'The JS error console may contain more info.';
+  alert(s);
+  location.reload();
+}
+
+
+//The total object that we'll be returning
+var editorElement = document.createElement("div");
+editorElement.id = "editor";
+
+content = document.createTextNode("(svg [])");
+editorElement.appendChild(content);
+
+var editor = ace.edit(editorElement);
+
+
+// runtime is defined in the html wrapper
+runtime.ports.testtest.send(string(editor));
+console.log(editorElement);

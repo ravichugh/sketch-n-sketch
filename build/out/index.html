@@ -5,17 +5,16 @@
     <script type="text/javascript" src="sns.js"></script>
     <!-- Make tiny build script to drop everything into the same directory before
          merging to master -->
-    <script type="text/javascript" src="../../ace-builds/ace.js"></script>
+    <script type="text/javascript" src="../../ace-builds/src/ace.js"></script>
     <link rel="shortcut icon" type="image/png" href="sketch-n-sketch-logo.png">
     <meta charset="UTF-8">
   </head>
  
   <body style="margin: 0 0 0 0;">
-    <div id="main"></div>
-  </body>
- 
+      <div id="main"></div>
+<!-- 
   <script type="text/javascript">
-    Elm.fullscreen(Elm.Main);
+    var runtime = Elm.fullscreen(Elm.Main);
     window.onerror = function(msg, url, linenumber) {
       var s = '';
       s += 'We crashed... Sorry! Hit OK to restart.\n\n';
@@ -25,9 +24,10 @@
       location.reload();
     }
   </script>
-  
-  <!-- Make tiny build script to drop everything into the same directory before
-       merging to master -->
-  <script type="text/javascript" src="../../src/Native/codeBox.js"></script>
- 
+-->
+
+  </body>
+    <!-- Make tiny build script to drop everything into the same directory before
+         merging to master -->
+    <script type="text/javascript" src="../../src/Native/codeBox.js"></script>
 </html>

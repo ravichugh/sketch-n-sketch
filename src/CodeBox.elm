@@ -1,7 +1,8 @@
 -- This is the elm file responsible for returning the completed code box given
 -- the Model and the appropriate dimensions.
 
-module CodeBox (htmlFromAce, eventsFromAce, interpretAceEvents, interpretAceHtml) where
+module CodeBox (htmlFromAce, eventsFromAce, interpretAceEvents, interpretAceHtml,
+                AceMessage, JsHtml) where
 
 import Graphics.Element as GE
 import InterfaceModel exposing (Event, sampleModel)
