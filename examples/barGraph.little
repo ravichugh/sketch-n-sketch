@@ -1,0 +1,75 @@
+; A Bar Graph
+;
+; Try:
+;   - Manipulating the height of the bars
+;   - Manipulating the spacing between the bars
+;   - Changing the X Offset with the bottom slider
+;   - Adding and removing data points
+;   - Changing the captions
+;
+; When you're done editing, change the doneEditing variable to true to
+; get an SVG that's ready to be embedded in a web page!
+(def doneEditing false)
+
+; Each data point specifies a single bar as [XValue YValue]
+(def data [[1! 5!] [2! 1!] [3! 3!] [4! 2!] [5! 4!] [7! 3!]])
+
+; Relevant variables
+(def [title xcaption ycaption] ['Bar Graph' 'X Axis' 'Y Axis'])
+(def [totht totwd barspacing numy] [250! 450! 60 5])
+(def [barwd axiswd] [50 4])
+(def [barcol axiscol] ['lightblue' 'gray'])
+
+(def [xbegin windowslider] (hSlider true 100! 500! 500! 0! 10! 'X Offset: ' 0))
+
+; If you would like to specify the X Offset without the slider, uncomment
+; the below line and set it appropriately.
+;(def xbegin 0)
+
+(def [lowerx upperx] [xbegin (+ xbegin (/ totwd barspacing))])
+(def [x0 y0] [100! 100!])
+
+(def [textht textwd] [18! 4!])
+
+(def bar (\[val freq] (if (< val upperx) (if (< lowerx val)
+                [(rect barcol (+ x0 (- (* barspacing (- val xbegin)) (* 0.5! barwd)))
+                                    (+ y0 (- totht (* freq (/ totht numy))))
+                                    barwd
+                                    (* freq (/ totht numy)) )] []) []) ) )
+
+(def xaxis (line axiscol axiswd (- x0 (* 0.5! axiswd))
+                                (+ y0 totht)
+                                (+ x0 totwd)
+                                (+ y0 totht) ) )
+
+(def yaxis (line axiscol axiswd x0 (- y0 (* 0.5! (/ totht numy)))
+                                x0 (+ y0 totht) ) )
+
+(def labelx (\val (text (+ x0 (- (* barspacing (- val xbegin)) textwd))
+                        (+ y0 (+ (* 1.5! textht) totht))
+                        (toString val) ) ) )
+
+(def labely (\freq (text (- x0 20!)
+                         (+ y0 (+ (* 0.5! textht) (- totht (* freq (/ totht numy)))))
+                         (toString freq) ) ) )
+
+(def titlelabel (text (+ x0 (/ totwd 2!))
+                      (- y0 (/ totht numy))
+                      title) )
+
+(def xlabel (text (+ x0 (/ totwd 2!))
+                  (+ y0 (+ (* 3! textht) totht))
+                  xcaption) )
+(def ylabel (text (- x0 80!) (+ y0 (/ totht 2!)) ycaption) )
+
+(def xs (range lowerx (- upperx 1!)))
+(def ys (range 0! numy))
+
+(def bars (concat (map bar data)))
+(def axes [xaxis yaxis])
+(def xlabels (map labelx xs))
+(def ylabels (map labely ys))
+(def names [titlelabel xlabel ylabel])
+
+(if doneEditing (svgViewBox (+ (* 2! x0) totwd) (+ y0 (+ (* 3! textht) totht)) (concat [bars axes xlabels ylabels names]))
+                (svg (concat [bars axes xlabels ylabels names windowslider])) )

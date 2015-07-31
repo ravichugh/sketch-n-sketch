@@ -4,7 +4,7 @@ import sys
 from littleReader import *
 
 if len(sys.argv) != 2:
-  print "Usage: expandTemplate.py BASENAME"
+  print("Usage: expandTemplate.py BASENAME")
   sys.exit()
 
 base = sys.argv[1]
@@ -19,7 +19,7 @@ for s in inn:
   toks = s.split(" ")
   if toks[0] == "LITTLE_TO_ELM":
     if len(toks) != 2:
-      print "Bad line:\n" + s
+      print("Bad line:\n" + s)
       sys.exit()
     else:
       name = toks[1]
@@ -27,4 +27,4 @@ for s in inn:
   else:
     writeLn(out, s)
 
-print 'Wrote to ' + baseGenerated
+print("Wrote to " + baseGenerated)

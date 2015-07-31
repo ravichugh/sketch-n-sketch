@@ -62,6 +62,7 @@ LITTLE_TO_ELM haskell
 LITTLE_TO_ELM matrices
 LITTLE_TO_ELM rotTest
 LITTLE_TO_ELM interfaceButtons
+LITTLE_TO_ELM barGraph
 
 examples =
   [ makeExample scratchName scratch
@@ -84,6 +85,7 @@ examples =
   , makeExample "xySlider" xySlider
   , makeExample "Color Picker" rgba
   , makeExample "Box Grid" boxGrid
+  , makeExample "Bar Graph" barGraph
   , makeExample "Chicago Flag" chicago
   , makeExample "Chicago Flag 2" chicagoColors
   , makeExample "US-13 Flag" usFlag13
