@@ -105,8 +105,7 @@ unparse e = case e.val of
     let sOp = { op | val <- strOp op.val } in
     parensAndSpaces e.start e.end (UStr sOp :: List.map UExp es)
   EIf e1 e2 e3 ->
-    let tok = makeToken (incCol e.start) "i
-        f" in
+    let tok = makeToken (incCol e.start) "if" in
     parensAndSpaces e.start e.end (UStr tok :: List.map UExp [e1,e2,e3])
   ELet Let b p e1 e2 ->
     let tok = makeToken (incCol e.start) (if b then "letrec" else "let") in
@@ -132,7 +131,7 @@ unparseRange r = case r.val of (l,u) -> case (l.val,u.val) of
     (EConst lv lt, EConst uv ut) -> 
         if | lv == uv -> [ UExp l ]
            | otherwise -> [ UExp l
-                          , UStr { val = "..", start = l.end, end = bumpCol 2 l.end }
+                          , makeToken l.end ".."
                           , UExp u
                           ]
 
