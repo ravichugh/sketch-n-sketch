@@ -43,6 +43,8 @@ freshen_ k e = case e of
                   Nothing -> (EList es' Nothing, k')
                   Just e  -> let (e',k'') = freshen_ k' e in
                              (EList es' (Just e'), k'')
+  EIndList rs -> let (rs', k') = freshenRanges k rs
+                 in (EIndList rs', k')
   EIf e1 e2 e3 -> let ([e1',e2',e3'],k') = freshenExps k [e1,e2,e3] in
                   (EIf e1' e2' e3', k')
   ELet kind b p e1 e2 ->
@@ -61,6 +63,14 @@ freshenExps k es =
   List.foldr (\e (es',k') ->
     let (e1,k1) = freshen_ k' e in
     (e1::es', k1)) ([],k) es
+
+freshenRanges : Int -> List ERange -> (List ERange, Int)
+freshenRanges k rs =  
+  List.foldr (\(l,u) (rs',k') ->
+    let (l1,k1) = freshen_ k' l
+        (u1,k2) = freshen_ k1 u
+    in ((l1,u1) :: rs', k2)
+  ) ([],k) rs
 
 addBreadCrumbs pe = case pe of
   (PVar x, EConst n (k, b, "")) -> EConst n (k, b, x)
@@ -91,6 +101,7 @@ substOf_ s e = case e of
   EList es m -> case m of
                   Nothing -> substOfExps_ s es
                   Just e  -> substOfExps_ s (e::es)
+  EIndList rs -> substOfRanges_ s rs
   EIf e1 e2 e3 -> substOfExps_ s [e1,e2,e3]
   ECase e1 l   -> substOfExps_ s (e1 :: List.map snd l)
   ELet _ _ _ e1 e2 -> substOfExps_ s [e1,e2]  -- TODO
@@ -100,6 +111,9 @@ substOfExps_ s es = case es of
   []     -> s
   e::es' -> substOfExps_ (substOf_ s e) es'
 
+substOfRanges_ s rs = case rs of
+  [] -> s
+  (l,u) :: rs' -> substOfRanges_ (substOf_ (substOf_ s l) u) rs'
 
 ------------------------------------------------------------------------------
 
@@ -211,6 +225,8 @@ parseListLiteralOrMultiCons p f g = P.recursively <| \_ ->
       (parseListLiteral p f)
   <++ (parseMultiCons p g)
 
+parseIndListLiteral p f = parseList "[|" listSep "|]" p f
+
 parseV = P.parse <|
   parseVal    >>= \v ->
   white P.end >>>
@@ -247,6 +263,7 @@ parseExp = P.recursively <| \_ ->
   <++ parseIf
   <++ parseCase
   <++ parseExpList
+  <++ parseExpIndList
   <++ parseLet
   <++ parseDef
   <++ parseApp
@@ -286,6 +303,19 @@ parseExpArgs = parseList1 "" listSep "" parseExp identity
 parseExpList =
   parseListLiteralOrMultiCons
     parseExp (\xs -> EList xs Nothing) (\xs y -> EList xs (Just y))
+
+--Like parseExpList but with parseIndListLIteral instead of pLLOMC
+parseExpIndList = parseIndListLiteral parseERange EIndList
+
+-- Only want to allow Number Literals at the moment
+parseERange =
+  ( white parseNumE >>= \l ->
+    white (token_ "..") >>>
+    white parseNumE >>= \u ->
+        P.return (l, u) )
+  <++
+  ( white parseNumE >>= \l ->
+        P.return (l,l) )
 
 parseRec =
       (always True  <$> token_ "letrec")

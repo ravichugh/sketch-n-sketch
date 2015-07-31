@@ -42,10 +42,12 @@ whitespace endPrev startNext =
 
 delimit : String -> String -> Pos -> Pos -> Pos -> Pos -> String -> String
 delimit open close startOutside startInside endInside endOutside s =
+  let olen = String.length open
+      clen = String.length close in
   Utils.delimit open close
-    <| whitespace (incCol startOutside) startInside
+    <| whitespace (bumpCol olen startOutside) startInside
     ++ s
-    ++ whitespace endInside (decCol endOutside)
+    ++ whitespace endInside (bumpCol (-1 * clen) endOutside)
 
 parens = delimit "(" ")"
 
@@ -97,6 +99,8 @@ unparse e = case e.val of
     ++ space tok2.end eRest.start
     ++ unparse eRest ++ space eRest.end tok3.start
     ++ tok3.val
+  EIndList rs ->
+    ibracksAndSpaces e.start e.end (List.concat (List.map unparseRange rs))
   EOp op es ->
     let sOp = { op | val <- strOp op.val } in
     parensAndSpaces e.start e.end (UStr sOp :: List.map UExp es)
@@ -121,9 +125,18 @@ unparse e = case e.val of
 unparseE : Exp -> String
 unparseE e = whitespace startPos e.start ++ unparse e
 
+-- Currently only remembers whitespace after ".."
+unparseRange : ERange -> List Unparsable
+unparseRange r = case r.val of (l,u) -> case (l.val,u.val) of
+    (EConst lv lt, EConst uv ut) -> 
+        if | lv == uv -> [ UExp l ]
+           | otherwise -> [ UExp l
+                          , UStr <| makeToken l.end ".."
+                          , UExp u
+                          ]
+
 -- NOTE: use this to go back to original unparser
 -- unparseE = sExp
-
 
 ------------------------------------------------------------------------------
 
@@ -187,9 +200,11 @@ spaces things =
 
 delimitAndSpaces : String -> String -> Pos -> Pos -> List Unparsable -> String
 delimitAndSpaces open close start end things =
+  let olen = String.length open
+      clen = String.length close in
   case things of
     [] ->
-      open ++ whitespace (incCol start) (decCol end) ++ close
+      open ++ whitespace (bumpCol olen start) (bumpCol (-1 * clen) end) ++ close
     hd :: _ ->
       let startFirst   = startU hd in
       let (s, endLast) = spaces things in
@@ -197,4 +212,4 @@ delimitAndSpaces open close start end things =
 
 parensAndSpaces = delimitAndSpaces "(" ")"
 bracksAndSpaces = delimitAndSpaces "[" "]"
-
+ibracksAndSpaces = delimitAndSpaces "[|" "|]"
