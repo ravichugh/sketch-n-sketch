@@ -111,7 +111,7 @@ valToAttr (VList [VBase (String k), v]) =
     ("stroke", VList vs)  -> (k, ARgba <| valToRgba vs)
     -- TODO "stroke" AColorNum
     ("d", VList vs)       -> (k, APath2 (valsToPath2 vs))
-    ("transform", v1)     -> (k, ATransform (valToTransform v1))
+    ("transform", VList vs) -> (k, ATransform (valsToTransform vs))
     (_, VConst it)        -> (k, ANum it)
     (_, VBase (String s)) -> (k, AString s)
 
@@ -244,7 +244,7 @@ matchCmd cmd s =
 
 -- transform commands
 
-valToTransform (VList vs) = List.map valToTransformCmd vs
+valsToTransform = List.map valToTransformCmd
 
 valToTransformCmd (VList (VBase (String k) :: vs)) =
   case (k, vs) of
