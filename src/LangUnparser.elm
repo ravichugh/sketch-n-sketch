@@ -121,6 +121,12 @@ unparse e = case e.val of
   EComment s e1 ->
     let white = whitespace (incLine e.start) e1.start in
     ";" ++ s ++ "\n" ++ white ++ unparse e1
+  EOption s1 s2 e1 ->
+    let tok1 = makeToken e.start "#" in
+    let tok2 = makeToken s1.end ":" in
+    let s = fst (spaces (List.map UStr [tok1, s1, tok2, s2])) in
+    let white = whitespace (incLine e.start) e1.start in
+    s ++ "\n" ++ white ++ unparse e1
 
 unparseE : Exp -> String
 unparseE e = whitespace startPos e.start ++ unparse e

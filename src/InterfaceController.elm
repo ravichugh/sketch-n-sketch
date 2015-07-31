@@ -91,12 +91,15 @@ upstate evt old = case debugLog "Event" evt of
     Run ->
       case parseE old.code of
         Ok e ->
+         let new =
           { old | inputExp <- Just e
                 , code <- unparseE e
                 , slate <- LangSvg.valToIndexedTree (Eval.run e)
                 , editingMode <- False
                 , caption <- Nothing
-                , mode <- refreshMode old e }
+                , syncOptions <- Sync.syncOptionsOf e }
+          in
+          { new | mode <- refreshMode_ new }
         Err err ->
           { old | caption <- Just (LangError ("PARSE ERROR!\n" ++ err)) }
 
@@ -199,10 +202,10 @@ upstate evt old = case debugLog "Event" evt of
       else
 
       let {e,v} = thunk () in
-      let m =
+      let (so, m) =
         case old.mode of
-          Live _ -> mkLive old.syncOptions e v
-          _      -> old.mode
+          Live _ -> let so = Sync.syncOptionsOf e in (so, mkLive so e v)
+          _      -> (old.syncOptions, old.mode)
       in
       let scratchCode' =
         if old.exName == Examples.scratchName then old.code else old.scratchCode
@@ -212,6 +215,7 @@ upstate evt old = case debugLog "Event" evt of
             , inputExp <- Just e
             , code <- unparseE e
             , mode <- m
+            , syncOptions <- so
             , slate <- LangSvg.valToIndexedTree v }
 
     SwitchMode m -> { old | mode <- m }
@@ -219,12 +223,6 @@ upstate evt old = case debugLog "Event" evt of
     SwitchOrient -> { old | orient <- switchOrient old.orient }
 
     ToggleZones -> { old | showZones <- toggleShowZones old.showZones }
-
-    ToggleThawed ->
-      let so = old.syncOptions in
-      let so' = { so | thawedByDefault <- not so.thawedByDefault } in
-      let model' = { old | syncOptions <- so' } in
-      { model' | mode <- refreshMode_ model' }
 
     UpdateModel f -> f old
 

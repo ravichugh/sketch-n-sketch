@@ -567,7 +567,7 @@ middleWidgets w h wWrap hWrap model =
         , outputButton model w h
         , gapWidget w h
         , zoneButton model w h
-        , frozenButton model w h
+        -- , frozenButton model w h
         , modeButton model w h
         ] ++ (syncButton_ w h model)
       (True, _) ->
@@ -723,9 +723,11 @@ zoneButton model =
   in
   simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap
 
+{-
 frozenButton model =
   let cap = if model.syncOptions.thawedByDefault then "[Default] n?" else "[Default] n!" in
   simpleButton ToggleThawed "ToggleThawed " "Toggle ?/!" cap
+-}
 
 chooseButton i (n,_) =
   let cap =

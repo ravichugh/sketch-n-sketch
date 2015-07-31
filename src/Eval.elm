@@ -103,6 +103,7 @@ eval env e =
         Debug.crash "eval: multi letrec"
 
   EComment _ e1 -> eval env e1
+  EOption _ _ e1 -> eval env e1
 
   -- abstract syntactic sugar
   EFun ps e  -> eval env (eFun ps e)

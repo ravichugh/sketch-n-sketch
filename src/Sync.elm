@@ -1,4 +1,4 @@
-module Sync (Options, defaultOptions,
+module Sync (Options, defaultOptions, syncOptionsOf,
              inferLocalUpdates, inferStructuralUpdate, prepareLiveUpdates,
              printZoneTable, LiveInfo, Triggers, tryToBeSmart) where
 
@@ -14,11 +14,24 @@ import Eval
 import LangParser2 as Parser
 
 
+------------------------------------------------------------------------------
+-- Sync.Options
+
 type alias Options =
   { thawedByDefault : Bool }
 
 defaultOptions =
   { thawedByDefault = True }
+
+syncOptionsOf e =
+  case Utils.maybeFind "unannotated-numbers" (getOptions e) of
+    Nothing -> defaultOptions
+    Just s -> if
+      | s == "n?" -> { thawedByDefault = True }
+      | s == "n!" -> { thawedByDefault = False }
+      | otherwise ->
+          let _ = Debug.log "invalid sync option: " s in
+          defaultOptions
 
 
 ------------------------------------------------------------------------------

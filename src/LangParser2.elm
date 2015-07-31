@@ -59,6 +59,9 @@ freshen_ k e = (\(e_,k') -> (P.WithInfo e_ e.start e.end, k')) <| case e.val of
   EComment s e1 ->
     let (e1',k') = freshen_ k e1 in
     (EComment s e1', k')
+  EOption s1 s2 e1 ->
+    let (e1',k') = freshen_ k e1 in
+    (EOption s1 s2 e1', k')
 
 freshenExps k es =
   List.foldr (\e (es',k') ->
@@ -111,6 +114,7 @@ substOf_ s e = case e.val of
   ECase e1 l   -> substOfExps_ s (e1 :: List.map (snd << .val) l)
   ELet _ _ _ e1 e2 -> substOfExps_ s [e1,e2]  -- TODO
   EComment _ e1 -> substOf_ s e1
+  EOption _ _ e1 -> substOf_ s e1
 
 substOfExps_ s es = case es of
   []     -> s
@@ -302,6 +306,7 @@ parseExp = P.recursively <| \_ ->
   <++ parseDef
   <++ parseApp
   <++ parseCommentExp
+  <++ parseLangOption
 
 parseFun =
   parens <|
@@ -460,3 +465,14 @@ parseCommentExp =
     P.returnWithInfo
       (EComment (String.fromList (unwrapChars cs)) e)
       semi.start e.end
+
+parseLangOption =
+  let p = white (P.munch1 (\c -> c /= '\n' && c /= ' ' && c /= ':')) in
+  token_ "#"                    >>= \pound ->
+  p                             >>= \s1 ->
+  token_ ":"                    >>>
+  p                             >>= \s2 ->
+  P.many (P.satisfy ((==) ' ')) >>>
+  P.satisfy ((==) '\n')         >>>
+  parseExp                      >>= \e ->
+    P.returnWithInfo (EOption s1 s2 e) pound.start e.end

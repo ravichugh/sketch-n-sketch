@@ -88,7 +88,6 @@ type Event = CodeUpdate String
            | Run
            | ToggleOutput
            | ToggleZones
-           | ToggleThawed
            | SwitchOrient
            | StartResizingMid
            | Noop

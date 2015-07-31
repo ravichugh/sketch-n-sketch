@@ -47,6 +47,7 @@ and to try out the latest release.
       |   (op1 e1)
       |   (op2 e1 e2)
       |   ;single-line-comment e
+      |   #option value e
 ```
 
 Extra parentheses are not permitted.
@@ -156,6 +157,18 @@ Extra parentheses are not permitted.
       |   (def p e1) e2           -- desugars to (let p e1 e2)
       |   (defrec f (\x e1)) e2   -- desugars to (letrec f (\x e1) e2)
 ```
+
+### Comments and Options
+
+```
+  e  ::=  ...
+      |   ;single-line-comment e
+      |   #option value e
+```
+
+Comments and options are terminated by newlines.
+All options should appear at the top of the program, before the first
+non-comment expression.
 
 ### Standard Prelude
 

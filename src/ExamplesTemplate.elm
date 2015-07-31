@@ -63,6 +63,7 @@ LITTLE_TO_ELM matrices
 LITTLE_TO_ELM rotTest
 LITTLE_TO_ELM interfaceButtons
 LITTLE_TO_ELM barGraph
+LITTLE_TO_ELM thawFreeze
 
 examples =
   [ makeExample scratchName scratch
@@ -71,6 +72,7 @@ examples =
   , makeExample "N Boxes" groupOfBoxes
   , makeExample "6 Boxes A" sixBoxesA
   , makeExample "6 Boxes B" sixBoxesB
+  , makeExample "Thaw/Freeze" thawFreeze
   , makeExample "Logo" logo
   , makeExample "Elm Logo" elmLogo
   , makeExample "Active Trans Logo" activeTrans

@@ -1708,6 +1708,19 @@ barGraph =
                 (svg (concat [bars axes xlabels ylabels names windowslider])) )
 "
 
+thawFreeze =
+ "
+# unannotated-numbers: n!
+
+; Set [unannotated-numbers] to [n?] or [n!] to declare that
+; unannotated literals be thawed or frozen, respectively.
+;
+; By default, this option is set to [n?].
+
+(svg [(rect 'maroon' 100? 15 200! 50)])
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -1716,6 +1729,7 @@ examples =
   , makeExample "N Boxes" groupOfBoxes
   , makeExample "6 Boxes A" sixBoxesA
   , makeExample "6 Boxes B" sixBoxesB
+  , makeExample "Thaw/Freeze" thawFreeze
   , makeExample "Logo" logo
   , makeExample "Elm Logo" elmLogo
   , makeExample "Active Trans Logo" activeTrans

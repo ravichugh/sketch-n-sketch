@@ -53,6 +53,7 @@ type Exp_
   | ECase Exp (List Branch)
   | ELet LetKind Rec Pat Exp Exp
   | EComment String Exp
+  | EOption (P.WithInfo String) (P.WithInfo String) Exp
 
     -- EFun [] e     impossible
     -- EFun [p] e    (\p. e)
@@ -239,6 +240,9 @@ sExp_ showLocs k e =
     EComment s e1 ->
       ";" ++ s ++ "\n" ++
       tab k ++ foo k e1
+    EOption s1 s2 e1 ->
+      "# " ++ s1.val ++ ": " ++ s2.val ++ "\n" ++
+      tab k ++ foo k e1
 
 maybeIndent showLocs k e =
   let s = sExp_ showLocs (k+1) e in
@@ -282,6 +286,7 @@ mapExp f e =
     EIf e1 e2 e3   -> g (EIf (foo e1) (foo e2) (foo e3))
     ECase e1 l     -> g (ECase (foo e1) (List.map (mapValField (\(p,ei) -> (p, foo ei))) l))
     EComment s e1  -> g (EComment s (foo e1))
+    EOption s1 s2 e1 -> g (EOption s1 s2 (foo e1))
     ELet k b p e1 e2 -> g (ELet k b p (foo e1) (foo e2))
 
 mapVal : (Val -> Val) -> Val -> Val
@@ -324,6 +329,20 @@ applySubst subst e = (\e_ -> P.WithInfo e_ e.start e.end) <| case e.val of
     ECase (applySubst subst e) (List.map (mapValField (\(p,ei) -> (p, applySubst subst ei))) l)
   EComment s e1 ->
     EComment s (applySubst subst e1)
+  EOption s1 s2 e1 ->
+    EOption s1 s2 (applySubst subst e1)
+
+
+------------------------------------------------------------------------------
+-- Lang Options
+
+-- all options should appear before the first non-comment expression
+
+getOptions : Exp -> List (String, String)
+getOptions e = case e.val of
+  EOption s1 s2 e1 -> (s1.val, s2.val) :: getOptions e1
+  EComment _ e1    -> getOptions e1
+  _                -> []
 
 
 ------------------------------------------------------------------------------
