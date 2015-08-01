@@ -18,10 +18,13 @@ import Lazy
 
 import Task exposing (Task, succeed, andThen)
 
+type alias Code = String
+
 type alias Model =
   { scratchCode : String
   , exName : String
-  , code : String
+  , code : Code
+  , history : (List Code, List Code)
   , inputExp : Maybe Exp
   , slate : RootedIndexedTree
   , mode : Mode
@@ -31,7 +34,8 @@ type alias Model =
   , midOffsetY : Int  -- extra codebox width in horizontal orientation
   , showZones : ShowZones
   , syncOptions : Sync.Options
-  , editingMode : Bool
+  , editingMode : Maybe Code -- Nothing is False
+                             -- Just s is True, where s is previous code
   , caption : Maybe Caption
   , localSaves : List String
   , fieldContents : DialogInfo 
@@ -50,8 +54,9 @@ type alias RawSvg = String
 
 type MouseMode
   = MouseNothing
-  | MouseObject (NodeId, ShapeKind, Zone, Maybe (MouseTrigger (Exp, RootedIndexedTree)))
   | MouseResizeMid (Maybe (MouseTrigger (Int, Int)))
+  | MouseObject NodeId ShapeKind Zone (Maybe (Code, MouseTrigger (Exp, RootedIndexedTree)))
+      -- the Code string is program upon initial zone click
 
 type alias MouseTrigger a = (Int, Int) -> a
 
@@ -90,6 +95,7 @@ type Event = CodeUpdate String
            | ToggleZones
            | SwitchOrient
            | StartResizingMid
+           | Undo | Redo
            | Noop
            | UpdateModel (Model -> Model)
                -- TODO could write other events in terms of UpdateModel
@@ -100,6 +106,10 @@ events = Signal.mailbox <| CodeUpdate ""
 mkLive opts e v = Live <| Sync.prepareLiveUpdates opts e v
 mkLive_ opts e  = mkLive opts e (Eval.run e)
 
+editingMode model = case model.editingMode of
+  Nothing -> False
+  Just _  -> True
+
 sampleModel =
   let
     (name,f) = Utils.head_ Examples.list
@@ -108,6 +118,7 @@ sampleModel =
     { scratchCode   = Examples.scratch
     , exName        = name
     , code          = unparseE e
+    , history       = ([], [])
     , inputExp      = Just e
     , slate         = LangSvg.valToIndexedTree v
     , mode          = mkLive Sync.defaultOptions e v
@@ -117,7 +128,7 @@ sampleModel =
     , midOffsetY    = -100
     , showZones     = showZonesNone
     , syncOptions   = Sync.defaultOptions
-    , editingMode   = False
+    , editingMode   = Nothing
     , caption       = Nothing
     , localSaves    = []
     , fieldContents = { value = "", hint = "Input File Name" }

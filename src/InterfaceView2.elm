@@ -482,7 +482,7 @@ codebox w h model =
       _ -> [Events.on "input" Events.targetValue
               (Signal.message events.address << CodeUpdate)]
   in
-    codebox_ w h event model.code (not model.editingMode)
+    codebox_ w h event model.code (not (editingMode model))
 
 highlightThisIf b =
   if b
@@ -526,8 +526,7 @@ canvas w h model =
     _       -> canvas_ w h model
 
 canvas_ w h model =
-  -- let addZones = not model.editingMode in
-  let addZones = case (model.editingMode, model.mode) of
+  let addZones = case (editingMode model, model.mode) of
     (False, AdHoc)  -> True
     (False, Live _) -> True
     _               -> False
@@ -543,8 +542,13 @@ canvas_ w h model =
       [ svg ]
 
 middleWidgets w h wWrap hWrap model =
+  let twoButtons b1 b2 =
+    let delta = 3 in
+    let wHalf = (w//2 - delta) in
+    GE.flow GE.right [ b1 wHalf h, GE.spacer (2 * delta) h, b2 wHalf h ]
+  in
   List.map (GE.container wWrap hWrap GE.middle) <|
-    case (model.editingMode, model.mode) of
+    case (editingMode model, model.mode) of
       (False, SyncSelect i options) ->
         [ gapWidget w h
         , gapWidget w h
@@ -557,6 +561,7 @@ middleWidgets w h wWrap hWrap model =
         , editRunButton model w h
         , saveButton model w h
         , loadButton model w h
+        , twoButtons (undoButton model) (redoButton model)
         , outputButton model w h
         ]
       (False, _) ->
@@ -564,6 +569,7 @@ middleWidgets w h wWrap hWrap model =
         , editRunButton model w h
         , saveButton model w h
         , loadButton model w h
+        , twoButtons (undoButton model) (redoButton model)
         , outputButton model w h
         , gapWidget w h
         , zoneButton model w h
@@ -698,7 +704,7 @@ simpleTaskButton = simpleTaskButton_ False
 
 editRunButton model w h =
   let disabled = model.mode == AdHoc in
-  case model.editingMode of
+  case editingMode model of
     True  -> simpleEventButton_ disabled Run "Run" "Run" "Run Code" w h
     False -> simpleEventButton_ disabled Edit "Edit" "Edit" "Edit Code" w h
 
@@ -753,7 +759,17 @@ saveButton model w h =
 
 loadButton : Model -> Int -> Int -> GE.Element
 loadButton model w h =
-    simpleTaskButton (loadLocalState model.exName) "Revert" "Revert" "Revert" w h
+    simpleTaskButton (loadLocalState model.exName) "Reload" "Reload" "Reload" w h
+
+undoButton : Model -> Int -> Int -> GE.Element
+undoButton model =
+  let past = fst model.history in
+  simpleEventButton_ (List.length past == 0) Undo "Undo" "Undo" "Undo"
+
+redoButton : Model -> Int -> Int -> GE.Element
+redoButton model =
+  let future = snd model.history in
+  simpleEventButton_ (List.length future == 0) Redo "Redo" "Redo" "Redo"
 
 dropdownExamples : Model -> Int -> Int -> GE.Element
 dropdownExamples model w h =
