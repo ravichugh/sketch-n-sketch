@@ -722,10 +722,10 @@ syncButton =
 
 zoneButton model =
   let cap =
-    if | model.showZones == showZonesNone  -> "Zones [Hidden]"
-       | model.showZones == showZonesBasic -> "Zones [Basic]"
-       | model.showZones == showZonesRot   -> "Zones [Rotation]"
-       | model.showZones == showZonesColor -> "Zones [Color]"
+    if | model.showZones == showZonesNone  -> "[Zones] Hidden"
+       | model.showZones == showZonesBasic -> "[Zones] Basic"
+       | model.showZones == showZonesRot   -> "[Zones] Rotation"
+       | model.showZones == showZonesColor -> "[Zones] Color"
   in
   simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap
 
