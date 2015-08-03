@@ -562,7 +562,7 @@ middleWidgets w h wWrap hWrap model =
         , saveButton model w h
         , loadButton model w h
         , twoButtons (undoButton model) (redoButton model)
-        , outputButton model w h
+        -- , outputButton model w h
         ]
       (False, _) ->
         [ dropdownExamples model w h
@@ -570,7 +570,7 @@ middleWidgets w h wWrap hWrap model =
         , saveButton model w h
         , loadButton model w h
         , twoButtons (undoButton model) (redoButton model)
-        , outputButton model w h
+        -- , outputButton model w h
         , gapWidget w h
         , zoneButton model w h
         -- , frozenButton model w h
@@ -634,7 +634,13 @@ mainSectionVertical w h model =
     GE.size wCanvas h <|
       GE.flow GE.down
         [ canvas wCanvas hCanvas model
-        , caption model (wCanvas+1) hZInfo -- NOTE: +1 is a band-aid
+        , GE.flow GE.left
+            [ colorDebug Color.red <|
+                GE.container wBtn (hZInfo+1) GE.middle <|
+                outputButton model wBtn hBtn
+            , caption model (wCanvas+1-wBtn) (hZInfo+1) -- NOTE: +1 is a band-aid
+            ]
+        -- , caption model (wCanvas+1) hZInfo -- NOTE: +1 is a band-aid
         ]
   in
 
@@ -667,7 +673,13 @@ mainSectionHorizontal w h model =
     GE.size w (hCanvas + hZInfo) <|
       GE.flow GE.down
         [ canvas w hCanvas model
-        , caption model w (hZInfo+1) -- NOTE: +1 is a band-aid
+        , GE.flow GE.left
+            [ colorDebug Color.red <|
+                GE.container wBtn (hZInfo+1) GE.middle <|
+                outputButton model wBtn hBtn
+            , caption model (w-wBtn) (hZInfo+1) -- NOTE: +1 is a band-aid
+            ]
+        -- , caption model w (hZInfo+1) -- NOTE: +1 is a band-aid
         ]
   in
 
