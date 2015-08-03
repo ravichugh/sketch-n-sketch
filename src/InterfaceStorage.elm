@@ -169,7 +169,7 @@ installLocalState saveName loadedModel oldModel =
     { loadedModel | slate <- emptyTree
                   , exName <- saveName
                   , localSaves <- oldModel.localSaves
-                  , editingMode <- True
+                  , editingMode <- Just ""
     }
 
 -- Gets the names of all of the local saves, returned in a list of strings

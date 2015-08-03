@@ -77,6 +77,9 @@ switchOrient m = case m of
 
 toggleShowZones x = (1 + x) % showZonesModes
 
+-- may want to eventually have a maximum history length
+addToHistory s h = (s :: fst h, [])
+
 
 --------------------------------------------------------------------------------
 -- Updating the Model
@@ -86,16 +89,22 @@ upstate evt old = case debugLog "Event" evt of
 
     Noop -> old
 
-    Edit -> { old | editingMode <- True }
+    Edit -> { old | editingMode <- Just old.code }
 
     Run ->
       case parseE old.code of
         Ok e ->
+         let h = case old.editingMode of
+           Nothing -> old.history
+           Just "" -> old.history -- "" from InterfaceStorage
+           Just s  -> addToHistory s old.history
+         in
          let new =
           { old | inputExp <- Just e
                 , code <- unparseE e
                 , slate <- LangSvg.valToIndexedTree (Eval.run e)
-                , editingMode <- False
+                , history <- h
+                , editingMode <- Nothing
                 , caption <- Nothing
                 , syncOptions <- Sync.syncOptionsOf e }
           in
@@ -127,10 +136,10 @@ upstate evt old = case debugLog "Event" evt of
         MouseResizeMid (Just f) ->
           let (x,y) = f (mx, my) in
           { old | midOffsetX <- x , midOffsetY <- y }
-        MouseObject (objid, kind, zone, Nothing) ->
+        MouseObject objid kind zone Nothing ->
           let onNewPos = createMousePosCallback mx my objid kind zone old in
-          { old | mouseMode <- MouseObject (objid, kind, zone, Just onNewPos) }
-        MouseObject (_, _, _, Just onNewPos) ->
+          { old | mouseMode <- MouseObject objid kind zone (Just (old.code, onNewPos)) }
+        MouseObject _ _ _ (Just (_, onNewPos)) ->
           let (newE,newSlate) = onNewPos (mx, my) in
           { old | code <- unparseE newE
                 , inputExp <- Just newE
@@ -138,20 +147,26 @@ upstate evt old = case debugLog "Event" evt of
 
     SelectObject id kind zone ->
       case old.mode of
-        AdHoc       -> { old | mouseMode <- MouseObject (id, kind, zone, Nothing) }
+        AdHoc       -> { old | mouseMode <- MouseObject id kind zone Nothing }
         Live info ->
           case Dict.get id info.triggers of
             Nothing -> { old | mouseMode <- MouseNothing }
             Just dZones ->
               case Dict.get zone dZones of
-                Just (Just _) -> { old | mouseMode <- MouseObject (id, kind, zone, Nothing) }
+                Just (Just _) -> { old | mouseMode <- MouseObject id kind zone Nothing }
                 _             -> { old | mouseMode <- MouseNothing }
         SyncSelect _ _ -> old
 
     MouseUp ->
       case old.mode of
         Print _ -> old
-        _       -> { old | mouseMode <- MouseNothing, mode <- refreshMode_ old }
+        _ ->
+          let h = case old.mouseMode of
+            MouseObject _ _ _ (Just (s, _)) -> addToHistory s old.history
+            _                               -> old.history
+          in
+          { old | mouseMode <- MouseNothing, mode <- refreshMode_ old
+                , history <- h }
 
     Sync -> 
       case (old.mode, old.inputExp) of
@@ -198,7 +213,7 @@ upstate evt old = case debugLog "Event" evt of
 
     SelectExample name thunk ->
       if name == Examples.scratchName then
-        upstate Run { old | exName <- name, code <- old.scratchCode }
+        upstate Run { old | exName <- name, code <- old.scratchCode, history <- ([],[]) }
       else
 
       let {e,v} = thunk () in
@@ -214,6 +229,7 @@ upstate evt old = case debugLog "Event" evt of
             , exName <- name
             , inputExp <- Just e
             , code <- unparseE e
+            , history <- ([],[])
             , mode <- m
             , syncOptions <- so
             , slate <- LangSvg.valToIndexedTree v }
@@ -223,6 +239,16 @@ upstate evt old = case debugLog "Event" evt of
     SwitchOrient -> { old | orient <- switchOrient old.orient }
 
     ToggleZones -> { old | showZones <- toggleShowZones old.showZones }
+
+    Undo ->
+      let (current, (s::past, future)) = (old.code, old.history) in
+      let new = { old | history <- (past, current::future) } in
+      upstate Run (upstate (CodeUpdate s) new)
+
+    Redo ->
+      let (current, (past, s::future)) = (old.code, old.history) in
+      let new = { old | history <- (current::past, future) } in
+      upstate Run (upstate (CodeUpdate s) new)
 
     UpdateModel f -> f old
 
