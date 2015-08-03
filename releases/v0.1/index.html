@@ -1,0 +1,26 @@
+<html>
+ 
+  <head>
+    <title>Sketch-N-Sketch</title>
+    <script type="text/javascript" src="sns.js"></script>
+    <link rel="shortcut icon" type="image/png" href="sketch-n-sketch-logo.png">
+    <meta charset="UTF-8">
+  </head>
+ 
+  <body style="margin: 0 0 0 0;">
+    <div id="main"></div>
+  </body>
+ 
+  <script type="text/javascript">
+    Elm.fullscreen(Elm.Main);
+    window.onerror = function(msg, url, linenumber) {
+      var s = '';
+      s += 'We crashed... Sorry! Hit OK to restart.\n\n';
+      s += 'Error message: ' + msg + '\n\n';
+      s += 'The JS error console may contain more info.';
+      alert(s);
+      location.reload();
+    }
+  </script>
+ 
+</html>
