@@ -33,7 +33,7 @@ import Task exposing (Task, andThen)
 --Storage Libraries
 import InterfaceStorage exposing (taskMailbox, saveStateLocally, loadLocalState,
                                   checkAndSave, getLocalSaves, clearLocalSaves,
-                                  removeDialog)
+                                  removeDialog, deleteLocalSave)
 
 --Html Libraries
 import Html 
@@ -560,6 +560,7 @@ middleWidgets w h wWrap hWrap model =
         [ dropdownExamples model w h
         , editRunButton model w h
         , saveButton model w h
+        , saveAsButton model w h
         , loadButton model w h
         , twoButtons (undoButton model) (redoButton model)
         -- , outputButton model w h
@@ -568,6 +569,7 @@ middleWidgets w h wWrap hWrap model =
         [ dropdownExamples model w h
         , editRunButton model w h
         , saveButton model w h
+        , saveAsButton model w h
         , loadButton model w h
         , twoButtons (undoButton model) (redoButton model)
         -- , outputButton model w h
@@ -580,6 +582,7 @@ middleWidgets w h wWrap hWrap model =
         [ dropdownExamples model w h
         , editRunButton model w h
         , saveButton model w h
+        , saveAsButton model w h
         , loadButton model w h
         ]
 
@@ -764,10 +767,14 @@ nextButton i (n,l) =
 
 saveButton : Model -> Int -> Int -> GE.Element
 saveButton model w h =
-    let dispname = if | List.any ((==) model.exName << fst) Examples.list ->
-                            "Save As"
-                      | otherwise -> "Save"
-    in simpleTaskButton (saveStateLocally model.exName model) dispname dispname dispname w h
+    let disabled = List.any ((==) model.exName << fst) Examples.list
+        dn = "Save"
+    in simpleTaskButton_ disabled (saveStateLocally model.exName False model) dn dn dn w h
+
+saveAsButton : Model -> Int -> Int -> GE.Element
+saveAsButton model w h = 
+    let dn = "Save As"
+    in simpleTaskButton (saveStateLocally model.exName True model) dn dn dn w h
 
 loadButton : Model -> Int -> Int -> GE.Element
 loadButton model w h =
@@ -791,10 +798,26 @@ dropdownExamples model w h =
       _ ->
         let foo (name,thunk) = (name, Signal.send events.address (SelectExample name thunk)) 
             bar saveName = (saveName, loadLocalState saveName)
+            blank = ("", Task.succeed ())
+            localsaves = case model.localSaves of
+                [] -> []
+                l  -> 
+                  List.concat
+                    [ [ ("Local Saves:", Task.succeed ())
+                      , blank
+                      ]
+                    , List.map bar l
+                    , [ blank ]
+                    ]
         in List.concat
-            [ (List.map bar model.localSaves)
+            [ localsaves
+            , [ ("Builtin Examples:", Task.succeed ())
+              , blank
+              ]
             , (List.map foo Examples.list)
-            , [("*Clear Local Saves*", clearLocalSaves)]
+            , [ blank
+              , ("*Clear Local Saves*", clearLocalSaves)
+              ]
             ]
     options = List.map (\(name,task) -> 
         if | name == model.exName ->
@@ -811,6 +834,7 @@ dropdownExamples model w h =
     findTask name choices = case choices of
         (n,t) :: rest -> if | n == name -> t
                             | otherwise -> findTask name rest
+        [] -> Debug.crash "Dropdown example does not have associated task"
   in Html.toElement 120 24 <| Html.select 
         [ Attr.style 
           [ ("pointer-events", "auto")

@@ -6,10 +6,10 @@
 
 module InterfaceStorage (taskMailbox, saveStateLocally, loadLocalState,
                          getLocalSaves, checkAndSave, clearLocalSaves,
-                         removeDialog) where
+                         removeDialog, deleteLocalSave) where
 
 -- Storage library, for in browser storage
-import Storage exposing (getItem, setItem, keys, clear)
+import Storage exposing (getItem, setItem, removeItem, keys, clear)
 
 -- JSON encode/decode libraries, as local storage only stores values as Strings
 import Json.Encode as Encode
@@ -36,12 +36,6 @@ import Debug
 -- The mailbox that recieves Tasks
 taskMailbox : Mailbox (Task String ())
 taskMailbox = mailbox (succeed ())
-
--- The necessary port for Tasks/Storage
--- **Not sure why necessary at this juncture**
--- Due to current Elm limitations, this must be in the Main module
---port taskPort : Signal (Task String ())
---port taskPort = taskMailbox.signal
 
 -- Type for the partial object that we store in localStorage
 type alias PartialObject = 
@@ -102,12 +96,11 @@ strToModel =
         )
 
 -- Task to save state to local browser storage
-saveStateLocally : String -> Model -> Task String ()
-saveStateLocally saveName model = if
-    | List.all ((/=) saveName << fst) Examples.list -> setItem saveName <|
-        modelToValue model
-    | otherwise -> send events.address <|
-        InterfaceModel.UpdateModel installSaveState
+saveStateLocally : String -> Bool -> Model -> Task String ()
+saveStateLocally saveName saveAs model = 
+    if saveAs
+      then send events.address <| InterfaceModel.UpdateModel installSaveState
+      else setItem saveName <| modelToValue model
 
 -- Changes state to SaveDialog
 installSaveState : Model -> Model
@@ -158,7 +151,7 @@ loadLocalState saveName =
         (name, thunk) :: rest ->
             send events.address <| InterfaceModel.SelectExample saveName thunk
         _ -> getItem saveName strToModel
-                `andThen` \loadedModel -> 
+                `andThen` \loadedModel ->
                     send events.address <| 
                         InterfaceModel.UpdateModel <| 
                             installLocalState saveName loadedModel
@@ -186,3 +179,13 @@ clearLocalSaves : Task String ()
 clearLocalSaves = clear `andThen` \_ -> send events.address <|
     InterfaceModel.UpdateModel <| \m -> { m | exName <- Examples.scratchName
                                             , localSaves <- [] }
+
+-- Deletes a local save from the model
+deleteLocalSave : String -> Task String ()
+deleteLocalSave name = removeItem name `andThen` \_ -> send events.address <|
+    InterfaceModel.UpdateModel <| removeLocalSave name
+
+-- Removes a local save from the model
+removeLocalSave : String -> Model -> Model
+removeLocalSave name oldmodel =
+    { oldmodel | localSaves <- List.filter ((/=) name) oldmodel.localSaves }
