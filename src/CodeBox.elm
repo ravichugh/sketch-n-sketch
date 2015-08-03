@@ -7,6 +7,9 @@ module CodeBox (interpretAceEvents, packageModel,
 import Graphics.Element as GE
 import InterfaceModel exposing (Event, sampleModel)
 
+-- So we can crash correctly
+import Debug
+
 -- The mailbox/port which relays models to Native/codeBox.js
 -- Not needed, as we simply sample on the sigModel
 --toAce : Signal.Mailbox Model
@@ -28,7 +31,8 @@ import InterfaceModel exposing (Event, sampleModel)
 -- an Element is easy.
 -- type alias JsHtml = {}
 type alias CodeBoxInfo = { code : String }
-type alias AceMessage = { message : String }
+type alias AceMessage = { evt : String 
+                        , args  : String}
 
 -- Ultimately what is exposed to InterfaceView2
 -- Not really, we end up getting a Signal... Hmm...
@@ -50,7 +54,13 @@ type alias AceMessage = { message : String }
 --interpretAceHtml ahtml = GE.spacer 0 0
 
 interpretAceEvents : AceMessage -> Event
-interpretAceEvents amsg = InterfaceModel.Noop
+interpretAceEvents amsg = case Debug.log "got\n" amsg.evt of
+    "AceCodeUpdate" -> InterfaceModel.UpdateModel <|
+        \m -> if ((/=) amsg.args m.code)  
+                then { m | code <- Debug.log "args\n"amsg.args }
+                else m
+    "init" -> InterfaceModel.Noop
+    _ -> Debug.crash "Malformed update sent to Elm"
 
 packageModel : InterfaceModel.Model -> CodeBoxInfo
 packageModel model = { code = model.code }

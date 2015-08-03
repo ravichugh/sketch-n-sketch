@@ -52,7 +52,7 @@
 
 // For convenience during development, the page controller is here
 var runtime = Elm.fullscreen(Elm.Main, { 
-    theTurn : { message : "" },
+    theTurn : { evt : "init", args : "" },
 });
 
 window.oncrash = function(msg, url, linenumber) {
@@ -80,15 +80,46 @@ var editor = ace.edit("editor");
 editor.setTheme("ace/theme/chrome");
 editor.getSession().setMode("ace/mode/lisp");
 
+var updateWasFromElm = false;
+
 runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
-    //console.log("Got code: " + codeBoxInfo.code);
-    editor.destroy();
+    updateWasFromElm = true;
+    //editor.destroy();
+    //Need to remove the old event listeners
+    //copyWithNoEventListeners = editor.container.cloneNode(true);
+    removeAllChildren(editor.container);
+    //editor.container.remove();
+    //editor.container.parentNode.replaceChild(document., editor.container);
+    console.log("Got code:\n" + codeBoxInfo.code);
     editor = ace.edit("editor");
+    //editor.resize(true);
     editor.$blockScrolling = Infinity;
     editor.setTheme("ace/theme/chrome");
     editor.getSession().setMode("ace/mode/lisp");
     editor.getSession().setValue(codeBoxInfo.code, 0);
+    editor.getSession().getDocument().on("change", maybeSendUpdate)
+    updateWasFromElm = false;
 });
+
+function maybeSendUpdate(e) {
+    console.log(e);
+    console.log(updateWasFromElm);
+    if (!updateWasFromElm) {
+      runtime.ports.theTurn.send(
+        { evt : "AceCodeUpdate"
+        , args : editor.getSession().getDocument().getValue()
+        }
+      );
+    }
+}
+
+function removeAllChildren(container) {
+    var nodes = container.childNodes;
+    for (var i = 0; i < nodes.length; i++) {
+        nodes[i].remove();
+    }
+}
+    
 
 //console.log(document.getElementById("editor"));
 //codebox.innerHTML = editor;
