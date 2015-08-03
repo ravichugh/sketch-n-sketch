@@ -2,8 +2,8 @@ import InterfaceModel as Model exposing (events)
 import InterfaceView2 as View
 import InterfaceController as Controller
 import InterfaceStorage exposing (taskMailbox)
-import CodeBox exposing (htmlFromAce, eventsFromAce, interpretAceEvents,
-                         interpretAceHtml, AceMessage, JsHtml)
+import CodeBox exposing (interpretAceEvents, packageModel,
+                         AceMessage, CodeBoxInfo)
 
 import Graphics.Element exposing (Element)
 import Mouse 
@@ -31,11 +31,11 @@ sigModel =
       , Signal.map interpretAceEvents theTurn --eventsFromAce.signal
       ]
 
-sigCodeBox : Signal Element
-sigCodeBox = Signal.map (interpretAceHtml << Debug.log "h") theRiver --htmlFromAce.signal
+--sigCodeBox : Signal Element
+--sigCodeBox = Signal.map (interpretAceHtml << Debug.log "h") theRiver --htmlFromAce.signal
 
 main : Signal Element
-main = Debug.log "Html type" (Html.div [] []) |> \_ -> Signal.map3 View.view Window.dimensions sigModel sigCodeBox
+main = Signal.map2 View.view Window.dimensions sigModel
 
 adjustCoords : (Int, Int) -> (Int, Int) -> (Int, Int)
 adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
@@ -47,15 +47,18 @@ port taskPort = taskMailbox.signal
 
 -- Port for messages to the code box
 -- The model (will) contain all the information needed to deduce highlights and such
-port aceInTheHole : Signal String
-port aceInTheHole = Signal.dropRepeats (Signal.map (\m -> m.code) sigModel)
+-- Note that we don't want to drop repeats, as we need to rerender the Ace
+-- editor whenever the rest of the window is rendered
+port aceInTheHole : Signal CodeBoxInfo
+port aceInTheHole = Signal.map packageModel sigModel
 
 -- Port for Event messages from the code box
 -- port theTurn : Signal AceMessage (type not exposed)
 port theTurn : Signal CodeBox.AceMessage
+
 --port theTurn = eventsFromAce.signal
 
 -- Port for Html messages from the code box (e.g. the rendered code box)
 -- port theRiver : Signal JsHtml (type not exposed)
-port theRiver : Signal CodeBox.JsHtml
+-- port theRiver : Signal CodeBox.JsHtml
 --port theRiver = htmlFromAce.signal

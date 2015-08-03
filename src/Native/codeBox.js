@@ -52,8 +52,7 @@
 
 // For convenience during development, the page controller is here
 var runtime = Elm.fullscreen(Elm.Main, { 
-    theTurn : {},
-    theRiver : {} 
+    theTurn : { message : "" },
 });
 
 window.oncrash = function(msg, url, linenumber) {
@@ -81,9 +80,19 @@ var editor = ace.edit("editor");
 editor.setTheme("ace/theme/chrome");
 editor.getSession().setMode("ace/mode/lisp");
 
-console.log(document.getElementById("editor"));
+runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
+    //console.log("Got code: " + codeBoxInfo.code);
+    editor.destroy();
+    editor = ace.edit("editor");
+    editor.$blockScrolling = Infinity;
+    editor.setTheme("ace/theme/chrome");
+    editor.getSession().setMode("ace/mode/lisp");
+    editor.getSession().setValue(codeBoxInfo.code, 0);
+});
+
+//console.log(document.getElementById("editor"));
 //codebox.innerHTML = editor;
 
 // runtime is defined in the html wrapper
 //runtime.ports.theRiver.send(editor);
-console.log(editor);
+//console.log(editor);

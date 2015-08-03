@@ -1,8 +1,8 @@
 -- This is the elm file responsible for returning the completed code box given
 -- the Model and the appropriate dimensions.
 
-module CodeBox (htmlFromAce, eventsFromAce, interpretAceEvents, interpretAceHtml,
-                AceMessage, JsHtml) where
+module CodeBox (interpretAceEvents, packageModel, 
+                AceMessage, CodeBoxInfo) where
 
 import Graphics.Element as GE
 import InterfaceModel exposing (Event, sampleModel)
@@ -14,20 +14,21 @@ import InterfaceModel exposing (Event, sampleModel)
 
 -- The mailbox/port that recieves JsHtml from Native/codeBox.js that needs to be
 -- turned into an Element for interfaceView2 to display
-htmlFromAce : Signal.Mailbox JsHtml
-htmlFromAce = Signal.mailbox {}
+--htmlFromAce : Signal.Mailbox JsHtml
+--htmlFromAce = Signal.mailbox {}
 
 -- The mailbox/port that recieves AceMessages from Native/codeBox.js that needs
 -- to be turned into an Event for upstate to interpret
-eventsFromAce : Signal.Mailbox AceMessage
-eventsFromAce = Signal.mailbox {}
+--eventsFromAce : Signal.Mailbox AceMessage
+--eventsFromAce = Signal.mailbox { noyet}
 
 -- Investigation required to see what exactly comes through here. Probably going
 -- to have to do some JSON decoding business, hopefully it can be coerced into
 -- a VirtualDom/Elm-Html type without too much trouble, from which conversion to
 -- an Element is easy.
-type alias JsHtml = {}
-type alias AceMessage = {}
+-- type alias JsHtml = {}
+type alias CodeBoxInfo = { code : String }
+type alias AceMessage = { message : String }
 
 -- Ultimately what is exposed to InterfaceView2
 -- Not really, we end up getting a Signal... Hmm...
@@ -45,8 +46,11 @@ type alias AceMessage = {}
 -- codebox : Signal AceMessage
 -- codebox = Signal.map interpret fromAce.signal
 
-interpretAceHtml : JsHtml -> GE.Element
-interpretAceHtml ahtml = GE.spacer 0 0
+--interpretAceHtml : JsHtml -> GE.Element
+--interpretAceHtml ahtml = GE.spacer 0 0
 
 interpretAceEvents : AceMessage -> Event
 interpretAceEvents amsg = InterfaceModel.Noop
+
+packageModel : InterfaceModel.Model -> CodeBoxInfo
+packageModel model = { code = model.code }

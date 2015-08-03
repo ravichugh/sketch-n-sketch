@@ -617,8 +617,19 @@ gutterForResizing orient w h =
           ]
           [ ]
 
-mainSectionVertical : Int -> Int -> Model -> GE.Element -> GE.Element
-mainSectionVertical w h model renderedCodeBox =
+-- Makes a div appropriate for the Ace code editor to be inserted into
+codeBox : Int -> Int -> GE.Element
+codeBox w h = Html.toElement w h <|
+    Html.div [ Attr.id "editor"
+             , Attr.style
+                 [ ("width", dimToPix w)
+                 , ("height", dimToPix h)
+                 , ("pointer-events", "auto")
+                 ]
+             ] []
+
+mainSectionVertical : Int -> Int -> Model -> GE.Element
+mainSectionVertical w h model =
   let
     wGut    = params.mainSection.vertical.wGut
     wMiddle = wBtn
@@ -633,10 +644,7 @@ mainSectionVertical w h model renderedCodeBox =
 
   --let codeSection = codebox wCode h model in
   --let codeSection = renderedCodeBox in
-  let codeSection = Html.toElement wCode h
-        <| Html.div [Attr.id "editor"
-                    , Attr.style [("height", "600px")]
-                    ] [] in
+  let codeSection = codeBox wCode h in
 
   let canvasSection =
     GE.size wCanvas h <|
@@ -662,8 +670,8 @@ mainSectionVertical w h model renderedCodeBox =
   GE.flow GE.right <|
     [ codeSection, gutter, middleSection, gutter, canvasSection ]
 
-mainSectionHorizontal : Int -> Int -> Model -> GE.Element -> GE.Element
-mainSectionHorizontal w h model renderedCodeBox =
+mainSectionHorizontal : Int -> Int -> Model -> GE.Element
+mainSectionHorizontal w h model =
   let
     hGut    = params.mainSection.horizontal.hGut
     hMiddle = hBtn
@@ -677,10 +685,7 @@ mainSectionHorizontal w h model renderedCodeBox =
 
   --let codeSection = codebox w hCode model in
   --let codeSection = renderedCodeBox in
-  let codeSection = Html.toElement w hCode
-        <| Html.div [Attr.id "editor"
-                    , Attr.style [("height", "600px")]
-                    ] [] in
+  let codeSection = codeBox w hCode in
 
   let canvasSection =
     GE.size w (hCanvas + hZInfo) <|
@@ -865,18 +870,6 @@ modeButton model =
   then simpleEventButton_ True Noop "SwitchMode" "SwitchMode" "[Mode] Ad Hoc"
   else simpleEventButton_ False (SwitchMode AdHoc) "SwitchMode" "SwitchMode" "[Mode] Live"
 
-{-
-modeToggle : Int -> Int -> Model -> GE.Element
-modeToggle w h model =
-  let opt s m = (s, (SwitchMode m)) in
-  let optionLive = opt "Live" (mkLive_ model.syncOptions (Utils.fromJust model.inputExp)) in
-  let optionAdHoc = opt "Ad Hoc" AdHoc in
-  GI.dropDown (Signal.message events.address) <|
-    case model.mode of
-      AdHoc -> [optionAdHoc]
-      _     -> [optionLive, optionAdHoc]
--}
-
 orientationButton w h model = 
     let text = "[Orientation] " ++ toString model.orient
     in
@@ -912,6 +905,7 @@ hoverInfo info (i,k,z) =
            | otherwise -> (x, n)) locs
 
 -- The pop-up save dialog box
+-- TODO clean this up, is needlessly bulky
 saveElement : Model -> Int -> Int -> GE.Element
 saveElement model w h = case model.mode of
   SaveDialog x -> 
@@ -992,8 +986,8 @@ saveElement model w h = case model.mode of
   _ -> GE.empty 
     
 
-view : (Int, Int) -> Model -> GE.Element -> GE.Element
-view (w,h) model renderedCodeBox =
+view : (Int, Int) -> Model -> GE.Element
+view (w,h) model =
   let
     wAll = w - (2 * wGut) - 1
     wGut = params.wGut
@@ -1030,8 +1024,8 @@ view (w,h) model renderedCodeBox =
   let midSection =
     GE.size wAll hMid <|
       case model.orient of
-        Vertical   -> mainSectionVertical wAll hMid model renderedCodeBox
-        Horizontal -> mainSectionHorizontal wAll hMid model renderedCodeBox in
+        Vertical   -> mainSectionVertical wAll hMid model
+        Horizontal -> mainSectionHorizontal wAll hMid model in
 
   let botSection = GE.spacer wAll hBot in
   let sideGutter = colorDebug Color.black <| GE.spacer wGut hTot in
