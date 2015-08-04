@@ -61,7 +61,7 @@ type alias AceMessage = { evt : String
 --interpretAceHtml ahtml = GE.spacer 0 0
 
 interpretAceEvents : AceMessage -> Event
-interpretAceEvents amsg = case {-Debug.log "got\n"-} amsg.evt of
+interpretAceEvents amsg = case Debug.log "got\n" amsg.evt of
     "AceCodeUpdate" -> InterfaceModel.UpdateModel <|
         \m -> { m | code <- amsg.strArg
                   , cursorPos <- amsg.cursorArg 
