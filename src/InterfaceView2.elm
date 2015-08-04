@@ -98,14 +98,18 @@ makeButton status w h text =
               ]
           ] [ Html.text text ]
     ]
+
+
 --------------------------------------------------------------------------------
 -- Zone Options (per shape)
 
 type alias ZoneOptions =
-  { showBasic : Bool , addBasic : Bool , addRot : Bool , addColor : Bool }
+  { showBasic : Bool , addBasic : Bool , addRot : Bool , addColor : Bool
+  , addDelete : Bool }
 
 zoneOptions0 =
-  { showBasic = False , addBasic = False , addRot = False , addColor = False }
+  { showBasic = False , addBasic = False , addRot = False , addColor = False
+  , addDelete = False }
 
 optionsOf : ShowZones -> ZoneOptions
 optionsOf x =
@@ -113,6 +117,8 @@ optionsOf x =
      | x == showZonesBasic -> { zoneOptions0 | addBasic <- True, showBasic <- True }
      | x == showZonesRot   -> { zoneOptions0 | addRot <- True }
      | x == showZonesColor -> { zoneOptions0 | addColor <- True }
+     | x == showZonesDel   -> { zoneOptions0 | addDelete <- True }
+
 
 --------------------------------------------------------------------------------
 -- Compiling to Svg
@@ -343,6 +349,40 @@ zoneColor_ id shape x y n =
   in
   gradient ++ [box, ball]
 
+-- Stuff for Delete Zones ------------------------------------------------------
+
+zoneDelete b id shape x y transform =
+  if b then zoneDelete_ id shape x y transform else []
+
+zoneDelete_ id shape x y transform =
+  let (w, h, stroke, strokeWidth) =
+      (20, 20, "silver", "2") in
+  let evt =
+    let foo old =
+      { old | slate <- Utils.mapSnd (Dict.insert id LangSvg.dummySvgNode) old.slate }
+    in
+    onMouseDown (UpdateModel foo) in
+  let lines =
+    let f x1 y1 x2 y2 =
+      flip Svg.line [] <|
+        [ LangSvg.attr "stroke" "darkred", LangSvg.attr "strokeWidth" strokeWidth
+        , LangSvg.attr "x1" (toString x1) , LangSvg.attr "y1" (toString y1)
+        , LangSvg.attr "x2" (toString x2) , LangSvg.attr "y2" (toString y2)
+        , evt
+        ] ++ transform
+      in
+     [ f x y (x + w) (y + h) , f x (y + h) (x + w) y ] in
+  let box =
+    flip Svg.rect [] <|
+      [ LangSvg.attr "fill" "white"
+      , LangSvg.attr "stroke" stroke , LangSvg.attr "strokeWidth" strokeWidth
+      , LangSvg.attr "x" (toString x) , LangSvg.attr "y" (toString y)
+      , LangSvg.attr "width" (toString w) , LangSvg.attr "height" (toString h)
+      , evt
+      ] ++ transform
+  in
+  [box] ++ lines
+
 --------------------------------------------------------------------------------
 
 makeZones : ZoneOptions -> String -> LangSvg.NodeId -> List LangSvg.Attr -> List Svg.Svg
@@ -384,6 +424,7 @@ makeZones options shape id l =
           , mk "TopRightCorner" x2 y0 wSlim hSlim
           ] ++ zRot
             ++ zColor
+            ++ zoneDelete options.addDelete id shape x y (maybeTransformAttr l)
 
     "circle"  -> makeZonesCircle  options id l
     "ellipse" -> makeZonesEllipse options id l
@@ -741,6 +782,7 @@ zoneButton model =
        | model.showZones == showZonesBasic -> "[Zones] Basic"
        | model.showZones == showZonesRot   -> "[Zones] Rotation"
        | model.showZones == showZonesColor -> "[Zones] Color"
+       | model.showZones == showZonesDel   -> "[Zones] Delete"
   in
   simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap
 

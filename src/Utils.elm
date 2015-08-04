@@ -16,7 +16,7 @@ find err d k =
     Just f  -> f
     Nothing -> Debug.crash <| "Utils.find: " ++ err
 
-find_ = find ""
+find_ d k = find ("[" ++ toString k ++ "]") d k
 
 update : (comparable, v) -> List (comparable, v) -> List (comparable, v)
 update (k1, v1) vals =

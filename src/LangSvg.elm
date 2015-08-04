@@ -493,3 +493,10 @@ zones = [
   -- , ("path", [])
   ]
 
+
+------------------------------------------------------------------------------
+
+dummySvgNode =
+  let zero = ANum (0, dummyTrace) in
+  SvgNode "circle" (List.map (\k -> (k, zero)) ["cx","cy","r"]) []
+

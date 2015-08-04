@@ -72,9 +72,9 @@ type alias PossibleChanges =
 -- InterfaceStorage is more succinct (Enum typeclass would be nice here...)
 type alias ShowZones = Int
 
-showZonesModes = 4
+showZonesModes = 5
 
-[showZonesNone, showZonesBasic, showZonesRot, showZonesColor] =
+[showZonesNone, showZonesBasic, showZonesRot, showZonesColor, showZonesDel] =
   [ 0 .. (showZonesModes - 1) ]
 
 type Caption
