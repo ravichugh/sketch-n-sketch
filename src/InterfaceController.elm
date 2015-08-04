@@ -156,18 +156,16 @@ upstate evt old = case debugLog "Event" evt of
               case Dict.get zone dZones of
                 Just (Just _) -> { old | mouseMode <- MouseObject id kind zone Nothing }
                 _             -> { old | mouseMode <- MouseNothing }
-        SyncSelect _ _ -> old
+        SyncSelect _ _ _ -> old
 
     MouseUp ->
-      case old.mode of
-        Print _ -> old
-        _ ->
-          let h = case old.mouseMode of
-            MouseObject _ _ _ (Just (s, _)) -> addToHistory s old.history
-            _                               -> old.history
-          in
+      case (old.mode, old.mouseMode) of
+        (Print _, _) -> old
+        (Live _, MouseObject _ _ _ (Just (s, _))) ->
           { old | mouseMode <- MouseNothing, mode <- refreshMode_ old
-                , history <- h }
+                , history <- addToHistory s old.history }
+        _ ->
+          { old | mouseMode <- MouseNothing, mode <- refreshMode_ old }
 
     Sync -> 
       case (old.mode, old.inputExp) of
@@ -186,31 +184,36 @@ upstate evt old = case debugLog "Event" evt of
               Ok ls ->
                 let n = debugLog "# of sync options" (List.length ls) in
                 let ls' = List.map fst ls in
-                let m = SyncSelect 0 (n, ls' ++ [struct, revert]) in
+                let m = SyncSelect old.code 0 (n, ls' ++ [struct, revert]) in
                 upstate (TraverseOption 1) { old | mode <- m }
               Err e ->
                 let _ = debugLog ("bad sync: ++ " ++ e) () in
-                let m = SyncSelect 0 (0, [struct, revert]) in
+                let m = SyncSelect old.code 0 (0, [struct, revert]) in
                 upstate (TraverseOption 1) { old | mode <- m }
 
     SelectOption ->
-      let (SyncSelect i options) = old.mode in
+      let (SyncSelect prev i options) = old.mode in
       let (_,l) = options in
       let (ei,vi) = Utils.geti i l in
+      let h =
+        if | i == List.length l -> old.history  -- revert was chosen
+           | otherwise          -> addToHistory prev old.history
+      in
       { old | code <- unparseE ei
             , inputExp <- Just ei
+            , history <- h
             , slate <- LangSvg.valToIndexedTree vi
             , mode <- mkLive old.syncOptions ei vi }
 
     TraverseOption offset ->
-      let (SyncSelect i options) = old.mode in
+      let (SyncSelect prev i options) = old.mode in
       let (_,l) = options in
       let j = i + offset in
       let (ei,vi) = Utils.geti j l in
       { old | code <- unparseE ei
             , inputExp <- Just ei
             , slate <- LangSvg.valToIndexedTree vi
-            , mode <- SyncSelect j options }
+            , mode <- SyncSelect prev j options }
 
     SelectExample name thunk ->
       if name == Examples.scratchName then

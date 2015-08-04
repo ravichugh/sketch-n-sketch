@@ -519,7 +519,7 @@ codebox : Int -> Int -> Model -> GE.Element
 codebox w h model =
   let event =
     case model.mode of
-      SyncSelect _ _ -> []
+      SyncSelect _ _ _ -> []
       _ -> [Events.on "input" Events.targetValue
               (Signal.message events.address << CodeUpdate)]
   in
@@ -590,7 +590,7 @@ middleWidgets w h wWrap hWrap model =
   in
   List.map (GE.container wWrap hWrap GE.middle) <|
     case (editingMode model, model.mode) of
-      (False, SyncSelect i options) ->
+      (False, SyncSelect _ i options) ->
         [ gapWidget w h
         , gapWidget w h
         , prevButton i w h
