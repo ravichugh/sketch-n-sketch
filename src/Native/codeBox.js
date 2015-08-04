@@ -106,6 +106,18 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
     //console.log(editorCopy);
     var editorDiv = document.getElementById("editor");
     editorDiv.parentNode.replaceChild(editor.container, editorDiv);
+    //editor.resize(true);
+    //var editorDiv = document.getElementById("editor");
+    //editorDiv.parentNode.replaceChild(editor.container, editorDiv);
+    if (!codeBoxInfo.manipulable) {
+        editor.container.style.zIndex = "-1";
+        editor.container.style.pointerEvents = "none";
+        editor.setReadOnly(true);
+    } else {
+        editor.container.style.zIndex = "1";
+        editor.container.style.pointerEvents = "auto";
+        editor.setReadOnly(false);
+    }
     //editor.getSession().setMode("ace/mode/lisp");
     //editor.resize(true);
     updateWasFromElm = false;

@@ -92,6 +92,7 @@ strToModel =
                              , midOffsetY <- partial.midOffsetY
                              , fieldContents <- { value = ""
                                                 , hint = "Input File Name" }
+                             , startup <- False
             }
         )
 

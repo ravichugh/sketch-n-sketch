@@ -2,14 +2,14 @@ import InterfaceModel as Model exposing (events)
 import InterfaceView2 as View
 import InterfaceController as Controller
 import InterfaceStorage exposing (taskMailbox)
-import CodeBox exposing (interpretAceEvents, packageModel,
+import CodeBox exposing (interpretAceEvents, packageModel, rerender,
                          AceMessage, CodeBoxInfo)
 
 import Graphics.Element exposing (Element)
 import Mouse 
 import Window 
 
-import Task exposing (Task)
+import Task exposing (Task, andThen)
 
 --TEMP FOR DEVELOPMENT
 import Html
@@ -43,7 +43,7 @@ adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
 -- The necessary port for Tasks/Storage
 -- Due to current Elm limitations, this must be in the Main module
 port taskPort : Signal (Task String ())
-port taskPort = taskMailbox.signal
+port taskPort = Signal.map (\m -> m `andThen` \_ -> Signal.send events.address Model.Noop) taskMailbox.signal
 
 -- Port for messages to the code box
 -- The model (will) contain all the information needed to deduce highlights and such

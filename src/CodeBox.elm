@@ -1,11 +1,13 @@
 -- This is the elm file responsible for returning the completed code box given
 -- the Model and the appropriate dimensions.
 
-module CodeBox (interpretAceEvents, packageModel, 
+module CodeBox (interpretAceEvents, packageModel, rerender,
                 AceMessage, CodeBoxInfo) where
 
 import Graphics.Element as GE
-import InterfaceModel exposing (Event, sampleModel)
+import InterfaceModel exposing (Event, sampleModel, events)
+
+import Task exposing (Task)
 
 -- So we can crash correctly
 import Debug
@@ -32,6 +34,7 @@ import Debug
 -- type alias JsHtml = {}
 type alias CodeBoxInfo = { code : String 
                          , cursorPos : { row : Int, column : Int }
+                         , manipulable : Bool
                          }
 type alias AceMessage = { evt : String 
                         , strArg  : String 
@@ -67,6 +70,17 @@ interpretAceEvents amsg = case Debug.log "got\n" amsg.evt of
     _ -> Debug.crash "Malformed update sent to Elm"
 
 packageModel : InterfaceModel.Model -> CodeBoxInfo
-packageModel model = { code = model.code 
-                     , cursorPos = model.cursorPos 
-                     }
+packageModel model = 
+    let manipulable = case (model.mode, model.editingMode) of
+            (InterfaceModel.SaveDialog _, _) -> False
+            (_, Nothing) -> False
+            _           -> True
+    in
+        { code = model.code 
+        , cursorPos = model.cursorPos 
+        , manipulable = manipulable
+        }
+
+-- Try to see if we can rerender in the same way that we push other events
+rerender : Task String ()
+rerender = Signal.send events.address <| InterfaceModel.UpdateModel (\m -> m)

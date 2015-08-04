@@ -39,6 +39,7 @@ import InterfaceStorage exposing (taskMailbox, saveStateLocally, loadLocalState,
 import Html 
 import Html.Attributes as Attr
 import Html.Events as Events
+import Html.Lazy
 
 --Svg Libraries
 import Svg
@@ -620,14 +621,14 @@ gutterForResizing orient w h =
 -- Makes a div appropriate for the Ace code editor to be inserted into
 codeBox : Int -> Int -> GE.Element
 codeBox w h = Html.toElement w h <|
-    Html.div [ Attr.id "editor"
+    Html.Lazy.lazy2 (\a b -> Html.div [ Attr.id "editor"
              , Attr.style
                  [ ("width", dimToPix w)
                  , ("height", dimToPix h)
                  , ("pointer-events", "auto")
                  , ("z-index", "1")
                  ]
-             ] []
+             ] []) w h
 
 mainSectionVertical : Int -> Int -> Model -> GE.Element
 mainSectionVertical w h model =
