@@ -33,13 +33,18 @@ import Debug
 -- an Element is easy.
 -- type alias JsHtml = {}
 type alias CodeBoxInfo = { code : String 
-                         , cursorPos : { row : Int, column : Int }
+                         , cursorPos : Pos
                          , manipulable : Bool
+                         , selections : List Range
                          }
 type alias AceMessage = { evt : String 
                         , strArg  : String 
-                        , cursorArg : { row : Int, column : Int }
+                        , cursorArg : Pos
+                        , selectionArg : List Range
                         } 
+
+type alias Pos = { row : Int, column : Int }
+type alias Range = { start : Pos, end : Pos }
 
 -- Ultimately what is exposed to InterfaceView2
 -- Not really, we end up getting a Signal... Hmm...
@@ -64,7 +69,9 @@ interpretAceEvents : AceMessage -> Event
 interpretAceEvents amsg = case Debug.log "got\n" amsg.evt of
     "AceCodeUpdate" -> InterfaceModel.UpdateModel <|
         \m -> { m | code <- amsg.strArg
-                  , cursorPos <- amsg.cursorArg 
+                  , codeBoxInfo <- { cursorPos = amsg.cursorArg
+                                   , selections = amsg.selectionArg
+                                   }
               }
     "init" -> InterfaceModel.Noop
     _ -> Debug.crash "Malformed update sent to Elm"
@@ -77,7 +84,8 @@ packageModel model =
             _           -> True
     in
         { code = model.code 
-        , cursorPos = model.cursorPos 
+        , cursorPos = model.codeBoxInfo.cursorPos 
+        , selections = model.codeBoxInfo.selections
         , manipulable = manipulable
         }
 

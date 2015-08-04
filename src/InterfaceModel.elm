@@ -40,7 +40,7 @@ type alias Model =
   , localSaves : List String
   , fieldContents : DialogInfo 
   , startup : Bool
-  , cursorPos : { row : Int, column : Int }
+  , codeBoxInfo : CodeBoxInfo
   }
 
 type Mode
@@ -50,6 +50,13 @@ type Mode
 type alias DialogInfo = { value : String
                         , hint   : String
                         }
+
+type alias CodeBoxInfo = { cursorPos : Pos
+                         , selections : List Range
+                         }
+
+type alias Pos = { row : Int, column : Int }
+type alias Range = { start : Pos, end : Pos }
 
 type alias RawSvg = String
 
@@ -135,6 +142,8 @@ sampleModel =
     , localSaves    = []
     , fieldContents = { value = "", hint = "Input File Name" }
     , startup       = True
-    , cursorPos       = { row = round 0, column = round 0 }
+    , codeBoxInfo   = { cursorPos = { row = round 0, column = round 0 }
+                      , selections = []
+                      }
     }
 
