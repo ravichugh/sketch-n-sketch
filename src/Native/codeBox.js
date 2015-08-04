@@ -52,7 +52,10 @@
 
 // For convenience during development, the page controller is here
 var runtime = Elm.fullscreen(Elm.Main, { 
-    theTurn : { evt : "init", args : "" },
+    theTurn : { evt : "init"
+              , strArg : "" 
+              , cursorArg : { row : 0 , column : 0 }
+              }
 });
 
 window.oncrash = function(msg, url, linenumber) {
@@ -77,8 +80,10 @@ window.oncrash = function(msg, url, linenumber) {
 //console.log(codebox)
 
 var editor = ace.edit("editor");
+editor.$blockScrolling = Infinity;
 editor.setTheme("ace/theme/chrome");
 editor.getSession().setMode("ace/mode/lisp");
+editor.getSession().getDocument().on("change", maybeSendUpdate)
 
 var updateWasFromElm = false;
 
@@ -87,27 +92,31 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
     //editor.destroy();
     //Need to remove the old event listeners
     //copyWithNoEventListeners = editor.container.cloneNode(true);
-    removeAllChildren(editor.container);
+    //removeAllChildren(editor.container);
     //editor.container.remove();
     //editor.container.parentNode.replaceChild(document., editor.container);
-    console.log("Got code:\n" + codeBoxInfo.code);
-    editor = ace.edit("editor");
-    //editor.resize(true);
-    editor.$blockScrolling = Infinity;
-    editor.setTheme("ace/theme/chrome");
-    editor.getSession().setMode("ace/mode/lisp");
+    //console.log("Got code:\n" + codeBoxInfo.code);
+    //editor = ace.edit("editor");
     editor.getSession().setValue(codeBoxInfo.code, 0);
-    editor.getSession().getDocument().on("change", maybeSendUpdate)
+    editor.moveCursorTo(codeBoxInfo.cursorPos.row, codeBoxInfo.cursorPos.column);
+    //editorCopy = editor.container.cloneNode(true);
+    //console.log(editorCopy);
+    editorDiv = document.getElementById("editor");
+    editorDiv.parentNode.replaceChild(editor.container, editorDiv);
+    //editor.getSession().setMode("ace/mode/lisp");
+    //editor.resize(true);
     updateWasFromElm = false;
 });
 
 function maybeSendUpdate(e) {
-    console.log(e);
-    console.log(updateWasFromElm);
+    //console.log(e);
+    //console.log(updateWasFromElm);
+    //console.log(editor.getCursorPosition());
     if (!updateWasFromElm) {
       runtime.ports.theTurn.send(
         { evt : "AceCodeUpdate"
-        , args : editor.getSession().getDocument().getValue()
+        , strArg : editor.getSession().getDocument().getValue()
+        , cursorArg : editor.getCursorPosition()
         }
       );
     }

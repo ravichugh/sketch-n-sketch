@@ -40,6 +40,7 @@ type alias Model =
   , localSaves : List String
   , fieldContents : DialogInfo 
   , startup : Bool
+  , cursorPos : { row : Int, column : Int }
   }
 
 type Mode
@@ -110,6 +111,7 @@ editingMode model = case model.editingMode of
   Nothing -> False
   Just _  -> True
 
+sampleModel : Model
 sampleModel =
   let
     (name,f) = Utils.head_ Examples.list
@@ -133,5 +135,6 @@ sampleModel =
     , localSaves    = []
     , fieldContents = { value = "", hint = "Input File Name" }
     , startup       = True
+    , cursorPos       = { row = round 0, column = round 0 }
     }
 

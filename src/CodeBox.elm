@@ -30,9 +30,13 @@ import Debug
 -- a VirtualDom/Elm-Html type without too much trouble, from which conversion to
 -- an Element is easy.
 -- type alias JsHtml = {}
-type alias CodeBoxInfo = { code : String }
+type alias CodeBoxInfo = { code : String 
+                         , cursorPos : { row : Int, column : Int }
+                         }
 type alias AceMessage = { evt : String 
-                        , args  : String}
+                        , strArg  : String 
+                        , cursorArg : { row : Int, column : Int }
+                        } 
 
 -- Ultimately what is exposed to InterfaceView2
 -- Not really, we end up getting a Signal... Hmm...
@@ -56,11 +60,13 @@ type alias AceMessage = { evt : String
 interpretAceEvents : AceMessage -> Event
 interpretAceEvents amsg = case Debug.log "got\n" amsg.evt of
     "AceCodeUpdate" -> InterfaceModel.UpdateModel <|
-        \m -> if ((/=) amsg.args m.code)  
-                then { m | code <- Debug.log "args\n"amsg.args }
-                else m
+        \m -> { m | code <- amsg.strArg
+                  , cursorPos <- amsg.cursorArg 
+              }
     "init" -> InterfaceModel.Noop
     _ -> Debug.crash "Malformed update sent to Elm"
 
 packageModel : InterfaceModel.Model -> CodeBoxInfo
-packageModel model = { code = model.code }
+packageModel model = { code = model.code 
+                     , cursorPos = model.cursorPos 
+                     }

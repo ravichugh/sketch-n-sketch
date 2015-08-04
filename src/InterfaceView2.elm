@@ -670,8 +670,8 @@ mainSectionVertical w h model =
   GE.flow GE.right <|
     [ codeSection, gutter, middleSection, gutter, canvasSection ]
 
-mainSectionHorizontal : Int -> Int -> Model -> GE.Element -> GE.Element
-mainSectionHorizontal w h model renderedCodeBox =
+mainSectionHorizontal : Int -> Int -> Model -> GE.Element
+mainSectionHorizontal w h model =
   let
     hGut    = params.mainSection.horizontal.hGut
     hMiddle = hBtn
@@ -986,8 +986,8 @@ saveElement model w h = case model.mode of
   _ -> GE.empty 
     
 
-view : (Int, Int) -> Model -> GE.Element -> GE.Element
-view (w,h) model renderedCodeBox =
+view : (Int, Int) -> Model -> GE.Element
+view (w,h) model =
   let
     wAll = w - (2 * wGut) - 1
     wGut = params.wGut
@@ -1024,8 +1024,8 @@ view (w,h) model renderedCodeBox =
   let midSection =
     GE.size wAll hMid <|
       case model.orient of
-        Vertical   -> mainSectionVertical wAll hMid model renderedCodeBox
-        Horizontal -> mainSectionHorizontal wAll hMid model renderedCodeBox in
+        Vertical   -> mainSectionVertical wAll hMid model
+        Horizontal -> mainSectionHorizontal wAll hMid model in
 
   let botSection = GE.spacer wAll hBot in
   let sideGutter = colorDebug Color.black <| GE.spacer wGut hTot in
