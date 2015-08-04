@@ -78,6 +78,11 @@ switchOrient m = case m of
 
 toggleShowZones x = (1 + x) % showZonesModes
 
+maybeAdjustShowZones m =
+  case (m.mode, m.showZones == showZonesDel) of
+    (Live _, True) -> { m | showZones <- toggleShowZones m.showZones }
+    _              -> m
+
 -- may want to eventually have a maximum history length
 addToHistory s h = (s :: fst h, [])
 
@@ -199,6 +204,7 @@ upstate evt old = case debugLog "Event" evt of
         if | i == List.length l -> old.history  -- revert was chosen
            | otherwise          -> addToHistory prev old.history
       in
+      maybeAdjustShowZones
       { old | code <- unparseE ei
             , inputExp <- Just ei
             , history <- h
@@ -242,7 +248,8 @@ upstate evt old = case debugLog "Event" evt of
 
     SwitchOrient -> { old | orient <- switchOrient old.orient }
 
-    ToggleZones -> { old | showZones <- toggleShowZones old.showZones }
+    ToggleZones ->
+      maybeAdjustShowZones { old | showZones <- toggleShowZones old.showZones }
 
     Undo ->
       case (old.code, old.history) of
@@ -260,6 +267,7 @@ upstate evt old = case debugLog "Event" evt of
 
     KeysDown l ->
       -- let _ = Debug.log "keys" (toString l) in
+      -- TODO consider old.mode before firing some of these events
       case editingMode old of
         True -> if
           | l == keysMetaShift -> upstate Run old
