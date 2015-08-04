@@ -29,6 +29,7 @@ import Debug
 -- to have to do some JSON decoding business, hopefully it can be coerced into
 -- a VirtualDom/Elm-Html type without too much trouble, from which conversion to
 -- an Element is easy.
+<<<<<<< HEAD
 -- type alias JsHtml = {}
 type alias CodeBoxInfo = { code : String }
 type alias AceMessage = { evt : String 
@@ -50,6 +51,7 @@ type alias AceMessage = { evt : String
 -- codebox : Signal AceMessage
 -- codebox = Signal.map interpret fromAce.signal
 
+<<<<<<< HEAD
 --interpretAceHtml : JsHtml -> GE.Element
 --interpretAceHtml ahtml = GE.spacer 0 0
 

@@ -55,10 +55,10 @@ port aceInTheHole = Signal.map packageModel sigModel
 -- Port for Event messages from the code box
 -- port theTurn : Signal AceMessage (type not exposed)
 port theTurn : Signal CodeBox.AceMessage
-
 --port theTurn = eventsFromAce.signal
 
 -- Port for Html messages from the code box (e.g. the rendered code box)
 -- port theRiver : Signal JsHtml (type not exposed)
 -- port theRiver : Signal CodeBox.JsHtml
+port theRiver : Signal CodeBox.JsHtml
 --port theRiver = htmlFromAce.signal
