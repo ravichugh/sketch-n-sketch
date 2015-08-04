@@ -625,6 +625,7 @@ codeBox w h = Html.toElement w h <|
                  [ ("width", dimToPix w)
                  , ("height", dimToPix h)
                  , ("pointer-events", "auto")
+                 , ("z-index", "1")
                  ]
              ] []
 

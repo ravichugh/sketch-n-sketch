@@ -81,14 +81,17 @@ window.oncrash = function(msg, url, linenumber) {
 
 var editor = ace.edit("editor");
 editor.$blockScrolling = Infinity;
-editor.setTheme("ace/theme/chrome");
+editor.setTheme("ace/theme/chaos");
 editor.getSession().setMode("ace/mode/lisp");
-editor.getSession().getDocument().on("change", maybeSendUpdate)
+editor.getSession().getDocument().on("change", maybeSendUpdate);
+editor.getSession().selection.on("changeCursor", maybeSendUpdate);
 
 var updateWasFromElm = false;
 
 runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
     updateWasFromElm = true;
+    console.log("Got upd:");
+    console.log(codeBoxInfo);
     //editor.destroy();
     //Need to remove the old event listeners
     //copyWithNoEventListeners = editor.container.cloneNode(true);
@@ -101,7 +104,7 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
     editor.moveCursorTo(codeBoxInfo.cursorPos.row, codeBoxInfo.cursorPos.column);
     //editorCopy = editor.container.cloneNode(true);
     //console.log(editorCopy);
-    editorDiv = document.getElementById("editor");
+    var editorDiv = document.getElementById("editor");
     editorDiv.parentNode.replaceChild(editor.container, editorDiv);
     //editor.getSession().setMode("ace/mode/lisp");
     //editor.resize(true);
