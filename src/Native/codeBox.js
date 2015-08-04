@@ -91,8 +91,8 @@ var updateWasFromElm = false;
 runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
     updateWasFromElm = true;
     editor.resize();
-    console.log("Got upd:");
-    console.log(codeBoxInfo);
+    //console.log("Got upd:");
+    //console.log(codeBoxInfo);
     //editor.destroy();
     //Need to remove the old event listeners
     //copyWithNoEventListeners = editor.container.cloneNode(true);
