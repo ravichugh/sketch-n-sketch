@@ -623,8 +623,9 @@ codeBox : Int -> Int -> GE.Element
 codeBox w h = Html.toElement w h <|
     Html.Lazy.lazy2 (\a b -> Html.div [ Attr.id "editor"
              , Attr.style
-                 [ ("width", dimToPix w)
-                 , ("height", dimToPix h)
+                 [ ("width", "100%") -- The toElement makes a wrapping Div that
+                                     -- has the appropriate w/h
+                 , ("height", "100%")
                  , ("pointer-events", "auto")
                  , ("z-index", "1")
                  ]

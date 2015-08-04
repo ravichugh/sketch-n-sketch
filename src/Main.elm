@@ -43,8 +43,7 @@ adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
 -- The necessary port for Tasks/Storage
 -- Due to current Elm limitations, this must be in the Main module
 port taskPort : Signal (Task String ())
-port taskPort = {-Signal.map (\m -> m `andThen` \_ -> Signal.send events.address
-Model.Noop)-} taskMailbox.signal
+port taskPort = taskMailbox.signal
 
 -- Port for messages to the code box
 -- The model (will) contain all the information needed to deduce highlights and such
