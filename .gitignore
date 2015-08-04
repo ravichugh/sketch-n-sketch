@@ -168,11 +168,11 @@ ace-builds/src/mode-xquery.js
 ace-builds/src/mode-yaml.js
 ace-builds/src/snippets/
 ace-builds/src/theme-ambiance.js
-ace-builds/src/theme-chaos.js
 ace-builds/src/theme-chrome.js
 ace-builds/src/theme-clouds.js
 ace-builds/src/theme-clouds_midnight.js
 ace-builds/src/theme-cobalt.js
+ace-builds/src/theme-chaos.js
 ace-builds/src/theme-crimson_editor.js
 ace-builds/src/theme-dawn.js
 ace-builds/src/theme-dreamweaver.js
@@ -186,7 +186,6 @@ ace-builds/src/theme-kuroir.js
 ace-builds/src/theme-merbivore.js
 ace-builds/src/theme-merbivore_soft.js
 ace-builds/src/theme-mono_industrial.js
-ace-builds/src/theme-monokai.js
 ace-builds/src/theme-pastel_on_dark.js
 ace-builds/src/theme-solarized_dark.js
 ace-builds/src/theme-solarized_light.js
