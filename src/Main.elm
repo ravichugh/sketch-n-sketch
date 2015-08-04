@@ -49,8 +49,21 @@ port taskPort = taskMailbox.signal
 -- The model (will) contain all the information needed to deduce highlights and such
 -- Note that we don't want to drop repeats, as we need to rerender the Ace
 -- editor whenever the rest of the window is rendered
+--
+-- Current 'race condition issue' - Whenever a Task is used to update, it seems
+-- that the order of rendering (Element in view vs codeBox.js replacing it) is
+-- switched from when it would otherwise be. So, the order of events is:
+--   Model Update -> View Renders empty div -> codeBox.js replaces it
+--    Now is:
+--   Event -> Task to update model is created -> View Renders empty div ->
+--     codebox.js replaces it -> Task returns? -> View is rerendered, codebox
+--       does not replace?
+--
+-- But when the task returns, that should update the below signal anyways, which
+-- should trigger a rerender. Hmm.
+--
 port aceInTheHole : Signal CodeBoxInfo
-port aceInTheHole = Signal.map packageModel sigModel
+port aceInTheHole = Signal.map2 (\a b -> packageModel b) Window.dimensions sigModel
 
 -- Port for Event messages from the code box
 -- port theTurn : Signal AceMessage (type not exposed)
