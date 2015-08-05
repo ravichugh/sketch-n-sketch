@@ -40,6 +40,7 @@ type alias CodeBoxInfo = { code : String
                          , cursorPos : Model.Pos
                          , manipulable : Bool
                          , selections : List Model.Range
+                         , highlights : List Model.Highlight
                          }
 type alias AceMessage = { evt : String 
                         , strArg  : String 
@@ -72,8 +73,7 @@ interpretAceEvents amsg = case Debug.log "got\n" amsg.evt of
         \m -> { m | code <- amsg.strArg
                   , codeBoxInfo <- { cursorPos = amsg.cursorArg
                                    , selections = amsg.selectionArg
-                                   -- TODO: this is a placeholder
-                                   -- , highlights = Dict.empty
+                                   , highlights = m.codeBoxInfo.highlights
                                    }
               }
     "init" -> Model.Noop
@@ -90,6 +90,7 @@ packageModel model =
         , cursorPos = model.codeBoxInfo.cursorPos 
         , selections = model.codeBoxInfo.selections
         , manipulable = manipulable
+        , highlights = model.codeBoxInfo.highlights
         }
 
 -- Try to see if we can rerender in the same way that we push other events
