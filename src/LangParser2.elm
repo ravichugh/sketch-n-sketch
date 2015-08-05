@@ -68,13 +68,18 @@ freshenExps k es =
     let (e1,k1) = freshen_ k' e in
     (e1::es', k1)) ([],k) es
 
-freshenRanges : Int -> List ERange -> (List ERange, Int)
+freshenRanges : Int -> List Range -> (List Range, Int)
 freshenRanges k rs =  
   List.foldr (\r (rs',k') ->
-    let (l,u) = r.val
-        (l1,k1) = freshen_ k' l
-        (u1,k2) = freshen_ k1 u
-    in ({r | val <- (l1,u1)} :: rs', k2)
+    let (r_,k_) = case r.val of
+      Point e ->
+        let (e',k'') = freshen_ k' e in
+        (Point e', k'')
+      Interval e1 e2 ->
+        let ([e1',e2'],k'') = freshenExps k' [e1,e2] in
+        (Interval e1' e2', k'')
+    in
+    ({ r | val <- r_ } :: rs', k_)
   ) ([],k) rs
 
 
@@ -121,11 +126,12 @@ substOfExps_ s es = case es of
   e::es' -> substOfExps_ (substOf_ s e) es'
 
 substOfRanges_ s rs = case rs of
-  [] -> s
-  r :: rs' -> 
-      let (l,u) = r.val 
-      in
-        substOfRanges_ (substOf_ (substOf_ s l) u) rs'
+  []     -> s
+  r::rs' ->
+    case r.val of
+      Point e        -> substOfRanges_ (substOf_ s e) rs'
+      Interval e1 e2 -> substOfRanges_ (substOfExps_ s [e1,e2]) rs'
+
 
 ------------------------------------------------------------------------------
 
@@ -347,18 +353,19 @@ parseExpList =
   parseListLiteralOrMultiCons
     parseExp (\xs -> EList xs Nothing) (\xs y -> EList xs (Just y))
 
---Like parseExpList but with parseIndListLIteral instead of pLLOMC
-parseExpIndList = parseIndListLiteral parseERange EIndList
-
 -- Only want to allow Number Literals at the moment
-parseERange =
-  ( white parseNumE >>= \l ->
-        token_ ".." >>>
-    white parseNumE >>= \u ->
-        P.returnWithInfo (l, u) l.start u.end)
-  <++
-  ( white parseNumE >>= \l ->
-        P.returnWithInfo (l,l) l.start l.end)
+parseExpIndList = parseIndListLiteral parseERange EIndList
+parseERange     = parseInterval <++ parsePoint
+
+parsePoint =
+  white parseNumE >>= \e ->
+    P.return (Point e)
+
+parseInterval =
+  white parseNumE >>= \e1 ->
+  token_ ".."     >>>
+  white parseNumE >>= \e2 ->
+    P.return (Interval e1 e2)
 
 parseRec =
       (always True  <$> token_ "letrec")

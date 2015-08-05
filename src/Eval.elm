@@ -69,8 +69,10 @@ eval env e =
                      VList vs' -> ret <| VList (vs ++ vs')
 
   EIndList rs -> 
-      let vrs = List.concat <| List.map rangeToList rs
-      in ret <| VList vrs
+    let vs = List.concat <| List.map rangeToList rs in
+    if isSorted vs
+    then ret <| VList vs
+    else Debug.crash <| "indices not strictly increasing: " ++ strVal (VList vs)
 
   EIf e1 e2 e3 ->
     case eval_ env e1 of
@@ -175,18 +177,31 @@ run e =
 parseAndRun : String -> String
 parseAndRun = strVal << run << Utils.fromOk_ << Parser.parseE
 
+rangeOff l1 i l2 = TrOp (RangeOffset i) [TrLoc l1, TrLoc l2]
+
 -- Inflates a range to a list, which is then Concat-ed in eval
-rangeToList : ERange -> List Val
-rangeToList r = 
-    let (l,u) = r.val
-    in
-      case (l.val, u.val) of
-        (EConst nl tl, EConst nu tu) ->
-           let walkVal i =
-             let j = toFloat i in
-             if | (nl + j) < nu -> VConst (nl + j, TrOp (RangeOffset i) [TrLoc tl]) :: walkVal (i + 1)
-                | otherwise     -> [ VConst (nu, TrLoc tu) ]
-           in
-           if | nl == nu  -> [ VConst (nl, TrLoc tl) ]
-              | otherwise -> walkVal 0
-        _ -> Debug.crash "Range not specified with numeric constants"
+rangeToList : Range -> List Val
+rangeToList r =
+  let err () = Debug.crash "Range not specified with numeric constants" in
+  case r.val of
+    Point e -> case e.val of
+      EConst n l -> [ VConst (n, rangeOff l 0 l) ]
+      _          -> err ()
+    Interval e1 e2 -> case (e1.val, e2.val) of
+      (EConst n1 l1, EConst n2 l2) ->
+        let walkVal i =
+          let m = n1 + toFloat i in
+          if | m < n2    -> VConst (m, rangeOff l1 i l2) :: walkVal (i + 1)
+             | otherwise -> VConst (n2, TrLoc l2) :: []
+        in
+        walkVal 0
+      _ -> err ()
+
+-- Could compute this in one pass along with rangeToList
+isSorted = isSorted_ Nothing
+isSorted_ mlast vs =
+  case (mlast, vs) of
+    (_, [])                        -> True
+    (Nothing, VConst (j,_) :: vs') -> isSorted_ (Just j) vs'
+    (Just i,  VConst (j,_) :: vs') -> if | i < j     -> isSorted_ (Just j) vs'
+                                         | otherwise -> False

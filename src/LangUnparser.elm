@@ -132,14 +132,10 @@ unparseE : Exp -> String
 unparseE e = whitespace startPos e.start ++ unparse e
 
 -- Currently only remembers whitespace after ".."
-unparseRange : ERange -> List Unparsable
-unparseRange r = case r.val of (l,u) -> case (l.val,u.val) of
-    (EConst lv lt, EConst uv ut) -> 
-        if | lv == uv -> [ UExp l ]
-           | otherwise -> [ UExp l
-                          , UStr <| makeToken l.end ".."
-                          , UExp u
-                          ]
+unparseRange : Range -> List Unparsable
+unparseRange r = case r.val of
+  Point e        -> [ UExp e ]
+  Interval e1 e2 -> [ UExp e1, UStr (makeToken e1.end ".."), UExp e2 ]
 
 -- NOTE: use this to go back to original unparser
 -- unparseE = sExp

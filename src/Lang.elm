@@ -21,6 +21,7 @@ type alias Pat    = P.WithInfo Pat_
 type alias Exp    = P.WithInfo Exp_
 type alias Op     = P.WithInfo Op_
 type alias Branch = P.WithInfo Branch_
+type alias Range  = P.WithInfo Range_
 
 type Pat_
   = PVar Ident
@@ -39,7 +40,6 @@ type Op_
   -- internal ops
   | RangeOffset Int
 
-
 type Exp_
   = EConst Num Loc
   | EBase BaseVal
@@ -48,7 +48,7 @@ type Exp_
   | EApp Exp (List Exp)
   | EOp Op (List Exp)
   | EList (List Exp) (Maybe Exp)
-  | EIndList (List ERange)
+  | EIndList (List Range)
   | EIf Exp Exp Exp
   | ECase Exp (List Branch)
   | ELet LetKind Rec Pat Exp Exp
@@ -68,8 +68,9 @@ type alias Branch_ = (Pat, Exp)
 type LetKind = Let | Def
 type alias Rec = Bool
 
--- Enforce invariant that ERange is only ever (EConst ..., EConst ...)
-type alias ERange = P.WithInfo (Exp, Exp)
+type Range_ -- right now, Exps are always EConsts
+  = Interval Exp Exp
+  | Point Exp
 
 type Val
   = VConst NumTr
@@ -99,15 +100,10 @@ strBaseVal v = case v of
   String s   -> "\'" ++ s ++ "\'"
   Star       -> "X"
 
-strRange : Bool -> Int -> ERange -> String
-strRange showLocs k r =
-  let (el,eu) = r.val
-      (EConst nl _) = el.val 
-      (EConst nu _) = eu.val 
-  in
-    if | nl == nu -> sExp_ showLocs k el
-       | otherwise -> 
-           sExp_ showLocs k el ++ ".." ++ sExp_ showLocs k eu
+strRange : Bool -> Int -> Range -> String
+strRange showLocs k r = case r.val of
+  Point e        -> sExp_ showLocs k e
+  Interval e1 e2 -> sExp_ showLocs k e1 ++ ".." ++ sExp_ showLocs k e2
 
 strVal     = strVal_ False
 strValLocs = strVal_ True
@@ -282,7 +278,11 @@ mapExp f e =
     EApp e1 es     -> g (EApp (foo e1) (List.map foo es))
     EOp op es      -> g (EOp op (List.map foo es))
     EList es m     -> g (EList (List.map foo es) (Utils.mapMaybe foo m))
-    EIndList rs    -> g (EIndList rs)
+    EIndList rs    -> let foo r_ = case r_ of
+                        Interval e1 e2 -> Interval (mapExp f e1) (mapExp f e2)
+                        Point e1       -> Point (mapExp f e1)
+                      in
+                      g (EIndList (List.map (mapValField foo) rs))
     EIf e1 e2 e3   -> g (EIf (foo e1) (foo e2) (foo e3))
     ECase e1 l     -> g (ECase (foo e1) (List.map (mapValField (\(p,ei) -> (p, foo ei))) l))
     EComment s e1  -> g (EComment s (foo e1))
@@ -314,12 +314,11 @@ applySubst subst e = (\e_ -> P.WithInfo e_ e.start e.end) <| case e.val of
   EOp op es  -> EOp op (List.map (applySubst subst) es)
   EList es m -> EList (List.map (applySubst subst) es)
                       (Utils.mapMaybe (applySubst subst) m)
-  EIndList rs -> EIndList <| 
-                  (List.map 
-                    (\r -> r.val |> \(l,u) -> 
-                      { r | val <- (applySubst subst l, applySubst subst u)}
-                    )
-                  ) rs
+  EIndList rs ->
+    let f r_ = case r_ of
+      Interval e1 e2 -> Interval (applySubst subst e1) (applySubst subst e2)
+      Point e1       -> Point (applySubst subst e1) in
+    EIndList (List.map (mapValField f) rs)
   EApp f es  -> EApp (applySubst subst f) (List.map (applySubst subst) es)
   ELet k b p e1 e2 ->
     ELet k b p (applySubst subst e1) (applySubst subst e2) -- TODO
