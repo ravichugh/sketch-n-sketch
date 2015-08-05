@@ -7,6 +7,8 @@ import InterfaceStorage exposing (taskMailbox)
 import Graphics.Element exposing (Element)
 import Mouse 
 import Window 
+import Keyboard
+import Set
 
 import Task exposing (Task)
 
@@ -24,6 +26,9 @@ main =
               |> Signal.map (\(x,y) -> y)
               |> Signal.map2 adjustCoords Window.dimensions
               |> Signal.map Model.MousePos
+          , Signal.map
+              (Model.KeysDown << List.sort << Set.toList)
+              Keyboard.keysDown
           ]
    in
      Signal.map2 View.view Window.dimensions sigModel

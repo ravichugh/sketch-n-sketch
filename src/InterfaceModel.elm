@@ -12,6 +12,7 @@ import List
 import Dict
 import Debug
 import String
+import Char
 
 import Svg
 import Lazy
@@ -96,6 +97,7 @@ type Event = CodeUpdate String
            | SwitchOrient
            | StartResizingMid
            | Undo | Redo
+           | KeysDown (List Char.KeyCode)
            | Noop
            | UpdateModel (Model -> Model)
                -- TODO could write other events in terms of UpdateModel
