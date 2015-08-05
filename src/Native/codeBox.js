@@ -156,8 +156,8 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
     
     //Set the contents to the correct manipulable state
     if (!codeBoxInfo.manipulable) {
-        editor.container.style.zIndex = "-1";
-        editor.container.style.pointerEvents = "none";
+        editor.container.style.zIndex = "0";
+        editor.container.style.pointerEvents = "auto";
         editor.setReadOnly(true);
     } else {
         editor.container.style.zIndex = "1";

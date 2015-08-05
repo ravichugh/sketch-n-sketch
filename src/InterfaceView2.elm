@@ -1107,9 +1107,9 @@ view (w,h) model =
         , basicUI
         ]
     (False, SaveDialog m) ->
-      GE.flow GE.left
-        [ --saveElement model w h
-         basicUI
+      GE.flow GE.inward
+        [ saveElement model w h
+        , basicUI
         ]
     _ ->
       basicUI
