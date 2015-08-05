@@ -84,8 +84,8 @@ var Range = ace.require('ace/range').Range
 
 var editor = ace.edit("editor");
 editor.$blockScrolling = Infinity;
-editor.setTheme("ace/theme/monokai");
-editor.setFontSize(16);
+editor.setTheme("ace/theme/chrome");
+editor.setFontSize(14);
 editor.getSession().setMode("ace/mode/lisp");
 editor.getSession().getDocument().on("change", maybeSendUpdate);
 editor.getSession().selection.on("changeCursor", maybeSendUpdate);
