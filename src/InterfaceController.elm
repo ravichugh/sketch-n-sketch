@@ -275,7 +275,8 @@ upstate evt old = case debugLog "Event" evt of
         False -> if
           | l == keysE -> upstate Edit old
           | l == keysZ -> upstate Undo old
-          | l == keysShiftZ -> upstate Redo old
+          -- | l == keysShiftZ -> upstate Redo old
+          | l == keysY -> upstate Redo old
           | l == keysG || l == keysH -> -- for right- or left-handers
               upstate ToggleZones old
           | l == keysO -> upstate ToggleOutput old
@@ -299,12 +300,12 @@ upstate evt old = case debugLog "Event" evt of
 adjustMidOffsetX old dx =
   case old.orient of
     Vertical   -> { old | midOffsetX <- old.midOffsetX + dx }
-    Horizontal -> old
+    Horizontal -> upstate SwitchOrient old
 
 adjustMidOffsetY old dy =
   case old.orient of
     Horizontal -> { old | midOffsetY <- old.midOffsetY + dy }
-    Vertical   -> old
+    Vertical   -> upstate SwitchOrient old
 
 
 --------------------------------------------------------------------------------
@@ -313,7 +314,8 @@ adjustMidOffsetY old dy =
 keysMetaShift           = List.sort [keyMeta, keyShift]
 keysE                   = List.sort [Char.toCode 'E']
 keysZ                   = List.sort [Char.toCode 'Z']
-keysShiftZ              = List.sort [keyShift, Char.toCode 'Z']
+keysY                   = List.sort [Char.toCode 'Y']
+-- keysShiftZ              = List.sort [keyShift, Char.toCode 'Z']
 keysG                   = List.sort [Char.toCode 'G']
 keysH                   = List.sort [Char.toCode 'H']
 keysO                   = List.sort [Char.toCode 'O']
