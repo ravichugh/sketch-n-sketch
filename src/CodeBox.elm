@@ -5,9 +5,11 @@ module CodeBox (interpretAceEvents, packageModel, rerender,
                 AceMessage, CodeBoxInfo) where
 
 import Graphics.Element as GE
-import InterfaceModel exposing (Event, sampleModel, events)
+import InterfaceModel as Model exposing (Event, sampleModel, events)
 
 import Task exposing (Task)
+
+import Dict exposing (Dict)
 
 -- So we can crash correctly
 import Debug
@@ -32,19 +34,18 @@ import Debug
 -- a VirtualDom/Elm-Html type without too much trouble, from which conversion to
 -- an Element is easy.
 -- type alias JsHtml = {}
+
+-- TODO give this a different name than the CodeBoxInfo in Model
 type alias CodeBoxInfo = { code : String 
-                         , cursorPos : Pos
+                         , cursorPos : Model.Pos
                          , manipulable : Bool
-                         , selections : List Range
+                         , selections : List Model.Range
                          }
 type alias AceMessage = { evt : String 
                         , strArg  : String 
-                        , cursorArg : Pos
-                        , selectionArg : List Range
+                        , cursorArg : Model.Pos
+                        , selectionArg : List Model.Range
                         } 
-
-type alias Pos = { row : Int, column : Int }
-type alias Range = { start : Pos, end : Pos }
 
 -- Ultimately what is exposed to InterfaceView2
 -- Not really, we end up getting a Signal... Hmm...
@@ -67,19 +68,21 @@ type alias Range = { start : Pos, end : Pos }
 
 interpretAceEvents : AceMessage -> Event
 interpretAceEvents amsg = case Debug.log "got\n" amsg.evt of
-    "AceCodeUpdate" -> InterfaceModel.UpdateModel <|
+    "AceCodeUpdate" -> Model.UpdateModel <|
         \m -> { m | code <- amsg.strArg
                   , codeBoxInfo <- { cursorPos = amsg.cursorArg
                                    , selections = amsg.selectionArg
+                                   -- TODO: this is a placeholder
+                                   -- , highlights = Dict.empty
                                    }
               }
-    "init" -> InterfaceModel.Noop
+    "init" -> Model.Noop
     _ -> Debug.crash "Malformed update sent to Elm"
 
-packageModel : InterfaceModel.Model -> CodeBoxInfo
+packageModel : Model.Model -> CodeBoxInfo
 packageModel model = 
     let manipulable = case (model.mode, model.editingMode) of
-            (InterfaceModel.SaveDialog _, _) -> False
+            (Model.SaveDialog _, _) -> False
             (_, Nothing) -> False
             _           -> True
     in
@@ -91,4 +94,4 @@ packageModel model =
 
 -- Try to see if we can rerender in the same way that we push other events
 rerender : Task String ()
-rerender = Signal.send events.address <| InterfaceModel.UpdateModel (\m -> m)
+rerender = Signal.send events.address <| Model.UpdateModel (\m -> m)

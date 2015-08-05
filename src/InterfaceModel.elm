@@ -7,9 +7,10 @@ import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Zone)
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparseE)
+import OurParser2 as P
 
 import List 
-import Dict
+import Dict exposing (Dict)
 import Debug
 import String
 
@@ -51,12 +52,20 @@ type alias DialogInfo = { value : String
                         , hint   : String
                         }
 
-type alias CodeBoxInfo = { cursorPos : Pos
-                         , selections : List Range
-                         }
+type alias CodeBoxInfo =
+  { cursorPos : Pos
+  , selections : List Range
+  -- TODO add this
+  -- , highlights : Dict RangeTuple HighlightColor
+  }
 
+type HighlightColor = Gray | Yellow | Green | Red
+
+-- TODO use P.Pos instead of Pos and P.WithInfo () instead of Range
 type alias Pos = { row : Int, column : Int }
 type alias Range = { start : Pos, end : Pos }
+
+type alias RangeTuple = (Int, (Int,Int))  -- for Set/Dict
 
 type alias RawSvg = String
 
@@ -144,6 +153,7 @@ sampleModel =
     , startup       = True
     , codeBoxInfo   = { cursorPos = { row = round 0, column = round 0 }
                       , selections = []
+                      -- , highlights = Dict.empty
                       }
     }
 

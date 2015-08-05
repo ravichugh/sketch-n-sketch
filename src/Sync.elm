@@ -691,7 +691,7 @@ type alias Trigger  = List (AttrName, Num) -> (Exp, Dict NodeId (Dict AttrName N
 type alias LiveInfo =
   { triggers    : Triggers
   , assignments : Dict NodeId (Dict Zone Locs)
-  , initSubst   : Subst
+  , initSubst   : Parser.SubstPlus
   }
 
 tryToBeSmart = False
@@ -701,10 +701,11 @@ prepareLiveUpdates opts e v =
   let d0 = nodeToAttrLocs v in
   let d1 = shapesToZoneTable opts d0 in
   let d2 = assignTriggers d1 in
-  let initSubst = Parser.substOf e in
+  let initSubstPlus = Parser.substPlusOf e in
+  let initSubst = Dict.map (always .val) initSubstPlus in
     { triggers    = makeTriggers initSubst opts e d0 d2
     , assignments = zoneAssignments d2
-    , initSubst   = initSubst
+    , initSubst   = initSubstPlus
     }
 
 -- TODO refactor Dict data structures above to make this more efficient

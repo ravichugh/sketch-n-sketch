@@ -15,6 +15,7 @@ loc:
     Eval.elm Sync.elm \
     InterfaceModel.elm InterfaceView2.elm InterfaceController.elm \
     InterfaceStorage.elm Storage.elm \
+    Codebox.elm Native/codeBox.js \
     Main.elm Config.elm \
     PreludeTemplate.elm ExamplesTemplate.elm \
     ColorNum.elm

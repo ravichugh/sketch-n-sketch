@@ -888,7 +888,7 @@ caption model w h =
           case hoverInfo info (i,k,z) of
             Nothing -> GE.empty
             Just l ->
-              let numLocs = List.map (\(s,n) -> toString n ++ Utils.braces s) l in
+              let numLocs = List.map (\(s,n) -> toString n.val ++ Utils.braces s) l in
               let line1 = (k ++ toString i) ++ " " ++ z in
               let line2 = Utils.spaces numLocs in
               eStr (" " ++ line1 ++ "\n " ++ line2)
