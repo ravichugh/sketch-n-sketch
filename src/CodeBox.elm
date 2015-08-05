@@ -37,14 +37,14 @@ import Debug
 
 -- TODO give this a different name than the CodeBoxInfo in Model
 type alias CodeBoxInfo = { code : String 
-                         , cursorPos : Model.Pos
+                         , cursorPos : Model.AcePos
                          , manipulable : Bool
                          , selections : List Model.Range
                          , highlights : List Model.Highlight
                          }
 type alias AceMessage = { evt : String 
                         , strArg  : String 
-                        , cursorArg : Model.Pos
+                        , cursorArg : Model.AcePos
                         , selectionArg : List Model.Range
                         } 
 

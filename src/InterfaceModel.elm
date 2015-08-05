@@ -51,7 +51,7 @@ type alias DialogInfo = { value : String
                         }
 
 type alias CodeBoxInfo =
-  { cursorPos : Pos
+  { cursorPos : AcePos
   , selections : List Range
   , highlights : List Highlight
   }
@@ -60,8 +60,8 @@ type alias Highlight =
   { range : Range, color : String }
 
 -- TODO use P.Pos instead of Pos and P.WithInfo () instead of Range
-type alias Pos = { row : Int, column : Int }
-type alias Range = { start : Pos, end : Pos }
+type alias AcePos = { row : Int, column : Int }
+type alias Range = { start : AcePos, end : AcePos }
 
 type alias RawSvg = String
 

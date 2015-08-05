@@ -131,13 +131,36 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
                                  elmRange.start.column,
                                  elmRange.end.row,
                                  elmRange.end.column);
-        console.log(aceRange);
+            console.log(aceRange);
         if (i === 0) {
-            editor.selection.fromOrientedRange(aceRange);
+            //We only allow backwards selections if there is just one selection
+            //We deduce if it's backwards by comparing the cursor position to
+            // the end of the selection (which always orients itself such that
+            // it's > the start in the process of constucting the Range)
+            //Note that we use compareEnd here because the compare functions are
+            // a little wonky - compareStart returns -1, for instance, if the
+            // cursor is at the start.
+            if (numRanges === 1) {
+                if (aceRange.compareEnd(codeBoxInfo.cursorPos.row,
+                                        codeBoxInfo.cursorPos.column) === 1) {
+                    var backwards = false;
+                } else {
+                    var backwards = true;
+                }
+                editor.selection.setSelectionRange(aceRange, backwards);
+            } else {
+                editor.selection.fromOrientedRange(aceRange);
+            }
         } else {
             editor.selection.addRange(aceRange, false);
         }
     }
+
+    //Add the special syntax highlighting for changes and such
+    //These are 'markers', see:
+    //http://ace.c9.io/#nav=api&api=edit_session
+    //ctl+f addMarker
+    //
 
     //editorCopy = editor.container.cloneNode(true);
     //console.log(editorCopy);
