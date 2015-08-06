@@ -63,6 +63,7 @@ upslate id newattr nodes = case Dict.get id nodes of
             let newnode = LangSvg.SvgNode shape (Utils.update newattr attrs) children
             in Dict.insert id newnode nodes
 
+-- TODO may need to reset codeBoxInfo.highlights here
 refreshMode model e =
   case model.mode of
     Live _  -> mkLive_ model.syncOptions e

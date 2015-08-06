@@ -59,7 +59,6 @@ type alias CodeBoxInfo =
 type alias Highlight =
   { range : Range, color : String }
 
--- TODO use P.Pos instead of Pos and P.WithInfo () instead of Range
 type alias AcePos = { row : Int, column : Int }
 type alias Range = { start : AcePos, end : AcePos }
 

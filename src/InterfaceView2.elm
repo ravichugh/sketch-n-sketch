@@ -2,7 +2,7 @@ module InterfaceView2 (view, scaleColorBall) where
 
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
-import LangParser2 exposing (parseE, parseV)
+import LangParser2 as Parser exposing (parseE, parseV)
 import Sync
 import Eval
 import Utils
@@ -11,12 +11,14 @@ import InterfaceModel exposing (..)
 import LangSvg exposing (toNum, toNumTr, addi)
 import ExamplesGenerated as Examples
 import Config exposing (params)
+import OurParser2 as P
 
 import VirtualDom
 
 --Core Libraries
 import List 
 import Dict
+import Set
 import String 
 import Graphics.Element as GE 
 import Graphics.Collage as GC
@@ -160,8 +162,8 @@ onMouseOut  = Svg.Events.onMouseOut  << Signal.message events.address
 zoneEvents id shape zone =
   [ onMouseDown (SelectObject id shape zone)
   , onMouseUp MouseUp
-  , onMouseOver (UpdateModel (\m -> { m | caption <- Just (Hovering (id, shape, zone)) }))
-  , onMouseOut (UpdateModel (\m -> { m | caption <- Nothing }))
+  , onMouseOver (turnOnCaptionAndHighlights id shape zone)
+  , onMouseOut turnOffCaptionAndHighlights
   ]
 
 zone svgFunc id shape zone l =
@@ -878,6 +880,10 @@ orientationButton w h model =
     in
       simpleButton SwitchOrient text text text w h
 
+
+--------------------------------------------------------------------------------
+-- Zone Caption and Highlights
+
 caption : Model -> Int -> Int -> GE.Element
 caption model w h =
   let eStr = GE.leftAligned << T.color Color.white << T.monospace << T.fromString in
@@ -900,12 +906,59 @@ caption model w h =
 hoverInfo info (i,k,z) =
   let err y = "hoverInfo: " ++ toString y in
   flip Utils.bindMaybe (Dict.get i info.assignments) <| \d ->
-  flip Utils.bindMaybe (Dict.get z d)                <| \locs ->
+  flip Utils.bindMaybe (Dict.get z d)                <| \(locset,_) ->
+    let locs = Set.toList locset in
     Just <|
       List.map (\(lid,_,x) ->
         let n = Utils.justGet_ (err (i,z,lid)) lid info.initSubst in
         if | x == ""   -> ("loc_" ++ toString lid, n)
            | otherwise -> (x, n)) locs
+
+gray        = "gray"
+yellow      = "yellow"
+green       = "green"
+red         = "red"
+
+acePos : P.Pos  -> AcePos
+acePos p = { row = p.line, column = p.col }
+
+aceRange : P.WithInfo a -> Range
+aceRange x = { start = acePos x.start, end = acePos x.end }
+
+makeHighlight : Parser.SubstPlus -> String -> Loc -> Highlight
+makeHighlight subst color (locid,_,_) =
+  case Dict.get locid subst of
+    Just n  -> { color = color, range = aceRange n }
+    Nothing -> Debug.crash "makeHighlight: locid not in subst"
+
+turnOnCaptionAndHighlights id shape zone =
+  UpdateModel <| \m ->
+    let codeBoxInfo = m.codeBoxInfo in
+    let hi = case m.mode of
+      Live info ->
+        let subst = info.initSubst in
+        Maybe.withDefault [] <|
+          flip Utils.bindMaybe (Dict.get id info.assignments) <| \d ->
+          flip Utils.bindMaybe (Dict.get zone d) <| \(yellowLocs,grayLocs) ->
+          Just
+            <| List.map (makeHighlight subst yellow) (Set.toList yellowLocs)
+            ++ List.map (makeHighlight subst gray) (Set.toList grayLocs)
+      _ ->
+        []
+    in
+    -- TODO logging until visual highlights
+    let _ = Debug.log "hilight:\n" hi in
+    { m | caption <- Just (Hovering (id, shape, zone))
+        , codeBoxInfo <- { codeBoxInfo | highlights <- hi } }
+
+turnOffCaptionAndHighlights =
+  UpdateModel <| \m ->
+    let codeBoxInfo = m.codeBoxInfo in
+    { m | caption <- Nothing
+        , codeBoxInfo <- { codeBoxInfo | highlights <- [] } }
+
+
+--------------------------------------------------------------------------------
 
 -- The pop-up save dialog box
 -- TODO clean this up, is needlessly bulky

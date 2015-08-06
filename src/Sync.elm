@@ -690,7 +690,7 @@ type alias Trigger  = List (AttrName, Num) -> (Exp, Dict NodeId (Dict AttrName N
 
 type alias LiveInfo =
   { triggers    : Triggers
-  , assignments : Dict NodeId (Dict Zone Locs)
+  , assignments : Dict NodeId (Dict Zone (LocSet, LocSet))
   , initSubst   : Parser.SubstPlus
   }
 
@@ -811,14 +811,20 @@ evalTr subst tr = Utils.fromJust_ "evalTr" (evalTrace subst tr)
 
 ------------------------------------------------------------------------------
 
+setFromLists : List Locs -> LocSet
+setFromLists = List.foldl (flip Set.union << Set.fromList) Set.empty
+
 -- TODO compute this along with everything else
 -- could also make this a single dictionary: Dict (NodeId, Zone) Locs
-zoneAssignments : Dict2 -> Dict NodeId (Dict Zone Locs)
+zoneAssignments : Dict2 -> Dict NodeId (Dict Zone (LocSet, LocSet))
 zoneAssignments =
   Dict.map <| \i (_,l) ->
     List.foldl (\(z,m) acc ->
       case m of
-        Just (locs,_) -> Dict.insert z locs acc
+        Just (locs,otherLocs) ->
+          let yellowLocs = Set.fromList locs in
+          let grayLocs   = setFromLists otherLocs `Set.diff` yellowLocs in
+          Dict.insert z (yellowLocs, grayLocs) acc
         Nothing       -> acc
     ) Dict.empty l
 
