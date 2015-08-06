@@ -64,8 +64,9 @@ type alias MouseTrigger a = (Int, Int) -> a
 type Orientation = Vertical | Horizontal
 
 type alias PossibleChanges =
-  ( Int               -- num local changes
-  , List (Exp, Val)   -- local changes ++ [structural change, revert change]
+  ( (Int, List (Exp, Val))   -- local changes and count
+  , (Int, List (Exp, Val))   -- structural changes and count
+  , (Exp, Val)               -- revert change
   )
 
 -- using Int instead of datatype so serialization/deserialization in

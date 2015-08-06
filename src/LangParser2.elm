@@ -1,4 +1,5 @@
-module LangParser2 (prelude, isPreludeLoc, substOf, parseE, parseV) where
+module LangParser2 (prelude, isPreludeLoc, substOf, parseE, parseV,
+                    freshen) where
 
 import String
 import Dict
@@ -32,7 +33,9 @@ substOf e = substOfExps_ Dict.empty [prelude, e]
 
 freshen_ : Int -> Exp -> (Exp, Int)
 freshen_ k e = (\(e_,k') -> (P.WithInfo e_ e.start e.end, k')) <| case e.val of
-  EConst i l -> let (0,b,"") = l in (EConst i (k, b, ""), k + 1)
+  -- EConst i l -> let (0,b,"") = l in (EConst i (k, b, ""), k + 1)
+  -- freshen is now being called externally by Sync.inferDeleteUpdate
+  EConst i l -> let (_,b,x) = l in (EConst i (k, b, x), k + 1)
   EBase v    -> (EBase v, k)
   EVar x     -> (EVar x, k)
   EFun ps e  -> let (e',k') = freshen_ k e in (EFun ps e', k')
@@ -357,14 +360,23 @@ parseExpList =
 parseExpIndList = parseIndListLiteral parseERange EIndList
 parseERange     = parseInterval <++ parsePoint
 
+parseNumEAndFreeze =
+  (\(EConst n (i,_,x)) -> EConst n (i,frozen,x)) <$> parseNumE
+
+-- Toggle this to automatically freeze all range numbers
+parseBound =
+  white parseNumE
+  -- white parseNumEAndFreeze
+
+parsePoint : P.Parser Range_
 parsePoint =
-  white parseNumE >>= \e ->
+  parseBound >>= \e ->
     P.return (Point e)
 
 parseInterval =
-  white parseNumE >>= \e1 ->
+  parseBound >>= \e1 ->
   token_ ".."     >>>
-  white parseNumE >>= \e2 ->
+  parseBound >>= \e2 ->
     P.return (Interval e1 e2)
 
 parseRec =

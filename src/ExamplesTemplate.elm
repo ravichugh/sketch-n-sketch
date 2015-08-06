@@ -64,12 +64,14 @@ LITTLE_TO_ELM rotTest
 LITTLE_TO_ELM interfaceButtons
 LITTLE_TO_ELM barGraph
 LITTLE_TO_ELM thawFreeze
+LITTLE_TO_ELM deleteBoxes
 
 examples =
   [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
   , makeExample "3 Boxes" threeBoxes
   , makeExample "N Boxes" groupOfBoxes
+  , makeExample "Delete Boxes" deleteBoxes
   , makeExample "6 Boxes A" sixBoxesA
   , makeExample "6 Boxes B" sixBoxesB
   , makeExample "Thaw/Freeze" thawFreeze

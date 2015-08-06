@@ -1,5 +1,6 @@
 module Sync (Options, defaultOptions, syncOptionsOf,
              inferLocalUpdates, inferStructuralUpdate, prepareLiveUpdates,
+             inferDeleteUpdate,
              printZoneTable, LiveInfo, Triggers, tryToBeSmart) where
 
 import Dict exposing (Dict)
@@ -11,7 +12,9 @@ import String
 import Lang exposing (..)
 import LangSvg exposing (NodeId, ShapeKind, Zone, addi)
 import Eval
+import OurParser2 as P
 import LangParser2 as Parser
+import LangUnparser as Un
 
 
 ------------------------------------------------------------------------------
@@ -254,12 +257,16 @@ solveR op n i = case op of
   Mult  -> maybeFloat <| n / i
   Div   -> maybeFloat <| i / n
 
+  RangeOffset _ -> Nothing
+
 -- n = i op j
 solveL op n j = case op of
   Plus  -> maybeFloat <| n - j
   Minus -> maybeFloat <| j + n
   Mult  -> maybeFloat <| n / j
   Div   -> maybeFloat <| j * n
+
+  RangeOffset _ -> Nothing
 
 
 simpleSolve subst (sum, tr) =
@@ -391,6 +398,91 @@ inferStructuralUpdate eOld v v' =
   -- going through parser so that new location ids are assigned
   let eNew = Utils.fromOk "Sync.inferStruct" (Parser.parseE (sExp eNew_)) in
   (eNew, Eval.run eNew)
+
+
+------------------------------------------------------------------------------
+-- "Dead Code Elimination"
+
+type alias IndexTrace = (Loc, Loc, Int)
+
+indexTraces : Trace -> List IndexTrace
+indexTraces t = case t of
+  TrOp (RangeOffset i) [TrLoc l1, TrLoc l2] -> [(l1, l2, i)]
+  TrOp _ ts -> List.concatMap indexTraces ts
+  _ -> []
+
+sortIndexTraces (l1,u1,i1) (l2,u2,i2) =
+  case compare (l1,u1) (l2,u2) of
+    EQ  -> compare i1 i2
+    ord -> ord
+
+indexTracesOfVal : Val -> List IndexTrace
+indexTracesOfVal v =
+  let f v acc = case v of
+    VConst (_, t) -> indexTraces t ++ acc
+    _             -> acc
+  in
+  List.sortWith sortIndexTraces <| foldVal f v []
+
+removeDeadIndices e v' =
+  let idxTraces = indexTracesOfVal v' in
+  let foo e_ = case e_ of
+    EIndList rs -> EList (List.concatMap (expandRange idxTraces) rs) Nothing
+    _           -> e_
+  in
+  mapExp foo e
+
+expandRange idxTraces r =
+  let mem = flip List.member idxTraces in
+  case r.val of
+    Point e -> case e.val of
+      EConst n l ->
+        if | mem (l,l,0) -> [e]
+           | otherwise   -> []
+    Interval e1 e2 -> case (e1.val, e2.val) of
+      -- TODO may be better to just put exactly one space in
+      -- between each element and ignore existing positions
+      (EConst n1 l1, EConst n2 l2) ->
+        let d = ceiling (n2 - n1) in
+        let foo i (nextStart,acc) =
+          let return a =
+            let end = Un.bumpCol (String.length (strNum a)) nextStart in
+            let ei  = P.WithInfo (EConst a dummyLoc) nextStart end in
+            (Un.incCol end, ei :: acc)
+          in
+          let m = n1 + toFloat i in
+          if | mem (l1,l2,i) && m > n2 -> return n2
+             | mem (l1,l2,i)           -> return m
+             | otherwise               -> (nextStart, acc)
+        in
+        snd <| List.foldr foo (e1.start, []) [0..d]
+
+type alias MaybeOne a = List a
+nothing               = []
+just                  = Utils.singleton
+
+inferDeleteUpdate : Exp -> Val -> Val -> MaybeOne (Exp, Val)
+inferDeleteUpdate eOld v v' =
+  let (attrs1,children1) = stripSvg v in
+  let (attrs2,children2) = stripSvg v' in
+  let _ = Utils.assert "Sync.inferDeleteUpdate" (attrs1 == attrs2) in
+
+  let onlyDeletes =
+    let foo (vi,vi') =
+      if | vi == vi'                  -> Nothing
+         | vi' == LangSvg.dummySvgVal -> Just True
+         | otherwise                  -> Just False
+    in
+    let l = List.map foo (Utils.zip children1 children2) in
+    List.length (List.filter ((==) (Just True)) l) > 0
+      && List.length (List.filter ((==) (Just False)) l) == 0
+  in
+
+  if not onlyDeletes then nothing
+  else
+    -- freshen is needed b/c EConsts have been added (and removed)
+    let eNew = Parser.freshen <| removeDeadIndices eOld v' in
+    just (eNew, Eval.run eNew)
 
 
 ------------------------------------------------------------------------------

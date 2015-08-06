@@ -108,11 +108,13 @@ strRange showLocs k r = case r.val of
 strVal     = strVal_ False
 strValLocs = strVal_ True
 
+strNum     = toString
+
 strVal_ : Bool -> Val -> String
 strVal_ showTraces v =
   let foo = strVal_ showTraces in
   case v of
-    VConst (i,tr)    -> toString i
+    VConst (i,tr)    -> strNum i
                           ++ if | showTraces -> Utils.braces (strTrace tr)
                                 | otherwise  -> ""
     VBase b          -> strBaseVal b
@@ -136,6 +138,7 @@ strOp op = case op of
   Ceil  -> "ceiling"
   Round -> "round"
   ToStr -> "toString"
+  RangeOffset i -> "[[rangeOffset " ++ toString i ++ "]]"
 
 strLoc (k, b, mx) =
   "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx) ++ b
@@ -296,6 +299,15 @@ mapVal f v = case v of
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
   VHole _          -> f v
+
+foldVal : (Val -> a -> a) -> Val -> a -> a
+foldVal f v a = case v of
+  VList vs         -> f v (List.foldl (foldVal f) a vs)
+  VConst _         -> f v a
+  VBase _          -> f v a
+  VClosure _ _ _ _ -> f v a
+  VHole _          -> f v a
+
 
 ------------------------------------------------------------------------------
 -- Substitutions

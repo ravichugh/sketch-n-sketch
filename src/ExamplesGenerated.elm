@@ -1721,12 +1721,30 @@ thawFreeze =
 
 "
 
+deleteBoxes =
+ "
+# unannotated-numbers: n!
+
+; notice that need to use * instead of mult
+
+(def deleteBoxes
+  (let [x0 y0 w h sep] [21? 40? 60? 130? 100?]
+  (let boxi (\\i
+    (let xi (+ x0 (* i sep))
+    (rect 'lightblue' xi y0 w h)))
+  (svg (map boxi [| 0 1 2..4 5 |])))))
+
+deleteBoxes
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
   , makeExample "3 Boxes" threeBoxes
   , makeExample "N Boxes" groupOfBoxes
+  , makeExample "Delete Boxes" deleteBoxes
   , makeExample "6 Boxes A" sixBoxesA
   , makeExample "6 Boxes B" sixBoxesB
   , makeExample "Thaw/Freeze" thawFreeze

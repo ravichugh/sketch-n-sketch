@@ -1,4 +1,4 @@
-module LangUnparser (unparseE) where
+module LangUnparser (unparseE, bumpCol, incCol) where
 
 import Lang exposing (..)
 import OurParser2 exposing (Pos, WithPos, WithInfo, startPos)
@@ -30,7 +30,9 @@ lines i j = if
   | otherwise -> String.repeat (j-i) "\n"
 
 cols i j = if
-  | i > j     -> Debug.crash <| "Unparser.cols: " ++ toString (i,j)
+  -- | i > j     -> Debug.crash <| "Unparser.cols: " ++ toString (i,j)
+  -- TODO to help Sync.expandRange for now
+  | i > j     -> let _ = Debug.log "Unparser.cols: " (toString (i, j)) in " "
   | otherwise -> String.repeat (j-i) " "
 
 whitespace : Pos -> Pos -> String

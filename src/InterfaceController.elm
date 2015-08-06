@@ -86,6 +86,8 @@ maybeAdjustShowZones m =
 -- may want to eventually have a maximum history length
 addToHistory s h = (s :: fst h, [])
 
+between1 i (j,k) = i `Utils.between` (j+1, k+1)
+
 
 --------------------------------------------------------------------------------
 -- Updating the Model
@@ -182,27 +184,35 @@ upstate evt old = case debugLog "Event" evt of
                                  |> slateToVal
             newval    = slateToVal old.slate
             struct    = Sync.inferStructuralUpdate ip inputval' newval
+            delete    = Sync.inferDeleteUpdate ip inputval' newval
             revert    = (ip, inputval)
+          in
+          let mkOptions l1 l2 revert =
+            ( (List.length l1, l1)
+            , (List.length l2, l2)
+            , revert)
           in
             case Sync.inferLocalUpdates old.syncOptions ip inputval' newval of
               Ok [] -> { old | mode <- mkLive_ old.syncOptions ip  }
-              Ok ls ->
-                let n = debugLog "# of sync options" (List.length ls) in
-                let ls' = List.map fst ls in
-                let m = SyncSelect old.code 0 (n, ls' ++ [struct, revert]) in
+              Ok l ->
+                let n = debugLog "# of sync options" (List.length l) in
+                let l1 = List.map fst l in
+                let l2 = delete ++ [struct] in
+                let m = SyncSelect old.code 0 (mkOptions l1 l2 revert) in
                 upstate (TraverseOption 1) { old | mode <- m }
               Err e ->
                 let _ = debugLog ("bad sync: ++ " ++ e) () in
-                let m = SyncSelect old.code 0 (0, [struct, revert]) in
+                let l2 = delete ++ [struct] in
+                let m = SyncSelect old.code 0 (mkOptions [] l2 revert) in
                 upstate (TraverseOption 1) { old | mode <- m }
 
     SelectOption ->
       let (SyncSelect prev i options) = old.mode in
-      let (_,l) = options in
-      let (ei,vi) = Utils.geti i l in
-      let h =
-        if | i == List.length l -> old.history  -- revert was chosen
-           | otherwise          -> addToHistory prev old.history
+      let ((n1,l1),(n2,l2),revert) = options in
+      let ((ei,vi),h) =
+        if | i `between1` ( 0, n1   ) -> (Utils.geti i l1, addToHistory prev old.history)
+           | i `between1` (n1, n1+n2) -> (Utils.geti (i-n1) l2, addToHistory prev old.history)
+           | otherwise                -> (revert, old.history)
       in
       maybeAdjustShowZones
       { old | code <- unparseE ei
@@ -213,9 +223,13 @@ upstate evt old = case debugLog "Event" evt of
 
     TraverseOption offset ->
       let (SyncSelect prev i options) = old.mode in
-      let (_,l) = options in
+      let ((n1,l1),(n2,l2),revert) = options in
       let j = i + offset in
-      let (ei,vi) = Utils.geti j l in
+      let (ei,vi) =
+        if | j `between1` ( 0, n1   ) -> Utils.geti j l1
+           | j `between1` (n1, n1+n2) -> Utils.geti (j-n1) l2
+           | otherwise                -> revert
+      in
       { old | code <- unparseE ei
             , inputExp <- Just ei
             , slate <- LangSvg.valToIndexedTree vi
@@ -287,6 +301,11 @@ upstate evt old = case debugLog "Event" evt of
           | l == keysShiftS ->
               let _ = Debug.log "TODO Save As" () in
               upstate Noop old
+          | l == keysT ->
+              case old.mode of
+                Live _ -> upstate (SwitchMode AdHoc) old
+                AdHoc  -> upstate Sync old
+                _      -> old
           | l == keysRight -> adjustMidOffsetX old 25
           | l == keysLeft  -> adjustMidOffsetX old (-25)
           | l == keysUp    -> adjustMidOffsetY old (-25)
@@ -320,6 +339,7 @@ keysG                   = List.sort [Char.toCode 'G']
 keysH                   = List.sort [Char.toCode 'H']
 keysO                   = List.sort [Char.toCode 'O']
 keysP                   = List.sort [Char.toCode 'P']
+keysT                   = List.sort [Char.toCode 'T']
 keysS                   = List.sort [Char.toCode 'S']
 keysShiftS              = List.sort [keyShift, Char.toCode 'S']
 keysLeft                = [keyLeft]

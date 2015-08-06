@@ -500,3 +500,9 @@ dummySvgNode =
   let zero = ANum (0, dummyTrace) in
   SvgNode "circle" (List.map (\k -> (k, zero)) ["cx","cy","r"]) []
 
+-- TODO break up and move slateToVal here
+dummySvgVal =
+  let zero = VConst (0, dummyTrace) in
+  let attrs = VList <| List.map (\k -> VList [vStr k, zero]) ["cx","cy","r"] in
+  let children = VList [] in
+  VList [vStr "circle", attrs, children]

@@ -166,6 +166,12 @@ evalDelta op is =
     (Floor,  [n])   -> toFloat <| floor n
     (Ceil,   [n])   -> toFloat <| ceiling n
     (Round,  [n])   -> toFloat <| round n
+
+    (RangeOffset i, [n1,n2]) ->
+      let m = n1 + toFloat i in
+      if | m > n2    -> n2
+         | otherwise -> m
+
     _               -> Debug.crash <| "Eval.evalDelta " ++ strOp op
 
 initEnv = snd (eval [] Parser.prelude)
@@ -191,8 +197,9 @@ rangeToList r =
       (EConst n1 l1, EConst n2 l2) ->
         let walkVal i =
           let m = n1 + toFloat i in
-          if | m < n2    -> VConst (m, rangeOff l1 i l2) :: walkVal (i + 1)
-             | otherwise -> VConst (n2, TrLoc l2) :: []
+          let tr = rangeOff l1 i l2 in
+          if | m < n2    -> VConst (m,  tr) :: walkVal (i + 1)
+             | otherwise -> VConst (n2, tr) :: []
         in
         walkVal 0
       _ -> err ()
