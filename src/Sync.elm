@@ -686,7 +686,8 @@ strLoc_ l =
 ------------------------------------------------------------------------------
 
 type alias Triggers = Dict NodeId (Dict Zone (Maybe Trigger))
-type alias Trigger  = List (AttrName, Num) -> (Exp, Dict NodeId (Dict AttrName Num))
+type alias Trigger  = List (AttrName, Num) -> (Exp)
+-- type alias Trigger  = List (AttrName, Num) -> (Exp, Dict NodeId (Dict AttrName Num))
 
 type alias LiveInfo =
   { triggers    : Triggers
@@ -755,6 +756,9 @@ makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
     -- if using overconstrained triggers, then some of the newAttr values
     -- from the UI make be "immediately destroyed" by subsequent ones...
 
+  applySubst subst' e
+
+{-
   let g i (_,_,_,di) acc =
     let h attr tr acc =
       let locs = Set.map Utils.fst3 (locsOfTrace opts tr) in
@@ -786,6 +790,7 @@ makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
        | otherwise -> Dict.insert i di' acc in
   let e' = applySubst subst' e in
   (e', Dict.foldl g Dict.empty d0)
+-}
 
 -- TODO sloppy way of doing this for now...
 whichLoc : Options -> Dict0 -> Dict2 -> NodeId -> Zone -> AttrName -> Maybe LocId

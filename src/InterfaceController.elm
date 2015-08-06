@@ -361,7 +361,8 @@ createMousePosCallback mx my objid kind zone old =
             -- Nothing -> (Utils.fromJust old.inputExp, newSlate)
             Nothing -> Debug.crash "shouldn't happen due to upstate SelectObject"
             Just trigger ->
-              let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
+              -- let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
+              let (newE) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
               if not Sync.tryToBeSmart then
                 (newE, LangSvg.valToIndexedTree <| Eval.run newE) else
               Debug.crash "Controller tryToBeSmart"
