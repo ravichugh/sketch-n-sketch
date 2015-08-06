@@ -101,6 +101,7 @@ makeButton status w h text =
               ]
           ] [ Html.text text ]
     ]
+
 --------------------------------------------------------------------------------
 -- Zone Options (per shape)
 
@@ -914,23 +915,7 @@ hoverInfo info (i,k,z) =
         if | x == ""   -> ("loc_" ++ toString lid, n)
            | otherwise -> (x, n)) locs
 
-gray        = "gray"
-yellow      = "yellow"
-green       = "green"
-red         = "red"
-
-acePos : P.Pos  -> AcePos
-acePos p = { row = p.line, column = p.col }
-
-aceRange : P.WithInfo a -> Range
-aceRange x = { start = acePos x.start, end = acePos x.end }
-
-makeHighlight : Parser.SubstPlus -> String -> Loc -> Highlight
-makeHighlight subst color (locid,_,_) =
-  case Dict.get locid subst of
-    Just n  -> { color = color, range = aceRange n }
-    Nothing -> Debug.crash "makeHighlight: locid not in subst"
-
+-- this is a bit redundant with hoverInfo...
 turnOnCaptionAndHighlights id shape zone =
   UpdateModel <| \m ->
     let codeBoxInfo = m.codeBoxInfo in
@@ -956,7 +941,6 @@ turnOffCaptionAndHighlights =
     let codeBoxInfo = m.codeBoxInfo in
     { m | caption <- Nothing
         , codeBoxInfo <- { codeBoxInfo | highlights <- [] } }
-
 
 --------------------------------------------------------------------------------
 
