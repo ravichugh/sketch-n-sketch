@@ -400,7 +400,6 @@ inferStructuralUpdate eOld v v' =
 --   e.g. for polygons, x1,y1,x2,y2,x3,y3,...
 
 type alias AttrName = String
-type alias LocSet = Set.Set Loc
 type alias Locs = List Loc
 
 -- band-aids for extra metadata...
@@ -686,13 +685,13 @@ strLoc_ l =
 ------------------------------------------------------------------------------
 
 type alias Triggers = Dict NodeId (Dict Zone (Maybe Trigger))
-type alias Trigger  = List (AttrName, Num) -> (Exp)
+type alias Trigger  = List (AttrName, Num) -> (Exp, SubstMaybeNum)
 -- type alias Trigger  = List (AttrName, Num) -> (Exp, Dict NodeId (Dict AttrName Num))
 
 type alias LiveInfo =
   { triggers    : Triggers
   , assignments : Dict NodeId (Dict Zone (LocSet, LocSet))
-  , initSubst   : Parser.SubstPlus
+  , initSubst   : SubstPlus
   }
 
 tryToBeSmart = False
@@ -726,8 +725,8 @@ makeTrigger : Options -> Exp -> Dict0 -> Dict2 -> Subst -> NodeId -> Zone -> Tri
 makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
   -- TODO symbolically compute changes !!!
   -- once this is done, might be able to rank trigger sets by int/float
-  let (subst',changedLocs) =
-    let f (attr,newNum) (acc1,acc2) =
+  let (entireSubst, changedSubst, changedLocs) =
+    let f (attr,newNum) (acc1,acc2,acc3) =
       {- 6/25: now that assigned locs do not appear in every attribute,
                whichLoc may return Nothing
       let k = whichLoc opts d0 d2 i zone attr in
@@ -741,7 +740,7 @@ makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
         Just kSolution -> (Dict.insert k kSolution acc1, Set.insert k acc2)
       -}
       case whichLoc opts d0 d2 i zone attr of
-        Nothing -> (acc1, acc2)
+        Nothing -> (acc1, acc2, acc3)
         Just k ->
           let subst' = Dict.remove k subst in
           let tr = justGet_ "%2" attr (Utils.fourth4 (justGet_ "%3" i d0)) in
@@ -749,14 +748,18 @@ makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
             -- solve will no longer always return an answer, so one of
             -- the locations assigned to this trigger may not have an
             -- effect after all... (see Dict1 comment)
-            Nothing -> (acc1, acc2)
-            Just kSolution -> (Dict.insert k kSolution acc1, Set.insert k acc2)
+            Nothing -> (acc1, Dict.insert k Nothing acc2, acc3)
+            Just kSolution ->
+              let acc1' = Dict.insert k kSolution acc1 in
+              let acc2' = Dict.insert k (Just kSolution) acc2 in
+              let acc3' = Set.insert k acc3 in
+              (acc1', acc2', acc3')
     in
-    List.foldl f (subst, Set.empty) newAttrs in
+    List.foldl f (subst, Dict.empty, Set.empty) newAttrs in
     -- if using overconstrained triggers, then some of the newAttr values
     -- from the UI make be "immediately destroyed" by subsequent ones...
 
-  applySubst subst' e
+  (applySubst entireSubst e, changedSubst)
 
 {-
   let g i (_,_,_,di) acc =

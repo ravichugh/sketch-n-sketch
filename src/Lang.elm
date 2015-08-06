@@ -3,6 +3,7 @@ module Lang where
 import String
 import Debug
 import Dict
+import Set
 
 import OurParser2 as P
 import Utils
@@ -16,6 +17,8 @@ type alias Num = Float
 
 type alias Frozen = String -- b/c comparable
 (frozen, unann, thawed) = ("!", "", "?")
+
+type alias LocSet = Set.Set Loc
 
 type alias Pat    = P.WithInfo Pat_
 type alias Exp    = P.WithInfo Exp_
@@ -301,6 +304,8 @@ mapVal f v = case v of
 -- Substitutions
 
 type alias Subst = Dict.Dict LocId Num
+type alias SubstPlus = Dict.Dict LocId (P.WithInfo Num)
+type alias SubstMaybeNum = Dict.Dict LocId (Maybe Num)
 
 applySubst : Subst -> Exp -> Exp
 applySubst subst e = (\e_ -> P.WithInfo e_ e.start e.end) <| case e.val of

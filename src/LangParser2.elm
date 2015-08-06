@@ -1,5 +1,5 @@
 module LangParser2 (prelude, isPreludeLoc, substOf, parseE, parseV,
-                    SubstPlus, substPlusOf) where
+                    substPlusOf) where
 
 import String
 import Dict
@@ -20,10 +20,6 @@ isPreludeLoc : Loc -> Bool
 isPreludeLoc (k,_,_) = k < initK
 
 ------------------------------------------------------------------------------
-
--- from Lang:
---  type alias Subst = Dict.Dict LocId Num
-type alias SubstPlus = Dict.Dict LocId (P.WithInfo Num)
 
 -- these top-level freshen and substOf definitions are ugly...
 

@@ -18,6 +18,7 @@ import VirtualDom
 --Core Libraries
 import List 
 import Dict
+import Set
 import String 
 import Graphics.Element as GE 
 import Graphics.Collage as GC
@@ -81,6 +82,37 @@ toggleShowZones x = (1 + x) % showZonesModes
 -- may want to eventually have a maximum history length
 addToHistory s h = (s :: fst h, [])
 
+-- this is a bit redundant with View.turnOn...
+maybeStuff id shape zone m =
+  case m.mode of
+    Live info ->
+      flip Utils.bindMaybe (Dict.get id info.assignments) <| \d ->
+      flip Utils.bindMaybe (Dict.get zone d) <| \(yellowLocs,_) ->
+        Just (info.initSubst, yellowLocs)
+    _ ->
+      Nothing
+
+highlightChanges mStuff changes codeBoxInfo =
+  case mStuff of
+    Nothing -> codeBoxInfo
+    Just (initSubstPlus, locs) ->
+      let f loc =
+        let (locid,_,_) = loc in
+        let highlight c = makeHighlight initSubstPlus c loc in
+        case (Dict.get locid initSubstPlus, Dict.get locid changes) of
+          (Nothing, _) -> Debug.crash "Controller.highlightChanges"
+          (Just n, Nothing) -> highlight yellow
+          (Just n, Just Nothing) -> highlight red
+          (Just n, Just (Just n')) ->
+            -- TODO use new value to recompute positions
+            if | n' == n.val -> highlight yellow
+               | otherwise   -> highlight green
+      in
+      -- TODO logging until visual highlights
+      let hi = List.map f (Set.toList locs) in
+      let _ = Debug.log "hilight:\n" hi in
+      { codeBoxInfo | highlights <- hi }
+
 
 --------------------------------------------------------------------------------
 -- Updating the Model
@@ -139,12 +171,16 @@ upstate evt old = case debugLog "Event" evt of
           { old | midOffsetX <- x , midOffsetY <- y }
         MouseObject objid kind zone Nothing ->
           let onNewPos = createMousePosCallback mx my objid kind zone old in
-          { old | mouseMode <- MouseObject objid kind zone (Just (old.code, onNewPos)) }
-        MouseObject _ _ _ (Just (_, onNewPos)) ->
-          let (newE,newSlate) = onNewPos (mx, my) in
+          let mStuff = maybeStuff objid kind zone old in
+          let blah = Just (old.code, mStuff, onNewPos) in
+          { old | mouseMode <- MouseObject objid kind zone blah  }
+        MouseObject _ _ _ (Just (_, mStuff, onNewPos)) ->
+          let (newE,changes,newSlate) = onNewPos (mx, my) in
           { old | code <- unparseE newE
                 , inputExp <- Just newE
-                , slate <- newSlate }
+                , slate <- newSlate
+                , codeBoxInfo <- highlightChanges mStuff changes old.codeBoxInfo
+                }
 
     SelectObject id kind zone ->
       case old.mode of
@@ -163,8 +199,8 @@ upstate evt old = case debugLog "Event" evt of
         Print _ -> old
         _ ->
           let h = case old.mouseMode of
-            MouseObject _ _ _ (Just (s, _)) -> addToHistory s old.history
-            _                               -> old.history
+            MouseObject _ _ _ (Just (s, _, _)) -> addToHistory s old.history
+            _                                  -> old.history
           in
           { old | mouseMode <- MouseNothing, mode <- refreshMode_ old
                 , history <- h }
@@ -355,16 +391,16 @@ createMousePosCallback mx my objid kind zone old =
     in
     let newTree = List.foldr (upslate objid) (snd old.slate) newRealAttrs in
       case old.mode of
-        AdHoc -> (Utils.fromJust old.inputExp, (fst old.slate, newTree))
+        AdHoc -> (Utils.fromJust old.inputExp, Dict.empty, (fst old.slate, newTree))
         Live info ->
           case Utils.justGet_ "#4" zone (Utils.justGet_ "#5" objid info.triggers) of
             -- Nothing -> (Utils.fromJust old.inputExp, newSlate)
             Nothing -> Debug.crash "shouldn't happen due to upstate SelectObject"
             Just trigger ->
               -- let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
-              let (newE) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
+              let (newE,changes) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
               if not Sync.tryToBeSmart then
-                (newE, LangSvg.valToIndexedTree <| Eval.run newE) else
+                (newE, changes, LangSvg.valToIndexedTree <| Eval.run newE) else
               Debug.crash "Controller tryToBeSmart"
               {-
               let newSlate' =
