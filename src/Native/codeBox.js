@@ -84,9 +84,9 @@ var Range = ace.require('ace/range').Range
 
 var editor = ace.edit("editor");
 editor.$blockScrolling = Infinity;
-editor.setTheme("ace/theme/chrome");
+editor.setTheme("ace/theme/monokai");
 editor.setFontSize(14);
-editor.getSession().setMode("ace/mode/lisp");
+editor.getSession().setMode("ace/mode/little");
 editor.getSession().getDocument().on("change", maybeSendUpdate);
 editor.getSession().selection.on("changeCursor", maybeSendUpdate);
 editor.getSession().selection.on("changeSelection", maybeSendUpdate);
@@ -131,7 +131,7 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
                                  elmRange.start.column,
                                  elmRange.end.row,
                                  elmRange.end.column);
-            console.log(aceRange);
+            //console.log(aceRange);
         if (i === 0) {
             //We only allow backwards selections if there is just one selection
             //We deduce if it's backwards by comparing the cursor position to
