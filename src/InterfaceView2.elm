@@ -932,7 +932,7 @@ turnOnCaptionAndHighlights id shape zone =
         []
     in
     -- TODO logging until visual highlights
-    let _ = Debug.log "hilight:\n" hi in
+    -- let _ = Debug.log "hilight:\n" hi in
     { m | caption <- Just (Hovering (id, shape, zone))
         , codeBoxInfo <- { codeBoxInfo | highlights <- hi } }
 

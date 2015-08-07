@@ -115,6 +115,8 @@ strRange showLocs k r =
 strVal     = strVal_ False
 strValLocs = strVal_ True
 
+strNum     = toString
+
 strVal_ : Bool -> Val -> String
 strVal_ showTraces v =
   let foo = strVal_ showTraces in

@@ -96,22 +96,44 @@ highlightChanges mStuff changes codeBoxInfo =
   case mStuff of
     Nothing -> codeBoxInfo
     Just (initSubstPlus, locs) ->
-      let f loc =
-        let (locid,_,_) = loc in
-        let highlight c = makeHighlight initSubstPlus c loc in
-        case (Dict.get locid initSubstPlus, Dict.get locid changes) of
-          (Nothing, _) -> Debug.crash "Controller.highlightChanges"
-          (Just n, Nothing) -> highlight yellow
-          (Just n, Just Nothing) -> highlight red
-          (Just n, Just (Just n')) ->
-            -- TODO use new value to recompute positions
-            if | n' == n.val -> highlight yellow
-               | otherwise   -> highlight green
+
+      let (hi,stringOffsets) =
+        -- hi : List Highlight, stringOffsets : List (Pos, Int)
+        --   where Pos is start pos of a highlight to offset by Int chars
+        let f loc (acc1,acc2) =
+          let (locid,_,_) = loc in
+          let highlight c = makeHighlight initSubstPlus c loc in
+          case (Dict.get locid initSubstPlus, Dict.get locid changes) of
+            (Nothing, _)             -> Debug.crash "Controller.highlightChanges"
+            (Just n, Nothing)        -> (highlight yellow :: acc1, acc2)
+            (Just n, Just Nothing)   -> (highlight red :: acc1, acc2)
+            (Just n, Just (Just n')) ->
+              if | n' == n.val       -> (highlight yellow :: acc1, acc2)
+                 | otherwise         ->
+                     let (s, s') = (strNum n.val, strNum n') in
+                     let x = (acePos n.start, String.length s' - String.length s) in
+                     (highlight green :: acc1, x :: acc2)
+        in
+        List.foldl f ([],[]) (Set.toList locs)
       in
+
+      let hi' =
+        let g (startPos,extraChars) accRange =
+          let bump pos = { pos | column <- pos.column + extraChars } in
+          let (start, end) = (accRange.start, accRange.end) in
+          if | startPos.row    /= start.row    -> accRange
+             | startPos.column >  start.column -> accRange
+             | startPos.column == start.column -> { start = start, end = bump end }
+             | startPos.column <  start.column -> { start = bump start, end = bump end }
+        in
+        -- hi has <= 4 elements, so not worrying about the redundant processing
+        flip List.map hi <| \{color,range} ->
+          { color = color, range = List.foldl g range stringOffsets }
+      in
+
       -- TODO logging until visual highlights
-      let hi = List.map f (Set.toList locs) in
-      let _ = Debug.log "hilight:\n" hi in
-      { codeBoxInfo | highlights <- hi }
+      -- let _ = Debug.log "hilight:\n" hi' in
+      { codeBoxInfo | highlights <- hi' }
 
 
 --------------------------------------------------------------------------------
