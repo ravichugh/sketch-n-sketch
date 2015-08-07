@@ -1,0 +1,67 @@
+; Logo for POP-PL
+; see https://github.com/florence/pop-pl
+
+(def M 'M')
+(def L 'L')
+(def C 'C')
+(def Z 'Z')
+
+(def ltopWidth 29!)
+(def ltopHeight 63!)
+(def xstart 131!)
+(def ystart 63!)
+(def stethx 31!)
+(def stethy 7!)
+(def cr2Control -0.1769993052254364)
+(def cr2x (* cr2Control ltopWidth))
+(def cr2y (* cr2Control ltopHeight))
+(def lpath
+  [M (- xstart stethx) (- ystart stethy)
+   C (+ xstart -12) (+ ystart -19)
+     (+ cr2x xstart) (+ cr2y ystart)
+     xstart ystart
+   L (+ xstart ltopWidth) (+ ystart ltopHeight)
+   ])
+
+(def axstart  (+ xstart ltopWidth))
+(def aystart (+ ystart ltopHeight))
+(def ascale 1.9534135150166867!)
+(def ax (* ascale ltopWidth))
+(def ay (* ascale ltopHeight))
+(def bx 18!)
+(def armpath
+  [M axstart aystart
+   C (+ xstart 71) (+ ystart 94)
+     (+ xstart 90) (+ ystart 142)
+     (+ axstart ax) (+ aystart ay)
+   C (+ xstart 63) (+ ystart 190)
+     (+ xstart 74) (+ ystart 188)
+     (- (+ axstart ax) bx) (+ aystart ay)])
+
+(def lwidth 5)
+
+
+(def nub
+  (circle 'black' (- (+ axstart ax) bx) (+ aystart ay) (* lwidth 2!)))
+
+(def small (* lwidth 2.1))
+(def scope1
+  (circle 'black' (- xstart stethx) (- ystart stethy) (+ small lwidth)))
+(def scope2
+  (circle 'white' (- xstart stethx) (- ystart stethy) small))
+
+['svg'
+ [['viewBox' '0 0 300 300']]
+ [(square 'white' 0! 0! 300!)
+      (path 'none' 'black' lwidth lpath)
+      (path 'none' 'black' lwidth armpath)
+      nub
+      (addAttr (path 'white' 'black' lwidth armpath)
+               ['transform' (+ (+ 'matrix(-1 0 0 1 ' (toString (* 2 axstart)))
+                               ' 0)')])
+      (addAttr nub
+               ['transform' (+ (+ 'matrix(-1 0 0 1 ' (toString (* 2 axstart)))
+                               ' 0)')])
+      scope1
+      scope2
+]]
