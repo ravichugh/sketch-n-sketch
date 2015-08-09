@@ -68,18 +68,6 @@ window.oncrash = function(msg, url, linenumber) {
   location.reload();
 }
 
-//The total object that we'll be returning
-//var editorElement = document.createElement("div");
-//editorElement.id = "editor";
-
-//content = document.createTextNode("(svg [])");
-//editorElement.appendChild(content);
-
-//codebox = document.getElementById("codebox");
-//codebox.appendChild(content);
-
-//console.log(codebox)
-
 var Range = ace.require('ace/range').Range
 
 var editor = ace.edit("editor");
@@ -90,6 +78,22 @@ editor.getSession().setMode("ace/mode/little");
 editor.getSession().getDocument().on("change", maybeSendUpdate);
 editor.getSession().selection.on("changeCursor", maybeSendUpdate);
 editor.getSession().selection.on("changeSelection", maybeSendUpdate);
+
+//Set the default scratch text to display before the first load
+var defaultScratch = 
+"\n" +
+"; Write a little program below.\n" +
+"; Or choose an example from the list.\n" +
+";\n" +
+"; Changes to this *Scratch example will be saved and\n" +
+"; restored when navigating to and from other examples.\n" +
+"; For the remaining named examples, changes will be\n" +
+"; discarded when choosing a different example.\n" +
+"\n" +
+"(svg [(rect 'maroon' 100 15 200 15)])\n" +
+"\n";
+editor.setValue(defaultScratch);
+editor.setCurs
 
 var updateWasFromElm = false;
 
