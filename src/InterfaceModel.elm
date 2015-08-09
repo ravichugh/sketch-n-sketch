@@ -7,10 +7,12 @@ import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Zone)
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparseE)
+import OurParser2 as P
 
 import List 
 import Debug
 import String
+import Dict
 
 import Svg
 import Lazy
@@ -59,7 +61,6 @@ type alias CodeBoxInfo =
 type alias Highlight =
   { range : Range, color : String }
 
--- TODO use P.Pos instead of Pos and P.WithInfo () instead of Range
 type alias AcePos = { row : Int, column : Int }
 type alias Range = { start : AcePos, end : AcePos }
 
@@ -68,8 +69,10 @@ type alias RawSvg = String
 type MouseMode
   = MouseNothing
   | MouseResizeMid (Maybe (MouseTrigger (Int, Int)))
-  | MouseObject NodeId ShapeKind Zone (Maybe (Code, MouseTrigger (Exp, RootedIndexedTree)))
-      -- the Code string is program upon initial zone click
+  | MouseObject NodeId ShapeKind Zone
+      (Maybe ( Code                        -- the program upon initial zone click
+             , Maybe (SubstPlus, LocSet)   -- loc-set assigned (live mode only)
+             , MouseTrigger (Exp, SubstMaybeNum, RootedIndexedTree) ))
 
 type alias MouseTrigger a = (Int, Int) -> a
 
@@ -116,12 +119,35 @@ type Event = CodeUpdate String
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
 
+--------------------------------------------------------------------------------
+
 mkLive opts e v = Live <| Sync.prepareLiveUpdates opts e v
 mkLive_ opts e  = mkLive opts e (Eval.run e)
 
 editingMode model = case model.editingMode of
   Nothing -> False
   Just _  -> True
+
+--------------------------------------------------------------------------------
+
+gray        = "gray"
+yellow      = "yellow"
+green       = "green"
+red         = "red"
+
+acePos : P.Pos  -> AcePos
+acePos p = { row = p.line, column = p.col }
+
+aceRange : P.WithInfo a -> Range
+aceRange x = { start = acePos x.start, end = acePos x.end }
+
+makeHighlight : SubstPlus -> String -> Loc -> Highlight
+makeHighlight subst color (locid,_,_) =
+  case Dict.get locid subst of
+    Just n  -> { color = color, range = aceRange n }
+    Nothing -> Debug.crash "makeHighlight: locid not in subst"
+
+--------------------------------------------------------------------------------
 
 sampleModel : Model
 sampleModel =
