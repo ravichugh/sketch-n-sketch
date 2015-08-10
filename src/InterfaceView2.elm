@@ -35,7 +35,7 @@ import Task exposing (Task, andThen)
 --Storage Libraries
 import InterfaceStorage exposing (taskMailbox, saveStateLocally, loadLocalState,
                                   checkAndSave, getLocalSaves, clearLocalSaves,
-                                  removeDialog, deleteLocalSave)
+                                  deleteLocalSave)
 
 --Html Libraries
 import Html 
@@ -498,7 +498,7 @@ codebox_ w h event s readOnly =
   in
     Html.toElement w h <|
       Html.textarea
-        ([ Attr.id "codeBox"
+        ([ Attr.id "editor"
          , Attr.spellcheck False
          , Attr.readonly readOnly
          , Attr.style
@@ -648,9 +648,9 @@ mainSectionVertical w h model =
                 + params.mainSection.vertical.hExtra
   in
 
-  --let codeSection = codebox wCode h model in
-  --let codeSection = renderedCodeBox in
-  let codeSection = codeBox wCode h in
+  let codeSection = if model.basicCodeBox 
+                       then codebox wCode h model
+                       else codeBox wCode h in
 
   let canvasSection =
     GE.size wCanvas h <|
@@ -689,9 +689,9 @@ mainSectionHorizontal w h model =
                 + params.mainSection.horizontal.wExtra
   in
 
-  --let codeSection = codebox w hCode model in
-  --let codeSection = renderedCodeBox in
-  let codeSection = codeBox w hCode in
+  let codeSection = if model.basicCodeBox
+                       then codebox w hCode model
+                       else codeBox w hCode in
 
   let canvasSection =
     GE.size w (hCanvas + hZInfo) <|
@@ -881,6 +881,14 @@ orientationButton w h model =
     in
       simpleButton SwitchOrient text text text w h
 
+basicBoxButton w h model =
+    let (text,flip) = case model.basicCodeBox of
+          True  -> ("[Code Box] Basic", False)
+          False -> ("[Code Box] Fancy", True)
+    in
+       simpleButton 
+         (SetBasicCodeBox flip)
+         text text text w h
 
 --------------------------------------------------------------------------------
 -- Zone Caption and Highlights
@@ -1035,16 +1043,20 @@ view (w,h) model =
       wBtnO = params.topSection.wBtnO
       hBtnO = params.topSection.hBtnO
       wJunk = params.topSection.wJunk
+      wSpcB = 15
 
-      wSep  = GE.spacer (wAll - (wLogo + wBtnO + wJunk)) 1
+      wSep  = GE.spacer (wAll - (wLogo + 2 * wBtnO + wJunk + wSpcB)) 1
       btnO  = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
                 orientationButton wBtnO hBtnO model
+      spcB  = GE.spacer wSpcB hTop
+      btnB  = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
+                basicBoxButton wBtnO hBtnO model
     in
       GE.size wAll hTop <|
         GE.flow GE.right
           [ GE.container wLogo hTop GE.middle logo
           , GE.container (wAll - wLogo) hTop GE.middle <|
-              GE.flow GE.right [ title, wSep, btnO ]
+              GE.flow GE.right [ title, wSep, btnB, spcB, btnO ]
           ]
   in
 

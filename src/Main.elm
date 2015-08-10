@@ -66,6 +66,8 @@ port taskPort = taskMailbox.signal
 port aceInTheHole : Signal AceCodeBoxInfo
 port aceInTheHole = Signal.map fst
                       <| Signal.foldp packageModel initAceCodeBoxInfo
+                      <| Signal.filter (\a -> not (fst a).basicCodeBox)
+                            (Model.sampleModel, Model.Noop)
                       <| Signal.map2 (,) sigModel combinedEventSig
 
 -- Port for Event messages from the code box

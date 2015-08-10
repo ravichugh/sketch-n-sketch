@@ -43,6 +43,7 @@ type alias Model =
   , fieldContents : DialogInfo 
   , startup : Bool
   , codeBoxInfo : CodeBoxInfo
+  , basicCodeBox : Bool
   }
 
 type Mode
@@ -113,6 +114,7 @@ type Event = CodeUpdate String
            | SwitchOrient
            | InstallSaveState
            | RemoveDialog Bool String
+           | SetBasicCodeBox Bool
            | StartResizingMid
            | Undo | Redo
            | Noop
@@ -193,5 +195,6 @@ sampleModel =
                       , selections = []
                       , highlights = []
                       }
+    , basicCodeBox  = False
     }
 

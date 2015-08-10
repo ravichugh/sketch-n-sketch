@@ -102,4 +102,5 @@ tripRender evt last =
       (Model.SwitchOrient, _             ) -> True
       (Model.InstallSaveState, _         ) -> True
       (Model.RemoveDialog _ _ , _        ) -> True
+      (Model.SetBasicCodeBox _ , _       ) -> True
       _                                    -> False

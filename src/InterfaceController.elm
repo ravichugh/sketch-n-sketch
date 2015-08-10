@@ -318,6 +318,7 @@ upstate evt old = case debugLog "Event" evt of
     -- appropriately (see CodeBox.elm)
     InstallSaveState -> installSaveState old
     RemoveDialog makeSave saveName -> removeDialog makeSave saveName old
+    SetBasicCodeBox set -> { old | basicCodeBox <- set }
 
     UpdateModel f -> f old
 
