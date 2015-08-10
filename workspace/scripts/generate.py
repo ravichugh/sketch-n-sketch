@@ -46,4 +46,6 @@ expandSkeleton ( ".."  , "src/releases/index.src.html"          , "../releases/i
 expandSkeleton ( ".."  , "src/blog/index.src.html"              , "../blog/index.html"                )
 expandSkeleton ( ".."  , "src/blog/00-preview.src.html"         , "../blog/00-preview.html"           )
 expandSkeleton ( ".."  , "src/blog/01-case-studies.src.html"    , "../blog/01-case-studies.html"      )
+expandSkeleton ( ".."  , "src/tutorial/index.src.html"          , "../tutorial/index.html"            )
+expandSkeleton ( ".."  , "src/tutorial/00-blah.src.html"        , "../tutorial/00-blah.html"          )
 
