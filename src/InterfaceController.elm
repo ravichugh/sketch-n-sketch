@@ -21,6 +21,7 @@ import List
 import Dict
 import Set
 import String 
+import Char
 import Graphics.Element as GE 
 import Graphics.Collage as GC
 
@@ -306,14 +307,45 @@ upstate evt old = case debugLog "Event" evt of
     ToggleZones -> { old | showZones <- toggleShowZones old.showZones }
 
     Undo ->
-      let (current, (s::past, future)) = (old.code, old.history) in
-      let new = { old | history <- (past, current::future) } in
-      upstate Run (upstate (CodeUpdate s) new)
+      case (old.code, old.history) of
+        (_, ([],_)) -> old                -- because of keyboard shortcuts
+        (current, (s::past, future)) ->
+          let new = { old | history <- (past, current::future) } in
+          upstate Run (upstate (CodeUpdate s) new)
 
     Redo ->
-      let (current, (past, s::future)) = (old.code, old.history) in
-      let new = { old | history <- (current::past, future) } in
-      upstate Run (upstate (CodeUpdate s) new)
+      case (old.code, old.history) of
+        (_, (_,[])) -> old                -- because of keyboard shorcuts
+        (current, (past, s::future)) ->
+          let new = { old | history <- (current::past, future) } in
+          upstate Run (upstate (CodeUpdate s) new)
+
+    KeysDown l ->
+      -- let _ = Debug.log "keys" (toString l) in
+      case editingMode old of
+        True -> if
+          | l == keysMetaShift -> upstate Run old
+          | otherwise -> old
+        False -> if
+          | l == keysE -> upstate Edit old
+          | l == keysZ -> upstate Undo old
+          -- | l == keysShiftZ -> upstate Redo old
+          | l == keysY -> upstate Redo old
+          | l == keysG || l == keysH -> -- for right- or left-handers
+              upstate ToggleZones old
+          | l == keysO -> upstate ToggleOutput old
+          | l == keysP -> upstate SwitchOrient old
+          | l == keysS ->
+              let _ = Debug.log "TODO Save" () in
+              upstate Noop old
+          | l == keysShiftS ->
+              let _ = Debug.log "TODO Save As" () in
+              upstate Noop old
+          | l == keysRight -> adjustMidOffsetX old 25
+          | l == keysLeft  -> adjustMidOffsetX old (-25)
+          | l == keysUp    -> adjustMidOffsetY old (-25)
+          | l == keysDown  -> adjustMidOffsetY old 25
+          | otherwise -> old
 
     -- Elm does not have function equivalence/pattern matching, so we need to
     -- thread these events through upstate in order to catch them to rerender
@@ -325,6 +357,44 @@ upstate evt old = case debugLog "Event" evt of
     UpdateModel f -> f old
 
     _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
+
+adjustMidOffsetX old dx =
+  case old.orient of
+    Vertical   -> { old | midOffsetX <- old.midOffsetX + dx }
+    Horizontal -> upstate SwitchOrient old
+
+adjustMidOffsetY old dy =
+  case old.orient of
+    Horizontal -> { old | midOffsetY <- old.midOffsetY + dy }
+    Vertical   -> upstate SwitchOrient old
+
+
+--------------------------------------------------------------------------------
+-- Key Combinations
+
+keysMetaShift           = List.sort [keyMeta, keyShift]
+keysE                   = List.sort [Char.toCode 'E']
+keysZ                   = List.sort [Char.toCode 'Z']
+keysY                   = List.sort [Char.toCode 'Y']
+-- keysShiftZ              = List.sort [keyShift, Char.toCode 'Z']
+keysG                   = List.sort [Char.toCode 'G']
+keysH                   = List.sort [Char.toCode 'H']
+keysO                   = List.sort [Char.toCode 'O']
+keysP                   = List.sort [Char.toCode 'P']
+keysS                   = List.sort [Char.toCode 'S']
+keysShiftS              = List.sort [keyShift, Char.toCode 'S']
+keysLeft                = [keyLeft]
+keysRight               = [keyRight]
+keysUp                  = [keyUp]
+keysDown                = [keyDown]
+
+keyMeta                 = 91
+keyCtrl                 = 17
+keyShift                = 16
+keyLeft                 = 37
+keyUp                   = 38
+keyRight                = 39
+keyDown                 = 40
 
 
 --------------------------------------------------------------------------------

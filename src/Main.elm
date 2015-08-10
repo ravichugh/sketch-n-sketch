@@ -9,6 +9,8 @@ import CodeBox exposing (interpretAceEvents, packageModel,
 import Graphics.Element exposing (Element)
 import Mouse 
 import Window 
+import Keyboard
+import Set
 
 import Task exposing (Task, andThen)
 
