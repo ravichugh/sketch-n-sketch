@@ -66,6 +66,9 @@ recoverFromError : String -> Model.Model -> Model.Model
 recoverFromError offendingCode fresh = 
     { fresh | code <- offendingCode
             , editingMode <- Just offendingCode
+            , caption <- Just <| Model.LangError <| "Runtime Error!\n" ++
+                "You likely provided the wrong number of arguments to a\n" ++
+                "function or referenced an undefined expression name."
     }
 
 -- The number of times that we defensively rerender the codebox on codebox
