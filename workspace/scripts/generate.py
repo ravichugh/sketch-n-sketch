@@ -47,5 +47,11 @@ expandSkeleton ( ".."  , "src/blog/index.src.html"              , "../blog/index
 expandSkeleton ( ".."  , "src/blog/00-preview.src.html"         , "../blog/00-preview.html"           )
 expandSkeleton ( ".."  , "src/blog/01-case-studies.src.html"    , "../blog/01-case-studies.html"      )
 expandSkeleton ( ".."  , "src/tutorial/index.src.html"          , "../tutorial/index.html"            )
-expandSkeleton ( ".."  , "src/tutorial/00-blah.src.html"        , "../tutorial/00-blah.html"          )
+expandSkeleton ( ".."  , "src/tutorial/00.src.html"             , "../tutorial/00.html"               )
+expandSkeleton ( ".."  , "src/tutorial/01.src.html"             , "../tutorial/01.html"               )
+expandSkeleton ( ".."  , "src/tutorial/02.src.html"             , "../tutorial/02.html"               )
+expandSkeleton ( ".."  , "src/tutorial/03.src.html"             , "../tutorial/03.html"               )
+expandSkeleton ( ".."  , "src/tutorial/04.src.html"             , "../tutorial/04.html"               )
+expandSkeleton ( ".."  , "src/tutorial/05.src.html"             , "../tutorial/05.html"               )
+expandSkeleton ( ".."  , "src/tutorial/06.src.html"             , "../tutorial/06.html"               )
 
