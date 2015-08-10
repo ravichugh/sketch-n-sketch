@@ -904,6 +904,7 @@ caption model w h =
         _ ->
           GE.empty
 
+-- this is a bit redundant with Model.liveInfoToHighlights...
 hoverInfo info (i,k,z) =
   let err y = "hoverInfo: " ++ toString y in
   flip Utils.bindMaybe (Dict.get i info.assignments) <| \d ->
@@ -915,24 +916,10 @@ hoverInfo info (i,k,z) =
         if | x == ""   -> ("loc_" ++ toString lid, n)
            | otherwise -> (x, n)) locs
 
--- this is a bit redundant with hoverInfo...
 turnOnCaptionAndHighlights id shape zone =
   UpdateModel <| \m ->
     let codeBoxInfo = m.codeBoxInfo in
-    let hi = case m.mode of
-      Live info ->
-        let subst = info.initSubst in
-        Maybe.withDefault [] <|
-          flip Utils.bindMaybe (Dict.get id info.assignments) <| \d ->
-          flip Utils.bindMaybe (Dict.get zone d) <| \(yellowLocs,grayLocs) ->
-          Just
-            <| List.map (makeHighlight subst yellow) (Set.toList yellowLocs)
-            ++ List.map (makeHighlight subst gray) (Set.toList grayLocs)
-      _ ->
-        []
-    in
-    -- TODO logging until visual highlights
-    -- let _ = Debug.log "hilight:\n" hi in
+    let hi = liveInfoToHighlights id zone m in
     { m | caption <- Just (Hovering (id, shape, zone))
         , codeBoxInfo <- { codeBoxInfo | highlights <- hi } }
 

@@ -75,7 +75,6 @@ packageModel (model, evt) (lastBox, rerenders) =
             (_, Nothing) -> False
             _           -> True
         rerender = tripRender evt rerenders
-        toss = Debug.log "..." (evt, rerender, rerenders)
     in 
       ( { code = model.code 
         , cursorPos = model.codeBoxInfo.cursorPos 

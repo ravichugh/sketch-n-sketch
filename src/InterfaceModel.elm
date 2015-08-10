@@ -13,6 +13,7 @@ import List
 import Debug
 import String
 import Dict
+import Set
 
 import Svg
 import Lazy
@@ -130,12 +131,25 @@ editingMode model = case model.editingMode of
   Nothing -> False
   Just _  -> True
 
+liveInfoToHighlights id zone model =
+  case model.mode of
+    Live info ->
+      let subst = info.initSubst in
+      Maybe.withDefault [] <|
+        flip Utils.bindMaybe (Dict.get id info.assignments) <| \d ->
+        flip Utils.bindMaybe (Dict.get zone d) <| \(yellowLocs,grayLocs) ->
+        Just
+          <| List.map (makeHighlight subst yellow) (Set.toList yellowLocs)
+          ++ List.map (makeHighlight subst gray) (Set.toList grayLocs)
+    _ ->
+      []
+
 --------------------------------------------------------------------------------
 
-gray        = "gray"
-yellow      = "yellow"
-green       = "green"
-red         = "red"
+gray        = "lightgray"
+yellow      = "khaki"
+green       = "limegreen"
+red         = "salmon"
 
 acePos : P.Pos  -> AcePos
 acePos p = { row = p.line, column = p.col }
