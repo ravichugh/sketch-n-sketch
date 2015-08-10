@@ -2,8 +2,9 @@ import InterfaceModel as Model exposing (events)
 import InterfaceView2 as View
 import InterfaceController as Controller
 import InterfaceStorage exposing (taskMailbox)
-import CodeBox exposing (interpretAceEvents, packageModel, rerender,
-                         AceMessage, CodeBoxInfo)
+import CodeBox exposing (interpretAceEvents, packageModel,
+                         AceMessage, AceCodeBoxInfo, tripRender,
+                         initAceCodeBoxInfo)
 
 import Graphics.Element exposing (Element)
 import Mouse 
@@ -20,19 +21,19 @@ import Debug
 
 sigModel : Signal Model.Model
 sigModel =
-  Signal.foldp Controller.upstate Model.sampleModel <|
-    Signal.mergeMany
-      [ events.signal
-      , Signal.map2 (,) Mouse.isDown Mouse.position
-          |> Signal.filter (\(x,y) -> x) (False, (0,0))
-          |> Signal.map (\(x,y) -> y)
-          |> Signal.map2 adjustCoords Window.dimensions
-          |> Signal.map Model.MousePos
-      , Signal.map interpretAceEvents theTurn --eventsFromAce.signal
-      ]
+  Signal.foldp Controller.upstate Model.sampleModel combinedEventSig
 
---sigCodeBox : Signal Element
---sigCodeBox = Signal.map (interpretAceHtml << Debug.log "h") theRiver --htmlFromAce.signal
+combinedEventSig : Signal Model.Event
+combinedEventSig = 
+  Signal.mergeMany
+    [ events.signal
+    , Signal.map2 (,) Mouse.isDown Mouse.position
+      |> Signal.filter (\(x,y) -> x) (False, (0,0))
+      |> Signal.map (\(x,y) -> y)
+      |> Signal.map2 adjustCoords Window.dimensions
+      |> Signal.map Model.MousePos
+    , Signal.map interpretAceEvents theTurn 
+    ]
 
 main : Signal Element
 main = Signal.map2 View.view Window.dimensions sigModel
@@ -62,16 +63,10 @@ port taskPort = taskMailbox.signal
 -- But when the task returns, that should update the below signal anyways, which
 -- should trigger a rerender. Hmm.
 --
-port aceInTheHole : Signal CodeBoxInfo
-port aceInTheHole = Signal.map2 (\a b -> packageModel b) Window.dimensions sigModel
+port aceInTheHole : Signal AceCodeBoxInfo
+port aceInTheHole = Signal.map fst
+                      <| Signal.foldp packageModel initAceCodeBoxInfo
+                      <| Signal.map2 (,) sigModel combinedEventSig
 
 -- Port for Event messages from the code box
--- port theTurn : Signal AceMessage (type not exposed)
 port theTurn : Signal AceMessage
---port theTurn = eventsFromAce.signal
-
--- Port for Html messages from the code box (e.g. the rendered code box)
--- port theRiver : Signal JsHtml (type not exposed)
--- port theRiver : Signal CodeBox.JsHtml
---port theRiver : Signal CodeBoxInfo
---port theRiver = htmlFromAce.signal

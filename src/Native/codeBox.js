@@ -117,7 +117,23 @@ var defaultScratch =
 "(svg [(rect 'maroon' 100 15 200 15)])\n" +
 "\n";
 editor.setValue(defaultScratch);
-editor.setCurs
+editor.moveCursorTo(0,0);
+
+//Check to see if there are changes to the Editor element that we didn't cause
+//See: https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver
+/*
+var observer = new MutationObserver(function(mutations) {
+    console.log(mutations);
+    mutations.forEach(function(mutation) {
+        console.log(mutation.type);
+    });
+});
+var mutationConfig = { childList : true, characterData : true, attributes : true, subtree : true };
+observer.observe(
+    document.getElementById("editor"),
+    mutationConfig
+);
+*/
 
 var updateWasFromElm = false;
 var markers = [];
@@ -191,7 +207,6 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
         editor.resize();
         markers.push(mid);
     }
-    console.log(editor.getSession().getMarkers(false));
     editor.updateSelectionMarkers();
 
     //If the div rerendered (kept track of with a special attribute) then we
@@ -211,6 +226,17 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
         editor.container.style.zIndex = "1";
         editor.container.style.pointerEvents = "auto";
         editor.setReadOnly(false);
+    }
+
+    //If we should bounce an update back (force a rerender) then do so
+    if (codeBoxInfo.bounce) {
+        runtime.ports.theTurn.send(
+            { evt : "Rerender"
+            , strArg : ""
+            , cursorArg : editor.getCursorPosition()
+            , selectionArg : []
+            }
+        );
     }
     
     //Set our flag back to enable the event handlers again

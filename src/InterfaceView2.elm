@@ -1017,7 +1017,7 @@ saveElement model w h = case model.mode of
                            , GE.flow GE.right
                                [ GE.spacer 112 30 
                                , simpleButton
-                                  (UpdateModel <| removeDialog False "")
+                                  (RemoveDialog False "")
                                   "Cancel" "Cancel" "Cancel"
                                   75 30
                                ]

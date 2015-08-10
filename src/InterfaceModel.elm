@@ -110,6 +110,8 @@ type Event = CodeUpdate String
            | ToggleOutput
            | ToggleZones
            | SwitchOrient
+           | InstallSaveState
+           | RemoveDialog Bool String
            | StartResizingMid
            | Undo | Redo
            | Noop

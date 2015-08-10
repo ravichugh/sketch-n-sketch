@@ -6,7 +6,7 @@
 
 module InterfaceStorage (taskMailbox, saveStateLocally, loadLocalState,
                          getLocalSaves, checkAndSave, clearLocalSaves,
-                         removeDialog, deleteLocalSave) where
+                         removeDialog, deleteLocalSave, installSaveState) where
 
 -- Storage library, for in browser storage
 import Storage exposing (getItem, setItem, removeItem, keys, clear)
@@ -97,10 +97,12 @@ strToModel =
         )
 
 -- Task to save state to local browser storage
+-- Note that this is passed through as an Event and not an UpdateModel for the
+-- purposes of appropriately triggering rerendering in CodeBox.
 saveStateLocally : String -> Bool -> Model -> Task String ()
 saveStateLocally saveName saveAs model = 
     if saveAs
-      then send events.address <| InterfaceModel.UpdateModel installSaveState
+      then send events.address InterfaceModel.InstallSaveState 
       else setItem saveName <| modelToValue model
 
 -- Changes state to SaveDialog
@@ -116,7 +118,7 @@ checkAndSave saveName model = if
         && not (all (\c -> c == ' ' || c == '\t') saveName) ->
                 setItem saveName (modelToValue model)
                 `andThen` \x -> send events.address <|
-                    InterfaceModel.UpdateModel <| removeDialog True saveName
+                    InterfaceModel.RemoveDialog True saveName
     | otherwise -> send events.address <|
                     InterfaceModel.UpdateModel invalidInput
 

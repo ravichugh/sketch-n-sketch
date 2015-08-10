@@ -9,6 +9,7 @@ import Utils
 import MicroTests
 import InterfaceModel exposing (..)
 import InterfaceView2 exposing (..)
+import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg exposing (toNum, toNumTr, toPoints, addi)
 import ExamplesGenerated as Examples
 import Config
@@ -308,6 +309,12 @@ upstate evt old = case debugLog "Event" evt of
       let (current, (past, s::future)) = (old.code, old.history) in
       let new = { old | history <- (current::past, future) } in
       upstate Run (upstate (CodeUpdate s) new)
+
+    -- Elm does not have function equivalence/pattern matching, so we need to
+    -- thread these events through upstate in order to catch them to rerender
+    -- appropriately (see CodeBox.elm)
+    InstallSaveState -> installSaveState old
+    RemoveDialog makeSave saveName -> removeDialog makeSave saveName old
 
     UpdateModel f -> f old
 
