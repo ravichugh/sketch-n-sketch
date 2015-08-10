@@ -175,7 +175,7 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
         editor.resize();
         markers.push(mid);
     }
-    console.log(editor.getSession().getMarkers(false));
+    // console.log(editor.getSession().getMarkers(false));
     editor.updateSelectionMarkers();
 
     //If the div rerendered (kept track of with a special attribute) then we

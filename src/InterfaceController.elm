@@ -64,7 +64,6 @@ upslate id newattr nodes = case Dict.get id nodes of
             let newnode = LangSvg.SvgNode shape (Utils.update newattr attrs) children
             in Dict.insert id newnode nodes
 
--- TODO may need to reset codeBoxInfo.highlights here
 refreshMode model e =
   case model.mode of
     Live _  -> mkLive_ model.syncOptions e
@@ -72,6 +71,11 @@ refreshMode model e =
     m       -> m
 
 refreshMode_ model = refreshMode model (Utils.fromJust model.inputExp)
+
+refreshHighlights id zone model =
+  let codeBoxInfo = model.codeBoxInfo in
+  let hi = liveInfoToHighlights id zone model in
+  { model | codeBoxInfo <- { codeBoxInfo | highlights <- hi } }
 
 switchOrient m = case m of
   Vertical -> Horizontal
@@ -217,15 +221,14 @@ upstate evt old = case debugLog "Event" evt of
         SyncSelect _ _ -> old
 
     MouseUp ->
-      case old.mode of
-        Print _ -> old
+      case (old.mode, old.mouseMode) of
+        (Print _, _) -> old
+        (_, MouseObject i k z (Just (s, _, _))) ->
+          refreshHighlights i z
+            { old | mouseMode <- MouseNothing, mode <- refreshMode_ old
+                  , history <- addToHistory s old.history }
         _ ->
-          let h = case old.mouseMode of
-            MouseObject _ _ _ (Just (s, _, _)) -> addToHistory s old.history
-            _                                  -> old.history
-          in
-          { old | mouseMode <- MouseNothing, mode <- refreshMode_ old
-                , history <- h }
+          { old | mouseMode <- MouseNothing, mode <- refreshMode_ old }
 
     Sync -> 
       case (old.mode, old.inputExp) of
