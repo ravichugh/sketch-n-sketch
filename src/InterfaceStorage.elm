@@ -171,7 +171,7 @@ installLocalState saveName loadedModel oldModel =
 -- Gets the names of all of the local saves, returned in a list of strings
 getLocalSaves : Task String ()
 getLocalSaves = keys `andThen` \saves -> send events.address <|
-    InterfaceModel.UpdateModel <| installLocalSaves <| Debug.log "Loaded" saves
+    InterfaceModel.UpdateModel <| installLocalSaves saves
 
 -- Installs the list of local saves
 installLocalSaves : List String -> Model -> Model

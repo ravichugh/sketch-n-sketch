@@ -55,8 +55,18 @@ interpretAceEvents amsg = case amsg.evt of
                                    }
               }
     "Rerender" -> Model.UpdateModel <| \m -> { m | code <- m.code }
+    "LoadedFromError" -> Model.UpdateModel <| recoverFromError amsg.strArg
     "init" -> Model.Noop
     _ -> Debug.crash "Malformed update sent to Elm"
+
+-- Puts us in the correct state if we recovered from an error, which we find out
+-- about from the JS that also happens to load Ace.
+-- Maybe we should split this out into a different Elm/JS file?
+recoverFromError : String -> Model.Model -> Model.Model
+recoverFromError offendingCode fresh = 
+    { fresh | code <- offendingCode
+            , editingMode <- Just offendingCode
+    }
 
 -- The number of times that we defensively rerender the codebox on codebox
 -- clobbering updates. Determined experimentally.

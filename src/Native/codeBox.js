@@ -59,14 +59,6 @@ var runtime = Elm.fullscreen(Elm.Main, {
               }
 });
 
-window.oncrash = function(msg, url, linenumber) {
-  var s = '';
-  s += 'We crashed... Sorry! Hit OK to restart.\n\n';
-  s += 'Error message: ' + msg + '\n\n';
-  s += 'The JS error console may contain more info.';
-  alert(s);
-  location.reload();
-}
 
 var Range = ace.require('ace/range').Range
 
@@ -103,19 +95,35 @@ editor.getSession().getDocument().on("change", maybeSendUpdate);
 editor.getSession().selection.on("changeCursor", maybeSendUpdate);
 editor.getSession().selection.on("changeSelection", maybeSendUpdate);
 
-//Set the default scratch text to display before the first load
-var defaultScratch = 
-"\n" +
-"; Write a little program below.\n" +
-"; Or choose an example from the list.\n" +
-";\n" +
-"; Changes to this *Scratch example will be saved and\n" +
-"; restored when navigating to and from other examples.\n" +
-"; For the remaining named examples, changes will be\n" +
-"; discarded when choosing a different example.\n" +
-"\n" +
-"(svg [(rect 'maroon' 100 15 200 15)])\n" +
-"\n";
+//If we reloaded from a crash, then we should do a few things differently:
+// - Set the initial text to what it was when we crashed
+// - Send an event to Elm to let Elm know that we just crashed
+var maybeError = localStorage.getItem("__ErrorSave");
+if (maybeError !== null) {
+    localStorage.removeItem("__ErrorSave");
+    var defaultScratch = maybeError;
+    runtime.ports.theTurn.send(
+            { evt : "LoadedFromError"
+            , strArg : maybeError
+            , cursorArg : { row : 0, column : 0 }
+            , selectionArg : []
+            }
+    );
+} else {
+    //Set the default scratch text to display before the first load
+    var defaultScratch = 
+    "\n" +
+    "; Write a little program below.\n" +
+    "; Or choose an example from the list.\n" +
+    ";\n" +
+    "; Changes to this *Scratch* example will be saved and\n" +
+    "; restored when navigating to and from other examples.\n" +
+    "; For the remaining named examples, changes will be\n" +
+    "; discarded when choosing a different example.\n" +
+    "\n" +
+    "(svg [(rect 'maroon' 100 15 200 15)])\n" +
+    "\n";
+}
 editor.setValue(defaultScratch);
 editor.moveCursorTo(0,0);
 
@@ -242,6 +250,57 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
     //Set our flag back to enable the event handlers again
     updateWasFromElm = false;
 });
+
+//... TODO explain
+window.onerror = function(msg, url, linenumber) {
+  //var s = '';
+  //s += 'We crashed... Sorry! Hit OK to restart.\n\n';
+  //s += 'Error message: ' + msg + '\n\n';
+  //s += 'The JS error console may contain more info.';
+  //
+  //Re-embed/restart Elm, and send some signals to get it back to where it was 
+  //delete runtime;
+  //document.open();
+  //document.write("<body style=\"margin: 0 0 0 0;\"></body>");
+  //document.close();
+  //console.log(document.body.childNodes);
+  //var l = document.body.childNodes.length;
+  //for (var n = 0; n < l; n++) {
+  //    var node = document.body.childNodes[0];
+  //    console.log(node);
+  //    node.parentNode.removeChild(node);
+ // }
+ // runtime = Elm.fullscreen(Elm.Main, {
+ //     theTurn : { evt : "init"
+ //               , strArg : msg
+  //              , cursorArg : { row : 0, column : 0}
+  //              , selectionArg : []
+  //              }
+  //});
+  //alert(s);
+  
+  localStorage.setItem('__ErrorSave', editor.getSession().getDocument().getValue());
+  //window.onload = function() {
+  //    console.log("Wat");
+  //    runtime.ports.theTurn.send(
+  //            { evt : "error"
+  //            , strArg : msg
+  //            , cursorArg : { row : 0, column : 0 }
+  //            , selectioArg : []
+  //            }
+  //    );
+  //};
+
+  //Nothing is run after this
+  location.reload();
+  //runtime.ports.theTurn.send(
+  //        { evt : "error"
+  //        , strArg : msg
+  //        , cursorArg : { row : 0, column : 0 }
+  //        , selectionArg : []
+  //        }
+  //);
+}
 
 function maybeSendUpdate(e) {
     if (!updateWasFromElm) {

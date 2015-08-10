@@ -1134,6 +1134,8 @@ view (w,h) model =
         Signal.message taskMailbox.address <|
           -- Insert more tasks to run at startup here
           getLocalSaves `andThen` \_ ->
+        
+          ---
           Signal.send
             events.address
             (UpdateModel (\m -> { m | startup <- False}))
