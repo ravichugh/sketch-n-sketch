@@ -101,9 +101,9 @@ this.$rules =
             }
         },
         {
-            token : "entervarlist",
+            token : "paren.lparen",
             regex : /\(/,
-            next : "paren.lparen"
+            next : "varlist"
         },
         {
             token : "variable.parameter",
@@ -113,9 +113,9 @@ this.$rules =
     ],
     "varlist" : [
         {
-            token : "exitvarlist",
+            token : "paren.rparen",
             regex : /\)/,
-            next : "paren.rparen"
+            next : "start"
         },  
         {
             token : "variable.parameter",
