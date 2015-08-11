@@ -34,7 +34,10 @@ combinedEventSig =
       |> Signal.map (\(x,y) -> y)
       |> Signal.map2 adjustCoords Window.dimensions
       |> Signal.map Model.MousePos
-    , Signal.map interpretAceEvents theTurn 
+    , Signal.map interpretAceEvents theTurn
+    , Signal.map
+      (Model.KeysDown << List.sort << Set.toList)
+      Keyboard.keysDown
     ]
 
 main : Signal Element
