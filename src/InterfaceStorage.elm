@@ -115,6 +115,7 @@ checkAndSave : String -> Model -> Task String ()
 checkAndSave saveName model = if
     | List.all ((/=) saveName << fst) Examples.list
         && saveName /= ""
+        && saveName /= "__ErrorSave"
         && not (all (\c -> c == ' ' || c == '\t') saveName) ->
                 setItem saveName (modelToValue model)
                 `andThen` \x -> send events.address <|

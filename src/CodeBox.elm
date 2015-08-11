@@ -11,7 +11,7 @@ import InterfaceModel as Model exposing (Event, sampleModel, events)
 import InterfaceStorage exposing (installSaveState)
 
 import Task exposing (Task)
-
+import String
 import Dict exposing (Dict)
 
 -- So we can crash correctly
@@ -55,20 +55,23 @@ interpretAceEvents amsg = case amsg.evt of
                                    }
               }
     "Rerender" -> Model.UpdateModel <| \m -> { m | code <- m.code }
-    "LoadedFromError" -> Model.UpdateModel <| recoverFromError amsg.strArg
     "init" -> Model.Noop
-    _ -> Debug.crash "Malformed update sent to Elm"
+    _ -> if String.startsWith "[Error]" amsg.evt
+            then Model.UpdateModel <| recoverFromError amsg
+            else Debug.crash "[Error] Malformed update sent to Elm"
 
 -- Puts us in the correct state if we recovered from an error, which we find out
 -- about from the JS that also happens to load Ace.
 -- Maybe we should split this out into a different Elm/JS file?
-recoverFromError : String -> Model.Model -> Model.Model
-recoverFromError offendingCode fresh = 
-    { fresh | code <- offendingCode
-            , editingMode <- Just offendingCode
-            , caption <- Just <| Model.LangError <| "Runtime Error!\n" ++
-                "You likely provided the wrong number of arguments to a\n" ++
-                "function or referenced an undefined expression name."
+recoverFromError : AceMessage -> Model.Model -> Model.Model
+recoverFromError amsg fresh = 
+    { fresh | code <- amsg.strArg
+            , editingMode <- Just amsg.strArg
+            , caption <- Just <| Model.LangError amsg.evt
+            , codeBoxInfo <- { selections = amsg.selectionArg
+                             , cursorPos  = amsg.cursorArg
+                             , highlights = fresh.codeBoxInfo.highlights
+                             }
     }
 
 -- The number of times that we defensively rerender the codebox on codebox
@@ -78,7 +81,7 @@ recoverFromError offendingCode fresh =
 -- Note that each one of these won't necessarily trigger a DOM copy/replacement;
 -- it only will for each of the times that Elm clobbers it.
 rerenderCount : Int
-rerenderCount = 3
+rerenderCount = 4
 
 packageModel : (Model.Model, Event) -> (AceCodeBoxInfo, List Bool) -> 
                     (AceCodeBoxInfo, List Bool)

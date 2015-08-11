@@ -101,12 +101,14 @@ editor.getSession().selection.on("changeSelection", maybeSendUpdate);
 var maybeError = localStorage.getItem("__ErrorSave");
 if (maybeError !== null) {
     localStorage.removeItem("__ErrorSave");
-    var defaultScratch = maybeError;
+    console.log(maybeError);
+    var errorObj = JSON.parse(maybeError);
+    var defaultScratch = errorObj.strArg;
     runtime.ports.theTurn.send(
-            { evt : "LoadedFromError"
-            , strArg : maybeError
-            , cursorArg : { row : 0, column : 0 }
-            , selectionArg : []
+            { evt : errorObj.evt
+            , strArg : errorObj.strArg
+            , cursorArg : errorObj.cursorArg
+            , selectionArg : errorObj.selectionArg
             }
     );
 } else {
@@ -126,22 +128,6 @@ if (maybeError !== null) {
 }
 editor.setValue(defaultScratch);
 editor.moveCursorTo(0,0);
-
-//Check to see if there are changes to the Editor element that we didn't cause
-//See: https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver
-/*
-var observer = new MutationObserver(function(mutations) {
-    console.log(mutations);
-    mutations.forEach(function(mutation) {
-        console.log(mutation.type);
-    });
-});
-var mutationConfig = { childList : true, characterData : true, attributes : true, subtree : true };
-observer.observe(
-    document.getElementById("editor"),
-    mutationConfig
-);
-*/
 
 var updateWasFromElm = false;
 var markers = [];
@@ -251,55 +237,26 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
     updateWasFromElm = false;
 });
 
-//... TODO explain
+//We recover from fatal errors by setting a special key in the local key/value
+// store before reloading the page. Then we check for this key on load and set
+// up appropriately if we're loading after a crash.
 window.onerror = function(msg, url, linenumber) {
-  //var s = '';
-  //s += 'We crashed... Sorry! Hit OK to restart.\n\n';
-  //s += 'Error message: ' + msg + '\n\n';
-  //s += 'The JS error console may contain more info.';
-  //
-  //Re-embed/restart Elm, and send some signals to get it back to where it was 
-  //delete runtime;
-  //document.open();
-  //document.write("<body style=\"margin: 0 0 0 0;\"></body>");
-  //document.close();
-  //console.log(document.body.childNodes);
-  //var l = document.body.childNodes.length;
-  //for (var n = 0; n < l; n++) {
-  //    var node = document.body.childNodes[0];
-  //    console.log(node);
-  //    node.parentNode.removeChild(node);
- // }
- // runtime = Elm.fullscreen(Elm.Main, {
- //     theTurn : { evt : "init"
- //               , strArg : msg
-  //              , cursorArg : { row : 0, column : 0}
-  //              , selectionArg : []
-  //              }
-  //});
-  //alert(s);
-  
-  localStorage.setItem('__ErrorSave', editor.getSession().getDocument().getValue());
-  //window.onload = function() {
-  //    console.log("Wat");
-  //    runtime.ports.theTurn.send(
-  //            { evt : "error"
-  //            , strArg : msg
-  //            , cursorArg : { row : 0, column : 0 }
-  //            , selectioArg : []
-  //            }
-  //    );
-  //};
-
-  //Nothing is run after this
-  location.reload();
-  //runtime.ports.theTurn.send(
-  //        { evt : "error"
-  //        , strArg : msg
-  //        , cursorArg : { row : 0, column : 0 }
-  //        , selectionArg : []
-  //        }
-  //);
+  //We disallow saving to this key in Elm to avoid possible confusion
+  //If the error was something that we didn't want to catch (e.g. not prefaced
+  // with [Error]) then don't do anything
+  //Trim the "Uncaught Error: " part from the front
+  var errorMsg = msg.slice(16);
+  console.log(errorMsg);
+  if (errorMsg.startsWith("[Error]")) {
+      localStorage.setItem('__ErrorSave', JSON.stringify(
+        { evt : errorMsg
+        , strArg : editor.getSession().getDocument().getValue()
+        , cursorArg : editor.getCursorPosition()
+        , selectionArg : editor.selection.getAllRanges()
+        }
+      ));
+      location.reload();
+  }
 }
 
 function maybeSendUpdate(e) {

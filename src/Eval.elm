@@ -38,7 +38,7 @@ cons pv menv =
 lookupVar env x =
   case Utils.maybeFind x env of
     Just v -> v
-    Nothing -> Debug.crash <| "eval: var " ++ Utils.bracks x
+    Nothing -> Debug.crash <| "[Error] eval: var " ++ Utils.bracks x
 
 -- eval propagates output environment in order to extract
 -- initial environment from prelude
@@ -100,7 +100,7 @@ eval env e =
         case (pVar f, v1') `cons` Just env of
           Just env' -> eval env' e2
       (PList _ _, _) ->
-        Debug.crash "eval: multi letrec"
+        Debug.crash "[Error] eval: multi letrec"
 
   EComment _ e1 -> eval env e1
   EOption _ _ e1 -> eval env e1
@@ -164,7 +164,7 @@ evalDelta op is =
     (Floor,  [n])   -> toFloat <| floor n
     (Ceil,   [n])   -> toFloat <| ceiling n
     (Round,  [n])   -> toFloat <| round n
-    _               -> Debug.crash <| "Eval.evalDelta " ++ strOp op
+    _               -> Debug.crash <| "[Error] Eval.evalDelta " ++ strOp op
 
 initEnv = snd (eval [] Parser.prelude)
 
@@ -189,4 +189,4 @@ rangeToList r =
            in
            if | nl == nu  -> [ VConst (nl, TrLoc tl) ]
               | otherwise -> walkVal 0
-        _ -> Debug.crash "Range not specified with numeric constants"
+        _ -> Debug.crash "[Error] Range not specified with numeric constants"
