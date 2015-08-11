@@ -400,7 +400,6 @@ inferStructuralUpdate eOld v v' =
 --   e.g. for polygons, x1,y1,x2,y2,x3,y3,...
 
 type alias AttrName = String
-type alias LocSet = Set.Set Loc
 type alias Locs = List Loc
 
 -- band-aids for extra metadata...
@@ -686,12 +685,13 @@ strLoc_ l =
 ------------------------------------------------------------------------------
 
 type alias Triggers = Dict NodeId (Dict Zone (Maybe Trigger))
-type alias Trigger  = List (AttrName, Num) -> (Exp, Dict NodeId (Dict AttrName Num))
+type alias Trigger  = List (AttrName, Num) -> (Exp, SubstMaybeNum)
+-- type alias Trigger  = List (AttrName, Num) -> (Exp, Dict NodeId (Dict AttrName Num))
 
 type alias LiveInfo =
   { triggers    : Triggers
-  , assignments : Dict NodeId (Dict Zone Locs)
-  , initSubst   : Subst
+  , assignments : Dict NodeId (Dict Zone (LocSet, LocSet))
+  , initSubst   : SubstPlus
   }
 
 tryToBeSmart = False
@@ -701,10 +701,11 @@ prepareLiveUpdates opts e v =
   let d0 = nodeToAttrLocs v in
   let d1 = shapesToZoneTable opts d0 in
   let d2 = assignTriggers d1 in
-  let initSubst = Parser.substOf e in
+  let initSubstPlus = Parser.substPlusOf e in
+  let initSubst = Dict.map (always .val) initSubstPlus in
     { triggers    = makeTriggers initSubst opts e d0 d2
     , assignments = zoneAssignments d2
-    , initSubst   = initSubst
+    , initSubst   = initSubstPlus
     }
 
 -- TODO refactor Dict data structures above to make this more efficient
@@ -724,8 +725,8 @@ makeTrigger : Options -> Exp -> Dict0 -> Dict2 -> Subst -> NodeId -> Zone -> Tri
 makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
   -- TODO symbolically compute changes !!!
   -- once this is done, might be able to rank trigger sets by int/float
-  let (subst',changedLocs) =
-    let f (attr,newNum) (acc1,acc2) =
+  let (entireSubst, changedSubst, changedLocs) =
+    let f (attr,newNum) (acc1,acc2,acc3) =
       {- 6/25: now that assigned locs do not appear in every attribute,
                whichLoc may return Nothing
       let k = whichLoc opts d0 d2 i zone attr in
@@ -739,7 +740,7 @@ makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
         Just kSolution -> (Dict.insert k kSolution acc1, Set.insert k acc2)
       -}
       case whichLoc opts d0 d2 i zone attr of
-        Nothing -> (acc1, acc2)
+        Nothing -> (acc1, acc2, acc3)
         Just k ->
           let subst' = Dict.remove k subst in
           let tr = justGet_ "%2" attr (Utils.fourth4 (justGet_ "%3" i d0)) in
@@ -747,13 +748,20 @@ makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
             -- solve will no longer always return an answer, so one of
             -- the locations assigned to this trigger may not have an
             -- effect after all... (see Dict1 comment)
-            Nothing -> (acc1, acc2)
-            Just kSolution -> (Dict.insert k kSolution acc1, Set.insert k acc2)
+            Nothing -> (acc1, Dict.insert k Nothing acc2, acc3)
+            Just kSolution ->
+              let acc1' = Dict.insert k kSolution acc1 in
+              let acc2' = Dict.insert k (Just kSolution) acc2 in
+              let acc3' = Set.insert k acc3 in
+              (acc1', acc2', acc3')
     in
-    List.foldl f (subst, Set.empty) newAttrs in
+    List.foldl f (subst, Dict.empty, Set.empty) newAttrs in
     -- if using overconstrained triggers, then some of the newAttr values
     -- from the UI make be "immediately destroyed" by subsequent ones...
 
+  (applySubst entireSubst e, changedSubst)
+
+{-
   let g i (_,_,_,di) acc =
     let h attr tr acc =
       let locs = Set.map Utils.fst3 (locsOfTrace opts tr) in
@@ -785,6 +793,7 @@ makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
        | otherwise -> Dict.insert i di' acc in
   let e' = applySubst subst' e in
   (e', Dict.foldl g Dict.empty d0)
+-}
 
 -- TODO sloppy way of doing this for now...
 whichLoc : Options -> Dict0 -> Dict2 -> NodeId -> Zone -> AttrName -> Maybe LocId
@@ -810,14 +819,20 @@ evalTr subst tr = Utils.fromJust_ "evalTr" (evalTrace subst tr)
 
 ------------------------------------------------------------------------------
 
+setFromLists : List Locs -> LocSet
+setFromLists = List.foldl (flip Set.union << Set.fromList) Set.empty
+
 -- TODO compute this along with everything else
 -- could also make this a single dictionary: Dict (NodeId, Zone) Locs
-zoneAssignments : Dict2 -> Dict NodeId (Dict Zone Locs)
+zoneAssignments : Dict2 -> Dict NodeId (Dict Zone (LocSet, LocSet))
 zoneAssignments =
   Dict.map <| \i (_,l) ->
     List.foldl (\(z,m) acc ->
       case m of
-        Just (locs,_) -> Dict.insert z locs acc
+        Just (locs,otherLocs) ->
+          let yellowLocs = Set.fromList locs in
+          let grayLocs   = setFromLists otherLocs `Set.diff` yellowLocs in
+          Dict.insert z (yellowLocs, grayLocs) acc
         Nothing       -> acc
     ) Dict.empty l
 

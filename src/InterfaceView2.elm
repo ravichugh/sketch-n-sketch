@@ -2,7 +2,7 @@ module InterfaceView2 (view, scaleColorBall) where
 
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
-import LangParser2 exposing (parseE, parseV)
+import LangParser2 as Parser exposing (parseE, parseV)
 import Sync
 import Eval
 import Utils
@@ -11,12 +11,14 @@ import InterfaceModel exposing (..)
 import LangSvg exposing (toNum, toNumTr, addi)
 import ExamplesGenerated as Examples
 import Config exposing (params)
+import OurParser2 as P
 
 import VirtualDom
 
 --Core Libraries
 import List 
 import Dict
+import Set
 import String 
 import Graphics.Element as GE 
 import Graphics.Collage as GC
@@ -33,12 +35,13 @@ import Task exposing (Task, andThen)
 --Storage Libraries
 import InterfaceStorage exposing (taskMailbox, saveStateLocally, loadLocalState,
                                   checkAndSave, getLocalSaves, clearLocalSaves,
-                                  removeDialog, deleteLocalSave)
+                                  deleteLocalSave)
 
 --Html Libraries
 import Html 
 import Html.Attributes as Attr
 import Html.Events as Events
+import Html.Lazy
 
 --Svg Libraries
 import Svg
@@ -98,6 +101,7 @@ makeButton status w h text =
               ]
           ] [ Html.text text ]
     ]
+
 --------------------------------------------------------------------------------
 -- Zone Options (per shape)
 
@@ -159,8 +163,8 @@ onMouseOut  = Svg.Events.onMouseOut  << Signal.message events.address
 zoneEvents id shape zone =
   [ onMouseDown (SelectObject id shape zone)
   , onMouseUp MouseUp
-  , onMouseOver (UpdateModel (\m -> { m | caption <- Just (Hovering (id, shape, zone)) }))
-  , onMouseOut (UpdateModel (\m -> { m | caption <- Nothing }))
+  , onMouseOver (turnOnCaptionAndHighlights id shape zone)
+  , onMouseOut turnOffCaptionAndHighlights
   ]
 
 zone svgFunc id shape zone l =
@@ -494,7 +498,7 @@ codebox_ w h event s readOnly =
   in
     Html.toElement w h <|
       Html.textarea
-        ([ Attr.id "codeBox"
+        ([ Attr.id "editor"
          , Attr.spellcheck False
          , Attr.readonly readOnly
          , Attr.style
@@ -617,6 +621,19 @@ gutterForResizing orient w h =
           ]
           [ ]
 
+-- Makes a div appropriate for the Ace code editor to be inserted into
+codeBox : Int -> Int -> GE.Element
+codeBox w h = Html.toElement w h <|
+    Html.Lazy.lazy2 (\a b -> Html.div [ Attr.id "editor"
+             , Attr.style
+                 [ ("width", "100%") -- The toElement makes a wrapping Div that
+                                     -- has the appropriate w/h
+                 , ("height", "100%")
+                 , ("pointer-events", "auto")
+                 , ("z-index", "1")
+                 ]
+             ] []) w h
+
 mainSectionVertical : Int -> Int -> Model -> GE.Element
 mainSectionVertical w h model =
   let
@@ -631,7 +648,9 @@ mainSectionVertical w h model =
                 + params.mainSection.vertical.hExtra
   in
 
-  let codeSection = codebox wCode h model in
+  let codeSection = if model.basicCodeBox 
+                       then codebox wCode h model
+                       else codeBox wCode h in
 
   let canvasSection =
     GE.size wCanvas h <|
@@ -670,7 +689,9 @@ mainSectionHorizontal w h model =
                 + params.mainSection.horizontal.wExtra
   in
 
-  let codeSection = codebox w hCode model in
+  let codeSection = if model.basicCodeBox
+                       then codebox w hCode model
+                       else codeBox w hCode in
 
   let canvasSection =
     GE.size w (hCanvas + hZInfo) <|
@@ -855,22 +876,22 @@ modeButton model =
   then simpleEventButton_ True Noop "SwitchMode" "SwitchMode" "[Mode] Ad Hoc"
   else simpleEventButton_ False (SwitchMode AdHoc) "SwitchMode" "SwitchMode" "[Mode] Live"
 
-{-
-modeToggle : Int -> Int -> Model -> GE.Element
-modeToggle w h model =
-  let opt s m = (s, (SwitchMode m)) in
-  let optionLive = opt "Live" (mkLive_ model.syncOptions (Utils.fromJust model.inputExp)) in
-  let optionAdHoc = opt "Ad Hoc" AdHoc in
-  GI.dropDown (Signal.message events.address) <|
-    case model.mode of
-      AdHoc -> [optionAdHoc]
-      _     -> [optionLive, optionAdHoc]
--}
-
 orientationButton w h model = 
     let text = "[Orientation] " ++ toString model.orient
     in
       simpleButton SwitchOrient text text text w h
+
+basicBoxButton w h model =
+    let (text,flip) = case model.basicCodeBox of
+          True  -> ("[Code Box] Basic", False)
+          False -> ("[Code Box] Fancy", True)
+    in
+       simpleButton 
+         (SetBasicCodeBox flip)
+         text text text w h
+
+--------------------------------------------------------------------------------
+-- Zone Caption and Highlights
 
 caption : Model -> Int -> Int -> GE.Element
 caption model w h =
@@ -882,7 +903,7 @@ caption model w h =
           case hoverInfo info (i,k,z) of
             Nothing -> GE.empty
             Just l ->
-              let numLocs = List.map (\(s,n) -> toString n ++ Utils.braces s) l in
+              let numLocs = List.map (\(s,n) -> toString n.val ++ Utils.braces s) l in
               let line1 = (k ++ toString i) ++ " " ++ z in
               let line2 = Utils.spaces numLocs in
               eStr (" " ++ line1 ++ "\n " ++ line2)
@@ -891,17 +912,35 @@ caption model w h =
         _ ->
           GE.empty
 
+-- this is a bit redundant with Model.liveInfoToHighlights...
 hoverInfo info (i,k,z) =
   let err y = "hoverInfo: " ++ toString y in
   flip Utils.bindMaybe (Dict.get i info.assignments) <| \d ->
-  flip Utils.bindMaybe (Dict.get z d)                <| \locs ->
+  flip Utils.bindMaybe (Dict.get z d)                <| \(locset,_) ->
+    let locs = Set.toList locset in
     Just <|
       List.map (\(lid,_,x) ->
         let n = Utils.justGet_ (err (i,z,lid)) lid info.initSubst in
         if | x == ""   -> ("loc_" ++ toString lid, n)
            | otherwise -> (x, n)) locs
 
+turnOnCaptionAndHighlights id shape zone =
+  UpdateModel <| \m ->
+    let codeBoxInfo = m.codeBoxInfo in
+    let hi = liveInfoToHighlights id zone m in
+    { m | caption <- Just (Hovering (id, shape, zone))
+        , codeBoxInfo <- { codeBoxInfo | highlights <- hi } }
+
+turnOffCaptionAndHighlights =
+  UpdateModel <| \m ->
+    let codeBoxInfo = m.codeBoxInfo in
+    { m | caption <- Nothing
+        , codeBoxInfo <- { codeBoxInfo | highlights <- [] } }
+
+--------------------------------------------------------------------------------
+
 -- The pop-up save dialog box
+-- TODO clean this up, is needlessly bulky
 saveElement : Model -> Int -> Int -> GE.Element
 saveElement model w h = case model.mode of
   SaveDialog x -> 
@@ -973,7 +1012,7 @@ saveElement model w h = case model.mode of
                            , GE.flow GE.right
                                [ GE.spacer 112 30 
                                , simpleButton
-                                  (UpdateModel <| removeDialog False "")
+                                  (RemoveDialog False "")
                                   "Cancel" "Cancel" "Cancel"
                                   75 30
                                ]
@@ -1004,16 +1043,20 @@ view (w,h) model =
       wBtnO = params.topSection.wBtnO
       hBtnO = params.topSection.hBtnO
       wJunk = params.topSection.wJunk
+      wSpcB = 15
 
-      wSep  = GE.spacer (wAll - (wLogo + wBtnO + wJunk)) 1
+      wSep  = GE.spacer (wAll - (wLogo + 2 * wBtnO + wJunk + wSpcB)) 1
       btnO  = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
                 orientationButton wBtnO hBtnO model
+      spcB  = GE.spacer wSpcB hTop
+      btnB  = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
+                basicBoxButton wBtnO hBtnO model
     in
       GE.size wAll hTop <|
         GE.flow GE.right
           [ GE.container wLogo hTop GE.middle logo
           , GE.container (wAll - wLogo) hTop GE.middle <|
-              GE.flow GE.right [ title, wSep, btnO ]
+              GE.flow GE.right [ title, wSep, btnB, spcB, btnO ]
           ]
   in
 
@@ -1038,12 +1081,53 @@ view (w,h) model =
        ]
   in
 
+-- Investigation into what exactly causes the blank out when Save As or
+-- an orientation change happens. For the Save As, it sppears that the extra
+-- GE.flow GE.inward is the culprit, but it's not definitive yet. 
+--  case (model.startup, model.mode) of
+--    (True, _) ->
+--      let foo _ =
+--        Signal.message taskMailbox.address <|
+--          -- Insert more tasks to run at startup here
+--          getLocalSaves `andThen` \_ ->
+--          Signal.send
+--            events.address
+--            (UpdateModel (\m -> { m | startup <- False}))
+--      in
+--      GE.flow GE.inward
+--        [ GI.hoverable foo <| GE.spacer w h
+--        , basicUI
+--        ]
+--    (False, SaveDialog m) ->
+--        GE.flow GE.inward 
+--          [ saveElement model w h
+--          ,                  
+--        GE.flow GE.down
+--           [ colorDebug Color.lightYellow topSection
+--           , GE.flow GE.right
+--                [ sideGutter
+--                , midSection
+--                , sideGutter
+--                ]
+--           , colorDebug Color.lightYellow botSection
+--           ]
+--           ]
+--    _ ->
+--    GE.flow GE.right
+--       [ sideGutter
+--       , GE.flow GE.down
+--           [ colorDebug Color.lightYellow <| topSection
+--           , midSection
+--           , colorDebug Color.lightYellow <| botSection
+--           ]
+--       , sideGutter
+--       ]
+
   -- Runs a task at startup by making the whole window hoverable briefly, which
   -- fires the task to the taskMailbox basically right away (the user's mouse is
   -- presumably over the window). Note that it is important to add the event
   -- handler to a dummy object that is removed, as adding it to the whole body
   -- results in nothing being clickable after the load is successful.
-
   case (model.startup, model.mode) of
     (True, _) ->
       let foo _ =
@@ -1065,7 +1149,6 @@ view (w,h) model =
         ]
     _ ->
       basicUI
-
 
 -- TODO: add onMouseUp DeselectObject event to all GE.Elements...
 
