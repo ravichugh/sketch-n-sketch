@@ -136,8 +136,6 @@ highlightChanges mStuff changes codeBoxInfo =
           { color = color, range = List.foldl g range stringOffsets }
       in
 
-      -- TODO logging until visual highlights
-      -- let _ = Debug.log "hilight:\n" hi' in
       { codeBoxInfo | highlights <- hi' }
 
 
@@ -225,9 +223,13 @@ upstate evt old = case debugLog "Event" evt of
       case (old.mode, old.mouseMode) of
         (Print _, _) -> old
         (_, MouseObject i k z (Just (s, _, _))) ->
+          -- 8/10: re-parsing to get new position info after live sync-ing
+          -- TODO: could update positions within highlightChanges
+          let (Ok e) = parseE old.code in
+          let old' = { old | inputExp <- Just e } in
           refreshHighlights i z
-            { old | mouseMode <- MouseNothing, mode <- refreshMode_ old
-                  , history <- addToHistory s old.history }
+            { old' | mouseMode <- MouseNothing, mode <- refreshMode_ old'
+                   , history <- addToHistory s old'.history }
         _ ->
           { old | mouseMode <- MouseNothing, mode <- refreshMode_ old }
 
