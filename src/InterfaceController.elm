@@ -124,17 +124,19 @@ highlightChanges mStuff changes codeBoxInfo =
       in
 
       let hi' =
-        let g (startPos,extraChars) accRange =
+        let g (startPos,extraChars) (old,new) =
           let bump pos = { pos | column <- pos.column + extraChars } in
-          let (start, end) = (accRange.start, accRange.end) in
-          if | startPos.row    /= start.row    -> accRange
-             | startPos.column >  start.column -> accRange
-             | startPos.column == start.column -> { start = start, end = bump end }
-             | startPos.column <  start.column -> { start = bump start, end = bump end }
+          let ret new' = (old, new') in
+          ret <| if
+             | startPos.row    /= old.start.row    -> new
+             | startPos.column >  old.start.column -> new
+             | startPos.column == old.start.column -> { start = new.start, end = bump new.end }
+             | startPos.column <  old.start.column -> { start = bump new.start, end = bump new.end }
         in
         -- hi has <= 4 elements, so not worrying about the redundant processing
         flip List.map hi <| \{color,range} ->
-          { color = color, range = List.foldl g range stringOffsets }
+          let (_,range') = List.foldl g (range,range) stringOffsets in
+          { color = color, range = range' }
       in
 
       { codeBoxInfo | highlights <- hi' }
