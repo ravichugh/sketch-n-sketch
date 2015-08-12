@@ -1721,6 +1721,138 @@ thawFreeze =
 
 "
 
+cover =
+ "; Logo for Cover
+; see https://github.com/florence/cover
+
+(def size 300!)
+(def line 10!)
+(def h (/ size 2.6548672566371683))
+(def w (- (* 2! h) (* 2! line)))
+
+(def m (/ size 2!))
+
+(def x (- m (/ w 2!)))
+(def y (- m (+ (/ line 2!) (/ w 2!))))
+
+(def x2 (- x (+ w line)))
+(def y2 (- x (+ w (* 2.5! line))))
+
+(def x3 (+ x (+ w line)))
+(def y3 (+ x (+ w (* 1.5! line))))
+
+(def top (\\(x y)
+ (rect 'red' x y w (- h line))))
+
+(def sw (- h (* 1.5! line)))
+
+(def bottom (\\(x y)
+  (rect 'blue' x (+ y h) sw (- h line))))
+
+(def bottoma (\\(x y) (bottom x y)))
+(def bottomb (\\(x y) (bottom (+ sw (+ x line)) y)))
+
+(def rot 45)
+
+['svg'
+ [['viewBox' (+ (+ (+ '0 0 ' (toString size)) ' ') (toString size))]]
+ [
+  (square 'white' 0! 0! size)
+
+  (rotate (top x y)   rot m m)
+  (rotate (bottoma x y) rot m m)
+  (rotate (bottomb x y) rot m m)
+
+  (rotate (top x2 y)   rot m m)
+  (rotate (bottoma x2 y) rot m m)
+  (rotate (bottomb x2 y) rot m m)
+
+  (rotate (top x y2)   rot m m)
+  (rotate (bottoma x y2) rot m m)
+  (rotate (bottomb x y2) rot m m)
+
+  (rotate (top x3 y)   rot m m)
+  (rotate (bottoma x3 y) rot m m)
+  (rotate (bottomb x3 y) rot m m)
+
+  (rotate (top x y3)   rot m m)
+  (rotate (bottoma x y3) rot m m)
+  (rotate (bottomb x y3) rot m m)
+]]
+
+"
+
+poppl =
+ "; Logo for POP-PL
+; see https://github.com/florence/pop-pl
+
+(def M 'M')
+(def L 'L')
+(def C 'C')
+(def Z 'Z')
+
+(def ltopWidth 29!)
+(def ltopHeight 63!)
+(def xstart 131!)
+(def ystart 63!)
+(def stethx 31!)
+(def stethy 7!)
+(def cr2Control -0.1769993052254364)
+(def cr2x (* cr2Control ltopWidth))
+(def cr2y (* cr2Control ltopHeight))
+(def lpath
+  [M (- xstart stethx) (- ystart stethy)
+   C (+ xstart -12) (+ ystart -19)
+     (+ cr2x xstart) (+ cr2y ystart)
+     xstart ystart
+   L (+ xstart ltopWidth) (+ ystart ltopHeight)
+   ])
+
+(def axstart  (+ xstart ltopWidth))
+(def aystart (+ ystart ltopHeight))
+(def ascale 1.9534135150166867!)
+(def ax (* ascale ltopWidth))
+(def ay (* ascale ltopHeight))
+(def bx 18!)
+(def armpath
+  [M axstart aystart
+   C (+ xstart 71) (+ ystart 94)
+     (+ xstart 90) (+ ystart 142)
+     (+ axstart ax) (+ aystart ay)
+   C (+ xstart 63) (+ ystart 190)
+     (+ xstart 74) (+ ystart 188)
+     (- (+ axstart ax) bx) (+ aystart ay)])
+
+(def lwidth 5)
+
+
+(def nub
+  (circle 'black' (- (+ axstart ax) bx) (+ aystart ay) (* lwidth 2!)))
+
+(def small (* lwidth 2.1))
+(def scope1
+  (circle 'black' (- xstart stethx) (- ystart stethy) (+ small lwidth)))
+(def scope2
+  (circle 'white' (- xstart stethx) (- ystart stethy) small))
+
+['svg'
+ [['viewBox' '0 0 300 300']]
+ [(square 'white' 0! 0! 300!)
+      (path 'none' 'black' lwidth lpath)
+      (path 'none' 'black' lwidth armpath)
+      nub
+      (addAttr (path 'white' 'black' lwidth armpath)
+               ['transform' (+ (+ 'matrix(-1 0 0 1 ' (toString (* 2 axstart)))
+                               ' 0)')])
+      (addAttr nub
+               ['transform' (+ (+ 'matrix(-1 0 0 1 ' (toString (* 2 axstart)))
+                               ' 0)')])
+      scope1
+      scope2
+]]
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -1761,6 +1893,8 @@ examples =
   , makeExample "Eye Icon" eyeIcon
   , makeExample "Wikimedia Logo" wikimedia
   , makeExample "Haskell.org Logo" haskell
+  , makeExample "Cover Logo" cover
+  , makeExample "POP-PL Logo" poppl
   , makeExample "Matrix Transformations" matrices
   , makeExample "Cult of Lambda" cultOfLambda 
   , makeExample "Misc Shapes" miscShapes
