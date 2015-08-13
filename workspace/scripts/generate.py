@@ -38,7 +38,7 @@ def expandSkeleton(rootDir, inFilename, outFilename):
     # fall-thru
     writeLn(out, s)
 
-  print outFilename
+  print(outFilename)
 
 
 expandSkeleton ( "."   , "src/index.src.html"                   , "../index.html"                     )
