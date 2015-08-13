@@ -35,10 +35,10 @@ cons pv menv =
     (Just env, Just env') -> Just (env' ++ env)
     _                     -> Nothing
 
-lookupVar env x =
+lookupVar env x pos =
   case Utils.maybeFind x env of
     Just v -> v
-    Nothing -> Debug.crash <| "[Error] eval: var " ++ Utils.bracks x
+    Nothing -> errorMsg <| strPos pos ++ " variable not found: " ++ x
 
 -- eval propagates output environment in order to extract
 -- initial environment from prelude
@@ -57,9 +57,9 @@ eval env e =
 
   EConst i l -> ret <| VConst (i, TrLoc l)
   EBase v    -> ret <| VBase v
-  EVar x     -> ret <| lookupVar env x
+  EVar x     -> ret <| lookupVar env x e.start
   EFun [p] e -> ret <| VClosure Nothing p e env
-  EOp op es  -> ret <| evalOp env op.val es
+  EOp op es  -> ret <| evalOp env op es
 
   EList es m ->
     let vs = List.map (eval_ env) es in
@@ -100,7 +100,9 @@ eval env e =
         case (pVar f, v1') `cons` Just env of
           Just env' -> eval env' e2
       (PList _ _, _) ->
-        Debug.crash "[Error] eval: multi letrec"
+        errorMsg
+          "mutually recursive functions (i.e. letrec [...] [...] e) \
+           not yet implemented"
 
   EComment _ e1 -> eval env e1
   EOption _ _ e1 -> eval env e1
@@ -110,7 +112,8 @@ eval env e =
   EApp e1 es -> eval env (eApp e1 es)
   ELet _ False p e1 e2 -> eval env (eApp (eFun [p] e2) [e1])
 
-evalOp env op es =
+evalOp env opWithInfo es =
+  let (op,opStart) = (opWithInfo.val, opWithInfo.start) in
   case List.map (eval_ env) es of
     [VConst (i,it), VConst (j,jt)] ->
       case op of
@@ -140,6 +143,10 @@ evalOp env op es =
     [VBase (Bool b)] ->
       case op of
         ToStr  -> VBase (String (toString b))
+    _ ->
+      errorMsg
+        <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart
+        ++ ":\n" ++ Utils.lines (List.map sExp es)
 
 evalBranches env v l =
   List.foldl (\(p,e) acc ->
@@ -164,7 +171,7 @@ evalDelta op is =
     (Floor,  [n])   -> toFloat <| floor n
     (Ceil,   [n])   -> toFloat <| ceiling n
     (Round,  [n])   -> toFloat <| round n
-    _               -> Debug.crash <| "[Error] Eval.evalDelta " ++ strOp op
+    _               -> Debug.crash <| "Eval.evalDelta " ++ strOp op
 
 initEnv = snd (eval [] Parser.prelude)
 
@@ -189,4 +196,4 @@ rangeToList r =
            in
            if | nl == nu  -> [ VConst (nl, TrLoc tl) ]
               | otherwise -> walkVal 0
-        _ -> Debug.crash "[Error] Range not specified with numeric constants"
+        _ -> errorMsg "Range not specified with numeric constants"

@@ -4,6 +4,8 @@
 module CodeBox (interpretAceEvents, packageModel, tripRender,
                 AceMessage, AceCodeBoxInfo, initAceCodeBoxInfo) where
 
+import Lang exposing (errorPrefix)
+
 import Graphics.Element as GE
 import InterfaceModel as Model exposing (Event, sampleModel, events)
 
@@ -56,9 +58,12 @@ interpretAceEvents amsg = case amsg.evt of
               }
     "Rerender" -> Model.UpdateModel <| \m -> { m | code <- m.code }
     "init" -> Model.Noop
-    _ -> if String.startsWith "[Error]" amsg.evt
-            then Model.UpdateModel <| recoverFromError amsg
-            else Debug.crash "[Error] Malformed update sent to Elm"
+    _ ->
+      if String.contains errorPrefix amsg.evt
+      then Model.UpdateModel <| recoverFromError amsg
+      -- TODO: this leads to an infinite loop of restarting in Chrome...
+      -- else Debug.crash "Malformed update sent to Elm"
+      else Model.Noop
 
 -- Puts us in the correct state if we recovered from an error, which we find out
 -- about from the JS that also happens to load Ace.

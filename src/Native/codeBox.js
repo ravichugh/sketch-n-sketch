@@ -237,19 +237,20 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
     updateWasFromElm = false;
 });
 
+var errorPrefix = "[Little Error]"; // NOTE: same as errorPrefix in Lang.elm
+
 //We recover from fatal errors by setting a special key in the local key/value
 // store before reloading the page. Then we check for this key on load and set
 // up appropriately if we're loading after a crash.
 window.onerror = function(msg, url, linenumber) {
   //We disallow saving to this key in Elm to avoid possible confusion
   //If the error was something that we didn't want to catch (e.g. not prefaced
-  // with [Error]) then don't do anything
-  //Trim the "Uncaught Error: " part from the front
-  var errorMsg = msg.slice(16);
-  console.log(errorMsg);
-  if (errorMsg.startsWith("[Error]")) {
+  // with errorPrefix) then don't do anything
+  // Checking for string containment, rather than trimming the prefix
+  // because of different error strings in different browsers.
+  if (msg.indexOf(errorPrefix) != 1) {
       localStorage.setItem('__ErrorSave', JSON.stringify(
-        { evt : errorMsg
+        { evt : msg
         , strArg : editor.getSession().getDocument().getValue()
         , cursorArg : editor.getCursorPosition()
         , selectionArg : editor.selection.getAllRanges()
