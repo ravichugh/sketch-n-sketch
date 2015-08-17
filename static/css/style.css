@@ -85,7 +85,8 @@ h3 {
 }
 
 h4 {
-	font-size: 1.5em;
+	/* font-size: 1.5em; */
+	font-size: 1.25em;
 }
 
 img.alignleft {
@@ -99,7 +100,7 @@ img.aligntop {
 
 p {
 	/* margin-bottom: 1.5em; */
-	margin: 0.5em 0 0.5em 0;
+	margin: 1.0em 0 1.0em 0;
 }
 
 ul {
@@ -238,6 +239,11 @@ ul h4 {
 	padding: 0;
 }
 
+#page li {
+	padding: 0px 0 0px 0;
+}
+
+/*
 #page .section-list {
 	padding-left: 0;
 	list-style: none;
@@ -261,6 +267,7 @@ ul h4 {
 	padding-top: 0;
 	border-top: 0;
 }
+*/
 
 .post0 {
 	width: 980px;
@@ -390,4 +397,25 @@ pre {
   /* color: firebrick; */
   color: cornflowerblue;
   /* font-weight: bold; */
+}
+
+/* This is for mixing code blocks (i.e. pre) with other HTML formatting */
+.codePlusFormatting {
+  font-family: monospace;
+  padding: 3px 0 3px 30px;
+  color: cornflowerblue;
+}
+
+/* for Markdown-generated tables */
+
+th {
+	padding: 0 30px 0 0;
+  background: #EEEEEE;
+}
+
+.odd {
+}
+
+.even {
+  background: #EEEEEE;
 }
