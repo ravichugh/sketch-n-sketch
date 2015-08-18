@@ -76,11 +76,13 @@ eval env e =
     case eval_ env e1 of
       VBase (Bool True)  -> eval env e2
       VBase (Bool False) -> eval env e3
+      _                  -> errorMsg <| strPos e1.start ++ " if-statement expected a Bool but got something else."
 
   ECase e1 l ->
     let v1 = eval_ env e1 in
     case evalBranches env v1 l of
       Just v2 -> ret v2
+      _       -> errorMsg <| strPos e1.start ++ " non-exhaustive case statement"
 
   EApp e1 [e2] ->
     let (v1,v2) = (eval_ env e1, eval_ env e2) in
@@ -100,7 +102,8 @@ eval env e =
         case (pVar f, v1') `cons` Just env of
           Just env' -> eval env' e2
       (PList _ _, _) ->
-        errorMsg
+        errorMsg <|
+          strPos e1.start ++
           "mutually recursive functions (i.e. letrec [...] [...] e) \
            not yet implemented"
 
@@ -171,7 +174,7 @@ evalDelta op is =
     (Floor,  [n])   -> toFloat <| floor n
     (Ceil,   [n])   -> toFloat <| ceiling n
     (Round,  [n])   -> toFloat <| round n
-    _               -> Debug.crash <| "Eval.evalDelta " ++ strOp op
+    _               -> errorMsg <| "Eval.evalDelta " ++ strOp op
 
 initEnv = snd (eval [] Parser.prelude)
 
