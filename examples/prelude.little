@@ -13,8 +13,8 @@
 ;; A function that always returns the same value a, regardless of b
 (def always (\(x _) x))
 
-;; compose : Function f -> Function g -> Function h
-;; Creates a new function, h, that is a composition of functions f & g
+;; compose : (a -> b)-> (b -> c) -> (a -> c)
+;; Composes two functions together
 (def compose (\(f g) (\x (f (g x)))))
 
 ;; fst : List a -> a
@@ -300,11 +300,10 @@
 (def polygon_   (polygon 'green' 'purple' 3))
 (def path_      (path 'transparent' 'goldenrod' 5))
 
-; TODO add constant literals to patterns, and match 'svg'
-;
-; accDiff pre-condition: indices in increasing order
-;   (so can't just use foldr instead of reverse . foldl)
-;
+;; updateCanvas : SVG -> SVG -> SVG
+;; updates an SVG by comparing differences with another SVG
+;; Note: accDiff pre-condition: indices in increasing order
+;; (so can't just use foldr instead of reverse . foldl)
 (def updateCanvas (\([_ svgAttrs oldShapes] diff)
   (let oldShapesI (zip (list1N (len oldShapes)) oldShapes)
   (let initAcc [[] diff]
@@ -323,9 +322,9 @@
 (def twoPi (* 2 (pi)))
 (def halfPi (/ (pi) 2))
 
-; TODO explain coordinate system for these functions
 ;; nPointsOnUnitCircle : Number -> Number -> List Number
-;; Helper function for nPointsOnCircle
+;; Helper function for nPointsOnCircle, calculates angle of points
+;; Note: angles are calculated clockwise from the traditional pi/2 mark
 (def nPointsOnUnitCircle (\(n rot)
   (let off (- halfPi rot)
   (let foo (\i
@@ -335,7 +334,7 @@
 
 ;; nPointsOnCircle : Number -> Number -> Number -> Number -> Number -> List Number
 ;; argument order - Number of points, degree of rotation, x-center, y-center, radius
-;; Converts radian values given by nPointsOnUnitCircle to degrees
+;; Scales nPointsOnUnitCircle to the proper size and location with a given radius and center
 (def nPointsOnCircle (\(n rot cx cy r)
   (let pts (nPointsOnUnitCircle n rot)
   (map (\[x y] [(+ cx (* x r)) (+ cy (* y r))]) pts))))
@@ -351,6 +350,7 @@
 ;; rot - degree of rotation
 ;; cx - x-coordinate of center position
 ;; cy - y-coordinate of center position
+;; Creates stars that can be modified on a number of parameters
 (def nStar (\(fill stroke w n len1 len2 rot cx cy)
   (let pti (\[i len]
     (let anglei (+ (- (/ (* i (pi)) n) rot) halfPi)
@@ -363,14 +363,21 @@
   (let indices (list0N (- (* 2! n) 1!))
     (polygon fill stroke w (map pti (zip indices lengths))))))))
 
+;; zones : String -> Shape -> Shape
+;; Add a string-specified type of zones to a given shape
 (def zones (\s (map (\shape (addAttr shape ['zones' s])))))
 
+;; hideZonesTail : List Shape -> List Shape
+;; Remove all zones from shapes except for the first in the list
 (def hideZonesTail  (\[hd | tl] [hd | (zones 'none'  tl)]))
+
+;; basicZonesTail : List Shape -> List Shape
+;; Turn all zones to basic for a given list of shapes except for the first shape
 (def basicZonesTail (\[hd | tl] [hd | (zones 'basic' tl)]))
 
-; TODO refactor as in paper
-;; hSlider_ : Boolean -> Bool -> Float -> Float -> Float -> Float -> Float -> String -> Float
-;; argument order - dropBall roundInt xStart xEnd y minVal maxVal caption curVal
+;; hSlider_ : Bool -> Bool -> Int -> Int -> Int -> Num -> Num -> Str -> Num
+;; -> [Num (List Svg)]
+;; argument order - dropBall roundInt xStart xEnd y minVal maxVal caption srcVal
 ;; dropBall - Determines if the slider ball continues to appear past the edges of the slider
 ;; roundInt - Determines whether to round to Ints or not
 ;; xStart - left edge of slider
@@ -379,26 +386,22 @@
 ;; minVal - minimum value of slider
 ;; maxVal - maximum value of slider
 ;; caption - text to display along with the slider
-;; curVal - the current value given by the slider ball 
-(def hSlider_ (\(dropBall roundInt xStart xEnd y minVal maxVal caption curVal)
-  (let [rPoint wLine rBall] [4! 3! 10!]
-  (let [xDiff valDiff] [(- xEnd xStart) (- maxVal minVal)]
-  (let xBall (+ xStart (* xDiff (/ (- curVal minVal) valDiff)))
-  (let xBall_ (clamp xStart xEnd xBall)
-  (let rBall_ (if dropBall (if (= xBall_ xBall) rBall 0) rBall)
-  (let val
-    (let val_ (clamp minVal maxVal curVal)
-    (if roundInt (round val_) val_))
-  (let shapes1
-    [ (line 'black' wLine xStart y xEnd y)
-      (circle 'black' xStart y rPoint)
-      (circle 'black' xEnd y rPoint)
-      (text (+ xEnd 10) (+ y 5) (+ caption (toString val))) ]
-  (let shapes2
-    [ (circle 'black' xBall y rBall_) ]
-  [val (append (zones 'none' shapes1)
-               (zones 'basic' shapes2))]))))))))))
-
+;; srcVal - the current value given by the slider ball 
+(def hSlider_ (\(dropBall roundInt x0 x1 y minVal maxVal caption srcVal)
+  (let targetVal
+    (let preVal (clamp minVal maxVal srcVal)
+      (if roundInt (round preVal) preVal))
+  (let shapes
+    (let ball
+      (let [xDiff valDiff] [(- x1 x0) (- maxVal minVal)]
+      (let xBall (+ x0 (* xDiff (/ (- targetVal minVal) valDiff)))
+      (let rBall (if dropBall (if (= targetVal srcVal) 10! 0!) 10!)
+        (circle ’black’ xBall y rBall))))
+    [ (line ’black’ 3! x0 y x1 y)
+      (text (+ x1 10) (+ y 5) (+ caption (toString targetVal)))
+      (circle ’black’ x0 y 4!) (circle ’black’ x1 y 4!) ball ])
+  [targetVal shapes]))))
+               
 ;; As hSlider_, but dropBall disappears when it passes then end of a slider
 (def hSlider (hSlider_ true))
 

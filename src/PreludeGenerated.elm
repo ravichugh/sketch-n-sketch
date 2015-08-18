@@ -16,8 +16,8 @@ prelude =
 ;; A function that always returns the same value a, regardless of b
 (def always (\\(x _) x))
 
-;; compose : Function f -> Function g -> Function h
-;; Creates a new function, h, that is a composition of functions f & g
+;; compose : (a -> b) -> (b -> c) -> (a -> c)
+;; Composes two functions
 (def compose (\\(f g) (\\x (f (g x)))))
 
 ;; fst : List a -> a
@@ -283,7 +283,6 @@ prelude =
     [['x' '0'] ['y' '0'] ['viewBox' (joinStrings ' ' ['0' '0' sx sy])]]
     shapes])))
 
-
 ;; rectCenter : String -> Number -> Number -> Number -> Number -> Shape
 ;; As rect, except x & y represent the center of the defined rectangle
 (def rectCenter (\\(fill cx cy w h)
@@ -303,11 +302,10 @@ prelude =
 (def polygon_   (polygon 'green' 'purple' 3))
 (def path_      (path 'transparent' 'goldenrod' 5))
 
-; TODO add constant literals to patterns, and match 'svg'
-;
-; accDiff pre-condition: indices in increasing order
-;   (so can't just use foldr instead of reverse . foldl)
-;
+;; updateCanvas : SVG -> SVG -> SVG
+;; updates an SVG by comparing differences with another SVG
+;; Note: accDiff pre-condition: indices in increasing order
+;; (so can't just use foldr instead of reverse . foldl)
 (def updateCanvas (\\([_ svgAttrs oldShapes] diff)
   (let oldShapesI (zip (list1N (len oldShapes)) oldShapes)
   (let initAcc [[] diff]
@@ -326,9 +324,9 @@ prelude =
 (def twoPi (* 2 (pi)))
 (def halfPi (/ (pi) 2))
 
-; TODO explain coordinate system for these functions
 ;; nPointsOnUnitCircle : Number -> Number -> List Number
-;; Helper function for nPointsOnCircle
+;; Helper function for nPointsOnCircle, calculates angle of points
+;; Note: angles are calculated clockwise from the traditional pi/2 mark
 (def nPointsOnUnitCircle (\\(n rot)
   (let off (- halfPi rot)
   (let foo (\\i
@@ -338,7 +336,7 @@ prelude =
 
 ;; nPointsOnCircle : Number -> Number -> Number -> Number -> Number -> List Number
 ;; argument order - Number of points, degree of rotation, x-center, y-center, radius
-;; Converts radian values given by nPointsOnUnitCircle to degrees
+;; Scales nPointsOnUnitCircle to the proper size and location with a given radius and center
 (def nPointsOnCircle (\\(n rot cx cy r)
   (let pts (nPointsOnUnitCircle n rot)
   (map (\\[x y] [(+ cx (* x r)) (+ cy (* y r))]) pts))))
@@ -354,6 +352,7 @@ prelude =
 ;; rot - degree of rotation
 ;; cx - x-coordinate of center position
 ;; cy - y-coordinate of center position
+;; Creates stars that can be modified on a number of parameters
 (def nStar (\\(fill stroke w n len1 len2 rot cx cy)
   (let pti (\\[i len]
     (let anglei (+ (- (/ (* i (pi)) n) rot) halfPi)
@@ -366,13 +365,20 @@ prelude =
   (let indices (list0N (- (* 2! n) 1!))
     (polygon fill stroke w (map pti (zip indices lengths))))))))
 
+;; zones : String -> Shape -> Shape
+;; Add a string-specified type of zones to a given shape
 (def zones (\\s (map (\\shape (addAttr shape ['zones' s])))))
 
+;; hideZonesTail : List Shape -> List Shape
+;; Remove all zones from shapes except for the first in the list
 (def hideZonesTail  (\\[hd | tl] [hd | (zones 'none'  tl)]))
+
+;; basicZonesTail : List Shape -> List Shape
+;; Turn all zones to basic for a given list of shapes except for the first shape
 (def basicZonesTail (\\[hd | tl] [hd | (zones 'basic' tl)]))
 
-; TODO refactor as in paper
-;; hSlider_ : Boolean -> Bool -> Float -> Float -> Float -> Float -> Float -> String -> Float
+;; hSlider_ : Bool -> Int -> Int -> Int -> Num -> Num -> Str -> Num
+;; -> [Num (List Svg)]
 ;; argument order - dropBall roundInt xStart xEnd y minVal maxVal caption curVal
 ;; dropBall - Determines if the slider ball continues to appear past the edges of the slider
 ;; roundInt - Determines whether to round to Ints or not
@@ -382,7 +388,6 @@ prelude =
 ;; minVal - minimum value of slider
 ;; maxVal - maximum value of slider
 ;; caption - text to display along with the slider
-;; curVal - the current value given by the slider ball 
 (def hSlider_ (\\(dropBall roundInt xStart xEnd y minVal maxVal caption curVal)
   (let [rPoint wLine rBall] [4! 3! 10!]
   (let [xDiff valDiff] [(- xEnd xStart) (- maxVal minVal)]

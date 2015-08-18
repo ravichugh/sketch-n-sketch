@@ -25,6 +25,7 @@ type alias Exp    = P.WithInfo Exp_
 type alias Op     = P.WithInfo Op_
 type alias Branch = P.WithInfo Branch_
 
+-- TODO add constant literals to patterns, and match 'svg'
 type Pat_
   = PVar Ident
   | PList (List Pat) (Maybe Pat)
