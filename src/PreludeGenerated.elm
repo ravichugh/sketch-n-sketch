@@ -41,12 +41,12 @@ prelude =
     (_                 []))))
 
 ;; foldl : (a -> b -> b) -> b -> List a -> b
-;; Takes a function, an accumulator, and a list as input and reduces using the function from the left
+;; Takes a function, an accumulator, and a list as input and reduces from the left with the given function
 (defrec foldl (\\(f acc xs)
   (case xs ([] acc) ([x|xs1] (foldl f (f x acc) xs1)))))
 
 ;; foldl : (a -> b -> b) -> b -> List a -> b
-;; Takes a function, an accumulator, and a list as input and reduces using the function from the right
+;; Takes a function, an accumulator, and a list as input and reduces from the left with the given function
 (defrec foldr (\\(f acc xs)
   (case xs ([] acc) ([x|xs1] (f x (foldr f acc xs1))))))
 
@@ -150,7 +150,7 @@ prelude =
 (def not (\\b (if b false true)))
 
 ;; implies : Bool -> Bool -> Bool
-;; Given two bools, returns a bool regarding if the first argument is true, then the second argument is as well
+;; Given two bools, returns a bool regarding 'if the first argument is true, then the second argument is as well'
 (def implies (\\(p q) (if p q true)))
 
 ;; clamp : Number -> Number -> Number -> Number
@@ -327,7 +327,8 @@ prelude =
 (def halfPi (/ (pi) 2))
 
 ; TODO explain coordinate system for these functions
-
+;; nPointsOnUnitCircle : Number -> Number -> List Number
+;; Helper function for nPointsOnCircle
 (def nPointsOnUnitCircle (\\(n rot)
   (let off (- halfPi rot)
   (let foo (\\i
@@ -335,10 +336,24 @@ prelude =
     [(cos ang) (neg (sin ang))]))
   (map foo (list0N (- n 1)))))))
 
+;; nPointsOnCircle : Number -> Number -> Number -> Number -> Number -> List Number
+;; argument order - Number of points, degree of rotation, x-center, y-center, radius
+;; Converts radian values given by nPointsOnUnitCircle to degrees
 (def nPointsOnCircle (\\(n rot cx cy r)
   (let pts (nPointsOnUnitCircle n rot)
   (map (\\[x y] [(+ cx (* x r)) (+ cy (* y r))]) pts))))
 
+;; nStar : color -> color -> Number -> Number -> Number -> Number -> Number -> Number -> Number -> Shape
+;; argument order -
+;; fill color - interior color of star
+;; stroke color - border color of star
+;; width - thickness of stroke
+;; points - number of star points
+;; len1 - length from center to one set of star points
+;; len2 - length from center to other set of star points (either inner or outer compared to len1)
+;; rot - degree of rotation
+;; cx - x-coordinate of center position
+;; cy - y-coordinate of center position
 (def nStar (\\(fill stroke w n len1 len2 rot cx cy)
   (let pti (\\[i len]
     (let anglei (+ (- (/ (* i (pi)) n) rot) halfPi)
@@ -357,6 +372,17 @@ prelude =
 (def basicZonesTail (\\[hd | tl] [hd | (zones 'basic' tl)]))
 
 ; TODO refactor as in paper
+;; hSlider_ : Boolean -> Bool -> Float -> Float -> Float -> Float -> Float -> String -> Float
+;; argument order - dropBall roundInt xStart xEnd y minVal maxVal caption curVal
+;; dropBall - Determines if the slider ball continues to appear past the edges of the slider
+;; roundInt - Determines whether to round to Ints or not
+;; xStart - left edge of slider
+;; xEnd - right edge of slider
+;; y - y positioning of entire slider bar
+;; minVal - minimum value of slider
+;; maxVal - maximum value of slider
+;; caption - text to display along with the slider
+;; curVal - the current value given by the slider ball 
 (def hSlider_ (\\(dropBall roundInt xStart xEnd y minVal maxVal caption curVal)
   (let [rPoint wLine rBall] [4! 3! 10!]
   (let [xDiff valDiff] [(- xEnd xStart) (- maxVal minVal)]
@@ -376,8 +402,11 @@ prelude =
   [val (append (zones 'none' shapes1)
                (zones 'basic' shapes2))]))))))))))
 
+;; As hSlider_, but dropBall disappears when it passes then end of a slider
 (def hSlider (hSlider_ true))
 
+;; button_ : Bool -> Number -> Number -> String -> Number -> SVG
+;; Similar to sliders, but just has boolean values
 (def button_ (\\(dropBall xStart y caption xCur)
   (let [rPoint wLine rBall wSlider] [4! 3! 10! 70!]
   (let xEnd (+ xStart wSlider)
@@ -395,8 +424,12 @@ prelude =
   [val (append (zones 'none' shapes1)
                (zones 'basic' shapes2))]))))))))))
 
+;; As button, but set initially to true
 (def button (button_ true))
 
+;; rotate : Shape -> Number -> Number -> Number -> Shape
+;; argument order - shape, rot, x, y
+;; Takes a shape rotates it rot degrees around point (x,y)
 (def rotate (\\(shape n1 n2 n3)
   (addAttr shape ['transform' [['rotate' n1 n2 n3]]])))
 
