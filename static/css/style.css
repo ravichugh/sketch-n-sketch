@@ -409,13 +409,16 @@ pre {
 /* for Markdown-generated tables */
 
 th {
-	padding: 0 30px 0 0;
-  background: #EEEEEE;
+  padding: 0 30px 0 5px;
+  background: #999999;
+  color: white;
 }
 
-.odd {
+.odd td {
+  padding: 0 5px 0 5px;
 }
 
-.even {
+.even td {
+  padding: 0 5px 0 5px;
   background: #EEEEEE;
 }
