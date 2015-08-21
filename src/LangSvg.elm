@@ -290,6 +290,7 @@ valToPath_ vs =
 
 ------------------------------------------------------------------------------
 
+{-
 funcsSvg = [
   ("circle", Svg.circle)
   , ("ellipse", Svg.ellipse)
@@ -303,6 +304,100 @@ funcsSvg = [
   , ("text", Svg.text)
   , ("tspan", Svg.tspan)
   ]
+-}
+
+-- http://package.elm-lang.org/packages/evancz/elm-svg/1.0.2/Svg
+--
+-- this Vim regex was useful:
+--   :'<,'>s/\(.*\)/  , ("\1", Svg.\1)/g
+--
+-- TODO upgrade to:
+-- http://package.elm-lang.org/packages/evancz/elm-svg/2.0.0/Svg
+
+funcsSvg = [
+    ("svg", Svg.svg)
+  , ("foreignObject", Svg.foreignObject)
+  , ("circle", Svg.circle)
+  , ("ellipse", Svg.ellipse)
+  , ("image", Svg.image)
+  , ("line", Svg.line)
+  , ("path", Svg.path)
+  , ("polygon", Svg.polygon)
+  , ("polyline", Svg.polyline)
+  , ("rect", Svg.rect)
+  , ("use", Svg.use)
+  , ("animate", Svg.animate)
+  , ("animateColor", Svg.animateColor)
+  , ("animateMotion", Svg.animateMotion)
+  , ("animateTransform", Svg.animateTransform)
+  , ("mpath", Svg.mpath)
+  , ("set", Svg.set)
+  , ("desc", Svg.desc)
+  , ("metadata", Svg.metadata)
+  , ("title", Svg.title)
+  , ("a", Svg.a)
+  , ("defs", Svg.defs)
+  , ("g", Svg.g)
+  , ("marker", Svg.marker)
+  , ("mask", Svg.mask)
+  , ("missingGlyph", Svg.missingGlyph)
+  , ("pattern", Svg.pattern)
+  , ("switch", Svg.switch)
+  , ("symbol", Svg.symbol)
+  , ("altGlyph", Svg.altGlyph)
+  , ("altGlyphDef", Svg.altGlyphDef)
+  , ("altGlyphItem", Svg.altGlyphItem)
+  , ("glyph", Svg.glyph)
+  , ("glyphRef", Svg.glyphRef)
+  , ("textPath", Svg.textPath)
+  , ("text", Svg.text)
+  , ("tref", Svg.tref)
+  , ("tspan", Svg.tspan)
+  , ("font", Svg.font)
+  , ("fontFace", Svg.fontFace)
+  , ("fontFaceFormat", Svg.fontFaceFormat)
+  , ("fontFaceName", Svg.fontFaceName)
+  , ("fontFaceSrc", Svg.fontFaceSrc)
+  , ("fontFaceUri", Svg.fontFaceUri)
+  , ("hkern", Svg.hkern)
+  , ("vkern", Svg.vkern)
+  , ("linearGradient", Svg.linearGradient)
+  , ("radialGradient", Svg.radialGradient)
+  , ("stop", Svg.stop)
+  , ("feBlend", Svg.feBlend)
+  , ("feColorMatrix", Svg.feColorMatrix)
+  , ("feComponentTransfer", Svg.feComponentTransfer)
+  , ("feComposite", Svg.feComposite)
+  , ("feConvolveMatrix", Svg.feConvolveMatrix)
+  , ("feDiffuseLighting", Svg.feDiffuseLighting)
+  , ("feDisplacementMap", Svg.feDisplacementMap)
+  , ("feFlood", Svg.feFlood)
+  , ("feFuncA", Svg.feFuncA)
+  , ("feFuncB", Svg.feFuncB)
+  , ("feFuncG", Svg.feFuncG)
+  , ("feFuncR", Svg.feFuncR)
+  , ("feGaussianBlur", Svg.feGaussianBlur)
+  , ("feImage", Svg.feImage)
+  , ("feMerge", Svg.feMerge)
+  , ("feMergeNode", Svg.feMergeNode)
+  , ("feMorphology", Svg.feMorphology)
+  , ("feOffset", Svg.feOffset)
+  , ("feSpecularLighting", Svg.feSpecularLighting)
+  , ("feTile", Svg.feTile)
+  , ("feTurbulence", Svg.feTurbulence)
+  , ("feDistantLight", Svg.feDistantLight)
+  , ("fePointLight", Svg.fePointLight)
+  , ("feSpotLight", Svg.feSpotLight)
+  , ("clipPath", Svg.clipPath)
+  , ("colorProfile", Svg.colorProfile)
+  , ("cursor", Svg.cursor)
+  , ("filter", Svg.filter)
+  , ("script", Svg.script)
+  , ("style", Svg.style)
+  , ("view", Svg.view)
+  ]
+
+-- TODO maybe thin wrapper over Svg.Attributes and Html.Attributes
 
 funcsAttr = [
   ("cursor", A.cursor)
