@@ -523,6 +523,36 @@ codebox_ w h event s readOnly =
          ] ++ event)
         []
 
+-- Replaces the canvas if we are displaying an error
+-- Is mostly a copy of the basic code box in the not manipulable mode
+errorBox : Int -> Int -> String -> GE.Element
+errorBox w h errormsg =
+  Html.toElement w h <|
+    Html.textarea
+      [ Attr.spellcheck False
+      , Attr.readonly True
+      , Attr.style
+        [ ("font-family", params.mainSection.codebox.font)
+        , ("font-size", params.mainSection.codebox.fontSize)
+        , ("border", params.mainSection.codebox.border)
+        , ("whiteSpace", "pre")
+        , ("height", "100%")
+        , ("width", "100%") 
+        , ("resize", "none")
+        , ("overflow", "auto")
+        -- Horizontal Scrollbars in Chrome
+        , ("word-wrap", "normal")
+        , ("background-color", "whitesmoke")
+        , ("padding", "4px")
+        -- Makes the 100% for width/height work as intended
+        , ("box-sizing", "border-box")
+        , highlightThisIf False
+        ]
+      , Attr.value errormsg
+      , Events.onMouseUp events.address MouseUp
+      ]
+      []
+
 canvas : Int -> Int -> Model -> GE.Element
 canvas w h model =
   case model.mode of
@@ -652,18 +682,20 @@ mainSectionVertical w h model =
                        then codebox wCode h model
                        else codeBox wCode h in
 
-  let canvasSection =
-    GE.size wCanvas h <|
-      GE.flow GE.down
-        [ canvas wCanvas hCanvas model
-        , GE.flow GE.left
-            [ colorDebug Color.red <|
-                GE.container wBtn (hZInfo+1) GE.middle <|
-                outputButton model wBtn hBtn
-            , caption model (wCanvas+1-wBtn) (hZInfo+1) -- NOTE: +1 is a band-aid
-            ]
-        -- , caption model (wCanvas+1) hZInfo -- NOTE: +1 is a band-aid
-        ]
+  let canvasSection = case model.errorBox of
+    Nothing -> 
+      GE.size wCanvas h <|
+        GE.flow GE.down
+          [ canvas wCanvas hCanvas model
+          , GE.flow GE.left
+              [ colorDebug Color.red <|
+                  GE.container wBtn (hZInfo+1) GE.middle <|
+                  outputButton model wBtn hBtn
+              , caption model (wCanvas+1-wBtn) (hZInfo+1) -- NOTE: +1 is a band-aid
+              ]
+          -- , caption model (wCanvas+1) hZInfo -- NOTE: +1 is a band-aid
+          ]
+    Just errormsg -> errorBox wCanvas h errormsg
   in
 
   let gutter = gutterForResizing model.orient wGut h in
@@ -693,18 +725,20 @@ mainSectionHorizontal w h model =
                        then codebox w hCode model
                        else codeBox w hCode in
 
-  let canvasSection =
-    GE.size w (hCanvas + hZInfo) <|
-      GE.flow GE.down
-        [ canvas w hCanvas model
-        , GE.flow GE.left
-            [ colorDebug Color.red <|
-                GE.container wBtn (hZInfo+1) GE.middle <|
-                outputButton model wBtn hBtn
-            , caption model (w-wBtn) (hZInfo+1) -- NOTE: +1 is a band-aid
+  let canvasSection = case model.errorBox of
+    Nothing -> 
+        GE.size w (hCanvas + hZInfo) <|
+          GE.flow GE.down
+            [ canvas w hCanvas model
+            , GE.flow GE.left
+                [ colorDebug Color.red <|
+                    GE.container wBtn (hZInfo+1) GE.middle <|
+                    outputButton model wBtn hBtn
+                , caption model (w-wBtn) (hZInfo+1) -- NOTE: +1 is a band-aid
+                ]
+            -- , caption model w (hZInfo+1) -- NOTE: +1 is a band-aid
             ]
-        -- , caption model w (hZInfo+1) -- NOTE: +1 is a band-aid
-        ]
+    Just errormsg -> errorBox w (hCanvas + hZInfo) errormsg
   in
 
   let gutter = gutterForResizing model.orient w hGut in

@@ -56,9 +56,12 @@ var runtime = Elm.fullscreen(Elm.Main, {
               , strArg : "" 
               , cursorArg : { row : 0 , column : 0 }
               , selectionArg : []
+              , exNameArg : ""
               }
 });
 
+// Holds on to the current document name for error recovery purposes
+var exName = "";
 
 var Range = ace.require('ace/range').Range
 
@@ -109,6 +112,7 @@ if (maybeError !== null) {
             , strArg : errorObj.strArg
             , cursorArg : errorObj.cursorArg
             , selectionArg : errorObj.selectionArg
+            , exNameArg : errorObj.exNameArg
             }
     );
 } else {
@@ -229,10 +233,14 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
             , strArg : ""
             , cursorArg : editor.getCursorPosition()
             , selectionArg : []
+            , exNameArg : ""
             }
         );
     }
     
+    //Remember the current document name (for error recovery purposes)
+    exName = codeBoxInfo.exName;
+
     //Set our flag back to enable the event handlers again
     updateWasFromElm = false;
 });
@@ -254,6 +262,7 @@ window.onerror = function(msg, url, linenumber) {
         , strArg : editor.getSession().getDocument().getValue()
         , cursorArg : editor.getCursorPosition()
         , selectionArg : editor.selection.getAllRanges()
+        , exNameArg : exName
         }
       ));
       location.reload();
@@ -267,6 +276,7 @@ function maybeSendUpdate(e) {
         , strArg : editor.getSession().getDocument().getValue()
         , cursorArg : editor.getCursorPosition()
         , selectionArg : editor.selection.getAllRanges()
+        , exNameArg : ""
         }
       );
     }

@@ -44,6 +44,7 @@ type alias Model =
   , startup : Bool
   , codeBoxInfo : CodeBoxInfo
   , basicCodeBox : Bool
+  , errorBox : Maybe String
   }
 
 type Mode
@@ -196,5 +197,6 @@ sampleModel =
                       , highlights = []
                       }
     , basicCodeBox  = False
+    , errorBox = Nothing
     }
 

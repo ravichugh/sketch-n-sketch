@@ -26,12 +26,14 @@ type alias AceCodeBoxInfo =
     , selections : List Model.Range
     , highlights : List Model.Highlight
     , bounce : Bool
+    , exName : String
     }
 
 type alias AceMessage = { evt : String 
                         , strArg  : String 
                         , cursorArg : Model.AcePos
                         , selectionArg : List Model.Range
+                        , exNameArg : String
                         } 
 
 -- An initial AceCodeBoxInfo for the foldp
@@ -43,6 +45,7 @@ initAceCodeBoxInfo =
     , selections = sampleModel.codeBoxInfo.selections
     , highlights = sampleModel.codeBoxInfo.highlights
     , bounce = True
+    , exName = ""
     }
   , []
   )
@@ -72,7 +75,8 @@ recoverFromError : AceMessage -> Model.Model -> Model.Model
 recoverFromError amsg fresh = 
     { fresh | code <- amsg.strArg
             , editingMode <- Just amsg.strArg
-            , caption <- Just <| Model.LangError amsg.evt
+            , errorBox <- Just amsg.evt
+            , exName <- amsg.exNameArg
             , codeBoxInfo <- { selections = amsg.selectionArg
                              , cursorPos  = amsg.cursorArg
                              , highlights = fresh.codeBoxInfo.highlights
@@ -86,7 +90,7 @@ recoverFromError amsg fresh =
 -- Note that each one of these won't necessarily trigger a DOM copy/replacement;
 -- it only will for each of the times that Elm clobbers it.
 rerenderCount : Int
-rerenderCount = 4
+rerenderCount = 6
 
 packageModel : (Model.Model, Event) -> (AceCodeBoxInfo, List Bool) -> 
                     (AceCodeBoxInfo, List Bool)
@@ -103,6 +107,7 @@ packageModel (model, evt) (lastBox, rerenders) =
         , manipulable = manipulable
         , highlights = model.codeBoxInfo.highlights
         , bounce = rerender
+        , exName = model.exName
         }
       , rerender :: List.take (rerenderCount - 1) rerenders
       )
