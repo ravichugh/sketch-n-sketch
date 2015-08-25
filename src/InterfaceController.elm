@@ -174,7 +174,8 @@ upstate evt old = case debugLog "Event" evt of
                 , caption <- Nothing
                 , syncOptions <- Sync.syncOptionsOf e }
           in
-          { new | mode <- refreshMode_ new }
+          { new | mode <- refreshMode_ new 
+                , errorBox <- Nothing }
         Err err ->
           { old | caption <- Just (LangError ("PARSE ERROR!\n" ++ err)) }
 

@@ -11,17 +11,12 @@ var runtime = Elm.fullscreen(Elm.Main, {
               , strArg : "" 
               , cursorArg : { row : 0 , column : 0 }
               , selectionArg : []
+              , exNameArg : ""
               }
 });
 
-window.oncrash = function(msg, url, linenumber) {
-  var s = '';
-  s += 'We crashed... Sorry! Hit OK to restart.\n\n';
-  s += 'Error message: ' + msg + '\n\n';
-  s += 'The JS error console may contain more info.';
-  alert(s);
-  location.reload();
-}
+// Holds on to the current document name for error recovery purposes
+var exName = "";
 
 var Range = ace.require('ace/range').Range
 
@@ -58,19 +53,38 @@ editor.getSession().getDocument().on("change", maybeSendUpdate);
 editor.getSession().selection.on("changeCursor", maybeSendUpdate);
 editor.getSession().selection.on("changeSelection", maybeSendUpdate);
 
-//Set the default scratch text to display before the first load
-var defaultScratch = 
-"\n" +
-"; Write a little program below.\n" +
-"; Or choose an example from the list.\n" +
-";\n" +
-"; Changes to this *Scratch example will be saved and\n" +
-"; restored when navigating to and from other examples.\n" +
-"; For the remaining named examples, changes will be\n" +
-"; discarded when choosing a different example.\n" +
-"\n" +
-"(svg [(rect 'maroon' 100 15 200 15)])\n" +
-"\n";
+//If we reloaded from a crash, then we should do a few things differently:
+// - Set the initial text to what it was when we crashed
+// - Send an event to Elm to let Elm know that we just crashed
+var maybeError = localStorage.getItem("__ErrorSave");
+if (maybeError !== null) {
+    localStorage.removeItem("__ErrorSave");
+    console.log(maybeError);
+    var errorObj = JSON.parse(maybeError);
+    var defaultScratch = errorObj.strArg;
+    runtime.ports.theTurn.send(
+            { evt : errorObj.evt
+            , strArg : errorObj.strArg
+            , cursorArg : errorObj.cursorArg
+            , selectionArg : errorObj.selectionArg
+            , exNameArg : errorObj.exNameArg
+            }
+    );
+} else {
+    //Set the default scratch text to display before the first load
+    var defaultScratch = 
+    "\n" +
+    "; Write a little program below.\n" +
+    "; Or choose an example from the list.\n" +
+    ";\n" +
+    "; Changes to this *Scratch* example will be saved and\n" +
+    "; restored when navigating to and from other examples.\n" +
+    "; For the remaining named examples, changes will be\n" +
+    "; discarded when choosing a different example.\n" +
+    "\n" +
+    "(svg [(rect 'maroon' 100 15 200 15)])\n" +
+    "\n";
+}
 editor.setValue(defaultScratch);
 editor.moveCursorTo(0,0);
 
@@ -174,13 +188,44 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
             , strArg : ""
             , cursorArg : editor.getCursorPosition()
             , selectionArg : []
+            , exNameArg : ""
             }
         );
     }
     
+    //Remember the current document name (for error recovery purposes)
+    exName = codeBoxInfo.exName;
+
     //Set our flag back to enable the event handlers again
     updateWasFromElm = false;
 });
+
+var errorPrefix = "[Little Error]"; // NOTE: same as errorPrefix in Lang.elm
+
+//We recover from fatal errors by setting a special key in the local key/value
+// store before reloading the page. Then we check for this key on load and set
+// up appropriately if we're loading after a crash.
+window.onerror = function(msg, url, linenumber) {
+  //We disallow saving to this key in Elm to avoid possible confusion
+  //If the error was something that we didn't want to catch (e.g. not prefaced
+  // with errorPrefix) then don't do anything
+  // Checking for string containment, rather than trimming the prefix
+  // because of different error strings in different browsers.
+
+  // TODO change this back
+  // if (msg.indexOf(errorPrefix) != 1) {
+  if (msg.indexOf("notify function has been called asynchronously!") != 1) {
+      localStorage.setItem('__ErrorSave', JSON.stringify(
+        { evt : msg
+        , strArg : editor.getSession().getDocument().getValue()
+        , cursorArg : editor.getCursorPosition()
+        , selectionArg : editor.selection.getAllRanges()
+        , exNameArg : exName
+        }
+      ));
+      location.reload();
+  }
+}
 
 function maybeSendUpdate(e) {
     if (!updateWasFromElm) {
@@ -189,6 +234,7 @@ function maybeSendUpdate(e) {
         , strArg : editor.getSession().getDocument().getValue()
         , cursorArg : editor.getCursorPosition()
         , selectionArg : editor.selection.getAllRanges()
+        , exNameArg : ""
         }
       );
     }

@@ -524,6 +524,36 @@ codebox_ w h event s readOnly =
          ] ++ event)
         []
 
+-- Replaces the canvas if we are displaying an error
+-- Is mostly a copy of the basic code box in the not manipulable mode
+errorBox : Int -> Int -> String -> GE.Element
+errorBox w h errormsg =
+  Html.toElement w h <|
+    Html.textarea
+      [ Attr.spellcheck False
+      , Attr.readonly True
+      , Attr.style
+        [ ("font-family", params.mainSection.codebox.font)
+        , ("font-size", params.mainSection.codebox.fontSize)
+        , ("border", params.mainSection.codebox.border)
+        , ("whiteSpace", "pre")
+        , ("height", "100%")
+        , ("width", "100%") 
+        , ("resize", "none")
+        , ("overflow", "auto")
+        -- Horizontal Scrollbars in Chrome
+        , ("word-wrap", "normal")
+        , ("background-color", "whitesmoke")
+        , ("padding", "4px")
+        -- Makes the 100% for width/height work as intended
+        , ("box-sizing", "border-box")
+        , highlightThisIf False
+        ]
+      , Attr.value errormsg
+      , Events.onMouseUp events.address MouseUp
+      ]
+      []
+
 canvas : Int -> Int -> Model -> GE.Element
 canvas w h model =
   case model.mode of
@@ -653,18 +683,20 @@ mainSectionVertical w h model =
                        then codebox wCode h model
                        else codeBox wCode h in
 
-  let canvasSection =
-    GE.size wCanvas h <|
-      GE.flow GE.down
-        [ canvas wCanvas hCanvas model
-        , GE.flow GE.left
-            [ colorDebug Color.red <|
-                GE.container wBtn (hZInfo+1) GE.middle <|
-                outputButton model wBtn hBtn
-            , caption model (wCanvas+1-wBtn) (hZInfo+1) -- NOTE: +1 is a band-aid
-            ]
-        -- , caption model (wCanvas+1) hZInfo -- NOTE: +1 is a band-aid
-        ]
+  let canvasSection = case model.errorBox of
+    Nothing -> 
+      GE.size wCanvas h <|
+        GE.flow GE.down
+          [ canvas wCanvas hCanvas model
+          , GE.flow GE.left
+              [ colorDebug Color.red <|
+                  GE.container wBtn (hZInfo+1) GE.middle <|
+                  outputButton model wBtn hBtn
+              , caption model (wCanvas+1-wBtn) (hZInfo+1) -- NOTE: +1 is a band-aid
+              ]
+          -- , caption model (wCanvas+1) hZInfo -- NOTE: +1 is a band-aid
+          ]
+    Just errormsg -> errorBox wCanvas h errormsg
   in
 
   let gutter = gutterForResizing model.orient wGut h in
@@ -694,18 +726,20 @@ mainSectionHorizontal w h model =
                        then codebox w hCode model
                        else codeBox w hCode in
 
-  let canvasSection =
-    GE.size w (hCanvas + hZInfo) <|
-      GE.flow GE.down
-        [ canvas w hCanvas model
-        , GE.flow GE.left
-            [ colorDebug Color.red <|
-                GE.container wBtn (hZInfo+1) GE.middle <|
-                outputButton model wBtn hBtn
-            , caption model (w-wBtn) (hZInfo+1) -- NOTE: +1 is a band-aid
+  let canvasSection = case model.errorBox of
+    Nothing -> 
+        GE.size w (hCanvas + hZInfo) <|
+          GE.flow GE.down
+            [ canvas w hCanvas model
+            , GE.flow GE.left
+                [ colorDebug Color.red <|
+                    GE.container wBtn (hZInfo+1) GE.middle <|
+                    outputButton model wBtn hBtn
+                , caption model (w-wBtn) (hZInfo+1) -- NOTE: +1 is a band-aid
+                ]
+            -- , caption model w (hZInfo+1) -- NOTE: +1 is a band-aid
             ]
-        -- , caption model w (hZInfo+1) -- NOTE: +1 is a band-aid
-        ]
+    Just errormsg -> errorBox w (hCanvas + hZInfo) errormsg
   in
 
   let gutter = gutterForResizing model.orient w hGut in
@@ -1082,48 +1116,6 @@ view (w,h) model =
        ]
   in
 
--- Investigation into what exactly causes the blank out when Save As or
--- an orientation change happens. For the Save As, it sppears that the extra
--- GE.flow GE.inward is the culprit, but it's not definitive yet. 
---  case (model.startup, model.mode) of
---    (True, _) ->
---      let foo _ =
---        Signal.message taskMailbox.address <|
---          -- Insert more tasks to run at startup here
---          getLocalSaves `andThen` \_ ->
---          Signal.send
---            events.address
---            (UpdateModel (\m -> { m | startup <- False}))
---      in
---      GE.flow GE.inward
---        [ GI.hoverable foo <| GE.spacer w h
---        , basicUI
---        ]
---    (False, SaveDialog m) ->
---        GE.flow GE.inward 
---          [ saveElement model w h
---          ,                  
---        GE.flow GE.down
---           [ colorDebug Color.lightYellow topSection
---           , GE.flow GE.right
---                [ sideGutter
---                , midSection
---                , sideGutter
---                ]
---           , colorDebug Color.lightYellow botSection
---           ]
---           ]
---    _ ->
---    GE.flow GE.right
---       [ sideGutter
---       , GE.flow GE.down
---           [ colorDebug Color.lightYellow <| topSection
---           , midSection
---           , colorDebug Color.lightYellow <| botSection
---           ]
---       , sideGutter
---       ]
-
   -- Runs a task at startup by making the whole window hoverable briefly, which
   -- fires the task to the taskMailbox basically right away (the user's mouse is
   -- presumably over the window). Note that it is important to add the event
@@ -1135,6 +1127,8 @@ view (w,h) model =
         Signal.message taskMailbox.address <|
           -- Insert more tasks to run at startup here
           getLocalSaves `andThen` \_ ->
+        
+          ---
           Signal.send
             events.address
             (UpdateModel (\m -> { m | startup <- False}))

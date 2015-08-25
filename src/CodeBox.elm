@@ -4,6 +4,8 @@
 module CodeBox (interpretAceEvents, packageModel, tripRender,
                 AceMessage, AceCodeBoxInfo, initAceCodeBoxInfo) where
 
+import Lang exposing (errorPrefix)
+
 import Graphics.Element as GE
 import InterfaceModel as Model exposing (Event, sampleModel, events)
 
@@ -11,7 +13,7 @@ import InterfaceModel as Model exposing (Event, sampleModel, events)
 import InterfaceStorage exposing (installSaveState)
 
 import Task exposing (Task)
-
+import String
 import Dict exposing (Dict)
 
 -- So we can crash correctly
@@ -24,12 +26,14 @@ type alias AceCodeBoxInfo =
     , selections : List Model.Range
     , highlights : List Model.Highlight
     , bounce : Bool
+    , exName : String
     }
 
 type alias AceMessage = { evt : String 
                         , strArg  : String 
                         , cursorArg : Model.AcePos
                         , selectionArg : List Model.Range
+                        , exNameArg : String
                         } 
 
 -- An initial AceCodeBoxInfo for the foldp
@@ -41,6 +45,7 @@ initAceCodeBoxInfo =
     , selections = sampleModel.codeBoxInfo.selections
     , highlights = sampleModel.codeBoxInfo.highlights
     , bounce = True
+    , exName = ""
     }
   , []
   )
@@ -56,7 +61,29 @@ interpretAceEvents amsg = case amsg.evt of
               }
     "Rerender" -> Model.UpdateModel <| \m -> { m | code <- m.code }
     "init" -> Model.Noop
-    _ -> Debug.crash "Malformed update sent to Elm"
+    _ ->
+      -- TODO change this back
+      -- if String.contains errorPrefix amsg.evt
+      if True
+      then Model.UpdateModel <| recoverFromError amsg
+      -- TODO: this leads to an infinite loop of restarting in Chrome...
+      -- else Debug.crash "Malformed update sent to Elm"
+      else Model.Noop
+
+-- Puts us in the correct state if we recovered from an error, which we find out
+-- about from the JS that also happens to load Ace.
+-- Maybe we should split this out into a different Elm/JS file?
+recoverFromError : AceMessage -> Model.Model -> Model.Model
+recoverFromError amsg fresh = 
+    { fresh | code <- amsg.strArg
+            , editingMode <- Just amsg.strArg
+            , errorBox <- Just amsg.evt
+            , exName <- amsg.exNameArg
+            , codeBoxInfo <- { selections = amsg.selectionArg
+                             , cursorPos  = amsg.cursorArg
+                             , highlights = fresh.codeBoxInfo.highlights
+                             }
+    }
 
 -- The number of times that we defensively rerender the codebox on codebox
 -- clobbering updates. Determined experimentally.
@@ -65,7 +92,7 @@ interpretAceEvents amsg = case amsg.evt of
 -- Note that each one of these won't necessarily trigger a DOM copy/replacement;
 -- it only will for each of the times that Elm clobbers it.
 rerenderCount : Int
-rerenderCount = 3
+rerenderCount = 6
 
 packageModel : (Model.Model, Event) -> (AceCodeBoxInfo, List Bool) -> 
                     (AceCodeBoxInfo, List Bool)
@@ -82,6 +109,7 @@ packageModel (model, evt) (lastBox, rerenders) =
         , manipulable = manipulable
         , highlights = model.codeBoxInfo.highlights
         , bounce = rerender
+        , exName = model.exName
         }
       , rerender :: List.take (rerenderCount - 1) rerenders
       )

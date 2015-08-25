@@ -35,10 +35,10 @@ cons pv menv =
     (Just env, Just env') -> Just (env' ++ env)
     _                     -> Nothing
 
-lookupVar env x =
+lookupVar env x pos =
   case Utils.maybeFind x env of
     Just v -> v
-    Nothing -> Debug.crash <| "eval: var " ++ Utils.bracks x
+    Nothing -> errorMsg <| strPos pos ++ " variable not found: " ++ x
 
 -- eval propagates output environment in order to extract
 -- initial environment from prelude
@@ -57,9 +57,9 @@ eval env e =
 
   EConst i l -> ret <| VConst (i, TrLoc l)
   EBase v    -> ret <| VBase v
-  EVar x     -> ret <| lookupVar env x
+  EVar x     -> ret <| lookupVar env x e.start
   EFun [p] e -> ret <| VClosure Nothing p e env
-  EOp op es  -> ret <| evalOp env op.val es
+  EOp op es  -> ret <| evalOp env op es
 
   EList es m ->
     let vs = List.map (eval_ env) es in
@@ -76,11 +76,13 @@ eval env e =
     case eval_ env e1 of
       VBase (Bool True)  -> eval env e2
       VBase (Bool False) -> eval env e3
+      _                  -> errorMsg <| strPos e1.start ++ " if-statement expected a Bool but got something else."
 
   ECase e1 l ->
     let v1 = eval_ env e1 in
     case evalBranches env v1 l of
       Just v2 -> ret v2
+      _       -> errorMsg <| strPos e1.start ++ " non-exhaustive case statement"
 
   EApp e1 [e2] ->
     let (v1,v2) = (eval_ env e1, eval_ env e2) in
@@ -91,6 +93,8 @@ eval env e =
       VClosure (Just f) p e env' ->
         case (pVar f, v1) `cons` ((p, v2) `cons` Just env') of
           Just env'' -> eval env'' e
+      _ ->
+        errorMsg <| strPos e1.start ++ " not a function"
 
   ELet _ True p e1 e2 ->
     case (p.val, eval_ env e1) of
@@ -100,7 +104,10 @@ eval env e =
         case (pVar f, v1') `cons` Just env of
           Just env' -> eval env' e2
       (PList _ _, _) ->
-        Debug.crash "eval: multi letrec"
+        errorMsg <|
+          strPos e1.start ++
+          "mutually recursive functions (i.e. letrec [...] [...] e) \
+           not yet implemented"
 
   EComment _ e1 -> eval env e1
   EOption _ _ e1 -> eval env e1
@@ -110,7 +117,8 @@ eval env e =
   EApp e1 es -> eval env (eApp e1 es)
   ELet _ False p e1 e2 -> eval env (eApp (eFun [p] e2) [e1])
 
-evalOp env op es =
+evalOp env opWithInfo es =
+  let (op,opStart) = (opWithInfo.val, opWithInfo.start) in
   case List.map (eval_ env) es of
     [VConst (i,it), VConst (j,jt)] ->
       case op of
@@ -140,6 +148,10 @@ evalOp env op es =
     [VBase (Bool b)] ->
       case op of
         ToStr  -> VBase (String (toString b))
+    _ ->
+      errorMsg
+        <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart
+        ++ ":\n" ++ Utils.lines (List.map sExp es)
 
 evalBranches env v l =
   List.foldl (\(p,e) acc ->
@@ -164,7 +176,7 @@ evalDelta op is =
     (Floor,  [n])   -> toFloat <| floor n
     (Ceil,   [n])   -> toFloat <| ceiling n
     (Round,  [n])   -> toFloat <| round n
-    _               -> Debug.crash <| "Eval.evalDelta " ++ strOp op
+    _               -> errorMsg <| "Eval.evalDelta " ++ strOp op
 
 initEnv = snd (eval [] Parser.prelude)
 
@@ -189,4 +201,4 @@ rangeToList r =
            in
            if | nl == nu  -> [ VConst (nl, TrLoc tl) ]
               | otherwise -> walkVal 0
-        _ -> Debug.crash "Range not specified with numeric constants"
+        _ -> errorMsg "Range not specified with numeric constants"

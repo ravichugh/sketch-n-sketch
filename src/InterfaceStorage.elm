@@ -115,6 +115,7 @@ checkAndSave : String -> Model -> Task String ()
 checkAndSave saveName model = if
     | List.all ((/=) saveName << fst) Examples.list
         && saveName /= ""
+        && saveName /= "__ErrorSave"
         && not (all (\c -> c == ' ' || c == '\t') saveName) ->
                 setItem saveName (modelToValue model)
                 `andThen` \x -> send events.address <|
@@ -171,7 +172,7 @@ installLocalState saveName loadedModel oldModel =
 -- Gets the names of all of the local saves, returned in a list of strings
 getLocalSaves : Task String ()
 getLocalSaves = keys `andThen` \saves -> send events.address <|
-    InterfaceModel.UpdateModel <| installLocalSaves <| Debug.log "Loaded" saves
+    InterfaceModel.UpdateModel <| installLocalSaves saves
 
 -- Installs the list of local saves
 installLocalSaves : List String -> Model -> Model

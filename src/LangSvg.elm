@@ -91,23 +91,40 @@ type alias IdPoint = (Maybe Int, Point)
 -- toNum    (ANum (i,_)) = i
 -- toNumTr  (ANum (i,t)) = (i,t)
 
+strValOfAVal = strVal << valOfAVal
+
+x `expectedButGot` s = errorMsg <| "expected " ++ x ++", but got: " ++ s
+
 -- temporary way to ignore numbers specified as strings (also see Sync)
 
 toNum a = case a of
   ANum (n,_) -> n
-  AString s  -> case String.toFloat s of
-                  Ok n -> n
+  AString s  ->
+    case String.toFloat s of
+      Ok n -> n
+      _    -> "a number" `expectedButGot` strValOfAVal a
+  _        -> "a number" `expectedButGot` strValOfAVal a
 
 toNumTr a = case a of
   ANum (n,t) -> (n,t)
   AColorNum (n,t) -> (n,t)
-  AString s  -> case String.toFloat s of
-                  Ok n -> (n, dummyTrace)
+  AString s  ->
+    case String.toFloat s of
+      Ok n -> (n, dummyTrace)
+      _    -> "a number" `expectedButGot` strValOfAVal a
+  _        -> "a number" `expectedButGot` strValOfAVal a
 
-toPoints (APoints pts) = pts
-toPath   (APath2 p) = p
+toPoints a = case a of
+  APoints pts -> pts
+  _           -> "a list of points" `expectedButGot` strValOfAVal a
 
-toTransformRot (ATransform [Rot n1 n2 n3]) = (n1,n2,n3)
+toPath a = case a of
+  APath2 p -> p
+  _        -> "path commands" `expectedButGot` strValOfAVal a
+
+toTransformRot a = case a of
+  ATransform [Rot n1 n2 n3] -> (n1,n2,n3)
+  _                         -> "transform commands" `expectedButGot` strValOfAVal a
 
 valToAttr (VList [VBase (String k), v]) =
   case (k, v) of
@@ -121,10 +138,16 @@ valToAttr (VList [VBase (String k), v]) =
     (_, VConst it)        -> (k, ANum it)
     (_, VBase (String s)) -> (k, AString s)
 
-valToPoint (VList [VConst x, VConst y]) = (x,y)
+valToPoint v = case v of
+  VList [VConst x, VConst y] -> (x,y)
+  _                          -> "a point" `expectedButGot` strVal v
+
 pointToVal (x,y) = (VList [VConst x, VConst y])
 
-valToRgba [VConst r, VConst g, VConst b, VConst a] = (r,g,b,a)
+valToRgba vs = case vs of
+  [VConst r, VConst g, VConst b, VConst a] -> (r,g,b,a)
+  _                                        -> "rgba" `expectedButGot` strVal (VList vs)
+
 rgbaToVal (r,g,b,a) = [VConst r, VConst g, VConst b, VConst a]
 
 strPoint (x_,y_) =
@@ -252,9 +275,12 @@ matchCmd cmd s =
 
 valsToTransform = List.map valToTransformCmd
 
-valToTransformCmd (VList (VBase (String k) :: vs)) =
-  case (k, vs) of
-    ("rotate", [VConst n1, VConst n2, VConst n3]) -> Rot n1 n2 n3
+valToTransformCmd v = case v of
+  VList (VBase (String k) :: vs) ->
+    case (k, vs) of
+      ("rotate", [VConst n1, VConst n2, VConst n3]) -> Rot n1 n2 n3
+      _ -> "a transform command" `expectedButGot` strVal v
+  _     -> "a transform command" `expectedButGot` strVal v
 
 strTransformCmd cmd = case cmd of
   Rot n1 n2 n3 ->
@@ -310,6 +336,8 @@ children n = case n of {TextNode _ -> []; SvgNode _ _ l -> l}
 emptyTree : RootedIndexedTree
 emptyTree = valToIndexedTree <| VList [VBase (String "svg"), VList [], VList []]
 
+-- TODO use options for better error messages
+
 valToIndexedTree : Val -> RootedIndexedTree
 valToIndexedTree v =
   let (nextId,tree) = valToIndexedTree_ v (1, Dict.empty) in
@@ -330,7 +358,8 @@ valToIndexedTree_ v (nextId, d) = case v of
     let node = SvgNode kind (List.map valToAttr vs1) (List.reverse children) in
     (1 + nextId', Dict.insert nextId' node d')
 
-  _ -> Debug.crash ("LangSvg.valToIndexTree_: " ++ strVal v)
+  _ ->
+    "an SVG node" `expectedButGot` strVal v
 
 printIndexedTree : Val -> String
 printIndexedTree = valToIndexedTree >> snd >> strEdges
