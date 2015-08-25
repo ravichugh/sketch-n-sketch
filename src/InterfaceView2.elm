@@ -611,7 +611,8 @@ middleWidgets w h wWrap hWrap model =
         , gapWidget w h
         , zoneButton model w h
         -- , frozenButton model w h
-        , modeButton model w h
+        -- TODO temporarily disabling for user study
+        -- , modeButton model w h
         ] ++ (syncButton_ w h model)
       (True, _) ->
         [ dropdownExamples model w h
