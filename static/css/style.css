@@ -244,6 +244,10 @@ ul h4 {
   padding: 0;
 }
 
+#page ul {
+	padding: 0px 0px 0px 25px;
+}
+
 #page li {
 	padding: 0px 0 0px 0;
 }
@@ -430,3 +434,22 @@ th {
   background: #EEEEEE;
 }
 
+.hoverYellow {
+  background-color: khaki;
+  padding: 0px 4px 0px 4px;
+}
+
+.hoverGreen {
+  background-color: limegreen;
+  padding: 0px 4px 0px 4px;
+}
+
+.hoverRed {
+  background-color: salmon;
+  padding: 0px 4px 0px 4px;
+}
+
+.hoverGray {
+  background-color: lightgray;
+  padding: 0px 4px 0px 4px;
+}
