@@ -93,6 +93,8 @@ eval env e =
       VClosure (Just f) p e env' ->
         case (pVar f, v1) `cons` ((p, v2) `cons` Just env') of
           Just env'' -> eval env'' e
+      _ ->
+        errorMsg <| strPos e1.start ++ " not a function"
 
   ELet _ True p e1 e2 ->
     case (p.val, eval_ env e1) of

@@ -211,7 +211,10 @@ window.onerror = function(msg, url, linenumber) {
   // with errorPrefix) then don't do anything
   // Checking for string containment, rather than trimming the prefix
   // because of different error strings in different browsers.
-  if (msg.indexOf(errorPrefix) != 1) {
+
+  // TODO change this back
+  // if (msg.indexOf(errorPrefix) != 1) {
+  if (msg.indexOf("notify function has been called asynchronously!") != 1) {
       localStorage.setItem('__ErrorSave', JSON.stringify(
         { evt : msg
         , strArg : editor.getSession().getDocument().getValue()

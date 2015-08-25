@@ -62,7 +62,9 @@ interpretAceEvents amsg = case amsg.evt of
     "Rerender" -> Model.UpdateModel <| \m -> { m | code <- m.code }
     "init" -> Model.Noop
     _ ->
-      if String.contains errorPrefix amsg.evt
+      -- TODO change this back
+      -- if String.contains errorPrefix amsg.evt
+      if True
       then Model.UpdateModel <| recoverFromError amsg
       -- TODO: this leads to an infinite loop of restarting in Chrome...
       -- else Debug.crash "Malformed update sent to Elm"
