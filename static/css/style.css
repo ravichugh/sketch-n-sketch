@@ -87,6 +87,7 @@ h3 {
 h4 {
 	/* font-size: 1.5em; */
 	font-size: 1.25em;
+  margin-top: 1.25em;
 }
 
 img.alignleft {
@@ -404,11 +405,13 @@ pre {
 }
 
 /* This is for mixing code blocks (i.e. pre) with other HTML formatting */
+/*
 .codePlusFormatting {
   font-family: monospace;
   padding: 3px 0 3px 30px;
   color: cornflowerblue;
 }
+*/
 
 /* for Markdown-generated tables */
 
