@@ -1,0 +1,273 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <title></title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+  <html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <!-- BEGIN LOADED_SRC src/head.src.html -->
+    <meta name="description" content="" />
+    <meta name="keywords" content="" />
+    <title>Sketch-N-Sketch</title>
+    <link rel="shortcut icon" type="image/png" href="../static/images/sketch-n-sketch-logo.png">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+    <link rel="stylesheet" type="text/css" href="../static/css/arvo.css" />
+    <link rel="stylesheet" type="text/css" href="../static/css/style.css" />
+    <!-- END LOADED_SRC src/head.src.html -->
+  </head>
+</head>
+<body>
+<body>
+  <div id="wrapper">
+
+    <div id="header">
+      <div id="logo"> <h1>Sketch-N-Sketch [<a href="index.html">Tutorial</a>]</h1> </div>
+      <!-- BEGIN LOADED_SRC src/menu.src.html -->
+      <div id="menu">
+        <ul>
+          <li class="first current_page_item"><a href="../index.html">Home</a></li>
+          <li><a href="../blog/index.html">Blog</a></li>
+          <li><a href="../releases/index.html">Demo</a></li>
+          <li class="last"><a href="https://github.com/ravichugh/sketch-n-sketch">Code</a></li>
+        </ul>
+        <br class="clearfix" />
+      </div>
+      <!-- END LOADED_SRC src/menu.src.html -->
+    </div>
+
+    <div id="page">
+
+      <div class="content_wide">
+      <div class="blog_post">
+<h1 id="step-5-additional-svg-functionality">Step 5: Additional SVG Functionality</h1>
+<p><br> In the previous several lessons, we have discussed SVG features that have some &quot;special&quot; support from Sketch-n-Sketch. In this lesson, we will cover:</p>
+<ul>
+<li>How to use Little's &quot;thin wrapper&quot; around the full range of SVG nodes and attributes.</li>
+</ul>
+<p>Let's head for the finish line!</p>
+<h3 id="thin-wrapper-syntax">Thin Wrapper Syntax</h3>
+<p>As mentioned in the first lesson, the output of a Little program is an SVG node that has type <code>svg</code>. However, while SVG nodes are represented in text form as XML-style nodes and attributes delimited with <code>&lt;</code> and <code>&gt;</code>, SVG nodes in Little are represented by three-element lists of the following form:</p>
+<pre><code>[ &#39;nodeName&#39; attributeList childNodeList ]</code></pre>
+<p>Furthermore, each attribute takes the form</p>
+<pre><code>[ &#39;attrName&#39; value ]</code></pre>
+<p>where the <code>value</code> can be a string, number, or list depending on what <code>attrName</code> is. No matter what, however, a string <code>value</code> can be used, in which case it is copied directly into the output SVG format. For this reason, we describe our representation of SVG elements as a &quot;thin wrapper&quot; around the full specification, because you can always just use strings. (The benefit of using numbers, lists, etc. whenever possible, however, is that Sketch-n-Sketch editor can provide interactive direct manipulation when these values are not &quot;buried&quot; inside strings.) The <code>nodeName</code> value above can also be any string and, thus, provides access even to SVG elements that are not handled specially by the editor.</p>
+<p>Having let the cat out of the bag, we can now think about how to reimplement the <code>rect</code> function ourselves. In raw SVG format, a rectangle is specified in the following fashion:</p>
+<pre><code>&lt;rect x=&quot;xval&quot; y=&quot;yval&quot; width=&quot;widthval&quot; height=&quot;heightval&quot; fill=&quot;colorname&quot;&gt;
+    &lt;!-- Usually no children --&gt;
+&lt;/rect&gt;</code></pre>
+<p>Usually, a rectangle has no children, so we may leave the children list empty. Furthermore, the attributes that are absolutely necessary are <code>x</code>, <code>y</code>, <code>width</code>, <code>height</code>, and <code>fill</code>. So, we should make those arguments to our function. Thus, we can specify the following Little function to make a rectangle:</p>
+<pre><code>(def ourRect (\(x y w h fill)
+  [ &#39;rect&#39; 
+    [ [&#39;x&#39; x]
+      [&#39;y&#39; y]
+      [&#39;width&#39; w]
+      [&#39;height&#39; h]
+      [&#39;fill&#39; fill]
+    ]
+    []
+  ] ) )</code></pre>
+<p>It can be hard to read and write code with these lists of lists everywhere, so sometimes it helps to introduce temporary variables (and to choose whitespace to taste):</p>
+<pre><code>(def ourRect (\(x y w h fill)
+  (let attrs [[&#39;x&#39; x] [&#39;y&#39; y] [&#39;width&#39; w] [&#39;height&#39; h] [&#39;fill&#39; fill]]
+  (let children []
+    [&#39;rect&#39; attrs children]))))</code></pre>
+<p>That's pretty much all there is to the built-in <code>rect</code> function. All of the shape functions in Little are implemented in similar fashion. Take a peek at <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little">Prelude</a> to see how the functions <code>line</code>, <code>rect</code>, <code>circle</code>, <code>path</code>, and so on simply provide a nicer syntax than having to write down lists of lists all over the place.</p>
+<p>The Prelude functions are defined to take as arguments the most common attributes for each kind of shape. But because SVG elements are really represented using the aforementioned three-element list encoding under the hood, there's nothing stopping you from specifying additional attributes. For example, as mentioned on the <a href="https://developer.mozilla.org/en-%20US/docs/Web/SVG/Element/rect">documentation page</a> for <code>rect</code>, another common usage is to specify a rectangle with rounded corners.</p>
+<p><strong>Exercise 5.1:</strong> Modify <code>ourRect</code> so that it allows you to specify the radius of the rounded corners.</p>
+<p><strong>Hint:</strong> There's a nice helper function in <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little">Prelude</a> called <code>addAttr</code> that can be very helpful for creating complicated SVG nodes. Its definition is as follows:</p>
+<pre><code>(def addAttr (\([shapeKind oldAttrs children] newAttr)
+  [shapeKind (snoc newAttr oldAttrs) children]))</code></pre>
+<p>This allows attributes to be appended to existing SVG nodes with ease.<a href="#fn1" class="footnoteRef" id="fnref1"><sup>1</sup></a> It is easy to imagine a similar function that allows for the appending of children as well. Furthermore, as attributes and children are just lists with elements that are straightforward to pattern match on with <code>case</code>, there's plenty of functionality for any function to modify any shape in any way.</p>
+<p>To illustrate, let's write a function that sets the <code>'fill'</code> attribute of an SVG node if it isn't there and changes it to the given value if it is:</p>
+<!--
+  (case attrs
+    ([]                   [['fill' fill]])
+    ([['fill' _] | rest]  [['fill' fill] | rest])
+    ([a | rest]           [a | (setFill_ rest fill)]))))
+-->
+<pre><code>(defrec setFill_ (\(attrs fill)
+  (case attrs
+    ([]              [[&#39;fill&#39; fill]])
+    ([[a v] | rest]  (if (= a &#39;fill&#39;)
+                       [[a fill] | rest]
+                       [[a v] | (setFill_ rest fill)])))))
+
+(def setFill (\([nodeName attrs children] fill)
+  [nodeName (setFill_ attrs fill) children]))</code></pre>
+<p>Notice how we need to keep in mind that the attributes themselves are two-element lists inside of lists. This leads to more than a few nested brackets, but the syntax should become familiar after you use it once or twice. Also notice the use of an <code>(if condition thenExp elseExp)</code>, which works the same way in Little as you would expect from other languages.</p>
+<p><strong>Practice 5.1:</strong> Enter the <code>setFill</code> function into a file, and use it to set the fill of one or more shapes. Then, modify the function to have it set a different attribute.</p>
+<h3 id="svg-viewbox">SVG ViewBox</h3>
+<p>In all of our examples so far, we have used absolute coordinates (in pixels) when defining the sizes and positions of SVG shapes. Because Scalable Vector Graphics are, well, scalable, this is often okay; most SVG editors and viewers can resize these designs appropriately if needed. Sometimes, however, an SVG image with absolute coordinates may not be resized automatically, such as when embedding it into an HTML document.</p>
+<p>The best way to guarantee that your image (and any surrounding border spacing) will be scaled appropriately is to specify a <code>viewBox</code> attribute for the top-level <code>svg</code> canvas node, which defines a local coordinate system for the design. The general structure of using a <code>viewBox</code> is that the top-level SVG node ends up as follows:</p>
+<pre><code>&lt;svg width=&quot;totalWidth&quot; height=&quot;totalHeight&quot; viewBox=&quot;minX minY maxX maxY&quot;&gt;
+  ...
+&lt;/svg&gt;</code></pre>
+<p>This creates an internal coordinate system for your design that goes from <code>minX</code> to <code>maxX</code> in the x-direction and <code>minY</code> to <code>maxY</code> in the y-direction. (Often, <code>minX</code> and <code>maxY</code> are both set to <code>0</code>, effectively making <code>maxX</code> the <code>width</code> of the coordinate system and <code>maxY</code> the <code>height</code>.) This is offset by <code>minX</code> and <code>minY</code>, effectively defining a rectangle within the <code>totalWidth</code> and <code>totalHeight</code> of your working <code>svg</code> definition that is actually shown when it is rendered. If the <code>totalWidth</code> and <code>totalHeight</code> parameters are omitted from the <code>svg</code> definition, then the <code>viewBox</code> implicitly defines the width and height of the image, and the <code>minX</code> and <code>minY</code> parameters can only specify a subset of the image that reaches all the way to width and height. <a href="#fn2" class="footnoteRef" id="fnref2"><sup>2</sup></a></p>
+<p>Alright, that was all a bit specific. In general, a good way to think about a <code>viewBox</code>, at least when it comes to exporting your images, is to start by defining your SVG using raw pixel values (as we've been doing in this and previous lessons). Then, when you're ready to export, change your call to <code>svg</code> to a call to <code>svgViewBox</code> with the overall width and height of your image and then right away your image will scale itself to fit its container!</p>
+<p><strong>Exercise 5.2:</strong> To see this workflow in action, let's convert the Sketch-n-Sketch logo design into one that scales to fit the canvas. Start by selecting the Logo example and create a locally saved version of it. Then, change the appropriate constants so that the logo fits snugly in the top-left corner of the canvas. Next, switch the top-level canvas function call from <code>svg</code> to <code>svgViewBox</code> and choose appropriate additional arguments for it; take a look at <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little">the Prelude source</a> to see how the <code>svgViewBox</code> function corresponds to the <code>'viewBox'</code> attribute discussed above. Lastly, notice how the rendered output scales to fit the canvas no matter what its size is — play with this either by resizing the canvas pane or by resizing the entire browser window.</p>
+<p>Another great example of this pattern is in the Bar Graph example, which uses a variable called <code>doneEditing</code> that, if set to <code>true</code>, renders the document using a <code>viewBox</code> and if set to <code>false</code> doesn't. Furthermore, it also doesn't render the helper slider when <code>doneEditing</code> is set to <code>true</code>, making a convenient mechanism to switch between a &quot;working&quot; mode and an &quot;export&quot; mode. In fact, if you're working with any complicated graphic that uses UI widgets, this setup makes for a very good workflow.</p>
+<h4 id="sliding-and-panning-and-zooming-oh-my">Sliding and Panning and Zooming, Oh My!</h4>
+<p>Next, we will put several bits of knowledge and experience to good use — about <code>viewBox</code>, the thin wrapper syntax, and our custom UI widgets — to allow us to easily pan and zoom around a larger, design within a fixed window. In particular, we will set up:</p>
+<ul>
+<li>two variables for the &quot;total&quot; width and height of the window,</li>
+<li>a slider (via <code>hSlider</code> from Prelude) to control a &quot;zoom&quot; parameter relative to the total window size, and</li>
+<li>a two-dimensonal slider (via <code>xySlider</code> from a built-in example) to control &quot;x-offset&quot; and &quot;y-offset&quot; parameters.</li>
+</ul>
+<p>A general skeleton for this pattern is the following:</p>
+<pre><code>; -------------------------------------------------------------------
+; Currently, xySlider is not currently included in Prelude, so
+; copy the definitions of xySlider_ and xySlider here.
+
+(def xySlider_ ( ... ))
+
+(def xySlider  ( ... ))
+
+; -------------------------------------------------------------------
+; Define the window size and pan/zoom sliders.
+
+(def [totalWidth totalHeight] [800! 800!])
+(def [zoom zoomSlider]
+  (hSlider false 50! 200! 300! 0.1! 5! &#39;Zoom: &#39; 1))
+
+(def [width height] [(* zoom totalWidth) (* zoom totalHeight)])
+(def [[xOffset yOffset] panSlider]
+   (xySlider true 50! 250! 50! 250! 0! totalWidth 0! totalHeight
+             &#39;X pan: &#39; &#39;Y pan: &#39;
+             50 50))
+
+; -------------------------------------------------------------------
+; The shapes for the design go in here.
+
+(def shapes ( ... ))
+
+; -------------------------------------------------------------------
+; The sliders and the design, panned and zoomed as necessary, goes here.
+
+(def viewBoxAttr
+  (+ (+ (+ (+ (+ (+ (toString (/ xOffset zoom)) &#39; &#39;)
+                    (toString (/ yOffset zoom))) &#39; &#39;)
+                    (toString totalWidth)) &#39; &#39;)
+                    (toString totalHeight)))
+
+(def scaledDesign
+  (let attrs [[&#39;viewBox&#39; viewBoxAttr]
+              [&#39;width&#39; (toString width)]
+              [&#39;height&#39; (toString height)]]
+  [&#39;svg&#39; attrs shapes]))
+
+(svg (concat [[scaledDesign] panSlider zoomSlider]))
+</code></pre>
+<p><strong>Practice 5.2:</strong> Add some shapes to the <code>shapes</code> definition, making sure that all shapes that you would like to be visible have their dimensions such that they are within the <code>totalWidth</code> and <code>totalHeight</code> coordinates. Then, use the pan and zoom sliders to move around your design. Notice how moving the ball in the <code>xySlider</code> to the lower right causes the image to move to the upper left.</p>
+<p>As it is, the pan slider is such that it is meant to allow you to move your viewing &quot;window&quot;, which may be larger or smaller than the graphic, around the overall canvas space. The ball in the slider that you manipulate is meant to represent the location of this window, while the box that it is within is meant to represent the total canvas space that the graphic resides in. To achieve this effect, the sliders manipulate the aforementioned <code>minX</code> and <code>minY</code> parameters to the <code>viewBox</code> attribute to change the offset that the contents of that <code>svg</code> tag begins with inside their <em>internal</em> coordinate system. So, if the <code>totalWidth</code> and <code>totalHeight</code> are each <code>800</code>, and the <code>width</code> and <code>height</code> are <code>200</code>, an offset of <code>100</code> in the x-direction will correspond starting at x-position <code>400</code> as defined in the coordinates where the shapes are. As these values don't get scaled when the zoom level is changed, this leads to some perhaps unintuitive behavior when zooming as all the zooming appears to be done either into or out of the top-left corner of the source image.</p>
+<p>In general, scaling and panning with <code>viewBox</code> will likely take a bit of fiddling with to get how you would like it — something you won't be able to avoid when working with SVG in any environment until you get familiar with how <code>viewBox</code> works. Before then, usually using the built-in <code>svgViewBox</code> function and some experimentation are sufficient to do the trick.</p>
+<p><strong>Exercise 5.4 (Optional):</strong> Replace the deeply-nested series of string concatenations in <code>viewBoxAttr</code> with an expression that uses the <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little">Prelude</a> functions <code>map</code> and <code>joinStrings</code>; the latter is like <code>concat</code> but for &quot;squishing together&quot; strings instead of lists.</p>
+<h3 id="adding-a-new-svg-feature">Adding a New SVG Feature</h3>
+<p>In the zoom-and-pan example, we used the thin wrapper syntax to add &quot;new&quot; attributes to &quot;existing&quot; SVG nodes in Little. But there is nothing from stopping us from using the underlying representation to access different SVG node types altogether. For the last topic of this tutorial, we will demonstrate how to incorporate an SVG element that has currently has no special support from Sketch-n-Sketch. Check out <a href="https://developer.mozilla.org/en-US/docs/Web/SVG">this reference</a> for an overview of all the features in the most recent SVG specification.</p>
+<p>We will choose to implement the <code>animate</code> tag with some very simple attributes. As with any additional element that you incorporate into Little, there will be no built-in zones that allow you to directly manipulate its attributes. However, as we seen several times throughout our journey, UI widgets work often work well for manipulating attributes that are not hard-wired in to the editor.</p>
+<p>The <code>animate</code> tag, in a simple form, takes the following structure:</p>
+<pre><code>&lt;nodeToAnimate itsAttributes&gt;
+  &lt;animate  attributeName=&quot;attrName&quot;
+            from=&quot;attrMin&quot; to=&quot;attrMax&quot;
+            values=&quot;from;to&quot;
+            dur=&quot;duration&quot;
+            repeatCount=&quot;indefinite or count&quot;&gt;&lt;/animate&gt;
+&lt;/nodeToAnimate&gt;</code></pre>
+<p>So, to animate any given node over time, we need to add a child <code>animate</code> node with the desired values for each of the attributes above. In our case, we can assume that the <code>attributeType</code> will always be XML, so we won't make that an argument to the <code>animate</code> function below:</p>
+<pre><code>(def animate (\(attrName from to dur repeat)
+  [&#39;animate&#39;
+    [ [&#39;attributeName&#39; attrName]
+      [&#39;from&#39; (toString from)]
+      [&#39;to&#39; (toString to)]
+      [&#39;dur&#39; (+ (toString dur) &#39;s&#39;)]
+      [&#39;values&#39; (+ (+ (toString from) &#39;;&#39;) (toString to))]
+      [&#39;repeatCount&#39; repeat]
+    ]
+    []
+  ] ) )</code></pre>
+<p>As with the shape functions from Prelude, this function provides a nicer way of packaging together an SVG node without writing lists everywhere. Even better, when calling the <code>animate</code> function, we can provide numeric values and rely on this function to perform the <code>toString</code> conversions that are needed.</p>
+<p>Now, we can create a rectangle that moves in the x-direction:</p>
+<pre><code>(def coolRect 
+  [ &#39;rect&#39;
+    [ [&#39;x&#39; 100]
+      [&#39;y&#39; 100]
+      [&#39;fill&#39; &#39;lightblue&#39;]
+      [&#39;width&#39; 100]
+      [&#39;height&#39; 100]
+    ]
+    [ (animate &#39;x&#39; 100 200 5 &#39;indefinite&#39;) ]
+  ]
+)
+
+(svg [coolRect])</code></pre>
+<p>That's a cool rectangle!</p>
+<p>It's then straightforward to turn <code>coolRect</code> into a function that takes an argument for the y-position, so we can draw many animated rectangles on the screen at once:</p>
+<pre><code>(def coolRect (\ypos
+  [ &#39;rect&#39;
+    [ [&#39;x&#39; 100]
+      [&#39;y&#39; ypos]
+      [&#39;fill&#39; &#39;lightblue&#39;]
+      [&#39;width&#39; 100]
+      [&#39;height&#39; 100]
+    ]
+    [ (animate &#39;x&#39; 100 200 5 &#39;indefinite&#39;) ]
+  ]
+) )
+
+(svg (map coolRect [100 210 320 430 540]))</code></pre>
+<p>Now, we can programmatically generate animated rectangles with just as much flexibility as we can any other shape, with the ability to change the low-level placement function definitions to boot. <strong>Practice 5.3:</strong> Try having some of the arguments to <code>animate</code> also depend on <code>ypos</code> and see what happens (changing <code>dur</code> leads to some fun results).</p>
+<p>As you can see by toggling the Zones, the zones for these shapes are not where you might expect them to be. Sketch-n-Sketch (currently) expects shapes to remain in the same location, so it does not alter the positions of the zones based on where they are in the animation. Furthermore, there are (currently) no built-in tools to help with animations. So, if working on the edge of what the built-in functionality allows, be ready for a little bit of strange behavior here and there. That being said, our tool is expressive enough to allow for any features of SVG to be expressed and still be able to take advantage of the benefits of programmatically specifying the image. This is part of the benefit of coupling a general-purpose programming language with the &quot;raw&quot; target SVG language.</p>
+<p><strong>Exercise 5.4:</strong> Now it's your turn. Pick an SVG element or attribute that is not built-in to Sketch-n-Sketch, and write up some Little functions for working with it. Good candidates include the <code>g</code> element, a filter, or a gradient. Don't forget to look at the <a href="https://developer.mozilla.org/en-US/docs/Web/SVG">SVG documentation</a> for inspiration and implementation details.</p>
+<h3 id="survey">Survey</h3>
+<p>That's all the material we have for this introductory tutorial.</p>
+<p>After you fill out the survey for this lesson, please don't forget the last step: the <a href="exit.html">exit survey</a>.</p>
+<iframe src="https://docs.google.com/forms/d/167V_79ttVdj8v-J4cT8uFWklMswg68lJXU4eeuxqjkQ/viewform?embedded=true" width="750" height="1400" frameborder="0" marginheight="0" marginwidth="0">
+Loading...
+</iframe>
+<p><br></p>
+<h3 id="last-stop-exit-surveyexitsurvey">Last Stop: <a href="exit.html">Exit Survey</a></h3>
+<p><br></p>
+<div class="footnotes">
+<hr />
+<ol>
+<li id="fn1"><p>Currently, we've stuck with the design decision to have the built-in functionality lend itself towards a single statement that creates the SVG node for a given shape or other structure after which that node isn't manipulated any further. There's no reason why things need to be done this way and it's simply how we chose to go about things — a design method that involves creating shapes and then adding attributes to them after the fact is equally as legitimate and just doesn't have a nice group of functions to go along with it in Prelude.<a href="#fnref1">↩</a></p></li>
+<li id="fn2"><p>If you would like to gain a deeper intuition for how the SVG <code>viewBox</code> works, a helpful demo can be found <a href="http://sarasoueidan.com/demos/interactive-svg-coordinate-system/">here</a>.<a href="#fnref2">↩</a></p></li>
+</ol>
+</div>
+      </div>
+      </div>
+
+      <br class="clearfix" />
+
+    </div> <!-- end id="page" -->
+
+  </div> <!-- end id="wrapper" -->
+
+  <!-- BEGIN LOADED_SRC src/footer.src.html -->
+  <div id="footer">
+    &copy; 2015 ravi chugh |
+  	stylesheet based on
+    <a href="http://www.freecsstemplates.org/preview/resolved/">Resolved</a>
+  </div>
+  <!-- END LOADED_SRC src/footer.src.html -->
+
+  <!-- BEGIN LOADED_SRC src/ga-tracker.src.html -->
+  <script>
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  
+    ga('create', 'UA-5371203-2', 'auto');
+    ga('send', 'pageview');
+  
+  </script>
+  <!-- END LOADED_SRC src/ga-tracker.src.html -->
+
+</body>
+</html>
+</body>
+</html>

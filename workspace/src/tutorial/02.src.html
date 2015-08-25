@@ -1,0 +1,123 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <title></title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+  <html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <!-- LOAD_SRC src/head.src.html -->
+  </head>
+</head>
+<body>
+<body>
+  <div id="wrapper">
+
+    <div id="header">
+      <div id="logo"> <h1>Sketch-N-Sketch [<a href="index.html">Tutorial</a>]</h1> </div>
+      <!-- LOAD_SRC src/menu.src.html -->
+    </div>
+
+    <div id="page">
+
+      <div class="content_wide">
+      <div class="blog_post">
+<h1 id="step-2-constant-vs.-computed-attributes">Step 2: Constant vs. Computed Attributes</h1>
+<p><br> In this lesson, we will cover:</p>
+<ul>
+<li>How to program and directly manipulate &quot;computed&quot; attributes,</li>
+<li>How to control what parameters may and may not be directly manipulated, and</li>
+<li>How to employ the Group Box pattern.</li>
+</ul>
+<h3 id="two-kinds-of-parameters">Two Kinds of Parameters</h3>
+<p>When programming designs in Little, there are two primary ways to define attributes of a shape: the first is by specifying a constant expression (for example, using a number <code>3.14</code> or a variable <code>pie</code> that stores a number), and the second is by specifying an expression that computes a value (such as <code>(/ pie 2)</code>). In the first lesson, all of the attributes of our rectangles were constant expressions. As such, manipulating any one of their attributes in the canvas led to a single, straightforward change to the input program, namely, a change to the appropriate constant expression in the program. When manipulating a computed expression, however, there are multiple constants in the program that &quot;contribute&quot; to the final value, so it's not immediately clear what the user intends and, thus, what Sketch-n-Sketch should do.</p>
+<p>The best way to explain some of the challenges is to work through an example. Let's pick up with the three rectangles example from the first lesson. Start by reloading the final program (or, to test your Little skills, rewrite it from scratch).</p>
+<p>Now, recall that we defined the x-position of each box so that they were evenly spaced. We defined these positions using hard-coded constant expressions. This isn't so great, however, because if we want to change the separation factor, we would have to manually recompute and change the x-positions of multiple shapes — remember that really annoying part of Exercise 1.1? Instead, let's rewrite our program to <em>compute</em> the x-positions based on the desired start position and spacing.</p>
+<p><strong>Practice 2.1:</strong> To make this change, define two variables at the start of your program <code>x0</code> and <code>xSep</code>. As a reminder, you can define variables using the <code>def</code> syntax as below. Remember that you need to define any variables before you use them in your program, so make sure that this definition comes before any other statements in your program.</p>
+<pre><code>(def [x0 xSep] [100 150])</code></pre>
+<p>Next, redefine your <code>placeRectangle</code> function to take the &quot;index&quot; instead of the box (that is, the <code>0</code>th box, <code>1</code>st box, <code>2</code>nd box, and so on) rather than its x-position. Using this indexing scheme, the x-position of a the <code>index</code>-th box will be determined by the expression <code>(+ x0 (* xSep index))</code>.</p>
+<p>Finally, redefine the SVG canvas to map the <code>placeRectangle</code> function over a list of indices instead of x-positions. Start with index <code>0</code> so that the first rectangle is placed exactly at position <code>x0</code>. After doing this, run the program and examine your output. Feel free to manipulate the shapes a bit to get them all in view, and to change the list of indices to add or remove boxes from the design.</p>
+<h4 id="directly-manipulating-computed-values">Directly Manipulating Computed Values</h4>
+<p>Let's now take a closer look at how Sketch-n-Sketch decides how to update the program when one of the boxes is directly manipulated. Notice that all of the x-positions are determined by the same expression <code>(+ x0 (* xSep index))</code>, and that different values of <code>index</code> lead to different resulting values. For the <code>0</code>th box, the x-position is completely determined by <code>x0</code> because <code>(* xSep 0)</code> is equal to <code>0</code>. Therefore, when you directly manipulate the position of this box, Sketch-n-Sketch has no choice but to change the value stored in the <code>x0</code> variable.</p>
+<p>For each of the remaining boxes, however, there are three constants in the program that contribute its x-position: <code>x0</code>, <code>xSep</code>, and <code>index</code>. For example, when dragging the second box from an initial x-position, say <code>250</code>, to a new position, say <code>400</code>, there are many different changes to <code>x0</code>, <code>xSep</code>, and <code>index</code> (infinitely many, the realities of floating-point arithmetic notwithstanding) such that the result of the expression <code>(+ x0 (* xSep index))</code> is <code>400</code>.</p>
+<p>So, what is Sketch-n-Sketch to do in the face of such ambiguity? One option is to &quot;pause&quot; and explicitly ask you, the user, what kinds of changes to the program you want in response to dragging each box. This would really hinder the interactivity and utility of our tool.</p>
+<p>Instead, our design automatically chooses which constants in the program to change using some simple heuristics (described in this <a href="http://arxiv.org/pdf/1507.02988v1.pdf">technical report</a> if you're curious) without asking for the user's help. To explain these choices, when the user hovers over a zone for a particular shape, Sketch-n-Sketch highlights the parts of the program that will change in response to direct manipulation (recall the <span class="hoverGreen">green</span>, <span class="hoverYellow">yellow</span>, <span class="hoverRed">red</span>, <span class="hoverGray">gray</span> discussion from the first article).</p>
+<p><strong>Practice 2.2:</strong> Try directly manipulating various zones of the different rectangles and see what happens. Sometimes the program update that Sketch-n-Sketch infers to match your changes to the canvas may not be exactly what you want. Oops, sorry about that! Our hope, however, is that the default choices are often useful, and that the benefits of the immediate interactivity outweighs the drawbacks of sometimes getting program updates that you didn't want. In the latter case, remember that you can also Undo your most recent actions. In the next section, we'll also describe a way to exert some control over the choices that Sketch-n-Sketch makes.</p>
+<p><strong>Exercise 2.1:</strong> Now is a good time to pause and experiment a bit on your own. Try modifying the Little program to compute other attributes of the boxes. One possibility is to add a <code>ySep</code> parameter to vary the y-position of the shapes depending on the index. Another possibility is to define some sort of <code>scale</code> factor and use it to vary the width and height of the boxes.</p>
+<h3 id="freezing-and-thawing-constants">Freezing and Thawing Constants</h3>
+<p>By default, Sketch-n-Sketch may change the values of all numeric constants in your Little program to help reconcile the changes you make via direct manipulation. You may find that there are numbers in your program that you do not want to be changed no matter what happens in the canvas pane. You can instruct Sketch-n-Sketch not to change a number by &quot;freezing&quot; it, indicated with a bang (<code>!</code>). We say that a number is &quot;thawed&quot; if it is not frozen. Only thawed numbers may be modified via direct manipulation.</p>
+<p>For example, try modifying the variable definitions as follows:</p>
+<pre><code>(def [x0 xSep] [100 150!])</code></pre>
+<p>As a result, Sketch-n-Sketch may modify the value of <code>x0</code> but not <code>xSep</code>. Try directly manipulating the boxes to see what happens. Also try freezing <code>x0</code> and unfreezing <code>xSep</code>.</p>
+<p>You may have noticed that manipulating certain rectangles actually changes the <code>index</code> values. Although when writing the program, you may have a clear sense that indices ought not to change, in general, these are perfectly plausible values to change to reconcile updates to the canvas, so sometimes Sketch-n-Sketch will choose to modify them. In cases like this, you can freeze the particular constants to declare your intent. If you structure part of your design around the</p>
+<pre><code>(map drawingFunction indices)</code></pre>
+<p>pattern, it is often a good idea to freeze all of these indices. Try freezing all of the indices above and, again, see what happens when you directly manipulate different boxes.</p>
+<p>By default, all numbers not explicitly annotated as frozen are treated as thawed. Sometimes, however, you may want the default to be reversed; that is, you may want Sketch-n-Sketch to treat all numbers as frozen unless explicitly thawed. This is particularly desirable when you have lots of constants in your program, or when your design is &quot;mature&quot; and you only want to be make small changes via direct manipulation. There's an option you can declare at the beginning of your program if you would like this behavior instead. If you would like to see how this works, take a look at the built-in example called Thaw/Freeze in the dropdown menu. (Don't forget to hit Save before you switch examples!)</p>
+<p><strong>Exercise 2.2:</strong> Take a look at the built-in Logo example, which is our logo for Sketch-n-Sketch born and raised using our tool. Try directly manipulating various attributes of the design, freezing and thawing constants as desired. Once you are comfortable, modify the program so that it draws the logo twice side-by-side separated by a distance of <code>delta</code> pixels. Structure your changes so that you can still directly manipulate the <code>delta</code> parameter with ease. Also, try to set things up so that you can directly manipulate the height and width of the entire &quot;double logo&quot; design. (Hint: if you get stuck on this last bit, keep reading below.)</p>
+<h3 id="group-box-pattern">Group Box Pattern</h3>
+<p>Perhaps suprisingly, one of the parameters that ends up being computed in many designs is the overall width and height of the graphic. In cases where the ability to change the overall width and height is desirable, a useful design pattern to employ is a &quot;group box.&quot; The idea behind a group box is to define at least two parameters that represent the width and height of the design and then have an &quot;invisible&quot; box behind the visible portion of the graphic that allows you to manipulate them. Then, you define the rest of your graphic in terms of this width and height, making it such that changes to the overall width and height will scale the rest of your graphic appropriately. In addition to these width and height parameters, it can be useful to define an x-offset and y-offset parameter as well, which allows for the translation of the entire design.</p>
+<p>One such example that benefits from this is a flag, as it is a design that often needs to be translated and scaled when used in other graphics. Since we're based out of Chicago, we'll step through how to define and manipulate the Flag of Chicago using Sketch-n-Sketch. Along the way, we'll practice using our skills freezing constants, in addition to the basics we learned last lesson.</p>
+<p>Although it is often helpful to define a group box first, you may sometimes realize that you want one only after you've developed parts of your design. No matter, you can always go back and refactor your design so that the attributes of your shapes derive from the overall height, width, and position attributes of the group box.</p>
+<p><strong>Practice 2.3:</strong> Let's define initial width, height, x-, and y-position values that will be used to position and proportion our box. Then, define a group box that has position and dimension exactly equal to those values. An important aspect of a group box is that it should not affect the final image, so defining its color with an RGBA value with an alpha-component of zero is a good idea. Putting these together, we have the following:</p>
+<pre><code>(def [x0 y0 w h] [66 66 450 300])
+(def groupBox
+  (let [deltaP deltaS] [10! 20!]
+  (rect [255 255 255 0]
+        (- x0 deltaP) (- y0 deltaP)
+        (+ w deltaS) (+ h deltaS))))</code></pre>
+<p>Here, <code>deltaP</code> and <code>deltaS</code> represent the difference between the positioning (both <code>x0</code> and <code>y0</code>) and the sizing (both <code>w</code> and <code>h</code>) of the group box and its contents. Think of this as a layer of padding that allows for easier manipulation of the dimensions and positioning without accidentally grabbing an interior shape. This issue is more prevalent in more crowded designs, as can be seen in the built-in examples US-13 Flag and US-50 Flag. Notice that, as a matter of style, we've chosen to use a <code>let</code> inside the <code>groupBox</code> definition — rather than a <code>def</code> outside of it — for these variables since we will not need them anywhere else later in the program.</p>
+<p>Once you've defined this, put your <code>groupBox</code> into an <code>svg</code> definition at the end of your program, turn on [Zones] Basic, and resize it to your liking. Now, all the graphics you define should go inside the boundaries of this box and have their proportions tied to the size and position of the group box.</p>
+<p>It's important to remember that the shapes shouldn't completely overlap the zones for the manipulation of the group box, otherwise you will not be able to adjust those parameters. For instance, the blue stripes (the CSS color <code>'lightblue'</code> is a close enough match for our purposes) should be positioned such that you can still manipulate the underlying group box. So, the following definition is one way to define the stripes (keeping in mind, of course, the <a href="https://en.wikipedia.org/wiki/Flag_of_Chicago">official proportions</a>):</p>
+<pre><code>(def stripes
+  [ (rect &#39;lightblue&#39; x0 (+ y0 (/ h 7!)) w (/ h 6!))
+    (rect &#39;lightblue&#39; x0 (+ y0 (* 5! (/ h 7!))) w (/ h 6!)) ])</code></pre>
+<p>Note that we've frozen all of the constants that we use to do the proportioning of the shapes, since we don't want to accidentally directly manipulate them later.</p>
+<p><strong>Exercise 2.3 (Optional):</strong> Refactor the <code>stripes</code> definition with additional variables (using <code>let</code>-expressions) to eliminate redundant calculations.</p>
+<p><strong>Practice 2.4:</strong> Next, we need to define the six-pointed stars that run horizontally across the middle of the design. Programming a six-pointed star is an interesting exercise in its own right, but it's a common enough shape that we've made a built-in function to generate n-pointed stars, <code>nStar</code> (If you're interested in how it's implemented, check out the Stars example or the <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little">Prelude</a>. The <code>nStar</code> function takes arguments of the following form:</p>
+<pre><code>(nStar fill stroke w n len1 len2 rot cx cy)</code></pre>
+<p>The arguments to <code>nStar</code> define the following:</p>
+<ul>
+<li><em><code>fill</code></em> is the color of the fill of the star</li>
+<li><em><code>stroke</code></em> is the color of the outline of the star (<code>'none'</code> is an acceptable and commonly used value)</li>
+<li><em><code>w</code></em> is the width of the outline</li>
+<li><em><code>n</code></em> is the number of points on the star</li>
+<li><em><code>len1</code></em> is the length from the center of the star to the outer points</li>
+<li><em><code>len2</code></em> is the length from the center of the star to the inner points</li>
+<li><em><code>rot</code></em> is the amount of clockwise rotation in radians</li>
+<li><em><code>cx</code></em> is the x-position of the center of the star</li>
+<li><em><code>cy</code></em> is the y-position of the center of the star</li>
+</ul>
+<p>To define a six-pointed star with the appropriate color and dimensions, we could write the following:</p>
+<pre><code>(def placeStar (\i
+  (let xi (+ x0 (* i (/ w 4!)))
+  (nStar &#39;red&#39; &#39;none&#39; 0! 6! (/ h 10!) (/ h 25!) 0! xi (+ y0 (/ h 2!))))))</code></pre>
+<p>Then, we can define all of our stars as follows:</p>
+<pre><code>(def stars (map placeStar [0.5! 1.5! 2.5! 3.5!]))</code></pre>
+<p>Add these stars to the overall <code>svg</code> canvas — via <code>(append [groupBox] (append stars stripes))</code> or, equivalently, <code>(concat [groupBox] stars stripes)</code> — and out comes our flag! All that work to incorporate the overall width and height of the image now pays off, as we can translate and scale the whole design and not have to worry about fixing the proportionality by hand.</p>
+<p><strong>Exercise 2.4:</strong> Now that you have some experience with computed attributes and the group box pattern, it's your turn to run wild! Pick the flag of a country or city (ideally, not one that is already in the examples) and recreate it. Be sure to use a group box to be able to adjust the overall size and position. You'll probably want to choose a flag that consists mostly of simple shapes for now, because we haven't talked about polygons or curved lines yet. But if you cannot bear the anticipation, you can look at <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little">Prelude</a> to see how lines and polygons are drawn. If you do, then one enjoyable option may be to tackle the <a href="https://en.wikipedia.org/wiki/Principality_of_Sealand#/media/File:Flag_of_Sealand.svg">flag of Sealand</a> while listening to <a href="http://99percentinvisible.org/episode/from-the-sea-freedom/">this podcast</a>.</p>
+<h3 id="survey">Survey</h3>
+<iframe src="https://docs.google.com/forms/d/1TFVPMmPvViXHjio7GL6jGuig3X4zwVsijbQjiCo_bjE/viewform?embedded=true" width="750" height="1500" frameborder="0" marginheight="0" marginwidth="0">
+Loading...
+</iframe>
+<p><br></p>
+<h3 id="next-up-step-3">Next Up: <a href="03.html">Step 3</a></h3>
+      </div>
+      </div>
+
+      <br class="clearfix" />
+
+    </div> <!-- end id="page" -->
+
+  </div> <!-- end id="wrapper" -->
+
+  <!-- LOAD_SRC src/footer.src.html -->
+
+  <!-- LOAD_SRC src/ga-tracker.src.html -->
+
+</body>
+</html>
+</body>
+</html>
