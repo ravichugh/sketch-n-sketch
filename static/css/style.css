@@ -192,8 +192,9 @@ ul h4 {
 }
 
 #logo a {
-	text-decoration: none;
-	color: #000405;
+  font-weight: normal;
+	/* text-decoration: underline; */
+	/* color: #000405; */
 }
 
 #logo h1 {
