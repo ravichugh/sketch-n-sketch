@@ -5,6 +5,8 @@ src/scripts/littleReader.pyc
 build/out/sns.js
 build/out/codeBox.js
 build/out/ace.js
+build/out/mode-little.js
+build/out/theme-chrome.js
 *swp
 src/*swp
 src/*swo
