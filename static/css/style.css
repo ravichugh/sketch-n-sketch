@@ -239,6 +239,10 @@ ul h4 {
 	padding: 0;
 }
 
+#page .nobullets {
+  padding: 0;
+}
+
 #page li {
 	padding: 0px 0 0px 0;
 }
