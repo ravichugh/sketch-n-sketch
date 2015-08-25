@@ -29,7 +29,7 @@ Released   : 20120125
 
 * {
 	margin: 0;
-	padding: 0;
+	/* padding: 0; */
 }
 
 a {
@@ -422,3 +422,4 @@ th {
   padding: 0 5px 0 5px;
   background: #EEEEEE;
 }
+
