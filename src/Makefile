@@ -1,6 +1,7 @@
 html:
 	elm-make Main.elm --output ../build/out/sns.js
 	cp Native/codeBox.js ../build/out/codeBox.js
+	cp ../ace-builds/src/ace.js ../build/out/ace.js
 
 prelude:
 	scripts/expandTemplate.py Prelude
