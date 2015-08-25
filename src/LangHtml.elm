@@ -1,0 +1,3 @@
+-- LangHtml.elm
+-- Noodling about what it would take to replace LangSvg with this, and have the
+-- output be retargeted to elm-html instead of elm-svg.

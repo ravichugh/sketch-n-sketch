@@ -148,6 +148,11 @@ buildSvg_ addZones showZones d i =
       if | zones == [] -> mainshape
          | otherwise   -> Svg.svg [] (mainshape :: zones)
 
+-- Compiling to HTML
+
+--buildHtml : Bool -> ShowZones -> LangHtml.RootedIndexedTree -> Html.something
+--buildHtml
+
 
 --------------------------------------------------------------------------------
 -- Defining Zones
@@ -536,6 +541,7 @@ canvas_ w h model =
     (False, Live _) -> True
     _               -> False
   in
+  -- TODO retarget this to buildHTML
   let svg = buildSvg addZones model.showZones model.slate in
   Html.toElement w h <|
     Svg.svg
