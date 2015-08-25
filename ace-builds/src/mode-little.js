@@ -22,14 +22,14 @@ this.$rules =
             onMatch : function(value, state, stack) {
                 stack.push("start");
                 this.next = "funcname";
-                return "enterfunc";
+                return "paren.lparen";
             }
         },
         {
             regex : /\)/,
             onMatch : function(value, state, stack) {
                 this.next = stack.pop();
-                return "exitfunc";
+                return "paren.rparen";
             }
         },
         {
@@ -62,7 +62,7 @@ this.$rules =
             regex : /\)/,
             onMatch : function(value, state, stack) {
                 this.next = stack.pop();
-                return "exitfunc";
+                return "paren.rparen";
             }
         },
         {
@@ -97,11 +97,11 @@ this.$rules =
             onMatch : function(value, state, stack) {
                 stack.push("pattern");
                 this.next = "pattern";
-                return "enterpat";
+                return "paren.lparen";
             }
         },
         {
-            token : "entervarlist",
+            token : "paren.lparen",
             regex : /\(/,
             next : "varlist"
         },
@@ -113,7 +113,7 @@ this.$rules =
     ],
     "varlist" : [
         {
-            token : "exitvarlist",
+            token : "paren.rparen",
             regex : /\)/,
             next : "start"
         },  
@@ -128,7 +128,7 @@ this.$rules =
             onMatch : function(value, state, stack) {
                 stack.push("pattern");
                 this.next = "pattern";
-                return "enterpat";
+                return "paren.lparen";
             }
         },
         {
@@ -147,7 +147,7 @@ this.$rules =
                     //Should never get here, but just in case...
                     this.next = lastPush;
                 }
-                return "exitpat";
+                return "paren.rparen";
             }
         },
         {

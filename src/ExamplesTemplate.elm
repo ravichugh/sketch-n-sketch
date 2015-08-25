@@ -64,6 +64,8 @@ LITTLE_TO_ELM rotTest
 LITTLE_TO_ELM interfaceButtons
 LITTLE_TO_ELM barGraph
 LITTLE_TO_ELM thawFreeze
+LITTLE_TO_ELM cover
+LITTLE_TO_ELM poppl
 
 examples =
   [ makeExample scratchName scratch
@@ -104,6 +106,8 @@ examples =
   , makeExample "Eye Icon" eyeIcon
   , makeExample "Wikimedia Logo" wikimedia
   , makeExample "Haskell.org Logo" haskell
+  , makeExample "Cover Logo" cover
+  , makeExample "POP-PL Logo" poppl
   , makeExample "Matrix Transformations" matrices
   , makeExample "Cult of Lambda" cultOfLambda 
   , makeExample "Misc Shapes" miscShapes

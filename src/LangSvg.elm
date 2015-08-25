@@ -26,6 +26,12 @@ import Utils
 
 ------------------------------------------------------------------------------
 
+-- TODO upgrade to:
+-- http://package.elm-lang.org/packages/evancz/elm-svg/2.0.0/Svg
+
+attr = VirtualDom.attribute
+svg  = Svg.svgNode
+
 -- TODO probably want to factor HTML attributes and SVG attributes into
 -- records rather than lists of lists of ...
 
@@ -312,59 +318,6 @@ valToPath_ vs =
              cmd :: blah :: valToPath_ vs'' -- not worrying about commas
 
 -}
-
-
-------------------------------------------------------------------------------
-
-funcsSvg = [
-  ("circle", Svg.circle)
-  , ("ellipse", Svg.ellipse)
-  , ("g", Svg.g)
-  , ("line", Svg.line)
-  , ("path", Svg.path)
-  , ("polygon", Svg.polygon)
-  , ("polyline", Svg.polyline)
-  , ("rect", Svg.rect)
-  , ("svg", Svg.svg)
-  , ("text", Svg.text)
-  , ("tspan", Svg.tspan)
-  ]
-
-funcsAttr = [
-  ("cursor", A.cursor)
-  , ("cx", A.cx)
-  , ("cy", A.cy)
-  , ("d", A.d)
-  , ("draggable", HA.draggable) -- TODO figure this out
-  , ("fill", A.fill)
-  , ("font-family", A.fontFamily)
-  , ("font-size", A.fontSize)
-  , ("height", A.height)
-  , ("opacity", A.opacity)
-  , ("points", A.points)
-  , ("r", A.r)
-  , ("rx", A.rx)
-  , ("ry", A.ry)
-  , ("stroke", A.stroke)
-  , ("stroke-width", A.strokeWidth)
-  , ("strokeWidth", A.strokeWidth)
-  , ("style", A.style)
-  , ("transform", A.transform)
-  , ("viewbox", A.viewBox)
-  , ("viewBox", A.viewBox)
-  , ("width", A.width)
-  , ("x", A.x)
-  , ("x1", A.x1)
-  , ("x2", A.x2)
-  , ("y", A.y)
-  , ("y1", A.y1)
-  , ("y2", A.y2)
-  ]
-
-find d s = Utils.find ("LangSvg.find: " ++ s) d s
-
-attr = find funcsAttr
-svg  = find funcsSvg
 
 
 ------------------------------------------------------------------------------

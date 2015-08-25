@@ -565,9 +565,14 @@ getZones kind extra ee =
       ("path", NumsPath {numPoints}) ->
         List.map pt [1..numPoints]
       _ ->
+        case Utils.maybeFind kind LangSvg.zones of
+          Just zones -> zones
+          Nothing    -> []
+{-
         Utils.fromJust_
           ("Sync.getZones " ++ kind)
           (Utils.maybeFind kind LangSvg.zones)
+-}
   in
   basicZones ++ widgetZones ee
 

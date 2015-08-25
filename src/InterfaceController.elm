@@ -21,6 +21,7 @@ import List
 import Dict
 import Set
 import String 
+import Char
 import Graphics.Element as GE 
 import Graphics.Collage as GC
 
@@ -82,7 +83,12 @@ switchOrient m = case m of
   Vertical -> Horizontal
   Horizontal -> Vertical
 
-toggleShowZones x = (1 + x) % showZonesModes
+-- TODO turning off rotation zones for now
+-- toggleShowZones x = (1 + x) % showZonesModes
+toggleShowZones x =
+  let i = (1 + x) % showZonesModes in
+  if | i == showZonesRot -> toggleShowZones i
+     | otherwise         -> i
 
 -- may want to eventually have a maximum history length
 addToHistory s h = (s :: fst h, [])
@@ -123,21 +129,21 @@ highlightChanges mStuff changes codeBoxInfo =
       in
 
       let hi' =
-        let g (startPos,extraChars) accRange =
+        let g (startPos,extraChars) (old,new) =
           let bump pos = { pos | column <- pos.column + extraChars } in
-          let (start, end) = (accRange.start, accRange.end) in
-          if | startPos.row    /= start.row    -> accRange
-             | startPos.column >  start.column -> accRange
-             | startPos.column == start.column -> { start = start, end = bump end }
-             | startPos.column <  start.column -> { start = bump start, end = bump end }
+          let ret new' = (old, new') in
+          ret <| if
+             | startPos.row    /= old.start.row    -> new
+             | startPos.column >  old.start.column -> new
+             | startPos.column == old.start.column -> { start = new.start, end = bump new.end }
+             | startPos.column <  old.start.column -> { start = bump new.start, end = bump new.end }
         in
         -- hi has <= 4 elements, so not worrying about the redundant processing
         flip List.map hi <| \{color,range} ->
-          { color = color, range = List.foldl g range stringOffsets }
+          let (_,range') = List.foldl g (range,range) stringOffsets in
+          { color = color, range = range' }
       in
 
-      -- TODO logging until visual highlights
-      -- let _ = Debug.log "hilight:\n" hi' in
       { codeBoxInfo | highlights <- hi' }
 
 
@@ -226,9 +232,13 @@ upstate evt old = case debugLog "Event" evt of
       case (old.mode, old.mouseMode) of
         (Print _, _) -> old
         (_, MouseObject i k z (Just (s, _, _))) ->
+          -- 8/10: re-parsing to get new position info after live sync-ing
+          -- TODO: could update positions within highlightChanges
+          let (Ok e) = parseE old.code in
+          let old' = { old | inputExp <- Just e } in
           refreshHighlights i z
-            { old | mouseMode <- MouseNothing, mode <- refreshMode_ old
-                  , history <- addToHistory s old.history }
+            { old' | mouseMode <- MouseNothing, mode <- refreshMode_ old'
+                   , history <- addToHistory s old'.history }
         _ ->
           { old | mouseMode <- MouseNothing, mode <- refreshMode_ old }
 
@@ -305,14 +315,45 @@ upstate evt old = case debugLog "Event" evt of
     ToggleZones -> { old | showZones <- toggleShowZones old.showZones }
 
     Undo ->
-      let (current, (s::past, future)) = (old.code, old.history) in
-      let new = { old | history <- (past, current::future) } in
-      upstate Run (upstate (CodeUpdate s) new)
+      case (old.code, old.history) of
+        (_, ([],_)) -> old                -- because of keyboard shortcuts
+        (current, (s::past, future)) ->
+          let new = { old | history <- (past, current::future) } in
+          upstate Run (upstate (CodeUpdate s) new)
 
     Redo ->
-      let (current, (past, s::future)) = (old.code, old.history) in
-      let new = { old | history <- (current::past, future) } in
-      upstate Run (upstate (CodeUpdate s) new)
+      case (old.code, old.history) of
+        (_, (_,[])) -> old                -- because of keyboard shorcuts
+        (current, (past, s::future)) ->
+          let new = { old | history <- (current::past, future) } in
+          upstate Run (upstate (CodeUpdate s) new)
+
+    KeysDown l ->
+      -- let _ = Debug.log "keys" (toString l) in
+      case editingMode old of
+        True -> if
+          | l == keysMetaShift -> upstate Run old
+          | otherwise -> old
+        False -> if
+          | l == keysE -> upstate Edit old
+          | l == keysZ -> upstate Undo old
+          -- | l == keysShiftZ -> upstate Redo old
+          | l == keysY -> upstate Redo old
+          | l == keysG || l == keysH -> -- for right- or left-handers
+              upstate ToggleZones old
+          | l == keysO -> upstate ToggleOutput old
+          | l == keysP -> upstate SwitchOrient old
+          | l == keysS ->
+              let _ = Debug.log "TODO Save" () in
+              upstate Noop old
+          | l == keysShiftS ->
+              let _ = Debug.log "TODO Save As" () in
+              upstate Noop old
+          | l == keysRight -> adjustMidOffsetX old 25
+          | l == keysLeft  -> adjustMidOffsetX old (-25)
+          | l == keysUp    -> adjustMidOffsetY old (-25)
+          | l == keysDown  -> adjustMidOffsetY old 25
+          | otherwise -> old
 
     -- Elm does not have function equivalence/pattern matching, so we need to
     -- thread these events through upstate in order to catch them to rerender
@@ -324,6 +365,44 @@ upstate evt old = case debugLog "Event" evt of
     UpdateModel f -> f old
 
     _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
+
+adjustMidOffsetX old dx =
+  case old.orient of
+    Vertical   -> { old | midOffsetX <- old.midOffsetX + dx }
+    Horizontal -> upstate SwitchOrient old
+
+adjustMidOffsetY old dy =
+  case old.orient of
+    Horizontal -> { old | midOffsetY <- old.midOffsetY + dy }
+    Vertical   -> upstate SwitchOrient old
+
+
+--------------------------------------------------------------------------------
+-- Key Combinations
+
+keysMetaShift           = List.sort [keyMeta, keyShift]
+keysE                   = List.sort [Char.toCode 'E']
+keysZ                   = List.sort [Char.toCode 'Z']
+keysY                   = List.sort [Char.toCode 'Y']
+-- keysShiftZ              = List.sort [keyShift, Char.toCode 'Z']
+keysG                   = List.sort [Char.toCode 'G']
+keysH                   = List.sort [Char.toCode 'H']
+keysO                   = List.sort [Char.toCode 'O']
+keysP                   = List.sort [Char.toCode 'P']
+keysS                   = List.sort [Char.toCode 'S']
+keysShiftS              = List.sort [keyShift, Char.toCode 'S']
+keysLeft                = [keyLeft]
+keysRight               = [keyRight]
+keysUp                  = [keyUp]
+keysDown                = [keyDown]
+
+keyMeta                 = 91
+keyCtrl                 = 17
+keyShift                = 16
+keyLeft                 = 37
+keyUp                   = 38
+keyRight                = 39
+keyDown                 = 40
 
 
 --------------------------------------------------------------------------------

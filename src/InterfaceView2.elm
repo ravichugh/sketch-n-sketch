@@ -145,7 +145,8 @@ buildSvg_ addZones showZones d i =
       in
       let children = List.map (buildSvg_ addZones showZones d) js in
       let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs') children in
-      Svg.svg [] (mainshape :: zones)
+      if | zones == [] -> mainshape
+         | otherwise   -> Svg.svg [] (mainshape :: zones)
 
 
 --------------------------------------------------------------------------------
@@ -202,7 +203,7 @@ zoneBorder svgFunc id shape zone flag show transform =
   (++) [ if flag && show
          then LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
          else LangSvg.attr "stroke" "rgba(0,0,0,0.0)"
-       , LangSvg.attr "strokeWidth" (if flag then "5" else "0")
+       , LangSvg.attr "stroke-width" (if flag then "5" else "0")
        , LangSvg.attr "fill" "rgba(0,0,0,0)"
        , cursorOfZone zone
        ]
@@ -260,14 +261,14 @@ zoneRotate_ id shape cx cy r cmds =
   let circle =
     flip Svg.circle [] <|
       [ LangSvg.attr "fill" "none"
-      , LangSvg.attr "stroke" stroke , LangSvg.attr "strokeWidth" strokeWidth
+      , LangSvg.attr "stroke" stroke , LangSvg.attr "stroke-width" strokeWidth
       , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString cy)
       , LangSvg.attr "r"  (toString r)
       ]
   in
   let ball =
     flip Svg.circle [] <|
-      [ LangSvg.attr "stroke" "black" , LangSvg.attr "strokeWidth" swBall
+      [ LangSvg.attr "stroke" "black" , LangSvg.attr "stroke-width" swBall
       , LangSvg.attr "fill" fillBall
       , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString (cy - r))
       , LangSvg.attr "r"  rBall
@@ -277,7 +278,7 @@ zoneRotate_ id shape cx cy r cmds =
   in
   let line =
     flip Svg.line [] <|
-      [ LangSvg.attr "stroke" stroke , LangSvg.attr "strokeWidth" strokeWidth
+      [ LangSvg.attr "stroke" stroke , LangSvg.attr "stroke-width" strokeWidth
       , LangSvg.attr "x1" (toString cx) , LangSvg.attr "y1" (toString cy)
       , LangSvg.attr "x2" (toString cx) , LangSvg.attr "y2" (toString (cy - r))
       ] ++ transform
@@ -317,7 +318,7 @@ zoneColor_ id shape x y n =
     let cx = x + (fst n / LangSvg.maxColorNum) * wGradient in
     let cy = y - yOff + (h/2) in
     flip Svg.circle [] <|
-      [ LangSvg.attr "stroke" "black" , LangSvg.attr "strokeWidth" strokeWidth
+      [ LangSvg.attr "stroke" "black" , LangSvg.attr "stroke-width" strokeWidth
       , LangSvg.attr "fill" stroke
       , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString cy)
       , LangSvg.attr "r"  rBall
@@ -327,7 +328,7 @@ zoneColor_ id shape x y n =
   let box =
     flip Svg.rect [] <|
       [ LangSvg.attr "fill" "none"
-      , LangSvg.attr "stroke" stroke , LangSvg.attr "strokeWidth" strokeWidth
+      , LangSvg.attr "stroke" stroke , LangSvg.attr "stroke-width" strokeWidth
       , LangSvg.attr "x" (toString x) , LangSvg.attr "y" (toString (y - yOff))
       , LangSvg.attr "width" (toString w) , LangSvg.attr "height" (toString h)
       ]
