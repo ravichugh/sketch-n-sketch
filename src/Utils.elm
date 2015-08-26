@@ -241,7 +241,18 @@ radiansToDegrees rad = (rad / pi) * 180
 --------------------------------------------------------------------------------
 -- Unicode
 
+-- http://unicode-table.com/en/sets/arrows-symbols/
+
 uniLeft        = "←"
 uniRight       = "→"
 uniEnter       = "↵"
 -- uniEnter    = "⏎"
+uniSave        = "💾"
+-- uniUndo     = "↶"
+-- uniRedo     = "↷"
+-- uniReload   = "⟲"
+uniUndo        = "◀"
+uniRedo        = "▶"
+uniReload      = "⎋"
+-- uniStar     = "✴"
+uniCamera      = "📷"

@@ -590,6 +590,12 @@ middleWidgets w h wWrap hWrap model =
     let wHalf = (w//2 - delta) in
     GE.flow GE.right [ b1 wHalf h, GE.spacer (2 * delta) h, b2 wHalf h ]
   in
+  let threeButtons b1 b2 b3 =
+    let delta = 3 in
+    let sep   = GE.spacer (2 * delta) h in
+    let w_    = (w//3 - delta) in
+    GE.flow GE.right [ b1 w_ h, sep, b2 w_ h, sep, b3 w_ h ]
+  in
   List.map (GE.container wWrap hWrap GE.middle) <|
     case (editingMode model, model.mode) of
       (False, SyncSelect _ i options) ->
@@ -602,18 +608,20 @@ middleWidgets w h wWrap hWrap model =
       (False, Print _) ->
         [ dropdownExamples model w h
         , editRunButton model w h
-        , saveButton model w h
-        , saveAsButton model w h
-        , loadButton model w h
+        -- , saveButton model w h
+        -- , saveAsButton model w h
+        -- , loadButton model w h
+        , threeButtons (saveButton model) (saveAsButton model) (loadButton model)
         , twoButtons (undoButton model) (redoButton model)
         -- , outputButton model w h
         ]
       (False, _) ->
         [ dropdownExamples model w h
         , editRunButton model w h
-        , saveButton model w h
-        , saveAsButton model w h
-        , loadButton model w h
+        -- , saveButton model w h
+        -- , saveAsButton model w h
+        -- , loadButton model w h
+        , threeButtons (saveButton model) (saveAsButton model) (loadButton model)
         , twoButtons (undoButton model) (redoButton model)
         -- , outputButton model w h
         , gapWidget w h
@@ -624,9 +632,10 @@ middleWidgets w h wWrap hWrap model =
       (True, _) ->
         [ dropdownExamples model w h
         , editRunButton model w h
-        , saveButton model w h
-        , saveAsButton model w h
-        , loadButton model w h
+        -- , saveButton model w h
+        -- , saveAsButton model w h
+        -- , loadButton model w h
+        , threeButtons (saveButton model) (saveAsButton model) (loadButton model)
         ]
 
 gapWidget w h = GE.spacer w h
@@ -823,26 +832,33 @@ saveButton : Model -> Int -> Int -> GE.Element
 saveButton model w h =
     let disabled = List.any ((==) model.exName << fst) Examples.list
         dn = "Save"
-    in simpleTaskButton_ disabled (saveStateLocally model.exName False model) dn dn dn w h
+    in
+    simpleTaskButton_
+      disabled (saveStateLocally model.exName False model)
+      dn dn Utils.uniSave w h
 
 saveAsButton : Model -> Int -> Int -> GE.Element
 saveAsButton model w h = 
-    let dn = "Save As"
-    in simpleTaskButton (saveStateLocally model.exName True model) dn dn dn w h
+    let dn = "Save As" in
+    simpleTaskButton
+      (saveStateLocally model.exName True model)
+      dn dn (Utils.uniCamera) w h
 
 loadButton : Model -> Int -> Int -> GE.Element
 loadButton model w h =
-    simpleTaskButton (loadLocalState model.exName) "Reload" "Reload" "Reload" w h
+  simpleTaskButton
+    (loadLocalState model.exName)
+    "Reload" "Reload" Utils.uniReload w h
 
 undoButton : Model -> Int -> Int -> GE.Element
 undoButton model =
   let past = fst model.history in
-  simpleEventButton_ (List.length past == 0) Undo "Undo" "Undo" "Undo"
+  simpleEventButton_ (List.length past == 0) Undo "Undo" "Undo" Utils.uniUndo
 
 redoButton : Model -> Int -> Int -> GE.Element
 redoButton model =
   let future = snd model.history in
-  simpleEventButton_ (List.length future == 0) Redo "Redo" "Redo" "Redo"
+  simpleEventButton_ (List.length future == 0) Redo "Redo" "Redo" Utils.uniRedo
 
 dropdownExamples : Model -> Int -> Int -> GE.Element
 dropdownExamples model w h =
