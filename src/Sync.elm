@@ -529,8 +529,12 @@ strCall f xs = Utils.parens (Utils.spaces (f::xs))
 strInferred cap x ys =
   strCall "inferred" [x, cap, Utils.bracks (Utils.spaces ys)]
 
+-- could switch to most common element if desired
+--
 chooseFirst (v::vs) =
-  strInferred "'first of'" (strVal v) (List.map strVal (v::vs))
+  case List.filter ((/=) v) vs of
+    [] -> strVal v
+    _  -> strInferred "'first of'" (strVal v) (List.map strVal (v::vs))
 
 -- TODO this is duplicating toNum for Val rather than AVal...
 valToNum v = case v of
