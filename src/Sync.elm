@@ -462,6 +462,7 @@ expandRange idxTraces r =
 type alias MaybeOne a = List a
 nothing               = []
 just                  = Utils.singleton
+maybeToMaybeOne mx    = case mx of {Nothing -> nothing; Just x -> just x}
 
 inferDeleteUpdate : Exp -> Val -> Val -> MaybeOne (Exp, Val)
 inferDeleteUpdate eOld v v' =
@@ -516,11 +517,13 @@ getAttr l k = case l of
 getAttrs : List String -> List Val -> Maybe (List Val)
 getAttrs ks l = Utils.projJusts <| List.map (getAttr l) ks
 
+-- this order of attributes is used later
 getRectAttrs = getAttrs ["x","y","width","height","fill"]
 
 pluckOut attrLists i = List.map (Utils.geti i) attrLists
 
-sortByHeadNum = List.sortBy (\(VConst(n,_) :: _) -> n)
+sortRectsByX = List.sortBy (valToNum << Utils.geti 1)
+sortRectsByY = List.sortBy (valToNum << Utils.geti 2)
 
 a `nl` b = a ++ "\n" ++ b
 
@@ -602,15 +605,20 @@ inferXY xy vals =
       in
       (s1, s2, "))")
 
-inferRelatedRects : Exp -> Val -> Val -> Maybe (Exp, Val)
-inferRelatedRects _ _ v' =
+inferRelatedRectsX : Exp -> Val -> Val -> Maybe (Exp, Val)
+inferRelatedRectsX = inferRelatedRects sortRectsByX
+
+inferRelatedRectsY : Exp -> Val -> Val -> Maybe (Exp, Val)
+inferRelatedRectsY = inferRelatedRects sortRectsByY
+
+inferRelatedRects sortRectsByXY _ _ v' =
   stripChildren "svg" v' `justBind` (\shapes ->
   let mRects = List.map (stripAttrs "rect") shapes in
   Utils.projJusts mRects `justBind` (\rects ->
   Utils.projJusts (List.map getRectAttrs rects) `justBind` (\attrLists_ ->
     let n = List.length attrLists_ in
     let indices = Utils.ibracks (Utils.spaces (List.map toString [0..n-1])) in
-    let attrLists = sortByHeadNum attrLists_ in
+    let attrLists = sortRectsByXY attrLists_ in
     let [xs, ys, widths, heights, fills] = List.map (pluckOut attrLists) [1..5] in
     let (let_xBaseAndOff, let_x, xParens) = inferXY "x" xs in
     let (let_yBaseAndOff, let_y, yParens) = inferXY "y" ys in
@@ -635,9 +643,8 @@ inferRelatedRects _ _ v' =
   )))
 
 inferNewRelationships e v v' =
-  case inferRelatedRects e v v' of
-    Nothing -> nothing
-    Just x  -> just x
+     maybeToMaybeOne (inferRelatedRectsX e v v')
+  ++ maybeToMaybeOne (inferRelatedRectsY e v v')
 
 
 ------------------------------------------------------------------------------
