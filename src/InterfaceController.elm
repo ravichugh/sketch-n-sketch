@@ -282,36 +282,51 @@ upstate evt old = case debugLog "Event" evt of
 
     KeysDown l ->
       -- let _ = Debug.log "keys" (toString l) in
-      -- TODO consider old.mode before firing some of these events
+      let fire evt = upstate evt old in
+
       case editingMode old of
+
         True -> if
-          | l == keysMetaShift -> upstate Run old
-          | otherwise -> old
+          | l == keysEscShift   -> fire Run
+          | otherwise           -> fire Noop
+
         False -> if
-          | l == keysE -> upstate Edit old
-          | l == keysZ -> upstate Undo old
-          -- | l == keysShiftZ -> upstate Redo old
-          | l == keysY -> upstate Redo old
-          | l == keysG || l == keysH -> -- for right- or left-handers
-              upstate ToggleZones old
-          | l == keysO -> upstate ToggleOutput old
-          | l == keysP -> upstate SwitchOrient old
-          | l == keysS ->
-              let _ = Debug.log "TODO Save" () in
-              upstate Noop old
-          | l == keysShiftS ->
-              let _ = Debug.log "TODO Save As" () in
-              upstate Noop old
-          | l == keysT ->
-              case old.mode of
-                Live _ -> upstate (SwitchMode AdHoc) old
-                AdHoc  -> upstate Sync old
-                _      -> old
-          | l == keysRight -> adjustMidOffsetX old 25
-          | l == keysLeft  -> adjustMidOffsetX old (-25)
-          | l == keysUp    -> adjustMidOffsetY old (-25)
-          | l == keysDown  -> adjustMidOffsetY old 25
-          | otherwise -> old
+
+          -- events for any non-editing mode
+          | l == keysO          -> fire ToggleOutput
+          | l == keysP          -> fire SwitchOrient
+          | l == keysShiftRight -> adjustMidOffsetX old 25
+          | l == keysShiftLeft  -> adjustMidOffsetX old (-25)
+          | l == keysShiftUp    -> adjustMidOffsetY old (-25)
+          | l == keysShiftDown  -> adjustMidOffsetY old 25
+
+          -- events for specific non-editing mode
+          | otherwise -> case old.mode of
+
+              Live _ -> if
+                | l == keysE          -> fire Edit
+                | l == keysZ          -> fire Undo
+                | l == keysY          -> fire Redo
+                | l == keysG          -> fire ToggleZones  -- for righties
+                | l == keysH          -> fire ToggleZones  -- for lefties
+                | l == keysT          -> fire (SwitchMode AdHoc)
+                | l == keysS          -> fire Noop -- placeholder for Save
+                | l == keysShiftS     -> fire Noop -- placeholder for Save As
+                | otherwise           -> fire Noop
+
+              AdHoc -> if
+                | l == keysZ          -> fire Undo
+                | l == keysY          -> fire Redo
+                | l == keysT          -> fire Sync
+                | otherwise           -> fire Noop
+
+              SyncSelect _ i opts -> if
+                | l == keysLeft && prevButtonEnabled i       -> fire (TraverseOption (-1))
+                | l == keysRight && nextButtonEnabled i opts -> fire (TraverseOption 1)
+                | l == keysEnter      -> fire SelectOption
+                | otherwise           -> fire Noop
+
+              _                       -> fire Noop
 
     UpdateModel f -> f old
 
@@ -332,6 +347,8 @@ adjustMidOffsetY old dy =
 -- Key Combinations
 
 keysMetaShift           = List.sort [keyMeta, keyShift]
+keysEscShift            = List.sort [keyEsc, keyShift]
+keysEnter               = List.sort [keyEnter]
 keysE                   = List.sort [Char.toCode 'E']
 keysZ                   = List.sort [Char.toCode 'Z']
 keysY                   = List.sort [Char.toCode 'Y']
@@ -343,11 +360,17 @@ keysP                   = List.sort [Char.toCode 'P']
 keysT                   = List.sort [Char.toCode 'T']
 keysS                   = List.sort [Char.toCode 'S']
 keysShiftS              = List.sort [keyShift, Char.toCode 'S']
-keysLeft                = [keyLeft]
-keysRight               = [keyRight]
-keysUp                  = [keyUp]
-keysDown                = [keyDown]
+keysLeft                = List.sort [keyLeft]
+keysRight               = List.sort [keyRight]
+keysUp                  = List.sort [keyUp]
+keysDown                = List.sort [keyDown]
+keysShiftLeft           = List.sort [keyShift, keyLeft]
+keysShiftRight          = List.sort [keyShift, keyRight]
+keysShiftUp             = List.sort [keyShift, keyUp]
+keysShiftDown           = List.sort [keyShift, keyDown]
 
+keyEnter                = 13
+keyEsc                  = 27
 keyMeta                 = 91
 keyCtrl                 = 17
 keyShift                = 16

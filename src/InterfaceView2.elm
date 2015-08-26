@@ -1,4 +1,6 @@
-module InterfaceView2 (view, scaleColorBall) where
+module InterfaceView2 (view, scaleColorBall
+                      , prevButtonEnabled, nextButtonEnabled -- TODO not great
+                      ) where
 
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
@@ -758,6 +760,9 @@ simpleTaskButton_  = simpleButton_ taskMailbox.address (Task.succeed ())
 simpleButton = simpleEventButton_ False
 simpleTaskButton = simpleTaskButton_ False
 
+-- displayKey s = " " ++ Utils.parens s
+displayKey s = " " ++ s
+
 editRunButton model w h =
   let disabled = model.mode == AdHoc in
   case editingMode model of
@@ -798,15 +803,21 @@ chooseButton i ((n1,l1),(n2,l2),_) =
     if i == n then "Revert"
     else "Select " ++ Utils.parens (toString i ++ "/" ++ toString n)
   in
-  simpleButton SelectOption "Choose" "Choose" cap
+  simpleButton SelectOption "Choose" "Choose" (cap ++ displayKey Utils.uniEnter)
 
+prevButtonEnabled i = i > 1
 prevButton i =
-  let enabled = i > 1 in
-  simpleEventButton_ (not enabled) (TraverseOption -1) "Prev" "Prev" "Show Prev"
+  let enabled = prevButtonEnabled i in
+  simpleEventButton_
+    (not enabled) (TraverseOption -1)
+    "Prev" "Prev" ("Show Prev" ++ displayKey Utils.uniLeft)
 
-nextButton i ((n1,l1),(n2,l2),_) =
-  let enabled = i < n1 + n2 + 1 in
-  simpleEventButton_ (not enabled) (TraverseOption 1) "Next" "Next" "Show Next"
+nextButtonEnabled i ((n1,l1),(n2,l2),_) = i < n1 + n2 + 1
+nextButton i options =
+  let enabled = nextButtonEnabled i options in
+  simpleEventButton_
+    (not enabled) (TraverseOption 1)
+    "Next" "Next" ("Show Next" ++ displayKey Utils.uniRight)
 
 saveButton : Model -> Int -> Int -> GE.Element
 saveButton model w h =

@@ -553,7 +553,6 @@ chooseAvg vals =
 lookupWithDefault def vals =
   let foo (i,v) = Utils.bracks (Utils.spaces [toString (i-1), strVal v]) in
   let s = Utils.bracks (Utils.spaces (Utils.mapi foo vals)) in
-  let _ = Debug.log "dict" s in
   "(lookupWithDefault " ++ toString def ++ " i " ++ s ++ ")"
 
 inferRelatedRects : Exp -> Val -> Val -> Maybe (Exp, Val)

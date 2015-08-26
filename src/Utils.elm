@@ -232,3 +232,11 @@ numToColor_ val =
 
 radiansToDegrees : Float -> Float
 radiansToDegrees rad = (rad / pi) * 180
+
+--------------------------------------------------------------------------------
+-- Unicode
+
+uniLeft        = "←"
+uniRight       = "→"
+uniEnter       = "↵"
+-- uniEnter    = "⏎"
