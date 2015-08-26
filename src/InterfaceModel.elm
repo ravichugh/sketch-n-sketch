@@ -26,7 +26,7 @@ type alias Model =
   , exName : String
   , code : Code
   , history : (List Code, List Code)
-  , inputExp : Maybe Exp
+  , inputExp : Maybe Exp -- TODO get rid of Maybe
   , slate : RootedIndexedTree
   , mode : Mode
   , mouseMode : MouseMode
@@ -82,7 +82,7 @@ type Caption
   = Hovering (Int, ShapeKind, Zone)
   | LangError String
 
-type Event = CodeUpdate String
+type Event = CodeUpdate String -- TODO this doesn't help with anything
            | SelectObject Int ShapeKind Zone
            | MouseUp
            | MousePos (Int, Int)
@@ -100,6 +100,7 @@ type Event = CodeUpdate String
            | Undo | Redo
            | KeysDown (List Char.KeyCode)
            | Noop
+           | CleanCode
            | UpdateModel (Model -> Model)
                -- TODO could write other events in terms of UpdateModel
 

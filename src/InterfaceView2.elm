@@ -623,6 +623,7 @@ middleWidgets w h wWrap hWrap model =
         -- , loadButton model w h
         , threeButtons (saveButton model) (saveAsButton model) (loadButton model)
         , twoButtons (undoButton model) (redoButton model)
+        , cleanButton model w h
         -- , outputButton model w h
         , gapWidget w h
         , zoneButton model w h
@@ -924,6 +925,10 @@ modeButton model =
   if model.mode == AdHoc
   then simpleEventButton_ True Noop "SwitchMode" "SwitchMode" "[Mode] Ad Hoc"
   else simpleEventButton_ False (SwitchMode AdHoc) "SwitchMode" "SwitchMode" "[Mode] Live"
+
+cleanButton model =
+  let disabled = case model.mode of {Live _ -> False; _ -> True} in
+  simpleEventButton_ disabled CleanCode "Clean" "Clean" "Clean Up"
 
 {-
 modeToggle : Int -> Int -> Model -> GE.Element

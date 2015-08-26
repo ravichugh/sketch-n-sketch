@@ -88,6 +88,13 @@ addToHistory s h = (s :: fst h, [])
 
 between1 i (j,k) = i `Utils.between` (j+1, k+1)
 
+cleanExp =
+  mapExp <| \e_ -> case e_ of
+    EApp e0 [e1,_,_] -> case e0.val of
+      EVar "inferred" -> e1.val
+      _               -> e_
+    _                 -> e_
+
 
 --------------------------------------------------------------------------------
 -- Updating the Model
@@ -329,6 +336,14 @@ upstate evt old = case debugLog "Event" evt of
                 | otherwise           -> fire Noop
 
               _                       -> fire Noop
+
+    CleanCode ->
+      let s' = unparseE (cleanExp (Utils.fromJust old.inputExp)) in
+      let h' =
+        if | old.code == s' -> old.history
+           | otherwise      -> addToHistory old.code old.history
+      in
+      upstate Run { old | code <- s', history <- h' }
 
     UpdateModel f -> f old
 
