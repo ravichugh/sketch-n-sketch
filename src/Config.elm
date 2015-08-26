@@ -15,7 +15,7 @@ debugLog b s x =
 -- User Interface Layout
 
 params =
-  { strVersion = "v0.1"
+  { strVersion = "v2.x"
   , debugLayout = False    -- displays colors for high-level layout structure
   , wGut = 10              -- width of left/right side gutters (spans entire height)
   , topSection =

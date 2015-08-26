@@ -1,6 +1,7 @@
 module Sync (Options, defaultOptions, syncOptionsOf,
              inferLocalUpdates, inferStructuralUpdate, prepareLiveUpdates,
              inferDeleteUpdate,
+             inferNewRelationships,
              printZoneTable, LiveInfo, Triggers, tryToBeSmart) where
 
 import Dict exposing (Dict)
@@ -343,6 +344,7 @@ inferLocalUpdates opts e v v' =
 
 
 ------------------------------------------------------------------------------
+-- Naive Structural Update
 
 stripSvg (VList [VBase (String "svg"), VList vs1, VList vs2]) = (vs1, vs2)
 
@@ -483,6 +485,108 @@ inferDeleteUpdate eOld v v' =
     -- freshen is needed b/c EConsts have been added (and removed)
     let eNew = Parser.freshen <| removeDeadIndices eOld v' in
     just (eNew, Eval.run eNew)
+
+
+------------------------------------------------------------------------------
+-- "Relate"
+
+stripSvgNode : Bool -> Bool -> String -> Val -> Maybe (List Val)
+stripSvgNode b1 b2 k v =
+  case v of
+    VList [VBase (String k'), VList vs1, VList vs2] ->
+      case (k == k', b1, vs1, b2, vs2) of
+        (True, True, _, False, []) -> Just vs1
+        (True, False, [], True, _) -> Just vs2
+        _                          -> Nothing
+    _ ->
+      Nothing
+
+stripAttrs    = stripSvgNode True False
+stripChildren = stripSvgNode False True
+
+justBind = flip Utils.bindMaybe
+
+getAttr : List Val -> String -> Maybe Val
+getAttr l k = case l of
+  [] -> Nothing
+  VList [VBase (String k'), v] :: l' -> if
+    | k == k'   -> Just v
+    | otherwise -> getAttr l' k
+
+getAttrs : List String -> List Val -> Maybe (List Val)
+getAttrs ks l = Utils.projJusts <| List.map (getAttr l) ks
+
+getRectAttrs = getAttrs ["x","y","width","height","fill"]
+
+pluckOut attrLists i = List.map (Utils.geti i) attrLists
+
+sortByHeadNum = List.sortBy (\(VConst(n,_) :: _) -> n)
+
+a `nl` b = a ++ "\n" ++ b
+
+chooseFirst vals =
+  let (v::_) = vals in
+  let s1 = strVal v in
+  let s2 = Utils.bracks (Utils.spaces (List.map strVal vals)) in
+  -- "(autoChose 'first' " ++ s1 ++ " " ++ s2 ++ ")"
+  "(inferred " ++ s1 ++ " 'first of' " ++ s2 ++ ")"
+
+-- TODO this is duplicating toNum for Val rather than AVal...
+valToNum v = case v of
+  VConst (n,_) -> n
+  VBase (String s) ->
+    case String.toFloat s of
+      Ok n -> n
+
+chooseAvg vals =
+  let
+    n    = List.length vals
+    nums = List.map valToNum vals
+    sum  = List.sum nums
+    avg  = round <| sum / toFloat n
+    s1   = toString avg
+    s2   = Utils.bracks (Utils.spaces (List.map toString nums))
+  in
+  -- "(autoChose 'average' " ++ s1 ++ " " ++ s2 ++ ")"
+  "(inferred " ++ s1 ++ " 'average of' " ++ s2 ++ ")"
+
+lookupWithDefault def vals =
+  let foo (i,v) = Utils.bracks (Utils.spaces [toString (i-1), strVal v]) in
+  let s = Utils.bracks (Utils.spaces (Utils.mapi foo vals)) in
+  let _ = Debug.log "dict" s in
+  "(lookupWithDefault " ++ toString def ++ " i " ++ s ++ ")"
+
+inferRelatedRects : Exp -> Val -> Val -> Maybe (Exp, Val)
+inferRelatedRects _ _ v' =
+  stripChildren "svg" v' `justBind` (\shapes ->
+  let mRects = List.map (stripAttrs "rect") shapes in
+  Utils.projJusts mRects `justBind` (\rects ->
+  Utils.projJusts (List.map getRectAttrs rects) `justBind` (\attrLists_ ->
+    let n = List.length attrLists_ in
+    let attrLists = sortByHeadNum attrLists_ in
+    let [xs, ys, widths, heights, fills] = List.map (pluckOut attrLists) [1..5] in
+    let indices = Utils.ibracks (Utils.spaces (List.map toString [0..n-1])) in
+    let s =
+      "(def newGroup"                                         `nl`
+      "  (groupMap " ++ indices ++ " (\\i"                    `nl`
+      "    (let x      " ++ lookupWithDefault 10 xs           `nl`
+      "    (let y      " ++ lookupWithDefault 10 ys           `nl`
+      "    (let width  " ++ chooseAvg widths                  `nl`
+      "    (let height " ++ chooseAvg heights                 `nl`
+      "    (let fill   " ++ chooseFirst fills                 `nl`
+      "      (rect fill x y width height)))))))))"            `nl`
+      ""                                                      `nl`
+      "(svg newGroup)"
+    in
+    let eNew = Utils.fromOk_ <| Parser.parseE s in
+    let vNew = Eval.run eNew in
+    Just (eNew, vNew)
+  )))
+
+inferNewRelationships e v v' =
+  case inferRelatedRects e v v' of
+    Nothing -> nothing
+    Just x  -> just x
 
 
 ------------------------------------------------------------------------------

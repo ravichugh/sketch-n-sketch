@@ -185,6 +185,7 @@ upstate evt old = case debugLog "Event" evt of
             newval    = slateToVal old.slate
             struct    = Sync.inferStructuralUpdate ip inputval' newval
             delete    = Sync.inferDeleteUpdate ip inputval' newval
+            related   = Sync.inferNewRelationships ip inputval' newval
             revert    = (ip, inputval)
           in
           let mkOptions l1 l2 revert =
@@ -197,7 +198,7 @@ upstate evt old = case debugLog "Event" evt of
               Ok l ->
                 let n = debugLog "# of sync options" (List.length l) in
                 let l1 = List.map fst l in
-                let l2 = delete ++ [struct] in
+                let l2 = delete ++ related ++ [struct] in
                 let m = SyncSelect old.code 0 (mkOptions l1 l2 revert) in
                 upstate (TraverseOption 1) { old | mode <- m }
               Err e ->

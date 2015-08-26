@@ -191,6 +191,17 @@
   (let newShapes (reverse (fst (foldl f initAcc oldShapesI)))
     ['svg' svgAttrs newShapes]))))))
 
+(def groupMap (\(xs f) (map f xs)))
+
+(def autoChose (\(_ x _) x))
+(def inferred  (\(x _ _) x))
+
+(defrec lookupWithDefault (\(default k dict)
+  (let foo (lookupWithDefault default k)
+  (case dict
+    ([]            default)
+    ([[k1 v]|rest] (if (= k k1) v (foo rest)))))))
+
 ; "constant folding"
 (def twoPi (* 2 (pi)))
 (def halfPi (/ (pi) 2))
