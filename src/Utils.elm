@@ -145,6 +145,9 @@ lines  = String.join "\n"
 
 sum = List.foldl (+) 0
 
+avg : List number -> number
+avg ns = List.sum ns / toFloat (List.length ns)
+
 lift_2_2 f (a,b) (c,d) = (f a c, f b d)
 
 assert s b = if b then () else Debug.crash ("assert error: " ++ s)

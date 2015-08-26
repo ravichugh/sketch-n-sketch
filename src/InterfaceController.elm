@@ -196,14 +196,14 @@ upstate evt old = case debugLog "Event" evt of
             case Sync.inferLocalUpdates old.syncOptions ip inputval' newval of
               Ok [] -> { old | mode <- mkLive_ old.syncOptions ip  }
               Ok l ->
-                let n = debugLog "# of sync options" (List.length l) in
+                let n = debugLog "# of live updates" (List.length l) in
                 let l1 = List.map fst l in
                 let l2 = delete ++ related ++ [struct] in
                 let m = SyncSelect old.code 0 (mkOptions l1 l2 revert) in
                 upstate (TraverseOption 1) { old | mode <- m }
               Err e ->
-                let _ = debugLog ("bad sync: ++ " ++ e) () in
-                let l2 = delete ++ [struct] in
+                let _ = debugLog ("no live updates: " ++ e) () in
+                let l2 = delete ++ related ++ [struct] in
                 let m = SyncSelect old.code 0 (mkOptions [] l2 revert) in
                 upstate (TraverseOption 1) { old | mode <- m }
 
@@ -315,6 +315,8 @@ upstate evt old = case debugLog "Event" evt of
                 | otherwise           -> fire Noop
 
               AdHoc -> if
+                | l == keysG          -> fire ToggleZones  -- for righties
+                | l == keysH          -> fire ToggleZones  -- for lefties
                 | l == keysZ          -> fire Undo
                 | l == keysY          -> fire Redo
                 | l == keysT          -> fire Sync

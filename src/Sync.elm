@@ -524,12 +524,13 @@ sortByHeadNum = List.sortBy (\(VConst(n,_) :: _) -> n)
 
 a `nl` b = a ++ "\n" ++ b
 
-chooseFirst vals =
-  let (v::_) = vals in
-  let s1 = strVal v in
-  let s2 = Utils.bracks (Utils.spaces (List.map strVal vals)) in
-  -- "(autoChose 'first' " ++ s1 ++ " " ++ s2 ++ ")"
-  "(inferred " ++ s1 ++ " 'first of' " ++ s2 ++ ")"
+strCall f xs = Utils.parens (Utils.spaces (f::xs))
+
+strInferred cap x ys =
+  strCall "inferred" [x, cap, Utils.bracks (Utils.spaces ys)]
+
+chooseFirst (v::vs) =
+  strInferred "'first of'" (strVal v) (List.map strVal (v::vs))
 
 -- TODO this is duplicating toNum for Val rather than AVal...
 valToNum v = case v of
@@ -539,21 +540,61 @@ valToNum v = case v of
       Ok n -> n
 
 chooseAvg vals =
-  let
-    n    = List.length vals
-    nums = List.map valToNum vals
-    sum  = List.sum nums
-    avg  = round <| sum / toFloat n
-    s1   = toString avg
-    s2   = Utils.bracks (Utils.spaces (List.map toString nums))
-  in
-  -- "(autoChose 'average' " ++ s1 ++ " " ++ s2 ++ ")"
-  "(inferred " ++ s1 ++ " 'average of' " ++ s2 ++ ")"
+  let nums = List.map valToNum vals in
+  let avg  = round <| Utils.avg nums in
+  strInferred "'average of' " (toString avg) (List.map toString nums)
 
+{-
 lookupWithDefault def vals =
   let foo (i,v) = Utils.bracks (Utils.spaces [toString (i-1), strVal v]) in
   let s = Utils.bracks (Utils.spaces (Utils.mapi foo vals)) in
-  "(lookupWithDefault " ++ toString def ++ " i " ++ s ++ ")"
+  strCall "lookupWithDefault" [toString def, "i", s]
+-}
+
+strDictOf vals =
+  let foo (i,v) = Utils.bracks (Utils.spaces [toString (i-1), strVal v]) in
+  Utils.bracks (Utils.spaces (Utils.mapi foo vals))
+
+-- returns Nothing if not sorted (either non-decreasing or non-increasing)
+--
+baseAndOffset vals =
+  let nums   = List.map valToNum vals in
+  let pairs  = Utils.adjacentPairs False nums in
+  let deltas = List.map (\(a,b) -> b-a) pairs in
+  if not (List.all ((<=) 0) deltas || List.all ((>=) 0) deltas) then Nothing
+  else
+    let
+      base   = strInferred "'smallest'"
+                 (toString <| Utils.head_ nums)
+                 (List.map toString nums)
+      offset = strInferred "'average delta between'"
+                 (toString <| round <| Utils.avg <| List.reverse deltas)
+                 (List.map toString nums)
+     in
+     Just (base, offset)
+
+inferXY xy vals =
+  let
+    xyBase          = xy ++ "Base"
+    xyOff           = xy ++ "Off"
+    xyBasePlusOff   = "(+ " ++ xyBase ++ " (mult i " ++ xyOff ++ "))"
+    xyTable         = xy ++ "Table"
+    xyLookup        = strCall "lookupWithDefault" ["10", "i", xyTable]
+  in
+  case baseAndOffset vals of
+    Just (base,off) ->
+      let
+        s1 = "    (let " ++ xyBase ++ "  " ++ base            `nl`
+             "    (let " ++ xyOff ++ "   " ++ off             `nl` ""
+        s2 = "    (let " ++ xy ++ "      " ++ xyBasePlusOff   `nl` ""
+      in
+      (s1, s2, ")))")
+    Nothing ->
+      let
+        s1 = "    (let " ++ xyTable ++ " " ++ strDictOf vals  `nl` ""
+        s2 = "    (let " ++ xy ++ "      " ++ xyLookup        `nl` ""
+      in
+      (s1, s2, "))")
 
 inferRelatedRects : Exp -> Val -> Val -> Maybe (Exp, Val)
 inferRelatedRects _ _ v' =
@@ -562,19 +603,24 @@ inferRelatedRects _ _ v' =
   Utils.projJusts mRects `justBind` (\rects ->
   Utils.projJusts (List.map getRectAttrs rects) `justBind` (\attrLists_ ->
     let n = List.length attrLists_ in
+    let indices = Utils.ibracks (Utils.spaces (List.map toString [0..n-1])) in
     let attrLists = sortByHeadNum attrLists_ in
     let [xs, ys, widths, heights, fills] = List.map (pluckOut attrLists) [1..5] in
-    let indices = Utils.ibracks (Utils.spaces (List.map toString [0..n-1])) in
+    let (let_xBaseAndOff, let_x, xParens) = inferXY "x" xs in
+    let (let_yBaseAndOff, let_y, yParens) = inferXY "y" ys in
+    let xyParens = xParens ++ yParens in
     let s =
-      "(def newGroup"                                         `nl`
-      "  (groupMap " ++ indices ++ " (\\i"                    `nl`
-      "    (let x      " ++ lookupWithDefault 10 xs           `nl`
-      "    (let y      " ++ lookupWithDefault 10 ys           `nl`
-      "    (let width  " ++ chooseAvg widths                  `nl`
-      "    (let height " ++ chooseAvg heights                 `nl`
-      "    (let fill   " ++ chooseFirst fills                 `nl`
-      "      (rect fill x y width height)))))))))"            `nl`
-      ""                                                      `nl`
+      "(def newGroup"                                           `nl`
+      "  (groupMap " ++ indices ++ " (\\i"                      `nl`
+            let_xBaseAndOff                                      ++
+            let_yBaseAndOff                                      ++
+            let_x                                                ++
+            let_y                                                ++
+      "    (let width  " ++ chooseAvg widths                    `nl`
+      "    (let height " ++ chooseAvg heights                   `nl`
+      "    (let fill   " ++ chooseFirst fills                   `nl`
+      "      (rect fill x y width height)))))))" ++ xyParens    `nl`
+      ""                                                        `nl`
       "(svg newGroup)"
     in
     let eNew = Utils.fromOk_ <| Parser.parseE s in
