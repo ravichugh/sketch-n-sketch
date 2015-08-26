@@ -532,9 +532,9 @@ strInferred cap x ys =
 -- could switch to most common element if desired
 --
 chooseFirst (v::vs) =
-  case List.filter ((/=) v) vs of
-    [] -> strVal v
-    _  -> strInferred "'first of'" (strVal v) (List.map strVal (v::vs))
+  if | Utils.allSame (v::vs) -> strVal v
+     | otherwise ->
+         strInferred "'first of'" (strVal v) (List.map strVal (v::vs))
 
 -- TODO this is duplicating toNum for Val rather than AVal...
 valToNum v = case v of
@@ -545,8 +545,10 @@ valToNum v = case v of
 
 chooseAvg vals =
   let nums = List.map valToNum vals in
-  let avg  = round <| Utils.avg nums in
-  strInferred "'average of' " (toString avg) (List.map toString nums)
+  if | Utils.allSame nums -> toString (Utils.head_ nums)
+     | otherwise ->
+         let avg  = round <| Utils.avg nums in
+         strInferred "'average of'" (toString avg) (List.map toString nums)
 
 {-
 lookupWithDefault def vals =
