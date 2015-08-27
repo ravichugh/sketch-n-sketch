@@ -93,17 +93,9 @@ cleanExp =
     EApp e0 [e1,_,_]  -> case e0.val of
       EVar "inferred" -> e1.val
       _               -> e_
-{-
-    EApp e0 [e1,_]    ->
-     case (e0.val, e1.val) of
-      (EVar "flow", EIndList (r::rs)) -> case r.val of
-        Point p ->
-          let bump = bumpCol (-6) in -- hard-coded for "(flow"
-          let p' = P.WithInfo p.val (bump p.start) (bump p.end) in
-          let r' = P.WithInfo (Point p') r.start r.end in
-          EIndList (r' :: rs)
-        _             -> e_
--}
+    EApp e0 [_,e1]    -> case e0.val of
+      EVar "flow"     -> e1.val
+      _               -> e_
       _               -> e_
     _                 -> e_
 

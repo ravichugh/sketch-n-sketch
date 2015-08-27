@@ -661,10 +661,8 @@ inferRelatedRects sortRectsByXY flow _ _ v' =
   let rects = sortRectsByXY rects_ in
   Utils.projJusts (List.map getBasicRectAttrs rects) `justBind` (\attrLists ->
     let n = List.length attrLists in
-    -- not calling flow b/c don't want to rewrite positions
-    -- let indices_ = Utils.ibracks (Utils.spaces (List.map toString [0..n-1])) in
-    -- let indices = strCall "flow" [indices_, flow] in
     let indices = Utils.ibracks (Utils.spaces (List.map toString [0..n-1])) in
+    let flowIndices = strCall "flow" [flow, "indices"] in
     let [xs, ys, widths, heights, fills] = unzipBasicRectAttrs attrLists in
     let (let_xBaseAndOff, let_x, xParens) = inferXY "x" xs in
     let (let_yBaseAndOff, let_y, yParens) = inferXY "y" ys in
@@ -680,7 +678,8 @@ inferRelatedRects sortRectsByXY flow _ _ v' =
     in
     let s =
       "(def newGroup"                                           `nl`
-      "  (groupMap " ++ indices ++ " (\\i"                      `nl`
+      "  (let indices " ++ indices                              `nl`
+      "  (groupMap " ++ flowIndices ++ " (\\i"                  `nl`
             let_xBaseAndOff                                      ++
             let_yBaseAndOff                                      ++
             let_x                                                ++
@@ -688,7 +687,7 @@ inferRelatedRects sortRectsByXY flow _ _ v' =
       "    (let width  " ++ chooseAvg widths                    `nl`
       "    (let height " ++ chooseAvg heights                   `nl`
       "    (let fill   " ++ chooseFirst fills                   `nl`
-             theRect ++ "))))))" ++ xyParens                    `nl`
+             theRect ++ ")))))))" ++ xyParens                   `nl`
       ""                                                        `nl`
       "(svg newGroup)"
     in

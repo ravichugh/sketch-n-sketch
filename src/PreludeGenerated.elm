@@ -198,7 +198,7 @@ prelude =
 
 (def autoChose (\\(_ x _) x))
 (def inferred  (\\(x _ _) x))
-; (def flow (\\(x _) x))
+(def flow (\\(_ x) x))
 
 (defrec lookupWithDefault (\\(default k dict)
   (let foo (lookupWithDefault default k)
