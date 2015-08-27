@@ -134,6 +134,8 @@ geti i = fromJust_ "Utils.geti" << List.head << List.drop (i-1)
 
 allSame (v::vs) = List.filter ((/=) v) vs == []
 
+removeDupes = Set.toList << Set.fromList
+
 delimit a b s = String.concat [a, s, b]
 
 parens = delimit "(" ")"

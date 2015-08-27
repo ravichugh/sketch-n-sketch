@@ -202,6 +202,21 @@
     ([]            default)
     ([[k1 v]|rest] (if (= k k1) v (foo rest)))))))
 
+(defrec lookup (\(k dict)
+  (let foo (lookup k)
+  (case dict
+    ([]            'NOTFOUND')
+    ([[k1 v]|rest] (if (= k k1) v (foo rest)))))))
+
+(defrec addExtras (\(i extras shape)
+  (case extras
+    ([] shape)
+    ([[k table] | rest]
+      (let v (lookup i table)
+      (if (= v 'NOTFOUND')
+          (addExtras i rest shape)
+          (addExtras i rest (addAttr shape [k v]))))))))
+
 ; "constant folding"
 (def twoPi (* 2 (pi)))
 (def halfPi (/ (pi) 2))

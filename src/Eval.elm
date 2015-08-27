@@ -142,6 +142,10 @@ evalOp env op es =
     [VBase (Bool b)] ->
       case op of
         ToStr  -> VBase (String (toString b))
+    [_, _] ->
+      case op of
+        -- polymorphic inequality, added for Prelude.addExtras
+        Eq     -> vBool False
 
 evalBranches env v l =
   List.foldl (\(p,e) acc ->

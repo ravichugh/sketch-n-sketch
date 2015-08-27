@@ -517,13 +517,50 @@ getAttr l k = case l of
 getAttrs : List String -> List Val -> Maybe (List Val)
 getAttrs ks l = Utils.projJusts <| List.map (getAttr l) ks
 
--- this order of attributes is used later
-getRectAttrs = getAttrs ["x","y","width","height","fill"]
+basicRectAttrs     = ["x","y","width","height","fill"]
+getBasicRectAttrs  = getAttrs basicRectAttrs
 
 pluckOut attrLists i = List.map (Utils.geti i) attrLists
 
-sortRectsByX = List.sortBy (valToNum << Utils.geti 1)
-sortRectsByY = List.sortBy (valToNum << Utils.geti 2)
+unzipBasicRectAttrs attrLists =
+  List.map (pluckOut attrLists) [1 .. List.length basicRectAttrs]
+
+sortRectsByX = List.sortBy (valToNum << Utils.fromJust << flip getAttr "x")
+sortRectsByY = List.sortBy (valToNum << Utils.fromJust << flip getAttr "y")
+
+collectExtraRectAttrs rects =
+  let f attrs acc0 =
+    let g (VList [VBase (String k), _]) acc1 =
+      if | List.member k basicRectAttrs -> acc1
+         | otherwise                    -> k :: acc1
+    in
+    List.foldl g acc0 attrs
+  in
+  Utils.removeDupes <| List.foldl f [] rects
+
+makeExtraRectAttrDicts rects =
+  let ks = collectExtraRectAttrs rects in
+  let processKey k =
+    let processRect (i,attrs) acc =
+      case getAttr attrs k of
+        Nothing -> acc
+        Just v  -> (i,v) :: acc
+    in
+    let indexedVals = Utils.foldri processRect [] rects in
+    let table = strDictOfIndexedVals indexedVals in
+    (k, table)
+  in
+  Utils.bracks <|
+  String.join "\n                 " <|
+    List.map
+      (\(k,strTable) -> Utils.bracks (Utils.spaces [strVal (vStr k), strTable]))
+      (List.map processKey ks)
+
+pluckOutExtra attrLists k =
+  Utils.foldri <| \(i,attrs) acc ->
+    case getAttr attrs k of
+      Nothing -> acc
+      Just v  -> (i,v) :: acc
 
 a `nl` b = a ++ "\n" ++ b
 
@@ -563,6 +600,12 @@ lookupWithDefault def vals =
 strDictOf vals =
   let foo (i,v) = Utils.bracks (Utils.spaces [toString (i-1), strVal v]) in
   Utils.bracks (Utils.spaces (Utils.mapi foo vals))
+
+strDictOfIndexedVals indexedVals =
+  Utils.bracks <| Utils.spaces <|
+    List.map
+      (\(i,v) -> Utils.bracks <| Utils.spaces [toString (i-1), strVal v])
+      indexedVals
 
 -- returns Nothing if not sorted (either non-decreasing or non-increasing)
 --
@@ -614,15 +657,24 @@ inferRelatedRectsY = inferRelatedRects sortRectsByY
 inferRelatedRects sortRectsByXY _ _ v' =
   stripChildren "svg" v' `justBind` (\shapes ->
   let mRects = List.map (stripAttrs "rect") shapes in
-  Utils.projJusts mRects `justBind` (\rects ->
-  Utils.projJusts (List.map getRectAttrs rects) `justBind` (\attrLists_ ->
-    let n = List.length attrLists_ in
+  Utils.projJusts mRects `justBind` (\rects_ ->
+  let rects = sortRectsByXY rects_ in
+  Utils.projJusts (List.map getBasicRectAttrs rects) `justBind` (\attrLists ->
+    let n = List.length attrLists in
     let indices = Utils.ibracks (Utils.spaces (List.map toString [0..n-1])) in
-    let attrLists = sortRectsByXY attrLists_ in
-    let [xs, ys, widths, heights, fills] = List.map (pluckOut attrLists) [1..5] in
+    let [xs, ys, widths, heights, fills] = unzipBasicRectAttrs attrLists in
     let (let_xBaseAndOff, let_x, xParens) = inferXY "x" xs in
     let (let_yBaseAndOff, let_y, yParens) = inferXY "y" ys in
     let xyParens = xParens ++ yParens in
+    let extraAttrDicts = makeExtraRectAttrDicts rects in
+    let theRect =
+      if extraAttrDicts == "[]" then
+        "      (rect fill x y width height)"
+      else
+        "    (let extras " ++ extraAttrDicts                    `nl`
+        "      (addExtras i extras"                             `nl`
+        "        (rect fill x y width height)))"
+    in
     let s =
       "(def newGroup"                                           `nl`
       "  (groupMap " ++ indices ++ " (\\i"                      `nl`
@@ -633,7 +685,7 @@ inferRelatedRects sortRectsByXY _ _ v' =
       "    (let width  " ++ chooseAvg widths                    `nl`
       "    (let height " ++ chooseAvg heights                   `nl`
       "    (let fill   " ++ chooseFirst fills                   `nl`
-      "      (rect fill x y width height)))))))" ++ xyParens    `nl`
+             theRect ++ "))))))" ++ xyParens                    `nl`
       ""                                                        `nl`
       "(svg newGroup)"
     in
