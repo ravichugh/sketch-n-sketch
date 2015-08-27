@@ -649,18 +649,21 @@ inferXY xy vals =
       (s1, s2, "))")
 
 inferRelatedRectsX : Exp -> Val -> Val -> Maybe (Exp, Val)
-inferRelatedRectsX = inferRelatedRects sortRectsByX
+inferRelatedRectsX = inferRelatedRects sortRectsByX "'right'"
 
 inferRelatedRectsY : Exp -> Val -> Val -> Maybe (Exp, Val)
-inferRelatedRectsY = inferRelatedRects sortRectsByY
+inferRelatedRectsY = inferRelatedRects sortRectsByY "'down'"
 
-inferRelatedRects sortRectsByXY _ _ v' =
+inferRelatedRects sortRectsByXY flow _ _ v' =
   stripChildren "svg" v' `justBind` (\shapes ->
   let mRects = List.map (stripAttrs "rect") shapes in
   Utils.projJusts mRects `justBind` (\rects_ ->
   let rects = sortRectsByXY rects_ in
   Utils.projJusts (List.map getBasicRectAttrs rects) `justBind` (\attrLists ->
     let n = List.length attrLists in
+    -- not calling flow b/c don't want to rewrite positions
+    -- let indices_ = Utils.ibracks (Utils.spaces (List.map toString [0..n-1])) in
+    -- let indices = strCall "flow" [indices_, flow] in
     let indices = Utils.ibracks (Utils.spaces (List.map toString [0..n-1])) in
     let [xs, ys, widths, heights, fills] = unzipBasicRectAttrs attrLists in
     let (let_xBaseAndOff, let_x, xParens) = inferXY "x" xs in
