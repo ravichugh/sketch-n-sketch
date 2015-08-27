@@ -10,7 +10,7 @@ import MicroTests
 import InterfaceModel exposing (..)
 import InterfaceView2 exposing (..)
 import InterfaceStorage exposing (installSaveState, removeDialog)
-import LangSvg exposing (toNum, toNumTr, toPoints, addi)
+import LangHtml exposing (toNum, toNumTr, addi)
 import ExamplesGenerated as Examples
 import Config
 
@@ -45,25 +45,25 @@ debugLog = Config.debugLog Config.debugController
 
 --------------------------------------------------------------------------------
 
-slateToVal : LangSvg.RootedIndexedTree -> Val
+slateToVal : LangHtml.RootedIndexedTree -> Val
 slateToVal (rootId, tree) =
   let foo n =
     case n of
-      LangSvg.TextNode s -> VList [VBase (String "TEXT"), VBase (String s)]
-      LangSvg.SvgNode kind l1 l2 ->
-        let vs1 = List.map LangSvg.valOfAttr l1 in
+      LangHtml.TextNode s -> VList [VBase (String "TEXT"), VBase (String s)]
+      LangHtml.HtmlNode kind l1 l2 ->
+        let vs1 = List.map LangHtml.valOfAttr l1 in
         let vs2 = List.map (foo << flip Utils.justGet tree) l2 in
         VList [VBase (String kind), VList vs1, VList vs2]
   in
   foo (Utils.justGet rootId tree)
 
-upslate : LangSvg.NodeId -> (String, LangSvg.AVal) -> LangSvg.IndexedTree -> LangSvg.IndexedTree
+upslate : LangHtml.NodeId -> (String, LangHtml.AVal) -> LangHtml.IndexedTree -> LangHtml.IndexedTree
 upslate id newattr nodes = case Dict.get id nodes of
     Nothing   -> Debug.crash "upslate"
     Just node -> case node of
-        LangSvg.TextNode x -> nodes
-        LangSvg.SvgNode shape attrs children ->
-            let newnode = LangSvg.SvgNode shape (Utils.update newattr attrs) children
+        LangHtml.TextNode x -> nodes
+        LangHtml.HtmlNode shape attrs children ->
+            let newnode = LangHtml.HtmlNode shape (Utils.update newattr attrs) children
             in Dict.insert id newnode nodes
 
 refreshMode model e =
@@ -168,7 +168,7 @@ upstate evt old = case debugLog "Event" evt of
          let new =
           { old | inputExp <- Just e
                 , code <- unparseE e
-                , slate <- LangSvg.valToIndexedTree (Eval.run e)
+                , slate <- LangHtml.valToIndexedTree (Eval.run e)
                 , history <- h
                 , editingMode <- Nothing
                 , caption <- Nothing
@@ -181,7 +181,8 @@ upstate evt old = case debugLog "Event" evt of
     ToggleOutput ->
       let m = case old.mode of
         Print _ -> refreshMode_ old
-        _       -> Print (LangSvg.printSvg old.slate)
+        _       -> Print (LangHtml.printHtml old.slate)
+        --TODO: Check RawHtml in interface model??
       in
       { old | mode <- m }
 
@@ -202,42 +203,44 @@ upstate evt old = case debugLog "Event" evt of
         MouseResizeMid (Just f) ->
           let (x,y) = f (mx, my) in
           { old | midOffsetX <- x , midOffsetY <- y }
-        MouseObject objid kind zone Nothing ->
-          let onNewPos = createMousePosCallback mx my objid kind zone old in
-          let mStuff = maybeStuff objid kind zone old in
-          let blah = Just (old.code, mStuff, onNewPos) in
-          { old | mouseMode <- MouseObject objid kind zone blah  }
-        MouseObject _ _ _ (Just (_, mStuff, onNewPos)) ->
-          let (newE,changes,newSlate) = onNewPos (mx, my) in
-          { old | code <- unparseE newE
-                , inputExp <- Just newE
-                , slate <- newSlate
-                , codeBoxInfo <- highlightChanges mStuff changes old.codeBoxInfo
-                }
+        --MouseObject objid kind zone Nothing ->
+        --  let onNewPos = createMousePosCallback mx my objid kind zone old in
+        --  let mStuff = maybeStuff objid kind zone old in
+        --  let blah = Just (old.code, mStuff, onNewPos) in
+        --  { old | mouseMode <- MouseObject objid kind zone blah  }
+        --MouseObject _ _ _ (Just (_, mStuff, onNewPos)) ->
+        --  let (newE,changes,newSlate) = onNewPos (mx, my) in
+        --  { old | code <- unparseE newE
+        --        , inputExp <- Just newE
+        --        , slate <- newSlate
+        --        , codeBoxInfo <- highlightChanges mStuff changes old.codeBoxInfo
+        --        }
 
-    SelectObject id kind zone ->
-      case old.mode of
-        AdHoc       -> { old | mouseMode <- MouseObject id kind zone Nothing }
-        Live info ->
-          case Dict.get id info.triggers of
-            Nothing -> { old | mouseMode <- MouseNothing }
-            Just dZones ->
-              case Dict.get zone dZones of
-                Just (Just _) -> { old | mouseMode <- MouseObject id kind zone Nothing }
-                _             -> { old | mouseMode <- MouseNothing }
-        SyncSelect _ _ -> old
+    --TODO: will need to add this back in later
+    --SelectObject id kind zone ->
+    --  case old.mode of
+    --    AdHoc       -> { old | mouseMode <- MouseObject id kind zone Nothing }
+    --    Live info ->
+    --      case Dict.get id info.triggers of
+    --        Nothing -> { old | mouseMode <- MouseNothing }
+    --        Just dZones ->
+    --          case Dict.get zone dZones of
+    --            Just (Just _) -> { old | mouseMode <- MouseObject id kind zone Nothing }
+    --            _             -> { old | mouseMode <- MouseNothing }
+    --    SyncSelect _ _ -> old
 
     MouseUp ->
       case (old.mode, old.mouseMode) of
         (Print _, _) -> old
-        (_, MouseObject i k z (Just (s, _, _))) ->
-          -- 8/10: re-parsing to get new position info after live sync-ing
-          -- TODO: could update positions within highlightChanges
-          let (Ok e) = parseE old.code in
-          let old' = { old | inputExp <- Just e } in
-          refreshHighlights i z
-            { old' | mouseMode <- MouseNothing, mode <- refreshMode_ old'
-                   , history <- addToHistory s old'.history }
+        -- TODO: will need to add back in later
+        --(_, MouseObject i k z (Just (s, _, _))) ->
+        --  -- 8/10: re-parsing to get new position info after live sync-ing
+        --  -- TODO: could update positions within highlightChanges
+        --  let (Ok e) = parseE old.code in
+        --  let old' = { old | inputExp <- Just e } in
+        --  refreshHighlights i z
+        --    { old' | mouseMode <- MouseNothing, mode <- refreshMode_ old'
+        --           , history <- addToHistory s old'.history }
         _ ->
           { old | mouseMode <- MouseNothing, mode <- refreshMode_ old }
 
@@ -247,7 +250,7 @@ upstate evt old = case debugLog "Event" evt of
         (AdHoc, Just ip) ->
           let
             inputval  = Eval.run ip
-            inputval' = inputval |> LangSvg.valToIndexedTree
+            inputval' = inputval |> LangHtml.valToIndexedTree
                                  |> slateToVal
             newval    = slateToVal old.slate
             struct    = Sync.inferStructuralUpdate ip inputval' newval
@@ -271,7 +274,7 @@ upstate evt old = case debugLog "Event" evt of
       let (ei,vi) = Utils.geti i l in
       { old | code <- unparseE ei
             , inputExp <- Just ei
-            , slate <- LangSvg.valToIndexedTree vi
+            , slate <- LangHtml.valToIndexedTree vi
             , mode <- mkLive old.syncOptions ei vi }
 
     TraverseOption offset ->
@@ -281,7 +284,7 @@ upstate evt old = case debugLog "Event" evt of
       let (ei,vi) = Utils.geti j l in
       { old | code <- unparseE ei
             , inputExp <- Just ei
-            , slate <- LangSvg.valToIndexedTree vi
+            , slate <- LangHtml.valToIndexedTree vi
             , mode <- SyncSelect j options }
 
     SelectExample name thunk ->
@@ -305,7 +308,7 @@ upstate evt old = case debugLog "Event" evt of
             , history <- ([],[])
             , mode <- m
             , syncOptions <- so
-            , slate <- LangSvg.valToIndexedTree v }
+            , slate <- LangHtml.valToIndexedTree v }
 
     SwitchMode m -> { old | mode <- m }
 
@@ -413,244 +416,244 @@ type alias OnMouse =
   -- , posXposY : Num -> Num
   }
 
-createMousePosCallback mx my objid kind zone old =
+--createMousePosCallback mx my objid kind zone old =
 
-  let (LangSvg.SvgNode _ attrs _) = Utils.justGet_ "#3" objid (snd old.slate) in
-  let numAttr = toNum << Utils.find_ attrs in
-  let mapNumAttr f a =
-    let (n,trace) = toNumTr (Utils.find_ attrs a) in
-    (a, LangSvg.ANum (f n, trace)) in
+--  let (LangHtml.HtmlNode _ attrs _) = Utils.justGet_ "#3" objid (snd old.slate) in
+--  let numAttr = toNum << Utils.find_ attrs in
+--  let mapNumAttr f a =
+--    let (n,trace) = toNumTr (Utils.find_ attrs a) in
+--    (a, LangHtml.ANum (f n, trace)) in
 
-  \(mx',my') ->
+--  \(mx',my') ->
 
-    let scaledPosX scale n = n + scale * (toFloat mx' - toFloat mx) in
+--    let scaledPosX scale n = n + scale * (toFloat mx' - toFloat mx) in
 
-    let posX n = n - toFloat mx + toFloat mx' in
-    let posY n = n - toFloat my + toFloat my' in
-    let negX n = n + toFloat mx - toFloat mx' in
-    let negY n = n + toFloat my - toFloat my' in
+--    let posX n = n - toFloat mx + toFloat mx' in
+--    let posY n = n - toFloat my + toFloat my' in
+--    let negX n = n + toFloat mx - toFloat mx' in
+--    let negY n = n + toFloat my - toFloat my' in
 
-    -- let posXposY n =
-    --   let dx = toFloat mx - toFloat mx' in
-    --   let dy = toFloat my - toFloat my' in
-    --   if | abs dx >= abs dy  -> n - dx
-    --      | otherwise         -> n - dy in
+--    -- let posXposY n =
+--    --   let dx = toFloat mx - toFloat mx' in
+--    --   let dy = toFloat my - toFloat my' in
+--    --   if | abs dx >= abs dy  -> n - dx
+--    --      | otherwise         -> n - dy in
 
-    let onMouse =
-      { posX = posX, posY = posY, negX = negX, negY = negY } in
+--    let onMouse =
+--      { posX = posX, posY = posY, negX = negX, negY = negY } in
 
-    -- let posX' (n,tr) = (posX n, tr) in
-    -- let posY' (n,tr) = (posY n, tr) in
-    -- let negX' (n,tr) = (negX n, tr) in
-    -- let negY' (n,tr) = (negY n, tr) in
+--    -- let posX' (n,tr) = (posX n, tr) in
+--    -- let posY' (n,tr) = (posY n, tr) in
+--    -- let negX' (n,tr) = (negX n, tr) in
+--    -- let negY' (n,tr) = (negY n, tr) in
 
-    let fx  = mapNumAttr posX in
-    let fy  = mapNumAttr posY in
-    let fx_ = mapNumAttr negX in
-    let fy_ = mapNumAttr negY in
+--    let fx  = mapNumAttr posX in
+--    let fy  = mapNumAttr posY in
+--    let fx_ = mapNumAttr negX in
+--    let fy_ = mapNumAttr negY in
 
-    let fxColorBall =
-      mapNumAttr (LangSvg.clampColorNum << scaledPosX scaleColorBall) in
+--    let fxColorBall =
+--      mapNumAttr (LangHtml.clampColorNum << scaledPosX scaleColorBall) in
 
-    let ret l = (l, l) in
+--    let ret l = (l, l) in
 
-    let (newRealAttrs,newFakeAttrs) =
-      case (kind, zone) of
+--    let (newRealAttrs,newFakeAttrs) =
+--      case (kind, zone) of
 
-        -- first match zones that can be attached to different shape kinds...
+--        -- first match zones that can be attached to different shape kinds...
 
-        (_, "FillBall")   -> ret [fxColorBall "fill"]
-        (_, "RotateBall") -> createCallbackRotate (toFloat mx) (toFloat my)
-                                                  (toFloat mx') (toFloat my')
-                                                  kind objid old
+--        (_, "FillBall")   -> ret [fxColorBall "fill"]
+--        (_, "RotateBall") -> createCallbackRotate (toFloat mx) (toFloat my)
+--                                                  (toFloat mx') (toFloat my')
+--                                                  kind objid old
 
-        -- ... and then match each kind of shape separately
+--        -- ... and then match each kind of shape separately
 
-        ("rect", "Interior")       -> ret [fx "x", fy "y"]
-        ("rect", "RightEdge")      -> ret [fx "width"]
-        ("rect", "BotRightCorner") -> ret [fx "width", fy "height"]
-        ("rect", "BotEdge")        -> ret [fy "height"]
-        ("rect", "BotLeftCorner")  -> ret [fx "x", fx_ "width", fy "height"]
-        ("rect", "LeftEdge")       -> ret [fx "x", fx_ "width"]
-        ("rect", "TopLeftCorner")  -> ret [fx "x", fy "y", fx_ "width", fy_ "height"]
-        ("rect", "TopEdge")        -> ret [fy "y", fy_ "height"]
-        ("rect", "TopRightCorner") -> ret [fy "y", fx "width", fy_ "height"]
+--        ("rect", "Interior")       -> ret [fx "x", fy "y"]
+--        ("rect", "RightEdge")      -> ret [fx "width"]
+--        ("rect", "BotRightCorner") -> ret [fx "width", fy "height"]
+--        ("rect", "BotEdge")        -> ret [fy "height"]
+--        ("rect", "BotLeftCorner")  -> ret [fx "x", fx_ "width", fy "height"]
+--        ("rect", "LeftEdge")       -> ret [fx "x", fx_ "width"]
+--        ("rect", "TopLeftCorner")  -> ret [fx "x", fy "y", fx_ "width", fy_ "height"]
+--        ("rect", "TopEdge")        -> ret [fy "y", fy_ "height"]
+--        ("rect", "TopRightCorner") -> ret [fy "y", fx "width", fy_ "height"]
 
-        ("circle", "Interior") -> ret [fx "cx", fy "cy"]
-        ("circle", "Edge") ->
-          let [cx,cy] = List.map numAttr ["cx", "cy"] in
-          let dx = if toFloat mx >= cx then mx' - mx else mx - mx' in
-          let dy = if toFloat my >= cy then my' - my else my - my' in
-          ret [ (mapNumAttr (\r -> r + toFloat (max dx dy)) "r") ]
+--        ("circle", "Interior") -> ret [fx "cx", fy "cy"]
+--        ("circle", "Edge") ->
+--          let [cx,cy] = List.map numAttr ["cx", "cy"] in
+--          let dx = if toFloat mx >= cx then mx' - mx else mx - mx' in
+--          let dy = if toFloat my >= cy then my' - my else my - my' in
+--          ret [ (mapNumAttr (\r -> r + toFloat (max dx dy)) "r") ]
 
-        ("ellipse", "Interior") -> ret [fx "cx", fy "cy"]
-        ("ellipse", "Edge")     ->
-          let [cx,cy] = List.map numAttr ["cx", "cy"] in
-          let dx = if toFloat mx >= cx then fx else fx_ in
-          let dy = if toFloat my >= cy then fy else fy_ in
-          ret [dx "rx", dy "ry"]
+--        ("ellipse", "Interior") -> ret [fx "cx", fy "cy"]
+--        ("ellipse", "Edge")     ->
+--          let [cx,cy] = List.map numAttr ["cx", "cy"] in
+--          let dx = if toFloat mx >= cx then fx else fx_ in
+--          let dy = if toFloat my >= cy then fy else fy_ in
+--          ret [dx "rx", dy "ry"]
 
-        ("line", "Edge") -> ret [fx "x1", fx "x2", fy "y1", fy "y2"]
-        ("line", _) ->
-          case LangSvg.realZoneOf zone of
-            LangSvg.ZPoint i -> ret [fx (addi "x" i), fy (addi "y" i)]
+--        ("line", "Edge") -> ret [fx "x1", fx "x2", fy "y1", fy "y2"]
+--        ("line", _) ->
+--          case LangHtml.realZoneOf zone of
+--            LangHtml.ZPoint i -> ret [fx (addi "x" i), fy (addi "y" i)]
 
-        ("polygon", _)  -> createCallbackPoly zone kind objid old onMouse
-        ("polyline", _) -> createCallbackPoly zone kind objid old onMouse
+--        ("polygon", _)  -> createCallbackPoly zone kind objid old onMouse
+--        ("polyline", _) -> createCallbackPoly zone kind objid old onMouse
 
-        ("path", _) -> createCallbackPath zone kind objid old onMouse
+--        ("path", _) -> createCallbackPath zone kind objid old onMouse
 
-    in
-    let newTree = List.foldr (upslate objid) (snd old.slate) newRealAttrs in
-      case old.mode of
-        AdHoc -> (Utils.fromJust old.inputExp, Dict.empty, (fst old.slate, newTree))
-        Live info ->
-          case Utils.justGet_ "#4" zone (Utils.justGet_ "#5" objid info.triggers) of
-            -- Nothing -> (Utils.fromJust old.inputExp, newSlate)
-            Nothing -> Debug.crash "shouldn't happen due to upstate SelectObject"
-            Just trigger ->
-              -- let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
-              let (newE,changes) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
-              if not Sync.tryToBeSmart then
-                (newE, changes, LangSvg.valToIndexedTree <| Eval.run newE) else
-              Debug.crash "Controller tryToBeSmart"
-              {-
-              let newSlate' =
-                Dict.foldl (\j dj acc1 ->
-                  let _ = Debug.crash "TODO: dummyTrace is probably a problem..." in
-                  Dict.foldl
-                    (\a n acc2 -> upslate j (a, LangSvg.ANum (n, dummyTrace)) acc2) acc1 dj
-                  ) newSlate otherChanges
-              in
-              (newE, newSlate')
-              -}
+--    in
+--    let newTree = List.foldr (upslate objid) (snd old.slate) newRealAttrs in
+--      case old.mode of
+--        AdHoc -> (Utils.fromJust old.inputExp, Dict.empty, (fst old.slate, newTree))
+--        Live info ->
+--          case Utils.justGet_ "#4" zone (Utils.justGet_ "#5" objid info.triggers) of
+--            -- Nothing -> (Utils.fromJust old.inputExp, newSlate)
+--            Nothing -> Debug.crash "shouldn't happen due to upstate SelectObject"
+--            Just trigger ->
+--              -- let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
+--              let (newE,changes) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
+--              if not Sync.tryToBeSmart then
+--                (newE, changes, LangHtml.valToIndexedTree <| Eval.run newE) else
+--              Debug.crash "Controller tryToBeSmart"
+--              {-
+--              let newSlate' =
+--                Dict.foldl (\j dj acc1 ->
+--                  let _ = Debug.crash "TODO: dummyTrace is probably a problem..." in
+--                  Dict.foldl
+--                    (\a n acc2 -> upslate j (a, LangHtml.ANum (n, dummyTrace)) acc2) acc1 dj
+--                  ) newSlate otherChanges
+--              in
+--              (newE, newSlate')
+--              -}
 
--- Callbacks for Polygons/Polylines
+---- Callbacks for Polygons/Polylines
 
-createCallbackPoly zone shape =
-  let _ = Utils.assert "createCallbackPoly" (shape == "polygon" || shape == "polyline") in
-  case LangSvg.realZoneOf zone of
-    LangSvg.Z "Interior" -> polyInterior shape
-    LangSvg.ZPoint i     -> polyPoint i shape
-    LangSvg.ZEdge i      -> polyEdge i shape
+--createCallbackPoly zone shape =
+--  let _ = Utils.assert "createCallbackPoly" (shape == "polygon" || shape == "polyline") in
+--  case LangHtml.realZoneOf zone of
+--    LangHtml.Z "Interior" -> polyInterior shape
+--    LangHtml.ZPoint i     -> polyPoint i shape
+--    LangHtml.ZEdge i      -> polyEdge i shape
 
--- TODO:
---  - differentiate between "polygon" and "polyline" for interior
---  - rethink/refactor point/edge zones
+---- TODO:
+----  - differentiate between "polygon" and "polyline" for interior
+----  - rethink/refactor point/edge zones
 
-lift : (Num -> Num) -> (NumTr -> NumTr)
-lift f (n,t) = (f n, t)
+--lift : (Num -> Num) -> (NumTr -> NumTr)
+--lift f (n,t) = (f n, t)
 
-polyInterior shape objid old onMouse =
-  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
-  let pts = toPoints <| Utils.find_ nodeAttrs "points" in
-  let accs =
-    let foo (j,(xj,yj)) (acc1,acc2) =
-      let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
-      let acc2' = (addi "x"j, LangSvg.ANum xj') :: (addi "y"j, LangSvg.ANum yj') :: acc2 in
-      ((xj',yj')::acc1, acc2')
-    in
-    Utils.foldli foo ([],[]) pts
-  in
-  let (acc1,acc2) = Utils.reverse2 accs in
-  ([("points", LangSvg.APoints acc1)], acc2)
+--polyInterior shape objid old onMouse =
+--  let (Just (LangHtml.HtmlNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
+--  let pts = toPoints <| Utils.find_ nodeAttrs "points" in
+--  let accs =
+--    let foo (j,(xj,yj)) (acc1,acc2) =
+--      let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
+--      let acc2' = (addi "x"j, LangHtml.ANum xj') :: (addi "y"j, LangHtml.ANum yj') :: acc2 in
+--      ((xj',yj')::acc1, acc2')
+--    in
+--    Utils.foldli foo ([],[]) pts
+--  in
+--  let (acc1,acc2) = Utils.reverse2 accs in
+--  ([("points", LangHtml.APoints acc1)], acc2)
 
-polyPoint i shape objid old onMouse =
-  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
-  let pts = toPoints <| Utils.find_ nodeAttrs "points" in
-  let accs =
-    let foo (j,(xj,yj)) (acc1,acc2) =
-      if | i /= j -> ((xj,yj)::acc1, acc2)
-         | otherwise ->
-             let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
-             let acc2' = (addi "x"i, LangSvg.ANum xj')
-                         :: (addi "y"i, LangSvg.ANum yj')
-                         :: acc2 in
-             ((xj',yj')::acc1, acc2')
-    in
-    Utils.foldli foo ([],[]) pts
-  in
-  let (acc1,acc2) = Utils.reverse2 accs in
-  ([("points", LangSvg.APoints acc1)], acc2)
+--polyPoint i shape objid old onMouse =
+--  let (Just (LangHtml.HtmlNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
+--  let pts = toPoints <| Utils.find_ nodeAttrs "points" in
+--  let accs =
+--    let foo (j,(xj,yj)) (acc1,acc2) =
+--      if | i /= j -> ((xj,yj)::acc1, acc2)
+--         | otherwise ->
+--             let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
+--             let acc2' = (addi "x"i, LangHtml.ANum xj')
+--                         :: (addi "y"i, LangHtml.ANum yj')
+--                         :: acc2 in
+--             ((xj',yj')::acc1, acc2')
+--    in
+--    Utils.foldli foo ([],[]) pts
+--  in
+--  let (acc1,acc2) = Utils.reverse2 accs in
+--  ([("points", LangHtml.APoints acc1)], acc2)
 
-polyEdge i shape objid old onMouse =
-  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
-  let pts = toPoints <| Utils.find_ nodeAttrs "points" in
-  let n = List.length pts in
-  let accs =
-    let foo (j,(xj,yj)) (acc1,acc2) =
-      if | i == j || (i == n && j == 1) || (i < n && j == i+1) ->
-             let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
-             let acc2' = (addi "x"j, LangSvg.ANum xj')
-                         :: (addi "y"j, LangSvg.ANum yj')
-                         :: acc2 in
-             ((xj',yj')::acc1, acc2')
-         | otherwise ->
-             ((xj,yj)::acc1, acc2)
-    in
-    Utils.foldli foo ([],[]) pts
-  in
-  let (acc1,acc2) = Utils.reverse2 accs in
-  ([("points", LangSvg.APoints acc1)], acc2)
+--polyEdge i shape objid old onMouse =
+--  let (Just (LangHtml.HtmlNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
+--  let pts = toPoints <| Utils.find_ nodeAttrs "points" in
+--  let n = List.length pts in
+--  let accs =
+--    let foo (j,(xj,yj)) (acc1,acc2) =
+--      if | i == j || (i == n && j == 1) || (i < n && j == i+1) ->
+--             let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
+--             let acc2' = (addi "x"j, LangHtml.ANum xj')
+--                         :: (addi "y"j, LangHtml.ANum yj')
+--                         :: acc2 in
+--             ((xj',yj')::acc1, acc2')
+--         | otherwise ->
+--             ((xj,yj)::acc1, acc2)
+--    in
+--    Utils.foldli foo ([],[]) pts
+--  in
+--  let (acc1,acc2) = Utils.reverse2 accs in
+--  ([("points", LangHtml.APoints acc1)], acc2)
 
--- Callbacks for Paths
+---- Callbacks for Paths
 
-createCallbackPath zone shape =
-  let _ = Utils.assert "createCallbackPath" (shape == "path") in
-  case LangSvg.realZoneOf zone of
-    LangSvg.ZPoint i -> pathPoint i
+--createCallbackPath zone shape =
+--  let _ = Utils.assert "createCallbackPath" (shape == "path") in
+--  case LangHtml.realZoneOf zone of
+--    LangHtml.ZPoint i -> pathPoint i
 
-pathPoint i objid old onMouse =
+--pathPoint i objid old onMouse =
 
-  let updatePt (mj,(x,y)) =
-    if | mj == Just i -> (mj, (lift onMouse.posX x, lift onMouse.posY y))
-       | otherwise    -> (mj, (x, y)) in
-  let addFakePts =
-    List.foldl <| \(mj,(x,y)) acc ->
-      if | mj == Just i -> (addi "x"i, LangSvg.ANum x)
-                           :: (addi "y"i, LangSvg.ANum y)
-                           :: acc
-         | otherwise    -> acc in
+--  let updatePt (mj,(x,y)) =
+--    if | mj == Just i -> (mj, (lift onMouse.posX x, lift onMouse.posY y))
+--       | otherwise    -> (mj, (x, y)) in
+--  let addFakePts =
+--    List.foldl <| \(mj,(x,y)) acc ->
+--      if | mj == Just i -> (addi "x"i, LangHtml.ANum x)
+--                           :: (addi "y"i, LangHtml.ANum y)
+--                           :: acc
+--         | otherwise    -> acc in
 
-  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
-  let (cmds,counts) = LangSvg.toPath <| Utils.find_ nodeAttrs "d" in
-  let accs =
-    let foo c (acc1,acc2) =
-      let (c',acc2') = case c of
-        LangSvg.CmdZ s ->
-          (LangSvg.CmdZ s, acc2)
-        LangSvg.CmdMLT s pt ->
-          let pt' = updatePt pt in
-          (LangSvg.CmdMLT s pt', addFakePts acc2 [pt'])
-        LangSvg.CmdHV s n ->
-          (LangSvg.CmdHV s n, acc2)
-        LangSvg.CmdC s pt1 pt2 pt3 ->
-          let [pt1',pt2',pt3'] = List.map updatePt [pt1,pt2,pt3] in
-          (LangSvg.CmdC s pt1' pt2' pt3', addFakePts acc2 [pt1',pt2',pt3'])
-        LangSvg.CmdSQ s pt1 pt2 ->
-          let [pt1',pt2'] = List.map updatePt [pt1,pt2] in
-          (LangSvg.CmdSQ s pt1' pt2' , addFakePts acc2 [pt1',pt2'])
-        LangSvg.CmdA s a b c d e pt ->
-          let pt' = updatePt pt in
-          (LangSvg.CmdA s a b c d e pt', addFakePts acc2 [pt'])
-      in
-      (c' :: acc1, acc2')
-    in
-    List.foldr foo ([],[]) cmds
-  in
-  let (acc1,acc2) = Utils.reverse2 accs in
-  ([("d", LangSvg.APath2 (acc1, counts))], acc2)
+--  let (Just (LangHtml.HtmlNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
+--  let (cmds,counts) = LangHtml.toPath <| Utils.find_ nodeAttrs "d" in
+--  let accs =
+--    let foo c (acc1,acc2) =
+--      let (c',acc2') = case c of
+--        LangHtml.CmdZ s ->
+--          (LangHtml.CmdZ s, acc2)
+--        LangHtml.CmdMLT s pt ->
+--          let pt' = updatePt pt in
+--          (LangHtml.CmdMLT s pt', addFakePts acc2 [pt'])
+--        LangHtml.CmdHV s n ->
+--          (LangHtml.CmdHV s n, acc2)
+--        LangHtml.CmdC s pt1 pt2 pt3 ->
+--          let [pt1',pt2',pt3'] = List.map updatePt [pt1,pt2,pt3] in
+--          (LangHtml.CmdC s pt1' pt2' pt3', addFakePts acc2 [pt1',pt2',pt3'])
+--        LangHtml.CmdSQ s pt1 pt2 ->
+--          let [pt1',pt2'] = List.map updatePt [pt1,pt2] in
+--          (LangHtml.CmdSQ s pt1' pt2' , addFakePts acc2 [pt1',pt2'])
+--        LangHtml.CmdA s a b c d e pt ->
+--          let pt' = updatePt pt in
+--          (LangHtml.CmdA s a b c d e pt', addFakePts acc2 [pt'])
+--      in
+--      (c' :: acc1, acc2')
+--    in
+--    List.foldr foo ([],[]) cmds
+--  in
+--  let (acc1,acc2) = Utils.reverse2 accs in
+--  ([("d", LangHtml.APath2 (acc1, counts))], acc2)
 
--- Callbacks for Rotate zones
+---- Callbacks for Rotate zones
 
-createCallbackRotate mx0 my0 mx1 my1 shape objid old =
-  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
-  let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ nodeAttrs "transform" in
-  let rot' =
-    let a0 = Utils.radiansToDegrees <| atan ((mx0 - fst cx) / (fst cy - my0)) in
-    let a1 = Utils.radiansToDegrees <| atan ((fst cy - my1) / (mx1 - fst cx)) in
-    (fst rot + (90 - a0 - a1), snd rot) in
-  let real = [("transform", LangSvg.ATransform [LangSvg.Rot rot' cx cy])] in
-  let fake = [("transformRot", LangSvg.ANum rot')] in
-  (real, fake)
+--createCallbackRotate mx0 my0 mx1 my1 shape objid old =
+--  let (Just (LangHtml.HtmlNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
+--  let (rot,cx,cy) = LangHtml.toTransformRot <| Utils.find_ nodeAttrs "transform" in
+--  let rot' =
+--    let a0 = Utils.radiansToDegrees <| atan ((mx0 - fst cx) / (fst cy - my0)) in
+--    let a1 = Utils.radiansToDegrees <| atan ((fst cy - my1) / (mx1 - fst cx)) in
+--    (fst rot + (90 - a0 - a1), snd rot) in
+--  let real = [("transform", LangHtml.ATransform [LangHtml.Rot rot' cx cy])] in
+--  let fake = [("transformRot", LangHtml.ANum rot')] in
+--  (real, fake)
 

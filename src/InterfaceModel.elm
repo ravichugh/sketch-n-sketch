@@ -4,7 +4,7 @@ import Lang exposing (..)
 import Eval
 import Sync
 import Utils
-import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Zone)
+import LangHtml exposing (RootedIndexedTree, NodeId, NodeKind)
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparseE)
 import OurParser2 as P
@@ -49,7 +49,7 @@ type alias Model =
 
 type Mode
   = AdHoc | SyncSelect Int PossibleChanges | Live Sync.LiveInfo
-  | Print RawSvg | SaveDialog Mode -- SaveDialog saves last mode
+  | Print RawHtml | SaveDialog Mode -- SaveDialog saves last mode
 
 type alias DialogInfo = { value : String
                         , hint   : String
@@ -67,15 +67,15 @@ type alias Highlight =
 type alias AcePos = { row : Int, column : Int }
 type alias Range = { start : AcePos, end : AcePos }
 
-type alias RawSvg = String
+type alias RawHtml = String
 
 type MouseMode
   = MouseNothing
   | MouseResizeMid (Maybe (MouseTrigger (Int, Int)))
-  | MouseObject NodeId ShapeKind Zone
-      (Maybe ( Code                        -- the program upon initial zone click
-             , Maybe (SubstPlus, LocSet)   -- loc-set assigned (live mode only)
-             , MouseTrigger (Exp, SubstMaybeNum, RootedIndexedTree) ))
+  --| MouseObject NodeId NodeKind Zone
+  --    (Maybe ( Code                        -- the program upon initial zone click
+  --           , Maybe (SubstPlus, LocSet)   -- loc-set assigned (live mode only)
+  --           , MouseTrigger (Exp, SubstMaybeNum, RootedIndexedTree) ))
 
 type alias MouseTrigger a = (Int, Int) -> a
 
@@ -96,11 +96,13 @@ showZonesModes = 4
   [ 0 .. (showZonesModes - 1) ]
 
 type Caption
-  = Hovering (Int, ShapeKind, Zone)
-  | LangError String
+  = LangError String
+  --Hovering (Int, NodeKind , Zone)
+  --| 
 
 type Event = CodeUpdate String
-           | SelectObject Int ShapeKind Zone
+          -- TODO: Need to bring back selectObject
+           --| SelectObject Int NodeKind Zone
            | MouseUp
            | MousePos (Int, Int)
            | Sync
@@ -180,7 +182,7 @@ sampleModel =
     , code          = unparseE e
     , history       = ([], [])
     , inputExp      = Just e
-    , slate         = LangSvg.valToIndexedTree v
+    , slate         = LangHtml.valToIndexedTree v
     , mode          = mkLive Sync.defaultOptions e v
     , mouseMode     = MouseNothing
     , orient        = Vertical
