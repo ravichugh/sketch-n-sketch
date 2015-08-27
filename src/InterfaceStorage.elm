@@ -28,7 +28,7 @@ import InterfaceModel exposing (Model, Orientation, Event, sampleModel, events)
 import ExamplesGenerated as Examples
 
 -- So we can clear the slate
-import LangSvg exposing (emptyTree)
+import LangHtml exposing (emptyTree)
 
 -- So we can crash appropriately
 import Debug
