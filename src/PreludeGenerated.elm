@@ -188,16 +188,23 @@ prelude =
 
 (def html (\\objects ['html' [] objects]))
 
-(def p (\\(attrs children) ['div' attrs children]))
+(def head (\\(attrs children) ['head' attrs children]))
+
+(def body (\\(attrs children) ['body' attrs children]))
+
+(def p (\\(attrs children) ['p' attrs children]))
 
 (def div (\\(attrs children) ['div' attrs children]))
 
+;; a similar function to http://package.elm-lang.org/packages/evancz/elm-html/4.0.1/Html-Attributes#style
+;; to help easily add and remove stylings
 (def style (\\(attrs)
   (let boundKVs
     (map (\\s (joinStrings ': ' s)) attrs )      
   ['style'
     (joinStrings '; ' boundKVs)]
   )))
+
 
 ;; addAttr : Node-> Attribute -> Node
 ;; argument order - node, new attribute
