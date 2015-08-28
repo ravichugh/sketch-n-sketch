@@ -210,20 +210,20 @@ upstate evt old = case debugLog "Event" evt of
                 let n = debugLog "# of live updates" (List.length l) in
                 let l1 = List.map fst l in
                 let l2 = delete ++ related ++ [struct] in
-                let m = SyncSelect old.code 0 (mkOptions l1 l2 revert) in
+                let m = SyncSelect (old.code, old.slate) 0 (mkOptions l1 l2 revert) in
                 upstate (TraverseOption 1) { old | mode <- m }
               Err e ->
                 let _ = debugLog ("no live updates: " ++ e) () in
                 let l2 = delete ++ related ++ [struct] in
-                let m = SyncSelect old.code 0 (mkOptions [] l2 revert) in
+                let m = SyncSelect (old.code, old.slate) 0 (mkOptions [] l2 revert) in
                 upstate (TraverseOption 1) { old | mode <- m }
 
     SelectOption ->
-      let (SyncSelect prev i options) = old.mode in
+      let (SyncSelect (prevCode,_) i options) = old.mode in
       let ((n1,l1),(n2,l2),revert) = options in
       let ((ei,vi),h) =
-        if | i `between1` ( 0, n1   ) -> (Utils.geti i l1, addToHistory prev old.history)
-           | i `between1` (n1, n1+n2) -> (Utils.geti (i-n1) l2, addToHistory prev old.history)
+        if | i `between1` ( 0, n1   ) -> (Utils.geti i l1, addToHistory prevCode old.history)
+           | i `between1` (n1, n1+n2) -> (Utils.geti (i-n1) l2, addToHistory prevCode old.history)
            | otherwise                -> (revert, old.history)
       in
       maybeAdjustShowZones

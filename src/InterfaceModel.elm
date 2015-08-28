@@ -44,8 +44,11 @@ type alias Model =
   }
 
 type Mode
-  = AdHoc | SyncSelect Code Int PossibleChanges | Live Sync.LiveInfo
-  | Print RawSvg | SaveDialog Mode -- SaveDialog saves last mode
+  = AdHoc
+  | SyncSelect (Code, RootedIndexedTree) Int PossibleChanges
+  | Live Sync.LiveInfo
+  | Print RawSvg
+  | SaveDialog Mode -- SaveDialog saves last mode
 
 type alias DialogInfo = { value : String
                         , hint   : String

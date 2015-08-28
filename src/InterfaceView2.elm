@@ -149,7 +149,8 @@ buildSvg_ addZones showZones d i =
       in
       let children = List.map (buildSvg_ addZones showZones d) js in
       let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs') children in
-      Svg.svg [] (mainshape :: zones)
+      if | zones == [] -> mainshape
+         | otherwise   -> Svg.svg [] (mainshape :: zones)
 
 
 --------------------------------------------------------------------------------
@@ -574,15 +575,26 @@ canvas_ w h model =
     (False, Live _) -> True
     _               -> False
   in
-  let svg = buildSvg addZones model.showZones model.slate in
-  Html.toElement w h <|
-    Svg.svg
-      [ onMouseUp MouseUp
-      , Attr.style [ ("width", "100%") , ("height", "100%")
-                   , ("border", params.mainSection.canvas.border)
-                   , highlightThisIf addZones
-                   ] ]
-      [ svg ]
+  let svg =
+    let mainCanvas = buildSvg addZones model.showZones model.slate in
+    case model.mode of
+      SyncSelect (_,prevSlate) _ _ ->
+        let old          = buildSvg addZones model.showZones prevSlate in
+        let shadowCanvas = Svg.svg [Attr.style [("opacity", "0.3")]] [old] in
+        mkSvg addZones (Svg.g [] [shadowCanvas, mainCanvas])
+      _ ->
+        mkSvg addZones mainCanvas
+  in
+  Html.toElement w h svg
+
+mkSvg hilite svg =
+  Svg.svg
+     [ onMouseUp MouseUp
+     , Attr.style [ ("width", "100%") , ("height", "100%")
+                  , ("border", params.mainSection.canvas.border)
+                  , highlightThisIf hilite
+                  ] ]
+     [ svg ]
 
 middleWidgets w h wWrap hWrap model =
   let twoButtons b1 b2 =
