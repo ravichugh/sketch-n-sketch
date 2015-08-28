@@ -196,7 +196,9 @@ prelude =
 (def basicDoc (\\(attrs children) 
   (html [] 
     [ (head [] []) 
-      (body [ ['width' '100%'] ['height' '100%'] ] children) ] ) ) )
+      (body 
+        (concat [ [['width' '100%'] ['height' '100%']] attrs ]) 
+        children ) ] ) ) )
 
 (def p (\\(attrs children) ['p' attrs children]))
 
@@ -205,6 +207,11 @@ prelude =
 (def text (\\string ['TEXT' string]))
 
 (def span (\\(attrs children) ['span' attrs children]))
+
+(def style (\\attrs
+  (let boundKVs
+    (map (\\[key value] (+ (+ (+ key ': ') value) '; ')) attrs)
+  ['style' (foldr (\\(a b) (+ a b)) '' boundKVs)] ) ) )
 
 ;; addAttr : Shape-> Attribute -> Shape
 ;; argument order - shape, new attribute

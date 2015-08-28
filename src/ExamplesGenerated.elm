@@ -29,20 +29,14 @@ scratch =
 
 (def reddiv 
   (div 
-    [(style 
-      [
-        [width 100px]
-        [height 100px] 
-        [background-color red]
-      ]
-    )] 
-    []))
-(html
-  [
-    (head [] [])
-    (body [[bgcolor lightblue]] [reddiv])
-  ]
-)
+    [ (style 
+        [ [ 'width' '100px' ]
+          [ 'height' '100px' ] 
+          [ 'background-color' 'red' ]
+        ] )
+    ] 
+    [] ) )
+(basicDoc [['bgcolor' 'lightblue']] [reddiv])
 
 "
 

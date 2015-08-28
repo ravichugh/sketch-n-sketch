@@ -86,7 +86,7 @@ toNumTr a = case a of
 
 --TODO: Add additional HTML attrs
 valToAttr (VList [VBase (String k), v]) =
-  case (k, v) of
+  case Debug.log "(k,v)" (k, v) of
     ("fill", VList vs)    -> (k, ARgba <| valToRgba vs) --Double check this, might be 'color'
     ("fill", VConst it)   -> (k, AColorNum it)
     (_, VConst it)        -> (k, ANum it)

@@ -59,33 +59,26 @@ editor.getSession().selection.on("changeCursor", maybeSendUpdate);
 editor.getSession().selection.on("changeSelection", maybeSendUpdate);
 
 //Set the default scratch text to display before the first load
-//var defaultScratch = 
-//"\n" +
-//"; Write a little program below.\n" +
-//"; Or choose an example from the list.\n" +
-//";\n" +
-//"; Changes to this *Scratch example will be saved and\n" +
-//"; restored when navigating to and from other examples.\n" +
-//"; For the remaining named examples, changes will be\n" +
-//"; discarded when choosing a different example.\n" +
-//"\n" +
-//"(svg [(rect 'maroon' 100 15 200 15)])\n" +
-//"\n";
 var defaultScratch =
-"(def reddiv\n" + 
-"\t(div\n" +
-"\t\t[(style [\n" +
-"\t\t\t['width' '100px']\n" +
-"\t\t\t['height' '100px']\n" + 
-"\t\t\t['background-color' 'red']\n" +
-"\t\t\t]\n" +
-"\t\t)]\n" + 
-"\t[]))\n" +
-"(html [\n" +
-"\t(head [] [])\n" +
-"\t(body [['bgcolor' 'lightblue']] [reddiv])\n" +
-"\t]\n" +
-")"
+" \n" +
+"; Write a little program below.\n" +
+"; Or choose an example from the list.\n" +
+";\n" +
+"; Changes to this *Scratch* example will be saved and\n" +
+"; restored when navigating to and from other examples.\n" +
+"; For the remaining named examples, changes will be\n" +
+"; discarded when choosing a different example.\n" +
+"\n" +
+"(def reddiv \n" +
+"  (div \n" +
+"    [ (style \n" +
+"        [ [ 'width' '100px' ]\n" +
+"          [ 'height' '100px' ] \n" +
+"          [ 'background-color' 'red' ]\n" +
+"        ] )\n" +
+"    ] \n" +
+"    [] ) )\n" +
+"(basicDoc [['bgcolor' 'lightblue']] [reddiv])"
 editor.setValue(defaultScratch);
 editor.moveCursorTo(0,0);
 
