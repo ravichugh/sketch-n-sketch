@@ -6,5 +6,20 @@
 ; restored when navigating to and from other examples.
 ; For the remaining named examples, changes will be
 ; discarded when choosing a different example.
- 
-(svg [(rect 'maroon' 100 15 200 50)])
+
+(def reddiv 
+  (div 
+    [(style 
+      [
+        [width 100px]
+        [height 100px] 
+        [background-color red]
+      ]
+    )] 
+    []))
+(html
+  [
+    (head [] [])
+    (body [[bgcolor lightblue]] [reddiv])
+  ]
+)
