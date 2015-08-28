@@ -1,0 +1,10 @@
+; Demonstration of simple text capabilities
+
+(def simpleText 'Dorian is swell')
+(def italics (\str ['i' [] [(text str)]]))
+(def bold    (\str ['b' [] [(text str)]]))
+(basicDoc [] 
+  [ (text simpleText)
+    (italics simpleText)
+    (bold simpleText)
+  ] )

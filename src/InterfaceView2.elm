@@ -860,10 +860,10 @@ dropdownExamples model w h =
                 [ Attr.value name
                 ] 
                 [ Html.text name ]) choices
-    findTask name choices = Task.succeed ()
-    --    (n,t) :: rest -> if | n == name -> t
-    --                        | otherwise -> findTask name rest
-    --    [] -> Debug.crash "Dropdown example does not have associated task"
+    findTask name choices = case choices of
+        (n,t) :: rest -> if | n == name -> t
+                            | otherwise -> findTask name rest
+        [] -> Debug.crash "Dropdown example does not have associated task"
   in Html.toElement 120 24 <| Html.select 
         [ Attr.style 
           [ ("pointer-events", "auto")
