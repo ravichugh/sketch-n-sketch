@@ -27,7 +27,10 @@ scratch =
 ; For the remaining named examples, changes will be
 ; discarded when choosing a different example. 
 
-['html' [] [] ]
+(def bluediv ['div' [['style' 'width: 100px; height: 100px; background-color: #0000FF;']] []])
+(def body ['body' [['bgcolor' 'lightblue']] [bluediv]])
+(def head ['head' [] []])
+(html [head body])
 "
 
 --TODO: rework / edit  examples

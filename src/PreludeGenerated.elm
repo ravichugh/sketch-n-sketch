@@ -188,9 +188,22 @@ prelude =
 
 (def html (\\objects ['html' [] objects]))
 
-(def p (\\(attrs children) [`p` attrs children])))
+(def p (\\(attrs children) ['div' attrs children]))
 
-(def div (\\(attrs children) [`div` attrs children])))
+(def div (\\(attrs children) ['div' attrs children]))
+
+(def style (\\(attrs)
+  (let boundKVs
+    (map (\\s (joinStrings ': ' s)) attrs )      
+  ['style'
+    (joinStrings '; ' boundKVs)]
+  )))
+
+;; addAttr : Node-> Attribute -> Node
+;; argument order - node, new attribute
+;; Add a new attribute to a given node
+(def addAttr (\\([nodeKind oldAttrs children] newAttr)
+  [nodeKind (snoc newAttr oldAttrs) children]))
 
 ;; text : Number -> Number -> String -> Shape
 ;; argument order - x, y, string
@@ -199,44 +212,6 @@ prelude =
    ['text' [['x' x] ['y' y] ['style' 'fill:black']
             ['font-family' 'Tahoma, sans-serif']]
            [['TEXT' s]]]))
-
-;; addAttr : Shape-> Attribute -> Shape
-;; argument order - shape, new attribute
-;; Add a new attribute to a given Shape
-(def addAttr (\\([shapeKind oldAttrs children] newAttr)
-  [shapeKind (snoc newAttr oldAttrs) children]))
-
-;; svg : List Shape -> SVG
-;; Given a list of shapes, compose into a single SVG
-(def svg (\\shapes ['svg' [] shapes]))
-
-;; svgViewBox : Number -> Number -> List Shape -> SVG
-;; argument order - x-maximum, y-maximum, shapes
-;; Given a list of shapes, compose into a single SVG within the x & y maxima
-(def svgViewBox (\\(xMax yMax shapes)
-  (let [sx sy] [(toString xMax) (toString yMax)]
-  ['svg'
-    [['x' '0'] ['y' '0'] ['viewBox' (joinStrings ' ' ['0' '0' sx sy])]]
-    shapes])))
-
-;; rectCenter : String -> Number -> Number -> Number -> Number -> Shape
-;; As rect, except x & y represent the center of the defined rectangle
-(def rectCenter (\\(fill cx cy w h)
-  (rect fill (- cx (/ w 2)) (- cy (/ h 2)) w h)))
-
-;; squareCenter : String -> Number -> Number -> Number -> Shape
-;; As square, except x & y represent the center of the defined rectangle
-(def square (\\(fill x y w) (rect fill x y w w)))
-(def squareCenter (\\(fill cx cy w) (rectCenter fill cx cy w w)))
-
-;; Some shapes with given default values for fill, stroke, and stroke width
-(def circle_    (circle 'red'))
-(def ellipse_   (ellipse 'orange'))
-(def rect_      (rect '#999999'))
-(def square_    (square '#999999'))
-(def line_      (line 'blue' 2))
-(def polygon_   (polygon 'green' 'purple' 3))
-(def path_      (path 'transparent' 'goldenrod' 5))
 
 ;; updateCanvas : SVG -> SVG -> SVG
 ;; updates an SVG by comparing differences with another SVG
