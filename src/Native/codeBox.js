@@ -59,18 +59,23 @@ editor.getSession().selection.on("changeCursor", maybeSendUpdate);
 editor.getSession().selection.on("changeSelection", maybeSendUpdate);
 
 //Set the default scratch text to display before the first load
-var defaultScratch = 
-"\n" +
-"; Write a little program below.\n" +
-"; Or choose an example from the list.\n" +
-";\n" +
-"; Changes to this *Scratch example will be saved and\n" +
-"; restored when navigating to and from other examples.\n" +
-"; For the remaining named examples, changes will be\n" +
-"; discarded when choosing a different example.\n" +
-"\n" +
-"(svg [(rect 'maroon' 100 15 200 15)])\n" +
-"\n";
+//var defaultScratch = 
+//"\n" +
+//"; Write a little program below.\n" +
+//"; Or choose an example from the list.\n" +
+//";\n" +
+//"; Changes to this *Scratch example will be saved and\n" +
+//"; restored when navigating to and from other examples.\n" +
+//"; For the remaining named examples, changes will be\n" +
+//"; discarded when choosing a different example.\n" +
+//"\n" +
+//"(svg [(rect 'maroon' 100 15 200 15)])\n" +
+//"\n";
+var defaultScratch =
+"(def div ['div' [['style' 'width: 1000px; height: 1000px;']] []])\n" +
+"(def body ['body' [['bgcolor' 'lightblue']] [div]])\n" +
+"(def head ['head' [] []])\n" +
+"['html' [] [head body]]"
 editor.setValue(defaultScratch);
 editor.moveCursorTo(0,0);
 

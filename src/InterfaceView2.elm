@@ -540,11 +540,18 @@ canvas_ w h model =
   let document = buildHtml addZones model.showZones model.slate in
   Html.toElement w h <|
     Html.iframe
-      [ Attr.style [ ("width", "100%") , ("height", "100%")
-                   , ("border", params.mainSection.canvas.border)
-                   , highlightThisIf addZones
-                   ] ]
-      [ document ]
+      [ Attr.srcdoc <| LangHtml.printHtml model.slate 
+      , Attr.style [("width", "100%"), ("height", "100%")]
+      ]
+      []
+    --Html.iframe
+      --[ Attr.style [ ("width", "100%") , ("height", "100%")
+      --             , ("border", params.mainSection.canvas.border)
+      --             , highlightThisIf addZones
+      --             ] ]
+      --[]
+      --Html.node "html" [] [Html.node "head" [] [], Html.text "poop"]
+      --[ document ]
 
 middleWidgets w h wWrap hWrap model =
   let twoButtons b1 b2 =
