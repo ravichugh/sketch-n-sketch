@@ -583,12 +583,16 @@ valToNum v = case v of
     case String.toFloat s of
       Ok n -> n
 
-chooseAvg vals =
+chooseAvg_ : List Val -> (Int, String)
+chooseAvg_ vals =
   let nums = List.map valToNum vals in
-  if | Utils.allSame nums -> toString (Utils.head_ nums)
+  if | Utils.allSame nums -> (round <| Utils.head_ nums, toString (Utils.head_ nums))
      | otherwise ->
-         let avg  = round <| Utils.avg nums in
-         strInferred "'average of'" (toString avg) (List.map toString nums)
+         let avg = round <| Utils.avg nums in
+         let s = strInferred "'average of'" (toString avg) (List.map toString nums) in
+         (avg, s)
+
+chooseAvg = snd << chooseAvg_
 
 {-
 lookupWithDefault def vals =
@@ -696,9 +700,64 @@ inferRelatedRects sortRectsByXY flow _ _ v' =
     Just (eNew, vNew)
   )))
 
+basicCircleAttrs     = ["cx","cy","r","fill"]
+getBasicCircleAttrs  = getAttrs basicCircleAttrs
+
+unzipBasicCircleAttrs attrLists =
+  List.map (pluckOut attrLists) [1 .. List.length basicCircleAttrs]
+
+sortCirclesByCX = List.sortBy (valToNum << Utils.fromJust << flip getAttr "cx")
+
+inferCircleOfCircles : Exp -> Val -> Val -> Maybe (Exp, Val)
+inferCircleOfCircles _ _ v' =
+  stripChildren "svg" v' `justBind` (\shapes ->
+  let mRects = List.map (stripAttrs "circle") shapes in
+  Utils.projJusts mRects `justBind` (\circles_ ->
+  let circles = sortCirclesByCX circles_ in
+  Utils.projJusts (List.map getBasicCircleAttrs circles) `justBind` (\attrLists ->
+    let n = List.length attrLists in
+    let indices =
+      Utils.ibracks (Utils.spaces (List.map (flip (++) "!" << toString) [0..n-1])) in
+    let flowIndices = strCall "flow" ["'ccw'", "indices"] in
+    let [cxs, cys, rs, fills] = unzipBasicCircleAttrs attrLists in
+    let (gx, sgx) = chooseAvg_ cxs in
+    let (gy, sgy) = chooseAvg_ cys in
+    let cxys = Utils.zip (List.map valToNum cxs) (List.map valToNum cys) in
+    let dists = List.map (Utils.distance (toFloat gx, toFloat gy)) cxys in
+    let gr = round <| Utils.avg dists in
+    let rot =
+      let [cx,cy] = -- (cx,cy) of rightmost circle
+        List.map (valToNum << Utils.last_) [cxs,cys] in
+      if cy <= toFloat gy
+      then atan ((toFloat gy - cy) / (cx - toFloat gx))        -- quad I
+      else -1 * (atan ((cy - toFloat gy) / (cx - toFloat gx))) -- quad IV
+    in
+    let s =
+      "(def newGroup"                                           `nl`
+      "  (let gcx     " ++ sgx                                  `nl`
+      "  (let gcy     " ++ sgy                                  `nl`
+      "  (let gr      " ++ toString gr                          `nl`
+      "  (let r       " ++ chooseAvg rs                         `nl`
+      "  (let fill    " ++ chooseFirst fills                    `nl`
+      "  (let theta   " ++ toString (2*pi / toFloat n) ++ "!"   `nl`
+      "  (let rot     " ++ toString rot ++ "!"                  `nl`
+      "  (let indices " ++ indices                              `nl`
+      "  (groupMap " ++ flowIndices ++ " (\\i"                  `nl`
+      "    (let cx (+ gcx (* gr (cos (+ rot (* i theta)))))"    `nl`
+      "    (let cy (- gcy (* gr (sin (+ rot (* i theta)))))"    `nl`
+      "      (circle fill cx cy r))))))))))))))"                `nl`
+      ""                                                        `nl`
+      "(svg newGroup)"
+    in
+    let eNew = Utils.fromOk_ <| Parser.parseE s in
+    let vNew = Eval.run eNew in
+    Just (eNew, vNew)
+  )))
+
 inferNewRelationships e v v' =
      maybeToMaybeOne (inferRelatedRectsX e v v')
   ++ maybeToMaybeOne (inferRelatedRectsY e v v')
+  ++ maybeToMaybeOne (inferCircleOfCircles e v v')
 
 
 ------------------------------------------------------------------------------
