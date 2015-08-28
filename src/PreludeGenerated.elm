@@ -183,78 +183,14 @@ prelude =
 (def parens (delimit '(' ')'))
 
 ;
-; SVG Manipulating Functions
+; HTML Manipulating Functions
 ;
 
-;; circle : String -> Number -> Number -> Number -> Shape
-;; argument order - color, x, y, radius
-;; creates a circle, center at (x,y) with given radius and color
-(def circle (\\(fill x y r)
-  ['circle'
-     [['cx' x] ['cy' y] ['r' r] ['fill' fill]]
-     []]))
+(def html (\\objects ['html' [] objects]))
 
-;; ring : String -> Number -> Number -> Number -> Number -> Shape
-;; argument order - color, width, x, y, radius
-;; Just as circle, except new width parameter determines thickness of ring 
-(def ring (\\(c w x y r)
-  ['circle'
-     [ ['cx' x] ['cy' y] ['r' r] ['fill' 'none'] ['stroke' c] ['stroke-width' w] ]
-     []]))
+(def p (\\(attrs children) [`p` attrs children])))
 
-;; ellipse : String -> Number -> Number -> Number -> Number -> Shape
-;; argument order - color, x, y, x-radius, y-radius
-;; Just as circle, except radius is separated into x and y parameters
-(def ellipse (\\(fill x y rx ry)
-  ['ellipse'
-     [ ['cx' x] ['cy' y] ['rx' rx] ['ry' ry] ['fill' fill] ]
-     []]))
-
-;; rect : String -> Number -> Number -> Number -> Number -> Shape
-;; argument order - color, x, y, width, height
-;; creates a rectangle of given width and height with (x,y) as the top left corner coordinate
-(def rect (\\(fill x y w h)
-  ['rect'
-     [ ['x' x] ['y' y] ['width' w] ['height' h] ['fill' fill] ]
-     []]))
-
-;; square : String -> Number -> Number -> Number -> Shape
-;; argument order - color, x, y, side
-;; Similar to rect, but only needs one parameter for all four sides
-(def square (\\(fill x y side) (rect fill x y side side)))
-
-;; line : String -> Number -> Number -> Number -> Number -> Number -> Shape
-;; argument order - color, width, x1, y1, x1, y2
-;; creates a line from (x1, y1) to (x2,y2) with given color and width
-(def line (\\(fill w x1 y1 x2 y2)
-  ['line'
-     [ ['x1' x1] ['y1' y1] ['x2' x2] ['y2' y2] ['stroke' fill] ['stroke-width' w] ]
-     []]))
-
-;; polygon: String -> String -> Number -> List (List Number) -> Shape
-;; argument order - fill, stroke, width, points
-;; creates a polygon following the list of points, with given fill color and a border with given width and stroke
-(def polygon (\\(fill stroke w pts)
-  ['polygon'
-     [ ['fill' fill] ['points' pts] ['stroke' stroke] ['stroke-width' w] ]
-     []]))
-
-;; polyline: String -> String -> Number -> List (List Number) -> Shape
-;; argument order - fill, stroke, width, points
-;; See polygon
-(def polyline (\\(fill stroke w pts)
-  ['polyline'
-     [ ['fill' fill] ['points' pts] ['stroke' stroke] ['stroke-width' w] ]
-     []]))
-
-;; path: String -> String -> Number -> List a -> Shape
-;; argument order - fill, stroke, width, d
-;; Given SVG path command d, create path with given fill color, stroke and width
-;; See https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths for path command info 
-(def path (\\(fill stroke w d)
-  ['path'
-     [ ['fill' fill] ['stroke' stroke] ['stroke-width' w] ['d' d] ]
-     []]))
+(def div (\\(attrs children) [`div` attrs children])))
 
 ;; text : Number -> Number -> String -> Shape
 ;; argument order - x, y, string
