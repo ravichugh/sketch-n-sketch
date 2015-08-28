@@ -194,7 +194,11 @@
   (html [] 
     [ (head [] []) 
       (body 
-        (concat [ [['width' '100%'] ['height' '100%']] attrs ]) 
+        (concat [ [ ['width' '100%'] 
+                    ['height' '100%']
+                    ['margin' '0'] 
+                  ] 
+                  attrs ] )
         children ) ] ) ) )
 
 (def p (\(attrs children) ['p' attrs children]))

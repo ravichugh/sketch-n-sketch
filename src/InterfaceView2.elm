@@ -153,60 +153,61 @@ buildHtml_ addZones showZones d i =
 --TODO: add back zones to work with HTML
 
 -- compileAttr will throw away the trace anyway
---attrNum k n    = LangHtml.compileAttr k (LangHtml.ANum (n, dummyTrace))
---attrNumTr k nt = LangHtml.compileAttr k (LangHtml.ANum nt)
+attrNum k n    = LangHtml.compileAttr k (LangHtml.ANum (n, dummyTrace))
+attrNumTr k nt = LangHtml.compileAttr k (LangHtml.ANum nt)
 
---onMouseDown = Svg.Events.onMouseDown << Signal.message events.address
---onMouseUp   = Svg.Events.onMouseUp   << Signal.message events.address
---onMouseOver = Svg.Events.onMouseOver << Signal.message events.address
---onMouseOut  = Svg.Events.onMouseOut  << Signal.message events.address
+-- Shorthand for each type of event that we associate with zones
+onMouseDown = Events.onMouseDown events.address
+onMouseUp   = Events.onMouseUp   events.address
+onMouseOver = Events.onMouseOver events.address
+onMouseOut  = Events.onMouseOut  events.address
 
---zoneEvents id shape zone =
---  [ onMouseDown (SelectObject id shape zone)
---  , onMouseUp MouseUp
---  , onMouseOver (turnOnCaptionAndHighlights id shape zone)
---  , onMouseOut turnOffCaptionAndHighlights
---  ]
+-- Shorthand for styling the cursor
+cursorStyle s = LangHtml.attr "cursor" s
 
---zone svgFunc id shape zone l =
---  svgFunc (zoneEvents id shape zone ++ l) []
+-- All of the events that are associated with a given zone 
+zoneEvents id node zone =
+    --TODO reintroduce SelectObject in InterfaceModel
+    --[ onMouseDown (SelectObject id node zone)
+    [ onMouseUp MouseUp
+    , onMouseOver (turnOnCaptionAndHighlights id node zone)
+    , onMouseOut turnOffCaptionAndHighlights
+    ]
 
---cursorStyle s = LangHtml.attr "cursor" s
+-- Generates a zone with the node function htmlFunc and extra attributes l
+-- Example: zone Html.div ID Node Zone [ Attr.width 100, ... ]
+zone htmlFunc id node zoneName l =
+    htmlFunc (zoneEvents id node zoneName ++ l) []
 
----- TODO should take into account disabled zones in Live mode
---cursorOfZone zone = if
---  -- rect zones
---  | zone == "Interior"       -> cursorStyle "move"
---  | zone == "RightEdge"      -> cursorStyle "ew-resize"
---  | zone == "BotRightCorner" -> cursorStyle "nwse-resize"
---  | zone == "BotEdge"        -> cursorStyle "ns-resize"
---  | zone == "BotLeftCorner"  -> cursorStyle "nesw-resize"
---  | zone == "LeftEdge"       -> cursorStyle "ew-resize"
---  | zone == "TopLeftCorner"  -> cursorStyle "nwse-resize"
---  | zone == "TopEdge"        -> cursorStyle "ns-resize"
---  | zone == "TopRightCorner" -> cursorStyle "nesw-resize"
---  -- circle/ellipse zones
---  | zone == "Edge"           -> cursorStyle "pointer"
---  -- indirect manipulation zones
---  | zone == "FillBall"       -> cursorStyle "pointer"
---  | zone == "RotateBall"     -> cursorStyle "pointer"
---  -- default
---  | otherwise                -> cursorStyle "default"
+-- A lookup table for the cursor styles for each zone
+cursorOfZone zone = if
+  -- div zones
+  | zone == "Interior"       -> cursorStyle "move"
+  | zone == "RightEdge"      -> cursorStyle "ew-resize"
+  | zone == "BotRightCorner" -> cursorStyle "nwse-resize"
+  | zone == "BotEdge"        -> cursorStyle "ns-resize"
+  | zone == "BotLeftCorner"  -> cursorStyle "nesw-resize"
+  | zone == "LeftEdge"       -> cursorStyle "ew-resize"
+  | zone == "TopLeftCorner"  -> cursorStyle "nwse-resize"
+  | zone == "TopEdge"        -> cursorStyle "ns-resize"
+  | zone == "TopRightCorner" -> cursorStyle "nesw-resize"
+  -- default
+  | otherwise                -> cursorStyle "default"
 
 ---- Stuff for Basic Zones -------------------------------------------------------
 
 ---- TODO use zone
---zoneBorder svgFunc id shape zone flag show transform =
---  flip svgFunc [] <<
---  (++) (zoneEvents id shape zone) <<
---  (++) transform <<
---  (++) [ if flag && show
---         then LangHtml.attr "stroke" "rgba(255,0,0,0.5)"
---         else LangHtml.attr "stroke" "rgba(0,0,0,0.0)"
---       , LangHtml.attr "stroke-width" (if flag then "5" else "0")
---       , LangHtml.attr "fill" "rgba(0,0,0,0)"
---       , cursorOfZone zone
---       ]
+
+-- Styles the zone to be transparent with the translucent red border
+zoneBorder htmlFunc id node zoneName flag show otherAttrs =
+    zone htmlFunc id node zoneName
+      <| [ if flag && show
+             then LangHtml.attr "stroke" "rgba(255,0,0,0.5)"
+             else LangHtml.attr "stroke" "rgba(0,0,0,0.0)"
+         , LangHtml.attr "stroke-width" (if flag then "5" else "0")
+         , LangHtml.attr "fill" "rgba(0,0,0,0)"
+         , cursorOfZone zoneName
+         ] ++ otherAttrs
 
 --zonePoint id shape zone show transform =
 --  flip Svg.circle [] <<
@@ -349,6 +350,39 @@ buildHtml_ addZones showZones d i =
 --  gradient ++ [box, ball]
 
 ----------------------------------------------------------------------------------
+
+-- Actually generates the zones for a given HtmlNode
+-- Will currently break! Remove this comment when Utils.find_ is rewritten to
+-- capture/search inline CSS styles instead of just base html attrs
+makeZones : ZoneOptions -> String -> LangHtml.NodeId -> List LangHtml.Attr -> List Html.Html
+makeZones options node id attrs =
+  case node of
+    "div" ->
+      let mk zone x_ y_ w_ h_ =
+          zoneBorder Html.div id node zone True options.showBasic 
+              <| [ attrNum "top" x_, attrNum "left" y_
+                 , attrNum "width" w_, attrNum "height" h_
+                 ]
+          [x,y,w,h] = List.map (toNum << Utils.find_ attrs) ["top", "left", "width", "height"]
+          gutter = 0.125
+          (x0,x1,x2)    = (x, x + gutter*w, x + (1-gutter)*w)
+          (y0,y1,y2)    = (y, y + gutter*h, y + (1-gutter)*h)
+          (wSlim,wWide) = (gutter*w, (1-2*gutter)*w)
+          (hSlim,hWide) = (gutter*h, (1-2*gutter)*h)
+      in
+        [ mk "Interior"       x1 y1 wWide hWide
+        , mk "RightEdge"      x2 y1 wSlim hWide
+        , mk "BotRightCorner" x2 y2 wSlim hSlim
+        , mk "BotEdge"        x1 y2 wWide hSlim
+        , mk "BotLeftCorner"  x0 y2 wSlim hSlim
+        , mk "LeftEdge"       x0 y1 wSlim hWide
+        , mk "TopLeftCorner"  x0 y0 wSlim hSlim
+        , mk "TopEdge"        x1 y0 wWide hSlim
+        , mk "TopRightCorner" x2 y0 wSlim hSlim
+        ]
+    _ -> []
+
+
 
 --makeZones : ZoneOptions -> String -> LangHtml.NodeId -> List LangHtml.Attr -> List Svg.Svg
 --makeZones options shape id l =
@@ -544,14 +578,6 @@ canvas_ w h model =
       , Attr.style [("width", "100%"), ("height", "100%")]
       ]
       []
-    --Html.iframe
-      --[ Attr.style [ ("width", "100%") , ("height", "100%")
-      --             , ("border", params.mainSection.canvas.border)
-      --             , highlightThisIf addZones
-      --             ] ]
-      --[]
-      --Html.node "html" [] [Html.node "head" [] [], Html.text "poop"]
-      --[ document ]
 
 middleWidgets w h wWrap hWrap model =
   let twoButtons b1 b2 =
@@ -575,7 +601,6 @@ middleWidgets w h wWrap hWrap model =
         , saveAsButton model w h
         , loadButton model w h
         , twoButtons (undoButton model) (redoButton model)
-        -- , outputButton model w h
         ]
       (False, _) ->
         [ dropdownExamples model w h
@@ -584,7 +609,6 @@ middleWidgets w h wWrap hWrap model =
         , saveAsButton model w h
         , loadButton model w h
         , twoButtons (undoButton model) (redoButton model)
-        -- , outputButton model w h
         , gapWidget w h
         , zoneButton model w h
         -- , frozenButton model w h

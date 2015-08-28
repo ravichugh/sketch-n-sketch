@@ -5,6 +5,8 @@ import Debug
 import Set
 import Dict
 
+--TODO rewrite this to look inside of CSS styles or alter representation in
+-- `little`
 maybeFind : a -> List (a,b) -> Maybe b
 maybeFind k l = case l of
   []            -> Nothing
