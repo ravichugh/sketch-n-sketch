@@ -229,7 +229,7 @@ addi s i = s ++ toString i
 -- TODO perhaps define Interface callbacks here
 
 --zones = [
---    ("svg", [])
+--    ("html", [])
 --  , ("circle",
 --      [ ("Interior", ["cx", "cy"])
 --      , ("Edge", ["r"])

@@ -19,21 +19,34 @@ scratchName = "*Scratch*"
 
 scratch =
  " 
-; Write a little program below.
-; Or choose an example from the list.
-;
-; Changes to this *Scratch* example will be saved and
-; restored when navigating to and from other examples.
-; For the remaining named examples, changes will be
-; discarded when choosing a different example. 
 
-(def bluediv ['div' [['style' 'width: 100px; height: 100px; background-color: #0000FF;']] []])
-(def body ['body' [['bgcolor' 'lightblue']] [bluediv]])
-(def head ['head' [] []])
-(html [head body])
+(def reddiv 
+  (div 
+    [(style 
+      [
+        ['width' '100px']
+        ['height' '100px'] 
+        ['background-color' 'red']
+      ]
+    )] 
+    []))
+(html
+  [
+    (head [] [])
+    (body [['bgcolor' 'lightblue']] [reddiv])
+  ]
+)
+
 "
 
---TODO: rework / edit  examples
+--(def reddiv (div (style [['width' '100px'] ['height' '100px'] ['background-color' 'red']]) []))
+--(html 
+--  [
+--  (head [] [])
+--  (body (style [['bgcolor' 'lightblue']]) [reddiv])
+--  ]
+--)
+----TODO: rework / edit  examples
 --threeBoxes =
 -- "
 --(def threeBoxesInt

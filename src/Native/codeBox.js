@@ -72,10 +72,20 @@ editor.getSession().selection.on("changeSelection", maybeSendUpdate);
 //"(svg [(rect 'maroon' 100 15 200 15)])\n" +
 //"\n";
 var defaultScratch =
-"(def div ['div' [['style' 'width: 1000px; height: 1000px;']] []])\n" +
-"(def body ['body' [['bgcolor' 'lightblue']] [div]])\n" +
-"(def head ['head' [] []])\n" +
-"['html' [] [head body]]"
+"(def reddiv\n" + 
+"\t(div\n" +
+"\t\t[(style [\n" +
+"\t\t\t['width' '100px']\n" +
+"\t\t\t['height' '100px']\n" + 
+"\t\t\t['background-color' 'red']\n" +
+"\t\t\t]\n" +
+"\t\t)]\n" + 
+"\t[]))\n" +
+"(html [\n" +
+"\t(head [] [])\n" +
+"\t(body [['bgcolor' 'lightblue']] [reddiv])\n" +
+"\t]\n" +
+")"
 editor.setValue(defaultScratch);
 editor.moveCursorTo(0,0);
 

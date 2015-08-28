@@ -202,7 +202,7 @@ prelude =
   (let boundKVs
     (map (\\s (joinStrings ': ' s)) attrs )      
   ['style'
-    (joinStrings '; ' boundKVs)]
+    (joinStrings '; ' (snoc '' boundKVs))]
   )))
 
 
