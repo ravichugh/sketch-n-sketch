@@ -654,9 +654,13 @@ gutterForResizing orient w h =
           [ ]
 
 -- Makes a div appropriate for the Ace code editor to be inserted into
+-- Flashing of the code editor is caused because of the 'Element' abstraction
+-- torching the interior of the codeBox portion of the screen and necessitates a
+-- re-embedding of the editor on the Ace side of things, the delay of which
+-- (needs to be sent through a port and such) makes it flash.
 codeBox : Int -> Int -> GE.Element
 codeBox w h = Html.toElement w h <|
-    Html.Lazy.lazy2 (\a b -> Html.div [ Attr.id "editor"
+    Html.Lazy.lazy (\a -> Html.div [ Attr.id "editor"
              , Attr.style
                  [ ("width", "100%") -- The toElement makes a wrapping Div that
                                      -- has the appropriate w/h
@@ -664,7 +668,7 @@ codeBox w h = Html.toElement w h <|
                  , ("pointer-events", "auto")
                  , ("z-index", "1")
                  ]
-             ] []) w h
+             ] []) True -- No need to rerender on size changes
 
 mainSectionVertical : Int -> Int -> Model -> GE.Element
 mainSectionVertical w h model =
