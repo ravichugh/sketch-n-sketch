@@ -213,8 +213,6 @@ prelude =
     (map (\\[key value] (+ (+ (+ key ': ') value) '; ')) attrs)
   ['style' (foldr (\\(a b) (+ a b)) '' boundKVs)] ) ) )
 
-
-
 ;; addAttr : Shape-> Attribute -> Shape
 ;; argument order - shape, new attribute
 ;; Add a new attribute to a given Shape

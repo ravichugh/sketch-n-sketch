@@ -57,7 +57,10 @@ basicText =
 threeBoxesA =
  "
 ; An HTML version of our classic three threeBoxes
-; example 
+; example
+; TODO: 
+; fix spacing numbers / w&h to be mainpulatable
+; add relative positioning
 
 (def bluebox (\\s 
   (div
@@ -71,7 +74,30 @@ threeBoxesA =
         ] )
     ] 
     [] )))
-(basicDoc [['bgcolor' 'grey']] (map bluebox ['100px' '300px' '500px']))
+(basicDoc [] (map bluebox ['100px' '300px' '500px']))
+"
+
+sixBoxesA =
+ "
+; An HTML version of our classic three threeBoxes
+; example
+; TODO: 
+; fix spacing numbers / w&h to be mainpulatable
+; add relative positioning
+
+(def greybox (\\[x y] 
+  (div
+    [ (style 
+        [ [ 'position' 'absolute']
+          [ 'top' y]
+          [ 'left' x ]
+          [ 'width' '20px' ]
+          [ 'height' '20px' ] 
+          [ 'background-color' 'grey' ]
+        ] )
+    ] 
+    [] )))
+(basicDoc [] (map greybox (cartProd ['40px' '80px' '120px'] ['20px' '60px'])))
 "
 
 
@@ -80,6 +106,7 @@ examples =
   , makeExample "Basic Text" basicText
   , makeExample "*Prelude*" Prelude.src
   , makeExample "Three Boxes Absolute" threeBoxesA
+  , makeExample "Six Boxes Absolute" sixBoxesA
   ]
 
 list = examples -- ++ MicroTests.sampleTests
