@@ -16,7 +16,8 @@ maybeFind k l = case l of
 find err d k =
   case maybeFind k d of
     Just f  -> f
-    Nothing -> Debug.crash <| "Utils.find: " ++ err
+    Nothing -> Debug.crash <| "Utils.find: " ++ err ++ " k: " ++ toString k ++
+                    " d: " ++ toString d
 
 find_ = find ""
 

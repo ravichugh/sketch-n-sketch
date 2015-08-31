@@ -129,20 +129,20 @@ buildHtml_ addZones showZones d i =
   case Utils.justGet_ ("buildHtml_ " ++ toString i) i d of
     LangHtml.TextNode text -> VirtualDom.text text
     LangHtml.HtmlNode shape attrs js -> 
-    --  -- TODO: figure out: (LangHtml.attr "draggable" "false")
-    --  let (zones, attrs') =
-    --    let options = optionsOf showZones in
-    --    case (addZones, Utils.maybeRemoveFirst "zones" attrs) of
-    --      (False, Nothing)     -> ([], attrs)
-    --      (False, Just (_, l)) -> ([], l)
-    --      (True, Nothing) ->
-    --        (makeZones options shape i attrs, attrs)
-    --      (True, Just (LangHtml.AString "none", l)) ->
-    --        (makeZones zoneOptions0 shape i attrs, l)
-    --      (True, Just (LangHtml.AString "basic", l)) ->
-    --        let options' = { options | addRot <- False, addColor <- False } in
-    --        (makeZones options' shape i attrs, l)
-    --  in
+      -- TODO: figure out: (LangHtml.attr "draggable" "false")
+      let (zones, attrs') =
+        let options = optionsOf showZones in
+        case (addZones, Utils.maybeRemoveFirst "zones" attrs) of
+          (False, Nothing)     -> ([], attrs)
+          (False, Just (_, l)) -> ([], l)
+          (True, Nothing) ->
+            (makeZones options shape i attrs, attrs)
+          (True, Just (LangHtml.AString "none", l)) ->
+            (makeZones zoneOptions0 shape i attrs, l)
+          (True, Just (LangHtml.AString "basic", l)) ->
+            let options' = { options | addRot <- False, addColor <- False } in
+             (makeZones options' shape i attrs, l)
+      in
       let children = List.map (buildHtml_ addZones showZones d) js in
       let mainshape = (LangHtml.html shape) (LangHtml.compileAttrs attrs) children in
       mainshape
@@ -167,9 +167,8 @@ cursorStyle s = LangHtml.attr "cursor" s
 
 -- All of the events that are associated with a given zone 
 zoneEvents id node zone =
-    --TODO reintroduce SelectObject in InterfaceModel
-    --[ onMouseDown (SelectObject id node zone)
-    [ onMouseUp MouseUp
+    [ onMouseDown (SelectObject id node zone)
+    , onMouseUp MouseUp
     , onMouseOver (turnOnCaptionAndHighlights id node zone)
     , onMouseOut turnOffCaptionAndHighlights
     ]
