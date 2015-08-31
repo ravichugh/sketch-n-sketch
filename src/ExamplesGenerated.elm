@@ -54,11 +54,32 @@ basicText =
 
 "
 
+threeBoxesA =
+ "
+; An HTML version of our classic three threeBoxes
+; example 
+
+(def bluebox (\\s 
+  (div
+    [ (style 
+        [ [ 'position' 'absolute']
+          [ 'top' '40px']
+          [ 'left' s ]
+          [ 'width' '70px' ]
+          [ 'height' '180px' ] 
+          [ 'background-color' 'lightblue' ]
+        ] )
+    ] 
+    [] )))
+(basicDoc [['bgcolor' 'grey']] (map bluebox ['100px' '300px' '500px']))
+"
+
 
 examples =
   [ makeExample scratchName scratch
   , makeExample "Basic Text" basicText
   , makeExample "*Prelude*" Prelude.src
+  , makeExample "Three Boxes Absolute" threeBoxesA
   ]
 
 list = examples -- ++ MicroTests.sampleTests
