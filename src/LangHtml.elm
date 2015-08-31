@@ -203,7 +203,7 @@ printAttr (k,v) =
 
 --TODO: rework zones according to makeZones in a restructured InterfaceView2
 
---type alias Zone = String
+type alias Zone = String
 
 ---- NOTE: would like to use only the following definition, but datatypes
 ---- aren't comparable... so using Strings for storing in dictionaries, but
@@ -228,44 +228,24 @@ addi s i = s ++ toString i
 
 -- TODO perhaps define Interface callbacks here
 
---zones = [
---    ("html", [])
---  , ("circle",
---      [ ("Interior", ["cx", "cy"])
---      , ("Edge", ["r"])
---      ])
---  , ("ellipse",
---      [ ("Interior", ["cx", "cy"])
---      , ("Edge", ["rx", "ry"])
---      ])
---  , ("rect",
---      [ ("Interior", ["x", "y"])
---      , ("TopLeftCorner", ["x", "y", "width", "height"])
---      , ("TopRightCorner", ["y", "width", "height"])
---      , ("BotRightCorner", ["width", "height"])
---      , ("BotLeftCorner", ["x", "width", "height"])
---      , ("LeftEdge", ["x", "width"])
---      , ("TopEdge", ["y", "height"])
---      , ("RightEdge", ["width"])
---      , ("BotEdge", ["height"])
---      ])
---  , ("line",
---      [ ("Point1", ["x1", "y1"])
---      , ("Point2", ["x2", "y2"])
---      , ("Edge", ["x1", "y1", "x2", "y2"])
---      ])
---  -- TODO
---  , ("g", [])
---  , ("text", [])
---  , ("tspan", [])
+zones = 
+  [ ("html", [])
+  , ("rect",
+      [ ("Interior", ["left", "top"])
+      , ("TopLeftCorner", ["left", "top", "width", "height"])
+      , ("TopRightCorner", ["top", "width", "height"])
+      , ("BotRightCorner", ["width", "height"])
+      , ("BotLeftCorner", ["left", "width", "height"])
+      , ("LeftEdge", ["left", "width"])
+      , ("TopEdge", ["top", "height"])
+      , ("RightEdge", ["width"])
+      , ("BotEdge", ["height"])
+      ])
+  , ("text", [])
 
---  -- symptom of the Sync.Dict0 type. see Sync.nodeToAttrLocs_.
---  , ("DUMMYTEXT", [])
-
-  -- NOTE: these are computed in Sync.getZones
-  -- , ("polygon", [])
-  -- , ("polyline", [])
-  -- , ("path", [])
+  -- symptom of the Sync.Dict0 type. see Sync.nodeToAttrLocs_.
+  , ("DUMMYTEXT", [])
+  ]
 
 -- Noodling about what it would take to replace LangSvg with this, and have the
 -- output be retargeted to elm-html instead of elm-svg.

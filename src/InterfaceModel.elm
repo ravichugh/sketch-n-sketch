@@ -72,10 +72,10 @@ type alias RawHtml = String
 type MouseMode
   = MouseNothing
   | MouseResizeMid (Maybe (MouseTrigger (Int, Int)))
-  --| MouseObject NodeId NodeKind Zone
-  --    (Maybe ( Code                        -- the program upon initial zone click
-  --           , Maybe (SubstPlus, LocSet)   -- loc-set assigned (live mode only)
-  --           , MouseTrigger (Exp, SubstMaybeNum, RootedIndexedTree) ))
+  | MouseObject NodeId NodeKind LangHtml.Zone
+      (Maybe ( Code                        -- the program upon initial zone click
+             , Maybe (SubstPlus, LocSet)   -- loc-set assigned (live mode only)
+             , MouseTrigger (Exp, SubstMaybeNum, RootedIndexedTree) ))
 
 type alias MouseTrigger a = (Int, Int) -> a
 
@@ -97,12 +97,10 @@ showZonesModes = 4
 
 type Caption
   = LangError String
-  --Hovering (Int, NodeKind , Zone)
-  --| 
+  | Hovering (Int, NodeKind , LangHtml.Zone)
 
 type Event = CodeUpdate String
-          -- TODO: Need to bring back selectObject
-           --| SelectObject Int NodeKind Zone
+           | SelectObject Int NodeKind LangHtml.Zone
            | MouseUp
            | MousePos (Int, Int)
            | Sync
