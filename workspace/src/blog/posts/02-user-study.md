@@ -20,10 +20,13 @@ It is divided into five separate lessons, each designed to cover a few key
 topics. Each lesson discusses several examples, designed to be worked in
 [Sketch-n-Sketch v0.2][sns] while you are reading. We have also sprinkled a set
 of exercises in each lesson that we hope will offer instructive and fun
-opportunities to get your hands dirty with the tool. Very roughly speaking, we
-expect each lesson to take approximately one to two hours, but your mileage may
-vary depend on your background and interests... and how much fun you're having
-playing around with the tool!
+opportunities to get your hands dirty with the tool.
+Very roughly speaking, we expect each lesson to take
+approximately one to three hours, with the last two (optional) lessons
+covering somewhat more advanced material.
+But, your mileage may vary depend on
+your background and interests... and how much pleasure or pain
+you're experiencing with the tool!
 
 If you are interested in trying out the current version of Sketch-n-Sketch
 and sharing your feedback with us, then [head on over][tutorial] &mdash; we'd
