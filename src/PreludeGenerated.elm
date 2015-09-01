@@ -296,8 +296,13 @@ prelude =
 
 (def button (button_ true))
 
+(def radToDeg (\\rad (* (/ rad (pi)) 180!)))
+
 (def rotate (\\(shape n1 n2 n3)
   (addAttr shape ['transform' [['rotate' n1 n2 n3]]])))
+
+(def rotateAround (\\(rot x y shape)
+  (addAttr shape ['transform' [['rotate' rot x y]]])))
 
 ; 0
 ['svg' [] []]

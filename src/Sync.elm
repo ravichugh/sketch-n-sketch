@@ -708,8 +708,8 @@ unzipBasicCircleAttrs attrLists =
 
 sortCirclesByCX = List.sortBy (valToNum << Utils.fromJust << flip getAttr "cx")
 
-inferCircleOfCircles : Exp -> Val -> Val -> Maybe (Exp, Val)
-inferCircleOfCircles _ _ v' =
+inferCircleOfCircles : Bool -> Exp -> Val -> Val -> Maybe (Exp, Val)
+inferCircleOfCircles groupBox _ _ v' =
   stripChildren "svg" v' `justBind` (\shapes ->
   let mRects = List.map (stripAttrs "circle") shapes in
   Utils.projJusts mRects `justBind` (\circles_ ->
@@ -718,7 +718,10 @@ inferCircleOfCircles _ _ v' =
     let n = List.length attrLists in
     let indices =
       Utils.ibracks (Utils.spaces (List.map (flip (++) "!" << toString) [0..n-1])) in
-    let flowIndices = strCall "flow" ["'ccw'", "indices"] in
+    let flowIndices =
+      if groupBox
+      then strCall "flow" ["'ccw and groupbox'", "indices"]
+      else strCall "flow" ["'ccw'", "indices"] in
     let [cxs, cys, rs, fills] = unzipBasicCircleAttrs attrLists in
     let (gx, sgx) = chooseAvg_ cxs in
     let (gy, sgy) = chooseAvg_ cys in
@@ -732,20 +735,33 @@ inferCircleOfCircles _ _ v' =
       then atan ((toFloat gy - cy) / (cx - toFloat gx))        -- quad I
       else -1 * (atan ((cy - toFloat gy) / (cx - toFloat gx))) -- quad IV
     in
+    let theShapes =
+      if groupBox then
+        "  [(rotateAround (radToDeg rot) gcx gcy"                 `nl`
+        "    ['g' [['fill' 'lightyellow']]"                       `nl`
+        "      (groupMap " ++ flowIndices ++ " (\\i"              `nl`
+        "        (let cx (+ gcx (* gr (cos (* i theta))))"        `nl`
+        "        (let cy (- gcy (* gr (sin (* i theta))))"        `nl`
+        "        (let r       " ++ chooseAvg rs                   `nl`
+        "        (let fill    " ++ chooseFirst fills              `nl`
+        "          (circle fill cx cy r)))))))])]"
+      else
+        "  (groupMap " ++ flowIndices ++ " (\\i"                  `nl`
+        "    (let cx   (+ gcx (* gr (cos (+ rot (* i theta)))))"  `nl`
+        "    (let cy   (- gcy (* gr (sin (+ rot (* i theta)))))"  `nl`
+        "    (let r    " ++ chooseAvg rs                          `nl`
+        "    (let fill " ++ chooseFirst fills                     `nl`
+        "      (circle fill cx cy r)))))))"
+    in
     let s =
       "(def newGroup"                                           `nl`
       "  (let gcx     " ++ sgx                                  `nl`
       "  (let gcy     " ++ sgy                                  `nl`
       "  (let gr      " ++ toString gr                          `nl`
-      "  (let r       " ++ chooseAvg rs                         `nl`
-      "  (let fill    " ++ chooseFirst fills                    `nl`
       "  (let theta   " ++ toString (2*pi / toFloat n) ++ "!"   `nl`
       "  (let rot     " ++ toString rot ++ "!"                  `nl`
       "  (let indices " ++ indices                              `nl`
-      "  (groupMap " ++ flowIndices ++ " (\\i"                  `nl`
-      "    (let cx (+ gcx (* gr (cos (+ rot (* i theta)))))"    `nl`
-      "    (let cy (- gcy (* gr (sin (+ rot (* i theta)))))"    `nl`
-      "      (circle fill cx cy r))))))))))))))"                `nl`
+            theShapes ++ ")))))))"                              `nl`
       ""                                                        `nl`
       "(svg newGroup)"
     in
@@ -757,7 +773,8 @@ inferCircleOfCircles _ _ v' =
 inferNewRelationships e v v' =
      maybeToMaybeOne (inferRelatedRectsX e v v')
   ++ maybeToMaybeOne (inferRelatedRectsY e v v')
-  ++ maybeToMaybeOne (inferCircleOfCircles e v v')
+  ++ maybeToMaybeOne (inferCircleOfCircles False e v v')
+  -- ++ maybeToMaybeOne (inferCircleOfCircles True e v v')
 
 
 ------------------------------------------------------------------------------
