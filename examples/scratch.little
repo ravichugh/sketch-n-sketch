@@ -9,11 +9,11 @@
 
 (def reddiv 
   (div 
-    [ (style 
-        [ [ 'width' '100px' ]
-          [ 'height' '100px' ] 
-          [ 'background-color' 'red' ]
-        ] )
+    [ [ 'width'  100 ]
+      [ 'height' 100 ] 
+      [ 'top'    100 ]
+      [ 'left'   100 ]
+      [ 'background-color' 'red' ]
     ] 
     [] ) )
 (basicDoc [['bgcolor' 'lightblue']] [reddiv])

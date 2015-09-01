@@ -29,11 +29,11 @@ scratch =
 
 (def reddiv 
   (div 
-    [ (style 
-        [ [ 'width' '100px' ]
-          [ 'height' '100px' ] 
-          [ 'background-color' 'red' ]
-        ] )
+    [ [ 'width'  100 ]
+      [ 'height' 100 ] 
+      [ 'top'    100 ]
+      [ 'left'   100 ]
+      [ 'background-color' 'red' ]
     ] 
     [] ) )
 (basicDoc [['bgcolor' 'lightblue']] [reddiv])
@@ -54,80 +54,11 @@ basicText =
 
 "
 
-threeBoxesA =
- "
-; An HTML version of our classic three threeBoxes
-; example
-; TODO: 
-; fix spacing numbers / w&h to be mainpulatable
-; add relative positioning
-
-(def bluebox (\\s 
-  (div
-    [ (style 
-        [ [ 'position' 'absolute']
-          [ 'top' '40px']
-          [ 'left' s ]
-          [ 'width' '70px' ]
-          [ 'height' '180px' ] 
-          [ 'background-color' 'lightblue' ]
-        ] )
-    ] 
-    [] )))
-(basicDoc [] (map bluebox ['100px' '300px' '500px']))
-"
-
-sixBoxesA =
- "
-; An HTML version of our classic three threeBoxes
-; example
-; TODO: 
-; fix spacing numbers / w&h to be mainpulatable
-; add relative positioning
-
-(def greybox (\\[x y] 
-  (div
-    [ (style 
-        [ [ 'position' 'absolute']
-          [ 'top' y]
-          [ 'left' x ]
-          [ 'width' '20px' ]
-          [ 'height' '20px' ] 
-          [ 'background-color' 'grey' ]
-        ] )
-    ] 
-    [] )))
-(basicDoc [] (map greybox (cartProd ['40px' '80px' '120px'] ['20px' '60px'])))
-"
-
-elementTest =
-  "
-; First pass using our new, handy dandy element abstraction
-; Note: all attributes added using eStyle should be
-; well-formed CSS attributes
-
-(def sampleDiv 
-  (eDiv '100px' '100px' []))
-(def purpStyle (\\node
-  (eStyle node 
-    [ [ 'position' 'absolute']
-      [ 'top' 20]
-      [ 'left' 20 ]
-      [ 'background-color' 'purple' ]
-    ]
-  )
-))
-(basicDoc [] (purpStyle sampleDiv))
-"
-
 
 examples =
   [ makeExample scratchName scratch
   , makeExample "Basic Text" basicText
   , makeExample "*Prelude*" Prelude.src
-  , makeExample "Three Boxes Absolute" threeBoxesA
-  , makeExample "Six Boxes Absolute" sixBoxesA
-  , makeExample "Styling with eStyle" elementTest
   ]
 
 list = examples -- ++ MicroTests.sampleTests

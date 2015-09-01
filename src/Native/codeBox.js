@@ -71,12 +71,12 @@ var defaultScratch =
 "\n" +
 "(def reddiv \n" +
 "  (div \n" +
-"    [ (style \n" +
-"        [ [ 'width' '100px' ]\n" +
-"          [ 'height' '100px' ] \n" +
-"          [ 'background-color' 'red' ]\n" +
-"        ] )\n" +
-"    ] \n" +
+"    [ [ 'width'  100 ]\n" +
+"      [ 'height' 100 ]\n" +
+"      [ 'top'    100 ]\n" +
+"      [ 'left'   100 ]\n" +
+"      [ 'background-color' 'red' ]\n" +
+"    ]\n" +
 "    [] ) )\n" +
 "(basicDoc [['bgcolor' 'lightblue']] [reddiv])"
 editor.setValue(defaultScratch);
