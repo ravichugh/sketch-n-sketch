@@ -58,7 +58,6 @@ numAttrToVal a i =
 type AVal
   = ANum NumTr
   | AString String
-  | APoints (List Point)
   | ARgba Rgba
   | AColorNum NumTr -- Utils.numToColor [0,500)
 
@@ -89,11 +88,30 @@ valToAttr (VList [VBase (String k), v]) =
   case (k, v) of
     ("fill", VList vs)    -> (k, ARgba <| valToRgba vs) --Double check this, might be 'color'
     ("fill", VConst it)   -> (k, AColorNum it)
+    ("style", VList vs)  -> ("style", AString <| valToCSS vs)
     (_, VConst it)        -> (k, ANum it)
     (_, VBase (String s)) -> (k, AString s)
 
 valToRgba [VConst r, VConst g, VConst b, VConst a] = (r,g,b,a)
 rgbaToVal (r,g,b,a) = [VConst r, VConst g, VConst b, VConst a]
+
+valToCSS styles =
+  let
+    format ky vl = ((ky ++ ": ") ++ vl) ++ "; "
+    checkVal key value = 
+      case value of
+          VConst v -> format key (toString v)
+          VBase (String s) -> format key s
+    boundKVs = 
+      List.map (\(VList [VBase (String k), v]) -> checkVal k v) styles
+  in
+    List.foldr (\a b -> a ++ b) "" boundKVs
+
+
+--(def style (\attrs
+--  (let boundKVs
+--    (map (\[key value] (+ (+ (+ key ': ') value) '; ')) attrs)
+--  ['style' (foldr (\(a b) (+ a b)) '' boundKVs)] ) ) )
 
 strRgba (r_,g_,b_,a_) =
   strRgba_ (List.map fst [r_,g_,b_,a_])

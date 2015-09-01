@@ -100,6 +100,31 @@ sixBoxesA =
 (basicDoc [] (map greybox (cartProd ['40px' '80px' '120px'] ['20px' '60px'])))
 "
 
+elementTest =
+  "
+; First pass using our new, handy dandy element abstraction
+; Note: all attributes added using eStyle should be
+; well-formed CSS attributes
+
+(def sampleDiv 
+  (div
+    [ [ 'width' '100px'  ]
+      [ 'height' '100px' ]
+    ]
+    []
+  ))
+(def purpStyle (\\node
+  (eStyle node 
+    [ [ 'position' 'absolute']
+      [ 'top' 20]
+      [ 'left' 20 ]
+      [ 'background-color' 'purple' ]
+    ]
+  )
+))
+(basicDoc [] (purpStyle sampleDiv))
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -107,6 +132,7 @@ examples =
   , makeExample "*Prelude*" Prelude.src
   , makeExample "Three Boxes Absolute" threeBoxesA
   , makeExample "Six Boxes Absolute" sixBoxesA
+  , makeExample "Styling with eStyle" elementTest
   ]
 
 list = examples -- ++ MicroTests.sampleTests

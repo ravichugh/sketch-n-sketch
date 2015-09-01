@@ -245,10 +245,12 @@
 ;; eStyle : Node -> Attributes -> Node
 ;; argument order - node to add styles to, attrs to add
 ;; Adds a list of attributes to a node - is helpful when using the Element
-;; abstraction, as the constructor functions to not have a Style field.
+;; abstraction, as the constructor functions do not have a Style field.
+;; Attributes in this case should be CSS
+;; TODO: use cons instead
 (def eStyle (\([node attrs children] newAttrs)
   [node
-    (foldr (\(list new) (snoc new list)) attrs newAttrs)
+    [ ['style' (foldr (\(list new) (snoc new list)) attrs newAttrs)] ]
     children ] ) )
 
 ; "constant folding"

@@ -213,11 +213,44 @@ prelude =
     (map (\\[key value] (+ (+ (+ key ': ') value) '; ')) attrs)
   ['style' (foldr (\\(a b) (+ a b)) '' boundKVs)] ) ) )
 
-;; addAttr : Shape-> Attribute -> Shape
+;
+; Element Abstraction
+;
+
+;; addAttr : Node -> Attribute -> Node
 ;; argument order - shape, new attribute
-;; Add a new attribute to a given Shape
-(def addAttr (\\([shapeKind oldAttrs children] newAttr)
-  [shapeKind (snoc newAttr oldAttrs) children]))
+;; Add a new attribute to a given Node
+(def addAttr (\\([nodeKind oldAttrs children] newAttr)
+  [nodeKind (snoc newAttr oldAttrs) children]))
+
+;; addChild : Node -> Child -> Node
+;; argument order - node, new child
+;; Add a child Node to a given Node
+(def addChild (\\([node attrs children] newChild)
+  [node attrs (snoc newChild children)] ) )
+
+;; eDiv : Width -> Height -> Children -> Node
+;; argument order - width, height, initial children
+;; Make a Div that has a specified width and height so as to be compatible with
+;; the Element abstraction
+(def eDiv (\\(w h initialChildren)
+  ['div'
+    [ [ 'width' w  ]
+      [ 'height' h ]
+    ]
+    initialChildren
+  ] ) )
+
+;; eStyle : Node -> Attributes -> Node
+;; argument order - node to add styles to, attrs to add
+;; Adds a list of attributes to a node - is helpful when using the Element
+;; abstraction, as the constructor functions do not have a Style field.
+;; Attributes in this case should be CSS
+;; TODO: use cons instead
+(def eStyle (\\([node attrs children] newAttrs)
+  [node
+    [ ['style' (foldr (\\(list new) (snoc new list)) attrs newAttrs)] ]
+    children ] ) )
 
 ; \"constant folding\"
 (def twoPi (* 2 (pi)))
