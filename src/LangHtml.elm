@@ -107,12 +107,6 @@ valToCSS styles =
   in
     List.foldr (\a b -> a ++ b) "" boundKVs
 
-
---(def style (\attrs
---  (let boundKVs
---    (map (\[key value] (+ (+ (+ key ': ') value) '; ')) attrs)
---  ['style' (foldr (\(a b) (+ a b)) '' boundKVs)] ) ) )
-
 strRgba (r_,g_,b_,a_) =
   strRgba_ (List.map fst [r_,g_,b_,a_])
 

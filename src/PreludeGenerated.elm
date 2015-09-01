@@ -246,10 +246,9 @@ prelude =
 ;; Adds a list of attributes to a node - is helpful when using the Element
 ;; abstraction, as the constructor functions do not have a Style field.
 ;; Attributes in this case should be CSS
-;; TODO: use cons instead
 (def eStyle (\\([node attrs children] newAttrs)
   [node
-    [ ['style' (foldr (\\(list new) (snoc new list)) attrs newAttrs)] ]
+    (cons ['style' newAttrs] attrs )
     children ] ) )
 
 ; \"constant folding\"

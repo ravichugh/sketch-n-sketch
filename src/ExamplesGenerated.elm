@@ -107,12 +107,7 @@ elementTest =
 ; well-formed CSS attributes
 
 (def sampleDiv 
-  (div
-    [ [ 'width' '100px'  ]
-      [ 'height' '100px' ]
-    ]
-    []
-  ))
+  (eDiv '100px' '100px' []))
 (def purpStyle (\\node
   (eStyle node 
     [ [ 'position' 'absolute']
