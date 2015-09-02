@@ -37,6 +37,9 @@ import InterfaceStorage exposing (taskMailbox, saveStateLocally, loadLocalState,
                                   checkAndSave, getLocalSaves, clearLocalSaves,
                                   deleteLocalSave)
 
+--Library for Ace
+import CodeBox exposing (saveRequestInfo, runRequestInfo)
+
 --Html Libraries
 import Html 
 import Html.Attributes as Attr
@@ -781,7 +784,10 @@ simpleTaskButton = simpleTaskButton_ False
 editRunButton model w h =
   let disabled = model.mode == AdHoc in
   case editingMode model of
-    True  -> simpleEventButton_ disabled Run "Run" "Run" "Run Code" w h
+    --True  -> simpleEventButton_ disabled Run "Run" "Run" "Run Code" w h
+    True -> simpleButton_ disabled 
+              (Signal.send aceInTheHole.address runRequestInfo)
+              "Run" "Run" "Run Code" w h
     False -> simpleEventButton_ disabled Edit "Edit" "Edit" "Edit Code" w h
 
 outputButton model w h =

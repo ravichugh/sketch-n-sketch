@@ -2,7 +2,8 @@
 -- the Model and the appropriate dimensions.
 
 module CodeBox (interpretAceEvents, packageModel, tripRender,
-                AceMessage, AceCodeBoxInfo, initAceCodeBoxInfo) where
+                AceMessage, AceCodeBoxInfo, initAceCodeBoxInfo
+                saveRequestInfo, runRequestInfo) where
 
 import Lang exposing (errorPrefix)
 
@@ -19,27 +20,37 @@ import Dict exposing (Dict)
 -- So we can crash correctly
 import Debug
 
+-- We allow a few different types of events to be sent to codeBox.js, including:
+-- "assertion"   -> The rest of the contents of the message should supplant the
+--                   current corresponding values in the Editor
+-- "saveRequest" -> We'd like the current state of the Editor for the purposes
+--                   of making a save
+-- "runRequest"  -> We'd like the current state of the Editor for the purposes
+--                   of running the to be displayed in the Canvas
 type alias AceCodeBoxInfo = 
-    { code : String 
-    , cursorPos : Model.AcePos
+    { type        : String
+    , code        : String 
+    , cursorPos   : Model.AcePos
     , manipulable : Bool
-    , selections : List Model.Range
-    , highlights : List Model.Highlight
-    , bounce : Bool
-    , exName : String
+    , selections  : List Model.Range
+    , highlights  : List Model.Highlight
+    , bounce      : Bool
+    , exName      : String
     }
 
-type alias AceMessage = { evt : String 
-                        , strArg  : String 
-                        , cursorArg : Model.AcePos
-                        , selectionArg : List Model.Range
-                        , exNameArg : String
-                        } 
+type alias AceMessage = 
+  { evt          : String 
+  , strArg       : String 
+  , cursorArg    : Model.AcePos
+  , selectionArg : List Model.Range
+  , exNameArg    : String
+  } 
 
 -- An initial AceCodeBoxInfo for the foldp
 -- Doesn't actually get sent over the port
 initAceCodeBoxInfo =
-  ( { code = sampleModel.code
+  ( { type = "assertion"
+    , code = sampleModel.code
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
     , manipulable = True
     , selections = sampleModel.codeBoxInfo.selections
@@ -50,15 +61,47 @@ initAceCodeBoxInfo =
   , []
   )
 
+-- Helper definitons for other messages we can send to Ace
+saveRequestInfo =
+  ( { type = "saveRequest"
+    , code = ""
+    , cursorPos = sampleModel.codeBoxInfo.cursorPos
+    , manipulable = True
+    , selections = [] 
+    , highlights = []
+    , bounce = True
+    , exName = ""
+    }
+  , []
+  )
+
+runRequestInfo =
+  ( { type = "runRequest"
+    , code = ""
+    , cursorPos = sampleModel.codeBoxInfo.cursorPos
+    , manipulable = True
+    , selections = [] 
+    , highlights = []
+    , bounce = True
+    , exName = ""
+    }
+  , []
+  )
+
 interpretAceEvents : AceMessage -> Event
 interpretAceEvents amsg = case amsg.evt of
-    "AceCodeUpdate" -> Model.UpdateModel <|
-        \m -> { m | code <- amsg.strArg
-                  , codeBoxInfo <- { cursorPos = amsg.cursorArg
-                                   , selections = amsg.selectionArg
-                                   , highlights = m.codeBoxInfo.highlights
-                                   }
-              }
+    "runResponse" -> Model.MultiEvent
+      [ Model.UpdateModel <|
+            \m -> { m | code <- amsg.strArg
+                      , codeBoxInfo <- { cursorPos = amsg.cursorArg
+                                       , selections = amsg.selectionArg
+                                       , highlights = m.codeBoxInfo.highlights
+                                       }
+                  }
+      , Run
+      ]
+    --TODO
+    "saveResponse" -> Model.Noop
     "Rerender" -> Model.UpdateModel <| \m -> { m | code <- m.code }
     "init" -> Model.Noop
     _ ->
@@ -103,7 +146,8 @@ packageModel (model, evt) (lastBox, rerenders) =
             _           -> True
         rerender = tripRender evt rerenders
     in 
-      ( { code = model.code 
+      ( { type = "assertion"
+        , code = model.code 
         , cursorPos = model.codeBoxInfo.cursorPos 
         , selections = model.codeBoxInfo.selections
         , manipulable = manipulable

@@ -49,9 +49,6 @@ editor.$blockScrolling = Infinity;
 editor.setTheme("ace/theme/chrome");
 editor.setFontSize(14);
 editor.getSession().setMode("ace/mode/little");
-editor.getSession().getDocument().on("change", maybeSendUpdate);
-editor.getSession().selection.on("changeCursor", maybeSendUpdate);
-editor.getSession().selection.on("changeSelection", maybeSendUpdate);
 
 //If we reloaded from a crash, then we should do a few things differently:
 // - Set the initial text to what it was when we crashed
@@ -88,15 +85,72 @@ if (maybeError !== null) {
 editor.setValue(defaultScratch);
 editor.moveCursorTo(0,0);
 
-var updateWasFromElm = false;
 var markers = [];
 
 runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
-    //Set our flag so that our event handlers don't update on any updates from
-    // Elm
-    updateWasFromElm = true;
     //Resize the editor window if the div size has changed
     editor.resize();
+
+    //First, check to see what kind of request it was
+    if (codeBoxInfo.type == "assertion") {
+        //If it's an assertion, install the values appropriately
+        makeAssertion(codeBoxInfo);
+    } else if (codeBoxInfo.type == "saveRequest") {
+        //If it's a request for the Editor state, oblige
+        sendState("saveResponse");
+    } else if (codeBoxInfo.type == "runRequest") {
+        //Same as above
+        sendState("runResponse");
+    } else { //We don't recognize the request; log and do nothing
+        console.log("codeBoxInfo type " + codeBoxInfo.type + " unrecognized.");
+    }
+}
+
+    //Set our flag back to enable the event handlers again
+    updateWasFromElm = false;
+});
+
+var errorPrefix = "[Little Error]"; // NOTE: same as errorPrefix in Lang.elm
+
+//We recover from fatal errors by setting a special key in the local key/value
+// store before reloading the page. Then we check for this key on load and set
+// up appropriately if we're loading after a crash.
+window.onerror = function(msg, url, linenumber) {
+  //We disallow saving to this key in Elm to avoid possible confusion
+  //If the error was something that we didn't want to catch (e.g. not prefaced
+  // with errorPrefix) then don't do anything
+  // Checking for string containment, rather than trimming the prefix
+  // because of different error strings in different browsers.
+
+  // TODO change this back
+  // if (msg.indexOf(errorPrefix) != 1) {
+  if (msg.indexOf("notify function has been called synchronously!") != 1) {
+      localStorage.setItem('__ErrorSave', JSON.stringify(
+        { evt : msg
+        , strArg : editor.getSession().getDocument().getValue()
+        , cursorArg : editor.getCursorPosition()
+        , selectionArg : editor.selection.getAllRanges()
+        , exNameArg : exName
+        }
+      ));
+      location.reload();
+  }
+}
+
+//Packages and sends the Editor state appropriately
+function sendState(evt) {
+  runtime.ports.theTurn.send(
+    { evt : evt
+    , strArg : editor.getSession().getDocument().getValue()
+    , cursorArg : editor.getCursorPosition()
+    , selectionArg : editor.selection.getAllRanges()
+    , exNameArg : ""
+    }
+  );
+}
+
+// Installs all the values that we got from the assertion from Elm
+function makeAssertion(codeBoxInfo) {
     //Set the value of the code editor with what we got from Elm
     editor.getSession().setValue(codeBoxInfo.code, 0);
     //Set the cursor position to what we got from Elm
@@ -195,47 +249,4 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
     
     //Remember the current document name (for error recovery purposes)
     exName = codeBoxInfo.exName;
-
-    //Set our flag back to enable the event handlers again
-    updateWasFromElm = false;
-});
-
-var errorPrefix = "[Little Error]"; // NOTE: same as errorPrefix in Lang.elm
-
-//We recover from fatal errors by setting a special key in the local key/value
-// store before reloading the page. Then we check for this key on load and set
-// up appropriately if we're loading after a crash.
-window.onerror = function(msg, url, linenumber) {
-  //We disallow saving to this key in Elm to avoid possible confusion
-  //If the error was something that we didn't want to catch (e.g. not prefaced
-  // with errorPrefix) then don't do anything
-  // Checking for string containment, rather than trimming the prefix
-  // because of different error strings in different browsers.
-
-  // TODO change this back
-  // if (msg.indexOf(errorPrefix) != 1) {
-  if (msg.indexOf("notify function has been called asynchronously!") != 1) {
-      localStorage.setItem('__ErrorSave', JSON.stringify(
-        { evt : msg
-        , strArg : editor.getSession().getDocument().getValue()
-        , cursorArg : editor.getCursorPosition()
-        , selectionArg : editor.selection.getAllRanges()
-        , exNameArg : exName
-        }
-      ));
-      location.reload();
-  }
-}
-
-function maybeSendUpdate(e) {
-    if (!updateWasFromElm) {
-      runtime.ports.theTurn.send(
-        { evt : "AceCodeUpdate"
-        , strArg : editor.getSession().getDocument().getValue()
-        , cursorArg : editor.getCursorPosition()
-        , selectionArg : editor.selection.getAllRanges()
-        , exNameArg : ""
-        }
-      );
-    }
 }

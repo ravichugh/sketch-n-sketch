@@ -364,6 +364,11 @@ upstate evt old = case debugLog "Event" evt of
 
     UpdateModel f -> f old
 
+    -- Lets multiple events be executed in sequence (useful for CodeBox.elm)
+    MultiEvent evts -> case evts of
+      [] -> old
+      e1 :: es -> upstate e1 old |> upstate (MultiEvent es)        
+
     _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
 
 adjustMidOffsetX old dx =
