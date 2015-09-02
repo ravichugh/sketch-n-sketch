@@ -69,15 +69,12 @@ var defaultScratch =
 "; For the remaining named examples, changes will be\n" +
 "; discarded when choosing a different example.\n" +
 "\n" +
-"(def reddiv \n" +
-"  (div \n" +
-"    [ [ 'width'  100 ]\n" +
-"      [ 'height' 100 ]\n" +
-"      [ 'top'    100 ]\n" +
+"(def reddiv\n" + 
+"  (eStyle\n" + 
+"    [ [ 'top'    100 ]\n" +
 "      [ 'left'   100 ]\n" +
 "      [ 'background-color' 'red' ]\n" +
-"    ]\n" +
-"    [] ) )\n" +
+"   ] (eDiv 100 100 []) ) )\n" +
 "(basicDoc [['bgcolor' 'lightblue']] [reddiv])"
 editor.setValue(defaultScratch);
 editor.moveCursorTo(0,0);

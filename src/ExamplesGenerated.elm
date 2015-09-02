@@ -28,14 +28,11 @@ scratch =
 ; discarded when choosing a different example.
 
 (def reddiv 
-  (div 
-    [ [ 'width'  100 ]
-      [ 'height' 100 ] 
-      [ 'top'    100 ]
+  (eStyle 
+    [ [ 'top'    100 ]
       [ 'left'   100 ]
       [ 'background-color' 'red' ]
-    ] 
-    [] ) )
+    ] (eDiv 100 100 []) ) )
 (basicDoc [['bgcolor' 'lightblue']] [reddiv])
 
 "

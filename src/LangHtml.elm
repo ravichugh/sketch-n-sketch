@@ -103,10 +103,10 @@ rgbaToVal (r,g,b,a) = [VConst r, VConst g, VConst b, VConst a]
 valToStyle vals =
   let
     toAttr key value = case value of
-      VConst v -> (key, SNum v)
-      VBase (String s) -> (key, SString s)
+      VConst v -> (strVal key, SNum v)
+      VBase bv -> (strVal key, SString (strBaseVal bv))
     styleList = 
-      List.map (\(VList [VBase (String k), v]) -> toAttr k v) vals
+      List.map (\(VList [k, v]) -> toAttr k v) vals
   in
     styleList
   

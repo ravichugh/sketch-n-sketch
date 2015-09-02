@@ -50,6 +50,14 @@ prelude =
 (defrec foldr (\\(f acc xs)
   (case xs ([] acc) ([x|xs1] (f x (foldr f acc xs1))))))
 
+;;filter : (a -> Bool) -> List a -> List a
+(def filter (\\(pred xs)
+  (let conditionalCons (\\(x xss)
+    (if (pred x)
+      (cons x xss)
+      xss) )
+  (foldr conditionalCons [] xs) ) ) )
+
 ;; append : List a -> List a -> List a
 ;; Given two lists, append the second list to the end of the first
 (defrec append (\\(xs ys)
@@ -197,7 +205,11 @@ prelude =
   (html [] 
     [ (head [] []) 
       (body 
-        (concat [ [['width' '100%'] ['height' '100%']] attrs ]) 
+        (concat [ [ ['width' '100%'] 
+                    ['height' '100%']
+                    ['margin' '0'] 
+                  ] 
+                  attrs ] )
         children ) ] ) ) )
 
 (def p (\\(attrs children) ['p' attrs children]))
@@ -229,27 +241,26 @@ prelude =
 (def addChild (\\([node attrs children] newChild)
   [node attrs (snoc newChild children)] ) )
 
-;; eDiv : Width -> Height -> Children -> Node
-;; argument order - width, height, initial children
-;; Make a Div that has a specified width and height so as to be compatible with
-;; the Element abstraction
-(def eDiv (\\(w h initialChildren)
-  ['div'
-    [ [ 'width' w  ]
-      [ 'height' h ]
-    ]
-    initialChildren
-  ] ) )
-
 ;; eStyle : Node -> Attributes -> Node
 ;; argument order - node to add styles to, attrs to add
 ;; Adds a list of attributes to a node - is helpful when using the Element
 ;; abstraction, as the constructor functions do not have a Style field.
 ;; Attributes in this case should be CSS
-(def eStyle (\\([node attrs children] newAttrs)
+;; TODO: deal with double instances of the same attr?
+(def eStyle (\\(newAttrs [node attrs children])
+  (let oldstyle (\\s (concatMap (\\[k v] (if (= k 'style') v [])) s))
+  (let others (\\s (concatMap (\\[k v] (if (= k 'style') [] v)) s))
   [node
-    (cons ['style' newAttrs] attrs )
-    children ] ) )
+    (cons ['style' ( append newAttrs (oldstyle attrs) ) ] (others attrs) )
+    children ] ) ) ) )
+    
+;; eDiv : Width -> Height -> Children -> Node
+;; argument order - width, height, initial children
+;; Make a Div that has a specified width and height so as to be compatible with
+;; the Element abstraction
+(def eDiv (\\(w h initialChildren)
+  (eStyle [ ['width' w] ['height' h] ]
+    [ 'div' [] initialChildren ] ) ) )
 
 ; \"constant folding\"
 (def twoPi (* 2 (pi)))
