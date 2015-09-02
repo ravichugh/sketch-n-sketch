@@ -47,11 +47,10 @@ compileValToNode v = case v of
   VList [VBase (String f), VList vs1, VList vs2] ->
     (html f) (compileAttrVals vs1) (compileNodeVals vs2)
 
-compileNodeVals = List.map compileValToNode
-compileAttrVals = List.map (uncurry compileAttr << valToAttr)
-compileAttrs    = List.map (uncurry compileAttr)
-compileAttrsStyle    = compileAttrs << combineStyle
-                -- combine all styles under ('style', string)
+compileNodeVals        = List.map compileValToNode
+compileAttrVals        = List.map (uncurry compileAttr << valToAttr)
+compileAttrs      list = compileAttrMap <| combineStyles list
+compileAttrMap         = List.map (uncurry compileAttr)
 compileAttr k v = (attr k) (strAVal v)
 
 numAttrToVal a i =
@@ -62,7 +61,7 @@ type AVal
   | AString String
   | ARgba Rgba
   | AColorNum NumTr -- Utils.numToColor [0,500)
-  | AStyle Style
+  | AStyle Style --to differentiate CSS for easier pattern-matching later
 
 maxColorNum   = 500
 clampColorNum = Utils.clamp 0 (maxColorNum - 1)
@@ -108,6 +107,7 @@ valToAttr (VList [VBase (String k), v]) =
     ("width", s)          -> (k, AStyle <| toStyle s)
     ("height", s)         -> (k, AStyle <| toStyle s)
     ("background-color",s) -> (k, AStyle <| toStyle s)
+    ("left", s)            -> (k, AStyle <| toStyle s)
     (_, VConst it)        -> (k, ANum it)
     (_, VBase (String s)) -> (k, AString s)
 
@@ -138,27 +138,30 @@ strRgba_ rgba =
 
 isCSS (x,y) = case y of
   AStyle s -> True
-  _        -> False
+  _        -> False --Debug.crash <| "false prophet: " ++ x ++ strAVal y
 
-combineStyle list =
+--finds if any attributes are CSS & then clumps them together
+combineStyles list =
   let
     split  =  List.partition isCSS list
     styles = fst split
     styled = ("style", strStyle styles)
   in
     styled :: (snd split)
+    --Debug.crash <| "styles: " ++ strAVal styledstyled :: (snd split)
 
+--clumps CSS styles together into a single attribute string
 strStyle styles =
   let
-    format ky vl = (((String.slice 1 (String.length ky - 1) ky) ++ ": ") ++ vl) ++ "; "
+    format ky vl = ((ky ++ ": ") ++ vl) ++ "; "
     checkA key value = 
       case value of
           AStyle (SNum it) -> format key ((toString (fst it)) ++ "px")
-          AStyle (SString s) -> format key (String.slice 1 (String.length s - 1) s)
+          AStyle (SString s) -> format key s
     boundKVs = 
       List.map (\(k, v) -> checkA k v) styles
   in
-    AStyle (SString (List.foldr (\a b -> a ++ b) "" boundKVs)) 
+    AString (List.foldr (\a b -> a ++ b) "" boundKVs)
 
 strAVal a = case a of
   AString s -> s
