@@ -283,7 +283,6 @@ prelude =
     [['x' '0'] ['y' '0'] ['viewBox' (joinStrings ' ' ['0' '0' sx sy])]]
     shapes])))
 
-
 ;; rectCenter : String -> Number -> Number -> Number -> Number -> Shape
 ;; As rect, except x & y represent the center of the defined rectangle
 (def rectCenter (\\(fill cx cy w h)
@@ -416,22 +415,21 @@ prelude =
 ;; minVal - minimum value of slider
 ;; maxVal - maximum value of slider
 ;; caption - text to display along with the slider
-;; srcVal - the current value given by the slider ball 
+;; srcVal - the current value given by the slider ball
 (def hSlider_ (\\(dropBall roundInt x0 x1 y minVal maxVal caption srcVal)
-  (let targetVal
-    (let preVal (clamp minVal maxVal srcVal)
-      (if roundInt (round preVal) preVal))
+  (let preVal (clamp minVal maxVal srcVal)
+  (let targetVal (if roundInt (round preVal) preVal)
   (let shapes
     (let ball
       (let [xDiff valDiff] [(- x1 x0) (- maxVal minVal)]
-      (let xBall (+ x0 (* xDiff (/ (- targetVal minVal) valDiff)))
-      (let rBall (if dropBall (if (= targetVal srcVal) 10! 0!) 10!)
+      (let xBall (+ x0 (* xDiff (/ (- preVal minVal) valDiff)))
+      (let rBall (if dropBall (if (= preVal srcVal) 10! 0!) 10!)
         (circle 'black' xBall y rBall))))
     [ (line 'black' 3! x0 y x1 y)
       (text (+ x1 10) (+ y 5) (+ caption (toString targetVal)))
       (circle 'black' x0 y 4!) (circle 'black' x1 y 4!) ball ])
-  [targetVal shapes]))))
-               
+  [targetVal shapes])))))
+
 ;; As hSlider_, but dropBall disappears when it passes then end of a slider
 (def hSlider (hSlider_ true))
 
