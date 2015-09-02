@@ -45,7 +45,10 @@ type Op_
   -- internal ops
   | RangeOffset Int
 
-type Exp_
+type alias EId  = Int
+type alias Exp_ = { e__ : Exp__, eid : EId }
+
+type Exp__
   = EConst Num Loc
   | EBase BaseVal
   | EVar Ident
@@ -172,7 +175,7 @@ sExp_ : Bool -> Int -> Exp -> String
 sExp_ showLocs k e =
   let foo = sExp_ showLocs in
   let indent = maybeIndent showLocs k in
-  case e.val of
+  case e.val.e__ of
     EBase v -> strBaseVal v
     EConst i l ->
       let (_,b,_) = l in
@@ -259,7 +262,7 @@ fitsOnLine s =
      | List.member '\n' (String.toList s) -> False
      | otherwise                          -> True
 
-isLet e = case e.val of
+isLet e = case e.val.e__ of
   ELet _ _ _ _ _  -> True
   EComment _ e1 -> isLet e1
   _             -> False
@@ -274,14 +277,14 @@ mapValField f r = { r | val <- f r.val }
 ------------------------------------------------------------------------------
 -- Mapping
 
-mapExp : (Exp_ -> Exp_) -> Exp -> Exp
+mapExp : (Exp__ -> Exp__) -> Exp -> Exp
 mapExp f e =
   let foo = mapExp f in
-  let g e_ = P.WithInfo (f e_) e.start e.end in
-  case e.val of
-    EConst _ _     -> g e.val
-    EBase _        -> g e.val
-    EVar _         -> g e.val
+  let g e__ = P.WithInfo (Exp_ (f e__) e.val.eid) e.start e.end in
+  case e.val.e__ of
+    EConst _ _     -> g e.val.e__
+    EBase _        -> g e.val.e__
+    EVar _         -> g e.val.e__
     EFun ps e'     -> g (EFun ps (foo e'))
     EApp e1 es     -> g (EApp (foo e1) (List.map foo es))
     EOp op es      -> g (EOp op (List.map foo es))
@@ -322,13 +325,15 @@ type alias SubstPlus = Dict.Dict LocId (P.WithInfo Num)
 type alias SubstMaybeNum = Dict.Dict LocId (Maybe Num)
 
 applySubst : Subst -> Exp -> Exp
-applySubst subst e = (\e_ -> P.WithInfo e_ e.start e.end) <| case e.val of
+applySubst subst e =
+ (\e__ -> P.WithInfo (Exp_ e__ e.val.eid) e.start e.end) <|
+ case e.val.e__ of
   EConst n l ->
     case Dict.get (Utils.fst3 l) subst of
       Just i -> EConst i l
    -- Nothing -> EConst n l
-  EBase _    -> e.val
-  EVar _     -> e.val
+  EBase _    -> e.val.e__
+  EVar _     -> e.val.e__
   EFun ps e' -> EFun ps (applySubst subst e')
   EOp op es  -> EOp op (List.map (applySubst subst) es)
   EList es m -> EList (List.map (applySubst subst) es)
@@ -357,7 +362,7 @@ applySubst subst e = (\e_ -> P.WithInfo e_ e.start e.end) <| case e.val of
 -- all options should appear before the first non-comment expression
 
 getOptions : Exp -> List (String, String)
-getOptions e = case e.val of
+getOptions e = case e.val.e__ of
   EOption s1 s2 e1 -> (s1.val, s2.val) :: getOptions e1
   EComment _ e1    -> getOptions e1
   _                -> []
@@ -379,7 +384,12 @@ strPos p =
 
 -- NOTE: the Exp builders use dummyPos
 
-withDummyPos e_ = P.WithInfo e_ P.dummyPos P.dummyPos
+exp_ : Exp__ -> Exp_
+exp_ = flip Exp_ (-1)
+
+withDummyRange e_ = P.WithInfo e_ P.dummyPos P.dummyPos
+withDummyPos e__  = P.WithInfo (exp_ e__) P.dummyPos P.dummyPos
+  -- TODO rename withDummyPos
 
 dummyLoc_ b = (0, b, "")
 dummyTrace_ b = TrLoc (dummyLoc_ b)
@@ -387,7 +397,7 @@ dummyTrace_ b = TrLoc (dummyLoc_ b)
 dummyLoc = dummyLoc_ unann
 dummyTrace = dummyTrace_ unann
 
-ePlus e1 e2 = withDummyPos <| EOp (withDummyPos Plus) [e1,e2]
+ePlus e1 e2 = withDummyPos <| EOp (withDummyRange Plus) [e1,e2]
 
 eBool  = withDummyPos << EBase << Bool
 eTrue  = eBool True
@@ -410,7 +420,7 @@ ePair e1 e2 = withDummyPos <| EList [e1,e2] Nothing
 
 eLets xes eBody = case xes of
   (x,e)::xes' -> withDummyPos <|
-                   ELet Let False (withDummyPos (PVar x)) e (eLets xes' eBody)
+                   ELet Let False (withDummyRange (PVar x)) e (eLets xes' eBody)
   []          -> eBody
 
 eVar a         = withDummyPos <| EVar a
@@ -418,4 +428,4 @@ eConst a b     = withDummyPos <| EConst a b
 eList a b      = withDummyPos <| EList a b
 eComment a b   = withDummyPos <| EComment a b
 
-pVar a         = withDummyPos <| PVar a
+pVar a         = withDummyRange <| PVar a

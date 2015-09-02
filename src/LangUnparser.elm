@@ -79,7 +79,7 @@ makeToken start s =
 -- TODO: compute whitespace once per AST-skeleton
 
 unparse : Exp -> String
-unparse e = case e.val of
+unparse e = case e.val.e__ of
   EBase v -> strBaseVal v
   EConst i l -> let (_,b,_) = l in toString i ++ b
   EVar x -> x

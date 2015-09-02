@@ -102,15 +102,15 @@ addToHistory s h = (s :: fst h, [])
 between1 i (j,k) = i `Utils.between` (j+1, k+1)
 
 cleanExp =
-  mapExp <| \e_ -> case e_ of
-    EApp e0 [e1,_,_]  -> case e0.val of
-      EVar "inferred" -> e1.val
-      _               -> e_
-    EApp e0 [_,e1]    -> case e0.val of
-      EVar "flow"     -> e1.val
-      _               -> e_
-      _               -> e_
-    _                 -> e_
+  mapExp <| \e__ -> case e__ of
+    EApp e0 [e1,_,_]  -> case e0.val.e__ of
+      EVar "inferred" -> e1.val.e__
+      _               -> e__
+    EApp e0 [_,e1]    -> case e0.val.e__ of
+      EVar "flow"     -> e1.val.e__
+      _               -> e__
+      _               -> e__
+    _                 -> e__
 
 -- this is a bit redundant with View.turnOn...
 maybeStuff id shape zone m =

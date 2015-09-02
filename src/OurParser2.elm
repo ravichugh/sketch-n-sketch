@@ -7,6 +7,7 @@ import Lazy exposing (Lazy, lazy, force)
 type alias Pos         = { line : Int, col : Int}
 type alias WithPos a   = { val : a, pos : Pos }
 type alias WithInfo a  = { val : a, start : Pos, end : Pos }
+  -- TODO rename to WithRange
 
 startPos               = { line = 1, col = 1}
 dummyPos               = { line = -1, col = -1 }

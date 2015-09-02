@@ -2,6 +2,7 @@ src/elm-stuff/
 src/elm.js
 src/build-artifacts/
 src/scripts/littleReader.pyc
+src/LOG.txt
 build/out/sns.js
 build/out/codeBox.js
 build/out/ace.js

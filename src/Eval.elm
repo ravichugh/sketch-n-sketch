@@ -53,7 +53,7 @@ eval env e =
 
   let ret v = (v, env) in
 
-  case e.val of
+  case e.val.e__ of
 
   EConst i l -> ret <| VConst (i, TrLoc l)
   EBase v    -> ret <| VBase v
@@ -206,10 +206,10 @@ rangeToList : Range -> List Val
 rangeToList r =
   let err () = errorMsg "Range not specified with numeric constants" in
   case r.val of
-    Point e -> case e.val of
+    Point e -> case e.val.e__ of
       EConst n l -> [ VConst (n, rangeOff l 0 l) ]
       _          -> err ()
-    Interval e1 e2 -> case (e1.val, e2.val) of
+    Interval e1 e2 -> case (e1.val.e__, e2.val.e__) of
       (EConst n1 l1, EConst n2 l2) ->
         let walkVal i =
           let m = n1 + toFloat i in

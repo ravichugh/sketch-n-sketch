@@ -428,20 +428,20 @@ indexTracesOfVal v =
 
 removeDeadIndices e v' =
   let idxTraces = indexTracesOfVal v' in
-  let foo e_ = case e_ of
+  let foo e__ = case e__ of
     EIndList rs -> EList (List.concatMap (expandRange idxTraces) rs) Nothing
-    _           -> e_
+    _           -> e__
   in
   mapExp foo e
 
 expandRange idxTraces r =
   let mem = flip List.member idxTraces in
   case r.val of
-    Point e -> case e.val of
+    Point e -> case e.val.e__ of
       EConst n l ->
         if | mem (l,l,0) -> [e]
            | otherwise   -> []
-    Interval e1 e2 -> case (e1.val, e2.val) of
+    Interval e1 e2 -> case (e1.val.e__, e2.val.e__) of
       -- TODO may be better to just put exactly one space in
       -- between each element and ignore existing positions
       (EConst n1 l1, EConst n2 l2) ->
@@ -449,7 +449,7 @@ expandRange idxTraces r =
         let foo i (nextStart,acc) =
           let return a =
             let end = Un.bumpCol (String.length (strNum a)) nextStart in
-            let ei  = P.WithInfo (EConst a dummyLoc) nextStart end in
+            let ei  = P.WithInfo (exp_ (EConst a dummyLoc)) nextStart end in
             (Un.incCol end, ei :: acc)
           in
           let m = n1 + toFloat i in
