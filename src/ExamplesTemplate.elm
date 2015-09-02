@@ -66,6 +66,7 @@ LITTLE_TO_ELM barGraph
 LITTLE_TO_ELM thawFreeze
 LITTLE_TO_ELM cover
 LITTLE_TO_ELM poppl
+LITTLE_TO_ELM bezier
 
 examples =
   [ makeExample scratchName scratch
@@ -81,6 +82,7 @@ examples =
   , makeExample "Botanic Garden Logo" botanic
   , makeExample "Rings" rings
   , makeExample "Polygons" polygons
+  , makeExample "Bezier Curves" bezier
   , makeExample "Stars" stars
   , makeExample "Clique" clique
   , makeExample "Sliders" sliders
