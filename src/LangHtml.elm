@@ -60,12 +60,16 @@ type AVal
   | AString String
   | ARgba Rgba
   | AColorNum NumTr -- Utils.numToColor [0,500)
+  | AStyle Style
 
 maxColorNum   = 500
 clampColorNum = Utils.clamp 0 (maxColorNum - 1)
 
 type alias Point = (NumTr, NumTr)
 type alias Rgba  = (NumTr, NumTr, NumTr, NumTr)
+type alias Style = List (String, StyleVal)
+
+type StyleVal = SNum NumTr | SString String
 
 -- toNum    (ANum (i,_)) = i
 -- toNumTr  (ANum (i,t)) = (i,t)
@@ -88,30 +92,52 @@ valToAttr (VList [VBase (String k), v]) =
   case (k, v) of
     ("fill", VList vs)    -> (k, ARgba <| valToRgba vs) --Double check this, might be 'color'
     ("fill", VConst it)   -> (k, AColorNum it)
-    ("style", VList vs)  -> ("style", AString <| valToCSS vs)
+    ("style", VList vs)   -> (k, AStyle <| valToStyle vs)
     (_, VConst it)        -> (k, ANum it)
     (_, VBase (String s)) -> (k, AString s)
 
 valToRgba [VConst r, VConst g, VConst b, VConst a] = (r,g,b,a)
 rgbaToVal (r,g,b,a) = [VConst r, VConst g, VConst b, VConst a]
 
-valToCSS styles =
+--styles is a list of String (String | Value) pairs
+valToStyle vals =
   let
-    format ky vl = ((ky ++ ": ") ++ vl) ++ "; "
-    checkVal key value = 
-      case value of
-          VConst v -> format key (toString v)
-          VBase (String s) -> format key s
-    boundKVs = 
-      List.map (\(VList [VBase (String k), v]) -> checkVal k v) styles
+    toAttr key value = case value of
+      VConst v -> (key, SNum v)
+      VBase (String s) -> (key, SString s)
+    styleList = 
+      List.map (\(VList [VBase (String k), v]) -> toAttr k v) vals
   in
-    List.foldr (\a b -> a ++ b) "" boundKVs
+    styleList
+  
+
+styleToVal styles = 
+  let
+    toVal key value = case value of
+      SNum v -> VList [VBase (String key), VConst v]
+      SString s -> VList [VBase (String key), VBase (String s)]
+    valList = 
+      List.map (\(k, v) -> toVal k v) styles
+  in
+    valList
 
 strRgba (r_,g_,b_,a_) =
   strRgba_ (List.map fst [r_,g_,b_,a_])
 
 strRgba_ rgba =
   "rgba" ++ Utils.parens (Utils.commas (List.map toString rgba))
+
+strStyle styles =
+  let
+    format ky vl = ((ky ++ ": ") ++ vl) ++ "; "
+    checkA key value = 
+      case value of
+          SNum it -> format key ((toString (fst it)) ++ "px")
+          SString s -> format key s
+    boundKVs = 
+      List.map (\(k, v) -> checkA k v) styles
+  in
+    List.foldr (\a b -> a ++ b) "" boundKVs 
 
 strAVal a = case a of
   AString s -> s
@@ -122,12 +148,14 @@ strAVal a = case a of
     strRgba_ (ColorNum.convert (fst n))
     -- let (r,g,b) = Utils.numToColor maxColorNum (fst n) in
     -- strRgba_ [r,g,b,1]
+  AStyle st  -> strStyle st
 
 valOfAVal a = case a of
   AString s -> VBase (String s)
   ANum it   -> VConst it
   ARgba tup -> VList (rgbaToVal tup)
   AColorNum nt -> VConst nt
+  AStyle st  -> VList (styleToVal st)
 
 valOfAttr (k,a) = VList [VBase (String k), valOfAVal a]
 
