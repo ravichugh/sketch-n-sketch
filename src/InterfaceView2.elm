@@ -572,7 +572,6 @@ canvas_ w h model =
     (False, Live _) -> True
     _               -> False
   in
-  -- TODO retarget this to buildHTML
   let document = buildHtml addZones model.showZones model.slate in
   Html.toElement w h <|
     Html.iframe

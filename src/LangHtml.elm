@@ -138,17 +138,17 @@ strRgba_ rgba =
 
 isCSS (x,y) = case y of
   AStyle s -> True
-  _        -> False --Debug.crash <| "false prophet: " ++ x ++ strAVal y
+  _        -> False
 
 --finds if any attributes are CSS & then clumps them together
 combineStyles list =
   let
     split  =  List.partition isCSS list
     styles = fst split
-    styled = ("style", strStyle styles)
   in
-    styled :: (snd split)
-    --Debug.crash <| "styles: " ++ strAVal styledstyled :: (snd split)
+    case styles of
+      [] -> list
+      _  -> ("style", strStyle styles) :: (snd split)  
 
 --clumps CSS styles together into a single attribute string
 strStyle styles =
