@@ -16,8 +16,8 @@ prelude =
 ;; A function that always returns the same value a, regardless of b
 (def always (\\(x _) x))
 
-;; compose : (a -> b) -> (b -> c) -> (a -> c)
-;; Composes two functions
+;; compose : (a -> b)-> (b -> c) -> (a -> c)
+;; Composes two functions together
 (def compose (\\(f g) (\\x (f (g x)))))
 
 ;; fst : List a -> a
@@ -41,12 +41,12 @@ prelude =
     (_                 []))))
 
 ;; foldl : (a -> b -> b) -> b -> List a -> b
-;; Takes a function, an accumulator, and a list as input and reduces from the left with the given function
+;; Takes a function, an accumulator, and a list as input and reduces using the function from the left
 (defrec foldl (\\(f acc xs)
   (case xs ([] acc) ([x|xs1] (foldl f (f x acc) xs1)))))
 
 ;; foldl : (a -> b -> b) -> b -> List a -> b
-;; Takes a function, an accumulator, and a list as input and reduces from the left with the given function
+;; Takes a function, an accumulator, and a list as input and reduces using the function from the right
 (defrec foldr (\\(f acc xs)
   (case xs ([] acc) ([x|xs1] (f x (foldr f acc xs1))))))
 
@@ -150,7 +150,7 @@ prelude =
 (def not (\\b (if b false true)))
 
 ;; implies : Bool -> Bool -> Bool
-;; Given two bools, returns a bool regarding 'if the first argument is true, then the second argument is as well'
+;; Given two bools, returns a bool regarding if the first argument is true, then the second argument is as well
 (def implies (\\(p q) (if p q true)))
 
 ;; clamp : Number -> Number -> Number -> Number
@@ -377,9 +377,9 @@ prelude =
 ;; Turn all zones to basic for a given list of shapes except for the first shape
 (def basicZonesTail (\\[hd | tl] [hd | (zones 'basic' tl)]))
 
-;; hSlider_ : Bool -> Int -> Int -> Int -> Num -> Num -> Str -> Num
+;; hSlider_ : Bool -> Bool -> Int -> Int -> Int -> Num -> Num -> Str -> Num
 ;; -> [Num (List Svg)]
-;; argument order - dropBall roundInt xStart xEnd y minVal maxVal caption curVal
+;; argument order - dropBall roundInt xStart xEnd y minVal maxVal caption srcVal
 ;; dropBall - Determines if the slider ball continues to appear past the edges of the slider
 ;; roundInt - Determines whether to round to Ints or not
 ;; xStart - left edge of slider
@@ -388,24 +388,20 @@ prelude =
 ;; minVal - minimum value of slider
 ;; maxVal - maximum value of slider
 ;; caption - text to display along with the slider
-(def hSlider_ (\\(dropBall roundInt xStart xEnd y minVal maxVal caption curVal)
-  (let [rPoint wLine rBall] [4! 3! 10!]
-  (let [xDiff valDiff] [(- xEnd xStart) (- maxVal minVal)]
-  (let xBall (+ xStart (* xDiff (/ (- curVal minVal) valDiff)))
-  (let xBall_ (clamp xStart xEnd xBall)
-  (let rBall_ (if dropBall (if (= xBall_ xBall) rBall 0) rBall)
-  (let val
-    (let val_ (clamp minVal maxVal curVal)
-    (if roundInt (round val_) val_))
-  (let shapes1
-    [ (line 'black' wLine xStart y xEnd y)
-      (circle 'black' xStart y rPoint)
-      (circle 'black' xEnd y rPoint)
-      (text (+ xEnd 10) (+ y 5) (+ caption (toString val))) ]
-  (let shapes2
-    [ (circle 'black' xBall y rBall_) ]
-  [val (append (zones 'none' shapes1)
-               (zones 'basic' shapes2))]))))))))))
+;; srcVal - the current value given by the slider ball
+(def hSlider_ (\\(dropBall roundInt x0 x1 y minVal maxVal caption srcVal)
+  (let preVal (clamp minVal maxVal srcVal)
+  (let targetVal (if roundInt (round preVal) preVal)
+  (let shapes
+    (let ball
+      (let [xDiff valDiff] [(- x1 x0) (- maxVal minVal)]
+      (let xBall (+ x0 (* xDiff (/ (- preVal minVal) valDiff)))
+      (let rBall (if dropBall (if (= preVal srcVal) 10! 0!) 10!)
+        (circle 'black' xBall y rBall))))
+    [ (line 'black' 3! x0 y x1 y)
+      (text (+ x1 10) (+ y 5) (+ caption (toString targetVal)))
+      (circle 'black' x0 y 4!) (circle 'black' x1 y 4!) ball ])
+  [targetVal shapes])))))
 
 ;; As hSlider_, but dropBall disappears when it passes then end of a slider
 (def hSlider (hSlider_ true))
