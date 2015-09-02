@@ -129,11 +129,11 @@ strRgba_ rgba =
 
 strStyle styles =
   let
-    format ky vl = ((ky ++ ": ") ++ vl) ++ "; "
+    format ky vl = (((String.slice 1 (String.length ky - 1) ky) ++ ": ") ++ vl) ++ "; "
     checkA key value = 
       case value of
           SNum it -> format key ((toString (fst it)) ++ "px")
-          SString s -> format key s
+          SString s -> format key (String.slice 1 (String.length s - 1) s)
     boundKVs = 
       List.map (\(k, v) -> checkA k v) styles
   in
