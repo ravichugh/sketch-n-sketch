@@ -3,6 +3,8 @@ module Lang where
 import String
 import Debug
 import Dict
+import Set
+import Debug
 
 import OurParser2 as P
 import Utils
@@ -17,12 +19,15 @@ type alias Num = Float
 type alias Frozen = String -- b/c comparable
 (frozen, unann, thawed) = ("!", "", "?")
 
+type alias LocSet = Set.Set Loc
+
 type alias Pat    = P.WithInfo Pat_
 type alias Exp    = P.WithInfo Exp_
 type alias Op     = P.WithInfo Op_
 type alias Branch = P.WithInfo Branch_
 type alias Range  = P.WithInfo Range_
 
+-- TODO add constant literals to patterns, and match 'svg'
 type Pat_
   = PVar Ident
   | PList (List Pat) (Maybe Pat)
@@ -313,6 +318,8 @@ foldVal f v a = case v of
 -- Substitutions
 
 type alias Subst = Dict.Dict LocId Num
+type alias SubstPlus = Dict.Dict LocId (P.WithInfo Num)
+type alias SubstMaybeNum = Dict.Dict LocId (Maybe Num)
 
 applySubst : Subst -> Exp -> Exp
 applySubst subst e = (\e_ -> P.WithInfo e_ e.start e.end) <| case e.val of
@@ -354,6 +361,17 @@ getOptions e = case e.val of
   EOption s1 s2 e1 -> (s1.val, s2.val) :: getOptions e1
   EComment _ e1    -> getOptions e1
   _                -> []
+
+
+------------------------------------------------------------------------------
+-- Error Messages
+
+errorPrefix = "[Little Error]" -- NOTE: same as errorPrefix in Native/codeBox.js
+errorMsg s  = Debug.crash <| errorPrefix ++ "\n\n" ++ s
+
+strPos p =
+  let (i,j) = (toString p.line, toString p.col) in
+  "(Line:" ++ i ++ " Col:" ++ j ++ ")"
 
 
 ------------------------------------------------------------------------------

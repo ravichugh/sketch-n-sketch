@@ -7,11 +7,13 @@ import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Zone)
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparseE)
+import OurParser2 as P
 
 import List 
-import Dict
 import Debug
 import String
+import Dict
+import Set
 import Char
 
 import Svg
@@ -41,6 +43,9 @@ type alias Model =
   , localSaves : List String
   , fieldContents : DialogInfo 
   , startup : Bool
+  , codeBoxInfo : CodeBoxInfo
+  , basicCodeBox : Bool
+  , errorBox : Maybe String
   }
 
 type Mode
@@ -54,13 +59,27 @@ type alias DialogInfo = { value : String
                         , hint   : String
                         }
 
+type alias CodeBoxInfo =
+  { cursorPos : AcePos
+  , selections : List Range
+  , highlights : List Highlight
+  }
+
+type alias Highlight =
+  { range : Range, color : String }
+
+type alias AcePos = { row : Int, column : Int }
+type alias Range = { start : AcePos, end : AcePos }
+
 type alias RawSvg = String
 
 type MouseMode
   = MouseNothing
   | MouseResizeMid (Maybe (MouseTrigger (Int, Int)))
-  | MouseObject NodeId ShapeKind Zone (Maybe (Code, MouseTrigger (Exp, RootedIndexedTree)))
-      -- the Code string is program upon initial zone click
+  | MouseObject NodeId ShapeKind Zone
+      (Maybe ( Code                        -- the program upon initial zone click
+             , Maybe (SubstPlus, LocSet)   -- loc-set assigned (live mode only)
+             , MouseTrigger (Exp, SubstMaybeNum, RootedIndexedTree) ))
 
 type alias MouseTrigger a = (Int, Int) -> a
 
@@ -99,6 +118,9 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | ToggleOutput
            | ToggleZones
            | SwitchOrient
+           | InstallSaveState
+           | RemoveDialog Bool String
+           | SetBasicCodeBox Bool
            | StartResizingMid
            | Undo | Redo
            | KeysDown (List Char.KeyCode)
@@ -110,6 +132,8 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
 
+--------------------------------------------------------------------------------
+
 mkLive opts e v = Live <| Sync.prepareLiveUpdates opts e v
 mkLive_ opts e  = mkLive opts e (Eval.run e)
 
@@ -117,6 +141,41 @@ editingMode model = case model.editingMode of
   Nothing -> False
   Just _  -> True
 
+liveInfoToHighlights id zone model =
+  case model.mode of
+    Live info ->
+      let subst = info.initSubst in
+      Maybe.withDefault [] <|
+        flip Utils.bindMaybe (Dict.get id info.assignments) <| \d ->
+        flip Utils.bindMaybe (Dict.get zone d) <| \(yellowLocs,grayLocs) ->
+        Just
+          <| List.map (makeHighlight subst yellow) (Set.toList yellowLocs)
+          ++ List.map (makeHighlight subst gray) (Set.toList grayLocs)
+    _ ->
+      []
+
+--------------------------------------------------------------------------------
+
+gray        = "lightgray"
+yellow      = "khaki"
+green       = "limegreen"
+red         = "salmon"
+
+acePos : P.Pos  -> AcePos
+acePos p = { row = p.line, column = p.col }
+
+aceRange : P.WithInfo a -> Range
+aceRange x = { start = acePos x.start, end = acePos x.end }
+
+makeHighlight : SubstPlus -> String -> Loc -> Highlight
+makeHighlight subst color (locid,_,_) =
+  case Dict.get locid subst of
+    Just n  -> { color = color, range = aceRange n }
+    Nothing -> Debug.crash "makeHighlight: locid not in subst"
+
+--------------------------------------------------------------------------------
+
+sampleModel : Model
 sampleModel =
   let
     (name,f) = Utils.head_ Examples.list
@@ -140,5 +199,11 @@ sampleModel =
     , localSaves    = []
     , fieldContents = { value = "", hint = "Input File Name" }
     , startup       = True
+    , codeBoxInfo   = { cursorPos = { row = round 0, column = round 0 }
+                      , selections = []
+                      , highlights = []
+                      }
+    , basicCodeBox  = False
+    , errorBox = Nothing
     }
 

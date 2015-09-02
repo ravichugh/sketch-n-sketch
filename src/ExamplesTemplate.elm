@@ -65,6 +65,9 @@ LITTLE_TO_ELM interfaceButtons
 LITTLE_TO_ELM barGraph
 LITTLE_TO_ELM thawFreeze
 LITTLE_TO_ELM deleteBoxes
+LITTLE_TO_ELM cover
+LITTLE_TO_ELM poppl
+LITTLE_TO_ELM bezier
 
 examples =
   [ makeExample scratchName scratch
@@ -81,6 +84,7 @@ examples =
   , makeExample "Botanic Garden Logo" botanic
   , makeExample "Rings" rings
   , makeExample "Polygons" polygons
+  , makeExample "Bezier Curves" bezier
   , makeExample "Stars" stars
   , makeExample "Clique" clique
   , makeExample "Sliders" sliders
@@ -106,6 +110,8 @@ examples =
   , makeExample "Eye Icon" eyeIcon
   , makeExample "Wikimedia Logo" wikimedia
   , makeExample "Haskell.org Logo" haskell
+  , makeExample "Cover Logo" cover
+  , makeExample "POP-PL Logo" poppl
   , makeExample "Matrix Transformations" matrices
   , makeExample "Cult of Lambda" cultOfLambda 
   , makeExample "Misc Shapes" miscShapes

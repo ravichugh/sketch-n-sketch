@@ -1,5 +1,5 @@
 module LangParser2 (prelude, isPreludeLoc, substOf, parseE, parseV,
-                    freshen) where
+                    freshen, substPlusOf) where
 
 import String
 import Dict
@@ -26,8 +26,11 @@ isPreludeLoc (k,_,_) = k < initK
 freshen : Exp -> Exp
 freshen e = fst (freshen_ initK e)
 
+substPlusOf : Exp -> SubstPlus
+substPlusOf e = substOfExps_ Dict.empty [prelude, e]
+
 substOf : Exp -> Subst
-substOf e = substOfExps_ Dict.empty [prelude, e]
+substOf = Dict.map (always .val) << substPlusOf
 
 -- this will be done while parsing eventually...
 
@@ -103,12 +106,13 @@ addBreadCrumbs (p,e) =
 
 -- this will be done while parsing eventually...
 
+substOf_ : SubstPlus -> Exp -> SubstPlus
 substOf_ s e = case e.val of
   EConst i l ->
     let (k,_,_) = l in
     case Dict.get k s of
-      Nothing -> Dict.insert k i s
-      Just j  -> if | i == j -> s
+      Nothing -> Dict.insert k { e | val <- i } s
+      Just j  -> if | i == j.val -> s
   EBase _    -> s
   EVar _     -> s 
   EFun _ e'  -> substOf_ s e'
@@ -124,6 +128,7 @@ substOf_ s e = case e.val of
   EComment _ e1 -> substOf_ s e1
   EOption _ _ e1 -> substOf_ s e1
 
+substOfExps_ : SubstPlus -> List Exp -> SubstPlus
 substOfExps_ s es = case es of
   []     -> s
   e::es' -> substOfExps_ (substOf_ s e) es'
@@ -197,7 +202,7 @@ parseIdent =
     P.returnWithInfo x c.start cs.end
 
 parseStrLit =
-  let pred c = isAlphaNumeric c || List.member c (String.toList "#., -():=%") in
+  let pred c = isAlphaNumeric c || List.member c (String.toList "#., -():=%;") in
   P.between        -- NOTE: not calling delimit...
     (token_ "'")   --   okay to chew up whitespace here,
     (P.token "'")  --   but _not_ here!

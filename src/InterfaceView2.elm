@@ -4,7 +4,7 @@ module InterfaceView2 (view, scaleColorBall
 
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
-import LangParser2 exposing (parseE, parseV)
+import LangParser2 as Parser exposing (parseE, parseV)
 import Sync
 import Eval
 import Utils
@@ -13,12 +13,14 @@ import InterfaceModel exposing (..)
 import LangSvg exposing (toNum, toNumTr, addi)
 import ExamplesGenerated as Examples
 import Config exposing (params)
+import OurParser2 as P
 
 import VirtualDom
 
 --Core Libraries
 import List 
 import Dict
+import Set
 import String 
 import Graphics.Element as GE 
 import Graphics.Collage as GC
@@ -35,12 +37,13 @@ import Task exposing (Task, andThen)
 --Storage Libraries
 import InterfaceStorage exposing (taskMailbox, saveStateLocally, loadLocalState,
                                   checkAndSave, getLocalSaves, clearLocalSaves,
-                                  removeDialog, deleteLocalSave)
+                                  deleteLocalSave)
 
 --Html Libraries
 import Html 
 import Html.Attributes as Attr
 import Html.Events as Events
+import Html.Lazy
 
 --Svg Libraries
 import Svg
@@ -168,8 +171,8 @@ onMouseOut  = Svg.Events.onMouseOut  << Signal.message events.address
 zoneEvents id shape zone =
   [ onMouseDown (SelectObject id shape zone)
   , onMouseUp MouseUp
-  , onMouseOver (UpdateModel (\m -> { m | caption <- Just (Hovering (id, shape, zone)) }))
-  , onMouseOut (UpdateModel (\m -> { m | caption <- Nothing }))
+  , onMouseOver (turnOnCaptionAndHighlights id shape zone)
+  , onMouseOut turnOffCaptionAndHighlights
   ]
 
 zone svgFunc id shape zone l =
@@ -207,7 +210,7 @@ zoneBorder svgFunc id shape zone flag show transform =
   (++) [ if flag && show
          then LangSvg.attr "stroke" "rgba(255,0,0,0.5)"
          else LangSvg.attr "stroke" "rgba(0,0,0,0.0)"
-       , LangSvg.attr "strokeWidth" (if flag then "5" else "0")
+       , LangSvg.attr "stroke-width" (if flag then "5" else "0")
        , LangSvg.attr "fill" "rgba(0,0,0,0)"
        , cursorOfZone zone
        ]
@@ -265,14 +268,14 @@ zoneRotate_ id shape cx cy r cmds =
   let circle =
     flip Svg.circle [] <|
       [ LangSvg.attr "fill" "none"
-      , LangSvg.attr "stroke" stroke , LangSvg.attr "strokeWidth" strokeWidth
+      , LangSvg.attr "stroke" stroke , LangSvg.attr "stroke-width" strokeWidth
       , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString cy)
       , LangSvg.attr "r"  (toString r)
       ]
   in
   let ball =
     flip Svg.circle [] <|
-      [ LangSvg.attr "stroke" "black" , LangSvg.attr "strokeWidth" swBall
+      [ LangSvg.attr "stroke" "black" , LangSvg.attr "stroke-width" swBall
       , LangSvg.attr "fill" fillBall
       , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString (cy - r))
       , LangSvg.attr "r"  rBall
@@ -282,7 +285,7 @@ zoneRotate_ id shape cx cy r cmds =
   in
   let line =
     flip Svg.line [] <|
-      [ LangSvg.attr "stroke" stroke , LangSvg.attr "strokeWidth" strokeWidth
+      [ LangSvg.attr "stroke" stroke , LangSvg.attr "stroke-width" strokeWidth
       , LangSvg.attr "x1" (toString cx) , LangSvg.attr "y1" (toString cy)
       , LangSvg.attr "x2" (toString cx) , LangSvg.attr "y2" (toString (cy - r))
       ] ++ transform
@@ -322,7 +325,7 @@ zoneColor_ id shape x y n =
     let cx = x + (fst n / LangSvg.maxColorNum) * wGradient in
     let cy = y - yOff + (h/2) in
     flip Svg.circle [] <|
-      [ LangSvg.attr "stroke" "black" , LangSvg.attr "strokeWidth" strokeWidth
+      [ LangSvg.attr "stroke" "black" , LangSvg.attr "stroke-width" strokeWidth
       , LangSvg.attr "fill" stroke
       , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString cy)
       , LangSvg.attr "r"  rBall
@@ -332,7 +335,7 @@ zoneColor_ id shape x y n =
   let box =
     flip Svg.rect [] <|
       [ LangSvg.attr "fill" "none"
-      , LangSvg.attr "stroke" stroke , LangSvg.attr "strokeWidth" strokeWidth
+      , LangSvg.attr "stroke" stroke , LangSvg.attr "stroke-width" strokeWidth
       , LangSvg.attr "x" (toString x) , LangSvg.attr "y" (toString (y - yOff))
       , LangSvg.attr "width" (toString w) , LangSvg.attr "height" (toString h)
       ]
@@ -538,7 +541,7 @@ codebox_ w h event s readOnly =
   in
     Html.toElement w h <|
       Html.textarea
-        ([ Attr.id "codeBox"
+        ([ Attr.id "editor"
          , Attr.spellcheck False
          , Attr.readonly readOnly
          , Attr.style
@@ -562,6 +565,36 @@ codebox_ w h event s readOnly =
          , Events.onMouseUp events.address MouseUp
          ] ++ event)
         []
+
+-- Replaces the canvas if we are displaying an error
+-- Is mostly a copy of the basic code box in the not manipulable mode
+errorBox : Int -> Int -> String -> GE.Element
+errorBox w h errormsg =
+  Html.toElement w h <|
+    Html.textarea
+      [ Attr.spellcheck False
+      , Attr.readonly True
+      , Attr.style
+        [ ("font-family", params.mainSection.codebox.font)
+        , ("font-size", params.mainSection.codebox.fontSize)
+        , ("border", params.mainSection.codebox.border)
+        , ("whiteSpace", "pre")
+        , ("height", "100%")
+        , ("width", "100%") 
+        , ("resize", "none")
+        , ("overflow", "auto")
+        -- Horizontal Scrollbars in Chrome
+        , ("word-wrap", "normal")
+        , ("background-color", "whitesmoke")
+        , ("padding", "4px")
+        -- Makes the 100% for width/height work as intended
+        , ("box-sizing", "border-box")
+        , highlightThisIf False
+        ]
+      , Attr.value errormsg
+      , Events.onMouseUp events.address MouseUp
+      ]
+      []
 
 canvas : Int -> Int -> Model -> GE.Element
 canvas w h model =
@@ -682,6 +715,23 @@ gutterForResizing orient w h =
           ]
           [ ]
 
+-- Makes a div appropriate for the Ace code editor to be inserted into
+-- Flashing of the code editor is caused because of the 'Element' abstraction
+-- torching the interior of the codeBox portion of the screen and necessitates a
+-- re-embedding of the editor on the Ace side of things, the delay of which
+-- (needs to be sent through a port and such) makes it flash.
+codeBox : Int -> Int -> GE.Element
+codeBox w h = Html.toElement w h <|
+    Html.Lazy.lazy (\a -> Html.div [ Attr.id "editor"
+             , Attr.style
+                 [ ("width", "100%") -- The toElement makes a wrapping Div that
+                                     -- has the appropriate w/h
+                 , ("height", "100%")
+                 , ("pointer-events", "auto")
+                 , ("z-index", "1")
+                 ]
+             ] []) True -- No need to rerender on size changes
+
 mainSectionVertical : Int -> Int -> Model -> GE.Element
 mainSectionVertical w h model =
   let
@@ -696,20 +746,24 @@ mainSectionVertical w h model =
                 + params.mainSection.vertical.hExtra
   in
 
-  let codeSection = codebox wCode h model in
+  let codeSection = if model.basicCodeBox 
+                       then codebox wCode h model
+                       else codeBox wCode h in
 
-  let canvasSection =
-    GE.size wCanvas h <|
-      GE.flow GE.down
-        [ canvas wCanvas hCanvas model
-        , GE.flow GE.left
-            [ colorDebug Color.red <|
-                GE.container wBtn (hZInfo+1) GE.middle <|
-                outputButton model wBtn hBtn
-            , caption model (wCanvas+1-wBtn) (hZInfo+1) -- NOTE: +1 is a band-aid
-            ]
-        -- , caption model (wCanvas+1) hZInfo -- NOTE: +1 is a band-aid
-        ]
+  let canvasSection = case model.errorBox of
+    Nothing -> 
+      GE.size wCanvas h <|
+        GE.flow GE.down
+          [ canvas wCanvas hCanvas model
+          , GE.flow GE.left
+              [ colorDebug Color.red <|
+                  GE.container wBtn (hZInfo+1) GE.middle <|
+                  outputButton model wBtn hBtn
+              , caption model (wCanvas+1-wBtn) (hZInfo+1) -- NOTE: +1 is a band-aid
+              ]
+          -- , caption model (wCanvas+1) hZInfo -- NOTE: +1 is a band-aid
+          ]
+    Just errormsg -> errorBox wCanvas h errormsg
   in
 
   let gutter = gutterForResizing model.orient wGut h in
@@ -735,20 +789,24 @@ mainSectionHorizontal w h model =
                 + params.mainSection.horizontal.wExtra
   in
 
-  let codeSection = codebox w hCode model in
+  let codeSection = if model.basicCodeBox
+                       then codebox w hCode model
+                       else codeBox w hCode in
 
-  let canvasSection =
-    GE.size w (hCanvas + hZInfo) <|
-      GE.flow GE.down
-        [ canvas w hCanvas model
-        , GE.flow GE.left
-            [ colorDebug Color.red <|
-                GE.container wBtn (hZInfo+1) GE.middle <|
-                outputButton model wBtn hBtn
-            , caption model (w-wBtn) (hZInfo+1) -- NOTE: +1 is a band-aid
+  let canvasSection = case model.errorBox of
+    Nothing -> 
+        GE.size w (hCanvas + hZInfo) <|
+          GE.flow GE.down
+            [ canvas w hCanvas model
+            , GE.flow GE.left
+                [ colorDebug Color.red <|
+                    GE.container wBtn (hZInfo+1) GE.middle <|
+                    outputButton model wBtn hBtn
+                , caption model (w-wBtn) (hZInfo+1) -- NOTE: +1 is a band-aid
+                ]
+            -- , caption model w (hZInfo+1) -- NOTE: +1 is a band-aid
             ]
-        -- , caption model w (hZInfo+1) -- NOTE: +1 is a band-aid
-        ]
+    Just errormsg -> errorBox w (hCanvas + hZInfo) errormsg
   in
 
   let gutter = gutterForResizing model.orient w hGut in
@@ -959,6 +1017,18 @@ orientationButton w h model =
     in
       simpleButton SwitchOrient text text text w h
 
+basicBoxButton w h model =
+    let (text,flip) = case model.basicCodeBox of
+          True  -> ("[Code Box] Basic", False)
+          False -> ("[Code Box] Fancy", True)
+    in
+       simpleButton 
+         (SetBasicCodeBox flip)
+         text text text w h
+
+--------------------------------------------------------------------------------
+-- Zone Caption and Highlights
+
 caption : Model -> Int -> Int -> GE.Element
 caption model w h =
   let eStr = GE.leftAligned << T.color Color.white << T.monospace << T.fromString in
@@ -969,7 +1039,7 @@ caption model w h =
           case hoverInfo info (i,k,z) of
             Nothing -> GE.empty
             Just l ->
-              let numLocs = List.map (\(s,n) -> toString n ++ Utils.braces s) l in
+              let numLocs = List.map (\(s,n) -> toString n.val ++ Utils.braces s) l in
               let line1 = (k ++ toString i) ++ " " ++ z in
               let line2 = Utils.spaces numLocs in
               eStr (" " ++ line1 ++ "\n " ++ line2)
@@ -978,17 +1048,35 @@ caption model w h =
         _ ->
           GE.empty
 
+-- this is a bit redundant with Model.liveInfoToHighlights...
 hoverInfo info (i,k,z) =
   let err y = "hoverInfo: " ++ toString y in
   flip Utils.bindMaybe (Dict.get i info.assignments) <| \d ->
-  flip Utils.bindMaybe (Dict.get z d)                <| \locs ->
+  flip Utils.bindMaybe (Dict.get z d)                <| \(locset,_) ->
+    let locs = Set.toList locset in
     Just <|
       List.map (\(lid,_,x) ->
         let n = Utils.justGet_ (err (i,z,lid)) lid info.initSubst in
         if | x == ""   -> ("loc_" ++ toString lid, n)
            | otherwise -> (x, n)) locs
 
+turnOnCaptionAndHighlights id shape zone =
+  UpdateModel <| \m ->
+    let codeBoxInfo = m.codeBoxInfo in
+    let hi = liveInfoToHighlights id zone m in
+    { m | caption <- Just (Hovering (id, shape, zone))
+        , codeBoxInfo <- { codeBoxInfo | highlights <- hi } }
+
+turnOffCaptionAndHighlights =
+  UpdateModel <| \m ->
+    let codeBoxInfo = m.codeBoxInfo in
+    { m | caption <- Nothing
+        , codeBoxInfo <- { codeBoxInfo | highlights <- [] } }
+
+--------------------------------------------------------------------------------
+
 -- The pop-up save dialog box
+-- TODO clean this up, is needlessly bulky
 saveElement : Model -> Int -> Int -> GE.Element
 saveElement model w h = case model.mode of
   SaveDialog x -> 
@@ -1060,7 +1148,7 @@ saveElement model w h = case model.mode of
                            , GE.flow GE.right
                                [ GE.spacer 112 30 
                                , simpleButton
-                                  (UpdateModel <| removeDialog False "")
+                                  (RemoveDialog False "")
                                   "Cancel" "Cancel" "Cancel"
                                   75 30
                                ]
@@ -1091,16 +1179,20 @@ view (w,h) model =
       wBtnO = params.topSection.wBtnO
       hBtnO = params.topSection.hBtnO
       wJunk = params.topSection.wJunk
+      wSpcB = 15
 
-      wSep  = GE.spacer (wAll - (wLogo + wBtnO + wJunk)) 1
+      wSep  = GE.spacer (wAll - (wLogo + 2 * wBtnO + wJunk + wSpcB)) 1
       btnO  = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
                 orientationButton wBtnO hBtnO model
+      spcB  = GE.spacer wSpcB hTop
+      btnB  = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
+                basicBoxButton wBtnO hBtnO model
     in
       GE.size wAll hTop <|
         GE.flow GE.right
           [ GE.container wLogo hTop GE.middle logo
           , GE.container (wAll - wLogo) hTop GE.middle <|
-              GE.flow GE.right [ title, wSep, btnO ]
+              GE.flow GE.right [ title, wSep, btnB, spcB, btnO ]
           ]
   in
 
@@ -1130,13 +1222,14 @@ view (w,h) model =
   -- presumably over the window). Note that it is important to add the event
   -- handler to a dummy object that is removed, as adding it to the whole body
   -- results in nothing being clickable after the load is successful.
-
   case (model.startup, model.mode) of
     (True, _) ->
       let foo _ =
         Signal.message taskMailbox.address <|
           -- Insert more tasks to run at startup here
           getLocalSaves `andThen` \_ ->
+        
+          ---
           Signal.send
             events.address
             (UpdateModel (\m -> { m | startup <- False}))
@@ -1152,7 +1245,6 @@ view (w,h) model =
         ]
     _ ->
       basicUI
-
 
 -- TODO: add onMouseUp DeselectObject event to all GE.Elements...
 

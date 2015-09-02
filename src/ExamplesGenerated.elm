@@ -415,21 +415,21 @@ xySlider =
  "; A two dimensional slider in a similar style to the other sliders
 (def xySlider_
   (\\(dropBall roundInt xStart xEnd yStart yEnd minx maxx miny maxy xcaption ycaption curx cury)
-    (def [rCorner wEdge rBall] [4! 3! 10!])
-    (def [xDiff yDiff xValDiff yValDiff] [(- xEnd xStart) (- yEnd yStart) (- maxx minx) (- maxy miny)])
-    (def ballx (+ xStart (* xDiff (/ (- curx minx) xValDiff))))
-    (def bally (+ yStart (* yDiff (/ (- cury miny) yValDiff))))
-    (def ballx_ (clamp xStart xEnd ballx))
-    (def bally_ (clamp yStart yEnd bally))
-    (def rball_ (if dropBall (if (< maxx curx) 0 rBall) rBall))
-    (def rball__ (if dropBall (if (< maxy cury) 0 rball_) rBall))
-    (def xval
-      (def xval_ (clamp minx maxx curx))
+    (let [rCorner wEdge rBall] [4! 3! 10!]
+    (let [xDiff yDiff xValDiff yValDiff] [(- xEnd xStart) (- yEnd yStart) (- maxx minx) (- maxy miny)]
+    (let ballx (+ xStart (* xDiff (/ (- curx minx) xValDiff)))
+    (let bally (+ yStart (* yDiff (/ (- cury miny) yValDiff)))
+    (let ballx_ (clamp xStart xEnd ballx)
+    (let bally_ (clamp yStart yEnd bally)
+    (let rball_ (if dropBall (if (< maxx curx) 0 rBall) rBall)
+    (let rball__ (if dropBall (if (< maxy cury) 0 rball_) rBall)
+    (let xval
+      (let xval_ (clamp minx maxx curx)
       (if roundInt (round xval_) xval_))
-    (def yval
-      (def yval_ (clamp miny maxy cury))
+    (let yval
+      (let yval_ (clamp miny maxy cury)
       (if roundInt (round yval_) yval_))
-    (def shapes
+    (let shapes
       [ (line 'black' wEdge xStart yStart xEnd yStart)
         (line 'black' wEdge xStart yStart xStart yEnd)
         (line 'black' wEdge xStart yEnd xEnd yEnd)
@@ -440,10 +440,14 @@ xySlider =
         (circle 'black' xEnd yEnd rCorner)
         (circle 'black' ballx_ bally_ rball__)
         (text (- (+ xStart (/ xDiff 2)) 40) (+ yEnd 20) (+ xcaption (toString xval)))
-        (text (+ xEnd 10) (+ yStart (/ yDiff 2)) (+ ycaption (toString yval))) ])
-  [ [ xval yval ] shapes ]))
+        (text (+ xEnd 10) (+ yStart (/ yDiff 2)) (+ ycaption (toString yval))) ]
+  [ [ xval yval ] shapes ])))))))))))))
+
 (def xySlider (xySlider_ false))
-(def [ [ a b ] slider ] (xySlider false 20! 420! 20! 420! 0! 100! 0! 100! 'X Axis: ' 'Y Axis: ' 20 20))
+
+(def [ [ a b ] slider ]
+  (xySlider false 20! 420! 20! 420! 0! 100! 0! 100! 'X Axis: ' 'Y Axis: ' 20 20))
+
 (svg slider)
 
 "
@@ -1738,6 +1742,272 @@ deleteBoxes
 
 "
 
+cover =
+ "; Logo for Cover
+; see https://github.com/florence/cover
+
+(def size 300!)
+(def line 10!)
+(def h (/ size 2.6548672566371683))
+(def w (- (* 2! h) (* 2! line)))
+
+(def m (/ size 2!))
+
+(def x (- m (/ w 2!)))
+(def y (- m (+ (/ line 2!) (/ w 2!))))
+
+(def x2 (- x (+ w line)))
+(def y2 (- x (+ w (* 2.5! line))))
+
+(def x3 (+ x (+ w line)))
+(def y3 (+ x (+ w (* 1.5! line))))
+
+(def top (\\(x y)
+ (rect 'red' x y w (- h line))))
+
+(def sw (- h (* 1.5! line)))
+
+(def bottom (\\(x y)
+  (rect 'blue' x (+ y h) sw (- h line))))
+
+(def bottoma (\\(x y) (bottom x y)))
+(def bottomb (\\(x y) (bottom (+ sw (+ x line)) y)))
+
+(def rot 45)
+
+['svg'
+ [['viewBox' (+ (+ (+ '0 0 ' (toString size)) ' ') (toString size))]]
+ [
+  (square 'white' 0! 0! size)
+
+  (rotate (top x y)   rot m m)
+  (rotate (bottoma x y) rot m m)
+  (rotate (bottomb x y) rot m m)
+
+  (rotate (top x2 y)   rot m m)
+  (rotate (bottoma x2 y) rot m m)
+  (rotate (bottomb x2 y) rot m m)
+
+  (rotate (top x y2)   rot m m)
+  (rotate (bottoma x y2) rot m m)
+  (rotate (bottomb x y2) rot m m)
+
+  (rotate (top x3 y)   rot m m)
+  (rotate (bottoma x3 y) rot m m)
+  (rotate (bottomb x3 y) rot m m)
+
+  (rotate (top x y3)   rot m m)
+  (rotate (bottoma x y3) rot m m)
+  (rotate (bottomb x y3) rot m m)
+]]
+
+"
+
+poppl =
+ "; Logo for POP-PL
+; see https://github.com/florence/pop-pl
+
+(def M 'M')
+(def L 'L')
+(def C 'C')
+(def Z 'Z')
+
+(def ltopWidth 29!)
+(def ltopHeight 63!)
+(def xstart 131!)
+(def ystart 63!)
+(def stethx 31!)
+(def stethy 7!)
+(def cr2Control -0.1769993052254364)
+(def cr2x (* cr2Control ltopWidth))
+(def cr2y (* cr2Control ltopHeight))
+(def lpath
+  [M (- xstart stethx) (- ystart stethy)
+   C (+ xstart -12) (+ ystart -19)
+     (+ cr2x xstart) (+ cr2y ystart)
+     xstart ystart
+   L (+ xstart ltopWidth) (+ ystart ltopHeight)
+   ])
+
+(def axstart  (+ xstart ltopWidth))
+(def aystart (+ ystart ltopHeight))
+(def ascale 1.9534135150166867!)
+(def ax (* ascale ltopWidth))
+(def ay (* ascale ltopHeight))
+(def bx 18!)
+(def armpath
+  [M axstart aystart
+   C (+ xstart 71) (+ ystart 94)
+     (+ xstart 90) (+ ystart 142)
+     (+ axstart ax) (+ aystart ay)
+   C (+ xstart 63) (+ ystart 190)
+     (+ xstart 74) (+ ystart 188)
+     (- (+ axstart ax) bx) (+ aystart ay)])
+
+(def lwidth 5)
+
+
+(def nub
+  (circle 'black' (- (+ axstart ax) bx) (+ aystart ay) (* lwidth 2!)))
+
+(def small (* lwidth 2.1))
+(def scope1
+  (circle 'black' (- xstart stethx) (- ystart stethy) (+ small lwidth)))
+(def scope2
+  (circle 'white' (- xstart stethx) (- ystart stethy) small))
+
+['svg'
+ [['viewBox' '0 0 300 300']]
+ [(square 'white' 0! 0! 300!)
+      (path 'none' 'black' lwidth lpath)
+      (path 'none' 'black' lwidth armpath)
+      nub
+      (addAttr (path 'white' 'black' lwidth armpath)
+               ['transform' (+ (+ 'matrix(-1 0 0 1 ' (toString (* 2 axstart)))
+                               ' 0)')])
+      (addAttr nub
+               ['transform' (+ (+ 'matrix(-1 0 0 1 ' (toString (* 2 axstart)))
+                               ' 0)')])
+      scope1
+      scope2
+]]
+
+"
+
+bezier =
+ "; Animated Bezier Curves
+; Recreating https://www.jasondavies.com/animated-bezier/
+;
+; Bezier functions
+;
+(def linbez (\\(t p1 p2)
+  (+ p1 (* t (- p2 p1))) ) )
+(def quadbez (\\(t p1 p2 p3)
+  (+ (* (- 1 t) (linbez t p1 p2)) (* t (linbez t p2 p3))) ) )
+(def cubez (\\(t p1 p2 p3 p4)
+  (+ (* (- 1 t) (quadbez t p1 p2 p3)) (* t (quadbez t p2 p3 p4))) ) )
+(def quarbez (\\(t p1 p2 p3 p4 p5)
+  (+ (* (- 1 t) (cubez t p1 p2 p3 p4)) (* t (cubez t p2 p3 p4 p5))) ) )
+;
+; Point definitions
+;
+(def [t tslider] (hSlider false 50! 450! 300! 0! 1! 't: ' 0.25))
+(def [linx1 liny1 linx2 liny2] [50 50 150 150])
+(def [quadx1 quady1 quadx2 quady2 quadx3 quady3] [200 150 250 50 300 150])
+(def [cux1 cuy1 cux2 cuy2 cux3 cuy3 cux4 cuy4] [350 150 360 50 425 80 450 150])
+(def [qux1 quy1 qux2 quy2 qux3 quy3 qux4 quy4 qux5 quy5]
+     [500  150  550  75   600  50   650  75   700  150])
+;
+; Style Definitions
+;
+(def [linwd col1 col2 col3 col4] [3 'gray' 'lightblue' 'green' 'lightgreen'])
+(def ptcirc (\\(cx cy) (circle 'red' cx cy 5!)))
+;
+; Curve Definitions
+;
+(def linCurve
+  (let [midx midy] [(linbez t linx1 linx2) (linbez t liny1 liny2)]
+  [ (path 'none' col1 linwd
+      [ 'M' linx1 liny1
+        'L' linx2 liny2 ] )
+    (path 'none' col2 linwd
+      [ 'M' linx1 liny1
+        'L' midx midy ] ) 
+    (ptcirc midx midy)  ] ) )
+(def quadCurve
+  (let [midx1 midy1 midx2 midy2] [(linbez t quadx1 quadx2) (linbez t quady1 quady2)
+                                  (linbez t quadx2 quadx3) (linbez t quady2 quady3)]
+  (let [px py] [(quadbez t quadx1 quadx2 quadx3) (quadbez t quady1 quady2 quady3)]
+  [ (path 'none' col1 linwd
+      [ 'M' quadx1 quady1
+        'L' quadx2 quady2 ] )
+    (path 'none' col1 linwd
+      [ 'M' quadx2 quady2
+        'L' quadx3 quady3 ] )
+    (path 'none' col2 linwd
+      [ 'M' midx1 midy1
+        'L' midx2 midy2 ] )
+    (ptcirc px py)    ] ) ) )
+(def cuCurve
+  (let [midx1 midy1 midx2 midy2 midx3 midy3]
+       [(linbez t cux1 cux2) (linbez t cuy1 cuy2)
+        (linbez t cux2 cux3) (linbez t cuy2 cuy3)
+        (linbez t cux3 cux4) (linbez t cuy3 cuy4)]
+  (let [dubmidx1 dubmidy1 dubmidx2 dubmidy2]
+       [(linbez t midx1 midx2) (linbez t midy1 midy2)
+        (linbez t midx2 midx3) (linbez t midy2 midy3)]
+  (let [px py] [(cubez t cux1 cux2 cux3 cux4) (cubez t cuy1 cuy2 cuy3 cuy4)]
+  [ (path 'none' col1 linwd
+      [ 'M' cux1 cuy1
+        'L' cux2 cuy2 ] )
+    (path 'none' col1 linwd
+      [ 'M' cux2 cuy2
+        'L' cux3 cuy3 ] )
+    (path 'none' col1 linwd
+      [ 'M' cux3 cuy3
+        'L' cux4 cuy4 ] )
+    (path 'none' col2 linwd
+      [ 'M' midx1 midy1
+        'L' midx2 midy2 ] )
+    (path 'none' col2 linwd
+      [ 'M' midx2 midy2
+        'L' midx3 midy3 ] )
+    (path 'none' col3 linwd
+      [ 'M' dubmidx1 dubmidy1
+        'L' dubmidx2 dubmidy2 ] ) 
+    (ptcirc px py)            ] ) ) ) )
+
+(def quCurve
+  (let [midx1 midy1 midx2 midy2 midx3 midy3 midx4 midy4]
+       [(linbez t qux1 qux2) (linbez t quy1 quy2)
+        (linbez t qux2 qux3) (linbez t quy2 quy3)
+        (linbez t qux3 qux4) (linbez t quy3 quy4)
+        (linbez t qux4 qux5) (linbez t quy4 quy5)]
+  (let [dubmidx1 dubmidy1 dubmidx2 dubmidy2 dubmidx3 dubmidy3]
+       [(linbez t midx1 midx2) (linbez t midy1 midy2)
+        (linbez t midx2 midx3) (linbez t midy2 midy3)
+        (linbez t midx3 midx4) (linbez t midy3 midy4)]
+  (let [trimidx1 trimidy1 trimidx2 trimidy2]
+       [(linbez t dubmidx1 dubmidx2) (linbez dubmidy1 dubmidy2)
+        (linbez t dubmidx2 dubmidx3) (linbez dubmidy2 dubmidy3)]
+  (let [px py] [(quarbez t qux1 qux2 qux3 qux4 qux5) (quarbez t quy1 quy2 quy3 quy4 quy5)]
+  [ (path 'none' col1 linwd
+      [ 'M' qux1 quy1
+        'L' qux2 quy2 ] )
+    (path 'none' col1 linwd
+      [ 'M' qux2 quy2
+        'L' qux3 quy3 ] )
+    (path 'none' col1 linwd
+      [ 'M' qux3 quy3
+        'L' qux4 quy4 ] )
+    (path 'none' col1 linwd
+      [ 'M' qux4 quy4
+        'L' qux5 quy5 ] )
+    (path 'none' col2 linwd
+      [ 'M' midx1 midy1
+        'L' midx2 midy2 ] )
+    (path 'none' col2 linwd
+      [ 'M' midx2 midy2
+        'L' midx3 midy3 ] )
+    (path 'none' col2 linwd
+      [ 'M' midx3 midy3
+        'L' midx4 midy4 ] )
+    (path 'none' col3 linwd
+      [ 'M' dubmidx1 dubmidy1
+        'L' dubmidx2 dubmidy2 ] )
+    (path 'none' col3 linwd
+      [ 'M' dubmidx2 dubmidy2
+        'L' dubmidx3 dubmidy3 ] )
+    (path 'none' col4 linwd
+      [ 'M' trimidx1 trimidy1
+        'L' trimidx2 trimidy2 ] )
+    (ptcirc px py)            ] ) ) ) ) )
+;
+; Putting it all together
+;
+(svg (concat [linCurve quadCurve cuCurve tslider]))
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -1754,6 +2024,7 @@ examples =
   , makeExample "Botanic Garden Logo" botanic
   , makeExample "Rings" rings
   , makeExample "Polygons" polygons
+  , makeExample "Bezier Curves" bezier
   , makeExample "Stars" stars
   , makeExample "Clique" clique
   , makeExample "Sliders" sliders
@@ -1779,6 +2050,8 @@ examples =
   , makeExample "Eye Icon" eyeIcon
   , makeExample "Wikimedia Logo" wikimedia
   , makeExample "Haskell.org Logo" haskell
+  , makeExample "Cover Logo" cover
+  , makeExample "POP-PL Logo" poppl
   , makeExample "Matrix Transformations" matrices
   , makeExample "Cult of Lambda" cultOfLambda 
   , makeExample "Misc Shapes" miscShapes

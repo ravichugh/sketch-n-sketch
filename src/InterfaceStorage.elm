@@ -6,7 +6,7 @@
 
 module InterfaceStorage (taskMailbox, saveStateLocally, loadLocalState,
                          getLocalSaves, checkAndSave, clearLocalSaves,
-                         removeDialog, deleteLocalSave) where
+                         removeDialog, deleteLocalSave, installSaveState) where
 
 -- Storage library, for in browser storage
 import Storage exposing (getItem, setItem, removeItem, keys, clear)
@@ -92,14 +92,17 @@ strToModel =
                              , midOffsetY <- partial.midOffsetY
                              , fieldContents <- { value = ""
                                                 , hint = "Input File Name" }
+                             , startup <- False
             }
         )
 
 -- Task to save state to local browser storage
+-- Note that this is passed through as an Event and not an UpdateModel for the
+-- purposes of appropriately triggering rerendering in CodeBox.
 saveStateLocally : String -> Bool -> Model -> Task String ()
 saveStateLocally saveName saveAs model = 
     if saveAs
-      then send events.address <| InterfaceModel.UpdateModel installSaveState
+      then send events.address InterfaceModel.InstallSaveState 
       else setItem saveName <| modelToValue model
 
 -- Changes state to SaveDialog
@@ -112,10 +115,11 @@ checkAndSave : String -> Model -> Task String ()
 checkAndSave saveName model = if
     | List.all ((/=) saveName << fst) Examples.list
         && saveName /= ""
+        && saveName /= "__ErrorSave"
         && not (all (\c -> c == ' ' || c == '\t') saveName) ->
                 setItem saveName (modelToValue model)
                 `andThen` \x -> send events.address <|
-                    InterfaceModel.UpdateModel <| removeDialog True saveName
+                    InterfaceModel.RemoveDialog True saveName
     | otherwise -> send events.address <|
                     InterfaceModel.UpdateModel invalidInput
 
@@ -168,7 +172,7 @@ installLocalState saveName loadedModel oldModel =
 -- Gets the names of all of the local saves, returned in a list of strings
 getLocalSaves : Task String ()
 getLocalSaves = keys `andThen` \saves -> send events.address <|
-    InterfaceModel.UpdateModel <| installLocalSaves <| Debug.log "Loaded" saves
+    InterfaceModel.UpdateModel <| installLocalSaves saves
 
 -- Installs the list of local saves
 installLocalSaves : List String -> Model -> Model

@@ -65,7 +65,7 @@ unparsePat p = case p.val of
   PList ps Nothing ->
     bracksAndSpaces p.start p.end (List.map UPat ps)
   PList ps (Just pRest) ->
-    let _ = Debug.log "TODO: unparsePat" () in
+    -- let _ = Debug.log "TODO: unparsePat" () in
     strPat p
 
 -- NOTE:
@@ -92,7 +92,6 @@ unparse e = case e.val of
   EApp e1 es -> parensAndSpaces e.start e.end (List.map UExp (e1::es))
   EList es Nothing -> bracksAndSpaces e.start e.end (List.map UExp es)
   EList es (Just eRest) ->
-    let _ = Debug.log "TODO: test this" () in
     let (en::_) = List.reverse es in
     let tok1 = makeToken e.start   "[" in
     let tok2 = makeToken en.end    "|" in
