@@ -144,7 +144,7 @@ buildHtml_ addZones showZones d i =
              (makeZones options' shape i attrs, l)
       in
       let children = List.map (buildHtml_ addZones showZones d) js in
-      let mainshape = (LangHtml.html shape) (LangHtml.compileAttrs attrs) children in
+      let mainshape = (LangHtml.html shape) (LangHtml.compileAttrsStyle attrs) children in
       mainshape
 
 --------------------------------------------------------------------------------

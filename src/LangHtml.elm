@@ -50,6 +50,8 @@ compileValToNode v = case v of
 compileNodeVals = List.map compileValToNode
 compileAttrVals = List.map (uncurry compileAttr << valToAttr)
 compileAttrs    = List.map (uncurry compileAttr)
+compileAttrsStyle    = compileAttrs << combineStyle
+                -- combine all styles under ('style', string)
 compileAttr k v = (attr k) (strAVal v)
 
 numAttrToVal a i =
@@ -67,9 +69,8 @@ clampColorNum = Utils.clamp 0 (maxColorNum - 1)
 
 type alias Point = (NumTr, NumTr)
 type alias Rgba  = (NumTr, NumTr, NumTr, NumTr)
-type alias Style = List (String, StyleVal)
 
-type StyleVal = SNum NumTr | SString String
+type Style  = SNum NumTr | SString String
 
 -- toNum    (ANum (i,_)) = i
 -- toNumTr  (ANum (i,t)) = (i,t)
@@ -80,6 +81,11 @@ toNum a = case a of
   ANum (n,_) -> n
   AString s  -> case String.toFloat s of
                   Ok n -> n
+  AStyle st  -> case st of
+                  SNum (m, _) -> m
+                  SString str -> case String.toFloat str of
+                                    Ok o -> o
+
 
 toNumTr a = case a of
   ANum (n,t) -> (n,t)
@@ -87,14 +93,24 @@ toNumTr a = case a of
   AString s  -> case String.toFloat s of
                   Ok n -> (n, dummyTrace)
 
+toStyle s = case s of
+  VConst it -> SNum it
+  VBase t -> SString (strBaseVal t)
+
+
 --TODO: Add additional HTML attrs
 valToAttr (VList [VBase (String k), v]) =
   case (k, v) of
     ("fill", VList vs)    -> (k, ARgba <| valToRgba vs) --Double check this, might be 'color'
     ("fill", VConst it)   -> (k, AColorNum it)
-    ("style", VList vs)   -> (k, AStyle <| valToStyle vs)
+    ("top", s)            -> (k, AStyle <| toStyle s)
+    ("bottom", s)         -> (k, AStyle <| toStyle s)
+    ("width", s)          -> (k, AStyle <| toStyle s)
+    ("height", s)         -> (k, AStyle <| toStyle s)
+    ("background-color",s) -> (k, AStyle <| toStyle s)
     (_, VConst it)        -> (k, ANum it)
     (_, VBase (String s)) -> (k, AString s)
+
 
 valToRgba [VConst r, VConst g, VConst b, VConst a] = (r,g,b,a)
 rgbaToVal (r,g,b,a) = [VConst r, VConst g, VConst b, VConst a]
@@ -109,17 +125,10 @@ valToStyle vals =
       List.map (\(VList [k, v]) -> toAttr k v) vals
   in
     styleList
-  
 
-styleToVal styles = 
-  let
-    toVal key value = case value of
-      SNum v -> VList [VBase (String key), VConst v]
-      SString s -> VList [VBase (String key), VBase (String s)]
-    valList = 
-      List.map (\(k, v) -> toVal k v) styles
-  in
-    valList
+styleToVal style = case style of
+      SNum v -> VConst v
+      SString s -> VBase (String s)
 
 strRgba (r_,g_,b_,a_) =
   strRgba_ (List.map fst [r_,g_,b_,a_])
@@ -127,17 +136,29 @@ strRgba (r_,g_,b_,a_) =
 strRgba_ rgba =
   "rgba" ++ Utils.parens (Utils.commas (List.map toString rgba))
 
+isCSS (x,y) = case y of
+  AStyle s -> True
+  _        -> False
+
+combineStyle list =
+  let
+    split  =  List.partition isCSS list
+    styles = fst split
+    styled = ("style", strStyle styles)
+  in
+    styled :: (snd split)
+
 strStyle styles =
   let
     format ky vl = (((String.slice 1 (String.length ky - 1) ky) ++ ": ") ++ vl) ++ "; "
     checkA key value = 
       case value of
-          SNum it -> format key ((toString (fst it)) ++ "px")
-          SString s -> format key (String.slice 1 (String.length s - 1) s)
+          AStyle (SNum it) -> format key ((toString (fst it)) ++ "px")
+          AStyle (SString s) -> format key (String.slice 1 (String.length s - 1) s)
     boundKVs = 
       List.map (\(k, v) -> checkA k v) styles
   in
-    List.foldr (\a b -> a ++ b) "" boundKVs 
+    AStyle (SString (List.foldr (\a b -> a ++ b) "" boundKVs)) 
 
 strAVal a = case a of
   AString s -> s
@@ -148,14 +169,15 @@ strAVal a = case a of
     strRgba_ (ColorNum.convert (fst n))
     -- let (r,g,b) = Utils.numToColor maxColorNum (fst n) in
     -- strRgba_ [r,g,b,1]
-  AStyle st  -> strStyle st
+  AStyle (SString st)  -> st
+  AStyle (SNum m)   -> toString (fst m)
 
 valOfAVal a = case a of
   AString s -> VBase (String s)
   ANum it   -> VConst it
   ARgba tup -> VList (rgbaToVal tup)
   AColorNum nt -> VConst nt
-  AStyle st  -> VList (styleToVal st)
+  AStyle st  -> styleToVal st
 
 valOfAttr (k,a) = VList [VBase (String k), valOfAVal a]
 

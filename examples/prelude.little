@@ -245,12 +245,10 @@
 ;; Attributes in this case should be CSS
 ;; TODO: deal with double instances of the same attr?
 (def eStyle (\(newAttrs [node attrs children])
-  (let oldstyle (\s (concatMap (\[k v] (if (= k 'style') v [])) s))
-  (let others (\s (concatMap (\[k v] (if (= k 'style') [] v)) s))
   [node
-    (cons ['style' ( append newAttrs (oldstyle attrs) ) ] (others attrs) )
-    children ] ) ) ) )
-    
+    (append newAttrs attrs )
+    children ] ) )
+
 ;; eDiv : Width -> Height -> Children -> Node
 ;; argument order - width, height, initial children
 ;; Make a Div that has a specified width and height so as to be compatible with
