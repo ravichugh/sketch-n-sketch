@@ -12,7 +12,12 @@ import Lang exposing (..)
 import LangSvg exposing (NodeId, ShapeKind, Zone, addi)
 import Eval
 import LangParser2 as Parser
+import Config
 
+
+------------------------------------------------------------------------------
+
+debugLog = Config.debugLog Config.debugSync
 
 ------------------------------------------------------------------------------
 -- Sync.Options
@@ -30,7 +35,7 @@ syncOptionsOf e =
       | s == "n?" -> { thawedByDefault = True }
       | s == "n!" -> { thawedByDefault = False }
       | otherwise ->
-          let _ = Debug.log "invalid sync option: " s in
+          let _ = debugLog "invalid sync option: " s in
           defaultOptions
 
 
@@ -222,7 +227,7 @@ solveTopDown subst (n, t) = case t of
                                              (solveL op n j)
 
       _ ->
-        let _ = Debug.log "Sync.solve" <| strTrace t in
+        let _ = debugLog "Sync.solve" <| strTrace t in
         Nothing
 
   TrOp Cos [t1] ->
@@ -236,15 +241,15 @@ solveTopDown subst (n, t) = case t of
       Nothing -> Nothing
 
   _ ->
-    let _ = Debug.log "TODO solveTopDown" t in
+    let _ = debugLog "TODO solveTopDown" t in
     Nothing
 
 isNumBinop = (/=) Lt
 
 maybeFloat n =
   let thresh = 1000 in
-  if | isNaN n || isInfinite n -> Debug.log "maybeFloat Nothing" Nothing
-     | abs n > thresh          -> Debug.log "maybeFloat (above thresh)" Nothing
+  if | isNaN n || isInfinite n -> debugLog "maybeFloat Nothing" Nothing
+     | abs n > thresh          -> debugLog "maybeFloat (above thresh)" Nothing
      | otherwise               -> Just n
 
 -- n = i op j

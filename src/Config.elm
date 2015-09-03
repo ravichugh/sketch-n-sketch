@@ -6,6 +6,7 @@ import Debug
 
 debugParser = False
 debugController = False
+debugSync = False
 
 debugLog b s x =
   if | b         -> Debug.log s x
