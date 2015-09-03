@@ -2,7 +2,7 @@
 -- the Model and the appropriate dimensions.
 
 module CodeBox (interpretAceEvents, packageModel, tripRender,
-                AceMessage, AceCodeBoxInfo, initAceCodeBoxInfo
+                AceMessage, AceCodeBoxInfo, initAceCodeBoxInfo,
                 saveRequestInfo, runRequestInfo) where
 
 import Lang exposing (errorPrefix)
@@ -28,7 +28,7 @@ import Debug
 -- "runRequest"  -> We'd like the current state of the Editor for the purposes
 --                   of running the to be displayed in the Canvas
 type alias AceCodeBoxInfo = 
-    { type        : String
+    { kind        : String
     , code        : String 
     , cursorPos   : Model.AcePos
     , manipulable : Bool
@@ -49,7 +49,7 @@ type alias AceMessage =
 -- An initial AceCodeBoxInfo for the foldp
 -- Doesn't actually get sent over the port
 initAceCodeBoxInfo =
-  ( { type = "assertion"
+  ( { kind = "assertion"
     , code = sampleModel.code
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
     , manipulable = True
@@ -63,7 +63,7 @@ initAceCodeBoxInfo =
 
 -- Helper definitons for other messages we can send to Ace
 saveRequestInfo =
-  ( { type = "saveRequest"
+  ( { kind = "saveRequest"
     , code = ""
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
     , manipulable = True
@@ -76,7 +76,20 @@ saveRequestInfo =
   )
 
 runRequestInfo =
-  ( { type = "runRequest"
+  ( { kind = "runRequest"
+    , code = ""
+    , cursorPos = sampleModel.codeBoxInfo.cursorPos
+    , manipulable = True
+    , selections = [] 
+    , highlights = []
+    , bounce = True
+    , exName = ""
+    }
+  , []
+  )
+
+poke =
+  ( { kind = "poke"
     , code = ""
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
     , manipulable = True
@@ -89,7 +102,7 @@ runRequestInfo =
   )
 
 interpretAceEvents : AceMessage -> Event
-interpretAceEvents amsg = case amsg.evt of
+interpretAceEvents amsg = case Debug.log "From Ace" amsg.evt of
     "runResponse" -> Model.MultiEvent
       [ Model.UpdateModel <|
             \m -> { m | code <- amsg.strArg
@@ -98,7 +111,7 @@ interpretAceEvents amsg = case amsg.evt of
                                        , highlights = m.codeBoxInfo.highlights
                                        }
                   }
-      , Run
+      , Model.Run
       ]
     --TODO
     "saveResponse" -> Model.Noop
@@ -145,18 +158,22 @@ packageModel (model, evt) (lastBox, rerenders) =
             (_, Nothing) -> False
             _           -> True
         rerender = tripRender evt rerenders
-    in 
-      ( { type = "assertion"
-        , code = model.code 
-        , cursorPos = model.codeBoxInfo.cursorPos 
-        , selections = model.codeBoxInfo.selections
-        , manipulable = manipulable
-        , highlights = model.codeBoxInfo.highlights
-        , bounce = rerender
-        , exName = model.exName
-        }
-      , rerender :: List.take (rerenderCount - 1) rerenders
-      )
+    in case evt of
+      Model.WaitSave -> saveRequestInfo
+      Model.WaitRun  -> runRequestInfo
+      Model.KeysDown _ -> poke
+      _ ->
+          ( { kind = "assertion"
+            , code = model.code 
+            , cursorPos = model.codeBoxInfo.cursorPos 
+            , selections = model.codeBoxInfo.selections
+            , manipulable = manipulable
+            , highlights = model.codeBoxInfo.highlights
+            , bounce = rerender
+            , exName = model.exName
+            }
+          , rerender :: List.take (rerenderCount - 1) rerenders
+          )
 
 -- Lets a signal pass if it should triger an extra rerender
 -- This is entered into a foldp so that we do not enter into an infinite

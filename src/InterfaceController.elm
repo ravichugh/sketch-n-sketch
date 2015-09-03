@@ -369,6 +369,9 @@ upstate evt old = case debugLog "Event" evt of
       [] -> old
       e1 :: es -> upstate e1 old |> upstate (MultiEvent es)        
 
+    WaitRun -> old
+    WaitSave -> old
+
     _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
 
 adjustMidOffsetX old dx =

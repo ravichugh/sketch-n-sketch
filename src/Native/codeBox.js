@@ -88,26 +88,28 @@ editor.moveCursorTo(0,0);
 var markers = [];
 
 runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
+    //If a poke, do nothing
+    if (codeBoxInfo.kind == "poke") {
+        editor.resize();
+        return;
+    }
+
     //Resize the editor window if the div size has changed
     editor.resize();
 
     //First, check to see what kind of request it was
-    if (codeBoxInfo.type == "assertion") {
+    if (codeBoxInfo.kind == "assertion") {
         //If it's an assertion, install the values appropriately
         makeAssertion(codeBoxInfo);
-    } else if (codeBoxInfo.type == "saveRequest") {
+    } else if (codeBoxInfo.kind == "saveRequest") {
         //If it's a request for the Editor state, oblige
         sendState("saveResponse");
-    } else if (codeBoxInfo.type == "runRequest") {
+    } else if (codeBoxInfo.kind == "runRequest") {
         //Same as above
         sendState("runResponse");
     } else { //We don't recognize the request; log and do nothing
-        console.log("codeBoxInfo type " + codeBoxInfo.type + " unrecognized.");
+        console.log("codeBoxInfo type " + codeBoxInfo.kind + " unrecognized.");
     }
-}
-
-    //Set our flag back to enable the event handlers again
-    updateWasFromElm = false;
 });
 
 var errorPrefix = "[Little Error]"; // NOTE: same as errorPrefix in Lang.elm

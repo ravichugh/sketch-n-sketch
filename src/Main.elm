@@ -69,9 +69,26 @@ port taskPort = taskMailbox.signal
 -- should trigger a rerender. Hmm.
 --
 port aceInTheHole : Signal AceCodeBoxInfo
-port aceInTheHole = Signal.map fst
+port aceInTheHole =
+    let pickAsserts (m,e) = case m.editingMode of
+          Nothing -> True
+          Just _ -> case e of
+              --TODO Figure out why this works
+              Model.WaitRun -> False
+              Model.WaitSave -> False
+              Model.MousePos _ -> False
+              Model.KeysDown _ -> False
+              Model.CodeUpdate _ -> False
+              Model.UpdateModel _ -> False
+              Model.Noop -> False
+              --TODO distinguish installState
+              _ -> True
+    in
+        Signal.map fst
                       <| Signal.foldp packageModel initAceCodeBoxInfo
-                      <| Signal.filter (\a -> not (fst a).basicCodeBox)
+                      <| Signal.filter 
+                            (\a -> not (fst a).basicCodeBox
+                                   && pickAsserts a )
                             (Model.sampleModel, Model.Noop)
                       <| Signal.map2 (,) sigModel combinedEventSig
 
