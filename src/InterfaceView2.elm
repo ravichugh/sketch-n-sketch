@@ -839,7 +839,7 @@ saveAsButton model w h =
 
 loadButton : Model -> Int -> Int -> GE.Element
 loadButton model w h =
-    simpleTaskButton (loadLocalState model.exName) "Reload" "Reload" "Reload" w h
+    simpleTaskButton (loadLocalState model.exName) "Revert" "Revert" "Revert" w h
 
 undoButton : Model -> Int -> Int -> GE.Element
 undoButton model =
