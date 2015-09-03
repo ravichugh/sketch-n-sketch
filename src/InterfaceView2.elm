@@ -155,9 +155,7 @@ buildHtml_ addZones showZones d i =
 -- compileAttr will throw away the trace anyway
 attrNum k n    = LangHtml.compileAttr k (LangHtml.ANum (n, dummyTrace))
 attrNumTr k nt = LangHtml.compileAttr k (LangHtml.ANum nt)
-
-attrStyle k n = LangHtml.compileAttr k (LangHtml.AStyle (LangHtml.SNum (n, dummyTrace)))
---Add further cases, n could be a string
+--TODO: might need to deal with non-numbers for styles
 
 -- Shorthand for each type of event that we associate with zones
 onMouseDown = Events.onMouseDown events.address
@@ -362,8 +360,8 @@ makeZones options node id attrs =
     "div" ->
       let mk zone x_ y_ w_ h_ =
           zoneBorder Html.div id node zone True options.showBasic 
-              <| [ attrStyle "top" x_, attrStyle "left" y_
-                 , attrStyle "width" w_, attrStyle "height" h_
+              <| [ attrNum "top" x_, attrNum "left" y_
+                 , attrNum "width" w_, attrNum "height" h_
                  ]
           [x,y,w,h] = List.map (toNum << Utils.find_ attrs) ["top", "left", "width", "height"]
           gutter = 0.125
