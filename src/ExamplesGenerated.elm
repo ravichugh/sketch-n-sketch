@@ -2006,7 +2006,6 @@ examples =
   , makeExample "Botanic Garden Logo" botanic
   , makeExample "Rings" rings
   , makeExample "Polygons" polygons
-  , makeExample "Bezier Curves" bezier
   , makeExample "Stars" stars
   , makeExample "Clique" clique
   , makeExample "Sliders" sliders
@@ -2026,6 +2025,7 @@ examples =
   , makeExample "Ferris Wheel" ferris
   , makeExample "Pie Chart" pieChart1
   , makeExample "Solar System" solarSystem
+  , makeExample "Bezier Curves" bezier
   , makeExample "Fractal Tree" fractalTree
   , makeExample "Stick Figures" stickFigures
   , makeExample "Sailboat" sailBoat
