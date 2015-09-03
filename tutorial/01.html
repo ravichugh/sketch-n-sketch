@@ -50,7 +50,7 @@
 <li>Work through a &quot;hello, world&quot; example, and</li>
 <li>Create your own simple designs.</li>
 </ul>
-<p>Let's get started. As you work through the tutorial, we recommend that you keep <a href="http://ravichugh.github.io/sketch-n-sketch/releases/v0.2/">Sketch-n-Sketch v0.2</a> open in a separate tab or window and try out all the sample interactions as you read. We'll sometimes drop in a &quot;<strong>Practice</strong>&quot; marker to provide a gentle reminder, and we'll use an &quot;<strong>Exercise</strong>&quot; marker when you really should stop, drop, and roll over to your Sketch-n-Sketch tab to try out something in-depth.</p>
+<p>Let's get started. As you work through the tutorial, we recommend that you keep <a href="http://ravichugh.github.io/sketch-n-sketch/releases/v0.3/">Sketch-n-Sketch v0.3</a> open in a separate tab or window and try out all the sample interactions as you read. We'll sometimes drop in a &quot;<strong>Practice</strong>&quot; marker to provide a gentle reminder, and we'll use an &quot;<strong>Exercise</strong>&quot; marker when you really should stop, drop, and roll over to your Sketch-n-Sketch tab to try out something in-depth.</p>
 <h3 id="warm-up">Warm-up</h3>
 <p>To preview the basics, let's jump right in and start playing around. The default example that is loaded, called *Scratch*, draws a single, maroon rectangle. Notice that there is some code on the left (the &quot;code pane&quot;) and an SVG canvas on the right (the &quot;canvas pane&quot;).</p>
 <p>First, try clicking and dragging the box around in the canvas pane, and notice how the program is updated to match your changes. Next, hit the Edit Code button, change the string <code>'maroon'</code> in the code pane to a different color, say <code>'lightblue'</code>, and then hit the Run Code button. Now the canvas is &quot;active&quot; again, so you can click and drag the box around once more.</p>
@@ -236,7 +236,7 @@
 <ul>
 <li>Change your placement function to take in the y-value of the shape instead of the x-value. This should result in your shapes being placed in a vertical line instead of a horizontal one.</li>
 <li>Change your program to display more than one row of shapes using any means you see fit.</li>
-<li>Change your placement function to take an x- and a y-position and use these to make a grid of shapes. Hint: The function can be mapped over a list of the form <code>[[100 100] [200 100] ... ]</code>.</li>
+<li>Change your placement function to take an x- and a y-position and use these to make a grid of shapes. Hint: The function can be mapped over a list of points, such as <code>[[100 100] [200 100] ... ]</code>. If you take this approach, then your mapping function should be defined with the form <code>(\[x y] ...)</code> — notice the square brackets instead of the parentheses we have seen before — which &quot;extracts&quot; the two values from each point in the list.</li>
 </ul>
 <h3 id="survey">Survey</h3>
 <p>Please take a moment to fill out our survey for this first lesson, thanks!</p>
