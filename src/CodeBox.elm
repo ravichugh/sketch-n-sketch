@@ -176,7 +176,7 @@ packageModel (model, evt) (lastBox, rerenders) =
     in case evt of
       Model.WaitSave saveName -> saveRequestInfo saveName
       Model.WaitRun  -> runRequestInfo
-      Model.KeysDown _ -> poke
+      Model.SwitchOrient -> poke
       _ ->
           ( { kind = "assertion"
             , code = model.code 

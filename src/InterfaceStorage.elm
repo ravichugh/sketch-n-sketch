@@ -124,7 +124,7 @@ checkAndSave saveName model = if
         && saveName /= "__ErrorSave"
         && not (all (\c -> c == ' ' || c == '\t') saveName) ->
                 send events.address (InterfaceModel.WaitSave saveName)
-                `andThen` \x -> send events.address <|
+                `andThen` \_ -> send events.address <|
                     InterfaceModel.RemoveDialog True saveName
     | otherwise -> send events.address <|
                     InterfaceModel.UpdateModel invalidInput
@@ -134,8 +134,7 @@ removeDialog : Bool -> String -> Model -> Model
 removeDialog makeSave saveName oldModel = case oldModel.mode of
     InterfaceModel.SaveDialog oldmode -> case makeSave of
         True -> 
-          if | saveName /= oldModel.exName &&
-                  List.all ((/=) saveName) oldModel.localSaves ->
+          if | List.all ((/=) saveName) oldModel.localSaves ->
                     { oldModel | mode <- oldmode 
                                , exName <- saveName
                                , localSaves <- saveName :: oldModel.localSaves 

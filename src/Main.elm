@@ -59,17 +59,40 @@ port aceInTheHole : Signal AceCodeBoxInfo
 port aceInTheHole =
     let pickAsserts (m,e) = case m.editingMode of
           Nothing -> True
-          Just _ -> case e of
+          Just _ -> case Debug.log "evt" e of
               --TODO Figure out why this works
+              --Need to ignore keypress and MousePos events, lest we update the
+              --codeBox with an old value needlessly.
               Model.WaitRun -> True
               Model.WaitSave _ -> True
-              Model.MousePos _ -> False
-              Model.KeysDown _ -> False
-              Model.CodeUpdate _ -> False
-              Model.UpdateModel _ -> False
-              Model.Noop -> False
+--              Model.MousePos _ -> False
+--              Model.KeysDown _ -> False
+--              Model.CodeUpdate _ -> False
+--              Model.UpdateModel _ -> False
+              Model.SwitchOrient -> True
+--              Model.Noop -> False
+--              Model.SelectObject _ _ _ -> False 
+--              Model.MouseUp -> False
+--              Model.MousePos _ -> False
+--              Model.Sync -> False
+--              Model.TraverseOption _ -> False
+--              Model.SelectOption -> False
+--              Model.SwitchMode _ -> False
+--              Model.SelectExample _ _ -> False
+              Model.Edit -> True
+--              Model.Run -> False
+--              Model.ToggleOutput -> False
+--              Model.ToggleZones -> False
+--              Model.InstallSaveState -> False
+--              Model.RemoveDialog _ _ -> False
+--              Model.SetBasicCodeBox _ -> False
+--              Model.StartResizingMid -> False
+--              Model.Undo -> False
+--              Model.Redo -> False
+--              Model.KeysDown _ -> False
+--              Model.MultiEvent _ -> False
               --TODO distinguish installState
-              _ -> True
+              _ -> False
     in
         Signal.map fst
                       <| Signal.foldp packageModel initAceCodeBoxInfo

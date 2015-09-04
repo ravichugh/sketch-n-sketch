@@ -88,6 +88,7 @@ editor.moveCursorTo(0,0);
 var markers = [];
 
 runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
+    console.log(codeBoxInfo);
     //If a poke, do nothing
     if (codeBoxInfo.kind == "poke") {
         editor.resize();
