@@ -126,7 +126,7 @@ type Event = CodeUpdate String
            | MultiEvent (List Event)
            --A state such that we're waiting for a response from Ace
            | WaitRun
-           | WaitSave
+           | WaitSave String
 
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""

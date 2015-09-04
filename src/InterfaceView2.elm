@@ -784,7 +784,6 @@ simpleTaskButton = simpleTaskButton_ False
 editRunButton model w h =
   let disabled = model.mode == AdHoc in
   case editingMode model of
-    --True  -> simpleEventButton_ disabled Run "Run" "Run" "Run Code" w h
     True -> simpleEventButton_ disabled WaitRun
               "Run" "Run" "Run Code" w h
     False -> simpleEventButton_ disabled Edit "Edit" "Edit" "Edit Code" w h
@@ -835,7 +834,8 @@ saveButton : Model -> Int -> Int -> GE.Element
 saveButton model w h =
     let disabled = List.any ((==) model.exName << fst) Examples.list
         dn = "Save"
-    in simpleTaskButton_ disabled (saveStateLocally model.exName False model) dn dn dn w h
+    in --simpleTaskButton_ disabled (saveStateLocally model.exName False model) dn dn dn w h
+       simpleEventButton_ disabled (InterfaceModel.WaitSave model.exName) dn dn dn w h
 
 saveAsButton : Model -> Int -> Int -> GE.Element
 saveAsButton model w h = 

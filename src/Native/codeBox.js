@@ -104,6 +104,8 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
     } else if (codeBoxInfo.kind == "saveRequest") {
         //If it's a request for the Editor state, oblige
         sendState("saveResponse");
+        //For error recovery purposes
+        exName = codeBoxInfo.exName;
     } else if (codeBoxInfo.kind == "runRequest") {
         //Same as above
         sendState("runResponse");

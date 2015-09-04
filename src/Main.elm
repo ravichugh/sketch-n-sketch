@@ -34,7 +34,6 @@ combinedEventSig =
       |> Signal.map (\(x,y) -> y)
       |> Signal.map2 adjustCoords Window.dimensions
       |> Signal.map Model.MousePos
-    , Signal.map interpretAceEvents theTurn
     , Signal.map
       (Model.KeysDown << List.sort << Set.toList)
       Keyboard.keysDown
@@ -49,33 +48,21 @@ adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
 -- The necessary port for Tasks/Storage
 -- Due to current Elm limitations, this must be in the Main module
 port taskPort : Signal (Task String ())
-port taskPort = taskMailbox.signal
+port taskPort = Signal.mergeMany
+    [ taskMailbox.signal
+    , Signal.map2 interpretAceEvents theTurn 
+        <| Signal.sampleOn theTurn sigModel
+    ]
 
 -- Port for messages to the code box
--- The model (will) contain all the information needed to deduce highlights and such
--- Note that we don't want to drop repeats, as we need to rerender the Ace
--- editor whenever the rest of the window is rendered
---
--- Current 'race condition issue' - Whenever a Task is used to update, it seems
--- that the order of rendering (Element in view vs codeBox.js replacing it) is
--- switched from when it would otherwise be. So, the order of events is:
---   Model Update -> View Renders empty div -> codeBox.js replaces it
---    Now is:
---   Event -> Task to update model is created -> View Renders empty div ->
---     codebox.js replaces it -> Task returns? -> View is rerendered, codebox
---       does not replace?
---
--- But when the task returns, that should update the below signal anyways, which
--- should trigger a rerender. Hmm.
---
 port aceInTheHole : Signal AceCodeBoxInfo
 port aceInTheHole =
     let pickAsserts (m,e) = case m.editingMode of
           Nothing -> True
           Just _ -> case e of
               --TODO Figure out why this works
-              Model.WaitRun -> False
-              Model.WaitSave -> False
+              Model.WaitRun -> True
+              Model.WaitSave _ -> True
               Model.MousePos _ -> False
               Model.KeysDown _ -> False
               Model.CodeUpdate _ -> False

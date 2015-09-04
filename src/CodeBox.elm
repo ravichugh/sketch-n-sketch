@@ -11,9 +11,9 @@ import Graphics.Element as GE
 import InterfaceModel as Model exposing (Event, sampleModel, events)
 
 -- So we can check on the installSaveState update
-import InterfaceStorage exposing (installSaveState)
+import InterfaceStorage exposing (commitLocalSave)
 
-import Task exposing (Task)
+import Task exposing (Task, andThen)
 import String
 import Dict exposing (Dict)
 
@@ -62,7 +62,8 @@ initAceCodeBoxInfo =
   )
 
 -- Helper definitons for other messages we can send to Ace
-saveRequestInfo =
+saveRequestInfo : String -> (AceCodeBoxInfo, List Bool)
+saveRequestInfo saveName =
   ( { kind = "saveRequest"
     , code = ""
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
@@ -70,11 +71,12 @@ saveRequestInfo =
     , selections = [] 
     , highlights = []
     , bounce = True
-    , exName = ""
+    , exName = saveName
     }
   , []
   )
 
+runRequestInfo : (AceCodeBoxInfo, List Bool)
 runRequestInfo =
   ( { kind = "runRequest"
     , code = ""
@@ -88,6 +90,7 @@ runRequestInfo =
   , []
   )
 
+poke : (AceCodeBoxInfo, List Bool)
 poke =
   ( { kind = "poke"
     , code = ""
@@ -101,9 +104,10 @@ poke =
   , []
   )
 
-interpretAceEvents : AceMessage -> Event
-interpretAceEvents amsg = case Debug.log "From Ace" amsg.evt of
-    "runResponse" -> Model.MultiEvent
+-- The second model argument is present to allow Saves to be made from here
+interpretAceEvents : AceMessage -> Model.Model -> Task String ()
+interpretAceEvents amsg model = case Debug.log "From Ace" amsg.evt of
+    "runResponse" -> Signal.send events.address <| Model.MultiEvent
       [ Model.UpdateModel <|
             \m -> { m | code <- amsg.strArg
                       , codeBoxInfo <- { cursorPos = amsg.cursorArg
@@ -114,17 +118,28 @@ interpretAceEvents amsg = case Debug.log "From Ace" amsg.evt of
       , Model.Run
       ]
     --TODO
-    "saveResponse" -> Model.Noop
-    "Rerender" -> Model.UpdateModel <| \m -> { m | code <- m.code }
-    "init" -> Model.Noop
+    "saveResponse" -> 
+        let newModel = { model | code <- amsg.strArg
+                               , codeBoxInfo <- { cursorPos = amsg.cursorArg
+                                                , selections = amsg.selectionArg
+                                                , highlights =
+                                                    model.codeBoxInfo.highlights
+                                                }
+                        }
+        in commitLocalSave model.exName newModel 
+           `andThen` \_ ->
+           Signal.send events.address <| Model.UpdateModel <|
+                \m -> newModel
+    "Rerender" -> Signal.send events.address <| Model.UpdateModel <| \m -> { m | code <- m.code }
+    "init" -> Task.succeed () --Signal.send events.address Model.Noop
     _ ->
       -- TODO change this back
       -- if String.contains errorPrefix amsg.evt
       if True
-      then Model.UpdateModel <| recoverFromError amsg
+      then Signal.send events.address <| Model.UpdateModel <| recoverFromError amsg
       -- TODO: this leads to an infinite loop of restarting in Chrome...
       -- else Debug.crash "Malformed update sent to Elm"
-      else Model.Noop
+      else Signal.send events.address Model.Noop
 
 -- Puts us in the correct state if we recovered from an error, which we find out
 -- about from the JS that also happens to load Ace.
@@ -159,7 +174,7 @@ packageModel (model, evt) (lastBox, rerenders) =
             _           -> True
         rerender = tripRender evt rerenders
     in case evt of
-      Model.WaitSave -> saveRequestInfo
+      Model.WaitSave saveName -> saveRequestInfo saveName
       Model.WaitRun  -> runRequestInfo
       Model.KeysDown _ -> poke
       _ ->

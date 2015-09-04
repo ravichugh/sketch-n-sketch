@@ -370,7 +370,7 @@ upstate evt old = case debugLog "Event" evt of
       e1 :: es -> upstate e1 old |> upstate (MultiEvent es)        
 
     WaitRun -> old
-    WaitSave -> old
+    WaitSave saveName -> { old | exName <- saveName }
 
     _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
 
