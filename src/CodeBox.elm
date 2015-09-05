@@ -90,23 +90,47 @@ runRequestInfo =
   , []
   )
 
-poke : (AceCodeBoxInfo, List Bool)
-poke =
-  ( { kind = "poke"
-    , code = ""
-    , cursorPos = sampleModel.codeBoxInfo.cursorPos
-    , manipulable = True
-    , selections = [] 
-    , highlights = []
-    , bounce = True
-    , exName = ""
-    }
-  , []
-  )
+poke : Bool -> List Bool -> Model.Model -> (AceCodeBoxInfo, List Bool)
+poke rerender rerenders model =
+  let manipulable = case (model.mode, model.editingMode) of
+          (Model.SaveDialog _, _) -> False
+          (_, Nothing) -> False
+          _           -> True
+  in
+      ( { kind = "poke"
+        , code = ""
+        , cursorPos = sampleModel.codeBoxInfo.cursorPos
+        , manipulable = manipulable
+        , selections = [] 
+        , highlights = []
+        , bounce = rerender
+        , exName = ""
+        }
+      , rerender :: List.take (rerenderCount - 1) rerenders
+      )
+
+assertion : Bool -> List Bool -> Model.Model -> (AceCodeBoxInfo, List Bool)
+assertion rerender rerenders model =
+  let manipulable = case (model.mode, model.editingMode) of
+          (Model.SaveDialog _, _) -> False
+          (_, Nothing) -> False
+          _           -> True
+  in
+    ( { kind = "assertion"
+      , code = model.code 
+      , cursorPos = model.codeBoxInfo.cursorPos 
+      , selections = model.codeBoxInfo.selections
+      , manipulable = manipulable
+      , highlights = model.codeBoxInfo.highlights
+      , bounce = rerender
+      , exName = model.exName
+      }
+    , rerender :: List.take (rerenderCount - 1) rerenders
+    )
 
 -- The second model argument is present to allow Saves to be made from here
 interpretAceEvents : AceMessage -> Model.Model -> Task String ()
-interpretAceEvents amsg model = case Debug.log "From Ace" amsg.evt of
+interpretAceEvents amsg model = case amsg.evt of
     "runResponse" -> Signal.send events.address <| Model.MultiEvent
       [ Model.UpdateModel <|
             \m -> { m | code <- amsg.strArg
@@ -130,8 +154,8 @@ interpretAceEvents amsg model = case Debug.log "From Ace" amsg.evt of
            `andThen` \_ ->
            Signal.send events.address <| Model.UpdateModel <|
                 \m -> newModel
-    "Rerender" -> Signal.send events.address <| Model.UpdateModel <| \m -> { m | code <- m.code }
-    "init" -> Task.succeed () --Signal.send events.address Model.Noop
+    "Rerender" -> Signal.send events.address Model.Noop 
+    "init" -> Task.succeed () 
     _ ->
       -- TODO change this back
       -- if String.contains errorPrefix amsg.evt
@@ -163,32 +187,20 @@ recoverFromError amsg fresh =
 -- Note that each one of these won't necessarily trigger a DOM copy/replacement;
 -- it only will for each of the times that Elm clobbers it.
 rerenderCount : Int
-rerenderCount = 6
+rerenderCount = 2
 
 packageModel : (Model.Model, Event) -> (AceCodeBoxInfo, List Bool) -> 
                     (AceCodeBoxInfo, List Bool)
 packageModel (model, evt) (lastBox, rerenders) = 
-    let manipulable = case (model.mode, model.editingMode) of
-            (Model.SaveDialog _, _) -> False
-            (_, Nothing) -> False
-            _           -> True
-        rerender = tripRender evt rerenders
-    in case evt of
-      Model.WaitSave saveName -> saveRequestInfo saveName
-      Model.WaitRun  -> runRequestInfo
-      Model.SwitchOrient -> poke
-      _ ->
-          ( { kind = "assertion"
-            , code = model.code 
-            , cursorPos = model.codeBoxInfo.cursorPos 
-            , selections = model.codeBoxInfo.selections
-            , manipulable = manipulable
-            , highlights = model.codeBoxInfo.highlights
-            , bounce = rerender
-            , exName = model.exName
-            }
-          , rerender :: List.take (rerenderCount - 1) rerenders
-          )
+    let rerender = tripRender evt rerenders
+    in case model.editingMode of
+      Nothing -> assertion rerender rerenders model
+      Just _ -> case evt of
+          Model.WaitSave saveName -> saveRequestInfo saveName
+          Model.WaitRun  -> runRequestInfo
+          Model.Edit -> assertion rerender rerenders model
+          Model.Run -> assertion rerender rerenders model
+          _ -> poke rerender rerenders model
 
 -- Lets a signal pass if it should triger an extra rerender
 -- This is entered into a foldp so that we do not enter into an infinite

@@ -88,10 +88,22 @@ editor.moveCursorTo(0,0);
 var markers = [];
 
 runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
-    console.log(codeBoxInfo);
     //If a poke, do nothing
     if (codeBoxInfo.kind == "poke") {
         editor.resize();
+        reembed(false);
+        //If we should bounce an update back (force a rerender) then do so
+        bounce(codeBoxInfo.bounce);
+        //Set the contents to the correct manipulable state
+        if (!codeBoxInfo.manipulable) {
+            editor.container.style.zIndex = "0";
+            editor.container.style.pointerEvents = "auto";
+            editor.setReadOnly(true);
+        } else {
+            editor.container.style.zIndex = "1";
+            editor.container.style.pointerEvents = "auto";
+            editor.setReadOnly(false);
+        }
         return;
     }
 
@@ -152,6 +164,31 @@ function sendState(evt) {
     , exNameArg : ""
     }
   );
+}
+
+//Re-embeds the editor in the "editor" div
+function reembed(force) {
+    //If the div rerendered (kept track of with a special attribute) then we
+    // should copy the editor back into it
+    var editorDiv = document.getElementById("editor");
+    if (force || editorDiv.getAttribute("rendered") !== "true") {
+      editorDiv.parentNode.replaceChild(editor.container, editorDiv);
+      editorDiv.setAttribute("rendered","true");
+    }
+}
+
+//Bounces a message back to rerender, if applicable
+function bounce(check) {
+  if (check) {
+      runtime.ports.theTurn.send(
+          { evt : "Rerender"
+          , strArg : ""
+          , cursorArg : editor.getCursorPosition()
+          , selectionArg : []
+          , exNameArg : ""
+          }
+      );
+  }
 }
 
 // Installs all the values that we got from the assertion from Elm
@@ -223,11 +260,7 @@ function makeAssertion(codeBoxInfo) {
 
     //If the div rerendered (kept track of with a special attribute) then we
     // should copy the editor back into it
-    var editorDiv = document.getElementById("editor");
-    if (editorDiv.getAttribute("rendered") !== "true") {
-      editorDiv.parentNode.replaceChild(editor.container, editorDiv);
-      editorDiv.setAttribute("rendered","true");
-    }
+    reembed(false);
     
     //Set the contents to the correct manipulable state
     if (!codeBoxInfo.manipulable) {
@@ -241,16 +274,7 @@ function makeAssertion(codeBoxInfo) {
     }
 
     //If we should bounce an update back (force a rerender) then do so
-    if (codeBoxInfo.bounce) {
-        runtime.ports.theTurn.send(
-            { evt : "Rerender"
-            , strArg : ""
-            , cursorArg : editor.getCursorPosition()
-            , selectionArg : []
-            , exNameArg : ""
-            }
-        );
-    }
+    bounce(codeBoxInfo.bounce);
     
     //Remember the current document name (for error recovery purposes)
     exName = codeBoxInfo.exName;

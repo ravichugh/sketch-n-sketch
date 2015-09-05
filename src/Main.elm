@@ -59,17 +59,17 @@ port aceInTheHole : Signal AceCodeBoxInfo
 port aceInTheHole =
     let pickAsserts (m,e) = case m.editingMode of
           Nothing -> True
-          Just _ -> case Debug.log "evt" e of
-              --TODO Figure out why this works
-              --Need to ignore keypress and MousePos events, lest we update the
-              --codeBox with an old value needlessly.
+          Just _ -> case e of
+              -- All events let through here that aren't already let through
+              -- 'poke' Ace, rerendering if necessary
               Model.WaitRun -> True
               Model.WaitSave _ -> True
---              Model.MousePos _ -> False
+              Model.MousePos _ -> True
 --              Model.KeysDown _ -> False
 --              Model.CodeUpdate _ -> False
 --              Model.UpdateModel _ -> False
               Model.SwitchOrient -> True
+              Model.Noop -> True
 --              Model.Noop -> False
 --              Model.SelectObject _ _ _ -> False 
 --              Model.MouseUp -> False
@@ -83,8 +83,8 @@ port aceInTheHole =
 --              Model.Run -> False
 --              Model.ToggleOutput -> False
 --              Model.ToggleZones -> False
---              Model.InstallSaveState -> False
---              Model.RemoveDialog _ _ -> False
+              Model.InstallSaveState -> True
+              Model.RemoveDialog _ _ -> True
 --              Model.SetBasicCodeBox _ -> False
 --              Model.StartResizingMid -> False
 --              Model.Undo -> False
