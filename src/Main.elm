@@ -78,7 +78,7 @@ port aceInTheHole =
 --              Model.TraverseOption _ -> False
 --              Model.SelectOption -> False
 --              Model.SwitchMode _ -> False
---              Model.SelectExample _ _ -> False
+              Model.SelectExample _ _ -> True
               Model.Edit -> True
 --              Model.Run -> False
 --              Model.ToggleOutput -> False

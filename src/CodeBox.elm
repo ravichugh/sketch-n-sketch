@@ -187,7 +187,7 @@ recoverFromError amsg fresh =
 -- Note that each one of these won't necessarily trigger a DOM copy/replacement;
 -- it only will for each of the times that Elm clobbers it.
 rerenderCount : Int
-rerenderCount = 2
+rerenderCount = 4
 
 packageModel : (Model.Model, Event) -> (AceCodeBoxInfo, List Bool) -> 
                     (AceCodeBoxInfo, List Bool)
