@@ -1875,11 +1875,13 @@ bezier =
 ; Point definitions
 ;
 (def [t tslider] (hSlider false 50! 450! 300! 0! 1! 't: ' 0.25))
-(def [linx1 liny1 linx2 liny2] [50 50 150 150])
-(def [quadx1 quady1 quadx2 quady2 quadx3 quady3] [200 150 250 50 300 150])
-(def [cux1 cuy1 cux2 cuy2 cux3 cuy3 cux4 cuy4] [350 150 360 50 425 80 450 150])
+(def [linx1 liny1 linx2 liny2] [50 200 100 50])
+(def [quadx1 quady1 quadx2 quady2 quadx3 quady3] 
+     [(+ linx1 150!) liny1 (+ linx2 150!) liny2 300 200])
+(def [cux1 cuy1 cux2 cuy2 cux3 cuy3 cux4 cuy4] 
+     [(+ quadx1 150!) liny1 (+ quadx2 150!) liny2 (+ quadx3 150!) quady3 500 50])
 (def [qux1 quy1 qux2 quy2 qux3 quy3 qux4 quy4 qux5 quy5]
-     [500  150  550  75   600  50   650  75   700  150])
+     [(+ cux1 150!) liny1 (+ cux2 150!) liny2 (+ cux3 150!) quady3 (+ cux4 150!) cuy4 700 200])
 ;
 ; Style Definitions
 ;
@@ -1893,9 +1895,9 @@ bezier =
   [ (path 'none' col1 linwd
       [ 'M' linx1 liny1
         'L' linx2 liny2 ] )
-    (path 'none' col2 linwd
+    (path 'none' 'red' linwd
       [ 'M' linx1 liny1
-        'L' midx midy ] ) 
+        'L' midx midy ] )
     (ptcirc midx midy)  ] ) )
 (def quadCurve
   (let [midx1 midy1 midx2 midy2] [(linbez t quadx1 quadx2) (linbez t quady1 quady2)
@@ -1910,6 +1912,10 @@ bezier =
     (path 'none' col2 linwd
       [ 'M' midx1 midy1
         'L' midx2 midy2 ] )
+    (path 'none' 'red' linwd
+      [ 'M' quadx1 quady1
+        'Q' quadx2 quady2
+            quadx3 quady3 ] )
     (ptcirc px py)    ] ) ) )
 (def cuCurve
   (let [midx1 midy1 midx2 midy2 midx3 midy3]
@@ -1937,7 +1943,12 @@ bezier =
         'L' midx3 midy3 ] )
     (path 'none' col3 linwd
       [ 'M' dubmidx1 dubmidy1
-        'L' dubmidx2 dubmidy2 ] ) 
+        'L' dubmidx2 dubmidy2 ] )
+    (path 'none' 'red' linwd
+      [ 'M' cux1 cuy1
+        'C' cux2 cuy2
+            cux3 cuy3
+            cux4 cuy4 ] )
     (ptcirc px py)            ] ) ) ) )
 
 (def quCurve
