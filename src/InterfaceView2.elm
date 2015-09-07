@@ -121,8 +121,18 @@ optionsOf x =
 --------------------------------------------------------------------------------
 -- Compiling to Html
 
-buildHtml : Bool -> ShowZones -> LangHtml.RootedIndexedTree -> Html.Html
-buildHtml addZones showZones (i,d) = buildHtml_ addZones showZones d i
+buildHtml : Int -> Int -> Bool -> ShowZones -> LangHtml.RootedIndexedTree -> Html.Html
+buildHtml w h addZones showZones (i,d) = 
+  Html.div []
+    [ Html.iframe
+        [ Attr.srcdoc <| LangHtml.printHtml (i,d)
+        , Attr.style [("width", "100%"), ("height", "100%")]
+        ]
+        []
+    , Html.div [Attr.style [("position", "relative"), ("top", toString (-1 * h)
+    ++ "px")]] [buildHtml_ addZones
+    showZones d i]
+    ]
 
 buildHtml_ : Bool -> ShowZones -> LangHtml.IndexedTree -> LangHtml.NodeId -> Html.Html
 buildHtml_ addZones showZones d i =
@@ -136,7 +146,7 @@ buildHtml_ addZones showZones d i =
           (False, Nothing)     -> ([], attrs)
           (False, Just (_, l)) -> ([], l)
           (True, Nothing) ->
-            (makeZones options shape i attrs, attrs)
+            Debug.log "(zones,attrs')" (makeZones options shape i attrs, attrs)
           (True, Just (LangHtml.AString "none", l)) ->
             (makeZones zoneOptions0 shape i attrs, l)
           (True, Just (LangHtml.AString "basic", l)) ->
@@ -144,8 +154,8 @@ buildHtml_ addZones showZones d i =
              (makeZones options' shape i attrs, l)
       in
       let children = List.map (buildHtml_ addZones showZones d) js in
-      let mainshape = (LangHtml.html shape) (LangHtml.compileAttrs attrs) children in
-      mainshape
+  --    let mainshape = (LangHtml.html shape) (LangHtml.compileAttrs attrs) children in
+      Html.div [] (List.append zones children)
 
 --------------------------------------------------------------------------------
 -- Defining Zones
@@ -164,7 +174,7 @@ onMouseOver = Events.onMouseOver events.address
 onMouseOut  = Events.onMouseOut  events.address
 
 -- Shorthand for styling the cursor
-cursorStyle s = LangHtml.attr "cursor" s
+cursorStyle s = ("cursor", LangHtml.AString s)
 
 -- All of the events that are associated with a given zone 
 zoneEvents id node zone =
@@ -201,168 +211,29 @@ cursorOfZone zone = if
 -- Styles the zone to be transparent with the translucent red border
 zoneBorder htmlFunc id node zoneName flag show otherAttrs =
     zone htmlFunc id node zoneName
-      <| [ if flag && show
-             then LangHtml.attr "stroke" "rgba(255,0,0,0.5)"
-             else LangHtml.attr "stroke" "rgba(0,0,0,0.0)"
-         , LangHtml.attr "stroke-width" (if flag then "5" else "0")
-         , LangHtml.attr "fill" "rgba(0,0,0,0)"
-         , cursorOfZone zoneName
-         ] ++ otherAttrs
-
---zonePoint id shape zone show transform =
---  flip Svg.circle [] <<
---  (++) (zoneEvents id shape zone) <<
---  (++) transform <<
---  (++) [ LangHtml.attr "r" "6"
---       , if show
---         then LangHtml.attr "fill" "rgba(255,0,0,0.5)"
---         else LangHtml.attr "fill" "rgba(0,0,0,0.0)"
---       , cursorStyle "pointer"
---       ]
-
---zonePoints id shape show transform pts =
---  flip Utils.mapi pts <| \(i, (x,y)) ->
---    zonePoint id shape (addi "Point" i) show transform
---      [ attrNumTr "cx" x, attrNumTr "cy" y ]
-
---zoneLine id shape zone show transform (x1,y1) (x2,y2) =
---  zoneBorder Svg.line id shape zone True show transform [
---      attrNumTr "x1" x1 , attrNumTr "y1" y1
---    , attrNumTr "x2" x2 , attrNumTr "y2" y2
---    , cursorStyle "pointer"
---    ]
-
----- Stuff for Rotate Zones ------------------------------------------------------
-
---rotZoneDelta = 20
-
---maybeTransformCmds l =
---  case Utils.maybeFind "transform" l of
---    Just (LangHtml.ATransform cmds) -> Just cmds
---    _                              -> Nothing
-
---transformAttr cmds =
---  [LangHtml.compileAttr "transform" (LangHtml.ATransform cmds)]
-
---maybeTransformAttr l =
---  case maybeTransformCmds l of
---    Just cmds -> transformAttr cmds
---    Nothing   -> []
-
---zoneRotate b id shape (cx,cy) r m =
---  case (b, m) of
---    (True, Just cmds) -> zoneRotate_ id shape cx cy r cmds
---    _                 -> []
-
---zoneRotate_ id shape cx cy r cmds =
---  let (a, stroke, strokeWidth, rBall) =
---      (20, "rgba(192,192,192,0.5)", "5", "7") in
---  let (fillBall, swBall) = ("silver", "2") in
---  let transform = transformAttr cmds in
---  let circle =
---    flip Svg.circle [] <|
---      [ LangHtml.attr "fill" "none"
---      , LangHtml.attr "stroke" stroke , LangHtml.attr "stroke-width" strokeWidth
---      , LangHtml.attr "cx" (toString cx) , LangHtml.attr "cy" (toString cy)
---      , LangHtml.attr "r"  (toString r)
---      ]
---  in
---  let ball =
---    flip Svg.circle [] <|
---      [ LangHtml.attr "stroke" "black" , LangHtml.attr "stroke-width" swBall
---      , LangHtml.attr "fill" fillBall
---      , LangHtml.attr "cx" (toString cx) , LangHtml.attr "cy" (toString (cy - r))
---      , LangHtml.attr "r"  rBall
---      , cursorOfZone "RotateBall"
---      ] ++ transform
---        ++ zoneEvents id shape "RotateBall"
---  in
---  let line =
---    flip Svg.line [] <|
---      [ LangHtml.attr "stroke" stroke , LangHtml.attr "stroke-width" strokeWidth
---      , LangHtml.attr "x1" (toString cx) , LangHtml.attr "y1" (toString cy)
---      , LangHtml.attr "x2" (toString cx) , LangHtml.attr "y2" (toString (cy - r))
---      ] ++ transform
---  in
---  [circle, line, ball]
-
---halfwayBetween (x1,y1) (x2,y2) = ((x1 + x2) / 2, (y1 + y2) / 2)
---distance (x1,y1) (x2,y2)       = sqrt ((x2-x1)^2 + (y2-y1)^2)
-
---projPt (x,y)                   = (fst x, fst y)
---halfwayBetween_ pt1 pt2        = halfwayBetween (projPt pt1) (projPt pt2)
---distance_ pt1 pt2              = distance (projPt pt1) (projPt pt2)
-
----- Stuff for Color Zones -------------------------------------------------------
-
---wGradient = 250
---scaleColorBall = 1 / (wGradient / LangHtml.maxColorNum)
-
---numToColor = Utils.numToColor wGradient
-
---maybeColorNumAttr k l =
---  case Utils.maybeFind k l of
---    Just (LangHtml.AColorNum n) -> Just n
---    _                          -> Nothing
-
---zoneColor b id shape x y rgba =
---  case (b, rgba) of
---    (True, Just n) -> zoneColor_ id shape x y n
---    _              -> []
-
---zoneColor_ id shape x y n =
---  let rgba = [LangHtml.compileAttr "fill" (LangHtml.AColorNum n)] in
---  let (w, h, a, stroke, strokeWidth, rBall) =
---      (wGradient, 20, 20, "silver", "2", "7") in
---  let yOff = a + rotZoneDelta in
---  let ball =
---    let cx = x + (fst n / LangHtml.maxColorNum) * wGradient in
---    let cy = y - yOff + (h/2) in
---    flip Svg.circle [] <|
---      [ LangHtml.attr "stroke" "black" , LangHtml.attr "stroke-width" strokeWidth
---      , LangHtml.attr "fill" stroke
---      , LangHtml.attr "cx" (toString cx) , LangHtml.attr "cy" (toString cy)
---      , LangHtml.attr "r"  rBall
---      , cursorOfZone "FillBall"
---      ] ++ zoneEvents id shape "FillBall"
---  in
---  let box =
---    flip Svg.rect [] <|
---      [ LangHtml.attr "fill" "none"
---      , LangHtml.attr "stroke" stroke , LangHtml.attr "stroke-width" strokeWidth
---      , LangHtml.attr "x" (toString x) , LangHtml.attr "y" (toString (y - yOff))
---      , LangHtml.attr "width" (toString w) , LangHtml.attr "height" (toString h)
---      ]
---  in
---  -- TODO would probably be faster with an image...
---  let gradient =
---    List.map (\i ->
---      let (r,g,b) = numToColor i in
---      let fill =
---        "rgb" ++ Utils.parens (String.join "," (List.map toString [r,g,b]))
---      in
---      flip Svg.rect [] <|
---        [ LangHtml.attr "fill" fill
---        , LangHtml.attr "x" (toString (x+i)) , LangHtml.attr "y" (toString (y - yOff))
---        , LangHtml.attr "width" "1" , LangHtml.attr "height" (toString h)
---        ]) [0 .. w]
---  in
---  gradient ++ [box, ball]
-
-----------------------------------------------------------------------------------
+      <| LangHtml.compileAttrs <|
+           [ if flag && show
+               then ("border-color", LangHtml.AString "rgba(255,0,0,0.5)")
+               else ("border-color", LangHtml.AString "rgba(0,0,0,0.0)")
+           , ("border-width", (if flag then LangHtml.AString "5px" else LangHtml.AString "0px"))
+           , ("border-style", LangHtml.AString "solid")
+           , ("background-color", LangHtml.AString "rgba(0,0,0,0)")
+           , cursorOfZone zoneName
+           ] ++ otherAttrs
 
 -- Actually generates the zones for a given HtmlNode
--- Will currently break! Remove this comment when Utils.find_ is rewritten to
--- capture/search inline CSS styles instead of just base html attrs
 makeZones : ZoneOptions -> String -> LangHtml.NodeId -> List LangHtml.Attr -> List Html.Html
 makeZones options node id attrs =
   case node of
-    "div" ->
+    "div" -> Debug.log "making zones" "div" |> \_ -> 
       let mk zone x_ y_ w_ h_ =
           zoneBorder Html.div id node zone True options.showBasic 
-              <| [ attrNum "top" x_, attrNum "left" y_
-                 , attrNum "width" w_, attrNum "height" h_
-                 ]
+            <|    [ ("top", LangHtml.AString (toString x_ ++ "px"))
+                  , ("left", LangHtml.AString (toString y_ ++ "px"))
+                  , ("width", LangHtml.AString (toString w_ ++ "px"))
+                  , ("height", LangHtml.AString (toString h_ ++ "px"))
+                  , ("position", LangHtml.AString "absolute")
+                  ]
           [x,y,w,h] = List.map (toNum << Utils.find_ attrs) ["top", "left", "width", "height"]
           gutter = 0.125
           (x0,x1,x2)    = (x, x + gutter*w, x + (1-gutter)*w)
@@ -570,13 +441,13 @@ canvas_ w h model =
     (False, Live _) -> True
     _               -> False
   in
-  let document = buildHtml addZones model.showZones model.slate in
-  Html.toElement w h <|
-    Html.iframe
-      [ Attr.srcdoc <| LangHtml.printHtml model.slate 
-      , Attr.style [("width", "100%"), ("height", "100%")]
-      ]
-      []
+  let document = buildHtml w h addZones model.showZones model.slate in
+  Html.toElement w h document
+   -- Html.iframe
+   --   [ Attr.srcdoc <| LangHtml.printHtml model.slate 
+   --   , Attr.style [("width", "100%"), ("height", "100%")]
+   --   ]
+   --   []
 
 middleWidgets w h wWrap hWrap model =
   let twoButtons b1 b2 =

@@ -257,7 +257,7 @@ prelude =
 ;; Make a Div that has a specified width and height so as to be compatible with
 ;; the Element abstraction
 (def eDiv (\\(w h initialChildren)
-  (eStyle [ ['width' w] ['height' h] ]
+  (eStyle [ ['width' w] ['height' h] ['position' 'absolute' ] ]
     [ 'div' [] initialChildren ] ) ) )
 
 ; \"constant folding\"

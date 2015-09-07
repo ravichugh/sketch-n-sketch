@@ -13,4 +13,4 @@
       [ 'left'   100 ]
       [ 'background-color' 'red' ]
     ] (eDiv 100 100 []) ) )
-(basicDoc [['bgcolor' 'lightblue']] [reddiv])
+(basicDoc [['background-color' 'lightblue']] [reddiv])

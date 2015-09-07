@@ -75,7 +75,7 @@ var defaultScratch =
 "      [ 'left'   100 ]\n" +
 "      [ 'background-color' 'red' ]\n" +
 "   ] (eDiv 100 100 []) ) )\n" +
-"(basicDoc [['bgcolor' 'lightblue']] [reddiv])"
+"(basicDoc [['background-color' 'lightblue']] [reddiv])"
 editor.setValue(defaultScratch);
 editor.moveCursorTo(0,0);
 
