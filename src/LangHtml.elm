@@ -48,7 +48,8 @@ compileValToNode v = case v of
     (html f) (compileAttrVals vs1) (compileNodeVals vs2)
 
 compileNodeVals        = List.map compileValToNode
-compileAttrVals        = List.map (uncurry compileAttr << valToAttr)
+--compileAttrVals        = List.map (uncurry compileAttr << valToAttr)
+compileAttrVals = List.map (\(k,v) -> compileAttr k v) << combineStyles << List.map valToAttr
 compileAttrs      list = compileAttrMap <| combineStyles list
 compileAttrMap         = List.map (uncurry compileAttr)
 compileAttr k v = (attr k) (strAVal v)
@@ -61,7 +62,7 @@ type AVal
   | AString String
   | ARgba Rgba
   | AColorNum NumTr -- Utils.numToColor [0,500)
-  | AStyle AVal --to differentiate CSS for easier pattern-matching later
+  --| AStyle AVal --to differentiate CSS for easier pattern-matching later
 
 maxColorNum   = 500
 clampColorNum = Utils.clamp 0 (maxColorNum - 1)
@@ -78,10 +79,10 @@ toNum a = case a of
   ANum (n,_) -> n
   AString s  -> case String.toFloat s of
                   Ok n -> n
-  AStyle st  -> case st of
-                  ANum (m, _) -> m
-                  AString str -> case String.toFloat str of
-                                    Ok o -> o
+  --AStyle st  -> case st of
+  --                ANum (m, _) -> m
+  --                AString str -> case String.toFloat str of
+  --                                  Ok o -> o
 
 
 toNumTr a = case a of
@@ -93,17 +94,35 @@ toNumTr a = case a of
 --TODO: Add additional HTML attrs
 valToAttr (VList [VBase (String k), v]) =
   case (k, v) of
-    ("fill", VList vs)    -> (k, ARgba <| valToRgba vs) --Double check this, might be 'color'
-    ("fill", VConst it)   -> (k, AColorNum it)
-    ("top", s)            -> (k, AStyle <| valToStyle s)
-    ("bottom", s)         -> (k, AStyle <| valToStyle s)
-    ("width", s)          -> (k, AStyle <| valToStyle s)
-    ("height", s)         -> (k, AStyle <| valToStyle s)
-    ("background-color",s) -> (k, AStyle <| valToStyle s)
-    ("left", s)            -> (k, AStyle <| valToStyle s)
-    (_, VConst it)        -> (k, ANum it)
-    (_, VBase (String s)) -> (k, AString s)
+      (_, VConst it) -> (k, ANum it)
+      (_, VBase (String s)) -> (k, AString s)
+--    ("fill", VList vs)    -> (k, ARgba <| valToRgba vs) --Double check this, might be 'color'
+--    ("fill", VConst it)   -> (k, AColorNum it)
+--    ("top", s)            -> (k, AStyle <| valToStyle s)
+--    ("bottom", s)         -> (k, AStyle <| valToStyle s)
+--    ("width", s)          -> (k, AStyle <| valToStyle s)
+--    ("height", s)         -> (k, AStyle <| valToStyle s)
+--    ("background-color",s) -> (k, AStyle <| valToStyle s)
+--    ("left", s)            -> (k, AStyle <| valToStyle s)
+--    (_, VConst it)        -> (k, ANum it)
+--    (_, VBase (String s)) -> (k, AString s)
 
+--valToAttr : List Val -> List (String, AVal)
+--valToAttr vs = valToAttr_ vs ""
+--
+--valToAttr_ : List Val -> String -> List (String, AVal)
+--valToAttr_ vs acc = case vs of
+--    [] -> [("style", acc)]
+--    v :: vv -> case v of
+--        (str, VConst (n, tr)) -> 
+--            let newkv = str ++ ": " ++ toString n ++ "; "
+--            in valToAttr_ vs (acc ++ newkv)
+--        (str, VBase (String s)) ->
+--            let newkv = str ++ ": " ++ s ++ "; "
+--            in valToAttr_ vs (acc + newkv)
+--        _ -> Debug.log "Unsupported key/value type in style" v |> \_ ->
+--                valToAttr_ vv acc
+                    
 
 valToRgba [VConst r, VConst g, VConst b, VConst a] = (r,g,b,a)
 rgbaToVal (r,g,b,a) = [VConst r, VConst g, VConst b, VConst a]
@@ -118,51 +137,59 @@ strRgba (r_,g_,b_,a_) =
 strRgba_ rgba =
   "rgba" ++ Utils.parens (Utils.commas (List.map toString rgba))
 
-isCSS (x,y) = case y of
-  AStyle s -> True
-  _        -> False
+--isCSS (x,y) = case y of
+--  AStyle s -> True
+--  _        -> False
 
 --finds if any attributes are CSS & then clumps them together
-combineStyles list =
-  let
-    split  =  List.partition isCSS list
-    styles = fst split
-  in
-    case styles of
-      [] -> list
-      _  -> ("style", strStyle styles) :: (snd split)  
+combineStyles : List (String, AVal) -> List (String, AVal)
+combineStyles list = combineStyles_ list ""
+--  let
+--    split  =  List.partition isCSS list
+--    styles = fst split
+--  in
+--    case styles of
+--      [] -> list
+--      _  -> ("style", strStyle styles) :: (snd split) 
+
+combineStyles_ : List (String, AVal) -> String -> List (String, AVal)
+combineStyles_ list acc = case list of
+    [] -> [("style", AString acc)]
+    (key, val) :: vs -> 
+      let newkv = key ++ ": " ++ strAVal val ++ "; "
+      in combineStyles_ vs (acc ++ newkv)
 
 --clumps CSS styles together into a single attribute string
-strStyle styles =
-  let
-    format ky vl = ((ky ++ ": ") ++ vl) ++ "; "
-    checkA key value = 
-      case value of
-          AStyle (ANum it) -> format key ((toString (fst it)) ++ "px")
-          AStyle (AString s) -> format key s
-          _                  -> Debug.crash <| "add new style type for: " ++ strAVal value
-    boundKVs = 
-      List.map (\(k, v) -> checkA k v) styles
-  in
-    AString (List.foldr (\a b -> a ++ b) "" boundKVs)
+--strStyle styles =
+--  let
+--    format ky vl = ((ky ++ ": ") ++ vl) ++ "; "
+--    checkA key value = 
+--      case value of
+--          AStyle (ANum it) -> format key ((toString (fst it)) ++ "px")
+--          AStyle (AString s) -> format key s
+--          _                  -> Debug.crash <| "add new style type for: " ++ strAVal value
+--    boundKVs = 
+--      List.map (\(k, v) -> checkA k v) styles
+--  in
+--    AString (List.foldr (\a b -> a ++ b) "" boundKVs)
 
 strAVal a = case a of
   AString s -> s
-  ANum it   -> toString (fst it)
+  ANum it   -> toString (fst it) ++ "px"
   ARgba tup -> strRgba tup
   AColorNum n ->
     -- slight optimization:
     strRgba_ (ColorNum.convert (fst n))
     -- let (r,g,b) = Utils.numToColor maxColorNum (fst n) in
     -- strRgba_ [r,g,b,1]
-  AStyle a   -> strAVal a
+  --AStyle a   -> strAVal a
 
 valOfAVal a = case a of
   AString s -> VBase (String s)
   ANum it   -> VConst it
   ARgba tup -> VList (rgbaToVal tup)
   AColorNum nt -> VConst nt
-  AStyle st  -> valOfAVal st
+  --AStyle st  -> valOfAVal st
 
 valOfAttr (k,a) = VList [VBase (String k), valOfAVal a]
 
@@ -217,7 +244,7 @@ strEdges =
 
 
 ------------------------------------------------------------------------------
--- Printing to SVG format
+-- Printing to HTML format
 
 printHtml : RootedIndexedTree -> String
 printHtml (rootId, tree) = printNode 0 tree rootId
@@ -238,7 +265,7 @@ printNodes k slate =
 
 printAttrs l = case l of
   [] -> ""
-  _  -> " " ++ Utils.spaces (List.map printAttr l)
+  _  -> " " ++ Utils.spaces (List.map printAttr (combineStyles l))
 
 printAttr (k,v) =
   k ++ "=" ++ Utils.delimit "'" "'" (strAVal v)
