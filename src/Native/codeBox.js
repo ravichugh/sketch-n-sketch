@@ -49,9 +49,6 @@ editor.$blockScrolling = Infinity;
 editor.setTheme("ace/theme/chrome");
 editor.setFontSize(14);
 editor.getSession().setMode("ace/mode/little");
-editor.getSession().getDocument().on("change", maybeSendUpdate);
-editor.getSession().selection.on("changeCursor", maybeSendUpdate);
-editor.getSession().selection.on("changeSelection", maybeSendUpdate);
 
 //If we reloaded from a crash, then we should do a few things differently:
 // - Set the initial text to what it was when we crashed
@@ -88,15 +85,114 @@ if (maybeError !== null) {
 editor.setValue(defaultScratch);
 editor.moveCursorTo(0,0);
 
-var updateWasFromElm = false;
 var markers = [];
 
 runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
-    //Set our flag so that our event handlers don't update on any updates from
-    // Elm
-    updateWasFromElm = true;
+    //If a poke, do nothing
+    if (codeBoxInfo.kind == "poke") {
+        editor.resize();
+        reembed(false);
+        //If we should bounce an update back (force a rerender) then do so
+        bounce(codeBoxInfo.bounce);
+        //Set the contents to the correct manipulable state
+        if (!codeBoxInfo.manipulable) {
+            editor.container.style.zIndex = "0";
+            editor.container.style.pointerEvents = "auto";
+            editor.setReadOnly(true);
+        } else {
+            editor.container.style.zIndex = "1";
+            editor.container.style.pointerEvents = "auto";
+            editor.setReadOnly(false);
+        }
+        return;
+    }
+
     //Resize the editor window if the div size has changed
     editor.resize();
+
+    //First, check to see what kind of request it was
+    if (codeBoxInfo.kind == "assertion") {
+        //If it's an assertion, install the values appropriately
+        makeAssertion(codeBoxInfo);
+    } else if (codeBoxInfo.kind == "saveRequest") {
+        //If it's a request for the Editor state, oblige
+        sendState("saveResponse");
+        //For error recovery purposes
+        exName = codeBoxInfo.exName;
+    } else if (codeBoxInfo.kind == "runRequest") {
+        //Same as above
+        sendState("runResponse");
+    } else { //We don't recognize the request; log and do nothing
+        console.log("codeBoxInfo type " + codeBoxInfo.kind + " unrecognized.");
+    }
+});
+
+var errorPrefix = "[Little Error]"; // NOTE: same as errorPrefix in Lang.elm
+
+//We recover from fatal errors by setting a special key in the local key/value
+// store before reloading the page. Then we check for this key on load and set
+// up appropriately if we're loading after a crash.
+window.onerror = function(msg, url, linenumber) {
+  //We disallow saving to this key in Elm to avoid possible confusion
+  //If the error was something that we didn't want to catch (e.g. not prefaced
+  // with errorPrefix) then don't do anything
+  // Checking for string containment, rather than trimming the prefix
+  // because of different error strings in different browsers.
+
+  // TODO change this back
+  // if (msg.indexOf(errorPrefix) != 1) {
+  if (msg.indexOf("notify function has been called synchronously!") != 1) {
+      localStorage.setItem('__ErrorSave', JSON.stringify(
+        { evt : msg
+        , strArg : editor.getSession().getDocument().getValue()
+        , cursorArg : editor.getCursorPosition()
+        , selectionArg : editor.selection.getAllRanges()
+        , exNameArg : exName
+        }
+      ));
+      location.reload();
+  }
+}
+
+//Packages and sends the Editor state appropriately
+function sendState(evt) {
+  runtime.ports.theTurn.send(
+    { evt : evt
+    , strArg : editor.getSession().getDocument().getValue()
+    , cursorArg : editor.getCursorPosition()
+    , selectionArg : editor.selection.getAllRanges()
+    , exNameArg : ""
+    }
+  );
+}
+
+//Re-embeds the editor in the "editor" div
+function reembed(force) {
+    //If the div rerendered (kept track of with a special attribute) then we
+    // should copy the editor back into it
+    var editorDiv = document.getElementById("editor");
+    if (force || editorDiv.getAttribute("rendered") !== "true") {
+      editorDiv.parentNode.replaceChild(editor.container, editorDiv);
+      editorDiv.setAttribute("rendered","true");
+    }
+}
+
+//Bounces a message back to rerender, if applicable
+function bounce(check) {
+  if (check) {
+      runtime.ports.theTurn.send(
+          { evt : "Rerender"
+          , strArg : ""
+          , cursorArg : editor.getCursorPosition()
+          , selectionArg : []
+          , exNameArg : ""
+          }
+      );
+  }
+}
+
+// Installs all the values that we got from the assertion from Elm
+function makeAssertion(codeBoxInfo) {
     //Set the value of the code editor with what we got from Elm
     editor.getSession().setValue(codeBoxInfo.code, 0);
     //Set the cursor position to what we got from Elm
@@ -164,11 +260,7 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
 
     //If the div rerendered (kept track of with a special attribute) then we
     // should copy the editor back into it
-    var editorDiv = document.getElementById("editor");
-    if (editorDiv.getAttribute("rendered") !== "true") {
-      editorDiv.parentNode.replaceChild(editor.container, editorDiv);
-      editorDiv.setAttribute("rendered","true");
-    }
+    reembed(false);
     
     //Set the contents to the correct manipulable state
     if (!codeBoxInfo.manipulable) {
@@ -182,60 +274,8 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
     }
 
     //If we should bounce an update back (force a rerender) then do so
-    if (codeBoxInfo.bounce) {
-        runtime.ports.theTurn.send(
-            { evt : "Rerender"
-            , strArg : ""
-            , cursorArg : editor.getCursorPosition()
-            , selectionArg : []
-            , exNameArg : ""
-            }
-        );
-    }
+    bounce(codeBoxInfo.bounce);
     
     //Remember the current document name (for error recovery purposes)
     exName = codeBoxInfo.exName;
-
-    //Set our flag back to enable the event handlers again
-    updateWasFromElm = false;
-});
-
-var errorPrefix = "[Little Error]"; // NOTE: same as errorPrefix in Lang.elm
-
-//We recover from fatal errors by setting a special key in the local key/value
-// store before reloading the page. Then we check for this key on load and set
-// up appropriately if we're loading after a crash.
-window.onerror = function(msg, url, linenumber) {
-  //We disallow saving to this key in Elm to avoid possible confusion
-  //If the error was something that we didn't want to catch (e.g. not prefaced
-  // with errorPrefix) then don't do anything
-  // Checking for string containment, rather than trimming the prefix
-  // because of different error strings in different browsers.
-
-  // TODO change this back
-  // if (msg.indexOf(errorPrefix) != 1) {
-  if (msg.indexOf("notify function has been called asynchronously!") != 1) {
-      localStorage.setItem('__ErrorSave', JSON.stringify(
-        { evt : msg
-        , strArg : editor.getSession().getDocument().getValue()
-        , cursorArg : editor.getCursorPosition()
-        , selectionArg : editor.selection.getAllRanges()
-        , exNameArg : exName
-        }
-      ));
-      location.reload();
-  }
-}
-
-function maybeSendUpdate(e) {
-    if (!updateWasFromElm) {
-      runtime.ports.theTurn.send(
-        { evt : "AceCodeUpdate"
-        , strArg : editor.getSession().getDocument().getValue()
-        , cursorArg : editor.getCursorPosition()
-        , selectionArg : editor.selection.getAllRanges()
-        , exNameArg : ""
-        }
-      );
-    }
 }

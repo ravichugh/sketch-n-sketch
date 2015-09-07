@@ -34,7 +34,6 @@ combinedEventSig =
       |> Signal.map (\(x,y) -> y)
       |> Signal.map2 adjustCoords Window.dimensions
       |> Signal.map Model.MousePos
-    , Signal.map interpretAceEvents theTurn
     , Signal.map
       (Model.KeysDown << List.sort << Set.toList)
       Keyboard.keysDown
@@ -49,29 +48,57 @@ adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
 -- The necessary port for Tasks/Storage
 -- Due to current Elm limitations, this must be in the Main module
 port taskPort : Signal (Task String ())
-port taskPort = taskMailbox.signal
+port taskPort = Signal.mergeMany
+    [ taskMailbox.signal
+    , Signal.map2 interpretAceEvents theTurn 
+        <| Signal.sampleOn theTurn sigModel
+    ]
 
 -- Port for messages to the code box
--- The model (will) contain all the information needed to deduce highlights and such
--- Note that we don't want to drop repeats, as we need to rerender the Ace
--- editor whenever the rest of the window is rendered
---
--- Current 'race condition issue' - Whenever a Task is used to update, it seems
--- that the order of rendering (Element in view vs codeBox.js replacing it) is
--- switched from when it would otherwise be. So, the order of events is:
---   Model Update -> View Renders empty div -> codeBox.js replaces it
---    Now is:
---   Event -> Task to update model is created -> View Renders empty div ->
---     codebox.js replaces it -> Task returns? -> View is rerendered, codebox
---       does not replace?
---
--- But when the task returns, that should update the below signal anyways, which
--- should trigger a rerender. Hmm.
---
 port aceInTheHole : Signal AceCodeBoxInfo
-port aceInTheHole = Signal.map fst
+port aceInTheHole =
+    let pickAsserts (m,e) = case m.editingMode of
+          Nothing -> True
+          Just _ -> case e of
+              -- All events let through here that aren't already let through
+              -- 'poke' Ace, rerendering if necessary
+              Model.WaitRun -> True
+              Model.WaitSave _ -> True
+              Model.MousePos _ -> True
+--              Model.KeysDown _ -> False
+--              Model.CodeUpdate _ -> False
+--              Model.UpdateModel _ -> False
+              Model.SwitchOrient -> True
+              Model.Noop -> True
+--              Model.Noop -> False
+--              Model.SelectObject _ _ _ -> False 
+--              Model.MouseUp -> False
+--              Model.MousePos _ -> False
+--              Model.Sync -> False
+--              Model.TraverseOption _ -> False
+--              Model.SelectOption -> False
+--              Model.SwitchMode _ -> False
+              Model.SelectExample _ _ -> True
+              Model.Edit -> True
+--              Model.Run -> False
+--              Model.ToggleOutput -> False
+--              Model.ToggleZones -> False
+              Model.InstallSaveState -> True
+              Model.RemoveDialog _ _ -> True
+--              Model.SetBasicCodeBox _ -> False
+--              Model.StartResizingMid -> False
+--              Model.Undo -> False
+--              Model.Redo -> False
+--              Model.KeysDown _ -> False
+--              Model.MultiEvent _ -> False
+              --TODO distinguish installState
+              _ -> False
+    in
+        Signal.map fst
                       <| Signal.foldp packageModel initAceCodeBoxInfo
-                      <| Signal.filter (\a -> not (fst a).basicCodeBox)
+                      <| Signal.filter 
+                            (\a -> not (fst a).basicCodeBox
+                                   && pickAsserts a )
                             (Model.sampleModel, Model.Noop)
                       <| Signal.map2 (,) sigModel combinedEventSig
 

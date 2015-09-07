@@ -330,30 +330,32 @@ upstate evt old = case debugLog "Event" evt of
 
     KeysDown l ->
       -- let _ = Debug.log "keys" (toString l) in
-      case editingMode old of
-        True -> if
-          | l == keysMetaShift -> upstate Run old
-          | otherwise -> old
-        False -> if
-          | l == keysE -> upstate Edit old
-          | l == keysZ -> upstate Undo old
-          -- | l == keysShiftZ -> upstate Redo old
-          | l == keysY -> upstate Redo old
-          | l == keysG || l == keysH -> -- for right- or left-handers
-              upstate ToggleZones old
-          | l == keysO -> upstate ToggleOutput old
-          | l == keysP -> upstate SwitchOrient old
-          | l == keysS ->
-              let _ = Debug.log "TODO Save" () in
-              upstate Noop old
-          | l == keysShiftS ->
-              let _ = Debug.log "TODO Save As" () in
-              upstate Noop old
-          | l == keysRight -> adjustMidOffsetX old 25
-          | l == keysLeft  -> adjustMidOffsetX old (-25)
-          | l == keysUp    -> adjustMidOffsetY old (-25)
-          | l == keysDown  -> adjustMidOffsetY old 25
-          | otherwise -> old
+      case old.mode of
+          SaveDialog _ -> old
+          _ -> case editingMode old of
+            True -> if
+              | l == keysMetaShift -> upstate Run old
+              | otherwise -> old
+            False -> if
+              | l == keysE -> upstate Edit old
+              | l == keysZ -> upstate Undo old
+              -- | l == keysShiftZ -> upstate Redo old
+              | l == keysY -> upstate Redo old
+              | l == keysG || l == keysH -> -- for right- or left-handers
+                  upstate ToggleZones old
+              | l == keysO -> upstate ToggleOutput old
+              | l == keysP -> upstate SwitchOrient old
+              | l == keysS ->
+                  let _ = Debug.log "TODO Save" () in
+                  upstate Noop old
+              | l == keysShiftS ->
+                  let _ = Debug.log "TODO Save As" () in
+                  upstate Noop old
+              | l == keysRight -> adjustMidOffsetX old 25
+              | l == keysLeft  -> adjustMidOffsetX old (-25)
+              | l == keysUp    -> adjustMidOffsetY old (-25)
+              | l == keysDown  -> adjustMidOffsetY old 25
+              | otherwise -> old
 
     -- Elm does not have function equivalence/pattern matching, so we need to
     -- thread these events through upstate in order to catch them to rerender
@@ -363,6 +365,14 @@ upstate evt old = case debugLog "Event" evt of
     SetBasicCodeBox set -> { old | basicCodeBox <- set }
 
     UpdateModel f -> f old
+
+    -- Lets multiple events be executed in sequence (useful for CodeBox.elm)
+    MultiEvent evts -> case evts of
+      [] -> old
+      e1 :: es -> upstate e1 old |> upstate (MultiEvent es)        
+
+    WaitRun -> old
+    WaitSave saveName -> { old | exName <- saveName }
 
     _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
 

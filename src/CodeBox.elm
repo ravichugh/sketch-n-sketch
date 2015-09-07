@@ -2,7 +2,8 @@
 -- the Model and the appropriate dimensions.
 
 module CodeBox (interpretAceEvents, packageModel, tripRender,
-                AceMessage, AceCodeBoxInfo, initAceCodeBoxInfo) where
+                AceMessage, AceCodeBoxInfo, initAceCodeBoxInfo,
+                saveRequestInfo, runRequestInfo) where
 
 import Lang exposing (errorPrefix)
 
@@ -10,36 +11,46 @@ import Graphics.Element as GE
 import InterfaceModel as Model exposing (Event, sampleModel, events)
 
 -- So we can check on the installSaveState update
-import InterfaceStorage exposing (installSaveState)
+import InterfaceStorage exposing (commitLocalSave)
 
-import Task exposing (Task)
+import Task exposing (Task, andThen)
 import String
 import Dict exposing (Dict)
 
 -- So we can crash correctly
 import Debug
 
+-- We allow a few different types of events to be sent to codeBox.js, including:
+-- "assertion"   -> The rest of the contents of the message should supplant the
+--                   current corresponding values in the Editor
+-- "saveRequest" -> We'd like the current state of the Editor for the purposes
+--                   of making a save
+-- "runRequest"  -> We'd like the current state of the Editor for the purposes
+--                   of running the to be displayed in the Canvas
 type alias AceCodeBoxInfo = 
-    { code : String 
-    , cursorPos : Model.AcePos
+    { kind        : String
+    , code        : String 
+    , cursorPos   : Model.AcePos
     , manipulable : Bool
-    , selections : List Model.Range
-    , highlights : List Model.Highlight
-    , bounce : Bool
-    , exName : String
+    , selections  : List Model.Range
+    , highlights  : List Model.Highlight
+    , bounce      : Bool
+    , exName      : String
     }
 
-type alias AceMessage = { evt : String 
-                        , strArg  : String 
-                        , cursorArg : Model.AcePos
-                        , selectionArg : List Model.Range
-                        , exNameArg : String
-                        } 
+type alias AceMessage = 
+  { evt          : String 
+  , strArg       : String 
+  , cursorArg    : Model.AcePos
+  , selectionArg : List Model.Range
+  , exNameArg    : String
+  } 
 
 -- An initial AceCodeBoxInfo for the foldp
 -- Doesn't actually get sent over the port
 initAceCodeBoxInfo =
-  ( { code = sampleModel.code
+  ( { kind = "assertion"
+    , code = sampleModel.code
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
     , manipulable = True
     , selections = sampleModel.codeBoxInfo.selections
@@ -50,25 +61,109 @@ initAceCodeBoxInfo =
   , []
   )
 
-interpretAceEvents : AceMessage -> Event
-interpretAceEvents amsg = case amsg.evt of
-    "AceCodeUpdate" -> Model.UpdateModel <|
-        \m -> { m | code <- amsg.strArg
-                  , codeBoxInfo <- { cursorPos = amsg.cursorArg
-                                   , selections = amsg.selectionArg
-                                   , highlights = m.codeBoxInfo.highlights
-                                   }
-              }
-    "Rerender" -> Model.UpdateModel <| \m -> { m | code <- m.code }
-    "init" -> Model.Noop
+-- Helper definitons for other messages we can send to Ace
+saveRequestInfo : String -> (AceCodeBoxInfo, List Bool)
+saveRequestInfo saveName =
+  ( { kind = "saveRequest"
+    , code = ""
+    , cursorPos = sampleModel.codeBoxInfo.cursorPos
+    , manipulable = True
+    , selections = [] 
+    , highlights = []
+    , bounce = True
+    , exName = saveName
+    }
+  , []
+  )
+
+runRequestInfo : (AceCodeBoxInfo, List Bool)
+runRequestInfo =
+  ( { kind = "runRequest"
+    , code = ""
+    , cursorPos = sampleModel.codeBoxInfo.cursorPos
+    , manipulable = True
+    , selections = [] 
+    , highlights = []
+    , bounce = True
+    , exName = ""
+    }
+  , []
+  )
+
+poke : Bool -> List Bool -> Model.Model -> (AceCodeBoxInfo, List Bool)
+poke rerender rerenders model =
+  let manipulable = case (model.mode, model.editingMode) of
+          (Model.SaveDialog _, _) -> False
+          (_, Nothing) -> False
+          _           -> True
+  in
+      ( { kind = "poke"
+        , code = ""
+        , cursorPos = sampleModel.codeBoxInfo.cursorPos
+        , manipulable = manipulable
+        , selections = [] 
+        , highlights = []
+        , bounce = rerender
+        , exName = ""
+        }
+      , rerender :: List.take (rerenderCount - 1) rerenders
+      )
+
+assertion : Bool -> List Bool -> Model.Model -> (AceCodeBoxInfo, List Bool)
+assertion rerender rerenders model =
+  let manipulable = case (model.mode, model.editingMode) of
+          (Model.SaveDialog _, _) -> False
+          (_, Nothing) -> False
+          _           -> True
+  in
+    ( { kind = "assertion"
+      , code = model.code 
+      , cursorPos = model.codeBoxInfo.cursorPos 
+      , selections = model.codeBoxInfo.selections
+      , manipulable = manipulable
+      , highlights = model.codeBoxInfo.highlights
+      , bounce = rerender
+      , exName = model.exName
+      }
+    , rerender :: List.take (rerenderCount - 1) rerenders
+    )
+
+-- The second model argument is present to allow Saves to be made from here
+interpretAceEvents : AceMessage -> Model.Model -> Task String ()
+interpretAceEvents amsg model = case amsg.evt of
+    "runResponse" -> Signal.send events.address <| Model.MultiEvent
+      [ Model.UpdateModel <|
+            \m -> { m | code <- amsg.strArg
+                      , codeBoxInfo <- { cursorPos = amsg.cursorArg
+                                       , selections = amsg.selectionArg
+                                       , highlights = m.codeBoxInfo.highlights
+                                       }
+                  }
+      , Model.Run
+      ]
+    --TODO
+    "saveResponse" -> 
+        let newModel = { model | code <- amsg.strArg
+                               , codeBoxInfo <- { cursorPos = amsg.cursorArg
+                                                , selections = amsg.selectionArg
+                                                , highlights =
+                                                    model.codeBoxInfo.highlights
+                                                }
+                        }
+        in commitLocalSave model.exName newModel 
+           `andThen` \_ ->
+           Signal.send events.address <| Model.UpdateModel <|
+                \m -> newModel
+    "Rerender" -> Signal.send events.address Model.Noop 
+    "init" -> Task.succeed () 
     _ ->
       -- TODO change this back
       -- if String.contains errorPrefix amsg.evt
       if True
-      then Model.UpdateModel <| recoverFromError amsg
+      then Signal.send events.address <| Model.UpdateModel <| recoverFromError amsg
       -- TODO: this leads to an infinite loop of restarting in Chrome...
       -- else Debug.crash "Malformed update sent to Elm"
-      else Model.Noop
+      else Signal.send events.address Model.Noop
 
 -- Puts us in the correct state if we recovered from an error, which we find out
 -- about from the JS that also happens to load Ace.
@@ -92,27 +187,20 @@ recoverFromError amsg fresh =
 -- Note that each one of these won't necessarily trigger a DOM copy/replacement;
 -- it only will for each of the times that Elm clobbers it.
 rerenderCount : Int
-rerenderCount = 6
+rerenderCount = 4
 
 packageModel : (Model.Model, Event) -> (AceCodeBoxInfo, List Bool) -> 
                     (AceCodeBoxInfo, List Bool)
 packageModel (model, evt) (lastBox, rerenders) = 
-    let manipulable = case (model.mode, model.editingMode) of
-            (Model.SaveDialog _, _) -> False
-            (_, Nothing) -> False
-            _           -> True
-        rerender = tripRender evt rerenders
-    in 
-      ( { code = model.code 
-        , cursorPos = model.codeBoxInfo.cursorPos 
-        , selections = model.codeBoxInfo.selections
-        , manipulable = manipulable
-        , highlights = model.codeBoxInfo.highlights
-        , bounce = rerender
-        , exName = model.exName
-        }
-      , rerender :: List.take (rerenderCount - 1) rerenders
-      )
+    let rerender = tripRender evt rerenders
+    in case model.editingMode of
+      Nothing -> assertion rerender rerenders model
+      Just _ -> case evt of
+          Model.WaitSave saveName -> saveRequestInfo saveName
+          Model.WaitRun  -> runRequestInfo
+          Model.Edit -> assertion rerender rerenders model
+          Model.Run -> assertion rerender rerenders model
+          _ -> poke rerender rerenders model
 
 -- Lets a signal pass if it should triger an extra rerender
 -- This is entered into a foldp so that we do not enter into an infinite

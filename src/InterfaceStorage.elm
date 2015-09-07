@@ -6,7 +6,8 @@
 
 module InterfaceStorage (taskMailbox, saveStateLocally, loadLocalState,
                          getLocalSaves, checkAndSave, clearLocalSaves,
-                         removeDialog, deleteLocalSave, installSaveState) where
+                         removeDialog, deleteLocalSave, installSaveState,
+                         commitLocalSave) where
 
 -- Storage library, for in browser storage
 import Storage exposing (getItem, setItem, removeItem, keys, clear)
@@ -103,7 +104,12 @@ saveStateLocally : String -> Bool -> Model -> Task String ()
 saveStateLocally saveName saveAs model = 
     if saveAs
       then send events.address InterfaceModel.InstallSaveState 
-      else setItem saveName <| modelToValue model
+      else send events.address (InterfaceModel.WaitSave saveName)
+
+-- Commits a save to the Local Storage
+-- All checking and such should occur before this function is called
+commitLocalSave : String -> Model -> Task String ()
+commitLocalSave saveName model = setItem saveName <| modelToValue model
 
 -- Changes state to SaveDialog
 installSaveState : Model -> Model
@@ -117,8 +123,8 @@ checkAndSave saveName model = if
         && saveName /= ""
         && saveName /= "__ErrorSave"
         && not (all (\c -> c == ' ' || c == '\t') saveName) ->
-                setItem saveName (modelToValue model)
-                `andThen` \x -> send events.address <|
+                send events.address (InterfaceModel.WaitSave saveName)
+                `andThen` \_ -> send events.address <|
                     InterfaceModel.RemoveDialog True saveName
     | otherwise -> send events.address <|
                     InterfaceModel.UpdateModel invalidInput
@@ -128,8 +134,7 @@ removeDialog : Bool -> String -> Model -> Model
 removeDialog makeSave saveName oldModel = case oldModel.mode of
     InterfaceModel.SaveDialog oldmode -> case makeSave of
         True -> 
-          if | saveName /= oldModel.exName &&
-                  List.all ((/=) saveName) oldModel.localSaves ->
+          if | List.all ((/=) saveName) oldModel.localSaves ->
                     { oldModel | mode <- oldmode 
                                , exName <- saveName
                                , localSaves <- saveName :: oldModel.localSaves 

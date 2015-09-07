@@ -123,6 +123,10 @@ type Event = CodeUpdate String
            | Noop
            | UpdateModel (Model -> Model)
                -- TODO could write other events in terms of UpdateModel
+           | MultiEvent (List Event)
+           --A state such that we're waiting for a response from Ace
+           | WaitRun
+           | WaitSave String
 
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
