@@ -203,31 +203,31 @@ upstate evt old = case debugLog "Event" evt of
         MouseResizeMid (Just f) ->
           let (x,y) = f (mx, my) in
           { old | midOffsetX <- x , midOffsetY <- y }
-        --MouseObject objid kind zone Nothing ->
-        --  let onNewPos = createMousePosCallback mx my objid kind zone old in
-        --  let mStuff = maybeStuff objid kind zone old in
-        --  let blah = Just (old.code, mStuff, onNewPos) in
-        --  { old | mouseMode <- MouseObject objid kind zone blah  }
-        --MouseObject _ _ _ (Just (_, mStuff, onNewPos)) ->
-        --  let (newE,changes,newSlate) = onNewPos (mx, my) in
-        --  { old | code <- unparseE newE
-        --        , inputExp <- Just newE
-        --        , slate <- newSlate
-        --        , codeBoxInfo <- highlightChanges mStuff changes old.codeBoxInfo
-        --        }
+        MouseObject objid kind zone Nothing ->
+          let onNewPos = createMousePosCallback mx my objid kind zone old in
+          let mStuff = maybeStuff objid kind zone old in
+          let blah = Just (old.code, mStuff, onNewPos) in
+          { old | mouseMode <- MouseObject objid kind zone blah  }
+        MouseObject _ _ _ (Just (_, mStuff, onNewPos)) ->
+          let (newE,changes,newSlate) = onNewPos (mx, my) in
+          { old | code <- unparseE newE
+                , inputExp <- Just newE
+                , slate <- newSlate
+                , codeBoxInfo <- highlightChanges mStuff changes old.codeBoxInfo
+                }
 
     --TODO: will need to add this back in later
-    --SelectObject id kind zone ->
-    --  case old.mode of
-    --    AdHoc       -> { old | mouseMode <- MouseObject id kind zone Nothing }
-    --    Live info ->
-    --      case Dict.get id info.triggers of
-    --        Nothing -> { old | mouseMode <- MouseNothing }
-    --        Just dZones ->
-    --          case Dict.get zone dZones of
-    --            Just (Just _) -> { old | mouseMode <- MouseObject id kind zone Nothing }
-    --            _             -> { old | mouseMode <- MouseNothing }
-    --    SyncSelect _ _ -> old
+    SelectObject id kind zone ->
+      case old.mode of
+        AdHoc       -> { old | mouseMode <- MouseObject id kind zone Nothing }
+        Live info ->
+          case Dict.get id info.triggers of
+            Nothing -> { old | mouseMode <- MouseNothing }
+            Just dZones ->
+              case Dict.get zone dZones of
+                Just (Just _) -> { old | mouseMode <- MouseObject id kind zone Nothing }
+                _             -> { old | mouseMode <- MouseNothing }
+        SyncSelect _ _ -> old
 
     MouseUp ->
       case (old.mode, old.mouseMode) of
@@ -416,51 +416,51 @@ type alias OnMouse =
   -- , posXposY : Num -> Num
   }
 
---createMousePosCallback mx my objid kind zone old =
+createMousePosCallback mx my objid kind zone old =
 
---  let (LangHtml.HtmlNode _ attrs _) = Utils.justGet_ "#3" objid (snd old.slate) in
---  let numAttr = toNum << Utils.find_ attrs in
---  let mapNumAttr f a =
---    let (n,trace) = toNumTr (Utils.find_ attrs a) in
---    (a, LangHtml.ANum (f n, trace)) in
+  let (LangHtml.HtmlNode _ attrs _) = Utils.justGet_ "#3" objid (snd old.slate) in
+  let numAttr = toNum << Utils.find_ attrs in
+  let mapNumAttr f a =
+    let (n,trace) = toNumTr (Utils.find_ attrs a) in
+    (a, LangHtml.ANum (f n, trace)) in
 
---  \(mx',my') ->
+  \(mx',my') ->
 
---    let scaledPosX scale n = n + scale * (toFloat mx' - toFloat mx) in
+    let scaledPosX scale n = n + scale * (toFloat mx' - toFloat mx) in
 
---    let posX n = n - toFloat mx + toFloat mx' in
---    let posY n = n - toFloat my + toFloat my' in
---    let negX n = n + toFloat mx - toFloat mx' in
---    let negY n = n + toFloat my - toFloat my' in
+    let posX n = n - toFloat mx + toFloat mx' in
+    let posY n = n - toFloat my + toFloat my' in
+    let negX n = n + toFloat mx - toFloat mx' in
+    let negY n = n + toFloat my - toFloat my' in
 
---    -- let posXposY n =
---    --   let dx = toFloat mx - toFloat mx' in
---    --   let dy = toFloat my - toFloat my' in
---    --   if | abs dx >= abs dy  -> n - dx
---    --      | otherwise         -> n - dy in
+    let posXposY n =
+       let dx = toFloat mx - toFloat mx' in
+       let dy = toFloat my - toFloat my' in
+       if | abs dx >= abs dy  -> n - dx
+          | otherwise         -> n - dy in
 
---    let onMouse =
---      { posX = posX, posY = posY, negX = negX, negY = negY } in
+    let onMouse =
+      { posX = posX, posY = posY, negX = negX, negY = negY } in
 
---    -- let posX' (n,tr) = (posX n, tr) in
---    -- let posY' (n,tr) = (posY n, tr) in
---    -- let negX' (n,tr) = (negX n, tr) in
---    -- let negY' (n,tr) = (negY n, tr) in
+    let posX' (n,tr) = (posX n, tr) in
+    let posY' (n,tr) = (posY n, tr) in
+    let negX' (n,tr) = (negX n, tr) in
+    let negY' (n,tr) = (negY n, tr) in
 
---    let fx  = mapNumAttr posX in
---    let fy  = mapNumAttr posY in
---    let fx_ = mapNumAttr negX in
---    let fy_ = mapNumAttr negY in
+    let fx  = mapNumAttr posX in
+    let fy  = mapNumAttr posY in
+    let fx_ = mapNumAttr negX in
+    let fy_ = mapNumAttr negY in
 
 --    let fxColorBall =
 --      mapNumAttr (LangHtml.clampColorNum << scaledPosX scaleColorBall) in
 
---    let ret l = (l, l) in
+    let ret l = (l, l) in
 
---    let (newRealAttrs,newFakeAttrs) =
---      case (kind, zone) of
-
---        -- first match zones that can be attached to different shape kinds...
+    let (newRealAttrs,newFakeAttrs) =
+      case (kind, zone) of
+        ("div", "interior") -> ret [fx "left", fy "top"]
+        -- first match zones that can be attached to different shape kinds...
 
 --        (_, "FillBall")   -> ret [fxColorBall "fill"]
 --        (_, "RotateBall") -> createCallbackRotate (toFloat mx) (toFloat my)
@@ -503,30 +503,30 @@ type alias OnMouse =
 
 --        ("path", _) -> createCallbackPath zone kind objid old onMouse
 
---    in
---    let newTree = List.foldr (upslate objid) (snd old.slate) newRealAttrs in
---      case old.mode of
---        AdHoc -> (Utils.fromJust old.inputExp, Dict.empty, (fst old.slate, newTree))
---        Live info ->
---          case Utils.justGet_ "#4" zone (Utils.justGet_ "#5" objid info.triggers) of
---            -- Nothing -> (Utils.fromJust old.inputExp, newSlate)
---            Nothing -> Debug.crash "shouldn't happen due to upstate SelectObject"
---            Just trigger ->
---              -- let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
---              let (newE,changes) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
---              if not Sync.tryToBeSmart then
---                (newE, changes, LangHtml.valToIndexedTree <| Eval.run newE) else
---              Debug.crash "Controller tryToBeSmart"
---              {-
---              let newSlate' =
---                Dict.foldl (\j dj acc1 ->
---                  let _ = Debug.crash "TODO: dummyTrace is probably a problem..." in
---                  Dict.foldl
---                    (\a n acc2 -> upslate j (a, LangHtml.ANum (n, dummyTrace)) acc2) acc1 dj
---                  ) newSlate otherChanges
---              in
---              (newE, newSlate')
---              -}
+    in
+    let newTree = List.foldr (upslate objid) (snd old.slate) newRealAttrs in
+      case old.mode of
+        AdHoc -> (Utils.fromJust old.inputExp, Dict.empty, (fst old.slate, newTree))
+        Live info ->
+          case Utils.justGet_ "#4" zone (Utils.justGet_ "#5" objid info.triggers) of
+            -- Nothing -> (Utils.fromJust old.inputExp, newSlate)
+            Nothing -> Debug.crash "shouldn't happen due to upstate SelectObject"
+            Just trigger ->
+              -- let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
+              let (newE,changes) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
+              if not Sync.tryToBeSmart then
+                (newE, changes, LangHtml.valToIndexedTree <| Eval.run newE) else
+              Debug.crash "Controller tryToBeSmart"
+              {-
+              let newSlate' =
+                Dict.foldl (\j dj acc1 ->
+                  let _ = Debug.crash "TODO: dummyTrace is probably a problem..." in
+                  Dict.foldl
+                    (\a n acc2 -> upslate j (a, LangHtml.ANum (n, dummyTrace)) acc2) acc1 dj
+                  ) newSlate otherChanges
+              in
+              (newE, newSlate')
+              -}
 
 ---- Callbacks for Polygons/Polylines
 

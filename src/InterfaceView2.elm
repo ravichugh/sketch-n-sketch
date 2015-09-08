@@ -146,7 +146,7 @@ buildHtml_ addZones showZones d i =
           (False, Nothing)     -> ([], attrs)
           (False, Just (_, l)) -> ([], l)
           (True, Nothing) ->
-            Debug.log "(zones,attrs')" (makeZones options shape i attrs, attrs)
+            (makeZones options shape i attrs, attrs)
           (True, Just (LangHtml.AString "none", l)) ->
             (makeZones zoneOptions0 shape i attrs, l)
           (True, Just (LangHtml.AString "basic", l)) ->
@@ -225,11 +225,11 @@ zoneBorder htmlFunc id node zoneName flag show otherAttrs =
 makeZones : ZoneOptions -> String -> LangHtml.NodeId -> List LangHtml.Attr -> List Html.Html
 makeZones options node id attrs =
   case node of
-    "div" -> Debug.log "making zones" "div" |> \_ -> 
+    "div" -> 
       let mk zone x_ y_ w_ h_ =
           zoneBorder Html.div id node zone True options.showBasic 
-            <|    [ ("top", LangHtml.AString (toString x_ ++ "px"))
-                  , ("left", LangHtml.AString (toString y_ ++ "px"))
+            <|    [ ("top", LangHtml.AString (toString y_ ++ "px"))
+                  , ("left", LangHtml.AString (toString x_ ++ "px"))
                   , ("width", LangHtml.AString (toString w_ ++ "px"))
                   , ("height", LangHtml.AString (toString h_ ++ "px"))
                   , ("position", LangHtml.AString "absolute")
