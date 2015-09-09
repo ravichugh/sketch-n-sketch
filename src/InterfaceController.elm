@@ -460,6 +460,14 @@ createMousePosCallback mx my objid kind zone old =
     let (newRealAttrs,newFakeAttrs) =
       case Debug.log "(kind,zone)" (kind, zone) of
         ("div", "Interior") -> ret [fx "left", fy "top"]
+        ("div", "RightEdge")      -> ret [fx "width"]
+        ("div", "BotRightCorner") -> ret [fx "width", fy "height"]
+        ("div", "BotEdge")        -> ret [fy "height"]
+        ("div", "BotLeftCorner")  -> ret [fx "left", fx_ "width", fy "height"]
+        ("div", "LeftEdge")       -> ret [fx "left", fx_ "width"]
+        ("div", "TopLeftCorner")  -> ret [fx "left", fy "top", fx_ "width", fy_ "height"]
+        ("div", "TopEdge")        -> ret [fy "top", fy_ "height"]
+        ("div", "TopRightCorner") -> ret [fy "top", fx "width", fy_ "height"]
         -- first match zones that can be attached to different shape kinds...
 
 --        (_, "FillBall")   -> ret [fxColorBall "fill"]
