@@ -51,11 +51,28 @@ basicText =
 
 "
 
+threeDivs =
+ "; Three Divs
+(def threeDivsInt
+  (let [left0 top0 w h sep] [40 28 60 130 110]
+  (let divi (\\i
+    (let lefti (+ left0 (* i sep))
+    (eStyle [ [ 'top'  top0  ]
+              [ 'left' lefti ]
+              [ 'background-color' 'lightblue' ] ]
+            (eDiv w h []) ) ) )
+  (basicDoc [] (map divi [0! 1! 2!])) ) ) )
+
+threeDivsInt
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
-  , makeExample "Basic Text" basicText
   , makeExample "*Prelude*" Prelude.src
+  , makeExample "Basic Text" basicText
+  , makeExample "Three Divs" threeDivs
   ]
 
 list = examples -- ++ MicroTests.sampleTests

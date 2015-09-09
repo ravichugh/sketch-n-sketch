@@ -19,11 +19,13 @@ scratchName = "*Scratch*"
 
 LITTLE_TO_ELM scratch
 LITTLE_TO_ELM basicText
+LITTLE_TO_ELM threeDivs
 
 examples =
   [ makeExample scratchName scratch
-  , makeExample "Basic Text" basicText
   , makeExample "*Prelude*" Prelude.src
+  , makeExample "Basic Text" basicText
+  , makeExample "Three Divs" threeDivs
   ]
 
 list = examples -- ++ MicroTests.sampleTests
