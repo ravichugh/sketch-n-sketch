@@ -9,7 +9,8 @@ import Debug
 import String
 
 import Lang exposing (..)
-import LangSvg exposing (NodeId, ShapeKind, Zone, addi)
+import LangHtml exposing (NodeId, NodeKind, Zone, addi)
+--import LangSvg exposing (NodeId, ShapeKind, Zone, addi)
 import Eval
 import LangParser2 as Parser
 
@@ -403,14 +404,14 @@ type alias AttrName = String
 type alias Locs = List Loc
 
 -- band-aids for extra metadata...
-type ExtraInfo = None | NumPoints Int | NumsPath LangSvg.PathCounts
+type ExtraInfo = None --| NumPoints Int | NumsPath LangSvg.PathCounts
 type alias ExtraExtraInfo = List (AttrName, (Zone, Trace))
 
 type alias NumAttrs = Int
 
-type alias Dict0 = Dict NodeId (ShapeKind, ExtraInfo, ExtraExtraInfo, Dict AttrName Trace)
-type alias Dict1 = Dict NodeId (ShapeKind, List (Zone, (NumAttrs, List Locs)))
-type alias Dict2 = Dict NodeId (ShapeKind, List (Zone, Maybe (Locs, List Locs)))
+type alias Dict0 = Dict NodeId (NodeKind, ExtraInfo, ExtraExtraInfo, Dict AttrName Trace)
+type alias Dict1 = Dict NodeId (NodeKind, List (Zone, (NumAttrs, List Locs)))
+type alias Dict2 = Dict NodeId (NodeKind, List (Zone, Maybe (Locs, List Locs)))
 
 printZoneTable : Val -> String
 printZoneTable v =
@@ -426,7 +427,7 @@ printZoneTable v =
 -- so start with IndexedTree rather than Val.
 
 nodeToAttrLocs : Val -> Dict0
-nodeToAttrLocs = snd << flip nodeToAttrLocs_ (1, Dict.empty)
+nodeToAttrLocs = Debug.log "nodeToAttrLocs snd" << snd << flip nodeToAttrLocs_ (1, Dict.empty)
 
 nodeToAttrLocs_ : Val -> (Int, Dict0) -> (Int, Dict0)
 nodeToAttrLocs_ v (nextId,dShapes) = case v of
@@ -437,50 +438,51 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
   VList [VBase (String kind), VList vs', VList children] ->
 
     -- processing attributes of current node
-    let processAttr v' (extra,extraextra,dAttrs) = case v' of
+    let processAttr v' (extra,extraextra,dAttrs) = case Debug.log "attr in q" v' of
+                                                                           
 
-      VList [VBase (String "fill"), VConst (_,tr)] ->
-        let ee = ("fill", ("FillBall", tr)) :: extraextra in
-        (extra, ee, Dict.insert "fill" tr dAttrs)
+--      VList [VBase (String "fill"), VConst (_,tr)] ->
+--        let ee = ("fill", ("FillBall", tr)) :: extraextra in
+--        (extra, ee, Dict.insert "fill" tr dAttrs)
 
       -- NOTE: requires for a single cmd, and "transformRot" is a fake attr....
-      VList [VBase (String "transform"),
-             VList [VList [VBase (String "rotate"), VConst (_, tr), _, _]]] ->
-        let ee = ("transformRot", ("RotateBall", tr)) :: extraextra in
-        (extra, ee, Dict.insert "transformRot" tr dAttrs)
+--      VList [VBase (String "transform"),
+--             VList [VList [VBase (String "rotate"), VConst (_, tr), _, _]]] ->
+--        let ee = ("transformRot", ("RotateBall", tr)) :: extraextra in
+--        (extra, ee, Dict.insert "transformRot" tr dAttrs)
 
-      VList [VBase (String a), VConst (_,tr)] ->
+      VList [VBase (String a), VConst (_,tr)] -> Debug.log "const worked?" <|
         (extra, extraextra, Dict.insert a tr dAttrs)
 
-      VList [VBase (String "points"), VList pts] ->
-        let acc' =
-          Utils.foldli (\(i,vPt) acc ->
-            case vPt of
-              VList [VConst (_,trx), VConst (_,try)] ->
-                let (ax,ay) = (addi "x" i, addi "y" i) in
-                acc |> Dict.insert ax trx
-                    |> Dict.insert ay try) dAttrs pts in
-        (NumPoints (List.length pts), extraextra, acc')
-
-      VList [VBase (String "d"), VList vs] ->
-        let addPt (mi,(xt,yt)) dict =
-          case mi of
-            Nothing -> dict
-            Just i  -> dict |> Dict.insert (addi "x" i) (snd xt)
-                            |> Dict.insert (addi "y" i) (snd yt)
-        in
-        let addPts pts dict = List.foldl addPt dict pts in
-        let (cmds,counts) = LangSvg.valsToPath2 vs in
-        let dAttrs' =
-          List.foldl (\c acc -> case c of
-            LangSvg.CmdZ   s              -> acc
-            LangSvg.CmdMLT s pt           -> acc |> addPt pt
-            LangSvg.CmdHV  s n            -> acc
-            LangSvg.CmdC   s pt1 pt2 pt3  -> acc |> addPts [pt1,pt2,pt3]
-            LangSvg.CmdSQ  s pt1 pt2      -> acc |> addPts [pt1,pt2]
-            LangSvg.CmdA   s a b c d e pt -> acc |> addPt pt) dAttrs cmds
-        in
-        (NumsPath counts, extraextra, dAttrs')
+--      VList [VBase (String "points"), VList pts] ->
+--        let acc' =
+--          Utils.foldli (\(i,vPt) acc ->
+--            case vPt of
+--              VList [VConst (_,trx), VConst (_,try)] ->
+--                let (ax,ay) = (addi "x" i, addi "y" i) in
+--                acc |> Dict.insert ax trx
+--                    |> Dict.insert ay try) dAttrs pts in
+--        (NumPoints (List.length pts), extraextra, acc')
+--
+--      VList [VBase (String "d"), VList vs] ->
+--        let addPt (mi,(xt,yt)) dict =
+--          case mi of
+--            Nothing -> dict
+--            Just i  -> dict |> Dict.insert (addi "x" i) (snd xt)
+--                            |> Dict.insert (addi "y" i) (snd yt)
+--        in
+--        let addPts pts dict = List.foldl addPt dict pts in
+--        let (cmds,counts) = LangSvg.valsToPath2 vs in
+--        let dAttrs' =
+--          List.foldl (\c acc -> case c of
+--            LangSvg.CmdZ   s              -> acc
+--            LangSvg.CmdMLT s pt           -> acc |> addPt pt
+--            LangSvg.CmdHV  s n            -> acc
+--            LangSvg.CmdC   s pt1 pt2 pt3  -> acc |> addPts [pt1,pt2,pt3]
+--            LangSvg.CmdSQ  s pt1 pt2      -> acc |> addPts [pt1,pt2]
+--            LangSvg.CmdA   s a b c d e pt -> acc |> addPt pt) dAttrs cmds
+--        in
+--        (NumsPath counts, extraextra, dAttrs')
 
       -- NOTE:
       --   string-valued and RGBA attributes are ignored.
@@ -488,13 +490,13 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
       _ ->
         (extra, extraextra, dAttrs)
     in
-    let (extra,ee,attrs) = List.foldl processAttr (None, [], Dict.empty) vs' in
+    let (extra,ee,attrs) = Debug.log "attrs 4 dis" <| List.foldl processAttr (None, [], Dict.empty) vs' in
 
     -- recursing into sub-nodes
     let (nextId',dShapes') =
       List.foldl nodeToAttrLocs_ (nextId,dShapes) children in
 
-    (nextId' + 1, Dict.insert nextId' (kind, extra, ee, attrs) dShapes')
+    Debug.log "nextID, attrdicts" <| (nextId' + 1, Dict.insert nextId' (kind, extra, ee, attrs) dShapes')
 
   _ -> Debug.crash <| "Sync.nodeToAttrLocs_: " ++ strVal v
 
@@ -518,7 +520,7 @@ shapesToZoneTable opts d0 =
 
 shapeToZoneInfo :
   Options ->
-  (ShapeKind, ExtraInfo, ExtraExtraInfo, Dict AttrName Trace) ->
+  (NodeKind, ExtraInfo, ExtraExtraInfo, Dict AttrName Trace) ->
   List (Zone, (NumAttrs, List Locs))
 shapeToZoneInfo opts (kind, extra, ee, d) =
   let zones = getZones kind extra ee in
@@ -548,7 +550,7 @@ createLocLists sets =
   in
   foo ++ bar
 
-getZones : ShapeKind -> ExtraInfo -> ExtraExtraInfo -> List (Zone, List AttrName)
+getZones : NodeKind -> ExtraInfo -> ExtraExtraInfo -> List (Zone, List AttrName)
 getZones kind extra ee =
   let xy i = [addi "x" i, addi "y" i] in
   let pt i = (addi "Point" i, xy i) in
@@ -558,14 +560,14 @@ getZones kind extra ee =
   let interior n = ("Interior", List.concatMap xy [1..n]) in
   let basicZones =
     case (kind, extra) of
-      ("polyline", NumPoints n) ->
-        List.map pt [1..n] ++ List.map (edge n) [1..n-1]
-      ("polygon", NumPoints n) ->
-        List.map pt [1..n] ++ List.map (edge n) [1..n] ++ [interior n]
-      ("path", NumsPath {numPoints}) ->
-        List.map pt [1..numPoints]
+--      ("polyline", NumPoints n) ->
+--        List.map pt [1..n] ++ List.map (edge n) [1..n-1]
+--      ("polygon", NumPoints n) ->
+--        List.map pt [1..n] ++ List.map (edge n) [1..n] ++ [interior n]
+--      ("path", NumsPath {numPoints}) ->
+--        List.map pt [1..numPoints]
       _ ->
-        case Utils.maybeFind kind LangSvg.zones of
+        case Utils.maybeFind kind LangHtml.zones of
           Just zones -> zones
           Nothing    -> []
 {-
@@ -703,12 +705,12 @@ tryToBeSmart = False
 
 prepareLiveUpdates : Options -> Exp -> Val -> LiveInfo
 prepareLiveUpdates opts e v =
-  let d0 = nodeToAttrLocs v in
-  let d1 = shapesToZoneTable opts d0 in
-  let d2 = assignTriggers d1 in
+  let d0 = Debug.log "nodetoaddrlocs?" <| nodeToAttrLocs v in
+  let d1 = Debug.log "zonetable?" <| shapesToZoneTable opts d0 in
+  let d2 = Debug.log "zonedict?" <| assignTriggers d1 in
   let initSubstPlus = Parser.substPlusOf e in
   let initSubst = Dict.map (always .val) initSubstPlus in
-    { triggers    = makeTriggers initSubst opts e d0 d2
+    { triggers    = Debug.log "makeTriggers" <| makeTriggers initSubst opts e d0 d2
     , assignments = zoneAssignments d2
     , initSubst   = initSubstPlus
     }

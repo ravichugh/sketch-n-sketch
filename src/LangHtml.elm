@@ -304,7 +304,7 @@ addi s i = s ++ toString i
 
 zones = 
   [ ("html", [])
-  , ("rect",
+  , ("div",
       [ ("Interior", ["left", "top"])
       , ("TopLeftCorner", ["left", "top", "width", "height"])
       , ("TopRightCorner", ["top", "width", "height"])

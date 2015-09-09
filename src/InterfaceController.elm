@@ -151,7 +151,7 @@ highlightChanges mStuff changes codeBoxInfo =
 -- Updating the Model
 
 upstate : Event -> Model -> Model
-upstate evt old = case debugLog "Event" evt of
+upstate evt old = case Debug.log "Event" evt of
 
     Noop -> old
 
@@ -233,14 +233,14 @@ upstate evt old = case debugLog "Event" evt of
       case (old.mode, old.mouseMode) of
         (Print _, _) -> old
         -- TODO: will need to add back in later
-        --(_, MouseObject i k z (Just (s, _, _))) ->
-        --  -- 8/10: re-parsing to get new position info after live sync-ing
-        --  -- TODO: could update positions within highlightChanges
-        --  let (Ok e) = parseE old.code in
-        --  let old' = { old | inputExp <- Just e } in
-        --  refreshHighlights i z
-        --    { old' | mouseMode <- MouseNothing, mode <- refreshMode_ old'
-        --           , history <- addToHistory s old'.history }
+        (_, MouseObject i k z (Just (s, _, _))) ->
+          -- 8/10: re-parsing to get new position info after live sync-ing
+          -- TODO: could update positions within highlightChanges
+          let (Ok e) = parseE old.code in
+          let old' = { old | inputExp <- Just e } in
+          refreshHighlights i z
+            { old' | mouseMode <- MouseNothing, mode <- refreshMode_ old'
+                   , history <- addToHistory s old'.history }
         _ ->
           { old | mouseMode <- MouseNothing, mode <- refreshMode_ old }
 
