@@ -151,7 +151,7 @@ highlightChanges mStuff changes codeBoxInfo =
 -- Updating the Model
 
 upstate : Event -> Model -> Model
-upstate evt old = case Debug.log "Event" evt of
+upstate evt old = case debugLog "Event" evt of
 
     Noop -> old
 
@@ -458,7 +458,7 @@ createMousePosCallback mx my objid kind zone old =
     let ret l = (l, l) in
 
     let (newRealAttrs,newFakeAttrs) =
-      case Debug.log "(kind,zone)" (kind, zone) of
+      case (kind, zone) of
         ("div", "Interior") -> ret [fx "left", fy "top"]
         ("div", "RightEdge")      -> ret [fx "width"]
         ("div", "BotRightCorner") -> ret [fx "width", fy "height"]

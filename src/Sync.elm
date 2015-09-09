@@ -427,7 +427,7 @@ printZoneTable v =
 -- so start with IndexedTree rather than Val.
 
 nodeToAttrLocs : Val -> Dict0
-nodeToAttrLocs = Debug.log "nodeToAttrLocs snd" << snd << flip nodeToAttrLocs_ (1, Dict.empty)
+nodeToAttrLocs = {- Debug.log "nodeToAttrLocs snd" << -} snd << flip nodeToAttrLocs_ (1, Dict.empty)
 
 nodeToAttrLocs_ : Val -> (Int, Dict0) -> (Int, Dict0)
 nodeToAttrLocs_ v (nextId,dShapes) = case v of
@@ -438,7 +438,8 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
   VList [VBase (String kind), VList vs', VList children] ->
 
     -- processing attributes of current node
-    let processAttr v' (extra,extraextra,dAttrs) = case Debug.log "attr in q" v' of
+    let processAttr v' (extra,extraextra,dAttrs) = case {- Debug.log "attr in q"-} v' of
+                                                                              
                                                                            
 
 --      VList [VBase (String "fill"), VConst (_,tr)] ->
@@ -451,7 +452,7 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
 --        let ee = ("transformRot", ("RotateBall", tr)) :: extraextra in
 --        (extra, ee, Dict.insert "transformRot" tr dAttrs)
 
-      VList [VBase (String a), VConst (_,tr)] -> Debug.log "const worked?" <|
+      VList [VBase (String a), VConst (_,tr)] -> -- Debug.log "const worked?" <|
         (extra, extraextra, Dict.insert a tr dAttrs)
 
 --      VList [VBase (String "points"), VList pts] ->
@@ -490,13 +491,13 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
       _ ->
         (extra, extraextra, dAttrs)
     in
-    let (extra,ee,attrs) = Debug.log "attrs 4 dis" <| List.foldl processAttr (None, [], Dict.empty) vs' in
+    let (extra,ee,attrs) = {- Debug.log "attrs 4 dis" <| -} List.foldl processAttr (None, [], Dict.empty) vs' in
 
     -- recursing into sub-nodes
     let (nextId',dShapes') =
       List.foldl nodeToAttrLocs_ (nextId,dShapes) children in
 
-    Debug.log "nextID, attrdicts" <| (nextId' + 1, Dict.insert nextId' (kind, extra, ee, attrs) dShapes')
+    {- Debug.log "nextID, attrdicts" <| -} (nextId' + 1, Dict.insert nextId' (kind, extra, ee, attrs) dShapes')
 
   _ -> Debug.crash <| "Sync.nodeToAttrLocs_: " ++ strVal v
 
@@ -705,12 +706,12 @@ tryToBeSmart = False
 
 prepareLiveUpdates : Options -> Exp -> Val -> LiveInfo
 prepareLiveUpdates opts e v =
-  let d0 = Debug.log "nodetoaddrlocs?" <| nodeToAttrLocs v in
-  let d1 = Debug.log "zonetable?" <| shapesToZoneTable opts d0 in
-  let d2 = Debug.log "zonedict?" <| assignTriggers d1 in
+  let d0 = {- Debug.log "nodetoaddrlocs?" <| -} nodeToAttrLocs v in
+  let d1 = {- Debug.log "zonetable?" <| -} shapesToZoneTable opts d0 in
+  let d2 = {- Debug.log "zonedict?" <| -} assignTriggers d1 in
   let initSubstPlus = Parser.substPlusOf e in
   let initSubst = Dict.map (always .val) initSubstPlus in
-    { triggers    = Debug.log "makeTriggers" <| makeTriggers initSubst opts e d0 d2
+    { triggers    = {- Debug.log "makeTriggers" <| -} makeTriggers initSubst opts e d0 d2
     , assignments = zoneAssignments d2
     , initSubst   = initSubstPlus
     }
