@@ -234,7 +234,7 @@ makeZones options node id attrs =
                   , ("height", LangHtml.AString (toString h_ ++ "px"))
                   , ("position", LangHtml.AString "absolute")
                   ]
-          [x,y,w,h] = List.map (toNum << Utils.find_ attrs) ["top", "left", "width", "height"]
+          [x,y,w,h] = List.map (toNum << Utils.find_ attrs) ["left", "top", "width", "height"]
           gutter = 0.125
           (x0,x1,x2)    = (x, x + gutter*w, x + (1-gutter)*w)
           (y0,y1,y2)    = (y, y + gutter*h, y + (1-gutter)*h)
