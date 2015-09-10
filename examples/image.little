@@ -1,0 +1,7 @@
+; Example usage of an image
+
+(def imgURL 'https://ravichugh.github.io/sketch-n-sketch/static/images/sketch-n-sketch-logo-gray.svg')
+(basicDoc [] 
+  [ (eStyle [ ['top' 100]
+              ['left' 100] ]
+            (eImg 200 200 imgURL) ) ] )
