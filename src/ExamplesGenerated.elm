@@ -79,12 +79,24 @@ threeDivsInt
 
 "
 
+image =
+ "; Example usage of an image
+
+(def imgURL 'https://ravichugh.github.io/sketch-n-sketch/static/images/sketch-n-sketch-logo-gray.svg')
+(basicDoc [] 
+  [ (eStyle [ ['top' 100]
+              ['left' 100] ]
+            (eImg 200 200 imgURL) ) ] )
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
   , makeExample "Basic Text" basicText
   , makeExample "Three Divs" threeDivs
+  , makeExample "Image" image
   ]
 
 list = examples -- ++ MicroTests.sampleTests

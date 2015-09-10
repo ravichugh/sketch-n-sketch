@@ -20,12 +20,14 @@ scratchName = "*Scratch*"
 LITTLE_TO_ELM scratch
 LITTLE_TO_ELM basicText
 LITTLE_TO_ELM threeDivs
+LITTLE_TO_ELM image
 
 examples =
   [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
   , makeExample "Basic Text" basicText
   , makeExample "Three Divs" threeDivs
+  , makeExample "Image" image
   ]
 
 list = examples -- ++ MicroTests.sampleTests

@@ -275,8 +275,10 @@
 ;; eImg : Width -> Height -> Src -> Node
 ;; argument order - width, height, source URL
 ;; Make an image element with the specified width and height
-; (def eImg (\(w h url)
-;   ['img' [ ['content' (+ 'url("' (+ url '")'))] ['width' w] ['height' h] ] []] ) )
+(def eImg (\(w h url)
+  ['img' [ ['content' (+ 'url("' (+ url '")'))] 
+           ['width' w] ['height' h]
+           ['position' 'absolute' ] ] []] ) )
 
 ; "constant folding"
 (def twoPi (* 2 (pi)))
