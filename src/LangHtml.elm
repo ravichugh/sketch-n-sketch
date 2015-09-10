@@ -143,7 +143,7 @@ strRgba_ rgba =
 
 --finds if any attributes are CSS & then clumps them together
 combineStyles : List (String, AVal) -> List (String, AVal)
-combineStyles list = combineStyles_ list ""
+combineStyles list = combineStyles_ list ("", [])
 --  let
 --    split  =  List.partition isCSS list
 --    styles = fst split
@@ -152,12 +152,16 @@ combineStyles list = combineStyles_ list ""
 --      [] -> list
 --      _  -> ("style", strStyle styles) :: (snd split) 
 
-combineStyles_ : List (String, AVal) -> String -> List (String, AVal)
-combineStyles_ list acc = case list of
-    [] -> [("style", AString acc)]
-    (key, val) :: vs -> 
-      let newkv = key ++ ": " ++ strAVal val ++ "; "
-      in combineStyles_ vs (acc ++ newkv)
+combineStyles_ : List (String, AVal) -> (String, List (String, AVal)) -> List (String, AVal)
+combineStyles_ list (accStyle, htmlAttrs) = case list of
+    [] -> ("style", AString accStyle) :: htmlAttrs
+    --TODO need better way to catch html-only attrs
+    (key, val) :: vs -> if key /= "href" 
+      then 
+        let newkv = key ++ ": " ++ strAVal val ++ "; "
+        in combineStyles_ vs ((accStyle ++ newkv), htmlAttrs)
+      else
+        combineStyles_ vs (accStyle, (key, val) :: htmlAttrs)
 
 --clumps CSS styles together into a single attribute string
 --strStyle styles =

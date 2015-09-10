@@ -218,6 +218,21 @@ prelude =
 
 (def text (\\string ['TEXT' string]))
 
+(def h1 (\\string ['h1' [] [(text string)]]))
+(def h2 (\\string ['h2' [] [(text string)]]))
+(def h3 (\\string ['h3' [] [(text string)]]))
+(def h4 (\\string ['h4' [] [(text string)]]))
+(def h5 (\\string ['h5' [] [(text string)]]))
+(def h6 (\\string ['h6' [] [(text string)]]))
+
+(def a (\\(name url) ['a' [['href' url]] [(text name)]]))
+
+(def hr ['hr' [] []])
+
+(def ul (\\children ['ul' [] children]))
+(def ol (\\children ['ol' [] children]))
+(def li (\\string ['li' [] [(text string)]]))
+
 (def span (\\(attrs children) ['span' attrs children]))
 
 (def style (\\attrs
@@ -259,6 +274,12 @@ prelude =
 (def eDiv (\\(w h initialChildren)
   (eStyle [ ['width' w] ['height' h] ['position' 'absolute' ] ]
     [ 'div' [] initialChildren ] ) ) )
+
+;; eImg : Width -> Height -> Src -> Node
+;; argument order - width, height, source URL
+;; Make an image element with the specified width and height
+; (def eImg (\\(w h url)
+;   ['img' [ ['content' (+ 'url(\"' (+ url '\")'))] ['width' w] ['height' h] ] []] ) )
 
 ; \"constant folding\"
 (def twoPi (* 2 (pi)))

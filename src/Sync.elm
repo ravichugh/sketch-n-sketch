@@ -430,10 +430,10 @@ nodeToAttrLocs : Val -> Dict0
 nodeToAttrLocs = {- Debug.log "nodeToAttrLocs snd" << -} snd << flip nodeToAttrLocs_ (1, Dict.empty)
 
 nodeToAttrLocs_ : Val -> (Int, Dict0) -> (Int, Dict0)
-nodeToAttrLocs_ v (nextId,dShapes) = case v of
+nodeToAttrLocs_ v (nextId,dNodes) = case v of
 
   VList [VBase (String "TEXT"), VBase (String s)] ->
-    (1 + nextId, Dict.insert 1 ("DUMMYTEXT", None, [], Dict.empty) dShapes)
+    (1 + nextId, Dict.insert 1 ("DUMMYTEXT", None, [], Dict.empty) dNodes)
 
   VList [VBase (String kind), VList vs', VList children] ->
 
@@ -494,10 +494,11 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
     let (extra,ee,attrs) = {- Debug.log "attrs 4 dis" <| -} List.foldl processAttr (None, [], Dict.empty) vs' in
 
     -- recursing into sub-nodes
-    let (nextId',dShapes') =
-      List.foldl nodeToAttrLocs_ (nextId,dShapes) children in
+    let (nextId',dNodes') =
+      List.foldl nodeToAttrLocs_ (nextId,dNodes) children in
 
-    {- Debug.log "nextID, attrdicts" <| -} (nextId' + 1, Dict.insert nextId' (kind, extra, ee, attrs) dShapes')
+    {- Debug.log "nextID, attrdicts" <| -} 
+    (nextId' + 1, Dict.insert nextId' (kind, extra, ee, attrs) dNodes')
 
   _ -> Debug.crash <| "Sync.nodeToAttrLocs_: " ++ strVal v
 

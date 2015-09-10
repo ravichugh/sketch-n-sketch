@@ -137,7 +137,8 @@ buildHtml w h addZones showZones (i,d) =
 buildHtml_ : Bool -> ShowZones -> LangHtml.IndexedTree -> LangHtml.NodeId -> Html.Html
 buildHtml_ addZones showZones d i =
   case Utils.justGet_ ("buildHtml_ " ++ toString i) i d of
-    LangHtml.TextNode text -> VirtualDom.text text
+    LangHtml.TextNode text -> VirtualDom.text "" -- Is there any utility in
+                                                 -- this?
     LangHtml.HtmlNode shape attrs js -> 
       -- TODO: figure out: (LangHtml.attr "draggable" "false")
       let (zones, attrs') =
@@ -224,7 +225,7 @@ zoneBorder htmlFunc id node zoneName flag show otherAttrs =
 -- Actually generates the zones for a given HtmlNode
 makeZones : ZoneOptions -> String -> LangHtml.NodeId -> List LangHtml.Attr -> List Html.Html
 makeZones options node id attrs =
-  case node of
+  case Debug.log "node" node of
     "div" -> 
       let mk zone x_ y_ w_ h_ =
           zoneBorder Html.div id node zone True options.showBasic 
@@ -650,7 +651,7 @@ outputButton model w h =
   let disabled = model.mode == AdHoc in
   let cap =
      case model.mode of
-       Print _ -> "[Out] SVG"
+       Print _ -> "[Out] HTML"
        _       -> "[Out] Canvas"
   in
   simpleEventButton_ disabled ToggleOutput "Toggle Output" "Toggle Output" cap w h

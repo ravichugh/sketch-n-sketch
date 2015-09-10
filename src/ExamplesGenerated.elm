@@ -40,11 +40,23 @@ scratch =
 basicText =
  "; Demonstration of simple text capabilities
 
-(def simpleText 'Dorian is swell')
+(def simpleText 'Dorian is swell ')
 (def italics (\\str ['i' [] [(text str)]]))
 (def bold    (\\str ['b' [] [(text str)]]))
 (basicDoc [] 
-  [ (text simpleText)
+  [ (h1 'Header 1')
+    (h2 'Header 2')
+    (h3 'Header 3')
+    (h4 'Header 4')
+    (h5 'Header 5')
+    (h6 'Header 6')
+    (a 'A link' 'https://ravichugh.github.io/sketch-n-sketch/')
+    (ul [ (li 'Unordered list')
+          (li 'Unordered list') ] )
+    (ol [ (li 'Ordered list')
+          (li 'Ordered list') ] )
+    hr
+    (text simpleText)
     (italics simpleText)
     (bold simpleText)
   ] )
