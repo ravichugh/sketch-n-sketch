@@ -190,6 +190,21 @@ upstate evt old = case debugLog "Event" evt of
 
     StartResizingMid -> { old | mouseMode <- MouseResizeMid Nothing }
 
+    MouseUp b ->
+      case b of
+        True ->
+          case (old.mode, old.mouseMode) of
+            (Print _, _) -> old
+            (_, MouseObject i k z (Just (s, _, _))) ->
+              let (Ok e) = parseE old.code in
+              let old' = { old | inputExp <- Just e } in
+              refreshHighlights i z
+                { old' | mouseMode <- MouseNothing, mode <- refreshMode_ old'
+                       , history <- addToHistory s old'.history }
+            _ ->
+              { old | mouseMode <- MouseNothing, mode <- refreshMode_ old}
+        False -> old
+
     MousePos (mx, my) ->
       case old.mouseMode of
         MouseNothing -> old
@@ -207,7 +222,7 @@ upstate evt old = case debugLog "Event" evt of
           let onNewPos = createMousePosCallback mx my objid kind zone old in
           let mStuff = maybeStuff objid kind zone old in
           let blah = Just (old.code, mStuff, onNewPos) in
-          { old | mouseMode <- MouseObject objid kind zone blah  }
+          { old | mouseMode <- MouseObject objid kind zone blah}
         MouseObject _ _ _ (Just (_, mStuff, onNewPos)) ->
           let (newE,changes,newSlate) = onNewPos (mx, my) in
           { old | code <- unparseE newE
@@ -215,8 +230,9 @@ upstate evt old = case debugLog "Event" evt of
                 , slate <- newSlate
                 , codeBoxInfo <- highlightChanges mStuff changes old.codeBoxInfo
                 }
+        _ ->
+          { old | mouseMode <- MouseNothing }
 
-    --TODO: will need to add this back in later
     SelectObject id kind zone ->
       case old.mode of
         AdHoc       -> { old | mouseMode <- MouseObject id kind zone Nothing }
@@ -228,21 +244,6 @@ upstate evt old = case debugLog "Event" evt of
                 Just (Just _) -> { old | mouseMode <- MouseObject id kind zone Nothing }
                 _             -> { old | mouseMode <- MouseNothing }
         SyncSelect _ _ -> old
-
-    MouseUp ->
-      case (old.mode, old.mouseMode) of
-        (Print _, _) -> old
-        -- TODO: will need to add back in later
-        (_, MouseObject i k z (Just (s, _, _))) ->
-          -- 8/10: re-parsing to get new position info after live sync-ing
-          -- TODO: could update positions within highlightChanges
-          let (Ok e) = parseE old.code in
-          let old' = { old | inputExp <- Just e } in
-          refreshHighlights i z
-            { old' | mouseMode <- MouseNothing, mode <- refreshMode_ old'
-                   , history <- addToHistory s old'.history }
-        _ ->
-          { old | mouseMode <- MouseNothing, mode <- refreshMode_ old }
 
     Sync -> 
       case (old.mode, old.inputExp) of

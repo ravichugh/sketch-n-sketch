@@ -127,6 +127,7 @@ buildHtml w h addZones showZones (i,d) =
     [ Html.iframe
         [ Attr.srcdoc <| LangHtml.printHtml (i,d)
         , Attr.style [("width", "100%"), ("height", "100%")]
+        , onMouseUp (MouseUp True)
         ]
         []
     , Html.div [Attr.style [("position", "relative"), ("top", toString (-1 * h)
@@ -180,7 +181,6 @@ cursorStyle s = ("cursor", LangHtml.AString s)
 -- All of the events that are associated with a given zone 
 zoneEvents id node zone =
     [ onMouseDown (SelectObject id node zone)
-    , onMouseUp MouseUp
     , onMouseOver (turnOnCaptionAndHighlights id node zone)
     , onMouseOut turnOffCaptionAndHighlights
     ]
@@ -428,7 +428,7 @@ codebox_ w h event s readOnly =
              , highlightThisIf (not readOnly)
              ]
          , Attr.value s
-         , Events.onMouseUp events.address MouseUp
+         , Events.onMouseUp events.address (MouseUp True)
          ] ++ event)
         []
 
@@ -519,7 +519,7 @@ gutterForResizing orient w h =
     Html.toElement w h <|
       Html.div
           [ Events.onMouseDown events.address StartResizingMid
-          , Events.onMouseUp events.address MouseUp
+          , Events.onMouseUp events.address (MouseUp True)
           , Attr.style
               [ ("width", dimToPix w) , ("height", dimToPix h)
               , ("cursor", s) ]
@@ -804,6 +804,7 @@ caption model w h =
   colorDebug Color.orange <|
     GE.container w h GE.topLeft <|
       case (model.caption, model.mode, model.mouseMode) of
+        --TODO: turn these back on
         --(Just (Hovering (i,k,z)), Live info, MouseNothing) ->
         --  case hoverInfo info (i,k,z) of
         --    Nothing -> GE.empty
@@ -814,6 +815,8 @@ caption model w h =
         --      eStr (" " ++ line1 ++ "\n " ++ line2)
         (Just (LangError err), _, _) ->
           eStr err
+        (Just (Msg m), _, _) ->
+          eStr m
         _ ->
           GE.empty
 
