@@ -213,10 +213,12 @@ cursorOfZone zone = if
 zoneBorder htmlFunc id node zoneName flag show otherAttrs =
     zone htmlFunc id node zoneName
       <| LangHtml.compileAttrs <|
-           [ if flag && show
+           [ ("box-sizing", LangHtml.AString "border-box")
+           , ("border-collapse", LangHtml.AString "collapse")
+           , if flag && show
                then ("border-color", LangHtml.AString "rgba(255,0,0,0.5)")
                else ("border-color", LangHtml.AString "rgba(0,0,0,0.0)")
-           , ("border-width", (if flag then LangHtml.AString "5px" else LangHtml.AString "0px"))
+           , ("border-width", (if flag then LangHtml.AString "3px" else LangHtml.AString "0px"))
            , ("border-style", LangHtml.AString "solid")
            , ("background-color", LangHtml.AString "rgba(0,0,0,0)")
            , cursorOfZone zoneName
