@@ -1,3 +1,4 @@
+
 import InterfaceModel as Model exposing (events)
 import InterfaceView2 as View
 import InterfaceController as Controller
@@ -29,6 +30,7 @@ combinedEventSig : Signal Model.Event
 combinedEventSig = 
   Signal.mergeMany
     [ events.signal
+    , mouseIsUp |> Signal.map Model.MouseUp
     , Signal.map2 (,) Mouse.isDown Mouse.position
       |> Signal.filter (\(x,y) -> x) (False, (0,0))
       |> Signal.map (\(x,y) -> y)
@@ -45,6 +47,10 @@ main = Signal.map2 View.view Window.dimensions sigModel
 
 adjustCoords : (Int, Int) -> (Int, Int) -> (Int, Int)
 adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
+
+mouseIsUp : Signal.Signal Bool
+mouseIsUp =
+    Signal.map not Mouse.isDown
 
 -- The necessary port for Tasks/Storage
 -- Due to current Elm limitations, this must be in the Main module

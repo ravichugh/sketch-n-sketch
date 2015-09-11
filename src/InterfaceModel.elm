@@ -98,10 +98,11 @@ showZonesModes = 4
 type Caption
   = LangError String
   | Hovering (Int, NodeKind , LangHtml.Zone)
+  | Msg String
 
 type Event = CodeUpdate String
            | SelectObject Int NodeKind LangHtml.Zone
-           | MouseUp
+           | MouseUp Bool
            | MousePos (Int, Int)
            | Sync
            | TraverseOption Int -- offset from current index (+1 or -1)
