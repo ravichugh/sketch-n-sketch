@@ -90,6 +90,39 @@ image =
 
 "
 
+simpleNavBar =
+ "; A simple navigation bar
+
+(def [buttonwd buttonht] [120 40])
+(def [menuy0 menux0 buttonspacing] [100 50 140])
+(def nicelink (\\(text url)
+  (eStyle [ [ 'text-decoration' 'none' ] 
+            [ 'color' 'white' ]
+            [ 'font-family' 'sans-serif' ] ]
+          (a text url) ) ) )
+(def simpleNavigationButton (\\[text url]
+  (eStyle [ [ 'display' 'table-cell' ] 
+            [ 'background-color' 'royalblue'] 
+            [ 'text-align' 'center' ]
+            [ 'vertical-align' 'middle' ] ]
+  (eDiv buttonwd buttonht
+        [(eStyle [ [ 'top' (+ 'calc(' (+ (toString (/ buttonht 2)) 'px - 0.5 * 1em)')) ] 
+                   [ 'position' 'relative' ] ] (nicelink text url))] ) ) ) )
+(def placeButtoni (\\(button i)
+  (eStyle [ ['top' menuy0]
+            ['left' (+ menux0 (* i buttonspacing))] ]
+          button) ) )
+(def buttons (map simpleNavigationButton
+  [ ['Home'       '.']
+    ['About Us'   '.']
+    ['News'       '.']
+    ['Links'      '.']
+    ['Contact Us' '.'] ] ) )
+(def navBar (map2 placeButtoni buttons [0! 1! 2! 3! 4!]))
+(basicDoc [] navBar)
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -97,6 +130,7 @@ examples =
   , makeExample "Basic Text" basicText
   , makeExample "Three Divs" threeDivs
   , makeExample "Image" image
+  , makeExample "Simple Navigation Bar" simpleNavBar
   ]
 
 list = examples -- ++ MicroTests.sampleTests

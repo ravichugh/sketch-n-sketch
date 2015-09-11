@@ -256,8 +256,8 @@ prelude =
 (def addChild (\\([node attrs children] newChild)
   [node attrs (snoc newChild children)] ) )
 
-;; eStyle : Node -> Attributes -> Node
-;; argument order - node to add styles to, attrs to add
+;; eStyle : Attributes -> Node -> Node
+;; argument order - attrs to add, node to add styles to
 ;; Adds a list of attributes to a node - is helpful when using the Element
 ;; abstraction, as the constructor functions do not have a Style field.
 ;; Attributes in this case should be CSS
