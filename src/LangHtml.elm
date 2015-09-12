@@ -44,6 +44,14 @@ valToHtml w h (VList [VBase (String "html"), VList vs1, VList vs2]) =
 compileValToNode : Val -> VirtualDom.Node
 compileValToNode v = case v of
   VList [VBase (String "TEXT"), VBase (String s)] -> VirtualDom.text s
+  -- A convenient shorthand for spans
+  VList [VBase (String "span"), VList vs, VBase (String s)] ->
+    (html "span") 
+--      -- If we need the editable content to be an attribute, we could use
+--      -- this sort of thing.
+--      (compileAttrVals (VList [VBase (String "__Content"), VBase (String s)]) :: vs) 
+      (compileAttrVals vs)
+      (VirtualDom.text s)
   VList [VBase (String f), VList vs1, VList vs2] ->
     (html f) (compileAttrVals vs1) (compileNodeVals vs2)
 
