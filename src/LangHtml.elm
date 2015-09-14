@@ -51,7 +51,7 @@ compileValToNode v = case v of
 --      -- this sort of thing.
 --      (compileAttrVals (VList [VBase (String "__Content"), VBase (String s)]) :: vs) 
       (compileAttrVals vs)
-      (VirtualDom.text s)
+      [VirtualDom.text s]
   VList [VBase (String f), VList vs1, VList vs2] ->
     (html f) (compileAttrVals vs1) (compileNodeVals vs2)
 
