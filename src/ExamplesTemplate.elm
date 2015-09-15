@@ -22,6 +22,7 @@ LITTLE_TO_ELM basicText
 LITTLE_TO_ELM threeDivs
 LITTLE_TO_ELM image
 LITTLE_TO_ELM simpleNavBar
+LITTLE_TO_ELM table
 
 examples =
   [ makeExample scratchName scratch
@@ -30,6 +31,7 @@ examples =
   , makeExample "Three Divs" threeDivs
   , makeExample "Image" image
   , makeExample "Simple Navigation Bar" simpleNavBar
+  , makeExample "Simple Table" table
   ]
 
 list = examples -- ++ MicroTests.sampleTests
