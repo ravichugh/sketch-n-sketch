@@ -234,13 +234,13 @@
 
 (def table (\(attrs children) ['table' attrs children]))
 
-(def th (\header ['th' [] [(text header)]]))
+(def th (\header ['th' [] [(text header)] ] ) )
 
-(def td (\data ['td' [] [(text data)] ]))
+(def tableheader (\headers ['tr' [] (map th headers) ]) )
 
-(def tableheader (\headers ['tr' [] (map th headers)] ))
+(def td (\d ['td' [] [(text d)] ] ) )
 
-(def tr (\data ['tr' [] [(map td data)] ]))
+(def tr (\data ['tr' [] (map td data) ] ) )
 
 (def style (\attrs
   (let boundKVs
@@ -293,9 +293,13 @@
 ;; eTable : Width -> Height -> Data -> Node
 ;; argument order - width, height, data
 ;; make a table with a specified width and height
-(def eTable (\(w h headers data)
-  ['table' [ ['width' w] ['height' h] ['position' 'absolute'] ]
-    (map tr data)] ) )
+  (def eTable (\(w h headers data borders)
+   ['table' 
+    (append borders [ ['width' w] 
+                      ['height' h]
+                      ['position' 'absolute'] ])
+     (append [(tableheader headers)]
+             (map tr data) ) ] ) )
 
 ; "constant folding"
 (def twoPi (* 2 (pi)))

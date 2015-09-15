@@ -4,6 +4,8 @@ import String
 import Debug
 import Set
 import Dict
+import Mouse
+import Signal
 
 --TODO rewrite this to look inside of CSS styles or alter representation in
 -- `little`

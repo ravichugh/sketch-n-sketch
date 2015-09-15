@@ -123,6 +123,25 @@ simpleNavBar =
 
 "
 
+table =
+ "; A simple table
+
+(def headers
+  [ 'Who' 'Entrance Survey Guess' 'Exit Survey Guess' ])
+(def data
+  [ ['Ravi' '25' '15']
+    ['Mitch' '15' '4']
+    ['Jacob' '88' '6']
+  ])
+(def borders
+  [ ['border' '1px solid black'] ])
+(basicDoc [] 
+  [ (eStyle [ ['top' 100]
+              ['left' 100] ]
+              (eTable 600 120 headers data borders) ) ] )
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -131,6 +150,7 @@ examples =
   , makeExample "Three Divs" threeDivs
   , makeExample "Image" image
   , makeExample "Simple Navigation Bar" simpleNavBar
+  , makeExample "Simple Table" table
   ]
 
 list = examples -- ++ MicroTests.sampleTests
