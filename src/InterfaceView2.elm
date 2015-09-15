@@ -929,7 +929,9 @@ orientationButton w h model =
 basicBoxButton w h model =
     let (text, evt) = case model.basicCodeBox of
           True  -> ("[Code Box] Basic", ToggleBasicCodeBox)
-          False -> ("[Code Box] Fancy", WaitCodeBox)
+          False -> case model.editingMode of
+              Nothing -> ("[Code Box] Fancy", ToggleBasicCodeBox)
+              Just _  -> ("[Code Box] Fancy", WaitCodeBox)
     in
        simpleButton 
          evt

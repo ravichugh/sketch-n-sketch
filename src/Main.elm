@@ -58,8 +58,8 @@ port taskPort = Signal.mergeMany
 port aceInTheHole : Signal AceCodeBoxInfo
 port aceInTheHole =
     let pickAsserts (m,e) = case m.editingMode of
-          Nothing -> Debug.log "edit/Nothing" True
-          Just _ -> case Debug.log "evt" e of
+          Nothing -> True
+          Just _ -> case e of
               -- All events let through here that aren't already let through
               -- 'poke' Ace, rerendering if necessary
               Model.WaitRun -> True
@@ -86,7 +86,7 @@ port aceInTheHole =
 --              Model.ToggleZones -> False
               Model.InstallSaveState -> True
               Model.RemoveDialog _ _ -> True
---              Model.SetBasicCodeBox _ -> False
+              Model.ToggleBasicCodeBox -> True
 --              Model.StartResizingMid -> False
 --              Model.Undo -> False
 --              Model.Redo -> False
@@ -98,7 +98,9 @@ port aceInTheHole =
         Signal.map fst
                       <| Signal.foldp packageModel initAceCodeBoxInfo
                       <| Signal.filter 
-                            (\a -> not (fst a).basicCodeBox
+                            (\a -> (not (fst a).basicCodeBox
+                                    || snd a == Model.ToggleBasicCodeBox
+                                        && (fst a).basicCodeBox)
                                    && pickAsserts a )
                             (Model.sampleModel, Model.Noop)
                       <| Signal.map2 (,) sigModel combinedEventSig

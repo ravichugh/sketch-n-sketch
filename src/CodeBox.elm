@@ -155,7 +155,6 @@ interpretAceEvents amsg model = case amsg.evt of
                   }
       , Model.Run
       ]
-    --TODO
     "saveResponse" -> 
         let newModel = { model | code <- amsg.strArg
                                , codeBoxInfo <- { cursorPos = amsg.cursorArg
@@ -241,11 +240,12 @@ packageModel (model, evt) (lastBox, rerenders) =
 -- the page load.
 tripRender : Event -> List Bool -> Bool
 tripRender evt last = 
-  if List.all (\a -> a) last then False else
-    case (evt, last) of
-      (_                 , True :: rest  ) -> True
-      (Model.SwitchOrient, _             ) -> True
-      (Model.InstallSaveState, _         ) -> True
-      (Model.RemoveDialog _ _ , _        ) -> True
-      (Model.ToggleBasicCodeBox , _       ) -> True
-      _                                    -> False
+  case (evt, last) of
+    (_                 , True :: rest  ) -> if List.all (\a -> a) last 
+                                               then False -- For clarity
+                                               else True
+    (Model.SwitchOrient, _             ) -> True
+    (Model.InstallSaveState, _         ) -> True
+    (Model.RemoveDialog _ _ , _        ) -> True
+    (Model.ToggleBasicCodeBox , _       ) -> True
+    _                                    -> False
