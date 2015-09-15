@@ -235,6 +235,16 @@ prelude =
 
 (def span (\\(attrs children) ['span' attrs children]))
 
+(def table (\\(attrs children) ['table' attrs children]))
+
+(def th (\\header ['th' [] [(text header)]]))
+
+(def td (\\data ['td' [] [(text data)] ]))
+
+(def tableheader (\\headers ['tr' [] [(map th headers)] ))
+
+(def tr (\\data ['tr' [] [(map td data)] ]))
+
 (def style (\\attrs
   (let boundKVs
     (map (\\[key value] (+ (+ (+ key ': ') value) '; ')) attrs)
@@ -282,6 +292,14 @@ prelude =
   ['img' [ ['content' (+ 'url(\"' (+ url '\")'))] 
            ['width' w] ['height' h]
            ['position' 'absolute' ] ] []] ) )
+
+;; eTable : Width -> Height -> Data -> Node
+;; argument order - width, height, data
+;; make a table with a specified width and height
+(def eTable (\\(w h headers data)
+  ['table' [ ['width' w] ['height' h] ]
+    [ (tableheader headers) 
+    [(map tr data)]] ]))
 
 ; \"constant folding\"
 (def twoPi (* 2 (pi)))
