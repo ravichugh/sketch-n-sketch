@@ -1,0 +1,16 @@
+; A simple table
+
+(def headers
+  [ ['Who']
+    ['Entrance Survey Guess']
+    ['Exit Survey Guess']
+  ])
+(def data
+  [ ['Ravi' '25' '15']
+    ['Mitch' '15' '4']
+    ['Jacob' '88' '6']
+  ])
+(basicDoc [] 
+  [ (eStyle [ ['top' 100]
+              ['left' 100] ]
+              (eTable 600 120 headers data) ) ] )
