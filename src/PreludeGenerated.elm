@@ -237,13 +237,13 @@ prelude =
 
 (def table (\\(attrs children) ['table' attrs children]))
 
-(def th (\\header ['th' [] [(text header)] ] ) )
+(def th (\\(border header) ['th' border [(text header)] ] ) )
 
-(def tableheader (\\headers ['tr' [] (map th headers) ]) )
+(def tableheader (\\(border headers) ['tr' border (map (\\b (th border b)) headers) ]) )
 
-(def td (\\d ['td' [] [(text d)] ] ) )
+(def td (\\(border d) ['td' border [(text d)] ] ) )
 
-(def tr (\\data ['tr' [] (map td data) ] ) )
+(def tr (\\(border data) ['tr' border (map (\\d (td border d)) data) ] ) )
 
 (def style (\\attrs
   (let boundKVs
@@ -301,8 +301,8 @@ prelude =
     (append borders [ ['width' w] 
                       ['height' h]
                       ['position' 'absolute'] ])
-     (append [(tableheader headers)]
-             (map tr data) ) ] ) )
+     (append [(tableheader borders headers)]
+             (map (\\d (tr borders d)) data) ) ] ) )
 
 ; \"constant folding\"
 (def twoPi (* 2 (pi)))

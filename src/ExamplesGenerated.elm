@@ -134,7 +134,9 @@ table =
     ['Jacob' '88' '6']
   ])
 (def borders
-  [ ['border' '1px solid black'] ])
+  [ ['border' '1px solid black'] 
+    ['border-collapse' 'collapse']
+  ])
 (basicDoc [] 
   [ (eStyle [ ['top' 100]
               ['left' 100] ]
