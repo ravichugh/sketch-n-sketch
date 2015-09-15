@@ -67,6 +67,7 @@ LITTLE_TO_ELM thawFreeze
 LITTLE_TO_ELM cover
 LITTLE_TO_ELM poppl
 LITTLE_TO_ELM bezier
+-- LITTLE_TO_ELM surveyResults
 
 examples =
   [ makeExample scratchName scratch
@@ -120,6 +121,7 @@ examples =
   , makeExample "Paths 4" paths4
   , makeExample "Paths 5" paths5
   , makeExample "Sample Rotations" rotTest
+  -- , makeExample "Survey Results" surveyResults
   ]
 
 list = examples -- ++ MicroTests.sampleTests

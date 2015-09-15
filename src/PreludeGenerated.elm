@@ -20,6 +20,8 @@ prelude =
 ;; Composes two functions together
 (def compose (\\(f g) (\\x (f (g x)))))
 
+(def flip (\\(f x y) (f y x)))
+
 ;; fst : List a -> a
 ;; Returns the first element of a given list
 (def fst (\\[x|_] x))
@@ -153,11 +155,20 @@ prelude =
 ;; Given two bools, returns a bool regarding if the first argument is true, then the second argument is as well
 (def implies (\\(p q) (if p q true)))
 
+(def or  (\\(p q) (if p true q)))
+(def and (\\(p q) (if p q false)))
+
 ;; clamp : Number -> Number -> Number -> Number
 ;; Given an upper bound, lower bound, and a number, restricts that number between those bounds (inclusive)
 ;; Ex. clamp 1 5 4 = 4
 ;; Ex. clamp 1 5 6 = 5
 (def clamp (\\(i j n) (if (< n i) i (if (< j n) j n))))
+
+(def lt (\\(x y) (< x y)))
+(def eq (\\(x y) (= x y)))
+(def le (\\(x y) (or (lt x y) (eq x y))))
+(def gt (flip lt))
+(def ge (\\(x y) (or (gt x y) (eq x y))))
 
 ;; joinStrings : String -> List String -> String
 ;; Combine a list of strings with a given separator

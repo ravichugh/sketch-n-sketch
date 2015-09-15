@@ -1,0 +1,27 @@
+
+; Interactive charts that show results from user study:
+; http://ravichugh.github.io/sketch-n-sketch/blog/02-user-study.html
+
+(def rangeSlider (\(x0 x1 y caption minVal maxVal srcVal1 srcVal2)
+  (let [preVal1 preVal2] (map (clamp minVal maxVal) [srcVal1 srcVal2])
+  (let [targetVal1 targetVal2] [(round preVal1) (round preVal2)]
+  (let shapes
+    (let ball (\(srcVal preVal badValue)
+      (let [xDiff valDiff] [(- x1 x0) (- maxVal minVal)]
+      (let xBall (+ x0 (* xDiff (/ (- preVal minVal) valDiff)))
+      (let rBall (if (= preVal srcVal) 10! 0!)
+        (circle (if badValue 'red' 'black') xBall y rBall)))))
+    [ (line 'black' 3! x0 y x1 y)
+      (let [s1 s2] [(toString targetVal1) (toString targetVal2)]
+        (text (+ x1 15) (+ y 5) (concatStrings [caption '[' s1 ', ' s2 ']'])))
+      (circle 'black' x0 y 4!)
+      (circle 'black' x1 y 4!)
+      (ball srcVal1 preVal1 (gt srcVal1 srcVal2))
+      (ball srcVal2 preVal2 (gt srcVal1 srcVal2)) ])
+  [targetVal1 targetVal2 shapes])))))
+
+(def [min1 max1 sl1] (rangeSlider 120! 300! 20! 'Programming Expertise: ' 0! 3! 0.1 2.9))
+(def [min2 max2 sl2] (rangeSlider 120! 300! 50! 'Functional Programming Expertise: ' 0! 3! 0.1 2.9))
+(def [min3 max3 sl3] (rangeSlider 120! 300! 80! 'Graphic Design Expertise: ' 0! 3! 0.1 2.9))
+
+(svgViewBox 800 800 (concat [sl1 sl2 sl3]))

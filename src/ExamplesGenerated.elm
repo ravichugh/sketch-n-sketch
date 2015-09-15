@@ -2002,6 +2002,7 @@ bezier =
 (svg (concat [linCurve quadCurve cuCurve tslider]))
 "
 
+-- LITTLE_TO_ELM surveyResults
 
 examples =
   [ makeExample scratchName scratch
@@ -2055,6 +2056,7 @@ examples =
   , makeExample "Paths 4" paths4
   , makeExample "Paths 5" paths5
   , makeExample "Sample Rotations" rotTest
+  -- , makeExample "Survey Results" surveyResults
   ]
 
 list = examples -- ++ MicroTests.sampleTests
