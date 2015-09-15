@@ -123,6 +123,9 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
     } else if (codeBoxInfo.kind == "runRequest") {
         //Same as above
         sendState("runResponse");
+    } else if (codeBoxInfo.kind == "codeRequest") {
+        //Similiartly as above
+        sendState("codeResponse");
     } else { //We don't recognize the request; log and do nothing
         console.log("codeBoxInfo type " + codeBoxInfo.kind + " unrecognized.");
     }

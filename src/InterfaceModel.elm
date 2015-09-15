@@ -116,7 +116,7 @@ type Event = CodeUpdate String
            | SwitchOrient
            | InstallSaveState
            | RemoveDialog Bool String
-           | SetBasicCodeBox Bool
+           | ToggleBasicCodeBox
            | StartResizingMid
            | Undo | Redo
            | KeysDown (List Char.KeyCode)
@@ -128,6 +128,7 @@ type Event = CodeUpdate String
            --A state such that we're waiting for a response from Ace
            | WaitRun
            | WaitSave String
+           | WaitCodeBox
 
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""

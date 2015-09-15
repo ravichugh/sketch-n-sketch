@@ -362,7 +362,7 @@ upstate evt old = case debugLog "Event" evt of
     -- appropriately (see CodeBox.elm)
     InstallSaveState -> installSaveState old
     RemoveDialog makeSave saveName -> removeDialog makeSave saveName old
-    SetBasicCodeBox set -> { old | basicCodeBox <- set }
+    ToggleBasicCodeBox -> { old | basicCodeBox <- Debug.log "basicBox" <| not old.basicCodeBox }
     UpdateFieldContents fieldContents -> { old | fieldContents <- fieldContents }
 
     UpdateModel f -> f old
@@ -374,6 +374,7 @@ upstate evt old = case debugLog "Event" evt of
 
     WaitRun -> old
     WaitSave saveName -> { old | exName <- saveName }
+    WaitCodeBox -> old
 
     _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
 

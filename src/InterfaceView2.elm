@@ -927,12 +927,12 @@ orientationButton w h model =
       simpleButton SwitchOrient text text text w h
 
 basicBoxButton w h model =
-    let (text,flip) = case model.basicCodeBox of
-          True  -> ("[Code Box] Basic", False)
-          False -> ("[Code Box] Fancy", True)
+    let (text, evt) = case model.basicCodeBox of
+          True  -> ("[Code Box] Basic", ToggleBasicCodeBox)
+          False -> ("[Code Box] Fancy", WaitCodeBox)
     in
        simpleButton 
-         (SetBasicCodeBox flip)
+         evt
          text text text w h
 
 --------------------------------------------------------------------------------

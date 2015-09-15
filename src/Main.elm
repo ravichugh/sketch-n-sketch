@@ -64,6 +64,7 @@ port aceInTheHole =
               -- 'poke' Ace, rerendering if necessary
               Model.WaitRun -> True
               Model.WaitSave _ -> True
+              Model.WaitCodeBox -> True
               Model.MousePos _ -> True
 --              Model.KeysDown _ -> False
 --              Model.CodeUpdate _ -> False

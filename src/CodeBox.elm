@@ -90,6 +90,20 @@ runRequestInfo =
   , []
   )
 
+codeRequestInfo : (AceCodeBoxInfo, List Bool)
+codeRequestInfo = 
+  ( { kind = "codeRequest"
+    , code = ""
+    , cursorPos = sampleModel.codeBoxInfo.cursorPos
+    , manipulable = True
+    , selections = [] 
+    , highlights = []
+    , bounce = True
+    , exName = ""
+    }
+  , []
+  )
+
 poke : Bool -> List Bool -> Model.Model -> (AceCodeBoxInfo, List Bool)
 poke rerender rerenders model =
   let manipulable = case (model.mode, model.editingMode) of
@@ -154,6 +168,16 @@ interpretAceEvents amsg model = case amsg.evt of
            `andThen` \_ ->
            Signal.send events.address <| Model.UpdateModel <|
                 \m -> newModel
+    "codeResponse" -> Signal.send events.address <| Model.MultiEvent
+        [ Model.UpdateModel <|
+            \m -> { m | code <- amsg.strArg
+                      , codeBoxInfo <- { cursorPos = amsg.cursorArg
+                                       , selections = amsg.selectionArg
+                                       , highlights = m.codeBoxInfo.highlights
+                                       }
+                  }
+        , Model.ToggleBasicCodeBox
+        ]
     "Rerender" -> Signal.send events.address Model.Noop 
     "init" -> Task.succeed () 
     _ ->
@@ -202,6 +226,9 @@ packageModel (model, evt) (lastBox, rerenders) =
           Model.Run -> assertion rerender rerenders model
           Model.UpdateModel _ -> assertion rerender rerenders model
           Model.SelectExample _ _ -> assertion rerender rerenders model
+          Model.WaitCodeBox -> case model.basicCodeBox of
+              True -> poke rerender rerenders model
+              False -> codeRequestInfo
           _ -> poke rerender rerenders model
 
 -- Lets a signal pass if it should triger an extra rerender
@@ -220,5 +247,5 @@ tripRender evt last =
       (Model.SwitchOrient, _             ) -> True
       (Model.InstallSaveState, _         ) -> True
       (Model.RemoveDialog _ _ , _        ) -> True
-      (Model.SetBasicCodeBox _ , _       ) -> True
+      (Model.ToggleBasicCodeBox , _       ) -> True
       _                                    -> False
