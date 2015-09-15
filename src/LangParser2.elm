@@ -228,7 +228,7 @@ token_ = white << P.token
 delimit a b = P.between (token_ a) (token_ b)
 parens      = delimit "(" ")"
 
-parseNumV = (\(n,b) -> VConst (n, dummyTrace_ b)) <$> parseNum
+parseNumV = (\(n,b) -> vConst (n, dummyTrace_ b)) <$> parseNum
 parseNumE = (\(n,b) -> exp_ (EConst n (dummyLoc_ b))) <$> parseNum
 
 parseEBase =
@@ -239,7 +239,7 @@ parseEBase =
 parseVBase =
       (always vTrue  <$> P.token "true")
   <++ (always vFalse <$> P.token "false")
-  <++ ((VBase << String) <$> parseStrLit)
+  <++ (vStr <$> parseStrLit)
 
 parseList_
    : (P.Parser a -> P.Parser sep -> P.Parser (List (P.WithInfo a)))
@@ -293,7 +293,7 @@ parseVal = P.recursively <| \_ ->
   <++ white parseVBase
   <++ parseValList
 
-parseValList = parseListLiteral parseVal (VList << List.map .val)
+parseValList = parseListLiteral parseVal (vList << List.map .val)
 
 parseE_ : (Exp -> Exp) -> String -> Result String Exp
 parseE_ f = P.parse <|

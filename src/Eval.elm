@@ -10,7 +10,7 @@ import Utils
 -- Big-Step Operational Semantics
 
 match : (Pat, Val) -> Maybe Env
-match (p,v) = case (p.val, v) of
+match (p,v) = case (p.val, v.v_) of
   (PVar x, _) -> Just [(x,v)]
   (PList ps Nothing, VList vs) ->
     Utils.bindMaybe matchList (Utils.maybeZip ps vs)
@@ -18,7 +18,8 @@ match (p,v) = case (p.val, v) of
     let (n,m) = (List.length ps, List.length vs) in
     if | n > m     -> Nothing
        | otherwise -> let (vs1,vs2) = Utils.split n vs in
-                      (rest, VList vs2) `cons` (matchList (Utils.zip ps vs1))
+                      (rest, vList vs2) `cons` (matchList (Utils.zip ps vs1))
+                        -- dummy VTrace, since VList itself doesn't matter
   (PList _ _, _) -> Nothing
 
 matchList : List (Pat, Val) -> Maybe Env
@@ -51,13 +52,15 @@ eval_ env e = fst <| eval env e
 eval : Env -> Exp -> (Val, Env)
 eval env e =
 
-  let ret v = (v, env) in
+  -- ret retains original eid, retReplace doesn't
+  let ret v_       = (Val v_ e.val.eid, env) in
+  let retReplace v = (v, env) in
 
   case e.val.e__ of
 
   EConst i l -> ret <| VConst (i, TrLoc l)
   EBase v    -> ret <| VBase v
-  EVar x     -> ret <| lookupVar env x e.start
+  EVar x     -> ret <| (lookupVar env x e.start).v_
   EFun [p] e -> ret <| VClosure Nothing p e env
   EOp op es  -> ret <| evalOp env op es
 
@@ -65,17 +68,17 @@ eval env e =
     let vs = List.map (eval_ env) es in
     case m of
       Nothing   -> ret <| VList vs
-      Just rest -> case eval_ env rest of
+      Just rest -> case (eval_ env rest).v_ of
                      VList vs' -> ret <| VList (vs ++ vs')
 
   EIndList rs -> 
     let vs = List.concat <| List.map rangeToList rs in
     if isSorted vs
     then ret <| VList vs
-    else Debug.crash <| "indices not strictly increasing: " ++ strVal (VList vs)
+    else Debug.crash <| "indices not strictly increasing: " ++ strVal (vList vs)
 
   EIf e1 e2 e3 ->
-    case eval_ env e1 of
+    case (eval_ env e1).v_ of
       VBase (Bool True)  -> eval env e2
       VBase (Bool False) -> eval env e3
       _                  -> errorMsg <| strPos e1.start ++ " if-statement expected a Bool but got something else."
@@ -83,12 +86,12 @@ eval env e =
   ECase e1 l ->
     let v1 = eval_ env e1 in
     case evalBranches env v1 l of
-      Just v2 -> ret v2
+      Just v2 -> retReplace v2
       _       -> errorMsg <| strPos e1.start ++ " non-exhaustive case statement"
 
   EApp e1 [e2] ->
     let (v1,v2) = (eval_ env e1, eval_ env e2) in
-    case v1 of
+    case v1.v_ of
       VClosure Nothing p e env' ->
         case (p, v2) `cons` Just env' of
           Just env'' -> eval env'' e
@@ -99,10 +102,11 @@ eval env e =
         errorMsg <| strPos e1.start ++ " not a function"
 
   ELet _ True p e1 e2 ->
-    case (p.val, eval_ env e1) of
+    let v1 = eval_ env e1 in
+    case (p.val, v1.v_) of
       (PVar f, VClosure Nothing x body env') ->
         let _   = Utils.assert "eval letrec" (env == env') in
-        let v1' = VClosure (Just f) x body env in
+        let v1' = Val (VClosure (Just f) x body env) v1.vtrace in
         case (pVar f, v1') `cons` Just env of
           Just env' -> eval env' e2
       (PList _ _, _) ->
@@ -121,19 +125,19 @@ eval env e =
 
 evalOp env opWithInfo es =
   let (op,opStart) = (opWithInfo.val, opWithInfo.start) in
-  case List.map (eval_ env) es of
+  case List.map (.v_ << eval_ env) es of
     [VConst (i,it), VConst (j,jt)] ->
       case op of
         Plus  -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Minus -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Mult  -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Div   -> VConst (evalDelta op [i,j], TrOp op [it,jt])
-        Lt    -> vBool  (i < j)
-        Eq    -> vBool  (i == j)
+        Lt    -> VBase (Bool (i < j))
+        Eq    -> VBase (Bool (i == j))
     [VBase (String s1), VBase (String s2)] ->
       case op of
         Plus  -> VBase (String (s1 ++ s2))
-        Eq    -> vBool (s1 == s2)
+        Eq    -> VBase (Bool (s1 == s2))
     [] ->
       case op of
         Pi    -> VConst (pi, TrOp op [])
@@ -153,7 +157,7 @@ evalOp env opWithInfo es =
     [_, _] ->
       case op of
         -- polymorphic inequality, added for Prelude.addExtras
-        Eq     -> vBool False
+        Eq     -> VBase (Bool False)
     _ ->
       errorMsg
         <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart
@@ -206,25 +210,28 @@ rangeToList : Range -> List Val
 rangeToList r =
   let err () = errorMsg "Range not specified with numeric constants" in
   case r.val of
+    -- dummy VTraces...
     Point e -> case e.val.e__ of
-      EConst n l -> [ VConst (n, rangeOff l 0 l) ]
+      EConst n l -> [ vConst (n, rangeOff l 0 l) ]
       _          -> err ()
     Interval e1 e2 -> case (e1.val.e__, e2.val.e__) of
       (EConst n1 l1, EConst n2 l2) ->
         let walkVal i =
           let m = n1 + toFloat i in
           let tr = rangeOff l1 i l2 in
-          if | m < n2    -> VConst (m,  tr) :: walkVal (i + 1)
-             | otherwise -> VConst (n2, tr) :: []
+          if | m < n2    -> vConst (m,  tr) :: walkVal (i + 1)
+             | otherwise -> vConst (n2, tr) :: []
         in
         walkVal 0
       _ -> err ()
 
 -- Could compute this in one pass along with rangeToList
 isSorted = isSorted_ Nothing
-isSorted_ mlast vs =
-  case (mlast, vs) of
-    (_, [])                        -> True
-    (Nothing, VConst (j,_) :: vs') -> isSorted_ (Just j) vs'
-    (Just i,  VConst (j,_) :: vs') -> if | i < j     -> isSorted_ (Just j) vs'
-                                         | otherwise -> False
+isSorted_ mlast vs = case vs of
+  []     -> True
+  v::vs' ->
+    let (VConst (j,_)) = v.v_ in
+    case mlast of
+      Nothing -> isSorted_ (Just j) vs'
+      Just i  -> if | i < j -> isSorted_ (Just j) vs'
+                    | otherwise -> False

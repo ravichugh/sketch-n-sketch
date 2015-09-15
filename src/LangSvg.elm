@@ -36,17 +36,22 @@ svg  = Svg.svgNode
 -- records rather than lists of lists of ...
 
 valToHtml : Int -> Int -> Val -> Html.Html
-valToHtml w h (VList [VBase (String "svg"), VList vs1, VList vs2]) =
-  let wh = [numAttrToVal "width" w, numAttrToVal "height" h] in
-  let v' = VList [VBase (String "svg"), VList (wh ++ vs1), VList vs2] in
-  compileValToNode v'
-    -- NOTE: not checking if width/height already in vs1
+valToHtml w h v =
+  let (VList vs) = v.v_ in
+  case List.map .v_ vs of
+    [VBase (String "svg"), VList vs1, VList vs2] ->
+      let wh = [numAttrToVal "width" w, numAttrToVal "height" h] in
+      let v' = vList [vStr "svg", vList (wh ++ vs1), vList vs2] in
+      compileValToNode v'
+        -- NOTE: not checking if width/height already in vs1
 
 compileValToNode : Val -> VirtualDom.Node
-compileValToNode v = case v of
-  VList [VBase (String "TEXT"), VBase (String s)] -> VirtualDom.text s
-  VList [VBase (String f), VList vs1, VList vs2] ->
-    (svg f) (compileAttrVals vs1) (compileNodeVals vs2)
+compileValToNode v = case v.v_ of
+  VList vs ->
+    case List.map .v_ vs of
+      [VBase (String "TEXT"), VBase (String s)] -> VirtualDom.text s
+      [VBase (String f), VList vs1, VList vs2] ->
+        (svg f) (compileAttrVals vs1) (compileNodeVals vs2)
 
 compileNodeVals = List.map compileValToNode
 compileAttrVals = List.map (uncurry compileAttr << valToAttr)
@@ -54,7 +59,7 @@ compileAttrs    = List.map (uncurry compileAttr)
 compileAttr k v = (attr k) (strAVal v)
 
 numAttrToVal a i =
-  VList [VBase (String a), VConst (toFloat i, dummyTrace)]
+  vList [vBase (String a), vConst (toFloat i, dummyTrace)]
 
 type AVal
   = ANum NumTr
@@ -126,29 +131,37 @@ toTransformRot a = case a of
   ATransform [Rot n1 n2 n3] -> (n1,n2,n3)
   _                         -> "transform commands" `expectedButGot` strValOfAVal a
 
-valToAttr (VList [VBase (String k), v]) =
-  case (k, v) of
-    ("points", VList vs)  -> (k, APoints <| List.map valToPoint vs)
-    ("fill", VList vs)    -> (k, ARgba <| valToRgba vs)
-    ("fill", VConst it)   -> (k, AColorNum it)
-    ("stroke", VList vs)  -> (k, ARgba <| valToRgba vs)
-    -- TODO "stroke" AColorNum
-    ("d", VList vs)       -> (k, APath2 (valsToPath2 vs))
-    ("transform", VList vs) -> (k, ATransform (valsToTransform vs))
-    (_, VConst it)        -> (k, ANum it)
-    (_, VBase (String s)) -> (k, AString s)
+-- TODO will need to change AVal also
+--   and not insert dummy VTraces (using the v* functions)
 
-valToPoint v = case v of
-  VList [VConst x, VConst y] -> (x,y)
-  _                          -> "a point" `expectedButGot` strVal v
+valToAttr v1 = case v1.v_ of
+  VList vs -> case List.map .v_ vs of
+    [VBase (String k), v] ->
+      case (k, v) of
+        ("points", VList vs)    -> (k, APoints <| List.map valToPoint vs)
+        ("fill", VList vs)      -> (k, ARgba <| valToRgba vs)
+        ("fill", VConst it)     -> (k, AColorNum it)
+        ("stroke", VList vs)    -> (k, ARgba <| valToRgba vs)
+        ("d", VList vs)         -> (k, APath2 (valsToPath2 vs))
+        ("transform", VList vs) -> (k, ATransform (valsToTransform vs))
+        (_, VConst it)          -> (k, ANum it)
+        (_, VBase (String s))   -> (k, AString s)
 
-pointToVal (x,y) = (VList [VConst x, VConst y])
+        -- TODO "stroke" AColorNum
 
-valToRgba vs = case vs of
+valToPoint v = case v.v_ of
+  VList vs -> case List.map .v_ vs of
+    [VConst x, VConst y] -> (x,y)
+    _                    -> "a point" `expectedButGot` strVal v
+  _                      -> "a point" `expectedButGot` strVal v
+
+pointToVal (x,y) = (vList [vConst x, vConst y])
+
+valToRgba vs = case List.map .v_ vs of
   [VConst r, VConst g, VConst b, VConst a] -> (r,g,b,a)
-  _                                        -> "rgba" `expectedButGot` strVal (VList vs)
+  _                                        -> "rgba" `expectedButGot` strVal (vList vs)
 
-rgbaToVal (r,g,b,a) = [VConst r, VConst g, VConst b, VConst a]
+rgbaToVal (r,g,b,a) = [vConst r, vConst g, vConst b, vConst a]
 
 strPoint (x_,y_) =
   let [x,y] = List.map fst [x_,y_] in
@@ -173,25 +186,26 @@ strAVal a = case a of
     -- let (r,g,b) = Utils.numToColor maxColorNum (fst n) in
     -- strRgba_ [r,g,b,1]
 
+-- TODO VTraces...
 valOfAVal a = case a of
-  AString s -> VBase (String s)
-  ANum it   -> VConst it
-  APoints l -> VList (List.map pointToVal l)
-  ARgba tup -> VList (rgbaToVal tup)
-  APath2 p  -> VList (List.concatMap valsOfPathCmd (fst p))
-  AColorNum nt -> VConst nt
+  AString s    -> vBase (String s)
+  ANum it      -> vConst it
+  APoints l    -> vList (List.map pointToVal l)
+  ARgba tup    -> vList (rgbaToVal tup)
+  APath2 p     -> vList (List.concatMap valsOfPathCmd (fst p))
+  AColorNum nt -> vConst nt
 
 valsOfPathCmd c =
-  let fooPt (_,(x,y)) = [VConst x, VConst y] in
+  let fooPt (_,(x,y)) = [vConst x, vConst y] in
   case c of
     CmdZ   s              -> vStr s :: []
     CmdMLT s pt           -> vStr s :: fooPt pt
-    CmdHV  s n            -> vStr s :: [VConst n]
+    CmdHV  s n            -> vStr s :: [vConst n]
     CmdC   s pt1 pt2 pt3  -> vStr s :: List.concatMap fooPt [pt1,pt2,pt3]
     CmdSQ  s pt1 pt2      -> vStr s :: List.concatMap fooPt [pt1,pt2]
-    CmdA   s a b c d e pt -> vStr s :: List.map VConst [a,b,c,d,e] ++ fooPt pt
+    CmdA   s a b c d e pt -> vStr s :: List.map vConst [a,b,c,d,e] ++ fooPt pt
 
-valOfAttr (k,a) = VList [VBase (String k), valOfAVal a]
+valOfAttr (k,a) = vList [vBase (String k), valOfAVal a]
 
 -- https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
 -- http://www.w3schools.com/svg/svg_path.asp
@@ -206,7 +220,8 @@ valsToPath2 = valsToPath2_ {numPoints = 0}
 valsToPath2_ : PathCounts -> List Val -> (List PathCmd, PathCounts)
 valsToPath2_ counts vs = case vs of
   [] -> ([], counts)
-  VBase (String cmd) :: vs' ->
+  v::vs' ->
+    let (VBase (String cmd)) = v.v_ in
     if | matchCmd cmd "Z" -> CmdZ cmd +++ valsToPath2_ counts vs'
        | matchCmd cmd "MLT" ->
            let ([x,y],vs'') = projConsts 2 vs' in
@@ -260,11 +275,13 @@ strAPath2 =
   Utils.spaces << List.map strPathCmd
 
 projConsts k vs =
-  if k == 0 then ([], vs)
-  else case vs of
-         VConst it ::vs' ->
-           let (l1,l2) = projConsts (k-1) vs' in
-           (it::l1, l2)
+  case (k == 0, vs) of
+    (True, [])      -> ([], vs)
+    (False, v::vs') ->
+      case v.v_ of
+        VConst it ->
+          let (l1,l2) = projConsts (k-1) vs' in
+          (it::l1, l2)
 
 matchCmd cmd s =
   let [c] = String.toList cmd in
@@ -273,14 +290,17 @@ matchCmd cmd s =
 
 -- transform commands
 
+valsToTransform : List Val -> List TransformCmd
 valsToTransform = List.map valToTransformCmd
 
-valToTransformCmd v = case v of
-  VList (VBase (String k) :: vs) ->
-    case (k, vs) of
-      ("rotate", [VConst n1, VConst n2, VConst n3]) -> Rot n1 n2 n3
-      _ -> "a transform command" `expectedButGot` strVal v
-  _     -> "a transform command" `expectedButGot` strVal v
+valToTransformCmd v = case v.v_ of
+  VList vs1 -> case List.map .v_ vs1 of
+    (VBase (String k) :: vs) ->
+      case (k, vs) of
+        ("rotate", [VConst n1, VConst n2, VConst n3]) -> Rot n1 n2 n3
+        _ -> "a transform command" `expectedButGot` strVal v
+    _     -> "a transform command" `expectedButGot` strVal v
+  _       -> "a transform command" `expectedButGot` strVal v
 
 strTransformCmd cmd = case cmd of
   Rot n1 n2 n3 ->
@@ -334,7 +354,7 @@ type alias RootedIndexedTree = (NodeId, IndexedTree)
 children n = case n of {TextNode _ -> []; SvgNode _ _ l -> l}
 
 emptyTree : RootedIndexedTree
-emptyTree = valToIndexedTree <| VList [VBase (String "svg"), VList [], VList []]
+emptyTree = valToIndexedTree <| vList [vBase (String "svg"), vList [], vList []]
 
 -- TODO use options for better error messages
 
@@ -344,19 +364,24 @@ valToIndexedTree v =
   let rootId = nextId - 1 in
   (rootId, tree)
 
-valToIndexedTree_ v (nextId, d) = case v of
+valToIndexedTree_ v (nextId, d) = case v.v_ of
 
-  VList [VBase (String "TEXT"), VBase (String s)] ->
-    (1 + nextId, Dict.insert nextId (TextNode s) d)
+  VList vs -> case List.map .v_ vs of
 
-  VList [VBase (String kind), VList vs1, VList vs2] ->
-    let processChild vi (a_nextId, a_graph , a_children) =
-      let (a_nextId',a_graph') = valToIndexedTree_ vi (a_nextId, a_graph) in
-      let a_children'          = (a_nextId' - 1) :: a_children in
-      (a_nextId', a_graph', a_children') in
-    let (nextId',d',children) = List.foldl processChild (nextId,d,[]) vs2 in
-    let node = SvgNode kind (List.map valToAttr vs1) (List.reverse children) in
-    (1 + nextId', Dict.insert nextId' node d')
+    [VBase (String "TEXT"), VBase (String s)] ->
+      (1 + nextId, Dict.insert nextId (TextNode s) d)
+
+    [VBase (String kind), VList vs1, VList vs2] ->
+      let processChild vi (a_nextId, a_graph , a_children) =
+        let (a_nextId',a_graph') = valToIndexedTree_ vi (a_nextId, a_graph) in
+        let a_children'          = (a_nextId' - 1) :: a_children in
+        (a_nextId', a_graph', a_children') in
+      let (nextId',d',children) = List.foldl processChild (nextId,d,[]) vs2 in
+      let node = SvgNode kind (List.map valToAttr vs1) (List.reverse children) in
+      (1 + nextId', Dict.insert nextId' node d')
+
+    _ ->
+      "an SVG node" `expectedButGot` strVal v
 
   _ ->
     "an SVG node" `expectedButGot` strVal v
@@ -484,7 +509,7 @@ dummySvgNode =
 
 -- TODO break up and move slateToVal here
 dummySvgVal =
-  let zero = VConst (0, dummyTrace) in
-  let attrs = VList <| List.map (\k -> VList [vStr k, zero]) ["cx","cy","r"] in
-  let children = VList [] in
-  VList [vStr "circle", attrs, children]
+  let zero = vConst (0, dummyTrace) in
+  let attrs = vList <| List.map (\k -> vList [vStr k, zero]) ["cx","cy","r"] in
+  let children = vList [] in
+  vList [vStr "circle", attrs, children]

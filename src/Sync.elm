@@ -52,13 +52,13 @@ type alias HoleSubst = Dict.Dict Int (Val,Val)
 fillHole : VContext -> HoleSubst -> Val
 fillHole = fillHole_ True
 
-fillHole_ new vc subst = case vc of
+fillHole_ new vc subst = case vc.v_ of
   VHole i          -> case Dict.get i subst of
                         Just (vOld,vNew) -> if new then vNew else vOld
   VConst _         -> vc
   VBase _          -> vc
   VClosure _ _ _ _ -> vc   -- not recursing into closures
-  VList vs         -> VList (List.map (\v -> fillHole_ new v subst) vs)
+  VList vs         -> vList (List.map (\v -> fillHole_ new v subst) vs)
 
 type VDiff = Same Val | Diff VContext HoleSubst
 
@@ -76,7 +76,7 @@ diff v1 v2 =
     _ ->
       Utils.mapMaybe snd res
 
-eqV (v1,v2) = case (v1, v2) of            -- equality modulo traces
+eqV (v1,v2) = case (v1.v_, v2.v_) of            -- equality modulo traces
   (VConst it, VConst jt) -> fst it == fst jt
   (VList vs1, VList vs2) ->
     case Utils.maybeZip vs1 vs2 of
@@ -91,12 +91,12 @@ diffNoCheck v1 v2 =
 -- and that v2 has dummy locs
 
 diff_ : Int -> Val -> Val -> Maybe (Int, VDiff)
-diff_ k v1 v2 = case (v1, v2) of
+diff_ k v1 v2 = case (v1.v_, v2.v_) of
   (VBase Star, VConst _) -> Just (k, Same v2)
   (VConst (i,tr), VConst (j,_)) ->
-    if | i == j    -> Just (k, Same (VConst (i,tr)))  -- cf. comment above
-       | otherwise -> let d = Dict.singleton k (v1, (VConst (j,tr))) in
-                      Just (k+1, Diff (VHole k) d)
+    if | i == j    -> Just (k, Same (vConst (i,tr)))  -- cf. comment above
+       | otherwise -> let d = Dict.singleton k (v1, (vConst (j,tr))) in
+                      Just (k+1, Diff (vHole k) d)
   (VList vs1, VList vs2) ->
     case Utils.maybeZip vs1 vs2 of
       Nothing -> Nothing
@@ -104,23 +104,25 @@ diff_ k v1 v2 = case (v1, v2) of
         List.foldr (\(vi1,vi2) acc ->
           case acc of
             Nothing -> Nothing
-            Just (k, Same (VList vs)) ->
+            Just (k, Same vUgh) ->
+              let (VList vs) = vUgh.v_ in
               case diff_ k vi1 vi2 of
                 Nothing                 -> Nothing
-                Just (k, Same v)        -> Just (k, Same (VList (v::vs)))
-                Just (k, Diff vc subst) -> Just (k, Diff (VList (vc::vs)) subst)
-            Just (k, Diff (VList vs) subst) ->
+                Just (k, Same v)        -> Just (k, Same (vList (v::vs)))
+                Just (k, Diff vc subst) -> Just (k, Diff (vList (vc::vs)) subst)
+            Just (k, Diff vUgh subst) ->
+              let (VList vs) = vUgh.v_ in
               case diff_ k vi1 vi2 of
                 Nothing                 -> Nothing
-                Just (k, Same v)        -> Just (k, Diff (VList (v::vs)) subst)
+                Just (k, Same v)        -> Just (k, Diff (vList (v::vs)) subst)
                 Just (k, Diff vc sub')  ->
                   if | not multiLeafDiffs -> Nothing
                      | otherwise ->
                          let d = Dict.union subst sub' in
-                         Just (k, Diff (VList (vc::vs)) d)
+                         Just (k, Diff (vList (vc::vs)) d)
             Just (_, Diff _ _) ->
               Debug.crash "diff_: error?"
-        ) (Just (k, Same (VList []))) l
+        ) (Just (k, Same (vList []))) l
   _ ->
     if | v1 == v2  -> Just (k, Same v1)
        | otherwise -> Nothing
@@ -145,7 +147,8 @@ locsOfTrace opts =
   foo
 
 solveOneLeaf : Options -> Subst -> Val -> List (LocId, Num)
-solveOneLeaf opts s (VConst (i, tr)) =
+solveOneLeaf opts s v =
+  let (VConst (i, tr)) = v.v_ in
   List.filterMap
     (\k -> let s' = Dict.remove k s in
            Utils.mapMaybe (\n -> (k,n)) (solve s' (i, tr)))
@@ -291,7 +294,7 @@ simpleSolve subst (sum, tr) =
     (walkTrace tr)
 
 compareVals : (Val, Val) -> Num
-compareVals (v1, v2) = case (v1, v2) of
+compareVals (v1, v2) = case (v1.v_, v2.v_) of
   (VConst it, VConst jt)   -> abs (fst it - fst jt)
   (VList vs1, VList vs2)   -> case Utils.maybeZip vs1 vs2 of
                                 Nothing -> largeInt
@@ -306,7 +309,7 @@ largeInt = 99999999
 getFillers : HoleSubst -> List Val
 getFillers = List.map (snd << snd) << Dict.toList
 
-leafToStar v = case v of {VConst _ -> VBase Star; _ -> v}
+leafToStar v = case v.v_ of {VConst _ -> vBase Star; _ -> v}
 
 -- historically, inferLocalUpdates was called "sync"
 
@@ -346,7 +349,10 @@ inferLocalUpdates opts e v v' =
 ------------------------------------------------------------------------------
 -- Naive Structural Update
 
-stripSvg (VList [VBase (String "svg"), VList vs1, VList vs2]) = (vs1, vs2)
+stripSvg v =
+  let (VList vs) = v.v_ in
+  let [VBase (String "svg"), VList vs1, VList vs2] = List.map .v_ vs in
+  (vs1, vs2)
 
 idOldShapes  = "oldCanvas"
 idNewShape i = "newShape" ++ toString i
@@ -420,7 +426,7 @@ sortIndexTraces (l1,u1,i1) (l2,u2,i2) =
 
 indexTracesOfVal : Val -> List IndexTrace
 indexTracesOfVal v =
-  let f v acc = case v of
+  let f v acc = case v.v_ of
     VConst (_, t) -> indexTraces t ++ acc
     _             -> acc
   in
@@ -493,8 +499,9 @@ inferDeleteUpdate eOld v v' =
 
 stripSvgNode : Bool -> Bool -> String -> Val -> Maybe (List Val)
 stripSvgNode b1 b2 k v =
-  case v of
-    VList [VBase (String k'), VList vs1, VList vs2] ->
+  case v.v_ of
+    VList vsUgh ->
+      let [VBase (String k'), VList vs1, VList vs2] = List.map .v_ vsUgh in
       case (k == k', b1, vs1, b2, vs2) of
         (True, True, _, False, []) -> Just vs1
         (True, False, [], True, _) -> Just vs2
@@ -510,9 +517,11 @@ justBind = flip Utils.bindMaybe
 getAttr : List Val -> String -> Maybe Val
 getAttr l k = case l of
   [] -> Nothing
-  VList [VBase (String k'), v] :: l' -> if
-    | k == k'   -> Just v
-    | otherwise -> getAttr l' k
+  v0::l' ->
+    let (VList [vk, v]) = v0.v_ in
+    let (VBase (String k')) = vk.v_ in
+    if | k == k'   -> Just v
+       | otherwise -> getAttr l' k
 
 getAttrs : List String -> List Val -> Maybe (List Val)
 getAttrs ks l = Utils.projJusts <| List.map (getAttr l) ks
@@ -530,7 +539,9 @@ sortRectsByY = List.sortBy (valToNum << Utils.fromJust << flip getAttr "y")
 
 collectExtraRectAttrs rects =
   let f attrs acc0 =
-    let g (VList [VBase (String k), _]) acc1 =
+    let g v acc1 =
+      let (VList [vk, _]) = v.v_ in
+      let (VBase (String k)) = vk.v_ in
       if | List.member k basicRectAttrs -> acc1
          | otherwise                    -> k :: acc1
     in
@@ -577,7 +588,7 @@ chooseFirst (v::vs) =
          strInferred "'first of'" (strVal v) (List.map strVal (v::vs))
 
 -- TODO this is duplicating toNum for Val rather than AVal...
-valToNum v = case v of
+valToNum v = case v.v_ of
   VConst (n,_) -> n
   VBase (String s) ->
     case String.toFloat s of
@@ -813,72 +824,78 @@ nodeToAttrLocs : Val -> Dict0
 nodeToAttrLocs = snd << flip nodeToAttrLocs_ (1, Dict.empty)
 
 nodeToAttrLocs_ : Val -> (Int, Dict0) -> (Int, Dict0)
-nodeToAttrLocs_ v (nextId,dShapes) = case v of
+nodeToAttrLocs_ v (nextId,dShapes) = case v.v_ of
 
-  VList [VBase (String "TEXT"), VBase (String s)] ->
-    (1 + nextId, Dict.insert 1 ("DUMMYTEXT", None, [], Dict.empty) dShapes)
+  VList vsUgh -> case List.map .v_ vsUgh of
 
-  VList [VBase (String kind), VList vs', VList children] ->
+    [VBase (String "TEXT"), VBase (String s)] ->
+      (1 + nextId, Dict.insert 1 ("DUMMYTEXT", None, [], Dict.empty) dShapes)
 
-    -- processing attributes of current node
-    let processAttr v' (extra,extraextra,dAttrs) = case v' of
+    [VBase (String kind), VList vs', VList children] ->
 
-      VList [VBase (String "fill"), VConst (_,tr)] ->
-        let ee = ("fill", ("FillBall", tr)) :: extraextra in
-        (extra, ee, Dict.insert "fill" tr dAttrs)
+      -- processing attributes of current node
+      let processAttr v' (extra,extraextra,dAttrs) = case v'.v_ of
 
-      -- NOTE: requires for a single cmd, and "transformRot" is a fake attr....
-      VList [VBase (String "transform"),
-             VList [VList [VBase (String "rotate"), VConst (_, tr), _, _]]] ->
-        let ee = ("transformRot", ("RotateBall", tr)) :: extraextra in
-        (extra, ee, Dict.insert "transformRot" tr dAttrs)
+        VList vsUghUgh -> case List.map .v_ vsUghUgh of
 
-      VList [VBase (String a), VConst (_,tr)] ->
-        (extra, extraextra, Dict.insert a tr dAttrs)
+          [VBase (String "fill"), VConst (_,tr)] ->
+            let ee = ("fill", ("FillBall", tr)) :: extraextra in
+            (extra, ee, Dict.insert "fill" tr dAttrs)
 
-      VList [VBase (String "points"), VList pts] ->
-        let acc' =
-          Utils.foldli (\(i,vPt) acc ->
-            case vPt of
-              VList [VConst (_,trx), VConst (_,try)] ->
-                let (ax,ay) = (addi "x" i, addi "y" i) in
-                acc |> Dict.insert ax trx
-                    |> Dict.insert ay try) dAttrs pts in
-        (NumPoints (List.length pts), extraextra, acc')
+          -- NOTE: requires for a single cmd, and "transformRot" is a fake attr....
+          [VBase (String "transform"), VList [vBlah]] ->
+            let (VList vsBlah) = vBlah.v_ in
+            let [VBase (String "rotate"), VConst (_, tr), _, _] = List.map .v_ vsBlah in
+            let ee = ("transformRot", ("RotateBall", tr)) :: extraextra in
+            (extra, ee, Dict.insert "transformRot" tr dAttrs)
 
-      VList [VBase (String "d"), VList vs] ->
-        let addPt (mi,(xt,yt)) dict =
-          case mi of
-            Nothing -> dict
-            Just i  -> dict |> Dict.insert (addi "x" i) (snd xt)
-                            |> Dict.insert (addi "y" i) (snd yt)
-        in
-        let addPts pts dict = List.foldl addPt dict pts in
-        let (cmds,counts) = LangSvg.valsToPath2 vs in
-        let dAttrs' =
-          List.foldl (\c acc -> case c of
-            LangSvg.CmdZ   s              -> acc
-            LangSvg.CmdMLT s pt           -> acc |> addPt pt
-            LangSvg.CmdHV  s n            -> acc
-            LangSvg.CmdC   s pt1 pt2 pt3  -> acc |> addPts [pt1,pt2,pt3]
-            LangSvg.CmdSQ  s pt1 pt2      -> acc |> addPts [pt1,pt2]
-            LangSvg.CmdA   s a b c d e pt -> acc |> addPt pt) dAttrs cmds
-        in
-        (NumsPath counts, extraextra, dAttrs')
+          [VBase (String a), VConst (_,tr)] ->
+            (extra, extraextra, Dict.insert a tr dAttrs)
 
-      -- NOTE:
-      --   string-valued and RGBA attributes are ignored.
-      --   see LangSvg.valToSvg for spec of attributes.
-      _ ->
-        (extra, extraextra, dAttrs)
-    in
-    let (extra,ee,attrs) = List.foldl processAttr (None, [], Dict.empty) vs' in
+          [VBase (String "points"), VList pts] ->
+            let acc' =
+              Utils.foldli (\(i,vPt) acc ->
+                case vPt.v_ of
+                  VList vsUghUghUgh ->
+                    let [VConst (_,trx), VConst (_,try)] = List.map .v_ vsUghUghUgh in
+                    let (ax,ay) = (addi "x" i, addi "y" i) in
+                    acc |> Dict.insert ax trx
+                        |> Dict.insert ay try) dAttrs pts in
+            (NumPoints (List.length pts), extraextra, acc')
 
-    -- recursing into sub-nodes
-    let (nextId',dShapes') =
-      List.foldl nodeToAttrLocs_ (nextId,dShapes) children in
+          [VBase (String "d"), VList vs] ->
+            let addPt (mi,(xt,yt)) dict =
+              case mi of
+                Nothing -> dict
+                Just i  -> dict |> Dict.insert (addi "x" i) (snd xt)
+                                |> Dict.insert (addi "y" i) (snd yt)
+            in
+            let addPts pts dict = List.foldl addPt dict pts in
+            let (cmds,counts) = LangSvg.valsToPath2 vs in
+            let dAttrs' =
+              List.foldl (\c acc -> case c of
+                LangSvg.CmdZ   s              -> acc
+                LangSvg.CmdMLT s pt           -> acc |> addPt pt
+                LangSvg.CmdHV  s n            -> acc
+                LangSvg.CmdC   s pt1 pt2 pt3  -> acc |> addPts [pt1,pt2,pt3]
+                LangSvg.CmdSQ  s pt1 pt2      -> acc |> addPts [pt1,pt2]
+                LangSvg.CmdA   s a b c d e pt -> acc |> addPt pt) dAttrs cmds
+            in
+            (NumsPath counts, extraextra, dAttrs')
 
-    (nextId' + 1, Dict.insert nextId' (kind, extra, ee, attrs) dShapes')
+          -- NOTE:
+          --   string-valued and RGBA attributes are ignored.
+          --   see LangSvg.valToSvg for spec of attributes.
+          _ ->
+            (extra, extraextra, dAttrs)
+      in
+      let (extra,ee,attrs) = List.foldl processAttr (None, [], Dict.empty) vs' in
+
+      -- recursing into sub-nodes
+      let (nextId',dShapes') =
+        List.foldl nodeToAttrLocs_ (nextId,dShapes) children in
+
+      (nextId' + 1, Dict.insert nextId' (kind, extra, ee, attrs) dShapes')
 
   _ -> Debug.crash <| "Sync.nodeToAttrLocs_: " ++ strVal v
 

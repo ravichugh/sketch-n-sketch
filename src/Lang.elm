@@ -80,7 +80,10 @@ type Range_ -- right now, Exps are always EConsts
   = Interval Exp Exp
   | Point Exp
 
-type Val
+type alias VTrace = EId
+type alias Val    = { v_ : Val_, vtrace : VTrace }
+
+type Val_
   = VConst NumTr
   | VBase BaseVal
   | VClosure (Maybe Ident) Pat Exp Env
@@ -121,7 +124,7 @@ strNum     = toString
 strVal_ : Bool -> Val -> String
 strVal_ showTraces v =
   let foo = strVal_ showTraces in
-  case v of
+  case v.v_ of
     VConst (i,tr)    -> strNum i
                           ++ if | showTraces -> Utils.braces (strTrace tr)
                                 | otherwise  -> ""
@@ -301,15 +304,15 @@ mapExp f e =
     ELet k b p e1 e2 -> g (ELet k b p (foo e1) (foo e2))
 
 mapVal : (Val -> Val) -> Val -> Val
-mapVal f v = case v of
-  VList vs         -> f (VList (List.map (mapVal f) vs))
+mapVal f v = case v.v_ of
+  VList vs         -> f { v | v_ <- VList (List.map (mapVal f) vs) }
   VConst _         -> f v
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
   VHole _          -> f v
 
 foldVal : (Val -> a -> a) -> Val -> a -> a
-foldVal f v a = case v of
+foldVal f v a = case v.v_ of
   VList vs         -> f v (List.foldl (foldVal f) a vs)
   VConst _         -> f v a
   VBase _          -> f v a
@@ -384,6 +387,9 @@ strPos p =
 
 -- NOTE: the Exp builders use dummyPos
 
+val : Val_ -> Val
+val = flip Val (-1)
+
 exp_ : Exp__ -> Exp_
 exp_ = flip Exp_ (-1)
 
@@ -402,11 +408,6 @@ ePlus e1 e2 = withDummyPos <| EOp (withDummyRange Plus) [e1,e2]
 eBool  = withDummyPos << EBase << Bool
 eTrue  = eBool True
 eFalse = eBool False
-
-vBool  = VBase << Bool
-vTrue  = vBool True
-vFalse = vBool False
-vStr   = VBase << String
 
 eApp e es = case es of
   [e1]    -> withDummyPos <| EApp e [e1]
@@ -429,3 +430,13 @@ eList a b      = withDummyPos <| EList a b
 eComment a b   = withDummyPos <| EComment a b
 
 pVar a         = withDummyRange <| PVar a
+
+-- note: dummy ids...
+vTrue    = vBool True
+vFalse   = vBool False
+vBool    = val << VBase << Bool
+vStr     = val << VBase << String
+vConst   = val << VConst
+vBase    = val << VBase
+vList    = val << VList
+vHole    = val << VHole
