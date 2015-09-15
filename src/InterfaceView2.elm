@@ -227,7 +227,7 @@ zoneBorder htmlFunc id node zoneName flag show otherAttrs =
 -- Actually generates the zones for a given HtmlNode
 makeZones : ZoneOptions -> String -> LangHtml.NodeId -> List LangHtml.Attr -> List Html.Html
 makeZones options node id attrs =
-  case Debug.log "node" node of
+  case {-Debug.log "node"-} node of
     "div" -> 
       let mk zone x_ y_ w_ h_ =
           zoneBorder Html.div id node zone True options.showBasic 
@@ -379,7 +379,7 @@ makeZones options node id attrs =
 --------------------------------------------------------------------------------
 -- User Interface
 
-strTitle = " sketch-n-sketch " ++ params.strVersion
+strTitle = " Dorian " ++ params.strVersion
 
 colorDebug_ c1 c2 =
   if | params.debugLayout -> GE.color c1

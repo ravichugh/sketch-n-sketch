@@ -241,7 +241,7 @@ prelude =
 
 (def td (\\data ['td' [] [(text data)] ]))
 
-(def tableheader (\\headers ['tr' [] [(map th headers)] ))
+(def tableheader (\\headers ['tr' [] (map th headers)] ))
 
 (def tr (\\data ['tr' [] [(map td data)] ]))
 
@@ -297,9 +297,8 @@ prelude =
 ;; argument order - width, height, data
 ;; make a table with a specified width and height
 (def eTable (\\(w h headers data)
-  ['table' [ ['width' w] ['height' h] ]
-    [ (tableheader headers) 
-    [(map tr data)]] ]))
+  ['table' [ ['width' w] ['height' h] ['position' 'absolute'] ]
+    (map tr data)] ) )
 
 ; \"constant folding\"
 (def twoPi (* 2 (pi)))

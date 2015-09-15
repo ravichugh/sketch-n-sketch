@@ -238,7 +238,7 @@
 
 (def td (\data ['td' [] [(text data)] ]))
 
-(def tableheader (\headers ['tr' [] [(map th headers)] ))
+(def tableheader (\headers ['tr' [] (map th headers)] ))
 
 (def tr (\data ['tr' [] [(map td data)] ]))
 
