@@ -217,7 +217,10 @@ packageModel : (Model.Model, Event) -> (AceCodeBoxInfo, List Bool) ->
 packageModel (model, evt) (lastBox, rerenders) = 
     let rerender = tripRender evt rerenders
     in case model.editingMode of
-      Nothing -> assertion rerender rerenders model
+      Nothing -> case (evt, model.mouseMode) of
+          --If we're not manipulating, no need to clobber cursor position
+          (Model.MousePos _, Model.MouseNothing) -> poke rerender rerenders model
+          _                 -> assertion rerender rerenders model
       Just _ -> case evt of
           Model.WaitSave saveName -> saveRequestInfo saveName
           Model.WaitRun  -> runRequestInfo
@@ -247,5 +250,5 @@ tripRender evt last =
     (Model.SwitchOrient, _             ) -> True
     (Model.InstallSaveState, _         ) -> True
     (Model.RemoveDialog _ _ , _        ) -> True
-    (Model.ToggleBasicCodeBox , _       ) -> True
+    (Model.ToggleBasicCodeBox , _      ) -> True
     _                                    -> False

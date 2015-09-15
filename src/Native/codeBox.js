@@ -204,6 +204,7 @@ function makeAssertion(codeBoxInfo) {
     //Note that we need to turn the Elm Ranges into Ace Range Objects
     editor.selection.clearSelection();
 
+    /* No need for this anymore, as assertions are not on every input
     //We need to treat the first one differently, so we must iterate
     //This is undocumented outside of the tests, see:
     // https://github.com/ajaxorg/ace/blob/0a3b002e285a41a4884ce42f94d2f68673e43b30/lib/ace/multi_select_test.js#L168
@@ -239,6 +240,7 @@ function makeAssertion(codeBoxInfo) {
             editor.selection.addRange(aceRange, false);
         }
     }
+    */
 
     //Add the special syntax highlighting for changes and such
     //These are 'markers', see:
