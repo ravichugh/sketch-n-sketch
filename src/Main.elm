@@ -58,8 +58,8 @@ port taskPort = Signal.mergeMany
 port aceInTheHole : Signal AceCodeBoxInfo
 port aceInTheHole =
     let pickAsserts (m,e) = case m.editingMode of
-          Nothing -> True
-          Just _ -> case e of
+          Nothing -> Debug.log "edit/Nothing" True
+          Just _ -> case Debug.log "evt" e of
               -- All events let through here that aren't already let through
               -- 'poke' Ace, rerendering if necessary
               Model.WaitRun -> True
@@ -67,7 +67,7 @@ port aceInTheHole =
               Model.MousePos _ -> True
 --              Model.KeysDown _ -> False
 --              Model.CodeUpdate _ -> False
---              Model.UpdateModel _ -> False
+              Model.UpdateModel _ -> True
               Model.SwitchOrient -> True
               Model.Noop -> True
 --              Model.Noop -> False

@@ -167,7 +167,7 @@ loadLocalState saveName =
 
 -- Function to update model upon state load
 installLocalState : String -> Model -> Model -> Model
-installLocalState saveName loadedModel oldModel = 
+installLocalState saveName loadedModel oldModel = Debug.log "installLocalState"
     { loadedModel | slate <- emptyTree
                   , exName <- saveName
                   , localSaves <- oldModel.localSaves

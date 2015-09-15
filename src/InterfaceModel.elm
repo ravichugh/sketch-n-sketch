@@ -121,6 +121,7 @@ type Event = CodeUpdate String
            | Undo | Redo
            | KeysDown (List Char.KeyCode)
            | Noop
+           | UpdateFieldContents DialogInfo
            | UpdateModel (Model -> Model)
                -- TODO could write other events in terms of UpdateModel
            | MultiEvent (List Event)

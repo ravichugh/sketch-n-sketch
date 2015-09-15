@@ -200,6 +200,8 @@ packageModel (model, evt) (lastBox, rerenders) =
           Model.WaitRun  -> runRequestInfo
           Model.Edit -> assertion rerender rerenders model
           Model.Run -> assertion rerender rerenders model
+          Model.UpdateModel _ -> assertion rerender rerenders model
+          Model.SelectExample _ _ -> assertion rerender rerenders model
           _ -> poke rerender rerenders model
 
 -- Lets a signal pass if it should triger an extra rerender

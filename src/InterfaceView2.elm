@@ -1023,14 +1023,11 @@ saveElement model w h = case model.mode of
                                       , Attr.autofocus True
                                       , Events.on "input" Events.targetValue
                                           (\cont -> Signal.message events.address
-                                            <| UpdateModel
-                                              (\model ->
-                                                  { model | fieldContents <-
-                                                              { value = cont
-                                                              , hint =
-                                                                  model.fieldContents.hint }  
-                                                  }
-                                              )
+                                            <| UpdateFieldContents
+                                                { value = cont
+                                                , hint =
+                                                    model.fieldContents.hint 
+                                                }
                                           )
                                       ]
                                       []

@@ -363,6 +363,7 @@ upstate evt old = case debugLog "Event" evt of
     InstallSaveState -> installSaveState old
     RemoveDialog makeSave saveName -> removeDialog makeSave saveName old
     SetBasicCodeBox set -> { old | basicCodeBox <- set }
+    UpdateFieldContents fieldContents -> { old | fieldContents <- fieldContents }
 
     UpdateModel f -> f old
 

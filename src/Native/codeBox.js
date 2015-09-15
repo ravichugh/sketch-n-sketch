@@ -111,6 +111,7 @@ runtime.ports.aceInTheHole.subscribe(function(codeBoxInfo) {
     editor.resize();
 
     //First, check to see what kind of request it was
+    console.log(codeBoxInfo.kind);
     if (codeBoxInfo.kind == "assertion") {
         //If it's an assertion, install the values appropriately
         makeAssertion(codeBoxInfo);
