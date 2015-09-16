@@ -112,6 +112,10 @@ cleanExp =
       EVar "flow"     -> e1.val.e__
       _               -> e__
       _               -> e__
+    EOp op [e1,e2]    ->
+      case (op.val, e2.val.e__) of
+        (Plus, EConst 0 _) -> e1.val.e__
+        _                  -> e__
     _                 -> e__
 
 -- this is a bit redundant with View.turnOn...
@@ -272,9 +276,11 @@ upstate evt old = case debugLog "Event" evt of
             inputval' = inputval |> LangSvg.valToIndexedTree
                                  |> slateToVal
             newval    = slateToVal old.slate
+            local     = Sync.inferLocalUpdates old.syncOptions ip inputval' newval
             struct    = Sync.inferStructuralUpdate ip inputval' newval
             delete    = Sync.inferDeleteUpdate ip inputval' newval
-            related   = Sync.inferNewRelationships ip inputval' newval
+            relatedG  = Sync.inferNewRelationships ip inputval' newval
+            relatedV  = Sync.relateSelectedAttrs old.genSymCount ip inputval' newval
             revert    = (ip, inputval)
           in
           let mkOptions l1 l2 revert =
@@ -282,17 +288,22 @@ upstate evt old = case debugLog "Event" evt of
             , (List.length l2, l2)
             , revert)
           in
-            case Sync.inferLocalUpdates old.syncOptions ip inputval' newval of
-              Ok [] -> { old | mode <- mkLive_ old.syncOptions ip  }
-              Ok l ->
+            case (local, relatedV) of
+              (Ok [], Nothing) -> { old | mode <- mkLive_ old.syncOptions ip  }
+              (Ok [], Just (nextK, eNew, vNew)) ->
+                let _ = debugLog ("no live updates, only related var") () in
+                let l2 = [(eNew,vNew)] in
+                let m = SyncSelect (old.code, old.slate) 0 (mkOptions [] l2 revert) in
+                upstate (TraverseOption 1) { old | mode <- m, genSymCount <- nextK }
+              (Ok l, _) ->
                 let n = debugLog "# of live updates" (List.length l) in
                 let l1 = List.map fst l in
-                let l2 = delete ++ related ++ [struct] in
+                let l2 = delete ++ relatedG ++ [struct] in
                 let m = SyncSelect (old.code, old.slate) 0 (mkOptions l1 l2 revert) in
                 upstate (TraverseOption 1) { old | mode <- m }
-              Err e ->
+              (Err e, _) ->
                 let _ = debugLog ("no live updates: " ++ e) () in
-                let l2 = delete ++ related ++ [struct] in
+                let l2 = delete ++ relatedG ++ [struct] in
                 let m = SyncSelect (old.code, old.slate) 0 (mkOptions [] l2 revert) in
                 upstate (TraverseOption 1) { old | mode <- m }
 

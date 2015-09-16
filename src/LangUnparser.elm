@@ -26,7 +26,9 @@ incCol  = bumpCol 1
 decCol  = bumpCol (-1)
 
 lines i j = if
-  | i > j     -> Debug.crash <| "Unparser.lines: " ++ toString (i,j)
+  -- | i > j     -> Debug.crash <| "Unparser.lines: " ++ toString (i,j)
+  -- TODO to help Sync.relateWithVar for now
+  | i > j     -> " "
   | otherwise -> String.repeat (j-i) "\n"
 
 cols i j = if

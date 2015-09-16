@@ -360,6 +360,22 @@ applySubst subst e =
 
 
 ------------------------------------------------------------------------------
+-- Expression Substitutions
+
+-- for now, LocId instead of EId
+-- type alias ESubst = Dict.Dict EId Exp_
+type alias ESubst = Dict.Dict LocId Exp__
+
+applyESubst : ESubst -> Exp -> Exp
+applyESubst esubst =
+  mapExp <| \e__ -> case e__ of
+    EConst _ i -> case Dict.get (Utils.fst3 i) esubst of
+                    Nothing   -> e__
+                    Just e__' -> e__'
+    _          -> e__
+
+
+------------------------------------------------------------------------------
 -- Lang Options
 
 -- all options should appear before the first non-comment expression
@@ -393,7 +409,7 @@ val = flip Val (-1)
 exp_ : Exp__ -> Exp_
 exp_ = flip Exp_ (-1)
 
-withDummyRange e_ = P.WithInfo e_ P.dummyPos P.dummyPos
+withDummyRange x  = P.WithInfo x P.dummyPos P.dummyPos
 withDummyPos e__  = P.WithInfo (exp_ e__) P.dummyPos P.dummyPos
   -- TODO rename withDummyPos
 

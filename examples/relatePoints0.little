@@ -1,0 +1,10 @@
+
+(def pt1 (circle 'red' 88 90 10))
+(def pt2 (circle 'green' 121 142 10))
+(def pt3 (circle 'blue' 153 212 10))
+
+(svg [
+  (addAttr pt1 ['SELECTED' 'cy'])
+  (addAttr pt2 ['SELECTED' 'cy'])
+  (addAttr pt3 ['SELECTED' ''])
+])

@@ -2,6 +2,7 @@ module Sync (Options, defaultOptions, syncOptionsOf,
              inferLocalUpdates, inferStructuralUpdate, prepareLiveUpdates,
              inferDeleteUpdate,
              inferNewRelationships,
+             relateSelectedAttrs,
              printZoneTable, LiveInfo, Triggers, tryToBeSmart) where
 
 import Dict exposing (Dict)
@@ -497,12 +498,12 @@ inferDeleteUpdate eOld v v' =
 ------------------------------------------------------------------------------
 -- "Relate"
 
-stripSvgNode : Bool -> Bool -> String -> Val -> Maybe (List Val)
-stripSvgNode b1 b2 k v =
+stripSvgNode : Bool -> Bool -> (String -> Bool) -> Val -> Maybe (List Val)
+stripSvgNode b1 b2 kPred v =
   case v.v_ of
     VList vsUgh ->
       let [VBase (String k'), VList vs1, VList vs2] = List.map .v_ vsUgh in
-      case (k == k', b1, vs1, b2, vs2) of
+      case (kPred k', b1, vs1, b2, vs2) of
         (True, True, _, False, []) -> Just vs1
         (True, False, [], True, _) -> Just vs2
         _                          -> Nothing
@@ -670,8 +671,8 @@ inferRelatedRectsY : Exp -> Val -> Val -> Maybe (Exp, Val)
 inferRelatedRectsY = inferRelatedRects sortRectsByY "'down'"
 
 inferRelatedRects sortRectsByXY flow _ _ v' =
-  stripChildren "svg" v' `justBind` (\shapes ->
-  let mRects = List.map (stripAttrs "rect") shapes in
+  stripChildren ((==) "svg") v' `justBind` (\shapes ->
+  let mRects = List.map (stripAttrs ((==) "rect")) shapes in
   Utils.projJusts mRects `justBind` (\rects_ ->
   let rects = sortRectsByXY rects_ in
   Utils.projJusts (List.map getBasicRectAttrs rects) `justBind` (\attrLists ->
@@ -721,8 +722,8 @@ sortCirclesByCX = List.sortBy (valToNum << Utils.fromJust << flip getAttr "cx")
 
 inferCircleOfCircles : Bool -> Exp -> Val -> Val -> Maybe (Exp, Val)
 inferCircleOfCircles groupBox _ _ v' =
-  stripChildren "svg" v' `justBind` (\shapes ->
-  let mRects = List.map (stripAttrs "circle") shapes in
+  stripChildren ((==) "svg") v' `justBind` (\shapes ->
+  let mRects = List.map (stripAttrs ((==) "circle")) shapes in
   Utils.projJusts mRects `justBind` (\circles_ ->
   let circles = sortCirclesByCX circles_ in
   Utils.projJusts (List.map getBasicCircleAttrs circles) `justBind` (\attrLists ->
@@ -781,11 +782,82 @@ inferCircleOfCircles groupBox _ _ v' =
     Just (eNew, vNew)
   )))
 
+dummyFrozenLoc = dummyLoc_ frozen
+
+relateWithVar : Int -> Exp -> List Val -> Maybe (Int, Exp, Val)
+relateWithVar genSymK e vs =
+  let foo v = case v.v_ of
+    VConst nt -> Just nt
+    _         -> Nothing
+  in
+  Utils.projJusts (List.map foo vs) `justBind` (relateNumsWithVar genSymK e)
+
+relateNumsWithVar : Int -> Exp -> List NumTr -> Maybe (Int, Exp, Val)
+relateNumsWithVar genSymK e nts =
+  let gensym = "gensym" ++ toString genSymK in
+  let ((n0,t0)::rest) = List.sortBy fst nts in
+  case t0 of
+    TrOp _ _ -> Nothing
+    TrLoc l0 ->
+      let esubstMaybe =
+        let foo (ni,ti) acc =
+          case (acc, ti, n0 == ni) of
+            (Nothing, _, _)           -> Nothing
+            (Just _, TrOp _ _, _)     -> Nothing
+            (Just d, TrLoc li, True)  -> Just d
+            (Just d, TrLoc li, False) ->
+              let e__ =
+                (ePlus (eVar <| " " ++ gensym ++ " ") -- TODO spacing hack...
+                       (eConst (ni-n0) dummyFrozenLoc)).val.e__ in
+              Just (Dict.insert (Utils.fst3 li) e__ d)
+        in
+        List.foldl foo (Just Dict.empty) rest `justBind` (\esubst ->
+          -- if Dict.isEmpty esubst   upgrade to 2.1.0
+          if List.length (Dict.toList esubst) == 0
+          then Nothing
+          else Just (Dict.insert (Utils.fst3 l0) (EVar gensym) esubst)
+        )
+      in
+      esubstMaybe `justBind` (\esubst ->
+      let eNew =
+        applyESubst esubst e
+          |> Un.unparseE
+          |> (++) ("(def " ++ gensym ++ " " ++ toString n0 ++ ")\n")
+          |> Parser.parseE
+          |> Utils.fromOk "Sync.relate"
+      in
+      let vNew = Eval.run eNew in
+      Just (1 + genSymK, eNew, vNew)
+      )
+
+inferRelatedPoints : Int -> Exp -> Val -> Val -> Maybe (Int, Exp, Val)
+inferRelatedPoints genSymK e _ v' =
+  stripChildren ((==) "svg") v' `justBind` (\shapes ->
+  let mCircles = List.map (stripAttrs ((==) "circle")) shapes in
+  Utils.projJusts mCircles `justBind` (\circles_ ->
+  let circles = sortCirclesByCX circles_ in
+  Utils.projJusts (List.map (getAttrs ("SELECTED" :: basicCircleAttrs)) circles) `justBind` (\attrLists ->
+    let selectedAttrs =
+      let foo [selected,cx,cy,r,fill] acc =
+        case selected.v_ of
+          VBase (String "") -> acc
+          VBase (String s) ->
+            let goo k = case k of {"cx" -> cx; "cy" -> cy; "r" -> r} in
+            List.map goo (String.split " " s) ++ acc
+      in
+      List.foldl foo [] attrLists
+    in
+    relateWithVar genSymK e selectedAttrs
+  )))
+
 inferNewRelationships e v v' =
      maybeToMaybeOne (inferRelatedRectsX e v v')
   ++ maybeToMaybeOne (inferRelatedRectsY e v v')
   ++ maybeToMaybeOne (inferCircleOfCircles False e v v')
   -- ++ maybeToMaybeOne (inferCircleOfCircles True e v v')
+
+relateSelectedAttrs genSymK e v v' =
+  inferRelatedPoints genSymK e v v'
 
 
 ------------------------------------------------------------------------------

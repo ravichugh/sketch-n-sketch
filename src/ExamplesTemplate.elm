@@ -68,10 +68,19 @@ LITTLE_TO_ELM deleteBoxes
 LITTLE_TO_ELM cover
 LITTLE_TO_ELM poppl
 LITTLE_TO_ELM bezier
+LITTLE_TO_ELM relateRects0
+LITTLE_TO_ELM relateCircles0
+LITTLE_TO_ELM relatePoints0
 
 examples =
   [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
+
+  -- up here during ad-hoc development
+  , makeExample "RelateRects0" relateRects0
+  , makeExample "RelateCircles0" relateRects0
+  , makeExample "RelatePoints0" relatePoints0
+
   , makeExample "3 Boxes" threeBoxes
   , makeExample "N Boxes" groupOfBoxes
   , makeExample "Delete Boxes" deleteBoxes

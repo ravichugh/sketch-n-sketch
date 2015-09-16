@@ -1,0 +1,1 @@
+(svg (map (\i (circle 'lightblue' (+ 42 (* i 60)) 98 30)) [|0..6|]))

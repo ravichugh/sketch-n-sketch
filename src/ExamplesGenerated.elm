@@ -2008,10 +2008,44 @@ bezier =
 (svg (concat [linCurve quadCurve cuCurve tslider]))
 "
 
+relateRects0 =
+ "(svg [
+  (rect 'maroon' 49 106 124 86)
+  (rect 'blue' 214 91 125 102)
+  (rect 'lightgray' 378 231 91 98)
+])
+
+"
+
+relateCircles0 =
+ "(svg (map (\\i (circle 'lightblue' (+ 42 (* i 60)) 98 30)) [|0..6|]))
+
+"
+
+relatePoints0 =
+ "
+(def pt1 (circle 'red' 88 90 10))
+(def pt2 (circle 'green' 121 142 10))
+(def pt3 (circle 'blue' 153 212 10))
+
+(svg [
+  (addAttr pt1 ['SELECTED' 'cy'])
+  (addAttr pt2 ['SELECTED' 'cy'])
+  (addAttr pt3 ['SELECTED' ''])
+])
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
+
+  -- up here during ad-hoc development
+  , makeExample "RelateRects0" relateRects0
+  , makeExample "RelateCircles0" relateRects0
+  , makeExample "RelatePoints0" relatePoints0
+
   , makeExample "3 Boxes" threeBoxes
   , makeExample "N Boxes" groupOfBoxes
   , makeExample "Delete Boxes" deleteBoxes
