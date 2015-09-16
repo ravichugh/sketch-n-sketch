@@ -790,33 +790,35 @@ relateWithVar genSymK e vs =
     VConst nt -> Just nt
     _         -> Nothing
   in
-  Utils.projJusts (List.map foo vs) `justBind` (relateNumsWithVar genSymK e)
+  Utils.projJusts (List.map foo vs) `justBind` (\nts ->
+    if nts == [] then Nothing
+    else relateNumsWithVar genSymK e nts
+  )
 
 relateNumsWithVar : Int -> Exp -> List NumTr -> Maybe (Int, Exp, Val)
 relateNumsWithVar genSymK e nts =
   let gensym = "gensym" ++ toString genSymK in
   let ((n0,t0)::rest) = List.sortBy fst nts in
-  case t0 of
-    TrOp _ _ -> Nothing
-    TrLoc l0 ->
+  case (t0, rest) of
+    (TrOp _ _, _) -> Nothing
+    (TrLoc _, []) -> Nothing
+    (TrLoc l0, _) ->
       let esubstMaybe =
         let foo (ni,ti) acc =
           case (acc, ti, n0 == ni) of
             (Nothing, _, _)           -> Nothing
             (Just _, TrOp _ _, _)     -> Nothing
-            (Just d, TrLoc li, True)  -> Just d
+            (Just d, TrLoc li, True)  ->
+              let e__ = EVar gensym in
+              Just (Dict.insert (Utils.fst3 li) e__ d)
             (Just d, TrLoc li, False) ->
               let e__ =
                 (ePlus (eVar <| " " ++ gensym ++ " ") -- TODO spacing hack...
                        (eConst (ni-n0) dummyFrozenLoc)).val.e__ in
               Just (Dict.insert (Utils.fst3 li) e__ d)
         in
-        List.foldl foo (Just Dict.empty) rest `justBind` (\esubst ->
-          -- if Dict.isEmpty esubst   upgrade to 2.1.0
-          if List.length (Dict.toList esubst) == 0
-          then Nothing
-          else Just (Dict.insert (Utils.fst3 l0) (EVar gensym) esubst)
-        )
+        let init = Dict.singleton (Utils.fst3 l0) (EVar gensym) in
+        List.foldl foo (Just init) rest
       in
       esubstMaybe `justBind` (\esubst ->
       let eNew =
@@ -834,8 +836,7 @@ inferRelatedPoints : Int -> Exp -> Val -> Val -> Maybe (Int, Exp, Val)
 inferRelatedPoints genSymK e _ v' =
   stripChildren ((==) "svg") v' `justBind` (\shapes ->
   let mCircles = List.map (stripAttrs ((==) "circle")) shapes in
-  Utils.projJusts mCircles `justBind` (\circles_ ->
-  let circles = sortCirclesByCX circles_ in
+  Utils.projJusts mCircles `justBind` (\circles ->
   Utils.projJusts (List.map (getAttrs ("SELECTED" :: basicCircleAttrs)) circles) `justBind` (\attrLists ->
     let selectedAttrs =
       let foo [selected,cx,cy,r,fill] acc =
@@ -850,6 +851,26 @@ inferRelatedPoints genSymK e _ v' =
     relateWithVar genSymK e selectedAttrs
   )))
 
+-- TODO handle all shapes/attrs, and then remove inferRelatedPoints
+inferRelated : Int -> Exp -> Val -> Val -> Maybe (Int, Exp, Val)
+inferRelated genSymK e _ v' =
+  stripChildren ((==) "svg") v' `justBind` (\shapes ->
+  let mCircles = List.map (stripAttrs ((==) "circle")) shapes in
+  let circles = Utils.filterJusts mCircles in
+  Utils.projJusts (List.map (getAttrs ("SELECTED" :: basicCircleAttrs)) circles) `justBind` (\attrLists ->
+    let selectedAttrs =
+      let foo [selected,cx,cy,r,fill] acc =
+        case selected.v_ of
+          VBase (String "") -> acc
+          VBase (String s) ->
+            let goo k = case k of {"cx" -> cx; "cy" -> cy; "r" -> r} in
+            List.map goo (String.split " " s) ++ acc
+      in
+      List.foldl foo [] attrLists
+    in
+    relateWithVar genSymK e selectedAttrs
+  ))
+
 inferNewRelationships e v v' =
      maybeToMaybeOne (inferRelatedRectsX e v v')
   ++ maybeToMaybeOne (inferRelatedRectsY e v v')
@@ -857,7 +878,8 @@ inferNewRelationships e v v' =
   -- ++ maybeToMaybeOne (inferCircleOfCircles True e v v')
 
 relateSelectedAttrs genSymK e v v' =
-  inferRelatedPoints genSymK e v v'
+  -- inferRelatedPoints genSymK e v v'
+  inferRelated genSymK e v v'
 
 
 ------------------------------------------------------------------------------

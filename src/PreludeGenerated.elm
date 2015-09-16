@@ -125,6 +125,11 @@ prelude =
     ([[]      []]      nil)
     (_                 (append xs ys)))))
 
+(defrec nth (\\(xs n)
+  (case xs
+    ([]      'ERROR: nth')
+    ([x|xs1] (if (= n 0) x (nth xs1 (- n 1)))))))
+
 ;; mult : Number -> Number -> Number
 ;; multiply two numbers and return the result
 (defrec mult (\\(m n)

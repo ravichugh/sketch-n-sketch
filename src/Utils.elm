@@ -194,6 +194,12 @@ projJusts =
       (Just x, Just xs) -> Just (x::xs)
       _                 -> Nothing) (Just [])
 
+filterJusts : List (Maybe a) -> List a
+filterJusts mxs = case mxs of
+  []              -> []
+  Just x  :: rest -> x :: filterJusts rest
+  Nothing :: rest -> filterJusts rest
+
 mapSnd : (b -> b') -> (a, b) -> (a, b')
 mapSnd f (x,y) = (x, f y)
 

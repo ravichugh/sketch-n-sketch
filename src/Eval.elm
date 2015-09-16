@@ -154,6 +154,9 @@ evalOp env opWithInfo es =
     [VBase (Bool b)] ->
       case op of
         ToStr  -> VBase (String (toString b))
+    [VBase (String s)] ->
+      case op of
+        ToStr  -> VBase (String (strBaseVal (String s)))
     [_, _] ->
       case op of
         -- polymorphic inequality, added for Prelude.addExtras
