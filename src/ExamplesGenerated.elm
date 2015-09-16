@@ -144,6 +144,30 @@ table =
 
 "
 
+hover =
+ "; An example usage of a div that changes when hovered over
+(def hovdiv
+  (let [top left w h col]   
+       [100 100 200 200 'lightblue']
+  (let [hovtop hovleft hovw hovh hovcol]
+       [80     80      240  240  'blue'     ]
+  (eStyle [ [ 'top'              top        ]
+            [ 'left'             left       ]
+            [ 'width'            w          ]
+            [ 'height'           h          ]
+            [ 'background-color' col        ] 
+            [ 'position'         'absolute' ] ]
+  (eStyle [ [ 'top:hover'              hovtop     ]
+            [ 'left:hover'             hovleft    ]
+            [ 'width:hover'            hovw       ]
+            [ 'height:hover'           hovh       ]
+            [ 'background-color:hover' hovcol     ] 
+            [ 'position:hover'         'absolute' ] ]
+  ['div' [] []] ) ) ) ) )
+(basicDoc [] [hovdiv])
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -153,6 +177,7 @@ examples =
   , makeExample "Image" image
   , makeExample "Simple Navigation Bar" simpleNavBar
   , makeExample "Simple Table" table
+  , makeExample "Simple Hover" hover
   ]
 
 list = examples -- ++ MicroTests.sampleTests

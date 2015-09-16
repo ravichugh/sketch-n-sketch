@@ -259,60 +259,60 @@ strEdges =
 -- Printing to HTML format
 
 printHtml : RootedIndexedTree -> String
-printHtml (rootId, tree) = printNode 0 tree rootId
+printHtml (rootId, tree) = printNode 0 (rootId, tree) rootId
 
---TODO k is indent level, not id number...
-printNode : Int -> IndexedTree -> Int -> String
-printNode k slate i =
-  case Debug.log "printNode in" <| Utils.justGet i slate of
+printNode : Int -> RootedIndexedTree -> Int -> String
+printNode k (rootId, slate) i =
+  case Utils.justGet i slate of
     HtmlNode "html" l1 rest ->
       Utils.delimit "<" ">" ("html" ++ printAttrs l1) ++ "\n" ++
-      printNodes (k+1) slate rest ++ "\n" ++
+      printNodes (k+1) (rootId, slate) rest ++ "\n" ++
       tab k ++ Utils.delimit "</" ">" "head"
     HtmlNode "head" l1 rest ->
       Utils.delimit "<" ">" ("head" ++ printAttrs l1) ++ "\n" ++
-      Utils.delimit "<" ">" "style" ++ "\n" ++ Debug.log "allClasses"
-      (getAllClasses (Utils.justGet i slate) k slate) ++ "\n" ++
-      Utils.delimit "</" ">" "style" ++ "\n" ++ printNodes (k+1) slate rest ++
-      "\n" ++ tab k ++ Utils.delimit "</" ">" "head"
+      Utils.delimit "<" ">" "style" ++ "\n" ++
+        (getAllClasses (Utils.justGet rootId slate) i slate) ++ "\n" ++
+      Utils.delimit "</" ">" "style" ++ "\n" ++ printNodes (k+1) (rootId, slate) rest ++
+        "\n" ++ tab k ++ Utils.delimit "</" ">" "head"
     TextNode s -> s
     HtmlNode kind l1 [] ->
-      Utils.delimit "<" ">" (kind ++ " id=" ++ toString k) ++ "\n" ++
+      Utils.delimit "<" ">" (kind ++ " id=" ++ idPrefix ++ toString i) ++ "\n" ++
       Utils.delimit "</" ">" kind
     HtmlNode kind l1 l2 ->
-      Utils.delimit "<" ">" (kind ++ " id=" ++ toString k) ++ "\n" ++
-      printNodes (k+1) slate l2 ++ "\n" ++
+      Utils.delimit "<" ">" (kind ++ " id=" ++ idPrefix ++ toString i) ++ "\n" ++
+      printNodes (k+1) (rootId, slate) l2 ++ "\n" ++
       tab k ++ Utils.delimit "</" ">" kind
 
-printNodes : Int -> IndexedTree -> List NodeId -> String
+printNodes : Int -> RootedIndexedTree -> List NodeId -> String
 printNodes k slate =
   Utils.lines << List.map ((++) (tab k) << printNode k slate)
 
 -- Generates CSS classes that capture the indicated shapes' attributes
 defaultSel = "__basic"
 classPrefix = "#autogen-elem-style-"
+idPrefix = "autogen-elem-style-"
 
 getAllClasses : IndexedTreeNode -> Int -> IndexedTree -> String
-getAllClasses indTreeNode k slate = case indTreeNode of
+getAllClasses indTreeNode i slate = case indTreeNode of
   TextNode s -> ""
-  HtmlNode kind l1 [] -> makeClasses k l1
-  HtmlNode kind l1 l2 -> Debug.log "recursing" (makeClasses k l1 ++ "\n" ++ 
-    (String.join "\n" <| List.map (\i -> getAllClasses (Utils.justGet i slate)
-    (k+1) slate) l2 ))
+  HtmlNode kind l1 [] -> makeClasses i l1
+  HtmlNode kind l1 l2 -> makeClasses i l1 ++ "\n" ++ 
+    (String.join "\n" <| List.map (\j -> getAllClasses (Utils.justGet j slate)
+                                            j slate) l2 )
 
 makeClasses : Int -> List (String, AVal) -> String
-makeClasses k attrs = 
-  String.join " \n" <| List.map (classStr k) 
-                        (Dict.toList <| makeClasses_ k attrs Dict.empty)
+makeClasses i attrs = 
+  String.join " \n" <| List.map (classStr i) 
+                        (Dict.toList <| makeClasses_ i attrs Dict.empty)
 
 makeClasses_ : Int -> List (String, AVal) -> Dict String String -> Dict String String
-makeClasses_ k attrs accum = case attrs of
+makeClasses_ i attrs accum = case attrs of
   [] -> accum
   (key, val) :: rest -> case String.split ":" key of
-    [basic] -> makeClasses_ k rest <| addAttr defaultSel (key,val) accum
-    [name, pseudosel] -> makeClasses_ k rest <| addAttr pseudosel (name,val) accum
-    _                 -> Debug.log ("Probably malformed CSS key: " ++ key)
-                           <| makeClasses_ k rest <| addAttr defaultSel
+    [basic] -> makeClasses_ i rest <| addAttr defaultSel (key,val) accum
+    [name, pseudosel] -> makeClasses_ i rest <| addAttr pseudosel (name,val) accum
+    _                 -> Debug.log ("Probably malformed CSS key '" ++ key ++ "'")
+                           <| makeClasses_ i rest <| addAttr defaultSel
                                 (key,val) accum
 
 addAttr : String -> (String, AVal) -> Dict String String -> Dict String String

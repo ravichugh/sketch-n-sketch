@@ -23,6 +23,7 @@ LITTLE_TO_ELM threeDivs
 LITTLE_TO_ELM image
 LITTLE_TO_ELM simpleNavBar
 LITTLE_TO_ELM table
+LITTLE_TO_ELM hover
 
 examples =
   [ makeExample scratchName scratch
@@ -32,6 +33,7 @@ examples =
   , makeExample "Image" image
   , makeExample "Simple Navigation Bar" simpleNavBar
   , makeExample "Simple Table" table
+  , makeExample "Simple Hover" hover
   ]
 
 list = examples -- ++ MicroTests.sampleTests
