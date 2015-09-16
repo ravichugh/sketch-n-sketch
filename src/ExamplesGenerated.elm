@@ -133,14 +133,14 @@ table =
     ['Mitch' '15' '4']
     ['Jacob' '88' '6']
   ])
-(def borders
+(def attrs
   [ ['border' '1px solid black'] 
     ['border-collapse' 'collapse']
   ])
 (basicDoc [] 
   [ (eStyle [ ['top' 100]
               ['left' 100] ]
-              (eTable 600 120 headers data borders) ) ] )
+              (eTable 600 120 headers data attrs) ) ] )
 
 "
 
