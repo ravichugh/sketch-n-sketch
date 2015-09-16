@@ -276,7 +276,7 @@ strAPath2 =
 
 projConsts k vs =
   case (k == 0, vs) of
-    (True, [])      -> ([], vs)
+    (True, _)       -> ([], vs)
     (False, v::vs') ->
       case v.v_ of
         VConst it ->
