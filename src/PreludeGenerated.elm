@@ -360,6 +360,8 @@ prelude =
           (addExtras i rest shape)
           (addExtras i rest (addAttr shape [k v]))))))))
 
+(def lookupAttr (\\([shape _ _] k) (lookup k attrs)))
+
 ; \"constant folding\"
 (def twoPi (* 2 (pi)))
 (def halfPi (/ (pi) 2))
