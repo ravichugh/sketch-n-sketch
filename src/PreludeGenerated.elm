@@ -125,10 +125,18 @@ prelude =
     ([[]      []]      nil)
     (_                 (append xs ys)))))
 
+(def mapi (\\(f xs) (map f (zip (range 0 (- (len xs) 1)) xs))))
+
 (defrec nth (\\(xs n)
   (case xs
     ([]      'ERROR: nth')
     ([x|xs1] (if (= n 0) x (nth xs1 (- n 1)))))))
+
+(defrec take (\\(xs n)
+  (if (= n 0) []
+    (case xs
+      ([]      'ERROR: take')
+      ([x|xs1] [x | (take xs1 (- n 1))])))))
 
 ;; mult : Number -> Number -> Number
 ;; multiply two numbers and return the result

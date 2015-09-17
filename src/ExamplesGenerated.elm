@@ -2082,6 +2082,53 @@ relatePoints1 =
 
 "
 
+relatePoints2 =
+ "
+(def enumSlider (\\(x0 x1 y enum caption srcVal)
+  (let n (len enum)
+  (let [minVal maxVal] [0! (- n 1!)]
+  (let preVal (clamp minVal maxVal srcVal)
+  (let i (round preVal)
+  (let item (nth enum i)
+  (let wrap (\\circ (addAttr circ ['SELECTED' ''])) ; TODO
+  (let shapes
+    (let rail [ (line 'black' 3! x0 y x1 y) ]
+    (let ball
+      (let [xDiff valDiff] [(- x1 x0) (- maxVal minVal)]
+      (let xBall (+ x0 (* xDiff (/ (- preVal minVal) valDiff)))
+      (let rBall (if (= preVal srcVal) 10! 0!)
+        [ (wrap (circle 'black' xBall y rBall)) ])))
+    (let endpoints
+      [ (wrap (circle 'black' x0 y 4!)) (wrap (circle 'black' x1 y 4!)) ]
+    (let tickpoints
+      (let sep (/ (- x1 x0) n)
+      (map (\\i (wrap (circle 'grey' (+ (+ x0 (/ sep 2!)) (mult i sep)) y 4!)))
+           (range 0! (- n 1!))))
+    (let label [ (text (+ x1 10!) (+ y 5!) (+ caption (toString item))) ]
+    (concat [ rail endpoints tickpoints ball label ]))))))
+  [item shapes])))))))))
+
+(def addSelectionSliders (\\(y0 shapesCaps)
+  (let seeds [0 0 0 0 0 0 0 0 0 0] ; hard-coded limit
+  (let shapesCapsSeeds (zip shapesCaps (take seeds (len shapesCaps)))
+  (let foo (\\[i [[shape cap] seed]]
+    ; TODO attrs based on shape
+    (let [item slider] (enumSlider 20! 120! (+ y0 (mult i 30!)) ['' 'cx' 'cy' 'r'] cap seed)
+    (let shape1 (addAttr shape ['SELECTED' item]) ; TODO overwrite existing
+    [shape1|slider])))
+  (concat (mapi foo shapesCapsSeeds)))))))
+
+(svg (addSelectionSliders 30! [
+  [ (circle 'maroon' 200  30 10) 'pt0: ' ]
+  [ (circle 'maroon' 200  60 10) 'pt1: ' ]
+  [ (circle 'maroon' 200  90 10) 'pt2: ' ]
+  [ (circle 'maroon' 200 120 10) 'pt3: ' ]
+  [ (circle 'maroon' 200 150 10) 'pt4: ' ]
+  [ (circle 'maroon' 200 180 10) 'pt5: ' ]
+]))
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -2092,6 +2139,7 @@ examples =
   , makeExample "RelateCircles0" relateRects0
   , makeExample "RelatePoints0" relatePoints0
   , makeExample "RelatePoints1" relatePoints1
+  , makeExample "RelatePoints2" relatePoints2
 
   , makeExample "3 Boxes" threeBoxes
   , makeExample "N Boxes" groupOfBoxes

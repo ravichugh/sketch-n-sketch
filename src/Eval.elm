@@ -99,7 +99,7 @@ eval env e =
         case (pVar f, v1) `cons` ((p, v2) `cons` Just env') of
           Just env'' -> eval env'' e
       _ ->
-        errorMsg <| strPos e1.start ++ " not a function"
+        errorMsg <| strPos e1.start ++ " not a function: " ++ (sExp e)
 
   ELet _ True p e1 e2 ->
     let v1 = eval_ env e1 in
