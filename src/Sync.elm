@@ -832,6 +832,7 @@ relateNumsWithVar genSymK e nts =
       Just (1 + genSymK, eNew, vNew)
       )
 
+{-
 inferRelatedPoints : Int -> Exp -> Val -> Val -> Maybe (Int, Exp, Val)
 inferRelatedPoints genSymK e _ v' =
   stripChildren ((==) "svg") v' `justBind` (\shapes ->
@@ -850,26 +851,28 @@ inferRelatedPoints genSymK e _ v' =
     in
     relateWithVar genSymK e selectedAttrs
   )))
+-}
 
--- TODO handle all shapes/attrs, and then remove inferRelatedPoints
 inferRelated : Int -> Exp -> Val -> Val -> Maybe (Int, Exp, Val)
 inferRelated genSymK e _ v' =
-  stripChildren ((==) "svg") v' `justBind` (\shapes ->
-  let mCircles = List.map (stripAttrs ((==) "circle")) shapes in
-  let circles = Utils.filterJusts mCircles in
-  Utils.projJusts (List.map (getAttrs ("SELECTED" :: basicCircleAttrs)) circles) `justBind` (\attrLists ->
-    let selectedAttrs =
-      let foo [selected,cx,cy,r,fill] acc =
-        case selected.v_ of
-          VBase (String "") -> acc
-          VBase (String s) ->
-            let goo k = case k of {"cx" -> cx; "cy" -> cy; "r" -> r} in
-            List.map goo (String.split " " s) ++ acc
-      in
-      List.foldl foo [] attrLists
+  stripChildren ((==) "svg") v' `justBind` (\canvas ->
+  let mShapes = List.map (stripAttrs (always True)) canvas in
+  let shapes = Utils.filterJusts mShapes in
+  let selectedAttrs =
+    let foo attrList acc =
+      case getAttr attrList "SELECTED" of
+        Nothing -> acc
+        Just s  ->
+          case s.v_ of
+            VBase (String "") -> acc
+            VBase (String s)  ->
+              let goo k = Utils.fromJust_ "inferRelated" (getAttr attrList k) in
+              List.map goo (String.split " " s) ++ acc
     in
-    relateWithVar genSymK e selectedAttrs
-  ))
+    List.foldl foo [] shapes
+  in
+  relateWithVar genSymK e selectedAttrs
+  )
 
 inferNewRelationships e v v' =
      maybeToMaybeOne (inferRelatedRectsX e v v')
@@ -878,7 +881,6 @@ inferNewRelationships e v v' =
   -- ++ maybeToMaybeOne (inferCircleOfCircles True e v v')
 
 relateSelectedAttrs genSymK e v v' =
-  -- inferRelatedPoints genSymK e v v'
   inferRelated genSymK e v v'
 
 

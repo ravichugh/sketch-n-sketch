@@ -16,8 +16,8 @@
     (let endpoints
       [ (wrap (circle 'black' x0 y 4!)) (wrap (circle 'black' x1 y 4!)) ]
     (let tickpoints
-      (let sep (/ (- x1 x0) n)
-      (map (\i (wrap (circle 'grey' (+ (+ x0 (/ sep 2!)) (mult i sep)) y 4!)))
+      (let sep (/ (- x1 x0) (+ n 1!))
+      (map (\i (wrap (circle 'grey' (+ (+ x0 sep) (mult i sep)) y 4!)))
            (range 0! (- n 1!))))
     (let label [ (text (+ x1 10!) (+ y 5!) (+ caption (toString item))) ]
     (concat [ rail endpoints tickpoints ball label ]))))))
@@ -30,19 +30,19 @@
     (let [k _ _] shape
     (let enum
       (if (= k 'circle') ['' 'cx' 'cy' 'r']
-      (if (= k 'line') ['x1' 'y1' 'x2' 'y2']
-      (if (= k 'rect') ['x' 'y' 'w' 'h']
+      (if (= k 'line')   ['' 'x1' 'y1' 'x2' 'y2']
+      (if (= k 'rect')   ['' 'x' 'y' 'width' 'height']
         [(+ 'NO SELECTION ENUM FOR KIND ' k)])))
-    (let [item slider] (enumSlider 20! 120! (+ y0 (mult i 30!)) enum cap seed)
+    (let [item slider] (enumSlider 20! 170! (+ y0 (mult i 30!)) enum cap seed)
     (let shape1 (addAttr shape ['SELECTED' item]) ; TODO overwrite existing
     [shape1|slider])))))
   (concat (mapi foo shapesCapsSeeds)))))))
 
 (svg (addSelectionSliders 30! [
-  [ (circle 'maroon' 200  30 10) 'pt0: ' ]
-  [ (circle 'maroon' 200  60 10) 'pt1: ' ]
-  [ (circle 'maroon' 200  90 10) 'pt2: ' ]
-  [ (circle 'maroon' 200 120 10) 'pt3: ' ]
-  [ (circle 'maroon' 200 150 10) 'pt4: ' ]
-  [ (circle 'maroon' 200 180 10) 'pt5: ' ]
+  [ (rect 'maroon' 300  30 50 15) 'pt0: ' ]
+  [ (rect 'maroon' 300  60 50 15) 'pt1: ' ]
+  [ (rect 'maroon' 300  90 50 15) 'pt2: ' ]
+  [ (rect 'maroon' 300 120 50 15) 'pt3: ' ]
+  [ (rect 'maroon' 300 150 50 15) 'pt4: ' ]
+  [ (rect 'maroon' 300 180 50 15) 'pt5: ' ]
 ]))
