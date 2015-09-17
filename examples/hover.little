@@ -1,9 +1,9 @@
 ; An example usage of a div that changes when hovered over
 (def hovdiv
   (let [top left w h col]   
-       [100 100 200 200 'lightblue']
+       [100 100 200 200 'blue']
   (let [hovtop hovleft hovw hovh hovcol]
-       [80     80      240  240  'blue'     ]
+       [(- top 20)  (- left 20)  (+ w 40)  (+ h 40)  'lightblue'  ]
   (eStyle [ [ 'top'              top        ]
             [ 'left'             left       ]
             [ 'width'            w          ]
