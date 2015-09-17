@@ -31,7 +31,7 @@ scratch =
   (eStyle 
     [ [ 'top'    100 ]
       [ 'left'   100 ]
-      [ 'background-color' 'red' ]
+      [ 'background-color' 'orange' ]
     ] (eDiv 100 100 []) ) )
 (basicDoc [['background-color' 'lightblue']] [reddiv])
 
@@ -136,6 +136,8 @@ table =
 (def attrs
   [ ['border' '1px solid black'] 
     ['border-collapse' 'collapse']
+    ['padding' 15]
+    ['text-align' 'center']
   ])
 (basicDoc [] 
   [ (eStyle [ ['top' 100]

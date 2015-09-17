@@ -228,35 +228,37 @@ zoneBorder htmlFunc id node zoneName flag show otherAttrs =
 makeZones : ZoneOptions -> String -> LangHtml.NodeId -> List LangHtml.Attr -> List Html.Html
 makeZones options node id attrs =
   case {-Debug.log "node"-} node of
-    "div" -> 
-      let mk zone x_ y_ w_ h_ =
-          zoneBorder Html.div id node zone True options.showBasic 
-            <|    [ ("top", LangHtml.AString (toString y_ ++ "px"))
-                  , ("left", LangHtml.AString (toString x_ ++ "px"))
-                  , ("width", LangHtml.AString (toString w_ ++ "px"))
-                  , ("height", LangHtml.AString (toString h_ ++ "px"))
-                  , ("position", LangHtml.AString "absolute")
-                  ]
-          [x,y,w,h] = List.map (toNum << Utils.find_ attrs) ["left", "top", "width", "height"]
-          gutter = 0.125
-          (x0,x1,x2)    = (x, x + gutter*w, x + (1-gutter)*w)
-          (y0,y1,y2)    = (y, y + gutter*h, y + (1-gutter)*h)
-          (wSlim,wWide) = (gutter*w, (1-2*gutter)*w)
-          (hSlim,hWide) = (gutter*h, (1-2*gutter)*h)
-      in
-        [ mk "Interior"       x1 y1 wWide hWide
-        , mk "RightEdge"      x2 y1 wSlim hWide
-        , mk "BotRightCorner" x2 y2 wSlim hSlim
-        , mk "BotEdge"        x1 y2 wWide hSlim
-        , mk "BotLeftCorner"  x0 y2 wSlim hSlim
-        , mk "LeftEdge"       x0 y1 wSlim hWide
-        , mk "TopLeftCorner"  x0 y0 wSlim hSlim
-        , mk "TopEdge"        x1 y0 wWide hSlim
-        , mk "TopRightCorner" x2 y0 wSlim hSlim
-        ]
+    "div" -> standardRectZones options node id attrs
+    "table" -> standardRectZones options node id attrs
     _ -> []
 
-
+standardRectZones options node id attrs =
+  let mk zone x_ y_ w_ h_ =
+    zoneBorder Html.div id node zone True options.showBasic 
+      <|  [ ("top", LangHtml.AString (toString y_ ++ "px"))
+          , ("left", LangHtml.AString (toString x_ ++ "px"))
+          , ("width", LangHtml.AString (toString w_ ++ "px"))
+          , ("height", LangHtml.AString (toString h_ ++ "px"))
+          , ("position", LangHtml.AString "absolute")
+          ] in
+  let
+    [x,y,w,h] = List.map (toNum << Utils.find_ attrs) ["left", "top", "width", "height"]
+    gutter = 0.125
+    (x0,x1,x2)    = (x, x + gutter*w, x + (1-gutter)*w)
+    (y0,y1,y2)    = (y, y + gutter*h, y + (1-gutter)*h)
+    (wSlim,wWide) = (gutter*w, (1-2*gutter)*w)
+    (hSlim,hWide) = (gutter*h, (1-2*gutter)*h)
+  in
+    [ mk "Interior"       x1 y1 wWide hWide
+    , mk "RightEdge"      x2 y1 wSlim hWide
+    , mk "BotRightCorner" x2 y2 wSlim hSlim
+    , mk "BotEdge"        x1 y2 wWide hSlim
+    , mk "BotLeftCorner"  x0 y2 wSlim hSlim
+    , mk "LeftEdge"       x0 y1 wSlim hWide
+    , mk "TopLeftCorner"  x0 y0 wSlim hSlim
+    , mk "TopEdge"        x1 y0 wWide hSlim
+    , mk "TopRightCorner" x2 y0 wSlim hSlim
+    ]
 
 --makeZones : ZoneOptions -> String -> LangHtml.NodeId -> List LangHtml.Attr -> List Svg.Svg
 --makeZones options shape id l =

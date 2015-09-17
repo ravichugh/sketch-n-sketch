@@ -468,7 +468,18 @@ createMousePosCallback mx my objid kind zone old =
         ("div", "LeftEdge")       -> ret [fx "left", fx_ "width"]
         ("div", "TopLeftCorner")  -> ret [fx "left", fy "top", fx_ "width", fy_ "height"]
         ("div", "TopEdge")        -> ret [fy "top", fy_ "height"]
-        ("div", "TopRightCorner") -> ret [fy "top", fx "width", fy_ "height"]
+
+        --table zones TODO: refactoring to allow for further manipulation
+        ("table", "TopRightCorner") -> ret [fy "top", fx "width", fy_ "height"]
+        ("table", "Interior") -> ret [fx "left", fy "top"]
+        ("table", "RightEdge")      -> ret [fx "width"]
+        ("table", "BotRightCorner") -> ret [fx "width", fy "height"]
+        ("table", "BotEdge")        -> ret [fy "height"]
+        ("table", "BotLeftCorner")  -> ret [fx "left", fx_ "width", fy "height"]
+        ("table", "LeftEdge")       -> ret [fx "left", fx_ "width"]
+        ("table", "TopLeftCorner")  -> ret [fx "left", fy "top", fx_ "width", fy_ "height"]
+        ("table", "TopEdge")        -> ret [fy "top", fy_ "height"]
+        ("table", "TopRightCorner") -> ret [fy "top", fx "width", fy_ "height"]
         -- first match zones that can be attached to different shape kinds...
 
 --        (_, "FillBall")   -> ret [fxColorBall "fill"]
