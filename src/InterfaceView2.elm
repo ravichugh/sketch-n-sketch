@@ -228,11 +228,12 @@ zoneBorder htmlFunc id node zoneName flag show otherAttrs =
 makeZones : ZoneOptions -> String -> LangHtml.NodeId -> List LangHtml.Attr -> List Html.Html
 makeZones options node id attrs =
   case {-Debug.log "node"-} node of
-    "div" -> standardRectZones options node id attrs
-    "table" -> standardRectZones options node id attrs
+    "div" -> makeRectZones options node id attrs
+    "table" -> makeRectZones options node id attrs
+    "img" -> makeRectZones options node id attrs
     _ -> []
 
-standardRectZones options node id attrs =
+makeRectZones options node id attrs =
   let mk zone x_ y_ w_ h_ =
     zoneBorder Html.div id node zone True options.showBasic 
       <|  [ ("top", LangHtml.AString (toString y_ ++ "px"))
@@ -259,6 +260,51 @@ standardRectZones options node id attrs =
     , mk "TopEdge"        x1 y0 wWide hSlim
     , mk "TopRightCorner" x2 y0 wSlim hSlim
     ]
+
+
+---- Stuff for Box Model (margin, padding, border) Zones ---------------------------------
+
+maybeBoxModelAttr k l = 
+  case Utils.maybeFind k l of
+    Just (LangHtml.ANum tr) -> Just tr
+    _              -> Nothing
+
+zoneBoxModel b o id node x y w h m =
+  case b of
+    (True, Just a) -> zoneBoxModel_ o id node x y w h a
+    _              -> []
+
+zoneBoxModel_ options id node x y w h attrs =
+  let mk zone x_ y_ w_ h_ =
+    zoneBorder Html.div id node zone True options.showBasic 
+      <|  [ ("top", LangHtml.AString (toString y_ ++ "px"))
+          , ("left", LangHtml.AString (toString x_ ++ "px"))
+          , ("width", LangHtml.AString (toString w_ ++ "px"))
+          , ("height", LangHtml.AString (toString h_ ++ "px"))
+          , ("position", LangHtml.AString "absolute")
+          ] in
+  let
+    [x,y,w,h] = List.map (toNum << Utils.find_ attrs) ["left", "top", "width", "height"]
+    [padding, margin] = List.map (toNum << Utils.find_ attrs) ["padding", "margin"]
+    --TODO: Add back border as one of manipulatable zones
+    border = Utils.maybeFind "border-width" attrs
+    --TODO:remove below
+    gutter = 0.125
+    (x0,x1,x2)    = (x, x + gutter*w, x + (1-gutter)*w)
+    (y0,y1,y2)    = (y, y + gutter*h, y + (1-gutter)*h)
+    (wSlim,wWide) = (gutter*w, (1-2*gutter)*w)
+    (hSlim,hWide) = (gutter*h, (1-2*gutter)*h)
+    --------------------
+    [xp,yp,wp,hp] = List.map (\t -> (2*padding)+t) [x0, y0, w, h]
+    [xm,ym,wm,hm] = List.map (\t -> (2*margin)+t) [xp, yp, wp, hp]
+  in
+    [ mk "Interior"       x1 y1 w h
+    , mk "PaddingEdge"    xp yp wp hp
+    , mk "MarginEdge"     xm ym wm hm
+    ]
+
+--makeTableZones options node id attrs =
+
 
 --makeZones : ZoneOptions -> String -> LangHtml.NodeId -> List LangHtml.Attr -> List Svg.Svg
 --makeZones options shape id l =

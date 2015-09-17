@@ -136,8 +136,9 @@ table =
 (def attrs
   [ ['border' '1px solid black'] 
     ['border-collapse' 'collapse']
-    ['padding' 15]
     ['text-align' 'center']
+    ['background-color:nth-child(even)' '#fff']
+    ['background-color:nth-child(odd)' '#eee']
   ])
 (basicDoc [] 
   [ (eStyle [ ['top' 100]
