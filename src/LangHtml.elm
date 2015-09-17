@@ -380,6 +380,17 @@ zones =
       , ("RightEdge", ["width"])
       , ("BotEdge", ["height"])
       ])
+  , ("img",
+      [ ("Interior", ["left", "top"])
+      , ("TopLeftCorner", ["left", "top", "width", "height"])
+      , ("TopRightCorner", ["top", "width", "height"])
+      , ("BotRightCorner", ["width", "height"])
+      , ("BotLeftCorner", ["left", "width", "height"])
+      , ("LeftEdge", ["left", "width"])
+      , ("TopEdge", ["top", "height"])
+      , ("RightEdge", ["width"])
+      , ("BotEdge", ["height"])
+      ])
   , ("table",
       [ ("Interior", ["left", "top"])
       , ("TopLeftCorner", ["left", "top", "width", "height"])

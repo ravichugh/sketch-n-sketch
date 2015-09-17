@@ -470,6 +470,17 @@ createMousePosCallback mx my objid kind zone old =
         ("div", "TopEdge")        -> ret [fy "top", fy_ "height"]
         ("div", "TopRightCorner") -> ret [fy "top", fx "width", fy_ "height"]
 
+        --img
+        ("img", "Interior") -> ret [fx "left", fy "top"]
+        ("img", "RightEdge")      -> ret [fx "width"]
+        ("img", "BotRightCorner") -> ret [fx "width", fy "height"]
+        ("img", "BotEdge")        -> ret [fy "height"]
+        ("img", "BotLeftCorner")  -> ret [fx "left", fx_ "width", fy "height"]
+        ("img", "LeftEdge")       -> ret [fx "left", fx_ "width"]
+        ("img", "TopLeftCorner")  -> ret [fx "left", fy "top", fx_ "width", fy_ "height"]
+        ("img", "TopEdge")        -> ret [fy "top", fy_ "height"]
+        ("img", "TopRightCorner") -> ret [fy "top", fx "width", fy_ "height"]
+
         --table zones TODO: refactoring to allow for further manipulation
         ("table", "Interior") -> ret [fx "left", fy "top"]
         ("table", "RightEdge")      -> ret [fx "width"]

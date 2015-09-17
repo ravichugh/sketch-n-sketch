@@ -106,10 +106,10 @@ makeButton status w h text =
 -- Zone Options (per shape)
 
 type alias ZoneOptions =
-  { showBasic : Bool , addBasic : Bool , addRot : Bool , addColor : Bool }
+  { showBasic : Bool , addBasic : Bool , addRot : Bool , addColor : Bool , addBox : Bool }
 
 zoneOptions0 =
-  { showBasic = False , addBasic = False , addRot = False , addColor = False }
+  { showBasic = False , addBasic = False , addRot = False , addColor = False, addBox = False }
 
 optionsOf : ShowZones -> ZoneOptions
 optionsOf x =
@@ -260,22 +260,24 @@ makeRectZones options node id attrs =
     , mk "TopEdge"        x1 y0 wWide hSlim
     , mk "TopRightCorner" x2 y0 wSlim hSlim
     ]
+    ++ (zoneBoxModel options id node x y w h (Just attrs)) --TODO: add back maybeFind for (maybeBoxModelAttr ("padding", "margin") attrs))
 
 
 ---- Stuff for Box Model (margin, padding, border) Zones ---------------------------------
 
-maybeBoxModelAttr k l = 
-  case Utils.maybeFind k l of
-    Just (LangHtml.ANum tr) -> Just tr
+maybeBoxModelAttr (p,m) l = 
+  case (Utils.maybeFind p l, Utils.maybeFind m l) of
+    (Just (LangHtml.ANum ptr), Just (LangHtml.ANum mtr)) -> Just [ptr, mtr]
     _              -> Nothing
 
-zoneBoxModel b o id node x y w h m =
-  case b of
-    (True, Just a) -> zoneBoxModel_ o id node x y w h a
+zoneBoxModel options id node x y w h m =
+  case (options.addBox,m) of
+    (True, Just a) -> zoneBoxModel_ options id node x y w h a
     _              -> []
 
 zoneBoxModel_ options id node x y w h attrs =
   let mk zone x_ y_ w_ h_ =
+    --TODO: change showBasic
     zoneBorder Html.div id node zone True options.showBasic 
       <|  [ ("top", LangHtml.AString (toString y_ ++ "px"))
           , ("left", LangHtml.AString (toString x_ ++ "px"))
@@ -284,7 +286,6 @@ zoneBoxModel_ options id node x y w h attrs =
           , ("position", LangHtml.AString "absolute")
           ] in
   let
-    [x,y,w,h] = List.map (toNum << Utils.find_ attrs) ["left", "top", "width", "height"]
     [padding, margin] = List.map (toNum << Utils.find_ attrs) ["padding", "margin"]
     --TODO: Add back border as one of manipulatable zones
     border = Utils.maybeFind "border-width" attrs
