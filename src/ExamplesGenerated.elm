@@ -2051,15 +2051,20 @@ relatePoints1 =
   (let item (nth enum i)
   (let wrap (\\circ (addAttr circ ['SELECTED' ''])) ; TODO
   (let shapes
+    (let rail [ (line 'black' 3! x0 y x1 y) ]
     (let ball
       (let [xDiff valDiff] [(- x1 x0) (- maxVal minVal)]
       (let xBall (+ x0 (* xDiff (/ (- preVal minVal) valDiff)))
       (let rBall (if (= preVal srcVal) 10! 0!)
-        (wrap (circle 'black' xBall y rBall)))))
-    [ (line 'black' 3! x0 y x1 y)
-      (text (+ x1 10) (+ y 5) (+ caption (toString item)))
-      (wrap (circle 'black' x0 y 4!))
-      (wrap (circle 'black' x1 y 4!)) ball ])
+        [ (wrap (circle 'black' xBall y rBall)) ])))
+    (let endpoints
+      [ (wrap (circle 'black' x0 y 4!)) (wrap (circle 'black' x1 y 4!)) ]
+    (let tickpoints
+      (let sep (/ (- x1 x0) n)
+      (map (\\i (wrap (circle 'grey' (+ (+ x0 (/ sep 2!)) (mult i sep)) y 4!)))
+           (range 0! (- n 1!))))
+    (let label [ (text (+ x1 10!) (+ y 5!) (+ caption (toString item))) ]
+    (concat [ rail endpoints tickpoints ball label ]))))))
   [item shapes])))))))))
 
 (def addSelectionSliders (\\(circ cap y seed)
