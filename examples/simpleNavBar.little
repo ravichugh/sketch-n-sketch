@@ -2,29 +2,31 @@
 
 (def [buttonwd buttonht] [120 40])
 (def [menuy0 menux0 buttonspacing] [100 50 140])
-(def nicelink (\(text url)
-  (eStyle [ [ 'text-decoration' 'none' ] 
-            [ 'color' 'white' ]
-            [ 'font-family' 'sans-serif' ] ]
-          (a text url) ) ) )
-(def simpleNavigationButton (\[text url]
-  (eStyle [ [ 'display' 'table-cell'         ] 
-            [ 'background-color' 'royalblue' ] 
-            [ 'background-color:hover' 'dodgerblue' ]
-            [ 'text-align' 'center'          ]
-            [ 'vertical-align' 'middle'      ] ]
-  (eDiv buttonwd buttonht
-        [(eStyle [ [ 'top' (+ 'calc(' (+ (toString (/ buttonht 2)) 'px - 0.5 * 1em)')) ] 
-                   [ 'position' 'relative' ] ] (nicelink text url))] ) ) ) )
-(def placeButtoni (\(button i)
-  (eStyle [ ['top' menuy0]
-            ['left' (+ menux0 (* i buttonspacing))] ]
-          button) ) )
-(def buttons (map simpleNavigationButton
+(def nicelink (\([name url] [x y])
+  (eStyle [ [ 'top' y ]
+            [ 'left' x] ]
+  ['a' [['href' url]]
+    [ (eStyle [ [ 'display' 'block' ]
+                [ 'background-color' 'royalblue' ] 
+                [ 'background-color:hover' 'dodgerblue' ]
+                [ 'text-align' 'center'          ]
+                [ 'top' y                        ] 
+                [ 'left' x                       ] 
+                [ 'text-decoration' 'none' ]
+                [ 'color' 'white' ]
+                [ 'font-family' 'sans-serif' ] ]
+      (eDiv buttonwd buttonht
+        [(span [ [ 'top' (+ 'calc(' (+ (toString (/ buttonht 2)) 'px - 0.5 * 1em)')) ] 
+                 [ 'position' 'relative' ] ]
+               [(text name)] )]) ) ] ] ) ) )
+(def placeButtoni (\i [(+ menux0 (* i buttonspacing)) menuy0]))
+(def buttons 
   [ ['Home'       '.']
     ['About Us'   '.']
     ['News'       '.']
     ['Links'      '.']
-    ['Contact Us' '.'] ] ) )
-(def navBar (map2 placeButtoni buttons [0! 1! 2! 3! 4!]))
+    ['Contact Us' '.'] ] ) 
+(def navBar (map2 nicelink
+                    buttons
+                    (map placeButtoni [0! 1! 2! 3! 4!]) ) )
 (basicDoc [] navBar)

@@ -261,6 +261,11 @@ strEdges =
 printHtml : RootedIndexedTree -> String
 printHtml (rootId, tree) = printNode 0 (rootId, tree) rootId
 
+-- Certain attributes that need to be at the level of HTML and not in a CSS style
+htmlOnly =
+  [ "href"
+  ]
+
 printNode : Int -> RootedIndexedTree -> Int -> String
 printNode k (rootId, slate) i =
   case Utils.justGet i slate of
@@ -276,10 +281,10 @@ printNode k (rootId, slate) i =
         "\n" ++ tab k ++ Utils.delimit "</" ">" "head"
     TextNode s -> s
     HtmlNode kind l1 [] ->
-      Utils.delimit "<" ">" (kind ++ " id=" ++ idPrefix ++ toString i) ++ "\n" ++
+      Utils.delimit "<" ">" (kind ++ printHtmlOnly l1 ++ " id=" ++ idPrefix ++ toString i) ++ "\n" ++
       Utils.delimit "</" ">" kind
     HtmlNode kind l1 l2 ->
-      Utils.delimit "<" ">" (kind ++ " id=" ++ idPrefix ++ toString i) ++ "\n" ++
+      Utils.delimit "<" ">" (kind ++ printHtmlOnly l1 ++ " id=" ++ idPrefix ++ toString i) ++ "\n" ++
       printNodes (k+1) (rootId, slate) l2 ++ "\n" ++
       tab k ++ Utils.delimit "</" ">" kind
 
@@ -309,7 +314,9 @@ makeClasses_ : Int -> List (String, AVal) -> Dict String String -> Dict String S
 makeClasses_ i attrs accum = case attrs of
   [] -> accum
   (key, val) :: rest -> case String.split ":" key of
-    [basic] -> makeClasses_ i rest <| addAttr defaultSel (key,val) accum
+    [basic] -> if List.member basic htmlOnly
+                 then makeClasses_ i rest accum
+                 else makeClasses_ i rest <| addAttr defaultSel (key,val) accum
     [name, pseudosel] -> makeClasses_ i rest <| addAttr pseudosel (name,val) accum
     _                 -> Debug.log ("Probably malformed CSS key '" ++ key ++ "'")
                            <| makeClasses_ i rest <| addAttr defaultSel
@@ -327,6 +334,13 @@ classStr k (pseudosel, attrstr) =
   if pseudosel == defaultSel
     then classPrefix ++ toString k ++ " { " ++ attrstr ++ " }"
     else classPrefix ++ toString k ++ ":" ++ pseudosel ++ " { " ++ attrstr ++ " } "
+
+printHtmlOnly : List (String, AVal) -> String
+printHtmlOnly attrs = String.concat <| List.map
+  (\(key, val) -> if List.member key htmlOnly
+                    then " " ++ key ++ "=" ++ strAVal val
+                    else "")
+  attrs
 
 printAttrs l = case l of
   [] -> ""
