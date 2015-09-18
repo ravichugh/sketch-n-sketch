@@ -488,9 +488,10 @@ canvas w h model =
     _       -> canvas_ w h model
 
 canvas_ w h model =
-  let addZones = case (editingMode model, model.mode) of
-    (False, AdHoc)  -> True
-    (False, Live _) -> True
+  let addZones = case (editingMode model, model.mode, model.showZones) of
+    (False, AdHoc, _)  -> True
+    (False, Live _, 0) -> False
+    (False, Live _, _) -> True
     _               -> False
   in
   let document = buildHtml w h addZones model.showZones model.slate in

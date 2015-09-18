@@ -101,10 +101,11 @@ simpleNavBar =
             [ 'font-family' 'sans-serif' ] ]
           (a text url) ) ) )
 (def simpleNavigationButton (\\[text url]
-  (eStyle [ [ 'display' 'table-cell' ] 
-            [ 'background-color' 'royalblue'] 
-            [ 'text-align' 'center' ]
-            [ 'vertical-align' 'middle' ] ]
+  (eStyle [ [ 'display' 'table-cell'         ] 
+            [ 'background-color' 'royalblue' ] 
+            [ 'background-color:hover' 'dodgerblue' ]
+            [ 'text-align' 'center'          ]
+            [ 'vertical-align' 'middle'      ] ]
   (eDiv buttonwd buttonht
         [(eStyle [ [ 'top' (+ 'calc(' (+ (toString (/ buttonht 2)) 'px - 0.5 * 1em)')) ] 
                    [ 'position' 'relative' ] ] (nicelink text url))] ) ) ) )

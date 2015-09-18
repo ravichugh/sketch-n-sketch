@@ -2,8 +2,13 @@
 
 Things to work on:
 
-* 'Absolute'/'Overall' CSS declarations
+* ~~'Absolute'/'Overall' CSS declarations~~
+    * Some tyding up is in order
+    * Style collection should walk 'up' to nearest 'html' node, in case of
+      strange things
 * Zones for Padding/Margin
 * Traces on Strings for Textarea Zones
 * Element Abstraction
 * 'Pausing' the canvas to allow editing in different states
+* Zoom/pan in iframe, can be done with CSS 
+* ~~Zone mode to show no zones~~
