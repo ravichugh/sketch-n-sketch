@@ -12,3 +12,4 @@ Things to work on:
 * 'Pausing' the canvas to allow editing in different states
 * Zoom/pan in iframe, can be done with CSS 
 * ~~Zone mode to show no zones~~
+* Recreate a basic website to get an idea of current workflow
