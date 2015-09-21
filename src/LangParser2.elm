@@ -194,7 +194,7 @@ parseIdent =
     P.returnWithInfo x c.start cs.end
 
 parseStrLit =
-  let pred c = isAlphaNumeric c || List.member c (String.toList "#., -():=%;/\"*") in
+  let pred c = isAlphaNumeric c || List.member c (String.toList "#., -():=%;/\"*~") in
   P.between        -- NOTE: not calling delimit...
     (token_ "'")   --   okay to chew up whitespace here,
     (P.token "'")  --   but _not_ here!
