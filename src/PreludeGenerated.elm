@@ -310,7 +310,7 @@ prelude =
 ;; first set of attrs goes to headers, second to tr, third to td
   (def eComplexTable (\\(w h headers data hattrs rattrs dattrs)
    ['table' 
-    (append attrs [ ['width' w] 
+    (append rattrs [ ['width' w] 
                     ['height' h]
                     ['position' 'absolute'] ])
      (append [(tableheader hattrs dattrs headers)]
