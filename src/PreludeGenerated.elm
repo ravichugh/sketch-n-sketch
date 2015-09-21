@@ -239,11 +239,11 @@ prelude =
 
 (def th (\\(attr header) ['th' attr [(text header)] ] ) )
 
-(def tableheader (\\(attr headers) ['tr' attr (map (\\b (th attr b)) headers) ]) )
+(def tableheader (\\(hattr dattr headers) ['tr' hattr (map (\\b (th dattr b)) headers) ]) )
 
 (def td (\\(attr d) ['td' attr [(text d)] ] ) )
 
-(def tr (\\(attr data) ['tr' attr (map (\\d (td attr d)) data) ] ) )
+(def tr (\\(rattr dattr data) ['tr' rattr (map (\\d (td dattr d)) data) ] ) )
 
 (def style (\\attrs
   (let boundKVs
@@ -293,16 +293,29 @@ prelude =
            ['width' w] ['height' h]
            ['position' 'absolute' ] ] []] ) )
 
-;; eTable : Width -> Height -> Data -> Node
+;; eTable : Width -> Height -> Data -> Attributes -> Node
 ;; argument order - width, height, data
-;; make a table with a specified width and height
+;; make a simple table with a specified width and height
   (def eTable (\\(w h headers data attrs)
    ['table' 
     (append attrs [ ['width' w] 
-                      ['height' h]
-                      ['position' 'absolute'] ])
-     (append [(tableheader attrs headers)]
-             (map (\\d (tr attrs d)) data) ) ] ) )
+                    ['height' h]
+                    ['position' 'absolute'] ])
+     (append [(tableheader attrs attrs headers)]
+             (map (\\d (tr [] attrs d)) data) ) ] ) )
+
+;; eComplexTable : Width -> Height -> Data -> Attributes -> Node
+;; argument order - width, height, data
+;; make a complex table with a specified width and height
+;; first set of attrs goes to headers, second to tr, third to td
+  (def eComplexTable (\\(w h headers data hattrs rattrs dattrs)
+   ['table' 
+    (append attrs [ ['width' w] 
+                    ['height' h]
+                    ['position' 'absolute'] ])
+     (append [(tableheader hattrs dattrs headers)]
+             (map (\\d (tr rattrs dattrs d)) data) ) ] ) )
+
 
 ; \"constant folding\"
 (def twoPi (* 2 (pi)))
