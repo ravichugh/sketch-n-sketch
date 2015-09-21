@@ -115,6 +115,7 @@ optionsOf : ShowZones -> ZoneOptions
 optionsOf x =
   if | x == showZonesNone  -> { zoneOptions0 | addBasic <- True }
      | x == showZonesBasic -> { zoneOptions0 | addBasic <- True, showBasic <- True }
+     | x == showZonesBox   -> { zoneOptions0 | addBox <- True }
      | x == showZonesRot   -> { zoneOptions0 | addRot <- True }
      | x == showZonesColor -> { zoneOptions0 | addColor <- True }
 
@@ -288,15 +289,11 @@ zoneBoxModel_ options id node x y w h attrs =
   let
     [padding, margin] = List.map (toNum << Utils.find_ attrs) ["padding", "margin"]
     --TODO: Add back border as one of manipulatable zones
-    border = Utils.maybeFind "border-width" attrs
-    --TODO:remove below
     gutter = 0.125
     (x0,x1,x2)    = (x, x + gutter*w, x + (1-gutter)*w)
     (y0,y1,y2)    = (y, y + gutter*h, y + (1-gutter)*h)
-    (wSlim,wWide) = (gutter*w, (1-2*gutter)*w)
-    (hSlim,hWide) = (gutter*h, (1-2*gutter)*h)
-    --------------------
-    [xp,yp,wp,hp] = List.map (\t -> (2*padding)+t) [x0, y0, w, h]
+    border = Utils.maybeFind "border-width" attrs
+    [xp,yp,wp,hp] = List.map (\t -> (2*padding)+t) [x, y, w, h]
     [xm,ym,wm,hm] = List.map (\t -> (2*margin)+t) [xp, yp, wp, hp]
   in
     [ mk "Interior"       x1 y1 w h
@@ -715,6 +712,7 @@ zoneButton model =
   let cap =
     if | model.showZones == showZonesNone  -> "[Zones] Hidden"
        | model.showZones == showZonesBasic -> "[Zones] Basic"
+       | model.showZones == showZonesBox   -> "[Zones] Box Model"
        | model.showZones == showZonesRot   -> "[Zones] Rotation"
        | model.showZones == showZonesColor -> "[Zones] Color"
   in

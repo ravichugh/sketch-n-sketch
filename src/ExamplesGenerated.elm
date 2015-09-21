@@ -32,6 +32,8 @@ scratch =
     [ [ 'top'    100 ]
       [ 'left'   100 ]
       [ 'background-color' 'orange' ]
+      ['padding' 20 ]
+      ['margin'  40 ]
     ] (eDiv 100 100 []) ) )
 (basicDoc [['background-color' 'lightblue']] [reddiv])
 
