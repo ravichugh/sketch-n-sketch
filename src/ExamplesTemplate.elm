@@ -23,6 +23,7 @@ LITTLE_TO_ELM threeDivs
 LITTLE_TO_ELM image
 LITTLE_TO_ELM simpleNavBar
 LITTLE_TO_ELM table
+LITTLE_TO_ELM complextable
 LITTLE_TO_ELM hover
 LITTLE_TO_ELM basicPage
 LITTLE_TO_ELM order
@@ -35,6 +36,7 @@ examples =
   , makeExample "Image" image
   , makeExample "Simple Navigation Bar" simpleNavBar
   , makeExample "Simple Table" table
+  , makeExample "Complex Table" complextable
   , makeExample "Simple Hover" hover
   , makeExample "Basic Page" basicPage
   , makeExample "Ordering" order

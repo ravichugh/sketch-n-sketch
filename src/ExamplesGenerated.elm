@@ -32,6 +32,8 @@ scratch =
     [ [ 'top'    100 ]
       [ 'left'   100 ]
       [ 'background-color' 'orange' ]
+      ['padding' 20 ]
+      ['margin'  40 ]
     ] (eDiv 100 100 []) ) )
 (basicDoc [['background-color' 'lightblue']] [reddiv])
 
@@ -150,6 +152,39 @@ table =
 
 "
 
+complextable =
+ "; A more complex table with specific attribute control
+
+(def headers
+  [ 'Who' 'Entrance Survey Guess' 'Exit Survey Guess' ])
+(def data
+  [ ['Ravi' '25' '15']
+    ['Mitch' '15' '4']
+    ['Jacob' '88' '6']
+  ])
+(def hattrs
+  [ ['border' '1px solid black'] 
+    ['border-collapse' 'collapse']
+    ['background-color:nth-child(even)' '#fff']
+    ['background-color:nth-child(odd)' '#eee']
+  ])
+(def rattrs
+  [ ['border' '1px solid black'] 
+    ['border-collapse' 'collapse']
+    ['background-color:nth-child(even)' '#fff']
+    ['background-color:nth-child(odd)' '#eee']
+  ])
+(def dattrs
+  [ ['border' '1px solid black'] 
+    ['border-collapse' 'collapse']
+    ['text-align' 'center']
+  ])
+(basicDoc [] 
+  [ (eStyle [ ['top' 100]
+              ['left' 100] ]
+              (eComplexTable 600 120 headers data hattrs rattrs dattrs) ) ] )
+"
+
 hover =
  "; An example usage of a div that changes when hovered over
 (def hovdiv
@@ -250,6 +285,7 @@ examples =
   , makeExample "Image" image
   , makeExample "Simple Navigation Bar" simpleNavBar
   , makeExample "Simple Table" table
+  , makeExample "Complex Table" complextable
   , makeExample "Simple Hover" hover
   , makeExample "Basic Page" basicPage
   , makeExample "Ordering" order

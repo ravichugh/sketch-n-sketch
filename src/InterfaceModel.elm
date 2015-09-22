@@ -92,7 +92,7 @@ type alias ShowZones = Int
 
 showZonesModes = 4
 
-[showZonesNone, showZonesBasic, showZonesRot, showZonesColor] =
+[showZonesNone, showZonesBasic, {-showZonesBox,-} showZonesRot, showZonesColor] =
   [ 0 .. (showZonesModes - 1) ]
 
 type Caption
