@@ -127,12 +127,15 @@ buildHtml w h addZones showZones (i,d) =
     [ Html.iframe
         [ Attr.srcdoc <| LangHtml.printHtml (i,d)
         , Attr.style [("width", "100%"), ("height", "100%")]
-        , onMouseUp (MouseUp True)
         ]
         []
-    , Html.div [Attr.style [("position", "relative"), ("top", toString (-1 * h)
-    ++ "px")]] [buildHtml_ addZones
-    showZones d i]
+    , Html.div [ Attr.style [ ("position", "relative")
+                            , ("top", toString (-1 * h) ++ "px")
+                            , ("width", "100%"), ("height", "100%") 
+                            ]
+               , Events.onMouseUp events.address (MouseUp True) 
+               ]
+               [buildHtml_ addZones showZones d i]
     ]
 
 buildHtml_ : Bool -> ShowZones -> LangHtml.IndexedTree -> LangHtml.NodeId -> Html.Html
@@ -157,7 +160,7 @@ buildHtml_ addZones showZones d i =
       in
       let children = List.map (buildHtml_ addZones showZones d) js in
   --    let mainshape = (LangHtml.html shape) (LangHtml.compileAttrs attrs) children in
-      Html.div [] (List.append zones children)
+      Html.div [Attr.style [("z-index", "1")]] (List.append zones children)
 
 --------------------------------------------------------------------------------
 -- Defining Zones
