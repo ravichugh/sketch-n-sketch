@@ -26,6 +26,7 @@ LITTLE_TO_ELM table
 LITTLE_TO_ELM complextable
 LITTLE_TO_ELM hover
 LITTLE_TO_ELM basicPage
+LITTLE_TO_ELM order
 
 examples =
   [ makeExample scratchName scratch
@@ -38,6 +39,7 @@ examples =
   , makeExample "Complex Table" complextable
   , makeExample "Simple Hover" hover
   , makeExample "Basic Page" basicPage
+  , makeExample "Ordering" order
   ]
 
 list = examples -- ++ MicroTests.sampleTests

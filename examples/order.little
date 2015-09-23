@@ -1,0 +1,29 @@
+; An example of an ordering function
+(def [boxwd boxht] [150 150])
+(def box (\(left top col)
+  (eStyle [ [ 'left' left ] 
+            [ 'top' top   ] 
+            [ 'background-color' col ] 
+            [ 'position' 'absolute'          ] ] 
+          (eDiv boxwd boxht []) ) ) )
+(defrec findAttrVal (\(str list) (case list
+  ([] hrHt)
+  ([ [ key val ] | rest ] (if (= str key) val (findAttrVal str rest))) ) ) )
+(defrec replaceAttr (\([key val] list) (case list
+  ([] [])
+  ([[k1 v1] | rest] (if (= k1 key) [[key val] | rest] 
+                                   [[k1 v1] | (replaceAttr [key val] rest)]) ) ) ) )
+(def orderDivs (\([name1 attrs1 children1] [name2 attrs2 children2] snap1 snap2)
+  (let left1 (findAttrVal 'left' attrs1)
+  (let left2 (findAttrVal 'left' attrs2)
+  (if (< left2 
+         (+ left1 (+ (findAttrVal 'width' attrs1) 10!)))
+      (if (< (findAttrVal 'left' attrs1) (findAttrVal 'left' attrs2) )
+             [[name2 (replaceAttr ['left' (* (/ left2 left2) snap1)] attrs2) children2]
+              [name1 (replaceAttr ['left' (* (/ left1 left1) snap2)] attrs1) children1]]
+             [[name1 (replaceAttr ['left' (* (/ left1 left1) snap1)] attrs1) children1]
+              [name2 (replaceAttr ['left' (* (/ left2 left2) snap2)] attrs2) children2]] )
+      [[name1 attrs1 children1] [name2 attrs2 children2]]  ) ) ) ) )
+(def box1 (box 100 100! 'lightblue'))
+(def box2 (box 400 100! 'tomato') )
+(basicDoc [] (orderDivs box1 box2 100! 400!))
