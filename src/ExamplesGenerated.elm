@@ -2043,6 +2043,8 @@ relatePoints1 =
 (def pt2 (circle 'green' 121 142 10))
 (def pt3 (circle 'blue' 153 212 10))
 
+; TODO remove, use library version
+
 (def enumSlider (\\(x0 x1 y enum caption srcVal)
   (let n (len enum)
   (let [minVal maxVal] [0! (- n 1!)]
@@ -2084,6 +2086,8 @@ relatePoints1 =
 
 relatePoints2 =
  "
+; TODO remove, use library version
+
 (def enumSlider (\\(x0 x1 y enum caption srcVal)
   (let n (len enum)
   (let [minVal maxVal] [0! (- n 1!)]
@@ -2134,6 +2138,17 @@ relatePoints2 =
 
 "
 
+relatePoints3 =
+ "
+(def seeds [0 0 0])
+(svg (addSelectionSliders 30! seeds [
+  [ (line 'darkblue'  0 100 100 200 200) 'dummy: ' ]
+  [ (line 'darkblue'  8 100 100 200 200) 'line1: ' ]
+  [ (line 'darkblue'  8 100 300 200 400) 'line2: ' ]
+]))
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -2145,6 +2160,7 @@ examples =
   , makeExample "RelatePoints0" relatePoints0
   , makeExample "RelatePoints1" relatePoints1
   , makeExample "RelatePoints2" relatePoints2
+  , makeExample "RelatePoints3" relatePoints3
 
   , makeExample "3 Boxes" threeBoxes
   , makeExample "N Boxes" groupOfBoxes

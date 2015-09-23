@@ -73,6 +73,7 @@ LITTLE_TO_ELM relateCircles0
 LITTLE_TO_ELM relatePoints0
 LITTLE_TO_ELM relatePoints1
 LITTLE_TO_ELM relatePoints2
+LITTLE_TO_ELM relatePoints3
 
 examples =
   [ makeExample scratchName scratch
@@ -84,6 +85,7 @@ examples =
   , makeExample "RelatePoints0" relatePoints0
   , makeExample "RelatePoints1" relatePoints1
   , makeExample "RelatePoints2" relatePoints2
+  , makeExample "RelatePoints3" relatePoints3
 
   , makeExample "3 Boxes" threeBoxes
   , makeExample "N Boxes" groupOfBoxes

@@ -4,6 +4,8 @@
 (def pt2 (circle 'green' 121 142 10))
 (def pt3 (circle 'blue' 153 212 10))
 
+; TODO remove, use library version
+
 (def enumSlider (\(x0 x1 y enum caption srcVal)
   (let n (len enum)
   (let [minVal maxVal] [0! (- n 1!)]
