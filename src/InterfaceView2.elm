@@ -115,7 +115,7 @@ optionsOf : ShowZones -> ZoneOptions
 optionsOf x =
   if | x == showZonesNone  -> { zoneOptions0 | addBasic <- True }
      | x == showZonesBasic -> { zoneOptions0 | addBasic <- True, showBasic <- True }
-     --| x == showZonesBox   -> { zoneOptions0 | addBox <- True }
+     | x == showZonesBox   -> { zoneOptions0 | addBox <- True }
      | x == showZonesRot   -> { zoneOptions0 | addRot <- True }
      | x == showZonesColor -> { zoneOptions0 | addColor <- True }
 
@@ -276,15 +276,24 @@ zoneBoxModel options id node x y w h m =
     (True, Just a) -> zoneBoxModel_ options id node x y w h a
     _              -> []
 
+rotZoneBox = 20
+
+zoneBox htmlFunc id node zoneName flag show otherAttrs =
+    zone htmlFunc id node zoneName
+      <| LangHtml.compileAttrs <|
+           [ cursorOfZone zoneName
+           ] ++ otherAttrs
+
 zoneBoxModel_ options id node x y w h attrs =
   let mk zone x_ y_ w_ h_ =
     --TODO: change showBasic
-    zoneBorder Html.div id node zone True options.showBasic 
-      <|  [ ("top", LangHtml.AString (toString y_ ++ "px"))
+    zoneBox Html.button id node zone True options.showBasic 
+      <|  [ ("top", LangHtml.AString (toString (y_ + rotZoneBox) ++ "px"))
           , ("left", LangHtml.AString (toString x_ ++ "px"))
-          , ("width", LangHtml.AString (toString w_ ++ "px"))
-          , ("height", LangHtml.AString (toString h_ ++ "px"))
+          , ("width", LangHtml.AString "60px")
+          , ("height", LangHtml.AString "20px")
           , ("position", LangHtml.AString "absolute")
+          , ("onclick", LangHtml.AString "alert('Increment Padding/Margin')")
           ] in
   let
     [padding, margin] = List.map (toNum << Utils.find_ attrs) ["padding", "margin"]
@@ -712,7 +721,7 @@ zoneButton model =
   let cap =
     if | model.showZones == showZonesNone  -> "[Zones] Hidden"
        | model.showZones == showZonesBasic -> "[Zones] Basic"
-       --| model.showZones == showZonesBox   -> "[Zones] Box Model"
+       | model.showZones == showZonesBox   -> "[Zones] Box"
        | model.showZones == showZonesRot   -> "[Zones] Rotation"
        | model.showZones == showZonesColor -> "[Zones] Color"
   in
