@@ -784,8 +784,12 @@ inferCircleOfCircles groupBox _ _ v' =
 
 dummyFrozenLoc = dummyLoc_ frozen
 
-relateWithVar : Int -> Exp -> List Val -> Maybe (Int, Exp, Val)
-relateWithVar genSymK e vs =
+relate : Int -> Exp -> List Val -> Maybe (Int, Exp, Val)
+relate k e vs =
+  relateRule1 k e vs `Utils.plusMaybe`
+  relateRule2 k e vs
+
+relateRule1 genSymK e vs =
   let foo v = case v.v_ of
     VConst nt -> Just nt
     _         -> Nothing
@@ -794,6 +798,33 @@ relateWithVar genSymK e vs =
     if nts == [] then Nothing
     else relateNumsWithVar genSymK e nts
   )
+
+relateRule2 genSymK e vs =
+  let projBase v = case v.v_ of
+    VConst (_, TrLoc (_,_,"")) -> Nothing
+    VConst (_, TrLoc loc)      -> Just loc
+    _                          -> Nothing
+  in
+  let projBaseOff baseLoc v = case v.v_ of
+    -- TODO check that t2 is a constant (loc w/o var)
+    VConst (_, TrOp Plus [TrLoc loc, t2]) -> if
+      | loc == baseLoc -> Just v.vtrace
+      | otherwise      -> Nothing
+    _ -> Nothing
+  in
+  case vs of
+    [] -> Nothing
+    v0::vs' ->
+      projBase v0 `justBind` (\baseLoc ->
+      let (_,_,baseVar) = baseLoc in
+      Utils.projJusts (List.map (projBaseOff baseLoc) vs') `justBind` (\vtraces ->
+        let esubst =
+          List.foldl (\i -> Dict.insert i (EVar baseVar)) Dict.empty vtraces in
+        -- let _ = Debug.log "applied" (toString (Dict.toList esubst)) in
+        let eNew = applyESubst esubst e in
+        let vNew = Eval.run eNew in
+        Just (genSymK, eNew, vNew)
+      ))
 
 relateNumsWithVar : Int -> Exp -> List NumTr -> Maybe (Int, Exp, Val)
 relateNumsWithVar genSymK e nts =
@@ -871,7 +902,7 @@ inferRelated genSymK e _ v' =
     in
     List.foldl foo [] shapes
   in
-  relateWithVar genSymK e selectedAttrs
+  relate genSymK e selectedAttrs
   )
 
 inferNewRelationships e v v' =

@@ -1,4 +1,4 @@
-module Eval (run, parseAndRun, evalDelta) where
+module Eval (run, parseAndRun, parseAndRun_, evalDelta) where
 
 import Debug
 
@@ -56,6 +56,8 @@ eval env e =
   let ret v_       = (Val v_ e.val.eid, env) in
   let retReplace v = (v, env) in
 
+  let retVTrace eid (v,envOut) = (Val v.v_ eid, envOut) in
+
   case e.val.e__ of
 
   EConst i l -> ret <| VConst (i, TrLoc l)
@@ -90,14 +92,15 @@ eval env e =
       _       -> errorMsg <| strPos e1.start ++ " non-exhaustive case statement"
 
   EApp e1 [e2] ->
+    -- use retVTrace to return eid of EApp expression, not the function body
     let (v1,v2) = (eval_ env e1, eval_ env e2) in
     case v1.v_ of
       VClosure Nothing p e env' ->
         case (p, v2) `cons` Just env' of
-          Just env'' -> eval env'' e
+          Just env'' -> retVTrace e.val.eid <| eval env'' e
       VClosure (Just f) p e env' ->
         case (pVar f, v1) `cons` ((p, v2) `cons` Just env') of
-          Just env'' -> eval env'' e
+          Just env'' -> retVTrace e.val.eid <| eval env'' e
       _ ->
         errorMsg <| strPos e1.start ++ " not a function: " ++ (sExp e)
 
@@ -108,6 +111,7 @@ eval env e =
         let _   = Utils.assert "eval letrec" (env == env') in
         let v1' = Val (VClosure (Just f) x body env) v1.vtrace in
         case (pVar f, v1') `cons` Just env of
+          -- Just env' -> eval env' e2
           Just env' -> eval env' e2
       (PList _ _, _) ->
         errorMsg <|
@@ -119,9 +123,10 @@ eval env e =
   EOption _ _ e1 -> eval env e1
 
   -- abstract syntactic sugar
-  EFun ps e  -> eval env (eFun ps e)
-  EApp e1 es -> eval env (eApp e1 es)
-  ELet _ False p e1 e2 -> eval env (eApp (eFun [p] e2) [e1])
+
+  EFun ps e  -> retVTrace e.val.eid <| eval env (eFun ps e)
+  EApp e1 es -> retVTrace e.val.eid <| eval env (eApp e1 es)
+  ELet _ False p e1 e2 -> retVTrace e2.val.eid <| eval env (eApp (eFun [p] e2) [e1])
 
 evalOp env opWithInfo es =
   let (op,opStart) = (opWithInfo.val, opWithInfo.start) in
@@ -205,6 +210,8 @@ run e =
 
 parseAndRun : String -> String
 parseAndRun = strVal << run << Utils.fromOk_ << Parser.parseE
+
+parseAndRun_ = strVal_ True << run << Utils.fromOk_ << Parser.parseE
 
 rangeOff l1 i l2 = TrOp (RangeOffset i) [TrLoc l1, TrLoc l2]
 

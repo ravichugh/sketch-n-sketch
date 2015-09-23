@@ -36,8 +36,13 @@ substOf = Dict.map (always .val) << substPlusOf
 
 freshen_ : Int -> Exp -> (Exp, Int)
 freshen_ k e =
- -- TODO add eids here
- (\(e__,k') -> (P.WithInfo (Exp_ e__ e.val.eid) e.start e.end, k')) <|
+  (\(e__,k') ->
+    let nextK =
+      case e__ of
+        EConst _ (kk, _, _) -> kk -- invariant: kk = k' - 1
+        _                   -> k'
+    in
+    (P.WithInfo (Exp_ e__ nextK) e.start e.end, nextK + 1)) <|
  case e.val.e__ of
   -- EConst i l -> let (0,b,"") = l in (EConst i (k, b, ""), k + 1)
   -- freshen is now being called externally by Sync.inferDeleteUpdate
@@ -299,7 +304,7 @@ parseE_ : (Exp -> Exp) -> String -> Result String Exp
 parseE_ f = P.parse <|
   parseExp    >>= \e ->
   white P.end >>>
-    P.returnWithInfo (exp_ (f e).val.e__) e.start e.end
+    P.returnWithInfo (f e).val e.start e.end
 
 parseE : String -> Result String Exp
 parseE = parseE_ freshen
