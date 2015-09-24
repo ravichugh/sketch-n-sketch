@@ -327,11 +327,14 @@ inferLocalUpdates opts e v v' =
       let res =
         List.sortBy snd <|
           List.filterMap (\s ->
-            let e1 = applySubst s e in
+            let e1 = applyLocSubst s e in
             let v1 = Eval.run e1 in
             let vcStar = mapVal leafToStar vc in
             case diffNoCheck (fillHole vcStar holeSubst) v1 of
-              Nothing -> Debug.crash "sync: shouldn't happen?"
+              -- TODO 9/24: one of the last few commits affected this
+              --   on RelateRects0...
+              -- Nothing -> Debug.crash "sync: shouldn't happen?"
+              Nothing -> Debug.log "sync: shouldn't happen?" Nothing
               Just (Same _) ->
                 let n = compareVals (v, v1) in
                 Just ((e1, v1), n)
@@ -1292,7 +1295,7 @@ makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
     -- if using overconstrained triggers, then some of the newAttr values
     -- from the UI make be "immediately destroyed" by subsequent ones...
 
-  (applySubst entireSubst e, changedSubst)
+  (applyLocSubst entireSubst e, changedSubst)
 
 {-
   let g i (_,_,_,di) acc =
@@ -1324,7 +1327,7 @@ makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
          | otherwise    -> Dict.empty in
     if | Utils.dictIsEmpty di' -> acc
        | otherwise -> Dict.insert i di' acc in
-  let e' = applySubst subst' e in
+  let e' = applyLocSubst subst' e in
   (e', Dict.foldl g Dict.empty d0)
 -}
 

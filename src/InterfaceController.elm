@@ -511,8 +511,10 @@ createMousePosCallback mx my objid kind zone old =
   let (LangSvg.SvgNode _ attrs _) = Utils.justGet_ "#3" objid (snd old.slate) in
   let numAttr = toNum << Utils.find_ attrs in
   let mapNumAttr f a =
-    let (n,trace) = toNumTr (Utils.find_ attrs a) in
-    (a, LangSvg.ANum (f n, trace)) in
+    let av = Utils.find_ attrs a in
+    let (n,trace) = toNumTr av in
+    (a, LangSvg.AVal (LangSvg.ANum (f n, trace)) av.vtrace) in
+      -- preserve existing VTrace
 
   \(mx',my') ->
 
@@ -634,19 +636,21 @@ createCallbackPoly zone shape =
 lift : (Num -> Num) -> (NumTr -> NumTr)
 lift f (n,t) = (f n, t)
 
+-- TODO everywhere aNum, aTransform, etc is called, preserve vtrace
+
 polyInterior shape objid old onMouse =
   let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
   let pts = toPoints <| Utils.find_ nodeAttrs "points" in
   let accs =
     let foo (j,(xj,yj)) (acc1,acc2) =
       let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
-      let acc2' = (addi "x"j, LangSvg.ANum xj') :: (addi "y"j, LangSvg.ANum yj') :: acc2 in
+      let acc2' = (addi "x"j, LangSvg.aNum xj') :: (addi "y"j, LangSvg.aNum yj') :: acc2 in
       ((xj',yj')::acc1, acc2')
     in
     Utils.foldli foo ([],[]) pts
   in
   let (acc1,acc2) = Utils.reverse2 accs in
-  ([("points", LangSvg.APoints acc1)], acc2)
+  ([("points", LangSvg.aPoints acc1)], acc2)
 
 polyPoint i shape objid old onMouse =
   let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
@@ -656,15 +660,15 @@ polyPoint i shape objid old onMouse =
       if | i /= j -> ((xj,yj)::acc1, acc2)
          | otherwise ->
              let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
-             let acc2' = (addi "x"i, LangSvg.ANum xj')
-                         :: (addi "y"i, LangSvg.ANum yj')
+             let acc2' = (addi "x"i, LangSvg.aNum xj')
+                         :: (addi "y"i, LangSvg.aNum yj')
                          :: acc2 in
              ((xj',yj')::acc1, acc2')
     in
     Utils.foldli foo ([],[]) pts
   in
   let (acc1,acc2) = Utils.reverse2 accs in
-  ([("points", LangSvg.APoints acc1)], acc2)
+  ([("points", LangSvg.aPoints acc1)], acc2)
 
 polyEdge i shape objid old onMouse =
   let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
@@ -674,8 +678,8 @@ polyEdge i shape objid old onMouse =
     let foo (j,(xj,yj)) (acc1,acc2) =
       if | i == j || (i == n && j == 1) || (i < n && j == i+1) ->
              let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
-             let acc2' = (addi "x"j, LangSvg.ANum xj')
-                         :: (addi "y"j, LangSvg.ANum yj')
+             let acc2' = (addi "x"j, LangSvg.aNum xj')
+                         :: (addi "y"j, LangSvg.aNum yj')
                          :: acc2 in
              ((xj',yj')::acc1, acc2')
          | otherwise ->
@@ -684,7 +688,7 @@ polyEdge i shape objid old onMouse =
     Utils.foldli foo ([],[]) pts
   in
   let (acc1,acc2) = Utils.reverse2 accs in
-  ([("points", LangSvg.APoints acc1)], acc2)
+  ([("points", LangSvg.aPoints acc1)], acc2)
 
 -- Callbacks for Paths
 
@@ -700,8 +704,8 @@ pathPoint i objid old onMouse =
        | otherwise    -> (mj, (x, y)) in
   let addFakePts =
     List.foldl <| \(mj,(x,y)) acc ->
-      if | mj == Just i -> (addi "x"i, LangSvg.ANum x)
-                           :: (addi "y"i, LangSvg.ANum y)
+      if | mj == Just i -> (addi "x"i, LangSvg.aNum x)
+                           :: (addi "y"i, LangSvg.aNum y)
                            :: acc
          | otherwise    -> acc in
 
@@ -732,7 +736,7 @@ pathPoint i objid old onMouse =
     List.foldr foo ([],[]) cmds
   in
   let (acc1,acc2) = Utils.reverse2 accs in
-  ([("d", LangSvg.APath2 (acc1, counts))], acc2)
+  ([("d", LangSvg.aPath2 (acc1, counts))], acc2)
 
 -- Callbacks for Rotate zones
 
@@ -743,7 +747,7 @@ createCallbackRotate mx0 my0 mx1 my1 shape objid old =
     let a0 = Utils.radiansToDegrees <| atan ((mx0 - fst cx) / (fst cy - my0)) in
     let a1 = Utils.radiansToDegrees <| atan ((fst cy - my1) / (mx1 - fst cx)) in
     (fst rot + (90 - a0 - a1), snd rot) in
-  let real = [("transform", LangSvg.ATransform [LangSvg.Rot rot' cx cy])] in
-  let fake = [("transformRot", LangSvg.ANum rot')] in
+  let real = [("transform", LangSvg.aTransform [LangSvg.Rot rot' cx cy])] in
+  let fake = [("transformRot", LangSvg.aNum rot')] in
   (real, fake)
 

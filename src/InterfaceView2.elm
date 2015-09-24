@@ -144,11 +144,12 @@ buildSvg_ addZones showZones d i =
           (False, Just (_, l)) -> ([], l)
           (True, Nothing) ->
             (makeZones options shape i attrs, attrs)
-          (True, Just (LangSvg.AString "none", l)) ->
-            (makeZones zoneOptions0 shape i attrs, l)
-          (True, Just (LangSvg.AString "basic", l)) ->
-            let options' = { options | addRot <- False, addColor <- False } in
-            (makeZones options' shape i attrs, l)
+          (True, Just (aval, l)) -> case aval.av_ of
+            LangSvg.AString "none" ->
+              (makeZones zoneOptions0 shape i attrs, l)
+            LangSvg.AString "basic" ->
+              let options' = { options | addRot <- False, addColor <- False } in
+              (makeZones options' shape i attrs, l)
       in
       let children = List.map (buildSvg_ addZones showZones d) js in
       let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs') children in
@@ -159,9 +160,9 @@ buildSvg_ addZones showZones d i =
 --------------------------------------------------------------------------------
 -- Defining Zones
 
--- compileAttr will throw away the trace anyway
-attrNum k n    = LangSvg.compileAttr k (LangSvg.ANum (n, dummyTrace))
-attrNumTr k nt = LangSvg.compileAttr k (LangSvg.ANum nt)
+-- okay to use dummy VTraces/Traces here, b/c compileAttr throws them away
+attrNum k n    = LangSvg.compileAttr k (LangSvg.aNum (n, dummyTrace))
+attrNumTr k nt = LangSvg.compileAttr k (LangSvg.aNum nt)
 
 onMouseDown = Svg.Events.onMouseDown << Signal.message events.address
 onMouseUp   = Svg.Events.onMouseUp   << Signal.message events.address
@@ -242,13 +243,16 @@ zoneLine id shape zone show transform (x1,y1) (x2,y2) =
 
 rotZoneDelta = 20
 
+maybeTransformCmds : List LangSvg.Attr -> Maybe (List LangSvg.TransformCmd)
 maybeTransformCmds l =
   case Utils.maybeFind "transform" l of
-    Just (LangSvg.ATransform cmds) -> Just cmds
-    _                              -> Nothing
+    Just aval -> case aval.av_ of
+      LangSvg.ATransform cmds -> Just cmds
+      _                       -> Nothing
+    _                         -> Nothing
 
 transformAttr cmds =
-  [LangSvg.compileAttr "transform" (LangSvg.ATransform cmds)]
+  [LangSvg.compileAttr "transform" (LangSvg.aTransform cmds)]
 
 maybeTransformAttr l =
   case maybeTransformCmds l of
@@ -306,10 +310,13 @@ scaleColorBall = 1 / (wGradient / LangSvg.maxColorNum)
 
 numToColor = Utils.numToColor wGradient
 
+maybeColorNumAttr : String -> List LangSvg.Attr -> Maybe NumTr
 maybeColorNumAttr k l =
   case Utils.maybeFind k l of
-    Just (LangSvg.AColorNum n) -> Just n
-    _                          -> Nothing
+    Just aval -> case aval.av_ of
+      LangSvg.AColorNum n -> Just n
+      _                   -> Nothing
+    _                     -> Nothing
 
 zoneColor b id shape x y rgba =
   case (b, rgba) of
@@ -317,7 +324,7 @@ zoneColor b id shape x y rgba =
     _              -> []
 
 zoneColor_ id shape x y n =
-  let rgba = [LangSvg.compileAttr "fill" (LangSvg.AColorNum n)] in
+  let rgba = [LangSvg.compileAttr "fill" (LangSvg.aColorNum n)] in
   let (w, h, a, stroke, strokeWidth, rBall) =
       (wGradient, 20, 20, "silver", "2", "7") in
   let yOff = a + rotZoneDelta in
@@ -483,7 +490,7 @@ makeZonesPoly options shape id l =
     Utils.mapi f pairs in
   let zInterior =
     zoneBorder Svg.polygon id shape "Interior" False options.showBasic transform [
-        LangSvg.compileAttr "points" (LangSvg.APoints pts)
+        LangSvg.compileAttr "points" (LangSvg.aPoints pts)
       ] in
   let zRot =
     let (((x0,_),(y0,_))::_) = pts in
@@ -493,6 +500,7 @@ makeZonesPoly options shape id l =
      | firstEqLast pts    -> zInterior :: (zLines ++ zPts ++ zRot)
      | otherwise          -> zLines ++ zPts ++ zRot
 
+makeZonesPath : Bool -> String -> Int -> List LangSvg.Attr -> List Svg.Svg
 makeZonesPath showZones shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "path") in
   let transform = maybeTransformAttr l in

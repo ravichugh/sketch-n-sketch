@@ -325,19 +325,37 @@ foldVal f v a = case v.v_ of
 
 
 ------------------------------------------------------------------------------
--- Substitutions
+-- Location Substitutions
+-- Expression Substitutions
 
 type alias Subst = Dict.Dict LocId Num
 type alias SubstPlus = Dict.Dict LocId (P.WithInfo Num)
 type alias SubstMaybeNum = Dict.Dict LocId (Maybe Num)
 
-applySubst : Subst -> Exp -> Exp
+type alias ESubst = Dict.Dict EId Exp__
+
+type alias TwoSubsts = { lsubst : Subst, esubst : ESubst }
+
+applyLocSubst : Subst -> Exp -> Exp
+applyLocSubst s = applySubst { lsubst = s, esubst = Dict.empty }
+
+applyESubst : ESubst -> Exp -> Exp
+applyESubst s = applySubst { lsubst = Dict.empty, esubst = s }
+
+applySubst : TwoSubsts -> Exp -> Exp
 applySubst subst e =
- (\e__ -> P.WithInfo (Exp_ e__ e.val.eid) e.start e.end) <|
+  (\e__ ->
+    let e__' =
+      case Dict.get e.val.eid subst.esubst of
+        Just eNew -> eNew
+        Nothing   -> e__
+    in
+    P.WithInfo (Exp_ e__' e.val.eid) e.start e.end) <|
  case e.val.e__ of
   EConst n l ->
-    case Dict.get (Utils.fst3 l) subst of
+    case Dict.get (Utils.fst3 l) subst.lsubst of
       Just i -> EConst i l
+      Nothing -> EConst n l
    -- Nothing -> EConst n l
   EBase _    -> e.val.e__
   EVar _     -> e.val.e__
@@ -362,12 +380,8 @@ applySubst subst e =
   EOption s1 s2 e1 ->
     EOption s1 s2 (applySubst subst e1)
 
-
-------------------------------------------------------------------------------
--- Expression Substitutions
-
+{-
 -- for now, LocId instead of EId
--- type alias ESubst = Dict.Dict EId Exp_
 type alias ESubst = Dict.Dict LocId Exp__
 
 applyESubst : ESubst -> Exp -> Exp
@@ -377,6 +391,7 @@ applyESubst esubst =
                     Nothing   -> e__
                     Just e__' -> e__'
     _          -> e__
+-}
 
 
 ------------------------------------------------------------------------------

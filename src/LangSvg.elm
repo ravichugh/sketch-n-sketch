@@ -53,15 +53,24 @@ compileValToNode v = case v.v_ of
       [VBase (String f), VList vs1, VList vs2] ->
         (svg f) (compileAttrVals vs1) (compileNodeVals vs2)
 
+compileNodeVals : List Val -> List Svg.Svg
 compileNodeVals = List.map compileValToNode
+
+compileAttrVals : List Val -> List Svg.Attribute
 compileAttrVals = List.map (uncurry compileAttr << valToAttr)
+
+compileAttrs    : List Attr -> List Svg.Attribute
 compileAttrs    = List.map (uncurry compileAttr)
+
+compileAttr : String -> AVal -> Svg.Attribute
 compileAttr k v = (attr k) (strAVal v)
 
 numAttrToVal a i =
   vList [vBase (String a), vConst (toFloat i, dummyTrace)]
 
-type AVal
+type alias AVal = { av_ : AVal_, vtrace : VTrace }
+
+type AVal_
   = ANum NumTr
   | AString String
   | APoints (List Point)
@@ -69,6 +78,15 @@ type AVal
   | AColorNum NumTr -- Utils.numToColor [0,500)
   | APath2 (List PathCmd, PathCounts)
   | ATransform (List TransformCmd)
+
+-- these versions are for when the VTrace doesn't matter
+aVal          = flip AVal (-1)
+aNum          = aVal << ANum
+aString       = aVal << AString
+aTransform    = aVal << ATransform
+aColorNum     = aVal << AColorNum
+aPoints       = aVal << APoints
+aPath2        = aVal << APath2
 
 maxColorNum   = 500
 clampColorNum = Utils.clamp 0 (maxColorNum - 1)
@@ -102,7 +120,8 @@ x `expectedButGot` s = errorMsg <| "expected " ++ x ++", but got: " ++ s
 
 -- temporary way to ignore numbers specified as strings (also see Sync)
 
-toNum a = case a of
+toNum : AVal -> Num
+toNum a = case a.av_ of
   ANum (n,_) -> n
   AString s  ->
     case String.toFloat s of
@@ -110,7 +129,7 @@ toNum a = case a of
       _    -> "a number" `expectedButGot` strValOfAVal a
   _        -> "a number" `expectedButGot` strValOfAVal a
 
-toNumTr a = case a of
+toNumTr a = case a.av_ of
   ANum (n,t) -> (n,t)
   AColorNum (n,t) -> (n,t)
   AString s  ->
@@ -119,15 +138,16 @@ toNumTr a = case a of
       _    -> "a number" `expectedButGot` strValOfAVal a
   _        -> "a number" `expectedButGot` strValOfAVal a
 
-toPoints a = case a of
+toPoints a = case a.av_ of
   APoints pts -> pts
   _           -> "a list of points" `expectedButGot` strValOfAVal a
 
-toPath a = case a of
+toPath : AVal -> (List PathCmd, PathCounts)
+toPath a = case a.av_ of
   APath2 p -> p
   _        -> "path commands" `expectedButGot` strValOfAVal a
 
-toTransformRot a = case a of
+toTransformRot a = case a.av_ of
   ATransform [Rot n1 n2 n3] -> (n1,n2,n3)
   _                         -> "transform commands" `expectedButGot` strValOfAVal a
 
@@ -137,6 +157,8 @@ toTransformRot a = case a of
 valToAttr v1 = case v1.v_ of
   VList vs -> case List.map .v_ vs of
     [VBase (String k), v] ->
+     -- NOTE: Elm bug? undefined error when shadowing k (instead of choosing k')
+     let (k',av_) =
       case (k, v) of
         ("points", VList vs)    -> (k, APoints <| List.map valToPoint vs)
         ("fill", VList vs)      -> (k, ARgba <| valToRgba vs)
@@ -146,6 +168,8 @@ valToAttr v1 = case v1.v_ of
         ("transform", VList vs) -> (k, ATransform (valsToTransform vs))
         (_, VConst it)          -> (k, ANum it)
         (_, VBase (String s))   -> (k, AString s)
+     in
+     (k', AVal av_ v1.vtrace)
 
         -- TODO "stroke" AColorNum
 
@@ -173,7 +197,8 @@ strRgba (r_,g_,b_,a_) =
 strRgba_ rgba =
   "rgba" ++ Utils.parens (Utils.commas (List.map toString rgba))
 
-strAVal a = case a of
+strAVal : AVal -> String
+strAVal a = case a.av_ of
   AString s -> s
   ANum it   -> toString (fst it)
   APoints l -> Utils.spaces (List.map strPoint l)
@@ -186,16 +211,18 @@ strAVal a = case a of
     -- let (r,g,b) = Utils.numToColor maxColorNum (fst n) in
     -- strRgba_ [r,g,b,1]
 
--- TODO VTraces...
-valOfAVal a = case a of
-  AString s    -> vBase (String s)
-  ANum it      -> vConst it
-  APoints l    -> vList (List.map pointToVal l)
-  ARgba tup    -> vList (rgbaToVal tup)
-  APath2 p     -> vList (List.concatMap valsOfPathCmd (fst p))
-  AColorNum nt -> vConst nt
+valOfAVal : AVal -> Val
+valOfAVal a = flip Val a.vtrace <| case a.av_ of
+  AString s    -> VBase (String s)
+  ANum it      -> VConst it
+  APoints l    -> VList (List.map pointToVal l)
+  ARgba tup    -> VList (rgbaToVal tup)
+  APath2 p     -> VList (List.concatMap valsOfPathCmd (fst p))
+  AColorNum nt -> VConst nt
 
 valsOfPathCmd c =
+  Debug.crash "restore valsOfPathCmd"
+{-
   let fooPt (_,(x,y)) = [vConst x, vConst y] in
   case c of
     CmdZ   s              -> vStr s :: []
@@ -204,8 +231,10 @@ valsOfPathCmd c =
     CmdC   s pt1 pt2 pt3  -> vStr s :: List.concatMap fooPt [pt1,pt2,pt3]
     CmdSQ  s pt1 pt2      -> vStr s :: List.concatMap fooPt [pt1,pt2]
     CmdA   s a b c d e pt -> vStr s :: List.map vConst [a,b,c,d,e] ++ fooPt pt
+-}
 
 valOfAttr (k,a) = vList [vBase (String k), valOfAVal a]
+  -- no VTrace to preserve...
 
 -- https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
 -- http://www.w3schools.com/svg/svg_path.asp
@@ -428,7 +457,7 @@ printAttr (k,v) =
   k ++ "=" ++ Utils.delimit "'" "'" (strAVal v)
 
 addAttrs kind attrs =
-  if | kind == "svg" -> ("xmlns", AString "http://www.w3.org/2000/svg") :: attrs
+  if | kind == "svg" -> ("xmlns", aString "http://www.w3.org/2000/svg") :: attrs
      | otherwise     -> attrs
 
 
@@ -504,7 +533,7 @@ zones = [
 ------------------------------------------------------------------------------
 
 dummySvgNode =
-  let zero = ANum (0, dummyTrace) in
+  let zero = aNum (0, dummyTrace) in
   SvgNode "circle" (List.map (\k -> (k, zero)) ["cx","cy","r"]) []
 
 -- TODO break up and move slateToVal here
