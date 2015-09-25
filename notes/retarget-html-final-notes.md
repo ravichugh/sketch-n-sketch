@@ -6,8 +6,11 @@ output. Further, this document will hope
 
 ## Target Goals
 
-* Basically future objectives
-* Insert further future objectives here
+* Zones for Padding/Margin
+* Traces on Strings for Textarea Zones
+* Element Abstraction fully realized
+* 'Pausing' the canvas to allow editing in different states
+* Zoom/pan in iframe, can be done with CSS 
 * Allow for flow / snapping zone interaction as seen in Javascript/SASS [Layout Grid](https://clippings.github.io/layout-grid/)
 
 ## Theory
@@ -17,33 +20,45 @@ In this section we explain each of the concepts we wanted to employ as well as t
 #### Re-orient the Sketch-n-sketch SVG tool to Dorian, an HTML/CSS tool
 1. Rationale:
 	* The existing Sketch-n-sketch architecture opens up possibilities for manipulation of other file types
+	* HTML is a similar output format to SVG, making it a good fit for the existing infrastructure
+	* Web pages are another example of where programmatic specification is lacking or bulky (Elm, Django, JavaScript) and direct manipulation (Dreamweaver) isn't particularly expressive, compostable, or extensible
 
 #### Rebuilt Basic Zone Implementation
 1. Rationale:
 	* Zones were originally implemented as Svg's, with the switch to Html, zones were switched as well.
+	* In HTML, there is a lot more state that can be kept track of which was not as immediately relevant in SVG graphics. Namely, states like 'hover', 'visited', and more very commonly change the attributes that would be directly manipulated by Zones. Thus, Zones must be changed to capture this information
 
 #### Element Abstraction
 
 1. Why do we need an element abstraction?
 	* Since width & heights are known, useful abstractions such as Flows are possible
-2. With Elements, we get a nice pipelined style for building styled html objects			```
+	* Flow is an extremely common pattern when designing webpages of all levels of complexity (Elm, etc.)
+	* Leads to a nice program layout with a series of definitions that all get passed to a Flow function
+
+2. With Elements, we get a nice pipelined style for building styled html objects, as opposed to the 'monolithic' style that we went with with SVG. This is important for the style in which we go about defining the Prelude functions.
 
 #### Element Versions of HTML Nodes
 
-* The general guidelines we've been following when it comes to defining the functions for each node type
-
-* `width` and `height` arguments are always required
-* Positioning is set to `absolute` by default
+In general, we've been requiring the `width` and `height` arguments for the element versions of the node functions. The position for all members of the Element abstraction should be set to `absolute`, but it is most helpful if this is done when the `top` and `left` attributes are set. Since it's expected that all these functions will get passed to a styling function, it's possible that this can be done automatically there.
 
 #### Flow
 
-* What flow is meant to do
-* The type of direct manipulation that we're aiming for
+Flow is an extremely common pattern when it comes to the design of webpages of all levels of complexity. Just like it is employed in Elm, it is helpful to implement it in Dorian to allow for its use. Due to the untyped nature of Little, using Flows and Elements is more of a convention that does nothing to limit what the programmer can do while being a very useful tool for placing multiple nodes in a particular relation to each other. Further, combined with conditionals, Flows could be used to help layout multiple versions (e.g. mobile, desktop, tablet) of a website with exactly the same nodes and styles. This helps to alleviate some of the major pain points that come with specifying HTML by hand or multiple pages in a direct manipulation editor.
 
 ### CSS Pseudoselectors
 
-* Why this is an issue
-* The syntax we decided to go with
+With the way that the attributes on the SVG nodes were done, we could not capture information that would allow the changing of the style attributes of HTML nodes based on events like 'hover'. CSS pseudoselectors solve this problem, but at the cost of not being able to use all inline styles like we did with SVG. So, we decided to go with a syntax that allows attributes to be selected in different 'modes'. So,
+
+`['top' 100]` corresponds to `top: 100px` on the 'default' version of that element, and
+
+`['top:hover' 50]` corresponds to `top: 50px` on the 'hover' version of that element. 
+
+So, if these styles were applied to the same div, we would get a combined CSS document including:
+
+```
+#autogen-style-name-X { top: 100px }
+#autogen-style-name-X:hover { top: 100px }
+```
 
 ## Practice
 
@@ -149,4 +164,16 @@ This section explains the implementation details of the above concepts.
 
 #### Implementations of Flow
 
+Currently, we only have one implementation of Flow in one example (ordering). This section will be updated when its syntax is finalized.
+
 ### Collection of CSS Styles
+
+CSS styles are collected at the `printHtml` phase of the rendering process. Namely, in `printNode` here:
+
+https://github.com/ravichugh/sketch-n-sketch/blob/retarget-html/src/LangHtml.elm#L279
+
+the `getAllClasses` function is called that walks the DOM and creates new CSS entries for everything that needs it. This function is here:
+
+https://github.com/ravichugh/sketch-n-sketch/blob/retarget-html/src/LangHtml.elm#L300
+
+This does *not* link to Zones at all yet, which needs to be worked on. Currently Zones do not capture any information pertaining to the state of the webpage that is being edited.
