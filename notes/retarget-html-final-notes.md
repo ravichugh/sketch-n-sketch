@@ -79,6 +79,7 @@ This section explains the implementation details of the above concepts.
 		* arg order: width height (children or source)
 	* This can then be pipelined to an element styling function (eStyle) with takes a list of key-value styles as arguments
 		* Example:
+
 			```
 			; Three Divs
 			(def threeDivsInt
@@ -93,6 +94,58 @@ This section explains the implementation details of the above concepts.
 			```
 
 #### Element Versions of HTML Nodes
+
+```
+;; eStyle : Attributes -> Node -> Node
+;; argument order - attrs to add, node to add styles to
+;; Adds a list of attributes to a node - is helpful when using the Element
+;; abstraction, as the constructor functions do not have a Style field.
+;; Attributes in this case should be CSS
+;; TODO: deal with double instances of the same attr?
+(def eStyle (\(newAttrs [node attrs children])
+  [node
+    (append newAttrs attrs )
+    children ] ) )
+
+;; eDiv : Width -> Height -> Children -> Node
+;; argument order - width, height, initial children
+;; Make a Div that has a specified width and height so as to be compatible with
+;; the Element abstraction
+(def eDiv (\(w h initialChildren)
+  (eStyle [ ['width' w] ['height' h] ['position' 'absolute' ] ]
+    [ 'div' [] initialChildren ] ) ) )
+
+;; eImg : Width -> Height -> Src -> Node
+;; argument order - width, height, source URL
+;; Make an image element with the specified width and height
+(def eImg (\(w h url)
+  ['img' [ ['content' (+ 'url("' (+ url '")'))] 
+           ['width' w] ['height' h]
+           ['position' 'absolute' ] ] []] ) )
+
+;; eTable : Width -> Height -> Data -> Attributes -> Node
+;; argument order - width, height, data
+;; make a simple table with a specified width and height
+  (def eTable (\(w h headers data attrs)
+   ['table' 
+    (append attrs [ ['width' w] 
+                    ['height' h]
+                    ['position' 'absolute'] ])
+     (append [(tableheader attrs attrs headers)]
+             (map (\d (tr [] attrs d)) data) ) ] ) )
+
+;; eComplexTable : Width -> Height -> Data -> Attributes -> Node
+;; argument order - width, height, data
+;; make a complex table with a specified width and height
+;; first set of attrs goes to headers, second to tr, third to td
+  (def eComplexTable (\(w h headers data hattrs rattrs dattrs)
+   ['table' 
+    (append rattrs [ ['width' w] 
+                    ['height' h]
+                    ['position' 'absolute'] ])
+     (append [(tableheader hattrs dattrs headers)]
+             (map (\d (tr rattrs dattrs d)) data) ) ] ) )
+```
 
 #### Implementations of Flow
 
