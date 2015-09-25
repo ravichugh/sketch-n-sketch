@@ -822,7 +822,13 @@ relateRule2 genSymK e vs =
       let (_,_,baseVar) = baseLoc in
       Utils.projJusts (List.map (projBaseOff baseLoc) vs') `justBind` (\vtraces ->
         let esubst =
-          List.foldl (\i -> Dict.insert i (EVar baseVar)) Dict.empty vtraces in
+          let foo is acc =
+            case Utils.findFirst (not << Parser.isPreludeEId) is of
+              Nothing -> acc
+              Just i  -> Dict.insert i (EVar baseVar) acc
+          in
+          List.foldl foo Dict.empty vtraces
+        in
         -- let _ = Debug.log "applied" (toString (Dict.toList esubst)) in
         let eNew = applyESubst esubst e in
         let vNew = Eval.run eNew in

@@ -52,17 +52,17 @@ eval_ env e = fst <| eval env e
 eval : Env -> Exp -> (Val, Env)
 eval env e =
 
-  -- ret retains original eid, retReplace doesn't
-  let ret v_       = (Val v_ e.val.eid, env) in
-  let retReplace v = (v, env) in
-
-  let retVTrace eid (v,envOut) = (Val v.v_ eid, envOut) in
+  let ret v_                  = (Val v_ [e.val.eid], env) in
+  let retAdd eid (v,envOut)   = (Val v.v_ (eid::v.vtrace), envOut) in
+  let retAddThis_ (v,envOut)  = retAdd e.val.eid (v,envOut) in
+  let retAddThis v            = retAddThis_ (v, env) in
+  let retReplace v            = (v, env) in
 
   case e.val.e__ of
 
   EConst i l -> ret <| VConst (i, TrLoc l)
   EBase v    -> ret <| VBase v
-  EVar x     -> ret <| (lookupVar env x e.start).v_
+  EVar x     -> retAddThis <| lookupVar env x e.start
   EFun [p] e -> ret <| VClosure Nothing p e env
   EOp op es  -> ret <| evalOp env op es
 
@@ -92,15 +92,14 @@ eval env e =
       _       -> errorMsg <| strPos e1.start ++ " non-exhaustive case statement"
 
   EApp e1 [e2] ->
-    -- use retVTrace to return eid of EApp expression, not the function body
     let (v1,v2) = (eval_ env e1, eval_ env e2) in
     case v1.v_ of
-      VClosure Nothing p e env' ->
+      VClosure Nothing p eBody env' ->
         case (p, v2) `cons` Just env' of
-          Just env'' -> retVTrace e.val.eid <| eval env'' e
-      VClosure (Just f) p e env' ->
+          Just env'' -> retAddThis_ <| eval env'' eBody
+      VClosure (Just f) p eBody env' ->
         case (pVar f, v1) `cons` ((p, v2) `cons` Just env') of
-          Just env'' -> retVTrace e.val.eid <| eval env'' e
+          Just env'' -> retAddThis_ <| eval env'' eBody
       _ ->
         errorMsg <| strPos e1.start ++ " not a function: " ++ (sExp e)
 
@@ -124,9 +123,9 @@ eval env e =
 
   -- abstract syntactic sugar
 
-  EFun ps e  -> retVTrace e.val.eid <| eval env (eFun ps e)
-  EApp e1 es -> retVTrace e.val.eid <| eval env (eApp e1 es)
-  ELet _ False p e1 e2 -> retVTrace e2.val.eid <| eval env (eApp (eFun [p] e2) [e1])
+  EFun ps e1           -> retAdd e1.val.eid <| eval env (eFun ps e1)
+  EApp e1 es           -> retAdd e.val.eid  <| eval env (eApp e1 es)
+  ELet _ False p e1 e2 -> retAdd e2.val.eid <| eval env (eApp (eFun [p] e2) [e1])
 
 evalOp env opWithInfo es =
   let (op,opStart) = (opWithInfo.val, opWithInfo.start) in

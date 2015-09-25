@@ -2156,7 +2156,7 @@ examples =
 
   -- up here during ad-hoc development
   , makeExample "RelateRects0" relateRects0
-  , makeExample "RelateCircles0" relateRects0
+  , makeExample "RelateCircles0" relateCircles0
   , makeExample "RelatePoints0" relatePoints0
   , makeExample "RelatePoints1" relatePoints1
   , makeExample "RelatePoints2" relatePoints2

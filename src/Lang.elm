@@ -80,7 +80,7 @@ type Range_ -- right now, Exps are always EConsts
   = Interval Exp Exp
   | Point Exp
 
-type alias VTrace = EId
+type alias VTrace = List EId
 type alias Val    = { v_ : Val_, vtrace : VTrace }
 
 type Val_
@@ -124,8 +124,8 @@ strNum     = toString
 strVal_ : Bool -> Val -> String
 strVal_ showTraces v =
   let foo = strVal_ showTraces in
-  let blah = if showTraces then Utils.bracks (toString v.vtrace) else "" in
-  blah ++
+  let sTrace = if showTraces then Utils.braces (toString v.vtrace) else "" in
+  sTrace ++
   case v.v_ of
     VConst (i,tr)    -> strNum i
                           ++ if | showTraces -> Utils.braces (strTrace tr)
@@ -180,8 +180,8 @@ sExp_ : Bool -> Int -> Exp -> String
 sExp_ showLocs k e =
   let foo = sExp_ showLocs in
   let indent = maybeIndent showLocs k in
-  let blah = if showLocs then Utils.bracks (toString e.val.eid) else "" in
-  blah ++
+  let sTrace = if showLocs then Utils.braces (toString e.val.eid) else "" in
+  sTrace ++
   case e.val.e__ of
     EBase v -> strBaseVal v
     EConst i l ->
@@ -423,7 +423,7 @@ strPos p =
 -- NOTE: the Exp builders use dummyPos
 
 val : Val_ -> Val
-val = flip Val (-1)
+val = flip Val [-1]
 
 exp_ : Exp__ -> Exp_
 exp_ = flip Exp_ (-1)

@@ -1,4 +1,5 @@
-module LangParser2 (prelude, isPreludeLoc, substOf, parseE, parseV,
+module LangParser2 (prelude, isPreludeLoc, isPreludeEId,
+                    substOf, parseE, parseV,
                     freshen, substPlusOf) where
 
 import String
@@ -18,6 +19,9 @@ import PreludeGenerated as Prelude
 
 isPreludeLoc : Loc -> Bool
 isPreludeLoc (k,_,_) = k < initK
+
+isPreludeEId : EId -> Bool
+isPreludeEId k = k < initK
 
 ------------------------------------------------------------------------------
 

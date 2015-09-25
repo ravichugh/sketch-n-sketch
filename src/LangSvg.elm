@@ -80,7 +80,7 @@ type AVal_
   | ATransform (List TransformCmd)
 
 -- these versions are for when the VTrace doesn't matter
-aVal          = flip AVal (-1)
+aVal          = flip AVal [-1]
 aNum          = aVal << ANum
 aString       = aVal << AString
 aTransform    = aVal << ATransform
@@ -154,12 +154,12 @@ toTransformRot a = case a.av_ of
 -- TODO will need to change AVal also
 --   and not insert dummy VTraces (using the v* functions)
 
-valToAttr v1 = case v1.v_ of
-  VList vs -> case List.map .v_ vs of
-    [VBase (String k), v] ->
+valToAttr v = case v.v_ of
+  VList [v1,v2] -> case (v1.v_, v2.v_) of
+    (VBase (String k), v2_) ->
      -- NOTE: Elm bug? undefined error when shadowing k (instead of choosing k')
      let (k',av_) =
-      case (k, v) of
+      case (k, v2_) of
         ("points", VList vs)    -> (k, APoints <| List.map valToPoint vs)
         ("fill", VList vs)      -> (k, ARgba <| valToRgba vs)
         ("fill", VConst it)     -> (k, AColorNum it)
@@ -169,7 +169,7 @@ valToAttr v1 = case v1.v_ of
         (_, VConst it)          -> (k, ANum it)
         (_, VBase (String s))   -> (k, AString s)
      in
-     (k', AVal av_ v1.vtrace)
+     (k', AVal av_ v2.vtrace)
 
         -- TODO "stroke" AColorNum
 
