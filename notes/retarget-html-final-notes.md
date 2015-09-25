@@ -7,10 +7,31 @@ output. Further, this document will hope
 ## Target Goals
 
 * Basically future objectives
+* Insert further future objectives here
+* Allow for flow / snapping zone interaction as seen in Javascript/SASS [Layout Grid](https://clippings.github.io/layout-grid/)
 
 ## Theory
 
 In this section we explain each of the concepts we wanted to employ as well as the rationale behind each one.
+
+#### Re-orient the Sketch-n-sketch SVG tool to Dorian, an HTML/CSS tool
+1. Rationale:
+	* The existing Sketch-n-sketch architecture opens up possibilities for manipulation of other file types
+2. Implementation:
+	* Retooled LangSvg.elm to LangHtml.elm, consisting mostly of:
+		* Changing all functions arguments that dealt with Svg nodes to Html nodes
+		* Changed buildSvg function to buildHtml (See InterfaceView2.elm line 125)
+		* Changed display canvas to be an embedded iframe (See InterfaceView2.elm line 128)
+
+#### Rebuilt Basic Zone Implementation
+1. Rationale:
+	* Zones were originally implemented as Svg's, with the switch to Html, zones were switched as well.
+2. Implementation:
+	* Removed / Commented out existing zone implementation in the second half of InterfaceView2 & InterfaceController
+	* Added new basic zone creation functions into InterfaceView2.elm (see lines ~212-270)
+	* Basic Zones implemented for divs, imgs, tables.
+
+### 
 
 ### Element Abstraction
 
