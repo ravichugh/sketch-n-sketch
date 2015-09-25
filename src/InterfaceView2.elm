@@ -280,24 +280,47 @@ zoneBoxModel options id node x y w h m =
     _              -> []
 
 rotZoneBox = 20
+movZoneBox = 40
 
-zoneBox htmlFunc id node zoneName flag show otherAttrs =
-    zone htmlFunc id node zoneName
+-- Generates a zone with the node function htmlFunc and extra attributes l
+-- Example: zone Html.div ID Node Zone [ Attr.width 100, ... ]
+toggle htmlFunc id node zoneName sign l =
+  htmlFunc (zoneEvents id node zoneName ++ l) [(Html.text sign)]
+
+zoneBox htmlFunc id node zoneName flag show sign color otherAttrs =
+    toggle htmlFunc id node zoneName sign
       <| LangHtml.compileAttrs <|
            [ cursorOfZone zoneName
+           , ("background-color", LangHtml.AString (toString color ++ "px"))
            ] ++ otherAttrs
 
 zoneBoxModel_ options id node x y w h attrs =
+  let
+    checkZone c = case c of
+      "Interior" -> "#81BEF7"
+      "Padding"  -> "#DF7401"
+      "Margin"   -> "#74DF00"
+  in
   let mk zone x_ y_ w_ h_ =
     --TODO: change showBasic
-    zoneBox Html.button id node zone True options.showBasic 
+    [
+    zoneBox Html.button id node zone True options.showBasic "-" (checkZone zone) 
       <|  [ ("top", LangHtml.AString (toString (y_ + rotZoneBox) ++ "px"))
           , ("left", LangHtml.AString (toString x_ ++ "px"))
-          , ("width", LangHtml.AString "60px")
+          , ("width", LangHtml.AString "40px")
           , ("height", LangHtml.AString "20px")
           , ("position", LangHtml.AString "absolute")
           , ("onclick", LangHtml.AString "alert('Increment Padding/Margin')")
-          ] in
+          ] 
+    ,  zoneBox Html.button id node zone True options.showBasic "+" (checkZone zone)
+      <|  [ ("top", LangHtml.AString (toString (y_ + rotZoneBox) ++ "px"))
+          , ("left", LangHtml.AString (toString (x_ + movZoneBox) ++ "px"))
+          , ("width", LangHtml.AString "40px")
+          , ("height", LangHtml.AString "20px")
+          , ("position", LangHtml.AString "absolute")
+          , ("onclick", LangHtml.AString "alert('Increment Padding/Margin')")
+          ]
+    ] in
   let
     [padding, margin] = List.map (toNum << Utils.find_ attrs) ["padding", "margin"]
     --TODO: Add back border as one of manipulatable zones
@@ -308,9 +331,10 @@ zoneBoxModel_ options id node x y w h attrs =
     [xp,yp,wp,hp] = List.map (\t -> (2*padding)+t) [x, y, w, h]
     [xm,ym,wm,hm] = List.map (\t -> (2*margin)+t) [xp, yp, wp, hp]
   in
+    List.concat
     [ mk "Interior"       x1 y1 w h
-    , mk "PaddingEdge"    xp yp wp hp
-    , mk "MarginEdge"     xm ym wm hm
+    , mk "Padding"    xp yp wp hp
+    , mk "Margin"     xm ym wm hm
     ]
 
 --makeTableZones options node id attrs =
