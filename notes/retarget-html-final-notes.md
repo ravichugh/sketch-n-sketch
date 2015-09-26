@@ -166,6 +166,14 @@ This section explains the implementation details of the above concepts.
 
 Currently, we only have one implementation of Flow in one example (ordering). This section will be updated when its syntax is finalized.
 
+The syntax guidelines that we have been going with have been that all information that is needed for the flow should be passed in the form of separate arguments, if possible. So, for a `flowDown` function an appropriate type signature would be:
+
+```
+flowDown : Spacing (Int) -> Initial Offset (Int) -> List Elements
+```
+
+Where the `flowDown` function is meant to flow elements down vertically starting from a `y` offset and space them out according the the spacing argument. There is just enough information passed to the function to get the job done with a minimum of attributes assumed about the inputs.
+
 ### Collection of CSS Styles
 
 CSS styles are collected at the `printHtml` phase of the rendering process. Namely, in `printNode` here:
