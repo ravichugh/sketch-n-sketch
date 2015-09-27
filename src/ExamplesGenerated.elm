@@ -259,20 +259,72 @@ order =
   ([] [])
   ([[k1 v1] | rest] (if (= k1 key) [[key val] | rest] 
                                    [[k1 v1] | (replaceAttr [key val] rest)]) ) ) ) )
-(def orderDivs (\\([name1 attrs1 children1] [name2 attrs2 children2] snap1 snap2)
+(def orderDivs (\\([name1 attrs1 children1] [name2 attrs2 children2])
   (let left1 (findAttrVal 'left' attrs1)
   (let left2 (findAttrVal 'left' attrs2)
-  (if (< left2 
-         (+ left1 (+ (findAttrVal 'width' attrs1) 10!)))
+  (if (< (- (+ left1 (findAttrVal 'width' attrs1)) left2) 10!)
       (if (< (findAttrVal 'left' attrs1) (findAttrVal 'left' attrs2) )
-             [[name2 (replaceAttr ['left' (* (/ left2 left2) snap1)] attrs2) children2]
-              [name1 (replaceAttr ['left' (* (/ left1 left1) snap2)] attrs1) children1]]
-             [[name1 (replaceAttr ['left' (* (/ left1 left1) snap1)] attrs1) children1]
-              [name2 (replaceAttr ['left' (* (/ left2 left2) snap2)] attrs2) children2]] )
-      [[name1 attrs1 children1] [name2 attrs2 children2]]  ) ) ) ) )
+          [[name2 (replaceAttr ['left' (- left1 50!)] attrs2) children2]
+           [name1 (replaceAttr ['left' (+ left2 50!)] attrs1) children1]]
+          [[name1 (replaceAttr ['left' (- left2 50!)] attrs1) children1]
+           [name2 (replaceAttr ['left' (+ left1 50!)] attrs2) children2]] )
+      (if (< (- (+ left2 (findAttrVal 'width' attrs2)) left1) 10!)
+          (if (< (findAttrVal 'left' attrs1) (findAttrVal 'left' attrs2) )
+              [[name2 (replaceAttr ['left' (- left1 50!)] attrs2) children2]
+               [name1 (replaceAttr ['left' (+ left2 50!)] attrs1) children1]]
+              [[name1 (replaceAttr ['left' (- left2 50!)] attrs1) children1]
+               [name2 (replaceAttr ['left' (+ left1 50!)] attrs2) children2]] )
+          [[name1 attrs1 children1] [name2 attrs2 children2]] ) ) ) ) ) )
 (def box1 (box 100 100! 'lightblue'))
 (def box2 (box 400 100! 'tomato') )
-(basicDoc [] (orderDivs box1 box2 100! 400!))
+(basicDoc [] (orderDivs box1 box2))  
+
+"
+
+orderWithSliders =
+ "; An ordering function that has a slider to determine the ordering
+(def [boxwd boxht sliderht slidercol] [150! 150! 10! 'rgba(84,84,84,0.5)'])
+(def box (\\(left top col)
+  (eStyle [ [ 'left' left ] 
+            [ 'top' top   ] 
+            [ 'background-color' col ] 
+            [ 'position' 'absolute'          ] ] 
+          (eDiv boxwd boxht []) ) ) )
+(defrec findAttrVal (\\(str list) (case list
+  ([] hrHt)
+  ([ [ key val ] | rest ] (if (= str key) val (findAttrVal str rest))) ) ) )
+(defrec replaceAttr (\\([key val] list) (case list
+  ([] [])
+  ([[k1 v1] | rest] (if (= k1 key) [[key val] | rest] 
+                                   [[k1 v1] | (replaceAttr [key val] rest)]) ) ) ) )
+(def abs (\\num (if (< num 0!)
+                   (* -1! num)
+                   num) ) )
+(def pickSmaller (\\(num1 num2) (if (< num1 num2) num1 num2)))
+(def orderDivs (\\([name1 attrs1 children1] [name2 attrs2 children2] curPos)
+  (let left1 (findAttrVal 'left' attrs1)
+  (let left2 (findAttrVal 'left' attrs2)
+  (let top1 (findAttrVal 'top' attrs1)  
+  (let top2 (findAttrVal 'top' attrs2)
+  (let width1 (findAttrVal 'width' attrs1)
+  (let width2 (findAttrVal 'width' attrs2)
+  (let height1 (findAttrVal 'height' attrs1) 
+  (let height2 (findAttrVal 'height' attrs2)
+  (let sliderBar (eStyle [ [ 'top'  (+ top1  (/ height1 2!)) ]
+                           [ 'left' (+ (pickSmaller left1 left2) (/ width1 2!)) ] 
+                           [ 'position' 'absolute' ]
+                           [ 'background-color' slidercol ] ]
+                 (eDiv (abs (- left1 left2))
+                       sliderht []) )
+  (let sliderTick (eStyle [ [ 'top' (- (+ top1 (/ height1 2!)) sliderht) ]
+                            [ 'left' (+ (+ (pickSmaller left1 left2) (/ width1 2!)) (/ (abs (- left1 left2)) 2!)) ]
+                            [ 'position' 'absolute' ]
+                            [ 'background-color' slidercol] ]
+                          (eDiv sliderht (* 3! sliderht) []) )
+  [[name1 attrs1 children1] [name2 attrs2 children2] sliderBar sliderTick] ) ) ) ) ) ) ) ) ) ) ) )
+(def box1 (box 100 100! 'lightblue'))
+(def box2 (box 400 100! 'tomato'))
+(basicDoc [] (orderDivs box1 box2 0))
 
 "
 
@@ -288,7 +340,8 @@ examples =
   , makeExample "Complex Table" complextable
   , makeExample "Simple Hover" hover
   , makeExample "Basic Page" basicPage
-  , makeExample "Ordering" order
+  , makeExample "Ordering A" order
+  , makeExample "Ordering B" orderWithSliders
   ]
 
 list = examples -- ++ MicroTests.sampleTests
