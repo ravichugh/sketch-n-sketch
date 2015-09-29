@@ -789,43 +789,50 @@ dummyFrozenLoc = dummyLoc_ frozen
 
 relate : Int -> Exp -> List Val -> (Int, List (Exp, Val))
 relate k0 e vs =
-  let (k1,l1) = relateRule1 k0 e vs in
-  let (k2,l2) = relateRule2 k1 e vs in
-  (k2, l1 ++ l2)
+  let (k1,l1) = relateNums k0 e vs in
+  (k1, l1)
 
-relateRule1 genSymK e vs =
+type alias NTT = (NumTr, VTrace)
+
+relateNums genSymK e vs =
   let noResults = (genSymK, []) in
   let foo v = case v.v_ of
-    VConst nt -> Just nt
+    VConst nt -> Just (nt, v.vtrace)
     _         -> Nothing
   in
   case Utils.projJusts (List.map foo vs) of
-    Nothing  -> noResults
-    Just []  -> noResults
-    Just nts -> relateNumsWithVar genSymK e nts
+    Nothing   -> noResults
+    Just []   -> noResults
+    Just ntts ->
+      -- not sorting ntts here right now
+      let (k1,l1) = relateNumsWithVar genSymK e (List.map fst ntts) in
+      let (k2,l2) = relateBaseOffset k1 e ntts in
+      (k2, l1 ++ l2)
 
-relateRule2 genSymK e vs =
+relateBaseOffset : Int -> Exp -> List NTT -> (Int, List (Exp, Val))
+relateBaseOffset genSymK e ntts_ =
+  -- sorting by the number, so that base is always first
+  let ntts = List.sortBy (fst << fst) ntts_ in
   let noResults = (genSymK, []) in
-  let projBase v = case v.v_ of
-    VConst (_, TrLoc (_,_,"")) -> Nothing
-    VConst (_, TrLoc loc)      -> Just loc
-    _                          -> Nothing
+  let projBase t = case snd (fst t) of
+    TrLoc (_,_,"") -> Nothing
+    TrLoc loc      -> Just loc
   in
-  let projBaseOff baseLoc v = case v.v_ of
+  let projBaseOff baseLoc ntt = case ntt of
     -- TODO check that t2 is a constant (loc w/o var)
-    VConst (_, TrOp Plus [TrLoc loc, t2]) -> if
-      | loc == baseLoc -> Just v.vtrace
+    ((_, TrOp Plus [TrLoc loc, t2]), vtrace) -> if
+      | loc == baseLoc -> Just vtrace
       | otherwise      -> Nothing
     _ -> Nothing
   in
-  case vs of
+  case ntts of
     [] -> noResults
-    v0::vs' ->
-      case projBase v0 of
+    ntt0::ntts' ->
+      case projBase ntt0 of
         Nothing -> noResults
         Just baseLoc ->
           let (_,_,baseVar) = baseLoc in
-          case Utils.projJusts (List.map (projBaseOff baseLoc) vs') of
+          case Utils.projJusts (List.map (projBaseOff baseLoc) ntts') of
             Nothing -> noResults
             Just vtraces ->
               let esubst =
