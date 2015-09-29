@@ -787,22 +787,25 @@ inferCircleOfCircles groupBox _ _ v' =
 
 dummyFrozenLoc = dummyLoc_ frozen
 
-relate : Int -> Exp -> List Val -> Maybe (Int, Exp, Val)
-relate k e vs =
-  relateRule1 k e vs `Utils.plusMaybe`
-  relateRule2 k e vs
+relate : Int -> Exp -> List Val -> (Int, List (Exp, Val))
+relate k0 e vs =
+  let (k1,l1) = relateRule1 k0 e vs in
+  let (k2,l2) = relateRule2 k1 e vs in
+  (k2, l1 ++ l2)
 
 relateRule1 genSymK e vs =
+  let noResults = (genSymK, []) in
   let foo v = case v.v_ of
     VConst nt -> Just nt
     _         -> Nothing
   in
-  Utils.projJusts (List.map foo vs) `justBind` (\nts ->
-    if nts == [] then Nothing
-    else relateNumsWithVar genSymK e nts
-  )
+  case Utils.projJusts (List.map foo vs) of
+    Nothing  -> noResults
+    Just []  -> noResults
+    Just nts -> relateNumsWithVar genSymK e nts
 
 relateRule2 genSymK e vs =
+  let noResults = (genSymK, []) in
   let projBase v = case v.v_ of
     VConst (_, TrLoc (_,_,"")) -> Nothing
     VConst (_, TrLoc loc)      -> Just loc
@@ -816,103 +819,107 @@ relateRule2 genSymK e vs =
     _ -> Nothing
   in
   case vs of
-    [] -> Nothing
+    [] -> noResults
     v0::vs' ->
-      projBase v0 `justBind` (\baseLoc ->
-      let (_,_,baseVar) = baseLoc in
-      Utils.projJusts (List.map (projBaseOff baseLoc) vs') `justBind` (\vtraces ->
-        let esubst =
-          let foo is acc =
-            case Utils.findFirst (not << Parser.isPreludeEId) is of
-              Nothing -> acc
-              Just i  -> Dict.insert i (EVar baseVar) acc
-          in
-          List.foldl foo Dict.empty vtraces
-        in
-        -- let _ = Debug.log "applied" (toString (Dict.toList esubst)) in
-        let eNew = applyESubst esubst e in
-        let vNew = Eval.run eNew in
-        Just (genSymK, eNew, vNew)
-      ))
+      case projBase v0 of
+        Nothing -> noResults
+        Just baseLoc ->
+          let (_,_,baseVar) = baseLoc in
+          case Utils.projJusts (List.map (projBaseOff baseLoc) vs') of
+            Nothing -> noResults
+            Just vtraces ->
+              let esubst =
+                let foo is acc =
+                  case Utils.findFirst (not << Parser.isPreludeEId) is of
+                    Nothing -> acc
+                    Just i  -> Dict.insert i (EVar baseVar) acc
+                in
+                List.foldl foo Dict.empty vtraces
+              in
+              -- let _ = Debug.log "applied" (toString (Dict.toList esubst)) in
+              let eNew = applyESubst esubst e in
+              let vNew = Eval.run eNew in
+              (genSymK, [(eNew, vNew)])
 
-relateNumsWithVar : Int -> Exp -> List NumTr -> Maybe (Int, Exp, Val)
+relateNumsWithVar : Int -> Exp -> List NumTr -> (Int, List (Exp, Val))
 relateNumsWithVar genSymK e nts =
+  let noResults = (genSymK, []) in
   let gensym = "gensym" ++ toString genSymK in
   let ((n0,t0)::rest) = List.sortBy fst nts in
   case (t0, rest) of
-    (TrOp _ _, _) -> Nothing
-    (TrLoc _, []) -> Nothing
+    (TrOp _ _, _) -> noResults
+    (TrLoc _, []) -> noResults
     (TrLoc l0, _) ->
-      let esubstMaybe =
+      let esubstAndNumsMaybe =
         let foo (ni,ti) acc =
-          case (acc, ti, n0 == ni) of
-            (Nothing, _, _)           -> Nothing
-            (Just _, TrOp _ _, _)     -> Nothing
-            (Just d, TrLoc li, True)  ->
-              let e__ = EVar gensym in
-              Just (Dict.insert (Utils.fst3 li) e__ d)
-            (Just d, TrLoc li, False) ->
+          case (acc, ti) of
+            (Nothing, _)       -> Nothing
+            (Just _, TrOp _ _) -> Nothing
+            (Just (d,all,someDiffLoc), TrLoc li) ->
               let e__ =
-                (ePlus (eVar <| " " ++ gensym ++ " ") -- TODO spacing hack...
-                       (eConst (ni-n0) dummyFrozenLoc)).val.e__ in
-              Just (Dict.insert (Utils.fst3 li) e__ d)
+                if n0 == ni
+                then EVar gensym
+                else
+                  (ePlus (eVar <| " " ++ gensym ++ " ") -- TODO spacing hack...
+                         (eConst (ni-n0) dummyFrozenLoc)).val.e__
+              in
+              let someDiffLoc' = someDiffLoc || li /= l0 in
+              Just (Dict.insert (Utils.fst3 li) e__ d, ni::all, someDiffLoc')
         in
-        let init = Dict.singleton (Utils.fst3 l0) (EVar gensym) in
+        let init = (Dict.singleton (Utils.fst3 l0) (EVar gensym), [n0], False) in
         List.foldl foo (Just init) rest
       in
-      esubstMaybe `justBind` (\esubst ->
-      let eNew =
-        applyESubst esubst e
-          |> Un.unparseE
-          |> (++) ("(def " ++ gensym ++ " " ++ toString n0 ++ ")\n")
-          |> Parser.parseE
-          |> Utils.fromOk "Sync.relate"
-      in
-      let vNew = Eval.run eNew in
-      Just (1 + genSymK, eNew, vNew)
-      )
+      case esubstAndNumsMaybe of
+        Nothing -> noResults
+        Just (eSubst1, allNums, someDiffLoc) ->
+          let mkAnswer esubst gensymVal =
+            let eNew =
+              applyESubst esubst e
+                |> Un.unparseE
+                |> (++) ("(def " ++ gensym ++ " " ++ gensymVal ++ ")\n")
+                |> Parser.parseE
+                |> Utils.fromOk "Sync.relate"
+            in
+            let vNew = Eval.run eNew in
+            (eNew, vNew)
+          in
+          let ans1 =
+            if someDiffLoc
+            then [mkAnswer eSubst1 (toString n0)]
+            else []
+          in
+          let ans2 =
+            if Utils.allSame allNums then []
+            else
+              let nAvg = Utils.avg allNums in
+              let eSubst2 = Dict.map (\_ _ -> EVar gensym) eSubst1 in
+              let eAvg = strInferred "'average of'" (toString nAvg) (List.map toString allNums) in
+              [mkAnswer eSubst2 eAvg]
+          in
+          (1 + genSymK, ans1 ++ ans2)
 
-{-
-inferRelatedPoints : Int -> Exp -> Val -> Val -> Maybe (Int, Exp, Val)
-inferRelatedPoints genSymK e _ v' =
-  stripChildren ((==) "svg") v' `justBind` (\shapes ->
-  let mCircles = List.map (stripAttrs ((==) "circle")) shapes in
-  Utils.projJusts mCircles `justBind` (\circles ->
-  Utils.projJusts (List.map (getAttrs ("SELECTED" :: basicCircleAttrs)) circles) `justBind` (\attrLists ->
-    let selectedAttrs =
-      let foo [selected,cx,cy,r,fill] acc =
-        case selected.v_ of
-          VBase (String "") -> acc
-          VBase (String s) ->
-            let goo k = case k of {"cx" -> cx; "cy" -> cy; "r" -> r} in
-            List.map goo (String.split " " s) ++ acc
-      in
-      List.foldl foo [] attrLists
-    in
-    relateWithVar genSymK e selectedAttrs
-  )))
--}
-
-inferRelated : Int -> Exp -> Val -> Val -> Maybe (Int, Exp, Val)
+inferRelated : Int -> Exp -> Val -> Val -> (Int, List (Exp, Val))
 inferRelated genSymK e _ v' =
-  stripChildren ((==) "svg") v' `justBind` (\canvas ->
-  let mShapes = List.map (stripAttrs (always True)) canvas in
-  let shapes = Utils.filterJusts mShapes in
-  let selectedAttrs =
-    let foo attrList acc =
-      case getAttr attrList "SELECTED" of
-        Nothing -> acc
-        Just s  ->
-          case s.v_ of
-            VBase (String "") -> acc
-            VBase (String s)  ->
-              let goo k = Utils.fromJust_ "inferRelated" (getAttr attrList k) in
-              List.map goo (String.split " " s) ++ acc
-    in
-    List.foldl foo [] shapes
-  in
-  relate genSymK e selectedAttrs
-  )
+  let noResults = (genSymK, []) in
+  case stripChildren ((==) "svg") v' of
+    Nothing -> noResults
+    Just canvas ->
+      let mShapes = List.map (stripAttrs (always True)) canvas in
+      let shapes = Utils.filterJusts mShapes in
+      let selectedAttrs =
+        let foo attrList acc =
+          case getAttr attrList "SELECTED" of
+            Nothing -> acc
+            Just s  ->
+              case s.v_ of
+                VBase (String "") -> acc
+                VBase (String s)  ->
+                  let goo k = Utils.fromJust_ "inferRelated" (getAttr attrList k) in
+                  List.map goo (String.split " " s) ++ acc
+        in
+        List.foldl foo [] shapes
+      in
+      relate genSymK e selectedAttrs
 
 inferNewRelationships e v v' =
      maybeToMaybeOne (inferRelatedRectsX e v v')

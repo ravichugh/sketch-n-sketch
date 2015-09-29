@@ -289,10 +289,9 @@ upstate evt old = case debugLog "Event" evt of
             , revert)
           in
             case (local, relatedV) of
-              (Ok [], Nothing) -> { old | mode <- mkLive_ old.syncOptions ip  }
-              (Ok [], Just (nextK, eNew, vNew)) ->
+              (Ok [], (_, [])) -> { old | mode <- mkLive_ old.syncOptions ip }
+              (Ok [], (nextK, l2)) ->
                 let _ = debugLog ("no live updates, only related var") () in
-                let l2 = [(eNew,vNew)] in
                 let m = SyncSelect (old.code, old.slate) 0 (mkOptions [] l2 revert) in
                 upstate (TraverseOption 1) { old | mode <- m, genSymCount <- nextK }
               (Ok l, _) ->
