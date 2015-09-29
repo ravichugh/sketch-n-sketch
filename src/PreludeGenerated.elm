@@ -128,9 +128,10 @@ prelude =
 (def mapi (\\(f xs) (map f (zip (range 0 (- (len xs) 1)) xs))))
 
 (defrec nth (\\(xs n)
-  (case xs
-    ([]      'ERROR: nth')
-    ([x|xs1] (if (= n 0) x (nth xs1 (- n 1)))))))
+  (if (< n 0)   'ERROR: nth'
+    (case xs
+      ([]       'ERROR: nth')
+      ([x|xs1]  (if (= n 0) x (nth xs1 (- n 1))))))))
 
 (defrec take (\\(xs n)
   (if (= n 0) []
@@ -472,9 +473,9 @@ prelude =
 
 (def enumSlider (\\(x0 x1 y enum caption srcVal)
   (let n (len enum)
-  (let [minVal maxVal] [0! (- n 1!)]
+  (let [minVal maxVal] [0! n]
   (let preVal (clamp minVal maxVal srcVal)
-  (let i (round preVal)
+  (let i (floor preVal)
   (let item (nth enum i)
   (let wrap (\\circ (addAttr circ ['SELECTED' ''])) ; TODO
   (let shapes
@@ -487,9 +488,9 @@ prelude =
     (let endpoints
       [ (wrap (circle 'black' x0 y 4!)) (wrap (circle 'black' x1 y 4!)) ]
     (let tickpoints
-      (let sep (/ (- x1 x0) (+ n 1!))
-      (map (\\i (wrap (circle 'grey' (+ (+ x0 sep) (mult i sep)) y 4!)))
-           (range 0! (- n 1!))))
+      (let sep (/ (- x1 x0) n)
+      (map (\\j (wrap (circle 'grey' (+ x0 (mult j sep)) y 4!)))
+           (range 1! (- n 1!))))
     (let label [ (text (+ x1 10!) (+ y 5!) (+ caption (toString item))) ]
     (concat [ rail endpoints tickpoints ball label ]))))))
   [item shapes])))))))))
