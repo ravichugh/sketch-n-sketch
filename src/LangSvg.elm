@@ -460,6 +460,8 @@ addAttrs kind attrs =
   if | kind == "svg" -> ("xmlns", aString "http://www.w3.org/2000/svg") :: attrs
      | otherwise     -> attrs
 
+-- TODO remove 'zones' attr
+
 
 ------------------------------------------------------------------------------
 -- Zones
