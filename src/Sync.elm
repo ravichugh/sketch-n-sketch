@@ -726,8 +726,8 @@ sortCirclesByCX = List.sortBy (valToNum << Utils.fromJust << flip getAttr "cx")
 inferCircleOfCircles : Bool -> Exp -> Val -> Val -> Maybe (Exp, Val)
 inferCircleOfCircles groupBox _ _ v' =
   stripChildren ((==) "svg") v' `justBind` (\shapes ->
-  let mRects = List.map (stripAttrs ((==) "circle")) shapes in
-  Utils.projJusts mRects `justBind` (\circles_ ->
+  let mCircles = List.map (stripAttrs ((==) "circle")) shapes in
+  Utils.projJusts mCircles `justBind` (\circles_ ->
   let circles = sortCirclesByCX circles_ in
   Utils.projJusts (List.map getBasicCircleAttrs circles) `justBind` (\attrLists ->
     let n = List.length attrLists in
@@ -777,6 +777,97 @@ inferCircleOfCircles groupBox _ _ v' =
       "  (let rot     " ++ toString rot ++ "!"                  `nl`
       "  (let indices " ++ indices                              `nl`
             theShapes ++ ")))))))"                              `nl`
+      ""                                                        `nl`
+      "(svg newGroup)"
+    in
+    let eNew = Utils.fromOk_ <| Parser.parseE s in
+    let vNew = Eval.run eNew in
+    Just (eNew, vNew)
+  )))
+
+basicLineAttrs     = ["x1","y1","x2","y2","stroke","stroke-width"]
+getBasicLineAttrs  = getAttrs basicLineAttrs
+
+unzipBasicLineAttrs attrLists =
+  List.map (pluckOut attrLists) [1 .. List.length basicLineAttrs]
+
+type Corner = TL | TR | BL | BR
+
+nearestCorner : (Num,Num) -> List (Corner, (Num,Num)) -> (Corner, (Num,Num))
+nearestCorner pt l0 =
+  let l1 = List.map (\(corner,cornerPt) -> ((corner, cornerPt), Utils.distance pt cornerPt)) l0 in
+  let l2 = List.sortBy snd l1 in
+  fst (Utils.head_ l2)
+
+relativeTo (x',y') (corner,(x,y)) =
+  let sx = case corner of
+    TL -> Utils.parens ("+ x0 " ++ toString (x' - x) ++ "!")
+    BL -> Utils.parens ("+ x0 " ++ toString (x' - x) ++ "!")
+    _  -> Utils.parens ("- xw " ++ toString (x - x') ++ "!")
+  in
+  let sy = case corner of
+    TL -> Utils.parens ("+ y0 " ++ toString (y' - y) ++ "!")
+    TR -> Utils.parens ("+ y0 " ++ toString (y' - y) ++ "!")
+    _  -> Utils.parens ("- yh " ++ toString (y - y') ++ "!")
+  in
+  (sx, sy)
+
+inferGroupOfLines : Exp -> Val -> Val -> Maybe (Exp, Val)
+inferGroupOfLines _ _ v' =
+  stripChildren ((==) "svg") v' `justBind` (\shapes ->
+  let mLines = List.map (stripAttrs ((==) "line")) shapes in
+  Utils.projJusts mLines `justBind` (\lines ->
+  Utils.projJusts (List.map getBasicLineAttrs lines) `justBind` (\attrLists_ ->
+    -- let attrLists = List.map (List.map valToNum) attrLists_ in
+    let attrLists =
+      List.map
+         (\[v1,v2,v3,v4,v5,v6] -> (List.map valToNum [v1,v2,v3,v4], [v5,v6]))
+         attrLists_ in
+    let (x0,maxX,y0,maxY) =
+      let foo ([x1,y1,x2,y2],_) (minX,maxX,minY,maxY) =
+        let minX' = if min x1 x2 < minX then min x1 x2 else minX in
+        let maxX' = if max x2 x2 > maxX then max x1 x2 else maxX in
+        let minY' = if min y1 y2 < minY then min y1 y2 else minY in
+        let maxY' = if max y2 y2 > maxY then max y1 y2 else maxY in
+        (minX', maxX', minY', maxY')
+      in
+      let min_ = 99999 in
+      let max_ = -1 * max_ in
+      List.foldl foo (min_, max_, min_, max_) attrLists
+    in
+    let (w,h) = (maxX - x0, maxY - y0) in
+    let (xTL,xTR,xBL,xBR) = (x0, x0 + w, x0, x0 + w) in
+    let (yTL,yTR,yBL,yBR) = (y0, y0, y0 + h, y0 + h) in
+    let corners = [ (TL, (xTL,yTL))
+                  , (TR, (xTR,yTR))
+                  , (BL, (xBL,yBL))
+                  , (BR, (xBR,yBR)) ] in
+    let newLines =
+      let goo ([x1,y1,x2,y2],[stroke,sw]) acc =
+        let (x1',y1') = relativeTo (x1,y1) <| nearestCorner (x1,y1) corners in
+        let (x2',y2') = relativeTo (x2,y2) <| nearestCorner (x2,y2) corners in
+        let blah =
+          Utils.parens (Utils.spaces ["line", strVal stroke, strVal sw, x1', y1', x2', y2']) in
+        blah :: acc
+      in
+      List.foldr goo [] attrLists
+    in
+    let sBounds = Utils.bracks (Utils.spaces (List.map toString [x0,y0,w,h])) in
+    let s =
+      "(def newGroup"                                           `nl`
+      "  (let [x0 y0 w h]       " ++ sBounds                    `nl`
+      "  (let [xw yh]           " ++ "[(+ x0 w) (+ y0 h)]"      `nl`
+      "  (let padding           " ++ "10!"                      `nl`
+      "  (let [xTL xTR xBL xBR] " ++ "[x0 xw x0 xw]"            `nl`
+      "  (let [yTL yTR yBL yBR] " ++ "[y0 y0 yh yh]"            `nl`
+      "  (let box"                                              `nl`
+      "    (let [gx gy] [(- x0 padding) (- y0 padding)]"        `nl`
+      "    (let gw (+ w (mult 2! padding))"                     `nl`
+      "    (let gh (+ h (mult 2! padding))"                     `nl`
+      "      (rect 'lightgray' gx gy gw gh))))"                 `nl`
+      "  (let lines"                                            `nl`
+      "    " ++ Utils.bracks (String.join "\n     " newLines)   `nl`
+      "  (cons box lines)))))))))"                              `nl`
       ""                                                        `nl`
       "(svg newGroup)"
     in
@@ -933,6 +1024,7 @@ inferNewRelationships e v v' =
   ++ maybeToMaybeOne (inferRelatedRectsY e v v')
   ++ maybeToMaybeOne (inferCircleOfCircles False e v v')
   -- ++ maybeToMaybeOne (inferCircleOfCircles True e v v')
+  ++ maybeToMaybeOne (inferGroupOfLines e v v')
 
 relateSelectedAttrs genSymK e v v' =
   inferRelated genSymK e v v'

@@ -1,0 +1,6 @@
+(svg [
+  (line 'darkred' 5 109 274 301 95)
+  (line 'darkgreen' 5 202 100 189 288)
+  (line 'darkblue' 5 100 100 291 282)
+  (line 'salmon' 5 93 178 310 206)
+])

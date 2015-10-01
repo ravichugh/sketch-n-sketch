@@ -2070,6 +2070,16 @@ relateCircles0 =
 
 "
 
+relateLines0 =
+ "(svg [
+  (line 'darkred' 5 109 274 301 95)
+  (line 'darkgreen' 5 202 100 189 288)
+  (line 'darkblue' 5 100 100 291 282)
+  (line 'salmon' 5 93 178 310 206)
+])
+
+"
+
 relatePoints0 =
  "
 (def pt1 (circle 'red' 88 90 10))
@@ -2209,6 +2219,7 @@ examples =
   , makeExample "RelateRects0" relateRects0
   , makeExample "RelateRects1" relateRects1
   , makeExample "RelateCircles0" relateCircles0
+  , makeExample "RelateLines0" relateLines0
   , makeExample "RelatePoints0" relatePoints0
   , makeExample "RelatePoints1" relatePoints1
   , makeExample "RelatePoints2" relatePoints2
