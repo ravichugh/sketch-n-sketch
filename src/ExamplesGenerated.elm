@@ -2017,6 +2017,15 @@ relateRects0 =
 
 "
 
+relateRects1 =
+ "(svg [
+  (addAttr (rect 'maroon' 49 106 124 86) ['rx' 20])
+  (addAttr (addAttr (rect 'blue' 214 91 125 102) ['rx' 10]) ['ry' 30])
+  (rect 'lightgray' 378 231 91 98)
+])
+
+"
+
 relateCircles0 =
  "(svg (map (\\i (circle 'lightblue' (+ 42 (* i 60)) 98 30)) [|0..6|]))
 
@@ -2027,11 +2036,13 @@ relatePoints0 =
 (def pt1 (circle 'red' 88 90 10))
 (def pt2 (circle 'green' 121 142 10))
 (def pt3 (circle 'blue' 153 212 10))
+(def line1 (line 'darkblue' 8 95 306 230 288))
 
 (svg [
   (addAttr pt1 ['SELECTED' 'cy'])
   (addAttr pt2 ['SELECTED' 'cy'])
   (addAttr pt3 ['SELECTED' ''])
+  (addAttr line1 ['SELECTED' ''])
 ])
 
 "
@@ -2149,6 +2160,7 @@ relatePoints3 =
 
 "
 
+-- LITTLE_TO_ELM relatePoints4
 
 examples =
   [ makeExample scratchName scratch
@@ -2156,11 +2168,13 @@ examples =
 
   -- up here during ad-hoc development
   , makeExample "RelateRects0" relateRects0
+  , makeExample "RelateRects1" relateRects1
   , makeExample "RelateCircles0" relateCircles0
   , makeExample "RelatePoints0" relatePoints0
   , makeExample "RelatePoints1" relatePoints1
   , makeExample "RelatePoints2" relatePoints2
   , makeExample "RelatePoints3" relatePoints3
+  -- , makeExample "RelatePoints4" relatePoints4
 
   , makeExample "3 Boxes" threeBoxes
   , makeExample "N Boxes" groupOfBoxes

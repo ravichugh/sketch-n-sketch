@@ -69,11 +69,13 @@ LITTLE_TO_ELM cover
 LITTLE_TO_ELM poppl
 LITTLE_TO_ELM bezier
 LITTLE_TO_ELM relateRects0
+LITTLE_TO_ELM relateRects1
 LITTLE_TO_ELM relateCircles0
 LITTLE_TO_ELM relatePoints0
 LITTLE_TO_ELM relatePoints1
 LITTLE_TO_ELM relatePoints2
 LITTLE_TO_ELM relatePoints3
+-- LITTLE_TO_ELM relatePoints4
 
 examples =
   [ makeExample scratchName scratch
@@ -81,11 +83,13 @@ examples =
 
   -- up here during ad-hoc development
   , makeExample "RelateRects0" relateRects0
+  , makeExample "RelateRects1" relateRects1
   , makeExample "RelateCircles0" relateCircles0
   , makeExample "RelatePoints0" relatePoints0
   , makeExample "RelatePoints1" relatePoints1
   , makeExample "RelatePoints2" relatePoints2
   , makeExample "RelatePoints3" relatePoints3
+  -- , makeExample "RelatePoints4" relatePoints4
 
   , makeExample "3 Boxes" threeBoxes
   , makeExample "N Boxes" groupOfBoxes

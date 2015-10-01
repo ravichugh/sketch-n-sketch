@@ -1,0 +1,5 @@
+(svg [
+  (addAttr (rect 'maroon' 49 106 124 86) ['rx' 20])
+  (addAttr (addAttr (rect 'blue' 214 91 125 102) ['rx' 10]) ['ry' 30])
+  (rect 'lightgray' 378 231 91 98)
+])
