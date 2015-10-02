@@ -104,9 +104,23 @@ unparse e = case e.val.e__ of
     ++ tok3.val
   EIndList rs ->
     ibracksAndSpaces e.start e.end (List.concat (List.map unparseRange rs))
+{-
   EOp op es ->
     let sOp = { op | val <- strOp op.val } in
     parensAndSpaces e.start e.end (UStr sOp :: List.map UExp es)
+-}
+  EOp op es ->
+    let normal () =
+      let sOp = { op | val <- strOp op.val } in
+      parensAndSpaces e.start e.end (UStr sOp :: List.map UExp es)
+    in
+    -- TODO: hack to fix unparsing issue after Sync.relateNumsWithVar...
+    case (op.val, List.map (.e__ << .val) es) of
+      (Plus, [EVar x, _]) ->
+        case Utils.munchString "gensym" x of
+          Just _  -> sExp e
+          Nothing -> normal ()
+      _           -> normal ()
   EIf e1 e2 e3 ->
     let tok = makeToken (incCol e.start) "if" in
     parensAndSpaces e.start e.end (UStr tok :: List.map UExp [e1,e2,e3])
