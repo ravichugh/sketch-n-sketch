@@ -815,8 +815,12 @@ relativeTo (x',y') (corner,(x,y)) =
 clampX s = Utils.parens ("clampX " ++ s)
 clampY s = Utils.parens ("clampY " ++ s)
 
-inferGroupOfLines : Exp -> Val -> Val -> Maybe (Exp, Val)
-inferGroupOfLines _ _ v' =
+placeX n = Utils.parens ("placeX " ++ toString n ++ "!")
+placeY n = Utils.parens ("placeY " ++ toString n ++ "!")
+
+-- True: elastic; False: sticky
+inferGroupOfLines : Bool -> Exp -> Val -> Val -> Maybe (Exp, Val)
+inferGroupOfLines elastic _ _ v' =
   stripChildren ((==) "svg") v' `justBind` (\shapes ->
   let mLines = List.map (stripAttrs ((==) "line")) shapes in
   Utils.projJusts mLines `justBind` (\lines ->
@@ -847,25 +851,33 @@ inferGroupOfLines _ _ v' =
                   , (BR, (xBR,yBR)) ] in
     let newLines =
       let goo ([x1,y1,x2,y2],[stroke,sw]) acc =
-        let (x1',y1') = relativeTo (x1,y1) <| nearestCorner (x1,y1) corners in
-        let (x2',y2') = relativeTo (x2,y2) <| nearestCorner (x2,y2) corners in
-        let blah =
-          let l1 = [ "line", strVal stroke, strVal sw ] in
-          let l2 = [ "\n      ", clampX x1', clampY y1'
-                   , "\n      ", clampX x2', clampY y2' ] in
-          Utils.parens (Utils.spaces (l1 ++ l2)) in
-        blah :: acc
+        let l1 = [ "line", strVal stroke, strVal sw ] in
+        let l2 =
+          if elastic then
+            [ "\n      ", placeX ((x1-x0)/w), placeY ((y1-y0)/h)
+            , "\n      ", placeX ((x2-x0)/w), placeY ((y2-y0)/h) ]
+          else
+            let (x1',y1') = relativeTo (x1,y1) <| nearestCorner (x1,y1) corners in
+            let (x2',y2') = relativeTo (x2,y2) <| nearestCorner (x2,y2) corners in
+            [ "\n      ", clampX x1', clampY y1'
+            , "\n      ", clampX x2', clampY y2' ]
+        in
+        Utils.parens (Utils.spaces (l1 ++ l2)) :: acc
       in
       List.foldr goo [] attrLists
     in
     let sBounds = Utils.spaces (List.map toString [x0,y0,w,h]) in
+    let sHelpers =
+      if elastic then
+        "[placeX placeY]   " ++ "[(\\p (+ x0 (* p w))) (\\p (+ y0 (* p h)))]"
+      else
+        "[clampX clampY]   " ++ "[(clamp x0 xw) (clamp y0 yh)]"
+    in
     let s =
       "(def newGroup (\\(x0 y0 w h)"                            `nl`
       "  (let [xw yh]           " ++ "[(+ x0 w) (+ y0 h)]"      `nl`
       "  (let padding           " ++ "10!"                      `nl`
-      "  (let [xTL xTR xBL xBR] " ++ "[x0 xw x0 xw]"            `nl`
-      "  (let [yTL yTR yBL yBR] " ++ "[y0 y0 yh yh]"            `nl`
-      "  (let [clampX clampY]   " ++ "[(clamp x0 xw) (clamp y0 yh)]" `nl`
+      "  (let " ++ sHelpers                                     `nl`
       "  (let box"                                              `nl`
       "    (let [gx gy] [(- x0 padding) (- y0 padding)]"        `nl`
       "    (let gw (+ w (mult 2! padding))"                     `nl`
@@ -873,9 +885,12 @@ inferGroupOfLines _ _ v' =
       "      (rect 'lightgray' gx gy gw gh))))"                 `nl`
       "  (let lines"                                            `nl`
       "    " ++ Utils.bracks (String.join "\n     " newLines)   `nl`
-      "  (cons box lines))))))))))"                             `nl`
+      "  (cons box lines))))))))"                               `nl`
       ""                                                        `nl`
       "(svg (newGroup " ++ sBounds ++ "))"
+      -- "  (let [xTL xTR xBL xBR] " ++ "[x0 xw x0 xw]"            `nl`
+      -- "  (let [yTL yTR yBL yBR] " ++ "[y0 y0 yh yh]"            `nl`
+      -- "  (cons box lines))))))))))"                             `nl`
     in
     let eNew = Utils.fromOk_ <| Parser.parseE s in
     let vNew = Eval.run eNew in
@@ -1030,7 +1045,8 @@ inferNewRelationships e v v' =
   ++ maybeToMaybeOne (inferRelatedRectsY e v v')
   ++ maybeToMaybeOne (inferCircleOfCircles False e v v')
   -- ++ maybeToMaybeOne (inferCircleOfCircles True e v v')
-  ++ maybeToMaybeOne (inferGroupOfLines e v v')
+  ++ maybeToMaybeOne (inferGroupOfLines True e v v')
+  ++ maybeToMaybeOne (inferGroupOfLines False e v v')
 
 relateSelectedAttrs genSymK e v v' =
   inferRelated genSymK e v v'
