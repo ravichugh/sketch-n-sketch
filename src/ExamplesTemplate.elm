@@ -112,7 +112,7 @@ examples =
   , makeExample "Cover Logo" cover
   , makeExample "POP-PL Logo" poppl
   , makeExample "Matrix Transformations" matrices
-  , makeExample "Cult of Lambda" cultOfLambda 
+  , makeExample "Cult of Lambda" cultOfLambda
   , makeExample "Misc Shapes" miscShapes
   , makeExample "Interface Buttons" interfaceButtons
   , makeExample "Paths 1" paths1
