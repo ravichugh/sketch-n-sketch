@@ -9,7 +9,7 @@ import ExamplesGenerated as Examples
 import LangUnparser exposing (unparseE)
 import OurParser2 as P
 
-import List 
+import List
 import Debug
 import String
 import Dict
@@ -41,7 +41,7 @@ type alias Model =
                              -- Just s is True, where s is previous code
   , caption : Maybe Caption
   , localSaves : List String
-  , fieldContents : DialogInfo 
+  , fieldContents : DialogInfo
   , startup : Bool
   , codeBoxInfo : CodeBoxInfo
   , basicCodeBox : Bool

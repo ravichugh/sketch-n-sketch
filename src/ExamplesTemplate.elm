@@ -43,6 +43,7 @@ LITTLE_TO_ELM frenchSudan
 LITTLE_TO_ELM flw1
 LITTLE_TO_ELM flw2
 LITTLE_TO_ELM ferris
+LITTLE_TO_ELM ferrisWheelSlideshow
 LITTLE_TO_ELM pieChart1
 LITTLE_TO_ELM solarSystem
 LITTLE_TO_ELM fractalTree
@@ -100,6 +101,7 @@ examples =
   , makeExample "Frank Lloyd Wright" flw1
   , makeExample "Frank Lloyd Wright B" flw2
   , makeExample "Ferris Wheel" ferris
+  , makeExample "Ferris Wheel Slideshow" ferrisWheelSlideshow
   , makeExample "Pie Chart" pieChart1
   , makeExample "Solar System" solarSystem
   , makeExample "Bezier Curves" bezier
@@ -112,7 +114,7 @@ examples =
   , makeExample "Cover Logo" cover
   , makeExample "POP-PL Logo" poppl
   , makeExample "Matrix Transformations" matrices
-  , makeExample "Cult of Lambda" cultOfLambda 
+  , makeExample "Cult of Lambda" cultOfLambda
   , makeExample "Misc Shapes" miscShapes
   , makeExample "Interface Buttons" interfaceButtons
   , makeExample "Paths 1" paths1
