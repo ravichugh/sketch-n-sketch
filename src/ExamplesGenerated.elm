@@ -894,6 +894,282 @@ ferris =
 
 "
 
+ferrisWheelSlideshow =
+ "(def [slideN slideSlider] (hSlider true 20! 400! 20! 1! 13! 'Slide ' 1))
+(def [timeInSlide timeInSlideSlider] (hSlider false 20! 400! 40! 0.0! 1.0! 'Time in Slide ' 0.0))
+
+(def rimColor [0 0 0 1])
+(def beamWidth 1)
+(def [centerX centerY] [300 300])
+(def [smallRadius largeRadius] [50 150])
+(def spokeEndSize 3)
+(def hubRadius 12)
+(def [carHighlightColor carColor] [[251 191 141 1] [191 191 191 1]])
+(def [carWidth carHeight] [20 20])
+(def spokeDuplicationOffset 12)
+(def carDuplicationOffset (+ carWidth 12))
+(def carDiagonalDuplicationOffset 14)
+(def rotationAngle (* twoPi 0.03))
+
+(def spoke (\\(centerX centerY rimX rimY)
+  [
+    (line 'black' 1 centerX centerY rimX rimY)
+    (circle 'black' rimX rimY spokeEndSize)
+  ]
+))
+
+(def diameterSpoke (\\(x1 y1 x2 y2)
+  [
+    (line 'black' 1 x1 y1 x2 y2)
+    (circle 'black' x1 y1 spokeEndSize)
+    (circle 'black' x2 y2 spokeEndSize)
+  ]
+))
+
+(def car_ (\\(fill x y w h)
+  ; Manual, so we can add stroke.
+  [
+    'rect'
+    [ ['x' (- x (/ w 2))] ['y' (- y (/ h 2))] ['width' w] ['height' h] ['fill' fill] ['stroke' 'black'] ]
+    []
+  ]
+))
+
+(def hub_ (\\(fill x y r)
+  ; Manual, so we can add stroke.
+  [
+    'circle'
+    [ ['cx' x] ['cy' y] ['r' r] ['fill' fill] ['stroke' 'black'] ]
+    []
+  ]
+))
+
+(def rimAttachmentPoints (\\(spokeCount radius angle centerX centerY)
+  (let angles (map (\\i (- (+ (* (/ i spokeCount) twoPi) angle) halfPi)) (range 0 (- spokeCount 1)))
+    (map (\\angle [(+ centerX (* (cos angle) radius)) (+ centerY (* (sin angle) radius))]) angles)
+  )
+))
+
+(def carsAndHub (\\(spokeCount radius angle carWidth carHeight hubRadius centerX centerY)
+  (let hub [(hub_ carColor centerX centerY hubRadius)]
+  (let [[highlightedCarX highlightedCarY]|otherRimAttachmentPoints] (rimAttachmentPoints spokeCount radius angle centerX centerY)
+  (let highlightedCar [(car_ carHighlightColor highlightedCarX highlightedCarY carWidth carHeight)]
+  (let otherCars (map (\\[x y] (car_ carColor x y carWidth carHeight)) otherRimAttachmentPoints)
+    [hub highlightedCar otherCars]
+  ))))
+))
+
+(def rimAndSpokes (\\(spokeCount radius angle centerX centerY)
+  (let rim [(ring rimColor beamWidth centerX centerY radius)]
+  (let spokes (map (\\[x y] (spoke centerX centerY x y)) (rimAttachmentPoints spokeCount radius angle centerX centerY))
+    [rim (concat spokes)]
+  ))
+))
+
+(def ferrisWheel (\\(spokeCount radius angle carWidth carHeight hubRadius centerX centerY)
+  (concat [
+    (carsAndHub spokeCount radius angle carWidth carHeight hubRadius centerX centerY)
+    (rimAndSpokes spokeCount radius angle centerX centerY)
+  ])
+))
+
+(def hub [(hub_ carColor centerX centerY hubRadius)])
+(def smallRim [(ring rimColor beamWidth centerX centerY smallRadius)])
+(def spoke1 (diameterSpoke centerX (+ centerY smallRadius) centerX (- centerY smallRadius)))
+(def spoke1Duplicate1 (diameterSpoke (+ centerX spokeDuplicationOffset) (+ (+ centerY smallRadius) spokeDuplicationOffset) (+ centerX spokeDuplicationOffset) (+ (- centerY smallRadius) spokeDuplicationOffset)))
+(def spoke1Duplicate2 (diameterSpoke (+ centerX (mult 2 spokeDuplicationOffset)) (+ (+ centerY smallRadius) (mult 2 spokeDuplicationOffset)) (+ centerX (mult 2 spokeDuplicationOffset)) (+ (- centerY smallRadius) (mult 2 spokeDuplicationOffset))))
+(def spoke1Duplicate1HalfMoved (diameterSpoke (+ centerX spokeDuplicationOffset) (+ (+ centerY smallRadius) spokeDuplicationOffset) (- centerX smallRadius) centerY))
+(def spoke2 (diameterSpoke (+ centerX smallRadius) centerY (- centerX smallRadius) centerY))
+
+(def car (\\(x y)
+  [(car_ carColor x y carWidth carHeight)]
+))
+
+(def highlightedCar (\\(x y)
+  [(car_ carHighlightColor x y carWidth carHeight)]
+))
+
+(def car1 (highlightedCar centerX (- centerY smallRadius)))
+(def car1Duplicates (map (\\n (car (+ centerX (* n carDuplicationOffset)) (- centerY smallRadius))) (range 1 3)))
+
+(def ferrisSmall4
+  (ferrisWheel
+    4 ; number of spokes
+    smallRadius
+    0 ; angle
+    carWidth
+    carHeight
+    hubRadius
+    centerX
+    centerY
+  )
+)
+(def car2Duplicates (map (\\n (car (+ smallRadius (+ centerX (* n carDiagonalDuplicationOffset))) (+ centerY (* n carDiagonalDuplicationOffset)))) (range 1 3)))
+(def ferrisSmall4CarsAndHub
+  (carsAndHub
+    4 ; number of spokes
+    smallRadius
+    0 ; angle
+    carWidth
+    carHeight
+    hubRadius
+    centerX
+    centerY
+  )
+)
+(def ferrisSmall8CarsAndHub
+  (carsAndHub
+    8 ; number of spokes
+    smallRadius
+    0 ; angle
+    carWidth
+    carHeight
+    hubRadius
+    centerX
+    centerY
+  )
+)
+(def ferrisSmall8RimAndSpokes
+  (rimAndSpokes
+    8 ; number of spokes
+    smallRadius
+    0 ; angle
+    centerX
+    centerY
+  )
+)
+(def ferrisSmall8
+  (concat [ferrisSmall8CarsAndHub ferrisSmall8RimAndSpokes])
+)
+(def ferrisLarge8RimAndSpokesOffset
+  (rimAndSpokes
+    8 ; number of spokes
+    largeRadius
+    0 ; angle
+    (+ centerX (- largeRadius smallRadius))
+    (- centerY (- largeRadius smallRadius))
+  )
+)
+(def ferrisLarge8RimAndSpokes
+  (rimAndSpokes
+    8 ; number of spokes
+    largeRadius
+    0 ; angle
+    centerX
+    centerY
+  )
+)
+(def ferrisLarge8
+  (ferrisWheel
+    8 ; number of spokes
+    largeRadius
+    0 ; angle
+    carWidth
+    carHeight
+    hubRadius
+    centerX
+    centerY
+  )
+)
+(def ferrisLarge8BadlyRotated
+  [(rotate
+    ['g' [] (concat ferrisLarge8)]
+    (/ (* rotationAngle 360) twoPi)
+    centerX
+    centerY
+  )]
+)
+
+(def [car7X car7Y] (hd (reverse (rimAttachmentPoints 8 largeRadius rotationAngle centerX centerY))))
+(def car7 (car car7X car7Y))
+(def car7Duplicates (map (\\n (car (+ car7X (* n carDiagonalDuplicationOffset)) (+ car7Y (* n carDiagonalDuplicationOffset)))) (range 1 7)))
+
+(def ferrisLarge8RimAndSpokesRotated
+  (rimAndSpokes
+    8 ; number of spokes
+    largeRadius
+    rotationAngle
+    centerX
+    centerY
+  )
+)
+(def ferrisLarge8Rotated
+  (ferrisWheel
+    8 ; number of spokes
+    largeRadius
+    (+ rotationAngle (* twoPi timeInSlide))
+    carWidth
+    carHeight
+    hubRadius
+    centerX
+    centerY
+  )
+)
+
+(def appearInOrder (\\shapeGroups
+  (let appearanceTimeAndShapeGroups (map2 (\\(i shapeGroup) [(/ i (len shapeGroups)) shapeGroup]) (range 0 (- (len shapeGroups) 1)) shapeGroups)
+    (foldr
+      (\\([t shapeGroup] visible)
+        (if (ge timeInSlide t)
+          (let opacity (/ (- timeInSlide t) (/ 1 (len shapeGroups)))
+          (let faded [['g' [['opacity' opacity]] shapeGroup]]
+            [faded | visible]
+          ))
+          visible
+        )
+      )
+      []
+      appearanceTimeAndShapeGroups
+    )
+  )
+))
+
+(def elements
+  (if (= slideN 1)
+    (appearInOrder [smallRim spoke1 spoke1Duplicate1])
+    (if (= slideN 2)
+      [smallRim spoke1 spoke1Duplicate1HalfMoved]
+      (if (= slideN 3)
+        (concat [ [hub car1] (appearInOrder car1Duplicates) [smallRim spoke1 spoke2] ])
+        (if (= slideN 4)
+          ferrisSmall4
+          (if (= slideN 5)
+            (concat [ ferrisSmall4 (appearInOrder (concat [[spoke1Duplicate1 spoke1Duplicate2] car2Duplicates])) ])
+            (if (= slideN 6)
+              (concat [ ferrisSmall4CarsAndHub ferrisSmall8RimAndSpokes (appearInOrder car2Duplicates) ])
+              (if (= slideN 7)
+                ferrisSmall8
+                (if (= slideN 8)
+                  (concat [ ferrisSmall8CarsAndHub ferrisLarge8RimAndSpokesOffset ])
+                  (if (= slideN 9)
+                    (concat [ ferrisSmall8CarsAndHub ferrisLarge8RimAndSpokes ])
+                    (if (= slideN 10)
+                      ferrisLarge8
+                      (if (= slideN 11)
+                        [ferrisLarge8BadlyRotated]
+                        (if (= slideN 12)
+                          (concat [ [hub car7] ferrisLarge8RimAndSpokesRotated (appearInOrder car7Duplicates) ])
+                          (if (= slideN 13)
+                            ferrisLarge8Rotated
+                            []
+                          )
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+  )
+)
+
+(svg (append (concat elements) (concat [slideSlider timeInSlideSlider])))
+"
+
 pieChart1 =
  "; A Pie Chart
 ;
@@ -2484,6 +2760,7 @@ examples =
   , makeExample "Frank Lloyd Wright" flw1
   , makeExample "Frank Lloyd Wright B" flw2
   , makeExample "Ferris Wheel" ferris
+  , makeExample "Ferris Wheel Slideshow" ferrisWheelSlideshow
   , makeExample "Pie Chart" pieChart1
   , makeExample "Solar System" solarSystem
   , makeExample "Bezier Curves" bezier
