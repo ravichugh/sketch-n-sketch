@@ -15,11 +15,11 @@ import OurParser2 as P
 import VirtualDom
 
 --Core Libraries
-import List 
+import List
 import Dict
 import Set
-import String 
-import Graphics.Element as GE 
+import String
+import Graphics.Element as GE
 import Graphics.Collage as GC
 import Graphics.Input as GI
 import Graphics.Input.Field as GIF
@@ -27,8 +27,8 @@ import Text as T exposing (defaultStyle)
 import Color
 
 --Signaling Libraries
-import Mouse 
-import Window 
+import Mouse
+import Window
 import Task exposing (Task, andThen)
 
 --Storage Libraries
@@ -40,7 +40,7 @@ import InterfaceStorage exposing (taskMailbox, saveStateLocally, loadLocalState,
 import CodeBox exposing (saveRequestInfo, runRequestInfo)
 
 --Html Libraries
-import Html 
+import Html
 import Html.Attributes as Attr
 import Html.Events as Events
 import Html.Lazy
@@ -65,7 +65,7 @@ textColor = "white"
 titleStyle =
   { defaultStyle | typeface <- ["Courier", "monospace"]
                  , height <- Just 18
-                 , bold <- False 
+                 , bold <- False
                  , color <- Color.white}
 
 -- Creates an Html button with the text properly offset
@@ -510,7 +510,7 @@ codebox_ w h event s readOnly =
              , ("border", params.mainSection.codebox.border)
              , ("whiteSpace", "pre")
              , ("height", "100%")
-             , ("width", "100%") 
+             , ("width", "100%")
              , ("resize", "none")
              , ("overflow", "auto")
              -- Horizontal Scrollbars in Chrome
@@ -540,7 +540,7 @@ errorBox w h errormsg =
         , ("border", params.mainSection.codebox.border)
         , ("whiteSpace", "pre")
         , ("height", "100%")
-        , ("width", "100%") 
+        , ("width", "100%")
         , ("resize", "none")
         , ("overflow", "auto")
         -- Horizontal Scrollbars in Chrome
@@ -686,12 +686,12 @@ mainSectionVertical w h model =
                 + params.mainSection.vertical.hExtra
   in
 
-  let codeSection = if model.basicCodeBox 
+  let codeSection = if model.basicCodeBox
                        then codebox wCode h model
                        else codeBox wCode h in
 
   let canvasSection = case model.errorBox of
-    Nothing -> 
+    Nothing ->
       GE.size wCanvas h <|
         GE.flow GE.down
           [ canvas wCanvas hCanvas model
@@ -734,7 +734,7 @@ mainSectionHorizontal w h model =
                        else codeBox w hCode in
 
   let canvasSection = case model.errorBox of
-    Nothing -> 
+    Nothing ->
         GE.size w (hCanvas + hZInfo) <|
           GE.flow GE.down
             [ canvas w hCanvas model
@@ -763,7 +763,7 @@ simpleButton_
    : Signal.Address a -> a -> Bool -> a -> String -> String -> String
   -> Int -> Int -> GE.Element
 simpleButton_ addy defaultMsg disabled msg value name text w h =
-  if disabled then 
+  if disabled then
       GI.customButton (Signal.message addy defaultMsg)
         (makeButton Disabled w h text)
         (makeButton Disabled w h text)
@@ -837,7 +837,7 @@ saveButton model w h =
        simpleEventButton_ disabled (InterfaceModel.WaitSave model.exName) dn dn dn w h
 
 saveAsButton : Model -> Int -> Int -> GE.Element
-saveAsButton model w h = 
+saveAsButton model w h =
     let dn = "Save As"
     in simpleTaskButton (saveStateLocally model.exName True model) dn dn dn w h
 
@@ -857,16 +857,16 @@ redoButton model =
 
 dropdownExamples : Model -> Int -> Int -> GE.Element
 dropdownExamples model w h =
-  let 
+  let
     choices = case model.mode of
       AdHoc -> [(model.exName, Signal.send events.address Noop)]
       _ ->
-        let foo (name,thunk) = (name, Signal.send events.address (SelectExample name thunk)) 
+        let foo (name,thunk) = (name, Signal.send events.address (SelectExample name thunk))
             bar saveName = (saveName, loadLocalState saveName)
             blank = ("", Task.succeed ())
             localsaves = case model.localSaves of
                 [] -> []
-                l  -> 
+                l  ->
                   List.concat
                     [ [ ("Local Saves:", Task.succeed ())
                       , blank
@@ -884,24 +884,24 @@ dropdownExamples model w h =
               , ("*Clear Local Saves*", clearLocalSaves)
               ]
             ]
-    options = List.map (\(name,task) -> 
+    options = List.map (\(name,task) ->
         if | name == model.exName ->
               Html.option
                 [ Attr.value name
                 , Attr.selected True
-                ] 
+                ]
                 [ Html.text name ]
            | otherwise ->
               Html.option
                 [ Attr.value name
-                ] 
+                ]
                 [ Html.text name ]) choices
     findTask name choices = case choices of
         (n,t) :: rest -> if | n == name -> t
                             | otherwise -> findTask name rest
         [] -> Debug.crash "Dropdown example does not have associated task"
-  in Html.toElement 120 24 <| Html.select 
-        [ Attr.style 
+  in Html.toElement 120 24 <| Html.select
+        [ Attr.style
           [ ("pointer-events", "auto")
           , ("border", "0 solid")
           , ("display", "block")
@@ -909,8 +909,8 @@ dropdownExamples model w h =
           , ("height", "24px")
           , ("font-family", "sans-serif")
           , ("font-size", "1em")
-          ] 
-        , Events.on "change" Events.targetValue 
+          ]
+        , Events.on "change" Events.targetValue
                 (\selected -> Signal.message taskMailbox.address <|
                                 findTask selected choices)
         ] options
@@ -920,7 +920,7 @@ modeButton model =
   then simpleEventButton_ True Noop "SwitchMode" "SwitchMode" "[Mode] Ad Hoc"
   else simpleEventButton_ False (SwitchMode AdHoc) "SwitchMode" "SwitchMode" "[Mode] Live"
 
-orientationButton w h model = 
+orientationButton w h model =
     let text = "[Orientation] " ++ toString model.orient
     in
       simpleButton SwitchOrient text text text w h
@@ -932,7 +932,7 @@ basicBoxButton w h model =
               Nothing -> ("[Code Box] Fancy", ToggleBasicCodeBox)
               Just _  -> ("[Code Box] Fancy", WaitCodeBox)
     in
-       simpleButton 
+       simpleButton
          evt
          text text text w h
 
@@ -989,18 +989,18 @@ turnOffCaptionAndHighlights =
 -- TODO clean this up, is needlessly bulky
 saveElement : Model -> Int -> Int -> GE.Element
 saveElement model w h = case model.mode of
-  SaveDialog x -> 
+  SaveDialog x ->
       -- Note that dimBox must not be a parent of the pickBox, as
       -- opacity of a parent clobbers that of all its children
       let dimBox = GE.color Color.black
                       <| GE.opacity 0.5
                       <| GE.spacer w h
-          pickBox = GE.container w h GE.middle  
+          pickBox = GE.container w h GE.middle
                       <| GE.color interfaceColor
                       <| GE.container 400 200 GE.middle
                       <| GE.flow GE.down
                            [ GE.flow GE.right
-                              [ GE.spacer 42 18 
+                              [ GE.spacer 42 18
                               , GE.centered <|
                                   T.style titleStyle
                                   (T.fromString "Save Work to Browser")
@@ -1010,7 +1010,7 @@ saveElement model w h = case model.mode of
                               [ Html.toElement 200 40
                                   <| Html.input
                                       [ Attr.type' "text"
-                                      , Attr.style 
+                                      , Attr.style
                                           [ ("height", "32px")
                                           , ("width", "192px")
                                           , ("padding", "4px")
@@ -1027,7 +1027,7 @@ saveElement model w h = case model.mode of
                                             <| UpdateFieldContents
                                                 { value = cont
                                                 , hint =
-                                                    model.fieldContents.hint 
+                                                    model.fieldContents.hint
                                                 }
                                           )
                                       ]
@@ -1042,18 +1042,18 @@ saveElement model w h = case model.mode of
                               ]
                            , GE.spacer 160 10
                            , GE.flow GE.right
-                              [ GE.spacer 47 50 
+                              [ GE.spacer 47 50
                               , GE.centered <|
                                   T.height 12 <|
                                   T.color Color.white <|
-                                  (T.fromString <| 
+                                  (T.fromString <|
                                   "Note: This will overwrite saves with\n"
                                   ++ "the same name. You must choose a\n"
                                   ++ "name different than a built-in example.")
                               ]
                            , GE.spacer 160 10
                            , GE.flow GE.right
-                               [ GE.spacer 112 30 
+                               [ GE.spacer 112 30
                                , simpleButton
                                   (RemoveDialog False "")
                                   "Cancel" "Cancel" "Cancel"
@@ -1061,8 +1061,8 @@ saveElement model w h = case model.mode of
                                ]
                            ]
       in GE.flow GE.outward [ dimBox, pickBox ]
-  _ -> GE.empty 
-    
+  _ -> GE.empty
+
 
 view : (Int, Int) -> Model -> GE.Element
 view (w,h) model =
@@ -1077,7 +1077,7 @@ view (w,h) model =
 
   let topSection =
     let
-      title = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <| 
+      title = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
                 GE.leftAligned <| T.style titleStyle (T.fromString strTitle)
 
       wLogo = params.topSection.wLogo
@@ -1135,7 +1135,7 @@ view (w,h) model =
         Signal.message taskMailbox.address <|
           -- Insert more tasks to run at startup here
           getLocalSaves `andThen` \_ ->
-        
+
           ---
           Signal.send
             events.address
