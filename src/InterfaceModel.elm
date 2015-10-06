@@ -179,7 +179,10 @@ makeHighlight subst color (locid,_,_) =
 sampleModel : Model
 sampleModel =
   let
-    (name,f) = Utils.head_ Examples.list
+    (name,f) =
+      case Utils.findFirst (\(name,_) -> name == "Binary Tree Animation") Examples.list of
+        Just x -> x
+        otherwise -> Debug.crash <| "No default example is named \"Binary Tree Animation\""
     {e,v}    = f ()
   in
     { scratchCode   = Examples.scratch

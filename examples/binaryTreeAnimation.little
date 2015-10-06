@@ -1,0 +1,163 @@
+(def [time timeSlider] (hSlider true 20! 400! 20! 0.0! 1.0! 'Time ' 1.0))
+
+; Square root by binary search!
+(defrec sqrt_ (\(x answer step desiredFractionalError)
+  (let error (- (* answer answer) x)
+  (let errorFraction (/ error x)
+    (if (lt (* errorFraction errorFraction) (* desiredFractionalError desiredFractionalError))
+      answer
+      (if (gt error 0)
+        (sqrt_ x (- answer step) (/ step 2) desiredFractionalError)
+        (sqrt_ x (+ answer step) (/ step 2) desiredFractionalError)
+      )
+    )
+  ))
+))
+
+(def sqrt (\x
+  (if (ge x 1)
+    (sqrt_ x (/ x 2) (/ x 4) 0.1)
+    (if (ge x 0)
+      (sqrt_ x 0.5 0.25 0.1)
+      nil
+    )
+  )
+))
+
+(def vectorLength (\[x y]
+  (sqrt (+ (* x x) (* y y)))
+))
+
+(def unitVector (\[x y]
+  (let length (vectorLength [x y])
+    [(/ x length) (/ y length)]
+  )
+))
+
+(def pointOnLine (\(refX refY otherX otherY distanceFromRef)
+  (let [relX relY] [(- otherX refX) (- otherY refY)]
+  (let [relXUnitLength relYUnitLength] (unitVector [relX relY])
+    [
+      (+ refX (* relXUnitLength distanceFromRef))
+      (+ refY (* relYUnitLength distanceFromRef))
+    ]
+  ))
+))
+
+(def arrowHead (\(fill stroke strokeWidth tipX tipY backX backY width)
+  (let [relX relY] [(- tipX backX) (- tipY backY)]
+  (let [relXClockwise relYClockwise] [relY (- 0 relX)]
+  (let [relXCounterClockwise relYCounterClockwise] [(- 0 relY) relX]
+  (let halfWidth (/ width 2)
+  (let [back1RelX back1RelY] (pointOnLine 0 0 relXClockwise relYClockwise halfWidth)
+  (let [back2RelX back2RelY] (pointOnLine 0 0 relXCounterClockwise relYCounterClockwise halfWidth)
+    (path fill stroke strokeWidth [ 'M' tipX tipY 'L' (+ backX back1RelX) (+ backY back1RelY) 'L' (+ backX back2RelX) (+ backY back2RelY) 'Z' ])
+  ))))))
+))
+
+(def arrowLine (\(fill stroke strokeWidth tipX tipY backX backY arrowLength arrowWidth)
+  (let [arrowBackX arrowBackY] (pointOnLine tipX tipY backX backY arrowLength)
+    [
+      (line stroke strokeWidth backX backY arrowBackX arrowBackY)
+      (arrowHead fill stroke strokeWidth tipX tipY arrowBackX arrowBackY arrowWidth)
+    ]
+  )
+))
+
+(def treeLine (\(nodeX nodeY childX childY childRadius)
+;  (let [tipX tipY] (pointOnLine childX childY nodeX nodeY childRadius)
+;    (arrowLine 'white' 'black' 2 tipX tipY nodeX nodeY 10 10)
+;  )
+  [(line 'black' 2 childX childY nodeX nodeY)]
+))
+
+; x, y are top-left corner of tree's bounding box
+(defrec drawBinaryTree (\(structure width heightPerLevel x y)
+  (let nodeRadius 6
+  (let [nodeX nodeY] [(+ x (/ width 2)) (+ y (/ heightPerLevel 2))]
+  (let [leftChildX rightChildX] [(- nodeX (/ width 4)) (+ nodeX (/ width 4))]
+  (let childY (+ nodeY heightPerLevel)
+  (let nodeCircle (circle 240 nodeX nodeY nodeRadius)
+  (let [ myType leftChild rightChild ] structure
+  (let [ [leftChildType|_] [rightChildType|_] ] [ leftChild rightChild ]
+    (if (and (= 'node' leftChildType) (= 'node' rightChildType))
+      (concat [
+        (treeLine nodeX nodeY leftChildX childY nodeRadius)
+        (treeLine nodeX nodeY rightChildX childY nodeRadius)
+        [ nodeCircle ]
+        (drawBinaryTree leftChild (/ width 2) heightPerLevel x (+ y heightPerLevel))
+        (drawBinaryTree rightChild (/ width 2) heightPerLevel (+ x (/ width 2)) (+ y heightPerLevel))
+      ])
+      (if (= 'node' leftChildType)
+        (concat [
+          (treeLine nodeX nodeY leftChildX childY nodeRadius)
+          [ nodeCircle ]
+          (drawBinaryTree leftChild (/ width 2) heightPerLevel x (+ y heightPerLevel))
+        ])
+        (if (= 'node' rightChildType)
+          (concat [
+            (treeLine nodeX nodeY rightChildX childY nodeRadius)
+            [ nodeCircle ]
+            (drawBinaryTree rightChild (/ width 2) heightPerLevel (+ x (/ width 2)) (+ y heightPerLevel))
+          ])
+          [ nodeCircle ]
+        )
+      )
+    )
+  )))))))
+))
+
+(defrec fullTree (\depth
+  (if (le depth 0)
+    [ 'empty' ]
+    [ 'node'
+      (fullTree (- depth 1))
+      (fullTree (- depth 1))
+    ]
+  )
+))
+
+(def partialTree
+  [ 'node'
+    [ 'node'
+      (fullTree 3)
+      [ 'empty' ]
+    ]
+    [ 'node'
+      [ 'empty' ]
+      (fullTree 3)
+    ]
+  ]
+)
+
+(def leaf
+  [ 'node'
+    [ 'empty' ]
+    [ 'empty' ]
+  ]
+)
+
+(def unbalancedTree
+  [ 'node'
+    leaf
+    [ 'node'
+      leaf
+      [ 'node'
+        leaf
+        [ 'node'
+          leaf
+          leaf
+        ]
+      ]
+    ]
+  ]
+)
+
+
+(def elements [
+  (drawBinaryTree (fullTree 5) 300 35 100 100)
+  (drawBinaryTree partialTree 300 35 100 300)
+  (drawBinaryTree unbalancedTree 300 35 100 500)
+])
+
+(svg (append (concat elements) timeSlider))
