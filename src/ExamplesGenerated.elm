@@ -131,6 +131,45 @@ logo =
 
 "
 
+logo2 =
+ "; sketch-n-sketch logo, v2
+; better lines for non-square scaling
+
+(def logo (\\(x0 y0 w h delta1 delta2 fg bg)
+  (let [xw yh w2 h2] [(+ x0 w) (+ y0 h) (div w 2) (div h 2)]
+  (let poly (\\(c pts) (polygon c 'none' 0 pts))
+  (let basic (\\shape (addAttr shape ['zones' 'basic']))
+  (svg [
+  
+    ; positive background
+    ; starting with (xw,yh) to place color slider
+    (poly fg [[xw yh] [xw y0] [x0 y0] [x0 yh]])
+  
+    ; negative X, part 1
+    (poly bg
+      [[x0 y0] [(+ x0 delta1) y0] [xw (- yh delta2)]
+       [xw yh] [(- xw delta1) yh] [x0 (+ y0 delta2)]])
+  
+    ; negative X, part 2
+    (basic (poly bg
+      [[xw y0] [xw (+ y0 delta2)] [(+ x0 delta1) yh]
+       [x0 yh] [x0 (- yh delta2)] [(- xw delta1) y0]]))
+  
+    ; positive, hiding top-right quarter of X
+    (basic (poly fg
+      [[(+ x0 delta1) y0] [xw y0] [xw (- yh delta2)]]))
+  
+  ]))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(def [x0 y0 w h delta1 delta2] [50! 50! 200 200 10 10])
+(def [fg bg] [360 499])
+
+(logo x0 y0 w h delta1 delta2 fg bg)
+
+"
+
 elmLogo =
  "; Elm logo, based on:
 ; https://github.com/evancz/elm-svg/blob/1.0.2/examples/Logo.elm
@@ -2013,6 +2052,7 @@ examples =
   , makeExample "6 Boxes B" sixBoxesB
   , makeExample "Thaw/Freeze" thawFreeze
   , makeExample "Logo" logo
+  , makeExample "Logo 2" logo2
   , makeExample "Elm Logo" elmLogo
   , makeExample "Active Trans Logo" activeTrans
   , makeExample "Botanic Garden Logo" botanic
