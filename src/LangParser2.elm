@@ -425,6 +425,7 @@ parseUOp =
   <++ (always Ceil    <$> token_ "ceiling")
   <++ (always Round   <$> token_ "round")
   <++ (always ToStr   <$> token_ "toString")
+  <++ (always Sqrt    <$> token_ "sqrt")
 
 parseConst =
   parens <|

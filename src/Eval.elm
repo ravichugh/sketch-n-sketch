@@ -137,13 +137,14 @@ evalOp env opWithInfo es =
         Pi    -> VConst (pi, TrOp op [])
     [VConst (n,t)] ->
       case op of
-        Cos    -> VConst (cos n, TrOp op [t])
-        Sin    -> VConst (sin n, TrOp op [t])
-        ArcCos -> VConst (acos n, TrOp op [t])
-        ArcSin -> VConst (asin n, TrOp op [t])
-        Floor  -> VConst (toFloat <| floor n, TrOp op [t])
-        Ceil   -> VConst (toFloat <| ceiling n, TrOp op [t])
-        Round  -> VConst (toFloat <| round n, TrOp op [t])
+        Cos    -> VConst (evalDelta op [n], TrOp op [t])
+        Sin    -> VConst (evalDelta op [n], TrOp op [t])
+        ArcCos -> VConst (evalDelta op [n], TrOp op [t])
+        ArcSin -> VConst (evalDelta op [n], TrOp op [t])
+        Floor  -> VConst (evalDelta op [n], TrOp op [t])
+        Ceil   -> VConst (evalDelta op [n], TrOp op [t])
+        Round  -> VConst (evalDelta op [n], TrOp op [t])
+        Sqrt   -> VConst (evalDelta op [n], TrOp op [t])
         ToStr  -> VBase (String (toString n))
     [VBase (Bool b)] ->
       case op of
@@ -176,6 +177,7 @@ evalDelta op is =
     (Floor,  [n])   -> toFloat <| floor n
     (Ceil,   [n])   -> toFloat <| ceiling n
     (Round,  [n])   -> toFloat <| round n
+    (Sqrt,   [n])   -> sqrt n
     _               -> errorMsg <| "Eval.evalDelta " ++ strOp op
 
 initEnv = snd (eval [] Parser.prelude)

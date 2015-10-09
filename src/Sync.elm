@@ -230,15 +230,21 @@ solveTopDown subst (n, t) = case t of
         let _ = debugLog "Sync.solve" <| strTrace t in
         Nothing
 
-  TrOp Cos [t1] ->
+  TrOp op [t1] ->
     case evalTrace subst t1 of
-      Just i  -> maybeFloat <| acos i
-      Nothing -> Nothing
-
-  TrOp Sin [t1] ->
-    case evalTrace subst t1 of
-      Just i  -> maybeFloat <| asin i
-      Nothing -> Nothing
+      Just _  -> Nothing
+      Nothing ->
+        case op of
+          Cos     -> maybeFloat <| acos n
+          Sin     -> maybeFloat <| asin n
+          ArcCos  -> Just <| cos n
+          ArcSin  -> Just <| sin n
+          Sqrt    -> Just <| n * n
+          Round   -> Nothing
+          Floor   -> Nothing
+          Ceil    -> Nothing
+          _       -> let _ = debugLog "TODO solveTopDown" t in
+                     Nothing
 
   _ ->
     let _ = debugLog "TODO solveTopDown" t in

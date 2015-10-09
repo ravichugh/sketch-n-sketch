@@ -31,8 +31,13 @@ import ExamplesGenerated as Examples
 -- So we can clear the slate
 import LangSvg exposing (emptyTree)
 
+import Config
+
 -- So we can crash appropriately
 import Debug
+
+
+debugLog = Config.debugLog Config.debugStorage
 
 -- The mailbox that recieves Tasks
 taskMailbox : Mailbox (Task String ())
@@ -167,7 +172,7 @@ loadLocalState saveName =
 
 -- Function to update model upon state load
 installLocalState : String -> Model -> Model -> Model
-installLocalState saveName loadedModel oldModel = Debug.log "installLocalState"
+installLocalState saveName loadedModel oldModel = debugLog "installLocalState"
     { loadedModel | slate <- emptyTree
                   , exName <- saveName
                   , localSaves <- oldModel.localSaves

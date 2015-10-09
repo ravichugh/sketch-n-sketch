@@ -38,6 +38,7 @@ type Op_
   | Cos | Sin | ArcCos | ArcSin
   | Floor | Ceil | Round
   | ToStr
+  | Sqrt
   -- binary ops
   | Plus | Minus | Mult | Div
   | Lt | Eq
@@ -147,6 +148,7 @@ strOp op = case op of
   Ceil  -> "ceiling"
   Round -> "round"
   ToStr -> "toString"
+  Sqrt  -> "sqrt"
 
 strLoc (k, b, mx) =
   "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx) ++ b
