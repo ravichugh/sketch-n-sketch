@@ -3,7 +3,6 @@ module ExamplesGenerated (list, scratchName, scratch) where
 import Lang
 import LangParser2 as Parser
 import Eval
-import MicroTests
 import Utils
 import PreludeGenerated as Prelude
 
@@ -126,4 +125,4 @@ examples =
   -- , makeExample "Survey Results" surveyResults
   ]
 
-list = examples -- ++ MicroTests.sampleTests
+list = examples

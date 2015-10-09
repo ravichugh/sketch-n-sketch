@@ -2098,4 +2098,4 @@ examples =
   -- , makeExample "Survey Results" surveyResults
   ]
 
-list = examples -- ++ MicroTests.sampleTests
+list = examples
