@@ -6,7 +6,6 @@ import LangUnparser exposing (unparseE)
 import Sync
 import Eval exposing (run)
 import Utils
-import MicroTests
 import InterfaceModel exposing (..)
 import InterfaceView2 exposing (..)
 import InterfaceStorage exposing (installSaveState, removeDialog)

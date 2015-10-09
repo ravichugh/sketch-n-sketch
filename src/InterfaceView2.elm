@@ -6,7 +6,6 @@ import LangParser2 as Parser exposing (parseE, parseV)
 import Sync
 import Eval
 import Utils
-import MicroTests
 import InterfaceModel exposing (..)
 import LangSvg exposing (toNum, toNumTr, addi)
 import ExamplesGenerated as Examples
