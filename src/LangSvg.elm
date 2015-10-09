@@ -81,6 +81,8 @@ type PathCmd
 
 type TransformCmd
   = Rot NumTr NumTr NumTr
+  | Scale NumTr NumTr
+  | Trans NumTr NumTr
 
 type alias PathCounts = {numPoints : Int}
 
@@ -124,7 +126,7 @@ toPath a = case a of
 
 toTransformRot a = case a of
   ATransform [Rot n1 n2 n3] -> (n1,n2,n3)
-  _                         -> "transform commands" `expectedButGot` strValOfAVal a
+  _                         -> "a rotation transform" `expectedButGot` strValOfAVal a
 
 valToAttr (VList [VBase (String k), v]) =
   case (k, v) of
@@ -278,7 +280,9 @@ valsToTransform = List.map valToTransformCmd
 valToTransformCmd v = case v of
   VList (VBase (String k) :: vs) ->
     case (k, vs) of
-      ("rotate", [VConst n1, VConst n2, VConst n3]) -> Rot n1 n2 n3
+      ("rotate",    [VConst n1, VConst n2, VConst n3]) -> Rot n1 n2 n3
+      ("scale",     [VConst n1, VConst n2])            -> Scale n1 n2
+      ("translate", [VConst n1, VConst n2])            -> Trans n1 n2
       _ -> "a transform command" `expectedButGot` strVal v
   _     -> "a transform command" `expectedButGot` strVal v
 
@@ -286,7 +290,12 @@ strTransformCmd cmd = case cmd of
   Rot n1 n2 n3 ->
     let nums = List.map (toString << fst) [n1,n2,n3] in
     "rotate" ++ Utils.parens (Utils.spaces nums)
-
+  Scale n1 n2 ->
+    let nums = List.map (toString << fst) [n1,n2] in
+    "scale" ++ Utils.parens (Utils.spaces nums)
+  Trans n1 n2 ->
+    let nums = List.map (toString << fst) [n1,n2] in
+    "translate" ++ Utils.parens (Utils.spaces nums)
 
 {- old way of doing things with APath...
 
