@@ -403,16 +403,17 @@
   (let shapes
     (let ball
       (let [xDiff valDiff] [(- x1 x0) (- maxVal minVal)]
-      (let xBall (+ x0 (* xDiff (/ (- preVal minVal) valDiff)))
-      (let rBall (if dropBall (if (= preVal srcVal) 10! 0!) 10!)
-        (circle 'black' xBall y rBall))))
+      (let xBall (+ x0 (* xDiff (/ (- srcVal minVal) valDiff)))
+      (if (= preVal srcVal) (circle 'black' xBall y 10!)
+      (if dropBall          (circle 'black' 0! 0! 0!)
+                            (circle 'red' xBall y 10!)))))
     [ (line 'black' 3! x0 y x1 y)
       (text (+ x1 10) (+ y 5) (+ caption (toString targetVal)))
       (circle 'black' x0 y 4!) (circle 'black' x1 y 4!) ball ])
   [targetVal shapes])))))
+; TODO only draw zones for ball
 
-;; As hSlider_, but dropBall disappears when it passes then end of a slider
-(def hSlider (hSlider_ true))
+(def hSlider (hSlider_ false))
 
 ;; button_ : Bool -> Number -> Number -> String -> Number -> SVG
 ;; Similar to sliders, but just has boolean values
@@ -421,7 +422,6 @@
   (let xEnd (+ xStart wSlider)
   (let xBall (+ xStart (* xCur wSlider))
   (let xBall_ (clamp xStart xEnd xBall)
-  (let rBall_ (if dropBall (if (= xBall_ xBall) rBall 0) rBall)
   (let val (< xCur 0.5)
   (let shapes1
     [ (circle 'black' xStart y rPoint)
@@ -429,12 +429,13 @@
       (line 'black' wLine xStart y xEnd y)
       (text (+ xEnd 10) (+ y 5) (+ caption (toString val))) ]
   (let shapes2
-    [ (circle (if val 'darkgreen' 'darkred') xBall y rBall_) ]
+    [ (if (= xBall_ xBall) (circle (if val 'darkgreen' 'darkred') xBall y rBall)
+      (if dropBall         (circle 'black' 0! 0! 0!)
+                           (circle 'red' xBall y rBall))) ]
   [val (append (zones 'none' shapes1)
-               (zones 'basic' shapes2))]))))))))))
+               (zones 'basic' shapes2))])))))))))
 
-;; As button, but set initially to true
-(def button (button_ true))
+(def button (button_ false))
 
 ;; rotate : Shape -> Number -> Number -> Number -> Shape
 ;; argument order - shape, rot, x, y
