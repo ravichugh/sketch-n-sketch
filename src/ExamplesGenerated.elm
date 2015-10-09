@@ -1038,6 +1038,348 @@ fractalTree =
 
 "
 
+hilbertCurveAnimation =
+ "; How to draw a Hilbert curve.
+;
+; https://thoughtstreams.io/jtauber/on-drawing-owls-and-teaching-non-beginners/
+; 1. Draw a U.
+; 2. Draw the rest of the curve.
+;
+
+(def [levels levelsSlider] (hSlider true 20! 500! 25! 1! 4! 'Levels ' 2))
+(def [time timeSlider] (hSlider false 20! 500! 50! 0! 1! 'Time ' 0.0))
+
+; What fraction of the final curve should we draw?
+(def curveFractionToDraw
+  (if (gt (* time 1.5) 1.0)
+    (* (- (* time 1.5) 1.0) 2)
+    0
+  )
+)
+
+; For when all the Hilbert levels but the most detailed fade out together.
+(def earlierLevelOpacity
+  (if (gt curveFractionToDraw 0)
+    (* (- 1.0 curveFractionToDraw) (- 1.0 curveFractionToDraw))
+    1.0
+  )
+)
+
+; The basic U.
+;
+; We can't center this around 0,0 because of some weird clipping with the view box.
+(def hilbertPart_ [
+  (path 'none' 'green' 0.4 [ 'M' 10 10 'L' 10 20 'L' 20 20 'L' 20 10 ])
+  (circle 'red' 10 10 1)
+])
+
+; We use SVG transforms to position, rotate, and size the U.
+(def hilbertPart (\\(centerX centerY width rotation orientation opacity)
+  [
+    'g'
+    [
+      ['transform' [['translate' centerX centerY] ['rotate' rotation 0 0] ['scale' (/ width 20) (/ width 20)] ['scale' orientation 1] ['translate' -15 -15]]]
+      ['opacity' opacity]
+    ]
+    hilbertPart_
+  ]
+))
+
+; Add 90 degrees.
+(def rotateAngleRight (\\a
+  (if (= a 0)
+    90
+    (if (= a 90)
+      180
+      (if (= a 180)
+        -90
+        (if (= a -90)
+          0
+          'error'
+        )
+      )
+    )
+  )
+))
+
+; Angle 0 is straight up, so basically -angle.
+(def flipAngleVertical (\\a
+  (if (or (= a 0) (= a 180))
+    a
+    (- 0 a)
+  )
+))
+
+; Rotates by 90 degrees around 0,0
+(def rotatePointRight (\\[x y]
+  (if (and (lt 0 x) (lt 0 y))
+    [(- 0 x) y]
+    (if (and (gt 0 x) (lt 0 y))
+      [x (- 0 y)]
+      (if (and (gt 0 x) (gt 0 y))
+        [(- 0 x) y]
+        (if (and (lt 0 x) (gt 0 y))
+          [x (- 0 y)]
+          'error'
+        )
+      )
+    )
+  )
+))
+
+; Want to always rotate the short way around the circle.
+(defrec circularDisplacement (\\(a b)
+  (let diff (- b a)
+    (if (gt diff 180)
+      (circularDisplacement a (- b 360))
+      (if (le diff -180)
+        (circularDisplacement a (+ b 360))
+        diff
+      )
+    )
+  )
+))
+
+; Clamp angle to (-180, 180]
+(def normalizeRotation (\\angle
+  (circularDisplacement 0 angle)
+))
+
+(def rotateChildrenRight (\\[
+    [ x1 y1 rot1 or1 ]
+    [ x2 y2 rot2 or2 ]
+    [ x3 y3 rot3 or3 ]
+    [ x4 y4 rot4 or4 ]
+  ]
+  [
+    (append (rotatePointRight [x1 y1]) [(rotateAngleRight rot1) or1])
+    (append (rotatePointRight [x2 y2]) [(rotateAngleRight rot2) or2])
+    (append (rotatePointRight [x3 y3]) [(rotateAngleRight rot3) or3])
+    (append (rotatePointRight [x4 y4]) [(rotateAngleRight rot4) or4])
+  ]
+))
+
+(def flipChildrenVertical (\\[
+    [ x1 y1 rot1 or1 ]
+    [ x2 y2 rot2 or2 ]
+    [ x3 y3 rot3 or3 ]
+    [ x4 y4 rot4 or4 ]
+  ]
+  [
+    [ (- 0 x1) y1 (flipAngleVertical rot1) (- 0 or1) ]
+    [ (- 0 x2) y2 (flipAngleVertical rot2) (- 0 or2) ]
+    [ (- 0 x3) y3 (flipAngleVertical rot3) (- 0 or3) ]
+    [ (- 0 x4) y4 (flipAngleVertical rot4) (- 0 or4) ]
+  ]
+))
+
+; Returns [ [relX relY rotation orientation] ... ]
+(def hilbertChildParams (\\(rotation orientation)
+  (let initial [
+      [-1 -1  -90 -1]
+      [-1  1    0  1]
+      [1   1    0  1]
+      [1  -1   90 -1]
+    ]
+  (let oriented (if (= orientation 1) initial (flipChildrenVertical initial))
+    (if (= rotation 0)
+      oriented
+      (if (= rotation 90)
+        (rotateChildrenRight oriented)
+        (if (= rotation 180)
+          (rotateChildrenRight (rotateChildrenRight oriented))
+          (rotateChildrenRight (rotateChildrenRight (rotateChildrenRight oriented)))
+        )
+      )
+    )
+  ))
+))
+
+; Recursively draw the U's with the proper animation and opacity.
+(defrec hilbertParts (\\(depth levelPartCount partNumber opacity centerX centerY width rotation orientation)
+  (let thisLevel (hilbertPart centerX centerY width rotation orientation (* (/ 1 (+ 1 (* depth 2))) opacity))
+    (if (le depth 0)
+      (if (gt opacity 0.005)
+        [thisLevel]
+        []
+      )
+      (append
+        (concat (map2
+          (\\(i [relX relY rot or])
+            (let [targetX targetY targetWidth targetRot targetOr]
+              [
+                (+ centerX (* relX (/ width 4)))
+                (+ centerY (* relY (/ width 4)))
+                (/ width 2)
+                (+ rotation (circularDisplacement rotation rot))
+                or
+              ]
+            (let thisLevelPartCount (* levelPartCount 4)
+            (let thisPartNumber (+ (* partNumber 4) i)
+            (let animationFraction
+              (if (le depth 1)
+                (let partAndFraction (* (* time 1.5) thisLevelPartCount)
+                  (if (le partAndFraction thisPartNumber)
+                    0
+                    (if (ge partAndFraction (+ thisPartNumber 1))
+                      1
+                      (- partAndFraction thisPartNumber)
+                    )
+                  )
+                )
+                1
+              )
+            (let [movementFraction orientationFraction]
+              (if (= orientation targetOr)
+                [animationFraction 1]
+                (if (lt animationFraction 0.5)
+                  [(* animationFraction 2) 0]
+                  [1 (- (* animationFraction 2) 1)]
+                )
+              )
+            (let [aniX aniY aniWidth aniRot aniOr] [
+                (+ (* centerX     (- 1 movementFraction   )) (* targetX     movementFraction))
+                (+ (* centerY     (- 1 movementFraction   )) (* targetY     movementFraction))
+                (+ (* width       (- 1 movementFraction   )) (* targetWidth movementFraction))
+                (+ (* rotation    (- 1 movementFraction   )) (* targetRot   movementFraction))
+                (+ (* orientation (- 1 orientationFraction)) (* targetOr    orientationFraction))
+              ]
+            (let opacity
+              (if (gt curveFractionToDraw 0.0)
+                (if (le depth 1)
+                  (let partAndFraction (* curveFractionToDraw thisLevelPartCount)
+                    (if (le partAndFraction thisPartNumber)
+                      1
+                      (if (ge partAndFraction (+ thisPartNumber 1))
+                        0
+                        (- 1 (- partAndFraction thisPartNumber))
+                      )
+                    )
+                  )
+                  earlierLevelOpacity
+                )
+                1
+              )
+              (if (gt animationFraction 0)
+                (hilbertParts (- depth 1) thisLevelPartCount thisPartNumber opacity aniX aniY aniWidth aniRot aniOr)
+                []
+              )
+            )))))))
+          )
+          (range 0 3)
+          (hilbertChildParams (normalizeRotation rotation) orientation)
+        ))
+        [thisLevel]
+      )
+    )
+  )
+))
+
+; Four points in a block.
+(def hilbertPoints_ (\\(centerX centerY width rotation orientation)
+  (let quarterWidth (/ width 4)
+    (map
+      (\\[relX relY _ _]
+        [(+ centerX (* relX quarterWidth)) (+ centerY (* relY quarterWidth))]
+      )
+      (hilbertChildParams rotation orientation)
+    )
+  )
+))
+
+; List of points on the curve in order. [ [100 100] [150 100] ... ]
+(defrec hilbertPoints (\\(depth centerX centerY width rotation orientation)
+  (let thisLevel (hilbertPoints_ centerX centerY width rotation orientation)
+    (if (le depth 0)
+      thisLevel
+      (concatMap
+        (\\[relX relY childRot childOr]
+          (let [childX childY childWidth]
+            [
+              (+ centerX (* relX (/ width 4)))
+              (+ centerY (* relY (/ width 4)))
+              (/ width 2)
+            ]
+            (hilbertPoints (- depth 1) childX childY childWidth childRot childOr)
+          )
+        )
+        (hilbertChildParams (normalizeRotation rotation) orientation)
+      )
+    )
+  )
+))
+
+; Returns the first n elements of the list
+(def take (\\(n list)
+  (map2
+    always
+    list
+    (range 1 n)
+  )
+))
+
+; Returns element i (starting from 0) from a list
+(def fetch (\\(i list)
+  (fst (foldl
+    (\\(x [ret thisI])
+      (if (= 0 thisI)
+        [x (- thisI 1)]
+        [ret (- thisI 1)]
+      )
+    )
+    [nil i]
+    list
+  ))
+))
+
+; When drawing the final curve, which points should we draw?
+;
+; All the complexity here is for adding a point part-way between
+; the last point and the next point based on the time.
+(def hilbertPointsAnimated (\\(depth centerX centerY width rotation orientation)
+  (if (gt curveFractionToDraw 0)
+    (let allPoints (hilbertPoints depth centerX centerY width rotation orientation)
+    (let count (len allPoints)
+    (let countToDraw (floor (* curveFractionToDraw count))
+    (let partialLineFraction (- (* curveFractionToDraw count) countToDraw)
+    (let pointsToDraw (take countToDraw allPoints)
+      (if (and (gt partialLineFraction 0) (gt countToDraw 0))
+        (let [lastPointX lastPointY] (fetch (- countToDraw 1) allPoints)
+        (let [nextPointX nextPointY] (fetch countToDraw allPoints)
+        (let lastPointToDraw
+          [
+            (+ (* lastPointX (- 1 partialLineFraction)) (* nextPointX partialLineFraction))
+            (+ (* lastPointY (- 1 partialLineFraction)) (* nextPointY partialLineFraction))
+          ]
+          (snoc lastPointToDraw pointsToDraw)
+        )))
+        (if (gt countToDraw 1)
+          pointsToDraw
+          [[0 0]]
+        )
+      )
+    )))))
+    [[0 0]]
+  )
+))
+
+; Draw the curve as one long path at the end of the animation.
+(def hilbertCurve (\\(depth centerX centerY width rotation orientation)
+  (let [[firstX firstY]|otherPoints] (hilbertPointsAnimated depth centerX centerY width rotation orientation)
+    [(path 'none' 'blue' 5
+      [ 'M' firstX firstY | (concatMap (\\[x y] ['L' x y]) otherPoints) ]
+    )]
+  )
+))
+
+(def elements [
+  (hilbertParts (- levels 1) 1 0 earlierLevelOpacity 300 300 400 0 1)
+  (hilbertCurve (- levels 1) 300 300 400 0 1)
+])
+
+(svg (append (concat elements) (concat [levelsSlider timeSlider])))
+"
+
 stickFigures =
  ";
 ; A diagram of a sketch-n-sketch demo w/ audience
@@ -2146,6 +2488,7 @@ examples =
   , makeExample "Solar System" solarSystem
   , makeExample "Bezier Curves" bezier
   , makeExample "Fractal Tree" fractalTree
+  , makeExample "Hilbert Curve Animation" hilbertCurveAnimation
   , makeExample "Stick Figures" stickFigures
   , makeExample "Sailboat" sailBoat
   , makeExample "Eye Icon" eyeIcon

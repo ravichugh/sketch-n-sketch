@@ -46,6 +46,7 @@ LITTLE_TO_ELM ferris
 LITTLE_TO_ELM pieChart1
 LITTLE_TO_ELM solarSystem
 LITTLE_TO_ELM fractalTree
+LITTLE_TO_ELM hilbertCurveAnimation
 LITTLE_TO_ELM stickFigures
 LITTLE_TO_ELM cultOfLambda
 LITTLE_TO_ELM clique
@@ -107,6 +108,7 @@ examples =
   , makeExample "Solar System" solarSystem
   , makeExample "Bezier Curves" bezier
   , makeExample "Fractal Tree" fractalTree
+  , makeExample "Hilbert Curve Animation" hilbertCurveAnimation
   , makeExample "Stick Figures" stickFigures
   , makeExample "Sailboat" sailBoat
   , makeExample "Eye Icon" eyeIcon
