@@ -126,6 +126,38 @@ groupOfBoxes =
 
 -- LITTLE_TO_ELM sixBoxesA
 -- LITTLE_TO_ELM sixBoxesB
+basicSlides =
+ "(def slideCount 5)
+(def slideMovieCount 5)
+
+[
+  slideCount
+  (\\slideNumber
+    [
+      slideMovieCount
+      (\\slideMovieNumber
+        [
+          'Dynamic'
+          1
+          (\\(slideNumber movieNumber t)
+            (svg [
+              (rect
+                'lightblue'
+                (+ 100 (* 50 movieNumber))
+                (+ 100 (* 50 slideNumber))
+                (* t 50)
+                (* t 50)
+              )
+            ])
+          )
+          true
+        ]
+      )
+    ]
+  )
+]
+"
+
 logo =
  "; sketch-n-sketch logo
 ;
@@ -3702,6 +3734,7 @@ examples =
   [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
   , makeExample "Wave Boxes" sineWaveOfBoxes
+  , makeExample "Basic Slides" basicSlides
   , makeExample "Logo" logo
   , makeExample "Botanic Garden Logo" botanic
   , makeExample "Active Trans Logo" activeTrans2

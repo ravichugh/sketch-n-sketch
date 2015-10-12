@@ -30,6 +30,14 @@ type alias Model =
   , history : (List Code, List Code)
   -- TODO remove Maybe
   , inputExp : Maybe Exp
+  , inputVal : Maybe Val
+  , slideNumber : Int
+  , slideCount : Int
+  , movieNumber : Int
+  , movieCount : Int
+  , movieTime : Float
+  , movieDuration : Float
+  , movieContinue : Bool
   , slate : RootedIndexedTree
   , widgets : Widgets
   , mode : Mode
@@ -79,10 +87,10 @@ type MouseMode
   | MouseObject NodeId ShapeKind Zone
       (Maybe ( Code                        -- the program upon initial zone click
              , Maybe (SubstPlus, LocSet)   -- loc-set assigned (live mode only)
-             , MouseTrigger (Exp, SubstMaybeNum, RootedIndexedTree, Widgets) ))
+             , MouseTrigger (Exp, Val, SubstMaybeNum, RootedIndexedTree, Widgets) ))
   | MouseSlider Widget
       (Maybe ( Code                        -- the program upon initial click
-             , MouseTrigger (Exp, RootedIndexedTree, Widgets) ))
+             , MouseTrigger (Exp, Val, RootedIndexedTree, Widgets) ))
       -- may add info for hilites later
 
 type alias MouseTrigger a = (Int, Int) -> a
@@ -111,6 +119,7 @@ type Event = CodeUpdate String
            | SelectObject Int ShapeKind Zone
            | MouseUp
            | MousePos (Int, Int)
+           | TickDelta Float -- 30fps time tick, Float is time since last tick
            | Sync
            | TraverseOption Int -- offset from current index (+1 or -1)
            | SelectOption
@@ -118,8 +127,13 @@ type Event = CodeUpdate String
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets})
            | Edit
            | Run
+           | Redraw
            | ToggleOutput
            | ToggleZones
+           | NextSlide
+           | PreviousSlide
+           | NextMovie
+           | PreviousMovie
            | SwitchOrient
            | InstallSaveState
            | RemoveDialog Bool String
@@ -142,8 +156,8 @@ events = Signal.mailbox <| CodeUpdate ""
 
 --------------------------------------------------------------------------------
 
-mkLive opts e v = Live <| Sync.prepareLiveUpdates opts e v
-mkLive_ opts e  = mkLive opts e (fst (Eval.run e))
+mkLive opts slideNumber movieNumber movieTime e v = Live <| Sync.prepareLiveUpdates opts slideNumber movieNumber movieTime e v
+mkLive_ opts slideNumber movieNumber movieTime e  = mkLive opts slideNumber movieNumber movieTime e (fst (Eval.run e))
   -- TODO maybe put Val into model (in addition to slate)
   --   so that don't need to re-run in some calling contexts
 
@@ -191,14 +205,23 @@ sampleModel =
     (name,f) = Utils.head_ Examples.list
     {e,v,ws} = f ()
   in
+  let (slideCount, movieCount, movieDuration, movieContinue, indexedTree) = LangSvg.fetchEverything 1 1 0.0 v in
     { scratchCode   = Examples.scratch
     , exName        = name
     , code          = unparseE e
     , history       = ([], [])
     , inputExp      = Just e
-    , slate         = LangSvg.valToIndexedTree v
+    , inputVal      = Just v
+    , slideNumber   = 1
+    , slideCount    = slideCount
+    , movieNumber   = 1
+    , movieCount    = movieCount
+    , movieTime     = 0.0
+    , movieDuration = movieDuration
+    , movieContinue = movieContinue
+    , slate         = indexedTree
     , widgets       = ws
-    , mode          = mkLive Sync.defaultOptions e v
+    , mode          = mkLive Sync.defaultOptions 1 1 0.0 e v
     , mouseMode     = MouseNothing
     , orient        = Vertical
     , midOffsetX    = 0
@@ -216,6 +239,6 @@ sampleModel =
                       , highlights = []
                       }
     , basicCodeBox  = False
-    , errorBox = Nothing
+    , errorBox      = Nothing
     }
 

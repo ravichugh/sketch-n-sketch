@@ -692,44 +692,50 @@ middleWidgets w h wWrap hWrap model =
     GE.flow GE.right [ b1 wHalf h, GE.spacer (2 * delta) h, b2 wHalf h ]
   in
   List.map (GE.container wWrap hWrap GE.middle) <|
-    case (editingMode model, model.mode) of
-      (False, SyncSelect i options) ->
+    let exampleNavigation =
+      [ dropdownExamples model w h
+      , editRunButton model w h
+      , saveButton model w h
+      , saveAsButton model w h
+      , loadButton model w h
+      ]
+    in let undoRedo =
+      [ twoButtons (undoButton model) (redoButton model) ]
+    in let zonesButton =
+      [ gapWidget w h
+      , zoneButton model w h
+      ]
+    in let slideNavigation =
+      [ gapWidget w h
+      , twoButtons (previousSlideButton model) (nextSlideButton model)
+      , twoButtons (previousMovieButton model) (nextMovieButton model)
+      , slideNumber model w h
+      ]
+    in
+    case (editingMode model, model.mode, model.inputVal) of
+      (False, SyncSelect i options, _) ->
         [ gapWidget w h
         , gapWidget w h
         , prevButton i w h
         , chooseButton i options w h
         , nextButton i options w h
         ]
-      (False, Print _) ->
-        [ dropdownExamples model w h
-        , editRunButton model w h
-        , saveButton model w h
-        , saveAsButton model w h
-        , loadButton model w h
-        , twoButtons (undoButton model) (redoButton model)
-        -- , outputButton model w h
-        ]
-      (False, _) ->
-        [ dropdownExamples model w h
-        , editRunButton model w h
-        , saveButton model w h
-        , saveAsButton model w h
-        , loadButton model w h
-        , twoButtons (undoButton model) (redoButton model)
-        -- , outputButton model w h
-        , gapWidget w h
-        , zoneButton model w h
-        -- , luckyButton model w h
-        -- , frozenButton model w h
-        -- , modeButton model w h
-        ] ++ (syncButton_ w h model)
-      (True, _) ->
-        [ dropdownExamples model w h
-        , editRunButton model w h
-        , saveButton model w h
-        , saveAsButton model w h
-        , loadButton model w h
-        ]
+      (False, Print _, _) ->
+        exampleNavigation ++
+        undoRedo
+      (False, _, Just (VList [VConst (slideCount, _), _])) -> -- slideshow mode
+        exampleNavigation ++
+        undoRedo ++
+        zonesButton ++
+        (syncButton_ w h model) ++
+        slideNavigation
+      (False, _, _) ->
+        exampleNavigation ++
+        undoRedo ++
+        zonesButton ++
+        (syncButton_ w h model)
+      (True, _, _) ->
+        exampleNavigation
 
 gapWidget w h = GE.spacer w h
 
@@ -949,7 +955,7 @@ luckyButton model =
     let so' = { so | feelingLucky <- Sync.toggleHeuristicMode so.feelingLucky } in
     let m' =
       case old.mode of
-        Live _ -> mkLive_ so' (Utils.fromJust old.inputExp)
+        Live _ -> mkLive_ so' old.slideNumber old.movieNumber old.movieTime (Utils.fromJust old.inputExp)
         _      -> old.mode
     in
     { old | syncOptions <- so', mode <- m' }
@@ -1010,6 +1016,28 @@ redoButton : Model -> Int -> Int -> GE.Element
 redoButton model =
   let future = snd model.history in
   simpleEventButton_ (List.length future == 0) Redo "Redo" "Redo" "Redo"
+
+previousSlideButton : Model -> Int -> Int -> GE.Element
+previousSlideButton model =
+  simpleEventButton_ (model.slideNumber == 1 && model.movieNumber == 1) PreviousSlide "what is this for" "is this redundant" "◀◀"
+
+nextSlideButton : Model -> Int -> Int -> GE.Element
+nextSlideButton model =
+  simpleEventButton_ (model.slideNumber == model.slideCount && model.movieNumber == model.movieCount) NextSlide "WHAT IS THIS FOR" "IS THIS REDUNDANT" "▶▶"
+
+previousMovieButton : Model -> Int -> Int -> GE.Element
+previousMovieButton model =
+  simpleEventButton_ (model.slideNumber == 1 && model.movieNumber == 1) PreviousMovie "what is this for" "is this redundant" "◀"
+
+nextMovieButton : Model -> Int -> Int -> GE.Element
+nextMovieButton model =
+  simpleEventButton_ (model.slideNumber == model.slideCount && model.movieNumber == model.movieCount) NextMovie "WHAT IS THIS FOR" "IS THIS REDUNDANT" "▶"
+
+slideNumber : Model -> Int -> Int -> GE.Element
+slideNumber model w h =
+  let slideNumberElement = GE.centered << T.color Color.white << (T.typeface ["sans-serif"]) << T.fromString in
+  GE.container w h GE.middle <|
+    slideNumberElement ("Slide " ++ toString model.slideNumber ++ "/" ++ toString model.slideCount)
 
 dropdownExamples : Model -> Int -> Int -> GE.Element
 dropdownExamples model w h =

@@ -10,6 +10,7 @@ import Graphics.Element exposing (Element)
 import Mouse
 import Window
 import Keyboard
+import Time
 import Set
 
 import Task exposing (Task, andThen)
@@ -37,6 +38,7 @@ combinedEventSig =
     , Signal.map
       (Model.KeysDown << List.sort << Set.toList)
       Keyboard.keysDown
+    , Signal.map Model.TickDelta (Time.fps 30)
     ]
 
 main : Signal Element

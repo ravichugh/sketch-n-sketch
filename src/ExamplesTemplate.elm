@@ -27,6 +27,7 @@ LITTLE_TO_ELM nBoxes
 LITTLE_TO_ELM groupOfBoxes
 -- LITTLE_TO_ELM sixBoxesA
 -- LITTLE_TO_ELM sixBoxesB
+LITTLE_TO_ELM basicSlides
 LITTLE_TO_ELM logo
 LITTLE_TO_ELM logo2
 LITTLE_TO_ELM logoSizes
@@ -103,6 +104,7 @@ examples =
   [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
   , makeExample "Wave Boxes" sineWaveOfBoxes
+  , makeExample "Basic Slides" basicSlides
   , makeExample "Logo" logo
   , makeExample "Botanic Garden Logo" botanic
   , makeExample "Active Trans Logo" activeTrans2
