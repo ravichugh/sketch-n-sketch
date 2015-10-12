@@ -7,8 +7,8 @@ import CodeBox exposing (interpretAceEvents, packageModel,
                          initAceCodeBoxInfo)
 
 import Graphics.Element exposing (Element)
-import Mouse 
-import Window 
+import Mouse
+import Window
 import Keyboard
 import Set
 
@@ -26,7 +26,7 @@ sigModel =
   Signal.foldp Controller.upstate Model.sampleModel combinedEventSig
 
 combinedEventSig : Signal Model.Event
-combinedEventSig = 
+combinedEventSig =
   Signal.mergeMany
     [ events.signal
     , Signal.map2 (,) Mouse.isDown Mouse.position
@@ -50,7 +50,7 @@ adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
 port taskPort : Signal (Task String ())
 port taskPort = Signal.mergeMany
     [ taskMailbox.signal
-    , Signal.map2 interpretAceEvents theTurn 
+    , Signal.map2 interpretAceEvents theTurn
         <| Signal.sampleOn theTurn sigModel
     ]
 
@@ -72,7 +72,7 @@ port aceInTheHole =
               Model.SwitchOrient -> True
               Model.Noop -> True
 --              Model.Noop -> False
---              Model.SelectObject _ _ _ -> False 
+--              Model.SelectObject _ _ _ -> False
 --              Model.MouseUp -> False
 --              Model.MousePos _ -> False
 --              Model.Sync -> False
@@ -97,7 +97,7 @@ port aceInTheHole =
     in
         Signal.map fst
                       <| Signal.foldp packageModel initAceCodeBoxInfo
-                      <| Signal.filter 
+                      <| Signal.filter
                             (\a -> (not (fst a).basicCodeBox
                                     || snd a == Model.ToggleBasicCodeBox
                                         && (fst a).basicCodeBox)

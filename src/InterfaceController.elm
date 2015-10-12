@@ -16,16 +16,16 @@ import Config exposing (params)
 import VirtualDom
 
 --Core Libraries
-import List 
+import List
 import Dict
 import Set
-import String 
+import String
 import Char
-import Graphics.Element as GE 
+import Graphics.Element as GE
 import Graphics.Collage as GC
 
 --Html Libraries
-import Html 
+import Html
 import Html.Attributes as Attr
 import Html.Events as Events
 
@@ -175,7 +175,7 @@ upstate evt old = case debugLog "Event" evt of
                 , caption <- Nothing
                 , syncOptions <- Sync.syncOptionsOf old.syncOptions e }
           in
-          { new | mode <- refreshMode_ new 
+          { new | mode <- refreshMode_ new
                 , errorBox <- Nothing }
         Err err ->
           { old | caption <- Just (LangError ("PARSE ERROR!\n" ++ err)) }
@@ -266,7 +266,7 @@ upstate evt old = case debugLog "Event" evt of
         _ ->
           { old | mouseMode <- MouseNothing, mode <- refreshMode_ old }
 
-    Sync -> 
+    Sync ->
       case (old.mode, old.inputExp) of
         (Live _, _) -> Debug.crash "upstate Sync: shouldn't happen anymore"
         (AdHoc, Just ip) ->
@@ -397,7 +397,7 @@ upstate evt old = case debugLog "Event" evt of
     -- Lets multiple events be executed in sequence (useful for CodeBox.elm)
     MultiEvent evts -> case evts of
       [] -> old
-      e1 :: es -> upstate e1 old |> upstate (MultiEvent es)        
+      e1 :: es -> upstate e1 old |> upstate (MultiEvent es)
 
     WaitRun -> old
     WaitSave saveName -> { old | exName <- saveName }
