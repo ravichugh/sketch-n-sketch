@@ -230,6 +230,12 @@ parseVBase =
   <++ (always vFalse <$> P.token "false")
   <++ ((VBase << String) <$> parseStrLit)
 
+parsePBase =
+      ((PConst << fst) <$> parseNum) -- allowing but ignoring frozen annotation
+  <++ (always (PBase (Bool True)) <$> P.token "true")
+  <++ (always (PBase (Bool False)) <$> P.token "false")
+  <++ ((PBase << String) <$> parseStrLit)
+
 parseList_
    : (P.Parser a -> P.Parser sep -> P.Parser (List (P.WithInfo a)))
   -> String -> P.Parser sep -> String -> P.Parser a -> (List (P.WithInfo a) -> b)
@@ -327,6 +333,7 @@ parseWildcard = token_ "_" >>> P.return (PVar "_")
 parsePat : P.Parser Pat_
 parsePat = P.recursively <| \_ ->
       (PVar <$> white parseIdent)
+  <++ parsePBase
   <++ parseWildcard
   <++ parsePatList
 

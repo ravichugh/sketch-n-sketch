@@ -29,6 +29,8 @@ type alias Branch = P.WithInfo Branch_
 -- TODO add constant literals to patterns, and match 'svg'
 type Pat_
   = PVar Ident
+  | PConst Num
+  | PBase BaseVal
   | PList (List Pat) (Maybe Pat)
 
 type Op_
@@ -45,7 +47,6 @@ type Op_
   | Mod | Pow
   -- internal ops
   | RangeOffset Int
-
 
 type Exp_
   = EConst Num Loc
@@ -87,6 +88,7 @@ type Val
 
 type alias NumTr = (Num, Trace)
 
+-- TODO combine all base exps/vals into PBase/EBase/VBase
 type BaseVal -- unlike Ints, these cannot be changed by Sync
   = Bool Bool
   | String String

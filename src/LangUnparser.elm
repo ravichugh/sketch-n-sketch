@@ -65,6 +65,8 @@ unparsePat p = case p.val of
   PList ps (Just pRest) ->
     -- let _ = Debug.log "TODO: unparsePat" () in
     strPat p
+  PConst n -> strNum n
+  PBase bv -> strBaseVal bv
 
 -- NOTE:
 --   haven't recorded pos for "\", "let", "case", "if", etc.

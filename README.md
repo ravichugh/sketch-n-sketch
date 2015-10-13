@@ -94,8 +94,10 @@ Extra parentheses are not permitted.
   op1  ::=  cos | sin | arccos | arcsin
         |   floor | ceiling | round
         |   toString
+        |   sqrt
   op2  ::=  + | - | * | /
         |   < | =
+        |   mod | pow
 ```
 
 ### Conditionals
@@ -119,6 +121,7 @@ Extra parentheses are not permitted.
 
 ```
   p  ::=  x
+      |   n | s | b
       |   [p1 | p2]
       |   [p1 ... pn]
       |   [p1 ... pn | prest]

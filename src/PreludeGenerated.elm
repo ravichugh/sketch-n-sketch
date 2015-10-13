@@ -127,20 +127,6 @@ prelude =
     ([[]      []]      nil)
     (_                 (append xs ys)))))
 
-(def mapi (\\(f xs) (map f (zip (range 0 (- (len xs) 1)) xs))))
-
-(defrec nth (\\(xs n)
-  (if (< n 0)   'ERROR: nth'
-    (case xs
-      ([]       'ERROR: nth')
-      ([x|xs1]  (if (= n 0) x (nth xs1 (- n 1))))))))
-
-(defrec take (\\(n xs)
-  (if (= n 0) []
-    (case xs
-      ([]      'ERROR: take')
-      ([x|xs1] [x | (take (- n 1) xs1)])))))
-
 ;; mult : Number -> Number -> Number
 ;; multiply two numbers and return the result
 (defrec mult (\\(m n)
@@ -183,6 +169,26 @@ prelude =
 (def le (\\(x y) (or (lt x y) (eq x y))))
 (def gt (flip lt))
 (def ge (\\(x y) (or (gt x y) (eq x y))))
+
+(def min (\\(i j) (if (lt i j) i j)))
+(def max (\\(i j) (if (gt i j) i j)))
+
+(def mapi (\\(f xs) (map f (zip (range 0 (- (len xs) 1)) xs))))
+
+(defrec nth (\\(xs n)
+  (if (< n 0)       'ERROR: nth'
+    (case [n xs]
+      ([_ []]       'ERROR: nth')
+      ([0 [x|xs1]]  x)
+      ([_ [x|xs1]]  (nth xs1 (- n 1)))))))
+
+(def take
+  (letrec take_ (\\(n xs)
+    (case [n xs]
+      ([0 _]       [])
+      ([_ []]      [])
+      ([_ [x|xs1]] [x | (take_ (- n 1) xs1)])))
+  (compose take_ (max 0))))
 
 ;; joinStrings : String -> List String -> String
 ;; Combine a list of strings with a given separator

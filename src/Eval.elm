@@ -20,6 +20,12 @@ match (p,v) = case (p.val, v) of
        | otherwise -> let (vs1,vs2) = Utils.split n vs in
                       (rest, VList vs2) `cons` (matchList (Utils.zip ps vs1))
   (PList _ _, _) -> Nothing
+  (PConst n, VConst (n',_)) ->
+    if | n == n'   -> Just []
+       | otherwise -> Nothing
+  (PBase bv, VBase bv') ->
+    if | bv == bv' -> Just []
+       | otherwise -> Nothing
 
 matchList : List (Pat, Val) -> Maybe Env
 matchList pvs =
