@@ -42,6 +42,7 @@ type Op_
   -- binary ops
   | Plus | Minus | Mult | Div
   | Lt | Eq
+  | Mod | Pow
   -- internal ops
   | RangeOffset Int
 
@@ -149,6 +150,8 @@ strOp op = case op of
   Round -> "round"
   ToStr -> "toString"
   Sqrt  -> "sqrt"
+  Mod   -> "mod"
+  Pow   -> "pow"
 
 strLoc (k, b, mx) =
   "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx) ++ b

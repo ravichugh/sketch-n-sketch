@@ -409,6 +409,8 @@ parseBOp =
   <++ (always Div   <$> token_ "/")
   <++ (always Lt    <$> token_ "<")
   <++ (always Eq    <$> token_ "=")
+  <++ (always Mod   <$> token_ "mod")
+  <++ (always Pow   <$> token_ "pow")
 
 parseUnop =
   parens <|

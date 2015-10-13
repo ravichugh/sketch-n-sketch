@@ -126,6 +126,8 @@ evalOp env opWithInfo es =
         Minus -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Mult  -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Div   -> VConst (evalDelta op [i,j], TrOp op [it,jt])
+        Mod   -> VConst (evalDelta op [i,j], TrOp op [it,jt])
+        Pow   -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Lt    -> vBool  (i < j)
         Eq    -> vBool  (i == j)
     [VBase (String s1), VBase (String s2)] ->
@@ -165,19 +167,26 @@ evalBranches env v l =
 
 evalDelta op is =
   case (op, is) of
+
     (Plus,   [i,j]) -> (+) i j
     (Minus,  [i,j]) -> (-) i j
     (Mult,   [i,j]) -> (*) i j
     (Div,    [i,j]) -> (/) i j
+    (Pow,    [i,j]) -> (^) i j
+    (Mod,    [i,j]) -> toFloat <| (%) (floor i) (floor j)
+                         -- might want an error/warning for non-int
+
     (Cos,    [n])   -> cos n
     (Sin,    [n])   -> sin n
     (ArcCos, [n])   -> acos n
     (ArcSin, [n])   -> asin n
-    (Pi,     [])    -> pi
     (Floor,  [n])   -> toFloat <| floor n
     (Ceil,   [n])   -> toFloat <| ceiling n
     (Round,  [n])   -> toFloat <| round n
     (Sqrt,   [n])   -> sqrt n
+
+    (Pi,     [])    -> pi
+
     _               -> errorMsg <| "Eval.evalDelta " ++ strOp op
 
 initEnv = snd (eval [] Parser.prelude)
