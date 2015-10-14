@@ -2041,6 +2041,37 @@ bezier =
 "
 
 -- LITTLE_TO_ELM surveyResults
+gridTile =
+ "
+(def grid (\\(x0 y0 w h n m)
+  (let [xw yh] [(+ x0 w) (+ y0 h)]
+  (let [rowH colW] [(/ h n) (/ w m)]
+  (let box (rect 460 x0 y0 w h)
+  (let rows
+    (map (\\i (let yi (+ y0 (mult i rowH))
+             (line 'black' 2 x0 yi xw yi)))
+         (range 0! n))
+  (let cols
+    (map (\\i (let xi (+ x0 (mult i colW))
+             (line 'black' 2 xi y0 xi yh)))
+         (range 0! n))
+  (concat [[box] rows cols]))))))))
+
+(def [x0 y0 w h n m] [100 100 325 285 10! 10!])
+
+(def blob
+  (ellipse 196 (+ x0 (/ w 2!))
+               (+ y0 (/ h 2!))
+               (- (/ w 2!) (/ w m))
+               (- (/ h 2!) (/ h n))))
+
+(svg (append
+  (grid x0 y0 w h n m)
+  [blob]
+))
+
+"
+
 lilliconP =
  "
 (def [x0 x1 x2 x3 x4] [20 80 150 240 380])
@@ -2133,6 +2164,7 @@ examples =
   , makeExample "Paths 5" paths5
   , makeExample "Sample Rotations" rotTest
   -- , makeExample "Survey Results" surveyResults
+  , makeExample "Grid Tile" gridTile
   , makeExample "Lillicon P" lilliconP
   ]
 
