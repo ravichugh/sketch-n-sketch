@@ -2041,6 +2041,43 @@ bezier =
 "
 
 -- LITTLE_TO_ELM surveyResults
+lilliconP =
+ "
+(def [x0 x1 x2 x3 x4] [20 80 150 240 380])
+(def [y0 y1 y2 y3]    [20 125 296 424])
+
+(def yRightmostPt (+ y0 (/ (- y2 y0) 2!)))
+(def delta 50!) ; TODO
+
+(def theP
+  (path 'black' 'none' 0
+    ['M' x0 y3
+     'C' x1 376 x1 216 x1 y1
+     'C' 80 60 134 y0 x3 y0
+     'C' (- x4 delta) y0 x4 (+ y0 delta) x4 yRightmostPt
+     'C' x4 (- y2 delta) (- x4 delta) y2 x3 y2
+     'L' x2 y2
+     'L' x2 y3
+     'L' x0 y3
+    ]))
+
+(def highlights
+  (let r 10!
+  (cons
+    (circle 'goldenrod' x3 y2 r)
+    (map (\\[x y] (circle 'magenta' x y r))
+         [[(- x4 delta) y0]
+          [x4 (+ y0 delta)]
+          [x4 yRightmostPt]
+          [x4 (- y2 delta)]
+          [(- x4 delta) y2]
+          [x2 y2]
+         ]))))
+
+(svg (cons theP (if true highlights [])))
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -2096,6 +2133,7 @@ examples =
   , makeExample "Paths 5" paths5
   , makeExample "Sample Rotations" rotTest
   -- , makeExample "Survey Results" surveyResults
+  , makeExample "Lillicon P" lilliconP
   ]
 
 list = examples

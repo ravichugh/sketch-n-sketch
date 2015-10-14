@@ -68,6 +68,7 @@ LITTLE_TO_ELM cover
 LITTLE_TO_ELM poppl
 LITTLE_TO_ELM bezier
 -- LITTLE_TO_ELM surveyResults
+LITTLE_TO_ELM lilliconP
 
 examples =
   [ makeExample scratchName scratch
@@ -123,6 +124,7 @@ examples =
   , makeExample "Paths 5" paths5
   , makeExample "Sample Rotations" rotTest
   -- , makeExample "Survey Results" surveyResults
+  , makeExample "Lillicon P" lilliconP
   ]
 
 list = examples
