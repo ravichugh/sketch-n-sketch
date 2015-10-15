@@ -1,0 +1,24 @@
+
+(def [x0 x1 x2 x3 x4] [20 80 150 240 380])
+(def [y0 y1 y2 y3]    [20 125 296 424])
+
+(def yRightmostPt (+ y0 (/ (- y2 y0) 2!)))
+(def arcR 1!) ; any non-zero, not-too-large number works
+
+(def theP
+  (path 'black' 'none' 0
+    ['M' x0 y3
+     'C' x1 376 x1 216 x1 y1
+     'C' 80 60 134 y0 x3 y0
+     'A' arcR arcR 0 0 1 x3 y2
+     'L' x2 y2
+     'L' x2 y3
+     'L' x0 y3
+    ]))
+
+(def highlights
+  (let r 10!
+  [ (circle 'goldenrod' x3 y2 r)
+    (circle 'magenta'   x2 y2 r) ]))
+
+(svg (cons theP (if true highlights [])))

@@ -606,7 +606,7 @@ boxGrid =
 (def allColors [0 100 200 300 450])
 (def seedRows 1.5)
 (def seedCols 2.5)
-(def seedNumColors 0.5)
+(def seedNumColors 1.5)
 (def seedShapeKind 0.5)
 
 ; derived values
@@ -625,7 +625,7 @@ boxGrid =
     seedCols seedRows)))
 
 (def [numColors numColorsSlider]
-  (hSlider true 20! 100! 30! 0! 5! '#Colors = ' seedNumColors))
+  (hSlider true 20! 100! 30! 1! 5! '#Colors = ' seedNumColors))
 
 (def [shapeKind shapeKindSlider]
   (enumSlider 220! 300! 30! ['Box' 'Dot' 'Star'] '' seedShapeKind))
@@ -642,7 +642,7 @@ boxGrid =
         ('Box'  (square c x y boxSize))
         ('Dot'  (circle c cx cy halfBoxSize))
         ('Star' (nStar c 'none' 0! 4! halfBoxSize 10! 0! cx cy))
-        (_      (circle 'none' 0! 0! 0!)))))))
+        ( else  (circle 'none' 0! 0! 0!)))))))
     (if (and (= i (- cols 1!)) (< j numColors))
         shape
         (addAttr shape ['zones' 'none']))))
@@ -2189,6 +2189,34 @@ lilliconP =
 
 "
 
+lilliconP2 =
+ "
+(def [x0 x1 x2 x3 x4] [20 80 150 240 380])
+(def [y0 y1 y2 y3]    [20 125 296 424])
+
+(def yRightmostPt (+ y0 (/ (- y2 y0) 2!)))
+(def arcR 1!) ; any non-zero, not-too-large number works
+
+(def theP
+  (path 'black' 'none' 0
+    ['M' x0 y3
+     'C' x1 376 x1 216 x1 y1
+     'C' 80 60 134 y0 x3 y0
+     'A' arcR arcR 0 0 1 x3 y2
+     'L' x2 y2
+     'L' x2 y3
+     'L' x0 y3
+    ]))
+
+(def highlights
+  (let r 10!
+  [ (circle 'goldenrod' x3 y2 r)
+    (circle 'magenta'   x2 y2 r) ]))
+
+(svg (cons theP (if true highlights [])))
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -2247,6 +2275,7 @@ examples =
   -- , makeExample "Survey Results" surveyResults
   , makeExample "Grid Tile" gridTile
   , makeExample "Lillicon P" lilliconP
+  , makeExample "Lillicon P, v2" lilliconP2
   ]
 
 list = examples

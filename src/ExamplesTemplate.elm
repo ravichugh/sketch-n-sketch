@@ -71,6 +71,7 @@ LITTLE_TO_ELM bezier
 -- LITTLE_TO_ELM surveyResults
 LITTLE_TO_ELM gridTile
 LITTLE_TO_ELM lilliconP
+LITTLE_TO_ELM lilliconP2
 
 examples =
   [ makeExample scratchName scratch
@@ -129,6 +130,7 @@ examples =
   -- , makeExample "Survey Results" surveyResults
   , makeExample "Grid Tile" gridTile
   , makeExample "Lillicon P" lilliconP
+  , makeExample "Lillicon P, v2" lilliconP2
   ]
 
 list = examples

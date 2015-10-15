@@ -37,7 +37,7 @@
 (def allColors [0 100 200 300 450])
 (def seedRows 1.5)
 (def seedCols 2.5)
-(def seedNumColors 0.5)
+(def seedNumColors 1.5)
 (def seedShapeKind 0.5)
 
 ; derived values
@@ -56,7 +56,7 @@
     seedCols seedRows)))
 
 (def [numColors numColorsSlider]
-  (hSlider true 20! 100! 30! 0! 5! '#Colors = ' seedNumColors))
+  (hSlider true 20! 100! 30! 1! 5! '#Colors = ' seedNumColors))
 
 (def [shapeKind shapeKindSlider]
   (enumSlider 220! 300! 30! ['Box' 'Dot' 'Star'] '' seedShapeKind))
@@ -73,7 +73,7 @@
         ('Box'  (square c x y boxSize))
         ('Dot'  (circle c cx cy halfBoxSize))
         ('Star' (nStar c 'none' 0! 4! halfBoxSize 10! 0! cx cy))
-        (_      (circle 'none' 0! 0! 0!)))))))
+        ( else  (circle 'none' 0! 0! 0!)))))))
     (if (and (= i (- cols 1!)) (< j numColors))
         shape
         (addAttr shape ['zones' 'none']))))
