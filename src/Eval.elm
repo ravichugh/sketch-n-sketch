@@ -157,6 +157,9 @@ evalOp env opWithInfo es =
     [VBase (Bool b)] ->
       case op of
         ToStr  -> VBase (String (toString b))
+    [VBase (String s)] ->
+      case op of
+        ToStr  -> VBase (String (strBaseVal (String s)))
     _ ->
       errorMsg
         <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart

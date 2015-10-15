@@ -164,6 +164,8 @@ prelude =
 ;; Ex. clamp 1 5 6 = 5
 (def clamp (\\(i j n) (if (< n i) i (if (< j n) j n))))
 
+(def between (\\(i j n) (= n (clamp i j n))))
+
 (def lt (\\(x y) (< x y)))
 (def eq (\\(x y) (= x y)))
 (def le (\\(x y) (or (lt x y) (eq x y))))
@@ -396,8 +398,7 @@ prelude =
   (let indices (list0N (- (* 2! n) 1!))
     (polygon fill stroke w (map pti (zip indices lengths))))))))
 
-;; zones : String -> Shape -> Shape
-;; Add a string-specified type of zones to a given shape
+;; zones : String -> List Shape -> List Shape
 (def zones (\\s (map (\\shape (addAttr shape ['zones' s])))))
 
 ;; hideZonesTail : List Shape -> List Shape
@@ -459,6 +460,30 @@ prelude =
                (zones 'basic' shapes2))])))))))))
 
 (def button (button_ false))
+
+(def enumSlider (\\(x0 x1 y enum caption srcVal)
+  (let n (len enum)
+  (let [minVal maxVal] [0! n]
+  (let preVal (clamp minVal maxVal srcVal)
+  (let i (floor preVal)
+  (let item (nth enum i)
+  (let wrap (\\circ (addAttr circ ['SELECTED' ''])) ; TODO
+  (let shapes
+    (let rail [ (line 'black' 3! x0 y x1 y) ]
+    (let ball
+      (let [xDiff valDiff] [(- x1 x0) (- maxVal minVal)]
+      (let xBall (+ x0 (* xDiff (/ (- preVal minVal) valDiff)))
+      (let rBall (if (= preVal srcVal) 10! 0!)
+        [ (wrap (circle 'black' xBall y rBall)) ])))
+    (let endpoints
+      [ (wrap (circle 'black' x0 y 4!)) (wrap (circle 'black' x1 y 4!)) ]
+    (let tickpoints
+      (let sep (/ (- x1 x0) n)
+      (map (\\j (wrap (circle 'grey' (+ x0 (mult j sep)) y 4!)))
+           (range 1! (- n 1!))))
+    (let label [ (text (+ x1 10!) (+ y 5!) (+ caption (toString item))) ]
+    (concat [ rail endpoints tickpoints ball label ]))))))
+  [item shapes])))))))))
 
 ;; rotate : Shape -> Number -> Number -> Number -> Shape
 ;; argument order - shape, rot, x, y
