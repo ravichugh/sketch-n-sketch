@@ -461,30 +461,28 @@ prelude =
 
 (def button (button_ false))
 
-; TODO add red ball for out-of-bounds
 (def enumSlider (\\(x0 x1 y enum caption srcVal)
   (let n (len enum)
   (let [minVal maxVal] [0! (- n 0.1!)]
   (let preVal (clamp minVal maxVal srcVal)
   (let i (floor preVal)
   (let item (nth enum i)
-  (let wrap (\\circ (addAttr circ ['SELECTED' ''])) ; TODO
   (let shapes
     (let rail [ (line 'black' 3! x0 y x1 y) ]
     (let ball
       (let [xDiff valDiff] [(- x1 x0) (- maxVal minVal)]
       (let xBall (+ x0 (* xDiff (/ srcVal valDiff)))
       (let cBall (if (= preVal srcVal) 'black' 'red')
-        [ (wrap (circle cBall xBall y 10!)) ])))
+        [ (circle cBall xBall y 10!) ])))
     (let endpoints
-      [ (wrap (circle 'black' x0 y 4!)) (wrap (circle 'black' x1 y 4!)) ]
+      [ (circle 'black' x0 y 4!) (circle 'black' x1 y 4!) ]
     (let tickpoints
       (let sep (/ (- x1 x0) n)
-      (map (\\j (wrap (circle 'grey' (+ x0 (mult j sep)) y 4!)))
+      (map (\\j (circle 'grey' (+ x0 (mult j sep)) y 4!))
            (range 1! (- n 1!))))
     (let label [ (text (+ x1 10!) (+ y 5!) (+ caption (toString item))) ]
     (concat [ rail endpoints tickpoints label ball ]))))))
-  [item shapes])))))))))
+  [item shapes]))))))))
 
 ;; rotate : Shape -> Number -> Number -> Number -> Shape
 ;; argument order - shape, rot, x, y
