@@ -82,6 +82,7 @@ unparse : Exp -> String
 unparse e = case e.val of
   EBase v -> strBaseVal v
   EConst i l -> let (_,b,_) = l in toString i ++ b
+    -- TODO: parse/unparse are not inverses for floats (e.g. 1.0)
   EVar x -> x
   EFun [p] e1 ->
     let tok = makeToken (incCol e.start) "\\" in

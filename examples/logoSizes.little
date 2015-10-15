@@ -1,0 +1,51 @@
+
+(def logo (\(x0 y0 w h delta1 delta2 fg bg)
+  (let [xw yh w2 h2] [(+ x0 w) (+ y0 h) (div w 2) (div h 2)]
+  (let poly (\(c pts) (polygon c 'none' 0 pts))
+  (let basic (\shape (addAttr shape ['zones' 'basic']))
+  [
+  
+    ; positive background
+    ; starting with (xw,yh) to place color slider
+    (poly fg [[xw yh] [xw y0] [x0 y0] [x0 yh]])
+  
+    ; negative X, part 1
+    (poly bg
+      [[x0 y0] [(+ x0 delta1) y0] [xw (- yh delta2)]
+       [xw yh] [(- xw delta1) yh] [x0 (+ y0 delta2)]])
+  
+    ; negative X, part 2
+    (basic (poly bg
+      [[xw y0] [xw (+ y0 delta2)] [(+ x0 delta1) yh]
+       [x0 yh] [x0 (- yh delta2)] [(- xw delta1) y0]]))
+  
+    ; positive, hiding top-right quarter of X
+    (basic (poly fg
+      [[(+ x0 delta1) y0] [xw y0] [xw (- yh delta2)]]))
+  
+  ])))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(def [w h]      [300 300])
+(def [fg bg]    [360 499])
+(def [p0 p1 p2] [1.0! 0.3! 0.1!])
+(def offset     20!)
+
+(def x0 offset)
+(def y0 offset)
+(def x1 (+ x0 (+ offset (* p0 w))))
+(def x2 (+ x1 (+ offset (* p1 w))))
+
+(def [large medium small] [
+  (logo x0 y0 (* p0 w) (* p0 h) 10 10 fg bg)
+  (logo x1 y0 (* p1 w) (* p1 h)  3  3 fg bg)
+  (logo x2 y0 (* p2 w) (* p2 h)  1  1 fg bg)
+])
+
+(svg (concat [
+  large
+  (zones 'basic' medium)
+  (zones 'basic' small)
+]))

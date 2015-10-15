@@ -23,6 +23,7 @@ LITTLE_TO_ELM sixBoxesA
 LITTLE_TO_ELM sixBoxesB
 LITTLE_TO_ELM logo
 LITTLE_TO_ELM logo2
+LITTLE_TO_ELM logoSizes
 LITTLE_TO_ELM elmLogo
 LITTLE_TO_ELM activeTrans
 LITTLE_TO_ELM botanic
@@ -81,6 +82,7 @@ examples =
   , makeExample "Thaw/Freeze" thawFreeze
   , makeExample "Logo" logo
   , makeExample "Logo 2" logo2
+  , makeExample "Logo Sizes" logoSizes
   , makeExample "Elm Logo" elmLogo
   , makeExample "Active Trans Logo" activeTrans
   , makeExample "Botanic Garden Logo" botanic
