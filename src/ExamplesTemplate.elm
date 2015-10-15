@@ -69,6 +69,7 @@ LITTLE_TO_ELM cover
 LITTLE_TO_ELM poppl
 LITTLE_TO_ELM bezier
 -- LITTLE_TO_ELM surveyResults
+LITTLE_TO_ELM equiTri
 LITTLE_TO_ELM gridTile
 LITTLE_TO_ELM lilliconP
 LITTLE_TO_ELM lilliconP2
@@ -90,6 +91,7 @@ examples =
   , makeExample "Rings" rings
   , makeExample "Polygons" polygons
   , makeExample "Stars" stars
+  , makeExample "Triangles" equiTri
   , makeExample "Clique" clique
   , makeExample "Sliders" sliders
   , makeExample "Buttons" buttons

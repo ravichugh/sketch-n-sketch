@@ -2121,6 +2121,29 @@ bezier =
 "
 
 -- LITTLE_TO_ELM surveyResults
+equiTri =
+ "
+; Equilateral Triangles
+; (derived in terms of nStar, rather than nGon)
+
+(def tri (\\(c x y sideLen rot)
+  (let len1 (* sideLen (/ 2! 3!))
+  (let len2 (* sideLen (/ 1! 3!))
+  (nStar c 'none' 0 3! len1 len2 rot x y)))))
+
+(svg [
+  (tri 'darkblue'
+    150 150
+    100
+    0)
+  (tri 'lightblue'
+    200 300
+    50
+    10)
+])
+
+"
+
 gridTile =
  "
 (def grid (\\(x0 y0 w h n m)
@@ -2235,6 +2258,7 @@ examples =
   , makeExample "Rings" rings
   , makeExample "Polygons" polygons
   , makeExample "Stars" stars
+  , makeExample "Triangles" equiTri
   , makeExample "Clique" clique
   , makeExample "Sliders" sliders
   , makeExample "Buttons" buttons
