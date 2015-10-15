@@ -512,7 +512,13 @@ rgba =
 "
 
 boxGrid =
- "; A grid of boxes that can be enlarged with a slider
+ "
+; Grid pattern with three adjustable sliders:
+;  - 2d slider for number of rows/columns
+;  - enumeration slider for shape kind
+;  - slider for number of colors
+;
+; Also try toggling to Color zones.
 
 (def xySlider
   (\\(xStart xEnd yStart yEnd xMin xMax yMin yMax xCaption yCaption xCur yCur)
@@ -520,7 +526,7 @@ boxGrid =
     (let [xDiff yDiff xValDiff yValDiff] [(- xEnd xStart) (- yEnd yStart) (- xMax xMin) (- yMax yMin)]
     (let xBall (+ xStart (* xDiff (/ (- xCur xMin) xValDiff)))
     (let yBall (+ yStart (* yDiff (/ (- yCur yMin) yValDiff)))
-    (let cBall 'black'
+    (let cBall (if (and (between xMin xMax xCur) (between yMin yMax yCur)) 'black' 'red')
     (let xVal (ceiling (clamp xMin xMax xCur))
     (let yVal (ceiling (clamp yMin yMax yCur))
     (let myLine (\\(x1 y1 x2 y2) (line 'black' wEdge x1 y1 x2 y2))
@@ -541,13 +547,17 @@ boxGrid =
 ))))))))))))
 
 ; parameters
-(def [x0 y0 w h boxSize] [30! 30! 300! 300! 50!])
+(def [x0 y0 w h boxSize] [30! 100! 300! 300! 50!])
+(def allColors [0 100 200 300 450])
 (def seedRows 1.5)
 (def seedCols 2.5)
+(def seedNumColors 0.5)
+(def seedShapeKind 0.5)
 
 ; derived values
 (def [xw yh] [(+ x0 w) (+ y0 h)])
 (def sep (+ boxSize 10!))
+(def halfBoxSize (/ boxSize 2!))
 
 (def [ [ cols rows ] boxSlider ] 
   (let pad 10!
@@ -559,12 +569,36 @@ boxGrid =
     '' ''
     seedCols seedRows)))
 
-(svg 
-  (append
-    (map
-      (\\[i j] (square 40 (+ x0 (mult i sep)) (+ y0 (mult j sep)) boxSize))
-      (cartProd (range 0! (- cols 1!)) (range 0! (- rows 1!))))
-    boxSlider))
+(def [numColors numColorsSlider]
+  (hSlider true 20! 100! 30! 0! 5! '#Colors = ' seedNumColors))
+
+(def [shapeKind shapeKindSlider]
+  (enumSlider 220! 300! 30! ['Box' 'Dot' 'Star'] '' seedShapeKind))
+
+(def shapes
+  (let indices (cartProd (range 0! (- cols 1!)) (range 0! (- rows 1!)))
+  (let drawShape (\\[i j]
+    (let shape
+      (let c (nth allColors (mod (- i j) numColors))
+      (let x (+ x0 (mult i sep))
+      (let y (+ y0 (mult j sep))
+      (let [cx cy] [(+ x halfBoxSize) (+ y halfBoxSize)]
+      (case shapeKind
+        ('Box'  (square c x y boxSize))
+        ('Dot'  (circle c cx cy halfBoxSize))
+        ('Star' (nStar c 'none' 0! 4! halfBoxSize 10! 0! cx cy))
+        (_      (circle 'none' 0! 0! 0!)))))))
+    (if (and (= i (- cols 1!)) (< j numColors))
+        shape
+        (addAttr shape ['zones' 'none']))))
+  (map drawShape indices))))
+
+(svg (concat [ 
+  shapes
+  boxSlider
+  numColorsSlider
+  shapeKindSlider
+]))
 
 "
 

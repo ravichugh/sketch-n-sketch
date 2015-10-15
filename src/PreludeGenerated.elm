@@ -461,6 +461,7 @@ prelude =
 
 (def button (button_ false))
 
+; TODO add red ball for out-of-bounds
 (def enumSlider (\\(x0 x1 y enum caption srcVal)
   (let n (len enum)
   (let [minVal maxVal] [0! n]
