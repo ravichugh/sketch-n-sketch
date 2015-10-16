@@ -1,18 +1,14 @@
 
-; Grid pattern with three adjustable sliders:
-;  - 2d slider for number of rows/columns
-;  - enumeration slider for shape kind
-;  - slider for number of colors
-;
-; Also try toggling to Color zones.
+; Drag some "filter tokens" from the right over the grid.
+; Toggle between positive/negative filtering.
 
-; parameters
 (def [x0 y0 w h boxSize] [30! 100! 300! 300! 50!])
 (def allColors [0 100 200 300 450])
 (def seedRows 1.5)
 (def seedCols 2.5)
 (def seedNumColors 1.5)
 (def seedShapeKind 0.5)
+(def seedFilterKind 0.75)
 
 ; derived values
 (def [xw yh] [(+ x0 w) (+ y0 h)])
@@ -35,6 +31,32 @@
 (def [shapeKind shapeKindSlider]
   (enumSlider 220! 300! 30! ['Box' 'Dot' 'Star'] '' seedShapeKind))
 
+(def [posFilter filterKindSlider]
+  (button 360! 30! 'PosNeg = ' seedFilterKind))
+
+(def tokens 
+  (let [x0 y0] [400! 50!]
+  (let shift (\(dx dy) [(+ x0 dx) (+ y0 dy)])
+  (map (\[x y] (circle (if posFilter 'green' 'red') x y 10!))
+       [(shift 0  30)
+        (shift 0  60)
+        (shift 0  90)
+        (shift 0 120)
+        (shift 0 150)
+        (shift 0 180)
+        (shift 0 210)
+        (shift 0 240)
+        (shift 0 270)
+        (shift 0 300)
+       ]))))
+
+(def isCovered (\(cx cy)
+  (let checkX (between (- cx halfBoxSize) (+ cx halfBoxSize))
+  (let checkY (between (- cy halfBoxSize) (+ cy halfBoxSize))
+  (let centers (map (\tok [(lookupAttr tok 'cx') (lookupAttr tok 'cy')]) tokens)
+  (some (\[x y] (and (checkX x) (checkY y))) centers)
+ )))))
+
 (def shapes
   (let indices (cartProd (range 0! (- cols 1!)) (range 0! (- rows 1!)))
   (let drawShape (\[i j]
@@ -43,11 +65,15 @@
       (let x (+ x0 (mult i sep))
       (let y (+ y0 (mult j sep))
       (let [cx cy] [(+ x halfBoxSize) (+ y halfBoxSize)]
+      ; TODO boolean patterns?
+      (let covered (isCovered cx cy)
+      (if (or (and posFilter (not covered))
+              (and (not posFilter) covered)) (circle 'none' 0! 0! 0!)
       (case shapeKind
         ('Box'  (square c x y boxSize))
         ('Dot'  (circle c cx cy halfBoxSize))
         ('Star' (nStar c 'none' 0! 4! halfBoxSize 10! 0! cx cy))
-        ( else  (circle 'none' 0! 0! 0!)))))))
+        ( else  (circle 'none' 0! 0! 0!)))))))))
     (if (and (= i (- cols 1!)) (< j numColors))
         shape
         (addAttr shape ['zones' 'none']))))
@@ -58,4 +84,6 @@
   boxSlider
   numColorsSlider
   shapeKindSlider
+  filterKindSlider
+  tokens
 ]))

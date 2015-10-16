@@ -36,6 +36,7 @@ LITTLE_TO_ELM widgets
 LITTLE_TO_ELM xySlider
 LITTLE_TO_ELM rgba
 LITTLE_TO_ELM boxGrid
+LITTLE_TO_ELM boxGridTokenFilter
 LITTLE_TO_ELM usFlag13
 LITTLE_TO_ELM usFlag50
 LITTLE_TO_ELM chicago
@@ -99,6 +100,7 @@ examples =
   , makeExample "xySlider" xySlider
   , makeExample "Color Picker" rgba
   , makeExample "Box Grid" boxGrid
+  , makeExample "Box Grid 2" boxGridTokenFilter
   , makeExample "Bar Graph" barGraph
   , makeExample "Chicago Flag" chicago
   , makeExample "Chicago Flag 2" chicagoColors

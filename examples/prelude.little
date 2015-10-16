@@ -155,6 +155,16 @@
 (def or  (\(p q) (if p true q)))
 (def and (\(p q) (if p q false)))
 
+(defrec some (\(p xs)
+  (case xs
+    ([]      false)
+    ([x|xs1] (or (p x) (some p xs1))))))
+
+(defrec all (\(p xs)
+  (case xs
+    ([]      true)
+    ([x|xs1] (and (p x) (all p xs1))))))
+
 ;; clamp : Number -> Number -> Number -> Number
 ;; Given an upper bound, lower bound, and a number, restricts that number between those bounds (inclusive)
 ;; Ex. clamp 1 5 4 = 4
@@ -350,6 +360,29 @@
   (let newShapes (reverse (fst (foldl f initAcc oldShapesI)))
     ['svg' svgAttrs newShapes]))))))
 
+(defrec lookupWithDefault (\(default k dict)
+  (let foo (lookupWithDefault default k)
+  (case dict
+    ([]            default)
+    ([[k1 v]|rest] (if (= k k1) v (foo rest)))))))
+
+(defrec lookup (\(k dict)
+  (let foo (lookup k)
+  (case dict
+    ([]            'NOTFOUND')
+    ([[k1 v]|rest] (if (= k k1) v (foo rest)))))))
+
+(defrec addExtras (\(i extras shape)
+  (case extras
+    ([] shape)
+    ([[k table] | rest]
+      (let v (lookup i table)
+      (if (= v 'NOTFOUND')
+          (addExtras i rest shape)
+          (addExtras i rest (addAttr shape [k v]))))))))
+
+(def lookupAttr (\([_ attrs _] k) (lookup k attrs)))
+
 ; "constant folding"
 (def twoPi (* 2 (pi)))
 (def halfPi (/ (pi) 2))
@@ -457,6 +490,32 @@
                (zones 'basic' shapes2))])))))))))
 
 (def button (button_ false))
+
+(def xySlider
+  (\(xStart xEnd yStart yEnd xMin xMax yMin yMax xCaption yCaption xCur yCur)
+    (let [rCorner wEdge rBall] [4! 3! 10!]
+    (let [xDiff yDiff xValDiff yValDiff] [(- xEnd xStart) (- yEnd yStart) (- xMax xMin) (- yMax yMin)]
+    (let xBall (+ xStart (* xDiff (/ (- xCur xMin) xValDiff)))
+    (let yBall (+ yStart (* yDiff (/ (- yCur yMin) yValDiff)))
+    (let cBall (if (and (between xMin xMax xCur) (between yMin yMax yCur)) 'black' 'red')
+    (let xVal (ceiling (clamp xMin xMax xCur))
+    (let yVal (ceiling (clamp yMin yMax yCur))
+    (let myLine (\(x1 y1 x2 y2) (line 'black' wEdge x1 y1 x2 y2))
+    (let myCirc (\(x0 y0) (circle 'black' x0 y0 rCorner))
+    (let shapes
+      [ (myLine xStart yStart xEnd yStart)
+        (myLine xStart yStart xStart yEnd)
+        (myLine xStart yEnd xEnd yEnd)
+        (myLine xEnd yStart xEnd yEnd)
+        (myCirc xStart yStart)
+        (myCirc xStart yEnd)
+        (myCirc xEnd yStart)
+        (myCirc xEnd yEnd)
+        (circle cBall xBall yBall rBall)
+        (text (- (+ xStart (/ xDiff 2)) 40) (+ yEnd 20) (+ xCaption (toString xVal)))
+        (text (+ xEnd 10) (+ yStart (/ yDiff 2)) (+ yCaption (toString yVal))) ]
+    [ [ xVal yVal ] shapes ]
+))))))))))))
 
 (def enumSlider (\(x0 x1 y enum caption srcVal)
   (let n (len enum)

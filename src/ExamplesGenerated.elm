@@ -575,32 +575,6 @@ boxGrid =
 ;
 ; Also try toggling to Color zones.
 
-(def xySlider
-  (\\(xStart xEnd yStart yEnd xMin xMax yMin yMax xCaption yCaption xCur yCur)
-    (let [rCorner wEdge rBall] [4! 3! 10!]
-    (let [xDiff yDiff xValDiff yValDiff] [(- xEnd xStart) (- yEnd yStart) (- xMax xMin) (- yMax yMin)]
-    (let xBall (+ xStart (* xDiff (/ (- xCur xMin) xValDiff)))
-    (let yBall (+ yStart (* yDiff (/ (- yCur yMin) yValDiff)))
-    (let cBall (if (and (between xMin xMax xCur) (between yMin yMax yCur)) 'black' 'red')
-    (let xVal (ceiling (clamp xMin xMax xCur))
-    (let yVal (ceiling (clamp yMin yMax yCur))
-    (let myLine (\\(x1 y1 x2 y2) (line 'black' wEdge x1 y1 x2 y2))
-    (let myCirc (\\(x0 y0) (circle 'black' x0 y0 rCorner))
-    (let shapes
-      [ (myLine xStart yStart xEnd yStart)
-        (myLine xStart yStart xStart yEnd)
-        (myLine xStart yEnd xEnd yEnd)
-        (myLine xEnd yStart xEnd yEnd)
-        (myCirc xStart yStart)
-        (myCirc xStart yEnd)
-        (myCirc xEnd yStart)
-        (myCirc xEnd yEnd)
-        (circle cBall xBall yBall rBall)
-        (text (- (+ xStart (/ xDiff 2)) 40) (+ yEnd 20) (+ xCaption (toString xVal)))
-        (text (+ xEnd 10) (+ yStart (/ yDiff 2)) (+ yCaption (toString yVal))) ]
-    [ [ xVal yVal ] shapes ]
-))))))))))))
-
 ; parameters
 (def [x0 y0 w h boxSize] [30! 100! 300! 300! 50!])
 (def allColors [0 100 200 300 450])
@@ -653,6 +627,99 @@ boxGrid =
   boxSlider
   numColorsSlider
   shapeKindSlider
+]))
+
+"
+
+boxGridTokenFilter =
+ "
+; Drag some \"filter tokens\" from the right over the grid.
+; Toggle between positive/negative filtering.
+
+(def [x0 y0 w h boxSize] [30! 100! 300! 300! 50!])
+(def allColors [0 100 200 300 450])
+(def seedRows 1.5)
+(def seedCols 2.5)
+(def seedNumColors 1.5)
+(def seedShapeKind 0.5)
+(def seedFilterKind 0.75)
+
+; derived values
+(def [xw yh] [(+ x0 w) (+ y0 h)])
+(def sep (+ boxSize 10!))
+(def halfBoxSize (/ boxSize 2!))
+
+(def [ [ cols rows ] boxSlider ] 
+  (let pad 10!
+  (xySlider
+    (- x0 pad) (+ xw pad)
+    (- y0 pad) (+ yh pad)
+    0! (/ w sep)
+    0! (/ h sep)
+    '' ''
+    seedCols seedRows)))
+
+(def [numColors numColorsSlider]
+  (hSlider true 20! 100! 30! 1! 5! '#Colors = ' seedNumColors))
+
+(def [shapeKind shapeKindSlider]
+  (enumSlider 220! 300! 30! ['Box' 'Dot' 'Star'] '' seedShapeKind))
+
+(def [posFilter filterKindSlider]
+  (button 360! 30! 'PosNeg = ' seedFilterKind))
+
+(def tokens 
+  (let [x0 y0] [400! 50!]
+  (let shift (\\(dx dy) [(+ x0 dx) (+ y0 dy)])
+  (map (\\[x y] (circle (if posFilter 'green' 'red') x y 10!))
+       [(shift 0  30)
+        (shift 0  60)
+        (shift 0  90)
+        (shift 0 120)
+        (shift 0 150)
+        (shift 0 180)
+        (shift 0 210)
+        (shift 0 240)
+        (shift 0 270)
+        (shift 0 300)
+       ]))))
+
+(def isCovered (\\(cx cy)
+  (let checkX (between (- cx halfBoxSize) (+ cx halfBoxSize))
+  (let checkY (between (- cy halfBoxSize) (+ cy halfBoxSize))
+  (let centers (map (\\tok [(lookupAttr tok 'cx') (lookupAttr tok 'cy')]) tokens)
+  (some (\\[x y] (and (checkX x) (checkY y))) centers)
+ )))))
+
+(def shapes
+  (let indices (cartProd (range 0! (- cols 1!)) (range 0! (- rows 1!)))
+  (let drawShape (\\[i j]
+    (let shape
+      (let c (nth allColors (mod (- i j) numColors))
+      (let x (+ x0 (mult i sep))
+      (let y (+ y0 (mult j sep))
+      (let [cx cy] [(+ x halfBoxSize) (+ y halfBoxSize)]
+      ; TODO boolean patterns?
+      (let covered (isCovered cx cy)
+      (if (or (and posFilter (not covered))
+              (and (not posFilter) covered)) (circle 'none' 0! 0! 0!)
+      (case shapeKind
+        ('Box'  (square c x y boxSize))
+        ('Dot'  (circle c cx cy halfBoxSize))
+        ('Star' (nStar c 'none' 0! 4! halfBoxSize 10! 0! cx cy))
+        ( else  (circle 'none' 0! 0! 0!)))))))))
+    (if (and (= i (- cols 1!)) (< j numColors))
+        shape
+        (addAttr shape ['zones' 'none']))))
+  (map drawShape indices))))
+
+(svg (concat [ 
+  shapes
+  boxSlider
+  numColorsSlider
+  shapeKindSlider
+  filterKindSlider
+  tokens
 ]))
 
 "
@@ -2266,6 +2333,7 @@ examples =
   , makeExample "xySlider" xySlider
   , makeExample "Color Picker" rgba
   , makeExample "Box Grid" boxGrid
+  , makeExample "Box Grid 2" boxGridTokenFilter
   , makeExample "Bar Graph" barGraph
   , makeExample "Chicago Flag" chicago
   , makeExample "Chicago Flag 2" chicagoColors
