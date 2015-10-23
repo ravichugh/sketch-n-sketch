@@ -43,6 +43,26 @@ threeBoxesInt
 
 "
 
+waveOfBoxes =
+ "
+(def [x0 y0 w h sep] [50 120 19 89 25.875])
+(def colorNum 100)
+
+(def [n slider]
+  (hSlider true 50! 300! 300! 1! 30! 'n = '
+    25!))
+
+(def xi (\\i (+ x0 (mult i sep))))
+(def yi (\\i (- y0 (* 100! (sin (* i (/ twoPi n)))))))
+
+(def nBoxes
+  (let boxi (\\i (rect colorNum (xi i) (yi i) w h))
+  (map boxi (list0N (- n 1!)))))
+
+(svg (concat [ slider (basicZonesTail nBoxes) ]))
+
+"
+
 groupOfBoxes =
  "
 ; Try:
@@ -2930,6 +2950,7 @@ examples =
   [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
   , makeExample "3 Boxes" threeBoxes
+  , makeExample "Wave Boxes" waveOfBoxes
   , makeExample "N Boxes" groupOfBoxes
   , makeExample "6 Boxes A" sixBoxesA
   , makeExample "6 Boxes B" sixBoxesB
