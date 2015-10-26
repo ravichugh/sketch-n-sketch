@@ -79,6 +79,7 @@ LITTLE_TO_ELM equiTri
 LITTLE_TO_ELM gridTile
 LITTLE_TO_ELM lilliconP
 LITTLE_TO_ELM lilliconP2
+LITTLE_TO_ELM keyboard
 
 examples =
   [ makeExample scratchName scratch
@@ -145,6 +146,7 @@ examples =
   , makeExample "Grid Tile" gridTile
   , makeExample "Lillicon P" lilliconP
   , makeExample "Lillicon P, v2" lilliconP2
+  , makeExample "Keyboard" keyboard
   ]
 
 list = examples

@@ -2980,6 +2980,97 @@ lilliconP2 =
 
 "
 
+keyboard =
+ "(def scale 25)
+(def keyBaseHeight scale)
+(def keyBaseWidth keyBaseHeight)
+(def relativeSpacing 0.3333333333333)
+
+(def [boardLeft boardTop] [50 50])
+
+(def key (\\(relativeLeft relativeTop relativeWidth relativeHeight)
+  (rect
+    'orange'
+    (+ boardLeft (* relativeLeft keyBaseWidth))
+    (+ boardTop (* relativeTop keyBaseWidth))
+    (* relativeWidth keyBaseWidth)
+    (* relativeHeight keyBaseHeight)
+  )
+))
+
+; Generate a row of keys with the given relativeKeyWidths, separated by relativeKeySpacing
+; Returns [keyRects relativeTotalWidth]
+(def row (\\(relativeLeft relativeTop relativeHeight relativeKeySpacing relativeKeyWidths)
+  (let [keys relativeWidthPlusSpacing]
+    (foldl
+      (\\(relativeKeyWidth [keys nextKeyRelativeLeft])
+        (let newKey (key nextKeyRelativeLeft relativeTop relativeKeyWidth relativeHeight)
+          [[newKey|keys] (+ nextKeyRelativeLeft (+ relativeKeySpacing relativeKeyWidth))]
+        )
+      )
+      [[] relativeLeft]
+      relativeKeyWidths
+    )
+  [keys (- (- relativeWidthPlusSpacing relativeKeySpacing) relativeLeft)]
+  )
+))
+
+(def row1SquareKeyCount 10)
+(def row2SquareKeyCount 8)
+(def row3SquareKeyCount 7)
+
+(def row2SquareKeysRelativeWidth (+ row2SquareKeyCount (* relativeSpacing (- row2SquareKeyCount 1))))
+(def row3SquareKeysRelativeWidth (+ row3SquareKeyCount (* relativeSpacing (- row3SquareKeyCount 1))))
+
+(def [row1 keysRelativeWidth] (row relativeSpacing relativeSpacing 1 relativeSpacing [1.5|(repeat row1SquareKeyCount 1)]))
+
+; Make the first and last keys of the row the appropriate width so the other keys are center.
+(def row2EdgeKeyRelativeWidth (- (* 0.5 (- keysRelativeWidth row2SquareKeysRelativeWidth)) relativeSpacing))
+(def row3EdgeKeyRelativeWidth (- (* 0.5 (- keysRelativeWidth row3SquareKeysRelativeWidth)) relativeSpacing))
+
+(def [row2 _] (row relativeSpacing (+ 1 (* 2 relativeSpacing)) 1 relativeSpacing (concat [[row2EdgeKeyRelativeWidth] (repeat row2SquareKeyCount 1) [row2EdgeKeyRelativeWidth]])))
+(def [row3 _] (row relativeSpacing (+ 2 (* 3 relativeSpacing)) 1 relativeSpacing (concat [[row3EdgeKeyRelativeWidth] (repeat row3SquareKeyCount 1) [row3EdgeKeyRelativeWidth]])))
+
+(def boardRelativeWidth  (+ keysRelativeWidth (* 2 relativeSpacing)))
+(def boardRelativeHeight (+ 4 (* 5 relativeSpacing)))
+
+(def arrowVerticalSpacing 0.1)
+(def arrowHeight (* 0.5 (- 1 arrowVerticalSpacing)))
+(def arrowsRelativeWidth (+ 3 (* 2 relativeSpacing)))
+(def [bottomArrows _] (row (- (- boardRelativeWidth arrowsRelativeWidth) relativeSpacing) (+ arrowVerticalSpacing (+ arrowHeight (+ 3 (* 4 relativeSpacing)))) arrowHeight relativeSpacing (repeat 3 1)))
+
+(def topArrow
+  (key
+    (- (- boardRelativeWidth (+ 2 relativeSpacing)) relativeSpacing)
+    (+ 3 (* 4 relativeSpacing))
+    1
+    arrowHeight
+  )
+)
+
+(def row4SquareKeyCount 2)
+(def row4NextToSpaceBarKeyRelativeWidth 1.25)
+(def row4NotArrowsRelativeWidth (- (- keysRelativeWidth arrowsRelativeWidth) relativeSpacing))
+(def row4SquareKeysRelativeWidth (+ row4SquareKeyCount (* relativeSpacing (- row4SquareKeyCount 1))))
+(def spaceBarRelativeWidth (- row4NotArrowsRelativeWidth (+ row4SquareKeysRelativeWidth (+ (* 2 row4NextToSpaceBarKeyRelativeWidth) (* 3 relativeSpacing)))))
+(def row4KeyRelativeWidths (concat [(repeat row4SquareKeyCount 1) [row4NextToSpaceBarKeyRelativeWidth spaceBarRelativeWidth row4NextToSpaceBarKeyRelativeWidth]]))
+(def [row4 _] (row relativeSpacing (+ 3 (* 4 relativeSpacing)) 1 relativeSpacing row4KeyRelativeWidths))
+
+(def backBoard
+  (rect 'lightblue' boardLeft boardTop (* boardRelativeWidth scale) (* boardRelativeHeight scale))
+)
+
+(svg (concat [
+  [backBoard]
+  row1
+  row2
+  row3
+  bottomArrows
+  [topArrow]
+  row4
+]))
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -3046,6 +3137,7 @@ examples =
   , makeExample "Grid Tile" gridTile
   , makeExample "Lillicon P" lilliconP
   , makeExample "Lillicon P, v2" lilliconP2
+  , makeExample "Keyboard" keyboard
   ]
 
 list = examples
