@@ -173,7 +173,7 @@ parseSign =
   P.option 1 (P.char '-' >>= \c -> P.returnWithInfo (-1) c.start c.end)
 
 parseFrozen =
-  string_ frozen <++ string_ thawed <++ string_ unann
+  string_ frozen <++ string_ thawed <++ string_ assignOnlyOnce <++ string_ unann
 
 string_ s = always s <$> P.token s
 

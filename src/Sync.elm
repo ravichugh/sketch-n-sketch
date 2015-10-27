@@ -605,9 +605,6 @@ getTriggerType numAttrs locs =
   if | n == numAttrs -> ()
      | n == 1        -> ()
 
--- TODO now that there are singleton loc-sets, need a better
--- way to try to cover them
-
 {-
   old approach:
     if all locsets in rankedSets have been assigned at least once,
@@ -628,9 +625,12 @@ assignTriggersV2 d1 =
       let maybeChosenSet =
         List.foldl (\thisSet acc ->
           case acc of
-            Nothing -> Just thisSet
+            Nothing ->
+              if | offLimits thisSet dictSetSeen2 -> Nothing
+                 | otherwise -> Just thisSet
             Just bestSet ->
             if | getCount bestSet dictSetSeen2 < getCount thisSet dictSetSeen2 -> acc
+               | offLimits thisSet dictSetSeen2 -> acc
                | otherwise -> Just thisSet) Nothing rankedSets in
       case maybeChosenSet of
         Nothing -> (dictSetSeen2, (zone, Nothing) :: acc)
@@ -644,6 +644,22 @@ assignTriggersV2 d1 =
 
 getCount set dict    = Maybe.withDefault 0 (Dict.get set dict)
 updateCount set dict = Dict.insert set (1 + getCount set dict) dict
+
+-- offLimits : Locs -> Dict Locs Int -> Bool
+-- NOTE:
+--   important _not_ to annotate with Locs,
+--   b/c that will jeopardize comparable-ness..
+offLimits thisSet counters =
+  let coveredLocs =
+    -- TODO compute this incrementally in assignTriggers
+    Dict.foldl
+       (\locs i acc -> Set.union (Set.fromList locs) acc)
+       Set.empty counters
+  in
+  List.any (\l ->
+    let (_,ann,_) = l in
+    ann == assignOnlyOnce && Set.member l coveredLocs
+  ) thisSet
 
 assignTriggersV1 : Dict1 -> Dict2
 assignTriggersV1 d1 =

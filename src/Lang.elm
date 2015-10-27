@@ -17,7 +17,7 @@ type alias Ident = String
 type alias Num = Float
 
 type alias Frozen = String -- b/c comparable
-(frozen, unann, thawed) = ("!", "", "?")
+(frozen, unann, thawed, assignOnlyOnce) = ("!", "", "?", "~")
 
 type alias LocSet = Set.Set Loc
 

@@ -45,12 +45,12 @@ threeBoxesInt
 
 waveOfBoxes =
  "
-(def [x0 y0 w h sep] [50 120 19 89 25.875])
+(def [x0 y0 w h sep] [50~ 120 19 89 25.875])
 (def colorNum 100)
 
 (def [n slider]
   (hSlider true 50! 300! 300! 1! 30! 'n = '
-    25!))
+    25~))
 
 (def xi (\\i (+ x0 (mult i sep))))
 (def yi (\\i (- y0 (* 100! (sin (* i (/ twoPi n)))))))
