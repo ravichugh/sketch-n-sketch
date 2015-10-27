@@ -50,7 +50,7 @@
         ( else  (circle 'none' 0! 0! 0!)))))))
     (if (and (= i (- cols 1!)) (< j numColors))
         shape
-        (addAttr shape ['zones' 'none']))))
+        (addAttr shape ['ZONES' 'none']))))
   (map drawShape indices))))
 
 (svg (concat [ 

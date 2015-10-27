@@ -423,7 +423,7 @@ addAttrs kind attrs =
   if | kind == "svg" -> ("xmlns", AString "http://www.w3.org/2000/svg") :: attrs
      | otherwise     -> attrs
 
-specialAttrs = ["HIDDEN", "zones"]
+specialAttrs = ["HIDDEN", "ZONES"]
 
 removeSpecialAttrs =
   List.filter (\(s,_) -> not (List.member s specialAttrs))

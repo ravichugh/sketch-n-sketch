@@ -435,7 +435,7 @@ prelude =
     (polygon fill stroke w (map pti (zip indices lengths))))))))
 
 ;; zones : String -> List Shape -> List Shape
-(def zones (\\s (map (\\shape (addAttr shape ['zones' s])))))
+(def zones (\\s (map (\\shape (addAttr shape ['ZONES' s])))))
 
 ;; hideZonesTail : List Shape -> List Shape
 ;; Remove all zones from shapes except for the first in the list
@@ -445,10 +445,12 @@ prelude =
 ;; Turn all zones to basic for a given list of shapes except for the first shape
 (def basicZonesTail (\\[hd | tl] [hd | (zones 'basic' tl)]))
 
-(def ghosts
+(def ghost
   ; consAttr (instead of addAttr) makes internal calls to
   ; Utils.maybeRemoveFirst \"HIDDEN\" slightly faster
-  (map (\\shape (consAttr shape ['HIDDEN' '']))))
+  (\\shape (consAttr shape ['HIDDEN' ''])))
+
+(def ghosts (map ghost))
 
 ;; hSlider_ : Bool -> Bool -> Int -> Int -> Int -> Num -> Num -> Str -> Num
 ;; -> [Num (List Svg)]

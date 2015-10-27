@@ -4,7 +4,7 @@
 (def logo (\(x0 y0 w h delta1 delta2 fg bg)
   (let [xw yh w2 h2] [(+ x0 w) (+ y0 h) (div w 2) (div h 2)]
   (let poly (\(c pts) (polygon c 'none' 0 pts))
-  (let basic (\shape (addAttr shape ['zones' 'basic']))
+  (let basic (\shape (addAttr shape ['ZONES' 'basic']))
   (svg [
   
     ; positive background

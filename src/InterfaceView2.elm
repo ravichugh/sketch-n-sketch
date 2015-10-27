@@ -138,7 +138,7 @@ buildSvg_ options d i =
       -- TODO: figure out: (LangSvg.attr "draggable" "false")
       let (zones, attrs') =
         let options = optionsOf showZones in
-        case (addZones, Utils.maybeRemoveFirst "zones" attrs) of
+        case (addZones, Utils.maybeRemoveFirst "ZONES" attrs) of
           (False, Nothing)     -> ([], attrs)
           (False, Just (_, l)) -> ([], l)
           (True, Nothing) ->

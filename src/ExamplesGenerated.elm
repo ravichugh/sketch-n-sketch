@@ -157,7 +157,7 @@ logo2 =
 (def logo (\\(x0 y0 w h delta1 delta2 fg bg)
   (let [xw yh w2 h2] [(+ x0 w) (+ y0 h) (div w 2) (div h 2)]
   (let poly (\\(c pts) (polygon c 'none' 0 pts))
-  (let basic (\\shape (addAttr shape ['zones' 'basic']))
+  (let basic (\\shape (addAttr shape ['ZONES' 'basic']))
   (svg [
   
     ; positive background
@@ -194,7 +194,7 @@ logoSizes =
 (def logo (\\(x0 y0 w h delta1 delta2 fg bg)
   (let [xw yh w2 h2] [(+ x0 w) (+ y0 h) (div w 2) (div h 2)]
   (let poly (\\(c pts) (polygon c 'none' 0 pts))
-  (let basic (\\shape (addAttr shape ['zones' 'basic']))
+  (let basic (\\shape (addAttr shape ['ZONES' 'basic']))
   [
   
     ; positive background
@@ -639,7 +639,7 @@ boxGrid =
         ( else  (circle 'none' 0! 0! 0!)))))))
     (if (and (= i (- cols 1!)) (< j numColors))
         shape
-        (addAttr shape ['zones' 'none']))))
+        (addAttr shape ['ZONES' 'none']))))
   (map drawShape indices))))
 
 (svg (concat [ 
@@ -691,7 +691,7 @@ boxGridTokenFilter =
 (def tokens 
   (let [x0 y0] [400! 50!]
   (let shift (\\(dx dy) [(+ x0 dx) (+ y0 dy)])
-  (map (\\[x y] (circle (if posFilter 'green' 'red') x y 10!))
+  (map (\\[x y] (ghost (circle (if posFilter 'green' 'red') x y 10!)))
        [(shift 0  30)
         (shift 0  60)
         (shift 0  90)
@@ -730,7 +730,7 @@ boxGridTokenFilter =
         ( else  (circle 'none' 0! 0! 0!)))))))))
     (if (and (= i (- cols 1!)) (< j numColors))
         shape
-        (addAttr shape ['zones' 'none']))))
+        (addAttr shape ['ZONES' 'none']))))
   (map drawShape indices))))
 
 (svg (concat [ 
