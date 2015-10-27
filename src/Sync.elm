@@ -624,14 +624,12 @@ assignTriggersV2 d1 =
       let rankedSets = sets in
       let maybeChosenSet =
         List.foldl (\thisSet acc ->
+          let thisSet' = removeAlreadyAssignedOnce thisSet dictSetSeen2 in
           case acc of
-            Nothing ->
-              if | offLimits thisSet dictSetSeen2 -> Nothing
-                 | otherwise -> Just thisSet
+            Nothing -> Just thisSet'
             Just bestSet ->
-            if | getCount bestSet dictSetSeen2 < getCount thisSet dictSetSeen2 -> acc
-               | offLimits thisSet dictSetSeen2 -> acc
-               | otherwise -> Just thisSet) Nothing rankedSets in
+            if | getCount bestSet dictSetSeen2 < getCount thisSet' dictSetSeen2 -> acc
+               | otherwise -> Just thisSet') Nothing rankedSets in
       case maybeChosenSet of
         Nothing -> (dictSetSeen2, (zone, Nothing) :: acc)
         Just chosenSet ->
@@ -645,20 +643,20 @@ assignTriggersV2 d1 =
 getCount set dict    = Maybe.withDefault 0 (Dict.get set dict)
 updateCount set dict = Dict.insert set (1 + getCount set dict) dict
 
--- offLimits : Locs -> Dict Locs Int -> Bool
+-- removeAlreadyAssignedOnce : Locs -> Dict Locs Int -> Bool
 -- NOTE:
 --   important _not_ to annotate with Locs,
 --   b/c that will jeopardize comparable-ness..
-offLimits thisSet counters =
+removeAlreadyAssignedOnce thisSet counters =
   let coveredLocs =
     -- TODO compute this incrementally in assignTriggers
     Dict.foldl
        (\locs i acc -> Set.union (Set.fromList locs) acc)
        Set.empty counters
   in
-  List.any (\l ->
+  List.filter (\l ->
     let (_,ann,_) = l in
-    ann == assignOnlyOnce && Set.member l coveredLocs
+    not (ann == assignOnlyOnce && Set.member l coveredLocs)
   ) thisSet
 
 assignTriggersV1 : Dict1 -> Dict2
