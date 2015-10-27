@@ -40,6 +40,7 @@ type alias Model =
   , editingMode : Maybe Code -- Nothing is False
                              -- Just s is True, where s is previous code
   , caption : Maybe Caption
+  , showGhosts : Bool
   , localSaves : List String
   , fieldContents : DialogInfo
   , startup : Bool
@@ -197,6 +198,7 @@ sampleModel =
     , syncOptions   = Sync.defaultOptions
     , editingMode   = Nothing
     , caption       = Nothing
+    , showGhosts    = True
     , localSaves    = []
     , fieldContents = { value = "", hint = "Input File Name" }
     , startup       = True

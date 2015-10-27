@@ -313,6 +313,9 @@ prelude =
 (def addAttr (\\([shapeKind oldAttrs children] newAttr)
   [shapeKind (snoc newAttr oldAttrs) children]))
 
+(def consAttr (\\([shapeKind oldAttrs children] newAttr)
+  [shapeKind (cons newAttr oldAttrs) children]))
+
 ;; svg : List Shape -> SVG
 ;; Given a list of shapes, compose into a single SVG
 (def svg (\\shapes ['svg' [] shapes]))
@@ -442,6 +445,11 @@ prelude =
 ;; Turn all zones to basic for a given list of shapes except for the first shape
 (def basicZonesTail (\\[hd | tl] [hd | (zones 'basic' tl)]))
 
+(def ghosts
+  ; consAttr (instead of addAttr) makes internal calls to
+  ; Utils.maybeRemoveFirst \"HIDDEN\" slightly faster
+  (map (\\shape (consAttr shape ['HIDDEN' '']))))
+
 ;; hSlider_ : Bool -> Bool -> Int -> Int -> Int -> Num -> Num -> Str -> Num
 ;; -> [Num (List Svg)]
 ;; argument order - dropBall roundInt xStart xEnd y minVal maxVal caption srcVal
@@ -467,7 +475,7 @@ prelude =
     [ (line 'black' 3! x0 y x1 y)
       (text (+ x1 10) (+ y 5) (+ caption (toString targetVal)))
       (circle 'black' x0 y 4!) (circle 'black' x1 y 4!) ball ])
-  [targetVal shapes])))))
+  [targetVal (ghosts shapes)])))))
 ; TODO only draw zones for ball
 
 (def hSlider (hSlider_ false))
@@ -489,8 +497,8 @@ prelude =
     [ (if (= xBall_ xBall) (circle (if val 'darkgreen' 'darkred') xBall y rBall)
       (if dropBall         (circle 'black' 0! 0! 0!)
                            (circle 'red' xBall y rBall))) ]
-  [val (append (zones 'none' shapes1)
-               (zones 'basic' shapes2))])))))))))
+  (let shapes (append (zones 'none' shapes1) (zones 'basic' shapes2))
+  [val (ghosts shapes)]))))))))))
 
 (def button (button_ false))
 
@@ -517,7 +525,7 @@ prelude =
         (circle cBall xBall yBall rBall)
         (text (- (+ xStart (/ xDiff 2)) 40) (+ yEnd 20) (+ xCaption (toString xVal)))
         (text (+ xEnd 10) (+ yStart (/ yDiff 2)) (+ yCaption (toString yVal))) ]
-    [ [ xVal yVal ] shapes ]
+    [ [ xVal yVal ] (ghosts shapes) ]
 ))))))))))))
 
 (def enumSlider (\\(x0 x1 y enum caption srcVal)
@@ -541,7 +549,7 @@ prelude =
            (range 1! (- n 1!))))
     (let label [ (text (+ x1 10!) (+ y 5!) (+ caption (toString item))) ]
     (concat [ rail endpoints tickpoints label ball ]))))))
-  [item shapes]))))))))
+  [item (ghosts shapes)]))))))))
 
 ;; rotate : Shape -> Number -> Number -> Number -> Shape
 ;; argument order - shape, rot, x, y

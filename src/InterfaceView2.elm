@@ -123,14 +123,18 @@ optionsOf x =
 --------------------------------------------------------------------------------
 -- Compiling to Svg
 
-buildSvg : Bool -> ShowZones -> LangSvg.RootedIndexedTree -> Svg.Svg
-buildSvg addZones showZones (i,d) = buildSvg_ addZones showZones d i
+buildSvg : (Bool, ShowZones, Bool) -> LangSvg.RootedIndexedTree -> Svg.Svg
+buildSvg options (i,d) = buildSvg_ options d i
 
-buildSvg_ : Bool -> ShowZones -> LangSvg.IndexedTree -> LangSvg.NodeId -> Svg.Svg
-buildSvg_ addZones showZones d i =
+buildSvg_ : (Bool, ShowZones, Bool) -> LangSvg.IndexedTree -> LangSvg.NodeId -> Svg.Svg
+buildSvg_ options d i =
+  let (addZones, showZones, showGhosts) = options in
   case Utils.justGet_ ("buildSvg_ " ++ toString i) i d of
-    LangSvg.TextNode text -> VirtualDom.text text
-    LangSvg.SvgNode shape attrs js ->
+   LangSvg.TextNode text -> VirtualDom.text text
+   LangSvg.SvgNode shape attrs js ->
+    case (showGhosts, Utils.maybeRemoveFirst "HIDDEN" attrs) of
+     (False, Just _) -> Svg.svg [] []
+     _ ->
       -- TODO: figure out: (LangSvg.attr "draggable" "false")
       let (zones, attrs') =
         let options = optionsOf showZones in
@@ -145,7 +149,7 @@ buildSvg_ addZones showZones d i =
             let options' = { options | addRot <- False, addColor <- False } in
             (makeZones options' shape i attrs, l)
       in
-      let children = List.map (buildSvg_ addZones showZones d) js in
+      let children = List.map (buildSvg_ options d) js in
       let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs') children in
       if | zones == [] -> mainshape
          | otherwise   -> Svg.svg [] (mainshape :: zones)
@@ -568,7 +572,8 @@ canvas_ w h model =
     (False, Live _) -> True
     _               -> False
   in
-  let svg = buildSvg addZones model.showZones model.slate in
+  let options = (addZones, model.showZones, model.showGhosts) in
+  let svg = buildSvg options model.slate in
   Html.toElement w h <|
     Svg.svg
       [ onMouseUp MouseUp
@@ -634,6 +639,8 @@ syncButton_ w h model =
 wBtn = params.mainSection.widgets.wBtn
 hBtn = params.mainSection.widgets.hBtn
 
+wBtnWide = params.mainSection.widgets.wBtnWide
+
 buttonAttrs w h =
   Attr.style
     [ ("width", dimToPix w)
@@ -684,6 +691,7 @@ mainSectionVertical w h model =
     hZInfo  = params.mainSection.canvas.hZoneInfo
     hWidget = params.mainSection.widgets.hBtn
                 + params.mainSection.vertical.hExtra
+    wExtra  = params.mainSection.horizontal.wExtra
   in
 
   let codeSection = if model.basicCodeBox
@@ -699,7 +707,11 @@ mainSectionVertical w h model =
               [ colorDebug Color.red <|
                   GE.container wBtn (hZInfo+1) GE.middle <|
                   outputButton model wBtn hBtn
-              , caption model (wCanvas+1-wBtn) (hZInfo+1) -- NOTE: +1 is a band-aid
+              , colorDebug Color.orange <| GE.spacer wExtra (hZInfo+1)
+              , colorDebug Color.red <|
+                  GE.container wBtnWide (hZInfo+1) GE.middle <|
+                  ghostsButton model wBtnWide hBtn
+              , caption model (wCanvas+1-(wBtn+wExtra+wBtnWide)) (hZInfo+1) -- NOTE: +1 is a band-aid
               ]
           -- , caption model (wCanvas+1) hZInfo -- NOTE: +1 is a band-aid
           ]
@@ -725,8 +737,8 @@ mainSectionHorizontal w h model =
     hCode   = hCode_ + model.midOffsetY
     hCanvas = hCode_ - model.midOffsetY - hZInfo
     hZInfo  = params.mainSection.canvas.hZoneInfo
-    wWidget = params.mainSection.widgets.wBtn
-                + params.mainSection.horizontal.wExtra
+    wWidget = params.mainSection.widgets.wBtn + wExtra
+    wExtra  = params.mainSection.horizontal.wExtra
   in
 
   let codeSection = if model.basicCodeBox
@@ -742,7 +754,11 @@ mainSectionHorizontal w h model =
                 [ colorDebug Color.red <|
                     GE.container wBtn (hZInfo+1) GE.middle <|
                     outputButton model wBtn hBtn
-                , caption model (w-wBtn) (hZInfo+1) -- NOTE: +1 is a band-aid
+                , colorDebug Color.orange <| GE.spacer wExtra (hZInfo+1)
+                , colorDebug Color.red <|
+                    GE.container wBtnWide (hZInfo+1) GE.middle <|
+                    ghostsButton model wBtnWide hBtn
+                , caption model (w-(wBtn+wExtra+wBtnWide)) (hZInfo+1) -- NOTE: +1 is a band-aid
                 ]
             -- , caption model w (hZInfo+1) -- NOTE: +1 is a band-aid
             ]
@@ -795,6 +811,23 @@ outputButton model w h =
        _       -> "[Out] Canvas"
   in
   simpleEventButton_ disabled ToggleOutput "Toggle Output" "Toggle Output" cap w h
+
+ghostsButton model w h =
+  let cap =
+     case model.showGhosts of
+       True  -> "[Ghosts] Shown"
+       False -> "[Ghosts] Hidden"
+  in
+  let foo old =
+    let showGhosts' = not old.showGhosts in
+    let mode' =
+      case old.mode of
+        Print _ -> Print (LangSvg.printSvg showGhosts' old.slate)
+        _       -> old.mode
+    in
+    { old | showGhosts <- showGhosts', mode <- mode' }
+  in
+  simpleEventButton_ False (UpdateModel foo) "Toggle Output" "Toggle Output" cap w h
 
 syncButton =
   simpleButton Sync "Sync" "Sync the code to the canvas" "Sync"
@@ -1086,7 +1119,7 @@ view (w,h) model =
       wBtnO = params.topSection.wBtnO
       hBtnO = params.topSection.hBtnO
       wJunk = params.topSection.wJunk
-      wSpcB = 15
+      wSpcB = params.mainSection.horizontal.wExtra
 
       wSep  = GE.spacer (wAll - (wLogo + 2 * wBtnO + wJunk + wSpcB)) 1
       btnO  = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|

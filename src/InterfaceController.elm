@@ -181,7 +181,7 @@ upstate evt old = case debugLog "Event" evt of
     ToggleOutput ->
       let m = case old.mode of
         Print _ -> refreshMode_ old
-        _       -> Print (LangSvg.printSvg old.slate)
+        _       -> Print (LangSvg.printSvg old.showGhosts old.slate)
       in
       { old | mode <- m }
 
@@ -293,6 +293,7 @@ upstate evt old = case debugLog "Event" evt of
       let (so, m) =
         case old.mode of
           Live _ -> let so = Sync.syncOptionsOf e in (so, mkLive so e v)
+          Print _ -> let so = Sync.syncOptionsOf e in (so, mkLive so e v)
           _      -> (old.syncOptions, old.mode)
       in
       let scratchCode' =

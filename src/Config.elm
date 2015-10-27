@@ -33,6 +33,7 @@ params =
   , mainSection =
      { widgets =           -- Render/Sync buttons; Mode/Tests dropdowns
         { wBtn = 120
+        , wBtnWide = 140
         , hBtn = 25
         , font = "Tahoma, sans-serif"
         , fontSize = "10pt"

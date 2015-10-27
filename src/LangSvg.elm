@@ -19,6 +19,8 @@ import Set
 import String
 import Char
 import Dict exposing (Dict)
+import Regex
+
 import ColorNum
 
 import Lang exposing (..)
@@ -385,24 +387,30 @@ strEdges =
 ------------------------------------------------------------------------------
 -- Printing to SVG format
 
-printSvg : RootedIndexedTree -> String
-printSvg (rootId, tree) = printNode 0 tree rootId
+printSvg : Bool -> RootedIndexedTree -> String
+printSvg showGhosts (rootId, tree) =
+  let s = printNode showGhosts 0 tree rootId in
+  Regex.replace Regex.All (Regex.regex "[ ]+\\n") (\_ -> "") s
 
-printNode k slate i =
+printNode showGhosts k slate i =
   case Utils.justGet i slate of
     TextNode s -> s
-    SvgNode kind l1 [] ->
-      let l1' = addAttrs kind l1 in
-      Utils.delimit "<" ">" (kind ++ printAttrs l1') ++
-      Utils.delimit "</" ">" kind
     SvgNode kind l1 l2 ->
-      let l1' = addAttrs kind l1 in
-      Utils.delimit "<" ">" (kind ++ printAttrs l1') ++ "\n" ++
-      printNodes (k+1) slate l2 ++ "\n" ++
-      tab k ++ Utils.delimit "</" ">" kind
+      case (showGhosts, Utils.maybeRemoveFirst "HIDDEN" l1) of
+        (False, Just _) -> ""
+        _ ->
+          if l2 == [] then
+            let l1' = addAttrs kind (removeSpecialAttrs l1) in
+            Utils.delimit "<" ">" (kind ++ printAttrs l1') ++
+            Utils.delimit "</" ">" kind
+          else
+            let l1' = addAttrs kind (removeSpecialAttrs l1) in
+            Utils.delimit "<" ">" (kind ++ printAttrs l1') ++ "\n" ++
+            printNodes showGhosts (k+1) slate l2 ++ "\n" ++
+            tab k ++ Utils.delimit "</" ">" kind
 
-printNodes k slate =
-  Utils.lines << List.map ((++) (tab k) << printNode k slate)
+printNodes showGhosts k slate =
+  Utils.lines << List.map ((++) (tab k) << printNode showGhosts k slate)
 
 printAttrs l = case l of
   [] -> ""
@@ -414,6 +422,11 @@ printAttr (k,v) =
 addAttrs kind attrs =
   if | kind == "svg" -> ("xmlns", AString "http://www.w3.org/2000/svg") :: attrs
      | otherwise     -> attrs
+
+specialAttrs = ["HIDDEN", "zones"]
+
+removeSpecialAttrs =
+  List.filter (\(s,_) -> not (List.member s specialAttrs))
 
 
 ------------------------------------------------------------------------------
