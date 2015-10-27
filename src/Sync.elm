@@ -643,7 +643,7 @@ assignTriggersV2 d1 =
 getCount set dict    = Maybe.withDefault 0 (Dict.get set dict)
 updateCount set dict = Dict.insert set (1 + getCount set dict) dict
 
--- removeAlreadyAssignedOnce : Locs -> Dict Locs Int -> Bool
+-- removeAlreadyAssignedOnce : Locs -> Dict Locs Int -> Locs
 -- NOTE:
 --   important _not_ to annotate with Locs,
 --   b/c that will jeopardize comparable-ness..
