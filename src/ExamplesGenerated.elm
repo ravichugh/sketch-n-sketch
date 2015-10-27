@@ -63,6 +63,19 @@ waveOfBoxes =
 
 "
 
+nBoxes =
+ "
+(def nBoxes
+  (let [n{1-100} x0 y0 w h sep] [3 40 28 60 130 110{50-200}]
+  (let boxi (\\i
+    (let xi (+ x0 (mult i sep))
+    (rect 'lightblue' xi y0 w h)))
+  (svg (map boxi (range 0! (- n 1!)))))))
+ 
+nBoxes
+
+"
+
 groupOfBoxes =
  "
 ; Try:
@@ -2951,6 +2964,7 @@ examples =
   , makeExample "*Prelude*" Prelude.src
   , makeExample "3 Boxes" threeBoxes
   , makeExample "Wave Boxes" waveOfBoxes
+  , makeExample "N Boxes Sli" nBoxes
   , makeExample "N Boxes" groupOfBoxes
   , makeExample "6 Boxes A" sixBoxesA
   , makeExample "6 Boxes B" sixBoxesB

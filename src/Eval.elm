@@ -11,7 +11,7 @@ import Utils
 
 match : (Pat, Val) -> Maybe Env
 match (p,v) = case (p.val, v) of
-  (PVar x, _) -> Just [(x,v)]
+  (PVar x _, _) -> Just [(x,v)]
   (PList ps Nothing, VList vs) ->
     Utils.bindMaybe matchList (Utils.maybeZip ps vs)
   (PList ps (Just rest), VList vs) ->
@@ -61,7 +61,7 @@ eval env e =
 
   case e.val of
 
-  EConst i l -> ret <| VConst (i, TrLoc l)
+  EConst i l _ -> ret <| VConst (i, TrLoc l)
   EBase v    -> ret <| VBase v
   EVar x     -> ret <| lookupVar env x e.start
   EFun [p] e -> ret <| VClosure Nothing p e env
@@ -104,7 +104,7 @@ eval env e =
 
   ELet _ True p e1 e2 ->
     case (p.val, eval_ env e1) of
-      (PVar f, VClosure Nothing x body env') ->
+      (PVar f _, VClosure Nothing x body env') ->
         let _   = Utils.assert "eval letrec" (env == env') in
         let v1' = VClosure (Just f) x body env in
         case (pVar f, v1') `cons` Just env of
@@ -213,7 +213,7 @@ rangeToList r =
     let (l,u) = r.val
     in
       case (l.val, u.val) of
-        (EConst nl tl, EConst nu tu) ->
+        (EConst nl tl _, EConst nu tu _) ->
            let walkVal i =
              let j = toFloat i in
              if | (nl + j) < nu -> VConst (nl + j, TrOp (RangeOffset i) [TrLoc tl]) :: walkVal (i + 1)
