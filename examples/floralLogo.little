@@ -1,0 +1,38 @@
+; I believe this is set up for group p6mm
+; https://en.wikipedia.org/wiki/Wallpaper_group#Group_p6mm_.28.2A632.29
+
+; SVG transforms to flip, rotate, and position.
+(def transformGroup (\(transformCenterX transformCenterY flipVertical rotationAngle translateX translateY shapes)
+  [
+    'g'
+    [
+      ['transform' [['translate' (+ translateX transformCenterX) (+ translateY transformCenterY)] ['rotate' rotationAngle 0 0] ['scale' (if flipVertical -1 1) 1] ['translate' (- 0 transformCenterX) (- 0 transformCenterY)]]]
+    ]
+    shapes
+  ]
+))
+
+(def rotatePointAround (\(x y aroundX aroundY theta)
+  (let [relX relY] [(- x aroundX) (- y aroundY)]
+  (let [rotRelX rotRelY] [(- (* x (cos theta)) (* y (sin theta))) (+ (* x (sin theta)) (* y (cos theta)))]
+    [(+ rotRelX aroundX) (+ rotRelY aroundY)]
+  ))
+))
+
+;(x + yi)(cosθ + isinθ) = xcosθ + ixsinθ + iycosθ - ysinθ
+;= (xcosθ - ysinθ) + (xsinθ + ycosθ)i
+
+(def petal (\(x y scale theta)
+  (let [[x1 y1]     [x2 y2]    ] [(rotatePointAround 0              (* 0.5 scale)  x y theta) (rotatePointAround 0              (* -0.5 scale) x y theta)]
+  (let [[cx1a cy1a] [cx1b cy1b]] [(rotatePointAround (* 0.3 scale)  (* 0.2 scale)  x y theta) (rotatePointAround (* 0.3 scale)  (* -0.2 scale) x y theta)]
+  (let [[cx2a cy2a] [cx2b cy2b]] [(rotatePointAround (* -0.3 scale) (* -0.2 scale) x y theta) (rotatePointAround (* -0.3 scale) (* 0.2 scale) x y theta)]
+    (path 'none' 'blue' 3 [
+      'M' x1 y1
+      'C' cx1a cy1a cx1b cy1b x2 y2
+      'C' cx2a cy2a cx2b cy2b x1 y1
+      'Z'
+    ])
+  )))
+))
+
+(svg [(petal 100 150 100 0{0-7})])
