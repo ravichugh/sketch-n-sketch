@@ -186,7 +186,7 @@ sampleModel : Model
 sampleModel =
   let
     (name,f) = Utils.head_ Examples.list
-    {e,v}    = f ()
+    {e,v,ws} = f ()
   in
     { scratchCode   = Examples.scratch
     , exName        = name
@@ -194,7 +194,7 @@ sampleModel =
     , history       = ([], [])
     , inputExp      = Just e
     , slate         = LangSvg.valToIndexedTree v
-    , widgets       = []
+    , widgets       = ws
     , mode          = mkLive Sync.defaultOptions e v
     , mouseMode     = MouseNothing
     , orient        = Vertical
