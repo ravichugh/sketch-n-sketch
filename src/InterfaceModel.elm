@@ -28,8 +28,10 @@ type alias Model =
   , exName : String
   , code : Code
   , history : (List Code, List Code)
+  -- TODO remove Maybe
   , inputExp : Maybe Exp
   , slate : RootedIndexedTree
+  , widgets : List Widget
   , mode : Mode
   , mouseMode : MouseMode
   , orient : Orientation
@@ -77,7 +79,10 @@ type MouseMode
   | MouseObject NodeId ShapeKind Zone
       (Maybe ( Code                        -- the program upon initial zone click
              , Maybe (SubstPlus, LocSet)   -- loc-set assigned (live mode only)
-             , MouseTrigger (Exp, SubstMaybeNum, RootedIndexedTree) ))
+             , MouseTrigger (Exp, SubstMaybeNum, RootedIndexedTree, Widgets) ))
+  | MouseSlider Widget
+      (Maybe ( MouseTrigger (Exp, RootedIndexedTree, Widgets) ))
+      -- may add info for hilites later
 
 type alias MouseTrigger a = (Int, Int) -> a
 
@@ -109,7 +114,7 @@ type Event = CodeUpdate String
            | TraverseOption Int -- offset from current index (+1 or -1)
            | SelectOption
            | SwitchMode Mode
-           | SelectExample String (() -> {e:Exp, v:Val})
+           | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets})
            | Edit
            | Run
            | ToggleOutput
@@ -137,7 +142,7 @@ events = Signal.mailbox <| CodeUpdate ""
 --------------------------------------------------------------------------------
 
 mkLive opts e v = Live <| Sync.prepareLiveUpdates opts e v
-mkLive_ opts e  = mkLive opts e (Eval.run e)
+mkLive_ opts e  = mkLive opts e (fst (Eval.run e))
 
 editingMode model = case model.editingMode of
   Nothing -> False
@@ -189,6 +194,7 @@ sampleModel =
     , history       = ([], [])
     , inputExp      = Just e
     , slate         = LangSvg.valToIndexedTree v
+    , widgets       = []
     , mode          = mkLive Sync.defaultOptions e v
     , mouseMode     = MouseNothing
     , orient        = Vertical

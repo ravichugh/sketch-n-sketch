@@ -331,7 +331,7 @@ inferLocalUpdates opts e v v' =
         List.sortBy snd <|
           List.filterMap (\s ->
             let e1 = applySubst s e in
-            let v1 = Eval.run e1 in
+            let v1 = fst (Eval.run e1) in
             let vcStar = mapVal leafToStar vc in
             case diffNoCheck (fillHole vcStar holeSubst) v1 of
               Nothing -> Debug.crash "sync: shouldn't happen?"
@@ -405,7 +405,7 @@ inferStructuralUpdate eOld v v' =
 
   -- going through parser so that new location ids are assigned
   let eNew = Utils.fromOk "Sync.inferStruct" (Parser.parseE (sExp eNew_)) in
-  (eNew, Eval.run eNew)
+  (eNew, fst (Eval.run eNew))
 
 
 ------------------------------------------------------------------------------

@@ -4,14 +4,14 @@ import Lang exposing (..) --For access to what makes up the Vals
 import LangParser2 exposing (parseE, parseV)
 import LangUnparser exposing (unparseE)
 import Sync
-import Eval exposing (run)
+import Eval
 import Utils
 import InterfaceModel exposing (..)
 import InterfaceView2 exposing (..)
 import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg exposing (toNum, toNumTr, toPoints, addi)
 import ExamplesGenerated as Examples
-import Config
+import Config exposing (params)
 
 import VirtualDom
 
@@ -164,10 +164,12 @@ upstate evt old = case debugLog "Event" evt of
            Just "" -> old.history -- "" from InterfaceStorage
            Just s  -> addToHistory s old.history
          in
+         let (v,ws) = Eval.run e in
          let new =
           { old | inputExp <- Just e
                 , code <- unparseE e
-                , slate <- LangSvg.valToIndexedTree (Eval.run e)
+                , slate <- LangSvg.valToIndexedTree v
+                , widgets <- ws
                 , history <- h
                 , editingMode <- Nothing
                 , caption <- Nothing
@@ -191,7 +193,9 @@ upstate evt old = case debugLog "Event" evt of
 
     MousePos (mx, my) ->
       case old.mouseMode of
+
         MouseNothing -> old
+
         MouseResizeMid Nothing ->
           let f =
             case old.orient of
@@ -199,20 +203,36 @@ upstate evt old = case debugLog "Event" evt of
               Horizontal -> \(_,my') -> (old.midOffsetY, old.midOffsetY + my' - my)
           in
           { old | mouseMode <- MouseResizeMid (Just f) }
+
         MouseResizeMid (Just f) ->
           let (x,y) = f (mx, my) in
           { old | midOffsetX <- x , midOffsetY <- y }
+
         MouseObject objid kind zone Nothing ->
           let onNewPos = createMousePosCallback mx my objid kind zone old in
           let mStuff = maybeStuff objid kind zone old in
           let blah = Just (old.code, mStuff, onNewPos) in
           { old | mouseMode <- MouseObject objid kind zone blah  }
+
         MouseObject _ _ _ (Just (_, mStuff, onNewPos)) ->
-          let (newE,changes,newSlate) = onNewPos (mx, my) in
+          let (newE,changes,newSlate,newWidgets) = onNewPos (mx, my) in
           { old | code <- unparseE newE
                 , inputExp <- Just newE
                 , slate <- newSlate
+                , widgets <- newWidgets
                 , codeBoxInfo <- highlightChanges mStuff changes old.codeBoxInfo
+                }
+
+        MouseSlider widget Nothing ->
+          let onNewPos = createMousePosCallbackSlider mx my widget old in
+          { old | mouseMode <- MouseSlider widget (Just onNewPos) }
+
+        MouseSlider widget (Just onNewPos) ->
+          let (newE,newSlate,newWidgets) = onNewPos (mx, my) in
+          { old | code <- unparseE newE
+                , inputExp <- Just newE
+                , slate <- newSlate
+                , widgets <- newWidgets
                 }
 
     SelectObject id kind zone ->
@@ -246,7 +266,7 @@ upstate evt old = case debugLog "Event" evt of
         (Live _, _) -> Debug.crash "upstate Sync: shouldn't happen anymore"
         (AdHoc, Just ip) ->
           let
-            inputval  = Eval.run ip
+            inputval  = fst <| Eval.run ip
             inputval' = inputval |> LangSvg.valToIndexedTree
                                  |> slateToVal
             newval    = slateToVal old.slate
@@ -289,7 +309,7 @@ upstate evt old = case debugLog "Event" evt of
         upstate Run { old | exName <- name, code <- old.scratchCode, history <- ([],[]) }
       else
 
-      let {e,v} = thunk () in
+      let {e,v,ws} = thunk () in
       let (so, m) =
         case old.mode of
           Live _ -> let so = Sync.syncOptionsOf e in (so, mkLive so e v)
@@ -306,7 +326,9 @@ upstate evt old = case debugLog "Event" evt of
             , history <- ([],[])
             , mode <- m
             , syncOptions <- so
-            , slate <- LangSvg.valToIndexedTree v }
+            , slate <- LangSvg.valToIndexedTree v
+            , widgets <- ws
+            }
 
     SwitchMode m -> { old | mode <- m }
 
@@ -516,7 +538,7 @@ createMousePosCallback mx my objid kind zone old =
     in
     let newTree = List.foldr (upslate objid) (snd old.slate) newRealAttrs in
       case old.mode of
-        AdHoc -> (Utils.fromJust old.inputExp, Dict.empty, (fst old.slate, newTree))
+        AdHoc -> (Utils.fromJust old.inputExp, Dict.empty, (fst old.slate, newTree), old.widgets)
         Live info ->
           case Utils.justGet_ "#4" zone (Utils.justGet_ "#5" objid info.triggers) of
             -- Nothing -> (Utils.fromJust old.inputExp, newSlate)
@@ -525,7 +547,9 @@ createMousePosCallback mx my objid kind zone old =
               -- let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
               let (newE,changes) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
               if not Sync.tryToBeSmart then
-                (newE, changes, LangSvg.valToIndexedTree <| Eval.run newE) else
+                let (newVal,newWidgets) = Eval.run newE in
+                (newE, changes, LangSvg.valToIndexedTree newVal, newWidgets)
+              else
               Debug.crash "Controller tryToBeSmart"
               {-
               let newSlate' =
@@ -667,3 +691,33 @@ createCallbackRotate mx0 my0 mx1 my1 shape objid old =
   let fake = [("transformRot", LangSvg.ANum rot')] in
   (real, fake)
 
+
+--------------------------------------------------------------------------------
+-- Mouse Callbacks for UI Widgets
+
+wSlider = params.mainSection.uiWidgets.wSlider
+
+createMousePosCallbackSlider mx my widget old =
+
+  let (maybeRound, minVal, maxVal, curVal, locid) =
+    case widget of
+      WIntSlider a b _ curVal (locid,_,_) ->
+        (toFloat << round, toFloat a, toFloat b, toFloat curVal, locid)
+      WNumSlider a b _ curVal (locid,_,_) ->
+        (identity, a, b, curVal, locid)
+  in
+  let range = maxVal - minVal in
+
+  \(mx',my') ->
+    let newVal =
+      curVal + (toFloat (mx' - mx) / toFloat wSlider) * range
+        |> clamp minVal maxVal
+        |> maybeRound
+    in
+    -- unlike the live triggers via Sync,
+    -- this substitution only binds the location to change
+    let subst = Dict.singleton locid newVal in
+    let newE = applySubst subst (Utils.fromJust old.inputExp) in
+    let (newVal,newWidgets) = Eval.run newE in
+    let newSlate = LangSvg.valToIndexedTree newVal in
+    (newE, newSlate, newWidgets)

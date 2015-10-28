@@ -59,7 +59,10 @@ space = whitespace   -- at least one " "
 
 unparsePat : Pat -> String
 unparsePat p = case p.val of
-  PVar x -> x
+  PVar x wd -> case wd.val of
+    NoWidgetDecl        -> x
+    IntSlider a tok b _ -> x ++ bracesAndSpaces wd.start wd.end [UInt a, UStr tok, UInt b]
+    NumSlider a tok b _ -> x ++ bracesAndSpaces wd.start wd.end [UNum a, UStr tok, UNum b]
   PList ps Nothing ->
     bracksAndSpaces p.start p.end (List.map UPat ps)
   PList ps (Just pRest) ->
@@ -81,7 +84,12 @@ makeToken start s =
 unparse : Exp -> String
 unparse e = case e.val of
   EBase v -> strBaseVal v
-  EConst i l -> let (_,b,_) = l in toString i ++ b
+  EConst i l wd ->
+    let s = let (_,b,_) = l in toString i ++ b in
+    case wd.val of
+      NoWidgetDecl        -> s
+      IntSlider a tok b _ -> s ++ bracesAndSpaces wd.start wd.end [UInt a, UStr tok, UInt b]
+      NumSlider a tok b _ -> s ++ bracesAndSpaces wd.start wd.end [UNum a, UStr tok, UNum b]
     -- TODO: parse/unparse are not inverses for floats (e.g. 1.0)
   EVar x -> x
   EFun [p] e1 ->
@@ -136,7 +144,7 @@ unparseE e = whitespace startPos e.start ++ unparse e
 -- Currently only remembers whitespace after ".."
 unparseRange : ERange -> List Unparsable
 unparseRange r = case r.val of (l,u) -> case (l.val,u.val) of
-    (EConst lv lt, EConst uv ut) -> 
+    (EConst lv lt _, EConst uv ut _) ->
         if | lv == uv -> [ UExp l ]
            | otherwise -> [ UExp l
                           , UStr <| makeToken l.end ".."
@@ -163,6 +171,8 @@ type Unparsable
   | UPat (WithInfo Pat_)    -- = Pat
   | UBra (WithInfo Branch_) -- = Branch
   | UStr (WithInfo String)
+  | UInt (WithInfo Int)
+  | UNum (WithInfo Num)
   | UParens (List Unparsable)
       -- no start/pos info, so using first/last elements as
       -- canonical positions
@@ -171,6 +181,8 @@ strU thing = case thing of
   UExp e -> unparse e
   UPat p -> unparsePat p
   UStr s -> identity s.val
+  UInt i -> toString i.val
+  UNum i -> strNum i.val
   UBra b ->
     let (p,e) = b.val in
     let s = unparsePat p ++ space p.end e.start ++ unparse e in
@@ -183,6 +195,8 @@ startU thing = case thing of
   UExp x -> x.start
   UPat x -> x.start
   UStr x -> x.start
+  UInt x -> x.start
+  UNum x -> x.start
   UBra x -> x.start
 
   UParens (first::_) -> decCol (startU first)
@@ -191,6 +205,8 @@ endU thing = case thing of
   UExp x -> x.end
   UPat x -> x.end
   UStr x -> x.end
+  UInt x -> x.end
+  UNum x -> x.end
   UBra x -> x.end
 
   UParens l -> let (last::_) = List.reverse l in incCol (endU last)
@@ -220,4 +236,5 @@ delimitAndSpaces open close start end things =
 
 parensAndSpaces = delimitAndSpaces "(" ")"
 bracksAndSpaces = delimitAndSpaces "[" "]"
+bracesAndSpaces = delimitAndSpaces "{" "}"
 ibracksAndSpaces = delimitAndSpaces "[|" "|]"

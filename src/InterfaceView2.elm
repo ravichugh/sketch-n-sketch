@@ -7,7 +7,7 @@ import Sync
 import Eval
 import Utils
 import InterfaceModel exposing (..)
-import LangSvg exposing (toNum, toNumTr, addi)
+import LangSvg exposing (toNum, toNumTr, addi, attr)
 import ExamplesGenerated as Examples
 import Config exposing (params)
 import OurParser2 as P
@@ -60,6 +60,8 @@ import Debug
 dimToPix d = String.append (toString d) "px"
 
 interfaceColor = Color.rgba 52 73 94 1.0
+strInterfaceColor = "rgba(52,73,94,1.0)"
+strButtonTopColor = "rgba(231,76,60,1.0)" -- from InterfaceButtons example
 textColor = "white"
 
 titleStyle =
@@ -156,6 +158,97 @@ buildSvg_ options d i =
 
 
 --------------------------------------------------------------------------------
+-- Widget Layer
+
+buildSvgWidgets : Int -> Int -> List Widget -> Svg.Svg
+buildSvgWidgets wCanvas hCanvas widgets =
+  let
+    pad           = params.mainSection.uiWidgets.pad
+    wSlider       = params.mainSection.uiWidgets.wSlider
+    hSlider       = params.mainSection.uiWidgets.hSlider
+    wCaption      = params.mainSection.uiWidgets.wCaption
+
+    numWidgets    = List.length widgets
+    wWidget       = wSlider + wCaption + 2*pad
+    hWidget       = hSlider + 2*pad
+    wToolBoxMax   = wCanvas - 2*pad
+    numCols       = floor (wToolBoxMax / wWidget)
+    numRows       = ceiling (toFloat numWidgets / toFloat numCols)
+    wToolBox      = numCols * wWidget
+    hToolBox      = numRows * hWidget
+    xL            = pad
+    yBL           = hCanvas - hWidget - pad
+  in
+  let draw (i_, widget) =
+    let i = i_ - 1 in
+    let
+      (r,c) = (i % numRows, i // numRows)
+      xi    = xL  + c*wWidget
+      yi    = yBL - r*hWidget
+      xi'   = xi + pad
+      yi'   = yi + pad
+    in
+    let region =
+      flip Svg.rect [] <|
+        [ attr "fill" "lightgray"
+        , attr "stroke" strInterfaceColor , attr "stroke-width" "3px"
+        , attr "rx" "9px" , attr "ry" "9px"
+        , attr "x" (toString (xL  + c*wWidget))
+        , attr "y" (toString (yBL - r*hWidget))
+        , attr "width" (toString wWidget) , attr "height" (toString hWidget)
+        ]
+    in
+    let box =
+      flip Svg.rect [] <|
+        [ attr "fill" strInterfaceColor
+        , attr "stroke" "20px", attr "stroke-width" "20px"
+        , attr "x" (toString (xL  + c*wWidget + pad))
+        , attr "y" (toString (yBL - r*hWidget + pad))
+        , attr "width" (toString wSlider) , attr "height" (toString hSlider)
+        ]
+    in
+    let ball =
+      let (minVal,maxVal,curVal) = case widget of
+        WIntSlider a b _ c _ -> (toFloat a, toFloat b, toFloat c)
+        WNumSlider a b _ c _ -> (a, b, c)
+      in
+      let (range, diff) = (maxVal - minVal, curVal - minVal) in
+      let pct = diff / range in
+      let cx = xi + pad + round (pct*wSlider) in
+      let cy = yi + pad + (hSlider//2) in
+      flip Svg.circle [] <|
+        [ attr "stroke" "black" , attr "stroke-width" "2px"
+        , attr "fill" strButtonTopColor
+        , attr "r" params.mainSection.uiWidgets.rBall
+        , attr "cx" (toString cx) , attr "cy" (toString cy)
+        , cursorOfZone "SliderBall"
+        ] ++ sliderZoneEvents widget
+    in
+    let text =
+      let cap = case widget of
+        WIntSlider _ _ s targetVal _ -> s ++ strNumTrunc 5 targetVal
+        WNumSlider _ _ s targetVal _ -> s ++ strNumTrunc 5 targetVal
+      in
+      flip Svg.text [VirtualDom.text cap] <|
+        [ attr "fill" "black" , attr "font-family" "Tahoma, sans-serif"
+        , attr "font-size" params.mainSection.uiWidgets.fontSize
+        , attr "x" (toString (xi' + wSlider + 10))
+        , attr "y" (toString (yi' + 18))
+        ]
+    in
+    [region, box, text, ball]
+  in
+  Svg.svg [] (List.concat (Utils.mapi draw widgets))
+
+sliderZoneEvents widgetState =
+  let foo old = case old.mode of
+    Live _ -> { old | mouseMode <- MouseSlider widgetState Nothing }
+    _      -> old
+  in
+  [ onMouseDown (UpdateModel foo) , onMouseUp MouseUp ]
+
+
+--------------------------------------------------------------------------------
 -- Defining Zones
 
 -- compileAttr will throw away the trace anyway
@@ -196,6 +289,7 @@ cursorOfZone zone = if
   -- indirect manipulation zones
   | zone == "FillBall"       -> cursorStyle "pointer"
   | zone == "RotateBall"     -> cursorStyle "pointer"
+  | zone == "SliderBall"     -> cursorStyle "pointer"
   -- default
   | otherwise                -> cursorStyle "default"
 
@@ -574,6 +668,11 @@ canvas_ w h model =
   in
   let options = (addZones, model.showZones, model.showGhosts) in
   let svg = buildSvg options model.slate in
+  let svgLayers =
+    case model.showGhosts of
+      False -> [ svg ]
+      True  -> [ svg, buildSvgWidgets w h model.widgets]
+  in
   Html.toElement w h <|
     Svg.svg
       [ onMouseUp MouseUp
@@ -581,7 +680,7 @@ canvas_ w h model =
                    , ("border", params.mainSection.canvas.border)
                    , highlightThisIf addZones
                    ] ]
-      [ svg ]
+      svgLayers
 
 middleWidgets w h wWrap hWrap model =
   let twoButtons b1 b2 =
@@ -815,8 +914,8 @@ outputButton model w h =
 ghostsButton model w h =
   let cap =
      case model.showGhosts of
-       True  -> "[Ghosts] Shown"
-       False -> "[Ghosts] Hidden"
+       True  -> "[Widgets] Shown"
+       False -> "[Widgets] Hidden"
   in
   let foo old =
     let showGhosts' = not old.showGhosts in

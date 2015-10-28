@@ -9,8 +9,8 @@ import PreludeGenerated as Prelude
 makeExample name s =
   let thunk () =
     let e = Utils.fromOk_ (Parser.parseE s) in
-    let v = Eval.run e in
-    {e=e, v=v}
+    let (v,ws) = Eval.run e in
+    {e=e, v=v, ws=ws}
   in
   (name, thunk)
 
@@ -19,6 +19,7 @@ scratchName = "*Scratch*"
 LITTLE_TO_ELM scratch
 LITTLE_TO_ELM threeBoxes
 LITTLE_TO_ELM waveOfBoxes
+LITTLE_TO_ELM nBoxes
 LITTLE_TO_ELM groupOfBoxes
 LITTLE_TO_ELM sixBoxesA
 LITTLE_TO_ELM sixBoxesB
@@ -83,6 +84,7 @@ examples =
   , makeExample "*Prelude*" Prelude.src
   , makeExample "3 Boxes" threeBoxes
   , makeExample "Wave Boxes" waveOfBoxes
+  , makeExample "N Boxes Sli" nBoxes
   , makeExample "N Boxes" groupOfBoxes
   , makeExample "6 Boxes A" sixBoxesA
   , makeExample "6 Boxes B" sixBoxesB

@@ -36,7 +36,7 @@ substOf = Dict.map (always .val) << substPlusOf
 
 freshen_ : Int -> Exp -> (Exp, Int)
 freshen_ k e = (\(e_,k') -> (P.WithInfo e_ e.start e.end, k')) <| case e.val of
-  EConst i l -> let (0,b,"") = l in (EConst i (k, b, ""), k + 1)
+  EConst i l wd -> let (0,b,"") = l in (EConst i (k, b, "") wd, k + 1)
   EBase v    -> (EBase v, k)
   EVar x     -> (EVar x, k)
   EFun ps e  -> let (e',k') = freshen_ k e in (EFun ps e', k')
@@ -85,7 +85,7 @@ freshenRanges k rs =
 addBreadCrumbs (p,e) =
  let ret e_ = P.WithInfo e_ e.start e.end in
  case (p.val, e.val) of
-  (PVar x, EConst n (k, b, "")) -> ret <| EConst n (k, b, x)
+  (PVar x _, EConst n (k, b, "") wd) -> ret <| EConst n (k, b, x) wd
   (PList ps mp, EList es me) ->
     case Utils.maybeZip ps es of
       Nothing  -> ret <| EList es me
@@ -101,7 +101,7 @@ addBreadCrumbs (p,e) =
 
 substOf_ : SubstPlus -> Exp -> SubstPlus
 substOf_ s e = case e.val of
-  EConst i l ->
+  EConst i l _ ->
     let (k,_,_) = l in
     case Dict.get k s of
       Nothing -> Dict.insert k { e | val <- i } s
@@ -213,12 +213,21 @@ white : P.Parser a -> P.Parser a
 white p = manySpaces >>> p
 
 token_ = white << P.token
+saveToken = white << string_
 
 delimit a b = P.between (token_ a) (token_ b)
 parens      = delimit "(" ")"
 
 parseNumV = (\(n,b) -> VConst (n, dummyTrace_ b)) <$> parseNum
-parseNumE = (\(n,b) -> EConst n (dummyLoc_ b)) <$> parseNum
+-- parseNumE = (\(n,b) -> EConst n (dummyLoc_ b) noWidgetDecl) <$> parseNum
+
+parseNumE =
+  parseNum                     >>= \nb ->
+  parseMaybeWidgetDecl Nothing >>= \wd ->
+    let (n,b) = nb.val in
+    -- see other comments about NoWidgetDecl
+    let end = case wd.val of {NoWidgetDecl -> nb.end ; _ -> wd.end} in
+    P.returnWithInfo (EConst n (dummyLoc_ b) wd) nb.start end
 
 parseEBase =
       (always (EBase (Bool True)) <$> P.token "true")
@@ -313,7 +322,7 @@ parseExp = P.recursively <| \_ ->
   <++ parseIf
   <++ parseCase
   <++ parseExpList
-  <++ parseExpIndList
+  -- <++ parseExpIndList
   <++ parseLet
   <++ parseDef
   <++ parseApp
@@ -328,11 +337,19 @@ parseFun =
       P.return (EFun ps.val e)
 
 parseWildcard : P.Parser Pat_
-parseWildcard = token_ "_" >>> P.return (PVar "_")
+parseWildcard = token_ "_" >>> P.return (PVar "_" noWidgetDecl)
+
+parsePVar : P.Parser Pat_
+parsePVar =
+  white parseIdent              >>= \x ->
+  parseMaybeWidgetDecl (Just x) >>= \wd ->
+    -- see other comments about NoWidgetDecl
+    let end = case wd.val of {NoWidgetDecl -> x.end ; _ -> wd.end } in
+    P.returnWithInfo (PVar x.val wd) x.start end
 
 parsePat : P.Parser Pat_
 parsePat = P.recursively <| \_ ->
-      (PVar <$> white parseIdent)
+      parsePVar
   <++ parsePBase
   <++ parseWildcard
   <++ parsePatList
@@ -346,6 +363,34 @@ parsePats : P.Parser (List Pat)
 parsePats =
       (parsePat >>= \p -> P.returnWithInfo [p] p.start p.end)
   <++ (parseList1 "(" listSep ")" parsePat identity)
+
+parseMaybeWidgetDecl : Caption -> P.Parser WidgetDecl_
+parseMaybeWidgetDecl cap = P.option NoWidgetDecl (parseWidgetDecl cap)
+  -- this would be nicer if/when P.Parser is refactored so that
+  -- it doesn't have to wrap everything with WithInfo
+
+parseWidgetDecl : Caption -> P.Parser WidgetDecl_
+parseWidgetDecl cap =
+  P.token "{"    >>= \open ->  -- P.token, so no leading whitespace
+  white parseNum >>= \min ->
+  saveToken "-"  >>= \tok ->
+  white parseNum >>= \max ->
+  token_ "}"     >>= \close ->
+  -- for now, not optionally parsing a caption here
+    let a = { min | val <- fst min.val } in
+    let b = { max | val <- fst max.val } in
+    let wd =
+      if List.all isInt [a.val, b.val] then
+        let a' = { a | val <- floor a.val } in
+        let b' = { b | val <- floor b.val } in
+        IntSlider a' tok b' cap
+      else
+        NumSlider a tok b cap
+    in
+    P.returnWithInfo wd open.start close.end
+
+isInt : Float -> Bool
+isInt n = n == toFloat (floor n)
 
 parseApp =
   parens <|

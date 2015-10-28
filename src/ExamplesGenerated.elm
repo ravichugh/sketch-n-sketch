@@ -9,8 +9,8 @@ import PreludeGenerated as Prelude
 makeExample name s =
   let thunk () =
     let e = Utils.fromOk_ (Parser.parseE s) in
-    let v = Eval.run e in
-    {e=e, v=v}
+    let (v,ws) = Eval.run e in
+    {e=e, v=v, ws=ws}
   in
   (name, thunk)
 
@@ -60,6 +60,19 @@ waveOfBoxes =
   (map boxi (list0N (- n 1!)))))
 
 (svg (concat [ slider (basicZonesTail nBoxes) ]))
+
+"
+
+nBoxes =
+ "
+(def nBoxes
+  (let [n x0 y0 w h sep] [3{1-10} 40 28 60 130 110{50-200}]
+  (let boxi (\\i
+    (let xi (+ x0 (mult i sep))
+    (rect 'lightblue' xi y0 w h)))
+  (svg (map boxi (range 0! (- n 1!)))))))
+ 
+nBoxes
 
 "
 
@@ -2951,6 +2964,7 @@ examples =
   , makeExample "*Prelude*" Prelude.src
   , makeExample "3 Boxes" threeBoxes
   , makeExample "Wave Boxes" waveOfBoxes
+  , makeExample "N Boxes Sli" nBoxes
   , makeExample "N Boxes" groupOfBoxes
   , makeExample "6 Boxes A" sixBoxesA
   , makeExample "6 Boxes B" sixBoxesB

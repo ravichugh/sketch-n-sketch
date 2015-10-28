@@ -15,6 +15,8 @@ type alias Loc = (LocId, Frozen, Ident)  -- "" rather than Nothing b/c comparabl
 type alias LocId = Int
 type alias Ident = String
 type alias Num = Float
+  -- may want to preserve decimal point for whole floats,
+  -- so that parse/unparse are inverses and for WidgetDecls
 
 type alias Frozen = String -- b/c comparable
 (frozen, unann, thawed, assignOnlyOnce) = ("!", "", "?", "~")
@@ -28,7 +30,7 @@ type alias Branch = P.WithInfo Branch_
 
 -- TODO add constant literals to patterns, and match 'svg'
 type Pat_
-  = PVar Ident
+  = PVar Ident WidgetDecl
   | PConst Num
   | PBase BaseVal
   | PList (List Pat) (Maybe Pat)
@@ -49,7 +51,7 @@ type Op_
   | RangeOffset Int
 
 type Exp_
-  = EConst Num Loc
+  = EConst Num Loc WidgetDecl
   | EBase BaseVal
   | EVar Ident
   | EFun (List Pat) Exp
@@ -78,6 +80,23 @@ type alias Rec = Bool
 
 -- Enforce invariant that ERange is only ever (EConst ..., EConst ...)
 type alias ERange = P.WithInfo (Exp, Exp)
+
+type alias WidgetDecl = P.WithInfo WidgetDecl_
+
+type WidgetDecl_
+  = IntSlider (P.WithInfo Int) Token (P.WithInfo Int) Caption
+  | NumSlider (P.WithInfo Num) Token (P.WithInfo Num) Caption
+  | NoWidgetDecl -- rather than Nothing, to work around parser types
+
+type Widget
+  = WIntSlider Int Int String Int Loc
+  | WNumSlider Num Num String Num Loc
+
+type alias Widgets = List Widget
+
+type alias Token = P.WithInfo String
+
+type alias Caption = Maybe (P.WithInfo String)
 
 type Val
   = VConst NumTr
@@ -111,8 +130,8 @@ strBaseVal v = case v of
 strRange : Bool -> Int -> ERange -> String
 strRange showLocs k r =
   let (el,eu) = r.val
-      (EConst nl _) = el.val 
-      (EConst nu _) = eu.val 
+      (EConst nl _ _) = el.val
+      (EConst nu _ _) = eu.val
   in
     if | nl == nu -> sExp_ showLocs k el
        | otherwise -> 
@@ -122,6 +141,10 @@ strVal     = strVal_ False
 strValLocs = strVal_ True
 
 strNum     = toString
+-- strNumDot  = strNum >> (\s -> if String.contains "[.]" s then s else s ++ ".0")
+
+strNumTrunc k =
+  strNum >> (\s -> if String.length s > k then String.left k s ++ ".." else s)
 
 strVal_ : Bool -> Val -> String
 strVal_ showTraces v =
@@ -165,7 +188,7 @@ strTrace tr = case tr of
       [strOp op, " ", String.join " " (List.map strTrace l)])
 
 strPat p = case p.val of
-  PVar x     -> x
+  PVar x _   -> x -- TODO strWidgetDecl wd, but not called anyway
   PList ps m -> let s = Utils.spaces (List.map strPat ps) in
                 case m of
                   Nothing   -> Utils.bracks s
@@ -184,7 +207,7 @@ sExp_ showLocs k e =
   let indent = maybeIndent showLocs k in
   case e.val of
     EBase v -> strBaseVal v
-    EConst i l ->
+    EConst i l _ -> -- TODO
       let (_,b,_) = l in
       toString i
         ++ b
@@ -289,7 +312,7 @@ mapExp f e =
   let foo = mapExp f in
   let g e_ = P.WithInfo (f e_) e.start e.end in
   case e.val of
-    EConst _ _     -> g e.val
+    EConst _ _ _   -> g e.val
     EBase _        -> g e.val
     EVar _         -> g e.val
     EFun ps e'     -> g (EFun ps (foo e'))
@@ -320,10 +343,12 @@ type alias SubstMaybeNum = Dict.Dict LocId (Maybe Num)
 
 applySubst : Subst -> Exp -> Exp
 applySubst subst e = (\e_ -> P.WithInfo e_ e.start e.end) <| case e.val of
-  EConst n l ->
+  EConst n l wd ->
     case Dict.get (Utils.fst3 l) subst of
-      Just i -> EConst i l
-   -- Nothing -> EConst n l
+      Just i -> EConst i l wd
+      Nothing -> EConst n l wd
+        -- 10/28: substs from createMousePosCallbackSlider only bind
+        -- updated values (unlike substs from Sync)
   EBase _    -> e.val
   EVar _     -> e.val
   EFun ps e' -> EFun ps (applySubst subst e')
@@ -406,14 +431,16 @@ eFun ps e = case ps of
 
 ePair e1 e2 = withDummyPos <| EList [e1,e2] Nothing
 
+noWidgetDecl = withDummyPos NoWidgetDecl
+
 eLets xes eBody = case xes of
   (x,e)::xes' -> withDummyPos <|
-                   ELet Let False (withDummyPos (PVar x)) e (eLets xes' eBody)
+                   ELet Let False (withDummyPos (PVar x noWidgetDecl)) e (eLets xes' eBody)
   []          -> eBody
 
 eVar a         = withDummyPos <| EVar a
-eConst a b     = withDummyPos <| EConst a b
+eConst a b     = withDummyPos <| EConst a b noWidgetDecl
 eList a b      = withDummyPos <| EList a b
 eComment a b   = withDummyPos <| EComment a b
 
-pVar a         = withDummyPos <| PVar a
+pVar a         = withDummyPos <| PVar a noWidgetDecl
