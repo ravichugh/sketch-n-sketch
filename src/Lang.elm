@@ -346,7 +346,9 @@ applySubst subst e = (\e_ -> P.WithInfo e_ e.start e.end) <| case e.val of
   EConst n l wd ->
     case Dict.get (Utils.fst3 l) subst of
       Just i -> EConst i l wd
-   -- Nothing -> EConst n l
+      Nothing -> EConst n l wd
+        -- 10/28: substs from createMousePosCallbackSlider only bind
+        -- updated values (unlike substs from Sync)
   EBase _    -> e.val
   EVar _     -> e.val
   EFun ps e' -> EFun ps (applySubst subst e')

@@ -220,7 +220,8 @@ buildSvgWidgets wCanvas hCanvas widgets =
         [ attr "stroke" "black" , attr "stroke-width" "2px"
         , attr "fill" strButtonTopColor , attr "r" "7"
         , attr "cx" (toString cx) , attr "cy" (toString cy)
-        ]
+        , cursorOfZone "SliderBall"
+        ] ++ sliderZoneEvents widget
     in
     let text =
       let cap = case widget of
@@ -236,6 +237,13 @@ buildSvgWidgets wCanvas hCanvas widgets =
     [region, box, text, ball]
   in
   Svg.svg [] (List.concat (Utils.mapi draw widgets))
+
+sliderZoneEvents widgetState =
+  let foo old = case old.mode of
+    Live _ -> { old | mouseMode <- MouseSlider widgetState Nothing }
+    _      -> old
+  in
+  [ onMouseDown (UpdateModel foo) , onMouseUp MouseUp ]
 
 
 --------------------------------------------------------------------------------
@@ -279,6 +287,7 @@ cursorOfZone zone = if
   -- indirect manipulation zones
   | zone == "FillBall"       -> cursorStyle "pointer"
   | zone == "RotateBall"     -> cursorStyle "pointer"
+  | zone == "SliderBall"     -> cursorStyle "pointer"
   -- default
   | otherwise                -> cursorStyle "default"
 

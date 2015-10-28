@@ -28,6 +28,7 @@ type alias Model =
   , exName : String
   , code : Code
   , history : (List Code, List Code)
+  -- TODO remove Maybe
   , inputExp : Maybe Exp
   , slate : RootedIndexedTree
   , widgets : List Widget
@@ -79,6 +80,9 @@ type MouseMode
       (Maybe ( Code                        -- the program upon initial zone click
              , Maybe (SubstPlus, LocSet)   -- loc-set assigned (live mode only)
              , MouseTrigger (Exp, SubstMaybeNum, RootedIndexedTree, Widgets) ))
+  | MouseSlider Widget
+      (Maybe ( MouseTrigger (Exp, RootedIndexedTree, Widgets) ))
+      -- may add info for hilites later
 
 type alias MouseTrigger a = (Int, Int) -> a
 

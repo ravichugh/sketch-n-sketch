@@ -68,8 +68,13 @@ Extra parentheses are not permitted.
   n  ::=  123
       |   3.14
       |   -3.14
+
       |   3.14!     -- frozen constants (may not be changed by sync)
       |   3.14?     -- thawed constants (may be changed by sync)
+      |   3.14~     -- assign to at most one zone
+
+      |   3{0-6}          -- auto-generate an integer slider
+      |   3.14{0.0-6.28}  -- auto-generate a numeric slider
 ```
 
 ```

@@ -11,7 +11,7 @@ import InterfaceView2 exposing (..)
 import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg exposing (toNum, toNumTr, toPoints, addi)
 import ExamplesGenerated as Examples
-import Config
+import Config exposing (params)
 
 import VirtualDom
 
@@ -193,7 +193,9 @@ upstate evt old = case debugLog "Event" evt of
 
     MousePos (mx, my) ->
       case old.mouseMode of
+
         MouseNothing -> old
+
         MouseResizeMid Nothing ->
           let f =
             case old.orient of
@@ -201,14 +203,17 @@ upstate evt old = case debugLog "Event" evt of
               Horizontal -> \(_,my') -> (old.midOffsetY, old.midOffsetY + my' - my)
           in
           { old | mouseMode <- MouseResizeMid (Just f) }
+
         MouseResizeMid (Just f) ->
           let (x,y) = f (mx, my) in
           { old | midOffsetX <- x , midOffsetY <- y }
+
         MouseObject objid kind zone Nothing ->
           let onNewPos = createMousePosCallback mx my objid kind zone old in
           let mStuff = maybeStuff objid kind zone old in
           let blah = Just (old.code, mStuff, onNewPos) in
           { old | mouseMode <- MouseObject objid kind zone blah  }
+
         MouseObject _ _ _ (Just (_, mStuff, onNewPos)) ->
           let (newE,changes,newSlate,newWidgets) = onNewPos (mx, my) in
           { old | code <- unparseE newE
@@ -216,6 +221,18 @@ upstate evt old = case debugLog "Event" evt of
                 , slate <- newSlate
                 , widgets <- newWidgets
                 , codeBoxInfo <- highlightChanges mStuff changes old.codeBoxInfo
+                }
+
+        MouseSlider widget Nothing ->
+          let onNewPos = createMousePosCallbackSlider mx my widget old in
+          { old | mouseMode <- MouseSlider widget (Just onNewPos) }
+
+        MouseSlider widget (Just onNewPos) ->
+          let (newE,newSlate,newWidgets) = onNewPos (mx, my) in
+          { old | code <- unparseE newE
+                , inputExp <- Just newE
+                , slate <- newSlate
+                , widgets <- newWidgets
                 }
 
     SelectObject id kind zone ->
@@ -674,3 +691,33 @@ createCallbackRotate mx0 my0 mx1 my1 shape objid old =
   let fake = [("transformRot", LangSvg.ANum rot')] in
   (real, fake)
 
+
+--------------------------------------------------------------------------------
+-- Mouse Callbacks for UI Widgets
+
+wSlider = params.mainSection.uiWidgets.wSlider
+
+createMousePosCallbackSlider mx my widget old =
+
+  let (maybeRound, minVal, maxVal, curVal, locid) =
+    case widget of
+      WIntSlider a b _ curVal (locid,_,_) ->
+        (toFloat << round, toFloat a, toFloat b, toFloat curVal, locid)
+      WNumSlider a b _ curVal (locid,_,_) ->
+        (identity, a, b, curVal, locid)
+  in
+  let range = maxVal - minVal in
+
+  \(mx',my') ->
+    let newVal =
+      curVal + (toFloat (mx' - mx) / toFloat wSlider) * range
+        |> clamp minVal maxVal
+        |> maybeRound
+    in
+    -- unlike the live triggers via Sync,
+    -- this substitution only binds the location to change
+    let subst = Dict.singleton locid newVal in
+    let newE = applySubst subst (Utils.fromJust old.inputExp) in
+    let (newVal,newWidgets) = Eval.run newE in
+    let newSlate = LangSvg.valToIndexedTree newVal in
+    (newE, newSlate, newWidgets)
