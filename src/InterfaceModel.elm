@@ -30,6 +30,7 @@ type alias Model =
   , history : (List Code, List Code)
   , inputExp : Maybe Exp
   , slate : RootedIndexedTree
+  , widgets : List Widget
   , mode : Mode
   , mouseMode : MouseMode
   , orient : Orientation
@@ -177,6 +178,9 @@ makeHighlight subst color (locid,_,_) =
 
 --------------------------------------------------------------------------------
 
+-- TODO temporary
+dummyWidget = WNumSlider 1.3 10.4 "n = " 5.5 dummyLoc
+
 sampleModel : Model
 sampleModel =
   let
@@ -189,6 +193,7 @@ sampleModel =
     , history       = ([], [])
     , inputExp      = Just e
     , slate         = LangSvg.valToIndexedTree v
+    , widgets       = List.repeat 5 dummyWidget
     , mode          = mkLive Sync.defaultOptions e v
     , mouseMode     = MouseNothing
     , orient        = Vertical

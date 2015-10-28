@@ -55,6 +55,12 @@ params =
         , font = "Courier, monospace"
         , fontSize = "12pt"
         }
+     , uiWidgets =
+        { pad = 8
+        , wSlider = 140
+        , hSlider = 20
+        , wCaption = 100
+        }
      }
   }
 

@@ -88,6 +88,10 @@ type WidgetDecl_
   | NumSlider (P.WithInfo Num) Token (P.WithInfo Num) Caption
   | NoWidgetDecl -- rather than Nothing, to work around parser types
 
+type Widget
+  = WIntSlider Int Int String Int Loc
+  | WNumSlider Num Num String Num Loc
+
 type alias Token = P.WithInfo String
 
 type alias Caption = Maybe (P.WithInfo String)
@@ -136,6 +140,9 @@ strValLocs = strVal_ True
 
 strNum     = toString
 -- strNumDot  = strNum >> (\s -> if String.contains "[.]" s then s else s ++ ".0")
+
+strNumTruncate k =
+  strNum >> (\s -> if String.length s > k then String.left k s ++ ".." else s)
 
 strVal_ : Bool -> Val -> String
 strVal_ showTraces v =
