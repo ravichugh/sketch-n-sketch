@@ -56,7 +56,7 @@ params =
         , fontSize = "12pt"
         }
      , uiWidgets =
-        { pad = 8
+        { pad = 5
         , wSlider = 100
         , hSlider = 25
         , wCaption = 100
