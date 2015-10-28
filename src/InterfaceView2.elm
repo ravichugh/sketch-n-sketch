@@ -218,7 +218,8 @@ buildSvgWidgets wCanvas hCanvas widgets =
       let cy = yi + pad + (hSlider//2) in
       flip Svg.circle [] <|
         [ attr "stroke" "black" , attr "stroke-width" "2px"
-        , attr "fill" strButtonTopColor , attr "r" "7"
+        , attr "fill" strButtonTopColor
+        , attr "r" params.mainSection.uiWidgets.rBall
         , attr "cx" (toString cx) , attr "cy" (toString cy)
         , cursorOfZone "SliderBall"
         ] ++ sliderZoneEvents widget
@@ -230,8 +231,9 @@ buildSvgWidgets wCanvas hCanvas widgets =
       in
       flip Svg.text [VirtualDom.text cap] <|
         [ attr "fill" "black" , attr "font-family" "Tahoma, sans-serif"
-        , attr "x" (toString (xi' + wSlider + 5))
-        , attr "y" (toString (yi' + 15))
+        , attr "font-size" params.mainSection.uiWidgets.fontSize
+        , attr "x" (toString (xi' + wSlider + 10))
+        , attr "y" (toString (yi' + 18))
         ]
     in
     [region, box, text, ball]

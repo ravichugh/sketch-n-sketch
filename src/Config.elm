@@ -57,9 +57,11 @@ params =
         }
      , uiWidgets =
         { pad = 8
-        , wSlider = 140
-        , hSlider = 20
-        , wCaption = 120
+        , wSlider = 100
+        , hSlider = 25
+        , wCaption = 100
+        , rBall = "10px"
+        , fontSize = "11pt"
         }
      }
   }
