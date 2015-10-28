@@ -9,8 +9,8 @@ import PreludeGenerated as Prelude
 makeExample name s =
   let thunk () =
     let e = Utils.fromOk_ (Parser.parseE s) in
-    let v = Eval.run e in
-    {e=e, v=v}
+    let (v,ws) = Eval.run e in
+    {e=e, v=v, ws=ws}
   in
   (name, thunk)
 

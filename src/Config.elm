@@ -59,7 +59,7 @@ params =
         { pad = 8
         , wSlider = 140
         , hSlider = 20
-        , wCaption = 100
+        , wCaption = 120
         }
      }
   }

@@ -46,69 +46,92 @@ lookupVar env x pos =
     Just v -> v
     Nothing -> errorMsg <| strPos pos ++ " variable not found: " ++ x
 
+mkCap mcap l =
+  let s =
+    case (mcap, l) of
+      (Just cap, _)       -> cap.val
+      (Nothing, (_,_,"")) -> strLoc l
+      (Nothing, (_,_,x))  -> x
+  in
+  s ++ ": "
+
 -- eval propagates output environment in order to extract
 -- initial environment from prelude
 
 -- eval inserts dummyPos during evaluation
 
-eval_ : Env -> Exp -> Val
+eval_ : Env -> Exp -> (Val, Widgets)
 eval_ env e = fst <| eval env e
 
-eval : Env -> Exp -> (Val, Env)
+eval : Env -> Exp -> ((Val, Widgets), Env)
 eval env e =
 
-  let ret v = (v, env) in
+  let ret v                          = ((v, []), env) in
+  let retBoth vw                     = (vw, env) in
+  let addWidgets ws1 ((v1,ws2),env1) = ((v1, ws1 ++ ws2), env1) in
 
   case e.val of
 
-  EConst i l _ -> ret <| VConst (i, TrLoc l)
+  EConst i l wd ->
+    let v = VConst (i, TrLoc l) in
+    case wd.val of
+      NoWidgetDecl         -> ret v
+      IntSlider a _ b mcap -> retBoth (v, [WIntSlider a.val b.val (mkCap mcap l) (floor i) l])
+      NumSlider a _ b mcap -> retBoth (v, [WNumSlider a.val b.val (mkCap mcap l) i l])
+
   EBase v    -> ret <| VBase v
   EVar x     -> ret <| lookupVar env x e.start
   EFun [p] e -> ret <| VClosure Nothing p e env
-  EOp op es  -> ret <| evalOp env op es
+  EOp op es  -> retBoth <| evalOp env op es
 
   EList es m ->
-    let vs = List.map (eval_ env) es in
+    let (vs,wss) = List.unzip (List.map (eval_ env) es) in
+    let ws = List.concat wss in
     case m of
-      Nothing   -> ret <| VList vs
+      Nothing   -> retBoth <| (VList vs, ws)
       Just rest -> case eval_ env rest of
-                     VList vs' -> ret <| VList (vs ++ vs')
+                     (VList vs', ws') -> retBoth <| (VList (vs ++ vs'), ws ++ ws')
 
+{-
   EIndList rs -> 
       let vrs = List.concat <| List.map rangeToList rs
       in ret <| VList vrs
+-}
 
   EIf e1 e2 e3 ->
-    case eval_ env e1 of
-      VBase (Bool True)  -> eval env e2
-      VBase (Bool False) -> eval env e3
-      _                  -> errorMsg <| strPos e1.start ++ " if-statement expected a Bool but got something else."
+    let (v1,ws1) = eval_ env e1 in
+    case v1 of
+      VBase (Bool True)  -> addWidgets ws1 <| eval env e2
+      VBase (Bool False) -> addWidgets ws1 <| eval env e3
+      _                  -> errorMsg <| strPos e1.start ++ " if-exp expected a Bool but got something else."
 
   ECase e1 l ->
-    let v1 = eval_ env e1 in
+    let (v1,ws1) = eval_ env e1 in
     case evalBranches env v1 l of
-      Just v2 -> ret v2
-      _       -> errorMsg <| strPos e1.start ++ " non-exhaustive case statement"
+      Just (v2,ws2) -> retBoth (v2, ws1 ++ ws2)
+      _             -> errorMsg <| strPos e1.start ++ " non-exhaustive case statement"
 
   EApp e1 [e2] ->
-    let (v1,v2) = (eval_ env e1, eval_ env e2) in
+    let ((v1,ws1),(v2,ws2)) = (eval_ env e1, eval_ env e2) in
+    let ws = ws1 ++ ws2 in
     case v1 of
       VClosure Nothing p e env' ->
         case (p, v2) `cons` Just env' of
-          Just env'' -> eval env'' e
+          Just env'' -> addWidgets ws <| eval env'' e
       VClosure (Just f) p e env' ->
         case (pVar f, v1) `cons` ((p, v2) `cons` Just env') of
-          Just env'' -> eval env'' e
+          Just env'' -> addWidgets ws <| eval env'' e
       _ ->
         errorMsg <| strPos e1.start ++ " not a function"
 
   ELet _ True p e1 e2 ->
-    case (p.val, eval_ env e1) of
+    let (v1,ws1) = eval_ env e1 in
+    case (p.val, v1) of
       (PVar f _, VClosure Nothing x body env') ->
         let _   = Utils.assert "eval letrec" (env == env') in
         let v1' = VClosure (Just f) x body env in
         case (pVar f, v1') `cons` Just env of
-          Just env' -> eval env' e2
+          Just env' -> addWidgets ws1 <| eval env' e2
       (PList _ _, _) ->
         errorMsg <|
           strPos e1.start ++
@@ -125,7 +148,9 @@ eval env e =
 
 evalOp env opWithInfo es =
   let (op,opStart) = (opWithInfo.val, opWithInfo.start) in
-  case List.map (eval_ env) es of
+  let (vs,wss) = List.unzip (List.map (eval_ env) es) in
+  (\vOut -> (vOut, List.concat wss)) <|
+  case vs of
     [VConst (i,it), VConst (j,jt)] ->
       case op of
         Plus  -> VConst (evalDelta op [i,j], TrOp op [it,jt])
@@ -200,12 +225,12 @@ evalDelta op is =
 
 initEnv = snd (eval [] Parser.prelude)
 
-run : Exp -> Val
+run : Exp -> (Val, Widgets)
 run e =
   eval_ initEnv e
 
 parseAndRun : String -> String
-parseAndRun = strVal << run << Utils.fromOk_ << Parser.parseE
+parseAndRun = strVal << fst << run << Utils.fromOk_ << Parser.parseE
 
 -- Inflates a range to a list, which is then Concat-ed in eval
 rangeToList : ERange -> List Val

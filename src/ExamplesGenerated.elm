@@ -9,8 +9,8 @@ import PreludeGenerated as Prelude
 makeExample name s =
   let thunk () =
     let e = Utils.fromOk_ (Parser.parseE s) in
-    let v = Eval.run e in
-    {e=e, v=v}
+    let (v,ws) = Eval.run e in
+    {e=e, v=v, ws=ws}
   in
   (name, thunk)
 
@@ -66,7 +66,7 @@ waveOfBoxes =
 nBoxes =
  "
 (def nBoxes
-  (let [n{1-100} x0 y0 w h sep] [3 40 28 60 130 110{50-200}]
+  (let [n x0 y0 w h sep] [3{1-10} 40 28 60 130 110{50-200}]
   (let boxi (\\i
     (let xi (+ x0 (mult i sep))
     (rect 'lightblue' xi y0 w h)))

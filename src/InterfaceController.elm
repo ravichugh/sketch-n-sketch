@@ -4,7 +4,7 @@ import Lang exposing (..) --For access to what makes up the Vals
 import LangParser2 exposing (parseE, parseV)
 import LangUnparser exposing (unparseE)
 import Sync
-import Eval exposing (run)
+import Eval
 import Utils
 import InterfaceModel exposing (..)
 import InterfaceView2 exposing (..)
@@ -164,10 +164,12 @@ upstate evt old = case debugLog "Event" evt of
            Just "" -> old.history -- "" from InterfaceStorage
            Just s  -> addToHistory s old.history
          in
+         let (v,ws) = Eval.run e in
          let new =
           { old | inputExp <- Just e
                 , code <- unparseE e
-                , slate <- LangSvg.valToIndexedTree (Eval.run e)
+                , slate <- LangSvg.valToIndexedTree v
+                , widgets <- ws
                 , history <- h
                 , editingMode <- Nothing
                 , caption <- Nothing
@@ -208,10 +210,11 @@ upstate evt old = case debugLog "Event" evt of
           let blah = Just (old.code, mStuff, onNewPos) in
           { old | mouseMode <- MouseObject objid kind zone blah  }
         MouseObject _ _ _ (Just (_, mStuff, onNewPos)) ->
-          let (newE,changes,newSlate) = onNewPos (mx, my) in
+          let (newE,changes,newSlate,newWidgets) = onNewPos (mx, my) in
           { old | code <- unparseE newE
                 , inputExp <- Just newE
                 , slate <- newSlate
+                , widgets <- newWidgets
                 , codeBoxInfo <- highlightChanges mStuff changes old.codeBoxInfo
                 }
 
@@ -246,7 +249,7 @@ upstate evt old = case debugLog "Event" evt of
         (Live _, _) -> Debug.crash "upstate Sync: shouldn't happen anymore"
         (AdHoc, Just ip) ->
           let
-            inputval  = Eval.run ip
+            inputval  = fst <| Eval.run ip
             inputval' = inputval |> LangSvg.valToIndexedTree
                                  |> slateToVal
             newval    = slateToVal old.slate
@@ -289,7 +292,7 @@ upstate evt old = case debugLog "Event" evt of
         upstate Run { old | exName <- name, code <- old.scratchCode, history <- ([],[]) }
       else
 
-      let {e,v} = thunk () in
+      let {e,v,ws} = thunk () in
       let (so, m) =
         case old.mode of
           Live _ -> let so = Sync.syncOptionsOf e in (so, mkLive so e v)
@@ -306,7 +309,9 @@ upstate evt old = case debugLog "Event" evt of
             , history <- ([],[])
             , mode <- m
             , syncOptions <- so
-            , slate <- LangSvg.valToIndexedTree v }
+            , slate <- LangSvg.valToIndexedTree v
+            , widgets <- ws
+            }
 
     SwitchMode m -> { old | mode <- m }
 
@@ -516,7 +521,7 @@ createMousePosCallback mx my objid kind zone old =
     in
     let newTree = List.foldr (upslate objid) (snd old.slate) newRealAttrs in
       case old.mode of
-        AdHoc -> (Utils.fromJust old.inputExp, Dict.empty, (fst old.slate, newTree))
+        AdHoc -> (Utils.fromJust old.inputExp, Dict.empty, (fst old.slate, newTree), old.widgets)
         Live info ->
           case Utils.justGet_ "#4" zone (Utils.justGet_ "#5" objid info.triggers) of
             -- Nothing -> (Utils.fromJust old.inputExp, newSlate)
@@ -525,7 +530,9 @@ createMousePosCallback mx my objid kind zone old =
               -- let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
               let (newE,changes) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
               if not Sync.tryToBeSmart then
-                (newE, changes, LangSvg.valToIndexedTree <| Eval.run newE) else
+                let (newVal,newWidgets) = Eval.run newE in
+                (newE, changes, LangSvg.valToIndexedTree newVal, newWidgets)
+              else
               Debug.crash "Controller tryToBeSmart"
               {-
               let newSlate' =

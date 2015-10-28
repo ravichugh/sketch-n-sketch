@@ -92,6 +92,8 @@ type Widget
   = WIntSlider Int Int String Int Loc
   | WNumSlider Num Num String Num Loc
 
+type alias Widgets = List Widget
+
 type alias Token = P.WithInfo String
 
 type alias Caption = Maybe (P.WithInfo String)
@@ -141,7 +143,7 @@ strValLocs = strVal_ True
 strNum     = toString
 -- strNumDot  = strNum >> (\s -> if String.contains "[.]" s then s else s ++ ".0")
 
-strNumTruncate k =
+strNumTrunc k =
   strNum >> (\s -> if String.length s > k then String.left k s ++ ".." else s)
 
 strVal_ : Bool -> Val -> String

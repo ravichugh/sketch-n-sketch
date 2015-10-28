@@ -78,7 +78,7 @@ type MouseMode
   | MouseObject NodeId ShapeKind Zone
       (Maybe ( Code                        -- the program upon initial zone click
              , Maybe (SubstPlus, LocSet)   -- loc-set assigned (live mode only)
-             , MouseTrigger (Exp, SubstMaybeNum, RootedIndexedTree) ))
+             , MouseTrigger (Exp, SubstMaybeNum, RootedIndexedTree, Widgets) ))
 
 type alias MouseTrigger a = (Int, Int) -> a
 
@@ -110,7 +110,7 @@ type Event = CodeUpdate String
            | TraverseOption Int -- offset from current index (+1 or -1)
            | SelectOption
            | SwitchMode Mode
-           | SelectExample String (() -> {e:Exp, v:Val})
+           | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets})
            | Edit
            | Run
            | ToggleOutput
@@ -138,7 +138,7 @@ events = Signal.mailbox <| CodeUpdate ""
 --------------------------------------------------------------------------------
 
 mkLive opts e v = Live <| Sync.prepareLiveUpdates opts e v
-mkLive_ opts e  = mkLive opts e (Eval.run e)
+mkLive_ opts e  = mkLive opts e (fst (Eval.run e))
 
 editingMode model = case model.editingMode of
   Nothing -> False
@@ -178,9 +178,6 @@ makeHighlight subst color (locid,_,_) =
 
 --------------------------------------------------------------------------------
 
--- TODO temporary
-dummyWidget = WNumSlider 1.3 10.4 "n = " 5.5 dummyLoc
-
 sampleModel : Model
 sampleModel =
   let
@@ -193,7 +190,7 @@ sampleModel =
     , history       = ([], [])
     , inputExp      = Just e
     , slate         = LangSvg.valToIndexedTree v
-    , widgets       = List.repeat 5 dummyWidget
+    , widgets       = []
     , mode          = mkLive Sync.defaultOptions e v
     , mouseMode     = MouseNothing
     , orient        = Vertical

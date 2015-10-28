@@ -322,7 +322,7 @@ parseExp = P.recursively <| \_ ->
   <++ parseIf
   <++ parseCase
   <++ parseExpList
-  <++ parseExpIndList
+  -- <++ parseExpIndList
   <++ parseLet
   <++ parseDef
   <++ parseApp

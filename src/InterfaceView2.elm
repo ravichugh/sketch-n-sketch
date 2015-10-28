@@ -61,6 +61,7 @@ dimToPix d = String.append (toString d) "px"
 
 interfaceColor = Color.rgba 52 73 94 1.0
 strInterfaceColor = "rgba(52,73,94,1.0)"
+strButtonTopColor = "rgba(231,76,60,1.0)" -- from InterfaceButtons example
 textColor = "white"
 
 titleStyle =
@@ -206,30 +207,33 @@ buildSvgWidgets wCanvas hCanvas widgets =
         , attr "width" (toString wSlider) , attr "height" (toString hSlider)
         ]
     in
-    let ball minVal maxVal curVal =
+    let ball =
+      let (minVal,maxVal,curVal) = case widget of
+        WIntSlider a b _ c _ -> (toFloat a, toFloat b, toFloat c)
+        WNumSlider a b _ c _ -> (a, b, c)
+      in
       let (range, diff) = (maxVal - minVal, curVal - minVal) in
       let pct = diff / range in
       let cx = xi + pad + round (pct*wSlider) in
       let cy = yi + pad + (hSlider//2) in
       flip Svg.circle [] <|
         [ attr "stroke" "black" , attr "stroke-width" "2px"
-        , attr "fill" "silver" , attr "r" "7"
+        , attr "fill" strButtonTopColor , attr "r" "7"
         , attr "cx" (toString cx) , attr "cy" (toString cy)
         ]
     in
-    let text targetVal =
+    let text =
       let cap = case widget of
-        WIntSlider _ _ s _ _ -> s
-        WNumSlider _ _ s _ _ -> s
+        WIntSlider _ _ s targetVal _ -> s ++ strNumTrunc 5 targetVal
+        WNumSlider _ _ s targetVal _ -> s ++ strNumTrunc 5 targetVal
       in
-      let cap' = cap ++ strNumTruncate 5 targetVal in
-      flip Svg.text [VirtualDom.text cap'] <|
+      flip Svg.text [VirtualDom.text cap] <|
         [ attr "fill" "black" , attr "font-family" "Tahoma, sans-serif"
         , attr "x" (toString (xi' + wSlider + 5))
         , attr "y" (toString (yi' + 15))
         ]
     in
-    [region, box, ball 1 10 5, text 5.5]
+    [region, box, text, ball]
   in
   Svg.svg [] (List.concat (Utils.mapi draw widgets))
 
