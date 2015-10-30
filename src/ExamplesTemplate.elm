@@ -79,6 +79,9 @@ LITTLE_TO_ELM equiTri
 LITTLE_TO_ELM gridTile
 LITTLE_TO_ELM lilliconP
 LITTLE_TO_ELM lilliconP2
+LITTLE_TO_ELM keyboard
+LITTLE_TO_ELM tessellation
+LITTLE_TO_ELM floralLogo
 
 examples =
   [ makeExample scratchName scratch
@@ -145,6 +148,9 @@ examples =
   , makeExample "Grid Tile" gridTile
   , makeExample "Lillicon P" lilliconP
   , makeExample "Lillicon P, v2" lilliconP2
+  , makeExample "Keyboard" keyboard
+  , makeExample "Tessellation" tessellation
+  , makeExample "Floral Logo" floralLogo
   ]
 
 list = examples

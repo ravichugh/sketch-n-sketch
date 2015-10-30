@@ -2980,6 +2980,251 @@ lilliconP2 =
 
 "
 
+keyboard =
+ "(def scale 25)
+(def keyBaseHeight scale)
+(def keyBaseWidth keyBaseHeight)
+(def relativeSpacing 0.3333333333333)
+
+(def [boardLeft boardTop] [50 50])
+
+(def key (\\(relativeLeft relativeTop relativeWidth relativeHeight)
+  (rect
+    'orange'
+    (+ boardLeft (* relativeLeft keyBaseWidth))
+    (+ boardTop (* relativeTop keyBaseWidth))
+    (* relativeWidth keyBaseWidth)
+    (* relativeHeight keyBaseHeight)
+  )
+))
+
+; Generate a row of keys with the given relativeKeyWidths, separated by relativeKeySpacing
+; Returns [keyRects relativeTotalWidth]
+(def row (\\(relativeLeft relativeTop relativeHeight relativeKeySpacing relativeKeyWidths)
+  (let [keys relativeWidthPlusSpacing]
+    (foldl
+      (\\(relativeKeyWidth [keys nextKeyRelativeLeft])
+        (let newKey (key nextKeyRelativeLeft relativeTop relativeKeyWidth relativeHeight)
+          [[newKey|keys] (+ nextKeyRelativeLeft (+ relativeKeySpacing relativeKeyWidth))]
+        )
+      )
+      [[] relativeLeft]
+      relativeKeyWidths
+    )
+  [keys (- (- relativeWidthPlusSpacing relativeKeySpacing) relativeLeft)]
+  )
+))
+
+(def row1SquareKeyCount 10)
+(def row2SquareKeyCount 8)
+(def row3SquareKeyCount 7)
+
+(def row2SquareKeysRelativeWidth (+ row2SquareKeyCount (* relativeSpacing (- row2SquareKeyCount 1))))
+(def row3SquareKeysRelativeWidth (+ row3SquareKeyCount (* relativeSpacing (- row3SquareKeyCount 1))))
+
+(def [row1 keysRelativeWidth] (row relativeSpacing relativeSpacing 1 relativeSpacing [1.5|(repeat row1SquareKeyCount 1)]))
+
+; Make the first and last keys of the row the appropriate width so the other keys are center.
+(def row2EdgeKeyRelativeWidth (- (* 0.5 (- keysRelativeWidth row2SquareKeysRelativeWidth)) relativeSpacing))
+(def row3EdgeKeyRelativeWidth (- (* 0.5 (- keysRelativeWidth row3SquareKeysRelativeWidth)) relativeSpacing))
+
+(def [row2 _] (row relativeSpacing (+ 1 (* 2 relativeSpacing)) 1 relativeSpacing (concat [[row2EdgeKeyRelativeWidth] (repeat row2SquareKeyCount 1) [row2EdgeKeyRelativeWidth]])))
+(def [row3 _] (row relativeSpacing (+ 2 (* 3 relativeSpacing)) 1 relativeSpacing (concat [[row3EdgeKeyRelativeWidth] (repeat row3SquareKeyCount 1) [row3EdgeKeyRelativeWidth]])))
+
+(def boardRelativeWidth  (+ keysRelativeWidth (* 2 relativeSpacing)))
+(def boardRelativeHeight (+ 4 (* 5 relativeSpacing)))
+
+(def arrowVerticalSpacing 0.1)
+(def arrowHeight (* 0.5 (- 1 arrowVerticalSpacing)))
+(def arrowsRelativeWidth (+ 3 (* 2 relativeSpacing)))
+(def [bottomArrows _] (row (- (- boardRelativeWidth arrowsRelativeWidth) relativeSpacing) (+ arrowVerticalSpacing (+ arrowHeight (+ 3 (* 4 relativeSpacing)))) arrowHeight relativeSpacing (repeat 3 1)))
+
+(def topArrow
+  (key
+    (- (- boardRelativeWidth (+ 2 relativeSpacing)) relativeSpacing)
+    (+ 3 (* 4 relativeSpacing))
+    1
+    arrowHeight
+  )
+)
+
+(def row4SquareKeyCount 2)
+(def row4NextToSpaceBarKeyRelativeWidth 1.25)
+(def row4NotArrowsRelativeWidth (- (- keysRelativeWidth arrowsRelativeWidth) relativeSpacing))
+(def row4SquareKeysRelativeWidth (+ row4SquareKeyCount (* relativeSpacing (- row4SquareKeyCount 1))))
+(def spaceBarRelativeWidth (- row4NotArrowsRelativeWidth (+ row4SquareKeysRelativeWidth (+ (* 2 row4NextToSpaceBarKeyRelativeWidth) (* 3 relativeSpacing)))))
+(def row4KeyRelativeWidths (concat [(repeat row4SquareKeyCount 1) [row4NextToSpaceBarKeyRelativeWidth spaceBarRelativeWidth row4NextToSpaceBarKeyRelativeWidth]]))
+(def [row4 _] (row relativeSpacing (+ 3 (* 4 relativeSpacing)) 1 relativeSpacing row4KeyRelativeWidths))
+
+(def backBoard
+  (rect 'lightblue' boardLeft boardTop (* boardRelativeWidth scale) (* boardRelativeHeight scale))
+)
+
+(svg (concat [
+  [backBoard]
+  row1
+  row2
+  row3
+  bottomArrows
+  [topArrow]
+  row4
+]))
+"
+
+tessellation =
+ "; I believe this is set up for group p6mm
+; https://en.wikipedia.org/wiki/Wallpaper_group#Group_p6mm_.28.2A632.29
+
+; SVG transforms to flip, rotate, and position.
+(def transformGroup (\\(transformCenterX transformCenterY flipVertical rotationAngle translateX translateY shapes)
+  [
+    'g'
+    [
+      ['transform' [['translate' (+ translateX transformCenterX) (+ translateY transformCenterY)] ['rotate' rotationAngle 0 0] ['scale' (if flipVertical -1 1) 1] ['translate' (- 0 transformCenterX) (- 0 transformCenterY)]]]
+    ]
+    shapes
+  ]
+))
+
+
+(def sin30 0.5)
+(def cos30 (* 0.5 (sqrt 3)))
+
+(def [x y radius] [200 200 200])
+(def innerRadius (* radius cos30))
+(def [bottomY cornerX] [(+ y innerRadius) (- x (/ radius 2))])
+(def primativeBottomWidth (/ radius 2))
+
+(def smallInnerRadius 50)
+(def bottomRectWidth (- primativeBottomWidth smallInnerRadius))
+(def bottomRectHeight (/ smallInnerRadius (sqrt 3)))
+
+(def primitive [
+  (path 'lightblue' 'none' 0 [
+    'M' x y
+    'L' x bottomY
+    'L' cornerX bottomY
+    'Z'
+  ])
+  (path 'green' 'none' 0 [
+    'M' x y
+    'L' x (+ y (/ (* smallInnerRadius 2) (sqrt 3)))
+    'L' (- x (* smallInnerRadius sin30)) (+ y (* smallInnerRadius cos30))
+    'Z'
+  ])
+  (path 'green' 'none' 0 [
+    'M' cornerX bottomY
+    'L' (+ cornerX smallInnerRadius) bottomY
+    'L' (+ cornerX smallInnerRadius) (- bottomY (/ smallInnerRadius (sqrt 3)))
+    'L' (+ cornerX (* smallInnerRadius sin30)) (- bottomY (* smallInnerRadius cos30))
+    'Z'
+  ])
+  (rect 'pink' (- x bottomRectWidth) (- bottomY bottomRectHeight) bottomRectWidth bottomRectHeight)
+  (path 'pink' 'none' 0 [
+    'M' x (+ y (/ (* smallInnerRadius 2) (sqrt 3)))
+    'L' (+ cornerX smallInnerRadius) (- bottomY (/ smallInnerRadius (sqrt 3)))
+    'L' (+ cornerX (* smallInnerRadius sin30)) (- bottomY (* smallInnerRadius cos30))
+    'L' (- x (* smallInnerRadius sin30)) (+ y (* smallInnerRadius cos30))
+    'Z'
+  ])
+  (path 'red' 'none' 0 [
+    'M' x (- bottomY bottomRectHeight)
+    'L' x (- (- bottomY bottomRectHeight) (* bottomRectWidth cos30))
+    'L' (- x (/ bottomRectWidth 2)) (- (- bottomY bottomRectHeight) (* bottomRectWidth cos30))
+    'Z'
+  ])
+])
+
+(def primitiveHexagon [
+  (transformGroup x y false 0 0 0 primitive)
+  (transformGroup x y true  0 0 0 primitive)
+  (transformGroup x y false 60 0 0 primitive)
+  (transformGroup x y true  60 0 0 primitive)
+  (transformGroup x y false 120 0 0 primitive)
+  (transformGroup x y true  120 0 0 primitive)
+  (transformGroup x y false 180 0 0 primitive)
+  (transformGroup x y true  180 0 0 primitive)
+  (transformGroup x y false 240 0 0 primitive)
+  (transformGroup x y true  240 0 0 primitive)
+  (transformGroup x y false 300 0 0 primitive)
+  (transformGroup x y true  300 0 0 primitive)
+])
+
+(def primitiveHexagonColumn [
+  (transformGroup x y false 0 0 (* -2 innerRadius) primitiveHexagon)
+  (transformGroup x y false 0 0 0 primitiveHexagon)
+  (transformGroup x y false 0 0 (* 2 innerRadius) primitiveHexagon)
+  (transformGroup x y false 0 0 (* 4 innerRadius) primitiveHexagon)
+])
+
+(def primitiveHexagonColumns [
+  (transformGroup x y false 0 (* -1 (* radius (+ 1 sin30))) innerRadius primitiveHexagonColumn)
+  (transformGroup x y false 0 0 0 primitiveHexagonColumn)
+  (transformGroup x y false 0 (* 1 (* radius (+ 1 sin30))) innerRadius primitiveHexagonColumn)
+  (transformGroup x y false 0 (* 2 radius) 0 primitiveHexagonColumn)
+])
+
+(svg primitiveHexagonColumns)
+"
+
+floralLogo =
+ "(def spiralArmCount 5)
+(def ringParameters [
+  ; petalSize petalRotation ringRadius ringRotation
+  [ 85{0-300}  0.630{-3.2-3.2} -12{-100-300}      0{-3.2-3.2}]
+  [ 70{0-300} -0.829{-3.2-3.2}  64{-100-300}  0.256{-3.2-3.2}]
+  [ 50{0-300} -1.013{-3.2-3.2}  96{-100-300} -0.378{-3.2-3.2}]
+  [ 30{0-300} -1.008{-3.2-3.2} 116{-100-300} -0.818{-3.2-3.2}]
+])
+
+(def rotatePointAround (\\(x y aroundX aroundY theta)
+  (let [relX relY] [(- x aroundX) (- y aroundY)]
+  (let [rotRelX rotRelY] [(- (* x (cos theta)) (* y (sin theta))) (+ (* x (sin theta)) (* y (cos theta)))]
+    [(+ rotRelX aroundX) (+ rotRelY aroundY)]
+  ))
+))
+
+;(x + yi)(cosθ + isinθ) = xcosθ + ixsinθ + iycosθ - ysinθ
+;= (xcosθ - ysinθ) + (xsinθ + ycosθ)i
+
+(def petal (\\(x y scale theta)
+  (let [[x1 y1]     [x2 y2]    ] [(rotatePointAround (* 1.0 scale) 0              x y theta) (rotatePointAround 0              0              x y theta)]
+  (let [[cx1a cy1a] [cx1b cy1b]] [(rotatePointAround (* 0.7 scale) (* 0.3 scale)  x y theta) (rotatePointAround (* 0.3 scale) (* 0.3 scale)  x y theta)]
+  (let [[cx2a cy2a] [cx2b cy2b]] [(rotatePointAround (* 0.3 scale) (* -0.3 scale) x y theta) (rotatePointAround (* 0.7 scale) (* -0.3 scale) x y theta)]
+    (path 'orange' 'none' 0 [
+      'M' x1 y1
+      'C' cx1a cy1a cx1b cy1b x2 y2
+      'C' cx2a cy2a cx2b cy2b x1 y1
+      'Z'
+    ])
+  )))
+))
+
+(def [x y] [300 300])
+(def flower
+  (concat
+    (map
+      (\\[petalSize petalRotation ringRadius ringRotation]
+        (map
+          (\\i
+            (let armTheta (+ ringRotation (* i (/ twoPi spiralArmCount)))
+            (let petalX (+ x (* ringRadius (cos armTheta)))
+            (let petalY (+ y (* ringRadius (sin armTheta)))
+              (petal petalX petalY petalSize (+ armTheta petalRotation))
+            )))
+          )
+          (range 0! (- spiralArmCount 1!))
+        )
+      )
+      ringParameters
+    )
+  )
+)
+
+(svg [(petal 200 200 100 0)])
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -3046,6 +3291,9 @@ examples =
   , makeExample "Grid Tile" gridTile
   , makeExample "Lillicon P" lilliconP
   , makeExample "Lillicon P, v2" lilliconP2
+  , makeExample "Keyboard" keyboard
+  , makeExample "Tessellation" tessellation
+  , makeExample "Floral Logo" floralLogo
   ]
 
 list = examples

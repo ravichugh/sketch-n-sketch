@@ -73,7 +73,7 @@ freshenExps k es =
     (e1::es', k1)) ([],k) es
 
 freshenRanges : Int -> List ERange -> (List ERange, Int)
-freshenRanges k rs =  
+freshenRanges k rs =
   List.foldr (\r (rs',k') ->
     let (l,u) = r.val
         (l1,k1) = freshen_ k' l
@@ -107,7 +107,7 @@ substOf_ s e = case e.val of
       Nothing -> Dict.insert k { e | val <- i } s
       Just j  -> if | i == j.val -> s
   EBase _    -> s
-  EVar _     -> s 
+  EVar _     -> s
   EFun _ e'  -> substOf_ s e'
   EApp f es  -> substOfExps_ s (f::es)
   EOp op es  -> substOfExps_ s es
@@ -128,8 +128,8 @@ substOfExps_ s es = case es of
 
 substOfRanges_ s rs = case rs of
   [] -> s
-  r :: rs' -> 
-      let (l,u) = r.val 
+  r :: rs' ->
+      let (l,u) = r.val
       in
         substOfRanges_ (substOf_ (substOf_ s l) u) rs'
 
@@ -470,14 +470,15 @@ parseBinop =
       P.return (EOp op [e1,e2])
 
 parseBOp =
-      (always Plus  <$> token_ "+")
-  <++ (always Minus <$> token_ "-")
-  <++ (always Mult  <$> token_ "*")
-  <++ (always Div   <$> token_ "/")
-  <++ (always Lt    <$> token_ "<")
-  <++ (always Eq    <$> token_ "=")
-  <++ (always Mod   <$> token_ "mod")
-  <++ (always Pow   <$> token_ "pow")
+      (always Plus    <$> token_ "+")
+  <++ (always Minus   <$> token_ "-")
+  <++ (always Mult    <$> token_ "*")
+  <++ (always Div     <$> token_ "/")
+  <++ (always Lt      <$> token_ "<")
+  <++ (always Eq      <$> token_ "=")
+  <++ (always Mod     <$> token_ "mod")
+  <++ (always Pow     <$> token_ "pow")
+  <++ (always ArcTan2 <$> token_ "arctan2")
 
 parseUnop =
   parens <|

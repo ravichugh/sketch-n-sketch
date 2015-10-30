@@ -103,6 +103,7 @@ Extra parentheses are not permitted.
   op2  ::=  + | - | * | /
         |   < | =
         |   mod | pow
+        |   arctan2
 ```
 
 ### Conditionals
