@@ -621,6 +621,8 @@ codebox_ w h event s readOnly =
              ]
          , Attr.value s
          , Events.onMouseUp events.address MouseUp
+         -- doesn't work here, need to handle this in Ace
+         -- , Events.onMouseDown events.address Edit
          ] ++ event)
         []
 
