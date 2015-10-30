@@ -3221,7 +3221,7 @@ floralLogo =
   )
 )
 
-(svg flower)
+(svg [(petal 200 200 100 0)])
 
 "
 
