@@ -341,11 +341,16 @@ parseWildcard = token_ "_" >>> P.return (PVar "_" noWidgetDecl)
 
 parsePVar : P.Parser Pat_
 parsePVar =
+  (flip PVar noWidgetDecl) <$> (white parseIdent)
+
+-- not using this feature downstream, so turning this off
+{-
   white parseIdent              >>= \x ->
   parseMaybeWidgetDecl (Just x) >>= \wd ->
     -- see other comments about NoWidgetDecl
     let end = case wd.val of {NoWidgetDecl -> x.end ; _ -> wd.end } in
     P.returnWithInfo (PVar x.val wd) x.start end
+-}
 
 parsePat : P.Parser Pat_
 parsePat = P.recursively <| \_ ->
