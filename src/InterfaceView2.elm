@@ -1098,6 +1098,8 @@ basicBoxButton w h model =
 caption : Model -> Int -> Int -> GE.Element
 caption model w h =
   let eStr = GE.leftAligned << T.color Color.white << T.monospace << T.fromString in
+  let tStr col = T.height 16 << T.color col << T.monospace << T.fromString in
+  let tSpace = T.height 5 << T.color Color.white << T.monospace << T.fromString <| "\n" in
   colorDebug Color.orange <|
     GE.container w h GE.topLeft <|
       case (model.caption, model.mode, model.mouseMode) of
@@ -1108,7 +1110,18 @@ caption model w h =
               let numLocs = List.map (\(s,n) -> toString n.val ++ Utils.braces s) l in
               let line1 = (k ++ toString i) ++ " " ++ z in
               let line2 = Utils.spaces numLocs in
-              eStr (" " ++ line1 ++ "\n " ++ line2)
+              -- eStr (" " ++ line1 ++ "\n " ++ line2)
+              let cap =
+                if line2 == ""
+                then T.bold <| tStr Color.red " (INACTIVE)"
+                else T.bold <| tStr Color.green " (ACTIVE)"
+              in
+              GE.leftAligned <| T.concat
+                 [ tSpace -- slop
+                 , tStr Color.white (" " ++ line1)
+                 , cap
+                 , tStr Color.white ("\n " ++ line2)
+                 ]
         (Just (LangError err), _, _) ->
           eStr err
         _ ->
