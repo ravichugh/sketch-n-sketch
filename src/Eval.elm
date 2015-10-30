@@ -93,7 +93,7 @@ eval env e =
                      (VList vs', ws') -> retBoth <| (VList (vs ++ vs'), ws ++ ws')
 
 {-
-  EIndList rs -> 
+  EIndList rs ->
       let vrs = List.concat <| List.map rangeToList rs
       in ret <| VList vrs
 -}
@@ -153,14 +153,15 @@ evalOp env opWithInfo es =
   case vs of
     [VConst (i,it), VConst (j,jt)] ->
       case op of
-        Plus  -> VConst (evalDelta op [i,j], TrOp op [it,jt])
-        Minus -> VConst (evalDelta op [i,j], TrOp op [it,jt])
-        Mult  -> VConst (evalDelta op [i,j], TrOp op [it,jt])
-        Div   -> VConst (evalDelta op [i,j], TrOp op [it,jt])
-        Mod   -> VConst (evalDelta op [i,j], TrOp op [it,jt])
-        Pow   -> VConst (evalDelta op [i,j], TrOp op [it,jt])
-        Lt    -> vBool  (i < j)
-        Eq    -> vBool  (i == j)
+        Plus    -> VConst (evalDelta op [i,j], TrOp op [it,jt])
+        Minus   -> VConst (evalDelta op [i,j], TrOp op [it,jt])
+        Mult    -> VConst (evalDelta op [i,j], TrOp op [it,jt])
+        Div     -> VConst (evalDelta op [i,j], TrOp op [it,jt])
+        Mod     -> VConst (evalDelta op [i,j], TrOp op [it,jt])
+        Pow     -> VConst (evalDelta op [i,j], TrOp op [it,jt])
+        ArcTan2 -> VConst (evalDelta op [i,j], TrOp op [it,jt])
+        Lt      -> vBool  (i < j)
+        Eq      -> vBool  (i == j)
     [VBase (String s1), VBase (String s2)] ->
       case op of
         Plus  -> VBase (String (s1 ++ s2))
@@ -202,24 +203,25 @@ evalBranches env v l =
 evalDelta op is =
   case (op, is) of
 
-    (Plus,   [i,j]) -> (+) i j
-    (Minus,  [i,j]) -> (-) i j
-    (Mult,   [i,j]) -> (*) i j
-    (Div,    [i,j]) -> (/) i j
-    (Pow,    [i,j]) -> (^) i j
-    (Mod,    [i,j]) -> toFloat <| (%) (floor i) (floor j)
+    (Plus,    [i,j]) -> (+) i j
+    (Minus,   [i,j]) -> (-) i j
+    (Mult,    [i,j]) -> (*) i j
+    (Div,     [i,j]) -> (/) i j
+    (Pow,     [i,j]) -> (^) i j
+    (Mod,     [i,j]) -> toFloat <| (%) (floor i) (floor j)
                          -- might want an error/warning for non-int
+    (ArcTan2, [i,j]) -> atan2 i j
 
-    (Cos,    [n])   -> cos n
-    (Sin,    [n])   -> sin n
-    (ArcCos, [n])   -> acos n
-    (ArcSin, [n])   -> asin n
-    (Floor,  [n])   -> toFloat <| floor n
-    (Ceil,   [n])   -> toFloat <| ceiling n
-    (Round,  [n])   -> toFloat <| round n
-    (Sqrt,   [n])   -> sqrt n
+    (Cos,     [n])   -> cos n
+    (Sin,     [n])   -> sin n
+    (ArcCos,  [n])   -> acos n
+    (ArcSin,  [n])   -> asin n
+    (Floor,   [n])   -> toFloat <| floor n
+    (Ceil,    [n])   -> toFloat <| ceiling n
+    (Round,   [n])   -> toFloat <| round n
+    (Sqrt,    [n])   -> sqrt n
 
-    (Pi,     [])    -> pi
+    (Pi,      [])    -> pi
 
     _               -> errorMsg <| "Eval.evalDelta " ++ strOp op
 
@@ -234,7 +236,7 @@ parseAndRun = strVal << fst << run << Utils.fromOk_ << Parser.parseE
 
 -- Inflates a range to a list, which is then Concat-ed in eval
 rangeToList : ERange -> List Val
-rangeToList r = 
+rangeToList r =
     let (l,u) = r.val
     in
       case (l.val, u.val) of

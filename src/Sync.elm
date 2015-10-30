@@ -285,12 +285,13 @@ maybeFloat n =
 
 -- n = i op j
 solveR op n i = case op of
-  Plus  -> maybeFloat <| n - i
-  Minus -> maybeFloat <| i - n
-  Mult  -> maybeFloat <| n / i
-  Div   -> maybeFloat <| i / n
-  Pow   -> Just <| logBase i n
-  Mod   -> Nothing
+  Plus    -> maybeFloat <| n - i
+  Minus   -> maybeFloat <| i - n
+  Mult    -> maybeFloat <| n / i
+  Div     -> maybeFloat <| i / n
+  Pow     -> Just <| logBase i n
+  Mod     -> Nothing
+  ArcTan2 -> maybeFloat <| tan(n) * i
 
 -- n = i op j
 solveL op n j = case op of
@@ -300,7 +301,7 @@ solveL op n j = case op of
   Div   -> maybeFloat <| j * n
   Pow   -> Just <| n ^ (1/j)
   Mod   -> Nothing
-
+  ArcTan2 -> maybeFloat <| j / tan(n)
 
 simpleSolve subst (sum, tr) =
   let walkTrace t = case t of

@@ -48,6 +48,7 @@ type Op_
   | Plus | Minus | Mult | Div
   | Lt | Eq
   | Mod | Pow
+  | ArcTan2
   -- internal ops
   | RangeOffset Int
 
@@ -69,7 +70,7 @@ type Exp_
     -- EFun [] e     impossible
     -- EFun [p] e    (\p. e)
     -- EFun ps e     (\(p1 ... pn) e) === (\p1 (\p2 (... (\pn e) ...)))
-    
+
     -- EApp f []     impossible
     -- EApp f [x]    (f x)
     -- EApp f xs     (f x1 ... xn) === ((... ((f x1) x2) ...) xn)
@@ -135,7 +136,7 @@ strRange showLocs k r =
       (EConst nu _ _) = eu.val
   in
     if | nl == nu -> sExp_ showLocs k el
-       | otherwise -> 
+       | otherwise ->
            sExp_ showLocs k el ++ ".." ++ sExp_ showLocs k eu
 
 strVal     = strVal_ False
@@ -160,24 +161,25 @@ strVal_ showTraces v =
     VHole i          -> "HOLE_" ++ toString i
 
 strOp op = case op of
-  Plus  -> "+"
-  Minus -> "-"
-  Mult  -> "*"
-  Div   -> "/"
-  Lt    -> "<"
-  Eq    -> "="
-  Pi    -> "pi"
-  Cos   -> "cos"
-  Sin   -> "sin"
-  ArcCos -> "arccos"
-  ArcSin -> "arcsin"
-  Floor -> "floor"
-  Ceil  -> "ceiling"
-  Round -> "round"
-  ToStr -> "toString"
-  Sqrt  -> "sqrt"
-  Mod   -> "mod"
-  Pow   -> "pow"
+  Plus    -> "+"
+  Minus   -> "-"
+  Mult    -> "*"
+  Div     -> "/"
+  Lt      -> "<"
+  Eq      -> "="
+  Pi      -> "pi"
+  Cos     -> "cos"
+  Sin     -> "sin"
+  ArcCos  -> "arccos"
+  ArcSin  -> "arcsin"
+  ArcTan2 -> "arctan2"
+  Floor   -> "floor"
+  Ceil    -> "ceiling"
+  Round   -> "round"
+  ToStr   -> "toString"
+  Sqrt    -> "sqrt"
+  Mod     -> "mod"
+  Pow     -> "pow"
 
 strLoc (k, b, mx) =
   "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx) ++ b
@@ -356,9 +358,9 @@ applySubst subst e = (\e_ -> P.WithInfo e_ e.start e.end) <| case e.val of
   EOp op es  -> EOp op (List.map (applySubst subst) es)
   EList es m -> EList (List.map (applySubst subst) es)
                       (Utils.mapMaybe (applySubst subst) m)
-  EIndList rs -> EIndList <| 
-                  (List.map 
-                    (\r -> r.val |> \(l,u) -> 
+  EIndList rs -> EIndList <|
+                  (List.map
+                    (\r -> r.val |> \(l,u) ->
                       { r | val <- (applySubst subst l, applySubst subst u)}
                     )
                   ) rs
