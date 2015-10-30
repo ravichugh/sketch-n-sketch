@@ -159,6 +159,17 @@ locsOfTrace opts =
     else if List.length (Set.toList s) <= 1 then s
     else Set.empty
 
+{-
+    else
+      -- want to count the number of non-frozen, non-assignOnce locs
+      let keep = (\(_,ann,_) -> ann /= assignOnlyOnce) in
+      if List.length (List.filter keep (Set.toList s)) <= 1 then
+        -- let _ = Debug.log "dropping" s in
+        Set.empty
+      else
+        s
+-}
+
 solveOneLeaf : Options -> Subst -> Val -> List (LocId, Num)
 solveOneLeaf opts s (VConst (i, tr)) =
   List.filterMap
