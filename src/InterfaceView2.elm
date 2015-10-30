@@ -946,7 +946,7 @@ zoneButton model =
 luckyButton model =
   let foo old =
     let so = old.syncOptions in
-    let so' = { so | feelingLucky <- not so.feelingLucky } in
+    let so' = { so | feelingLucky <- Sync.toggleHeuristicMode so.feelingLucky } in
     let m' =
       case old.mode of
         Live _ -> mkLive_ so' (Utils.fromJust old.inputExp)
@@ -954,8 +954,15 @@ luckyButton model =
     in
     { old | syncOptions <- so', mode <- m' }
   in
-  let yesno = if model.syncOptions.feelingLucky then "Yes" else "No" in
-  simpleButton (UpdateModel foo) "Lucky" "Lucky" ("[Lucky?] " ++ yesno)
+  -- let yesno = if model.syncOptions.feelingLucky then "Yes" else "No" in
+  -- simpleButton (UpdateModel foo) "Lucky" "Lucky" ("[Lucky?] " ++ yesno)
+  let yesno =
+    let hm = model.syncOptions.feelingLucky in
+    if hm == Sync.heuristicsNone then "0"
+    else if hm == Sync.heuristicsFair then "1"
+    else "2"
+  in
+  simpleButton (UpdateModel foo) "Heur" "Heur" ("[Heuristics] " ++ yesno)
 
 {-
 frozenButton model =
