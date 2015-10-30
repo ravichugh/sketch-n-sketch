@@ -1,16 +1,11 @@
-; I believe this is set up for group p6mm
-; https://en.wikipedia.org/wiki/Wallpaper_group#Group_p6mm_.28.2A632.29
-
-; SVG transforms to flip, rotate, and position.
-(def transformGroup (\(transformCenterX transformCenterY flipVertical rotationAngle translateX translateY shapes)
-  [
-    'g'
-    [
-      ['transform' [['translate' (+ translateX transformCenterX) (+ translateY transformCenterY)] ['rotate' rotationAngle 0 0] ['scale' (if flipVertical -1 1) 1] ['translate' (- 0 transformCenterX) (- 0 transformCenterY)]]]
-    ]
-    shapes
-  ]
-))
+(def spiralArmCount 5)
+(def ringParameters [
+  ; petalSize petalRotation ringRadius ringRotation
+  [ 85{0-300}  0.630{-3.2-3.2} -12{-100-300}      0{-3.2-3.2}]
+  [ 70{0-300} -0.829{-3.2-3.2}  64{-100-300}  0.256{-3.2-3.2}]
+  [ 50{0-300} -1.013{-3.2-3.2}  96{-100-300} -0.378{-3.2-3.2}]
+  [ 30{0-300} -1.008{-3.2-3.2} 116{-100-300} -0.818{-3.2-3.2}]
+])
 
 (def rotatePointAround (\(x y aroundX aroundY theta)
   (let [relX relY] [(- x aroundX) (- y aroundY)]
@@ -23,10 +18,10 @@
 ;= (xcosθ - ysinθ) + (xsinθ + ycosθ)i
 
 (def petal (\(x y scale theta)
-  (let [[x1 y1]     [x2 y2]    ] [(rotatePointAround 0              (* 0.5 scale)  x y theta) (rotatePointAround 0              (* -0.5 scale) x y theta)]
-  (let [[cx1a cy1a] [cx1b cy1b]] [(rotatePointAround (* 0.3 scale)  (* 0.2 scale)  x y theta) (rotatePointAround (* 0.3 scale)  (* -0.2 scale) x y theta)]
-  (let [[cx2a cy2a] [cx2b cy2b]] [(rotatePointAround (* -0.3 scale) (* -0.2 scale) x y theta) (rotatePointAround (* -0.3 scale) (* 0.2 scale) x y theta)]
-    (path 'none' 'blue' 3 [
+  (let [[x1 y1]     [x2 y2]    ] [(rotatePointAround (* 1.0 scale) 0              x y theta) (rotatePointAround 0              0              x y theta)]
+  (let [[cx1a cy1a] [cx1b cy1b]] [(rotatePointAround (* 0.7 scale) (* 0.3 scale)  x y theta) (rotatePointAround (* 0.3 scale) (* 0.3 scale)  x y theta)]
+  (let [[cx2a cy2a] [cx2b cy2b]] [(rotatePointAround (* 0.3 scale) (* -0.3 scale) x y theta) (rotatePointAround (* 0.7 scale) (* -0.3 scale) x y theta)]
+    (path 'orange' 'none' 0 [
       'M' x1 y1
       'C' cx1a cy1a cx1b cy1b x2 y2
       'C' cx2a cy2a cx2b cy2b x1 y1
@@ -35,4 +30,25 @@
   )))
 ))
 
-(svg [(petal 100 150 100 0{0-7})])
+(def [x y] [300 300])
+(def flower
+  (concat
+    (map
+      (\[petalSize petalRotation ringRadius ringRotation]
+        (map
+          (\i
+            (let armTheta (+ ringRotation (* i (/ twoPi spiralArmCount)))
+            (let petalX (+ x (* ringRadius (cos armTheta)))
+            (let petalY (+ y (* ringRadius (sin armTheta)))
+              (petal petalX petalY petalSize (+ armTheta petalRotation))
+            )))
+          )
+          (range 0! (- spiralArmCount 1!))
+        )
+      )
+      ringParameters
+    )
+  )
+)
+
+(svg flower)
