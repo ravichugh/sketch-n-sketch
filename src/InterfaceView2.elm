@@ -160,15 +160,16 @@ buildSvg_ options d i =
 --------------------------------------------------------------------------------
 -- Widget Layer
 
-buildSvgWidgets : Int -> Int -> List Widget -> Svg.Svg
+buildSvgWidgets : Int -> Int -> Widgets -> Svg.Svg
 buildSvgWidgets wCanvas hCanvas widgets =
   let
-    pad           = params.mainSection.uiWidgets.pad
-    wSlider       = params.mainSection.uiWidgets.wSlider
-    hSlider       = params.mainSection.uiWidgets.hSlider
-    wCaption      = params.mainSection.uiWidgets.wCaption
+    pad            = params.mainSection.uiWidgets.pad
+    wSlider        = params.mainSection.uiWidgets.wSlider
+    hSlider        = params.mainSection.uiWidgets.hSlider
+    wCaption       = params.mainSection.uiWidgets.wCaption
+    dedupedWidgets = Utils.dedup widgets
 
-    numWidgets    = List.length widgets
+    numWidgets    = List.length dedupedWidgets
     wWidget       = wSlider + wCaption + 2*pad
     hWidget       = hSlider + 2*pad
     wToolBoxMax   = wCanvas - 2*pad
@@ -238,7 +239,7 @@ buildSvgWidgets wCanvas hCanvas widgets =
     in
     [region, box, text, ball]
   in
-  Svg.svg [] (List.concat (Utils.mapi draw widgets))
+  Svg.svg [] (List.concat (Utils.mapi draw dedupedWidgets))
 
 sliderZoneEvents widgetState =
   let foo old = case old.mode of
