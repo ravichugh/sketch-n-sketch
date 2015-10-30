@@ -1074,6 +1074,28 @@ ferris =
 
 "
 
+ferris2 =
+ "(def n 5{3-20})
+(def len 80{4-200})
+(def rot 0{-6.28-6.28})
+
+(def wheel
+  (let [cx cy] [280 200]
+  (let rim [(ring 'darkgray' 8! cx cy len)]
+  (let center [(circle 'black' cx cy 20)]
+  (let frame [(nStar 'goldenrod' 'darkgray' 3! n len 0! rot cx cy)]
+  (let spokePts (nPointsOnCircle n rot cx cy len)
+  (let caps (map (\\[x y] (circle 'black' x y 7!)) spokePts)
+  (let cars
+    (let wCar 30
+    (let wHalfCar (/ wCar 2!)
+    (map (\\[x y] (squareCenter 'lightgray' x y wCar)) spokePts)))
+  (concat [rim cars center frame caps])))))))))
+
+(svg wheel)
+
+"
+
 ferrisWheelSlideshow =
  "(def [slideN slideSlider] (hSlider true 20! 400! 20! 1! 13! 'Slide ' 1))
 (def [timeInSlide timeInSlideSlider] (hSlider false 20! 400! 40! 0.0! 1.0! 'Time in Slide ' 0.0))
@@ -2996,6 +3018,7 @@ examples =
   , makeExample "Frank Lloyd Wright" flw1
   , makeExample "Frank Lloyd Wright B" flw2
   , makeExample "Ferris Wheel" ferris
+  , makeExample "Ferris Wheel 2" ferris2
   , makeExample "Ferris Wheel Slideshow" ferrisWheelSlideshow
   , makeExample "Pie Chart" pieChart1
   , makeExample "Solar System" solarSystem
