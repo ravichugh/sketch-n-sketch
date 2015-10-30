@@ -716,6 +716,7 @@ middleWidgets w h wWrap hWrap model =
         -- , outputButton model w h
         , gapWidget w h
         , zoneButton model w h
+        , luckyButton model w h
         -- , frozenButton model w h
         -- TODO temporarily disabling for user study
         -- , modeButton model w h
@@ -939,6 +940,20 @@ zoneButton model =
        | model.showZones == showZonesColor -> "[Zones] Color"
   in
   simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap
+
+luckyButton model =
+  let foo old =
+    let so = old.syncOptions in
+    let so' = { so | feelingLucky <- not so.feelingLucky } in
+    let m' =
+      case old.mode of
+        Live _ -> mkLive_ so' (Utils.fromJust old.inputExp)
+        _      -> old.mode
+    in
+    { old | syncOptions <- so', mode <- m' }
+  in
+  let yesno = if model.syncOptions.feelingLucky then "Yes" else "No" in
+  simpleButton (UpdateModel foo) "Lucky" "Lucky" ("[Lucky?] " ++ yesno)
 
 {-
 frozenButton model =

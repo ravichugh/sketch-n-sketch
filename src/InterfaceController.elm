@@ -173,7 +173,7 @@ upstate evt old = case debugLog "Event" evt of
                 , history <- h
                 , editingMode <- Nothing
                 , caption <- Nothing
-                , syncOptions <- Sync.syncOptionsOf e }
+                , syncOptions <- Sync.syncOptionsOf old.syncOptions e }
           in
           { new | mode <- refreshMode_ new 
                 , errorBox <- Nothing }
@@ -312,8 +312,8 @@ upstate evt old = case debugLog "Event" evt of
       let {e,v,ws} = thunk () in
       let (so, m) =
         case old.mode of
-          Live _ -> let so = Sync.syncOptionsOf e in (so, mkLive so e v)
-          Print _ -> let so = Sync.syncOptionsOf e in (so, mkLive so e v)
+          Live _ -> let so = Sync.syncOptionsOf old.syncOptions e in (so, mkLive so e v)
+          Print _ -> let so = Sync.syncOptionsOf old.syncOptions e in (so, mkLive so e v)
           _      -> (old.syncOptions, old.mode)
       in
       let scratchCode' =

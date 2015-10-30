@@ -23,20 +23,28 @@ debugLog = Config.debugLog Config.debugSync
 -- Sync.Options
 
 type alias Options =
-  { thawedByDefault : Bool }
+  { thawedByDefault : Bool
+  , feelingLucky : Bool
+  }
 
 defaultOptions =
-  { thawedByDefault = True }
+  { thawedByDefault = True
+  , feelingLucky = True
+  }
 
-syncOptionsOf e =
+syncOptionsOf oldOptions e =
+  -- using oldOptions instead of defaultOptions, because want
+  -- feelingLucky to be a global flag, not per-example flag for now
   case Utils.maybeFind "unannotated-numbers" (getOptions e) of
-    Nothing -> defaultOptions
+    Nothing -> oldOptions
     Just s -> if
-      | s == "n?" -> { thawedByDefault = True }
-      | s == "n!" -> { thawedByDefault = False }
+      -- TODO decide whether to make feelingLucky per-example or not
+      --   if not, perhaps move it out of Options
+      | s == "n?" -> { oldOptions | thawedByDefault <- True }
+      | s == "n!" -> { oldOptions | thawedByDefault <- False }
       | otherwise ->
           let _ = debugLog "invalid sync option: " s in
-          defaultOptions
+          oldOptions
 
 
 ------------------------------------------------------------------------------
@@ -143,7 +151,13 @@ locsOfTrace opts =
          | otherwise                     -> Set.singleton l
     TrOp _ ts -> List.foldl Set.union Set.empty (List.map foo ts)
   in
-  foo
+  -- TODO do this filtering later if want gray highlights
+  --   even when not feeling lucky
+  \tr ->
+    let s = foo tr in
+    if opts.feelingLucky then s
+    else if List.length (Set.toList s) <= 1 then s
+    else Set.empty
 
 solveOneLeaf : Options -> Subst -> Val -> List (LocId, Num)
 solveOneLeaf opts s (VConst (i, tr)) =
