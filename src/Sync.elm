@@ -643,10 +643,12 @@ assignTriggers : Dict1 -> Dict2
 assignTriggers = assignTriggersV2
 
 assignTriggersV2 d1 =
+  let dLocCounts = countLocs d1 in
   let f i (kind,zoneLists) (dictSetSeen1,acc) =
     let g (zone,(numAttrs,sets)) (dictSetSeen2,acc) =
       -- let rankedSets = List.sortBy scoreOfLocs sets in
-      let rankedSets = sets in
+      -- let rankedSets = sets in
+      let rankedSets = List.sortBy (scoreOfLocs2 dLocCounts) sets in
       let maybeChosenSet =
         List.foldl (\thisSet acc ->
           let thisSet' = removeAlreadyAssignedOnce thisSet dictSetSeen2 in
@@ -665,8 +667,8 @@ assignTriggersV2 d1 =
   in
   snd <| Dict.foldl f (Dict.empty, Dict.empty) d1
 
-getCount set dict    = Maybe.withDefault 0 (Dict.get set dict)
-updateCount set dict = Dict.insert set (1 + getCount set dict) dict
+getCount x dict      = Maybe.withDefault 0 (Dict.get x dict)
+updateCount x dict   = Dict.insert x (1 + getCount x dict) dict
 
 -- removeAlreadyAssignedOnce : Locs -> Dict Locs Int -> Locs
 -- NOTE:
@@ -715,6 +717,26 @@ scoreOfLocs locs =
        | otherwise -> acc + 1
   in
   -1 * (List.foldl foo 0 locs)
+
+scoreOfLocs2 : Dict LocId Int -> Locs -> Int
+scoreOfLocs2 dLocCounts locs =
+  -- could use log to keep absolute numbers smaller.
+  -- negative to bias towards locations that appear less often.
+  let foo (i,_,_) acc = acc * getCount i dLocCounts in
+  List.foldl foo (-1) locs
+
+-- TODO compute these counts along with Dict0 -> Dict1
+countLocs : Dict1 -> Dict LocId Int
+countLocs d1 =
+  Dict.foldl (\_ (_,zoneList) acc1 ->
+    List.foldl (\(_,(_,listOfLocs)) acc2 ->
+      List.foldl (\locSet acc3 ->
+        List.foldl (\(locId,_,_) acc4 ->
+          updateCount locId acc4
+        ) acc3 locSet
+      ) acc2 listOfLocs
+    ) acc1 zoneList
+  ) Dict.empty d1
 
 -- Step 4 --
 
