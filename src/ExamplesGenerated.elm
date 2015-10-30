@@ -3312,7 +3312,7 @@ floralLogo =
 
 (def petal (\\(x y scale theta)
   (let [[x1 y1]     [x2 y2]    ] [(rotatePointAround (* 1.0 scale) 0              x y theta) (rotatePointAround 0              0              x y theta)]
-  (let [[cx1a cy1a] [cx1b cy1b]] [(rotatePointAround (* 0.7 scale) (* 0.3 scale)  x y theta) (rotatePointAround (* 0.3 scale) (* 0.3 scale)  x y theta)]
+  (let [[cx1a cy1a] [cx1b cy1b]] [(rotatePointAround (* 0.7{0-2.1} scale) (* 0.3{0-2.1} scale)  x y theta) (rotatePointAround (* 0.3 scale) (* 0.3 scale)  x y theta)]
   (let [[cx2a cy2a] [cx2b cy2b]] [(rotatePointAround (* 0.3 scale) (* -0.3 scale) x y theta) (rotatePointAround (* 0.7 scale) (* -0.3 scale) x y theta)]
     (path 'orange' 'none' 0 [
       'M' x1 y1
@@ -3344,7 +3344,7 @@ floralLogo =
   )
 )
 
-(svg [(petal 200 200 100 0)])
+(svg flower)
 
 "
 
