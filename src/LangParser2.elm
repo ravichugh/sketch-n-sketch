@@ -226,8 +226,18 @@ parseNumE =
   parseMaybeWidgetDecl Nothing >>= \wd ->
     let (n,b) = nb.val in
     -- see other comments about NoWidgetDecl
-    let end = case wd.val of {NoWidgetDecl -> nb.end ; _ -> wd.end} in
-    P.returnWithInfo (EConst n (dummyLoc_ b) wd) nb.start end
+    case wd.val of
+      NoWidgetDecl ->
+        P.returnWithInfo (EConst n (dummyLoc_ b) wd) nb.start nb.end
+      _ ->
+        let _ =
+          if b == unann then ()
+          else () -- could throw parse error here
+        in
+        P.returnWithInfo (EConst n (dummyLoc_ frozen) wd) nb.start wd.end
+
+    -- let end = case wd.val of {NoWidgetDecl -> nb.end ; _ -> wd.end} in
+    -- P.returnWithInfo (EConst n (dummyLoc_ b) wd) nb.start end
 
 parseEBase =
       (always (EBase (Bool True)) <$> P.token "true")

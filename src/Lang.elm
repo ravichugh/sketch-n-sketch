@@ -20,6 +20,7 @@ type alias Num = Float
 
 type alias Frozen = String -- b/c comparable
 (frozen, unann, thawed, assignOnlyOnce) = ("!", "", "?", "~")
+  -- TODO may want a "slider" annotation so that "!" doesn't get printed
 
 type alias LocSet = Set.Set Loc
 
