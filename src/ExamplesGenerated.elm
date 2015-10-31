@@ -43,6 +43,22 @@ threeBoxesInt
 
 "
 
+nBoxesH2 =
+ "
+(def [a b c] [0 0 0])
+(def something (+ a (+ a (+ b (+ b (+ c c))))))
+
+(def nBoxes
+  (let [n x0 y0 w h sep] [3 40 28 60 130 110]
+  (let boxi (\\i
+    (let xi (+ (+ x0 something) (mult i sep))
+    (rect 'lightblue' xi y0 w h)))
+  (svg (map boxi (zeroTo n))))))
+ 
+nBoxes
+
+"
+
 waveOfBoxes =
  "
 (def [x0 y0 w h sep] [50~ 120 19 89 25.875])
@@ -3230,6 +3246,7 @@ examples =
   [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
   , makeExample "3 Boxes" threeBoxes
+  , makeExample "N Boxes H2" nBoxesH2
   , makeExample "Wave Boxes" waveOfBoxes
   , makeExample "N Boxes Sli" nBoxes
   , makeExample "N Boxes" groupOfBoxes

@@ -112,6 +112,8 @@
 ;; Given a number, create the list of 1 to that number inclusive
 (def list1N (\n (range 1 n)))
 
+(def zeroTo (\n (range 0 (- n 1))))
+
 ;; repeat : Int -> a -> List a
 ;; Given a number n and some value x, return a list with x repeated n times
 (def repeat (\(n x) (map (always x) (range 1 n))))

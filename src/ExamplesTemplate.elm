@@ -18,6 +18,7 @@ scratchName = "*Scratch*"
 
 LITTLE_TO_ELM scratch
 LITTLE_TO_ELM threeBoxes
+LITTLE_TO_ELM nBoxesH2
 LITTLE_TO_ELM waveOfBoxes
 LITTLE_TO_ELM nBoxes
 LITTLE_TO_ELM groupOfBoxes
@@ -87,6 +88,7 @@ examples =
   [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
   , makeExample "3 Boxes" threeBoxes
+  , makeExample "N Boxes H2" nBoxesH2
   , makeExample "Wave Boxes" waveOfBoxes
   , makeExample "N Boxes Sli" nBoxes
   , makeExample "N Boxes" groupOfBoxes
