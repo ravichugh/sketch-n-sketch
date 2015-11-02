@@ -187,11 +187,7 @@ makeHighlight subst color (locid,_,_) =
 sampleModel : Model
 sampleModel =
   let
-    -- (name,f) = Utils.head_ Examples.list
-    (name,f) =
-      case Utils.findFirst (\(name,_) -> name == "Floral Logo") Examples.list of
-        Just x -> x
-        otherwise -> Debug.crash <| "No default example is named \"Floral Logo\""
+    (name,f) = Utils.head_ Examples.list
     {e,v,ws} = f ()
   in
     { scratchCode   = Examples.scratch
