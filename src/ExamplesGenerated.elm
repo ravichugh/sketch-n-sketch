@@ -3194,6 +3194,67 @@ keyboard =
 ]))
 "
 
+keyboard2 =
+ "(def scale 25)
+(def keyBaseHeight scale)
+(def keyBaseWidth keyBaseHeight)
+(def relativeSpacing 0.3333333333333)
+
+(def [boardLeft boardTop] [50 50])
+
+(def key (\\(relativeLeft relativeTop relativeWidth relativeHeight)
+  (rect
+    'orange'
+    (+ boardLeft (* relativeLeft keyBaseWidth))
+    (+ boardTop (* relativeTop keyBaseWidth))
+    (* relativeWidth keyBaseWidth)
+    (* relativeHeight keyBaseHeight)
+  )
+))
+
+; Generate a row of keys with the given relativeKeyWidths, separated by relativeKeySpacing
+; Returns [keyRects relativeTotalWidth]
+(def row (\\(relativeLeft relativeTop relativeHeight relativeKeySpacing relativeKeyWidths)
+  (let [keys relativeWidthPlusSpacing]
+    (foldl
+      (\\(relativeKeyWidth [keys nextKeyRelativeLeft])
+        (let newKey (key nextKeyRelativeLeft relativeTop relativeKeyWidth relativeHeight)
+          [[newKey|keys] (+ nextKeyRelativeLeft (+ relativeKeySpacing relativeKeyWidth))]
+        )
+      )
+      [[] relativeLeft]
+      relativeKeyWidths
+    )
+  [keys (- (- relativeWidthPlusSpacing relativeKeySpacing) relativeLeft)]
+  )
+))
+
+(def row1RelativeKeyWidths [1 1 1 1 1 1 1 1])
+(def row2RelativeKeyWidths [1 1 1 1 1 1 1 1])
+(def row3RelativeKeyWidths [1 1 1 1 1 1 1 1])
+(def row4RelativeKeyWidths [1 7.6667      1])
+
+(def [row1 keysRelativeWidth] (row relativeSpacing relativeSpacing 1 relativeSpacing row1RelativeKeyWidths))
+(def [row2 _] (row relativeSpacing (+ 1 (* 2 relativeSpacing)) 1 relativeSpacing row2RelativeKeyWidths))
+(def [row3 _] (row relativeSpacing (+ 2 (* 3 relativeSpacing)) 1 relativeSpacing row3RelativeKeyWidths))
+(def [row4 _] (row relativeSpacing (+ 3 (* 4 relativeSpacing)) 1 relativeSpacing row4RelativeKeyWidths))
+
+(def boardRelativeWidth  (+ keysRelativeWidth (* 2 relativeSpacing)))
+(def boardRelativeHeight (+ 4 (* 5 relativeSpacing)))
+
+(def backBoard
+  (rect 'lightblue' boardLeft boardTop (* boardRelativeWidth scale) (* boardRelativeHeight scale))
+)
+
+(svg (concat [
+  [backBoard]
+  row1
+  row2
+  row3
+  row4
+]))
+"
+
 tessellation =
  "; I believe this is set up for group p6mm
 ; https://en.wikipedia.org/wiki/Wallpaper_group#Group_p6mm_.28.2A632.29
@@ -3498,6 +3559,7 @@ examples =
   , makeExample "Lillicon P" lilliconP
   , makeExample "Lillicon P, v2" lilliconP2
   , makeExample "Keyboard" keyboard
+  , makeExample "Keyboard 2" keyboard2
   , makeExample "Tessellation" tessellation
   , makeExample "Floral Logo" floralLogo
   , makeExample "Floral Logo 2" floralLogo2
