@@ -621,6 +621,8 @@ codebox_ w h event s readOnly =
              ]
          , Attr.value s
          , Events.onMouseUp events.address MouseUp
+         -- doesn't work here, need to handle this in Ace
+         -- , Events.onMouseDown events.address Edit
          ] ++ event)
         []
 
@@ -716,8 +718,8 @@ middleWidgets w h wWrap hWrap model =
         -- , outputButton model w h
         , gapWidget w h
         , zoneButton model w h
+        -- , luckyButton model w h
         -- , frozenButton model w h
-        -- TODO temporarily disabling for user study
         -- , modeButton model w h
         ] ++ (syncButton_ w h model)
       (True, _) ->
@@ -940,6 +942,27 @@ zoneButton model =
   in
   simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap
 
+luckyButton model =
+  let foo old =
+    let so = old.syncOptions in
+    let so' = { so | feelingLucky <- Sync.toggleHeuristicMode so.feelingLucky } in
+    let m' =
+      case old.mode of
+        Live _ -> mkLive_ so' (Utils.fromJust old.inputExp)
+        _      -> old.mode
+    in
+    { old | syncOptions <- so', mode <- m' }
+  in
+  -- let yesno = if model.syncOptions.feelingLucky then "Yes" else "No" in
+  -- simpleButton (UpdateModel foo) "Lucky" "Lucky" ("[Lucky?] " ++ yesno)
+  let yesno =
+    let hm = model.syncOptions.feelingLucky in
+    if hm == Sync.heuristicsNone then "None"
+    else if hm == Sync.heuristicsFair then "Fair"
+    else "Biased"
+  in
+  simpleButton (UpdateModel foo) "Heur" "Heur" ("[Heuristics] " ++ yesno)
+
 {-
 frozenButton model =
   let cap = if model.syncOptions.thawedByDefault then "[Default] n?" else "[Default] n!" in
@@ -1074,6 +1097,8 @@ basicBoxButton w h model =
 caption : Model -> Int -> Int -> GE.Element
 caption model w h =
   let eStr = GE.leftAligned << T.color Color.white << T.monospace << T.fromString in
+  let tStr col = T.height 16 << T.color col << T.monospace << T.fromString in
+  let tSpace = T.height 5 << T.color Color.white << T.monospace << T.fromString <| "\n" in
   colorDebug Color.orange <|
     GE.container w h GE.topLeft <|
       case (model.caption, model.mode, model.mouseMode) of
@@ -1084,7 +1109,18 @@ caption model w h =
               let numLocs = List.map (\(s,n) -> toString n.val ++ Utils.braces s) l in
               let line1 = (k ++ toString i) ++ " " ++ z in
               let line2 = Utils.spaces numLocs in
-              eStr (" " ++ line1 ++ "\n " ++ line2)
+              -- eStr (" " ++ line1 ++ "\n " ++ line2)
+              let cap =
+                if line2 == ""
+                then T.bold <| tStr Color.red " (INACTIVE)"
+                else T.bold <| tStr Color.green " (ACTIVE)"
+              in
+              GE.leftAligned <| T.concat
+                 [ tSpace -- slop
+                 , tStr Color.white (" " ++ line1)
+                 , cap
+                 , tStr Color.white ("\n " ++ line2)
+                 ]
         (Just (LangError err), _, _) ->
           eStr err
         _ ->
@@ -1220,18 +1256,27 @@ view (w,h) model =
       wJunk = params.topSection.wJunk
       wSpcB = params.mainSection.horizontal.wExtra
 
+      -- wSep  = GE.spacer (wAll - (wLogo + 2 * wBtnO + wJunk + wSpcB)) 1
       wSep  = GE.spacer (wAll - (wLogo + 2 * wBtnO + wJunk + wSpcB)) 1
       btnO  = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
                 orientationButton wBtnO hBtnO model
+
+      {- not displaying Codebox button for now
       spcB  = GE.spacer wSpcB hTop
       btnB  = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
                 basicBoxButton wBtnO hBtnO model
+      -}
+
+      spcH  = GE.spacer wSpcB hTop
+      btnH  = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
+                luckyButton model wBtnO hBtnO
     in
       GE.size wAll hTop <|
         GE.flow GE.right
           [ GE.container wLogo hTop GE.middle logo
           , GE.container (wAll - wLogo) hTop GE.middle <|
-              GE.flow GE.right [ title, wSep, btnB, spcB, btnO ]
+              -- GE.flow GE.right [ title, wSep, btnB, spcB, btnO ]
+              GE.flow GE.right [ title, wSep, btnH, spcH, btnO ]
           ]
   in
 

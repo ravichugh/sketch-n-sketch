@@ -250,6 +250,8 @@ addIdPoints cmd counts pts =
 
 strAPath2 =
   let strPt (_,(it,jt)) = toString (fst it) ++ " " ++ toString (fst jt) in
+  -- TODO turn this into a debug mode for printing traces
+  -- let strPt (_,(it,jt)) = strVal_ True (VConst it) ++ " " ++ strVal_ True (VConst jt) in
   let strNum (n,_) = toString n in
 
   let strPathCmd c = case c of

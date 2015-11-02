@@ -1,0 +1,12 @@
+
+(def [a b c] [0 0 0])
+(def something (+ a (+ a (+ b (+ b (+ c c))))))
+
+(def nBoxes
+  (let [n x0 y0 w h sep] [3 40 28 60 130 110]
+  (let boxi (\i
+    (let xi (+ (+ x0 something) (mult i sep))
+    (rect 'lightblue' xi y0 w h)))
+  (svg (map boxi (zeroTo n))))))
+ 
+nBoxes

@@ -143,6 +143,8 @@ events = Signal.mailbox <| CodeUpdate ""
 
 mkLive opts e v = Live <| Sync.prepareLiveUpdates opts e v
 mkLive_ opts e  = mkLive opts e (fst (Eval.run e))
+  -- TODO maybe put Val into model (in addition to slate)
+  --   so that don't need to re-run in some calling contexts
 
 editingMode model = case model.editingMode of
   Nothing -> False

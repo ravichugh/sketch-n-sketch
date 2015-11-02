@@ -73,7 +73,7 @@ freshenExps k es =
     (e1::es', k1)) ([],k) es
 
 freshenRanges : Int -> List ERange -> (List ERange, Int)
-freshenRanges k rs =  
+freshenRanges k rs =
   List.foldr (\r (rs',k') ->
     let (l,u) = r.val
         (l1,k1) = freshen_ k' l
@@ -107,7 +107,7 @@ substOf_ s e = case e.val of
       Nothing -> Dict.insert k { e | val <- i } s
       Just j  -> if | i == j.val -> s
   EBase _    -> s
-  EVar _     -> s 
+  EVar _     -> s
   EFun _ e'  -> substOf_ s e'
   EApp f es  -> substOfExps_ s (f::es)
   EOp op es  -> substOfExps_ s es
@@ -128,8 +128,8 @@ substOfExps_ s es = case es of
 
 substOfRanges_ s rs = case rs of
   [] -> s
-  r :: rs' -> 
-      let (l,u) = r.val 
+  r :: rs' ->
+      let (l,u) = r.val
       in
         substOfRanges_ (substOf_ (substOf_ s l) u) rs'
 
@@ -226,8 +226,21 @@ parseNumE =
   parseMaybeWidgetDecl Nothing >>= \wd ->
     let (n,b) = nb.val in
     -- see other comments about NoWidgetDecl
-    let end = case wd.val of {NoWidgetDecl -> nb.end ; _ -> wd.end} in
-    P.returnWithInfo (EConst n (dummyLoc_ b) wd) nb.start end
+    case wd.val of
+      NoWidgetDecl ->
+        P.returnWithInfo (EConst n (dummyLoc_ b) wd) nb.start nb.end
+      _ ->
+        P.returnWithInfo (EConst n (dummyLoc_ b) wd) nb.start wd.end
+{-
+        let _ =
+          if b == unann then ()
+          else () -- could throw parse error here
+        in
+        P.returnWithInfo (EConst n (dummyLoc_ frozen) wd) nb.start wd.end
+-}
+
+    -- let end = case wd.val of {NoWidgetDecl -> nb.end ; _ -> wd.end} in
+    -- P.returnWithInfo (EConst n (dummyLoc_ b) wd) nb.start end
 
 parseEBase =
       (always (EBase (Bool True)) <$> P.token "true")
@@ -341,11 +354,16 @@ parseWildcard = token_ "_" >>> P.return (PVar "_" noWidgetDecl)
 
 parsePVar : P.Parser Pat_
 parsePVar =
+  (flip PVar noWidgetDecl) <$> (white parseIdent)
+
+-- not using this feature downstream, so turning this off
+{-
   white parseIdent              >>= \x ->
   parseMaybeWidgetDecl (Just x) >>= \wd ->
     -- see other comments about NoWidgetDecl
     let end = case wd.val of {NoWidgetDecl -> x.end ; _ -> wd.end } in
     P.returnWithInfo (PVar x.val wd) x.start end
+-}
 
 parsePat : P.Parser Pat_
 parsePat = P.recursively <| \_ ->
@@ -455,14 +473,15 @@ parseBinop =
       P.return (EOp op [e1,e2])
 
 parseBOp =
-      (always Plus  <$> token_ "+")
-  <++ (always Minus <$> token_ "-")
-  <++ (always Mult  <$> token_ "*")
-  <++ (always Div   <$> token_ "/")
-  <++ (always Lt    <$> token_ "<")
-  <++ (always Eq    <$> token_ "=")
-  <++ (always Mod   <$> token_ "mod")
-  <++ (always Pow   <$> token_ "pow")
+      (always Plus    <$> token_ "+")
+  <++ (always Minus   <$> token_ "-")
+  <++ (always Mult    <$> token_ "*")
+  <++ (always Div     <$> token_ "/")
+  <++ (always Lt      <$> token_ "<")
+  <++ (always Eq      <$> token_ "=")
+  <++ (always Mod     <$> token_ "mod")
+  <++ (always Pow     <$> token_ "pow")
+  <++ (always ArcTan2 <$> token_ "arctan2")
 
 parseUnop =
   parens <|

@@ -1,0 +1,93 @@
+; I believe this is set up for group p6mm
+; https://en.wikipedia.org/wiki/Wallpaper_group#Group_p6mm_.28.2A632.29
+
+; SVG transforms to flip, rotate, and position.
+(def transformGroup (\(transformCenterX transformCenterY flipVertical rotationAngle translateX translateY shapes)
+  [
+    'g'
+    [
+      ['transform' [['translate' (+ translateX transformCenterX) (+ translateY transformCenterY)] ['rotate' rotationAngle 0 0] ['scale' (if flipVertical -1 1) 1] ['translate' (- 0 transformCenterX) (- 0 transformCenterY)]]]
+    ]
+    shapes
+  ]
+))
+
+
+(def sin30 0.5)
+(def cos30 (* 0.5 (sqrt 3)))
+
+(def [x y radius] [200 200 200])
+(def innerRadius (* radius cos30))
+(def [bottomY cornerX] [(+ y innerRadius) (- x (/ radius 2))])
+(def primativeBottomWidth (/ radius 2))
+
+(def smallInnerRadius 50)
+(def bottomRectWidth (- primativeBottomWidth smallInnerRadius))
+(def bottomRectHeight (/ smallInnerRadius (sqrt 3)))
+
+(def primitive [
+  (path 'lightblue' 'none' 0 [
+    'M' x y
+    'L' x bottomY
+    'L' cornerX bottomY
+    'Z'
+  ])
+  (path 'green' 'none' 0 [
+    'M' x y
+    'L' x (+ y (/ (* smallInnerRadius 2) (sqrt 3)))
+    'L' (- x (* smallInnerRadius sin30)) (+ y (* smallInnerRadius cos30))
+    'Z'
+  ])
+  (path 'green' 'none' 0 [
+    'M' cornerX bottomY
+    'L' (+ cornerX smallInnerRadius) bottomY
+    'L' (+ cornerX smallInnerRadius) (- bottomY (/ smallInnerRadius (sqrt 3)))
+    'L' (+ cornerX (* smallInnerRadius sin30)) (- bottomY (* smallInnerRadius cos30))
+    'Z'
+  ])
+  (rect 'pink' (- x bottomRectWidth) (- bottomY bottomRectHeight) bottomRectWidth bottomRectHeight)
+  (path 'pink' 'none' 0 [
+    'M' x (+ y (/ (* smallInnerRadius 2) (sqrt 3)))
+    'L' (+ cornerX smallInnerRadius) (- bottomY (/ smallInnerRadius (sqrt 3)))
+    'L' (+ cornerX (* smallInnerRadius sin30)) (- bottomY (* smallInnerRadius cos30))
+    'L' (- x (* smallInnerRadius sin30)) (+ y (* smallInnerRadius cos30))
+    'Z'
+  ])
+  (path 'red' 'none' 0 [
+    'M' x (- bottomY bottomRectHeight)
+    'L' x (- (- bottomY bottomRectHeight) (* bottomRectWidth cos30))
+    'L' (- x (/ bottomRectWidth 2)) (- (- bottomY bottomRectHeight) (* bottomRectWidth cos30))
+    'Z'
+  ])
+])
+
+(def primitiveHexagon [
+  (transformGroup x y false 0 0 0 primitive)
+  (transformGroup x y true  0 0 0 primitive)
+  (transformGroup x y false 60 0 0 primitive)
+  (transformGroup x y true  60 0 0 primitive)
+  (transformGroup x y false 120 0 0 primitive)
+  (transformGroup x y true  120 0 0 primitive)
+  (transformGroup x y false 180 0 0 primitive)
+  (transformGroup x y true  180 0 0 primitive)
+  (transformGroup x y false 240 0 0 primitive)
+  (transformGroup x y true  240 0 0 primitive)
+  (transformGroup x y false 300 0 0 primitive)
+  (transformGroup x y true  300 0 0 primitive)
+])
+
+(def primitiveHexagonColumn [
+  (transformGroup x y false 0 0 (* -2 innerRadius) primitiveHexagon)
+  (transformGroup x y false 0 0 0 primitiveHexagon)
+  (transformGroup x y false 0 0 (* 2 innerRadius) primitiveHexagon)
+  (transformGroup x y false 0 0 (* 4 innerRadius) primitiveHexagon)
+])
+
+(def primitiveHexagonColumns [
+  (transformGroup x y false 0 (* -1 (* radius (+ 1 sin30))) innerRadius primitiveHexagonColumn)
+  (transformGroup x y false 0 0 0 primitiveHexagonColumn)
+  (transformGroup x y false 0 (* 1 (* radius (+ 1 sin30))) innerRadius primitiveHexagonColumn)
+  (transformGroup x y false 0 (* 2 radius) 0 primitiveHexagonColumn)
+])
+
+(svg primitiveHexagonColumns)

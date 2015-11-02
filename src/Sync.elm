@@ -1,4 +1,5 @@
 module Sync (Options, defaultOptions, syncOptionsOf,
+             heuristicsNone, heuristicsFair, heuristicsBiased, toggleHeuristicMode,
              inferLocalUpdates, inferStructuralUpdate, prepareLiveUpdates,
              printZoneTable, LiveInfo, Triggers, tryToBeSmart) where
 
@@ -22,21 +23,41 @@ debugLog = Config.debugLog Config.debugSync
 ------------------------------------------------------------------------------
 -- Sync.Options
 
+-- TODO make general enum functions in Utils
+type alias HeuristicModes = Int
+
+heuristicModes = 3
+
+[heuristicsNone, heuristicsFair, heuristicsBiased] =
+  [ 0 .. (heuristicModes - 1) ]
+
+toggleHeuristicMode x =
+  let i = (1 + x) % heuristicModes in
+  i
+
 type alias Options =
-  { thawedByDefault : Bool }
+  { thawedByDefault : Bool
+  , feelingLucky : HeuristicModes
+  }
 
 defaultOptions =
-  { thawedByDefault = True }
+  { thawedByDefault = True
+  , feelingLucky = heuristicsFair
+  }
 
-syncOptionsOf e =
+syncOptionsOf oldOptions e =
+  -- using oldOptions instead of defaultOptions, because want
+  -- feelingLucky to be a global flag, not per-example flag for now
   case Utils.maybeFind "unannotated-numbers" (getOptions e) of
-    Nothing -> defaultOptions
+    Nothing -> oldOptions
     Just s -> if
-      | s == "n?" -> { thawedByDefault = True }
-      | s == "n!" -> { thawedByDefault = False }
+      -- TODO decide whether to make feelingLucky per-example or not
+      --   if not, perhaps move it out of Options
+      | s == "n?" -> { oldOptions | thawedByDefault <- True }
+      | s == "n!" -> { oldOptions | thawedByDefault <- False }
       | otherwise ->
           let _ = debugLog "invalid sync option: " s in
-          defaultOptions
+          oldOptions
 
 
 ------------------------------------------------------------------------------
@@ -143,7 +164,25 @@ locsOfTrace opts =
          | otherwise                     -> Set.singleton l
     TrOp _ ts -> List.foldl Set.union Set.empty (List.map foo ts)
   in
-  foo
+  -- TODO do this filtering later if want gray highlights
+  --   even when not feeling lucky
+  \tr ->
+    let s = foo tr in
+    if opts.feelingLucky == heuristicsNone then
+      if List.length (Set.toList s) <= 1 then s else Set.empty
+    else
+      s
+
+{-
+    else
+      -- want to count the number of non-frozen, non-assignOnce locs
+      let keep = (\(_,ann,_) -> ann /= assignOnlyOnce) in
+      if List.length (List.filter keep (Set.toList s)) <= 1 then
+        -- let _ = Debug.log "dropping" s in
+        Set.empty
+      else
+        s
+-}
 
 solveOneLeaf : Options -> Subst -> Val -> List (LocId, Num)
 solveOneLeaf opts s (VConst (i, tr)) =
@@ -173,8 +212,24 @@ combine solutions =
   in
   List.foldl f (Just Dict.empty) solutions
 
+-- useful for debugging
+traceToExp : Subst -> Trace -> Exp
+traceToExp subst tr = case tr of
+  TrLoc l ->
+    case Dict.get (Utils.fst3 l) subst of
+      Nothing -> eVar (strLoc l)
+      Just n  -> eConst n l
+  TrOp op ts ->
+    withDummyPos (EOp (withDummyPos op) (List.map (traceToExp subst) ts))
+
 solve : Subst -> Equation -> Maybe Num
 solve subst eqn =
+{-
+  let (n,t) = eqn in
+  (\ans ->
+    let _ = Debug.log "solveTopDown" (n, sExp (traceToExp subst t), ans)
+    in ans) <|
+-}
   (solveTopDown subst eqn) `Utils.plusMaybe` (simpleSolve subst eqn)
 
   -- both solveTopDown and simpleSolve
@@ -260,12 +315,13 @@ maybeFloat n =
 
 -- n = i op j
 solveR op n i = case op of
-  Plus  -> maybeFloat <| n - i
-  Minus -> maybeFloat <| i - n
-  Mult  -> maybeFloat <| n / i
-  Div   -> maybeFloat <| i / n
-  Pow   -> Just <| logBase i n
-  Mod   -> Nothing
+  Plus    -> maybeFloat <| n - i
+  Minus   -> maybeFloat <| i - n
+  Mult    -> maybeFloat <| n / i
+  Div     -> maybeFloat <| i / n
+  Pow     -> Just <| logBase i n
+  Mod     -> Nothing
+  ArcTan2 -> maybeFloat <| tan(n) * i
 
 -- n = i op j
 solveL op n j = case op of
@@ -275,7 +331,7 @@ solveL op n j = case op of
   Div   -> maybeFloat <| j * n
   Pow   -> Just <| n ^ (1/j)
   Mod   -> Nothing
-
+  ArcTan2 -> maybeFloat <| j / tan(n)
 
 simpleSolve subst (sum, tr) =
   let walkTrace t = case t of
@@ -429,11 +485,14 @@ type alias Dict2 = Dict NodeId (ShapeKind, List (Zone, Maybe (Locs, List Locs)))
 
 printZoneTable : Val -> String
 printZoneTable v =
+  Debug.crash "printZoneTable not called anywhere"
+{-
   let so = defaultOptions in
   nodeToAttrLocs v           -- Step 1: Val   -> Dict0
     |> shapesToZoneTable so  -- Step 2: Dict0 -> Dict1
     |> assignTriggers        -- Step 3: Dict1 -> Dict2
     |> strTable              -- Step 4: Dict2 -> String
+-}
 
 -- Step 1 --
 
@@ -545,21 +604,26 @@ shapeToZoneInfo opts (kind, extra, ee, d) =
       l |> List.map (\a -> case Dict.get a d of
                              Just tr -> locsOfTrace opts tr
                              Nothing -> Set.empty)
-        |> createLocLists in
+        |> createLocLists opts in
     (s, (numAttrs, sets)) :: acc
   in
   List.foldr f [] zones
 
 allowOverConstrained = True -- CONFIG
 
-createLocLists sets =
+createLocLists opts sets =
   -- let foo = Utils.cartProdWithDiff sets in
   let removeEmpties = List.filter ((/=) 0 << Utils.setCardinal) in
   let foo = Utils.cartProdWithDiff (removeEmpties sets) in
   let bar =
     if | not allowOverConstrained -> []
-       | otherwise ->
+       -- | otherwise ->
+       | opts.feelingLucky == heuristicsNone ||
+         opts.feelingLucky == heuristicsFair ->
            sets |> Utils.intersectMany |> Set.toList |> List.map Utils.singleton
+       | opts.feelingLucky == heuristicsBiased ->
+           let l = sets |> Utils.intersectMany |> Set.toList in
+           Utils.oneOfEach [l,l]
   in
   foo ++ bar
 
@@ -614,8 +678,12 @@ getTriggerType numAttrs locs =
     evenly distribute the number of times each locset is assigned.
 -}
 
-assignTriggers : Dict1 -> Dict2
-assignTriggers = assignTriggersV2
+assignTriggers : Options -> Dict0 -> Dict1 -> Dict2
+assignTriggers opts d0 d1 =
+  let hm = opts.feelingLucky in
+  if hm == heuristicsNone then assignTriggersV2 d1
+  else if hm == heuristicsFair then assignTriggersV2 d1
+  else assignTriggersV3 d0 d1
 
 assignTriggersV2 d1 =
   let f i (kind,zoneLists) (dictSetSeen1,acc) =
@@ -640,8 +708,31 @@ assignTriggersV2 d1 =
   in
   snd <| Dict.foldl f (Dict.empty, Dict.empty) d1
 
-getCount set dict    = Maybe.withDefault 0 (Dict.get set dict)
-updateCount set dict = Dict.insert set (1 + getCount set dict) dict
+assignTriggersV3 d0 d1 =
+  let dLocCounts = countLocs d0 in
+  let f i (kind,zoneLists) (dictSetSeen1,acc) =
+    let g (zone,(numAttrs,sets)) (dictSetSeen2,acc) =
+      let rankedSets = List.sortBy (scoreOfLocs2 dLocCounts) sets in
+      let maybeChosenSet =
+        List.foldl (\thisSet acc ->
+          let thisSet' = removeAlreadyAssignedOnce thisSet dictSetSeen2 in
+          -- let _ = Debug.log "consider" (zone, scoreOfLocs2 dLocCounts thisSet', thisSet') in
+          case acc of
+            Nothing -> Just thisSet'
+            Just bestSet -> Just bestSet) Nothing rankedSets in
+            -- TODO not using dictSetSeen (as in V2), so can get rid of them
+      case maybeChosenSet of
+        Nothing -> (dictSetSeen2, (zone, Nothing) :: acc)
+        Just chosenSet ->
+          (dictSetSeen2, (zone, Just (chosenSet, rankedSets)) :: acc)
+    in
+    let (dictSetSeen,zoneLists') = List.foldl g (dictSetSeen1,[]) zoneLists in
+    (dictSetSeen, Dict.insert i (kind, List.reverse zoneLists') acc)
+  in
+  snd <| Dict.foldl f (Dict.empty, Dict.empty) d1
+
+getCount x dict      = Maybe.withDefault 0 (Dict.get x dict)
+updateCount x dict   = Dict.insert x (1 + getCount x dict) dict
 
 -- removeAlreadyAssignedOnce : Locs -> Dict Locs Int -> Locs
 -- NOTE:
@@ -691,6 +782,29 @@ scoreOfLocs locs =
   in
   -1 * (List.foldl foo 0 locs)
 
+scoreOfLocs2 : Dict LocId Int -> Locs -> Int
+scoreOfLocs2 dLocCounts locs_ =
+  let locs = Set.fromList locs_ in
+  -- could use log to keep absolute numbers smaller.
+  let foo (i,_,_) acc = acc * getCount i dLocCounts in
+  let score = Set.foldl foo (1) locs in
+  if | Utils.setCardinal locs == 1 -> score * score * score
+     | otherwise -> score
+
+-- TODO compute these counts along with Dict0
+countLocs : Dict0 -> Dict LocId Int
+countLocs d0 =
+  Dict.foldl (\_ (_,_,_,dAttrNameTrace) acc1 ->
+    Dict.foldl (\_ tr acc2 ->
+      -- subtle, but should be okay to use defaultOptions,
+      -- since countLocs only gets called in hmBiased
+      let locSet = locsOfTrace defaultOptions tr in
+      Set.foldl (\(locid,_,_) acc3 ->
+        updateCount locid acc3
+      ) acc2 locSet
+    ) acc1 dAttrNameTrace
+  ) Dict.empty d0
+
 -- Step 4 --
 
 strTable : Dict2 -> String
@@ -734,7 +848,8 @@ prepareLiveUpdates : Options -> Exp -> Val -> LiveInfo
 prepareLiveUpdates opts e v =
   let d0 = nodeToAttrLocs v in
   let d1 = shapesToZoneTable opts d0 in
-  let d2 = assignTriggers d1 in
+  -- let d2 = assignTriggers d1 in
+  let d2 = assignTriggers opts d0 d1 in
   let initSubstPlus = Parser.substPlusOf e in
   let initSubst = Dict.map (always .val) initSubstPlus in
     { triggers    = makeTriggers initSubst opts e d0 d2
@@ -847,7 +962,15 @@ whichLoc opts d0 d2 i z attr =
   case Set.toList (trLocs `Set.intersect` zoneLocs) of
     [(k,_,_)] -> Just k
     []        -> Nothing
-    _         -> Debug.crash "whichLoc"
+    -- _         -> Debug.crash "whichLoc"
+    locs ->
+      if opts.feelingLucky == heuristicsBiased then
+        Just <| case (locs, String.left 1 attr) of
+                  ([loc1,loc2], "x") -> Utils.fst3 loc2
+                  ([loc1,loc2], "y") -> Utils.fst3 loc1
+                  (loc1::_,_) -> Utils.fst3 loc1
+      else
+        Debug.crash "whichLoc"
 
 evalTr subst tr = Utils.fromJust_ "evalTr" (evalTrace subst tr)
 
