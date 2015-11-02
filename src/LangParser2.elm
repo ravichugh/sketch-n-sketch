@@ -230,11 +230,14 @@ parseNumE =
       NoWidgetDecl ->
         P.returnWithInfo (EConst n (dummyLoc_ b) wd) nb.start nb.end
       _ ->
+        P.returnWithInfo (EConst n (dummyLoc_ b) wd) nb.start wd.end
+{-
         let _ =
           if b == unann then ()
           else () -- could throw parse error here
         in
         P.returnWithInfo (EConst n (dummyLoc_ frozen) wd) nb.start wd.end
+-}
 
     -- let end = case wd.val of {NoWidgetDecl -> nb.end ; _ -> wd.end} in
     -- P.returnWithInfo (EConst n (dummyLoc_ b) wd) nb.start end
