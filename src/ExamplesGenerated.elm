@@ -3294,26 +3294,25 @@ floralLogo =
  "(def spiralArmCount 5)
 (def ringParameters [
   ; petalSize petalRotation ringRadius ringRotation
-  [ 85{0-300}  0.630{-3.2-3.2} -12{-100-300}      0{-3.2-3.2}]
-  [ 70{0-300} -0.829{-3.2-3.2}  64{-100-300}  0.256{-3.2-3.2}]
-  [ 50{0-300} -1.013{-3.2-3.2}  96{-100-300} -0.378{-3.2-3.2}]
-  [ 30{0-300} -1.008{-3.2-3.2} 116{-100-300} -0.818{-3.2-3.2}]
+  [ 118!{0-300}  0.63!{-3.2-3.2} -16!{-100-300}      0!{-3.2-3.2}]
+  [ 76!{0-300} -0.9570000000000001!{-3.2-3.2}  48!{-100-300}  -0.38399999999999995!{-3.2-3.2}]
+  [ 59!{0-300} -1.2690000000000001!{-3.2-3.2}  76!{-100-300} -0.89!{-3.2-3.2}]
+  [ 36!{0-300} -1.1360000000000001!{-3.2-3.2} 88!{-100-300} -1.3940000000000001!{-3.2-3.2}]
 ])
 
-(def rotatePointAround (\\(x y aroundX aroundY theta)
-  (let [relX relY] [(- x aroundX) (- y aroundY)]
-  (let [rotRelX rotRelY] [(- (* x (cos theta)) (* y (sin theta))) (+ (* x (sin theta)) (* y (cos theta)))]
+(def rotatePointAround (\\(relX relY aroundX aroundY theta)
+  (let [rotRelX rotRelY] [(- (* relX (cos theta)) (* relY (sin theta))) (+ (* relX (sin theta)) (* relY (cos theta)))]
     [(+ rotRelX aroundX) (+ rotRelY aroundY)]
-  ))
+  )
 ))
 
 ;(x + yi)(cosθ + isinθ) = xcosθ + ixsinθ + iycosθ - ysinθ
 ;= (xcosθ - ysinθ) + (xsinθ + ycosθ)i
 
 (def petal (\\(x y scale theta)
-  (let [[x1 y1]     [x2 y2]    ] [(rotatePointAround (* 1.0 scale) 0              x y theta) (rotatePointAround 0              0              x y theta)]
-  (let [[cx1a cy1a] [cx1b cy1b]] [(rotatePointAround (* 0.7{0-2.1} scale) (* 0.3{0-2.1} scale)  x y theta) (rotatePointAround (* 0.3 scale) (* 0.3 scale)  x y theta)]
-  (let [[cx2a cy2a] [cx2b cy2b]] [(rotatePointAround (* 0.3 scale) (* -0.3 scale) x y theta) (rotatePointAround (* 0.7 scale) (* -0.3 scale) x y theta)]
+  (let [[x1 y1]     [x2 y2]    ] [(rotatePointAround (* 1.0 scale) 0              x y theta) (rotatePointAround 0              0             x y theta)]
+  (let [[cx1a cy1a] [cx1b cy1b]] [(rotatePointAround (* 0.7 scale) (* 0.3 scale)  x y theta) (rotatePointAround (* 0.3 scale) (* 0.3 scale)  x y theta)]
+  (let [[cx2a cy2a] [cx2b cy2b]] [(rotatePointAround (* 0.4573836036582167 scale) (* -0.24276959866973943 scale) x y theta) (rotatePointAround (* 0.4710783946789573 scale) (* 0.40107241629569196 scale) x y theta)]
     (path 'orange' 'none' 0 [
       'M' x1 y1
       'C' cx1a cy1a cx1b cy1b x2 y2
@@ -3323,7 +3322,7 @@ floralLogo =
   )))
 ))
 
-(def [x y] [300 300])
+(def [x y] [300 140])
 (def flower
   (concat
     (map
