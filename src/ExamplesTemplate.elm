@@ -86,6 +86,7 @@ LITTLE_TO_ELM lilliconP2
 LITTLE_TO_ELM keyboard
 LITTLE_TO_ELM tessellation
 LITTLE_TO_ELM floralLogo
+LITTLE_TO_ELM floralLogo2
 LITTLE_TO_ELM roundedRect
 
 examples =
@@ -160,6 +161,7 @@ examples =
   , makeExample "Keyboard" keyboard
   , makeExample "Tessellation" tessellation
   , makeExample "Floral Logo" floralLogo
+  , makeExample "Floral Logo 2" floralLogo2
   , makeExample "Rounded Rect" roundedRect
   ]
 

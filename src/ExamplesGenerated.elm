@@ -3347,6 +3347,66 @@ floralLogo =
 
 "
 
+floralLogo2 =
+ "(def ringParameters [
+  ; petalSize petalRotation ringRadius ringRotation
+  [ 52!{0-300}  -0.2660000000000001!{-3.2-3.2} 4!{-100-300}      0!{-3.2-3.2}]
+  [ 58!{0-300} -0.253!{-3.2-3.2}  48!{-100-300}  0.06400000000000017!{-3.2-3.2}]
+  [ 59!{0-300} 0.07499999999999996!{-3.2-3.2}  76!{-100-300} 0.06999999999999995!{-3.2-3.2}]
+  [ 36!{0-300} 0.015999999999999792!{-3.2-3.2} 132!{-100-300} -0.050000000000000044!{-3.2-3.2}]
+])
+
+(def rotatePointAround (\\(relX relY aroundX aroundY theta orientation)
+  (let relY (* orientation relY)
+  (let [rotRelX rotRelY] [(- (* relX (cos theta)) (* relY (sin theta))) (+ (* relX (sin theta)) (* relY (cos theta)))]
+    [(+ rotRelX aroundX) (+ rotRelY aroundY)]
+  ))
+))
+
+;(x + yi)(cosθ + isinθ) = xcosθ + ixsinθ + iycosθ - ysinθ
+;= (xcosθ - ysinθ) + (xsinθ + ycosθ)i
+
+(def petal (\\(x y scale theta orientation)
+  (let [[x1 y1]     [x2 y2]    ] [(rotatePointAround (* 1 scale) 0              x y theta orientation) (rotatePointAround 0              0             x y theta orientation)]
+  (let [[cx1a cy1a] [cx1b cy1b]] [(rotatePointAround (* 0.7 scale) (* 0.3 scale)  x y theta orientation) (rotatePointAround (* 0.3 scale) (* 0.3 scale)  x y theta orientation)]
+  (let [[cx2a cy2a] [cx2b cy2b]] [(rotatePointAround (* 0.4573836036582167 scale) (* -0.24276959866973943 scale) x y theta orientation) (rotatePointAround (* 0.4710783946789573 scale) (* 0.40107241629569196 scale) x y theta orientation)]
+    (path 'orange' 'none' 0 [
+      'M' x1 y1
+      'C' cx1a cy1a cx1b cy1b x2 y2
+      'C' cx2a cy2a cx2b cy2b x1 y1
+      'Z'
+    ])
+  )))
+))
+
+(def [x y] [300 140])
+(def flower
+  (concat
+    (map
+      (\\[petalSize petalRotation ringRadius ringRotation]
+        (concatMap
+          (\\theta
+            (let armTheta (+ ringRotation theta)
+            (let rightPetalX (+ x (* ringRadius (cos armTheta)))
+            (let leftPetalX  (- x (* ringRadius (cos armTheta)))
+            (let petalY (+ y (* ringRadius (sin armTheta)))
+              [
+                (petal rightPetalX petalY petalSize (+ theta petalRotation) 1!)
+                (petal leftPetalX petalY petalSize (- (pi) (+ theta petalRotation)) -1!)
+              ]
+            ))))
+          )
+          [0 0.25 0.5]
+        )
+      )
+      ringParameters
+    )
+  )
+)
+
+(svg flower)
+"
+
 roundedRect =
  "
 (def roundedRect (\\(fill x y w h rxSeed rySeed)
@@ -3440,6 +3500,7 @@ examples =
   , makeExample "Keyboard" keyboard
   , makeExample "Tessellation" tessellation
   , makeExample "Floral Logo" floralLogo
+  , makeExample "Floral Logo 2" floralLogo2
   , makeExample "Rounded Rect" roundedRect
   ]
 
