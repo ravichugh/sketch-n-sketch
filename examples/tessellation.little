@@ -13,17 +13,17 @@
 ))
 
 
-(def sin30 0.5)
-(def cos30 (* 0.5 (sqrt 3)))
+(def sin30 0.5!)
+(def cos30 (* 0.5! (sqrt 3!)))
 
-(def [x y radius] [200 200 200])
+(def [x y radius] [350! 200! 200!])
 (def innerRadius (* radius cos30))
 (def [bottomY cornerX] [(+ y innerRadius) (- x (/ radius 2))])
-(def primativeBottomWidth (/ radius 2))
+(def primativeBottomWidth (/ radius 2!))
 
 (def smallInnerRadius 50)
 (def bottomRectWidth (- primativeBottomWidth smallInnerRadius))
-(def bottomRectHeight (/ smallInnerRadius (sqrt 3)))
+(def bottomRectHeight (/ smallInnerRadius (sqrt 3!)))
 
 (def primitive [
   (path 'lightblue' 'none' 0 [
@@ -34,21 +34,21 @@
   ])
   (path 'green' 'none' 0 [
     'M' x y
-    'L' x (+ y (/ (* smallInnerRadius 2) (sqrt 3)))
+    'L' x (+ y (/ (* smallInnerRadius 2!) (sqrt 3!)))
     'L' (- x (* smallInnerRadius sin30)) (+ y (* smallInnerRadius cos30))
     'Z'
   ])
   (path 'green' 'none' 0 [
     'M' cornerX bottomY
     'L' (+ cornerX smallInnerRadius) bottomY
-    'L' (+ cornerX smallInnerRadius) (- bottomY (/ smallInnerRadius (sqrt 3)))
+    'L' (+ cornerX smallInnerRadius) (- bottomY (/ smallInnerRadius (sqrt 3!)))
     'L' (+ cornerX (* smallInnerRadius sin30)) (- bottomY (* smallInnerRadius cos30))
     'Z'
   ])
   (rect 'pink' (- x bottomRectWidth) (- bottomY bottomRectHeight) bottomRectWidth bottomRectHeight)
   (path 'pink' 'none' 0 [
-    'M' x (+ y (/ (* smallInnerRadius 2) (sqrt 3)))
-    'L' (+ cornerX smallInnerRadius) (- bottomY (/ smallInnerRadius (sqrt 3)))
+    'M' x (+ y (/ (* smallInnerRadius 2!) (sqrt 3!)))
+    'L' (+ cornerX smallInnerRadius) (- bottomY (/ smallInnerRadius (sqrt 3!)))
     'L' (+ cornerX (* smallInnerRadius sin30)) (- bottomY (* smallInnerRadius cos30))
     'L' (- x (* smallInnerRadius sin30)) (+ y (* smallInnerRadius cos30))
     'Z'
