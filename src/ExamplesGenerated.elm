@@ -360,42 +360,92 @@ activeTrans =
 
 "
 
+activeTrans2 =
+ "
+; Logo based on Active Transportation Alliance
+; (http://activetrans.org/)
+ 
+(def base 0)
+(def grayPts
+  [[  97 546           ] [  33 414           ]
+   [  33 (+ base 153!) ] [  53 (+ base 128!) ]
+   [  82 (+ base 135!) ] [  83 (+ base 160!) ]
+   [ 114 (+ base 149!) ] [ 113 (+ base  98!) ]
+   [ 143 (+ base  82!) ] [ 158 (+ base 101!) ]
+   [ 160 (+ base  46!) ] [ 192 (+ base  27!) ]
+   [ 221 (+ base  56!) ] [ 227 (+ base 222!) ]
+   [ 245 (+ base 224!) ] [ 246 (+ base 181!) ]
+   [ 288 (+ base 156!) ] [ 286 (+ base 113!) ]
+   [ 312 (+ base  88!) ] [ 374 (+ base 106!) ]
+   [ 375 (+ base 155!) ] [ 397 (+ base 136!) ]
+   [ 424 (+ base 145!) ] [ 425 207           ]
+  ])
+
+(def greenPts
+  [[247 663] [461 419] [466 230] [439 230] [178 614]])
+
+(def [grayctrl greenctrl]
+  [[47 489] [451 542]])
+
+(def makePath (\\(color pts [xc yc])
+  (let [[x0 y0] [x1 y1] | rest] pts
+  (let commands
+    (append
+      (append ['M' x0 y0] ['Q' xc yc x1 y1])
+      (foldr (\\([xi yi] acc) (append ['L' xi yi] acc))
+             ['Z'] rest))
+  (path color 'black' 0 commands)))))
+ 
+(def grayPath (makePath '#505050' grayPts grayctrl))
+(def greenPath (makePath '#66CC66' greenPts greenctrl))
+
+(svg [grayPath greenPath])
+
+"
+
 botanic =
- ";
+ "
 ; Logo: Chicago Botanic Garden
-;
+ 
 ; Click '[Zones]' to see the control points for
 ; the various Bezier curves.
-; 
-(let [xOff yOff w h] [0! 0! 623 622]
-(let [xOut xcOut1 ycOut1 xcOut2 ycOut2 xcOut3 ycOut3] [292 40 141 97 202 23 24]
-(let [xMid yTip yMid xBud yBud] [320! 272 460 -51 272]
-(let left [[xMid yMid] [(- xMid xOut) yTip]]
-(let right [[xMid yMid] [(+ xMid xOut) yTip]]
-(let bud [[xMid (- yMid 92)] [(+ xMid xBud) yBud] [(- xMid xBud) yBud]]
-;
-(let makePath
+  
+(def [xOff yOff w h]
+ [0! 0! 623 622])
+
+(def [xOut xcOut1 ycOut1 xcOut2 ycOut2 xcOut3 ycOut3]
+ [292 40 141 97 202 23 24])
+
+(def [xMid yTip yMid xBud yBud]
+ [320! 272 460 -51 272])
+
+(def left [[xMid yMid] [(- xMid xOut) yTip]])
+(def right [[xMid yMid] [(+ xMid xOut) yTip]])
+(def bud [[xMid (- yMid 92)] [(+ xMid xBud) yBud] [(- xMid xBud) yBud]])
+ 
+(def makePath
   (\\(c pts [xc1 yc1] [xc2 yc2])
     (let offsetPts (map (\\[x y] [(+ x xOff) (+ y yOff)]) pts)
     (let [[x0 y0] [x1 y1]] offsetPts
     (let commands ['M' x0 y0 'Q' xc1 yc1 x1 y1 'M' x1 y1 'Q' xc2 yc2 x0 y0]
-      (path c 'black' 0 commands)))))
-;
-(let makeArc
+      (path c 'black' 0 commands))))))
+ 
+(def makeArc
   (\\(c pts [xc1 yc1] [xc2 yc2])
     (let offsetPts (map (\\[x y] [(+ x xOff) (+ y yOff)]) pts)
     (let [[x0 y0] [x1 y1] [x2 y2]] offsetPts
     (let commands ['M' x0 y0 'L' x1 y1 'A' 45 45 0 0 1 x2 y2 'L' x2 y2 'Z']
-      (path c 'black' 0 commands)))))
-;
-(let leftleaf
+      (path c 'black' 0 commands))))))
+ 
+(def [leftleaf rightleaf centerbud] [
   (makePath 'white' left [(- xMid xcOut1) ycOut1] [(- xMid xcOut2) ycOut2])
-(let rightleaf
   (makePath 'white' right [(+ xMid xcOut1) ycOut1] [(+ xMid xcOut2) ycOut2])
-(let centerbud
   (makeArc 'white' bud [(+ xMid xcOut3) ycOut3] [(+ xMid xcOut3) ycOut3])
-;
-  (svg  [(rect '#83F52C' xOff yOff w h) leftleaf rightleaf centerbud]))))))))))))
+])
+
+(def background (zones 'none' [(rect '#83F52C' xOff yOff w h)]))
+
+(svg (concat [background [leftleaf rightleaf centerbud]]))
 
 "
 
@@ -3258,6 +3308,7 @@ examples =
   , makeExample "Logo Sizes" logoSizes
   , makeExample "Elm Logo" elmLogo
   , makeExample "Active Trans Logo" activeTrans
+  , makeExample "Active Trans 2" activeTrans2
   , makeExample "Botanic Garden Logo" botanic
   , makeExample "Rings" rings
   , makeExample "Polygons" polygons

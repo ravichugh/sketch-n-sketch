@@ -1,0 +1,39 @@
+
+; Logo based on Active Transportation Alliance
+; (http://activetrans.org/)
+ 
+(def base 0)
+(def grayPts
+  [[  97 546           ] [  33 414           ]
+   [  33 (+ base 153!) ] [  53 (+ base 128!) ]
+   [  82 (+ base 135!) ] [  83 (+ base 160!) ]
+   [ 114 (+ base 149!) ] [ 113 (+ base  98!) ]
+   [ 143 (+ base  82!) ] [ 158 (+ base 101!) ]
+   [ 160 (+ base  46!) ] [ 192 (+ base  27!) ]
+   [ 221 (+ base  56!) ] [ 227 (+ base 222!) ]
+   [ 245 (+ base 224!) ] [ 246 (+ base 181!) ]
+   [ 288 (+ base 156!) ] [ 286 (+ base 113!) ]
+   [ 312 (+ base  88!) ] [ 374 (+ base 106!) ]
+   [ 375 (+ base 155!) ] [ 397 (+ base 136!) ]
+   [ 424 (+ base 145!) ] [ 425 207           ]
+  ])
+
+(def greenPts
+  [[247 663] [461 419] [466 230] [439 230] [178 614]])
+
+(def [grayctrl greenctrl]
+  [[47 489] [451 542]])
+
+(def makePath (\(color pts [xc yc])
+  (let [[x0 y0] [x1 y1] | rest] pts
+  (let commands
+    (append
+      (append ['M' x0 y0] ['Q' xc yc x1 y1])
+      (foldr (\([xi yi] acc) (append ['L' xi yi] acc))
+             ['Z'] rest))
+  (path color 'black' 0 commands)))))
+ 
+(def grayPath (makePath '#505050' grayPts grayctrl))
+(def greenPath (makePath '#66CC66' greenPts greenctrl))
+
+(svg [grayPath greenPath])

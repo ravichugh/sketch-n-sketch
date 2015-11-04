@@ -29,6 +29,7 @@ LITTLE_TO_ELM logo2
 LITTLE_TO_ELM logoSizes
 LITTLE_TO_ELM elmLogo
 LITTLE_TO_ELM activeTrans
+LITTLE_TO_ELM activeTrans2
 LITTLE_TO_ELM botanic
 LITTLE_TO_ELM rings
 LITTLE_TO_ELM polygons
@@ -100,6 +101,7 @@ examples =
   , makeExample "Logo Sizes" logoSizes
   , makeExample "Elm Logo" elmLogo
   , makeExample "Active Trans Logo" activeTrans
+  , makeExample "Active Trans 2" activeTrans2
   , makeExample "Botanic Garden Logo" botanic
   , makeExample "Rings" rings
   , makeExample "Polygons" polygons

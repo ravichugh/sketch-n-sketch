@@ -282,7 +282,7 @@ solveTopDown subst (n, t) = case t of
                                              (solveL op n j)
 
       _ ->
-        let _ = debugLog "Sync.solve" <| strTrace t in
+        let _ = debugLog "Sync.solveTopDown" <| strTrace t in
         Nothing
 
   TrOp op [t1] ->
@@ -347,6 +347,7 @@ simpleSolve subst (sum, tr) =
       in
         List.foldl foo (Just (0,0)) (List.map walkTrace ts)
     _ ->
+      let _ = debugLog "Sync.simpleSolve" <| strTrace tr in
       Nothing
   in
   Utils.mapMaybe
