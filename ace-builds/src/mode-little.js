@@ -101,15 +101,6 @@ this.$rules =
             }
         },
         {
-            regex : '\'(?=.)',
-            next  : "pstring",
-            onMatch : function(value, state, stack) {
-                stack.push("startpat");
-                this.next = "pstring";
-                return "variable.parameter";
-            }
-        },
-        {
             token : "paren.lparen",
             regex : /\(/,
             next : "varlist"
@@ -160,39 +151,6 @@ this.$rules =
             }
         },
         {
-            token : "variable.parameter", // float
-            regex : /\b\d+(?:\.\d+)?\b/,
-            onMatch : function(value, state, stack) {
-                var lastPush = stack.pop();
-                if (lastPush == "startpat") {
-                    this.next = "start";
-                } else {
-                    stack.push(lastPush);
-                    this.next = lastPush;
-                }
-                return "variable.parameter";
-            }
-        },
-        {
-            token : "variable.parameter",
-            regex : '\'(?=.)',
-            next  : "pstring"
-        },
-        {
-            token : "variable.parameter",
-            regex : /true|false/,
-            onMatch : function(value, state, stack) {
-                var lastPush = stack.pop();
-                if (lastPush == "startpat") {
-                    this.next = "start";
-                } else {
-                    stack.push(lastPush);
-                    this.next = lastPush;
-                }
-                return "variable.parameter";
-            }
-        },
-        {
             token : "variable.parameter",
             regex : /\w+/,
             onMatch : function(value, state, stack) {
@@ -206,7 +164,7 @@ this.$rules =
                 return "variable.parameter";
             }
         },
-        
+
     ],
     "qstring": [
         {
@@ -221,30 +179,6 @@ this.$rules =
             token : "string",
             regex : '\'',
             next  : "start"
-        }
-    ],
-    "pstring": [
-        {
-            token: "constant.character.escape.little",
-            regex: "\\\\."
-        },
-        {
-            token : "variable.parameter",
-            regex : '[^\'\\\\]+'
-        }, 
-        {
-            token : "variable.parameter",
-            regex : '\'',
-            onMatch : function(value, state, stack) {
-                var lastPush = stack.pop();
-                if (lastPush == "start") {
-                    this.next = "start";
-                } else {
-                    stack.push(lastPush);
-                    this.next = lastPush;
-                }
-                return "variable.parameter";
-            }
         }
     ]
     }
@@ -279,3 +213,4 @@ oop.inherits(Mode, TextMode);
 
 exports.Mode = Mode;
 });
+
