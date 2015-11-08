@@ -102,7 +102,6 @@ this.$rules =
         },
         {
             regex : '\'(?=.)',
-            next  : "pstring",
             onMatch : function(value, state, stack) {
                 stack.push("startpat");
                 this.next = "pstring";
@@ -113,6 +112,16 @@ this.$rules =
             token : "paren.lparen",
             regex : /\(/,
             next : "varlist"
+        },
+        {
+            token : "variable.parameter", // float
+            regex : /\b\d+(?:\.\d+)?\b/,
+            next  : "start"
+        },
+        {
+            token : "variable.parameter",
+            regex : /true|false/,
+            next  : "start"
         },
         {
             token : "variable.parameter",
@@ -237,11 +246,11 @@ this.$rules =
             regex : '\'',
             onMatch : function(value, state, stack) {
                 var lastPush = stack.pop();
-                if (lastPush == "start") {
+                if (lastPush == "startpat") {
                     this.next = "start";
                 } else {
                     stack.push(lastPush);
-                    this.next = lastPush;
+                    this.next = "pattern";
                 }
                 return "variable.parameter";
             }
