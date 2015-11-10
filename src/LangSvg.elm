@@ -141,6 +141,7 @@ valToAttr (VList [VBase (String k), v]) =
     ("transform", VList vs) -> (k, ATransform (valsToTransform vs))
     (_, VConst it)        -> (k, ANum it)
     (_, VBase (String s)) -> (k, AString s)
+    _ -> Debug.crash <| "valToAttr: " ++ toString (k,v)
 
 valToPoint v = case v of
   VList [VConst x, VConst y] -> (x,y)

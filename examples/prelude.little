@@ -201,6 +201,11 @@
       ([_ [x|xs1]] [x | (take_ (- n 1) xs1)])))
   (compose take_ (max 0))))
 
+(defrec elem (\(x ys)
+  (case ys
+    ([]      false)
+    ([y|ys1] (or (= x y) (elem x ys1))))))
+
 ;; joinStrings : String -> List String -> String
 ;; Combine a list of strings with a given separator
 ;; Ex. joinStrings ', ' ['hello' 'world'] = 'hello, world'

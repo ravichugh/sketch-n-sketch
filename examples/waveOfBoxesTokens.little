@@ -1,0 +1,15 @@
+
+(def [x0 y0 w h sep] [50 120 20 90 25])
+
+(def n 15!{3-30})
+
+(def xi (\i (+ x0 (* i sep))))
+(def yi (\i (- y0 (* 100 (sin (* i (/ twoPi n)))))))
+
+(def ci (\i
+  (let b (elem i [2 4 5]) ; TODO add tokens
+  (if b 'orange' 'lightblue'))))
+
+(def boxi (\i (rect (ci i) (xi i) (yi i) w h)))
+
+(svg (map boxi (zeroTo n)))

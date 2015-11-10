@@ -79,6 +79,63 @@ waveOfBoxes =
 
 "
 
+waveOfBoxesTokens =
+ "
+(def [x0 y0 w h sep] [50 120 20 90 25])
+
+(def n 15!{3-30})
+
+(def xi (\\i (+ x0 (* i sep))))
+(def yi (\\i (- y0 (* 100 (sin (* i (/ twoPi n)))))))
+
+(def ci (\\i
+  (let b (elem i [2 4 5])
+  (if b 'orange' 'lightblue'))))
+
+(def boxi (\\i (rect (ci i) (xi i) (yi i) w h)))
+
+(svg (map boxi (zeroTo n)))
+
+"
+
+waveOfBoxes3 =
+ "
+; <defs>
+;     <radialGradient id=\"grad1\" cx=\"50%\" cy=\"50%\" r=\"50%\" fx=\"50%\" fy=\"50%\">
+;       <stop offset=\"0%\" style=\"stop-color:rgb(255,255,255);
+;       stop-opacity:1\" />
+;       <stop offset=\"100%\" style=\"stop-color:rgb(255,255,255);stop-opacity:0\" />
+;     </radialGradient>
+;   </defs>
+
+(def svgDefs
+  (let stop1 ['stop' [['offset' '0%'] ['style' 'stop-color:rgb(255,255,255); stop-opacity:1']] []]
+  (let stop2 ['stop' [['offset' '100%'] ['style' 'stop-color:rgb(255,255,255); stop-opacity:0']] []]
+  (let grad ['radialGradient' [['id' 'grad1'] ['cx' '50%'] ['cy' '50%']
+                               ['r' '50%'] ['fx' '50%'] ['fy' '50%']] [stop1 stop2]]
+  ['defs' [] [grad]]))))
+
+(def light
+  (let [x y rx ry] [300 300 100 200]
+  [ (ellipse 'url(#grad1)' x y rx ry)
+    (ghost (addAttr (addAttr (ellipse 'none' x y rx ry) ['stroke' 'black']) ['stroke-width' 2]))
+  ]))
+
+(def [x0 y0 w h sep] [90 149 20 217 25.75])
+
+(def n 15!{3-30})
+
+(def boxi (\\i
+  (let xi (+ x0 (* i sep))
+  (let yi (- y0 (* 40 (sin (* i (/ twoPi n)))))
+  (let ci 'lightblue'
+  (let shift (lookupWithDefault 0! i [[2 -30] [10 46] [11 46]])
+  (rect ci xi (+ yi shift) w h)))))))
+
+(svg (concat [ [svgDefs] (map boxi (zeroTo n)) light ]))
+
+"
+
 nBoxes =
  "
 (def nBoxes
@@ -3298,6 +3355,8 @@ examples =
   , makeExample "3 Boxes" threeBoxes
   , makeExample "N Boxes H2" nBoxesH2
   , makeExample "Wave Boxes" waveOfBoxes
+  , makeExample "Wave Tokens" waveOfBoxesTokens
+  , makeExample "Wave 3" waveOfBoxes3
   , makeExample "N Boxes Sli" nBoxes
   , makeExample "N Boxes" groupOfBoxes
   , makeExample "6 Boxes A" sixBoxesA

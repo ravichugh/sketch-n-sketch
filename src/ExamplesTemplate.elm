@@ -20,6 +20,8 @@ LITTLE_TO_ELM scratch
 LITTLE_TO_ELM threeBoxes
 LITTLE_TO_ELM nBoxesH2
 LITTLE_TO_ELM waveOfBoxes
+LITTLE_TO_ELM waveOfBoxesTokens
+LITTLE_TO_ELM waveOfBoxes3
 LITTLE_TO_ELM nBoxes
 LITTLE_TO_ELM groupOfBoxes
 LITTLE_TO_ELM sixBoxesA
@@ -91,6 +93,8 @@ examples =
   , makeExample "3 Boxes" threeBoxes
   , makeExample "N Boxes H2" nBoxesH2
   , makeExample "Wave Boxes" waveOfBoxes
+  , makeExample "Wave Tokens" waveOfBoxesTokens
+  , makeExample "Wave 3" waveOfBoxes3
   , makeExample "N Boxes Sli" nBoxes
   , makeExample "N Boxes" groupOfBoxes
   , makeExample "6 Boxes A" sixBoxesA
