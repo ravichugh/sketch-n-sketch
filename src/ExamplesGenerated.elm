@@ -89,7 +89,7 @@ waveOfBoxesTokens =
 (def yi (\\i (- y0 (* 100 (sin (* i (/ twoPi n)))))))
 
 (def ci (\\i
-  (let b (elem i [2 4 5])
+  (let b (elem i [2 4 5]) ; TODO add tokens
   (if b 'orange' 'lightblue'))))
 
 (def boxi (\\i (rect (ci i) (xi i) (yi i) w h)))
@@ -3348,6 +3348,26 @@ floralLogo =
 
 "
 
+roundedRect =
+ "
+(def roundedRect (\\(fill x y w h rxSeed rySeed)
+  (let off 20!
+  (let [wHalf hHalf] [(/ w 2!) (/ h 2!)]
+  (let [rx rxSlider] (hSlider true x (+ x wHalf) (- y off) 0! wHalf '' rxSeed)
+  (let [ry rySlider] (vSlider true y (+ y hHalf) (- x off) 0! hHalf '' rySeed)
+  (concat [
+    [ (consAttr (consAttr (rect fill x y w h) ['rx' rx]) ['ry' ry]) ]
+    rxSlider
+    rySlider
+  ])))))))
+
+(svg (concat [
+  [(rect 'black' 0 0 0 0)] ; TODO remove dummy
+  (roundedRect 150 100 100 80 200 10 20)
+]))
+
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -3421,6 +3441,7 @@ examples =
   , makeExample "Keyboard" keyboard
   , makeExample "Tessellation" tessellation
   , makeExample "Floral Logo" floralLogo
+  , makeExample "Rounded Rect" roundedRect
   ]
 
 list = examples

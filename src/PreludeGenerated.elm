@@ -487,7 +487,24 @@ prelude =
   [targetVal (ghosts shapes)])))))
 ; TODO only draw zones for ball
 
+(def vSlider_ (\\(dropBall roundInt y0 y1 x minVal maxVal caption srcVal)
+  (let preVal (clamp minVal maxVal srcVal)
+  (let targetVal (if roundInt (round preVal) preVal)
+  (let shapes
+    (let ball
+      (let [yDiff valDiff] [(- y1 y0) (- maxVal minVal)]
+      (let yBall (+ y0 (* yDiff (/ (- srcVal minVal) valDiff)))
+      (if (= preVal srcVal) (circle 'black' x yBall 10!)
+      (if dropBall          (circle 'black' 0! 0! 0!)
+                            (circle 'red' x yBall 10!)))))
+    [ (line 'black' 3! x y0 x y1)
+      ; (text (+ x1 10) (+ y 5) (+ caption (toString targetVal)))
+      (circle 'black' x y0 4!) (circle 'black' x y1 4!) ball ])
+  [targetVal (ghosts shapes)])))))
+; TODO only draw zones for ball
+
 (def hSlider (hSlider_ false))
+(def vSlider (vSlider_ false))
 
 ;; button_ : Bool -> Number -> Number -> String -> Number -> SVG
 ;; Similar to sliders, but just has boolean values

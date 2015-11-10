@@ -1,0 +1,16 @@
+
+(def roundedRect (\(fill x y w h rxSeed rySeed)
+  (let off 20!
+  (let [wHalf hHalf] [(/ w 2!) (/ h 2!)]
+  (let [rx rxSlider] (hSlider true x (+ x wHalf) (- y off) 0! wHalf '' rxSeed)
+  (let [ry rySlider] (vSlider true y (+ y hHalf) (- x off) 0! hHalf '' rySeed)
+  (concat [
+    [ (consAttr (consAttr (rect fill x y w h) ['rx' rx]) ['ry' ry]) ]
+    rxSlider
+    rySlider
+  ])))))))
+
+(svg (concat [
+  [(rect 'black' 0 0 0 0)] ; TODO remove dummy
+  (roundedRect 150 100 100 80 200 10 20)
+]))
