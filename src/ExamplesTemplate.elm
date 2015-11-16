@@ -86,6 +86,7 @@ LITTLE_TO_ELM lilliconP2
 LITTLE_TO_ELM keyboard
 LITTLE_TO_ELM keyboard2
 LITTLE_TO_ELM tessellation
+LITTLE_TO_ELM tessellationTarget
 LITTLE_TO_ELM tessellation2
 LITTLE_TO_ELM floralLogo
 LITTLE_TO_ELM floralLogo2
@@ -163,6 +164,7 @@ examples =
   , makeExample "Keyboard" keyboard
   , makeExample "Keyboard 2" keyboard2
   , makeExample "Tessellation" tessellation
+  , makeExample "Tessellation Target" tessellationTarget
   , makeExample "Tessellation 2" tessellation2
   , makeExample "Floral Logo" floralLogo
   , makeExample "Floral Logo 2" floralLogo2
