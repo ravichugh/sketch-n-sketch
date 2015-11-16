@@ -3587,10 +3587,9 @@ floralLogo =
 floralLogo2 =
  "(def ringParameters [
   ; petalSize petalRotation ringRadius ringRotation
-  [ 52{0-300} -0.266{-3.2-3.2}   4{-100-300}      0{-3.2-3.2}]
-  [ 58{0-300} -0.253{-3.2-3.2}  48{-100-300}  0.064{-3.2-3.2}]
-  [ 59{0-300}  0.075{-3.2-3.2}  76{-100-300}  0.070{-3.2-3.2}]
-  [ 36{0-300}  0.016{-3.2-3.2} 132{-100-300} -0.050{-3.2-3.2}]
+  [ 76{0-300} -0.266{-3.2-3.2}  -12{-100-300}   0.128{-3.2-3.2}]
+  [ 52{0-300} -0.317{-3.2-3.2}   60{-100-300}  -0.320{-3.2-3.2}]
+  [ 38{0-300} -0.629{-3.2-3.2}  104{-100-300}  -0.570{-3.2-3.2}]
 ])
 
 (def rotatePointAround (\\(relX relY aroundX aroundY theta orientation)
@@ -3605,8 +3604,8 @@ floralLogo2 =
 
 (def petal (\\(x y scale theta orientation)
   (let [[x1 y1]     [x2 y2]    ] [(rotatePointAround (* 1 scale) 0              x y theta orientation) (rotatePointAround 0              0             x y theta orientation)]
-  (let [[cx1a cy1a] [cx1b cy1b]] [(rotatePointAround (* 0.7 scale) (* 0.3 scale)  x y theta orientation) (rotatePointAround (* 0.3 scale) (* 0.3 scale)  x y theta orientation)]
-  (let [[cx2a cy2a] [cx2b cy2b]] [(rotatePointAround (* 0.4573836036582167 scale) (* -0.24276959866973943 scale) x y theta orientation) (rotatePointAround (* 0.4710783946789573 scale) (* 0.40107241629569196 scale) x y theta orientation)]
+  (let [[cx1a cy1a] [cx1b cy1b]] [(rotatePointAround (* 0.58 scale) (* 0.305 scale)  x y theta orientation) (rotatePointAround (* 0.43 scale) (* 0.275 scale)  x y theta orientation)]
+  (let [[cx2a cy2a] [cx2b cy2b]] [(rotatePointAround (* 0.4573836036582167 scale) (* -0.24276959866973943 scale) x y theta orientation) (rotatePointAround (* 0.5760783946789573 scale) (* -0.2389275837043081 scale) x y theta orientation)]
     (path 'orange' 'none' 0 [
       'M' x1 y1
       'C' cx1a cy1a cx1b cy1b x2 y2
@@ -3616,7 +3615,8 @@ floralLogo2 =
   )))
 ))
 
-(def [x y] [300 140])
+(def [x y] [300 200])
+(def [theta0 deltaTheta] [0.314{-3.2-3.2} -0.5{-3.2-3.2}])
 (def flower
   (concat
     (map
@@ -3633,7 +3633,7 @@ floralLogo2 =
               ]
             ))))
           )
-          [0 0.25 0.5]
+          [theta0 (+ theta0 deltaTheta) (+ theta0 (* 2! deltaTheta))]
         )
       )
       ringParameters
