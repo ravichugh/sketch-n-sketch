@@ -41,8 +41,8 @@
             (let leftPetalX  (- x (* ringRadius (cos armTheta)))
             (let petalY (+ y (* ringRadius (sin armTheta)))
               [
-                (petal rightPetalX petalY petalSize (+ theta petalRotation) 1!)
-                (petal leftPetalX petalY petalSize (- (pi) (+ theta petalRotation)) -1!)
+                (petal rightPetalX petalY petalSize (+ armTheta petalRotation) 1!)
+                (petal leftPetalX petalY petalSize (- (pi) (+ armTheta petalRotation)) -1!)
               ]
             ))))
           )
