@@ -3195,7 +3195,7 @@ keyboard =
 "
 
 keyboard2 =
- "(def scale 25)
+ "(def scale 40)
 (def keyBaseHeight scale)
 (def keyBaseWidth keyBaseHeight)
 (def relativeSpacing 0.3333333333333)
@@ -3204,7 +3204,7 @@ keyboard2 =
 
 (def key (\\(relativeLeft relativeTop relativeWidth relativeHeight)
   (rect
-    'orange'
+    'lightgray'
     (+ boardLeft (* relativeLeft keyBaseWidth))
     (+ boardTop (* relativeTop keyBaseWidth))
     (* relativeWidth keyBaseWidth)
@@ -3243,7 +3243,7 @@ keyboard2 =
 (def boardRelativeHeight (+ 4 (* 5 relativeSpacing)))
 
 (def backBoard
-  (rect 'lightblue' boardLeft boardTop (* boardRelativeWidth scale) (* boardRelativeHeight scale))
+  (rect 'green' boardLeft boardTop (* boardRelativeWidth scale) (* boardRelativeHeight scale))
 )
 
 (svg (concat [
