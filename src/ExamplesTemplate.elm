@@ -52,6 +52,7 @@ LITTLE_TO_ELM flw1
 LITTLE_TO_ELM flw2
 LITTLE_TO_ELM ferris
 LITTLE_TO_ELM ferris2
+LITTLE_TO_ELM ferris2target
 LITTLE_TO_ELM ferrisWheelSlideshow
 LITTLE_TO_ELM pieChart1
 LITTLE_TO_ELM solarSystem
@@ -134,6 +135,7 @@ examples =
   , makeExample "Frank Lloyd Wright B" flw2
   , makeExample "Ferris Wheel" ferris
   , makeExample "Ferris Wheel 2" ferris2
+  , makeExample "Ferris Wheel 2 Target" ferris2target
   , makeExample "Ferris Wheel Slideshow" ferrisWheelSlideshow
   , makeExample "Pie Chart" pieChart1
   , makeExample "Solar System" solarSystem

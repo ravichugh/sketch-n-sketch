@@ -1,0 +1,18 @@
+(def n 8)
+(def len 142)
+(def rot -0.13796015197333036)
+
+(def wheel
+  (let [cx cy] [280 200]
+  (let rim [(ring 'darkgray' 3 cx cy len)]
+  (let center [(circle 'black' cx cy 15)]
+  (let frame [(nStar 'goldenrod' 'darkgray' 3 n len 0 rot cx cy)]
+  (let spokePts (nPointsOnCircle n rot cx cy len)
+  (let caps (map (\[x y] (circle 'black' x y 6)) spokePts)
+  (let cars
+    (let wCar 27
+    (let wHalfCar (/ wCar 2!)
+    (mapi (\[i [x y]] (squareCenter (if (= 0 i) 'pink' 'lightgray') x y wCar)) spokePts)))
+  (concat [rim cars center frame caps])))))))))
+
+(svg wheel)
