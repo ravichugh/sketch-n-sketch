@@ -3274,9 +3274,9 @@ tessellation =
 (def sin30 0.5!)
 (def cos30 (* 0.5! (sqrt 3!)))
 
-(def [x y radius] [350! 200! 200!])
+(def [x y radius] [350 200 200])
 (def innerRadius (* radius cos30))
-(def [bottomY cornerX] [(+ y innerRadius) (- x (/ radius 2))])
+(def [bottomY cornerX] [(+ y innerRadius) (- x (/ radius 2!))])
 (def primativeBottomWidth (/ radius 2!))
 
 (def smallInnerRadius 50)
@@ -3345,7 +3345,94 @@ tessellation =
   (transformGroup x y false 0 (* -1 (* radius (+ 1 sin30))) innerRadius primitiveHexagonColumn)
   (transformGroup x y false 0 0 0 primitiveHexagonColumn)
   (transformGroup x y false 0 (* 1 (* radius (+ 1 sin30))) innerRadius primitiveHexagonColumn)
-  (transformGroup x y false 0 (* 2 radius) 0 primitiveHexagonColumn)
+  (transformGroup x y false 0 (* 3 radius) 0 primitiveHexagonColumn)
+])
+
+(svg primitiveHexagonColumns)
+"
+
+tessellation2 =
+ "; I believe this is set up for group p6mm
+; https://en.wikipedia.org/wiki/Wallpaper_group#Group_p6mm_.28.2A632.29
+
+; SVG transforms to flip, rotate, and position.
+(def transformGroup (\\(transformCenterX transformCenterY flipVertical rotationAngle translateX translateY shapes)
+  [
+    'g'
+    [
+      ['transform' [['translate' (+ translateX transformCenterX) (+ translateY transformCenterY)] ['rotate' rotationAngle 0 0] ['scale' (if flipVertical -1 1) 1] ['translate' (- 0 transformCenterX) (- 0 transformCenterY)]]]
+    ]
+    shapes
+  ]
+))
+
+
+(def sin30 0.5!)
+(def cos30 (* 0.5! (sqrt 3!)))
+
+(def [x y radius] [350 200 200])
+(def innerRadius (* radius cos30))
+(def [bottomY cornerX] [(+ y innerRadius) (- x (/ radius 2!))])
+
+(def smallInnerRadius 36.14359353944901)
+(def smallInnerRadius2 62.143593539449)
+(def largeInnerRadius 74.2487113059643)
+
+(def primitive [
+  (path 'lightblue' 'none' 0 [
+    'M' x y
+    'L' x bottomY
+    'L' cornerX bottomY
+    'Z'
+  ])
+  (path 'blue' 'none' 0 [
+    'M' x y
+    'L' x (+ y (/ (* largeInnerRadius 2!) (sqrt 3!)))
+    'L' (- x (* smallInnerRadius sin30)) (+ y (* smallInnerRadius cos30))
+    'Z'
+  ])
+  (path 'darkblue' 'none' 0 [
+    'M' cornerX bottomY
+    'L' (+ cornerX smallInnerRadius2) bottomY
+    'L' (+ cornerX largeInnerRadius) (- bottomY (/ largeInnerRadius (sqrt 3!)))
+    'L' (+ cornerX (* smallInnerRadius2 sin30)) (- bottomY (* smallInnerRadius2 cos30))
+    'Z'
+  ])
+  (path 'white' 'none' 0 [
+    'M' x (+ y (/ (* largeInnerRadius 2!) (sqrt 3!)))
+    'L' (+ cornerX largeInnerRadius) (- bottomY (/ largeInnerRadius (sqrt 3!)))
+    'L' x (- bottomY (/ largeInnerRadius (sqrt 3!)))
+    'Z'
+  ])
+])
+
+(def primitiveHexagon [
+  (transformGroup x y false 0 0 0 primitive)
+  (transformGroup x y true  0 0 0 primitive)
+  (transformGroup x y false 60 0 0 primitive)
+  (transformGroup x y true  60 0 0 primitive)
+  (transformGroup x y false 120 0 0 primitive)
+  (transformGroup x y true  120 0 0 primitive)
+  (transformGroup x y false 180 0 0 primitive)
+  (transformGroup x y true  180 0 0 primitive)
+  (transformGroup x y false 240 0 0 primitive)
+  (transformGroup x y true  240 0 0 primitive)
+  (transformGroup x y false 300 0 0 primitive)
+  (transformGroup x y true  300 0 0 primitive)
+])
+
+(def primitiveHexagonColumn [
+  (transformGroup x y false 0 0 (* -2 innerRadius) primitiveHexagon)
+  (transformGroup x y false 0 0 0 primitiveHexagon)
+  (transformGroup x y false 0 0 (* 2 innerRadius) primitiveHexagon)
+  (transformGroup x y false 0 0 (* 4 innerRadius) primitiveHexagon)
+])
+
+(def primitiveHexagonColumns [
+  (transformGroup x y false 0 (* -1 (* radius (+ 1 sin30))) innerRadius primitiveHexagonColumn)
+  (transformGroup x y false 0 0 0 primitiveHexagonColumn)
+  (transformGroup x y false 0 (* 1 (* radius (+ 1 sin30))) innerRadius primitiveHexagonColumn)
+  (transformGroup x y false 0 (* 3 radius) 0 primitiveHexagonColumn)
 ])
 
 (svg primitiveHexagonColumns)
@@ -3561,6 +3648,7 @@ examples =
   , makeExample "Keyboard" keyboard
   , makeExample "Keyboard 2" keyboard2
   , makeExample "Tessellation" tessellation
+  , makeExample "Tessellation 2" tessellation2
   , makeExample "Floral Logo" floralLogo
   , makeExample "Floral Logo 2" floralLogo2
   , makeExample "Rounded Rect" roundedRect

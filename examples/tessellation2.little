@@ -19,11 +19,10 @@
 (def [x y radius] [350 200 200])
 (def innerRadius (* radius cos30))
 (def [bottomY cornerX] [(+ y innerRadius) (- x (/ radius 2!))])
-(def primativeBottomWidth (/ radius 2!))
 
-(def smallInnerRadius 50)
-(def bottomRectWidth (- primativeBottomWidth smallInnerRadius))
-(def bottomRectHeight (/ smallInnerRadius (sqrt 3!)))
+(def smallInnerRadius 36.14359353944901)
+(def smallInnerRadius2 62.143593539449)
+(def largeInnerRadius 74.2487113059643)
 
 (def primitive [
   (path 'lightblue' 'none' 0 [
@@ -32,31 +31,23 @@
     'L' cornerX bottomY
     'Z'
   ])
-  (path 'green' 'none' 0 [
+  (path 'blue' 'none' 0 [
     'M' x y
-    'L' x (+ y (/ (* smallInnerRadius 2!) (sqrt 3!)))
+    'L' x (+ y (/ (* largeInnerRadius 2!) (sqrt 3!)))
     'L' (- x (* smallInnerRadius sin30)) (+ y (* smallInnerRadius cos30))
     'Z'
   ])
-  (path 'green' 'none' 0 [
+  (path 'darkblue' 'none' 0 [
     'M' cornerX bottomY
-    'L' (+ cornerX smallInnerRadius) bottomY
-    'L' (+ cornerX smallInnerRadius) (- bottomY (/ smallInnerRadius (sqrt 3!)))
-    'L' (+ cornerX (* smallInnerRadius sin30)) (- bottomY (* smallInnerRadius cos30))
+    'L' (+ cornerX smallInnerRadius2) bottomY
+    'L' (+ cornerX largeInnerRadius) (- bottomY (/ largeInnerRadius (sqrt 3!)))
+    'L' (+ cornerX (* smallInnerRadius2 sin30)) (- bottomY (* smallInnerRadius2 cos30))
     'Z'
   ])
-  (rect 'pink' (- x bottomRectWidth) (- bottomY bottomRectHeight) bottomRectWidth bottomRectHeight)
-  (path 'pink' 'none' 0 [
-    'M' x (+ y (/ (* smallInnerRadius 2!) (sqrt 3!)))
-    'L' (+ cornerX smallInnerRadius) (- bottomY (/ smallInnerRadius (sqrt 3!)))
-    'L' (+ cornerX (* smallInnerRadius sin30)) (- bottomY (* smallInnerRadius cos30))
-    'L' (- x (* smallInnerRadius sin30)) (+ y (* smallInnerRadius cos30))
-    'Z'
-  ])
-  (path 'red' 'none' 0 [
-    'M' x (- bottomY bottomRectHeight)
-    'L' x (- (- bottomY bottomRectHeight) (* bottomRectWidth cos30))
-    'L' (- x (/ bottomRectWidth 2)) (- (- bottomY bottomRectHeight) (* bottomRectWidth cos30))
+  (path 'white' 'none' 0 [
+    'M' x (+ y (/ (* largeInnerRadius 2!) (sqrt 3!)))
+    'L' (+ cornerX largeInnerRadius) (- bottomY (/ largeInnerRadius (sqrt 3!)))
+    'L' x (- bottomY (/ largeInnerRadius (sqrt 3!)))
     'Z'
   ])
 ])
