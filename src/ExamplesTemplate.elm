@@ -86,6 +86,7 @@ LITTLE_TO_ELM lilliconP
 LITTLE_TO_ELM lilliconP2
 LITTLE_TO_ELM keyboard
 LITTLE_TO_ELM keyboard2
+LITTLE_TO_ELM keyboard2target
 LITTLE_TO_ELM tessellation
 LITTLE_TO_ELM tessellationTarget
 LITTLE_TO_ELM tessellation2
@@ -165,6 +166,7 @@ examples =
   , makeExample "Lillicon P, v2" lilliconP2
   , makeExample "Keyboard" keyboard
   , makeExample "Keyboard 2" keyboard2
+  , makeExample "Keyboard 2 Target" keyboard2target
   , makeExample "Tessellation" tessellation
   , makeExample "Tessellation Target" tessellationTarget
   , makeExample "Tessellation 2" tessellation2
