@@ -79,7 +79,8 @@ LITTLE_TO_ELM thawFreeze
 LITTLE_TO_ELM cover
 LITTLE_TO_ELM poppl
 LITTLE_TO_ELM bezier
--- LITTLE_TO_ELM surveyResults
+-- LITTLE_TO_ELM surveyResultsTriBubbles
+LITTLE_TO_ELM surveyResultsTriHist
 LITTLE_TO_ELM equiTri
 LITTLE_TO_ELM gridTile
 LITTLE_TO_ELM lilliconP
@@ -92,11 +93,14 @@ LITTLE_TO_ELM tessellationTarget
 LITTLE_TO_ELM tessellation2
 LITTLE_TO_ELM floralLogo
 LITTLE_TO_ELM floralLogo2
+LITTLE_TO_ELM zones
 LITTLE_TO_ELM roundedRect
 LITTLE_TO_ELM spiralSpiralGraph
 
 examples =
   [ makeExample scratchName scratch
+  -- , makeExample "Survey Results" surveyResultsTriBubbles
+  , makeExample "Survey Results" surveyResultsTriHist
   , makeExample "*Prelude*" Prelude.src
   , makeExample "3 Boxes" threeBoxes
   , makeExample "N Boxes H2" nBoxesH2
@@ -161,10 +165,11 @@ examples =
   , makeExample "Paths 4" paths4
   , makeExample "Paths 5" paths5
   , makeExample "Sample Rotations" rotTest
-  -- , makeExample "Survey Results" surveyResults
   , makeExample "Grid Tile" gridTile
   , makeExample "Lillicon P" lilliconP
   , makeExample "Lillicon P, v2" lilliconP2
+  , makeExample "Zones" zones
+  , makeExample "Rounded Rect" roundedRect
   , makeExample "Keyboard" keyboard
   , makeExample "Keyboard 2" keyboard2
   , makeExample "Keyboard 2 Target" keyboard2target
@@ -173,7 +178,6 @@ examples =
   , makeExample "Tessellation 2" tessellation2
   , makeExample "Floral Logo" floralLogo
   , makeExample "Floral Logo 2" floralLogo2
-  , makeExample "Rounded Rect" roundedRect
   , makeExample "Spiral Spiral-Graph" spiralSpiralGraph
   ]
 

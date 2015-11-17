@@ -3004,7 +3004,130 @@ bezier =
 (svg (concat [linCurve quadCurve cuCurve tslider]))
 "
 
--- LITTLE_TO_ELM surveyResults
+-- LITTLE_TO_ELM surveyResultsTriBubbles
+surveyResultsTriHist =
+ "
+; Interactive charts that show results from user study:
+; http://ravichugh.github.io/sketch-n-sketch/blog/03-user-study-videos.html
+
+; counts: [ A/B C/A C/B CI-Intervals ]
+
+(def ferrisCounts [
+  [ 3 14  2  5  1 ]
+  [ 0  3  1 11 10 ]
+  [ 1  3  4  9  8 ]
+  [ [-0.92 0.01] [0.59 1.47] [0.25 1.23] ]
+])
+
+(def keyboardCounts [
+  [ 0  5  3 10  7 ]
+  [ 0  1  5 14  5 ]
+  [ 0  2  2  9 12 ]
+  [ [0.26 1.18] [0.59 1.21] [0.73 1.57] ]
+])
+
+(def tesselationCounts [
+  [ 0  7  9  6  3 ]
+  [ 1  0  8 11  5 ]
+  [ 1  0  4 13  7 ]
+  [ [-0.20 0.64] [0.34 1.10] [0.53 1.32] ]
+])
+
+(def sum (\\ns
+  (foldr
+    (\\([weight n] acc) (+ (* n weight) acc))
+    0 (zip [0 1 2 3 4] ns))))
+
+(def [iRot jRot kRot]                   [0! -120! 120!])
+(def [iRevCounts jRevCounts kRevCounts] [id id reverse])
+(def [iRevAvg jRevAvg kRevAvg]          [id id (\\n (+ (neg (- n 2!)) 2!))])
+(def [iRevBound jRevBound kRevBound]    [(\\n (+ 2! n)) (\\n (+ 2! n)) (\\n (+ 2! (neg n)))])
+
+(def numUsers 25!)
+(def numBins 5!)
+(def slices (- numBins 0!))
+(def shift  (\\idx (+ idx 0.5!)))
+
+(def sideLen 90{20-200})
+(def tickLen 5!{1-10})
+(def dotSize 8!{3-10})
+(def barSize 16!{1-20})
+(def intWidth 10!{1-30})
+(def intTicks 0!{-1-15})
+(def fontSize 22!{10-40})
+(def showAvgs (let showAvgs_ 0.7{0.1-1.0} (< showAvgs_ 0.5!)))
+
+(def [aUp   aLeft]  [6!{0-50}      28!{0-50}])
+(def [bUp   bRight] [aUp           99!{0-150}])
+(def [cDown cLeft]  [113!{50-200}  10!{0-30}])
+
+(def halfLen (/ sideLen 2!))
+
+(def tri (\\(cx cy [iCounts jCounts kCounts ciIntervals])
+  (let [iSum jSum kSum] (map sum [iCounts jCounts kCounts])
+  (let [iAvg jAvg kAvg] [(/ iSum numUsers) (/ jSum numUsers) (/ kSum numUsers)]
+  (let [iBounds jBounds kBounds] ciIntervals
+  (let x0    (- cx halfLen)
+  (let x1    (+ cx halfLen)
+  (let y     (- cy (* sideLen (/ (sqrt 3!) 6!)))
+  (let dx    (/ (- x1 x0) slices)
+  (let xi    (\\i (+ x0 (* (shift i) dx)))
+  (let yn    (\\n (- y (* n tickLen)))
+  (let edge  (line 'gray' 2!)
+  (let bar   (line 'lightblue' barSize)
+  (let dot   (\\x (circle 'goldenrod' x y dotSize))
+  (let dotblah   (\\x (circle 'red' x (- y (* 3! tickLen)) dotSize)) ; TODO
+  (let label (\\(x y s)
+    (addAttr (text x y s) ['font-size' (+ (toString fontSize) 'pt')]))
+  (let frame
+    [ (rotate (edge x0 y x1 y) iRot cx cy)
+      (rotate (edge x0 y x1 y) jRot cx cy)
+      (rotate (edge x0 y x1 y) kRot cx cy)
+    ]
+  (let averages
+    [ (rotate (dot (xi (iRevAvg iAvg))) iRot cx cy)
+      (rotate (dot (xi (jRevAvg jAvg))) jRot cx cy)
+      (rotate (dot (xi (kRevAvg kAvg))) kRot cx cy)
+    ]
+  (let intervals
+    (let draw (\\(revBound [ciMin ciMax] rot)
+      [ (rotate (line 'red' intWidth
+           (xi (revBound ciMin)) (- y (* intTicks tickLen))
+           (xi (revBound ciMax)) (- y (* intTicks tickLen))) rot cx cy) ])
+    (concat [
+      (draw iRevBound iBounds iRot)
+      (draw jRevBound jBounds jRot)
+      (draw kRevBound kBounds kRot)
+    ]))
+  (let labels
+    [ (label (- x0 aLeft) (- y aUp) 'A')
+      (label (+ x0 bRight) (- y bUp) 'B')
+      (label (- (+ x0 (/ (- x1 x0) 2!)) cLeft) (+ y cDown) 'C')
+    ]
+  (concat [
+    (flip mapi (iRevCounts iCounts) (\\[i n]
+      (rotate (bar (xi i) y (xi i) (yn n)) iRot cx cy)))
+    (flip mapi (jRevCounts jCounts) (\\[i n]
+      (rotate (bar (xi i) y (xi i) (yn n)) jRot cx cy)))
+    (flip mapi (kRevCounts kCounts) (\\[i n]
+      (rotate (bar (xi i) y (xi i) (yn n)) kRot cx cy)))
+    frame
+    intervals
+    (if showAvgs averages [])
+    labels
+  ]
+)))))))))))))))))))))
+
+(def [cx0 cy0] [180!{0-200} 130!{0-200}])
+(def sep 216!{100-300})
+
+(svg (concat
+  (mapi
+    (\\[i countsi] (tri cx0 (+ cy0 (* i sep)) countsi))
+    [ferrisCounts keyboardCounts tesselationCounts])))
+
+"
+
 equiTri =
  "
 ; Equilateral Triangles
@@ -3730,6 +3853,25 @@ floralLogo2 =
 (svg flower)
 "
 
+zones =
+ "(def ngon (\\(n cx cy len1 len2)
+  (let dangle (/ (* 3! (pi)) 2!)
+  (let anglei (\\i (+ dangle (/ (* i (* 2! (pi))) n)))
+  (let xi     (\\i (+ cx (* len1 (cos (anglei i)))))
+  (let yi     (\\i (+ cy (* len2 (sin (anglei i)))))
+  (let pti    (\\i [(xi i) (yi i)])
+  (let pts    (map pti (list0N (- n 1!)))
+    (polygon 'gold' 'none' 4 pts)))))))))
+
+(svg [
+  (rect 'gold' 32 170 109 132)
+  (ellipse 'gold' 203 237 32 68)
+  (ngon 5 464{200-600} 240{100-300} 60 60)
+  (path_ ['M' 261 250 'Q' 316.5 306 307 231 'C' 317 179 341 256 366 188 'T' 380 274])
+])
+
+"
+
 roundedRect =
  "
 (def roundedRect (\\(fill x y w h rxSeed rySeed)
@@ -3779,6 +3921,8 @@ spiralSpiralGraph =
 
 examples =
   [ makeExample scratchName scratch
+  -- , makeExample "Survey Results" surveyResultsTriBubbles
+  , makeExample "Survey Results" surveyResultsTriHist
   , makeExample "*Prelude*" Prelude.src
   , makeExample "3 Boxes" threeBoxes
   , makeExample "N Boxes H2" nBoxesH2
@@ -3843,10 +3987,11 @@ examples =
   , makeExample "Paths 4" paths4
   , makeExample "Paths 5" paths5
   , makeExample "Sample Rotations" rotTest
-  -- , makeExample "Survey Results" surveyResults
   , makeExample "Grid Tile" gridTile
   , makeExample "Lillicon P" lilliconP
   , makeExample "Lillicon P, v2" lilliconP2
+  , makeExample "Zones" zones
+  , makeExample "Rounded Rect" roundedRect
   , makeExample "Keyboard" keyboard
   , makeExample "Keyboard 2" keyboard2
   , makeExample "Keyboard 2 Target" keyboard2target
@@ -3855,7 +4000,6 @@ examples =
   , makeExample "Tessellation 2" tessellation2
   , makeExample "Floral Logo" floralLogo
   , makeExample "Floral Logo 2" floralLogo2
-  , makeExample "Rounded Rect" roundedRect
   , makeExample "Spiral Spiral-Graph" spiralSpiralGraph
   ]
 
