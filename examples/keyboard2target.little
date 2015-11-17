@@ -1,0 +1,62 @@
+(def scale 40)
+(def keyBaseHeight scale)
+(def keyBaseWidth keyBaseHeight)
+(def relativeSpacing 0.3333333333333)
+
+(def [boardLeft boardTop] [54 50])
+
+(def key (\(relativeLeft relativeTop relativeWidth relativeHeight)
+  (rect
+    'lightgray'
+    (+ boardLeft (* relativeLeft keyBaseWidth))
+    (+ boardTop (* relativeTop keyBaseWidth))
+    (* relativeWidth keyBaseWidth)
+    (* relativeHeight keyBaseHeight)
+  )
+))
+
+; Generate a row of keys with the given relativeKeyWidths, separated by relativeKeySpacing
+; Returns [keyRects relativeTotalWidth]
+(def row (\(relativeLeft relativeTop relativeHeight relativeKeySpacing relativeKeyWidths)
+  (let [keys relativeWidthPlusSpacing]
+    (foldl
+      (\(relativeKeyWidth [keys nextKeyRelativeLeft])
+        (let newKey (key nextKeyRelativeLeft relativeTop relativeKeyWidth relativeHeight)
+          [[newKey|keys] (+ nextKeyRelativeLeft (+ relativeKeySpacing relativeKeyWidth))]
+        )
+      )
+      [[] relativeLeft]
+      relativeKeyWidths
+    )
+  [keys (- (- relativeWidthPlusSpacing relativeKeySpacing) relativeLeft)]
+  )
+))
+
+(def row2EndKeysWidth 1.95)
+(def row3EndKeysWidth 2.625)
+(def row4CommandKeysWidth 1.5)
+
+(def row1RelativeKeyWidths [1.575 1 1 1 1 1 1 1 1 1])
+(def row2RelativeKeyWidths [row2EndKeysWidth 1 1 1 1 1 1 1 row2EndKeysWidth])
+(def row3RelativeKeyWidths [row3EndKeysWidth 1 1 1 1 1 1 row3EndKeysWidth])
+(def row4RelativeKeyWidths [1 row4CommandKeysWidth 7.2667 row4CommandKeysWidth 1])
+
+(def [row1 keysRelativeWidth] (row relativeSpacing relativeSpacing 1 relativeSpacing row1RelativeKeyWidths))
+(def [row2        _] (row relativeSpacing (+ 1 (* 2 relativeSpacing)) 1 relativeSpacing row2RelativeKeyWidths))
+(def [row3        _] (row relativeSpacing (+ 2 (* 3 relativeSpacing)) 1 relativeSpacing row3RelativeKeyWidths))
+(def [row4        _] (row relativeSpacing (+ 3 (* 4 relativeSpacing)) 1 relativeSpacing row4RelativeKeyWidths))
+
+(def boardRelativeWidth  (+ keysRelativeWidth (* 2 relativeSpacing)))
+(def boardRelativeHeight (+ 4 (* 5 relativeSpacing)))
+
+(def backBoard
+  (rect 'green' boardLeft boardTop (* boardRelativeWidth scale) (* boardRelativeHeight scale))
+)
+
+(svg (concat [
+  [backBoard]
+  row1
+  row2
+  row3
+  row4
+]))

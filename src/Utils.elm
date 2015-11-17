@@ -53,6 +53,22 @@ foldri f init xs = List.reverse (foldli f init xs)
 
 reverse2 (xs,ys) = (List.reverse xs, List.reverse ys)
 
+-- Preserves original list order
+-- Dedups based on toString representation
+dedup : List a -> List a
+dedup xs = dedup_ (toString) xs
+
+-- Preserves original list order
+-- Dedups based on a provided function
+dedup_ : (a -> comparable) -> List a -> List a
+dedup_ f xs =
+  let (deduped, _) =
+    List.foldl (\x (dd, seen) ->
+        if Set.member (f x) seen then (dd, seen) else (List.append dd [x], Set.insert (f x) seen)
+      ) ([], Set.empty) xs
+  in
+    deduped
+
 clamp i j n =
   if | n < i     -> i
      | j < n     -> j

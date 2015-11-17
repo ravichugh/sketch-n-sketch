@@ -52,6 +52,7 @@ LITTLE_TO_ELM flw1
 LITTLE_TO_ELM flw2
 LITTLE_TO_ELM ferris
 LITTLE_TO_ELM ferris2
+LITTLE_TO_ELM ferris2target
 LITTLE_TO_ELM ferrisWheelSlideshow
 LITTLE_TO_ELM pieChart1
 LITTLE_TO_ELM solarSystem
@@ -84,9 +85,15 @@ LITTLE_TO_ELM gridTile
 LITTLE_TO_ELM lilliconP
 LITTLE_TO_ELM lilliconP2
 LITTLE_TO_ELM keyboard
+LITTLE_TO_ELM keyboard2
+LITTLE_TO_ELM keyboard2target
 LITTLE_TO_ELM tessellation
+LITTLE_TO_ELM tessellationTarget
+LITTLE_TO_ELM tessellation2
 LITTLE_TO_ELM floralLogo
+LITTLE_TO_ELM floralLogo2
 LITTLE_TO_ELM roundedRect
+LITTLE_TO_ELM spiralSpiralGraph
 
 examples =
   [ makeExample scratchName scratch
@@ -130,6 +137,7 @@ examples =
   , makeExample "Frank Lloyd Wright B" flw2
   , makeExample "Ferris Wheel" ferris
   , makeExample "Ferris Wheel 2" ferris2
+  , makeExample "Ferris Wheel 2 Target" ferris2target
   , makeExample "Ferris Wheel Slideshow" ferrisWheelSlideshow
   , makeExample "Pie Chart" pieChart1
   , makeExample "Solar System" solarSystem
@@ -158,9 +166,15 @@ examples =
   , makeExample "Lillicon P" lilliconP
   , makeExample "Lillicon P, v2" lilliconP2
   , makeExample "Keyboard" keyboard
+  , makeExample "Keyboard 2" keyboard2
+  , makeExample "Keyboard 2 Target" keyboard2target
   , makeExample "Tessellation" tessellation
+  , makeExample "Tessellation Target" tessellationTarget
+  , makeExample "Tessellation 2" tessellation2
   , makeExample "Floral Logo" floralLogo
+  , makeExample "Floral Logo 2" floralLogo2
   , makeExample "Rounded Rect" roundedRect
+  , makeExample "Spiral Spiral-Graph" spiralSpiralGraph
   ]
 
 list = examples

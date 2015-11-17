@@ -1,14 +1,14 @@
-(def n 5{3-20})
-(def len 80{4-200})
-(def rot 0{-6.28-6.28})
+(def n 5)
+(def len 80)
+(def rot 0)
 
 (def wheel
   (let [cx cy] [280 200]
-  (let rim [(ring 'darkgray' 8! cx cy len)]
+  (let rim [(ring 'darkgray' 8 cx cy len)]
   (let center [(circle 'black' cx cy 20)]
-  (let frame [(nStar 'goldenrod' 'darkgray' 3! n len 0! rot cx cy)]
+  (let frame [(nStar 'goldenrod' 'darkgray' 3 n len 0 rot cx cy)]
   (let spokePts (nPointsOnCircle n rot cx cy len)
-  (let caps (map (\[x y] (circle 'black' x y 7!)) spokePts)
+  (let caps (map (\[x y] (circle 'black' x y 7)) spokePts)
   (let cars
     (let wCar 30
     (let wHalfCar (/ wCar 2!)
