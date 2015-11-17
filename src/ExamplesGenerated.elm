@@ -3750,6 +3750,32 @@ roundedRect =
 
 "
 
+spiralSpiralGraph =
+ "; Spiral Spiral-Graph
+; Somewhat like the Spirograph toy, but based on a circle
+; following a spiral rather than a circle in a circle.
+
+(def n 140{1-200})
+(def revs 4{0-20})
+(def innerRevsRatio 2{0-20})
+(def innerR 125{0-500})
+
+(def placeCircle (\\i
+  (let spiralRadius 200
+  (let radius (* spiralRadius (/ i (- n 1)))
+  (let theta (* (* (/ i (- n 1)) (* 2 (pi))) revs)
+  (let innerTheta (* (* (* (/ i (- n 1)) (* 2 (pi))) innerRevsRatio) revs)
+  (let x (+ (+ (+ spiralRadius 150) (* radius (cos theta))) (* innerR (cos innerTheta)))
+  (let y (+ (+ (+ spiralRadius 250) (* radius (sin theta))) (* innerR (sin innerTheta)))
+    (circle i x y 10)
+  ))))))
+))
+
+(def theCircles (map placeCircle (range 1 n)))
+
+(svg theCircles)
+"
+
 
 examples =
   [ makeExample scratchName scratch
@@ -3830,6 +3856,7 @@ examples =
   , makeExample "Floral Logo" floralLogo
   , makeExample "Floral Logo 2" floralLogo2
   , makeExample "Rounded Rect" roundedRect
+  , makeExample "Spiral Spiral-Graph" spiralSpiralGraph
   ]
 
 list = examples

@@ -93,6 +93,7 @@ LITTLE_TO_ELM tessellation2
 LITTLE_TO_ELM floralLogo
 LITTLE_TO_ELM floralLogo2
 LITTLE_TO_ELM roundedRect
+LITTLE_TO_ELM spiralSpiralGraph
 
 examples =
   [ makeExample scratchName scratch
@@ -173,6 +174,7 @@ examples =
   , makeExample "Floral Logo" floralLogo
   , makeExample "Floral Logo 2" floralLogo2
   , makeExample "Rounded Rect" roundedRect
+  , makeExample "Spiral Spiral-Graph" spiralSpiralGraph
   ]
 
 list = examples
