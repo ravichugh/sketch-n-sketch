@@ -31,7 +31,7 @@ type alias Model =
   -- TODO remove Maybe
   , inputExp : Maybe Exp
   , slate : RootedIndexedTree
-  , widgets : List Widget
+  , widgets : Widgets
   , mode : Mode
   , mouseMode : MouseMode
   , orient : Orientation
