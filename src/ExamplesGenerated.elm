@@ -59,83 +59,21 @@ nBoxes
 
 "
 
-waveOfBoxes =
- "
-(def [x0 y0 w h sep] [50~ 120 19 89 25.875])
-(def colorNum 100)
-
-(def [n slider]
-  (hSlider true 50! 300! 300! 1! 30! 'n = '
-    25~))
-
-(def xi (\\i (+ x0 (mult i sep))))
-(def yi (\\i (- y0 (* 100! (sin (* i (/ twoPi n)))))))
-
-(def nBoxes
-  (let boxi (\\i (rect colorNum (xi i) (yi i) w h))
-  (map boxi (list0N (- n 1!)))))
-
-(svg (concat [ slider (basicZonesTail nBoxes) ]))
-
-"
-
-waveOfBoxesTokens =
- "
-(def [x0 y0 w h sep] [50 120 20 90 25])
-
-(def n 15!{3-30})
-
-(def xi (\\i (+ x0 (* i sep))))
-(def yi (\\i (- y0 (* 100 (sin (* i (/ twoPi n)))))))
-
-(def ci (\\i
-  (let b (elem i [2 4 5]) ; TODO add tokens
-  (if b 'orange' 'lightblue'))))
-
-(def boxi (\\i (rect (ci i) (xi i) (yi i) w h)))
+sineWaveOfBoxes =
+ "(def [x0 y0 w h sep amp] [50 120 20 90 30 60])
+(def n 12!{3-30})
+(def boxi (\\i
+   (let xi (+ x0 (* i sep))
+   (let yi (- y0 (* amp (sin (* i (/ twoPi n)))))
+     (rect 'lightblue' xi yi w h)))))
 
 (svg (map boxi (zeroTo n)))
 
 "
 
-waveOfBoxes3 =
- "
-; <defs>
-;     <radialGradient id=\"grad1\" cx=\"50%\" cy=\"50%\" r=\"50%\" fx=\"50%\" fy=\"50%\">
-;       <stop offset=\"0%\" style=\"stop-color:rgb(255,255,255);
-;       stop-opacity:1\" />
-;       <stop offset=\"100%\" style=\"stop-color:rgb(255,255,255);stop-opacity:0\" />
-;     </radialGradient>
-;   </defs>
-
-(def svgDefs
-  (let stop1 ['stop' [['offset' '0%'] ['style' 'stop-color:rgb(255,255,255); stop-opacity:1']] []]
-  (let stop2 ['stop' [['offset' '100%'] ['style' 'stop-color:rgb(255,255,255); stop-opacity:0']] []]
-  (let grad ['radialGradient' [['id' 'grad1'] ['cx' '50%'] ['cy' '50%']
-                               ['r' '50%'] ['fx' '50%'] ['fy' '50%']] [stop1 stop2]]
-  ['defs' [] [grad]]))))
-
-(def light
-  (let [x y rx ry] [300 300 100 200]
-  [ (ellipse 'url(#grad1)' x y rx ry)
-    (ghost (addAttr (addAttr (ellipse 'none' x y rx ry) ['stroke' 'black']) ['stroke-width' 2]))
-  ]))
-
-(def [x0 y0 w h sep] [90 149 20 217 25.75])
-
-(def n 15!{3-30})
-
-(def boxi (\\i
-  (let xi (+ x0 (* i sep))
-  (let yi (- y0 (* 40 (sin (* i (/ twoPi n)))))
-  (let ci 'lightblue'
-  (let shift (lookupWithDefault 0! i [[2 -30] [10 46] [11 46]])
-  (rect ci xi (+ yi shift) w h)))))))
-
-(svg (concat [ [svgDefs] (map boxi (zeroTo n)) light ]))
-
-"
-
+-- LITTLE_TO_ELM waveOfBoxes
+-- LITTLE_TO_ELM waveOfBoxesTokens
+-- LITTLE_TO_ELM waveOfBoxes3
 nBoxes =
  "
 (def nBoxes
@@ -186,32 +124,8 @@ groupOfBoxes =
 
 "
 
-sixBoxesA =
- "; Both x- and y-spacing is controlled by sep.
-
-(let [x0 y0 sep] [10 28 60]
-(svg
-  (map (\\[i j]
-    (let xi (+ x0 (mult i sep)) 
-    (let yj (+ y0 (mult j sep))
-    (square_ xi yj 50))))
-  (cartProd [0 1 2] [0 1]))))
-
-"
-
-sixBoxesB =
- "; x-spacing is controlled by xsep, y-spacing by ysep.
- 
-(let [x0 y0 xsep ysep] [10 28 60 60]
-(svg
-  (map (\\[i j]
-    (let xi (+ x0 (mult i xsep)) 
-    (let yj (+ y0 (mult j ysep))
-    (square_ xi yj 50))))
-  (cartProd [0 1 2] [0 1]))))
-
-"
-
+-- LITTLE_TO_ELM sixBoxesA
+-- LITTLE_TO_ELM sixBoxesB
 logo =
  "; sketch-n-sketch logo
 ;
@@ -354,69 +268,7 @@ elmLogo =
 
 "
 
-activeTrans =
- ";
-; Logo based on Active Transportation Alliance
-; (http://activetrans.org/)
-;
-; Possible ways to manipulate:
-; - Grab a point of the city skyline and pull up and down
-; - Click 'Show Zones' and mess with the curves at
-;     the bottom of the logo
-; - Toggle the color switch on the top left
-;
-(let [h] [0]
-(let grayPts
-  [[97 546]
-   [33 414]
-   [33! (+ h 153!)]
-   [53! (+ h 128!)]
-   [82! (+ h 135!)]
-   [83! (+ h 160!)]
-   [114! (+ h 149!)]
-   [113! (+ h 98!)]
-   [143! (+ h 82!)]
-   [158! (+ h 101!)]
-   [160! (+ h 46!)]
-   [192! (+ h 27!)]
-   [221! (+ h 56!)]
-   [227! (+ h 222!)]
-   [245! (+ h 224!)]
-   [246! (+ h 181!)]
-   [288! (+ h 156!)]
-   [286! (+ h 113!)]
-   [312! (+ h 88!)]
-   [374! (+ h 106!)]
-   [375! (+ h 155!)]
-   [397! (+ h 136!)]
-   [424! (+ h 145!)]
-   [425 207]]
-;
-(let greenPts [[247 663] [461 419] [466 230] [439 230] [178 614]]
-(let [grayctrl greenctrl] [[47 489] [451 542]]
-;
-(let [cGreen cGray] ['#66CC66' '#505050']
-(let [b buttonShapes] (button 20! 20! '' 0.25)
-(let [xOff yOff] [0! 0!]
-;
-(let groupBox (rect (if b 'transparent' cGreen) xOff yOff 500! 700!)
-;
-(let makePath
-  (\\(color pts [xc yc])
-    (let offsetPts (map (\\[x y] [(+ x xOff) (+ y yOff)]) pts)
-    (let [[x0 y0] [x1 y1] | rest] offsetPts
-    (let commands
-      (append
-        (append ['M' x0 y0] ['Q' xc yc x1 y1])
-        (foldr (\\([xi yi] acc) (append ['L' xi yi] acc)) ['Z'] rest))
-      (path color 'black' 0 commands)))))
-;
-(let grayPath (makePath (if b cGray 'white') grayPts grayctrl)
-(let greenPath (makePath (if b cGreen 'white') greenPts greenctrl)
-  (svg (append [groupBox grayPath greenPath] buttonShapes)))))))))))))
-
-"
-
+-- LITTLE_TO_ELM activeTrans
 activeTrans2 =
  "
 ; Logo based on Active Transportation Alliance
@@ -444,6 +296,10 @@ activeTrans2 =
 (def [grayctrl greenctrl]
   [[47 489] [451 542]])
 
+(def [cGreen cGray] ['#66CC66' '#505050'])
+(def [b buttonShapes] (button 20! 20! '' 0.25))
+(def groupBox (rect (if b 'transparent' cGreen) 0! 0! 500! 700!))
+
 (def makePath (\\(color pts [xc yc])
   (let [[x0 y0] [x1 y1] | rest] pts
   (let commands
@@ -453,10 +309,10 @@ activeTrans2 =
              ['Z'] rest))
   (path color 'black' 0 commands)))))
  
-(def grayPath (makePath '#505050' grayPts grayctrl))
-(def greenPath (makePath '#66CC66' greenPts greenctrl))
+(def grayPath (makePath (if b cGray 'white') grayPts grayctrl))
+(def greenPath (makePath (if b cGreen 'white') greenPts greenctrl))
 
-(svg [grayPath greenPath])
+(svg (append [groupBox grayPath greenPath] buttonShapes))
 
 "
 
@@ -722,71 +578,7 @@ rgba =
 
 "
 
-boxGrid =
- "
-; Grid pattern with three adjustable sliders:
-;  - 2d slider for number of rows/columns
-;  - enumeration slider for shape kind
-;  - slider for number of colors
-;
-; Also try toggling to Color zones.
-
-; parameters
-(def [x0 y0 w h boxSize] [30! 100! 300! 300! 50!])
-(def allColors [0 100 200 300 450])
-(def seedRows 1.5)
-(def seedCols 2.5)
-(def seedNumColors 1.5)
-(def seedShapeKind 0.5)
-
-; derived values
-(def [xw yh] [(+ x0 w) (+ y0 h)])
-(def sep (+ boxSize 10!))
-(def halfBoxSize (/ boxSize 2!))
-
-(def [ [ cols rows ] boxSlider ] 
-  (let pad 10!
-  (xySlider
-    (- x0 pad) (+ xw pad)
-    (- y0 pad) (+ yh pad)
-    0! (/ w sep)
-    0! (/ h sep)
-    '' ''
-    seedCols seedRows)))
-
-(def [numColors numColorsSlider]
-  (hSlider true 20! 100! 30! 1! 5! '#Colors = ' seedNumColors))
-
-(def [shapeKind shapeKindSlider]
-  (enumSlider 220! 300! 30! ['Box' 'Dot' 'Star'] '' seedShapeKind))
-
-(def shapes
-  (let indices (cartProd (range 0! (- cols 1!)) (range 0! (- rows 1!)))
-  (let drawShape (\\[i j]
-    (let shape
-      (let c (nth allColors (mod (- i j) numColors))
-      (let x (+ x0 (mult i sep))
-      (let y (+ y0 (mult j sep))
-      (let [cx cy] [(+ x halfBoxSize) (+ y halfBoxSize)]
-      (case shapeKind
-        ('Box'  (square c x y boxSize))
-        ('Dot'  (circle c cx cy halfBoxSize))
-        ('Star' (nStar c 'none' 0! 4! halfBoxSize 10! 0! cx cy))
-        ( else  (circle 'none' 0! 0! 0!)))))))
-    (if (and (= i (- cols 1!)) (< j numColors))
-        shape
-        (addAttr shape ['ZONES' 'none']))))
-  (map drawShape indices))))
-
-(svg (concat [ 
-  shapes
-  boxSlider
-  numColorsSlider
-  shapeKindSlider
-]))
-
-"
-
+-- LITTLE_TO_ELM boxGrid
 boxGridTokenFilter =
  "
 ; Drag some \"filter tokens\" from the right over the grid.
@@ -981,41 +773,7 @@ chicago =
 
 "
 
-chicagoColors =
- "
-; Version of Chicago Flag with color pickers.
-; Toggle the Zones option.
-; Notice the use of (basicZonesTail ...).
-
-(def [x0 y0 ni nj pts w h] [40 40 0.5! 3.5! 6! 454 300])
-(def [outerLen innerLen] [30 12])
-
-(def starColor 412)
-(def stripeColor 86)
-
-(def background
-  (let [d1 d2] [10! 20!]
-  [ (rect 'white' (- x0 d1) (- y0 d1) (+ w d2) (+ h d2)) ]))
-
-(def stripes
-  (map (\\i
-    (rect stripeColor x0 (+ y0 (* i h)) w (/ h 6!)))
-  [(/ 1! 6!) (/ 2! 3!)]))
-
-(def stars
-  (map (\\i
-    (let off (* i (/ w 4!))
-    (nStar starColor 'none' 0 pts outerLen innerLen 0
-      (+ x0 off) (+ y0 (/ h 2!)))))
-  (range ni nj)))
-
-(svg (concat
-  [ background
-    (basicZonesTail stripes)
-    (basicZonesTail stars) ]))
-
-"
-
+-- LITTLE_TO_ELM chicagoColors
 frenchSudan =
  ";
 ; The Flag of French Sudan, based on:
@@ -3861,11 +3619,11 @@ zones =
   (let yi     (\\i (+ cy (* len2 (sin (anglei i)))))
   (let pti    (\\i [(xi i) (yi i)])
   (let pts    (map pti (list0N (- n 1!)))
-    (polygon 'gold' 'none' 4 pts)))))))))
+    (polygon 'goldenrod' 'none' 4 pts)))))))))
 
 (svg [
-  (rect 'gold' 32 170 109 132)
-  (ellipse 'gold' 203 237 32 68)
+  (rect 'goldenrod' 32 170 109 132)
+  (ellipse 'goldenrod' 203 237 32 68)
   (ngon 5 464{200-600} 240{100-300} 60 60)
   (path_ ['M' 261 250 'Q' 316.5 306 307 231 'C' 317 179 341 256 366 188 'T' 380 274])
 ])
@@ -3921,64 +3679,74 @@ spiralSpiralGraph =
 
 examples =
   [ makeExample scratchName scratch
-  -- , makeExample "Survey Results" surveyResultsTriBubbles
-  , makeExample "Survey Results" surveyResultsTriHist
   , makeExample "*Prelude*" Prelude.src
-  , makeExample "3 Boxes" threeBoxes
-  , makeExample "N Boxes H2" nBoxesH2
-  , makeExample "Wave Boxes" waveOfBoxes
-  , makeExample "Wave Tokens" waveOfBoxesTokens
-  , makeExample "Wave 3" waveOfBoxes3
-  , makeExample "N Boxes Sli" nBoxes
-  , makeExample "N Boxes" groupOfBoxes
-  , makeExample "6 Boxes A" sixBoxesA
-  , makeExample "6 Boxes B" sixBoxesB
-  , makeExample "Thaw/Freeze" thawFreeze
+  , makeExample "Wave Boxes" sineWaveOfBoxes
   , makeExample "Logo" logo
-  , makeExample "Logo 2" logo2
-  , makeExample "Logo Sizes" logoSizes
-  , makeExample "Elm Logo" elmLogo
-  , makeExample "Active Trans Logo" activeTrans
-  , makeExample "Active Trans 2" activeTrans2
   , makeExample "Botanic Garden Logo" botanic
-  , makeExample "Rings" rings
-  , makeExample "Polygons" polygons
-  , makeExample "Stars" stars
-  , makeExample "Triangles" equiTri
-  , makeExample "Clique" clique
+  , makeExample "Active Trans Logo" activeTrans2
+  , makeExample "Sailboat" sailBoat
+  , makeExample "Chicago Flag" chicago
   , makeExample "Sliders" sliders
   , makeExample "Buttons" buttons
   , makeExample "Widgets" widgets
   , makeExample "xySlider" xySlider
+  , makeExample "Tile Pattern" boxGridTokenFilter
   , makeExample "Color Picker" rgba
-  , makeExample "Box Grid" boxGrid
-  , makeExample "Box Grid 2" boxGridTokenFilter
-  , makeExample "Bar Graph" barGraph
-  , makeExample "Chicago Flag" chicago
-  , makeExample "Chicago Flag 2" chicagoColors
-  , makeExample "US-13 Flag" usFlag13
-  , makeExample "US-50 Flag" usFlag50
-  , makeExample "French Sudan Flag" frenchSudan
-  , makeExample "Frank Lloyd Wright" flw1
-  , makeExample "Frank Lloyd Wright B" flw2
   , makeExample "Ferris Wheel" ferris
-  , makeExample "Ferris Wheel 2" ferris2
-  , makeExample "Ferris Wheel 2 Target" ferris2target
+  , makeExample "Ferris Task Before" ferris2
+  , makeExample "Ferris Task After" ferris2target
   , makeExample "Ferris Wheel Slideshow" ferrisWheelSlideshow
+  , makeExample "Survey Results" surveyResultsTriHist
+  , makeExample "Hilbert Curve Animation" hilbertCurveAnimation
+  , makeExample "Bar Graph" barGraph
   , makeExample "Pie Chart" pieChart1
   , makeExample "Solar System" solarSystem
-  , makeExample "Bezier Curves" bezier
-  , makeExample "Fractal Tree" fractalTree
-  , makeExample "Hilbert Curve Animation" hilbertCurveAnimation
-  , makeExample "Stick Figures" stickFigures
-  , makeExample "Sailboat" sailBoat
+  , makeExample "Clique" clique
   , makeExample "Eye Icon" eyeIcon
   , makeExample "Wikimedia Logo" wikimedia
   , makeExample "Haskell.org Logo" haskell
   , makeExample "Cover Logo" cover
   , makeExample "POP-PL Logo" poppl
-  , makeExample "Matrix Transformations" matrices
+  , makeExample "Lillicon P" lilliconP
+  , makeExample "Lillicon P, v2" lilliconP2
+  , makeExample "Keyboard" keyboard
+  , makeExample "Keyboard Task Before" keyboard2
+  , makeExample "Keyboard Task After" keyboard2target
+  , makeExample "Tessellation Task Before" tessellation
+  , makeExample "Tessellation Task After" tessellationTarget
+  , makeExample "Tessellation 2" tessellation2
+  , makeExample "Floral Logo 1" floralLogo
+  , makeExample "Floral Logo 2" floralLogo2
+  , makeExample "Spiral Spiral-Graph" spiralSpiralGraph
+  , makeExample "Rounded Rect" roundedRect
+
+  , makeExample "Thaw/Freeze" thawFreeze
+  , makeExample "3 Boxes" threeBoxes
+  -- , makeExample "N Boxes H2" nBoxesH2
+  , makeExample "N Boxes Sli" nBoxes
+  , makeExample "N Boxes" groupOfBoxes
+  -- , makeExample "6 Boxes A" sixBoxesA
+  -- , makeExample "6 Boxes B" sixBoxesB
+  -- , makeExample "Wave Tokens" waveOfBoxesTokens
+  -- , makeExample "Wave 3" waveOfBoxes3
+  -- , makeExample "Chicago Flag 2" chicagoColors
+  , makeExample "Elm Logo" elmLogo
+  , makeExample "Logo 2" logo2
+  , makeExample "Logo Sizes" logoSizes
+  , makeExample "Rings" rings
+  , makeExample "Polygons" polygons
+  , makeExample "Stars" stars
+  , makeExample "Triangles" equiTri
+  , makeExample "US-13 Flag" usFlag13
+  , makeExample "US-50 Flag" usFlag50
+  , makeExample "French Sudan Flag" frenchSudan
+  , makeExample "Frank Lloyd Wright" flw1
+  , makeExample "Frank Lloyd Wright B" flw2
+  , makeExample "Bezier Curves" bezier
+  , makeExample "Fractal Tree" fractalTree
+  , makeExample "Stick Figures" stickFigures
   , makeExample "Cult of Lambda" cultOfLambda
+  , makeExample "Matrix Transformations" matrices
   , makeExample "Misc Shapes" miscShapes
   , makeExample "Interface Buttons" interfaceButtons
   , makeExample "Paths 1" paths1
@@ -3988,19 +3756,7 @@ examples =
   , makeExample "Paths 5" paths5
   , makeExample "Sample Rotations" rotTest
   , makeExample "Grid Tile" gridTile
-  , makeExample "Lillicon P" lilliconP
-  , makeExample "Lillicon P, v2" lilliconP2
   , makeExample "Zones" zones
-  , makeExample "Rounded Rect" roundedRect
-  , makeExample "Keyboard" keyboard
-  , makeExample "Keyboard 2" keyboard2
-  , makeExample "Keyboard 2 Target" keyboard2target
-  , makeExample "Tessellation" tessellation
-  , makeExample "Tessellation Target" tessellationTarget
-  , makeExample "Tessellation 2" tessellation2
-  , makeExample "Floral Logo" floralLogo
-  , makeExample "Floral Logo 2" floralLogo2
-  , makeExample "Spiral Spiral-Graph" spiralSpiralGraph
   ]
 
 list = examples

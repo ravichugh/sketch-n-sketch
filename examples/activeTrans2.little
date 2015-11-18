@@ -24,6 +24,10 @@
 (def [grayctrl greenctrl]
   [[47 489] [451 542]])
 
+(def [cGreen cGray] ['#66CC66' '#505050'])
+(def [b buttonShapes] (button 20! 20! '' 0.25))
+(def groupBox (rect (if b 'transparent' cGreen) 0! 0! 500! 700!))
+
 (def makePath (\(color pts [xc yc])
   (let [[x0 y0] [x1 y1] | rest] pts
   (let commands
@@ -33,7 +37,7 @@
              ['Z'] rest))
   (path color 'black' 0 commands)))))
  
-(def grayPath (makePath '#505050' grayPts grayctrl))
-(def greenPath (makePath '#66CC66' greenPts greenctrl))
+(def grayPath (makePath (if b cGray 'white') grayPts grayctrl))
+(def greenPath (makePath (if b cGreen 'white') greenPts greenctrl))
 
-(svg [grayPath greenPath])
+(svg (append [groupBox grayPath greenPath] buttonShapes))

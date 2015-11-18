@@ -19,18 +19,19 @@ scratchName = "*Scratch*"
 LITTLE_TO_ELM scratch
 LITTLE_TO_ELM threeBoxes
 LITTLE_TO_ELM nBoxesH2
-LITTLE_TO_ELM waveOfBoxes
-LITTLE_TO_ELM waveOfBoxesTokens
-LITTLE_TO_ELM waveOfBoxes3
+LITTLE_TO_ELM sineWaveOfBoxes
+-- LITTLE_TO_ELM waveOfBoxes
+-- LITTLE_TO_ELM waveOfBoxesTokens
+-- LITTLE_TO_ELM waveOfBoxes3
 LITTLE_TO_ELM nBoxes
 LITTLE_TO_ELM groupOfBoxes
-LITTLE_TO_ELM sixBoxesA
-LITTLE_TO_ELM sixBoxesB
+-- LITTLE_TO_ELM sixBoxesA
+-- LITTLE_TO_ELM sixBoxesB
 LITTLE_TO_ELM logo
 LITTLE_TO_ELM logo2
 LITTLE_TO_ELM logoSizes
 LITTLE_TO_ELM elmLogo
-LITTLE_TO_ELM activeTrans
+-- LITTLE_TO_ELM activeTrans
 LITTLE_TO_ELM activeTrans2
 LITTLE_TO_ELM botanic
 LITTLE_TO_ELM rings
@@ -41,12 +42,12 @@ LITTLE_TO_ELM buttons
 LITTLE_TO_ELM widgets
 LITTLE_TO_ELM xySlider
 LITTLE_TO_ELM rgba
-LITTLE_TO_ELM boxGrid
+-- LITTLE_TO_ELM boxGrid
 LITTLE_TO_ELM boxGridTokenFilter
 LITTLE_TO_ELM usFlag13
 LITTLE_TO_ELM usFlag50
 LITTLE_TO_ELM chicago
-LITTLE_TO_ELM chicagoColors
+-- LITTLE_TO_ELM chicagoColors
 LITTLE_TO_ELM frenchSudan
 LITTLE_TO_ELM flw1
 LITTLE_TO_ELM flw2
@@ -99,64 +100,74 @@ LITTLE_TO_ELM spiralSpiralGraph
 
 examples =
   [ makeExample scratchName scratch
-  -- , makeExample "Survey Results" surveyResultsTriBubbles
-  , makeExample "Survey Results" surveyResultsTriHist
   , makeExample "*Prelude*" Prelude.src
-  , makeExample "3 Boxes" threeBoxes
-  , makeExample "N Boxes H2" nBoxesH2
-  , makeExample "Wave Boxes" waveOfBoxes
-  , makeExample "Wave Tokens" waveOfBoxesTokens
-  , makeExample "Wave 3" waveOfBoxes3
-  , makeExample "N Boxes Sli" nBoxes
-  , makeExample "N Boxes" groupOfBoxes
-  , makeExample "6 Boxes A" sixBoxesA
-  , makeExample "6 Boxes B" sixBoxesB
-  , makeExample "Thaw/Freeze" thawFreeze
+  , makeExample "Wave Boxes" sineWaveOfBoxes
   , makeExample "Logo" logo
-  , makeExample "Logo 2" logo2
-  , makeExample "Logo Sizes" logoSizes
-  , makeExample "Elm Logo" elmLogo
-  , makeExample "Active Trans Logo" activeTrans
-  , makeExample "Active Trans 2" activeTrans2
   , makeExample "Botanic Garden Logo" botanic
-  , makeExample "Rings" rings
-  , makeExample "Polygons" polygons
-  , makeExample "Stars" stars
-  , makeExample "Triangles" equiTri
-  , makeExample "Clique" clique
+  , makeExample "Active Trans Logo" activeTrans2
+  , makeExample "Sailboat" sailBoat
+  , makeExample "Chicago Flag" chicago
   , makeExample "Sliders" sliders
   , makeExample "Buttons" buttons
   , makeExample "Widgets" widgets
   , makeExample "xySlider" xySlider
+  , makeExample "Tile Pattern" boxGridTokenFilter
   , makeExample "Color Picker" rgba
-  , makeExample "Box Grid" boxGrid
-  , makeExample "Box Grid 2" boxGridTokenFilter
-  , makeExample "Bar Graph" barGraph
-  , makeExample "Chicago Flag" chicago
-  , makeExample "Chicago Flag 2" chicagoColors
-  , makeExample "US-13 Flag" usFlag13
-  , makeExample "US-50 Flag" usFlag50
-  , makeExample "French Sudan Flag" frenchSudan
-  , makeExample "Frank Lloyd Wright" flw1
-  , makeExample "Frank Lloyd Wright B" flw2
   , makeExample "Ferris Wheel" ferris
-  , makeExample "Ferris Wheel 2" ferris2
-  , makeExample "Ferris Wheel 2 Target" ferris2target
+  , makeExample "Ferris Task Before" ferris2
+  , makeExample "Ferris Task After" ferris2target
   , makeExample "Ferris Wheel Slideshow" ferrisWheelSlideshow
+  , makeExample "Survey Results" surveyResultsTriHist
+  , makeExample "Hilbert Curve Animation" hilbertCurveAnimation
+  , makeExample "Bar Graph" barGraph
   , makeExample "Pie Chart" pieChart1
   , makeExample "Solar System" solarSystem
-  , makeExample "Bezier Curves" bezier
-  , makeExample "Fractal Tree" fractalTree
-  , makeExample "Hilbert Curve Animation" hilbertCurveAnimation
-  , makeExample "Stick Figures" stickFigures
-  , makeExample "Sailboat" sailBoat
+  , makeExample "Clique" clique
   , makeExample "Eye Icon" eyeIcon
   , makeExample "Wikimedia Logo" wikimedia
   , makeExample "Haskell.org Logo" haskell
   , makeExample "Cover Logo" cover
   , makeExample "POP-PL Logo" poppl
-  , makeExample "Matrix Transformations" matrices
+  , makeExample "Lillicon P" lilliconP
+  , makeExample "Lillicon P, v2" lilliconP2
+  , makeExample "Keyboard" keyboard
+  , makeExample "Keyboard Task Before" keyboard2
+  , makeExample "Keyboard Task After" keyboard2target
+  , makeExample "Tessellation Task Before" tessellation
+  , makeExample "Tessellation Task After" tessellationTarget
+  , makeExample "Tessellation 2" tessellation2
+  , makeExample "Floral Logo 1" floralLogo
+  , makeExample "Floral Logo 2" floralLogo2
+  , makeExample "Spiral Spiral-Graph" spiralSpiralGraph
+  , makeExample "Rounded Rect" roundedRect
+
+  , makeExample "Thaw/Freeze" thawFreeze
+  , makeExample "3 Boxes" threeBoxes
+  -- , makeExample "N Boxes H2" nBoxesH2
+  , makeExample "N Boxes Sli" nBoxes
+  , makeExample "N Boxes" groupOfBoxes
+  -- , makeExample "6 Boxes A" sixBoxesA
+  -- , makeExample "6 Boxes B" sixBoxesB
+  -- , makeExample "Wave Tokens" waveOfBoxesTokens
+  -- , makeExample "Wave 3" waveOfBoxes3
+  -- , makeExample "Chicago Flag 2" chicagoColors
+  , makeExample "Elm Logo" elmLogo
+  , makeExample "Logo 2" logo2
+  , makeExample "Logo Sizes" logoSizes
+  , makeExample "Rings" rings
+  , makeExample "Polygons" polygons
+  , makeExample "Stars" stars
+  , makeExample "Triangles" equiTri
+  , makeExample "US-13 Flag" usFlag13
+  , makeExample "US-50 Flag" usFlag50
+  , makeExample "French Sudan Flag" frenchSudan
+  , makeExample "Frank Lloyd Wright" flw1
+  , makeExample "Frank Lloyd Wright B" flw2
+  , makeExample "Bezier Curves" bezier
+  , makeExample "Fractal Tree" fractalTree
+  , makeExample "Stick Figures" stickFigures
   , makeExample "Cult of Lambda" cultOfLambda
+  , makeExample "Matrix Transformations" matrices
   , makeExample "Misc Shapes" miscShapes
   , makeExample "Interface Buttons" interfaceButtons
   , makeExample "Paths 1" paths1
@@ -166,19 +177,7 @@ examples =
   , makeExample "Paths 5" paths5
   , makeExample "Sample Rotations" rotTest
   , makeExample "Grid Tile" gridTile
-  , makeExample "Lillicon P" lilliconP
-  , makeExample "Lillicon P, v2" lilliconP2
   , makeExample "Zones" zones
-  , makeExample "Rounded Rect" roundedRect
-  , makeExample "Keyboard" keyboard
-  , makeExample "Keyboard 2" keyboard2
-  , makeExample "Keyboard 2 Target" keyboard2target
-  , makeExample "Tessellation" tessellation
-  , makeExample "Tessellation Target" tessellationTarget
-  , makeExample "Tessellation 2" tessellation2
-  , makeExample "Floral Logo" floralLogo
-  , makeExample "Floral Logo 2" floralLogo2
-  , makeExample "Spiral Spiral-Graph" spiralSpiralGraph
   ]
 
 list = examples

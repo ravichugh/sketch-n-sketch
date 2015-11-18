@@ -1,0 +1,15 @@
+(def ngon (\(n cx cy len1 len2)
+  (let dangle (/ (* 3! (pi)) 2!)
+  (let anglei (\i (+ dangle (/ (* i (* 2! (pi))) n)))
+  (let xi     (\i (+ cx (* len1 (cos (anglei i)))))
+  (let yi     (\i (+ cy (* len2 (sin (anglei i)))))
+  (let pti    (\i [(xi i) (yi i)])
+  (let pts    (map pti (list0N (- n 1!)))
+    (polygon 'goldenrod' 'none' 4 pts)))))))))
+
+(svg [
+  (rect 'goldenrod' 32 170 109 132)
+  (ellipse 'goldenrod' 203 237 32 68)
+  (ngon 5 464{200-600} 240{100-300} 60 60)
+  (path_ ['M' 261 250 'Q' 316.5 306 307 231 'C' 317 179 341 256 366 188 'T' 380 274])
+])
