@@ -3,7 +3,7 @@
      align="right" style="padding: 0px;" height="40px" />
 -->
 
-# Sketch-N-Sketch
+# Sketch-n-Sketch
 
 Direct manipulation interfaces are useful in many domains, but the lack of
 programmability in a high-level language makes it difficult to develop complex
@@ -14,7 +14,7 @@ users to freely mix between programmatic and direct manipulation.
 
 <span style="display: inline-block; width: 222px; text-align: right;">**Prodirect Manipulation**</span>
   = Programmatic + Direct Manipulation <br/>
-<span style="display: inline-block; width: 222px; text-align: right;">**Sketch-N-Sketch**</span>
+<span style="display: inline-block; width: 222px; text-align: right;">**Sketch-n-Sketch**</span>
   = Prodirect Manipulation Editor for SVG
 
 ## [Project Page][ProjectPage]
@@ -231,7 +231,7 @@ To add a new example to the dropdown menu:
 
 3. From the `src/` directory, run `make examples`.
 
-4. Launch Sketch-N-Sketch.
+4. Launch Sketch-n-Sketch.
 
 
 [Prelude]: https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little
