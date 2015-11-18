@@ -81,7 +81,8 @@ type MouseMode
              , Maybe (SubstPlus, LocSet)   -- loc-set assigned (live mode only)
              , MouseTrigger (Exp, SubstMaybeNum, RootedIndexedTree, Widgets) ))
   | MouseSlider Widget
-      (Maybe ( MouseTrigger (Exp, RootedIndexedTree, Widgets) ))
+      (Maybe ( Code                        -- the program upon initial click
+             , MouseTrigger (Exp, RootedIndexedTree, Widgets) ))
       -- may add info for hilites later
 
 type alias MouseTrigger a = (Int, Int) -> a

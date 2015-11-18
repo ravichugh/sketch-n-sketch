@@ -225,9 +225,9 @@ upstate evt old = case debugLog "Event" evt of
 
         MouseSlider widget Nothing ->
           let onNewPos = createMousePosCallbackSlider mx my widget old in
-          { old | mouseMode <- MouseSlider widget (Just onNewPos) }
+          { old | mouseMode <- MouseSlider widget (Just (old.code, onNewPos)) }
 
-        MouseSlider widget (Just onNewPos) ->
+        MouseSlider widget (Just (_, onNewPos)) ->
           let (newE,newSlate,newWidgets) = onNewPos (mx, my) in
           { old | code <- unparseE newE
                 , inputExp <- Just newE
@@ -256,6 +256,11 @@ upstate evt old = case debugLog "Event" evt of
           let (Ok e) = parseE old.code in
           let old' = { old | inputExp <- Just e } in
           refreshHighlights i z
+            { old' | mouseMode <- MouseNothing, mode <- refreshMode_ old'
+                   , history <- addToHistory s old'.history }
+        (_, MouseSlider _ (Just (s, _))) ->
+          let (Ok e) = parseE old.code in
+          let old' = { old | inputExp <- Just e } in
             { old' | mouseMode <- MouseNothing, mode <- refreshMode_ old'
                    , history <- addToHistory s old'.history }
         _ ->
