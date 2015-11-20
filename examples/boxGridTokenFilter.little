@@ -37,7 +37,7 @@
 (def tokens 
   (let [x0 y0] [400! 50!]
   (let shift (\(dx dy) [(+ x0 dx) (+ y0 dy)])
-  (map (\[x y] (ghost (circle (if posFilter 'green' 'red') x y 10!)))
+  (map (\[x y] (ghost (circle (if posFilter 'blue' 'red') x y 10!)))
        [(shift 0  30)
         (shift 0  60)
         (shift 0  90)
