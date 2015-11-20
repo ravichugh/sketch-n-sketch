@@ -81,7 +81,8 @@ LITTLE_TO_ELM cover
 LITTLE_TO_ELM poppl
 LITTLE_TO_ELM bezier
 -- LITTLE_TO_ELM surveyResultsTriBubbles
-LITTLE_TO_ELM surveyResultsTriHist
+-- LITTLE_TO_ELM surveyResultsTriHist
+LITTLE_TO_ELM surveyResultsTriHist2
 LITTLE_TO_ELM equiTri
 LITTLE_TO_ELM gridTile
 LITTLE_TO_ELM lilliconP
@@ -117,7 +118,7 @@ examples =
   , makeExample "Ferris Task Before" ferris2
   , makeExample "Ferris Task After" ferris2target
   , makeExample "Ferris Wheel Slideshow" ferrisWheelSlideshow
-  , makeExample "Survey Results" surveyResultsTriHist
+  , makeExample "Survey Results" surveyResultsTriHist2
   , makeExample "Hilbert Curve Animation" hilbertCurveAnimation
   , makeExample "Bar Graph" barGraph
   , makeExample "Pie Chart" pieChart1

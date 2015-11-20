@@ -619,7 +619,7 @@ boxGridTokenFilter =
 (def tokens 
   (let [x0 y0] [400! 50!]
   (let shift (\\(dx dy) [(+ x0 dx) (+ y0 dy)])
-  (map (\\[x y] (ghost (circle (if posFilter 'green' 'red') x y 10!)))
+  (map (\\[x y] (ghost (circle (if posFilter 'blue' 'red') x y 10!)))
        [(shift 0  30)
         (shift 0  60)
         (shift 0  90)
@@ -2763,7 +2763,8 @@ bezier =
 "
 
 -- LITTLE_TO_ELM surveyResultsTriBubbles
-surveyResultsTriHist =
+-- LITTLE_TO_ELM surveyResultsTriHist
+surveyResultsTriHist2 =
  "
 ; Interactive charts that show results from user study:
 ; http://ravichugh.github.io/sketch-n-sketch/blog/03-user-study-videos.html
@@ -2791,6 +2792,8 @@ surveyResultsTriHist =
   [ [-0.20 0.64] [0.34 1.10] [0.53 1.32] ]
 ])
 
+(def maxDataPoint 14!)
+
 (def sum (\\ns
   (foldr
     (\\([weight n] acc) (+ (* n weight) acc))
@@ -2807,17 +2810,21 @@ surveyResultsTriHist =
 (def shift  (\\idx (+ idx 0.5!)))
 
 (def sideLen 90{20-200})
+(def sidePad 13!{0-50})
 (def tickLen 5!{1-10})
-(def dotSize 8!{3-10})
+(def edgeWidth 1!{0-4})
+(def levelWidth 1.0!{0.0-2.1})
+(def dotSize 5!{3-10})
 (def barSize 16!{1-20})
-(def intWidth 10!{1-30})
-(def intTicks 0!{-1-15})
-(def fontSize 22!{10-40})
+(def intWidth 8!{1-30})
+(def intTicks 0!{-3-15})
+(def fontSize 20!{10-40})
 (def showAvgs (let showAvgs_ 0.7{0.1-1.0} (< showAvgs_ 0.5!)))
+(def showTicks (let showTicks_ 0.7{0.1-1.0} (< showTicks_ 0.5!)))
 
-(def [aUp   aLeft]  [6!{0-50}      28!{0-50}])
-(def [bUp   bRight] [aUp           99!{0-150}])
-(def [cDown cLeft]  [113!{50-200}  10!{0-30}])
+(def [aUp   aLeft]  [-5!{-20-50}  25!{0-50}])
+(def [bUp   bRight] [aUp          98!{0-150}])
+(def [cDown cLeft]  [115!{50-200} 10!{0-30}])
 
 (def halfLen (/ sideLen 2!))
 
@@ -2827,21 +2834,33 @@ surveyResultsTriHist =
   (let [iBounds jBounds kBounds] ciIntervals
   (let x0    (- cx halfLen)
   (let x1    (+ cx halfLen)
-  (let y     (- cy (* sideLen (/ (sqrt 3!) 6!)))
+  (let y     (- cy (* (+ sideLen (* 2! sidePad)) (/ (sqrt 3!) 6!)))
   (let dx    (/ (- x1 x0) slices)
   (let xi    (\\i (+ x0 (* (shift i) dx)))
   (let yn    (\\n (- y (* n tickLen)))
-  (let edge  (line 'gray' 2!)
+  (let edge  (line 'gray' edgeWidth)
+  (let tick  (\\x (circle 'gray' x y 3!))
   (let bar   (line 'lightblue' barSize)
   (let dot   (\\x (circle 'goldenrod' x y dotSize))
-  (let dotblah   (\\x (circle 'red' x (- y (* 3! tickLen)) dotSize)) ; TODO
+  (let level (\\i (let yLevel (- y (* i tickLen))
+                 (line 'white' levelWidth x0 yLevel x1 yLevel)))
   (let label (\\(x y s)
     (addAttr (text x y s) ['font-size' (+ (toString fontSize) 'pt')]))
-  (let frame
+  (let edges
     [ (rotate (edge x0 y x1 y) iRot cx cy)
       (rotate (edge x0 y x1 y) jRot cx cy)
       (rotate (edge x0 y x1 y) kRot cx cy)
     ]
+  (let tickmarks
+    (let foo (\\rot
+      (map (\\i (rotate (tick (+ (+ x0 (/ dx 2!)) (* i dx))) rot cx cy))
+           (zeroTo slices)))
+    (concatMap foo [iRot jRot kRot]))
+  (let levels
+    (let foo (\\rot
+      (map (\\i (rotate (level i) rot cx cy))
+           (range 1! maxDataPoint)))
+    (concatMap foo [iRot jRot kRot]))
   (let averages
     [ (rotate (dot (xi (iRevAvg iAvg))) iRot cx cy)
       (rotate (dot (xi (jRevAvg jAvg))) jRot cx cy)
@@ -2869,12 +2888,14 @@ surveyResultsTriHist =
       (rotate (bar (xi i) y (xi i) (yn n)) jRot cx cy)))
     (flip mapi (kRevCounts kCounts) (\\[i n]
       (rotate (bar (xi i) y (xi i) (yn n)) kRot cx cy)))
-    frame
+    levels
+    edges
     intervals
+    (if showTicks tickmarks [])
     (if showAvgs averages [])
     labels
   ]
-)))))))))))))))))))))
+))))))))))))))))))))))))
 
 (def [cx0 cy0] [180!{0-200} 130!{0-200}])
 (def sep 216!{100-300})
@@ -3696,7 +3717,7 @@ examples =
   , makeExample "Ferris Task Before" ferris2
   , makeExample "Ferris Task After" ferris2target
   , makeExample "Ferris Wheel Slideshow" ferrisWheelSlideshow
-  , makeExample "Survey Results" surveyResultsTriHist
+  , makeExample "Survey Results" surveyResultsTriHist2
   , makeExample "Hilbert Curve Animation" hilbertCurveAnimation
   , makeExample "Bar Graph" barGraph
   , makeExample "Pie Chart" pieChart1
