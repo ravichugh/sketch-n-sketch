@@ -1,11 +1,12 @@
 # User Study Videos
 
-*November XX, 2015* (PREVIEW OF POST) <br><br>
+*November 23, 2015* <br><br>
 
 
-We recently ran a user study with 25 participants, who were asked
-to watch the following videos and answer survey questions based on
-their observations.
+We recently ran a user study with 25 participants, who were asked to watch
+the following videos and answer survey questions based on their observations.
+These videos (also available as a [YouTube playlist][YouTube])
+can be viewed as a general introduction to Sketch-n-Sketch.
 
 * [00] <a href="#00">Combining Programmatic and Direct Manipulation</a> (02:54)
 * [01] <a href="#01">Intro to Sketch-n-Sketch</a> (09:10)
@@ -17,11 +18,10 @@ their observations.
 The primary purpose of the study was to evaluate the question:
 "Are direct manipulation heuristics [in Sketch-n-Sketch] better or
 worse than simply providing a slider for every constant in the program?"
-A summary of our findings are included after Video 5 below.
-More details can be found in a forthcoming technical report.
-
-You may watch the videos below with [this YouTube playlist][YouTube]
-instead.
+To help answer this question, Video 5 provides side-by-side comparisons
+of performing several tasks in Sketch-n-Sketch using different features.
+See Section 7 of [this technical report](http://arxiv.org/abs/1507.02988v2)
+for details about the survey and results.
 
 NOTE: Several videos below have Recap slides at the end. The videos
 shown during the user study did not contain these Recaps.
@@ -92,8 +92,6 @@ Additional Videos
   src="https://www.youtube.com/embed/dLTxzaS9OO4"
 ></iframe>
 </center>
-
-TODO summarize statistics
 
 <br>
 
