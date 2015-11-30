@@ -1458,24 +1458,19 @@ hilbertCurveAnimation =
 ; 2. Draw the rest of the curve.
 ;
 
-(def [levels levelsSlider] (hSlider true 20! 500! 25! 1! 4! 'Levels ' 2))
-(def [time timeSlider] (hSlider false 20! 500! 50! 0! 1! 'Time ' 0.0))
-
 ; What fraction of the final curve should we draw?
-(def curveFractionToDraw
-  (if (gt (* time 1.5) 1.0)
-    (* (- (* time 1.5) 1.0) 2)
+; Time 0 to 0.5: none. Draw curve from time 0.5 to 1.
+(def curveFractionToDraw (\\time
+  (if (gt time 0.5)
+    (- (* time 2.0) 1.0)
     0
   )
-)
+))
 
 ; For when all the Hilbert levels but the most detailed fade out together.
-(def earlierLevelOpacity
-  (if (gt curveFractionToDraw 0)
-    (* (- 1.0 curveFractionToDraw) (- 1.0 curveFractionToDraw))
-    1.0
-  )
-)
+(def earlierLevelOpacity (\\time
+  (pow (- 1.0 (curveFractionToDraw time)) 2)
+))
 
 ; The basic U.
 ;
@@ -1608,8 +1603,8 @@ hilbertCurveAnimation =
 ))
 
 ; Recursively draw the U's with the proper animation and opacity.
-(defrec hilbertParts (\\(depth levelPartCount partNumber opacity centerX centerY width rotation orientation)
-  (let thisLevel (hilbertPart centerX centerY width rotation orientation (* (/ 1 (+ 1 (* depth 2))) opacity))
+(defrec hilbertParts (\\(time depth levelPartCount partNumber opacity centerX centerY width rotation orientation)
+  (let thisLevel (hilbertPart centerX centerY width rotation orientation (* (pow 0.5 depth) opacity))
     (if (le depth 0)
       (if (gt opacity 0.005)
         [thisLevel]
@@ -1630,7 +1625,7 @@ hilbertCurveAnimation =
             (let thisPartNumber (+ (* partNumber 4) i)
             (let animationFraction
               (if (le depth 1)
-                (let partAndFraction (* (* time 1.5) thisLevelPartCount)
+                (let partAndFraction (* (* time 2) thisLevelPartCount)
                   (if (le partAndFraction thisPartNumber)
                     0
                     (if (ge partAndFraction (+ thisPartNumber 1))
@@ -1657,9 +1652,9 @@ hilbertCurveAnimation =
                 (+ (* orientation (- 1 orientationFraction)) (* targetOr    orientationFraction))
               ]
             (let opacity
-              (if (gt curveFractionToDraw 0.0)
+              (if (gt (curveFractionToDraw time) 0.0)
                 (if (le depth 1)
-                  (let partAndFraction (* curveFractionToDraw thisLevelPartCount)
+                  (let partAndFraction (* (curveFractionToDraw time) thisLevelPartCount)
                     (if (le partAndFraction thisPartNumber)
                       1
                       (if (ge partAndFraction (+ thisPartNumber 1))
@@ -1668,12 +1663,12 @@ hilbertCurveAnimation =
                       )
                     )
                   )
-                  earlierLevelOpacity
+                  (earlierLevelOpacity time)
                 )
                 1
               )
               (if (gt animationFraction 0)
-                (hilbertParts (- depth 1) thisLevelPartCount thisPartNumber opacity aniX aniY aniWidth aniRot aniOr)
+                (hilbertParts time (- depth 1) thisLevelPartCount thisPartNumber opacity aniX aniY aniWidth aniRot aniOr)
                 []
               )
             )))))))
@@ -1748,12 +1743,12 @@ hilbertCurveAnimation =
 ;
 ; All the complexity here is for adding a point part-way between
 ; the last point and the next point based on the time.
-(def hilbertPointsAnimated (\\(depth centerX centerY width rotation orientation)
-  (if (gt curveFractionToDraw 0)
+(def hilbertPointsAnimated (\\(time depth centerX centerY width rotation orientation)
+  (if (gt (curveFractionToDraw time) 0)
     (let allPoints (hilbertPoints depth centerX centerY width rotation orientation)
     (let count (len allPoints)
-    (let countToDraw (floor (* curveFractionToDraw count))
-    (let partialLineFraction (- (* curveFractionToDraw count) countToDraw)
+    (let countToDraw (floor (* (curveFractionToDraw time) count))
+    (let partialLineFraction (- (* (curveFractionToDraw time) count) countToDraw)
     (let pointsToDraw (take countToDraw allPoints)
       (if (and (gt partialLineFraction 0) (gt countToDraw 0))
         (let [lastPointX lastPointY] (fetch (- countToDraw 1) allPoints)
@@ -1776,20 +1771,80 @@ hilbertCurveAnimation =
 ))
 
 ; Draw the curve as one long path at the end of the animation.
-(def hilbertCurve (\\(depth centerX centerY width rotation orientation)
-  (let [[firstX firstY]|otherPoints] (hilbertPointsAnimated depth centerX centerY width rotation orientation)
+(def hilbertCurve (\\(time depth centerX centerY width rotation orientation)
+  (let [[firstX firstY]|otherPoints] (hilbertPointsAnimated time depth centerX centerY width rotation orientation)
     [(path 'none' 'blue' 5
       [ 'M' firstX firstY | (concatMap (\\[x y] ['L' x y]) otherPoints) ]
     )]
   )
 ))
 
-(def elements [
-  (hilbertParts (- levels 1) 1 0 earlierLevelOpacity 300 300 400 0 1)
-  (hilbertCurve (- levels 1) 300 300 400 0 1)
-])
+(def crossfade (\\(a b t)
+  (+
+    (* a (- 1.0 t))
+    (* b t)
+  )
+))
 
-(svg (append (concat elements) (concat [levelsSlider timeSlider])))
+(def maxLevels 3)
+
+[
+  maxLevels
+  (\\slideNumber
+    (let level slideNumber
+    (let levelPartCount (pow 4 level)
+    (let drawingParts (lt level maxLevels)
+
+      [
+        (if drawingParts (+ 1 levelPartCount) 1)
+        (\\slideMovieNumber
+          (if (and drawingParts (= 1 slideMovieNumber))
+            [
+              'Dynamic'
+              0.5
+              (\\(slideNumber movieNumber t)
+                (let relT (* t 2.0)
+                  ['svg' [['opacity' (crossfade 1.0 0.5 relT)]] (hilbertParts 0.5 (- level 1) 1 0 1.0 300 300 400 0 1)]
+                )
+              )
+              (not (= slideNumber 1))
+            ]
+            (if drawingParts
+              (let animationDuration (* 3 (pow 0.5 level))
+                [
+                  'Dynamic'
+                  animationDuration
+                  (\\(slideNumber movieNumber t)
+                    (let localT (/ (+ (/ (/ t animationDuration) levelPartCount) (* (/ 1.0 levelPartCount) (- movieNumber 2))) 2)
+                      (svg (hilbertParts localT level 1 0 1.0 300 300 400 0 1))
+                    )
+                  )
+                  (and (gt slideMovieNumber 5) (le slideMovieNumber levelPartCount))
+                ]
+              )
+              (let animationDuration 9
+                [
+                  'Dynamic'
+                  animationDuration
+                  (\\(slideNumber movieNumber t)
+                    (let localT (+ 0.5 (/ (/ t animationDuration) 2))
+                      (let elements [
+                        (hilbertParts localT (- maxLevels 1) 1 0 (earlierLevelOpacity localT) 300 300 400 0 1)
+                        (hilbertCurve localT (- maxLevels 1) 300 300 400 0 1)
+                      ]
+                      (svg (concat elements))
+                    ))
+                  )
+                  false
+                ]
+              )
+            )
+          )
+        )
+      ]
+    )))
+  )
+]
 "
 
 stickFigures =
