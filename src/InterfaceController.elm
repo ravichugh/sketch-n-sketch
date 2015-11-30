@@ -289,7 +289,9 @@ upstate evt old = case debugLog "Event" evt of
 
     TickDelta deltaT ->
       if old.movieTime < old.movieDuration then
-        let newMovieTime = clamp 0.0 old.movieDuration (old.movieTime + (deltaT / 1000)) in
+        -- Prevent "jump" after slow first frame render.
+        let adjustedDeltaT = if old.movieTime == 0.0 then clamp 0.0 50 deltaT else deltaT in
+        let newMovieTime = clamp 0.0 old.movieDuration (old.movieTime + (adjustedDeltaT / 1000)) in
         upstate Redraw { old | movieTime <- newMovieTime }
       else if old.movieContinue == True then
         upstate NextMovie old
