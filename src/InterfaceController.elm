@@ -814,5 +814,6 @@ createMousePosCallbackSlider mx my widget old =
     let subst = Dict.singleton locid newVal in
     let newE = applySubst subst (Utils.fromJust old.inputExp) in
     let (newVal,newWidgets) = Eval.run newE in
-    let newSlate = LangSvg.valToIndexedTree newVal in
+    -- Can't manipulate slideCount/movieCount/movieDuration/movieContinue via sliders at the moment.
+    let (_, _, _, _, newSlate) = LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime newVal in
     (newE, newVal, newSlate, newWidgets)
