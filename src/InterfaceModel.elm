@@ -127,6 +127,7 @@ type Event = CodeUpdate String
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets})
            | Edit
            | Run
+           | StartAnimation
            | Redraw
            | ToggleOutput
            | ToggleZones

@@ -187,6 +187,8 @@ upstate evt old = case debugLog "Event" evt of
         Err err ->
           { old | caption <- Just (LangError ("PARSE ERROR!\n" ++ err)) }
 
+    StartAnimation -> upstate Redraw { old | movieTime <- 0 }
+
     Redraw ->
       case old.inputVal of
         Just val ->
@@ -411,24 +413,24 @@ upstate evt old = case debugLog "Event" evt of
 
     NextSlide ->
       if old.slideNumber >= old.slideCount then
-        upstate Run { old | slideNumber <- old.slideNumber
-                          , movieNumber <- old.movieCount }
+        upstate StartAnimation { old | slideNumber <- old.slideNumber
+                                     , movieNumber <- old.movieCount }
       else
-        upstate Run { old | slideNumber <- old.slideNumber + 1
-                          , movieNumber <- 1 }
+        upstate StartAnimation { old | slideNumber <- old.slideNumber + 1
+                                     , movieNumber <- 1 }
 
     PreviousSlide ->
       if old.slideNumber <= 1 then
-        upstate Run { old | slideNumber <- 1
-                          , movieNumber <- 1 }
+        upstate StartAnimation { old | slideNumber <- 1
+                                     , movieNumber <- 1 }
       else
         let previousSlideNumber    = old.slideNumber - 1 in
         case old.inputExp of
           Just exp ->
             let previousVal = fst <| Eval.run exp in
             let previousMovieCount = LangSvg.resolveToMovieCount previousSlideNumber previousVal in
-            upstate Run { old | slideNumber <- previousSlideNumber
-                              , movieNumber <- previousMovieCount }
+            upstate StartAnimation { old | slideNumber <- previousSlideNumber
+                                         , movieNumber <- previousMovieCount }
           _ -> Debug.log "Oops no expression to run" old
 
 
@@ -436,7 +438,7 @@ upstate evt old = case debugLog "Event" evt of
       if old.movieNumber == old.movieCount && old.slideNumber < old.slideCount then
         upstate NextSlide old
       else if old.movieNumber < old.movieCount then
-        upstate Run { old | movieNumber <- old.movieNumber + 1 }
+        upstate StartAnimation { old | movieNumber <- old.movieNumber + 1 }
       else
         -- Last movie of slide show; skip to its end.
         upstate Redraw { old | movieTime <- old.movieDuration }
@@ -445,7 +447,7 @@ upstate evt old = case debugLog "Event" evt of
       if old.movieNumber == 1 then
         upstate PreviousSlide old
       else
-        upstate Run { old | movieNumber <- old.movieNumber - 1 }
+        upstate StartAnimation { old | movieNumber <- old.movieNumber - 1 }
 
     KeysDown l ->
       -- let _ = Debug.log "keys" (toString l) in
