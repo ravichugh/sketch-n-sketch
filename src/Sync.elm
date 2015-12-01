@@ -845,9 +845,10 @@ type alias LiveInfo =
 
 tryToBeSmart = False
 
-prepareLiveUpdates : Options -> Exp -> Val -> LiveInfo
-prepareLiveUpdates opts e v =
-  let d0 = nodeToAttrLocs v in
+prepareLiveUpdates : Options -> Int -> Int -> Float -> Exp -> Val -> LiveInfo
+prepareLiveUpdates opts slideNumber movieNumber movieTime e v =
+  let v' = LangSvg.resolveToMovieFrameVal slideNumber movieNumber movieTime v in
+  let d0 = nodeToAttrLocs v' in
   let d1 = shapesToZoneTable opts d0 in
   -- let d2 = assignTriggers d1 in
   let d2 = assignTriggers opts d0 d1 in

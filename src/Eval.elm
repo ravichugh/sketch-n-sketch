@@ -1,4 +1,4 @@
-module Eval (run, parseAndRun, evalDelta) where
+module Eval (run, parseAndRun, evalDelta, eval) where
 
 import Debug
 
