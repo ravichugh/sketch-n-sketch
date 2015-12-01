@@ -723,7 +723,7 @@ middleWidgets w h wWrap hWrap model =
       (False, Print _, _) ->
         exampleNavigation ++
         undoRedo
-      (False, _, Just (VList [VConst (slideCount, _), _])) -> -- slideshow mode
+      (False, _, VList [VConst (slideCount, _), _]) -> -- slideshow mode
         exampleNavigation ++
         undoRedo ++
         zonesButton ++
@@ -955,7 +955,7 @@ luckyButton model =
     let so' = { so | feelingLucky <- Sync.toggleHeuristicMode so.feelingLucky } in
     let m' =
       case old.mode of
-        Live _ -> mkLive_ so' old.slideNumber old.movieNumber old.movieTime (Utils.fromJust old.inputExp)
+        Live _ -> mkLive_ so' old.slideNumber old.movieNumber old.movieTime old.inputExp
         _      -> old.mode
     in
     { old | syncOptions <- so', mode <- m' }

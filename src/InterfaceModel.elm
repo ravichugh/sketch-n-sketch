@@ -28,9 +28,8 @@ type alias Model =
   , exName : String
   , code : Code
   , history : (List Code, List Code)
-  -- TODO remove Maybe
-  , inputExp : Maybe Exp
-  , inputVal : Maybe Val
+  , inputExp : Exp
+  , inputVal : Val
   , slideNumber : Int
   , slideCount : Int
   , movieNumber : Int
@@ -211,8 +210,8 @@ sampleModel =
     , exName        = name
     , code          = unparseE e
     , history       = ([], [])
-    , inputExp      = Just e
-    , inputVal      = Just v
+    , inputExp      = e
+    , inputVal      = v
     , slideNumber   = 1
     , slideCount    = slideCount
     , movieNumber   = 1

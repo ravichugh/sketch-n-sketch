@@ -71,7 +71,7 @@ refreshMode model e =
     Print _ -> mkLive_ model.syncOptions model.slideNumber model.movieNumber model.movieTime e
     m       -> m
 
-refreshMode_ model = refreshMode model (Utils.fromJust model.inputExp)
+refreshMode_ model = refreshMode model model.inputExp
 
 refreshHighlights id zone model =
   let codeBoxInfo = model.codeBoxInfo in
@@ -167,8 +167,8 @@ upstate evt old = case debugLog "Event" evt of
          let (newVal,ws) = (Eval.run e) in
          let (newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) = LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal in
          let new =
-           { old | inputExp      <- Just e
-                 , inputVal      <- Just newVal
+           { old | inputExp      <- e
+                 , inputVal      <- newVal
                  , code          <- unparseE e
                  , slideCount    <- newSlideCount
                  , movieCount    <- newMovieCount
@@ -191,7 +191,7 @@ upstate evt old = case debugLog "Event" evt of
 
     Redraw ->
       case old.inputVal of
-        Just val ->
+        val ->
           let (newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) = LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime val in
           { old | slideCount    <- newSlideCount
                 , movieCount    <- newMovieCount
@@ -237,8 +237,8 @@ upstate evt old = case debugLog "Event" evt of
         MouseObject _ _ _ (Just (_, mStuff, onNewPos)) ->
           let (newE,newV,changes,newSlate,newWidgets) = onNewPos (mx, my) in
           { old | code <- unparseE newE
-                , inputExp <- Just newE
-                , inputVal <- Just newV
+                , inputExp <- newE
+                , inputVal <- newV
                 , slate <- newSlate
                 , widgets <- newWidgets
                 , codeBoxInfo <- highlightChanges mStuff changes old.codeBoxInfo
@@ -251,8 +251,8 @@ upstate evt old = case debugLog "Event" evt of
         MouseSlider widget (Just (_, onNewPos)) ->
           let (newE,newV,newSlate,newWidgets) = onNewPos (mx, my) in
           { old | code <- unparseE newE
-                , inputExp <- Just newE
-                , inputVal <- Just newV
+                , inputExp <- newE
+                , inputVal <- newV
                 , slate <- newSlate
                 , widgets <- newWidgets
                 }
@@ -277,13 +277,13 @@ upstate evt old = case debugLog "Event" evt of
           -- TODO: could update positions within highlightChanges
           -- TODO: update inputVal?
           let (Ok e) = parseE old.code in
-          let old' = { old | inputExp <- Just e } in
+          let old' = { old | inputExp <- e } in
           refreshHighlights i z
             { old' | mouseMode <- MouseNothing, mode <- refreshMode_ old'
                    , history <- addToHistory s old'.history }
         (_, MouseSlider _ (Just (s, _))) ->
           let (Ok e) = parseE old.code in
-          let old' = { old | inputExp <- Just e } in
+          let old' = { old | inputExp <- e } in
             { old' | mouseMode <- MouseNothing, mode <- refreshMode_ old'
                    , history <- addToHistory s old'.history }
         _ ->
@@ -303,7 +303,7 @@ upstate evt old = case debugLog "Event" evt of
     Sync ->
       case (old.mode, old.inputExp) of
         (Live _, _) -> Debug.crash "upstate Sync: shouldn't happen anymore"
-        (AdHoc, Just ip) ->
+        (AdHoc, ip) ->
           let
             inputval  = fst <| Eval.run ip
             inputval' = inputval |> LangSvg.valToIndexedTree
@@ -330,8 +330,8 @@ upstate evt old = case debugLog "Event" evt of
       let (ei,vi) = Utils.geti i l in
       let (newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) = LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime vi in
       { old | code          <- unparseE ei
-            , inputExp      <- Just ei
-            , inputVal      <- Just vi
+            , inputExp      <- ei
+            , inputVal      <- vi
             , slideCount    <- newSlideCount
             , movieCount    <- newMovieCount
             , movieTime     <- 0.0
@@ -347,8 +347,8 @@ upstate evt old = case debugLog "Event" evt of
       let (ei,vi) = Utils.geti j l in
       let (newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) = LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime vi in
       { old | code          <- unparseE ei
-            , inputExp      <- Just ei
-            , inputVal      <- Just vi
+            , inputExp      <- ei
+            , inputVal      <- vi
             , slideCount    <- newSlideCount
             , movieCount    <- newMovieCount
             , movieTime     <- 0
@@ -375,8 +375,8 @@ upstate evt old = case debugLog "Event" evt of
       let (slideCount, movieCount, movieDuration, movieContinue, slate) = LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v in
       { old | scratchCode   <- scratchCode'
             , exName        <- name
-            , inputExp      <- Just e
-            , inputVal      <- Just v
+            , inputExp      <- e
+            , inputVal      <- v
             , code          <- unparseE e
             , history       <- ([],[])
             , mode          <- m
@@ -426,7 +426,7 @@ upstate evt old = case debugLog "Event" evt of
       else
         let previousSlideNumber    = old.slideNumber - 1 in
         case old.inputExp of
-          Just exp ->
+          exp ->
             let previousVal = fst <| Eval.run exp in
             let previousMovieCount = LangSvg.resolveToMovieCount previousSlideNumber previousVal in
             upstate StartAnimation { old | slideNumber <- previousSlideNumber
@@ -637,7 +637,7 @@ createMousePosCallback mx my objid kind zone old =
     in
     let newTree = List.foldr (upslate objid) (snd old.slate) newRealAttrs in
       case old.mode of
-        AdHoc -> (Utils.fromJust old.inputExp, Utils.fromJust old.inputVal, Dict.empty, (fst old.slate, newTree), old.widgets)
+        AdHoc -> (old.inputExp, old.inputVal, Dict.empty, (fst old.slate, newTree), old.widgets)
         Live info ->
           case Utils.justGet_ "#4" zone (Utils.justGet_ "#5" objid info.triggers) of
             -- Nothing -> (Utils.fromJust old.inputExp, newSlate)
@@ -816,7 +816,7 @@ createMousePosCallbackSlider mx my widget old =
     -- unlike the live triggers via Sync,
     -- this substitution only binds the location to change
     let subst = Dict.singleton locid newVal in
-    let newE = applySubst subst (Utils.fromJust old.inputExp) in
+    let newE = applySubst subst old.inputExp in
     let (newVal,newWidgets) = Eval.run newE in
     -- Can't manipulate slideCount/movieCount/movieDuration/movieContinue via sliders at the moment.
     let (_, _, _, _, newSlate) = LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime newVal in
