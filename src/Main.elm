@@ -38,7 +38,7 @@ combinedEventSig =
     , Signal.map
       (Model.KeysDown << List.sort << Set.toList)
       Keyboard.keysDown
-    , Signal.map Model.TickDelta (Time.fps 30)
+    , Signal.map Model.TickDelta (Time.fps 2)
     ]
 
 main : Signal Element
