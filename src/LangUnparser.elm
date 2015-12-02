@@ -1,4 +1,4 @@
-module LangUnparser (unparseE) where
+module LangUnparser (unparseE, bumpCol, incCol) where
 
 import Lang exposing (..)
 import OurParser2 exposing (Pos, WithPos, WithInfo, startPos)
@@ -26,11 +26,15 @@ incCol  = bumpCol 1
 decCol  = bumpCol (-1)
 
 lines i j = if
-  | i > j     -> Debug.crash <| "Unparser.lines: " ++ toString (i,j)
+  -- | i > j     -> Debug.crash <| "Unparser.lines: " ++ toString (i,j)
+  -- TODO to help Sync.relateWithVar for now
+  | i > j     -> " "
   | otherwise -> String.repeat (j-i) "\n"
 
 cols i j = if
-  | i > j     -> Debug.crash <| "Unparser.cols: " ++ toString (i,j)
+  -- | i > j     -> Debug.crash <| "Unparser.cols: " ++ toString (i,j)
+  -- TODO to help Sync.expandRange for now
+  | i > j     -> let _ = Debug.log "Unparser.cols: " (toString (i, j)) in " "
   | otherwise -> String.repeat (j-i) " "
 
 whitespace : Pos -> Pos -> String
@@ -82,7 +86,7 @@ makeToken start s =
 -- TODO: compute whitespace once per AST-skeleton
 
 unparse : Exp -> String
-unparse e = case e.val of
+unparse e = case e.val.e__ of
   EBase v -> strBaseVal v
   EConst i l wd ->
     let s = let (_,b,_) = l in toString i ++ b in
@@ -111,9 +115,23 @@ unparse e = case e.val of
     ++ tok3.val
   EIndList rs ->
     ibracksAndSpaces e.start e.end (List.concat (List.map unparseRange rs))
+{-
   EOp op es ->
     let sOp = { op | val <- strOp op.val } in
     parensAndSpaces e.start e.end (UStr sOp :: List.map UExp es)
+-}
+  EOp op es ->
+    let normal () =
+      let sOp = { op | val <- strOp op.val } in
+      parensAndSpaces e.start e.end (UStr sOp :: List.map UExp es)
+    in
+    -- TODO: hack to fix unparsing issue after Sync.relateNumsWithVar...
+    case (op.val, List.map (.e__ << .val) es) of
+      (Plus, [EVar x, _]) ->
+        case Utils.munchString "gensym" x of
+          Just _  -> sExp e
+          Nothing -> normal ()
+      _           -> normal ()
   EIf e1 e2 e3 ->
     let tok = makeToken (incCol e.start) "if" in
     parensAndSpaces e.start e.end (UStr tok :: List.map UExp [e1,e2,e3])
@@ -142,14 +160,10 @@ unparseE : Exp -> String
 unparseE e = whitespace startPos e.start ++ unparse e
 
 -- Currently only remembers whitespace after ".."
-unparseRange : ERange -> List Unparsable
-unparseRange r = case r.val of (l,u) -> case (l.val,u.val) of
-    (EConst lv lt _, EConst uv ut _) ->
-        if | lv == uv -> [ UExp l ]
-           | otherwise -> [ UExp l
-                          , UStr <| makeToken l.end ".."
-                          , UExp u
-                          ]
+unparseRange : Range -> List Unparsable
+unparseRange r = case r.val of
+  Point e        -> [ UExp e ]
+  Interval e1 e2 -> [ UExp e1, UStr (makeToken e1.end ".."), UExp e2 ]
 
 -- NOTE: use this to go back to original unparser
 -- unparseE = sExp

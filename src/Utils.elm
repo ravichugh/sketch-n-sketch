@@ -16,7 +16,7 @@ find err d k =
     Just f  -> f
     Nothing -> Debug.crash <| "Utils.find: " ++ err
 
-find_ = find ""
+find_ d k = find ("[" ++ toString k ++ "]") d k
 
 update : (comparable, v) -> List (comparable, v) -> List (comparable, v)
 update (k1, v1) vals =
@@ -148,6 +148,10 @@ adjacentPairs includeLast (x0::xs) =
 geti : Int -> List a -> a
 geti i = fromJust_ "Utils.geti" << List.head << List.drop (i-1)
 
+allSame (v::vs) = List.filter ((/=) v) vs == []
+
+removeDupes = Set.toList << Set.fromList
+
 delimit a b s = String.concat [a, s, b]
 
 parens = delimit "(" ")"
@@ -160,6 +164,9 @@ commas = String.join ", "
 lines  = String.join "\n"
 
 sum = List.foldl (+) 0
+
+avg : List number -> number
+avg ns = List.sum ns / toFloat (List.length ns)
 
 lift_2_2 f (a,b) (c,d) = (f a c, f b d)
 
@@ -185,6 +192,7 @@ justGet_ s k d = fromJust_ ("Utils.justGet " ++ s) <| Dict.get k d
 
 head_ = fromJust_ "Utils.head_" << List.head
 tail_ = fromJust_ "Utils.tail_" << List.tail
+last_ = head_ << List.reverse
 
 mapMaybe : (a -> b) -> Maybe a -> Maybe b
 mapMaybe f mx = case mx of {Just x -> Just (f x); Nothing -> Nothing}
@@ -202,6 +210,12 @@ projJusts =
       (Just x, Just xs) -> Just (x::xs)
       _                 -> Nothing) (Just [])
 
+filterJusts : List (Maybe a) -> List a
+filterJusts mxs = case mxs of
+  []              -> []
+  Just x  :: rest -> x :: filterJusts rest
+  Nothing :: rest -> filterJusts rest
+
 mapSnd : (b -> b') -> (a, b) -> (a, b')
 mapSnd f (x,y) = (x, f y)
 
@@ -218,6 +232,8 @@ dictIsEmpty = (==) [] << Dict.toList
 setCardinal = List.length << Set.toList
 
 x `between` (a,b) = a <= x && x < b
+
+distance (x1,y1) (x2,y2) = sqrt <| (x2-x1)^2 + (y2-y1)^2
 
 -- n:number -> i:[0,n) -> RGB
 numToColor n i =
@@ -248,3 +264,22 @@ numToColor_ val =
 
 radiansToDegrees : Float -> Float
 radiansToDegrees rad = (rad / pi) * 180
+
+--------------------------------------------------------------------------------
+-- Unicode
+
+-- http://unicode-table.com/en/sets/arrows-symbols/
+
+uniLeft        = "←"
+uniRight       = "→"
+uniEnter       = "↵"
+-- uniEnter    = "⏎"
+uniSave        = "💾"
+-- uniUndo     = "↶"
+-- uniRedo     = "↷"
+-- uniReload   = "⟲"
+uniUndo        = "◀"
+uniRedo        = "▶"
+uniReload      = "⎋"
+-- uniStar     = "✴"
+uniCamera      = "📷"

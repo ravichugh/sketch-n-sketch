@@ -191,25 +191,25 @@ logo2 =
   (let poly (\\(c pts) (polygon c 'none' 0 pts))
   (let basic (\\shape (addAttr shape ['ZONES' 'basic']))
   (svg [
-  
+
     ; positive background
     ; starting with (xw,yh) to place color slider
     (poly fg [[xw yh] [xw y0] [x0 y0] [x0 yh]])
-  
+
     ; negative X, part 1
     (poly bg
       [[x0 y0] [(+ x0 delta1) y0] [xw (- yh delta2)]
        [xw yh] [(- xw delta1) yh] [x0 (+ y0 delta2)]])
-  
+
     ; negative X, part 2
     (basic (poly bg
       [[xw y0] [xw (+ y0 delta2)] [(+ x0 delta1) yh]
        [x0 yh] [x0 (- yh delta2)] [(- xw delta1) y0]]))
-  
+
     ; positive, hiding top-right quarter of X
     (basic (poly fg
       [[(+ x0 delta1) y0] [xw y0] [xw (- yh delta2)]]))
-  
+
   ]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -2572,6 +2572,23 @@ thawFreeze =
 
 "
 
+deleteBoxes =
+ "
+# unannotated-numbers: n!
+
+; notice that need to use * instead of mult
+
+(def deleteBoxes
+  (let [x0 y0 w h sep] [21? 40? 60? 130? 100?]
+  (let boxi (\\i
+    (let xi (+ x0 (* i sep))
+    (rect 'lightblue' xi y0 w h)))
+  (svg (map boxi [| 0 1 2..4 5 |])))))
+
+deleteBoxes
+
+"
+
 cover =
  "; Logo for Cover
 ; see https://github.com/florence/cover
@@ -3784,11 +3801,187 @@ spiralSpiralGraph =
 (svg theCircles)
 "
 
+relateRects0 =
+ "(svg [
+  (rect 'maroon' 49 106 124 86)
+  (rect 'blue' 214 91 125 102)
+  (rect 'lightgray' 378 231 91 98)
+])
+
+"
+
+relateRects1 =
+ "(svg [
+  (addAttr (rect 'maroon' 49 106 124 86) ['rx' 20])
+  (addAttr (addAttr (rect 'blue' 214 91 125 102) ['rx' 10]) ['ry' 30])
+  (rect 'lightgray' 378 231 91 98)
+])
+
+"
+
+relateCircles0 =
+ "(svg (map (\\i (circle 'lightblue' (+ 42 (* i 60)) 98 30)) [|0..6|]))
+
+"
+
+relateLines0 =
+ "(svg [
+  (line 'darkred' 5 109 274 301 95)
+  (line 'darkgreen' 5 202 100 189 288)
+  (line 'darkblue' 5 100 100 291 282)
+  (line 'salmon' 5 93 178 310 206)
+])
+
+"
+
+relatePoints0 =
+ "
+(def pt1 (circle 'red' 88 90 10))
+(def pt2 (circle 'green' 121 142 10))
+(def pt3 (circle 'blue' 153 212 10))
+(def line1 (line 'darkblue' 8 95 306 230 288))
+
+(svg [
+  (addAttr pt1 ['SELECTED' 'cy'])
+  (addAttr pt2 ['SELECTED' 'cy'])
+  (addAttr pt3 ['SELECTED' ''])
+  (addAttr line1 ['SELECTED' ''])
+])
+
+"
+
+relatePoints1 =
+ "
+(def pt0 (circle 'black' 88 190 0)) ; dummy point to work around bug...
+(def pt1 (circle 'red' 88 190 10))
+(def pt2 (circle 'green' 121 142 10))
+(def pt3 (circle 'blue' 153 212 10))
+
+; TODO remove, use library version
+
+(def enumSlider (\\(x0 x1 y enum caption srcVal)
+  (let n (len enum)
+  (let [minVal maxVal] [0! (- n 1!)]
+  (let preVal (clamp minVal maxVal srcVal)
+  (let i (round preVal)
+  (let item (nth enum i)
+  (let wrap (\\circ (addAttr circ ['SELECTED' ''])) ; TODO
+  (let shapes
+    (let rail [ (line 'black' 3! x0 y x1 y) ]
+    (let ball
+      (let [xDiff valDiff] [(- x1 x0) (- maxVal minVal)]
+      (let xBall (+ x0 (* xDiff (/ (- preVal minVal) valDiff)))
+      (let rBall (if (= preVal srcVal) 10! 0!)
+        [ (wrap (circle 'black' xBall y rBall)) ])))
+    (let endpoints
+      [ (wrap (circle 'black' x0 y 4!)) (wrap (circle 'black' x1 y 4!)) ]
+    (let tickpoints
+      (let sep (/ (- x1 x0) (+ n 1!))
+      (map (\\i (wrap (circle 'grey' (+ (+ x0 sep) (mult i sep)) y 4!)))
+           (range 0! (- n 1!))))
+    (let label [ (text (+ x1 10!) (+ y 5!) (+ caption (toString item))) ]
+    (concat [ rail endpoints tickpoints ball label ]))))))
+  [item shapes])))))))))
+
+(def addSelectionSliders (\\(circ cap y seed)
+  (let [s slider] (enumSlider 20! 120! y ['' 'cx' 'cy' 'r'] cap seed)
+  (let circ1 (addAttr circ ['SELECTED' s])
+  [circ1 | slider]))))
+
+(svg (concat [
+  (addSelectionSliders pt0 '....'  -10! 0)
+  (addSelectionSliders pt1 'red '   20! 0)
+  (addSelectionSliders pt2 'green ' 50! 0)
+  (addSelectionSliders pt3 'blue '  80! 0)
+]))
+
+
+"
+
+relatePoints2 =
+ "
+; TODO remove, use library version
+
+(def enumSlider (\\(x0 x1 y enum caption srcVal)
+  (let n (len enum)
+  (let [minVal maxVal] [0! (- n 1!)]
+  (let preVal (clamp minVal maxVal srcVal)
+  (let i (round preVal)
+  (let item (nth enum i)
+  (let wrap (\\circ (addAttr circ ['SELECTED' ''])) ; TODO
+  (let shapes
+    (let rail [ (line 'black' 3! x0 y x1 y) ]
+    (let ball
+      (let [xDiff valDiff] [(- x1 x0) (- maxVal minVal)]
+      (let xBall (+ x0 (* xDiff (/ (- preVal minVal) valDiff)))
+      (let rBall (if (= preVal srcVal) 10! 0!)
+        [ (wrap (circle 'black' xBall y rBall)) ])))
+    (let endpoints
+      [ (wrap (circle 'black' x0 y 4!)) (wrap (circle 'black' x1 y 4!)) ]
+    (let tickpoints
+      (let sep (/ (- x1 x0) (+ n 1!))
+      (map (\\i (wrap (circle 'grey' (+ (+ x0 sep) (mult i sep)) y 4!)))
+           (range 0! (- n 1!))))
+    (let label [ (text (+ x1 10!) (+ y 5!) (+ caption (toString item))) ]
+    (concat [ rail endpoints tickpoints ball label ]))))))
+  [item shapes])))))))))
+
+(def addSelectionSliders (\\(y0 shapesCaps)
+  (let seeds [0 0 0 0 0 0 0 0 0 0] ; hard-coded limit
+  (let shapesCapsSeeds (zip shapesCaps (take seeds (len shapesCaps)))
+  (let foo (\\[i [[shape cap] seed]]
+    (let [k _ _] shape
+    (let enum
+      (if (= k 'circle') ['' 'cx' 'cy' 'r']
+      (if (= k 'line')   ['' 'x1' 'y1' 'x2' 'y2']
+      (if (= k 'rect')   ['' 'x' 'y' 'width' 'height']
+        [(+ 'NO SELECTION ENUM FOR KIND ' k)])))
+    (let [item slider] (enumSlider 20! 170! (+ y0 (mult i 30!)) enum cap seed)
+    (let shape1 (addAttr shape ['SELECTED' item]) ; TODO overwrite existing
+    [shape1|slider])))))
+  (concat (mapi foo shapesCapsSeeds)))))))
+
+(svg (addSelectionSliders 30! [
+  [ (rect 'maroon' 300  30 50 15) 'pt0: ' ]
+  [ (rect 'maroon' 300  60 50 15) 'pt1: ' ]
+  [ (rect 'maroon' 300  90 50 15) 'pt2: ' ]
+  [ (rect 'maroon' 300 120 50 15) 'pt3: ' ]
+  [ (rect 'maroon' 300 150 50 15) 'pt4: ' ]
+  [ (rect 'maroon' 300 180 50 15) 'pt5: ' ]
+]))
+
+"
+
+relatePoints3 =
+ "
+(def seeds [0 0 0])
+(svg (addSelectionSliders 30! seeds [
+  [ (line 'darkblue'  0 100 100 200 200) 'dummy: ' ]
+  [ (line 'darkblue'  8 100 100 200 200) 'line1: ' ]
+  [ (line 'darkblue'  8 100 300 200 400) 'line2: ' ]
+]))
+
+"
+
+-- LITTLE_TO_ELM relatePoints4
 
 examples =
   [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
   , makeExample "Wave Boxes" sineWaveOfBoxes
+
+  -- up here during ad-hoc development
+  , makeExample "RelateRects0" relateRects0
+  , makeExample "RelateRects1" relateRects1
+  , makeExample "RelateCircles0" relateCircles0
+  , makeExample "RelateLines0" relateLines0
+  , makeExample "RelatePoints0" relatePoints0
+  , makeExample "RelatePoints1" relatePoints1
+  , makeExample "RelatePoints2" relatePoints2
+  , makeExample "RelatePoints3" relatePoints3
+  -- , makeExample "RelatePoints4" relatePoints4
+  , makeExample "Delete Boxes" deleteBoxes
+
   , makeExample "Basic Slides" basicSlides
   , makeExample "Logo" logo
   , makeExample "Botanic Garden Logo" botanic

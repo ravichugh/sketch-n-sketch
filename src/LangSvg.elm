@@ -39,27 +39,41 @@ svg  = Svg.svgNode
 -- records rather than lists of lists of ...
 
 valToHtml : Int -> Int -> Val -> Html.Html
-valToHtml w h (VList [VBase (String "svg"), VList vs1, VList vs2]) =
-  let wh = [numAttrToVal "width" w, numAttrToVal "height" h] in
-  let v' = VList [VBase (String "svg"), VList (wh ++ vs1), VList vs2] in
-  compileValToNode v'
-    -- NOTE: not checking if width/height already in vs1
+valToHtml w h v =
+  let (VList vs) = v.v_ in
+  case List.map .v_ vs of
+    [VBase (String "svg"), VList vs1, VList vs2] ->
+      let wh = [numAttrToVal "width" w, numAttrToVal "height" h] in
+      let v' = vList [vStr "svg", vList (wh ++ vs1), vList vs2] in
+      compileValToNode v'
+        -- NOTE: not checking if width/height already in vs1
 
 compileValToNode : Val -> VirtualDom.Node
-compileValToNode v = case v of
-  VList [VBase (String "TEXT"), VBase (String s)] -> VirtualDom.text s
-  VList [VBase (String f), VList vs1, VList vs2] ->
-    (svg f) (compileAttrVals vs1) (compileNodeVals vs2)
+compileValToNode v = case v.v_ of
+  VList vs ->
+    case List.map .v_ vs of
+      [VBase (String "TEXT"), VBase (String s)] -> VirtualDom.text s
+      [VBase (String f), VList vs1, VList vs2] ->
+        (svg f) (compileAttrVals vs1) (compileNodeVals vs2)
 
+compileNodeVals : List Val -> List Svg.Svg
 compileNodeVals = List.map compileValToNode
+
+compileAttrVals : List Val -> List Svg.Attribute
 compileAttrVals = List.map (uncurry compileAttr << valToAttr)
+
+compileAttrs    : List Attr -> List Svg.Attribute
 compileAttrs    = List.map (uncurry compileAttr)
+
+compileAttr : String -> AVal -> Svg.Attribute
 compileAttr k v = (attr k) (strAVal v)
 
 numAttrToVal a i =
-  VList [VBase (String a), VConst (toFloat i, dummyTrace)]
+  vList [vBase (String a), vConst (toFloat i, dummyTrace)]
 
-type AVal
+type alias AVal = { av_ : AVal_, vtrace : VTrace }
+
+type AVal_
   = ANum NumTr
   | AString String
   | APoints (List Point)
@@ -67,6 +81,15 @@ type AVal
   | AColorNum NumTr -- Utils.numToColor [0,500)
   | APath2 (List PathCmd, PathCounts)
   | ATransform (List TransformCmd)
+
+-- these versions are for when the VTrace doesn't matter
+aVal          = flip AVal [-1]
+aNum          = aVal << ANum
+aString       = aVal << AString
+aTransform    = aVal << ATransform
+aColorNum     = aVal << AColorNum
+aPoints       = aVal << APoints
+aPath2        = aVal << APath2
 
 maxColorNum   = 500
 clampColorNum = Utils.clamp 0 (maxColorNum - 1)
@@ -102,7 +125,8 @@ x `expectedButGot` s = errorMsg <| "expected " ++ x ++", but got: " ++ s
 
 -- temporary way to ignore numbers specified as strings (also see Sync)
 
-toNum a = case a of
+toNum : AVal -> Num
+toNum a = case a.av_ of
   ANum (n,_) -> n
   AString s  ->
     case String.toFloat s of
@@ -110,7 +134,7 @@ toNum a = case a of
       _    -> "a number" `expectedButGot` strValOfAVal a
   _        -> "a number" `expectedButGot` strValOfAVal a
 
-toNumTr a = case a of
+toNumTr a = case a.av_ of
   ANum (n,t) -> (n,t)
   AColorNum (n,t) -> (n,t)
   AString s  ->
@@ -119,42 +143,53 @@ toNumTr a = case a of
       _    -> "a number" `expectedButGot` strValOfAVal a
   _        -> "a number" `expectedButGot` strValOfAVal a
 
-toPoints a = case a of
+toPoints a = case a.av_ of
   APoints pts -> pts
   _           -> "a list of points" `expectedButGot` strValOfAVal a
 
-toPath a = case a of
+toPath : AVal -> (List PathCmd, PathCounts)
+toPath a = case a.av_ of
   APath2 p -> p
   _        -> "path commands" `expectedButGot` strValOfAVal a
 
-toTransformRot a = case a of
+toTransformRot a = case a.av_ of
   ATransform [Rot n1 n2 n3] -> (n1,n2,n3)
   _                         -> "a rotation transform" `expectedButGot` strValOfAVal a
 
-valToAttr (VList [VBase (String k), v]) =
-  case (k, v) of
-    ("points", VList vs)  -> (k, APoints <| List.map valToPoint vs)
-    ("fill", VList vs)    -> (k, ARgba <| valToRgba vs)
-    ("fill", VConst it)   -> (k, AColorNum it)
-    ("stroke", VList vs)  -> (k, ARgba <| valToRgba vs)
-    -- TODO "stroke" AColorNum
-    ("d", VList vs)       -> (k, APath2 (valsToPath2 vs))
-    ("transform", VList vs) -> (k, ATransform (valsToTransform vs))
-    (_, VConst it)        -> (k, ANum it)
-    (_, VBase (String s)) -> (k, AString s)
-    _ -> Debug.crash <| "valToAttr: " ++ toString (k,v)
+-- TODO will need to change AVal also
+--   and not insert dummy VTraces (using the v* functions)
 
-valToPoint v = case v of
-  VList [VConst x, VConst y] -> (x,y)
-  _                          -> "a point" `expectedButGot` strVal v
+valToAttr v = case v.v_ of
+  VList [v1,v2] -> case (v1.v_, v2.v_) of
+    (VBase (String k), v2_) ->
+     -- NOTE: Elm bug? undefined error when shadowing k (instead of choosing k')
+     let (k',av_) =
+      case (k, v2_) of
+        ("points", VList vs)    -> (k, APoints <| List.map valToPoint vs)
+        ("fill", VList vs)      -> (k, ARgba <| valToRgba vs)
+        ("fill", VConst it)     -> (k, AColorNum it)
+        ("stroke", VList vs)    -> (k, ARgba <| valToRgba vs)
+        ("d", VList vs)         -> (k, APath2 (valsToPath2 vs))
+        ("transform", VList vs) -> (k, ATransform (valsToTransform vs))
+        (_, VConst it)          -> (k, ANum it)
+        (_, VBase (String s))   -> (k, AString s)
+     in
+     (k', AVal av_ v2.vtrace)
 
-pointToVal (x,y) = (VList [VConst x, VConst y])
 
-valToRgba vs = case vs of
+valToPoint v = case v.v_ of
+  VList vs -> case List.map .v_ vs of
+    [VConst x, VConst y] -> (x,y)
+    _                    -> "a point" `expectedButGot` strVal v
+  _                      -> "a point" `expectedButGot` strVal v
+
+pointToVal (x,y) = (vList [vConst x, vConst y])
+
+valToRgba vs = case List.map .v_ vs of
   [VConst r, VConst g, VConst b, VConst a] -> (r,g,b,a)
-  _                                        -> "rgba" `expectedButGot` strVal (VList vs)
+  _                                        -> "rgba" `expectedButGot` strVal (vList vs)
 
-rgbaToVal (r,g,b,a) = [VConst r, VConst g, VConst b, VConst a]
+rgbaToVal (r,g,b,a) = [vConst r, vConst g, vConst b, vConst a]
 
 strPoint (x_,y_) =
   let [x,y] = List.map fst [x_,y_] in
@@ -166,7 +201,8 @@ strRgba (r_,g_,b_,a_) =
 strRgba_ rgba =
   "rgba" ++ Utils.parens (Utils.commas (List.map toString rgba))
 
-strAVal a = case a of
+strAVal : AVal -> String
+strAVal a = case a.av_ of
   AString s -> s
   ANum it   -> toString (fst it)
   APoints l -> Utils.spaces (List.map strPoint l)
@@ -179,25 +215,30 @@ strAVal a = case a of
     -- let (r,g,b) = Utils.numToColor maxColorNum (fst n) in
     -- strRgba_ [r,g,b,1]
 
-valOfAVal a = case a of
-  AString s -> VBase (String s)
-  ANum it   -> VConst it
-  APoints l -> VList (List.map pointToVal l)
-  ARgba tup -> VList (rgbaToVal tup)
-  APath2 p  -> VList (List.concatMap valsOfPathCmd (fst p))
+valOfAVal : AVal -> Val
+valOfAVal a = flip Val a.vtrace <| case a.av_ of
+  AString s    -> VBase (String s)
+  ANum it      -> VConst it
+  APoints l    -> VList (List.map pointToVal l)
+  ARgba tup    -> VList (rgbaToVal tup)
+  APath2 p     -> VList (List.concatMap valsOfPathCmd (fst p))
   AColorNum nt -> VConst nt
 
 valsOfPathCmd c =
-  let fooPt (_,(x,y)) = [VConst x, VConst y] in
+  Debug.crash "restore valsOfPathCmd"
+{-
+  let fooPt (_,(x,y)) = [vConst x, vConst y] in
   case c of
     CmdZ   s              -> vStr s :: []
     CmdMLT s pt           -> vStr s :: fooPt pt
-    CmdHV  s n            -> vStr s :: [VConst n]
+    CmdHV  s n            -> vStr s :: [vConst n]
     CmdC   s pt1 pt2 pt3  -> vStr s :: List.concatMap fooPt [pt1,pt2,pt3]
     CmdSQ  s pt1 pt2      -> vStr s :: List.concatMap fooPt [pt1,pt2]
-    CmdA   s a b c d e pt -> vStr s :: List.map VConst [a,b,c,d,e] ++ fooPt pt
+    CmdA   s a b c d e pt -> vStr s :: List.map vConst [a,b,c,d,e] ++ fooPt pt
+-}
 
-valOfAttr (k,a) = VList [VBase (String k), valOfAVal a]
+valOfAttr (k,a) = vList [vBase (String k), valOfAVal a]
+  -- no VTrace to preserve...
 
 -- https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
 -- http://www.w3schools.com/svg/svg_path.asp
@@ -212,7 +253,8 @@ valsToPath2 = valsToPath2_ {numPoints = 0}
 valsToPath2_ : PathCounts -> List Val -> (List PathCmd, PathCounts)
 valsToPath2_ counts vs = case vs of
   [] -> ([], counts)
-  VBase (String cmd) :: vs' ->
+  v::vs' ->
+    let (VBase (String cmd)) = v.v_ in
     if | matchCmd cmd "Z" -> CmdZ cmd +++ valsToPath2_ counts vs'
        | matchCmd cmd "MLT" ->
            let ([x,y],vs'') = projConsts 2 vs' in
@@ -268,11 +310,13 @@ strAPath2 =
   Utils.spaces << List.map strPathCmd
 
 projConsts k vs =
-  if k == 0 then ([], vs)
-  else case vs of
-         VConst it ::vs' ->
-           let (l1,l2) = projConsts (k-1) vs' in
-           (it::l1, l2)
+  case (k == 0, vs) of
+    (True, _)       -> ([], vs)
+    (False, v::vs') ->
+      case v.v_ of
+        VConst it ->
+          let (l1,l2) = projConsts (k-1) vs' in
+          (it::l1, l2)
 
 matchCmd cmd s =
   let [c] = String.toList cmd in
@@ -281,16 +325,19 @@ matchCmd cmd s =
 
 -- transform commands
 
+valsToTransform : List Val -> List TransformCmd
 valsToTransform = List.map valToTransformCmd
 
-valToTransformCmd v = case v of
-  VList (VBase (String k) :: vs) ->
-    case (k, vs) of
-      ("rotate",    [VConst n1, VConst n2, VConst n3]) -> Rot n1 n2 n3
-      ("scale",     [VConst n1, VConst n2])            -> Scale n1 n2
-      ("translate", [VConst n1, VConst n2])            -> Trans n1 n2
-      _ -> "a transform command" `expectedButGot` strVal v
-  _     -> "a transform command" `expectedButGot` strVal v
+valToTransformCmd v = case v.v_ of
+  VList vs1 -> case List.map .v_ vs1 of
+    (VBase (String k) :: vs) ->
+      case (k, vs) of
+        ("rotate",    [VConst n1, VConst n2, VConst n3]) -> Rot n1 n2 n3
+        ("scale",     [VConst n1, VConst n2])            -> Scale n1 n2
+        ("translate", [VConst n1, VConst n2])            -> Trans n1 n2
+        _ -> "a transform command" `expectedButGot` strVal v
+    _     -> "a transform command" `expectedButGot` strVal v
+  _       -> "a transform command" `expectedButGot` strVal v
 
 strTransformCmd cmd = case cmd of
   Rot n1 n2 n3 ->
@@ -349,7 +396,7 @@ type alias RootedIndexedTree = (NodeId, IndexedTree)
 children n = case n of {TextNode _ -> []; SvgNode _ _ l -> l}
 
 emptyTree : RootedIndexedTree
-emptyTree = valToIndexedTree <| VList [VBase (String "svg"), VList [], VList []]
+emptyTree = valToIndexedTree <| vList [vBase (String "svg"), vList [], vList []]
 
 -- TODO use options for better error messages
 
@@ -391,26 +438,26 @@ fetchEverything slideNumber movieNumber movieTime val =
 
 fetchSlideCount : Val -> Int
 fetchSlideCount val =
-  case val of
-    VList [VConst (slideCount, _), _] -> round slideCount
+  case unwrapVList val of
+    Just [VConst (slideCount, _), _] -> round slideCount
     _ -> 1 -- Program returned a plain SVG array structure...we hope.
 
 fetchMovieCount : Val -> Int
 fetchMovieCount slideVal =
-  case slideVal of
-    VList [VConst (movieCount, _), _] -> round movieCount
+  case unwrapVList slideVal of
+    Just [VConst (movieCount, _), _] -> round movieCount
     _ -> 1 -- Program returned a plain SVG array structure...we hope.
 
 fetchSlideVal : Int -> Val -> Val
 fetchSlideVal slideNumber val =
-  case val of
-    VList [VConst (slideCount, _), VClosure _ pat fexp fenv] ->
+  case unwrapVList val of
+    Just [VConst (slideCount, _), VClosure _ pat fexp fenv] ->
       -- Program returned the slide count and a
       -- function from slideNumber -> SVG array structure.
       case pat.val of -- Find that function's argument name
         PVar argumentName _ ->
           -- Bind the slide number to the function's argument.
-          let fenv' = (argumentName, VConst (toFloat slideNumber, dummyTrace)) :: fenv in
+          let fenv' = (argumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
           let ((returnVal, _), _) = Eval.eval fenv' fexp in
           returnVal
         _ -> Debug.crash ("expected slide function to take a single argument, got " ++ (toString pat.val))
@@ -419,11 +466,11 @@ fetchSlideVal slideNumber val =
 -- This is nasty b/c a two-arg function is really a function that returns a function...
 fetchMovieVal : Int -> Val -> Val
 fetchMovieVal movieNumber slideVal =
-  case slideVal of
-    VList [VConst (movieCount, _), VClosure _ pat fexp fenv] ->
+  case unwrapVList slideVal of
+    Just [VConst (movieCount, _), VClosure _ pat fexp fenv] ->
       case pat.val of -- Find the function's argument name
         PVar movieNumberArgumentName _ ->
-          let fenv' = (movieNumberArgumentName, VConst (toFloat movieNumber, dummyTrace)) :: fenv in
+          let fenv' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenv in
           let ((returnVal, _), _) = Eval.eval fenv' fexp in
           returnVal
         _ -> Debug.crash ("expected movie function to take a single argument, got " ++ (toString pat.val))
@@ -431,10 +478,10 @@ fetchMovieVal movieNumber slideVal =
 
 fetchMovieDurationAndContinueBool : Val -> (Float, Bool)
 fetchMovieDurationAndContinueBool movieVal =
-  case movieVal of
-    VList [VBase (String "Static"), VClosure _ _ _ _] ->
+  case unwrapVList movieVal of
+    Just [VBase (String "Static"), VClosure _ _ _ _] ->
       (0.0, False)
-    VList [VBase (String "Dynamic"), VConst (movieDuration, _), VClosure _ _ _ _, VBase (Bool continue)] ->
+    Just [VBase (String "Dynamic"), VConst (movieDuration, _), VClosure _ _ _ _, VBase (Bool continue)] ->
       (movieDuration, continue)
     _ ->
       (0.0, False) -- Program returned a plain SVG array structure...we hope.
@@ -442,38 +489,38 @@ fetchMovieDurationAndContinueBool movieVal =
 -- This is nasty b/c a two-arg function is really a function that returns a function...
 fetchMovieFrameVal : Int -> Int -> Float -> Val -> Val
 fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
-  case movieVal of
-    VList [VBase (String "Static"), VClosure _ pat fexp fenv] ->
+  case unwrapVList movieVal of
+    Just [VBase (String "Static"), VClosure _ pat fexp fenv] ->
       case pat.val of -- Find the function's argument names
         PVar slideNumberArgumentName _ ->
-          let fenv' = (slideNumberArgumentName, VConst (toFloat slideNumber, dummyTrace)) :: fenv in
+          let fenv' = (slideNumberArgumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
           let ((innerVal, _), _) = Eval.eval fenv' fexp in
-          case innerVal of
+          case innerVal.v_ of
             VClosure _ patInner fexpInner fenvInner ->
               case patInner.val of
                 PVar movieNumberArgumentName _ ->
-                  let fenvInner' = (movieNumberArgumentName, VConst (toFloat movieNumber, dummyTrace)) :: fenvInner in
+                  let fenvInner' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenvInner in
                   let ((returnVal, _), _) = Eval.eval fenvInner' fexpInner in
                   returnVal
                 _ -> Debug.crash ("expected static movie frame function to take two arguments, got " ++ (toString patInner.val))
             _ -> Debug.crash ("expected static movie frame function to take two arguments, got " ++ (toString innerVal))
         _ -> Debug.crash ("expected static movie frame function to take two arguments, got " ++ (toString pat.val))
-    VList [VBase (String "Dynamic"), VConst (movieDuration, _), VClosure _ pat fexp fenv, VBase (Bool _)] ->
+    Just [VBase (String "Dynamic"), VConst (movieDuration, _), VClosure _ pat fexp fenv, VBase (Bool _)] ->
       case pat.val of -- Find the function's argument names
         PVar slideNumberArgumentName _ ->
-          let fenv' = (slideNumberArgumentName, VConst (toFloat slideNumber, dummyTrace)) :: fenv in
+          let fenv' = (slideNumberArgumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
           let ((innerVal1, _), _) = Eval.eval fenv' fexp in
-          case innerVal1 of
+          case innerVal1.v_ of
             VClosure _ patInner1 fexpInner1 fenvInner1 ->
               case patInner1.val of
                 PVar movieNumberArgumentName _ ->
-                  let fenvInner1' = (movieNumberArgumentName, VConst (toFloat movieNumber, dummyTrace)) :: fenvInner1 in
+                  let fenvInner1' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenvInner1 in
                   let ((innerVal2, _), _) = Eval.eval fenvInner1' fexpInner1 in
-                  case innerVal2 of
+                  case innerVal2.v_ of
                     VClosure _ patInner2 fexpInner2 fenvInner2 ->
                       case patInner2.val of
                         PVar movieSecondsArgumentName _ ->
-                          let fenvInner2' = (movieSecondsArgumentName, VConst (movieTime, dummyTrace)) :: fenvInner2 in
+                          let fenvInner2' = (movieSecondsArgumentName, vConst (movieTime, dummyTrace)) :: fenvInner2 in
                           let ((returnVal, _), _) = Eval.eval fenvInner2' fexpInner2 in
                           returnVal
                         _ -> Debug.crash ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner2.val))
@@ -490,19 +537,24 @@ valToIndexedTree v =
   let rootId = nextId - 1 in
   (rootId, tree)
 
-valToIndexedTree_ v (nextId, d) = case v of
+valToIndexedTree_ v (nextId, d) = case v.v_ of
 
-  VList [VBase (String "TEXT"), VBase (String s)] ->
-    (1 + nextId, Dict.insert nextId (TextNode s) d)
+  VList vs -> case List.map .v_ vs of
 
-  VList [VBase (String kind), VList vs1, VList vs2] ->
-    let processChild vi (a_nextId, a_graph , a_children) =
-      let (a_nextId',a_graph') = valToIndexedTree_ vi (a_nextId, a_graph) in
-      let a_children'          = (a_nextId' - 1) :: a_children in
-      (a_nextId', a_graph', a_children') in
-    let (nextId',d',children) = List.foldl processChild (nextId,d,[]) vs2 in
-    let node = SvgNode kind (List.map valToAttr vs1) (List.reverse children) in
-    (1 + nextId', Dict.insert nextId' node d')
+    [VBase (String "TEXT"), VBase (String s)] ->
+      (1 + nextId, Dict.insert nextId (TextNode s) d)
+
+    [VBase (String kind), VList vs1, VList vs2] ->
+      let processChild vi (a_nextId, a_graph , a_children) =
+        let (a_nextId',a_graph') = valToIndexedTree_ vi (a_nextId, a_graph) in
+        let a_children'          = (a_nextId' - 1) :: a_children in
+        (a_nextId', a_graph', a_children') in
+      let (nextId',d',children) = List.foldl processChild (nextId,d,[]) vs2 in
+      let node = SvgNode kind (List.map valToAttr vs1) (List.reverse children) in
+      (1 + nextId', Dict.insert nextId' node d')
+
+    _ ->
+      "an SVG node" `expectedButGot` strVal v
 
   _ ->
     "an SVG node" `expectedButGot` strVal v
@@ -555,13 +607,14 @@ printAttr (k,v) =
   k ++ "=" ++ Utils.delimit "'" "'" (strAVal v)
 
 addAttrs kind attrs =
-  if | kind == "svg" -> ("xmlns", AString "http://www.w3.org/2000/svg") :: attrs
+  if | kind == "svg" -> ("xmlns", aString "http://www.w3.org/2000/svg") :: attrs
      | otherwise     -> attrs
 
 specialAttrs = ["HIDDEN", "ZONES"]
 
 removeSpecialAttrs =
   List.filter (\(s,_) -> not (List.member s specialAttrs))
+  -- TODO remove 'ZONES' attr
 
 
 ------------------------------------------------------------------------------
@@ -632,3 +685,16 @@ zones = [
   -- , ("path", [])
   ]
 
+
+------------------------------------------------------------------------------
+
+dummySvgNode =
+  let zero = aNum (0, dummyTrace) in
+  SvgNode "circle" (List.map (\k -> (k, zero)) ["cx","cy","r"]) []
+
+-- TODO break up and move slateToVal here
+dummySvgVal =
+  let zero = vConst (0, dummyTrace) in
+  let attrs = vList <| List.map (\k -> vList [vStr k, zero]) ["cx","cy","r"] in
+  let children = vList [] in
+  vList [vStr "circle", attrs, children]

@@ -1,0 +1,44 @@
+
+(def pt0 (circle 'black' 88 190 0)) ; dummy point to work around bug...
+(def pt1 (circle 'red' 88 190 10))
+(def pt2 (circle 'green' 121 142 10))
+(def pt3 (circle 'blue' 153 212 10))
+
+; TODO remove, use library version
+
+(def enumSlider (\(x0 x1 y enum caption srcVal)
+  (let n (len enum)
+  (let [minVal maxVal] [0! (- n 1!)]
+  (let preVal (clamp minVal maxVal srcVal)
+  (let i (round preVal)
+  (let item (nth enum i)
+  (let wrap (\circ (addAttr circ ['SELECTED' ''])) ; TODO
+  (let shapes
+    (let rail [ (line 'black' 3! x0 y x1 y) ]
+    (let ball
+      (let [xDiff valDiff] [(- x1 x0) (- maxVal minVal)]
+      (let xBall (+ x0 (* xDiff (/ (- preVal minVal) valDiff)))
+      (let rBall (if (= preVal srcVal) 10! 0!)
+        [ (wrap (circle 'black' xBall y rBall)) ])))
+    (let endpoints
+      [ (wrap (circle 'black' x0 y 4!)) (wrap (circle 'black' x1 y 4!)) ]
+    (let tickpoints
+      (let sep (/ (- x1 x0) (+ n 1!))
+      (map (\i (wrap (circle 'grey' (+ (+ x0 sep) (mult i sep)) y 4!)))
+           (range 0! (- n 1!))))
+    (let label [ (text (+ x1 10!) (+ y 5!) (+ caption (toString item))) ]
+    (concat [ rail endpoints tickpoints ball label ]))))))
+  [item shapes])))))))))
+
+(def addSelectionSliders (\(circ cap y seed)
+  (let [s slider] (enumSlider 20! 120! y ['' 'cx' 'cy' 'r'] cap seed)
+  (let circ1 (addAttr circ ['SELECTED' s])
+  [circ1 | slider]))))
+
+(svg (concat [
+  (addSelectionSliders pt0 '....'  -10! 0)
+  (addSelectionSliders pt1 'red '   20! 0)
+  (addSelectionSliders pt2 'green ' 50! 0)
+  (addSelectionSliders pt3 'blue '  80! 0)
+]))
+

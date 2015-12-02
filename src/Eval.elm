@@ -1,4 +1,4 @@
-module Eval (run, parseAndRun, evalDelta, eval) where
+module Eval (run, parseAndRun, parseAndRun_, evalDelta, eval) where
 
 import Debug
 
@@ -10,7 +10,7 @@ import Utils
 -- Big-Step Operational Semantics
 
 match : (Pat, Val) -> Maybe Env
-match (p,v) = case (p.val, v) of
+match (p,v) = case (p.val, v.v_) of
   (PVar x _, _) -> Just [(x,v)]
   (PList ps Nothing, VList vs) ->
     Utils.bindMaybe matchList (Utils.maybeZip ps vs)
@@ -18,7 +18,8 @@ match (p,v) = case (p.val, v) of
     let (n,m) = (List.length ps, List.length vs) in
     if | n > m     -> Nothing
        | otherwise -> let (vs1,vs2) = Utils.split n vs in
-                      (rest, VList vs2) `cons` (matchList (Utils.zip ps vs1))
+                      (rest, vList vs2) `cons` (matchList (Utils.zip ps vs1))
+                        -- dummy VTrace, since VList itself doesn't matter
   (PList _ _, _) -> Nothing
   (PConst n, VConst (n',_)) ->
     if | n == n'   -> Just []
@@ -66,41 +67,48 @@ eval_ env e = fst <| eval env e
 eval : Env -> Exp -> ((Val, Widgets), Env)
 eval env e =
 
-  let ret v                          = ((v, []), env) in
-  let retBoth vw                     = (vw, env) in
+  let ret v_                         = ((Val v_ [e.val.eid], []), env) in
+  let retAdd eid (v,envOut)          = ((Val v.v_ (eid::v.vtrace), []), envOut) in
+  let retAddWs eid ((v,ws),envOut)   = ((Val v.v_ (eid::v.vtrace), ws), envOut) in
+  let retAddThis_ (v,envOut)         = retAdd e.val.eid (v,envOut) in
+  let retAddThis v                   = retAddThis_ (v, env) in
+  let retBoth (v,w)                  = (({v | vtrace <- e.val.eid :: v.vtrace},w), env) in
   let addWidgets ws1 ((v1,ws2),env1) = ((v1, ws1 ++ ws2), env1) in
 
-  case e.val of
+  case e.val.e__ of
 
   EConst i l wd ->
-    let v = VConst (i, TrLoc l) in
+    let v_ = VConst (i, TrLoc l) in
     case wd.val of
-      NoWidgetDecl         -> ret v
-      IntSlider a _ b mcap -> retBoth (v, [WIntSlider a.val b.val (mkCap mcap l) (floor i) l])
-      NumSlider a _ b mcap -> retBoth (v, [WNumSlider a.val b.val (mkCap mcap l) i l])
+      NoWidgetDecl         -> ret v_
+      IntSlider a _ b mcap -> retBoth (Val v_ [], [WIntSlider a.val b.val (mkCap mcap l) (floor i) l])
+      NumSlider a _ b mcap -> retBoth (Val v_ [], [WNumSlider a.val b.val (mkCap mcap l) i l])
 
   EBase v    -> ret <| VBase v
-  EVar x     -> ret <| lookupVar env x e.start
+  EVar x     -> retAddThis <| lookupVar env x e.start
   EFun [p] e -> ret <| VClosure Nothing p e env
-  EOp op es  -> retBoth <| evalOp env op es
+  EOp op es  -> retAddWs e.val.eid ((evalOp env op es), env)
 
   EList es m ->
     let (vs,wss) = List.unzip (List.map (eval_ env) es) in
     let ws = List.concat wss in
     case m of
-      Nothing   -> retBoth <| (VList vs, ws)
-      Just rest -> case eval_ env rest of
-                     (VList vs', ws') -> retBoth <| (VList (vs ++ vs'), ws ++ ws')
+      Nothing   -> retBoth <| (Val (VList vs) [], ws)
+      Just rest ->
+        let (vRest, ws') = eval_ env rest in
+        case vRest.v_ of
+          VList vs' -> retBoth <| (Val (VList (vs ++ vs')) [], ws ++ ws')
+          _         -> errorMsg <| strPos rest.start ++ " rest expression not a list."
 
-{-
   EIndList rs ->
-      let vrs = List.concat <| List.map rangeToList rs
-      in ret <| VList vrs
--}
+    let vs = List.concat <| List.map rangeToList rs in
+    if isSorted vs
+    then ret <| VList vs
+    else Debug.crash <| "indices not strictly increasing: " ++ strVal (vList vs)
 
   EIf e1 e2 e3 ->
     let (v1,ws1) = eval_ env e1 in
-    case v1 of
+    case v1.v_ of
       VBase (Bool True)  -> addWidgets ws1 <| eval env e2
       VBase (Bool False) -> addWidgets ws1 <| eval env e3
       _                  -> errorMsg <| strPos e1.start ++ " if-exp expected a Bool but got something else."
@@ -114,22 +122,22 @@ eval env e =
   EApp e1 [e2] ->
     let ((v1,ws1),(v2,ws2)) = (eval_ env e1, eval_ env e2) in
     let ws = ws1 ++ ws2 in
-    case v1 of
-      VClosure Nothing p e env' ->
+    case v1.v_ of
+      VClosure Nothing p eBody env' ->
         case (p, v2) `cons` Just env' of
-          Just env'' -> addWidgets ws <| eval env'' e
-      VClosure (Just f) p e env' ->
+          Just env'' -> addWidgets ws <| eval env'' eBody -- TODO add eid to vTrace
+      VClosure (Just f) p eBody env' ->
         case (pVar f, v1) `cons` ((p, v2) `cons` Just env') of
-          Just env'' -> addWidgets ws <| eval env'' e
+          Just env'' -> addWidgets ws <| eval env'' eBody -- TODO add eid to vTrace
       _ ->
-        errorMsg <| strPos e1.start ++ " not a function"
+        errorMsg <| strPos e1.start ++ " not a function: " ++ (sExp e)
 
   ELet _ True p e1 e2 ->
     let (v1,ws1) = eval_ env e1 in
-    case (p.val, v1) of
+    case (p.val, v1.v_) of
       (PVar f _, VClosure Nothing x body env') ->
         let _   = Utils.assert "eval letrec" (env == env') in
-        let v1' = VClosure (Just f) x body env in
+        let v1' = Val (VClosure (Just f) x body env) v1.vtrace in
         case (pVar f, v1') `cons` Just env of
           Just env' -> addWidgets ws1 <| eval env' e2
       (PList _ _, _) ->
@@ -142,15 +150,16 @@ eval env e =
   EOption _ _ e1 -> eval env e1
 
   -- abstract syntactic sugar
-  EFun ps e  -> eval env (eFun ps e)
-  EApp e1 es -> eval env (eApp e1 es)
-  ELet _ False p e1 e2 -> eval env (eApp (eFun [p] e2) [e1])
+
+  EFun ps e1           -> retAddWs e1.val.eid <| eval env (eFun ps e1)
+  EApp e1 es           -> retAddWs e.val.eid  <| eval env (eApp e1 es)
+  ELet _ False p e1 e2 -> retAddWs e2.val.eid <| eval env (eApp (eFun [p] e2) [e1])
 
 evalOp env opWithInfo es =
   let (op,opStart) = (opWithInfo.val, opWithInfo.start) in
   let (vs,wss) = List.unzip (List.map (eval_ env) es) in
-  (\vOut -> (vOut, List.concat wss)) <|
-  case vs of
+  (\vOut -> (Val vOut [], List.concat wss)) <|
+  case List.map .v_ vs of
     [VConst (i,it), VConst (j,jt)] ->
       case op of
         Plus    -> VConst (evalDelta op [i,j], TrOp op [it,jt])
@@ -160,12 +169,12 @@ evalOp env opWithInfo es =
         Mod     -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Pow     -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         ArcTan2 -> VConst (evalDelta op [i,j], TrOp op [it,jt])
-        Lt      -> vBool  (i < j)
-        Eq      -> vBool  (i == j)
+        Lt      -> VBase (Bool (i < j))
+        Eq      -> VBase (Bool (i == j))
     [VBase (String s1), VBase (String s2)] ->
       case op of
         Plus  -> VBase (String (s1 ++ s2))
-        Eq    -> vBool (s1 == s2)
+        Eq    -> VBase (Bool (s1 == s2))
     [] ->
       case op of
         Pi    -> VConst (pi, TrOp op [])
@@ -186,6 +195,10 @@ evalOp env opWithInfo es =
     [VBase (String s)] ->
       case op of
         ToStr  -> VBase (String (strBaseVal (String s)))
+    [_, _] ->
+      case op of
+        -- polymorphic inequality, added for Prelude.addExtras
+        Eq     -> VBase (Bool False)
     _ ->
       errorMsg
         <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart
@@ -223,7 +236,12 @@ evalDelta op is =
 
     (Pi,      [])    -> pi
 
-    _               -> errorMsg <| "Eval.evalDelta " ++ strOp op
+    (RangeOffset i, [n1,n2]) ->
+      let m = n1 + toFloat i in
+      if | m > n2    -> n2
+         | otherwise -> m
+
+    _                -> errorMsg <| "Eval.evalDelta " ++ strOp op
 
 initEnv = snd (eval [] Parser.prelude)
 
@@ -234,18 +252,38 @@ run e =
 parseAndRun : String -> String
 parseAndRun = strVal << fst << run << Utils.fromOk_ << Parser.parseE
 
+parseAndRun_ = strVal_ True << fst << run << Utils.fromOk_ << Parser.parseE
+
+rangeOff l1 i l2 = TrOp (RangeOffset i) [TrLoc l1, TrLoc l2]
+
 -- Inflates a range to a list, which is then Concat-ed in eval
-rangeToList : ERange -> List Val
+rangeToList : Range -> List Val
 rangeToList r =
-    let (l,u) = r.val
-    in
-      case (l.val, u.val) of
-        (EConst nl tl _, EConst nu tu _) ->
-           let walkVal i =
-             let j = toFloat i in
-             if | (nl + j) < nu -> VConst (nl + j, TrOp (RangeOffset i) [TrLoc tl]) :: walkVal (i + 1)
-                | otherwise     -> [ VConst (nu, TrLoc tu) ]
-           in
-           if | nl == nu  -> [ VConst (nl, TrLoc tl) ]
-              | otherwise -> walkVal 0
-        _ -> errorMsg "Range not specified with numeric constants"
+  let err () = errorMsg "Range not specified with numeric constants" in
+  case r.val of
+    -- dummy VTraces...
+    -- TODO: maybe add widgets
+    Point e -> case e.val.e__ of
+      EConst n l _ -> [ vConst (n, rangeOff l 0 l) ]
+      _            -> err ()
+    Interval e1 e2 -> case (e1.val.e__, e2.val.e__) of
+      (EConst n1 l1 _, EConst n2 l2 _) ->
+        let walkVal i =
+          let m = n1 + toFloat i in
+          let tr = rangeOff l1 i l2 in
+          if | m < n2    -> vConst (m,  tr) :: walkVal (i + 1)
+             | otherwise -> vConst (n2, tr) :: []
+        in
+        walkVal 0
+      _ -> err ()
+
+-- Could compute this in one pass along with rangeToList
+isSorted = isSorted_ Nothing
+isSorted_ mlast vs = case vs of
+  []     -> True
+  v::vs' ->
+    let (VConst (j,_)) = v.v_ in
+    case mlast of
+      Nothing -> isSorted_ (Just j) vs'
+      Just i  -> if | i < j -> isSorted_ (Just j) vs'
+                    | otherwise -> False

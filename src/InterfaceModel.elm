@@ -56,11 +56,15 @@ type alias Model =
   , codeBoxInfo : CodeBoxInfo
   , basicCodeBox : Bool
   , errorBox : Maybe String
+  , genSymCount : Int
   }
 
 type Mode
-  = AdHoc | SyncSelect Int PossibleChanges | Live Sync.LiveInfo
-  | Print RawSvg | SaveDialog Mode -- SaveDialog saves last mode
+  = AdHoc
+  | SyncSelect (Code, RootedIndexedTree) Int PossibleChanges
+  | Live Sync.LiveInfo
+  | Print RawSvg
+  | SaveDialog Mode -- SaveDialog saves last mode
 
 type alias DialogInfo = { value : String
                         , hint   : String
@@ -97,24 +101,25 @@ type alias MouseTrigger a = (Int, Int) -> a
 type Orientation = Vertical | Horizontal
 
 type alias PossibleChanges =
-  ( Int               -- num local changes
-  , List (Exp, Val)   -- local changes ++ [structural change, revert change]
+  ( (Int, List (Exp, Val))   -- local changes and count
+  , (Int, List (Exp, Val))   -- structural changes and count
+  , (Exp, Val)               -- revert change
   )
 
 -- using Int instead of datatype so serialization/deserialization in
 -- InterfaceStorage is more succinct (Enum typeclass would be nice here...)
 type alias ShowZones = Int
 
-showZonesModes = 4
+showZonesModes = 5
 
-[showZonesNone, showZonesBasic, showZonesRot, showZonesColor] =
+[showZonesNone, showZonesBasic, showZonesRot, showZonesColor, showZonesDel] =
   [ 0 .. (showZonesModes - 1) ]
 
 type Caption
   = Hovering (Int, ShapeKind, Zone)
   | LangError String
 
-type Event = CodeUpdate String
+type Event = CodeUpdate String -- TODO this doesn't help with anything
            | SelectObject Int ShapeKind Zone
            | MouseUp
            | MousePos (Int, Int)
@@ -143,6 +148,7 @@ type Event = CodeUpdate String
            | KeysDown (List Char.KeyCode)
            | Noop
            | UpdateFieldContents DialogInfo
+           | CleanCode
            | UpdateModel (Model -> Model)
                -- TODO could write other events in terms of UpdateModel
            | MultiEvent (List Event)
@@ -240,5 +246,6 @@ sampleModel =
                       }
     , basicCodeBox  = False
     , errorBox      = Nothing
+    , genSymCount   = 0
     }
 

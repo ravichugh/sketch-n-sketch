@@ -1,0 +1,7 @@
+
+(def seeds [0 0 0])
+(svg (addSelectionSliders 30! seeds [
+  [ (line 'darkblue'  0 100 100 200 200) 'dummy: ' ]
+  [ (line 'darkblue'  8 100 100 200 200) 'line1: ' ]
+  [ (line 'darkblue'  8 100 300 200 400) 'line2: ' ]
+]))

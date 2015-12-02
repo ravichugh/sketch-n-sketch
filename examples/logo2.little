@@ -6,25 +6,25 @@
   (let poly (\(c pts) (polygon c 'none' 0 pts))
   (let basic (\shape (addAttr shape ['ZONES' 'basic']))
   (svg [
-  
+
     ; positive background
     ; starting with (xw,yh) to place color slider
     (poly fg [[xw yh] [xw y0] [x0 y0] [x0 yh]])
-  
+
     ; negative X, part 1
     (poly bg
       [[x0 y0] [(+ x0 delta1) y0] [xw (- yh delta2)]
        [xw yh] [(- xw delta1) yh] [x0 (+ y0 delta2)]])
-  
+
     ; negative X, part 2
     (basic (poly bg
       [[xw y0] [xw (+ y0 delta2)] [(+ x0 delta1) yh]
        [x0 yh] [x0 (- yh delta2)] [(- xw delta1) y0]]))
-  
+
     ; positive, hiding top-right quarter of X
     (basic (poly fg
       [[(+ x0 delta1) y0] [xw y0] [xw (- yh delta2)]]))
-  
+
   ]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

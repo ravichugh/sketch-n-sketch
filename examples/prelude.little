@@ -55,7 +55,7 @@
   (case xs ([] ys) ([x|xs1] [ x | (append xs1 ys)]))))
 
 ;; concat : List (List a) -> List a
-;; concatenate a list of lists into a single list 
+;; concatenate a list of lists into a single list
 (def concat (foldr append []))
 
 ;; concatMap : (a -> List b) -> List a -> List b
@@ -80,7 +80,7 @@
 (def cons (\(x xs) [x | xs]))
 
 ;; snoc : a -> List a -> List a
-;; attaches an element to the end of a list 
+;; attaches an element to the end of a list
 (def snoc (\(x ys) (append ys [x])))
 
 ;; hd : List a -> a
@@ -96,7 +96,7 @@
 (def reverse (foldl cons nil))
 
 ;; range : a -> a -> List a
-;; Given two numbers, creates the list between them (inclusive) 
+;; Given two numbers, creates the list between them (inclusive)
 (defrec range (\(i j)
   (if (< i (+ j 1))
       (cons i (range (+ i 1) j))
@@ -125,6 +125,20 @@
     ([[x|xs1] [y|ys1]] (cons x (cons y (intermingle xs1 ys1))))
     ([[]      []]      nil)
     (_                 (append xs ys)))))
+
+(def mapi (\(f xs) (map f (zip (range 0 (- (len xs) 1)) xs))))
+
+(defrec nth (\(xs n)
+  (if (< n 0)   'ERROR: nth'
+    (case xs
+      ([]       'ERROR: nth')
+      ([x|xs1]  (if (= n 0) x (nth xs1 (- n 1))))))))
+
+(defrec take (\(xs n)
+  (if (= n 0) []
+    (case xs
+      ([]      'ERROR: take')
+      ([x|xs1] [x | (take xs1 (- n 1))])))))
 
 ;; mult : Number -> Number -> Number
 ;; multiply two numbers and return the result
@@ -243,7 +257,7 @@
 
 ;; ring : String -> Number -> Number -> Number -> Number -> Shape
 ;; argument order - color, width, x, y, radius
-;; Just as circle, except new width parameter determines thickness of ring 
+;; Just as circle, except new width parameter determines thickness of ring
 (def ring (\(c w x y r)
   ['circle'
      [ ['cx' x] ['cy' y] ['r' r] ['fill' 'none'] ['stroke' c] ['stroke-width' w] ]
@@ -297,7 +311,7 @@
 ;; path: String -> String -> Number -> List a -> Shape
 ;; argument order - fill, stroke, width, d
 ;; Given SVG path command d, create path with given fill color, stroke and width
-;; See https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths for path command info 
+;; See https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths for path command info
 (def path (\(fill stroke w d)
   ['path'
      [ ['fill' fill] ['stroke' stroke] ['stroke-width' w] ['d' d] ]
@@ -369,6 +383,12 @@
           [(cons oldShape accShapes) accDiff]))))
   (let newShapes (reverse (fst (foldl f initAcc oldShapesI)))
     ['svg' svgAttrs newShapes]))))))
+
+(def groupMap (\(xs f) (map f xs)))
+
+(def autoChose (\(_ x _) x))
+(def inferred  (\(x _ _) x))
+(def flow (\(_ x) x))
 
 (defrec lookupWithDefault (\(default k dict)
   (let foo (lookupWithDefault default k)
@@ -574,11 +594,55 @@
     (concat [ rail endpoints tickpoints label ball ]))))))
   [item (ghosts shapes)]))))))))
 
+(def enumSlider (\(x0 x1 y enum caption srcVal)
+  (let n (len enum)
+  (let [minVal maxVal] [0! n]
+  (let preVal (clamp minVal maxVal srcVal)
+  (let i (floor preVal)
+  (let item (nth enum i)
+  (let wrap (\circ (addAttr circ ['SELECTED' ''])) ; TODO
+  (let shapes
+    (let rail [ (line 'black' 3! x0 y x1 y) ]
+    (let ball
+      (let [xDiff valDiff] [(- x1 x0) (- maxVal minVal)]
+      (let xBall (+ x0 (* xDiff (/ (- preVal minVal) valDiff)))
+      (let rBall (if (= preVal srcVal) 10! 0!)
+        [ (wrap (circle 'black' xBall y rBall)) ])))
+    (let endpoints
+      [ (wrap (circle 'black' x0 y 4!)) (wrap (circle 'black' x1 y 4!)) ]
+    (let tickpoints
+      (let sep (/ (- x1 x0) n)
+      (map (\j (wrap (circle 'grey' (+ x0 (mult j sep)) y 4!)))
+           (range 1! (- n 1!))))
+    (let label [ (text (+ x1 10!) (+ y 5!) (+ caption (toString item))) ]
+    (concat [ rail endpoints tickpoints ball label ]))))))
+  [item shapes])))))))))
+
+(def addSelectionSliders (\(y0 seeds shapesCaps)
+  (let shapesCapsSeeds (zip shapesCaps (take seeds (len shapesCaps)))
+  (let foo (\[i [[shape cap] seed]]
+    (let [k _ _] shape
+    (let enum
+      (if (= k 'circle') ['' 'cx' 'cy' 'r']
+      (if (= k 'line')   ['' 'x1' 'y1' 'x2' 'y2']
+      (if (= k 'rect')   ['' 'x' 'y' 'width' 'height']
+        [(+ 'NO SELECTION ENUM FOR KIND ' k)])))
+    (let [item slider] (enumSlider 20! 170! (+ y0 (mult i 30!)) enum cap seed)
+    (let shape1 (addAttr shape ['SELECTED' item]) ; TODO overwrite existing
+    [shape1|slider])))))
+  (concat (mapi foo shapesCapsSeeds))))))
+
+
 ;; rotate : Shape -> Number -> Number -> Number -> Shape
 ;; argument order - shape, rot, x, y
 ;; Takes a shape rotates it rot degrees around point (x,y)
 (def rotate (\(shape n1 n2 n3)
   (addAttr shape ['transform' [['rotate' n1 n2 n3]]])))
+
+(def rotateAround (\(rot x y shape)
+  (addAttr shape ['transform' [['rotate' rot x y]]])))
+
+(def radToDeg (\rad (* (/ rad (pi)) 180!)))
 
 ; 0
 ['svg' [] []]

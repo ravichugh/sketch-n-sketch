@@ -1,5 +1,6 @@
-module LangParser2 (prelude, isPreludeLoc, substOf, parseE, parseV,
-                    substPlusOf) where
+module LangParser2 (prelude, isPreludeLoc, isPreludeEId,
+                    substOf, parseE, parseV,
+                    freshen, substPlusOf) where
 
 import String
 import Dict
@@ -19,6 +20,9 @@ import PreludeGenerated as Prelude
 isPreludeLoc : Loc -> Bool
 isPreludeLoc (k,_,_) = k < initK
 
+isPreludeEId : EId -> Bool
+isPreludeEId k = k < initK
+
 ------------------------------------------------------------------------------
 
 -- these top-level freshen and substOf definitions are ugly...
@@ -35,8 +39,18 @@ substOf = Dict.map (always .val) << substPlusOf
 -- this will be done while parsing eventually...
 
 freshen_ : Int -> Exp -> (Exp, Int)
-freshen_ k e = (\(e_,k') -> (P.WithInfo e_ e.start e.end, k')) <| case e.val of
-  EConst i l wd -> let (0,b,"") = l in (EConst i (k, b, "") wd, k + 1)
+freshen_ k e =
+  (\(e__,k') ->
+    let nextK =
+      case e__ of
+        EConst _ (kk, _, _) _ -> kk -- invariant: kk = k' - 1
+        _                     -> k'
+    in
+    (P.WithInfo (Exp_ e__ nextK) e.start e.end, nextK + 1)) <|
+ case e.val.e__ of
+  -- EConst i l wd -> let (0,b,"") = l in (EConst i (k, b, "") wd, k + 1)
+  -- freshen is now being called externally by Sync.inferDeleteUpdate
+  EConst i l wd -> let (_,b,x) = l in (EConst i (k, b, x) wd, k + 1)
   EBase v    -> (EBase v, k)
   EVar x     -> (EVar x, k)
   EFun ps e  -> let (e',k') = freshen_ k e in (EFun ps e', k')
@@ -72,19 +86,24 @@ freshenExps k es =
     let (e1,k1) = freshen_ k' e in
     (e1::es', k1)) ([],k) es
 
-freshenRanges : Int -> List ERange -> (List ERange, Int)
+freshenRanges : Int -> List Range -> (List Range, Int)
 freshenRanges k rs =
   List.foldr (\r (rs',k') ->
-    let (l,u) = r.val
-        (l1,k1) = freshen_ k' l
-        (u1,k2) = freshen_ k1 u
-    in ({r | val <- (l1,u1)} :: rs', k2)
+    let (r_,k_) = case r.val of
+      Point e ->
+        let (e',k'') = freshen_ k' e in
+        (Point e', k'')
+      Interval e1 e2 ->
+        let ([e1',e2'],k'') = freshenExps k' [e1,e2] in
+        (Interval e1' e2', k'')
+    in
+    ({ r | val <- r_ } :: rs', k_)
   ) ([],k) rs
 
 
 addBreadCrumbs (p,e) =
- let ret e_ = P.WithInfo e_ e.start e.end in
- case (p.val, e.val) of
+ let ret e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
+ case (p.val, e.val.e__) of
   (PVar x _, EConst n (k, b, "") wd) -> ret <| EConst n (k, b, x) wd
   (PList ps mp, EList es me) ->
     case Utils.maybeZip ps es of
@@ -100,7 +119,7 @@ addBreadCrumbs (p,e) =
 -- this will be done while parsing eventually...
 
 substOf_ : SubstPlus -> Exp -> SubstPlus
-substOf_ s e = case e.val of
+substOf_ s e = case e.val.e__ of
   EConst i l _ ->
     let (k,_,_) = l in
     case Dict.get k s of
@@ -127,11 +146,12 @@ substOfExps_ s es = case es of
   e::es' -> substOfExps_ (substOf_ s e) es'
 
 substOfRanges_ s rs = case rs of
-  [] -> s
-  r :: rs' ->
-      let (l,u) = r.val
-      in
-        substOfRanges_ (substOf_ (substOf_ s l) u) rs'
+  []     -> s
+  r::rs' ->
+    case r.val of
+      Point e        -> substOfRanges_ (substOf_ s e) rs'
+      Interval e1 e2 -> substOfRanges_ (substOfExps_ s [e1,e2]) rs'
+
 
 ------------------------------------------------------------------------------
 
@@ -218,8 +238,7 @@ saveToken = white << string_
 delimit a b = P.between (token_ a) (token_ b)
 parens      = delimit "(" ")"
 
-parseNumV = (\(n,b) -> VConst (n, dummyTrace_ b)) <$> parseNum
--- parseNumE = (\(n,b) -> EConst n (dummyLoc_ b) noWidgetDecl) <$> parseNum
+parseNumV = (\(n,b) -> vConst (n, dummyTrace_ b)) <$> parseNum
 
 parseNumE =
   parseNum                     >>= \nb ->
@@ -228,9 +247,9 @@ parseNumE =
     -- see other comments about NoWidgetDecl
     case wd.val of
       NoWidgetDecl ->
-        P.returnWithInfo (EConst n (dummyLoc_ b) wd) nb.start nb.end
+        P.returnWithInfo (exp_ (EConst n (dummyLoc_ b) wd)) nb.start nb.end
       _ ->
-        P.returnWithInfo (EConst n (dummyLoc_ b) wd) nb.start wd.end
+        P.returnWithInfo (exp_ (EConst n (dummyLoc_ b) wd)) nb.start wd.end
 {-
         let _ =
           if b == unann then ()
@@ -242,15 +261,19 @@ parseNumE =
     -- let end = case wd.val of {NoWidgetDecl -> nb.end ; _ -> wd.end} in
     -- P.returnWithInfo (EConst n (dummyLoc_ b) wd) nb.start end
 
+-- merge conflict:
+-- parseNumV = (\(n,b) -> vConst (n, dummyTrace_ b)) <$> parseNum*/
+-- parseNumE = (\(n,b) -> exp_ (EConst n (dummyLoc_ b))) <$> parseNum
+
 parseEBase =
-      (always (EBase (Bool True)) <$> P.token "true")
-  <++ (always (EBase (Bool False)) <$> P.token "false")
-  <++ ((EBase << String) <$> parseStrLit)
+      (always (exp_ (EBase (Bool True))) <$> P.token "true")
+  <++ (always (exp_ (EBase (Bool False))) <$> P.token "false")
+  <++ ((exp_ << EBase << String) <$> parseStrLit)
 
 parseVBase =
       (always vTrue  <$> P.token "true")
   <++ (always vFalse <$> P.token "false")
-  <++ ((VBase << String) <$> parseStrLit)
+  <++ (vStr <$> parseStrLit)
 
 parsePBase =
       ((PConst << fst) <$> parseNum) -- allowing but ignoring frozen annotation
@@ -310,7 +333,7 @@ parseVal = P.recursively <| \_ ->
   <++ white parseVBase
   <++ parseValList
 
-parseValList = parseListLiteral parseVal (VList << List.map .val)
+parseValList = parseListLiteral parseVal (vList << List.map .val)
 
 parseE_ : (Exp -> Exp) -> String -> Result String Exp
 parseE_ f = P.parse <|
@@ -321,7 +344,7 @@ parseE_ f = P.parse <|
 parseE : String -> Result String Exp
 parseE = parseE_ freshen
 
-parseVar = EVar <$> (white parseIdent)
+parseVar = (exp_ << EVar) <$> (white parseIdent)
 
 parseExp : P.Parser Exp_
 parseExp = P.recursively <| \_ ->
@@ -335,7 +358,7 @@ parseExp = P.recursively <| \_ ->
   <++ parseIf
   <++ parseCase
   <++ parseExpList
-  -- <++ parseExpIndList
+  <++ parseExpIndList
   <++ parseLet
   <++ parseDef
   <++ parseApp
@@ -347,7 +370,7 @@ parseFun =
     token_ "\\" >>>
     parsePats   >>= \ps ->
     parseExp    >>= \e ->
-      P.return (EFun ps.val e)
+      P.return (exp_ (EFun ps.val e))
 
 parseWildcard : P.Parser Pat_
 parseWildcard = token_ "_" >>> P.return (PVar "_" noWidgetDecl)
@@ -415,26 +438,38 @@ parseApp =
     parseExp     >>= \f ->
     oneWhite     >>>
     parseExpArgs >>= \es ->
-      P.return (EApp f es.val)
+      P.return (exp_ (EApp f es.val))
 
 parseExpArgs = parseList1 "" listSep "" parseExp identity
 
 parseExpList =
   parseListLiteralOrMultiCons
-    parseExp (\xs -> EList xs Nothing) (\xs y -> EList xs (Just y))
-
---Like parseExpList but with parseIndListLIteral instead of pLLOMC
-parseExpIndList = parseIndListLiteral parseERange EIndList
+    parseExp (\xs -> exp_ (EList xs Nothing)) (\xs y -> exp_ (EList xs (Just y)))
 
 -- Only want to allow Number Literals at the moment
-parseERange =
-  ( white parseNumE >>= \l ->
-        token_ ".." >>>
-    white parseNumE >>= \u ->
-        P.returnWithInfo (l, u) l.start u.end)
-  <++
-  ( white parseNumE >>= \l ->
-        P.returnWithInfo (l,l) l.start l.end)
+parseExpIndList = parseIndListLiteral parseERange (exp_ << EIndList)
+parseERange     = parseInterval <++ parsePoint
+
+{-
+parseNumEAndFreeze =
+  (\(EConst n (i,_,x)) -> EConst n (i,frozen,x)) <$> parseNumE
+-}
+
+-- Toggle this to automatically freeze all range numbers
+parseBound =
+  white parseNumE
+  -- white parseNumEAndFreeze
+
+parsePoint : P.Parser Range_
+parsePoint =
+  parseBound >>= \e ->
+    P.return (Point e)
+
+parseInterval =
+  parseBound >>= \e1 ->
+  token_ ".."     >>>
+  parseBound >>= \e2 ->
+    P.return (Interval e1 e2)
 
 parseRec =
       (always True  <$> token_ "letrec")
@@ -447,7 +482,7 @@ parseLet =
     parseExp >>= \e1 ->
     oneWhite >>>
     parseExp >>= \e2 ->
-      P.return (ELet Let b.val p e1 e2)
+      P.return (exp_ (ELet Let b.val p e1 e2))
 
 parseDefRec =
       (always True  <$> token_ "defrec")
@@ -462,7 +497,7 @@ parseDef =
   let (b,p,e1) = def.val in
   oneWhite >>>
   parseExp >>= \e2 ->
-    P.returnWithInfo (ELet Def b.val p e1 e2) def.start def.end
+    P.returnWithInfo (exp_ (ELet Def b.val p e1 e2)) def.start def.end
 
 parseBinop =
   parens <|
@@ -470,7 +505,7 @@ parseBinop =
     parseExp >>= \e1 ->
     oneWhite >>>
     parseExp >>= \e2 ->
-      P.return (EOp op [e1,e2])
+      P.return (exp_ (EOp op [e1,e2]))
 
 parseBOp =
       (always Plus    <$> token_ "+")
@@ -487,7 +522,7 @@ parseUnop =
   parens <|
     parseUOp >>= \op ->
     parseExp >>= \e1 ->
-      P.return (EOp op [e1])
+      P.return (exp_ (EOp op [e1]))
 
 parseUOp =
       (always Cos     <$> token_ "cos")
@@ -503,7 +538,7 @@ parseUOp =
 parseConst =
   parens <|
     parseNullOp >>= \op ->
-      P.return (EOp op [])
+      P.return (exp_ (EOp op []))
 
 parseNullOp =
       (always Pi      <$> token_ "pi")
@@ -517,7 +552,7 @@ parseIf =
     parseExp    >>= \e2 ->
     oneWhite    >>>
     parseExp    >>= \e3 ->
-      P.return (EIf e1 e2 e3)
+      P.return (exp_ (EIf e1 e2 e3))
 
 parseCase =
   parens <|
@@ -526,7 +561,7 @@ parseCase =
     parseExp      >>= \e ->
     oneWhite      >>>
     parseBranches >>= \l ->
-      P.return (ECase e l.val)
+      P.return (exp_ (ECase e l.val))
 
 parseBranches : P.Parser (List (P.WithInfo (Pat, Exp)))
 parseBranches = P.recursively <| \_ ->
@@ -543,7 +578,7 @@ parseCommentExp =
   P.satisfy ((==) '\n')          >>= \newline ->
   parseExp                       >>= \e ->
     P.returnWithInfo
-      (EComment (String.fromList (unwrapChars cs)) e)
+      (exp_ (EComment (String.fromList (unwrapChars cs)) e))
       semi.start e.end
 
 parseLangOption =
@@ -555,4 +590,4 @@ parseLangOption =
   P.many (P.satisfy ((==) ' ')) >>>
   P.satisfy ((==) '\n')         >>>
   parseExp                      >>= \e ->
-    P.returnWithInfo (EOption s1 s2 e) pound.start e.end
+    P.returnWithInfo (exp_ (EOption s1 s2 e)) pound.start e.end

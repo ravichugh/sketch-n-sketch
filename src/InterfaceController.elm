@@ -48,11 +48,13 @@ slateToVal : LangSvg.RootedIndexedTree -> Val
 slateToVal (rootId, tree) =
   let foo n =
     case n of
-      LangSvg.TextNode s -> VList [VBase (String "TEXT"), VBase (String s)]
+      LangSvg.TextNode s -> vList [vBase (String "TEXT"), vBase (String s)]
       LangSvg.SvgNode kind l1 l2 ->
         let vs1 = List.map LangSvg.valOfAttr l1 in
         let vs2 = List.map (foo << flip Utils.justGet tree) l2 in
-        VList [VBase (String kind), VList vs1, VList vs2]
+        vList [vBase (String kind), vList vs1, vList vs2]
+          -- NOTE: if relate needs the expression that led to this
+          --  SvgNode, need to store it in IndexedTree
   in
   foo (Utils.justGet rootId tree)
 
@@ -82,15 +84,38 @@ switchOrient m = case m of
   Vertical -> Horizontal
   Horizontal -> Vertical
 
--- TODO turning off rotation zones for now
--- toggleShowZones x = (1 + x) % showZonesModes
+toggleShowZones x = (1 + x) % showZonesModes
+{- -- TODO turning off rotation zones for now
 toggleShowZones x =
   let i = (1 + x) % showZonesModes in
   if | i == showZonesRot -> toggleShowZones i
      | otherwise         -> i
+-}
+
+maybeAdjustShowZones m =
+  case (m.mode, m.showZones == showZonesDel) of
+    (Live _, True) -> { m | showZones <- toggleShowZones m.showZones }
+    _              -> m
 
 -- may want to eventually have a maximum history length
 addToHistory s h = (s :: fst h, [])
+
+between1 i (j,k) = i `Utils.between` (j+1, k+1)
+
+cleanExp =
+  mapExp <| \e__ -> case e__ of
+    EApp e0 [e1,_,_]  -> case e0.val.e__ of
+      EVar "inferred" -> e1.val.e__
+      _               -> e__
+    EApp e0 [_,e1]    -> case e0.val.e__ of
+      EVar "flow"     -> e1.val.e__
+      _               -> e__
+      _               -> e__
+    EOp op [e1,e2]    ->
+      case (op.val, e2.val.e__) of
+        (Plus, EConst 0 _ _) -> e1.val.e__
+        _                    -> e__
+    _                 -> e__
 
 -- this is a bit redundant with View.turnOn...
 maybeStuff id shape zone m =
@@ -267,7 +292,7 @@ upstate evt old = case debugLog "Event" evt of
               case Dict.get zone dZones of
                 Just (Just _) -> { old | mouseMode <- MouseObject id kind zone Nothing }
                 _             -> { old | mouseMode <- MouseNothing }
-        SyncSelect _ _ -> old
+        SyncSelect _ _ _ -> old
 
     MouseUp ->
       case (old.mode, old.mouseMode) of
@@ -309,26 +334,46 @@ upstate evt old = case debugLog "Event" evt of
             inputval' = inputval |> LangSvg.valToIndexedTree
                                  |> slateToVal
             newval    = slateToVal old.slate
+            local     = Sync.inferLocalUpdates old.syncOptions ip inputval' newval
             struct    = Sync.inferStructuralUpdate ip inputval' newval
+            delete    = Sync.inferDeleteUpdate ip inputval' newval
+            relatedG  = Sync.inferNewRelationships ip inputval' newval
+            relatedV  = Sync.relateSelectedAttrs old.genSymCount ip inputval' newval
             revert    = (ip, inputval)
           in
-            case Sync.inferLocalUpdates old.syncOptions ip inputval' newval of
-              Ok [] -> { old | mode <- mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime ip  }
-              Ok ls ->
-                let n = debugLog "# of sync options" (List.length ls) in
-                let ls' = List.map fst ls in
-                let m = SyncSelect 0 (n, ls' ++ [struct, revert]) in
+          let mkOptions l1 l2 revert =
+            ( (List.length l1, l1)
+            , (List.length l2, l2)
+            , revert)
+          in
+            case (local, relatedV) of
+              (Ok [], (_, [])) -> { old | mode <- mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime ip }
+              (Ok [], (nextK, l2)) ->
+                let _ = debugLog ("no live updates, only related var") () in
+                let m = SyncSelect (old.code, old.slate) 0 (mkOptions [] l2 revert) in
+                upstate (TraverseOption 1) { old | mode <- m, genSymCount <- nextK }
+              (Ok l, _) ->
+                let n = debugLog "# of live updates" (List.length l) in
+                let l1 = List.map fst l in
+                let l2 = delete ++ relatedG ++ [struct] in
+                let m = SyncSelect (old.code, old.slate) 0 (mkOptions l1 l2 revert) in
                 upstate (TraverseOption 1) { old | mode <- m }
-              Err e ->
-                let _ = debugLog ("bad sync: ++ " ++ e) () in
-                let m = SyncSelect 0 (0, [struct, revert]) in
+              (Err e, _) ->
+                let _ = debugLog ("no live updates: " ++ e) () in
+                let l2 = delete ++ relatedG ++ [struct] in
+                let m = SyncSelect (old.code, old.slate) 0 (mkOptions [] l2 revert) in
                 upstate (TraverseOption 1) { old | mode <- m }
 
     SelectOption ->
-      let (SyncSelect i options) = old.mode in
-      let (_,l) = options in
-      let (ei,vi) = Utils.geti i l in
+      let (SyncSelect (prevCode,_) i options) = old.mode in
+      let ((n1,l1),(n2,l2),revert) = options in
+      let ((ei,vi),h) =
+        if | i `between1` ( 0, n1   ) -> (Utils.geti i l1, addToHistory prevCode old.history)
+           | i `between1` (n1, n1+n2) -> (Utils.geti (i-n1) l2, addToHistory prevCode old.history)
+           | otherwise                -> (revert, old.history)
+      in
       let (newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) = LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime vi in
+      maybeAdjustShowZones
       { old | code          <- unparseE ei
             , inputExp      <- ei
             , inputVal      <- vi
@@ -337,14 +382,19 @@ upstate evt old = case debugLog "Event" evt of
             , movieTime     <- 0.0
             , movieDuration <- newMovieDuration
             , movieContinue <- newMovieContinue
+            , history       <- h
             , slate         <- newSlate
             , mode          <- mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime ei vi }
 
     TraverseOption offset ->
-      let (SyncSelect i options) = old.mode in
-      let (_,l) = options in
+      let (SyncSelect prev i options) = old.mode in
+      let ((n1,l1),(n2,l2),revert) = options in
       let j = i + offset in
-      let (ei,vi) = Utils.geti j l in
+      let (ei,vi) =
+        if | j `between1` ( 0, n1   ) -> Utils.geti j l1
+           | j `between1` (n1, n1+n2) -> Utils.geti (j-n1) l2
+           | otherwise                -> revert
+      in
       let (newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) = LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime vi in
       { old | code          <- unparseE ei
             , inputExp      <- ei
@@ -355,7 +405,7 @@ upstate evt old = case debugLog "Event" evt of
             , movieDuration <- newMovieDuration
             , movieContinue <- newMovieContinue
             , slate         <- newSlate
-            , mode          <- SyncSelect j options }
+            , mode          <- SyncSelect prev j options }
 
     SelectExample name thunk ->
       if name == Examples.scratchName then
@@ -395,7 +445,8 @@ upstate evt old = case debugLog "Event" evt of
 
     SwitchOrient -> { old | orient <- switchOrient old.orient }
 
-    ToggleZones -> { old | showZones <- toggleShowZones old.showZones }
+    ToggleZones ->
+      maybeAdjustShowZones { old | showZones <- toggleShowZones old.showZones }
 
     Undo ->
       case (old.code, old.history) of
@@ -451,7 +502,7 @@ upstate evt old = case debugLog "Event" evt of
 
     KeysDown l ->
       -- let _ = Debug.log "keys" (toString l) in
-      case old.mode of
+{-      case old.mode of
           SaveDialog _ -> old
           _ -> case editingMode old of
             True -> if
@@ -477,6 +528,62 @@ upstate evt old = case debugLog "Event" evt of
               | l == keysUp    -> adjustMidOffsetY old (-25)
               | l == keysDown  -> adjustMidOffsetY old 25
               | otherwise -> old
+-}
+      let fire evt = upstate evt old in
+
+      case editingMode old of
+
+        True -> if
+          | l == keysEscShift   -> fire Run
+          | otherwise           -> fire Noop
+
+        False -> if
+
+          -- events for any non-editing mode
+          | l == keysO          -> fire ToggleOutput
+          | l == keysP          -> fire SwitchOrient
+          | l == keysShiftRight -> adjustMidOffsetX old 25
+          | l == keysShiftLeft  -> adjustMidOffsetX old (-25)
+          | l == keysShiftUp    -> adjustMidOffsetY old (-25)
+          | l == keysShiftDown  -> adjustMidOffsetY old 25
+
+          -- events for specific non-editing mode
+          | otherwise -> case old.mode of
+
+              Live _ -> if
+                | l == keysE          -> fire Edit
+                | l == keysZ          -> fire Undo
+                | l == keysY          -> fire Redo
+                | l == keysG          -> fire ToggleZones  -- for righties
+                | l == keysH          -> fire ToggleZones  -- for lefties
+                | l == keysT          -> fire (SwitchMode AdHoc)
+                | l == keysS          -> fire Noop -- placeholder for Save
+                | l == keysShiftS     -> fire Noop -- placeholder for Save As
+                | otherwise           -> fire Noop
+
+              AdHoc -> if
+                | l == keysG          -> fire ToggleZones  -- for righties
+                | l == keysH          -> fire ToggleZones  -- for lefties
+                | l == keysZ          -> fire Undo
+                | l == keysY          -> fire Redo
+                | l == keysT          -> fire Sync
+                | otherwise           -> fire Noop
+
+              SyncSelect _ i opts -> if
+                | l == keysLeft && prevButtonEnabled i       -> fire (TraverseOption (-1))
+                | l == keysRight && nextButtonEnabled i opts -> fire (TraverseOption 1)
+                | l == keysEnter      -> fire SelectOption
+                | otherwise           -> fire Noop
+
+              _                       -> fire Noop
+
+    CleanCode ->
+      let s' = unparseE (cleanExp old.inputExp) in
+      let h' =
+        if | old.code == s' -> old.history
+           | otherwise      -> addToHistory old.code old.history
+      in
+      upstate Run { old | code <- s', history <- h' }
 
     -- Elm does not have function equivalence/pattern matching, so we need to
     -- thread these events through upstate in order to catch them to rerender
@@ -514,6 +621,8 @@ adjustMidOffsetY old dy =
 -- Key Combinations
 
 keysMetaShift           = List.sort [keyMeta, keyShift]
+keysEscShift            = List.sort [keyEsc, keyShift]
+keysEnter               = List.sort [keyEnter]
 keysE                   = List.sort [Char.toCode 'E']
 keysZ                   = List.sort [Char.toCode 'Z']
 keysY                   = List.sort [Char.toCode 'Y']
@@ -522,13 +631,20 @@ keysG                   = List.sort [Char.toCode 'G']
 keysH                   = List.sort [Char.toCode 'H']
 keysO                   = List.sort [Char.toCode 'O']
 keysP                   = List.sort [Char.toCode 'P']
+keysT                   = List.sort [Char.toCode 'T']
 keysS                   = List.sort [Char.toCode 'S']
 keysShiftS              = List.sort [keyShift, Char.toCode 'S']
-keysLeft                = [keyLeft]
-keysRight               = [keyRight]
-keysUp                  = [keyUp]
-keysDown                = [keyDown]
+keysLeft                = List.sort [keyLeft]
+keysRight               = List.sort [keyRight]
+keysUp                  = List.sort [keyUp]
+keysDown                = List.sort [keyDown]
+keysShiftLeft           = List.sort [keyShift, keyLeft]
+keysShiftRight          = List.sort [keyShift, keyRight]
+keysShiftUp             = List.sort [keyShift, keyUp]
+keysShiftDown           = List.sort [keyShift, keyDown]
 
+keyEnter                = 13
+keyEsc                  = 27
 keyMeta                 = 91
 keyCtrl                 = 17
 keyShift                = 16
@@ -552,8 +668,10 @@ createMousePosCallback mx my objid kind zone old =
   let (LangSvg.SvgNode _ attrs _) = Utils.justGet_ "#3" objid (snd old.slate) in
   let numAttr = toNum << Utils.find_ attrs in
   let mapNumAttr f a =
-    let (n,trace) = toNumTr (Utils.find_ attrs a) in
-    (a, LangSvg.ANum (f n, trace)) in
+    let av = Utils.find_ attrs a in
+    let (n,trace) = toNumTr av in
+    (a, LangSvg.AVal (LangSvg.ANum (f n, trace)) av.vtrace) in
+      -- preserve existing VTrace
 
   \(mx',my') ->
 
@@ -677,19 +795,21 @@ createCallbackPoly zone shape =
 lift : (Num -> Num) -> (NumTr -> NumTr)
 lift f (n,t) = (f n, t)
 
+-- TODO everywhere aNum, aTransform, etc is called, preserve vtrace
+
 polyInterior shape objid old onMouse =
   let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
   let pts = toPoints <| Utils.find_ nodeAttrs "points" in
   let accs =
     let foo (j,(xj,yj)) (acc1,acc2) =
       let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
-      let acc2' = (addi "x"j, LangSvg.ANum xj') :: (addi "y"j, LangSvg.ANum yj') :: acc2 in
+      let acc2' = (addi "x"j, LangSvg.aNum xj') :: (addi "y"j, LangSvg.aNum yj') :: acc2 in
       ((xj',yj')::acc1, acc2')
     in
     Utils.foldli foo ([],[]) pts
   in
   let (acc1,acc2) = Utils.reverse2 accs in
-  ([("points", LangSvg.APoints acc1)], acc2)
+  ([("points", LangSvg.aPoints acc1)], acc2)
 
 polyPoint i shape objid old onMouse =
   let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
@@ -699,15 +819,15 @@ polyPoint i shape objid old onMouse =
       if | i /= j -> ((xj,yj)::acc1, acc2)
          | otherwise ->
              let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
-             let acc2' = (addi "x"i, LangSvg.ANum xj')
-                         :: (addi "y"i, LangSvg.ANum yj')
+             let acc2' = (addi "x"i, LangSvg.aNum xj')
+                         :: (addi "y"i, LangSvg.aNum yj')
                          :: acc2 in
              ((xj',yj')::acc1, acc2')
     in
     Utils.foldli foo ([],[]) pts
   in
   let (acc1,acc2) = Utils.reverse2 accs in
-  ([("points", LangSvg.APoints acc1)], acc2)
+  ([("points", LangSvg.aPoints acc1)], acc2)
 
 polyEdge i shape objid old onMouse =
   let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
@@ -717,8 +837,8 @@ polyEdge i shape objid old onMouse =
     let foo (j,(xj,yj)) (acc1,acc2) =
       if | i == j || (i == n && j == 1) || (i < n && j == i+1) ->
              let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
-             let acc2' = (addi "x"j, LangSvg.ANum xj')
-                         :: (addi "y"j, LangSvg.ANum yj')
+             let acc2' = (addi "x"j, LangSvg.aNum xj')
+                         :: (addi "y"j, LangSvg.aNum yj')
                          :: acc2 in
              ((xj',yj')::acc1, acc2')
          | otherwise ->
@@ -727,7 +847,7 @@ polyEdge i shape objid old onMouse =
     Utils.foldli foo ([],[]) pts
   in
   let (acc1,acc2) = Utils.reverse2 accs in
-  ([("points", LangSvg.APoints acc1)], acc2)
+  ([("points", LangSvg.aPoints acc1)], acc2)
 
 -- Callbacks for Paths
 
@@ -743,8 +863,8 @@ pathPoint i objid old onMouse =
        | otherwise    -> (mj, (x, y)) in
   let addFakePts =
     List.foldl <| \(mj,(x,y)) acc ->
-      if | mj == Just i -> (addi "x"i, LangSvg.ANum x)
-                           :: (addi "y"i, LangSvg.ANum y)
+      if | mj == Just i -> (addi "x"i, LangSvg.aNum x)
+                           :: (addi "y"i, LangSvg.aNum y)
                            :: acc
          | otherwise    -> acc in
 
@@ -775,7 +895,7 @@ pathPoint i objid old onMouse =
     List.foldr foo ([],[]) cmds
   in
   let (acc1,acc2) = Utils.reverse2 accs in
-  ([("d", LangSvg.APath2 (acc1, counts))], acc2)
+  ([("d", LangSvg.aPath2 (acc1, counts))], acc2)
 
 -- Callbacks for Rotate zones
 
@@ -786,8 +906,8 @@ createCallbackRotate mx0 my0 mx1 my1 shape objid old =
     let a0 = Utils.radiansToDegrees <| atan ((mx0 - fst cx) / (fst cy - my0)) in
     let a1 = Utils.radiansToDegrees <| atan ((fst cy - my1) / (mx1 - fst cx)) in
     (fst rot + (90 - a0 - a1), snd rot) in
-  let real = [("transform", LangSvg.ATransform [LangSvg.Rot rot' cx cy])] in
-  let fake = [("transformRot", LangSvg.ANum rot')] in
+  let real = [("transform", LangSvg.aTransform [LangSvg.Rot rot' cx cy])] in
+  let fake = [("transformRot", LangSvg.aNum rot')] in
   (real, fake)
 
 
@@ -816,7 +936,7 @@ createMousePosCallbackSlider mx my widget old =
     -- unlike the live triggers via Sync,
     -- this substitution only binds the location to change
     let subst = Dict.singleton locid newVal in
-    let newE = applySubst subst old.inputExp in
+    let newE = applyLocSubst subst old.inputExp in
     let (newVal,newWidgets) = Eval.run newE in
     -- Can't manipulate slideCount/movieCount/movieDuration/movieContinue via sliders at the moment.
     let (_, _, _, _, newSlate) = LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime newVal in

@@ -28,6 +28,7 @@ type alias Pat    = P.WithInfo Pat_
 type alias Exp    = P.WithInfo Exp_
 type alias Op     = P.WithInfo Op_
 type alias Branch = P.WithInfo Branch_
+type alias Range  = P.WithInfo Range_
 
 -- TODO add constant literals to patterns, and match 'svg'
 type Pat_
@@ -52,7 +53,10 @@ type Op_
   -- internal ops
   | RangeOffset Int
 
-type Exp_
+type alias EId  = Int
+type alias Exp_ = { e__ : Exp__, eid : EId }
+
+type Exp__
   = EConst Num Loc WidgetDecl
   | EBase BaseVal
   | EVar Ident
@@ -60,7 +64,7 @@ type Exp_
   | EApp Exp (List Exp)
   | EOp Op (List Exp)
   | EList (List Exp) (Maybe Exp)
-  | EIndList (List ERange)
+  | EIndList (List Range)
   | EIf Exp Exp Exp
   | ECase Exp (List Branch)
   | ELet LetKind Rec Pat Exp Exp
@@ -80,8 +84,9 @@ type alias Branch_ = (Pat, Exp)
 type LetKind = Let | Def
 type alias Rec = Bool
 
--- Enforce invariant that ERange is only ever (EConst ..., EConst ...)
-type alias ERange = P.WithInfo (Exp, Exp)
+type Range_ -- right now, Exps are always EConsts
+  = Interval Exp Exp
+  | Point Exp
 
 type alias WidgetDecl = P.WithInfo WidgetDecl_
 
@@ -100,7 +105,10 @@ type alias Token = P.WithInfo String
 
 type alias Caption = Maybe (P.WithInfo String)
 
-type Val
+type alias VTrace = List EId
+type alias Val    = { v_ : Val_, vtrace : VTrace }
+
+type Val_
   = VConst NumTr
   | VBase BaseVal
   | VClosure (Maybe Ident) Pat Exp Env
@@ -129,15 +137,10 @@ strBaseVal v = case v of
   String s   -> "\'" ++ s ++ "\'"
   Star       -> "X"
 
-strRange : Bool -> Int -> ERange -> String
-strRange showLocs k r =
-  let (el,eu) = r.val
-      (EConst nl _ _) = el.val
-      (EConst nu _ _) = eu.val
-  in
-    if | nl == nu -> sExp_ showLocs k el
-       | otherwise ->
-           sExp_ showLocs k el ++ ".." ++ sExp_ showLocs k eu
+strRange : Bool -> Int -> Range -> String
+strRange showLocs k r = case r.val of
+  Point e        -> sExp_ showLocs k e
+  Interval e1 e2 -> sExp_ showLocs k e1 ++ ".." ++ sExp_ showLocs k e2
 
 strVal     = strVal_ False
 strValLocs = strVal_ True
@@ -151,8 +154,10 @@ strNumTrunc k =
 strVal_ : Bool -> Val -> String
 strVal_ showTraces v =
   let foo = strVal_ showTraces in
-  case v of
-    VConst (i,tr)    -> toString i
+  let sTrace = if showTraces then Utils.braces (toString v.vtrace) else "" in
+  sTrace ++
+  case v.v_ of
+    VConst (i,tr)    -> strNum i
                           ++ if | showTraces -> Utils.braces (strTrace tr)
                                 | otherwise  -> ""
     VBase b          -> strBaseVal b
@@ -161,25 +166,26 @@ strVal_ showTraces v =
     VHole i          -> "HOLE_" ++ toString i
 
 strOp op = case op of
-  Plus    -> "+"
-  Minus   -> "-"
-  Mult    -> "*"
-  Div     -> "/"
-  Lt      -> "<"
-  Eq      -> "="
-  Pi      -> "pi"
-  Cos     -> "cos"
-  Sin     -> "sin"
-  ArcCos  -> "arccos"
-  ArcSin  -> "arcsin"
-  ArcTan2 -> "arctan2"
-  Floor   -> "floor"
-  Ceil    -> "ceiling"
-  Round   -> "round"
-  ToStr   -> "toString"
-  Sqrt    -> "sqrt"
-  Mod     -> "mod"
-  Pow     -> "pow"
+  Plus          -> "+"
+  Minus         -> "-"
+  Mult          -> "*"
+  Div           -> "/"
+  Lt            -> "<"
+  Eq            -> " = "
+  Pi            -> "pi"
+  Cos           -> "cos"
+  Sin           -> "sin"
+  ArcCos        -> "arccos"
+  ArcSin        -> "arcsin"
+  ArcTan2       -> "arctan2"
+  Floor         -> "floor"
+  Ceil          -> "ceiling"
+  Round         -> "round"
+  ToStr         -> "toString"
+  Sqrt          -> "sqrt"
+  Mod           -> "mod"
+  Pow           -> "pow"
+  RangeOffset i -> "[[rangeOffset " ++ toString i ++ "]]"
 
 strLoc (k, b, mx) =
   "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx) ++ b
@@ -208,7 +214,9 @@ sExp_ : Bool -> Int -> Exp -> String
 sExp_ showLocs k e =
   let foo = sExp_ showLocs in
   let indent = maybeIndent showLocs k in
-  case e.val of
+  let sTrace = if showLocs then Utils.braces (toString e.val.eid) else "" in
+  sTrace ++
+  case e.val.e__ of
     EBase v -> strBaseVal v
     EConst i l _ -> -- TODO
       let (_,b,_) = l in
@@ -295,7 +303,7 @@ fitsOnLine s =
      | List.member '\n' (String.toList s) -> False
      | otherwise                          -> True
 
-isLet e = case e.val of
+isLet e = case e.val.e__ of
   ELet _ _ _ _ _  -> True
   EComment _ e1 -> isLet e1
   _             -> False
@@ -310,19 +318,23 @@ mapValField f r = { r | val <- f r.val }
 ------------------------------------------------------------------------------
 -- Mapping
 
-mapExp : (Exp_ -> Exp_) -> Exp -> Exp
+mapExp : (Exp__ -> Exp__) -> Exp -> Exp
 mapExp f e =
   let foo = mapExp f in
-  let g e_ = P.WithInfo (f e_) e.start e.end in
-  case e.val of
-    EConst _ _ _   -> g e.val
-    EBase _        -> g e.val
-    EVar _         -> g e.val
+  let g e__ = P.WithInfo (Exp_ (f e__) e.val.eid) e.start e.end in
+  case e.val.e__ of
+    EConst _ _ _   -> g e.val.e__
+    EBase _        -> g e.val.e__
+    EVar _         -> g e.val.e__
     EFun ps e'     -> g (EFun ps (foo e'))
     EApp e1 es     -> g (EApp (foo e1) (List.map foo es))
     EOp op es      -> g (EOp op (List.map foo es))
     EList es m     -> g (EList (List.map foo es) (Utils.mapMaybe foo m))
-    EIndList rs    -> g (EIndList rs)
+    EIndList rs    -> let foo r_ = case r_ of
+                        Interval e1 e2 -> Interval (mapExp f e1) (mapExp f e2)
+                        Point e1       -> Point (mapExp f e1)
+                      in
+                      g (EIndList (List.map (mapValField foo) rs))
     EIf e1 e2 e3   -> g (EIf (foo e1) (foo e2) (foo e3))
     ECase e1 l     -> g (ECase (foo e1) (List.map (mapValField (\(p,ei) -> (p, foo ei))) l))
     EComment s e1  -> g (EComment s (foo e1))
@@ -330,40 +342,67 @@ mapExp f e =
     ELet k b p e1 e2 -> g (ELet k b p (foo e1) (foo e2))
 
 mapVal : (Val -> Val) -> Val -> Val
-mapVal f v = case v of
-  VList vs         -> f (VList (List.map (mapVal f) vs))
+mapVal f v = case v.v_ of
+  VList vs         -> f { v | v_ <- VList (List.map (mapVal f) vs) }
   VConst _         -> f v
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
   VHole _          -> f v
 
+foldVal : (Val -> a -> a) -> Val -> a -> a
+foldVal f v a = case v.v_ of
+  VList vs         -> f v (List.foldl (foldVal f) a vs)
+  VConst _         -> f v a
+  VBase _          -> f v a
+  VClosure _ _ _ _ -> f v a
+  VHole _          -> f v a
+
+
 ------------------------------------------------------------------------------
--- Substitutions
+-- Location Substitutions
+-- Expression Substitutions
 
 type alias Subst = Dict.Dict LocId Num
 type alias SubstPlus = Dict.Dict LocId (P.WithInfo Num)
 type alias SubstMaybeNum = Dict.Dict LocId (Maybe Num)
 
-applySubst : Subst -> Exp -> Exp
-applySubst subst e = (\e_ -> P.WithInfo e_ e.start e.end) <| case e.val of
+type alias ESubst = Dict.Dict EId Exp__
+
+type alias TwoSubsts = { lsubst : Subst, esubst : ESubst }
+
+applyLocSubst : Subst -> Exp -> Exp
+applyLocSubst s = applySubst { lsubst = s, esubst = Dict.empty }
+
+applyESubst : ESubst -> Exp -> Exp
+applyESubst s = applySubst { lsubst = Dict.empty, esubst = s }
+
+applySubst : TwoSubsts -> Exp -> Exp
+applySubst subst e =
+  (\e__ ->
+    let e__' =
+      case Dict.get e.val.eid subst.esubst of
+        Just eNew -> eNew
+        Nothing   -> e__
+    in
+    P.WithInfo (Exp_ e__' e.val.eid) e.start e.end) <|
+ case e.val.e__ of
   EConst n l wd ->
-    case Dict.get (Utils.fst3 l) subst of
+    case Dict.get (Utils.fst3 l) subst.lsubst of
       Just i -> EConst i l wd
       Nothing -> EConst n l wd
-        -- 10/28: substs from createMousePosCallbackSlider only bind
-        -- updated values (unlike substs from Sync)
-  EBase _    -> e.val
-  EVar _     -> e.val
+      -- 10/28: substs from createMousePosCallbackSlider only bind
+      -- updated values (unlike substs from Sync)
+  EBase _    -> e.val.e__
+  EVar _     -> e.val.e__
   EFun ps e' -> EFun ps (applySubst subst e')
   EOp op es  -> EOp op (List.map (applySubst subst) es)
   EList es m -> EList (List.map (applySubst subst) es)
                       (Utils.mapMaybe (applySubst subst) m)
-  EIndList rs -> EIndList <|
-                  (List.map
-                    (\r -> r.val |> \(l,u) ->
-                      { r | val <- (applySubst subst l, applySubst subst u)}
-                    )
-                  ) rs
+  EIndList rs ->
+    let f r_ = case r_ of
+      Interval e1 e2 -> Interval (applySubst subst e1) (applySubst subst e2)
+      Point e1       -> Point (applySubst subst e1) in
+    EIndList (List.map (mapValField f) rs)
   EApp f es  -> EApp (applySubst subst f) (List.map (applySubst subst) es)
   ELet k b p e1 e2 ->
     ELet k b p (applySubst subst e1) (applySubst subst e2) -- TODO
@@ -376,6 +415,19 @@ applySubst subst e = (\e_ -> P.WithInfo e_ e.start e.end) <| case e.val of
   EOption s1 s2 e1 ->
     EOption s1 s2 (applySubst subst e1)
 
+{-
+-- for now, LocId instead of EId
+type alias ESubst = Dict.Dict LocId Exp__
+
+applyESubst : ESubst -> Exp -> Exp
+applyESubst esubst =
+  mapExp <| \e__ -> case e__ of
+    EConst _ i -> case Dict.get (Utils.fst3 i) esubst of
+                    Nothing   -> e__
+                    Just e__' -> e__'
+    _          -> e__
+-}
+
 
 ------------------------------------------------------------------------------
 -- Lang Options
@@ -383,7 +435,7 @@ applySubst subst e = (\e_ -> P.WithInfo e_ e.start e.end) <| case e.val of
 -- all options should appear before the first non-comment expression
 
 getOptions : Exp -> List (String, String)
-getOptions e = case e.val of
+getOptions e = case e.val.e__ of
   EOption s1 s2 e1 -> (s1.val, s2.val) :: getOptions e1
   EComment _ e1    -> getOptions e1
   _                -> []
@@ -405,7 +457,21 @@ strPos p =
 
 -- NOTE: the Exp builders use dummyPos
 
-withDummyPos e_ = P.WithInfo e_ P.dummyPos P.dummyPos
+unwrapVList : Val -> Maybe (List Val_)
+unwrapVList v =
+  case v.v_ of
+    VList vs -> Just <| List.map .v_ vs
+    _        -> Nothing
+
+val : Val_ -> Val
+val = flip Val [-1]
+
+exp_ : Exp__ -> Exp_
+exp_ = flip Exp_ (-1)
+
+withDummyRange x  = P.WithInfo x P.dummyPos P.dummyPos
+withDummyPos e__  = P.WithInfo (exp_ e__) P.dummyPos P.dummyPos
+  -- TODO rename withDummyPos
 
 dummyLoc_ b = (0, b, "")
 dummyTrace_ b = TrLoc (dummyLoc_ b)
@@ -413,16 +479,11 @@ dummyTrace_ b = TrLoc (dummyLoc_ b)
 dummyLoc = dummyLoc_ unann
 dummyTrace = dummyTrace_ unann
 
-ePlus e1 e2 = withDummyPos <| EOp (withDummyPos Plus) [e1,e2]
+ePlus e1 e2 = withDummyPos <| EOp (withDummyRange Plus) [e1,e2]
 
 eBool  = withDummyPos << EBase << Bool
 eTrue  = eBool True
 eFalse = eBool False
-
-vBool  = VBase << Bool
-vTrue  = vBool True
-vFalse = vBool False
-vStr   = VBase << String
 
 eApp e es = case es of
   [e1]    -> withDummyPos <| EApp e [e1]
@@ -434,11 +495,11 @@ eFun ps e = case ps of
 
 ePair e1 e2 = withDummyPos <| EList [e1,e2] Nothing
 
-noWidgetDecl = withDummyPos NoWidgetDecl
+noWidgetDecl = withDummyRange NoWidgetDecl
 
 eLets xes eBody = case xes of
   (x,e)::xes' -> withDummyPos <|
-                   ELet Let False (withDummyPos (PVar x noWidgetDecl)) e (eLets xes' eBody)
+                   ELet Let False (withDummyRange (PVar x noWidgetDecl)) e (eLets xes' eBody)
   []          -> eBody
 
 eVar a         = withDummyPos <| EVar a
@@ -446,4 +507,14 @@ eConst a b     = withDummyPos <| EConst a b noWidgetDecl
 eList a b      = withDummyPos <| EList a b
 eComment a b   = withDummyPos <| EComment a b
 
-pVar a         = withDummyPos <| PVar a noWidgetDecl
+pVar a         = withDummyRange <| PVar a noWidgetDecl
+
+-- note: dummy ids...
+vTrue    = vBool True
+vFalse   = vBool False
+vBool    = val << VBase << Bool
+vStr     = val << VBase << String
+vConst   = val << VConst
+vBase    = val << VBase
+vList    = val << VList
+vHole    = val << VHole

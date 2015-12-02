@@ -1,4 +1,6 @@
-module InterfaceView2 (view, scaleColorBall) where
+module InterfaceView2 (view, scaleColorBall
+                      , prevButtonEnabled, nextButtonEnabled -- TODO not great
+                      ) where
 
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
@@ -106,14 +108,17 @@ makeButton status w h text =
           ] [ Html.text text ]
     ]
 
+
 --------------------------------------------------------------------------------
 -- Zone Options (per shape)
 
 type alias ZoneOptions =
-  { showBasic : Bool , addBasic : Bool , addRot : Bool , addColor : Bool }
+  { showBasic : Bool , addBasic : Bool , addRot : Bool , addColor : Bool
+  , addDelete : Bool }
 
 zoneOptions0 =
-  { showBasic = False , addBasic = False , addRot = False , addColor = False }
+  { showBasic = False , addBasic = False , addRot = False , addColor = False
+  , addDelete = False }
 
 optionsOf : ShowZones -> ZoneOptions
 optionsOf x =
@@ -121,6 +126,8 @@ optionsOf x =
      | x == showZonesBasic -> { zoneOptions0 | addBasic <- True, showBasic <- True }
      | x == showZonesRot   -> { zoneOptions0 | addRot <- True }
      | x == showZonesColor -> { zoneOptions0 | addColor <- True }
+     | x == showZonesDel   -> { zoneOptions0 | addDelete <- True }
+
 
 --------------------------------------------------------------------------------
 -- Compiling to Svg
@@ -145,11 +152,12 @@ buildSvg_ options d i =
           (False, Just (_, l)) -> ([], l)
           (True, Nothing) ->
             (makeZones options shape i attrs, attrs)
-          (True, Just (LangSvg.AString "none", l)) ->
-            (makeZones zoneOptions0 shape i attrs, l)
-          (True, Just (LangSvg.AString "basic", l)) ->
-            let options' = { options | addRot <- False, addColor <- False } in
-            (makeZones options' shape i attrs, l)
+          (True, Just (aval, l)) -> case aval.av_ of
+            LangSvg.AString "none" ->
+              (makeZones zoneOptions0 shape i attrs, l)
+            LangSvg.AString "basic" ->
+              let options' = { options | addRot <- False, addColor <- False } in
+              (makeZones options' shape i attrs, l)
       in
       let children = List.map (buildSvg_ options d) js in
       let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs') children in
@@ -252,9 +260,9 @@ sliderZoneEvents widgetState =
 --------------------------------------------------------------------------------
 -- Defining Zones
 
--- compileAttr will throw away the trace anyway
-attrNum k n    = LangSvg.compileAttr k (LangSvg.ANum (n, dummyTrace))
-attrNumTr k nt = LangSvg.compileAttr k (LangSvg.ANum nt)
+-- okay to use dummy VTraces/Traces here, b/c compileAttr throws them away
+attrNum k n    = LangSvg.compileAttr k (LangSvg.aNum (n, dummyTrace))
+attrNumTr k nt = LangSvg.compileAttr k (LangSvg.aNum nt)
 
 onMouseDown = Svg.Events.onMouseDown << Signal.message events.address
 onMouseUp   = Svg.Events.onMouseUp   << Signal.message events.address
@@ -336,13 +344,16 @@ zoneLine id shape zone show transform (x1,y1) (x2,y2) =
 
 rotZoneDelta = 20
 
+maybeTransformCmds : List LangSvg.Attr -> Maybe (List LangSvg.TransformCmd)
 maybeTransformCmds l =
   case Utils.maybeFind "transform" l of
-    Just (LangSvg.ATransform cmds) -> Just cmds
-    _                              -> Nothing
+    Just aval -> case aval.av_ of
+      LangSvg.ATransform cmds -> Just cmds
+      _                       -> Nothing
+    _                         -> Nothing
 
 transformAttr cmds =
-  [LangSvg.compileAttr "transform" (LangSvg.ATransform cmds)]
+  [LangSvg.compileAttr "transform" (LangSvg.aTransform cmds)]
 
 maybeTransformAttr l =
   case maybeTransformCmds l of
@@ -400,10 +411,13 @@ scaleColorBall = 1 / (wGradient / LangSvg.maxColorNum)
 
 numToColor = Utils.numToColor wGradient
 
+maybeColorNumAttr : String -> List LangSvg.Attr -> Maybe NumTr
 maybeColorNumAttr k l =
   case Utils.maybeFind k l of
-    Just (LangSvg.AColorNum n) -> Just n
-    _                          -> Nothing
+    Just aval -> case aval.av_ of
+      LangSvg.AColorNum n -> Just n
+      _                   -> Nothing
+    _                     -> Nothing
 
 zoneColor b id shape x y rgba =
   case (b, rgba) of
@@ -411,7 +425,7 @@ zoneColor b id shape x y rgba =
     _              -> []
 
 zoneColor_ id shape x y n =
-  let rgba = [LangSvg.compileAttr "fill" (LangSvg.AColorNum n)] in
+  let rgba = [LangSvg.compileAttr "fill" (LangSvg.aColorNum n)] in
   let (w, h, a, stroke, strokeWidth, rBall) =
       (wGradient, 20, 20, "silver", "2", "7") in
   let yOff = a + rotZoneDelta in
@@ -448,6 +462,40 @@ zoneColor_ id shape x y n =
         ]) [0 .. w]
   in
   gradient ++ [box, ball]
+
+-- Stuff for Delete Zones ------------------------------------------------------
+
+zoneDelete b id shape x y transform =
+  if b then zoneDelete_ id shape x y transform else []
+
+zoneDelete_ id shape x y transform =
+  let (w, h, stroke, strokeWidth) =
+      (20, 20, "silver", "2") in
+  let evt =
+    let foo old =
+      { old | slate <- Utils.mapSnd (Dict.insert id LangSvg.dummySvgNode) old.slate }
+    in
+    onMouseDown (UpdateModel foo) in
+  let lines =
+    let f x1 y1 x2 y2 =
+      flip Svg.line [] <|
+        [ LangSvg.attr "stroke" "darkred", LangSvg.attr "strokeWidth" strokeWidth
+        , LangSvg.attr "x1" (toString x1) , LangSvg.attr "y1" (toString y1)
+        , LangSvg.attr "x2" (toString x2) , LangSvg.attr "y2" (toString y2)
+        , evt
+        ] ++ transform
+      in
+     [ f x y (x + w) (y + h) , f x (y + h) (x + w) y ] in
+  let box =
+    flip Svg.rect [] <|
+      [ LangSvg.attr "fill" "white"
+      , LangSvg.attr "stroke" stroke , LangSvg.attr "strokeWidth" strokeWidth
+      , LangSvg.attr "x" (toString x) , LangSvg.attr "y" (toString y)
+      , LangSvg.attr "width" (toString w) , LangSvg.attr "height" (toString h)
+      , evt
+      ] ++ transform
+  in
+  [box] ++ lines
 
 --------------------------------------------------------------------------------
 
@@ -490,6 +538,7 @@ makeZones options shape id l =
           , mk "TopRightCorner" x2 y0 wSlim hSlim
           ] ++ zRot
             ++ zColor
+            ++ zoneDelete options.addDelete id shape x y (maybeTransformAttr l)
 
     "circle"  -> makeZonesCircle  options id l
     "ellipse" -> makeZonesEllipse options id l
@@ -542,7 +591,7 @@ makeZonesPoly options shape id l =
     Utils.mapi f pairs in
   let zInterior =
     zoneBorder Svg.polygon id shape "Interior" False options.showBasic transform [
-        LangSvg.compileAttr "points" (LangSvg.APoints pts)
+        LangSvg.compileAttr "points" (LangSvg.aPoints pts)
       ] in
   let zRot =
     let (((x0,_),(y0,_))::_) = pts in
@@ -552,6 +601,7 @@ makeZonesPoly options shape id l =
      | firstEqLast pts    -> zInterior :: (zLines ++ zPts ++ zRot)
      | otherwise          -> zLines ++ zPts ++ zRot
 
+makeZonesPath : Bool -> String -> Int -> List LangSvg.Attr -> List Svg.Svg
 makeZonesPath showZones shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "path") in
   let transform = maybeTransformAttr l in
@@ -584,7 +634,7 @@ codebox : Int -> Int -> Model -> GE.Element
 codebox w h model =
   let event =
     case model.mode of
-      SyncSelect _ _ -> []
+      SyncSelect _ _ _ -> []
       _ -> [Events.on "input" Events.targetValue
               (Signal.message events.address << CodeUpdate)]
   in
@@ -670,20 +720,29 @@ canvas_ w h model =
     _               -> False
   in
   let options = (addZones, model.showZones, model.showGhosts) in
-  let svg = buildSvg options model.slate in
-  let svgLayers =
-    case model.showGhosts of
-      False -> [ svg ]
-      True  -> [ svg, buildSvgWidgets w h model.widgets]
+  let svg =
+    let mainCanvas = buildSvg options model.slate in
+    case model.mode of
+      Live _ ->
+        let widgets = buildSvgWidgets w h model.widgets in
+        mkSvg addZones (Svg.g [] [widgets, mainCanvas])
+      SyncSelect (_,prevSlate) _ _ ->
+        let old          = buildSvg options prevSlate in
+        let shadowCanvas = Svg.svg [Attr.style [("opacity", "0.3")]] [old] in
+        mkSvg addZones (Svg.g [] [shadowCanvas, mainCanvas])
+      _ ->
+        mkSvg addZones mainCanvas
   in
-  Html.toElement w h <|
-    Svg.svg
-      [ onMouseUp MouseUp
-      , Attr.style [ ("width", "100%") , ("height", "100%")
-                   , ("border", params.mainSection.canvas.border)
-                   , highlightThisIf addZones
-                   ] ]
-      svgLayers
+  Html.toElement w h svg
+
+mkSvg hilite svg =
+  Svg.svg
+     [ onMouseUp MouseUp
+     , Attr.style [ ("width", "100%") , ("height", "100%")
+                  , ("border", params.mainSection.canvas.border)
+                  , highlightThisIf hilite
+                  ] ]
+     [ svg ]
 
 middleWidgets w h wWrap hWrap model =
   let twoButtons b1 b2 =
@@ -691,13 +750,20 @@ middleWidgets w h wWrap hWrap model =
     let wHalf = (w//2 - delta) in
     GE.flow GE.right [ b1 wHalf h, GE.spacer (2 * delta) h, b2 wHalf h ]
   in
+  let threeButtons b1 b2 b3 =
+    let delta = 3 in
+    let sep   = GE.spacer (2 * delta) h in
+    let w_    = (w//3 - delta) in
+    GE.flow GE.right [ b1 w_ h, sep, b2 w_ h, sep, b3 w_ h ]
+  in
   List.map (GE.container wWrap hWrap GE.middle) <|
     let exampleNavigation =
       [ dropdownExamples model w h
       , editRunButton model w h
-      , saveButton model w h
-      , saveAsButton model w h
-      , loadButton model w h
+      -- , saveButton model w h
+      -- , saveAsButton model w h
+      -- , loadButton model w h
+      , threeButtons (saveButton model) (saveAsButton model) (loadButton model)
       ]
     in let undoRedo =
       [ twoButtons (undoButton model) (redoButton model) ]
@@ -712,8 +778,8 @@ middleWidgets w h wWrap hWrap model =
       , slideNumber model w h
       ]
     in
-    case (editingMode model, model.mode, model.inputVal) of
-      (False, SyncSelect i options, _) ->
+    case (editingMode model, model.mode, unwrapVList model.inputVal) of
+      (False, SyncSelect _ i options, _) ->
         [ gapWidget w h
         , gapWidget w h
         , prevButton i w h
@@ -723,7 +789,7 @@ middleWidgets w h wWrap hWrap model =
       (False, Print _, _) ->
         exampleNavigation ++
         undoRedo
-      (False, _, VList [VConst (slideCount, _), _]) -> -- slideshow mode
+      (False, _, Just [VConst (slideCount, _), _]) -> -- slideshow mode
         exampleNavigation ++
         undoRedo ++
         zonesButton ++
@@ -733,6 +799,7 @@ middleWidgets w h wWrap hWrap model =
         exampleNavigation ++
         undoRedo ++
         zonesButton ++
+        [modeButton model w h] ++
         (syncButton_ w h model)
       (True, _, _) ->
         exampleNavigation
@@ -904,6 +971,9 @@ simpleTaskButton_  = simpleButton_ taskMailbox.address (Task.succeed ())
 simpleButton = simpleEventButton_ False
 simpleTaskButton = simpleTaskButton_ False
 
+-- displayKey s = " " ++ Utils.parens s
+displayKey s = " " ++ s
+
 editRunButton model w h =
   let disabled = model.mode == AdHoc in
   case editingMode model of
@@ -946,6 +1016,7 @@ zoneButton model =
        | model.showZones == showZonesBasic -> "[Zones] Basic"
        | model.showZones == showZonesRot   -> "[Zones] Rotation"
        | model.showZones == showZonesColor -> "[Zones] Color"
+       | model.showZones == showZonesDel   -> "[Zones] Delete"
   in
   simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap
 
@@ -976,46 +1047,59 @@ frozenButton model =
   simpleButton ToggleThawed "ToggleThawed " "Toggle ?/!" cap
 -}
 
-chooseButton i (n,_) =
+chooseButton i ((n1,l1),(n2,l2),_) =
   let cap =
-    if i == n + 2 then "Revert"
-    else "Select " ++ Utils.parens (toString i ++ "/" ++ toString (n+1))
+    let n = n1 + n2 + 1 in
+    if i == n then "Revert"
+    else "Select " ++ Utils.parens (toString i ++ "/" ++ toString n)
   in
-  simpleButton SelectOption "Choose" "Choose" cap
+  simpleButton SelectOption "Choose" "Choose" (cap ++ displayKey Utils.uniEnter)
 
+prevButtonEnabled i = i > 1
 prevButton i =
-  let enabled = i > 1 in
-  simpleEventButton_ (not enabled) (TraverseOption -1) "Prev" "Prev" "Show Prev"
+  let enabled = prevButtonEnabled i in
+  simpleEventButton_
+    (not enabled) (TraverseOption -1)
+    "Prev" "Prev" ("Show Prev" ++ displayKey Utils.uniLeft)
 
-nextButton i (n,l) =
-  let enabled = i < n + 2 in
-  simpleEventButton_ (not enabled) (TraverseOption 1) "Next" "Next" "Show Next"
+nextButtonEnabled i ((n1,l1),(n2,l2),_) = i < n1 + n2 + 1
+nextButton i options =
+  let enabled = nextButtonEnabled i options in
+  simpleEventButton_
+    (not enabled) (TraverseOption 1)
+    "Next" "Next" ("Show Next" ++ displayKey Utils.uniRight)
 
 saveButton : Model -> Int -> Int -> GE.Element
 saveButton model w h =
     let disabled = List.any ((==) model.exName << fst) Examples.list
         dn = "Save"
-    in --simpleTaskButton_ disabled (saveStateLocally model.exName False model) dn dn dn w h
-       simpleEventButton_ disabled (InterfaceModel.WaitSave model.exName) dn dn dn w h
+    in
+    simpleEventButton_
+      disabled (InterfaceModel.WaitSave model.exName)
+      dn dn Utils.uniSave w h
 
 saveAsButton : Model -> Int -> Int -> GE.Element
 saveAsButton model w h =
-    let dn = "Save As"
-    in simpleTaskButton (saveStateLocally model.exName True model) dn dn dn w h
+    let dn = "Save As" in
+    simpleTaskButton
+      (saveStateLocally model.exName True model)
+      dn dn (Utils.uniCamera) w h
 
 loadButton : Model -> Int -> Int -> GE.Element
 loadButton model w h =
-    simpleTaskButton (loadLocalState model.exName) "Revert" "Revert" "Revert" w h
+  simpleTaskButton
+    (loadLocalState model.exName)
+    "Reload" "Reload" Utils.uniReload w h
 
 undoButton : Model -> Int -> Int -> GE.Element
 undoButton model =
   let past = fst model.history in
-  simpleEventButton_ (List.length past == 0) Undo "Undo" "Undo" "Undo"
+  simpleEventButton_ (List.length past == 0) Undo "Undo" "Undo" Utils.uniUndo
 
 redoButton : Model -> Int -> Int -> GE.Element
 redoButton model =
   let future = snd model.history in
-  simpleEventButton_ (List.length future == 0) Redo "Redo" "Redo" "Redo"
+  simpleEventButton_ (List.length future == 0) Redo "Redo" "Redo" Utils.uniRedo
 
 previousSlideButton : Model -> Int -> Int -> GE.Element
 previousSlideButton model =
@@ -1103,6 +1187,10 @@ modeButton model =
   if model.mode == AdHoc
   then simpleEventButton_ True Noop "SwitchMode" "SwitchMode" "[Mode] Ad Hoc"
   else simpleEventButton_ False (SwitchMode AdHoc) "SwitchMode" "SwitchMode" "[Mode] Live"
+
+cleanButton model =
+  let disabled = case model.mode of {Live _ -> False; _ -> True} in
+  simpleEventButton_ disabled CleanCode "Clean" "Clean" "Clean Up"
 
 orientationButton w h model =
     let text = "[Orientation] " ++ toString model.orient

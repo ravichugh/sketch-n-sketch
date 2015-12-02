@@ -1,0 +1,50 @@
+
+; TODO remove, use library version
+
+(def enumSlider (\(x0 x1 y enum caption srcVal)
+  (let n (len enum)
+  (let [minVal maxVal] [0! (- n 1!)]
+  (let preVal (clamp minVal maxVal srcVal)
+  (let i (round preVal)
+  (let item (nth enum i)
+  (let wrap (\circ (addAttr circ ['SELECTED' ''])) ; TODO
+  (let shapes
+    (let rail [ (line 'black' 3! x0 y x1 y) ]
+    (let ball
+      (let [xDiff valDiff] [(- x1 x0) (- maxVal minVal)]
+      (let xBall (+ x0 (* xDiff (/ (- preVal minVal) valDiff)))
+      (let rBall (if (= preVal srcVal) 10! 0!)
+        [ (wrap (circle 'black' xBall y rBall)) ])))
+    (let endpoints
+      [ (wrap (circle 'black' x0 y 4!)) (wrap (circle 'black' x1 y 4!)) ]
+    (let tickpoints
+      (let sep (/ (- x1 x0) (+ n 1!))
+      (map (\i (wrap (circle 'grey' (+ (+ x0 sep) (mult i sep)) y 4!)))
+           (range 0! (- n 1!))))
+    (let label [ (text (+ x1 10!) (+ y 5!) (+ caption (toString item))) ]
+    (concat [ rail endpoints tickpoints ball label ]))))))
+  [item shapes])))))))))
+
+(def addSelectionSliders (\(y0 shapesCaps)
+  (let seeds [0 0 0 0 0 0 0 0 0 0] ; hard-coded limit
+  (let shapesCapsSeeds (zip shapesCaps (take seeds (len shapesCaps)))
+  (let foo (\[i [[shape cap] seed]]
+    (let [k _ _] shape
+    (let enum
+      (if (= k 'circle') ['' 'cx' 'cy' 'r']
+      (if (= k 'line')   ['' 'x1' 'y1' 'x2' 'y2']
+      (if (= k 'rect')   ['' 'x' 'y' 'width' 'height']
+        [(+ 'NO SELECTION ENUM FOR KIND ' k)])))
+    (let [item slider] (enumSlider 20! 170! (+ y0 (mult i 30!)) enum cap seed)
+    (let shape1 (addAttr shape ['SELECTED' item]) ; TODO overwrite existing
+    [shape1|slider])))))
+  (concat (mapi foo shapesCapsSeeds)))))))
+
+(svg (addSelectionSliders 30! [
+  [ (rect 'maroon' 300  30 50 15) 'pt0: ' ]
+  [ (rect 'maroon' 300  60 50 15) 'pt1: ' ]
+  [ (rect 'maroon' 300  90 50 15) 'pt2: ' ]
+  [ (rect 'maroon' 300 120 50 15) 'pt3: ' ]
+  [ (rect 'maroon' 300 150 50 15) 'pt4: ' ]
+  [ (rect 'maroon' 300 180 50 15) 'pt5: ' ]
+]))
