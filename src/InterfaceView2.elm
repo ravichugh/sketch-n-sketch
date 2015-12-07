@@ -722,11 +722,11 @@ canvas_ w h model =
   let options = (addZones, model.showZones, model.showGhosts) in
   let svg =
     let mainCanvas = buildSvg options model.slate in
-    case model.mode of
-      Live _ ->
+    case (model.mode, model.showGhosts) of
+      (Live _, True) ->
         let widgets = buildSvgWidgets w h model.widgets in
-        mkSvg addZones (Svg.g [] [widgets, mainCanvas])
-      SyncSelect (_,prevSlate) _ _ ->
+        mkSvg addZones (Svg.g [] [mainCanvas, widgets])
+      (SyncSelect (_,prevSlate) _ _, _) ->
         let old          = buildSvg options prevSlate in
         let shadowCanvas = Svg.svg [Attr.style [("opacity", "0.3")]] [old] in
         mkSvg addZones (Svg.g [] [shadowCanvas, mainCanvas])
