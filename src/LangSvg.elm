@@ -29,11 +29,7 @@ import Eval
 
 ------------------------------------------------------------------------------
 
--- TODO upgrade to:
--- http://package.elm-lang.org/packages/evancz/elm-svg/2.0.0/Svg
-
 attr = VirtualDom.attribute
-svg  = Svg.svgNode
 
 -- TODO probably want to factor HTML attributes and SVG attributes into
 -- records rather than lists of lists of ...
@@ -54,7 +50,7 @@ compileValToNode v = case v.v_ of
     case List.map .v_ vs of
       [VBase (String "TEXT"), VBase (String s)] -> VirtualDom.text s
       [VBase (String f), VList vs1, VList vs2] ->
-        (svg f) (compileAttrVals vs1) (compileNodeVals vs2)
+        (Svg.node f) (compileAttrVals vs1) (compileNodeVals vs2)
 
 compileNodeVals : List Val -> List Svg.Svg
 compileNodeVals = List.map compileValToNode

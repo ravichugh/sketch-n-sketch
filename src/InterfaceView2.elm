@@ -160,7 +160,7 @@ buildSvg_ options d i =
               (makeZones options' shape i attrs, l)
       in
       let children = List.map (buildSvg_ options d) js in
-      let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs') children in
+      let mainshape = (Svg.node shape) (LangSvg.compileAttrs attrs') children in
       if | zones == [] -> mainshape
          | otherwise   -> Svg.svg [] (mainshape :: zones)
 
@@ -238,7 +238,7 @@ buildSvgWidgets wCanvas hCanvas widgets =
         WIntSlider _ _ s targetVal _ -> s ++ strNumTrunc 5 targetVal
         WNumSlider _ _ s targetVal _ -> s ++ strNumTrunc 5 targetVal
       in
-      flip Svg.text [VirtualDom.text cap] <|
+      flip Svg.text' [VirtualDom.text cap] <|
         [ attr "fill" "black" , attr "font-family" "Tahoma, sans-serif"
         , attr "font-size" params.mainSection.uiWidgets.fontSize
         , attr "x" (toString (xi' + wSlider + 10))
