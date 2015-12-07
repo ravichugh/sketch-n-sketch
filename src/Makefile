@@ -1,6 +1,5 @@
 all:
-	touch Lang.elm # hack to avoid build error...
-	elm-make Main.elm --output ../build/out/sns.js > LOG.txt 2>&1
+	elm-make Main.elm --output ../build/out/sns.js
 
 html:
 	elm-make Main.elm --output ../build/out/sns.js

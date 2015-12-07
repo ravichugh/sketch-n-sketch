@@ -33,8 +33,9 @@ type alias HeuristicModes = Int
 
 heuristicModes = 3
 
-[heuristicsNone, heuristicsFair, heuristicsBiased] =
-  [ 0 .. (heuristicModes - 1) ]
+(heuristicsNone, heuristicsFair, heuristicsBiased) =
+  Utils.unwrap3
+    [ 0 .. (heuristicModes - 1) ]
 
 toggleHeuristicMode x =
   let i = (1 + x) % heuristicModes in
@@ -55,14 +56,14 @@ syncOptionsOf oldOptions e =
   -- feelingLucky to be a global flag, not per-example flag for now
   case Utils.maybeFind "unannotated-numbers" (getOptions e) of
     Nothing -> oldOptions
-    Just s -> if
+    Just s ->
       -- TODO decide whether to make feelingLucky per-example or not
       --   if not, perhaps move it out of Options
-      | s == "n?" -> { oldOptions | thawedByDefault <- True }
-      | s == "n!" -> { oldOptions | thawedByDefault <- False }
-      | otherwise ->
-          let _ = debugLog "invalid sync option: " s in
-          oldOptions
+      if s == "n?" then { oldOptions | thawedByDefault = True }
+      else if s == "n!" then { oldOptions | thawedByDefault = False }
+      else
+        let _ = debugLog "invalid sync option: " s in
+        oldOptions
 
 
 ------------------------------------------------------------------------------
@@ -82,6 +83,7 @@ fillHole = fillHole_ True
 fillHole_ new vc subst = case vc.v_ of
   VHole i          -> case Dict.get i subst of
                         Just (vOld,vNew) -> if new then vNew else vOld
+                        Nothing          -> Debug.crash "fillHole_"
   VConst _         -> vc
   VBase _          -> vc
   VClosure _ _ _ _ -> vc   -- not recursing into closures
@@ -95,11 +97,12 @@ diff v1 v2 =
   case res of
     Just (_, Diff vc subst) ->
       let (v1',v2') = (fillHole_ False vc subst, fillHole_ True vc subst) in
-      if | eqV (v1,v1') && eqV (v2,v2') -> Just (Diff vc subst)
-         | otherwise ->
-             let f (i,(vOld,vNew)) = [toString i, strVal vOld, strVal vNew] in
-             Debug.crash <| Utils.lines <|
-               ("bad diff" :: strVal vc :: List.concatMap f (Dict.toList subst))
+      if eqV (v1,v1') && eqV (v2,v2') then
+        Just (Diff vc subst)
+      else
+        let f (i,(vOld,vNew)) = [toString i, strVal vOld, strVal vNew] in
+        Debug.crash <| Utils.lines <|
+          ("bad diff" :: strVal vc :: List.concatMap f (Dict.toList subst))
     _ ->
       Utils.mapMaybe snd res
 
@@ -121,9 +124,11 @@ diff_ : Int -> Val -> Val -> Maybe (Int, VDiff)
 diff_ k v1 v2 = case (v1.v_, v2.v_) of
   (VBase Star, VConst _) -> Just (k, Same v2)
   (VConst (i,tr), VConst (j,_)) ->
-    if | i == j    -> Just (k, Same (vConst (i,tr)))  -- cf. comment above
-       | otherwise -> let d = Dict.singleton k (v1, (vConst (j,tr))) in
-                      Just (k+1, Diff (vHole k) d)
+    if i == j then
+      Just (k, Same (vConst (i,tr)))  -- cf. comment above
+    else
+      let d = Dict.singleton k (v1, (vConst (j,tr))) in
+      Just (k+1, Diff (vHole k) d)
   (VList vs1, VList vs2) ->
     case Utils.maybeZip vs1 vs2 of
       Nothing -> Nothing
@@ -132,27 +137,30 @@ diff_ k v1 v2 = case (v1.v_, v2.v_) of
           case acc of
             Nothing -> Nothing
             Just (k, Same vUgh) ->
-              let (VList vs) = vUgh.v_ in
-              case diff_ k vi1 vi2 of
-                Nothing                 -> Nothing
-                Just (k, Same v)        -> Just (k, Same (vList (v::vs)))
-                Just (k, Diff vc subst) -> Just (k, Diff (vList (vc::vs)) subst)
+              case vUgh.v_ of
+                VList vs ->
+                  case diff_ k vi1 vi2 of
+                    Nothing                 -> Nothing
+                    Just (k, Same v)        -> Just (k, Same (vList (v::vs)))
+                    Just (k, Diff vc subst) -> Just (k, Diff (vList (vc::vs)) subst)
+                _ -> Debug.crash "diff_"
             Just (k, Diff vUgh subst) ->
-              let (VList vs) = vUgh.v_ in
-              case diff_ k vi1 vi2 of
-                Nothing                 -> Nothing
-                Just (k, Same v)        -> Just (k, Diff (vList (v::vs)) subst)
-                Just (k, Diff vc sub')  ->
-                  if | not multiLeafDiffs -> Nothing
-                     | otherwise ->
-                         let d = Dict.union subst sub' in
-                         Just (k, Diff (vList (vc::vs)) d)
-            Just (_, Diff _ _) ->
-              Debug.crash "diff_: error?"
+              case vUgh.v_ of
+                VList vs ->
+                  case diff_ k vi1 vi2 of
+                    Nothing                 -> Nothing
+                    Just (k, Same v)        -> Just (k, Diff (vList (v::vs)) subst)
+                    Just (k, Diff vc sub')  ->
+                      if not multiLeafDiffs
+                        then Nothing
+                        else let d = Dict.union subst sub' in
+                             Just (k, Diff (vList (vc::vs)) d)
+                _ -> Debug.crash "diff_"
         ) (Just (k, Same (vList []))) l
   _ ->
-    if | v1 == v2  -> Just (k, Same v1)
-       | otherwise -> Nothing
+    if v1 == v2
+      then Just (k, Same v1)
+      else Nothing
 
 
 ------------------------------------------------------------------------------
@@ -165,10 +173,10 @@ locsOfTrace opts =
   let foo t = case t of
     TrLoc l ->
       let (_,b,_) = l in
-      if | Parser.isPreludeLoc l         -> Set.empty
-         | b == frozen                   -> Set.empty
-         | b == unann && frozenByDefault -> Set.empty
-         | otherwise                     -> Set.singleton l
+      if      Parser.isPreludeLoc l         then Set.empty
+      else if b == frozen                   then Set.empty
+      else if b == unann && frozenByDefault then Set.empty
+      else                                       Set.singleton l
     TrOp _ ts -> List.foldl Set.union Set.empty (List.map foo ts)
   in
   -- TODO do this filtering later if want gray highlights
@@ -192,12 +200,14 @@ locsOfTrace opts =
 -}
 
 solveOneLeaf : Options -> Subst -> Val -> List (LocId, Num)
-solveOneLeaf opts s v =
-  let (VConst (i, tr)) = v.v_ in
-  List.filterMap
-    (\k -> let s' = Dict.remove k s in
-           Utils.mapMaybe (\n -> (k,n)) (solve s' (i, tr)))
-    (List.map Utils.fst3 <| Set.toList <| locsOfTrace opts tr)
+solveOneLeaf opts s v = case v.v_ of
+  VConst (i, tr) ->
+    List.filterMap
+      (\k -> let s' = Dict.remove k s in
+             Utils.mapMaybe (\n -> (k,n)) (solve s' (i, tr)))
+      (List.map Utils.fst3 <| Set.toList <| locsOfTrace opts tr)
+  _ ->
+    Debug.crash "solveOneLeaf"
 
 inferSubsts : Options -> Subst -> List Val -> List Subst
 inferSubsts opts s0 vs =
@@ -213,8 +223,9 @@ combine solutions =
     let g subst =
       case Dict.get l subst of
         Nothing -> Just (Dict.insert l n subst)
-        Just i  -> if | i == n    -> Just (Dict.insert l n subst)
-                      | otherwise -> Nothing
+        Just i  -> if i == n
+                     then Just (Dict.insert l n subst)
+                     else Nothing
     in
     Utils.bindMaybe g msubst
   in
@@ -317,9 +328,9 @@ isNumBinop = (/=) Lt
 
 maybeFloat n =
   let thresh = 1000 in
-  if | isNaN n || isInfinite n -> debugLog "maybeFloat Nothing" Nothing
-     | abs n > thresh          -> debugLog "maybeFloat (above thresh)" Nothing
-     | otherwise               -> Just n
+  if isNaN n || isInfinite n then debugLog "maybeFloat Nothing" Nothing
+  else if abs n > thresh     then debugLog "maybeFloat (above thresh)" Nothing
+  else                            Just n
 
 -- n = i op j
 solveR op n i = case op of
@@ -331,6 +342,7 @@ solveR op n i = case op of
   Mod     -> Nothing
   ArcTan2 -> maybeFloat <| tan(n) * i
   RangeOffset _ -> Nothing
+  _       -> Debug.crash "solveR"
 
 -- n = i op j
 solveL op n j = case op of
@@ -341,8 +353,8 @@ solveL op n j = case op of
   Pow   -> Just <| n ^ (1/j)
   Mod   -> Nothing
   ArcTan2 -> maybeFloat <| j / tan(n)
-
   RangeOffset _ -> Nothing
+  _     -> Debug.crash "solveL"
 
 
 simpleSolve subst (sum, tr) =
@@ -372,8 +384,7 @@ compareVals (v1, v2) = case (v1.v_, v2.v_) of
   (VList vs1, VList vs2)   -> case Utils.maybeZip vs1 vs2 of
                                 Nothing -> largeInt
                                 Just l  -> Utils.sum (List.map compareVals l)
-  _                        -> if | v1 == v2  -> 0
-                                 | otherwise -> largeInt
+  _                        -> if v1 == v2 then 0 else largeInt
 
 largeInt = 99999999
 
@@ -382,7 +393,9 @@ largeInt = 99999999
 getFillers : HoleSubst -> List Val
 getFillers = List.map (snd << snd) << Dict.toList
 
-leafToStar v = case v.v_ of {VConst _ -> vBase Star; _ -> v}
+leafToStar v = case v.v_ of
+  VConst _ -> vBase Star
+  _        -> v
 
 -- historically, inferLocalUpdates was called "sync"
 
@@ -412,9 +425,9 @@ inferLocalUpdates opts e v v' =
                 Just ((e1, v1), n)
               Just (Diff _ holeSubst') ->
                 let oldNew = getFillers holeSubst' in
-                if | newNew /= oldNew -> Nothing
-                   | otherwise ->
-                       let n = compareVals (v, v1) in
+                if newNew /= oldNew
+                  then Nothing
+                  else let n = compareVals (v, v1) in
                        Just ((e1, v1), n)
           ) substs
       in
@@ -426,9 +439,13 @@ inferLocalUpdates opts e v v' =
 -- Naive Structural Update
 
 stripSvg v =
-  let (VList vs) = v.v_ in
-  let [VBase (String "svg"), VList vs1, VList vs2] = List.map .v_ vs in
-  (vs1, vs2)
+  case v.v_ of
+    VList vs ->
+      case List.map .v_ vs of
+        [VBase (String "svg"), VList vs1, VList vs2] ->
+          (vs1, vs2)
+        _ -> Debug.crash "stripSvg"
+    _ -> Debug.crash "stripSvg"
 
 idOldShapes  = "oldCanvas"
 idNewShape i = "newShape" ++ toString i
@@ -438,8 +455,9 @@ eNewShape i  = eVar (idNewShape i)
 addComments = False -- CONFIG
 
 comment s e =
-  if | addComments -> eComment s e
-     | otherwise   -> e
+  if addComments
+    then eComment s e
+    else e
 
 inferStructuralUpdate : Exp -> Val -> Val -> (Exp, Val)
 inferStructuralUpdate eOld v v' =
@@ -449,8 +467,10 @@ inferStructuralUpdate eOld v v' =
 
   let diff =
     let foo (i,(vi,vi')) acc =
-      if | vi == vi' -> acc
-         | otherwise -> (i,vi') :: acc in
+      if vi == vi'
+        then acc
+        else (i,vi') :: acc
+    in
     List.reverse (Utils.foldli foo [] (Utils.zip children1 children2)) in
 
   let eNewCanvas =
@@ -520,9 +540,8 @@ expandRange idxTraces r =
   let mem = flip List.member idxTraces in
   case r.val of
     Point e -> case e.val.e__ of
-      EConst n l _ ->
-        if | mem (l,l,0) -> [e]
-           | otherwise   -> []
+      EConst n l _ -> if mem (l,l,0) then [e] else []
+      _            -> Debug.crash "expandRange"
     Interval e1 e2 -> case (e1.val.e__, e2.val.e__) of
       -- TODO may be better to just put exactly one space in
       -- between each element and ignore existing positions
@@ -535,16 +554,19 @@ expandRange idxTraces r =
             (Un.incCol end, ei :: acc)
           in
           let m = n1 + toFloat i in
-          if | mem (l1,l2,i) && m > n2 -> return n2
-             | mem (l1,l2,i)           -> return m
-             | otherwise               -> (nextStart, acc)
+          if mem (l1,l2,i) && m > n2 then return n2 else
+          if mem (l1,l2,i)           then return m
+          else                            (nextStart, acc)
         in
         snd <| List.foldr foo (e1.start, []) [0..d]
+      _ -> Debug.crash "expandRange"
 
 type alias MaybeOne a = List a
 nothing               = []
 just                  = Utils.singleton
-maybeToMaybeOne mx    = case mx of {Nothing -> nothing; Just x -> just x}
+maybeToMaybeOne mx    = case mx of
+  Nothing -> nothing
+  Just x  -> just x
 
 inferDeleteUpdate : Exp -> Val -> Val -> MaybeOne (Exp, Val)
 inferDeleteUpdate eOld v v' =
@@ -554,9 +576,9 @@ inferDeleteUpdate eOld v v' =
 
   let onlyDeletes =
     let foo (vi,vi') =
-      if | vi == vi'                  -> Nothing
-         | vi' == LangSvg.dummySvgVal -> Just True
-         | otherwise                  -> Just False
+      if vi == vi'                       then Nothing
+      else if vi' == LangSvg.dummySvgVal then Just True
+      else                                    Just False
     in
     let l = List.map foo (Utils.zip children1 children2) in
     List.length (List.filter ((==) (Just True)) l) > 0
@@ -577,11 +599,14 @@ stripSvgNode : Bool -> Bool -> (String -> Bool) -> Val -> Maybe (List Val)
 stripSvgNode b1 b2 kPred v =
   case v.v_ of
     VList vsUgh ->
-      let [VBase (String k'), VList vs1, VList vs2] = List.map .v_ vsUgh in
-      case (kPred k', b1, vs1, b2, vs2) of
-        (True, True, _, False, []) -> Just vs1
-        (True, False, [], True, _) -> Just vs2
-        _                          -> Nothing
+      case List.map .v_ vsUgh of
+        [VBase (String k'), VList vs1, VList vs2] ->
+          case (kPred k', b1, vs1, b2, vs2) of
+            (True, True, _, False, []) -> Just vs1
+            (True, False, [], True, _) -> Just vs2
+            _                          -> Nothing
+        _ ->
+          Debug.crash "stripSvgNode"
     _ ->
       Nothing
 
@@ -593,11 +618,14 @@ justBind = flip Utils.bindMaybe
 getAttr : List Val -> String -> Maybe Val
 getAttr l k = case l of
   [] -> Nothing
-  v0::l' ->
-    let (VList [vk, v]) = v0.v_ in
-    let (VBase (String k')) = vk.v_ in
-    if | k == k'   -> Just v
-       | otherwise -> getAttr l' k
+  v0::l' -> case v0.v_ of
+    VList [vk, v] ->
+      let k' = unwrapVBaseString_ "getAttr" vk.v_ in
+      if k == k'
+        then Just v
+        else getAttr l' k
+    _ ->
+      Debug.crash "getAttr"
 
 getAttrs : List String -> List Val -> Maybe (List Val)
 getAttrs ks l = Utils.projJusts <| List.map (getAttr l) ks
@@ -616,10 +644,11 @@ sortRectsByY = List.sortBy (valToNum << Utils.fromJust << flip getAttr "y")
 collectExtraRectAttrs rects =
   let f attrs acc0 =
     let g v acc1 =
-      let (VList [vk, _]) = v.v_ in
-      let (VBase (String k)) = vk.v_ in
-      if | List.member k basicRectAttrs -> acc1
-         | otherwise                    -> k :: acc1
+      let (vk_, _) = Utils.unwrap2 <| unwrapVList_ "collectExtraRectAttrs" v in
+      let k = unwrapVBaseString_ "collectExtraRectAttrs" vk_ in
+      if List.member k basicRectAttrs
+        then acc1
+        else k :: acc1
     in
     List.foldl g acc0 attrs
   in
@@ -649,7 +678,7 @@ pluckOutExtra attrLists k =
       Nothing -> acc
       Just v  -> (i,v) :: acc
 
-a `nl` b = a ++ "\n" ++ b
+nl a b = a ++ "\n" ++ b
 
 strCall f xs = Utils.parens (Utils.spaces (f::xs))
 
@@ -658,10 +687,11 @@ strInferred cap x ys =
 
 -- could switch to most common element if desired
 --
-chooseFirst (v::vs) =
-  if | Utils.allSame (v::vs) -> strVal v
-     | otherwise ->
-         strInferred "'first of'" (strVal v) (List.map strVal (v::vs))
+chooseFirst list =
+  let (v,vs) = Utils.uncons list in
+  if Utils.allSame (v::vs)
+    then strVal v
+    else strInferred "'first of'" (strVal v) (List.map strVal (v::vs))
 
 -- TODO this is duplicating toNum for Val rather than AVal...
 valToNum v = case v.v_ of
@@ -669,15 +699,18 @@ valToNum v = case v.v_ of
   VBase (String s) ->
     case String.toFloat s of
       Ok n -> n
+      _    -> Debug.crash "valToNum"
+  _ -> Debug.crash "valToNum"
 
 chooseAvg_ : List Val -> (Int, String)
 chooseAvg_ vals =
   let nums = List.map valToNum vals in
-  if | Utils.allSame nums -> (round <| Utils.head_ nums, toString (Utils.head_ nums))
-     | otherwise ->
-         let avg = round <| Utils.avg nums in
-         let s = strInferred "'average of'" (toString avg) (List.map toString nums) in
-         (avg, s)
+  if Utils.allSame nums then
+    (round <| Utils.head_ nums, toString (Utils.head_ nums))
+  else
+    let avg = round <| Utils.avg nums in
+    let s = strInferred "'average of'" (toString avg) (List.map toString nums) in
+    (avg, s)
 
 chooseAvg = snd << chooseAvg_
 
@@ -754,7 +787,7 @@ inferRelatedRects sortRectsByXY flow _ _ v' =
     let n = List.length attrLists in
     let indices = Utils.ibracks (Utils.spaces (List.map toString [0..n-1])) in
     let flowIndices = strCall "flow" [flow, "indices"] in
-    let [xs, ys, widths, heights, fills] = unzipBasicRectAttrs attrLists in
+    let (xs, ys, widths, heights, fills) = Utils.unwrap5 <| unzipBasicRectAttrs attrLists in
     let (let_xBaseAndOff, let_x, xParens) = inferXY "x" xs in
     let (let_yBaseAndOff, let_y, yParens) = inferXY "y" ys in
     let xyParens = xParens ++ yParens in
@@ -809,15 +842,15 @@ inferCircleOfCircles groupBox _ _ v' =
       if groupBox
       then strCall "flow" ["'ccw and groupbox'", "indices"]
       else strCall "flow" ["'ccw'", "indices"] in
-    let [cxs, cys, rs, fills] = unzipBasicCircleAttrs attrLists in
+    let (cxs, cys, rs, fills) = Utils.unwrap4 <| unzipBasicCircleAttrs attrLists in
     let (gx, sgx) = chooseAvg_ cxs in
     let (gy, sgy) = chooseAvg_ cys in
     let cxys = Utils.zip (List.map valToNum cxs) (List.map valToNum cys) in
     let dists = List.map (Utils.distance (toFloat gx, toFloat gy)) cxys in
     let gr = round <| Utils.avg dists in
     let rot =
-      let [cx,cy] = -- (cx,cy) of rightmost circle
-        List.map (valToNum << Utils.last_) [cxs,cys] in
+      let (cx,cy) = -- (cx,cy) of rightmost circle
+        Utils.unwrap2 <| List.map (valToNum << Utils.last_) [cxs,cys] in
       if cy <= toFloat gy
       then atan ((toFloat gy - cy) / (cx - toFloat gx))        -- quad I
       else -1 * (atan ((cy - toFloat gy) / (cx - toFloat gx))) -- quad IV
@@ -900,10 +933,13 @@ inferGroupOfLines elastic _ _ v' =
     -- let attrLists = List.map (List.map valToNum) attrLists_ in
     let attrLists =
       List.map
-         (\[v1,v2,v3,v4,v5,v6] -> (List.map valToNum [v1,v2,v3,v4], [v5,v6]))
+         (\values ->
+           let (v1,v2,v3,v4,v5,v6) = Utils.unwrap6 values in
+           (List.map valToNum [v1,v2,v3,v4], [v5,v6]))
          attrLists_ in
     let (x0,maxX,y0,maxY) =
-      let foo ([x1,y1,x2,y2],_) (minX,maxX,minY,maxY) =
+      let foo (x1y1x2y2,_) (minX,maxX,minY,maxY) =
+        let (x1,y1,x2,y2) = Utils.unwrap4 x1y1x2y2 in
         let minX' = if min x1 x2 < minX then min x1 x2 else minX in
         let maxX' = if max x2 x2 > maxX then max x1 x2 else maxX in
         let minY' = if min y1 y2 < minY then min y1 y2 else minY in
@@ -922,7 +958,9 @@ inferGroupOfLines elastic _ _ v' =
                   , (BL, (xBL,yBL))
                   , (BR, (xBR,yBR)) ] in
     let newLines =
-      let goo ([x1,y1,x2,y2],[stroke,sw]) acc =
+      let goo (x1y1x2y2,strokesw) acc =
+        let (x1,y1,x2,y2) = Utils.unwrap4 x1y1x2y2 in
+        let (stroke,sw) = Utils.unwrap2 strokesw in
         let l1 = [ "line", strVal stroke, strVal sw ] in
         let l2 =
           if elastic then
@@ -1001,12 +1039,14 @@ relateBaseOffset genSymK e ntts_ =
   let projBase t = case snd (fst t) of
     TrLoc (_,_,"") -> Nothing
     TrLoc loc      -> Just loc
+    _              -> Debug.crash "relateBaseOffset"
   in
   let projBaseOff baseLoc ntt = case ntt of
     -- TODO check that t2 is a constant (loc w/o var)
-    ((_, TrOp Plus [TrLoc loc, t2]), vtrace) -> if
-      | loc == baseLoc -> Just vtrace
-      | otherwise      -> Nothing
+    ((_, TrOp Plus [TrLoc loc, t2]), vtrace) ->
+      if loc == baseLoc
+        then Just vtrace
+        else Nothing
     _ -> Nothing
   in
   case ntts of
@@ -1036,7 +1076,7 @@ relateNumsWithVar : Int -> Exp -> List NumTr -> (Int, List (Exp, Val))
 relateNumsWithVar genSymK e nts =
   let noResults = (genSymK, []) in
   let gensym = "gensym" ++ toString genSymK in
-  let ((n0,t0)::rest) = List.sortBy fst nts in
+  let ((n0,t0),rest) = Utils.uncons <| List.sortBy fst nts in
   case (t0, rest) of
     (TrOp _ _, _) -> noResults
     (TrLoc _, []) -> noResults
@@ -1107,6 +1147,8 @@ inferRelated genSymK e _ v' =
                 VBase (String s)  ->
                   let goo k = Utils.fromJust_ "inferRelated" (getAttr attrList k) in
                   List.map goo (String.split " " s) ++ acc
+                _ ->
+                  Debug.crash "inferRelated"
         in
         List.foldl foo [] shapes
       in
@@ -1183,10 +1225,14 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v.v_ of
 
           -- NOTE: requires for a single cmd, and "transformRot" is a fake attr....
           [VBase (String "transform"), VList [vBlah]] ->
-            let (VList vsBlah) = vBlah.v_ in
-            let [VBase (String "rotate"), VConst (_, tr), _, _] = List.map .v_ vsBlah in
-            let ee = ("transformRot", ("RotateBall", tr)) :: extraextra in
-            (extra, ee, Dict.insert "transformRot" tr dAttrs)
+            case vBlah.v_ of
+              VList vsBlah ->
+                case List.map .v_ vsBlah of
+                  [VBase (String "rotate"), VConst (_, tr), _, _] ->
+                    let ee = ("transformRot", ("RotateBall", tr)) :: extraextra in
+                    (extra, ee, Dict.insert "transformRot" tr dAttrs)
+                  _ -> Debug.crash "nodeToAttrLocs_"
+              _ -> Debug.crash "nodeToAttrLocs_"
 
           [VBase (String a), VConst (_,tr)] ->
             (extra, extraextra, Dict.insert a tr dAttrs)
@@ -1196,10 +1242,14 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v.v_ of
               Utils.foldli (\(i,vPt) acc ->
                 case vPt.v_ of
                   VList vsUghUghUgh ->
-                    let [VConst (_,trx), VConst (_,try)] = List.map .v_ vsUghUghUgh in
-                    let (ax,ay) = (addi "x" i, addi "y" i) in
-                    acc |> Dict.insert ax trx
-                        |> Dict.insert ay try) dAttrs pts in
+                    case List.map .v_ vsUghUghUgh of
+                      [VConst (_,trx), VConst (_,try)] ->
+                        let (ax,ay) = (addi "x" i, addi "y" i) in
+                        acc |> Dict.insert ax trx
+                            |> Dict.insert ay try
+                      _ -> Debug.crash "nodeToAttrLocs_"
+                  _ -> Debug.crash "nodeToAttrLocs_"
+               ) dAttrs pts in
             (NumPoints (List.length pts), extraextra, acc')
 
           [VBase (String "d"), VList vs] ->
@@ -1227,6 +1277,8 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v.v_ of
           --   see LangSvg.valToSvg for spec of attributes.
           _ ->
             (extra, extraextra, dAttrs)
+
+        _ -> Debug.crash "nodeToAttrLocs_"
       in
       let (extra,ee,attrs) = List.foldl processAttr (None, [], Dict.empty) vs' in
 
@@ -1235,6 +1287,8 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v.v_ of
         List.foldl nodeToAttrLocs_ (nextId,dShapes) children in
 
       (nextId' + 1, Dict.insert nextId' (kind, extra, ee, attrs) dShapes')
+
+    _ -> Debug.crash "nodeToAttrLocs_"
 
   _ -> Debug.crash <| "Sync.nodeToAttrLocs_: " ++ strVal v
 
@@ -1282,14 +1336,15 @@ createLocLists opts sets =
   let removeEmpties = List.filter ((/=) 0 << Utils.setCardinal) in
   let foo = Utils.cartProdWithDiff (removeEmpties sets) in
   let bar =
-    if | not allowOverConstrained -> []
-       -- | otherwise ->
-       | opts.feelingLucky == heuristicsNone ||
-         opts.feelingLucky == heuristicsFair ->
-           sets |> Utils.intersectMany |> Set.toList |> List.map Utils.singleton
-       | opts.feelingLucky == heuristicsBiased ->
-           let l = sets |> Utils.intersectMany |> Set.toList in
-           Utils.oneOfEach [l,l]
+    if not allowOverConstrained then []
+    else if opts.feelingLucky == heuristicsNone ||
+            opts.feelingLucky == heuristicsFair then
+      sets |> Utils.intersectMany |> Set.toList |> List.map Utils.singleton
+    else if opts.feelingLucky == heuristicsBiased then
+      let l = sets |> Utils.intersectMany |> Set.toList in
+      Utils.oneOfEach [l,l]
+    else
+      Debug.crash "createLocLists"
   in
   foo ++ bar
 
@@ -1298,8 +1353,10 @@ getZones kind extra ee =
   let xy i = [addi "x" i, addi "y" i] in
   let pt i = (addi "Point" i, xy i) in
   let edge n i =
-    if | i <  n -> (addi "Edge" i, xy i ++ xy (i+1))
-       | i == n -> (addi "Edge" i, xy i ++ xy 1) in
+    if i <  n then (addi "Edge" i, xy i ++ xy (i+1)) else
+    if i == n then (addi "Edge" i, xy i ++ xy 1)
+    else Debug.crash "getZones"
+  in
   let interior n = ("Interior", List.concatMap xy [1..n]) in
   let basicZones =
     case (kind, extra) of
@@ -1324,6 +1381,7 @@ getZones kind extra ee =
 widgetZones = List.map <| \x -> case x of
   ("fill"         , ("FillBall"   , _)) -> ("FillBall"   , ["fill"])
   ("transformRot" , ("RotateBall" , _)) -> ("RotateBall" , ["transformRot"])
+  _                                     -> Debug.crash "widgetZones"
 
 -- Step 3 --
 
@@ -1332,8 +1390,9 @@ widgetZones = List.map <| \x -> case x of
 
 getTriggerType numAttrs locs =
   let n = List.length locs in
-  if | n == numAttrs -> ()
-     | n == 1        -> ()
+  if n == numAttrs then ()
+  else if n == 1 then ()
+  else Debug.crash "getTriggerType"
 
 {-
   old approach:
@@ -1362,8 +1421,9 @@ assignTriggersV2 d1 =
           case acc of
             Nothing -> Just thisSet'
             Just bestSet ->
-            if | getCount bestSet dictSetSeen2 < getCount thisSet' dictSetSeen2 -> acc
-               | otherwise -> Just thisSet') Nothing rankedSets in
+            if getCount bestSet dictSetSeen2 < getCount thisSet' dictSetSeen2
+              then acc
+              else Just thisSet') Nothing rankedSets in
       case maybeChosenSet of
         Nothing -> (dictSetSeen2, (zone, Nothing) :: acc)
         Just chosenSet ->
@@ -1443,8 +1503,9 @@ scoreOfLocs : Locs -> Int
 scoreOfLocs locs =
   let foo (_,b,mx) acc =
     let _ = Utils.assert "scoreOfLocs" (b == unann) in
-    if | mx == ""  -> acc
-       | otherwise -> acc + 1
+    if mx == ""
+      then acc
+      else acc + 1
   in
   -1 * (List.foldl foo 0 locs)
 
@@ -1454,8 +1515,9 @@ scoreOfLocs2 dLocCounts locs_ =
   -- could use log to keep absolute numbers smaller.
   let foo (i,_,_) acc = acc * getCount i dLocCounts in
   let score = Set.foldl foo (1) locs in
-  if | Utils.setCardinal locs == 1 -> score * score * score
-     | otherwise -> score
+  if Utils.setCardinal locs == 1
+    then score * score * score
+    else score
 
 -- TODO compute these counts along with Dict0
 countLocs : Dict0 -> Dict LocId Int
@@ -1493,8 +1555,9 @@ strLocs = Utils.braces << Utils.commas << List.map strLoc_
 
 strLoc_ l =
   let (_,_,mx) = l in
-  if | mx == ""  -> strLoc l
-     | otherwise -> mx
+  if mx == ""
+    then strLoc l
+    else mx
 
 ------------------------------------------------------------------------------
 
@@ -1636,6 +1699,7 @@ whichLoc opts d0 d2 i z attr =
                   ([loc1,loc2], "x") -> Utils.fst3 loc2
                   ([loc1,loc2], "y") -> Utils.fst3 loc1
                   (loc1::_,_) -> Utils.fst3 loc1
+                  _ -> Debug.crash "whichLoc"
       else
         Debug.crash "whichLoc"
 

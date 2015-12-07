@@ -16,17 +16,15 @@ match (p,v) = case (p.val, v.v_) of
     Utils.bindMaybe matchList (Utils.maybeZip ps vs)
   (PList ps (Just rest), VList vs) ->
     let (n,m) = (List.length ps, List.length vs) in
-    if | n > m     -> Nothing
-       | otherwise -> let (vs1,vs2) = Utils.split n vs in
-                      (rest, vList vs2) `cons` (matchList (Utils.zip ps vs1))
-                        -- dummy VTrace, since VList itself doesn't matter
+    if n > m then Nothing
+    else
+      let (vs1,vs2) = Utils.split n vs in
+      (rest, vList vs2) `cons` (matchList (Utils.zip ps vs1))
+        -- dummy VTrace, since VList itself doesn't matter
   (PList _ _, _) -> Nothing
-  (PConst n, VConst (n',_)) ->
-    if | n == n'   -> Just []
-       | otherwise -> Nothing
-  (PBase bv, VBase bv') ->
-    if | bv == bv' -> Just []
-       | otherwise -> Nothing
+  (PConst n, VConst (n',_)) -> if n == n' then Just [] else Nothing
+  (PBase bv, VBase bv') -> if bv == bv' then Just [] else Nothing
+  _ -> Debug.crash "Eval.match"
 
 matchList : List (Pat, Val) -> Maybe Env
 matchList pvs =
@@ -72,7 +70,7 @@ eval env e =
   let retAddWs eid ((v,ws),envOut)   = ((Val v.v_ (eid::v.vtrace), ws), envOut) in
   let retAddThis_ (v,envOut)         = retAdd e.val.eid (v,envOut) in
   let retAddThis v                   = retAddThis_ (v, env) in
-  let retBoth (v,w)                  = (({v | vtrace <- e.val.eid :: v.vtrace},w), env) in
+  let retBoth (v,w)                  = (({v | vtrace = e.val.eid :: v.vtrace},w), env) in
   let addWidgets ws1 ((v1,ws2),env1) = ((v1, ws1 ++ ws2), env1) in
 
   case e.val.e__ of
@@ -126,9 +124,11 @@ eval env e =
       VClosure Nothing p eBody env' ->
         case (p, v2) `cons` Just env' of
           Just env'' -> addWidgets ws <| eval env'' eBody -- TODO add eid to vTrace
+          _          -> errorMsg <| strPos e1.start ++ "bad environment"
       VClosure (Just f) p eBody env' ->
         case (pVar f, v1) `cons` ((p, v2) `cons` Just env') of
           Just env'' -> addWidgets ws <| eval env'' eBody -- TODO add eid to vTrace
+          _          -> errorMsg <| strPos e1.start ++ "bad environment"
       _ ->
         errorMsg <| strPos e1.start ++ " not a function: " ++ (sExp e)
 
@@ -140,11 +140,14 @@ eval env e =
         let v1' = Val (VClosure (Just f) x body env) v1.vtrace in
         case (pVar f, v1') `cons` Just env of
           Just env' -> addWidgets ws1 <| eval env' e2
+          _         -> errorMsg <| strPos e.start ++ "bad ELet"
       (PList _ _, _) ->
         errorMsg <|
           strPos e1.start ++
           "mutually recursive functions (i.e. letrec [...] [...] e) \
            not yet implemented"
+      _ ->
+        errorMsg <| strPos e.start ++ "bad ELet"
 
   EComment _ e1 -> eval env e1
   EOption _ _ e1 -> eval env e1
@@ -158,6 +161,11 @@ eval env e =
 evalOp env opWithInfo es =
   let (op,opStart) = (opWithInfo.val, opWithInfo.start) in
   let (vs,wss) = List.unzip (List.map (eval_ env) es) in
+  let error () =
+    errorMsg
+      <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart
+      ++ ":\n" ++ Utils.lines (List.map sExp es)
+  in
   (\vOut -> (Val vOut [], List.concat wss)) <|
   case List.map .v_ vs of
     [VConst (i,it), VConst (j,jt)] ->
@@ -171,13 +179,16 @@ evalOp env opWithInfo es =
         ArcTan2 -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Lt      -> VBase (Bool (i < j))
         Eq      -> VBase (Bool (i == j))
+        _       -> error ()
     [VBase (String s1), VBase (String s2)] ->
       case op of
         Plus  -> VBase (String (s1 ++ s2))
         Eq    -> VBase (Bool (s1 == s2))
+        _     -> error ()
     [] ->
       case op of
         Pi    -> VConst (pi, TrOp op [])
+        _     -> error ()
     [VConst (n,t)] ->
       case op of
         Cos    -> VConst (evalDelta op [n], TrOp op [t])
@@ -189,20 +200,22 @@ evalOp env opWithInfo es =
         Round  -> VConst (evalDelta op [n], TrOp op [t])
         Sqrt   -> VConst (evalDelta op [n], TrOp op [t])
         ToStr  -> VBase (String (toString n))
+        _      -> error ()
     [VBase (Bool b)] ->
       case op of
         ToStr  -> VBase (String (toString b))
+        _      -> error ()
     [VBase (String s)] ->
       case op of
         ToStr  -> VBase (String (strBaseVal (String s)))
+        _      -> error ()
     [_, _] ->
       case op of
         -- polymorphic inequality, added for Prelude.addExtras
         Eq     -> VBase (Bool False)
+        _      -> error ()
     _ ->
-      errorMsg
-        <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart
-        ++ ":\n" ++ Utils.lines (List.map sExp es)
+      error ()
 
 evalBranches env v l =
   List.foldl (\(p,e) acc ->
@@ -238,8 +251,7 @@ evalDelta op is =
 
     (RangeOffset i, [n1,n2]) ->
       let m = n1 + toFloat i in
-      if | m > n2    -> n2
-         | otherwise -> m
+      if m > n2 then n2 else m
 
     _                -> errorMsg <| "Eval.evalDelta " ++ strOp op
 
@@ -271,8 +283,9 @@ rangeToList r =
         let walkVal i =
           let m = n1 + toFloat i in
           let tr = rangeOff l1 i l2 in
-          if | m < n2    -> vConst (m,  tr) :: walkVal (i + 1)
-             | otherwise -> vConst (n2, tr) :: []
+          if m < n2
+            then vConst (m,  tr) :: walkVal (i + 1)
+            else vConst (n2, tr) :: []
         in
         walkVal 0
       _ -> err ()
@@ -282,8 +295,12 @@ isSorted = isSorted_ Nothing
 isSorted_ mlast vs = case vs of
   []     -> True
   v::vs' ->
-    let (VConst (j,_)) = v.v_ in
-    case mlast of
-      Nothing -> isSorted_ (Just j) vs'
-      Just i  -> if | i < j -> isSorted_ (Just j) vs'
-                    | otherwise -> False
+    case v.v_ of
+      VConst (j,_) ->
+        case mlast of
+          Nothing -> isSorted_ (Just j) vs'
+          Just i  -> if i < j
+                       then isSorted_ (Just j) vs'
+                       else False
+      _ ->
+        Debug.crash "isSorted"

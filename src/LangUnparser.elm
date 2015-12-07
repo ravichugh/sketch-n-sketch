@@ -19,23 +19,25 @@ debugLog = Config.debugLog Config.debugParser
 --    is not reinstated
 
 bumpLine n pos = { line = n + pos.line, col = 1 }
-bumpCol  n pos = { pos | col <- n + pos.col }
+bumpCol  n pos = { pos | col = n + pos.col }
 
 incLine = bumpLine 1
 incCol  = bumpCol 1
 decCol  = bumpCol (-1)
 
-lines i j = if
+lines i j =
   -- | i > j     -> Debug.crash <| "Unparser.lines: " ++ toString (i,j)
   -- TODO to help Sync.relateWithVar for now
-  | i > j     -> " "
-  | otherwise -> String.repeat (j-i) "\n"
+  if i > j
+    then " "
+    else String.repeat (j-i) "\n"
 
-cols i j = if
+cols i j =
   -- | i > j     -> Debug.crash <| "Unparser.cols: " ++ toString (i,j)
   -- TODO to help Sync.expandRange for now
-  | i > j     -> let _ = Debug.log "Unparser.cols: " (toString (i, j)) in " "
-  | otherwise -> String.repeat (j-i) " "
+  if i > j
+    then let _ = Debug.log "Unparser.cols: " (toString (i, j)) in " "
+    else String.repeat (j-i) " "
 
 whitespace : Pos -> Pos -> String
 whitespace endPrev startNext =
@@ -105,7 +107,7 @@ unparse e = case e.val.e__ of
   EApp e1 es -> parensAndSpaces e.start e.end (List.map UExp (e1::es))
   EList es Nothing -> bracksAndSpaces e.start e.end (List.map UExp es)
   EList es (Just eRest) ->
-    let (en::_) = List.reverse es in
+    let en = Utils.head_ <| List.reverse es in
     let tok1 = makeToken e.start   "[" in
     let tok2 = makeToken en.end    "|" in
     let tok3 = makeToken eRest.end "]" in
@@ -117,12 +119,12 @@ unparse e = case e.val.e__ of
     ibracksAndSpaces e.start e.end (List.concat (List.map unparseRange rs))
 {-
   EOp op es ->
-    let sOp = { op | val <- strOp op.val } in
+    let sOp = { op | val = strOp op.val } in
     parensAndSpaces e.start e.end (UStr sOp :: List.map UExp es)
 -}
   EOp op es ->
     let normal () =
-      let sOp = { op | val <- strOp op.val } in
+      let sOp = { op | val = strOp op.val } in
       parensAndSpaces e.start e.end (UStr sOp :: List.map UExp es)
     in
     -- TODO: hack to fix unparsing issue after Sync.relateNumsWithVar...
@@ -213,7 +215,7 @@ startU thing = case thing of
   UNum x -> x.start
   UBra x -> x.start
 
-  UParens (first::_) -> decCol (startU first)
+  UParens l -> let first = Utils.head_ l in decCol (startU first)
 
 endU thing = case thing of
   UExp x -> x.end
@@ -223,11 +225,11 @@ endU thing = case thing of
   UNum x -> x.end
   UBra x -> x.end
 
-  UParens l -> let (last::_) = List.reverse l in incCol (endU last)
+  UParens l -> let last = Utils.head_ (List.reverse l) in incCol (endU last)
 
 spaces : List Unparsable -> (String, Pos)
 spaces things =
-  let (hd::tl) = things in
+  let (hd,tl) = Utils.uncons things in
   let foo cur (acc, endPrev) =
     let acc'     = strU cur :: space endPrev (startU cur) :: acc in
     let endPrev' = endU cur in

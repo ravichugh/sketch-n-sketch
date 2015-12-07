@@ -91,14 +91,14 @@ strToModel =
             ("midOffsetY"  := int)
     in customDecoder partialObjectDecoder
         (\partial -> 
-            Ok { sampleModel | code <- partial.code
-                             , orient <- partial.orient
-                             , showZones <- partial.showZones
-                             , midOffsetX <- partial.midOffsetX
-                             , midOffsetY <- partial.midOffsetY
-                             , fieldContents <- { value = ""
+            Ok { sampleModel | code = partial.code
+                             , orient = partial.orient
+                             , showZones = partial.showZones
+                             , midOffsetX = partial.midOffsetX
+                             , midOffsetY = partial.midOffsetY
+                             , fieldContents = { value = ""
                                                 , hint = "Input File Name" }
-                             , startup <- False
+                             , startup = False
             }
         )
 
@@ -119,35 +119,34 @@ commitLocalSave saveName model = setItem saveName <| modelToValue model
 -- Changes state to SaveDialog
 installSaveState : Model -> Model
 installSaveState oldModel = 
-    { oldModel | mode <- InterfaceModel.SaveDialog oldModel.mode}
+    { oldModel | mode = InterfaceModel.SaveDialog oldModel.mode}
 
 -- Task to validate save field input
 checkAndSave : String -> Model -> Task String ()
-checkAndSave saveName model = if
-    | List.all ((/=) saveName << fst) Examples.list
+checkAndSave saveName model =
+  if List.all ((/=) saveName << fst) Examples.list
         && saveName /= ""
         && saveName /= "__ErrorSave"
-        && not (all (\c -> c == ' ' || c == '\t') saveName) ->
-                send events.address (InterfaceModel.WaitSave saveName)
-                `andThen` \_ -> send events.address <|
-                    InterfaceModel.RemoveDialog True saveName
-    | otherwise -> send events.address <|
-                    InterfaceModel.UpdateModel invalidInput
+        && not (all (\c -> c == ' ' || c == '\t') saveName) then
+    send events.address (InterfaceModel.WaitSave saveName) `andThen` \_ ->
+    send events.address (InterfaceModel.RemoveDialog True saveName)
+  else
+    send events.address (InterfaceModel.UpdateModel invalidInput)
 
 -- Changes state back from SaveDialog and may or may not add new save
 removeDialog : Bool -> String -> Model -> Model
 removeDialog makeSave saveName oldModel = case oldModel.mode of
     InterfaceModel.SaveDialog oldmode -> case makeSave of
         True -> 
-          if | List.all ((/=) saveName) oldModel.localSaves ->
-                    { oldModel | mode <- oldmode 
-                               , exName <- saveName
-                               , localSaves <- saveName :: oldModel.localSaves 
-                    }
-             | otherwise ->
-                 { oldModel | mode <- oldmode 
-                            , exName <- saveName }
-        False -> { oldModel | mode <- oldmode }
+          if List.all ((/=) saveName) oldModel.localSaves then
+             { oldModel | mode = oldmode 
+                        , exName = saveName
+                        , localSaves = saveName :: oldModel.localSaves 
+             }
+          else
+             { oldModel | mode = oldmode 
+                        , exName = saveName }
+        False -> { oldModel | mode = oldmode }
     _ -> Debug.crash "Called removeDialog when not in SaveDialog state"
 
 -- Indicates that input was invalid
@@ -155,7 +154,7 @@ invalidInput : Model -> Model
 invalidInput oldmodel =
     let oldcontents = oldmodel.fieldContents
     in
-        { oldmodel | fieldContents <- { value = ""
+        { oldmodel | fieldContents = { value = ""
                                       , hint = "Invalid File Name" } }
 
 -- Task to load state from local browser storage
@@ -173,10 +172,10 @@ loadLocalState saveName =
 -- Function to update model upon state load
 installLocalState : String -> Model -> Model -> Model
 installLocalState saveName loadedModel oldModel = debugLog "installLocalState"
-    { loadedModel | slate <- emptyTree
-                  , exName <- saveName
-                  , localSaves <- oldModel.localSaves
-                  , editingMode <- Just ""
+    { loadedModel | slate = emptyTree
+                  , exName = saveName
+                  , localSaves = oldModel.localSaves
+                  , editingMode = Just ""
     }
 
 -- Gets the names of all of the local saves, returned in a list of strings
@@ -186,13 +185,13 @@ getLocalSaves = keys `andThen` \saves -> send events.address <|
 
 -- Installs the list of local saves
 installLocalSaves : List String -> Model -> Model
-installLocalSaves saves oldModel = { oldModel | localSaves <- saves }
+installLocalSaves saves oldModel = { oldModel | localSaves = saves }
 
 -- Clears all local saves
 clearLocalSaves : Task String ()
 clearLocalSaves = clear `andThen` \_ -> send events.address <|
-    InterfaceModel.UpdateModel <| \m -> { m | exName <- Examples.scratchName
-                                            , localSaves <- [] }
+    InterfaceModel.UpdateModel <| \m -> { m | exName = Examples.scratchName
+                                            , localSaves = [] }
 
 -- Deletes a local save from the model
 deleteLocalSave : String -> Task String ()
@@ -202,4 +201,4 @@ deleteLocalSave name = removeItem name `andThen` \_ -> send events.address <|
 -- Removes a local save from the model
 removeLocalSave : String -> Model -> Model
 removeLocalSave name oldmodel =
-    { oldmodel | localSaves <- List.filter ((/=) name) oldmodel.localSaves }
+    { oldmodel | localSaves = List.filter ((/=) name) oldmodel.localSaves }

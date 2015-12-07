@@ -35,14 +35,18 @@ attr = VirtualDom.attribute
 -- records rather than lists of lists of ...
 
 valToHtml : Int -> Int -> Val -> Html.Html
-valToHtml w h v =
-  let (VList vs) = v.v_ in
-  case List.map .v_ vs of
-    [VBase (String "svg"), VList vs1, VList vs2] ->
-      let wh = [numAttrToVal "width" w, numAttrToVal "height" h] in
-      let v' = vList [vStr "svg", vList (wh ++ vs1), vList vs2] in
-      compileValToNode v'
-        -- NOTE: not checking if width/height already in vs1
+valToHtml w h v = case v.v_ of
+  VList vs ->
+    case List.map .v_ vs of
+      [VBase (String "svg"), VList vs1, VList vs2] ->
+        let wh = [numAttrToVal "width" w, numAttrToVal "height" h] in
+        let v' = vList [vStr "svg", vList (wh ++ vs1), vList vs2] in
+        compileValToNode v'
+          -- NOTE: not checking if width/height already in vs1
+      _ ->
+        Debug.crash "valToHtml"
+  _ ->
+    Debug.crash "valToHtml"
 
 compileValToNode : Val -> VirtualDom.Node
 compileValToNode v = case v.v_ of
@@ -51,6 +55,10 @@ compileValToNode v = case v.v_ of
       [VBase (String "TEXT"), VBase (String s)] -> VirtualDom.text s
       [VBase (String f), VList vs1, VList vs2] ->
         (Svg.node f) (compileAttrVals vs1) (compileNodeVals vs2)
+      _ ->
+        Debug.crash "compileValToNode"
+  _ ->
+    Debug.crash "compileValToNode"
 
 compileNodeVals : List Val -> List Svg.Svg
 compileNodeVals = List.map compileValToNode
@@ -117,7 +125,7 @@ type alias IdPoint = (Maybe Int, Point)
 
 strValOfAVal = strVal << valOfAVal
 
-x `expectedButGot` s = errorMsg <| "expected " ++ x ++", but got: " ++ s
+expectedButGot x s = errorMsg <| "expected " ++ x ++", but got: " ++ s
 
 -- temporary way to ignore numbers specified as strings (also see Sync)
 
@@ -169,8 +177,13 @@ valToAttr v = case v.v_ of
         ("transform", VList vs) -> (k, ATransform (valsToTransform vs))
         (_, VConst it)          -> (k, ANum it)
         (_, VBase (String s))   -> (k, AString s)
+        _                       -> Debug.crash "valToAttr"
      in
      (k', AVal av_ v2.vtrace)
+    _ ->
+      Debug.crash "valToAttr"
+  _ ->
+    Debug.crash "valToAttr"
 
 
 valToPoint v = case v.v_ of
@@ -188,7 +201,7 @@ valToRgba vs = case List.map .v_ vs of
 rgbaToVal (r,g,b,a) = [vConst r, vConst g, vConst b, vConst a]
 
 strPoint (x_,y_) =
-  let [x,y] = List.map fst [x_,y_] in
+  let (x,y) = Utils.unwrap2 <| List.map fst [x_,y_] in
   toString x ++ "," ++ toString y
 
 strRgba (r_,g_,b_,a_) =
@@ -219,6 +232,7 @@ valOfAVal a = flip Val a.vtrace <| case a.av_ of
   ARgba tup    -> VList (rgbaToVal tup)
   APath2 p     -> VList (List.concatMap valsOfPathCmd (fst p))
   AColorNum nt -> VConst nt
+  _            -> Debug.crash "valOfAVal"
 
 valsOfPathCmd c =
   Debug.crash "restore valsOfPathCmd"
@@ -248,45 +262,53 @@ valsToPath2 = valsToPath2_ {numPoints = 0}
 
 valsToPath2_ : PathCounts -> List Val -> (List PathCmd, PathCounts)
 valsToPath2_ counts vs = case vs of
-  [] -> ([], counts)
-  v::vs' ->
-    let (VBase (String cmd)) = v.v_ in
-    if | matchCmd cmd "Z" -> CmdZ cmd +++ valsToPath2_ counts vs'
-       | matchCmd cmd "MLT" ->
-           let ([x,y],vs'') = projConsts 2 vs' in
-           let (counts',[pt]) = addIdPoints cmd counts [(x,y)] in
-           CmdMLT cmd pt +++ valsToPath2_ counts' vs''
-       | matchCmd cmd "HV" ->
-           let ([i],vs'') = projConsts 1 vs' in
-           CmdHV cmd i +++ valsToPath2_ counts vs''
-       | matchCmd cmd "C" ->
-           let ([x1,y1,x2,y2,x,y],vs'') = projConsts 6 vs' in
-           let (counts',[pt1,pt2,pt3]) = addIdPoints cmd counts [(x1,y1),(x2,y2),(x,y)] in
-           CmdC cmd pt1 pt2 pt3 +++ valsToPath2_ counts' vs''
-       | matchCmd cmd "SQ" ->
-           let ([x1,y1,x,y],vs'') = projConsts 4 vs' in
-           let (counts',[pt1,pt2]) = addIdPoints cmd counts [(x1,y1),(x,y)] in
-           CmdSQ cmd pt1 pt2 +++ valsToPath2_ counts' vs''
-       | matchCmd cmd "A" ->
-           let ([rx,ry,axis,flag,sweep,x,y],vs'') = projConsts 7 vs' in
-           let (counts',[pt]) = addIdPoints cmd counts [(x,y)] in
-           CmdA cmd rx ry axis flag sweep pt +++ valsToPath2_ counts' vs''
+  []     -> ([], counts)
+  v::vs' -> case v.v_ of
+    VBase (String cmd) ->
+      if matchCmd cmd "Z" then
+        CmdZ cmd +++ valsToPath2_ counts vs'
+      else if matchCmd cmd "MLT" then
+        let ((x,y),vs'') = Utils.mapFst Utils.unwrap2 <| projConsts 2 vs' in
+        let (counts',pt) = Utils.mapSnd Utils.unwrap1 <| addIdPoints cmd counts [(x,y)] in
+        CmdMLT cmd pt +++ valsToPath2_ counts' vs''
+      else if matchCmd cmd "HV" then
+        let (i,vs'') = Utils.mapFst Utils.unwrap1 <| projConsts 1 vs' in
+        CmdHV cmd i +++ valsToPath2_ counts vs''
+      else if matchCmd cmd "C" then
+        let ((x1,y1,x2,y2,x,y),vs'') = Utils.mapFst Utils.unwrap6 <| projConsts 6 vs' in
+        let (counts',(pt1,pt2,pt3)) = Utils.mapSnd Utils.unwrap3 <| addIdPoints cmd counts [(x1,y1),(x2,y2),(x,y)] in
+        CmdC cmd pt1 pt2 pt3 +++ valsToPath2_ counts' vs''
+      else if matchCmd cmd "SQ" then
+        let ((x1,y1,x,y),vs'') = Utils.mapFst Utils.unwrap4 <| projConsts 4 vs' in
+        let (counts',(pt1,pt2)) = Utils.mapSnd Utils.unwrap2 <| addIdPoints cmd counts [(x1,y1),(x,y)] in
+        CmdSQ cmd pt1 pt2 +++ valsToPath2_ counts' vs''
+      else if matchCmd cmd "A" then
+        let ((rx,ry,axis,flag,sweep,x,y),vs'') = Utils.mapFst Utils.unwrap7 <| projConsts 7 vs' in
+        let (counts',pt) = Utils.mapSnd Utils.unwrap1 <| addIdPoints cmd counts [(x,y)] in
+        CmdA cmd rx ry axis flag sweep pt +++ valsToPath2_ counts' vs''
+      else
+        Debug.crash "valsToPath2_"
+    _ ->
+      Debug.crash "valsToPath2_"
 
-x +++ (xs,stuff) = (x::xs, stuff)
+(+++) x (xs,stuff) = (x::xs, stuff)
 
 addIdPoints : Cmd -> PathCounts -> List Point -> (PathCounts, List IdPoint)
 addIdPoints cmd counts pts =
-  let [c] = String.toList cmd in
-  if | Char.isLower c -> (counts, List.map ((,) Nothing) pts)
-     | Char.isUpper c ->
-         let (counts',l) =
-           List.foldl (\pt (acc1,acc2) ->
-             let nextId = 1 + acc1.numPoints in
-             let acc1'  = {acc1 | numPoints <- nextId} in
-             let acc2'  = (Just nextId, pt) :: acc2 in
-             (acc1', acc2')) (counts, []) pts
-         in
-         (counts', List.reverse l)
+  let c = Utils.unwrap1 <| String.toList cmd in
+  if Char.isLower c then
+    (counts, List.map ((,) Nothing) pts)
+  else if Char.isUpper c then
+    let (counts',l) =
+      List.foldl (\pt (acc1,acc2) ->
+        let nextId = 1 + acc1.numPoints in
+        let acc1'  = {acc1 | numPoints = nextId} in
+        let acc2'  = (Just nextId, pt) :: acc2 in
+        (acc1', acc2')) (counts, []) pts
+    in
+    (counts', List.reverse l)
+  else
+    Debug.crash "addIdPoints"
 
 strAPath2 =
   let strPt (_,(it,jt)) = toString (fst it) ++ " " ++ toString (fst jt) in
@@ -313,10 +335,14 @@ projConsts k vs =
         VConst it ->
           let (l1,l2) = projConsts (k-1) vs' in
           (it::l1, l2)
+        _ ->
+          Debug.crash "projConsts"
+    _ ->
+      Debug.crash "projConsts"
 
 matchCmd cmd s =
-  let [c] = String.toList cmd in
-  let cs  = String.toList s in
+  let c  = Utils.unwrap1 <| String.toList cmd in
+  let cs = String.toList s in
   List.member c (cs ++ List.map Char.toLower cs)
 
 -- transform commands
@@ -389,7 +415,9 @@ type IndexedTreeNode
   | SvgNode ShapeKind (List Attr) (List NodeId)
 type alias RootedIndexedTree = (NodeId, IndexedTree)
 
-children n = case n of {TextNode _ -> []; SvgNode _ _ l -> l}
+children n = case n of
+  TextNode _    -> []
+  SvgNode _ _ l -> l
 
 emptyTree : RootedIndexedTree
 emptyTree = valToIndexedTree <| vList [vBase (String "svg"), vList [], vList []]
@@ -603,8 +631,9 @@ printAttr (k,v) =
   k ++ "=" ++ Utils.delimit "'" "'" (strAVal v)
 
 addAttrs kind attrs =
-  if | kind == "svg" -> ("xmlns", aString "http://www.w3.org/2000/svg") :: attrs
-     | otherwise     -> attrs
+  if kind == "svg"
+    then ("xmlns", aString "http://www.w3.org/2000/svg") :: attrs
+    else attrs
 
 specialAttrs = ["HIDDEN", "ZONES"]
 

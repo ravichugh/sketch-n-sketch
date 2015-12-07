@@ -10,8 +10,9 @@ debugSync = False
 debugStorage = False
 
 debugLog b s x =
-  if | b         -> Debug.log s x
-     | otherwise -> x
+  if b
+    then Debug.log s x
+    else x
 
 --------------------------------------------------------------------------------
 -- User Interface Layout

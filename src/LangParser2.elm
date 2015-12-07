@@ -10,12 +10,12 @@ import Debug
 import Lang exposing (..)
 import OurParser2 exposing ((>>=),(>>>),(<$>),(+++),(<++))
 import OurParser2 as P
-import Utils
+import Utils as U
 import PreludeGenerated as Prelude
 
 ------------------------------------------------------------------------------
 
-(prelude, initK) = freshen_ 1 <| Utils.fromOk_ <| parseE_ identity Prelude.src
+(prelude, initK) = freshen_ 1 <| U.fromOk_ <| parseE_ identity Prelude.src
 
 isPreludeLoc : Loc -> Bool
 isPreludeLoc (k,_,_) = k < initK
@@ -54,7 +54,9 @@ freshen_ k e =
   EBase v    -> (EBase v, k)
   EVar x     -> (EVar x, k)
   EFun ps e  -> let (e',k') = freshen_ k e in (EFun ps e', k')
-  EApp f es  -> let (f'::es',k') = freshenExps k (f::es) in (EApp f' es', k')
+  EApp f es  ->
+    let ((f',es'),k') = U.mapFst U.uncons <| freshenExps k (f::es) in
+    (EApp f' es', k')
   EOp op es  -> let (es',k') = freshenExps k es in (EOp op es', k')
   EList es m -> let (es',k') = freshenExps k es in
                 case m of
@@ -63,16 +65,17 @@ freshen_ k e =
                              (EList es' (Just e'), k'')
   EIndList rs -> let (rs', k') = freshenRanges k rs
                  in (EIndList rs', k')
-  EIf e1 e2 e3 -> let ([e1',e2',e3'],k') = freshenExps k [e1,e2,e3] in
-                  (EIf e1' e2' e3', k')
+  EIf e1 e2 e3 ->
+    let ((e1',e2',e3'),k') = U.mapFst U.unwrap3 <| freshenExps k [e1,e2,e3] in
+    (EIf e1' e2' e3', k')
   ELet kind b p e1 e2 ->
-    let ([e1',e2'],k') = freshenExps k [e1,e2] in
+    let ((e1',e2'),k') = U.mapFst U.unwrap2 <| freshenExps k [e1,e2] in
     let e1'' = addBreadCrumbs (p, e1') in
     (ELet kind b p e1'' e2', k')
   ECase e l ->
     let es = List.map (snd << .val) l in
-    let (e'::es', k') = freshenExps k (e::es) in
-    let foo blah newE = { blah | val <- (fst blah.val, newE) } in
+    let ((e',es'), k') = U.mapFst U.uncons <| freshenExps k (e::es) in
+    let foo blah newE = { blah | val = (fst blah.val, newE) } in
     (ECase e' (List.map2 foo l es'), k')
   EComment s e1 ->
     let (e1',k') = freshen_ k e1 in
@@ -94,10 +97,10 @@ freshenRanges k rs =
         let (e',k'') = freshen_ k' e in
         (Point e', k'')
       Interval e1 e2 ->
-        let ([e1',e2'],k'') = freshenExps k' [e1,e2] in
+        let ((e1',e2'),k'') = U.mapFst U.unwrap2 <| freshenExps k' [e1,e2] in
         (Interval e1' e2', k'')
     in
-    ({ r | val <- r_ } :: rs', k_)
+    ({ r | val = r_ } :: rs', k_)
   ) ([],k) rs
 
 
@@ -106,7 +109,7 @@ addBreadCrumbs (p,e) =
  case (p.val, e.val.e__) of
   (PVar x _, EConst n (k, b, "") wd) -> ret <| EConst n (k, b, x) wd
   (PList ps mp, EList es me) ->
-    case Utils.maybeZip ps es of
+    case U.maybeZip ps es of
       Nothing  -> ret <| EList es me
       Just pes -> let es' = List.map addBreadCrumbs pes in
                   let me' =
@@ -123,8 +126,8 @@ substOf_ s e = case e.val.e__ of
   EConst i l _ ->
     let (k,_,_) = l in
     case Dict.get k s of
-      Nothing -> Dict.insert k { e | val <- i } s
-      Just j  -> if | i == j.val -> s
+      Nothing -> Dict.insert k { e | val = i } s
+      Just j  -> if i == j.val then s else Debug.crash "substOf_"
   EBase _    -> s
   EVar _     -> s
   EFun _ e'  -> substOf_ s e'
@@ -172,7 +175,7 @@ parseInt =
       unwrapChars cs
         |> String.fromList
         |> String.toInt
-        |> Utils.fromOk "Parser.parseInt"
+        |> U.fromOk "Parser.parseInt"
     in
     P.returnWithInfo i cs.start cs.end
 
@@ -185,7 +188,7 @@ parseFloat =
       unwrapChars cs1 ++ [c.val] ++ unwrapChars cs2
         |> String.fromList
         |> String.toFloat
-        |> Utils.fromOk "Parser.parseFloat"
+        |> U.fromOk "Parser.parseFloat"
     in
     P.returnWithInfo n cs1.start cs2.end
 
@@ -418,12 +421,12 @@ parseWidgetDecl cap =
   white parseNum >>= \max ->
   token_ "}"     >>= \close ->
   -- for now, not optionally parsing a caption here
-    let a = { min | val <- fst min.val } in
-    let b = { max | val <- fst max.val } in
+    let a = { min | val = fst min.val } in
+    let b = { max | val = fst max.val } in
     let wd =
       if List.all isInt [a.val, b.val] then
-        let a' = { a | val <- floor a.val } in
-        let b' = { b | val <- floor b.val } in
+        let a' = { a | val = floor a.val } in
+        let b' = { b | val = floor b.val } in
         IntSlider a' tok b' cap
       else
         NumSlider a tok b cap

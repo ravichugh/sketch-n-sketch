@@ -157,9 +157,7 @@ strVal_ showTraces v =
   let sTrace = if showTraces then Utils.braces (toString v.vtrace) else "" in
   sTrace ++
   case v.v_ of
-    VConst (i,tr)    -> strNum i
-                          ++ if | showTraces -> Utils.braces (strTrace tr)
-                                | otherwise  -> ""
+    VConst (i,tr)    -> strNum i ++ if showTraces then Utils.braces (strTrace tr) else ""
     VBase b          -> strBaseVal b
     VClosure _ _ _ _ -> "<fun>"
     VList vs         -> Utils.bracks (String.join " " (List.map foo vs))
@@ -202,6 +200,7 @@ strPat p = case p.val of
                 case m of
                   Nothing   -> Utils.bracks s
                   Just rest -> Utils.bracks (s ++ " | " ++ strPat rest)
+  _ -> Debug.crash "strPat"
 
 tab k = String.repeat k "  "
 
@@ -294,14 +293,15 @@ sExp_ showLocs k e =
 
 maybeIndent showLocs k e =
   let s = sExp_ showLocs (k+1) e in
-  if | fitsOnLine s -> " " ++ s
-     | otherwise    -> "\n" ++ tab (k+1) ++ s
+  if fitsOnLine s
+    then " " ++ s
+    else "\n" ++ tab (k+1) ++ s
 
 -- TODO take into account indent and other prefix of current line
 fitsOnLine s =
-  if | String.length s > 70               -> False
-     | List.member '\n' (String.toList s) -> False
-     | otherwise                          -> True
+  if String.length s > 70 then False
+  else if List.member '\n' (String.toList s) then False
+  else True
 
 isLet e = case e.val.e__ of
   ELet _ _ _ _ _  -> True
@@ -312,7 +312,7 @@ isLet e = case e.val.e__ of
 ------------------------------------------------------------------------------
 -- Mapping WithInfo/WithPos
 
-mapValField f r = { r | val <- f r.val }
+mapValField f r = { r | val = f r.val }
 
 
 ------------------------------------------------------------------------------
@@ -343,7 +343,7 @@ mapExp f e =
 
 mapVal : (Val -> Val) -> Val -> Val
 mapVal f v = case v.v_ of
-  VList vs         -> f { v | v_ <- VList (List.map (mapVal f) vs) }
+  VList vs         -> f { v | v_ = VList (List.map (mapVal f) vs) }
   VConst _         -> f v
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
@@ -457,12 +457,6 @@ strPos p =
 
 -- NOTE: the Exp builders use dummyPos
 
-unwrapVList : Val -> Maybe (List Val_)
-unwrapVList v =
-  case v.v_ of
-    VList vs -> Just <| List.map .v_ vs
-    _        -> Nothing
-
 val : Val_ -> Val
 val = flip Val [-1]
 
@@ -486,10 +480,12 @@ eTrue  = eBool True
 eFalse = eBool False
 
 eApp e es = case es of
+  []      -> Debug.crash "eApp"
   [e1]    -> withDummyPos <| EApp e [e1]
   e1::es' -> eApp (withDummyPos <| EApp e [e1]) es'
 
 eFun ps e = case ps of
+  []      -> Debug.crash "eFun"
   [p]     -> withDummyPos <| EFun [p] e
   p::ps'  -> withDummyPos <| EFun [p] (eFun ps' e)
 
@@ -518,3 +514,21 @@ vConst   = val << VConst
 vBase    = val << VBase
 vList    = val << VList
 vHole    = val << VHole
+
+unwrapVList : Val -> Maybe (List Val_)
+unwrapVList v =
+  case v.v_ of
+    VList vs -> Just <| List.map .v_ vs
+    _        -> Nothing
+
+-- TODO names/types
+
+unwrapVList_ : String -> Val -> List Val_
+unwrapVList_ s v = case v.v_ of
+  VList vs -> List.map .v_ vs
+  _        -> Debug.crash <| "unwrapVList_: " ++ s
+
+unwrapVBaseString_ : String -> Val_ -> String
+unwrapVBaseString_ s v_ = case v_ of
+  VBase (String k) -> k
+  _                -> Debug.crash <| "unwrapVBaseString_: " ++ s
