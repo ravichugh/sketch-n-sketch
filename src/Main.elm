@@ -1,10 +1,11 @@
-import InterfaceModel as Model exposing (events)
+import InterfaceModel as Model exposing (events, sampleModel)
 import InterfaceView2 as View
 import InterfaceController as Controller
 import InterfaceStorage exposing (taskMailbox)
 import CodeBox exposing (interpretAceEvents, packageModel,
                          AceMessage, AceCodeBoxInfo, tripRender,
                          initAceCodeBoxInfo)
+import Config
 
 import Graphics.Element exposing (Element)
 import Mouse
@@ -12,6 +13,8 @@ import Window
 import Keyboard
 import Time
 import Set
+
+import Signal.Extra
 
 import Task exposing (Task, andThen)
 
@@ -24,17 +27,27 @@ import Debug
 
 sigModel : Signal Model.Model
 sigModel =
-  Signal.foldp Controller.upstate Model.sampleModel combinedEventSig
+  let foo initVal =
+    case Config.debugLog Config.debugController "initVal" initVal of
+      Model.WindowDimensions wh -> { sampleModel | dimensions = wh }
+      _                         ->   sampleModel
+  in
+  Signal.Extra.foldp' Controller.upstate foo combinedEventSig
+
+  -- Signal.foldp Controller.upstate Model.sampleModel combinedEventSig
 
 combinedEventSig : Signal Model.Event
 combinedEventSig =
   Signal.mergeMany
-    [ events.signal
+   -- Window.dimensions first, so that foldp' gets initial value...
+    [ Window.dimensions |> Signal.map Model.WindowDimensions
+    , events.signal
     , Signal.map2 (,) Mouse.isDown Mouse.position
       |> Signal.filter (\(x,y) -> x) (False, (0,0))
       |> Signal.map (\(x,y) -> y)
-      |> Signal.map2 adjustCoords Window.dimensions
+      -- |> Signal.map2 adjustCoords Window.dimensions
       |> Signal.map Model.MousePos
+    , Mouse.position |> Signal.sampleOn Mouse.clicks |> Signal.map Model.MouseClick
     , Signal.map
       (Model.KeysDown << List.sort << Set.toList)
       Keyboard.keysDown
@@ -44,8 +57,10 @@ combinedEventSig =
 main : Signal Element
 main = Signal.map2 View.view Window.dimensions sigModel
 
+{-
 adjustCoords : (Int, Int) -> (Int, Int) -> (Int, Int)
 adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
+-}
 
 -- The necessary port for Tasks/Storage
 -- Due to current Elm limitations, this must be in the Main module
@@ -104,7 +119,7 @@ port aceInTheHole =
                                     || snd a == Model.ToggleBasicCodeBox
                                         && (fst a).basicCodeBox)
                                    && pickAsserts a )
-                            (Model.sampleModel, Model.Noop)
+                            (sampleModel, Model.Noop)
                       <| Signal.map2 (,) sigModel combinedEventSig
 
 -- Port for Event messages from the code box

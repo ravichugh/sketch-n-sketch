@@ -15,5 +15,6 @@
       , "evancz/elm-html" : "4.0.0 <= v < 5.0.0"
       , "evancz/virtual-dom" : "2.0.0 <= v < 3.0.0"
       , "maxsnew/lazy" : "1.0.1 <= v < 2.0.0"
+      , "Apanatshka/elm-signal-extra" : "5.7.0 <= v < 6.0.0"
     }
 }

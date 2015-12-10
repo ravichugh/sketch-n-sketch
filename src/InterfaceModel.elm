@@ -42,6 +42,7 @@ type alias Model =
   , mode : Mode
   , mouseMode : MouseMode
   , orient : Orientation
+  , dimensions : (Int, Int)
   , midOffsetX : Int  -- extra codebox width in vertical orientation
   , midOffsetY : Int  -- extra codebox width in horizontal orientation
   , showZones : ShowZones
@@ -57,6 +58,7 @@ type alias Model =
   , basicCodeBox : Bool
   , errorBox : Maybe String
   , genSymCount : Int
+  , newShapeKind : Maybe ShapeKind
   }
 
 type Mode
@@ -95,6 +97,10 @@ type MouseMode
       (Maybe ( Code                        -- the program upon initial click
              , MouseTrigger (Exp, Val, RootedIndexedTree, Widgets) ))
       -- may add info for hilites later
+  | MouseDrawNew ShapeKind (List (Int, Int))
+      -- invariant on length n of list of points:
+      --   for line/rect/ellipse, n == 0 or n == 2
+      --   for polygon,           n >= 0
 
 type alias MouseTrigger a = (Int, Int) -> a
 
@@ -122,6 +128,8 @@ type Caption
 
 type Event = CodeUpdate String -- TODO this doesn't help with anything
            | SelectObject Int ShapeKind Zone
+           | MouseClickCanvas      -- used to initiate drawing new shape
+           | MouseClick (Int, Int) -- used to add points to a new polygon
            | MouseUp
            | MousePos (Int, Int)
            | TickDelta Float -- 30fps time tick, Float is time since last tick
@@ -147,6 +155,7 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | StartResizingMid
            | Undo | Redo
            | KeysDown (List Char.KeyCode)
+           | WindowDimensions (Int, Int)
            | Noop
            | UpdateFieldContents DialogInfo
            | CleanCode
@@ -231,6 +240,7 @@ sampleModel =
     , mode          = mkLive Sync.defaultOptions 1 1 0.0 e v
     , mouseMode     = MouseNothing
     , orient        = Vertical
+    , dimensions    = (1000, 800) -- dummy in case foldp' didn't get initial value
     , midOffsetX    = 0
     , midOffsetY    = -100
     , showZones     = showZonesNone
@@ -248,5 +258,6 @@ sampleModel =
     , basicCodeBox  = False
     , errorBox      = Nothing
     , genSymCount   = 0
+    , newShapeKind  = Nothing
     }
 
