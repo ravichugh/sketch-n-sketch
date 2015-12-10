@@ -260,6 +260,7 @@ addToCodeAndRun old newShape =
   in
   upstate Run
     { old | code = code
+          , history = addToHistory old.code old.history
           , genSymCount = old.genSymCount + 1
           , mouseMode = MouseNothing }
 
