@@ -340,7 +340,7 @@ upstate evt old = case debugLog "Event" evt of
         MouseDrawNew "polygon" points ->
           let pointOnCanvas = clickToCanvasPoint old click in
           let add () =
-            let points' = Debug.log "added" <| pointOnCanvas :: points in
+            let points' = pointOnCanvas :: points in
             { old | mouseMode = MouseDrawNew "polygon" points' }
           in
           if points == [] then add ()
