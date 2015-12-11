@@ -4,6 +4,7 @@ module Sync (Options, defaultOptions, syncOptionsOf,
              inferDeleteUpdate,
              inferNewRelationships,
              relateSelectedAttrs,
+             strCall,
              printZoneTable, LiveInfo, Triggers, tryToBeSmart) where
 
 import Dict exposing (Dict)

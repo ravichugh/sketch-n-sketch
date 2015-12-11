@@ -387,6 +387,9 @@ prelude =
   (let newShapes (reverse (fst (foldl f initAcc oldShapesI)))
     ['svg' svgAttrs newShapes]))))))
 
+(def addShapeToCanvas (\\(['svg' svgAttrs oldShapes] newShape)
+  ['svg' svgAttrs (append oldShapes [newShape])]))
+
 (def groupMap (\\(xs f) (map f xs)))
 
 (def autoChose (\\(_ x _) x))

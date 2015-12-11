@@ -1,5 +1,6 @@
 module InterfaceView2 (view, scaleColorBall
                       , prevButtonEnabled, nextButtonEnabled -- TODO not great
+                      , drawNewPolygonDotSize
                       ) where
 
 --Import the little language and its parsing utilities
@@ -56,6 +57,15 @@ import Svg.Lazy
 --Error Checking Libraries
 import Debug
 
+--------------------------------------------------------------------------------
+
+svgLine      = flip Svg.line []
+svgRect      = flip Svg.rect []
+svgCircle    = flip Svg.circle []
+svgEllipse   = flip Svg.ellipse []
+svgPolygon   = flip Svg.polygon []
+
+-- TODO use these more below
 
 --------------------------------------------------------------------------------
 
@@ -630,6 +640,90 @@ makeZonesPath showZones shape id l =
 
 
 --------------------------------------------------------------------------------
+-- Drawing Tools
+
+drawNewShape model =
+  case model.mouseMode of
+    MouseDrawNew "line"    [pt2, pt1]    -> drawNewLine pt2 pt1
+    MouseDrawNew "rect"    [pt2, pt1]    -> drawNewRect pt2 pt1
+    MouseDrawNew "ellipse" [pt2, pt1]    -> drawNewEllipse pt2 pt1
+    MouseDrawNew "polygon" (ptLast::pts) -> drawNewPolygon ptLast pts
+    _                                    -> []
+
+defaultOpacity        = Attr.style [("opacity", "0.5")]
+defaultStroke         = LangSvg.attr "stroke" "gray"
+defaultStrokeWidth    = LangSvg.attr "stroke-width" "5"
+defaultFill           = LangSvg.attr "fill" "gray"
+dotFill               = LangSvg.attr "fill" "red"
+dotSize               = LangSvg.attr "r" (toString drawNewPolygonDotSize)
+
+drawNewPolygonDotSize = 10
+
+drawNewLine (x2,y2) (x1,y1) =
+  let line =
+    svgLine [
+        defaultStroke , defaultStrokeWidth , defaultOpacity
+      , LangSvg.attr "x1" (toString x2) , LangSvg.attr "y1" (toString y2)
+      , LangSvg.attr "x2" (toString x1) , LangSvg.attr "y2" (toString y1)
+      ]
+  in
+  [ line ]
+
+drawNewRect (x2,y2) (x1,y1) =
+  let (xa, xb) = (min x1 x2, max x1 x2) in
+  let (ya, yb) = (min y1 y2, max y1 y2) in
+  let rect =
+    svgRect [
+        defaultFill , defaultOpacity
+      , LangSvg.attr "x" (toString xa) , LangSvg.attr "width" (toString (xb-xa))
+      , LangSvg.attr "y" (toString ya) , LangSvg.attr "height" (toString (yb-ya))
+      ]
+  in
+  [ rect ]
+
+drawNewEllipse (x2,y2) (x1,y1) =
+  let (xa, xb) = (min x1 x2, max x1 x2) in
+  let (ya, yb) = (min y1 y2, max y1 y2) in
+  let (rx, ry) = ((xb-xa)//2, (yb-ya)//2) in
+  let ellipse =
+    svgEllipse [
+        defaultFill , defaultOpacity
+      , LangSvg.attr "cx" (toString (xa + rx))
+      , LangSvg.attr "cy" (toString (ya + ry))
+      , LangSvg.attr "rx" (toString rx)
+      , LangSvg.attr "ry" (toString ry)
+      ]
+  in
+  [ ellipse ]
+
+drawNewPolygon ptLast points =
+  let (xInit,yInit) = Utils.last_ (ptLast::points) in
+  let dot =
+    svgCircle [
+        dotSize , dotFill , defaultOpacity
+      , LangSvg.attr "cx" (toString xInit)
+      , LangSvg.attr "cy" (toString yInit)
+      ] in
+  let maybeShape =
+    case (ptLast::points) of
+      [_] -> []
+      _ ->
+        -- don't need to reverse, but keeping it same as resulting shape
+        let polyPoints = List.reverse (ptLast::points) in
+        let sPoints =
+          Utils.spaces <|
+            List.map (\(x,y) -> String.join "," (List.map toString [x,y]))
+                     polyPoints
+        in
+        [ svgPolygon [
+            defaultStroke , defaultStrokeWidth , defaultFill , defaultOpacity
+          , LangSvg.attr "points" sPoints
+          ] ]
+   in
+   dot :: maybeShape
+
+
+--------------------------------------------------------------------------------
 -- User Interface
 
 strTitle = " sketch-n-sketch " ++ params.strVersion
@@ -727,12 +821,17 @@ canvas w h model =
 canvas_ w h model =
   let addZones = case (editingMode model, model.mode) of
     (False, AdHoc)  -> True
-    (False, Live _) -> True
+    (False, Live _) -> model.newShapeKind == Nothing   -- True
     _               -> False
   in
   let options = (addZones, model.showZones, model.showGhosts) in
   let svg =
-    let mainCanvas = buildSvg options model.slate in
+    let mainCanvas_ = buildSvg options model.slate in
+    let mainCanvas =
+      case drawNewShape model of
+        []       -> mkSvg addZones mainCanvas_
+        drawings -> mkSvg addZones (Svg.g [] (mainCanvas_ :: drawings))
+    in
     case (model.mode, model.showGhosts) of
       (Live _, True) ->
         let widgets = buildSvgWidgets w h model.widgets in
@@ -749,6 +848,7 @@ canvas_ w h model =
 mkSvg hilite svg =
   Svg.svg
      [ onMouseUp MouseUp
+     , onMouseDown MouseClickCanvas
      , Attr.style [ ("width", "100%") , ("height", "100%")
                   , ("border", params.mainSection.canvas.border)
                   , highlightThisIf hilite
@@ -780,6 +880,7 @@ middleWidgets w h wWrap hWrap model =
       [ twoButtons (undoButton model) (redoButton model) ]
     in let zonesButton =
       [ gapWidget w h
+      , shapeButton model w h
       , zoneButton model w h
       ]
     in let slideNavigation =
@@ -1031,7 +1132,23 @@ zoneButton model =
     else
       Debug.crash "zoneButton"
   in
-  simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap
+  simpleEventButton_ (model.newShapeKind /= Nothing)
+    ToggleZones "ToggleZones" "Show/Hide Zones" cap
+
+shapeButton model =
+  let (cap_, next) = case model.newShapeKind of
+    -- Nothing          -> ("None", Just "line")
+    Nothing          -> ("Cursor", Just "line")
+    Just "line"      -> ("Line", Just "rect")
+    Just "rect"      -> ("Rect", Just "ellipse")
+    Just "ellipse"   -> ("Ellipse", Just "polygon")
+    Just "polygon"   -> ("Polygon", Nothing)
+    _                -> Debug.crash "shapeButton"
+  in
+  let foo m = { m | newShapeKind = next } in
+  -- let cap = "[Draw] " ++ cap_ in
+  let cap = "[Tool] " ++ cap_ in
+  simpleButton (UpdateModel foo) cap cap cap
 
 luckyButton model =
   let foo old =
@@ -1200,7 +1317,8 @@ dropdownExamples model w h =
 modeButton model =
   if model.mode == AdHoc
   then simpleEventButton_ True Noop "SwitchMode" "SwitchMode" "[Mode] Ad Hoc"
-  else simpleEventButton_ False (SwitchMode AdHoc) "SwitchMode" "SwitchMode" "[Mode] Live"
+  else simpleEventButton_ (model.newShapeKind /= Nothing)
+         (SwitchMode AdHoc) "SwitchMode" "SwitchMode" "[Mode] Live"
 
 cleanButton model =
   let disabled = case model.mode of Live _ -> False

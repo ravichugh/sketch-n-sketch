@@ -7,7 +7,7 @@ import Sync
 import Eval
 import Utils
 import InterfaceModel exposing (..)
-import InterfaceView2 exposing (..)
+import InterfaceView2 as View
 import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg exposing (toNum, toNumTr, toPoints, addi)
 import ExamplesGenerated as Examples
@@ -23,6 +23,7 @@ import String
 import Char
 import Graphics.Element as GE
 import Graphics.Collage as GC
+import Regex as Re
 
 --Html Libraries
 import Html
@@ -174,12 +175,108 @@ highlightChanges mStuff changes codeBoxInfo =
 
 
 --------------------------------------------------------------------------------
+
+clickToCanvasPoint old (mx, my) =
+  let (xOrigin, yOrigin) = case old.orient of
+    Vertical   -> canvasOriginVertical old
+    Horizontal -> canvasOriginHorizontal old
+  in
+  (mx - xOrigin, my - yOrigin)
+
+-- the computations of the top-left corner of the canvas
+-- are based on copying the computations from View
+-- TODO: refactor these
+
+canvasOriginVertical old =
+  let
+    sideGut = params.topSection.h
+    wGut    = params.mainSection.vertical.wGut
+    wMiddle = params.mainSection.widgets.wBtn
+    wCode_  = (fst old.dimensions - sideGut - sideGut - wMiddle - wGut - wGut) // 2
+    wCode   = wCode_ + old.midOffsetX
+  in
+    ( sideGut + wCode + 2*wGut + wMiddle
+    , params.topSection.h
+    )
+
+canvasOriginHorizontal old =
+  -- TODO the y-position in horizontal mode is off by a few pixels
+  -- TODO in View, the height of codebox isn't the same as the canvas.
+  --   hMid is calculated weirdly in View...
+  let
+    hGut    = params.mainSection.horizontal.hGut
+    hCode_  = (snd old.dimensions - hMid - 2*hGut) // 2
+    hCode   = hCode_ + old.midOffsetY
+    hMid    = params.mainSection.widgets.hBtn
+  in
+    ( params.wGut
+    , params.topSection.h + hCode + hMid
+    )
+
+strCall = Sync.strCall
+gray    = "420"
+
+addLineToCodeAndRun old (x2,y2) (x1,y1) =
+  addToCodeAndRun old <|
+    strCall "line" ("'gray'":: "5" :: List.map toString [x1, y1, x2, y2])
+
+addRectToCodeAndRun old (x2,y2) (x1,y1) =
+  let
+    (xa, xb)     = (min x1 x2, max x1 x2)
+    (ya, yb)     = (min y1 y2, max y1 y2)
+    (x, y, w, h) = (xa, ya, xb - xa, yb - ya)
+  in
+  addToCodeAndRun old <|
+    strCall "rect" (gray :: List.map toString [x, y, w, h])
+
+addEllipseToCodeAndRun old (x2,y2) (x1,y1) =
+  let
+    (xa, xb) = (min x1 x2, max x1 x2)
+    (ya, yb) = (min y1 y2, max y1 y2)
+    (rx, ry) = ((xb-xa)//2, (yb-ya)//2)
+    (cx, cy) = (xa + rx, ya + ry)
+  in
+  addToCodeAndRun old <|
+    strCall "ellipse" (gray :: List.map toString [cx, cy, rx, ry])
+
+addPolygonToCodeAndRun old points =
+  let sPoints =
+    Utils.bracks <| Utils.spaces <|
+      List.map (\(x,y) -> Utils.bracks (Utils.spaces (List.map toString [x,y])))
+               (List.reverse points)
+  in
+  addToCodeAndRun old <|
+    strCall "polygon" [gray, "'black'", "2", sPoints]
+
+addToCodeAndRun old newShape =
+  -- the updated code can be made cleaner if top-level declarations are kept
+  -- separate from the "main" expression
+  let code =
+    let oldCode = Re.replace Re.All (Re.regex "\n") (always "\n  ") old.code in
+    let tmp = "previous" ++ toString old.genSymCount in
+    "(let " ++ tmp ++ "\n" ++
+    "  " ++ oldCode ++ "\n" ++
+    strCall "addShapeToCanvas" [tmp, newShape] ++ ")"
+  in
+  upstate Run
+    { old | code = code
+          , history = addToHistory old.code old.history
+          , genSymCount = old.genSymCount + 1
+          , mouseMode = MouseNothing }
+
+switchToCursorTool old =
+  { old | mouseMode = MouseNothing , newShapeKind = Nothing }
+
+
+--------------------------------------------------------------------------------
 -- Updating the Model
 
 upstate : Event -> Model -> Model
 upstate evt old = case debugLog "Event" evt of
 
     Noop -> old
+
+    WindowDimensions wh -> { old | dimensions = wh }
 
     Edit -> { old | editingMode = Just old.code }
 
@@ -237,6 +334,29 @@ upstate evt old = case debugLog "Event" evt of
 
     StartResizingMid -> { old | mouseMode = MouseResizeMid Nothing }
 
+    MouseClickCanvas ->
+      case (old.mouseMode, old.newShapeKind) of
+        (MouseNothing, Just k) -> { old | mouseMode = MouseDrawNew k [] }
+        _                      ->   old
+
+    MouseClick click ->
+      case old.mouseMode of
+        MouseDrawNew "polygon" points ->
+          let pointOnCanvas = clickToCanvasPoint old click in
+          let add () =
+            let points' = pointOnCanvas :: points in
+            { old | mouseMode = MouseDrawNew "polygon" points' }
+          in
+          if points == [] then add ()
+          else
+            let initialPoint = Utils.last_ points in
+            if Utils.distanceInt pointOnCanvas initialPoint > View.drawNewPolygonDotSize then add ()
+            else if List.length points == 2 then { old | mouseMode = MouseNothing }
+            else if List.length points == 1 then switchToCursorTool old
+            else addPolygonToCodeAndRun old points
+        _ ->
+          old
+
     MousePos (mx, my) ->
       case old.mouseMode of
 
@@ -283,6 +403,16 @@ upstate evt old = case debugLog "Event" evt of
                 , widgets = newWidgets
                 }
 
+        MouseDrawNew "polygon" _ -> old -- handled by MouseClick instead
+
+        MouseDrawNew k [] ->
+          let pointOnCanvas = clickToCanvasPoint old (mx, my) in
+          { old | mouseMode = MouseDrawNew k [pointOnCanvas, pointOnCanvas] }
+
+        MouseDrawNew k (_::points) ->
+          let pointOnCanvas = clickToCanvasPoint old (mx, my) in
+          { old | mouseMode = MouseDrawNew k (pointOnCanvas::points) }
+
     SelectObject id kind zone ->
       case old.mode of
         AdHoc       -> { old | mouseMode = MouseObject id kind zone Nothing }
@@ -297,7 +427,9 @@ upstate evt old = case debugLog "Event" evt of
 
     MouseUp ->
       case (old.mode, old.mouseMode) of
+
         (Print _, _) -> old
+
         (_, MouseObject i k z (Just (s, _, _))) ->
           -- 8/10: re-parsing to get new position info after live sync-ing
           -- TODO: could update positions within highlightChanges
@@ -307,13 +439,20 @@ upstate evt old = case debugLog "Event" evt of
           refreshHighlights i z
             { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
                    , history = addToHistory s old'.history }
+
         (_, MouseSlider _ (Just (s, _))) ->
           let e = Utils.fromOk_ <| parseE old.code in
           let old' = { old | inputExp = e } in
             { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
                    , history = addToHistory s old'.history }
-        _ ->
-          { old | mouseMode = MouseNothing, mode = refreshMode_ old }
+
+        (_, MouseDrawNew _ [])                 -> switchToCursorTool old
+        (_, MouseDrawNew "line" [pt2, pt1])    -> addLineToCodeAndRun old pt2 pt1
+        (_, MouseDrawNew "rect" [pt2, pt1])    -> addRectToCodeAndRun old pt2 pt1
+        (_, MouseDrawNew "ellipse" [pt2, pt1]) -> addEllipseToCodeAndRun old pt2 pt1
+        (_, MouseDrawNew "polygon" points)     -> old
+
+        _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
 
     TickDelta deltaT ->
       if old.movieTime < old.movieDuration then
@@ -577,10 +716,10 @@ upstate evt old = case debugLog "Event" evt of
                 else                           fire Noop
 
               SyncSelect _ i opts ->
-                if      l == keysLeft && prevButtonEnabled i       then fire (TraverseOption (-1))
-                else if l == keysRight && nextButtonEnabled i opts then fire (TraverseOption 1)
-                else if l == keysEnter                             then fire SelectOption
-                else                                                    fire Noop
+                if      l == keysLeft && View.prevButtonEnabled i       then fire (TraverseOption (-1))
+                else if l == keysRight && View.nextButtonEnabled i opts then fire (TraverseOption 1)
+                else if l == keysEnter                                  then fire SelectOption
+                else                                                         fire Noop
 
               _                       -> fire Noop
 
@@ -709,7 +848,7 @@ createMousePosCallback mx my objid kind zone old =
     let fy_ = mapNumAttr negY in
 
     let fxColorBall =
-      mapNumAttr (LangSvg.clampColorNum << scaledPosX scaleColorBall) in
+      mapNumAttr (LangSvg.clampColorNum << scaledPosX View.scaleColorBall) in
 
     let ret l = (l, l) in
 

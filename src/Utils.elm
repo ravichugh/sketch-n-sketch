@@ -261,6 +261,9 @@ between x (a,b) = a <= x && x < b
 
 distance (x1,y1) (x2,y2) = sqrt <| (x2-x1)^2 + (y2-y1)^2
 
+distanceInt (x1,y1) (x2,y2) =
+  distance (toFloat x1, toFloat y1) (toFloat x2, toFloat y2)
+
 -- n:number -> i:[0,n) -> RGB
 numToColor n i =
   let j = round <| (i/n) * 500 in
