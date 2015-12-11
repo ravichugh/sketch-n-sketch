@@ -124,11 +124,11 @@ makeButton status w h text =
 
 type alias ZoneOptions =
   { showBasic : Bool , addBasic : Bool , addRot : Bool , addColor : Bool
-  , addDelete : Bool }
+  , addDelete : Bool , addSelect : Bool }
 
 zoneOptions0 =
   { showBasic = False , addBasic = False , addRot = False , addColor = False
-  , addDelete = False }
+  , addDelete = False , addSelect = False }
 
 optionsOf : ShowZones -> ZoneOptions
 optionsOf x =
@@ -137,6 +137,7 @@ optionsOf x =
   else if x == showZonesRot   then { zoneOptions0 | addRot = True }
   else if x == showZonesColor then { zoneOptions0 | addColor = True }
   else if x == showZonesDel   then { zoneOptions0 | addDelete = True }
+  else if x == showZonesSelect then { zoneOptions0 | addSelect = True }
   else
     Debug.crash "optionsOf"
 
@@ -144,12 +145,21 @@ optionsOf x =
 --------------------------------------------------------------------------------
 -- Compiling to Svg
 
+-- TODO given need for Model, rethink options
+
+{-
 buildSvg : (Bool, ShowZones, Bool) -> LangSvg.RootedIndexedTree -> Svg.Svg
 buildSvg options (i,d) = buildSvg_ options d i
 
 buildSvg_ : (Bool, ShowZones, Bool) -> LangSvg.IndexedTree -> LangSvg.NodeId -> Svg.Svg
 buildSvg_ options d i =
-  let (addZones, showZones, showGhosts) = options in
+-}
+buildSvg : (Model, Bool, ShowZones, Bool) -> LangSvg.RootedIndexedTree -> Svg.Svg
+buildSvg options (i,d) = buildSvg_ options d i
+
+buildSvg_ : (Model, Bool, ShowZones, Bool) -> LangSvg.IndexedTree -> LangSvg.NodeId -> Svg.Svg
+buildSvg_ options d i =
+  let (model, addZones, showZones, showGhosts) = options in
   case Utils.justGet_ ("buildSvg_ " ++ toString i) i d of
    LangSvg.TextNode text -> VirtualDom.text text
    LangSvg.SvgNode shape attrs js ->
@@ -163,13 +173,13 @@ buildSvg_ options d i =
           (False, Nothing)     -> ([], attrs)
           (False, Just (_, l)) -> ([], l)
           (True, Nothing) ->
-            (makeZones options shape i attrs, attrs)
+            (makeZones model options shape i attrs, attrs)
           (True, Just (aval, l)) -> case aval.av_ of
             LangSvg.AString "none" ->
-              (makeZones zoneOptions0 shape i attrs, l)
+              (makeZones model zoneOptions0 shape i attrs, l)
             LangSvg.AString "basic" ->
               let options' = { options | addRot = False, addColor = False } in
-              (makeZones options' shape i attrs, l)
+              (makeZones model options' shape i attrs, l)
             _ -> Debug.crash "buildSvg_"
       in
       let children = List.map (buildSvg_ options d) js in
@@ -319,6 +329,8 @@ cursorOfZone zone = case zone of
 -- Stuff for Basic Zones -------------------------------------------------------
 
 -- TODO use zone
+-- TODO basic addBasic through these funcs, and honor them
+
 zoneBorder svgFunc id shape zone flag show transform =
   flip svgFunc [] <<
   (++) (zoneEvents id shape zone) <<
@@ -511,10 +523,93 @@ zoneDelete_ id shape x y transform =
   in
   [box] ++ lines
 
+
+--------------------------------------------------------------------------------
+-- Selection Zones
+
+colorPointSelected      = "rgba(0,128,0,1.0)"
+colorPointNotSelected   = "orange"
+colorLineSelected       = "blue"
+colorLineNotSelected    = "red"
+
+strokeWidth             = LangSvg.attr "stroke-width" "10"
+
+type alias Triple = (LangSvg.NodeId, LangSvg.ShapeKind, String)
+type alias Quad   = (LangSvg.NodeId, LangSvg.ShapeKind, String, String)
+
+toggleSelected model triple =
+  UpdateModel <| \model ->
+    let set = model.selectedAttrs in
+    let updateSet = if Set.member triple set then Set.remove else Set.insert in
+    { model | selectedAttrs = updateSet triple set }
+
+-- TODO given need for model, remove addSelect
+zoneSelectPoint model addSelect quad x y =
+  if addSelect then zoneSelectPoint_ model quad x y else []
+
+zoneSelectPoint_ model (id, kind, xAttr, yAttr) x y =
+  let len = 20 in
+  let color triple =
+    if Set.member triple model.selectedAttrs
+    then colorPointSelected
+    else colorPointNotSelected
+  in
+  let (xTriple, yTriple) = ((id, kind, xAttr), (id, kind, yAttr)) in
+  let (xColor, yColor) = (color xTriple, color yTriple) in
+  let xLine =
+    svgLine [
+        LangSvg.attr "stroke" xColor , strokeWidth
+      , LangSvg.attr "x1" (toString (x-len)) , LangSvg.attr "y1" (toString y)
+      , LangSvg.attr "x2" (toString (x+len)) , LangSvg.attr "y2" (toString y)
+      , onMouseDown (toggleSelected model xTriple)
+      ]
+  in
+  let yLine =
+    svgLine [
+        LangSvg.attr "stroke" yColor , strokeWidth
+      , LangSvg.attr "y1" (toString (y-len)) , LangSvg.attr "x1" (toString x)
+      , LangSvg.attr "y2" (toString (y+len)) , LangSvg.attr "x2" (toString x)
+      , onMouseDown (toggleSelected model yTriple)
+      ]
+  in
+  let xyDot =
+    svgCircle [
+        LangSvg.attr "fill" "darkgray" , LangSvg.attr "r" "6"
+      , LangSvg.attr "cx" (toString x) , LangSvg.attr "cy" (toString y)
+      ]
+  in
+  [xLine, yLine, xyDot]
+
+-- TODO given need for model, remove addSelect
+zoneSelectLine model addSelect triple pt1 pt2 =
+  if addSelect then zoneSelectLine_ model triple pt1 pt2 else []
+
+zoneSelectLine_ model triple (x1,y1) (x2,y2) =
+  let color =
+    if Set.member triple model.selectedAttrs
+    then colorLineSelected
+    else colorLineNotSelected
+  in
+  let line =
+    svgLine [
+        LangSvg.attr "stroke" color , strokeWidth
+      , LangSvg.attr "x1" (toString x1) , LangSvg.attr "y1" (toString y1)
+      , LangSvg.attr "x2" (toString x2) , LangSvg.attr "y2" (toString y2)
+      , onMouseDown (toggleSelected model triple)
+      ]
+  in
+  [line]
+
+
 --------------------------------------------------------------------------------
 
+-- TODO given need for Model, rethink ZoneOptions...
+{-
 makeZones : ZoneOptions -> String -> LangSvg.NodeId -> List LangSvg.Attr -> List Svg.Svg
 makeZones options shape id l =
+-}
+makeZones : Model -> ZoneOptions -> String -> LangSvg.NodeId -> List LangSvg.Attr -> List Svg.Svg
+makeZones model options shape id l =
   case shape of
 
     "rect" ->
@@ -553,9 +648,12 @@ makeZones options shape id l =
           ] ++ zRot
             ++ zColor
             ++ zoneDelete options.addDelete id shape x y (maybeTransformAttr l)
+            ++ zoneSelectLine model options.addSelect (id, shape, "width") (x,y) (x+w,y)
+            ++ zoneSelectLine model options.addSelect (id, shape, "height") (x,y) (x,y+h)
+            ++ zoneSelectPoint model options.addSelect (id, shape, "x", "y") x y
 
-    "circle"  -> makeZonesCircle  options id l
-    "ellipse" -> makeZonesEllipse options id l
+    "circle"  -> makeZonesCircle  model options id l
+    "ellipse" -> makeZonesEllipse model options id l
 
     "line" ->
         let transform = maybeTransformAttr l in
@@ -568,16 +666,21 @@ makeZones options shape id l =
           let c = halfwayBetween_ pt1 pt2 in
           let r = (distance_ pt1 pt2 / 2) - rotZoneDelta in
           zoneRotate options.addRot id shape c r (maybeTransformCmds l) in
-        zLine :: zPts ++ zRot
+        let zSelect =
+          List.concat
+             [ zoneSelectPoint model options.addSelect (id, shape, "x1", "y1") (fst x1) (fst y1)
+             , zoneSelectPoint model options.addSelect (id, shape, "x2", "y2") (fst x2) (fst y2) ] in
+        zLine :: zPts ++ zRot ++ zSelect
 
-    "polygon"  -> makeZonesPoly options shape id l
-    "polyline" -> makeZonesPoly options shape id l
+    "polygon"  -> makeZonesPoly model options shape id l
+    "polyline" -> makeZonesPoly model options shape id l
 
     "path" -> makeZonesPath options.showBasic shape id l
 
     _ -> []
 
-makeZonesCircle options id l =
+-- makeZonesCircle options id l =
+makeZonesCircle model options id l =
   let transform = maybeTransformAttr l in
   let (cx,cy,r) = Utils.unwrap3 <| List.map (toNum << Utils.find_ l) ["cx","cy","r"] in
   let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "r" r ] in
@@ -585,8 +688,11 @@ makeZonesCircle options id l =
   ++ [zoneBorder Svg.circle id "circle" "Interior" False options.showBasic attrs transform]
   ++ (zoneRotate options.addRot id "circle" (cx,cy) (r + rotZoneDelta) (maybeTransformCmds l))
   ++ (zoneColor options.addColor id "circle" (cx - r) (cy - r) (maybeColorNumAttr "fill" l))
+  ++ (zoneSelectLine model options.addSelect (id, "circle", "r") (cx,cy) (cx+r,cy))
+  ++ (zoneSelectPoint model options.addSelect (id, "circle", "cx", "cy") cx cy)
 
-makeZonesEllipse options id l =
+-- makeZonesEllipse options id l =
+makeZonesEllipse model options id l =
   let transform = maybeTransformAttr l in
   let (cx,cy,rx,ry) = Utils.unwrap4 <| List.map (toNum << Utils.find_ l) ["cx","cy","rx","ry"] in
   let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "rx" rx, attrNum "ry" ry ] in
@@ -594,8 +700,12 @@ makeZonesEllipse options id l =
   ++ [zoneBorder Svg.ellipse id "ellipse" "Interior" False options.showBasic attrs transform]
   ++ (zoneRotate options.addRot id "circle" (cx,cy) (ry + rotZoneDelta) (maybeTransformCmds l))
   ++ (zoneColor options.addColor id "ellipse" (cx - rx) (cy - ry) (maybeColorNumAttr "fill" l))
+  ++ (zoneSelectLine model options.addSelect (id, "ellipse", "rx") (cx,cy) (cx+rx,cy))
+  ++ (zoneSelectLine model options.addSelect (id, "ellipse", "ry") (cx,cy) (cx,cy+ry))
+  ++ (zoneSelectPoint model options.addSelect (id, "ellipse", "cx", "cy") cx cy)
 
-makeZonesPoly options shape id l =
+-- makeZonesPoly options shape id l =
+makeZonesPoly model options shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "polygon" || shape == "polyline") in
   let transform = maybeTransformAttr l in
   let pts = LangSvg.toPoints <| Utils.find_ l "points" in
@@ -613,12 +723,18 @@ makeZonesPoly options shape id l =
       (((x0,_),(y0,_))::_) ->
         zoneColor options.addColor id shape x0 y0 (maybeColorNumAttr "fill" l)
       _ ->
-        Debug.crash "makeZonesPoly"
+        Debug.crash "makeZonesPoly" in
+  let zSelect =
+    let foo (i, ((xi,_),(yi,_))) =
+      let (xAttr, yAttr) = ("x" ++ toString i, "y" ++ toString i) in
+      zoneSelectPoint model options.addSelect (id, shape, xAttr, yAttr) xi yi
+    in
+    List.concat <| Utils.mapi foo pts
   in
   let firstEqLast xs = Utils.head_ xs == Utils.head_ (List.reverse xs) in
-  if shape == "polygon"   then zInterior :: (zLines ++ zPts ++ zRot)
-  else if firstEqLast pts then zInterior :: (zLines ++ zPts ++ zRot)
-  else                         zLines ++ zPts ++ zRot
+  if shape == "polygon"   then zInterior :: (zLines ++ zPts ++ zRot ++ zSelect)
+  else if firstEqLast pts then zInterior :: (zLines ++ zPts ++ zRot ++ zSelect)
+  else                         zLines ++ zPts ++ zRot ++ zSelect
 
 makeZonesPath : Bool -> String -> Int -> List LangSvg.Attr -> List Svg.Svg
 makeZonesPath showZones shape id l =
@@ -824,7 +940,9 @@ canvas_ w h model =
     (False, Live _) -> model.newShapeKind == Nothing   -- True
     _               -> False
   in
-  let options = (addZones, model.showZones, model.showGhosts) in
+  -- let options = (addZones, model.showZones, model.showGhosts) in
+  -- TODO rethink options
+  let options = (model, addZones, model.showZones, model.showGhosts) in
   let svg =
     let mainCanvas_ = buildSvg options model.slate in
     let mainCanvas =
@@ -1126,6 +1244,7 @@ zoneButton model =
   let cap =
     if model.showZones == showZonesNone       then "[Zones] Hidden"
     else if model.showZones == showZonesBasic then "[Zones] Basic"
+    else if model.showZones == showZonesSelect then "[Zones] Attrs"
     else if model.showZones == showZonesRot   then "[Zones] Rotation"
     else if model.showZones == showZonesColor then "[Zones] Color"
     else if model.showZones == showZonesDel   then "[Zones] Delete"

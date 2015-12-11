@@ -59,6 +59,7 @@ type alias Model =
   , errorBox : Maybe String
   , genSymCount : Int
   , newShapeKind : Maybe ShapeKind
+  , selectedAttrs : Set.Set (NodeId, ShapeKind, String)
   }
 
 type Mode
@@ -116,10 +117,10 @@ type alias PossibleChanges =
 -- InterfaceStorage is more succinct (Enum typeclass would be nice here...)
 type alias ShowZones = Int
 
-showZonesModes = 5
+showZonesModes = 6
 
-(showZonesNone, showZonesBasic, showZonesRot, showZonesColor, showZonesDel) =
-  Utils.unwrap5
+(showZonesNone, showZonesBasic, showZonesSelect, showZonesRot, showZonesColor, showZonesDel) =
+  Utils.unwrap6
     [ 0 .. (showZonesModes - 1) ]
 
 type Caption
@@ -259,5 +260,6 @@ sampleModel =
     , errorBox      = Nothing
     , genSymCount   = 0
     , newShapeKind  = Nothing
+    , selectedAttrs = Set.empty
     }
 
