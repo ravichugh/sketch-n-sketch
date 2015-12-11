@@ -135,6 +135,7 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | MousePos (Int, Int)
            | TickDelta Float -- 30fps time tick, Float is time since last tick
            | Sync
+           | RelateAttrs -- not using UpdateModel, since want to define handler in Controller
            | TraverseOption Int -- offset from current index (+1 or -1)
            | SelectOption
            | SwitchMode Mode

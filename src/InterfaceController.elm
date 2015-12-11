@@ -465,6 +465,29 @@ upstate evt old = case debugLog "Event" evt of
       else
         old
 
+    RelateAttrs ->
+      let (_,tree) = old.slate in
+      let selectedVals = debugLog "selectedVals" <|
+        let foo (id,_,attr) acc =
+          case Dict.get id tree of
+            Just (LangSvg.SvgNode _ attrs _) ->
+              case Utils.maybeFind attr attrs of
+                Just aval -> LangSvg.valOfAVal aval :: acc
+                Nothing   -> Debug.crash "RelateAttrs 2"
+            Just (LangSvg.TextNode _) -> acc
+            Nothing                   -> Debug.crash "RelateAttrs 1"
+        in
+        Set.foldl foo [] old.selectedAttrs
+      in
+      let revert = (old.inputExp, old.inputVal) in
+      let (nextK, l) = Sync.relate old.genSymCount old.inputExp selectedVals in
+      let possibleChanges = ((0,[]), (List.length l, l), revert) in
+      upstate (TraverseOption 1)
+        { old | mode = SyncSelect (old.code, old.slate) 0 possibleChanges
+              , genSymCount = nextK
+              , selectedAttrs = Set.empty -- TODO
+              }
+
     Sync ->
       case (old.mode, old.inputExp) of
         (AdHoc, ip) ->

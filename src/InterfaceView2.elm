@@ -556,20 +556,20 @@ zoneSelectPoint_ model (id, kind, xAttr, yAttr) x y =
   in
   let (xTriple, yTriple) = ((id, kind, xAttr), (id, kind, yAttr)) in
   let (xColor, yColor) = (color xTriple, color yTriple) in
-  let xLine =
-    svgLine [
-        LangSvg.attr "stroke" xColor , strokeWidth
-      , LangSvg.attr "x1" (toString (x-len)) , LangSvg.attr "y1" (toString y)
-      , LangSvg.attr "x2" (toString (x+len)) , LangSvg.attr "y2" (toString y)
-      , onMouseDown (toggleSelected model xTriple)
-      ]
-  in
   let yLine =
     svgLine [
         LangSvg.attr "stroke" yColor , strokeWidth
+      , LangSvg.attr "x1" (toString (x-len)) , LangSvg.attr "y1" (toString y)
+      , LangSvg.attr "x2" (toString (x+len)) , LangSvg.attr "y2" (toString y)
+      , onMouseDown (toggleSelected model yTriple)
+      ]
+  in
+  let xLine =
+    svgLine [
+        LangSvg.attr "stroke" xColor , strokeWidth
       , LangSvg.attr "y1" (toString (y-len)) , LangSvg.attr "x1" (toString x)
       , LangSvg.attr "y2" (toString (y+len)) , LangSvg.attr "x2" (toString x)
-      , onMouseDown (toggleSelected model yTriple)
+      , onMouseDown (toggleSelected model xTriple)
       ]
   in
   let xyDot =
@@ -1037,9 +1037,15 @@ middleWidgets w h wWrap hWrap model =
 gapWidget w h = GE.spacer w h
 
 syncButton_ w h model =
+  case (model.mode, model.showZones == showZonesSelect) of
+    (AdHoc, False) -> [syncButton w h]
+    (Live _, True) -> [relateButton w h]
+    _              -> []
+{-
   case model.mode of
     AdHoc -> [syncButton w h]
     _     -> []
+-}
 
 wBtn = params.mainSection.widgets.wBtn
 hBtn = params.mainSection.widgets.hBtn
@@ -1239,6 +1245,9 @@ ghostsButton model w h =
 
 syncButton =
   simpleButton Sync "Sync" "Sync the code to the canvas" "Sync"
+
+relateButton =
+  simpleButton RelateAttrs "Relate" "Relate" "Relate Attrs"
 
 zoneButton model =
   let cap =
