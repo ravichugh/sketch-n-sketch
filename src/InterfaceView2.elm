@@ -697,22 +697,16 @@ drawNewEllipse (x2,y2) (x1,y1) =
   [ ellipse ]
 
 drawNewPolygon ptLast points =
-  let (xLast,yLast) = Utils.last_ (ptLast::points) in
+  let (xInit,yInit) = Utils.last_ (ptLast::points) in
   let dot =
     svgCircle [
         dotSize , dotFill , defaultOpacity
-      , LangSvg.attr "cx" (toString xLast)
-      , LangSvg.attr "cy" (toString yLast)
+      , LangSvg.attr "cx" (toString xInit)
+      , LangSvg.attr "cy" (toString yInit)
       ] in
   let maybeShape =
     case (ptLast::points) of
       [_] -> []
-      [(x2,y2), (x1,y1)] ->
-        [ svgLine [
-            defaultStroke , defaultStrokeWidth , defaultOpacity
-          , LangSvg.attr "x1" (toString x1) , LangSvg.attr "y1" (toString y1)
-          , LangSvg.attr "x2" (toString x2) , LangSvg.attr "y2" (toString y2)
-          ] ]
       _ ->
         -- don't need to reverse, but keeping it same as resulting shape
         let polyPoints = List.reverse (ptLast::points) in
@@ -722,7 +716,7 @@ drawNewPolygon ptLast points =
                      polyPoints
         in
         [ svgPolygon [
-            defaultFill , defaultOpacity
+            defaultStroke , defaultStrokeWidth , defaultFill , defaultOpacity
           , LangSvg.attr "points" sPoints
           ] ]
    in
