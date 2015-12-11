@@ -173,6 +173,10 @@ highlightChanges mStuff changes codeBoxInfo =
 
       { codeBoxInfo | highlights = hi' }
 
+addSlateAndCode old (exp, val) =
+  let slate = LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val in
+  (exp, val, slate, unparseE exp)
+
 
 --------------------------------------------------------------------------------
 
@@ -465,6 +469,29 @@ upstate evt old = case debugLog "Event" evt of
       else
         old
 
+    RelateAttrs ->
+      let (_,tree) = old.slate in
+      let selectedVals = debugLog "selectedVals" <|
+        let foo (id,_,attr) acc =
+          case Dict.get id tree of
+            Just (LangSvg.SvgNode _ attrs _) ->
+              case Utils.maybeFind attr attrs of
+                Just aval -> LangSvg.valOfAVal aval :: acc
+                Nothing   -> Debug.crash "RelateAttrs 2"
+            Just (LangSvg.TextNode _) -> acc
+            Nothing                   -> Debug.crash "RelateAttrs 1"
+        in
+        Set.foldl foo [] old.selectedAttrs
+      in
+      let revert = (old.inputExp, old.inputVal) in
+      let (nextK, l) = Sync.relate old.genSymCount old.inputExp selectedVals in
+      let possibleChanges = List.map (addSlateAndCode old) l in
+      upstate Run
+        { old | mode = SyncSelect possibleChanges
+              , genSymCount = nextK
+              , selectedAttrs = Set.empty -- TODO
+              }
+
     Sync ->
       case (old.mode, old.inputExp) of
         (AdHoc, ip) ->
@@ -481,8 +508,7 @@ upstate evt old = case debugLog "Event" evt of
             relatedG   = Sync.inferNewRelationships ip old.inputVal newval
             relatedV   = Sync.relateSelectedAttrs old.genSymCount ip old.inputVal newval
           in
-          let addSlateAndCode (exp, val) = (exp, val, LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val, unparseE exp) in
-          let addSlateAndCodeToAll list = List.map addSlateAndCode list in
+          let addSlateAndCodeToAll list = List.map (addSlateAndCode old) list in
             case (local, relatedV) of
               (Ok [], (_, [])) -> { old | mode = mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime ip }
               (Ok [], (nextK, changes)) ->

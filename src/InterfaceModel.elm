@@ -135,6 +135,7 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | PreviewCode (Maybe Code)
            | SelectOption PossibleChange
            | CancelSync
+           | RelateAttrs -- not using UpdateModel, since want to define handler in Controller
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets})
            | Edit
