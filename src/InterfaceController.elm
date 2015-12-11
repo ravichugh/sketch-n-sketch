@@ -264,6 +264,9 @@ addToCodeAndRun old newShape =
           , genSymCount = old.genSymCount + 1
           , mouseMode = MouseNothing }
 
+switchToCursorTool old =
+  { old | mouseMode = MouseNothing , newShapeKind = Nothing }
+
 
 --------------------------------------------------------------------------------
 -- Updating the Model
@@ -349,6 +352,7 @@ upstate evt old = case debugLog "Event" evt of
             let initialPoint = Utils.last_ points in
             if Utils.distanceInt pointOnCanvas initialPoint > View.drawNewPolygonDotSize then add ()
             else if List.length points == 2 then { old | mouseMode = MouseNothing }
+            else if List.length points == 1 then switchToCursorTool old
             else addPolygonToCodeAndRun old points
         _ ->
           old
@@ -442,6 +446,7 @@ upstate evt old = case debugLog "Event" evt of
             { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
                    , history = addToHistory s old'.history }
 
+        (_, MouseDrawNew _ [])                 -> switchToCursorTool old
         (_, MouseDrawNew "line" [pt2, pt1])    -> addLineToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "rect" [pt2, pt1])    -> addRectToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "ellipse" [pt2, pt1]) -> addEllipseToCodeAndRun old pt2 pt1

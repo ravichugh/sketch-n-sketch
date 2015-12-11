@@ -821,7 +821,7 @@ canvas w h model =
 canvas_ w h model =
   let addZones = case (editingMode model, model.mode) of
     (False, AdHoc)  -> True
-    (False, Live _) -> True
+    (False, Live _) -> model.newShapeKind == Nothing   -- True
     _               -> False
   in
   let options = (addZones, model.showZones, model.showGhosts) in
@@ -1132,11 +1132,13 @@ zoneButton model =
     else
       Debug.crash "zoneButton"
   in
-  simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap
+  simpleEventButton_ (model.newShapeKind /= Nothing)
+    ToggleZones "ToggleZones" "Show/Hide Zones" cap
 
 shapeButton model =
   let (cap_, next) = case model.newShapeKind of
-    Nothing          -> ("None", Just "line")
+    -- Nothing          -> ("None", Just "line")
+    Nothing          -> ("Cursor", Just "line")
     Just "line"      -> ("Line", Just "rect")
     Just "rect"      -> ("Rect", Just "ellipse")
     Just "ellipse"   -> ("Ellipse", Just "polygon")
@@ -1144,7 +1146,8 @@ shapeButton model =
     _                -> Debug.crash "shapeButton"
   in
   let foo m = { m | newShapeKind = next } in
-  let cap = "[Draw] " ++ cap_ in
+  -- let cap = "[Draw] " ++ cap_ in
+  let cap = "[Tool] " ++ cap_ in
   simpleButton (UpdateModel foo) cap cap cap
 
 luckyButton model =
@@ -1314,7 +1317,8 @@ dropdownExamples model w h =
 modeButton model =
   if model.mode == AdHoc
   then simpleEventButton_ True Noop "SwitchMode" "SwitchMode" "[Mode] Ad Hoc"
-  else simpleEventButton_ False (SwitchMode AdHoc) "SwitchMode" "SwitchMode" "[Mode] Live"
+  else simpleEventButton_ (model.newShapeKind /= Nothing)
+         (SwitchMode AdHoc) "SwitchMode" "SwitchMode" "[Mode] Live"
 
 cleanButton model =
   let disabled = case model.mode of Live _ -> False
