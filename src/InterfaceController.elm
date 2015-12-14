@@ -715,12 +715,6 @@ upstate evt old = case debugLog "Event" evt of
                 else if l == keysT        then fire Sync
                 else                           fire Noop
 
-              SyncSelect _ i opts ->
-                if      l == keysLeft && View.prevButtonEnabled i       then fire (TraverseOption (-1))
-                else if l == keysRight && View.nextButtonEnabled i opts then fire (TraverseOption 1)
-                else if l == keysEnter                                  then fire SelectOption
-                else                                                         fire Noop
-
               _                       -> fire Noop
 
     CleanCode ->
