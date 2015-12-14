@@ -599,15 +599,15 @@ strEdges =
 -- Printing to SVG format
 
 printSvg : Bool -> RootedIndexedTree -> String
-printSvg showGhosts (rootId, tree) =
-  let s = printNode showGhosts 0 tree rootId in
+printSvg showWidgets (rootId, tree) =
+  let s = printNode showWidgets 0 tree rootId in
   Regex.replace Regex.All (Regex.regex "[ ]+\\n") (\_ -> "") s
 
-printNode showGhosts k slate i =
+printNode showWidgets k slate i =
   case Utils.justGet i slate of
     TextNode s -> s
     SvgNode kind l1 l2 ->
-      case (showGhosts, Utils.maybeRemoveFirst "HIDDEN" l1) of
+      case (showWidgets, Utils.maybeRemoveFirst "HIDDEN" l1) of
         (False, Just _) -> ""
         _ ->
           if l2 == [] then
@@ -617,11 +617,11 @@ printNode showGhosts k slate i =
           else
             let l1' = addAttrs kind (removeSpecialAttrs l1) in
             Utils.delimit "<" ">" (kind ++ printAttrs l1') ++ "\n" ++
-            printNodes showGhosts (k+1) slate l2 ++ "\n" ++
+            printNodes showWidgets (k+1) slate l2 ++ "\n" ++
             tab k ++ Utils.delimit "</" ">" kind
 
-printNodes showGhosts k slate =
-  Utils.lines << List.map ((++) (tab k) << printNode showGhosts k slate)
+printNodes showWidgets k slate =
+  Utils.lines << List.map ((++) (tab k) << printNode showWidgets k slate)
 
 printAttrs l = case l of
   [] -> ""

@@ -326,7 +326,7 @@ upstate evt old = case debugLog "Event" evt of
     ToggleOutput ->
       let m = case old.mode of
         Print _ -> refreshMode_ old
-        _       -> Print (LangSvg.printSvg old.showGhosts old.slate)
+        _       -> Print (LangSvg.printSvg old.showWidgets old.slate)
       in
       { old | mode = m }
 

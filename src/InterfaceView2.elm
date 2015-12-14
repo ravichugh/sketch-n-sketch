@@ -149,11 +149,11 @@ buildSvg options (i,d) = buildSvg_ options d i
 
 buildSvg_ : (Bool, ShowZones, Bool) -> LangSvg.IndexedTree -> LangSvg.NodeId -> Svg.Svg
 buildSvg_ options d i =
-  let (addZones, showZones, showGhosts) = options in
+  let (addZones, showZones, showWidgets) = options in
   case Utils.justGet_ ("buildSvg_ " ++ toString i) i d of
    LangSvg.TextNode text -> VirtualDom.text text
    LangSvg.SvgNode shape attrs js ->
-    case (showGhosts, Utils.maybeRemoveFirst "HIDDEN" attrs) of
+    case (showWidgets, Utils.maybeRemoveFirst "HIDDEN" attrs) of
      (False, Just _) -> Svg.svg [] []
      _ ->
       -- TODO: figure out: (LangSvg.attr "draggable" "false")
@@ -824,7 +824,7 @@ canvas_ w h model =
     (False, Live _) -> model.newShapeKind == Nothing   -- True
     _               -> False
   in
-  let options = (addZones, model.showZones, model.showGhosts) in
+  let options = (addZones, model.showZones, model.showWidgets) in
   let svg =
     let mainCanvas_ = buildSvg options model.slate in
     let mainCanvas =
@@ -832,7 +832,7 @@ canvas_ w h model =
         []       -> mkSvg addZones mainCanvas_
         drawings -> mkSvg addZones (Svg.g [] (mainCanvas_ :: drawings))
     in
-    case (model.mode, model.showGhosts) of
+    case (model.mode, model.showWidgets) of
       (Live _, True) ->
         let widgets = buildSvgWidgets w h model.widgets in
         mkSvg addZones (Svg.g [] [mainCanvas, widgets])
@@ -1104,18 +1104,18 @@ outputButton model w h =
 
 ghostsButton model w h =
   let cap =
-     case model.showGhosts of
+     case model.showWidgets of
        True  -> "[Widgets] Shown"
        False -> "[Widgets] Hidden"
   in
   let foo old =
-    let showGhosts' = not old.showGhosts in
+    let showWidgets' = not old.showWidgets in
     let mode' =
       case old.mode of
-        Print _ -> Print (LangSvg.printSvg showGhosts' old.slate)
+        Print _ -> Print (LangSvg.printSvg showWidgets' old.slate)
         _       -> old.mode
     in
-    { old | showGhosts = showGhosts', mode = mode' }
+    { old | showWidgets = showWidgets', mode = mode' }
   in
   simpleEventButton_ False (UpdateModel foo) "Toggle Output" "Toggle Output" cap w h
 
