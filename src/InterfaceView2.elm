@@ -940,6 +940,8 @@ canvas_ w h model =
     (False, Live _) -> model.newShapeKind == Nothing   -- True
     _               -> False
   in
+  -- let options = (addZones, model.showZones, model.showGhosts) in
+  -- TODO rethink options
   let options = (model, addZones, model.showZones, model.showWidgets) in
   let mainCanvas_ = buildSvg options model.slate in
   let mainCanvas =
