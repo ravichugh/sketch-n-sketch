@@ -469,15 +469,17 @@ upstate evt old = case debugLog "Event" evt of
       case (old.mode, old.inputExp) of
         (AdHoc, ip) ->
           let
-            inputval   = fst <| Eval.run ip
-            inputSlate = LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime inputval
-            inputval'  = slateToVal inputSlate
+            -- If stuff breaks, try re-adding this.
+            -- We forgot why it was here.
+            -- inputval   = fst <| Eval.run ip
+            -- inputSlate = LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime inputval
+            -- inputval'  = slateToVal inputSlate
             newval     = slateToVal old.slate
-            local      = Sync.inferLocalUpdates old.syncOptions ip inputval' newval
-            struct     = Sync.inferStructuralUpdates ip inputval' newval
-            delete     = Sync.inferDeleteUpdates ip inputval' newval
-            relatedG   = Sync.inferNewRelationships ip inputval' newval
-            relatedV   = Sync.relateSelectedAttrs old.genSymCount ip inputval' newval
+            local      = Sync.inferLocalUpdates old.syncOptions ip old.inputVal newval
+            struct     = Sync.inferStructuralUpdates ip old.inputVal newval
+            delete     = Sync.inferDeleteUpdates ip old.inputVal newval
+            relatedG   = Sync.inferNewRelationships ip old.inputVal newval
+            relatedV   = Sync.relateSelectedAttrs old.genSymCount ip old.inputVal newval
           in
           let addSlateAndCode (exp, val) = (exp, val, LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val, unparseE exp) in
           let addSlateAndCodeToAll list = List.map addSlateAndCode list in
