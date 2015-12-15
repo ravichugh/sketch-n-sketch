@@ -361,7 +361,8 @@ upstate evt old = case debugLog "Event" evt of
         _ ->
           old
 
-    MousePos (mx, my) ->
+    MousePos (mx0, my0) ->
+      let (mx, my) = clickToCanvasPoint old (mx0, my0) in
       case old.mouseMode of
 
         MouseNothing -> old
@@ -410,11 +411,11 @@ upstate evt old = case debugLog "Event" evt of
         MouseDrawNew "polygon" _ -> old -- handled by MouseClick instead
 
         MouseDrawNew k [] ->
-          let pointOnCanvas = clickToCanvasPoint old (mx, my) in
+          let pointOnCanvas = (mx, my) in
           { old | mouseMode = MouseDrawNew k [pointOnCanvas, pointOnCanvas] }
 
         MouseDrawNew k (_::points) ->
-          let pointOnCanvas = clickToCanvasPoint old (mx, my) in
+          let pointOnCanvas = (mx, my) in
           { old | mouseMode = MouseDrawNew k (pointOnCanvas::points) }
 
     SelectObject id kind zone ->
@@ -1051,9 +1052,9 @@ createCallbackRotate mx0 my0 mx1 my1 shape objid old =
     Just (LangSvg.SvgNode _ nodeAttrs _) ->
       let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ nodeAttrs "transform" in
       let rot' =
-        let a0 = Utils.radiansToDegrees <| atan ((mx0 - fst cx) / (fst cy - my0)) in
-        let a1 = Utils.radiansToDegrees <| atan ((fst cy - my1) / (mx1 - fst cx)) in
-        (fst rot + (90 - a0 - a1), snd rot) in
+        let a0 = Utils.radiansToDegrees <| atan2 (fst cy - my0) (mx0 - fst cx) in
+        let a1 = Utils.radiansToDegrees <| atan2 (fst cy - my1) (mx1 - fst cx) in
+        (fst rot + (a0 - a1), snd rot) in
       let real = [("transform", LangSvg.aTransform [LangSvg.Rot rot' cx cy])] in
       let fake = [("transformRot", LangSvg.aNum rot')] in
       (real, fake)
