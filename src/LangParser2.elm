@@ -49,7 +49,7 @@ freshen_ k e =
     (P.WithInfo (Exp_ e__ nextK) e.start e.end, nextK + 1)) <|
  case e.val.e__ of
   -- EConst i l wd -> let (0,b,"") = l in (EConst i (k, b, "") wd, k + 1)
-  -- freshen is now being called externally by Sync.inferDeleteUpdate
+  -- freshen is now being called externally by Sync.inferDeleteUpdates
   EConst i l wd -> let (_,b,x) = l in (EConst i (k, b, x) wd, k + 1)
   EBase v    -> (EBase v, k)
   EVar x     -> (EVar x, k)

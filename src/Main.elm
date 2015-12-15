@@ -93,7 +93,6 @@ port aceInTheHole =
 --              Model.MouseUp -> False
 --              Model.MousePos _ -> False
 --              Model.Sync -> False
---              Model.TraverseOption _ -> False
 --              Model.SelectOption -> False
 --              Model.SwitchMode _ -> False
               Model.SelectExample _ _ -> True

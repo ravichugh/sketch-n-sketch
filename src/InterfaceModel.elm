@@ -27,6 +27,7 @@ type alias Model =
   { scratchCode : String
   , exName : String
   , code : Code
+  , previewCode: Maybe Code
   , history : (List Code, List Code)
   , inputExp : Exp
   , inputVal : Val
@@ -63,7 +64,7 @@ type alias Model =
 
 type Mode
   = AdHoc
-  | SyncSelect (Code, RootedIndexedTree) Int PossibleChanges
+  | SyncSelect (List PossibleChange)
   | Live Sync.LiveInfo
   | Print RawSvg
   | SaveDialog Mode -- SaveDialog saves last mode
@@ -106,11 +107,7 @@ type alias MouseTrigger a = (Int, Int) -> a
 
 type Orientation = Vertical | Horizontal
 
-type alias PossibleChanges =
-  ( (Int, List (Exp, Val))   -- local changes and count
-  , (Int, List (Exp, Val))   -- structural changes and count
-  , (Exp, Val)               -- revert change
-  )
+type alias PossibleChange = (Exp, Val, RootedIndexedTree, Code)
 
 -- using Int instead of datatype so serialization/deserialization in
 -- InterfaceStorage is more succinct (Enum typeclass would be nice here...)
@@ -134,8 +131,9 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | MousePos (Int, Int)
            | TickDelta Float -- 30fps time tick, Float is time since last tick
            | Sync
-           | TraverseOption Int -- offset from current index (+1 or -1)
-           | SelectOption
+           | PreviewCode (Maybe Code)
+           | SelectOption PossibleChange
+           | CancelSync
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets})
            | Edit
@@ -213,6 +211,11 @@ makeHighlight subst color (locid,_,_) =
     Just n  -> { color = color, range = aceRange n }
     Nothing -> Debug.crash "makeHighlight: locid not in subst"
 
+codeToShow model =
+  case model.previewCode of
+     Just string -> string
+     Nothing     -> model.code
+
 --------------------------------------------------------------------------------
 
 sampleModel : Model
@@ -225,6 +228,7 @@ sampleModel =
     { scratchCode   = Examples.scratch
     , exName        = name
     , code          = unparseE e
+    , previewCode   = Nothing
     , history       = ([], [])
     , inputExp      = e
     , inputVal      = v

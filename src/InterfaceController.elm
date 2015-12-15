@@ -469,91 +469,51 @@ upstate evt old = case debugLog "Event" evt of
       case (old.mode, old.inputExp) of
         (AdHoc, ip) ->
           let
-            inputval  = fst <| Eval.run ip
-            inputval' = inputval |> LangSvg.valToIndexedTree
-                                 |> slateToVal
-            newval    = slateToVal old.slate
-            local     = Sync.inferLocalUpdates old.syncOptions ip inputval' newval
-            struct    = Sync.inferStructuralUpdate ip inputval' newval
-            delete    = Sync.inferDeleteUpdate ip inputval' newval
-            relatedG  = Sync.inferNewRelationships ip inputval' newval
-            relatedV  = Sync.relateSelectedAttrs old.genSymCount ip inputval' newval
-            revert    = (ip, inputval)
+            inputval   = fst <| Eval.run ip
+            inputSlate = LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime inputval
+            inputval'  = slateToVal inputSlate
+            newval     = slateToVal old.slate
+            local      = Sync.inferLocalUpdates old.syncOptions ip inputval' newval
+            struct     = Sync.inferStructuralUpdates ip inputval' newval
+            delete     = Sync.inferDeleteUpdates ip inputval' newval
+            relatedG   = Sync.inferNewRelationships ip inputval' newval
+            relatedV   = Sync.relateSelectedAttrs old.genSymCount ip inputval' newval
           in
-          let mkOptions l1 l2 revert =
-            ( (List.length l1, l1)
-            , (List.length l2, l2)
-            , revert)
-          in
+          let addSlateAndCode (exp, val) = (exp, val, LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val, unparseE exp) in
+          let addSlateAndCodeToAll list = List.map addSlateAndCode list in
             case (local, relatedV) of
               (Ok [], (_, [])) -> { old | mode = mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime ip }
-              (Ok [], (nextK, l2)) ->
+              (Ok [], (nextK, changes)) ->
                 let _ = debugLog ("no live updates, only related var") () in
-                let m = SyncSelect (old.code, old.slate) 0 (mkOptions [] l2 revert) in
-                upstate (TraverseOption 1) { old | mode = m, genSymCount = nextK }
-              (Ok l, _) ->
-                let n = debugLog "# of live updates" (List.length l) in
-                let l1 = List.map fst l in
-                let l2 = delete ++ relatedG ++ [struct] in
-                let m = SyncSelect (old.code, old.slate) 0 (mkOptions l1 l2 revert) in
-                upstate (TraverseOption 1) { old | mode = m }
+                let m = SyncSelect (addSlateAndCodeToAll changes) in
+                upstate Run { old | mode = m, genSymCount = nextK }
+              (Ok live, _) ->
+                let n = debugLog "# of live updates" (List.length live) in
+                let changes = live ++ delete ++ relatedG ++ struct in
+                let m = SyncSelect (addSlateAndCodeToAll changes) in
+                upstate Run { old | mode = m }
               (Err e, _) ->
                 let _ = debugLog ("no live updates: " ++ e) () in
-                let l2 = delete ++ relatedG ++ [struct] in
-                let m = SyncSelect (old.code, old.slate) 0 (mkOptions [] l2 revert) in
-                upstate (TraverseOption 1) { old | mode = m }
+                let changes = delete ++ relatedG ++ struct in
+                let m = SyncSelect (addSlateAndCodeToAll changes) in
+                upstate Run { old | mode = m }
         _ -> Debug.crash "upstate Sync"
 
-    SelectOption -> case old.mode of
-     SyncSelect (prevCode,_) i options ->
-      let ((n1,l1),(n2,l2),revert) = options in
-      let ((ei,vi),h) =
-        if i `between1` (0, n1) then
-          (Utils.geti i l1, addToHistory prevCode old.history)
-        else if i `between1` (n1, n1+n2) then
-          (Utils.geti (i-n1) l2, addToHistory prevCode old.history)
-        else
-          (revert, old.history)
-      in
-      let (newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) = LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime vi in
+    SelectOption (exp, val, slate, code) ->
       maybeAdjustShowZones
-      { old | code          = unparseE ei
-            , inputExp      = ei
-            , inputVal      = vi
-            , slideCount    = newSlideCount
-            , movieCount    = newMovieCount
-            , movieTime     = 0.0
-            , movieDuration = newMovieDuration
-            , movieContinue = newMovieContinue
-            , history       = h
-            , slate         = newSlate
-            , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime ei vi }
-     _ ->
-      Debug.crash "upstate SelectOption"
+      { old | code          = code
+            , inputExp      = exp
+            , inputVal      = val
+            , history       = addToHistory old.code old.history
+            , slate         = slate
+            , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp val }
 
-    TraverseOption offset -> case old.mode of
-     SyncSelect prev i options ->
-      let ((n1,l1),(n2,l2),revert) = options in
-      let j = i + offset in
-      let (ei,vi) =
-        if      j `between1` ( 0, n1   ) then Utils.geti j l1
-        else if j `between1` (n1, n1+n2) then Utils.geti (j-n1) l2
-        else                                  revert
-      in
-      let (newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) =
-        LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime vi in
-      { old | code          = unparseE ei
-            , inputExp      = ei
-            , inputVal      = vi
-            , slideCount    = newSlideCount
-            , movieCount    = newMovieCount
-            , movieTime     = 0
-            , movieDuration = newMovieDuration
-            , movieContinue = newMovieContinue
-            , slate         = newSlate
-            , mode          = SyncSelect prev j options }
-     _ ->
-      Debug.crash "upstate TraverseOption"
+
+    PreviewCode maybeCode ->
+      { old | previewCode = maybeCode }
+
+    CancelSync ->
+      upstate Run { old | mode = mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime old.inputExp }
 
     SelectExample name thunk ->
       if name == Examples.scratchName then
@@ -1100,5 +1060,5 @@ createMousePosCallbackSlider mx my widget old =
     let newE = applyLocSubst subst old.inputExp in
     let (newVal,newWidgets) = Eval.run newE in
     -- Can't manipulate slideCount/movieCount/movieDuration/movieContinue via sliders at the moment.
-    let (_, _, _, _, newSlate) = LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime newVal in
+    let newSlate = LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime newVal in
     (newE, newVal, newSlate, newWidgets)

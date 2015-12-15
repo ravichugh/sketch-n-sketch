@@ -1,7 +1,7 @@
 module Sync (Options, defaultOptions, syncOptionsOf,
              heuristicsNone, heuristicsFair, heuristicsBiased, toggleHeuristicMode,
-             inferLocalUpdates, inferStructuralUpdate, prepareLiveUpdates,
-             inferDeleteUpdate,
+             inferLocalUpdates, inferStructuralUpdates, prepareLiveUpdates,
+             inferDeleteUpdates,
              inferNewRelationships,
              relateSelectedAttrs,
              strCall,
@@ -400,7 +400,7 @@ leafToStar v = case v.v_ of
 
 -- historically, inferLocalUpdates was called "sync"
 
-inferLocalUpdates : Options -> Exp -> Val -> Val -> Result String (List ((Exp, Val), Num))
+inferLocalUpdates : Options -> Exp -> Val -> Val -> Result String (List (Exp, Val))
 inferLocalUpdates opts e v v' =
   case diff v v' of
     Nothing       -> Err "bad change"
@@ -411,26 +411,28 @@ inferLocalUpdates opts e v v' =
       let subst0 = Parser.substOf e in
       let substs = inferSubsts opts subst0 newNew in
       let res =
-        List.sortBy snd <|
-          List.filterMap (\s ->
-            let e1 = applyLocSubst s e in
-            let v1 = fst (Eval.run e1) in
-            let vcStar = mapVal leafToStar vc in
-            case diffNoCheck (fillHole vcStar holeSubst) v1 of
-              -- TODO 9/24: one of the last few commits affected this
-              --   on RelateRects0...
-              -- Nothing -> Debug.crash "sync: shouldn't happen?"
-              Nothing -> Debug.log "sync: shouldn't happen?" Nothing
-              Just (Same _) ->
-                let n = compareVals (v, v1) in
-                Just ((e1, v1), n)
-              Just (Diff _ holeSubst') ->
-                let oldNew = getFillers holeSubst' in
-                if newNew /= oldNew
-                  then Nothing
-                  else let n = compareVals (v, v1) in
-                       Just ((e1, v1), n)
-          ) substs
+        List.map fst <|
+          List.sortBy snd <|
+            List.filterMap (\s ->
+              let e1 = applyLocSubst s e in
+              let v1 = fst (Eval.run e1) in
+              let vcStar = mapVal leafToStar vc in
+              case diffNoCheck (fillHole vcStar holeSubst) v1 of
+                -- TODO 9/24: one of the last few commits affected this
+                --   on RelateRects0...
+                -- Nothing -> Debug.crash "sync: shouldn't happen?"
+                Nothing -> Debug.log "sync: shouldn't happen?" Nothing
+                Just (Same _) ->
+                  let n = compareVals (v, v1) in
+                  Just ((e1, v1), n)
+                Just (Diff _ holeSubst') ->
+                  let oldNew = getFillers holeSubst' in
+                  if newNew /= oldNew
+                    then Nothing
+                    else
+                      let n = compareVals (v, v1) in
+                      Just ((e1, v1), n)
+            ) substs
       in
       -- TODO: is this a good idea?
       if res == [] then Err "bad change 2" else Ok res
@@ -460,8 +462,8 @@ comment s e =
     then eComment s e
     else e
 
-inferStructuralUpdate : Exp -> Val -> Val -> (Exp, Val)
-inferStructuralUpdate eOld v v' =
+inferStructuralUpdates : Exp -> Val -> Val -> List (Exp, Val)
+inferStructuralUpdates eOld v v' =
   let (attrs1,children1) = stripSvg v in
   let (attrs2,children2) = stripSvg v' in
   let _ = Utils.assert "Sync.inferStruct" (attrs1 == attrs2) in
@@ -502,7 +504,7 @@ inferStructuralUpdate eOld v v' =
 
   -- going through parser so that new location ids are assigned
   let eNew = Utils.fromOk "Sync.inferStruct" (Parser.parseE (sExp eNew_)) in
-  (eNew, fst (Eval.run eNew))
+  [(eNew, fst (Eval.run eNew))]
 
 
 ------------------------------------------------------------------------------
@@ -569,11 +571,11 @@ maybeToMaybeOne mx    = case mx of
   Nothing -> nothing
   Just x  -> just x
 
-inferDeleteUpdate : Exp -> Val -> Val -> MaybeOne (Exp, Val)
-inferDeleteUpdate eOld v v' =
+inferDeleteUpdates : Exp -> Val -> Val -> MaybeOne (Exp, Val)
+inferDeleteUpdates eOld v v' =
   let (attrs1,children1) = stripSvg v in
   let (attrs2,children2) = stripSvg v' in
-  let _ = Utils.assert "Sync.inferDeleteUpdate" (attrs1 == attrs2) in
+  let _ = Utils.assert "Sync.inferDeleteUpdates" (attrs1 == attrs2) in
 
   let onlyDeletes =
     let foo (vi,vi') =

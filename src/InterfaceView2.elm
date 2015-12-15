@@ -1,5 +1,4 @@
 module InterfaceView2 (view, scaleColorBall
-                      , prevButtonEnabled, nextButtonEnabled -- TODO not great
                       , drawNewPolygonDotSize
                       ) where
 
@@ -737,13 +736,14 @@ colorDebug c1 = colorDebug_ c1 interfaceColor
 
 codebox : Int -> Int -> Model -> GE.Element
 codebox w h model =
-  let event =
-    case model.mode of
-      SyncSelect _ _ _ -> []
-      _ -> [Events.on "input" Events.targetValue
-              (Signal.message events.address << CodeUpdate)]
+  let
+    event = case model.mode of
+              SyncSelect _ -> []
+              _ -> [Events.on "input" Events.targetValue
+                      (Signal.message events.address << CodeUpdate)]
+    code = codeToShow model
   in
-    codebox_ w h event model.code (not (editingMode model))
+    codebox_ w h event code (not (editingMode model))
 
 highlightThisIf b =
   if b
@@ -825,25 +825,48 @@ canvas_ w h model =
     _               -> False
   in
   let options = (addZones, model.showZones, model.showWidgets) in
-  let svg =
-    let mainCanvas_ = buildSvg options model.slate in
-    let mainCanvas =
-      case drawNewShape model of
-        []       -> mkSvg addZones mainCanvas_
-        drawings -> mkSvg addZones (Svg.g [] (mainCanvas_ :: drawings))
-    in
-    case (model.mode, model.showWidgets) of
-      (Live _, True) ->
-        let widgets = buildSvgWidgets w h model.widgets in
-        mkSvg addZones (Svg.g [] [mainCanvas, widgets])
-      (SyncSelect (_,prevSlate) _ _, _) ->
-        let old          = buildSvg options prevSlate in
-        let shadowCanvas = Svg.svg [Attr.style [("opacity", "0.3")]] [old] in
-        mkSvg addZones (Svg.g [] [shadowCanvas, mainCanvas])
-      _ ->
-        mkSvg addZones mainCanvas
+  let mainCanvas_ = buildSvg options model.slate in
+  let mainCanvas =
+    case drawNewShape model of
+      []       -> mkSvg addZones mainCanvas_
+      drawings -> mkSvg addZones (Svg.g [] (mainCanvas_ :: drawings))
   in
-  Html.toElement w h svg
+  case (model.mode, model.showWidgets) of
+    (Live _, True) ->
+      let widgets = buildSvgWidgets w h model.widgets in
+      let svg = mkSvg addZones (Svg.g [] [mainCanvas, widgets]) in
+      Html.toElement w h svg
+    (SyncSelect possibleChanges, _) ->
+      let possibleChangeStyle = [ ("width",  toString (w//3 - 24))
+                                , ("height", toString (h//3 - 24))
+                                , ("margin", "10px")
+                                , ("background", "white")
+                                , ("border", "solid 2px black")
+                                , ("cursor", "pointer")
+                                , ("text-align", "center")
+                                ]
+      in
+      let
+        possibleChangeToSvg (exp, val, slate, code) =
+          Svg.svg [ Svg.Attributes.viewBox (String.join " " (List.map toString [0, 0, w, h]))
+                  , Attr.style possibleChangeStyle
+                  , Events.onClick events.address (SelectOption (exp, val, slate, code))
+                  , Events.onMouseOver events.address (PreviewCode (Just code))
+                  , Events.onMouseOut events.address (PreviewCode Nothing)
+                  ]
+                  [ buildSvg (False, 0, False) slate ]
+        cancelButton = Html.button [ Attr.style (possibleChangeStyle ++ [("font-size", "25px")])
+                                   , Events.onClick events.address CancelSync
+                                   ]
+                                   [Html.text "Cancel"]
+      in
+      GE.color (Color.grayscale 0.1)
+        <| Html.toElement w h
+        <| Html.div [ Attr.style [("overflow", "auto"), ("width", toString w), ("height", toString h)]
+                    ]
+        <| (List.map possibleChangeToSvg possibleChanges) ++ [cancelButton]
+    _ ->
+      Html.toElement w h (mkSvg addZones mainCanvas)
 
 mkSvg hilite svg =
   Svg.svg
@@ -891,12 +914,12 @@ middleWidgets w h wWrap hWrap model =
       ]
     in
     case (editingMode model, model.mode, unwrapVList model.inputVal) of
-      (False, SyncSelect _ i options, _) ->
+      (False, SyncSelect _, _) ->
         [ gapWidget w h
         , gapWidget w h
-        , prevButton i w h
-        , chooseButton i options w h
-        , nextButton i options w h
+        -- , prevButton i w h
+        -- , chooseButton i options w h
+        -- , nextButton i options w h
         ]
       (False, Print _, _) ->
         exampleNavigation ++
@@ -1176,28 +1199,6 @@ frozenButton model =
   let cap = if model.syncOptions.thawedByDefault then "[Default] n?" else "[Default] n!" in
   simpleButton ToggleThawed "ToggleThawed " "Toggle ?/!" cap
 -}
-
-chooseButton i ((n1,l1),(n2,l2),_) =
-  let cap =
-    let n = n1 + n2 + 1 in
-    if i == n then "Revert"
-    else "Select " ++ Utils.parens (toString i ++ "/" ++ toString n)
-  in
-  simpleButton SelectOption "Choose" "Choose" (cap ++ displayKey Utils.uniEnter)
-
-prevButtonEnabled i = i > 1
-prevButton i =
-  let enabled = prevButtonEnabled i in
-  simpleEventButton_
-    (not enabled) (TraverseOption -1)
-    "Prev" "Prev" ("Show Prev" ++ displayKey Utils.uniLeft)
-
-nextButtonEnabled i ((n1,l1),(n2,l2),_) = i < n1 + n2 + 1
-nextButton i options =
-  let enabled = nextButtonEnabled i options in
-  simpleEventButton_
-    (not enabled) (TraverseOption 1)
-    "Next" "Next" ("Show Next" ++ displayKey Utils.uniRight)
 
 saveButton : Model -> Int -> Int -> GE.Element
 saveButton model w h =

@@ -131,7 +131,7 @@ assertion rerender rerenders model =
           _           -> True
   in
     ( { kind = "assertion"
-      , code = model.code 
+      , code = Model.codeToShow model
       , cursorPos = model.codeBoxInfo.cursorPos
       , selections = model.codeBoxInfo.selections
       , manipulable = manipulable
