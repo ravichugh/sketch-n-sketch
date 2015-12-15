@@ -4,6 +4,7 @@ module Sync (Options, defaultOptions, syncOptionsOf,
              inferDeleteUpdates,
              inferNewRelationships,
              relateSelectedAttrs,
+             relate,
              strCall,
              printZoneTable, LiveInfo, Triggers, tryToBeSmart) where
 
@@ -1011,6 +1012,8 @@ inferGroupOfLines elastic _ _ v' =
   )))
 
 dummyFrozenLoc = dummyLoc_ frozen
+
+-- TODO relate in terms of AVals instead
 
 relate : Int -> Exp -> List Val -> (Int, List (Exp, Val))
 relate k0 e vs =
