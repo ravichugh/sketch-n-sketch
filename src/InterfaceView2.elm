@@ -837,8 +837,8 @@ canvas_ w h model =
       let svg = mkSvg addZones (Svg.g [] [mainCanvas, widgets]) in
       Html.toElement w h svg
     (SyncSelect possibleChanges, _) ->
-      let possibleChangeStyle = [ ("width",  toString (w//3 - 24))
-                                , ("height", toString (h//3 - 24))
+      let possibleChangeStyle = [ ("width",  toString (w//3 - 32))
+                                , ("height", toString (h//3 - 32))
                                 , ("margin", "10px")
                                 , ("background", "white")
                                 , ("border", "solid 2px black")
