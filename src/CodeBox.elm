@@ -27,9 +27,9 @@ import Debug
 --                   of making a save
 -- "runRequest"  -> We'd like the current state of the Editor for the purposes
 --                   of running the to be displayed in the Canvas
-type alias AceCodeBoxInfo = 
+type alias AceCodeBoxInfo =
     { kind        : String
-    , code        : String 
+    , code        : String
     , cursorPos   : Model.AcePos
     , manipulable : Bool
     , selections  : List Model.Range
@@ -38,13 +38,13 @@ type alias AceCodeBoxInfo =
     , exName      : String
     }
 
-type alias AceMessage = 
-  { evt          : String 
-  , strArg       : String 
+type alias AceMessage =
+  { evt          : String
+  , strArg       : String
   , cursorArg    : Model.AcePos
   , selectionArg : List Model.Range
   , exNameArg    : String
-  } 
+  }
 
 -- An initial AceCodeBoxInfo for the foldp
 -- Doesn't actually get sent over the port
@@ -68,7 +68,7 @@ saveRequestInfo saveName =
     , code = ""
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
     , manipulable = True
-    , selections = [] 
+    , selections = []
     , highlights = []
     , bounce = True
     , exName = saveName
@@ -82,7 +82,7 @@ runRequestInfo =
     , code = ""
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
     , manipulable = True
-    , selections = [] 
+    , selections = []
     , highlights = []
     , bounce = True
     , exName = ""
@@ -91,12 +91,12 @@ runRequestInfo =
   )
 
 codeRequestInfo : (AceCodeBoxInfo, List Bool)
-codeRequestInfo = 
+codeRequestInfo =
   ( { kind = "codeRequest"
     , code = ""
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
     , manipulable = True
-    , selections = [] 
+    , selections = []
     , highlights = []
     , bounce = True
     , exName = ""
@@ -115,7 +115,7 @@ poke rerender rerenders model =
         , code = ""
         , cursorPos = sampleModel.codeBoxInfo.cursorPos
         , manipulable = manipulable
-        , selections = [] 
+        , selections = []
         , highlights = []
         , bounce = rerender
         , exName = ""
@@ -132,7 +132,7 @@ assertion rerender rerenders model =
   in
     ( { kind = "assertion"
       , code = model.code 
-      , cursorPos = model.codeBoxInfo.cursorPos 
+      , cursorPos = model.codeBoxInfo.cursorPos
       , selections = model.codeBoxInfo.selections
       , manipulable = manipulable
       , highlights = model.codeBoxInfo.highlights
@@ -155,7 +155,7 @@ interpretAceEvents amsg model = case amsg.evt of
                   }
       , Model.Run
       ]
-    "saveResponse" -> 
+    "saveResponse" ->
         let newModel = { model | code = amsg.strArg
                                , codeBoxInfo = { cursorPos = amsg.cursorArg
                                                 , selections = amsg.selectionArg
@@ -163,7 +163,7 @@ interpretAceEvents amsg model = case amsg.evt of
                                                     model.codeBoxInfo.highlights
                                                 }
                         }
-        in commitLocalSave model.exName newModel 
+        in commitLocalSave model.exName newModel
            `andThen` \_ ->
            Signal.send events.address <| Model.UpdateModel <|
                 \m -> newModel
@@ -177,8 +177,8 @@ interpretAceEvents amsg model = case amsg.evt of
                   }
         , Model.ToggleBasicCodeBox
         ]
-    "Rerender" -> Signal.send events.address Model.Noop 
-    "init" -> Task.succeed () 
+    "Rerender" -> Signal.send events.address Model.Noop
+    "init" -> Task.succeed ()
     _ ->
       -- TODO change this back
       -- if String.contains errorPrefix amsg.evt
@@ -192,7 +192,7 @@ interpretAceEvents amsg model = case amsg.evt of
 -- about from the JS that also happens to load Ace.
 -- Maybe we should split this out into a different Elm/JS file?
 recoverFromError : AceMessage -> Model.Model -> Model.Model
-recoverFromError amsg fresh = 
+recoverFromError amsg fresh =
     { fresh | code = amsg.strArg
             , editingMode = Just amsg.strArg
             , errorBox = Just amsg.evt
@@ -212,9 +212,9 @@ recoverFromError amsg fresh =
 rerenderCount : Int
 rerenderCount = 4
 
-packageModel : (Model.Model, Event) -> (AceCodeBoxInfo, List Bool) -> 
+packageModel : (Model.Model, Event) -> (AceCodeBoxInfo, List Bool) ->
                     (AceCodeBoxInfo, List Bool)
-packageModel (model, evt) (lastBox, rerenders) = 
+packageModel (model, evt) (lastBox, rerenders) =
     let rerender = tripRender evt rerenders
     in case model.editingMode of
       Nothing -> case (evt, model.mouseMode) of
@@ -242,9 +242,9 @@ packageModel (model, evt) (lastBox, rerenders) =
 -- Note that the initial list population is important for fixing the blanking on
 -- the page load.
 tripRender : Event -> List Bool -> Bool
-tripRender evt last = 
+tripRender evt last =
   case (evt, last) of
-    (_                 , True :: rest  ) -> if List.all (\a -> a) last 
+    (_                 , True :: rest  ) -> if List.all (\a -> a) last
                                                then False -- For clarity
                                                else True
     (Model.SwitchOrient, _             ) -> True
