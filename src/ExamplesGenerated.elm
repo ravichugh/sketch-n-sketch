@@ -2378,106 +2378,47 @@ rotTest =
 
 interfaceButtons =
  "(def [w h depth shadow r] [120 22.5 4 0.5 2])
-(def [topcolor botcolor shadowcol] [[231 76 60 1] [192 57 43 1] [180 180 180 1]])
-(def tbbox (rect topcolor r 0! (- w (* 2! r)) h))
-(def lrbox (rect topcolor 0! r w (- h (* 2! r))))
-(def tlcirc (circle topcolor r r r))
-(def trcirc (circle topcolor (- w r) r r))
-(def blcirc (circle topcolor r (- h r) r))
-(def brcirc (circle topcolor (- w r) (- h r) r))
+(def shadowcol [180 180 180 1])
 
-(def btbbox (rect botcolor r (- h r) (- w (* 2! r)) depth))
-(def blrbox (rect botcolor 0! (- h r) w (- depth r)))
-(def belcirc (circle botcolor r (- (+ h depth) (* 2! r)) r))
-(def bercirc (circle botcolor (- w r) (- (+ h depth) (* 2! r)) r))
+(def draw (\\(topcolor botcolor offset)
 
-(def stbbox (rect shadowcol r (+ shadow (- h r)) (- w (* 2! r)) depth))
-(def slrbox (rect shadowcol 0! (+ shadow (- h r)) w (- depth r)))
-(def selcirc (circle shadowcol r (+ shadow (- (+ h depth) (* 2! r))) r))
-(def sercirc (circle shadowcol (- w r) (+ shadow (- (+ h depth) (* 2! r))) r))
+  (let tbbox  (rect topcolor r offset (- w (* 2! r)) h)
+  (let lrbox  (rect topcolor 0! (+ r offset) w (- h (* 2! r)))
+  (let tlcirc (circle topcolor r (+ r offset) r)
+  (let trcirc (circle topcolor (- w r) (+ r offset) r)
+  (let blcirc (circle topcolor r (+ (- h r) offset) r)
+  (let brcirc (circle topcolor (- w r) (+ (- h r) offset) r)
+  
+  (let btbbox  (rect botcolor r (- h r) (- w (* 2! r)) depth)
+  (let blrbox  (rect botcolor 0! (- h r) w (- depth r))
+  (let belcirc (circle botcolor r (- (+ h depth) (* 2! r)) r)
+  (let bercirc (circle botcolor (- w r) (- (+ h depth) (* 2! r)) r)
 
-(def btop    [tbbox lrbox tlcirc trcirc blcirc brcirc] )
-(def bbot    [btbbox blrbox belcirc bercirc] )
-(def bshadow [stbbox slrbox selcirc sercirc] )
+  (let stbbox  (rect shadowcol r (+ shadow (- h r)) (- w (* 2! r)) depth)
+  (let slrbox  (rect shadowcol 0! (+ shadow (- h r)) w (- depth r))
+  (let selcirc (circle shadowcol r (+ shadow (- (+ h depth) (* 2! r))) r)
+  (let sercirc (circle shadowcol (- w r) (+ shadow (- (+ h depth) (* 2! r))) r)
 
-(def raisedButton (svgViewBox 120 (+ depth (+ shadow (- h r))) (concat [bshadow bbot btop])))
+  (let btop    [tbbox lrbox tlcirc trcirc blcirc brcirc]
+  (let bbot    [btbbox blrbox belcirc bercirc]
+  (let bshadow [stbbox slrbox selcirc sercirc]
 
-(def [w h depth shadow r] [120 22.5 4 0.5 2])
-(def [topcolor botcolor shadowcol] [[233 94 80 1] [198 77 64 1] [180 180 180 1]])
-(def tbbox (rect topcolor r 0! (- w (* 2! r)) h))
-(def lrbox (rect topcolor 0! r w (- h (* 2! r))))
-(def tlcirc (circle topcolor r r r))
-(def trcirc (circle topcolor (- w r) r r))
-(def blcirc (circle topcolor r (- h r) r))
-(def brcirc (circle topcolor (- w r) (- h r) r))
+    (svgViewBox 120
+      (+ depth (+ shadow (- h r)))
+      (concat [bshadow bbot btop])))))))))))))))))))))
 
-(def btbbox (rect botcolor r (- h r) (- w (* 2! r)) depth))
-(def blrbox (rect botcolor 0! (- h r) w (- depth r)))
-(def belcirc (circle botcolor r (- (+ h depth) (* 2! r)) r))
-(def bercirc (circle botcolor (- w r) (- (+ h depth) (* 2! r)) r))
+(def raisedButton      (draw [231 76 60 1] [192 57 43 1] 0))
+(def highlightedButton (draw [233 94 80 1] [198 77 64 1] 0))
+(def depressedButton   (draw [233 94 80 1] [198 77 64 1] 0.375))
+(def disabledButton    (draw [236 112 99 1] [205 97 85 1] 0))
 
-(def stbbox (rect shadowcol r (+ shadow (- h r)) (- w (* 2! r)) depth))
-(def slrbox (rect shadowcol 0! (+ shadow (- h r)) w (- depth r)))
-(def selcirc (circle shadowcol r (+ shadow (- (+ h depth) (* 2! r))) r))
-(def sercirc (circle shadowcol (- w r) (+ shadow (- (+ h depth) (* 2! r))) r))
-
-(def btop    [tbbox lrbox tlcirc trcirc blcirc brcirc] )
-(def bbot    [btbbox blrbox belcirc bercirc] )
-(def bshadow [stbbox slrbox selcirc sercirc] )
-
-(def highlightedButton (svgViewBox 120 (+ depth (+ shadow (- h r))) (concat [bshadow bbot btop])))
-
-(def [w h depth shadow r] [120 22.5 4 0.5 2])
-(def [topcolor botcolor shadowcol] [[233 94 80 1] [198 77 64 1] [180 180 180 1]])
-(def offset (* depth 0.375!))
-
-(def tbbox (rect topcolor r offset (- w (* 2! r)) h))
-(def lrbox (rect topcolor 0! (+ r offset) w (- h (* 2! r))))
-(def tlcirc (circle topcolor r (+ r offset) r))
-(def trcirc (circle topcolor (- w r) (+ r offset) r))
-(def blcirc (circle topcolor r (+ (- h r) offset) r))
-(def brcirc (circle topcolor (- w r) (+ (- h r) offset) r))
-
-(def btbbox (rect botcolor r (- h r) (- w (* 2! r)) depth))
-(def blrbox (rect botcolor 0! (- h r) w (- depth r)))
-(def belcirc (circle botcolor r (- (+ h depth) (* 2! r)) r))
-(def bercirc (circle botcolor (- w r) (- (+ h depth) (* 2! r)) r))
-
-(def btop    [tbbox lrbox tlcirc trcirc blcirc brcirc] )
-(def bbot    [btbbox blrbox belcirc bercirc] )
-
-(def depressedButton (svgViewBox 120 (+ depth (+ shadow (- h r))) (concat [bbot btop])))
-
-(def [w h depth shadow r] [120 22.5 4 0.5 2])
-(def [topcolor botcolor shadowcol] [[236 112 99 1] [205 97 85 1] [180 180 180 1]])
-(def tbbox (rect topcolor r 0! (- w (* 2! r)) h))
-(def lrbox (rect topcolor 0! r w (- h (* 2! r))))
-(def tlcirc (circle topcolor r r r))
-(def trcirc (circle topcolor (- w r) r r))
-(def blcirc (circle topcolor r (- h r) r))
-(def brcirc (circle topcolor (- w r) (- h r) r))
-
-(def btbbox (rect botcolor r (- h r) (- w (* 2! r)) depth))
-(def blrbox (rect botcolor 0! (- h r) w (- depth r)))
-(def belcirc (circle botcolor r (- (+ h depth) (* 2! r)) r))
-(def bercirc (circle botcolor (- w r) (- (+ h depth) (* 2! r)) r))
-
-(def stbbox (rect shadowcol r (+ shadow (- h r)) (- w (* 2! r)) depth))
-(def slrbox (rect shadowcol 0! (+ shadow (- h r)) w (- depth r)))
-(def selcirc (circle shadowcol r (+ shadow (- (+ h depth) (* 2! r))) r))
-(def sercirc (circle shadowcol (- w r) (+ shadow (- (+ h depth) (* 2! r))) r))
-
-(def btop    [tbbox lrbox tlcirc trcirc blcirc brcirc] )
-(def bbot    [btbbox blrbox belcirc bercirc] )
-(def bshadow [stbbox slrbox selcirc sercirc] )
-
-(def disabledButton (svgViewBox 120 (+ depth (+ shadow (- h r))) (concat [bshadow bbot btop])))
-
-(def [picknum pickslider] (hSlider true 20! 300! 40! 1! 4! 'Button State ' 1))
-
-(def showbutton (\\i (if (< i 2) raisedButton (if (< i 3) highlightedButton (if (< i 4) depressedButton disabledButton)))))
-
-(svg (cons (showbutton picknum) pickslider))
+(svg [
+  (let i 1{1-4}
+  (if (= i 1) raisedButton
+  (if (= i 2) highlightedButton
+  (if (= i 3) depressedButton
+    disabledButton))))
+])
 
 "
 
