@@ -1010,7 +1010,8 @@ middleWidgets w h wWrap hWrap model =
   in
   List.map (GE.container wWrap hWrap GE.middle) <|
     let exampleNavigation =
-      [ dropdownExamples model w h
+      [ twoButtons (codeButton model) (canvasButton model)
+      , dropdownExamples model w h
       , editRunButton model w h
       -- , saveButton model w h
       -- , saveAsButton model w h
@@ -1119,8 +1120,14 @@ mainSectionVertical w h model =
     wGut    = params.mainSection.vertical.wGut
     wMiddle = wBtn
     wCode_  = (w - wMiddle - wGut - wGut) // 2
+{-
     wCode   = wCode_ + model.midOffsetX
     wCanvas = wCode_ - model.midOffsetX
+-}
+    wCode   = if model.hideCode then 0
+              else if model.hideCanvas then (w - wMiddle - wGut - wGut)
+              else wCode_ + model.midOffsetX
+    wCanvas = w - wMiddle - wGut - wGut - wCode
     hCanvas = h - hZInfo
     hZInfo  = params.mainSection.canvas.hZoneInfo
     hWidget = params.mainSection.widgets.hBtn
@@ -1469,6 +1476,23 @@ basicBoxButton w h model =
        simpleButton
          evt
          text text text w h
+
+codeButton model w h =
+  let cap = case model.hideCode of
+    True  -> "Code"
+    False -> "Code"
+  in
+  let foo model = { model | hideCode = not model.hideCode } in
+  simpleEventButton_ model.hideCanvas (UpdateModel foo) cap cap cap w h
+
+canvasButton model w h =
+  let cap = case model.hideCanvas of
+    True  -> "Canvas"
+    False -> "Canvas"
+  in
+  let foo model = { model | hideCanvas = not model.hideCanvas } in
+  simpleEventButton_ model.hideCode (UpdateModel foo) cap cap cap w h
+
 
 --------------------------------------------------------------------------------
 -- Zone Caption and Highlights

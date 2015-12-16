@@ -197,7 +197,9 @@ canvasOriginVertical old =
     wGut    = params.mainSection.vertical.wGut
     wMiddle = params.mainSection.widgets.wBtn
     wCode_  = (fst old.dimensions - sideGut - sideGut - wMiddle - wGut - wGut) // 2
-    wCode   = wCode_ + old.midOffsetX
+    wCode   = if old.hideCode then 0
+              else if old.hideCanvas then (fst old.dimensions - sideGut - sideGut - wMiddle - wGut - wGut)
+              else wCode_ + old.midOffsetX
   in
     ( sideGut + wCode + 2*wGut + wMiddle
     , params.topSection.h
@@ -211,6 +213,7 @@ canvasOriginHorizontal old =
     hGut    = params.mainSection.horizontal.hGut
     hCode_  = (snd old.dimensions - hMid - 2*hGut) // 2
     hCode   = hCode_ + old.midOffsetY
+    -- TODO consider hideCode and hideCanvas
     hMid    = params.mainSection.widgets.hBtn
   in
     ( params.wGut
@@ -336,7 +339,10 @@ upstate evt old = case debugLog "Event" evt of
 
     CodeUpdate newcode -> { old | code = newcode }
 
-    StartResizingMid -> { old | mouseMode = MouseResizeMid Nothing }
+    StartResizingMid ->
+      if old.hideCode then old
+      else if old.hideCanvas then old
+      else { old | mouseMode = MouseResizeMid Nothing }
 
     MouseClickCanvas ->
       case (old.mouseMode, old.newShapeKind) of

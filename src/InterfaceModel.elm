@@ -43,6 +43,8 @@ type alias Model =
   , mode : Mode
   , mouseMode : MouseMode
   , orient : Orientation
+  , hideCode : Bool
+  , hideCanvas : Bool
   , dimensions : (Int, Int)
   , midOffsetX : Int  -- extra codebox width in vertical orientation
   , midOffsetY : Int  -- extra codebox width in horizontal orientation
@@ -246,6 +248,8 @@ sampleModel =
     , mode          = mkLive Sync.defaultOptions 1 1 0.0 e v
     , mouseMode     = MouseNothing
     , orient        = Vertical
+    , hideCode      = False
+    , hideCanvas    = False
     , dimensions    = (1000, 800) -- dummy in case foldp' didn't get initial value
     , midOffsetX    = 0
     , midOffsetY    = -100
