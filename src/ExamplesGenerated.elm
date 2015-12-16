@@ -2410,16 +2410,42 @@ interfaceButtons =
 
 )))))))))))))))))))
 
+(def hilitedBot [198 77 64 1])
+
 (def raisedButton      (draw [231 76 60 1] [192 57 43 1] 0))
-(def highlightedButton (draw [233 94 80 1] [198 77 64 1] 0))
-(def depressedButton   (draw [233 94 80 1] [198 77 64 1] 1.1))
+(def highlightedButton (draw [233 94 80 1] hilitedBot 0))
+(def depressedButton   (draw [233 94 80 1] hilitedBot 1.1))
 (def disabledButton    (draw [236 112 99 1] [205 97 85 1] 0))
 
-(let i 1{1-4}
-(if (= i 1) raisedButton
-(if (= i 2) highlightedButton
-(if (= i 3) depressedButton
-  disabledButton))))
+(def raisedButton2      raisedButton)
+(def highlightedButton2 highlightedButton)
+(def depressedButton2   depressedButton)
+(def disabledButton2    disabledButton)
+
+(def raisedButton3      (draw 'gray' hilitedBot 0))
+(def highlightedButton3 (draw 'lightgray' hilitedBot 0))
+(def depressedButton3   (draw 'lightgray' hilitedBot 1.1))
+(def disabledButton3    (draw 470 360 0))
+
+(def kind 1{1-3})
+(def state 1{1-4})
+
+(if (= kind 1)
+  (if (= state 1) raisedButton
+  (if (= state 2) highlightedButton
+  (if (= state 3) depressedButton
+    disabledButton)))
+(if (= kind 2)
+  (if (= state 1) raisedButton2
+  (if (= state 2) highlightedButton2
+  (if (= state 3) depressedButton2
+    disabledButton2)))
+; else
+  (if (= state 1) raisedButton3
+  (if (= state 2) highlightedButton3
+  (if (= state 3) depressedButton3
+    disabledButton3)))
+))
 
 "
 

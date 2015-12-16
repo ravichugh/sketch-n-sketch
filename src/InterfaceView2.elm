@@ -81,26 +81,35 @@ titleStyle =
                  , bold = False
                  , color = Color.white}
 
+imgPath s = "img/" ++ s
+
 -- Creates an Html button with the text properly offset
 type ButtonStatus = Raised | Highlighted | Depressed | Disabled
+type ButtonKind   = Regular | Selected | Unselected
+type alias ButtonState = (ButtonKind, ButtonStatus)
 
 -- Currently assumes:
 --  font-size is 16px
 --  the top of the button occupies 90% of the height of the button
 --  the depressed button should move the text down 3/50 of the total height of the
 --   button
-makeButton : ButtonStatus -> Int -> Int -> String -> GE.Element
-makeButton status w h text =
+makeButton : ButtonState -> Int -> Int -> String -> GE.Element
+makeButton (kind, status) w h text =
   let fontsize = 16
       topprop = 0.9
       depdip = 0.06
       raisedoffset = round <| 0.5 * topprop * toFloat h - 0.5 * fontsize
       depressedoffset = round <| toFloat raisedoffset + depdip * toFloat h
-      (img,dip) = case status of
-    Raised      -> ("button_raised.svg", dimToPix raisedoffset)
-    Highlighted -> ("button_highlighted.svg", dimToPix raisedoffset)
-    Depressed   -> ("button_depressed.svg", dimToPix depressedoffset)
-    Disabled    -> ("button_disabled.svg", dimToPix raisedoffset)
+      dip = dimToPix raisedoffset
+      prefix = case kind of
+        Regular    -> ""
+        Selected   -> ""
+        Unselected -> "unselected_"
+      img = case status of
+        Raised      -> imgPath <| prefix ++ "button_raised.svg"
+        Highlighted -> imgPath <| prefix ++ "button_highlighted.svg"
+        Depressed   -> imgPath <| prefix ++ "button_depressed.svg"
+        Disabled    -> imgPath <| prefix ++ "button_disabled.svg"
   in
   GE.flow GE.outward
     [ GE.image w h img
@@ -144,30 +153,21 @@ optionsOf x =
 --------------------------------------------------------------------------------
 -- Compiling to Svg
 
--- TODO given need for Model, rethink options
-
-{-
-buildSvg : (Bool, ShowZones, Bool) -> LangSvg.RootedIndexedTree -> Svg.Svg
+buildSvg : (Model, Bool) -> LangSvg.RootedIndexedTree -> Svg.Svg
 buildSvg options (i,d) = buildSvg_ options d i
 
-buildSvg_ : (Bool, ShowZones, Bool) -> LangSvg.IndexedTree -> LangSvg.NodeId -> Svg.Svg
-buildSvg_ options d i =
--}
-buildSvg : (Model, Bool, ShowZones, Bool) -> LangSvg.RootedIndexedTree -> Svg.Svg
-buildSvg options (i,d) = buildSvg_ options d i
-
-buildSvg_ : (Model, Bool, ShowZones, Bool) -> LangSvg.IndexedTree -> LangSvg.NodeId -> Svg.Svg
-buildSvg_ options d i =
-  let (model, addZones, showZones, showWidgets) = options in
+buildSvg_ : (Model, Bool) -> LangSvg.IndexedTree -> LangSvg.NodeId -> Svg.Svg
+buildSvg_ stuff d i =
+  let (model, addZones) = stuff in
   case Utils.justGet_ ("buildSvg_ " ++ toString i) i d of
    LangSvg.TextNode text -> VirtualDom.text text
    LangSvg.SvgNode shape attrs js ->
-    case (showWidgets, Utils.maybeRemoveFirst "HIDDEN" attrs) of
+    case (model.showWidgets, Utils.maybeRemoveFirst "HIDDEN" attrs) of
      (False, Just _) -> Svg.svg [] []
      _ ->
       -- TODO: figure out: (LangSvg.attr "draggable" "false")
       let (zones, attrs') =
-        let options = optionsOf showZones in
+        let options = optionsOf model.showZones in
         case (addZones, Utils.maybeRemoveFirst "ZONES" attrs) of
           (False, Nothing)     -> ([], attrs)
           (False, Just (_, l)) -> ([], l)
@@ -181,7 +181,7 @@ buildSvg_ options d i =
               (makeZones model options' shape i attrs, l)
             _ -> Debug.crash "buildSvg_"
       in
-      let children = List.map (buildSvg_ options d) js in
+      let children = List.map (buildSvg_ stuff d) js in
       let mainshape = (Svg.node shape) (LangSvg.compileAttrs attrs') children in
       if zones == []
         then mainshape
@@ -937,13 +937,14 @@ canvas w h model =
 canvas_ w h model =
   let addZones = case (editingMode model, model.mode) of
     (False, AdHoc)  -> True
-    (False, Live _) -> model.newShapeKind == Nothing   -- True
+    (False, Live _) -> case model.toolType of
+                         Cursor       -> True
+                         SelectAttrs  -> True
+                         SelectShapes -> True
+                         _            -> False
     _               -> False
   in
-  -- let options = (addZones, model.showZones, model.showGhosts) in
-  -- TODO rethink options
-  let options = (model, addZones, model.showZones, model.showWidgets) in
-  let mainCanvas_ = buildSvg options model.slate in
+  let mainCanvas_ = buildSvg (model, addZones) model.slate in
   let mainCanvas =
     case drawNewShape model of
       []       -> mkSvg addZones mainCanvas_
@@ -966,13 +967,15 @@ canvas_ w h model =
       in
       let
         possibleChangeToSvg (exp, val, slate, code) =
+          -- TODO
+          let model' = { model | showZones = 0, showWidgets = False} in
           Svg.svg [ Svg.Attributes.viewBox (String.join " " (List.map toString [0, 0, w, h]))
                   , Attr.style possibleChangeStyle
                   , Events.onClick events.address (SelectOption (exp, val, slate, code))
                   , Events.onMouseOver events.address (PreviewCode (Just code))
                   , Events.onMouseOut events.address (PreviewCode Nothing)
                   ]
-                  [ buildSvg (model, False, 0, False) slate ]
+                  [ buildSvg (model', False) slate ]
         cancelButton = Html.button [ Attr.style (possibleChangeStyle ++ [("font-size", "25px")])
                                    , Events.onClick events.address CancelSync
                                    ]
@@ -996,75 +999,104 @@ mkSvg hilite svg =
                   ] ]
      [ svg ]
 
-middleWidgets w h wWrap hWrap model =
-  let twoButtons b1 b2 =
-    let delta = 3 in
-    let wHalf = (w//2 - delta) in
-    GE.flow GE.right [ b1 wHalf h, GE.spacer (2 * delta) h, b2 wHalf h ]
-  in
-  let threeButtons b1 b2 b3 =
-    let delta = 3 in
-    let sep   = GE.spacer (2 * delta) h in
-    let w_    = (w//3 - delta) in
-    GE.flow GE.right [ b1 w_ h, sep, b2 w_ h, sep, b3 w_ h ]
-  in
+twoButtons w h b1 b2 =
+  let delta = 3 in
+  let wHalf = (w//2 - delta) in
+  GE.flow GE.right [ b1 wHalf h, GE.spacer (2 * delta) h, b2 wHalf h ]
+
+threeButtons w h b1 b2 b3 =
+  let delta = 3 in
+  let sep   = GE.spacer (2 * delta) h in
+  let w_    = (w//3 - delta) in
+  GE.flow GE.right [ b1 w_ h, sep, b2 w_ h, sep, b3 w_ h ]
+
+widgetsExampleNavigation w h model =
+  [ twoButtons w h (codeButton model) (canvasButton model)
+  , dropdownExamples model w h
+  , editRunButton model w h
+  , twoButtons w h (saveButton model) (saveAsButton model)
+  , loadButton model w h
+  ]
+
+widgetsUndoRedo w h model =
+  [ twoButtons w h (undoButton model) (redoButton model)
+  , cleanButton model w h
+  ]
+
+widgetsSlideNavigation w h model =
+  [ gapWidget w h
+  , twoButtons w h (previousSlideButton model) (nextSlideButton model)
+  , twoButtons w h (previousMovieButton model) (nextMovieButton model)
+  , slideNumber model w h
+  ]
+
+widgetsTools w h model =
+  [ threeButtons w h
+      (toolButton model Cursor)
+      (toolButton model SelectAttrs)
+      (toolButton model SelectShapes)
+  , threeButtons w h
+      (toolButton model Line)
+      (toolButton model Rect)
+      (toolButton model Oval)
+  , threeButtons w h
+      (toolButton model Poly)
+      (toolButton model Path)
+      (toolButton model Text)
+  ]
+
+widgetsToolExtras w h model =
+  let gap = gapWidget w h in
+  case model.toolType of
+{-
+    -- TODO get rid of showZonesSelect
+    Cursor       -> [ gap , zoneButton model w h  ]
+    SelectAttrs  -> [ gap , relateAttrsButton w h ]
+    SelectShapes -> [ gap , relateShapesButton w h ]
+-}
+    Cursor       -> if model.showZones == showZonesSelect
+                    then [ gap , zoneButton model w h, relateAttrsButton w h ]
+                    else [ gap , zoneButton model w h  ]
+    _            -> []
+
+middleWidgets row1 row2 w h wWrap hWrap model =
+
+  let exampleNavigation = widgetsExampleNavigation w h model in
+  let undoRedo = widgetsUndoRedo w h model in
+  let tools = widgetsTools w h model in
+  let extras = widgetsToolExtras w h model in
+  let slideNavigation = widgetsSlideNavigation w h model in
+
+  let l1  = if row1 then exampleNavigation ++ undoRedo else [] in
+  let l2_ = if row2 then tools ++ extras else [] in
+
+  let l2 =
+    if row1 && row2
+      then gapWidget w h :: l2_  -- vertical   (row1 == row2 == True)
+      else l2_ in                -- horizontal (row1 XOR row2)
+
   List.map (GE.container wWrap hWrap GE.middle) <|
-    let exampleNavigation =
-      [ twoButtons (codeButton model) (canvasButton model)
-      , dropdownExamples model w h
-      , editRunButton model w h
-      -- , saveButton model w h
-      -- , saveAsButton model w h
-      -- , loadButton model w h
-      , threeButtons (saveButton model) (saveAsButton model) (loadButton model)
-      ]
-    in let undoRedo =
-      [ twoButtons (undoButton model) (redoButton model) ]
-    in let zonesButton =
-      [ gapWidget w h
-      , shapeButton model w h
-      , zoneButton model w h
-      ]
-    in let slideNavigation =
-      [ gapWidget w h
-      , twoButtons (previousSlideButton model) (nextSlideButton model)
-      , twoButtons (previousMovieButton model) (nextMovieButton model)
-      , slideNumber model w h
-      ]
-    in
     case (editingMode model, model.mode, unwrapVList model.inputVal) of
-      (False, SyncSelect _, _) ->
-        [ gapWidget w h
-        , gapWidget w h
-        -- , prevButton i w h
-        -- , chooseButton i options w h
-        -- , nextButton i options w h
-        ]
-      (False, Print _, _) ->
-        exampleNavigation ++
-        undoRedo
-      (False, _, Just [VConst (slideCount, _), _]) -> -- slideshow mode
-        exampleNavigation ++
-        undoRedo ++
-        zonesButton ++
-        (syncButton_ w h model) ++
-        slideNavigation
-      (False, _, _) ->
-        exampleNavigation ++
-        undoRedo ++
-        zonesButton ++
-        [modeButton model w h] ++
-        (syncButton_ w h model)
-      (True, _, _) ->
-        exampleNavigation
+      (False, SyncSelect _, _) -> []
+      (False, Print _, _) -> l1
+      (False, _, Just [VConst (slideCount, _), _]) ->
+        l1 ++
+        (if row1 then slideNavigation else []) ++
+        l2
+      (False, _, _) -> l1 ++ l2
+      (True, _, _) -> l1
+
+      -- modeButton and syncButton...
 
 gapWidget w h = GE.spacer w h
 
+{-
 syncButton_ w h model =
   case (model.mode, model.showZones == showZonesSelect) of
     (AdHoc, False) -> [syncButton w h]
     (Live _, True) -> [relateButton w h]
     _              -> []
+-}
 {-
   case model.mode of
     AdHoc -> [syncButton w h]
@@ -1165,7 +1197,7 @@ mainSectionVertical w h model =
     colorDebug Color.lightBlue <|
       GE.size wMiddle h <|
         GE.flow GE.down <|
-          middleWidgets wBtn hBtn wMiddle hWidget model in
+          middleWidgets True True wBtn hBtn wMiddle hWidget model in
   GE.flow GE.right <|
     [ codeSection, gutter, middleSection, gutter, canvasSection ]
 
@@ -1208,31 +1240,38 @@ mainSectionHorizontal w h model =
 
   let gutter = gutterForResizing model.orient w hGut in
 
-  let middleSection =
-    colorDebug Color.lightBlue <|
-      GE.size w hMiddle <|
-        GE.flow GE.right <|
-          middleWidgets wBtn hBtn wWidget hMiddle model in
+  let (middleSection1, middleSection2) =
+    let foo row1 row2 =
+      colorDebug Color.lightBlue <|
+        GE.size w hMiddle <|
+          GE.flow GE.right <|
+            middleWidgets row1 row2 wBtn hBtn wWidget hMiddle model
+    in
+    (foo True False, foo False True) in
+
   GE.flow GE.down <|
-    [ codeSection, gutter, middleSection, gutter, canvasSection ]
+    [ codeSection
+    , gutter , middleSection1 , gutter , middleSection2 , gutter
+    , canvasSection
+    ]
 
 simpleButton_
-   : Signal.Address a -> a -> Bool -> a -> String -> String -> String
+   : Signal.Address a -> ButtonKind -> a -> Bool -> a -> String -> String -> String
   -> Int -> Int -> GE.Element
-simpleButton_ addy defaultMsg disabled msg value name text w h =
+simpleButton_ addy btnKind defaultMsg disabled msg value name text w h =
   if disabled then
       GI.customButton (Signal.message addy defaultMsg)
-        (makeButton Disabled w h text)
-        (makeButton Disabled w h text)
-        (makeButton Disabled w h text)
+        (makeButton (btnKind, Disabled) w h text)
+        (makeButton (btnKind, Disabled) w h text)
+        (makeButton (btnKind, Disabled) w h text)
   else
       GI.customButton (Signal.message addy msg)
-        (makeButton Raised w h text)
-        (makeButton Highlighted w h text)
-        (makeButton Depressed w h text)
+        (makeButton (btnKind, Raised) w h text)
+        (makeButton (btnKind, Highlighted) w h text)
+        (makeButton (btnKind, Depressed) w h text)
 
-simpleEventButton_ = simpleButton_ events.address Noop
-simpleTaskButton_  = simpleButton_ taskMailbox.address (Task.succeed ())
+simpleEventButton_ = simpleButton_ events.address Regular Noop
+simpleTaskButton_  = simpleButton_ taskMailbox.address Regular (Task.succeed ())
 
 simpleButton = simpleEventButton_ False
 simpleTaskButton = simpleTaskButton_ False
@@ -1276,8 +1315,11 @@ ghostsButton model w h =
 syncButton =
   simpleButton Sync "Sync" "Sync the code to the canvas" "Sync"
 
-relateButton =
+relateAttrsButton =
   simpleButton RelateAttrs "Relate" "Relate" "Relate Attrs"
+
+relateShapesButton =
+  simpleButton Noop "Relate" "Relate" "Relate Shapes"
 
 zoneButton model =
   let cap =
@@ -1290,9 +1332,10 @@ zoneButton model =
     else
       Debug.crash "zoneButton"
   in
-  simpleEventButton_ (model.newShapeKind /= Nothing)
-    ToggleZones "ToggleZones" "Show/Hide Zones" cap
+  simpleEventButton_ False
+    ToggleZones "Toggle Zones" "Toggle Zones" cap
 
+{-
 shapeButton model =
   let (cap_, next) = case model.newShapeKind of
     -- Nothing          -> ("None", Just "line")
@@ -1307,6 +1350,7 @@ shapeButton model =
   -- let cap = "[Draw] " ++ cap_ in
   let cap = "[Tool] " ++ cap_ in
   simpleButton (UpdateModel foo) cap cap cap
+-}
 
 luckyButton model =
   let foo old =
@@ -1335,37 +1379,57 @@ frozenButton model =
   simpleButton ToggleThawed "ToggleThawed " "Toggle ?/!" cap
 -}
 
+toolButton : Model -> ToolType -> Int -> Int -> GE.Element
+toolButton model tt w h =
+  let cap = case tt of
+    Cursor -> "1"
+    SelectAttrs -> "2"
+    SelectShapes -> "3"
+    Line -> "L"
+    Rect -> "R"
+    Oval -> "E"
+    Poly -> "P"
+    Path -> "-"
+    Text -> "-"
+  in
+  let btnKind = if model.toolType == tt then Selected else Unselected in
+  simpleButton_ events.address btnKind Noop False
+    (UpdateModel (\m -> { m | toolType = tt })) cap cap cap w h
+
 saveButton : Model -> Int -> Int -> GE.Element
 saveButton model w h =
-    let disabled = List.any ((==) model.exName << fst) Examples.list
-        dn = "Save"
-    in
+    let cap = "Save" in
+    let disabled = List.any ((==) model.exName << fst) Examples.list in
     simpleEventButton_
       disabled (InterfaceModel.WaitSave model.exName)
-      dn dn Utils.uniSave w h
+      cap cap cap w h
+      -- dn dn Utils.uniSave w h
 
 saveAsButton : Model -> Int -> Int -> GE.Element
 saveAsButton model w h =
-    let dn = "Save As" in
+    let cap = "Clone" in
     simpleTaskButton
       (saveStateLocally model.exName True model)
-      dn dn (Utils.uniCamera) w h
+      cap cap cap w h
+      -- dn dn (Utils.uniCamera) w h
 
 loadButton : Model -> Int -> Int -> GE.Element
 loadButton model w h =
+  let cap = "Revert" in
   simpleTaskButton
     (loadLocalState model.exName)
-    "Reload" "Reload" Utils.uniReload w h
+    cap cap cap w h
+    -- "Reload" "Reload" Utils.uniReload w h
 
 undoButton : Model -> Int -> Int -> GE.Element
 undoButton model =
   let past = fst model.history in
-  simpleEventButton_ (List.length past == 0) Undo "Undo" "Undo" Utils.uniUndo
+  simpleEventButton_ (List.length past == 0) Undo "Undo" "Undo" "Undo" -- Utils.uniUndo
 
 redoButton : Model -> Int -> Int -> GE.Element
 redoButton model =
   let future = snd model.history in
-  simpleEventButton_ (List.length future == 0) Redo "Redo" "Redo" Utils.uniRedo
+  simpleEventButton_ (List.length future == 0) Redo "Redo" "Redo" "Redo" -- Utils.uniRedo
 
 previousSlideButton : Model -> Int -> Int -> GE.Element
 previousSlideButton model =
@@ -1450,11 +1514,13 @@ dropdownExamples model w h =
                                 findTask selected choices)
         ] options
 
+{-
 modeButton model =
   if model.mode == AdHoc
   then simpleEventButton_ True Noop "SwitchMode" "SwitchMode" "[Mode] Ad Hoc"
   else simpleEventButton_ (model.newShapeKind /= Nothing)
          (SwitchMode AdHoc) "SwitchMode" "SwitchMode" "[Mode] Live"
+-}
 
 cleanButton model =
   let disabled = case model.mode of Live _ -> False
@@ -1478,20 +1544,22 @@ basicBoxButton w h model =
          text text text w h
 
 codeButton model w h =
-  let cap = case model.hideCode of
-    True  -> "Code"
-    False -> "Code"
+  let (cap, btnKind) = case model.hideCode of
+    True  -> ("Code", Unselected)
+    False -> ("Code", Selected)
   in
   let foo model = { model | hideCode = not model.hideCode } in
-  simpleEventButton_ model.hideCanvas (UpdateModel foo) cap cap cap w h
+  simpleButton_ events.address btnKind Noop
+    model.hideCanvas (UpdateModel foo) cap cap cap w h
 
 canvasButton model w h =
-  let cap = case model.hideCanvas of
-    True  -> "Canvas"
-    False -> "Canvas"
+  let (cap, btnKind) = case model.hideCanvas of
+    True  -> ("Canvas", Unselected)
+    False -> ("Canvas", Selected)
   in
   let foo model = { model | hideCanvas = not model.hideCanvas } in
-  simpleEventButton_ model.hideCode (UpdateModel foo) cap cap cap w h
+  simpleButton_ events.address btnKind Noop
+    model.hideCode (UpdateModel foo) cap cap cap w h
 
 
 --------------------------------------------------------------------------------
@@ -1654,7 +1722,7 @@ view (w,h) model =
                 GE.leftAligned <| T.style titleStyle (T.fromString strTitle)
 
       wLogo = params.topSection.wLogo
-      logo  = GE.image wLogo wLogo "light_logo.svg"
+      logo  = GE.image wLogo wLogo (imgPath "light_logo.svg")
 
       wBtnO = params.topSection.wBtnO
       hBtnO = params.topSection.hBtnO

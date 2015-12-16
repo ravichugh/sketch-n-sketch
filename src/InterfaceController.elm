@@ -211,7 +211,7 @@ canvasOriginHorizontal old =
   --   hMid is calculated weirdly in View...
   let
     hGut    = params.mainSection.horizontal.hGut
-    hCode_  = (snd old.dimensions - hMid - 2*hGut) // 2
+    hCode_  = (snd old.dimensions - hMid - 2*hGut) // 2 + hMid
     hCode   = hCode_ + old.midOffsetY
     -- TODO consider hideCode and hideCanvas
     hMid    = params.mainSection.widgets.hBtn
@@ -272,7 +272,7 @@ addToCodeAndRun old newShape =
           , mouseMode = MouseNothing }
 
 switchToCursorTool old =
-  { old | mouseMode = MouseNothing , newShapeKind = Nothing }
+  { old | mouseMode = MouseNothing , toolType = Cursor }
 
 
 --------------------------------------------------------------------------------
@@ -345,9 +345,12 @@ upstate evt old = case debugLog "Event" evt of
       else { old | mouseMode = MouseResizeMid Nothing }
 
     MouseClickCanvas ->
-      case (old.mouseMode, old.newShapeKind) of
-        (MouseNothing, Just k) -> { old | mouseMode = MouseDrawNew k [] }
-        _                      ->   old
+      case (old.mouseMode, old.toolType) of
+        (MouseNothing, Line) -> { old | mouseMode = MouseDrawNew "line" [] }
+        (MouseNothing, Rect) -> { old | mouseMode = MouseDrawNew "rect" [] }
+        (MouseNothing, Oval) -> { old | mouseMode = MouseDrawNew "ellipse" [] }
+        (MouseNothing, Poly) -> { old | mouseMode = MouseDrawNew "polygon" [] }
+        _                    ->   old
 
     MouseClick click ->
       case old.mouseMode of

@@ -7,6 +7,7 @@ html:
 	cp ../ace-builds/src/ace.js ../build/out/
 	cp ../ace-builds/src/mode-little.js ../build/out/
 	cp ../ace-builds/src/theme-chrome.js ../build/out/
+	cp img/*svg ../build/out/img/
 
 prelude:
 	scripts/expandTemplate.py Prelude

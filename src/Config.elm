@@ -40,7 +40,8 @@ params =
         , fontSize = "10pt"
         }
      , vertical =
-        { hExtra = 15      -- extra vertical space around widgets
+        -- { hExtra = 15      -- extra vertical space around widgets
+        { hExtra = 6      -- extra vertical space around widgets
         , wGut = 10        -- width of gutters in between code/widgets/canvas
         }
      , horizontal =

@@ -61,7 +61,7 @@ type alias Model =
   , basicCodeBox : Bool
   , errorBox : Maybe String
   , genSymCount : Int
-  , newShapeKind : Maybe ShapeKind
+  , toolType : ToolType
   , selectedAttrs : Set.Set (NodeId, ShapeKind, String)
   }
 
@@ -121,6 +121,11 @@ showZonesModes = 6
 (showZonesNone, showZonesBasic, showZonesSelect, showZonesRot, showZonesColor, showZonesDel) =
   Utils.unwrap6
     [ 0 .. (showZonesModes - 1) ]
+
+type ToolType
+  = Cursor | SelectAttrs | SelectShapes
+  | Line | Rect | Oval
+  | Poly | Path | Text
 
 type Caption
   = Hovering (Int, ShapeKind, Zone)
@@ -268,7 +273,7 @@ sampleModel =
     , basicCodeBox  = False
     , errorBox      = Nothing
     , genSymCount   = 0
-    , newShapeKind  = Nothing
+    , toolType      = Cursor
     , selectedAttrs = Set.empty
     }
 
