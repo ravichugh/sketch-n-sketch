@@ -376,13 +376,13 @@ upstate evt old = case debugLog "Event" evt of
         MouseResizeMid Nothing ->
           let f =
             case old.orient of
-              Vertical   -> \(mx',_) -> (old.midOffsetX + mx' - mx, old.midOffsetY)
-              Horizontal -> \(_,my') -> (old.midOffsetY, old.midOffsetY + my' - my)
+              Vertical   -> \(mx1,_) -> (old.midOffsetX + mx1 - mx0, old.midOffsetY)
+              Horizontal -> \(_,my1) -> (old.midOffsetY, old.midOffsetY + my1 - my0)
           in
           { old | mouseMode = MouseResizeMid (Just f) }
 
         MouseResizeMid (Just f) ->
-          let (x,y) = f (mx, my) in
+          let (x,y) = f (mx0, my0) in
           { old | midOffsetX = x , midOffsetY = y }
 
         MouseObject objid kind zone Nothing ->
