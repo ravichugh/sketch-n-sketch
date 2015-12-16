@@ -2388,7 +2388,7 @@ interfaceButtons =
   (let trcirc (circle topcolor (- w r) (+ r offset) r)
   (let blcirc (circle topcolor r (+ (- h r) offset) r)
   (let brcirc (circle topcolor (- w r) (+ (- h r) offset) r)
-  
+
   (let btbbox  (rect botcolor r (- h r) (- w (* 2! r)) depth)
   (let blrbox  (rect botcolor 0! (- h r) w (- depth r))
   (let belcirc (circle botcolor r (- (+ h depth) (* 2! r)) r)
@@ -2401,24 +2401,25 @@ interfaceButtons =
 
   (let btop    [tbbox lrbox tlcirc trcirc blcirc brcirc]
   (let bbot    [btbbox blrbox belcirc bercirc]
-  (let bshadow [stbbox slrbox selcirc sercirc]
+  (let bshadow (if (= offset 0) [stbbox slrbox selcirc sercirc] [])
 
+    ; NOTE: not calling (addAttr ... ['preserveAspectRatio' 'none'])
     (svgViewBox 120
       (+ depth (+ shadow (- h r)))
-      (concat [bshadow bbot btop])))))))))))))))))))))
+      (concat [bshadow bbot btop]))
+
+)))))))))))))))))))
 
 (def raisedButton      (draw [231 76 60 1] [192 57 43 1] 0))
 (def highlightedButton (draw [233 94 80 1] [198 77 64 1] 0))
-(def depressedButton   (draw [233 94 80 1] [198 77 64 1] 0.375))
+(def depressedButton   (draw [233 94 80 1] [198 77 64 1] 1.1))
 (def disabledButton    (draw [236 112 99 1] [205 97 85 1] 0))
 
-(svg [
-  (let i 1{1-4}
-  (if (= i 1) raisedButton
-  (if (= i 2) highlightedButton
-  (if (= i 3) depressedButton
-    disabledButton))))
-])
+(let i 1{1-4}
+(if (= i 1) raisedButton
+(if (= i 2) highlightedButton
+(if (= i 3) depressedButton
+  disabledButton))))
 
 "
 
