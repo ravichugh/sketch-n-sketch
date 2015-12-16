@@ -100,16 +100,15 @@ makeButton (kind, status) w h text =
       depdip = 0.06
       raisedoffset = round <| 0.5 * topprop * toFloat h - 0.5 * fontsize
       depressedoffset = round <| toFloat raisedoffset + depdip * toFloat h
-      dip = dimToPix raisedoffset
       prefix = case kind of
         Regular    -> ""
         Selected   -> ""
         Unselected -> "unselected_"
-      img = case status of
-        Raised      -> imgPath <| prefix ++ "button_raised.svg"
-        Highlighted -> imgPath <| prefix ++ "button_highlighted.svg"
-        Depressed   -> imgPath <| prefix ++ "button_depressed.svg"
-        Disabled    -> imgPath <| prefix ++ "button_disabled.svg"
+      (img, dip) = case status of
+        Raised      -> (imgPath <| prefix ++ "button_raised.svg", raisedoffset)
+        Highlighted -> (imgPath <| prefix ++ "button_highlighted.svg", raisedoffset)
+        Depressed   -> (imgPath <| prefix ++ "button_depressed.svg", depressedoffset)
+        Disabled    -> (imgPath <| prefix ++ "button_disabled.svg", raisedoffset)
   in
   GE.flow GE.outward
     [ GE.image w h img
@@ -121,7 +120,7 @@ makeButton (kind, status) w h text =
               , ("text-align", "center")
               , ("width", dimToPix w)
               , ("height", dimToPix h)
-              , ("transform", "translate(0px," ++ dip ++ ")")
+              , ("transform", "translate(0px," ++ dimToPix dip ++ ")")
               ]
           ] [ Html.text text ]
     ]
