@@ -6,6 +6,7 @@ src/LOG.txt
 build/out/sns.js
 build/out/codeBox.js
 build/out/ace.js
+build/out/toggleAnimationLoopback.js
 build/out/mode-little.js
 build/out/theme-chrome.js
 *swp

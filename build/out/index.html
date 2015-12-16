@@ -1,5 +1,5 @@
 <html>
- 
+
   <head>
     <title>Sketch-n-Sketch</title>
     <script type="text/javascript" src="sns.js"></script>
@@ -7,7 +7,7 @@
     <link rel="shortcut icon" type="image/png" href="sketch-n-sketch-logo.png">
     <meta charset="UTF-8">
     <style type="text/css" media="screen">
-        #editor { 
+        #editor {
             position: relative;
             /*top: 0;
             right: 0;
@@ -16,10 +16,26 @@
         }
     </style>
     </head>
- 
+
     <body style="margin: 0 0 0 0;">
         <div id="main"></div>
     </body>
 
+    <script>
+      // Scripts below will load these up.
+      window.initialPortValues = {};
+      window.initializers      = [];
+    </script>
     <script type="text/javascript" src="codeBox.js"></script>
+    <script type="text/javascript" src="toggleAnimationLoopback.js"></script>
+    <script>
+      // Start up Elm
+      var elmRuntime = Elm.fullscreen(Elm.Main, window.initialPortValues);
+
+      // Call the initializers
+      for (var i in window.initializers) {
+        var intializer = window.initializers[i];
+        intializer(elmRuntime);
+      }
+    </script>
 </html>

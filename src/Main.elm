@@ -51,7 +51,7 @@ combinedEventSig =
     , Signal.map
       (Model.KeysDown << List.sort << Set.toList)
       Keyboard.keysDown
-    , Signal.map Model.TickDelta (Time.fps 2)
+    , Signal.map Model.TickDelta (Time.fpsWhen 60 animateSignal)
     ]
 
 main : Signal Element
@@ -61,6 +61,12 @@ main = Signal.map2 View.view Window.dimensions sigModel
 adjustCoords : (Int, Int) -> (Int, Int) -> (Int, Int)
 adjustCoords (w,h) (mx, my) = (mx - (w // 2), my)
 -}
+
+-- To have a feedback loop in signals, it appears we need to use ports.
+port animateSignal : Signal Bool
+
+port modelRunAnimation : Signal Bool
+port modelRunAnimation = Signal.dropRepeats <| Signal.map (.runAnimation) sigModel
 
 -- The necessary port for Tasks/Storage
 -- Due to current Elm limitations, this must be in the Main module

@@ -4,6 +4,7 @@ all:
 html:
 	elm-make Main.elm --output ../build/out/sns.js
 	cp Native/codeBox.js ../build/out/
+	cp Native/toggleAnimationLoopback.js ../build/out/
 	cp ../ace-builds/src/ace.js ../build/out/
 	cp ../ace-builds/src/mode-little.js ../build/out/
 	cp ../ace-builds/src/theme-chrome.js ../build/out/
@@ -24,6 +25,7 @@ loc:
     InterfaceModel.elm InterfaceView2.elm InterfaceController.elm \
     InterfaceStorage.elm Storage.elm \
     Codebox.elm Native/codeBox.js \
+	Native/toggleAnimationLoopback.js \
     Main.elm Config.elm \
     PreludeTemplate.elm ExamplesTemplate.elm \
     ColorNum.elm

@@ -306,6 +306,7 @@ upstate evt old = case debugLog "Event" evt of
                  , movieTime     = 0
                  , movieDuration = newMovieDuration
                  , movieContinue = newMovieContinue
+                 , runAnimation  = newMovieDuration > 0
                  , slate         = newSlate
                  , widgets       = ws
                  , history       = h
@@ -318,7 +319,8 @@ upstate evt old = case debugLog "Event" evt of
         Err err ->
           { old | caption = Just (LangError ("PARSE ERROR!\n" ++ err)) }
 
-    StartAnimation -> upstate Redraw { old | movieTime = 0 }
+    StartAnimation -> upstate Redraw { old | movieTime = 0
+                                           , runAnimation = True }
 
     Redraw ->
       case old.inputVal of
@@ -477,7 +479,7 @@ upstate evt old = case debugLog "Event" evt of
       else if old.movieContinue == True then
         upstate NextMovie old
       else
-        old
+        { old | runAnimation = False }
 
     RelateAttrs ->
       let (_,tree) = old.slate in
@@ -590,6 +592,7 @@ upstate evt old = case debugLog "Event" evt of
             , movieTime     = 0
             , movieDuration = movieDuration
             , movieContinue = movieContinue
+            , runAnimation  = movieDuration > 0
             , slate         = slate
             , widgets       = ws
             }
@@ -643,7 +646,8 @@ upstate evt old = case debugLog "Event" evt of
         upstate StartAnimation { old | movieNumber = old.movieNumber + 1 }
       else
         -- Last movie of slide show; skip to its end.
-        upstate Redraw { old | movieTime = old.movieDuration }
+        upstate Redraw { old | movieTime    = old.movieDuration
+                             , runAnimation = False }
 
     PreviousMovie ->
       if old.movieNumber == 1 then
