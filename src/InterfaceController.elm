@@ -496,12 +496,18 @@ upstate evt old = case debugLog "Event" evt of
       let revert = (old.inputExp, old.inputVal) in
       let (nextK, l) = Sync.relate old.genSymCount old.inputExp selectedVals in
       let possibleChanges = List.map (addSlateAndCode old) l in
-      upstate Run
         { old | mode = SyncSelect possibleChanges
               , genSymCount = nextK
               , selectedAttrs = Set.empty -- TODO
               }
 
+    RelateShapes ->
+      let newval = slateToVal old.slate in
+      let l = Sync.inferNewRelationships old.inputExp old.inputVal newval in
+      let possibleChanges = List.map (addSlateAndCode old) l in
+        { old | mode = SyncSelect possibleChanges }
+
+    -- TODO AdHoc/Sync not used at the moment
     Sync ->
       case (old.mode, old.inputExp) of
         (AdHoc, ip) ->

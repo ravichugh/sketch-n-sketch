@@ -1051,11 +1051,11 @@ widgetsToolExtras w h model =
     -- TODO get rid of showZonesSelect
     Cursor       -> [ gap , zoneButton model w h  ]
     SelectAttrs  -> [ gap , relateAttrsButton w h ]
-    SelectShapes -> [ gap , relateShapesButton w h ]
 -}
     Cursor       -> if model.showZones == showZonesSelect
                     then [ gap , zoneButton model w h, relateAttrsButton w h ]
                     else [ gap , zoneButton model w h  ]
+    SelectShapes -> [ gap , relateShapesButton w h ]
     _            -> []
 
 middleWidgets row1 row2 w h wWrap hWrap model =
@@ -1318,7 +1318,7 @@ relateAttrsButton =
   simpleButton RelateAttrs "Relate" "Relate" "Relate Attrs"
 
 relateShapesButton =
-  simpleButton Noop "Relate" "Relate" "Relate Shapes"
+  simpleButton RelateShapes "Relate" "Relate" "Relate Shapes"
 
 zoneButton model =
   let cap =
