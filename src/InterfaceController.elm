@@ -562,6 +562,7 @@ upstate evt old = case debugLog "Event" evt of
             , history       = addToHistory old.code old.history
             , slate         = slate
             , previewCode   = Nothing
+            , toolType      = Cursor
             , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp val }
 
 

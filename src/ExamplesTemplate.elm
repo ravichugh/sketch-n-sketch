@@ -104,10 +104,10 @@ LITTLE_TO_ELM relateRects0
 LITTLE_TO_ELM relateRects1
 LITTLE_TO_ELM relateCircles0
 LITTLE_TO_ELM relateLines0
-LITTLE_TO_ELM relatePoints0
-LITTLE_TO_ELM relatePoints1
-LITTLE_TO_ELM relatePoints2
-LITTLE_TO_ELM relatePoints3
+-- LITTLE_TO_ELM relatePoints0
+-- LITTLE_TO_ELM relatePoints1
+-- LITTLE_TO_ELM relatePoints2
+-- LITTLE_TO_ELM relatePoints3
 -- LITTLE_TO_ELM relatePoints4
 
 examples =
@@ -120,10 +120,10 @@ examples =
   , makeExample "RelateRects1" relateRects1
   , makeExample "RelateCircles0" relateCircles0
   , makeExample "RelateLines0" relateLines0
-  , makeExample "RelatePoints0" relatePoints0
-  , makeExample "RelatePoints1" relatePoints1
-  , makeExample "RelatePoints2" relatePoints2
-  , makeExample "RelatePoints3" relatePoints3
+  -- , makeExample "RelatePoints0" relatePoints0
+  -- , makeExample "RelatePoints1" relatePoints1
+  -- , makeExample "RelatePoints2" relatePoints2
+  -- , makeExample "RelatePoints3" relatePoints3
   -- , makeExample "RelatePoints4" relatePoints4
   , makeExample "Delete Boxes" deleteBoxes
 

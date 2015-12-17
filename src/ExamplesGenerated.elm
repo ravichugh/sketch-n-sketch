@@ -3802,135 +3802,10 @@ relateLines0 =
 
 "
 
-relatePoints0 =
- "
-(def pt1 (circle 'red' 88 90 10))
-(def pt2 (circle 'green' 121 142 10))
-(def pt3 (circle 'blue' 153 212 10))
-(def line1 (line 'darkblue' 8 95 306 230 288))
-
-(svg [
-  (addAttr pt1 ['SELECTED' 'cy'])
-  (addAttr pt2 ['SELECTED' 'cy'])
-  (addAttr pt3 ['SELECTED' ''])
-  (addAttr line1 ['SELECTED' ''])
-])
-
-"
-
-relatePoints1 =
- "
-(def pt0 (circle 'black' 88 190 0)) ; dummy point to work around bug...
-(def pt1 (circle 'red' 88 190 10))
-(def pt2 (circle 'green' 121 142 10))
-(def pt3 (circle 'blue' 153 212 10))
-
-; TODO remove, use library version
-
-(def enumSlider (\\(x0 x1 y enum caption srcVal)
-  (let n (len enum)
-  (let [minVal maxVal] [0! (- n 1!)]
-  (let preVal (clamp minVal maxVal srcVal)
-  (let i (round preVal)
-  (let item (nth enum i)
-  (let wrap (\\circ (addAttr circ ['SELECTED' ''])) ; TODO
-  (let shapes
-    (let rail [ (line 'black' 3! x0 y x1 y) ]
-    (let ball
-      (let [xDiff valDiff] [(- x1 x0) (- maxVal minVal)]
-      (let xBall (+ x0 (* xDiff (/ (- preVal minVal) valDiff)))
-      (let rBall (if (= preVal srcVal) 10! 0!)
-        [ (wrap (circle 'black' xBall y rBall)) ])))
-    (let endpoints
-      [ (wrap (circle 'black' x0 y 4!)) (wrap (circle 'black' x1 y 4!)) ]
-    (let tickpoints
-      (let sep (/ (- x1 x0) (+ n 1!))
-      (map (\\i (wrap (circle 'grey' (+ (+ x0 sep) (mult i sep)) y 4!)))
-           (range 0! (- n 1!))))
-    (let label [ (text (+ x1 10!) (+ y 5!) (+ caption (toString item))) ]
-    (concat [ rail endpoints tickpoints ball label ]))))))
-  [item shapes])))))))))
-
-(def addSelectionSliders (\\(circ cap y seed)
-  (let [s slider] (enumSlider 20! 120! y ['' 'cx' 'cy' 'r'] cap seed)
-  (let circ1 (addAttr circ ['SELECTED' s])
-  [circ1 | slider]))))
-
-(svg (concat [
-  (addSelectionSliders pt0 '....'  -10! 0)
-  (addSelectionSliders pt1 'red '   20! 0)
-  (addSelectionSliders pt2 'green ' 50! 0)
-  (addSelectionSliders pt3 'blue '  80! 0)
-]))
-
-
-"
-
-relatePoints2 =
- "
-; TODO remove, use library version
-
-(def enumSlider (\\(x0 x1 y enum caption srcVal)
-  (let n (len enum)
-  (let [minVal maxVal] [0! (- n 1!)]
-  (let preVal (clamp minVal maxVal srcVal)
-  (let i (round preVal)
-  (let item (nth enum i)
-  (let wrap (\\circ (addAttr circ ['SELECTED' ''])) ; TODO
-  (let shapes
-    (let rail [ (line 'black' 3! x0 y x1 y) ]
-    (let ball
-      (let [xDiff valDiff] [(- x1 x0) (- maxVal minVal)]
-      (let xBall (+ x0 (* xDiff (/ (- preVal minVal) valDiff)))
-      (let rBall (if (= preVal srcVal) 10! 0!)
-        [ (wrap (circle 'black' xBall y rBall)) ])))
-    (let endpoints
-      [ (wrap (circle 'black' x0 y 4!)) (wrap (circle 'black' x1 y 4!)) ]
-    (let tickpoints
-      (let sep (/ (- x1 x0) (+ n 1!))
-      (map (\\i (wrap (circle 'grey' (+ (+ x0 sep) (mult i sep)) y 4!)))
-           (range 0! (- n 1!))))
-    (let label [ (text (+ x1 10!) (+ y 5!) (+ caption (toString item))) ]
-    (concat [ rail endpoints tickpoints ball label ]))))))
-  [item shapes])))))))))
-
-(def addSelectionSliders (\\(y0 shapesCaps)
-  (let seeds [0 0 0 0 0 0 0 0 0 0] ; hard-coded limit
-  (let shapesCapsSeeds (zip shapesCaps (take seeds (len shapesCaps)))
-  (let foo (\\[i [[shape cap] seed]]
-    (let [k _ _] shape
-    (let enum
-      (if (= k 'circle') ['' 'cx' 'cy' 'r']
-      (if (= k 'line')   ['' 'x1' 'y1' 'x2' 'y2']
-      (if (= k 'rect')   ['' 'x' 'y' 'width' 'height']
-        [(+ 'NO SELECTION ENUM FOR KIND ' k)])))
-    (let [item slider] (enumSlider 20! 170! (+ y0 (mult i 30!)) enum cap seed)
-    (let shape1 (addAttr shape ['SELECTED' item]) ; TODO overwrite existing
-    [shape1|slider])))))
-  (concat (mapi foo shapesCapsSeeds)))))))
-
-(svg (addSelectionSliders 30! [
-  [ (rect 'maroon' 300  30 50 15) 'pt0: ' ]
-  [ (rect 'maroon' 300  60 50 15) 'pt1: ' ]
-  [ (rect 'maroon' 300  90 50 15) 'pt2: ' ]
-  [ (rect 'maroon' 300 120 50 15) 'pt3: ' ]
-  [ (rect 'maroon' 300 150 50 15) 'pt4: ' ]
-  [ (rect 'maroon' 300 180 50 15) 'pt5: ' ]
-]))
-
-"
-
-relatePoints3 =
- "
-(def seeds [0 0 0])
-(svg (addSelectionSliders 30! seeds [
-  [ (line 'darkblue'  0 100 100 200 200) 'dummy: ' ]
-  [ (line 'darkblue'  8 100 100 200 200) 'line1: ' ]
-  [ (line 'darkblue'  8 100 300 200 400) 'line2: ' ]
-]))
-
-"
-
+-- LITTLE_TO_ELM relatePoints0
+-- LITTLE_TO_ELM relatePoints1
+-- LITTLE_TO_ELM relatePoints2
+-- LITTLE_TO_ELM relatePoints3
 -- LITTLE_TO_ELM relatePoints4
 
 examples =
@@ -3943,10 +3818,10 @@ examples =
   , makeExample "RelateRects1" relateRects1
   , makeExample "RelateCircles0" relateCircles0
   , makeExample "RelateLines0" relateLines0
-  , makeExample "RelatePoints0" relatePoints0
-  , makeExample "RelatePoints1" relatePoints1
-  , makeExample "RelatePoints2" relatePoints2
-  , makeExample "RelatePoints3" relatePoints3
+  -- , makeExample "RelatePoints0" relatePoints0
+  -- , makeExample "RelatePoints1" relatePoints1
+  -- , makeExample "RelatePoints2" relatePoints2
+  -- , makeExample "RelatePoints3" relatePoints3
   -- , makeExample "RelatePoints4" relatePoints4
   , makeExample "Delete Boxes" deleteBoxes
 

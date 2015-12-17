@@ -861,14 +861,20 @@ inferCircleOfCircles groupBox _ _ v' =
     in
     let theShapes =
       if groupBox then
-        "  [(rotateAround (radToDeg rot) gcx gcy"                 `nl`
-        "    ['g' [['fill' 'lightyellow']]"                       `nl`
-        "      (groupMap " ++ flowIndices ++ " (\\i"              `nl`
-        "        (let cx (+ gcx (* gr (cos (* i theta))))"        `nl`
-        "        (let cy (- gcy (* gr (sin (* i theta))))"        `nl`
-        "        (let r       " ++ chooseAvg rs                   `nl`
-        "        (let fill    " ++ chooseFirst fills              `nl`
-        "          (circle fill cx cy r)))))))])]"
+        "  (let box"                                              `nl`
+        "    (let padding " ++ "10!"                              `nl`
+        "    (let len       (+ (* 2! gr) (* 2! padding))"         `nl`
+        "      (rectCenter [0! 0! 0! 0!] gcx gcy len len)))"      `nl`
+        "  (let circles"                                          `nl`
+        "    (groupMap " ++ flowIndices ++ " (\\i"                `nl`
+        "      (let cx (+ gcx (* gr (cos (* i theta))))"          `nl`
+        "      (let cy (- gcy (* gr (sin (* i theta))))"          `nl`
+        "      (let r       " ++ chooseAvg rs                     `nl`
+        "      (let fill    " ++ chooseFirst fills                `nl`
+        "        (circle fill cx cy r)))))))"                     `nl`
+        "  (basicZonesTail"                                       `nl`
+        "    (map (rotateAround rot gcx gcy)"                     `nl`
+        "         (cons box circles)))))"
       else
         "  (groupMap " ++ flowIndices ++ " (\\i"                  `nl`
         "    (let cx   (+ gcx (* gr (cos (+ rot (* i theta)))))"  `nl`
@@ -883,7 +889,7 @@ inferCircleOfCircles groupBox _ _ v' =
       "  (let gcy     " ++ sgy                                  `nl`
       "  (let gr      " ++ toString gr                          `nl`
       "  (let theta   " ++ toString (2*pi / toFloat n) ++ "!"   `nl`
-      "  (let rot     " ++ toString rot ++ "!"                  `nl`
+      "  (let rot     " ++ toString rot                         `nl`
       "  (let indices " ++ indices                              `nl`
             theShapes ++ ")))))))"                              `nl`
       ""                                                        `nl`
@@ -990,16 +996,21 @@ inferGroupOfLines elastic _ _ v' =
     let s =
       "(def newGroup (\\(x0 y0 w h)"                            `nl`
       "  (let [xw yh]           " ++ "[(+ x0 w) (+ y0 h)]"      `nl`
+      "  (let gcx               " ++ " (+ x0 (/ (- xw x0) 2))"  `nl`
+      "  (let gcy               " ++ " (+ y0 (/ (- yh y0) 2))"  `nl`
+      "  (let rot               " ++ "0"                        `nl`
       "  (let padding           " ++ "10!"                      `nl`
       "  (let " ++ sHelpers                                     `nl`
       "  (let box"                                              `nl`
       "    (let [gx gy] [(- x0 padding) (- y0 padding)]"        `nl`
       "    (let gw (+ w (mult 2! padding))"                     `nl`
       "    (let gh (+ h (mult 2! padding))"                     `nl`
-      "      (rect 'lightgray' gx gy gw gh))))"                 `nl`
+      "      (rect [0! 0! 0! 0!] gx gy gw gh))))"               `nl`
       "  (let lines"                                            `nl`
       "    " ++ Utils.bracks (String.join "\n     " newLines)   `nl`
-      "  (cons box lines))))))))"                               `nl`
+      "  (basicZonesTail"                                       `nl`
+      "    (map (rotateAround rot gcx gcy)"                     `nl`
+      "         (cons box lines)))))))))))))"                   `nl`
       ""                                                        `nl`
       "(svg (newGroup " ++ sBounds ++ "))"
       -- "  (let [xTL xTR xBL xBR] " ++ "[x0 xw x0 xw]"            `nl`
@@ -1163,8 +1174,8 @@ inferRelated genSymK e _ v' =
 inferNewRelationships e v v' =
      maybeToMaybeOne (inferRelatedRectsX e v v')
   ++ maybeToMaybeOne (inferRelatedRectsY e v v')
-  ++ maybeToMaybeOne (inferCircleOfCircles False e v v')
-  -- ++ maybeToMaybeOne (inferCircleOfCircles True e v v')
+  -- ++ maybeToMaybeOne (inferCircleOfCircles False e v v')
+  ++ maybeToMaybeOne (inferCircleOfCircles True e v v')
   ++ maybeToMaybeOne (inferGroupOfLines True e v v')
   ++ maybeToMaybeOne (inferGroupOfLines False e v v')
 
