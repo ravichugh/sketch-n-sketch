@@ -9,6 +9,7 @@ build/out/ace.js
 build/out/toggleAnimationLoopback.js
 build/out/mode-little.js
 build/out/theme-chrome.js
+build/out/img/*
 *swp
 src/*swp
 src/*swo
