@@ -415,6 +415,32 @@ applySubst subst e =
   EOption s1 s2 e1 ->
     EOption s1 s2 (applySubst subst e1)
 
+
+unfrozenLocIdsAndNumbers : Exp -> List (LocId, Num)
+unfrozenLocIdsAndNumbers e =
+  case e.val.e__ of
+    EConst n l wd ->
+      case l of
+        (locId, "!", _) -> []
+        (locId, _,   _) -> [(locId, n)]
+
+    EBase _    -> []
+    EVar _     -> []
+    EFun ps e' -> unfrozenLocIdsAndNumbers e'
+    EOp op es  -> List.concat (List.map unfrozenLocIdsAndNumbers es)
+    EList es m ->
+      case m of
+        Just e  -> List.concat (List.map unfrozenLocIdsAndNumbers es) |> List.append (unfrozenLocIdsAndNumbers e)
+        Nothing -> List.concat (List.map unfrozenLocIdsAndNumbers es)
+
+    EIndList rs -> []
+    EApp f es  -> List.concat (List.map unfrozenLocIdsAndNumbers es)
+    ELet k b p e1 e2 -> (unfrozenLocIdsAndNumbers e1) ++ (unfrozenLocIdsAndNumbers e2)
+    EIf e1 e2 e3 -> (unfrozenLocIdsAndNumbers e1) ++ (unfrozenLocIdsAndNumbers e2) ++ (unfrozenLocIdsAndNumbers e3)
+    ECase e l -> (unfrozenLocIdsAndNumbers e) ++ List.concat (List.map (\branch -> unfrozenLocIdsAndNumbers (snd branch.val)) l)
+    EComment s e1 -> (unfrozenLocIdsAndNumbers e1)
+    EOption s1 s2 e1 -> (unfrozenLocIdsAndNumbers e1)
+
 {-
 -- for now, LocId instead of EId
 type alias ESubst = Dict.Dict LocId Exp__

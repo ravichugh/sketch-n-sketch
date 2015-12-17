@@ -965,8 +965,27 @@ canvas_ w h model =
                                 ]
       in
       let
-        possibleChangeToSvg (exp, val, slate, code) =
-          -- TODO
+        animatePossibleChange (exp, val, slate, code) =
+          let decimalPart a = a - (toFloat <| truncate a) in
+          let nToRand n = -- Semi-random function mapping integers to [0.0, 1.0)
+            let f = toFloat n in
+            decimalPart ((1.0 + f*f*f*f) * e)
+          in
+          let animateNumber i x time =
+            let baseSpeed = 0.4 in
+            let frequency = baseSpeed * (0.25 + nToRand i) in
+            let theta = time * frequency * 2.0 * pi in
+            x * (1 + 0.2 * sin(theta))
+          in
+          let locIdsAndNumbers = unfrozenLocIdsAndNumbers exp in
+          let subst = Dict.fromList (Utils.mapi (\(i, (locId, x)) -> (locId, animateNumber i x model.syncSelectTime)) locIdsAndNumbers) in
+          -- let _ = Debug.log (toString subst) subst in
+          -- let _ = Debug.log (toString model.runAnimation) model.runAnimation in
+          let newExp = applyLocSubst subst exp in
+          let (newVal,_) = Eval.run newExp in
+          let slateToDraw = LangSvg.resolveToIndexedTree model.slideNumber model.movieNumber model.movieTime newVal in
+          (slateToDraw, (exp, val, slate, code))
+        possibleChangeToSvg (slateToDraw, (exp, val, slate, code)) =
           let model' = { model | showZones = 0, showWidgets = False} in
           Svg.svg [ Svg.Attributes.viewBox (String.join " " (List.map toString [0, 0, w, h]))
                   , Attr.style possibleChangeStyle
@@ -974,7 +993,7 @@ canvas_ w h model =
                   , Events.onMouseOver events.address (PreviewCode (Just code))
                   , Events.onMouseOut events.address (PreviewCode Nothing)
                   ]
-                  [ buildSvg (model', False) slate ]
+                  [ buildSvg (model', False) slateToDraw ]
         cancelButton = Html.button [ Attr.style (possibleChangeStyle ++ [("font-size", "25px")])
                                    , Events.onClick events.address CancelSync
                                    ]
@@ -984,7 +1003,7 @@ canvas_ w h model =
         <| Html.toElement w h
         <| Html.div [ Attr.style [("overflow", "auto"), ("width", toString w), ("height", toString h)]
                     ]
-        <| (List.map possibleChangeToSvg possibleChanges) ++ [cancelButton]
+        <| (List.map possibleChangeToSvg (List.map animatePossibleChange possibleChanges)) ++ [cancelButton]
     _ ->
       Html.toElement w h (mkSvg addZones mainCanvas)
 

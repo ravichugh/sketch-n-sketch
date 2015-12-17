@@ -39,6 +39,7 @@ type alias Model =
   , movieDuration : Float
   , movieContinue : Bool
   , runAnimation : Bool
+  , syncSelectTime : Float
   , slate : RootedIndexedTree
   , widgets : Widgets
   , mode : Mode
@@ -251,6 +252,7 @@ sampleModel =
     , movieDuration = movieDuration
     , movieContinue = movieContinue
     , runAnimation  = True
+    , syncSelectTime = 0.0
     , slate         = indexedTree
     , widgets       = ws
     , mode          = mkLive Sync.defaultOptions 1 1 0.0 e v

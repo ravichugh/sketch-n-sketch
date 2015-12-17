@@ -471,15 +471,22 @@ upstate evt old = case debugLog "Event" evt of
         _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
 
     TickDelta deltaT ->
-      if old.movieTime < old.movieDuration then
-        -- Prevent "jump" after slow first frame render.
-        let adjustedDeltaT = if old.movieTime == 0.0 then clamp 0.0 50 deltaT else deltaT in
-        let newMovieTime = clamp 0.0 old.movieDuration (old.movieTime + (adjustedDeltaT / 1000)) in
-        upstate Redraw { old | movieTime = newMovieTime }
-      else if old.movieContinue == True then
-        upstate NextMovie old
-      else
-        { old | runAnimation = False }
+      case old.mode of
+        SyncSelect _ ->
+          -- Prevent "jump" after slow first frame render.
+          let adjustedDeltaT = if old.syncSelectTime == 0.0 then clamp 0.0 50 deltaT else deltaT in
+          upstate Redraw { old | syncSelectTime = old.syncSelectTime + (adjustedDeltaT / 1000) }
+        _ ->
+          if old.movieTime < old.movieDuration then
+            -- Prevent "jump" after slow first frame render.
+            let adjustedDeltaT = if old.movieTime == 0.0 then clamp 0.0 50 deltaT else deltaT in
+            let newMovieTime = clamp 0.0 old.movieDuration (old.movieTime + (adjustedDeltaT / 1000)) in
+            upstate Redraw { old | movieTime = newMovieTime }
+          else if old.movieContinue == True then
+            upstate NextMovie old
+          else
+            { old | runAnimation = False }
+
 
     RelateAttrs ->
       let (_,tree) = old.slate in
@@ -501,13 +508,15 @@ upstate evt old = case debugLog "Event" evt of
         { old | mode = SyncSelect possibleChanges
               , genSymCount = nextK
               , selectedAttrs = Set.empty -- TODO
+              , runAnimation = True
+              , syncSelectTime = 0.0
               }
 
     RelateShapes ->
       let newval = slateToVal old.slate in
       let l = Sync.inferNewRelationships old.inputExp old.inputVal newval in
       let possibleChanges = List.map (addSlateAndCode old) l in
-        { old | mode = SyncSelect possibleChanges }
+        { old | mode = SyncSelect possibleChanges, runAnimation = True, syncSelectTime = 0.0 }
 
     -- TODO AdHoc/Sync not used at the moment
     Sync ->
@@ -532,17 +541,17 @@ upstate evt old = case debugLog "Event" evt of
               (Ok [], (nextK, changes)) ->
                 let _ = debugLog ("no live updates, only related var") () in
                 let m = SyncSelect (addSlateAndCodeToAll changes) in
-                upstate Run { old | mode = m, genSymCount = nextK }
+                { old | mode = m, genSymCount = nextK, runAnimation = True, syncSelectTime = 0.0 }
               (Ok live, _) ->
                 let n = debugLog "# of live updates" (List.length live) in
                 let changes = live ++ delete ++ relatedG ++ struct in
                 let m = SyncSelect (addSlateAndCodeToAll changes) in
-                upstate Run { old | mode = m }
+                { old | mode = m, runAnimation = True, syncSelectTime = 0.0 }
               (Err e, _) ->
                 let _ = debugLog ("no live updates: " ++ e) () in
                 let changes = delete ++ relatedG ++ struct in
                 let m = SyncSelect (addSlateAndCodeToAll changes) in
-                upstate Run { old | mode = m }
+                { old | mode = m, runAnimation = True, syncSelectTime = 0.0 }
         _ -> Debug.crash "upstate Sync"
 
     SelectOption (exp, val, slate, code) ->
