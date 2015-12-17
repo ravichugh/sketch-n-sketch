@@ -726,13 +726,13 @@ lookupWithDefault def vals =
 -}
 
 strDictOf vals =
-  let foo (i,v) = Utils.bracks (Utils.spaces [toString (i-1), strVal v]) in
+  let foo (i,v) = Utils.bracks (Utils.spaces [(toString (i-1)) ++ "!", strVal v]) in
   Utils.bracks (Utils.spaces (Utils.mapi foo vals))
 
 strDictOfIndexedVals indexedVals =
   Utils.bracks <| Utils.spaces <|
     List.map
-      (\(i,v) -> Utils.bracks <| Utils.spaces [toString (i-1), strVal v])
+      (\(i,v) -> Utils.bracks <| Utils.spaces [(toString (i-1)) ++ "!", strVal v])
       indexedVals
 
 -- returns Nothing if not sorted (either non-decreasing or non-increasing)
