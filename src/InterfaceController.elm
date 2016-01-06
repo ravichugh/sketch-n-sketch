@@ -211,7 +211,7 @@ canvasOriginHorizontal old =
   --   hMid is calculated weirdly in View...
   let
     hGut    = params.mainSection.horizontal.hGut
-    hCode_  = (snd old.dimensions - hMid - 2*hGut) // 2 + hMid
+    hCode_  = (snd old.dimensions - 2*hMid - 3*hGut) // 2 + hMid
     hCode   = hCode_ + old.midOffsetY
     -- TODO consider hideCode and hideCanvas
     hMid    = params.mainSection.widgets.hBtn

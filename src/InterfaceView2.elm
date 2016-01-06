@@ -1224,7 +1224,7 @@ mainSectionHorizontal w h model =
   let
     hGut    = params.mainSection.horizontal.hGut
     hMiddle = hBtn
-    hCode_  = (h - hMiddle - hGut - hGut) // 2
+    hCode_  = (h - 2*hMiddle - 3*hGut) // 2
     hCode   = hCode_ + model.midOffsetY
     hCanvas = hCode_ - model.midOffsetY - hZInfo
     hZInfo  = params.mainSection.canvas.hZoneInfo
