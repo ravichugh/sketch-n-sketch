@@ -1,4 +1,5 @@
-module ExamplesGenerated (list, scratchName, scratch) where
+-- module ExamplesGenerated (list, scratchName, scratch) where
+module ExamplesGenerated where -- TODO expose everything for now for VisualEditor.elm
 
 import Lang
 import LangParser2 as Parser
