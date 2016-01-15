@@ -140,7 +140,7 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | MouseClick (Int, Int) -- used to add points to a new polygon
            | MouseUp
            | MousePos (Int, Int)
-           | TickDelta Float -- 30fps time tick, Float is time since last tick
+           | TickDelta Float -- 60fps time tick, Float is time since last tick
            | Sync
            | PreviewCode (Maybe Code)
            | SelectOption PossibleChange
