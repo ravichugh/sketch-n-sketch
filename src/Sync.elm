@@ -1058,7 +1058,10 @@ relateBaseOffset genSymK e ntts_ =
   let projBase t = case snd (fst t) of
     TrLoc (_,_,"") -> Nothing
     TrLoc loc      -> Just loc
-    _              -> Debug.crash "relateBaseOffset"
+    -- _              -> Debug.crash "relateBaseOffset"
+    tr             -> Debug.crash <| "relateBaseOffset: " ++ strTrace tr
+    -- TODO need to take static variable into account...
+    -- the TrLoc cases should be the last resort...
   in
   let projBaseOff baseLoc ntt = case ntt of
     -- TODO check that t2 is a constant (loc w/o var)
