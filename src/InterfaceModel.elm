@@ -118,11 +118,12 @@ type alias PossibleChange = (Exp, Val, RootedIndexedTree, Code)
 -- InterfaceStorage is more succinct (Enum typeclass would be nice here...)
 type alias ShowZones = Int
 
-showZonesModes = 6
+showZonesModeCount = 6
+
+showZonesModes = [ 0 .. (showZonesModeCount - 1) ]
 
 (showZonesNone, showZonesBasic, showZonesSelect, showZonesRot, showZonesColor, showZonesDel) =
-  Utils.unwrap6
-    [ 0 .. (showZonesModes - 1) ]
+  Utils.unwrap6 showZonesModes
 
 type ToolType
   = Cursor | SelectAttrs | SelectShapes
@@ -153,7 +154,7 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | StartAnimation
            | Redraw
            | ToggleOutput
-           | ToggleZones
+           | SelectZonesMode Int
            | NextSlide
            | PreviousSlide
            | NextMovie

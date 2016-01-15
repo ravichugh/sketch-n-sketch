@@ -1072,8 +1072,8 @@ widgetsToolExtras w h model =
     SelectAttrs  -> [ gap , relateAttrsButton w h ]
 -}
     Cursor       -> if model.showZones == showZonesSelect
-                    then [ gap , zoneButton model w h, relateAttrsButton w h ]
-                    else [ gap , zoneButton model w h  ]
+                    then gap :: (zoneButtons model w h) ++ [ relateAttrsButton w h ]
+                    else gap :: (zoneButtons model w h)
     SelectShapes -> [ gap , relateShapesButton w h ]
     _            -> []
 
@@ -1339,19 +1339,23 @@ relateAttrsButton =
 relateShapesButton =
   simpleButton RelateShapes "Relate" "Relate" "Relate Shapes"
 
-zoneButton model =
-  let cap =
-    if model.showZones == showZonesNone       then "[Zones] Hidden"
-    else if model.showZones == showZonesBasic then "[Zones] Basic"
-    else if model.showZones == showZonesSelect then "[Zones] Attrs"
-    else if model.showZones == showZonesRot   then "[Zones] Rotation"
-    else if model.showZones == showZonesColor then "[Zones] Color"
-    else if model.showZones == showZonesDel   then "[Zones] Delete"
+zoneButtons model w h =
+  let caption mode =
+    if mode == showZonesNone        then "[Zones] Hidden"
+    else if mode == showZonesBasic  then "[Zones] Basic"
+    else if mode == showZonesSelect then "[Zones] Attrs"
+    else if mode == showZonesRot    then "[Zones] Rotation"
+    else if mode == showZonesColor  then "[Zones] Color"
+    else if mode == showZonesDel    then "[Zones] Delete"
     else
-      Debug.crash "zoneButton"
+      Debug.crash "zoneButton caption"
   in
-  simpleEventButton_ False
-    ToggleZones "Toggle Zones" "Toggle Zones" cap
+  let zoneButton mode =
+    let selected = (model.showZones == mode) in
+    let btnKind = if selected then Selected else Unselected in
+      simpleButton_ events.address btnKind Noop False (SelectZonesMode mode) "Still dunno what this does" "Dunno what this is for" (caption mode) w h
+  in
+    List.map zoneButton showZonesModes
 
 {-
 shapeButton model =

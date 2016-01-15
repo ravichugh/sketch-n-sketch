@@ -85,18 +85,19 @@ switchOrient m = case m of
   Vertical -> Horizontal
   Horizontal -> Vertical
 
-toggleShowZones x = (1 + x) % showZonesModes
+toggleShowZones x = (1 + x) % showZonesModeCount
 {- -- TODO turning off rotation zones for now
 toggleShowZones x =
-  let i = (1 + x) % showZonesModes in
+  let i = (1 + x) % showZonesModeCount in
   if | i == showZonesRot -> toggleShowZones i
      | otherwise         -> i
 -}
 
-maybeAdjustShowZones m =
-  case (m.mode, m.showZones == showZonesDel) of
-    (Live _, True) -> { m | showZones = toggleShowZones m.showZones }
-    _              -> m
+-- if delete mode is not applicable but set, use oldMode instead
+maybeLeaveDeleteMode newModel oldShowZones =
+  case (newModel.mode, newModel.showZones == showZonesDel) of
+    (Live _, True) -> { newModel | showZones = oldShowZones }
+    _              -> newModel
 
 -- may want to eventually have a maximum history length
 addToHistory s h = (s :: fst h, [])
@@ -555,15 +556,16 @@ upstate evt old = case debugLog "Event" evt of
         _ -> Debug.crash "upstate Sync"
 
     SelectOption (exp, val, slate, code) ->
-      maybeAdjustShowZones
-      { old | code          = code
-            , inputExp      = exp
-            , inputVal      = val
-            , history       = addToHistory old.code old.history
-            , slate         = slate
-            , previewCode   = Nothing
-            , toolType      = Cursor
-            , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp val }
+      maybeLeaveDeleteMode
+        { old | code          = code
+              , inputExp      = exp
+              , inputVal      = val
+              , history       = addToHistory old.code old.history
+              , slate         = slate
+              , previewCode   = Nothing
+              , toolType      = Cursor
+              , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp val }
+        showZonesNone
 
 
     PreviewCode maybeCode ->
@@ -611,8 +613,8 @@ upstate evt old = case debugLog "Event" evt of
 
     SwitchOrient -> { old | orient = switchOrient old.orient }
 
-    ToggleZones ->
-      maybeAdjustShowZones { old | showZones = toggleShowZones old.showZones }
+    SelectZonesMode i ->
+      maybeLeaveDeleteMode { old | showZones = i } old.showZones
 
     Undo ->
       case (old.code, old.history) of
@@ -719,17 +721,13 @@ upstate evt old = case debugLog "Event" evt of
                 if      l == keysE        then fire Edit
                 else if l == keysZ        then fire Undo
                 else if l == keysY        then fire Redo
-                else if l == keysG        then fire ToggleZones  -- for righties
-                else if l == keysH        then fire ToggleZones  -- for lefties
                 else if l == keysT        then fire (SwitchMode AdHoc)
                 else if l == keysS        then fire Noop -- placeholder for Save
                 else if l == keysShiftS   then fire Noop -- placeholder for Save As
                 else                           fire Noop
 
               AdHoc ->
-                if      l == keysG        then fire ToggleZones  -- for righties
-                else if l == keysH        then fire ToggleZones  -- for lefties
-                else if l == keysZ        then fire Undo
+                if      l == keysZ        then fire Undo
                 else if l == keysY        then fire Redo
                 else if l == keysT        then fire Sync
                 else                           fire Noop
