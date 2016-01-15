@@ -762,6 +762,7 @@ drawNewShape model =
     MouseDrawNew "rect"    [pt2, pt1]    -> drawNewRect pt2 pt1
     MouseDrawNew "ellipse" [pt2, pt1]    -> drawNewEllipse pt2 pt1
     MouseDrawNew "polygon" (ptLast::pts) -> drawNewPolygon ptLast pts
+    MouseDrawNew "ANCHOR" [pt]           -> drawNewAnchor pt
     _                                    -> []
 
 defaultOpacity        = Attr.style [("opacity", "0.5")]
@@ -835,6 +836,20 @@ drawNewPolygon ptLast points =
           ] ]
    in
    dot :: maybeShape
+
+-- TODO this doesn't appear right away
+-- (dor does initial poly, which appears only on MouseUp...)
+drawNewAnchor (x,y) =
+  let r = drawNewPolygonDotSize in
+  let dot =
+    svgCircle [
+        defaultFill , defaultOpacity
+      , LangSvg.attr "cx" (toString 200)
+      , LangSvg.attr "cy" (toString 200)
+      , LangSvg.attr "r" (toString 10)
+      ]
+  in
+  [ dot ]
 
 
 --------------------------------------------------------------------------------
@@ -1049,6 +1064,7 @@ widgetsSlideNavigation w h model =
   ]
 
 widgetsTools w h model =
+{-
   [ threeButtons w h
       (toolButton model Cursor)
       (toolButton model SelectAttrs)
@@ -1061,6 +1077,16 @@ widgetsTools w h model =
       (toolButton model Poly)
       (toolButton model Path)
       (toolButton model Text)
+  ]
+-}
+  [ toolButton model Cursor w h
+  , twoButtons w h
+      (toolButton model Line)
+      (toolButton model Rect)
+  , twoButtons w h
+      (toolButton model Oval)
+      (toolButton model Poly)
+  , toolButton model Anchor w h
   ]
 
 widgetsToolExtras w h model =
@@ -1400,15 +1426,21 @@ frozenButton model =
 toolButton : Model -> ToolType -> Int -> Int -> GE.Element
 toolButton model tt w h =
   let cap = case tt of
-    Cursor -> "1"
+    -- Cursor -> "1"
+    Cursor -> "Cursor"
     SelectAttrs -> "2"
     SelectShapes -> "3"
-    Line -> "L"
-    Rect -> "R"
-    Oval -> "E"
-    Poly -> "P"
+    Line -> "Line"
+    Rect -> "Rect"
+    Oval -> "Oval"
+    Poly -> "Poly"
+    -- Line -> "L"
+    -- Rect -> "R"
+    -- Oval -> "E"
+    -- Poly -> "P"
     Path -> "-"
     Text -> "-"
+    Anchor -> "(Dot)"
   in
   let btnKind = if model.toolType == tt then Selected else Unselected in
   simpleButton_ events.address btnKind Noop False

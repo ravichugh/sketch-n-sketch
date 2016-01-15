@@ -246,6 +246,13 @@ addEllipseToCodeAndRun old (x2,y2) (x1,y1) =
   addToCodeAndRun old <|
     strCall "ellipse" (gray :: List.map toString [cx, cy, rx, ry])
 
+addAnchorToCodeAndRun old (cx,cy) =
+  -- style matches center of attr crosshairs (View.zoneSelectPoint_)
+  let r = 6 in
+  addToCodeAndRun old <|
+    strCall "ghost"
+      [strCall "circle" ("'darkgray'" :: List.map toString [cx, cy, r])]
+
 addPolygonToCodeAndRun old points =
   let sPoints =
     Utils.bracks <| Utils.spaces <|
@@ -273,6 +280,40 @@ addToCodeAndRun old newShape =
 
 switchToCursorTool old =
   { old | mouseMode = MouseNothing , toolType = Cursor }
+
+
+--------------------------------------------------------------------------------
+-- TODO
+
+maybeFindAttr_ id kind attr attrs =
+  case Utils.maybeFind attr attrs of
+    Just aval -> LangSvg.valOfAVal aval
+    Nothing   -> Debug.crash <| toString ("RelateAttrs 2", id, kind, attr, attrs)
+
+
+getXYi attrs si fstOrSnd =
+  let i = Utils.fromOk_ <| String.toInt si in
+  case Utils.maybeFind "points" attrs of
+    Just aval -> case aval.av_ of
+      LangSvg.APoints pts -> LangSvg.valOfAVal <| LangSvg.aNum <| fstOrSnd <| Utils.geti i pts
+      _                   -> Debug.crash "getXYi 2"
+    _ -> Debug.crash "getXYi 1"
+
+maybeFindAttr id kind attr attrs =
+  case (kind, String.uncons attr) of
+    ("polygon", Just ('x', si)) -> getXYi attrs si fst
+    ("polygon", Just ('y', si)) -> getXYi attrs si snd
+{-
+      let i = Utils.fromOk_ <| String.toInt si in
+      case Utils.maybeFind "points" attrs of
+        Just aval -> case aval.av_ of
+          LangSvg.APoints pts -> LangSvg.valOfAVal <| LangSvg.aNum <| fst <| Utils.geti i pts
+          _                   -> Debug.crash "maybeFindAttr 2"
+        _ -> Debug.crash "maybeFindAttr 1"
+-}
+
+    -- ("polygon", Just ("y", si)) ->
+    _ -> maybeFindAttr_ id kind attr attrs
 
 
 --------------------------------------------------------------------------------
@@ -352,6 +393,7 @@ upstate evt old = case debugLog "Event" evt of
         (MouseNothing, Rect) -> { old | mouseMode = MouseDrawNew "rect" [] }
         (MouseNothing, Oval) -> { old | mouseMode = MouseDrawNew "ellipse" [] }
         (MouseNothing, Poly) -> { old | mouseMode = MouseDrawNew "polygon" [] }
+        (MouseNothing, Anchor) -> { old | mouseMode = MouseDrawNew "ANCHOR" [] }
         _                    ->   old
 
     MouseClick click ->
@@ -369,6 +411,9 @@ upstate evt old = case debugLog "Event" evt of
             else if List.length points == 2 then { old | mouseMode = MouseNothing }
             else if List.length points == 1 then switchToCursorTool old
             else addPolygonToCodeAndRun old points
+        MouseDrawNew "ANCHOR" [] ->
+          let pointOnCanvas = clickToCanvasPoint old click in
+          { old | mouseMode = MouseDrawNew "ANCHOR" [pointOnCanvas] }
         _ ->
           old
 
@@ -466,6 +511,7 @@ upstate evt old = case debugLog "Event" evt of
         (_, MouseDrawNew "line" [pt2, pt1])    -> addLineToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "rect" [pt2, pt1])    -> addRectToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "ellipse" [pt2, pt1]) -> addEllipseToCodeAndRun old pt2 pt1
+        (_, MouseDrawNew "ANCHOR" [pt])        -> addAnchorToCodeAndRun old pt
         (_, MouseDrawNew "polygon" points)     -> old
 
         _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
@@ -491,12 +537,15 @@ upstate evt old = case debugLog "Event" evt of
     RelateAttrs ->
       let (_,tree) = old.slate in
       let selectedVals = debugLog "selectedVals" <|
-        let foo (id,_,attr) acc =
+        let foo (id,kind,attr) acc =
           case Dict.get id tree of
             Just (LangSvg.SvgNode _ attrs _) ->
+              maybeFindAttr id kind attr attrs :: acc
+{-
               case Utils.maybeFind attr attrs of
                 Just aval -> LangSvg.valOfAVal aval :: acc
-                Nothing   -> Debug.crash "RelateAttrs 2"
+                Nothing   -> Debug.crash <| toString ("RelateAttrs 2", id, kind, attr)
+-}
             Just (LangSvg.TextNode _) -> acc
             Nothing                   -> Debug.crash "RelateAttrs 1"
         in
