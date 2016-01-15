@@ -17,6 +17,7 @@ basicStyle =
   Attr.style
     [ ("font-size", "20pt")
     , ("font-family", "monospace")
+    , ("line-height", "1.8")
     ]
 
 literalStyle : Attribute
@@ -46,8 +47,22 @@ varUseStyle =
 --
 htmlOfExp : Exp -> Html
 htmlOfExp e =
-  let s = Unparser.unparseE e in
-  Html.pre [ basicStyle ] [ Html.text s ]
+  let e_ = e.val in
+  let e__ = e_.e__ in
+  case e__ of
+    EConst n _ _ ->
+      Html.span [ literalStyle ] [ Html.text (toString n) ]
+    EOp op [e1, e2] ->
+      let (h1,h2) = (htmlOfExp e1, htmlOfExp e2) in
+      Html.span [ basicStyle ]
+        [ Html.text <| "(" ++ strOp op.val ++ " "
+        , h1
+        , Html.text " "
+        , h2
+        ]
+    _ ->
+      let s = Unparser.unparseE e in
+      Html.pre [] [ Html.text s ]
 
 
 ------------------------------------------------------------------------------
@@ -57,6 +72,7 @@ main : Html
 main =
   -- NOTE: for now, toggle different examples from ExamplesGenerated.elm
   let testString = Ex.sineWaveOfBoxes in
+  -- let testString = "(+ 1 2)" in
   let testExp =
     case Parser.parseE testString of
       Err _ -> Debug.crash "main: bad parse"
@@ -64,7 +80,7 @@ main =
   in
   let head = Html.node "head" [] [] in
   let body = Html.node "body"
-               [ Attr.contenteditable True ]
+               [ basicStyle, Attr.contenteditable True ]
                [ htmlOfExp testExp ]
   in
   Html.node "html" [] [head, body]
