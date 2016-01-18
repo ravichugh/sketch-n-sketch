@@ -492,7 +492,7 @@ upstate evt old = case debugLog "Event" evt of
     RelateAttrs ->
       let (_,tree) = old.slate in
       let selectedVals = debugLog "selectedVals" <|
-        let foo (id,_,attr) acc =
+        let foo (id, attr) acc =
           case Dict.get id tree of
             Just (LangSvg.SvgNode _ attrs _) ->
               case Utils.maybeFind attr attrs of

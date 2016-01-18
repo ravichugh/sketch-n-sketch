@@ -64,7 +64,7 @@ type alias Model =
   , errorBox : Maybe String
   , genSymCount : Int
   , toolType : ToolType
-  , selectedAttrs : Set.Set (NodeId, ShapeKind, String)
+  , selectedAttrs : Set.Set (NodeId, String)
   }
 
 type Mode

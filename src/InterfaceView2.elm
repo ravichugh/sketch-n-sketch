@@ -532,34 +532,34 @@ colorLineNotSelected    = "red"
 
 strokeWidth             = LangSvg.attr "stroke-width" "10"
 
-type alias Triple = (LangSvg.NodeId, LangSvg.ShapeKind, String)
-type alias Quad   = (LangSvg.NodeId, LangSvg.ShapeKind, String, String)
+type alias NodeIdAndAttrName     = (LangSvg.NodeId, String)
+type alias NodeIdAndTwoAttrNames = (LangSvg.NodeId, String, String)
 
-toggleSelected model triple =
+toggleSelected model nodeIdAndAttrName =
   UpdateModel <| \model ->
     let set = model.selectedAttrs in
-    let updateSet = if Set.member triple set then Set.remove else Set.insert in
-    { model | selectedAttrs = updateSet triple set }
+    let updateSet = if Set.member nodeIdAndAttrName set then Set.remove else Set.insert in
+    { model | selectedAttrs = updateSet nodeIdAndAttrName set }
 
 -- TODO given need for model, remove addSelect
 zoneSelectPoint model addSelect quad x y =
   if addSelect then zoneSelectPoint_ model quad x y else []
 
-zoneSelectPoint_ model (id, kind, xAttr, yAttr) x y =
+zoneSelectPoint_ model (id, xAttr, yAttr) x y =
   let len = 20 in
-  let color triple =
-    if Set.member triple model.selectedAttrs
+  let color nodeIdAndAttrName =
+    if Set.member nodeIdAndAttrName model.selectedAttrs
     then colorPointSelected
     else colorPointNotSelected
   in
-  let (xTriple, yTriple) = ((id, kind, xAttr), (id, kind, yAttr)) in
-  let (xColor, yColor) = (color xTriple, color yTriple) in
+  let (xNodeIdAndAttrName, yNodeIdAndAttrName) = ((id, xAttr), (id, yAttr)) in
+  let (xColor, yColor) = (color xNodeIdAndAttrName, color yNodeIdAndAttrName) in
   let yLine =
     svgLine [
         LangSvg.attr "stroke" yColor , strokeWidth
       , LangSvg.attr "x1" (toString (x-len)) , LangSvg.attr "y1" (toString y)
       , LangSvg.attr "x2" (toString (x+len)) , LangSvg.attr "y2" (toString y)
-      , onMouseDown (toggleSelected model yTriple)
+      , onMouseDown (toggleSelected model yNodeIdAndAttrName)
       ]
   in
   let xLine =
@@ -567,7 +567,7 @@ zoneSelectPoint_ model (id, kind, xAttr, yAttr) x y =
         LangSvg.attr "stroke" xColor , strokeWidth
       , LangSvg.attr "y1" (toString (y-len)) , LangSvg.attr "x1" (toString x)
       , LangSvg.attr "y2" (toString (y+len)) , LangSvg.attr "x2" (toString x)
-      , onMouseDown (toggleSelected model xTriple)
+      , onMouseDown (toggleSelected model xNodeIdAndAttrName)
       ]
   in
   let xyDot =
@@ -579,12 +579,12 @@ zoneSelectPoint_ model (id, kind, xAttr, yAttr) x y =
   [xLine, yLine, xyDot]
 
 -- TODO given need for model, remove addSelect
-zoneSelectLine model addSelect triple pt1 pt2 =
-  if addSelect then zoneSelectLine_ model triple pt1 pt2 else []
+zoneSelectLine model addSelect nodeIdAndAttrName pt1 pt2 =
+  if addSelect then zoneSelectLine_ model nodeIdAndAttrName pt1 pt2 else []
 
-zoneSelectLine_ model triple (x1,y1) (x2,y2) =
+zoneSelectLine_ model nodeIdAndAttrName (x1,y1) (x2,y2) =
   let color =
-    if Set.member triple model.selectedAttrs
+    if Set.member nodeIdAndAttrName model.selectedAttrs
     then colorLineSelected
     else colorLineNotSelected
   in
@@ -593,7 +593,7 @@ zoneSelectLine_ model triple (x1,y1) (x2,y2) =
         LangSvg.attr "stroke" color , strokeWidth
       , LangSvg.attr "x1" (toString x1) , LangSvg.attr "y1" (toString y1)
       , LangSvg.attr "x2" (toString x2) , LangSvg.attr "y2" (toString y2)
-      , onMouseDown (toggleSelected model triple)
+      , onMouseDown (toggleSelected model nodeIdAndAttrName)
       ]
   in
   [line]
@@ -646,9 +646,9 @@ makeZones model options shape id l =
           ] ++ zRot
             ++ zColor
             ++ zoneDelete options.addDelete id shape x y (maybeTransformAttr l)
-            ++ zoneSelectLine model options.addSelect (id, shape, "width") (x,y) (x+w,y)
-            ++ zoneSelectLine model options.addSelect (id, shape, "height") (x,y) (x,y+h)
-            ++ zoneSelectPoint model options.addSelect (id, shape, "x", "y") x y
+            ++ zoneSelectLine model options.addSelect (id, "width") (x,y) (x+w,y)
+            ++ zoneSelectLine model options.addSelect (id, "height") (x,y) (x,y+h)
+            ++ zoneSelectPoint model options.addSelect (id, "x", "y") x y
 
     "circle"  -> makeZonesCircle  model options id l
     "ellipse" -> makeZonesEllipse model options id l
@@ -666,8 +666,8 @@ makeZones model options shape id l =
           zoneRotate options.addRot id shape c r (maybeTransformCmds l) in
         let zSelect =
           List.concat
-             [ zoneSelectPoint model options.addSelect (id, shape, "x1", "y1") (fst x1) (fst y1)
-             , zoneSelectPoint model options.addSelect (id, shape, "x2", "y2") (fst x2) (fst y2) ] in
+             [ zoneSelectPoint model options.addSelect (id, "x1", "y1") (fst x1) (fst y1)
+             , zoneSelectPoint model options.addSelect (id, "x2", "y2") (fst x2) (fst y2) ] in
         zLine :: zPts ++ zRot ++ zSelect
 
     "polygon"  -> makeZonesPoly model options shape id l
@@ -686,8 +686,8 @@ makeZonesCircle model options id l =
   ++ [zoneBorder Svg.circle id "circle" "Interior" False options.showBasic attrs transform]
   ++ (zoneRotate options.addRot id "circle" (cx,cy) (r + rotZoneDelta) (maybeTransformCmds l))
   ++ (zoneColor options.addColor id "circle" (cx - r) (cy - r) (maybeColorNumAttr "fill" l))
-  ++ (zoneSelectLine model options.addSelect (id, "circle", "r") (cx,cy) (cx+r,cy))
-  ++ (zoneSelectPoint model options.addSelect (id, "circle", "cx", "cy") cx cy)
+  ++ (zoneSelectLine model options.addSelect (id, "r") (cx,cy) (cx+r,cy))
+  ++ (zoneSelectPoint model options.addSelect (id, "cx", "cy") cx cy)
 
 -- makeZonesEllipse options id l =
 makeZonesEllipse model options id l =
@@ -698,9 +698,9 @@ makeZonesEllipse model options id l =
   ++ [zoneBorder Svg.ellipse id "ellipse" "Interior" False options.showBasic attrs transform]
   ++ (zoneRotate options.addRot id "circle" (cx,cy) (ry + rotZoneDelta) (maybeTransformCmds l))
   ++ (zoneColor options.addColor id "ellipse" (cx - rx) (cy - ry) (maybeColorNumAttr "fill" l))
-  ++ (zoneSelectLine model options.addSelect (id, "ellipse", "rx") (cx,cy) (cx+rx,cy))
-  ++ (zoneSelectLine model options.addSelect (id, "ellipse", "ry") (cx,cy) (cx,cy+ry))
-  ++ (zoneSelectPoint model options.addSelect (id, "ellipse", "cx", "cy") cx cy)
+  ++ (zoneSelectLine model options.addSelect (id, "rx") (cx,cy) (cx+rx,cy))
+  ++ (zoneSelectLine model options.addSelect (id, "ry") (cx,cy) (cx,cy+ry))
+  ++ (zoneSelectPoint model options.addSelect (id, "cx", "cy") cx cy)
 
 -- makeZonesPoly options shape id l =
 makeZonesPoly model options shape id l =
@@ -725,7 +725,7 @@ makeZonesPoly model options shape id l =
   let zSelect =
     let foo (i, ((xi,_),(yi,_))) =
       let (xAttr, yAttr) = ("x" ++ toString i, "y" ++ toString i) in
-      zoneSelectPoint model options.addSelect (id, shape, xAttr, yAttr) xi yi
+      zoneSelectPoint model options.addSelect (id, xAttr, yAttr) xi yi
     in
     List.concat <| Utils.mapi foo pts
   in
