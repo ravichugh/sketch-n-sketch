@@ -88,15 +88,21 @@ htmlOfExp e =
       let (h1, hs) = (htmlOfExp e1, htmlMap htmlOfExp es) in
       Html.span [ basicStyle ] <|
           [ Html.text "( ", h1, Html.text " "] ++ hs
-    ELet k _ p e1 e2 ->
+    ELet k r p e1 e2 ->
       let (h1, h2, h3) = (htmlOfPat p, htmlOfExp e1, htmlOfExp e2) in
-      Html.span [ basicStyle ] <|
-          [ Html.text <| "( " ++ toString k ++ " ", h1, h2, h3 ]
+      case (k,r) of
+        (Let, True)  -> Html.span [ basicStyle ] <| [ Html.text <| "( letrec ", h1, h2, h3 ]
+        (Let, False) -> Html.span [ basicStyle ] <| [ Html.text <| "( let ", h1, h2, h3 ]
+        (Def, True)  -> Html.span [ basicStyle ] <| [ Html.text <| "( defrec ", h1, h2, h3 ]
+        (Def, False) -> Html.span [ basicStyle ] <| [ Html.text <| "( def ", h1, h2, h3 ]
     EList xs m ->
       Html.span [ basicStyle ] <| [ Html.text "[ "] ++ htmlMap htmlOfExp xs ++
         case m of
           Nothing -> [ Html.text " ]" ]
           Just y -> [ Html.text " | ", htmlOfExp y, Html.text " ]" ]
+    EIf e1 e2 e3 ->
+      let (h1,h2,h3) = (htmlOfExp e1, htmlOfExp e2, htmlOfExp e2) in
+      Html.span [ basicStyle ] <| [ Html.text "If ", h1, h2, h3]
     _ -> 
       let s = Unparser.unparseE e in
       Html.pre [] [ Html.text s ]
