@@ -69,8 +69,8 @@ htmlMap f xs =
 
 -- TODO: add correpsonding strings when more styles are added
 pos : Int -> Int -> String -> Attribute
-pos width height styleName =
-  let posInfo = [("left", toString width ++ "pt"), ("top", toString height ++ "pt")] in
+pos height width styleName =
+  let posInfo = [ ("position", "absolute"), ("left", toString (width*20) ++ "pt")] in --, ("top", toString ((toFloat height)*36) ++ "pt")] in
   case styleName of
     "basicStyle" -> Attr.style <|
                     [ ("font-size", "20pt")
@@ -79,23 +79,23 @@ pos width height styleName =
                     ] ++ posInfo
     "literalStyle" -> Attr.style <|
                       [ ("background", "yellow")
-                      -- , ("border", "3pt")
-                      -- , ("border-style", "solid")
+                      , ("border", "3pt")
+                      , ("border-style", "solid")
                       ] ++ posInfo
     "varUseStyle" -> Attr.style <|
                      [ ("background", "red")
-                     -- , ("border", "3pt")
-                     -- , ("border-style", "solid")
+                     , ("border", "3pt")
+                     , ("border-style", "solid")
                      ] ++ posInfo
     "patUseStyle" -> Attr.style <|
                      [ ("background", "blue")
-                     -- , ("border", "3pt")
-                     -- , ("border-style", "solid")
+                     , ("border", "3pt")
+                     , ("border-style", "solid")
                      ] ++ posInfo
     _             -> Attr.style posInfo
 
 insertBr : WithInfo a -> WithInfo b -> List Html
-insertBr e1 e2 =
+insertBr e1 e2 = 
   let (pos1, pos2) = (e1.start, e2.start) in
   let diff = pos2.line - pos1.line in
   List.repeat diff <| Html.br [] []
@@ -177,7 +177,7 @@ main : Html
 main =
   -- NOTE: for now, toggle different examples from ExamplesGenerated.elm
   let testString = Ex.sineWaveOfBoxes in
-  --let testString = "(\\(x y) (f x y))" in
+  let testString = "(\\x (f x))" in
   let testExp =
     case Parser.parseE testString of
       Err _ -> Debug.crash "main: bad parse"
