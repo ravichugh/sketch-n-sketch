@@ -28,6 +28,8 @@ update (k1, v1) vals =
         then (k0, v1) :: vs
         else (k0, v0) :: update (k1, v1) vs
 
+-- Extra elements left off if the lists are different lengths.
+-- Resulting list length is minimum of (length xs, length ys)
 zip : List a -> List b -> List (a,b)
 zip xs ys = case (xs, ys) of
   (x::xs', y::ys') -> (x,y) :: zip xs' ys'
