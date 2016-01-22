@@ -1,4 +1,7 @@
-module LangUnparser (unparseE, bumpCol, incCol) where
+--module LangUnparser (unparseE, bumpCol, incCol) where 
+-- temporarily expose everything for visualeditor
+
+module LangUnparser where
 
 import Lang exposing (..)
 import OurParser2 exposing (Pos, WithPos, WithInfo, startPos)
