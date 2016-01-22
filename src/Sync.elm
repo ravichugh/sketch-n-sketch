@@ -1724,8 +1724,8 @@ evalTr subst tr = Utils.fromJust_ "evalTr" (evalTrace subst tr)
 
 ------------------------------------------------------------------------------
 
-setFromLists : List Locs -> LocSet
-setFromLists = List.foldl (flip Set.union << Set.fromList) Set.empty
+setFromLocLists : List Locs -> LocSet
+setFromLocLists = List.foldl (flip Set.union << Set.fromList) Set.empty
 
 -- TODO compute this along with everything else
 -- could also make this a single dictionary: Dict (NodeId, Zone) Locs
@@ -1736,7 +1736,7 @@ zoneAssignments =
       case m of
         Just (locs,otherLocs) ->
           let yellowLocs = Set.fromList locs in
-          let grayLocs   = setFromLists otherLocs `Set.diff` yellowLocs in
+          let grayLocs   = setFromLocLists otherLocs `Set.diff` yellowLocs in
           Dict.insert z (yellowLocs, grayLocs) acc
         Nothing       -> acc
     ) Dict.empty l
