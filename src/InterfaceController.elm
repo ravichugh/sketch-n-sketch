@@ -105,7 +105,7 @@ addToHistory s h = (s :: fst h, [])
 between1 i (j,k) = i `Utils.between` (j+1, k+1)
 
 cleanExp =
-  mapExp <| \e__ -> case e__ of
+  mapExpViaExp__ <| \e__ -> case e__ of
     EApp e0 [e1,_,_]  -> case e0.val.e__ of
       EVar "inferred" -> e1.val.e__
       _               -> e__
@@ -175,9 +175,14 @@ highlightChanges mStuff changes codeBoxInfo =
       { codeBoxInfo | highlights = hi' }
 
 addSlateAndCode old (exp, val) =
-  let slate = LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val in
-  (exp, val, slate, unparseE exp)
+  let (slate, code) = slateAndCode old (exp, val) in
+  (exp, val, slate, code)
 
+slateAndCode old (exp, val) =
+  let slate =
+    LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val
+  in
+  (slate, unparseE exp)
 
 --------------------------------------------------------------------------------
 
@@ -274,6 +279,25 @@ addToCodeAndRun old newShape =
 
 switchToCursorTool old =
   { old | mouseMode = MouseNothing , toolType = Cursor }
+
+
+nodeIdAndAttrNameToVal (nodeId, attrName) tree =
+  case Dict.get nodeId tree of
+    Just (LangSvg.SvgNode _ attrs _) ->
+      case Utils.maybeFind attrName attrs of
+        Just aval -> Just (LangSvg.valOfAVal aval)
+        Nothing   -> Debug.crash "nodeIdAndAttrNameToVal 2"
+    Just (LangSvg.TextNode _) -> Nothing
+    Nothing                   -> Debug.crash "nodeIdAndAttrNameToVal 1"
+
+pluckSelectedVals selectedAttrs slate =
+  let (_, tree) = slate in
+  let foo nodeIdAndAttrName acc =
+    case nodeIdAndAttrNameToVal nodeIdAndAttrName tree of
+      Just val -> val :: acc
+      Nothing  -> acc
+  in
+  Set.foldl foo [] selectedAttrs
 
 
 --------------------------------------------------------------------------------
@@ -490,19 +514,7 @@ upstate evt old = case debugLog "Event" evt of
 
 
     RelateAttrs ->
-      let (_,tree) = old.slate in
-      let selectedVals = debugLog "selectedVals" <|
-        let foo (id, attr) acc =
-          case Dict.get id tree of
-            Just (LangSvg.SvgNode _ attrs _) ->
-              case Utils.maybeFind attr attrs of
-                Just aval -> LangSvg.valOfAVal aval :: acc
-                Nothing   -> Debug.crash "RelateAttrs 2"
-            Just (LangSvg.TextNode _) -> acc
-            Nothing                   -> Debug.crash "RelateAttrs 1"
-        in
-        Set.foldl foo [] old.selectedAttrs
-      in
+      let selectedVals = debugLog "selectedVals" <| pluckSelectedVals old.selectedAttrs old.slate in
       let revert = (old.inputExp, old.inputVal) in
       let (nextK, l) = Sync.relate old.genSymCount old.inputExp selectedVals in
       let possibleChanges = List.map (addSlateAndCode old) l in
@@ -512,6 +524,158 @@ upstate evt old = case debugLog "Event" evt of
               , runAnimation = True
               , syncSelectTime = 0.0
               }
+
+    DigHole ->
+      let selectedVals =
+        debugLog "selectedVals" <|
+          pluckSelectedVals old.selectedAttrs old.slate
+      in
+      let traces =
+        List.map valToTrace selectedVals
+      in
+      let tracesLocsets =
+        List.map (Sync.locsOfTrace old.syncOptions) traces
+      in
+      let locset =
+        List.foldl Set.union Set.empty tracesLocsets
+      in
+      let locsetList =
+        Set.toList locset
+      in
+      let isLocsetNode exp =
+        case exp.val.e__ of
+          EConst n loc wd -> Set.member loc locset
+          _               -> False
+      in
+      let locToNumber =
+        let accumulateLocToNumbers exp__ dict =
+          case exp__ of
+            EConst n loc wd ->
+              if Set.member loc locset then
+                Dict.insert loc n dict
+              else
+                dict
+            _ -> dict
+        in
+        foldExp
+            accumulateLocToNumbers
+            Dict.empty
+            old.inputExp
+      in
+      let locsAncestors = debugLog "locsAncestors" <|
+        findAllWithAncestors isLocsetNode old.inputExp
+      in
+      -- isScope needs to see the node's parent...because case statements
+      -- produce many scopes out of one expression
+      -- The below adds a maybe parent to each node, so we get List (List
+      -- (Maybe Exp, Exp))
+      let locsAncestorsWithParents = debugLog "locsAncestorsWithParents" <|
+        List.map
+            (\locAncestors ->
+              Utils.zip (Nothing :: (List.map Just locAncestors)) locAncestors
+            )
+            locsAncestors
+      in
+      let locsAncestorScopesWithParents = debugLog "locsAncestorScopesWithParents" <|
+        List.map
+            (List.filter (\(parent, node) -> isScope parent node))
+            locsAncestorsWithParents
+      in
+      let deepestCommonScopeWithParent = debugLog "deepestCommonAncestorWithParent" <|
+        -- If no common scope, we will wrap the root node.
+        let commonPrefix = debugLog "commonPrefix" <|
+          [(Nothing, old.inputExp)] ++
+          Utils.commonPrefix locsAncestorScopesWithParents
+        in
+        Utils.last_ commonPrefix
+      in
+      let (deepestCommonScopeParent, deepestCommonScope) =
+        deepestCommonScopeWithParent
+      in
+      -- Avoid name collisions here
+      let locIdToNewName = debugLog "locIdToNewName" <|
+        Dict.fromList
+          <| List.map (\(locId, frozen, ident) -> (locId, "k"++(toString locId)++ident++"prime"))
+          <| locsetList
+      in
+      let replaceLocs exp__ =
+        case exp__ of
+          EConst n (locId, frozen, ident) wd ->
+            case Dict.get locId locIdToNewName of
+              Just newName -> EVar newName
+              Nothing      -> exp__
+          _ -> exp__
+      in
+      let commonScopeReplaced =
+        mapExpViaExp__ (replaceLocs) deepestCommonScope
+      in
+      let newlyWrappedCommonScope =
+        -- Would build AST symbolically, but getting whitespace
+        -- right with unparseE is hard
+        let names =
+          List.map
+              (\(locId, frozen, ident) ->
+                Utils.justGet locId locIdToNewName
+              )
+              locsetList
+        in
+        let valueStrs =
+          List.map
+              (\loc ->
+                toString (Utils.justGet loc locToNumber)
+              )
+              locsetList
+        in
+        let templateStr =
+          let variableNamesStr  = String.join " " names in
+          let variableValuesStr = String.join " " valueStrs in
+          "(let ["++variableNamesStr++"] ["++variableValuesStr++"]\n  'dummy body'\n)"
+        in
+        let template =
+          case parseE templateStr of
+            Ok templateExp -> templateExp
+            Err err        -> Debug.crash <| "Dig template err: " ++ err
+        in
+        -- Now replace the dummy body:
+        let newLetE__ =
+          case template.val.e__ of
+            ELet letType isRec pattern assignmentExp body ->
+              ELet letType isRec pattern assignmentExp commonScopeReplaced
+            _ ->
+              Debug.crash "Dig template didn't match"
+        in
+        let newLet =
+          { val   = { e__ = newLetE__, eid = -1 }
+          , start = template.start
+          , end   = template.end -- Fight with this if whitespace is a problem.
+          }
+        in
+        newLet
+      in
+      -- Debug only:
+      let newSubtreeStr = debugLog "newlyWrappedCommonScope" <| unparseE newlyWrappedCommonScope in
+      let newExp =
+        replaceNode deepestCommonScope newlyWrappedCommonScope old.inputExp
+      in
+      let unparsed = debugLog "new code" <| unparseE newExp in
+      -- Reparse to reset eid's etc...
+      let newExp =
+        case parseE unparsed of
+          Ok reparsed -> reparsed
+          Err err     -> Debug.crash <| "Dig reparse err: " ++ err
+      in
+      let (newVal, newWidgets) = Eval.run newExp in
+      let (newSlate, newCode)  = slateAndCode old (newExp, newVal) in
+      debugLog "new model" <|
+        { old | code          = newCode
+              , inputExp      = newExp
+              , inputVal      = newVal
+              , history       = addToHistory old.code old.history
+              , slate         = newSlate
+              , widgets       = newWidgets
+              , previewCode   = Nothing
+              , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal }
+
 
     RelateShapes ->
       let newval = slateToVal old.slate in

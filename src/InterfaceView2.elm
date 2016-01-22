@@ -1072,7 +1072,7 @@ widgetsToolExtras w h model =
     SelectAttrs  -> [ gap , relateAttrsButton w h ]
 -}
     Cursor       -> if model.showZones == showZonesSelect
-                    then gap :: (zoneButtons model w h) ++ [ relateAttrsButton w h ]
+                    then gap :: (zoneButtons model w h) ++ [ relateAttrsButton w h, digHoleButton w h]
                     else gap :: (zoneButtons model w h)
     SelectShapes -> [ gap , relateShapesButton w h ]
     _            -> []
@@ -1335,6 +1335,9 @@ syncButton =
 
 relateAttrsButton =
   simpleButton RelateAttrs "Relate" "Relate" "Relate Attrs"
+
+digHoleButton =
+  simpleButton DigHole "unused?" "unused?" "Dig Hole"
 
 relateShapesButton =
   simpleButton RelateShapes "Relate" "Relate" "Relate Shapes"

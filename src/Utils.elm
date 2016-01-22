@@ -257,6 +257,19 @@ setIsEmpty  = (==) [] << Set.toList
 dictIsEmpty = (==) [] << Dict.toList
 setCardinal = List.length << Set.toList
 
+-- Common elements shared at the beginning of each list
+commonPrefix : List (List a) -> List a
+commonPrefix lists =
+  case lists of
+    first::rest -> List.foldl commonPrefix2 first rest
+    []          -> []
+
+commonPrefix2 : List a -> List a -> List a
+commonPrefix2 l1 l2 =
+  case (l1, l2) of
+    (x::xs, y::ys) -> if x == y then x::(commonPrefix2 xs ys) else []
+    _              -> []
+
 between x (a,b) = a <= x && x < b
 
 distance (x1,y1) (x2,y2) = sqrt <| (x2-x1)^2 + (y2-y1)^2

@@ -6,7 +6,9 @@ module Sync (Options, defaultOptions, syncOptionsOf,
              relateSelectedAttrs,
              relate,
              strCall,
-             printZoneTable, LiveInfo, Triggers, tryToBeSmart) where
+             printZoneTable, LiveInfo, Triggers, tryToBeSmart,
+             locsOfTrace
+             ) where
 
 import Dict exposing (Dict)
 import Set
@@ -538,7 +540,7 @@ removeDeadIndices e v' =
     EIndList rs -> EList (List.concatMap (expandRange idxTraces) rs) Nothing
     _           -> e__
   in
-  mapExp foo e
+  mapExpViaExp__ foo e
 
 expandRange idxTraces r =
   let mem = flip List.member idxTraces in

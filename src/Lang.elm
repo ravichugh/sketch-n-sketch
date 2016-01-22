@@ -317,28 +317,57 @@ mapValField f r = { r | val = f r.val }
 ------------------------------------------------------------------------------
 -- Mapping
 
-mapExp : (Exp__ -> Exp__) -> Exp -> Exp
+mapExp : (Exp -> Exp) -> Exp -> Exp
 mapExp f e =
-  let foo = mapExp f in
-  let g e__ = P.WithInfo (Exp_ (f e__) e.val.eid) e.start e.end in
+  let recurse = mapExp f in
+  let wrap e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
+  let wrapAndMap = f << wrap in
+  -- let g e__ = P.WithInfo (Exp_ (f e__) e.val.eid) e.start e.end in
   case e.val.e__ of
-    EConst _ _ _   -> g e.val.e__
-    EBase _        -> g e.val.e__
-    EVar _         -> g e.val.e__
-    EFun ps e'     -> g (EFun ps (foo e'))
-    EApp e1 es     -> g (EApp (foo e1) (List.map foo es))
-    EOp op es      -> g (EOp op (List.map foo es))
-    EList es m     -> g (EList (List.map foo es) (Utils.mapMaybe foo m))
-    EIndList rs    -> let foo r_ = case r_ of
-                        Interval e1 e2 -> Interval (mapExp f e1) (mapExp f e2)
-                        Point e1       -> Point (mapExp f e1)
+    EConst _ _ _   -> f e
+    EBase _        -> f e
+    EVar _         -> f e
+    EFun ps e'     -> wrapAndMap (EFun ps (recurse e'))
+    EApp e1 es     -> wrapAndMap (EApp (recurse e1) (List.map recurse es))
+    EOp op es      -> wrapAndMap (EOp op (List.map recurse es))
+    EList es m     -> wrapAndMap (EList (List.map recurse es) (Utils.mapMaybe recurse m))
+    EIndList rs    -> let rangeRecurse r_ = case r_ of
+                        Interval e1 e2 -> Interval (recurse e1) (recurse e2)
+                        Point e1       -> Point (recurse e1)
                       in
-                      g (EIndList (List.map (mapValField foo) rs))
-    EIf e1 e2 e3   -> g (EIf (foo e1) (foo e2) (foo e3))
-    ECase e1 l     -> g (ECase (foo e1) (List.map (mapValField (\(p,ei) -> (p, foo ei))) l))
-    EComment s e1  -> g (EComment s (foo e1))
-    EOption s1 s2 e1 -> g (EOption s1 s2 (foo e1))
-    ELet k b p e1 e2 -> g (ELet k b p (foo e1) (foo e2))
+                      wrapAndMap (EIndList (List.map (mapValField rangeRecurse) rs))
+    EIf e1 e2 e3   -> wrapAndMap (EIf (recurse e1) (recurse e2) (recurse e3))
+    ECase e1 l     -> wrapAndMap (ECase (recurse e1) (List.map (mapValField (\(p,ei) -> (p, recurse ei))) l))
+    EComment s e1  -> wrapAndMap (EComment s (recurse e1))
+    EOption s1 s2 e1 -> wrapAndMap (EOption s1 s2 (recurse e1))
+    ELet k b p e1 e2 -> wrapAndMap (ELet k b p (recurse e1) (recurse e2))
+
+mapExpViaExp__ : (Exp__ -> Exp__) -> Exp -> Exp
+mapExpViaExp__ f e =
+  let wrap e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
+  let f' exp = wrap (f exp.val.e__) in
+  mapExp f' e
+
+  -- let foo = mapExpViaExp__ f in
+  -- let g e__ = P.WithInfo (Exp_ (f e__) e.val.eid) e.start e.end in
+  -- case e.val.e__ of
+  --   EConst _ _ _   -> g e.val.e__
+  --   EBase _        -> g e.val.e__
+  --   EVar _         -> g e.val.e__
+  --   EFun ps e'     -> g (EFun ps (foo e'))
+  --   EApp e1 es     -> g (EApp (foo e1) (List.map foo es))
+  --   EOp op es      -> g (EOp op (List.map foo es))
+  --   EList es m     -> g (EList (List.map foo es) (Utils.mapMaybe foo m))
+  --   EIndList rs    -> let foo r_ = case r_ of
+  --                       Interval e1 e2 -> Interval (mapExpViaExp__ f e1) (mapExpViaExp__ f e2)
+  --                       Point e1       -> Point (mapExpViaExp__ f e1)
+  --                     in
+  --                     g (EIndList (List.map (mapValField foo) rs))
+  --   EIf e1 e2 e3   -> g (EIf (foo e1) (foo e2) (foo e3))
+  --   ECase e1 l     -> g (ECase (foo e1) (List.map (mapValField (\(p,ei) -> (p, foo ei))) l))
+  --   EComment s e1  -> g (EComment s (foo e1))
+  --   EOption s1 s2 e1 -> g (EOption s1 s2 (foo e1))
+  --   ELet k b p e1 e2 -> g (ELet k b p (foo e1) (foo e2))
 
 mapVal : (Val -> Val) -> Val -> Val
 mapVal f v = case v.v_ of
@@ -356,6 +385,76 @@ foldVal f v a = case v.v_ of
   VClosure _ _ _ _ -> f v a
   VHole _          -> f v a
 
+-- Fold through preorder traversal
+foldExp : (Exp__ -> a -> a) -> a -> Exp -> a
+foldExp f acc e =
+  let flatE__s = List.map (.e__ << .val) (flattenExpTree e) in
+  List.foldl f acc flatE__s
+
+replaceNode : Exp -> Exp -> Exp -> Exp
+replaceNode oldNode newNode root =
+  mapExp
+      (\node ->
+        if node == oldNode
+        then newNode
+        else node
+      )
+      root
+
+------------------------------------------------------------------------------
+-- Traversing
+
+-- Returns pre-order list of expressions
+-- O(n^2) memory
+flattenExpTree : Exp -> List Exp
+flattenExpTree exp =
+  exp :: List.concatMap flattenExpTree (childExps exp)
+
+-- For each node for which `predicate` returns True, return it and its ancestors
+findAllWithAncestors : (Exp -> Bool) -> Exp -> List (List Exp)
+findAllWithAncestors predicate exp =
+  findAllWithAncestorsRec predicate [] exp
+
+findAllWithAncestorsRec : (Exp -> Bool) -> List Exp -> Exp -> List (List Exp)
+findAllWithAncestorsRec predicate ancestors exp =
+  let ancestorsAndThis = ancestors ++ [exp] in
+  let thisResult       = if predicate exp then [ancestorsAndThis] else [] in
+  let recurse exp      = findAllWithAncestorsRec predicate ancestorsAndThis exp in
+  thisResult ++ List.concatMap recurse (childExps exp)
+
+childExps : Exp -> List Exp
+childExps e =
+  case e.val.e__ of
+    EConst _ _ _ -> []
+    EBase _      -> []
+    EVar _       -> []
+    EFun ps e'   -> [e']
+    EOp op es    -> es
+    EList es m   ->
+      case m of
+        Just e  -> es ++ [e]
+        Nothing -> es
+    EIndList ranges ->
+      List.concatMap
+        (\range -> case range.val of
+          Interval e1 e2 -> [e1, e2]
+          Point e1       -> [e1]
+        )
+        ranges
+    EApp f es        -> f :: es
+    ELet k b p e1 e2 -> [e1, e2]
+    EIf e1 e2 e3     -> [e1, e2, e3]
+    ECase e branches -> e :: (List.map (snd << (.val)) branches)
+    EComment s e1    -> [e1]
+    EOption s1 s2 e1 -> [e1]
+
+------------------------------------------------------------------------------
+-- Conversion
+
+valToTrace : Val -> Trace
+valToTrace v = case v.v_ of
+  VConst (_, trace) -> trace
+  _                 -> Debug.crash "valToTrace"
 
 ------------------------------------------------------------------------------
 -- Location Substitutions
@@ -432,7 +531,7 @@ unfrozenLocIdsAndNumbers e =
         Just e  -> List.concat (List.map unfrozenLocIdsAndNumbers es) |> List.append (unfrozenLocIdsAndNumbers e)
         Nothing -> List.concat (List.map unfrozenLocIdsAndNumbers es)
 
-    EIndList rs -> []
+    EIndList ranges -> []
     EApp f es  -> List.concat (List.map unfrozenLocIdsAndNumbers es)
     ELet k b p e1 e2 -> (unfrozenLocIdsAndNumbers e1) ++ (unfrozenLocIdsAndNumbers e2)
     EIf e1 e2 e3 -> (unfrozenLocIdsAndNumbers e1) ++ (unfrozenLocIdsAndNumbers e2) ++ (unfrozenLocIdsAndNumbers e3)
@@ -446,7 +545,7 @@ type alias ESubst = Dict.Dict LocId Exp__
 
 applyESubst : ESubst -> Exp -> Exp
 applyESubst esubst =
-  mapExp <| \e__ -> case e__ of
+  mapExpViaExp__ <| \e__ -> case e__ of
     EConst _ i -> case Dict.get (Utils.fst3 i) esubst of
                     Nothing   -> e__
                     Just e__' -> e__'
@@ -454,7 +553,26 @@ applyESubst esubst =
 -}
 
 
-------------------------------------------------------------------------------
+-----------------------------------------------------------------------------
+-- Utility
+
+-- Need parent expression since case expression branches into several scopes
+isScope : Maybe Exp -> Exp -> Bool
+isScope maybeParent exp =
+  let isObviouslyScope =
+    case exp.val.e__ of
+      ELet _ _ _ _ _ -> True
+      EFun _ _       -> True
+      _              -> False
+  in
+  case maybeParent of
+    Just parent ->
+      case parent.val.e__ of
+        (ECase predicate branches) -> predicate /= exp
+        _                          -> isObviouslyScope
+    Nothing -> isObviouslyScope
+
+-----------------------------------------------------------------------------
 -- Lang Options
 
 -- all options should appear before the first non-comment expression

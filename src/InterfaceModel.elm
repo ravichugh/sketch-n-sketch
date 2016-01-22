@@ -146,6 +146,7 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | SelectOption PossibleChange
            | CancelSync
            | RelateAttrs -- not using UpdateModel, since want to define handler in Controller
+           | DigHole
            | RelateShapes
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets})
