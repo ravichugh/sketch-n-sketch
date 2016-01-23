@@ -68,46 +68,13 @@ htmlMap f xs =
       _ -> (Just a, [ f a ])
   in
   snd <| List.foldr combine (Nothing, []) xs
-{-
--- TODO: add correpsonding strings when more styles are added
-pos : Int -> Int -> String -> Attribute
-pos height width styleName =
-  let posInfo = [ ("position", "absolute"), ("left", toString (width*20) ++ "pt")] in --, ("top", toString ((toFloat height)*36) ++ "pt")] in
-  case styleName of
-    "basicStyle" -> Attr.style <|
-                    [ ("font-size", "20pt")
-                    , ("font-family", "monospace")
-                    , ("line-height", "1.8")
-                    ] ++ posInfo
-    "literalStyle" -> Attr.style <|
-                      [ ("background", "yellow")
-                      , ("border", "3pt")
-                      , ("border-style", "solid")
-                      ] ++ posInfo
-    "varUseStyle" -> Attr.style <|
-                     [ ("background", "red")
-                     , ("border", "3pt")
-                     , ("border-style", "solid")
-                     ] ++ posInfo
-    "patUseStyle" -> Attr.style <|
-                     [ ("background", "blue")
-                     , ("border", "3pt")
-                     , ("border-style", "solid")
-                     ] ++ posInfo
-    _             -> Attr.style posInfo
 
-insertBr : WithInfo a -> WithInfo b -> List Html
-insertBr e1 e2 = 
-  let (pos1, pos2) = (e1.start, e2.start) in
-  let diff = pos2.line - pos1.line in
-  List.repeat diff <| Html.br [] []
--}
 space : Pos -> Pos -> List Html
 space endPrev startNext =
   if endPrev.line == startNext.line
-  then [ Html.text <| String.repeat (startNext.col - endPrev.col) " " ]
+  then [ Html.text <| Unparser.cols endPrev.col startNext.col ]
   else List.repeat (startNext.line - endPrev.line) (Html.br [] [])
-         ++ [ Html.text <| String.repeat (startNext.col - 1) " " ]
+         ++ [ Html.text <| Unparser.cols 1 startNext.col ]
 
 delimit : String -> String -> Pos -> Pos -> Pos -> Pos -> List Html -> List Html
 delimit open close startOutside startInside endInside endOutside hs =
@@ -173,22 +140,22 @@ htmlOfExp e =
         (Let, True)  ->
           let tok = Unparser.makeToken (Unparser.incCol e.start) "letrec" in
           Html.span [ basicStyle ] <|
-              parens e.start e.start e2.end e.end <|
+              parens e.start tok.start e2.end e.end <|
                        [ Html.text tok.val] ++ space tok.end p.start ++ rest
         (Let, False) ->
           let tok = Unparser.makeToken (Unparser.incCol e.start) "let" in
           Html.span [ basicStyle ] <|
-              parens e.start e.start e2.end e.end <|
+              parens e.start tok.start e2.end e.end <|
                        [ Html.text tok.val] ++ space tok.end p.start ++ rest
         (Def, True)  ->
           let tok = Unparser.makeToken (Unparser.incCol e.start) "defrec" in
           Html.span [ basicStyle ] <|
-              parens e.start e.start e2.end e.end <|
+              parens e.start tok.start e2.end e.end <|
                        [ Html.text <| tok.val] ++ space tok.end p.start ++ rest
         (Def, False) ->
           let tok = Unparser.makeToken (Unparser.incCol e.start) "def" in
           Html.span [ basicStyle ] <|
-              parens e.start e.start e2.end e.end <|
+              parens e.start tok.start e2.end e.end <|
                     [ Html.text tok.val] ++ space tok.end p.start ++ rest
     EList xs Nothing ->
       Html.span [ basicStyle ] <|
@@ -236,7 +203,7 @@ main : Html
 main =
   -- NOTE: for now, toggle different examples from ExamplesGenerated.elm
   let testString = Ex.sineWaveOfBoxes in
-  let testString = "(let yi (- y0 (* amp (sin (* i (/ twoPi n))))))" in
+  let testString = "(let yi (- y0 (* amp (sin (* i (/ twoPi n))))) (rect 'lightblue' xi yi w h))" in
   let testExp =
     case Parser.parseE testString of
       Err _ -> Debug.crash "main: bad parse"
