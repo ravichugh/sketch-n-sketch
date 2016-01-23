@@ -9,6 +9,7 @@ import Lang exposing (..)
 import LangParser2 as Parser
 import LangUnparser as Unparser
 import OurParser2 exposing (WithInfo, Pos)
+import Utils
 
 ------------------------------------------------------------------------------
 -- Styles
@@ -114,17 +115,15 @@ delimit open close startOutside startInside endInside endOutside hs =
       clen = String.length close 
   in
   let begin = Html.text <| open ++ Unparser.whitespace (Unparser.bumpCol olen startOutside) startInside
-      end = Html.text <| Unparser.whitespace (Unparser.bumpCol (-1 * clen) endOutside) endInside ++ close
+      end = Html.text <| Unparser.whitespace endInside (Unparser.bumpCol (-1 * clen) endOutside) ++ close
   in
     [ begin ] ++ hs ++ [ end ]
 
 parens = delimit "(" ")"
+brackets = delimit "[" "]"
 
-last : List a -> Maybe a
-last = List.head << List.reverse
-       
 htmlOfExp : Exp -> Html
-htmlOfExp e =
+htmlOfExp e = 
   let e_ = e.val in
   let e__ = e_.e__ in
   case e__ of
@@ -147,43 +146,73 @@ htmlOfExp e =
     EVar x -> Html.span [ varUseStyle ] [ Html.text x]
     EFun [p] e1 ->
       let (h1, h2) = (htmlOfPat p, htmlOfExp e1) in
-      Html.span [ basicStyle ] <| parens e.start p.start e1.end e.end <|
-        [ Html.text "\\" ] ++ [ h1 ] ++ space p.end e1.start ++ [ h2 ]
+      let tok = Unparser.makeToken (Unparser.incCol e.start) "\\" in
+      Html.span [ basicStyle ] <| parens e.start tok.start e1.end e.end <|
+        [ Html.text tok.val ] ++ space tok.end p.start ++ [ h1 ] ++ space p.end e1.start ++ [ h2 ]
+    EFun ps e1 ->
+      let tok = Unparser.makeToken (Unparser.incCol e.start) "\\" in
+      let (h1, h2) = (htmlMap htmlOfPat ps, htmlOfExp e1) in
+      Html.span [ basicStyle ] <| parens e.start tok.start e1.end e.end <|
+          let (h,l) = (Utils.head_ ps, Utils.last_ ps) in
+          [ Html.text tok.val] ++ space tok.end (Unparser.decCol h.start)
+             ++ [ Html.text "("] ++ h1 ++ [ Html.text ")"]
+                 ++ space (Unparser.incCol l.end) e1.start ++ [ h2 ]
     EApp e1 es ->
       let (h1, hs) = (htmlOfExp e1, htmlMap htmlOfExp es) in
-      case (List.head es, last es) of
-        (Just h, Just l) ->
+      let (h,l) = (Utils.head_ es, Utils.last_ es) in
           Html.span [ basicStyle ] <| parens e.start e1.start l.end e.end <|
                [h1] ++ space e1.end h.start ++ hs
-        _ -> Debug.crash "Impossible: EApp has no argument."
              
     ELet k r p e1 e2 ->
       let (h1, h2, h3) = (htmlOfPat p, htmlOfExp e1, htmlOfExp e2) in
-      let s1 = space p.start e1.start
-          s2 = space e1.start e2.start
+      let s1 = space p.end e1.start
+          s2 = space e1.end e2.start
       in
       let rest = [h1] ++ s1 ++ [ h2 ] ++ s2 ++ [ h3 ] in
       case (k,r) of
-        (Let, True)  -> Html.span [ basicStyle ] <|
-                    [ Html.text <| "( letrec "] ++ rest
-        (Let, False) -> Html.span [ basicStyle ] <|
-                    [ Html.text <| "( let ", h1] ++ rest
-        (Def, True)  -> Html.span [ basicStyle ] <|
-                    [ Html.text <| "( defrec ", h1] ++ rest
-        (Def, False) -> Html.span [ basicStyle ] <|
-                    [ Html.text <| "( def ", h1 ] ++ rest
-    EList xs m ->
-      Html.span [ basicStyle ] <| [ Html.text "[ "] ++ htmlMap htmlOfExp xs ++
-        case m of
-          Nothing -> [ Html.text " ]" ]
-          Just y -> [ Html.text " | ", htmlOfExp y, Html.text " ]" ]
+        (Let, True)  ->
+          let tok = Unparser.makeToken (Unparser.incCol e.start) "letrec" in
+          Html.span [ basicStyle ] <|
+              parens e.start e.start e2.end e.end <|
+                       [ Html.text tok.val] ++ space tok.end p.start ++ rest
+        (Let, False) ->
+          let tok = Unparser.makeToken (Unparser.incCol e.start) "let" in
+          Html.span [ basicStyle ] <|
+              parens e.start e.start e2.end e.end <|
+                       [ Html.text tok.val] ++ space tok.end p.start ++ rest
+        (Def, True)  ->
+          let tok = Unparser.makeToken (Unparser.incCol e.start) "defrec" in
+          Html.span [ basicStyle ] <|
+              parens e.start e.start e2.end e.end <|
+                       [ Html.text <| tok.val] ++ space tok.end p.start ++ rest
+        (Def, False) ->
+          let tok = Unparser.makeToken (Unparser.incCol e.start) "def" in
+          Html.span [ basicStyle ] <|
+              parens e.start e.start e2.end e.end <|
+                    [ Html.text tok.val] ++ space tok.end p.start ++ rest
+    EList xs Nothing ->
+      Html.span [ basicStyle ] <|
+          brackets e.start (Utils.head_ xs).start (Utils.last_ xs).end e.end <| htmlMap htmlOfExp xs
+    EList xs (Just y) ->
+      let (h1, h2) = (htmlMap htmlOfExp xs, htmlOfExp y) in
+      let (e1,e2) = (Utils.head_ xs, Utils.last_ xs) in
+      let tok1 = Unparser.makeToken e.start "["
+          tok2 = Unparser.makeToken e2.end "|"
+          tok3 = Unparser.makeToken y.end "]"
+      in
+        Html.span [ basicStyle ] <|
+           brackets e.start tok1.start tok3.end e.end <|
+             [ Html.text tok1.val ] ++ space tok1.end e1.start ++ h1 ++ [ Html.text tok2.val ]
+                ++ space tok2.end y.start ++ [ h2 ] ++ [ Html.text tok3.val ]
     EIf e1 e2 e3 ->
       let (h1,h2,h3) = (htmlOfExp e1, htmlOfExp e2, htmlOfExp e2) in
-      let s1 = space e1.start e2.start
-          s2 = space e2.start e3.start
+      let tok = Unparser.makeToken (Unparser.incCol e.start) "if" in
+      let s1 = space tok.end e1.start
+          s2 = space e1.end e2.start
+          s3 = space e2.end e3.start
       in
-      Html.span [ basicStyle ] <|
-            [ Html.text "If ", h1] ++ s1 ++ [ h2 ] ++ s2 ++ [ h3 ]
+      Html.span [ basicStyle ] <| parens e.start e.start e3.end e.end
+            [ Html.text tok.val] ++ s1 ++ [ h1 ] ++ s2 ++ [ h2 ] ++ s3 ++ [ h3 ] 
     _ -> 
       let s = Unparser.unparseE e in
       Html.pre [] [ Html.text s ]
@@ -207,7 +236,7 @@ main : Html
 main =
   -- NOTE: for now, toggle different examples from ExamplesGenerated.elm
   let testString = Ex.sineWaveOfBoxes in
-  let testString = "(\\x \n  (f   x))" in
+  let testString = "(let yi (- y0 (* amp (sin (* i (/ twoPi n))))))" in
   let testExp =
     case Parser.parseE testString of
       Err _ -> Debug.crash "main: bad parse"
