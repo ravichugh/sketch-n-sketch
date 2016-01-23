@@ -286,9 +286,9 @@ nodeIdAndAttrNameToVal (nodeId, attrName) tree =
     Just (LangSvg.SvgNode _ attrs _) ->
       case Utils.maybeFind attrName attrs of
         Just aval -> Just (LangSvg.valOfAVal aval)
-        Nothing   -> Debug.crash "nodeIdAndAttrNameToVal 2"
+        Nothing   -> Debug.crash <| "nodeIdAndAttrNameToVal " ++ (toString nodeId) ++ " " ++ (toString attrName) ++ " " ++ (toString tree)
     Just (LangSvg.TextNode _) -> Nothing
-    Nothing                   -> Debug.crash "nodeIdAndAttrNameToVal 1"
+    Nothing                   -> Debug.crash <| "nodeIdAndAttrNameToVal " ++ (toString nodeId) ++ " " ++ (toString tree)
 
 pluckSelectedVals selectedAttrs slate =
   let (_, tree) = slate in

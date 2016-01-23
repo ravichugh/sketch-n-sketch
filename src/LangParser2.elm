@@ -127,7 +127,7 @@ substOf_ s e = case e.val.e__ of
     let (k,_,_) = l in
     case Dict.get k s of
       Nothing -> Dict.insert k { e | val = i } s
-      Just j  -> if i == j.val then s else Debug.crash "substOf_"
+      Just j  -> if i == j.val then s else Debug.crash <| "substOf_ Constant: " ++ (toString i)
   EBase _    -> s
   EVar _     -> s
   EFun _ e'  -> substOf_ s e'
