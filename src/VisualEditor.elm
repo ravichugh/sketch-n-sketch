@@ -99,17 +99,16 @@ htmlOfExp e =
     EBase baseVal ->
       case baseVal of
         Bool b -> Html.span [ literalStyle ] [ Html.text <| toString b ]
-        String s -> Html.span [ literalStyle ] [ Html.text s ]
+        String s -> Html.span [ literalStyle ] [ Html.text <| "\'" ++ s ++ "\'" ]
         Star -> Html.span [ literalStyle ] [ Html.text <| toString Star ]
-    EOp op [e1, e2] ->
-      let (h1,h2) = (htmlOfExp e1, htmlOfExp e2) in
+    EOp op es ->
+      let hs = htmlMap htmlOfExp es in
+      let (h,l) = (Utils.head_ es, Utils.last_ es) in
       Html.span [ basicStyle ] <|
-          parens e.start op.start e2.end e.end <|
+          parens e.start op.start l.end e.end <|
             [ Html.text <| strOp op.val ]
-            ++ space op.end e1.start
-            ++ [ h1 ]
-            ++ space e1.end e2.start
-            ++ [ h2 ]
+            ++ space op.end h.start
+            ++ hs
     EVar x -> Html.span [ varUseStyle ] [ Html.text x]
     EFun [p] e1 ->
       let (h1, h2) = (htmlOfPat p, htmlOfExp e1) in
@@ -130,33 +129,38 @@ htmlOfExp e =
           Html.span [ basicStyle ] <| parens e.start e1.start l.end e.end <|
                [h1] ++ space e1.end h.start ++ hs
              
-    ELet k r p e1 e2 ->
+    ELet Let r p e1 e2 ->
       let (h1, h2, h3) = (htmlOfPat p, htmlOfExp e1, htmlOfExp e2) in
       let s1 = space p.end e1.start
           s2 = space e1.end e2.start
       in
       let rest = [h1] ++ s1 ++ [ h2 ] ++ s2 ++ [ h3 ] in
-      case (k,r) of
-        (Let, True)  ->
-          let tok = Unparser.makeToken (Unparser.incCol e.start) "letrec" in
-          Html.span [ basicStyle ] <|
-              parens e.start tok.start e2.end e.end <|
-                       [ Html.text tok.val] ++ space tok.end p.start ++ rest
-        (Let, False) ->
-          let tok = Unparser.makeToken (Unparser.incCol e.start) "let" in
-          Html.span [ basicStyle ] <|
-              parens e.start tok.start e2.end e.end <|
-                       [ Html.text tok.val] ++ space tok.end p.start ++ rest
-        (Def, True)  ->
+      if r then 
+        let tok = Unparser.makeToken (Unparser.incCol e.start) "letrec" in
+        Html.span [ basicStyle ] <|
+            parens e.start tok.start e2.end e.end <|
+                     [ Html.text tok.val] ++ space tok.end p.start ++ rest
+      else
+        let tok = Unparser.makeToken (Unparser.incCol e.start) "let" in
+        Html.span [ basicStyle ] <|
+            parens e.start tok.start e2.end e.end <|
+                     [ Html.text tok.val] ++ space tok.end p.start ++ rest
+    ELet Def r p e1 e2 ->
+      let (h1, h2, h3) = (htmlOfPat p, htmlOfExp e1, htmlOfExp e2) in
+      let s1 = space p.end e1.start
+          s2 = space e1.end e2.start
+      in
+      let rest = s2 ++ [ h3 ] in
+      if r then
           let tok = Unparser.makeToken (Unparser.incCol e.start) "defrec" in
+          let defParen = [ Html.text tok.val ] ++ space tok.end p.start ++ [ h1 ] ++ s1 ++ [ h2 ] in
           Html.span [ basicStyle ] <|
-              parens e.start tok.start e2.end e.end <|
-                       [ Html.text <| tok.val] ++ space tok.end p.start ++ rest
-        (Def, False) ->
+              parens e.start tok.start e1.end e.end defParen ++ rest                     
+      else
           let tok = Unparser.makeToken (Unparser.incCol e.start) "def" in
+          let defParen = [ Html.text tok.val ] ++ space tok.end p.start ++ [ h1 ] ++ s1 ++ [ h2 ] in
           Html.span [ basicStyle ] <|
-              parens e.start tok.start e2.end e.end <|
-                    [ Html.text tok.val] ++ space tok.end p.start ++ rest
+              parens e.start tok.start e1.end e.end defParen ++ rest
     EList xs Nothing ->
       Html.span [ basicStyle ] <|
           brackets e.start (Utils.head_ xs).start (Utils.last_ xs).end e.end <| htmlMap htmlOfExp xs
@@ -181,20 +185,30 @@ htmlOfExp e =
       Html.span [ basicStyle ] <| parens e.start e.start e3.end e.end
             [ Html.text tok.val] ++ s1 ++ [ h1 ] ++ s2 ++ [ h2 ] ++ s3 ++ [ h3 ] 
     _ -> 
+      let _ = Debug.log "VisualEditor.HtmlOfExp no match :" (toString e) in
       let s = Unparser.unparseE e in
       Html.pre [] [ Html.text s ]
 
 htmlOfPat : Pat -> Html
-htmlOfPat pat =
-    case pat.val of
+htmlOfPat p =
+    case p.val of
       PVar x _ -> Html.span [ patUseStyle ] [ Html.text x ]
       PConst n -> Html.span [ literalStyle ] [ Html.text <| toString n ]
       PBase baseVal -> Html.span [ literalStyle ] [ Html.text <| toString baseVal ]
-      PList xs m ->
-        Html.span [ basicStyle ] <| [ Html.text "[ "] ++ htmlMap htmlOfPat xs ++
-        case m of
-          Nothing -> [ Html.text " ]" ]
-          Just y -> [ Html.text " | ", htmlOfPat y, Html.text " ]" ]
+      PList xs Nothing ->
+        Html.span [ basicStyle ] <|
+          brackets p.start (Utils.head_ xs).start (Utils.last_ xs).end p.end <| htmlMap htmlOfPat xs
+      PList xs (Just y) ->
+        let (h1, h2) = (htmlMap htmlOfPat xs, htmlOfPat y) in
+        let (e1,e2) = (Utils.head_ xs, Utils.last_ xs) in
+        let tok1 = Unparser.makeToken p.start "["
+            tok2 = Unparser.makeToken e2.end "|"
+            tok3 = Unparser.makeToken y.end "]"
+        in
+        Html.span [ basicStyle ] <|
+           brackets p.start tok1.start tok3.end p.end <|
+             [ Html.text tok1.val ] ++ space tok1.end e1.start ++ h1 ++ [ Html.text tok2.val ]
+                ++ space tok2.end y.start ++ [ h2 ] ++ [ Html.text tok3.val ]
 
 ------------------------------------------------------------------------------
 -- Basic Driver
@@ -203,7 +217,7 @@ main : Html
 main =
   -- NOTE: for now, toggle different examples from ExamplesGenerated.elm
   let testString = Ex.sineWaveOfBoxes in
-  let testString = "(let yi (- y0 (* amp (sin (* i (/ twoPi n))))) (rect 'lightblue' xi yi w h))" in
+  --let testString = "(let yi (- y0 (* amp (sin (* i (/ twoPi n))))) (rect 'lightblue' xi yi w h))" in
   let testExp =
     case Parser.parseE testString of
       Err _ -> Debug.crash "main: bad parse"
