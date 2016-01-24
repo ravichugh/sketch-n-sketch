@@ -576,29 +576,6 @@
 
 (def enumSlider (\(x0 x1 y enum caption srcVal)
   (let n (len enum)
-  (let [minVal maxVal] [0! (- n 0.1!)]
-  (let preVal (clamp minVal maxVal srcVal)
-  (let i (floor preVal)
-  (let item (nth enum i)
-  (let shapes
-    (let rail [ (line 'black' 3! x0 y x1 y) ]
-    (let ball
-      (let [xDiff valDiff] [(- x1 x0) (- maxVal minVal)]
-      (let xBall (+ x0 (* xDiff (/ srcVal valDiff)))
-      (let cBall (if (= preVal srcVal) 'black' 'red')
-        [ (circle cBall xBall y 10!) ])))
-    (let endpoints
-      [ (circle 'black' x0 y 4!) (circle 'black' x1 y 4!) ]
-    (let tickpoints
-      (let sep (/ (- x1 x0) n)
-      (map (\j (circle 'grey' (+ x0 (mult j sep)) y 4!))
-           (range 1! (- n 1!))))
-    (let label [ (text (+ x1 10!) (+ y 5!) (+ caption (toString item))) ]
-    (concat [ rail endpoints tickpoints label ball ]))))))
-  [item (ghosts shapes)]))))))))
-
-(def enumSlider (\(x0 x1 y enum caption srcVal)
-  (let n (len enum)
   (let [minVal maxVal] [0! n]
   (let preVal (clamp minVal maxVal srcVal)
   (let i (floor preVal)
@@ -619,7 +596,7 @@
            (range 1! (- n 1!))))
     (let label [ (text (+ x1 10!) (+ y 5!) (+ caption (toString item))) ]
     (concat [ rail endpoints tickpoints ball label ]))))))
-  [item shapes])))))))))
+  [item (ghosts shapes)])))))))))
 
 (def addSelectionSliders (\(y0 seeds shapesCaps)
   (let shapesCapsSeeds (zip shapesCaps (take seeds (len shapesCaps)))
