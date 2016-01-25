@@ -2,7 +2,10 @@ module VisualEditor where
 
 import Html exposing (Html, Attribute)
 import Html.Attributes as Attr
+import Html.Events as Events
+import Json.Decode as Decode
 import String
+import Signal exposing (Mailbox, mailbox)
 
 import ExamplesGenerated as Ex
 import Lang exposing (..)
@@ -213,20 +216,68 @@ htmlOfPat p =
 ------------------------------------------------------------------------------
 -- Basic Driver
 
-main : Html
-main =
-  -- NOTE: for now, toggle different examples from ExamplesGenerated.elm
-  let testString = Ex.sineWaveOfBoxes in
-  --let testString = "(let yi (- y0 (* amp (sin (* i (/ twoPi n))))) (rect 'lightblue' xi yi w h))" in
+type alias Event = Model -> Model
+
+myMailbox : Mailbox Event
+myMailbox = mailbox identity
+
+type alias Model =
+  { name : String
+  , code : String
+  }
+
+initModel =
+  { name = Ex.scratchName
+  , code = Ex.scratch
+  }
+
+upstate : Event -> Model -> Model
+upstate = (<|)
+
+-- http://stackoverflow.com/questions/32426042/how-to-print-index-of-selected-option-in-elm
+targetSelectedIndex : Decode.Decoder Int
+targetSelectedIndex = Decode.at ["target", "selectedIndex"] Decode.int
+
+view : Model -> Html
+view model =
+  let testString = model.code in
   let testExp =
     case Parser.parseE testString of
       Err _ -> Debug.crash "main: bad parse"
       Ok e  -> e
   in
+  let break = Html.br [] [] in
   let head = Html.node "head" [] [] in
-  let body = Html.node "body"
-               [ basicStyle, Attr.contenteditable True ]
-               [ htmlOfExp testExp ]
+  let body =
+    let options =
+      flip List.map Ex.examples <| \(name,code) ->
+        Html.option
+           [Attr.value name, Attr.selected (name == model.name)]
+           [Html.text name]
+    in
+    let dropdown =
+      Html.select
+         [ Attr.contenteditable False
+         , Attr.style
+              [ ("width", "500px")
+              , ("font-size", "20pt")
+              , ("font-family", "monospace")
+              ]
+         , Events.on "change" targetSelectedIndex <| \i ->
+             let (name,code) = Utils.geti (i+1) Ex.examples in
+             Signal.message myMailbox.address (\_ -> {name=name, code=code})
+         ]
+         options
+    in
+    Html.node "body"
+       [ basicStyle, Attr.contenteditable True ]
+       [ dropdown, break, htmlOfExp testExp ]
   in
   Html.node "html" [] [head, body]
+
+events : Signal Event
+events = myMailbox.signal
+
+main : Signal Html
+main = Signal.map view (Signal.foldp upstate initModel events)
 
