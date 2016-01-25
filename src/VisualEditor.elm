@@ -175,18 +175,19 @@ htmlOfExp e =
           tok3 = Unparser.makeToken y.end "]"
       in
         Html.span [ basicStyle ] <|
-           brackets e.start tok1.start tok3.end e.end <|
-             [ Html.text tok1.val ] ++ space tok1.end e1.start ++ h1 ++ [ Html.text tok2.val ]
-                ++ space tok2.end y.start ++ [ h2 ] ++ [ Html.text tok3.val ]
+           delimit tok1.val tok2.val tok1.start e1.start e2.end tok2.end (space tok1.end e1.start ++ h1)
+                ++ space tok2.end y.start ++ [ h2 ] ++ space y.end tok3.start ++ [ Html.text tok3.val ]
     EIf e1 e2 e3 ->
-      let (h1,h2,h3) = (htmlOfExp e1, htmlOfExp e2, htmlOfExp e2) in
+      let (h1,h2,h3) = (htmlOfExp e1, htmlOfExp e2, htmlOfExp e3) in
       let tok = Unparser.makeToken (Unparser.incCol e.start) "if" in
       let s1 = space tok.end e1.start
-          s2 = space e1.end e2.start
-          s3 = space e2.end e3.start
       in
-      Html.span [ basicStyle ] <| parens e.start e.start e3.end e.end
-            [ Html.text tok.val] ++ s1 ++ [ h1 ] ++ s2 ++ [ h2 ] ++ s3 ++ [ h3 ] 
+      Html.span [ basicStyle ] <| parens e.start tok.start e3.end e.end <|
+            [ Html.text tok.val] ++ s1 ++ htmlMap htmlOfExp [ e1, e2, e3 ]
+    EComment s e1 ->
+      let white = space (Unparser.incLine e.start) e1.start in
+      Html.span [ basicStyle] <|
+            [ Html.text <| ";" ++ s] ++ [ Html.br [] [] ] ++ white ++ [ htmlOfExp e1 ]
     _ -> 
       let _ = Debug.log "VisualEditor.HtmlOfExp no match :" (toString e) in
       let s = Unparser.unparseE e in
@@ -209,9 +210,8 @@ htmlOfPat p =
             tok3 = Unparser.makeToken y.end "]"
         in
         Html.span [ basicStyle ] <|
-           brackets p.start tok1.start tok3.end p.end <|
-             [ Html.text tok1.val ] ++ space tok1.end e1.start ++ h1 ++ [ Html.text tok2.val ]
-                ++ space tok2.end y.start ++ [ h2 ] ++ [ Html.text tok3.val ]
+            delimit tok1.val tok2.val tok1.start e1.start e2.end tok2.end (space tok1.end e1.start ++ h1)
+                ++ space tok2.end y.start ++ [ h2 ] ++ space y.end tok3.start ++ [ Html.text tok3.val ]
 
 ------------------------------------------------------------------------------
 -- Basic Driver
@@ -241,6 +241,7 @@ targetSelectedIndex = Decode.at ["target", "selectedIndex"] Decode.int
 view : Model -> Html
 view model =
   let testString = model.code in
+  --let testString = "[[x0 y0] [x1 y1] | rest]" in 
   let testExp =
     case Parser.parseE testString of
       Err _ -> Debug.crash "main: bad parse"
