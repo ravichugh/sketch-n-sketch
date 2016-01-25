@@ -51,6 +51,14 @@ patUseStyle =
     , ("border-style", "solid")
     ]
 
+opUseStyle : Attribute
+opUseStyle =
+  Attr.style
+    [ ("background", "brown")
+    , ("border", "3pt")
+    , ("border-style", "solid")
+    ]
+
 ------------------------------------------------------------------------------
 -- Expression to HTML
 
@@ -109,7 +117,7 @@ htmlOfExp e =
       let (h,l) = (Utils.head_ es, Utils.last_ es) in
       Html.span [ basicStyle ] <|
           parens e.start op.start l.end e.end <|
-            [ Html.text <| strOp op.val ]
+            [ Html.span [ opUseStyle ] <| [ Html.text <| strOp op.val ]]
             ++ space op.end h.start
             ++ hs
     EVar x -> Html.span [ varUseStyle ] [ Html.text x]
@@ -165,8 +173,9 @@ htmlOfExp e =
           Html.span [ basicStyle ] <|
               parens e.start tok.start e1.end e.end defParen ++ rest
     EList xs Nothing ->
-      Html.span [ basicStyle ] <|
-          brackets e.start (Utils.head_ xs).start (Utils.last_ xs).end e.end <| htmlMap htmlOfExp xs
+      case xs of
+        [] -> Html.span [ basicStyle ] <| [ Html.text "[]" ]
+        _  -> Html.span [ basicStyle ] <| brackets e.start (Utils.head_ xs).start (Utils.last_ xs).end e.end <| htmlMap htmlOfExp xs
     EList xs (Just y) ->
       let (h1, h2) = (htmlMap htmlOfExp xs, htmlOfExp y) in
       let (e1,e2) = (Utils.head_ xs, Utils.last_ xs) in
@@ -187,7 +196,12 @@ htmlOfExp e =
     EComment s e1 ->
       let white = space (Unparser.incLine e.start) e1.start in
       Html.span [ basicStyle] <|
-            [ Html.text <| ";" ++ s] ++ [ Html.br [] [] ] ++ white ++ [ htmlOfExp e1 ]
+            [ Html.text <| ";" ++ s] ++ [ Html.br [] [] ] ++ white ++ [ htmlOfExp e1 ] 
+    ECase e1 bs ->
+      let tok = Unparser.makeToken (Unparser.incCol e.start) "case" in
+      let l = Utils.last_ bs in
+      Html.span [ basicStyle ] <|
+          parens e.start tok.start l.end e.end <| htmlMap htmlOfBranch bs
     _ -> 
       let _ = Debug.log "VisualEditor.HtmlOfExp no match :" (toString e) in
       let s = Unparser.unparseE e in
@@ -200,8 +214,9 @@ htmlOfPat p =
       PConst n -> Html.span [ literalStyle ] [ Html.text <| toString n ]
       PBase baseVal -> Html.span [ literalStyle ] [ Html.text <| toString baseVal ]
       PList xs Nothing ->
-        Html.span [ basicStyle ] <|
-          brackets p.start (Utils.head_ xs).start (Utils.last_ xs).end p.end <| htmlMap htmlOfPat xs
+        case xs of
+          [] -> Html.span [ basicStyle ] <| [ Html.text "[]" ] 
+          _  -> Html.span [ basicStyle ] <| brackets p.start (Utils.head_ xs).start (Utils.last_ xs).end p.end <| htmlMap htmlOfPat xs
       PList xs (Just y) ->
         let (h1, h2) = (htmlMap htmlOfPat xs, htmlOfPat y) in
         let (e1,e2) = (Utils.head_ xs, Utils.last_ xs) in
@@ -213,6 +228,12 @@ htmlOfPat p =
             delimit tok1.val tok2.val tok1.start e1.start e2.end tok2.end (space tok1.end e1.start ++ h1)
                 ++ space tok2.end y.start ++ [ h2 ] ++ space y.end tok3.start ++ [ Html.text tok3.val ]
 
+htmlOfBranch : Branch -> Html
+htmlOfBranch b =
+  let (p,e) = b.val in
+  Html.span [ basicStyle] <|
+      parens b.start p.start e.end b.end <|
+             [ htmlOfPat p ] ++ space p.end e.start ++ [ htmlOfExp e ]
 ------------------------------------------------------------------------------
 -- Basic Driver
 

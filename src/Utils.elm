@@ -205,7 +205,7 @@ justGet_ s k d = fromJust_ ("Utils.justGet " ++ s) <| Dict.get k d
 
 head_ = fromJust_ "Utils.head_" << List.head
 tail_ = fromJust_ "Utils.tail_" << List.tail
-last_ = head_ << List.reverse
+last_ = fromJust_ "Utils.last_" << List.head << List.reverse
 
 uncons xs = case xs of
   x::xs -> (x, xs)
