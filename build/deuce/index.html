@@ -1,0 +1,34 @@
+<html>
+
+  <head>
+    <title>Deuce</title>
+    <script type="text/javascript" src="deuce.js"></script>
+    <meta charset="UTF-8">
+    <style type="text/css" media="screen">
+        #editor {
+            position: relative;
+        }
+    </style>
+    </head>
+
+    <body style="margin: 0 0 0 0;">
+    </body>
+
+    <script>
+      // Scripts below will load these up.
+      window.initialPortValues = {};
+      window.initializers      = [];
+    </script>
+    <script type="text/javascript" src="deucePorts.js"></script>
+    <script>
+      // Start up Elm
+      var elmRuntime = Elm.fullscreen(Elm.VisualEditor, window.initialPortValues);
+
+      // Call the initializers
+      for (var i in window.initializers) {
+        var intializer = window.initializers[i];
+        intializer(elmRuntime);
+      }
+    </script>
+
+</html>

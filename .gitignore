@@ -10,6 +10,8 @@ build/out/toggleAnimationLoopback.js
 build/out/mode-little.js
 build/out/theme-chrome.js
 build/out/img/*
+build/deuce/deuce.js
+build/deuce/deucePorts.js
 *swp
 src/*swp
 src/*swo

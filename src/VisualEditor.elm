@@ -5,7 +5,9 @@ import Html.Attributes as Attr
 import Html.Events as Events
 import Json.Decode as Decode
 import String
+import Dict
 import Signal exposing (Mailbox, mailbox)
+import Time
 
 import ExamplesGenerated as Ex
 import Lang exposing (..)
@@ -77,6 +79,21 @@ literalInnerStyle =
 
 
 ------------------------------------------------------------------------------
+-- Events
+
+-- this is a simple example, just increments current value by one
+eConstEvent n loc =
+  let (locid,_,_) = loc in
+  Events.onClick myMailbox.address <| UpdateModel <| \model ->
+
+    -- relying on invariant that EId = LocId
+    let lSubst = Dict.singleton locid (n+1) in
+    let exp' = applyLocSubst lSubst model.exp in
+    let code' = Unparser.unparseE exp' in
+    { model | exp = exp', code = code' }
+
+
+------------------------------------------------------------------------------
 -- Expression to HTML
 
 -- TODO:
@@ -122,9 +139,9 @@ htmlOfExp e =
   let e_ = e.val in
   let e__ = e_.e__ in
   case e__ of
-    EConst n _ _ ->
+    EConst n loc _ ->
       Html.span
-         [ literalOuterStyle ]
+         [ literalOuterStyle, eConstEvent n loc ]
          [ Html.span [ literalInnerStyle ] [ Html.text <| toString n ] ]
     EBase baseVal ->
       case baseVal of
@@ -258,23 +275,33 @@ htmlOfBranch b =
 ------------------------------------------------------------------------------
 -- Basic Driver
 
-type alias Event = Model -> Model
+type Event
+  = UpdateModel (Model -> Model)
+  | HtmlUpdate String
 
 myMailbox : Mailbox Event
-myMailbox = mailbox identity
+myMailbox = mailbox (UpdateModel identity)
 
 type alias Model =
   { name : String
   , code : String
+  , exp  : Exp
   }
 
 initModel =
   { name = Ex.scratchName
   , code = Ex.scratch
+  , exp  = Utils.fromOk_ (Parser.parseE Ex.scratch)
   }
 
 upstate : Event -> Model -> Model
-upstate = (<|)
+upstate evt model =
+  case evt of
+    UpdateModel f -> f model
+    HtmlUpdate code ->
+      case Parser.parseE code of
+        Err _  -> model
+        Ok exp -> { model | exp = exp, code = code }
 
 -- http://stackoverflow.com/questions/32426042/how-to-print-index-of-selected-option-in-elm
 targetSelectedIndex : Decode.Decoder Int
@@ -289,7 +316,6 @@ view model =
       Ok e  -> e
   in
   let break = Html.br [] [] in
-  let head = Html.node "head" [] [] in
   let body =
     let options =
       flip List.map Ex.examples <| \(name,code) ->
@@ -307,18 +333,28 @@ view model =
               ]
          , Events.on "change" targetSelectedIndex <| \i ->
              let (name,code) = Utils.geti (i+1) Ex.examples in
-             Signal.message myMailbox.address (\_ -> {name=name, code=code})
+             Signal.message myMailbox.address <| UpdateModel <| \_ ->
+               let exp = Utils.fromOk_ (Parser.parseE code) in
+               { name = name, code = code, exp = exp }
          ]
          options
     in
-    Html.node "body"
+    let hExp = Html.div [ Attr.id "theSourceCode" ] [ htmlOfExp testExp ] in
+    Html.node "div"
        [ basicStyle, Attr.contenteditable True ]
-       [ dropdown, break, htmlOfExp testExp ]
+       [ dropdown, break, hExp ]
   in
-  Html.node "html" [] [head, body]
+  body
 
 events : Signal Event
-events = myMailbox.signal
+events =
+  Signal.merge myMailbox.signal (Signal.map HtmlUpdate sourceCodeSignalFromJS)
+
+port sourceCodeSignalFromJS : Signal String
+
+port sourceCodeSignalToJS : Signal ()
+port sourceCodeSignalToJS =
+  Signal.sampleOn (Time.every (1 * Time.second)) (Signal.constant ())
 
 main : Signal Html
 main = Signal.map view (Signal.foldp upstate initModel events)

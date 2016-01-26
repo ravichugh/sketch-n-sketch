@@ -25,7 +25,7 @@ loc:
     InterfaceModel.elm InterfaceView2.elm InterfaceController.elm \
     InterfaceStorage.elm Storage.elm \
     Codebox.elm Native/codeBox.js \
-	Native/toggleAnimationLoopback.js \
+	  Native/toggleAnimationLoopback.js \
     Main.elm Config.elm \
     PreludeTemplate.elm ExamplesTemplate.elm \
     ColorNum.elm
@@ -35,3 +35,7 @@ littleloc:
 	scripts/exampleStats.sh
 	scripts/exampleStats.sh | wc -l
 	scripts/exampleStats.sh | awk '{ sum += $$1 } END { print sum }'
+
+deuce:
+	elm-make VisualEditor.elm --output ../build/deuce/deuce.js
+	cp Native/deucePorts.js ../build/deuce/
