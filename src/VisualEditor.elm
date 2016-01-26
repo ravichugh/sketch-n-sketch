@@ -17,10 +17,20 @@ import Utils
 ------------------------------------------------------------------------------
 -- Styles
 
+-- TODO use CSS classes/selectors eventually
+
+border =
+  [ ("border", "3pt")
+  , ("border-style", "solid")
+  , ("border-color", "black") ]
+
+leftRightPadding =
+  [ ("padding", "0pt 2pt 0pt 2pt") ]
+
 basicStyle : Attribute
 basicStyle =
   Attr.style
-    [ ("font-size", "20pt")
+    [ ("font-size", "16pt")
     , ("font-family", "monospace")
     , ("line-height", "1.8")
     , ("white-space", "pre")
@@ -28,36 +38,43 @@ basicStyle =
 
 literalStyle : Attribute
 literalStyle =
-  Attr.style
-    -- TODO
+  Attr.style <|
     [ ("background", "yellow")
-    , ("border", "3pt")
-    , ("border-style", "solid")
-    ]
+    ] ++ border ++ leftRightPadding
 
 varUseStyle : Attribute
 varUseStyle =
-  Attr.style
+  Attr.style <|
     [ ("background", "red")
-    , ("border", "3pt")
-    , ("border-style", "solid")
-    ]
+    ] ++ border ++ leftRightPadding
 
 patUseStyle : Attribute
 patUseStyle =
-  Attr.style
-    [ ("background", "blue")
-    , ("border", "3pt")
-    , ("border-style", "solid")
-    ]
+  Attr.style <|
+    [ ("background", "lightblue")
+    ] ++ border ++ leftRightPadding
 
 opUseStyle : Attribute
 opUseStyle =
-  Attr.style
+  Attr.style <|
     [ ("background", "brown")
-    , ("border", "3pt")
-    , ("border-style", "solid")
+    ] ++ border
+
+literalOuterStyle =
+  Attr.style
+    [ ("background", "gray")
+    , ("padding", "5pt")
+    , ("border-radius", "5pt")
+    , ("cursor", "grab")
     ]
+
+literalInnerStyle : Attribute
+literalInnerStyle =
+  Attr.style <|
+    [ ("background", "yellow")
+    , ("cursor", "text")
+    ] ++ leftRightPadding
+
 
 ------------------------------------------------------------------------------
 -- Expression to HTML
@@ -106,7 +123,9 @@ htmlOfExp e =
   let e__ = e_.e__ in
   case e__ of
     EConst n _ _ ->
-      Html.span [ literalStyle ] [ Html.text <| toString n ]
+      Html.span
+         [ literalOuterStyle ]
+         [ Html.span [ literalInnerStyle ] [ Html.text <| toString n ] ]
     EBase baseVal ->
       case baseVal of
         Bool b -> Html.span [ literalStyle ] [ Html.text <| toString b ]
@@ -203,7 +222,7 @@ htmlOfExp e =
       Html.span [ basicStyle ] <|
           parens e.start tok.start l.end e.end <| htmlMap htmlOfBranch bs
     _ -> 
-      let _ = Debug.log "VisualEditor.HtmlOfExp no match :" (toString e) in
+      -- let _ = Debug.log "VisualEditor.HtmlOfExp no match :" (toString e) in
       let s = Unparser.unparseE e in
       Html.pre [] [ Html.text s ]
 
@@ -234,6 +253,8 @@ htmlOfBranch b =
   Html.span [ basicStyle] <|
       parens b.start p.start e.end b.end <|
              [ htmlOfPat p ] ++ space p.end e.start ++ [ htmlOfExp e ]
+
+
 ------------------------------------------------------------------------------
 -- Basic Driver
 
@@ -262,7 +283,6 @@ targetSelectedIndex = Decode.at ["target", "selectedIndex"] Decode.int
 view : Model -> Html
 view model =
   let testString = model.code in
-  --let testString = "[[x0 y0] [x1 y1] | rest]" in 
   let testExp =
     case Parser.parseE testString of
       Err _ -> Debug.crash "main: bad parse"
