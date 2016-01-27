@@ -655,10 +655,10 @@ upstate evt old = case debugLog "Event" evt of
       -- Debug only:
       let newSubtreeStr = debugLog "newlyWrappedCommonScope" <| unparseE newlyWrappedCommonScope in
       let newExp =
-        replaceNode deepestCommonScope newlyWrappedCommonScope old.inputExp
+        replaceExpNode deepestCommonScope newlyWrappedCommonScope old.inputExp
       in
       let unparsed = debugLog "new code" <| unparseE newExp in
-      -- Reparse to reset eid's etc...
+      -- Reparse to reset eids, locs, etc...
       let newExp =
         case parseE unparsed of
           Ok reparsed -> reparsed

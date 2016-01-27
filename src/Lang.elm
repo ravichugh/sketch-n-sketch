@@ -391,15 +391,10 @@ foldExp f acc e =
   let flatE__s = List.map (.e__ << .val) (flattenExpTree e) in
   List.foldl f acc flatE__s
 
-replaceNode : Exp -> Exp -> Exp -> Exp
-replaceNode oldNode newNode root =
-  mapExp
-      (\node ->
-        if node == oldNode
-        then newNode
-        else node
-      )
-      root
+replaceExpNode : Exp -> Exp -> Exp -> Exp
+replaceExpNode oldNode newNode root =
+  let esubst = Dict.singleton oldNode.val.eid newNode.val.e__ in
+  applyESubst esubst root
 
 ------------------------------------------------------------------------------
 -- Traversing
