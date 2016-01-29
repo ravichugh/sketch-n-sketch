@@ -103,7 +103,7 @@ eConstEvent n loc =
 --  - colored bounding boxes according to start/end pos
 --
 
--- map with linebreak interspersed
+-- map with linebreak/spaces interspersed
 
 htmlMap : (WithInfo a -> Html) -> List (WithInfo a) -> List Html
 htmlMap f xs =
@@ -114,12 +114,22 @@ htmlMap f xs =
   in
   snd <| List.foldr combine (Nothing, []) xs
 
+lines : Int -> Int -> String
+lines i j =
+  if i > j then let _ = Debug.log <| "VisualEditor: " ++ toString (i,j) in " "
+  else String.repeat (j-i) "\n"
+
+cols : Int -> Int -> String
+cols i j =
+  if i > j then let _ = Debug.log <| "VisualEditor: " ++ toString (i,j) in " "
+  else String.repeat (j-i) " "
+       
 space : Pos -> Pos -> List Html
 space endPrev startNext =
   if endPrev.line == startNext.line
-  then [ Html.text <| Unparser.cols endPrev.col startNext.col ]
-  else List.repeat (startNext.line - endPrev.line) (Html.br [] [])
-         ++ [ Html.text <| Unparser.cols 1 startNext.col ]
+  then [ Html.text <| cols endPrev.col startNext.col ]
+  else [ Html.text <| lines endPrev.line startNext.line ] 
+         ++ [ Html.text <| cols 1 startNext.col ]
 
 delimit : String -> String -> Pos -> Pos -> Pos -> Pos -> List Html -> List Html
 delimit open close startOutside startInside endInside endOutside hs =
@@ -232,7 +242,7 @@ htmlOfExp e =
     EComment s e1 ->
       let white = space (Unparser.incLine e.start) e1.start in
       Html.span [ basicStyle] <|
-            [ Html.text <| ";" ++ s] ++ [ Html.br [] [] ] ++ white ++ [ htmlOfExp e1 ] 
+            [ Html.text <| ";" ++ s] ++ [ Html.text <| "\n" ] ++ white ++ [ htmlOfExp e1 ] 
     ECase e1 bs ->
       let tok = Unparser.makeToken (Unparser.incCol e.start) "case" in
       let l = Utils.last_ bs in
