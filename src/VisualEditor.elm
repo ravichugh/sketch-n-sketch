@@ -2,7 +2,7 @@ module VisualEditor where
 
 import Html exposing (Html, Attribute)
 import Html.Attributes as Attr
-import Html.Events as Events
+import Html.Events as Events exposing (defaultOptions)
 import Json.Decode as Decode
 import String
 import Dict
@@ -82,6 +82,7 @@ literalInnerStyle =
 -- Events
 
 -- this is a simple example, just increments current value by one
+eConstEvent : Float -> Loc -> Attribute
 eConstEvent n loc =
   let (locid,_,_) = loc in
   Events.onClick myMailbox.address <| UpdateModel <| \model ->
@@ -92,6 +93,18 @@ eConstEvent n loc =
     let code' = Unparser.unparseE exp' in
     { model | exp = exp', code = code' }
 
+onClickWithoutPropagation : Signal.Address a -> a -> Attribute
+onClickWithoutPropagation address a = Events.onWithOptions "click" {defaultOptions | stopPropagation = True} Decode.value (\_ -> Signal.message address a)
+                                   
+eVarEvent : Ident -> Int -> Attribute
+eVarEvent x id =
+  onClickWithoutPropagation myMailbox.address <| UpdateModel <| \model ->
+    let e = Utils.fromOk_ <| Parser.parseE <| "(let " ++ x ++"1 " ++ x ++ " " ++ x ++ "1)" in
+    let e__ = e.val.e__ in
+    let eSubst = Dict.singleton id e__  in
+    let exp' = applyESubst eSubst model.exp in
+    let code' = Unparser.unparseE exp' in
+    { model | exp = exp', code = code'}
 
 ------------------------------------------------------------------------------
 -- Expression to HTML
@@ -166,7 +179,7 @@ htmlOfExp e =
             [ Html.span [ opUseStyle ] <| [ Html.text <| strOp op.val ]]
             ++ space op.end h.start
             ++ hs
-    EVar x -> Html.span [ varUseStyle ] [ Html.text x]
+    EVar x -> Html.span [ varUseStyle, eVarEvent x e.val.eid ] [ Html.text x]
     EFun [p] e1 ->
       let (h1, h2) = (htmlOfPat p, htmlOfExp e1) in
       let tok = Unparser.makeToken (Unparser.incCol e.start) "\\" in
@@ -320,6 +333,12 @@ targetSelectedIndex = Decode.at ["target", "selectedIndex"] Decode.int
 view : Model -> Html
 view model =
   let testString = model.code in
+  {-let testString = "(defrec mkwaves 
+  (\\l (case l 
+    ([] [])
+    ([x] [])
+    ([a b | rest] (append (wave a b amplitude) (mkwaves [ b | rest ]))))))
+" in-}
   let testExp =
     case Parser.parseE testString of
       Err _ -> Debug.crash "main: bad parse"
