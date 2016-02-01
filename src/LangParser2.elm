@@ -166,7 +166,7 @@ unwrapChars = List.map .val << .val
 
 isAlpha c        = Char.isLower c || Char.isUpper c
 isAlphaNumeric c = Char.isLower c || Char.isUpper c || Char.isDigit c
-isWhitespace c   = c == ' ' || c == '\n'
+isWhitespace c   = c == ' ' || c == '\n' || c == '\t'
 
 parseInt : P.Parser Int
 parseInt =
@@ -303,7 +303,7 @@ parseList1 = parseList_ P.sepBy1
 
 parseListLiteral p f = parseList "[" listSep "]" p f
 
-listSep = P.token " " <++ P.token "\n" -- duplicating isWhitespace...
+listSep = P.token " " <++ P.token "\n" <++ P.token "\t" -- duplicating isWhitespace...
 
 parseMultiCons
    : P.Parser a -> (List (P.WithInfo a) -> P.WithInfo a -> b)
