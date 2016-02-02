@@ -66,7 +66,7 @@ opUseStyle =
     [ ("background", "brown")
     ] ++ border
 
-literalOuterStyle model padding =
+literalOuterStyle model padding color =
   let (l1,l2) =
     -- ( [ ("padding", "5pt")
     --   , ("border-radius", "5pt")
@@ -74,7 +74,7 @@ literalOuterStyle model padding =
       , ("border-radius", "5pt")
       , ("background", "lightgray")
       ]
-    , [ ("background", "gray")
+    , [ ("background", color)
       , ("cursor", "pointer")
       ])
   in
@@ -105,16 +105,30 @@ handleAndStop evt f =
 eConstEvent : Float -> Loc -> Int -> Attribute
 eConstEvent n loc offset =
   let (locid,_,_) = loc in
-  handleAndStop "click" <| \model ->
-    -- relying on invariant that EId = LocId
+  handleAndStop "mousedown" <| \model ->
     let lSubst = Dict.singleton locid (n + toFloat offset) in
     let exp' = applyLocSubst lSubst model.exp in
     let code' = Unparser.unparseE exp' in
     { model | exp = exp', code = code' }
 
+eConstFlipFreeze (n, loc, wd) =
+  let (locid,ann,mx) = loc in
+  let ann' =
+    if ann == frozen then unann
+    else if ann == unann then frozen
+    else ann
+  in
+  let eSubst = Dict.singleton locid (EConst n (locid, ann', mx) wd) in
+    -- relying on invariant that EId = LocId
+
+  handleAndStop "mousedown" <| \model ->
+    let exp' = applyESubst eSubst model.exp in
+    let code' = Unparser.unparseE exp' in
+    { model | exp = exp', code = code' }
+
 -- <span> doesn't have a "change" event
 eTextChange =
-  handleAndStop "click" <| \m ->
+  handleAndStop "mousedown" <| \m ->
     { m | textChangedAt = Just 0 }
 
 {-
@@ -134,10 +148,17 @@ eVarEvent x id =
 
 ------------------------------------------------------------------------------
 
-eConstOuterAttrs model n loc padding offset =
+eConstOuterLeftRight model n loc padding color offset =
   case model.textChangedAt of
-    Nothing -> [ literalOuterStyle model padding, eConstEvent n loc offset ]
-    Just _  -> [ literalOuterStyle model padding ]
+    Nothing -> [ literalOuterStyle model padding color, eConstEvent n loc offset ]
+    Just _  -> [ literalOuterStyle model padding color ]
+
+eConstOuterBottom model eConstInfo =
+  let padding = "0 0 5pt 0" in
+  let color = "lightblue" in
+  case model.textChangedAt of
+    Nothing -> [ literalOuterStyle model padding color, eConstFlipFreeze eConstInfo ]
+    Just _  -> [ literalOuterStyle model padding color ]
 
 eConstInnerAttrs model =
   [ Attr.contenteditable True
@@ -197,20 +218,30 @@ delimit open close startOutside startInside endInside endOutside hs =
 parens = delimit "(" ")"
 brackets = delimit "[" "]"
 
+-- stack : List Attribute -> Html -> Html
+stack layers node =
+  case layers of
+    []             -> node
+    layer::layers' -> Html.span layer [ stack layers' node ]
+
+htmlOfConst model n loc wd =
+  let (_,ann,_) = loc in
+  let layers =
+     [ eConstOuterLeftRight model n loc "0 8pt 0 0" "gray" 1
+     , eConstOuterLeftRight model n loc "0 0 0 8pt" "gray" (-1)
+     , eConstOuterBottom model (n, loc, wd)
+     , eConstInnerAttrs model
+     ]
+  in
+  stack layers (Html.text <| toString n ++ ann)
+
 htmlOfExp : Model -> Exp -> Html
 htmlOfExp model e =
   let recurse = htmlOfExp model in
   let e_ = e.val in
   let e__ = e_.e__ in
   case e__ of
-    EConst n loc _ ->
-      Html.span
-         (eConstOuterAttrs model n loc "0 0 0 8pt" (-1))
-         [ Html.span
-              (eConstOuterAttrs model n loc "0 8pt 0 0" 1)
-              [ Html.span
-                   (eConstInnerAttrs model)
-                   [ Html.text <| toString n ] ] ]
+    EConst n loc wd -> htmlOfConst model n loc wd
     EBase baseVal ->
       case baseVal of
         Bool b -> Html.span [ literalStyle ] [ Html.text <| toString b ]
