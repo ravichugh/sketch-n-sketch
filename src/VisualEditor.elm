@@ -54,11 +54,12 @@ varUseStyle =
     [ ("background", "red")
     ] ++ border ++ leftRightPadding
 
-patUseStyle : Attribute
-patUseStyle =
+varDefStyle : Attribute
+varDefStyle =
   Attr.style <|
     [ ("background", "lightblue")
-    ] ++ border ++ leftRightPadding
+    , ("cursor", "text")
+    ] ++ leftRightPadding
 
 opUseStyle : Attribute
 opUseStyle =
@@ -235,6 +236,91 @@ htmlOfConst model n loc wd =
   in
   stack layers (Html.text <| toString n ++ ann)
 
+rewritePat : Ident -> Ident -> Pat -> Maybe Pat
+rewritePat x x' =
+  let foo p =
+    case p.val of
+      PVar y wd          -> if x == y then { p | val = PVar x' wd } else p
+      PList ps Nothing   -> { p | val = PList (List.map foo ps) Nothing }
+      PList ps (Just p0) -> { p | val = PList (List.map foo ps) (Just (foo p0)) }
+      _                  -> p
+  in
+  \p ->
+    let p' = foo p in
+    if p == p'
+      then Nothing
+      else Just p'
+
+-- for now, not taking into account ids, scope, capture...
+renameVar x x' model =
+  let bar e__ =
+    case e__ of
+      EVar y -> if x == y then EVar x' else e__
+      _      -> e__
+  in
+  let foo e__ =
+    case e__ of
+      ELet k b p e1 e2 ->
+        case rewritePat x x' p of
+          Nothing -> e__
+          Just p' -> let e2' = mapExp bar e2 in
+                     ELet k b p' e1 e2'
+      EFun ps e1 ->
+        let ps' = List.map (rewritePat x x') ps in
+        -- TODO
+        let blah pi mpi' =
+          case mpi' of
+            Nothing -> pi
+            Just pi' -> pi'
+          in
+        let ps'' = List.map2 blah ps ps' in
+        let e1' = mapExp bar e1 in
+        EFun ps'' e1'
+      _ -> e__
+  in
+  let exp' = mapExp foo model.exp in
+  let code' = Unparser.unparseE exp' in
+  { model | exp = exp', code = code' }
+
+-- could supply EId of ELet/EFun from htmlOfExp/Pat...
+htmlOfPVar model x =
+  let botRight =
+    [ Attr.style
+        [ ("padding", "0 5pt 5pt 0")
+        , ("border-radius", "5pt")
+        , ("background", "orange")
+        , ("cursor", "pointer")
+        ]
+    , Attr.id x
+    , Events.onClick queryMailbox.address (x)
+        -- sending message to JavaScript,
+        -- rather than installing UpdateModel callback...
+    ] in
+  let left =
+    [ Attr.style
+        [ ("padding", "0 0 0 5pt")
+        , ("border-radius", "5pt")
+        , ("background", "lightgreen")
+        , ("cursor", "pointer")
+        ]
+    ] in
+  let top =
+    [ Attr.style
+        [ ("padding", "5pt 0 0 0")
+        , ("border-radius", "5pt")
+        , ("background", "gray")
+        , ("cursor", "grab")
+        ]
+    ] in
+  let layers =
+     [ botRight
+     , left
+     , top
+     , [ Attr.contenteditable True, varDefStyle, eTextChange ]
+     ]
+  in
+  stack layers (Html.text x)
+
 htmlOfExp : Model -> Exp -> Html
 htmlOfExp model e =
   let recurse = htmlOfExp model in
@@ -243,19 +329,20 @@ htmlOfExp model e =
   case e__ of
     EConst n loc wd -> htmlOfConst model n loc wd
     EBase baseVal ->
+      let attrs = [ {- literalStyle -} ] in
       case baseVal of
-        Bool b -> Html.span [ literalStyle ] [ Html.text <| toString b ]
-        String s -> Html.span [ literalStyle ] [ Html.text <| "\'" ++ s ++ "\'" ]
-        Star -> Html.span [ literalStyle ] [ Html.text <| toString Star ]
+        Bool b -> Html.span attrs [ Html.text <| toString b ]
+        String s -> Html.span attrs [ Html.text <| "\'" ++ s ++ "\'" ]
+        Star -> Html.span attrs [ Html.text <| toString Star ]
     EOp op es ->
       let hs = htmlMap recurse es in
       let (h,l) = (Utils.head_ es, Utils.last_ es) in
       Html.span [ basicStyle ] <|
           parens e.start op.start l.end e.end <|
-            [ Html.span [ opUseStyle ] <| [ Html.text <| strOp op.val ]]
+            [ Html.span [ {- opUseStyle -} ] <| [ Html.text <| strOp op.val ]]
             ++ space op.end h.start
             ++ hs
-    EVar x -> Html.span [ varUseStyle ] [ Html.text x]
+    EVar x -> Html.span [ {- varUseStyle -} ] [ Html.text x]
     EFun [p] e1 ->
       let (h1, h2) = (htmlOfPat model p, recurse e1) in
       let tok = Unparser.makeToken (Unparser.incCol e.start) "\\" in
@@ -346,7 +433,7 @@ htmlOfPat : Model -> Pat -> Html
 htmlOfPat model p =
     let recurse = htmlOfPat model in
     case p.val of
-      PVar x _ -> Html.span [ patUseStyle ] [ Html.text x ]
+      PVar x _ -> htmlOfPVar model x
       PConst n -> Html.span [ literalStyle ] [ Html.text <| toString n ]
       PBase baseVal -> Html.span [ literalStyle ] [ Html.text <| toString baseVal ]
       PList xs Nothing ->
@@ -378,12 +465,19 @@ htmlOfBranch model b =
 type Event
   = UpdateModel (Model -> Model)
   | HtmlUpdate String
+  | SpanValue SpanValue
+      -- keeping SpanValue and HtmlUpdate ("theSourceCode") separate for now
+
+type alias SpanValue = (String, String)
 
 myMailbox : Mailbox Event
 myMailbox = mailbox (UpdateModel identity)
 
 btnMailbox : Mailbox ()
 btnMailbox = mailbox ()
+
+queryMailbox : Mailbox String
+queryMailbox = mailbox "NOTHING YET"
 
 type alias Model =
   { name : String
@@ -407,6 +501,10 @@ upstate evt model =
       case Parser.parseE code of
         Err _  -> model
         Ok exp -> { model | exp = exp, code = code, textChangedAt = Nothing }
+    SpanValue (x, x') ->
+      if x == x' || String.contains " " x'
+        then model
+        else renameVar x x' model
 
 -- http://stackoverflow.com/questions/32426042/how-to-print-index-of-selected-option-in-elm
 targetSelectedIndex : Decode.Decoder Int
@@ -459,13 +557,28 @@ view model =
 
 events : Signal Event
 events =
-  Signal.merge myMailbox.signal (Signal.map HtmlUpdate sourceCodeSignalFromJS)
+  Signal.merge myMailbox.signal eventsFromJS
 
-port sourceCodeSignalFromJS : Signal String
+eventsFromJS : Signal Event
+eventsFromJS =
+  let foo (id,s) =
+    if id == "theSourceCode"
+      then HtmlUpdate s
+      else SpanValue (id, s)
+  in
+  Signal.map foo sourceCodeSignalFromJS
 
-port sourceCodeSignalToJS : Signal ()
+-- port sourceCodeSignalFromJS : Signal String
+port sourceCodeSignalFromJS : Signal (String, String)
+
+-- port sourceCodeSignalToJS : Signal ()
+port sourceCodeSignalToJS : Signal String
 port sourceCodeSignalToJS =
-  btnMailbox.signal
+  Signal.mergeMany
+    [ Signal.map (always "theSourceCode") btnMailbox.signal
+    , queryMailbox.signal
+    ]
+  -- btnMailbox.signal
   -- Signal.sampleOn (Time.every (4 * Time.second)) (Signal.constant ())
 
 main : Signal Html
