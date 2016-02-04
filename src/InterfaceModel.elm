@@ -235,8 +235,8 @@ codeToShow model =
 sampleModel : Model
 sampleModel =
   let
-    (name,f) = Utils.head_ Examples.list
-    {e,v,ws} = f ()
+    (name,_,f) = Utils.head_ Examples.list
+    {e,v,ws}   = f ()
   in
   let (slideCount, movieCount, movieDuration, movieContinue, indexedTree) = LangSvg.fetchEverything 1 1 0.0 v in
     { scratchCode   = Examples.scratch

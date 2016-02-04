@@ -1424,7 +1424,7 @@ toolButton model tt w h =
 saveButton : Model -> Int -> Int -> GE.Element
 saveButton model w h =
     let cap = "Save" in
-    let disabled = List.any ((==) model.exName << fst) Examples.list in
+    let disabled = List.any ((==) model.exName << Utils.fst3) Examples.list in
     simpleEventButton_
       disabled (InterfaceModel.WaitSave model.exName)
       cap cap cap w h
@@ -1484,7 +1484,7 @@ dropdownExamples model w h =
     choices = case model.mode of
       AdHoc -> [(model.exName, Signal.send events.address Noop)]
       _ ->
-        let foo (name,thunk) = (name, Signal.send events.address (SelectExample name thunk))
+        let foo (name,_,thunk) = (name, Signal.send events.address (SelectExample name thunk))
             bar saveName = (saveName, loadLocalState saveName)
             blank = ("", Task.succeed ())
             localsaves = case model.localSaves of
