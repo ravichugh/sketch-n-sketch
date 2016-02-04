@@ -1,4 +1,4 @@
-module LangUnparser (unparse, bumpCol, incCol) where
+module LangUnparser (unparse, bumpCol, incCol, preceedingWhitespace) where
 
 import Lang exposing (..)
 import OurParser2 exposing (Pos, WithPos, WithInfo, startPos)
@@ -20,6 +20,23 @@ bumpCol n pos = { pos | col = n + pos.col }
 incCol = bumpCol 1
 
 ------------------------------------------------------------------------------
+
+preceedingWhitespace : Exp -> String
+preceedingWhitespace e =
+  case e.val.e__ of
+    EBase    ws v                     -> ws
+    EConst   ws n l wd                -> ws
+    EVar     ws x                     -> ws
+    EFun     ws1 ps e1 ws2            -> ws1
+    EApp     ws1 e1 es ws2            -> ws1
+    EList    ws1 es ws2 rest ws3      -> ws1
+    EIndList ws1 rs ws2               -> ws1
+    EOp      ws1 op es ws2            -> ws1
+    EIf      ws1 e1 e2 e3 ws2         -> ws1
+    ELet     ws1 kind rec p e1 e2 ws2 -> ws1
+    ECase    ws1 e1 bs ws2            -> ws1
+    EComment ws s e1                  -> ws
+    EOption  ws1 s1 ws2 s2 e1         -> ws1
 
 unparseWD : WidgetDecl -> String
 unparseWD wd =

@@ -1,8 +1,8 @@
 module InterfaceController (upstate) where
 
 import Lang exposing (..) --For access to what makes up the Vals
-import LangParser2 exposing (parseE)
-import LangUnparser exposing (unparse)
+import LangParser2 exposing (parseE, freshen)
+import LangUnparser exposing (unparse, preceedingWhitespace)
 import Sync
 import Eval
 import Utils
@@ -595,10 +595,10 @@ upstate evt old = case debugLog "Event" evt of
       -- Avoid name collisions here
       let locIdToNewName = debugLog "locIdToNewName" <|
         Dict.fromList
-          <| List.map (\(locId, frozen, ident) -> (locId, "k"++(toString locId)++ident++"prime"))
+          <| List.map (\(locId, frozen, ident) -> (locId, "k"++(toString locId)++ident++"Prime"))
           <| locsetList
       in
-      let replaceLocs exp__ =
+      let replaceConstsWithVars exp__ =
         case exp__ of
           EConst ws n (locId, frozen, ident) wd ->
             case Dict.get locId locIdToNewName of
@@ -607,11 +607,9 @@ upstate evt old = case debugLog "Event" evt of
           _ -> exp__
       in
       let commonScopeReplaced =
-        mapExpViaExp__ (replaceLocs) deepestCommonScope
+        mapExpViaExp__ replaceConstsWithVars deepestCommonScope
       in
       let newlyWrappedCommonScope =
-        -- Would build AST symbolically, but getting whitespace
-        -- right with unparse is hard
         let names =
           List.map
               (\(locId, frozen, ident) ->
@@ -629,7 +627,9 @@ upstate evt old = case debugLog "Event" evt of
         let templateStr =
           let variableNamesStr  = String.join " " names in
           let variableValuesStr = String.join " " valueStrs in
-          "(let ["++variableNamesStr++"] ["++variableValuesStr++"]\n  'dummy body'\n)"
+          let oldPreceedingWhitespace = preceedingWhitespace commonScopeReplaced in
+          oldPreceedingWhitespace ++
+          "(let ["++variableNamesStr++"] ["++variableValuesStr++"] 'dummy body')"
         in
         let template =
           case parseE templateStr of
@@ -647,7 +647,7 @@ upstate evt old = case debugLog "Event" evt of
         let newLet =
           { val   = { e__ = newLetE__, eid = -1 }
           , start = template.start
-          , end   = template.end -- Fight with this if whitespace is a problem.
+          , end   = template.end
           }
         in
         newLet
@@ -655,14 +655,8 @@ upstate evt old = case debugLog "Event" evt of
       -- Debug only:
       let newSubtreeStr = debugLog "newlyWrappedCommonScope" <| unparse newlyWrappedCommonScope in
       let newExp =
+        freshen <|
         replaceExpNode deepestCommonScope newlyWrappedCommonScope old.inputExp
-      in
-      let unparsed = debugLog "new code" <| unparse newExp in
-      -- Reparse to reset eids, locs, etc...
-      let newExp =
-        case parseE unparsed of
-          Ok reparsed -> reparsed
-          Err err     -> Debug.crash <| "Dig reparse err: " ++ err
       in
       let (newVal, newWidgets) = Eval.run newExp in
       let (newSlate, newCode)  = slateAndCode old (newExp, newVal) in
