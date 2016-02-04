@@ -4,7 +4,7 @@ module InterfaceView2 (view, scaleColorBall
 
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
-import LangParser2 as Parser exposing (parseE, parseV)
+import LangParser2 as Parser exposing (parseE)
 import Sync
 import Eval
 import Utils

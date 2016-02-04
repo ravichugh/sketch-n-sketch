@@ -11,19 +11,19 @@ import Utils
 
 match : (Pat, Val) -> Maybe Env
 match (p,v) = case (p.val, v.v_) of
-  (PVar x _, _) -> Just [(x,v)]
-  (PList ps Nothing, VList vs) ->
+  (PVar _ x _, _) -> Just [(x,v)]
+  (PList _ ps _ Nothing _, VList vs) ->
     Utils.bindMaybe matchList (Utils.maybeZip ps vs)
-  (PList ps (Just rest), VList vs) ->
+  (PList _ ps _ (Just rest) _, VList vs) ->
     let (n,m) = (List.length ps, List.length vs) in
     if n > m then Nothing
     else
       let (vs1,vs2) = Utils.split n vs in
       (rest, vList vs2) `cons` (matchList (Utils.zip ps vs1))
         -- dummy VTrace, since VList itself doesn't matter
-  (PList _ _, _) -> Nothing
-  (PConst n, VConst (n',_)) -> if n == n' then Just [] else Nothing
-  (PBase bv, VBase bv') -> if bv == bv' then Just [] else Nothing
+  (PList _ _ _ _ _, _) -> Nothing
+  (PConst _ n, VConst (n',_)) -> if n == n' then Just [] else Nothing
+  (PBase _ bv, VBase bv') -> if bv == bv' then Just [] else Nothing
   _ -> Debug.crash "Eval.match"
 
 matchList : List (Pat, Val) -> Maybe Env
@@ -75,19 +75,19 @@ eval env e =
 
   case e.val.e__ of
 
-  EConst i l wd ->
+  EConst _ i l wd ->
     let v_ = VConst (i, TrLoc l) in
     case wd.val of
       NoWidgetDecl         -> ret v_
       IntSlider a _ b mcap -> retBoth (Val v_ [], [WIntSlider a.val b.val (mkCap mcap l) (floor i) l])
       NumSlider a _ b mcap -> retBoth (Val v_ [], [WNumSlider a.val b.val (mkCap mcap l) i l])
 
-  EBase v    -> ret <| VBase v
-  EVar x     -> retAddThis <| lookupVar env x e.start
-  EFun [p] e -> ret <| VClosure Nothing p e env
-  EOp op es  -> retAddWs e.val.eid ((evalOp env op es), env)
+  EBase _ v      -> ret <| VBase v
+  EVar _ x       -> retAddThis <| lookupVar env x e.start
+  EFun _ [p] e _ -> ret <| VClosure Nothing p e env
+  EOp _ op es _  -> retAddWs e.val.eid ((evalOp env op es), env)
 
-  EList es m ->
+  EList _ es _ m _ ->
     let (vs,wss) = List.unzip (List.map (eval_ env) es) in
     let ws = List.concat wss in
     case m of
@@ -98,26 +98,26 @@ eval env e =
           VList vs' -> retBoth <| (Val (VList (vs ++ vs')) [], ws ++ ws')
           _         -> errorMsg <| strPos rest.start ++ " rest expression not a list."
 
-  EIndList rs ->
+  EIndList _ rs _ ->
     let vs = List.concat <| List.map rangeToList rs in
     if isSorted vs
     then ret <| VList vs
     else Debug.crash <| "indices not strictly increasing: " ++ strVal (vList vs)
 
-  EIf e1 e2 e3 ->
+  EIf _ e1 e2 e3 _ ->
     let (v1,ws1) = eval_ env e1 in
     case v1.v_ of
       VBase (Bool True)  -> addWidgets ws1 <| eval env e2
       VBase (Bool False) -> addWidgets ws1 <| eval env e3
       _                  -> errorMsg <| strPos e1.start ++ " if-exp expected a Bool but got something else."
 
-  ECase e1 l ->
+  ECase _ e1 bs _ ->
     let (v1,ws1) = eval_ env e1 in
-    case evalBranches env v1 l of
+    case evalBranches env v1 bs of
       Just (v2,ws2) -> retBoth (v2, ws1 ++ ws2)
       _             -> errorMsg <| strPos e1.start ++ " non-exhaustive case statement"
 
-  EApp e1 [e2] ->
+  EApp _ e1 [e2] _ ->
     let ((v1,ws1),(v2,ws2)) = (eval_ env e1, eval_ env e2) in
     let ws = ws1 ++ ws2 in
     case v1.v_ of
@@ -132,16 +132,16 @@ eval env e =
       _ ->
         errorMsg <| strPos e1.start ++ " not a function: " ++ (sExp e)
 
-  ELet _ True p e1 e2 ->
+  ELet _ _ True p e1 e2 _ ->
     let (v1,ws1) = eval_ env e1 in
     case (p.val, v1.v_) of
-      (PVar f _, VClosure Nothing x body env') ->
+      (PVar _ f _, VClosure Nothing x body env') ->
         let _   = Utils.assert "eval letrec" (env == env') in
         let v1' = Val (VClosure (Just f) x body env) v1.vtrace in
         case (pVar f, v1') `cons` Just env of
           Just env' -> addWidgets ws1 <| eval env' e2
           _         -> errorMsg <| strPos e.start ++ "bad ELet"
-      (PList _ _, _) ->
+      (PList _ _ _ _ _, _) ->
         errorMsg <|
           strPos e1.start ++
           "mutually recursive functions (i.e. letrec [...] [...] e) \
@@ -149,14 +149,14 @@ eval env e =
       _ ->
         errorMsg <| strPos e.start ++ "bad ELet"
 
-  EComment _ e1 -> eval env e1
-  EOption _ _ e1 -> eval env e1
+  EComment _ _ e1    -> eval env e1
+  EOption _ _ _ _ e1 -> eval env e1
 
   -- abstract syntactic sugar
 
-  EFun ps e1           -> retAddWs e1.val.eid <| eval env (eFun ps e1)
-  EApp e1 es           -> retAddWs e.val.eid  <| eval env (eApp e1 es)
-  ELet _ False p e1 e2 -> retAddWs e2.val.eid <| eval env (eApp (eFun [p] e2) [e1])
+  EFun _ ps e1 _           -> retAddWs e1.val.eid <| eval env (eFun ps e1)
+  EApp _ e1 es _           -> retAddWs e.val.eid  <| eval env (eApp e1 es)
+  ELet _ _ False p e1 e2 _ -> retAddWs e2.val.eid <| eval env (eApp (eFun [p] e2) [e1])
 
 evalOp env opWithInfo es =
   let (op,opStart) = (opWithInfo.val, opWithInfo.start) in
@@ -217,14 +217,14 @@ evalOp env opWithInfo es =
     _ ->
       error ()
 
-evalBranches env v l =
-  List.foldl (\(p,e) acc ->
-    case (acc, (p,v) `cons` Just env) of
+evalBranches env v bs =
+  List.foldl (\(Branch_ _ pat exp _) acc ->
+    case (acc, (pat,v) `cons` Just env) of
       (Just done, _)       -> Just done
-      (Nothing, Just env') -> Just (eval_ env' e)
+      (Nothing, Just env') -> Just (eval_ env' exp)
       _                    -> Nothing
 
-  ) Nothing (List.map .val l)
+  ) Nothing (List.map .val bs)
 
 evalDelta op is =
   case (op, is) of
@@ -276,10 +276,10 @@ rangeToList r =
     -- dummy VTraces...
     -- TODO: maybe add widgets
     Point e -> case e.val.e__ of
-      EConst n l _ -> [ vConst (n, rangeOff l 0 l) ]
-      _            -> err ()
-    Interval e1 e2 -> case (e1.val.e__, e2.val.e__) of
-      (EConst n1 l1 _, EConst n2 l2 _) ->
+      EConst _ n l _ -> [ vConst (n, rangeOff l 0 l) ]
+      _              -> err ()
+    Interval e1 _ e2 -> case (e1.val.e__, e2.val.e__) of
+      (EConst _ n1 l1 _, EConst _ n2 l2 _) ->
         let walkVal i =
           let m = n1 + toFloat i in
           let tr = rangeOff l1 i l2 in

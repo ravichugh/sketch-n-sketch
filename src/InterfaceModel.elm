@@ -6,7 +6,7 @@ import Sync
 import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Zone)
 import ExamplesGenerated as Examples
-import LangUnparser exposing (unparseE)
+import LangUnparser exposing (unparse)
 import OurParser2 as P
 
 import List
@@ -241,7 +241,7 @@ sampleModel =
   let (slideCount, movieCount, movieDuration, movieContinue, indexedTree) = LangSvg.fetchEverything 1 1 0.0 v in
     { scratchCode   = Examples.scratch
     , exName        = name
-    , code          = unparseE e
+    , code          = unparse e
     , previewCode   = Nothing
     , history       = ([], [])
     , inputExp      = e

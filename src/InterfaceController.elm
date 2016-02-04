@@ -1,8 +1,8 @@
 module InterfaceController (upstate) where
 
 import Lang exposing (..) --For access to what makes up the Vals
-import LangParser2 exposing (parseE, parseV)
-import LangUnparser exposing (unparseE)
+import LangParser2 exposing (parseE)
+import LangUnparser exposing (unparse)
 import Sync
 import Eval
 import Utils
@@ -106,17 +106,17 @@ between1 i (j,k) = i `Utils.between` (j+1, k+1)
 
 cleanExp =
   mapExpViaExp__ <| \e__ -> case e__ of
-    EApp e0 [e1,_,_]  -> case e0.val.e__ of
-      EVar "inferred" -> e1.val.e__
-      _               -> e__
-    EApp e0 [_,e1]    -> case e0.val.e__ of
-      EVar "flow"     -> e1.val.e__
-      _               -> e__
-    EOp op [e1,e2]    ->
+    EApp _ e0 [e1,_,_] _ -> case e0.val.e__ of
+      EVar _ "inferred"  -> e1.val.e__
+      _                  -> e__
+    EApp _ e0 [_,e1] _   -> case e0.val.e__ of
+      EVar _ "flow"      -> e1.val.e__
+      _                  -> e__
+    EOp _ op [e1,e2] _   ->
       case (op.val, e2.val.e__) of
-        (Plus, EConst 0 _ _) -> e1.val.e__
-        _                    -> e__
-    _                 -> e__
+        (Plus, EConst _ 0 _ _) -> e1.val.e__
+        _                      -> e__
+    _                    -> e__
 
 -- this is a bit redundant with View.turnOn...
 maybeStuff id shape zone m =
@@ -182,7 +182,7 @@ slateAndCode old (exp, val) =
   let slate =
     LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val
   in
-  (slate, unparseE exp)
+  (slate, unparse exp)
 
 --------------------------------------------------------------------------------
 
@@ -325,7 +325,7 @@ upstate evt old = case debugLog "Event" evt of
          let new =
            { old | inputExp      = e
                  , inputVal      = newVal
-                 , code          = unparseE e
+                 , code          = unparse e
                  , slideCount    = newSlideCount
                  , movieCount    = newMovieCount
                  , movieTime     = 0
@@ -423,7 +423,7 @@ upstate evt old = case debugLog "Event" evt of
 
         MouseObject _ _ _ (Just (_, mStuff, onNewPos)) ->
           let (newE,newV,changes,newSlate,newWidgets) = onNewPos (mx, my) in
-          { old | code = unparseE newE
+          { old | code = unparse newE
                 , inputExp = newE
                 , inputVal = newV
                 , slate = newSlate
@@ -437,7 +437,7 @@ upstate evt old = case debugLog "Event" evt of
 
         MouseSlider widget (Just (_, onNewPos)) ->
           let (newE,newV,newSlate,newWidgets) = onNewPos (mx, my) in
-          { old | code = unparseE newE
+          { old | code = unparse newE
                 , inputExp = newE
                 , inputVal = newV
                 , slate = newSlate
@@ -544,20 +544,20 @@ upstate evt old = case debugLog "Event" evt of
       in
       let isLocsetNode exp =
         case exp.val.e__ of
-          EConst n loc wd -> Set.member loc locset
-          _               -> False
+          EConst ws n loc wd -> Set.member loc locset
+          _                  -> False
       in
       let locToNumber =
         let accumulateLocToNumbers exp__ dict =
           case exp__ of
-            EConst n loc wd ->
+            EConst ws n loc wd ->
               if Set.member loc locset then
                 Dict.insert loc n dict
               else
                 dict
             _ -> dict
         in
-        foldExp
+        foldExpViaE__
             accumulateLocToNumbers
             Dict.empty
             old.inputExp
@@ -600,9 +600,9 @@ upstate evt old = case debugLog "Event" evt of
       in
       let replaceLocs exp__ =
         case exp__ of
-          EConst n (locId, frozen, ident) wd ->
+          EConst ws n (locId, frozen, ident) wd ->
             case Dict.get locId locIdToNewName of
-              Just newName -> EVar newName
+              Just newName -> EVar ws newName
               Nothing      -> exp__
           _ -> exp__
       in
@@ -611,7 +611,7 @@ upstate evt old = case debugLog "Event" evt of
       in
       let newlyWrappedCommonScope =
         -- Would build AST symbolically, but getting whitespace
-        -- right with unparseE is hard
+        -- right with unparse is hard
         let names =
           List.map
               (\(locId, frozen, ident) ->
@@ -639,8 +639,8 @@ upstate evt old = case debugLog "Event" evt of
         -- Now replace the dummy body:
         let newLetE__ =
           case template.val.e__ of
-            ELet letType isRec pattern assignmentExp body ->
-              ELet letType isRec pattern assignmentExp commonScopeReplaced
+            ELet ws1 letType isRec pattern assignmentExp body ws2 ->
+              ELet ws1 letType isRec pattern assignmentExp commonScopeReplaced ws2
             _ ->
               Debug.crash "Dig template didn't match"
         in
@@ -653,11 +653,11 @@ upstate evt old = case debugLog "Event" evt of
         newLet
       in
       -- Debug only:
-      let newSubtreeStr = debugLog "newlyWrappedCommonScope" <| unparseE newlyWrappedCommonScope in
+      let newSubtreeStr = debugLog "newlyWrappedCommonScope" <| unparse newlyWrappedCommonScope in
       let newExp =
         replaceExpNode deepestCommonScope newlyWrappedCommonScope old.inputExp
       in
-      let unparsed = debugLog "new code" <| unparseE newExp in
+      let unparsed = debugLog "new code" <| unparse newExp in
       -- Reparse to reset eids, locs, etc...
       let newExp =
         case parseE unparsed of
@@ -758,7 +758,7 @@ upstate evt old = case debugLog "Event" evt of
             , exName        = name
             , inputExp      = e
             , inputVal      = v
-            , code          = unparseE e
+            , code          = unparse e
             , history       = ([],[])
             , mode          = m
             , syncOptions   = so
@@ -899,7 +899,7 @@ upstate evt old = case debugLog "Event" evt of
               _                       -> fire Noop
 
     CleanCode ->
-      let s' = unparseE (cleanExp old.inputExp) in
+      let s' = unparse (cleanExp old.inputExp) in
       let h' =
         if old.code == s'
           then old.history
