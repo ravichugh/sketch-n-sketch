@@ -249,6 +249,12 @@ Run when files change (requires [fswatch](https://emcrisostomo.github.io/fswatch
 $ ./watchtest
 ```
 
+To run only tests with a certain string in their name, set `SNS_TESTS_FILTER`:
+
+```
+$ SNS_TESTS_FILTER=unparser ./watchtest
+```
+
 To write a new test, make a function of type `() -> String` named `somethingTest` in a `tests/myTests.elm` file. If the function returns the string `"ok"` it is considered a passing test, otherwise the returned string will be displayed as a failure message.
 
 You can also return a list of test functions, `() -> List (() -> String)`, and each test will be run individually.

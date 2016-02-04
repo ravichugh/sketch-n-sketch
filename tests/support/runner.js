@@ -16,7 +16,30 @@ with (global) {
 }
 
 
+function red(str) {
+  return "\x1b[31m" + str + "\x1b[0m";
+}
+
+// Apologies to the red/green colorblind.
+function green(str) {
+  return "\x1b[32m" + str + "\x1b[0m";
+}
+
+function yellow(str) {
+  return "\x1b[33m" + str + "\x1b[0m";
+}
+
+
 var testsToRun = [];
+var testNameFilter;
+
+if (process.env["SNS_TESTS_FILTER"]) {
+  testNameFilter = new RegExp(process.env["SNS_TESTS_FILTER"]);
+  console.log("Running " + yellow(testNameFilter.toString()) + " test functions. Unset SNS_TESTS_FILTER to run all tests.");
+} else {
+  testNameFilter = new RegExp();
+  console.log("Running all tests. Set SNS_TESTS_FILTER to filter tests by name.");
+}
 
 // Look for all SomethingTest(s) modules...
 for (moduleName in Elm) {
@@ -26,7 +49,9 @@ for (moduleName in Elm) {
     // Gather all test(s)/somethingTest(s)/something_test(s) functions in the module
     for (itemName in compiledModule) {
       var item = compiledModule[itemName];
-      if (itemName.match(/(^t|_t|T)ests?$/) && typeof item === "function") {
+      if (itemName.match(/(^t|_t|T)ests?$/) &&
+          itemName.match(testNameFilter)    &&
+          typeof item === "function") {
         testsToRun.push(item);
       }
     }
@@ -56,15 +81,6 @@ function arrayifyElmList(elmList) {
     head = head._1;
   }
   return list;
-}
-
-function red(str) {
-  return "\x1b[31m" + str + "\x1b[0m";
-}
-
-// Apologies to the red/green colorblind.
-function green(str) {
-  return "\x1b[32m" + str + "\x1b[0m";
 }
 
 function failTest(failureMessage) {
