@@ -2,7 +2,7 @@ module InterfaceController (upstate) where
 
 import Lang exposing (..) --For access to what makes up the Vals
 import LangParser2 exposing (parseE, freshen)
-import LangUnparser exposing (unparse, preceedingWhitespace)
+import LangUnparser exposing (unparse, preceedingWhitespace, addPreceedingWhitespace)
 import Sync
 import Eval
 import Utils
@@ -624,14 +624,17 @@ upstate evt old = case debugLog "Event" evt of
               )
               locsetList
         in
+        let oldPreceedingWhitespace = preceedingWhitespace commonScopeReplaced in
+        let extraWhitespace =
+          if String.contains "\n" oldPreceedingWhitespace then "" else "\n"
+        in
         let templateStr =
           let variableOrigNamesStr  = String.join " " origNames in
           let variablePrimeNamesStr = String.join " " primeNames in
           let variableValuesStr     = String.join " " valueStrs in
-          let oldPreceedingWhitespace = preceedingWhitespace commonScopeReplaced in
           oldPreceedingWhitespace ++
           "(let ["++variableOrigNamesStr++"] ["++variableValuesStr++"]" ++
-          oldPreceedingWhitespace ++
+          extraWhitespace ++ oldPreceedingWhitespace ++
           "(let ["++variablePrimeNamesStr++"] ["++variableOrigNamesStr++"] 'dummy body'))"
         in
         let template =
@@ -644,7 +647,7 @@ upstate evt old = case debugLog "Event" evt of
           mapExpViaExp__
               (\e__ ->
                 case e__ of
-                  EBase _ (String "dummy body") -> commonScopeReplaced.val.e__
+                  EBase _ (String "dummy body") -> (addPreceedingWhitespace extraWhitespace commonScopeReplaced).val.e__
                   _                             -> e__
               )
               template

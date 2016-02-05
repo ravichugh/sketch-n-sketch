@@ -1,4 +1,4 @@
-module LangUnparser (unparse, bumpCol, incCol, preceedingWhitespace) where
+module LangUnparser (unparse, bumpCol, incCol, preceedingWhitespace, addPreceedingWhitespace) where
 
 import Lang exposing (..)
 import OurParser2 exposing (Pos, WithPos, WithInfo, startPos)
@@ -37,6 +37,28 @@ preceedingWhitespace e =
     ECase    ws1 e1 bs ws2            -> ws1
     EComment ws s e1                  -> ws
     EOption  ws1 s1 ws2 s2 e1         -> ws1
+
+addPreceedingWhitespace : String -> Exp -> Exp
+addPreceedingWhitespace newWs exp =
+  let e__' =
+    case exp.val.e__ of
+      EBase    ws v                     -> EBase    (newWs ++ ws) v
+      EConst   ws n l wd                -> EConst   (newWs ++ ws) n l wd
+      EVar     ws x                     -> EVar     (newWs ++ ws) x
+      EFun     ws1 ps e1 ws2            -> EFun     (newWs ++ ws1) ps e1 ws2
+      EApp     ws1 e1 es ws2            -> EApp     (newWs ++ ws1) e1 es ws2
+      EList    ws1 es ws2 rest ws3      -> EList    (newWs ++ ws1) es ws2 rest ws3
+      EIndList ws1 rs ws2               -> EIndList (newWs ++ ws1) rs ws2
+      EOp      ws1 op es ws2            -> EOp      (newWs ++ ws1) op es ws2
+      EIf      ws1 e1 e2 e3 ws2         -> EIf      (newWs ++ ws1) e1 e2 e3 ws2
+      ELet     ws1 kind rec p e1 e2 ws2 -> ELet     (newWs ++ ws1) kind rec p e1 e2 ws2
+      ECase    ws1 e1 bs ws2            -> ECase    (newWs ++ ws1) e1 bs ws2
+      EComment ws s e1                  -> EComment (newWs ++ ws) s e1
+      EOption  ws1 s1 ws2 s2 e1         -> EOption  (newWs ++ ws1) s1 ws2 s2 e1
+  in
+  let val = exp.val in
+  { exp | val = { val | e__ = e__' } }
+
 
 unparseWD : WidgetDecl -> String
 unparseWD wd =
