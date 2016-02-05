@@ -1,0 +1,245 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <!-- LOAD_SRC src/head.src.html -->
+</head>
+<body>
+  <div id="wrapper">
+
+    <div id="header">
+      <div id="logo"> <h1>Sketch-n-Sketch v0.5</h1> </div>
+      <!-- LOAD_SRC src/menu.src.html -->
+    </div>
+
+    <div id="page">
+
+      <div class="content_wide">
+      <div class="post0">
+        <h1>PLDI 2016 Artifact Evaluation</h1>
+
+<br>
+
+<p>
+Paper and Supplementary Appendix (November 2015):
+<a href="http://arxiv.org/pdf/1507.02988v2.pdf">
+<b>Programmatic and Direct Manipulation, Together at Last</b></a>.
+</p>
+
+<p>
+GitHub snapshot of Sketch-n-Sketch v0.5: <a href=""></a>
+</p>
+
+<p>
+To help set the context for evaluating our artifacts, we
+quote some descriptions from our submitted paper:
+<ul>
+<li>
+<i>
+Our implementation, examples, user study videos, and survey instrument (as
+well as additional tutorial documentation) are publicly available and ready for
+Artifact Evaluation.
+</i>
+(p.2)
+</li>
+<li>
+<i>
+Our goal with live synchronization [...] is to immediately a apply program
+update during the user's actions.
+</i>
+(p.4)
+</li>
+<li>
+<i>
+The [examples] resemble typical programs in other functional
+languages, but for the domain of SVG.
+</i>
+(p.7)
+</li>
+<li>
+<i>
+Sketch-n-Sketch is not a full-featured direct manipulation editor, 
+nor is it a polished language implementation with rich
+libraries and tools.
+</i>
+(p.9)
+</li>
+</ul>
+
+</p>
+
+      </div>
+      </div>
+
+      <div class="content_wide_next">
+      <div class="post0">
+        <h3>Quick Start</h3>
+
+<p>
+You can <a href="__ROOT__/releases/v0.5/index.html">try Sketch-n-Sketch</a>
+right away by selecting an example using the dropdown menu and then directly
+manipulating the visual output. To edit the program directly, click Edit
+Code, type some changes, and then click Run Code to re-evaluate the program.
+</p>
+
+<h4>Examples from Paper</h4>
+
+<p>
+The examples depicted in Figure 3 are named
+Wave Boxes, Logo, Botanic Garden Logo, Active Trans Logo,
+Lillicon P, Chicago Flag, and Hilbert Curve Animation.
+The examples depicted in Figure 3 are named
+Widgets, Rounded Rect, and Tile Pattern.
+The three tasks depicted in the user study videos are named
+Ferris Task (Before/After),
+Keyboard Task (Before/After), and
+Tessellation Task (Before/After).
+The Survey Results example implements the histograms in Figure 4.
+The examples depicted in the Appendix are named
+3 Boxes, Elm Logo, and Ferris Wheel.
+</p>
+      </div>
+      </div>
+
+      <div class="content_wide_next">
+      <div class="post0">
+        <h3>Documentation and Videos</h3>
+<p>
+To do more than directly manipulate examples that have already been written,
+you will need to learn a bit about the syntax of Little and the features and
+options in the Sketch-n-Sketch editor.
+We provide the following resources, along with rough estimates
+of how long you may decide to spend with them.
+</p>
+
+<h4><a href="__ROOT__/blog/03-user-study-videos.html">user study videos</a> (0 &ndash; 45 minutes)</h4>
+<p>
+Parts 1, 2, 3, and 4 (approximately 20 minutes in total) provide
+a high-level overview of Little and Sketch-n-Sketch.
+</p>
+<p>
+Part 5 shows the tasks we developed for our user study; the survey
+questions can be found in the Appendix to our paper.
+</p>
+
+<h4><a href="TODO">syntax guide</a> (0 &ndash; 1 hour)</h4>
+
+<p>
+The syntax guide defines the grammar for Little
+as well as the encoding of SVG values.
+To see a variety of Little programs, you may
+<a href="">view the source code</a> for <tt>prelude.little</tt>
+(automatically included in every program) and the examples.
+</p>
+
+<h4><a href="__ROOT__/tutorial/">tutorial</a> (1 &ndash; 5 hours)</h4>
+
+<p>
+This multi-part tutorial constitutes the most thorough introduction
+to Sketch-n-Sketch as well as some more advanced uses.
+</p>
+      </div>
+      </div>
+
+      <div class="content_wide_next">
+      <div class="post0">
+        <h3>Additional Features</h3>
+
+        color numbers, rotation TODO <br>
+
+      </div>
+      </div>
+
+      <div class="content_wide_next">
+      <div class="post0">
+        <h3>Known Issues</h3>
+
+<h4>Error Messages</h4>
+
+<p>
+Our tool currently does not report helpful error messages.
+When there is a parse error, the caption "PARSE ERROR!" is
+displayed under the output canvas without any additional
+information.
+<p>
+</p>
+When there is a run-time error, usually
+the output canvas usually displays the string "[Little Error]"
+(sometimes with the line and column numbers of the
+offending expression) but sometimes a JavaScript exception
+is raised (visible in the brower's Web Console). In the
+latter case, reload the application.
+</p>
+
+<h4>Performance</h4>
+
+  Busting Stack on Firefox Linux TODO <br>
+  
+  Slow Time to Compute Triggers on Keyboard TODO
+
+<h4>Parser</h4>
+  
+<p>
+When a "<tt>(def x e1) e2</tt>" expression appears anywhere but
+the top-level scope of the program, the unparser currently
+inserts extra, unwanted whitespace. The workaround is to
+use the equivalent let-expression form "<tt>(let x e1 e2)</tt>",
+which can appear anywhere without sufferring this issue.
+</p>
+
+<h4>Resizing Panes</h4>
+
+<p>
+The pane separating the code and canvas can be resized.
+If you stop dragging (by releasing the mouse) before the position
+of the pane has caught up to the mouse position, the
+editor may get stuck in a state where it resizes the panes upon each
+successive click. In such situations, reload the application.
+</p>
+
+      </div>
+      </div>
+
+      <div class="content_wide_next">
+      <div class="post0">
+        <h3>Source Code</h3>
+
+<p>
+Our <a href="">implementation</a> is open source, but we have <i>not</i>
+yet made an effort to organize and document it in a way that would make it
+easy for others to extend.
+If one wants to poke around anyway, here are a few pointers:
+<ul>
+<li>
+<a href=""><tt>Lang.elm</tt></a>
+defines the types of expressions and values in Little, without
+any SVG-specific encodings.
+</li>
+<li>
+SVG encodings are defined in <a href=""><tt>LangSvg.elm</tt></a>.
+</li>
+<li>
+<a href="">This part</a> of <tt>Sync.elm</tt>
+shows our two simple solvers,
+</li>
+<li>
+and <a href="">this part</a>
+deals with the simple heuristics for disambiguation.
+</li>
+</ul>
+</p>
+
+      </div>
+      </div>
+
+      <br class="clearfix" />
+
+    </div> <!-- end id="page" -->
+
+  </div> <!-- end id="wrapper" -->
+
+  <!-- LOAD_SRC src/footer.src.html -->
+
+  <!-- LOAD_SRC src/ga-tracker.src.html -->
+
+</body>
+</html>
