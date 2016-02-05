@@ -535,11 +535,14 @@ strokeWidth             = LangSvg.attr "stroke-width" "10"
 type alias NodeIdAndAttrName     = (LangSvg.NodeId, String)
 type alias NodeIdAndTwoAttrNames = (LangSvg.NodeId, String, String)
 
-toggleSelected model nodeIdAndAttrName =
+toggleSelected model nodeIdAndAttrNames =
   UpdateModel <| \model ->
-    let set = model.selectedAttrs in
-    let updateSet = if Set.member nodeIdAndAttrName set then Set.remove else Set.insert in
-    { model | selectedAttrs = updateSet nodeIdAndAttrName set }
+    let updateSet nodeIdAndAttrName acc =
+      if Set.member nodeIdAndAttrName acc
+        then Set.remove nodeIdAndAttrName acc
+        else Set.insert nodeIdAndAttrName acc
+    in
+    { model | selectedAttrs = List.foldl updateSet model.selectedAttrs nodeIdAndAttrNames }
 
 -- TODO given need for model, remove addSelect
 zoneSelectPoint model addSelect quad x y =
@@ -559,7 +562,7 @@ zoneSelectPoint_ model (id, xAttr, yAttr) x y =
         LangSvg.attr "stroke" yColor , strokeWidth
       , LangSvg.attr "x1" (toString (x-len)) , LangSvg.attr "y1" (toString y)
       , LangSvg.attr "x2" (toString (x+len)) , LangSvg.attr "y2" (toString y)
-      , onMouseDown (toggleSelected model yNodeIdAndAttrName)
+      , onMouseDown (toggleSelected model [yNodeIdAndAttrName])
       ]
   in
   let xLine =
@@ -567,13 +570,14 @@ zoneSelectPoint_ model (id, xAttr, yAttr) x y =
         LangSvg.attr "stroke" xColor , strokeWidth
       , LangSvg.attr "y1" (toString (y-len)) , LangSvg.attr "x1" (toString x)
       , LangSvg.attr "y2" (toString (y+len)) , LangSvg.attr "x2" (toString x)
-      , onMouseDown (toggleSelected model xNodeIdAndAttrName)
+      , onMouseDown (toggleSelected model [xNodeIdAndAttrName])
       ]
   in
   let xyDot =
     svgCircle [
         LangSvg.attr "fill" "darkgray" , LangSvg.attr "r" "6"
       , LangSvg.attr "cx" (toString x) , LangSvg.attr "cy" (toString y)
+      , onMouseDown (toggleSelected model [xNodeIdAndAttrName, yNodeIdAndAttrName])
       ]
   in
   [xLine, yLine, xyDot]
@@ -593,7 +597,7 @@ zoneSelectLine_ model nodeIdAndAttrName (x1,y1) (x2,y2) =
         LangSvg.attr "stroke" color , strokeWidth
       , LangSvg.attr "x1" (toString x1) , LangSvg.attr "y1" (toString y1)
       , LangSvg.attr "x2" (toString x2) , LangSvg.attr "y2" (toString y2)
-      , onMouseDown (toggleSelected model nodeIdAndAttrName)
+      , onMouseDown (toggleSelected model [nodeIdAndAttrName])
       ]
   in
   [line]
