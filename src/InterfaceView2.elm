@@ -537,8 +537,11 @@ type alias NodeIdAndTwoAttrNames = (LangSvg.NodeId, String, String)
 
 toggleSelected model nodeIdAndAttrNames =
   UpdateModel <| \model ->
+    -- If only some of the attrs were selected, we want to select all of
+    -- them, not toggle individually.
+    let deselect = List.all (flip Set.member model.selectedAttrs) nodeIdAndAttrNames in
     let updateSet nodeIdAndAttrName acc =
-      if Set.member nodeIdAndAttrName acc
+      if deselect
         then Set.remove nodeIdAndAttrName acc
         else Set.insert nodeIdAndAttrName acc
     in
