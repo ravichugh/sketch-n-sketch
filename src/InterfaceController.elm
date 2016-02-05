@@ -593,10 +593,15 @@ upstate evt old = case debugLog "Event" evt of
         deepestCommonScopeWithParent
       in
       -- Avoid name collisions here
+      let locIdNameOrigNamePrime =
+        List.map
+            (\(locId, frozen, ident) -> (locId, "k"++(toString locId)++ident++"Orig", "k"++(toString locId)++ident++"Prime"))
+            locsetList
+      in
       let locIdToNewName = debugLog "locIdToNewName" <|
         Dict.fromList
-          <| List.map (\(locId, frozen, ident) -> (locId, "k"++(toString locId)++ident++"Prime"))
-          <| locsetList
+          <| List.map (\(locId, nameOrig, namePrime) -> (locId, namePrime))
+          <| locIdNameOrigNamePrime
       in
       let replaceConstsWithVars exp__ =
         case exp__ of
@@ -610,13 +615,8 @@ upstate evt old = case debugLog "Event" evt of
         mapExpViaExp__ replaceConstsWithVars deepestCommonScope
       in
       let newlyWrappedCommonScope =
-        let names =
-          List.map
-              (\(locId, frozen, ident) ->
-                Utils.justGet locId locIdToNewName
-              )
-              locsetList
-        in
+        let origNames  = List.map Utils.snd3 locIdNameOrigNamePrime in
+        let primeNames = List.map Utils.thd3 locIdNameOrigNamePrime in
         let valueStrs =
           List.map
               (\loc ->
@@ -625,11 +625,14 @@ upstate evt old = case debugLog "Event" evt of
               locsetList
         in
         let templateStr =
-          let variableNamesStr  = String.join " " names in
-          let variableValuesStr = String.join " " valueStrs in
+          let variableOrigNamesStr  = String.join " " origNames in
+          let variablePrimeNamesStr = String.join " " primeNames in
+          let variableValuesStr     = String.join " " valueStrs in
           let oldPreceedingWhitespace = preceedingWhitespace commonScopeReplaced in
           oldPreceedingWhitespace ++
-          "(let ["++variableNamesStr++"] ["++variableValuesStr++"] 'dummy body')"
+          "(let ["++variableOrigNamesStr++"] ["++variableValuesStr++"]" ++
+          oldPreceedingWhitespace ++
+          "(let ["++variablePrimeNamesStr++"] ["++variableOrigNamesStr++"] 'dummy body'))"
         in
         let template =
           case parseE templateStr of
@@ -637,18 +640,14 @@ upstate evt old = case debugLog "Event" evt of
             Err err        -> Debug.crash <| "Dig template err: " ++ err
         in
         -- Now replace the dummy body:
-        let newLetE__ =
-          case template.val.e__ of
-            ELet ws1 letType isRec pattern assignmentExp body ws2 ->
-              ELet ws1 letType isRec pattern assignmentExp commonScopeReplaced ws2
-            _ ->
-              Debug.crash "Dig template didn't match"
-        in
         let newLet =
-          { val   = { e__ = newLetE__, eid = -1 }
-          , start = template.start
-          , end   = template.end
-          }
+          mapExpViaExp__
+              (\e__ ->
+                case e__ of
+                  EBase _ (String "dummy body") -> commonScopeReplaced.val.e__
+                  _                             -> e__
+              )
+              template
         in
         newLet
       in
