@@ -357,27 +357,6 @@ mapExpViaExp__ f e =
   let f' exp = wrap (f exp.val.e__) in
   mapExp f' e
 
-  -- let foo = mapExpViaExp__ f in
-  -- let g e__ = P.WithInfo (Exp_ (f e__) e.val.eid) e.start e.end in
-  -- case e.val.e__ of
-  --   EConst _ _ _   -> g e.val.e__
-  --   EBase _        -> g e.val.e__
-  --   EVar _         -> g e.val.e__
-  --   EFun ps e'     -> g (EFun ps (foo e'))
-  --   EApp e1 es     -> g (EApp (foo e1) (List.map foo es))
-  --   EOp op es      -> g (EOp op (List.map foo es))
-  --   EList es m     -> g (EList (List.map foo es) (Utils.mapMaybe foo m))
-  --   EIndList rs    -> let foo r_ = case r_ of
-  --                       Interval e1 e2 -> Interval (mapExpViaExp__ f e1) (mapExpViaExp__ f e2)
-  --                       Point e1       -> Point (mapExpViaExp__ f e1)
-  --                     in
-  --                     g (EIndList (List.map (mapValField foo) rs))
-  --   EIf e1 e2 e3   -> g (EIf (foo e1) (foo e2) (foo e3))
-  --   ECase e1 l     -> g (ECase (foo e1) (List.map (mapValField (\(p,ei) -> (p, foo ei))) l))
-  --   EComment s e1  -> g (EComment s (foo e1))
-  --   EOption s1 s2 e1 -> g (EOption s1 s2 (foo e1))
-  --   ELet k b p e1 e2 -> g (ELet k b p (foo e1) (foo e2))
-
 mapVal : (Val -> Val) -> Val -> Val
 mapVal f v = case v.v_ of
   VList vs         -> f { v | v_ = VList (List.map (mapVal f) vs) }
