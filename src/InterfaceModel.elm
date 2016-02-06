@@ -100,8 +100,9 @@ type alias ShowZones = Int
 
 showZonesModes = 4
 
-[showZonesNone, showZonesBasic, showZonesRot, showZonesColor] =
-  [ 0 .. (showZonesModes - 1) ]
+(showZonesNone, showZonesBasic, showZonesRot, showZonesColor) =
+  Utils.unwrap4
+    [ 0 .. (showZonesModes - 1) ]
 
 type Caption
   = Hovering (Int, ShapeKind, Zone)

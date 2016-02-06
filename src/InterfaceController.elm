@@ -76,7 +76,7 @@ refreshMode_ model = refreshMode model (Utils.fromJust model.inputExp)
 refreshHighlights id zone model =
   let codeBoxInfo = model.codeBoxInfo in
   let hi = liveInfoToHighlights id zone model in
-  { model | codeBoxInfo <- { codeBoxInfo | highlights <- hi } }
+  { model | codeBoxInfo = { codeBoxInfo | highlights = hi } }
 
 switchOrient m = case m of
   Vertical -> Horizontal
@@ -86,8 +86,9 @@ switchOrient m = case m of
 -- toggleShowZones x = (1 + x) % showZonesModes
 toggleShowZones x =
   let i = (1 + x) % showZonesModes in
-  if | i == showZonesRot -> toggleShowZones i
-     | otherwise         -> i
+  if i == showZonesRot
+    then toggleShowZones i
+    else i
 
 -- may want to eventually have a maximum history length
 addToHistory s h = (s :: fst h, [])
@@ -118,24 +119,27 @@ highlightChanges mStuff changes codeBoxInfo =
             (Just n, Nothing)        -> (highlight yellow :: acc1, acc2)
             (Just n, Just Nothing)   -> (highlight red :: acc1, acc2)
             (Just n, Just (Just n')) ->
-              if | n' == n.val       -> (highlight yellow :: acc1, acc2)
-                 | otherwise         ->
-                     let (s, s') = (strNum n.val, strNum n') in
-                     let x = (acePos n.start, String.length s' - String.length s) in
-                     (highlight green :: acc1, x :: acc2)
+              if n' == n.val then
+                (highlight yellow :: acc1, acc2)
+              else
+                let (s, s') = (strNum n.val, strNum n') in
+                let x = (acePos n.start, String.length s' - String.length s) in
+                (highlight green :: acc1, x :: acc2)
         in
         List.foldl f ([],[]) (Set.toList locs)
       in
 
       let hi' =
         let g (startPos,extraChars) (old,new) =
-          let bump pos = { pos | column <- pos.column + extraChars } in
+          let bump pos = { pos | column = pos.column + extraChars } in
           let ret new' = (old, new') in
-          ret <| if
-             | startPos.row    /= old.start.row    -> new
-             | startPos.column >  old.start.column -> new
-             | startPos.column == old.start.column -> { start = new.start, end = bump new.end }
-             | startPos.column <  old.start.column -> { start = bump new.start, end = bump new.end }
+          ret <|
+            if startPos.row    /= old.start.row         then new
+            else if startPos.column >  old.start.column then new
+            else if startPos.column == old.start.column then { start = new.start, end = bump new.end }
+            else if startPos.column <  old.start.column then { start = bump new.start, end = bump new.end }
+            else
+              Debug.crash "highlightChanges"
         in
         -- hi has <= 4 elements, so not worrying about the redundant processing
         flip List.map hi <| \{color,range} ->
@@ -143,7 +147,7 @@ highlightChanges mStuff changes codeBoxInfo =
           { color = color, range = range' }
       in
 
-      { codeBoxInfo | highlights <- hi' }
+      { codeBoxInfo | highlights = hi' }
 
 
 --------------------------------------------------------------------------------
@@ -154,7 +158,7 @@ upstate evt old = case debugLog "Event" evt of
 
     Noop -> old
 
-    Edit -> { old | editingMode <- Just old.code }
+    Edit -> { old | editingMode = Just old.code }
 
     Run ->
       case parseE old.code of
@@ -166,30 +170,30 @@ upstate evt old = case debugLog "Event" evt of
          in
          let (v,ws) = Eval.run e in
          let new =
-          { old | inputExp <- Just e
-                , code <- unparseE e
-                , slate <- LangSvg.valToIndexedTree v
-                , widgets <- ws
-                , history <- h
-                , editingMode <- Nothing
-                , caption <- Nothing
-                , syncOptions <- Sync.syncOptionsOf old.syncOptions e }
+          { old | inputExp = Just e
+                , code = unparseE e
+                , slate = LangSvg.valToIndexedTree v
+                , widgets = ws
+                , history = h
+                , editingMode = Nothing
+                , caption = Nothing
+                , syncOptions = Sync.syncOptionsOf old.syncOptions e }
           in
-          { new | mode <- refreshMode_ new 
-                , errorBox <- Nothing }
+          { new | mode = refreshMode_ new 
+                , errorBox = Nothing }
         Err err ->
-          { old | caption <- Just (LangError ("PARSE ERROR!\n" ++ err)) }
+          { old | caption = Just (LangError ("PARSE ERROR!\n" ++ err)) }
 
     ToggleOutput ->
       let m = case old.mode of
         Print _ -> refreshMode_ old
         _       -> Print (LangSvg.printSvg old.showGhosts old.slate)
       in
-      { old | mode <- m }
+      { old | mode = m }
 
-    CodeUpdate newcode -> { old | code <- newcode }
+    CodeUpdate newcode -> { old | code = newcode }
 
-    StartResizingMid -> { old | mouseMode <- MouseResizeMid Nothing }
+    StartResizingMid -> { old | mouseMode = MouseResizeMid Nothing }
 
     MousePos (mx, my) ->
       case old.mouseMode of
@@ -202,50 +206,51 @@ upstate evt old = case debugLog "Event" evt of
               Vertical   -> \(mx',_) -> (old.midOffsetX + mx' - mx, old.midOffsetY)
               Horizontal -> \(_,my') -> (old.midOffsetY, old.midOffsetY + my' - my)
           in
-          { old | mouseMode <- MouseResizeMid (Just f) }
+          { old | mouseMode = MouseResizeMid (Just f) }
 
         MouseResizeMid (Just f) ->
           let (x,y) = f (mx, my) in
-          { old | midOffsetX <- x , midOffsetY <- y }
+          { old | midOffsetX = x , midOffsetY = y }
 
         MouseObject objid kind zone Nothing ->
           let onNewPos = createMousePosCallback mx my objid kind zone old in
           let mStuff = maybeStuff objid kind zone old in
           let blah = Just (old.code, mStuff, onNewPos) in
-          { old | mouseMode <- MouseObject objid kind zone blah  }
+          { old | mouseMode = MouseObject objid kind zone blah  }
 
         MouseObject _ _ _ (Just (_, mStuff, onNewPos)) ->
           let (newE,changes,newSlate,newWidgets) = onNewPos (mx, my) in
-          { old | code <- unparseE newE
-                , inputExp <- Just newE
-                , slate <- newSlate
-                , widgets <- newWidgets
-                , codeBoxInfo <- highlightChanges mStuff changes old.codeBoxInfo
+          { old | code = unparseE newE
+                , inputExp = Just newE
+                , slate = newSlate
+                , widgets = newWidgets
+                , codeBoxInfo = highlightChanges mStuff changes old.codeBoxInfo
                 }
 
         MouseSlider widget Nothing ->
           let onNewPos = createMousePosCallbackSlider mx my widget old in
-          { old | mouseMode <- MouseSlider widget (Just (old.code, onNewPos)) }
+          { old | mouseMode = MouseSlider widget (Just (old.code, onNewPos)) }
 
         MouseSlider widget (Just (_, onNewPos)) ->
           let (newE,newSlate,newWidgets) = onNewPos (mx, my) in
-          { old | code <- unparseE newE
-                , inputExp <- Just newE
-                , slate <- newSlate
-                , widgets <- newWidgets
+          { old | code = unparseE newE
+                , inputExp = Just newE
+                , slate = newSlate
+                , widgets = newWidgets
                 }
 
     SelectObject id kind zone ->
       case old.mode of
-        AdHoc       -> { old | mouseMode <- MouseObject id kind zone Nothing }
+        AdHoc       -> { old | mouseMode = MouseObject id kind zone Nothing }
         Live info ->
           case Dict.get id info.triggers of
-            Nothing -> { old | mouseMode <- MouseNothing }
+            Nothing -> { old | mouseMode = MouseNothing }
             Just dZones ->
               case Dict.get zone dZones of
-                Just (Just _) -> { old | mouseMode <- MouseObject id kind zone Nothing }
-                _             -> { old | mouseMode <- MouseNothing }
+                Just (Just _) -> { old | mouseMode = MouseObject id kind zone Nothing }
+                _             -> { old | mouseMode = MouseNothing }
         SyncSelect _ _ -> old
+        _ -> Debug.crash "SelectObject"
 
     MouseUp ->
       case (old.mode, old.mouseMode) of
@@ -253,18 +258,18 @@ upstate evt old = case debugLog "Event" evt of
         (_, MouseObject i k z (Just (s, _, _))) ->
           -- 8/10: re-parsing to get new position info after live sync-ing
           -- TODO: could update positions within highlightChanges
-          let (Ok e) = parseE old.code in
-          let old' = { old | inputExp <- Just e } in
+          let e = Utils.fromOk_ <| parseE old.code in
+          let old' = { old | inputExp = Just e } in
           refreshHighlights i z
-            { old' | mouseMode <- MouseNothing, mode <- refreshMode_ old'
-                   , history <- addToHistory s old'.history }
+            { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
+                   , history = addToHistory s old'.history }
         (_, MouseSlider _ (Just (s, _))) ->
-          let (Ok e) = parseE old.code in
-          let old' = { old | inputExp <- Just e } in
-            { old' | mouseMode <- MouseNothing, mode <- refreshMode_ old'
-                   , history <- addToHistory s old'.history }
+          let e = Utils.fromOk_ <| parseE old.code in
+          let old' = { old | inputExp = Just e } in
+            { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
+                   , history = addToHistory s old'.history }
         _ ->
-          { old | mouseMode <- MouseNothing, mode <- refreshMode_ old }
+          { old | mouseMode = MouseNothing, mode = refreshMode_ old }
 
     Sync -> 
       case (old.mode, old.inputExp) of
@@ -279,39 +284,46 @@ upstate evt old = case debugLog "Event" evt of
             revert    = (ip, inputval)
           in
             case Sync.inferLocalUpdates old.syncOptions ip inputval' newval of
-              Ok [] -> { old | mode <- mkLive_ old.syncOptions ip  }
+              Ok [] -> { old | mode = mkLive_ old.syncOptions ip  }
               Ok ls ->
                 let n = debugLog "# of sync options" (List.length ls) in
                 let ls' = List.map fst ls in
                 let m = SyncSelect 0 (n, ls' ++ [struct, revert]) in
-                upstate (TraverseOption 1) { old | mode <- m }
+                upstate (TraverseOption 1) { old | mode = m }
               Err e ->
                 let _ = debugLog ("bad sync: ++ " ++ e) () in
                 let m = SyncSelect 0 (0, [struct, revert]) in
-                upstate (TraverseOption 1) { old | mode <- m }
+                upstate (TraverseOption 1) { old | mode = m }
+        _ -> Debug.crash "Sync"
 
     SelectOption ->
+      Debug.crash "SelectOption"
+{-
       let (SyncSelect i options) = old.mode in
       let (_,l) = options in
       let (ei,vi) = Utils.geti i l in
-      { old | code <- unparseE ei
-            , inputExp <- Just ei
-            , slate <- LangSvg.valToIndexedTree vi
-            , mode <- mkLive old.syncOptions ei vi }
+      { old | code = unparseE ei
+            , inputExp = Just ei
+            , slate = LangSvg.valToIndexedTree vi
+            , mode = mkLive old.syncOptions ei vi }
+-}
 
     TraverseOption offset ->
+      Debug.crash "TraverseOption"
+{-
       let (SyncSelect i options) = old.mode in
       let (_,l) = options in
       let j = i + offset in
       let (ei,vi) = Utils.geti j l in
-      { old | code <- unparseE ei
-            , inputExp <- Just ei
-            , slate <- LangSvg.valToIndexedTree vi
-            , mode <- SyncSelect j options }
+      { old | code = unparseE ei
+            , inputExp = Just ei
+            , slate = LangSvg.valToIndexedTree vi
+            , mode = SyncSelect j options }
+-}
 
     SelectExample name thunk ->
       if name == Examples.scratchName then
-        upstate Run { old | exName <- name, code <- old.scratchCode, history <- ([],[]) }
+        upstate Run { old | exName = name, code = old.scratchCode, history = ([],[]) }
       else
 
       let {e,v,ws} = thunk () in
@@ -324,39 +336,42 @@ upstate evt old = case debugLog "Event" evt of
       let scratchCode' =
         if old.exName == Examples.scratchName then old.code else old.scratchCode
       in
-      { old | scratchCode <- scratchCode'
-            , exName <- name
-            , inputExp <- Just e
-            , code <- unparseE e
-            , history <- ([],[])
-            , mode <- m
-            , syncOptions <- so
-            , slate <- LangSvg.valToIndexedTree v
-            , widgets <- ws
+      { old | scratchCode = scratchCode'
+            , exName = name
+            , inputExp = Just e
+            , code = unparseE e
+            , history = ([],[])
+            , mode = m
+            , syncOptions = so
+            , slate = LangSvg.valToIndexedTree v
+            , widgets = ws
             }
 
-    SwitchMode m -> { old | mode <- m }
+    SwitchMode m -> { old | mode = m }
 
-    SwitchOrient -> { old | orient <- switchOrient old.orient }
+    SwitchOrient -> { old | orient = switchOrient old.orient }
 
-    ToggleZones -> { old | showZones <- toggleShowZones old.showZones }
+    ToggleZones -> { old | showZones = toggleShowZones old.showZones }
 
     Undo ->
       case (old.code, old.history) of
         (_, ([],_)) -> old                -- because of keyboard shortcuts
         (current, (s::past, future)) ->
-          let new = { old | history <- (past, current::future) } in
+          let new = { old | history = (past, current::future) } in
           upstate Run (upstate (CodeUpdate s) new)
 
     Redo ->
       case (old.code, old.history) of
         (_, (_,[])) -> old                -- because of keyboard shorcuts
         (current, (past, s::future)) ->
-          let new = { old | history <- (current::past, future) } in
+          let new = { old | history = (current::past, future) } in
           upstate Run (upstate (CodeUpdate s) new)
 
     KeysDown l ->
+      old
+
       -- let _ = Debug.log "keys" (toString l) in
+{-
       case old.mode of
           SaveDialog _ -> old
           _ -> case editingMode old of
@@ -383,14 +398,15 @@ upstate evt old = case debugLog "Event" evt of
               | l == keysUp    -> adjustMidOffsetY old (-25)
               | l == keysDown  -> adjustMidOffsetY old 25
               | otherwise -> old
+-}
 
     -- Elm does not have function equivalence/pattern matching, so we need to
     -- thread these events through upstate in order to catch them to rerender
     -- appropriately (see CodeBox.elm)
     InstallSaveState -> installSaveState old
     RemoveDialog makeSave saveName -> removeDialog makeSave saveName old
-    ToggleBasicCodeBox -> { old | basicCodeBox <- not old.basicCodeBox }
-    UpdateFieldContents fieldContents -> { old | fieldContents <- fieldContents }
+    ToggleBasicCodeBox -> { old | basicCodeBox = not old.basicCodeBox }
+    UpdateFieldContents fieldContents -> { old | fieldContents = fieldContents }
 
     UpdateModel f -> f old
 
@@ -400,19 +416,19 @@ upstate evt old = case debugLog "Event" evt of
       e1 :: es -> upstate e1 old |> upstate (MultiEvent es)        
 
     WaitRun -> old
-    WaitSave saveName -> { old | exName <- saveName }
+    WaitSave saveName -> { old | exName = saveName }
     WaitCodeBox -> old
 
-    _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
+    -- _ -> Debug.crash ("upstate, unhandled evt: " ++ toString evt)
 
 adjustMidOffsetX old dx =
   case old.orient of
-    Vertical   -> { old | midOffsetX <- old.midOffsetX + dx }
+    Vertical   -> { old | midOffsetX = old.midOffsetX + dx }
     Horizontal -> upstate SwitchOrient old
 
 adjustMidOffsetY old dy =
   case old.orient of
-    Horizontal -> { old | midOffsetY <- old.midOffsetY + dy }
+    Horizontal -> { old | midOffsetY = old.midOffsetY + dy }
     Vertical   -> upstate SwitchOrient old
 
 
@@ -454,8 +470,9 @@ type alias OnMouse =
   }
 
 createMousePosCallback mx my objid kind zone old =
-
-  let (LangSvg.SvgNode _ attrs _) = Utils.justGet_ "#3" objid (snd old.slate) in
+ case Utils.justGet_ "#3" objid (snd old.slate) of
+ LangSvg.TextNode _ -> Debug.crash "createMousePosCallback TextNode"
+ LangSvg.SvgNode _ attrs _ ->
   let numAttr = toNum << Utils.find_ attrs in
   let mapNumAttr f a =
     let (n,trace) = toNumTr (Utils.find_ attrs a) in
@@ -518,14 +535,14 @@ createMousePosCallback mx my objid kind zone old =
 
         ("circle", "Interior") -> ret [fx "cx", fy "cy"]
         ("circle", "Edge") ->
-          let [cx,cy] = List.map numAttr ["cx", "cy"] in
+          let (cx,cy) = Utils.unwrap2 <| List.map numAttr ["cx", "cy"] in
           let dx = if toFloat mx >= cx then mx' - mx else mx - mx' in
           let dy = if toFloat my >= cy then my' - my else my - my' in
           ret [ (mapNumAttr (\r -> r + toFloat (max dx dy)) "r") ]
 
         ("ellipse", "Interior") -> ret [fx "cx", fy "cy"]
         ("ellipse", "Edge")     ->
-          let [cx,cy] = List.map numAttr ["cx", "cy"] in
+          let (cx,cy) = Utils.unwrap2 <| List.map numAttr ["cx", "cy"] in
           let dx = if toFloat mx >= cx then fx else fx_ in
           let dy = if toFloat my >= cy then fy else fy_ in
           ret [dx "rx", dy "ry"]
@@ -534,11 +551,14 @@ createMousePosCallback mx my objid kind zone old =
         ("line", _) ->
           case LangSvg.realZoneOf zone of
             LangSvg.ZPoint i -> ret [fx (addi "x" i), fy (addi "y" i)]
+            _                -> Debug.crash "createMousePosCallback line"
 
         ("polygon", _)  -> createCallbackPoly zone kind objid old onMouse
         ("polyline", _) -> createCallbackPoly zone kind objid old onMouse
 
         ("path", _) -> createCallbackPath zone kind objid old onMouse
+
+        _ -> Debug.crash "createMousePosCallback"
 
     in
     let newTree = List.foldr (upslate objid) (snd old.slate) newRealAttrs in
@@ -566,6 +586,7 @@ createMousePosCallback mx my objid kind zone old =
               in
               (newE, newSlate')
               -}
+        _ -> Debug.crash "createMousePosCallback"
 
 -- Callbacks for Polygons/Polylines
 
@@ -575,6 +596,7 @@ createCallbackPoly zone shape =
     LangSvg.Z "Interior" -> polyInterior shape
     LangSvg.ZPoint i     -> polyPoint i shape
     LangSvg.ZEdge i      -> polyEdge i shape
+    _                    -> Debug.crash "createCallbackPoly"
 
 -- TODO:
 --  - differentiate between "polygon" and "polyline" for interior
@@ -584,56 +606,65 @@ lift : (Num -> Num) -> (NumTr -> NumTr)
 lift f (n,t) = (f n, t)
 
 polyInterior shape objid old onMouse =
-  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
-  let pts = toPoints <| Utils.find_ nodeAttrs "points" in
-  let accs =
-    let foo (j,(xj,yj)) (acc1,acc2) =
-      let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
-      let acc2' = (addi "x"j, LangSvg.ANum xj') :: (addi "y"j, LangSvg.ANum yj') :: acc2 in
-      ((xj',yj')::acc1, acc2')
-    in
-    Utils.foldli foo ([],[]) pts
-  in
-  let (acc1,acc2) = Utils.reverse2 accs in
-  ([("points", LangSvg.APoints acc1)], acc2)
+  case Dict.get objid (snd old.slate) of
+    Just (LangSvg.SvgNode _ nodeAttrs _) ->
+      let pts = toPoints <| Utils.find_ nodeAttrs "points" in
+      let accs =
+        let foo (j,(xj,yj)) (acc1,acc2) =
+          let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
+          let acc2' = (addi "x"j, LangSvg.ANum xj') :: (addi "y"j, LangSvg.ANum yj') :: acc2 in
+          ((xj',yj')::acc1, acc2')
+        in
+        Utils.foldli foo ([],[]) pts
+      in
+      let (acc1,acc2) = Utils.reverse2 accs in
+      ([("points", LangSvg.APoints acc1)], acc2)
+    _ ->
+      Debug.crash "polyInterior"
 
 polyPoint i shape objid old onMouse =
-  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
-  let pts = toPoints <| Utils.find_ nodeAttrs "points" in
-  let accs =
-    let foo (j,(xj,yj)) (acc1,acc2) =
-      if | i /= j -> ((xj,yj)::acc1, acc2)
-         | otherwise ->
-             let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
-             let acc2' = (addi "x"i, LangSvg.ANum xj')
-                         :: (addi "y"i, LangSvg.ANum yj')
-                         :: acc2 in
-             ((xj',yj')::acc1, acc2')
-    in
-    Utils.foldli foo ([],[]) pts
-  in
-  let (acc1,acc2) = Utils.reverse2 accs in
-  ([("points", LangSvg.APoints acc1)], acc2)
+  case Dict.get objid (snd old.slate) of
+    Just (LangSvg.SvgNode _ nodeAttrs _) ->
+      let pts = toPoints <| Utils.find_ nodeAttrs "points" in
+      let accs =
+        let foo (j,(xj,yj)) (acc1,acc2) =
+          if i /= j
+            then ((xj,yj)::acc1, acc2)
+            else let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
+                 let acc2' = (addi "x"i, LangSvg.ANum xj')
+                             :: (addi "y"i, LangSvg.ANum yj')
+                             :: acc2 in
+                 ((xj',yj')::acc1, acc2')
+        in
+        Utils.foldli foo ([],[]) pts
+      in
+      let (acc1,acc2) = Utils.reverse2 accs in
+      ([("points", LangSvg.APoints acc1)], acc2)
+    _ ->
+      Debug.crash "polyPoint"
 
 polyEdge i shape objid old onMouse =
-  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
-  let pts = toPoints <| Utils.find_ nodeAttrs "points" in
-  let n = List.length pts in
-  let accs =
-    let foo (j,(xj,yj)) (acc1,acc2) =
-      if | i == j || (i == n && j == 1) || (i < n && j == i+1) ->
-             let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
-             let acc2' = (addi "x"j, LangSvg.ANum xj')
-                         :: (addi "y"j, LangSvg.ANum yj')
-                         :: acc2 in
-             ((xj',yj')::acc1, acc2')
-         | otherwise ->
-             ((xj,yj)::acc1, acc2)
-    in
-    Utils.foldli foo ([],[]) pts
-  in
-  let (acc1,acc2) = Utils.reverse2 accs in
-  ([("points", LangSvg.APoints acc1)], acc2)
+  case Dict.get objid (snd old.slate) of
+    Just (LangSvg.SvgNode _ nodeAttrs _) ->
+      let pts = toPoints <| Utils.find_ nodeAttrs "points" in
+      let n = List.length pts in
+      let accs =
+        let foo (j,(xj,yj)) (acc1,acc2) =
+          if i == j || (i == n && j == 1) || (i < n && j == i+1) then
+            let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
+            let acc2' = (addi "x"j, LangSvg.ANum xj')
+                        :: (addi "y"j, LangSvg.ANum yj')
+                        :: acc2 in
+            ((xj',yj')::acc1, acc2')
+          else
+            ((xj,yj)::acc1, acc2)
+        in
+        Utils.foldli foo ([],[]) pts
+      in
+      let (acc1,acc2) = Utils.reverse2 accs in
+      ([("points", LangSvg.APoints acc1)], acc2)
+    _ ->
+      Debug.crash "polyEdge"
 
 -- Callbacks for Paths
 
@@ -641,60 +672,67 @@ createCallbackPath zone shape =
   let _ = Utils.assert "createCallbackPath" (shape == "path") in
   case LangSvg.realZoneOf zone of
     LangSvg.ZPoint i -> pathPoint i
+    _                -> Debug.crash "createCallbackPath"
 
 pathPoint i objid old onMouse =
 
   let updatePt (mj,(x,y)) =
-    if | mj == Just i -> (mj, (lift onMouse.posX x, lift onMouse.posY y))
-       | otherwise    -> (mj, (x, y)) in
+    if mj == Just i
+      then (mj, (lift onMouse.posX x, lift onMouse.posY y))
+      else (mj, (x, y)) in
   let addFakePts =
     List.foldl <| \(mj,(x,y)) acc ->
-      if | mj == Just i -> (addi "x"i, LangSvg.ANum x)
-                           :: (addi "y"i, LangSvg.ANum y)
-                           :: acc
-         | otherwise    -> acc in
+      if mj == Just i
+        then (addi "x"i, LangSvg.ANum x) :: (addi "y"i, LangSvg.ANum y) :: acc
+        else acc in
 
-  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
-  let (cmds,counts) = LangSvg.toPath <| Utils.find_ nodeAttrs "d" in
-  let accs =
-    let foo c (acc1,acc2) =
-      let (c',acc2') = case c of
-        LangSvg.CmdZ s ->
-          (LangSvg.CmdZ s, acc2)
-        LangSvg.CmdMLT s pt ->
-          let pt' = updatePt pt in
-          (LangSvg.CmdMLT s pt', addFakePts acc2 [pt'])
-        LangSvg.CmdHV s n ->
-          (LangSvg.CmdHV s n, acc2)
-        LangSvg.CmdC s pt1 pt2 pt3 ->
-          let [pt1',pt2',pt3'] = List.map updatePt [pt1,pt2,pt3] in
-          (LangSvg.CmdC s pt1' pt2' pt3', addFakePts acc2 [pt1',pt2',pt3'])
-        LangSvg.CmdSQ s pt1 pt2 ->
-          let [pt1',pt2'] = List.map updatePt [pt1,pt2] in
-          (LangSvg.CmdSQ s pt1' pt2' , addFakePts acc2 [pt1',pt2'])
-        LangSvg.CmdA s a b c d e pt ->
-          let pt' = updatePt pt in
-          (LangSvg.CmdA s a b c d e pt', addFakePts acc2 [pt'])
+  case Dict.get objid (snd old.slate) of
+    Just (LangSvg.SvgNode _ nodeAttrs _) ->
+      let (cmds,counts) = LangSvg.toPath <| Utils.find_ nodeAttrs "d" in
+      let accs =
+        let foo c (acc1,acc2) =
+          let (c',acc2') = case c of
+            LangSvg.CmdZ s ->
+              (LangSvg.CmdZ s, acc2)
+            LangSvg.CmdMLT s pt ->
+              let pt' = updatePt pt in
+              (LangSvg.CmdMLT s pt', addFakePts acc2 [pt'])
+            LangSvg.CmdHV s n ->
+              (LangSvg.CmdHV s n, acc2)
+            LangSvg.CmdC s pt1 pt2 pt3 ->
+              let (pt1',pt2',pt3') = Utils.unwrap3 <| List.map updatePt [pt1,pt2,pt3] in
+              (LangSvg.CmdC s pt1' pt2' pt3', addFakePts acc2 [pt1',pt2',pt3'])
+            LangSvg.CmdSQ s pt1 pt2 ->
+              let (pt1',pt2') = Utils.unwrap2 <| List.map updatePt [pt1,pt2] in
+              (LangSvg.CmdSQ s pt1' pt2' , addFakePts acc2 [pt1',pt2'])
+            LangSvg.CmdA s a b c d e pt ->
+              let pt' = updatePt pt in
+              (LangSvg.CmdA s a b c d e pt', addFakePts acc2 [pt'])
+          in
+          (c' :: acc1, acc2')
+        in
+        List.foldr foo ([],[]) cmds
       in
-      (c' :: acc1, acc2')
-    in
-    List.foldr foo ([],[]) cmds
-  in
-  let (acc1,acc2) = Utils.reverse2 accs in
-  ([("d", LangSvg.APath2 (acc1, counts))], acc2)
+      let (acc1,acc2) = Utils.reverse2 accs in
+      ([("d", LangSvg.APath2 (acc1, counts))], acc2)
+
+    _ ->
+      Debug.crash "pathPoint"
 
 -- Callbacks for Rotate zones
 
 createCallbackRotate mx0 my0 mx1 my1 shape objid old =
-  let (Just (LangSvg.SvgNode _ nodeAttrs _)) = Dict.get objid (snd old.slate) in
-  let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ nodeAttrs "transform" in
-  let rot' =
-    let a0 = Utils.radiansToDegrees <| atan ((mx0 - fst cx) / (fst cy - my0)) in
-    let a1 = Utils.radiansToDegrees <| atan ((fst cy - my1) / (mx1 - fst cx)) in
-    (fst rot + (90 - a0 - a1), snd rot) in
-  let real = [("transform", LangSvg.ATransform [LangSvg.Rot rot' cx cy])] in
-  let fake = [("transformRot", LangSvg.ANum rot')] in
-  (real, fake)
+  case Dict.get objid (snd old.slate) of
+    Just (LangSvg.SvgNode _ nodeAttrs _) ->
+      let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ nodeAttrs "transform" in
+      let rot' =
+        let a0 = Utils.radiansToDegrees <| atan2 (fst cy - my0) (mx0 - fst cx) in
+        let a1 = Utils.radiansToDegrees <| atan2 (fst cy - my1) (mx1 - fst cx) in
+        (fst rot + (a0 - a1), snd rot) in
+      let real = [("transform", LangSvg.ATransform [LangSvg.Rot rot' cx cy])] in
+      let fake = [("transformRot", LangSvg.ANum rot')] in
+      (real, fake)
+    _ -> Debug.crash "createCallbackRotate"
 
 
 --------------------------------------------------------------------------------

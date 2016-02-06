@@ -132,12 +132,13 @@ strBaseVal v = case v of
 strRange : Bool -> Int -> ERange -> String
 strRange showLocs k r =
   let (el,eu) = r.val
-      (EConst nl _ _) = el.val
-      (EConst nu _ _) = eu.val
+      (nl,nu) = case (el.val, eu.val) of
+                  (EConst nl _ _, EConst nu _ _) -> (el.val, eu.val)
+                  _ -> Debug.crash "strRange"
   in
-    if | nl == nu -> sExp_ showLocs k el
-       | otherwise ->
-           sExp_ showLocs k el ++ ".." ++ sExp_ showLocs k eu
+    if nl == nu
+    then sExp_ showLocs k el
+    else sExp_ showLocs k el ++ ".." ++ sExp_ showLocs k eu
 
 strVal     = strVal_ False
 strValLocs = strVal_ True
@@ -152,9 +153,7 @@ strVal_ : Bool -> Val -> String
 strVal_ showTraces v =
   let foo = strVal_ showTraces in
   case v of
-    VConst (i,tr)    -> toString i
-                          ++ if | showTraces -> Utils.braces (strTrace tr)
-                                | otherwise  -> ""
+    VConst (i,tr)    -> strNum i ++ if showTraces then Utils.braces (strTrace tr) else ""
     VBase b          -> strBaseVal b
     VClosure _ _ _ _ -> "<fun>"
     VList vs         -> Utils.bracks (String.join " " (List.map foo vs))
@@ -180,6 +179,7 @@ strOp op = case op of
   Sqrt    -> "sqrt"
   Mod     -> "mod"
   Pow     -> "pow"
+  RangeOffset i -> "[[rangeOffset " ++ toString i ++ "]]"
 
 strLoc (k, b, mx) =
   "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx) ++ b
@@ -196,6 +196,7 @@ strPat p = case p.val of
                 case m of
                   Nothing   -> Utils.bracks s
                   Just rest -> Utils.bracks (s ++ " | " ++ strPat rest)
+  _ -> Debug.crash "strPat"
 
 tab k = String.repeat k "  "
 
@@ -286,14 +287,15 @@ sExp_ showLocs k e =
 
 maybeIndent showLocs k e =
   let s = sExp_ showLocs (k+1) e in
-  if | fitsOnLine s -> " " ++ s
-     | otherwise    -> "\n" ++ tab (k+1) ++ s
+  if fitsOnLine s
+    then " " ++ s
+    else "\n" ++ tab (k+1) ++ s
 
 -- TODO take into account indent and other prefix of current line
 fitsOnLine s =
-  if | String.length s > 70               -> False
-     | List.member '\n' (String.toList s) -> False
-     | otherwise                          -> True
+  if String.length s > 70 then False
+  else if List.member '\n' (String.toList s) then False
+  else True
 
 isLet e = case e.val of
   ELet _ _ _ _ _  -> True
@@ -304,7 +306,7 @@ isLet e = case e.val of
 ------------------------------------------------------------------------------
 -- Mapping WithInfo/WithPos
 
-mapValField f r = { r | val <- f r.val }
+mapValField f r = { r | val = f r.val }
 
 
 ------------------------------------------------------------------------------
@@ -361,7 +363,7 @@ applySubst subst e = (\e_ -> P.WithInfo e_ e.start e.end) <| case e.val of
   EIndList rs -> EIndList <|
                   (List.map
                     (\r -> r.val |> \(l,u) ->
-                      { r | val <- (applySubst subst l, applySubst subst u)}
+                      { r | val = (applySubst subst l, applySubst subst u)}
                     )
                   ) rs
   EApp f es  -> EApp (applySubst subst f) (List.map (applySubst subst) es)
@@ -425,10 +427,12 @@ vFalse = vBool False
 vStr   = VBase << String
 
 eApp e es = case es of
+  []      -> Debug.crash "eApp"
   [e1]    -> withDummyPos <| EApp e [e1]
   e1::es' -> eApp (withDummyPos <| EApp e [e1]) es'
 
 eFun ps e = case ps of
+  []      -> Debug.crash "eFun"
   [p]     -> withDummyPos <| EFun [p] e
   p::ps'  -> withDummyPos <| EFun [p] (eFun ps' e)
 

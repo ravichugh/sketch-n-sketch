@@ -147,21 +147,20 @@ interpretAceEvents : AceMessage -> Model.Model -> Task String ()
 interpretAceEvents amsg model = case amsg.evt of
     "runResponse" -> Signal.send events.address <| Model.MultiEvent
       [ Model.UpdateModel <|
-            \m -> { m | code <- amsg.strArg
-                      , codeBoxInfo <- { cursorPos = amsg.cursorArg
-                                       , selections = amsg.selectionArg
-                                       , highlights = m.codeBoxInfo.highlights
-                                       }
+            \m -> { m | code = amsg.strArg
+                      , codeBoxInfo = { cursorPos = amsg.cursorArg
+                                      , selections = amsg.selectionArg
+                                      , highlights = m.codeBoxInfo.highlights
+                                      }
                   }
       , Model.Run
       ]
     "saveResponse" -> 
-        let newModel = { model | code <- amsg.strArg
-                               , codeBoxInfo <- { cursorPos = amsg.cursorArg
-                                                , selections = amsg.selectionArg
-                                                , highlights =
-                                                    model.codeBoxInfo.highlights
-                                                }
+        let newModel = { model | code = amsg.strArg
+                               , codeBoxInfo = { cursorPos = amsg.cursorArg
+                                               , selections = amsg.selectionArg
+                                               , highlights = model.codeBoxInfo.highlights
+                                               }
                         }
         in commitLocalSave model.exName newModel 
            `andThen` \_ ->
@@ -169,11 +168,11 @@ interpretAceEvents amsg model = case amsg.evt of
                 \m -> newModel
     "codeResponse" -> Signal.send events.address <| Model.MultiEvent
         [ Model.UpdateModel <|
-            \m -> { m | code <- amsg.strArg
-                      , codeBoxInfo <- { cursorPos = amsg.cursorArg
-                                       , selections = amsg.selectionArg
-                                       , highlights = m.codeBoxInfo.highlights
-                                       }
+            \m -> { m | code = amsg.strArg
+                      , codeBoxInfo = { cursorPos = amsg.cursorArg
+                                      , selections = amsg.selectionArg
+                                      , highlights = m.codeBoxInfo.highlights
+                                      }
                   }
         , Model.ToggleBasicCodeBox
         ]
@@ -193,14 +192,14 @@ interpretAceEvents amsg model = case amsg.evt of
 -- Maybe we should split this out into a different Elm/JS file?
 recoverFromError : AceMessage -> Model.Model -> Model.Model
 recoverFromError amsg fresh = 
-    { fresh | code <- amsg.strArg
-            , editingMode <- Just amsg.strArg
-            , errorBox <- Just amsg.evt
-            , exName <- amsg.exNameArg
-            , codeBoxInfo <- { selections = amsg.selectionArg
-                             , cursorPos  = amsg.cursorArg
-                             , highlights = fresh.codeBoxInfo.highlights
-                             }
+    { fresh | code = amsg.strArg
+            , editingMode = Just amsg.strArg
+            , errorBox = Just amsg.evt
+            , exName = amsg.exNameArg
+            , codeBoxInfo = { selections = amsg.selectionArg
+                            , cursorPos  = amsg.cursorArg
+                            , highlights = fresh.codeBoxInfo.highlights
+                            }
     }
 
 -- The number of times that we defensively rerender the codebox on codebox

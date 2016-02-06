@@ -16,16 +16,14 @@ match (p,v) = case (p.val, v) of
     Utils.bindMaybe matchList (Utils.maybeZip ps vs)
   (PList ps (Just rest), VList vs) ->
     let (n,m) = (List.length ps, List.length vs) in
-    if | n > m     -> Nothing
-       | otherwise -> let (vs1,vs2) = Utils.split n vs in
-                      (rest, VList vs2) `cons` (matchList (Utils.zip ps vs1))
+    if n > m then Nothing
+    else
+      let (vs1,vs2) = Utils.split n vs in
+      (rest, VList vs2) `cons` (matchList (Utils.zip ps vs1))
   (PList _ _, _) -> Nothing
-  (PConst n, VConst (n',_)) ->
-    if | n == n'   -> Just []
-       | otherwise -> Nothing
-  (PBase bv, VBase bv') ->
-    if | bv == bv' -> Just []
-       | otherwise -> Nothing
+  (PConst n, VConst (n',_)) -> if n == n' then Just [] else Nothing
+  (PBase bv, VBase bv') -> if bv == bv' then Just [] else Nothing
+  _ -> Debug.crash "Eval.match"
 
 matchList : List (Pat, Val) -> Maybe Env
 matchList pvs =
@@ -91,6 +89,9 @@ eval env e =
       Nothing   -> retBoth <| (VList vs, ws)
       Just rest -> case eval_ env rest of
                      (VList vs', ws') -> retBoth <| (VList (vs ++ vs'), ws ++ ws')
+                     _                -> errorMsg <| strPos rest.start ++ " rest expression not a list."
+
+  EIndList rs -> Debug.crash "eval EIndList"
 
 {-
   EIndList rs ->
@@ -118,9 +119,11 @@ eval env e =
       VClosure Nothing p e env' ->
         case (p, v2) `cons` Just env' of
           Just env'' -> addWidgets ws <| eval env'' e
+          _          -> errorMsg <| strPos e1.start ++ "bad environment"
       VClosure (Just f) p e env' ->
         case (pVar f, v1) `cons` ((p, v2) `cons` Just env') of
           Just env'' -> addWidgets ws <| eval env'' e
+          _          -> errorMsg <| strPos e1.start ++ "bad environment"
       _ ->
         errorMsg <| strPos e1.start ++ " not a function"
 
@@ -132,11 +135,14 @@ eval env e =
         let v1' = VClosure (Just f) x body env in
         case (pVar f, v1') `cons` Just env of
           Just env' -> addWidgets ws1 <| eval env' e2
+          _         -> errorMsg <| strPos e.start ++ "bad ELet"
       (PList _ _, _) ->
         errorMsg <|
           strPos e1.start ++
           "mutually recursive functions (i.e. letrec [...] [...] e) \
            not yet implemented"
+      _ ->
+        errorMsg <| strPos e.start ++ "bad ELet"
 
   EComment _ e1 -> eval env e1
   EOption _ _ e1 -> eval env e1
@@ -149,6 +155,11 @@ eval env e =
 evalOp env opWithInfo es =
   let (op,opStart) = (opWithInfo.val, opWithInfo.start) in
   let (vs,wss) = List.unzip (List.map (eval_ env) es) in
+  let error () =
+    errorMsg
+      <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart
+      ++ ":\n" ++ Utils.lines (List.map sExp es)
+  in
   (\vOut -> (vOut, List.concat wss)) <|
   case vs of
     [VConst (i,it), VConst (j,jt)] ->
@@ -162,13 +173,16 @@ evalOp env opWithInfo es =
         ArcTan2 -> VConst (evalDelta op [i,j], TrOp op [it,jt])
         Lt      -> vBool  (i < j)
         Eq      -> vBool  (i == j)
+        _       -> error ()
     [VBase (String s1), VBase (String s2)] ->
       case op of
         Plus  -> VBase (String (s1 ++ s2))
         Eq    -> vBool (s1 == s2)
+        _     -> error ()
     [] ->
       case op of
         Pi    -> VConst (pi, TrOp op [])
+        _     -> error ()
     [VConst (n,t)] ->
       case op of
         Cos    -> VConst (evalDelta op [n], TrOp op [t])
@@ -180,16 +194,17 @@ evalOp env opWithInfo es =
         Round  -> VConst (evalDelta op [n], TrOp op [t])
         Sqrt   -> VConst (evalDelta op [n], TrOp op [t])
         ToStr  -> VBase (String (toString n))
+        _     -> error ()
     [VBase (Bool b)] ->
       case op of
         ToStr  -> VBase (String (toString b))
+        _     -> error ()
     [VBase (String s)] ->
       case op of
         ToStr  -> VBase (String (strBaseVal (String s)))
+        _     -> error ()
     _ ->
-      errorMsg
-        <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart
-        ++ ":\n" ++ Utils.lines (List.map sExp es)
+      error ()
 
 evalBranches env v l =
   List.foldl (\(p,e) acc ->
@@ -243,9 +258,11 @@ rangeToList r =
         (EConst nl tl _, EConst nu tu _) ->
            let walkVal i =
              let j = toFloat i in
-             if | (nl + j) < nu -> VConst (nl + j, TrOp (RangeOffset i) [TrLoc tl]) :: walkVal (i + 1)
-                | otherwise     -> [ VConst (nu, TrLoc tu) ]
+             if (nl + j) < nu
+               then VConst (nl + j, TrOp (RangeOffset i) [TrLoc tl]) :: walkVal (i + 1)
+               else [ VConst (nu, TrLoc tu) ]
            in
-           if | nl == nu  -> [ VConst (nl, TrLoc tl) ]
-              | otherwise -> walkVal 0
+           if nl == nu
+             then [ VConst (nl, TrLoc tl) ]
+             else walkVal 0
         _ -> errorMsg "Range not specified with numeric constants"

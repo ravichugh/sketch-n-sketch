@@ -16,8 +16,9 @@ offsetBy start s =
   List.foldl addOneChar start (String.toList s)
 
 addOneChar c start =
-  if | c == '\n' -> { line = 1 + start.line, col = 1 }
-     | otherwise -> { start | col <- 1 + start.col }
+  if c == '\n'
+  then { line = 1 + start.line, col = 1 }
+  else { start | col = 1 + start.col }
 
 type alias Parser_ a = WithPos String -> List (WithInfo a, WithPos String)
 
@@ -38,9 +39,9 @@ runParser p =
 parse : Parser a -> String -> Result String (WithInfo a)
 parse p s =
   case runParser p (WithPos s startPos) of
-    [(s,{val})] -> if
-      | val == "" -> Ok s
-      | otherwise -> Err "incomplete parse"
+    [(s,{val})] -> if val == ""
+                     then Ok s
+                     else Err "incomplete parse"
     [] -> Err ("no parse\n\n" ++ s)
     l  -> Err ("ambiguous parse\n\n" ++ toString (List.map (.val << fst) l))
 
@@ -62,9 +63,10 @@ sequence p1 p2 = bind p1 (always p2)
 satisfy : (Char -> Bool) -> Parser Char
 satisfy f = P <| \s ->
   case String.uncons s.val of
-    Just (c,s') -> if
-      | not (f c) -> []
-      | otherwise ->
+    Just (c,s') ->
+      if not (f c)
+        then []
+        else
           let start = s.pos in
           let end   = start `offsetBy` String.fromChar c in
           [(WithInfo c start end, WithPos s' end)]
@@ -109,8 +111,9 @@ munch f = P <| \s ->
   let walk acc s =
     case String.uncons s of
       Nothing     -> (String.reverse acc, s)
-      Just (c,s') -> if | f c       -> walk (String.cons c acc) s'
-                        | otherwise -> (String.reverse acc, s)
+      Just (c,s') -> if f c
+                       then walk (String.cons c acc) s'
+                       else (String.reverse acc, s)
   in
   let (pre,suf) = walk "" s.val in
   let start     = s.pos in
@@ -119,9 +122,13 @@ munch f = P <| \s ->
 
 munch1 : (Char -> Bool) -> Parser String
 munch1 f = P <| \s ->
-  let [(pre,suf)] = runParser (munch f) s in
-  if | s == suf  -> []
-     | otherwise -> [(pre,suf)]
+  case runParser (munch f) s of
+    [(pre,suf)] ->
+      if s == suf
+        then []
+        else [(pre,suf)]
+    _ ->
+      Debug.crash "munch1"
 
 skipSpaces : Parser ()
 skipSpaces = map (always ()) (munch ((==) ' '))

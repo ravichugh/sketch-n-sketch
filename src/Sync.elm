@@ -28,8 +28,9 @@ type alias HeuristicModes = Int
 
 heuristicModes = 3
 
-[heuristicsNone, heuristicsFair, heuristicsBiased] =
-  [ 0 .. (heuristicModes - 1) ]
+(heuristicsNone, heuristicsFair, heuristicsBiased) =
+  Utils.unwrap3
+    [ 0 .. (heuristicModes - 1) ]
 
 toggleHeuristicMode x =
   let i = (1 + x) % heuristicModes in
@@ -50,14 +51,14 @@ syncOptionsOf oldOptions e =
   -- feelingLucky to be a global flag, not per-example flag for now
   case Utils.maybeFind "unannotated-numbers" (getOptions e) of
     Nothing -> oldOptions
-    Just s -> if
+    Just s ->
       -- TODO decide whether to make feelingLucky per-example or not
       --   if not, perhaps move it out of Options
-      | s == "n?" -> { oldOptions | thawedByDefault <- True }
-      | s == "n!" -> { oldOptions | thawedByDefault <- False }
-      | otherwise ->
-          let _ = debugLog "invalid sync option: " s in
-          oldOptions
+      if s == "n?" then { oldOptions | thawedByDefault = True }
+      else if s == "n!" then { oldOptions | thawedByDefault = False }
+      else
+        let _ = debugLog "invalid sync option: " s in
+        oldOptions
 
 
 ------------------------------------------------------------------------------
@@ -77,6 +78,7 @@ fillHole = fillHole_ True
 fillHole_ new vc subst = case vc of
   VHole i          -> case Dict.get i subst of
                         Just (vOld,vNew) -> if new then vNew else vOld
+                        Nothing          -> Debug.crash "fillHole_"
   VConst _         -> vc
   VBase _          -> vc
   VClosure _ _ _ _ -> vc   -- not recursing into closures
@@ -90,11 +92,12 @@ diff v1 v2 =
   case res of
     Just (_, Diff vc subst) ->
       let (v1',v2') = (fillHole_ False vc subst, fillHole_ True vc subst) in
-      if | eqV (v1,v1') && eqV (v2,v2') -> Just (Diff vc subst)
-         | otherwise ->
-             let f (i,(vOld,vNew)) = [toString i, strVal vOld, strVal vNew] in
-             Debug.crash <| Utils.lines <|
-               ("bad diff" :: strVal vc :: List.concatMap f (Dict.toList subst))
+      if eqV (v1,v1') && eqV (v2,v2') then
+        Just (Diff vc subst)
+      else
+        let f (i,(vOld,vNew)) = [toString i, strVal vOld, strVal vNew] in
+        Debug.crash <| Utils.lines <|
+          ("bad diff" :: strVal vc :: List.concatMap f (Dict.toList subst))
     _ ->
       Utils.mapMaybe snd res
 
@@ -116,9 +119,11 @@ diff_ : Int -> Val -> Val -> Maybe (Int, VDiff)
 diff_ k v1 v2 = case (v1, v2) of
   (VBase Star, VConst _) -> Just (k, Same v2)
   (VConst (i,tr), VConst (j,_)) ->
-    if | i == j    -> Just (k, Same (VConst (i,tr)))  -- cf. comment above
-       | otherwise -> let d = Dict.singleton k (v1, (VConst (j,tr))) in
-                      Just (k+1, Diff (VHole k) d)
+    if i == j then
+      Just (k, Same (VConst (i,tr)))  -- cf. comment above
+    else
+      let d = Dict.singleton k (v1, (VConst (j,tr))) in
+      Just (k+1, Diff (VHole k) d)
   (VList vs1, VList vs2) ->
     case Utils.maybeZip vs1 vs2 of
       Nothing -> Nothing
@@ -136,16 +141,18 @@ diff_ k v1 v2 = case (v1, v2) of
                 Nothing                 -> Nothing
                 Just (k, Same v)        -> Just (k, Diff (VList (v::vs)) subst)
                 Just (k, Diff vc sub')  ->
-                  if | not multiLeafDiffs -> Nothing
-                     | otherwise ->
-                         let d = Dict.union subst sub' in
+                  if not multiLeafDiffs
+                    then Nothing
+                    else let d = Dict.union subst sub' in
                          Just (k, Diff (VList (vc::vs)) d)
             Just (_, Diff _ _) ->
               Debug.crash "diff_: error?"
+            _ -> Debug.crash "diff_"
         ) (Just (k, Same (VList []))) l
   _ ->
-    if | v1 == v2  -> Just (k, Same v1)
-       | otherwise -> Nothing
+    if v1 == v2
+      then Just (k, Same v1)
+      else Nothing
 
 
 ------------------------------------------------------------------------------
@@ -158,10 +165,10 @@ locsOfTrace opts =
   let foo t = case t of
     TrLoc l ->
       let (_,b,_) = l in
-      if | Parser.isPreludeLoc l         -> Set.empty
-         | b == frozen                   -> Set.empty
-         | b == unann && frozenByDefault -> Set.empty
-         | otherwise                     -> Set.singleton l
+      if      Parser.isPreludeLoc l         then Set.empty
+      else if b == frozen                   then Set.empty
+      else if b == unann && frozenByDefault then Set.empty
+      else                                       Set.singleton l
     TrOp _ ts -> List.foldl Set.union Set.empty (List.map foo ts)
   in
   -- TODO do this filtering later if want gray highlights
@@ -185,11 +192,14 @@ locsOfTrace opts =
 -}
 
 solveOneLeaf : Options -> Subst -> Val -> List (LocId, Num)
-solveOneLeaf opts s (VConst (i, tr)) =
-  List.filterMap
-    (\k -> let s' = Dict.remove k s in
-           Utils.mapMaybe (\n -> (k,n)) (solve s' (i, tr)))
-    (List.map Utils.fst3 <| Set.toList <| locsOfTrace opts tr)
+solveOneLeaf opts s v = case v of
+  VConst (i, tr) ->
+    List.filterMap
+      (\k -> let s' = Dict.remove k s in
+             Utils.mapMaybe (\n -> (k,n)) (solve s' (i, tr)))
+      (List.map Utils.fst3 <| Set.toList <| locsOfTrace opts tr)
+  _ ->
+    Debug.crash "solveOneLeaf"
 
 inferSubsts : Options -> Subst -> List Val -> List Subst
 inferSubsts opts s0 vs =
@@ -205,8 +215,9 @@ combine solutions =
     let g subst =
       case Dict.get l subst of
         Nothing -> Just (Dict.insert l n subst)
-        Just i  -> if | i == n    -> Just (Dict.insert l n subst)
-                      | otherwise -> Nothing
+        Just i  -> if i == n
+                     then Just (Dict.insert l n subst)
+                     else Nothing
     in
     Utils.bindMaybe g msubst
   in
@@ -309,9 +320,9 @@ isNumBinop = (/=) Lt
 
 maybeFloat n =
   let thresh = 1000 in
-  if | isNaN n || isInfinite n -> debugLog "maybeFloat Nothing" Nothing
-     | abs n > thresh          -> debugLog "maybeFloat (above thresh)" Nothing
-     | otherwise               -> Just n
+  if isNaN n || isInfinite n then debugLog "maybeFloat Nothing" Nothing
+  else if abs n > thresh     then debugLog "maybeFloat (above thresh)" Nothing
+  else                            Just n
 
 -- n = i op j
 solveR op n i = case op of
@@ -322,6 +333,7 @@ solveR op n i = case op of
   Pow     -> Just <| logBase i n
   Mod     -> Nothing
   ArcTan2 -> maybeFloat <| tan(n) * i
+  _       -> Debug.crash "solveR"
 
 -- n = i op j
 solveL op n j = case op of
@@ -332,6 +344,7 @@ solveL op n j = case op of
   Pow   -> Just <| n ^ (1/j)
   Mod   -> Nothing
   ArcTan2 -> maybeFloat <| j / tan(n)
+  _     -> Debug.crash "solveL"
 
 simpleSolve subst (sum, tr) =
   let walkTrace t = case t of
@@ -360,8 +373,7 @@ compareVals (v1, v2) = case (v1, v2) of
   (VList vs1, VList vs2)   -> case Utils.maybeZip vs1 vs2 of
                                 Nothing -> largeInt
                                 Just l  -> Utils.sum (List.map compareVals l)
-  _                        -> if | v1 == v2  -> 0
-                                 | otherwise -> largeInt
+  _                        -> if v1 == v2 then 0 else largeInt
 
 largeInt = 99999999
 
@@ -370,7 +382,9 @@ largeInt = 99999999
 getFillers : HoleSubst -> List Val
 getFillers = List.map (snd << snd) << Dict.toList
 
-leafToStar v = case v of {VConst _ -> VBase Star; _ -> v}
+leafToStar v = case v of
+  VConst _ -> VBase Star
+  _        -> v
 
 -- historically, inferLocalUpdates was called "sync"
 
@@ -397,10 +411,11 @@ inferLocalUpdates opts e v v' =
                 Just ((e1, v1), n)
               Just (Diff _ holeSubst') ->
                 let oldNew = getFillers holeSubst' in
-                if | newNew /= oldNew -> Nothing
-                   | otherwise ->
-                       let n = compareVals (v, v1) in
-                       Just ((e1, v1), n)
+                if newNew /= oldNew
+                  then Nothing
+                  else
+                    let n = compareVals (v, v1) in
+                    Just ((e1, v1), n)
           ) substs
       in
       -- TODO: is this a good idea?
@@ -409,7 +424,9 @@ inferLocalUpdates opts e v v' =
 
 ------------------------------------------------------------------------------
 
-stripSvg (VList [VBase (String "svg"), VList vs1, VList vs2]) = (vs1, vs2)
+stripSvg v = case v of
+  VList [VBase (String "svg"), VList vs1, VList vs2] -> (vs1, vs2)
+  _ -> Debug.crash "stripSvg"
 
 idOldShapes  = "oldCanvas"
 idNewShape i = "newShape" ++ toString i
@@ -419,8 +436,9 @@ eNewShape i  = eVar (idNewShape i)
 addComments = False -- CONFIG
 
 comment s e =
-  if | addComments -> eComment s e
-     | otherwise   -> e
+  if addComments
+    then eComment s e
+    else e
 
 inferStructuralUpdate : Exp -> Val -> Val -> (Exp, Val)
 inferStructuralUpdate eOld v v' =
@@ -430,8 +448,10 @@ inferStructuralUpdate eOld v v' =
 
   let diff =
     let foo (i,(vi,vi')) acc =
-      if | vi == vi' -> acc
-         | otherwise -> (i,vi') :: acc in
+      if vi == vi'
+        then acc
+        else (i,vi') :: acc
+    in
     List.reverse (Utils.foldli foo [] (Utils.zip children1 children2)) in
 
   let eNewCanvas =
@@ -534,7 +554,9 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v of
               VList [VConst (_,trx), VConst (_,try)] ->
                 let (ax,ay) = (addi "x" i, addi "y" i) in
                 acc |> Dict.insert ax trx
-                    |> Dict.insert ay try) dAttrs pts in
+                    |> Dict.insert ay try
+              _ -> Debug.crash "nodeToAttrLocs_"
+            ) dAttrs pts in
         (NumPoints (List.length pts), extraextra, acc')
 
       VList [VBase (String "d"), VList vs] ->
@@ -617,14 +639,15 @@ createLocLists opts sets =
   let removeEmpties = List.filter ((/=) 0 << Utils.setCardinal) in
   let foo = Utils.cartProdWithDiff (removeEmpties sets) in
   let bar =
-    if | not allowOverConstrained -> []
-       -- | otherwise ->
-       | opts.feelingLucky == heuristicsNone ||
-         opts.feelingLucky == heuristicsFair ->
-           sets |> Utils.intersectMany |> Set.toList |> List.map Utils.singleton
-       | opts.feelingLucky == heuristicsBiased ->
-           let l = sets |> Utils.intersectMany |> Set.toList in
-           Utils.oneOfEach [l,l]
+    if not allowOverConstrained then []
+    else if opts.feelingLucky == heuristicsNone ||
+            opts.feelingLucky == heuristicsFair then
+      sets |> Utils.intersectMany |> Set.toList |> List.map Utils.singleton
+    else if opts.feelingLucky == heuristicsBiased then
+      let l = sets |> Utils.intersectMany |> Set.toList in
+      Utils.oneOfEach [l,l]
+    else
+      Debug.crash "createLocLists"
   in
   foo ++ bar
 
@@ -633,8 +656,10 @@ getZones kind extra ee =
   let xy i = [addi "x" i, addi "y" i] in
   let pt i = (addi "Point" i, xy i) in
   let edge n i =
-    if | i <  n -> (addi "Edge" i, xy i ++ xy (i+1))
-       | i == n -> (addi "Edge" i, xy i ++ xy 1) in
+    if i <  n then (addi "Edge" i, xy i ++ xy (i+1)) else
+    if i == n then (addi "Edge" i, xy i ++ xy 1)
+    else Debug.crash "getZones"
+  in
   let interior n = ("Interior", List.concatMap xy [1..n]) in
   let basicZones =
     case (kind, extra) of
@@ -659,6 +684,7 @@ getZones kind extra ee =
 widgetZones = List.map <| \x -> case x of
   ("fill"         , ("FillBall"   , _)) -> ("FillBall"   , ["fill"])
   ("transformRot" , ("RotateBall" , _)) -> ("RotateBall" , ["transformRot"])
+  _                                     -> Debug.crash "widgetZones"
 
 -- Step 3 --
 
@@ -667,8 +693,9 @@ widgetZones = List.map <| \x -> case x of
 
 getTriggerType numAttrs locs =
   let n = List.length locs in
-  if | n == numAttrs -> ()
-     | n == 1        -> ()
+  if n == numAttrs then ()
+  else if n == 1 then ()
+  else Debug.crash "getTriggerType"
 
 {-
   old approach:
@@ -697,8 +724,9 @@ assignTriggersV2 d1 =
           case acc of
             Nothing -> Just thisSet'
             Just bestSet ->
-            if | getCount bestSet dictSetSeen2 < getCount thisSet' dictSetSeen2 -> acc
-               | otherwise -> Just thisSet') Nothing rankedSets in
+            if getCount bestSet dictSetSeen2 < getCount thisSet' dictSetSeen2
+              then acc
+              else Just thisSet') Nothing rankedSets in
       case maybeChosenSet of
         Nothing -> (dictSetSeen2, (zone, Nothing) :: acc)
         Just chosenSet ->
@@ -778,8 +806,9 @@ scoreOfLocs : Locs -> Int
 scoreOfLocs locs =
   let foo (_,b,mx) acc =
     let _ = Utils.assert "scoreOfLocs" (b == unann) in
-    if | mx == ""  -> acc
-       | otherwise -> acc + 1
+    if mx == ""
+      then acc
+      else acc + 1
   in
   -1 * (List.foldl foo 0 locs)
 
@@ -789,8 +818,9 @@ scoreOfLocs2 dLocCounts locs_ =
   -- could use log to keep absolute numbers smaller.
   let foo (i,_,_) acc = acc * getCount i dLocCounts in
   let score = Set.foldl foo (1) locs in
-  if | Utils.setCardinal locs == 1 -> score * score * score
-     | otherwise -> score
+  if Utils.setCardinal locs == 1
+    then score * score * score
+    else score
 
 -- TODO compute these counts along with Dict0
 countLocs : Dict0 -> Dict LocId Int
@@ -828,8 +858,9 @@ strLocs = Utils.braces << Utils.commas << List.map strLoc_
 
 strLoc_ l =
   let (_,_,mx) = l in
-  if | mx == ""  -> strLoc l
-     | otherwise -> mx
+  if mx == ""
+    then strLoc l
+    else mx
 
 ------------------------------------------------------------------------------
 
@@ -970,6 +1001,7 @@ whichLoc opts d0 d2 i z attr =
                   ([loc1,loc2], "x") -> Utils.fst3 loc2
                   ([loc1,loc2], "y") -> Utils.fst3 loc1
                   (loc1::_,_) -> Utils.fst3 loc1
+                  _ -> Debug.crash "whichLoc"
       else
         Debug.crash "whichLoc"
 

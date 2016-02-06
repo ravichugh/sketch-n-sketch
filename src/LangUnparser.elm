@@ -19,19 +19,21 @@ debugLog = Config.debugLog Config.debugParser
 --    is not reinstated
 
 bumpLine n pos = { line = n + pos.line, col = 1 }
-bumpCol  n pos = { pos | col <- n + pos.col }
+bumpCol  n pos = { pos | col = n + pos.col }
 
 incLine = bumpLine 1
 incCol  = bumpCol 1
 decCol  = bumpCol (-1)
 
-lines i j = if
-  | i > j     -> Debug.crash <| "Unparser.lines: " ++ toString (i,j)
-  | otherwise -> String.repeat (j-i) "\n"
+lines i j =
+  if i > j
+    then Debug.crash <| "Unparser.lines: " ++ toString (i,j)
+    else String.repeat (j-i) "\n"
 
-cols i j = if
-  | i > j     -> Debug.crash <| "Unparser.cols: " ++ toString (i,j)
-  | otherwise -> String.repeat (j-i) " "
+cols i j =
+  if i > j
+    then Debug.crash <| "Unparser.cols: " ++ toString (i,j)
+    else String.repeat (j-i) " "
 
 whitespace : Pos -> Pos -> String
 whitespace endPrev startNext =
@@ -101,7 +103,7 @@ unparse e = case e.val of
   EApp e1 es -> parensAndSpaces e.start e.end (List.map UExp (e1::es))
   EList es Nothing -> bracksAndSpaces e.start e.end (List.map UExp es)
   EList es (Just eRest) ->
-    let (en::_) = List.reverse es in
+    let en = Utils.head_ <| List.reverse es in
     let tok1 = makeToken e.start   "[" in
     let tok2 = makeToken en.end    "|" in
     let tok3 = makeToken eRest.end "]" in
@@ -112,7 +114,7 @@ unparse e = case e.val of
   EIndList rs ->
     ibracksAndSpaces e.start e.end (List.concat (List.map unparseRange rs))
   EOp op es ->
-    let sOp = { op | val <- strOp op.val } in
+    let sOp = { op | val = strOp op.val } in
     parensAndSpaces e.start e.end (UStr sOp :: List.map UExp es)
   EIf e1 e2 e3 ->
     let tok = makeToken (incCol e.start) "if" in
@@ -145,11 +147,13 @@ unparseE e = whitespace startPos e.start ++ unparse e
 unparseRange : ERange -> List Unparsable
 unparseRange r = case r.val of (l,u) -> case (l.val,u.val) of
     (EConst lv lt _, EConst uv ut _) ->
-        if | lv == uv -> [ UExp l ]
-           | otherwise -> [ UExp l
-                          , UStr <| makeToken l.end ".."
-                          , UExp u
-                          ]
+        if lv == uv
+          then [ UExp l ]
+          else [ UExp l
+               , UStr <| makeToken l.end ".."
+               , UExp u
+               ]
+    _ -> Debug.crash "unparseRange"
 
 -- NOTE: use this to go back to original unparser
 -- unparseE = sExp
@@ -199,7 +203,7 @@ startU thing = case thing of
   UNum x -> x.start
   UBra x -> x.start
 
-  UParens (first::_) -> decCol (startU first)
+  UParens l -> let first = Utils.head_ l in decCol (startU first)
 
 endU thing = case thing of
   UExp x -> x.end
@@ -209,11 +213,11 @@ endU thing = case thing of
   UNum x -> x.end
   UBra x -> x.end
 
-  UParens l -> let (last::_) = List.reverse l in incCol (endU last)
+  UParens l -> let last = Utils.head_ (List.reverse l) in incCol (endU last)
 
 spaces : List Unparsable -> (String, Pos)
 spaces things =
-  let (hd::tl) = things in
+  let (hd,tl) = Utils.uncons things in
   let foo cur (acc, endPrev) =
     let acc'     = strU cur :: space endPrev (startU cur) :: acc in
     let endPrev' = endU cur in

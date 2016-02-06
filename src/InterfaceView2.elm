@@ -65,10 +65,10 @@ strButtonTopColor = "rgba(231,76,60,1.0)" -- from InterfaceButtons example
 textColor = "white"
 
 titleStyle =
-  { defaultStyle | typeface <- ["Courier", "monospace"]
-                 , height <- Just 18
-                 , bold <- False
-                 , color <- Color.white}
+  { defaultStyle | typeface = ["Courier", "monospace"]
+                 , height = Just 18
+                 , bold = False
+                 , color = Color.white}
 
 -- Creates an Html button with the text properly offset
 type ButtonStatus = Raised | Highlighted | Depressed | Disabled
@@ -117,10 +117,12 @@ zoneOptions0 =
 
 optionsOf : ShowZones -> ZoneOptions
 optionsOf x =
-  if | x == showZonesNone  -> { zoneOptions0 | addBasic <- True }
-     | x == showZonesBasic -> { zoneOptions0 | addBasic <- True, showBasic <- True }
-     | x == showZonesRot   -> { zoneOptions0 | addRot <- True }
-     | x == showZonesColor -> { zoneOptions0 | addColor <- True }
+  if x == showZonesNone       then { zoneOptions0 | addBasic = True }
+  else if x == showZonesBasic then { zoneOptions0 | addBasic = True, showBasic = True }
+  else if x == showZonesRot   then { zoneOptions0 | addRot = True }
+  else if x == showZonesColor then { zoneOptions0 | addColor = True }
+  else
+    Debug.crash "optionsOf"
 
 --------------------------------------------------------------------------------
 -- Compiling to Svg
@@ -148,13 +150,15 @@ buildSvg_ options d i =
           (True, Just (LangSvg.AString "none", l)) ->
             (makeZones zoneOptions0 shape i attrs, l)
           (True, Just (LangSvg.AString "basic", l)) ->
-            let options' = { options | addRot <- False, addColor <- False } in
+            let options' = { options | addRot = False, addColor = False } in
             (makeZones options' shape i attrs, l)
+          _ -> Debug.crash "buildSvg_"
       in
       let children = List.map (buildSvg_ options d) js in
-      let mainshape = (LangSvg.svg shape) (LangSvg.compileAttrs attrs') children in
-      if | zones == [] -> mainshape
-         | otherwise   -> Svg.svg [] (mainshape :: zones)
+      let mainshape = (Svg.node shape) (LangSvg.compileAttrs attrs') children in
+      if zones == []
+        then mainshape
+        else Svg.svg [] (mainshape :: zones)
 
 
 --------------------------------------------------------------------------------
@@ -230,7 +234,7 @@ buildSvgWidgets wCanvas hCanvas widgets =
         WIntSlider _ _ s targetVal _ -> s ++ strNumTrunc 5 targetVal
         WNumSlider _ _ s targetVal _ -> s ++ strNumTrunc 5 targetVal
       in
-      flip Svg.text [VirtualDom.text cap] <|
+      flip Svg.text' [VirtualDom.text cap] <|
         [ attr "fill" "black" , attr "font-family" "Tahoma, sans-serif"
         , attr "font-size" params.mainSection.uiWidgets.fontSize
         , attr "x" (toString (xi' + wSlider + 10))
@@ -243,7 +247,7 @@ buildSvgWidgets wCanvas hCanvas widgets =
 
 sliderZoneEvents widgetState =
   let foo old = case old.mode of
-    Live _ -> { old | mouseMode <- MouseSlider widgetState Nothing }
+    Live _ -> { old | mouseMode = MouseSlider widgetState Nothing }
     _      -> old
   in
   [ onMouseDown (UpdateModel foo) , onMouseUp MouseUp ]
@@ -274,25 +278,25 @@ zone svgFunc id shape zone l =
 cursorStyle s = LangSvg.attr "cursor" s
 
 -- TODO should take into account disabled zones in Live mode
-cursorOfZone zone = if
+cursorOfZone zone = case zone of
   -- rect zones
-  | zone == "Interior"       -> cursorStyle "move"
-  | zone == "RightEdge"      -> cursorStyle "ew-resize"
-  | zone == "BotRightCorner" -> cursorStyle "nwse-resize"
-  | zone == "BotEdge"        -> cursorStyle "ns-resize"
-  | zone == "BotLeftCorner"  -> cursorStyle "nesw-resize"
-  | zone == "LeftEdge"       -> cursorStyle "ew-resize"
-  | zone == "TopLeftCorner"  -> cursorStyle "nwse-resize"
-  | zone == "TopEdge"        -> cursorStyle "ns-resize"
-  | zone == "TopRightCorner" -> cursorStyle "nesw-resize"
+  "Interior"       -> cursorStyle "move"
+  "RightEdge"      -> cursorStyle "ew-resize"
+  "BotRightCorner" -> cursorStyle "nwse-resize"
+  "BotEdge"        -> cursorStyle "ns-resize"
+  "BotLeftCorner"  -> cursorStyle "nesw-resize"
+  "LeftEdge"       -> cursorStyle "ew-resize"
+  "TopLeftCorner"  -> cursorStyle "nwse-resize"
+  "TopEdge"        -> cursorStyle "ns-resize"
+  "TopRightCorner" -> cursorStyle "nesw-resize"
   -- circle/ellipse zones
-  | zone == "Edge"           -> cursorStyle "pointer"
+  "Edge"           -> cursorStyle "pointer"
   -- indirect manipulation zones
-  | zone == "FillBall"       -> cursorStyle "pointer"
-  | zone == "RotateBall"     -> cursorStyle "pointer"
-  | zone == "SliderBall"     -> cursorStyle "pointer"
+  "FillBall"       -> cursorStyle "pointer"
+  "RotateBall"     -> cursorStyle "pointer"
+  "SliderBall"     -> cursorStyle "pointer"
   -- default
-  | otherwise                -> cursorStyle "default"
+  _                -> cursorStyle "default"
 
 -- Stuff for Basic Zones -------------------------------------------------------
 
@@ -464,7 +468,7 @@ makeZones options shape id l =
             ]
         in
         let
-          [x,y,w,h]     = List.map (toNum << Utils.find_ l) ["x","y","width","height"]
+          (x,y,w,h)     = Utils.unwrap4 <| List.map (toNum << Utils.find_ l) ["x","y","width","height"]
           gut           = 0.125
           (x0,x1,x2)    = (x, x + gut*w, x + (1-gut)*w)
           (y0,y1,y2)    = (y, y + gut*h, y + (1-gut)*h)
@@ -496,7 +500,8 @@ makeZones options shape id l =
 
     "line" ->
         let transform = maybeTransformAttr l in
-        let [x1,y1,x2,y2] = List.map (toNumTr << Utils.find_ l) ["x1","y1","x2","y2"] in
+        let (x1,y1,x2,y2) =
+          Utils.unwrap4 <| List.map (toNumTr << Utils.find_ l) ["x1","y1","x2","y2"] in
         let (pt1,pt2) = ((x1,y1), (x2,y2)) in
         let zLine = zoneLine id shape "Edge" options.showBasic transform pt1 pt2 in
         let zPts = zonePoints id shape options.showBasic transform [pt1,pt2] in
@@ -515,7 +520,7 @@ makeZones options shape id l =
 
 makeZonesCircle options id l =
   let transform = maybeTransformAttr l in
-  let [cx,cy,r] = List.map (toNum << Utils.find_ l) ["cx","cy","r"] in
+  let (cx,cy,r) = Utils.unwrap3 <| List.map (toNum << Utils.find_ l) ["cx","cy","r"] in
   let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "r" r ] in
      [zoneBorder Svg.circle id "circle" "Edge" True options.showBasic attrs transform]
   ++ [zoneBorder Svg.circle id "circle" "Interior" False options.showBasic attrs transform]
@@ -524,7 +529,7 @@ makeZonesCircle options id l =
 
 makeZonesEllipse options id l =
   let transform = maybeTransformAttr l in
-  let [cx,cy,rx,ry] = List.map (toNum << Utils.find_ l) ["cx","cy","rx","ry"] in
+  let (cx,cy,rx,ry) = Utils.unwrap4 <| List.map (toNum << Utils.find_ l) ["cx","cy","rx","ry"] in
   let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "rx" rx, attrNum "ry" ry ] in
      [zoneBorder Svg.ellipse id "ellipse" "Edge" True options.showBasic attrs transform]
   ++ [zoneBorder Svg.ellipse id "ellipse" "Interior" False options.showBasic attrs transform]
@@ -545,18 +550,22 @@ makeZonesPoly options shape id l =
         LangSvg.compileAttr "points" (LangSvg.APoints pts)
       ] in
   let zRot =
-    let (((x0,_),(y0,_))::_) = pts in
-    zoneColor options.addColor id shape x0 y0 (maybeColorNumAttr "fill" l) in
+    case pts of
+      (((x0,_),(y0,_))::_) ->
+        zoneColor options.addColor id shape x0 y0 (maybeColorNumAttr "fill" l)
+      _ ->
+        Debug.crash "makeZonesPoly" in
   let firstEqLast xs = Utils.head_ xs == Utils.head_ (List.reverse xs) in
-  if | shape == "polygon" -> zInterior :: (zLines ++ zPts ++ zRot)
-     | firstEqLast pts    -> zInterior :: (zLines ++ zPts ++ zRot)
-     | otherwise          -> zLines ++ zPts ++ zRot
+  if shape == "polygon"   then zInterior :: (zLines ++ zPts ++ zRot)
+  else if firstEqLast pts then zInterior :: (zLines ++ zPts ++ zRot)
+  else                         zLines ++ zPts ++ zRot
 
 makeZonesPath showZones shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "path") in
   let transform = maybeTransformAttr l in
   let cmds = fst <| LangSvg.toPath <| Utils.find_ l "d" in
-  let (mi,pt) +++ acc = case mi of {Nothing -> acc; _ -> pt :: acc} in
+  let (+++) (mi,pt) acc = case mi of Nothing -> acc
+                                     _       -> pt :: acc in
   let pts =
     List.foldr (\c acc -> case c of
       LangSvg.CmdZ   s              -> acc
@@ -575,8 +584,9 @@ makeZonesPath showZones shape id l =
 strTitle = " sketch-n-sketch " ++ params.strVersion
 
 colorDebug_ c1 c2 =
-  if | params.debugLayout -> GE.color c1
-     | otherwise          -> GE.color c2
+  if params.debugLayout
+    then GE.color c1
+    else GE.color c2
 
 colorDebug c1 = colorDebug_ c1 interfaceColor
 
@@ -927,7 +937,7 @@ ghostsButton model w h =
         Print _ -> Print (LangSvg.printSvg showGhosts' old.slate)
         _       -> old.mode
     in
-    { old | showGhosts <- showGhosts', mode <- mode' }
+    { old | showGhosts = showGhosts', mode = mode' }
   in
   simpleEventButton_ False (UpdateModel foo) "Toggle Output" "Toggle Output" cap w h
 
@@ -936,23 +946,25 @@ syncButton =
 
 zoneButton model =
   let cap =
-    if | model.showZones == showZonesNone  -> "[Zones] Hidden"
-       | model.showZones == showZonesBasic -> "[Zones] Basic"
-       | model.showZones == showZonesRot   -> "[Zones] Rotation"
-       | model.showZones == showZonesColor -> "[Zones] Color"
+    if model.showZones == showZonesNone       then "[Zones] Hidden"
+    else if model.showZones == showZonesBasic then "[Zones] Basic"
+    else if model.showZones == showZonesRot   then "[Zones] Rotation"
+    else if model.showZones == showZonesColor then "[Zones] Color"
+    else
+      Debug.crash "zoneButton"
   in
   simpleButton ToggleZones "ToggleZones" "Show/Hide Zones" cap
 
 luckyButton model =
   let foo old =
     let so = old.syncOptions in
-    let so' = { so | feelingLucky <- Sync.toggleHeuristicMode so.feelingLucky } in
+    let so' = { so | feelingLucky = Sync.toggleHeuristicMode so.feelingLucky } in
     let m' =
       case old.mode of
         Live _ -> mkLive_ so' (Utils.fromJust old.inputExp)
         _      -> old.mode
     in
-    { old | syncOptions <- so', mode <- m' }
+    { old | syncOptions = so', mode = m' }
   in
   -- let yesno = if model.syncOptions.feelingLucky then "Yes" else "No" in
   -- simpleButton (UpdateModel foo) "Lucky" "Lucky" ("[Lucky?] " ++ yesno)
@@ -1041,20 +1053,21 @@ dropdownExamples model w h =
               ]
             ]
     options = List.map (\(name,task) ->
-        if | name == model.exName ->
+        if name == model.exName then
               Html.option
                 [ Attr.value name
                 , Attr.selected True
                 ]
                 [ Html.text name ]
-           | otherwise ->
+        else
               Html.option
                 [ Attr.value name
                 ]
                 [ Html.text name ]) choices
     findTask name choices = case choices of
-        (n,t) :: rest -> if | n == name -> t
-                            | otherwise -> findTask name rest
+        (n,t) :: rest -> if n == name
+                           then t
+                           else findTask name rest
         [] -> Debug.crash "Dropdown example does not have associated task"
   in Html.toElement 120 24 <| Html.select
         [ Attr.style
@@ -1136,21 +1149,23 @@ hoverInfo info (i,k,z) =
     Just <|
       List.map (\(lid,_,x) ->
         let n = Utils.justGet_ (err (i,z,lid)) lid info.initSubst in
-        if | x == ""   -> ("loc_" ++ toString lid, n)
-           | otherwise -> (x, n)) locs
+        if x == ""
+          then ("loc_" ++ toString lid, n)
+          else (x, n)
+       ) locs
 
 turnOnCaptionAndHighlights id shape zone =
   UpdateModel <| \m ->
     let codeBoxInfo = m.codeBoxInfo in
     let hi = liveInfoToHighlights id zone m in
-    { m | caption <- Just (Hovering (id, shape, zone))
-        , codeBoxInfo <- { codeBoxInfo | highlights <- hi } }
+    { m | caption = Just (Hovering (id, shape, zone))
+        , codeBoxInfo = { codeBoxInfo | highlights = hi } }
 
 turnOffCaptionAndHighlights =
   UpdateModel <| \m ->
     let codeBoxInfo = m.codeBoxInfo in
-    { m | caption <- Nothing
-        , codeBoxInfo <- { codeBoxInfo | highlights <- [] } }
+    { m | caption = Nothing
+        , codeBoxInfo = { codeBoxInfo | highlights = [] } }
 
 --------------------------------------------------------------------------------
 
@@ -1317,7 +1332,7 @@ view (w,h) model =
           ---
           Signal.send
             events.address
-            (UpdateModel (\m -> { m | startup <- False}))
+            (UpdateModel (\m -> { m | startup = False}))
       in
       GE.flow GE.inward
         [ GI.hoverable foo <| GE.spacer w h
