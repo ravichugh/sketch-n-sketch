@@ -26,7 +26,7 @@ params =
      , wLogo = 25          -- width/height of logo
      , wBtnO = 180         -- width...
      , hBtnO = 25          -- ... and height of orientation button
-     , wJunk = 250 -- 230         -- gap between title and orientation button
+     , wJunk = 250         -- gap between title and orientation button
      }
   , botSection =
      { h = 15              -- height of bot space
