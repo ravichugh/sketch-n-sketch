@@ -240,5 +240,6 @@ To add a new example to the dropdown menu:
 
 
 [Prelude]: https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little
+[LangSvg]: https://github.com/ravichugh/sketch-n-sketch/blob/master/src/LangSvg.elm
 [ProjectPage]: http://ravichugh.github.io/sketch-n-sketch
 
