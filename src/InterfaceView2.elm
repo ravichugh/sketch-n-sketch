@@ -119,8 +119,7 @@ optionsOf : ShowZones -> ZoneOptions
 optionsOf x =
   if x == showZonesNone       then { zoneOptions0 | addBasic = True }
   else if x == showZonesBasic then { zoneOptions0 | addBasic = True, showBasic = True }
-  else if x == showZonesRot   then { zoneOptions0 | addRot = True }
-  else if x == showZonesColor then { zoneOptions0 | addColor = True }
+  else if x == showZonesExtra then { zoneOptions0 | addRot = True, addColor = True }
   else
     Debug.crash "optionsOf"
 
@@ -948,8 +947,7 @@ zoneButton model =
   let cap =
     if model.showZones == showZonesNone       then "[Zones] Hidden"
     else if model.showZones == showZonesBasic then "[Zones] Basic"
-    else if model.showZones == showZonesRot   then "[Zones] Rotation"
-    else if model.showZones == showZonesColor then "[Zones] Color"
+    else if model.showZones == showZonesExtra then "[Zones] Extra"
     else
       Debug.crash "zoneButton"
   in

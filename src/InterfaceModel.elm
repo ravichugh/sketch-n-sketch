@@ -99,10 +99,10 @@ type alias PossibleChanges =
 -- InterfaceStorage is more succinct (Enum typeclass would be nice here...)
 type alias ShowZones = Int
 
-showZonesModes = 4
+showZonesModes = 3
 
-(showZonesNone, showZonesBasic, showZonesRot, showZonesColor) =
-  Utils.unwrap4
+(showZonesNone, showZonesBasic, showZonesExtra) =
+  Utils.unwrap3
     [ 0 .. (showZonesModes - 1) ]
 
 type Caption

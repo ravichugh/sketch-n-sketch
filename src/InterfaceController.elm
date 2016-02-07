@@ -83,14 +83,6 @@ switchOrient m = case m of
   Horizontal -> Vertical
 
 toggleShowZones x = (1 + x) % showZonesModes
-{-
--- TODO turning off rotation zones for now
-toggleShowZones x =
-  let i = (1 + x) % showZonesModes in
-  if i == showZonesRot
-    then toggleShowZones i
-    else i
--}
 
 -- may want to eventually have a maximum history length
 addToHistory s h = (s :: fst h, [])
