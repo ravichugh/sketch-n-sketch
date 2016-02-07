@@ -18,7 +18,7 @@ debugLog b s x =
 -- User Interface Layout
 
 params =
-  { strVersion = "v0.4"
+  { strVersion = "v0.4.1"
   , debugLayout = False    -- displays colors for high-level layout structure
   , wGut = 10              -- width of left/right side gutters (spans entire height)
   , topSection =
@@ -26,7 +26,7 @@ params =
      , wLogo = 25          -- width/height of logo
      , wBtnO = 180         -- width...
      , hBtnO = 25          -- ... and height of orientation button
-     , wJunk = 230         -- gap between title and orientation button
+     , wJunk = 250 -- 230         -- gap between title and orientation button
      }
   , botSection =
      { h = 15              -- height of bot space
