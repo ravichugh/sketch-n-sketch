@@ -201,9 +201,14 @@ where
   children   ::=  [ h1 ... hn ]
 ```
 
-TODO explain attrs for different shapes
-
 See [`prelude.little`][Prelude] for a small library of SVG-manipulating functions.
+
+The [Prelude][Prelude], the examples that come with the editor,
+the [Tutorial](http://ravichugh.github.io/sketch-n-sketch/tutorial/index.html),
+and the Appendix of [this technical report](http://arxiv.org/pdf/1507.02988v2.pdf)
+provide more details about how different SVG attributes can be
+encoded in Little.
+You can also peek at the `valToAttr` function in [`LangSvg.elm`][LangSvg].
 
 ## Little "REPL"
 
