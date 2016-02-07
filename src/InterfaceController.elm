@@ -82,13 +82,15 @@ switchOrient m = case m of
   Vertical -> Horizontal
   Horizontal -> Vertical
 
+toggleShowZones x = (1 + x) % showZonesModes
+{-
 -- TODO turning off rotation zones for now
--- toggleShowZones x = (1 + x) % showZonesModes
 toggleShowZones x =
   let i = (1 + x) % showZonesModes in
   if i == showZonesRot
     then toggleShowZones i
     else i
+-}
 
 -- may want to eventually have a maximum history length
 addToHistory s h = (s :: fst h, [])
@@ -151,12 +153,55 @@ highlightChanges mStuff changes codeBoxInfo =
 
 
 --------------------------------------------------------------------------------
+
+clickToCanvasPoint old (mx, my) =
+  let (xOrigin, yOrigin) = case old.orient of
+    Vertical   -> canvasOriginVertical old
+    Horizontal -> canvasOriginHorizontal old
+  in
+  (mx - xOrigin, my - yOrigin)
+
+-- the computations of the top-left corner of the canvas
+-- are based on copying the computations from View
+-- TODO: refactor these
+
+canvasOriginVertical old =
+  let
+    sideGut = params.topSection.h
+    wGut    = params.mainSection.vertical.wGut
+    wMiddle = params.mainSection.widgets.wBtn
+    wCode_  = (fst old.dimensions - sideGut - sideGut - wMiddle - wGut - wGut) // 2
+    wCode   = wCode_ + old.midOffsetX
+  in
+    ( sideGut + wCode + 2*wGut + wMiddle
+    , params.topSection.h
+    )
+
+canvasOriginHorizontal old =
+  -- TODO the y-position in horizontal mode is off by a few pixels
+  -- TODO in View, the height of codebox isn't the same as the canvas.
+  --   hMid is calculated weirdly in View...
+  let
+    hGut    = params.mainSection.horizontal.hGut
+    hCode_  = (snd old.dimensions - hMid - 2*hGut) // 2 + hMid
+    hCode   = hCode_ + old.midOffsetY
+    -- TODO consider hideCode and hideCanvas
+    hMid    = params.mainSection.widgets.hBtn
+  in
+    ( params.wGut
+    , params.topSection.h + hCode + hMid
+    )
+
+
+--------------------------------------------------------------------------------
 -- Updating the Model
 
 upstate : Event -> Model -> Model
 upstate evt old = case debugLog "Event" evt of
 
     Noop -> old
+
+    WindowDimensions wh -> { old | dimensions = wh }
 
     Edit -> { old | editingMode = Just old.code }
 
@@ -195,7 +240,8 @@ upstate evt old = case debugLog "Event" evt of
 
     StartResizingMid -> { old | mouseMode = MouseResizeMid Nothing }
 
-    MousePos (mx, my) ->
+    MousePos (mx0, my0) ->
+      let (mx, my) = clickToCanvasPoint old (mx0, my0) in
       case old.mouseMode of
 
         MouseNothing -> old
@@ -203,13 +249,13 @@ upstate evt old = case debugLog "Event" evt of
         MouseResizeMid Nothing ->
           let f =
             case old.orient of
-              Vertical   -> \(mx',_) -> (old.midOffsetX + mx' - mx, old.midOffsetY)
-              Horizontal -> \(_,my') -> (old.midOffsetY, old.midOffsetY + my' - my)
+              Vertical   -> \(mx1,_) -> (old.midOffsetX + mx1 - mx0, old.midOffsetY)
+              Horizontal -> \(_,my1) -> (old.midOffsetY, old.midOffsetY + my1 - my0)
           in
           { old | mouseMode = MouseResizeMid (Just f) }
 
         MouseResizeMid (Just f) ->
-          let (x,y) = f (mx, my) in
+          let (x,y) = f (mx0, my0) in
           { old | midOffsetX = x , midOffsetY = y }
 
         MouseObject objid kind zone Nothing ->

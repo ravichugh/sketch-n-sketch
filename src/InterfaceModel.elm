@@ -35,6 +35,7 @@ type alias Model =
   , mode : Mode
   , mouseMode : MouseMode
   , orient : Orientation
+  , dimensions : (Int, Int)
   , midOffsetX : Int  -- extra codebox width in vertical orientation
   , midOffsetY : Int  -- extra codebox width in horizontal orientation
   , showZones : ShowZones
@@ -128,6 +129,7 @@ type Event = CodeUpdate String
            | StartResizingMid
            | Undo | Redo
            | KeysDown (List Char.KeyCode)
+           | WindowDimensions (Int, Int)
            | Noop
            | UpdateFieldContents DialogInfo
            | UpdateModel (Model -> Model)
@@ -202,6 +204,7 @@ sampleModel =
     , mode          = mkLive Sync.defaultOptions e v
     , mouseMode     = MouseNothing
     , orient        = Vertical
+    , dimensions    = (1000, 800) -- dummy in case foldp' didn't get initial value
     , midOffsetX    = 0
     , midOffsetY    = -100
     , showZones     = showZonesNone
