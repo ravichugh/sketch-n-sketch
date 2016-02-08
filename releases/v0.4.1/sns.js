@@ -15978,7 +15978,7 @@ Elm.Config.make = function (_elm) {
    var params = {strVersion: "v0.4.1"
                 ,debugLayout: false
                 ,wGut: 10
-                ,topSection: {h: 38,wLogo: 25,wBtnO: 190,hBtnO: 25,wJunk: 250}
+                ,topSection: {h: 38,wLogo: 25,wBtnO: 210,hBtnO: 25,wJunk: 250}
                 ,botSection: {h: 15}
                 ,mainSection: {widgets: {wBtn: 130,wBtnWide: 150,hBtn: 25,font: "Helvetica, sans-serif",fontSize: "10pt"}
                               ,vertical: {hExtra: 15,wGut: 10}
