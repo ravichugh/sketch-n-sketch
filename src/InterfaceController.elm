@@ -290,16 +290,9 @@ switchToCursorTool old =
 
 nodeIdAndAttrNameToVal (nodeId, attrName) tree =
   case Dict.get nodeId tree of
-    Just (LangSvg.SvgNode kind attrs _) ->
-      Just (maybeFindAttr nodeId kind attrName attrs)
-{-
-    Just (LangSvg.SvgNode _ attrs _) ->
-      case Utils.maybeFind attrName attrs of
-        Just aval -> Just (LangSvg.valOfAVal aval)
-        Nothing   -> Debug.crash <| "nodeIdAndAttrNameToVal " ++ (toString nodeId) ++ " " ++ (toString attrName) ++ " " ++ (toString tree)
--}
+    Just (LangSvg.SvgNode kind attrs _) -> Just (maybeFindAttr nodeId kind attrName attrs)
     Just (LangSvg.TextNode _) -> Nothing
-    Nothing                   -> Debug.crash <| "nodeIdAndAttrNameToVal " ++ (toString nodeId) ++ " " ++ (toString tree)
+    Nothing -> Debug.crash <| "nodeIdAndAttrNameToVal " ++ (toString nodeId) ++ " " ++ (toString tree)
 
 pluckSelectedVals selectedAttrs slate =
   let (_, tree) = slate in
@@ -309,40 +302,6 @@ pluckSelectedVals selectedAttrs slate =
       Nothing  -> acc
   in
   Set.foldl foo [] selectedAttrs
-
-
---------------------------------------------------------------------------------
--- TODO
-
-maybeFindAttr_ id kind attr attrs =
-  case Utils.maybeFind attr attrs of
-    Just aval -> LangSvg.valOfAVal aval
-    Nothing   -> Debug.crash <| toString ("RelateAttrs 2", id, kind, attr, attrs)
-
-
-getXYi attrs si fstOrSnd =
-  let i = Utils.fromOk_ <| String.toInt si in
-  case Utils.maybeFind "points" attrs of
-    Just aval -> case aval.av_ of
-      LangSvg.APoints pts -> LangSvg.valOfAVal <| LangSvg.aNum <| fstOrSnd <| Utils.geti i pts
-      _                   -> Debug.crash "getXYi 2"
-    _ -> Debug.crash "getXYi 1"
-
-maybeFindAttr id kind attr attrs =
-  case (kind, String.uncons attr) of
-    ("polygon", Just ('x', si)) -> getXYi attrs si fst
-    ("polygon", Just ('y', si)) -> getXYi attrs si snd
-{-
-      let i = Utils.fromOk_ <| String.toInt si in
-      case Utils.maybeFind "points" attrs of
-        Just aval -> case aval.av_ of
-          LangSvg.APoints pts -> LangSvg.valOfAVal <| LangSvg.aNum <| fst <| Utils.geti i pts
-          _                   -> Debug.crash "maybeFindAttr 2"
-        _ -> Debug.crash "maybeFindAttr 1"
--}
-
-    -- ("polygon", Just ("y", si)) ->
-    _ -> maybeFindAttr_ id kind attr attrs
 
 
 --------------------------------------------------------------------------------
@@ -598,30 +557,7 @@ upstate evt old = case debugLog "Event" evt of
 
 
     RelateAttrs ->
-{-
-<<<<<<< HEAD
--}
       let selectedVals = debugLog "selectedVals" <| pluckSelectedVals old.selectedAttrs old.slate in
-{-
-=======
-      let (_,tree) = old.slate in
-      let selectedVals = debugLog "selectedVals" <|
-        let foo (id,kind,attr) acc =
-          case Dict.get id tree of
-            Just (LangSvg.SvgNode _ attrs _) ->
-              maybeFindAttr id kind attr attrs :: acc
-{-
-              case Utils.maybeFind attr attrs of
-                Just aval -> LangSvg.valOfAVal aval :: acc
-                Nothing   -> Debug.crash <| toString ("RelateAttrs 2", id, kind, attr)
--}
-            Just (LangSvg.TextNode _) -> acc
-            Nothing                   -> Debug.crash "RelateAttrs 1"
-        in
-        Set.foldl foo [] old.selectedAttrs
-      in
->>>>>>> WIP FROM JAN 6 -- ANCHOR, ETC
--}
       let revert = (old.inputExp, old.inputVal) in
       let (nextK, l) = Sync.relate old.genSymCount old.inputExp selectedVals in
       let possibleChanges = List.map (addSlateAndCode old) l in
