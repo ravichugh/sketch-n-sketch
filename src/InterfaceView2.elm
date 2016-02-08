@@ -97,7 +97,7 @@ makeButton status w h text =
         Html.div
           [ Attr.style
               [ ("color", textColor)
-              , ("font-family", "sans-serif")
+              , ("font-family", params.mainSection.widgets.font) -- "sans-serif")
               , ("text-align", "center")
               , ("width", dimToPix w)
               , ("height", dimToPix h)
@@ -234,7 +234,8 @@ buildSvgWidgets wCanvas hCanvas widgets =
         WNumSlider _ _ s targetVal _ -> s ++ strNumTrunc 5 targetVal
       in
       flip Svg.text' [VirtualDom.text cap] <|
-        [ attr "fill" "black" , attr "font-family" "Tahoma, sans-serif"
+        [ attr "fill" "black"
+        , attr "font-family" params.mainSection.widgets.font
         , attr "font-size" params.mainSection.uiWidgets.fontSize
         , attr "x" (toString (xi' + wSlider + 10))
         , attr "y" (toString (yi' + 18))
@@ -816,13 +817,13 @@ mainSectionVertical w h model =
           [ canvas wCanvas hCanvas model
           , GE.flow GE.left
               [ colorDebug Color.red <|
-                  GE.container wBtn (hZInfo+1) GE.middle <|
-                  outputButton model wBtn hBtn
+                  GE.container wBtnWide (hZInfo+1) GE.middle <|
+                  outputButton model wBtnWide hBtn
               , colorDebug Color.orange <| GE.spacer wExtra (hZInfo+1)
               , colorDebug Color.red <|
                   GE.container wBtnWide (hZInfo+1) GE.middle <|
                   ghostsButton model wBtnWide hBtn
-              , caption model (wCanvas+1-(wBtn+wExtra+wBtnWide)) (hZInfo+1) -- NOTE: +1 is a band-aid
+              , caption model (wCanvas+1-(wBtnWide+wExtra+wBtnWide)) (hZInfo+1) -- NOTE: +1 is a band-aid
               ]
           -- , caption model (wCanvas+1) hZInfo -- NOTE: +1 is a band-aid
           ]
@@ -863,13 +864,13 @@ mainSectionHorizontal w h model =
             [ canvas w hCanvas model
             , GE.flow GE.left
                 [ colorDebug Color.red <|
-                    GE.container wBtn (hZInfo+1) GE.middle <|
-                    outputButton model wBtn hBtn
+                    GE.container wBtnWide (hZInfo+1) GE.middle <|
+                    outputButton model wBtnWide hBtn
                 , colorDebug Color.orange <| GE.spacer wExtra (hZInfo+1)
                 , colorDebug Color.red <|
                     GE.container wBtnWide (hZInfo+1) GE.middle <|
                     ghostsButton model wBtnWide hBtn
-                , caption model (w-(wBtn+wExtra+wBtnWide)) (hZInfo+1) -- NOTE: +1 is a band-aid
+                , caption model (w-(wBtnWide+wExtra+wBtnWide)) (hZInfo+1) -- NOTE: +1 is a band-aid
                 ]
             -- , caption model w (hZInfo+1) -- NOTE: +1 is a band-aid
             ]
@@ -1074,7 +1075,7 @@ dropdownExamples model w h =
           , ("display", "block")
           , ("width", "120px")
           , ("height", "24px")
-          , ("font-family", "sans-serif")
+          , ("font-family", params.mainSection.widgets.font) -- "sans-serif")
           , ("font-size", "1em")
           ]
         , Events.on "change" Events.targetValue

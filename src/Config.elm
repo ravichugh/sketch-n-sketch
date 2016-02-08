@@ -24,7 +24,7 @@ params =
   , topSection =
      { h = 38              -- height of top space
      , wLogo = 25          -- width/height of logo
-     , wBtnO = 180         -- width...
+     , wBtnO = 210         -- width...
      , hBtnO = 25          -- ... and height of orientation button
      , wJunk = 250         -- gap between title and orientation button
      }
@@ -33,10 +33,10 @@ params =
      }
   , mainSection =
      { widgets =           -- Render/Sync buttons; Mode/Tests dropdowns
-        { wBtn = 120
-        , wBtnWide = 140
+        { wBtn = 140
+        , wBtnWide = 160
         , hBtn = 25
-        , font = "Tahoma, sans-serif"
+        , font = "Helvetica, sans-serif"
         , fontSize = "10pt"
         }
      , vertical =
