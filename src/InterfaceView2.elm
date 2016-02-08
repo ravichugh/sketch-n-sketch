@@ -98,6 +98,7 @@ makeButton status w h text =
           [ Attr.style
               [ ("color", textColor)
               , ("font-family", params.mainSection.widgets.font) -- "sans-serif")
+              , ("font-size", "16px")
               , ("text-align", "center")
               , ("width", dimToPix w)
               , ("height", dimToPix h)
