@@ -15978,9 +15978,9 @@ Elm.Config.make = function (_elm) {
    var params = {strVersion: "v0.4.1"
                 ,debugLayout: false
                 ,wGut: 10
-                ,topSection: {h: 38,wLogo: 25,wBtnO: 180,hBtnO: 25,wJunk: 250}
+                ,topSection: {h: 38,wLogo: 25,wBtnO: 210,hBtnO: 25,wJunk: 250}
                 ,botSection: {h: 15}
-                ,mainSection: {widgets: {wBtn: 120,wBtnWide: 140,hBtn: 25,font: "Tahoma, sans-serif",fontSize: "10pt"}
+                ,mainSection: {widgets: {wBtn: 140,wBtnWide: 160,hBtn: 25,font: "Helvetica, sans-serif",fontSize: "10pt"}
                               ,vertical: {hExtra: 15,wGut: 10}
                               ,horizontal: {wExtra: 15,hGut: 10}
                               ,canvas: {border: "0px solid darkGray",hZoneInfo: 40}
@@ -21101,7 +21101,7 @@ Elm.InterfaceView2.make = function (_elm) {
                      }
                } else {
                   return _U.crashCase("InterfaceView2",
-                  {start: {line: 1065,column: 29},end: {line: 1069,column: 75}},
+                  {start: {line: 1066,column: 29},end: {line: 1070,column: 75}},
                   _p10)("Dropdown example does not have associated task");
                }
          }
@@ -21152,7 +21152,7 @@ Elm.InterfaceView2.make = function (_elm) {
                                               ,{ctor: "_Tuple2",_0: "display",_1: "block"}
                                               ,{ctor: "_Tuple2",_0: "width",_1: "120px"}
                                               ,{ctor: "_Tuple2",_0: "height",_1: "24px"}
-                                              ,{ctor: "_Tuple2",_0: "font-family",_1: "sans-serif"}
+                                              ,{ctor: "_Tuple2",_0: "font-family",_1: $Config.params.mainSection.widgets.font}
                                               ,{ctor: "_Tuple2",_0: "font-size",_1: "1em"}]))
               ,A3($Html$Events.on,
               "change",
@@ -21556,7 +21556,7 @@ Elm.InterfaceView2.make = function (_elm) {
          if (_p64.ctor === "::" && _p64._0.ctor === "_Tuple2" && _p64._0._0.ctor === "_Tuple2" && _p64._0._1.ctor === "_Tuple2") {
                return A6(zoneColor,options.addColor,id,shape,_p64._0._0._0,_p64._0._1._0,A2(maybeColorNumAttr,"fill",l));
             } else {
-               return _U.crashCase("InterfaceView2",{start: {line: 552,column: 5},end: {line: 556,column: 36}},_p64)("makeZonesPoly");
+               return _U.crashCase("InterfaceView2",{start: {line: 553,column: 5},end: {line: 557,column: 36}},_p64)("makeZonesPoly");
             }
       }();
       var firstEqLast = function (xs) {    return _U.eq($Utils.head_(xs),$Utils.head_($List.reverse(xs)));};
@@ -21854,7 +21854,7 @@ Elm.InterfaceView2.make = function (_elm) {
             $Svg.text$,
             _U.list([$VirtualDom.text(cap)]),
             _U.list([A2($LangSvg.attr,"fill","black")
-                    ,A2($LangSvg.attr,"font-family","Tahoma, sans-serif")
+                    ,A2($LangSvg.attr,"font-family",$Config.params.mainSection.widgets.font)
                     ,A2($LangSvg.attr,"font-size",$Config.params.mainSection.uiWidgets.fontSize)
                     ,A2($LangSvg.attr,"x",$Basics.toString(xi$ + wSlider + 10))
                     ,A2($LangSvg.attr,"y",$Basics.toString(yi$ + 18))]));
@@ -21984,7 +21984,7 @@ Elm.InterfaceView2.make = function (_elm) {
               h,
               A2($Html.div,
               _U.list([$Html$Attributes.style(_U.list([{ctor: "_Tuple2",_0: "color",_1: textColor}
-                                                      ,{ctor: "_Tuple2",_0: "font-family",_1: "sans-serif"}
+                                                      ,{ctor: "_Tuple2",_0: "font-family",_1: $Config.params.mainSection.widgets.font}
                                                       ,{ctor: "_Tuple2",_0: "text-align",_1: "center"}
                                                       ,{ctor: "_Tuple2",_0: "width",_1: dimToPix(w)}
                                                       ,{ctor: "_Tuple2",_0: "height",_1: dimToPix(h)}
@@ -22016,9 +22016,9 @@ Elm.InterfaceView2.make = function (_elm) {
          }
    });
    var zoneButton = function (model) {
-      var cap = _U.eq(model.showZones,$InterfaceModel.showZonesNone) ? "Zones: Hidden" : _U.eq(model.showZones,
-      $InterfaceModel.showZonesBasic) ? "Zones: Basic" : _U.eq(model.showZones,$InterfaceModel.showZonesExtra) ? "Zones: Extra" : _U.crash("InterfaceView2",
-      {start: {line: 952,column: 7},end: {line: 952,column: 18}})("zoneButton");
+      var cap = _U.eq(model.showZones,$InterfaceModel.showZonesNone) ? "[Zones] Hidden" : _U.eq(model.showZones,
+      $InterfaceModel.showZonesBasic) ? "[Zones] Basic" : _U.eq(model.showZones,$InterfaceModel.showZonesExtra) ? "[Zones] Extra" : _U.crash("InterfaceView2",
+      {start: {line: 953,column: 7},end: {line: 953,column: 18}})("zoneButton");
       return A4(simpleButton,$InterfaceModel.ToggleZones,"ToggleZones","Show/Hide Zones",cap);
    };
    var luckyButton = function (model) {
@@ -22306,12 +22306,12 @@ Elm.InterfaceView2.make = function (_elm) {
                        $Graphics$Element.left,
                        _U.list([A2(colorDebug,
                                $Color.red,
-                               A4($Graphics$Element.container,wBtn,hZInfo + 1,$Graphics$Element.middle,A3(outputButton,model,wBtn,hBtn)))
+                               A4($Graphics$Element.container,wBtnWide,hZInfo + 1,$Graphics$Element.middle,A3(outputButton,model,wBtnWide,hBtn)))
                                ,A2(colorDebug,$Color.orange,A2($Graphics$Element.spacer,wExtra,hZInfo + 1))
                                ,A2(colorDebug,
                                $Color.red,
                                A4($Graphics$Element.container,wBtnWide,hZInfo + 1,$Graphics$Element.middle,A3(ghostsButton,model,wBtnWide,hBtn)))
-                               ,A3(caption,model,wCanvas + 1 - (wBtn + wExtra + wBtnWide),hZInfo + 1)]))])));
+                               ,A3(caption,model,wCanvas + 1 - (wBtnWide + wExtra + wBtnWide),hZInfo + 1)]))])));
             } else {
                return A3(errorBox,wCanvas,h,_p133._0);
             }
@@ -22345,12 +22345,12 @@ Elm.InterfaceView2.make = function (_elm) {
                        $Graphics$Element.left,
                        _U.list([A2(colorDebug,
                                $Color.red,
-                               A4($Graphics$Element.container,wBtn,hZInfo + 1,$Graphics$Element.middle,A3(outputButton,model,wBtn,hBtn)))
+                               A4($Graphics$Element.container,wBtnWide,hZInfo + 1,$Graphics$Element.middle,A3(outputButton,model,wBtnWide,hBtn)))
                                ,A2(colorDebug,$Color.orange,A2($Graphics$Element.spacer,wExtra,hZInfo + 1))
                                ,A2(colorDebug,
                                $Color.red,
                                A4($Graphics$Element.container,wBtnWide,hZInfo + 1,$Graphics$Element.middle,A3(ghostsButton,model,wBtnWide,hBtn)))
-                               ,A3(caption,model,w - (wBtn + wExtra + wBtnWide),hZInfo + 1)]))])));
+                               ,A3(caption,model,w - (wBtnWide + wExtra + wBtnWide),hZInfo + 1)]))])));
             } else {
                return A3(errorBox,w,hCanvas + hZInfo,_p134._0);
             }
