@@ -56,7 +56,11 @@
 <h4 id="color-numbers">Color Numbers</h4>
 <p>Sketch-n-Sketch provides some basic support for user interface widgets like color sliders. As described in the first lesson, there are multiple ways to define the color of a shape in Little (as a valid CSS color string, and as a four-element list of numbers that specifies an RGBA value).</p>
 <p>Alternatively, the color attribute may be defined using what we call a <em>color number</em>, which is an integer in the range [<code>0</code>, <code>500</code>). This notion, though non-standard, has a simple meaning: the numbers <code>0</code> to <code>360</code> cover a wide range of colors across the entire spectrum, and <code>361</code> to <code>499</code> cover a grayscale spectrum. These 500 numbers constitute a large enough variety of colors for most of our purposes. More importantly, the Sketch-n-Sketch editor provides special support when color attributes are defined using these color numbers.</p>
-<p><strong>Practice 3.1:</strong> To see how this works, first write a simple program that draws a single shape. Then modify your program to use a color number, and then run it. Next, toggle the Zones to display Color zones, rather than the Basic ones that we have been using so far. You'll notice that the shape is now equipped with a slider that can be used to change the color number value. That is, this slider indirectly manipulates the color of the particular shape. And better yet, as you have become accustomed to throughout this tutorial, this indirect manipulation is tied directly to the Little program, where the color number attribute is updated in real-time as you manipulate the slider. Not bad!</p>
+<p><img align="right" width="200px" style="padding: 0 0px 0 20px;"
+     src="../static/images/tutorial/03/colored-ngon.png"/></p>
+<p><strong>Practice 3.1:</strong> To see how this works, first write a simple program that draws a single shape. Then modify your program to use a color number, and then run it. Next, toggle the Zones to display Extra zones, rather than the Basic ones that we have been using so far. You'll notice that the shape is now equipped with a slider that can be used to change the color number value. That is, this slider indirectly manipulates the color of the particular shape. And better yet, as you have become accustomed to throughout this tutorial, this indirect manipulation is tied directly to the Little program, where the color number attribute is updated in real-time as you manipulate the slider. Not bad!</p>
+<p><img align="right" width="350px" style="padding: 0 0px 0 20px;"
+     src="../static/images/tutorial/03/colored-three-boxes.png"/></p>
 <p><strong>Exercise 3.1:</strong> Return to your rectangles example from the previous lesson, and modify the program to use a color number instead. Toggle the Zones to Color, and try manipulating one of the sliders. You'll notice that each rectangle gets its own color slider, which can clutter the canvas and which is also unnecessary since all your rectangles share the same color number. Not to worry, because Sketch-n-Sketch provides a way to hide some unnecessary zones like these. The function call</p>
 <pre><code>(basicZonesTail shapes)</code></pre>
 <p>is a cue that only the first shape in a list of shapes (the &quot;head&quot; of the list) should be given a color slider zone and that the rest of the shapes in the list (the &quot;tail&quot; of the list) should only have the Basic zones. Besides this, the call to <code>basicZonesTail</code> has no effect on the actual output canvas of the program. Try adding a call to <code>basicZonesTail</code> in front of the <code>(map placeRectangle [0 1 2])</code> expression in your program. This constitutes a small way to customize the user interface in Sketch-n-Sketch, a theme that will crop up again and again in this lesson. (If you're curious to see a bit more of what's going on under the hood, take a peek at <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little">the Prelude source</a>).</p>
@@ -82,6 +86,8 @@
 
 ; The Main Canvas
 (svg (append [theCircle] theBoxes)) </code></pre>
+<p><img align="right" width="300px" style="padding: 0 0px 0 20px;"
+     src="../static/images/tutorial/03/circle-of-boxes.png"/></p>
 <p>Notice here that we've used <code>let</code> to define a variable <code>theta</code> that only has scope within the function definition. This means that the name <code>theta</code> can only be used in this definition and so we can reuse the name later if we would like. Furthermore, this is the first time that we've used the trigonometric functions <code>sin</code> and <code>cos</code>. They are invoked just like any other function and only take one argument that should be expressed in radians. Finally, notice that the y-value calculation for the square uses a <code>-</code> instead of a <code>+</code> like the x-value calculation. This is because the coordinate system for SVG graphics and our canvas is such that the y-position increases towards the down direction of the screen (which you may have noticed if you payed close attention as you manipulated our previous examples).</p>
 <p><strong>Practice 3.2:</strong> To get things rolling, create a new file in the editor and enter what we have established so far, including the top-level definitions mentioned earlier. Fill in the missing expressions with some reasonable dummy values to start, just so that we can start to visualize parts of our output canvas.</p>
 <p>Now, we have to figure out we should actually define <code>theta</code> and <code>boxIndices</code>. Since there are <em>2π</em> radians in a circle, the <code>i</code>th box out of <code>n</code> boxes should be placed at <code>(* i (/ (* 2! (pi)) n))</code> radians to be spaced evenly. Notice that <em>π</em> is written as <code>(pi)</code> in Little. You can think of it as a built-in function that is called with zero arguments (which explains the parentheses). We freeze the number <code>2</code> because it is not something that should ever change. Let's drop this calculation of <code>theta</code> into our template from above:</p>
@@ -94,6 +100,8 @@
 <p>The last thing we need to do is define a list of indices from <code>1</code> to <code>n</code>. Sketch-n-Sketch provides a function called <code>range</code> that computes precisely what we need (take a peek at the <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little">Prelude source code</a> if you want to see how to write this (recursive) function in Little):</p>
 <pre><code>(def boxIndices (range 1 n)) </code></pre>
 <p>Make these changes and re-run the program.</p>
+<p><img align="right" width="200px" style="padding: 0 0px 0 20px;"
+     src="../static/images/tutorial/03/circle-of-boxes-2.png"/></p>
 <p><strong>Practice 3.3:</strong> When you toggle color zones, you'll see a whole slew of sliders sliding around. Make judicious use of the <code>basicZonesTail</code> function to hide the redundant ones.</p>
 <p><strong>Exercise 3.2:</strong> You'll notice that position of the squares isn't quite right: the top-left corners, rather than their centers, fall on the edge of the circle. Modify the computed x- and y-positions inside <code>placeSquare</code> so that the boxes are centered along the circle's edge.</p>
 <h4 id="directly-manipulating-the-number-of-boxes">Directly Manipulating the Number of Boxes</h4>
@@ -103,7 +111,15 @@ conscience is clean.
 
 Even though we cannot directly manipulate the total number of boxes with the
 program as is, -->
-<p><strong>Practice 3.4:</strong> It would be really nice if there was a way to change the total number of boxes without having to adjust a number by hand in the source code. Fortunately, we can accomplish this by defining a &quot;helper object&quot; where one of its attributes is defined to be the &quot;indirect&quot; parameter <code>n</code> used by the rest of the program. In this way, we can then directly manipulate this parameter without having to touch the original source program ourselves.</p>
+<h4 id="native-sliders">Native Sliders</h4>
+<p><img align="right" width="200px" style="padding: 0 0px 0 20px;"
+     src="../static/images/tutorial/03/native-slider.png"/></p>
+<p>It would be really nice if there was a way to change the total number of boxes without having to adjust a number by hand in the source code. One way to accomplish this in Sketch-n-Sketch is to annotate a number in the program with a <em>range</em> annotation:</p>
+<pre><code>(def n 3{1-10})</code></pre>
+<p>When the program is run, the canvas pane will display a slider that can be used to easily and unambiguously manipulate this number in the program. These &quot;helper objects&quot;, or &quot;widgets&quot;, can be toggled on and off by clicking the Widgets button.</p>
+<h4 id="helper-objects">Helper Objects</h4>
+<p>The sliders that are built-in to Sketch-n-Sketch can be quite handy. But there may be times where a more custom helper object would be better suited for the task at hand.</p>
+<p><strong>Practice 3.4:</strong> Fortunately, in Sketch-n-Sketch one has the freedom to define custom helper objects. For example, we create a helper object where where one of its attributes is defined to be the &quot;indirect&quot; parameter <code>n</code> used by the rest of the program. In this way, we can then directly manipulate this parameter without having to touch the original source program ourselves.</p>
 <p>Behold the following helper object:</p>
 <pre><code>(def helperObject
   (let xHelper (+ 10! (* 50! n))
@@ -138,12 +154,15 @@ program as is, -->
 <li>A simple picture of a house, like <a href="http://www.sbccaofmn.com/wp-content/uploads/2012/05/house-%20clipart.gif">this</a>.</li>
 <li>A geometric art piece with repetitive elements. Feel free to channel your inner <a href="https://www.google.com/search?q=mondrian+minimalist+art&amp;tbm=isch">Mondrian</a>.</li>
 </ul>
-<h3 id="survey">Survey</h3>
-<iframe src="https://docs.google.com/forms/d/1o-7LHX08JOvUs0oiWUa6zWVROpt8oAXXgthpKm3EjbQ/viewform?embedded=true" width="750" height="1450" frameborder="0" marginheight="0" marginwidth="0">
-Loading...
-</iframe>
-<p><br></p>
-<h3 id="next-up-step-4-or-exit-survey">Next Up: <a href="04.html">Step 4</a> (or <a href="exit.html">Exit Survey</a>)</h3>
+<!--
+### Survey
+
+<iframe
+   src="https://docs.google.com/forms/d/1o-7LHX08JOvUs0oiWUa6zWVROpt8oAXXgthpKm3EjbQ/viewform?embedded=true"
+   width="750" height="1450" frameborder="0" marginheight="0" marginwidth="0">Loading...</iframe>
+<br>
+-->
+<h3 id="next-up-step-4">Next Up: <a href="04.html">Step 4</a> <!-- (or [Exit Survey](exit.html)) --></h3>
 <div class="footnotes">
 <hr />
 <ol>
@@ -161,7 +180,7 @@ Loading...
 
   <!-- BEGIN LOADED_SRC src/footer.src.html -->
   <div id="footer">
-    &copy; 2015 ravi chugh |
+    &copy; 2015 &ndash; 2016 ravi chugh |
   	stylesheet based on
     <a href="http://www.freecsstemplates.org/preview/resolved/">Resolved</a>
   </div>

@@ -20,13 +20,9 @@
 <br>
 
 <p>
-Paper and Supplementary Appendix (November 2015):
 <a href="http://arxiv.org/pdf/1507.02988v2.pdf">
-<b>Programmatic and Direct Manipulation, Together at Last</b></a>.
-</p>
-
-<p>
-GitHub snapshot of Sketch-n-Sketch v0.4.1: <a href=""></a>
+<b>Programmatic and Direct Manipulation, Together at Last</b></a>
+(Paper and Supplementary Appendix, November 2015)
 </p>
 
 <p>
@@ -43,7 +39,7 @@ Artifact Evaluation.
 </li>
 <li>
 <i>
-Our goal with live synchronization [...] is to immediately a apply program
+Our goal with live synchronization [...] is to immediately apply a program
 update during the user's actions.
 </i>
 (p.4)
@@ -121,7 +117,7 @@ Part 5 shows the tasks we developed for our user study; the survey
 questions can be found in the Appendix to our paper.
 </p>
 
-<h4><a href="TODO">syntax guide</a> (0 &ndash; 1 hour)</h4>
+<h4><a href="https://github.com/ravichugh/sketch-n-sketch/blob/pldi2016/README.md">syntax guide</a> (0 &ndash; 1 hour)</h4>
 
 <p>
 The syntax guide defines the grammar for Little
@@ -144,7 +140,29 @@ to Sketch-n-Sketch as well as some more advanced uses.
       <div class="post0">
         <h3>Additional Features</h3>
 
-        color numbers, rotation TODO <br>
+<p>
+Our implementation provides two kinds of zones beyond the basic SVG
+zones described in our paper, namely, color zones and rotation zones.
+A simple example that uses both:
+</p>
+
+<img align="right" width="300px" style="padding: 0 20px 0 20px;"
+     src="__ROOT__/static/images/tutorial/03/extra-zones.png"/>
+
+<pre>
+(def [x y w h] [76 118 127 131])
+(def [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))])
+(def color 216)
+(def rotation 45)
+(def myShape (rect color x y w h))
+(svg [(rotate myShape rotation cx cy)])
+</pre>
+
+<p>
+When toggling the Zones button to display Extra zones, a slider
+will be displayed to manipulate the color and a circle will
+be displayed to manipulate the rotation angle.
+</p>
 
       </div>
       </div>
@@ -172,9 +190,42 @@ latter case, reload the application.
 
 <h4>Performance</h4>
 
-  Busting Stack on Firefox Linux TODO <br>
-  
-  Slow Time to Compute Triggers on Keyboard TODO
+<p>
+There are several aspects of our implementation that would
+benefit from optimizations:
+the evaluation of Little programs,
+re-evaluation of Little programs during live mode, and
+the data structures maintained and used by the Sketch-n-Sketch
+editor to make heuristic choices and compute triggers.
+Our current approach for each of these is naive, leading
+to some known performance issues:
+</p>
+
+<p>
+<ul>
+<li>
+  Sketch-n-Sketch fails to load in Firefox on Linux,
+  crashing with a "too much recursion" error.
+  We believe this is due to the default stack size in
+  this Firefox configuation. We have run Sketch-n-Sketch
+  in Firefox and Chrome on a number of different operating
+  systems without this error. If you have trouble, please try
+  running Sketch-n-Sketch in several different browser and
+  operating system configurations, and let us know if you
+  run into issues.
+</li>
+<li>
+  Computing triggers (at the end of one user action in
+  anticipation of the next) sometimes leads to a pause in
+  responsiveness, due to deficiencies in our current
+  implementation. We notice this slowdown only when
+  there are a large number of shapes. For example, the
+  Keyboard Task Before example exhibits noticeable
+  delays user actions have finished when running in
+  Fair Heuristics mode.
+</li>
+</ul>
+</p>
 
 <h4>Parser</h4>
   
@@ -204,26 +255,36 @@ successive click. In such situations, reload the application.
         <h3>Source Code</h3>
 
 <p>
-Our <a href="">implementation</a> is open source, but we have not
+Our
+<!--
+<a href="https://github.com/ravichugh/sketch-n-sketch/commit/d6d83e9f7b4379f375c01b7fa622c44e1ed49fab">
+-->
+<a href="https://github.com/ravichugh/sketch-n-sketch/releases/tag/v0.4.1">
+implementation</a> is open source, but we have not
 yet made an effort to organize and document it in a way that would make it
 easy for others to extend.
 If one wants to poke around anyway, here are a few pointers:
 <ul>
 <li>
-<a href=""><tt>Lang.elm</tt></a>
+<a href="https://github.com/ravichugh/sketch-n-sketch/blob/f56cabb64c2512e66f1d545c69da2ff4b6f6b442/src/Lang.elm"><tt>Lang.elm</tt></a>
 defines the types of expressions and values in Little, without
 any SVG-specific encodings.
 </li>
 <li>
-SVG encodings are defined in <a href=""><tt>LangSvg.elm</tt></a>.
+SVG encodings are defined in <a href="https://github.com/ravichugh/sketch-n-sketch/blob/f56cabb64c2512e66f1d545c69da2ff4b6f6b442/src/LangSvg.elm"><tt>LangSvg.elm</tt></a>.
 </li>
 <li>
-<a href="">This part</a> of <tt>Sync.elm</tt>
-shows our two simple solvers,
+The <tt>solve</tt> function in
+<a
+href="https://github.com/ravichugh/sketch-n-sketch/blob/f56cabb64c2512e66f1d545c69da2ff4b6f6b442/src/Sync.elm"><tt>Sync.elm</tt></a>
+is the entry point for our two simple solvers,
+<tt>solveTopDown</tt> (called SolveB in the paper) and
+<tt>simpleSolve</tt> (called SolveA).
 </li>
 <li>
-and <a href="">this part</a>
-deals with the simple heuristics for disambiguation.
+The <tt>assignTriggers</tt> function in
+<a href="https://github.com/ravichugh/sketch-n-sketch/blob/f56cabb64c2512e66f1d545c69da2ff4b6f6b442/src/Sync.elm"><tt>Sync.elm</tt></a>
+is the entry point for assigning triggers using heuristics for disambiguation.
 </li>
 </ul>
 </p>
