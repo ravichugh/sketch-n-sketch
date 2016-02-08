@@ -15978,9 +15978,9 @@ Elm.Config.make = function (_elm) {
    var params = {strVersion: "v0.4.1"
                 ,debugLayout: false
                 ,wGut: 10
-                ,topSection: {h: 38,wLogo: 25,wBtnO: 210,hBtnO: 25,wJunk: 250}
+                ,topSection: {h: 38,wLogo: 25,wBtnO: 190,hBtnO: 25,wJunk: 250}
                 ,botSection: {h: 15}
-                ,mainSection: {widgets: {wBtn: 140,wBtnWide: 160,hBtn: 25,font: "Helvetica, sans-serif",fontSize: "10pt"}
+                ,mainSection: {widgets: {wBtn: 130,wBtnWide: 150,hBtn: 25,font: "Helvetica, sans-serif",fontSize: "10pt"}
                               ,vertical: {hExtra: 15,wGut: 10}
                               ,horizontal: {wExtra: 15,hGut: 10}
                               ,canvas: {border: "0px solid darkGray",hZoneInfo: 40}
@@ -21101,7 +21101,7 @@ Elm.InterfaceView2.make = function (_elm) {
                      }
                } else {
                   return _U.crashCase("InterfaceView2",
-                  {start: {line: 1066,column: 29},end: {line: 1070,column: 75}},
+                  {start: {line: 1067,column: 29},end: {line: 1071,column: 75}},
                   _p10)("Dropdown example does not have associated task");
                }
          }
@@ -21556,7 +21556,7 @@ Elm.InterfaceView2.make = function (_elm) {
          if (_p64.ctor === "::" && _p64._0.ctor === "_Tuple2" && _p64._0._0.ctor === "_Tuple2" && _p64._0._1.ctor === "_Tuple2") {
                return A6(zoneColor,options.addColor,id,shape,_p64._0._0._0,_p64._0._1._0,A2(maybeColorNumAttr,"fill",l));
             } else {
-               return _U.crashCase("InterfaceView2",{start: {line: 553,column: 5},end: {line: 557,column: 36}},_p64)("makeZonesPoly");
+               return _U.crashCase("InterfaceView2",{start: {line: 554,column: 5},end: {line: 558,column: 36}},_p64)("makeZonesPoly");
             }
       }();
       var firstEqLast = function (xs) {    return _U.eq($Utils.head_(xs),$Utils.head_($List.reverse(xs)));};
@@ -21690,7 +21690,7 @@ Elm.InterfaceView2.make = function (_elm) {
       return _U.eq(x,$InterfaceModel.showZonesNone) ? _U.update(zoneOptions0,{addBasic: true}) : _U.eq(x,
       $InterfaceModel.showZonesBasic) ? _U.update(zoneOptions0,{addBasic: true,showBasic: true}) : _U.eq(x,
       $InterfaceModel.showZonesExtra) ? _U.update(zoneOptions0,{addRot: true,addColor: true}) : _U.crash("InterfaceView2",
-      {start: {line: 124,column: 5},end: {line: 124,column: 16}})("optionsOf");
+      {start: {line: 125,column: 5},end: {line: 125,column: 16}})("optionsOf");
    };
    var buildSvg_ = F3(function (options,d,i) {
       var _p81 = options;
@@ -21741,7 +21741,7 @@ Elm.InterfaceView2.make = function (_elm) {
                               break _v35_5;
                            }
                      } while (false);
-                     return _U.crashCase("InterfaceView2",{start: {line: 144,column: 9},end: {line: 154,column: 39}},_p85)("buildSvg_");
+                     return _U.crashCase("InterfaceView2",{start: {line: 145,column: 9},end: {line: 155,column: 39}},_p85)("buildSvg_");
                   }();
                   var zones = _p84._0;
                   var attrs$ = _p84._1;
@@ -21985,6 +21985,7 @@ Elm.InterfaceView2.make = function (_elm) {
               A2($Html.div,
               _U.list([$Html$Attributes.style(_U.list([{ctor: "_Tuple2",_0: "color",_1: textColor}
                                                       ,{ctor: "_Tuple2",_0: "font-family",_1: $Config.params.mainSection.widgets.font}
+                                                      ,{ctor: "_Tuple2",_0: "font-size",_1: "16px"}
                                                       ,{ctor: "_Tuple2",_0: "text-align",_1: "center"}
                                                       ,{ctor: "_Tuple2",_0: "width",_1: dimToPix(w)}
                                                       ,{ctor: "_Tuple2",_0: "height",_1: dimToPix(h)}
@@ -22018,7 +22019,7 @@ Elm.InterfaceView2.make = function (_elm) {
    var zoneButton = function (model) {
       var cap = _U.eq(model.showZones,$InterfaceModel.showZonesNone) ? "[Zones] Hidden" : _U.eq(model.showZones,
       $InterfaceModel.showZonesBasic) ? "[Zones] Basic" : _U.eq(model.showZones,$InterfaceModel.showZonesExtra) ? "[Zones] Extra" : _U.crash("InterfaceView2",
-      {start: {line: 953,column: 7},end: {line: 953,column: 18}})("zoneButton");
+      {start: {line: 954,column: 7},end: {line: 954,column: 18}})("zoneButton");
       return A4(simpleButton,$InterfaceModel.ToggleZones,"ToggleZones","Show/Hide Zones",cap);
    };
    var luckyButton = function (model) {
