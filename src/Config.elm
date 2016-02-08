@@ -24,7 +24,7 @@ params =
   , topSection =
      { h = 38              -- height of top space
      , wLogo = 25          -- width/height of logo
-     , wBtnO = 190         -- width...
+     , wBtnO = 210         -- width...
      , hBtnO = 25          -- ... and height of orientation button
      , wJunk = 250         -- gap between title and orientation button
      }
