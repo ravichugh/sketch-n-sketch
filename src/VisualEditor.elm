@@ -132,21 +132,6 @@ eTextChange =
   handleAndStop "mousedown" <| \m ->
     { m | textChangedAt = Just 0 }
 
-{-
-onClickWithoutPropagation : Signal.Address a -> a -> Attribute
-onClickWithoutPropagation address a = Events.onWithOptions "click" {defaultOptions | stopPropagation = True} Decode.value (\_ -> Signal.message address a)
-                                   
-eVarEvent : Ident -> Int -> Attribute
-eVarEvent x id =
-  onClickWithoutPropagation myMailbox.address <| UpdateModel <| \model ->
-    let e = Utils.fromOk_ <| Parser.parseE <| "(let " ++ x ++"1 " ++ x ++ " " ++ x ++ "1)" in
-    let e__ = e.val.e__ in
-    let eSubst = Dict.singleton id e__  in
-    let exp' = applyESubst eSubst model.exp in
-    let code' = Unparser.unparseE exp' in
-    { model | exp = exp', code = code'}
--}
-
 ------------------------------------------------------------------------------
 
 eConstOuterLeftRight model n loc padding color offset =
@@ -478,11 +463,12 @@ btnMailbox = mailbox ()
 
 queryMailbox : Mailbox String
 queryMailbox = mailbox "NOTHING YET"
-
+              
 type alias Model =
   { name : String
   , code : String
   , exp  : Exp
+  , editable : Bool 
   , textChangedAt : Maybe Time
   }
 
@@ -490,6 +476,7 @@ initModel =
   { name = Ex.scratchName
   , code = Ex.scratch
   , exp  = Utils.fromOk_ (Parser.parseE Ex.scratch)
+  , editable = False
   , textChangedAt = Nothing
   }
 
@@ -538,20 +525,35 @@ view model =
              let (name,code) = Utils.geti (i+1) Ex.examples in
              Signal.message myMailbox.address <| UpdateModel <| \_ ->
                let exp = Utils.fromOk_ (Parser.parseE code) in
-               { name = name, code = code, exp = exp, textChangedAt = Nothing }
+               { name = name, code = code, exp = exp, editable = False, textChangedAt = Nothing }
          ]
          options
     in
     let hExp = Html.div [ Attr.id "theSourceCode" ] [ htmlOfExp model testExp ] in
-    let btn =
+    let reparse =
+          Html.button
+         [ Attr.contenteditable False
+         , Events.onClick btnMailbox.address ()
+         ]
+         [ Html.text "Reparse" ] in
+    let viewMode_btn =
       Html.button
          [ Attr.contenteditable False
-         , Events.onClick btnMailbox.address () ]
-         [ Html.text "Reparse" ] in
+         , Events.onClick myMailbox.address <| UpdateModel <| \model ->
+           { model | editable = False }
+         ]
+         [ Html.text "viewMode" ] in
+    let textMode_btn =
+      Html.button
+          [ Attr.contenteditable False
+          , Events.onClick myMailbox.address <| UpdateModel <| \model ->
+            { model | editable = True}
+          ]
+          [ Html.text "textMode" ] in
     Html.node "div"
        -- turning off contenteditable for now
-       [ basicStyle ]
-       [ dropdown, btn, break, hExp ]
+       [ basicStyle, Attr.contenteditable model.editable ]
+       [ dropdown, reparse, viewMode_btn,textMode_btn, break, hExp ]
   in
   body
 
