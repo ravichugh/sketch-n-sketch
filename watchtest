@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+# Script to rerun tests when a file changes.
+#
+# Usage: ./watchtest
+#
+# Requires fs-watch. ($ brew install fswatch)
+# https://emcrisostomo.github.io/fswatch/getting.html
+
+FILE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+echo "fswatch -Ee 'git|build|Generated' . | xargs -ton 1 bash -c '$FILE_DIR/tests/test.sh'"
+fswatch -Ee 'git|build|Generated' . | xargs -ton 1 bash -c "$FILE_DIR/tests/test.sh"

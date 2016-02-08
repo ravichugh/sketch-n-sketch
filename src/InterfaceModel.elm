@@ -6,7 +6,7 @@ import Sync
 import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Zone)
 import ExamplesGenerated as Examples
-import LangUnparser exposing (unparseE)
+import LangUnparser exposing (unparse)
 import OurParser2 as P
 
 import List
@@ -64,7 +64,7 @@ type alias Model =
   , errorBox : Maybe String
   , genSymCount : Int
   , toolType : ToolType
-  , selectedAttrs : Set.Set (NodeId, ShapeKind, String)
+  , selectedAttrs : Set.Set (NodeId, String)
   }
 
 type Mode
@@ -118,11 +118,12 @@ type alias PossibleChange = (Exp, Val, RootedIndexedTree, Code)
 -- InterfaceStorage is more succinct (Enum typeclass would be nice here...)
 type alias ShowZones = Int
 
-showZonesModes = 6
+showZonesModeCount = 6
+
+showZonesModes = [ 0 .. (showZonesModeCount - 1) ]
 
 (showZonesNone, showZonesBasic, showZonesSelect, showZonesRot, showZonesColor, showZonesDel) =
-  Utils.unwrap6
-    [ 0 .. (showZonesModes - 1) ]
+  Utils.unwrap6 showZonesModes
 
 type ToolType
   = Cursor | SelectAttrs | SelectShapes
@@ -139,12 +140,13 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | MouseClick (Int, Int) -- used to add points to a new polygon
            | MouseUp
            | MousePos (Int, Int)
-           | TickDelta Float -- 30fps time tick, Float is time since last tick
+           | TickDelta Float -- 60fps time tick, Float is time since last tick
            | Sync
            | PreviewCode (Maybe Code)
            | SelectOption PossibleChange
            | CancelSync
            | RelateAttrs -- not using UpdateModel, since want to define handler in Controller
+           | DigHole
            | RelateShapes
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets})
@@ -153,7 +155,7 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | StartAnimation
            | Redraw
            | ToggleOutput
-           | ToggleZones
+           | SelectZonesMode Int
            | NextSlide
            | PreviousSlide
            | NextMovie
@@ -233,13 +235,13 @@ codeToShow model =
 sampleModel : Model
 sampleModel =
   let
-    (name,f) = Utils.head_ Examples.list
-    {e,v,ws} = f ()
+    (name,_,f) = Utils.head_ Examples.list
+    {e,v,ws}   = f ()
   in
   let (slideCount, movieCount, movieDuration, movieContinue, indexedTree) = LangSvg.fetchEverything 1 1 0.0 v in
     { scratchCode   = Examples.scratch
     , exName        = name
-    , code          = unparseE e
+    , code          = unparse e
     , previewCode   = Nothing
     , history       = ([], [])
     , inputExp      = e

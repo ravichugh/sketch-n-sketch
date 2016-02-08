@@ -1,8 +1,8 @@
 module InterfaceController (upstate) where
 
 import Lang exposing (..) --For access to what makes up the Vals
-import LangParser2 exposing (parseE, parseV)
-import LangUnparser exposing (unparseE)
+import LangParser2 exposing (parseE, freshen)
+import LangUnparser exposing (unparse, preceedingWhitespace, addPreceedingWhitespace)
 import Sync
 import Eval
 import Utils
@@ -85,18 +85,19 @@ switchOrient m = case m of
   Vertical -> Horizontal
   Horizontal -> Vertical
 
-toggleShowZones x = (1 + x) % showZonesModes
+toggleShowZones x = (1 + x) % showZonesModeCount
 {- -- TODO turning off rotation zones for now
 toggleShowZones x =
-  let i = (1 + x) % showZonesModes in
+  let i = (1 + x) % showZonesModeCount in
   if | i == showZonesRot -> toggleShowZones i
      | otherwise         -> i
 -}
 
-maybeAdjustShowZones m =
-  case (m.mode, m.showZones == showZonesDel) of
-    (Live _, True) -> { m | showZones = toggleShowZones m.showZones }
-    _              -> m
+-- if delete mode is not applicable but set, use oldMode instead
+maybeLeaveDeleteMode newModel oldShowZones =
+  case (newModel.mode, newModel.showZones == showZonesDel) of
+    (Live _, True) -> { newModel | showZones = oldShowZones }
+    _              -> newModel
 
 -- may want to eventually have a maximum history length
 addToHistory s h = (s :: fst h, [])
@@ -104,18 +105,18 @@ addToHistory s h = (s :: fst h, [])
 between1 i (j,k) = i `Utils.between` (j+1, k+1)
 
 cleanExp =
-  mapExp <| \e__ -> case e__ of
-    EApp e0 [e1,_,_]  -> case e0.val.e__ of
-      EVar "inferred" -> e1.val.e__
-      _               -> e__
-    EApp e0 [_,e1]    -> case e0.val.e__ of
-      EVar "flow"     -> e1.val.e__
-      _               -> e__
-    EOp op [e1,e2]    ->
+  mapExpViaExp__ <| \e__ -> case e__ of
+    EApp _ e0 [e1,_,_] _ -> case e0.val.e__ of
+      EVar _ "inferred"  -> e1.val.e__
+      _                  -> e__
+    EApp _ e0 [_,e1] _   -> case e0.val.e__ of
+      EVar _ "flow"      -> e1.val.e__
+      _                  -> e__
+    EOp _ op [e1,e2] _   ->
       case (op.val, e2.val.e__) of
-        (Plus, EConst 0 _ _) -> e1.val.e__
-        _                    -> e__
-    _                 -> e__
+        (Plus, EConst _ 0 _ _) -> e1.val.e__
+        _                      -> e__
+    _                    -> e__
 
 -- this is a bit redundant with View.turnOn...
 maybeStuff id shape zone m =
@@ -174,9 +175,14 @@ highlightChanges mStuff changes codeBoxInfo =
       { codeBoxInfo | highlights = hi' }
 
 addSlateAndCode old (exp, val) =
-  let slate = LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val in
-  (exp, val, slate, unparseE exp)
+  let (slate, code) = slateAndCode old (exp, val) in
+  (exp, val, slate, code)
 
+slateAndCode old (exp, val) =
+  let slate =
+    LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val
+  in
+  (slate, unparse exp)
 
 --------------------------------------------------------------------------------
 
@@ -275,6 +281,25 @@ switchToCursorTool old =
   { old | mouseMode = MouseNothing , toolType = Cursor }
 
 
+nodeIdAndAttrNameToVal (nodeId, attrName) tree =
+  case Dict.get nodeId tree of
+    Just (LangSvg.SvgNode _ attrs _) ->
+      case Utils.maybeFind attrName attrs of
+        Just aval -> Just (LangSvg.valOfAVal aval)
+        Nothing   -> Debug.crash <| "nodeIdAndAttrNameToVal " ++ (toString nodeId) ++ " " ++ (toString attrName) ++ " " ++ (toString tree)
+    Just (LangSvg.TextNode _) -> Nothing
+    Nothing                   -> Debug.crash <| "nodeIdAndAttrNameToVal " ++ (toString nodeId) ++ " " ++ (toString tree)
+
+pluckSelectedVals selectedAttrs slate =
+  let (_, tree) = slate in
+  let foo nodeIdAndAttrName acc =
+    case nodeIdAndAttrNameToVal nodeIdAndAttrName tree of
+      Just val -> val :: acc
+      Nothing  -> acc
+  in
+  Set.foldl foo [] selectedAttrs
+
+
 --------------------------------------------------------------------------------
 -- Updating the Model
 
@@ -300,7 +325,7 @@ upstate evt old = case debugLog "Event" evt of
          let new =
            { old | inputExp      = e
                  , inputVal      = newVal
-                 , code          = unparseE e
+                 , code          = unparse e
                  , slideCount    = newSlideCount
                  , movieCount    = newMovieCount
                  , movieTime     = 0
@@ -398,7 +423,7 @@ upstate evt old = case debugLog "Event" evt of
 
         MouseObject _ _ _ (Just (_, mStuff, onNewPos)) ->
           let (newE,newV,changes,newSlate,newWidgets) = onNewPos (mx, my) in
-          { old | code = unparseE newE
+          { old | code = unparse newE
                 , inputExp = newE
                 , inputVal = newV
                 , slate = newSlate
@@ -412,7 +437,7 @@ upstate evt old = case debugLog "Event" evt of
 
         MouseSlider widget (Just (_, onNewPos)) ->
           let (newE,newV,newSlate,newWidgets) = onNewPos (mx, my) in
-          { old | code = unparseE newE
+          { old | code = unparse newE
                 , inputExp = newE
                 , inputVal = newV
                 , slate = newSlate
@@ -489,19 +514,7 @@ upstate evt old = case debugLog "Event" evt of
 
 
     RelateAttrs ->
-      let (_,tree) = old.slate in
-      let selectedVals = debugLog "selectedVals" <|
-        let foo (id,_,attr) acc =
-          case Dict.get id tree of
-            Just (LangSvg.SvgNode _ attrs _) ->
-              case Utils.maybeFind attr attrs of
-                Just aval -> LangSvg.valOfAVal aval :: acc
-                Nothing   -> Debug.crash "RelateAttrs 2"
-            Just (LangSvg.TextNode _) -> acc
-            Nothing                   -> Debug.crash "RelateAttrs 1"
-        in
-        Set.foldl foo [] old.selectedAttrs
-      in
+      let selectedVals = debugLog "selectedVals" <| pluckSelectedVals old.selectedAttrs old.slate in
       let revert = (old.inputExp, old.inputVal) in
       let (nextK, l) = Sync.relate old.genSymCount old.inputExp selectedVals in
       let possibleChanges = List.map (addSlateAndCode old) l in
@@ -511,6 +524,154 @@ upstate evt old = case debugLog "Event" evt of
               , runAnimation = True
               , syncSelectTime = 0.0
               }
+
+    DigHole ->
+      let selectedVals =
+        debugLog "selectedVals" <|
+          pluckSelectedVals old.selectedAttrs old.slate
+      in
+      let traces =
+        List.map valToTrace selectedVals
+      in
+      let tracesLocsets =
+        List.map (Sync.locsOfTrace old.syncOptions) traces
+      in
+      let locset =
+        List.foldl Set.union Set.empty tracesLocsets
+      in
+      let locsetList =
+        Set.toList locset
+      in
+      let isLocsetNode exp =
+        case exp.val.e__ of
+          EConst ws n loc wd -> Set.member loc locset
+          _                  -> False
+      in
+      let locToNumber =
+        let accumulateLocToNumbers exp__ dict =
+          case exp__ of
+            EConst ws n loc wd ->
+              if Set.member loc locset then
+                Dict.insert loc n dict
+              else
+                dict
+            _ -> dict
+        in
+        foldExpViaE__
+            accumulateLocToNumbers
+            Dict.empty
+            old.inputExp
+      in
+      let locsAncestors = debugLog "locsAncestors" <|
+        findAllWithAncestors isLocsetNode old.inputExp
+      in
+      -- isScope needs to see the node's parent...because case statements
+      -- produce many scopes out of one expression
+      -- The below adds a maybe parent to each node, so we get List (List
+      -- (Maybe Exp, Exp))
+      let locsAncestorsWithParents = debugLog "locsAncestorsWithParents" <|
+        List.map
+            (\locAncestors ->
+              Utils.zip (Nothing :: (List.map Just locAncestors)) locAncestors
+            )
+            locsAncestors
+      in
+      let locsAncestorScopesWithParents = debugLog "locsAncestorScopesWithParents" <|
+        List.map
+            (List.filter (\(parent, node) -> isScope parent node))
+            locsAncestorsWithParents
+      in
+      let deepestCommonScopeWithParent = debugLog "deepestCommonAncestorWithParent" <|
+        -- If no common scope, we will wrap the root node.
+        let commonPrefix = debugLog "commonPrefix" <|
+          [(Nothing, old.inputExp)] ++
+          Utils.commonPrefix locsAncestorScopesWithParents
+        in
+        Utils.last_ commonPrefix
+      in
+      let (deepestCommonScopeParent, deepestCommonScope) =
+        deepestCommonScopeWithParent
+      in
+      -- Avoid name collisions here
+      let locIdNameOrigNamePrime =
+        List.map
+            (\(locId, frozen, ident) -> (locId, "k"++(toString locId)++ident++"Orig", "k"++(toString locId)++ident++"Prime"))
+            locsetList
+      in
+      let locIdToNewName = debugLog "locIdToNewName" <|
+        Dict.fromList
+          <| List.map (\(locId, nameOrig, namePrime) -> (locId, namePrime))
+          <| locIdNameOrigNamePrime
+      in
+      let replaceConstsWithVars exp__ =
+        case exp__ of
+          EConst ws n (locId, frozen, ident) wd ->
+            case Dict.get locId locIdToNewName of
+              Just newName -> EVar ws newName
+              Nothing      -> exp__
+          _ -> exp__
+      in
+      let commonScopeReplaced =
+        mapExpViaExp__ replaceConstsWithVars deepestCommonScope
+      in
+      let newlyWrappedCommonScope =
+        let origNames  = List.map Utils.snd3 locIdNameOrigNamePrime in
+        let primeNames = List.map Utils.thd3 locIdNameOrigNamePrime in
+        let valueStrs =
+          List.map
+              (\loc ->
+                toString (Utils.justGet loc locToNumber)
+              )
+              locsetList
+        in
+        let oldPreceedingWhitespace = preceedingWhitespace commonScopeReplaced in
+        let extraWhitespace =
+          if String.contains "\n" oldPreceedingWhitespace then "" else "\n"
+        in
+        let templateStr =
+          let variableOrigNamesStr  = String.join " " origNames in
+          let variablePrimeNamesStr = String.join " " primeNames in
+          let variableValuesStr     = String.join " " valueStrs in
+          oldPreceedingWhitespace ++
+          "(let ["++variableOrigNamesStr++"] ["++variableValuesStr++"]" ++
+          extraWhitespace ++ oldPreceedingWhitespace ++
+          "(let ["++variablePrimeNamesStr++"] ["++variableOrigNamesStr++"] 'dummy body'))"
+        in
+        let template =
+          case parseE templateStr of
+            Ok templateExp -> templateExp
+            Err err        -> Debug.crash <| "Dig template err: " ++ err
+        in
+        -- Now replace the dummy body:
+        let newLet =
+          mapExpViaExp__
+              (\e__ ->
+                case e__ of
+                  EBase _ (String "dummy body") -> (addPreceedingWhitespace extraWhitespace commonScopeReplaced).val.e__
+                  _                             -> e__
+              )
+              template
+        in
+        newLet
+      in
+      -- Debug only:
+      let newSubtreeStr = debugLog "newlyWrappedCommonScope" <| unparse newlyWrappedCommonScope in
+      let newExp =
+        freshen <|
+        replaceExpNode deepestCommonScope newlyWrappedCommonScope old.inputExp
+      in
+      let (newVal, newWidgets) = Eval.run newExp in
+      let (newSlate, newCode)  = slateAndCode old (newExp, newVal) in
+      debugLog "new model" <|
+        { old | code          = newCode
+              , inputExp      = newExp
+              , inputVal      = newVal
+              , history       = addToHistory old.code old.history
+              , slate         = newSlate
+              , widgets       = newWidgets
+              , previewCode   = Nothing
+              , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal }
+
 
     RelateShapes ->
       let newval = slateToVal old.slate in
@@ -555,15 +716,16 @@ upstate evt old = case debugLog "Event" evt of
         _ -> Debug.crash "upstate Sync"
 
     SelectOption (exp, val, slate, code) ->
-      maybeAdjustShowZones
-      { old | code          = code
-            , inputExp      = exp
-            , inputVal      = val
-            , history       = addToHistory old.code old.history
-            , slate         = slate
-            , previewCode   = Nothing
-            , toolType      = Cursor
-            , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp val }
+      maybeLeaveDeleteMode
+        { old | code          = code
+              , inputExp      = exp
+              , inputVal      = val
+              , history       = addToHistory old.code old.history
+              , slate         = slate
+              , previewCode   = Nothing
+              , toolType      = Cursor
+              , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp val }
+        showZonesNone
 
 
     PreviewCode maybeCode ->
@@ -592,7 +754,7 @@ upstate evt old = case debugLog "Event" evt of
             , exName        = name
             , inputExp      = e
             , inputVal      = v
-            , code          = unparseE e
+            , code          = unparse e
             , history       = ([],[])
             , mode          = m
             , syncOptions   = so
@@ -611,8 +773,8 @@ upstate evt old = case debugLog "Event" evt of
 
     SwitchOrient -> { old | orient = switchOrient old.orient }
 
-    ToggleZones ->
-      maybeAdjustShowZones { old | showZones = toggleShowZones old.showZones }
+    SelectZonesMode i ->
+      maybeLeaveDeleteMode { old | showZones = i } old.showZones
 
     Undo ->
       case (old.code, old.history) of
@@ -719,17 +881,13 @@ upstate evt old = case debugLog "Event" evt of
                 if      l == keysE        then fire Edit
                 else if l == keysZ        then fire Undo
                 else if l == keysY        then fire Redo
-                else if l == keysG        then fire ToggleZones  -- for righties
-                else if l == keysH        then fire ToggleZones  -- for lefties
                 else if l == keysT        then fire (SwitchMode AdHoc)
                 else if l == keysS        then fire Noop -- placeholder for Save
                 else if l == keysShiftS   then fire Noop -- placeholder for Save As
                 else                           fire Noop
 
               AdHoc ->
-                if      l == keysG        then fire ToggleZones  -- for righties
-                else if l == keysH        then fire ToggleZones  -- for lefties
-                else if l == keysZ        then fire Undo
+                if      l == keysZ        then fire Undo
                 else if l == keysY        then fire Redo
                 else if l == keysT        then fire Sync
                 else                           fire Noop
@@ -737,7 +895,7 @@ upstate evt old = case debugLog "Event" evt of
               _                       -> fire Noop
 
     CleanCode ->
-      let s' = unparseE (cleanExp old.inputExp) in
+      let s' = unparse (cleanExp old.inputExp) in
       let h' =
         if old.code == s'
           then old.history

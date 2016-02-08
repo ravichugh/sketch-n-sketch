@@ -6,7 +6,9 @@ module Sync (Options, defaultOptions, syncOptionsOf,
              relateSelectedAttrs,
              relate,
              strCall,
-             printZoneTable, LiveInfo, Triggers, tryToBeSmart) where
+             printZoneTable, LiveInfo, Triggers, tryToBeSmart,
+             locsOfTrace
+             ) where
 
 import Dict exposing (Dict)
 import Set
@@ -241,7 +243,7 @@ traceToExp subst tr = case tr of
       Nothing -> eVar (strLoc l)
       Just n  -> eConst n l
   TrOp op ts ->
-    withDummyPos (EOp (withDummyRange op) (List.map (traceToExp subst) ts))
+    withDummyPos (EOp " " (withDummyRange op) (List.map (traceToExp subst) ts) "")
 
 solve : Subst -> Equation -> Maybe Num
 solve subst eqn =
@@ -535,26 +537,26 @@ indexTracesOfVal v =
 removeDeadIndices e v' =
   let idxTraces = indexTracesOfVal v' in
   let foo e__ = case e__ of
-    EIndList rs -> EList (List.concatMap (expandRange idxTraces) rs) Nothing
-    _           -> e__
+    EIndList _ rs _ -> EList " " (List.concatMap (expandRange idxTraces) rs) "" Nothing ""
+    _               -> e__
   in
-  mapExp foo e
+  mapExpViaExp__ foo e
 
 expandRange idxTraces r =
   let mem = flip List.member idxTraces in
   case r.val of
     Point e -> case e.val.e__ of
-      EConst n l _ -> if mem (l,l,0) then [e] else []
-      _            -> Debug.crash "expandRange"
-    Interval e1 e2 -> case (e1.val.e__, e2.val.e__) of
+      EConst _ n l _ -> if mem (l,l,0) then [e] else []
+      _               -> Debug.crash "expandRange"
+    Interval e1 ws e2 -> case (e1.val.e__, e2.val.e__) of
       -- TODO may be better to just put exactly one space in
       -- between each element and ignore existing positions
-      (EConst n1 l1 _, EConst n2 l2 _) ->
+      (EConst _ n1 l1 _, EConst _ n2 l2 _) ->
         let d = ceiling (n2 - n1) in
         let foo i (nextStart,acc) =
           let return a =
             let end = Un.bumpCol (String.length (strNum a)) nextStart in
-            let ei  = P.WithInfo (exp_ (EConst a dummyLoc noWidgetDecl)) nextStart end in
+            let ei  = P.WithInfo (exp_ (EConst " " a dummyLoc noWidgetDecl)) nextStart end in
             (Un.incCol end, ei :: acc)
           in
           let m = n1 + toFloat i in
@@ -1080,7 +1082,7 @@ relateBaseOffset genSymK e ntts_ =
                 let foo is acc =
                   case Utils.findFirst (not << Parser.isPreludeEId) is of
                     Nothing -> acc
-                    Just i  -> Dict.insert i (EVar baseVar) acc
+                    Just i  -> Dict.insert i (EVar " " baseVar) acc
                 in
                 List.foldl foo Dict.empty vtraces
               in
@@ -1106,7 +1108,7 @@ relateNumsWithVar genSymK e nts =
             (Just (d,all,someDiffLoc), TrLoc li) ->
               let e__ =
                 if n0 == ni
-                then EVar gensym
+                then EVar " " gensym
                 else
                   (ePlus (eVar <| " " ++ gensym ++ " ") -- TODO spacing hack...
                          (eConst (ni-n0) dummyFrozenLoc)).val.e__
@@ -1114,7 +1116,7 @@ relateNumsWithVar genSymK e nts =
               let someDiffLoc' = someDiffLoc || li /= l0 in
               Just (Dict.insert (Utils.fst3 li) e__ d, ni::all, someDiffLoc')
         in
-        let init = (Dict.singleton (Utils.fst3 l0) (EVar gensym), [n0], False) in
+        let init = (Dict.singleton (Utils.fst3 l0) (EVar " " gensym), [n0], False) in
         List.foldl foo (Just init) rest
       in
       case esubstAndNumsMaybe of
@@ -1123,7 +1125,7 @@ relateNumsWithVar genSymK e nts =
           let mkAnswer esubst gensymVal =
             let eNew =
               applyESubst esubst e
-                |> Un.unparseE
+                |> Un.unparse
                 |> (++) ("(def " ++ gensym ++ " " ++ gensymVal ++ ")\n")
                 |> Parser.parseE
                 |> Utils.fromOk "Sync.relate"
@@ -1140,7 +1142,7 @@ relateNumsWithVar genSymK e nts =
             if Utils.allSame allNums then []
             else
               let nAvg = Utils.avg allNums in
-              let eSubst2 = Dict.map (\_ _ -> EVar gensym) eSubst1 in
+              let eSubst2 = Dict.map (\_ _ -> EVar " " gensym) eSubst1 in
               let eAvg = strInferred "'average of'" (toString nAvg) (List.map toString allNums) in
               [mkAnswer eSubst2 eAvg]
           in
@@ -1724,8 +1726,8 @@ evalTr subst tr = Utils.fromJust_ "evalTr" (evalTrace subst tr)
 
 ------------------------------------------------------------------------------
 
-setFromLists : List Locs -> LocSet
-setFromLists = List.foldl (flip Set.union << Set.fromList) Set.empty
+setFromLocLists : List Locs -> LocSet
+setFromLocLists = List.foldl (flip Set.union << Set.fromList) Set.empty
 
 -- TODO compute this along with everything else
 -- could also make this a single dictionary: Dict (NodeId, Zone) Locs
@@ -1736,7 +1738,7 @@ zoneAssignments =
       case m of
         Just (locs,otherLocs) ->
           let yellowLocs = Set.fromList locs in
-          let grayLocs   = setFromLists otherLocs `Set.diff` yellowLocs in
+          let grayLocs   = setFromLocLists otherLocs `Set.diff` yellowLocs in
           Dict.insert z (yellowLocs, grayLocs) acc
         Nothing       -> acc
     ) Dict.empty l

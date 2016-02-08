@@ -12,7 +12,7 @@ makeExample name s =
     let (v,ws) = Eval.run e in
     {e=e, v=v, ws=ws}
   in
-  (name, thunk)
+  (name, s, thunk)
 
 scratchName = "*Scratch*"
 
