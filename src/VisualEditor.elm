@@ -135,21 +135,21 @@ eTextChange =
 ------------------------------------------------------------------------------
 
 eConstOuterLeftRight model n loc padding color offset =
-  case model.textChangedAt of
-    Nothing -> [ literalOuterStyle model padding color, eConstEvent n loc offset ]
-    Just _  -> [ literalOuterStyle model padding color ]
+  case model.editable of
+    True -> [ literalOuterStyle model padding color, eConstEvent n loc offset ]
+    _    -> [ literalOuterStyle model padding color ]
 
 eConstOuterBottom model eConstInfo =
   let padding = "0 0 5pt 0" in
   let color = "lightblue" in
-  case model.textChangedAt of
-    Nothing -> [ literalOuterStyle model padding color, eConstFlipFreeze eConstInfo ]
-    Just _  -> [ literalOuterStyle model padding color ]
-
+  case model.editable of
+    True -> [ literalOuterStyle model padding color, eConstFlipFreeze eConstInfo ]
+    _     -> [ literalOuterStyle model padding color ]
+  
 eConstInnerAttrs model =
-  [ Attr.contenteditable True
+  [ Attr.contenteditable model.editable
   , literalInnerStyle model
-  , eTextChange
+  --, eTextChange
   ]
 
 
@@ -530,12 +530,13 @@ view model =
          options
     in
     let hExp = Html.div [ Attr.id "theSourceCode" ] [ htmlOfExp model testExp ] in
+    {-
     let reparse =
           Html.button
          [ Attr.contenteditable False
          , Events.onClick btnMailbox.address ()
          ]
-         [ Html.text "Reparse" ] in
+         [ Html.text "Reparse" ] in -}
     let viewMode_btn =
       Html.button
          [ Attr.contenteditable False
@@ -553,7 +554,7 @@ view model =
     Html.node "div"
        -- turning off contenteditable for now
        [ basicStyle, Attr.contenteditable model.editable ]
-       [ dropdown, reparse, viewMode_btn,textMode_btn, break, hExp ]
+       [ dropdown, viewMode_btn,textMode_btn, break, hExp ]
   in
   body
 
