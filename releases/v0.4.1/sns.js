@@ -22016,8 +22016,8 @@ Elm.InterfaceView2.make = function (_elm) {
          }
    });
    var zoneButton = function (model) {
-      var cap = _U.eq(model.showZones,$InterfaceModel.showZonesNone) ? "[Zones] Hidden" : _U.eq(model.showZones,
-      $InterfaceModel.showZonesBasic) ? "[Zones] Basic" : _U.eq(model.showZones,$InterfaceModel.showZonesExtra) ? "[Zones] Extra" : _U.crash("InterfaceView2",
+      var cap = _U.eq(model.showZones,$InterfaceModel.showZonesNone) ? "Zones: Hidden" : _U.eq(model.showZones,
+      $InterfaceModel.showZonesBasic) ? "Zones: Basic" : _U.eq(model.showZones,$InterfaceModel.showZonesExtra) ? "Zones: Extra" : _U.crash("InterfaceView2",
       {start: {line: 952,column: 7},end: {line: 952,column: 18}})("zoneButton");
       return A4(simpleButton,$InterfaceModel.ToggleZones,"ToggleZones","Show/Hide Zones",cap);
    };
