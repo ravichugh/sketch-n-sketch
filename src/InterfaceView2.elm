@@ -141,8 +141,7 @@ optionsOf : ShowZones -> ZoneOptions
 optionsOf x =
   if x == showZonesNone       then { zoneOptions0 | addBasic = True }
   else if x == showZonesBasic then { zoneOptions0 | addBasic = True, showBasic = True }
-  else if x == showZonesRot   then { zoneOptions0 | addRot = True }
-  else if x == showZonesColor then { zoneOptions0 | addColor = True }
+  else if x == showZonesExtra then { zoneOptions0 | addRot = True, addColor = True }
   else if x == showZonesDel   then { zoneOptions0 | addDelete = True }
   else if x == showZonesSelect then { zoneOptions0 | addSelect = True }
   else
@@ -1403,9 +1402,8 @@ zoneButtons model w h =
     if mode == showZonesNone        then "[Zones] Hidden"
     else if mode == showZonesBasic  then "[Zones] Basic"
     else if mode == showZonesSelect then "[Zones] Attrs"
-    else if mode == showZonesRot    then "[Zones] Rotation"
-    else if mode == showZonesColor  then "[Zones] Color"
-    else if mode == showZonesDel    then "[Zones] Delete"
+    else if mode == showZonesExtra  then "[Zones] Extra"
+    else if mode == showZonesDel    then Debug.crash "[Zones] Delete"
     else
       Debug.crash "zoneButton caption"
   in
@@ -1414,7 +1412,9 @@ zoneButtons model w h =
     let btnKind = if selected then Selected else Unselected in
       simpleButton_ events.address btnKind Noop False (SelectZonesMode mode) "Still dunno what this does" "Dunno what this is for" (caption mode) w h
   in
-    List.map zoneButton showZonesModes
+    -- Delete turned off for now
+    -- List.map zoneButton showZonesModes
+    List.map zoneButton [ 0 .. (showZonesModeCount - 1 - 1) ]
 
 {-
 shapeButton model =

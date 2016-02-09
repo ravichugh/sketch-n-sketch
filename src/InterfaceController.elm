@@ -85,13 +85,12 @@ switchOrient m = case m of
   Vertical -> Horizontal
   Horizontal -> Vertical
 
+{- -- TODO turning off delete zones for now
 toggleShowZones x = (1 + x) % showZonesModeCount
-{- -- TODO turning off rotation zones for now
+-}
 toggleShowZones x =
   let i = (1 + x) % showZonesModeCount in
-  if | i == showZonesRot -> toggleShowZones i
-     | otherwise         -> i
--}
+  if i == showZonesDel then toggleShowZones i else i
 
 -- if delete mode is not applicable but set, use oldMode instead
 maybeLeaveDeleteMode newModel oldShowZones =
