@@ -406,17 +406,7 @@ maybeFindAttr id kind attr attrs =
   case (kind, String.uncons attr) of
     ("polygon", Just ('x', si)) -> getXYi attrs si fst
     ("polygon", Just ('y', si)) -> getXYi attrs si snd
-{-
-      let i = Utils.fromOk_ <| String.toInt si in
-      case Utils.maybeFind "points" attrs of
-        Just aval -> case aval.av_ of
-          LangSvg.APoints pts -> LangSvg.valOfAVal <| LangSvg.aNum <| fst <| Utils.geti i pts
-          _                   -> Debug.crash "maybeFindAttr 2"
-        _ -> Debug.crash "maybeFindAttr 1"
--}
-
-    -- ("polygon", Just ("y", si)) ->
-    _ -> maybeFindAttr_ id kind attr attrs
+    _                           -> maybeFindAttr_ id kind attr attrs
 
 
 --------------------------------------------------------------------------------
