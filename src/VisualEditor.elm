@@ -529,19 +529,15 @@ view model =
          ]
          options
     in
-    {-
-    let reparse =
-          Html.button
-         [ Attr.contenteditable False
-         , Events.onClick btnMailbox.address ()
-         ]
-         [ Html.text "Reparse" ] in -}
+    -- this is ad hoc: it works because mousedown event is triggered before onclick event.
     let viewMode_btn =
       Html.button
          [ Attr.contenteditable False
+         , Events.onMouseDown btnMailbox.address ()
          , Events.onClick myMailbox.address <| UpdateModel <| \model ->
-           let exp = Utils.fromOk_ (Parser.parseE model.code) in
-           { model | exp = exp, editable = False }
+           case Parser.parseE model.code of
+             Ok exp -> { model | exp = exp, editable = False }
+             Err _  -> { model | editable = False }
          ]
          [ Html.text "viewMode" ] in
     let textMode_btn =
@@ -553,7 +549,6 @@ view model =
           [ Html.text "textMode" ] in
     let hExp = Html.div [ Attr.id "theSourceCode" ] [ htmlOfExp model testExp ] in
     Html.node "div"
-       -- turning off contenteditable for now
        [ basicStyle, Attr.contenteditable model.editable ]
        [ dropdown, viewMode_btn,textMode_btn, break, hExp ]
   in
