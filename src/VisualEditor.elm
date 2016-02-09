@@ -80,9 +80,9 @@ literalOuterStyle model padding color =
       ])
   in
   let l =
-    case model.editable of
-      False -> l1 ++ l2
-      _  -> l1
+    case model.textChangedAt of
+      Nothing -> l1 ++ l2
+      Just _  -> l1
   in
   Attr.style l
 
@@ -135,21 +135,21 @@ eTextChange =
 ------------------------------------------------------------------------------
 
 eConstOuterLeftRight model n loc padding color offset =
-  case model.editable of
-    False -> [ literalOuterStyle model padding color, eConstEvent n loc offset ]
-    _  -> [ literalOuterStyle model padding color ]
+  case model.textChangedAt of
+    Nothing -> [ literalOuterStyle model padding color, eConstEvent n loc offset ]
+    Just _  -> [ literalOuterStyle model padding color ]
 
 eConstOuterBottom model eConstInfo =
   let padding = "0 0 5pt 0" in
   let color = "lightblue" in
-  case model.editable of
-    False -> [ literalOuterStyle model padding color, eConstFlipFreeze eConstInfo ]
-    _  -> [ literalOuterStyle model padding color ]
+  case model.textChangedAt of
+    Nothing -> [ literalOuterStyle model padding color, eConstFlipFreeze eConstInfo ]
+    Just _  -> [ literalOuterStyle model padding color ]
   
 eConstInnerAttrs model =
-  [ Attr.contenteditable model.editable
+  [ Attr.contenteditable True
   , literalInnerStyle model
-  --, eTextChange
+  , eTextChange
   ]
 
 
@@ -308,6 +308,8 @@ htmlOfPVar model x =
 
 htmlOfExp : Model -> Exp -> Html
 htmlOfExp model e =
+  if model.editable == True then Html.span [ basicStyle ] [ Html.text model.code ]
+  else 
   let recurse = htmlOfExp model in
   let e_ = e.val in
   let e__ = e_.e__ in
@@ -451,6 +453,7 @@ type Event
   = UpdateModel (Model -> Model)
   | HtmlUpdate String
   | SpanValue SpanValue
+  | EnterEdit String
       -- keeping SpanValue and HtmlUpdate ("theSourceCode") separate for now
 
 type alias SpanValue = (String, String)
@@ -458,8 +461,10 @@ type alias SpanValue = (String, String)
 myMailbox : Mailbox Event
 myMailbox = mailbox (UpdateModel identity)
 
-btnMailbox : Mailbox ()
-btnMailbox = mailbox ()
+type ButtonEvent = UpModel | Edit
+                 
+btnMailbox : Mailbox ButtonEvent
+btnMailbox = mailbox UpModel
 
 queryMailbox : Mailbox String
 queryMailbox = mailbox "NOTHING YET"
@@ -492,7 +497,8 @@ upstate evt model =
       if x == x' || String.contains " " x'
         then model
         else renameVar x x' model
-
+    EnterEdit s -> { model | code = s, editable = True }
+    
 -- http://stackoverflow.com/questions/32426042/how-to-print-index-of-selected-option-in-elm
 targetSelectedIndex : Decode.Decoder Int
 targetSelectedIndex = Decode.at ["target", "selectedIndex"] Decode.int
@@ -533,7 +539,7 @@ view model =
     let viewMode_btn =
       Html.button
          [ Attr.contenteditable False
-         , Events.onMouseDown btnMailbox.address ()
+         , Events.onMouseDown btnMailbox.address UpModel
          , Events.onClick myMailbox.address <| UpdateModel <| \model ->
            case Parser.parseE model.code of
              Ok exp -> { model | exp = exp, editable = False }
@@ -543,8 +549,7 @@ view model =
     let textMode_btn =
       Html.button
           [ Attr.contenteditable False
-          , Events.onClick myMailbox.address <| UpdateModel <| \model ->
-            { model | editable = True}
+          , Events.onClick btnMailbox.address Edit
           ]
           [ Html.text "textMode" ] in
     let hExp = Html.div [ Attr.id "theSourceCode" ] [ htmlOfExp model testExp ] in
@@ -561,20 +566,26 @@ events =
 eventsFromJS : Signal Event
 eventsFromJS =
   let foo (id,s) =
-    if id == "theSourceCode"
-      then HtmlUpdate s
-      else SpanValue (id, s)
+    if id == "theSourceCode" then HtmlUpdate s
+    else if id == "edit" then EnterEdit s
+    else SpanValue (id, s)
   in
   Signal.map foo sourceCodeSignalFromJS
 
 -- port sourceCodeSignalFromJS : Signal String
 port sourceCodeSignalFromJS : Signal (String, String)
 
+convertBtnEvt : ButtonEvent -> String
+convertBtnEvt evt =
+  case evt of
+    UpModel -> "theSourceCode"
+    Edit    -> "edit"
+    
 -- port sourceCodeSignalToJS : Signal ()
 port sourceCodeSignalToJS : Signal String
 port sourceCodeSignalToJS =
   Signal.mergeMany
-    [ Signal.map (always "theSourceCode") btnMailbox.signal
+    [ Signal.map convertBtnEvt btnMailbox.signal
     , queryMailbox.signal
     ]
   -- btnMailbox.signal
