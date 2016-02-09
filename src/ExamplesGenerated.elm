@@ -3807,9 +3807,16 @@ relateLines0 =
 -- LITTLE_TO_ELM relatePoints2
 -- LITTLE_TO_ELM relatePoints3
 -- LITTLE_TO_ELM relatePoints4
+blank =
+ "(svg [])
+
+"
+
 
 examples =
-  [ makeExample scratchName scratch
+  [ makeExample "BLANK" blank
+  , makeExample scratchName scratch
+  -- [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
   , makeExample "Wave Boxes" sineWaveOfBoxes
 
