@@ -57,6 +57,17 @@ foldri f init xs = List.reverse (foldli f init xs)
 
 reverse2 (xs,ys) = (List.reverse xs, List.reverse ys)
 
+-- In:  [1, 2, 3]
+-- Out: [(1,2), (2,3), (3,1)]
+selfZipCircConsecPairs : List a -> List (a, a)
+selfZipCircConsecPairs list =
+  let shiftList =
+    case list of
+      x::xs -> xs ++ [x]
+      _     -> []
+  in
+  zip list shiftList
+
 -- Preserves original list order
 -- Dedups based on toString representation
 dedup : List a -> List a
