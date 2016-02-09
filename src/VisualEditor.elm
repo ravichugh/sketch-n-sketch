@@ -80,9 +80,9 @@ literalOuterStyle model padding color =
       ])
   in
   let l =
-    case model.textChangedAt of
-      Nothing -> l1 ++ l2
-      Just _  -> l1
+    case model.editable of
+      False -> l1 ++ l2
+      _  -> l1
   in
   Attr.style l
 
@@ -136,15 +136,15 @@ eTextChange =
 
 eConstOuterLeftRight model n loc padding color offset =
   case model.editable of
-    True -> [ literalOuterStyle model padding color, eConstEvent n loc offset ]
-    _    -> [ literalOuterStyle model padding color ]
+    False -> [ literalOuterStyle model padding color, eConstEvent n loc offset ]
+    _  -> [ literalOuterStyle model padding color ]
 
 eConstOuterBottom model eConstInfo =
   let padding = "0 0 5pt 0" in
   let color = "lightblue" in
   case model.editable of
-    True -> [ literalOuterStyle model padding color, eConstFlipFreeze eConstInfo ]
-    _     -> [ literalOuterStyle model padding color ]
+    False -> [ literalOuterStyle model padding color, eConstFlipFreeze eConstInfo ]
+    _  -> [ literalOuterStyle model padding color ]
   
 eConstInnerAttrs model =
   [ Attr.contenteditable model.editable
@@ -529,7 +529,6 @@ view model =
          ]
          options
     in
-    let hExp = Html.div [ Attr.id "theSourceCode" ] [ htmlOfExp model testExp ] in
     {-
     let reparse =
           Html.button
@@ -541,7 +540,8 @@ view model =
       Html.button
          [ Attr.contenteditable False
          , Events.onClick myMailbox.address <| UpdateModel <| \model ->
-           { model | editable = False }
+           let exp = Utils.fromOk_ (Parser.parseE model.code) in
+           { model | exp = exp, editable = False }
          ]
          [ Html.text "viewMode" ] in
     let textMode_btn =
@@ -551,6 +551,7 @@ view model =
             { model | editable = True}
           ]
           [ Html.text "textMode" ] in
+    let hExp = Html.div [ Attr.id "theSourceCode" ] [ htmlOfExp model testExp ] in
     Html.node "div"
        -- turning off contenteditable for now
        [ basicStyle, Attr.contenteditable model.editable ]
