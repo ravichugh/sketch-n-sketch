@@ -629,6 +629,17 @@ prelude =
 
 (def radToDeg (\\rad (* (/ rad (pi)) 180!)))
 
+; Shapes via Bounding Boxes
+
+(def rectangle (\\(fill x y xw yh rot)
+  (let [w h] [(- xw x) (- yh y)]
+  (let [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))]
+    (rotateAround rot cx cy (rect fill x y w h))))))
+
+(def rotatedRect (\\(fill x y w h rot)
+  (let [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))]
+    (rotateAround rot cx cy (rect fill x y w h)))))
+
 ; 0
 ['svg' [] []]
 

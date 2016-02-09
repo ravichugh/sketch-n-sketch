@@ -267,9 +267,23 @@ addRectToCodeAndRun old (x2,y2) (x1,y1) =
     (x, y, w, h) = (xa, ya, xb - xa, yb - ya)
   in
   addToCodeAndRun "rect" old
-    [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h]) ]
-    (eVar0 "rect")
-    (eConst 100 dummyLoc :: List.map eVar ["x","y","w","h"])
+    [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
+    , makeLet ["rot"] [eConst 0 dummyLoc] ]
+    (eVar0 "rotatedRect")
+    (eConst 100 dummyLoc :: List.map eVar ["x","y","w","h","rot"])
+
+{- bounding box version...
+
+addRectToCodeAndRun old (x2,y2) (x1,y1) =
+  let
+    (xa, xb)     = (min x1 x2, max x1 x2)
+    (ya, yb)     = (min y1 y2, max y1 y2)
+  in
+  addToCodeAndRun "rect" old
+    [ makeLet ["x","y","xw","yh","rot"] (makeInts [xa,ya,xb,yb,0]) ]
+    (eVar0 "rectangle")
+    (eConst 100 dummyLoc :: List.map eVar ["x","y","xw","yh","rot"])
+-}
 
 addEllipseToCodeAndRun old (x2,y2) (x1,y1) =
   let
