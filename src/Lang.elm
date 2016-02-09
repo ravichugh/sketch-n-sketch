@@ -586,6 +586,7 @@ dummyTrace = dummyTrace_ unann
 ePlus e1 e2 = withDummyPos <| EOp "" (withDummyRange Plus) [e1,e2] ""
 
 eBool  = withDummyPos << EBase " " << Bool
+eStr   = withDummyPos << EBase " " << String
 eTrue  = eBool True
 eFalse = eBool False
 
@@ -608,12 +609,17 @@ eLets xes eBody = case xes of
                    ELet "\n" Let False (withDummyRange (PVar " " x noWidgetDecl)) e (eLets xes' eBody) ""
   []          -> eBody
 
+eVar0 a        = withDummyPos <| EVar "" a
 eVar a         = withDummyPos <| EVar " " a
+eConst0 a b    = withDummyPos <| EConst "" a b noWidgetDecl
 eConst a b     = withDummyPos <| EConst " " a b noWidgetDecl
+eList0 a b     = withDummyPos <| EList "" a "" b ""
 eList a b      = withDummyPos <| EList " " a "" b ""
 eComment a b   = withDummyPos <| EComment " " a b
 
+pVar0 a        = withDummyRange <| PVar "" a noWidgetDecl
 pVar a         = withDummyRange <| PVar " " a noWidgetDecl
+pList ps       = withDummyRange <| PList " " ps "" Nothing ""
 
 -- note: dummy ids...
 vTrue    = vBool True

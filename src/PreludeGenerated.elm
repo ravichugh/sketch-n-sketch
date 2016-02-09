@@ -390,6 +390,8 @@ prelude =
 (def addShapeToCanvas (\\(['svg' svgAttrs oldShapes] newShape)
   ['svg' svgAttrs (append oldShapes [newShape])]))
 
+(def addShape (flip addShapeToCanvas))
+
 (def groupMap (\\(xs f) (map f xs)))
 
 (def autoChose (\\(_ x _) x))

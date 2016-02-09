@@ -226,12 +226,39 @@ canvasOriginHorizontal old =
     , params.topSection.h + hCode + hMid
     )
 
-strCall = Sync.strCall
-gray    = "420"
+
+--------------------------------------------------------------------------------
+-- New Shapes
+
+type alias TopDef  = (WS, Pat, Exp, WS)
+type alias TopDefs = List TopDef
+
+splitExp : Exp -> (TopDefs, Exp)
+splitExp e =
+  case e.val.e__ of
+    ELet ws1 Def False p1 e1 e2 ws2 ->
+      let (defs, main) = splitExp e2 in
+      ((ws1,p1,e1,ws2)::defs, main)
+    _ ->
+      ([], e)
+
+fuseExp : TopDefs -> Exp -> Exp
+fuseExp defs main =
+  let recurse defs =
+    case defs of
+      [] -> main
+      (ws1,p1,e1,ws2)::defs' ->
+        withDummyPos <| ELet ws1 Def False p1 e1 (recurse defs') ws2
+  in
+  recurse defs
 
 addLineToCodeAndRun old (x2,y2) (x1,y1) =
-  addToCodeAndRun old <|
-    strCall "line" ("'gray'":: "5" :: List.map toString [x1, y1, x2, y2])
+  addToCodeAndRun "line" old
+    [ makeLet ["x1","x2"] (makeInts [x1,x2])
+    , makeLet ["y1","y2"] (makeInts [y1,y2])
+    ]
+    (eVar0 "line")
+    (eStr "gray" :: eStr "5" :: List.map eVar ["x1","y1","x2","y2"])
 
 addRectToCodeAndRun old (x2,y2) (x1,y1) =
   let
@@ -239,8 +266,10 @@ addRectToCodeAndRun old (x2,y2) (x1,y1) =
     (ya, yb)     = (min y1 y2, max y1 y2)
     (x, y, w, h) = (xa, ya, xb - xa, yb - ya)
   in
-  addToCodeAndRun old <|
-    strCall "rect" (gray :: List.map toString [x, y, w, h])
+  addToCodeAndRun "rect" old
+    [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h]) ]
+    (eVar0 "rect")
+    (eConst 100 dummyLoc :: List.map eVar ["x","y","w","h"])
 
 addEllipseToCodeAndRun old (x2,y2) (x1,y1) =
   let
@@ -249,44 +278,100 @@ addEllipseToCodeAndRun old (x2,y2) (x1,y1) =
     (rx, ry) = ((xb-xa)//2, (yb-ya)//2)
     (cx, cy) = (xa + rx, ya + ry)
   in
-  addToCodeAndRun old <|
-    strCall "ellipse" (gray :: List.map toString [cx, cy, rx, ry])
+  addToCodeAndRun "ellipse" old
+    [ makeLet ["cx","cy","rx","ry"] (makeInts [cx,cy,rx,ry]) ]
+    (eVar0 "ellipse")
+    (eConst 200 dummyLoc :: List.map eVar ["cx","cy","rx","ry"])
 
 addAnchorToCodeAndRun old (cx,cy) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)
   let r = 6 in
-  addToCodeAndRun old <|
-    strCall "ghost"
-      [strCall "circle" ("'darkgray'" :: List.map toString [cx, cy, r])]
+  addToCodeAndRun "anchor" old
+    [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r]) ]
+    (eVar0 "ghost")
+    [ withDummyPos (EApp " "
+        (eVar0 "circle")
+        (eStr "darkgray" :: List.map eVar ["cx","cy","r"]) "") ]
 
 addPolygonToCodeAndRun old points =
+  -- TODO string for now, since will unparse anyway...
   let sPoints =
     Utils.bracks <| Utils.spaces <|
       List.map (\(x,y) -> Utils.bracks (Utils.spaces (List.map toString [x,y])))
                (List.reverse points)
   in
-  addToCodeAndRun old <|
-    strCall "polygon" [gray, "'black'", "2", sPoints]
+  addToCodeAndRun "polygon" old
+    [ makeLet ["pts"] [eVar sPoints] ]
+    (eVar0 "polygon")
+    [eConst 300 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "pts"]
 
-addToCodeAndRun old newShape =
-  -- the updated code can be made cleaner if top-level declarations are kept
-  -- separate from the "main" expression
-  let code =
-    let oldCode = Re.replace Re.All (Re.regex "\n") (always "\n  ") old.code in
-    let tmp = "previous" ++ toString old.genSymCount in
-    "(let " ++ tmp ++ "\n" ++
-    "  " ++ oldCode ++ "\n" ++
-    strCall "addShapeToCanvas" [tmp, newShape] ++ ")"
-  in
+addToCodeAndRun newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
+
+  let tmp = newShapeKind ++ toString old.genSymCount in
+  let newDef = makeNewShapeDef tmp newShapeLocals newShapeFunc newShapeArgs in
+  let (defs, main) = splitExp old.inputExp in
+  let code = unparse (fuseExp (defs ++ [newDef]) (addToMain tmp main)) in
+
   upstate Run
     { old | code = code
           , history = addToHistory old.code old.history
           , genSymCount = old.genSymCount + 1
           , mouseMode = MouseNothing }
 
+makeNewShapeDef name locals func args =
+  let newShapeName = withDummyRange (PVar " " name noWidgetDecl) in
+  let newShape = withDummyPos (EApp "\n    " func args "") in
+  let recurse locals =
+    case locals of
+      []             -> newShape
+      (p,e)::locals' -> withDummyPos (ELet "\n  " Let False p e (recurse locals') "")
+  in
+  ("\n\n", newShapeName, recurse locals, "")
+
+makeLet : List Ident -> List Exp -> (Pat, Exp)
+makeLet vars exps =
+  case (vars, exps) of
+    ([x],[e])     -> (pVar x, e)
+    (x::xs,e::es) -> let ps = List.map pVar xs in
+                     let p = pVar0 x in
+                     (pList (p::ps), eList (e::es) Nothing)
+    _             -> Debug.crash "makeLet"
+
+makeInts : List Int -> List Exp
+makeInts nums =
+  case nums of
+    []    -> Debug.crash "makeInts"
+    [n]   -> [eConst0 (toFloat n) dummyLoc]
+    n::ns -> let e = eConst0 (toFloat n) dummyLoc in
+             let es = List.map (\n' -> eConst (toFloat n') dummyLoc) ns in
+             e::es
+
+addToMain tmp main =
+  let callAddShape () =
+    let ws = "\n" in -- TODO take main into account
+    withDummyPos (EApp ws (eVar0 "addShape") [eVar tmp, main] "")
+  in
+  case main.val.e__ of
+    EApp ws1 e1 [e2] ws2 ->
+      case (e1.val.e__, e2.val.e__) of
+        (EVar ws3 "svg", EList ws4 shapes ws5 Nothing ws6) ->
+          let main_ = main.val in
+          let e2_   = e2.val in
+          let e2'   = { e2 | val = { e2_ | e__ = EList ws4 (shapes ++ [eVar tmp]) ws5 Nothing ws6 }} in
+          let main' = { main | val = { main_ | e__ = EApp ws1 e1 [e2'] ws2 } } in
+          if ws1 == "" then addPreceedingWhitespace "\n\n" main'
+          else if ws1 == "\n" then addPreceedingWhitespace "\n" main'
+          else main'
+        _  -> callAddShape ()
+    _      -> callAddShape ()
+
 switchToCursorTool old =
   { old | mouseMode = MouseNothing , toolType = Cursor }
 
+
+--------------------------------------------------------------------------------
+-- Retrieving Selected Attributes
+-- TODO
 
 nodeIdAndAttrNameToVal (nodeId, attrName) tree =
   case Dict.get nodeId tree of
@@ -302,10 +387,6 @@ pluckSelectedVals selectedAttrs slate =
       Nothing  -> acc
   in
   Set.foldl foo [] selectedAttrs
-
-
---------------------------------------------------------------------------------
--- TODO
 
 maybeFindAttr_ id kind attr attrs =
   case Utils.maybeFind attr attrs of
