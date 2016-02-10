@@ -1,5 +1,5 @@
 module InterfaceView2 (view, scaleColorBall , drawNewPolygonDotSize
-                      , boundingBox , squareBoundingBox
+                      , boundingBox , squareBoundingBox , snapLine
                       ) where
 
 --Import the little language and its parsing utilities
@@ -788,7 +788,7 @@ makeZonesPath showZones shape id l =
 
 drawNewShape model =
   case model.mouseMode of
-    MouseDrawNew "line"    [pt2, pt1]    -> drawNewLine pt2 pt1
+    MouseDrawNew "line"    [pt2, pt1]    -> drawNewLine model.keysDown pt2 pt1
     MouseDrawNew "rect"    [pt2, pt1]    -> drawNewRect model.keysDown pt2 pt1
     MouseDrawNew "ellipse" [pt2, pt1]    -> drawNewEllipse model.keysDown pt2 pt1
     MouseDrawNew "polygon" (ptLast::pts) -> drawNewPolygon ptLast pts
@@ -817,12 +817,28 @@ squareBoundingBox (x2,y2) (x1,y1) =
     (False, _    , True ) -> (min x1 x2, max x1 x2, y1, y1 + xDiff)
     (False, _    , False) -> (min x1 x2, max x1 x2, y1 - xDiff, y1)
 
-drawNewLine (x2,y2) (x1,y1) =
+slicesPerQuadrant = 2 -- can toggle this parameter
+radiansPerSlice   = pi / (2 * slicesPerQuadrant)
+
+snapLine keysDown (x2,y2) (x1,y1) =
+  if keysDown == Keys.shift then
+    let (dx, dy) = (x2 - x1, y2 - y1) in
+    let angle = atan2 (toFloat (-dy)) (toFloat dx) in
+    let slice = round (angle / radiansPerSlice) in
+    let r = Utils.distanceInt (x2,y2) (x1,y1) in
+    let xb = toFloat x1 + r * cos (toFloat slice * radiansPerSlice) in
+    let yb = toFloat y1 - r * sin (toFloat slice * radiansPerSlice) in
+    (round xb, round yb)
+  else
+    (x2, y2)
+
+drawNewLine keysDown (x2,y2) (x1,y1) =
+  let (xb, yb) = snapLine keysDown (x2,y2) (x1,y1) in
   let line =
     svgLine [
         defaultStroke , defaultStrokeWidth , defaultOpacity
-      , LangSvg.attr "x1" (toString x2) , LangSvg.attr "y1" (toString y2)
-      , LangSvg.attr "x2" (toString x1) , LangSvg.attr "y2" (toString y1)
+      , LangSvg.attr "x1" (toString x1) , LangSvg.attr "y1" (toString y1)
+      , LangSvg.attr "x2" (toString xb) , LangSvg.attr "y2" (toString yb)
       ]
   in
   [ line ]

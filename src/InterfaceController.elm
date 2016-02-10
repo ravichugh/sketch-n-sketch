@@ -252,10 +252,12 @@ fuseExp defs main =
   in
   recurse defs
 
+-- when line is snapped, not enforcing the angle in code
 addLineToCodeAndRun old (x2,y2) (x1,y1) =
+  let (xb, yb) = View.snapLine old.keysDown (x2,y2) (x1,y1) in
   addToCodeAndRun "line" old
-    [ makeLet ["x1","x2"] (makeInts [x1,x2])
-    , makeLet ["y1","y2"] (makeInts [y1,y2])
+    [ makeLet ["x1","x2"] (makeInts [x1,xb])
+    , makeLet ["y1","y2"] (makeInts [y1,yb])
     ]
     (eVar0 "line")
     (eStr "gray" :: eStr "5" :: List.map eVar ["x1","y1","x2","y2"])
