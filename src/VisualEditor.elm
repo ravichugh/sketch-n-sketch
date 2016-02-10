@@ -308,8 +308,7 @@ htmlOfPVar model x =
 
 htmlOfExp : Model -> Exp -> Html
 htmlOfExp model e =
-  if model.error /= Nothing then Html.text <| Utils.fromJust model.error
-  else if model.editable == True then Html.span [ basicStyle ] [ Html.text model.code ]
+  if model.editable == True then Html.span [ basicStyle ] [ Html.text model.code ]
   else 
   let recurse = htmlOfExp model in
   let e_ = e.val in
@@ -462,10 +461,10 @@ type alias SpanValue = (String, String)
 myMailbox : Mailbox Event
 myMailbox = mailbox (UpdateModel identity)
 
-type ButtonEvent = UpModel | Edit
+type ButtonEvent = UpModel (Maybe String) | Edit
                  
 btnMailbox : Mailbox ButtonEvent
-btnMailbox = mailbox UpModel
+btnMailbox = mailbox (UpModel Nothing)
 
 queryMailbox : Mailbox String
 queryMailbox = mailbox "NOTHING YET"
@@ -541,7 +540,8 @@ view model =
     let viewMode_btn =
       Html.button
          [ Attr.contenteditable False
-         , Events.onClick btnMailbox.address UpModel
+         , Events.onMouseDown btnMailbox.address (UpModel Nothing)
+         , Events.onClick btnMailbox.address (UpModel model.error)
          ]
          [ Html.text "viewMode" ] in
     let textMode_btn =
@@ -564,7 +564,7 @@ events =
 eventsFromJS : Signal Event
 eventsFromJS =
   let foo (id,s) =
-    if id == "theSourceCode" then HtmlUpdate s
+    if id == "update" then HtmlUpdate s
     else if id == "edit" then EnterEdit s
     else SpanValue (id, s)
   in
@@ -576,7 +576,8 @@ port sourceCodeSignalFromJS : Signal (String, String)
 convertBtnEvt : ButtonEvent -> String
 convertBtnEvt evt =
   case evt of
-    UpModel -> "theSourceCode"
+    UpModel Nothing -> "update"
+    UpModel (Just s) -> s
     Edit    -> "edit"
     
 -- port sourceCodeSignalToJS : Signal ()
