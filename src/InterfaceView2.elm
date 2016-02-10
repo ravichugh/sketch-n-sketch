@@ -788,11 +788,11 @@ makeZonesPath showZones shape id l =
 
 drawNewShape model =
   case model.mouseMode of
-    MouseDrawNew "line"    [pt2, pt1]    -> drawNewLine model.keysDown pt2 pt1
+    MouseDrawNew "line"    [pt2, pt1]    -> drawNewLine model pt2 pt1
     MouseDrawNew "rect"    [pt2, pt1]    -> drawNewRect model.keysDown pt2 pt1
     MouseDrawNew "ellipse" [pt2, pt1]    -> drawNewEllipse model.keysDown pt2 pt1
     MouseDrawNew "polygon" (ptLast::pts) -> drawNewPolygon ptLast pts
-    MouseDrawNew "ANCHOR" [pt]           -> drawNewAnchor pt
+    MouseDrawNew "DOT" [pt]              -> drawNewHelperDot pt
     _                                    -> []
 
 defaultOpacity        = Attr.style [("opacity", "0.5")]
@@ -803,6 +803,8 @@ dotFill               = LangSvg.attr "fill" "red"
 dotSize               = LangSvg.attr "r" (toString drawNewPolygonDotSize)
 
 drawNewPolygonDotSize = 10
+
+guideStroke           = LangSvg.attr "stroke" "aqua"
 
 boundingBox : (Int, Int) -> (Int, Int) -> (Int, Int, Int, Int)
 boundingBox (x2,y2) (x1,y1) =
@@ -832,11 +834,12 @@ snapLine keysDown (x2,y2) (x1,y1) =
   else
     (x2, y2)
 
-drawNewLine keysDown (x2,y2) (x1,y1) =
-  let (xb, yb) = snapLine keysDown (x2,y2) (x1,y1) in
+drawNewLine model (x2,y2) (x1,y1) =
+  let stroke = if model.toolType == HelperLine then guideStroke else defaultStroke in
+  let (xb, yb) = snapLine model.keysDown (x2,y2) (x1,y1) in
   let line =
     svgLine [
-        defaultStroke , defaultStrokeWidth , defaultOpacity
+        stroke , defaultStrokeWidth , defaultOpacity
       , LangSvg.attr "x1" (toString x1) , LangSvg.attr "y1" (toString y1)
       , LangSvg.attr "x2" (toString xb) , LangSvg.attr "y2" (toString yb)
       ]
@@ -904,7 +907,7 @@ drawNewPolygon ptLast points =
 
 -- TODO this doesn't appear right away
 -- (dor does initial poly, which appears only on MouseUp...)
-drawNewAnchor (x,y) =
+drawNewHelperDot (x,y) =
   let r = drawNewPolygonDotSize in
   let dot =
     svgCircle [
@@ -1151,7 +1154,9 @@ widgetsTools w h model =
   , twoButtons w h
       (toolButton model Oval)
       (toolButton model Poly)
-  , toolButton model Anchor w h
+  , twoButtons w h
+      (toolButton model HelperLine)
+      (toolButton model HelperDot)
   ]
 
 widgetsToolExtras w h model =
@@ -1519,7 +1524,8 @@ toolButton model tt w h =
     -- Poly -> "P"
     Path -> "-"
     Text -> "-"
-    Anchor -> "(Dot)"
+    HelperLine -> "(Rule)"
+    HelperDot -> "(Dot)"
   in
   let btnKind = if model.toolType == tt then Selected else Unselected in
   simpleButton_ events.address btnKind Noop False

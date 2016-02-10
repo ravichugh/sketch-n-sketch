@@ -255,12 +255,16 @@ fuseExp defs main =
 -- when line is snapped, not enforcing the angle in code
 addLineToCodeAndRun old (x2,y2) (x1,y1) =
   let (xb, yb) = View.snapLine old.keysDown (x2,y2) (x1,y1) in
+  let color = if old.toolType == HelperLine then "aqua" else "gray" in
+  let (f, args) =
+    maybeGhost (old.toolType == HelperLine)
+       (eVar0 "line")
+       (eStr color :: eStr "5" :: List.map eVar ["x1","y1","x2","y2"])
+  in
   addToCodeAndRun "line" old
     [ makeLet ["x1","x2"] (makeInts [x1,xb])
     , makeLet ["y1","y2"] (makeInts [y1,yb])
-    ]
-    (eVar0 "line")
-    (eStr "gray" :: eStr "5" :: List.map eVar ["x1","y1","x2","y2"])
+    ] f args
 
 addRectToCodeAndRun old pt2 pt1 =
   if old.keysDown == Keys.shift then addSquare old pt2 pt1
@@ -319,15 +323,16 @@ addCircle old pt2 pt1 =
     (eVar0 "ellipse")
     (eConst 250 dummyLoc :: List.map eVar ["cx","cy","r","r"])
 
-addAnchorToCodeAndRun old (cx,cy) =
+addHelperDotToCodeAndRun old (cx,cy) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)
   let r = 6 in
-  addToCodeAndRun "anchor" old
+  let (f, args) =
+    ghost (eVar0 "circle")
+          (eStr "aqua" :: List.map eVar ["cx","cy","r"])
+  in
+  addToCodeAndRun "helperDot" old
     [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r]) ]
-    (eVar0 "ghost")
-    [ withDummyPos (EApp " "
-        (eVar0 "circle")
-        (eStr "darkgray" :: List.map eVar ["cx","cy","r"]) "") ]
+    f args
 
 addPolygonToCodeAndRun old points =
   -- TODO string for now, since will unparse anyway...
@@ -400,6 +405,13 @@ addToMain tmp main =
           else main'
         _  -> callAddShape ()
     _      -> callAddShape ()
+
+maybeGhost b f args =
+  if b
+    then (eVar0 "ghost", [ withDummyPos (EApp " " f args "") ])
+    else (f, args)
+
+ghost = maybeGhost True
 
 switchToCursorTool old =
   { old | mouseMode = MouseNothing , toolType = Cursor }
@@ -522,7 +534,8 @@ upstate evt old = case debugLog "Event" evt of
         (MouseNothing, Rect) -> { old | mouseMode = MouseDrawNew "rect" [] }
         (MouseNothing, Oval) -> { old | mouseMode = MouseDrawNew "ellipse" [] }
         (MouseNothing, Poly) -> { old | mouseMode = MouseDrawNew "polygon" [] }
-        (MouseNothing, Anchor) -> { old | mouseMode = MouseDrawNew "ANCHOR" [] }
+        (MouseNothing, HelperDot) -> { old | mouseMode = MouseDrawNew "DOT" [] }
+        (MouseNothing, HelperLine) -> { old | mouseMode = MouseDrawNew "line" [] }
         _                    ->   old
 
     MouseClick click ->
@@ -540,9 +553,9 @@ upstate evt old = case debugLog "Event" evt of
             else if List.length points == 2 then { old | mouseMode = MouseNothing }
             else if List.length points == 1 then switchToCursorTool old
             else addPolygonToCodeAndRun old points
-        MouseDrawNew "ANCHOR" [] ->
+        MouseDrawNew "DOT" [] ->
           let pointOnCanvas = clickToCanvasPoint old click in
-          { old | mouseMode = MouseDrawNew "ANCHOR" [pointOnCanvas] }
+          { old | mouseMode = MouseDrawNew "DOT" [pointOnCanvas] }
         _ ->
           old
 
@@ -640,7 +653,7 @@ upstate evt old = case debugLog "Event" evt of
         (_, MouseDrawNew "line" [pt2, pt1])    -> addLineToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "rect" [pt2, pt1])    -> addRectToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "ellipse" [pt2, pt1]) -> addEllipseToCodeAndRun old pt2 pt1
-        (_, MouseDrawNew "ANCHOR" [pt])        -> addAnchorToCodeAndRun old pt
+        (_, MouseDrawNew "DOT" [pt])           -> addHelperDotToCodeAndRun old pt
         (_, MouseDrawNew "polygon" points)     -> old
 
         _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
