@@ -63,6 +63,7 @@ params =
         , wCaption = 100
         , rBall = "10px"
         , fontSize = "11pt"
+        , font = "Tahoma, sans-serif"
         }
      }
   }

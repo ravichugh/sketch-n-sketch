@@ -236,7 +236,7 @@ buildSvgWidgets wCanvas hCanvas widgets =
       in
       flip Svg.text' [VirtualDom.text cap] <|
         [ attr "fill" "black"
-        , attr "font-family" params.mainSection.widgets.font
+        , attr "font-family" params.mainSection.uiWidgets.font
         , attr "font-size" params.mainSection.uiWidgets.fontSize
         , attr "x" (toString (xi' + wSlider + 10))
         , attr "y" (toString (yi' + 18))
