@@ -261,57 +261,26 @@ addLineToCodeAndRun old (x2,y2) (x1,y1) =
     (eStr "gray" :: eStr "5" :: List.map eVar ["x1","y1","x2","y2"])
 
 addRectToCodeAndRun old pt2 pt1 =
-  if old.keysDown == [16] then addSquare old pt2 pt1
+  if old.keysDown == Keys.shift then addSquare old pt2 pt1
   else addRect old pt2 pt1
 
-addRect old (x2,y2) (x1,y1) =
-  let
-    (xa, xb)     = (min x1 x2, max x1 x2)
-    (ya, yb)     = (min y1 y2, max y1 y2)
-    (x, y, w, h) = (xa, ya, xb - xa, yb - ya)
-  in
+addRect old pt2 pt1 =
+  let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
+  let (x, y, w, h) = (xa, ya, xb - xa, yb - ya) in
   addToCodeAndRun "rect" old
     [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
     , makeLet ["rot"] [eConst 0 dummyLoc] ]
     (eVar0 "rotatedRect")
     (eConst 100 dummyLoc :: List.map eVar ["x","y","w","h","rot"])
 
-addSquare old (x2,y2) (x1,y1) =
-  let (x, y, side) =
-    let (xDiff, yDiff) = (abs (x2 - x1), abs (y2 - y1)) in
-    case (yDiff > xDiff, x1 < x2, y1 < y2) of
-      (True,  True , _    ) -> (x1,         min y1 y2,  yDiff)
-      (True,  False, _    ) -> (x1 - yDiff, min y1 y2,  yDiff)
-      (False, _    , True ) -> (min x1 x2,  y1,         xDiff)
-      (False, _    , False) -> (min x1 x2,  y1 - xDiff, xDiff)
-  in
+addSquare old pt2 pt1 =
+  let (xa, xb, ya, yb) = View.squareBoundingBox pt2 pt1 in
+  let (x, y, side) = (xa, ya, xb - xa) in
   addToCodeAndRun "square" old
     [ makeLet ["x","y","side"] (makeInts [x,y,side])
     , makeLet ["rot"] [eConst 0 dummyLoc] ]
     (eVar0 "rotatedRect")
     (eConst 50 dummyLoc :: List.map eVar ["x","y","side","side","rot"])
-
-{-
-addRectToCodeAndRun old (x2,y2) (x1,y1) =
-  let
-    (xa, xb)     = (min x1 x2, max x1 x2)
-    (ya, yb)     = (min y1 y2, max y1 y2)
-    (x, y, w, h) = (xa, ya, xb - xa, yb - ya)
-  in
-  addToCodeAndRun "rect" old
-    [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
-    , makeLet ["rot"] [eConst 0 dummyLoc] ]
-    (eVar0 "rotatedRect")
-    (eConst 100 dummyLoc :: List.map eVar ["x","y","w","h","rot"])
--}
-
-{-
-  addToCodeAndRun "rect" old
-    [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
-    , makeLet ["rot"] [eConst 0 dummyLoc] ]
-    (eVar0 "rotatedRect")
-    (eConst 100 dummyLoc :: List.map eVar ["x","y","w","h","rot"])
--}
 
 {- bounding box version...
 
@@ -326,17 +295,27 @@ addRectToCodeAndRun old (x2,y2) (x1,y1) =
     (eConst 100 dummyLoc :: List.map eVar ["x","y","xw","yh","rot"])
 -}
 
-addEllipseToCodeAndRun old (x2,y2) (x1,y1) =
-  let
-    (xa, xb) = (min x1 x2, max x1 x2)
-    (ya, yb) = (min y1 y2, max y1 y2)
-    (rx, ry) = ((xb-xa)//2, (yb-ya)//2)
-    (cx, cy) = (xa + rx, ya + ry)
-  in
+addEllipseToCodeAndRun old pt2 pt1 =
+  if old.keysDown == Keys.shift then addCircle old pt2 pt1
+  else addEllipse old pt2 pt1
+
+addEllipse old pt2 pt1 =
+  let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
+  let (rx, ry) = ((xb-xa)//2, (yb-ya)//2) in
+  let (cx, cy) = (xa + rx, ya + ry) in
   addToCodeAndRun "ellipse" old
     [ makeLet ["cx","cy","rx","ry"] (makeInts [cx,cy,rx,ry]) ]
     (eVar0 "ellipse")
     (eConst 200 dummyLoc :: List.map eVar ["cx","cy","rx","ry"])
+
+addCircle old pt2 pt1 =
+  let (xa, xb, ya, yb) = View.squareBoundingBox pt2 pt1 in
+  let r = (xb-xa)//2 in
+  let (cx, cy) = (xa + r, ya + r) in
+  addToCodeAndRun "circle" old
+    [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r]) ]
+    (eVar0 "ellipse")
+    (eConst 250 dummyLoc :: List.map eVar ["cx","cy","r","r"])
 
 addAnchorToCodeAndRun old (cx,cy) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)

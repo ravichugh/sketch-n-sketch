@@ -1,4 +1,5 @@
 module InterfaceView2 (view, scaleColorBall , drawNewPolygonDotSize
+                      , boundingBox , squareBoundingBox
                       ) where
 
 --Import the little language and its parsing utilities
@@ -789,7 +790,7 @@ drawNewShape model =
   case model.mouseMode of
     MouseDrawNew "line"    [pt2, pt1]    -> drawNewLine pt2 pt1
     MouseDrawNew "rect"    [pt2, pt1]    -> drawNewRect model.keysDown pt2 pt1
-    MouseDrawNew "ellipse" [pt2, pt1]    -> drawNewEllipse pt2 pt1
+    MouseDrawNew "ellipse" [pt2, pt1]    -> drawNewEllipse model.keysDown pt2 pt1
     MouseDrawNew "polygon" (ptLast::pts) -> drawNewPolygon ptLast pts
     MouseDrawNew "ANCHOR" [pt]           -> drawNewAnchor pt
     _                                    -> []
@@ -803,6 +804,19 @@ dotSize               = LangSvg.attr "r" (toString drawNewPolygonDotSize)
 
 drawNewPolygonDotSize = 10
 
+boundingBox : (Int, Int) -> (Int, Int) -> (Int, Int, Int, Int)
+boundingBox (x2,y2) (x1,y1) =
+  (min x1 x2, max x1 x2, min y1 y2, max y1 y2)
+
+squareBoundingBox : (Int, Int) -> (Int, Int) -> (Int, Int, Int, Int)
+squareBoundingBox (x2,y2) (x1,y1) =
+  let (xDiff, yDiff) = (abs (x2 - x1), abs (y2 - y1)) in
+  case (yDiff > xDiff, x1 < x2, y1 < y2) of
+    (True,  True , _    ) -> (x1, x1 + yDiff, min y1 y2, max y1 y2)
+    (True,  False, _    ) -> (x1 - yDiff, x1, min y1 y2, max y1 y2)
+    (False, _    , True ) -> (min x1 x2, max x1 x2, y1, y1 + xDiff)
+    (False, _    , False) -> (min x1 x2, max x1 x2, y1 - xDiff, y1)
+
 drawNewLine (x2,y2) (x1,y1) =
   let line =
     svgLine [
@@ -813,17 +827,11 @@ drawNewLine (x2,y2) (x1,y1) =
   in
   [ line ]
 
-drawNewRect keysDown (x2,y2) (x1,y1) =
+drawNewRect keysDown pt2 pt1 =
   let (xa, xb, ya, yb) =
-    if keysDown == Keys.shift then
-      let (xDiff, yDiff) = (abs (x2 - x1), abs (y2 - y1)) in
-      case (yDiff > xDiff, x1 < x2, y1 < y2) of
-        (True,  True , _    ) -> (x1, x1 + yDiff, min y1 y2, max y1 y2)
-        (True,  False, _    ) -> (x1 - yDiff, x1, min y1 y2, max y1 y2)
-        (False, _    , True ) -> (min x1 x2, max x1 x2, y1, y1 + xDiff)
-        (False, _    , False) -> (min x1 x2, max x1 x2, y1 - xDiff, y1)
-    else
-      (min x1 x2, max x1 x2, min y1 y2, max y1 y2)
+    if keysDown == Keys.shift
+    then squareBoundingBox pt2 pt1
+    else boundingBox pt2 pt1
   in
   let rect =
     svgRect [
@@ -834,9 +842,12 @@ drawNewRect keysDown (x2,y2) (x1,y1) =
   in
   [ rect ]
 
-drawNewEllipse (x2,y2) (x1,y1) =
-  let (xa, xb) = (min x1 x2, max x1 x2) in
-  let (ya, yb) = (min y1 y2, max y1 y2) in
+drawNewEllipse keysDown pt2 pt1 =
+  let (xa, xb, ya, yb) =
+    if keysDown == Keys.shift
+    then squareBoundingBox pt2 pt1
+    else boundingBox pt2 pt1
+  in
   let (rx, ry) = ((xb-xa)//2, (yb-ya)//2) in
   let ellipse =
     svgEllipse [
