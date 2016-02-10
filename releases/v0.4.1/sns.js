@@ -15985,7 +15985,7 @@ Elm.Config.make = function (_elm) {
                               ,horizontal: {wExtra: 15,hGut: 10}
                               ,canvas: {border: "0px solid darkGray",hZoneInfo: 40}
                               ,codebox: {border: "none",font: "Courier, monospace",fontSize: "12pt"}
-                              ,uiWidgets: {pad: 5,wSlider: 100,hSlider: 25,wCaption: 100,rBall: "10px",fontSize: "11pt"}}};
+                              ,uiWidgets: {pad: 5,wSlider: 100,hSlider: 25,wCaption: 100,rBall: "10px",fontSize: "11pt",font: "Tahoma, sans-serif"}}};
    var debugLog = F3(function (b,s,x) {    return b ? A2($Debug.log,s,x) : x;});
    var debugStorage = false;
    var debugSync = false;
@@ -21854,7 +21854,7 @@ Elm.InterfaceView2.make = function (_elm) {
             $Svg.text$,
             _U.list([$VirtualDom.text(cap)]),
             _U.list([A2($LangSvg.attr,"fill","black")
-                    ,A2($LangSvg.attr,"font-family",$Config.params.mainSection.widgets.font)
+                    ,A2($LangSvg.attr,"font-family",$Config.params.mainSection.uiWidgets.font)
                     ,A2($LangSvg.attr,"font-size",$Config.params.mainSection.uiWidgets.fontSize)
                     ,A2($LangSvg.attr,"x",$Basics.toString(xi$ + wSlider + 10))
                     ,A2($LangSvg.attr,"y",$Basics.toString(yi$ + 18))]));

@@ -15,21 +15,23 @@
 
       <div class="content_wide">
       <div class="post0">
+        <img width="350px" height="350px" align="right" style="padding: 0 0 30px 30px;"
+             src="__ROOT__/static/images/tutorial/01/sketch-n-sketch.png"/>
         <h1>PLDI 2016 Artifact Evaluation</h1>
 
 <br>
 
 <p>
 <a href="http://arxiv.org/pdf/1507.02988v2.pdf">
-<b>Programmatic and Direct Manipulation, Together at Last</b></a>
-(Paper and Supplementary Appendix, November 2015)
+<b>Programmatic and Direct Manipulation, Together at Last</b></a><br>
+Paper and Supplementary Appendix, November 2015
 </p>
 
 <p>
 To help set the context for evaluating our artifacts, we
 quote some descriptions from our submitted paper:
 <ul>
-<li>
+<li style="margin: 8px 0 0 10px;">
 <i>
 Our implementation, examples, user study videos, and survey instrument (as
 well as additional tutorial documentation) are publicly available and ready for
@@ -37,21 +39,21 @@ Artifact Evaluation.
 </i>
 (p.2)
 </li>
-<li>
+<li style="margin: 8px 0 0 10px;">
 <i>
 Our goal with live synchronization [...] is to immediately apply a program
 update during the user's actions.
 </i>
 (p.4)
 </li>
-<li>
+<li style="margin: 8px 0 0 10px;">
 <i>
 The [examples] resemble typical programs in other functional
 languages, but for the domain of SVG.
 </i>
 (p.7)
 </li>
-<li>
+<li style="margin: 8px 0 0 10px;">
 <i>
 Sketch-n-Sketch is not a full-featured direct manipulation editor, 
 nor is it a polished language implementation with rich
@@ -75,6 +77,8 @@ You can <a href="__ROOT__/releases/v0.4.1/index.html">try Sketch-n-Sketch</a>
 right away by selecting an example using the dropdown menu and then directly
 manipulating the visual output. To edit the program directly, click Edit
 Code, type some changes, and then click Run Code to re-evaluate the program.
+(<a href="https://github.com/ravichugh/sketch-n-sketch/issues/58">Removing the need to click Edit Code</a>
+is a feature that has long been on our TODO list.)
 </p>
 
 <h4>Examples from Paper</h4>
@@ -122,9 +126,10 @@ questions can be found in the Appendix to our paper.
 <p>
 The syntax guide defines the grammar for Little
 as well as the encoding of SVG values.
-To see a variety of Little programs, you may
-<a href="">view the source code</a> for <tt>prelude.little</tt>
-(automatically included in every program) and the examples.
+To see a variety of Little programs, you may view the source code for
+<a href="https://github.com/ravichugh/sketch-n-sketch/blob/pldi2016/examples/prelude.little"><tt>prelude.little</tt></a>
+(automatically included in every program) and the
+<a href="https://github.com/ravichugh/sketch-n-sketch/blob/pldi2016/examples/">examples</a>.
 </p>
 
 <h4><a href="__ROOT__/tutorial/">tutorial</a> (1 &ndash; 5 hours)</h4>
@@ -195,7 +200,7 @@ There are several aspects of our implementation that would
 benefit from optimizations:
 the evaluation of Little programs,
 re-evaluation of Little programs during live mode, and
-the data structures maintained and used by the Sketch-n-Sketch
+the data structures computed and maintained by the
 editor to make heuristic choices and compute triggers.
 Our current approach for each of these is naive, leading
 to some known performance issues:
@@ -203,9 +208,13 @@ to some known performance issues:
 
 <p>
 <ul>
-<li>
-  Sketch-n-Sketch fails to load in Firefox on Linux,
-  crashing with a "too much recursion" error.
+<li style="margin: 8px 0 0 10px;">
+  Sketch-n-Sketch may
+  <a href="https://github.com/ravichugh/sketch-n-sketch/issues/56">fail to load in Firefox on Linux</a>,
+  crashing with a "too much recursion" error. (However, this
+  issue appears to be mitigated in Sketch-n-Sketch v0.4.1,
+  which is the first version we have built with Elm 0.16, the
+  most recent version of the Elm compiler).
   We believe this is due to the default stack size in
   this Firefox configuation. We have run Sketch-n-Sketch
   in Firefox and Chrome on a number of different operating
@@ -214,15 +223,18 @@ to some known performance issues:
   operating system configurations, and let us know if you
   run into issues.
 </li>
-<li>
-  Computing triggers (at the end of one user action in
-  anticipation of the next) sometimes leads to a pause in
-  responsiveness, due to deficiencies in our current
-  implementation. We notice this slowdown only when
-  there are a large number of shapes. For example, the
-  Keyboard Task Before example exhibits noticeable
-  delays user actions have finished when running in
-  Fair Heuristics mode.
+<li style="margin: 8px 0 0 10px;">
+  Preparing for live updates &mdash;
+  (a) using heuristics to compute zone assignments at the end
+  of one user action in anticipation of the next, and
+  (b) computing a mouse trigger when the user makes an initial
+  click on a zone &mdash;
+  sometimes leads to a temporary lack of responsiveness, due to
+  current deficiencies in the data structures we maintain and how we
+  traverse them. We typically notice this slowdown only when there
+  are a large number of shapes.
+  For example, the Keyboard Task Before example exhibits noticeable
+  delays user actions have finished when running in Fair Heuristics mode.
 </li>
 </ul>
 </p>
@@ -265,25 +277,24 @@ yet made an effort to organize and document it in a way that would make it
 easy for others to extend.
 If one wants to poke around anyway, here are a few pointers:
 <ul>
-<li>
-<a href="https://github.com/ravichugh/sketch-n-sketch/blob/f56cabb64c2512e66f1d545c69da2ff4b6f6b442/src/Lang.elm"><tt>Lang.elm</tt></a>
+<li style="margin: 8px 0 0 10px;">
+<a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.4.1/src/Lang.elm"><tt>Lang.elm</tt></a>
 defines the types of expressions and values in Little, without
 any SVG-specific encodings.
 </li>
-<li>
-SVG encodings are defined in <a href="https://github.com/ravichugh/sketch-n-sketch/blob/f56cabb64c2512e66f1d545c69da2ff4b6f6b442/src/LangSvg.elm"><tt>LangSvg.elm</tt></a>.
+<li style="margin: 8px 0 0 10px;">
+SVG encodings are defined in <a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.4.1/src/LangSvg.elm"><tt>LangSvg.elm</tt></a>.
 </li>
-<li>
+<li style="margin: 8px 0 0 10px;">
 The <tt>solve</tt> function in
-<a
-href="https://github.com/ravichugh/sketch-n-sketch/blob/f56cabb64c2512e66f1d545c69da2ff4b6f6b442/src/Sync.elm"><tt>Sync.elm</tt></a>
+<a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.4.1/src/Sync.elm"><tt>Sync.elm</tt></a>
 is the entry point for our two simple solvers,
 <tt>solveTopDown</tt> (called SolveB in the paper) and
 <tt>simpleSolve</tt> (called SolveA).
 </li>
-<li>
+<li style="margin: 8px 0 0 10px;">
 The <tt>assignTriggers</tt> function in
-<a href="https://github.com/ravichugh/sketch-n-sketch/blob/f56cabb64c2512e66f1d545c69da2ff4b6f6b442/src/Sync.elm"><tt>Sync.elm</tt></a>
+<a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.4.1/src/Sync.elm"><tt>Sync.elm</tt></a>
 is the entry point for assigning triggers using heuristics for disambiguation.
 </li>
 </ul>
