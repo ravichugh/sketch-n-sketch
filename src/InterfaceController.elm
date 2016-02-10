@@ -6,6 +6,7 @@ import LangUnparser exposing (unparse, preceedingWhitespace, addPreceedingWhites
 import Sync
 import Eval
 import Utils
+import Keys
 import InterfaceModel exposing (..)
 import InterfaceView2 as View
 import InterfaceStorage exposing (installSaveState, removeDialog)
@@ -259,6 +260,38 @@ addLineToCodeAndRun old (x2,y2) (x1,y1) =
     (eVar0 "line")
     (eStr "gray" :: eStr "5" :: List.map eVar ["x1","y1","x2","y2"])
 
+addRectToCodeAndRun old pt2 pt1 =
+  if old.keysDown == [16] then addSquare old pt2 pt1
+  else addRect old pt2 pt1
+
+addRect old (x2,y2) (x1,y1) =
+  let
+    (xa, xb)     = (min x1 x2, max x1 x2)
+    (ya, yb)     = (min y1 y2, max y1 y2)
+    (x, y, w, h) = (xa, ya, xb - xa, yb - ya)
+  in
+  addToCodeAndRun "rect" old
+    [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
+    , makeLet ["rot"] [eConst 0 dummyLoc] ]
+    (eVar0 "rotatedRect")
+    (eConst 100 dummyLoc :: List.map eVar ["x","y","w","h","rot"])
+
+addSquare old (x2,y2) (x1,y1) =
+  let (x, y, side) =
+    let (xDiff, yDiff) = (abs (x2 - x1), abs (y2 - y1)) in
+    case (yDiff > xDiff, x1 < x2, y1 < y2) of
+      (True,  True , _    ) -> (x1,         min y1 y2,  yDiff)
+      (True,  False, _    ) -> (x1 - yDiff, min y1 y2,  yDiff)
+      (False, _    , True ) -> (min x1 x2,  y1,         xDiff)
+      (False, _    , False) -> (min x1 x2,  y1 - xDiff, xDiff)
+  in
+  addToCodeAndRun "square" old
+    [ makeLet ["x","y","side"] (makeInts [x,y,side])
+    , makeLet ["rot"] [eConst 0 dummyLoc] ]
+    (eVar0 "rotatedRect")
+    (eConst 50 dummyLoc :: List.map eVar ["x","y","side","side","rot"])
+
+{-
 addRectToCodeAndRun old (x2,y2) (x1,y1) =
   let
     (xa, xb)     = (min x1 x2, max x1 x2)
@@ -270,6 +303,15 @@ addRectToCodeAndRun old (x2,y2) (x1,y1) =
     , makeLet ["rot"] [eConst 0 dummyLoc] ]
     (eVar0 "rotatedRect")
     (eConst 100 dummyLoc :: List.map eVar ["x","y","w","h","rot"])
+-}
+
+{-
+  addToCodeAndRun "rect" old
+    [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
+    , makeLet ["rot"] [eConst 0 dummyLoc] ]
+    (eVar0 "rotatedRect")
+    (eConst 100 dummyLoc :: List.map eVar ["x","y","w","h","rot"])
+-}
 
 {- bounding box version...
 
@@ -956,6 +998,8 @@ upstate evt old = case debugLog "Event" evt of
 
     KeysDown l ->
       -- let _ = Debug.log "keys" (toString l) in
+      { old | keysDown = l }
+
 {-      case old.mode of
           SaveDialog _ -> old
           _ -> case editingMode old of
@@ -983,6 +1027,8 @@ upstate evt old = case debugLog "Event" evt of
               | l == keysDown  -> adjustMidOffsetY old 25
               | otherwise -> old
 -}
+
+{-
       let fire evt = upstate evt old in
 
       case editingMode old of
@@ -1020,6 +1066,7 @@ upstate evt old = case debugLog "Event" evt of
                 else                           fire Noop
 
               _                       -> fire Noop
+-}
 
     CleanCode ->
       let s' = unparse (cleanExp old.inputExp) in
@@ -1059,42 +1106,6 @@ adjustMidOffsetY old dy =
     Horizontal -> { old | midOffsetY = old.midOffsetY + dy }
     Vertical   -> upstate SwitchOrient old
 
-
---------------------------------------------------------------------------------
--- Key Combinations
-
-keysMetaShift           = List.sort [keyMeta, keyShift]
-keysEscShift            = List.sort [keyEsc, keyShift]
-keysEnter               = List.sort [keyEnter]
-keysE                   = List.sort [Char.toCode 'E']
-keysZ                   = List.sort [Char.toCode 'Z']
-keysY                   = List.sort [Char.toCode 'Y']
--- keysShiftZ              = List.sort [keyShift, Char.toCode 'Z']
-keysG                   = List.sort [Char.toCode 'G']
-keysH                   = List.sort [Char.toCode 'H']
-keysO                   = List.sort [Char.toCode 'O']
-keysP                   = List.sort [Char.toCode 'P']
-keysT                   = List.sort [Char.toCode 'T']
-keysS                   = List.sort [Char.toCode 'S']
-keysShiftS              = List.sort [keyShift, Char.toCode 'S']
-keysLeft                = List.sort [keyLeft]
-keysRight               = List.sort [keyRight]
-keysUp                  = List.sort [keyUp]
-keysDown                = List.sort [keyDown]
-keysShiftLeft           = List.sort [keyShift, keyLeft]
-keysShiftRight          = List.sort [keyShift, keyRight]
-keysShiftUp             = List.sort [keyShift, keyUp]
-keysShiftDown           = List.sort [keyShift, keyDown]
-
-keyEnter                = 13
-keyEsc                  = 27
-keyMeta                 = 91
-keyCtrl                 = 17
-keyShift                = 16
-keyLeft                 = 37
-keyUp                   = 38
-keyRight                = 39
-keyDown                 = 40
 
 
 --------------------------------------------------------------------------------

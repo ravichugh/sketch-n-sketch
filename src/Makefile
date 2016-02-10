@@ -25,10 +25,10 @@ loc:
     InterfaceModel.elm InterfaceView2.elm InterfaceController.elm \
     InterfaceStorage.elm Storage.elm \
     Codebox.elm Native/codeBox.js \
-	Native/toggleAnimationLoopback.js \
+    Native/toggleAnimationLoopback.js \
     Main.elm Config.elm \
     PreludeTemplate.elm ExamplesTemplate.elm \
-    ColorNum.elm
+    ColorNum.elm Keys.elm
 
 littleloc:
 	# wc -l ../examples/*

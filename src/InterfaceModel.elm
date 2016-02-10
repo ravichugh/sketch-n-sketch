@@ -65,6 +65,7 @@ type alias Model =
   , genSymCount : Int
   , toolType : ToolType
   , selectedAttrs : Set.Set (NodeId, String)
+  , keysDown : List Char.KeyCode
   }
 
 type Mode
@@ -284,5 +285,6 @@ sampleModel =
     , genSymCount   = 0
     , toolType      = Cursor
     , selectedAttrs = Set.empty
+    , keysDown      = []
     }
 

@@ -1,5 +1,4 @@
-module InterfaceView2 (view, scaleColorBall
-                      , drawNewPolygonDotSize
+module InterfaceView2 (view, scaleColorBall , drawNewPolygonDotSize
                       ) where
 
 --Import the little language and its parsing utilities
@@ -8,6 +7,7 @@ import LangParser2 as Parser exposing (parseE)
 import Sync
 import Eval
 import Utils
+import Keys
 import InterfaceModel exposing (..)
 import LangSvg exposing (toNum, toNumTr, addi, attr)
 import ExamplesGenerated as Examples
@@ -788,7 +788,7 @@ makeZonesPath showZones shape id l =
 drawNewShape model =
   case model.mouseMode of
     MouseDrawNew "line"    [pt2, pt1]    -> drawNewLine pt2 pt1
-    MouseDrawNew "rect"    [pt2, pt1]    -> drawNewRect pt2 pt1
+    MouseDrawNew "rect"    [pt2, pt1]    -> drawNewRect model.keysDown pt2 pt1
     MouseDrawNew "ellipse" [pt2, pt1]    -> drawNewEllipse pt2 pt1
     MouseDrawNew "polygon" (ptLast::pts) -> drawNewPolygon ptLast pts
     MouseDrawNew "ANCHOR" [pt]           -> drawNewAnchor pt
@@ -813,9 +813,18 @@ drawNewLine (x2,y2) (x1,y1) =
   in
   [ line ]
 
-drawNewRect (x2,y2) (x1,y1) =
-  let (xa, xb) = (min x1 x2, max x1 x2) in
-  let (ya, yb) = (min y1 y2, max y1 y2) in
+drawNewRect keysDown (x2,y2) (x1,y1) =
+  let (xa, xb, ya, yb) =
+    if keysDown == Keys.shift then
+      let (xDiff, yDiff) = (abs (x2 - x1), abs (y2 - y1)) in
+      case (yDiff > xDiff, x1 < x2, y1 < y2) of
+        (True,  True , _    ) -> (x1, x1 + yDiff, min y1 y2, max y1 y2)
+        (True,  False, _    ) -> (x1 - yDiff, x1, min y1 y2, max y1 y2)
+        (False, _    , True ) -> (min x1 x2, max x1 x2, y1, y1 + xDiff)
+        (False, _    , False) -> (min x1 x2, max x1 x2, y1 - xDiff, y1)
+    else
+      (min x1 x2, max x1 x2, min y1 y2, max y1 y2)
+  in
   let rect =
     svgRect [
         defaultFill , defaultOpacity
