@@ -308,7 +308,8 @@ htmlOfPVar model x =
 
 htmlOfExp : Model -> Exp -> Html
 htmlOfExp model e =
-  if model.editable == True then Html.span [ basicStyle ] [ Html.text model.code ]
+  if model.error /= Nothing then Html.text <| Utils.fromJust model.error
+  else if model.editable == True then Html.span [ basicStyle ] [ Html.text model.code ]
   else 
   let recurse = htmlOfExp model in
   let e_ = e.val in
@@ -475,6 +476,7 @@ type alias Model =
   , exp  : Exp
   , editable : Bool 
   , textChangedAt : Maybe Time
+  , error : Maybe String
   }
 
 initModel =
@@ -483,6 +485,7 @@ initModel =
   , exp  = Utils.fromOk_ (Parser.parseE Ex.scratch)
   , editable = False
   , textChangedAt = Nothing
+  , error = Nothing
   }
 
 upstate : Event -> Model -> Model
@@ -491,8 +494,8 @@ upstate evt model =
     UpdateModel f -> f model
     HtmlUpdate code ->
       case Parser.parseE code of
-        Err _  -> model
-        Ok exp -> { model | exp = exp, code = code, textChangedAt = Nothing }
+        Err s  ->  { model | error = Just s }
+        Ok exp -> { model | exp = exp, code = code, editable = False, textChangedAt = Nothing, error = Nothing }
     SpanValue (x, x') ->
       if x == x' || String.contains " " x'
         then model
@@ -531,19 +534,14 @@ view model =
              let (name,code) = Utils.geti (i+1) Ex.examples in
              Signal.message myMailbox.address <| UpdateModel <| \_ ->
                let exp = Utils.fromOk_ (Parser.parseE code) in
-               { name = name, code = code, exp = exp, editable = False, textChangedAt = Nothing }
+               { name = name, code = code, exp = exp, editable = False, textChangedAt = Nothing, error = Nothing }
          ]
          options
     in
-    -- this is ad hoc: it works because mousedown event is triggered before onclick event.
     let viewMode_btn =
       Html.button
          [ Attr.contenteditable False
-         , Events.onMouseDown btnMailbox.address UpModel
-         , Events.onClick myMailbox.address <| UpdateModel <| \model ->
-           case Parser.parseE model.code of
-             Ok exp -> { model | exp = exp, editable = False }
-             Err _  -> { model | editable = False }
+         , Events.onClick btnMailbox.address UpModel
          ]
          [ Html.text "viewMode" ] in
     let textMode_btn =
