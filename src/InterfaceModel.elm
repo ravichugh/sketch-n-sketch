@@ -282,7 +282,9 @@ sampleModel =
                       }
     , basicCodeBox  = False
     , errorBox      = Nothing
-    , genSymCount   = 0
+    -- starting at 1 to match shape ids on blank canvas
+    -- , genSymCount   = 0
+    , genSymCount   = 1
     , toolType      = Cursor
     , selectedAttrs = Set.empty
     , keysDown      = []
