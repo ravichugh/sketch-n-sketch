@@ -1127,7 +1127,9 @@ widgetsToolExtras w h model =
     SelectAttrs  -> [ gap , relateAttrsButton w h ]
 -}
     Cursor       -> if model.showZones == showZonesSelect
-                    then gap :: (zoneButtons model w h) ++ [ relateAttrsButton w h, digHoleButton w h]
+                    then gap :: (zoneButtons model w h)
+                             ++ [ gap, twoButtons w h relateAttrsButton digHoleButton ]
+                             -- ++ [ relateAttrsButton w h, digHoleButton w h]
                     else gap :: (zoneButtons model w h)
     SelectShapes -> [ gap , relateShapesButton w h ]
     _            -> []
@@ -1389,32 +1391,36 @@ syncButton =
   simpleButton Sync "Sync" "Sync the code to the canvas" "Sync"
 
 relateAttrsButton =
-  simpleButton RelateAttrs "Relate" "Relate" "Relate Attrs"
+  simpleButton RelateAttrs "Relate" "Relate" "Relate" -- "Relate Attrs"
 
 digHoleButton =
-  simpleButton DigHole "unused?" "unused?" "Dig Hole"
+  simpleButton DigHole "unused?" "unused?" "Dig" -- "Dig Hole"
 
 relateShapesButton =
   simpleButton RelateShapes "Relate" "Relate" "Relate Shapes"
 
 zoneButtons model w h =
   let caption mode =
-    if mode == showZonesNone        then "[Zones] Hidden"
-    else if mode == showZonesBasic  then "[Zones] Basic"
-    else if mode == showZonesSelect then "[Zones] Attrs"
-    else if mode == showZonesExtra  then "[Zones] Extra"
+    if mode == showZonesNone        then "Hide" -- "[Zones] Hidden"
+    else if mode == showZonesBasic  then "Show" -- "[Zones] Basic"
+    else if mode == showZonesSelect then "Attrs" -- "[Zones] Attrs"
+    else if mode == showZonesExtra  then "Extra" -- "[Zones] Extra"
     else if mode == showZonesDel    then Debug.crash "[Zones] Delete"
     else
       Debug.crash "zoneButton caption"
   in
-  let zoneButton mode =
+  let zoneButton mode w h =
     let selected = (model.showZones == mode) in
     let btnKind = if selected then Selected else Unselected in
-      simpleButton_ events.address btnKind Noop False (SelectZonesMode mode) "Still dunno what this does" "Dunno what this is for" (caption mode) w h
+      simpleButton_ events.address btnKind Noop False (SelectZonesMode mode)
+        "Still dunno what this does" "Dunno what this is for" (caption mode) w h
   in
     -- Delete turned off for now
     -- List.map zoneButton showZonesModes
-    List.map zoneButton [ 0 .. (showZonesModeCount - 1 - 1) ]
+    -- List.map zoneButton [ 0 .. (showZonesModeCount - 1 - 1) ]
+    [ twoButtons w h (zoneButton showZonesNone) (zoneButton showZonesBasic)
+    , twoButtons w h (zoneButton showZonesExtra) (zoneButton showZonesSelect)
+    ]
 
 {-
 shapeButton model =
