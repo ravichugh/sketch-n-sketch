@@ -6,6 +6,7 @@ import LangUnparser exposing (unparse, preceedingWhitespace, addPreceedingWhites
 import Sync
 import Eval
 import Utils
+import Keys
 import InterfaceModel exposing (..)
 import InterfaceView2 as View
 import InterfaceStorage exposing (installSaveState, removeDialog)
@@ -85,13 +86,12 @@ switchOrient m = case m of
   Vertical -> Horizontal
   Horizontal -> Vertical
 
+{- -- TODO turning off delete zones for now
 toggleShowZones x = (1 + x) % showZonesModeCount
-{- -- TODO turning off rotation zones for now
+-}
 toggleShowZones x =
   let i = (1 + x) % showZonesModeCount in
-  if | i == showZonesRot -> toggleShowZones i
-     | otherwise         -> i
--}
+  if i == showZonesDel then toggleShowZones i else i
 
 -- if delete mode is not applicable but set, use oldMode instead
 maybeLeaveDeleteMode newModel oldShowZones =
@@ -252,46 +252,87 @@ fuseExp defs main =
   in
   recurse defs
 
+-- when line is snapped, not enforcing the angle in code
 addLineToCodeAndRun old (x2,y2) (x1,y1) =
+  let (xb, yb) = View.snapLine old.keysDown (x2,y2) (x1,y1) in
+  let color = if old.toolType == HelperLine then "aqua" else "gray" in
+  let (f, args) =
+    maybeGhost (old.toolType == HelperLine)
+       (eVar0 "line")
+       (eStr color :: eStr "5" :: List.map eVar ["x1","y1","x2","y2"])
+  in
   addToCodeAndRun "line" old
-    [ makeLet ["x1","x2"] (makeInts [x1,x2])
-    , makeLet ["y1","y2"] (makeInts [y1,y2])
-    ]
-    (eVar0 "line")
-    (eStr "gray" :: eStr "5" :: List.map eVar ["x1","y1","x2","y2"])
+    [ makeLet ["x1","x2"] (makeInts [x1,xb])
+    , makeLet ["y1","y2"] (makeInts [y1,yb])
+    ] f args
+
+addRectToCodeAndRun old pt2 pt1 =
+  if old.keysDown == Keys.shift then addSquare old pt2 pt1
+  else addRect old pt2 pt1
+
+addRect old pt2 pt1 =
+  let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
+  let (x, y, w, h) = (xa, ya, xb - xa, yb - ya) in
+  addToCodeAndRun "rect" old
+    [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
+    , makeLet ["rot"] [eConst 0 dummyLoc] ]
+    (eVar0 "rotatedRect")
+    (eConst 100 dummyLoc :: List.map eVar ["x","y","w","h","rot"])
+
+addSquare old pt2 pt1 =
+  let (xa, xb, ya, yb) = View.squareBoundingBox pt2 pt1 in
+  let (x, y, side) = (xa, ya, xb - xa) in
+  addToCodeAndRun "square" old
+    [ makeLet ["x","y","side"] (makeInts [x,y,side])
+    , makeLet ["rot"] [eConst 0 dummyLoc] ]
+    (eVar0 "rotatedRect")
+    (eConst 50 dummyLoc :: List.map eVar ["x","y","side","side","rot"])
+
+{- bounding box version...
 
 addRectToCodeAndRun old (x2,y2) (x1,y1) =
   let
     (xa, xb)     = (min x1 x2, max x1 x2)
     (ya, yb)     = (min y1 y2, max y1 y2)
-    (x, y, w, h) = (xa, ya, xb - xa, yb - ya)
   in
   addToCodeAndRun "rect" old
-    [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h]) ]
-    (eVar0 "rect")
-    (eConst 100 dummyLoc :: List.map eVar ["x","y","w","h"])
+    [ makeLet ["x","y","xw","yh","rot"] (makeInts [xa,ya,xb,yb,0]) ]
+    (eVar0 "rectangle")
+    (eConst 100 dummyLoc :: List.map eVar ["x","y","xw","yh","rot"])
+-}
 
-addEllipseToCodeAndRun old (x2,y2) (x1,y1) =
-  let
-    (xa, xb) = (min x1 x2, max x1 x2)
-    (ya, yb) = (min y1 y2, max y1 y2)
-    (rx, ry) = ((xb-xa)//2, (yb-ya)//2)
-    (cx, cy) = (xa + rx, ya + ry)
-  in
+addEllipseToCodeAndRun old pt2 pt1 =
+  if old.keysDown == Keys.shift then addCircle old pt2 pt1
+  else addEllipse old pt2 pt1
+
+addEllipse old pt2 pt1 =
+  let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
+  let (rx, ry) = ((xb-xa)//2, (yb-ya)//2) in
+  let (cx, cy) = (xa + rx, ya + ry) in
   addToCodeAndRun "ellipse" old
     [ makeLet ["cx","cy","rx","ry"] (makeInts [cx,cy,rx,ry]) ]
     (eVar0 "ellipse")
     (eConst 200 dummyLoc :: List.map eVar ["cx","cy","rx","ry"])
 
-addAnchorToCodeAndRun old (cx,cy) =
+addCircle old pt2 pt1 =
+  let (xa, xb, ya, yb) = View.squareBoundingBox pt2 pt1 in
+  let r = (xb-xa)//2 in
+  let (cx, cy) = (xa + r, ya + r) in
+  addToCodeAndRun "circle" old
+    [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r]) ]
+    (eVar0 "ellipse")
+    (eConst 250 dummyLoc :: List.map eVar ["cx","cy","r","r"])
+
+addHelperDotToCodeAndRun old (cx,cy) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)
   let r = 6 in
-  addToCodeAndRun "anchor" old
+  let (f, args) =
+    ghost (eVar0 "circle")
+          (eStr "aqua" :: List.map eVar ["cx","cy","r"])
+  in
+  addToCodeAndRun "helperDot" old
     [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r]) ]
-    (eVar0 "ghost")
-    [ withDummyPos (EApp " "
-        (eVar0 "circle")
-        (eStr "darkgray" :: List.map eVar ["cx","cy","r"]) "") ]
+    f args
 
 addPolygonToCodeAndRun old points =
   -- TODO string for now, since will unparse anyway...
@@ -364,6 +405,13 @@ addToMain tmp main =
           else main'
         _  -> callAddShape ()
     _      -> callAddShape ()
+
+maybeGhost b f args =
+  if b
+    then (eVar0 "ghost", [ withDummyPos (EApp " " f args "") ])
+    else (f, args)
+
+ghost = maybeGhost True
 
 switchToCursorTool old =
   { old | mouseMode = MouseNothing , toolType = Cursor }
@@ -486,7 +534,8 @@ upstate evt old = case debugLog "Event" evt of
         (MouseNothing, Rect) -> { old | mouseMode = MouseDrawNew "rect" [] }
         (MouseNothing, Oval) -> { old | mouseMode = MouseDrawNew "ellipse" [] }
         (MouseNothing, Poly) -> { old | mouseMode = MouseDrawNew "polygon" [] }
-        (MouseNothing, Anchor) -> { old | mouseMode = MouseDrawNew "ANCHOR" [] }
+        (MouseNothing, HelperDot) -> { old | mouseMode = MouseDrawNew "DOT" [] }
+        (MouseNothing, HelperLine) -> { old | mouseMode = MouseDrawNew "line" [] }
         _                    ->   old
 
     MouseClick click ->
@@ -504,9 +553,9 @@ upstate evt old = case debugLog "Event" evt of
             else if List.length points == 2 then { old | mouseMode = MouseNothing }
             else if List.length points == 1 then switchToCursorTool old
             else addPolygonToCodeAndRun old points
-        MouseDrawNew "ANCHOR" [] ->
+        MouseDrawNew "DOT" [] ->
           let pointOnCanvas = clickToCanvasPoint old click in
-          { old | mouseMode = MouseDrawNew "ANCHOR" [pointOnCanvas] }
+          { old | mouseMode = MouseDrawNew "DOT" [pointOnCanvas] }
         _ ->
           old
 
@@ -604,7 +653,7 @@ upstate evt old = case debugLog "Event" evt of
         (_, MouseDrawNew "line" [pt2, pt1])    -> addLineToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "rect" [pt2, pt1])    -> addRectToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "ellipse" [pt2, pt1]) -> addEllipseToCodeAndRun old pt2 pt1
-        (_, MouseDrawNew "ANCHOR" [pt])        -> addAnchorToCodeAndRun old pt
+        (_, MouseDrawNew "DOT" [pt])           -> addHelperDotToCodeAndRun old pt
         (_, MouseDrawNew "polygon" points)     -> old
 
         _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
@@ -943,6 +992,8 @@ upstate evt old = case debugLog "Event" evt of
 
     KeysDown l ->
       -- let _ = Debug.log "keys" (toString l) in
+      { old | keysDown = l }
+
 {-      case old.mode of
           SaveDialog _ -> old
           _ -> case editingMode old of
@@ -970,6 +1021,8 @@ upstate evt old = case debugLog "Event" evt of
               | l == keysDown  -> adjustMidOffsetY old 25
               | otherwise -> old
 -}
+
+{-
       let fire evt = upstate evt old in
 
       case editingMode old of
@@ -1007,6 +1060,7 @@ upstate evt old = case debugLog "Event" evt of
                 else                           fire Noop
 
               _                       -> fire Noop
+-}
 
     CleanCode ->
       let s' = unparse (cleanExp old.inputExp) in
@@ -1046,42 +1100,6 @@ adjustMidOffsetY old dy =
     Horizontal -> { old | midOffsetY = old.midOffsetY + dy }
     Vertical   -> upstate SwitchOrient old
 
-
---------------------------------------------------------------------------------
--- Key Combinations
-
-keysMetaShift           = List.sort [keyMeta, keyShift]
-keysEscShift            = List.sort [keyEsc, keyShift]
-keysEnter               = List.sort [keyEnter]
-keysE                   = List.sort [Char.toCode 'E']
-keysZ                   = List.sort [Char.toCode 'Z']
-keysY                   = List.sort [Char.toCode 'Y']
--- keysShiftZ              = List.sort [keyShift, Char.toCode 'Z']
-keysG                   = List.sort [Char.toCode 'G']
-keysH                   = List.sort [Char.toCode 'H']
-keysO                   = List.sort [Char.toCode 'O']
-keysP                   = List.sort [Char.toCode 'P']
-keysT                   = List.sort [Char.toCode 'T']
-keysS                   = List.sort [Char.toCode 'S']
-keysShiftS              = List.sort [keyShift, Char.toCode 'S']
-keysLeft                = List.sort [keyLeft]
-keysRight               = List.sort [keyRight]
-keysUp                  = List.sort [keyUp]
-keysDown                = List.sort [keyDown]
-keysShiftLeft           = List.sort [keyShift, keyLeft]
-keysShiftRight          = List.sort [keyShift, keyRight]
-keysShiftUp             = List.sort [keyShift, keyUp]
-keysShiftDown           = List.sort [keyShift, keyDown]
-
-keyEnter                = 13
-keyEsc                  = 27
-keyMeta                 = 91
-keyCtrl                 = 17
-keyShift                = 16
-keyLeft                 = 37
-keyUp                   = 38
-keyRight                = 39
-keyDown                 = 40
 
 
 --------------------------------------------------------------------------------

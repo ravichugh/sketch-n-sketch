@@ -1,5 +1,5 @@
-module InterfaceView2 (view, scaleColorBall
-                      , drawNewPolygonDotSize
+module InterfaceView2 (view, scaleColorBall , drawNewPolygonDotSize
+                      , boundingBox , squareBoundingBox , snapLine
                       ) where
 
 --Import the little language and its parsing utilities
@@ -8,6 +8,7 @@ import LangParser2 as Parser exposing (parseE)
 import Sync
 import Eval
 import Utils
+import Keys
 import InterfaceModel exposing (..)
 import LangSvg exposing (toNum, toNumTr, addi, attr)
 import ExamplesGenerated as Examples
@@ -141,8 +142,7 @@ optionsOf : ShowZones -> ZoneOptions
 optionsOf x =
   if x == showZonesNone       then { zoneOptions0 | addBasic = True }
   else if x == showZonesBasic then { zoneOptions0 | addBasic = True, showBasic = True }
-  else if x == showZonesRot   then { zoneOptions0 | addRot = True }
-  else if x == showZonesColor then { zoneOptions0 | addColor = True }
+  else if x == showZonesExtra then { zoneOptions0 | addRot = True, addColor = True }
   else if x == showZonesDel   then { zoneOptions0 | addDelete = True }
   else if x == showZonesSelect then { zoneOptions0 | addSelect = True }
   else
@@ -788,11 +788,11 @@ makeZonesPath showZones shape id l =
 
 drawNewShape model =
   case model.mouseMode of
-    MouseDrawNew "line"    [pt2, pt1]    -> drawNewLine pt2 pt1
-    MouseDrawNew "rect"    [pt2, pt1]    -> drawNewRect pt2 pt1
-    MouseDrawNew "ellipse" [pt2, pt1]    -> drawNewEllipse pt2 pt1
+    MouseDrawNew "line"    [pt2, pt1]    -> drawNewLine model pt2 pt1
+    MouseDrawNew "rect"    [pt2, pt1]    -> drawNewRect model.keysDown pt2 pt1
+    MouseDrawNew "ellipse" [pt2, pt1]    -> drawNewEllipse model.keysDown pt2 pt1
     MouseDrawNew "polygon" (ptLast::pts) -> drawNewPolygon ptLast pts
-    MouseDrawNew "ANCHOR" [pt]           -> drawNewAnchor pt
+    MouseDrawNew "DOT" [pt]              -> drawNewHelperDot pt
     _                                    -> []
 
 defaultOpacity        = Attr.style [("opacity", "0.5")]
@@ -804,19 +804,54 @@ dotSize               = LangSvg.attr "r" (toString drawNewPolygonDotSize)
 
 drawNewPolygonDotSize = 10
 
-drawNewLine (x2,y2) (x1,y1) =
+guideStroke           = LangSvg.attr "stroke" "aqua"
+
+boundingBox : (Int, Int) -> (Int, Int) -> (Int, Int, Int, Int)
+boundingBox (x2,y2) (x1,y1) =
+  (min x1 x2, max x1 x2, min y1 y2, max y1 y2)
+
+squareBoundingBox : (Int, Int) -> (Int, Int) -> (Int, Int, Int, Int)
+squareBoundingBox (x2,y2) (x1,y1) =
+  let (xDiff, yDiff) = (abs (x2 - x1), abs (y2 - y1)) in
+  case (yDiff > xDiff, x1 < x2, y1 < y2) of
+    (True,  True , _    ) -> (x1, x1 + yDiff, min y1 y2, max y1 y2)
+    (True,  False, _    ) -> (x1 - yDiff, x1, min y1 y2, max y1 y2)
+    (False, _    , True ) -> (min x1 x2, max x1 x2, y1, y1 + xDiff)
+    (False, _    , False) -> (min x1 x2, max x1 x2, y1 - xDiff, y1)
+
+slicesPerQuadrant = 2 -- can toggle this parameter
+radiansPerSlice   = pi / (2 * slicesPerQuadrant)
+
+snapLine keysDown (x2,y2) (x1,y1) =
+  if keysDown == Keys.shift then
+    let (dx, dy) = (x2 - x1, y2 - y1) in
+    let angle = atan2 (toFloat (-dy)) (toFloat dx) in
+    let slice = round (angle / radiansPerSlice) in
+    let r = Utils.distanceInt (x2,y2) (x1,y1) in
+    let xb = toFloat x1 + r * cos (toFloat slice * radiansPerSlice) in
+    let yb = toFloat y1 - r * sin (toFloat slice * radiansPerSlice) in
+    (round xb, round yb)
+  else
+    (x2, y2)
+
+drawNewLine model (x2,y2) (x1,y1) =
+  let stroke = if model.toolType == HelperLine then guideStroke else defaultStroke in
+  let (xb, yb) = snapLine model.keysDown (x2,y2) (x1,y1) in
   let line =
     svgLine [
-        defaultStroke , defaultStrokeWidth , defaultOpacity
-      , LangSvg.attr "x1" (toString x2) , LangSvg.attr "y1" (toString y2)
-      , LangSvg.attr "x2" (toString x1) , LangSvg.attr "y2" (toString y1)
+        stroke , defaultStrokeWidth , defaultOpacity
+      , LangSvg.attr "x1" (toString x1) , LangSvg.attr "y1" (toString y1)
+      , LangSvg.attr "x2" (toString xb) , LangSvg.attr "y2" (toString yb)
       ]
   in
   [ line ]
 
-drawNewRect (x2,y2) (x1,y1) =
-  let (xa, xb) = (min x1 x2, max x1 x2) in
-  let (ya, yb) = (min y1 y2, max y1 y2) in
+drawNewRect keysDown pt2 pt1 =
+  let (xa, xb, ya, yb) =
+    if keysDown == Keys.shift
+    then squareBoundingBox pt2 pt1
+    else boundingBox pt2 pt1
+  in
   let rect =
     svgRect [
         defaultFill , defaultOpacity
@@ -826,9 +861,12 @@ drawNewRect (x2,y2) (x1,y1) =
   in
   [ rect ]
 
-drawNewEllipse (x2,y2) (x1,y1) =
-  let (xa, xb) = (min x1 x2, max x1 x2) in
-  let (ya, yb) = (min y1 y2, max y1 y2) in
+drawNewEllipse keysDown pt2 pt1 =
+  let (xa, xb, ya, yb) =
+    if keysDown == Keys.shift
+    then squareBoundingBox pt2 pt1
+    else boundingBox pt2 pt1
+  in
   let (rx, ry) = ((xb-xa)//2, (yb-ya)//2) in
   let ellipse =
     svgEllipse [
@@ -869,7 +907,7 @@ drawNewPolygon ptLast points =
 
 -- TODO this doesn't appear right away
 -- (dor does initial poly, which appears only on MouseUp...)
-drawNewAnchor (x,y) =
+drawNewHelperDot (x,y) =
   let r = drawNewPolygonDotSize in
   let dot =
     svgCircle [
@@ -1116,7 +1154,9 @@ widgetsTools w h model =
   , twoButtons w h
       (toolButton model Oval)
       (toolButton model Poly)
-  , toolButton model Anchor w h
+  , twoButtons w h
+      (toolButton model HelperLine)
+      (toolButton model HelperDot)
   ]
 
 widgetsToolExtras w h model =
@@ -1128,7 +1168,9 @@ widgetsToolExtras w h model =
     SelectAttrs  -> [ gap , relateAttrsButton w h ]
 -}
     Cursor       -> if model.showZones == showZonesSelect
-                    then gap :: (zoneButtons model w h) ++ [ relateAttrsButton w h, digHoleButton w h]
+                    then gap :: (zoneButtons model w h)
+                             ++ [ gap, twoButtons w h relateAttrsButton digHoleButton ]
+                             -- ++ [ relateAttrsButton w h, digHoleButton w h]
                     else gap :: (zoneButtons model w h)
     SelectShapes -> [ gap , relateShapesButton w h ]
     _            -> []
@@ -1390,31 +1432,36 @@ syncButton =
   simpleButton Sync "Sync" "Sync the code to the canvas" "Sync"
 
 relateAttrsButton =
-  simpleButton RelateAttrs "Relate" "Relate" "Relate Attrs"
+  simpleButton RelateAttrs "Relate" "Relate" "Relate" -- "Relate Attrs"
 
 digHoleButton =
-  simpleButton DigHole "unused?" "unused?" "Dig Hole"
+  simpleButton DigHole "unused?" "unused?" "Dig" -- "Dig Hole"
 
 relateShapesButton =
   simpleButton RelateShapes "Relate" "Relate" "Relate Shapes"
 
 zoneButtons model w h =
   let caption mode =
-    if mode == showZonesNone        then "[Zones] Hidden"
-    else if mode == showZonesBasic  then "[Zones] Basic"
-    else if mode == showZonesSelect then "[Zones] Attrs"
-    else if mode == showZonesRot    then "[Zones] Rotation"
-    else if mode == showZonesColor  then "[Zones] Color"
-    else if mode == showZonesDel    then "[Zones] Delete"
+    if mode == showZonesNone        then "Hide" -- "[Zones] Hidden"
+    else if mode == showZonesBasic  then "Show" -- "[Zones] Basic"
+    else if mode == showZonesSelect then "Attrs" -- "[Zones] Attrs"
+    else if mode == showZonesExtra  then "Extra" -- "[Zones] Extra"
+    else if mode == showZonesDel    then Debug.crash "[Zones] Delete"
     else
       Debug.crash "zoneButton caption"
   in
-  let zoneButton mode =
+  let zoneButton mode w h =
     let selected = (model.showZones == mode) in
     let btnKind = if selected then Selected else Unselected in
-      simpleButton_ events.address btnKind Noop False (SelectZonesMode mode) "Still dunno what this does" "Dunno what this is for" (caption mode) w h
+      simpleButton_ events.address btnKind Noop False (SelectZonesMode mode)
+        "Still dunno what this does" "Dunno what this is for" (caption mode) w h
   in
-    List.map zoneButton showZonesModes
+    -- Delete turned off for now
+    -- List.map zoneButton showZonesModes
+    -- List.map zoneButton [ 0 .. (showZonesModeCount - 1 - 1) ]
+    [ twoButtons w h (zoneButton showZonesNone) (zoneButton showZonesBasic)
+    , twoButtons w h (zoneButton showZonesExtra) (zoneButton showZonesSelect)
+    ]
 
 {-
 shapeButton model =
@@ -1477,7 +1524,8 @@ toolButton model tt w h =
     -- Poly -> "P"
     Path -> "-"
     Text -> "-"
-    Anchor -> "(Dot)"
+    HelperLine -> "(Rule)"
+    HelperDot -> "(Dot)"
   in
   let btnKind = if model.toolType == tt then Selected else Unselected in
   simpleButton_ events.address btnKind Noop False

@@ -65,6 +65,7 @@ type alias Model =
   , genSymCount : Int
   , toolType : ToolType
   , selectedAttrs : Set.Set (NodeId, String)
+  , keysDown : List Char.KeyCode
   }
 
 type Mode
@@ -107,7 +108,7 @@ type MouseMode
       -- invariant on length n of list of points:
       --   for line/rect/ellipse, n == 0 or n == 2
       --   for polygon,           n >= 0
-      --   for anchor,            n == 0 or n == 1
+      --   for helper dot,        n == 0 or n == 1
 
 type alias MouseTrigger a = (Int, Int) -> a
 
@@ -119,18 +120,19 @@ type alias PossibleChange = (Exp, Val, RootedIndexedTree, Code)
 -- InterfaceStorage is more succinct (Enum typeclass would be nice here...)
 type alias ShowZones = Int
 
-showZonesModeCount = 6
+showZonesModeCount = 5
 
 showZonesModes = [ 0 .. (showZonesModeCount - 1) ]
 
-(showZonesNone, showZonesBasic, showZonesSelect, showZonesRot, showZonesColor, showZonesDel) =
-  Utils.unwrap6 showZonesModes
+(showZonesNone, showZonesBasic, showZonesSelect, showZonesExtra, showZonesDel) =
+  Utils.unwrap5 showZonesModes
 
 type ToolType
   = Cursor | SelectAttrs | SelectShapes
   | Line | Rect | Oval
   | Poly | Path | Text
-  | Anchor
+  | HelperDot
+  | HelperLine
 
 type Caption
   = Hovering (Int, ShapeKind, Zone)
@@ -281,8 +283,11 @@ sampleModel =
                       }
     , basicCodeBox  = False
     , errorBox      = Nothing
-    , genSymCount   = 0
+    -- starting at 1 to match shape ids on blank canvas
+    -- , genSymCount   = 0
+    , genSymCount   = 1
     , toolType      = Cursor
     , selectedAttrs = Set.empty
+    , keysDown      = []
     }
 
