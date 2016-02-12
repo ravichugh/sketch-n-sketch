@@ -833,7 +833,9 @@ upstate evt old = case debugLog "Event" evt of
               , slate         = newSlate
               , widgets       = newWidgets
               , previewCode   = Nothing
-              , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal }
+              , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal
+              , selectedAttrs = Set.empty
+        }
 
 
     RelateShapes ->
