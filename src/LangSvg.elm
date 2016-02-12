@@ -403,6 +403,30 @@ valToPath_ vs =
 
 -}
 
+desugarKind shape =
+  case shape of
+    "BOX" -> "rect"
+    _     -> shape
+
+desugarShapeAttrs shape0 attrs0 =
+  Maybe.withDefault (shape0, attrs0) <|
+    case shape0 of
+      "BOX" ->
+        Utils.maybeRemoveFirst "LEFT"  attrs0 `Maybe.andThen` \(vL,attrs1) ->
+        Utils.maybeRemoveFirst "RIGHT" attrs1 `Maybe.andThen` \(vR,attrs2) ->
+        Utils.maybeRemoveFirst "TOP"   attrs2 `Maybe.andThen` \(vT,attrs3) ->
+        Utils.maybeRemoveFirst "BOT"   attrs3 `Maybe.andThen` \(vB,attrs4) ->
+          case (vL.av_, vT.av_, vR.av_, vB.av_) of
+            (ANum (x,_), ANum (y,_), ANum (xw,_), ANum (yh,_)) ->
+              let width = aNum (xw - x, dummyTrace) in
+              let height = aNum (yh - y, dummyTrace) in
+              let attrs = [("x",vL),("y",vT),("width",width),("height",height)] ++ attrs4 in
+              Just ("rect", attrs)
+            _ ->
+              Nothing
+      _ ->
+        Nothing
+
 
 ------------------------------------------------------------------------------
 
@@ -606,7 +630,8 @@ printSvg showWidgets (rootId, tree) =
 printNode showWidgets k slate i =
   case Utils.justGet i slate of
     TextNode s -> s
-    SvgNode kind l1 l2 ->
+    SvgNode kind_ l1_ l2 ->
+      let (kind,l1) = desugarShapeAttrs kind_ l1_ in
       case (showWidgets, Utils.maybeRemoveFirst "HIDDEN" l1) of
         (False, Just _) -> ""
         _ ->
@@ -679,6 +704,17 @@ zones = [
   , ("ellipse",
       [ ("Interior", ["cx", "cy"])
       , ("Edge", ["rx", "ry"])
+      ])
+  , ("BOX",
+      [ ("Interior", ["LEFT", "TOP", "RIGHT", "BOT"])
+      , ("TopLeftCorner", ["LEFT", "TOP"])
+      , ("TopRightCorner", ["TOP", "RIGHT"])
+      , ("BotRightCorner", ["RIGHT", "BOT"])
+      , ("BotLeftCorner", ["LEFT", "BOT"])
+      , ("LeftEdge", ["LEFT"])
+      , ("TopEdge", ["TOP"])
+      , ("RightEdge", ["RIGHT"])
+      , ("BotEdge", ["BOT"])
       ])
   , ("rect",
       [ ("Interior", ["x", "y"])

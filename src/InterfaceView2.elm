@@ -181,7 +181,10 @@ buildSvg_ stuff d i =
             _ -> Debug.crash "buildSvg_"
       in
       let children = List.map (buildSvg_ stuff d) js in
-      let mainshape = (Svg.node shape) (LangSvg.compileAttrs attrs') children in
+      -- let mainshape = (Svg.node shape) (LangSvg.compileAttrs attrs') children in
+      let mainshape =
+        let (rawKind, rawAttrs) = LangSvg.desugarShapeAttrs shape attrs' in
+        (Svg.node rawKind) (LangSvg.compileAttrs rawAttrs) children in
       if zones == []
         then mainshape
         else Svg.svg [] (mainshape :: zones)
@@ -624,50 +627,8 @@ makeZones : Model -> ZoneOptions -> String -> LangSvg.NodeId -> List LangSvg.Att
 makeZones model options shape id l =
   case shape of
 
-    "rect" ->
-        let transform = maybeTransformAttr l in
-        let mk zone x_ y_ w_ h_ =
-          zoneBorder Svg.rect id shape zone True options.showBasic transform <|
-            [ attrNum "x" x_ , attrNum "y" y_
-            , attrNum "width" w_ , attrNum "height" h_
-            ]
-        in
-        let
-          (x,y,w,h)     = Utils.unwrap4 <| List.map (toNum << Utils.find_ l) ["x","y","width","height"]
-          gut           = 0.125
-          (x0,x1,x2)    = (x, x + gut*w, x + (1-gut)*w)
-          (y0,y1,y2)    = (y, y + gut*h, y + (1-gut)*h)
-          (wSlim,wWide) = (gut*w, (1-2*gut)*w)
-          (hSlim,hWide) = (gut*h, (1-2*gut)*h)
-        in
-        let zRot =
-          let c = (x + (w/2), y + (h/2)) in
-          let r = rotZoneDelta + (h/2) in
-          zoneRotate options.addRot id shape c r (maybeTransformCmds l)
-        in
-        let zColor =
-          zoneColor options.addColor id shape x y (maybeColorNumAttr "fill" l)
-        in
-          [ mk "Interior"       x1 y1 wWide hWide
-          , mk "RightEdge"      x2 y1 wSlim hWide
-          , mk "BotRightCorner" x2 y2 wSlim hSlim
-          , mk "BotEdge"        x1 y2 wWide hSlim
-          , mk "BotLeftCorner"  x0 y2 wSlim hSlim
-          , mk "LeftEdge"       x0 y1 wSlim hWide
-          , mk "TopLeftCorner"  x0 y0 wSlim hSlim
-          , mk "TopEdge"        x1 y0 wWide hSlim
-          , mk "TopRightCorner" x2 y0 wSlim hSlim
-          ] ++ zRot
-            ++ zColor
-            ++ zoneDelete options.addDelete id shape x y (maybeTransformAttr l)
-            ++ zoneSelectLine model options.addSelect (id, "width") (x,y+h/2) (x+w,y+h/2)
-            ++ zoneSelectLine model options.addSelect (id, "height") (x+w/2,y) (x+w/2,y+h)
-            ++ zoneSelectCrossDot model options.addSelect (id, ["x"], ["y"]) x y
-            ++ zoneSelectCrossDot model options.addSelect (id, ["x", "width"], ["y"]) (x+w) y
-            ++ zoneSelectCrossDot model options.addSelect (id, ["x"], ["y", "height"]) x (y+h)
-            ++ zoneSelectCrossDot model options.addSelect (id, ["x", "width"], ["y", "height"]) (x+w) (y+h)
-            ++ zoneSelectCrossDot model options.addSelect (id, ["x", "width"], ["y", "height"]) (x+w/2) (y+h/2)
-
+    "rect"    -> makeZonesRect model options shape id l
+    "BOX"     -> makeZonesRect model options shape id l
     "circle"  -> makeZonesCircle  model options id l
     "ellipse" -> makeZonesEllipse model options id l
 
@@ -696,10 +657,68 @@ makeZones model options shape id l =
 
     _ -> []
 
+findNums l attrs = List.map (toNum << Utils.find_ l) attrs
+
+makeZonesRect model options shape id l =
+  let transform = maybeTransformAttr l in
+  let mk zone x_ y_ w_ h_ =
+    zoneBorder Svg.rect id shape zone True options.showBasic transform <|
+      [ attrNum "x" x_ , attrNum "y" y_
+      , attrNum "width" w_ , attrNum "height" h_
+      ]
+  in
+  let
+    (x,y,w,h) =
+      if shape == "rect" then
+        Utils.unwrap4 <| findNums l ["x","y","width","height"]
+      else
+        let (x,y,xw,yh) = Utils.unwrap4 <| findNums l ["LEFT","TOP","RIGHT","BOT"] in
+        (x, y, xw-x, yh-y)
+    gut           = 0.125
+    (x0,x1,x2)    = (x, x + gut*w, x + (1-gut)*w)
+    (y0,y1,y2)    = (y, y + gut*h, y + (1-gut)*h)
+    (wSlim,wWide) = (gut*w, (1-2*gut)*w)
+    (hSlim,hWide) = (gut*h, (1-2*gut)*h)
+  in
+  let zRot =
+    let c = (x + (w/2), y + (h/2)) in
+    let r = rotZoneDelta + (h/2) in
+    zoneRotate options.addRot id shape c r (maybeTransformCmds l)
+  in
+  let zColor =
+    zoneColor options.addColor id shape x y (maybeColorNumAttr "fill" l)
+  in
+  let zonesSelect =
+    if shape == "rect" then
+         zoneSelectLine model options.addSelect (id, "width") (x,y+h/2) (x+w,y+h/2)
+      ++ zoneSelectLine model options.addSelect (id, "height") (x+w/2,y) (x+w/2,y+h)
+      ++ zoneSelectCrossDot model options.addSelect (id, ["x"], ["y"]) x y
+      ++ zoneSelectCrossDot model options.addSelect (id, ["x", "width"], ["y"]) (x+w) y
+      ++ zoneSelectCrossDot model options.addSelect (id, ["x"], ["y", "height"]) x (y+h)
+      ++ zoneSelectCrossDot model options.addSelect (id, ["x", "width"], ["y", "height"]) (x+w) (y+h)
+      ++ zoneSelectCrossDot model options.addSelect (id, ["x", "width"], ["y", "height"]) (x+w/2) (y+h/2)
+    else -- shape == "BOX"
+         zoneSelectCrossDot model options.addSelect (id, ["LEFT"], ["TOP"]) x y
+      ++ zoneSelectCrossDot model options.addSelect (id, ["RIGHT"], ["BOT"]) (x+w) (y+h)
+  in
+    [ mk "Interior"       x1 y1 wWide hWide
+    , mk "RightEdge"      x2 y1 wSlim hWide
+    , mk "BotRightCorner" x2 y2 wSlim hSlim
+    , mk "BotEdge"        x1 y2 wWide hSlim
+    , mk "BotLeftCorner"  x0 y2 wSlim hSlim
+    , mk "LeftEdge"       x0 y1 wSlim hWide
+    , mk "TopLeftCorner"  x0 y0 wSlim hSlim
+    , mk "TopEdge"        x1 y0 wWide hSlim
+    , mk "TopRightCorner" x2 y0 wSlim hSlim
+    ] ++ zRot
+      ++ zColor
+      ++ zoneDelete options.addDelete id shape x y (maybeTransformAttr l)
+      ++ zonesSelect
+
 -- makeZonesCircle options id l =
 makeZonesCircle model options id l =
   let transform = maybeTransformAttr l in
-  let (cx,cy,r) = Utils.unwrap3 <| List.map (toNum << Utils.find_ l) ["cx","cy","r"] in
+  let (cx,cy,r) = Utils.unwrap3 <| findNums l ["cx","cy","r"] in
   let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "r" r ] in
      [zoneBorder Svg.circle id "circle" "Edge" True options.showBasic attrs transform]
   ++ [zoneBorder Svg.circle id "circle" "Interior" False options.showBasic attrs transform]
@@ -711,7 +730,7 @@ makeZonesCircle model options id l =
 -- makeZonesEllipse options id l =
 makeZonesEllipse model options id l =
   let transform = maybeTransformAttr l in
-  let (cx,cy,rx,ry) = Utils.unwrap4 <| List.map (toNum << Utils.find_ l) ["cx","cy","rx","ry"] in
+  let (cx,cy,rx,ry) = Utils.unwrap4 <| findNums l ["cx","cy","rx","ry"] in
   let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "rx" rx, attrNum "ry" ry ] in
      [zoneBorder Svg.ellipse id "ellipse" "Edge" True options.showBasic attrs transform]
   ++ [zoneBorder Svg.ellipse id "ellipse" "Interior" False options.showBasic attrs transform]

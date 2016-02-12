@@ -1179,6 +1179,16 @@ createMousePosCallback mx my objid kind zone old =
         ("rect", "TopEdge")        -> ret [fy "y", fy_ "height"]
         ("rect", "TopRightCorner") -> ret [fy "y", fx "width", fy_ "height"]
 
+        ("BOX", "Interior")        -> ret [fx "LEFT", fy "TOP", fx "RIGHT", fy "BOT"]
+        ("BOX", "RightEdge")       -> ret [fx "RIGHT"]
+        ("BOX", "BotRightCorner")  -> ret [fx "RIGHT", fy "BOT"]
+        ("BOX", "BotEdge")         -> ret [fy "BOT"]
+        ("BOX", "BotLeftCorner")   -> ret [fx "LEFT", fy "BOT"]
+        ("BOX", "LeftEdge")        -> ret [fx "LEFT"]
+        ("BOX", "TopLeftCorner")   -> ret [fx "LEFT", fy "TOP"]
+        ("BOX", "TopEdge")         -> ret [fy "TOP"]
+        ("BOX", "TopRightCorner")  -> ret [fy "TOP", fx "RIGHT"]
+
         ("circle", "Interior") -> ret [fx "cx", fy "cy"]
         ("circle", "Edge") ->
           let (cx,cy) = Utils.unwrap2 <| List.map numAttr ["cx", "cy"] in

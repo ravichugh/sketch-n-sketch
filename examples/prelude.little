@@ -643,5 +643,11 @@
   (let [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))]
     (rotateAround rot cx cy (rect fill x y w h))))))
 
+(def box (\(fill x y xw yh)
+  ['BOX'
+     [ ['LEFT' x] ['TOP' y] ['RIGHT' xw] ['BOT' yh]
+       ['fill' fill] ]
+     []]))
+
 ; 0
 ['svg' [] []]
