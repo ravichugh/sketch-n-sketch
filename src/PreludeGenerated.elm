@@ -26,6 +26,8 @@ prelude =
 ;; Returns the first element of a given list
 (def fst (\\[x|_] x))
 
+(def snd (\\[_ y|_] y))
+
 ;; len : List a -> Int
 ;; Returns the length of a given list
 (defrec len (\\xs (case xs ([] 0) ([_ | xs1] (+ 1 (len xs1))))))
@@ -200,6 +202,9 @@ prelude =
 
 (def min (\\(i j) (if (lt i j) i j)))
 (def max (\\(i j) (if (gt i j) i j)))
+
+(def minimum (\\[hd|tl] (foldl min hd tl)))
+(def maximum (\\[hd|tl] (foldl max hd tl)))
 
 (def mapi (\\(f xs) (map f (zip (range 0 (- (len xs) 1)) xs))))
 
@@ -391,6 +396,11 @@ prelude =
   ['svg' svgAttrs (append oldShapes [newShape])]))
 
 (def addShape (flip addShapeToCanvas))
+
+(def addShapesToCanvas (\\(['svg' svgAttrs oldShapes] newShapes)
+  ['svg' svgAttrs (append oldShapes newShapes)]))
+
+(def addShapes (flip addShapesToCanvas))
 
 (def groupMap (\\(xs f) (map f xs)))
 
@@ -646,11 +656,29 @@ prelude =
   (let [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))]
     (rotateAround rot cx cy (rect fill x y w h))))))
 
-(def box (\\(fill x y xw yh)
+(def box (\\(bounds fill stroke strokeWidth)
+  (let [x y xw yh] bounds
   ['BOX'
-     [ ['LEFT' x] ['TOP' y] ['RIGHT' xw] ['BOT' yh]
-       ['fill' fill] ]
-     []]))
+    [ ['LEFT' x] ['TOP' y] ['RIGHT' xw] ['BOT' yh]
+      ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth]
+    ] []
+  ])))
+
+(def scaleBetween (\\(a b pct)
+  (case pct
+    (0 a)
+    (1 b)
+    (_ (+ a (* pct (- b a)))))))
+
+(def stretchyPolygon (\\(bounds fill stroke strokeWidth percentages)
+  (let [left top right bot] bounds
+  (let [xScale yScale] [(scaleBetween left right) (scaleBetween top bot)]
+  (let pts (map (\\[xPct yPct] [ (xScale xPct) (yScale yPct) ]) percentages)
+  [ (ghost (box bounds 'transparent' 'darkblue' 1))
+    (polygon fill stroke strokeWidth pts)
+  ] )))))
+
+; TODO use literal 0 offsets in stickyPolygon
 
 ; 0
 ['svg' [] []]

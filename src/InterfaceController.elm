@@ -334,24 +334,43 @@ addHelperDotToCodeAndRun old (cx,cy) =
     [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r]) ]
     f args
 
+maybeFreeze n =
+  if n == 0 || n == 1
+    then toString n ++ "!"
+    else toString n
+
 addPolygonToCodeAndRun old points =
+  addStretchablePolygon old points
+
+addStretchablePolygon old points =
+  let xMax = Utils.fromJust <| List.maximum (List.map fst points) in
+  let xMin = Utils.fromJust <| List.minimum (List.map fst points) in
+  let yMax = Utils.fromJust <| List.maximum (List.map snd points) in
+  let yMin = Utils.fromJust <| List.minimum (List.map snd points) in
+  let (width, height) = (xMax - xMin, yMax - yMin) in
   -- TODO string for now, since will unparse anyway...
   let sPoints =
     Utils.bracks <| Utils.spaces <|
-      List.map (\(x,y) -> Utils.bracks (Utils.spaces (List.map toString [x,y])))
-               (List.reverse points)
+      flip List.map (List.reverse points) <| \(x,y) ->
+        let xPct = (toFloat x - toFloat xMin) / toFloat width in
+        let yPct = (toFloat y - toFloat yMin) / toFloat height in
+        let xStr = maybeFreeze xPct in
+        let yStr = maybeFreeze yPct in
+        Utils.bracks (Utils.spaces [xStr,yStr])
   in
   addToCodeAndRun "polygon" old
-    [ makeLet ["pts"] [eVar sPoints] ]
-    (eVar0 "polygon")
-    [eConst 300 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "pts"]
+    [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
+    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
+    , makeLet ["pts"] [eVar sPoints] ]
+    (eVar0 "stretchyPolygon")
+    [eVar "bounds", eConst 300 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "pts"]
 
 addToCodeAndRun newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
 
   let tmp = newShapeKind ++ toString old.genSymCount in
-  let newDef = makeNewShapeDef tmp newShapeLocals newShapeFunc newShapeArgs in
+  let newDef = makeNewShapeDef newShapeKind tmp newShapeLocals newShapeFunc newShapeArgs in
   let (defs, main) = splitExp old.inputExp in
-  let code = unparse (fuseExp (defs ++ [newDef]) (addToMain tmp main)) in
+  let code = unparse (fuseExp (defs ++ [newDef]) (addToMain (eVar tmp) main)) in
 
   upstate Run
     { old | code = code
@@ -359,12 +378,17 @@ addToCodeAndRun newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
           , genSymCount = old.genSymCount + 1
           , mouseMode = MouseNothing }
 
-makeNewShapeDef name locals func args =
+makeNewShapeDef newShapeKind name locals func args =
   let newShapeName = withDummyRange (PVar " " name noWidgetDecl) in
-  let newShape = withDummyPos (EApp "\n    " func args "") in
   let recurse locals =
     case locals of
-      []             -> newShape
+      [] ->
+        -- check if (func args) returns List SVG or SVG
+        if newShapeKind == "polygon" then
+          withDummyPos (EApp "\n    " func args "")
+        else
+          let app = withDummyPos (EApp " " func args "") in
+          withDummyPos (EList "\n    " [app] "" Nothing " ")
       (p,e)::locals' -> withDummyPos (ELet "\n  " Let False p e (recurse locals') "")
   in
   ("\n\n", newShapeName, recurse locals, "")
@@ -387,24 +411,35 @@ makeInts nums =
              let es = List.map (\n' -> eConst (toFloat n') dummyLoc) ns in
              e::es
 
-addToMain tmp main =
+addToMain eNew main =
   let callAddShape () =
     let ws = "\n" in -- TODO take main into account
-    withDummyPos (EApp ws (eVar0 "addShape") [eVar tmp, main] "")
+    withDummyPos (EApp ws (eVar0 "addShapes") [eNew, main] "")
   in
   case main.val.e__ of
-    EApp ws1 e1 [e2] ws2 ->
-      case (e1.val.e__, e2.val.e__) of
-        (EVar ws3 "svg", EList ws4 shapes ws5 Nothing ws6) ->
-          let main_ = main.val in
-          let e2_   = e2.val in
-          let e2'   = { e2 | val = { e2_ | e__ = EList ws4 (shapes ++ [eVar tmp]) ws5 Nothing ws6 }} in
-          let main' = { main | val = { main_ | e__ = EApp ws1 e1 [e2'] ws2 } } in
-          if ws1 == "" then addPreceedingWhitespace "\n\n" main'
-          else if ws1 == "\n" then addPreceedingWhitespace "\n" main'
-          else main'
-        _  -> callAddShape ()
-    _      -> callAddShape ()
+    EApp ws1 e1 [eAppConcat] ws2 ->
+      case (e1.val.e__, eAppConcat.val.e__) of
+        (EVar _ "svg", EApp ws3 eConcat [e2] ws4) ->
+          case (eConcat.val.e__, e2.val.e__) of
+            (EVar _ "concat", EList ws5 shapes ws6 Nothing ws7) ->
+              let
+                e2' =
+                  { e2 | val = { eid = e2.val.eid , e__ =
+                      EList ws5 (shapes ++ [eNew]) ws6 Nothing ws7 } }
+                eAppConcat' =
+                  { eAppConcat | val = { eid = eAppConcat.val.eid , e__ =
+                      EApp ws3 eConcat [e2'] ws4 } }
+                main' =
+                  { main | val = { eid = main.val.eid , e__ =
+                      EApp ws1 e1 [eAppConcat'] ws2 } }
+              in
+              if ws1 == "" then addPreceedingWhitespace "\n\n" main'
+              else if ws1 == "\n" then addPreceedingWhitespace "\n" main'
+              else main'
+
+            _ -> callAddShape ()
+        _     -> callAddShape ()
+    _         -> callAddShape ()
 
 maybeGhost b f args =
   if b

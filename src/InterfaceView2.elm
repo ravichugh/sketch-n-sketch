@@ -674,7 +674,11 @@ makeZonesRect model options shape id l =
       else
         let (x,y,xw,yh) = Utils.unwrap4 <| findNums l ["LEFT","TOP","RIGHT","BOT"] in
         (x, y, xw-x, yh-y)
+--  temporary way to change box zones:
+    gut           = if shape == "rect" then 0.125 else 0.02
+{-
     gut           = 0.125
+-}
     (x0,x1,x2)    = (x, x + gut*w, x + (1-gut)*w)
     (y0,y1,y2)    = (y, y + gut*h, y + (1-gut)*h)
     (wSlim,wWide) = (gut*w, (1-2*gut)*w)
