@@ -461,10 +461,10 @@ type alias SpanValue = (String, String)
 myMailbox : Mailbox Event
 myMailbox = mailbox (UpdateModel identity)
 
-type ButtonEvent = UpModel (Maybe String) | Edit
+type ButtonEvent = UpModel | Edit
                  
 btnMailbox : Mailbox ButtonEvent
-btnMailbox = mailbox (UpModel Nothing)
+btnMailbox = mailbox UpModel
 
 queryMailbox : Mailbox String
 queryMailbox = mailbox "NOTHING YET"
@@ -537,11 +537,12 @@ view model =
          ]
          options
     in
+    let hExp = Html.div [ Attr.id "theSourceCode" ] [ htmlOfExp model testExp ] in
+    let wrapper = Html.div [ Attr.id "wrapper" ] [ hExp ] in
     let viewMode_btn =
       Html.button
          [ Attr.contenteditable False
-         , Events.onMouseDown btnMailbox.address (UpModel Nothing)
-         , Events.onClick btnMailbox.address (UpModel model.error)
+         , Events.onClick btnMailbox.address UpModel
          ]
          [ Html.text "viewMode" ] in
     let textMode_btn =
@@ -550,10 +551,14 @@ view model =
           , Events.onClick btnMailbox.address Edit
           ]
           [ Html.text "textMode" ] in
-    let hExp = Html.div [ Attr.id "theSourceCode" ] [ htmlOfExp model testExp ] in
+    let error_msg =
+          case model.error of
+            Nothing -> Html.text ""
+            Just s  -> Html.strong [] [ Html.text s ]
+    in
     Html.node "div"
-       [ basicStyle, Attr.contenteditable model.editable ]
-       [ dropdown, viewMode_btn,textMode_btn, break, hExp ]
+          [ basicStyle, Attr.contenteditable model.editable, Attr.id "editor" ]
+          [ dropdown, viewMode_btn,textMode_btn, error_msg, break, hExp ]
   in
   body
 
@@ -576,8 +581,7 @@ port sourceCodeSignalFromJS : Signal (String, String)
 convertBtnEvt : ButtonEvent -> String
 convertBtnEvt evt =
   case evt of
-    UpModel Nothing -> "update"
-    UpModel (Just s) -> s
+    UpModel -> "update"
     Edit    -> "edit"
     
 -- port sourceCodeSignalToJS : Signal ()
