@@ -340,7 +340,9 @@ maybeFreeze n =
     else toString n
 
 addPolygonToCodeAndRun old points =
-  addStretchablePolygon old points
+  if old.keysDown == Keys.shift
+    then addStickyPolygon old points
+    else addStretchablePolygon old points
 
 addStretchablePolygon old points =
   let xMax = Utils.fromJust <| List.maximum (List.map fst points) in
@@ -349,7 +351,7 @@ addStretchablePolygon old points =
   let yMin = Utils.fromJust <| List.minimum (List.map snd points) in
   let (width, height) = (xMax - xMin, yMax - yMin) in
   -- TODO string for now, since will unparse anyway...
-  let sPoints =
+  let sPcts =
     Utils.bracks <| Utils.spaces <|
       flip List.map (List.reverse points) <| \(x,y) ->
         let xPct = (toFloat x - toFloat xMin) / toFloat width in
@@ -361,9 +363,38 @@ addStretchablePolygon old points =
   addToCodeAndRun "polygon" old
     [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
     , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
-    , makeLet ["pts"] [eVar sPoints] ]
+    , makeLet ["pcts"] [eVar sPcts] ]
     (eVar0 "stretchyPolygon")
-    [eVar "bounds", eConst 300 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "pts"]
+    [eVar "bounds", eConst 300 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "pcts"]
+
+addStickyPolygon old points =
+  let xMax = Utils.fromJust <| List.maximum (List.map fst points) in
+  let xMin = Utils.fromJust <| List.minimum (List.map fst points) in
+  let yMax = Utils.fromJust <| List.maximum (List.map snd points) in
+  let yMin = Utils.fromJust <| List.minimum (List.map snd points) in
+  let (width, height) = (xMax - xMin, yMax - yMin) in
+  -- TODO string for now, since will unparse anyway...
+  let sOffsets =
+    Utils.bracks <| Utils.spaces <|
+      flip List.map (List.reverse points) <| \(x,y) ->
+        let
+          (dxLeft, dxRight) = (x - xMin, x - xMax)
+          (dyTop , dyBot  ) = (y - yMin, y - yMax)
+          xOff = if dxLeft <= abs dxRight
+                   then Utils.bracks (Utils.spaces ["left", toString dxLeft])
+                   else Utils.bracks (Utils.spaces ["right", toString dxRight])
+          yOff = if dyTop <= abs dyBot
+                   then Utils.bracks (Utils.spaces ["top", toString dyTop])
+                   else Utils.bracks (Utils.spaces ["bot", toString dyBot])
+        in
+        Utils.bracks (Utils.spaces [xOff,yOff])
+  in
+  addToCodeAndRun "polygon" old
+    [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
+    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
+    , makeLet ["offsets"] [eVar sOffsets] ]
+    (eVar0 "stickyPolygon")
+    [eVar "bounds", eConst 350 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "offsets"]
 
 addToCodeAndRun newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
 

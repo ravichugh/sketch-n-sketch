@@ -675,7 +675,16 @@
     (polygon fill stroke strokeWidth pts)
   ] )))))
 
-; TODO use literal 0 offsets in stickyPolygon
+(def evalOffset (\[base off]
+  (case off
+    (0 base)
+    (_ (+ base off)))))
+
+(def stickyPolygon (\(bounds fill stroke strokeWidth offsets)
+  (let pts (map (\[xOff yOff] [ (evalOffset xOff) (evalOffset yOff) ]) offsets)
+  [ (ghost (box bounds 'transparent' 'darkblue' 1))
+    (polygon fill stroke strokeWidth pts)
+  ] )))
 
 ; 0
 ['svg' [] []]
