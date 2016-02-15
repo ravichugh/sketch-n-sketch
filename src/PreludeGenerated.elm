@@ -689,6 +689,17 @@ prelude =
     (polygon fill stroke strokeWidth pts)
   ] )))
 
+(def with (\\(bounds f)
+  [ (ghost (box bounds 'transparent' 'darkblue' 1))
+    (f bounds) ]))
+
+(def star (\\bounds
+  (let [left top right bot] bounds
+  (let [width height] [(- right left) (- bot top)]
+  (let [cx cy] [(+ left (/ width 2)) (+ top (/ height 2))]
+  (nStar 'lightblue' 'black' 0 6 (min (/ width 2) (/ height 2)) 10 0 cx cy)
+)))))
+
 ; 0
 ['svg' [] []]
 

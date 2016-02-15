@@ -396,10 +396,23 @@ addStickyPolygon old points =
     (eVar0 "stickyPolygon")
     [eVar "bounds", eConst 350 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "offsets"]
 
+addLambdaToCodeAndRun old pt2 pt1 =
+  let funcName =
+    case old.toolType of
+      Lambda f -> f
+      _        -> Debug.crash "addLambdaToCodeAndRun"
+  in
+  let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
+  addToCodeAndRun funcName old
+    [ makeLet ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
+    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
+    ]
+    (eVar0 "with") [ eVar "bounds" , eVar funcName ]
+
 addToCodeAndRun newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
 
   let tmp = newShapeKind ++ toString old.genSymCount in
-  let newDef = makeNewShapeDef newShapeKind tmp newShapeLocals newShapeFunc newShapeArgs in
+  let newDef = makeNewShapeDef old newShapeKind tmp newShapeLocals newShapeFunc newShapeArgs in
   let (defs, main) = splitExp old.inputExp in
   let code = unparse (fuseExp (defs ++ [newDef]) (addToMain (eVar tmp) main)) in
 
@@ -409,13 +422,18 @@ addToCodeAndRun newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
           , genSymCount = old.genSymCount + 1
           , mouseMode = MouseNothing }
 
-makeNewShapeDef newShapeKind name locals func args =
+makeNewShapeDef model newShapeKind name locals func args =
   let newShapeName = withDummyRange (PVar " " name noWidgetDecl) in
   let recurse locals =
     case locals of
       [] ->
-        -- check if (func args) returns List SVG or SVG
-        if newShapeKind == "polygon" then
+        let multi = -- check if (func args) returns List SVG or SVG
+          case model.toolType of
+            Poly -> True
+            Lambda _ -> True
+            _ -> False
+        in
+        if multi then
           withDummyPos (EApp "\n    " func args "")
         else
           let app = withDummyPos (EApp " " func args "") in
@@ -602,6 +620,7 @@ upstate evt old = case debugLog "Event" evt of
         (MouseNothing, Poly) -> { old | mouseMode = MouseDrawNew "polygon" [] }
         (MouseNothing, HelperDot) -> { old | mouseMode = MouseDrawNew "DOT" [] }
         (MouseNothing, HelperLine) -> { old | mouseMode = MouseDrawNew "line" [] }
+        (MouseNothing, Lambda _) -> { old | mouseMode = MouseDrawNew "LAMBDA" [] }
         _                    ->   old
 
     MouseClick click ->
@@ -720,6 +739,7 @@ upstate evt old = case debugLog "Event" evt of
         (_, MouseDrawNew "rect" [pt2, pt1])    -> addRectToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "ellipse" [pt2, pt1]) -> addEllipseToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "DOT" [pt])           -> addHelperDotToCodeAndRun old pt
+        (_, MouseDrawNew "LAMBDA" [pt2, pt1])  -> addLambdaToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "polygon" points)     -> old
 
         _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }

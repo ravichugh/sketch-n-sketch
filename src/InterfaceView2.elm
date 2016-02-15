@@ -816,6 +816,7 @@ drawNewShape model =
     MouseDrawNew "ellipse" [pt2, pt1]    -> drawNewEllipse model.keysDown pt2 pt1
     MouseDrawNew "polygon" (ptLast::pts) -> drawNewPolygon ptLast pts
     MouseDrawNew "DOT" [pt]              -> drawNewHelperDot pt
+    MouseDrawNew "LAMBDA"  [pt2, pt1]    -> drawNewRect model.keysDown pt2 pt1
     _                                    -> []
 
 defaultOpacity        = Attr.style [("opacity", "0.5")]
@@ -1180,6 +1181,7 @@ widgetsTools w h model =
   , twoButtons w h
       (toolButton model HelperLine)
       (toolButton model HelperDot)
+  , toolButton model (Lambda "star") w h
   ]
 
 widgetsToolExtras w h model =
@@ -1549,6 +1551,7 @@ toolButton model tt w h =
     Text -> "-"
     HelperLine -> "(Rule)"
     HelperDot -> "(Dot)"
+    Lambda f -> Utils.bracks Utils.uniLambda ++ " " ++ f
   in
   let btnKind = if model.toolType == tt then Selected else Unselected in
   simpleButton_ events.address btnKind Noop False

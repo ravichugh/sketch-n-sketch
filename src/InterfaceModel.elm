@@ -109,6 +109,7 @@ type MouseMode
       --   for line/rect/ellipse, n == 0 or n == 2
       --   for polygon,           n >= 0
       --   for helper dot,        n == 0 or n == 1
+      --   for lambda,            n == 0 or n == 2
 
 type alias MouseTrigger a = (Int, Int) -> a
 
@@ -133,6 +134,7 @@ type ToolType
   | Poly | Path | Text
   | HelperDot
   | HelperLine
+  | Lambda Ident
 
 type Caption
   = Hovering (Int, ShapeKind, Zone)
