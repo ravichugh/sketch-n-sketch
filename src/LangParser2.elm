@@ -1,5 +1,5 @@
 module LangParser2 (prelude, isPreludeLoc, isPreludeEId,
-                    substOf, parseE,
+                    substOf, substStrOf, parseE,
                     freshen, substPlusOf) where
 
 import String
@@ -38,6 +38,9 @@ substPlusOf e =
 
 substOf : Exp -> Subst
 substOf = Dict.map (always .val) << substPlusOf
+
+substStrOf : Exp -> SubstStr
+substStrOf = Dict.map (always toString) << substOf
 
 -- this will be done while parsing eventually...
 

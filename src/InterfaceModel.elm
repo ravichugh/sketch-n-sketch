@@ -4,7 +4,7 @@ import Lang exposing (..)
 import Eval
 import Sync
 import Utils
-import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Zone)
+import LangSvg exposing (RootedIndexedTree, NodeId, ShapeFeature, ShapeKind, Zone)
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparse)
 import OurParser2 as P
@@ -64,7 +64,7 @@ type alias Model =
   , errorBox : Maybe String
   , genSymCount : Int
   , toolType : ToolType
-  , selectedAttrs : Set.Set (NodeId, String)
+  , selectedFeatures : Set.Set (NodeId, ShapeFeature)
   , keysDown : List Char.KeyCode
   }
 
@@ -289,7 +289,7 @@ sampleModel =
     -- , genSymCount   = 0
     , genSymCount   = 1
     , toolType      = Cursor
-    , selectedAttrs = Set.empty
+    , selectedFeatures = Set.empty
     , keysDown      = []
     }
 

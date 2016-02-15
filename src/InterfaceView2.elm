@@ -538,39 +538,42 @@ strokeWidth             = LangSvg.attr "stroke-width" "10"
 type alias NodeIdAndAttrName     = (LangSvg.NodeId, String)
 type alias NodeIdAndTwoAttrNames = (LangSvg.NodeId, String, String)
 
-toggleSelected model nodeIdAndAttrNames =
-  UpdateModel <| \model ->
-    -- If only some of the attrs were selected, we want to select all of
-    -- them, not toggle individually.
-    let deselect = List.all (flip Set.member model.selectedAttrs) nodeIdAndAttrNames in
-    let updateSet nodeIdAndAttrName acc =
-      if deselect
-        then Set.remove nodeIdAndAttrName acc
-        else Set.insert nodeIdAndAttrName acc
-    in
-    { model | selectedAttrs = List.foldl updateSet model.selectedAttrs nodeIdAndAttrNames }
+type alias NodeIdAndFeature      = (LangSvg.NodeId, LangSvg.ShapeFeature)
 
--- TODO given need for model, remove addSelect
+
+toggleSelected model nodeIdAndFeatures =
+  UpdateModel <| \model ->
+    -- If only some of the features were selected, we want to select all of
+    -- them, not toggle individually.
+    let deselect = List.all (flip Set.member model.selectedFeatures) nodeIdAndFeatures in
+    let updateSet nodeIdAndFeature acc =
+      if deselect
+        then Set.remove nodeIdAndFeature acc
+        else Set.insert nodeIdAndFeature acc
+    in
+    { model | selectedFeatures = List.foldl updateSet model.selectedFeatures nodeIdAndFeatures }
+
+zoneSelectCrossDot : Model -> Bool -> (Int, List LangSvg.ShapeFeature, List LangSvg.ShapeFeature) -> number -> number' -> List Svg.Svg
 zoneSelectCrossDot model addSelect tuple x y =
   if addSelect then zoneSelectCrossDot_ model tuple x y else []
 
-zoneSelectCrossDot_ model (id, xAttrs, yAttrs) x y =
+zoneSelectCrossDot_ model (id, xFeatures, yFeatures) x y =
   let len = 20 in
-  let color nodeIdAndAttrNames =
-    if List.all (flip Set.member model.selectedAttrs) nodeIdAndAttrNames
+  let color nodeIdAndFeatures =
+    if List.all (flip Set.member model.selectedFeatures) nodeIdAndFeatures
     then colorPointSelected
     else colorPointNotSelected
   in
-  let xNodeIdAndAttrNames = List.map ((,) id) xAttrs in
-  let yNodeIdAndAttrNames = List.map ((,) id) yAttrs in
+  let xNodeIdAndFeatures = List.map ((,) id) xFeatures in
+  let yNodeIdAndFeatures = List.map ((,) id) yFeatures in
   -- let (xNodeIdAndAttrName, yNodeIdAndAttrName) = ((id, xAttr), (id, yAttr)) in
-  let (xColor, yColor) = (color xNodeIdAndAttrNames, color yNodeIdAndAttrNames) in
+  let (xColor, yColor) = (color xNodeIdAndFeatures, color yNodeIdAndFeatures) in
   let yLine =
     svgLine [
         LangSvg.attr "stroke" yColor , strokeWidth
       , LangSvg.attr "x1" (toString (x-len)) , LangSvg.attr "y1" (toString y)
       , LangSvg.attr "x2" (toString (x+len)) , LangSvg.attr "y2" (toString y)
-      , onMouseDown (toggleSelected model yNodeIdAndAttrNames)
+      , onMouseDown (toggleSelected model yNodeIdAndFeatures)
       ]
   in
   let xLine =
@@ -578,30 +581,30 @@ zoneSelectCrossDot_ model (id, xAttrs, yAttrs) x y =
         LangSvg.attr "stroke" xColor , strokeWidth
       , LangSvg.attr "y1" (toString (y-len)) , LangSvg.attr "x1" (toString x)
       , LangSvg.attr "y2" (toString (y+len)) , LangSvg.attr "x2" (toString x)
-      , onMouseDown (toggleSelected model xNodeIdAndAttrNames)
+      , onMouseDown (toggleSelected model xNodeIdAndFeatures)
       ]
   in
-  let xyDot = zoneSelectDot_ model (id, xAttrs ++ yAttrs) x y in
+  let xyDot = zoneSelectDot_ model (id, xFeatures ++ yFeatures) x y in
   [xLine, yLine] ++ xyDot
 
 zoneSelectDot model addSelect (id, attrNames) x y =
   if addSelect then zoneSelectDot_ model (id, attrNames) x y else []
 
-zoneSelectDot_ model (id, attrNames) x y =
-  let nodeIdAndAttrNames = List.map ((,) id) attrNames in
+zoneSelectDot_ model (id, features) x y =
+  let nodeIdAndFeatures = List.map ((,) id) features in
   [ svgCircle [
       LangSvg.attr "fill" "darkgray" , LangSvg.attr "r" "6"
     , LangSvg.attr "cx" (toString x) , LangSvg.attr "cy" (toString y)
-    , onMouseDown (toggleSelected model nodeIdAndAttrNames)
+    , onMouseDown (toggleSelected model nodeIdAndFeatures)
     ] ]
 
 -- TODO given need for model, remove addSelect
-zoneSelectLine model addSelect nodeIdAndAttrName pt1 pt2 =
-  if addSelect then zoneSelectLine_ model nodeIdAndAttrName pt1 pt2 else []
+zoneSelectLine model addSelect nodeIdAndFeature pt1 pt2 =
+  if addSelect then zoneSelectLine_ model nodeIdAndFeature pt1 pt2 else []
 
-zoneSelectLine_ model nodeIdAndAttrName (x1,y1) (x2,y2) =
+zoneSelectLine_ model nodeIdAndFeature (x1,y1) (x2,y2) =
   let color =
-    if Set.member nodeIdAndAttrName model.selectedAttrs
+    if Set.member nodeIdAndFeature model.selectedFeatures
     then colorLineSelected
     else colorLineNotSelected
   in
@@ -610,7 +613,7 @@ zoneSelectLine_ model nodeIdAndAttrName (x1,y1) (x2,y2) =
         LangSvg.attr "stroke" color , strokeWidth
       , LangSvg.attr "x1" (toString x1) , LangSvg.attr "y1" (toString y1)
       , LangSvg.attr "x2" (toString x2) , LangSvg.attr "y2" (toString y2)
-      , onMouseDown (toggleSelected model [nodeIdAndAttrName])
+      , onMouseDown (toggleSelected model [nodeIdAndFeature])
       ]
   in
   [line]
@@ -645,9 +648,9 @@ makeZones model options shape id l =
           zoneRotate options.addRot id shape c r (maybeTransformCmds l) in
         let zSelect =
           List.concat
-             [ zoneSelectDot model options.addSelect (id, ["x1", "x2", "y1", "y2"]) ((fst x1)/2+(fst x2)/2) ((fst y1)/2+(fst y2)/2)
-             , zoneSelectCrossDot model options.addSelect (id, ["x1"], ["y1"]) (fst x1) (fst y1)
-             , zoneSelectCrossDot model options.addSelect (id, ["x2"], ["y2"]) (fst x2) (fst y2) ] in
+             [ zoneSelectCrossDot model options.addSelect (id, [LangSvg.lineCX], [LangSvg.lineCY]) ((fst x1)/2+(fst x2)/2) ((fst y1)/2+(fst y2)/2)
+             , zoneSelectCrossDot model options.addSelect (id, [LangSvg.lineX1], [LangSvg.lineY1]) (fst x1) (fst y1)
+             , zoneSelectCrossDot model options.addSelect (id, [LangSvg.lineX2], [LangSvg.lineY2]) (fst x2) (fst y2) ] in
         zLine :: zPts ++ zRot ++ zSelect
 
     "polygon"  -> makeZonesPoly model options shape id l
@@ -695,13 +698,13 @@ makeZonesRect model options shape id l =
   in
   let zonesSelect =
     if shape == "rect" then
-         zoneSelectLine model options.addSelect (id, "width") (x,y+h/2) (x+w,y+h/2)
-      ++ zoneSelectLine model options.addSelect (id, "height") (x+w/2,y) (x+w/2,y+h)
-      ++ zoneSelectCrossDot model options.addSelect (id, ["x"], ["y"]) x y
-      ++ zoneSelectCrossDot model options.addSelect (id, ["x", "width"], ["y"]) (x+w) y
-      ++ zoneSelectCrossDot model options.addSelect (id, ["x"], ["y", "height"]) x (y+h)
-      ++ zoneSelectCrossDot model options.addSelect (id, ["x", "width"], ["y", "height"]) (x+w) (y+h)
-      ++ zoneSelectCrossDot model options.addSelect (id, ["x", "width"], ["y", "height"]) (x+w/2) (y+h/2)
+         zoneSelectLine model options.addSelect (id, LangSvg.rectWidth) (x,y+h/2) (x+w,y+h/2)
+      ++ zoneSelectLine model options.addSelect (id, LangSvg.rectHeight) (x+w/2,y) (x+w/2,y+h)
+      ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectTLX], [LangSvg.rectTLY]) x y
+      ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectTRX], [LangSvg.rectTRY]) (x+w) y
+      ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectBLX], [LangSvg.rectBLY]) x (y+h)
+      ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectBRX], [LangSvg.rectBRY]) (x+w) (y+h)
+      ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectCX], [LangSvg.rectCY]) (x+w/2) (y+h/2)
     else -- shape == "BOX"
          zoneSelectCrossDot model options.addSelect (id, ["LEFT"], ["TOP"]) x y
       ++ zoneSelectCrossDot model options.addSelect (id, ["RIGHT"], ["BOT"]) (x+w) (y+h)
@@ -760,8 +763,8 @@ makeZonesCircle model options id l =
   ++ [zoneBorder Svg.circle id "circle" "Interior" False options.showBasic attrs transform]
   ++ (zoneRotate options.addRot id "circle" (cx,cy) (r + rotZoneDelta) (maybeTransformCmds l))
   ++ (zoneColor options.addColor id "circle" (cx - r) (cy - r) (maybeColorNumAttr "fill" l))
-  ++ (zoneSelectLine model options.addSelect (id, "r") (cx,cy) (cx+r,cy))
-  ++ (zoneSelectCrossDot model options.addSelect (id, ["cx"], ["cy"]) cx cy)
+  ++ (zoneSelectLine model options.addSelect (id, LangSvg.circleR) (cx,cy) (cx+r,cy))
+  ++ (zoneSelectCrossDot model options.addSelect (id, [LangSvg.circleCX], [LangSvg.circleCY]) cx cy)
 
 -- makeZonesEllipse options id l =
 makeZonesEllipse model options id l =
@@ -772,9 +775,9 @@ makeZonesEllipse model options id l =
   ++ [zoneBorder Svg.ellipse id "ellipse" "Interior" False options.showBasic attrs transform]
   ++ (zoneRotate options.addRot id "circle" (cx,cy) (ry + rotZoneDelta) (maybeTransformCmds l))
   ++ (zoneColor options.addColor id "ellipse" (cx - rx) (cy - ry) (maybeColorNumAttr "fill" l))
-  ++ (zoneSelectLine model options.addSelect (id, "rx") (cx,cy) (cx+rx,cy))
-  ++ (zoneSelectLine model options.addSelect (id, "ry") (cx,cy) (cx,cy+ry))
-  ++ (zoneSelectCrossDot model options.addSelect (id, ["cx"], ["cy"]) cx cy)
+  ++ (zoneSelectLine model options.addSelect (id, LangSvg.ellipseRX) (cx,cy) (cx+rx,cy))
+  ++ (zoneSelectLine model options.addSelect (id, LangSvg.ellipseRY) (cx,cy) (cx,cy+ry))
+  ++ (zoneSelectCrossDot model options.addSelect (id, [LangSvg.ellipseCX], [LangSvg.ellipseCY]) cx cy)
 
 -- makeZonesPoly options shape id l =
 makeZonesPoly model options shape id l =
@@ -797,19 +800,19 @@ makeZonesPoly model options shape id l =
       _ ->
         Debug.crash "makeZonesPoly" in
   let zSelect =
-    let midpointDot ((i1, ((xi1,_),(yi1,_))), (i2, ((xi2,_),(yi2,_)))) =
+    let midptCrossDot ((i1, ((xi1,_),(yi1,_))), (i2, ((xi2,_),(yi2,_)))) =
       let (xAttr1, yAttr1) = ("x" ++ toString i1, "y" ++ toString i1) in
       let (xAttr2, yAttr2) = ("x" ++ toString i2, "y" ++ toString i2) in
-      zoneSelectDot model options.addSelect (id, [xAttr1, xAttr2, yAttr1, yAttr2]) (xi1/2+xi2/2) (yi1/2+yi2/2)
+      zoneSelectCrossDot model options.addSelect (id, [LangSvg.polyPathMidptX ++ toString i1], [LangSvg.polyPathMidptY ++ toString i1]) (xi1/2+xi2/2) (yi1/2+yi2/2)
     in
     let ptCrossDot (i, ((xi,_),(yi,_))) =
       let (xAttr, yAttr) = ("x" ++ toString i, "y" ++ toString i) in
-      zoneSelectCrossDot model options.addSelect (id, [xAttr], [yAttr]) xi yi
+      zoneSelectCrossDot model options.addSelect (id, [LangSvg.polyPathPtX ++ toString i], [LangSvg.polyPathPtY ++ toString i]) xi yi
     in
     let dots =
       let ptsI = Utils.mapi identity pts in
       let ptsIPairs = Utils.selfZipCircConsecPairs ptsI in
-      List.concatMap midpointDot ptsIPairs
+      List.concatMap midptCrossDot ptsIPairs
     in
     let crossDots = List.concat <| Utils.mapi ptCrossDot pts in
     dots ++ crossDots
