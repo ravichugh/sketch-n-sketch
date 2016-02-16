@@ -12,7 +12,7 @@ makeExample name s =
     let (v,ws) = Eval.run e in
     {e=e, v=v, ws=ws}
   in
-  (name, thunk)
+  (name, s, thunk)
 
 scratchName = "*Scratch*"
 
@@ -109,9 +109,12 @@ LITTLE_TO_ELM relateLines0
 -- LITTLE_TO_ELM relatePoints2
 -- LITTLE_TO_ELM relatePoints3
 -- LITTLE_TO_ELM relatePoints4
+LITTLE_TO_ELM blank
 
 examples =
-  [ makeExample scratchName scratch
+  [ makeExample "BLANK" blank
+  , makeExample scratchName scratch
+  -- [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
   , makeExample "Wave Boxes" sineWaveOfBoxes
 

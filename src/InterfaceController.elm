@@ -1,11 +1,12 @@
 module InterfaceController (upstate) where
 
 import Lang exposing (..) --For access to what makes up the Vals
-import LangParser2 exposing (parseE, parseV)
-import LangUnparser exposing (unparseE)
+import LangParser2 exposing (parseE, freshen)
+import LangUnparser exposing (unparse, preceedingWhitespace, addPreceedingWhitespace)
 import Sync
 import Eval
 import Utils
+import Keys
 import InterfaceModel exposing (..)
 import InterfaceView2 as View
 import InterfaceStorage exposing (installSaveState, removeDialog)
@@ -85,18 +86,18 @@ switchOrient m = case m of
   Vertical -> Horizontal
   Horizontal -> Vertical
 
-toggleShowZones x = (1 + x) % showZonesModes
-{- -- TODO turning off rotation zones for now
-toggleShowZones x =
-  let i = (1 + x) % showZonesModes in
-  if | i == showZonesRot -> toggleShowZones i
-     | otherwise         -> i
+{- -- TODO turning off delete zones for now
+toggleShowZones x = (1 + x) % showZonesModeCount
 -}
+toggleShowZones x =
+  let i = (1 + x) % showZonesModeCount in
+  if i == showZonesDel then toggleShowZones i else i
 
-maybeAdjustShowZones m =
-  case (m.mode, m.showZones == showZonesDel) of
-    (Live _, True) -> { m | showZones = toggleShowZones m.showZones }
-    _              -> m
+-- if delete mode is not applicable but set, use oldMode instead
+maybeLeaveDeleteMode newModel oldShowZones =
+  case (newModel.mode, newModel.showZones == showZonesDel) of
+    (Live _, True) -> { newModel | showZones = oldShowZones }
+    _              -> newModel
 
 -- may want to eventually have a maximum history length
 addToHistory s h = (s :: fst h, [])
@@ -104,18 +105,18 @@ addToHistory s h = (s :: fst h, [])
 between1 i (j,k) = i `Utils.between` (j+1, k+1)
 
 cleanExp =
-  mapExp <| \e__ -> case e__ of
-    EApp e0 [e1,_,_]  -> case e0.val.e__ of
-      EVar "inferred" -> e1.val.e__
-      _               -> e__
-    EApp e0 [_,e1]    -> case e0.val.e__ of
-      EVar "flow"     -> e1.val.e__
-      _               -> e__
-    EOp op [e1,e2]    ->
+  mapExpViaExp__ <| \e__ -> case e__ of
+    EApp _ e0 [e1,_,_] _ -> case e0.val.e__ of
+      EVar _ "inferred"  -> e1.val.e__
+      _                  -> e__
+    EApp _ e0 [_,e1] _   -> case e0.val.e__ of
+      EVar _ "flow"      -> e1.val.e__
+      _                  -> e__
+    EOp _ op [e1,e2] _   ->
       case (op.val, e2.val.e__) of
-        (Plus, EConst 0 _ _) -> e1.val.e__
-        _                    -> e__
-    _                 -> e__
+        (Plus, EConst _ 0 _ _) -> e1.val.e__
+        _                      -> e__
+    _                    -> e__
 
 -- this is a bit redundant with View.turnOn...
 maybeStuff id shape zone m =
@@ -174,9 +175,14 @@ highlightChanges mStuff changes codeBoxInfo =
       { codeBoxInfo | highlights = hi' }
 
 addSlateAndCode old (exp, val) =
-  let slate = LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val in
-  (exp, val, slate, unparseE exp)
+  let (slate, code) = slateAndCode old (exp, val) in
+  (exp, val, slate, code)
 
+slateAndCode old (exp, val) =
+  let slate =
+    LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val
+  in
+  (slate, unparse exp)
 
 --------------------------------------------------------------------------------
 
@@ -211,7 +217,7 @@ canvasOriginHorizontal old =
   --   hMid is calculated weirdly in View...
   let
     hGut    = params.mainSection.horizontal.hGut
-    hCode_  = (snd old.dimensions - hMid - 2*hGut) // 2 + hMid
+    hCode_  = (snd old.dimensions - 2*hMid - 3*hGut) // 2 + hMid
     hCode   = hCode_ + old.midOffsetY
     -- TODO consider hideCode and hideCanvas
     hMid    = params.mainSection.widgets.hBtn
@@ -220,59 +226,323 @@ canvasOriginHorizontal old =
     , params.topSection.h + hCode + hMid
     )
 
-strCall = Sync.strCall
-gray    = "420"
 
+--------------------------------------------------------------------------------
+-- New Shapes
+
+type alias TopDef  = (WS, Pat, Exp, WS)
+type alias TopDefs = List TopDef
+
+splitExp : Exp -> (TopDefs, Exp)
+splitExp e =
+  case e.val.e__ of
+    ELet ws1 Def False p1 e1 e2 ws2 ->
+      let (defs, main) = splitExp e2 in
+      ((ws1,p1,e1,ws2)::defs, main)
+    _ ->
+      ([], e)
+
+fuseExp : TopDefs -> Exp -> Exp
+fuseExp defs main =
+  let recurse defs =
+    case defs of
+      [] -> main
+      (ws1,p1,e1,ws2)::defs' ->
+        withDummyPos <| ELet ws1 Def False p1 e1 (recurse defs') ws2
+  in
+  recurse defs
+
+-- when line is snapped, not enforcing the angle in code
 addLineToCodeAndRun old (x2,y2) (x1,y1) =
-  addToCodeAndRun old <|
-    strCall "line" ("'gray'":: "5" :: List.map toString [x1, y1, x2, y2])
+  let (xb, yb) = View.snapLine old.keysDown (x2,y2) (x1,y1) in
+  let color = if old.toolType == HelperLine then "aqua" else "gray" in
+  let (f, args) =
+    maybeGhost (old.toolType == HelperLine)
+       (eVar0 "line")
+       (eStr color :: eStr "5" :: List.map eVar ["x1","y1","x2","y2"])
+  in
+  addToCodeAndRun "line" old
+    [ makeLet ["x1","x2"] (makeInts [x1,xb])
+    , makeLet ["y1","y2"] (makeInts [y1,yb])
+    ] f args
+
+addRectToCodeAndRun old pt2 pt1 =
+  if old.keysDown == Keys.shift then addSquare old pt2 pt1
+  else addRect old pt2 pt1
+
+addRect old pt2 pt1 =
+  let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
+  let (x, y, w, h) = (xa, ya, xb - xa, yb - ya) in
+  addToCodeAndRun "rect" old
+    [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
+    , makeLet ["rot"] [eConst 0 dummyLoc] ]
+    (eVar0 "rotatedRect")
+    (eConst 100 dummyLoc :: List.map eVar ["x","y","w","h","rot"])
+
+addSquare old pt2 pt1 =
+  let (xa, xb, ya, yb) = View.squareBoundingBox pt2 pt1 in
+  let (x, y, side) = (xa, ya, xb - xa) in
+  addToCodeAndRun "square" old
+    [ makeLet ["x","y","side"] (makeInts [x,y,side])
+    , makeLet ["rot"] [eConst 0 dummyLoc] ]
+    (eVar0 "rotatedRect")
+    (eConst 50 dummyLoc :: List.map eVar ["x","y","side","side","rot"])
+
+{- bounding box version...
 
 addRectToCodeAndRun old (x2,y2) (x1,y1) =
   let
     (xa, xb)     = (min x1 x2, max x1 x2)
     (ya, yb)     = (min y1 y2, max y1 y2)
-    (x, y, w, h) = (xa, ya, xb - xa, yb - ya)
   in
-  addToCodeAndRun old <|
-    strCall "rect" (gray :: List.map toString [x, y, w, h])
+  addToCodeAndRun "rect" old
+    [ makeLet ["x","y","xw","yh","rot"] (makeInts [xa,ya,xb,yb,0]) ]
+    (eVar0 "rectangle")
+    (eConst 100 dummyLoc :: List.map eVar ["x","y","xw","yh","rot"])
+-}
 
-addEllipseToCodeAndRun old (x2,y2) (x1,y1) =
-  let
-    (xa, xb) = (min x1 x2, max x1 x2)
-    (ya, yb) = (min y1 y2, max y1 y2)
-    (rx, ry) = ((xb-xa)//2, (yb-ya)//2)
-    (cx, cy) = (xa + rx, ya + ry)
+addEllipseToCodeAndRun old pt2 pt1 =
+  if old.keysDown == Keys.shift then addCircle old pt2 pt1
+  else addEllipse old pt2 pt1
+
+addEllipse old pt2 pt1 =
+  let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
+  let (rx, ry) = ((xb-xa)//2, (yb-ya)//2) in
+  let (cx, cy) = (xa + rx, ya + ry) in
+  addToCodeAndRun "ellipse" old
+    [ makeLet ["cx","cy","rx","ry"] (makeInts [cx,cy,rx,ry]) ]
+    (eVar0 "ellipse")
+    (eConst 200 dummyLoc :: List.map eVar ["cx","cy","rx","ry"])
+
+addCircle old pt2 pt1 =
+  let (xa, xb, ya, yb) = View.squareBoundingBox pt2 pt1 in
+  let r = (xb-xa)//2 in
+  let (cx, cy) = (xa + r, ya + r) in
+  addToCodeAndRun "circle" old
+    [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r]) ]
+    (eVar0 "ellipse")
+    (eConst 250 dummyLoc :: List.map eVar ["cx","cy","r","r"])
+
+addHelperDotToCodeAndRun old (cx,cy) =
+  -- style matches center of attr crosshairs (View.zoneSelectPoint_)
+  let r = 6 in
+  let (f, args) =
+    ghost (eVar0 "circle")
+          (eStr "aqua" :: List.map eVar ["cx","cy","r"])
   in
-  addToCodeAndRun old <|
-    strCall "ellipse" (gray :: List.map toString [cx, cy, rx, ry])
+  addToCodeAndRun "helperDot" old
+    [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r]) ]
+    f args
+
+maybeFreeze n =
+  if n == 0 || n == 1
+    then toString n ++ "!"
+    else toString n
 
 addPolygonToCodeAndRun old points =
-  let sPoints =
-    Utils.bracks <| Utils.spaces <|
-      List.map (\(x,y) -> Utils.bracks (Utils.spaces (List.map toString [x,y])))
-               (List.reverse points)
-  in
-  addToCodeAndRun old <|
-    strCall "polygon" [gray, "'black'", "2", sPoints]
+  if old.keysDown == Keys.shift
+    then addStickyPolygon old points
+    else addStretchablePolygon old points
 
-addToCodeAndRun old newShape =
-  -- the updated code can be made cleaner if top-level declarations are kept
-  -- separate from the "main" expression
-  let code =
-    let oldCode = Re.replace Re.All (Re.regex "\n") (always "\n  ") old.code in
-    let tmp = "previous" ++ toString old.genSymCount in
-    "(let " ++ tmp ++ "\n" ++
-    "  " ++ oldCode ++ "\n" ++
-    strCall "addShapeToCanvas" [tmp, newShape] ++ ")"
+addStretchablePolygon old points =
+  let xMax = Utils.fromJust <| List.maximum (List.map fst points) in
+  let xMin = Utils.fromJust <| List.minimum (List.map fst points) in
+  let yMax = Utils.fromJust <| List.maximum (List.map snd points) in
+  let yMin = Utils.fromJust <| List.minimum (List.map snd points) in
+  let (width, height) = (xMax - xMin, yMax - yMin) in
+  -- TODO string for now, since will unparse anyway...
+  let sPcts =
+    Utils.bracks <| Utils.spaces <|
+      flip List.map (List.reverse points) <| \(x,y) ->
+        let xPct = (toFloat x - toFloat xMin) / toFloat width in
+        let yPct = (toFloat y - toFloat yMin) / toFloat height in
+        let xStr = maybeFreeze xPct in
+        let yStr = maybeFreeze yPct in
+        Utils.bracks (Utils.spaces [xStr,yStr])
   in
+  addToCodeAndRun "polygon" old
+    [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
+    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
+    , makeLet ["pcts"] [eVar sPcts] ]
+    (eVar0 "stretchyPolygon")
+    [eVar "bounds", eConst 300 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "pcts"]
+
+addStickyPolygon old points =
+  let xMax = Utils.fromJust <| List.maximum (List.map fst points) in
+  let xMin = Utils.fromJust <| List.minimum (List.map fst points) in
+  let yMax = Utils.fromJust <| List.maximum (List.map snd points) in
+  let yMin = Utils.fromJust <| List.minimum (List.map snd points) in
+  let (width, height) = (xMax - xMin, yMax - yMin) in
+  -- TODO string for now, since will unparse anyway...
+  let sOffsets =
+    Utils.bracks <| Utils.spaces <|
+      flip List.map (List.reverse points) <| \(x,y) ->
+        let
+          (dxLeft, dxRight) = (x - xMin, x - xMax)
+          (dyTop , dyBot  ) = (y - yMin, y - yMax)
+          xOff = if dxLeft <= abs dxRight
+                   then Utils.bracks (Utils.spaces ["left", toString dxLeft])
+                   else Utils.bracks (Utils.spaces ["right", toString dxRight])
+          yOff = if dyTop <= abs dyBot
+                   then Utils.bracks (Utils.spaces ["top", toString dyTop])
+                   else Utils.bracks (Utils.spaces ["bot", toString dyBot])
+        in
+        Utils.bracks (Utils.spaces [xOff,yOff])
+  in
+  addToCodeAndRun "polygon" old
+    [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
+    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
+    , makeLet ["offsets"] [eVar sOffsets] ]
+    (eVar0 "stickyPolygon")
+    [eVar "bounds", eConst 350 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "offsets"]
+
+addLambdaToCodeAndRun old pt2 pt1 =
+  let funcName =
+    case old.toolType of
+      Lambda f -> f
+      _        -> Debug.crash "addLambdaToCodeAndRun"
+  in
+  let (xa, xb, ya, yb) =
+    if old.keysDown == Keys.shift
+      then View.squareBoundingBox pt2 pt1
+      else View.boundingBox pt2 pt1
+  in
+  addToCodeAndRun funcName old
+    [ makeLet ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
+    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
+    ]
+    (eVar0 "with") [ eVar "bounds" , eVar funcName ]
+
+addToCodeAndRun newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
+
+  let tmp = newShapeKind ++ toString old.genSymCount in
+  let newDef = makeNewShapeDef old newShapeKind tmp newShapeLocals newShapeFunc newShapeArgs in
+  let (defs, main) = splitExp old.inputExp in
+  let code = unparse (fuseExp (defs ++ [newDef]) (addToMain (eVar tmp) main)) in
+
   upstate Run
     { old | code = code
           , history = addToHistory old.code old.history
           , genSymCount = old.genSymCount + 1
           , mouseMode = MouseNothing }
 
+makeNewShapeDef model newShapeKind name locals func args =
+  let newShapeName = withDummyRange (PVar " " name noWidgetDecl) in
+  let recurse locals =
+    case locals of
+      [] ->
+        let multi = -- check if (func args) returns List SVG or SVG
+          case model.toolType of
+            Poly -> True
+            Lambda _ -> True
+            _ -> False
+        in
+        if multi then
+          withDummyPos (EApp "\n    " func args "")
+        else
+          let app = withDummyPos (EApp " " func args "") in
+          withDummyPos (EList "\n    " [app] "" Nothing " ")
+      (p,e)::locals' -> withDummyPos (ELet "\n  " Let False p e (recurse locals') "")
+  in
+  ("\n\n", newShapeName, recurse locals, "")
+
+makeLet : List Ident -> List Exp -> (Pat, Exp)
+makeLet vars exps =
+  case (vars, exps) of
+    ([x],[e])     -> (pVar x, e)
+    (x::xs,e::es) -> let ps = List.map pVar xs in
+                     let p = pVar0 x in
+                     (pList (p::ps), eList (e::es) Nothing)
+    _             -> Debug.crash "makeLet"
+
+makeInts : List Int -> List Exp
+makeInts nums =
+  case nums of
+    []    -> Debug.crash "makeInts"
+    [n]   -> [eConst0 (toFloat n) dummyLoc]
+    n::ns -> let e = eConst0 (toFloat n) dummyLoc in
+             let es = List.map (\n' -> eConst (toFloat n') dummyLoc) ns in
+             e::es
+
+addToMain eNew main =
+  let callAddShape () =
+    let ws = "\n" in -- TODO take main into account
+    withDummyPos (EApp ws (eVar0 "addShapes") [eNew, main] "")
+  in
+  case main.val.e__ of
+    EApp ws1 e1 [eAppConcat] ws2 ->
+      case (e1.val.e__, eAppConcat.val.e__) of
+        (EVar _ "svg", EApp ws3 eConcat [e2] ws4) ->
+          case (eConcat.val.e__, e2.val.e__) of
+            (EVar _ "concat", EList ws5 shapes ws6 Nothing ws7) ->
+              let
+                e2' =
+                  { e2 | val = { eid = e2.val.eid , e__ =
+                      EList ws5 (shapes ++ [eNew]) ws6 Nothing ws7 } }
+                eAppConcat' =
+                  { eAppConcat | val = { eid = eAppConcat.val.eid , e__ =
+                      EApp ws3 eConcat [e2'] ws4 } }
+                main' =
+                  { main | val = { eid = main.val.eid , e__ =
+                      EApp ws1 e1 [eAppConcat'] ws2 } }
+              in
+              if ws1 == "" then addPreceedingWhitespace "\n\n" main'
+              else if ws1 == "\n" then addPreceedingWhitespace "\n" main'
+              else main'
+
+            _ -> callAddShape ()
+        _     -> callAddShape ()
+    _         -> callAddShape ()
+
+maybeGhost b f args =
+  if b
+    then (eVar0 "ghost", [ withDummyPos (EApp " " f args "") ])
+    else (f, args)
+
+ghost = maybeGhost True
+
 switchToCursorTool old =
   { old | mouseMode = MouseNothing , toolType = Cursor }
+
+
+--------------------------------------------------------------------------------
+-- Retrieving Selected Attributes
+-- TODO
+
+nodeIdAndAttrNameToVal (nodeId, attrName) tree =
+  case Dict.get nodeId tree of
+    Just (LangSvg.SvgNode kind attrs _) -> Just (maybeFindAttr nodeId kind attrName attrs)
+    Just (LangSvg.TextNode _) -> Nothing
+    Nothing -> Debug.crash <| "nodeIdAndAttrNameToVal " ++ (toString nodeId) ++ " " ++ (toString tree)
+
+pluckSelectedVals selectedAttrs slate =
+  let (_, tree) = slate in
+  let foo nodeIdAndAttrName acc =
+    case nodeIdAndAttrNameToVal nodeIdAndAttrName tree of
+      Just val -> val :: acc
+      Nothing  -> acc
+  in
+  Set.foldl foo [] selectedAttrs
+
+maybeFindAttr_ id kind attr attrs =
+  case Utils.maybeFind attr attrs of
+    Just aval -> LangSvg.valOfAVal aval
+    Nothing   -> Debug.crash <| toString ("RelateAttrs 2", id, kind, attr, attrs)
+
+
+getXYi attrs si fstOrSnd =
+  let i = Utils.fromOk_ <| String.toInt si in
+  case Utils.maybeFind "points" attrs of
+    Just aval -> case aval.av_ of
+      LangSvg.APoints pts -> LangSvg.valOfAVal <| LangSvg.aNum <| fstOrSnd <| Utils.geti i pts
+      _                   -> Debug.crash "getXYi 2"
+    _ -> Debug.crash "getXYi 1"
+
+maybeFindAttr id kind attr attrs =
+  case (kind, String.uncons attr) of
+    ("polygon", Just ('x', si)) -> getXYi attrs si fst
+    ("polygon", Just ('y', si)) -> getXYi attrs si snd
+    _                           -> maybeFindAttr_ id kind attr attrs
 
 
 --------------------------------------------------------------------------------
@@ -300,7 +570,7 @@ upstate evt old = case debugLog "Event" evt of
          let new =
            { old | inputExp      = e
                  , inputVal      = newVal
-                 , code          = unparseE e
+                 , code          = unparse e
                  , slideCount    = newSlideCount
                  , movieCount    = newMovieCount
                  , movieTime     = 0
@@ -352,6 +622,9 @@ upstate evt old = case debugLog "Event" evt of
         (MouseNothing, Rect) -> { old | mouseMode = MouseDrawNew "rect" [] }
         (MouseNothing, Oval) -> { old | mouseMode = MouseDrawNew "ellipse" [] }
         (MouseNothing, Poly) -> { old | mouseMode = MouseDrawNew "polygon" [] }
+        (MouseNothing, HelperDot) -> { old | mouseMode = MouseDrawNew "DOT" [] }
+        (MouseNothing, HelperLine) -> { old | mouseMode = MouseDrawNew "line" [] }
+        (MouseNothing, Lambda _) -> { old | mouseMode = MouseDrawNew "LAMBDA" [] }
         _                    ->   old
 
     MouseClick click ->
@@ -369,6 +642,9 @@ upstate evt old = case debugLog "Event" evt of
             else if List.length points == 2 then { old | mouseMode = MouseNothing }
             else if List.length points == 1 then switchToCursorTool old
             else addPolygonToCodeAndRun old points
+        MouseDrawNew "DOT" [] ->
+          let pointOnCanvas = clickToCanvasPoint old click in
+          { old | mouseMode = MouseDrawNew "DOT" [pointOnCanvas] }
         _ ->
           old
 
@@ -398,7 +674,7 @@ upstate evt old = case debugLog "Event" evt of
 
         MouseObject _ _ _ (Just (_, mStuff, onNewPos)) ->
           let (newE,newV,changes,newSlate,newWidgets) = onNewPos (mx, my) in
-          { old | code = unparseE newE
+          { old | code = unparse newE
                 , inputExp = newE
                 , inputVal = newV
                 , slate = newSlate
@@ -412,7 +688,7 @@ upstate evt old = case debugLog "Event" evt of
 
         MouseSlider widget (Just (_, onNewPos)) ->
           let (newE,newV,newSlate,newWidgets) = onNewPos (mx, my) in
-          { old | code = unparseE newE
+          { old | code = unparse newE
                 , inputExp = newE
                 , inputVal = newV
                 , slate = newSlate
@@ -466,6 +742,8 @@ upstate evt old = case debugLog "Event" evt of
         (_, MouseDrawNew "line" [pt2, pt1])    -> addLineToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "rect" [pt2, pt1])    -> addRectToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "ellipse" [pt2, pt1]) -> addEllipseToCodeAndRun old pt2 pt1
+        (_, MouseDrawNew "DOT" [pt])           -> addHelperDotToCodeAndRun old pt
+        (_, MouseDrawNew "LAMBDA" [pt2, pt1])  -> addLambdaToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "polygon" points)     -> old
 
         _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
@@ -489,19 +767,7 @@ upstate evt old = case debugLog "Event" evt of
 
 
     RelateAttrs ->
-      let (_,tree) = old.slate in
-      let selectedVals = debugLog "selectedVals" <|
-        let foo (id,_,attr) acc =
-          case Dict.get id tree of
-            Just (LangSvg.SvgNode _ attrs _) ->
-              case Utils.maybeFind attr attrs of
-                Just aval -> LangSvg.valOfAVal aval :: acc
-                Nothing   -> Debug.crash "RelateAttrs 2"
-            Just (LangSvg.TextNode _) -> acc
-            Nothing                   -> Debug.crash "RelateAttrs 1"
-        in
-        Set.foldl foo [] old.selectedAttrs
-      in
+      let selectedVals = debugLog "selectedVals" <| pluckSelectedVals old.selectedAttrs old.slate in
       let revert = (old.inputExp, old.inputVal) in
       let (nextK, l) = Sync.relate old.genSymCount old.inputExp selectedVals in
       let possibleChanges = List.map (addSlateAndCode old) l in
@@ -511,6 +777,156 @@ upstate evt old = case debugLog "Event" evt of
               , runAnimation = True
               , syncSelectTime = 0.0
               }
+
+    DigHole ->
+      let selectedVals =
+        debugLog "selectedVals" <|
+          pluckSelectedVals old.selectedAttrs old.slate
+      in
+      let traces =
+        List.map valToTrace selectedVals
+      in
+      let tracesLocsets =
+        List.map (Sync.locsOfTrace old.syncOptions) traces
+      in
+      let locset =
+        List.foldl Set.union Set.empty tracesLocsets
+      in
+      let locsetList =
+        Set.toList locset
+      in
+      let isLocsetNode exp =
+        case exp.val.e__ of
+          EConst ws n loc wd -> Set.member loc locset
+          _                  -> False
+      in
+      let locToNumber =
+        let accumulateLocToNumbers exp__ dict =
+          case exp__ of
+            EConst ws n loc wd ->
+              if Set.member loc locset then
+                Dict.insert loc n dict
+              else
+                dict
+            _ -> dict
+        in
+        foldExpViaE__
+            accumulateLocToNumbers
+            Dict.empty
+            old.inputExp
+      in
+      let locsAncestors = debugLog "locsAncestors" <|
+        findAllWithAncestors isLocsetNode old.inputExp
+      in
+      -- isScope needs to see the node's parent...because case statements
+      -- produce many scopes out of one expression
+      -- The below adds a maybe parent to each node, so we get List (List
+      -- (Maybe Exp, Exp))
+      let locsAncestorsWithParents = debugLog "locsAncestorsWithParents" <|
+        List.map
+            (\locAncestors ->
+              Utils.zip (Nothing :: (List.map Just locAncestors)) locAncestors
+            )
+            locsAncestors
+      in
+      let locsAncestorScopesWithParents = debugLog "locsAncestorScopesWithParents" <|
+        List.map
+            (List.filter (\(parent, node) -> isScope parent node))
+            locsAncestorsWithParents
+      in
+      let deepestCommonScopeWithParent = debugLog "deepestCommonAncestorWithParent" <|
+        -- If no common scope, we will wrap the root node.
+        let commonPrefix = debugLog "commonPrefix" <|
+          [(Nothing, old.inputExp)] ++
+          Utils.commonPrefix locsAncestorScopesWithParents
+        in
+        Utils.last_ commonPrefix
+      in
+      let (deepestCommonScopeParent, deepestCommonScope) =
+        deepestCommonScopeWithParent
+      in
+      -- Avoid name collisions here
+      let locIdNameOrigNamePrime =
+        List.map
+            (\(locId, frozen, ident) -> (locId, "k"++(toString locId)++ident++"Orig", "k"++(toString locId)++ident++"Prime"))
+            locsetList
+      in
+      let locIdToNewName = debugLog "locIdToNewName" <|
+        Dict.fromList
+          <| List.map (\(locId, nameOrig, namePrime) -> (locId, namePrime))
+          <| locIdNameOrigNamePrime
+      in
+      let replaceConstsWithVars exp__ =
+        case exp__ of
+          EConst ws n (locId, frozen, ident) wd ->
+            case Dict.get locId locIdToNewName of
+              Just newName -> EVar ws newName
+              Nothing      -> exp__
+          _ -> exp__
+      in
+      let commonScopeReplaced =
+        mapExpViaExp__ replaceConstsWithVars deepestCommonScope
+      in
+      let newlyWrappedCommonScope =
+        let origNames  = List.map Utils.snd3 locIdNameOrigNamePrime in
+        let primeNames = List.map Utils.thd3 locIdNameOrigNamePrime in
+        let valueStrs =
+          List.map
+              (\loc ->
+                toString (Utils.justGet loc locToNumber)
+              )
+              locsetList
+        in
+        let oldPreceedingWhitespace = preceedingWhitespace commonScopeReplaced in
+        let extraWhitespace =
+          if String.contains "\n" oldPreceedingWhitespace then "" else "\n"
+        in
+        let templateStr =
+          let variableOrigNamesStr  = String.join " " origNames in
+          let variablePrimeNamesStr = String.join " " primeNames in
+          let variableValuesStr     = String.join " " valueStrs in
+          oldPreceedingWhitespace ++
+          "(let ["++variableOrigNamesStr++"] ["++variableValuesStr++"]" ++
+          extraWhitespace ++ oldPreceedingWhitespace ++
+          "(let ["++variablePrimeNamesStr++"] ["++variableOrigNamesStr++"] 'dummy body'))"
+        in
+        let template =
+          case parseE templateStr of
+            Ok templateExp -> templateExp
+            Err err        -> Debug.crash <| "Dig template err: " ++ err
+        in
+        -- Now replace the dummy body:
+        let newLet =
+          mapExpViaExp__
+              (\e__ ->
+                case e__ of
+                  EBase _ (String "dummy body") -> (addPreceedingWhitespace extraWhitespace commonScopeReplaced).val.e__
+                  _                             -> e__
+              )
+              template
+        in
+        newLet
+      in
+      -- Debug only:
+      let newSubtreeStr = debugLog "newlyWrappedCommonScope" <| unparse newlyWrappedCommonScope in
+      let newExp =
+        freshen <|
+        replaceExpNode deepestCommonScope newlyWrappedCommonScope old.inputExp
+      in
+      let (newVal, newWidgets) = Eval.run newExp in
+      let (newSlate, newCode)  = slateAndCode old (newExp, newVal) in
+      debugLog "new model" <|
+        { old | code          = newCode
+              , inputExp      = newExp
+              , inputVal      = newVal
+              , history       = addToHistory old.code old.history
+              , slate         = newSlate
+              , widgets       = newWidgets
+              , previewCode   = Nothing
+              , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal
+              , selectedAttrs = Set.empty
+        }
+
 
     RelateShapes ->
       let newval = slateToVal old.slate in
@@ -555,15 +971,16 @@ upstate evt old = case debugLog "Event" evt of
         _ -> Debug.crash "upstate Sync"
 
     SelectOption (exp, val, slate, code) ->
-      maybeAdjustShowZones
-      { old | code          = code
-            , inputExp      = exp
-            , inputVal      = val
-            , history       = addToHistory old.code old.history
-            , slate         = slate
-            , previewCode   = Nothing
-            , toolType      = Cursor
-            , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp val }
+      maybeLeaveDeleteMode
+        { old | code          = code
+              , inputExp      = exp
+              , inputVal      = val
+              , history       = addToHistory old.code old.history
+              , slate         = slate
+              , previewCode   = Nothing
+              , toolType      = Cursor
+              , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp val }
+        showZonesNone
 
 
     PreviewCode maybeCode ->
@@ -592,7 +1009,7 @@ upstate evt old = case debugLog "Event" evt of
             , exName        = name
             , inputExp      = e
             , inputVal      = v
-            , code          = unparseE e
+            , code          = unparse e
             , history       = ([],[])
             , mode          = m
             , syncOptions   = so
@@ -611,8 +1028,8 @@ upstate evt old = case debugLog "Event" evt of
 
     SwitchOrient -> { old | orient = switchOrient old.orient }
 
-    ToggleZones ->
-      maybeAdjustShowZones { old | showZones = toggleShowZones old.showZones }
+    SelectZonesMode i ->
+      maybeLeaveDeleteMode { old | showZones = i } old.showZones
 
     Undo ->
       case (old.code, old.history) of
@@ -667,6 +1084,8 @@ upstate evt old = case debugLog "Event" evt of
 
     KeysDown l ->
       -- let _ = Debug.log "keys" (toString l) in
+      { old | keysDown = l }
+
 {-      case old.mode of
           SaveDialog _ -> old
           _ -> case editingMode old of
@@ -694,6 +1113,8 @@ upstate evt old = case debugLog "Event" evt of
               | l == keysDown  -> adjustMidOffsetY old 25
               | otherwise -> old
 -}
+
+{-
       let fire evt = upstate evt old in
 
       case editingMode old of
@@ -719,25 +1140,22 @@ upstate evt old = case debugLog "Event" evt of
                 if      l == keysE        then fire Edit
                 else if l == keysZ        then fire Undo
                 else if l == keysY        then fire Redo
-                else if l == keysG        then fire ToggleZones  -- for righties
-                else if l == keysH        then fire ToggleZones  -- for lefties
                 else if l == keysT        then fire (SwitchMode AdHoc)
                 else if l == keysS        then fire Noop -- placeholder for Save
                 else if l == keysShiftS   then fire Noop -- placeholder for Save As
                 else                           fire Noop
 
               AdHoc ->
-                if      l == keysG        then fire ToggleZones  -- for righties
-                else if l == keysH        then fire ToggleZones  -- for lefties
-                else if l == keysZ        then fire Undo
+                if      l == keysZ        then fire Undo
                 else if l == keysY        then fire Redo
                 else if l == keysT        then fire Sync
                 else                           fire Noop
 
               _                       -> fire Noop
+-}
 
     CleanCode ->
-      let s' = unparseE (cleanExp old.inputExp) in
+      let s' = unparse (cleanExp old.inputExp) in
       let h' =
         if old.code == s'
           then old.history
@@ -774,42 +1192,6 @@ adjustMidOffsetY old dy =
     Horizontal -> { old | midOffsetY = old.midOffsetY + dy }
     Vertical   -> upstate SwitchOrient old
 
-
---------------------------------------------------------------------------------
--- Key Combinations
-
-keysMetaShift           = List.sort [keyMeta, keyShift]
-keysEscShift            = List.sort [keyEsc, keyShift]
-keysEnter               = List.sort [keyEnter]
-keysE                   = List.sort [Char.toCode 'E']
-keysZ                   = List.sort [Char.toCode 'Z']
-keysY                   = List.sort [Char.toCode 'Y']
--- keysShiftZ              = List.sort [keyShift, Char.toCode 'Z']
-keysG                   = List.sort [Char.toCode 'G']
-keysH                   = List.sort [Char.toCode 'H']
-keysO                   = List.sort [Char.toCode 'O']
-keysP                   = List.sort [Char.toCode 'P']
-keysT                   = List.sort [Char.toCode 'T']
-keysS                   = List.sort [Char.toCode 'S']
-keysShiftS              = List.sort [keyShift, Char.toCode 'S']
-keysLeft                = List.sort [keyLeft]
-keysRight               = List.sort [keyRight]
-keysUp                  = List.sort [keyUp]
-keysDown                = List.sort [keyDown]
-keysShiftLeft           = List.sort [keyShift, keyLeft]
-keysShiftRight          = List.sort [keyShift, keyRight]
-keysShiftUp             = List.sort [keyShift, keyUp]
-keysShiftDown           = List.sort [keyShift, keyDown]
-
-keyEnter                = 13
-keyEsc                  = 27
-keyMeta                 = 91
-keyCtrl                 = 17
-keyShift                = 16
-keyLeft                 = 37
-keyUp                   = 38
-keyRight                = 39
-keyDown                 = 40
 
 
 --------------------------------------------------------------------------------
@@ -886,6 +1268,16 @@ createMousePosCallback mx my objid kind zone old =
         ("rect", "TopLeftCorner")  -> ret [fx "x", fy "y", fx_ "width", fy_ "height"]
         ("rect", "TopEdge")        -> ret [fy "y", fy_ "height"]
         ("rect", "TopRightCorner") -> ret [fy "y", fx "width", fy_ "height"]
+
+        ("BOX", "Interior")        -> ret [fx "LEFT", fy "TOP", fx "RIGHT", fy "BOT"]
+        ("BOX", "RightEdge")       -> ret [fx "RIGHT"]
+        ("BOX", "BotRightCorner")  -> ret [fx "RIGHT", fy "BOT"]
+        ("BOX", "BotEdge")         -> ret [fy "BOT"]
+        ("BOX", "BotLeftCorner")   -> ret [fx "LEFT", fy "BOT"]
+        ("BOX", "LeftEdge")        -> ret [fx "LEFT"]
+        ("BOX", "TopLeftCorner")   -> ret [fx "LEFT", fy "TOP"]
+        ("BOX", "TopEdge")         -> ret [fy "TOP"]
+        ("BOX", "TopRightCorner")  -> ret [fy "TOP", fx "RIGHT"]
 
         ("circle", "Interior") -> ret [fx "cx", fy "cy"]
         ("circle", "Edge") ->

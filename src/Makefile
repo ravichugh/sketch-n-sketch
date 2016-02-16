@@ -28,7 +28,7 @@ loc:
 	  Native/toggleAnimationLoopback.js \
     Main.elm Config.elm \
     PreludeTemplate.elm ExamplesTemplate.elm \
-    ColorNum.elm
+    ColorNum.elm Keys.elm
 
 littleloc:
 	# wc -l ../examples/*

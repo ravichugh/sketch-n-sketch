@@ -6,7 +6,7 @@ import Sync
 import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Zone)
 import ExamplesGenerated as Examples
-import LangUnparser exposing (unparseE)
+import LangUnparser exposing (unparse)
 import OurParser2 as P
 
 import List
@@ -64,7 +64,8 @@ type alias Model =
   , errorBox : Maybe String
   , genSymCount : Int
   , toolType : ToolType
-  , selectedAttrs : Set.Set (NodeId, ShapeKind, String)
+  , selectedAttrs : Set.Set (NodeId, String)
+  , keysDown : List Char.KeyCode
   }
 
 type Mode
@@ -107,6 +108,8 @@ type MouseMode
       -- invariant on length n of list of points:
       --   for line/rect/ellipse, n == 0 or n == 2
       --   for polygon,           n >= 0
+      --   for helper dot,        n == 0 or n == 1
+      --   for lambda,            n == 0 or n == 2
 
 type alias MouseTrigger a = (Int, Int) -> a
 
@@ -118,16 +121,20 @@ type alias PossibleChange = (Exp, Val, RootedIndexedTree, Code)
 -- InterfaceStorage is more succinct (Enum typeclass would be nice here...)
 type alias ShowZones = Int
 
-showZonesModes = 6
+showZonesModeCount = 5
 
-(showZonesNone, showZonesBasic, showZonesSelect, showZonesRot, showZonesColor, showZonesDel) =
-  Utils.unwrap6
-    [ 0 .. (showZonesModes - 1) ]
+showZonesModes = [ 0 .. (showZonesModeCount - 1) ]
+
+(showZonesNone, showZonesBasic, showZonesSelect, showZonesExtra, showZonesDel) =
+  Utils.unwrap5 showZonesModes
 
 type ToolType
   = Cursor | SelectAttrs | SelectShapes
   | Line | Rect | Oval
   | Poly | Path | Text
+  | HelperDot
+  | HelperLine
+  | Lambda Ident
 
 type Caption
   = Hovering (Int, ShapeKind, Zone)
@@ -139,12 +146,13 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | MouseClick (Int, Int) -- used to add points to a new polygon
            | MouseUp
            | MousePos (Int, Int)
-           | TickDelta Float -- 30fps time tick, Float is time since last tick
+           | TickDelta Float -- 60fps time tick, Float is time since last tick
            | Sync
            | PreviewCode (Maybe Code)
            | SelectOption PossibleChange
            | CancelSync
            | RelateAttrs -- not using UpdateModel, since want to define handler in Controller
+           | DigHole
            | RelateShapes
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets})
@@ -153,7 +161,7 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | StartAnimation
            | Redraw
            | ToggleOutput
-           | ToggleZones
+           | SelectZonesMode Int
            | NextSlide
            | PreviousSlide
            | NextMovie
@@ -233,13 +241,13 @@ codeToShow model =
 sampleModel : Model
 sampleModel =
   let
-    (name,f) = Utils.head_ Examples.list
-    {e,v,ws} = f ()
+    (name,_,f) = Utils.head_ Examples.list
+    {e,v,ws}   = f ()
   in
   let (slideCount, movieCount, movieDuration, movieContinue, indexedTree) = LangSvg.fetchEverything 1 1 0.0 v in
     { scratchCode   = Examples.scratch
     , exName        = name
-    , code          = unparseE e
+    , code          = unparse e
     , previewCode   = Nothing
     , history       = ([], [])
     , inputExp      = e
@@ -277,8 +285,11 @@ sampleModel =
                       }
     , basicCodeBox  = False
     , errorBox      = Nothing
-    , genSymCount   = 0
+    -- starting at 1 to match shape ids on blank canvas
+    -- , genSymCount   = 0
+    , genSymCount   = 1
     , toolType      = Cursor
     , selectedAttrs = Set.empty
+    , keysDown      = []
     }
 

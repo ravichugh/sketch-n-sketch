@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+# Script to rebuild the project when a file changes.
+# Does not rebuild the built-in examples.
+#
+# Usage: ./watchmake
+#
+# Requires fs-watch. ($ brew install fswatch)
+# https://emcrisostomo.github.io/fswatch/getting.html
+
+FILE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+cd $FILE_DIR
+
+# If you need to work on built-in examples, change to "make examples html"
+
+echo "fswatch -Ee 'git|build|Generated' . | xargs -ton 1 sh -c 'cd src; make html'"
+fswatch -Ee 'git|build|Generated' . | xargs -ton 1 sh -c 'cd src; make html'

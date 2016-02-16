@@ -201,9 +201,14 @@ where
   children   ::=  [ h1 ... hn ]
 ```
 
-TODO explain attrs for different shapes
-
 See [`prelude.little`][Prelude] for a small library of SVG-manipulating functions.
+
+The [Prelude][Prelude], the examples that come with the editor,
+the [Tutorial](http://ravichugh.github.io/sketch-n-sketch/tutorial/index.html),
+and the Appendix of [this technical report](http://arxiv.org/pdf/1507.02988v2.pdf)
+provide more details about how different SVG attributes can be
+encoded in Little.
+You can also peek at the `valToAttr` function in [`LangSvg.elm`][LangSvg].
 
 ## Little "REPL"
 
@@ -233,7 +238,39 @@ To add a new example to the dropdown menu:
 
 4. Launch Sketch-n-Sketch.
 
+## Running Tests
+
+If you hack on Sketch-n-Sketch, there are some tests to run. Writing more tests is, of course, encouraged.
+
+Run once:
+
+```
+$ ./tests/test.sh
+```
+
+Run when files change (requires [fswatch](https://emcrisostomo.github.io/fswatch/)):
+
+```
+$ ./watchtest
+```
+
+To run only tests with a certain string in their name, set `SNS_TESTS_FILTER`:
+
+```
+$ SNS_TESTS_FILTER=unparser ./watchtest
+```
+
+To write a new test, make a function of type `() -> String` named `somethingTest` in a `tests/myTests.elm` file. If the function returns the string `"ok"` it is considered a passing test, otherwise the returned string will be displayed as a failure message.
+
+You can also return a list of test functions, `() -> List (() -> String)`, and each test will be run individually.
+
+See [existing tests](https://github.com/ravichugh/sketch-n-sketch/tree/master/tests) for examples.
+
+### Adding/Removing Elm Packages
+
+If you add or remove a package from the project, the package list for the tests needs to be updated as well. Simply run `node tests/refresh_elm-packages.js` to copy over the main `elm-packages.json` into the tests directory.
 
 [Prelude]: https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little
+[LangSvg]: https://github.com/ravichugh/sketch-n-sketch/blob/master/src/LangSvg.elm
 [ProjectPage]: http://ravichugh.github.io/sketch-n-sketch
 

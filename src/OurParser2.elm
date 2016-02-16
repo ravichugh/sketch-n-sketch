@@ -46,20 +46,6 @@ parse p s =
     [] -> Err ("no parse\n\n" ++ s)
     l  -> Err ("ambiguous parse\n\n" ++ toString (List.map (.val << fst) l))
 
-return : a -> Parser a
-return x = P (\s -> [(WithInfo x s.pos s.pos, s)])
-
-returnWithInfo x start end = P (\s -> [(WithInfo x start end, s)])
-
-bind : Parser a -> (WithInfo a -> Parser b) -> Parser b
-bind pa f = P <| \s ->
-  List.concat (List.map (\(a,s') -> runParser (f a) s') (runParser pa s))
-
-sequence : Parser a -> Parser b -> Parser b
-sequence p1 p2 = bind p1 (always p2)
-
-(>>=) = bind
-(>>>) = sequence
 
 satisfy : (Char -> Bool) -> Parser Char
 satisfy f = P <| \s ->
@@ -85,10 +71,6 @@ string str = P <| \s ->
     let end   = start `offsetBy` str in
     [(WithInfo str start end, WithPos (String.dropLeft n s.val) end)]
 
-map : (a -> b) -> Parser a -> Parser b
-map f p = P <| \s ->
-  List.map (\(x,s') -> (WithInfo (f x.val) x.start x.end, s')) (runParser p s)
-
 token : String -> Parser ()
 token = map (always ()) << string
 
@@ -97,15 +79,6 @@ end = token ""
 
 fail : Parser a
 fail = P (always [])
-
-or : Parser a -> Parser a -> Parser a
-or p1 p2 = P <| \s -> (runParser p1 s) ++ (runParser p2 s)
-
-left_or : Parser a -> Parser a -> Parser a
-left_or p1 p2 = P <| \s ->
-  case runParser p1 s of
-    []  -> runParser p2 s
-    res -> res
 
 munch : (Char -> Bool) -> Parser String
 munch f = P <| \s ->
@@ -130,9 +103,6 @@ munch1 f = P <| \s ->
         else [(pre,suf)]
     _ ->
       Debug.crash "munch1"
-
-skipSpaces : Parser ()
-skipSpaces = map (always ()) (munch ((==) ' '))
 
 choice : List (Parser a) -> Parser a
 choice ps =
@@ -175,6 +145,33 @@ sepBy1 p sep =
   many (sep >>> p) >>= \xs ->
     returnWithInfo (x :: xs.val) x.start xs.end
 
+return : a -> Parser a
+return x = P (\s -> [(WithInfo x s.pos s.pos, s)])
+
+returnWithInfo x start end = P (\s -> [(WithInfo x start end, s)])
+
+bind : Parser a -> (WithInfo a -> Parser b) -> Parser b
+bind pa f = P <| \s ->
+  List.concatMap (\(a,s') -> runParser (f a) s') (runParser pa s)
+
+sequence : Parser a -> Parser b -> Parser b
+sequence p1 p2 = bind p1 (always p2)
+
+or : Parser a -> Parser a -> Parser a
+or p1 p2 = P <| \s -> (runParser p1 s) ++ (runParser p2 s)
+
+left_or : Parser a -> Parser a -> Parser a
+left_or p1 p2 = P <| \s ->
+  case runParser p1 s of
+    []  -> runParser p2 s
+    res -> res
+
+map : (a -> b) -> Parser a -> Parser b
+map f p = P <| \s ->
+  List.map (\(x,s') -> (WithInfo (f x.val) x.start x.end, s')) (runParser p s)
+
+(>>=) = bind
+(>>>) = sequence
 (+++) = or
 (<++) = left_or
 (<$>) = map

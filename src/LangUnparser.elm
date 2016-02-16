@@ -1,7 +1,8 @@
---module LangUnparser (unparseE, bumpCol, incCol) where 
 -- temporarily expose everything for visualeditor
-
 module LangUnparser where
+{-
+module LangUnparser (unparse, bumpCol, incCol, preceedingWhitespace, addPreceedingWhitespace) where
+-}
 
 import Lang exposing (..)
 import OurParser2 exposing (Pos, WithPos, WithInfo, startPos)
@@ -17,243 +18,117 @@ debugLog = Config.debugLog Config.debugParser
 
 ------------------------------------------------------------------------------
 
--- NOTES:
---  - Lang/LangParser2 is set up such that trailing whitespace on each line
---    is not reinstated
+-- TODO: I think these can go away...
 
-bumpLine n pos = { line = n + pos.line, col = 1 }
-bumpCol  n pos = { pos | col = n + pos.col }
-
-incLine = bumpLine 1
-incCol  = bumpCol 1
-decCol  = bumpCol (-1)
-
-lines i j =
-  -- | i > j     -> Debug.crash <| "Unparser.lines: " ++ toString (i,j)
-  -- TODO to help Sync.relateWithVar for now
-  if i > j
-    then " "
-    else String.repeat (j-i) "\n"
-
-cols i j =
-  -- | i > j     -> Debug.crash <| "Unparser.cols: " ++ toString (i,j)
-  -- TODO to help Sync.expandRange for now
-  if i > j
-    then let _ = Debug.log "Unparser.cols: " (toString (i, j)) in " "
-    else String.repeat (j-i) " "
-
-whitespace : Pos -> Pos -> String
-whitespace endPrev startNext =
-  debugLog ("whiteSpace " ++ toString (endPrev, startNext)) <|
-    if endPrev.line == startNext.line
-    then cols endPrev.col startNext.col
-    else lines endPrev.line startNext.line ++ cols 1 startNext.col
-
-delimit : String -> String -> Pos -> Pos -> Pos -> Pos -> String -> String
-delimit open close startOutside startInside endInside endOutside s =
-  let olen = String.length open
-      clen = String.length close in
-  Utils.delimit open close
-    <| whitespace (bumpCol olen startOutside) startInside
-    ++ s
-    ++ whitespace endInside (bumpCol (-1 * clen) endOutside)
-
-parens = delimit "(" ")"
-
-space = whitespace   -- at least one " "
-
--- NOTE: delimit/space functions that build on this are at the end
+bumpCol n pos = { pos | col = n + pos.col }
+incCol = bumpCol 1
 
 ------------------------------------------------------------------------------
+
+preceedingWhitespace : Exp -> String
+preceedingWhitespace e =
+  case e.val.e__ of
+    EBase    ws v                     -> ws
+    EConst   ws n l wd                -> ws
+    EVar     ws x                     -> ws
+    EFun     ws1 ps e1 ws2            -> ws1
+    EApp     ws1 e1 es ws2            -> ws1
+    EList    ws1 es ws2 rest ws3      -> ws1
+    EIndList ws1 rs ws2               -> ws1
+    EOp      ws1 op es ws2            -> ws1
+    EIf      ws1 e1 e2 e3 ws2         -> ws1
+    ELet     ws1 kind rec p e1 e2 ws2 -> ws1
+    ECase    ws1 e1 bs ws2            -> ws1
+    EComment ws s e1                  -> ws
+    EOption  ws1 s1 ws2 s2 e1         -> ws1
+
+addPreceedingWhitespace : String -> Exp -> Exp
+addPreceedingWhitespace newWs exp =
+  let e__' =
+    case exp.val.e__ of
+      EBase    ws v                     -> EBase    (newWs ++ ws) v
+      EConst   ws n l wd                -> EConst   (newWs ++ ws) n l wd
+      EVar     ws x                     -> EVar     (newWs ++ ws) x
+      EFun     ws1 ps e1 ws2            -> EFun     (newWs ++ ws1) ps e1 ws2
+      EApp     ws1 e1 es ws2            -> EApp     (newWs ++ ws1) e1 es ws2
+      EList    ws1 es ws2 rest ws3      -> EList    (newWs ++ ws1) es ws2 rest ws3
+      EIndList ws1 rs ws2               -> EIndList (newWs ++ ws1) rs ws2
+      EOp      ws1 op es ws2            -> EOp      (newWs ++ ws1) op es ws2
+      EIf      ws1 e1 e2 e3 ws2         -> EIf      (newWs ++ ws1) e1 e2 e3 ws2
+      ELet     ws1 kind rec p e1 e2 ws2 -> ELet     (newWs ++ ws1) kind rec p e1 e2 ws2
+      ECase    ws1 e1 bs ws2            -> ECase    (newWs ++ ws1) e1 bs ws2
+      EComment ws s e1                  -> EComment (newWs ++ ws) s e1
+      EOption  ws1 s1 ws2 s2 e1         -> EOption  (newWs ++ ws1) s1 ws2 s2 e1
+  in
+  let val = exp.val in
+  { exp | val = { val | e__ = e__' } }
+
+
+unparseWD : WidgetDecl -> String
+unparseWD wd =
+  case wd.val of
+    NoWidgetDecl        -> ""
+    IntSlider a tok b _ -> "{" ++ toString a.val ++ tok.val ++ toString b.val ++ "}"
+    NumSlider a tok b _ -> "{" ++ toString a.val ++ tok.val ++ toString b.val ++ "}"
 
 unparsePat : Pat -> String
 unparsePat p = case p.val of
-  PVar x wd -> case wd.val of
-    NoWidgetDecl        -> x
-    IntSlider a tok b _ -> x ++ bracesAndSpaces wd.start wd.end [UInt a, UStr tok, UInt b]
-    NumSlider a tok b _ -> x ++ bracesAndSpaces wd.start wd.end [UNum a, UStr tok, UNum b]
-  PList ps Nothing ->
-    bracksAndSpaces p.start p.end (List.map UPat ps)
-  PList ps (Just pRest) ->
-    -- let _ = Debug.log "TODO: unparsePat" () in
-    strPat p
-  PConst n -> strNum n
-  PBase bv -> strBaseVal bv
-
--- NOTE:
---   haven't recorded pos for "\", "let", "case", "if", etc.
---   so makeToken picks a canonical position
-
-makeToken start s =
-  let n = String.length s in
-  WithInfo s start (bumpCol n start)
-
--- TODO: compute whitespace once per AST-skeleton
+  PVar ws x wd ->
+    ws ++ x ++ unparseWD wd
+  PList ws1 ps ws2 Nothing ws3 ->
+    ws1 ++ "[" ++ (String.concat (List.map unparsePat ps)) ++ ws3 ++ "]"
+  PList ws1 ps ws2 (Just pRest) ws3 ->
+    ws1 ++ "[" ++ (String.concat (List.map unparsePat ps)) ++ ws2 ++ "|" ++ unparsePat pRest ++ ws3 ++ "]"
+  PConst ws n -> ws ++ strNum n
+  PBase ws bv -> ws ++ strBaseVal bv
 
 unparse : Exp -> String
 unparse e = case e.val.e__ of
-  EBase v -> strBaseVal v
-  EConst i l wd ->
-    let s = let (_,b,_) = l in toString i ++ b in
-    case wd.val of
-      NoWidgetDecl        -> s
-      IntSlider a tok b _ -> s ++ bracesAndSpaces wd.start wd.end [UInt a, UStr tok, UInt b]
-      NumSlider a tok b _ -> s ++ bracesAndSpaces wd.start wd.end [UNum a, UStr tok, UNum b]
+  EBase ws v -> ws ++ strBaseVal v
+  EConst ws n l wd ->
+    let (_,b,_) = l in
+    ws ++ toString n ++ b ++ unparseWD wd
     -- TODO: parse/unparse are not inverses for floats (e.g. 1.0)
-  EVar x -> x
-  EFun [p] e1 ->
-    let tok = makeToken (incCol e.start) "\\" in
-    parensAndSpaces e.start e.end [UStr tok, UPat p, UExp e1]
-  EFun ps e1 ->
-    let tok = makeToken (incCol e.start) "\\" in
-    parensAndSpaces e.start e.end [UStr tok, UParens (List.map UPat ps), UExp e1]
-  EApp e1 es -> parensAndSpaces e.start e.end (List.map UExp (e1::es))
-  EList es Nothing -> bracksAndSpaces e.start e.end (List.map UExp es)
-  EList es (Just eRest) ->
-    let en = Utils.head_ <| List.reverse es in
-    let tok1 = makeToken e.start   "[" in
-    let tok2 = makeToken en.end    "|" in
-    let tok3 = makeToken eRest.end "]" in
-       delimitAndSpaces tok1.val tok2.val tok1.start tok2.end (List.map UExp es)
-    ++ space tok2.end eRest.start
-    ++ unparse eRest ++ space eRest.end tok3.start
-    ++ tok3.val
-  EIndList rs ->
-    ibracksAndSpaces e.start e.end (List.concat (List.map unparseRange rs))
-{-
-  EOp op es ->
-    let sOp = { op | val = strOp op.val } in
-    parensAndSpaces e.start e.end (UStr sOp :: List.map UExp es)
--}
-  EOp op es ->
-    let normal () =
-      let sOp = { op | val = strOp op.val } in
-      parensAndSpaces e.start e.end (UStr sOp :: List.map UExp es)
-    in
-    -- TODO: hack to fix unparsing issue after Sync.relateNumsWithVar...
-    case (op.val, List.map (.e__ << .val) es) of
-      (Plus, [EVar x, _]) ->
-        case Utils.munchString "gensym" x of
-          Just _  -> sExp e
-          Nothing -> normal ()
-      _           -> normal ()
-  EIf e1 e2 e3 ->
-    let tok = makeToken (incCol e.start) "if" in
-    parensAndSpaces e.start e.end (UStr tok :: List.map UExp [e1,e2,e3])
-  ELet Let b p e1 e2 ->
-    let tok = makeToken (incCol e.start) (if b then "letrec" else "let") in
-    parensAndSpaces e.start e.end (UStr tok :: UPat p :: List.map UExp [e1,e2])
-  ELet Def b p e1 e2 ->
+  EVar ws x -> ws ++ x
+  EFun ws1 [p] e1 ws2 ->
+    ws1 ++ "(\\" ++ unparsePat p ++ unparse e1 ++ ws2 ++ ")"
+  EFun ws1 ps e1 ws2 ->
+    ws1 ++ "(\\(" ++ (String.concat (List.map unparsePat ps)) ++ ")" ++ unparse e1 ++ ws2 ++ ")"
+  EApp ws1 e1 es ws2 ->
+    ws1 ++ "(" ++ unparse e1 ++ (String.concat (List.map unparse es)) ++ ws2 ++ ")"
+  EList ws1 es ws2 Nothing ws3 ->
+    ws1 ++ "[" ++ (String.concat (List.map unparse es)) ++ ws3 ++ "]"
+  EList ws1 es ws2 (Just eRest) ws3 ->
+    ws1 ++ "[" ++ (String.concat (List.map unparse es)) ++ ws2 ++ "|" ++ unparse eRest ++ ws3 ++ "]"
+  EIndList ws1 rs ws2 ->
+    ws1 ++ "[|" ++ (String.concat (List.map unparseRange rs)) ++ ws2 ++ "|]"
+  EOp ws1 op es ws2 ->
+    ws1 ++ "(" ++ strOp op.val ++ (String.concat (List.map unparse es)) ++ ws2 ++ ")"
+  EIf ws1 e1 e2 e3 ws2 ->
+    ws1 ++ "(if" ++ unparse e1 ++ unparse e2 ++ unparse e3 ++ ws2 ++ ")"
+  ELet ws1 Let b p e1 e2 ws2 ->
+    let tok = if b then "letrec" else "let" in
+    ws1 ++ "(" ++ tok ++ unparsePat p ++ unparse e1 ++ unparse e2 ++ ws2 ++ ")"
+  ELet ws1 Def b p e1 e2 ws2 ->
     -- TODO don't used nested defs until this is re-worked
-    let tok = makeToken (incCol e.start) (if b then "defrec" else "def") in
-    let s1 = parensAndSpaces e.start e.end [UStr tok, UPat p, UExp e1] in
-    s1 ++ space e.end e2.start ++ unparse e2
-  ECase e1 l ->
-    let tok = makeToken (incCol e.start) "case" in
-    parensAndSpaces e.start e.end (UStr tok :: UExp e1 :: List.map UBra l)
-  EComment s e1 ->
-    let white = whitespace (incLine e.start) e1.start in
-    ";" ++ s ++ "\n" ++ white ++ unparse e1
-  EOption s1 s2 e1 ->
-    let tok1 = makeToken e.start "#" in
-    let tok2 = makeToken s1.end ":" in
-    let s = fst (spaces (List.map UStr [tok1, s1, tok2, s2])) in
-    let white = whitespace (incLine e.start) e1.start in
-    s ++ "\n" ++ white ++ unparse e1
+    let tok = if b then "defrec" else "def" in
+    ws1 ++ "(" ++ tok ++ unparsePat p ++ unparse e1 ++ ws2 ++ ")" ++ unparse e2
+  ECase ws1 e1 bs ws2 ->
+    let branchesStr =
+      String.concat
+        <| List.map (\(Branch_ bws1 pat exp bws2) -> bws1 ++ "(" ++ unparsePat pat ++ unparse exp ++ bws2 ++ ")")
+        <| List.map (.val) bs
+    in
+    ws1 ++ "(case" ++ unparse e1 ++ branchesStr ++ ws2 ++ ")"
+  EComment ws s e1 ->
+    ws ++ ";" ++ s ++ "\n" ++ unparse e1
+  EOption ws1 s1 ws2 s2 e1 ->
+    ws1 ++ "# " ++ s1.val ++ ":" ++ ws2 ++ s2.val ++ "\n" ++ unparse e1
 
-unparseE : Exp -> String
-unparseE e = whitespace startPos e.start ++ unparse e
-
--- Currently only remembers whitespace after ".."
-unparseRange : Range -> List Unparsable
+unparseRange : Range -> String
 unparseRange r = case r.val of
-  Point e        -> [ UExp e ]
-  Interval e1 e2 -> [ UExp e1, UStr (makeToken e1.end ".."), UExp e2 ]
+  Point e           -> unparse e
+  Interval e1 ws e2 -> unparse e1 ++ ws ++ ".." ++ unparse e2
 
 -- NOTE: use this to go back to original unparser
--- unparseE = sExp
-
-------------------------------------------------------------------------------
-
-{-
-
-NOTE:
-  Defining Unparsable at the end, since otherwise there's the following
-  undefined error (probably due to the mutual recursion):
-
-  Cannot read property 'arity' of undefined
-
--}
-
-type Unparsable
-  = UExp (WithInfo Exp_)    -- = Exp
-  | UPat (WithInfo Pat_)    -- = Pat
-  | UBra (WithInfo Branch_) -- = Branch
-  | UStr (WithInfo String)
-  | UInt (WithInfo Int)
-  | UNum (WithInfo Num)
-  | UParens (List Unparsable)
-      -- no start/pos info, so using first/last elements as
-      -- canonical positions
-
-strU thing = case thing of
-  UExp e -> unparse e
-  UPat p -> unparsePat p
-  UStr s -> identity s.val
-  UInt i -> toString i.val
-  UNum i -> strNum i.val
-  UBra b ->
-    let (p,e) = b.val in
-    let s = unparsePat p ++ space p.end e.start ++ unparse e in
-    parens b.start p.start e.end b.end s
-  UParens l ->
-    let (start, end) = (startU thing, endU thing) in
-    parens start (incCol start) (decCol end) end (fst (spaces l))
-
-startU thing = case thing of
-  UExp x -> x.start
-  UPat x -> x.start
-  UStr x -> x.start
-  UInt x -> x.start
-  UNum x -> x.start
-  UBra x -> x.start
-
-  UParens l -> let first = Utils.head_ l in decCol (startU first)
-
-endU thing = case thing of
-  UExp x -> x.end
-  UPat x -> x.end
-  UStr x -> x.end
-  UInt x -> x.end
-  UNum x -> x.end
-  UBra x -> x.end
-
-  UParens l -> let last = Utils.head_ (List.reverse l) in incCol (endU last)
-
-spaces : List Unparsable -> (String, Pos)
-spaces things =
-  let (hd,tl) = Utils.uncons things in
-  let foo cur (acc, endPrev) =
-    let acc'     = strU cur :: space endPrev (startU cur) :: acc in
-    let endPrev' = endU cur in
-    (acc', endPrev')
-  in
-  let (l, endLast) = List.foldl foo ([strU hd], endU hd) tl in
-  (String.join "" (List.reverse l), endLast)
-
-delimitAndSpaces : String -> String -> Pos -> Pos -> List Unparsable -> String
-delimitAndSpaces open close start end things =
-  let olen = String.length open
-      clen = String.length close in
-  case things of
-    [] ->
-      open ++ whitespace (bumpCol olen start) (bumpCol (-1 * clen) end) ++ close
-    hd :: _ ->
-      let startFirst   = startU hd in
-      let (s, endLast) = spaces things in
-      delimit open close start startFirst endLast end s
-
-parensAndSpaces = delimitAndSpaces "(" ")"
-bracksAndSpaces = delimitAndSpaces "[" "]"
-bracesAndSpaces = delimitAndSpaces "{" "}"
-ibracksAndSpaces = delimitAndSpaces "[|" "|]"
+-- unparse = sExp

@@ -13,7 +13,7 @@ makeExample (name, s) =
     let (v,ws) = Eval.run e in
     {e=e, v=v, ws=ws}
   in
-  (name, thunk)
+  (name, s, thunk)
 
 scratchName = "*Scratch*"
 
@@ -3808,9 +3808,15 @@ relateLines0 =
 -- LITTLE_TO_ELM relatePoints2
 -- LITTLE_TO_ELM relatePoints3
 -- LITTLE_TO_ELM relatePoints4
+blank =
+ "(svg (concat [ ]))
+
+"
+
 
 examples =
-  [ (scratchName, scratch)
+  [ ("BLANK", blank)
+  , (scratchName, scratch)
   , ("*Prelude*", Prelude.src)
   , ("Wave Boxes", sineWaveOfBoxes)
 

@@ -403,6 +403,30 @@ valToPath_ vs =
 
 -}
 
+desugarKind shape =
+  case shape of
+    "BOX" -> "rect"
+    _     -> shape
+
+desugarShapeAttrs shape0 attrs0 =
+  Maybe.withDefault (shape0, attrs0) <|
+    case shape0 of
+      "BOX" ->
+        Utils.maybeRemoveFirst "LEFT"  attrs0 `Maybe.andThen` \(vL,attrs1) ->
+        Utils.maybeRemoveFirst "RIGHT" attrs1 `Maybe.andThen` \(vR,attrs2) ->
+        Utils.maybeRemoveFirst "TOP"   attrs2 `Maybe.andThen` \(vT,attrs3) ->
+        Utils.maybeRemoveFirst "BOT"   attrs3 `Maybe.andThen` \(vB,attrs4) ->
+          case (vL.av_, vT.av_, vR.av_, vB.av_) of
+            (ANum (x,_), ANum (y,_), ANum (xw,_), ANum (yh,_)) ->
+              let width = aNum (xw - x, dummyTrace) in
+              let height = aNum (yh - y, dummyTrace) in
+              let attrs = [("x",vL),("y",vT),("width",width),("height",height)] ++ attrs4 in
+              Just ("rect", attrs)
+            _ ->
+              Nothing
+      _ ->
+        Nothing
+
 
 ------------------------------------------------------------------------------
 
@@ -479,7 +503,7 @@ fetchSlideVal slideNumber val =
       -- Program returned the slide count and a
       -- function from slideNumber -> SVG array structure.
       case pat.val of -- Find that function's argument name
-        PVar argumentName _ ->
+        PVar _ argumentName _ ->
           -- Bind the slide number to the function's argument.
           let fenv' = (argumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
           let ((returnVal, _), _) = Eval.eval fenv' fexp in
@@ -493,7 +517,7 @@ fetchMovieVal movieNumber slideVal =
   case unwrapVList slideVal of
     Just [VConst (movieCount, _), VClosure _ pat fexp fenv] ->
       case pat.val of -- Find the function's argument name
-        PVar movieNumberArgumentName _ ->
+        PVar _ movieNumberArgumentName _ ->
           let fenv' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenv in
           let ((returnVal, _), _) = Eval.eval fenv' fexp in
           returnVal
@@ -516,13 +540,13 @@ fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
   case unwrapVList movieVal of
     Just [VBase (String "Static"), VClosure _ pat fexp fenv] ->
       case pat.val of -- Find the function's argument names
-        PVar slideNumberArgumentName _ ->
+        PVar _ slideNumberArgumentName _ ->
           let fenv' = (slideNumberArgumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
           let ((innerVal, _), _) = Eval.eval fenv' fexp in
           case innerVal.v_ of
             VClosure _ patInner fexpInner fenvInner ->
               case patInner.val of
-                PVar movieNumberArgumentName _ ->
+                PVar _ movieNumberArgumentName _ ->
                   let fenvInner' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenvInner in
                   let ((returnVal, _), _) = Eval.eval fenvInner' fexpInner in
                   returnVal
@@ -531,19 +555,19 @@ fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
         _ -> Debug.crash ("expected static movie frame function to take two arguments, got " ++ (toString pat.val))
     Just [VBase (String "Dynamic"), VConst (movieDuration, _), VClosure _ pat fexp fenv, VBase (Bool _)] ->
       case pat.val of -- Find the function's argument names
-        PVar slideNumberArgumentName _ ->
+        PVar _ slideNumberArgumentName _ ->
           let fenv' = (slideNumberArgumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
           let ((innerVal1, _), _) = Eval.eval fenv' fexp in
           case innerVal1.v_ of
             VClosure _ patInner1 fexpInner1 fenvInner1 ->
               case patInner1.val of
-                PVar movieNumberArgumentName _ ->
+                PVar _ movieNumberArgumentName _ ->
                   let fenvInner1' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenvInner1 in
                   let ((innerVal2, _), _) = Eval.eval fenvInner1' fexpInner1 in
                   case innerVal2.v_ of
                     VClosure _ patInner2 fexpInner2 fenvInner2 ->
                       case patInner2.val of
-                        PVar movieSecondsArgumentName _ ->
+                        PVar _ movieSecondsArgumentName _ ->
                           let fenvInner2' = (movieSecondsArgumentName, vConst (movieTime, dummyTrace)) :: fenvInner2 in
                           let ((returnVal, _), _) = Eval.eval fenvInner2' fexpInner2 in
                           returnVal
@@ -606,7 +630,8 @@ printSvg showWidgets (rootId, tree) =
 printNode showWidgets k slate i =
   case Utils.justGet i slate of
     TextNode s -> s
-    SvgNode kind l1 l2 ->
+    SvgNode kind_ l1_ l2 ->
+      let (kind,l1) = desugarShapeAttrs kind_ l1_ in
       case (showWidgets, Utils.maybeRemoveFirst "HIDDEN" l1) of
         (False, Just _) -> ""
         _ ->
@@ -679,6 +704,17 @@ zones = [
   , ("ellipse",
       [ ("Interior", ["cx", "cy"])
       , ("Edge", ["rx", "ry"])
+      ])
+  , ("BOX",
+      [ ("Interior", ["LEFT", "TOP", "RIGHT", "BOT"])
+      , ("TopLeftCorner", ["LEFT", "TOP"])
+      , ("TopRightCorner", ["TOP", "RIGHT"])
+      , ("BotRightCorner", ["RIGHT", "BOT"])
+      , ("BotLeftCorner", ["LEFT", "BOT"])
+      , ("LeftEdge", ["LEFT"])
+      , ("TopEdge", ["TOP"])
+      , ("RightEdge", ["RIGHT"])
+      , ("BotEdge", ["BOT"])
       ])
   , ("rect",
       [ ("Interior", ["x", "y"])

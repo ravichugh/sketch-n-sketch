@@ -28,6 +28,8 @@ update (k1, v1) vals =
         then (k0, v1) :: vs
         else (k0, v0) :: update (k1, v1) vs
 
+-- Extra elements left off if the lists are different lengths.
+-- Resulting list length is minimum of (length xs, length ys)
 zip : List a -> List b -> List (a,b)
 zip xs ys = case (xs, ys) of
   (x::xs', y::ys') -> (x,y) :: zip xs' ys'
@@ -54,6 +56,17 @@ foldli f init xs =
 foldri f init xs = List.reverse (foldli f init xs)
 
 reverse2 (xs,ys) = (List.reverse xs, List.reverse ys)
+
+-- In:  [1, 2, 3]
+-- Out: [(1,2), (2,3), (3,1)]
+selfZipCircConsecPairs : List a -> List (a, a)
+selfZipCircConsecPairs list =
+  let shiftList =
+    case list of
+      x::xs -> xs ++ [x]
+      _     -> []
+  in
+  zip list shiftList
 
 -- Preserves original list order
 -- Dedups based on toString representation
@@ -257,6 +270,19 @@ setIsEmpty  = (==) [] << Set.toList
 dictIsEmpty = (==) [] << Dict.toList
 setCardinal = List.length << Set.toList
 
+-- Common elements shared at the beginning of each list
+commonPrefix : List (List a) -> List a
+commonPrefix lists =
+  case lists of
+    first::rest -> List.foldl commonPrefix2 first rest
+    []          -> []
+
+commonPrefix2 : List a -> List a -> List a
+commonPrefix2 l1 l2 =
+  case (l1, l2) of
+    (x::xs, y::ys) -> if x == y then x::(commonPrefix2 xs ys) else []
+    _              -> []
+
 between x (a,b) = a <= x && x < b
 
 distance (x1,y1) (x2,y2) = sqrt <| (x2-x1)^2 + (y2-y1)^2
@@ -315,6 +341,7 @@ uniRedo        = "▶"
 uniReload      = "⎋"
 -- uniStar     = "✴"
 uniCamera      = "📷"
+uniLambda      = "λ"
 
 
 --------------------------------------------------------------------------------
