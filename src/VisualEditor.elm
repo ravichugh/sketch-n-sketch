@@ -109,22 +109,22 @@ eConstEvent n loc offset =
   handleAndStop "mousedown" <| \model ->
     let lSubst = Dict.singleton locid (n + toFloat offset) in
     let exp' = applyLocSubst lSubst model.exp in
-    let code' = Unparser.unparseE exp' in
+    let code' = Unparser.unparse exp' in
     { model | exp = exp', code = code' }
 
-eConstFlipFreeze (n, loc, wd) =
+eConstFlipFreeze (ws, n, loc, wd) =
   let (locid,ann,mx) = loc in
   let ann' =
     if ann == frozen then unann
     else if ann == unann then frozen
     else ann
   in
-  let eSubst = Dict.singleton locid (EConst n (locid, ann', mx) wd) in
+  let eSubst = Dict.singleton locid (EConst ws n (locid, ann', mx) wd) in
     -- relying on invariant that EId = LocId
 
   handleAndStop "mousedown" <| \model ->
     let exp' = applyESubst eSubst model.exp in
-    let code' = Unparser.unparseE exp' in
+    let code' = Unparser.unparse exp' in
     { model | exp = exp', code = code' }
 
 -- <span> doesn't have a "change" event
@@ -180,15 +180,6 @@ eConstInnerAttrs model =
 
 -- map with linebreak/spaces interspersed
 
-htmlMap : (WithInfo a -> Html) -> List (WithInfo a) -> List Html
-htmlMap f xs =
-  let combine a (b,xs) =
-    case (b, xs) of
-      (Just b', (x :: xs')) -> (Just a, f a :: space a.end b'.start ++ xs)
-      _ -> (Just a, [ f a ])
-  in
-  snd <| List.foldr combine (Nothing, []) xs
-
 lines : Int -> Int -> String
 lines i j =
   if i > j then let _ = Debug.log <| "VisualEditor: " ++ toString (i,j) in " "
@@ -198,26 +189,6 @@ cols : Int -> Int -> String
 cols i j =
   if i > j then let _ = Debug.log <| "VisualEditor: " ++ toString (i,j) in " "
   else String.repeat (j-i) " "
-       
-space : Pos -> Pos -> List Html
-space endPrev startNext =
-  if endPrev.line == startNext.line
-  then [ Html.text <| cols endPrev.col startNext.col ]
-  else [ Html.text <| lines endPrev.line startNext.line ] 
-         ++ [ Html.text <| cols 1 startNext.col ]
-
-delimit : String -> String -> Pos -> Pos -> Pos -> Pos -> List Html -> List Html
-delimit open close startOutside startInside endInside endOutside hs =
-  let olen = String.length open
-      clen = String.length close 
-  in
-  let begin = Html.text <| open ++ Unparser.whitespace (Unparser.bumpCol olen startOutside) startInside
-      end = Html.text <| Unparser.whitespace endInside (Unparser.bumpCol (-1 * clen) endOutside) ++ close
-  in
-    [ begin ] ++ hs ++ [ end ]
-
-parens = delimit "(" ")"
-brackets = delimit "[" "]"
 
 -- stack : List Attribute -> Html -> Html
 stack layers node =
@@ -225,12 +196,12 @@ stack layers node =
     []             -> node
     layer::layers' -> Html.span layer [ stack layers' node ]
 
-htmlOfConst model n loc wd =
+htmlOfConst model ws n loc wd =
   let (_,ann,_) = loc in
   let layers =
      [ eConstOuterLeftRight model n loc "0 8pt 0 0" "gray" 1
      , eConstOuterLeftRight model n loc "0 0 0 8pt" "gray" (-1)
-     , eConstOuterBottom model (n, loc, wd)
+     , eConstOuterBottom model (ws, n, loc, wd)
      , eConstInnerAttrs model
      ]
   in
@@ -240,10 +211,11 @@ rewritePat : Ident -> Ident -> Pat -> Maybe Pat
 rewritePat x x' =
   let foo p =
     case p.val of
-      PVar y wd          -> if x == y then { p | val = PVar x' wd } else p
-      PList ps Nothing   -> { p | val = PList (List.map foo ps) Nothing }
-      PList ps (Just p0) -> { p | val = PList (List.map foo ps) (Just (foo p0)) }
-      _                  -> p
+      PVar ws y wd -> if x == y then { p | val = PVar ws x' wd } else p
+      PList ws1 ps ws2 rest ws3 ->
+        let (ps', rest') = (List.map foo ps, Utils.mapMaybe foo rest) in
+        { p | val = PList ws1 ps' ws2 rest' ws3 }
+      _ -> p
   in
   \p ->
     let p' = foo p in
@@ -251,39 +223,46 @@ rewritePat x x' =
       then Nothing
       else Just p'
 
+rebuildExp e e__' =
+  let e_ = e.val in
+  let e__ = e_.e__ in
+  { e | val = { e_ | e__ = e__' } }
+
 -- for now, not taking into account ids, scope, capture...
 renameVar x x' model =
-  let bar e__ =
-    case e__ of
-      EVar y -> if x == y then EVar x' else e__
-      _      -> e__
+  let bar e =
+    rebuildExp e <|
+      case e.val.e__ of
+        EVar ws y -> if x == y then EVar ws x' else e.val.e__
+        _         -> e.val.e__
   in
-  let foo e__ =
-    case e__ of
-      ELet k b p e1 e2 ->
-        case rewritePat x x' p of
-          Nothing -> e__
-          Just p' -> let e2' = mapExp bar e2 in
-                     ELet k b p' e1 e2'
-      EFun ps e1 ->
-        let ps' = List.map (rewritePat x x') ps in
-        -- TODO
-        let blah pi mpi' =
-          case mpi' of
-            Nothing -> pi
-            Just pi' -> pi'
-          in
-        let ps'' = List.map2 blah ps ps' in
-        let e1' = mapExp bar e1 in
-        EFun ps'' e1'
-      _ -> e__
+  let foo e =
+    rebuildExp e <|
+      case e.val.e__ of
+        ELet ws1 k b p e1 e2 ws2 ->
+          case rewritePat x x' p of
+            Nothing -> e.val.e__
+            Just p' -> let e2' = mapExp bar e2 in
+                       ELet ws1 k b p' e1 e2' ws2
+        EFun ws1 ps e1 ws2 ->
+          let ps' = List.map (rewritePat x x') ps in
+          -- TODO
+          let blah pi mpi' =
+            case mpi' of
+              Nothing -> pi
+              Just pi' -> pi'
+            in
+          let ps'' = List.map2 blah ps ps' in
+          let e1' = mapExp bar e1 in
+          EFun ws1 ps'' e1' ws2
+        _ -> e.val.e__
   in
   let exp' = mapExp foo model.exp in
-  let code' = Unparser.unparseE exp' in
+  let code' = Unparser.unparse exp' in
   { model | exp = exp', code = code' }
 
 -- could supply EId of ELet/EFun from htmlOfExp/Pat...
-htmlOfPVar model x =
+htmlOfPVar model ws x =
   let botRight =
     [ Attr.style
         [ ("padding", "0 5pt 5pt 0")
@@ -319,7 +298,13 @@ htmlOfPVar model x =
      , [ Attr.contenteditable True, varDefStyle, eTextChange ]
      ]
   in
-  stack layers (Html.text x)
+  let h = stack layers (Html.text x) in
+  if ws == ""
+    then h
+    else hConcat [Html.text ws, h]
+
+hConcat : List Html -> Html
+hConcat hs = Html.span [] hs
 
 htmlOfExp : Model -> Exp -> Html
 htmlOfExp model e =
@@ -327,136 +312,89 @@ htmlOfExp model e =
   let e_ = e.val in
   let e__ = e_.e__ in
   case e__ of
-    EConst n loc wd -> htmlOfConst model n loc wd
-    EBase baseVal ->
+    EConst ws n loc wd -> hConcat [ Html.text ws, htmlOfConst model ws n loc wd ]
+    EBase ws baseVal ->
       let attrs = [ {- literalStyle -} ] in
       case baseVal of
-        Bool b -> Html.span attrs [ Html.text <| toString b ]
-        String s -> Html.span attrs [ Html.text <| "\'" ++ s ++ "\'" ]
-        Star -> Html.span attrs [ Html.text <| toString Star ]
-    EOp op es ->
-      let hs = htmlMap recurse es in
-      let (h,l) = (Utils.head_ es, Utils.last_ es) in
-      Html.span [ basicStyle ] <|
-          parens e.start op.start l.end e.end <|
-            [ Html.span [ {- opUseStyle -} ] <| [ Html.text <| strOp op.val ]]
-            ++ space op.end h.start
-            ++ hs
-    EVar x -> Html.span [ {- varUseStyle -} ] [ Html.text x]
-    EFun [p] e1 ->
-      let (h1, h2) = (htmlOfPat model p, recurse e1) in
-      let tok = Unparser.makeToken (Unparser.incCol e.start) "\\" in
-      Html.span [ basicStyle ] <| parens e.start tok.start e1.end e.end <|
-        [ Html.text tok.val ] ++ space tok.end p.start ++ [ h1 ] ++ space p.end e1.start ++ [ h2 ]
-    EFun ps e1 ->
-      let tok = Unparser.makeToken (Unparser.incCol e.start) "\\" in
-      let (h1, h2) = (htmlMap (htmlOfPat model) ps, recurse e1) in
-      Html.span [ basicStyle ] <| parens e.start tok.start e1.end e.end <|
-          let (h,l) = (Utils.head_ ps, Utils.last_ ps) in
-          [ Html.text tok.val] ++ space tok.end (Unparser.decCol h.start)
-             ++ [ Html.text "("] ++ h1 ++ [ Html.text ")"]
-                 ++ space (Unparser.incCol l.end) e1.start ++ [ h2 ]
-    EApp e1 es ->
-      let (h1, hs) = (recurse e1, htmlMap recurse es) in
-      let (h,l) = (Utils.head_ es, Utils.last_ es) in
-          Html.span [ basicStyle ] <| parens e.start e1.start l.end e.end <|
-               [h1] ++ space e1.end h.start ++ hs
-             
-    ELet Let r p e1 e2 ->
-      let (h1, h2, h3) = (htmlOfPat model p, recurse e1, recurse e2) in
-      let s1 = space p.end e1.start
-          s2 = space e1.end e2.start
-      in
-      let rest = [h1] ++ s1 ++ [ h2 ] ++ s2 ++ [ h3 ] in
-      if r then 
-        let tok = Unparser.makeToken (Unparser.incCol e.start) "letrec" in
-        Html.span [ basicStyle ] <|
-            parens e.start tok.start e2.end e.end <|
-                     [ Html.text tok.val] ++ space tok.end p.start ++ rest
-      else
-        let tok = Unparser.makeToken (Unparser.incCol e.start) "let" in
-        Html.span [ basicStyle ] <|
-            parens e.start tok.start e2.end e.end <|
-                     [ Html.text tok.val] ++ space tok.end p.start ++ rest
-    ELet Def r p e1 e2 ->
-      let (h1, h2, h3) = (htmlOfPat model p, recurse e1, recurse e2) in
-      let s1 = space p.end e1.start
-          s2 = space e1.end e2.start
-      in
-      let rest = s2 ++ [ h3 ] in
-      if r then
-          let tok = Unparser.makeToken (Unparser.incCol e.start) "defrec" in
-          let defParen = [ Html.text tok.val ] ++ space tok.end p.start ++ [ h1 ] ++ s1 ++ [ h2 ] in
-          Html.span [ basicStyle ] <|
-              parens e.start tok.start e1.end e.end defParen ++ rest                     
-      else
-          let tok = Unparser.makeToken (Unparser.incCol e.start) "def" in
-          let defParen = [ Html.text tok.val ] ++ space tok.end p.start ++ [ h1 ] ++ s1 ++ [ h2 ] in
-          Html.span [ basicStyle ] <|
-              parens e.start tok.start e1.end e.end defParen ++ rest
-    EList xs Nothing ->
-      case xs of
-        [] -> Html.span [ basicStyle ] <| [ Html.text "[]" ]
-        _  -> Html.span [ basicStyle ] <| brackets e.start (Utils.head_ xs).start (Utils.last_ xs).end e.end <| htmlMap recurse xs
-    EList xs (Just y) ->
-      let (h1, h2) = (htmlMap recurse xs, recurse y) in
-      let (e1,e2) = (Utils.head_ xs, Utils.last_ xs) in
-      let tok1 = Unparser.makeToken e.start "["
-          tok2 = Unparser.makeToken e2.end "|"
-          tok3 = Unparser.makeToken y.end "]"
-      in
-        Html.span [ basicStyle ] <|
-           delimit tok1.val tok2.val tok1.start e1.start e2.end tok2.end (space tok1.end e1.start ++ h1)
-                ++ space tok2.end y.start ++ [ h2 ] ++ space y.end tok3.start ++ [ Html.text tok3.val ]
-    EIf e1 e2 e3 ->
-      let (h1,h2,h3) = (recurse e1, recurse e2, recurse e3) in
-      let tok = Unparser.makeToken (Unparser.incCol e.start) "if" in
-      let s1 = space tok.end e1.start
-      in
-      Html.span [ basicStyle ] <| parens e.start tok.start e3.end e.end <|
-            [ Html.text tok.val] ++ s1 ++ htmlMap recurse [ e1, e2, e3 ]
-    EComment s e1 ->
-      let white = space (Unparser.incLine e.start) e1.start in
-      Html.span [ basicStyle] <|
-            [ Html.text <| ";" ++ s] ++ [ Html.text <| "\n" ] ++ white ++ [ recurse e1 ] 
-    ECase e1 bs ->
-      let tok = Unparser.makeToken (Unparser.incCol e.start) "case" in
-      let l = Utils.last_ bs in
-      Html.span [ basicStyle ] <|
-          parens e.start tok.start l.end e.end <| htmlMap (htmlOfBranch model) bs
+        Bool b   -> Html.span attrs [ Html.text ws, Html.text <| toString b ]
+        String s -> Html.span attrs [ Html.text ws, Html.text <| "\'" ++ s ++ "\'" ]
+        Star     -> Html.span attrs [ Html.text ws, Html.text <| toString Star ]
+    EOp ws1 op es ws2 ->
+      let (pre, suf) = (ws1 ++ "(", ws2 ++ ")") in
+      let hs = List.map recurse es in
+      Html.span [ basicStyle ]
+        (List.concat [[Html.text pre, Html.text (strOp op.val)], hs, [Html.text suf]])
+    EVar ws x -> hConcat [ Html.text ws, Html.text x ]
+    EFun ws1 [p] e1 ws2 ->
+      let (pre, suf) = (ws1 ++ "(\\", ws2 ++ ")") in
+      Html.span [ basicStyle ]
+        [Html.text pre, htmlOfPat model p, recurse e1, Html.text suf]
+    EFun ws1 ps e1 ws2 ->
+      let (pre, suf) = (ws1 ++ "(\\", ws2 ++ ")") in
+      let hs = List.map (htmlOfPat model) ps in
+      Html.span [ basicStyle ]
+        (List.concat [[Html.text pre, Html.text "("], hs, [Html.text ")", recurse e1, Html.text suf]])
+    EApp ws1 e1 es ws2 ->
+      let (pre, suf) = (ws1 ++ "(", ws2 ++ ")") in
+      let (h1, hs) = (recurse e1, List.map recurse es) in
+      Html.span [ basicStyle ] (Html.text pre :: h1 :: hs ++ [Html.text suf])
+    ELet ws1 Let rec p e1 e2 ws2 ->
+      let tok = if rec then "letrec" else "let" in
+      let (pre, suf) = (ws1 ++ "(" ++ tok, ws2 ++ ")") in
+      Html.span [ basicStyle ]
+        [Html.text pre, htmlOfPat model p, recurse e1, recurse e2, Html.text suf]
+    ELet ws1 Def rec p e1 e2 ws2 ->
+      let tok = if rec then "defrec" else "def" in
+      let (pre, suf) = (ws1 ++ "(" ++ tok, ws2 ++ ")") in
+      Html.span [ basicStyle ]
+        [Html.text pre, htmlOfPat model p, recurse e1, Html.text suf, recurse e2]
+    EList ws1 es ws2 Nothing ws3 ->
+      let (pre, suf) = (ws1 ++ "[", ws3 ++ "]") in
+      Html.span [ basicStyle ]
+        [Html.text pre, hConcat (List.map recurse es), Html.text ws2, Html.text suf]
+    EList ws1 es ws2 (Just eRest) ws3 ->
+      let (pre, mid, suf) = (ws1 ++ "[", ws2 ++ "|", ws3 ++ "]") in
+      Html.span [ basicStyle ]
+        [Html.text pre, hConcat (List.map recurse es), Html.text mid, recurse eRest, Html.text suf]
+    EIf ws1 e1 e2 e3 ws2 ->
+      let (pre, suf) = (ws1 ++ "(", ws2 ++ ")") in
+      Html.span [ basicStyle ]
+        [Html.text pre, recurse e1, recurse e2, recurse e3, Html.text suf]
+    EComment ws s e1 ->
+      Html.span [ basicStyle ]
+        [Html.text ws, Html.text (";" ++ s ++ "\n"), recurse e1]
+    ECase ws1 e bs ws2 ->
+      let (pre, suf) = (ws1 ++ "(", ws2 ++ ")") in
+      Html.span [ basicStyle ]
+        (List.concat [[Html.text pre], List.map (htmlOfBranch model) bs, [Html.text suf]])
     _ -> 
       -- let _ = Debug.log "VisualEditor.HtmlOfExp no match :" (toString e) in
-      let s = Unparser.unparseE e in
+      let s = Unparser.unparse e in
       Html.pre [] [ Html.text s ]
 
 htmlOfPat : Model -> Pat -> Html
 htmlOfPat model p =
-    let recurse = htmlOfPat model in
-    case p.val of
-      PVar x _ -> htmlOfPVar model x
-      PConst n -> Html.span [ literalStyle ] [ Html.text <| toString n ]
-      PBase baseVal -> Html.span [ literalStyle ] [ Html.text <| toString baseVal ]
-      PList xs Nothing ->
-        case xs of
-          [] -> Html.span [ basicStyle ] <| [ Html.text "[]" ] 
-          _  -> Html.span [ basicStyle ] <| brackets p.start (Utils.head_ xs).start (Utils.last_ xs).end p.end <| htmlMap recurse xs
-      PList xs (Just y) ->
-        let (h1, h2) = (htmlMap recurse xs, recurse y) in
-        let (e1,e2) = (Utils.head_ xs, Utils.last_ xs) in
-        let tok1 = Unparser.makeToken p.start "["
-            tok2 = Unparser.makeToken e2.end "|"
-            tok3 = Unparser.makeToken y.end "]"
-        in
-        Html.span [ basicStyle ] <|
-            delimit tok1.val tok2.val tok1.start e1.start e2.end tok2.end (space tok1.end e1.start ++ h1)
-                ++ space tok2.end y.start ++ [ h2 ] ++ space y.end tok3.start ++ [ Html.text tok3.val ]
+  let recurse = htmlOfPat model in
+  case p.val of
+    PVar ws x _ -> htmlOfPVar model ws x
+    PConst ws n -> Html.span [ literalStyle ] [ Html.text <| toString n ]
+    PBase ws baseVal -> Html.span [ literalStyle ] [ Html.text <| toString baseVal ]
+    PList ws1 ps ws2 rest ws3 ->
+      let (hPre, hSuf) = ([Html.text (ws1 ++ "[")], [Html.text (ws3 ++ "]")]) in
+      let hRest =
+        case rest of
+          Nothing    -> [Html.text ws2]
+          Just pRest -> [Html.text (ws2 ++ "|"), recurse pRest]
+      in
+      Html.span [ basicStyle ]
+        (List.concat [hPre, List.map recurse ps, hRest, hSuf])
 
 htmlOfBranch : Model -> Branch -> Html
 htmlOfBranch model b =
-  let (p,e) = b.val in
-  Html.span [ basicStyle] <|
-      parens b.start p.start e.end b.end <|
-             [ htmlOfPat model p ] ++ space p.end e.start ++ [ htmlOfExp model e ]
+  let (Branch_ ws1 p e ws2) = b.val in
+  let (pre, suf) = (ws1 ++ "(", ws2 ++ ")") in
+  Html.span [ basicStyle ] <|
+    [Html.text pre, htmlOfPat model p, htmlOfExp model e, Html.text suf]
 
 
 ------------------------------------------------------------------------------
