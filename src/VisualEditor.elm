@@ -9,7 +9,7 @@ import Dict
 import Signal exposing (Mailbox, mailbox)
 import Time exposing (Time)
 
-import ExamplesGenerated as Ex
+import ExamplesGenerated as Examples
 import Lang exposing (..)
 import LangParser2 as Parser
 import LangUnparser as Unparser
@@ -425,9 +425,9 @@ type alias Model =
   }
 
 initModel =
-  { name = Ex.scratchName
-  , code = Ex.scratch
-  , exp  = Utils.fromOk_ (Parser.parseE Ex.scratch)
+  { name = Examples.scratchName
+  , code = Examples.scratch
+  , exp  = Utils.fromOk_ (Parser.parseE Examples.scratch)
   , textChangedAt = Nothing
   }
 
@@ -459,7 +459,7 @@ view model =
   let break = Html.br [] [] in
   let body =
     let options =
-      flip List.map Ex.examples <| \(name,code) ->
+      flip List.map Examples.list <| \(name,code,_) ->
         Html.option
            [Attr.value name, Attr.selected (name == model.name)]
            [Html.text name]
@@ -473,7 +473,7 @@ view model =
               , ("font-family", "monospace")
               ]
          , Events.on "change" targetSelectedIndex <| \i ->
-             let (name,code) = Utils.geti (i+1) Ex.examples in
+             let (name,code,_) = Utils.geti (i+1) Examples.list in
              Signal.message myMailbox.address <| UpdateModel <| \_ ->
                let exp = Utils.fromOk_ (Parser.parseE code) in
                { name = name, code = code, exp = exp, textChangedAt = Nothing }
