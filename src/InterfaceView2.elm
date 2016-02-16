@@ -255,7 +255,7 @@ buildSvgWidgets wCanvas hCanvas widgets =
         , attr "fill" strButtonTopColor
         , attr "r" params.mainSection.uiWidgets.rBall
         , attr "cx" (toString cx) , attr "cy" (toString cy)
-        , cursorOfZone "SliderBall"
+        , cursorOfZone "SliderBall" "default"
         ] ++ sliderZoneEvents widget
     in
     let text =
@@ -307,7 +307,7 @@ zone svgFunc id shape zone l =
 cursorStyle s = LangSvg.attr "cursor" s
 
 -- TODO should take into account disabled zones in Live mode
-cursorOfZone zone = case zone of
+cursorOfZone zone default = case zone of
   -- rect zones
   "Interior"       -> cursorStyle "move"
   "RightEdge"      -> cursorStyle "ew-resize"
@@ -325,7 +325,7 @@ cursorOfZone zone = case zone of
   "RotateBall"     -> cursorStyle "pointer"
   "SliderBall"     -> cursorStyle "pointer"
   -- default
-  _                -> cursorStyle "default"
+  _                -> cursorStyle default
 
 -- Stuff for Basic Zones -------------------------------------------------------
 
@@ -341,7 +341,7 @@ zoneBorder svgFunc id shape zone flag show transform =
          else LangSvg.attr "stroke" "rgba(0,0,0,0.0)"
        , LangSvg.attr "stroke-width" (if flag then "5" else "0")
        , LangSvg.attr "fill" "rgba(0,0,0,0)"
-       , cursorOfZone zone
+       , cursorOfZone zone "default"
        ]
 
 zonePoint id shape zone show transform =
@@ -352,7 +352,7 @@ zonePoint id shape zone show transform =
        , if show
          then LangSvg.attr "fill" "rgba(255,0,0,0.5)"
          else LangSvg.attr "fill" "rgba(0,0,0,0.0)"
-       , cursorStyle "pointer"
+       , cursorOfZone zone "pointer"
        ]
 
 zonePoints id shape show transform pts =
@@ -411,7 +411,7 @@ zoneRotate_ id shape cx cy r cmds =
       , LangSvg.attr "fill" fillBall
       , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString (cy - r))
       , LangSvg.attr "r"  rBall
-      , cursorOfZone "RotateBall"
+      , cursorOfZone "RotateBall" "default"
       ] ++ transform
         ++ zoneEvents id shape "RotateBall"
   in
@@ -464,7 +464,7 @@ zoneColor_ id shape x y n =
       , LangSvg.attr "fill" stroke
       , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString cy)
       , LangSvg.attr "r"  rBall
-      , cursorOfZone "FillBall"
+      , cursorOfZone "FillBall" "default"
       ] ++ zoneEvents id shape "FillBall"
   in
   let box =
@@ -628,7 +628,7 @@ makeZones model options shape id l =
   case shape of
 
     "rect"    -> makeZonesRect model options shape id l
-    "BOX"     -> makeZonesRect model options shape id l
+    "BOX"     -> makeZonesBox model options id l
     "circle"  -> makeZonesCircle  model options id l
     "ellipse" -> makeZonesEllipse model options id l
 
@@ -659,6 +659,7 @@ makeZones model options shape id l =
 
 findNums l attrs = List.map (toNum << Utils.find_ l) attrs
 
+-- TODO remove shape and shape == "BOX" path
 makeZonesRect model options shape id l =
   let transform = maybeTransformAttr l in
   let mk zone x_ y_ w_ h_ =
@@ -718,6 +719,37 @@ makeZonesRect model options shape id l =
       ++ zColor
       ++ zoneDelete options.addDelete id shape x y (maybeTransformAttr l)
       ++ zonesSelect
+
+makeZonesBox model options id l =
+  let transform = maybeTransformAttr l in
+  let mkInterior zone x_ y_ w_ h_ =
+    zoneBorder Svg.rect id "BOX" zone True options.showBasic transform <|
+      [ attrNum "x" x_ , attrNum "y" y_
+      , attrNum "width" w_ , attrNum "height" h_
+      ]
+  in
+  let mkPoint zone cx cy =
+    zonePoint id "BOX" zone options.showBasic transform [attrNum "cx" cx, attrNum "cy" cy]
+  in
+  let
+    (left, top, right, bot) = Utils.unwrap4 <| findNums l ["LEFT","TOP","RIGHT","BOT"]
+    (width, height) = (right - left, bot - top)
+  in
+  let zonesSelect =
+       zoneSelectCrossDot model options.addSelect (id, ["LEFT"], ["TOP"]) left top
+    ++ zoneSelectCrossDot model options.addSelect (id, ["RIGHT"], ["BOT"]) right bot
+  in
+    [ mkInterior "Interior" left top width height
+    , mkPoint "TopLeftCorner" left top
+    , mkPoint "TopRightCorner" right top
+    , mkPoint "BotLeftCorner" left bot
+    , mkPoint "BotRightCorner" right bot
+    , mkPoint "LeftEdge" left (top + height / 2)
+    , mkPoint "RightEdge" right (top + height / 2)
+    , mkPoint "TopEdge" (left + width / 2) top
+    , mkPoint "BotEdge" (left + width / 2) bot
+    ] ++ zonesSelect
+    -- TODO rot, color zones, styles of interior and point zones
 
 -- makeZonesCircle options id l =
 makeZonesCircle model options id l =

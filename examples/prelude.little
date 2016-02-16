@@ -473,8 +473,10 @@
   (let indices (list0N (- (* 2! n) 1!))
     (polygon fill stroke w (map pti (zip indices lengths))))))))
 
+(def setZones (\(s shape) (addAttr shape ['ZONES' s])))
+
 ;; zones : String -> List Shape -> List Shape
-(def zones (\s (map (\shape (addAttr shape ['ZONES' s])))))
+(def zones (\s (map (setZones s))))
 
 ;; hideZonesTail : List Shape -> List Shape
 ;; Remove all zones from shapes except for the first in the list
@@ -661,6 +663,21 @@
     ] []
   ])))
 
+(def groupBox (\bounds
+  (let [left top right bot] bounds
+  (let [width height] [(- right left) (- bot top)]
+  (let [c1 c2 r] ['darkblue' 'skyblue' 6]
+  [ (ghost (setZones 'none' (circle c2 left top r)))
+    (ghost (setZones 'none' (circle c2 right top r)))
+    (ghost (setZones 'none' (circle c2 right bot r)))
+    (ghost (setZones 'none' (circle c2 left bot r)))
+    (ghost (setZones 'none' (circle c2 left (+ top (/ height 2)) r)))
+    (ghost (setZones 'none' (circle c2 right (+ top (/ height 2)) r)))
+    (ghost (setZones 'none' (circle c2 (+ left (/ width 2)) top r)))
+    (ghost (setZones 'none' (circle c2 (+ left (/ width 2)) bot r)))
+    (ghost (box bounds 'transparent' c1 1))
+  ])))))
+
 (def scaleBetween (\(a b pct)
   (case pct
     (0 a)
@@ -686,9 +703,11 @@
     (polygon fill stroke strokeWidth pts)
   ] )))
 
+; expects (f bounds) to be a single SVG
 (def with (\(bounds f)
-  [ (ghost (box bounds 'transparent' 'darkblue' 1))
-    (f bounds) ]))
+  (append
+    (groupBox bounds)
+    [(f bounds)])))
 
 (def star (\bounds
   (let [left top right bot] bounds
