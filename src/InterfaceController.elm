@@ -402,7 +402,11 @@ addLambdaToCodeAndRun old pt2 pt1 =
       Lambda f -> f
       _        -> Debug.crash "addLambdaToCodeAndRun"
   in
-  let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
+  let (xa, xb, ya, yb) =
+    if old.keysDown == Keys.shift
+      then View.squareBoundingBox pt2 pt1
+      else View.boundingBox pt2 pt1
+  in
   addToCodeAndRun funcName old
     [ makeLet ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
     , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
