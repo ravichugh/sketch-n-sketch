@@ -1,5 +1,4 @@
--- module ExamplesGenerated (list, scratchName, scratch) where
-module ExamplesGenerated where -- TODO expose everything for now for VisualEditor.elm
+module ExamplesGenerated (list, scratchName, scratch, examples) where
 
 import Lang
 import LangParser2 as Parser
@@ -7,7 +6,7 @@ import Eval
 import Utils
 import PreludeGenerated as Prelude
 
-makeExample (name, s) =
+makeExample name s =
   let thunk () =
     let e = Utils.fromOk_ (Parser.parseE s) in
     let (v,ws) = Eval.run e in
@@ -3911,4 +3910,4 @@ examples =
   , ("Zones", zones)
   ]
 
-list = List.map makeExample examples
+list = examples

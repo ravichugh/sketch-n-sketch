@@ -1,4 +1,4 @@
-module ExamplesGenerated (list, scratchName, scratch) where
+module ExamplesGenerated (list, scratchName, scratch, examples) where
 
 import Lang
 import LangParser2 as Parser
@@ -112,101 +112,100 @@ LITTLE_TO_ELM relateLines0
 LITTLE_TO_ELM blank
 
 examples =
-  [ makeExample "BLANK" blank
-  , makeExample scratchName scratch
-  -- [ makeExample scratchName scratch
-  , makeExample "*Prelude*" Prelude.src
-  , makeExample "Wave Boxes" sineWaveOfBoxes
+  [ ("BLANK", blank)
+  , (scratchName, scratch)
+  , ("*Prelude*", Prelude.src)
+  , ("Wave Boxes", sineWaveOfBoxes)
 
-  -- up here during ad-hoc development
-  , makeExample "RelateRects0" relateRects0
-  , makeExample "RelateRects1" relateRects1
-  , makeExample "RelateCircles0" relateCircles0
-  , makeExample "RelateLines0" relateLines0
-  -- , makeExample "RelatePoints0" relatePoints0
-  -- , makeExample "RelatePoints1" relatePoints1
-  -- , makeExample "RelatePoints2" relatePoints2
-  -- , makeExample "RelatePoints3" relatePoints3
-  -- , makeExample "RelatePoints4" relatePoints4
-  , makeExample "Delete Boxes" deleteBoxes
+  -- up here during ad-hoc development)
+  , ("RelateRects0", relateRects0)
+  , ("RelateRects1", relateRects1)
+  , ("RelateCircles0", relateCircles0)
+  , ("RelateLines0", relateLines0)
+  -- , ("RelatePoints0", relatePoints0)
+  -- , ("RelatePoints1", relatePoints1)
+  -- , ("RelatePoints2", relatePoints2)
+  -- , ("RelatePoints3", relatePoints3)
+  -- , ("RelatePoints4", relatePoints4)
+  , ("Delete Boxes", deleteBoxes)
 
-  , makeExample "Basic Slides" basicSlides
-  , makeExample "Logo" logo
-  , makeExample "Botanic Garden Logo" botanic
-  , makeExample "Active Trans Logo" activeTrans2
-  , makeExample "Sailboat" sailBoat
-  , makeExample "Chicago Flag" chicago
-  , makeExample "Sliders" sliders
-  , makeExample "Buttons" buttons
-  , makeExample "Widgets" widgets
-  , makeExample "xySlider" xySlider
-  , makeExample "Tile Pattern" boxGridTokenFilter
-  , makeExample "Color Picker" rgba
-  , makeExample "Ferris Wheel" ferris
-  , makeExample "Ferris Task Before" ferris2
-  , makeExample "Ferris Task After" ferris2target
-  , makeExample "Ferris Wheel Slideshow" ferrisWheelSlideshow
-  , makeExample "Survey Results" surveyResultsTriHist2
-  , makeExample "Hilbert Curve Animation" hilbertCurveAnimation
-  , makeExample "Bar Graph" barGraph
-  , makeExample "Pie Chart" pieChart1
-  , makeExample "Solar System" solarSystem
-  , makeExample "Clique" clique
-  , makeExample "Eye Icon" eyeIcon
-  , makeExample "Wikimedia Logo" wikimedia
-  , makeExample "Haskell.org Logo" haskell
-  , makeExample "Cover Logo" cover
-  , makeExample "POP-PL Logo" poppl
-  , makeExample "Lillicon P" lilliconP
-  , makeExample "Lillicon P, v2" lilliconP2
-  , makeExample "Keyboard" keyboard
-  , makeExample "Keyboard Task Before" keyboard2
-  , makeExample "Keyboard Task After" keyboard2target
-  , makeExample "Tessellation Task Before" tessellation
-  , makeExample "Tessellation Task After" tessellationTarget
-  , makeExample "Tessellation 2" tessellation2
-  , makeExample "Floral Logo 1" floralLogo
-  , makeExample "Floral Logo 2" floralLogo2
-  , makeExample "Spiral Spiral-Graph" spiralSpiralGraph
-  , makeExample "Rounded Rect" roundedRect
+  , ("Basic Slides", basicSlides)
+  , ("Logo", logo)
+  , ("Botanic Garden Logo", botanic)
+  , ("Active Trans Logo", activeTrans2)
+  , ("Sailboat", sailBoat)
+  , ("Chicago Flag", chicago)
+  , ("Sliders", sliders)
+  , ("Buttons", buttons)
+  , ("Widgets", widgets)
+  , ("xySlider", xySlider)
+  , ("Tile Pattern", boxGridTokenFilter)
+  , ("Color Picker", rgba)
+  , ("Ferris Wheel", ferris)
+  , ("Ferris Task Before", ferris2)
+  , ("Ferris Task After", ferris2target)
+  , ("Ferris Wheel Slideshow", ferrisWheelSlideshow)
+  , ("Survey Results", surveyResultsTriHist2)
+  , ("Hilbert Curve Animation", hilbertCurveAnimation)
+  , ("Bar Graph", barGraph)
+  , ("Pie Chart", pieChart1)
+  , ("Solar System", solarSystem)
+  , ("Clique", clique)
+  , ("Eye Icon", eyeIcon)
+  , ("Wikimedia Logo", wikimedia)
+  , ("Haskell.org Logo", haskell)
+  , ("Cover Logo", cover)
+  , ("POP-PL Logo", poppl)
+  , ("Lillicon P", lilliconP)
+  , ("Lillicon P, v2", lilliconP2)
+  , ("Keyboard", keyboard)
+  , ("Keyboard Task Before", keyboard2)
+  , ("Keyboard Task After", keyboard2target)
+  , ("Tessellation Task Before", tessellation)
+  , ("Tessellation Task After", tessellationTarget)
+  , ("Tessellation 2", tessellation2)
+  , ("Floral Logo 1", floralLogo)
+  , ("Floral Logo 2", floralLogo2)
+  , ("Spiral Spiral-Graph", spiralSpiralGraph)
+  , ("Rounded Rect", roundedRect)
 
-  , makeExample "Thaw/Freeze" thawFreeze
-  , makeExample "3 Boxes" threeBoxes
-  -- , makeExample "N Boxes H2" nBoxesH2
-  , makeExample "N Boxes Sli" nBoxes
-  , makeExample "N Boxes" groupOfBoxes
-  -- , makeExample "6 Boxes A" sixBoxesA
-  -- , makeExample "6 Boxes B" sixBoxesB
-  -- , makeExample "Wave Tokens" waveOfBoxesTokens
-  -- , makeExample "Wave 3" waveOfBoxes3
-  -- , makeExample "Chicago Flag 2" chicagoColors
-  , makeExample "Elm Logo" elmLogo
-  , makeExample "Logo 2" logo2
-  , makeExample "Logo Sizes" logoSizes
-  , makeExample "Rings" rings
-  , makeExample "Polygons" polygons
-  , makeExample "Stars" stars
-  , makeExample "Triangles" equiTri
-  , makeExample "US-13 Flag" usFlag13
-  , makeExample "US-50 Flag" usFlag50
-  , makeExample "French Sudan Flag" frenchSudan
-  , makeExample "Frank Lloyd Wright" flw1
-  , makeExample "Frank Lloyd Wright B" flw2
-  , makeExample "Bezier Curves" bezier
-  , makeExample "Fractal Tree" fractalTree
-  , makeExample "Stick Figures" stickFigures
-  , makeExample "Cult of Lambda" cultOfLambda
-  , makeExample "Matrix Transformations" matrices
-  , makeExample "Misc Shapes" miscShapes
-  , makeExample "Interface Buttons" interfaceButtons
-  , makeExample "Paths 1" paths1
-  , makeExample "Paths 2" paths2
-  , makeExample "Paths 3" paths3
-  , makeExample "Paths 4" paths4
-  , makeExample "Paths 5" paths5
-  , makeExample "Sample Rotations" rotTest
-  , makeExample "Grid Tile" gridTile
-  , makeExample "Zones" zones
+  , ("Thaw/Freeze", thawFreeze)
+  , ("3 Boxes", threeBoxes)
+  -- , ("N Boxes H2", nBoxesH2)
+  , ("N Boxes Sli", nBoxes)
+  , ("N Boxes", groupOfBoxes)
+  -- , ("6 Boxes A", sixBoxesA)
+  -- , ("6 Boxes B", sixBoxesB)
+  -- , ("Wave Tokens", waveOfBoxesTokens)
+  -- , ("Wave 3", waveOfBoxes3)
+  -- , ("Chicago Flag 2", chicagoColors)
+  , ("Elm Logo", elmLogo)
+  , ("Logo 2", logo2)
+  , ("Logo Sizes", logoSizes)
+  , ("Rings", rings)
+  , ("Polygons", polygons)
+  , ("Stars", stars)
+  , ("Triangles", equiTri)
+  , ("US-13 Flag", usFlag13)
+  , ("US-50 Flag", usFlag50)
+  , ("French Sudan Flag", frenchSudan)
+  , ("Frank Lloyd Wright", flw1)
+  , ("Frank Lloyd Wright B", flw2)
+  , ("Bezier Curves", bezier)
+  , ("Fractal Tree", fractalTree)
+  , ("Stick Figures", stickFigures)
+  , ("Cult of Lambda", cultOfLambda)
+  , ("Matrix Transformations", matrices)
+  , ("Misc Shapes", miscShapes)
+  , ("Interface Buttons", interfaceButtons)
+  , ("Paths 1", paths1)
+  , ("Paths 2", paths2)
+  , ("Paths 3", paths3)
+  , ("Paths 4", paths4)
+  , ("Paths 5", paths5)
+  , ("Sample Rotations", rotTest)
+  , ("Grid Tile", gridTile)
+  , ("Zones", zones)
   ]
 
 list = examples
