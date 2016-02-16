@@ -26,18 +26,19 @@ function combineNodes() {
     var i;
     var text;
     var sourceCode = window.document.getElementById("theSourceCode");
-    text = sourceCode.textContent.replace(/[\t\r ]+/g, " ");
+    text = sourceCode.innerText.replace("\u00A0"," ");
     //console.log(text);
     sourceCode.id = "temp";
     var node = window.document.getElementById("theSourceCode");
     while (node) {
         //console.log(a);
-        text += "\n" + node.textContent.replace(/[\t\r ]+/g, " ");
+        text += "\n" + node.innerText.replace("\u00A0", " ");
         editor.removeChild(node);
         node = window.document.getElementById("theSourceCode");
     }
     //console.log(a);
     sourceCode.id = "theSourceCode";
+    //console.log(text);
     return text;
 }
 
