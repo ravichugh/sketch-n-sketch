@@ -26,6 +26,8 @@ prelude =
 ;; Returns the first element of a given list
 (def fst (\\[x|_] x))
 
+(def snd (\\[_ y|_] y))
+
 ;; len : List a -> Int
 ;; Returns the length of a given list
 (defrec len (\\xs (case xs ([] 0) ([_ | xs1] (+ 1 (len xs1))))))
@@ -200,6 +202,9 @@ prelude =
 
 (def min (\\(i j) (if (lt i j) i j)))
 (def max (\\(i j) (if (gt i j) i j)))
+
+(def minimum (\\[hd|tl] (foldl min hd tl)))
+(def maximum (\\[hd|tl] (foldl max hd tl)))
 
 (def mapi (\\(f xs) (map f (zip (range 0 (- (len xs) 1)) xs))))
 
@@ -392,6 +397,11 @@ prelude =
 
 (def addShape (flip addShapeToCanvas))
 
+(def addShapesToCanvas (\\(['svg' svgAttrs oldShapes] newShapes)
+  ['svg' svgAttrs (append oldShapes newShapes)]))
+
+(def addShapes (flip addShapesToCanvas))
+
 (def groupMap (\\(xs f) (map f xs)))
 
 (def autoChose (\\(_ x _) x))
@@ -466,8 +476,10 @@ prelude =
   (let indices (list0N (- (* 2! n) 1!))
     (polygon fill stroke w (map pti (zip indices lengths))))))))
 
+(def setZones (\\(s shape) (addAttr shape ['ZONES' s])))
+
 ;; zones : String -> List Shape -> List Shape
-(def zones (\\s (map (\\shape (addAttr shape ['ZONES' s])))))
+(def zones (\\s (map (setZones s))))
 
 ;; hideZonesTail : List Shape -> List Shape
 ;; Remove all zones from shapes except for the first in the list
@@ -645,6 +657,67 @@ prelude =
   (let [w h] [(- xw x) (- yh y)]
   (let [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))]
     (rotateAround rot cx cy (rect fill x y w h))))))
+
+(def box (\\(bounds fill stroke strokeWidth)
+  (let [x y xw yh] bounds
+  ['BOX'
+    [ ['LEFT' x] ['TOP' y] ['RIGHT' xw] ['BOT' yh]
+      ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth]
+    ] []
+  ])))
+
+(def groupBox (\\bounds
+  (let [left top right bot] bounds
+  (let [width height] [(- right left) (- bot top)]
+  (let [c1 c2 r] ['darkblue' 'skyblue' 6]
+  [ (ghost (setZones 'none' (circle c2 left top r)))
+    (ghost (setZones 'none' (circle c2 right top r)))
+    (ghost (setZones 'none' (circle c2 right bot r)))
+    (ghost (setZones 'none' (circle c2 left bot r)))
+    (ghost (setZones 'none' (circle c2 left (+ top (/ height 2)) r)))
+    (ghost (setZones 'none' (circle c2 right (+ top (/ height 2)) r)))
+    (ghost (setZones 'none' (circle c2 (+ left (/ width 2)) top r)))
+    (ghost (setZones 'none' (circle c2 (+ left (/ width 2)) bot r)))
+    (ghost (box bounds 'transparent' c1 1))
+  ])))))
+
+(def scaleBetween (\\(a b pct)
+  (case pct
+    (0 a)
+    (1 b)
+    (_ (+ a (* pct (- b a)))))))
+
+(def stretchyPolygon (\\(bounds fill stroke strokeWidth percentages)
+  (let [left top right bot] bounds
+  (let [xScale yScale] [(scaleBetween left right) (scaleBetween top bot)]
+  (let pts (map (\\[xPct yPct] [ (xScale xPct) (yScale yPct) ]) percentages)
+  [ (ghost (box bounds 'transparent' 'darkblue' 1))
+    (polygon fill stroke strokeWidth pts)
+  ] )))))
+
+(def evalOffset (\\[base off]
+  (case off
+    (0 base)
+    (_ (+ base off)))))
+
+(def stickyPolygon (\\(bounds fill stroke strokeWidth offsets)
+  (let pts (map (\\[xOff yOff] [ (evalOffset xOff) (evalOffset yOff) ]) offsets)
+  [ (ghost (box bounds 'transparent' 'darkblue' 1))
+    (polygon fill stroke strokeWidth pts)
+  ] )))
+
+; expects (f bounds) to be a single SVG
+(def with (\\(bounds f)
+  (append
+    (groupBox bounds)
+    [(f bounds)])))
+
+(def star (\\bounds
+  (let [left top right bot] bounds
+  (let [width height] [(- right left) (- bot top)]
+  (let [cx cy] [(+ left (/ width 2)) (+ top (/ height 2))]
+  (nStar 'lightblue' 'black' 0 6 (min (/ width 2) (/ height 2)) 10 0 cx cy)
+)))))
 
 ; 0
 ['svg' [] []]

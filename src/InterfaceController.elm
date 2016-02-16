@@ -334,24 +334,91 @@ addHelperDotToCodeAndRun old (cx,cy) =
     [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r]) ]
     f args
 
+maybeFreeze n =
+  if n == 0 || n == 1
+    then toString n ++ "!"
+    else toString n
+
 addPolygonToCodeAndRun old points =
+  if old.keysDown == Keys.shift
+    then addStickyPolygon old points
+    else addStretchablePolygon old points
+
+addStretchablePolygon old points =
+  let xMax = Utils.fromJust <| List.maximum (List.map fst points) in
+  let xMin = Utils.fromJust <| List.minimum (List.map fst points) in
+  let yMax = Utils.fromJust <| List.maximum (List.map snd points) in
+  let yMin = Utils.fromJust <| List.minimum (List.map snd points) in
+  let (width, height) = (xMax - xMin, yMax - yMin) in
   -- TODO string for now, since will unparse anyway...
-  let sPoints =
+  let sPcts =
     Utils.bracks <| Utils.spaces <|
-      List.map (\(x,y) -> Utils.bracks (Utils.spaces (List.map toString [x,y])))
-               (List.reverse points)
+      flip List.map (List.reverse points) <| \(x,y) ->
+        let xPct = (toFloat x - toFloat xMin) / toFloat width in
+        let yPct = (toFloat y - toFloat yMin) / toFloat height in
+        let xStr = maybeFreeze xPct in
+        let yStr = maybeFreeze yPct in
+        Utils.bracks (Utils.spaces [xStr,yStr])
   in
   addToCodeAndRun "polygon" old
-    [ makeLet ["pts"] [eVar sPoints] ]
-    (eVar0 "polygon")
-    [eConst 300 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "pts"]
+    [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
+    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
+    , makeLet ["pcts"] [eVar sPcts] ]
+    (eVar0 "stretchyPolygon")
+    [eVar "bounds", eConst 300 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "pcts"]
+
+addStickyPolygon old points =
+  let xMax = Utils.fromJust <| List.maximum (List.map fst points) in
+  let xMin = Utils.fromJust <| List.minimum (List.map fst points) in
+  let yMax = Utils.fromJust <| List.maximum (List.map snd points) in
+  let yMin = Utils.fromJust <| List.minimum (List.map snd points) in
+  let (width, height) = (xMax - xMin, yMax - yMin) in
+  -- TODO string for now, since will unparse anyway...
+  let sOffsets =
+    Utils.bracks <| Utils.spaces <|
+      flip List.map (List.reverse points) <| \(x,y) ->
+        let
+          (dxLeft, dxRight) = (x - xMin, x - xMax)
+          (dyTop , dyBot  ) = (y - yMin, y - yMax)
+          xOff = if dxLeft <= abs dxRight
+                   then Utils.bracks (Utils.spaces ["left", toString dxLeft])
+                   else Utils.bracks (Utils.spaces ["right", toString dxRight])
+          yOff = if dyTop <= abs dyBot
+                   then Utils.bracks (Utils.spaces ["top", toString dyTop])
+                   else Utils.bracks (Utils.spaces ["bot", toString dyBot])
+        in
+        Utils.bracks (Utils.spaces [xOff,yOff])
+  in
+  addToCodeAndRun "polygon" old
+    [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
+    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
+    , makeLet ["offsets"] [eVar sOffsets] ]
+    (eVar0 "stickyPolygon")
+    [eVar "bounds", eConst 350 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "offsets"]
+
+addLambdaToCodeAndRun old pt2 pt1 =
+  let funcName =
+    case old.toolType of
+      Lambda f -> f
+      _        -> Debug.crash "addLambdaToCodeAndRun"
+  in
+  let (xa, xb, ya, yb) =
+    if old.keysDown == Keys.shift
+      then View.squareBoundingBox pt2 pt1
+      else View.boundingBox pt2 pt1
+  in
+  addToCodeAndRun funcName old
+    [ makeLet ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
+    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
+    ]
+    (eVar0 "with") [ eVar "bounds" , eVar funcName ]
 
 addToCodeAndRun newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
 
   let tmp = newShapeKind ++ toString old.genSymCount in
-  let newDef = makeNewShapeDef tmp newShapeLocals newShapeFunc newShapeArgs in
+  let newDef = makeNewShapeDef old newShapeKind tmp newShapeLocals newShapeFunc newShapeArgs in
   let (defs, main) = splitExp old.inputExp in
-  let code = unparse (fuseExp (defs ++ [newDef]) (addToMain tmp main)) in
+  let code = unparse (fuseExp (defs ++ [newDef]) (addToMain (eVar tmp) main)) in
 
   upstate Run
     { old | code = code
@@ -359,12 +426,22 @@ addToCodeAndRun newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
           , genSymCount = old.genSymCount + 1
           , mouseMode = MouseNothing }
 
-makeNewShapeDef name locals func args =
+makeNewShapeDef model newShapeKind name locals func args =
   let newShapeName = withDummyRange (PVar " " name noWidgetDecl) in
-  let newShape = withDummyPos (EApp "\n    " func args "") in
   let recurse locals =
     case locals of
-      []             -> newShape
+      [] ->
+        let multi = -- check if (func args) returns List SVG or SVG
+          case model.toolType of
+            Poly -> True
+            Lambda _ -> True
+            _ -> False
+        in
+        if multi then
+          withDummyPos (EApp "\n    " func args "")
+        else
+          let app = withDummyPos (EApp " " func args "") in
+          withDummyPos (EList "\n    " [app] "" Nothing " ")
       (p,e)::locals' -> withDummyPos (ELet "\n  " Let False p e (recurse locals') "")
   in
   ("\n\n", newShapeName, recurse locals, "")
@@ -387,24 +464,35 @@ makeInts nums =
              let es = List.map (\n' -> eConst (toFloat n') dummyLoc) ns in
              e::es
 
-addToMain tmp main =
+addToMain eNew main =
   let callAddShape () =
     let ws = "\n" in -- TODO take main into account
-    withDummyPos (EApp ws (eVar0 "addShape") [eVar tmp, main] "")
+    withDummyPos (EApp ws (eVar0 "addShapes") [eNew, main] "")
   in
   case main.val.e__ of
-    EApp ws1 e1 [e2] ws2 ->
-      case (e1.val.e__, e2.val.e__) of
-        (EVar ws3 "svg", EList ws4 shapes ws5 Nothing ws6) ->
-          let main_ = main.val in
-          let e2_   = e2.val in
-          let e2'   = { e2 | val = { e2_ | e__ = EList ws4 (shapes ++ [eVar tmp]) ws5 Nothing ws6 }} in
-          let main' = { main | val = { main_ | e__ = EApp ws1 e1 [e2'] ws2 } } in
-          if ws1 == "" then addPreceedingWhitespace "\n\n" main'
-          else if ws1 == "\n" then addPreceedingWhitespace "\n" main'
-          else main'
-        _  -> callAddShape ()
-    _      -> callAddShape ()
+    EApp ws1 e1 [eAppConcat] ws2 ->
+      case (e1.val.e__, eAppConcat.val.e__) of
+        (EVar _ "svg", EApp ws3 eConcat [e2] ws4) ->
+          case (eConcat.val.e__, e2.val.e__) of
+            (EVar _ "concat", EList ws5 shapes ws6 Nothing ws7) ->
+              let
+                e2' =
+                  { e2 | val = { eid = e2.val.eid , e__ =
+                      EList ws5 (shapes ++ [eNew]) ws6 Nothing ws7 } }
+                eAppConcat' =
+                  { eAppConcat | val = { eid = eAppConcat.val.eid , e__ =
+                      EApp ws3 eConcat [e2'] ws4 } }
+                main' =
+                  { main | val = { eid = main.val.eid , e__ =
+                      EApp ws1 e1 [eAppConcat'] ws2 } }
+              in
+              if ws1 == "" then addPreceedingWhitespace "\n\n" main'
+              else if ws1 == "\n" then addPreceedingWhitespace "\n" main'
+              else main'
+
+            _ -> callAddShape ()
+        _     -> callAddShape ()
+    _         -> callAddShape ()
 
 maybeGhost b f args =
   if b
@@ -536,6 +624,7 @@ upstate evt old = case debugLog "Event" evt of
         (MouseNothing, Poly) -> { old | mouseMode = MouseDrawNew "polygon" [] }
         (MouseNothing, HelperDot) -> { old | mouseMode = MouseDrawNew "DOT" [] }
         (MouseNothing, HelperLine) -> { old | mouseMode = MouseDrawNew "line" [] }
+        (MouseNothing, Lambda _) -> { old | mouseMode = MouseDrawNew "LAMBDA" [] }
         _                    ->   old
 
     MouseClick click ->
@@ -654,6 +743,7 @@ upstate evt old = case debugLog "Event" evt of
         (_, MouseDrawNew "rect" [pt2, pt1])    -> addRectToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "ellipse" [pt2, pt1]) -> addEllipseToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "DOT" [pt])           -> addHelperDotToCodeAndRun old pt
+        (_, MouseDrawNew "LAMBDA" [pt2, pt1])  -> addLambdaToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "polygon" points)     -> old
 
         _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
@@ -833,7 +923,9 @@ upstate evt old = case debugLog "Event" evt of
               , slate         = newSlate
               , widgets       = newWidgets
               , previewCode   = Nothing
-              , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal }
+              , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal
+              , selectedAttrs = Set.empty
+        }
 
 
     RelateShapes ->
@@ -1176,6 +1268,16 @@ createMousePosCallback mx my objid kind zone old =
         ("rect", "TopLeftCorner")  -> ret [fx "x", fy "y", fx_ "width", fy_ "height"]
         ("rect", "TopEdge")        -> ret [fy "y", fy_ "height"]
         ("rect", "TopRightCorner") -> ret [fy "y", fx "width", fy_ "height"]
+
+        ("BOX", "Interior")        -> ret [fx "LEFT", fy "TOP", fx "RIGHT", fy "BOT"]
+        ("BOX", "RightEdge")       -> ret [fx "RIGHT"]
+        ("BOX", "BotRightCorner")  -> ret [fx "RIGHT", fy "BOT"]
+        ("BOX", "BotEdge")         -> ret [fy "BOT"]
+        ("BOX", "BotLeftCorner")   -> ret [fx "LEFT", fy "BOT"]
+        ("BOX", "LeftEdge")        -> ret [fx "LEFT"]
+        ("BOX", "TopLeftCorner")   -> ret [fx "LEFT", fy "TOP"]
+        ("BOX", "TopEdge")         -> ret [fy "TOP"]
+        ("BOX", "TopRightCorner")  -> ret [fy "TOP", fx "RIGHT"]
 
         ("circle", "Interior") -> ret [fx "cx", fy "cy"]
         ("circle", "Edge") ->
