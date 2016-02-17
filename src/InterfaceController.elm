@@ -571,6 +571,21 @@ featureEquation nodeId kind feature nodeAttrs =
     else if feature == LangSvg.rectHeight then eqnVal "height"
     else Debug.crash <| "Rectangles do not have this feature: " ++ feature
   in
+  let handleBox () =
+    if feature == LangSvg.boxTLX then eqnVal "LEFT"
+    else if feature == LangSvg.boxTLY then eqnVal "TOP"
+    else if feature == LangSvg.boxTRX then eqnVal "RIGHT"
+    else if feature == LangSvg.boxTRY then eqnVal "TOP"
+    else if feature == LangSvg.boxBLX then eqnVal "LEFT"
+    else if feature == LangSvg.boxBLY then eqnVal "BOT"
+    else if feature == LangSvg.boxBRX then eqnVal "RIGHT"
+    else if feature == LangSvg.boxBRY then eqnVal "BOT"
+    else if feature == LangSvg.boxCX then EqnOp Div [EqnOp Plus [eqnVal "LEFT", eqnVal "RIGHT"], eqnVal2]  -- (left + right)/2
+    else if feature == LangSvg.boxCY then EqnOp Div [EqnOp Plus [eqnVal "TOP", eqnVal "BOT"], eqnVal2] -- (top + bottom)/2
+    else if feature == LangSvg.boxWidth  then EqnOp Minus [eqnVal "RIGHT", eqnVal "LEFT"] -- (right - left)
+    else if feature == LangSvg.boxHeight then EqnOp Minus [eqnVal "BOT", eqnVal "TOP"] -- (bottom - top)
+    else Debug.crash <| "Boxes do not have this feature: " ++ feature
+  in
   let handleCircle () =
     if feature == LangSvg.circleCX then eqnVal "cx"
     else if feature == LangSvg.circleCY then eqnVal "cy"
@@ -619,6 +634,7 @@ featureEquation nodeId kind feature nodeAttrs =
   in
   case kind of
     "rect"     -> handleRect ()
+    "BOX"      -> handleBox ()
     "circle"   -> handleCircle ()
     "ellipse"  -> handleEllipse ()
     "line"     -> handleLine ()

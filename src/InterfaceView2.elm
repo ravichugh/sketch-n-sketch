@@ -725,9 +725,17 @@ makeZonesBox model options id l =
     (left, top, right, bot) = Utils.unwrap4 <| findNums l ["LEFT","TOP","RIGHT","BOT"]
     (width, height) = (right - left, bot - top)
   in
+  let (cx, cy) = (left + width/2, top + height/2) in
   let zonesSelect =
-       zoneSelectCrossDot model options.addSelect (id, ["LEFT"], ["TOP"]) left top
-    ++ zoneSelectCrossDot model options.addSelect (id, ["RIGHT"], ["BOT"]) right bot
+       zoneSelectLine model options.addSelect (id, LangSvg.boxWidth) (left, cy) (right, cy)
+    ++ zoneSelectLine model options.addSelect (id, LangSvg.boxHeight) (cx, top) (cx, bot)
+    ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxTLX], [LangSvg.boxTLY]) left top
+    ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxTRX], [LangSvg.boxTRY]) right top
+    ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxBLX], [LangSvg.boxBLY]) left bot
+    ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxBRX], [LangSvg.boxBRY]) right bot
+    ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxCX], [LangSvg.boxCY]) cx cy
+    --    zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxLeft], [LangSvg.boxTop]) left top
+    -- ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxRight], [LangSvg.boxBottom]) right bot
   in
     [ mkInterior "Interior" left top width height
     , mkPoint "TopLeftCorner" left top
