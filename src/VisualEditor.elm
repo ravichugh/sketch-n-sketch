@@ -462,10 +462,10 @@ myMailbox : Mailbox Event
 myMailbox = mailbox (UpdateModel identity)
 
 -- this needs to be improved
-type ButtonEvent = UpModel | Edit
+type ButtonEvent = UpModel | Edit | Other
                  
 btnMailbox : Mailbox ButtonEvent
-btnMailbox = mailbox UpModel
+btnMailbox = mailbox Other
 
 queryMailbox : Mailbox String
 queryMailbox = mailbox "NOTHING YET"
@@ -494,7 +494,7 @@ upstate evt model =
     UpdateModel f -> f model
     HtmlUpdate code ->
       case Parser.parseE code of
-        Err s  ->  { model | error = Just s }
+        Err s  ->  { model | error = Just s, textChangedAt = Nothing }
         Ok exp -> { model | exp = exp, code = code, editable = False, textChangedAt = Nothing, error = Nothing }
     SpanValue (x, x') ->
       if x == x' || String.contains " " x'
@@ -540,11 +540,12 @@ view model =
     in
     let hExp = Html.div [ Attr.id "theSourceCode" ] [ htmlOfExp model testExp ] in
     let viewMode_btn =
-          Html.button
-                [ Attr.contenteditable False
-                , Events.onClick btnMailbox.address UpModel
-                ]
-                [ Html.text "viewMode" ]
+          let attr = [ Attr.contenteditable False ] ++
+          case model.editable of
+            True -> [ Events.onClick btnMailbox.address UpModel ]
+            _    -> [ Events.onClick btnMailbox.address Other ]
+          in
+          Html.button attr [ Html.text "viewMode" ]
     in
     let textMode_btn =
       Html.button
@@ -570,7 +571,7 @@ events =
 eventsFromJS : Signal Event
 eventsFromJS =
   let foo (id,s) =
-    if id == "update" then HtmlUpdate s
+    if id == "update" || id == "other" then HtmlUpdate s
     else if id == "edit" then EnterEdit s
     else SpanValue (id, s)
   in
@@ -584,7 +585,7 @@ convertBtnEvt evt =
   case evt of
     UpModel -> "update"
     Edit    -> "edit"
-    --Rename  -> "rename"
+    Other  -> "other"
     
 -- port sourceCodeSignalToJS : Signal ()
 port sourceCodeSignalToJS : Signal String
