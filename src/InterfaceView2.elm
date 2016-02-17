@@ -672,17 +672,8 @@ makeZonesRect model options shape id l =
       ]
   in
   let
-    (x,y,w,h) =
-      if shape == "rect" then
-        Utils.unwrap4 <| findNums l ["x","y","width","height"]
-      else
-        let (x,y,xw,yh) = Utils.unwrap4 <| findNums l ["LEFT","TOP","RIGHT","BOT"] in
-        (x, y, xw-x, yh-y)
---  temporary way to change box zones:
-    gut           = if shape == "rect" then 0.125 else 0.02
-{-
+    (x,y,w,h)     = Utils.unwrap4 <| findNums l ["x","y","width","height"]
     gut           = 0.125
--}
     (x0,x1,x2)    = (x, x + gut*w, x + (1-gut)*w)
     (y0,y1,y2)    = (y, y + gut*h, y + (1-gut)*h)
     (wSlim,wWide) = (gut*w, (1-2*gut)*w)
@@ -697,17 +688,13 @@ makeZonesRect model options shape id l =
     zoneColor options.addColor id shape x y (maybeColorNumAttr "fill" l)
   in
   let zonesSelect =
-    if shape == "rect" then
-         zoneSelectLine model options.addSelect (id, LangSvg.rectWidth) (x,y+h/2) (x+w,y+h/2)
-      ++ zoneSelectLine model options.addSelect (id, LangSvg.rectHeight) (x+w/2,y) (x+w/2,y+h)
-      ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectTLX], [LangSvg.rectTLY]) x y
-      ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectTRX], [LangSvg.rectTRY]) (x+w) y
-      ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectBLX], [LangSvg.rectBLY]) x (y+h)
-      ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectBRX], [LangSvg.rectBRY]) (x+w) (y+h)
-      ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectCX], [LangSvg.rectCY]) (x+w/2) (y+h/2)
-    else -- shape == "BOX"
-         zoneSelectCrossDot model options.addSelect (id, ["LEFT"], ["TOP"]) x y
-      ++ zoneSelectCrossDot model options.addSelect (id, ["RIGHT"], ["BOT"]) (x+w) (y+h)
+       zoneSelectLine model options.addSelect (id, LangSvg.rectWidth) (x,y+h/2) (x+w,y+h/2)
+    ++ zoneSelectLine model options.addSelect (id, LangSvg.rectHeight) (x+w/2,y) (x+w/2,y+h)
+    ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectTLX], [LangSvg.rectTLY]) x y
+    ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectTRX], [LangSvg.rectTRY]) (x+w) y
+    ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectBLX], [LangSvg.rectBLY]) x (y+h)
+    ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectBRX], [LangSvg.rectBRY]) (x+w) (y+h)
+    ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectCX], [LangSvg.rectCY]) (x+w/2) (y+h/2)
   in
     [ mk "Interior"       x1 y1 wWide hWide
     , mk "RightEdge"      x2 y1 wSlim hWide
