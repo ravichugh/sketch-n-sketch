@@ -216,6 +216,11 @@ justGet k d = fromJust_ "Utils.justGet" <| Dict.get k d
 
 justGet_ s k d = fromJust_ ("Utils.justGet " ++ s) <| Dict.get k d
 
+getWithDefault key default dict =
+  case Dict.get key dict of
+    Just val -> val
+    Nothing -> default
+
 head_ = fromJust_ "Utils.head_" << List.head
 tail_ = fromJust_ "Utils.tail_" << List.tail
 last_ = head_ << List.reverse

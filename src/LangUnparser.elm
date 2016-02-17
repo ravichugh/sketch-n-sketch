@@ -1,4 +1,7 @@
-module LangUnparser (unparse, equationToLittle, bumpCol, incCol, preceedingWhitespace, addPreceedingWhitespace) where
+module LangUnparser
+  (unparse, equationToLittle, bumpCol, incCol, preceedingWhitespace,
+    preceedingWhitespaceExp__, addPreceedingWhitespace,
+    replacePreceedingWhitespace, replacePreceedingWhitespacePat) where
 
 import Lang exposing (..)
 import OurParser2 exposing (Pos, WithPos, WithInfo, startPos)
@@ -22,9 +25,24 @@ incCol = bumpCol 1
 
 ------------------------------------------------------------------------------
 
+
 preceedingWhitespace : Exp -> String
-preceedingWhitespace e =
-  case e.val.e__ of
+preceedingWhitespace exp =
+  preceedingWhitespaceExp__ exp.val.e__
+
+
+preceedingWhitespacePat : Pat -> String
+preceedingWhitespacePat pat =
+  case pat.val of
+    PVar   ws ident wd         -> ws
+    PConst ws n                -> ws
+    PBase  ws v                -> ws
+    PList  ws1 es ws2 rest ws3 -> ws1
+
+
+preceedingWhitespaceExp__ : Exp__ -> String
+preceedingWhitespaceExp__ e__ =
+  case e__ of
     EBase    ws v                     -> ws
     EConst   ws n l wd                -> ws
     EVar     ws x                     -> ws
@@ -39,26 +57,54 @@ preceedingWhitespace e =
     EComment ws s e1                  -> ws
     EOption  ws1 s1 ws2 s2 e1         -> ws1
 
+
 addPreceedingWhitespace : String -> Exp -> Exp
 addPreceedingWhitespace newWs exp =
+  mapPreceedingWhitespace (\oldWs -> oldWs ++ newWs) exp
+
+
+replacePreceedingWhitespace : String -> Exp -> Exp
+replacePreceedingWhitespace newWs exp =
+  mapPreceedingWhitespace (\oldWs -> newWs) exp
+
+
+replacePreceedingWhitespacePat : String -> Pat -> Pat
+replacePreceedingWhitespacePat newWs pat =
+  mapPreceedingWhitespacePat (\oldWs -> newWs) pat
+
+
+mapPreceedingWhitespace : (String -> String) -> Exp -> Exp
+mapPreceedingWhitespace mapWs exp =
   let e__' =
     case exp.val.e__ of
-      EBase    ws v                     -> EBase    (newWs ++ ws) v
-      EConst   ws n l wd                -> EConst   (newWs ++ ws) n l wd
-      EVar     ws x                     -> EVar     (newWs ++ ws) x
-      EFun     ws1 ps e1 ws2            -> EFun     (newWs ++ ws1) ps e1 ws2
-      EApp     ws1 e1 es ws2            -> EApp     (newWs ++ ws1) e1 es ws2
-      EList    ws1 es ws2 rest ws3      -> EList    (newWs ++ ws1) es ws2 rest ws3
-      EIndList ws1 rs ws2               -> EIndList (newWs ++ ws1) rs ws2
-      EOp      ws1 op es ws2            -> EOp      (newWs ++ ws1) op es ws2
-      EIf      ws1 e1 e2 e3 ws2         -> EIf      (newWs ++ ws1) e1 e2 e3 ws2
-      ELet     ws1 kind rec p e1 e2 ws2 -> ELet     (newWs ++ ws1) kind rec p e1 e2 ws2
-      ECase    ws1 e1 bs ws2            -> ECase    (newWs ++ ws1) e1 bs ws2
-      EComment ws s e1                  -> EComment (newWs ++ ws) s e1
-      EOption  ws1 s1 ws2 s2 e1         -> EOption  (newWs ++ ws1) s1 ws2 s2 e1
+      EBase    ws v                     -> EBase    (mapWs ws) v
+      EConst   ws n l wd                -> EConst   (mapWs ws) n l wd
+      EVar     ws x                     -> EVar     (mapWs ws) x
+      EFun     ws1 ps e1 ws2            -> EFun     (mapWs ws1) ps e1 ws2
+      EApp     ws1 e1 es ws2            -> EApp     (mapWs ws1) e1 es ws2
+      EList    ws1 es ws2 rest ws3      -> EList    (mapWs ws1) es ws2 rest ws3
+      EIndList ws1 rs ws2               -> EIndList (mapWs ws1) rs ws2
+      EOp      ws1 op es ws2            -> EOp      (mapWs ws1) op es ws2
+      EIf      ws1 e1 e2 e3 ws2         -> EIf      (mapWs ws1) e1 e2 e3 ws2
+      ELet     ws1 kind rec p e1 e2 ws2 -> ELet     (mapWs ws1) kind rec p e1 e2 ws2
+      ECase    ws1 e1 bs ws2            -> ECase    (mapWs ws1) e1 bs ws2
+      EComment ws s e1                  -> EComment (mapWs ws) s e1
+      EOption  ws1 s1 ws2 s2 e1         -> EOption  (mapWs ws1) s1 ws2 s2 e1
   in
   let val = exp.val in
   { exp | val = { val | e__ = e__' } }
+
+
+mapPreceedingWhitespacePat : (String -> String) -> Pat -> Pat
+mapPreceedingWhitespacePat mapWs pat =
+  let pat_' =
+    case pat.val of
+      PVar   ws ident wd         -> PVar   (mapWs ws) ident wd
+      PConst ws n                -> PConst (mapWs ws) n
+      PBase  ws v                -> PBase  (mapWs ws) v
+      PList  ws1 es ws2 rest ws3 -> PList  (mapWs ws1) es ws2 rest ws3
+  in
+  { pat | val = pat_' }
 
 
 unparseWD : WidgetDecl -> String

@@ -3,6 +3,7 @@ module InterfaceController (upstate) where
 import Lang exposing (..) --For access to what makes up the Vals
 import LangParser2 exposing (parseE, freshen)
 import LangUnparser exposing (unparse, equationToLittle, preceedingWhitespace, addPreceedingWhitespace)
+import LangTransform
 import Sync
 import Eval
 import Utils
@@ -1359,7 +1360,7 @@ upstate evt old = case debugLog "Event" evt of
 -}
 
     CleanCode ->
-      let s' = unparse (cleanExp old.inputExp) in
+      let s' = unparse (LangTransform.simplify <| cleanExp old.inputExp) in
       let h' =
         if old.code == s'
           then old.history

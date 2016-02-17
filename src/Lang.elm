@@ -328,7 +328,6 @@ mapExp f e =
   let recurse = mapExp f in
   let wrap e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
   let wrapAndMap = f << wrap in
-  -- let g e__ = P.WithInfo (Exp_ (f e__) e.val.eid) e.start e.end in
   case e.val.e__ of
     EConst _ _ _ _         -> f e
     EBase _ _              -> f e
@@ -337,11 +336,12 @@ mapExp f e =
     EApp ws1 e1 es ws2     -> wrapAndMap (EApp ws1 (recurse e1) (List.map recurse es) ws2)
     EOp ws1 op es ws2      -> wrapAndMap (EOp ws1 op (List.map recurse es) ws2)
     EList ws1 es ws2 m ws3 -> wrapAndMap (EList ws1 (List.map recurse es) ws2 (Utils.mapMaybe recurse m) ws3)
-    EIndList ws1 rs ws2    -> let rangeRecurse r_ = case r_ of
-                        Interval e1 ws e2 -> Interval (recurse e1) ws (recurse e2)
-                        Point e1          -> Point (recurse e1)
-                      in
-                      wrapAndMap (EIndList ws1 (List.map (mapValField rangeRecurse) rs) ws2)
+    EIndList ws1 rs ws2    ->
+      let rangeRecurse r_ = case r_ of
+        Interval e1 ws e2 -> Interval (recurse e1) ws (recurse e2)
+        Point e1          -> Point (recurse e1)
+      in
+      wrapAndMap (EIndList ws1 (List.map (mapValField rangeRecurse) rs) ws2)
     EIf ws1 e1 e2 e3 ws2      -> wrapAndMap (EIf ws1 (recurse e1) (recurse e2) (recurse e3) ws2)
     ECase ws1 e1 branches ws2 ->
       let newE1 = recurse e1 in
@@ -552,40 +552,63 @@ isScope maybeParent exp =
         _                            -> isObviouslyScope
     Nothing -> isObviouslyScope
 
+
 identifiersSet : Exp -> Set.Set Ident
 identifiersSet exp =
+  identifiersList exp
+  |> Set.fromList
+
+
+identifiersList : Exp -> List Ident
+identifiersList exp =
   let folder e__ acc =
     case e__ of
       EVar _ ident ->
-        Set.insert ident acc
+        ident::acc
 
       EFun _ pats _ _ ->
-        List.map identifiersSetInPat pats |>
-          List.foldl Set.union acc
+        (List.concatMap identifiersListInPat pats) ++ acc
 
       ECase _ _ branches _ ->
         let pats = branchPats branches in
-        List.map identifiersSetInPat pats |>
-          List.foldl Set.union acc
+        (List.concatMap identifiersListInPat pats) ++ acc
 
       ELet _ _ _ pat _ _ _ ->
-        Set.union acc (identifiersSetInPat pat)
+        (identifiersListInPat pat) ++ acc
 
       _ ->
         acc
   in
   foldExpViaE__
     folder
-    Set.empty
+    []
     exp
 
-identifiersSetInPat : Pat -> Set.Set Ident
-identifiersSetInPat pat =
+identifiersListInPat : Pat -> List Ident
+identifiersListInPat pat =
   case pat.val of
-    PVar _ ident _              -> Set.singleton ident
-    PList _ pats _ (Just pat) _ -> List.foldl Set.union Set.empty <| List.map identifiersSetInPat (pat::pats)
-    PList _ pats _ Nothing    _ -> List.foldl Set.union Set.empty <| List.map identifiersSetInPat pats
-    _                           -> Set.empty
+    PVar _ ident _              -> [ident]
+    PList _ pats _ (Just pat) _ -> List.concatMap identifiersListInPat (pat::pats)
+    PList _ pats _ Nothing    _ -> List.concatMap identifiersListInPat pats
+    _                           -> []
+
+
+identifierCounts : Exp -> Dict.Dict Ident Int
+identifierCounts exp =
+  List.foldl
+    (\ident counts ->
+      Dict.update
+        ident
+        (\old ->
+          case old of
+            Just count -> Just (count + 1)
+            Nothing    -> Just 1
+        )
+        counts
+    )
+    Dict.empty
+    (identifiersList exp)
+
 
 -----------------------------------------------------------------------------
 -- Lang Options
