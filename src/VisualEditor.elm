@@ -461,6 +461,7 @@ type alias SpanValue = (String, String)
 myMailbox : Mailbox Event
 myMailbox = mailbox (UpdateModel identity)
 
+-- this needs to be improved
 type ButtonEvent = UpModel | Edit
                  
 btnMailbox : Mailbox ButtonEvent
@@ -538,13 +539,13 @@ view model =
          options
     in
     let hExp = Html.div [ Attr.id "theSourceCode" ] [ htmlOfExp model testExp ] in
-    let wrapper = Html.div [ Attr.id "wrapper" ] [ hExp ] in
     let viewMode_btn =
-      Html.button
-         [ Attr.contenteditable False
-         , Events.onClick btnMailbox.address UpModel
-         ]
-         [ Html.text "viewMode" ] in
+          Html.button
+                [ Attr.contenteditable False
+                , Events.onClick btnMailbox.address UpModel
+                ]
+                [ Html.text "viewMode" ]
+    in
     let textMode_btn =
       Html.button
           [ Attr.contenteditable False
@@ -583,6 +584,7 @@ convertBtnEvt evt =
   case evt of
     UpModel -> "update"
     Edit    -> "edit"
+    --Rename  -> "rename"
     
 -- port sourceCodeSignalToJS : Signal ()
 port sourceCodeSignalToJS : Signal String

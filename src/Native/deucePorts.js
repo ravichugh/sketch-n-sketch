@@ -10,10 +10,12 @@ window.initializers.push(function (elmRuntime) {
       var s;    
       if (elementId == "update") {
           s = combineNodes();
-          //console.log(s);
+      }
+      if (elementId == "edit") {
+          s = window.document.getElementById("theSourceCode").textContent;
       }
       else {
-          s = window.document.getElementById("theSourceCode").textContent;
+          s = window.document.getElementById(elementId).textContent;
       }
       elmRuntime.ports.sourceCodeSignalFromJS.send([elementId, s]);
   });
@@ -27,18 +29,26 @@ function combineNodes() {
     var text;
     var sourceCode = window.document.getElementById("theSourceCode");
     text = sourceCode.innerText.replace("\u00A0"," ");
-    //console.log(text);
     sourceCode.id = "temp";
     var node = window.document.getElementById("theSourceCode");
     while (node) {
-        //console.log(a);
-        text += "\n" + node.innerText.replace("\u00A0", " ");
+        if (node.innerText == "\n") {
+            text += "\n";
+        }
+        else {
+            text += "\n" + node.innerText.replace("\u00A0", " ");
+        }
         editor.removeChild(node);
         node = window.document.getElementById("theSourceCode");
     }
-    //console.log(a);
     sourceCode.id = "theSourceCode";
-    //console.log(text);
+    var b = sourceCode.childNodes;
+    var len = b.length;
+    for (i = 0; i < len; i++) {
+        if (i > 0) {
+            sourceCode.removeChild(b[i]);
+        }
+    }
     return text;
 }
 
