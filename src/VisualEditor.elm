@@ -272,7 +272,7 @@ htmlOfPVar model ws x =
         , ("cursor", "pointer")
         ]
     , Attr.id x
-    , Events.onClick queryMailbox.address (x)
+    , Events.onClick deuceQueryMailbox.address (x)
         -- sending message to JavaScript,
         -- rather than installing UpdateModel callback...
     ] in
@@ -415,8 +415,8 @@ myMailbox = mailbox (UpdateModel identity)
 btnMailbox : Mailbox ()
 btnMailbox = mailbox ()
 
-queryMailbox : Mailbox String
-queryMailbox = mailbox "NOTHING YET"
+deuceQueryMailbox : Mailbox String
+deuceQueryMailbox = mailbox "NOTHING YET"
 
 type alias Model = Model_ {}
 

@@ -6,6 +6,7 @@ import CodeBox exposing (interpretAceEvents, packageModel,
                          AceMessage, AceCodeBoxInfo, tripRender,
                          initAceCodeBoxInfo)
 import Config
+import VisualEditor exposing (deuceQueryMailbox)
 
 import Graphics.Element exposing (Element)
 import Mouse
@@ -52,6 +53,7 @@ combinedEventSig =
       (Model.KeysDown << List.sort << Set.toList)
       Keyboard.keysDown
     , Signal.map Model.TickDelta (Time.fpsWhen 60 animateSignal)
+    , Signal.map Model.SpanValue sourceCodeSignalFromJS
     ]
 
 main : Signal Element
@@ -129,3 +131,8 @@ port aceInTheHole =
 
 -- Port for Event messages from the code box
 port theTurn : Signal AceMessage
+
+port sourceCodeSignalFromJS : Signal Model.SpanValue
+
+port sourceCodeSignalToJS : Signal String
+port sourceCodeSignalToJS = deuceQueryMailbox.signal

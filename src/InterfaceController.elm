@@ -13,6 +13,7 @@ import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg exposing (toNum, toNumTr, toPoints, addi)
 import ExamplesGenerated as Examples
 import Config exposing (params)
+import VisualEditor as Deuce
 
 import List
 import Dict
@@ -1164,6 +1165,11 @@ upstate evt old = case debugLog "Event" evt of
     WaitRun -> old
     WaitSave saveName -> { old | exName = saveName }
     WaitCodeBox -> old
+
+    SpanValue (x, x') ->
+      if x == x' || String.contains " " x'
+        then old
+        else upstate Run (Deuce.renameVar x x' old)
 
 adjustMidOffsetX old dx =
   case old.orient of

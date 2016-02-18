@@ -188,6 +188,11 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | WaitSave String
            | WaitCodeBox
 
+           -- events for VisualEditor
+           | SpanValue SpanValue
+
+type alias SpanValue = (String, String)
+
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
 
