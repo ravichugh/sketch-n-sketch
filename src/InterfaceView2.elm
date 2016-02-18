@@ -14,6 +14,7 @@ import LangSvg exposing (toNum, toNumTr, addi, attr)
 import ExamplesGenerated as Examples
 import Config exposing (params)
 import OurParser2 as P
+import VisualEditor as Deuce
 
 import VirtualDom
 
@@ -988,8 +989,8 @@ colorDebug_ c1 c2 =
 
 colorDebug c1 = colorDebug_ c1 interfaceColor
 
-codebox : Int -> Int -> Model -> GE.Element
-codebox w h model =
+basicCodeBox : Int -> Int -> Model -> GE.Element
+basicCodeBox w h model =
   let
     event = case model.mode of
               SyncSelect _ -> []
@@ -997,19 +998,37 @@ codebox w h model =
                       (Signal.message events.address << CodeUpdate)]
     code = codeToShow model
   in
-    codebox_ w h event code (not (editingMode model))
+    plainTextArea w h event code (not (editingMode model))
+
+deuceCodeBox : Int -> Int -> Model -> GE.Element
+deuceCodeBox w h model =
+  Html.toElement w h <|
+    Html.div
+        [ Attr.id "theSourceCode"
+        , Attr.style
+              [ ("height", "100%")
+              , ("width", "100%")
+              , ("padding", "4px")
+              , ("overflow", "auto")
+              -- Horizontal Scrollbars in Chrome
+              , ("word-wrap", "normal")
+              -- Makes the 100% for width/height work as intended
+              , ("box-sizing", "border-box")
+              ]
+        ]
+        [ Deuce.htmlOfExp model model.inputExp ]
 
 highlightThisIf b =
   if b
   then ("box-shadow", "inset 0 0 10px 4px rgba(231, 76, 60,0.5)")
   else ("box-shadow", "inset 0 0 10px 4px darkgray")
 
-codebox_ w h event s readOnly =
+plainTextArea w h event s readOnly =
   let innerPadding = 4
   in
     Html.toElement w h <|
       Html.textarea
-        ([ Attr.id "editor"
+        ([ Attr.id "plainTextArea"
          , Attr.spellcheck False
          , Attr.readonly readOnly
          , Attr.style
@@ -1069,7 +1088,7 @@ errorBox w h errormsg =
 canvas : Int -> Int -> Model -> GE.Element
 canvas w h model =
   case model.mode of
-    Print s -> codebox_ w h [] s True
+    Print s -> plainTextArea w h [] s True
     _       -> canvas_ w h model
 
 canvas_ w h model =
@@ -1307,8 +1326,8 @@ gutterForResizing orient w h =
 -- torching the interior of the codeBox portion of the screen and necessitates a
 -- re-embedding of the editor on the Ace side of things, the delay of which
 -- (needs to be sent through a port and such) makes it flash.
-codeBox : Int -> Int -> GE.Element
-codeBox w h = Html.toElement w h <|
+aceCodeBox : Int -> Int -> GE.Element
+aceCodeBox w h = Html.toElement w h <|
     Html.Lazy.lazy (\a -> Html.div [ Attr.id "editor"
              , Attr.style
                  [ ("width", "100%") -- The toElement makes a wrapping Div that
@@ -1340,9 +1359,10 @@ mainSectionVertical w h model =
     wExtra  = params.mainSection.horizontal.wExtra
   in
 
-  let codeSection = if model.basicCodeBox
-                       then codebox wCode h model
-                       else codeBox wCode h in
+  let codeSection =
+    if model.deuceCodeBox -- TODO keeping aceCodeBox hidden...
+      then GE.flow GE.down [deuceCodeBox wCode h model, aceCodeBox wCode 0]
+      else aceCodeBox wCode h in
 
   let canvasSection = case model.errorBox of
     Nothing ->
@@ -1387,9 +1407,10 @@ mainSectionHorizontal w h model =
     wExtra  = params.mainSection.horizontal.wExtra
   in
 
-  let codeSection = if model.basicCodeBox
-                       then codebox w hCode model
-                       else codeBox w hCode in
+  let codeSection =
+    if model.deuceCodeBox -- TODO keeping aceCodeBox hidden...
+      then GE.flow GE.down [deuceCodeBox w hCode model, aceCodeBox w 0]
+      else aceCodeBox w hCode in
 
   let canvasSection = case model.errorBox of
     Nothing ->
@@ -1455,8 +1476,7 @@ displayKey s = " " ++ s
 editRunButton model w h =
   let disabled = model.mode == AdHoc in
   case editingMode model of
-    True -> simpleEventButton_ disabled WaitRun
-              "Run" "Run" "Run Code" w h
+    True -> simpleEventButton_ disabled WaitRun "Run" "Run" "Run Code" w h
     False -> simpleEventButton_ disabled Edit "Edit" "Edit" "Edit Code" w h
 
 outputButton model w h =
@@ -1725,16 +1745,16 @@ orientationButton w h model =
     in
       simpleButton SwitchOrient text text text w h
 
-basicBoxButton w h model =
-    let (text, evt) = case model.basicCodeBox of
-          True  -> ("[Code Box] Basic", ToggleBasicCodeBox)
-          False -> case model.editingMode of
-              Nothing -> ("[Code Box] Fancy", ToggleBasicCodeBox)
-              Just _  -> ("[Code Box] Fancy", WaitCodeBox)
-    in
-       simpleButton
-         evt
-         text text text w h
+codeBoxButton w h model =
+  let (text, evt) =
+    case model.deuceCodeBox of
+      True  -> ("[Editor] Deuce", ToggleBasicCodeBox)
+      False ->
+        case model.editingMode of
+          Nothing -> ("[Editor] Ace", ToggleBasicCodeBox)
+          Just _  -> ("[Editor] Ace", WaitCodeBox) -- TODO
+  in
+  simpleButton evt text text text w h
 
 codeButton model w h =
   let (cap, btnKind) = case model.hideCode of

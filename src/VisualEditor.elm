@@ -36,7 +36,7 @@ leftRightPadding =
 basicStyle : Attribute
 basicStyle =
   Attr.style
-    [ ("font-size", "16pt")
+    [ ("font-size", "14pt")
     , ("font-family", "monospace")
     , ("line-height", "1.8")
     , ("white-space", "pre")
@@ -90,6 +90,7 @@ literalInnerStyle model =
   Attr.style <|
     [ ("background", "yellow")
     , ("cursor", "text")
+    , ("word-wrap", "normal")
     ] ++ leftRightPadding
 
 
@@ -108,9 +109,9 @@ eConstEvent n loc offset =
   let (locid,_,_) = loc in
   handleAndStop "mousedown" <| \model ->
     let lSubst = Dict.singleton locid (n + toFloat offset) in
-    let exp' = applyLocSubst lSubst model.exp in
+    let exp' = applyLocSubst lSubst model.inputExp in
     let code' = Unparser.unparse exp' in
-    { model | exp = exp', code = code' }
+    { model | inputExp = exp', code = code' }
 
 eConstFlipFreeze (ws, n, loc, wd) =
   let (locid,ann,mx) = loc in
@@ -123,9 +124,9 @@ eConstFlipFreeze (ws, n, loc, wd) =
     -- relying on invariant that EId = LocId
 
   handleAndStop "mousedown" <| \model ->
-    let exp' = applyESubst eSubst model.exp in
+    let exp' = applyESubst eSubst model.inputExp in
     let code' = Unparser.unparse exp' in
-    { model | exp = exp', code = code' }
+    { model | inputExp = exp', code = code' }
 
 -- <span> doesn't have a "change" event
 eTextChange =
@@ -257,9 +258,9 @@ renameVar x x' model =
           EFun ws1 ps'' e1' ws2
         _ -> e.val.e__
   in
-  let exp' = mapExp foo model.exp in
+  let exp' = mapExp foo model.inputExp in
   let code' = Unparser.unparse exp' in
-  { model | exp = exp', code = code' }
+  { model | inputExp = exp', code = code' }
 
 -- could supply EId of ELet/EFun from htmlOfExp/Pat...
 htmlOfPVar model ws x =
@@ -306,7 +307,7 @@ htmlOfPVar model ws x =
 hConcat : List Html -> Html
 hConcat hs = Html.span [] hs
 
-htmlOfExp : Model -> Exp -> Html
+htmlOfExp : Model_ a -> Exp -> Html
 htmlOfExp model e =
   let recurse = htmlOfExp model in
   let e_ = e.val in
@@ -372,7 +373,7 @@ htmlOfExp model e =
       let s = Unparser.unparse e in
       Html.pre [] [ Html.text s ]
 
-htmlOfPat : Model -> Pat -> Html
+htmlOfPat : Model_ a -> Pat -> Html
 htmlOfPat model p =
   let recurse = htmlOfPat model in
   case p.val of
@@ -389,7 +390,7 @@ htmlOfPat model p =
       Html.span [ basicStyle ]
         (List.concat [hPre, List.map recurse ps, hRest, hSuf])
 
-htmlOfBranch : Model -> Branch -> Html
+htmlOfBranch : Model_ a -> Branch -> Html
 htmlOfBranch model b =
   let (Branch_ ws1 p e ws2) = b.val in
   let (pre, suf) = (ws1 ++ "(", ws2 ++ ")") in
@@ -417,17 +418,22 @@ btnMailbox = mailbox ()
 queryMailbox : Mailbox String
 queryMailbox = mailbox "NOTHING YET"
 
-type alias Model =
-  { name : String
+type alias Model = Model_ {}
+
+type alias Model_ a =
+  { a
+  | exName : String
   , code : String
-  , exp  : Exp
+  , inputExp : Exp
   , textChangedAt : Maybe Time
   }
 
+{--
+
 initModel =
-  { name = Examples.scratchName
+  { exName = Examples.scratchName
   , code = Examples.scratch
-  , exp  = Utils.fromOk_ (Parser.parseE Examples.scratch)
+  , inputExp = Utils.fromOk_ (Parser.parseE Examples.scratch)
   , textChangedAt = Nothing
   }
 
@@ -438,7 +444,7 @@ upstate evt model =
     HtmlUpdate code ->
       case Parser.parseE code of
         Err _  -> model
-        Ok exp -> { model | exp = exp, code = code, textChangedAt = Nothing }
+        Ok exp -> { model | inputExp = exp, code = code, textChangedAt = Nothing }
     SpanValue (x, x') ->
       if x == x' || String.contains " " x'
         then model
@@ -461,7 +467,7 @@ view model =
     let options =
       flip List.map Examples.list <| \(name,code,_) ->
         Html.option
-           [Attr.value name, Attr.selected (name == model.name)]
+           [Attr.value name, Attr.selected (name == model.exName)]
            [Html.text name]
     in
     let dropdown =
@@ -476,7 +482,7 @@ view model =
              let (name,code,_) = Utils.geti (i+1) Examples.list in
              Signal.message myMailbox.address <| UpdateModel <| \_ ->
                let exp = Utils.fromOk_ (Parser.parseE code) in
-               { name = name, code = code, exp = exp, textChangedAt = Nothing }
+               { exName = name, code = code, inputExp = exp, textChangedAt = Nothing }
          ]
          options
     in
@@ -522,3 +528,4 @@ port sourceCodeSignalToJS =
 main : Signal Html
 main = Signal.map view (Signal.foldp upstate initModel events)
 
+--}

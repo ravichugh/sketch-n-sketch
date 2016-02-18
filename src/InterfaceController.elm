@@ -14,31 +14,12 @@ import LangSvg exposing (toNum, toNumTr, toPoints, addi)
 import ExamplesGenerated as Examples
 import Config exposing (params)
 
-import VirtualDom
-
---Core Libraries
 import List
 import Dict
 import Set
 import String
 import Char
 import Graphics.Element as GE
-import Graphics.Collage as GC
-import Regex as Re
-
---Html Libraries
-import Html
-import Html.Attributes as Attr
-import Html.Events as Events
-
---Svg Libraries
-import Svg
-import Svg.Attributes
-import Svg.Events
-import Svg.Lazy
-
---Error Checking Libraries
-import Debug
 
 --------------------------------------------------------------------------------
 
@@ -555,7 +536,8 @@ upstate evt old = case debugLog "Event" evt of
 
     WindowDimensions wh -> { old | dimensions = wh }
 
-    Edit -> { old | editingMode = Just old.code }
+    Edit ->
+      { old | editingMode = Just old.code, deuceCodeBox = False }
 
     Run ->
       case parseE old.code of
@@ -582,6 +564,7 @@ upstate evt old = case debugLog "Event" evt of
                  , history       = h
                  , editingMode   = Nothing
                  , caption       = Nothing
+                 , deuceCodeBox  = True
                  , syncOptions   = Sync.syncOptionsOf old.syncOptions e }
           in
           { new | mode = refreshMode_ new
@@ -1168,7 +1151,7 @@ upstate evt old = case debugLog "Event" evt of
     -- appropriately (see CodeBox.elm)
     InstallSaveState -> installSaveState old
     RemoveDialog makeSave saveName -> removeDialog makeSave saveName old
-    ToggleBasicCodeBox -> { old | basicCodeBox = not old.basicCodeBox }
+    ToggleBasicCodeBox -> { old | deuceCodeBox = not old.deuceCodeBox }
     UpdateFieldContents fieldContents -> { old | fieldContents = fieldContents }
 
     UpdateModel f -> f old

@@ -228,7 +228,7 @@ packageModel (model, evt) (lastBox, rerenders) =
           Model.Run -> assertion rerender rerenders model
           Model.UpdateModel _ -> assertion rerender rerenders model
           Model.SelectExample _ _ -> assertion rerender rerenders model
-          Model.WaitCodeBox -> case model.basicCodeBox of
+          Model.WaitCodeBox -> case model.deuceCodeBox of
               True -> poke rerender rerenders model
               False -> codeRequestInfo
           _ -> poke rerender rerenders model

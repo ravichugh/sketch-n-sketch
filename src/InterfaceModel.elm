@@ -15,6 +15,7 @@ import String
 import Dict
 import Set
 import Char
+import Time exposing (Time)
 
 import Svg
 import Lazy
@@ -60,12 +61,13 @@ type alias Model =
   , fieldContents : DialogInfo
   , startup : Bool
   , codeBoxInfo : CodeBoxInfo
-  , basicCodeBox : Bool
+  , deuceCodeBox : Bool
   , errorBox : Maybe String
   , genSymCount : Int
   , toolType : ToolType
   , selectedAttrs : Set.Set (NodeId, String)
   , keysDown : List Char.KeyCode
+  , textChangedAt : Maybe Time -- TODO temporarily, for VisualEditor
   }
 
 type Mode
@@ -169,6 +171,7 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | SwitchOrient
            | InstallSaveState
            | RemoveDialog Bool String
+           -- TODO rename
            | ToggleBasicCodeBox
            | StartResizingMid
            | Undo | Redo
@@ -283,7 +286,7 @@ sampleModel =
                       , selections = []
                       , highlights = []
                       }
-    , basicCodeBox  = False
+    , deuceCodeBox  = True
     , errorBox      = Nothing
     -- starting at 1 to match shape ids on blank canvas
     -- , genSymCount   = 0
@@ -291,5 +294,6 @@ sampleModel =
     , toolType      = Cursor
     , selectedAttrs = Set.empty
     , keysDown      = []
+    , textChangedAt = Nothing
     }
 

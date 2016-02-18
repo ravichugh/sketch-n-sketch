@@ -120,9 +120,9 @@ port aceInTheHole =
         Signal.map fst
                       <| Signal.foldp packageModel initAceCodeBoxInfo
                       <| Signal.filter
-                            (\a -> (not (fst a).basicCodeBox
+                            (\a -> (not (fst a).deuceCodeBox
                                     || snd a == Model.ToggleBasicCodeBox
-                                        && (fst a).basicCodeBox)
+                                        && (fst a).deuceCodeBox)
                                    && pickAsserts a )
                             (sampleModel, Model.Noop)
                       <| Signal.map2 (,) sigModel combinedEventSig
