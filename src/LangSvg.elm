@@ -439,6 +439,52 @@ type IndexedTreeNode
   | SvgNode ShapeKind (List Attr) (List NodeId)
 type alias RootedIndexedTree = (NodeId, IndexedTree)
 
+-- Must be a comparable to be put in a Set
+-- Otherwise, this shouldn't be a string
+type alias ShapeFeature = String
+
+rectTLX = "RectTLX"
+rectTLY = "RectTLY"
+rectTRX = "RectTRX"
+rectTRY = "RectTRY"
+rectBLX = "RectBLX"
+rectBLY = "RectBLY"
+rectBRX = "RectBRX"
+rectBRY = "RectBRY"
+rectCX = "RectCX"
+rectCY = "RectCY"
+rectWidth = "RectWidth"
+rectHeight = "RectHeight"
+boxTLX = "boxTLX"
+boxTLY = "boxTLY"
+boxTRX = "boxTRX"
+boxTRY = "boxTRY"
+boxBLX = "boxBLX"
+boxBLY = "boxBLY"
+boxBRX = "boxBRX"
+boxBRY = "boxBRY"
+boxCX = "BoxCX"
+boxCY = "BoxCY"
+boxWidth = "BoxWidth"
+boxHeight = "BoxHeight"
+circleCX = "CircleCX"
+circleCY = "CircleCY"
+circleR = "CircleR"
+ellipseCX = "EllipseCX"
+ellipseCY = "EllipseCY"
+ellipseRX = "EllipseRX"
+ellipseRY = "EllipseRY"
+lineX1 = "LineX1"
+lineY1 = "LineY1"
+lineX2 = "LineX2"
+lineY2 = "LineY2"
+lineCX = "LineCX"
+lineCY = "LineCY"
+polyPathPtX = "PolyPathPtX"
+polyPathPtY = "PolyPathPtY"
+polyPathMidptX = "PolyPathMidptX"
+polyPathMidptY = "PolyPathMidptY"
+
 children n = case n of
   TextNode _    -> []
   SvgNode _ _ l -> l

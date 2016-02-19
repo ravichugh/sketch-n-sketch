@@ -1,4 +1,4 @@
-module LangUnparser (unparse, bumpCol, incCol, preceedingWhitespace, addPreceedingWhitespace) where
+module LangUnparser (unparse, equationToLittle, bumpCol, incCol, preceedingWhitespace, addPreceedingWhitespace) where
 
 import Lang exposing (..)
 import OurParser2 exposing (Pos, WithPos, WithInfo, startPos)
@@ -6,6 +6,7 @@ import Utils
 import Config
 
 import String
+import Dict
 import Debug
 
 ------------------------------------------------------------------------------
@@ -125,6 +126,38 @@ unparseRange : Range -> String
 unparseRange r = case r.val of
   Point e           -> unparse e
   Interval e1 ws e2 -> unparse e1 ++ ws ++ ".." ++ unparse e2
+
+traceToLittle : SubstStr -> Trace -> String
+traceToLittle substStr trace =
+  case trace of
+    TrLoc (locId, _, _) ->
+      case Dict.get locId substStr of
+        Just str -> str
+        Nothing  -> "?"
+    TrOp op childTraces ->
+      let childLittleStrs = List.map (traceToLittle substStr) childTraces in
+      "(" ++ strOp op ++ " " ++ String.join " " childLittleStrs ++ ")"
+
+equationToLittle : SubstStr -> FeatureEquation -> String
+equationToLittle substStr eqn =
+  case eqn of
+    EqnVal val ->
+      case val.v_ of
+        VConst (n, trace) ->
+          let littlizedTrace = traceToLittle substStr trace in
+          if littlizedTrace /= "?" then
+            littlizedTrace
+          else
+            -- Constants introduced by the equation (e.g. /2 for midpoint) won't
+            -- have a value in subst.
+            toString n
+
+        _ ->
+          "?"
+
+    EqnOp op childEqns ->
+      let childLittleStrs = List.map (equationToLittle substStr) childEqns in
+      "(" ++ strOp op ++ " " ++ String.join " " childLittleStrs ++ ")"
 
 -- NOTE: use this to go back to original unparser
 -- unparse = sExp

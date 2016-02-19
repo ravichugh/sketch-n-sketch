@@ -62,6 +62,18 @@ satisfy f = P <| \s ->
 char : Char -> Parser Char
 char c = satisfy ((==) c)
 
+-- Satisfy given parser but don't shorten the remaining string to parse.
+lookahead : Parser a -> Parser a
+lookahead looker = P <| \s ->
+  let parses = runParser looker s in
+  List.map (\(parsed, restStr) -> (parsed, s)) parses
+
+-- Statisfy first parser, lookahead satisfy second parser, return first parser result
+lookafter : Parser a -> Parser b -> Parser a
+lookafter p looker = P <| \s ->
+  runParser p s
+  |> List.filter (\(parsed, restStr) -> not <| List.isEmpty <| runParser looker restStr)
+
 string : String -> Parser String
 string str = P <| \s ->
   if not (String.startsWith str s.val) then []

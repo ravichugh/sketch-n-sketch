@@ -1,5 +1,5 @@
 module LangParser2 (prelude, isPreludeLoc, isPreludeEId,
-                    substOf, parseE,
+                    substOf, substStrOf, parseE,
                     freshen, substPlusOf) where
 
 import String
@@ -38,6 +38,9 @@ substPlusOf e =
 
 substOf : Exp -> Subst
 substOf = Dict.map (always .val) << substPlusOf
+
+substStrOf : Exp -> SubstStr
+substStrOf = Dict.map (always toString) << substOf
 
 -- this will be done while parsing eventually...
 
@@ -153,6 +156,9 @@ unwrapChars = List.map .val << .val
 isAlpha c        = Char.isLower c || Char.isUpper c
 isAlphaNumeric c = Char.isLower c || Char.isUpper c || Char.isDigit c
 isWhitespace c   = c == ' ' || c == '\n' || c == '\t'
+isIdentChar c    = isAlphaNumeric c || c == '_'
+isDelimiter c    = String.any ((==) c) "[]{}()|"
+isSymbol c       = not (isAlphaNumeric c || isWhitespace c || isDelimiter c)
 
 parseInt : P.Parser Int
 parseInt =
@@ -196,9 +202,8 @@ parseNum =
 -- TODO allow '_', disambiguate from wildcard in parsePat
 parseIdent : P.Parser String
 parseIdent =
-  let pred c = isAlphaNumeric c || c == '_' in
   P.satisfy isAlpha                 >>= \c ->
-  P.many (P.satisfy pred)           >>= \cs ->
+  P.many (P.satisfy isIdentChar)    >>= \cs ->
     let x = String.fromList (c.val :: unwrapChars cs) in
     P.returnWithInfo x c.start cs.end
 
@@ -220,6 +225,18 @@ preWhite p = munchManySpaces >>> p
 
 whiteToken = preWhite << P.token
 saveToken  = preWhite << string_
+
+-- Token followed by one space, space not munched.
+whiteTokenOneWS token =
+  P.lookafter (whiteToken token) (P.satisfy isWhitespace)
+
+-- Token followed by one non-alphanumeric non-underscore, space not munched.
+whiteTokenOneNonIdent token =
+  P.lookafter (whiteToken token) (P.satisfy (not << isIdentChar))
+
+-- Token followed by one non-symbol, space not munched.
+whiteTokenOneNonSymbol token =
+  P.lookafter (whiteToken token) (P.satisfy (not << isSymbol))
 
 delimit a b = P.between (whiteToken a) (whiteToken b)
 parens      = delimit "(" ")"
@@ -266,8 +283,8 @@ parseVBase =
 parsePBase =
   whitespace >>= \ws ->
         ((PConst ws.val << fst) <$> parseNum) -- allowing but ignoring frozen annotation
-    <++ (always (PBase ws.val (Bool True)) <$> whiteToken "true")
-    <++ (always (PBase ws.val (Bool False)) <$> whiteToken "false")
+    <++ (always (PBase ws.val (Bool True)) <$> whiteTokenOneNonIdent "true")
+    <++ (always (PBase ws.val (Bool False)) <$> whiteTokenOneNonIdent "false")
     <++ ((PBase ws.val << String) <$> parseStrLit)
 
 -- parseList_
@@ -469,8 +486,8 @@ parseInterval =
     P.return (Interval e1 ws.val e2)
 
 parseRec =
-      (always True  <$> whiteToken "letrec")
-  <++ (always False <$> whiteToken "let")
+      (always True  <$> whiteTokenOneWS "letrec")
+  <++ (always False <$> whiteTokenOneWS "let")
 
 parseLet =
   whitespace >>= \ws1 ->
@@ -483,8 +500,8 @@ parseLet =
       P.return (exp_ (ELet ws1.val Let b.val p e1 e2 ws2.val))
 
 parseDefRec =
-      (always True  <$> whiteToken "defrec")
-  <++ (always False <$> whiteToken "def")
+      (always True  <$> whiteTokenOneWS "defrec")
+  <++ (always False <$> whiteTokenOneWS "def")
 
 parseDef =
   whitespace >>= \ws1 ->
@@ -509,15 +526,15 @@ parseBinop =
       P.return (exp_ (EOp ws1.val op [e1,e2] ws2.val))
 
 parseBOp =
-      (always Plus    <$> whiteToken "+")
-  <++ (always Minus   <$> whiteToken "-")
-  <++ (always Mult    <$> whiteToken "*")
-  <++ (always Div     <$> whiteToken "/")
-  <++ (always Lt      <$> whiteToken "<")
-  <++ (always Eq      <$> whiteToken "=")
-  <++ (always Mod     <$> whiteToken "mod")
-  <++ (always Pow     <$> whiteToken "pow")
-  <++ (always ArcTan2 <$> whiteToken "arctan2")
+      (always Plus    <$> whiteTokenOneNonSymbol "+")
+  <++ (always Minus   <$> whiteTokenOneNonSymbol "-")
+  <++ (always Mult    <$> whiteTokenOneNonSymbol "*")
+  <++ (always Div     <$> whiteTokenOneNonSymbol "/")
+  <++ (always Lt      <$> whiteTokenOneNonSymbol "<")
+  <++ (always Eq      <$> whiteTokenOneNonSymbol "=")
+  <++ (always Mod     <$> whiteTokenOneWS "mod")
+  <++ (always Pow     <$> whiteTokenOneWS "pow")
+  <++ (always ArcTan2 <$> whiteTokenOneWS "arctan2")
 
 parseUnop =
   whitespace >>= \ws1 ->
@@ -528,15 +545,15 @@ parseUnop =
       P.return (exp_ (EOp ws1.val op [e1] ws2.val))
 
 parseUOp =
-      (always Cos     <$> whiteToken "cos")
-  <++ (always Sin     <$> whiteToken "sin")
-  <++ (always ArcCos  <$> whiteToken "arccos")
-  <++ (always ArcSin  <$> whiteToken "arcsin")
-  <++ (always Floor   <$> whiteToken "floor")
-  <++ (always Ceil    <$> whiteToken "ceiling")
-  <++ (always Round   <$> whiteToken "round")
-  <++ (always ToStr   <$> whiteToken "toString")
-  <++ (always Sqrt    <$> whiteToken "sqrt")
+      (always Cos     <$> whiteTokenOneWS "cos")
+  <++ (always Sin     <$> whiteTokenOneWS "sin")
+  <++ (always ArcCos  <$> whiteTokenOneWS "arccos")
+  <++ (always ArcSin  <$> whiteTokenOneWS "arcsin")
+  <++ (always Floor   <$> whiteTokenOneWS "floor")
+  <++ (always Ceil    <$> whiteTokenOneWS "ceiling")
+  <++ (always Round   <$> whiteTokenOneWS "round")
+  <++ (always ToStr   <$> whiteTokenOneWS "toString")
+  <++ (always Sqrt    <$> whiteTokenOneWS "sqrt")
 
 -- Parse (pi) etc...
 parseConst =
@@ -547,12 +564,12 @@ parseConst =
       P.return (exp_ (EOp ws1.val op [] ws2.val))
 
 parseNullOp =
-  always Pi <$> whiteToken "pi"
+  always Pi <$> whiteTokenOneNonIdent "pi"
 
 parseIf =
   whitespace >>= \ws1 ->
   parens <|
-    whiteToken "if" >>>
+    whiteTokenOneWS "if" >>>
     parseExp        >>= \e1 ->
     parseExp        >>= \e2 ->
     parseExp        >>= \e3 ->
@@ -562,7 +579,7 @@ parseIf =
 parseCase =
   whitespace >>= \ws1 ->
   parens <|
-    whiteToken "case"    >>>
+    whiteTokenOneWS "case"    >>>
     parseExp             >>= \e ->
     (P.some parseBranch) >>= \bs ->
     whitespace           >>= \ws2 ->

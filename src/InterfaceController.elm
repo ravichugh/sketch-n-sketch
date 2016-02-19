@@ -2,7 +2,7 @@ module InterfaceController (upstate) where
 
 import Lang exposing (..) --For access to what makes up the Vals
 import LangParser2 exposing (parseE, freshen)
-import LangUnparser exposing (unparse, preceedingWhitespace, addPreceedingWhitespace)
+import LangUnparser exposing (unparse, equationToLittle, preceedingWhitespace, addPreceedingWhitespace)
 import Sync
 import Eval
 import Utils
@@ -117,6 +117,22 @@ cleanExp =
         (Plus, EConst _ 0 _ _) -> e1.val.e__
         _                      -> e__
     _                    -> e__
+
+
+-- If suggestedName is not in existing names, returns it.
+-- Otherwise appends a number (starting at 2) that doesn't collide.
+nonCollidingName : Ident -> Set.Set Ident -> Ident
+nonCollidingName suggestedName existingNames =
+  if not (Set.member suggestedName existingNames) then
+    suggestedName
+  else
+    let nonCollidingName i =
+      let newName = suggestedName ++ (toString i) in
+      if not (Set.member newName existingNames)
+      then newName
+      else nonCollidingName (i+1)
+    in
+    nonCollidingName 2
 
 -- this is a bit redundant with View.turnOn...
 maybeStuff id shape zone m =
@@ -509,26 +525,132 @@ switchToCursorTool old =
 -- Retrieving Selected Attributes
 -- TODO
 
-nodeIdAndAttrNameToVal (nodeId, attrName) tree =
-  case Dict.get nodeId tree of
-    Just (LangSvg.SvgNode kind attrs _) -> Just (maybeFindAttr nodeId kind attrName attrs)
-    Just (LangSvg.TextNode _) -> Nothing
-    Nothing -> Debug.crash <| "nodeIdAndAttrNameToVal " ++ (toString nodeId) ++ " " ++ (toString tree)
-
-pluckSelectedVals selectedAttrs slate =
+pluckSelectedFeatureEquationsNamed selectedFeatures slate =
   let (_, tree) = slate in
-  let foo nodeIdAndAttrName acc =
-    case nodeIdAndAttrNameToVal nodeIdAndAttrName tree of
-      Just val -> val :: acc
+  let foo (nodeId, feature) acc =
+    case nodeIdAndFeatureToEquation (nodeId, feature) tree of
+      Just eqn -> (feature, eqn) :: acc
       Nothing  -> acc
   in
-  Set.foldl foo [] selectedAttrs
+  Set.foldr foo [] selectedFeatures
+
+pluckSelectedFeatureEquations selectedFeatures slate =
+  List.map snd <| pluckSelectedFeatureEquationsNamed selectedFeatures slate
+
+nodeIdAndFeatureToEquation (nodeId, feature) tree =
+  case Dict.get nodeId tree of
+    Just (LangSvg.SvgNode kind nodeAttrs _) ->
+      Just (featureEquation nodeId kind feature nodeAttrs)
+
+    Just (LangSvg.TextNode _) ->
+      Nothing
+
+    Nothing ->
+      Debug.crash <| "nodeIdAndFeatureToEquation " ++ (toString nodeId) ++ " " ++ (toString tree)
+
+equationVals eqn =
+  case eqn of
+    EqnVal val   -> [val]
+    EqnOp _ eqns -> List.concatMap equationVals eqns
+
+featureEquation nodeId kind feature nodeAttrs =
+  let eqnVal attr = EqnVal <| maybeFindAttr nodeId kind attr nodeAttrs in
+  let eqnVal2     = EqnVal <| vConst (2, dummyTrace) in
+  let handleRect () =
+    if feature == LangSvg.rectTLX then eqnVal "x"
+    else if feature == LangSvg.rectTLY then eqnVal "y"
+    else if feature == LangSvg.rectTRX then EqnOp Plus [eqnVal "x", eqnVal "width"]
+    else if feature == LangSvg.rectTRY then eqnVal "y"
+    else if feature == LangSvg.rectBLX then eqnVal "x"
+    else if feature == LangSvg.rectBLY then EqnOp Plus [eqnVal "y", eqnVal "height"]
+    else if feature == LangSvg.rectBRX then EqnOp Plus [eqnVal "x", eqnVal "width"]
+    else if feature == LangSvg.rectBRY then EqnOp Plus [eqnVal "y", eqnVal "height"]
+    else if feature == LangSvg.rectCX then EqnOp Plus [eqnVal "x", EqnOp Div [eqnVal "width",  eqnVal2]]  -- x + w/2
+    else if feature == LangSvg.rectCY then EqnOp Plus [eqnVal "y", EqnOp Div [eqnVal "height", eqnVal2]] -- y + h/2
+    else if feature == LangSvg.rectWidth  then eqnVal "width"
+    else if feature == LangSvg.rectHeight then eqnVal "height"
+    else Debug.crash <| "Rectangles do not have this feature: " ++ feature
+  in
+  let handleBox () =
+    if feature == LangSvg.boxTLX then eqnVal "LEFT"
+    else if feature == LangSvg.boxTLY then eqnVal "TOP"
+    else if feature == LangSvg.boxTRX then eqnVal "RIGHT"
+    else if feature == LangSvg.boxTRY then eqnVal "TOP"
+    else if feature == LangSvg.boxBLX then eqnVal "LEFT"
+    else if feature == LangSvg.boxBLY then eqnVal "BOT"
+    else if feature == LangSvg.boxBRX then eqnVal "RIGHT"
+    else if feature == LangSvg.boxBRY then eqnVal "BOT"
+    else if feature == LangSvg.boxCX then EqnOp Div [EqnOp Plus [eqnVal "LEFT", eqnVal "RIGHT"], eqnVal2]  -- (left + right)/2
+    else if feature == LangSvg.boxCY then EqnOp Div [EqnOp Plus [eqnVal "TOP", eqnVal "BOT"], eqnVal2] -- (top + bottom)/2
+    else if feature == LangSvg.boxWidth  then EqnOp Minus [eqnVal "RIGHT", eqnVal "LEFT"] -- (right - left)
+    else if feature == LangSvg.boxHeight then EqnOp Minus [eqnVal "BOT", eqnVal "TOP"] -- (bottom - top)
+    else Debug.crash <| "Boxes do not have this feature: " ++ feature
+  in
+  let handleCircle () =
+    if feature == LangSvg.circleCX then eqnVal "cx"
+    else if feature == LangSvg.circleCY then eqnVal "cy"
+    else if feature == LangSvg.circleR then eqnVal "r"
+    else Debug.crash <| "Circles do not have this feature: " ++ feature
+  in
+  let handleEllipse () =
+    if feature == LangSvg.ellipseCX then eqnVal "cx"
+    else if feature == LangSvg.ellipseCY then eqnVal "cx"
+    else if feature == LangSvg.ellipseRX then eqnVal "rx"
+    else if feature == LangSvg.ellipseRY then eqnVal "ry"
+    else Debug.crash <| "Ellipses do not have this feature: " ++ feature
+  in
+  let handleLine () =
+    if feature == LangSvg.lineX1 then eqnVal "x1"
+    else if feature == LangSvg.lineY1 then eqnVal "y1"
+    else if feature == LangSvg.lineX2 then eqnVal "x2"
+    else if feature == LangSvg.lineY2 then eqnVal "y2"
+    else if feature == LangSvg.lineCX then EqnOp Div [EqnOp Plus [eqnVal "x1", eqnVal "x2"], eqnVal2] -- (x1 + x2) / 2
+    else if feature == LangSvg.lineCY then EqnOp Div [EqnOp Plus [eqnVal "y1", eqnVal "y2"], eqnVal2] -- (y1 + y2) / 2
+    else Debug.crash <| "Lines do not have this feature: " ++ feature
+  in
+  let handlePolyPath () =
+    let ptCount = getPtCount nodeAttrs in
+    let x i = eqnVal ("x" ++ toString i) in
+    let y i = eqnVal ("y" ++ toString i) in
+    if String.startsWith LangSvg.polyPathPtX feature then
+      let iStr = String.dropLeft (String.length LangSvg.polyPathPtX) feature in
+      let i    = Utils.fromOk_ <| String.toInt iStr in
+      x i
+    else if String.startsWith LangSvg.polyPathPtY feature then
+      let iStr = String.dropLeft (String.length LangSvg.polyPathPtY) feature in
+      let i    = Utils.fromOk_ <| String.toInt iStr in
+      y i
+    else if String.startsWith LangSvg.polyPathMidptX feature then
+      let i1Str = String.dropLeft (String.length LangSvg.polyPathMidptX) feature in
+      let i1    = Utils.fromOk_ <| String.toInt i1Str in
+      let i2    = if i1 == ptCount then 1 else i1 + 1 in
+      EqnOp Div [EqnOp Plus [(x i1), (x i2)], eqnVal2] -- (x1 + x2) / 2
+    else if String.startsWith LangSvg.polyPathMidptY feature then
+      let i1Str = String.dropLeft (String.length LangSvg.polyPathMidptY) feature in
+      let i1    = Utils.fromOk_ <| String.toInt i1Str in
+      let i2    = if i1 == ptCount then 1 else i1 + 1 in
+      EqnOp Div [EqnOp Plus [(y i1), (y i2)], eqnVal2] -- (y1 + y2) / 2
+    else Debug.crash <| "Polygons/polylines do not have this feature: " ++ feature
+  in
+  case kind of
+    "rect"     -> handleRect ()
+    "BOX"      -> handleBox ()
+    "circle"   -> handleCircle ()
+    "ellipse"  -> handleEllipse ()
+    "line"     -> handleLine ()
+    "polygon"  -> handlePolyPath ()
+    "polyline" -> handlePolyPath ()
+    _          -> Debug.crash <| "Shape features not implemented yet: " ++ kind
+
+
+pluckSelectedVals selectedFeatures slate =
+  let featureEquations = pluckSelectedFeatureEquations selectedFeatures slate in
+  List.concatMap equationVals featureEquations
 
 maybeFindAttr_ id kind attr attrs =
   case Utils.maybeFind attr attrs of
     Just aval -> LangSvg.valOfAVal aval
     Nothing   -> Debug.crash <| toString ("RelateAttrs 2", id, kind, attr, attrs)
-
 
 getXYi attrs si fstOrSnd =
   let i = Utils.fromOk_ <| String.toInt si in
@@ -537,6 +659,13 @@ getXYi attrs si fstOrSnd =
       LangSvg.APoints pts -> LangSvg.valOfAVal <| LangSvg.aNum <| fstOrSnd <| Utils.geti i pts
       _                   -> Debug.crash "getXYi 2"
     _ -> Debug.crash "getXYi 1"
+
+getPtCount attrs =
+  case Utils.maybeFind "points" attrs of
+    Just aval -> case aval.av_ of
+      LangSvg.APoints pts -> List.length pts
+      _                   -> Debug.crash "getPtCount 2"
+    _ -> Debug.crash "getPtCount 1"
 
 maybeFindAttr id kind attr attrs =
   case (kind, String.uncons attr) of
@@ -767,27 +896,28 @@ upstate evt old = case debugLog "Event" evt of
 
 
     RelateAttrs ->
-      let selectedVals = debugLog "selectedVals" <| pluckSelectedVals old.selectedAttrs old.slate in
+      let selectedVals = debugLog "selectedVals" <| pluckSelectedVals old.selectedFeatures old.slate in
       let revert = (old.inputExp, old.inputVal) in
       let (nextK, l) = Sync.relate old.genSymCount old.inputExp selectedVals in
       let possibleChanges = List.map (addSlateAndCode old) l in
         { old | mode = SyncSelect possibleChanges
               , genSymCount = nextK
-              , selectedAttrs = Set.empty -- TODO
+              , selectedFeatures = Set.empty -- TODO
               , runAnimation = True
               , syncSelectTime = 0.0
               }
 
     DigHole ->
+      let selectedFeatureEquationsNamed =
+        debugLog "selectedFeatureEquations" <|
+          pluckSelectedFeatureEquationsNamed old.selectedFeatures old.slate
+      in
       let selectedVals =
         debugLog "selectedVals" <|
-          pluckSelectedVals old.selectedAttrs old.slate
-      in
-      let traces =
-        List.map valToTrace selectedVals
+          pluckSelectedVals old.selectedFeatures old.slate
       in
       let tracesLocsets =
-        List.map (Sync.locsOfTrace old.syncOptions) traces
+        List.map ((Sync.locsOfTrace old.syncOptions) << valToTrace) selectedVals
       in
       let locset =
         List.foldl Set.union Set.empty tracesLocsets
@@ -846,11 +976,28 @@ upstate evt old = case debugLog "Event" evt of
         deepestCommonScopeWithParent
       in
       -- Avoid name collisions here
+      let existingNames = identifiersSet old.inputExp in
       let locIdNameOrigNamePrime =
-        List.map
-            (\(locId, frozen, ident) -> (locId, "k"++(toString locId)++ident++"Orig", "k"++(toString locId)++ident++"Prime"))
-            locsetList
+        let (newUsedNames, result) =
+          List.foldr
+              (\(locId, frozen, ident) (usedNames, result) ->
+                let baseIdent = if ident == "" then "k"++(toString locId) else ident in
+                let baseIdentOrig  = baseIdent ++ "Orig" in
+                let baseIdentPrime = baseIdent ++ "Prime" in
+                let identOrig  = nonCollidingName baseIdentOrig usedNames in
+                let identPrime = nonCollidingName baseIdentPrime usedNames in
+                (
+                  Set.union usedNames (Set.fromList [identOrig, identPrime]),
+                  (locId, identOrig, identPrime)::result
+                )
+              )
+              (existingNames, [])
+              locsetList
+        in
+        result
       in
+      let newNames = List.concatMap (\(_, n1, n2) -> [n1, n2]) locIdNameOrigNamePrime in
+      let namesToAvoid = Set.union existingNames (Set.fromList newNames) in
       let locIdToNewName = debugLog "locIdToNewName" <|
         Dict.fromList
           <| List.map (\(locId, nameOrig, namePrime) -> (locId, namePrime))
@@ -868,27 +1015,84 @@ upstate evt old = case debugLog "Event" evt of
         mapExpViaExp__ replaceConstsWithVars deepestCommonScope
       in
       let newlyWrappedCommonScope =
-        let origNames  = List.map Utils.snd3 locIdNameOrigNamePrime in
-        let primeNames = List.map Utils.thd3 locIdNameOrigNamePrime in
+        let origNames  = List.reverse <| List.map Utils.snd3 locIdNameOrigNamePrime in
+        let primeNames = List.reverse <| List.map Utils.thd3 locIdNameOrigNamePrime in
         let valueStrs =
           List.map
               (\loc ->
                 toString (Utils.justGet loc locToNumber)
               )
-              locsetList
+              (List.reverse locsetList)
+        in
+        let featureNamesWithExpressionStrs =
+          let locIdToOrigName =
+            Dict.fromList
+              <| List.map (\(locId, nameOrig, namePrime) -> (locId, nameOrig))
+              <| locIdNameOrigNamePrime
+          in
+          let substStr =
+            Dict.union
+                locIdToOrigName
+                (LangParser2.substStrOf old.inputExp)
+          in
+          List.map (Utils.mapSnd <| equationToLittle substStr) selectedFeatureEquationsNamed
+        in
+        -- Remove expressions of only one term
+        let significantFeatureNamesWithExpressionStrs =
+          List.filter
+              (\(name, expStr) -> String.contains " " expStr)
+              featureNamesWithExpressionStrs
+        in
+        let featureNames          = List.map fst significantFeatureNamesWithExpressionStrs in
+        let featureExpressionStrs = List.map snd significantFeatureNamesWithExpressionStrs in
+        let nonCollidingFeatureNames =
+          let (newNamesToAvoid, result) =
+            List.foldr
+                (\featureName (usedNames, result) ->
+                  let featureName' = nonCollidingName featureName usedNames in
+                  (
+                    Set.insert featureName' usedNames,
+                    featureName'::result
+                  )
+                )
+                (namesToAvoid, [])
+                featureNames
+          in
+          result
         in
         let oldPreceedingWhitespace = preceedingWhitespace commonScopeReplaced in
         let extraWhitespace =
           if String.contains "\n" oldPreceedingWhitespace then "" else "\n"
         in
         let templateStr =
-          let variableOrigNamesStr  = String.join " " origNames in
-          let variablePrimeNamesStr = String.join " " primeNames in
-          let variableValuesStr     = String.join " " valueStrs in
-          oldPreceedingWhitespace ++
-          "(let ["++variableOrigNamesStr++"] ["++variableValuesStr++"]" ++
-          extraWhitespace ++ oldPreceedingWhitespace ++
-          "(let ["++variablePrimeNamesStr++"] ["++variableOrigNamesStr++"] 'dummy body'))"
+          let constantOrigNamesStr  = String.join " " origNames in
+          let constantPrimeNamesStr = String.join " " primeNames in
+          let constantValuesStr     = String.join " " valueStrs in
+          let featureNamesStr       = String.join " " nonCollidingFeatureNames in
+          let featureExpressionsStr = String.join " " featureExpressionStrs in
+          let includeFeatures       = (List.length featureNames) > 0 in
+          let originalsLet body =
+            oldPreceedingWhitespace
+            ++ "(let ["++constantOrigNamesStr++"] ["++constantValuesStr++"]"
+            ++ body ++ ")"
+          in
+          let tracesLet body =
+            if includeFeatures then
+              extraWhitespace ++ oldPreceedingWhitespace
+              ++ "(let ["++featureNamesStr++"] ["++featureExpressionsStr++"]"
+              ++ body ++ ")"
+            else
+              body
+          in
+          let primesLet body =
+            extraWhitespace ++ oldPreceedingWhitespace
+            ++ "(let ["++constantPrimeNamesStr++"] ["++constantOrigNamesStr++"]"
+            ++ body ++ ")"
+          in
+          originalsLet
+          <| tracesLet
+          <| primesLet
+          <| "\n  'dummy body'"
         in
         let template =
           case parseE templateStr of
@@ -916,15 +1120,15 @@ upstate evt old = case debugLog "Event" evt of
       let (newVal, newWidgets) = Eval.run newExp in
       let (newSlate, newCode)  = slateAndCode old (newExp, newVal) in
       debugLog "new model" <|
-        { old | code          = newCode
-              , inputExp      = newExp
-              , inputVal      = newVal
-              , history       = addToHistory old.code old.history
-              , slate         = newSlate
-              , widgets       = newWidgets
-              , previewCode   = Nothing
-              , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal
-              , selectedAttrs = Set.empty
+        { old | code             = newCode
+              , inputExp         = newExp
+              , inputVal         = newVal
+              , history          = addToHistory old.code old.history
+              , slate            = newSlate
+              , widgets          = newWidgets
+              , previewCode      = Nothing
+              , mode             = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal
+              , selectedFeatures = Set.empty
         }
 
 

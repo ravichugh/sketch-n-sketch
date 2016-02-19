@@ -126,6 +126,10 @@ type BaseVal -- unlike Ints, these cannot be changed by Sync
 
 type Trace = TrLoc Loc | TrOp Op_ (List Trace)
 
+type FeatureEquation
+  = EqnVal Val
+  | EqnOp Op_ (List FeatureEquation)
+
 type alias Env = List (Ident, Val)
 
 
@@ -455,6 +459,9 @@ type alias ESubst = Dict.Dict EId Exp__
 
 type alias TwoSubsts = { lsubst : Subst, esubst : ESubst }
 
+-- For unparsing traces, possibily inserting variables: d
+type alias SubstStr = Dict.Dict LocId String
+
 applyLocSubst : Subst -> Exp -> Exp
 applyLocSubst s = applySubst { lsubst = s, esubst = Dict.empty }
 
@@ -523,6 +530,12 @@ branchExps branches =
     (\b -> let (Branch_ _ _ exp _) = b.val in exp)
     branches
 
+branchPats : List Branch -> List Pat
+branchPats branches =
+  List.map
+    (\b -> let (Branch_ _ pat _ _) = b.val in pat)
+    branches
+
 -- Need parent expression since case expression branches into several scopes
 isScope : Maybe Exp -> Exp -> Bool
 isScope maybeParent exp =
@@ -538,6 +551,41 @@ isScope maybeParent exp =
         ECase _ predicate branches _ -> predicate /= exp
         _                            -> isObviouslyScope
     Nothing -> isObviouslyScope
+
+identifiersSet : Exp -> Set.Set Ident
+identifiersSet exp =
+  let folder e__ acc =
+    case e__ of
+      EVar _ ident ->
+        Set.insert ident acc
+
+      EFun _ pats _ _ ->
+        List.map identifiersSetInPat pats |>
+          List.foldl Set.union acc
+
+      ECase _ _ branches _ ->
+        let pats = branchPats branches in
+        List.map identifiersSetInPat pats |>
+          List.foldl Set.union acc
+
+      ELet _ _ _ pat _ _ _ ->
+        Set.union acc (identifiersSetInPat pat)
+
+      _ ->
+        acc
+  in
+  foldExpViaE__
+    folder
+    Set.empty
+    exp
+
+identifiersSetInPat : Pat -> Set.Set Ident
+identifiersSetInPat pat =
+  case pat.val of
+    PVar _ ident _              -> Set.singleton ident
+    PList _ pats _ (Just pat) _ -> List.foldl Set.union Set.empty <| List.map identifiersSetInPat (pat::pats)
+    PList _ pats _ Nothing    _ -> List.foldl Set.union Set.empty <| List.map identifiersSetInPat pats
+    _                           -> Set.empty
 
 -----------------------------------------------------------------------------
 -- Lang Options
