@@ -707,10 +707,17 @@ prelude =
   ] )))
 
 ; expects (f bounds) to be a single SVG
-(def with (\\(bounds f)
+
+; (def with (\\(bounds f)
+;   (append
+;     (groupBox bounds)
+;     [(f bounds)])))
+
+(def with (\\([left top right bot] f)
+  (let delta 10
   (append
-    (groupBox bounds)
-    [(f bounds)])))
+    (groupBox [(- left delta) (- top delta) (+ right delta) (+ bot delta)])
+    [(f [left top right bot])]))))
 
 (def star (\\bounds
   (let [left top right bot] bounds

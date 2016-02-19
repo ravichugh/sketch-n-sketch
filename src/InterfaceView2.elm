@@ -723,10 +723,18 @@ makeZonesRect model options shape id l =
 
 makeZonesBox model options id l =
   let transform = maybeTransformAttr l in
+{-
   let mkInterior zone x_ y_ w_ h_ =
     zoneBorder Svg.rect id "BOX" zone True options.showBasic transform <|
       [ attrNum "x" x_ , attrNum "y" y_
       , attrNum "width" w_ , attrNum "height" h_
+      ]
+  in
+-}
+  let mkInterior zone x1_ y1_ x2_ y2_ =
+    zoneBorder Svg.line id "BOX" zone True options.showBasic transform <|
+      [ attrNum "x1" x1_ , attrNum "y1" y1_
+      , attrNum "x2" x2_ , attrNum "y2" y2_
       ]
   in
   let mkPoint zone cx cy =
@@ -740,7 +748,12 @@ makeZonesBox model options id l =
        zoneSelectCrossDot model options.addSelect (id, ["LEFT"], ["TOP"]) left top
     ++ zoneSelectCrossDot model options.addSelect (id, ["RIGHT"], ["BOT"]) right bot
   in
-    [ mkInterior "Interior" left top width height
+    -- [ mkInterior "Interior" left top width height
+    -- TODO calling these all Interior for now...
+    [ mkInterior "Interior" left top right top
+    , mkInterior "Interior" right top right bot
+    , mkInterior "Interior" left bot right bot
+    , mkInterior "Interior" left top left bot
     , mkPoint "TopLeftCorner" left top
     , mkPoint "TopRightCorner" right top
     , mkPoint "BotLeftCorner" left bot
