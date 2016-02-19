@@ -381,8 +381,8 @@ addStickyPolygon old points =
 addLambdaToCodeAndRun old pt2 pt1 =
   let funcName =
     case old.toolType of
-      Lambda f -> f
-      _        -> Debug.crash "addLambdaToCodeAndRun"
+      Lambda -> old.lambdaToolFunc
+      _      -> Debug.crash "addLambdaToCodeAndRun"
   in
   let (xa, xb, ya, yb) =
     if old.keysDown == Keys.shift
@@ -416,7 +416,7 @@ makeNewShapeDef model newShapeKind name locals func args =
         let multi = -- check if (func args) returns List SVG or SVG
           case model.toolType of
             Poly -> True
-            Lambda _ -> True
+            Lambda -> True
             _ -> False
         in
         if multi then
@@ -608,7 +608,7 @@ upstate evt old = case debugLog "Event" evt of
         (MouseNothing, Poly) -> { old | mouseMode = MouseDrawNew "polygon" [] }
         (MouseNothing, HelperDot) -> { old | mouseMode = MouseDrawNew "DOT" [] }
         (MouseNothing, HelperLine) -> { old | mouseMode = MouseDrawNew "line" [] }
-        (MouseNothing, Lambda _) -> { old | mouseMode = MouseDrawNew "LAMBDA" [] }
+        (MouseNothing, Lambda) -> { old | mouseMode = MouseDrawNew "LAMBDA" [] }
         _                    ->   old
 
     MouseClick click ->
@@ -688,6 +688,8 @@ upstate evt old = case debugLog "Event" evt of
         MouseDrawNew k (_::points) ->
           let pointOnCanvas = (mx, my) in
           { old | mouseMode = MouseDrawNew k (pointOnCanvas::points) }
+
+        MouseDeuceDrag _ -> old
 
     SelectObject id kind zone ->
       case old.mode of

@@ -65,6 +65,8 @@ type alias Model =
   , errorBox : Maybe String
   , genSymCount : Int
   , toolType : ToolType
+  , lambdaToolFunc : String
+  , lambdaToolHoverDropArea : Bool
   , selectedAttrs : Set.Set (NodeId, String)
   , keysDown : List Char.KeyCode
   , textChangedAt : Maybe Time -- TODO temporarily, for VisualEditor
@@ -112,6 +114,7 @@ type MouseMode
       --   for polygon,           n >= 0
       --   for helper dot,        n == 0 or n == 1
       --   for lambda,            n == 0 or n == 2
+  | MouseDeuceDrag String
 
 type alias MouseTrigger a = (Int, Int) -> a
 
@@ -136,7 +139,7 @@ type ToolType
   | Poly | Path | Text
   | HelperDot
   | HelperLine
-  | Lambda Ident
+  | Lambda
 
 type Caption
   = Hovering (Int, ShapeKind, Zone)
@@ -297,6 +300,8 @@ sampleModel =
     -- , genSymCount   = 0
     , genSymCount   = 1
     , toolType      = Cursor
+    , lambdaToolFunc = "star"
+    , lambdaToolHoverDropArea = False
     , selectedAttrs = Set.empty
     , keysDown      = []
     , textChangedAt = Nothing

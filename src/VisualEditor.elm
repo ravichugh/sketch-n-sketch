@@ -13,6 +13,7 @@ import ExamplesGenerated as Examples
 import Lang exposing (..)
 import LangParser2 as Parser
 import LangUnparser as Unparser
+import InterfaceModel as Model exposing (events)
 import OurParser2 exposing (WithInfo, Pos)
 import Utils
 
@@ -36,7 +37,7 @@ leftRightPadding =
 basicStyle : Attribute
 basicStyle =
   Attr.style
-    [ ("font-size", "14pt")
+    [ ("font-size", "12pt")
     , ("font-family", "monospace")
     , ("line-height", "1.8")
     , ("white-space", "pre")
@@ -278,11 +279,13 @@ htmlOfPVar model ws x =
     ] in
   let left =
     [ Attr.style
-        [ ("padding", "0 0 0 5pt")
+        [ ("padding", "0 0 0 8pt") -- "0 0 0 5pt"
         , ("border-radius", "5pt")
         , ("background", "lightgreen")
         , ("cursor", "pointer")
         ]
+    , Events.onMouseDown events.address
+        (Model.UpdateModel (\m -> { m | mouseMode = Model.MouseDeuceDrag x }))
     ] in
   let top =
     [ Attr.style

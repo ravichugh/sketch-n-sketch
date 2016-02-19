@@ -1247,8 +1247,48 @@ widgetsTools w h model =
   , twoButtons w h
       (toolButton model HelperLine)
       (toolButton model HelperDot)
-  , toolButton model (Lambda "star") w h
+  , flowRight w h
+      [ (1/6, lambdaDropArea model)
+      , (5/6, toolButton model Lambda) ]
   ]
+
+lambdaDropArea model w h =
+  let (textColor, backgroundColor) =
+    case (model.mouseMode, model.lambdaToolFunc, model.lambdaToolHoverDropArea) of
+      (MouseDeuceDrag _, "star", True) -> ("lightgreen", "none")
+      (MouseDeuceDrag _, _, False)     -> ("white", "none")
+      (_, _, True)                     -> ("lightred", "none") -- TODO not appearing
+      _                                -> ("white", "none")
+  in
+  Html.toElement w h <|
+  Html.div
+     [ Attr.style
+         [ ("width", dimToPix w) , ("height", dimToPix h)
+         , ("background-color", backgroundColor)
+         , ("color", textColor)
+         -- TODO Fix like v0.4.1
+         , ("font-family", "sans-serif")
+         , ("font-size", "16px")
+         , ("text-align", "center")
+         , ("transform", "translate(0px," ++ dimToPix 3 ++ ")")
+         ]
+     , Events.onMouseEnter events.address
+         (UpdateModel (\m -> { m | lambdaToolHoverDropArea = True }))
+     , Events.onMouseLeave events.address
+         (UpdateModel (\m -> { m | lambdaToolHoverDropArea = False }))
+     , Events.onMouseUp events.address
+         (UpdateModel (\m ->
+            case m.mouseMode of
+              MouseDeuceDrag x -> { m | lambdaToolFunc = x , mouseMode = MouseNothing }
+              _                -> m
+         ))
+     , Events.onMouseDown events.address
+         (UpdateModel (\m ->
+            if m.lambdaToolFunc == "star"
+              then m
+              else { m | lambdaToolFunc = "star" }
+         ))
+     ] [ Html.text Utils.uniLambda ]
 
 widgetsToolExtras w h model =
   let gap = gapWidget w h in
@@ -1618,7 +1658,7 @@ toolButton model tt w h =
     Text -> "-"
     HelperLine -> "(Rule)"
     HelperDot -> "(Dot)"
-    Lambda f -> Utils.bracks Utils.uniLambda ++ " " ++ f
+    Lambda -> model.lambdaToolFunc
   in
   let btnKind = if model.toolType == tt then Selected else Unselected in
   simpleButton_ events.address btnKind Noop False

@@ -27,6 +27,7 @@ loc:
     InterfaceStorage.elm Storage.elm \
     Codebox.elm Native/codeBox.js \
 	  Native/toggleAnimationLoopback.js \
+	  VisualEditor.elm Native/deucePorts.js \
     Main.elm Config.elm \
     PreludeTemplate.elm ExamplesTemplate.elm \
     ColorNum.elm Keys.elm
