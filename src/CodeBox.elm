@@ -90,6 +90,20 @@ runRequestInfo =
   , []
   )
 
+cleanRequestInfo : (AceCodeBoxInfo, List Bool)
+cleanRequestInfo =
+  ( { kind = "cleanRequest"
+    , code = ""
+    , cursorPos = sampleModel.codeBoxInfo.cursorPos
+    , manipulable = True
+    , selections = []
+    , highlights = []
+    , bounce = True
+    , exName = ""
+    }
+  , []
+  )
+
 codeRequestInfo : (AceCodeBoxInfo, List Bool)
 codeRequestInfo =
   ( { kind = "codeRequest"
@@ -144,17 +158,20 @@ assertion rerender rerenders model =
 
 -- The second model argument is present to allow Saves to be made from here
 interpretAceEvents : AceMessage -> Model.Model -> Task String ()
-interpretAceEvents amsg model = case amsg.evt of
-    "runResponse" -> Signal.send events.address <| Model.MultiEvent
-      [ Model.UpdateModel <|
-            \m -> { m | code = amsg.strArg
-                      , codeBoxInfo = { cursorPos = amsg.cursorArg
-                                       , selections = amsg.selectionArg
-                                       , highlights = m.codeBoxInfo.highlights
-                                       }
-                  }
-      , Model.Run
-      ]
+interpretAceEvents amsg model =
+  let updateModelEvent =
+    Model.UpdateModel <|
+      (\m -> { m | code = amsg.strArg
+                , codeBoxInfo = { cursorPos = amsg.cursorArg
+                                 , selections = amsg.selectionArg
+                                 , highlights = m.codeBoxInfo.highlights
+                                 }
+            })
+  in
+  case amsg.evt of
+    "runResponse" ->
+      Signal.send events.address
+      <| Model.MultiEvent [ updateModelEvent, Model.Run ]
     "saveResponse" ->
         let newModel = { model | code = amsg.strArg
                                , codeBoxInfo = { cursorPos = amsg.cursorArg
@@ -167,16 +184,12 @@ interpretAceEvents amsg model = case amsg.evt of
            `andThen` \_ ->
            Signal.send events.address <| Model.UpdateModel <|
                 \m -> newModel
-    "codeResponse" -> Signal.send events.address <| Model.MultiEvent
-        [ Model.UpdateModel <|
-            \m -> { m | code = amsg.strArg
-                      , codeBoxInfo = { cursorPos = amsg.cursorArg
-                                       , selections = amsg.selectionArg
-                                       , highlights = m.codeBoxInfo.highlights
-                                       }
-                  }
-        , Model.ToggleBasicCodeBox
-        ]
+    "cleanResponse" ->
+      Signal.send events.address
+      <| Model.MultiEvent [ updateModelEvent, Model.CleanCode ]
+    "codeResponse" ->
+      Signal.send events.address
+      <| Model.MultiEvent [ updateModelEvent, Model.ToggleBasicCodeBox ]
     "Rerender" -> Signal.send events.address Model.Noop
     "init" -> Task.succeed ()
     _ ->
@@ -220,10 +233,13 @@ packageModel (model, evt) (lastBox, rerenders) =
       Nothing -> case (evt, model.mouseMode) of
           --If we're not manipulating, no need to clobber cursor position
           (Model.MousePos _, Model.MouseNothing) -> poke rerender rerenders model
+          (Model.WaitClean, _) -> cleanRequestInfo -- tell Ace to send its version of the code
           _                 -> assertion rerender rerenders model
       Just _ -> case evt of
           Model.WaitSave saveName -> saveRequestInfo saveName
-          Model.WaitRun  -> runRequestInfo
+          Model.WaitRun -> runRequestInfo
+          Model.WaitClean -> cleanRequestInfo
+          Model.MultiEvent [ _, Model.CleanCode ] -> assertion rerender rerenders model -- tell Ace to render our version of the code
           Model.Edit -> assertion rerender rerenders model
           Model.Run -> assertion rerender rerenders model
           Model.UpdateModel _ -> assertion rerender rerenders model

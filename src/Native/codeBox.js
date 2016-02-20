@@ -122,9 +122,10 @@ window.initializers.push(function (elmRuntime) {
       } else if (codeBoxInfo.kind == "runRequest") {
           //Same as above
           sendState("runResponse");
+      } else if (codeBoxInfo.kind == "cleanRequest") {
+        sendState("cleanResponse");
       } else if (codeBoxInfo.kind == "codeRequest") {
-          //Similiartly as above
-          sendState("codeResponse");
+        sendState("codeResponse");
       } else { //We don't recognize the request; log and do nothing
           console.log("codeBoxInfo type " + codeBoxInfo.kind + " unrecognized.");
       }

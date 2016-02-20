@@ -1360,13 +1360,24 @@ upstate evt old = case debugLog "Event" evt of
 -}
 
     CleanCode ->
-      let s' = unparse (LangTransform.simplify <| cleanExp old.inputExp) in
-      let h' =
-        if old.code == s'
-          then old.history
-          else addToHistory old.code old.history
-      in
-      upstate Run { old | code = s', history = h' }
+      case parseE old.code of
+        Err err ->
+          { old | caption = Just (LangError ("PARSE ERROR!\n" ++ err)) }
+        Ok reparsed ->
+          let cleanedExp =
+            reparsed
+            |> cleanExp
+            |> LangTransform.simplify
+            |> freshen
+          in
+          let code' = unparse cleanedExp in
+          let history' =
+            if old.code == code'
+              then old.history
+              else addToHistory old.code old.history
+          in
+          let _ = debugLog "Cleaned: " code' in
+          { old | inputExp = cleanedExp, code = code', history = history' }
 
     -- Elm does not have function equivalence/pattern matching, so we need to
     -- thread these events through upstate in order to catch them to rerender
@@ -1385,6 +1396,7 @@ upstate evt old = case debugLog "Event" evt of
 
     WaitRun -> old
     WaitSave saveName -> { old | exName = saveName }
+    WaitClean -> old
     WaitCodeBox -> old
 
 adjustMidOffsetX old dx =
