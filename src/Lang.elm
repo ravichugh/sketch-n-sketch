@@ -559,6 +559,12 @@ identifiersSet exp =
   |> Set.fromList
 
 
+identifiersSetInPat : Pat -> Set.Set Ident
+identifiersSetInPat pat =
+  identifiersListInPat pat
+  |> Set.fromList
+
+
 identifiersList : Exp -> List Ident
 identifiersList exp =
   let folder e__ acc =
