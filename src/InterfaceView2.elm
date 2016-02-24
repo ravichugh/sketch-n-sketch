@@ -1154,16 +1154,18 @@ mkSvg hilite svg =
                   ] ]
      [ svg ]
 
-twoButtons w h b1 b2 =
-  let delta = 3 in
-  let wHalf = (w//2 - delta) in
-  GE.flow GE.right [ b1 wHalf h, GE.spacer (2 * delta) h, b2 wHalf h ]
+flowRight : Int -> Int -> List (Float, Int -> Int -> GE.Element) -> GE.Element
+flowRight w h l =
+  let delta = 6 in
+  let sep = GE.spacer delta h in
+  let n = toFloat (List.length l) in
+  let availableWidth = toFloat w - (n-1) * delta in
+  let elts = List.map (\(pct, f) -> f (round (pct * availableWidth)) h) l in
+  GE.flow GE.right (List.intersperse sep elts)
 
-threeButtons w h b1 b2 b3 =
-  let delta = 3 in
-  let sep   = GE.spacer (2 * delta) h in
-  let w_    = (w//3 - delta) in
-  GE.flow GE.right [ b1 w_ h, sep, b2 w_ h, sep, b3 w_ h ]
+twoButtons w h b1 b2 = flowRight w h [(1/2, b1), (1/2, b2)]
+
+threeButtons w h b1 b2 b3 = flowRight w h [(1/3, b1), (1/3, b2), (1/3, b3)]
 
 widgetsExampleNavigation w h model =
   [ twoButtons w h (codeButton model) (canvasButton model)
