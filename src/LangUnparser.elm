@@ -196,7 +196,8 @@ equationToLittle substStr eqn =
           else
             -- Constants introduced by the equation (e.g. /2 for midpoint) won't
             -- have a value in subst.
-            toString n
+            -- Also, they should be frozen.
+            toString n ++ "!"
 
         _ ->
           "?"
