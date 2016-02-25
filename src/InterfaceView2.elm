@@ -818,7 +818,7 @@ makeZonesPoly model options shape id l =
   else                         zLines ++ zPts ++ zRot ++ zSelect
 
 makeZonesPath : Bool -> String -> Int -> List LangSvg.Attr -> List Svg.Svg
-makeZonesPath showZones shape id l =
+makeZonesPath showBasic shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "path") in
   let transform = maybeTransformAttr l in
   let cmds = fst <| LangSvg.toPath <| Utils.find_ l "d" in
@@ -833,7 +833,7 @@ makeZonesPath showZones shape id l =
       LangSvg.CmdSQ  s pt1 pt2      -> pt1 +++ (pt2 +++ acc)
       LangSvg.CmdA   s a b c d e pt -> pt +++ acc) [] cmds
   in
-  zonePoints id shape showZones transform pts
+  zonePoints id shape showBasic transform pts
 
 
 --------------------------------------------------------------------------------

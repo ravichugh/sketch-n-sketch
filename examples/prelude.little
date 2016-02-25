@@ -692,6 +692,20 @@
     (polygon fill stroke strokeWidth pts)
   ] )))))
 
+(def pointyPath (\(fill stroke w d)
+  (let dot (\(x y) (ghost (circle 'orange' x y 5)))
+  (letrec pointsOf (\cmds
+    (case cmds
+      ([]                     [])
+      (['Z']                  [])
+      (['M' x y | rest]       (append [(dot x y)] (pointsOf rest)))
+      (['L' x y | rest]       (append [(dot x y)] (pointsOf rest)))
+      (['Q' x1 y1 x y | rest] (append [(dot x1 y1) (dot x y)] (pointsOf rest)))
+      (_                      'ERROR')))
+  (cons
+    (path fill stroke w d)
+    (pointsOf d))))))
+
 (def evalOffset (\[base off]
   (case off
     (0 base)

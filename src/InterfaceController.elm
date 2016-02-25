@@ -454,7 +454,8 @@ addAbsolutePath old keysAndPoints =
   let sD = Utils.bracks (Utils.spaces (firstCmd :: remainingCmds)) in
   addToCodeAndRun "path" old
     (extraLets ++ [ makeLet ["d"] [eVar sD] ])
-    (eVar0 "path")
+    -- (eVar0 "path")
+    (eVar0 "pointyPath")
     [eStr "white", eStr "black", eConst 2 dummyLoc, eVar "d"]
 
 addLambdaToCodeAndRun old (_,pt2) (_,pt1) =
@@ -495,6 +496,7 @@ makeNewShapeDef model newShapeKind name locals func args =
         let multi = -- check if (func args) returns List SVG or SVG
           case model.toolType of
             Poly -> True
+            Path -> True
             Lambda _ -> True
             _ -> False
         in
@@ -685,6 +687,7 @@ featureEquation nodeId kind feature nodeAttrs =
     "line"     -> handleLine ()
     "polygon"  -> handlePolyPath ()
     "polyline" -> handlePolyPath ()
+    -- "path"     -> handlePolyPath kind
     _          -> Debug.crash <| "Shape features not implemented yet: " ++ kind
 
 
@@ -711,6 +714,15 @@ getPtCount attrs =
       LangSvg.APoints pts -> List.length pts
       _                   -> Debug.crash "getPtCount 2"
     _ -> Debug.crash "getPtCount 1"
+
+{-
+getPathPtCount attrs =
+  case Utils.maybeFind "d" attrs of
+    Just aval -> case aval.av_ of
+      LangSvg.APath2 (_,pathCounts) -> pathCounts.numPoints
+      _                             -> Debug.crash "getPathPtCount 2"
+    _ -> Debug.crash "getPathPtCount 1"
+-}
 
 maybeFindAttr id kind attr attrs =
   case (kind, String.uncons attr) of
@@ -820,7 +832,6 @@ upstate evt old = case debugLog "Event" evt of
             else addPolygonToCodeAndRun old points
 
         MouseDrawNew "path" points ->
-          let _ = Debug.log "MouseClick path" () in
           let pointOnCanvas = clickToCanvasPoint old click in
           let add new =
             let points' = (old.keysDown, new) :: points in
