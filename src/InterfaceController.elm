@@ -415,7 +415,49 @@ addStickyPolygon old keysAndPoints =
     (eVar0 "stickyPolygon")
     [eVar "bounds", eConst 350 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "offsets"]
 
-addLambdaToCodeAndRun old pt2 pt1 =
+strPoint (x,y) = Utils.spaces [toString x, toString y]
+
+-- temporary, dummy offsets for control points
+temp_adjust (x,y) = (x - 50, y + 30)
+
+-- TODO sticky and stretchable versions
+addPathToCodeAndRun : Model -> List (KeysDown, (Int, Int)) -> Model
+addPathToCodeAndRun old keysAndPoints =
+  addAbsolutePath old keysAndPoints
+
+addAbsolutePath old keysAndPoints =
+  let keysAndPoints_ = List.reverse keysAndPoints in
+  let (_,firstClick) = Utils.head_ keysAndPoints_ in
+  let (_,lastClick) = Utils.last_ keysAndPoints_ in
+  let (extraLets, firstCmd, lastPoint) =
+    if firstClick /= lastClick
+    then ([], "'M' " ++ strPoint firstClick, strPoint firstClick)
+    else
+      let extraLets =
+        [ makeLet ["x0", "y0"]
+            [ eVar0 (toString <| fst firstClick)
+            , eVar  (toString <| snd firstClick)
+            ] ]
+      in
+      (extraLets, "'M' x0 y0", "x0 y0")
+  in
+  let remainingCmds =
+    let foo (modifiers,click) =
+      case (click == firstClick, modifiers == Keys.shift) of
+        (True,  True)  -> "'Z'"
+        (False, True)  -> "'L' " ++ strPoint click
+        (True,  False) -> "'Q' " ++ strPoint (temp_adjust click) ++ " " ++ lastPoint
+        (False, False) -> "'Q' " ++ strPoint (temp_adjust click) ++ " " ++ strPoint click
+    in
+    List.map foo (Utils.tail_ keysAndPoints_)
+  in
+  let sD = Utils.bracks (Utils.spaces (firstCmd :: remainingCmds)) in
+  addToCodeAndRun "path" old
+    (extraLets ++ [ makeLet ["d"] [eVar sD] ])
+    (eVar0 "path")
+    [eStr "white", eStr "black", eConst 2 dummyLoc, eVar "d"]
+
+addLambdaToCodeAndRun old (_,pt2) (_,pt1) =
   let funcName =
     case old.toolType of
       Lambda f -> f
@@ -754,6 +796,7 @@ upstate evt old = case debugLog "Event" evt of
         (MouseNothing, Rect) -> { old | mouseMode = MouseDrawNew "rect" [] }
         (MouseNothing, Oval) -> { old | mouseMode = MouseDrawNew "ellipse" [] }
         (MouseNothing, Poly) -> { old | mouseMode = MouseDrawNew "polygon" [] }
+        (MouseNothing, Path) -> { old | mouseMode = MouseDrawNew "path" [] }
         (MouseNothing, HelperDot) -> { old | mouseMode = MouseDrawNew "DOT" [] }
         (MouseNothing, HelperLine) -> { old | mouseMode = MouseDrawNew "line" [] }
         (MouseNothing, Lambda _) -> { old | mouseMode = MouseDrawNew "LAMBDA" [] }
@@ -761,22 +804,48 @@ upstate evt old = case debugLog "Event" evt of
 
     MouseClick click ->
       case old.mouseMode of
+
         MouseDrawNew "polygon" points ->
           let pointOnCanvas = clickToCanvasPoint old click in
           let add () =
-            let points' = pointOnCanvas :: points in
+            let points' = (old.keysDown, pointOnCanvas) :: points in
             { old | mouseMode = MouseDrawNew "polygon" points' }
           in
           if points == [] then add ()
           else
-            let initialPoint = Utils.last_ points in
+            let (_,initialPoint) = Utils.last_ points in
             if Utils.distanceInt pointOnCanvas initialPoint > View.drawNewPolygonDotSize then add ()
             else if List.length points == 2 then { old | mouseMode = MouseNothing }
             else if List.length points == 1 then switchToCursorTool old
             else addPolygonToCodeAndRun old points
-        MouseDrawNew "DOT" [] ->
+
+        MouseDrawNew "path" points ->
+          let _ = Debug.log "MouseClick path" () in
           let pointOnCanvas = clickToCanvasPoint old click in
+          let add new =
+            let points' = (old.keysDown, new) :: points in
+            (points', { old | mouseMode = MouseDrawNew "path" points' })
+          in
+          case points of
+            [] -> snd (add pointOnCanvas)
+            (_,lastClick) :: _ ->
+              if Utils.distanceInt pointOnCanvas lastClick < View.drawNewPolygonDotSize
+              then addPathToCodeAndRun old points
+              else
+                let (_,firstClick) = Utils.last_ points in
+                if Utils.distanceInt pointOnCanvas firstClick < View.drawNewPolygonDotSize
+                then
+                  if List.length points < 2
+                  then switchToCursorTool old
+                  else let (points',old') = add firstClick in
+                       addPathToCodeAndRun old' points'
+                else
+                  snd (add pointOnCanvas)
+
+        MouseDrawNew "DOT" [] ->
+          let pointOnCanvas = (old.keysDown, clickToCanvasPoint old click) in
           { old | mouseMode = MouseDrawNew "DOT" [pointOnCanvas] }
+
         _ ->
           old
 
@@ -828,6 +897,7 @@ upstate evt old = case debugLog "Event" evt of
                 }
 
         MouseDrawNew "polygon" _ -> old -- handled by MouseClick instead
+        MouseDrawNew "path" _ -> old -- handled by MouseClick instead
 
         MouseDrawNew k [] ->
           let pointOnCanvas = (old.keysDown, (mx, my)) in
@@ -877,6 +947,7 @@ upstate evt old = case debugLog "Event" evt of
         (_, MouseDrawNew "DOT" [pt])           -> addHelperDotToCodeAndRun old pt
         (_, MouseDrawNew "LAMBDA" [pt2, pt1])  -> addLambdaToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "polygon" points)     -> old
+        (_, MouseDrawNew "path" points)        -> old
 
         _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
 

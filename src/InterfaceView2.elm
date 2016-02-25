@@ -845,6 +845,7 @@ drawNewShape model =
     MouseDrawNew "rect"    [pt2, pt1]    -> drawNewRect model.keysDown pt2 pt1
     MouseDrawNew "ellipse" [pt2, pt1]    -> drawNewEllipse model.keysDown pt2 pt1
     MouseDrawNew "polygon" (ptLast::pts) -> drawNewPolygon ptLast pts
+    MouseDrawNew "path" (ptLast::pts)    -> drawNewPath ptLast pts
     MouseDrawNew "DOT" [pt]              -> drawNewHelperDot pt
     MouseDrawNew "LAMBDA"  [pt2, pt1]    -> drawNewRect model.keysDown pt2 pt1
     _                                    -> []
@@ -854,6 +855,7 @@ defaultStroke         = LangSvg.attr "stroke" "gray"
 defaultStrokeWidth    = LangSvg.attr "stroke-width" "5"
 defaultFill           = LangSvg.attr "fill" "gray"
 dotFill               = LangSvg.attr "fill" "red"
+dotFill2              = LangSvg.attr "fill" "orange"
 dotSize               = LangSvg.attr "r" (toString drawNewPolygonDotSize)
 
 drawNewPolygonDotSize = 10
@@ -960,6 +962,39 @@ drawNewPolygon (_,ptLast) keysAndPoints =
           ] ]
    in
    dot :: maybeShape
+
+drawNewPath (_,ptLast) keysAndPoints =
+  let points = List.map snd keysAndPoints in
+  let dot fill (cx,cy) =
+    svgCircle [
+        dotSize , fill , defaultOpacity
+      , LangSvg.attr "cx" (toString cx)
+      , LangSvg.attr "cy" (toString cy)
+      ] in
+  let redDot = [dot dotFill (Utils.last_ (ptLast::points))] in
+  let yellowDot =
+    case points of
+      [] -> []
+      _  -> [dot dotFill2 ptLast]
+  in
+  -- TODO for now, just drawing a polygon like drawNewPolygon
+  let maybeShape =
+    case (ptLast::points) of
+      [_] -> []
+      _ ->
+        -- don't need to reverse, but keeping it same as resulting shape
+        let polyPoints = List.reverse (ptLast::points) in
+        let sPoints =
+          Utils.spaces <|
+            List.map (\(x,y) -> String.join "," (List.map toString [x,y]))
+                     polyPoints
+        in
+        [ svgPolygon [
+            defaultStroke , defaultStrokeWidth , defaultFill , defaultOpacity
+          , LangSvg.attr "points" sPoints
+          ] ]
+   in
+   redDot ++ yellowDot ++ maybeShape
 
 -- TODO this doesn't appear right away
 -- (dor does initial poly, which appears only on MouseUp...)
@@ -1215,7 +1250,9 @@ widgetsTools w h model =
   , twoButtons w h
       (toolButton model HelperLine)
       (toolButton model HelperDot)
-  , toolButton model (Lambda "star") w h
+  , twoButtons w h
+      (toolButton model Path)
+      (toolButton model (Lambda "star"))
   ]
 
 widgetsToolExtras w h model =
@@ -1581,7 +1618,7 @@ toolButton model tt w h =
     -- Rect -> "R"
     -- Oval -> "E"
     -- Poly -> "P"
-    Path -> "-"
+    Path -> "Path"
     Text -> "-"
     HelperLine -> "(Rule)"
     HelperDot -> "(Dot)"
