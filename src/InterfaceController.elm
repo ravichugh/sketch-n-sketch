@@ -269,8 +269,9 @@ fuseExp defs main =
   recurse defs
 
 -- when line is snapped, not enforcing the angle in code
-addLineToCodeAndRun old (x2,y2) (x1,y1) =
-  let (xb, yb) = View.snapLine old.keysDown (x2,y2) (x1,y1) in
+addLineToCodeAndRun old click2 click1 =
+  let ((_,(x2,y2)),(_,(x1,y1))) = (click2, click1) in
+  let (xb, yb) = View.snapLine old.keysDown click2 click1 in
   let color = if old.toolType == HelperLine then "aqua" else "gray" in
   let (f, args) =
     maybeGhost (old.toolType == HelperLine)
@@ -286,7 +287,7 @@ addRectToCodeAndRun old pt2 pt1 =
   if old.keysDown == Keys.shift then addSquare old pt2 pt1
   else addRect old pt2 pt1
 
-addRect old pt2 pt1 =
+addRect old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
   let (x, y, w, h) = (xa, ya, xb - xa, yb - ya) in
   addToCodeAndRun "rect" old
@@ -295,7 +296,7 @@ addRect old pt2 pt1 =
     (eVar0 "rotatedRect")
     (eConst 100 dummyLoc :: List.map eVar ["x","y","w","h","rot"])
 
-addSquare old pt2 pt1 =
+addSquare old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.squareBoundingBox pt2 pt1 in
   let (x, y, side) = (xa, ya, xb - xa) in
   addToCodeAndRun "square" old
@@ -321,7 +322,7 @@ addEllipseToCodeAndRun old pt2 pt1 =
   if old.keysDown == Keys.shift then addCircle old pt2 pt1
   else addEllipse old pt2 pt1
 
-addEllipse old pt2 pt1 =
+addEllipse old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
   let (rx, ry) = ((xb-xa)//2, (yb-ya)//2) in
   let (cx, cy) = (xa + rx, ya + ry) in
@@ -330,7 +331,7 @@ addEllipse old pt2 pt1 =
     (eVar0 "ellipse")
     (eConst 200 dummyLoc :: List.map eVar ["cx","cy","rx","ry"])
 
-addCircle old pt2 pt1 =
+addCircle old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.squareBoundingBox pt2 pt1 in
   let r = (xb-xa)//2 in
   let (cx, cy) = (xa + r, ya + r) in
@@ -339,7 +340,7 @@ addCircle old pt2 pt1 =
     (eVar0 "ellipse")
     (eConst 250 dummyLoc :: List.map eVar ["cx","cy","r","r"])
 
-addHelperDotToCodeAndRun old (cx,cy) =
+addHelperDotToCodeAndRun old (_,(cx,cy)) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)
   let r = 6 in
   let (f, args) =
@@ -360,7 +361,8 @@ addPolygonToCodeAndRun old points =
     then addStickyPolygon old points
     else addStretchablePolygon old points
 
-addStretchablePolygon old points =
+addStretchablePolygon old keysAndPoints =
+  let points = List.map snd keysAndPoints in
   let xMax = Utils.fromJust <| List.maximum (List.map fst points) in
   let xMin = Utils.fromJust <| List.minimum (List.map fst points) in
   let yMax = Utils.fromJust <| List.maximum (List.map snd points) in
@@ -383,7 +385,8 @@ addStretchablePolygon old points =
     (eVar0 "stretchyPolygon")
     [eVar "bounds", eConst 300 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "pcts"]
 
-addStickyPolygon old points =
+addStickyPolygon old keysAndPoints =
+  let points = List.map snd keysAndPoints in
   let xMax = Utils.fromJust <| List.maximum (List.map fst points) in
   let xMin = Utils.fromJust <| List.minimum (List.map fst points) in
   let yMax = Utils.fromJust <| List.maximum (List.map snd points) in
@@ -827,11 +830,11 @@ upstate evt old = case debugLog "Event" evt of
         MouseDrawNew "polygon" _ -> old -- handled by MouseClick instead
 
         MouseDrawNew k [] ->
-          let pointOnCanvas = (mx, my) in
+          let pointOnCanvas = (old.keysDown, (mx, my)) in
           { old | mouseMode = MouseDrawNew k [pointOnCanvas, pointOnCanvas] }
 
         MouseDrawNew k (_::points) ->
-          let pointOnCanvas = (mx, my) in
+          let pointOnCanvas = (old.keysDown, (mx, my)) in
           { old | mouseMode = MouseDrawNew k (pointOnCanvas::points) }
 
     SelectObject id kind zone ->

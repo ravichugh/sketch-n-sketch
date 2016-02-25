@@ -876,7 +876,7 @@ squareBoundingBox (x2,y2) (x1,y1) =
 slicesPerQuadrant = 2 -- can toggle this parameter
 radiansPerSlice   = pi / (2 * slicesPerQuadrant)
 
-snapLine keysDown (x2,y2) (x1,y1) =
+snapLine keysDown (_,(x2,y2)) (_,(x1,y1)) =
   if keysDown == Keys.shift then
     let (dx, dy) = (x2 - x1, y2 - y1) in
     let angle = atan2 (toFloat (-dy)) (toFloat dx) in
@@ -888,9 +888,10 @@ snapLine keysDown (x2,y2) (x1,y1) =
   else
     (x2, y2)
 
-drawNewLine model (x2,y2) (x1,y1) =
+drawNewLine model click2 click1 =
+  let ((_,(x2,y2)),(_,(x1,y1))) = (click2, click1) in
   let stroke = if model.toolType == HelperLine then guideStroke else defaultStroke in
-  let (xb, yb) = snapLine model.keysDown (x2,y2) (x1,y1) in
+  let (xb, yb) = snapLine model.keysDown click2 click1 in
   let line =
     svgLine [
         stroke , defaultStrokeWidth , defaultOpacity
@@ -900,7 +901,7 @@ drawNewLine model (x2,y2) (x1,y1) =
   in
   [ line ]
 
-drawNewRect keysDown pt2 pt1 =
+drawNewRect keysDown (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) =
     if keysDown == Keys.shift
     then squareBoundingBox pt2 pt1
@@ -915,7 +916,7 @@ drawNewRect keysDown pt2 pt1 =
   in
   [ rect ]
 
-drawNewEllipse keysDown pt2 pt1 =
+drawNewEllipse keysDown (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) =
     if keysDown == Keys.shift
     then squareBoundingBox pt2 pt1
@@ -933,7 +934,8 @@ drawNewEllipse keysDown pt2 pt1 =
   in
   [ ellipse ]
 
-drawNewPolygon ptLast points =
+drawNewPolygon (_,ptLast) keysAndPoints =
+  let points = List.map snd keysAndPoints in
   let (xInit,yInit) = Utils.last_ (ptLast::points) in
   let dot =
     svgCircle [
