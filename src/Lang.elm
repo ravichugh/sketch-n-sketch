@@ -402,15 +402,16 @@ flattenExpTree exp =
   exp :: List.concatMap flattenExpTree (childExps exp)
 
 -- For each node for which `predicate` returns True, return it and its ancestors
+-- For each matching node, ancestors appear in order: root first, match last.
 findAllWithAncestors : (Exp -> Bool) -> Exp -> List (List Exp)
 findAllWithAncestors predicate exp =
-  findAllWithAncestorsRec predicate [] exp
+  findAllWithAncestors_ predicate [] exp
 
-findAllWithAncestorsRec : (Exp -> Bool) -> List Exp -> Exp -> List (List Exp)
-findAllWithAncestorsRec predicate ancestors exp =
+findAllWithAncestors_ : (Exp -> Bool) -> List Exp -> Exp -> List (List Exp)
+findAllWithAncestors_ predicate ancestors exp =
   let ancestorsAndThis = ancestors ++ [exp] in
   let thisResult       = if predicate exp then [ancestorsAndThis] else [] in
-  let recurse exp      = findAllWithAncestorsRec predicate ancestorsAndThis exp in
+  let recurse exp      = findAllWithAncestors_ predicate ancestorsAndThis exp in
   thisResult ++ List.concatMap recurse (childExps exp)
 
 childExps : Exp -> List Exp
