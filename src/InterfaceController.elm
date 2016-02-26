@@ -1072,23 +1072,28 @@ upstate evt old = case debugLog "Event" evt of
           let featureNamesStr       = String.join " " nonCollidingFeatureNames in
           let featureExpressionsStr = String.join " " featureExpressionStrs in
           let includeFeatures       = (List.length featureNames) > 0 in
+          let letOrDef patsStr assignsStr body =
+              if isTopLevel deepestCommonScope old.inputExp then
+                "(def ["++patsStr++"] ["++assignsStr++"])"
+                ++ body
+              else
+                "(let ["++patsStr++"] ["++assignsStr++"]"
+                ++ body ++ ")"
+          in
           let originalsLet body =
             oldPreceedingWhitespace
-            ++ "(let ["++constantOrigNamesStr++"] ["++constantValuesStr++"]"
-            ++ body ++ ")"
+            ++ (letOrDef constantOrigNamesStr constantValuesStr body)
           in
           let tracesLet body =
             if includeFeatures then
               extraWhitespace ++ oldPreceedingWhitespace
-              ++ "(let ["++featureNamesStr++"] ["++featureExpressionsStr++"]"
-              ++ body ++ ")"
+              ++ (letOrDef featureNamesStr featureExpressionsStr body)
             else
               body
           in
           let primesLet body =
             extraWhitespace ++ oldPreceedingWhitespace
-            ++ "(let ["++constantPrimeNamesStr++"] ["++constantOrigNamesStr++"]"
-            ++ body ++ ")"
+            ++ (letOrDef constantPrimeNamesStr constantOrigNamesStr body)
           in
           originalsLet
           <| tracesLet

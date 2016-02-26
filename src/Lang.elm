@@ -553,6 +553,22 @@ isScope maybeParent exp =
     Nothing -> isObviouslyScope
 
 
+-- Is the expression in the body of only defs/comments/options?
+--
+-- The "top level" is a single path on the tree, so walk it and look
+-- for the target expression.
+isTopLevel : Exp -> Exp -> Bool
+isTopLevel exp program =
+  if exp == program then
+    True
+  else
+    case program.val.e__ of
+      ELet _ Def _ _ _ body _ -> isTopLevel exp body
+      EComment _ _ e          -> isTopLevel exp e
+      EOption _ _ _ _ e       -> isTopLevel exp e
+      _                       -> False
+
+
 identifiersSet : Exp -> Set.Set Ident
 identifiersSet exp =
   identifiersList exp
