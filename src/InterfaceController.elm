@@ -1382,7 +1382,10 @@ upstate evt old = case debugLog "Event" evt of
               else addToHistory old.code old.history
           in
           let _ = debugLog "Cleaned: " code' in
-          { old | inputExp = cleanedExp, code = code', history = history' }
+          let newModel = { old | inputExp = cleanedExp, code = code', history = history' } in
+          case old.editingMode of
+            Nothing -> upstate Run newModel
+            _       -> newModel
 
     -- Elm does not have function equivalence/pattern matching, so we need to
     -- thread these events through upstate in order to catch them to rerender
