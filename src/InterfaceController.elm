@@ -992,7 +992,7 @@ upstate evt old = case debugLog "Event" evt of
                 let scopesAndBaseIdent = String.join "_" (scopeNamesLiftedThrough ++ [baseIdent]) in
                 let baseIdentOrig  =
                   if scopesAndBaseIdent == baseIdent
-                  then baseIdent ++ "Orig"
+                  then baseIdent ++ "_orig"
                   else scopesAndBaseIdent
                 in
                 let baseIdentPrime = scopesAndBaseIdent ++ "'" in
@@ -1403,7 +1403,7 @@ upstate evt old = case debugLog "Event" evt of
             reparsed
             |> cleanExp
             |> LangTransform.simplify
-            |> LangTransform.removeExtraPostfixes ["Orig", "'"]
+            |> LangTransform.removeExtraPostfixes ["_orig", "'"]
             |> freshen
           in
           let code' = unparse cleanedExp in
