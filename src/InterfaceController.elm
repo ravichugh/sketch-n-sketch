@@ -2,7 +2,7 @@ module InterfaceController (upstate) where
 
 import Lang exposing (..) --For access to what makes up the Vals
 import LangParser2 exposing (parseE, freshen)
-import LangUnparser exposing (unparse, equationToLittle, preceedingWhitespace, addPreceedingWhitespace)
+import LangUnparser exposing (unparse, equationToLittle, precedingWhitespace, addPrecedingWhitespace)
 import LangTransform
 import Sync
 import Eval
@@ -503,8 +503,8 @@ addToMain eNew main =
                   { main | val = { eid = main.val.eid , e__ =
                       EApp ws1 e1 [eAppConcat'] ws2 } }
               in
-              if ws1 == "" then addPreceedingWhitespace "\n\n" main'
-              else if ws1 == "\n" then addPreceedingWhitespace "\n" main'
+              if ws1 == "" then addPrecedingWhitespace "\n\n" main'
+              else if ws1 == "\n" then addPrecedingWhitespace "\n" main'
               else main'
 
             _ -> callAddShape ()
@@ -1091,9 +1091,15 @@ upstate evt old = case debugLog "Event" evt of
           in
           result
         in
-        let oldPreceedingWhitespace = preceedingWhitespace commonScopeReplaced in
+        let oldPrecedingWhitespace = precedingWhitespace commonScopeReplaced in
         let extraWhitespace =
-          if String.contains "\n" oldPreceedingWhitespace then "" else "\n"
+          if String.contains "\n" oldPrecedingWhitespace then "" else "\n"
+        in
+        -- Limit to one newline
+        let limitedOldPrecedingWhitespace =
+          case String.split "\n" oldPrecedingWhitespace |> List.reverse of
+            indentation::_ -> "\n" ++ indentation
+            []             -> oldPrecedingWhitespace
         in
         let templateStr =
           let constantOrigNamesStr  = String.join " " origNames in
@@ -1111,18 +1117,18 @@ upstate evt old = case debugLog "Event" evt of
                 ++ body ++ ")"
           in
           let originalsLet body =
-            oldPreceedingWhitespace
+            limitedOldPrecedingWhitespace
             ++ (letOrDef constantOrigNamesStr constantValuesStr body)
           in
           let tracesLet body =
             if includeFeatures then
-              extraWhitespace ++ oldPreceedingWhitespace
+              extraWhitespace ++ limitedOldPrecedingWhitespace
               ++ (letOrDef featureNamesStr featureExpressionsStr body)
             else
               body
           in
           let primesLet body =
-            extraWhitespace ++ oldPreceedingWhitespace
+            extraWhitespace ++ limitedOldPrecedingWhitespace
             ++ (letOrDef constantPrimeNamesStr constantOrigNamesStr body)
           in
           originalsLet
@@ -1140,7 +1146,7 @@ upstate evt old = case debugLog "Event" evt of
           mapExpViaExp__
               (\e__ ->
                 case e__ of
-                  EBase _ (String "dummy body") -> (addPreceedingWhitespace extraWhitespace commonScopeReplaced).val.e__
+                  EBase _ (String "dummy body") -> (addPrecedingWhitespace extraWhitespace commonScopeReplaced).val.e__
                   _                             -> e__
               )
               template

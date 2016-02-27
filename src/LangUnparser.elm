@@ -1,7 +1,7 @@
 module LangUnparser
-  (unparse, equationToLittle, bumpCol, incCol, preceedingWhitespace,
-    preceedingWhitespaceExp__, addPreceedingWhitespace,
-    replacePreceedingWhitespace, replacePreceedingWhitespacePat) where
+  (unparse, equationToLittle, bumpCol, incCol, precedingWhitespace,
+    precedingWhitespaceExp__, addPrecedingWhitespace,
+    replacePrecedingWhitespace, replacePrecedingWhitespacePat) where
 
 import Lang exposing (..)
 import OurParser2 exposing (Pos, WithPos, WithInfo, startPos)
@@ -26,13 +26,13 @@ incCol = bumpCol 1
 ------------------------------------------------------------------------------
 
 
-preceedingWhitespace : Exp -> String
-preceedingWhitespace exp =
-  preceedingWhitespaceExp__ exp.val.e__
+precedingWhitespace : Exp -> String
+precedingWhitespace exp =
+  precedingWhitespaceExp__ exp.val.e__
 
 
-preceedingWhitespacePat : Pat -> String
-preceedingWhitespacePat pat =
+precedingWhitespacePat : Pat -> String
+precedingWhitespacePat pat =
   case pat.val of
     PVar   ws ident wd         -> ws
     PConst ws n                -> ws
@@ -40,8 +40,8 @@ preceedingWhitespacePat pat =
     PList  ws1 es ws2 rest ws3 -> ws1
 
 
-preceedingWhitespaceExp__ : Exp__ -> String
-preceedingWhitespaceExp__ e__ =
+precedingWhitespaceExp__ : Exp__ -> String
+precedingWhitespaceExp__ e__ =
   case e__ of
     EBase    ws v                     -> ws
     EConst   ws n l wd                -> ws
@@ -58,23 +58,23 @@ preceedingWhitespaceExp__ e__ =
     EOption  ws1 s1 ws2 s2 e1         -> ws1
 
 
-addPreceedingWhitespace : String -> Exp -> Exp
-addPreceedingWhitespace newWs exp =
-  mapPreceedingWhitespace (\oldWs -> oldWs ++ newWs) exp
+addPrecedingWhitespace : String -> Exp -> Exp
+addPrecedingWhitespace newWs exp =
+  mapPrecedingWhitespace (\oldWs -> oldWs ++ newWs) exp
 
 
-replacePreceedingWhitespace : String -> Exp -> Exp
-replacePreceedingWhitespace newWs exp =
-  mapPreceedingWhitespace (\oldWs -> newWs) exp
+replacePrecedingWhitespace : String -> Exp -> Exp
+replacePrecedingWhitespace newWs exp =
+  mapPrecedingWhitespace (\oldWs -> newWs) exp
 
 
-replacePreceedingWhitespacePat : String -> Pat -> Pat
-replacePreceedingWhitespacePat newWs pat =
-  mapPreceedingWhitespacePat (\oldWs -> newWs) pat
+replacePrecedingWhitespacePat : String -> Pat -> Pat
+replacePrecedingWhitespacePat newWs pat =
+  mapPrecedingWhitespacePat (\oldWs -> newWs) pat
 
 
-mapPreceedingWhitespace : (String -> String) -> Exp -> Exp
-mapPreceedingWhitespace mapWs exp =
+mapPrecedingWhitespace : (String -> String) -> Exp -> Exp
+mapPrecedingWhitespace mapWs exp =
   let e__' =
     case exp.val.e__ of
       EBase    ws v                     -> EBase    (mapWs ws) v
@@ -95,8 +95,8 @@ mapPreceedingWhitespace mapWs exp =
   { exp | val = { val | e__ = e__' } }
 
 
-mapPreceedingWhitespacePat : (String -> String) -> Pat -> Pat
-mapPreceedingWhitespacePat mapWs pat =
+mapPrecedingWhitespacePat : (String -> String) -> Pat -> Pat
+mapPrecedingWhitespacePat mapWs pat =
   let pat_' =
     case pat.val of
       PVar   ws ident wd         -> PVar   (mapWs ws) ident wd

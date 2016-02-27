@@ -79,8 +79,7 @@ removeUnusedVars exp =
       ELet ws1 letKind rec pat assign body ws2 ->
         let usedNames = Lang.identifiersSet body in
         let letRemoved =
-          let oldPreceedingWs = preceedingWhitespaceExp__ e__ in
-          (replacePreceedingWhitespace oldPreceedingWs body).val.e__
+          body.val.e__
         in
         case (pat.val, assign.val.e__) of
           -- Simple assignment.
@@ -111,8 +110,8 @@ removeUnusedVars exp =
 
                 1 ->
                   let (thePat, theAssign) = Utils.head_ usedPatsAssigns in
-                  let newPat    = replacePreceedingWhitespacePat pws1 thePat in
-                  let newAssign = replacePreceedingWhitespace aws1 theAssign in
+                  let newPat    = replacePrecedingWhitespacePat pws1 thePat in
+                  let newAssign = replacePrecedingWhitespace aws1 theAssign in
                   ELet ws1 letKind rec newPat newAssign body ws2
 
                 _ ->
@@ -162,7 +161,7 @@ inlineTrivialRenamings exp =
           -- Simple assignment.
           (PVar _ _ _, EVar oldWs assignIdent) ->
             if assignIdent == targetIdent then
-              let newExpAdjustedWs = replacePreceedingWhitespace oldWs newExp in
+              let newExpAdjustedWs = replacePrecedingWhitespace oldWs newExp in
               ELet ws1 letKind rec pat newExpAdjustedWs body ws2
             else
               e__
@@ -175,8 +174,8 @@ inlineTrivialRenamings exp =
                     case assignExp.val.e__ of
                       EVar _ assignIdent ->
                         if assignIdent == targetIdent then
-                          let oldPreceedingWs = preceedingWhitespace assignExp in
-                          replacePreceedingWhitespace oldPreceedingWs newExp
+                          let oldPrecedingWs = precedingWhitespace assignExp in
+                          replacePrecedingWhitespace oldPrecedingWs newExp
                         else
                           assignExp
 
@@ -201,8 +200,8 @@ inlineTrivialRenamings exp =
       ELet ws1 letKind rec pat assign body ws2 ->
         let nameCounts = Lang.identifierCounts body in
         let letRemoved newBody =
-          let oldPreceedingWs = preceedingWhitespaceExp__ e__ in
-          (replacePreceedingWhitespace oldPreceedingWs newBody).val.e__
+          let oldPrecedingWs = precedingWhitespaceExp__ e__ in
+          (replacePrecedingWhitespace oldPrecedingWs newBody).val.e__
         in
         let identsAndAssignsInliningCandidates =
           List.filter
