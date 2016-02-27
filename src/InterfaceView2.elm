@@ -1716,7 +1716,7 @@ modeButton model =
 cleanButton model =
   let disabled = case model.mode of Live _ -> False
                                     _      -> True in
-  simpleEventButton_ disabled CleanCode "Clean" "Clean" "Clean Up"
+  simpleEventButton_ disabled WaitClean "Clean" "Clean" "Clean Up"
 
 orientationButton w h model =
     let text = "[Orientation] " ++ toString model.orient

@@ -52,7 +52,7 @@ type alias Model =
   , midOffsetY : Int  -- extra codebox width in horizontal orientation
   , showZones : ShowZones
   , syncOptions : Sync.Options
-  , editingMode : Maybe Code -- Nothing is False
+  , editingMode : Maybe Code -- Nothing means not editing
                              -- Just s is True, where s is previous code
   , caption : Maybe Caption
   , showWidgets : Bool
@@ -183,6 +183,7 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            --A state such that we're waiting for a response from Ace
            | WaitRun
            | WaitSave String
+           | WaitClean
            | WaitCodeBox
 
 events : Signal.Mailbox Event

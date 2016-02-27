@@ -1,16 +1,11 @@
 module UnparserTests where
 
+import Helpers.Matchers exposing (..)
+
 import String
 
 import LangParser2
 import LangUnparser
-
-shouldEqual : a -> a -> String
-shouldEqual actual expected =
-  if actual == expected then
-    "ok"
-  else
-    "expected " ++ toString expected ++ "\nbut got  " ++ toString actual
 
 testParseUnparseMatch littleStr =
   case LangParser2.parseE littleStr of
