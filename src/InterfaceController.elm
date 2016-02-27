@@ -1403,6 +1403,7 @@ upstate evt old = case debugLog "Event" evt of
             reparsed
             |> cleanExp
             |> LangTransform.simplify
+            |> LangTransform.removeExtraPostfixes ["Orig", "'"]
             |> freshen
           in
           let code' = unparse cleanedExp in

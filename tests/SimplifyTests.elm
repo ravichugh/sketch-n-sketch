@@ -1,23 +1,15 @@
 module SimplifyTests where
 
-import Helpers.Matchers exposing (..)
-import Helpers.Utils exposing (..)
-
-import String
+import Helpers.TestTemplates exposing (..)
 
 import LangTransform
-import LangParser2
-import LangUnparser
+
 
 testSimplification inputCode expectedSimplification =
-  case LangParser2.parseE inputCode of
-    Err s ->
-      "can't parse: " ++ s ++ "\n" ++ inputCode
-
-    Ok inputExp ->
-      let simplifiedExp  = LangTransform.simplify inputExp in
-      let simplifiedCode = LangUnparser.unparse simplifiedExp in
-      (squish simplifiedCode) `shouldEqual` (squish expectedSimplification)
+  Helpers.TestTemplates.testCodeTransform
+    LangTransform.simplify
+    inputCode
+    expectedSimplification
 
 
 testNoSimplification inputCode =

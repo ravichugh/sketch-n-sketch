@@ -684,6 +684,64 @@ identifierCounts exp =
     (identifiersList exp)
 
 
+renameIdentifierInPat old new pat =
+  let recurse = renameIdentifierInPat old new in
+  let recurseList = List.map recurse in
+  let pat_' =
+    case pat.val of
+      PVar ws ident wd ->
+        if ident == old
+        then PVar ws new wd
+        else pat.val
+
+      PList ws1 pats ws2 Nothing ws3 ->
+        PList ws1 (recurseList pats) ws2 Nothing ws3
+
+      PList ws1 pats ws2 (Just pRest) ws3 ->
+        PList ws1 (recurseList pats) ws2 (Just (recurse pRest)) ws3
+
+      _ ->
+        pat.val
+  in
+  { pat | val = pat_' }
+
+
+renameIdentifierInPats old new pats =
+  List.map
+    (renameIdentifierInPat old new)
+    pats
+
+
+renameIdentifier : Ident -> Ident -> Exp -> Exp
+renameIdentifier old new exp =
+  let exp__Renamer e__ =
+    case e__ of
+      EVar ws ident ->
+        if ident == old
+        then EVar ws new
+        else e__
+
+      EFun ws1 pats body ws2 ->
+        EFun ws1 (renameIdentifierInPats old new pats) body ws2
+
+      ECase ws1 e1 branches ws2 ->
+        let branches' =
+          List.map
+              (mapValField (\(Branch_ bws1 pat ei bws2) -> Branch_ bws1 (renameIdentifierInPat old new pat) ei bws2))
+              branches
+        in
+        ECase ws1 e1 branches' ws2
+
+      ELet ws1 kind rec pat assign body ws2 ->
+        ELet ws1 kind rec (renameIdentifierInPat old new pat) assign body ws2
+
+      _ ->
+        e__
+  in
+  mapExpViaExp__
+    exp__Renamer
+    exp
+
 -----------------------------------------------------------------------------
 -- Lang Options
 

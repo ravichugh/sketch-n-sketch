@@ -1,12 +1,43 @@
-module LangTransform (simplify) where
+module LangTransform (simplify, removeExtraPostfixes) where
 
 import Set
 import Dict
+import String
 
 import Lang exposing (..)
 import LangUnparser exposing (..)
 import OurParser2
 import Utils
+
+
+removeExtraPostfixes : List String -> Exp -> Exp
+removeExtraPostfixes postfixes exp =
+  let usedNames = identifiersSet exp in
+  let oldAndNewNames =
+    List.concatMap
+        (\ident ->
+          List.concatMap
+            (\postfix ->
+              if String.endsWith postfix ident
+              then [(ident, (String.dropRight (String.length postfix) ident))]
+              else []
+            )
+            postfixes
+        )
+        (Set.toList usedNames)
+  in
+  let renameToPerform =
+    Utils.findFirst
+        (\(_, newName) -> not <| Set.member newName usedNames)
+        oldAndNewNames
+  in
+  case renameToPerform of
+    Just (oldName, newName) ->
+      let exp' = renameIdentifier oldName newName exp in
+      removeExtraPostfixes postfixes exp'
+
+    Nothing ->
+      exp
 
 
 -- 1. Removes unused variables.
