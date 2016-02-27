@@ -570,6 +570,57 @@ isTopLevel exp program =
       _                       -> False
 
 
+-- Still needs to be rewritten to hand scopes created by case branches.
+--
+-- We care about the parent scope names for all the nested let/def assigns the
+-- LocId appears in--we don't care about let/def bodies.
+scopeNamesLocLiftedThrough : Exp -> Loc -> List Ident
+scopeNamesLocLiftedThrough newLetBody targetLoc =
+  let (targetLocId, _, ident) = targetLoc in
+  case scopeNamesLocLiftedThrough_ targetLocId [] newLetBody of
+    [] ->
+      []
+
+    scopeNames::[] ->
+      -- Last element may be the original identifier: if so, remove it.
+      case List.head (List.reverse scopeNames) of
+        Nothing ->
+          []
+
+        Just lastScopeName ->
+          if lastScopeName == ident
+          then Utils.removeLastElement scopeNames
+          else scopeNames
+
+    _ ->
+      Debug.crash <| "Found locId "++(toString targetLocId)++" more than once in the expression: "++(toString newLetBody)
+
+
+-- Returns array of matches (easiest to implement).
+-- Should only be at most one match, though.
+scopeNamesLocLiftedThrough_ targetLocId scopeNames exp =
+  case exp.val.e__ of
+    ELet _ _ _ pat assigns body _ ->
+      let scopeNames' =
+        case pat.val of
+          PVar _ ident _ -> scopeNames ++ [ident]
+          _              -> scopeNames
+      in
+      -- Ident should only be added to assigns. Otherwise you get lots of junk
+      -- names.
+      (scopeNamesLocLiftedThrough_ targetLocId scopeNames' assigns) ++
+      (scopeNamesLocLiftedThrough_ targetLocId scopeNames  body)
+
+    EConst _ _ (locId, _, _) _ ->
+       if locId == targetLocId
+       then [scopeNames]
+       else []
+
+    _ ->
+      let recurse exp = scopeNamesLocLiftedThrough_ targetLocId scopeNames exp in
+      List.concatMap recurse (childExps exp)
+
+
 identifiersSet : Exp -> Set.Set Ident
 identifiersSet exp =
   identifiersList exp

@@ -554,6 +554,11 @@ equationVals eqn =
     EqnVal val   -> [val]
     EqnOp _ eqns -> List.concatMap equationVals eqns
 
+
+equationLocs model eqn =
+  List.concatMap (Set.toList << (Sync.locsOfTrace model.syncOptions) << valToTrace) (equationVals eqn)
+
+
 featureEquation nodeId kind feature nodeAttrs =
   let eqnVal attr = EqnVal <| maybeFindAttr nodeId kind attr nodeAttrs in
   let eqnVal2     = EqnVal <| vConst (2, dummyTrace) in
@@ -983,8 +988,14 @@ upstate evt old = case debugLog "Event" evt of
           List.foldr
               (\(locId, frozen, ident) (usedNames, result) ->
                 let baseIdent = if ident == "" then "k"++(toString locId) else ident in
-                let baseIdentOrig  = baseIdent ++ "Orig" in
-                let baseIdentPrime = baseIdent ++ "Prime" in
+                let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough deepestCommonScope (locId, frozen, ident) in
+                let scopesAndBaseIdent = String.join "_" (scopeNamesLiftedThrough ++ [baseIdent]) in
+                let baseIdentOrig  =
+                  if scopesAndBaseIdent == baseIdent
+                  then baseIdent ++ "Orig"
+                  else scopesAndBaseIdent
+                in
+                let baseIdentPrime = scopesAndBaseIdent ++ "'" in
                 let identOrig  = nonCollidingName baseIdentOrig usedNames in
                 let identPrime = nonCollidingName baseIdentPrime usedNames in
                 (
@@ -1025,6 +1036,25 @@ upstate evt old = case debugLog "Event" evt of
               )
               (List.reverse locsetList)
         in
+        let selectedFeatureEquationsNamedWithScopes =
+          List.map
+              (\(featureName, eqn) ->
+                let featureLocs = equationLocs old eqn in
+                let scopeNamesLocsLiftedThrough =
+                  List.map
+                      (scopeNamesLocLiftedThrough deepestCommonScope)
+                      featureLocs
+                in
+                let commonScopeNamesLocsLiftedThrough =
+                  Utils.commonPrefix scopeNamesLocsLiftedThrough
+                in
+                let featureName' =
+                  String.join "_" (commonScopeNamesLocsLiftedThrough ++ [featureName])
+                in
+                (featureName', eqn)
+              )
+              selectedFeatureEquationsNamed
+        in
         let featureNamesWithExpressionStrs =
           let locIdToOrigName =
             Dict.fromList
@@ -1036,7 +1066,7 @@ upstate evt old = case debugLog "Event" evt of
                 locIdToOrigName
                 (LangParser2.substStrOf old.inputExp)
           in
-          List.map (Utils.mapSnd <| equationToLittle substStr) selectedFeatureEquationsNamed
+          List.map (Utils.mapSnd <| equationToLittle substStr) selectedFeatureEquationsNamedWithScopes
         in
         -- Remove expressions of only one term
         let significantFeatureNamesWithExpressionStrs =

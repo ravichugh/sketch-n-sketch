@@ -158,6 +158,10 @@ maybeRemoveFirst x ys = case ys of
              Nothing      -> Nothing
              Just (b', l) -> Just (b', (a,b) :: l)
 
+removeLastElement : List a -> List a
+removeLastElement list =
+  List.take ((List.length list)-1) list
+
 adjacentPairs : Bool -> List a -> List (a, a)
 adjacentPairs includeLast list = case list of
   [] -> []
