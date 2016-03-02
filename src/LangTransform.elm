@@ -1,3 +1,9 @@
+--
+-- LangTransform
+--
+-- Transformations of the code that do not change its output.
+--
+
 module LangTransform (simplify, removeExtraPostfixes) where
 
 import Set
@@ -10,6 +16,13 @@ import OurParser2
 import Utils
 
 
+-- Rename e.g. `x_orig_orig_orig` to `x_orig` (presuming there
+-- is no `x_orig_orig` nor `x_orig` but there is `x`.)
+--
+-- Since renamings could conflict if performed in batches,
+-- we rename one variable at a time and then re-evaluate
+-- the valid renamings, repeating until there are no more
+-- renamings to perform.
 removeExtraPostfixes : List String -> Exp -> Exp
 removeExtraPostfixes postfixes exp =
   let usedNames = identifiersSet exp in
@@ -73,6 +86,7 @@ simplify exp =
     simplify simplified
 
 
+removeUnusedVars : Exp -> Exp
 removeUnusedVars exp =
   let remover e__ =
     case e__ of
@@ -129,6 +143,9 @@ removeUnusedVars exp =
 
 
 -- Single var assignment and one-to-one list assignments.
+--
+-- Returns [(identifer, assignedExpression), ... ]
+simpleIdentsAndAssigns : Pat -> Exp -> List (Ident, Exp)
 simpleIdentsAndAssigns letPat letAssign =
   case (letPat.val, letAssign.val.e__) of
     -- Simple assignment.
@@ -152,7 +169,9 @@ simpleIdentsAndAssigns letPat letAssign =
     _ ->
       []
 
+
 -- Inline single-use variables that are merely assigned to another variable.
+inlineTrivialRenamings : Exp -> Exp
 inlineTrivialRenamings exp =
   let inlineReplaceIfTrivialRename targetIdent newExp e__ =
     case e__ of
@@ -226,6 +245,25 @@ inlineTrivialRenamings exp =
   mapExpViaExp__ inliner exp
 
 
+-- If a variable is merely a renaming of a variable in a higher scope, all its
+-- occurances are replace by the name from the higher scope.
+--
+-- Example:
+--
+-- (let x 6
+-- (let redundant x
+--   (+ redundant 2)))
+--
+-- ...becomes...
+--
+-- (let x 6
+-- (let redundant x
+--   (+ x 2)))
+--
+-- The `redundant` variable is now unsused and can be removed with
+-- removeUnusedVars.
+--
+changeRenamedVarsToOuter : Exp -> Exp
 changeRenamedVarsToOuter exp =
   changeRenamedVarsToOuter_ Dict.empty exp
 
