@@ -104,10 +104,10 @@ type MouseMode
       (Maybe ( Code                        -- the program upon initial click
              , MouseTrigger (Exp, Val, RootedIndexedTree, Widgets) ))
       -- may add info for hilites later
-  | MouseDrawNew ShapeKind (List (Int, Int))
+  | MouseDrawNew ShapeKind (List (KeysDown, (Int, Int)))
       -- invariant on length n of list of points:
       --   for line/rect/ellipse, n == 0 or n == 2
-      --   for polygon,           n >= 0
+      --   for polygon/path,      n >= 0
       --   for helper dot,        n == 0 or n == 1
       --   for lambda,            n == 0 or n == 2
 
@@ -139,6 +139,8 @@ type ToolType
 type Caption
   = Hovering (Int, ShapeKind, Zone)
   | LangError String
+
+type alias KeysDown = List Char.KeyCode
 
 type Event = CodeUpdate String -- TODO this doesn't help with anything
            | SelectObject Int ShapeKind Zone
@@ -172,7 +174,7 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | ToggleBasicCodeBox
            | StartResizingMid
            | Undo | Redo
-           | KeysDown (List Char.KeyCode)
+           | KeysDown KeysDown
            | WindowDimensions (Int, Int)
            | Noop
            | UpdateFieldContents DialogInfo

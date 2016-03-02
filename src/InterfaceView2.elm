@@ -726,6 +726,13 @@ makeZonesBox model options id l =
     (width, height) = (right - left, bot - top)
   in
   let (cx, cy) = (left + width/2, top + height/2) in
+  let zRot =
+    let r = rotZoneDelta + (height/2) in
+    zoneRotate options.addRot id "BOX" (cx,cy) r (maybeTransformCmds l)
+  in
+  let zColor =
+    zoneColor options.addColor id "BOX" left top (maybeColorNumAttr "fill" l)
+  in
   let zonesSelect =
        zoneSelectLine model options.addSelect (id, LangSvg.boxWidth) (left, cy) (right, cy)
     ++ zoneSelectLine model options.addSelect (id, LangSvg.boxHeight) (cx, top) (cx, bot)
@@ -734,8 +741,6 @@ makeZonesBox model options id l =
     ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxBLX], [LangSvg.boxBLY]) left bot
     ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxBRX], [LangSvg.boxBRY]) right bot
     ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxCX], [LangSvg.boxCY]) cx cy
-    --    zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxLeft], [LangSvg.boxTop]) left top
-    -- ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxRight], [LangSvg.boxBottom]) right bot
   in
     [ mkInterior "Interior" left top width height
     , mkPoint "TopLeftCorner" left top
@@ -747,7 +752,9 @@ makeZonesBox model options id l =
     , mkPoint "TopEdge" (left + width / 2) top
     , mkPoint "BotEdge" (left + width / 2) bot
     ] ++ zonesSelect
-    -- TODO rot, color zones, styles of interior and point zones
+      ++ zRot
+      ++ zColor
+    -- TODO styles of interior and point zones
 
 -- makeZonesCircle options id l =
 makeZonesCircle model options id l =
@@ -818,7 +825,7 @@ makeZonesPoly model options shape id l =
   else                         zLines ++ zPts ++ zRot ++ zSelect
 
 makeZonesPath : Bool -> String -> Int -> List LangSvg.Attr -> List Svg.Svg
-makeZonesPath showZones shape id l =
+makeZonesPath showBasic shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "path") in
   let transform = maybeTransformAttr l in
   let cmds = fst <| LangSvg.toPath <| Utils.find_ l "d" in
@@ -833,7 +840,7 @@ makeZonesPath showZones shape id l =
       LangSvg.CmdSQ  s pt1 pt2      -> pt1 +++ (pt2 +++ acc)
       LangSvg.CmdA   s a b c d e pt -> pt +++ acc) [] cmds
   in
-  zonePoints id shape showZones transform pts
+  zonePoints id shape showBasic transform pts
 
 
 --------------------------------------------------------------------------------
@@ -845,6 +852,7 @@ drawNewShape model =
     MouseDrawNew "rect"    [pt2, pt1]    -> drawNewRect model.keysDown pt2 pt1
     MouseDrawNew "ellipse" [pt2, pt1]    -> drawNewEllipse model.keysDown pt2 pt1
     MouseDrawNew "polygon" (ptLast::pts) -> drawNewPolygon ptLast pts
+    MouseDrawNew "path" (ptLast::pts)    -> drawNewPath ptLast pts
     MouseDrawNew "DOT" [pt]              -> drawNewHelperDot pt
     MouseDrawNew "LAMBDA"  [pt2, pt1]    -> drawNewRect model.keysDown pt2 pt1
     _                                    -> []
@@ -854,6 +862,7 @@ defaultStroke         = LangSvg.attr "stroke" "gray"
 defaultStrokeWidth    = LangSvg.attr "stroke-width" "5"
 defaultFill           = LangSvg.attr "fill" "gray"
 dotFill               = LangSvg.attr "fill" "red"
+dotFill2              = LangSvg.attr "fill" "orange"
 dotSize               = LangSvg.attr "r" (toString drawNewPolygonDotSize)
 
 drawNewPolygonDotSize = 10
@@ -876,7 +885,7 @@ squareBoundingBox (x2,y2) (x1,y1) =
 slicesPerQuadrant = 2 -- can toggle this parameter
 radiansPerSlice   = pi / (2 * slicesPerQuadrant)
 
-snapLine keysDown (x2,y2) (x1,y1) =
+snapLine keysDown (_,(x2,y2)) (_,(x1,y1)) =
   if keysDown == Keys.shift then
     let (dx, dy) = (x2 - x1, y2 - y1) in
     let angle = atan2 (toFloat (-dy)) (toFloat dx) in
@@ -888,9 +897,10 @@ snapLine keysDown (x2,y2) (x1,y1) =
   else
     (x2, y2)
 
-drawNewLine model (x2,y2) (x1,y1) =
+drawNewLine model click2 click1 =
+  let ((_,(x2,y2)),(_,(x1,y1))) = (click2, click1) in
   let stroke = if model.toolType == HelperLine then guideStroke else defaultStroke in
-  let (xb, yb) = snapLine model.keysDown (x2,y2) (x1,y1) in
+  let (xb, yb) = snapLine model.keysDown click2 click1 in
   let line =
     svgLine [
         stroke , defaultStrokeWidth , defaultOpacity
@@ -900,7 +910,7 @@ drawNewLine model (x2,y2) (x1,y1) =
   in
   [ line ]
 
-drawNewRect keysDown pt2 pt1 =
+drawNewRect keysDown (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) =
     if keysDown == Keys.shift
     then squareBoundingBox pt2 pt1
@@ -915,7 +925,7 @@ drawNewRect keysDown pt2 pt1 =
   in
   [ rect ]
 
-drawNewEllipse keysDown pt2 pt1 =
+drawNewEllipse keysDown (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) =
     if keysDown == Keys.shift
     then squareBoundingBox pt2 pt1
@@ -933,7 +943,8 @@ drawNewEllipse keysDown pt2 pt1 =
   in
   [ ellipse ]
 
-drawNewPolygon ptLast points =
+drawNewPolygon (_,ptLast) keysAndPoints =
+  let points = List.map snd keysAndPoints in
   let (xInit,yInit) = Utils.last_ (ptLast::points) in
   let dot =
     svgCircle [
@@ -958,6 +969,39 @@ drawNewPolygon ptLast points =
           ] ]
    in
    dot :: maybeShape
+
+drawNewPath (_,ptLast) keysAndPoints =
+  let points = List.map snd keysAndPoints in
+  let dot fill (cx,cy) =
+    svgCircle [
+        dotSize , fill , defaultOpacity
+      , LangSvg.attr "cx" (toString cx)
+      , LangSvg.attr "cy" (toString cy)
+      ] in
+  let redDot = [dot dotFill (Utils.last_ (ptLast::points))] in
+  let yellowDot =
+    case points of
+      [] -> []
+      _  -> [dot dotFill2 ptLast]
+  in
+  -- TODO for now, just drawing a polygon like drawNewPolygon
+  let maybeShape =
+    case (ptLast::points) of
+      [_] -> []
+      _ ->
+        -- don't need to reverse, but keeping it same as resulting shape
+        let polyPoints = List.reverse (ptLast::points) in
+        let sPoints =
+          Utils.spaces <|
+            List.map (\(x,y) -> String.join "," (List.map toString [x,y]))
+                     polyPoints
+        in
+        [ svgPolygon [
+            defaultStroke , defaultStrokeWidth , defaultFill , defaultOpacity
+          , LangSvg.attr "points" sPoints
+          ] ]
+   in
+   redDot ++ yellowDot ++ maybeShape
 
 -- TODO this doesn't appear right away
 -- (dor does initial poly, which appears only on MouseUp...)
@@ -1154,16 +1198,18 @@ mkSvg hilite svg =
                   ] ]
      [ svg ]
 
-twoButtons w h b1 b2 =
-  let delta = 3 in
-  let wHalf = (w//2 - delta) in
-  GE.flow GE.right [ b1 wHalf h, GE.spacer (2 * delta) h, b2 wHalf h ]
+flowRight : Int -> Int -> List (Float, Int -> Int -> GE.Element) -> GE.Element
+flowRight w h l =
+  let delta = 6 in
+  let sep = GE.spacer delta h in
+  let n = toFloat (List.length l) in
+  let availableWidth = toFloat w - (n-1) * delta in
+  let elts = List.map (\(pct, f) -> f (round (pct * availableWidth)) h) l in
+  GE.flow GE.right (List.intersperse sep elts)
 
-threeButtons w h b1 b2 b3 =
-  let delta = 3 in
-  let sep   = GE.spacer (2 * delta) h in
-  let w_    = (w//3 - delta) in
-  GE.flow GE.right [ b1 w_ h, sep, b2 w_ h, sep, b3 w_ h ]
+twoButtons w h b1 b2 = flowRight w h [(1/2, b1), (1/2, b2)]
+
+threeButtons w h b1 b2 b3 = flowRight w h [(1/3, b1), (1/3, b2), (1/3, b3)]
 
 widgetsExampleNavigation w h model =
   [ twoButtons w h (codeButton model) (canvasButton model)
@@ -1211,7 +1257,9 @@ widgetsTools w h model =
   , twoButtons w h
       (toolButton model HelperLine)
       (toolButton model HelperDot)
-  , toolButton model (Lambda "star") w h
+  , twoButtons w h
+      (toolButton model Path)
+      (toolButton model (Lambda "star"))
   ]
 
 widgetsToolExtras w h model =
@@ -1578,7 +1626,7 @@ toolButton model tt w h =
     -- Rect -> "R"
     -- Oval -> "E"
     -- Poly -> "P"
-    Path -> "-"
+    Path -> "Path"
     Text -> "-"
     HelperLine -> "(Rule)"
     HelperDot -> "(Dot)"
