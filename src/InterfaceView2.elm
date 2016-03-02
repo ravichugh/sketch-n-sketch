@@ -726,6 +726,13 @@ makeZonesBox model options id l =
     (width, height) = (right - left, bot - top)
   in
   let (cx, cy) = (left + width/2, top + height/2) in
+  let zRot =
+    let r = rotZoneDelta + (height/2) in
+    zoneRotate options.addRot id "BOX" (cx,cy) r (maybeTransformCmds l)
+  in
+  let zColor =
+    zoneColor options.addColor id "BOX" left top (maybeColorNumAttr "fill" l)
+  in
   let zonesSelect =
        zoneSelectLine model options.addSelect (id, LangSvg.boxWidth) (left, cy) (right, cy)
     ++ zoneSelectLine model options.addSelect (id, LangSvg.boxHeight) (cx, top) (cx, bot)
@@ -734,8 +741,6 @@ makeZonesBox model options id l =
     ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxBLX], [LangSvg.boxBLY]) left bot
     ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxBRX], [LangSvg.boxBRY]) right bot
     ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxCX], [LangSvg.boxCY]) cx cy
-    --    zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxLeft], [LangSvg.boxTop]) left top
-    -- ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxRight], [LangSvg.boxBottom]) right bot
   in
     [ mkInterior "Interior" left top width height
     , mkPoint "TopLeftCorner" left top
@@ -747,7 +752,9 @@ makeZonesBox model options id l =
     , mkPoint "TopEdge" (left + width / 2) top
     , mkPoint "BotEdge" (left + width / 2) bot
     ] ++ zonesSelect
-    -- TODO rot, color zones, styles of interior and point zones
+      ++ zRot
+      ++ zColor
+    -- TODO styles of interior and point zones
 
 -- makeZonesCircle options id l =
 makeZonesCircle model options id l =

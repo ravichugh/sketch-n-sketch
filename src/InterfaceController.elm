@@ -288,6 +288,8 @@ addRectToCodeAndRun old pt2 pt1 =
   if old.keysDown == Keys.shift then addSquare old pt2 pt1
   else addRect old pt2 pt1
 
+{- versions of addRect/addSquare using primitive rect:
+
 addRect old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
   let (x, y, w, h) = (xa, ya, xb - xa, yb - ya) in
@@ -305,19 +307,26 @@ addSquare old (_,pt2) (_,pt1) =
     , makeLet ["rot"] [eConst 0 dummyLoc] ]
     (eVar0 "rotatedRect")
     (eConst 50 dummyLoc :: List.map eVar ["x","y","side","side","rot"])
-
-{- bounding box version...
-
-addRectToCodeAndRun old (x2,y2) (x1,y1) =
-  let
-    (xa, xb)     = (min x1 x2, max x1 x2)
-    (ya, yb)     = (min y1 y2, max y1 y2)
-  in
-  addToCodeAndRun "rect" old
-    [ makeLet ["x","y","xw","yh","rot"] (makeInts [xa,ya,xb,yb,0]) ]
-    (eVar0 "rectangle")
-    (eConst 100 dummyLoc :: List.map eVar ["x","y","xw","yh","rot"])
 -}
+
+addRect old (_,pt2) (_,pt1) =
+  let (xMin, xMax, yMin, yMax) = View.boundingBox pt2 pt1 in
+  addToCodeAndRun "rect" old
+    [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
+    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
+    , makeLet ["rot"] [eConst 0 dummyLoc] ]
+    (eVar0 "rectangle")
+    [eConst 100 dummyLoc, eStr "black", eConst 0 dummyLoc, eVar "rot", eVar "bounds"]
+
+addSquare old (_,pt2) (_,pt1) =
+  let (xMin, xMax, yMin, _) = View.boundingBox pt2 pt1 in
+  let side = (xMax - xMin) in
+  addToCodeAndRun "square" old
+    [ makeLet ["left","top","side"] (makeInts [xMin,yMin,side])
+    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","(+ left side)","(+ top side)"]) Nothing]
+    , makeLet ["rot"] [eConst 0 dummyLoc] ]
+    (eVar0 "rectangle")
+    [eConst 50 dummyLoc, eStr "black", eConst 0 dummyLoc, eVar "rot", eVar "bounds"]
 
 addEllipseToCodeAndRun old pt2 pt1 =
   if old.keysDown == Keys.shift then addCircle old pt2 pt1

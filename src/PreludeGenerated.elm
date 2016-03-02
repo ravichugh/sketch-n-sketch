@@ -653,11 +653,6 @@ prelude =
 
 ; Shapes via Bounding Boxes
 
-(def rectangle (\\(fill x y xw yh rot)
-  (let [w h] [(- xw x) (- yh y)]
-  (let [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))]
-    (rotateAround rot cx cy (rect fill x y w h))))))
-
 (def box (\\(bounds fill stroke strokeWidth)
   (let [x y xw yh] bounds
   ['BOX'
@@ -665,6 +660,11 @@ prelude =
       ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth]
     ] []
   ])))
+
+(def rectangle (\\(fill stroke strokeWidth rot bounds)
+  (let [left top right bot] bounds
+  (let [cx cy] [(+ left (/ (- right left) 2!)) (+ top (/ (- bot top) 2!))]
+    (rotateAround rot cx cy (box bounds fill stroke strokeWidth))))))
 
 (def groupBox (\\bounds
   (let [left top right bot] bounds
