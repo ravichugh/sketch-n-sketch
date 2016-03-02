@@ -47,8 +47,7 @@ window.initializers.push(function (elmRuntime) {
   var editor = ace.edit("editor");
   editor.$blockScrolling = Infinity;
   editor.setTheme("ace/theme/chrome");
-  // editor.setFontSize(14);
-  editor.setFontSize(20);
+  editor.setFontSize(14);
   editor.getSession().setMode("ace/mode/little");
 
   //If we reloaded from a crash, then we should do a few things differently:
