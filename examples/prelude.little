@@ -663,6 +663,20 @@
   (let [cx cy] [(+ left (/ (- right left) 2!)) (+ top (/ (- bot top) 2!))]
     (rotateAround rot cx cy (box bounds fill stroke strokeWidth))))))
 
+; TODO take rot
+(def oval (\(fill stroke strokeWidth bounds)
+  (let [left top right bot] bounds
+  (let [rx ry] [(/ (- right left) 2!) (/ (- bot top) 2!)]
+  (let [cx cy] [(+ left rx) (+ top ry)]
+  (let ell ; TODO change def ellipse to take stroke/strokeWidth
+    ['ellipse'
+       [ ['cx' cx] ['cy' cy] ['rx' rx] ['ry' ry]
+         ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ]
+       []]
+  [ (ghost (box bounds 'transparent' 'darkblue' 1))
+    ell
+  ]))))))
+
 (def groupBox (\bounds
   (let [left top right bot] bounds
   (let [width height] [(- right left) (- bot top)]

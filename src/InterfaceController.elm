@@ -332,6 +332,8 @@ addEllipseToCodeAndRun old pt2 pt1 =
   if old.keysDown == Keys.shift then addCircle old pt2 pt1
   else addEllipse old pt2 pt1
 
+{- versions of addEllipse/addCircle using primitive ellipse:
+
 addEllipse old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
   let (rx, ry) = ((xb-xa)//2, (yb-ya)//2) in
@@ -346,9 +348,27 @@ addCircle old (_,pt2) (_,pt1) =
   let r = (xb-xa)//2 in
   let (cx, cy) = (xa + r, ya + r) in
   addToCodeAndRun "circle" old
-    [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r]) ]
+    [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r])
     (eVar0 "ellipse")
     (eConst 250 dummyLoc :: List.map eVar ["cx","cy","r","r"])
+-}
+
+addEllipse old (_,pt2) (_,pt1) =
+  let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
+  addToCodeAndRun "ellipse" old
+    [ makeLet ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
+    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing] ]
+    (eVar0 "oval")
+    [eConst 200 dummyLoc, eStr "black", eConst 0 dummyLoc, eVar "bounds"]
+
+addCircle old (_,pt2) (_,pt1) =
+  let (left, right, top, _) = View.squareBoundingBox pt2 pt1 in
+  addToCodeAndRun "circle" old
+    [ makeLet ["left", "top", "r"] (makeInts [left, top, (right-left)//2])
+    , makeLet ["bounds"]
+        [eList [eVar0 "left", eVar "top", eVar "(+ left (* 2! r))", eVar "(+ top (* 2! r))"] Nothing] ]
+    (eVar0 "oval")
+    [eConst 250 dummyLoc, eStr "black", eConst 0 dummyLoc, eVar "bounds"]
 
 addHelperDotToCodeAndRun old (_,(cx,cy)) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)
@@ -505,6 +525,7 @@ makeNewShapeDef model newShapeKind name locals func args =
       [] ->
         let multi = -- check if (func args) returns List SVG or SVG
           case model.toolType of
+            Oval -> True
             Poly -> True
             Path -> True
             Lambda _ -> True
