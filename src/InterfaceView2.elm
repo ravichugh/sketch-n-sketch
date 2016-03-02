@@ -533,7 +533,7 @@ colorPointNotSelected   = "orange"
 colorLineSelected       = "blue"
 colorLineNotSelected    = "red"
 
-strokeWidth             = LangSvg.attr "stroke-width" "10"
+strokeWidth             = LangSvg.attr "stroke-width" "4"
 
 type alias NodeIdAndAttrName     = (LangSvg.NodeId, String)
 type alias NodeIdAndTwoAttrNames = (LangSvg.NodeId, String, String)
@@ -1265,7 +1265,8 @@ widgetsToolExtras w h model =
 -}
     Cursor       -> if model.showZones == showZonesSelect
                     then gap :: (zoneButtons model w h)
-                             ++ [ gap, twoButtons w h relateAttrsButton digHoleButton ]
+                             ++ [ digHoleButton w h ]
+                             -- ++ [ gap, twoButtons w h relateAttrsButton digHoleButton ]
                              -- ++ [ relateAttrsButton w h, digHoleButton w h]
                     else gap :: (zoneButtons model w h)
     SelectShapes -> [ gap , relateShapesButton w h ]
@@ -1757,7 +1758,7 @@ modeButton model =
 cleanButton model =
   let disabled = case model.mode of Live _ -> False
                                     _      -> True in
-  simpleEventButton_ disabled CleanCode "Clean" "Clean" "Clean Up"
+  simpleEventButton_ disabled WaitClean "Clean" "Clean" "Clean Up"
 
 orientationButton w h model =
     let text = "[Orientation] " ++ toString model.orient

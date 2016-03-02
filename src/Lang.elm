@@ -328,7 +328,6 @@ mapExp f e =
   let recurse = mapExp f in
   let wrap e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
   let wrapAndMap = f << wrap in
-  -- let g e__ = P.WithInfo (Exp_ (f e__) e.val.eid) e.start e.end in
   case e.val.e__ of
     EConst _ _ _ _         -> f e
     EBase _ _              -> f e
@@ -337,11 +336,12 @@ mapExp f e =
     EApp ws1 e1 es ws2     -> wrapAndMap (EApp ws1 (recurse e1) (List.map recurse es) ws2)
     EOp ws1 op es ws2      -> wrapAndMap (EOp ws1 op (List.map recurse es) ws2)
     EList ws1 es ws2 m ws3 -> wrapAndMap (EList ws1 (List.map recurse es) ws2 (Utils.mapMaybe recurse m) ws3)
-    EIndList ws1 rs ws2    -> let rangeRecurse r_ = case r_ of
-                        Interval e1 ws e2 -> Interval (recurse e1) ws (recurse e2)
-                        Point e1          -> Point (recurse e1)
-                      in
-                      wrapAndMap (EIndList ws1 (List.map (mapValField rangeRecurse) rs) ws2)
+    EIndList ws1 rs ws2    ->
+      let rangeRecurse r_ = case r_ of
+        Interval e1 ws e2 -> Interval (recurse e1) ws (recurse e2)
+        Point e1          -> Point (recurse e1)
+      in
+      wrapAndMap (EIndList ws1 (List.map (mapValField rangeRecurse) rs) ws2)
     EIf ws1 e1 e2 e3 ws2      -> wrapAndMap (EIf ws1 (recurse e1) (recurse e2) (recurse e3) ws2)
     ECase ws1 e1 branches ws2 ->
       let newE1 = recurse e1 in
@@ -402,15 +402,16 @@ flattenExpTree exp =
   exp :: List.concatMap flattenExpTree (childExps exp)
 
 -- For each node for which `predicate` returns True, return it and its ancestors
+-- For each matching node, ancestors appear in order: root first, match last.
 findAllWithAncestors : (Exp -> Bool) -> Exp -> List (List Exp)
 findAllWithAncestors predicate exp =
-  findAllWithAncestorsRec predicate [] exp
+  findAllWithAncestors_ predicate [] exp
 
-findAllWithAncestorsRec : (Exp -> Bool) -> List Exp -> Exp -> List (List Exp)
-findAllWithAncestorsRec predicate ancestors exp =
+findAllWithAncestors_ : (Exp -> Bool) -> List Exp -> Exp -> List (List Exp)
+findAllWithAncestors_ predicate ancestors exp =
   let ancestorsAndThis = ancestors ++ [exp] in
   let thisResult       = if predicate exp then [ancestorsAndThis] else [] in
-  let recurse exp      = findAllWithAncestorsRec predicate ancestorsAndThis exp in
+  let recurse exp      = findAllWithAncestors_ predicate ancestorsAndThis exp in
   thisResult ++ List.concatMap recurse (childExps exp)
 
 childExps : Exp -> List Exp
@@ -552,40 +553,194 @@ isScope maybeParent exp =
         _                            -> isObviouslyScope
     Nothing -> isObviouslyScope
 
+
+-- Is the expression in the body of only defs/comments/options?
+--
+-- The "top level" is a single path on the tree, so walk it and look
+-- for the target expression.
+isTopLevel : Exp -> Exp -> Bool
+isTopLevel exp program =
+  if exp == program then
+    True
+  else
+    case program.val.e__ of
+      ELet _ Def _ _ _ body _ -> isTopLevel exp body
+      EComment _ _ e          -> isTopLevel exp e
+      EOption _ _ _ _ e       -> isTopLevel exp e
+      _                       -> False
+
+
+-- Still needs to be rewritten to hand scopes created by case branches.
+--
+-- We care about the parent scope names for all the nested let/def assigns the
+-- LocId appears in--we don't care about let/def bodies.
+scopeNamesLocLiftedThrough : Exp -> Loc -> List Ident
+scopeNamesLocLiftedThrough newLetBody targetLoc =
+  let (targetLocId, _, ident) = targetLoc in
+  case scopeNamesLocLiftedThrough_ targetLocId [] newLetBody of
+    [] ->
+      []
+
+    scopeNames::[] ->
+      -- Last element may be the original identifier: if so, remove it.
+      case List.head (List.reverse scopeNames) of
+        Nothing ->
+          []
+
+        Just lastScopeName ->
+          if lastScopeName == ident
+          then Utils.removeLastElement scopeNames
+          else scopeNames
+
+    _ ->
+      Debug.crash <| "Found locId "++(toString targetLocId)++" more than once in the expression: "++(toString newLetBody)
+
+
+-- Returns array of matches (easiest to implement).
+-- Should only be at most one match, though.
+scopeNamesLocLiftedThrough_ targetLocId scopeNames exp =
+  case exp.val.e__ of
+    ELet _ _ _ pat assigns body _ ->
+      let scopeNames' =
+        case pat.val of
+          PVar _ ident _ -> scopeNames ++ [ident]
+          _              -> scopeNames
+      in
+      -- Ident should only be added to assigns. Otherwise you get lots of junk
+      -- names.
+      (scopeNamesLocLiftedThrough_ targetLocId scopeNames' assigns) ++
+      (scopeNamesLocLiftedThrough_ targetLocId scopeNames  body)
+
+    EConst _ _ (locId, _, _) _ ->
+       if locId == targetLocId
+       then [scopeNames]
+       else []
+
+    _ ->
+      let recurse exp = scopeNamesLocLiftedThrough_ targetLocId scopeNames exp in
+      List.concatMap recurse (childExps exp)
+
+
 identifiersSet : Exp -> Set.Set Ident
 identifiersSet exp =
+  identifiersList exp
+  |> Set.fromList
+
+
+identifiersSetInPat : Pat -> Set.Set Ident
+identifiersSetInPat pat =
+  identifiersListInPat pat
+  |> Set.fromList
+
+
+identifiersList : Exp -> List Ident
+identifiersList exp =
   let folder e__ acc =
     case e__ of
       EVar _ ident ->
-        Set.insert ident acc
+        ident::acc
 
       EFun _ pats _ _ ->
-        List.map identifiersSetInPat pats |>
-          List.foldl Set.union acc
+        (List.concatMap identifiersListInPat pats) ++ acc
 
       ECase _ _ branches _ ->
         let pats = branchPats branches in
-        List.map identifiersSetInPat pats |>
-          List.foldl Set.union acc
+        (List.concatMap identifiersListInPat pats) ++ acc
 
       ELet _ _ _ pat _ _ _ ->
-        Set.union acc (identifiersSetInPat pat)
+        (identifiersListInPat pat) ++ acc
 
       _ ->
         acc
   in
   foldExpViaE__
     folder
-    Set.empty
+    []
     exp
 
-identifiersSetInPat : Pat -> Set.Set Ident
-identifiersSetInPat pat =
+identifiersListInPat : Pat -> List Ident
+identifiersListInPat pat =
   case pat.val of
-    PVar _ ident _              -> Set.singleton ident
-    PList _ pats _ (Just pat) _ -> List.foldl Set.union Set.empty <| List.map identifiersSetInPat (pat::pats)
-    PList _ pats _ Nothing    _ -> List.foldl Set.union Set.empty <| List.map identifiersSetInPat pats
-    _                           -> Set.empty
+    PVar _ ident _              -> [ident]
+    PList _ pats _ (Just pat) _ -> List.concatMap identifiersListInPat (pat::pats)
+    PList _ pats _ Nothing    _ -> List.concatMap identifiersListInPat pats
+    _                           -> []
+
+
+identifierCounts : Exp -> Dict.Dict Ident Int
+identifierCounts exp =
+  List.foldl
+    (\ident counts ->
+      Dict.update
+        ident
+        (\old ->
+          case old of
+            Just count -> Just (count + 1)
+            Nothing    -> Just 1
+        )
+        counts
+    )
+    Dict.empty
+    (identifiersList exp)
+
+
+renameIdentifierInPat old new pat =
+  let recurse = renameIdentifierInPat old new in
+  let recurseList = List.map recurse in
+  let pat_' =
+    case pat.val of
+      PVar ws ident wd ->
+        if ident == old
+        then PVar ws new wd
+        else pat.val
+
+      PList ws1 pats ws2 Nothing ws3 ->
+        PList ws1 (recurseList pats) ws2 Nothing ws3
+
+      PList ws1 pats ws2 (Just pRest) ws3 ->
+        PList ws1 (recurseList pats) ws2 (Just (recurse pRest)) ws3
+
+      _ ->
+        pat.val
+  in
+  { pat | val = pat_' }
+
+
+renameIdentifierInPats old new pats =
+  List.map
+    (renameIdentifierInPat old new)
+    pats
+
+
+renameIdentifier : Ident -> Ident -> Exp -> Exp
+renameIdentifier old new exp =
+  let exp__Renamer e__ =
+    case e__ of
+      EVar ws ident ->
+        if ident == old
+        then EVar ws new
+        else e__
+
+      EFun ws1 pats body ws2 ->
+        EFun ws1 (renameIdentifierInPats old new pats) body ws2
+
+      ECase ws1 e1 branches ws2 ->
+        let branches' =
+          List.map
+              (mapValField (\(Branch_ bws1 pat ei bws2) -> Branch_ bws1 (renameIdentifierInPat old new pat) ei bws2))
+              branches
+        in
+        ECase ws1 e1 branches' ws2
+
+      ELet ws1 kind rec pat assign body ws2 ->
+        ELet ws1 kind rec (renameIdentifierInPat old new pat) assign body ws2
+
+      _ ->
+        e__
+  in
+  mapExpViaExp__
+    exp__Renamer
+    exp
 
 -----------------------------------------------------------------------------
 -- Lang Options

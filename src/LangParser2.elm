@@ -156,7 +156,7 @@ unwrapChars = List.map .val << .val
 isAlpha c        = Char.isLower c || Char.isUpper c
 isAlphaNumeric c = Char.isLower c || Char.isUpper c || Char.isDigit c
 isWhitespace c   = c == ' ' || c == '\n' || c == '\t'
-isIdentChar c    = isAlphaNumeric c || c == '_'
+isIdentChar c    = isAlphaNumeric c || c == '_' || c == '\''
 isDelimiter c    = String.any ((==) c) "[]{}()|"
 isSymbol c       = not (isAlphaNumeric c || isWhitespace c || isDelimiter c)
 

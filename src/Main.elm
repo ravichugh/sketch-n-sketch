@@ -87,6 +87,8 @@ port aceInTheHole =
               -- 'poke' Ace, rerendering if necessary
               Model.WaitRun -> True
               Model.WaitSave _ -> True
+              Model.WaitClean -> True
+              Model.MultiEvent [ _, Model.CleanCode ] -> True
               Model.WaitCodeBox -> True
               Model.MousePos _ -> True
 --              Model.KeysDown _ -> False
@@ -119,6 +121,7 @@ port aceInTheHole =
     in
         Signal.map fst
                       <| Signal.foldp packageModel initAceCodeBoxInfo
+                      -- <| Signal.map (\(m, e) -> let _ = Debug.log "Ace Event:" e in (m,e))
                       <| Signal.filter
                             (\a -> (not (fst a).basicCodeBox
                                     || snd a == Model.ToggleBasicCodeBox

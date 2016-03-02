@@ -158,6 +158,10 @@ maybeRemoveFirst x ys = case ys of
              Nothing      -> Nothing
              Just (b', l) -> Just (b', (a,b) :: l)
 
+removeLastElement : List a -> List a
+removeLastElement list =
+  List.take ((List.length list)-1) list
+
 adjacentPairs : Bool -> List a -> List (a, a)
 adjacentPairs includeLast list = case list of
   [] -> []
@@ -215,6 +219,11 @@ fromOk_ = fromOk ""
 justGet k d = fromJust_ "Utils.justGet" <| Dict.get k d
 
 justGet_ s k d = fromJust_ ("Utils.justGet " ++ s) <| Dict.get k d
+
+getWithDefault key default dict =
+  case Dict.get key dict of
+    Just val -> val
+    Nothing -> default
 
 head_ = fromJust_ "Utils.head_" << List.head
 tail_ = fromJust_ "Utils.tail_" << List.tail

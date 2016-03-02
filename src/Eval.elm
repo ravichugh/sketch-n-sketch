@@ -146,6 +146,8 @@ eval env e =
           strPos e1.start ++
           "mutually recursive functions (i.e. letrec [...] [...] e) \
            not yet implemented"
+           -- Implementation also requires modifications to LangTransform.simply
+           -- so that clean up doesn't prune the funtions.
       _ ->
         errorMsg <| strPos e.start ++ "bad ELet"
 

@@ -6,18 +6,18 @@ var TextHighlightRules = require("./text_highlight_rules").TextHighlightRules;
 
 var LittleHighlightRules = function() {
     var builtinFunctions = "if|pi|cos|sin|arccos|arcsin|floor|ceiling|round|toStringid|always|compose|fst|len|map|map2|foldl|foldr|append|concat|concatMap|cartProd|zip|nil|cons|snoc|hd|tl|reverse|range|list0N|list1N|repeat|intermingle|mult|minus|div|neg|not|implies|clamp|joinStrings|concatStrings|spaces|delimit|parens|circle|ring|ellipse|rect|square|line|polygon|polyline|path|text|addAttr|rectCenter|square|squareCenter|circle_|ellipse_|rect_|square_|line_|polygon_|path_|updateCanvas|twoPi|halfPi|nPointsOnUnitCircle|nPointsOnCircle|nStar|zones|hideZonesTail|basicZonesTail|hSlider_|hSlider|button_|button|rotate";
-    
+
     // regexp must not have capturing parentheses. Use (?:) instead.
     // regexps are ordered -> the first match is used
 
-this.$rules = 
+this.$rules =
         {
     "start": [
         {
             token : "comment",
             regex : ";.*$"
         },
-        { 
+        {
             regex : /\(/,
             onMatch : function(value, state, stack) {
                 stack.push("start");
@@ -42,7 +42,7 @@ this.$rules =
         },
         {
             token : "variable",
-            regex : /\w+/
+            regex : /\w[\w']*/
         },
         {
             token : "string",
@@ -82,12 +82,12 @@ this.$rules =
         },
         {
             token : ["function.buildin.little", "text", "entity.name.function.little"],
-            regex: "(?:\\b(?:(" + builtinFunctions + "))\\b)(\\s+)((?:\\w)*)",
+            regex: "(?:\\b(?:(" + builtinFunctions + "))\\b)(\\s+)(\\w[\\w']*)?",
             next : "start"
         },
         {
             token : "function.little",
-            regex: /(?:\w+)/,
+            regex: /(?:\w[\w']*)/,
             next : "start"
         },
     ],
@@ -107,7 +107,7 @@ this.$rules =
         },
         {
             token : "variable.parameter",
-            regex : /\w+/,
+            regex : /\w[\w']*/,
             next  : "start"
         }
     ],
@@ -116,10 +116,10 @@ this.$rules =
             token : "paren.rparen",
             regex : /\)/,
             next : "start"
-        },  
+        },
         {
             token : "variable.parameter",
-            regex : /\w+/
+            regex : /\w[\w']*/
         }
     ],
     "pattern" : [
@@ -152,7 +152,7 @@ this.$rules =
         },
         {
             token : "variable.parameter",
-            regex : /\w+/,
+            regex : /\w[\w']*/,
             onMatch : function(value, state, stack) {
                 var lastPush = stack.pop();
                 if (lastPush == "startpat") {
@@ -174,7 +174,7 @@ this.$rules =
         {
             token : "string",
             regex : '[^\'\\\\]+'
-        }, 
+        },
         {
             token : "string",
             regex : '\'',
@@ -205,9 +205,9 @@ var Mode = function() {
 oop.inherits(Mode, TextMode);
 
 (function() {
-       
+
     this.lineCommentStart = ";";
-    
+
     this.$id = "ace/mode/little";
 }).call(Mode.prototype);
 
