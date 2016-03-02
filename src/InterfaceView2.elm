@@ -144,7 +144,8 @@ optionsOf x =
   else if x == showZonesBasic then { zoneOptions0 | addBasic = True, showBasic = True }
   else if x == showZonesExtra then { zoneOptions0 | addRot = True, addColor = True }
   else if x == showZonesDel   then { zoneOptions0 | addDelete = True }
-  else if x == showZonesSelect then { zoneOptions0 | addSelect = True }
+  else if x == showZonesSelectAttrs  then { zoneOptions0 | addSelect = True }
+  else if x == showZonesSelectShapes then zoneOptions0 -- TODO
   else
     Debug.crash "optionsOf"
 
@@ -1119,8 +1120,8 @@ canvas_ w h model =
     (False, AdHoc)  -> True
     (False, Live _) -> case model.toolType of
                          Cursor       -> True
-                         SelectAttrs  -> True
-                         SelectShapes -> True
+                         -- SelectAttrs  -> True
+                         -- SelectShapes -> True
                          _            -> False
     _               -> False
   in
@@ -1270,13 +1271,14 @@ widgetsToolExtras w h model =
     Cursor       -> [ gap , zoneButton model w h  ]
     SelectAttrs  -> [ gap , relateAttrsButton w h ]
 -}
-    Cursor       -> if model.showZones == showZonesSelect
+    Cursor       -> if model.showZones == showZonesSelectAttrs
                     then gap :: (zoneButtons model w h)
-                             ++ [ digHoleButton w h ]
+                             -- ++ [ digHoleButton w h ]
                              -- ++ [ gap, twoButtons w h relateAttrsButton digHoleButton ]
                              -- ++ [ relateAttrsButton w h, digHoleButton w h]
                     else gap :: (zoneButtons model w h)
-    SelectShapes -> [ gap , relateShapesButton w h ]
+    -- SelectShapes -> [ gap , relateShapesButton w h ]
+    -- SelectShapes -> gap :: zoneButtons model w h
     _            -> []
 
 middleWidgets row1 row2 w h wWrap hWrap model =
@@ -1535,21 +1537,29 @@ ghostsButton model w h =
 syncButton =
   simpleButton Sync "Sync" "Sync the code to the canvas" "Sync"
 
+{-
 relateAttrsButton =
   simpleButton RelateAttrs "Relate" "Relate" "Relate" -- "Relate Attrs"
+-}
 
-digHoleButton =
-  simpleButton DigHole "unused?" "unused?" "Dig" -- "Dig Hole"
+digHoleButton enabled =
+  simpleEventButton_ (not enabled) DigHole "unused?" "unused?" "Dig" -- "Dig Hole"
 
+groupButton enabled =
+  simpleEventButton_ (not enabled) DigHole "unused?" "unused?" "Group"
+
+{-
 relateShapesButton =
   simpleButton RelateShapes "Relate" "Relate" "Relate Shapes"
+-}
 
 zoneButtons model w h =
   let caption mode =
-    if mode == showZonesNone        then "Hide" -- "[Zones] Hidden"
-    else if mode == showZonesBasic  then "Show" -- "[Zones] Basic"
-    else if mode == showZonesSelect then "Attrs" -- "[Zones] Attrs"
-    else if mode == showZonesExtra  then "Extra" -- "[Zones] Extra"
+    if mode == showZonesNone        then "No" -- "Hide" -- "[Zones] Hidden"
+    else if mode == showZonesBasic  then "Yes" -- "Show" -- "[Zones] Basic"
+    else if mode == showZonesSelectAttrs  then "Attrs" -- "[Zones] Attrs"
+    else if mode == showZonesSelectShapes then "Shapes" -- "[Zones] Attrs"
+    else if mode == showZonesExtra  then "Xtra" -- "Extra" -- "[Zones] Extra"
     else if mode == showZonesDel    then Debug.crash "[Zones] Delete"
     else
       Debug.crash "zoneButton caption"
@@ -1563,8 +1573,21 @@ zoneButtons model w h =
     -- Delete turned off for now
     -- List.map zoneButton showZonesModes
     -- List.map zoneButton [ 0 .. (showZonesModeCount - 1 - 1) ]
+{-
     [ twoButtons w h (zoneButton showZonesNone) (zoneButton showZonesBasic)
     , twoButtons w h (zoneButton showZonesExtra) (zoneButton showZonesSelect)
+    ]
+-}
+    [ threeButtons w h
+        (zoneButton showZonesNone)
+        (zoneButton showZonesBasic)
+        (zoneButton showZonesExtra)
+    , twoButtons w h
+        (zoneButton showZonesSelectAttrs)
+        (digHoleButton (model.showZones == showZonesSelectAttrs))
+    , twoButtons w h
+        (zoneButton showZonesSelectShapes)
+        (groupButton (model.showZones == showZonesSelectShapes))
     ]
 
 {-
@@ -1616,8 +1639,8 @@ toolButton model tt w h =
   let cap = case tt of
     -- Cursor -> "1"
     Cursor -> "Cursor"
-    SelectAttrs -> "2"
-    SelectShapes -> "3"
+    -- SelectAttrs -> "2"
+    -- SelectShapes -> "3"
     Line -> "Line"
     Rect -> "Rect"
     Oval -> "Oval"

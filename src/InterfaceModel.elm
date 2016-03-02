@@ -121,15 +121,17 @@ type alias PossibleChange = (Exp, Val, RootedIndexedTree, Code)
 -- InterfaceStorage is more succinct (Enum typeclass would be nice here...)
 type alias ShowZones = Int
 
-showZonesModeCount = 5
+showZonesModeCount = 6
 
 showZonesModes = [ 0 .. (showZonesModeCount - 1) ]
 
-(showZonesNone, showZonesBasic, showZonesSelect, showZonesExtra, showZonesDel) =
-  Utils.unwrap5 showZonesModes
+(showZonesNone, showZonesBasic,
+ showZonesSelectAttrs, showZonesSelectShapes,
+ showZonesExtra, showZonesDel) =
+  Utils.unwrap6 showZonesModes
 
 type ToolType
-  = Cursor | SelectAttrs | SelectShapes
+  = Cursor -- | SelectAttrs | SelectShapes
   | Line | Rect | Oval
   | Poly | Path | Text
   | HelperDot
