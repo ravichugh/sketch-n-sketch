@@ -1584,9 +1584,9 @@ zoneButtons model w h =
         (zoneButton showZonesExtra)
     , twoButtons w h
         (zoneButton showZonesSelectAttrs)
-        (digHoleButton (model.showZones == showZonesSelectAttrs))
-    , twoButtons w h
         (zoneButton showZonesSelectShapes)
+    , twoButtons w h
+        (digHoleButton (model.showZones == showZonesSelectAttrs))
         (groupButton (model.showZones == showZonesSelectShapes))
     ]
 

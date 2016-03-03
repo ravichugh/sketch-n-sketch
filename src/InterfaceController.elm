@@ -319,7 +319,7 @@ addRect old (_,pt2) (_,pt1) =
     [eConst 100 dummyLoc, eStr "black", eConst 0 dummyLoc, eVar "rot", eVar "bounds"]
 
 addSquare old (_,pt2) (_,pt1) =
-  let (xMin, xMax, yMin, _) = View.boundingBox pt2 pt1 in
+  let (xMin, xMax, yMin, _) = View.squareBoundingBox pt2 pt1 in
   let side = (xMax - xMin) in
   addToCodeAndRun "square" old
     [ makeLet ["left","top","side"] (makeInts [xMin,yMin,side])
@@ -525,10 +525,10 @@ makeNewShapeDef model newShapeKind name locals func args =
       [] ->
         let multi = -- check if (func args) returns List SVG or SVG
           case model.toolType of
-            Oval -> True
-            Poly -> True
+            -- Oval -> True
+            -- Poly -> True
             Path -> True
-            Lambda _ -> True
+            -- Lambda _ -> True
             _ -> False
         in
         if multi then

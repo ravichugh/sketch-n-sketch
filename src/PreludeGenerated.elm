@@ -366,6 +366,7 @@ prelude =
 (def squareCenter (\\(fill cx cy w) (rectCenter fill cx cy w w)))
 
 ;; Some shapes with given default values for fill, stroke, and stroke width
+; TODO remove these
 (def circle_    (circle 'red'))
 (def ellipse_   (ellipse 'orange'))
 (def rect_      (rect '#999999'))
@@ -661,26 +662,10 @@ prelude =
     ] []
   ])))
 
-(def rectangle (\\(fill stroke strokeWidth rot bounds)
-  (let [left top right bot] bounds
-  (let [cx cy] [(+ left (/ (- right left) 2!)) (+ top (/ (- bot top) 2!))]
-    (rotateAround rot cx cy (box bounds fill stroke strokeWidth))))))
+(def simpleBoundingBox (\\bounds
+  (ghost (box bounds 'transparent' 'darkblue' 1))))
 
-; TODO take rot
-(def oval (\\(fill stroke strokeWidth bounds)
-  (let [left top right bot] bounds
-  (let [rx ry] [(/ (- right left) 2!) (/ (- bot top) 2!)]
-  (let [cx cy] [(+ left rx) (+ top ry)]
-  (let ell ; TODO change def ellipse to take stroke/strokeWidth
-    ['ellipse'
-       [ ['cx' cx] ['cy' cy] ['rx' rx] ['ry' ry]
-         ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ]
-       []]
-  [ (ghost (box bounds 'transparent' 'darkblue' 1))
-    ell
-  ]))))))
-
-(def groupBox (\\bounds
+(def fancyBoundingBox (\\bounds
   (let [left top right bot] bounds
   (let [width height] [(- right left) (- bot top)]
   (let [c1 c2 r] ['darkblue' 'skyblue' 6]
@@ -695,6 +680,29 @@ prelude =
     (ghost (box bounds 'transparent' c1 1))
   ])))))
 
+(def group (\\(bounds shapes)
+  ['g' [] (concat [(fancyBoundingBox bounds) shapes])]))
+
+(def rectangle (\\(fill stroke strokeWidth rot bounds)
+  (let [left top right bot] bounds
+  (let [cx cy] [(+ left (/ (- right left) 2!)) (+ top (/ (- bot top) 2!))]
+  (let shape (rotateAround rot cx cy (box bounds fill stroke strokeWidth))
+  (group bounds [shape])
+)))))
+
+; TODO take rot
+(def oval (\\(fill stroke strokeWidth bounds)
+  (let [left top right bot] bounds
+  (let [rx ry] [(/ (- right left) 2!) (/ (- bot top) 2!)]
+  (let [cx cy] [(+ left rx) (+ top ry)]
+  (let shape ; TODO change def ellipse to take stroke/strokeWidth
+    ['ellipse'
+       [ ['cx' cx] ['cy' cy] ['rx' rx] ['ry' ry]
+         ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ]
+       []]
+  (group bounds [shape])
+))))))
+
 (def scaleBetween (\\(a b pct)
   (case pct
     (0 a)
@@ -705,9 +713,8 @@ prelude =
   (let [left top right bot] bounds
   (let [xScale yScale] [(scaleBetween left right) (scaleBetween top bot)]
   (let pts (map (\\[xPct yPct] [ (xScale xPct) (yScale yPct) ]) percentages)
-  [ (ghost (box bounds 'transparent' 'darkblue' 1))
-    (polygon fill stroke strokeWidth pts)
-  ] )))))
+  (group bounds [(polygon fill stroke strokeWidth pts)])
+)))))
 
 (def pointyPath (\\(fill stroke w d)
   (let dot (\\(x y) (ghost (circle 'orange' x y 5)))
@@ -730,15 +737,11 @@ prelude =
 
 (def stickyPolygon (\\(bounds fill stroke strokeWidth offsets)
   (let pts (map (\\[xOff yOff] [ (evalOffset xOff) (evalOffset yOff) ]) offsets)
-  [ (ghost (box bounds 'transparent' 'darkblue' 1))
-    (polygon fill stroke strokeWidth pts)
-  ] )))
+  (group bounds [(polygon fill stroke strokeWidth pts)])
+)))
 
 ; expects (f bounds) to be a single SVG
-(def with (\\(bounds f)
-  (append
-    (groupBox bounds)
-    [(f bounds)])))
+(def with (\\(bounds f) (group bounds [(f bounds)])))
 
 (def star (\\bounds
   (let [left top right bot] bounds
