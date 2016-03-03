@@ -1742,7 +1742,10 @@ widgetsCursors w h model =
   let maybeRelateButtons =
     if model.showZones /= showZonesSelectAttrs then []
     else
-      [gapWidget w h, simpleButton DigHole "Dig" w h]
+      [ gapWidget w h
+      , simpleButton DigHole "Dig" w h
+      , simpleButton MakeEqual "Make =" w h
+      ]
   in
   let maybeBlobButtons =
     if model.showZones /= showZonesSelectShapes then []

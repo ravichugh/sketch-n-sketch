@@ -1,5 +1,5 @@
 module LangUnparser
-  (unparse, equationToLittle, bumpCol, incCol, precedingWhitespace,
+  (unparse, traceToLittle, bumpCol, incCol, precedingWhitespace,
     precedingWhitespaceExp__, addPrecedingWhitespace,
     replacePrecedingWhitespace, replacePrecedingWhitespacePat,
     indent
@@ -234,28 +234,6 @@ traceToLittle substStr trace =
         Nothing  -> "?"
     TrOp op childTraces ->
       let childLittleStrs = List.map (traceToLittle substStr) childTraces in
-      "(" ++ strOp op ++ " " ++ String.join " " childLittleStrs ++ ")"
-
-equationToLittle : SubstStr -> FeatureEquation -> String
-equationToLittle substStr eqn =
-  case eqn of
-    EqnVal val ->
-      case val.v_ of
-        VConst (n, trace) ->
-          let littlizedTrace = traceToLittle substStr trace in
-          if littlizedTrace /= "?" then
-            littlizedTrace
-          else
-            -- Constants introduced by the equation (e.g. /2 for midpoint) won't
-            -- have a value in subst.
-            -- Also, they should be frozen.
-            toString n ++ "!"
-
-        _ ->
-          "?"
-
-    EqnOp op childEqns ->
-      let childLittleStrs = List.map (equationToLittle substStr) childEqns in
       "(" ++ strOp op ++ " " ++ String.join " " childLittleStrs ++ ")"
 
 -- NOTE: use this to go back to original unparser

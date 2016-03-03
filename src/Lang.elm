@@ -126,10 +126,6 @@ type BaseVal -- unlike Ints, these cannot be changed by Sync
 
 type Trace = TrLoc Loc | TrOp Op_ (List Trace)
 
-type FeatureEquation
-  = EqnVal Val
-  | EqnOp Op_ (List FeatureEquation)
-
 type alias Env = List (Ident, Val)
 
 

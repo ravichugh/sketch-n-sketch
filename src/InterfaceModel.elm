@@ -181,6 +181,7 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | CancelSync
            | RelateAttrs -- not using UpdateModel, since want to define handler in Controller
            | DigHole
+           | MakeEqual
            | GroupBlobs
            | AbstractBlobs
            | DuplicateBlobs
