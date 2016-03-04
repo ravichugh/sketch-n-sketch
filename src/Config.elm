@@ -5,6 +5,7 @@ import Debug
 --------------------------------------------------------------------------------
 
 debugParser = False
+debugView = False
 debugController = False
 debugSync = False
 debugStorage = False

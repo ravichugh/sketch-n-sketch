@@ -662,11 +662,16 @@
 (def simpleBoundingBox (\bounds
   (ghost (box bounds 'transparent' 'darkblue' 1))))
 
+(def strList
+  (let foo (\(x acc) (+ (+ acc (if (= acc '') '' ' ')) (toString x)))
+  (foldl foo '')))
+
 (def fancyBoundingBox (\bounds
   (let [left top right bot] bounds
   (let [width height] [(- right left) (- bot top)]
   (let [c1 c2 r] ['darkblue' 'skyblue' 6]
-  [ (ghost (setZones 'none' (circle c2 left top r)))
+  [ (ghost (box bounds 'transparent' c1 1))
+    (ghost (setZones 'none' (circle c2 left top r)))
     (ghost (setZones 'none' (circle c2 right top r)))
     (ghost (setZones 'none' (circle c2 right bot r)))
     (ghost (setZones 'none' (circle c2 left bot r)))
@@ -674,11 +679,11 @@
     (ghost (setZones 'none' (circle c2 right (+ top (/ height 2)) r)))
     (ghost (setZones 'none' (circle c2 (+ left (/ width 2)) top r)))
     (ghost (setZones 'none' (circle c2 (+ left (/ width 2)) bot r)))
-    (ghost (box bounds 'transparent' c1 1))
   ])))))
 
 (def group (\(bounds shapes)
-  ['g' [] (concat [(fancyBoundingBox bounds) shapes])]))
+  ['g' [['BOUNDS' (strList bounds)]]
+       (concat [(fancyBoundingBox bounds) shapes])]))
 
 (def rectangle (\(fill stroke strokeWidth rot bounds)
   (let [left top right bot] bounds

@@ -59,6 +59,10 @@ import Debug
 
 --------------------------------------------------------------------------------
 
+debugLog = Config.debugLog Config.debugView
+
+--------------------------------------------------------------------------------
+
 svgLine      = flip Svg.line []
 svgRect      = flip Svg.rect []
 svgCircle    = flip Svg.circle []
@@ -132,11 +136,13 @@ makeButton (kind, status) w h text =
 
 type alias ZoneOptions =
   { showBasic : Bool , addBasic : Bool , addRot : Bool , addColor : Bool
-  , addDelete : Bool , addSelect : Bool }
+  , addDelete : Bool , addSelect : Bool, addSelectShapes : Bool
+  }
 
 zoneOptions0 =
   { showBasic = False , addBasic = False , addRot = False , addColor = False
-  , addDelete = False , addSelect = False }
+  , addDelete = False , addSelect = False, addSelectShapes = False
+  }
 
 optionsOf : ShowZones -> ZoneOptions
 optionsOf x =
@@ -145,7 +151,7 @@ optionsOf x =
   else if x == showZonesExtra then { zoneOptions0 | addRot = True, addColor = True }
   else if x == showZonesDel   then { zoneOptions0 | addDelete = True }
   else if x == showZonesSelectAttrs  then { zoneOptions0 | addSelect = True }
-  else if x == showZonesSelectShapes then zoneOptions0 -- TODO
+  else if x == showZonesSelectShapes then { zoneOptions0 | addSelectShapes = True }
   else
     Debug.crash "optionsOf"
 
@@ -621,6 +627,46 @@ zoneSelectLine_ model nodeIdAndFeature (x1,y1) (x2,y2) =
 
 
 --------------------------------------------------------------------------------
+-- Select Group (aka "Blob") Zones
+
+zoneGroupStrokeWidth = 8
+zoneGroupPadding     = 10
+
+zoneGroup model options id left top right bot =
+  if options.addSelectShapes
+    then zoneGroup_ model id left top right bot
+    else []
+
+zoneGroup_ model id left top right bot =
+  let stroke =
+    if Set.member id model.selectedBlobs
+      then "#03C03C"
+      else "rgba(255,255,0,1.0)" in
+  let pad = zoneGroupPadding in
+  let (x1,y1) = (left  - pad, top - pad) in
+  let (x2,y2) = (right + pad, bot + pad) in
+  let fourCorners = [(x1,y1), (x2,y1), (x2,y2), (x1,y2)] in
+  let edge (pt1,pt2) =
+    svgLine
+       [ LangSvg.attr "stroke" stroke
+       , LangSvg.attr "stroke-width" (toString zoneGroupStrokeWidth)
+       , LangSvg.attr "fill" "rgba(0,0,0,0)"
+       , cursorStyle "pointer"
+       , onMouseDown (toggleSelectedBlob model id)
+       , attrNum "x1" (fst pt1), attrNum "y1" (snd pt1)
+       , attrNum "x2" (fst pt2), attrNum "y2" (snd pt2)
+       ]
+  in
+  List.map edge (Utils.adjacentPairs True fourCorners)
+
+toggle x set = if Set.member x set then Set.remove x set else Set.insert x set
+
+toggleSelectedBlob model id =
+  UpdateModel <| \model ->
+    { model | selectedBlobs = toggle id model.selectedBlobs }
+
+
+--------------------------------------------------------------------------------
 
 -- TODO given need for Model, rethink ZoneOptions...
 {-
@@ -652,12 +698,18 @@ makeZones model options shape id l =
              [ zoneSelectCrossDot model options.addSelect (id, [LangSvg.lineCX], [LangSvg.lineCY]) ((fst x1)/2+(fst x2)/2) ((fst y1)/2+(fst y2)/2)
              , zoneSelectCrossDot model options.addSelect (id, [LangSvg.lineX1], [LangSvg.lineY1]) (fst x1) (fst y1)
              , zoneSelectCrossDot model options.addSelect (id, [LangSvg.lineX2], [LangSvg.lineY2]) (fst x2) (fst y2) ] in
-        zLine :: zPts ++ zRot ++ zSelect
+        let min_ (a,_) (b,_) = min a b in
+        let max_ (a,_) (b,_) = max a b in
+        let zGroup =
+          zoneGroup model options id (min_ x1 x2) (min_ y1 y2) (max_ x1 x2) (max_ y1 y2) in
+        zLine :: zPts ++ zRot ++ zSelect ++ zGroup
 
     "polygon"  -> makeZonesPoly model options shape id l
     "polyline" -> makeZonesPoly model options shape id l
 
     "path" -> makeZonesPath options.showBasic shape id l
+
+    "g" -> makeZonesGroup model options id l
 
     _ -> []
 
@@ -842,6 +894,17 @@ makeZonesPath showBasic shape id l =
       LangSvg.CmdA   s a b c d e pt -> pt +++ acc) [] cmds
   in
   zonePoints id shape showBasic transform pts
+
+makeZonesGroup model options id l =
+  case Utils.maybeFind "BOUNDS" l of
+    Just aval ->
+      case aval.av_ of
+        LangSvg.AString sBounds ->
+          case List.map Utils.parseFloat (String.split " " sBounds) of
+            [left,top,right,bot] -> zoneGroup model options id left top right bot
+            _                    -> let _ = debugLog "weird 'BOUNDS':" sBounds in []
+        _ -> []
+    _ -> []
 
 
 --------------------------------------------------------------------------------
@@ -1546,7 +1609,7 @@ digHoleButton enabled =
   simpleEventButton_ (not enabled) DigHole "unused?" "unused?" "Dig" -- "Dig Hole"
 
 groupButton enabled =
-  simpleEventButton_ (not enabled) DigHole "unused?" "unused?" "Group"
+  simpleEventButton_ (not enabled) Noop "unused?" "unused?" "Group"
 
 {-
 relateShapesButton =
