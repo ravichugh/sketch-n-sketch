@@ -254,6 +254,7 @@ type alias TopDefs = List TopDef
 
 type MainExp
   = SvgConcat (List Exp) (List Exp -> Exp)
+  | Blobs (List Exp) (List Exp -> Exp)
   | OtherExp Exp
 
 splitExp : Exp -> Program
@@ -277,12 +278,13 @@ fuseExp (defs, mainExp) =
 
 mainExp : Exp -> MainExp
 mainExp e =
-  maybeSvgConcat e `Utils.elseMaybe` OtherExp e
+  maybeSvgConcat e `Utils.plusMaybe` maybeBlobs e `Utils.elseMaybe` OtherExp e
 
 expandMainExp : MainExp -> Exp
 expandMainExp me =
   case me of
     SvgConcat shapes f -> f shapes
+    Blobs shapes f     -> f shapes
     OtherExp e         -> e
 
 maybeSvgConcat : Exp -> Maybe MainExp
@@ -312,6 +314,31 @@ maybeSvgConcat main =
               Just (SvgConcat oldList updateExpressionList)
 
             _ -> Nothing
+        _     -> Nothing
+    _         -> Nothing
+
+-- very similar to above
+maybeBlobs : Exp -> Maybe MainExp
+maybeBlobs main =
+  case main.val.e__ of
+    EApp ws1 eBlobs [eArgs] ws2 ->
+      case (eBlobs.val.e__, eArgs.val.e__) of
+        (EVar _ "blobs", EList ws5 oldList ws6 Nothing ws7) ->
+          let updateExpressionList newList =
+            let
+              eArgs' =
+                { eArgs | val = { eid = eArgs.val.eid , e__ =
+                    EList ws5 newList ws6 Nothing ws7 } }
+              main' =
+                { main | val = { eid = main.val.eid , e__ =
+                    EApp ws1 eBlobs [eArgs'] ws2 } }
+            in
+            if ws1 == "" then addPrecedingWhitespace "\n\n" main'
+            else if ws1 == "\n" then addPrecedingWhitespace "\n" main'
+            else main'
+          in
+          Just (Blobs oldList updateExpressionList)
+
         _     -> Nothing
     _         -> Nothing
 
@@ -607,6 +634,7 @@ makeInts nums =
 addToMainExp eNew mainExp =
   case mainExp of
     SvgConcat shapes f -> SvgConcat (shapes ++ [eNew]) f
+    Blobs shapes f     -> Blobs (shapes ++ [eNew]) f
     OtherExp main ->
       let ws = "\n" in -- TODO take main into account
       let main' = withDummyPos (EApp ws (eVar0 "addShapes") [eNew, main] "") in

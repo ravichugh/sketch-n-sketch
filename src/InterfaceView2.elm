@@ -632,12 +632,12 @@ zoneSelectLine_ model nodeIdAndFeature (x1,y1) (x2,y2) =
 zoneGroupStrokeWidth = 8
 zoneGroupPadding     = 10
 
-zoneGroup model options id left top right bot =
+zoneGroup model options id bounds =
   if options.addSelectShapes
-    then zoneGroup_ model id left top right bot
+    then zoneGroup_ model id bounds
     else []
 
-zoneGroup_ model id left top right bot =
+zoneGroup_ model id (left, top, right, bot) =
   let stroke =
     if Set.member id model.selectedBlobs
       then "#03C03C"
@@ -664,6 +664,25 @@ toggle x set = if Set.member x set then Set.remove x set else Set.insert x set
 toggleSelectedBlob model id =
   UpdateModel <| \model ->
     { model | selectedBlobs = toggle id model.selectedBlobs }
+
+maybeFindBlobId l =
+  case Utils.maybeFind "BLOB" l of
+    Nothing -> Nothing
+    Just av ->
+      case av.av_ of
+        LangSvg.AString sBlobId -> Just (Utils.parseInt sBlobId)
+        _                       -> Nothing
+
+maybeFindBounds l =
+  case Utils.maybeFind "BOUNDS" l of
+    Nothing -> Nothing
+    Just av ->
+      case av.av_ of
+        LangSvg.AString sBounds ->
+          case List.map Utils.parseFloat (String.split " " sBounds) of
+            [left,top,right,bot] -> Just (left, top, right, bot)
+            _                    -> let _ = debugLog "weird 'BOUNDS':" sBounds in Nothing
+        _ -> Nothing
 
 
 --------------------------------------------------------------------------------
@@ -701,7 +720,11 @@ makeZones model options shape id l =
         let min_ (a,_) (b,_) = min a b in
         let max_ (a,_) (b,_) = max a b in
         let zGroup =
-          zoneGroup model options id (min_ x1 x2) (min_ y1 y2) (max_ x1 x2) (max_ y1 y2) in
+          case maybeFindBlobId l of
+            Nothing     -> []
+            Just blobId -> zoneGroup model options blobId
+                             (min_ x1 x2, min_ y1 y2, max_ x1 x2, max_ y1 y2)
+        in
         zLine :: zPts ++ zRot ++ zSelect ++ zGroup
 
     "polygon"  -> makeZonesPoly model options shape id l
@@ -709,7 +732,7 @@ makeZones model options shape id l =
 
     "path" -> makeZonesPath options.showBasic shape id l
 
-    "g" -> makeZonesGroup model options id l
+    "g" -> makeZonesGroup model options l
 
     _ -> []
 
@@ -763,6 +786,7 @@ makeZonesRect model options shape id l =
       ++ zoneDelete options.addDelete id shape x y (maybeTransformAttr l)
       ++ zonesSelect
 
+-- TODO maybe remove native point zones in favor of user-level ones
 makeZonesBox model options id l =
   let transform = maybeTransformAttr l in
   let mkInterior zone x_ y_ w_ h_ =
@@ -895,16 +919,10 @@ makeZonesPath showBasic shape id l =
   in
   zonePoints id shape showBasic transform pts
 
-makeZonesGroup model options id l =
-  case Utils.maybeFind "BOUNDS" l of
-    Just aval ->
-      case aval.av_ of
-        LangSvg.AString sBounds ->
-          case List.map Utils.parseFloat (String.split " " sBounds) of
-            [left,top,right,bot] -> zoneGroup model options id left top right bot
-            _                    -> let _ = debugLog "weird 'BOUNDS':" sBounds in []
-        _ -> []
-    _ -> []
+makeZonesGroup model options l =
+  case (maybeFindBounds l, maybeFindBlobId l) of
+    (Just bounds, Just blobId) -> zoneGroup model options blobId bounds
+    _                          -> []
 
 
 --------------------------------------------------------------------------------

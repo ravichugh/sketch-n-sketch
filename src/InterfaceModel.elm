@@ -65,7 +65,7 @@ type alias Model =
   , genSymCount : Int
   , toolType : ToolType
   , selectedFeatures : Set.Set (NodeId, ShapeFeature)
-  , selectedBlobs : Set.Set NodeId -- identifying blobs by line/g id
+  , selectedBlobs : Set.Set Int -- line/g ids assigned by blobs function
   , keysDown : List Char.KeyCode
   }
 

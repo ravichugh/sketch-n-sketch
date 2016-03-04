@@ -284,6 +284,7 @@ setIsEmpty  = (==) [] << Set.toList
 dictIsEmpty = (==) [] << Dict.toList
 setCardinal = List.length << Set.toList
 
+parseInt   = fromOk_ << String.toInt
 parseFloat = fromOk_ << String.toFloat
 
 -- Common elements shared at the beginning of each list

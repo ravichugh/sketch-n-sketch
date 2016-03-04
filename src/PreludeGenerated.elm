@@ -755,6 +755,14 @@ prelude =
   (nStar 'lightblue' 'black' 0 6 (min (/ width 2) (/ height 2)) 10 0 cx cy)
 )))))
 
+(def blobs (\\blobs
+  (let modifyBlob (\\[i blob]
+    (case blob
+      ([shape] [(consAttr shape ['BLOB' (toString (+ i 1))])])
+      (_       blob)))
+  (svg (concat (mapi modifyBlob blobs)))
+)))
+
 ; 0
 ['svg' [] []]
 
