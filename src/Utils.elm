@@ -248,6 +248,11 @@ plusMaybe mx my = case mx of
   Just _  -> mx
   Nothing -> my
 
+elseMaybe : Maybe a -> a -> a
+elseMaybe mx default = case mx of
+  Just x  -> x
+  Nothing -> default
+
 projJusts : List (Maybe a) -> Maybe (List a)
 projJusts =
   List.foldr (\mx acc ->

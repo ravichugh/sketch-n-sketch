@@ -247,27 +247,73 @@ canvasOriginHorizontal old =
 --------------------------------------------------------------------------------
 -- New Shapes
 
+type alias Program = (TopDefs, MainExp)
+
 type alias TopDef  = (WS, Pat, Exp, WS)
 type alias TopDefs = List TopDef
 
-splitExp : Exp -> (TopDefs, Exp)
+type MainExp
+  = SvgConcat (List Exp) (List Exp -> Exp)
+  | OtherExp Exp
+
+splitExp : Exp -> Program
 splitExp e =
   case e.val.e__ of
     ELet ws1 Def False p1 e1 e2 ws2 ->
       let (defs, main) = splitExp e2 in
       ((ws1,p1,e1,ws2)::defs, main)
     _ ->
-      ([], e)
+      ([], mainExp e)
 
-fuseExp : TopDefs -> Exp -> Exp
-fuseExp defs main =
+fuseExp : Program -> Exp
+fuseExp (defs, mainExp) =
   let recurse defs =
     case defs of
-      [] -> main
+      [] -> expandMainExp mainExp
       (ws1,p1,e1,ws2)::defs' ->
         withDummyPos <| ELet ws1 Def False p1 e1 (recurse defs') ws2
   in
   recurse defs
+
+mainExp : Exp -> MainExp
+mainExp e =
+  maybeSvgConcat e `Utils.elseMaybe` OtherExp e
+
+expandMainExp : MainExp -> Exp
+expandMainExp me =
+  case me of
+    SvgConcat shapes f -> f shapes
+    OtherExp e         -> e
+
+maybeSvgConcat : Exp -> Maybe MainExp
+maybeSvgConcat main =
+  case main.val.e__ of
+    EApp ws1 e1 [eAppConcat] ws2 ->
+      case (e1.val.e__, eAppConcat.val.e__) of
+        (EVar _ "svg", EApp ws3 eConcat [e2] ws4) ->
+          case (eConcat.val.e__, e2.val.e__) of
+            (EVar _ "concat", EList ws5 oldList ws6 Nothing ws7) ->
+              let updateExpressionList newList =
+                let
+                  e2' =
+                    { e2 | val = { eid = e2.val.eid , e__ =
+                        EList ws5 newList ws6 Nothing ws7 } }
+                  eAppConcat' =
+                    { eAppConcat | val = { eid = eAppConcat.val.eid , e__ =
+                        EApp ws3 eConcat [e2'] ws4 } }
+                  main' =
+                    { main | val = { eid = main.val.eid , e__ =
+                        EApp ws1 e1 [eAppConcat'] ws2 } }
+                in
+                if ws1 == "" then addPrecedingWhitespace "\n\n" main'
+                else if ws1 == "\n" then addPrecedingWhitespace "\n" main'
+                else main'
+              in
+              Just (SvgConcat oldList updateExpressionList)
+
+            _ -> Nothing
+        _     -> Nothing
+    _         -> Nothing
 
 -- when line is snapped, not enforcing the angle in code
 addLineToCodeAndRun old click2 click1 =
@@ -509,8 +555,8 @@ addToCodeAndRun newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
 
   let tmp = newShapeKind ++ toString old.genSymCount in
   let newDef = makeNewShapeDef old newShapeKind tmp newShapeLocals newShapeFunc newShapeArgs in
-  let (defs, main) = splitExp old.inputExp in
-  let code = unparse (fuseExp (defs ++ [newDef]) (addToMain (eVar tmp) main)) in
+  let (defs, mainExp) = splitExp old.inputExp in
+  let code = unparse (fuseExp (defs ++ [newDef], addToMainExp (eVar tmp) mainExp)) in
 
   upstate Run
     { old | code = code
@@ -558,35 +604,13 @@ makeInts nums =
              let es = List.map (\n' -> eConst (toFloat n') dummyLoc) ns in
              e::es
 
-addToMain eNew main =
-  let callAddShape () =
-    let ws = "\n" in -- TODO take main into account
-    withDummyPos (EApp ws (eVar0 "addShapes") [eNew, main] "")
-  in
-  case main.val.e__ of
-    EApp ws1 e1 [eAppConcat] ws2 ->
-      case (e1.val.e__, eAppConcat.val.e__) of
-        (EVar _ "svg", EApp ws3 eConcat [e2] ws4) ->
-          case (eConcat.val.e__, e2.val.e__) of
-            (EVar _ "concat", EList ws5 shapes ws6 Nothing ws7) ->
-              let
-                e2' =
-                  { e2 | val = { eid = e2.val.eid , e__ =
-                      EList ws5 (shapes ++ [eNew]) ws6 Nothing ws7 } }
-                eAppConcat' =
-                  { eAppConcat | val = { eid = eAppConcat.val.eid , e__ =
-                      EApp ws3 eConcat [e2'] ws4 } }
-                main' =
-                  { main | val = { eid = main.val.eid , e__ =
-                      EApp ws1 e1 [eAppConcat'] ws2 } }
-              in
-              if ws1 == "" then addPrecedingWhitespace "\n\n" main'
-              else if ws1 == "\n" then addPrecedingWhitespace "\n" main'
-              else main'
-
-            _ -> callAddShape ()
-        _     -> callAddShape ()
-    _         -> callAddShape ()
+addToMainExp eNew mainExp =
+  case mainExp of
+    SvgConcat shapes f -> SvgConcat (shapes ++ [eNew]) f
+    OtherExp main ->
+      let ws = "\n" in -- TODO take main into account
+      let main' = withDummyPos (EApp ws (eVar0 "addShapes") [eNew, main] "") in
+      OtherExp main'
 
 maybeGhost b f args =
   if b
