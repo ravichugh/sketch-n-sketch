@@ -7,7 +7,7 @@
 module ValueBasedTransform where
 
 import Lang exposing (..)
-import LangParser2 exposing (parseE, freshen)
+import LangParser2 exposing (parseE, freshen, substOf)
 import LangUnparser exposing (unparse, traceToLittle, precedingWhitespace, addPrecedingWhitespace)
 import Sync
 import Utils
@@ -22,9 +22,19 @@ import String
 debugLog = Config.debugLog Config.debugSync
 
 
+-- Can't just use Trace because we need to introduce
+-- constants not found in the program's Subst
 type FeatureEquation
   = EqnVal Val
   | EqnOp Op_ (List FeatureEquation)
+
+
+-- For solving.
+-- The values at the locs are presumed to be non-zero.
+type LocEquation
+  = LocEqnConst Num
+  | LocEqnLoc LocId
+  | LocEqnOp Op_ (List LocEquation)
 
 
 digHole originalExp selectedFeatures slate syncOptions =
@@ -45,32 +55,17 @@ digHole originalExp selectedFeatures slate syncOptions =
   let locsetList =
     Set.toList locset
   in
-  let locToNumber =
-    let accumulateLocToNumbers exp__ dict =
-      case exp__ of
-        EConst ws n loc wd ->
-          if Set.member loc locset then
-            Dict.insert loc n dict
-          else
-            dict
-        _ -> dict
-    in
-    foldExpViaE__
-        accumulateLocToNumbers
-        Dict.empty
-        originalExp
+  let subst = substOf originalExp in
+  let commonScope =
+    deepestCommonScope originalExp locset syncOptions
   in
-  let (deepestCommonScopeParent, deepestCommonScope) =
-    deepestCommonScopeWithParent originalExp locset syncOptions
-  in
-  -- Avoid name collisions here
   let existingNames = identifiersSet originalExp in
   let locIdNameOrigNamePrime =
-    let (newUsedNames, result) =
+    let (_, result) =
       List.foldr
           (\(locId, frozen, ident) (usedNames, result) ->
             let baseIdent = if ident == "" then "k"++(toString locId) else ident in
-            let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough deepestCommonScope (locId, frozen, ident) in
+            let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough commonScope (locId, frozen, ident) in
             let scopesAndBaseIdent = String.join "_" (scopeNamesLiftedThrough ++ [baseIdent]) in
             let baseIdentOrig  =
               if scopesAndBaseIdent == baseIdent
@@ -97,149 +92,82 @@ digHole originalExp selectedFeatures slate syncOptions =
       <| List.map (\(locId, nameOrig, namePrime) -> (locId, namePrime))
       <| locIdNameOrigNamePrime
   in
-  let replaceConstsWithVars exp__ =
-    case exp__ of
-      EConst ws n (locId, frozen, ident) wd ->
-        case Dict.get locId locIdToNewName of
-          Just newName -> EVar ws newName
-          Nothing      -> exp__
-      _ -> exp__
+  let origNames  = List.reverse <| List.map Utils.snd3 locIdNameOrigNamePrime in
+  let primeNames = List.reverse <| List.map Utils.thd3 locIdNameOrigNamePrime in
+  let valueStrs =
+    List.map
+        (\(locId, _, _) ->
+          toString (Utils.justGet locId subst)
+        )
+        (List.reverse locsetList)
   in
-  let commonScopeReplaced =
-    mapExpViaExp__ replaceConstsWithVars deepestCommonScope
+  let selectedFeatureEquationsNamedWithScopes =
+    List.map
+        (\(featureName, eqn) ->
+          let featureLocs = equationLocs syncOptions eqn in
+          let scopeNamesLocsLiftedThrough =
+            List.map
+                (scopeNamesLocLiftedThrough commonScope)
+                featureLocs
+          in
+          let commonScopeNamesLocsLiftedThrough =
+            Utils.commonPrefix scopeNamesLocsLiftedThrough
+          in
+          let featureName' =
+            String.join "_" (commonScopeNamesLocsLiftedThrough ++ [featureName])
+          in
+          (featureName', eqn)
+        )
+        selectedFeatureEquationsNamed
   in
-  let newlyWrappedCommonScope =
-    let origNames  = List.reverse <| List.map Utils.snd3 locIdNameOrigNamePrime in
-    let primeNames = List.reverse <| List.map Utils.thd3 locIdNameOrigNamePrime in
-    let valueStrs =
-      List.map
-          (\loc ->
-            toString (Utils.justGet loc locToNumber)
-          )
-          (List.reverse locsetList)
+  let featureNamesWithExpressionStrs =
+    let locIdToOrigName =
+      Dict.fromList
+        <| List.map (\(locId, nameOrig, namePrime) -> (locId, nameOrig))
+        <| locIdNameOrigNamePrime
     in
-    let selectedFeatureEquationsNamedWithScopes =
-      List.map
-          (\(featureName, eqn) ->
-            let featureLocs = equationLocs syncOptions eqn in
-            let scopeNamesLocsLiftedThrough =
-              List.map
-                  (scopeNamesLocLiftedThrough deepestCommonScope)
-                  featureLocs
-            in
-            let commonScopeNamesLocsLiftedThrough =
-              Utils.commonPrefix scopeNamesLocsLiftedThrough
-            in
-            let featureName' =
-              String.join "_" (commonScopeNamesLocsLiftedThrough ++ [featureName])
-            in
-            (featureName', eqn)
-          )
-          selectedFeatureEquationsNamed
+    let substStr =
+      Dict.union
+          locIdToOrigName
+          (LangParser2.substStrOf originalExp)
     in
-    let featureNamesWithExpressionStrs =
-      let locIdToOrigName =
-        Dict.fromList
-          <| List.map (\(locId, nameOrig, namePrime) -> (locId, nameOrig))
-          <| locIdNameOrigNamePrime
-      in
-      let substStr =
-        Dict.union
-            locIdToOrigName
-            (LangParser2.substStrOf originalExp)
-      in
-      List.map (Utils.mapSnd <| equationToLittle substStr) selectedFeatureEquationsNamedWithScopes
-    in
-    -- Remove expressions of only one term
-    let significantFeatureNamesWithExpressionStrs =
-      List.filter
-          (\(name, expStr) -> String.contains " " expStr)
-          featureNamesWithExpressionStrs
-    in
-    let featureNames          = List.map fst significantFeatureNamesWithExpressionStrs in
-    let featureExpressionStrs = List.map snd significantFeatureNamesWithExpressionStrs in
-    let nonCollidingFeatureNames =
-      let (newNamesToAvoid, result) =
-        List.foldr
-            (\featureName (usedNames, result) ->
-              let featureName' = nonCollidingName featureName usedNames in
-              (
-                Set.insert featureName' usedNames,
-                featureName'::result
-              )
+    List.map (Utils.mapSnd <| equationToLittle substStr) selectedFeatureEquationsNamedWithScopes
+  in
+  -- Remove expressions of only one term
+  let significantFeatureNamesWithExpressionStrs =
+    List.filter
+        (\(name, expStr) -> String.contains " " expStr)
+        featureNamesWithExpressionStrs
+  in
+  let featureNames          = List.map fst significantFeatureNamesWithExpressionStrs in
+  let featureExpressionStrs = List.map snd significantFeatureNamesWithExpressionStrs in
+  let nonCollidingFeatureNames =
+    let (newNamesToAvoid, result) =
+      List.foldr
+          (\featureName (usedNames, result) ->
+            let featureName' = nonCollidingName featureName usedNames in
+            (
+              Set.insert featureName' usedNames,
+              featureName'::result
             )
-            (namesToAvoid, [])
-            featureNames
-      in
-      result
-    in
-    let oldPrecedingWhitespace = precedingWhitespace commonScopeReplaced in
-    let extraWhitespace =
-      if String.contains "\n" oldPrecedingWhitespace then "" else "\n"
-    in
-    -- Limit to one newline
-    let limitedOldPrecedingWhitespace =
-      case String.split "\n" oldPrecedingWhitespace |> List.reverse of
-        indentation::_ -> "\n" ++ indentation
-        []             -> oldPrecedingWhitespace
-    in
-    let templateStr =
-      let constantOrigNamesStr  = String.join " " origNames in
-      let constantPrimeNamesStr = String.join " " primeNames in
-      let constantValuesStr     = String.join " " valueStrs in
-      let featureNamesStr       = String.join " " nonCollidingFeatureNames in
-      let featureExpressionsStr = String.join " " featureExpressionStrs in
-      let includeFeatures       = (List.length featureNames) > 0 in
-      let letOrDef patsStr assignsStr body =
-          if isTopLevel deepestCommonScope originalExp then
-            "(def ["++patsStr++"] ["++assignsStr++"])"
-            ++ body
-          else
-            "(let ["++patsStr++"] ["++assignsStr++"]"
-            ++ body ++ ")"
-      in
-      let originalsLet body =
-        limitedOldPrecedingWhitespace
-        ++ (letOrDef constantOrigNamesStr constantValuesStr body)
-      in
-      let tracesLet body =
-        if includeFeatures then
-          extraWhitespace ++ limitedOldPrecedingWhitespace
-          ++ (letOrDef featureNamesStr featureExpressionsStr body)
-        else
-          body
-      in
-      let primesLet body =
-        extraWhitespace ++ limitedOldPrecedingWhitespace
-        ++ (letOrDef constantPrimeNamesStr constantOrigNamesStr body)
-      in
-      originalsLet
-      <| tracesLet
-      <| primesLet
-      <| "\n  'dummy body'"
-    in
-    let template =
-      case parseE templateStr of
-        Ok templateExp -> templateExp
-        Err err        -> Debug.crash <| "Dig template err: " ++ err
-    in
-    -- Now replace the dummy body:
-    let newLet =
-      mapExpViaExp__
-          (\e__ ->
-            case e__ of
-              EBase _ (String "dummy body") -> (addPrecedingWhitespace extraWhitespace commonScopeReplaced).val.e__
-              _                             -> e__
           )
-          template
+          (namesToAvoid, [])
+          featureNames
     in
-    newLet
+    result
   in
-  -- Debug only:
-  let newSubtreeStr = debugLog "newlyWrappedCommonScope" <| unparse newlyWrappedCommonScope in
+  let listOfListsOfNamesAndAssigns =
+    [ Utils.zip origNames valueStrs
+    , Utils.zip nonCollidingFeatureNames featureExpressionStrs
+    , Utils.zip primeNames origNames
+    ]
+  in
   let newExp =
-    freshen <|
-    replaceExpNode deepestCommonScope newlyWrappedCommonScope originalExp
+    variableifyConstantsAndWrapTargetExpWithLets
+        locIdToNewName
+        listOfListsOfNamesAndAssigns
+        commonScope
+        originalExp
   in
   newExp
 
@@ -271,62 +199,86 @@ makeEqual_ originalExp featureA featureB slate syncOptions =
           [] ->
             Nothing
 
-          loc::rest ->
-            case solveForLoc loc featureAEqn featureBEqn of
+          (locId, _, _)::rest ->
+            case solveForLoc locId featureAEqn featureBEqn of
               Nothing ->
                 findSolution rest
 
-              Just resultEqn ->
-                Just (loc, resultEqn)
+              Just resultLocEqn ->
+                Just (locId, resultLocEqn)
       in
       case findSolution (Set.toList locset) of
         Nothing ->
           originalExp
 
-        Just (loc, resultEqn) ->
-          originalExp
+        Just (dependentLocId, resultLocEqn) ->
+          let locIdSet = Set.insert dependentLocId <| locEqnLocIds syncOptions resultLocEqn in
+          let locset' = Set.filter (\(locId, _, _) -> Set.member locId locIdSet) locset in
+          let subst = substOf originalExp in
+          let commonScope =
+            deepestCommonScope originalExp locset' syncOptions
+          in
+          let existingNames = identifiersSet originalExp in
+          let (dependentLocset, independentLocset) =
+            Set.partition (\(locId, _, _) -> locId == dependentLocId) locset'
+          in
+          let dependentLoc    = dependentLocset   |> Set.toList |> Utils.head_ in
+          let independentLocs = independentLocset |> Set.toList in
+          let independentLocIds = List.map Utils.fst3 independentLocs in
+          let locIdToNewName =
+            let (_, result) =
+              List.foldr
+                  (\(locId, frozen, ident) (usedNames, result) ->
+                    let baseIdent = if ident == "" then "k"++(toString locId) else ident in
+                    let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough commonScope (locId, frozen, ident) in
+                    let scopesAndBaseIdent = String.join "_" (scopeNamesLiftedThrough ++ [baseIdent]) in
+                    let ident =
+                      if locId == dependentLocId then
+                        nonCollidingName (baseIdent ++ "'") usedNames
+                      else
+                        if scopesAndBaseIdent == baseIdent
+                        then nonCollidingName (baseIdent ++ "_orig") usedNames
+                        else nonCollidingName scopesAndBaseIdent usedNames
+                    in
+                    (
+                      Set.insert ident usedNames,
+                      (locId, ident)::result
+                    )
+                  )
+                  (existingNames, [])
+                  (dependentLoc::independentLocs)
+            in
+            Dict.fromList result
+          in
+          let independentLocNames =
+            List.map
+                (\locId -> Utils.justGet locId locIdToNewName)
+                independentLocIds
+          in
+          let independentLocValueStrs =
+            List.map
+                (\locId -> toString (Utils.justGet locId subst))
+                independentLocIds
+          in
+          let dependentLocNameStr  = Utils.justGet dependentLocId locIdToNewName in
+          let dependentLocValueStr = locEqnToLittle locIdToNewName resultLocEqn in
+          let listOfListsOfNamesAndAssigns =
+            [ Utils.zip independentLocNames independentLocValueStrs
+            , [(dependentLocNameStr, dependentLocValueStr)]
+            ]
+          in
+          let newExp =
+            variableifyConstantsAndWrapTargetExpWithLets
+                locIdToNewName
+                listOfListsOfNamesAndAssigns
+                commonScope
+                originalExp
+          in
+          newExp
 
 
-      -- let selectedFeatureEquationsNamed =
-      --   debugLog "selectedFeatureEquations" <|
-      --     pluckSelectedFeatureEquationsNamed selectedFeatures slate
-      -- in
-      -- let selectedVals =
-      --   debugLog "selectedVals" <|
-      --     pluckSelectedVals selectedFeatures slate
-      -- in
-      -- let tracesLocsets =
-      --   List.map ((Sync.locsOfTrace syncOptions) << valToTrace) selectedVals
-      -- in
-      -- let locset =
-      --   List.foldl Set.union Set.empty tracesLocsets
-      -- in
-      -- let locsetList =
-      --   Set.toList locset
-      -- in
-      -- let locToNumber =
-      --   let accumulateLocToNumbers exp__ dict =
-      --     case exp__ of
-      --       EConst ws n loc wd ->
-      --         if Set.member loc locset then
-      --           Dict.insert loc n dict
-      --         else
-      --           dict
-      --       _ -> dict
-      --   in
-      --   foldExpViaE__
-      --       accumulateLocToNumbers
-      --       Dict.empty
-      --       originalExp
-      -- in
-      -- let (deepestCommonScopeParent, deepestCommonScope) =
-      --   deepestCommonScopeWithParent originalExp locset syncOptions
-      -- in
-      -- originalExp
-
-
-deepestCommonScopeWithParent : Exp -> LocSet -> Sync.Options -> (Maybe Exp, Exp)
-deepestCommonScopeWithParent exp locset syncOptions =
+deepestCommonScope : Exp -> LocSet -> Sync.Options -> Exp
+deepestCommonScope exp locset syncOptions =
   let isLocsetNode exp =
     case exp.val.e__ of
       EConst ws n loc wd -> Set.member loc locset
@@ -351,15 +303,12 @@ deepestCommonScopeWithParent exp locset syncOptions =
         (List.filter (\(parent, node) -> isScope parent node))
         locsAncestorsWithParents
   in
-  let deepestCommonScopeWithParent = debugLog "deepestCommonAncestorWithParent" <|
-    -- If no common scope, we will wrap the root node.
-    let commonPrefix = debugLog "commonPrefix" <|
-      [(Nothing, exp)] ++
-      Utils.commonPrefix locsAncestorScopesWithParents
-    in
-    Utils.last_ commonPrefix
+  let locsAncestorScopes = List.map (List.map snd) locsAncestorScopesWithParents in
+  let deepestCommonScope =
+    Utils.last_
+    <| exp :: (Utils.commonPrefix locsAncestorScopes)
   in
-  deepestCommonScopeWithParent
+  deepestCommonScope
 
 
 -- If suggestedName is not in existing names, returns it.
@@ -376,6 +325,110 @@ nonCollidingName suggestedName existingNames =
       else nonCollidingName (i+1)
     in
     nonCollidingName 2
+
+
+-- Replace consts in targetExp with given variable names
+-- Wrap targetExp with given lets
+-- Replace targetExp with wrapped version in the program
+variableifyConstantsAndWrapTargetExpWithLets locIdToNewName listOfListsOfNamesAndAssigns targetExp program =
+  let targetExpReplaced =
+    replaceConstsWithVars locIdToNewName targetExp
+  in
+  let wrappedTargetExp =
+    wrapWithLets
+        listOfListsOfNamesAndAssigns
+        (isTopLevel targetExp program)
+        targetExpReplaced
+  in
+  -- Debug only:
+  let _ = debugLog "wrappedTargetExp" <| unparse wrappedTargetExp in
+  let newProgram =
+    replaceExpNode targetExp wrappedTargetExp program
+    |> freshen
+  in
+  newProgram
+
+
+-- Given [ [("a","4"), ("b","5")], [("c", "6")] ] 'body exp'
+--
+-- Produces an Exp of:
+--
+-- (let [a c] [4 5]
+-- (let [c] [6]
+--   'body exp'))
+--
+wrapWithLets : List (List (String, String)) -> Bool -> Exp -> Exp
+wrapWithLets listOfListsOfNamesAndAssigns isTopLevel bodyExp =
+  let nonEmptyListOfListsOfNamesAndAssigns =
+    List.filter
+        (not << List.isEmpty)
+        listOfListsOfNamesAndAssigns
+  in
+  case nonEmptyListOfListsOfNamesAndAssigns of
+    [] ->
+      bodyExp
+
+    firstLetNamesAndAssigns::laterLetNamesAndAssigns ->
+      let oldPrecedingWhitespace = precedingWhitespace bodyExp in
+      -- Insure one newline after first let
+      let extraWhitespace =
+        if String.contains "\n" oldPrecedingWhitespace then "" else "\n"
+      in
+      -- Limit to one newline for all lets
+      let limitedOldPrecedingWhitespace =
+        case String.split "\n" oldPrecedingWhitespace |> List.reverse of
+          indentation::_ -> "\n" ++ indentation
+          []             -> oldPrecedingWhitespace
+      in
+      let templateStr =
+        let letOrDef patsStr assignsStr body =
+            if isTopLevel then
+              "(def ["++patsStr++"] ["++assignsStr++"])"
+              ++ body
+            else
+              "(let ["++patsStr++"] ["++assignsStr++"]"
+              ++ body ++ ")"
+        in
+        let letStr precedingWs letNamesAndAssigns body =
+          let patStrs    = List.map fst letNamesAndAssigns in
+          let assignStrs = List.map snd letNamesAndAssigns in
+          let patsStr    = String.join " " patStrs in
+          let assignsStr = String.join " " assignStrs in
+          precedingWs ++ (letOrDef patsStr assignsStr body)
+        in
+        let letsStr body =
+          -- This is like a monad, right? Composing functions with foldl to
+          -- make a super-function?
+          let superWrapper =
+            List.foldl
+                (\letNamesAndAssigns letsFunc ->
+                  let preceedingWs = extraWhitespace ++ limitedOldPrecedingWhitespace in
+                  letsFunc << (letStr preceedingWs letNamesAndAssigns)
+                )
+                -- Don't require newline before first let.
+                (letStr limitedOldPrecedingWhitespace firstLetNamesAndAssigns)
+                laterLetNamesAndAssigns
+          in
+          superWrapper body
+        in
+        letsStr "\n  'dummy body'"
+      in
+      let template =
+        case parseE templateStr of
+          Ok templateExp -> templateExp
+          Err err        -> Debug.crash <| "Dig template err: " ++ err
+      in
+      -- Finish by replacing the dummy body:
+      let wrappedWithLets =
+        mapExpViaExp__
+            (\e__ ->
+              case e__ of
+                EBase _ (String "dummy body") -> (addPrecedingWhitespace extraWhitespace bodyExp).val.e__
+                _                             -> e__
+            )
+            template
+      in
+      wrappedWithLets
 
 
 pluckFeatureEquationNamed nodeIdAndFeature slate =
@@ -426,25 +479,317 @@ equationLocs syncOptions eqn =
   List.concatMap (Set.toList << (Sync.locsOfTrace syncOptions) << valToTrace) (equationVals eqn)
 
 
+-- Will abort if any op other than + - * /
+--
+-- Must be linear in the locId solved for.
+--
+-- Convert to just locIds (variables) and constants
+solveForLoc : LocId -> FeatureEquation -> FeatureEquation -> Maybe LocEquation
+solveForLoc locId rhs lhs =
+  -- Feature equation contains feature operations and trace operations.
+  -- Normalize to simple equations on locIds (variables).
+  let
+    rhs' = featureEquationToLocEquation rhs
+    lhs' = featureEquationToLocEquation lhs
+  in
+  -- Transform   rhs' - lhs' = 0
+  -- to          coeff*x^pow + rest = 0
+  -- where x is our target loc
+  case locEqnTerms locId (LocEqnOp Minus [rhs', lhs']) of
+    Just (locPow, locCoeff, rest) ->
+      if locPow == 0 || locCoeff == LocEqnConst 0 then
+        Nothing
+      else if locPow == 1 then
+        -- We have: coeff*x + rest = 0
+        -- We want: x = something
+        Just <|
+        locEqnSimplify <|
+          LocEqnOp Div
+              [ LocEqnOp Minus [LocEqnConst 0, rest]
+              , locCoeff]
 
--- type Trace = TrLoc Loc | TrOp Op_ (List Trace)
--- type FeatureEquation
---   = EqnVal Val
---   | EqnOp Op_ (List FeatureEquation)
+      else if locPow == -1 then
+        -- We have: coeff/x + rest = 0
+        -- We want: x = something
+        Just <|
+        locEqnSimplify <|
+          LocEqnOp Div
+              [ locCoeff
+              , LocEqnOp Minus [LocEqnConst 0, rest]]
+      else
+        -- Just need to add a pow op and then we can handle more pows.
+        Nothing
+
+    Nothing ->
+      Nothing
 
 
--- Abort if any op other than + - * /
--- Distribute
--- Combine like terms
-solveForLoc loc rhs lhs =
-  -- let
-  --   rhs' = eqnDistribute rhs
-  --   lhs' = eqnDistribute lhs
-  -- in let
-  --   rhs'' = eqnCombineLikeTerms rhs'
-  --   lhs'' = eqnCombineLikeTerms lhs'
-  -- in
-  Nothing
+-- Repeated perform simple simplifications:
+-- Remove multiply/divide by 1
+-- Remove add or subtract by 0
+-- Remove multiply/divide by 0
+-- Combine operations on constants
+locEqnSimplify : LocEquation -> LocEquation
+locEqnSimplify eqn =
+  let simplified =
+    case eqn of
+      LocEqnConst n ->
+        eqn
+
+      LocEqnLoc locId ->
+        eqn
+
+      LocEqnOp op children ->
+        let children' = List.map locEqnSimplify children in
+        let eqn' = LocEqnOp op children' in
+        case children' of
+          [left, right] ->
+            case op of
+              Plus ->
+                case (left, right) of
+                  (LocEqnConst 0, _) -> right
+                  (_, LocEqnConst 0) -> left
+                  (LocEqnConst a,
+                   LocEqnConst b)    -> LocEqnConst (a + b)
+                  _                  -> eqn'
+
+              Minus ->
+                case (left, right) of
+                  (_, LocEqnConst 0) -> left
+                  -- Double minus to plus
+                  (LocEqnConst 0,
+                   LocEqnOp Minus [LocEqnConst 0, stuff]) -> stuff
+                  (LocEqnConst a,
+                   LocEqnConst b)    -> LocEqnConst (a - b)
+                  _                  -> eqn'
+
+              Mult ->
+                case (left, right) of
+                  (LocEqnConst 1, _) -> right
+                  (_, LocEqnConst 1) -> left
+                  (LocEqnConst 0, _) -> LocEqnConst 0
+                  (_, LocEqnConst 0) -> LocEqnConst 0
+                  (LocEqnConst a,
+                   LocEqnConst b)    -> LocEqnConst (a * b)
+                  _                  -> eqn'
+
+              Div ->
+                case (left, right) of
+                  (_, LocEqnConst 1) -> left
+                  -- Division by 0 will be handled elsewhere.
+                  -- We don't want to produce infinity here.
+                  (LocEqnConst a,
+                   LocEqnConst b)    -> if b /= 0 then LocEqnConst (a / b) else eqn'
+                  (LocEqnConst 0, _) -> LocEqnConst 0
+                  _                  ->
+                    -- Alas, this is syntactic equality not semantic.
+                    if left == right && right /= LocEqnConst 0 then
+                      LocEqnConst 1
+                    else
+                      eqn'
+
+              _ ->
+                eqn'
+
+          _ ->
+            Debug.crash <| "locEqnSimplify: op without 2 children " ++ (toString eqn)
+  in
+  if simplified == eqn then
+    eqn
+  else
+    Debug.log "double simplification"
+    <| locEqnSimplify simplified
+
+
+-- Returns (locPow, coefficient of targetLoc, everything else)
+--
+-- i.e. (coeff eqn)*targetLoc^locPow + (everything else eqn)
+--
+-- Becaue once in that form, we can solve for the targetLoc.
+--
+-- Returns Nothing if equation is not linear in LocId
+locEqnTerms : LocId -> LocEquation -> Maybe (Int, LocEquation, LocEquation)
+locEqnTerms targetLocId eqn =
+  case eqn of
+    LocEqnConst n ->
+      Just (1, LocEqnConst 0, eqn)
+
+    LocEqnLoc locId ->
+      if locId == targetLocId
+      then Just (1, LocEqnConst 1, LocEqnConst 0)
+      else Just (1, LocEqnConst 0, eqn)
+
+    LocEqnOp op children ->
+      let children' = List.map (locEqnTerms targetLocId) children in
+      let result =
+        case children' of
+          [Just (leftLocPow,  leftCoeff, leftRest),
+           Just (rightLocPow, rightCoeff, rightRest)] ->
+            case op of
+              Plus ->
+                if leftLocPow == rightLocPow then
+                  Just (leftLocPow,
+                        LocEqnOp Plus [leftCoeff, rightCoeff],
+                        LocEqnOp Plus [leftRest, rightRest])
+                else
+                  -- Not easily solvable, powers of the target loc don't match.
+                  Nothing
+
+              Minus ->
+                if leftLocPow == rightLocPow then
+                  Just (leftLocPow,
+                        LocEqnOp Minus [leftCoeff, rightCoeff],
+                        LocEqnOp Minus [leftRest, rightRest])
+                else
+                  -- Not easily solvable, powers of the target loc don't match.
+                  Nothing
+
+              Mult ->
+                case (leftCoeff, leftRest, rightCoeff, rightRest) of
+                  -- Left side doesn't contain target loc
+                  (LocEqnConst 0, _, _, _) ->
+                    Just (rightLocPow,
+                          LocEqnOp Mult [leftRest, rightCoeff],
+                          LocEqnOp Mult [leftRest, rightRest])
+
+                  -- Right side doesn't contain target loc
+                  (_, _, LocEqnConst 0, _) ->
+                    Just (leftLocPow,
+                          LocEqnOp Mult [leftCoeff, rightRest],
+                          LocEqnOp Mult [leftRest, rightRest])
+
+                  -- Both sides only contain terms of the coeff
+                  (_, LocEqnConst 0, _, LocEqnConst 0) ->
+                    let newPow = leftLocPow + rightLocPow in
+                    if newPow == 0 then
+                      Just (1, LocEqnConst 0, LocEqnConst 1)
+                    else
+                      Just (newPow,
+                            LocEqnOp Mult [leftCoeff, rightCoeff],
+                            LocEqnConst 0)
+
+                  _ ->
+                    -- Equation is too difficult for us :-(
+                    Nothing
+
+              Div ->
+                -- Division is problematic
+                case (leftCoeff, leftRest, rightCoeff, rightRest) of
+                  -- Division by 0
+                  (_, _, LocEqnConst 0, LocEqnConst 0) ->
+                    Nothing
+
+                  -- Denominator doesn't contain target loc,
+                  -- simple distribution.
+                  (_, _, LocEqnConst 0, _) ->
+                    Just (leftLocPow,
+                          LocEqnOp Div [leftCoeff, rightRest],
+                          LocEqnOp Div [leftRest, rightRest])
+
+                  -- Denominator is some power and coeff of target loc,
+                  -- numerator does not contain target loc
+                  (LocEqnConst 0, _, LocEqnConst 1, LocEqnConst 0) ->
+                    Just (-rightLocPow,
+                          LocEqnOp Div [leftRest, rightCoeff],
+                          LocEqnConst 0)
+
+                  -- Numerator and denominator are both terms of the target loc
+                  (_, LocEqnConst 0, _, LocEqnConst 0) ->
+                    if leftLocPow == rightLocPow then
+                      Just (1, LocEqnConst 0, LocEqnOp Div [leftCoeff, rightCoeff])
+                    else
+                      Just (rightLocPow - leftLocPow,
+                            LocEqnOp Div [leftCoeff, rightCoeff],
+                            LocEqnConst 0)
+
+                  _ ->
+                    -- Maybe the numerator and denominator are magically
+                    -- syntactically equal.
+                    -- (Not smart enough to detect multiples)
+                    if leftLocPow == rightLocPow && leftCoeff == rightCoeff && leftRest == rightRest then
+                      Just (1, LocEqnConst 0, LocEqnConst 1)
+                    else
+                      Nothing
+
+              _ ->
+                -- Not smart enough to handle anything other than + - * /
+                Nothing
+
+          _ ->
+            -- Couldn't work out children
+            Nothing
+        in
+        case result of
+          Just (newPow, newCoeff, newRest) ->
+            Just (newPow, locEqnSimplify newCoeff, locEqnSimplify newRest)
+
+          Nothing ->
+            Nothing
+
+
+locEqnLocIds syncOptions eqn =
+  case eqn of
+    LocEqnConst _       -> Set.empty
+    LocEqnLoc locId     -> Set.singleton locId
+    LocEqnOp _ children ->
+      List.foldl
+          (\child locs -> Set.union locs <| locEqnLocIds syncOptions child)
+          Set.empty
+          children
+
+
+-- Turns all traces in the equation into equations on the locs
+featureEquationToLocEquation : FeatureEquation -> LocEquation
+featureEquationToLocEquation featureEqn =
+  case featureEqn of
+    EqnVal val ->
+      case val.v_ of
+        -- locId of 0 means it's a constant that's part of the feature equation,
+        -- not the program
+        VConst (n, TrLoc (0, _, _)) ->
+          LocEqnConst n
+
+        VConst (n, TrLoc (locId, _, _)) ->
+          LocEqnLoc locId
+
+        VConst (n, TrOp op traces) ->
+          LocEqnOp op (List.map traceToLocEquation traces)
+
+        _ -> Debug.crash <| "Found feature equation with a value other than a VConst: " ++ (toString val) ++ "\nin: " ++ (toString featureEqn)
+
+    EqnOp op featureEqns ->
+      LocEqnOp op (List.map featureEquationToLocEquation featureEqns)
+
+
+traceToLocEquation : Trace -> LocEquation
+traceToLocEquation trace =
+  case trace of
+    -- locId of 0 means it's a constant that's part of the feature equation,
+    -- not the program. These should not be in traces produced by execution.
+    TrLoc (0, _, _) ->
+      Debug.crash <| "traceToLocEquation: Found locId of 0 in trace. " ++ (toString trace)
+
+    TrLoc (locId, _, _) ->
+      LocEqnLoc locId
+
+    TrOp op traces ->
+      LocEqnOp op (List.map traceToLocEquation traces)
+
+
+locEqnToLittle : Dict.Dict LocId Ident -> LocEquation -> String
+locEqnToLittle locIdToName eqn =
+  case eqn of
+    LocEqnConst n ->
+      toString n ++ "!"
+
+    LocEqnLoc locId ->
+      case Dict.get locId locIdToName of
+        Just ident -> ident
+        Nothing    -> "?"
+
+    LocEqnOp op childEqns ->
+      let childLittleStrs = List.map (locEqnToLittle locIdToName) childEqns in
+      "(" ++ strOp op ++ " " ++ String.join " " childLittleStrs ++ ")"
 
 
 featureEquation nodeId kind feature nodeAttrs =

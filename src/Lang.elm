@@ -492,6 +492,19 @@ applySubst subst exp =
   mapExp replacer exp
 
 
+replaceConstsWithVars : Dict.Dict LocId Ident -> Exp -> Exp
+replaceConstsWithVars locIdToNewName exp =
+  let replacer exp__ =
+    case exp__ of
+      EConst ws n (locId, frozen, ident) wd ->
+        case Dict.get locId locIdToNewName of
+          Just newName -> EVar ws newName
+          Nothing      -> exp__
+      _ -> exp__
+  in
+  mapExpViaExp__ replacer exp
+
+
 unfrozenLocIdsAndNumbers : Exp -> List (LocId, Num)
 unfrozenLocIdsAndNumbers exp =
   foldExpViaE__
