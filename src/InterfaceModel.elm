@@ -75,6 +75,7 @@ type Mode
   | SyncSelect (List PossibleChange)
   | Live Sync.LiveInfo
   | Print RawSvg
+      -- TODO might add a print mode where <g BLOB BOUNDS> nodes are removed
   | SaveDialog Mode -- SaveDialog saves last mode
 
 type alias DialogInfo = { value : String

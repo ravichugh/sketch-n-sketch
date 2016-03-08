@@ -717,10 +717,11 @@ addAttrs kind attrs =
     else attrs
 
 specialAttrs = ["HIDDEN", "ZONES"]
+  -- not removing 'BLOB' and 'BOUNDS' since they are useful
+  -- for understanding and debugging
 
 removeSpecialAttrs =
   List.filter (\(s,_) -> not (List.member s specialAttrs))
-  -- TODO remove 'ZONES' attr
 
 
 ------------------------------------------------------------------------------
