@@ -631,6 +631,7 @@ zoneSelectLine_ model nodeIdAndFeature (x1,y1) (x2,y2) =
 
 zoneGroupStrokeWidth = 8
 zoneGroupPadding     = 10
+roundBounds          = True
 
 zoneGroup model options id bounds =
   if options.addSelectShapes
@@ -686,9 +687,13 @@ maybeFindBounds l =
   case Utils.maybeFind "BOUNDS" l of
     Nothing -> Nothing
     Just av ->
-      case av.av_ of
-        LangSvg.ABounds bounds -> Just bounds
-        _                      -> Nothing
+      case (av.av_, roundBounds) of
+        (LangSvg.ABounds bounds, False) -> Just bounds
+        (LangSvg.ABounds (a,b,c,d), True) ->
+          let f = Utils.mapFst (toFloat << round) in
+          Just (f a, f b, f c, f d)
+        _ ->
+          Nothing
 
 
 --------------------------------------------------------------------------------
