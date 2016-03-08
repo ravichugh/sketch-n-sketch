@@ -48,6 +48,9 @@ combinedEventSig =
     , Signal.map
       (Model.KeysDown << List.sort << Set.toList)
       Keyboard.keysDown
+    , Signal.map
+        (always Model.MouseUp)
+        (Signal.filter ((==) False) False Mouse.isDown)
     ]
 
 main : Signal Element
