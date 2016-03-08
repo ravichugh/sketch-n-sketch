@@ -857,6 +857,8 @@ eRaw__ = EVar
 eRaw0  = eVar0
 eRaw   = eVar
 
+listOfRaw = listOfVars
+
 listOfVars xs =
   case xs of
     []     -> []

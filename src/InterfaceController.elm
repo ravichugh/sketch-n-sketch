@@ -342,8 +342,6 @@ maybeBlobs main =
         _     -> Nothing
     _         -> Nothing
 
--- TODO use listOfVars, listOfNums, eRaw below
-
 -- when line is snapped, not enforcing the angle in code
 addLineToCodeAndRun old click2 click1 =
   let ((_,(x2,y2)),(_,(x1,y1))) = (click2, click1) in
@@ -400,7 +398,7 @@ addRect old (_,pt2) (_,pt1) =
   let (xMin, xMax, yMin, yMax) = View.boundingBox pt2 pt1 in
   addToCodeAndRun "rect" old
     [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
+    , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
     , makeLet ["rot"] [eConst 0 dummyLoc] ]
     (eVar0 "rectangle")
     [eConst 100 dummyLoc, eStr "black", eConst 0 dummyLoc, eVar "rot", eVar "bounds"]
@@ -410,7 +408,7 @@ addSquare old (_,pt2) (_,pt1) =
   let side = (xMax - xMin) in
   addToCodeAndRun "square" old
     [ makeLet ["left","top","side"] (makeInts [xMin,yMin,side])
-    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","(+ left side)","(+ top side)"]) Nothing]
+    , makeLet ["bounds"] [eList (listOfRaw ["left","top","(+ left side)","(+ top side)"]) Nothing]
     , makeLet ["rot"] [eConst 0 dummyLoc] ]
     (eVar0 "rectangle")
     [eConst 50 dummyLoc, eStr "black", eConst 0 dummyLoc, eVar "rot", eVar "bounds"]
@@ -444,7 +442,7 @@ addEllipse old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
   addToCodeAndRun "ellipse" old
     [ makeLet ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
-    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing] ]
+    , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing] ]
     (eVar0 "oval")
     [eConst 200 dummyLoc, eStr "black", eConst 0 dummyLoc, eVar "bounds"]
 
@@ -453,7 +451,7 @@ addCircle old (_,pt2) (_,pt1) =
   addToCodeAndRun "circle" old
     [ makeLet ["left", "top", "r"] (makeInts [left, top, (right-left)//2])
     , makeLet ["bounds"]
-        [eList [eVar0 "left", eVar "top", eVar "(+ left (* 2! r))", eVar "(+ top (* 2! r))"] Nothing] ]
+        [eList [eVar0 "left", eVar "top", eRaw "(+ left (* 2! r))", eRaw "(+ top (* 2! r))"] Nothing] ]
     (eVar0 "oval")
     [eConst 250 dummyLoc, eStr "black", eConst 0 dummyLoc, eVar "bounds"]
 
@@ -485,7 +483,6 @@ addStretchablePolygon old keysAndPoints =
   let yMax = Utils.fromJust <| List.maximum (List.map snd points) in
   let yMin = Utils.fromJust <| List.minimum (List.map snd points) in
   let (width, height) = (xMax - xMin, yMax - yMin) in
-  -- TODO string for now, since will unparse anyway...
   let sPcts =
     Utils.bracks <| Utils.spaces <|
       flip List.map (List.reverse points) <| \(x,y) ->
@@ -497,8 +494,8 @@ addStretchablePolygon old keysAndPoints =
   in
   addToCodeAndRun "polygon" old
     [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
-    , makeLet ["pcts"] [eVar sPcts] ]
+    , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
+    , makeLet ["pcts"] [eRaw sPcts] ]
     (eVar0 "stretchyPolygon")
     [eVar "bounds", eConst 300 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "pcts"]
 
@@ -509,7 +506,6 @@ addStickyPolygon old keysAndPoints =
   let yMax = Utils.fromJust <| List.maximum (List.map snd points) in
   let yMin = Utils.fromJust <| List.minimum (List.map snd points) in
   let (width, height) = (xMax - xMin, yMax - yMin) in
-  -- TODO string for now, since will unparse anyway...
   let sOffsets =
     Utils.bracks <| Utils.spaces <|
       flip List.map (List.reverse points) <| \(x,y) ->
@@ -527,8 +523,8 @@ addStickyPolygon old keysAndPoints =
   in
   addToCodeAndRun "polygon" old
     [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
-    , makeLet ["offsets"] [eVar sOffsets] ]
+    , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
+    , makeLet ["offsets"] [eRaw sOffsets] ]
     (eVar0 "stickyPolygon")
     [eVar "bounds", eConst 350 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "offsets"]
 
@@ -588,7 +584,7 @@ addLambdaToCodeAndRun old (_,pt2) (_,pt1) =
   in
   addToCodeAndRun funcName old
     [ makeLet ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
-    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
+    , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
     ]
     (eVar0 "with") [ eVar "bounds" , eVar funcName ]
 
