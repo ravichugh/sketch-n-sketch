@@ -59,6 +59,10 @@ import Debug
 
 --------------------------------------------------------------------------------
 
+debugLog = Config.debugLog Config.debugView
+
+--------------------------------------------------------------------------------
+
 svgLine      = flip Svg.line []
 svgRect      = flip Svg.rect []
 svgCircle    = flip Svg.circle []
@@ -132,11 +136,13 @@ makeButton (kind, status) w h text =
 
 type alias ZoneOptions =
   { showBasic : Bool , addBasic : Bool , addRot : Bool , addColor : Bool
-  , addDelete : Bool , addSelect : Bool }
+  , addDelete : Bool , addSelect : Bool, addSelectShapes : Bool
+  }
 
 zoneOptions0 =
   { showBasic = False , addBasic = False , addRot = False , addColor = False
-  , addDelete = False , addSelect = False }
+  , addDelete = False , addSelect = False, addSelectShapes = False
+  }
 
 optionsOf : ShowZones -> ZoneOptions
 optionsOf x =
@@ -144,7 +150,8 @@ optionsOf x =
   else if x == showZonesBasic then { zoneOptions0 | addBasic = True, showBasic = True }
   else if x == showZonesExtra then { zoneOptions0 | addRot = True, addColor = True }
   else if x == showZonesDel   then { zoneOptions0 | addDelete = True }
-  else if x == showZonesSelect then { zoneOptions0 | addSelect = True }
+  else if x == showZonesSelectAttrs  then { zoneOptions0 | addSelect = True }
+  else if x == showZonesSelectShapes then { zoneOptions0 | addSelectShapes = True }
   else
     Debug.crash "optionsOf"
 
@@ -620,6 +627,76 @@ zoneSelectLine_ model nodeIdAndFeature (x1,y1) (x2,y2) =
 
 
 --------------------------------------------------------------------------------
+-- Select Group (aka "Blob") Zones
+
+zoneGroupStrokeWidth = 8
+zoneGroupPadding     = 10
+roundBounds          = True
+
+zoneGroup model options id bounds =
+  if options.addSelectShapes
+    then zoneGroup_ model id bounds
+    else []
+
+zoneGroup_ model id bounds =
+  let (left, top, right, bot) =
+    let (a,b,c,d) = bounds in (fst a, fst b, fst c, fst d)
+  in
+  let stroke =
+    if Dict.member id model.selectedBlobs
+      then "#03C03C"
+      else "rgba(255,255,0,1.0)" in
+  let pad = zoneGroupPadding in
+  let (x1,y1) = (left  - pad, top - pad) in
+  let (x2,y2) = (right + pad, bot + pad) in
+  let fourCorners = [(x1,y1), (x2,y1), (x2,y2), (x1,y2)] in
+  let edge (pt1,pt2) =
+    svgLine
+       [ LangSvg.attr "stroke" stroke
+       , LangSvg.attr "stroke-width" (toString zoneGroupStrokeWidth)
+       , LangSvg.attr "fill" "rgba(0,0,0,0)"
+       , cursorStyle "pointer"
+       , onMouseDown (toggleSelectedBlob model id bounds)
+       , attrNum "x1" (fst pt1), attrNum "y1" (snd pt1)
+       , attrNum "x2" (fst pt2), attrNum "y2" (snd pt2)
+       ]
+  in
+  List.map edge (Utils.adjacentPairs True fourCorners)
+
+{-
+toggle x set = if Set.member x set then Set.remove x set else Set.insert x set
+-}
+toggleDict (k,v) dict =
+  if Dict.member k dict
+    then Dict.remove k dict
+    else Dict.insert k v dict
+
+toggleSelectedBlob model id bounds =
+  UpdateModel <| \model ->
+    { model | selectedBlobs = toggleDict (id, bounds) model.selectedBlobs }
+
+maybeFindBlobId l =
+  case Utils.maybeFind "BLOB" l of
+    Nothing -> Nothing
+    Just av ->
+      case av.av_ of
+        LangSvg.AString sBlobId -> Just (Utils.parseInt sBlobId)
+        _                       -> Nothing
+
+maybeFindBounds l =
+  case Utils.maybeFind "BOUNDS" l of
+    Nothing -> Nothing
+    Just av ->
+      case (av.av_, roundBounds) of
+        (LangSvg.ABounds bounds, False) -> Just bounds
+        (LangSvg.ABounds (a,b,c,d), True) ->
+          let f = Utils.mapFst (toFloat << round) in
+          Just (f a, f b, f c, f d)
+        _ ->
+          Nothing
+
+
+--------------------------------------------------------------------------------
 
 -- TODO given need for Model, rethink ZoneOptions...
 {-
@@ -651,12 +728,21 @@ makeZones model options shape id l =
              [ zoneSelectCrossDot model options.addSelect (id, [LangSvg.lineCX], [LangSvg.lineCY]) ((fst x1)/2+(fst x2)/2) ((fst y1)/2+(fst y2)/2)
              , zoneSelectCrossDot model options.addSelect (id, [LangSvg.lineX1], [LangSvg.lineY1]) (fst x1) (fst y1)
              , zoneSelectCrossDot model options.addSelect (id, [LangSvg.lineX2], [LangSvg.lineY2]) (fst x2) (fst y2) ] in
-        zLine :: zPts ++ zRot ++ zSelect
+        let zGroup =
+          case maybeFindBlobId l of
+            Nothing     -> []
+            Just blobId -> zoneGroup model options blobId
+                             (minNumTr x1 x2, minNumTr y1 y2,
+                              maxNumTr x1 x2, maxNumTr y1 y2)
+        in
+        zLine :: zPts ++ zRot ++ zSelect ++ zGroup
 
     "polygon"  -> makeZonesPoly model options shape id l
     "polyline" -> makeZonesPoly model options shape id l
 
     "path" -> makeZonesPath options.showBasic shape id l
+
+    "g" -> makeZonesGroup model options l
 
     _ -> []
 
@@ -710,6 +796,7 @@ makeZonesRect model options shape id l =
       ++ zoneDelete options.addDelete id shape x y (maybeTransformAttr l)
       ++ zonesSelect
 
+-- TODO maybe remove native point zones in favor of user-level ones
 makeZonesBox model options id l =
   let transform = maybeTransformAttr l in
   let mkInterior zone x_ y_ w_ h_ =
@@ -841,6 +928,11 @@ makeZonesPath showBasic shape id l =
       LangSvg.CmdA   s a b c d e pt -> pt +++ acc) [] cmds
   in
   zonePoints id shape showBasic transform pts
+
+makeZonesGroup model options l =
+  case (maybeFindBounds l, maybeFindBlobId l) of
+    (Just bounds, Just blobId) -> zoneGroup model options blobId bounds
+    _                          -> []
 
 
 --------------------------------------------------------------------------------
@@ -1119,8 +1211,8 @@ canvas_ w h model =
     (False, AdHoc)  -> True
     (False, Live _) -> case model.toolType of
                          Cursor       -> True
-                         SelectAttrs  -> True
-                         SelectShapes -> True
+                         -- SelectAttrs  -> True
+                         -- SelectShapes -> True
                          _            -> False
     _               -> False
   in
@@ -1270,13 +1362,14 @@ widgetsToolExtras w h model =
     Cursor       -> [ gap , zoneButton model w h  ]
     SelectAttrs  -> [ gap , relateAttrsButton w h ]
 -}
-    Cursor       -> if model.showZones == showZonesSelect
+    Cursor       -> if model.showZones == showZonesSelectAttrs
                     then gap :: (zoneButtons model w h)
-                             ++ [ digHoleButton w h ]
+                             -- ++ [ digHoleButton w h ]
                              -- ++ [ gap, twoButtons w h relateAttrsButton digHoleButton ]
                              -- ++ [ relateAttrsButton w h, digHoleButton w h]
                     else gap :: (zoneButtons model w h)
-    SelectShapes -> [ gap , relateShapesButton w h ]
+    -- SelectShapes -> [ gap , relateShapesButton w h ]
+    -- SelectShapes -> gap :: zoneButtons model w h
     _            -> []
 
 middleWidgets row1 row2 w h wWrap hWrap model =
@@ -1535,21 +1628,29 @@ ghostsButton model w h =
 syncButton =
   simpleButton Sync "Sync" "Sync the code to the canvas" "Sync"
 
+{-
 relateAttrsButton =
   simpleButton RelateAttrs "Relate" "Relate" "Relate" -- "Relate Attrs"
+-}
 
-digHoleButton =
-  simpleButton DigHole "unused?" "unused?" "Dig" -- "Dig Hole"
+digHoleButton enabled =
+  simpleEventButton_ (not enabled) DigHole "unused?" "unused?" "Dig" -- "Dig Hole"
 
+groupButton enabled =
+  simpleEventButton_ (not enabled) RelateShapes "unused?" "unused?" "Group"
+
+{-
 relateShapesButton =
   simpleButton RelateShapes "Relate" "Relate" "Relate Shapes"
+-}
 
 zoneButtons model w h =
   let caption mode =
-    if mode == showZonesNone        then "Hide" -- "[Zones] Hidden"
-    else if mode == showZonesBasic  then "Show" -- "[Zones] Basic"
-    else if mode == showZonesSelect then "Attrs" -- "[Zones] Attrs"
-    else if mode == showZonesExtra  then "Extra" -- "[Zones] Extra"
+    if mode == showZonesNone        then "No" -- "Hide" -- "[Zones] Hidden"
+    else if mode == showZonesBasic  then "Yes" -- "Show" -- "[Zones] Basic"
+    else if mode == showZonesSelectAttrs  then "Attrs" -- "[Zones] Attrs"
+    else if mode == showZonesSelectShapes then "Shapes" -- "[Zones] Attrs"
+    else if mode == showZonesExtra  then "Xtra" -- "Extra" -- "[Zones] Extra"
     else if mode == showZonesDel    then Debug.crash "[Zones] Delete"
     else
       Debug.crash "zoneButton caption"
@@ -1563,8 +1664,21 @@ zoneButtons model w h =
     -- Delete turned off for now
     -- List.map zoneButton showZonesModes
     -- List.map zoneButton [ 0 .. (showZonesModeCount - 1 - 1) ]
+{-
     [ twoButtons w h (zoneButton showZonesNone) (zoneButton showZonesBasic)
     , twoButtons w h (zoneButton showZonesExtra) (zoneButton showZonesSelect)
+    ]
+-}
+    [ threeButtons w h
+        (zoneButton showZonesNone)
+        (zoneButton showZonesBasic)
+        (zoneButton showZonesExtra)
+    , twoButtons w h
+        (zoneButton showZonesSelectAttrs)
+        (zoneButton showZonesSelectShapes)
+    , twoButtons w h
+        (digHoleButton (model.showZones == showZonesSelectAttrs))
+        (groupButton (model.showZones == showZonesSelectShapes))
     ]
 
 {-
@@ -1616,8 +1730,8 @@ toolButton model tt w h =
   let cap = case tt of
     -- Cursor -> "1"
     Cursor -> "Cursor"
-    SelectAttrs -> "2"
-    SelectShapes -> "3"
+    -- SelectAttrs -> "2"
+    -- SelectShapes -> "3"
     Line -> "Line"
     Rect -> "Rect"
     Oval -> "Oval"

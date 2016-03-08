@@ -1,7 +1,9 @@
 module LangUnparser
   (unparse, equationToLittle, bumpCol, incCol, precedingWhitespace,
     precedingWhitespaceExp__, addPrecedingWhitespace,
-    replacePrecedingWhitespace, replacePrecedingWhitespacePat) where
+    replacePrecedingWhitespace, replacePrecedingWhitespacePat,
+    indent
+  ) where
 
 import Lang exposing (..)
 import OurParser2 exposing (Pos, WithPos, WithInfo, startPos)
@@ -11,6 +13,7 @@ import Config
 import String
 import Dict
 import Debug
+import Regex
 
 ------------------------------------------------------------------------------
 
@@ -93,6 +96,55 @@ mapPrecedingWhitespace mapWs exp =
   in
   let val = exp.val in
   { exp | val = { val | e__ = e__' } }
+
+{- TODO:
+     add a flag to mapPrecedingWhitespace that specifies whether
+       or not to recurse into Exp children.
+     then, re-define indent as follows:
+
+indent : String -> Exp -> Exp
+indent spaces =
+  mapPrecedingWhitespace True <| \s ->
+    s |> String.reverse
+      |> Regex.replace (Regex.AtMost 1) (Regex.regex "\n") (\_ -> spaces ++ "\n")
+      |> String.reverse
+-}
+
+indent : String -> Exp -> Exp
+indent spaces e =
+  let recurse = indent spaces in
+  let wrap e__ = WithInfo (Exp_ e__ e.val.eid) e.start e.end in
+  let processWS ws =
+    ws |> String.reverse
+       |> Regex.replace (Regex.AtMost 1) (Regex.regex "\n") (\_ -> spaces ++ "\n")
+       |> String.reverse
+  in
+  case e.val.e__ of
+    EConst _ _ _ _         -> e
+    EBase _ _              -> e
+    EVar _ _               -> e
+    EFun ws1 ps e' ws2     -> wrap (EFun (processWS ws1) ps (recurse e') ws2)
+    EApp ws1 e1 es ws2     -> wrap (EApp (processWS ws1) (recurse e1) (List.map recurse es) ws2)
+    EOp ws1 op es ws2      -> wrap (EOp (processWS ws1) op (List.map recurse es) ws2)
+    EList ws1 es ws2 m ws3 -> wrap (EList (processWS ws1) (List.map recurse es) ws2 (Utils.mapMaybe recurse m) ws3)
+    EIndList ws1 rs ws2    ->
+      let rangeRecurse r_ = case r_ of
+        Interval e1 ws e2 -> Interval (recurse e1) ws (recurse e2)
+        Point e1          -> Point (recurse e1)
+      in
+      wrap (EIndList (processWS ws1) (List.map (mapValField rangeRecurse) rs) ws2)
+    EIf ws1 e1 e2 e3 ws2     -> wrap (EIf (processWS ws1) (recurse e1) (recurse e2) (recurse e3) ws2)
+    ECase ws1 e1 branches ws2 ->
+      let newE1 = recurse e1 in
+      let newBranches =
+        List.map
+            (mapValField (\(Branch_ bws1 p ei bws2) -> Branch_ bws1 p (recurse ei) bws2))
+            branches
+      in
+      wrap (ECase (processWS ws1) newE1 newBranches ws2)
+    EComment ws s e1         -> wrap (EComment (processWS ws) s (recurse e1))
+    EOption ws1 s1 ws2 s2 e1 -> wrap (EOption (processWS ws1) s1 ws2 s2 (recurse e1))
+    ELet ws1 k b p e1 e2 ws2 -> wrap (ELet (processWS ws1) k b p (recurse e1) (recurse e2) ws2)
 
 
 mapPrecedingWhitespacePat : (String -> String) -> Pat -> Pat

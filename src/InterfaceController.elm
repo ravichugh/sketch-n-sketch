@@ -247,27 +247,100 @@ canvasOriginHorizontal old =
 --------------------------------------------------------------------------------
 -- New Shapes
 
+type alias Program = (TopDefs, MainExp)
+
 type alias TopDef  = (WS, Pat, Exp, WS)
 type alias TopDefs = List TopDef
 
-splitExp : Exp -> (TopDefs, Exp)
+type MainExp
+  = SvgConcat (List Exp) (List Exp -> Exp)
+  | Blobs (List Exp) (List Exp -> Exp)
+  | OtherExp Exp
+
+splitExp : Exp -> Program
 splitExp e =
   case e.val.e__ of
     ELet ws1 Def False p1 e1 e2 ws2 ->
       let (defs, main) = splitExp e2 in
       ((ws1,p1,e1,ws2)::defs, main)
     _ ->
-      ([], e)
+      ([], toMainExp e)
 
-fuseExp : TopDefs -> Exp -> Exp
-fuseExp defs main =
+fuseExp : Program -> Exp
+fuseExp (defs, mainExp) =
   let recurse defs =
     case defs of
-      [] -> main
+      [] -> expandMainExp mainExp
       (ws1,p1,e1,ws2)::defs' ->
         withDummyPos <| ELet ws1 Def False p1 e1 (recurse defs') ws2
   in
   recurse defs
+
+toMainExp : Exp -> MainExp
+toMainExp e =
+  maybeSvgConcat e `Utils.plusMaybe` maybeBlobs e `Utils.elseMaybe` OtherExp e
+
+expandMainExp : MainExp -> Exp
+expandMainExp me =
+  case me of
+    SvgConcat shapes f -> f shapes
+    Blobs shapes f     -> f shapes
+    OtherExp e         -> e
+
+maybeSvgConcat : Exp -> Maybe MainExp
+maybeSvgConcat main =
+  case main.val.e__ of
+    EApp ws1 e1 [eAppConcat] ws2 ->
+      case (e1.val.e__, eAppConcat.val.e__) of
+        (EVar _ "svg", EApp ws3 eConcat [e2] ws4) ->
+          case (eConcat.val.e__, e2.val.e__) of
+            (EVar _ "concat", EList ws5 oldList ws6 Nothing ws7) ->
+              let updateExpressionList newList =
+                let
+                  e2' =
+                    { e2 | val = { eid = e2.val.eid , e__ =
+                        EList ws5 newList ws6 Nothing ws7 } }
+                  eAppConcat' =
+                    { eAppConcat | val = { eid = eAppConcat.val.eid , e__ =
+                        EApp ws3 eConcat [e2'] ws4 } }
+                  main' =
+                    { main | val = { eid = main.val.eid , e__ =
+                        EApp ws1 e1 [eAppConcat'] ws2 } }
+                in
+                if ws1 == "" then addPrecedingWhitespace "\n\n" main'
+                else if ws1 == "\n" then addPrecedingWhitespace "\n" main'
+                else main'
+              in
+              Just (SvgConcat oldList updateExpressionList)
+
+            _ -> Nothing
+        _     -> Nothing
+    _         -> Nothing
+
+-- very similar to above
+maybeBlobs : Exp -> Maybe MainExp
+maybeBlobs main =
+  case main.val.e__ of
+    EApp ws1 eBlobs [eArgs] ws2 ->
+      case (eBlobs.val.e__, eArgs.val.e__) of
+        (EVar _ "blobs", EList ws5 oldList ws6 Nothing ws7) ->
+          let updateExpressionList newList =
+            let
+              eArgs' =
+                { eArgs | val = { eid = eArgs.val.eid , e__ =
+                    EList ws5 newList ws6 Nothing ws7 } }
+              main' =
+                { main | val = { eid = main.val.eid , e__ =
+                    EApp ws1 eBlobs [eArgs'] ws2 } }
+            in
+            if ws1 == "" then addPrecedingWhitespace "\n\n" main'
+            else if ws1 == "\n" then addPrecedingWhitespace "\n" main'
+            else main'
+          in
+          Just (Blobs oldList updateExpressionList)
+
+        _     -> Nothing
+    _         -> Nothing
 
 -- when line is snapped, not enforcing the angle in code
 addLineToCodeAndRun old click2 click1 =
@@ -277,12 +350,24 @@ addLineToCodeAndRun old click2 click1 =
   let (f, args) =
     maybeGhost (old.toolType == HelperLine)
        (eVar0 "line")
+       (eStr color :: eStr "5" :: List.map eVar ["left","top","right","bot"])
+  in
+  addToCodeAndRun "line" old
+    [ makeLet ["left","top","right","bot"] (makeInts [x1,y1,xb,yb])
+    ] f args
+
+{- using variables x1/x2/y1/y2 instead of left/top/right/bot:
+
+  let (f, args) =
+    maybeGhost (old.toolType == HelperLine)
+       (eVar0 "line")
        (eStr color :: eStr "5" :: List.map eVar ["x1","y1","x2","y2"])
   in
   addToCodeAndRun "line" old
     [ makeLet ["x1","x2"] (makeInts [x1,xb])
     , makeLet ["y1","y2"] (makeInts [y1,yb])
     ] f args
+-}
 
 addRectToCodeAndRun old pt2 pt1 =
   if old.keysDown == Keys.shift then addSquare old pt2 pt1
@@ -313,17 +398,17 @@ addRect old (_,pt2) (_,pt1) =
   let (xMin, xMax, yMin, yMax) = View.boundingBox pt2 pt1 in
   addToCodeAndRun "rect" old
     [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
+    , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
     , makeLet ["rot"] [eConst 0 dummyLoc] ]
     (eVar0 "rectangle")
     [eConst 100 dummyLoc, eStr "black", eConst 0 dummyLoc, eVar "rot", eVar "bounds"]
 
 addSquare old (_,pt2) (_,pt1) =
-  let (xMin, xMax, yMin, _) = View.boundingBox pt2 pt1 in
+  let (xMin, xMax, yMin, _) = View.squareBoundingBox pt2 pt1 in
   let side = (xMax - xMin) in
   addToCodeAndRun "square" old
     [ makeLet ["left","top","side"] (makeInts [xMin,yMin,side])
-    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","(+ left side)","(+ top side)"]) Nothing]
+    , makeLet ["bounds"] [eList (listOfRaw ["left","top","(+ left side)","(+ top side)"]) Nothing]
     , makeLet ["rot"] [eConst 0 dummyLoc] ]
     (eVar0 "rectangle")
     [eConst 50 dummyLoc, eStr "black", eConst 0 dummyLoc, eVar "rot", eVar "bounds"]
@@ -357,7 +442,7 @@ addEllipse old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
   addToCodeAndRun "ellipse" old
     [ makeLet ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
-    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing] ]
+    , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing] ]
     (eVar0 "oval")
     [eConst 200 dummyLoc, eStr "black", eConst 0 dummyLoc, eVar "bounds"]
 
@@ -366,7 +451,7 @@ addCircle old (_,pt2) (_,pt1) =
   addToCodeAndRun "circle" old
     [ makeLet ["left", "top", "r"] (makeInts [left, top, (right-left)//2])
     , makeLet ["bounds"]
-        [eList [eVar0 "left", eVar "top", eVar "(+ left (* 2! r))", eVar "(+ top (* 2! r))"] Nothing] ]
+        [eList [eVar0 "left", eVar "top", eRaw "(+ left (* 2! r))", eRaw "(+ top (* 2! r))"] Nothing] ]
     (eVar0 "oval")
     [eConst 250 dummyLoc, eStr "black", eConst 0 dummyLoc, eVar "bounds"]
 
@@ -398,7 +483,6 @@ addStretchablePolygon old keysAndPoints =
   let yMax = Utils.fromJust <| List.maximum (List.map snd points) in
   let yMin = Utils.fromJust <| List.minimum (List.map snd points) in
   let (width, height) = (xMax - xMin, yMax - yMin) in
-  -- TODO string for now, since will unparse anyway...
   let sPcts =
     Utils.bracks <| Utils.spaces <|
       flip List.map (List.reverse points) <| \(x,y) ->
@@ -410,8 +494,8 @@ addStretchablePolygon old keysAndPoints =
   in
   addToCodeAndRun "polygon" old
     [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
-    , makeLet ["pcts"] [eVar sPcts] ]
+    , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
+    , makeLet ["pcts"] [eRaw sPcts] ]
     (eVar0 "stretchyPolygon")
     [eVar "bounds", eConst 300 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "pcts"]
 
@@ -422,7 +506,6 @@ addStickyPolygon old keysAndPoints =
   let yMax = Utils.fromJust <| List.maximum (List.map snd points) in
   let yMin = Utils.fromJust <| List.minimum (List.map snd points) in
   let (width, height) = (xMax - xMin, yMax - yMin) in
-  -- TODO string for now, since will unparse anyway...
   let sOffsets =
     Utils.bracks <| Utils.spaces <|
       flip List.map (List.reverse points) <| \(x,y) ->
@@ -440,8 +523,8 @@ addStickyPolygon old keysAndPoints =
   in
   addToCodeAndRun "polygon" old
     [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
-    , makeLet ["offsets"] [eVar sOffsets] ]
+    , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
+    , makeLet ["offsets"] [eRaw sOffsets] ]
     (eVar0 "stickyPolygon")
     [eVar "bounds", eConst 350 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "offsets"]
 
@@ -501,7 +584,7 @@ addLambdaToCodeAndRun old (_,pt2) (_,pt1) =
   in
   addToCodeAndRun funcName old
     [ makeLet ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
-    , makeLet ["bounds"] [eList (eVar0 "left" :: List.map eVar ["top","right","bot"]) Nothing]
+    , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
     ]
     (eVar0 "with") [ eVar "bounds" , eVar funcName ]
 
@@ -509,8 +592,8 @@ addToCodeAndRun newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
 
   let tmp = newShapeKind ++ toString old.genSymCount in
   let newDef = makeNewShapeDef old newShapeKind tmp newShapeLocals newShapeFunc newShapeArgs in
-  let (defs, main) = splitExp old.inputExp in
-  let code = unparse (fuseExp (defs ++ [newDef]) (addToMain (eVar tmp) main)) in
+  let (defs, mainExp) = splitExp old.inputExp in
+  let code = unparse (fuseExp (defs ++ [newDef], addToMainExp (eVar tmp) mainExp)) in
 
   upstate Run
     { old | code = code
@@ -525,10 +608,10 @@ makeNewShapeDef model newShapeKind name locals func args =
       [] ->
         let multi = -- check if (func args) returns List SVG or SVG
           case model.toolType of
-            Oval -> True
-            Poly -> True
+            -- Oval -> True
+            -- Poly -> True
             Path -> True
-            Lambda _ -> True
+            -- Lambda _ -> True
             _ -> False
         in
         if multi then
@@ -558,35 +641,14 @@ makeInts nums =
              let es = List.map (\n' -> eConst (toFloat n') dummyLoc) ns in
              e::es
 
-addToMain eNew main =
-  let callAddShape () =
-    let ws = "\n" in -- TODO take main into account
-    withDummyPos (EApp ws (eVar0 "addShapes") [eNew, main] "")
-  in
-  case main.val.e__ of
-    EApp ws1 e1 [eAppConcat] ws2 ->
-      case (e1.val.e__, eAppConcat.val.e__) of
-        (EVar _ "svg", EApp ws3 eConcat [e2] ws4) ->
-          case (eConcat.val.e__, e2.val.e__) of
-            (EVar _ "concat", EList ws5 shapes ws6 Nothing ws7) ->
-              let
-                e2' =
-                  { e2 | val = { eid = e2.val.eid , e__ =
-                      EList ws5 (shapes ++ [eNew]) ws6 Nothing ws7 } }
-                eAppConcat' =
-                  { eAppConcat | val = { eid = eAppConcat.val.eid , e__ =
-                      EApp ws3 eConcat [e2'] ws4 } }
-                main' =
-                  { main | val = { eid = main.val.eid , e__ =
-                      EApp ws1 e1 [eAppConcat'] ws2 } }
-              in
-              if ws1 == "" then addPrecedingWhitespace "\n\n" main'
-              else if ws1 == "\n" then addPrecedingWhitespace "\n" main'
-              else main'
-
-            _ -> callAddShape ()
-        _     -> callAddShape ()
-    _         -> callAddShape ()
+addToMainExp eNew mainExp =
+  case mainExp of
+    SvgConcat shapes f -> SvgConcat (shapes ++ [eNew]) f
+    Blobs shapes f     -> Blobs (shapes ++ [eNew]) f
+    OtherExp main ->
+      let ws = "\n" in -- TODO take main into account
+      let main' = withDummyPos (EApp ws (eVar0 "addShapes") [eNew, main] "") in
+      OtherExp main'
 
 maybeGhost b f args =
   if b
@@ -765,6 +827,160 @@ maybeFindAttr id kind attr attrs =
     ("polygon", Just ('x', si)) -> getXYi attrs si fst
     ("polygon", Just ('y', si)) -> getXYi attrs si snd
     _                           -> maybeFindAttr_ id kind attr attrs
+
+
+--------------------------------------------------------------------------------
+-- Group Shapes
+
+groupShapes model defs blobs f =
+  let n = List.length blobs in
+  let selectedExps =
+    List.filter (flip Dict.member model.selectedBlobs << fst)
+                (Utils.zip [1..n] blobs) in
+  let selectedVars =
+    let toVar (i,e) =
+      case e.val.e__ of
+        EVar _ x -> Just (i, x)
+        _        -> Nothing
+    in
+    Utils.filterJusts (List.map toVar selectedExps)
+  in
+  -- let _ = Debug.log "selected\n" selectedVars in
+  let newGroup = "newGroup" ++ toString model.genSymCount in
+  let (defs', blobs') = groupAndRearrange model newGroup defs blobs selectedVars in
+  let code' = unparse (fuseExp (defs', Blobs blobs' f)) in
+  upstate Run
+    { model | code = code'
+            , history = addToHistory model.code model.history
+            , genSymCount = model.genSymCount + 1
+            , selectedBlobs = Dict.empty
+            }
+
+groupAndRearrange model newGroup defs blobs selectedVars =
+  let defs' =
+    let matches def =
+      let (_,p,_,_) = def in
+      let foo (_,x) =
+        case p.val of
+          PVar _ y _ -> x == y
+          _          -> False
+      in
+      List.any foo selectedVars in
+    let (plucked, before, after) = pluckFromList matches defs in
+    let selectedBlobIndices = List.map fst selectedVars in
+    let (left, top, right, bot) =
+      case selectedBlobIndices of
+        [] -> Debug.crash "groupAndRearrange: shouldn't get here"
+        i::is ->
+          let init = Utils.justGet i model.selectedBlobs in
+          let foo j (left,top,right,bot) =
+            let (a,b,c,d) = Utils.justGet j model.selectedBlobs in
+            (minNumTr left a, minNumTr top b, maxNumTr right c, maxNumTr bot d)
+          in
+          List.foldl foo init is
+    in
+    let (width, height) = (fst right - fst left, fst bot - fst top) in
+    let scaleX  = scaleXY  "left" "right" left width in
+    let scaleY  = scaleXY  "top"  "bot"   top  height in
+    let offsetX = offsetXY "left" "right" left right in
+    let offsetY = offsetXY "top"  "bot"   top  bot in
+    let eSubst =
+      -- the spaces inserted by calls to offset*/scale* work best
+      -- when the source expressions being rewritten are of the form
+      --   (let [a b c d] [na nb nc nd] ...)
+      let foo i acc =
+        let (a,b,c,d) = Utils.justGet i model.selectedBlobs in
+        if model.keysDown == Keys.shift then
+          acc |> offsetX "" a |> offsetY " " b |> offsetX " " c |> offsetY " " d
+        else
+          acc |> scaleX "" a |> scaleY " " b |> scaleX " " c |> scaleY " " d
+      in
+      List.foldl foo Dict.empty selectedBlobIndices
+    in
+    let groupDefs =
+      [ ( "\n  "
+        , pList (listOfPVars ["left", "top", "right", "bot"])
+        , eList (listOfNums [fst left, fst top, fst right, fst bot]) Nothing
+        , "")
+      , ( "\n  "
+        , pVar "bounds"
+        , eList (listOfVars ["left", "top", "right", "bot"]) Nothing
+        , "")
+      ]
+    in
+    let listBoundedGroup =
+      withDummyPos <| EList "\n\n  "
+         [ withDummyPos <| EApp " "
+             (eVar0 "group")
+             [ eVar "bounds"
+             , withDummyPos <| EApp " "
+                 (eVar0 "concat")
+                 [eList (listOfVars (List.map snd selectedVars)) Nothing]
+                 ""
+             ]
+             ""
+         ]
+         "" Nothing " "
+    in
+    let plucked' =
+      let tab = "  " in
+      List.map (\(ws1,p,e,ws2) -> (ws1 ++ tab, p, LangUnparser.indent tab e, ws2))
+               plucked
+    in
+    let newGroupExp =
+      applyESubst eSubst <|
+        fuseExp (groupDefs ++ plucked', OtherExp listBoundedGroup)
+          -- TODO flag for fuseExp to insert lets instead of defs
+    in
+    let newDef = ("\n\n", pVar newGroup, newGroupExp, "") in
+    before ++ [newDef] ++ after
+  in
+  let blobs' =
+    let matches e =
+      let foo (_,x) =
+        case e.val.e__ of
+          EVar _ y -> x == y
+          _        -> False
+      in
+      List.any foo selectedVars in
+    let (plucked, before, after) = pluckFromList matches blobs in
+    let newBlob = eVar newGroup in
+    before ++ [newBlob] ++ after
+  in
+  (defs', blobs')
+
+pluckFromList pred xs =
+  let foo x (plucked, before, after) =
+    case (pred x, plucked) of
+      (True, _)   -> (plucked ++ [x], before, after)
+      (False, []) -> (plucked, before ++ [x], after)
+      (False, _)  -> (plucked, before, after ++ [x])
+  in
+  List.foldl foo ([],[],[]) xs
+
+scaleXY start end startVal widthOrHeight ws (n,t) eSubst =
+  case t of
+    TrLoc (locid,_,_) ->
+      let pct = (n - fst startVal) / widthOrHeight in
+      let app =
+        ws ++ Utils.parens (Utils.spaces ["scaleBetween", start, end, toString pct]) in
+      Dict.insert locid (eRaw__ "" app) eSubst
+    _ ->
+      eSubst
+
+offsetXY base1 base2 baseVal1 baseVal2 ws (n,t) eSubst =
+  case t of
+    TrLoc (locid,_,_) ->
+      let (off1, off2) = (n - fst baseVal1, n - fst baseVal2) in
+      let (base, off) =
+        if off1 <= abs off2 then (base1, off1) else (base2, off2) in
+      let app =
+        ws ++ Utils.parens (Utils.spaces
+                [ "evalOffset"
+                , Utils.bracks (Utils.spaces [base, toString off])]) in
+      Dict.insert locid (eRaw__ "" app) eSubst
+    _ ->
+      eSubst
 
 
 --------------------------------------------------------------------------------
@@ -1288,12 +1504,21 @@ upstate evt old = case debugLog "Event" evt of
               , selectedFeatures = Set.empty
         }
 
+    RelateShapes ->
+      if Dict.size old.selectedBlobs <= 1 then old
+      else
+        let (defs,me) = splitExp old.inputExp in
+        case me of
+          Blobs blobs f -> groupShapes old defs blobs f
+          _             -> old
 
+{-
     RelateShapes ->
       let newval = slateToVal old.slate in
       let l = Sync.inferNewRelationships old.inputExp old.inputVal newval in
       let possibleChanges = List.map (addSlateAndCode old) l in
         { old | mode = SyncSelect possibleChanges, runAnimation = True, syncSelectTime = 0.0 }
+-}
 
     -- TODO AdHoc/Sync not used at the moment
     Sync ->

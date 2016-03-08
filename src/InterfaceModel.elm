@@ -65,6 +65,8 @@ type alias Model =
   , genSymCount : Int
   , toolType : ToolType
   , selectedFeatures : Set.Set (NodeId, ShapeFeature)
+  -- line/g ids assigned by blobs function
+  , selectedBlobs : Dict.Dict Int (NumTr, NumTr, NumTr, NumTr)
   , keysDown : List Char.KeyCode
   }
 
@@ -73,6 +75,7 @@ type Mode
   | SyncSelect (List PossibleChange)
   | Live Sync.LiveInfo
   | Print RawSvg
+      -- TODO might add a print mode where <g BLOB BOUNDS> nodes are removed
   | SaveDialog Mode -- SaveDialog saves last mode
 
 type alias DialogInfo = { value : String
@@ -121,15 +124,17 @@ type alias PossibleChange = (Exp, Val, RootedIndexedTree, Code)
 -- InterfaceStorage is more succinct (Enum typeclass would be nice here...)
 type alias ShowZones = Int
 
-showZonesModeCount = 5
+showZonesModeCount = 6
 
 showZonesModes = [ 0 .. (showZonesModeCount - 1) ]
 
-(showZonesNone, showZonesBasic, showZonesSelect, showZonesExtra, showZonesDel) =
-  Utils.unwrap5 showZonesModes
+(showZonesNone, showZonesBasic,
+ showZonesSelectAttrs, showZonesSelectShapes,
+ showZonesExtra, showZonesDel) =
+  Utils.unwrap6 showZonesModes
 
 type ToolType
-  = Cursor | SelectAttrs | SelectShapes
+  = Cursor -- | SelectAttrs | SelectShapes
   | Line | Rect | Oval
   | Poly | Path | Text
   | HelperDot
@@ -293,6 +298,7 @@ sampleModel =
     , genSymCount   = 1
     , toolType      = Cursor
     , selectedFeatures = Set.empty
+    , selectedBlobs = Dict.empty
     , keysDown      = []
     }
 

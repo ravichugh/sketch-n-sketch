@@ -248,6 +248,11 @@ plusMaybe mx my = case mx of
   Just _  -> mx
   Nothing -> my
 
+elseMaybe : Maybe a -> a -> a
+elseMaybe mx default = case mx of
+  Just x  -> x
+  Nothing -> default
+
 projJusts : List (Maybe a) -> Maybe (List a)
 projJusts =
   List.foldr (\mx acc ->
@@ -278,6 +283,9 @@ fourth4 (_,_,_,x) = x
 setIsEmpty  = (==) [] << Set.toList
 dictIsEmpty = (==) [] << Dict.toList
 setCardinal = List.length << Set.toList
+
+parseInt   = fromOk_ << String.toInt
+parseFloat = fromOk_ << String.toFloat
 
 -- Common elements shared at the beginning of each list
 commonPrefix : List (List a) -> List a
