@@ -65,7 +65,8 @@ type alias Model =
   , genSymCount : Int
   , toolType : ToolType
   , selectedFeatures : Set.Set (NodeId, ShapeFeature)
-  , selectedBlobs : Set.Set Int -- line/g ids assigned by blobs function
+  -- line/g ids assigned by blobs function
+  , selectedBlobs : Dict.Dict Int (NumTr, NumTr, NumTr, NumTr)
   , keysDown : List Char.KeyCode
   }
 
@@ -296,7 +297,7 @@ sampleModel =
     , genSymCount   = 1
     , toolType      = Cursor
     , selectedFeatures = Set.empty
-    , selectedBlobs = Set.empty
+    , selectedBlobs = Dict.empty
     , keysDown      = []
     }
 

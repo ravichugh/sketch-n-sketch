@@ -685,7 +685,7 @@ prelude =
   ])))))
 
 (def group (\\(bounds shapes)
-  ['g' [['BOUNDS' (strList bounds)]]
+  ['g' [['BOUNDS' bounds]]
        (concat [(fancyBoundingBox bounds) shapes])]))
 
 (def rectangle (\\(fill stroke strokeWidth rot bounds)

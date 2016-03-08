@@ -85,6 +85,7 @@ type AVal_
   | AColorNum NumTr -- Utils.numToColor [0,500)
   | APath2 (List PathCmd, PathCounts)
   | ATransform (List TransformCmd)
+  | ABounds (NumTr, NumTr, NumTr, NumTr)
 
 -- these versions are for when the VTrace doesn't matter
 aVal          = flip AVal [-1]
@@ -175,6 +176,7 @@ valToAttr v = case v.v_ of
         ("stroke", VList vs)    -> (k, ARgba <| valToRgba vs)
         ("d", VList vs)         -> (k, APath2 (valsToPath2 vs))
         ("transform", VList vs) -> (k, ATransform (valsToTransform vs))
+        ("BOUNDS", VList vs)    -> (k, ABounds <| valToBounds vs)
         (_, VConst it)          -> (k, ANum it)
         (_, VBase (String s))   -> (k, AString s)
         _                       -> Debug.crash "valToAttr"
@@ -223,6 +225,7 @@ strAVal a = case a.av_ of
     strRgba_ (ColorNum.convert (fst n))
     -- let (r,g,b) = Utils.numToColor maxColorNum (fst n) in
     -- strRgba_ [r,g,b,1]
+  ABounds bounds -> strBounds bounds
 
 valOfAVal : AVal -> Val
 valOfAVal a = flip Val a.vtrace <| case a.av_ of
@@ -402,6 +405,13 @@ valToPath_ vs =
              cmd :: blah :: valToPath_ vs'' -- not worrying about commas
 
 -}
+
+valToBounds vs = case List.map .v_ vs of
+  [VConst a, VConst b, VConst c, VConst d] -> (a,b,c,d)
+  _                                        -> "bounds" `expectedButGot` strVal (vList vs)
+
+strBounds (left,top,right,bot) =
+  Utils.spaces (List.map (toString << fst) [left,top,right,bot])
 
 desugarKind shape =
   case shape of

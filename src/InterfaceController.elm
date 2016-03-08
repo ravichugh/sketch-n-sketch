@@ -264,7 +264,7 @@ splitExp e =
       let (defs, main) = splitExp e2 in
       ((ws1,p1,e1,ws2)::defs, main)
     _ ->
-      ([], mainExp e)
+      ([], toMainExp e)
 
 fuseExp : Program -> Exp
 fuseExp (defs, mainExp) =
@@ -276,8 +276,8 @@ fuseExp (defs, mainExp) =
   in
   recurse defs
 
-mainExp : Exp -> MainExp
-mainExp e =
+toMainExp : Exp -> MainExp
+toMainExp e =
   maybeSvgConcat e `Utils.plusMaybe` maybeBlobs e `Utils.elseMaybe` OtherExp e
 
 expandMainExp : MainExp -> Exp
@@ -342,11 +342,24 @@ maybeBlobs main =
         _     -> Nothing
     _         -> Nothing
 
+-- TODO use listOfVars, listOfNums, eRaw below
+
 -- when line is snapped, not enforcing the angle in code
 addLineToCodeAndRun old click2 click1 =
   let ((_,(x2,y2)),(_,(x1,y1))) = (click2, click1) in
   let (xb, yb) = View.snapLine old.keysDown click2 click1 in
   let color = if old.toolType == HelperLine then "aqua" else "gray" in
+  let (f, args) =
+    maybeGhost (old.toolType == HelperLine)
+       (eVar0 "line")
+       (eStr color :: eStr "5" :: List.map eVar ["left","top","right","bot"])
+  in
+  addToCodeAndRun "line" old
+    [ makeLet ["left","top","right","bot"] (makeInts [x1,y1,xb,yb])
+    ] f args
+
+{- using variables x1/x2/y1/y2 instead of left/top/right/bot:
+
   let (f, args) =
     maybeGhost (old.toolType == HelperLine)
        (eVar0 "line")
@@ -356,6 +369,7 @@ addLineToCodeAndRun old click2 click1 =
     [ makeLet ["x1","x2"] (makeInts [x1,xb])
     , makeLet ["y1","y2"] (makeInts [y1,yb])
     ] f args
+-}
 
 addRectToCodeAndRun old pt2 pt1 =
   if old.keysDown == Keys.shift then addSquare old pt2 pt1
@@ -817,6 +831,160 @@ maybeFindAttr id kind attr attrs =
     ("polygon", Just ('x', si)) -> getXYi attrs si fst
     ("polygon", Just ('y', si)) -> getXYi attrs si snd
     _                           -> maybeFindAttr_ id kind attr attrs
+
+
+--------------------------------------------------------------------------------
+-- Group Shapes
+
+groupShapes model defs blobs f =
+  let n = List.length blobs in
+  let selectedExps =
+    List.filter (flip Dict.member model.selectedBlobs << fst)
+                (Utils.zip [1..n] blobs) in
+  let selectedVars =
+    let toVar (i,e) =
+      case e.val.e__ of
+        EVar _ x -> Just (i, x)
+        _        -> Nothing
+    in
+    Utils.filterJusts (List.map toVar selectedExps)
+  in
+  -- let _ = Debug.log "selected\n" selectedVars in
+  let newGroup = "newGroup" ++ toString model.genSymCount in
+  let (defs', blobs') = groupAndRearrange model newGroup defs blobs selectedVars in
+  let code' = unparse (fuseExp (defs', Blobs blobs' f)) in
+  upstate Run
+    { model | code = code'
+            , history = addToHistory model.code model.history
+            , genSymCount = model.genSymCount + 1
+            , selectedBlobs = Dict.empty
+            }
+
+groupAndRearrange model newGroup defs blobs selectedVars =
+  let defs' =
+    let matches def =
+      let (_,p,_,_) = def in
+      let foo (_,x) =
+        case p.val of
+          PVar _ y _ -> x == y
+          _          -> False
+      in
+      List.any foo selectedVars in
+    let (plucked, before, after) = pluckFromList matches defs in
+    let selectedBlobIndices = List.map fst selectedVars in
+    let (left, top, right, bot) =
+      case selectedBlobIndices of
+        [] -> Debug.crash "groupAndRearrange: shouldn't get here"
+        i::is ->
+          let init = Utils.justGet i model.selectedBlobs in
+          let foo j (left,top,right,bot) =
+            let (a,b,c,d) = Utils.justGet j model.selectedBlobs in
+            (minNumTr left a, minNumTr top b, maxNumTr right c, maxNumTr bot d)
+          in
+          List.foldl foo init is
+    in
+    let (width, height) = (fst right - fst left, fst bot - fst top) in
+    let scaleX  = scaleXY  "left" "right" left width in
+    let scaleY  = scaleXY  "top"  "bot"   top  height in
+    let offsetX = offsetXY "left" "right" left right in
+    let offsetY = offsetXY "top"  "bot"   top  bot in
+    let eSubst =
+      -- the spaces inserted by calls to offset*/scale* work best
+      -- when the source expressions being rewritten are of the form
+      --   (let [a b c d] [na nb nc nd] ...)
+      let foo i acc =
+        let (a,b,c,d) = Utils.justGet i model.selectedBlobs in
+        if model.keysDown == Keys.shift then
+          acc |> offsetX "" a |> offsetY " " b |> offsetX " " c |> offsetY " " d
+        else
+          acc |> scaleX "" a |> scaleY " " b |> scaleX " " c |> scaleY " " d
+      in
+      List.foldl foo Dict.empty selectedBlobIndices
+    in
+    let groupDefs =
+      [ ( "\n  "
+        , pList (listOfPVars ["left", "top", "right", "bot"])
+        , eList (listOfNums [fst left, fst top, fst right, fst bot]) Nothing
+        , "")
+      , ( "\n  "
+        , pVar "bounds"
+        , eList (listOfVars ["left", "top", "right", "bot"]) Nothing
+        , "")
+      ]
+    in
+    let listBoundedGroup =
+      withDummyPos <| EList "\n\n  "
+         [ withDummyPos <| EApp " "
+             (eVar0 "group")
+             [ eVar "bounds"
+             , withDummyPos <| EApp " "
+                 (eVar0 "concat")
+                 [eList (listOfVars (List.map snd selectedVars)) Nothing]
+                 ""
+             ]
+             ""
+         ]
+         "" Nothing " "
+    in
+    let plucked' =
+      let tab = "  " in
+      List.map (\(ws1,p,e,ws2) -> (ws1 ++ tab, p, LangUnparser.indent tab e, ws2))
+               plucked
+    in
+    let newGroupExp =
+      applyESubst eSubst <|
+        fuseExp (groupDefs ++ plucked', OtherExp listBoundedGroup)
+          -- TODO flag for fuseExp to insert lets instead of defs
+    in
+    let newDef = ("\n\n", pVar newGroup, newGroupExp, "") in
+    before ++ [newDef] ++ after
+  in
+  let blobs' =
+    let matches e =
+      let foo (_,x) =
+        case e.val.e__ of
+          EVar _ y -> x == y
+          _        -> False
+      in
+      List.any foo selectedVars in
+    let (plucked, before, after) = pluckFromList matches blobs in
+    let newBlob = eVar newGroup in
+    before ++ [newBlob] ++ after
+  in
+  (defs', blobs')
+
+pluckFromList pred xs =
+  let foo x (plucked, before, after) =
+    case (pred x, plucked) of
+      (True, _)   -> (plucked ++ [x], before, after)
+      (False, []) -> (plucked, before ++ [x], after)
+      (False, _)  -> (plucked, before, after ++ [x])
+  in
+  List.foldl foo ([],[],[]) xs
+
+scaleXY start end startVal widthOrHeight ws (n,t) eSubst =
+  case t of
+    TrLoc (locid,_,_) ->
+      let pct = (n - fst startVal) / widthOrHeight in
+      let app =
+        ws ++ Utils.parens (Utils.spaces ["scaleBetween", start, end, toString pct]) in
+      Dict.insert locid (eRaw__ "" app) eSubst
+    _ ->
+      eSubst
+
+offsetXY base1 base2 baseVal1 baseVal2 ws (n,t) eSubst =
+  case t of
+    TrLoc (locid,_,_) ->
+      let (off1, off2) = (n - fst baseVal1, n - fst baseVal2) in
+      let (base, off) =
+        if off1 <= abs off2 then (base1, off1) else (base2, off2) in
+      let app =
+        ws ++ Utils.parens (Utils.spaces
+                [ "evalOffset"
+                , Utils.bracks (Utils.spaces [base, toString off])]) in
+      Dict.insert locid (eRaw__ "" app) eSubst
+    _ ->
+      eSubst
 
 
 --------------------------------------------------------------------------------
@@ -1340,12 +1508,21 @@ upstate evt old = case debugLog "Event" evt of
               , selectedFeatures = Set.empty
         }
 
+    RelateShapes ->
+      if Dict.size old.selectedBlobs <= 1 then old
+      else
+        let (defs,me) = splitExp old.inputExp in
+        case me of
+          Blobs blobs f -> groupShapes old defs blobs f
+          _             -> old
 
+{-
     RelateShapes ->
       let newval = slateToVal old.slate in
       let l = Sync.inferNewRelationships old.inputExp old.inputVal newval in
       let possibleChanges = List.map (addSlateAndCode old) l in
         { old | mode = SyncSelect possibleChanges, runAnimation = True, syncSelectTime = 0.0 }
+-}
 
     -- TODO AdHoc/Sync not used at the moment
     Sync ->

@@ -851,3 +851,26 @@ unwrapVBaseString_ : String -> Val_ -> String
 unwrapVBaseString_ s v_ = case v_ of
   VBase (String k) -> k
   _                -> Debug.crash <| "unwrapVBaseString_: " ++ s
+
+
+eRaw__ = EVar
+eRaw0  = eVar0
+eRaw   = eVar
+
+listOfVars xs =
+  case xs of
+    []     -> []
+    x::xs' -> eVar0 x :: List.map eVar xs'
+
+listOfPVars xs =
+  case xs of
+    []     -> []
+    x::xs' -> pVar0 x :: List.map pVar xs'
+
+listOfNums ns =
+  case ns of
+    []     -> []
+    n::ns' -> eConst0 n dummyLoc :: List.map (flip eConst dummyLoc) ns'
+
+minNumTr (a,t1) (b,t2) = if a <= b then (a,t1) else (b,t2)
+maxNumTr (a,t1) (b,t2) = if a >= b then (a,t1) else (b,t2)

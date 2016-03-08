@@ -637,9 +637,12 @@ zoneGroup model options id bounds =
     then zoneGroup_ model id bounds
     else []
 
-zoneGroup_ model id (left, top, right, bot) =
+zoneGroup_ model id bounds =
+  let (left, top, right, bot) =
+    let (a,b,c,d) = bounds in (fst a, fst b, fst c, fst d)
+  in
   let stroke =
-    if Set.member id model.selectedBlobs
+    if Dict.member id model.selectedBlobs
       then "#03C03C"
       else "rgba(255,255,0,1.0)" in
   let pad = zoneGroupPadding in
@@ -652,18 +655,24 @@ zoneGroup_ model id (left, top, right, bot) =
        , LangSvg.attr "stroke-width" (toString zoneGroupStrokeWidth)
        , LangSvg.attr "fill" "rgba(0,0,0,0)"
        , cursorStyle "pointer"
-       , onMouseDown (toggleSelectedBlob model id)
+       , onMouseDown (toggleSelectedBlob model id bounds)
        , attrNum "x1" (fst pt1), attrNum "y1" (snd pt1)
        , attrNum "x2" (fst pt2), attrNum "y2" (snd pt2)
        ]
   in
   List.map edge (Utils.adjacentPairs True fourCorners)
 
+{-
 toggle x set = if Set.member x set then Set.remove x set else Set.insert x set
+-}
+toggleDict (k,v) dict =
+  if Dict.member k dict
+    then Dict.remove k dict
+    else Dict.insert k v dict
 
-toggleSelectedBlob model id =
+toggleSelectedBlob model id bounds =
   UpdateModel <| \model ->
-    { model | selectedBlobs = toggle id model.selectedBlobs }
+    { model | selectedBlobs = toggleDict (id, bounds) model.selectedBlobs }
 
 maybeFindBlobId l =
   case Utils.maybeFind "BLOB" l of
@@ -678,11 +687,8 @@ maybeFindBounds l =
     Nothing -> Nothing
     Just av ->
       case av.av_ of
-        LangSvg.AString sBounds ->
-          case List.map Utils.parseFloat (String.split " " sBounds) of
-            [left,top,right,bot] -> Just (left, top, right, bot)
-            _                    -> let _ = debugLog "weird 'BOUNDS':" sBounds in Nothing
-        _ -> Nothing
+        LangSvg.ABounds bounds -> Just bounds
+        _                      -> Nothing
 
 
 --------------------------------------------------------------------------------
@@ -717,13 +723,12 @@ makeZones model options shape id l =
              [ zoneSelectCrossDot model options.addSelect (id, [LangSvg.lineCX], [LangSvg.lineCY]) ((fst x1)/2+(fst x2)/2) ((fst y1)/2+(fst y2)/2)
              , zoneSelectCrossDot model options.addSelect (id, [LangSvg.lineX1], [LangSvg.lineY1]) (fst x1) (fst y1)
              , zoneSelectCrossDot model options.addSelect (id, [LangSvg.lineX2], [LangSvg.lineY2]) (fst x2) (fst y2) ] in
-        let min_ (a,_) (b,_) = min a b in
-        let max_ (a,_) (b,_) = max a b in
         let zGroup =
           case maybeFindBlobId l of
             Nothing     -> []
             Just blobId -> zoneGroup model options blobId
-                             (min_ x1 x2, min_ y1 y2, max_ x1 x2, max_ y1 y2)
+                             (minNumTr x1 x2, minNumTr y1 y2,
+                              maxNumTr x1 x2, maxNumTr y1 y2)
         in
         zLine :: zPts ++ zRot ++ zSelect ++ zGroup
 
@@ -1627,7 +1632,7 @@ digHoleButton enabled =
   simpleEventButton_ (not enabled) DigHole "unused?" "unused?" "Dig" -- "Dig Hole"
 
 groupButton enabled =
-  simpleEventButton_ (not enabled) Noop "unused?" "unused?" "Group"
+  simpleEventButton_ (not enabled) RelateShapes "unused?" "unused?" "Group"
 
 {-
 relateShapesButton =
