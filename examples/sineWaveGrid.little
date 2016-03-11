@@ -1,0 +1,84 @@
+; WORKAROUND: Switch to [Heuristics] None before using sliders.
+; (Better yet, toggle Heuristics before selecting this example.)
+; Both heuristics modes use a naive algorithm to compute triggers,
+; which runs very slowly with the number of shapes in this canvas.
+
+  ; fix case bug:
+  ; > import Eval exposing (parseAndRun)
+  ; > parseAndRun "(case [2 false] ([2 true] 'A') (_ 'B'))"
+  ; "'A'" : String
+
+  ; (let color (case [i shadow] 
+  ;   ([2 false] 'crimson')   ([2 true] 'gray')
+  ;   ([_ false] 'lightblue') ([_ true] 'transparent'))
+
+(def sineWave (\(x0 y0 w h sep amp n shadow)
+  (let boxi (\i
+    (let xi (+ x0 (* i sep))
+    (let yi (- y0 (* amp (sin (* i (/ twoPi n)))))
+    (let colori
+      (if (= i 2) (if shadow 'lightgray' 'crimson')
+                  (if shadow 'transparent' 'lightblue'))
+    (rect colori xi yi w h)))))
+  (map boxi (zeroTo n)))))
+  
+; Would be even cooler if wGrid and hGrid were computed
+; automatically from the sine waves in each grid box.
+; Leaving this step as an exercise for another day...
+
+(def [outerPad innerPad] [100{0-300} 20{0-50}])
+(def [wGrid hGrid]       [740{0-1500} 430{0-1000}])
+
+; Helper function (could be added to Prelude)
+
+(def outlined (\(stroke strokeWidth shape)
+  (consAttr (consAttr shape
+    ['stroke' 'black'])
+    ['stroke-width' strokeWidth])))
+
+; Call sineWave in grid box at row i, column j.
+
+(def place (\(i j x0 y0 w h sep amp n shadow)
+  (let [iPad jPad] [(+ outerPad (* innerPad i)) (+ outerPad (* innerPad j))]
+  (let gridBox
+    (outlined 'black' (let border 3{0-10} border)
+      (rect 'none' (+ jPad (* j wGrid)) (+ iPad (* i hGrid)) wGrid hGrid))
+  (let waveBoxes
+    (let [x y] [(+ x0 (* j wGrid)) (+ y0 (* i hGrid))]
+    (sineWave (+ x jPad) (+ y iPad) w h sep amp n shadow))
+  (cons gridBox waveBoxes))))))
+
+; Parameters from the original sineWaveOfBoxes.little.
+; If want to add sliders, then symbolically compute
+; the possible solutions below. Could even add a slider
+; for the index of the box being dragged... another exercise.
+
+(def [x0 y0 w h sep0 amp0 n] [50 120 20 90 30 60 12])
+
+; Simulate dragging of third box by (dx,dy) pixels.
+; Two possible solutions for each mouse direction.
+
+(def [dx dy] [50!{0-300} 110!{0-300}])
+
+(def x1   (+ x0 dx))
+(def sep1 (+ sep0 (/ dx 2!)))
+
+(def y1   (+ y0 dy))
+(def amp1 (/ (- y0 (+ dy 68!)) 0.867!))
+
+; Now draw original and versions with different solutions.
+
+(def totalPad (+ (* 2 outerPad) (* 2 innerPad)))
+(def totalWidth (+ (* 3 wGrid) totalPad))
+(def totalHeight (+ (* 3 hGrid) totalPad))
+
+(svgViewBox totalWidth totalHeight
+  (concat [
+    (place 0 0 x0 y0 w h sep0 amp0 n false)
+    (place 0 0 x1 y1 w h sep0 amp0 n true)  ; shadow box
+
+    (place 1 1 x1 y1 w h sep0 amp0 n false) ; update  x0/y0
+    (place 1 2 x1 y0 w h sep0 amp1 n false) ; update  x0/amp
+    (place 2 1 x0 y1 w h sep1 amp0 n false) ; update sep/y0
+    (place 2 2 x0 y0 w h sep1 amp1 n false) ; update sep/amp
+]))
