@@ -175,6 +175,7 @@ strRgba_ rgba =
 strAVal a = case a of
   AString s -> s
   ANum it   -> toString (fst it)
+  -- ANum it   -> toString (fst it) ++ Utils.parens (strTrace (snd it))
   APoints l -> Utils.spaces (List.map strPoint l)
   ARgba tup -> strRgba tup
   APath2 p  -> strAPath2 (fst p)

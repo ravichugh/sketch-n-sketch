@@ -37,7 +37,8 @@ substOf = Dict.map (always .val) << substPlusOf
 freshen_ : Int -> Exp -> (Exp, Int)
 freshen_ k e = (\(e_,k') -> (P.WithInfo e_ e.start e.end, k')) <| case e.val of
   EConst i l wd -> case l of
-                     (0,b,"") -> (EConst i (k, b, "") wd, k + 1)
+                     -- (0,b,"") -> (EConst i (k, b, "") wd, k + 1)
+                     (0,b,x)  -> (EConst i (k, b, x) wd, k + 1)
                      _        -> Debug.crash "freshen_"
   EBase v    -> (EBase v, k)
   EVar x     -> (EVar x, k)
@@ -90,7 +91,8 @@ freshenRanges k rs =
 addBreadCrumbs (p,e) =
  let ret e_ = P.WithInfo e_ e.start e.end in
  case (p.val, e.val) of
-  (PVar x _, EConst n (k, b, "") wd) -> ret <| EConst n (k, b, x) wd
+  -- (PVar x _, EConst n (k, b, "") wd) -> ret <| EConst n (k, b, x) wd
+  (PVar x _, EConst n (k, b, _) wd) -> ret <| EConst n (k, b, x) wd
   (PList ps mp, EList es me) ->
     case U.maybeZip ps es of
       Nothing  -> ret <| EList es me
@@ -226,6 +228,8 @@ parens      = delimit "(" ")"
 parseNumV = (\(n,b) -> VConst (n, dummyTrace_ b)) <$> parseNum
 -- parseNumE = (\(n,b) -> EConst n (dummyLoc_ b) noWidgetDecl) <$> parseNum
 
+dummyLocWithDebugInfo b n = (0, b, "literal" ++ toString n)
+
 parseNumE =
   parseNum                     >>= \nb ->
   parseMaybeWidgetDecl Nothing >>= \wd ->
@@ -233,9 +237,9 @@ parseNumE =
     -- see other comments about NoWidgetDecl
     case wd.val of
       NoWidgetDecl ->
-        P.returnWithInfo (EConst n (dummyLoc_ b) wd) nb.start nb.end
+        P.returnWithInfo (EConst n (dummyLocWithDebugInfo b n) wd) nb.start nb.end
       _ ->
-        P.returnWithInfo (EConst n (dummyLoc_ b) wd) nb.start wd.end
+        P.returnWithInfo (EConst n (dummyLocWithDebugInfo b n) wd) nb.start wd.end
 {-
         let _ =
           if b == unann then ()
