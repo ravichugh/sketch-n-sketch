@@ -8,8 +8,8 @@ import CodeBox exposing (interpretAceEvents, packageModel,
 import Config
 
 import Graphics.Element exposing (Element)
-import Mouse 
-import Window 
+import Mouse
+import Window
 import Keyboard
 import Set
 
@@ -36,7 +36,7 @@ sigModel =
   -- Signal.foldp Controller.upstate Model.sampleModel combinedEventSig
 
 combinedEventSig : Signal Model.Event
-combinedEventSig = 
+combinedEventSig =
   Signal.mergeMany
    -- Window.dimensions first, so that foldp' gets initial value...
     [ Window.dimensions |> Signal.map Model.WindowDimensions
@@ -51,6 +51,8 @@ combinedEventSig =
     , Signal.map
         (always Model.MouseUp)
         (Signal.filter ((==) False) False Mouse.isDown)
+    , Signal.map (always Model.ProgramStats) programStats
+    , Signal.map (\exampleName -> Model.BenchmarkExample exampleName) benchmarkExample
     ]
 
 main : Signal Element
@@ -61,7 +63,7 @@ main = Signal.map2 View.view Window.dimensions sigModel
 port taskPort : Signal (Task String ())
 port taskPort = Signal.mergeMany
     [ taskMailbox.signal
-    , Signal.map2 interpretAceEvents theTurn 
+    , Signal.map2 interpretAceEvents theTurn
         <| Signal.sampleOn theTurn sigModel
     ]
 
@@ -83,7 +85,7 @@ port aceInTheHole =
               Model.SwitchOrient -> True
               Model.Noop -> True
 --              Model.Noop -> False
---              Model.SelectObject _ _ _ -> False 
+--              Model.SelectObject _ _ _ -> False
 --              Model.MouseUp -> False
 --              Model.MousePos _ -> False
 --              Model.Sync -> False
@@ -108,7 +110,7 @@ port aceInTheHole =
     in
         Signal.map fst
                       <| Signal.foldp packageModel initAceCodeBoxInfo
-                      <| Signal.filter 
+                      <| Signal.filter
                             (\a -> (not (fst a).basicCodeBox
                                     || snd a == Model.ToggleBasicCodeBox
                                         && (fst a).basicCodeBox)
@@ -118,3 +120,7 @@ port aceInTheHole =
 
 -- Port for Event messages from the code box
 port theTurn : Signal AceMessage
+
+-- Ports to tell us to output program stats
+port benchmarkExample : Signal String
+port programStats : Signal ()

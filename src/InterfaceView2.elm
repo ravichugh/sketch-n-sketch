@@ -54,6 +54,7 @@ import Svg.Lazy
 --Error Checking Libraries
 import Debug
 
+import Benchmark
 
 --------------------------------------------------------------------------------
 
@@ -685,7 +686,10 @@ canvas_ w h model =
   let svgLayers =
     case model.showGhosts of
       False -> [ svg ]
-      True  -> [ svg, buildSvgWidgets w h model.widgets]
+      -- Need to turn off built-in sliders for benchmarking.
+      -- They do not count as zones we want to grab and move.
+      True  -> [ svg ]
+      -- True  -> [ svg, buildSvgWidgets w h model.widgets]
   in
   Html.toElement w h <|
     Svg.svg
@@ -693,7 +697,8 @@ canvas_ w h model =
       , Attr.style [ ("width", "100%") , ("height", "100%")
                    , ("border", params.mainSection.canvas.border)
                    , highlightThisIf addZones
-                   ] ]
+                   ]
+      , VirtualDom.attribute "id" "canvas" ]
       svgLayers
 
 middleWidgets w h wWrap hWrap model =
@@ -999,7 +1004,7 @@ nextButton i (n,l) =
 
 saveButton : Model -> Int -> Int -> GE.Element
 saveButton model w h =
-    let disabled = List.any ((==) model.exName << fst) Examples.list
+    let disabled = List.any ((==) model.exName << Utils.fst3) Examples.list
         dn = "Save"
     in --simpleTaskButton_ disabled (saveStateLocally model.exName False model) dn dn dn w h
        simpleEventButton_ disabled (InterfaceModel.WaitSave model.exName) dn dn dn w h
@@ -1029,7 +1034,7 @@ dropdownExamples model w h =
     choices = case model.mode of
       AdHoc -> [(model.exName, Signal.send events.address Noop)]
       _ ->
-        let foo (name,thunk) = (name, Signal.send events.address (SelectExample name thunk))
+        let foo (name,thunk,code) = (name, Signal.send events.address (SelectExample name thunk))
             bar saveName = (saveName, loadLocalState saveName)
             blank = ("", Task.succeed ())
             localsaves = case model.localSaves of
@@ -1250,101 +1255,103 @@ saveElement model w h = case model.mode of
 
 view : (Int, Int) -> Model -> GE.Element
 view (w,h) model =
-  let
-    wAll = w - (2 * wGut) - 1
-    wGut = params.wGut
-    hTop = params.topSection.h
-    hBot = params.botSection.h
-    hMid = h - hTop - hBot - 1
-    hTot = hTop + hMid + hBot
-  in
-
-  let topSection =
-    let
-      title = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
-                GE.leftAligned <| T.style titleStyle (T.fromString strTitle)
-
-      wLogo = params.topSection.wLogo
-      logo  = GE.image wLogo wLogo "light_logo.svg"
-
-      wBtnO = params.topSection.wBtnO
-      hBtnO = params.topSection.hBtnO
-      wJunk = params.topSection.wJunk
-      wSpcB = params.mainSection.horizontal.wExtra
-
-      -- wSep  = GE.spacer (wAll - (wLogo + 2 * wBtnO + wJunk + wSpcB)) 1
-      wSep  = GE.spacer (wAll - (wLogo + 2 * wBtnO + wJunk + wSpcB)) 1
-      btnO  = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
-                orientationButton wBtnO hBtnO model
-
-      {- not displaying Codebox button for now
-      spcB  = GE.spacer wSpcB hTop
-      btnB  = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
-                basicBoxButton wBtnO hBtnO model
-      -}
-
-      spcH  = GE.spacer wSpcB hTop
-      btnH  = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
-                luckyButton model wBtnO hBtnO
-    in
-      GE.size wAll hTop <|
-        GE.flow GE.right
-          [ GE.container wLogo hTop GE.middle logo
-          , GE.container (wAll - wLogo) hTop GE.middle <|
-              -- GE.flow GE.right [ title, wSep, btnB, spcB, btnO ]
-              GE.flow GE.right [ title, wSep, btnH, spcH, btnO ]
-          ]
-  in
-
-  let midSection =
-    GE.size wAll hMid <|
-      case model.orient of
-        Vertical   -> mainSectionVertical wAll hMid model
-        Horizontal -> mainSectionHorizontal wAll hMid model in
-
-  let botSection = GE.spacer wAll hBot in
-  let sideGutter = colorDebug Color.black <| GE.spacer wGut hTot in
-
-  let basicUI =
-    GE.flow GE.right
-       [ sideGutter
-       , GE.flow GE.down
-           [ colorDebug Color.lightYellow <| topSection
-           , midSection
-           , colorDebug Color.lightYellow <| botSection
-           ]
-       , sideGutter
-       ]
-  in
-
-  -- Runs a task at startup by making the whole window hoverable briefly, which
-  -- fires the task to the taskMailbox basically right away (the user's mouse is
-  -- presumably over the window). Note that it is important to add the event
-  -- handler to a dummy object that is removed, as adding it to the whole body
-  -- results in nothing being clickable after the load is successful.
-  case (model.startup, model.mode) of
-    (True, _) ->
-      let foo _ =
-        Signal.message taskMailbox.address <|
-          -- Insert more tasks to run at startup here
-          getLocalSaves `andThen` \_ ->
-
-          ---
-          Signal.send
-            events.address
-            (UpdateModel (\m -> { m | startup = False}))
+  -- Benchmark.logDuration "view generation" <|
+  --   \() ->
+      let
+        wAll = w - (2 * wGut) - 1
+        wGut = params.wGut
+        hTop = params.topSection.h
+        hBot = params.botSection.h
+        hMid = h - hTop - hBot - 1
+        hTot = hTop + hMid + hBot
       in
-      GE.flow GE.inward
-        [ GI.hoverable foo <| GE.spacer w h
-        , basicUI
-        ]
-    (False, SaveDialog m) ->
-      GE.flow GE.inward
-        [ saveElement model w h
-        , basicUI
-        ]
-    _ ->
-      basicUI
+
+      let topSection =
+        let
+          title = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
+                    GE.leftAligned <| T.style titleStyle (T.fromString strTitle)
+
+          wLogo = params.topSection.wLogo
+          logo  = GE.image wLogo wLogo "light_logo.svg"
+
+          wBtnO = params.topSection.wBtnO
+          hBtnO = params.topSection.hBtnO
+          wJunk = params.topSection.wJunk
+          wSpcB = params.mainSection.horizontal.wExtra
+
+          -- wSep  = GE.spacer (wAll - (wLogo + 2 * wBtnO + wJunk + wSpcB)) 1
+          wSep  = GE.spacer (wAll - (wLogo + 2 * wBtnO + wJunk + wSpcB)) 1
+          btnO  = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
+                    orientationButton wBtnO hBtnO model
+
+          {- not displaying Codebox button for now
+          spcB  = GE.spacer wSpcB hTop
+          btnB  = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
+                    basicBoxButton wBtnO hBtnO model
+          -}
+
+          spcH  = GE.spacer wSpcB hTop
+          btnH  = (\e -> GE.container (GE.widthOf e) hTop GE.middle e) <|
+                    luckyButton model wBtnO hBtnO
+        in
+          GE.size wAll hTop <|
+            GE.flow GE.right
+              [ GE.container wLogo hTop GE.middle logo
+              , GE.container (wAll - wLogo) hTop GE.middle <|
+                  -- GE.flow GE.right [ title, wSep, btnB, spcB, btnO ]
+                  GE.flow GE.right [ title, wSep, btnH, spcH, btnO ]
+              ]
+      in
+
+      let midSection =
+        GE.size wAll hMid <|
+          case model.orient of
+            Vertical   -> mainSectionVertical wAll hMid model
+            Horizontal -> mainSectionHorizontal wAll hMid model in
+
+      let botSection = GE.spacer wAll hBot in
+      let sideGutter = colorDebug Color.black <| GE.spacer wGut hTot in
+
+      let basicUI =
+        GE.flow GE.right
+           [ sideGutter
+           , GE.flow GE.down
+               [ colorDebug Color.lightYellow <| topSection
+               , midSection
+               , colorDebug Color.lightYellow <| botSection
+               ]
+           , sideGutter
+           ]
+      in
+
+      -- Runs a task at startup by making the whole window hoverable briefly, which
+      -- fires the task to the taskMailbox basically right away (the user's mouse is
+      -- presumably over the window). Note that it is important to add the event
+      -- handler to a dummy object that is removed, as adding it to the whole body
+      -- results in nothing being clickable after the load is successful.
+      case (model.startup, model.mode) of
+        (True, _) ->
+          let foo _ =
+            Signal.message taskMailbox.address <|
+              -- Insert more tasks to run at startup here
+              getLocalSaves `andThen` \_ ->
+
+              ---
+              Signal.send
+                events.address
+                (UpdateModel (\m -> { m | startup = False}))
+          in
+          GE.flow GE.inward
+            [ GI.hoverable foo <| GE.spacer w h
+            , basicUI
+            ]
+        (False, SaveDialog m) ->
+          GE.flow GE.inward
+            [ saveElement model w h
+            , basicUI
+            ]
+        _ ->
+          basicUI
 
 -- TODO: add onMouseUp DeselectObject event to all GE.Elements...
 

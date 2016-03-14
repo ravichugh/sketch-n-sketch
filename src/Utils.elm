@@ -92,6 +92,9 @@ munchString prefix s =
     then Just suf
     else Nothing
 
+-- Cartesian product of the elements in the given lists
+-- e.g. given [ [1,2], [3,4], [5] ]
+-- produces [ [1, 3, 5], [1, 4, 5], [2, 3, 5], [2, 4, 5] ]
 oneOfEach : List (List a) -> List (List a)
 oneOfEach xss = case xss of
   []       -> [[]]
@@ -120,6 +123,11 @@ manySetDiffs sets =
         else acc `Set.diff` locs_j
     ) locs_i sets
   ) sets
+
+
+count : (a -> Bool) -> List a -> Int
+count pred =
+  List.length << (List.filter pred)
 
 -- TODO combine findFirst and removeFirst
 
@@ -169,8 +177,6 @@ braces = delimit "{" "}"
 spaces = String.join " "
 commas = String.join ", "
 lines  = String.join "\n"
-
-sum = List.foldl (+) 0
 
 lift_2_2 f (a,b) (c,d) = (f a c, f b d)
 

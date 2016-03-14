@@ -31,6 +31,8 @@ import ExamplesGenerated as Examples
 -- So we can clear the slate
 import LangSvg exposing (emptyTree)
 
+import Utils
+
 import Config
 
 -- So we can crash appropriately
@@ -44,7 +46,7 @@ taskMailbox : Mailbox (Task String ())
 taskMailbox = mailbox (succeed ())
 
 -- Type for the partial object that we store in localStorage
-type alias PartialObject = 
+type alias PartialObject =
     { code        : String
     , orient      : Orientation
     , showZones   : InterfaceModel.ShowZones -- Int
@@ -63,7 +65,7 @@ modelToValue : Model -> Encode.Value
 modelToValue model =
     Encode.object <|
       [ ("code", Encode.string model.code)
-      , ("orient", Encode.string 
+      , ("orient", Encode.string
             (case model.orient of
                 InterfaceModel.Vertical -> "Vertical"
                 InterfaceModel.Horizontal -> "Horizontal"
@@ -79,7 +81,7 @@ strToModel : Decoder Model
 strToModel =
     let partialObjectDecoder = object5 PartialObject
             ("code" := string)
-            ("orient" := customDecoder string 
+            ("orient" := customDecoder string
                 (\v -> case v of
                     "Vertical" -> Ok InterfaceModel.Vertical
                     "Horizontal" -> Ok InterfaceModel.Horizontal
@@ -90,7 +92,7 @@ strToModel =
             ("midOffsetX"  := int)
             ("midOffsetY"  := int)
     in customDecoder partialObjectDecoder
-        (\partial -> 
+        (\partial ->
             Ok { sampleModel | code = partial.code
                              , orient = partial.orient
                              , showZones = partial.showZones
@@ -106,9 +108,9 @@ strToModel =
 -- Note that this is passed through as an Event and not an UpdateModel for the
 -- purposes of appropriately triggering rerendering in CodeBox.
 saveStateLocally : String -> Bool -> Model -> Task String ()
-saveStateLocally saveName saveAs model = 
+saveStateLocally saveName saveAs model =
     if saveAs
-      then send events.address InterfaceModel.InstallSaveState 
+      then send events.address InterfaceModel.InstallSaveState
       else send events.address (InterfaceModel.WaitSave saveName)
 
 -- Commits a save to the Local Storage
@@ -118,13 +120,13 @@ commitLocalSave saveName model = setItem saveName <| modelToValue model
 
 -- Changes state to SaveDialog
 installSaveState : Model -> Model
-installSaveState oldModel = 
+installSaveState oldModel =
     { oldModel | mode = InterfaceModel.SaveDialog oldModel.mode}
 
 -- Task to validate save field input
 checkAndSave : String -> Model -> Task String ()
 checkAndSave saveName model =
-  if List.all ((/=) saveName << fst) Examples.list
+  if List.all ((/=) saveName << Utils.fst3) Examples.list
         && saveName /= ""
         && saveName /= "__ErrorSave"
         && not (all (\c -> c == ' ' || c == '\t') saveName) then
@@ -137,14 +139,14 @@ checkAndSave saveName model =
 removeDialog : Bool -> String -> Model -> Model
 removeDialog makeSave saveName oldModel = case oldModel.mode of
     InterfaceModel.SaveDialog oldmode -> case makeSave of
-        True -> 
+        True ->
           if List.all ((/=) saveName) oldModel.localSaves then
-             { oldModel | mode = oldmode 
+             { oldModel | mode = oldmode
                         , exName = saveName
-                        , localSaves = saveName :: oldModel.localSaves 
+                        , localSaves = saveName :: oldModel.localSaves
              }
           else
-             { oldModel | mode = oldmode 
+             { oldModel | mode = oldmode
                         , exName = saveName }
         False -> { oldModel | mode = oldmode }
     _ -> Debug.crash "Called removeDialog when not in SaveDialog state"
@@ -159,14 +161,14 @@ invalidInput oldmodel =
 
 -- Task to load state from local browser storage
 loadLocalState : String -> Task String ()
-loadLocalState saveName = 
-    case List.filter ((==) saveName << fst) Examples.list of
-        (name, thunk) :: rest ->
+loadLocalState saveName =
+    case List.filter ((==) saveName << Utils.fst3) Examples.list of
+        (name, thunk, code) :: rest ->
             send events.address <| InterfaceModel.SelectExample saveName thunk
         _ -> getItem saveName strToModel
                 `andThen` \loadedModel ->
-                    send events.address <| 
-                        InterfaceModel.UpdateModel <| 
+                    send events.address <|
+                        InterfaceModel.UpdateModel <|
                             installLocalState saveName loadedModel
 
 -- Function to update model upon state load

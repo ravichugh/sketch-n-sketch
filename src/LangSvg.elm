@@ -26,6 +26,8 @@ import ColorNum
 import Lang exposing (..)
 import Utils
 
+import Benchmark
+
 ------------------------------------------------------------------------------
 
 -- TODO upgrade to:
@@ -375,9 +377,11 @@ emptyTree = valToIndexedTree <| VList [VBase (String "svg"), VList [], VList []]
 
 valToIndexedTree : Val -> RootedIndexedTree
 valToIndexedTree v =
-  let (nextId,tree) = valToIndexedTree_ v (1, Dict.empty) in
-  let rootId = nextId - 1 in
-  (rootId, tree)
+  Benchmark.logDuration "valToIndexedTree" <|
+    \() ->
+      let (nextId,tree) = valToIndexedTree_ v (1, Dict.empty) in
+      let rootId = nextId - 1 in
+      (rootId, tree)
 
 valToIndexedTree_ v (nextId, d) = case v of
 

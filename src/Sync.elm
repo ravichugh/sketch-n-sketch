@@ -1,7 +1,10 @@
 module Sync (Options, defaultOptions, syncOptionsOf,
              heuristicsNone, heuristicsFair, heuristicsBiased, toggleHeuristicMode,
              inferLocalUpdates, inferStructuralUpdate, prepareLiveUpdates,
-             printZoneTable, LiveInfo, Triggers, tryToBeSmart) where
+             printZoneTable, LiveInfo, Triggers, tryToBeSmart,
+             -- For gathering stats:
+             shapesToZoneTable, nodeToAttrLocs, assignTriggers, whichLoc, getZones
+             ) where
 
 import Dict exposing (Dict)
 import Set
@@ -16,6 +19,7 @@ import Eval
 import LangParser2 as Parser
 import Config
 
+import Benchmark
 
 ------------------------------------------------------------------------------
 
@@ -373,7 +377,7 @@ compareVals (v1, v2) = case (v1, v2) of
   (VConst it, VConst jt)   -> abs (fst it - fst jt)
   (VList vs1, VList vs2)   -> case Utils.maybeZip vs1 vs2 of
                                 Nothing -> largeInt
-                                Just l  -> Utils.sum (List.map compareVals l)
+                                Just l  -> List.sum (List.map compareVals l)
   _                        -> if v1 == v2 then 0 else largeInt
 
 largeInt = 99999999
@@ -638,8 +642,11 @@ allowOverConstrained = True -- CONFIG
 createLocLists opts sets =
   -- let foo = Utils.cartProdWithDiff sets in
   let removeEmpties = List.filter ((/=) 0 << Utils.setCardinal) in
-  let foo = Utils.cartProdWithDiff (removeEmpties sets) in
-  let bar =
+  -- Avoids locs that appear in more than one attribute's trace:
+  let unsharedLocOptions = Utils.cartProdWithDiff (removeEmpties sets) in
+  -- Options involving only locs that appear in all attributes' traces:
+  -- (Locs that appear in some attrs but not all get no love.)
+  let sharedLocOptions =
     if not allowOverConstrained then []
     else if opts.feelingLucky == heuristicsNone ||
             opts.feelingLucky == heuristicsFair then
@@ -650,7 +657,7 @@ createLocLists opts sets =
     else
       Debug.crash "createLocLists"
   in
-  foo ++ bar
+  unsharedLocOptions ++ sharedLocOptions
 
 getZones : ShapeKind -> ExtraInfo -> ExtraExtraInfo -> List (Zone, List AttrName)
 getZones kind extra ee =
@@ -718,9 +725,13 @@ assignTriggersV2 d1 =
   let f i (kind,zoneLists) (dictSetSeen1,acc) =
     let g (zone,(numAttrs,sets)) (dictSetSeen2,acc) =
       -- let rankedSets = List.sortBy scoreOfLocs sets in
+      -- "sets" is the result from createLocLists
+      -- Though actually it's a list of lists instead of a list of sets
       let rankedSets = sets in
       let maybeChosenSet =
         List.foldl (\thisSet acc ->
+          -- Conditionally remove locs annotated with `~` that should only be
+          -- assigned once
           let thisSet' = removeAlreadyAssignedOnce thisSet dictSetSeen2 in
           case acc of
             Nothing -> Just thisSet'
@@ -745,6 +756,8 @@ assignTriggersV3 d0 d1 =
       let rankedSets = List.sortBy (scoreOfLocs2 dLocCounts) sets in
       let maybeChosenSet =
         List.foldl (\thisSet acc ->
+          -- Conditionally remove locs annotated with `~` that should only be
+          -- assigned once
           let thisSet' = removeAlreadyAssignedOnce thisSet dictSetSeen2 in
           -- let _ = Debug.log "consider" (zone, scoreOfLocs2 dLocCounts thisSet', thisSet') in
           case acc of
@@ -768,40 +781,44 @@ updateCount x dict   = Dict.insert x (1 + getCount x dict) dict
 -- NOTE:
 --   important _not_ to annotate with Locs,
 --   b/c that will jeopardize comparable-ness..
+-- Some locs can be marked with `~` meaning they should only be assigned
+-- once. This function removes such locs from consideration once they've
+-- been assigned (once they appear in counters).
 removeAlreadyAssignedOnce thisSet counters =
+  -- Set of individual locations that have been assigned (appear in counters)
   let coveredLocs =
     -- TODO compute this incrementally in assignTriggers
     Dict.foldl
        (\locs i acc -> Set.union (Set.fromList locs) acc)
        Set.empty counters
   in
-  List.filter (\l ->
-    let (_,ann,_) = l in
-    not (ann == assignOnlyOnce && Set.member l coveredLocs)
+  List.filter (\loc ->
+    let (_,annotation,_) = loc in
+    not (annotation == assignOnlyOnce && Set.member loc coveredLocs)
   ) thisSet
 
-assignTriggersV1 : Dict1 -> Dict2
-assignTriggersV1 d1 =
-  let f i (kind,zoneLists) (setSeen1,acc) =
-    let g (zone,(numAttrs,sets)) (setSeen2,acc) =
-      -- let rankedSets = List.sortBy scoreOfLocs sets in
-      let rankedSets = sets in
-      let pred = not << flip Set.member setSeen2 in
-      case (Utils.findFirst pred rankedSets, rankedSets) of
-        (Nothing, [])         -> (setSeen2, (zone,Nothing)::acc)
-        (Nothing, set::sets') ->
-          let _ = getTriggerType numAttrs set in
-          (setSeen2, (zone, Just (set, sets'))::acc)
-        (Just x,  _)          ->
-          let _ = getTriggerType numAttrs x in
-          let setSeen3 = Set.insert x setSeen2 in
-          let acc' = (zone, Just (x, Utils.removeFirst x rankedSets)) :: acc in
-          (setSeen3, acc')
-    in
-    let (setSeen,zoneLists') = List.foldl g (setSeen1,[]) zoneLists in
-    (setSeen, Dict.insert i (kind, List.reverse zoneLists') acc)
-  in
-  snd <| Dict.foldl f (Set.empty, Dict.empty) d1
+-- assignTriggersV1 : Dict1 -> Dict2
+-- assignTriggersV1 d1 =
+--   let f i (kind,zoneLists) (setSeen1,acc) =
+--     let g (zone,(numAttrs,sets)) (setSeen2,acc) =
+--       -- let rankedSets = List.sortBy scoreOfLocs sets in
+--       let rankedSets = sets in
+--       let pred = not << flip Set.member setSeen2 in
+--       case (Utils.findFirst pred rankedSets, rankedSets) of
+--         (Nothing, [])         -> (setSeen2, (zone,Nothing)::acc)
+--         (Nothing, set::sets') ->
+--           let _ = getTriggerType numAttrs set in
+--           (setSeen2, (zone, Just (set, sets'))::acc)
+--         (Just x,  _)          ->
+--           let _ = getTriggerType numAttrs x in
+--           let setSeen3 = Set.insert x setSeen2 in
+--           let acc' = (zone, Just (x, Utils.removeFirst x rankedSets)) :: acc in
+--           (setSeen3, acc')
+--     in
+--     let (setSeen,zoneLists') = List.foldl g (setSeen1,[]) zoneLists in
+--     (setSeen, Dict.insert i (kind, List.reverse zoneLists') acc)
+--   in
+--   snd <| Dict.foldl f (Set.empty, Dict.empty) d1
 
 scoreOfLocs : Locs -> Int
 scoreOfLocs locs =
@@ -881,16 +898,29 @@ tryToBeSmart = False
 
 prepareLiveUpdates : Options -> Exp -> Val -> IndexedTree -> LiveInfo
 prepareLiveUpdates opts e v slate =
-  let d0 = nodeToAttrLocs v in
-  let d1 = shapesToZoneTable opts d0 in
-  -- let d2 = assignTriggers d1 in
-  let d2 = assignTriggers opts d0 d1 in
-  let initSubstPlus = Parser.substPlusOf e in
-  let initSubst = Dict.map (always .val) initSubstPlus in
-    { triggers    = makeTriggers initSubst opts e d0 d2 slate
-    , assignments = zoneAssignments d2
-    , initSubst   = initSubstPlus
-    }
+  Benchmark.logDuration "prepareLiveUpdates" <|
+    \() ->
+      -- d0 is nodeIdTo(AttrNameToTrace)
+      let d0 = nodeToAttrLocs v in
+      -- d1 is nodeIdTo(ListOf(ZoneWithListOfListOfLoc))
+      -- The loclist options are determined by:
+      -- Non-biased modes:
+      -- ([locs unique to attr1] x [locs unique to attr2] x ...) ++ ([locs
+      -- shared by all attrs] x [locs shared by all attrs])
+      -- Biased modes:
+      -- ([locs unique to attr1] x [locs unique to attr2] x ...) ++ [[loc1
+      -- shared by all attrs], [loc2 shared by all attrs], [loc3 ...], ...]
+      let d1 = shapesToZoneTable opts d0 in
+      -- let d2 = assignTriggers d1 in
+      -- d2 is nodeIdTo(ListOf(ZoneWithMaybe(ChosenLoclist,AllLoclists)))
+      -- In biased mode, AllLoclists is ordered by score.
+      let d2 = assignTriggers opts d0 d1 in
+      let initSubstPlus = Parser.substPlusOf e in
+      let initSubst = Dict.map (always .val) initSubstPlus in
+        { triggers    = makeTriggers initSubst opts e d0 d2 slate
+        , assignments = zoneAssignments d2 -- For the code box loc highlights
+        , initSubst   = initSubstPlus
+        }
 
 -- TODO refactor Dict data structures above to make this more efficient
 
@@ -912,29 +942,31 @@ makeTrigger
 makeTrigger opts e d0 d2 slate subst id kind zone =
   let trigger_ = makeTrigger_ opts d0 d2 slate subst id kind zone in
   \(mx0,my0) (dx,dy) ->
-    let updates = trigger_ (mx0,my0) (dx,dy) in
-    let (entireSubst, changedSubst) =
-      List.foldl
-         (\(k,maybeSolution) (acc1,acc2) ->
-           let acc1' =
-             case maybeSolution of
-               Nothing        -> acc1
-               Just kSolution -> Dict.insert k kSolution acc1
-           in
-           let acc2' =
-             -- if this solution failed but previous one succeeded,
-             -- don't shadow the previous one
-             case (maybeSolution, Dict.member k acc2) of
-               (Nothing, True)  -> acc2
-               (Nothing, False) -> Dict.insert k maybeSolution acc2
-               (Just _, _)      -> Dict.insert k maybeSolution acc2
-           in
-           (acc1', acc2')
-         )
-         (subst, Dict.empty)
-         updates
-    in
-    (applySubst entireSubst e, changedSubst)
+    Benchmark.logDuration "trigger" <|
+      \() ->
+        let updates = trigger_ (mx0,my0) (dx,dy) in
+        let (entireSubst, changedSubst) =
+          List.foldl
+             (\(k,maybeSolution) (acc1,acc2) ->
+               let acc1' =
+                 case maybeSolution of
+                   Nothing        -> acc1
+                   Just kSolution -> Dict.insert k kSolution acc1
+               in
+               let acc2' =
+                 -- if this solution failed but previous one succeeded,
+                 -- don't shadow the previous one
+                 case (maybeSolution, Dict.member k acc2) of
+                   (Nothing, True)  -> acc2
+                   (Nothing, False) -> Dict.insert k maybeSolution acc2
+                   (Just _, _)      -> Dict.insert k maybeSolution acc2
+               in
+               (acc1', acc2')
+             )
+             (subst, Dict.empty)
+             updates
+        in
+        (applySubst entireSubst e, changedSubst)
 
 makeTrigger_
   : Options -> Dict0 -> Dict2 -> IndexedTree
@@ -1130,7 +1162,28 @@ solveOne_ opts d0 d2 subst i zone attr (n',t) =
     Nothing -> []
     Just k ->
       let subst' = Dict.remove k subst in
-      let maybeSolution = solve subst' (n',t) in
+      -- Most of this is just benchmark stuff.
+      let nodeIdZoneAttrStr =
+        (toString i) ++ " " ++ zone ++ " " ++ attr
+      in
+      let _ =
+        let traceSize trace =
+          case trace of
+            TrLoc _       -> 1
+            TrOp _ traces -> List.sum <| List.map traceSize traces
+        in
+        Benchmark.log (nodeIdZoneAttrStr ++ " trace size") (traceSize t)
+      in
+      let maybeSolution =
+        Benchmark.logDuration (nodeIdZoneAttrStr ++ " solve duration") <|
+          \() -> solve subst' (n',t)
+      in
+      let _ =
+        Benchmark.log (nodeIdZoneAttrStr ++ " solved?") <|
+          case maybeSolution of
+            Nothing -> False
+            Just _  -> True
+      in
       [(k, maybeSolution)]
 
 -- some of these helpers overlap with LangSvg
@@ -1197,7 +1250,7 @@ whichLoc opts d0 d2 i z attr =
   let zoneLocs =
     justGet_ "%6" i d2
       |> snd |> Utils.maybeFind z |> Utils.fromJust
-      |> Utils.fromJust_ "guaranteed not to fail b/c of check in makeTriggers"
+      |> Utils.fromJust_ ("guaranteed not to fail b/c of check in makeTriggers " ++ z ++ " " ++ attr)
       |> fst |> Set.fromList in
   case Set.toList (trLocs `Set.intersect` zoneLocs) of
     [(k,_,_)] -> Just k
@@ -1208,7 +1261,7 @@ whichLoc opts d0 d2 i z attr =
         Just <| case (locs, String.left 1 attr) of
                   ([loc1,loc2], "x") -> Utils.fst3 loc2
                   ([loc1,loc2], "y") -> Utils.fst3 loc1
-                  (loc1::_,_) -> Utils.fst3 loc1
+                  (loc1::_, _) -> Utils.fst3 loc1
                   _ -> Debug.crash "whichLoc"
       else
         Debug.crash "whichLoc"

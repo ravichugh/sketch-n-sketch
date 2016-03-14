@@ -8,6 +8,8 @@ import Config
 import String
 import Debug
 
+import Benchmark
+
 ------------------------------------------------------------------------------
 
 debugLog = Config.debugLog Config.debugParser
@@ -141,7 +143,10 @@ unparse e = case e.val of
     s ++ "\n" ++ white ++ unparse e1
 
 unparseE : Exp -> String
-unparseE e = whitespace startPos e.start ++ unparse e
+unparseE e =
+  Benchmark.logDuration "unparseE" <|
+    \() ->
+      whitespace startPos e.start ++ unparse e
 
 -- Currently only remembers whitespace after ".."
 unparseRange : ERange -> List Unparsable

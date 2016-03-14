@@ -6,6 +6,8 @@ import Lang exposing (..)
 import LangParser2 as Parser
 import Utils
 
+import Benchmark
+
 ------------------------------------------------------------------------------
 -- Big-Step Operational Semantics
 
@@ -244,7 +246,8 @@ initEnv = snd (eval [] Parser.prelude)
 
 run : Exp -> (Val, Widgets)
 run e =
-  eval_ initEnv e
+  Benchmark.logDuration "Eval.run" <|
+    \() -> eval_ initEnv e
 
 parseAndRun : String -> String
 parseAndRun = strVal << fst << run << Utils.fromOk_ << Parser.parseE

@@ -12,6 +12,8 @@ import OurParser2 as P
 import Utils as U
 import PreludeGenerated as Prelude
 
+import Benchmark
+
 ------------------------------------------------------------------------------
 
 (prelude, initK) = freshen_ 1 <| U.fromOk_ <| parseE_ identity Prelude.src
@@ -328,7 +330,9 @@ parseE_ f = P.parse <|
     P.returnWithInfo (f e).val e.start e.end
 
 parseE : String -> Result String Exp
-parseE = parseE_ freshen
+parseE code =
+  Benchmark.logDuration "parseE" <|
+    \() -> parseE_ freshen code
 
 parseVar = EVar <$> (white parseIdent)
 

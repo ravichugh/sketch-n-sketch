@@ -9,6 +9,8 @@ import ExamplesGenerated as Examples
 import LangUnparser exposing (unparseE)
 import OurParser2 as P
 
+import Benchmark
+
 import List
 import Debug
 import String
@@ -139,6 +141,8 @@ type Event = CodeUpdate String
            | WaitRun
            | WaitSave String
            | WaitCodeBox
+           | BenchmarkExample String
+           | ProgramStats
 
 events : Signal.Mailbox Event
 events = Signal.mailbox <| CodeUpdate ""
@@ -149,7 +153,7 @@ mkLive opts e v =
   let (_,tree) = LangSvg.valToIndexedTree v in
   Live <| Sync.prepareLiveUpdates opts e v tree
 
-mkLive_ opts e  = mkLive opts e (fst (Eval.run e))
+mkLive_ opts e  = mkLive opts e (Benchmark.silently <| \() -> (fst (Eval.run e)))
   -- TODO maybe put Val into model (in addition to slate)
   --   so that don't need to re-run in some calling contexts
 
@@ -194,12 +198,12 @@ makeHighlight subst color (locid,_,_) =
 sampleModel : Model
 sampleModel =
   let
-    (name,f) = Utils.head_ Examples.list
+    (name,f,code) = Utils.head_ Examples.list
     {e,v,ws} = f ()
   in
     { scratchCode   = Examples.scratch
     , exName        = name
-    , code          = unparseE e
+    , code          = code
     , history       = ([], [])
     , inputExp      = Just e
     , slate         = LangSvg.valToIndexedTree v
