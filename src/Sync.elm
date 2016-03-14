@@ -10,7 +10,8 @@ import Debug
 import String
 
 import Lang exposing (..)
-import LangSvg exposing (NodeId, ShapeKind, Zone, addi)
+-- import LangSvg exposing (NodeId, ShapeKind, Zone, addi)
+import LangSvg exposing (..)
 import Eval
 import LangParser2 as Parser
 import Config
@@ -864,9 +865,11 @@ strLoc_ l =
 
 ------------------------------------------------------------------------------
 
+-- move this to Model
+type alias MouseTrigger2 a = (Int, Int) -> (Int, Int) -> a
+
 type alias Triggers = Dict NodeId (Dict Zone (Maybe Trigger))
-type alias Trigger  = List (AttrName, Num) -> (Exp, SubstMaybeNum)
--- type alias Trigger  = List (AttrName, Num) -> (Exp, Dict NodeId (Dict AttrName Num))
+type alias Trigger  = MouseTrigger2 (Exp, SubstMaybeNum)
 
 type alias LiveInfo =
   { triggers    : Triggers
@@ -876,105 +879,306 @@ type alias LiveInfo =
 
 tryToBeSmart = False
 
-prepareLiveUpdates : Options -> Exp -> Val -> LiveInfo
-prepareLiveUpdates opts e v =
+prepareLiveUpdates : Options -> Exp -> Val -> IndexedTree -> LiveInfo
+prepareLiveUpdates opts e v slate =
   let d0 = nodeToAttrLocs v in
   let d1 = shapesToZoneTable opts d0 in
   -- let d2 = assignTriggers d1 in
   let d2 = assignTriggers opts d0 d1 in
   let initSubstPlus = Parser.substPlusOf e in
   let initSubst = Dict.map (always .val) initSubstPlus in
-    { triggers    = makeTriggers initSubst opts e d0 d2
+    { triggers    = makeTriggers initSubst opts e d0 d2 slate
     , assignments = zoneAssignments d2
     , initSubst   = initSubstPlus
     }
 
 -- TODO refactor Dict data structures above to make this more efficient
 
-makeTriggers : Subst -> Options -> Exp -> Dict0 -> Dict2 -> Triggers
-makeTriggers subst opts e d0 d2 =
-  let f i (_,zones) =
+makeTriggers : Subst -> Options -> Exp -> Dict0 -> Dict2 -> IndexedTree -> Triggers
+makeTriggers subst opts e d0 d2 slate =
+  let f i (kind,zones) =
     let g (zone,m) =
       Dict.insert zone <|
         case m of
           Nothing -> Nothing
-          Just _  -> Just (makeTrigger opts e d0 d2 subst i zone) in
+          Just _  -> Just (makeTrigger opts e d0 d2 slate subst i kind zone) in
     List.foldl g Dict.empty zones in
   Dict.map f d2
 
-makeTrigger : Options -> Exp -> Dict0 -> Dict2 -> Subst -> NodeId -> Zone -> Trigger
-makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
-  -- TODO symbolically compute changes !!!
-  -- once this is done, might be able to rank trigger sets by int/float
-  let (entireSubst, changedSubst, changedLocs) =
-    let f (attr,newNum) (acc1,acc2,acc3) =
-      {- 6/25: now that assigned locs do not appear in every attribute,
-               whichLoc may return Nothing
-      let k = whichLoc opts d0 d2 i zone attr in
+makeTrigger
+  : Options -> Exp -> Dict0 -> Dict2 -> IndexedTree
+ -> Subst -> NodeId -> ShapeKind -> Zone
+ -> Trigger
+makeTrigger opts e d0 d2 slate subst id kind zone =
+  let trigger_ = makeTrigger_ opts d0 d2 slate subst id kind zone in
+  \(mx0,my0) (dx,dy) ->
+    let updates = trigger_ (mx0,my0) (dx,dy) in
+    let (entireSubst, changedSubst) =
+      List.foldl
+         (\(k,maybeSolution) (acc1,acc2) ->
+           let acc1' =
+             case maybeSolution of
+               Nothing        -> acc1
+               Just kSolution -> Dict.insert k kSolution acc1
+           in
+           let acc2' =
+             -- if this solution failed but previous one succeeded,
+             -- don't shadow the previous one
+             case (maybeSolution, Dict.member k acc2) of
+               (Nothing, True)  -> acc2
+               (Nothing, False) -> Dict.insert k maybeSolution acc2
+               (Just _, _)      -> Dict.insert k maybeSolution acc2
+           in
+           (acc1', acc2')
+         )
+         (subst, Dict.empty)
+         updates
+    in
+    (applySubst entireSubst e, changedSubst)
+
+makeTrigger_
+  : Options -> Dict0 -> Dict2 -> IndexedTree
+ -> Subst -> NodeId -> ShapeKind -> Zone
+ -> MouseTrigger2 (List (LocId, Maybe Num))
+makeTrigger_ opts d0 d2 slate subst id kind zone =
+  let solveOne = solveOne_ opts d0 d2 subst id zone in
+  let offset d = updateBy (toFloat d) in
+  case (kind, zone) of
+
+    -- first match zones that can be attached to different shape kinds...
+
+    (_, "FillBall")   ->
+      \_ (dx,dy) ->
+        let (n,t) = getAColorNum slate id "fill" in
+        let n' = LangSvg.clampColorNum (n + scaleColorBall * toFloat dx) in
+        solveOne "fill" (n', t)
+
+    (_, "RotateBall") ->
+      let (rot,cx,cy) = getATransformRot slate id "transform" in
+      \(mx0,my0) (dx,dy) ->
+        let (mx1, my1) = (mx0 + dx, my0 + dy) in
+        let a0 = Utils.radiansToDegrees <| atan2 (fst cy - toFloat my0) (toFloat mx0 - fst cx) in
+        let a1 = Utils.radiansToDegrees <| atan2 (fst cy - toFloat my1) (toFloat mx1 - fst cx) in
+        solveOne "transformRot" (fst rot + (a0 - a1), snd rot)
+
+    -- ... and then match each kind of shape separately
+
+    ("rect", "Interior") ->
+      \_ (dx,dy) ->
+        solveOne "x"      (offset  dx (rectX slate id)) ++
+        solveOne "y"      (offset  dy (rectY slate id))
+    ("rect", "RightEdge") ->
+      \_ (dx,dy) ->
+        solveOne "width"  (offset  dx (rectRightEdge slate id))
+    ("rect", "BotEdge") ->
+      \_ (dx,dy) ->
+        solveOne "height" (offset  dy (rectBotEdge slate id))
+    ("rect", "LeftEdge") ->
+      \_ (dx,dy) ->
+        solveOne "x"      (offset  dx (rectX slate id)) ++
+        solveOne "width"  (offset -dx (rectRightEdge slate id))
+    ("rect", "TopEdge") ->
+      \_ (dx,dy) ->
+        solveOne "y"      (offset  dy (rectY slate id)) ++
+        solveOne "height" (offset -dy (rectBotEdge slate id))
+    ("rect", "BotRightCorner") ->
+      \_ (dx,dy) ->
+        solveOne "width"  (offset  dx (rectRightEdge slate id)) ++
+        solveOne "height" (offset  dy (rectBotEdge slate id))
+    ("rect", "TopRightCorner") ->
+      \_ (dx,dy) ->
+        solveOne "y"      (offset  dy (rectY slate id)) ++
+        solveOne "width"  (offset  dx (rectRightEdge slate id)) ++
+        solveOne "height" (offset -dy (rectBotEdge slate id))
+    ("rect", "TopLeftCorner") ->
+      \_ (dx,dy) ->
+        solveOne "x"      (offset  dx (rectX slate id)) ++
+        solveOne "y"      (offset  dy (rectY slate id)) ++
+        solveOne "width"  (offset -dx (rectRightEdge slate id)) ++
+        solveOne "height" (offset -dy (rectBotEdge slate id))
+    ("rect", "BotLeftCorner") ->
+      \_ (dx,dy) ->
+        solveOne "x"      (offset  dx (rectX slate id)) ++
+        solveOne "width"  (offset -dx (rectRightEdge slate id)) ++
+        solveOne "height" (offset  dy (rectBotEdge slate id))
+
+    ("circle", "Interior") ->
+      \_ (dx,dy) ->
+        solveOne "cx" (offset dx (getANum slate id "cx")) ++
+        solveOne "cy" (offset dy (getANum slate id "cy"))
+    ("circle", "Edge") ->
+      \(mx0,my0) (dx,dy) ->
+        let (mx1, my1) = (mx0 + dx, my0 + dy) in
+        let (cx,_) = getANum slate id "cx" in
+        let (cy,_) = getANum slate id "cy" in
+        let dx = if toFloat mx0 >= cx then mx1 - mx0 else mx0 - mx1 in
+        let dy = if toFloat my0 >= cy then my1 - my0 else my0 - my1 in
+        let d  = max dx dy in
+        solveOne "r" (offset d (getANum slate id "r"))
+
+    ("ellipse", "Interior") ->
+      \_ (dx,dy) ->
+        solveOne "cx" (offset dx (getANum slate id "cx")) ++
+        solveOne "cy" (offset dy (getANum slate id "cy"))
+    ("ellipse", "Edge") ->
+      \(mx0,my0) (dx,dy) ->
+        let (cx,_) = getANum slate id "cx" in
+        let (cy,_) = getANum slate id "cy" in
+        let dx' = if toFloat mx0 >= cx then dx else -dx in
+        let dy' = if toFloat my0 >= cy then dy else -dy in
+        solveOne "rx" (offset dx' (getANum slate id "rx")) ++
+        solveOne "ry" (offset dy' (getANum slate id "ry"))
+
+    ("line", "Edge") ->
+      \_ (dx,dy) ->
+        solveOne "x1" (offset dx (getANum slate id "x1")) ++
+        solveOne "y1" (offset dy (getANum slate id "y1")) ++
+        solveOne "x2" (offset dx (getANum slate id "x2")) ++
+        solveOne "y2" (offset dy (getANum slate id "y2"))
+    ("line", "Point1") ->
+      \_ (dx,dy) ->
+        solveOne "x1" (offset dx (getANum slate id "x1")) ++
+        solveOne "y1" (offset dy (getANum slate id "y1"))
+    ("line", "Point2") ->
+      \_ (dx,dy) ->
+        solveOne "x2" (offset dx (getANum slate id "x2")) ++
+        solveOne "y2" (offset dy (getANum slate id "y2"))
+
+    ("polygon", _)  -> makeTriggerPoly solveOne offset slate id kind zone
+    ("polyline", _) -> makeTriggerPoly solveOne offset slate id kind zone
+    ("path", _)     -> makeTriggerPath solveOne offset slate id zone
+
+    _ -> Debug.crash ("makeTrigger: " ++ kind ++ " " ++ zone)
+
+makeTriggerPoly solveOne offset slate id kind zone =
+  case LangSvg.realZoneOf zone of
+
+    LangSvg.Z "Interior" ->
+      \_ (dx,dy) ->
+        let points = getAPoints slate id "points" in
+        Utils.foldli
+          (\(i,(xt,yt)) acc ->
+            solveOne (addi "x" i) (offset dx xt) ++
+            solveOne (addi "y" i) (offset dy yt) ++
+            acc
+          )
+          []
+          points
+
+    LangSvg.ZPoint i ->
+      let points = getAPoints slate id "points" in
+      let (xt,yt) = Utils.geti i points in
+      \_ (dx,dy) ->
+        solveOne (addi "x" i) (offset dx xt) ++
+        solveOne (addi "y" i) (offset dy yt)
+
+    LangSvg.ZEdge i ->
+      let points = getAPoints slate id "points" in
+      let n = List.length points in
+      let (xt1,yt1) = Utils.geti i points in
+      if kind == "polyline" && i == n then
+        \_ (dx,dy) ->
+          solveOne (addi "x" i) (offset dx xt1) ++
+          solveOne (addi "y" i) (offset dy yt1)
+      else
+        let j = if i == n then 1 else i + 1 in
+        let (xt2,yt2) = Utils.geti j points in
+        \_ (dx,dy) ->
+          solveOne (addi "x" i) (offset dx xt1) ++
+          solveOne (addi "y" i) (offset dy yt1) ++
+          solveOne (addi "x" j) (offset dx xt2) ++
+          solveOne (addi "y" j) (offset dy yt2)
+
+    _ ->
+     Debug.crash "makeTrigger_: polygon"
+
+makeTriggerPath solveOne offset slate id zone =
+  case LangSvg.realZoneOf zone of
+    LangSvg.ZPoint i ->
+      let cmds = getAPathCmds slate id "d" in
+      case findPathPoint cmds i of
+        Nothing -> Debug.crash "makeTrigger_: path"
+        Just (xt,yt) ->
+          \_ (dx,dy) ->
+            solveOne (addi "x" i) (offset dx xt) ++
+            solveOne (addi "y" i) (offset dy yt)
+    _ ->
+      Debug.crash "makeTrigger_: path"
+
+findPathPoint cmds i =
+  let maybeKeepPoint (mj,pt) = if mj == Just i then Just pt else Nothing in
+  List.foldl
+     (\cmd acc ->
+       let idPoints =
+         case cmd of
+           CmdMLT _ pt1          -> [pt1]
+           CmdC   _ pt1 pt2 pt3  -> [pt1, pt2, pt3]
+           CmdSQ  _ pt1 pt2      -> [pt1, pt2]
+           CmdA   _ _ _ _ _ _ pt -> [pt]
+           _                     -> []
+       in
+       List.foldl Utils.plusMaybe acc (List.map maybeKeepPoint idPoints)
+     )
+     Nothing
+     cmds
+
+updateBy : Num -> NumTr -> Equation
+updateBy offset (n,t) = let n' = n + offset in (n', t)
+
+solveOne_ opts d0 d2 subst i zone attr (n',t) =
+  case whichLoc opts d0 d2 i zone attr of
+    Nothing -> []
+    Just k ->
       let subst' = Dict.remove k subst in
-      let tr = justGet attr (Utils.thd3 (justGet i d0)) in
-      case solve subst' (newNum, tr) of
-        -- solve will no longer always return an answer, so one of
-        -- the locations assigned to this trigger may not have an
-        -- effect after all... (see Dict1 comment)
-        Nothing -> (acc1, acc2)
-        Just kSolution -> (Dict.insert k kSolution acc1, Set.insert k acc2)
-      -}
-      case whichLoc opts d0 d2 i zone attr of
-        Nothing -> (acc1, acc2, acc3)
-        Just k ->
-          let subst' = Dict.remove k subst in
-          let tr = justGet_ "%2" attr (Utils.fourth4 (justGet_ "%3" i d0)) in
-          case solve subst' (newNum, tr) of
-            -- solve will no longer always return an answer, so one of
-            -- the locations assigned to this trigger may not have an
-            -- effect after all... (see Dict1 comment)
-            Nothing -> (acc1, Dict.insert k Nothing acc2, acc3)
-            Just kSolution ->
-              let acc1' = Dict.insert k kSolution acc1 in
-              let acc2' = Dict.insert k (Just kSolution) acc2 in
-              let acc3' = Set.insert k acc3 in
-              (acc1', acc2', acc3')
-    in
-    List.foldl f (subst, Dict.empty, Set.empty) newAttrs in
-    -- if using overconstrained triggers, then some of the newAttr values
-    -- from the UI make be "immediately destroyed" by subsequent ones...
+      let maybeSolution = solve subst' (n',t) in
+      [(k, maybeSolution)]
 
-  (applySubst entireSubst e, changedSubst)
+-- some of these helpers overlap with LangSvg
 
-{-
-  let g i (_,_,_,di) acc =
-    let h attr tr acc =
-      let locs = Set.map Utils.fst3 (locsOfTrace opts tr) in
-      if | Utils.setIsEmpty (locs `Set.intersect` changedLocs) -> acc
-         | otherwise -> Dict.insert attr (evalTr subst' tr) acc
+getANum = getAVal <| \aval ->
+  case aval of
+    ANum nt -> nt
+    _       -> Debug.crash "getANum"
 
-         -- updating "points" based on fake attributes would be easier
-         -- if the Little representation simply kept separate attributes
-         -- for each point...
-         {-
-         | otherwise ->
-             let default () = Dict.insert attr (evalTr subst' tr) acc in
-             case String.uncons attr of
-               Nothing -> default ()
-               Just (pre,suf) ->
-                 if pre == 'x' || pre == 'y' then
-                   case String.toInt suf of
-                     Err _ -> default ()
-                     Ok i  -> Debug.log "SYNC: change other point..." <| default ()
-                 else
-                   default()
-        -}
-    in
-    -- let di' = Dict.foldl h Dict.empty di in
-    let di' =
-      if | tryToBeSmart -> Dict.foldl h Dict.empty di
-         | otherwise    -> Dict.empty in
-    if | Utils.dictIsEmpty di' -> acc
-       | otherwise -> Dict.insert i di' acc in
-  let e' = applySubst subst' e in
-  (e', Dict.foldl g Dict.empty d0)
--}
+getAPoints = getAVal <| \aval ->
+  case aval of
+    APoints pts -> pts
+    _           -> Debug.crash "getAPoints"
+
+getAPathCmds = getAVal <| \aval ->
+  case aval of
+    APath2 (cmds, _) -> cmds
+    _                -> Debug.crash "getAPathCmds"
+
+getATransformRot = getAVal <| \aval ->
+  case aval of
+    ATransform [Rot n1 n2 n3] -> (n1,n2,n3)
+    _                         -> Debug.crash "getATransformRot"
+
+getAColorNum = getAVal <| \aval ->
+  case aval of
+    AColorNum nt -> nt
+    _            -> Debug.crash "getAColorNum"
+
+getAVal foo slate i attrName =
+  case Dict.get i slate of
+    Just (LangSvg.SvgNode _ attrs _) ->
+      case Utils.maybeFind attrName attrs of
+        Just aval -> foo aval
+        Nothing   -> Debug.crash ("getAVal: " ++ toString (i, attrName))
+    Nothing                   -> Debug.crash "getAVal"
+    Just (LangSvg.TextNode _) -> Debug.crash "getAVal"
+
+rectX slate i = getANum slate i "x"
+rectY slate i = getANum slate i "y"
+
+rectRightEdge slate i =
+  getANum slate i "x" `plusNumTr` getANum slate i "width"
+
+rectBotEdge slate i =
+  getANum slate i "y" `plusNumTr` getANum slate i "height"
+
+plusNumTr (n1,t1) (n2,t2) = (n1 + n2, TrOp Plus [t1, t2])
 
 -- TODO sloppy way of doing this for now...
 whichLoc : Options -> Dict0 -> Dict2 -> NodeId -> Zone -> AttrName -> Maybe LocId
@@ -1006,6 +1210,10 @@ whichLoc opts d0 d2 i z attr =
         Debug.crash "whichLoc"
 
 evalTr subst tr = Utils.fromJust_ "evalTr" (evalTrace subst tr)
+
+-- duplicated from InterfaceView2 for now
+wGradient = 250
+scaleColorBall = 1 / (wGradient / LangSvg.maxColorNum)
 
 ------------------------------------------------------------------------------
 

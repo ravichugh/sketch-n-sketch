@@ -80,7 +80,7 @@ type MouseMode
   | MouseObject NodeId ShapeKind Zone
       (Maybe ( Code                        -- the program upon initial zone click
              , Maybe (SubstPlus, LocSet)   -- loc-set assigned (live mode only)
-             , MouseTrigger (Exp, SubstMaybeNum, RootedIndexedTree, Widgets) ))
+             , (Int, Int) ))               -- initial click
   | MouseSlider Widget
       (Maybe ( Code                        -- the program upon initial click
              , MouseTrigger (Exp, RootedIndexedTree, Widgets) ))
@@ -145,7 +145,10 @@ events = Signal.mailbox <| CodeUpdate ""
 
 --------------------------------------------------------------------------------
 
-mkLive opts e v = Live <| Sync.prepareLiveUpdates opts e v
+mkLive opts e v =
+  let (_,tree) = LangSvg.valToIndexedTree v in
+  Live <| Sync.prepareLiveUpdates opts e v tree
+
 mkLive_ opts e  = mkLive opts e (fst (Eval.run e))
   -- TODO maybe put Val into model (in addition to slate)
   --   so that don't need to re-run in some calling contexts
