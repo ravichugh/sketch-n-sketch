@@ -969,38 +969,38 @@ makeTrigger_ opts d0 d2 slate subst id kind zone =
         solveOne "y"      (offset  dy (rectY slate id))
     ("rect", "RightEdge") ->
       \_ (dx,dy) ->
-        solveOne "width"  (offset  dx (rectRightEdge slate id))
+        solveOne "width"  (offset  dx (rectW slate id))
     ("rect", "BotEdge") ->
       \_ (dx,dy) ->
-        solveOne "height" (offset  dy (rectBotEdge slate id))
+        solveOne "height" (offset  dy (rectH slate id))
     ("rect", "LeftEdge") ->
       \_ (dx,dy) ->
         solveOne "x"      (offset  dx (rectX slate id)) ++
-        solveOne "width"  (offset -dx (rectRightEdge slate id))
+        solveOne "width"  (offset -dx (rectW slate id))
     ("rect", "TopEdge") ->
       \_ (dx,dy) ->
         solveOne "y"      (offset  dy (rectY slate id)) ++
-        solveOne "height" (offset -dy (rectBotEdge slate id))
+        solveOne "height" (offset -dy (rectH slate id))
     ("rect", "BotRightCorner") ->
       \_ (dx,dy) ->
-        solveOne "width"  (offset  dx (rectRightEdge slate id)) ++
-        solveOne "height" (offset  dy (rectBotEdge slate id))
+        solveOne "width"  (offset  dx (rectW slate id)) ++
+        solveOne "height" (offset  dy (rectH slate id))
     ("rect", "TopRightCorner") ->
       \_ (dx,dy) ->
         solveOne "y"      (offset  dy (rectY slate id)) ++
-        solveOne "width"  (offset  dx (rectRightEdge slate id)) ++
-        solveOne "height" (offset -dy (rectBotEdge slate id))
+        solveOne "width"  (offset  dx (rectW slate id)) ++
+        solveOne "height" (offset -dy (rectH slate id))
     ("rect", "TopLeftCorner") ->
       \_ (dx,dy) ->
         solveOne "x"      (offset  dx (rectX slate id)) ++
         solveOne "y"      (offset  dy (rectY slate id)) ++
-        solveOne "width"  (offset -dx (rectRightEdge slate id)) ++
-        solveOne "height" (offset -dy (rectBotEdge slate id))
+        solveOne "width"  (offset -dx (rectW slate id)) ++
+        solveOne "height" (offset -dy (rectH slate id))
     ("rect", "BotLeftCorner") ->
       \_ (dx,dy) ->
         solveOne "x"      (offset  dx (rectX slate id)) ++
-        solveOne "width"  (offset -dx (rectRightEdge slate id)) ++
-        solveOne "height" (offset  dy (rectBotEdge slate id))
+        solveOne "width"  (offset -dx (rectW slate id)) ++
+        solveOne "height" (offset  dy (rectH slate id))
 
     ("circle", "Interior") ->
       \_ (dx,dy) ->
@@ -1171,7 +1171,10 @@ getAVal foo slate i attrName =
 
 rectX slate i = getANum slate i "x"
 rectY slate i = getANum slate i "y"
+rectW slate i = getANum slate i "width"
+rectH slate i = getANum slate i "height"
 
+{-
 rectRightEdge slate i =
   getANum slate i "x" `plusNumTr` getANum slate i "width"
 
@@ -1179,6 +1182,7 @@ rectBotEdge slate i =
   getANum slate i "y" `plusNumTr` getANum slate i "height"
 
 plusNumTr (n1,t1) (n2,t2) = (n1 + n2, TrOp Plus [t1, t2])
+-}
 
 -- TODO sloppy way of doing this for now...
 whichLoc : Options -> Dict0 -> Dict2 -> NodeId -> Zone -> AttrName -> Maybe LocId
