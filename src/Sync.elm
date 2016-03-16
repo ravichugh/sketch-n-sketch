@@ -650,7 +650,13 @@ createLocLists opts sets =
     else
       Debug.crash "createLocLists"
   in
-  foo ++ bar
+  let baz =
+    if foo == bar then
+      foo
+    else
+      foo ++ bar
+  in
+  List.filter ((/=) []) baz
 
 getZones : ShapeKind -> ExtraInfo -> ExtraExtraInfo -> List (Zone, List AttrName)
 getZones kind extra ee =
