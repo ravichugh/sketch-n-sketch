@@ -3,7 +3,9 @@ module Sync (Options, defaultOptions, syncOptionsOf,
              inferLocalUpdates, inferStructuralUpdate, prepareLiveUpdates,
              printZoneTable, LiveInfo, Triggers, tryToBeSmart,
              -- For gathering stats:
-             shapesToZoneTable, nodeToAttrLocs, assignTriggers, whichLoc, getZones
+             shapesToZoneTable, nodeToAttrLocs, assignTriggers, whichLoc, getZones,
+             solveTopDown, simpleSolve, getANum, getATransformRot, getAColorNum,
+             getAPoints, getAPathCmds, findPathPoint
              ) where
 
 import Dict exposing (Dict)
@@ -1175,7 +1177,7 @@ solveOne_ opts d0 d2 subst i zone attr (n',t) =
         let traceSize trace =
           case trace of
             TrLoc _       -> 1
-            TrOp _ traces -> List.sum <| List.map traceSize traces
+            TrOp _ traces -> 1 + (List.sum <| List.map traceSize traces)
         in
         Benchmark.log (nodeIdZoneAttrStr ++ " trace size") (traceSize t)
       in

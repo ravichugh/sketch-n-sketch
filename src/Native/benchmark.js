@@ -1,4 +1,5 @@
-var browser = window.navigator.userAgent;
+var userAgentParts = window.navigator.userAgent.split(" ");
+var browser = userAgentParts[userAgentParts.length - 2] + " " + userAgentParts[userAgentParts.length - 1];
 var currentProgram = "";
 var heuristicsMode = "";
 var heuristicsModes = ["Fair", "Biased", "None"];

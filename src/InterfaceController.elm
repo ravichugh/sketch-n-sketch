@@ -317,6 +317,29 @@ upstate evt old =
             nodeIdTo_ShapeKindAndListOf_ZoneWith_NumAttrsAndListOfListOfLoc
       in
       let _ = Benchmark.log "zone count" zoneCount in
+      let checkedWhichLoc nodeId zoneName attrName =
+        -- whichLoc crashes if we don't check the maybeChosenLocListAndAllLocLists first
+        -- So that's what the next two lets are for.
+        let (_, listOf_ZoneWithMaybe_ChosenLocListAndAllLocLists) =
+          Utils.justGet nodeId nodeIdTo_ShapeKindAndListOf_ZoneWithMaybe_ChosenLocListAndAllLocLists
+        in
+        let (_, maybeChosenLocListAndAllLocLists) =
+          Utils.fromJust_ ("shape " ++ (toString nodeId) ++ " " ++ zoneName ++ " couldn't find maybeChosenLocListAndAllLocLists")
+          <| Utils.findFirst
+              (\(itemZoneName, _) -> itemZoneName == zoneName)
+              listOf_ZoneWithMaybe_ChosenLocListAndAllLocLists
+        in
+        case maybeChosenLocListAndAllLocLists of
+          Nothing -> Nothing
+          Just _  ->
+            Sync.whichLoc
+                old.syncOptions
+                nodeIdTo_StuffStuffStuffAndAttrToTrace
+                nodeIdTo_ShapeKindAndListOf_ZoneWithMaybe_ChosenLocListAndAllLocLists
+                nodeId
+                zoneName
+                attrName
+      in
       let _ =
         (Dict.toList nodeIdTo_ShapeKindAndListOf_ZoneWith_NumAttrsAndListOfListOfLoc)
         |> List.map
@@ -332,31 +355,8 @@ upstate evt old =
                     (attrNamesFor old.slate nodeId shapeKind zoneName)
                     |> List.map
                         (\attrName ->
-                          let maybeChosenLocId =
-                            -- whichLoc crashes if we don't check the maybeChosenLocListAndAllLocLists first
-                            -- So that's what the next two lets are for.
-                            let (_, listOf_ZoneWithMaybe_ChosenLocListAndAllLocLists) =
-                              Utils.justGet nodeId nodeIdTo_ShapeKindAndListOf_ZoneWithMaybe_ChosenLocListAndAllLocLists
-                            in
-                            let (_, maybeChosenLocListAndAllLocLists) =
-                              Utils.fromJust_ ("shape " ++ shapeKind ++ " " ++ (toString nodeId) ++ " " ++ zoneName ++ " couldn't find maybeChosenLocListAndAllLocLists")
-                              <| Utils.findFirst
-                                  (\(itemZoneName, _) -> itemZoneName == zoneName)
-                                  listOf_ZoneWithMaybe_ChosenLocListAndAllLocLists
-                            in
-                            case maybeChosenLocListAndAllLocLists of
-                              Nothing -> Nothing
-                              Just _  ->
-                                Sync.whichLoc
-                                    old.syncOptions
-                                    nodeIdTo_StuffStuffStuffAndAttrToTrace
-                                    nodeIdTo_ShapeKindAndListOf_ZoneWithMaybe_ChosenLocListAndAllLocLists
-                                    nodeId
-                                    zoneName
-                                    attrName
-                          in
                           let chosenLocStr =
-                            case maybeChosenLocId of
+                            case (checkedWhichLoc nodeId zoneName attrName) of
                               Just locId -> toString locId
                               Nothing    -> "none"
                           in
@@ -455,6 +455,14 @@ upstate evt old =
               (nodeId, shapeKind, listOfZoneAndAttrsWithTrace)
             )
       in
+      -- Want: equation count (total attr-zone-traces that have a loc in the loclist)
+      -- trace size (for such equations)
+      -- trace in SolveA fragment?
+      -- trace in SolveB fragment?
+      -- time to solve += 1
+      -- time to solve += 100
+      -- solved by SolveA?
+      -- solved by SolveB?
       let _ =
         nodeIdAndShapeAndListofZoneAndAttrsWithTrace
         |> List.map
@@ -465,12 +473,130 @@ upstate evt old =
                     attrsWithTrace
                     |> List.map
                         (\(attrName, trace) ->
-                          let _ =
-                            Benchmark.log "" ""
-                                -- ("shape " ++ shapeKind ++ " " ++ (toString nodeId) ++ " " ++ zoneName ++ " " ++ attrName ++ " trace size")
-                                -- chosenLocStr
-                          in
-                          ()
+                          let maybeChosenLocId = checkedWhichLoc nodeId zoneName attrName in
+                          case maybeChosenLocId of
+                            Nothing ->
+                              () -- This zone-attr does not produce an equation.
+
+                            Just chosenLocId ->
+                              let shapeNodeIdZoneAttrStr =
+                                "shape " ++ shapeKind ++ " " ++ (toString nodeId) ++ " " ++ zoneName ++ " " ++ attrName
+                              in
+                              let _ =
+                                let traceSize trace =
+                                  case trace of
+                                    TrLoc _       -> 1
+                                    TrOp _ traces -> 1 + (List.sum <| List.map traceSize traces)
+                                in
+                                Benchmark.log (shapeNodeIdZoneAttrStr ++ " trace size") (traceSize trace)
+                              in
+                              let countLoc targetLocId tr =
+                                case tr of
+                                  TrLoc (locId, _, _) -> if locId == targetLocId then 1 else 0
+                                  TrOp _ traces       -> List.sum <| List.map (countLoc targetLocId) traces
+                              in
+                              let allPlus tr =
+                                case tr of
+                                  TrLoc _       -> True
+                                  TrOp _ traces -> List.all allPlus traces
+                              in
+                              let inSolveAFragment = (countLoc chosenLocId trace) == 1 in
+                              let inSolveBFragment = allPlus trace in
+                              let initSubstPlus = LangParser2.substPlusOf <| Utils.fromJust old.inputExp in
+                              let initSubst = Dict.map (always .val) initSubstPlus in
+                              let subst' = Dict.remove chosenLocId initSubst in
+                              let (oldAttrVal, _) =
+                                let (_, indexedTree) = old.slate in
+                                let polyAVal () =
+                                  let points = Sync.getAPoints indexedTree nodeId "points" in
+                                  let i =
+                                    String.dropLeft 1 attrName
+                                    |> String.toInt
+                                    |> Utils.fromOk ("converting " ++ attrName ++ " to point number")
+                                  in
+                                  let (xt,yt) = Utils.geti i points in
+                                  if String.startsWith "x" attrName then
+                                    xt
+                                  else if String.startsWith "y" attrName then
+                                    yt
+                                  else
+                                    Debug.crash <| "Unknown ploy attr " ++ attrName
+                                in
+                                let pathAVal () =
+                                  let i =
+                                    String.dropLeft 1 attrName
+                                    |> String.toInt
+                                    |> Utils.fromOk ("converting " ++ attrName ++ " to point number")
+                                  in
+                                  let cmds = Sync.getAPathCmds indexedTree nodeId "d" in
+                                  case Sync.findPathPoint cmds i of
+                                    Nothing ->
+                                      Debug.crash <| "finding value for " ++ attrName ++ " in " ++ shapeKind ++ " " ++ (toString nodeId)
+                                    Just (xt,yt) ->
+                                      if String.startsWith "x" attrName then
+                                        xt
+                                      else if String.startsWith "y" attrName then
+                                        yt
+                                      else
+                                        Debug.crash <| "Unknown path attr " ++ attrName
+                                in
+                                case (shapeKind, zoneName) of
+                                  (_, "FillBall")   -> Sync.getAColorNum indexedTree nodeId "fill"
+                                  (_, "RotateBall") -> let (rot,cx,cy) = Sync.getATransformRot indexedTree nodeId "transform" in rot
+                                  ("polygon", _)    -> polyAVal ()
+                                  ("polyline", _)   -> polyAVal ()
+                                  ("path", _)       -> pathAVal ()
+                                  _                 -> Sync.getANum indexedTree nodeId attrName
+                              in
+                              let _ =
+                                if inSolveAFragment then
+                                  let maybePlusOneASolved =
+                                    Benchmark.logDuration (shapeNodeIdZoneAttrStr ++ " += 1 solve A attempt duration")
+                                      <| \() -> Sync.solveTopDown subst' (oldAttrVal + 1, trace)
+                                  in
+                                  let maybePlusOneHundredASolved =
+                                    Benchmark.logDuration (shapeNodeIdZoneAttrStr ++ " += 100 solve A attempt duration")
+                                      <| \() -> Sync.solveTopDown subst' (oldAttrVal + 100, trace)
+                                  in
+                                  let _ =
+                                    case maybePlusOneASolved of
+                                      Just _  -> Benchmark.log (shapeNodeIdZoneAttrStr ++ " += 1 solve A solved?") True
+                                      Nothing -> Benchmark.log (shapeNodeIdZoneAttrStr ++ " += 1 solve A solved?") False
+                                  in
+                                  let _ =
+                                    case maybePlusOneHundredASolved of
+                                      Just _  -> Benchmark.log (shapeNodeIdZoneAttrStr ++ " += 100 solve A solved?") True
+                                      Nothing -> Benchmark.log (shapeNodeIdZoneAttrStr ++ " += 100 solve A solved?") False
+                                  in
+                                  ()
+                                else
+                                  ()
+                              in
+                              let _ =
+                                if inSolveBFragment then
+                                  let maybePlusOneBSolved =
+                                    Benchmark.logDuration (shapeNodeIdZoneAttrStr ++ " += 1 solve B attempt duration")
+                                      <| \() -> Sync.simpleSolve subst' (oldAttrVal + 1, trace)
+                                  in
+                                  let maybePlusOneHundredBSolved =
+                                    Benchmark.logDuration (shapeNodeIdZoneAttrStr ++ " += 100 solve B attempt duration")
+                                      <| \() -> Sync.simpleSolve subst' (oldAttrVal + 100, trace)
+                                  in
+                                  let _ =
+                                    case maybePlusOneBSolved of
+                                      Just _  -> Benchmark.log (shapeNodeIdZoneAttrStr ++ " += 1 solve B solved?") True
+                                      Nothing -> Benchmark.log (shapeNodeIdZoneAttrStr ++ " += 1 solve B solved?") False
+                                  in
+                                  let _ =
+                                    case maybePlusOneHundredBSolved of
+                                      Just _  -> Benchmark.log (shapeNodeIdZoneAttrStr ++ " += 100 solve B solved?") True
+                                      Nothing -> Benchmark.log (shapeNodeIdZoneAttrStr ++ " += 100 solve B solved?") False
+                                  in
+                                  ()
+                                else
+                                  ()
+                              in
+                              ()
                         )
                   )
             )
@@ -487,7 +613,7 @@ upstate evt old =
                   else " (" ++ ident ++ ")"
               in
               let _ =
-                Benchmark.log (locStr ++ " frozen") (toString <| Set.member loc frozenLocsInOutput)
+                Benchmark.log (locStr ++ " frozen") (Set.member loc frozenLocsInOutput)
               in
               let tracesContainingLoc =
                 List.filter
