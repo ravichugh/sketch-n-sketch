@@ -470,12 +470,12 @@ upstate evt old =
       in
       -- Want: equation count (total attr-zone-traces that have a loc in the loclist)
       -- trace size (for such equations)
-      -- trace in SolveA fragment?
       -- trace in SolveB fragment?
+      -- trace in SolveA fragment?
       -- time to solve += 1
       -- time to solve += 100
-      -- solved by SolveA?
       -- solved by SolveB?
+      -- solved by SolveA?
       let _ =
         nodeIdAndShapeAndListofZoneAndAttrsWithTrace
         |> List.map
@@ -518,8 +518,8 @@ upstate evt old =
                                   TrOp Plus traces -> List.all allPlus traces
                                   TrOp _ _         -> False
                               in
-                              let inSolveAFragment = (countLoc chosenLocId trace) == 1 in
-                              let inSolveBFragment = allPlus trace in
+                              let inSolveBFragment = (countLoc chosenLocId trace) == 1 in
+                              let inSolveAFragment = allPlus trace in
                               let initSubstPlus = LangParser2.substPlusOf <| Utils.fromJust old.inputExp in
                               let initSubst = Dict.map (always .val) initSubstPlus in
                               let subst' = Dict.remove chosenLocId initSubst in
@@ -567,38 +567,14 @@ upstate evt old =
                                   _                 -> Sync.getANum indexedTree nodeId attrName
                               in
                               let _ =
-                                if inSolveAFragment then
-                                  let maybePlusOneASolved =
-                                    Benchmark.logDuration (shapeNodeIdZoneAttrStr ++ " += 1 solve A attempt duration")
-                                      <| \() -> Sync.solveTopDown subst' (oldAttrVal + 1, trace)
-                                  in
-                                  let maybePlusOneHundredASolved =
-                                    Benchmark.logDuration (shapeNodeIdZoneAttrStr ++ " += 100 solve A attempt duration")
-                                      <| \() -> Sync.solveTopDown subst' (oldAttrVal + 100, trace)
-                                  in
-                                  let _ =
-                                    case maybePlusOneASolved of
-                                      Just _  -> Benchmark.log (shapeNodeIdZoneAttrStr ++ " += 1 solve A solved?") True
-                                      Nothing -> Benchmark.log (shapeNodeIdZoneAttrStr ++ " += 1 solve A solved?") False
-                                  in
-                                  let _ =
-                                    case maybePlusOneHundredASolved of
-                                      Just _  -> Benchmark.log (shapeNodeIdZoneAttrStr ++ " += 100 solve A solved?") True
-                                      Nothing -> Benchmark.log (shapeNodeIdZoneAttrStr ++ " += 100 solve A solved?") False
-                                  in
-                                  ()
-                                else
-                                  ()
-                              in
-                              let _ =
                                 if inSolveBFragment then
                                   let maybePlusOneBSolved =
                                     Benchmark.logDuration (shapeNodeIdZoneAttrStr ++ " += 1 solve B attempt duration")
-                                      <| \() -> Sync.simpleSolve subst' (oldAttrVal + 1, trace)
+                                      <| \() -> Sync.solveTopDown subst' (oldAttrVal + 1, trace)
                                   in
                                   let maybePlusOneHundredBSolved =
                                     Benchmark.logDuration (shapeNodeIdZoneAttrStr ++ " += 100 solve B attempt duration")
-                                      <| \() -> Sync.simpleSolve subst' (oldAttrVal + 100, trace)
+                                      <| \() -> Sync.solveTopDown subst' (oldAttrVal + 100, trace)
                                   in
                                   let _ =
                                     case maybePlusOneBSolved of
@@ -609,6 +585,30 @@ upstate evt old =
                                     case maybePlusOneHundredBSolved of
                                       Just _  -> Benchmark.log (shapeNodeIdZoneAttrStr ++ " += 100 solve B solved?") True
                                       Nothing -> Benchmark.log (shapeNodeIdZoneAttrStr ++ " += 100 solve B solved?") False
+                                  in
+                                  ()
+                                else
+                                  ()
+                              in
+                              let _ =
+                                if inSolveAFragment then
+                                  let maybePlusOneASolved =
+                                    Benchmark.logDuration (shapeNodeIdZoneAttrStr ++ " += 1 solve A attempt duration")
+                                      <| \() -> Sync.simpleSolve subst' (oldAttrVal + 1, trace)
+                                  in
+                                  let maybePlusOneHundredASolved =
+                                    Benchmark.logDuration (shapeNodeIdZoneAttrStr ++ " += 100 solve A attempt duration")
+                                      <| \() -> Sync.simpleSolve subst' (oldAttrVal + 100, trace)
+                                  in
+                                  let _ =
+                                    case maybePlusOneASolved of
+                                      Just _  -> Benchmark.log (shapeNodeIdZoneAttrStr ++ " += 1 solve A solved?") True
+                                      Nothing -> Benchmark.log (shapeNodeIdZoneAttrStr ++ " += 1 solve A solved?") False
+                                  in
+                                  let _ =
+                                    case maybePlusOneHundredASolved of
+                                      Just _  -> Benchmark.log (shapeNodeIdZoneAttrStr ++ " += 100 solve A solved?") True
+                                      Nothing -> Benchmark.log (shapeNodeIdZoneAttrStr ++ " += 100 solve A solved?") False
                                   in
                                   ()
                                 else
