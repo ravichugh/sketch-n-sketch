@@ -120,6 +120,8 @@ EXAMPLES_WHITELIST = [
 def tabular(table_data, header_rows = nil, col_config = nil)
   col_config ||= (header_rows || [[]]).select {|row| row.is_a?(Array)}.first.map { "c" }.join " | "
   str = ""
+  str << "\\begin{figure*}\n"
+  str << "\\scriptsize\n"
   str << "\\begin{tabular}{#{col_config}}\n"
   # if headers
   #   str << "\\hline\n"
@@ -134,6 +136,7 @@ def tabular(table_data, header_rows = nil, col_config = nil)
     end
   end
   str << "\\end{tabular}\n"
+  str << "\\end{figure*}\n"
   str
 end
 
@@ -153,7 +156,6 @@ def latex_wrap(latex_body_str)
 %\\usepackage{../popl2016/mathpartir}
 %\\usepackage{../popl2016/wrapfig}
 
-\\usepackage{multirow}
 \\usepackage{bm}
 \\usepackage[top=1in, bottom=1in, left=1in, right=1in]{geometry}
 %\\usepackage[parfill]{parskip}			% Activate to begin paragraphs with an empty line rather than an indent
@@ -404,7 +406,8 @@ single_browser_result_rows = by_browser[CHROME]
 
 zone_summary_table_header_rows = [
   "\\hline",
-  ["\\multirow{2}{*}{\\textbf{Example Name}}", "\\multirow{2}{*}{\\textbf{Shape Count}}", "\\multirow{2}{*}{\\textbf{Zone Count}}", "\\multicolumn{3}{c}{\\begin{minipage}{11em}\\textbf{\\vspace{0.1em}\\\\Number of zones with $0$, $1$, $>1$ loclist choices\\vspace{0.2em}}\\end{minipage}}"],
+  ["", "", "", "\\multicolumn{3}{c}{\\textbf{Number of zones with}}"],
+  ["\\textbf{Example Name}", "\\textbf{Shape Count}", "\\textbf{Zone Count}", "\\multicolumn{3}{c}{\\textbf{$0$, $1$, $>1$ loclist choices}}"],
   "\\cline{4-6}",
   ["", "", "", "$\\bm{0}$", "$\\bm{1}$", "$\\bm{>1}$ \\textbf{(avg)}"],
   "\\hline \\hline",
@@ -468,7 +471,7 @@ zone_summary_table << "\\hline" << [
 ] << "\\hline \\hline"
 
 zone_summary_tables_latex =
-  zone_summary_table.each_slice(80).map do |table_chunk|
+  zone_summary_table.each_slice(160).map do |table_chunk|
     tabular(table_chunk, zone_summary_table_header_rows, "c c c c c c")
   end
 
@@ -522,7 +525,7 @@ loc_summary_table =
 
 
 loc_summary_tables_latex =
-  loc_summary_table.each_slice(80).map do |table_chunk|
+  loc_summary_table.each_slice(160).map do |table_chunk|
     tabular(table_chunk, loc_summary_table_header_rows, "c c c c c")
   end
 
@@ -795,7 +798,7 @@ timing_summary_table =
   timing_results_by_example.flat_map do |example_results|
     [
       [
-        "\\multirow{2}{*}{#{example_results.example_name}}",
+        "\\raisebox{-0.5em}{#{example_results.example_name}}",
         "FF: %.3f" % example_results.ff_mean_parse_duration,
         "FF: %.3f" % example_results.ff_mean_eval_duration,
         "FF: %.3f" % example_results.ff_mean_unparse_duration,
@@ -818,7 +821,7 @@ timing_summary_table =
   [
     "\\hline",
     [
-      "\\multirow{5}{*}{\\textbf{Summary}}",
+      "",
       "\\textbf{FF: %.3f}" % ExampleResults.new("All", timing_result_rows).parse_results.select(&:firefox?).map(&:value).mean,
       "\\textbf{FF: %.3f}" % ExampleResults.new("All", timing_result_rows).eval_results.select(&:firefox?).map(&:value).mean,
       "\\textbf{FF: %.3f}" % ExampleResults.new("All", timing_result_rows).unparse_results.select(&:firefox?).map(&:value).mean,
@@ -836,7 +839,7 @@ timing_summary_table =
       "\\textbf{Ch: %.3f}" % ExampleResults.new("All", timing_result_rows).run_code_results.select(&:chrome?).map(&:value).mean,
     ],
     [
-      "",
+      "\\textbf{Summary}",
       "\\textbf{Min %.3f}" % ExampleResults.new("All", timing_result_rows).parse_results.map(&:value).min,
       "\\textbf{Min %.3f}" % ExampleResults.new("All", timing_result_rows).eval_results.map(&:value).min,
       "\\textbf{Min %.3f}" % ExampleResults.new("All", timing_result_rows).unparse_results.map(&:value).min,
@@ -871,25 +874,24 @@ timing_summary_tables_latex =
     tabular(table_chunk, timing_summary_table_header_rows, "c c c c c c c")
   end
 
-File.write(
-  "benchmark_table.tex",
-  latex_wrap(
-    zone_summary_tables_latex.join("\n\n\\vspace{3em}\n\n") +
-    "\n\n\\vspace{6em}\n\n" +
-    loc_summary_tables_latex.join("\n\n\\vspace{3em}\n\n") +
-    "\n\n\\vspace{6em}\n\n" +
-    # trace_size_by_example_tables_latex.join("\n\n\\vspace{3em}\n\n") +
-    # "\n\n\\vspace{6em}\n\n" +
-    equations_by_chosen_loc_and_trace_id_summary_table_latex +
-    "\n\n\\vspace{6em}\n\n" +
-    # equation_summary_table_latex +
-    # "\n\n\\vspace{6em}\n\n" +
-    timing_summary_tables_latex.join("\n\n\\vspace{3em}\n\n")
-  )
-)
+latex_body =
+  zone_summary_tables_latex.join("\n\n\\vspace{3em}\n\n") +
+  "\n\n\\vspace{6em}\n\n" +
+  loc_summary_tables_latex.join("\n\n\\vspace{3em}\n\n") +
+  "\n\n\\vspace{6em}\n\n" +
+  # trace_size_by_example_tables_latex.join("\n\n\\vspace{3em}\n\n") +
+  # "\n\n\\vspace{6em}\n\n" +
+  equations_by_chosen_loc_and_trace_id_summary_table_latex +
+  "\n\n\\vspace{6em}\n\n" +
+  # equation_summary_table_latex +
+  # "\n\n\\vspace{6em}\n\n" +
+  timing_summary_tables_latex.join("\n\n\\vspace{3em}\n\n")
 
-system "pdflatex benchmark_table.tex"
-system "open benchmark_table.pdf"
+File.write("benchmark_table_standalone.tex", latex_wrap(latex_body))
+File.write("benchmark_table.tex", latex_body)
+
+system "pdflatex benchmark_table_standalone.tex"
+# system "open benchmark_table_standalone.pdf"
 
 
 # Are we capturing all dimensions of interactivity?
