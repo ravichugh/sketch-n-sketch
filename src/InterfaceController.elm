@@ -237,7 +237,7 @@ upstate evt old =
 
     StartResizingMid -> { old | mouseMode = MouseResizeMid Nothing }
 
-    BenchmarkExample exampleName ->
+    BenchmarkExample exampleName loadTimingOnly ->
       let (_, _, code)  =
         Utils.fromJust <|
           Utils.findFirst (((==) exampleName) << Utils.fst3) Examples.list
@@ -246,7 +246,11 @@ upstate evt old =
       let _ = Benchmark.setHeuristicsMode old.syncOptions.feelingLucky in
       -- Run timing tests
       let exampleLoaded = upstate Run { old | code = code, history = ([],[]) } in
-      let _ = upstate ProgramStats exampleLoaded in
+      let _ =
+        if not loadTimingOnly
+        then let _ = upstate ProgramStats exampleLoaded in ()
+        else ()
+      in
       -- Trying to avoid the stack overflows that occur if we run this loop in
       -- Elm:
       let _ = Benchmark.next () in
@@ -271,6 +275,15 @@ upstate evt old =
             VHole _           -> []
         in
         gatherTraces outputVal
+      in
+      let (outputTraceStrToId, _) =
+        let outputTracesStrs = Set.fromList <| List.map toString outputTraces in
+        Set.foldl
+            (\traceStr (dict, nextId) ->
+              (Dict.insert traceStr nextId dict, nextId + 1)
+            )
+            (Dict.empty, 0)
+            outputTracesStrs
       in
       let allLocsInTrace trace =
         case trace of
@@ -488,6 +501,10 @@ upstate evt old =
                                     TrLoc _       -> 1
                                     TrOp _ traces -> 1 + (List.sum <| List.map traceSize traces)
                                 in
+                                let _ =
+                                  Benchmark.log (shapeNodeIdZoneAttrStr ++ " trace id")
+                                    <| (Utils.justGet (toString trace) outputTraceStrToId)
+                                in
                                 Benchmark.log (shapeNodeIdZoneAttrStr ++ " trace size") (traceSize trace)
                               in
                               let countLoc targetLocId tr =
@@ -497,8 +514,9 @@ upstate evt old =
                               in
                               let allPlus tr =
                                 case tr of
-                                  TrLoc _       -> True
-                                  TrOp _ traces -> List.all allPlus traces
+                                  TrLoc _          -> True
+                                  TrOp Plus traces -> List.all allPlus traces
+                                  TrOp _ _         -> False
                               in
                               let inSolveAFragment = (countLoc chosenLocId trace) == 1 in
                               let inSolveBFragment = allPlus trace in
@@ -661,21 +679,6 @@ upstate evt old =
             )
       in
       old
-      -- let _ = Native.Benchmark.log "unique trace count" (List.length outputTraces) in
-
-
-      -- - total number of output traces
-      -- - total number of unique output traces
-      -- - total number of zones
-      -- for each zone
-      --   - number of choices
-      --   - choice made
-      --   - solvability: always or unknowable
-      -- for each loc l that appears in at least one output trace
-      --   - is loc frozen
-      --   - number of traces that contain l
-      --   - number of zones that could affect l
-      --   - number of zones that do affect l
 
 
     MousePos (mx0, my0) ->

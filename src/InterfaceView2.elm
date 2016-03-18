@@ -688,8 +688,8 @@ canvas_ w h model =
       False -> [ svg ]
       -- Need to turn off built-in sliders for benchmarking.
       -- They do not count as zones we want to grab and move.
-      True  -> [ svg ]
-      -- True  -> [ svg, buildSvgWidgets w h model.widgets]
+      -- True  -> [ svg ]
+      True  -> [ svg, buildSvgWidgets w h model.widgets]
   in
   Html.toElement w h <|
     Svg.svg

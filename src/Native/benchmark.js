@@ -4,6 +4,7 @@ var currentProgram = "";
 var heuristicsMode = "";
 var heuristicsModes = ["Fair", "Biased", "None"];
 var beSilent = false;
+var loadTimingOnly = false;
 var examplesToOutput = [];
 
 function mouseEventOn(domNode, eventName, x, y) {
@@ -203,13 +204,20 @@ function undo() {
 }
 
 function outputAllExampleStats() {
+  loadTimingOnly = false;
   heuristicModesToOutput = ["Fair"]; //, "Biased", "None"];
 
   changeHeuristicsModeAndOutputNextExample();
 }
 
+function outputAllExampleTimings() {
+  loadTimingOnly = true;
+  heuristicModesToOutput = ["Fair"]; //, "Biased", "None"];
 
-function changeHeuristicsModeAndOutputNextExample () {
+  changeHeuristicsModeAndOutputNextExample(true);
+}
+
+function changeHeuristicsModeAndOutputNextExample (performShuffle) {
 
   newTodoList().do(function () {
     beSilent = true;
@@ -217,6 +225,14 @@ function changeHeuristicsModeAndOutputNextExample () {
   }).thenWait(1000).do(function () {
     beSilent = false;
     examplesToOutput = examples();
+    if (performShuffle) {
+      for (var i in examplesToOutput) {
+        var j = parseInt(Math.random() * examplesToOutput.length);
+        var tmp = examplesToOutput[i];
+        examplesToOutput[i] = examplesToOutput[j];
+        examplesToOutput[j] = tmp;
+      }
+    }
   }).do(outputNextExample).go();
 
 }
@@ -237,7 +253,7 @@ function changeHeuristicsModeAndOutputNextExample () {
 function outputNextExample() {
   // Elm will call back to us to output the next one, and so on.
   if (examplesToOutput.length > 0) {
-    runtime.ports.benchmarkExample.send(examplesToOutput.pop());
+    runtime.ports.benchmarkExample.send([examplesToOutput.pop(), loadTimingOnly]);
   } else if (heuristicModesToOutput.length > 0) {
     changeHeuristicsModeAndOutputNextExample();
   }
@@ -287,6 +303,7 @@ function newTodoList() {
   return todoList;
 }
 
+// These take rather too long, so we probably won't use them.
 function runInteractionBenchmarks() {
   todoList = newTodoList();
 

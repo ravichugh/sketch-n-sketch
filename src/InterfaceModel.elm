@@ -141,7 +141,7 @@ type Event = CodeUpdate String
            | WaitRun
            | WaitSave String
            | WaitCodeBox
-           | BenchmarkExample String
+           | BenchmarkExample String Bool
            | ProgramStats
 
 events : Signal.Mailbox Event
@@ -153,7 +153,7 @@ mkLive opts e v =
   let (_,tree) = LangSvg.valToIndexedTree v in
   Live <| Sync.prepareLiveUpdates opts e v tree
 
-mkLive_ opts e  = mkLive opts e (Benchmark.silently <| \() -> (fst (Eval.run e)))
+mkLive_ opts e  = mkLive opts e (fst (Eval.run e))
   -- TODO maybe put Val into model (in addition to slate)
   --   so that don't need to re-run in some calling contexts
 

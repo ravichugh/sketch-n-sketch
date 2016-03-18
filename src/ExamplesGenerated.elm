@@ -82,7 +82,7 @@ sineWaveGrid =
   ; > parseAndRun \"(case [2 false] ([2 true] 'A') (_ 'B'))\"
   ; \"'A'\" : String
 
-  ; (let color (case [i shadow] 
+  ; (let color (case [i shadow]
   ;   ([2 false] 'crimson')   ([2 true] 'gray')
   ;   ([_ false] 'lightblue') ([_ true] 'transparent'))
 
@@ -95,7 +95,7 @@ sineWaveGrid =
                   (if shadow 'transparent' 'lightblue'))
     (rect colori xi yi w h)))))
   (map boxi (zeroTo n)))))
-  
+
 ; Would be even cooler if wGrid and hGrid were computed
 ; automatically from the sine waves in each grid box.
 ; Leaving this step as an exercise for another day...
@@ -149,12 +149,12 @@ sineWaveGrid =
 (svgViewBox totalWidth totalHeight
   (concat [
     (place 0 0 x0 y0 w h sep0 amp0 n false)
-    (place 0 0 x1 y1 w h sep0 amp0 n true)  ; shadow box
+    (place 0 0 x1 y1 w h sep0 amp0 n true)
 
-    (place 1 1 x1 y1 w h sep0 amp0 n false) ; update  x0/y0
-    (place 1 2 x1 y0 w h sep0 amp1 n false) ; update  x0/amp
-    (place 2 1 x0 y1 w h sep1 amp0 n false) ; update sep/y0
-    (place 2 2 x0 y0 w h sep1 amp1 n false) ; update sep/amp
+    (place 1 1 x1 y1 w h sep0 amp0 n false)
+    (place 1 2 x1 y0 w h sep0 amp1 n false)
+    (place 2 1 x0 y1 w h sep1 amp0 n false)
+    (place 2 2 x0 y0 w h sep1 amp1 n false)
 ]))
 
 "

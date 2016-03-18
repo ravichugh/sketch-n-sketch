@@ -52,7 +52,7 @@ combinedEventSig =
         (always Model.MouseUp)
         (Signal.filter ((==) False) False Mouse.isDown)
     , Signal.map (always Model.ProgramStats) programStats
-    , Signal.map (\exampleName -> Model.BenchmarkExample exampleName) benchmarkExample
+    , Signal.map (\(exampleName, loadTimingOnly) -> Model.BenchmarkExample exampleName loadTimingOnly) benchmarkExample
     ]
 
 main : Signal Element
@@ -122,5 +122,5 @@ port aceInTheHole =
 port theTurn : Signal AceMessage
 
 -- Ports to tell us to output program stats
-port benchmarkExample : Signal String
+port benchmarkExample : Signal (String, Bool)
 port programStats : Signal ()

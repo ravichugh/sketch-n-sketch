@@ -14,7 +14,7 @@ var runtime = Elm.fullscreen(Elm.Main, {
               , exNameArg : ""
               },
 
-    benchmarkExample : "",
+    benchmarkExample : ["", false],
     programStats : []
 });
 

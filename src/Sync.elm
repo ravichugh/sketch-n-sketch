@@ -659,12 +659,15 @@ createLocLists opts sets =
     else
       Debug.crash "createLocLists"
   in
-  -- If there is only one loc, it will be the sole option in both.
-  -- If so, don't return two loclists.
-  if unsharedLocOptions == sharedLocOptions then
-    unsharedLocOptions
-  else
-    unsharedLocOptions ++ sharedLocOptions
+  -- Empty cartesian products produce empty loclists.
+  -- We don't want them.
+  List.filter (not << List.isEmpty) <|
+    -- If there is only one loc, it will be the sole option in both.
+    -- If so, don't return two loclists.
+    if unsharedLocOptions == sharedLocOptions then
+      unsharedLocOptions
+    else
+      unsharedLocOptions ++ sharedLocOptions
 
 getZones : ShapeKind -> ExtraInfo -> ExtraExtraInfo -> List (Zone, List AttrName)
 getZones kind extra ee =
