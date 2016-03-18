@@ -342,6 +342,8 @@ maybeBlobs main =
         _     -> Nothing
     _         -> Nothing
 
+randomColor model = eConst (toFloat model.randomColor) dummyLoc
+
 -- when line is snapped, not enforcing the angle in code
 addLineToCodeAndRun old click2 click1 =
   let ((_,(x2,y2)),(_,(x1,y1))) = (click2, click1) in
@@ -401,7 +403,7 @@ addRect old (_,pt2) (_,pt1) =
     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
     , makeLet ["rot"] [eConst 0 dummyLoc] ]
     (eVar0 "rectangle")
-    [eConst 100 dummyLoc, eStr "black", eConst 0 dummyLoc, eVar "rot", eVar "bounds"]
+    [randomColor old, eStr "black", eConst 0 dummyLoc, eVar "rot", eVar "bounds"]
 
 addSquare old (_,pt2) (_,pt1) =
   let (xMin, xMax, yMin, _) = View.squareBoundingBox pt2 pt1 in
@@ -411,7 +413,7 @@ addSquare old (_,pt2) (_,pt1) =
     , makeLet ["bounds"] [eList (listOfRaw ["left","top","(+ left side)","(+ top side)"]) Nothing]
     , makeLet ["rot"] [eConst 0 dummyLoc] ]
     (eVar0 "rectangle")
-    [eConst 50 dummyLoc, eStr "black", eConst 0 dummyLoc, eVar "rot", eVar "bounds"]
+    [randomColor old, eStr "black", eConst 0 dummyLoc, eVar "rot", eVar "bounds"]
 
 addEllipseToCodeAndRun old pt2 pt1 =
   if old.keysDown == Keys.shift then addCircle old pt2 pt1
@@ -444,7 +446,7 @@ addEllipse old (_,pt2) (_,pt1) =
     [ makeLet ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing] ]
     (eVar0 "oval")
-    [eConst 200 dummyLoc, eStr "black", eConst 0 dummyLoc, eVar "bounds"]
+    [randomColor old, eStr "black", eConst 0 dummyLoc, eVar "bounds"]
 
 addCircle old (_,pt2) (_,pt1) =
   let (left, right, top, _) = View.squareBoundingBox pt2 pt1 in
@@ -453,7 +455,7 @@ addCircle old (_,pt2) (_,pt1) =
     , makeLet ["bounds"]
         [eList [eVar0 "left", eVar "top", eRaw "(+ left (* 2! r))", eRaw "(+ top (* 2! r))"] Nothing] ]
     (eVar0 "oval")
-    [eConst 250 dummyLoc, eStr "black", eConst 0 dummyLoc, eVar "bounds"]
+    [randomColor old, eStr "black", eConst 0 dummyLoc, eVar "bounds"]
 
 addHelperDotToCodeAndRun old (_,(cx,cy)) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)
@@ -497,7 +499,7 @@ addStretchablePolygon old keysAndPoints =
     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
     , makeLet ["pcts"] [eRaw sPcts] ]
     (eVar0 "stretchyPolygon")
-    [eVar "bounds", eConst 300 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "pcts"]
+    [eVar "bounds", randomColor old, eStr "black", eConst 2 dummyLoc, eVar "pcts"]
 
 addStickyPolygon old keysAndPoints =
   let points = List.map snd keysAndPoints in
@@ -526,7 +528,7 @@ addStickyPolygon old keysAndPoints =
     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
     , makeLet ["offsets"] [eRaw sOffsets] ]
     (eVar0 "stickyPolygon")
-    [eVar "bounds", eConst 350 dummyLoc, eStr "black", eConst 2 dummyLoc, eVar "offsets"]
+    [eVar "bounds", randomColor old, eStr "black", eConst 2 dummyLoc, eVar "offsets"]
 
 strPoint (x,y) = Utils.spaces [toString x, toString y]
 
@@ -1067,6 +1069,10 @@ upstate evt old = case debugLog "Event" evt of
         _                    ->   old
 
     MouseClick click ->
+      let old =
+        let (x,y) = click in
+        { old | randomColor = (old.randomColor + x + y) % 500 }
+      in
       case old.mouseMode of
 
         MouseDrawNew "polygon" points ->

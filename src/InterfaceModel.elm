@@ -68,6 +68,7 @@ type alias Model =
   -- line/g ids assigned by blobs function
   , selectedBlobs : Dict.Dict Int (NumTr, NumTr, NumTr, NumTr)
   , keysDown : List Char.KeyCode
+  , randomColor : Int
   }
 
 type Mode
@@ -300,5 +301,6 @@ sampleModel =
     , selectedFeatures = Set.empty
     , selectedBlobs = Dict.empty
     , keysDown      = []
+    , randomColor   = 100
     }
 
