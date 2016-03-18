@@ -1,0 +1,2800 @@
+Gecko/20100101 Firefox/45.0,xySlider,Fair,parseE,0.099
+Gecko/20100101 Firefox/45.0,xySlider,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,xySlider,Fair,unparseE,0.009
+Gecko/20100101 Firefox/45.0,xySlider,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,xySlider,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,xySlider,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,xySlider,Fair,prepareLiveUpdates,0.012
+Gecko/20100101 Firefox/45.0,xySlider,Fair,Run,0.141
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,parseE,0.082
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,Eval.run,0.071
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,Eval.run,0.049
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,prepareLiveUpdates,0.057
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,Run,0.269
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,parseE,0.03
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,Eval.run,0.012
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,prepareLiveUpdates,0.006
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,Run,0.059
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,parseE,0.033
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,Eval.run,0.013
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,prepareLiveUpdates,0.032
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,Run,0.088
+Gecko/20100101 Firefox/45.0,Stars,Fair,parseE,0.045
+Gecko/20100101 Firefox/45.0,Stars,Fair,Eval.run,0.019
+Gecko/20100101 Firefox/45.0,Stars,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Stars,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Stars,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Stars,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Stars,Fair,prepareLiveUpdates,0.032
+Gecko/20100101 Firefox/45.0,Stars,Fair,Run,0.109
+Gecko/20100101 Firefox/45.0,Buttons,Fair,parseE,0.033
+Gecko/20100101 Firefox/45.0,Buttons,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Buttons,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Buttons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Buttons,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Buttons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Buttons,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Buttons,Fair,Run,0.043
+Gecko/20100101 Firefox/45.0,Rings,Fair,parseE,0.03
+Gecko/20100101 Firefox/45.0,Rings,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Rings,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Rings,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Rings,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Rings,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Rings,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Rings,Fair,Run,0.042
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,parseE,0.035
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,Eval.run,0.045
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,Eval.run,0.033
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,prepareLiveUpdates,0.243
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,Run,0.366
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,parseE,0.044
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,prepareLiveUpdates,0.029
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,Run,0.089
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,parseE,0.074
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,prepareLiveUpdates,0.013
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,Run,0.097
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,parseE,0.011
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,Run,0.019
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,parseE,0.081
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,Eval.run,0.011
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,Eval.run,0.009
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,prepareLiveUpdates,1.146
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,Run,1.256
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,parseE,0.107
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,Eval.run,0.029
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,unparseE,0.008
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,Eval.run,0.018
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,prepareLiveUpdates,3.243
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,Run,3.41
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,parseE,0.066
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,Eval.run,0.01
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,unparseE,0.01
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,Eval.run,0.009
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,prepareLiveUpdates,0.017
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,Run,0.12
+Gecko/20100101 Firefox/45.0,Solar System,Fair,parseE,0.063
+Gecko/20100101 Firefox/45.0,Solar System,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Solar System,Fair,unparseE,0.005
+Gecko/20100101 Firefox/45.0,Solar System,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Solar System,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Solar System,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Solar System,Fair,prepareLiveUpdates,0.014
+Gecko/20100101 Firefox/45.0,Solar System,Fair,Run,0.1
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,parseE,0.039
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,Eval.run,0.009
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,valToIndexedTree,0.004
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,prepareLiveUpdates,0.012
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,Run,0.07
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,parseE,0.014
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,Run,0.025
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,parseE,0.034
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,Run,0.047
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,parseE,0.092
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,Eval.run,0.023
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,Eval.run,0.016
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,prepareLiveUpdates,0.718
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,Run,0.857
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,parseE,0.014
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,Run,0.027
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,parseE,0.011
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,Run,0.017
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,parseE,0.09
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,Run,0.101
+Gecko/20100101 Firefox/45.0,Widgets,Fair,parseE,0.017
+Gecko/20100101 Firefox/45.0,Widgets,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Widgets,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Widgets,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Widgets,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Widgets,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Widgets,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Widgets,Fair,Run,0.025
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,parseE,0.202
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,unparseE,0.005
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,prepareLiveUpdates,0.011
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,Run,0.235
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,parseE,0.11
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,prepareLiveUpdates,0.007
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,Run,0.135
+Gecko/20100101 Firefox/45.0,Sliders,Fair,parseE,0.081
+Gecko/20100101 Firefox/45.0,Sliders,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Sliders,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Sliders,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Sliders,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Sliders,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sliders,Fair,prepareLiveUpdates,0.001
+Gecko/20100101 Firefox/45.0,Sliders,Fair,Run,0.091
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,parseE,0.027
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,prepareLiveUpdates,0.011
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,Run,0.044
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,parseE,0.015
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,prepareLiveUpdates,0.026
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,Run,0.045
+Gecko/20100101 Firefox/45.0,Logo,Fair,parseE,0.026
+Gecko/20100101 Firefox/45.0,Logo,Fair,Eval.run,0.009
+Gecko/20100101 Firefox/45.0,Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo,Fair,prepareLiveUpdates,0.006
+Gecko/20100101 Firefox/45.0,Logo,Fair,Run,0.05
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,parseE,0.211
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,unparseE,0.008
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,prepareLiveUpdates,0.009
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,Run,0.243
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,parseE,0.041
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,valToIndexedTree,0.005
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,Run,0.057
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,parseE,0.085
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,Eval.run,0.021
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,unparseE,0.005
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,Eval.run,0.014
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,prepareLiveUpdates,0.053
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,Run,0.18
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,parseE,0.033
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,Eval.run,0.019
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,prepareLiveUpdates,0.013
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,Run,0.075
+Gecko/20100101 Firefox/45.0,Triangles,Fair,parseE,0.015
+Gecko/20100101 Firefox/45.0,Triangles,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Triangles,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Triangles,Fair,valToIndexedTree,0.005
+Gecko/20100101 Firefox/45.0,Triangles,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Triangles,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Triangles,Fair,prepareLiveUpdates,0.006
+Gecko/20100101 Firefox/45.0,Triangles,Fair,Run,0.038
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,parseE,0.052
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,prepareLiveUpdates,0.009
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,Run,0.068
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,parseE,0.088
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,Eval.run,0.01
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,valToIndexedTree,0.006
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,valToIndexedTree,0.004
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,prepareLiveUpdates,0.032
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,Run,0.15
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,parseE,0.012
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,prepareLiveUpdates,0.006
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,Run,0.026
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,parseE,0.104
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,prepareLiveUpdates,0.904
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,Run,1.026
+Gecko/20100101 Firefox/45.0,Zones,Fair,parseE,0.031
+Gecko/20100101 Firefox/45.0,Zones,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Zones,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Zones,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Zones,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Zones,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Zones,Fair,prepareLiveUpdates,0.007
+Gecko/20100101 Firefox/45.0,Zones,Fair,Run,0.044
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,parseE,0.211
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,Eval.run,0.068
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,unparseE,0.008
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,Eval.run,0.041
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,prepareLiveUpdates,0.035
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,Run,0.368
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,parseE,0.047
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,unparseE,0.015
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,prepareLiveUpdates,0.017
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,Run,0.093
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,parseE,0.109
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,Eval.run,0.009
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,prepareLiveUpdates,0.146
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,Run,0.285
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,parseE,0.093
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,unparseE,0.006
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,valToIndexedTree,0.089
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,valToIndexedTree,0.073
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,prepareLiveUpdates,0.394
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,Run,0.66
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,parseE,0.047
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,Eval.run,0.018
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,unparseE,0.007
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,Eval.run,0.016
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,prepareLiveUpdates,0.117
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,Run,0.209
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,parseE,0.08
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,prepareLiveUpdates,1.375
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,Run,1.466
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,parseE,0.068
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,Run,0.08
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,parseE,0.017
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,Run,0.027
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,parseE,0.01
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,Run,0.019
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,parseE,0.03
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,prepareLiveUpdates,0.041
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,Run,0.089
+Gecko/20100101 Firefox/45.0,Polygons,Fair,parseE,0.03
+Gecko/20100101 Firefox/45.0,Polygons,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Polygons,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Polygons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Polygons,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Polygons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Polygons,Fair,prepareLiveUpdates,0.027
+Gecko/20100101 Firefox/45.0,Polygons,Fair,Run,0.064
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,parseE,0.123
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,Eval.run,0.04
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,Eval.run,0.025
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,Run,0.197
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,parseE,0.046
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,Eval.run,0.011
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,Run,0.073
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,parseE,0.018
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,Run,0.024
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,parseE,0.108
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,valToIndexedTree,0.097
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,valToIndexedTree,0.094
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,prepareLiveUpdates,0.618
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,Run,0.928
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,parseE,0.293
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,Eval.run,0.018
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,unparseE,0.008
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,Eval.run,0.017
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,Run,0.339
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,parseE,0.089
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,Eval.run,0.036
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,unparseE,0.006
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,Eval.run,0.035
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,prepareLiveUpdates,0.294
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,Run,0.464
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,parseE,0.072
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,prepareLiveUpdates,0.149
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,Run,0.249
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,parseE,0.026
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,Run,0.032
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,parseE,0.073
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,prepareLiveUpdates,0.077
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,Run,0.163
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,parseE,0.028
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,prepareLiveUpdates,0.018
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,Run,0.049
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,parseE,0.397
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,unparseE,0.007
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,Run,0.416
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,parseE,0.112
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,prepareLiveUpdates,0.256
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,Run,0.389
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,parseE,0.047
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,Run,0.057
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,parseE,0.095
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,valToIndexedTree,0.076
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,valToIndexedTree,0.072
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,prepareLiveUpdates,0.354
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,Run,0.604
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,parseE,0.023
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,Run,0.034
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,parseE,0.038
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,Run,0.046
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,parseE,0.03
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,prepareLiveUpdates,0.017
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,Run,0.059
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,parseE,0.089
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,prepareLiveUpdates,0.007
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,Run,0.112
+Gecko/20100101 Firefox/45.0,Clique,Fair,parseE,0.025
+Gecko/20100101 Firefox/45.0,Clique,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Clique,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Clique,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Clique,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Clique,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Clique,Fair,prepareLiveUpdates,0.02
+Gecko/20100101 Firefox/45.0,Clique,Fair,Run,0.057
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,parseE,0.062
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,Run,0.071
+Gecko/20100101 Firefox/45.0,Zones,Fair,parseE,0.056
+Gecko/20100101 Firefox/45.0,Zones,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Zones,Fair,unparseE,0.007
+Gecko/20100101 Firefox/45.0,Zones,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Zones,Fair,Eval.run,0.01
+Gecko/20100101 Firefox/45.0,Zones,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Zones,Fair,prepareLiveUpdates,0.039
+Gecko/20100101 Firefox/45.0,Zones,Fair,Run,0.129
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,parseE,0.102
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,Eval.run,0.039
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,unparseE,0.007
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,Eval.run,0.015
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,prepareLiveUpdates,0.088
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,Run,0.255
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,parseE,0.012
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,Run,0.024
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,parseE,0.228
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,Eval.run,0.113
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,unparseE,0.01
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,valToIndexedTree,0.006
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,Eval.run,0.066
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,valToIndexedTree,0.004
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,prepareLiveUpdates,0.056
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,Run,0.486
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,parseE,0.036
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,Eval.run,0.035
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,Eval.run,0.017
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,prepareLiveUpdates,0.256
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,Run,0.354
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,parseE,0.047
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,prepareLiveUpdates,0.017
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,Run,0.077
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,parseE,0.239
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,Eval.run,0.012
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,unparseE,0.018
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,prepareLiveUpdates,0.015
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,Run,0.295
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,parseE,0.054
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,unparseE,0.007
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,Run,0.077
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,parseE,0.063
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,Eval.run,0.013
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,Eval.run,0.011
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,prepareLiveUpdates,0.048
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,Run,0.144
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,parseE,0.073
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,prepareLiveUpdates,0.017
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,Run,0.107
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,parseE,0.088
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,Eval.run,0.01
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,unparseE,0.007
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,valToIndexedTree,0.007
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,valToIndexedTree,0.004
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,prepareLiveUpdates,0.037
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,Run,0.165
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,parseE,0.117
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,Eval.run,0.046
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,unparseE,0.006
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,Eval.run,0.035
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,prepareLiveUpdates,0.006
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,Run,0.216
+Gecko/20100101 Firefox/45.0,Clique,Fair,parseE,0.027
+Gecko/20100101 Firefox/45.0,Clique,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Clique,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Clique,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Clique,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Clique,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Clique,Fair,prepareLiveUpdates,0.021
+Gecko/20100101 Firefox/45.0,Clique,Fair,Run,0.063
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,parseE,0.069
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,Eval.run,0.025
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,valToIndexedTree,0.004
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,Eval.run,0.016
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,prepareLiveUpdates,0.158
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,Run,0.284
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,parseE,0.096
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,unparseE,0.005
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,prepareLiveUpdates,3.468
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,Run,3.589
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,parseE,0.011
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,Run,0.019
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,parseE,0.208
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,unparseE,0.005
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,prepareLiveUpdates,0.011
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,Run,0.233
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,parseE,0.016
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,Run,0.025
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,parseE,0.025
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,prepareLiveUpdates,0.012
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,Run,0.042
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,parseE,0.064
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,prepareLiveUpdates,1.285
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,Run,1.359
+Gecko/20100101 Firefox/45.0,Rings,Fair,parseE,0.027
+Gecko/20100101 Firefox/45.0,Rings,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Rings,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Rings,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Rings,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Rings,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Rings,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Rings,Fair,Run,0.038
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,parseE,0.015
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,Run,0.02
+Gecko/20100101 Firefox/45.0,Triangles,Fair,parseE,0.015
+Gecko/20100101 Firefox/45.0,Triangles,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Triangles,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Triangles,Fair,valToIndexedTree,0.005
+Gecko/20100101 Firefox/45.0,Triangles,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Triangles,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Triangles,Fair,prepareLiveUpdates,0.006
+Gecko/20100101 Firefox/45.0,Triangles,Fair,Run,0.037
+Gecko/20100101 Firefox/45.0,Sliders,Fair,parseE,0.08
+Gecko/20100101 Firefox/45.0,Sliders,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Sliders,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Sliders,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sliders,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Sliders,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sliders,Fair,prepareLiveUpdates,0.001
+Gecko/20100101 Firefox/45.0,Sliders,Fair,Run,0.091
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,parseE,0.091
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,Eval.run,0.044
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,unparseE,0.005
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,Eval.run,0.044
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,prepareLiveUpdates,0.291
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,Run,0.48
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,parseE,0.017
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,prepareLiveUpdates,0.006
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,Run,0.026
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,parseE,0.107
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,Run,0.123
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,parseE,0.034
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,Run,0.043
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,parseE,0.032
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,prepareLiveUpdates,0.041
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,Run,0.092
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,parseE,0.09
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,valToIndexedTree,0.076
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,valToIndexedTree,0.069
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,prepareLiveUpdates,0.39
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,Run,0.632
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,parseE,0.047
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,Eval.run,0.009
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,Run,0.072
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,parseE,0.025
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,Run,0.031
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,parseE,0.108
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,valToIndexedTree,0.097
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,valToIndexedTree,0.091
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,prepareLiveUpdates,0.719
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,Run,1.023
+Gecko/20100101 Firefox/45.0,Buttons,Fair,parseE,0.032
+Gecko/20100101 Firefox/45.0,Buttons,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Buttons,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Buttons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Buttons,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Buttons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Buttons,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Buttons,Fair,Run,0.037
+Gecko/20100101 Firefox/45.0,Widgets,Fair,parseE,0.014
+Gecko/20100101 Firefox/45.0,Widgets,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Widgets,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Widgets,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Widgets,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Widgets,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Widgets,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Widgets,Fair,Run,0.024
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,parseE,0.027
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,prepareLiveUpdates,0.016
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,Run,0.05
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,parseE,0.124
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,prepareLiveUpdates,0.272
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,Run,0.419
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,parseE,0.391
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,unparseE,0.009
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,Run,0.414
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,parseE,0.015
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,prepareLiveUpdates,0.027
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,Run,0.048
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,parseE,0.03
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,prepareLiveUpdates,0.017
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,Run,0.06
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,parseE,0.069
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,Run,0.076
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,parseE,0.055
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,prepareLiveUpdates,0.011
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,Run,0.07
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,parseE,0.095
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,valToIndexedTree,0.073
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,valToIndexedTree,0.071
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,prepareLiveUpdates,0.38
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,Run,0.626
+Gecko/20100101 Firefox/45.0,Solar System,Fair,parseE,0.069
+Gecko/20100101 Firefox/45.0,Solar System,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Solar System,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Solar System,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Solar System,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Solar System,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Solar System,Fair,prepareLiveUpdates,0.006
+Gecko/20100101 Firefox/45.0,Solar System,Fair,Run,0.084
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,parseE,0.087
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,prepareLiveUpdates,0.006
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,Run,0.11
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,parseE,0.013
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,Run,0.021
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,parseE,0.043
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,prepareLiveUpdates,0.012
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,Run,0.073
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,parseE,0.061
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,prepareLiveUpdates,1.05
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,Run,1.123
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,parseE,0.084
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,valToIndexedTree,0.005
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,prepareLiveUpdates,0.141
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,Run,0.252
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,parseE,0.027
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,prepareLiveUpdates,0.011
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,Run,0.047
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,parseE,0.038
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,Run,0.045
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,parseE,0.104
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,prepareLiveUpdates,0.87
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,Run,0.99
+Gecko/20100101 Firefox/45.0,xySlider,Fair,parseE,0.069
+Gecko/20100101 Firefox/45.0,xySlider,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,xySlider,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,xySlider,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,xySlider,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,xySlider,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,xySlider,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,xySlider,Fair,Run,0.078
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,parseE,0.074
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,unparseE,0.006
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,prepareLiveUpdates,0.079
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,Run,0.169
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,parseE,0.092
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,Eval.run,0.017
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,Eval.run,0.016
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,prepareLiveUpdates,0.725
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,Run,0.858
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,parseE,0.083
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,Eval.run,0.017
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,Eval.run,0.016
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,prepareLiveUpdates,0.013
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,Run,0.134
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,parseE,0.091
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,valToIndexedTree,0.004
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,Run,0.104
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,parseE,0.035
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,prepareLiveUpdates,0.007
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,Run,0.049
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,parseE,0.016
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,Run,0.021
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,parseE,0.06
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,prepareLiveUpdates,0.008
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,Run,0.079
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,parseE,0.014
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,Run,0.026
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,parseE,0.024
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,Run,0.031
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,parseE,0.067
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,prepareLiveUpdates,0.008
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,Run,0.087
+Gecko/20100101 Firefox/45.0,Polygons,Fair,parseE,0.03
+Gecko/20100101 Firefox/45.0,Polygons,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Polygons,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Polygons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Polygons,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Polygons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Polygons,Fair,prepareLiveUpdates,0.028
+Gecko/20100101 Firefox/45.0,Polygons,Fair,Run,0.066
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,parseE,0.026
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,Run,0.033
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,parseE,0.297
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,Eval.run,0.017
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,unparseE,0.005
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,Eval.run,0.017
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,prepareLiveUpdates,0.001
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,Run,0.341
+Gecko/20100101 Firefox/45.0,Logo,Fair,parseE,0.028
+Gecko/20100101 Firefox/45.0,Logo,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,Logo,Fair,Run,0.05
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,parseE,0.048
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,Eval.run,0.017
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,Eval.run,0.015
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,prepareLiveUpdates,0.098
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,Run,0.185
+Gecko/20100101 Firefox/45.0,Stars,Fair,parseE,0.038
+Gecko/20100101 Firefox/45.0,Stars,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Stars,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Stars,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Stars,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Stars,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Stars,Fair,prepareLiveUpdates,0.022
+Gecko/20100101 Firefox/45.0,Stars,Fair,Run,0.081
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,parseE,0.038
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,Run,0.044
+Gecko/20100101 Firefox/45.0,Zones,Fair,parseE,0.053
+Gecko/20100101 Firefox/45.0,Zones,Fair,Eval.run,0.009
+Gecko/20100101 Firefox/45.0,Zones,Fair,unparseE,0.007
+Gecko/20100101 Firefox/45.0,Zones,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Zones,Fair,Eval.run,0.01
+Gecko/20100101 Firefox/45.0,Zones,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Zones,Fair,prepareLiveUpdates,0.039
+Gecko/20100101 Firefox/45.0,Zones,Fair,Run,0.125
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,parseE,0.02
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,prepareLiveUpdates,0.018
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,Run,0.049
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,parseE,0.022
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,prepareLiveUpdates,0.019
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,Run,0.048
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,parseE,0.1
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,Eval.run,0.037
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,unparseE,0.007
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,valToIndexedTree,0.004
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,Eval.run,0.017
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,valToIndexedTree,0.006
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,prepareLiveUpdates,0.165
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,Run,0.341
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,parseE,0.033
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,Eval.run,0.023
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,Eval.run,0.017
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,prepareLiveUpdates,0.049
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,Run,0.127
+Gecko/20100101 Firefox/45.0,Buttons,Fair,parseE,0.033
+Gecko/20100101 Firefox/45.0,Buttons,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Buttons,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Buttons,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Buttons,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Buttons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Buttons,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Buttons,Fair,Run,0.043
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,parseE,0.03
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,Eval.run,0.011
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,prepareLiveUpdates,0.02
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,Run,0.072
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,parseE,0.044
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,prepareLiveUpdates,0.014
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,Run,0.079
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,parseE,0.012
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,Run,0.018
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,parseE,0.302
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,Eval.run,0.043
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,unparseE,0.011
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,Eval.run,0.036
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,Run,0.401
+Gecko/20100101 Firefox/45.0,Rings,Fair,parseE,0.026
+Gecko/20100101 Firefox/45.0,Rings,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Rings,Fair,unparseE,0.005
+Gecko/20100101 Firefox/45.0,Rings,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Rings,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Rings,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Rings,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Rings,Fair,Run,0.039
+Gecko/20100101 Firefox/45.0,Polygons,Fair,parseE,0.032
+Gecko/20100101 Firefox/45.0,Polygons,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Polygons,Fair,unparseE,0.006
+Gecko/20100101 Firefox/45.0,Polygons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Polygons,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Polygons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Polygons,Fair,prepareLiveUpdates,0.029
+Gecko/20100101 Firefox/45.0,Polygons,Fair,Run,0.077
+Gecko/20100101 Firefox/45.0,Clique,Fair,parseE,0.025
+Gecko/20100101 Firefox/45.0,Clique,Fair,Eval.run,0.012
+Gecko/20100101 Firefox/45.0,Clique,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Clique,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Clique,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Clique,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Clique,Fair,prepareLiveUpdates,0.022
+Gecko/20100101 Firefox/45.0,Clique,Fair,Run,0.071
+Gecko/20100101 Firefox/45.0,Triangles,Fair,parseE,0.018
+Gecko/20100101 Firefox/45.0,Triangles,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Triangles,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Triangles,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Triangles,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Triangles,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Triangles,Fair,prepareLiveUpdates,0.007
+Gecko/20100101 Firefox/45.0,Triangles,Fair,Run,0.035
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,parseE,0.099
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,Eval.run,0.01
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,Eval.run,0.019
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,prepareLiveUpdates,3.322
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,Run,3.458
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,parseE,0.067
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,Eval.run,0.013
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,prepareLiveUpdates,1.182
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,Run,1.276
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,parseE,0.222
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,Eval.run,0.011
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,unparseE,0.014
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,valToIndexedTree,0.009
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,Eval.run,0.011
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,prepareLiveUpdates,0.012
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,Run,0.282
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,parseE,0.034
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,Eval.run,0.013
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,unparseE,0.006
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,prepareLiveUpdates,0.01
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,Run,0.071
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,parseE,0.015
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,prepareLiveUpdates,0.024
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,Run,0.051
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,parseE,0.111
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,Run,0.128
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,parseE,0.02
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,Run,0.031
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,parseE,0.031
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,Run,0.043
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,parseE,0.215
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,Eval.run,0.078
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,unparseE,0.009
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,valToIndexedTree,0.009
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,Eval.run,0.044
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,valToIndexedTree,0.006
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,prepareLiveUpdates,0.06
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,Run,0.424
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,parseE,0.02
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,prepareLiveUpdates,0.007
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,Run,0.032
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,parseE,0.041
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,prepareLiveUpdates,0.01
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,Run,0.057
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,parseE,0.088
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,prepareLiveUpdates,0.007
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,Run,0.112
+Gecko/20100101 Firefox/45.0,Widgets,Fair,parseE,0.013
+Gecko/20100101 Firefox/45.0,Widgets,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Widgets,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Widgets,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Widgets,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Widgets,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Widgets,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Widgets,Fair,Run,0.026
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,parseE,0.058
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,valToIndexedTree,0.006
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,Run,0.074
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,parseE,0.071
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,Eval.run,0.009
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,prepareLiveUpdates,0.162
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,Run,0.263
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,parseE,0.012
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,Run,0.022
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,parseE,0.117
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,Eval.run,0.04
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,Eval.run,0.027
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,Run,0.195
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,parseE,0.064
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,prepareLiveUpdates,0.008
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,Run,0.089
+Gecko/20100101 Firefox/45.0,xySlider,Fair,parseE,0.073
+Gecko/20100101 Firefox/45.0,xySlider,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,xySlider,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,xySlider,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,xySlider,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,xySlider,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,xySlider,Fair,prepareLiveUpdates,0.001
+Gecko/20100101 Firefox/45.0,xySlider,Fair,Run,0.078
+Gecko/20100101 Firefox/45.0,Sliders,Fair,parseE,0.08
+Gecko/20100101 Firefox/45.0,Sliders,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Sliders,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Sliders,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sliders,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Sliders,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sliders,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Sliders,Fair,Run,0.09
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,parseE,0.039
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,Run,0.05
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,parseE,0.087
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,Eval.run,0.011
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,prepareLiveUpdates,0.029
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,Run,0.145
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,parseE,0.201
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,prepareLiveUpdates,0.01
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,Run,0.233
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,parseE,0.045
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,Eval.run,0.01
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,Run,0.071
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,parseE,0.068
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,prepareLiveUpdates,0.006
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,Run,0.083
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,parseE,0.141
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,Eval.run,0.013
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,Eval.run,0.013
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,prepareLiveUpdates,0.284
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,Run,0.459
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,parseE,0.107
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,valToIndexedTree,0.104
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,valToIndexedTree,0.088
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,prepareLiveUpdates,0.687
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,Run,0.994
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,parseE,0.039
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,Run,0.048
+Gecko/20100101 Firefox/45.0,Stars,Fair,parseE,0.04
+Gecko/20100101 Firefox/45.0,Stars,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Stars,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Stars,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Stars,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Stars,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Stars,Fair,prepareLiveUpdates,0.017
+Gecko/20100101 Firefox/45.0,Stars,Fair,Run,0.074
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,parseE,0.046
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,Run,0.054
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,parseE,0.031
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,prepareLiveUpdates,0.017
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,Run,0.06
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,parseE,0.064
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,prepareLiveUpdates,1.306
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,Run,1.379
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,parseE,0.062
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,Eval.run,0.017
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,Eval.run,0.015
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,prepareLiveUpdates,0.013
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,Run,0.115
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,parseE,0.084
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,unparseE,0.005
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,prepareLiveUpdates,0.058
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,Run,0.162
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,parseE,0.024
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,Run,0.034
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,parseE,0.03
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,prepareLiveUpdates,0.018
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,Run,0.052
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,parseE,0.046
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,Eval.run,0.018
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,Eval.run,0.015
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,prepareLiveUpdates,0.097
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,Run,0.18
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,parseE,0.073
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,prepareLiveUpdates,0.075
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,Run,0.16
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,parseE,0.091
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,valToIndexedTree,0.078
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,valToIndexedTree,0.065
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,prepareLiveUpdates,0.363
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,Run,0.609
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,parseE,0.017
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,Run,0.026
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,parseE,0.093
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,valToIndexedTree,0.067
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,valToIndexedTree,0.07
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,prepareLiveUpdates,0.35
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,Run,0.586
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,parseE,0.095
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,Run,0.104
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,parseE,0.114
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,prepareLiveUpdates,0.831
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,Run,0.961
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,parseE,0.016
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,prepareLiveUpdates,0.001
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,Run,0.022
+Gecko/20100101 Firefox/45.0,Solar System,Fair,parseE,0.063
+Gecko/20100101 Firefox/45.0,Solar System,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Solar System,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Solar System,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Solar System,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Solar System,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Solar System,Fair,prepareLiveUpdates,0.007
+Gecko/20100101 Firefox/45.0,Solar System,Fair,Run,0.085
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,parseE,0.052
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,prepareLiveUpdates,0.009
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,Run,0.07
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,parseE,0.026
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,Run,0.032
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,parseE,0.09
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,Eval.run,0.037
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,Eval.run,0.038
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,prepareLiveUpdates,0.272
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,Run,0.443
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,parseE,0.013
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,Run,0.017
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,parseE,0.384
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,unparseE,0.007
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,Run,0.403
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,parseE,0.071
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,Run,0.082
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,parseE,0.043
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,prepareLiveUpdates,0.024
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,Run,0.084
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,parseE,0.025
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,prepareLiveUpdates,0.014
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,Run,0.043
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,parseE,0.031
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,Eval.run,0.018
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,Eval.run,0.018
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,prepareLiveUpdates,0.323
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,Run,0.394
+Gecko/20100101 Firefox/45.0,Logo,Fair,parseE,0.027
+Gecko/20100101 Firefox/45.0,Logo,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo,Fair,prepareLiveUpdates,0.006
+Gecko/20100101 Firefox/45.0,Logo,Fair,Run,0.052
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,parseE,0.091
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,Eval.run,0.018
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,Eval.run,0.02
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,prepareLiveUpdates,0.739
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,Run,0.873
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,parseE,0.068
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,Eval.run,0.025
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,unparseE,0.007
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,Eval.run,0.019
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,prepareLiveUpdates,0.045
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,Run,0.17
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,parseE,0.054
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,Eval.run,0.026
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,Eval.run,0.013
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,prepareLiveUpdates,0.036
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,Run,0.136
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,parseE,0.066
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,Eval.run,0.011
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,prepareLiveUpdates,1.387
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,Run,1.477
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,parseE,0.104
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,Eval.run,0.017
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,unparseE,0.006
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,Eval.run,0.009
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,prepareLiveUpdates,0.862
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,Run,1.001
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,parseE,0.454
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,Eval.run,0.025
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,unparseE,0.017
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,Eval.run,0.009
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,prepareLiveUpdates,0.013
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,Run,0.527
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,parseE,0.035
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,Eval.run,0.024
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,unparseE,0.005
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,Eval.run,0.009
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,prepareLiveUpdates,0.045
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,Run,0.124
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,parseE,0.093
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,Eval.run,0.03
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,unparseE,0.009
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,valToIndexedTree,0.005
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,Eval.run,0.021
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,valToIndexedTree,0.004
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,prepareLiveUpdates,0.16
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,Run,0.325
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,parseE,0.224
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,Eval.run,0.072
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,unparseE,0.009
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,valToIndexedTree,0.004
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,Eval.run,0.045
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,prepareLiveUpdates,0.041
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,Run,0.399
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,parseE,0.075
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,unparseE,0.005
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,prepareLiveUpdates,0.01
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,Run,0.097
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,parseE,0.063
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,prepareLiveUpdates,0.015
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,Run,0.091
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,parseE,0.092
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,Eval.run,0.025
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,Eval.run,0.013
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,prepareLiveUpdates,0.07
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,Run,0.207
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,parseE,0.064
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,prepareLiveUpdates,1.017
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,Run,1.095
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,parseE,0.028
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,valToIndexedTree,0.005
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,prepareLiveUpdates,0.006
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,Run,0.048
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,parseE,0.096
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,Eval.run,0.064
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,unparseE,0.006
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,Eval.run,0.04
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,prepareLiveUpdates,0.299
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,Run,0.511
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,parseE,0.06
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,Run,0.072
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,parseE,0.14
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,unparseE,0.006
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,valToIndexedTree,0.111
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,valToIndexedTree,0.09
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,prepareLiveUpdates,0.709
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,Run,1.062
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,parseE,0.035
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,Run,0.054
+Gecko/20100101 Firefox/45.0,Buttons,Fair,parseE,0.031
+Gecko/20100101 Firefox/45.0,Buttons,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Buttons,Fair,unparseE,0.006
+Gecko/20100101 Firefox/45.0,Buttons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Buttons,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Buttons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Buttons,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Buttons,Fair,Run,0.05
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,parseE,0.025
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,Run,0.035
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,parseE,0.052
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,Eval.run,0.02
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,Eval.run,0.017
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,prepareLiveUpdates,0.107
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,Run,0.201
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,parseE,0.229
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,unparseE,0.006
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,valToIndexedTree,0.005
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,prepareLiveUpdates,0.01
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,Run,0.265
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,parseE,0.053
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,Run,0.076
+Gecko/20100101 Firefox/45.0,Sliders,Fair,parseE,0.09
+Gecko/20100101 Firefox/45.0,Sliders,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Sliders,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Sliders,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sliders,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Sliders,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sliders,Fair,prepareLiveUpdates,0.001
+Gecko/20100101 Firefox/45.0,Sliders,Fair,Run,0.098
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,parseE,0.031
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,prepareLiveUpdates,0.013
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,Run,0.051
+Gecko/20100101 Firefox/45.0,Triangles,Fair,parseE,0.018
+Gecko/20100101 Firefox/45.0,Triangles,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Triangles,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Triangles,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Triangles,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Triangles,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Triangles,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,Triangles,Fair,Run,0.029
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,parseE,0.017
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,Run,0.023
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,parseE,0.044
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,prepareLiveUpdates,0.009
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,Run,0.067
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,parseE,0.019
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,Run,0.034
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,parseE,0.015
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,Run,0.02
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,parseE,0.123
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,Eval.run,0.04
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,Eval.run,0.026
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,Run,0.2
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,parseE,0.027
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,prepareLiveUpdates,0.012
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,Run,0.043
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,parseE,0.099
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,Eval.run,0.021
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,Eval.run,0.017
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,prepareLiveUpdates,3.418
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,Run,3.562
+Gecko/20100101 Firefox/45.0,Clique,Fair,parseE,0.028
+Gecko/20100101 Firefox/45.0,Clique,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Clique,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Clique,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Clique,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Clique,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Clique,Fair,prepareLiveUpdates,0.028
+Gecko/20100101 Firefox/45.0,Clique,Fair,Run,0.076
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,parseE,0.017
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,prepareLiveUpdates,0.009
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,Run,0.03
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,parseE,0.01
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,Run,0.019
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,parseE,0.032
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,Eval.run,0.011
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,Eval.run,0.009
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,prepareLiveUpdates,0.039
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,Run,0.094
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,parseE,0.04
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,Run,0.05
+Gecko/20100101 Firefox/45.0,Zones,Fair,parseE,0.039
+Gecko/20100101 Firefox/45.0,Zones,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Zones,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Zones,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Zones,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Zones,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Zones,Fair,prepareLiveUpdates,0.006
+Gecko/20100101 Firefox/45.0,Zones,Fair,Run,0.053
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,parseE,0.092
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,prepareLiveUpdates,0.006
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,Run,0.113
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,parseE,0.21
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,unparseE,0.006
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,prepareLiveUpdates,0.009
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,Run,0.234
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,parseE,0.068
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,prepareLiveUpdates,0.008
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,Run,0.088
+Gecko/20100101 Firefox/45.0,Solar System,Fair,parseE,0.064
+Gecko/20100101 Firefox/45.0,Solar System,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Solar System,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Solar System,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Solar System,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Solar System,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Solar System,Fair,prepareLiveUpdates,0.008
+Gecko/20100101 Firefox/45.0,Solar System,Fair,Run,0.082
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,parseE,0.035
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,prepareLiveUpdates,0.007
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,Run,0.053
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,parseE,0.071
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,valToIndexedTree,0.005
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,prepareLiveUpdates,0.144
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,Run,0.241
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,parseE,0.023
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,prepareLiveUpdates,0.001
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,Run,0.031
+Gecko/20100101 Firefox/45.0,Logo,Fair,parseE,0.028
+Gecko/20100101 Firefox/45.0,Logo,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Logo,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo,Fair,prepareLiveUpdates,0.007
+Gecko/20100101 Firefox/45.0,Logo,Fair,Run,0.054
+Gecko/20100101 Firefox/45.0,Rings,Fair,parseE,0.032
+Gecko/20100101 Firefox/45.0,Rings,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Rings,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Rings,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Rings,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Rings,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Rings,Fair,prepareLiveUpdates,0.001
+Gecko/20100101 Firefox/45.0,Rings,Fair,Run,0.038
+Gecko/20100101 Firefox/45.0,Widgets,Fair,parseE,0.015
+Gecko/20100101 Firefox/45.0,Widgets,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Widgets,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Widgets,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Widgets,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Widgets,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Widgets,Fair,prepareLiveUpdates,0.001
+Gecko/20100101 Firefox/45.0,Widgets,Fair,Run,0.025
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,parseE,0.095
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,valToIndexedTree,0.075
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,valToIndexedTree,0.065
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,prepareLiveUpdates,0.376
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,Run,0.617
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,parseE,0.093
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,Run,0.102
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,parseE,0.015
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,prepareLiveUpdates,0.026
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,Run,0.046
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,parseE,0.039
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,prepareLiveUpdates,0.001
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,Run,0.044
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,parseE,0.113
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,Run,0.128
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,parseE,0.012
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,prepareLiveUpdates,0.001
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,Run,0.017
+Gecko/20100101 Firefox/45.0,Stars,Fair,parseE,0.041
+Gecko/20100101 Firefox/45.0,Stars,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Stars,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Stars,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Stars,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Stars,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Stars,Fair,prepareLiveUpdates,0.017
+Gecko/20100101 Firefox/45.0,Stars,Fair,Run,0.074
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,parseE,0.03
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,prepareLiveUpdates,0.018
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,Run,0.051
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,parseE,0.299
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,Eval.run,0.019
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,unparseE,0.017
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,Eval.run,0.031
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,Run,0.373
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,parseE,0.072
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,Run,0.082
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,parseE,0.011
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,valToIndexedTree,0.006
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,prepareLiveUpdates,0.001
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,Run,0.022
+Gecko/20100101 Firefox/45.0,Polygons,Fair,parseE,0.032
+Gecko/20100101 Firefox/45.0,Polygons,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Polygons,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Polygons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Polygons,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Polygons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Polygons,Fair,prepareLiveUpdates,0.024
+Gecko/20100101 Firefox/45.0,Polygons,Fair,Run,0.065
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,parseE,0.098
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,valToIndexedTree,0.077
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,valToIndexedTree,0.072
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,prepareLiveUpdates,0.339
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,Run,0.595
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,parseE,0.099
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,Eval.run,0.017
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,Eval.run,0.017
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,prepareLiveUpdates,0.731
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,Run,0.872
+Gecko/20100101 Firefox/45.0,xySlider,Fair,parseE,0.071
+Gecko/20100101 Firefox/45.0,xySlider,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,xySlider,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,xySlider,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,xySlider,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,xySlider,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,xySlider,Fair,prepareLiveUpdates,0.001
+Gecko/20100101 Firefox/45.0,xySlider,Fair,Run,0.079
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,parseE,0.075
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,prepareLiveUpdates,0.078
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,Run,0.165
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,parseE,0.046
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,Run,0.057
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,parseE,0.066
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,Eval.run,0.017
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,Eval.run,0.015
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,prepareLiveUpdates,0.012
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,Run,0.114
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,parseE,0.033
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,Eval.run,0.018
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,Eval.run,0.016
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,prepareLiveUpdates,0.228
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,Run,0.301
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,parseE,0.11
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,Eval.run,0.009
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,Eval.run,0.01
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,prepareLiveUpdates,0.255
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,Run,0.391
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,parseE,0.014
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,Run,0.021
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,parseE,0.091
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,valToIndexedTree,0.004
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,prepareLiveUpdates,0.024
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,Run,0.135
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,parseE,0.029
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,prepareLiveUpdates,0.023
+Gecko/20100101 Firefox/45.0,3 Boxes,Fair,Run,0.071
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,parseE,0.11
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,Eval.run,0.033
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,unparseE,0.007
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,Eval.run,0.023
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,prepareLiveUpdates,0.108
+Gecko/20100101 Firefox/45.0,Fractal Tree,Fair,Run,0.286
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,parseE,0.053
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,prepareLiveUpdates,0.013
+Gecko/20100101 Firefox/45.0,Eye Icon,Fair,Run,0.082
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,parseE,0.083
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,Eval.run,0.035
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,unparseE,0.006
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,valToIndexedTree,0.006
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,Eval.run,0.023
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,valToIndexedTree,0.005
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,prepareLiveUpdates,0.176
+Gecko/20100101 Firefox/45.0,Floral Logo 1,Fair,Run,0.337
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,parseE,0.299
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,Eval.run,0.047
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,unparseE,0.012
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,Eval.run,0.038
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,Ferris Wheel Slideshow,Fair,Run,0.404
+Gecko/20100101 Firefox/45.0,Logo,Fair,parseE,0.026
+Gecko/20100101 Firefox/45.0,Logo,Fair,Eval.run,0.009
+Gecko/20100101 Firefox/45.0,Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Logo,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo,Fair,prepareLiveUpdates,0.007
+Gecko/20100101 Firefox/45.0,Logo,Fair,Run,0.055
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,parseE,0.048
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,Eval.run,0.027
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,Eval.run,0.018
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,prepareLiveUpdates,0.114
+Gecko/20100101 Firefox/45.0,US-13 Flag,Fair,Run,0.215
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,parseE,0.078
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,unparseE,0.006
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,prepareLiveUpdates,0.09
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright,Fair,Run,0.184
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,parseE,0.052
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,unparseE,0.006
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,prepareLiveUpdates,0.012
+Gecko/20100101 Firefox/45.0,Ferris Wheel,Fair,Run,0.084
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,parseE,0.04
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,valToIndexedTree,0.004
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,prepareLiveUpdates,0.011
+Gecko/20100101 Firefox/45.0,N Boxes,Fair,Run,0.065
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,parseE,0.015
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,Paths 1,Fair,Run,0.026
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,parseE,0.026
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Color Picker,Fair,Run,0.043
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,parseE,0.021
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Paths 5,Fair,Run,0.033
+Gecko/20100101 Firefox/45.0,Buttons,Fair,parseE,0.034
+Gecko/20100101 Firefox/45.0,Buttons,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Buttons,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Buttons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Buttons,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Buttons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Buttons,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Buttons,Fair,Run,0.04
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,parseE,0.093
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,valToIndexedTree,0.081
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,valToIndexedTree,0.07
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,prepareLiveUpdates,0.409
+Gecko/20100101 Firefox/45.0,Tessellation 2,Fair,Run,0.662
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,parseE,0.029
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,prepareLiveUpdates,0.009
+Gecko/20100101 Firefox/45.0,Paths 2,Fair,Run,0.044
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,parseE,0.075
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,POP-PL Logo,Fair,Run,0.086
+Gecko/20100101 Firefox/45.0,Solar System,Fair,parseE,0.066
+Gecko/20100101 Firefox/45.0,Solar System,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Solar System,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Solar System,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Solar System,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Solar System,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Solar System,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,Solar System,Fair,Run,0.085
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,parseE,0.032
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,Eval.run,0.01
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,prepareLiveUpdates,0.061
+Gecko/20100101 Firefox/45.0,Chicago Flag,Fair,Run,0.117
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,parseE,0.122
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,Eval.run,0.012
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,prepareLiveUpdates,0.899
+Gecko/20100101 Firefox/45.0,Keyboard,Fair,Run,1.048
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,parseE,0.111
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,Eval.run,0.022
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,Eval.run,0.016
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,prepareLiveUpdates,0.297
+Gecko/20100101 Firefox/45.0,Stick Figures,Fair,Run,0.452
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,parseE,0.016
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Thaw/Freeze,Fair,Run,0.022
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,parseE,0.421
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,Eval.run,0.009
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,unparseE,0.009
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,prepareLiveUpdates,0.006
+Gecko/20100101 Firefox/45.0,Hilbert Curve Animation,Fair,Run,0.457
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,parseE,0.037
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,Eval.run,0.038
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,valToIndexedTree,0.004
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,Eval.run,0.019
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,prepareLiveUpdates,0.236
+Gecko/20100101 Firefox/45.0,Spiral Spiral-Graph,Fair,Run,0.338
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,parseE,0.116
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,prepareLiveUpdates,0.006
+Gecko/20100101 Firefox/45.0,Bar Graph,Fair,Run,0.135
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,parseE,0.048
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,prepareLiveUpdates,0.013
+Gecko/20100101 Firefox/45.0,Grid Tile,Fair,Run,0.071
+Gecko/20100101 Firefox/45.0,xySlider,Fair,parseE,0.079
+Gecko/20100101 Firefox/45.0,xySlider,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,xySlider,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,xySlider,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,xySlider,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,xySlider,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,xySlider,Fair,prepareLiveUpdates,0.001
+Gecko/20100101 Firefox/45.0,xySlider,Fair,Run,0.085
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,parseE,0.03
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,prepareLiveUpdates,0.019
+Gecko/20100101 Firefox/45.0,Ferris Task After,Fair,Run,0.06
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,parseE,0.107
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,valToIndexedTree,0.073
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,valToIndexedTree,0.068
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,prepareLiveUpdates,0.364
+Gecko/20100101 Firefox/45.0,Tessellation Task After,Fair,Run,0.624
+Gecko/20100101 Firefox/45.0,Triangles,Fair,parseE,0.017
+Gecko/20100101 Firefox/45.0,Triangles,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Triangles,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Triangles,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Triangles,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Triangles,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Triangles,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,Triangles,Fair,Run,0.031
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,parseE,0.09
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,Eval.run,0.009
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,prepareLiveUpdates,0.147
+Gecko/20100101 Firefox/45.0,Floral Logo 2,Fair,Run,0.262
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,parseE,0.069
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,prepareLiveUpdates,1.348
+Gecko/20100101 Firefox/45.0,Keyboard Task After,Fair,Run,1.428
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,parseE,0.061
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,valToIndexedTree,0.003
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,Botanic Garden Logo,Fair,Run,0.075
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,parseE,0.052
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,prepareLiveUpdates,0.004
+Gecko/20100101 Firefox/45.0,Logo 2,Fair,Run,0.075
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,parseE,0.019
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,prepareLiveUpdates,0.034
+Gecko/20100101 Firefox/45.0,Wave Boxes,Fair,Run,0.059
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,parseE,0.037
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,unparseE,0.005
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,prepareLiveUpdates,0.009
+Gecko/20100101 Firefox/45.0,Sample Rotations,Fair,Run,0.061
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,parseE,0.222
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,Eval.run,0.012
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,unparseE,0.008
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,prepareLiveUpdates,0.02
+Gecko/20100101 Firefox/45.0,Bezier Curves,Fair,Run,0.276
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,parseE,0.028
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,valToIndexedTree,0.005
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,Rounded Rect,Fair,Run,0.047
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,parseE,0.093
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,Eval.run,0.01
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,valToIndexedTree,0.004
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,Eval.run,0.013
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,valToIndexedTree,0.004
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,prepareLiveUpdates,0.03
+Gecko/20100101 Firefox/45.0,Sailboat,Fair,Run,0.161
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,parseE,0.019
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,prepareLiveUpdates,0.009
+Gecko/20100101 Firefox/45.0,Misc Shapes,Fair,Run,0.036
+Gecko/20100101 Firefox/45.0,Clique,Fair,parseE,0.028
+Gecko/20100101 Firefox/45.0,Clique,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Clique,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Clique,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Clique,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Clique,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Clique,Fair,prepareLiveUpdates,0.025
+Gecko/20100101 Firefox/45.0,Clique,Fair,Run,0.063
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,parseE,0.014
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,N Boxes Sli,Fair,Run,0.025
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,parseE,0.115
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,valToIndexedTree,0.105
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,valToIndexedTree,0.092
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,prepareLiveUpdates,0.642
+Gecko/20100101 Firefox/45.0,Tessellation Task Before,Fair,Run,0.967
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,parseE,0.015
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Paths 3,Fair,Run,0.023
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,parseE,0.225
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,unparseE,0.008
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,prepareLiveUpdates,0.006
+Gecko/20100101 Firefox/45.0,Interface Buttons,Fair,Run,0.251
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,parseE,0.032
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,prepareLiveUpdates,0.018
+Gecko/20100101 Firefox/45.0,Elm Logo,Fair,Run,0.053
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,parseE,0.044
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,prepareLiveUpdates,0.024
+Gecko/20100101 Firefox/45.0,US-50 Flag,Fair,Run,0.084
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,parseE,0.069
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,Eval.run,0.018
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,unparseE,0.005
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,Eval.run,0.016
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,prepareLiveUpdates,0.012
+Gecko/20100101 Firefox/45.0,Logo Sizes,Fair,Run,0.123
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,parseE,0.095
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Haskell.org Logo,Fair,Run,0.105
+Gecko/20100101 Firefox/45.0,Zones,Fair,parseE,0.035
+Gecko/20100101 Firefox/45.0,Zones,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Zones,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Zones,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Zones,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Zones,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Zones,Fair,prepareLiveUpdates,0.013
+Gecko/20100101 Firefox/45.0,Zones,Fair,Run,0.056
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,parseE,0.028
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,Eval.run,0.009
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,prepareLiveUpdates,0.012
+Gecko/20100101 Firefox/45.0,Ferris Task Before,Fair,Run,0.053
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,parseE,0.072
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,prepareLiveUpdates,0.009
+Gecko/20100101 Firefox/45.0,Active Trans Logo,Fair,Run,0.091
+Gecko/20100101 Firefox/45.0,Stars,Fair,parseE,0.051
+Gecko/20100101 Firefox/45.0,Stars,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Stars,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Stars,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Stars,Fair,Eval.run,0.007
+Gecko/20100101 Firefox/45.0,Stars,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Stars,Fair,prepareLiveUpdates,0.018
+Gecko/20100101 Firefox/45.0,Stars,Fair,Run,0.088
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,parseE,0.095
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,Eval.run,0.016
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,Eval.run,0.016
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,prepareLiveUpdates,0.766
+Gecko/20100101 Firefox/45.0,Frank Lloyd Wright B,Fair,Run,0.9
+Gecko/20100101 Firefox/45.0,Widgets,Fair,parseE,0.017
+Gecko/20100101 Firefox/45.0,Widgets,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Widgets,Fair,unparseE,0
+Gecko/20100101 Firefox/45.0,Widgets,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Widgets,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Widgets,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Widgets,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Widgets,Fair,Run,0.026
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,parseE,0.091
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,Eval.run,0.036
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,Eval.run,0.042
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,prepareLiveUpdates,0.282
+Gecko/20100101 Firefox/45.0,Matrix Transformations,Fair,Run,0.459
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,parseE,0.054
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,prepareLiveUpdates,0.008
+Gecko/20100101 Firefox/45.0,French Sudan Flag,Fair,Run,0.066
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,parseE,0.245
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,Eval.run,0.065
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,unparseE,0.006
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,Eval.run,0.045
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,valToIndexedTree,0.002
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,prepareLiveUpdates,0.031
+Gecko/20100101 Firefox/45.0,Survey Results,Fair,Run,0.399
+Gecko/20100101 Firefox/45.0,Rings,Fair,parseE,0.031
+Gecko/20100101 Firefox/45.0,Rings,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Rings,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Rings,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Rings,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Rings,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Rings,Fair,prepareLiveUpdates,0.001
+Gecko/20100101 Firefox/45.0,Rings,Fair,Run,0.04
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,parseE,0.04
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Lillicon P,Fair,Run,0.047
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,parseE,0.1
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,Eval.run,0.009
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,Eval.run,0.008
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,prepareLiveUpdates,3.41
+Gecko/20100101 Firefox/45.0,Wave Boxes Grid,Fair,Run,3.533
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,parseE,0.014
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Paths 4,Fair,Run,0.019
+Gecko/20100101 Firefox/45.0,Sliders,Fair,parseE,0.083
+Gecko/20100101 Firefox/45.0,Sliders,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Sliders,Fair,unparseE,0.002
+Gecko/20100101 Firefox/45.0,Sliders,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sliders,Fair,Eval.run,0.001
+Gecko/20100101 Firefox/45.0,Sliders,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Sliders,Fair,prepareLiveUpdates,0.005
+Gecko/20100101 Firefox/45.0,Sliders,Fair,Run,0.093
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,parseE,0.071
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,Eval.run,0.003
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,prepareLiveUpdates,0.006
+Gecko/20100101 Firefox/45.0,Cover Logo,Fair,Run,0.087
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,parseE,0.127
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,Eval.run,0.037
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,Eval.run,0.028
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,prepareLiveUpdates,0.003
+Gecko/20100101 Firefox/45.0,Tile Pattern,Fair,Run,0.202
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,parseE,0.062
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,Eval.run,0.006
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,prepareLiveUpdates,0.991
+Gecko/20100101 Firefox/45.0,Keyboard Task Before,Fair,Run,1.066
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,parseE,0.087
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,Eval.run,0.005
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,unparseE,0.004
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,prepareLiveUpdates,0.008
+Gecko/20100101 Firefox/45.0,Pie Chart,Fair,Run,0.113
+Gecko/20100101 Firefox/45.0,Polygons,Fair,parseE,0.03
+Gecko/20100101 Firefox/45.0,Polygons,Fair,Eval.run,0.002
+Gecko/20100101 Firefox/45.0,Polygons,Fair,unparseE,0.005
+Gecko/20100101 Firefox/45.0,Polygons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Polygons,Fair,Eval.run,0.004
+Gecko/20100101 Firefox/45.0,Polygons,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Polygons,Fair,prepareLiveUpdates,0.026
+Gecko/20100101 Firefox/45.0,Polygons,Fair,Run,0.07
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,parseE,0.026
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,unparseE,0.003
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,valToIndexedTree,0.001
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Lillicon P, v2,Fair,Run,0.034
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,parseE,0.04
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,unparseE,0.001
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,Eval.run,0
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,valToIndexedTree,0
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,prepareLiveUpdates,0.002
+Gecko/20100101 Firefox/45.0,Wikimedia Logo,Fair,Run,0.045

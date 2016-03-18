@@ -1,0 +1,2800 @@
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,parseE,0.385
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,Eval.run,0.082
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,unparseE,0.019
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,Eval.run,0.064
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,prepareLiveUpdates,0.007
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,Run,0.562
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,parseE,0.085
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,prepareLiveUpdates,0.01
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,Run,0.109
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,parseE,0.112
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,Eval.run,0.009
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,prepareLiveUpdates,0.025
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,Run,0.162
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,parseE,0.038
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,prepareLiveUpdates,0.027
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,Run,0.072
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,parseE,0.053
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,Eval.run,0.009
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,prepareLiveUpdates,0.02
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,Run,0.098
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,parseE,0.021
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,prepareLiveUpdates,0.077
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,Run,0.111
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,parseE,0.084
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,Eval.run,0.062
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,Eval.run,0.078
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,prepareLiveUpdates,0.047
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,Run,0.278
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,parseE,0.014
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,Run,0.022
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,parseE,0.064
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,Eval.run,0.028
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,Eval.run,0.027
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,prepareLiveUpdates,0.012
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,Run,0.137
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,parseE,0.119
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,unparseE,0.008
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,valToIndexedTree,0.007
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,valToIndexedTree,0.005
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,prepareLiveUpdates,0.058
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,Run,0.222
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,parseE,0.032
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,Eval.run,0.014
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,prepareLiveUpdates,0.04
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,Run,0.1
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,parseE,0.266
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,unparseE,0.014
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,prepareLiveUpdates,0.013
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,Run,0.319
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,parseE,0.061
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,prepareLiveUpdates,0.008
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,Run,0.079
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,parseE,0.119
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,Eval.run,0.123
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,Eval.run,0.124
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,prepareLiveUpdates,0.705
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,Run,1.077
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,parseE,0.143
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,valToIndexedTree,0.18
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,valToIndexedTree,0.164
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,prepareLiveUpdates,1.228
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,Run,1.733
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,parseE,0.018
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,prepareLiveUpdates,0.007
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,Run,0.03
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,parseE,0.011
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,Run,0.025
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,parseE,0.043
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,Run,0.061
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,parseE,0.016
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,prepareLiveUpdates,0.004
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,Run,0.024
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,parseE,0.267
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,Eval.run,0.165
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,unparseE,0.018
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,valToIndexedTree,0.007
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,Eval.run,0.161
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,valToIndexedTree,0.005
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,prepareLiveUpdates,0.08
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,Run,0.707
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,parseE,0.018
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,Run,0.045
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,parseE,0.035
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,Eval.run,0.027
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,Eval.run,0.027
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,prepareLiveUpdates,0.009
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,Run,0.1
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,parseE,0.123
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,unparseE,0.006
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,valToIndexedTree,0.116
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,valToIndexedTree,0.117
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,prepareLiveUpdates,0.729
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,Run,1.1
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,parseE,0.269
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,unparseE,0.005
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,prepareLiveUpdates,0.021
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,Run,0.324
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,parseE,0.033
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,prepareLiveUpdates,0.005
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,Run,0.048
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,parseE,0.093
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,Eval.run,0.027
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,valToIndexedTree,0.006
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,Eval.run,0.027
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,valToIndexedTree,0.005
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,prepareLiveUpdates,0.348
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,Run,0.511
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,parseE,0.122
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,prepareLiveUpdates,0.009
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,Run,0.142
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,parseE,0.013
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,prepareLiveUpdates,0.004
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,Run,0.022
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,parseE,0.145
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,prepareLiveUpdates,0.011
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,Run,0.177
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,parseE,0.065
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,prepareLiveUpdates,0.013
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,Run,0.091
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,parseE,0.127
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,Eval.run,0.026
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,Eval.run,0.027
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,prepareLiveUpdates,5.976
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,Run,6.164
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,parseE,0.11
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,Eval.run,0.026
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,valToIndexedTree,0.004
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,Eval.run,0.029
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,valToIndexedTree,0.004
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,prepareLiveUpdates,0.334
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,Run,0.512
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,parseE,0.044
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,prepareLiveUpdates,0.015
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,Run,0.077
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,parseE,0.036
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,prepareLiveUpdates,0.002
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,Run,0.048
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,parseE,0.141
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,Eval.run,0.025
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,unparseE,0.008
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,Eval.run,0.027
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,prepareLiveUpdates,0.502
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,Run,0.705
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,parseE,0.079
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,prepareLiveUpdates,1.826
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,Run,1.926
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,parseE,0.12
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,Eval.run,0.058
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,Eval.run,0.059
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,prepareLiveUpdates,1.344
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,Run,1.592
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,parseE,0.033
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,prepareLiveUpdates,0.025
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,Run,0.079
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,parseE,0.102
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,Eval.run,0.013
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,prepareLiveUpdates,0.15
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,Run,0.283
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,parseE,0.023
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,valToIndexedTree,0.005
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,prepareLiveUpdates,0.004
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,Run,0.036
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,parseE,0.115
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,Eval.run,0.014
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,prepareLiveUpdates,0.013
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,Run,0.161
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,parseE,0.042
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,Eval.run,0.059
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,Eval.run,0.059
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,prepareLiveUpdates,0.547
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,Run,0.716
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,parseE,0.04
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,Eval.run,0.015
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,prepareLiveUpdates,0.038
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,Run,0.108
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,parseE,0.037
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,prepareLiveUpdates,0.012
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,Run,0.061
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,parseE,0.05
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,Eval.run,0.024
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,Eval.run,0.024
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,prepareLiveUpdates,0.037
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,Run,0.14
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,parseE,0.105
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,Run,0.123
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,parseE,0.019
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,prepareLiveUpdates,0.013
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,Run,0.037
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,parseE,0.137
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,Eval.run,0.017
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,Eval.run,0.014
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,prepareLiveUpdates,1.616
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,Run,1.79
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,parseE,0.042
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,prepareLiveUpdates,0.002
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,Run,0.048
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,parseE,0.034
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,Run,0.043
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,parseE,0.052
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,valToIndexedTree,0.004
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,prepareLiveUpdates,0.002
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,Run,0.065
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,parseE,0.063
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,Eval.run,0.06
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,Eval.run,0.065
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,prepareLiveUpdates,0.209
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,Run,0.404
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,parseE,0.121
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,Eval.run,0.023
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,Eval.run,0.018
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,prepareLiveUpdates,0.125
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,Run,0.294
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,parseE,0.507
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,Eval.run,0.013
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,unparseE,0.009
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,prepareLiveUpdates,0.008
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,Run,0.549
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,parseE,0.016
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,Run,0.026
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,parseE,0.157
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,Eval.run,0.054
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,unparseE,0.005
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,Eval.run,0.049
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,prepareLiveUpdates,0.007
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,Run,0.276
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,parseE,0.057
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,Eval.run,0.018
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,Eval.run,0.018
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,prepareLiveUpdates,0.049
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,Run,0.148
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,parseE,0.045
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,prepareLiveUpdates,0.058
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,Run,0.127
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,parseE,0.018
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,prepareLiveUpdates,0.018
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,Run,0.048
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,parseE,0.096
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,prepareLiveUpdates,0.002
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,Run,0.107
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,parseE,0.032
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,prepareLiveUpdates,0.023
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,Run,0.062
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,parseE,0.13
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,unparseE,0.007
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,valToIndexedTree,0.118
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,valToIndexedTree,0.12
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,prepareLiveUpdates,0.677
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,Run,1.062
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,parseE,0.057
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,prepareLiveUpdates,0.019
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,Run,0.089
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,parseE,0.051
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,Run,0.064
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,parseE,0.026
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,Run,0.046
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,parseE,0.087
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,Eval.run,0.009
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,Eval.run,0.014
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,prepareLiveUpdates,2.412
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,Run,2.528
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,parseE,0.042
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,Eval.run,0.019
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,Eval.run,0.023
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,prepareLiveUpdates,0.088
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,Run,0.175
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,parseE,0.094
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,prepareLiveUpdates,0.019
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,Run,0.138
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,parseE,0.072
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,unparseE,0.007
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,prepareLiveUpdates,0.004
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,Run,0.093
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,parseE,0.088
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,prepareLiveUpdates,0.015
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,Run,0.119
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,parseE,0.123
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,unparseE,0.01
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,valToIndexedTree,0.107
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,valToIndexedTree,0.095
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,prepareLiveUpdates,0.561
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,Run,0.911
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,parseE,0.062
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,valToIndexedTree,0.006
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,Run,0.082
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,parseE,0.134
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,Eval.run,0.038
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,unparseE,0.011
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,Eval.run,0.026
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,prepareLiveUpdates,0.439
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,Run,0.653
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,parseE,0.281
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,Eval.run,0.013
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,unparseE,0.01
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,prepareLiveUpdates,0.019
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,Run,0.339
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,parseE,0.016
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,prepareLiveUpdates,0.005
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,Run,0.026
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,parseE,0.063
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,Eval.run,0.026
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,unparseE,0.005
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,Eval.run,0.024
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,prepareLiveUpdates,0.009
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,Run,0.129
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,parseE,0.112
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,Eval.run,0.028
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,unparseE,0.009
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,Eval.run,0.027
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,prepareLiveUpdates,0.015
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,Run,0.197
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,parseE,0.017
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,prepareLiveUpdates,0.004
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,Run,0.025
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,parseE,0.086
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,unparseE,0.005
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,prepareLiveUpdates,1.362
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,Run,1.475
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,parseE,0.114
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,Eval.run,0.014
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,valToIndexedTree,0.005
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,valToIndexedTree,0.007
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,prepareLiveUpdates,0.041
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,Run,0.198
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,parseE,0.044
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,Run,0.056
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,parseE,0.014
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,prepareLiveUpdates,0.002
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,Run,0.021
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,parseE,0.118
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,prepareLiveUpdates,0.005
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,Run,0.136
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,parseE,0.038
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,Eval.run,0.021
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,Eval.run,0.023
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,prepareLiveUpdates,0.059
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,Run,0.145
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,parseE,0.139
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,Eval.run,0.013
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,Eval.run,0.016
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,prepareLiveUpdates,0.882
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,Run,1.057
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,parseE,0.053
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,prepareLiveUpdates,0.018
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,Run,0.099
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,parseE,0.032
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,prepareLiveUpdates,0.002
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,Run,0.045
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,parseE,0.034
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,Eval.run,0.024
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,Eval.run,0.023
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,prepareLiveUpdates,0.008
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,Run,0.092
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,parseE,0.018
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,Run,0.041
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,parseE,0.032
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,Eval.run,0.014
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,prepareLiveUpdates,0.025
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,Run,0.087
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,parseE,0.118
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,Eval.run,0.13
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,Eval.run,0.127
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,prepareLiveUpdates,0.52
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,Run,0.902
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,parseE,0.11
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,Eval.run,0.028
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,unparseE,0.009
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,valToIndexedTree,0.004
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,Eval.run,0.023
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,valToIndexedTree,0.004
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,prepareLiveUpdates,0.411
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,Run,0.593
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,parseE,0.059
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,Eval.run,0.057
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,Eval.run,0.055
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,prepareLiveUpdates,0.264
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,Run,0.443
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,parseE,0.166
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,Eval.run,0.009
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,unparseE,0.007
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,Eval.run,0.009
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,prepareLiveUpdates,0.01
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,Run,0.206
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,parseE,0.093
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,prepareLiveUpdates,0.222
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,Run,0.344
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,parseE,0.147
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,valToIndexedTree,0.149
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,valToIndexedTree,0.137
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,prepareLiveUpdates,1.545
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,Run,1.99
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,parseE,0.031
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,Run,0.051
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,parseE,0.287
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,Eval.run,0.163
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,unparseE,0.011
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,valToIndexedTree,0.005
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,Eval.run,0.164
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,valToIndexedTree,0.006
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,prepareLiveUpdates,0.092
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,Run,0.731
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,parseE,0.04
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,prepareLiveUpdates,0.036
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,Run,0.092
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,parseE,0.129
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,Eval.run,0.025
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,Eval.run,0.026
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,prepareLiveUpdates,6.789
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,Run,6.98
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,parseE,0.282
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,Eval.run,0.014
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,unparseE,0.008
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,prepareLiveUpdates,0.018
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,Run,0.339
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,parseE,0.069
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,prepareLiveUpdates,0.013
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,Run,0.092
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,parseE,0.036
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,prepareLiveUpdates,0.037
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,Run,0.081
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,parseE,0.096
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,Eval.run,0.024
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,valToIndexedTree,0.005
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,Eval.run,0.025
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,valToIndexedTree,0.005
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,prepareLiveUpdates,0.361
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,Run,0.52
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,parseE,0.042
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,Eval.run,0.051
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,Eval.run,0.052
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,prepareLiveUpdates,0.561
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,Run,0.715
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,parseE,0.52
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,unparseE,0.01
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,Run,0.558
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,parseE,0.035
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,prepareLiveUpdates,0.02
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,Run,0.062
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,parseE,0.029
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,prepareLiveUpdates,0.004
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,Run,0.038
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,parseE,0.019
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,prepareLiveUpdates,0.013
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,Run,0.045
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,parseE,0.011
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,Run,0.021
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,parseE,0.027
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,Run,0.038
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,parseE,0.049
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,Run,0.066
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,parseE,0.053
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,prepareLiveUpdates,0.02
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,Run,0.088
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,parseE,0.057
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,Eval.run,0.017
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,Eval.run,0.014
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,prepareLiveUpdates,0.052
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,Run,0.145
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,parseE,0.133
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,unparseE,0.007
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,valToIndexedTree,0.101
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,valToIndexedTree,0.103
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,prepareLiveUpdates,0.688
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,Run,1.041
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,parseE,0.045
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,prepareLiveUpdates,0.061
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,Run,0.122
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,parseE,0.091
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,prepareLiveUpdates,0.012
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,Run,0.121
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,parseE,0.117
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,Eval.run,0.023
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,Eval.run,0.022
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,prepareLiveUpdates,0.131
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,Run,0.298
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,parseE,0.017
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,Run,0.028
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,parseE,0.023
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,prepareLiveUpdates,0.056
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,Run,0.086
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,parseE,0.083
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,Eval.run,0.055
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,Eval.run,0.059
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,prepareLiveUpdates,0.026
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,Run,0.229
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,parseE,0.042
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,prepareLiveUpdates,0.015
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,Run,0.077
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,parseE,0.076
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,Run,0.093
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,parseE,0.092
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,prepareLiveUpdates,0.008
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,Run,0.109
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,parseE,0.032
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,prepareLiveUpdates,0.005
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,Run,0.05
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,parseE,0.095
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,Run,0.106
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,parseE,0.035
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,Eval.run,0.014
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,prepareLiveUpdates,0.046
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,Run,0.113
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,parseE,0.014
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,prepareLiveUpdates,0.007
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,Run,0.025
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,parseE,0.384
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,Eval.run,0.061
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,unparseE,0.008
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,Eval.run,0.063
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,prepareLiveUpdates,0.004
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,Run,0.524
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,parseE,0.054
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,prepareLiveUpdates,0.002
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,Run,0.062
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,parseE,0.041
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,prepareLiveUpdates,0.016
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,Run,0.065
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,parseE,0.09
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,prepareLiveUpdates,0.016
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,Run,0.127
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,parseE,0.025
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,prepareLiveUpdates,0.01
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,Run,0.039
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,parseE,0.042
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,prepareLiveUpdates,0.002
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,Run,0.048
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,parseE,0.11
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,Run,0.125
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,parseE,0.121
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,Eval.run,0.061
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,Eval.run,0.06
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,prepareLiveUpdates,1.413
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,Run,1.667
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,parseE,0.05
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,Eval.run,0.024
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,Eval.run,0.025
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,prepareLiveUpdates,0.039
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,Run,0.142
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,parseE,0.154
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,Eval.run,0.052
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,unparseE,0.008
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,Eval.run,0.047
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,prepareLiveUpdates,0.012
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,Run,0.278
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,parseE,0.078
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,prepareLiveUpdates,1.983
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,Run,2.079
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,parseE,0.096
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,prepareLiveUpdates,0.015
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,Run,0.136
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,parseE,0.039
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,Eval.run,0.037
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,Eval.run,0.029
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,prepareLiveUpdates,0.02
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,Run,0.132
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,parseE,0.038
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,Eval.run,0.016
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,Eval.run,0.009
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,prepareLiveUpdates,0.027
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,Run,0.096
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,parseE,0.019
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,prepareLiveUpdates,0.015
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,Run,0.042
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,parseE,0.114
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,Eval.run,0.026
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,unparseE,0.006
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,Eval.run,0.025
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,prepareLiveUpdates,0.184
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,Run,0.358
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,parseE,0.032
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,prepareLiveUpdates,0.053
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,Run,0.115
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,parseE,0.09
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,Eval.run,0.032
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,valToIndexedTree,0.008
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,Eval.run,0.027
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,valToIndexedTree,0.006
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,prepareLiveUpdates,0.395
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,Run,0.565
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,parseE,0.142
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,unparseE,0.006
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,prepareLiveUpdates,0.011
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,Run,0.181
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,parseE,0.015
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,prepareLiveUpdates,0.004
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,Run,0.025
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,parseE,0.512
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,unparseE,0.012
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,Run,0.553
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,parseE,0.036
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,prepareLiveUpdates,0.025
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,Run,0.067
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,parseE,0.042
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,prepareLiveUpdates,0.008
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,Run,0.059
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,parseE,0.056
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,Eval.run,0.017
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,Eval.run,0.015
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,prepareLiveUpdates,0.052
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,Run,0.147
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,parseE,0.019
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,prepareLiveUpdates,0.013
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,Run,0.036
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,parseE,0.119
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,Run,0.135
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,parseE,0.083
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,prepareLiveUpdates,2.29
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,Run,2.396
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,parseE,0.011
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,Run,0.021
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,parseE,0.039
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,prepareLiveUpdates,0.016
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,Run,0.068
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,parseE,0.037
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,prepareLiveUpdates,0.054
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,Run,0.114
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,parseE,0.11
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,unparseE,0.009
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,prepareLiveUpdates,0.017
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,Run,0.16
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,parseE,0.054
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,Eval.run,0.009
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,prepareLiveUpdates,0.033
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,Run,0.112
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,parseE,0.032
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,Run,0.048
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,parseE,0.145
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,unparseE,0.005
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,valToIndexedTree,0.166
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,valToIndexedTree,0.158
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,prepareLiveUpdates,1.21
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,Run,1.694
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,parseE,0.013
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,prepareLiveUpdates,0.002
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,Run,0.022
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,parseE,0.142
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,Eval.run,0.057
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,unparseE,0.005
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,Eval.run,0.058
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,prepareLiveUpdates,1.394
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,Run,1.662
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,parseE,0.044
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,prepareLiveUpdates,0.011
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,Run,0.077
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,parseE,0.084
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,Eval.run,0.056
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,Eval.run,0.057
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,prepareLiveUpdates,0.028
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,Run,0.231
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,parseE,0.048
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,prepareLiveUpdates,0.017
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,Run,0.078
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,parseE,0.059
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,Eval.run,0.026
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,Eval.run,0.025
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,prepareLiveUpdates,0.008
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,Run,0.124
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,parseE,0.059
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,prepareLiveUpdates,0.007
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,Run,0.074
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,parseE,0.019
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,prepareLiveUpdates,0.05
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,Run,0.076
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,parseE,0.143
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,Eval.run,0.022
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,unparseE,0.007
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,Eval.run,0.024
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,prepareLiveUpdates,0.483
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,Run,0.684
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,parseE,0.013
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,prepareLiveUpdates,0.005
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,Run,0.022
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,parseE,0.127
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,unparseE,0.005
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,valToIndexedTree,0.119
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,valToIndexedTree,0.116
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,prepareLiveUpdates,0.651
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,Run,1.028
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,parseE,0.09
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,prepareLiveUpdates,0.002
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,Run,0.1
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,parseE,0.026
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,prepareLiveUpdates,0.005
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,Run,0.035
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,parseE,0.139
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,Eval.run,0.014
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,Eval.run,0.016
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,prepareLiveUpdates,1.529
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,Run,1.705
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,parseE,0.061
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,Eval.run,0.056
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,Eval.run,0.062
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,prepareLiveUpdates,0.197
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,Run,0.381
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,parseE,0.094
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,prepareLiveUpdates,0.005
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,Run,0.107
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,parseE,0.037
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,prepareLiveUpdates,0.002
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,Run,0.047
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,parseE,0.278
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,unparseE,0.012
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,prepareLiveUpdates,0.017
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,Run,0.331
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,parseE,0.03
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,Run,0.041
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,parseE,0.048
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,Run,0.056
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,parseE,0.033
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,prepareLiveUpdates,0.034
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,Run,0.074
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,parseE,0.095
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,Eval.run,0.009
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,Eval.run,0.013
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,prepareLiveUpdates,0.15
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,Run,0.274
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,parseE,0.028
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,Run,0.043
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,parseE,0.118
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,valToIndexedTree,0.114
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,valToIndexedTree,0.116
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,prepareLiveUpdates,0.857
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,Run,1.217
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,parseE,0.118
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,Eval.run,0.124
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,Eval.run,0.123
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,prepareLiveUpdates,0.83
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,Run,1.203
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,parseE,0.109
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,prepareLiveUpdates,0.004
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,Run,0.128
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,parseE,0.04
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,Eval.run,0.083
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,Eval.run,0.055
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,prepareLiveUpdates,0.614
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,Run,0.803
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,parseE,0.047
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,prepareLiveUpdates,0.01
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,Run,0.064
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,parseE,0.018
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,prepareLiveUpdates,0.011
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,Run,0.044
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,parseE,0.066
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,prepareLiveUpdates,0.017
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,Run,0.092
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,parseE,0.26
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,Eval.run,0.013
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,unparseE,0.006
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,prepareLiveUpdates,0.023
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,Run,0.316
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,parseE,0.113
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,Eval.run,0.013
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,prepareLiveUpdates,0.014
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,Run,0.159
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,parseE,0.018
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,prepareLiveUpdates,0.007
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,Run,0.03
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,parseE,0.361
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,Eval.run,0.087
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,unparseE,0.009
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,Eval.run,0.055
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,prepareLiveUpdates,0.004
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,Run,0.518
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,parseE,0.264
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,Eval.run,0.149
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,unparseE,0.009
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,valToIndexedTree,0.006
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,Eval.run,0.151
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,valToIndexedTree,0.006
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,prepareLiveUpdates,0.091
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,Run,0.678
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,parseE,0.042
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,Eval.run,0.038
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,Eval.run,0.021
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,prepareLiveUpdates,0.09
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,Run,0.195
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,parseE,0.069
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,prepareLiveUpdates,0.005
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,Run,0.086
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,parseE,0.12
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,Eval.run,0.024
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,Eval.run,0.025
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,prepareLiveUpdates,5.971
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,Run,6.148
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,parseE,0.034
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,Run,0.048
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,parseE,0.047
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,Eval.run,0.021
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,Eval.run,0.023
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,prepareLiveUpdates,0.036
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,Run,0.131
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,parseE,0.077
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,Eval.run,0.009
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,prepareLiveUpdates,1.818
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,Run,1.916
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,parseE,0.039
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,Eval.run,0.014
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,prepareLiveUpdates,0.045
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,Run,0.113
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,parseE,0.117
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,valToIndexedTree,0.005
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,valToIndexedTree,0.006
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,prepareLiveUpdates,0.05
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,Run,0.206
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,parseE,0.079
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,prepareLiveUpdates,0.011
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,Run,0.106
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,parseE,0.017
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,prepareLiveUpdates,0.007
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,Run,0.039
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,parseE,0.147
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,Eval.run,0.049
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,Eval.run,0.045
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,prepareLiveUpdates,0.009
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,Run,0.257
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,parseE,0.083
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,prepareLiveUpdates,0.016
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,Run,0.119
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,parseE,0.101
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,Eval.run,0.024
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,valToIndexedTree,0.006
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,Eval.run,0.022
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,valToIndexedTree,0.007
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,prepareLiveUpdates,0.317
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,Run,0.483
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,parseE,0.126
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,Eval.run,0.022
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,unparseE,0.007
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,Eval.run,0.014
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,prepareLiveUpdates,0.112
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,Run,0.286
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,parseE,0.145
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,Eval.run,0.024
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,unparseE,0.007
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,Eval.run,0.017
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,prepareLiveUpdates,0.831
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,Run,1.027
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,parseE,0.044
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,Eval.run,0.014
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,unparseE,0.006
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,Eval.run,0.013
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,prepareLiveUpdates,0.022
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,Run,0.102
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,parseE,0.017
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,prepareLiveUpdates,0.007
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,Run,0.044
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,parseE,0.087
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,unparseE,0.006
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,prepareLiveUpdates,0.009
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,Run,0.111
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,parseE,0.03
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,prepareLiveUpdates,0.009
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,Run,0.044
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,parseE,0.016
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,prepareLiveUpdates,0.008
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,Run,0.028
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,parseE,0.031
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,Eval.run,0.013
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,prepareLiveUpdates,0.055
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,Run,0.114
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,parseE,0.035
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,prepareLiveUpdates,0.096
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,Run,0.152
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,parseE,0.085
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,unparseE,0.005
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,prepareLiveUpdates,0.019
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,Run,0.125
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,parseE,0.04
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,prepareLiveUpdates,0.001
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,Run,0.047
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,parseE,0.032
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,Eval.run,0.026
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,Eval.run,0.027
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,prepareLiveUpdates,0.013
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,Run,0.101
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,parseE,0.042
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,prepareLiveUpdates,0.005
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,Run,0.055
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,parseE,0.109
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,Eval.run,0.021
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,Eval.run,0.02
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,prepareLiveUpdates,0.155
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,Run,0.311
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,parseE,0.059
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,Eval.run,0.058
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,Eval.run,0.065
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,prepareLiveUpdates,0.252
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,Run,0.44
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,parseE,0.011
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,Run,0.02
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,parseE,0.034
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,prepareLiveUpdates,0.025
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,Run,0.066
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,parseE,0.039
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,Eval.run,0.026
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,Eval.run,0.019
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,prepareLiveUpdates,0.107
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,Run,0.195
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,parseE,0.289
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,Eval.run,0.014
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,unparseE,0.013
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,prepareLiveUpdates,0.02
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,Run,0.348
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,parseE,0.054
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,Eval.run,0.016
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,Eval.run,0.014
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,prepareLiveUpdates,0.064
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,Run,0.155
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,parseE,0.27
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,unparseE,0.006
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,Eval.run,0.015
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,prepareLiveUpdates,0.021
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,Run,0.328
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,parseE,0.048
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,Run,0.058
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,parseE,0.071
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,Run,0.087
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,parseE,0.079
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,prepareLiveUpdates,0.014
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,Run,0.111
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,parseE,0.049
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,prepareLiveUpdates,0.023
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,Run,0.087
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,parseE,0.055
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,Eval.run,0.027
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,Eval.run,0.026
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,prepareLiveUpdates,0.009
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,Run,0.122
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,parseE,0.088
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,Eval.run,0.028
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,valToIndexedTree,0.005
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,Eval.run,0.028
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,valToIndexedTree,0.005
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,prepareLiveUpdates,0.4
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,Run,0.558
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,parseE,0.155
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,Eval.run,0.027
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,unparseE,0.005
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,Eval.run,0.024
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,prepareLiveUpdates,6.314
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,Run,6.531
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,parseE,0.083
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,Eval.run,0.059
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,Eval.run,0.064
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,prepareLiveUpdates,0.026
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,Run,0.237
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,parseE,0.015
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,Run,0.021
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,parseE,0.025
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,Run,0.037
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,parseE,0.033
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,prepareLiveUpdates,0.005
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,Run,0.047
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,parseE,0.019
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,prepareLiveUpdates,0.007
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,Run,0.03
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,parseE,0.075
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,Eval.run,0.009
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,prepareLiveUpdates,1.798
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,Run,1.895
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,parseE,0.044
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,Eval.run,0.013
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,Eval.run,0.018
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,prepareLiveUpdates,0.029
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,Run,0.109
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,parseE,0.047
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,Eval.run,0.023
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,Eval.run,0.02
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,prepareLiveUpdates,0.046
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,Run,0.141
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,parseE,0.101
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,prepareLiveUpdates,0.005
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,Run,0.118
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,parseE,0.066
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,prepareLiveUpdates,0.017
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,Run,0.093
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,parseE,0.113
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,valToIndexedTree,0.006
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,valToIndexedTree,0.008
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,prepareLiveUpdates,0.065
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,Run,0.222
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,parseE,0.119
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,valToIndexedTree,0.118
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,valToIndexedTree,0.117
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,prepareLiveUpdates,0.74
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,Run,1.11
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,parseE,0.12
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,Run,0.137
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,parseE,0.082
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,Eval.run,0.009
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,unparseE,0.005
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,prepareLiveUpdates,2.272
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,Run,2.378
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,parseE,0.052
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,Eval.run,0.009
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,prepareLiveUpdates,0.025
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,Run,0.102
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,parseE,0.037
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,prepareLiveUpdates,0.035
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,Run,0.078
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,parseE,0.138
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,unparseE,0.005
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,valToIndexedTree,0.179
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,valToIndexedTree,0.152
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,prepareLiveUpdates,1.281
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,Run,1.768
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,parseE,0.113
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,Eval.run,0.025
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,valToIndexedTree,0.006
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,Eval.run,0.026
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,valToIndexedTree,0.004
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,prepareLiveUpdates,0.325
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,Run,0.508
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,parseE,0.11
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,Eval.run,0.013
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,valToIndexedTree,0.005
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,prepareLiveUpdates,0.013
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,Run,0.16
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,parseE,0.018
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,prepareLiveUpdates,0.01
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,Run,0.044
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,parseE,0.021
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,prepareLiveUpdates,0.051
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,Run,0.08
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,parseE,0.018
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,prepareLiveUpdates,0.01
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,Run,0.032
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,parseE,0.084
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,prepareLiveUpdates,0.016
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,Run,0.122
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,parseE,0.034
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,prepareLiveUpdates,0.002
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,Run,0.046
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,parseE,0.044
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,Eval.run,0.057
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,Eval.run,0.059
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,prepareLiveUpdates,0.532
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,Run,0.702
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,parseE,0.367
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,Eval.run,0.059
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,unparseE,0.008
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,Eval.run,0.058
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,Run,0.5
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,parseE,0.115
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,Eval.run,0.061
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,Eval.run,0.061
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,prepareLiveUpdates,1.29
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,Run,1.538
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,parseE,0.048
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,Run,0.061
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,parseE,0.01
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,Run,0.018
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,parseE,0.091
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,prepareLiveUpdates,0.002
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,Run,0.102
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,parseE,0.111
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,Eval.run,0.126
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,Eval.run,0.126
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,prepareLiveUpdates,0.719
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,Run,1.09
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,parseE,0.125
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,valToIndexedTree,0.121
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,valToIndexedTree,0.118
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,prepareLiveUpdates,0.66
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,Run,1.04
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,parseE,0.161
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,Eval.run,0.056
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,unparseE,0.005
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,Eval.run,0.048
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,prepareLiveUpdates,0.007
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,Run,0.28
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,parseE,0.029
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,prepareLiveUpdates,0.002
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,Run,0.045
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,parseE,0.038
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,prepareLiveUpdates,0.039
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,Run,0.106
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,parseE,0.013
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,prepareLiveUpdates,0.004
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,Run,0.021
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,parseE,0.142
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,Eval.run,0.026
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,Eval.run,0.025
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,prepareLiveUpdates,0.52
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,Run,0.721
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,parseE,0.139
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,prepareLiveUpdates,0.008
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,Run,0.171
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,parseE,0.493
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,unparseE,0.012
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,prepareLiveUpdates,0.005
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,Run,0.529
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,parseE,0.269
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,Eval.run,0.157
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,unparseE,0.007
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,valToIndexedTree,0.005
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,Eval.run,0.158
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,valToIndexedTree,0.005
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,prepareLiveUpdates,0.073
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,Run,0.674
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,parseE,0.066
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,prepareLiveUpdates,0.004
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,Run,0.079
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,parseE,0.039
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,prepareLiveUpdates,0.015
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,Run,0.062
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,parseE,0.12
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,unparseE,0.006
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,prepareLiveUpdates,0.005
+Chrome/49.0.2623.87 Safari/537.36,xySlider,Fair,Run,0.144
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,parseE,0.019
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,Eval.run,0.016
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Widgets,Fair,Run,0.056
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,parseE,0.11
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,Eval.run,0.013
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,unparseE,0.008
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,valToIndexedTree,0.003
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,Eval.run,0.014
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,prepareLiveUpdates,0.022
+Chrome/49.0.2623.87 Safari/537.36,Pie Chart,Fair,Run,0.175
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,parseE,0.017
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,prepareLiveUpdates,0.018
+Chrome/49.0.2623.87 Safari/537.36,Triangles,Fair,Run,0.049
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,parseE,0.38
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,Eval.run,0.059
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,unparseE,0.014
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,Eval.run,0.058
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel Slideshow,Fair,Run,0.518
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,parseE,0.049
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,Eval.run,0.023
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,Eval.run,0.021
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,prepareLiveUpdates,0.042
+Chrome/49.0.2623.87 Safari/537.36,Stars,Fair,Run,0.139
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,parseE,0.035
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,Eval.run,0.015
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,prepareLiveUpdates,0.036
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task After,Fair,Run,0.103
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,parseE,0.036
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,prepareLiveUpdates,0.022
+Chrome/49.0.2623.87 Safari/537.36,Ferris Task Before,Fair,Run,0.075
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,parseE,0.112
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,prepareLiveUpdates,0.019
+Chrome/49.0.2623.87 Safari/537.36,Cover Logo,Fair,Run,0.148
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,parseE,0.054
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,Eval.run,0.009
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,prepareLiveUpdates,0.019
+Chrome/49.0.2623.87 Safari/537.36,Grid Tile,Fair,Run,0.097
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,parseE,0.015
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Paths 4,Fair,Run,0.022
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,parseE,0.017
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,prepareLiveUpdates,0.009
+Chrome/49.0.2623.87 Safari/537.36,N Boxes Sli,Fair,Run,0.035
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,parseE,0.114
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,Eval.run,0.129
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,Eval.run,0.126
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,prepareLiveUpdates,0.878
+Chrome/49.0.2623.87 Safari/537.36,Matrix Transformations,Fair,Run,1.255
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,parseE,0.264
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,unparseE,0.013
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,prepareLiveUpdates,0.017
+Chrome/49.0.2623.87 Safari/537.36,Interface Buttons,Fair,Run,0.321
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,parseE,0.483
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,unparseE,0.013
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Hilbert Curve Animation,Fair,Run,0.523
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,parseE,0.033
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Rings,Fair,Run,0.047
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,parseE,0.018
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,prepareLiveUpdates,0.071
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes,Fair,Run,0.097
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,parseE,0.025
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,prepareLiveUpdates,0.005
+Chrome/49.0.2623.87 Safari/537.36,Paths 5,Fair,Run,0.036
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,parseE,0.02
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,prepareLiveUpdates,0.013
+Chrome/49.0.2623.87 Safari/537.36,Misc Shapes,Fair,Run,0.037
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,parseE,0.038
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,prepareLiveUpdates,0.014
+Chrome/49.0.2623.87 Safari/537.36,Zones,Fair,Run,0.059
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,parseE,0.026
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Color Picker,Fair,Run,0.044
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,parseE,0.135
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,Eval.run,0.026
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,Eval.run,0.025
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,prepareLiveUpdates,0.505
+Chrome/49.0.2623.87 Safari/537.36,Stick Figures,Fair,Run,0.701
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,parseE,0.1
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Sliders,Fair,Run,0.115
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,parseE,0.034
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,prepareLiveUpdates,0.002
+Chrome/49.0.2623.87 Safari/537.36,Buttons,Fair,Run,0.042
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,parseE,0.079
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,valToIndexedTree,0.004
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,prepareLiveUpdates,2.297
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task After,Fair,Run,2.4
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,parseE,0.074
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,prepareLiveUpdates,1.788
+Chrome/49.0.2623.87 Safari/537.36,Keyboard Task Before,Fair,Run,1.881
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,parseE,0.091
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,Eval.run,0.009
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,Eval.run,0.019
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,prepareLiveUpdates,0.153
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright,Fair,Run,0.28
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,parseE,0.03
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Rounded Rect,Fair,Run,0.048
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,parseE,0.134
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,Eval.run,0.009
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,prepareLiveUpdates,0.015
+Chrome/49.0.2623.87 Safari/537.36,Bar Graph,Fair,Run,0.173
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,parseE,0.056
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,Eval.run,0.058
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,Eval.run,0.059
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,prepareLiveUpdates,0.196
+Chrome/49.0.2623.87 Safari/537.36,US-13 Flag,Fair,Run,0.377
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,parseE,0.033
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,Eval.run,0.01
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,prepareLiveUpdates,0.038
+Chrome/49.0.2623.87 Safari/537.36,Clique,Fair,Run,0.098
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,parseE,0.033
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,prepareLiveUpdates,0.018
+Chrome/49.0.2623.87 Safari/537.36,Paths 2,Fair,Run,0.057
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,parseE,0.053
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,Eval.run,0.013
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,Eval.run,0.014
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,prepareLiveUpdates,0.047
+Chrome/49.0.2623.87 Safari/537.36,US-50 Flag,Fair,Run,0.135
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,parseE,0.071
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,prepareLiveUpdates,0.005
+Chrome/49.0.2623.87 Safari/537.36,Botanic Garden Logo,Fair,Run,0.086
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,parseE,0.117
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,Eval.run,0.056
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,Eval.run,0.079
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,valToIndexedTree,0.004
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,prepareLiveUpdates,1.274
+Chrome/49.0.2623.87 Safari/537.36,Frank Lloyd Wright B,Fair,Run,1.538
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,parseE,0.123
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,Eval.run,0.023
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,unparseE,0.005
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,Eval.run,0.023
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,prepareLiveUpdates,5.82
+Chrome/49.0.2623.87 Safari/537.36,Wave Boxes Grid,Fair,Run,6.001
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,parseE,0.083
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,prepareLiveUpdates,0.016
+Chrome/49.0.2623.87 Safari/537.36,Solar System,Fair,Run,0.114
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,parseE,0.037
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,prepareLiveUpdates,0.035
+Chrome/49.0.2623.87 Safari/537.36,Elm Logo,Fair,Run,0.078
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,parseE,0.039
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,Eval.run,0.064
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,valToIndexedTree,0.004
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,Eval.run,0.073
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,valToIndexedTree,0.004
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,prepareLiveUpdates,0.599
+Chrome/49.0.2623.87 Safari/537.36,Spiral Spiral-Graph,Fair,Run,0.79
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,parseE,0.015
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,unparseE,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,prepareLiveUpdates,0.004
+Chrome/49.0.2623.87 Safari/537.36,Paths 1,Fair,Run,0.023
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,parseE,0.087
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,Eval.run,0.031
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,unparseE,0.006
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,valToIndexedTree,0.005
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,Eval.run,0.027
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,valToIndexedTree,0.006
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,prepareLiveUpdates,0.393
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 1,Fair,Run,0.556
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,parseE,0.016
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,prepareLiveUpdates,0.009
+Chrome/49.0.2623.87 Safari/537.36,3 Boxes,Fair,Run,0.029
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,parseE,0.061
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,Eval.run,0.027
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,Eval.run,0.026
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,prepareLiveUpdates,0.01
+Chrome/49.0.2623.87 Safari/537.36,Logo 2,Fair,Run,0.133
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,parseE,0.11
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,Eval.run,0.013
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,valToIndexedTree,0.008
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,valToIndexedTree,0.005
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,prepareLiveUpdates,0.05
+Chrome/49.0.2623.87 Safari/537.36,Sailboat,Fair,Run,0.203
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,parseE,0.058
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,Eval.run,0.009
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,prepareLiveUpdates,0.03
+Chrome/49.0.2623.87 Safari/537.36,N Boxes,Fair,Run,0.111
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,parseE,0.047
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P,Fair,Run,0.063
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,parseE,0.034
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,Eval.run,0.009
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,prepareLiveUpdates,0.057
+Chrome/49.0.2623.87 Safari/537.36,Polygons,Fair,Run,0.113
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,parseE,0.262
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,Eval.run,0.152
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,unparseE,0.007
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,valToIndexedTree,0.005
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,Eval.run,0.156
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,valToIndexedTree,0.005
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,prepareLiveUpdates,0.075
+Chrome/49.0.2623.87 Safari/537.36,Survey Results,Fair,Run,0.666
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,parseE,0.089
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,prepareLiveUpdates,0.029
+Chrome/49.0.2623.87 Safari/537.36,Active Trans Logo,Fair,Run,0.141
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,parseE,0.138
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,unparseE,0.004
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,valToIndexedTree,0.189
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,valToIndexedTree,0.156
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,prepareLiveUpdates,1.333
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task Before,Fair,Run,1.832
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,parseE,0.041
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,Eval.run,0.02
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,Eval.run,0.022
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,prepareLiveUpdates,0.092
+Chrome/49.0.2623.87 Safari/537.36,Chicago Flag,Fair,Run,0.179
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,parseE,0.088
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,prepareLiveUpdates,0.005
+Chrome/49.0.2623.87 Safari/537.36,POP-PL Logo,Fair,Run,0.104
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,parseE,0.269
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,Eval.run,0.012
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,unparseE,0.006
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,Eval.run,0.011
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,prepareLiveUpdates,0.02
+Chrome/49.0.2623.87 Safari/537.36,Bezier Curves,Fair,Run,0.322
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,parseE,0.009
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Thaw/Freeze,Fair,Run,0.019
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,parseE,0.013
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,Eval.run,0
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Paths 3,Fair,Run,0.024
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,parseE,0.114
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,unparseE,0.005
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,prepareLiveUpdates,0.006
+Chrome/49.0.2623.87 Safari/537.36,Haskell.org Logo,Fair,Run,0.135
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,parseE,0.121
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,Eval.run,0.005
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,unparseE,0.005
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,valToIndexedTree,0.117
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,Eval.run,0.004
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,valToIndexedTree,0.121
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,prepareLiveUpdates,0.677
+Chrome/49.0.2623.87 Safari/537.36,Tessellation Task After,Fair,Run,1.051
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,parseE,0.123
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,Eval.run,0.006
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,valToIndexedTree,0.116
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,valToIndexedTree,0.117
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,prepareLiveUpdates,0.75
+Chrome/49.0.2623.87 Safari/537.36,Tessellation 2,Fair,Run,1.121
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,parseE,0.088
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,Eval.run,0.061
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,Eval.run,0.064
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,prepareLiveUpdates,0.026
+Chrome/49.0.2623.87 Safari/537.36,Logo Sizes,Fair,Run,0.243
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,parseE,0.047
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,prepareLiveUpdates,0.004
+Chrome/49.0.2623.87 Safari/537.36,Sample Rotations,Fair,Run,0.059
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,parseE,0.035
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,Eval.run,0.028
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,Eval.run,0.027
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,prepareLiveUpdates,0.009
+Chrome/49.0.2623.87 Safari/537.36,Logo,Fair,Run,0.103
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,parseE,0.138
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,Eval.run,0.013
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,Eval.run,0.018
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,prepareLiveUpdates,1.738
+Chrome/49.0.2623.87 Safari/537.36,Keyboard,Fair,Run,1.913
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,parseE,0.057
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,Eval.run,0.002
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,prepareLiveUpdates,0.003
+Chrome/49.0.2623.87 Safari/537.36,Wikimedia Logo,Fair,Run,0.066
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,parseE,0.068
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,unparseE,0.002
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,Eval.run,0.003
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,prepareLiveUpdates,0.018
+Chrome/49.0.2623.87 Safari/537.36,French Sudan Flag,Fair,Run,0.094
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,parseE,0.061
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,valToIndexedTree,0.002
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,prepareLiveUpdates,0.009
+Chrome/49.0.2623.87 Safari/537.36,Eye Icon,Fair,Run,0.079
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,parseE,0.104
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,Eval.run,0.026
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,valToIndexedTree,0.004
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,Eval.run,0.026
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,valToIndexedTree,0.004
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,prepareLiveUpdates,0.338
+Chrome/49.0.2623.87 Safari/537.36,Floral Logo 2,Fair,Run,0.509
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,parseE,0.15
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,Eval.run,0.054
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,unparseE,0.005
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,Eval.run,0.049
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,prepareLiveUpdates,0.008
+Chrome/49.0.2623.87 Safari/537.36,Tile Pattern,Fair,Run,0.269
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,parseE,0.033
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,Eval.run,0.001
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,prepareLiveUpdates,0.004
+Chrome/49.0.2623.87 Safari/537.36,Lillicon P, v2,Fair,Run,0.043
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,parseE,0.112
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,Eval.run,0.022
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,unparseE,0.003
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,valToIndexedTree,0.001
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,Eval.run,0.023
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,prepareLiveUpdates,0.129
+Chrome/49.0.2623.87 Safari/537.36,Fractal Tree,Fair,Run,0.291
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,parseE,0.046
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,Eval.run,0.008
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,unparseE,0.001
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,Eval.run,0.007
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,valToIndexedTree,0
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,prepareLiveUpdates,0.016
+Chrome/49.0.2623.87 Safari/537.36,Ferris Wheel,Fair,Run,0.081
