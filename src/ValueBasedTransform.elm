@@ -189,7 +189,7 @@ makeEqual_ originalExp featureA featureB slate syncOptions =
 
     (Just (featureAName, featureAEqn),
      Just (featureBName, featureBEqn)) ->
-      let locset =
+      let unfrozenLocset =
         Set.fromList <|
           (equationLocs syncOptions featureAEqn) ++
           (equationLocs syncOptions featureBEqn)
@@ -207,13 +207,14 @@ makeEqual_ originalExp featureA featureB slate syncOptions =
               Just resultLocEqn ->
                 Just (locId, resultLocEqn)
       in
-      case findSolution (Set.toList locset) of
+      case findSolution (Set.toList unfrozenLocset) of
         Nothing ->
           originalExp
 
         Just (dependentLocId, resultLocEqn) ->
-          let locIdSet = Set.insert dependentLocId <| locEqnLocIds syncOptions resultLocEqn in
-          let locset' = Set.filter (\(locId, _, _) -> Set.member locId locIdSet) locset in
+          let locIdSet = Set.insert dependentLocId <| locEqnLocIds resultLocEqn in
+          let allLocs = Set.fromList <| getAllLocs originalExp in
+          let locset' = Set.filter (\(locId, _, _) -> Set.member locId locIdSet) allLocs in
           let subst = substOf originalExp in
           let commonScope =
             deepestCommonScope originalExp locset' syncOptions
@@ -416,7 +417,7 @@ wrapWithLets listOfListsOfNamesAndAssigns isTopLevel bodyExp =
       let template =
         case parseE templateStr of
           Ok templateExp -> templateExp
-          Err err        -> Debug.crash <| "Dig template err: " ++ err
+          Err err        -> Debug.crash <| "Dig template err: " ++ err ++ "\n\n" ++ templateStr
       in
       -- Finish by replacing the dummy body:
       let wrappedWithLets =
@@ -727,13 +728,13 @@ locEqnTerms targetLocId eqn =
             Nothing
 
 
-locEqnLocIds syncOptions eqn =
+locEqnLocIds eqn =
   case eqn of
     LocEqnConst _       -> Set.empty
     LocEqnLoc locId     -> Set.singleton locId
     LocEqnOp _ children ->
       List.foldl
-          (\child locs -> Set.union locs <| locEqnLocIds syncOptions child)
+          (\child locs -> Set.union locs <| locEqnLocIds child)
           Set.empty
           children
 
@@ -785,7 +786,7 @@ locEqnToLittle locIdToName eqn =
     LocEqnLoc locId ->
       case Dict.get locId locIdToName of
         Just ident -> ident
-        Nothing    -> "?"
+        Nothing    -> let _ = (debugLog "missing locId" locId) in "?"
 
     LocEqnOp op childEqns ->
       let childLittleStrs = List.map (locEqnToLittle locIdToName) childEqns in

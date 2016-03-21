@@ -517,6 +517,18 @@ unfrozenLocIdsAndNumbers exp =
     []
     exp
 
+
+getAllLocs : Exp -> List Loc
+getAllLocs exp =
+  foldExpViaE__
+    (\e__ acc ->
+      case e__ of
+        EConst _ n loc _ -> loc :: acc
+        _                -> acc
+    )
+    []
+    exp
+
 {-
 -- for now, LocId instead of EId
 type alias ESubst = Dict.Dict LocId Exp__
