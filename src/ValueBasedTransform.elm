@@ -213,15 +213,17 @@ makeEqual_ originalExp featureA featureB slate syncOptions =
 
         Just (dependentLocId, resultLocEqn) ->
           let locIdSet = Set.insert dependentLocId <| locEqnLocIds resultLocEqn in
-          let allLocs = Set.fromList <| getAllLocs originalExp in
-          let locset' = Set.filter (\(locId, _, _) -> Set.member locId locIdSet) allLocs in
+          -- We will duplicate frozen constants into the little equation string.
+          -- Otherwise, math values like 0, 1, 2 get assigned to variable names.
+          -- Consequently, we don't need to dig out higher than the frozen locs.
+          let locsetToDig = Set.filter (\(locId, _, _) -> Set.member locId locIdSet) unfrozenLocset in
           let subst = substOf originalExp in
           let commonScope =
-            deepestCommonScope originalExp locset' syncOptions
+            deepestCommonScope originalExp locsetToDig syncOptions
           in
           let existingNames = identifiersSet originalExp in
           let (dependentLocset, independentLocset) =
-            Set.partition (\(locId, _, _) -> locId == dependentLocId) locset'
+            Set.partition (\(locId, _, _) -> locId == dependentLocId) locsetToDig
           in
           let dependentLoc    = dependentLocset   |> Set.toList |> Utils.head_ in
           let independentLocs = independentLocset |> Set.toList in
@@ -262,7 +264,17 @@ makeEqual_ originalExp featureA featureB slate syncOptions =
                 independentLocIds
           in
           let dependentLocNameStr  = Utils.justGet dependentLocId locIdToNewName in
-          let dependentLocValueStr = locEqnToLittle locIdToNewName resultLocEqn in
+          let frozenLocIdToLittle =
+            (frozenLocIdsAndNumbers originalExp)
+            |> Dict.fromList
+            |> Dict.map (\locId n -> (toString n) ++ "!")
+          in
+          let locIdToLittle =
+            Dict.union
+                frozenLocIdToLittle
+                locIdToNewName
+          in
+          let dependentLocValueStr = locEqnToLittle locIdToLittle resultLocEqn in
           let listOfListsOfNamesAndAssigns =
             [ Utils.zip independentLocNames independentLocValueStrs
             , [(dependentLocNameStr, dependentLocValueStr)]
@@ -778,18 +790,18 @@ traceToLocEquation trace =
 
 
 locEqnToLittle : Dict.Dict LocId Ident -> LocEquation -> String
-locEqnToLittle locIdToName eqn =
+locEqnToLittle locIdToLittle eqn =
   case eqn of
     LocEqnConst n ->
       toString n ++ "!"
 
     LocEqnLoc locId ->
-      case Dict.get locId locIdToName of
-        Just ident -> ident
-        Nothing    -> let _ = (debugLog "missing locId" locId) in "?"
+      case Dict.get locId locIdToLittle of
+        Just littleStr -> littleStr
+        Nothing        -> let _ = (debugLog "missing locId" locId) in "?"
 
     LocEqnOp op childEqns ->
-      let childLittleStrs = List.map (locEqnToLittle locIdToName) childEqns in
+      let childLittleStrs = List.map (locEqnToLittle locIdToLittle) childEqns in
       "(" ++ strOp op ++ " " ++ String.join " " childLittleStrs ++ ")"
 
 

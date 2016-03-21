@@ -505,25 +505,30 @@ replaceConstsWithVars locIdToNewName exp =
   mapExpViaExp__ replacer exp
 
 
+-- These should use syncOptions
+-- Or we should remove the frozen by default config option
 unfrozenLocIdsAndNumbers : Exp -> List (LocId, Num)
 unfrozenLocIdsAndNumbers exp =
+  allLocsAndNumbers exp
+  |> List.filter (\((_, annotation, _), n) -> annotation /= "!")
+  |> List.map (\((locId, _, _), n) -> (locId, n))
+
+
+-- These should use syncOptions
+-- Or we should remove the frozen by default config option
+frozenLocIdsAndNumbers : Exp -> List (LocId, Num)
+frozenLocIdsAndNumbers exp =
+  allLocsAndNumbers exp
+  |> List.filter (\((_, annotation, _), n) -> annotation == "!")
+  |> List.map (\((locId, _, _), n) -> (locId, n))
+
+
+allLocsAndNumbers : Exp -> List (Loc, Num)
+allLocsAndNumbers exp =
   foldExpViaE__
     (\e__ acc ->
       case e__ of
-        EConst _ n (locId, "!", _) _ -> acc
-        EConst _ n (locId,   _, _) _ -> (locId, n) :: acc
-        _                            -> acc
-    )
-    []
-    exp
-
-
-getAllLocs : Exp -> List Loc
-getAllLocs exp =
-  foldExpViaE__
-    (\e__ acc ->
-      case e__ of
-        EConst _ n loc _ -> loc :: acc
+        EConst _ n loc _ -> (loc, n) :: acc
         _                -> acc
     )
     []
