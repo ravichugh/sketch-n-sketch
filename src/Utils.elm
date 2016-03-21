@@ -55,6 +55,12 @@ foldli f init xs =
 
 foldri f init xs = List.reverse (foldli f init xs)
 
+-- three passes, oh well
+filteri : ((Int, a) -> Bool) -> List a -> List a
+filteri f xs =
+  let n = List.length xs in
+  List.map snd (List.filter f (zip [1..n] xs))
+
 reverse2 (xs,ys) = (List.reverse xs, List.reverse ys)
 
 -- In:  [1, 2, 3]

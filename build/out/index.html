@@ -37,5 +37,10 @@
         var intializer = window.initializers[i];
         intializer(elmRuntime);
       }
+
+      // Prevent backspace from navigating back
+      document.body.onkeydown = function(e) {
+        if (e.keyCode == 8) { e.preventDefault(); }
+      };
     </script>
 </html>

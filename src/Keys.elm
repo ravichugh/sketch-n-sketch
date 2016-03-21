@@ -28,6 +28,8 @@ shiftLeft           = List.sort [keyShift, keyLeft]
 shiftRight          = List.sort [keyShift, keyRight]
 shiftUp             = List.sort [keyShift, keyUp]
 shiftDown           = List.sort [keyShift, keyDown]
+backspace           = List.sort [keyBackspace]
+delete              = List.sort [keyDelete]
 
 keyEnter            = 13
 keyEsc              = 27
@@ -38,3 +40,5 @@ keyLeft             = 37
 keyUp               = 38
 keyRight            = 39
 keyDown             = 40
+keyBackspace        = 8
+keyDelete           = 46 -- 127

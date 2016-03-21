@@ -984,6 +984,24 @@ offsetXY base1 base2 baseVal1 baseVal2 ws (n,t) eSubst =
     _ ->
       eSubst
 
+deleteSelectedBlobs model =
+  let (defs,mainExp) = splitExp model.inputExp in
+  case mainExp of
+    Blobs blobs f ->
+      let blobs' =
+        Utils.filteri
+           (\(i,_) -> not (Dict.member i model.selectedBlobs))
+           blobs
+      in
+      let code' = unparse (fuseExp (defs, Blobs blobs' f)) in
+      upstate Run
+        { model | code = code'
+              , history = addToHistory model.code model.history
+              , selectedBlobs = Dict.empty
+              }
+    _ ->
+      model
+
 
 --------------------------------------------------------------------------------
 -- Updating the Model
@@ -1677,7 +1695,10 @@ upstate evt old = case debugLog "Event" evt of
 
     KeysDown l ->
       -- let _ = Debug.log "keys" (toString l) in
-      { old | keysDown = l }
+      if l == Keys.backspace || l == Keys.delete then
+        deleteSelectedBlobs old
+      else
+        { old | keysDown = l }
 
 {-      case old.mode of
           SaveDialog _ -> old
