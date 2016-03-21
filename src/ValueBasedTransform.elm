@@ -195,12 +195,13 @@ makeEqual_ originalExp featureA featureB slate syncOptions =
           (equationLocs syncOptions featureBEqn)
       in
       let findSolution locs =
+        let frozenLocIdToNum = Dict.fromList (frozenLocIdsAndNumbers originalExp) in
         case locs of
           [] ->
             Nothing
 
           (locId, _, _)::rest ->
-            case solveForLoc locId featureAEqn featureBEqn of
+            case solveForLoc locId frozenLocIdToNum featureAEqn featureBEqn of
               Nothing ->
                 findSolution rest
 
@@ -213,8 +214,6 @@ makeEqual_ originalExp featureA featureB slate syncOptions =
 
         Just (dependentLocId, resultLocEqn) ->
           let locIdSet = Set.insert dependentLocId <| locEqnLocIds resultLocEqn in
-          -- We will duplicate frozen constants into the little equation string.
-          -- Otherwise, math values like 0, 1, 2 get assigned to variable names.
           -- Consequently, we don't need to dig out higher than the frozen locs.
           let locsetToDig = Set.filter (\(locId, _, _) -> Set.member locId locIdSet) unfrozenLocset in
           let subst = substOf originalExp in
@@ -264,17 +263,7 @@ makeEqual_ originalExp featureA featureB slate syncOptions =
                 independentLocIds
           in
           let dependentLocNameStr  = Utils.justGet dependentLocId locIdToNewName in
-          let frozenLocIdToLittle =
-            (frozenLocIdsAndNumbers originalExp)
-            |> Dict.fromList
-            |> Dict.map (\locId n -> (toString n) ++ "!")
-          in
-          let locIdToLittle =
-            Dict.union
-                frozenLocIdToLittle
-                locIdToNewName
-          in
-          let dependentLocValueStr = locEqnToLittle locIdToLittle resultLocEqn in
+          let dependentLocValueStr = locEqnToLittle locIdToNewName resultLocEqn in
           let listOfListsOfNamesAndAssigns =
             [ Utils.zip independentLocNames independentLocValueStrs
             , [(dependentLocNameStr, dependentLocValueStr)]
@@ -497,18 +486,25 @@ equationLocs syncOptions eqn =
 -- Must be linear in the locId solved for.
 --
 -- Convert to just locIds (variables) and constants
-solveForLoc : LocId -> FeatureEquation -> FeatureEquation -> Maybe LocEquation
-solveForLoc locId rhs lhs =
+solveForLoc : LocId -> Dict.Dict LocId Num -> FeatureEquation -> FeatureEquation -> Maybe LocEquation
+solveForLoc locId locIdToNum rhs lhs =
   -- Feature equation contains feature operations and trace operations.
   -- Normalize to simple equations on locIds (variables).
   let
     rhs' = featureEquationToLocEquation rhs
     lhs' = featureEquationToLocEquation lhs
   in
+  -- We will duplicate frozen constants into the little equation
+  -- string. Otherwise, math values like 0, 1, 2 get assigned to
+  -- variable names.
+  let
+    rhs'' = constantifyLocs locIdToNum rhs'
+    lhs'' = constantifyLocs locIdToNum lhs'
+  in
   -- Transform   rhs' - lhs' = 0
   -- to          coeff*x^pow + rest = 0
   -- where x is our target loc
-  case locEqnTerms locId (LocEqnOp Minus [rhs', lhs']) of
+  case locEqnTerms locId (LocEqnOp Minus [rhs'', lhs'']) of
     Just (locPow, locCoeff, rest) ->
       if locPow == 0 || locCoeff == LocEqnConst 0 then
         Nothing
@@ -610,7 +606,7 @@ locEqnSimplify eqn =
   if simplified == eqn then
     eqn
   else
-    Debug.log "double simplification"
+    debugLog "double simplification"
     <| locEqnSimplify simplified
 
 
@@ -787,6 +783,23 @@ traceToLocEquation trace =
 
     TrOp op traces ->
       LocEqnOp op (List.map traceToLocEquation traces)
+
+
+-- For all locId's in the locIdToNum dictionary, replace
+-- corresponding LocEqnLoc nodes with LocEqnConst nodes.
+constantifyLocs : Dict.Dict LocId Num -> LocEquation -> LocEquation
+constantifyLocs locIdToNum eqn =
+  case eqn of
+    LocEqnConst n ->
+      eqn
+
+    LocEqnLoc locId ->
+      case Dict.get locId locIdToNum of
+        Just n  -> LocEqnConst n
+        Nothing -> eqn
+
+    LocEqnOp op childEqns ->
+      LocEqnOp op <| List.map (constantifyLocs locIdToNum) childEqns
 
 
 locEqnToLittle : Dict.Dict LocId Ident -> LocEquation -> String
