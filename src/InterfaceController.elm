@@ -1071,7 +1071,8 @@ upstate evt old = case debugLog "Event" evt of
     MouseClick click ->
       let old =
         let (x,y) = click in
-        { old | randomColor = (old.randomColor + x + y) % 500 }
+        let lightestColor = 470 in
+        { old | randomColor = (old.randomColor + x + y) % lightestColor }
       in
       case old.mouseMode of
 
