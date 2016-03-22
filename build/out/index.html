@@ -41,6 +41,7 @@
       // Prevent backspace from navigating back
       document.body.onkeydown = function(e) {
         if (e.keyCode == 8) { e.preventDefault(); }
+        else if (e.keyCode == 68) { e.preventDefault(); } // 'd' for duplicate
       };
     </script>
 </html>

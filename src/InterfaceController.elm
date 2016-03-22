@@ -843,8 +843,8 @@ maybeFindAttr id kind attr attrs =
 --------------------------------------------------------------------------------
 -- Group Shapes
 
-selectedBlobsAndBounds : Model -> Dict.Dict Int (NumTr, NumTr, NumTr, NumTr)
-selectedBlobsAndBounds model =
+computeSelectedBlobsAndBounds : Model -> Dict.Dict Int (NumTr, NumTr, NumTr, NumTr)
+computeSelectedBlobsAndBounds model =
   let tree = snd model.slate in
   Dict.map
      (\blobId nodeId ->
@@ -853,20 +853,21 @@ selectedBlobsAndBounds model =
          Just (LangSvg.SvgNode "g" nodeAttrs _) ->
            case View.maybeFindBounds nodeAttrs of
              Just bounds -> bounds
-             Nothing     -> Debug.crash "selectedBlobsAndBounds"
+             Nothing     -> Debug.crash "computeSelectedBlobsAndBounds"
 
          Just (LangSvg.SvgNode "line" nodeAttrs _) ->
            let get attr = maybeFindAttr nodeId "line" attr nodeAttrs in
            case List.map .v_ [get "x1", get "y1", get "x2", get "y2"] of
              [VConst x1, VConst y1, VConst x2, VConst y2] ->
                (minNumTr x1 x2, minNumTr y1 y2, maxNumTr x1 x2, maxNumTr y1 y2)
-             _ -> Debug.crash "selectedBlobsAndBounds"
+             _ -> Debug.crash "computeSelectedBlobsAndBounds"
 
-         _ -> Debug.crash "selectedBlobsAndBounds"
+         _ -> Debug.crash "computeSelectedBlobsAndBounds"
      )
      model.selectedBlobs
 
-groupShapes model defs blobs f =
+-- TODO will later generalize this to additional kinds of defs
+selectedBlobsToSelectedVars model blobs =
   let n = List.length blobs in
   let selectedExps =
     List.filter (flip Dict.member model.selectedBlobs << fst)
@@ -879,7 +880,23 @@ groupShapes model defs blobs f =
     in
     Utils.filterJusts (List.map toVar selectedExps)
   in
-  -- let _ = Debug.log "selected\n" selectedVars in
+  selectedVars
+
+matchesAnySelectedVar selectedVars def =
+  let (_,p,_,_) = def in
+  let foo (_,x) =
+    case p.val of
+      PVar _ y _ -> x == y
+      _          -> False
+  in
+  List.any foo selectedVars
+
+groupShapes model defs blobs f =
+  let n = List.length blobs in
+  let selectedExps =
+    List.filter (flip Dict.member model.selectedBlobs << fst)
+                (Utils.zip [1..n] blobs) in
+  let selectedVars = selectedBlobsToSelectedVars model blobs in
   let newGroup = "newGroup" ++ toString model.genSymCount in
   let (defs', blobs') = groupAndRearrange model newGroup defs blobs selectedVars in
   let code' = unparse (fuseExp (defs', Blobs blobs' f)) in
@@ -891,25 +908,18 @@ groupShapes model defs blobs f =
             }
 
 groupAndRearrange model newGroup defs blobs selectedVars =
-  let selectedBlobs = selectedBlobsAndBounds model in
+  let selectedBlobsAndBounds = computeSelectedBlobsAndBounds model in
   let defs' =
-    let matches def =
-      let (_,p,_,_) = def in
-      let foo (_,x) =
-        case p.val of
-          PVar _ y _ -> x == y
-          _          -> False
-      in
-      List.any foo selectedVars in
+    let matches = matchesAnySelectedVar selectedVars in
     let (plucked, before, after) = pluckFromList matches defs in
     let selectedBlobIndices = List.map fst selectedVars in
     let (left, top, right, bot) =
       case selectedBlobIndices of
         [] -> Debug.crash "groupAndRearrange: shouldn't get here"
         i::is ->
-          let init = Utils.justGet i selectedBlobs in
+          let init = Utils.justGet i selectedBlobsAndBounds in
           let foo j (left,top,right,bot) =
-            let (a,b,c,d) = Utils.justGet j selectedBlobs in
+            let (a,b,c,d) = Utils.justGet j selectedBlobsAndBounds in
             (minNumTr left a, minNumTr top b, maxNumTr right c, maxNumTr bot d)
           in
           List.foldl foo init is
@@ -924,7 +934,7 @@ groupAndRearrange model newGroup defs blobs selectedVars =
       -- when the source expressions being rewritten are of the form
       --   (let [a b c d] [na nb nc nd] ...)
       let foo i acc =
-        let (a,b,c,d) = Utils.justGet i selectedBlobs in
+        let (a,b,c,d) = Utils.justGet i selectedBlobsAndBounds in
         if model.keysDown == Keys.shift then
           acc |> offsetX "" a |> offsetY " " b |> offsetX " " c |> offsetY " " d
         else
@@ -1035,6 +1045,54 @@ deleteSelectedBlobs model =
     _ ->
       model
 
+duplicateSelectedBlobs model =
+  let (defs,mainExp) = splitExp model.inputExp in
+  case mainExp of
+    Blobs blobs f ->
+      let (nextGenSym, newDefs, newBlobs) =
+        let selectedVars = selectedBlobsToSelectedVars model blobs in
+        let (nextGenSym_, newDefs_, newBlobs_) =
+          List.foldl
+             (\def (k,acc1,acc2) ->
+               if not (matchesAnySelectedVar selectedVars def)
+               then (k, acc1, acc2)
+               else
+                 let (ws1,p,e,ws2) = def in
+                 case p.val of
+                   PVar ws x wd ->
+                     let x' = x ++ "_copy" ++ toString k in
+                     let acc1' = (ws1, { p | val = PVar ws x' wd }, e, ws2) :: acc1 in
+                     let acc2' = eVar x' :: acc2 in
+                     (1 + k, acc1', acc2')
+                   _ ->
+                     let _ = Debug.log "duplicateSelectedBlobs: weird..." () in
+                     (k, acc1, acc2)
+             )
+             (model.genSymCount, [], [])
+             defs
+        in
+        (nextGenSym_, List.reverse newDefs_, List.reverse newBlobs_)
+      in
+      let code' =
+        let blobs' = blobs ++ newBlobs in
+        let defs' = defs ++ newDefs in
+        unparse (fuseExp (defs', Blobs blobs' f))
+      in
+      upstate Run
+        { model | code = code'
+                , history = addToHistory model.code model.history
+                , genSymCount = List.length newBlobs + model.genSymCount
+                }
+    _ ->
+      model
+
+{-
+shiftNum (n, t) = (30 + n, t)
+
+shiftDownAndRight (left, top, right, bot) =
+  (shiftNum left, shiftNum top, right, bot)
+-}
+
 
 --------------------------------------------------------------------------------
 -- Updating the Model
@@ -1073,8 +1131,9 @@ upstate evt old = case debugLog "Event" evt of
                  , history       = h
                  , editingMode   = Nothing
                  , caption       = Nothing
-                 , syncOptions   = Sync.syncOptionsOf old.syncOptions e }
-          in
+                 , syncOptions   = Sync.syncOptionsOf old.syncOptions e
+           }
+         in
           { new | mode = refreshMode_ new
                 , errorBox = Nothing }
         Err err ->
@@ -1732,10 +1791,20 @@ upstate evt old = case debugLog "Event" evt of
 
     KeysDown l ->
       -- let _ = Debug.log "keys" (toString l) in
-      if l == Keys.backspace || l == Keys.delete then
-        deleteSelectedBlobs old
+      let new = { old | keysDown = l } in
+      if editingMode new then new
+      else if l == Keys.escape then
+        { new | selectedFeatures = Set.empty, selectedBlobs = Dict.empty }
+      else if l == Keys.backspace || l == Keys.delete then
+        deleteSelectedBlobs new
+      -- TODO
+      -- else if l == Keys.metaPlus Keys.d then
+      -- else if l == Keys.metaPlus Keys.d || l == Keys.commandPlus Keys.d then
+      else if l == Keys.d then
+        let _ = Debug.log "copy" () in
+        duplicateSelectedBlobs new
       else
-        { old | keysDown = l }
+        new
 
 {-      case old.mode of
           SaveDialog _ -> old
