@@ -52,7 +52,7 @@ type alias Options =
 
 defaultOptions =
   { thawedByDefault = True
-  , feelingLucky = heuristicsFair
+  , feelingLucky = heuristicsBiased
   }
 
 syncOptionsOf oldOptions e =
