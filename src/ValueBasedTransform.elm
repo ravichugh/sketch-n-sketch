@@ -9,6 +9,7 @@ module ValueBasedTransform where
 import Lang exposing (..)
 import LangParser2 exposing (parseE, freshen, substOf)
 import LangUnparser exposing (unparse, traceToLittle, precedingWhitespace, addPrecedingWhitespace)
+import Eval
 import Sync
 import Utils
 import LangSvg
@@ -172,20 +173,53 @@ digHole originalExp selectedFeatures slate syncOptions =
   newExp
 
 
-makeEqual originalExp selectedFeatures slate syncOptions =
-  case (Set.toList selectedFeatures) of
-    [featureA, featureB] -> makeEqual_ originalExp featureA featureB slate syncOptions
-    _                    -> originalExp
+-- If given more than two features, run makeEqual_ on each overlapping pair.
+makeEqual originalExp selectedFeatures slideNumber movieNumber movieTime slate syncOptions =
+  let featureList = Set.toList selectedFeatures in
+  let relateMore exp =
+    case featureList of
+      -- If there's at least 2 more features...
+      _::featureB::featureC::otherFeatures ->
+        let slate =
+          let (val, _) = Eval.run exp in
+          LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val
+        in
+        makeEqual
+            exp
+            (Set.fromList <| featureB::featureC::otherFeatures)
+            slideNumber
+            movieNumber
+            movieTime
+            slate
+            syncOptions
+
+      _ ->
+        exp
+  in
+  case List.take 2 featureList of
+    [featureA, featureB] ->
+      let maybeNewExp =
+        makeEqual_ originalExp featureA featureB slate syncOptions
+      in
+      case maybeNewExp of
+        Just newExp ->
+          relateMore newExp
+
+        Nothing ->
+          relateMore originalExp
+
+    _ ->
+      originalExp
 
 
 makeEqual_ originalExp featureA featureB slate syncOptions =
   case (pluckFeatureEquationNamed featureA slate,
         pluckFeatureEquationNamed featureB slate) of
     (Nothing, _) ->
-      originalExp
+      Nothing
 
     (_, Nothing) ->
-      originalExp
+      Nothing
 
     (Just (featureAName, featureAEqn),
      Just (featureBName, featureBEqn)) ->
@@ -210,7 +244,7 @@ makeEqual_ originalExp featureA featureB slate syncOptions =
       in
       case findSolution (Set.toList unfrozenLocset) of
         Nothing ->
-          originalExp
+          Nothing
 
         Just (dependentLocId, resultLocEqn) ->
           let locIdSet = Set.insert dependentLocId <| locEqnLocIds resultLocEqn in
@@ -276,7 +310,7 @@ makeEqual_ originalExp featureA featureB slate syncOptions =
                 commonScope
                 originalExp
           in
-          newExp
+          Just newExp
 
 
 deepestCommonScope : Exp -> LocSet -> Sync.Options -> Exp

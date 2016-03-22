@@ -1962,7 +1962,14 @@ upstate evt old = case debugLog "Event" evt of
 
     MakeEqual ->
       let newExp =
-        ValueBasedTransform.makeEqual old.inputExp old.selectedFeatures old.slate old.syncOptions
+        ValueBasedTransform.makeEqual
+            old.inputExp
+            old.selectedFeatures
+            old.slideNumber
+            old.movieNumber
+            old.movieTime
+            old.slate
+            old.syncOptions
       in
       let (newVal, newWidgets) = Eval.run newExp in
       let (newSlate, newCode)  = slateAndCode old (newExp, newVal) in
