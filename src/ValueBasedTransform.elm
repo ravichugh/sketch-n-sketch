@@ -937,21 +937,43 @@ featureEquation nodeId kind feature nodeAttrs =
   let eqnVal attr = EqnVal <| maybeFindAttr nodeId kind attr nodeAttrs in
   let eqnVal2     = EqnVal <| vConst (2, dummyTrace) in
   let handleRect () =
+    let
+      right  = EqnOp Plus [eqnVal "x", eqnVal "width"]
+      bottom = EqnOp Plus [eqnVal "y", eqnVal "height"]
+      -- x + (w/2)
+      cx = EqnOp Plus [eqnVal "x", EqnOp Div [eqnVal "width",  eqnVal2]]
+      -- y + (h/2)
+      cy = EqnOp Plus [eqnVal "y", EqnOp Div [eqnVal "height", eqnVal2]]
+    in
     if feature == LangSvg.rectTLX then eqnVal "x"
     else if feature == LangSvg.rectTLY then eqnVal "y"
-    else if feature == LangSvg.rectTRX then EqnOp Plus [eqnVal "x", eqnVal "width"]
+    else if feature == LangSvg.rectTRX then right
     else if feature == LangSvg.rectTRY then eqnVal "y"
     else if feature == LangSvg.rectBLX then eqnVal "x"
-    else if feature == LangSvg.rectBLY then EqnOp Plus [eqnVal "y", eqnVal "height"]
-    else if feature == LangSvg.rectBRX then EqnOp Plus [eqnVal "x", eqnVal "width"]
-    else if feature == LangSvg.rectBRY then EqnOp Plus [eqnVal "y", eqnVal "height"]
-    else if feature == LangSvg.rectCX then EqnOp Plus [eqnVal "x", EqnOp Div [eqnVal "width",  eqnVal2]]  -- x + w/2
-    else if feature == LangSvg.rectCY then EqnOp Plus [eqnVal "y", EqnOp Div [eqnVal "height", eqnVal2]] -- y + h/2
+    else if feature == LangSvg.rectBLY then bottom
+    else if feature == LangSvg.rectBRX then right
+    else if feature == LangSvg.rectBRY then bottom
+    else if feature == LangSvg.rectTCX then cx
+    else if feature == LangSvg.rectTCY then eqnVal "y"
+    else if feature == LangSvg.rectBCX then cx
+    else if feature == LangSvg.rectBCY then bottom
+    else if feature == LangSvg.rectCLX then eqnVal "x"
+    else if feature == LangSvg.rectCLY then cy
+    else if feature == LangSvg.rectCRX then right
+    else if feature == LangSvg.rectCRY then cy
+    else if feature == LangSvg.rectCX then cx
+    else if feature == LangSvg.rectCY then cy
     else if feature == LangSvg.rectWidth  then eqnVal "width"
     else if feature == LangSvg.rectHeight then eqnVal "height"
     else Debug.crash <| "Rectangles do not have this feature: " ++ feature
   in
   let handleBox () =
+    let
+      -- (left + right)/2
+      cx = EqnOp Div [EqnOp Plus [eqnVal "LEFT", eqnVal "RIGHT"], eqnVal2]
+      -- (top + bottom)/2
+      cy = EqnOp Div [EqnOp Plus [eqnVal "TOP", eqnVal "BOT"], eqnVal2]
+    in
     if feature == LangSvg.boxTLX then eqnVal "LEFT"
     else if feature == LangSvg.boxTLY then eqnVal "TOP"
     else if feature == LangSvg.boxTRX then eqnVal "RIGHT"
@@ -960,20 +982,58 @@ featureEquation nodeId kind feature nodeAttrs =
     else if feature == LangSvg.boxBLY then eqnVal "BOT"
     else if feature == LangSvg.boxBRX then eqnVal "RIGHT"
     else if feature == LangSvg.boxBRY then eqnVal "BOT"
-    else if feature == LangSvg.boxCX then EqnOp Div [EqnOp Plus [eqnVal "LEFT", eqnVal "RIGHT"], eqnVal2]  -- (left + right)/2
-    else if feature == LangSvg.boxCY then EqnOp Div [EqnOp Plus [eqnVal "TOP", eqnVal "BOT"], eqnVal2] -- (top + bottom)/2
-    else if feature == LangSvg.boxWidth  then EqnOp Minus [eqnVal "RIGHT", eqnVal "LEFT"] -- (right - left)
-    else if feature == LangSvg.boxHeight then EqnOp Minus [eqnVal "BOT", eqnVal "TOP"] -- (bottom - top)
+    else if feature == LangSvg.boxTCX then cx
+    else if feature == LangSvg.boxTCY then eqnVal "TOP"
+    else if feature == LangSvg.boxBCX then cx
+    else if feature == LangSvg.boxBCY then eqnVal "BOTTOM"
+    else if feature == LangSvg.boxCLX then eqnVal "LEFT"
+    else if feature == LangSvg.boxCLY then cy
+    else if feature == LangSvg.boxCRX then eqnVal "RIGHT"
+    else if feature == LangSvg.boxCRY then cy
+    else if feature == LangSvg.boxCX then cx
+    else if feature == LangSvg.boxCY then cy
+    else if feature == LangSvg.boxWidth  then
+      EqnOp Minus [eqnVal "RIGHT", eqnVal "LEFT"] -- (right - left)
+    else if feature == LangSvg.boxHeight then
+      EqnOp Minus [eqnVal "BOT", eqnVal "TOP"] -- (bottom - top)
     else Debug.crash <| "Boxes do not have this feature: " ++ feature
   in
   let handleCircle () =
-    if feature == LangSvg.circleCX then eqnVal "cx"
+    let
+      top    = EqnOp Minus [eqnVal "cy", eqnVal "r"]
+      bottom = EqnOp Plus  [eqnVal "cy", eqnVal "r"]
+      left   = EqnOp Minus [eqnVal "cx", eqnVal "r"]
+      right  = EqnOp Plus  [eqnVal "cx", eqnVal "r"]
+    in
+    if feature == LangSvg.circleTCX then eqnVal "cx"
+    else if feature == LangSvg.circleTCY then top
+    else if feature == LangSvg.circleBCX then eqnVal "cx"
+    else if feature == LangSvg.circleBCY then bottom
+    else if feature == LangSvg.circleCLX then left
+    else if feature == LangSvg.circleCLY then eqnVal "cy"
+    else if feature == LangSvg.circleCRX then right
+    else if feature == LangSvg.circleCRY then eqnVal "cy"
+    else if feature == LangSvg.circleCX then eqnVal "cx"
     else if feature == LangSvg.circleCY then eqnVal "cy"
     else if feature == LangSvg.circleR then eqnVal "r"
     else Debug.crash <| "Circles do not have this feature: " ++ feature
   in
   let handleEllipse () =
-    if feature == LangSvg.ellipseCX then eqnVal "cx"
+    let
+      top    = EqnOp Minus [eqnVal "cy", eqnVal "ry"]
+      bottom = EqnOp Plus  [eqnVal "cy", eqnVal "ry"]
+      left   = EqnOp Minus [eqnVal "cx", eqnVal "rx"]
+      right  = EqnOp Plus  [eqnVal "cx", eqnVal "rx"]
+    in
+    if feature == LangSvg.ellipseTCX then eqnVal "cx"
+    else if feature == LangSvg.ellipseTCY then top
+    else if feature == LangSvg.ellipseBCX then eqnVal "cx"
+    else if feature == LangSvg.ellipseBCY then bottom
+    else if feature == LangSvg.ellipseCLX then left
+    else if feature == LangSvg.ellipseCLY then eqnVal "cy"
+    else if feature == LangSvg.ellipseCRX then right
+    else if feature == LangSvg.ellipseCRY then eqnVal "cy"
+    else if feature == LangSvg.ellipseCX then eqnVal "cx"
     else if feature == LangSvg.ellipseCY then eqnVal "cx"
     else if feature == LangSvg.ellipseRX then eqnVal "rx"
     else if feature == LangSvg.ellipseRY then eqnVal "ry"

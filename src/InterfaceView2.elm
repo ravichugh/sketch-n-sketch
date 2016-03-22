@@ -844,6 +844,10 @@ makeZonesRect model options shape id l =
   let zonesSelect =
        zoneSelectLine model options.addSelect (id, LangSvg.rectWidth) (x,y+h/2) (x+w,y+h/2)
     ++ zoneSelectLine model options.addSelect (id, LangSvg.rectHeight) (x+w/2,y) (x+w/2,y+h)
+    ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectTCX], [LangSvg.rectTCY]) (x+w/2) y
+    ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectBCX], [LangSvg.rectBCY]) (x+w/2) (y+h)
+    ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectCLX], [LangSvg.rectCLY]) x (y+h/2)
+    ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectCRX], [LangSvg.rectCRY]) (x+w) (y+h/2)
     ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectTLX], [LangSvg.rectTLY]) x y
     ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectTRX], [LangSvg.rectTRY]) (x+w) y
     ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectBLX], [LangSvg.rectBLY]) x (y+h)
@@ -896,6 +900,10 @@ makeZonesBox model options id l =
   let zonesSelect =
        zoneSelectLine model options.addSelect (id, LangSvg.boxWidth) (left, cy) (right, cy)
     ++ zoneSelectLine model options.addSelect (id, LangSvg.boxHeight) (cx, top) (cx, bot)
+    ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxTCX], [LangSvg.boxTCY]) cx top
+    ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxBCX], [LangSvg.boxBCY]) cx bot
+    ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxCLX], [LangSvg.boxCLY]) left cy
+    ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxCRX], [LangSvg.boxCRY]) right cy
     ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxTLX], [LangSvg.boxTLY]) left top
     ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxTRX], [LangSvg.boxTRY]) right top
     ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxBLX], [LangSvg.boxBLY]) left bot
@@ -920,25 +928,45 @@ makeZonesBox model options id l =
 makeZonesCircle model options id l =
   let transform = maybeTransformAttr l in
   let (cx,cy,r) = Utils.unwrap3 <| findNums l ["cx","cy","r"] in
+  let
+    top    = cy - r
+    bottom = cy + r
+    left   = cx - r
+    right  = cx + r
+  in
   let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "r" r ] in
      [zoneBorder Svg.circle id "circle" "Edge" True options.showBasic attrs transform]
   ++ [zoneBorder Svg.circle id "circle" "Interior" False options.showBasic attrs transform]
   ++ (zoneRotate model options.addRot id "circle" (cx,cy) (r + rotZoneDelta) (maybeTransformCmds l))
   ++ (zoneColor model options.addColor id "circle" (cx - r) (cy - r) (maybeColorNumAttr "fill" l))
   ++ (zoneSelectLine model options.addSelect (id, LangSvg.circleR) (cx,cy) (cx+r,cy))
+  ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.circleTCX], [LangSvg.circleTCY]) cx top
+  ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.circleBCX], [LangSvg.circleBCY]) cx bottom
+  ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.circleCLX], [LangSvg.circleCLY]) left cy
+  ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.circleCRX], [LangSvg.circleCRY]) right cy
   ++ (zoneSelectCrossDot model options.addSelect (id, [LangSvg.circleCX], [LangSvg.circleCY]) cx cy)
 
 -- makeZonesEllipse options id l =
 makeZonesEllipse model options id l =
   let transform = maybeTransformAttr l in
   let (cx,cy,rx,ry) = Utils.unwrap4 <| findNums l ["cx","cy","rx","ry"] in
+  let
+    top    = cy - ry
+    bottom = cy + ry
+    left   = cx - rx
+    right  = cx + rx
+  in
   let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "rx" rx, attrNum "ry" ry ] in
      [zoneBorder Svg.ellipse id "ellipse" "Edge" True options.showBasic attrs transform]
   ++ [zoneBorder Svg.ellipse id "ellipse" "Interior" False options.showBasic attrs transform]
   ++ (zoneRotate model options.addRot id "circle" (cx,cy) (ry + rotZoneDelta) (maybeTransformCmds l))
   ++ (zoneColor model options.addColor id "ellipse" (cx - rx) (cy - ry) (maybeColorNumAttr "fill" l))
   ++ (zoneSelectLine model options.addSelect (id, LangSvg.ellipseRX) (cx,cy) (cx+rx,cy))
-  ++ (zoneSelectLine model options.addSelect (id, LangSvg.ellipseRY) (cx,cy) (cx,cy+ry))
+  ++ (zoneSelectLine model options.addSelect (id, LangSvg.ellipseRY) (cx,cy-ry) (cx,cy))
+  ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.ellipseTCX], [LangSvg.ellipseTCY]) cx top
+  ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.ellipseBCX], [LangSvg.ellipseBCY]) cx bottom
+  ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.ellipseCLX], [LangSvg.ellipseCLY]) left cy
+  ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.ellipseCRX], [LangSvg.ellipseCRY]) right cy
   ++ (zoneSelectCrossDot model options.addSelect (id, [LangSvg.ellipseCX], [LangSvg.ellipseCY]) cx cy)
 
 -- makeZonesPoly options shape id l =
