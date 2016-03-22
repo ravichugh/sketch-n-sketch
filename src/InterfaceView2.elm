@@ -943,7 +943,9 @@ drawNewShape model =
   case model.mouseMode of
     MouseDrawNew "line"    [pt2, pt1]    -> drawNewLine model pt2 pt1
     MouseDrawNew "rect"    [pt2, pt1]    -> drawNewRect model.keysDown pt2 pt1
+    MouseDrawNew "BOX"     [pt2, pt1]    -> drawNewRect model.keysDown pt2 pt1
     MouseDrawNew "ellipse" [pt2, pt1]    -> drawNewEllipse model.keysDown pt2 pt1
+    MouseDrawNew "OVAL"    [pt2, pt1]    -> drawNewEllipse model.keysDown pt2 pt1
     MouseDrawNew "polygon" (ptLast::pts) -> drawNewPolygon ptLast pts
     MouseDrawNew "path" (ptLast::pts)    -> drawNewPath ptLast pts
     MouseDrawNew "DOT" [pt]              -> drawNewHelperDot pt
@@ -1325,34 +1327,22 @@ widgetsSlideNavigation w h model =
   ]
 
 widgetsTools w h model =
-{-
-  [ threeButtons w h
+  [ twoButtons w h
       (toolButton model Cursor)
-      (toolButton model SelectAttrs)
-      (toolButton model SelectShapes)
-  , threeButtons w h
       (toolButton model Line)
-      (toolButton model Rect)
-      (toolButton model Oval)
-  , threeButtons w h
-      (toolButton model Poly)
+  , twoButtons w h
+      (toolButton model (Rect False))
+      (toolButton model (Rect True))
+  , twoButtons w h
+      (toolButton model (Oval False))
+      (toolButton model (Oval True))
+  , twoButtons w h
       (toolButton model Path)
-      (toolButton model Text)
-  ]
--}
-  [ toolButton model Cursor w h
-  , twoButtons w h
-      (toolButton model Line)
-      (toolButton model Rect)
-  , twoButtons w h
-      (toolButton model Oval)
       (toolButton model Poly)
   , twoButtons w h
       (toolButton model HelperLine)
       (toolButton model HelperDot)
-  , twoButtons w h
-      (toolButton model Path)
-      (toolButton model (Lambda "star"))
+  , toolButton model (Lambda "star") w h
   ]
 
 widgetsToolExtras w h model =
@@ -1734,8 +1724,10 @@ toolButton model tt w h =
     -- SelectAttrs -> "2"
     -- SelectShapes -> "3"
     Line -> "Line"
-    Rect -> "Rect"
-    Oval -> "Oval"
+    Rect False -> "Rect"
+    Oval False -> "Ellipse"
+    Rect True -> "Box"
+    Oval True -> "Oval"
     Poly -> "Poly"
     -- Line -> "L"
     -- Rect -> "R"

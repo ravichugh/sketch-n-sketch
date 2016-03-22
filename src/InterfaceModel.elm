@@ -108,6 +108,7 @@ type MouseMode
       (Maybe ( Code                        -- the program upon initial click
              , MouseTrigger (Exp, Val, RootedIndexedTree, Widgets) ))
       -- may add info for hilites later
+  -- maybe switch ShapeKind to ToolType
   | MouseDrawNew ShapeKind (List (KeysDown, (Int, Int)))
       -- invariant on length n of list of points:
       --   for line/rect/ellipse, n == 0 or n == 2
@@ -136,11 +137,13 @@ showZonesModes = [ 0 .. (showZonesModeCount - 1) ]
 
 type ToolType
   = Cursor -- | SelectAttrs | SelectShapes
-  | Line | Rect | Oval
+  | Line | Rect BoundedVersion | Oval BoundedVersion
   | Poly | Path | Text
   | HelperDot
   | HelperLine
   | Lambda Ident
+
+type alias BoundedVersion = Bool
 
 type Caption
   = Hovering (Int, ShapeKind, Zone)

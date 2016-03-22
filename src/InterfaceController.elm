@@ -372,10 +372,8 @@ addLineToCodeAndRun old click2 click1 =
 -}
 
 addRectToCodeAndRun old pt2 pt1 =
-  if old.keysDown == Keys.shift then addSquare old pt2 pt1
+  if old.keysDown == Keys.shift then addSquareRect old pt2 pt1
   else addRect old pt2 pt1
-
-{- versions of addRect/addSquare using primitive rect:
 
 addRect old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
@@ -384,19 +382,22 @@ addRect old (_,pt2) (_,pt1) =
     [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
     , makeLet ["rot"] [eConst 0 dummyLoc] ]
     (eVar0 "rotatedRect")
-    (eConst 100 dummyLoc :: List.map eVar ["x","y","w","h","rot"])
+    (randomColor old :: List.map eVar ["x","y","w","h","rot"])
 
-addSquare old (_,pt2) (_,pt1) =
+addSquareRect old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.squareBoundingBox pt2 pt1 in
   let (x, y, side) = (xa, ya, xb - xa) in
   addToCodeAndRun "square" old
     [ makeLet ["x","y","side"] (makeInts [x,y,side])
     , makeLet ["rot"] [eConst 0 dummyLoc] ]
     (eVar0 "rotatedRect")
-    (eConst 50 dummyLoc :: List.map eVar ["x","y","side","side","rot"])
--}
+    (randomColor old :: List.map eVar ["x","y","side","side","rot"])
 
-addRect old (_,pt2) (_,pt1) =
+addBoxToCodeAndRun old pt2 pt1 =
+  if old.keysDown == Keys.shift then addSquareBox old pt2 pt1
+  else addBox old pt2 pt1
+
+addBox old (_,pt2) (_,pt1) =
   let (xMin, xMax, yMin, yMax) = View.boundingBox pt2 pt1 in
   addToCodeAndRun "rect" old
     [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
@@ -405,7 +406,7 @@ addRect old (_,pt2) (_,pt1) =
     (eVar0 "rectangle")
     [randomColor old, eStr "black", eConst 0 dummyLoc, eVar "rot", eVar "bounds"]
 
-addSquare old (_,pt2) (_,pt1) =
+addSquareBox old (_,pt2) (_,pt1) =
   let (xMin, xMax, yMin, _) = View.squareBoundingBox pt2 pt1 in
   let side = (xMax - xMin) in
   addToCodeAndRun "square" old
@@ -419,28 +420,30 @@ addEllipseToCodeAndRun old pt2 pt1 =
   if old.keysDown == Keys.shift then addCircle old pt2 pt1
   else addEllipse old pt2 pt1
 
-{- versions of addEllipse/addCircle using primitive ellipse:
-
 addEllipse old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
   let (rx, ry) = ((xb-xa)//2, (yb-ya)//2) in
   let (cx, cy) = (xa + rx, ya + ry) in
   addToCodeAndRun "ellipse" old
-    [ makeLet ["cx","cy","rx","ry"] (makeInts [cx,cy,rx,ry]) ]
-    (eVar0 "ellipse")
-    (eConst 200 dummyLoc :: List.map eVar ["cx","cy","rx","ry"])
+    [ makeLet ["cx","cy","rx","ry"] (makeInts [cx,cy,rx,ry])
+    , makeLet ["rot"] [eConst 0 dummyLoc] ]
+    (eVar0 "rotatedEllipse")
+    (randomColor old :: List.map eVar ["cx","cy","rx","ry","rot"])
 
 addCircle old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.squareBoundingBox pt2 pt1 in
   let r = (xb-xa)//2 in
   let (cx, cy) = (xa + r, ya + r) in
   addToCodeAndRun "circle" old
-    [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r])
-    (eVar0 "ellipse")
-    (eConst 250 dummyLoc :: List.map eVar ["cx","cy","r","r"])
--}
+    [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r]) ]
+    (eVar0 "rotatedEllipse")
+    (randomColor old :: List.map eVar ["cx","cy","r","r"] ++ [eConst 0 (dummyLoc_ frozen)])
 
-addEllipse old (_,pt2) (_,pt1) =
+addOvalToCodeAndRun old pt2 pt1 =
+  if old.keysDown == Keys.shift then addCircleOval old pt2 pt1
+  else addOval old pt2 pt1
+
+addOval old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
   addToCodeAndRun "ellipse" old
     [ makeLet ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
@@ -448,7 +451,7 @@ addEllipse old (_,pt2) (_,pt1) =
     (eVar0 "oval")
     [randomColor old, eStr "black", eConst 0 dummyLoc, eVar "bounds"]
 
-addCircle old (_,pt2) (_,pt1) =
+addCircleOval old (_,pt2) (_,pt1) =
   let (left, right, top, _) = View.squareBoundingBox pt2 pt1 in
   addToCodeAndRun "circle" old
     [ makeLet ["left", "top", "r"] (makeInts [left, top, (right-left)//2])
@@ -1101,8 +1104,10 @@ upstate evt old = case debugLog "Event" evt of
     MouseClickCanvas ->
       case (old.mouseMode, old.toolType) of
         (MouseNothing, Line) -> { old | mouseMode = MouseDrawNew "line" [] }
-        (MouseNothing, Rect) -> { old | mouseMode = MouseDrawNew "rect" [] }
-        (MouseNothing, Oval) -> { old | mouseMode = MouseDrawNew "ellipse" [] }
+        (MouseNothing, Rect False) -> { old | mouseMode = MouseDrawNew "rect" [] }
+        (MouseNothing, Oval False) -> { old | mouseMode = MouseDrawNew "ellipse" [] }
+        (MouseNothing, Rect True) -> { old | mouseMode = MouseDrawNew "BOX" [] }
+        (MouseNothing, Oval True) -> { old | mouseMode = MouseDrawNew "OVAL" [] }
         (MouseNothing, Poly) -> { old | mouseMode = MouseDrawNew "polygon" [] }
         (MouseNothing, Path) -> { old | mouseMode = MouseDrawNew "path" [] }
         (MouseNothing, HelperDot) -> { old | mouseMode = MouseDrawNew "DOT" [] }
@@ -1256,6 +1261,8 @@ upstate evt old = case debugLog "Event" evt of
         (_, MouseDrawNew "line" [pt2, pt1])    -> addLineToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "rect" [pt2, pt1])    -> addRectToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "ellipse" [pt2, pt1]) -> addEllipseToCodeAndRun old pt2 pt1
+        (_, MouseDrawNew "BOX" [pt2, pt1])     -> addBoxToCodeAndRun old pt2 pt1
+        (_, MouseDrawNew "OVAL" [pt2, pt1])    -> addOvalToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "DOT" [pt])           -> addHelperDotToCodeAndRun old pt
         (_, MouseDrawNew "LAMBDA" [pt2, pt1])  -> addLambdaToCodeAndRun old pt2 pt1
         (_, MouseDrawNew "polygon" points)     -> old

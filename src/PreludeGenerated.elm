@@ -642,16 +642,6 @@ prelude =
 
 (def radToDeg (\\rad (* (/ rad (pi)) 180!)))
 
-; Drawing New Shapes
-
-(def rotatedRect (\\(fill x y w h rot)
-  (let [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))]
-    (rotateAround rot cx cy (rect fill x y w h)))))
-
-(def rotatedSquare (\\(fill x y side rot)
-  (let [cx cy] [(+ x (/ side 2!)) (+ y (/ side 2!))]
-    (rotateAround rot cx cy (rect fill x y side side)))))
-
 ; Shapes via Bounding Boxes
 
 (def box (\\(bounds fill stroke strokeWidth)
@@ -688,12 +678,25 @@ prelude =
   ['g' [['BOUNDS' bounds]]
        (concat [(fancyBoundingBox bounds) shapes])]))
 
+(def rotatedRect (\\(fill x y w h rot)
+  (let [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))]
+  (let bounds [x y (+ x w) (+ y h)]
+  (let shape (rotateAround rot cx cy (rect fill x y w h))
+  (group bounds [shape])
+)))))
+
 (def rectangle (\\(fill stroke strokeWidth rot bounds)
   (let [left top right bot] bounds
   (let [cx cy] [(+ left (/ (- right left) 2!)) (+ top (/ (- bot top) 2!))]
   (let shape (rotateAround rot cx cy (box bounds fill stroke strokeWidth))
   (group bounds [shape])
 )))))
+
+(def rotatedEllipse (\\(fill cx cy rx ry rot)
+  (let bounds [(- cx rx) (- cy ry) (+ cx rx) (+ cy ry)]
+  (let shape (rotateAround rot cx cy (ellipse fill cx cy rx ry))
+  (group bounds [shape])
+))))
 
 ; TODO take rot
 (def oval (\\(fill stroke strokeWidth bounds)
