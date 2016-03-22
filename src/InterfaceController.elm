@@ -834,6 +834,29 @@ maybeFindAttr id kind attr attrs =
 --------------------------------------------------------------------------------
 -- Group Shapes
 
+selectedBlobsAndBounds : Model -> Dict.Dict Int (NumTr, NumTr, NumTr, NumTr)
+selectedBlobsAndBounds model =
+  let tree = snd model.slate in
+  Dict.map
+     (\blobId nodeId ->
+       case Dict.get nodeId tree of
+
+         Just (LangSvg.SvgNode "g" nodeAttrs _) ->
+           case View.maybeFindBounds nodeAttrs of
+             Just bounds -> bounds
+             Nothing     -> Debug.crash "selectedBlobsAndBounds"
+
+         Just (LangSvg.SvgNode "line" nodeAttrs _) ->
+           let get attr = maybeFindAttr nodeId "line" attr nodeAttrs in
+           case List.map .v_ [get "x1", get "y1", get "x2", get "y2"] of
+             [VConst x1, VConst y1, VConst x2, VConst y2] ->
+               (minNumTr x1 x2, minNumTr y1 y2, maxNumTr x1 x2, maxNumTr y1 y2)
+             _ -> Debug.crash "selectedBlobsAndBounds"
+
+         _ -> Debug.crash "selectedBlobsAndBounds"
+     )
+     model.selectedBlobs
+
 groupShapes model defs blobs f =
   let n = List.length blobs in
   let selectedExps =
@@ -859,6 +882,7 @@ groupShapes model defs blobs f =
             }
 
 groupAndRearrange model newGroup defs blobs selectedVars =
+  let selectedBlobs = selectedBlobsAndBounds model in
   let defs' =
     let matches def =
       let (_,p,_,_) = def in
@@ -874,9 +898,9 @@ groupAndRearrange model newGroup defs blobs selectedVars =
       case selectedBlobIndices of
         [] -> Debug.crash "groupAndRearrange: shouldn't get here"
         i::is ->
-          let init = Utils.justGet i model.selectedBlobs in
+          let init = Utils.justGet i selectedBlobs in
           let foo j (left,top,right,bot) =
-            let (a,b,c,d) = Utils.justGet j model.selectedBlobs in
+            let (a,b,c,d) = Utils.justGet j selectedBlobs in
             (minNumTr left a, minNumTr top b, maxNumTr right c, maxNumTr bot d)
           in
           List.foldl foo init is
@@ -891,7 +915,7 @@ groupAndRearrange model newGroup defs blobs selectedVars =
       -- when the source expressions being rewritten are of the form
       --   (let [a b c d] [na nb nc nd] ...)
       let foo i acc =
-        let (a,b,c,d) = Utils.justGet i model.selectedBlobs in
+        let (a,b,c,d) = Utils.justGet i selectedBlobs in
         if model.keysDown == Keys.shift then
           acc |> offsetX "" a |> offsetY " " b |> offsetX " " c |> offsetY " " d
         else

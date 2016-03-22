@@ -1,5 +1,6 @@
 module InterfaceView2 (view, scaleColorBall , drawNewPolygonDotSize
                       , boundingBox , squareBoundingBox , snapLine
+                      , maybeFindBounds
                       ) where
 
 --Import the little language and its parsing utilities
@@ -633,17 +634,17 @@ zoneGroupStrokeWidth = 8
 zoneGroupPadding     = 10
 roundBounds          = True
 
-zoneGroup model options id bounds =
+zoneGroup model options blobId nodeId bounds =
   if options.addSelectShapes
-    then zoneGroup_ model id bounds
+    then zoneGroup_ model blobId nodeId bounds
     else []
 
-zoneGroup_ model id bounds =
+zoneGroup_ model blobId nodeId bounds =
   let (left, top, right, bot) =
     let (a,b,c,d) = bounds in (fst a, fst b, fst c, fst d)
   in
   let stroke =
-    if Dict.member id model.selectedBlobs
+    if Dict.member blobId model.selectedBlobs
       then "#03C03C"
       else "rgba(255,255,0,1.0)" in
   let pad = zoneGroupPadding in
@@ -656,7 +657,7 @@ zoneGroup_ model id bounds =
        , LangSvg.attr "stroke-width" (toString zoneGroupStrokeWidth)
        , LangSvg.attr "fill" "rgba(0,0,0,0)"
        , cursorStyle "pointer"
-       , onMouseDown (toggleSelectedBlob model id bounds)
+       , onMouseDown (toggleSelectedBlob model blobId nodeId)
        , attrNum "x1" (fst pt1), attrNum "y1" (snd pt1)
        , attrNum "x2" (fst pt2), attrNum "y2" (snd pt2)
        ]
@@ -671,9 +672,9 @@ toggleDict (k,v) dict =
     then Dict.remove k dict
     else Dict.insert k v dict
 
-toggleSelectedBlob model id bounds =
+toggleSelectedBlob model blobId nodeId =
   UpdateModel <| \model ->
-    { model | selectedBlobs = toggleDict (id, bounds) model.selectedBlobs }
+    { model | selectedBlobs = toggleDict (blobId, nodeId) model.selectedBlobs }
 
 maybeFindBlobId l =
   case Utils.maybeFind "BLOB" l of
@@ -731,7 +732,7 @@ makeZones model options shape id l =
         let zGroup =
           case maybeFindBlobId l of
             Nothing     -> []
-            Just blobId -> zoneGroup model options blobId
+            Just blobId -> zoneGroup model options blobId id
                              (minNumTr x1 x2, minNumTr y1 y2,
                               maxNumTr x1 x2, maxNumTr y1 y2)
         in
@@ -742,7 +743,7 @@ makeZones model options shape id l =
 
     "path" -> makeZonesPath options.showBasic shape id l
 
-    "g" -> makeZonesGroup model options l
+    "g" -> makeZonesGroup model options id l
 
     _ -> []
 
@@ -929,9 +930,9 @@ makeZonesPath showBasic shape id l =
   in
   zonePoints id shape showBasic transform pts
 
-makeZonesGroup model options l =
+makeZonesGroup model options nodeId l =
   case (maybeFindBounds l, maybeFindBlobId l) of
-    (Just bounds, Just blobId) -> zoneGroup model options blobId bounds
+    (Just bounds, Just blobId) -> zoneGroup model options blobId nodeId bounds
     _                          -> []
 
 

@@ -66,7 +66,7 @@ type alias Model =
   , toolType : ToolType
   , selectedFeatures : Set.Set (NodeId, ShapeFeature)
   -- line/g ids assigned by blobs function
-  , selectedBlobs : Dict.Dict Int (NumTr, NumTr, NumTr, NumTr)
+  , selectedBlobs : Dict.Dict Int NodeId
   , keysDown : List Char.KeyCode
   , randomColor : Int
   }
