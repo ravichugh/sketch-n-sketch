@@ -560,14 +560,20 @@ addAbsolutePath old keysAndPoints =
       (extraLets, "'M' x0 y0", "x0 y0")
   in
   let remainingCmds =
-    let foo (modifiers,click) =
-      case (click == firstClick, modifiers == Keys.shift) of
-        (True,  True)  -> "'Z'"
-        (False, True)  -> "'L' " ++ strPoint click
-        (True,  False) -> "'Q' " ++ strPoint (temp_adjust click) ++ " " ++ lastPoint
-        (False, False) -> "'Q' " ++ strPoint (temp_adjust click) ++ " " ++ strPoint click
+    let foo list = case list of
+      [] -> []
+      (modifiers,click) :: [] ->
+        case (modifiers == Keys.shift, click == firstClick) of
+          (True,  _)     -> Debug.crash "addAbsolutePath: dangling control point"
+          (False, True)  -> ["'Z' "]
+          (False, False) -> ["'L' " ++ strPoint click]
+      (modifiers1,click1) :: (modifiers2,click2) :: list' ->
+        case (modifiers1 == Keys.shift, click2 == firstClick) of
+          (False, _)     -> ("'L' " ++ strPoint click1) :: foo ((modifiers2,click2) :: list')
+          (True,  True)  -> ("'Q' " ++ strPoint click1 ++ " " ++ lastPoint) :: foo list'
+          (True,  False) -> ("'Q' " ++ strPoint click1 ++ " " ++ strPoint click2) :: foo list'
     in
-    List.map foo (Utils.tail_ keysAndPoints_)
+    foo (Utils.tail_ keysAndPoints_)
   in
   let sD = Utils.bracks (Utils.spaces (firstCmd :: remainingCmds)) in
   addToCodeAndRun "path" old
