@@ -454,6 +454,8 @@ type alias RootedIndexedTree = (NodeId, IndexedTree)
 -- Otherwise, this shouldn't be a string
 type alias ShapeFeature = String
 
+-- Make sure that coordinate features match /.+[X|Y]\d*$/
+-- So we can gather them back up into (X,Y) pairs again.
 rectTLX = "rectTLX"
 rectTLY = "rectTLY"
 rectTRX = "rectTRX"

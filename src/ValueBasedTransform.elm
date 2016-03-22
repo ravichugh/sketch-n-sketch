@@ -18,6 +18,7 @@ import Config
 import Dict
 import Set
 import String
+import Regex
 
 
 debugLog = Config.debugLog Config.debugSync
@@ -173,20 +174,41 @@ digHole originalExp selectedFeatures slate syncOptions =
   newExp
 
 
--- If given more than two features, run makeEqual_ on each overlapping pair.
 makeEqual originalExp selectedFeatures slideNumber movieNumber movieTime slate syncOptions =
-  let featureList = Set.toList selectedFeatures in
+  let equalize exp features =
+    makeEqualOverlappingPairs exp features slideNumber movieNumber movieTime slate syncOptions
+  in
+  let selectedPoints =
+    featurePoints (Set.toList selectedFeatures)
+  in
+  if 2 * (List.length selectedPoints) == (Set.size selectedFeatures) then
+    -- We have only selected x&y of several points.
+    -- Make all the selected points overlap, that is: make all the x's equal to
+    -- each other and all the y's equal to each other.
+    let xFeatures = List.map fst selectedPoints in
+    let yFeatures = List.map snd selectedPoints in
+    let xsEqualized  = equalize originalExp xFeatures in
+    let xysEqualized = equalize xsEqualized yFeatures in
+    xysEqualized
+  else
+    -- We have not selected only x&y of different points.
+    -- Equalize all selected attributes naively.
+    equalize originalExp (Set.toList selectedFeatures)
+
+
+-- If given more than two features, run makeEqual_ on each overlapping pair.
+makeEqualOverlappingPairs originalExp features slideNumber movieNumber movieTime slate syncOptions =
   let relateMore exp =
-    case featureList of
+    case features of
       -- If there's at least 2 more features...
       _::featureB::featureC::otherFeatures ->
         let slate =
           let (val, _) = Eval.run exp in
           LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val
         in
-        makeEqual
+        makeEqualOverlappingPairs
             exp
-            (Set.fromList <| featureB::featureC::otherFeatures)
+            (featureB::featureC::otherFeatures)
             slideNumber
             movieNumber
             movieTime
@@ -196,7 +218,7 @@ makeEqual originalExp selectedFeatures slideNumber movieNumber movieTime slate s
       _ ->
         exp
   in
-  case List.take 2 featureList of
+  case List.take 2 features of
     [featureA, featureB] ->
       let maybeNewExp =
         makeEqual_ originalExp featureA featureB slate syncOptions
@@ -850,6 +872,65 @@ locEqnToLittle locIdToLittle eqn =
     LocEqnOp op childEqns ->
       let childLittleStrs = List.map (locEqnToLittle locIdToLittle) childEqns in
       "(" ++ strOp op ++ " " ++ String.join " " childLittleStrs ++ ")"
+
+
+
+xFeatureNameRegex = Regex.regex "^(.*)X(\\d*)$"
+yFeatureNameRegex = Regex.regex "^(.*)Y(\\d*)$"
+xOrYFeatureNameRegex = Regex.regex "^(.*)[XY](\\d*)$"
+
+featureNameIsX featureName =
+  Regex.contains xFeatureNameRegex featureName
+
+featureNameIsY featureName =
+  Regex.contains yFeatureNameRegex featureName
+
+featureNameIsXOrY featureName =
+  Regex.contains xOrYFeatureNameRegex featureName
+
+featurePointAndNumber featureName =
+  Regex.find (Regex.AtMost 1) xOrYFeatureNameRegex featureName
+  |> Utils.head_
+  |> (.submatches)
+
+-- Assuming features are already on the same nodeId...
+featuresNamesAreXYPairs featureNameA featureNameB =
+  (featureNameIsXOrY featureNameA) &&
+  (featureNameIsXOrY featureNameB) &&
+  (featureNameA /= featureNameB) && -- Not the same feature
+  (featurePointAndNumber featureNameA) ==
+    (featurePointAndNumber featureNameB) -- But the same point
+
+
+-- Extract all point x,y features pairs
+featurePoints features =
+  case features of
+    [] ->
+      []
+
+    nodeIdAndFeatureName::otherFeatures ->
+      let (nodeId, featureName) = nodeIdAndFeatureName in
+      if not <| featureNameIsXOrY featureName then
+        featurePoints otherFeatures
+      else
+        let nodeFeatures = List.filter (((==) nodeId) << fst) otherFeatures in
+        let maybePairedFeature =
+          Utils.findFirst ((featuresNamesAreXYPairs featureName) << snd) nodeFeatures
+        in
+        case maybePairedFeature of
+          Just pairedFeature ->
+            let pairToReturn =
+              if featureNameIsX featureName
+              then (nodeIdAndFeatureName, pairedFeature)
+              else (pairedFeature, nodeIdAndFeatureName)
+            in
+            let remainingFeatures =
+              Utils.removeFirst pairedFeature otherFeatures
+            in
+            pairToReturn::(featurePoints remainingFeatures)
+
+          Nothing ->
+            featurePoints otherFeatures
 
 
 featureEquation nodeId kind feature nodeAttrs =
