@@ -1741,6 +1741,7 @@ ghostsButton model w h =
   in
   simpleEventButton_ False (UpdateModel foo) cap w h
 
+
 widgetsCursors w h model =
   let caption mode =
     if mode == showZonesNone              then "-" -- "Hide"
@@ -1773,6 +1774,7 @@ widgetsCursors w h model =
       [ gapWidget w h
       , simpleButton DigHole "Dig" w h
       , simpleButton MakeEqual "Make =" w h
+      , simpleButton MakeEquidistant "Make Equidist" w h
       ]
   in
   let maybeBlobButtons =

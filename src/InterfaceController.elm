@@ -1985,6 +1985,31 @@ upstate evt old = case debugLog "Event" evt of
               , selectedFeatures = Set.empty
         }
 
+    MakeEquidistant ->
+      let newExp =
+        ValueBasedTransform.makeEquidistant
+            old.inputExp
+            old.selectedFeatures
+            old.slideNumber
+            old.movieNumber
+            old.movieTime
+            old.slate
+            old.syncOptions
+      in
+      let (newVal, newWidgets) = Eval.run newExp in
+      let (newSlate, newCode)  = slateAndCode old (newExp, newVal) in
+      debugLog "new model" <|
+        { old | code             = newCode
+              , inputExp         = newExp
+              , inputVal         = newVal
+              , history          = addToHistory old.code old.history
+              , slate            = newSlate
+              , widgets          = newWidgets
+              , previewCode      = Nothing
+              , mode             = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal
+              , selectedFeatures = Set.empty
+        }
+
     GroupBlobs ->
       if Dict.size old.selectedBlobs <= 1 then old
       else

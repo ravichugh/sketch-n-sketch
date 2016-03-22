@@ -182,6 +182,7 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | RelateAttrs -- not using UpdateModel, since want to define handler in Controller
            | DigHole
            | MakeEqual
+           | MakeEquidistant
            | GroupBlobs
            | AbstractBlobs
            | DuplicateBlobs
