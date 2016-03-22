@@ -1290,7 +1290,7 @@ errorBox w h errormsg =
         , ("box-sizing", "border-box")
         , highlightThisIf False
         ]
-      , Attr.value errormsg
+      , Attr.value <| "💥 " ++ errormsg
       , Events.onMouseUp events.address MouseUp
       ]
       []
