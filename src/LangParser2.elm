@@ -1,4 +1,4 @@
-module LangParser2 (prelude, isPreludeLoc, isPreludeEId,
+module LangParser2 (prelude, isPreludeLoc, isPreludeLocId, isPreludeEId,
                     substOf, substStrOf, parseE,
                     freshen, substPlusOf) where
 
@@ -18,7 +18,10 @@ import PreludeGenerated as Prelude
 (prelude, initK) = freshen_ 1 <| U.fromOk_ <| parseE_ identity Prelude.src
 
 isPreludeLoc : Loc -> Bool
-isPreludeLoc (k,_,_) = k < initK
+isPreludeLoc (k,_,_) = isPreludeLocId k
+
+isPreludeLocId : LocId -> Bool
+isPreludeLocId k = k < initK
 
 isPreludeEId : EId -> Bool
 isPreludeEId k = k < initK
