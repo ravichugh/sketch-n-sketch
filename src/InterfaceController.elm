@@ -1210,6 +1210,10 @@ upstate evt old = case debugLog "Event" evt of
           in
           case points of
             [] -> snd (add pointOnCanvas)
+            (_,firstClick) :: [] ->
+              if Utils.distanceInt pointOnCanvas firstClick < View.drawNewPolygonDotSize
+              then switchToCursorTool old
+              else snd (add pointOnCanvas)
             (_,lastClick) :: _ ->
               if Utils.distanceInt pointOnCanvas lastClick < View.drawNewPolygonDotSize
               then addPathToCodeAndRun old points
@@ -1217,10 +1221,8 @@ upstate evt old = case debugLog "Event" evt of
                 let (_,firstClick) = Utils.last_ points in
                 if Utils.distanceInt pointOnCanvas firstClick < View.drawNewPolygonDotSize
                 then
-                  if List.length points < 2
-                  then switchToCursorTool old
-                  else let (points',old') = add firstClick in
-                       addPathToCodeAndRun old' points'
+                  let (points',old') = add firstClick in
+                  addPathToCodeAndRun old' points'
                 else
                   snd (add pointOnCanvas)
 
@@ -1801,7 +1803,6 @@ upstate evt old = case debugLog "Event" evt of
       -- else if l == Keys.metaPlus Keys.d then
       -- else if l == Keys.metaPlus Keys.d || l == Keys.commandPlus Keys.d then
       else if l == Keys.d then
-        let _ = Debug.log "copy" () in
         duplicateSelectedBlobs new
       else
         new
