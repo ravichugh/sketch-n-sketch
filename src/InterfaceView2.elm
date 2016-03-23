@@ -69,6 +69,7 @@ svgRect      = flip Svg.rect []
 svgCircle    = flip Svg.circle []
 svgEllipse   = flip Svg.ellipse []
 svgPolygon   = flip Svg.polygon []
+svgPath      = flip Svg.path []
 
 -- TODO use these more below
 
@@ -958,6 +959,7 @@ defaultStrokeWidth    = LangSvg.attr "stroke-width" "5"
 defaultFill           = LangSvg.attr "fill" "gray"
 dotFill               = LangSvg.attr "fill" "red"
 dotFill2              = LangSvg.attr "fill" "orange"
+dotFillControlPt      = LangSvg.attr "fill" "green"
 dotSize               = LangSvg.attr "r" (toString drawNewPolygonDotSize)
 
 drawNewPolygonDotSize = 10
@@ -1065,7 +1067,9 @@ drawNewPolygon (_,ptLast) keysAndPoints =
    in
    dot :: maybeShape
 
-drawNewPath (_,ptLast) keysAndPoints =
+strPt (x,y) = Utils.spaces [toString x, toString y]
+
+drawNewPath (keysLast,ptLast) keysAndPoints =
   let points = List.map snd keysAndPoints in
   let dot fill (cx,cy) =
     svgCircle [
@@ -1079,24 +1083,42 @@ drawNewPath (_,ptLast) keysAndPoints =
       [] -> []
       _  -> [dot dotFill2 ptLast]
   in
-  -- TODO for now, just drawing a polygon like drawNewPolygon
-  let maybeShape =
-    case (ptLast::points) of
+  let pathAndPoints =
+    let plus (s1,l1) (s2,l2) = (s1 ++ s2, l1 ++ l2) in
+    let foo list0 = case list0 of
+      [] -> ("", [])
+      (modifiers1,click1) :: list1 ->
+        if modifiers1 == Keys.q then
+          case list1 of
+            [] -> ("", [click1])
+            (_,click2) :: list2 ->
+              let cmd = Utils.spaces [" Q", strPt click1, strPt click2] in
+              (cmd, [click1]) `plus` foo list2
+        else if modifiers1 == Keys.c then
+          case list1 of
+            [] -> ("", [click1])
+            (_,click2) :: [] -> ("", [click1, click2])
+            (_,click2) :: (_,click3) :: list3 ->
+              let cmd = Utils.spaces [" C", strPt click1, strPt click2, strPt click3] in
+              (cmd, [click1, click2]) `plus` foo list3
+        else
+          (Utils.spaces [" L", strPt click1], []) `plus` foo list1
+    in
+    case List.reverse ((keysLast,ptLast)::keysAndPoints) of
+      []  -> []
       [_] -> []
-      _ ->
-        -- don't need to reverse, but keeping it same as resulting shape
-        let polyPoints = List.reverse (ptLast::points) in
-        let sPoints =
-          Utils.spaces <|
-            List.map (\(x,y) -> String.join "," (List.map toString [x,y]))
-                     polyPoints
-        in
-        [ svgPolygon [
-            defaultStroke , defaultStrokeWidth , defaultFill , defaultOpacity
-          , LangSvg.attr "points" sPoints
-          ] ]
-   in
-   redDot ++ yellowDot ++ maybeShape
+      (_,firstClick) :: rest ->
+        let (sPath, controlPoints) =
+          (Utils.spaces ["M", strPt firstClick], []) `plus` foo rest in
+        let path =
+          svgPath [
+              defaultStroke , defaultStrokeWidth , defaultFill , defaultOpacity
+            , LangSvg.attr "d" sPath
+            ] in
+        let points = List.map (dot dotFillControlPt) controlPoints in
+        path :: points
+  in
+  redDot ++ yellowDot ++ pathAndPoints
 
 -- TODO this doesn't appear right away
 -- (dor does initial poly, which appears only on MouseUp...)
