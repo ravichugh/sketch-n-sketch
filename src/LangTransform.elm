@@ -11,6 +11,7 @@ import Dict
 import String
 
 import Lang exposing (..)
+import LangTools exposing (..)
 import LangUnparser exposing (..)
 import OurParser2
 import Utils
@@ -91,7 +92,7 @@ removeUnusedVars exp =
   let remover e__ =
     case e__ of
       ELet ws1 letKind rec pat assign body ws2 ->
-        let usedNames = Lang.identifiersSet body in
+        let usedNames = identifiersSet body in
         let letRemoved =
           body.val.e__
         in
@@ -217,7 +218,7 @@ inlineTrivialRenamings exp =
   let inliner e__ =
     case e__ of
       ELet ws1 letKind rec pat assign body ws2 ->
-        let nameCounts = Lang.identifierCounts body in
+        let nameCounts = identifierCounts body in
         let letRemoved newBody =
           let oldPrecedingWs = precedingWhitespaceExp__ e__ in
           (replacePrecedingWhitespace oldPrecedingWs newBody).val.e__

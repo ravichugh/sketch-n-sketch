@@ -7,6 +7,7 @@
 module ValueBasedTransform where
 
 import Lang exposing (..)
+import LangTools exposing (..)
 import LangParser2 exposing (parseE, freshen, substOf)
 import LangUnparser exposing (unparse, traceToLittle, precedingWhitespace, addPrecedingWhitespace)
 import Eval

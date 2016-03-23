@@ -5,6 +5,7 @@ module InterfaceView2 (view, scaleColorBall , drawNewPolygonDotSize
 
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
+import LangTools
 import LangParser2 as Parser exposing (parseE)
 import LangUnparser exposing (unparse)
 import Sync
@@ -1371,7 +1372,7 @@ canvas_ w h model =
             let theta = time * frequency * 2.0 * pi in
             x * (1 + 0.2 * sin(theta))
           in
-          let locIdsAndNumbers = unfrozenLocIdsAndNumbers exp in
+          let locIdsAndNumbers = LangTools.unfrozenLocIdsAndNumbers exp in
           let subst = Dict.fromList (Utils.mapi (\(i, (locId, x)) -> (locId, animateNumber i x model.syncSelectTime)) locIdsAndNumbers) in
           -- let _ = Debug.log (toString subst) subst in
           -- let _ = Debug.log (toString model.runAnimation) model.runAnimation in
