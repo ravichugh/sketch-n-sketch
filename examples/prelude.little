@@ -732,9 +732,51 @@
       (['Q' x1 y1 x y | rest] (append [(dot x1 y1) (dot x y)] (pointsOf rest)))
       (['C' x1 y1 x2 y2 x y | rest] (append [(dot x1 y1) (dot x2 y2) (dot x y)] (pointsOf rest)))
       (_                      'ERROR')))
-  (cons
-    (path fill stroke w d)
-    (pointsOf d))))))
+  ['g' []
+    (cons
+      (path fill stroke w d)
+      (pointsOf d)) ]
+))))
+
+; can refactor to make one pass
+; can also change representation/template code to pair points
+(def stretchyPath (\(bounds fill stroke w d)
+  (let [left top right bot] bounds
+  (let [xScale yScale] [(scaleBetween left right) (scaleBetween top bot)]
+  (let dot (\(x y) (ghost (circle 'orange' x y 5)))
+  (letrec toPath (\cmds
+    (case cmds
+      ([]    [])
+      (['Z'] ['Z'])
+      (['M' x y | rest] (append ['M' (xScale x) (yScale y)] (toPath rest)))
+      (['L' x y | rest] (append ['L' (xScale x) (yScale y)] (toPath rest)))
+      (['Q' x1 y1 x y | rest]
+        (append ['Q' (xScale x1) (yScale y1) (xScale x) (yScale y)]
+                (toPath rest)))
+      (['C' x1 y1 x2 y2 x y | rest]
+        (append ['C' (xScale x1) (yScale y1) (xScale x2) (yScale y2) (xScale x) (yScale y)]
+                (toPath rest)))
+      (_ 'ERROR')))
+  (letrec pointsOf (\cmds
+    (case cmds
+      ([]    [])
+      (['Z'] [])
+      (['M' x y | rest] (append [(dot (xScale x) (yScale y))] (pointsOf rest)))
+      (['L' x y | rest] (append [(dot (xScale x) (yScale y))] (pointsOf rest)))
+      (['Q' x1 y1 x y | rest]
+        (append [(dot (xScale x1) (yScale y1)) (dot (xScale x) (yScale y))]
+                (pointsOf rest)))
+      (['C' x1 y1 x2 y2 x y | rest]
+        (append [(dot (xScale x1) (yScale y1))
+                 (dot (xScale x2) (yScale y2))
+                 (dot (xScale x)  (yScale y))]
+                (pointsOf rest)))
+      (_ 'ERROR')))
+  (group bounds
+    (cons
+      (path fill stroke w (toPath d))
+      (pointsOf d)))
+)))))))
 
 (def evalOffset (\[base off]
   (case off

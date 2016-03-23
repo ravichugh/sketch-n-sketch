@@ -533,14 +533,16 @@ addStickyPolygon old keysAndPoints =
     (eVar0 "stickyPolygon")
     [eVar "bounds", randomColor old, eStr "black", eConst 2 dummyLoc, eVar "offsets"]
 
-strPt (x,y) = Utils.spaces [toString x, toString y]
+strPoint strX strY (x,y) = Utils.spaces [strX x, strY y]
 
 -- TODO sticky and stretchable versions
 addPathToCodeAndRun : Model -> List (KeysDown, (Int, Int)) -> Model
 addPathToCodeAndRun old keysAndPoints =
-  addAbsolutePath old keysAndPoints
+  addStretchyPath old keysAndPoints
+  -- addAbsolutePath old keysAndPoints
 
-addAbsolutePath old keysAndPoints =
+pathCommands strX strY keysAndPoints =
+  let strPt = strPoint strX strY in
   let keysAndPoints_ = List.reverse keysAndPoints in
   let (_,firstClick) = Utils.head_ keysAndPoints_ in
   let (_,lastClick) = Utils.last_ keysAndPoints_ in
@@ -549,10 +551,9 @@ addAbsolutePath old keysAndPoints =
     then ([], "'M' " ++ strPt firstClick, strPt firstClick)
     else
       let extraLets =
-        [ makeLet ["x0", "y0"]
-            [ eVar0 (toString <| fst firstClick)
-            , eVar  (toString <| snd firstClick)
-            ] ]
+        [ makeLet
+           ["x0", "y0"]
+           [ eVar0 (strX (fst firstClick)), eVar (strY (snd firstClick)) ] ]
       in
       (extraLets, "'M' x0 y0", "x0 y0")
   in
@@ -589,11 +590,35 @@ addAbsolutePath old keysAndPoints =
     foo (Utils.tail_ keysAndPoints_)
   in
   let sD = Utils.bracks (Utils.spaces (firstCmd :: remainingCmds)) in
+  (extraLets, sD)
+
+addAbsolutePath old keysAndPoints =
+  let (extraLets, sD) = pathCommands toString toString keysAndPoints in
   addToCodeAndRun "path" old
     (extraLets ++ [ makeLet ["d"] [eVar sD] ])
-    -- (eVar0 "path")
     (eVar0 "pointyPath")
     [eStr "white", randomColor old, eConst 5 dummyLoc, eVar "d"]
+
+addStretchyPath old keysAndPoints =
+  let (xs,ys) = List.unzip (List.map snd keysAndPoints) in
+  let xMax = Utils.fromJust <| List.maximum xs in
+  let xMin = Utils.fromJust <| List.minimum xs in
+  let yMax = Utils.fromJust <| List.maximum ys in
+  let yMin = Utils.fromJust <| List.minimum ys in
+  let (width, height) = (toFloat (xMax - xMin), toFloat (yMax - yMin)) in
+  let strX x = toString (toFloat (x - xMin) / width) in
+  let strY y = toString (toFloat (y - yMin) / height) in
+  let (extraLets, sD) = pathCommands strX strY keysAndPoints in
+  addToCodeAndRun "path" old
+    ([ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
+     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing] ]
+     ++ extraLets
+     ++ [ makeLet ["dPcts"] [eVar sD] ])
+    (eVar0 "stretchyPath")
+    [eVar "bounds", eStr "white", randomColor old, eConst 5 dummyLoc, eVar "dPcts"]
+
+addStickyPath old keysAndPoints =
+  Debug.crash "TODO: addStickyPath"
 
 addLambdaToCodeAndRun old (_,pt2) (_,pt1) =
   let funcName =
@@ -632,10 +657,6 @@ makeNewShapeDef model newShapeKind name locals func args =
       [] ->
         let multi = -- check if (func args) returns List SVG or SVG
           case model.toolType of
-            -- Oval -> True
-            -- Poly -> True
-            Path -> True
-            -- Lambda _ -> True
             _ -> False
         in
         if multi then
