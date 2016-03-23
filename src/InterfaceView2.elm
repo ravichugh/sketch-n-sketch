@@ -1,5 +1,6 @@
 module InterfaceView2 (view, scaleColorBall , drawNewPolygonDotSize
                       , boundingBox , squareBoundingBox , snapLine
+                      , maybeFindBounds
                       ) where
 
 --Import the little language and its parsing utilities
@@ -68,6 +69,7 @@ svgRect      = flip Svg.rect []
 svgCircle    = flip Svg.circle []
 svgEllipse   = flip Svg.ellipse []
 svgPolygon   = flip Svg.polygon []
+svgPath      = flip Svg.path []
 
 -- TODO use these more below
 
@@ -633,17 +635,17 @@ zoneGroupStrokeWidth = 8
 zoneGroupPadding     = 10
 roundBounds          = True
 
-zoneGroup model options id bounds =
+zoneGroup model options blobId nodeId bounds =
   if options.addSelectShapes
-    then zoneGroup_ model id bounds
+    then zoneGroup_ model blobId nodeId bounds
     else []
 
-zoneGroup_ model id bounds =
+zoneGroup_ model blobId nodeId bounds =
   let (left, top, right, bot) =
     let (a,b,c,d) = bounds in (fst a, fst b, fst c, fst d)
   in
   let stroke =
-    if Dict.member id model.selectedBlobs
+    if Dict.member blobId model.selectedBlobs
       then "#03C03C"
       else "rgba(255,255,0,1.0)" in
   let pad = zoneGroupPadding in
@@ -656,7 +658,7 @@ zoneGroup_ model id bounds =
        , LangSvg.attr "stroke-width" (toString zoneGroupStrokeWidth)
        , LangSvg.attr "fill" "rgba(0,0,0,0)"
        , cursorStyle "pointer"
-       , onMouseDown (toggleSelectedBlob model id bounds)
+       , onMouseDown (toggleSelectedBlob model blobId nodeId)
        , attrNum "x1" (fst pt1), attrNum "y1" (snd pt1)
        , attrNum "x2" (fst pt2), attrNum "y2" (snd pt2)
        ]
@@ -671,9 +673,9 @@ toggleDict (k,v) dict =
     then Dict.remove k dict
     else Dict.insert k v dict
 
-toggleSelectedBlob model id bounds =
+toggleSelectedBlob model blobId nodeId =
   UpdateModel <| \model ->
-    { model | selectedBlobs = toggleDict (id, bounds) model.selectedBlobs }
+    { model | selectedBlobs = toggleDict (blobId, nodeId) model.selectedBlobs }
 
 maybeFindBlobId l =
   case Utils.maybeFind "BLOB" l of
@@ -731,7 +733,7 @@ makeZones model options shape id l =
         let zGroup =
           case maybeFindBlobId l of
             Nothing     -> []
-            Just blobId -> zoneGroup model options blobId
+            Just blobId -> zoneGroup model options blobId id
                              (minNumTr x1 x2, minNumTr y1 y2,
                               maxNumTr x1 x2, maxNumTr y1 y2)
         in
@@ -742,7 +744,7 @@ makeZones model options shape id l =
 
     "path" -> makeZonesPath options.showBasic shape id l
 
-    "g" -> makeZonesGroup model options l
+    "g" -> makeZonesGroup model options id l
 
     _ -> []
 
@@ -929,9 +931,9 @@ makeZonesPath showBasic shape id l =
   in
   zonePoints id shape showBasic transform pts
 
-makeZonesGroup model options l =
+makeZonesGroup model options nodeId l =
   case (maybeFindBounds l, maybeFindBlobId l) of
-    (Just bounds, Just blobId) -> zoneGroup model options blobId bounds
+    (Just bounds, Just blobId) -> zoneGroup model options blobId nodeId bounds
     _                          -> []
 
 
@@ -939,15 +941,16 @@ makeZonesGroup model options l =
 -- Drawing Tools
 
 drawNewShape model =
-  case model.mouseMode of
-    MouseDrawNew "line"    [pt2, pt1]    -> drawNewLine model pt2 pt1
-    MouseDrawNew "rect"    [pt2, pt1]    -> drawNewRect model.keysDown pt2 pt1
-    MouseDrawNew "ellipse" [pt2, pt1]    -> drawNewEllipse model.keysDown pt2 pt1
-    MouseDrawNew "polygon" (ptLast::pts) -> drawNewPolygon ptLast pts
-    MouseDrawNew "path" (ptLast::pts)    -> drawNewPath ptLast pts
-    MouseDrawNew "DOT" [pt]              -> drawNewHelperDot pt
-    MouseDrawNew "LAMBDA"  [pt2, pt1]    -> drawNewRect model.keysDown pt2 pt1
-    _                                    -> []
+  case (model.shapeTool, model.mouseMode) of
+    (Line _,     MouseDrawNew [pt2, pt1])    -> drawNewLine model pt2 pt1
+    (Rect _,     MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
+    (Oval _,     MouseDrawNew [pt2, pt1])    -> drawNewEllipse model.keysDown pt2 pt1
+    (Poly _,     MouseDrawNew (ptLast::pts)) -> drawNewPolygon ptLast pts
+    (Path _,     MouseDrawNew (ptLast::pts)) -> drawNewPath ptLast pts
+    (HelperDot,  MouseDrawNew [pt])          -> drawNewHelperDot pt
+    (HelperLine, MouseDrawNew [pt2, pt1])    -> drawNewLine model pt2 pt1
+    (Lambda _,   MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
+    _                                        -> []
 
 defaultOpacity        = Attr.style [("opacity", "0.5")]
 defaultStroke         = LangSvg.attr "stroke" "gray"
@@ -955,6 +958,7 @@ defaultStrokeWidth    = LangSvg.attr "stroke-width" "5"
 defaultFill           = LangSvg.attr "fill" "gray"
 dotFill               = LangSvg.attr "fill" "red"
 dotFill2              = LangSvg.attr "fill" "orange"
+dotFillControlPt      = LangSvg.attr "fill" "green"
 dotSize               = LangSvg.attr "r" (toString drawNewPolygonDotSize)
 
 drawNewPolygonDotSize = 10
@@ -991,7 +995,7 @@ snapLine keysDown (_,(x2,y2)) (_,(x1,y1)) =
 
 drawNewLine model click2 click1 =
   let ((_,(x2,y2)),(_,(x1,y1))) = (click2, click1) in
-  let stroke = if model.toolType == HelperLine then guideStroke else defaultStroke in
+  let stroke = if model.shapeTool == HelperLine then guideStroke else defaultStroke in
   let (xb, yb) = snapLine model.keysDown click2 click1 in
   let line =
     svgLine [
@@ -1062,7 +1066,9 @@ drawNewPolygon (_,ptLast) keysAndPoints =
    in
    dot :: maybeShape
 
-drawNewPath (_,ptLast) keysAndPoints =
+strPt (x,y) = Utils.spaces [toString x, toString y]
+
+drawNewPath (keysLast,ptLast) keysAndPoints =
   let points = List.map snd keysAndPoints in
   let dot fill (cx,cy) =
     svgCircle [
@@ -1076,24 +1082,42 @@ drawNewPath (_,ptLast) keysAndPoints =
       [] -> []
       _  -> [dot dotFill2 ptLast]
   in
-  -- TODO for now, just drawing a polygon like drawNewPolygon
-  let maybeShape =
-    case (ptLast::points) of
+  let pathAndPoints =
+    let plus (s1,l1) (s2,l2) = (s1 ++ s2, l1 ++ l2) in
+    let foo list0 = case list0 of
+      [] -> ("", [])
+      (modifiers1,click1) :: list1 ->
+        if modifiers1 == Keys.q then
+          case list1 of
+            [] -> ("", [click1])
+            (_,click2) :: list2 ->
+              let cmd = Utils.spaces [" Q", strPt click1, strPt click2] in
+              (cmd, [click1]) `plus` foo list2
+        else if modifiers1 == Keys.c then
+          case list1 of
+            [] -> ("", [click1])
+            (_,click2) :: [] -> ("", [click1, click2])
+            (_,click2) :: (_,click3) :: list3 ->
+              let cmd = Utils.spaces [" C", strPt click1, strPt click2, strPt click3] in
+              (cmd, [click1, click2]) `plus` foo list3
+        else
+          (Utils.spaces [" L", strPt click1], []) `plus` foo list1
+    in
+    case List.reverse ((keysLast,ptLast)::keysAndPoints) of
+      []  -> []
       [_] -> []
-      _ ->
-        -- don't need to reverse, but keeping it same as resulting shape
-        let polyPoints = List.reverse (ptLast::points) in
-        let sPoints =
-          Utils.spaces <|
-            List.map (\(x,y) -> String.join "," (List.map toString [x,y]))
-                     polyPoints
-        in
-        [ svgPolygon [
-            defaultStroke , defaultStrokeWidth , defaultFill , defaultOpacity
-          , LangSvg.attr "points" sPoints
-          ] ]
-   in
-   redDot ++ yellowDot ++ maybeShape
+      (_,firstClick) :: rest ->
+        let (sPath, controlPoints) =
+          (Utils.spaces ["M", strPt firstClick], []) `plus` foo rest in
+        let path =
+          svgPath [
+              defaultStroke , defaultStrokeWidth , defaultFill , defaultOpacity
+            , LangSvg.attr "d" sPath
+            ] in
+        let points = List.map (dot dotFillControlPt) controlPoints in
+        path :: points
+  in
+  redDot ++ yellowDot ++ pathAndPoints
 
 -- TODO this doesn't appear right away
 -- (dor does initial poly, which appears only on MouseUp...)
@@ -1209,11 +1233,9 @@ canvas w h model =
 canvas_ w h model =
   let addZones = case (editingMode model, model.mode) of
     (False, AdHoc)  -> True
-    (False, Live _) -> case model.toolType of
-                         Cursor       -> True
-                         -- SelectAttrs  -> True
-                         -- SelectShapes -> True
-                         _            -> False
+    (False, Live _) -> case model.toolMode of
+                         Cursors -> True
+                         Shapes  -> False
     _               -> False
   in
   let mainCanvas_ = buildSvg (model, addZones) model.slate in
@@ -1324,64 +1346,57 @@ widgetsSlideNavigation w h model =
   ]
 
 widgetsTools w h model =
-{-
-  [ threeButtons w h
-      (toolButton model Cursor)
-      (toolButton model SelectAttrs)
-      (toolButton model SelectShapes)
-  , threeButtons w h
-      (toolButton model Line)
-      (toolButton model Rect)
-      (toolButton model Oval)
-  , threeButtons w h
-      (toolButton model Poly)
-      (toolButton model Path)
-      (toolButton model Text)
+  [ twoButtons w h
+      (toolModeButton Cursors model)
+      (toolModeButton Shapes model)
   ]
--}
-  [ toolButton model Cursor w h
-  , twoButtons w h
-      (toolButton model Line)
-      (toolButton model Rect)
-  , twoButtons w h
-      (toolButton model Oval)
-      (toolButton model Poly)
-  , twoButtons w h
-      (toolButton model HelperLine)
-      (toolButton model HelperDot)
-  , twoButtons w h
-      (toolButton model Path)
-      (toolButton model (Lambda "star"))
-  ]
+  ++ widgetsCursorsOrShapes w h model
 
-widgetsToolExtras w h model =
+widgetsCursorsOrShapes w h model =
   let gap = gapWidget w h in
-  case model.toolType of
-{-
-    -- TODO get rid of showZonesSelect
-    Cursor       -> [ gap , zoneButton model w h  ]
-    SelectAttrs  -> [ gap , relateAttrsButton w h ]
--}
-    Cursor       -> if model.showZones == showZonesSelectAttrs
-                    then gap :: (zoneButtons model w h)
-                             -- ++ [ digHoleButton w h ]
-                             -- ++ [ gap, twoButtons w h relateAttrsButton digHoleButton ]
-                             -- ++ [ relateAttrsButton w h, digHoleButton w h]
-                    else gap :: (zoneButtons model w h)
-    -- SelectShapes -> [ gap , relateShapesButton w h ]
-    -- SelectShapes -> gap :: zoneButtons model w h
-    _            -> []
+  case model.toolMode of
+    Cursors -> gap :: widgetsCursors w h model
+    Shapes  -> gap :: widgetsShapes w h model
+
+threeVersions w h b1 b2 b3 =
+  flowRight w h [(2/3, b1), (1/6, b2), (1/6, b3)]
+
+widgetsShapes w h model =
+  [ threeVersions w h
+      (shapeToolButton model (Line Raw))
+      gapWidget
+      gapWidget
+  , threeVersions w h
+      (shapeToolButton model (Rect Raw))
+      (shapeToolButton model (Rect Stretchy))
+      gapWidget
+  , threeVersions w h
+      (shapeToolButton model (Oval Raw))
+      (shapeToolButton model (Oval Stretchy))
+      gapWidget
+  , threeVersions w h
+      (shapeToolButton model (Poly Raw))
+      (shapeToolButton model (Poly Stretchy))
+      (shapeToolButton model (Poly Sticky))
+  , threeVersions w h
+      (shapeToolButton model (Path Raw))
+      (shapeToolButton model (Path Stretchy))
+      (shapeToolButton model (Path Sticky))
+  , twoButtons w h
+      (shapeToolButton model HelperLine)
+      (shapeToolButton model HelperDot)
+  , shapeToolButton model (Lambda "star") w h
+  ]
 
 middleWidgets row1 row2 w h wWrap hWrap model =
 
   let exampleNavigation = widgetsExampleNavigation w h model in
   let undoRedo = widgetsUndoRedo w h model in
   let tools = widgetsTools w h model in
-  let extras = widgetsToolExtras w h model in
   let slideNavigation = widgetsSlideNavigation w h model in
 
   let l1  = if row1 then exampleNavigation ++ undoRedo else [] in
-  let l2_ = if row2 then tools ++ extras else [] in
+  let l2_ = if row2 then tools else [] in
 
   let l2 =
     if row1 && row2
@@ -1628,30 +1643,20 @@ ghostsButton model w h =
 syncButton =
   simpleButton Sync "Sync" "Sync the code to the canvas" "Sync"
 
-{-
-relateAttrsButton =
-  simpleButton RelateAttrs "Relate" "Relate" "Relate" -- "Relate Attrs"
--}
-
 digHoleButton enabled =
   simpleEventButton_ (not enabled) DigHole "unused?" "unused?" "Dig" -- "Dig Hole"
 
 groupButton enabled =
   simpleEventButton_ (not enabled) RelateShapes "unused?" "unused?" "Group"
 
-{-
-relateShapesButton =
-  simpleButton RelateShapes "Relate" "Relate" "Relate Shapes"
--}
-
-zoneButtons model w h =
+widgetsCursors w h model =
   let caption mode =
-    if mode == showZonesNone        then "No" -- "Hide" -- "[Zones] Hidden"
-    else if mode == showZonesBasic  then "Yes" -- "Show" -- "[Zones] Basic"
-    else if mode == showZonesSelectAttrs  then "Attrs" -- "[Zones] Attrs"
-    else if mode == showZonesSelectShapes then "Shapes" -- "[Zones] Attrs"
-    else if mode == showZonesExtra  then "Xtra" -- "Extra" -- "[Zones] Extra"
-    else if mode == showZonesDel    then Debug.crash "[Zones] Delete"
+    if mode == showZonesNone              then "Hide "
+    else if mode == showZonesBasic        then "Show"
+    else if mode == showZonesSelectAttrs  then "Features"
+    else if mode == showZonesSelectShapes then "Blobs"
+    else if mode == showZonesExtra        then "More Attributes" -- "Color / Rot"
+    else if mode == showZonesDel          then Debug.crash "[Zones] Delete"
     else
       Debug.crash "zoneButton caption"
   in
@@ -1661,42 +1666,26 @@ zoneButtons model w h =
       simpleButton_ events.address btnKind Noop False (SelectZonesMode mode)
         "Still dunno what this does" "Dunno what this is for" (caption mode) w h
   in
-    -- Delete turned off for now
-    -- List.map zoneButton showZonesModes
-    -- List.map zoneButton [ 0 .. (showZonesModeCount - 1 - 1) ]
-{-
-    [ twoButtons w h (zoneButton showZonesNone) (zoneButton showZonesBasic)
-    , twoButtons w h (zoneButton showZonesExtra) (zoneButton showZonesSelect)
-    ]
--}
-    [ threeButtons w h
+  let basicButtons =
+    [ twoButtons w h
         (zoneButton showZonesNone)
         (zoneButton showZonesBasic)
-        (zoneButton showZonesExtra)
-    , twoButtons w h
-        (zoneButton showZonesSelectAttrs)
-        (zoneButton showZonesSelectShapes)
-    , twoButtons w h
-        (digHoleButton (model.showZones == showZonesSelectAttrs))
-        (groupButton (model.showZones == showZonesSelectShapes))
+    , zoneButton showZonesExtra w h
+    , zoneButton showZonesSelectAttrs w h
+    , zoneButton showZonesSelectShapes w h
     ]
-
-{-
-shapeButton model =
-  let (cap_, next) = case model.newShapeKind of
-    -- Nothing          -> ("None", Just "line")
-    Nothing          -> ("Cursor", Just "line")
-    Just "line"      -> ("Line", Just "rect")
-    Just "rect"      -> ("Rect", Just "ellipse")
-    Just "ellipse"   -> ("Ellipse", Just "polygon")
-    Just "polygon"   -> ("Polygon", Nothing)
-    _                -> Debug.crash "shapeButton"
   in
-  let foo m = { m | newShapeKind = next } in
-  -- let cap = "[Draw] " ++ cap_ in
-  let cap = "[Tool] " ++ cap_ in
-  simpleButton (UpdateModel foo) cap cap cap
--}
+  let maybeRelateButtons =
+    if model.showZones == showZonesSelectAttrs
+      then [gapWidget w h, digHoleButton True w h]
+      else []
+  in
+  let maybeBlobButtons =
+    if model.showZones == showZonesSelectShapes
+      then [gapWidget w h, groupButton True w h]
+      else []
+  in
+  basicButtons ++ maybeRelateButtons ++ maybeBlobButtons
 
 luckyButton model =
   let foo old =
@@ -1725,30 +1714,49 @@ frozenButton model =
   simpleButton ToggleThawed "ToggleThawed " "Toggle ?/!" cap
 -}
 
-toolButton : Model -> ToolType -> Int -> Int -> GE.Element
-toolButton model tt w h =
-  let cap = case tt of
-    -- Cursor -> "1"
-    Cursor -> "Cursor"
-    -- SelectAttrs -> "2"
-    -- SelectShapes -> "3"
-    Line -> "Line"
-    Rect -> "Rect"
-    Oval -> "Oval"
-    Poly -> "Poly"
-    -- Line -> "L"
-    -- Rect -> "R"
-    -- Oval -> "E"
-    -- Poly -> "P"
-    Path -> "Path"
-    Text -> "-"
-    HelperLine -> "(Rule)"
-    HelperDot -> "(Dot)"
-    Lambda f -> Utils.bracks Utils.uniLambda ++ " " ++ f
+toolModeButton : ToolMode -> Model -> Int -> Int -> GE.Element
+toolModeButton toolMode model w h =
+  let btnKind = if model.toolMode == toolMode then Selected else Unselected in
+  let cap =
+    case toolMode of
+      Cursors -> "Cursor"
+      Shapes  -> "Draw"
   in
-  let btnKind = if model.toolType == tt then Selected else Unselected in
   simpleButton_ events.address btnKind Noop False
-    (UpdateModel (\m -> { m | toolType = tt })) cap cap cap w h
+    (UpdateModel (\m -> { m | toolMode = toolMode })) cap cap cap w h
+
+shapeToolButton : Model -> ShapeTool -> Int -> Int -> GE.Element
+shapeToolButton model shapeTool w h =
+  let capStretchy = "%" in
+  let capSticky = Utils.uniPlusMinus in -- Utils.uniDelta in
+  let cap = case shapeTool of
+    Line Raw      -> "Line"
+    Rect Raw      -> "Rect"
+    Rect Stretchy -> capStretchy
+    Oval Raw      -> "Oval"
+    Oval Stretchy -> capStretchy
+    Poly Raw      -> "Poly"
+    Poly Stretchy -> capStretchy
+    Poly Sticky   -> capSticky
+    Path Raw      -> "Path"
+    Path Stretchy -> capStretchy
+    Path Sticky   -> capSticky
+    Text          -> "-"
+    HelperLine    -> "(Rule)"
+    HelperDot     -> "(Dot)"
+    Lambda f      -> Utils.bracks Utils.uniLambda ++ " " ++ f
+    _             -> Debug.crash ("shapeToolButton: " ++ toString shapeTool)
+  in
+  let btnKind = if model.shapeTool == shapeTool then Selected else Unselected in
+  -- TODO temporarily disabling a couple tools
+  let (btnKind, disabled) =
+    case shapeTool of
+      Poly Raw    -> (Regular, True)
+      Path Sticky -> (Regular, True)
+      _           -> (btnKind, False)
+  in
+  simpleButton_ events.address btnKind Noop disabled
+    (UpdateModel (\m -> { m | shapeTool = shapeTool })) cap cap cap w h
 
 saveButton : Model -> Int -> Int -> GE.Element
 saveButton model w h =

@@ -63,10 +63,11 @@ type alias Model =
   , basicCodeBox : Bool
   , errorBox : Maybe String
   , genSymCount : Int
-  , toolType : ToolType
+  , toolMode : ToolMode
+  , shapeTool : ShapeTool
   , selectedFeatures : Set.Set (NodeId, ShapeFeature)
   -- line/g ids assigned by blobs function
-  , selectedBlobs : Dict.Dict Int (NumTr, NumTr, NumTr, NumTr)
+  , selectedBlobs : Dict.Dict Int NodeId
   , keysDown : List Char.KeyCode
   , randomColor : Int
   }
@@ -108,7 +109,7 @@ type MouseMode
       (Maybe ( Code                        -- the program upon initial click
              , MouseTrigger (Exp, Val, RootedIndexedTree, Widgets) ))
       -- may add info for hilites later
-  | MouseDrawNew ShapeKind (List (KeysDown, (Int, Int)))
+  | MouseDrawNew (List (KeysDown, (Int, Int)))
       -- invariant on length n of list of points:
       --   for line/rect/ellipse, n == 0 or n == 2
       --   for polygon/path,      n >= 0
@@ -134,13 +135,25 @@ showZonesModes = [ 0 .. (showZonesModeCount - 1) ]
  showZonesExtra, showZonesDel) =
   Utils.unwrap6 showZonesModes
 
-type ToolType
-  = Cursor -- | SelectAttrs | SelectShapes
-  | Line | Rect | Oval
-  | Poly | Path | Text
+type ToolMode
+  = Cursors
+  | Shapes
+
+type ShapeTool
+  = Line ShapeToolKind
+  | Rect ShapeToolKind
+  | Oval ShapeToolKind
+  | Poly ShapeToolKind
+  | Path ShapeToolKind
+  | Text
   | HelperDot
   | HelperLine
   | Lambda Ident
+
+type ShapeToolKind
+  = Raw
+  | Stretchy
+  | Sticky
 
 type Caption
   = Hovering (Int, ShapeKind, Zone)
@@ -297,7 +310,8 @@ sampleModel =
     -- starting at 1 to match shape ids on blank canvas
     -- , genSymCount   = 0
     , genSymCount   = 1
-    , toolType      = Cursor
+    , toolMode      = Cursors
+    , shapeTool     = Line Raw
     , selectedFeatures = Set.empty
     , selectedBlobs = Dict.empty
     , keysDown      = []

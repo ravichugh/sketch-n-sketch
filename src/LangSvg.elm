@@ -174,6 +174,7 @@ valToAttr v = case v.v_ of
         ("fill", VList vs)      -> (k, ARgba <| valToRgba vs)
         ("fill", VConst it)     -> (k, AColorNum it)
         ("stroke", VList vs)    -> (k, ARgba <| valToRgba vs)
+        ("stroke", VConst it)   -> (k, AColorNum it)
         ("d", VList vs)         -> (k, APath2 (valsToPath2 vs))
         ("transform", VList vs) -> (k, ATransform (valsToTransform vs))
         ("BOUNDS", VList vs)    -> (k, ABounds <| valToBounds vs)
