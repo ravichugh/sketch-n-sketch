@@ -1,5 +1,25 @@
 require "pry"
 
+class Array
+  def mean
+    reduce(:+) / size.to_f
+  end
+
+  def median
+    sorted = sort
+    count  = sorted.size
+    i      = count / 2
+
+    return nil if count == 0
+    if count % 2 == 1
+      sorted[i]
+    else
+      ( sorted[i-1] + sorted[i] ) / 2.0
+    end.to_f
+  end
+end
+
+
 RESULTS_PATH = "benchmark_results.csv"
 
 
@@ -106,6 +126,88 @@ EXAMPLES_WHITELIST = [
   "Grid Tile",
   "Zones"
 ]
+
+example_name_to_file_basename = {
+  "Wave Boxes"               => "sineWaveOfBoxes",
+  "Wave Boxes Grid"          => "sineWaveGrid",
+  "Logo"                     => "logo",
+  "Botanic Garden Logo"      => "botanic",
+  "Active Trans Logo"        => "activeTrans2",
+  "Sailboat"                 => "sailBoat",
+  "Chicago Flag"             => "chicago",
+  "Sliders"                  => "sliders",
+  "Buttons"                  => "buttons",
+  "Widgets"                  => "widgets",
+  "xySlider"                 => "xySlider",
+  "Tile Pattern"             => "boxGridTokenFilter",
+  "Color Picker"             => "rgba",
+  "Ferris Wheel"             => "ferris",
+  "Ferris Task Before"       => "ferris2",
+  "Ferris Task After"        => "ferris2target",
+  "Ferris Wheel Slideshow"   => "ferrisWheelSlideshow",
+  "Survey Results"           => "surveyResultsTriHist2",
+  "Hilbert Curve Animation"  => "hilbertCurveAnimation",
+  "Bar Graph"                => "barGraph",
+  "Pie Chart"                => "pieChart1",
+  "Solar System"             => "solarSystem",
+  "Clique"                   => "clique",
+  "Eye Icon"                 => "eyeIcon",
+  "Wikimedia Logo"           => "wikimedia",
+  "Haskell.org Logo"         => "haskell",
+  "Cover Logo"               => "cover",
+  "POP-PL Logo"              => "poppl",
+  "Lillicon P"               => "lilliconP",
+  "Lillicon P, v2"           => "lilliconP2",
+  "Keyboard"                 => "keyboard",
+  "Keyboard Task Before"     => "keyboard2",
+  "Keyboard Task After"      => "keyboard2target",
+  "Tessellation Task Before" => "tessellation",
+  "Tessellation Task After"  => "tessellationTarget",
+  "Tessellation 2"           => "tessellation2",
+  "Floral Logo 1"            => "floralLogo",
+  "Floral Logo 2"            => "floralLogo2",
+  "Spiral Spiral-Graph"      => "spiralSpiralGraph",
+  "Rounded Rect"             => "roundedRect",
+  "Thaw/Freeze"              => "thawFreeze",
+  "3 Boxes"                  => "threeBoxes",
+  "N Boxes Sli"              => "nBoxes",
+  "N Boxes"                  => "groupOfBoxes",
+  "Elm Logo"                 => "elmLogo",
+  "Logo 2"                   => "logo2",
+  "Logo Sizes"               => "logoSizes",
+  "Rings"                    => "rings",
+  "Polygons"                 => "polygons",
+  "Stars"                    => "stars",
+  "Triangles"                => "equiTri",
+  "US-13 Flag"               => "usFlag13",
+  "US-50 Flag"               => "usFlag50",
+  "French Sudan Flag"        => "frenchSudan",
+  "Frank Lloyd Wright"       => "flw1",
+  "Frank Lloyd Wright B"     => "flw2",
+  "Bezier Curves"            => "bezier",
+  "Fractal Tree"             => "fractalTree",
+  "Stick Figures"            => "stickFigures",
+  "Cult of Lambda"           => "cultOfLambda",
+  "Matrix Transformations"   => "matrices",
+  "Misc Shapes"              => "miscShapes",
+  "Interface Buttons"        => "interfaceButtons",
+  "Paths 1"                  => "paths1",
+  "Paths 2"                  => "paths2",
+  "Paths 3"                  => "paths3",
+  "Paths 4"                  => "paths4",
+  "Paths 5"                  => "paths5",
+  "Sample Rotations"         => "rotTest",
+  "Grid Tile"                => "gridTile",
+  "Zones"                    => "zones",
+}
+
+example_name_to_lines_of_code =
+  EXAMPLES_WHITELIST.map do |example_name|
+    basename = example_name_to_file_basename[example_name]
+    code = File.read(File.expand_path("../../examples/#{basename}.little", __FILE__))
+    example_locs = code.lines.reject { |line| line =~ /^\s*$|^\s*;/ }.count
+    [example_name, example_locs]
+  end.to_h
 
 #
 # def maybe_float_to_string(maybe_float)
@@ -223,12 +325,6 @@ class ResultRow
 
   def chrome?
     browser == CHROME
-  end
-end
-
-class Array
-  def mean
-    reduce(:+) / size.to_f
   end
 end
 
@@ -735,6 +831,7 @@ equations_by_chosen_loc_and_trace_id_summary_table = [
     ["\\textbf{\\# (example, loc, tr) Equations}", equations_by_chosen_loc_and_trace_id.count],
     ["\\textbf{Mean Trace Size (tree nodes)}", "%.2f" % equations_by_chosen_loc_and_trace_id.map(&:trace_size).mean],
     ["\\textbf{Max Solve Time}", "%.3f" % equations_by_chosen_loc_and_trace_id.flat_map(&:solve_durations).max],
+    ["\\textbf{Median Solve Time}",  "$< 0.001$ (Calculated: %.4f)" % equations_by_chosen_loc_and_trace_id.flat_map(&:solve_durations).median],
     ["\\textbf{Mean Solve Time}",  "$< 0.001$ (Calculated: %.4f)" % equations_by_chosen_loc_and_trace_id.flat_map(&:solve_durations).mean],
     ["\\textbf{\\# Traces in Solve A fragment}", equations_by_chosen_loc_and_trace_id.count(&:in_solve_a_fragment?)],
     ["\\textbf{\\hspace{2em}Solved}",            ""],
@@ -798,7 +895,7 @@ timing_summary_table =
   timing_results_by_example.flat_map do |example_results|
     [
       [
-        "\\raisebox{-0.5em}{#{example_results.example_name}}",
+        example_results.example_name,
         "FF: %.3f" % example_results.ff_mean_parse_duration,
         "FF: %.3f" % example_results.ff_mean_eval_duration,
         "FF: %.3f" % example_results.ff_mean_unparse_duration,
@@ -807,7 +904,7 @@ timing_summary_table =
         "FF: %.3f" % example_results.ff_mean_run_code_duration,
       ],
       [
-        "",
+        "LOC: #{example_name_to_lines_of_code[example_results.example_name]}",
         "Ch: %.3f" % example_results.chrome_mean_parse_duration,
         "Ch: %.3f" % example_results.chrome_mean_eval_duration,
         "Ch: %.3f" % example_results.chrome_mean_unparse_duration,
@@ -849,12 +946,21 @@ timing_summary_table =
     ],
     [
       "",
-      "\\textbf{Avg %.3f}" % ExampleResults.new("All", timing_result_rows).parse_results.map(&:value).mean,
-      "\\textbf{Avg %.3f}" % ExampleResults.new("All", timing_result_rows).eval_results.map(&:value).mean,
-      "\\textbf{Avg %.3f}" % ExampleResults.new("All", timing_result_rows).unparse_results.map(&:value).mean,
-      "\\textbf{Avg %.3f}" % ExampleResults.new("All", timing_result_rows).val_to_indexed_tree_results.map(&:value).mean,
-      "\\textbf{Avg %.3f}" % ExampleResults.new("All", timing_result_rows).prepare_live_updates_results.map(&:value).mean,
-      "\\textbf{Avg %.3f}" % ExampleResults.new("All", timing_result_rows).run_code_results.map(&:value).mean,
+      "\\textbf{Med %.3f}" % ExampleResults.new("All", timing_result_rows).parse_results.map(&:value).median,
+      "\\textbf{Med %.3f}" % ExampleResults.new("All", timing_result_rows).eval_results.map(&:value).median,
+      "\\textbf{Med %.3f}" % ExampleResults.new("All", timing_result_rows).unparse_results.map(&:value).median,
+      "\\textbf{Med %.3f}" % ExampleResults.new("All", timing_result_rows).val_to_indexed_tree_results.map(&:value).median,
+      "\\textbf{Med %.3f}" % ExampleResults.new("All", timing_result_rows).prepare_live_updates_results.map(&:value).median,
+      "\\textbf{Med %.3f}" % ExampleResults.new("All", timing_result_rows).run_code_results.map(&:value).median,
+    ],
+    [
+      "",
+      "\\textbf{Mean %.3f}" % ExampleResults.new("All", timing_result_rows).parse_results.map(&:value).mean,
+      "\\textbf{Mean %.3f}" % ExampleResults.new("All", timing_result_rows).eval_results.map(&:value).mean,
+      "\\textbf{Mean %.3f}" % ExampleResults.new("All", timing_result_rows).unparse_results.map(&:value).mean,
+      "\\textbf{Mean %.3f}" % ExampleResults.new("All", timing_result_rows).val_to_indexed_tree_results.map(&:value).mean,
+      "\\textbf{Mean %.3f}" % ExampleResults.new("All", timing_result_rows).prepare_live_updates_results.map(&:value).mean,
+      "\\textbf{Mean %.3f}" % ExampleResults.new("All", timing_result_rows).run_code_results.map(&:value).mean,
     ],
     [
       "",
