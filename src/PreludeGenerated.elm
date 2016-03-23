@@ -733,6 +733,7 @@ prelude =
       (['M' x y | rest]       (append [(dot x y)] (pointsOf rest)))
       (['L' x y | rest]       (append [(dot x y)] (pointsOf rest)))
       (['Q' x1 y1 x y | rest] (append [(dot x1 y1) (dot x y)] (pointsOf rest)))
+      (['C' x1 y1 x2 y2 x y | rest] (append [(dot x1 y1) (dot x2 y2) (dot x y)] (pointsOf rest)))
       (_                      'ERROR')))
   (cons
     (path fill stroke w d)

@@ -533,10 +533,7 @@ addStickyPolygon old keysAndPoints =
     (eVar0 "stickyPolygon")
     [eVar "bounds", randomColor old, eStr "black", eConst 2 dummyLoc, eVar "offsets"]
 
-strPoint (x,y) = Utils.spaces [toString x, toString y]
-
--- temporary, dummy offsets for control points
-temp_adjust (x,y) = (x - 50, y + 30)
+strPt (x,y) = Utils.spaces [toString x, toString y]
 
 -- TODO sticky and stretchable versions
 addPathToCodeAndRun : Model -> List (KeysDown, (Int, Int)) -> Model
@@ -549,7 +546,7 @@ addAbsolutePath old keysAndPoints =
   let (_,lastClick) = Utils.last_ keysAndPoints_ in
   let (extraLets, firstCmd, lastPoint) =
     if firstClick /= lastClick
-    then ([], "'M' " ++ strPoint firstClick, strPoint firstClick)
+    then ([], "'M' " ++ strPt firstClick, strPt firstClick)
     else
       let extraLets =
         [ makeLet ["x0", "y0"]
@@ -560,18 +557,34 @@ addAbsolutePath old keysAndPoints =
       (extraLets, "'M' x0 y0", "x0 y0")
   in
   let remainingCmds =
-    let foo list = case list of
+    let foo list0 = case list0 of
       [] -> []
-      (modifiers,click) :: [] ->
-        case (modifiers == Keys.shift, click == firstClick) of
-          (True,  _)     -> Debug.crash "addAbsolutePath: dangling control point"
-          (False, True)  -> ["'Z' "]
-          (False, False) -> ["'L' " ++ strPoint click]
-      (modifiers1,click1) :: (modifiers2,click2) :: list' ->
-        case (modifiers1 == Keys.shift, click2 == firstClick) of
-          (False, _)     -> ("'L' " ++ strPoint click1) :: foo ((modifiers2,click2) :: list')
-          (True,  True)  -> ("'Q' " ++ strPoint click1 ++ " " ++ lastPoint) :: foo list'
-          (True,  False) -> ("'Q' " ++ strPoint click1 ++ " " ++ strPoint click2) :: foo list'
+
+      (modifiers1,click1) :: list1 ->
+
+        if modifiers1 == Keys.q then
+          case list1 of
+            (modifiers2,click2) :: list2 ->
+              case (click2 == firstClick, list2) of
+                (True, []) -> [Utils.spaces ["'Q'", strPt click1, lastPoint]]
+                (False, _) -> (Utils.spaces ["'Q'", strPt click1, strPt click2]) :: foo list2
+                (True, _)  -> Debug.crash "addPath Q1"
+            _ -> Debug.crash "addPath Q2"
+
+        else if modifiers1 == Keys.c then
+          case list1 of
+            (modifiers2,click2) :: (modifiers3,click3) :: list3 ->
+              case (click3 == firstClick, list3) of
+                (True, []) -> [Utils.spaces ["'C'", strPt click1, strPt click2, lastPoint]]
+                (False, _) -> (Utils.spaces ["'C'", strPt click1, strPt click2, strPt click3]) :: foo list3
+                (True, _)  -> Debug.crash "addPath C1"
+            _ -> Debug.crash "addPath C2"
+
+        else
+          case (click1 == firstClick, list1) of
+            (True, []) -> ["'Z'"]
+            (False, _) -> (Utils.spaces ["'L'", strPt click1]) :: foo list1
+            (True, _)  -> Debug.crash "addPath ZL"
     in
     foo (Utils.tail_ keysAndPoints_)
   in
@@ -580,7 +593,7 @@ addAbsolutePath old keysAndPoints =
     (extraLets ++ [ makeLet ["d"] [eVar sD] ])
     -- (eVar0 "path")
     (eVar0 "pointyPath")
-    [eStr "white", eStr "black", eConst 2 dummyLoc, eVar "d"]
+    [eStr "white", randomColor old, eConst 5 dummyLoc, eVar "d"]
 
 addLambdaToCodeAndRun old (_,pt2) (_,pt1) =
   let funcName =
