@@ -318,8 +318,12 @@ makeEqual__ originalExp featureAEqn featureBEqn syncOptions =
       (equationLocs syncOptions featureAEqn) ++
       (equationLocs syncOptions featureBEqn)
   in
+  let frozenLocIdToNum =
+    ((frozenLocIdsAndNumbers originalExp) ++
+     (frozenLocIdsAndNumbers LangParser2.prelude))
+    |> Dict.fromList
+  in
   let findSolution locs =
-    let frozenLocIdToNum = Dict.fromList (frozenLocIdsAndNumbers originalExp) in
     case locs of
       [] ->
         Nothing
@@ -387,7 +391,16 @@ makeEqual__ originalExp featureAEqn featureBEqn syncOptions =
             independentLocIds
       in
       let dependentLocNameStr  = Utils.justGet dependentLocId locIdToNewName in
-      let dependentLocValueStr = locEqnToLittle locIdToNewName resultLocEqn in
+      let frozenLocIdToLittle =
+        Dict.map (\locId n -> (toString n) ++ "!") frozenLocIdToNum
+      in
+      let locIdToLittle =
+        Dict.union
+            locIdToNewName
+            frozenLocIdToLittle
+      in
+      let _ = debugLog "locIdToLittle" locIdToLittle in
+      let dependentLocValueStr = locEqnToLittle locIdToLittle resultLocEqn in
       let listOfListsOfNamesAndAssigns =
         [ Utils.zip independentLocNames independentLocValueStrs
         , [(dependentLocNameStr, dependentLocValueStr)]
