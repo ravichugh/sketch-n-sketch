@@ -809,7 +809,7 @@ makeZones model options shape id l =
     "polygon"  -> makeZonesPoly model options shape id l
     "polyline" -> makeZonesPoly model options shape id l
 
-    "path" -> makeZonesPath options.showBasic shape id l
+    "path" -> makeZonesPath model options shape id l
 
     "g" -> makeZonesGroup model options id l
 
@@ -994,33 +994,33 @@ makeZonesPoly model options shape id l =
     let midptCrossDot ((i1, ((xi1,_),(yi1,_))), (i2, ((xi2,_),(yi2,_)))) =
       let (xAttr1, yAttr1) = ("x" ++ toString i1, "y" ++ toString i1) in
       let (xAttr2, yAttr2) = ("x" ++ toString i2, "y" ++ toString i2) in
-      zoneSelectCrossDot model options.addSelect (id, [LangSvg.polyPathMidptX ++ toString i1], [LangSvg.polyPathMidptY ++ toString i1]) (xi1/2+xi2/2) (yi1/2+yi2/2)
+      zoneSelectCrossDot model options.addSelect (id, [LangSvg.polyMidptX ++ toString i1], [LangSvg.polyMidptY ++ toString i1]) (xi1/2+xi2/2) (yi1/2+yi2/2)
     in
     let ptCrossDot (i, ((xi,_),(yi,_))) =
       let (xAttr, yAttr) = ("x" ++ toString i, "y" ++ toString i) in
-      zoneSelectCrossDot model options.addSelect (id, [LangSvg.polyPathPtX ++ toString i], [LangSvg.polyPathPtY ++ toString i]) xi yi
+      zoneSelectCrossDot model options.addSelect (id, [LangSvg.polyPtX ++ toString i], [LangSvg.polyPtY ++ toString i]) xi yi
     in
-    let dots =
+    let midptCrossDots =
       let ptsI = Utils.mapi identity pts in
       let ptsIPairs = Utils.selfZipCircConsecPairs ptsI in
       List.concatMap midptCrossDot ptsIPairs
     in
     let crossDots = List.concat <| Utils.mapi ptCrossDot pts in
-    dots ++ crossDots
+    midptCrossDots ++ crossDots
   in
   let firstEqLast xs = Utils.head_ xs == Utils.head_ (List.reverse xs) in
   if shape == "polygon"   then zInterior :: (zLines ++ zPts ++ zRot ++ zSelect)
   else if firstEqLast pts then zInterior :: (zLines ++ zPts ++ zRot ++ zSelect)
   else                         zLines ++ zPts ++ zRot ++ zSelect
 
-makeZonesPath : Bool -> String -> Int -> List LangSvg.Attr -> List Svg.Svg
-makeZonesPath showBasic shape id l =
+makeZonesPath : Model -> ZoneOptions -> String -> Int -> List LangSvg.Attr -> List Svg.Svg
+makeZonesPath model options shape id nodeAttrs =
   let _ = Utils.assert "makeZonesPoly" (shape == "path") in
-  let transform = maybeTransformAttr l in
-  let cmds = fst <| LangSvg.toPath <| Utils.find_ l "d" in
+  let transform = maybeTransformAttr nodeAttrs in
+  let cmds = fst <| LangSvg.toPath <| Utils.find_ nodeAttrs "d" in
   let (+++) (mi,pt) acc = case mi of Nothing -> acc
-                                     _       -> pt :: acc in
-  let pts =
+                                     _       -> (mi,pt) :: acc in
+  let listOfMaybeIndexWithPt =
     List.foldr (\c acc -> case c of
       LangSvg.CmdZ   s              -> acc
       LangSvg.CmdMLT s pt           -> pt +++ acc
@@ -1029,7 +1029,20 @@ makeZonesPath showBasic shape id l =
       LangSvg.CmdSQ  s pt1 pt2      -> pt1 +++ (pt2 +++ acc)
       LangSvg.CmdA   s a b c d e pt -> pt +++ acc) [] cmds
   in
-  zonePoints id shape showBasic transform pts
+  let pts = List.map snd listOfMaybeIndexWithPt in
+  let dots =
+    zonePoints id shape options.showBasic transform pts
+  in
+  let zSelect =
+    let ptCrossDot (maybeIndex, ((xi,_),(yi,_))) =
+      let i = Utils.fromJust maybeIndex in
+      let (xAttr, yAttr) = ("x" ++ toString i, "y" ++ toString i) in
+      zoneSelectCrossDot model options.addSelect (id, [LangSvg.pathPtX ++ toString i], [LangSvg.pathPtY ++ toString i]) xi yi
+    in
+    let crossDots = List.concatMap ptCrossDot listOfMaybeIndexWithPt in
+    crossDots
+  in
+  dots ++ zSelect
 
 makeZonesGroup model options nodeId l =
   case (maybeFindBounds l, maybeFindBlobId l) of

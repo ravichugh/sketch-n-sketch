@@ -1163,39 +1163,53 @@ featureEquation nodeId kind feature nodeAttrs =
     else if feature == LangSvg.lineCY then EqnOp Div [EqnOp Plus [eqnVal "y1", eqnVal "y2"], eqnVal2] -- (y1 + y2) / 2
     else Debug.crash <| "Lines do not have this feature: " ++ feature
   in
-  let handlePolyPath () =
+  let handlePoly () =
     let ptCount = getPtCount nodeAttrs in
     let x i = eqnVal ("x" ++ toString i) in
     let y i = eqnVal ("y" ++ toString i) in
-    if String.startsWith LangSvg.polyPathPtX feature then
-      let iStr = String.dropLeft (String.length LangSvg.polyPathPtX) feature in
+    if String.startsWith LangSvg.polyPtX feature then
+      let iStr = String.dropLeft (String.length LangSvg.polyPtX) feature in
       let i    = Utils.fromOk_ <| String.toInt iStr in
       x i
-    else if String.startsWith LangSvg.polyPathPtY feature then
-      let iStr = String.dropLeft (String.length LangSvg.polyPathPtY) feature in
+    else if String.startsWith LangSvg.polyPtY feature then
+      let iStr = String.dropLeft (String.length LangSvg.polyPtY) feature in
       let i    = Utils.fromOk_ <| String.toInt iStr in
       y i
-    else if String.startsWith LangSvg.polyPathMidptX feature then
-      let i1Str = String.dropLeft (String.length LangSvg.polyPathMidptX) feature in
+    else if String.startsWith LangSvg.polyMidptX feature then
+      let i1Str = String.dropLeft (String.length LangSvg.polyMidptX) feature in
       let i1    = Utils.fromOk_ <| String.toInt i1Str in
       let i2    = if i1 == ptCount then 1 else i1 + 1 in
       EqnOp Div [EqnOp Plus [(x i1), (x i2)], eqnVal2] -- (x1 + x2) / 2
-    else if String.startsWith LangSvg.polyPathMidptY feature then
-      let i1Str = String.dropLeft (String.length LangSvg.polyPathMidptY) feature in
+    else if String.startsWith LangSvg.polyMidptY feature then
+      let i1Str = String.dropLeft (String.length LangSvg.polyMidptY) feature in
       let i1    = Utils.fromOk_ <| String.toInt i1Str in
       let i2    = if i1 == ptCount then 1 else i1 + 1 in
       EqnOp Div [EqnOp Plus [(y i1), (y i2)], eqnVal2] -- (y1 + y2) / 2
     else Debug.crash <| "Polygons/polylines do not have this feature: " ++ feature
   in
+  let handlePath () =
+    let x i = eqnVal ("x" ++ toString i) in
+    let y i = eqnVal ("y" ++ toString i) in
+    if String.startsWith LangSvg.pathPtX feature then
+      let iStr = String.dropLeft (String.length LangSvg.pathPtX) feature in
+      let i    = Utils.fromOk_ <| String.toInt iStr in
+      x i
+    else if String.startsWith LangSvg.pathPtY feature then
+      let iStr = String.dropLeft (String.length LangSvg.pathPtY) feature in
+      let i    = Utils.fromOk_ <| String.toInt iStr in
+      y i
+    else Debug.crash <| "Paths do not have this feature: " ++ feature
+  in
+  let _ = Debug.log "nodeAttrs" nodeAttrs in
   case kind of
     "rect"     -> handleRect ()
     "BOX"      -> handleBox ()
     "circle"   -> handleCircle ()
     "ellipse"  -> handleEllipse ()
     "line"     -> handleLine ()
-    "polygon"  -> handlePolyPath ()
-    "polyline" -> handlePolyPath ()
-    -- "path"     -> handlePolyPath kind
+    "polygon"  -> handlePoly ()
+    "polyline" -> handlePoly ()
+    "path"     -> handlePath ()
     _          -> Debug.crash <| "Shape features not implemented yet: " ++ kind
 
 
@@ -1205,19 +1219,32 @@ maybeFindAttr_ id kind attr attrs =
     Nothing   -> Debug.crash <| toString ("RelateAttrs 2", id, kind, attr, attrs)
 
 
-getXYi attrs si fstOrSnd =
+getPolyXYi attrs si fstOrSnd =
   let i = Utils.fromOk_ <| String.toInt si in
   case Utils.maybeFind "points" attrs of
     Just aval -> case aval.av_ of
       LangSvg.APoints pts -> LangSvg.valOfAVal <| LangSvg.aNum <| fstOrSnd <| Utils.geti i pts
-      _                   -> Debug.crash "getXYi 2"
-    _ -> Debug.crash "getXYi 1"
+      _                   -> Debug.crash "getPolyXYi 2"
+    _ -> Debug.crash "getPolyXYi 1"
+
+
+getPathXYi attrs si fstOrSnd =
+  let i = Utils.fromOk_ <| String.toInt si in
+  let maybeIndexPoint =
+    LangSvg.pathIndexPoints attrs
+    |> Utils.maybeFind i
+  in
+  case maybeIndexPoint of
+    Just pt -> LangSvg.valOfAVal <| LangSvg.aNum <| fstOrSnd pt
+    Nothing -> Debug.crash "getPathXYi 3"
 
 
 maybeFindAttr id kind attr attrs =
   case (kind, String.uncons attr) of
-    ("polygon", Just ('x', si)) -> getXYi attrs si fst
-    ("polygon", Just ('y', si)) -> getXYi attrs si snd
+    ("polygon", Just ('x', si)) -> getPolyXYi attrs si fst
+    ("polygon", Just ('y', si)) -> getPolyXYi attrs si snd
+    ("path",    Just ('x', si)) -> getPathXYi attrs si fst
+    ("path",    Just ('y', si)) -> getPathXYi attrs si snd
     _                           -> maybeFindAttr_ id kind attr attrs
 
 

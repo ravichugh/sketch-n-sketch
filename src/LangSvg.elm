@@ -251,6 +251,34 @@ valsOfPathCmd c =
     CmdA   s a b c d e pt -> vStr s :: List.map vConst [a,b,c,d,e] ++ fooPt pt
 -}
 
+-- Return list of (i, pt).
+-- (Includes control points.)
+pathIndexPoints nodeAttrs =
+  let cmds =
+    Utils.find ("pathPoints nodeAttrs looking for \"d\" in " ++ (toString nodeAttrs)) nodeAttrs "d"
+    |> toPath
+    |> fst
+  in
+  let pts =
+    cmds
+    |> List.concatMap
+        (\cmd -> case cmd of
+          CmdZ   s              -> []
+          CmdMLT s pt           -> [pt]
+          CmdHV  s n            -> []
+          CmdC   s pt1 pt2 pt3  -> [pt1, pt2, pt3]
+          CmdSQ  s pt1 pt2      -> [pt1, pt2]
+          CmdA   s a b c d e pt -> [pt]
+        )
+    |> List.filterMap
+        (\(maybeIndex, pt) -> case maybeIndex of
+          Nothing -> Nothing
+          Just i  -> Just (i, pt)
+        )
+  in
+  pts
+
+
 valOfAttr (k,a) = vList [vBase (String k), valOfAVal a]
   -- no VTrace to preserve...
 
@@ -525,10 +553,12 @@ lineX2 = "lineX2"
 lineY2 = "lineY2"
 lineCX = "lineCX"
 lineCY = "lineCY"
-polyPathPtX = "polyPathPtX"
-polyPathPtY = "polyPathPtY"
-polyPathMidptX = "polyPathMidptX"
-polyPathMidptY = "polyPathMidptY"
+polyPtX = "polyPtX"
+polyPtY = "polyPtY"
+polyMidptX = "polyMidptX"
+polyMidptY = "polyMidptY"
+pathPtX = "pathPtX"
+pathPtY = "pathPtY"
 
 children n = case n of
   TextNode _    -> []
