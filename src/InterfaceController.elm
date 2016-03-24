@@ -1863,7 +1863,12 @@ upstate evt old = case debugLog "Event" evt of
       let new = { old | keysDown = l } in
       if editingMode new then new
       else if l == Keys.escape then
-        { new | selectedFeatures = Set.empty, selectedBlobs = Dict.empty }
+        if new.showZones == showZonesSelectAttrs && not (Set.isEmpty new.selectedFeatures) then
+          { new | selectedFeatures = Set.empty }
+        else if new.showZones == showZonesSelectShapes && not (Dict.isEmpty new.selectedBlobs) then
+          { new | selectedBlobs = Dict.empty }
+        else
+          { new | showZones = showZonesNone }
       -- else if l == Keys.backspace || l == Keys.delete then
       --   deleteSelectedBlobs new
       -- TODO
