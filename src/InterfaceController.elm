@@ -1823,13 +1823,13 @@ upstate evt old = case debugLog "Event" evt of
       if editingMode new then new
       else if l == Keys.escape then
         { new | selectedFeatures = Set.empty, selectedBlobs = Dict.empty }
-      else if l == Keys.backspace || l == Keys.delete then
-        deleteSelectedBlobs new
+      -- else if l == Keys.backspace || l == Keys.delete then
+      --   deleteSelectedBlobs new
       -- TODO
       -- else if l == Keys.metaPlus Keys.d then
       -- else if l == Keys.metaPlus Keys.d || l == Keys.commandPlus Keys.d then
-      else if l == Keys.d then
-        duplicateSelectedBlobs new
+      -- else if l == Keys.d then
+      --   duplicateSelectedBlobs new
       else
         new
 
