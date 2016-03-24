@@ -1359,12 +1359,12 @@ widgetsCursorsOrShapes w h model =
     Shapes  -> gap :: widgetsShapes w h model
 
 threeVersions w h b1 b2 b3 =
-  flowRight w h [(2/3, b1), (1/6, b2), (1/6, b3)]
+  flowRight w h [(1/6, b1), (2/3, b2), (1/6, b3)]
 
 widgetsShapes w h model =
   [ threeVersions w h
-      (shapeToolButton model (Line Raw))
       gapWidget
+      (shapeToolButton model (Line Raw))
       gapWidget
   , threeVersions w h
       (shapeToolButton model (Rect Raw))
@@ -1726,17 +1726,18 @@ shapeToolButton : Model -> ShapeTool -> Int -> Int -> GE.Element
 shapeToolButton model shapeTool w h =
   let capStretchy = "%" in
   let capSticky = Utils.uniPlusMinus in -- Utils.uniDelta in
+  let capRaw = "=" in
   let cap = case shapeTool of
     Line Raw      -> "Line"
-    Rect Raw      -> "Rect"
-    Rect Stretchy -> capStretchy
-    Oval Raw      -> "Oval"
-    Oval Stretchy -> capStretchy
-    Poly Raw      -> "Poly"
-    Poly Stretchy -> capStretchy
+    Rect Raw      -> capRaw -- "Rect"
+    Rect Stretchy -> "Rect" -- capStretchy
+    Oval Raw      -> capRaw -- "Oval"
+    Oval Stretchy -> "Oval" -- capStretchy
+    Poly Raw      -> capRaw -- "Poly"
+    Poly Stretchy -> "Poly" -- capStretchy
     Poly Sticky   -> capSticky
-    Path Raw      -> "Path"
-    Path Stretchy -> capStretchy
+    Path Raw      -> capRaw -- "Path"
+    Path Stretchy -> "Path" -- capStretchy
     Path Sticky   -> capSticky
     Text          -> "-"
     HelperLine    -> "(Rule)"
