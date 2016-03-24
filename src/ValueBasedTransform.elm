@@ -100,7 +100,7 @@ digHole originalExp selectedFeatures slate syncOptions =
   let valueStrs =
     List.map
         (\(locId, _, _) ->
-          toString (Utils.justGet locId subst)
+          toString (Utils.justGet_ "ValueBasedTransform.digHole valueStrs" locId subst)
         )
         (List.reverse locsetList)
   in
@@ -382,15 +382,21 @@ makeEqual__ originalExp featureAEqn featureBEqn syncOptions =
       in
       let independentLocNames =
         List.map
-            (\locId -> Utils.justGet locId locIdToNewName)
+            (\locId ->
+              Utils.justGet_ "ValueBasedTransform.makeEqual__ independentLocNames" locId locIdToNewName
+            )
             independentLocIds
       in
       let independentLocValueStrs =
         List.map
-            (\locId -> toString (Utils.justGet locId subst))
+            (\locId ->
+              toString (Utils.justGet_ "ValueBasedTransform.makeEqual__ independentLocValueStrs" locId subst)
+            )
             independentLocIds
       in
-      let dependentLocNameStr  = Utils.justGet dependentLocId locIdToNewName in
+      let dependentLocNameStr  =
+        Utils.justGet_ "ValueBasedTransform.makeEqual__ dependentLocNameStr" dependentLocId locIdToNewName
+      in
       let frozenLocIdToLittle =
         Dict.map (\locId n -> (toString n) ++ "!") frozenLocIdToNum
       in
