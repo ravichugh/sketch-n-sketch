@@ -175,8 +175,8 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | RelateAttrs -- not using UpdateModel, since want to define handler in Controller
            | DigHole
            | GroupBlobs
-           | AbstractBlob
-           | DuplicateBlob
+           | AbstractBlobs
+           | DuplicateBlobs
            | MergeBlobs
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets})

@@ -1676,9 +1676,9 @@ widgetsCursors w h model =
       [ gapWidget w h
       , twoButtons w h
           (simpleButton GroupBlobs "Group")
-          (simpleEventButton_ True AbstractBlob "Abs")
+          (simpleButton AbstractBlobs "Abs")
       , twoButtons w h
-          (simpleButton DuplicateBlob "Dupe")
+          (simpleButton DuplicateBlobs "Dupe")
           (simpleEventButton_ True MergeBlobs "Merge")
       ]
   in

@@ -822,6 +822,7 @@ eComment a b   = withDummyPos <| EComment " " a b
 
 pVar0 a        = withDummyRange <| PVar "" a noWidgetDecl
 pVar a         = withDummyRange <| PVar " " a noWidgetDecl
+pList0 ps      = withDummyRange <| PList "" ps "" Nothing ""
 pList ps       = withDummyRange <| PList " " ps "" Nothing ""
 
 -- note: dummy ids...
@@ -873,6 +874,8 @@ listOfNums ns =
   case ns of
     []     -> []
     n::ns' -> eConst0 n dummyLoc :: List.map (flip eConst dummyLoc) ns'
+
+listOfNums1 = List.map (flip eConst dummyLoc)
 
 minNumTr (a,t1) (b,t2) = if a <= b then (a,t1) else (b,t2)
 maxNumTr (a,t1) (b,t2) = if a >= b then (a,t1) else (b,t2)
