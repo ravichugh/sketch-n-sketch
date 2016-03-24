@@ -616,7 +616,7 @@ evaluateFeatureEquation eqn =
       let maybePerformBinop op =
         let maybeLeftResult = evaluateFeatureEquation left in
         let maybeRightResult = evaluateFeatureEquation right in
-        case (maybeLeftResult, maybeLeftResult) of
+        case (maybeLeftResult, maybeRightResult) of
           (Just leftResult, Just rightResult) -> Just (op leftResult rightResult)
           _                                   -> Nothing
       in
