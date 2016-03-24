@@ -1187,9 +1187,9 @@ upstate evt old = case debugLog "Event" evt of
       else { old | mouseMode = MouseResizeMid Nothing }
 
     MouseClickCanvas ->
-      case old.mouseMode of
-        MouseNothing -> { old | mouseMode = MouseDrawNew [] }
-        _            -> old
+      case (old.toolMode, old.mouseMode) of
+        (Shapes, MouseNothing) -> { old | mouseMode = MouseDrawNew [] }
+        _                      -> old
 
     MouseClick click ->
       let old =
