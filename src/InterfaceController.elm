@@ -254,8 +254,11 @@ type alias TopDefs = List TopDef
 
 type MainExp
   = SvgConcat (List Exp) (List Exp -> Exp)
-  | Blobs (List Exp) (List Exp -> Exp)
+  | Blobs (List BlobExp) (List BlobExp -> Exp)
   | OtherExp Exp
+
+type BlobExp
+  = OtherBlob Exp
 
 splitExp : Exp -> Program
 splitExp e =
@@ -270,7 +273,7 @@ fuseExp : Program -> Exp
 fuseExp (defs, mainExp) =
   let recurse defs =
     case defs of
-      [] -> expandMainExp mainExp
+      [] -> fromMainExp mainExp
       (ws1,p1,e1,ws2)::defs' ->
         withDummyPos <| ELet ws1 Def False p1 e1 (recurse defs') ws2
   in
@@ -280,8 +283,8 @@ toMainExp : Exp -> MainExp
 toMainExp e =
   maybeSvgConcat e `Utils.plusMaybe` maybeBlobs e `Utils.elseMaybe` OtherExp e
 
-expandMainExp : MainExp -> Exp
-expandMainExp me =
+fromMainExp : MainExp -> Exp
+fromMainExp me =
   case me of
     SvgConcat shapes f -> f shapes
     Blobs shapes f     -> f shapes
@@ -324,11 +327,12 @@ maybeBlobs main =
     EApp ws1 eBlobs [eArgs] ws2 ->
       case (eBlobs.val.e__, eArgs.val.e__) of
         (EVar _ "blobs", EList ws5 oldList ws6 Nothing ws7) ->
-          let updateExpressionList newList =
+          let rebuildExp newBlobExpList =
+            let newExpList = List.map fromBlobExp newBlobExpList in
             let
               eArgs' =
                 { eArgs | val = { eid = eArgs.val.eid , e__ =
-                    EList ws5 newList ws6 Nothing ws7 } }
+                    EList ws5 newExpList ws6 Nothing ws7 } }
               main' =
                 { main | val = { eid = main.val.eid , e__ =
                     EApp ws1 eBlobs [eArgs'] ws2 } }
@@ -337,10 +341,20 @@ maybeBlobs main =
             else if ws1 == "\n" then addPrecedingWhitespace "\n" main'
             else main'
           in
-          Just (Blobs oldList updateExpressionList)
+          let blobs = List.map toBlobExp oldList in
+          Just (Blobs blobs rebuildExp)
 
         _     -> Nothing
     _         -> Nothing
+
+toBlobExp : Exp -> BlobExp
+toBlobExp e =
+  OtherBlob e
+
+fromBlobExp : BlobExp -> Exp
+fromBlobExp be =
+  case be of
+    OtherBlob e -> e
 
 randomColor model = eConst (toFloat model.randomColor) dummyLoc
 
@@ -642,7 +656,9 @@ addToCodeAndRun newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
   let tmp = newShapeKind ++ toString old.genSymCount in
   let newDef = makeNewShapeDef old newShapeKind tmp newShapeLocals newShapeFunc newShapeArgs in
   let (defs, mainExp) = splitExp old.inputExp in
-  let code = unparse (fuseExp (defs ++ [newDef], addToMainExp (eVar tmp) mainExp)) in
+  let defs' = defs ++ [newDef] in
+  let mainExp' = addToMainExp (OtherBlob (eVar tmp)) mainExp in
+  let code = unparse (fuseExp (defs', mainExp')) in
 
   upstate Run
     { old | code = code
@@ -686,13 +702,14 @@ makeInts nums =
              let es = List.map (\n' -> eConst (toFloat n') dummyLoc) ns in
              e::es
 
+addToMainExp : BlobExp -> MainExp -> MainExp
 addToMainExp eNew mainExp =
   case mainExp of
-    SvgConcat shapes f -> SvgConcat (shapes ++ [eNew]) f
+    SvgConcat shapes f -> SvgConcat (shapes ++ [fromBlobExp eNew]) f
     Blobs shapes f     -> Blobs (shapes ++ [eNew]) f
     OtherExp main ->
       let ws = "\n" in -- TODO take main into account
-      let main' = withDummyPos (EApp ws (eVar0 "addShapes") [eNew, main] "") in
+      let main' = withDummyPos (EApp ws (eVar0 "addShapes") [fromBlobExp eNew, main] "") in
       OtherExp main'
 
 maybeGhost b f args =
@@ -901,13 +918,14 @@ computeSelectedBlobsAndBounds model =
      model.selectedBlobs
 
 -- TODO will later generalize this to additional kinds of defs
+selectedBlobsToSelectedVars : Model -> List BlobExp -> List (Int, Ident)
 selectedBlobsToSelectedVars model blobs =
   let n = List.length blobs in
   let selectedExps =
     List.filter (flip Dict.member model.selectedBlobs << fst)
                 (Utils.zip [1..n] blobs) in
   let selectedVars =
-    let toVar (i,e) =
+    let toVar (i, OtherBlob e) =
       case e.val.e__ of
         EVar _ x -> Just (i, x)
         _        -> Nothing
@@ -1015,7 +1033,7 @@ groupAndRearrange model newGroup defs blobs selectedVars =
     before ++ [newDef] ++ after
   in
   let blobs' =
-    let matches e =
+    let matches (OtherBlob e) =
       let foo (_,x) =
         case e.val.e__ of
           EVar _ y -> x == y
@@ -1023,7 +1041,7 @@ groupAndRearrange model newGroup defs blobs selectedVars =
       in
       List.any foo selectedVars in
     let (plucked, before, after) = pluckFromList matches blobs in
-    let newBlob = eVar newGroup in
+    let newBlob = OtherBlob (eVar newGroup) in
     before ++ [newBlob] ++ after
   in
   (defs', blobs')
@@ -1096,7 +1114,7 @@ duplicateSelectedBlobs model =
                    PVar ws x wd ->
                      let x' = x ++ "_copy" ++ toString k in
                      let acc1' = (ws1, { p | val = PVar ws x' wd }, e, ws2) :: acc1 in
-                     let acc2' = eVar x' :: acc2 in
+                     let acc2' = OtherBlob (eVar x') :: acc2 in
                      (1 + k, acc1', acc2')
                    _ ->
                      let _ = Debug.log "duplicateSelectedBlobs: weird..." () in
@@ -1846,13 +1864,13 @@ upstate evt old = case debugLog "Event" evt of
       if editingMode new then new
       else if l == Keys.escape then
         { new | selectedFeatures = Set.empty, selectedBlobs = Dict.empty }
-      else if l == Keys.backspace || l == Keys.delete then
-        deleteSelectedBlobs new
+      -- else if l == Keys.backspace || l == Keys.delete then
+      --   deleteSelectedBlobs new
       -- TODO
       -- else if l == Keys.metaPlus Keys.d then
       -- else if l == Keys.metaPlus Keys.d || l == Keys.commandPlus Keys.d then
-      else if l == Keys.d then
-        duplicateSelectedBlobs new
+      -- else if l == Keys.d then
+      --   duplicateSelectedBlobs new
       else
         new
 
