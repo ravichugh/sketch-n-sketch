@@ -1748,7 +1748,6 @@ shapeToolButton model shapeTool w h =
   -- TODO temporarily disabling a couple tools
   let (btnKind, disabled) =
     case shapeTool of
-      Poly Raw    -> (Regular, True)
       Path Sticky -> (Regular, True)
       _           -> (btnKind, False)
   in

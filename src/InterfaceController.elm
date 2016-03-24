@@ -462,9 +462,23 @@ maybeFreeze n =
 
 addPolygonToCodeAndRun stk old points =
   case stk of
-    Raw      -> addStretchablePolygon old points -- TODO
+    Raw      -> addRawPolygon old points
     Stretchy -> addStretchablePolygon old points
     Sticky   -> addStickyPolygon old points
+
+addRawPolygon old keysAndPoints =
+  let points = List.map snd keysAndPoints in
+  let sPts =
+    Utils.bracks <| Utils.spaces <|
+      flip List.map (List.reverse points) <| \(x,y) ->
+        let xStr = toString x in
+        let yStr = toString y in
+        Utils.bracks (Utils.spaces [xStr,yStr])
+  in
+  addToCodeAndRun "polygon" old
+    [ makeLet ["pts"] [eRaw sPts] ]
+    (eVar0 "rawPolygon")
+    [randomColor old, eStr "black", eConst 2 dummyLoc, eVar "pts"]
 
 addStretchablePolygon old keysAndPoints =
   let points = List.map snd keysAndPoints in

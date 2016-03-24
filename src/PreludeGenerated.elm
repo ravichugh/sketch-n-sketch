@@ -711,6 +711,9 @@ prelude =
   (group bounds [shape])
 ))))))
 
+(def rawPolygon (\\(fill stroke w pts)
+  ['g' [] [(polygon fill stroke w pts)]]))
+
 (def scaleBetween (\\(a b pct)
   (case pct
     (0 a)
