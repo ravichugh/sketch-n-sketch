@@ -1646,8 +1646,11 @@ syncButton =
 digHoleButton enabled =
   simpleEventButton_ (not enabled) DigHole "unused?" "unused?" "Dig" -- "Dig Hole"
 
-groupButton enabled =
-  simpleEventButton_ (not enabled) RelateShapes "unused?" "unused?" "Group"
+groupButton =
+  simpleEventButton_ False GroupBlobs "unused?" "unused?" "Group"
+
+duplicateButton =
+  simpleEventButton_ False DuplicateBlob "unused?" "unused?" "Duplicate"
 
 widgetsCursors w h model =
   let caption mode =
@@ -1682,7 +1685,7 @@ widgetsCursors w h model =
   in
   let maybeBlobButtons =
     if model.showZones == showZonesSelectShapes
-      then [gapWidget w h, groupButton True w h]
+      then [gapWidget w h, groupButton w h, duplicateButton w h]
       else []
   in
   basicButtons ++ maybeRelateButtons ++ maybeBlobButtons

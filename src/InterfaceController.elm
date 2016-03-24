@@ -1653,13 +1653,16 @@ upstate evt old = case debugLog "Event" evt of
               , selectedFeatures = Set.empty
         }
 
-    RelateShapes ->
+    GroupBlobs ->
       if Dict.size old.selectedBlobs <= 1 then old
       else
         let (defs,me) = splitExp old.inputExp in
         case me of
           Blobs blobs f -> groupShapes old defs blobs f
           _             -> old
+
+    DuplicateBlob ->
+      duplicateSelectedBlobs old
 
 {-
     RelateShapes ->

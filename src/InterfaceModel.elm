@@ -174,7 +174,8 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | CancelSync
            | RelateAttrs -- not using UpdateModel, since want to define handler in Controller
            | DigHole
-           | RelateShapes
+           | GroupBlobs
+           | DuplicateBlob
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets})
            | Edit
