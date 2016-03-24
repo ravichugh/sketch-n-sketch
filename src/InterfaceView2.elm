@@ -1584,9 +1584,9 @@ mainSectionHorizontal w h model =
     ]
 
 simpleButton_
-   : Signal.Address a -> ButtonKind -> a -> Bool -> a -> String -> String -> String
+   : Signal.Address a -> ButtonKind -> a -> Bool -> a -> String
   -> Int -> Int -> GE.Element
-simpleButton_ addy btnKind defaultMsg disabled msg value name text w h =
+simpleButton_ addy btnKind defaultMsg disabled msg text w h =
   if disabled then
       GI.customButton (Signal.message addy defaultMsg)
         (makeButton (btnKind, Disabled) w h text)
@@ -1610,9 +1610,8 @@ displayKey s = " " ++ s
 editRunButton model w h =
   let disabled = model.mode == AdHoc in
   case editingMode model of
-    True -> simpleEventButton_ disabled WaitRun
-              "Run" "Run" "Run Code" w h
-    False -> simpleEventButton_ disabled Edit "Edit" "Edit" "Edit Code" w h
+    True -> simpleEventButton_ disabled WaitRun "Run Code" w h
+    False -> simpleEventButton_ disabled Edit "Edit Code" w h
 
 outputButton model w h =
   let disabled = model.mode == AdHoc in
@@ -1621,7 +1620,7 @@ outputButton model w h =
        Print _ -> "[Out] SVG"
        _       -> "[Out] Canvas"
   in
-  simpleEventButton_ disabled ToggleOutput "Toggle Output" "Toggle Output" cap w h
+  simpleEventButton_ disabled ToggleOutput cap w h
 
 ghostsButton model w h =
   let cap =
@@ -1638,19 +1637,19 @@ ghostsButton model w h =
     in
     { old | showWidgets = showWidgets', mode = mode' }
   in
-  simpleEventButton_ False (UpdateModel foo) "Toggle Output" "Toggle Output" cap w h
+  simpleEventButton_ False (UpdateModel foo) cap w h
 
 syncButton =
-  simpleButton Sync "Sync" "Sync the code to the canvas" "Sync"
+  simpleButton Sync "Sync"
 
 digHoleButton enabled =
-  simpleEventButton_ (not enabled) DigHole "unused?" "unused?" "Dig" -- "Dig Hole"
+  simpleEventButton_ (not enabled) DigHole "Dig" -- "Dig Hole"
 
 groupButton =
-  simpleEventButton_ False GroupBlobs "unused?" "unused?" "Group"
+  simpleEventButton_ False GroupBlobs "Group"
 
 duplicateButton =
-  simpleEventButton_ False DuplicateBlob "unused?" "unused?" "Duplicate"
+  simpleEventButton_ False DuplicateBlob "Duplicate"
 
 widgetsCursors w h model =
   let caption mode =
@@ -1666,8 +1665,8 @@ widgetsCursors w h model =
   let zoneButton mode w h =
     let selected = (model.showZones == mode) in
     let btnKind = if selected then Selected else Unselected in
-      simpleButton_ events.address btnKind Noop False (SelectZonesMode mode)
-        "Still dunno what this does" "Dunno what this is for" (caption mode) w h
+      simpleButton_ events.address btnKind Noop False
+        (SelectZonesMode mode) (caption mode) w h
   in
   let basicButtons =
     [ twoButtons w h
@@ -1709,7 +1708,7 @@ luckyButton model =
     else if hm == Sync.heuristicsFair then "Fair"
     else "Biased"
   in
-  simpleButton (UpdateModel foo) "Heur" "Heur" ("[Heuristics] " ++ yesno)
+  simpleButton (UpdateModel foo) ("[Heuristics] " ++ yesno)
 
 {-
 frozenButton model =
@@ -1726,7 +1725,7 @@ toolModeButton toolMode model w h =
       Shapes  -> "Draw"
   in
   simpleButton_ events.address btnKind Noop False
-    (UpdateModel (\m -> { m | toolMode = toolMode })) cap cap cap w h
+    (UpdateModel (\m -> { m | toolMode = toolMode })) cap w h
 
 shapeToolButton : Model -> ShapeTool -> Int -> Int -> GE.Element
 shapeToolButton model shapeTool w h =
@@ -1759,58 +1758,52 @@ shapeToolButton model shapeTool w h =
       _           -> (btnKind, False)
   in
   simpleButton_ events.address btnKind Noop disabled
-    (UpdateModel (\m -> { m | shapeTool = shapeTool })) cap cap cap w h
+    (UpdateModel (\m -> { m | shapeTool = shapeTool })) cap w h
 
 saveButton : Model -> Int -> Int -> GE.Element
 saveButton model w h =
     let cap = "Save" in
     let disabled = List.any ((==) model.exName << Utils.fst3) Examples.list in
-    simpleEventButton_
-      disabled (InterfaceModel.WaitSave model.exName)
-      cap cap cap w h
+    simpleEventButton_ disabled (InterfaceModel.WaitSave model.exName) cap w h
       -- dn dn Utils.uniSave w h
 
 saveAsButton : Model -> Int -> Int -> GE.Element
 saveAsButton model w h =
     let cap = "Clone" in
-    simpleTaskButton
-      (saveStateLocally model.exName True model)
-      cap cap cap w h
+    simpleTaskButton (saveStateLocally model.exName True model) cap w h
       -- dn dn (Utils.uniCamera) w h
 
 loadButton : Model -> Int -> Int -> GE.Element
 loadButton model w h =
   let cap = "Revert" in
-  simpleTaskButton
-    (loadLocalState model.exName)
-    cap cap cap w h
+  simpleTaskButton (loadLocalState model.exName) cap w h
     -- "Reload" "Reload" Utils.uniReload w h
 
 undoButton : Model -> Int -> Int -> GE.Element
 undoButton model =
   let past = fst model.history in
-  simpleEventButton_ (List.length past == 0) Undo "Undo" "Undo" "Undo" -- Utils.uniUndo
+  simpleEventButton_ (List.length past == 0) Undo "Undo" -- Utils.uniUndo
 
 redoButton : Model -> Int -> Int -> GE.Element
 redoButton model =
   let future = snd model.history in
-  simpleEventButton_ (List.length future == 0) Redo "Redo" "Redo" "Redo" -- Utils.uniRedo
+  simpleEventButton_ (List.length future == 0) Redo "Redo" -- Utils.uniRedo
 
 previousSlideButton : Model -> Int -> Int -> GE.Element
 previousSlideButton model =
-  simpleEventButton_ (model.slideNumber == 1 && model.movieNumber == 1) PreviousSlide "what is this for" "is this redundant" "◀◀"
+  simpleEventButton_ (model.slideNumber == 1 && model.movieNumber == 1) PreviousSlide "◀◀"
 
 nextSlideButton : Model -> Int -> Int -> GE.Element
 nextSlideButton model =
-  simpleEventButton_ (model.slideNumber == model.slideCount && model.movieNumber == model.movieCount) NextSlide "WHAT IS THIS FOR" "IS THIS REDUNDANT" "▶▶"
+  simpleEventButton_ (model.slideNumber == model.slideCount && model.movieNumber == model.movieCount) NextSlide "▶▶"
 
 previousMovieButton : Model -> Int -> Int -> GE.Element
 previousMovieButton model =
-  simpleEventButton_ (model.slideNumber == 1 && model.movieNumber == 1) PreviousMovie "what is this for" "is this redundant" "◀"
+  simpleEventButton_ (model.slideNumber == 1 && model.movieNumber == 1) PreviousMovie "◀"
 
 nextMovieButton : Model -> Int -> Int -> GE.Element
 nextMovieButton model =
-  simpleEventButton_ (model.slideNumber == model.slideCount && model.movieNumber == model.movieCount) NextMovie "WHAT IS THIS FOR" "IS THIS REDUNDANT" "▶"
+  simpleEventButton_ (model.slideNumber == model.slideCount && model.movieNumber == model.movieCount) NextMovie "▶"
 
 slideNumber : Model -> Int -> Int -> GE.Element
 slideNumber model w h =
@@ -1890,12 +1883,12 @@ modeButton model =
 cleanButton model =
   let disabled = case model.mode of Live _ -> False
                                     _      -> True in
-  simpleEventButton_ disabled WaitClean "Clean" "Clean" "Clean Up"
+  simpleEventButton_ disabled WaitClean "Clean Up"
 
 orientationButton w h model =
     let text = "[Orientation] " ++ toString model.orient
     in
-      simpleButton SwitchOrient text text text w h
+      simpleButton SwitchOrient text w h
 
 basicBoxButton w h model =
     let (text, evt) = case model.basicCodeBox of
@@ -1904,9 +1897,7 @@ basicBoxButton w h model =
               Nothing -> ("[Code Box] Fancy", ToggleBasicCodeBox)
               Just _  -> ("[Code Box] Fancy", WaitCodeBox)
     in
-       simpleButton
-         evt
-         text text text w h
+       simpleButton evt text w h
 
 codeButton model w h =
   let (cap, btnKind) = case model.hideCode of
@@ -1915,7 +1906,7 @@ codeButton model w h =
   in
   let foo model = { model | hideCode = not model.hideCode } in
   simpleButton_ events.address btnKind Noop
-    model.hideCanvas (UpdateModel foo) cap cap cap w h
+    model.hideCanvas (UpdateModel foo) cap w h
 
 canvasButton model w h =
   let (cap, btnKind) = case model.hideCanvas of
@@ -1924,7 +1915,7 @@ canvasButton model w h =
   in
   let foo model = { model | hideCanvas = not model.hideCanvas } in
   simpleButton_ events.address btnKind Noop
-    model.hideCode (UpdateModel foo) cap cap cap w h
+    model.hideCode (UpdateModel foo) cap w h
 
 
 --------------------------------------------------------------------------------
@@ -2043,8 +2034,7 @@ saveElement model w h = case model.mode of
                                   ( checkAndSave model.fieldContents.value
                                                  model
                                   )
-                                  "Create Save" "Create Save" "Create Save"
-                                  100 40
+                                  "Create Save" 100 40
                               ]
                            , GE.spacer 160 10
                            , GE.flow GE.right
@@ -2062,8 +2052,7 @@ saveElement model w h = case model.mode of
                                [ GE.spacer 112 30
                                , simpleButton
                                   (RemoveDialog False "")
-                                  "Cancel" "Cancel" "Cancel"
-                                  75 30
+                                  "Cancel" 75 30
                                ]
                            ]
       in GE.flow GE.outward [ dimBox, pickBox ]
