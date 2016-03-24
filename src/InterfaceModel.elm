@@ -175,7 +175,9 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | RelateAttrs -- not using UpdateModel, since want to define handler in Controller
            | DigHole
            | GroupBlobs
+           | AbstractBlob
            | DuplicateBlob
+           | MergeBlobs
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets})
            | Edit
@@ -311,7 +313,7 @@ sampleModel =
     -- starting at 1 to match shape ids on blank canvas
     -- , genSymCount   = 0
     , genSymCount   = 1
-    , toolMode      = Cursors
+    , toolMode      = Shapes
     , shapeTool     = Line Raw
     , selectedFeatures = Set.empty
     , selectedBlobs = Dict.empty

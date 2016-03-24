@@ -1664,6 +1664,12 @@ upstate evt old = case debugLog "Event" evt of
     DuplicateBlob ->
       duplicateSelectedBlobs old
 
+    MergeBlobs ->
+      old
+
+    AbstractBlob ->
+      old
+
 {-
     RelateShapes ->
       let newval = slateToVal old.slate in

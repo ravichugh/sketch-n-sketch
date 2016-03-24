@@ -1639,18 +1639,6 @@ ghostsButton model w h =
   in
   simpleEventButton_ False (UpdateModel foo) cap w h
 
-syncButton =
-  simpleButton Sync "Sync"
-
-digHoleButton enabled =
-  simpleEventButton_ (not enabled) DigHole "Dig" -- "Dig Hole"
-
-groupButton =
-  simpleEventButton_ False GroupBlobs "Group"
-
-duplicateButton =
-  simpleEventButton_ False DuplicateBlob "Duplicate"
-
 widgetsCursors w h model =
   let caption mode =
     if mode == showZonesNone              then "Hide "
@@ -1678,14 +1666,21 @@ widgetsCursors w h model =
     ]
   in
   let maybeRelateButtons =
-    if model.showZones == showZonesSelectAttrs
-      then [gapWidget w h, digHoleButton True w h]
-      else []
+    if model.showZones /= showZonesSelectAttrs then []
+    else
+      [gapWidget w h, simpleButton DigHole "Dig" w h]
   in
   let maybeBlobButtons =
-    if model.showZones == showZonesSelectShapes
-      then [gapWidget w h, groupButton w h, duplicateButton w h]
-      else []
+    if model.showZones /= showZonesSelectShapes then []
+    else
+      [ gapWidget w h
+      , twoButtons w h
+          (simpleButton GroupBlobs "Group")
+          (simpleEventButton_ True AbstractBlob "Abs")
+      , twoButtons w h
+          (simpleButton DuplicateBlob "Dupe")
+          (simpleEventButton_ True MergeBlobs "Merge")
+      ]
   in
   basicButtons ++ maybeRelateButtons ++ maybeBlobButtons
 
