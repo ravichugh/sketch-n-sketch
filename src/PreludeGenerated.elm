@@ -795,7 +795,7 @@ prelude =
 )))
 
 ; expects (f bounds) to be a single SVG
-(def with (\\(bounds f) (group bounds [(f bounds)])))
+(def with (\\(bounds f) [(group bounds [(f bounds)])]))
 
 (def star (\\bounds
   (let [left top right bot] bounds

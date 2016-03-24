@@ -259,6 +259,14 @@ type MainExp
 
 type BlobExp
   = OtherBlob Exp
+  | NiceBlob Exp NiceBlob
+
+type NiceBlob
+  = VarBlob Ident                          -- x
+  | WithBoundsBlob (Exp, Ident, List Exp)  -- (with bounds (f args))
+
+varBlob e x            = NiceBlob e (VarBlob x)
+withBoundsBlob e tuple = NiceBlob e (WithBoundsBlob tuple)
 
 splitExp : Exp -> Program
 splitExp e =
@@ -349,12 +357,26 @@ maybeBlobs main =
 
 toBlobExp : Exp -> BlobExp
 toBlobExp e =
-  OtherBlob e
+  case e.val.e__ of
+    EVar _ x -> varBlob e x
+    EApp _ eWith [eBounds, eFunc] _ ->
+      case (eWith.val.e__) of
+        EVar _ "with" ->
+          case eFunc.val.e__ of
+            EVar _ x -> NiceBlob e (WithBoundsBlob (eBounds, x, []))
+            EApp _ eF eArgs _ ->
+              case eF.val.e__ of
+                EVar _ f -> NiceBlob e (WithBoundsBlob (eBounds, f, eArgs))
+                _        -> OtherBlob e
+            _ -> OtherBlob e
+        _ -> OtherBlob e
+    _ -> OtherBlob e
 
 fromBlobExp : BlobExp -> Exp
 fromBlobExp be =
   case be of
-    OtherBlob e -> e
+    OtherBlob e  -> e
+    NiceBlob e _ -> e
 
 randomColor model = eConst (toFloat model.randomColor) dummyLoc
 
@@ -645,11 +667,32 @@ addLambdaToCodeAndRun old (_,pt2) (_,pt1) =
       then View.squareBoundingBox pt2 pt1
       else View.boundingBox pt2 pt1
   in
+
+  {- this version adds a call to main: -}
+
+  let bounds = eList (makeInts [xa,ya,xb,yb]) Nothing in
+  let args = [] in
+  let eNew =
+    withDummyPos (EApp "\n  " (eVar0 "with") [ bounds, eVar funcName ] "") in
+  let newBlob = withBoundsBlob eNew (bounds, funcName, args) in
+  let (defs, mainExp) = splitExp old.inputExp in
+  let mainExp' = addToMainExp newBlob mainExp in
+  let code = unparse (fuseExp (defs, mainExp')) in
+
+  upstate Run
+    { old | code = code
+          , history = addToHistory old.code old.history
+          , mouseMode = MouseNothing }
+
+  {- this version adds the call inside a new top-level definition:
+
   addToCodeAndRun funcName old
     [ makeLet ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
     ]
     (eVar0 "with") [ eVar "bounds" , eVar funcName ]
+
+  -}
 
 addToCodeAndRun newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
 
@@ -657,7 +700,8 @@ addToCodeAndRun newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
   let newDef = makeNewShapeDef old newShapeKind tmp newShapeLocals newShapeFunc newShapeArgs in
   let (defs, mainExp) = splitExp old.inputExp in
   let defs' = defs ++ [newDef] in
-  let mainExp' = addToMainExp (OtherBlob (eVar tmp)) mainExp in
+  let eNew = withDummyPos (EVar "\n  " tmp) in
+  let mainExp' = addToMainExp (varBlob eNew tmp) mainExp in
   let code = unparse (fuseExp (defs', mainExp')) in
 
   upstate Run
@@ -673,6 +717,7 @@ makeNewShapeDef model newShapeKind name locals func args =
       [] ->
         let multi = -- check if (func args) returns List SVG or SVG
           case model.shapeTool of
+            Lambda _ -> True
             _ -> False
         in
         if multi then
@@ -703,14 +748,14 @@ makeInts nums =
              e::es
 
 addToMainExp : BlobExp -> MainExp -> MainExp
-addToMainExp eNew mainExp =
+addToMainExp newBlob mainExp =
   case mainExp of
-    SvgConcat shapes f -> SvgConcat (shapes ++ [fromBlobExp eNew]) f
-    Blobs shapes f     -> Blobs (shapes ++ [eNew]) f
+    SvgConcat shapes f -> SvgConcat (shapes ++ [fromBlobExp newBlob]) f
+    Blobs shapes f     -> Blobs (shapes ++ [newBlob]) f
     OtherExp main ->
       let ws = "\n" in -- TODO take main into account
-      let main' = withDummyPos (EApp ws (eVar0 "addShapes") [fromBlobExp eNew, main] "") in
-      OtherExp main'
+      OtherExp <| withDummyPos <|
+        EApp ws (eVar0 "addShapes") [fromBlobExp newBlob, main] ""
 
 maybeGhost b f args =
   if b
@@ -917,40 +962,47 @@ computeSelectedBlobsAndBounds model =
      )
      model.selectedBlobs
 
--- TODO will later generalize this to additional kinds of defs
-selectedBlobsToSelectedVars : Model -> List BlobExp -> List (Int, Ident)
-selectedBlobsToSelectedVars model blobs =
-  let n = List.length blobs in
+selectedBlobsToSelectedNiceBlobs : Model -> List BlobExp -> List (Int, Exp, NiceBlob)
+selectedBlobsToSelectedNiceBlobs model blobs =
   let selectedExps =
     List.filter (flip Dict.member model.selectedBlobs << fst)
-                (Utils.zip [1..n] blobs) in
-  let selectedVars =
-    let toVar (i, OtherBlob e) =
-      case e.val.e__ of
-        EVar _ x -> Just (i, x)
-        _        -> Nothing
-    in
-    Utils.filterJusts (List.map toVar selectedExps)
+                (Utils.zip [1 .. List.length blobs] blobs)
   in
-  selectedVars
+  Utils.filterJusts <|
+    List.map
+       (\(i, be) ->
+         case be of
+           NiceBlob e niceBlob -> Just (i, e, niceBlob)
+           _                   -> Nothing
+       )
+       selectedExps
 
-matchesAnySelectedVar selectedVars def =
+matchesAnySelectedVarBlob_ : List (Int, Exp, NiceBlob) -> TopDef -> Maybe Ident
+matchesAnySelectedVarBlob_ selectedNiceBlobs def =
   let (_,p,_,_) = def in
-  let foo (_,x) =
-    case p.val of
-      PVar _ y _ -> x == y
-      _          -> False
-  in
-  List.any foo selectedVars
+  case p.val of
+    PVar _ y _ ->
+      let foo (i,_,niceBlob) =
+        case niceBlob of
+          VarBlob x        -> x == y
+          WithBoundsBlob _ -> False
+      in
+      case Utils.findFirst foo selectedNiceBlobs of
+        Just (_, _, VarBlob x) -> Just x
+        _                      -> Nothing
+    _ ->
+      Nothing
+
+matchesAnySelectedVarBlob selectedNiceBlobs def =
+  case matchesAnySelectedVarBlob_ selectedNiceBlobs def of
+    Just _  -> True
+    Nothing -> False
 
 groupShapes model defs blobs f =
   let n = List.length blobs in
-  let selectedExps =
-    List.filter (flip Dict.member model.selectedBlobs << fst)
-                (Utils.zip [1..n] blobs) in
-  let selectedVars = selectedBlobsToSelectedVars model blobs in
+  let selectedNiceBlobs = selectedBlobsToSelectedNiceBlobs model blobs in
   let newGroup = "newGroup" ++ toString model.genSymCount in
-  let (defs', blobs') = groupAndRearrange model newGroup defs blobs selectedVars in
+  let (defs', blobs') = groupAndRearrange model newGroup defs blobs selectedNiceBlobs in
   let code' = unparse (fuseExp (defs', Blobs blobs' f)) in
   upstate Run
     { model | code = code'
@@ -959,12 +1011,18 @@ groupShapes model defs blobs f =
             , selectedBlobs = Dict.empty
             }
 
-groupAndRearrange model newGroup defs blobs selectedVars =
+groupAndRearrange model newGroup defs blobs selectedNiceBlobs =
   let selectedBlobsAndBounds = computeSelectedBlobsAndBounds model in
+  let (pluckedBlobs, beforeBlobs, afterBlobs) =
+    let indexedBlobs = Utils.zip [1 .. List.length blobs] blobs in
+    let matches (i,_) = Dict.member i model.selectedBlobs in
+    let (plucked_, before_, after_) = pluckFromList matches indexedBlobs in
+    (List.map snd plucked_, List.map snd before_, List.map snd after_)
+  in
   let defs' =
-    let matches = matchesAnySelectedVar selectedVars in
-    let (plucked, before, after) = pluckFromList matches defs in
-    let selectedBlobIndices = List.map fst selectedVars in
+    let matches = matchesAnySelectedVarBlob selectedNiceBlobs in
+    let (pluckedDefs, beforeDefs, afterDefs) = pluckFromList matches defs in
+    let selectedBlobIndices = Dict.keys model.selectedBlobs in
     let (left, top, right, bot) =
       case selectedBlobIndices of
         [] -> Debug.crash "groupAndRearrange: shouldn't get here"
@@ -1006,43 +1064,39 @@ groupAndRearrange model newGroup defs blobs selectedVars =
       ]
     in
     let listBoundedGroup =
+      let pluckedBlobs' =
+        List.map (LangUnparser.replacePrecedingWhitespace " " << fromBlobExp)
+                 pluckedBlobs
+      in
       withDummyPos <| EList "\n\n  "
          [ withDummyPos <| EApp " "
              (eVar0 "group")
              [ eVar "bounds"
              , withDummyPos <| EApp " "
                  (eVar0 "concat")
-                 [eList (listOfVars (List.map snd selectedVars)) Nothing]
+                 [withDummyPos <| EList " " pluckedBlobs' "" Nothing " "]
                  ""
              ]
              ""
          ]
          "" Nothing " "
     in
-    let plucked' =
+    let pluckedDefs' =
       let tab = "  " in
       List.map (\(ws1,p,e,ws2) -> (ws1 ++ tab, p, LangUnparser.indent tab e, ws2))
-               plucked
+               pluckedDefs
     in
     let newGroupExp =
       applyESubst eSubst <|
-        fuseExp (groupDefs ++ plucked', OtherExp listBoundedGroup)
+        fuseExp (groupDefs ++ pluckedDefs', OtherExp listBoundedGroup)
           -- TODO flag for fuseExp to insert lets instead of defs
     in
     let newDef = ("\n\n", pVar newGroup, newGroupExp, "") in
-    before ++ [newDef] ++ after
+    beforeDefs ++ [newDef] ++ afterDefs
   in
   let blobs' =
-    let matches (OtherBlob e) =
-      let foo (_,x) =
-        case e.val.e__ of
-          EVar _ y -> x == y
-          _        -> False
-      in
-      List.any foo selectedVars in
-    let (plucked, before, after) = pluckFromList matches blobs in
-    let newBlob = OtherBlob (eVar newGroup) in
-    before ++ [newBlob] ++ after
+    let newBlob = varBlob (withDummyPos (EVar "\n  " newGroup)) newGroup in
+    beforeBlobs ++ [newBlob] ++ afterBlobs
   in
   (defs', blobs')
 
@@ -1102,11 +1156,11 @@ duplicateSelectedBlobs model =
   case mainExp of
     Blobs blobs f ->
       let (nextGenSym, newDefs, newBlobs) =
-        let selectedVars = selectedBlobsToSelectedVars model blobs in
-        let (nextGenSym_, newDefs_, newBlobs_) =
+        let selectedNiceBlobs = selectedBlobsToSelectedNiceBlobs model blobs in
+        let (nextGenSym_, newDefs_, newVarBlobs_) =
           List.foldl
              (\def (k,acc1,acc2) ->
-               if not (matchesAnySelectedVar selectedVars def)
+               if not (matchesAnySelectedVarBlob selectedNiceBlobs def)
                then (k, acc1, acc2)
                else
                  let (ws1,p,e,ws2) = def in
@@ -1114,7 +1168,7 @@ duplicateSelectedBlobs model =
                    PVar ws x wd ->
                      let x' = x ++ "_copy" ++ toString k in
                      let acc1' = (ws1, { p | val = PVar ws x' wd }, e, ws2) :: acc1 in
-                     let acc2' = OtherBlob (eVar x') :: acc2 in
+                     let acc2' = varBlob (withDummyPos (EVar "\n  " x')) x' :: acc2 in
                      (1 + k, acc1', acc2')
                    _ ->
                      let _ = Debug.log "duplicateSelectedBlobs: weird..." () in
@@ -1123,7 +1177,18 @@ duplicateSelectedBlobs model =
              (model.genSymCount, [], [])
              defs
         in
-        (nextGenSym_, List.reverse newDefs_, List.reverse newBlobs_)
+        let newCallBlobs =
+          List.concatMap
+             (\(_,e,niceBlob) ->
+               case niceBlob of
+                 WithBoundsBlob _ -> [NiceBlob e niceBlob]
+                 VarBlob _        -> []
+             )
+             selectedNiceBlobs
+        in
+        let newDefs = List.reverse newDefs_ in
+        let newBlobs = List.reverse newVarBlobs_ ++ newCallBlobs in
+        (nextGenSym_, newDefs, newBlobs)
       in
       let code' =
         let blobs' = blobs ++ newBlobs in
@@ -1869,6 +1934,8 @@ upstate evt old = case debugLog "Event" evt of
           { new | selectedBlobs = Dict.empty }
         else
           { new | showZones = showZonesNone }
+      else if l == Keys.delete then
+         deleteSelectedBlobs new
       -- else if l == Keys.backspace || l == Keys.delete then
       --   deleteSelectedBlobs new
       -- TODO
