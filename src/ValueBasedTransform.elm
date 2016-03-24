@@ -175,9 +175,9 @@ digHole originalExp selectedFeatures slate syncOptions =
   newExp
 
 
-makeEqual originalExp selectedFeatures slideNumber movieNumber movieTime slate syncOptions =
+makeEqual originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
   let equalize exp features =
-    makeEqualOverlappingPairs exp features slideNumber movieNumber movieTime slate syncOptions
+    makeEqualOverlappingPairs exp features slideNumber movieNumber movieTime syncOptions
   in
   let selectedPoints =
     featurePoints (Set.toList selectedFeatures)
@@ -198,29 +198,22 @@ makeEqual originalExp selectedFeatures slideNumber movieNumber movieTime slate s
 
 
 -- If given more than two features, run makeEqual_ on each overlapping pair.
-makeEqualOverlappingPairs originalExp features slideNumber movieNumber movieTime slate syncOptions =
+makeEqualOverlappingPairs originalExp features slideNumber movieNumber movieTime syncOptions =
   let relateMore exp =
     case features of
-      -- If there's at least 2 more features...
-      _::featureB::featureC::otherFeatures ->
-        let newSlate =
-          let (val, _) = Eval.run exp in
-          LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val
-        in
-        makeEqualOverlappingPairs
-            exp
-            (featureB::featureC::otherFeatures)
-            slideNumber
-            movieNumber
-            movieTime
-            newSlate
-            syncOptions
+      _::remainingFeatues ->
+        makeEqualOverlappingPairs exp remainingFeatues slideNumber movieNumber movieTime syncOptions
 
       _ ->
-        exp
+        -- Shouldn't happen.
+        Debug.crash "makeEqualOverlappingPairs relateMore"
   in
   case List.take 2 features of
     [featureA, featureB] ->
+      let slate =
+        let (val, _) = Eval.run originalExp in
+        LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val
+      in
       let maybeNewExp =
         makeEqual_ originalExp featureA featureB slate syncOptions
       in

@@ -1968,7 +1968,6 @@ upstate evt old = case debugLog "Event" evt of
             old.slideNumber
             old.movieNumber
             old.movieTime
-            old.slate
             old.syncOptions
       in
       let (newVal, newWidgets) = Eval.run newExp in
