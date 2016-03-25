@@ -1438,7 +1438,7 @@ mergeSelectedVarBlobs model defs blobs selectedVarBlobs =
       let newDef =
         let newFunc =
           let params = listOfPVars (List.map fst multiMapping) in
-          withDummyPos (EFun " " params eMerged "") in
+          withDummyPos (EFun " " params (removeRedundantBindings eMerged) "") in
         (ws1, p, newFunc, ws2) in
 
       let f =
