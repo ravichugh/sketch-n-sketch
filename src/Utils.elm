@@ -43,6 +43,27 @@ maybeZip xs ys = case (xs, ys) of
   ([], [])         -> Just []
   _                -> Nothing
 
+zeroElements xs = case xs of
+  [] -> True
+  _  -> False
+
+oneElement xs = case xs of
+  [_] -> True
+  _   -> False
+
+maybeZipN : List (List a) -> Maybe (List (List a))
+maybeZipN lists =
+  if List.all zeroElements lists then
+    Just []
+  else if List.all oneElement lists then
+    Just [List.concat lists]
+  else
+    let maybeHeads = projJusts (List.map List.head lists) in
+    let maybeTails = projJusts (List.map List.tail lists) in
+    case (maybeHeads, maybeTails) of
+      (Just heads, Just tails) -> mapMaybe ((::) heads) (maybeZipN tails)
+      _                        -> Nothing
+
 mapi : ((Int, a) -> b) -> List a -> List b
 mapi f xs =
   let n = List.length xs in
@@ -271,6 +292,12 @@ filterJusts mxs = case mxs of
   []              -> []
   Just x  :: rest -> x :: filterJusts rest
   Nothing :: rest -> filterJusts rest
+
+bindMaybe2 : (a -> b -> Maybe c) -> Maybe a -> Maybe b -> Maybe c
+bindMaybe2 f mx my = bindMaybe (\x -> bindMaybe (f x) my) mx
+
+bindMaybe3 : (a -> b -> c -> Maybe d) -> Maybe a -> Maybe b -> Maybe c -> Maybe d
+bindMaybe3 f mx my mz = bindMaybe2 (\x y -> bindMaybe (f x y) mz) mx my
 
 mapFst : (a -> a') -> (a, b) -> (a', b)
 mapFst f (a, b) = (f a, b)

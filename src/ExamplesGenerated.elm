@@ -3808,7 +3808,8 @@ relateLines0 =
 -- LITTLE_TO_ELM relatePoints3
 -- LITTLE_TO_ELM relatePoints4
 blank =
- "(blobs [ ])
+ "(blobs [
+])
 
 "
 

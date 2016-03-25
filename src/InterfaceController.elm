@@ -249,13 +249,28 @@ canvasOriginHorizontal old =
 
 type alias Program = (TopDefs, MainExp)
 
+-- TODO store Idents and "types" in TopDefs. also use for lambda tool.
+
 type alias TopDef  = (WS, Pat, Exp, WS)
 type alias TopDefs = List TopDef
 
 type MainExp
   = SvgConcat (List Exp) (List Exp -> Exp)
-  | Blobs (List Exp) (List Exp -> Exp)
+  | Blobs (List BlobExp) (List BlobExp -> Exp)
   | OtherExp Exp
+
+type BlobExp
+  = OtherBlob Exp
+  | NiceBlob Exp NiceBlob
+
+type NiceBlob
+  = VarBlob Ident                          -- x
+  | CallBlob (Ident, List Exp)             -- (f args)
+  | WithBoundsBlob (Exp, Ident, List Exp)  -- (with bounds (f args))
+
+varBlob e x            = NiceBlob e (VarBlob x)
+callBlob e tuple       = NiceBlob e (CallBlob tuple)
+withBoundsBlob e tuple = NiceBlob e (WithBoundsBlob tuple)
 
 splitExp : Exp -> Program
 splitExp e =
@@ -270,7 +285,7 @@ fuseExp : Program -> Exp
 fuseExp (defs, mainExp) =
   let recurse defs =
     case defs of
-      [] -> expandMainExp mainExp
+      [] -> fromMainExp mainExp
       (ws1,p1,e1,ws2)::defs' ->
         withDummyPos <| ELet ws1 Def False p1 e1 (recurse defs') ws2
   in
@@ -280,8 +295,8 @@ toMainExp : Exp -> MainExp
 toMainExp e =
   maybeSvgConcat e `Utils.plusMaybe` maybeBlobs e `Utils.elseMaybe` OtherExp e
 
-expandMainExp : MainExp -> Exp
-expandMainExp me =
+fromMainExp : MainExp -> Exp
+fromMainExp me =
   case me of
     SvgConcat shapes f -> f shapes
     Blobs shapes f     -> f shapes
@@ -324,11 +339,12 @@ maybeBlobs main =
     EApp ws1 eBlobs [eArgs] ws2 ->
       case (eBlobs.val.e__, eArgs.val.e__) of
         (EVar _ "blobs", EList ws5 oldList ws6 Nothing ws7) ->
-          let updateExpressionList newList =
+          let rebuildExp newBlobExpList =
+            let newExpList = List.map fromBlobExp newBlobExpList in
             let
               eArgs' =
                 { eArgs | val = { eid = eArgs.val.eid , e__ =
-                    EList ws5 newList ws6 Nothing ws7 } }
+                    EList ws5 newExpList ws6 Nothing ws7 } }
               main' =
                 { main | val = { eid = main.val.eid , e__ =
                     EApp ws1 eBlobs [eArgs'] ws2 } }
@@ -337,10 +353,38 @@ maybeBlobs main =
             else if ws1 == "\n" then addPrecedingWhitespace "\n" main'
             else main'
           in
-          Just (Blobs oldList updateExpressionList)
+          let blobs = List.map toBlobExp oldList in
+          Just (Blobs blobs rebuildExp)
 
         _     -> Nothing
     _         -> Nothing
+
+toBlobExp : Exp -> BlobExp
+toBlobExp e =
+  case e.val.e__ of
+    EVar _ x -> varBlob e x
+    EApp _ eWith [eBounds, eFunc] _ ->
+      case (eWith.val.e__) of
+        EVar _ "with" ->
+          case eFunc.val.e__ of
+            EVar _ x -> NiceBlob e (WithBoundsBlob (eBounds, x, []))
+            EApp _ eF eArgs _ ->
+              case eF.val.e__ of
+                EVar _ f -> NiceBlob e (WithBoundsBlob (eBounds, f, eArgs))
+                _        -> OtherBlob e
+            _ -> OtherBlob e
+        _ -> OtherBlob e
+    EApp _ eFunc eArgs _ ->
+      case eFunc.val.e__ of
+        EVar _ f -> NiceBlob e (CallBlob (f, eArgs))
+        _        -> OtherBlob e
+    _ -> OtherBlob e
+
+fromBlobExp : BlobExp -> Exp
+fromBlobExp be =
+  case be of
+    OtherBlob e  -> e
+    NiceBlob e _ -> e
 
 randomColor model = eConst (toFloat model.randomColor) dummyLoc
 
@@ -348,11 +392,15 @@ randomColor model = eConst (toFloat model.randomColor) dummyLoc
 addLineToCodeAndRun old click2 click1 =
   let ((_,(x2,y2)),(_,(x1,y1))) = (click2, click1) in
   let (xb, yb) = View.snapLine old.keysDown click2 click1 in
-  let color = if old.shapeTool == HelperLine then "aqua" else "gray" in
+  let color =
+    if old.shapeTool == HelperLine
+      then eStr "aqua"
+      else randomColor old
+  in
   let (f, args) =
     maybeGhost (old.shapeTool == HelperLine)
        (eVar0 "line")
-       (eStr color :: eStr "5" :: List.map eVar ["left","top","right","bot"])
+       (color :: eStr "5" :: List.map eVar ["left","top","right","bot"])
   in
   addToCodeAndRun "line" old
     [ makeLet ["left","top","right","bot"] (makeInts [x1,y1,xb,yb])
@@ -462,9 +510,23 @@ maybeFreeze n =
 
 addPolygonToCodeAndRun stk old points =
   case stk of
-    Raw      -> addStretchablePolygon old points -- TODO
+    Raw      -> addRawPolygon old points
     Stretchy -> addStretchablePolygon old points
     Sticky   -> addStickyPolygon old points
+
+addRawPolygon old keysAndPoints =
+  let points = List.map snd keysAndPoints in
+  let sPts =
+    Utils.bracks <| Utils.spaces <|
+      flip List.map (List.reverse points) <| \(x,y) ->
+        let xStr = toString x in
+        let yStr = toString y in
+        Utils.bracks (Utils.spaces [xStr,yStr])
+  in
+  addToCodeAndRun "polygon" old
+    [ makeLet ["pts"] [eRaw sPts] ]
+    (eVar0 "rawPolygon")
+    [randomColor old, eStr "black", eConst 2 dummyLoc, eVar "pts"]
 
 addStretchablePolygon old keysAndPoints =
   let points = List.map snd keysAndPoints in
@@ -617,18 +679,42 @@ addLambdaToCodeAndRun old (_,pt2) (_,pt1) =
       then View.squareBoundingBox pt2 pt1
       else View.boundingBox pt2 pt1
   in
+
+  {- this version adds a call to main: -}
+
+  let bounds = eList (makeInts [xa,ya,xb,yb]) Nothing in
+  let args = [] in
+  let eNew =
+    withDummyPos (EApp "\n  " (eVar0 "with") [ bounds, eVar funcName ] "") in
+  let newBlob = withBoundsBlob eNew (bounds, funcName, args) in
+  let (defs, mainExp) = splitExp old.inputExp in
+  let mainExp' = addToMainExp newBlob mainExp in
+  let code = unparse (fuseExp (defs, mainExp')) in
+
+  upstate Run
+    { old | code = code
+          , history = addToHistory old.code old.history
+          , mouseMode = MouseNothing }
+
+  {- this version adds the call inside a new top-level definition:
+
   addToCodeAndRun funcName old
     [ makeLet ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
     ]
     (eVar0 "with") [ eVar "bounds" , eVar funcName ]
 
+  -}
+
 addToCodeAndRun newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
 
   let tmp = newShapeKind ++ toString old.genSymCount in
   let newDef = makeNewShapeDef old newShapeKind tmp newShapeLocals newShapeFunc newShapeArgs in
   let (defs, mainExp) = splitExp old.inputExp in
-  let code = unparse (fuseExp (defs ++ [newDef], addToMainExp (eVar tmp) mainExp)) in
+  let defs' = defs ++ [newDef] in
+  let eNew = withDummyPos (EVar "\n  " tmp) in
+  let mainExp' = addToMainExp (varBlob eNew tmp) mainExp in
+  let code = unparse (fuseExp (defs', mainExp')) in
 
   upstate Run
     { old | code = code
@@ -643,6 +729,7 @@ makeNewShapeDef model newShapeKind name locals func args =
       [] ->
         let multi = -- check if (func args) returns List SVG or SVG
           case model.shapeTool of
+            Lambda _ -> True
             _ -> False
         in
         if multi then
@@ -672,14 +759,15 @@ makeInts nums =
              let es = List.map (\n' -> eConst (toFloat n') dummyLoc) ns in
              e::es
 
-addToMainExp eNew mainExp =
+addToMainExp : BlobExp -> MainExp -> MainExp
+addToMainExp newBlob mainExp =
   case mainExp of
-    SvgConcat shapes f -> SvgConcat (shapes ++ [eNew]) f
-    Blobs shapes f     -> Blobs (shapes ++ [eNew]) f
+    SvgConcat shapes f -> SvgConcat (shapes ++ [fromBlobExp newBlob]) f
+    Blobs shapes f     -> Blobs (shapes ++ [newBlob]) f
     OtherExp main ->
       let ws = "\n" in -- TODO take main into account
-      let main' = withDummyPos (EApp ws (eVar0 "addShapes") [eNew, main] "") in
-      OtherExp main'
+      OtherExp <| withDummyPos <|
+        EApp ws (eVar0 "addShapes") [fromBlobExp newBlob, main] ""
 
 maybeGhost b f args =
   if b
@@ -861,7 +949,7 @@ maybeFindAttr id kind attr attrs =
 
 
 --------------------------------------------------------------------------------
--- Group Shapes
+-- Group Blobs
 
 computeSelectedBlobsAndBounds : Model -> Dict.Dict Int (NumTr, NumTr, NumTr, NumTr)
 computeSelectedBlobsAndBounds model =
@@ -886,39 +974,48 @@ computeSelectedBlobsAndBounds model =
      )
      model.selectedBlobs
 
--- TODO will later generalize this to additional kinds of defs
-selectedBlobsToSelectedVars model blobs =
-  let n = List.length blobs in
+selectedBlobsToSelectedNiceBlobs : Model -> List BlobExp -> List (Int, Exp, NiceBlob)
+selectedBlobsToSelectedNiceBlobs model blobs =
   let selectedExps =
     List.filter (flip Dict.member model.selectedBlobs << fst)
-                (Utils.zip [1..n] blobs) in
-  let selectedVars =
-    let toVar (i,e) =
-      case e.val.e__ of
-        EVar _ x -> Just (i, x)
-        _        -> Nothing
-    in
-    Utils.filterJusts (List.map toVar selectedExps)
+                (Utils.zip [1 .. List.length blobs] blobs)
   in
-  selectedVars
+  Utils.filterJusts <|
+    List.map
+       (\(i, be) ->
+         case be of
+           NiceBlob e niceBlob -> Just (i, e, niceBlob)
+           _                   -> Nothing
+       )
+       selectedExps
 
-matchesAnySelectedVar selectedVars def =
+matchesAnySelectedVarBlob_ : List (Int, Exp, NiceBlob) -> TopDef -> Maybe Ident
+matchesAnySelectedVarBlob_ selectedNiceBlobs def =
   let (_,p,_,_) = def in
-  let foo (_,x) =
-    case p.val of
-      PVar _ y _ -> x == y
-      _          -> False
-  in
-  List.any foo selectedVars
+  case p.val of
+    PVar _ y _ ->
+      let foo (_,_,niceBlob) =
+        case niceBlob of
+          VarBlob x        -> x == y
+          WithBoundsBlob _ -> False
+          CallBlob _       -> False
+      in
+      case Utils.findFirst foo selectedNiceBlobs of
+        Just (_, _, VarBlob x) -> Just x
+        _                      -> Nothing
+    _ ->
+      Nothing
 
-groupShapes model defs blobs f =
+matchesAnySelectedVarBlob selectedNiceBlobs def =
+  case matchesAnySelectedVarBlob_ selectedNiceBlobs def of
+    Just _  -> True
+    Nothing -> False
+
+groupSelectedBlobs model defs blobs f =
   let n = List.length blobs in
-  let selectedExps =
-    List.filter (flip Dict.member model.selectedBlobs << fst)
-                (Utils.zip [1..n] blobs) in
-  let selectedVars = selectedBlobsToSelectedVars model blobs in
+  let selectedNiceBlobs = selectedBlobsToSelectedNiceBlobs model blobs in
   let newGroup = "newGroup" ++ toString model.genSymCount in
-  let (defs', blobs') = groupAndRearrange model newGroup defs blobs selectedVars in
+  let (defs', blobs') = groupAndRearrange model newGroup defs blobs selectedNiceBlobs in
   let code' = unparse (fuseExp (defs', Blobs blobs' f)) in
   upstate Run
     { model | code = code'
@@ -927,12 +1024,18 @@ groupShapes model defs blobs f =
             , selectedBlobs = Dict.empty
             }
 
-groupAndRearrange model newGroup defs blobs selectedVars =
+groupAndRearrange model newGroup defs blobs selectedNiceBlobs =
   let selectedBlobsAndBounds = computeSelectedBlobsAndBounds model in
+  let (pluckedBlobs, beforeBlobs, afterBlobs) =
+    let indexedBlobs = Utils.zip [1 .. List.length blobs] blobs in
+    let matches (i,_) = Dict.member i model.selectedBlobs in
+    let (plucked_, before_, after_) = pluckFromList matches indexedBlobs in
+    (List.map snd plucked_, List.map snd before_, List.map snd after_)
+  in
   let defs' =
-    let matches = matchesAnySelectedVar selectedVars in
-    let (plucked, before, after) = pluckFromList matches defs in
-    let selectedBlobIndices = List.map fst selectedVars in
+    let matches = matchesAnySelectedVarBlob selectedNiceBlobs in
+    let (pluckedDefs, beforeDefs, afterDefs) = pluckFromList matches defs in
+    let selectedBlobIndices = Dict.keys model.selectedBlobs in
     let (left, top, right, bot) =
       case selectedBlobIndices of
         [] -> Debug.crash "groupAndRearrange: shouldn't get here"
@@ -974,43 +1077,39 @@ groupAndRearrange model newGroup defs blobs selectedVars =
       ]
     in
     let listBoundedGroup =
+      let pluckedBlobs' =
+        List.map (LangUnparser.replacePrecedingWhitespace " " << fromBlobExp)
+                 pluckedBlobs
+      in
       withDummyPos <| EList "\n\n  "
          [ withDummyPos <| EApp " "
              (eVar0 "group")
              [ eVar "bounds"
              , withDummyPos <| EApp " "
                  (eVar0 "concat")
-                 [eList (listOfVars (List.map snd selectedVars)) Nothing]
+                 [withDummyPos <| EList " " pluckedBlobs' "" Nothing " "]
                  ""
              ]
              ""
          ]
          "" Nothing " "
     in
-    let plucked' =
+    let pluckedDefs' =
       let tab = "  " in
       List.map (\(ws1,p,e,ws2) -> (ws1 ++ tab, p, LangUnparser.indent tab e, ws2))
-               plucked
+               pluckedDefs
     in
     let newGroupExp =
       applyESubst eSubst <|
-        fuseExp (groupDefs ++ plucked', OtherExp listBoundedGroup)
+        fuseExp (groupDefs ++ pluckedDefs', OtherExp listBoundedGroup)
           -- TODO flag for fuseExp to insert lets instead of defs
     in
     let newDef = ("\n\n", pVar newGroup, newGroupExp, "") in
-    before ++ [newDef] ++ after
+    beforeDefs ++ [newDef] ++ afterDefs
   in
   let blobs' =
-    let matches e =
-      let foo (_,x) =
-        case e.val.e__ of
-          EVar _ y -> x == y
-          _        -> False
-      in
-      List.any foo selectedVars in
-    let (plucked, before, after) = pluckFromList matches blobs in
-    let newBlob = eVar newGroup in
-    before ++ [newBlob] ++ after
+    let newBlob = varBlob (withDummyPos (EVar "\n  " newGroup)) newGroup in
+    beforeBlobs ++ [newBlob] ++ afterBlobs
   in
   (defs', blobs')
 
@@ -1047,6 +1146,160 @@ offsetXY base1 base2 baseVal1 baseVal2 ws (n,t) eSubst =
     _ ->
       eSubst
 
+
+--------------------------------------------------------------------------------
+-- Abstract Blob
+
+selectedBlobsToSelectedVarBlobs : Model -> List BlobExp -> List (Int, Exp, Ident)
+selectedBlobsToSelectedVarBlobs model blobs =
+  List.concatMap
+     (\(i,e,niceBlob) ->
+       case niceBlob of
+         VarBlob x        -> [(i, e, x)]
+         WithBoundsBlob _ -> []
+         CallBlob _       -> []
+     )
+     (selectedBlobsToSelectedNiceBlobs model blobs)
+
+abstractSelectedBlobs model =
+  let (defs,mainExp) = splitExp model.inputExp in
+  case mainExp of
+    Blobs blobs f ->
+      -- silently ignoring WithBoundsBlobs
+      let selectedVars = selectedBlobsToSelectedVarBlobs model blobs in
+      let (defs',blobs') = List.foldl abstractOne (defs, blobs) selectedVars in
+      let code' = unparse (fuseExp (defs', Blobs blobs' f)) in
+      upstate Run
+        { model | code = code'
+                , history = addToHistory model.code model.history
+                , selectedBlobs = Dict.empty
+                }
+    _ ->
+      model
+
+abstractOne (i, eBlob, x) (defs, blobs) =
+
+  let (pluckedDefs, beforeDefs, afterDefs) =
+    pluckFromList (matchesAnySelectedVarBlob [(i, eBlob, VarBlob x)]) defs in
+
+  let (pluckedBlobs, beforeBlobs, afterBlobs) =
+    let matches (j,_) = i == j in
+    let (plucked, before, after) =
+      pluckFromList matches (Utils.zip [1 .. List.length blobs] blobs) in
+    (List.map snd plucked, List.map snd before, List.map snd after) in
+
+  case (pluckedDefs, pluckedBlobs) of
+
+    ([(ws1,p,e,ws2)], [NiceBlob _ (VarBlob x)]) ->
+
+      let (e', mapping) = collectUnfrozenConstants e in
+      let (newDef, newBlob) =
+        case findBoundsInMapping mapping of
+
+          Just (restOfMapping, left, top, right, bot) ->
+            let newFunc =
+              let pBounds =
+                let pVars = listOfPVars ["left", "top", "right", "bot"] in
+                case restOfMapping of
+                  [] -> pList0 pVars
+                  _  -> pList  pVars
+              in
+              let params = listOfPVars (List.map fst restOfMapping) in
+              withDummyPos (EFun " " (params ++ [pBounds]) e' "")
+            in
+            let eBounds = eList (listOfNums [left, top, right, bot]) Nothing in
+            let newCall =
+              let eBlah =
+                case listOfNums1 (List.map snd restOfMapping) of
+                  []   -> eVar x
+                  args -> withDummyPos (EApp " " (eVar0 x) args "")
+              in
+              withDummyPos (EApp "\n  " (eVar0 "with") [eBounds, eBlah] "")
+            in
+            let newBlob = NiceBlob newCall (WithBoundsBlob (eBounds, x, [])) in
+            ((ws1, p, newFunc, ws2), newBlob)
+
+          Nothing ->
+            let newFunc =
+              let params = listOfPVars (List.map fst mapping) in
+              withDummyPos (EFun " " params e' "")
+            in
+            let newBlob =
+              case listOfNums1 (List.map snd mapping) of
+                []   -> varBlob (eVar x) x
+                args ->
+                  let newCall = withDummyPos (EApp "\n  " (eVar0 x) args "") in
+                  callBlob newCall (x, args)
+            in
+            ((ws1, p, newFunc, ws2), newBlob)
+      in
+      let defs' = beforeDefs ++ [newDef] ++ afterDefs in
+      let blobs' = beforeBlobs ++ [newBlob] ++ afterBlobs in
+      (defs', blobs')
+
+    _ ->
+      let _ = Debug.log "abstractOne: multiple defs..." in
+      (defs, blobs)
+
+-- TODO keep Locs around to preserve freeze annotations
+
+collectUnfrozenConstants : Exp -> (Exp, List (Ident, Num))
+collectUnfrozenConstants =
+     Utils.mapFst removeRedundantBindings
+  << Utils.mapSnd List.reverse
+  << collectUnfrozenConstants_
+
+collectUnfrozenConstants_ : Exp -> (Exp, List (Ident, Num))
+collectUnfrozenConstants_ e =
+  let foo e__ =
+    let default = (e__, []) in
+    case e__ of
+      EConst ws n (locid, ann, x) wd ->
+        if ann == unann || ann == thawed then
+          if x == ""
+          then default -- (EVar ws x, [("k" ++ toString locid, n)])
+          else (EVar ws x, [(x, n)])
+        else
+          default
+      _ ->
+       default
+  in
+  -- two passes for ease of implementation
+  let e' = mapExpViaExp__ (fst << foo) e in
+  let mapping = foldExpViaE__ ((++) << snd << foo) [] e in
+  (e', mapping)
+
+findBoundsInMapping : List (Ident, Num) -> Maybe (List (Ident, Num), Num, Num, Num, Num)
+findBoundsInMapping mapping =
+  case mapping of
+    ("left", left) :: ("top", top) :: ("right", right) :: ("bot", bot) :: rest ->
+      Just (rest, left, top, right, bot)
+    _ ->
+      Nothing
+
+removeRedundantBindings =
+  mapExp <| \e ->
+    case e.val.e__ of
+      ELet _ _ _ p e1 e2 _ -> if redundantBinding (p, e1) then e2 else e
+      _                    -> e
+
+redundantBinding (p, e) =
+  case (p.val, e.val.e__) of
+    (PConst _ n, EConst _ n' _ _) -> n == n'
+    (PBase _ bv, EBase _ bv')     -> bv == bv'
+    (PVar _ x _, EVar _ x')       -> x == x'
+
+    (PList _ ps _ Nothing _, EList _ es _ Nothing _) ->
+      List.all redundantBinding (Utils.zip ps es)
+    (PList _ ps _ (Just p) _, EList _ es _ (Just e) _) ->
+      List.all redundantBinding (Utils.zip (p::ps) (e::es))
+
+    _ -> False
+
+
+--------------------------------------------------------------------------------
+-- Delete Blobs
+
 deleteSelectedBlobs model =
   let (defs,mainExp) = splitExp model.inputExp in
   case mainExp of
@@ -1065,16 +1318,20 @@ deleteSelectedBlobs model =
     _ ->
       model
 
+
+--------------------------------------------------------------------------------
+-- Duplicate Blobs
+
 duplicateSelectedBlobs model =
   let (defs,mainExp) = splitExp model.inputExp in
   case mainExp of
     Blobs blobs f ->
       let (nextGenSym, newDefs, newBlobs) =
-        let selectedVars = selectedBlobsToSelectedVars model blobs in
-        let (nextGenSym_, newDefs_, newBlobs_) =
+        let selectedNiceBlobs = selectedBlobsToSelectedNiceBlobs model blobs in
+        let (nextGenSym_, newDefs_, newVarBlobs_) =
           List.foldl
              (\def (k,acc1,acc2) ->
-               if not (matchesAnySelectedVar selectedVars def)
+               if not (matchesAnySelectedVarBlob selectedNiceBlobs def)
                then (k, acc1, acc2)
                else
                  let (ws1,p,e,ws2) = def in
@@ -1082,7 +1339,7 @@ duplicateSelectedBlobs model =
                    PVar ws x wd ->
                      let x' = x ++ "_copy" ++ toString k in
                      let acc1' = (ws1, { p | val = PVar ws x' wd }, e, ws2) :: acc1 in
-                     let acc2' = eVar x' :: acc2 in
+                     let acc2' = varBlob (withDummyPos (EVar "\n  " x')) x' :: acc2 in
                      (1 + k, acc1', acc2')
                    _ ->
                      let _ = Debug.log "duplicateSelectedBlobs: weird..." () in
@@ -1091,7 +1348,19 @@ duplicateSelectedBlobs model =
              (model.genSymCount, [], [])
              defs
         in
-        (nextGenSym_, List.reverse newDefs_, List.reverse newBlobs_)
+        let newWithAndCallBlobs =
+          List.concatMap
+             (\(_,e,niceBlob) ->
+               case niceBlob of
+                 WithBoundsBlob _ -> [NiceBlob e niceBlob]
+                 CallBlob _       -> [NiceBlob e niceBlob]
+                 VarBlob _        -> []
+             )
+             selectedNiceBlobs
+        in
+        let newDefs = List.reverse newDefs_ in
+        let newBlobs = List.reverse newVarBlobs_ ++ newWithAndCallBlobs in
+        (nextGenSym_, newDefs, newBlobs)
       in
       let code' =
         let blobs' = blobs ++ newBlobs in
@@ -1112,6 +1381,320 @@ shiftNum (n, t) = (30 + n, t)
 shiftDownAndRight (left, top, right, bot) =
   (shiftNum left, shiftNum top, right, bot)
 -}
+
+
+--------------------------------------------------------------------------------
+-- Merge Blobs
+
+mergeSelectedBlobs model =
+  let (defs,mainExp) = splitExp model.inputExp in
+  case mainExp of
+    Blobs blobs f ->
+      let selectedVarBlobs = selectedBlobsToSelectedVarBlobs model blobs in
+      if List.length selectedVarBlobs /= Dict.size model.selectedBlobs then
+        model -- should display error caption for remaining selected blobs...
+      else
+        let (defs', blobs') = mergeSelectedVarBlobs model defs blobs selectedVarBlobs in
+        let code' = unparse (fuseExp (defs', Blobs blobs' f)) in
+        upstate Run
+          { model | code = code'
+                  , history = addToHistory model.code model.history
+                  , selectedBlobs = Dict.empty
+                  }
+    _ ->
+      model
+
+mergeSelectedVarBlobs model defs blobs selectedVarBlobs =
+
+  let (pluckedDefs, beforeDefs, afterDefs) =
+    let selectedNiceBlobs = List.map (\(i,e,x) -> (i, e, VarBlob x)) selectedVarBlobs in
+    pluckFromList (matchesAnySelectedVarBlob selectedNiceBlobs) defs in
+
+  let (pluckedBlobs, beforeBlobs, afterBlobs) =
+    let matches (j,_) = Dict.member j model.selectedBlobs in
+    let (plucked, before, after) =
+      pluckFromList matches (Utils.zip [1 .. List.length blobs] blobs) in
+    (List.map snd plucked, List.map snd before, List.map snd after) in
+
+  let ((ws1,p,e,ws2),es) =
+    case pluckedDefs of
+      def::defs' -> (def, List.map (\(_,_,e,_) -> e) defs')
+      []         -> Debug.crash "mergeSelectedVarBlobs: shouldn't get here" in
+
+  case mergeExpressions e es of
+    Nothing ->
+      -- let _ = Debug.log "mergeExpressions Nothing" () in
+      (defs, blobs)
+
+    Just (_, []) ->
+      let defs' = beforeDefs ++ [(ws1,p,e,ws2)] ++ afterDefs in
+      let blobs' = beforeBlobs ++ [Utils.head_ pluckedBlobs] ++ afterBlobs in
+      (defs', blobs')
+
+    Just (eMerged, multiMapping) ->
+
+      -- TODO treat bounds variables specially, as in abstract
+
+      let newDef =
+        let newFunc =
+          let params = listOfPVars (List.map fst multiMapping) in
+          withDummyPos (EFun " " params (removeRedundantBindings eMerged) "") in
+        (ws1, p, newFunc, ws2) in
+
+      let f =
+        case p.val of
+          PVar _ x _ -> x
+          _          -> Debug.crash "mergeSelected: not var" in
+
+      let newBlobs =
+        case Utils.maybeZipN (List.map snd multiMapping) of
+          Nothing -> Debug.crash "mergeSelected: no arg lists?"
+          Just numLists ->
+            -- let _ = Debug.log "numLists:" numLists in
+            List.map
+               (\nums ->
+                  let args = listOfNums1 nums in
+                  let e = withDummyPos <| EApp "\n  " (eVar0 f) args "" in
+                  callBlob e (f, args)
+               ) numLists in
+
+      let defs' = beforeDefs ++ [newDef] ++ afterDefs in
+      let blobs' = beforeBlobs ++ newBlobs ++ afterBlobs in
+      (defs', blobs')
+
+mergeExpressions
+    : Exp -> List Exp
+   -> Maybe (Exp, List (Ident, List Num)) -- TODO keep Loc and WidgetDecl
+mergeExpressions eFirst eRest =
+  let wrap e__ =
+    let e_val = eFirst.val in { eFirst | val = { e_val | e__ = e__ } } in
+  let return e__ list =
+    Just (wrap e__, list) in
+
+  case eFirst.val.e__ of
+
+    EConst ws1 n loc wd ->
+      let match eNext = case eNext.val.e__ of
+        EConst _ nNext _ _ -> Just nNext
+        _                  -> Nothing
+      in
+      matchAllAndBind match eRest <| \nums ->
+        case Utils.removeDupes (n::nums) of
+          [_] -> return eFirst.val.e__ []
+          _   ->
+            let (locid,_,x) = loc in
+            let var = if x == "" then "k" ++ toString locid else x in
+            -- let _ = Debug.log "var for merge: " (var, n::nums) in
+            return (EVar ws1 var) [(var, (n::nums))]
+
+    EBase _ bv ->
+      let match eNext = case eNext.val.e__ of
+        EBase _ bv' -> Just bv'
+        _           -> Nothing
+      in
+      matchAllAndBind match eRest <| \bvs ->
+        if List.all ((==) bv) bvs then return eFirst.val.e__ [] else Nothing
+
+    EVar _ x ->
+      let match eNext = case eNext.val.e__ of
+        EVar _ x' -> Just x'
+        _         -> Nothing
+      in
+      matchAllAndBind match eRest <| \xs ->
+        if List.all ((==) x) xs then return eFirst.val.e__ [] else Nothing
+
+    EFun ws1 ps eBody ws2 ->
+      let match eNext = case eNext.val.e__ of
+        EFun _ ps' eBody' _ -> Just (ps', eBody')
+        _                   -> Nothing
+      in
+      matchAllAndBind match eRest <| \stuff ->
+        let (psList, eBodyList) = List.unzip stuff in
+        Utils.bindMaybe2
+          (\() (eBody',list) -> return (EFun ws1 ps eBody' ws2) list)
+          (mergePatternLists (ps::psList))
+          (mergeExpressions eBody eBodyList)
+
+    EApp ws1 eFunc eArgs ws2 ->
+      let match eNext = case eNext.val.e__ of
+        EApp _ eFunc' eArgs' _ -> Just (eFunc', eArgs')
+        _                      -> Nothing
+      in
+      matchAllAndBind match eRest <| \stuff ->
+        let (eFuncList, eArgsList) = List.unzip stuff in
+        Utils.bindMaybe2
+          (\(eFunc',l1) (eArgs',l2) ->
+            return (EApp ws1 eFunc' eArgs' ws2) (l1 ++ l2))
+          (mergeExpressions eFunc eFuncList)
+          (mergeExpressionLists (eArgs::eArgsList))
+
+    ELet ws1 letKind rec p1 e1 e2 ws2 ->
+      let match eNext = case eNext.val.e__ of
+        ELet _ _ _ p1' e1' e2' _ -> Just ((p1', e1'), e2')
+        _                        -> Nothing
+      in
+      matchAllAndBind match eRest <| \stuff ->
+        let ((p1List, e1List), e2List) =
+          Utils.mapFst List.unzip (List.unzip stuff)
+        in
+        Utils.bindMaybe3
+          (\_ (e1',l1) (e2',l2) ->
+            return (ELet ws1 letKind rec p1 e1' e2' ws2) (l1 ++ l2))
+          (mergePatterns p1 p1List)
+          (mergeExpressions e1 e1List)
+          (mergeExpressions e2 e2List)
+
+    EList ws1 es ws2 me ws3 ->
+      let match eNext = case eNext.val.e__ of
+        EList _ es' _ me' _ -> Just (es', me')
+        _                   -> Nothing
+      in
+      matchAllAndBind match eRest <| \stuff ->
+        let (esList, meList) = List.unzip stuff in
+        Utils.bindMaybe2
+          (\(es',l1) (me',l2) -> return (EList ws1 es' ws2 me' ws3) (l1 ++ l2))
+          (mergeExpressionLists (es::esList))
+          (mergeMaybeExpressions me meList)
+
+    EOp ws1 op es ws2 ->
+      let match eNext = case eNext.val.e__ of
+        EOp _ op' es' _ -> Just (op', es')
+        _               -> Nothing
+      in
+      matchAllAndBind match eRest <| \stuff ->
+        let (opList, esList) = List.unzip stuff in
+        if List.all ((==) op.val) (List.map .val opList) then
+          Utils.bindMaybe
+            (\(es',l) -> return (EOp ws1 op es' ws2) l)
+            (mergeExpressionLists (es::esList))
+        else
+          Nothing
+
+    EIf ws1 e1 e2 e3 ws2 ->
+      let match eNext = case eNext.val.e__ of
+        EIf _ e1' e2' e3' _ -> Just ((e1', e2'), e3')
+        _                   -> Nothing
+      in
+      matchAllAndBind match eRest <| \stuff ->
+        let ((e1List, e2List), e3List) = Utils.mapFst List.unzip (List.unzip stuff) in
+        Utils.bindMaybe3
+          (\(e1',l1) (e2',l2) (e3',l3) ->
+            return (EIf ws1 e1' e2' e3' ws2) (l1 ++ l2 ++ l3))
+          (mergeExpressions e1 e1List)
+          (mergeExpressions e2 e2List)
+          (mergeExpressions e3 e3List)
+
+    EComment ws s e ->
+      let match eNext = case eNext.val.e__ of
+        EComment _ _ e' -> Just e'
+        _               -> Nothing
+      in
+      matchAllAndBind match eRest <| \es ->
+        Utils.bindMaybe
+          (\(e',l) -> return (EComment ws s e') l)
+          (mergeExpressions e es)
+
+    ECase _ _ _ _ ->
+      let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
+      Nothing
+
+    EOption _ _ _ _ _ ->
+      let _ = Debug.log "mergeExpressions: options shouldn't appear nested: " () in
+      Nothing
+
+    EIndList _ _ _ ->
+      let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
+      Nothing
+
+matchAllAndBind : (a -> Maybe b) -> List a -> (List b -> Maybe c) -> Maybe c
+matchAllAndBind f xs g = Utils.bindMaybe g (Utils.projJusts (List.map f xs))
+
+mergeExpressionLists
+    : List (List Exp)
+   -> Maybe (List Exp, List (Ident, List Num))
+mergeExpressionLists lists =
+  case Utils.maybeZipN lists of
+    Nothing -> Nothing
+    Just listListExp ->
+      let foo listExp maybeAcc =
+        case (listExp, maybeAcc) of
+          (e::es, Just (acc1,acc2)) ->
+            case mergeExpressions e es of
+              Nothing     -> Nothing
+              Just (e',l) -> Just (acc1 ++ [e'], acc2 ++ l)
+          _ ->
+            Nothing
+      in
+      List.foldl foo (Just ([],[])) listListExp
+
+mergeMaybeExpressions
+    : Maybe Exp -> List (Maybe Exp)
+   -> Maybe (Maybe Exp, List (Ident, List Num))
+mergeMaybeExpressions me mes =
+  case me of
+    Nothing ->
+      if List.all ((==) Nothing) mes
+        then Just (Nothing, [])
+        else Nothing
+    Just e  ->
+      Utils.bindMaybe
+        (Utils.mapMaybe (Utils.mapFst Just) << mergeExpressions e)
+        (Utils.projJusts mes)
+
+mergePatterns : Pat -> List Pat -> Maybe ()
+mergePatterns pFirst pRest =
+  case pFirst.val of
+    PVar _ x _ ->
+      let match pNext = case pNext.val of
+        PVar _ x' _ -> Just x'
+        _           -> Nothing
+      in
+      matchAllAndCheckEqual match pRest x
+    PConst _ n ->
+      let match pNext = case pNext.val of
+        PConst _ n' -> Just n'
+        _           -> Nothing
+      in
+      matchAllAndCheckEqual match pRest n
+    PBase _ bv ->
+      let match pNext = case pNext.val of
+        PBase _ bv' -> Just bv'
+        _           -> Nothing
+      in
+      matchAllAndCheckEqual match pRest bv
+    PList _ ps _ mp _ ->
+      let match pNext = case pNext.val of
+        PList _ ps' _ mp' _ -> Just (ps', mp')
+        _                   -> Nothing
+      in
+      matchAllAndBind match pRest <| \stuff ->
+        let (psList, mpList) = List.unzip stuff in
+        Utils.bindMaybe2
+          (\_ () -> Just ())
+          (mergePatternLists (ps::psList))
+          (mergeMaybePatterns mp mpList)
+
+matchAllAndCheckEqual f xs x =
+  let g ys = if List.all ((==) x) ys then Just () else Nothing in
+  matchAllAndBind f xs g
+
+mergePatternLists : List (List Pat) -> Maybe ()
+mergePatternLists lists =
+  case Utils.maybeZipN lists of
+    Nothing -> Nothing
+    Just listListPat ->
+      let foo listPat maybeAcc =
+        case (listPat, maybeAcc) of
+          (p::ps, Just ()) -> mergePatterns p ps
+          _                -> Nothing
+      in
+      List.foldl foo (Just ()) listListPat
+
+mergeMaybePatterns : Maybe Pat -> List (Maybe Pat) -> Maybe ()
+mergeMaybePatterns mp mps =
+  case mp of
+    Nothing -> if List.all ((==) Nothing) mps then Just () else Nothing
+    Just p  -> Utils.bindMaybe (mergePatterns p) (Utils.projJusts mps)
 
 
 --------------------------------------------------------------------------------
@@ -1653,13 +2236,23 @@ upstate evt old = case debugLog "Event" evt of
               , selectedFeatures = Set.empty
         }
 
-    RelateShapes ->
+    GroupBlobs ->
       if Dict.size old.selectedBlobs <= 1 then old
       else
         let (defs,me) = splitExp old.inputExp in
         case me of
-          Blobs blobs f -> groupShapes old defs blobs f
+          Blobs blobs f -> groupSelectedBlobs old defs blobs f
           _             -> old
+
+    DuplicateBlobs ->
+      duplicateSelectedBlobs old
+
+    MergeBlobs ->
+      if Dict.size old.selectedBlobs <= 1 then old
+      else mergeSelectedBlobs old
+
+    AbstractBlobs ->
+      abstractSelectedBlobs old
 
 {-
     RelateShapes ->
@@ -1822,7 +2415,14 @@ upstate evt old = case debugLog "Event" evt of
       let new = { old | keysDown = l } in
       if editingMode new then new
       else if l == Keys.escape then
-        { new | selectedFeatures = Set.empty, selectedBlobs = Dict.empty }
+        if new.showZones == showZonesSelectAttrs && not (Set.isEmpty new.selectedFeatures) then
+          { new | selectedFeatures = Set.empty }
+        else if new.showZones == showZonesSelectShapes && not (Dict.isEmpty new.selectedBlobs) then
+          { new | selectedBlobs = Dict.empty }
+        else
+          { new | showZones = showZonesNone }
+      else if l == Keys.delete then
+         deleteSelectedBlobs new
       -- else if l == Keys.backspace || l == Keys.delete then
       --   deleteSelectedBlobs new
       -- TODO
@@ -1981,10 +2581,16 @@ createMousePosCallback mx my objid kind zone old =
 
     let scaledPosX scale n = n + scale * (toFloat mx' - toFloat mx) in
 
+{-
     let posX n = n - toFloat mx + toFloat mx' in
     let posY n = n - toFloat my + toFloat my' in
     let negX n = n + toFloat mx - toFloat mx' in
     let negY n = n + toFloat my - toFloat my' in
+-}
+    let posX n = if old.keysDown == Keys.y then n else n - toFloat mx + toFloat mx' in
+    let posY n = if old.keysDown == Keys.x then n else n - toFloat my + toFloat my' in
+    let negX n = if old.keysDown == Keys.y then n else n + toFloat mx - toFloat mx' in
+    let negY n = if old.keysDown == Keys.x then n else n + toFloat my - toFloat my' in
 
     -- let posXposY n =
     --   let dx = toFloat mx - toFloat mx' in

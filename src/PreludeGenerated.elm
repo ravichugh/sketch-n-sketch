@@ -711,6 +711,9 @@ prelude =
   (group bounds [shape])
 ))))))
 
+(def rawPolygon (\\(fill stroke w pts)
+  ['g' [] [(polygon fill stroke w pts)]]))
+
 (def scaleBetween (\\(a b pct)
   (case pct
     (0 a)
@@ -791,14 +794,14 @@ prelude =
   (group bounds [(polygon fill stroke strokeWidth pts)])
 )))
 
-; expects (f bounds) to be a single SVG
-(def with (\\(bounds f) (group bounds [(f bounds)])))
+; expects (f bounds) to be multiple SVGs
+(def with (\\(bounds f) [(group bounds (f bounds))]))
 
 (def star (\\bounds
   (let [left top right bot] bounds
   (let [width height] [(- right left) (- bot top)]
   (let [cx cy] [(+ left (/ width 2)) (+ top (/ height 2))]
-  (nStar 'lightblue' 'black' 0 6 (min (/ width 2) (/ height 2)) 10 0 cx cy)
+  [(nStar 'lightblue' 'black' 0 6 (min (/ width 2) (/ height 2)) 10 0 cx cy)]
 )))))
 
 (def blobs (\\blobs
