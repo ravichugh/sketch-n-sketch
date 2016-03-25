@@ -2581,10 +2581,16 @@ createMousePosCallback mx my objid kind zone old =
 
     let scaledPosX scale n = n + scale * (toFloat mx' - toFloat mx) in
 
+{-
     let posX n = n - toFloat mx + toFloat mx' in
     let posY n = n - toFloat my + toFloat my' in
     let negX n = n + toFloat mx - toFloat mx' in
     let negY n = n + toFloat my - toFloat my' in
+-}
+    let posX n = if old.keysDown == Keys.y then n else n - toFloat mx + toFloat mx' in
+    let posY n = if old.keysDown == Keys.x then n else n - toFloat my + toFloat my' in
+    let negX n = if old.keysDown == Keys.y then n else n + toFloat mx - toFloat mx' in
+    let negY n = if old.keysDown == Keys.x then n else n + toFloat my - toFloat my' in
 
     -- let posXposY n =
     --   let dx = toFloat mx - toFloat mx' in
