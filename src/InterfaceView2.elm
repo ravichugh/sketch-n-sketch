@@ -1684,7 +1684,7 @@ widgetsCursors w h model =
           (simpleButton AbstractBlobs "Abs")
       , twoButtons w h
           (simpleButton DuplicateBlobs "Dupe")
-          (simpleEventButton_ True MergeBlobs "Merge")
+          (simpleButton MergeBlobs "Merge")
       ]
   in
   basicButtons ++ maybeRelateButtons ++ maybeBlobButtons
