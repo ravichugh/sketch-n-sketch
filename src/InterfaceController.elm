@@ -1541,13 +1541,51 @@ mergeExpressions eFirst eRest =
           (mergeExpressionLists (es::esList))
           (mergeMaybeExpressions me meList)
 
-    -- TODO EOp, EIf, ECase, EComment, EOption
+    EOp ws1 op es ws2 ->
+      let match eNext = case eNext.val.e__ of
+        EOp _ op' es' _ -> Just (op', es')
+        _               -> Nothing
+      in
+      matchAllAndBind match eRest <| \stuff ->
+        let (opList, esList) = List.unzip stuff in
+        if List.all ((==) op.val) (List.map .val opList) then
+          Utils.bindMaybe
+            (\(es',l) -> return (EOp ws1 op es' ws2) l)
+            (mergeExpressionLists (es::esList))
+        else
+          Nothing
 
-    _ ->
-      -- TODO
+    EIf ws1 e1 e2 e3 ws2 ->
+      let match eNext = case eNext.val.e__ of
+        EIf _ e1' e2' e3' _ -> Just ((e1', e2'), e3')
+        _                   -> Nothing
+      in
+      matchAllAndBind match eRest <| \stuff ->
+        let ((e1List, e2List), e3List) = Utils.mapFst List.unzip (List.unzip stuff) in
+        Utils.bindMaybe3
+          (\(e1',l1) (e2',l2) (e3',l3) ->
+            return (EIf ws1 e1' e2' e3' ws2) (l1 ++ l2 ++ l3))
+          (mergeExpressions e1 e1List)
+          (mergeExpressions e2 e2List)
+          (mergeExpressions e3 e3List)
+
+    EComment ws s e ->
+      let match eNext = case eNext.val.e__ of
+        EComment _ _ e' -> Just e'
+        _               -> Nothing
+      in
+      matchAllAndBind match eRest <| \es ->
+        Utils.bindMaybe
+          (\(e',l) -> return (EComment ws s e') l)
+          (mergeExpressions e es)
+
+    ECase _ _ _ _ ->
       let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
-      Just (eFirst, [ ("aa", List.map toFloat [0 .. List.length eRest])
-                    , ("bb", List.map toFloat [0 .. List.length eRest]) ])
+      Nothing
+
+    EOption _ _ _ _ _ ->
+      let _ = Debug.log "mergeExpressions: options shouldn't appear nested: " () in
+      Nothing
 
 matchAllAndBind : (a -> Maybe b) -> List a -> (List b -> Maybe c) -> Maybe c
 matchAllAndBind f xs g = Utils.bindMaybe g (Utils.projJusts (List.map f xs))
