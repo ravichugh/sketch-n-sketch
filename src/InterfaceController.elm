@@ -1277,9 +1277,24 @@ findBoundsInMapping mapping =
     _ ->
       Nothing
 
--- TODO
-removeRedundantBindings e =
-  e
+removeRedundantBindings =
+  mapExp <| \e ->
+    case e.val.e__ of
+      ELet _ _ _ p e1 e2 _ -> if redundantBinding (p, e1) then e2 else e
+      _                    -> e
+
+redundantBinding (p, e) =
+  case (p.val, e.val.e__) of
+    (PConst _ n, EConst _ n' _ _) -> n == n'
+    (PBase _ bv, EBase _ bv')     -> bv == bv'
+    (PVar _ x _, EVar _ x')       -> x == x'
+
+    (PList _ ps _ Nothing _, EList _ es _ Nothing _) ->
+      List.all redundantBinding (Utils.zip ps es)
+    (PList _ ps _ (Just p) _, EList _ es _ (Just e) _) ->
+      List.all redundantBinding (Utils.zip (p::ps) (e::es))
+
+    _ -> False
 
 
 --------------------------------------------------------------------------------
@@ -1585,6 +1600,10 @@ mergeExpressions eFirst eRest =
 
     EOption _ _ _ _ _ ->
       let _ = Debug.log "mergeExpressions: options shouldn't appear nested: " () in
+      Nothing
+
+    EIndList _ _ _ ->
+      let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
       Nothing
 
 matchAllAndBind : (a -> Maybe b) -> List a -> (List b -> Maybe c) -> Maybe c
