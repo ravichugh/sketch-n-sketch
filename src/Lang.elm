@@ -877,5 +877,7 @@ listOfNums ns =
 
 listOfNums1 = List.map (flip eConst dummyLoc)
 
+minMax x y             = (min x y, max x y)
 minNumTr (a,t1) (b,t2) = if a <= b then (a,t1) else (b,t2)
 maxNumTr (a,t1) (b,t2) = if a >= b then (a,t1) else (b,t2)
+minMaxNumTr nt1 nt2    = (minNumTr nt1 nt2, maxNumTr nt1 nt2)

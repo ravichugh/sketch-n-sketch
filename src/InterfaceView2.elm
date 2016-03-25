@@ -811,6 +811,11 @@ makeZonesBox model options id l =
     zonePoint id "BOX" zone options.showBasic transform [attrNum "cx" cx, attrNum "cy" cy]
   in
   let
+    {- reversible box:
+    (left_, top_, right_, bot_) = Utils.unwrap4 <| findNums l ["LEFT","TOP","RIGHT","BOT"]
+    ((left, right), (top, bot)) = (minMax left_ right_, minMax top_ bot_)
+    -}
+
     (left, top, right, bot) = Utils.unwrap4 <| findNums l ["LEFT","TOP","RIGHT","BOT"]
     (width, height) = (right - left, bot - top)
   in
