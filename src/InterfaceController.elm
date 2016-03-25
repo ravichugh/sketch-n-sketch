@@ -265,11 +265,11 @@ type BlobExp
 
 type NiceBlob
   = VarBlob Ident                          -- x
+  | CallBlob (Ident, List Exp)             -- (f args)
   | WithBoundsBlob (Exp, Ident, List Exp)  -- (with bounds (f args))
 
-  -- TODO add CallBlob for (f args), because the result may be a blob
-
 varBlob e x            = NiceBlob e (VarBlob x)
+callBlob e tuple       = NiceBlob e (CallBlob tuple)
 withBoundsBlob e tuple = NiceBlob e (WithBoundsBlob tuple)
 
 splitExp : Exp -> Program
@@ -374,6 +374,10 @@ toBlobExp e =
                 _        -> OtherBlob e
             _ -> OtherBlob e
         _ -> OtherBlob e
+    EApp _ eFunc eArgs _ ->
+      case eFunc.val.e__ of
+        EVar _ f -> NiceBlob e (CallBlob (f, eArgs))
+        _        -> OtherBlob e
     _ -> OtherBlob e
 
 fromBlobExp : BlobExp -> Exp
@@ -994,6 +998,7 @@ matchesAnySelectedVarBlob_ selectedNiceBlobs def =
         case niceBlob of
           VarBlob x        -> x == y
           WithBoundsBlob _ -> False
+          CallBlob _       -> False
       in
       case Utils.findFirst foo selectedNiceBlobs of
         Just (_, _, VarBlob x) -> Just x
@@ -1152,6 +1157,7 @@ selectedBlobsToSelectedVarBlobs model blobs =
        case niceBlob of
          VarBlob x        -> [(i, e, x)]
          WithBoundsBlob _ -> []
+         CallBlob _       -> []
      )
      (selectedBlobsToSelectedNiceBlobs model blobs)
 
@@ -1218,12 +1224,14 @@ abstractOne (i, eBlob, x) (defs, blobs) =
               let params = listOfPVars (List.map fst mapping) in
               withDummyPos (EFun " " params e' "")
             in
-            let newCall =
+            let newBlob =
               case listOfNums1 (List.map snd mapping) of
-                []   -> eVar x
-                args -> withDummyPos (EApp "\n  " (eVar0 x) args "")
+                []   -> varBlob (eVar x) x
+                args ->
+                  let newCall = withDummyPos (EApp "\n  " (eVar0 x) args "") in
+                  callBlob newCall (x, args)
             in
-            ((ws1, p, newFunc, ws2), OtherBlob newCall) -- TODO CallBlob
+            ((ws1, p, newFunc, ws2), newBlob)
       in
       let defs' = beforeDefs ++ [newDef] ++ afterDefs in
       let blobs' = beforeBlobs ++ [newBlob] ++ afterBlobs in
@@ -1325,17 +1333,18 @@ duplicateSelectedBlobs model =
              (model.genSymCount, [], [])
              defs
         in
-        let newWithBlobs =
+        let newWithAndCallBlobs =
           List.concatMap
              (\(_,e,niceBlob) ->
                case niceBlob of
                  WithBoundsBlob _ -> [NiceBlob e niceBlob]
+                 CallBlob _       -> [NiceBlob e niceBlob]
                  VarBlob _        -> []
              )
              selectedNiceBlobs
         in
         let newDefs = List.reverse newDefs_ in
-        let newBlobs = List.reverse newVarBlobs_ ++ newWithBlobs in
+        let newBlobs = List.reverse newVarBlobs_ ++ newWithAndCallBlobs in
         (nextGenSym_, newDefs, newBlobs)
       in
       let code' =
@@ -1431,7 +1440,7 @@ mergeSelectedVarBlobs model defs blobs selectedVarBlobs =
                (\nums ->
                   let args = listOfNums1 nums in
                   let e = withDummyPos <| EApp "\n  " (eVar0 f) args "" in
-                  OtherBlob e -- TODO CallBlob
+                  callBlob e (f, args)
                ) numLists in
 
       let defs' = beforeDefs ++ [newDef] ++ afterDefs in
