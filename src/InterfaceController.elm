@@ -2413,14 +2413,23 @@ upstate evt old = case debugLog "Event" evt of
     KeysDown l ->
       -- let _ = Debug.log "keys" (toString l) in
       let new = { old | keysDown = l } in
-      if editingMode new then new
+
+      if editingMode old then old
+
       else if l == Keys.escape then
-        if new.showZones == showZonesSelectAttrs && not (Set.isEmpty new.selectedFeatures) then
-          { new | selectedFeatures = Set.empty }
-        else if new.showZones == showZonesSelectShapes && not (Dict.isEmpty new.selectedBlobs) then
-          { new | selectedBlobs = Dict.empty }
-        else
-          { new | showZones = showZonesNone }
+        case (new.toolMode, new.mouseMode) of
+          (Shapes, MouseNothing)   -> { new | toolMode = Cursors }
+          (Shapes, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
+          (Cursors, _) ->
+            if new.showZones == showZonesSelectAttrs && not (Set.isEmpty new.selectedFeatures) then
+              { new | selectedFeatures = Set.empty }
+            else if new.showZones == showZonesSelectShapes && not (Dict.isEmpty new.selectedBlobs) then
+              { new | selectedBlobs = Dict.empty }
+            else
+              { new | showZones = showZonesNone }
+          _ ->
+            new
+
       else if l == Keys.delete then
          deleteSelectedBlobs new
       -- else if l == Keys.backspace || l == Keys.delete then
