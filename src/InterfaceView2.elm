@@ -1892,7 +1892,7 @@ saveAsButton model w h =
 loadButton : Model -> Int -> Int -> GE.Element
 loadButton model w h =
   let cap = "Revert" in
-  simpleTaskButton (loadLocalState model.exName) cap w h
+  simpleTaskButton (loadLocalState model model.exName) cap w h
     -- "Reload" "Reload" Utils.uniReload w h
 
 undoButton : Model -> Int -> Int -> GE.Element
@@ -1934,7 +1934,7 @@ dropdownExamples model w h =
       AdHoc -> [(model.exName, Signal.send events.address Noop)]
       _ ->
         let foo (name,_,thunk) = (name, Signal.send events.address (SelectExample name thunk))
-            bar saveName = (saveName, loadLocalState saveName)
+            bar saveName = (saveName, loadLocalState model saveName)
             blank = ("", Task.succeed ())
             localsaves = case model.localSaves of
                 [] -> []

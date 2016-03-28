@@ -25,7 +25,7 @@ import String exposing (all)
 import Signal exposing (Mailbox, mailbox, send)
 
 -- Types for our Model
-import InterfaceModel exposing (Model, Orientation, Event, sampleModel, events)
+import InterfaceModel exposing (Model, Orientation, Event, events)
 import ExamplesGenerated as Examples
 
 -- So we can clear the slate
@@ -76,8 +76,8 @@ modelToValue model =
       ]
 
 -- JSON decoder for our Model
-strToModel : Decoder Model
-strToModel =
+strToModel : Model -> Decoder Model
+strToModel baseModel =
     let partialObjectDecoder = object5 PartialObject
             ("code" := string)
             ("orient" := customDecoder string
@@ -92,14 +92,14 @@ strToModel =
             ("midOffsetY"  := int)
     in customDecoder partialObjectDecoder
         (\partial ->
-            Ok { sampleModel | code = partial.code
-                             , orient = partial.orient
-                             , showZones = partial.showZones
-                             , midOffsetX = partial.midOffsetX
-                             , midOffsetY = partial.midOffsetY
-                             , fieldContents = { value = ""
-                                                , hint = "Input File Name" }
-                             , startup = False
+            Ok { baseModel | code = partial.code
+                           , orient = partial.orient
+                           , showZones = partial.showZones
+                           , midOffsetX = partial.midOffsetX
+                           , midOffsetY = partial.midOffsetY
+                           , fieldContents = { value = ""
+                                              , hint = "Input File Name" }
+                           , startup = False
             }
         )
 
@@ -159,12 +159,12 @@ invalidInput oldmodel =
                                       , hint = "Invalid File Name" } }
 
 -- Task to load state from local browser storage
-loadLocalState : String -> Task String ()
-loadLocalState saveName =
+loadLocalState : Model -> String -> Task String ()
+loadLocalState baseModel saveName =
     case List.filter ((==) saveName << Utils.fst3) Examples.list of
         (name, _, thunk) :: rest ->
             send events.address <| InterfaceModel.SelectExample saveName thunk
-        _ -> getItem saveName strToModel
+        _ -> getItem saveName (strToModel baseModel)
                 `andThen` \loadedModel ->
                     send events.address <|
                         InterfaceModel.UpdateModel <|
