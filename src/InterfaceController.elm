@@ -400,10 +400,10 @@ addLineToCodeAndRun old click2 click1 =
   let (f, args) =
     maybeGhost (old.shapeTool == HelperLine)
        (eVar0 "line")
-       (color :: eStr "5" :: List.map eVar ["left","top","right","bot"])
+       (color :: eConst 5 dummyLoc :: List.map eVar ["x1","y1","x2","y2"])
   in
   addToCodeAndRun "line" old
-    [ makeLet ["left","top","right","bot"] (makeInts [x1,y1,xb,yb])
+    [ makeLet ["x1","y1","x2","y2"] (makeInts [x1,y1,xb,yb])
     ] f args
 
 {- using variables x1/x2/y1/y2 instead of left/top/right/bot:
