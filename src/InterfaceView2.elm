@@ -11,7 +11,7 @@ import Eval
 import Utils
 import Keys
 import InterfaceModel exposing (..)
-import LangSvg exposing (toNum, toNumTr, addi, attr)
+import LangSvg exposing (toNum, toNumTr, addi, attr, NodeId, ShapeKind)
 import ExamplesGenerated as Examples
 import Config exposing (params)
 import OurParser2 as P
@@ -152,7 +152,9 @@ optionsOf x =
   else if x == showZonesBasic then { zoneOptions0 | addBasic = True, showBasic = True }
   else if x == showZonesExtra then { zoneOptions0 | addRot = True, addColor = True }
   else if x == showZonesDel   then { zoneOptions0 | addDelete = True }
-  else if x == showZonesSelectAttrs  then { zoneOptions0 | addSelect = True }
+  -- TODO temporary
+  -- else if x == showZonesSelectAttrs  then { zoneOptions0 | addSelect = True }
+  else if x == showZonesSelectAttrs  then { zoneOptions0 | addSelect = True, addRot = True, addColor = True }
   else if x == showZonesSelectShapes then { zoneOptions0 | addSelectShapes = True }
   else
     Debug.crash "optionsOf"
@@ -305,7 +307,7 @@ sliderZoneEvents widgetState =
   in
   [ onMouseDown (UpdateModel foo) , onMouseUp MouseUp ]
 
--- similar to toggleSelected and toggleSelectedBlob
+-- abstract the following with toggleSelected and toggleSelectedBlob
 toggleSelectedWidget model locid =
   UpdateModel <| \model ->
     let update =
@@ -421,12 +423,12 @@ maybeTransformAttr l =
     Just cmds -> transformAttr cmds
     Nothing   -> []
 
-zoneRotate b id shape (cx,cy) r m =
+zoneRotate model b id shape (cx,cy) r m =
   case (b, m) of
-    (True, Just cmds) -> zoneRotate_ id shape cx cy r cmds
+    (True, Just cmds) -> zoneRotate_ model id shape cx cy r cmds
     _                 -> []
 
-zoneRotate_ id shape cx cy r cmds =
+zoneRotate_ model id shape cx cy r cmds =
   let (a, stroke, strokeWidth, rBall) =
       (20, "rgba(192,192,192,0.5)", "5", "7") in
   let (fillBall, swBall) = ("silver", "2") in
@@ -450,11 +452,22 @@ zoneRotate_ id shape cx cy r cmds =
         ++ zoneEvents id shape "RotateBall"
   in
   let line =
+    let (strokeColor, maybeEventHandler) =
+      case (cmds, model.toolMode, model.showZones == showZonesSelectAttrs) of
+        ([LangSvg.Rot (_,trace) _ _], Cursors, True) ->
+          let handler = [onMouseDown (toggleSelectedExtraAttribute model (id, trace))] in
+          if List.member (id, trace) model.selectedExtraAttributes
+            then (colorPointSelected, handler)
+            else (colorPointNotSelected, handler)
+        _ ->
+          (stroke, [])
+    in
     flip Svg.line [] <|
-      [ LangSvg.attr "stroke" stroke , LangSvg.attr "stroke-width" strokeWidth
+      [ LangSvg.attr "stroke" strokeColor , LangSvg.attr "stroke-width" strokeWidth
       , LangSvg.attr "x1" (toString cx) , LangSvg.attr "y1" (toString cy)
       , LangSvg.attr "x2" (toString cx) , LangSvg.attr "y2" (toString (cy - r))
       ] ++ transform
+        ++ maybeEventHandler
   in
   [circle, line, ball]
 
@@ -480,18 +493,18 @@ maybeColorNumAttr k l =
       _                   -> Nothing
     _                     -> Nothing
 
-zoneColor b id shape x y rgba =
+zoneColor model b id shape x y rgba =
   case (b, rgba) of
-    (True, Just n) -> zoneColor_ id shape x y n
+    (True, Just n) -> zoneColor_ model id shape x y n
     _              -> []
 
-zoneColor_ id shape x y n =
-  let rgba = [LangSvg.compileAttr "fill" (LangSvg.aColorNum n)] in
+zoneColor_ : Model -> NodeId -> ShapeKind -> Num -> Num -> NumTr -> List Svg.Svg
+zoneColor_ model id shape x y (n, trace) =
   let (w, h, a, stroke, strokeWidth, rBall) =
       (wGradient, 20, 20, "silver", "2", "7") in
   let yOff = a + rotZoneDelta in
   let ball =
-    let cx = x + (fst n / LangSvg.maxColorNum) * wGradient in
+    let cx = x + (n / LangSvg.maxColorNum) * wGradient in
     let cy = y - yOff + (h/2) in
     flip Svg.circle [] <|
       [ LangSvg.attr "stroke" "black" , LangSvg.attr "stroke-width" strokeWidth
@@ -501,16 +514,16 @@ zoneColor_ id shape x y n =
       , cursorOfZone "FillBall" "default"
       ] ++ zoneEvents id shape "FillBall"
   in
-  let box =
+  let box color maybeEventHandler =
     flip Svg.rect [] <|
-      [ LangSvg.attr "fill" "none"
+      [ LangSvg.attr "fill" color
       , LangSvg.attr "stroke" stroke , LangSvg.attr "stroke-width" strokeWidth
       , LangSvg.attr "x" (toString x) , LangSvg.attr "y" (toString (y - yOff))
       , LangSvg.attr "width" (toString w) , LangSvg.attr "height" (toString h)
-      ]
+      ] ++ maybeEventHandler
   in
   -- TODO would probably be faster with an image...
-  let gradient =
+  let gradient () =
     List.map (\i ->
       let (r,g,b) = numToColor i in
       let fill =
@@ -522,7 +535,29 @@ zoneColor_ id shape x y n =
         , LangSvg.attr "width" "1" , LangSvg.attr "height" (toString h)
         ]) [0 .. w]
   in
-  gradient ++ [box, ball]
+  case (model.toolMode, model.showZones == showZonesSelectAttrs) of
+    (Cursors, True) ->
+      let handler = [onMouseDown (toggleSelectedExtraAttribute model (id, trace))] in
+      let color =
+        if List.member (id, trace) model.selectedExtraAttributes
+          then colorPointSelected
+          else colorPointNotSelected
+      in
+      [box color handler, ball]
+    _ ->
+      gradient () ++ [box "none" [], ball]
+
+toggleSelectedExtraAttribute model tuple =
+  UpdateModel <| \model ->
+    let list = model.selectedExtraAttributes in
+    let list' =
+      -- do this in one pass...
+      case Utils.findFirst ((==) tuple) list of
+        Nothing -> tuple :: list
+        Just _  -> Utils.removeFirst tuple list
+    in
+    { model | selectedExtraAttributes = list' }
+
 
 -- Stuff for Delete Zones ------------------------------------------------------
 
@@ -756,7 +791,7 @@ makeZones model options shape id l =
         let zRot =
           let c = halfwayBetween_ pt1 pt2 in
           let r = (distance_ pt1 pt2 / 2) - rotZoneDelta in
-          zoneRotate options.addRot id shape c r (maybeTransformCmds l) in
+          zoneRotate model options.addRot id shape c r (maybeTransformCmds l) in
         let zSelect =
           List.concat
              [ zoneSelectCrossDot model options.addSelect (id, [LangSvg.lineCX], [LangSvg.lineCY]) ((fst x1)/2+(fst x2)/2) ((fst y1)/2+(fst y2)/2)
@@ -800,10 +835,10 @@ makeZonesRect model options shape id l =
   let zRot =
     let c = (x + (w/2), y + (h/2)) in
     let r = rotZoneDelta + (h/2) in
-    zoneRotate options.addRot id shape c r (maybeTransformCmds l)
+    zoneRotate model options.addRot id shape c r (maybeTransformCmds l)
   in
   let zColor =
-    zoneColor options.addColor id shape x y (maybeColorNumAttr "fill" l)
+    zoneColor model options.addColor id shape x y (maybeColorNumAttr "fill" l)
   in
   let zonesSelect =
        zoneSelectLine model options.addSelect (id, LangSvg.rectWidth) (x,y+h/2) (x+w,y+h/2)
@@ -852,10 +887,10 @@ makeZonesBox model options id l =
   let (cx, cy) = (left + width/2, top + height/2) in
   let zRot =
     let r = rotZoneDelta + (height/2) in
-    zoneRotate options.addRot id "BOX" (cx,cy) r (maybeTransformCmds l)
+    zoneRotate model options.addRot id "BOX" (cx,cy) r (maybeTransformCmds l)
   in
   let zColor =
-    zoneColor options.addColor id "BOX" left top (maybeColorNumAttr "fill" l)
+    zoneColor model options.addColor id "BOX" left top (maybeColorNumAttr "fill" l)
   in
   let zonesSelect =
        zoneSelectLine model options.addSelect (id, LangSvg.boxWidth) (left, cy) (right, cy)
@@ -887,8 +922,8 @@ makeZonesCircle model options id l =
   let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "r" r ] in
      [zoneBorder Svg.circle id "circle" "Edge" True options.showBasic attrs transform]
   ++ [zoneBorder Svg.circle id "circle" "Interior" False options.showBasic attrs transform]
-  ++ (zoneRotate options.addRot id "circle" (cx,cy) (r + rotZoneDelta) (maybeTransformCmds l))
-  ++ (zoneColor options.addColor id "circle" (cx - r) (cy - r) (maybeColorNumAttr "fill" l))
+  ++ (zoneRotate model options.addRot id "circle" (cx,cy) (r + rotZoneDelta) (maybeTransformCmds l))
+  ++ (zoneColor model options.addColor id "circle" (cx - r) (cy - r) (maybeColorNumAttr "fill" l))
   ++ (zoneSelectLine model options.addSelect (id, LangSvg.circleR) (cx,cy) (cx+r,cy))
   ++ (zoneSelectCrossDot model options.addSelect (id, [LangSvg.circleCX], [LangSvg.circleCY]) cx cy)
 
@@ -899,8 +934,8 @@ makeZonesEllipse model options id l =
   let attrs = [ attrNum "cx" cx, attrNum "cy" cy, attrNum "rx" rx, attrNum "ry" ry ] in
      [zoneBorder Svg.ellipse id "ellipse" "Edge" True options.showBasic attrs transform]
   ++ [zoneBorder Svg.ellipse id "ellipse" "Interior" False options.showBasic attrs transform]
-  ++ (zoneRotate options.addRot id "circle" (cx,cy) (ry + rotZoneDelta) (maybeTransformCmds l))
-  ++ (zoneColor options.addColor id "ellipse" (cx - rx) (cy - ry) (maybeColorNumAttr "fill" l))
+  ++ (zoneRotate model options.addRot id "circle" (cx,cy) (ry + rotZoneDelta) (maybeTransformCmds l))
+  ++ (zoneColor model options.addColor id "ellipse" (cx - rx) (cy - ry) (maybeColorNumAttr "fill" l))
   ++ (zoneSelectLine model options.addSelect (id, LangSvg.ellipseRX) (cx,cy) (cx+rx,cy))
   ++ (zoneSelectLine model options.addSelect (id, LangSvg.ellipseRY) (cx,cy) (cx,cy+ry))
   ++ (zoneSelectCrossDot model options.addSelect (id, [LangSvg.ellipseCX], [LangSvg.ellipseCY]) cx cy)
@@ -922,7 +957,7 @@ makeZonesPoly model options shape id l =
   let zRot =
     case pts of
       (((x0,_),(y0,_))::_) ->
-        zoneColor options.addColor id shape x0 y0 (maybeColorNumAttr "fill" l)
+        zoneColor model options.addColor id shape x0 y0 (maybeColorNumAttr "fill" l)
       _ ->
         Debug.crash "makeZonesPoly" in
   let zSelect =
@@ -1676,11 +1711,11 @@ ghostsButton model w h =
 
 widgetsCursors w h model =
   let caption mode =
-    if mode == showZonesNone              then "Hide "
-    else if mode == showZonesBasic        then "Show"
+    if mode == showZonesNone              then "-" -- "Hide"
+    else if mode == showZonesBasic        then "Zones" -- "Show"
     else if mode == showZonesSelectAttrs  then "Features"
     else if mode == showZonesSelectShapes then "Blobs"
-    else if mode == showZonesExtra        then "More Attributes" -- "Color / Rot"
+    else if mode == showZonesExtra        then "+" -- "Color / Rot"
     else if mode == showZonesDel          then Debug.crash "[Zones] Delete"
     else
       Debug.crash "zoneButton caption"
@@ -1692,10 +1727,10 @@ widgetsCursors w h model =
         (SelectZonesMode mode) (caption mode) w h
   in
   let basicButtons =
-    [ twoButtons w h
+    [ threeVersions w h
         (zoneButton showZonesNone)
         (zoneButton showZonesBasic)
-    , zoneButton showZonesExtra w h
+        (zoneButton showZonesExtra)
     , zoneButton showZonesSelectAttrs w h
     , zoneButton showZonesSelectShapes w h
     ]
