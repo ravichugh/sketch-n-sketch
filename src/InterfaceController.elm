@@ -386,7 +386,7 @@ fromBlobExp be =
     OtherBlob e  -> e
     NiceBlob e _ -> e
 
-randomColor model = eConst (toFloat model.randomColor) dummyLoc
+randomColor model = eConst0 (toFloat model.randomColor) dummyLoc
 
 -- when line is snapped, not enforcing the angle in code
 addLineToCodeAndRun old click2 click1 =
@@ -400,10 +400,11 @@ addLineToCodeAndRun old click2 click1 =
   let (f, args) =
     maybeGhost (old.shapeTool == HelperLine)
        (eVar0 "line")
-       (color :: eConst 5 dummyLoc :: List.map eVar ["x1","y1","x2","y2"])
+       (List.map eVar ["color","width","x1","y1","x2","y2"])
   in
   addToCodeAndRun "line" old
     [ makeLet ["x1","y1","x2","y2"] (makeInts [x1,y1,xb,yb])
+    , makeLet ["color", "width"] [color, eConst 5 dummyLoc]
     ] f args
 
 {- using variables x1/x2/y1/y2 instead of left/top/right/bot:
@@ -424,27 +425,29 @@ addRawRect old (_,pt2) (_,pt1) =
   let (x, y, w, h) = (xa, ya, xb - xa, yb - ya) in
   addToCodeAndRun "rect" old
     [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
-    , makeLet ["rot"] [eConst 0 dummyLoc] ]
+    , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
     (eVar0 "rotatedRect")
-    (randomColor old :: List.map eVar ["x","y","w","h","rot"])
+    (List.map eVar ["color","x","y","w","h","rot"])
 
 addRawSquare old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.squareBoundingBox pt2 pt1 in
   let (x, y, side) = (xa, ya, xb - xa) in
   addToCodeAndRun "square" old
     [ makeLet ["x","y","side"] (makeInts [x,y,side])
-    , makeLet ["rot"] [eConst 0 dummyLoc] ]
+    , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
     (eVar0 "rotatedRect")
-    (randomColor old :: List.map eVar ["x","y","side","side","rot"])
+    (List.map eVar ["color","x","y","side","side","rot"])
 
 addStretchyRect old (_,pt2) (_,pt1) =
   let (xMin, xMax, yMin, yMax) = View.boundingBox pt2 pt1 in
   addToCodeAndRun "rect" old
     [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
-    , makeLet ["rot"] [eConst 0 dummyLoc] ]
+    , makeLet ["rot"] [eConst 0 dummyLoc]
+    , makeLet ["color","strokeColor","strokeWidth"]
+              [randomColor old, eStr "black", eConst 0 dummyLoc] ]
     (eVar0 "rectangle")
-    [randomColor old, eStr "black", eConst 0 dummyLoc, eVar "rot", eVar "bounds"]
+    (List.map eVar ["color","strokeColor","strokeWidth","rot","bounds"])
 
 addStretchySquare old (_,pt2) (_,pt1) =
   let (xMin, xMax, yMin, _) = View.squareBoundingBox pt2 pt1 in
@@ -452,9 +455,11 @@ addStretchySquare old (_,pt2) (_,pt1) =
   addToCodeAndRun "square" old
     [ makeLet ["left","top","side"] (makeInts [xMin,yMin,side])
     , makeLet ["bounds"] [eList (listOfRaw ["left","top","(+ left side)","(+ top side)"]) Nothing]
-    , makeLet ["rot"] [eConst 0 dummyLoc] ]
+    , makeLet ["rot"] [eConst 0 dummyLoc]
+    , makeLet ["color","strokeColor","strokeWidth"]
+              [randomColor old, eStr "black", eConst 0 dummyLoc] ]
     (eVar0 "rectangle")
-    [randomColor old, eStr "black", eConst 0 dummyLoc, eVar "rot", eVar "bounds"]
+    (List.map eVar ["color","strokeColor","strokeWidth","rot","bounds"])
 
 addRawOval old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
@@ -462,35 +467,40 @@ addRawOval old (_,pt2) (_,pt1) =
   let (cx, cy) = (xa + rx, ya + ry) in
   addToCodeAndRun "ellipse" old
     [ makeLet ["cx","cy","rx","ry"] (makeInts [cx,cy,rx,ry])
-    , makeLet ["rot"] [eConst 0 dummyLoc] ]
+    , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
     (eVar0 "rotatedEllipse")
-    (randomColor old :: List.map eVar ["cx","cy","rx","ry","rot"])
+    (List.map eVar ["color","cx","cy","rx","ry","rot"])
 
 addRawCircle old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.squareBoundingBox pt2 pt1 in
   let r = (xb-xa)//2 in
   let (cx, cy) = (xa + r, ya + r) in
   addToCodeAndRun "circle" old
-    [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r]) ]
+    [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r])
+    , makeLet ["color"] [randomColor old] ]
     (eVar0 "rotatedEllipse")
-    (randomColor old :: List.map eVar ["cx","cy","r","r"] ++ [eConst 0 (dummyLoc_ frozen)])
+    (List.map eVar ["color","cx","cy","r","r"] ++ [eConst 0 (dummyLoc_ frozen)])
 
 addStretchyOval old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
   addToCodeAndRun "ellipse" old
     [ makeLet ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
-    , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing] ]
+    , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
+    , makeLet ["color","strokeColor","strokeWidth"]
+              [randomColor old, eStr "black", eConst 0 dummyLoc] ]
     (eVar0 "oval")
-    [randomColor old, eStr "black", eConst 0 dummyLoc, eVar "bounds"]
+    (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
 
 addStretchyCircle old (_,pt2) (_,pt1) =
   let (left, right, top, _) = View.squareBoundingBox pt2 pt1 in
   addToCodeAndRun "circle" old
     [ makeLet ["left", "top", "r"] (makeInts [left, top, (right-left)//2])
     , makeLet ["bounds"]
-        [eList [eVar0 "left", eVar "top", eRaw "(+ left (* 2! r))", eRaw "(+ top (* 2! r))"] Nothing] ]
+        [eList [eVar0 "left", eVar "top", eRaw "(+ left (* 2! r))", eRaw "(+ top (* 2! r))"] Nothing]
+    , makeLet ["color","strokeColor","strokeWidth"]
+              [randomColor old, eStr "black", eConst 0 dummyLoc] ]
     (eVar0 "oval")
-    [randomColor old, eStr "black", eConst 0 dummyLoc, eVar "bounds"]
+    (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
 
 addHelperDotToCodeAndRun old (_,(cx,cy)) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)
@@ -503,10 +513,23 @@ addHelperDotToCodeAndRun old (_,(cx,cy)) =
     [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r]) ]
     f args
 
+{-
 maybeFreeze n =
-  if n == 0 || n == 1
     then toString n ++ "!"
     else toString n
+-}
+
+maybeThaw n =
+  if n == 0 || n == 1
+    then toString n
+    else toString n ++ "?"
+
+maybeThaw0 s = if s == "0" then s else s ++ "?"
+
+{-
+qMark n  = toString n ++ "?"
+qMarkLoc = dummyLoc_ thawed
+-}
 
 addPolygonToCodeAndRun stk old points =
   case stk of
@@ -524,9 +547,12 @@ addRawPolygon old keysAndPoints =
         Utils.bracks (Utils.spaces [xStr,yStr])
   in
   addToCodeAndRun "polygon" old
-    [ makeLet ["pts"] [eRaw sPts] ]
+    [ makeLet ["pts"] [eRaw sPts]
+    , makeLet ["color","strokeColor","strokeWidth"]
+              [randomColor old, eStr "black", eConst 2 dummyLoc]
+    ]
     (eVar0 "rawPolygon")
-    [randomColor old, eStr "black", eConst 2 dummyLoc, eVar "pts"]
+    (List.map eVar ["color","strokeColor","strokeWidth","pts"])
 
 addStretchablePolygon old keysAndPoints =
   let points = List.map snd keysAndPoints in
@@ -540,16 +566,18 @@ addStretchablePolygon old keysAndPoints =
       flip List.map (List.reverse points) <| \(x,y) ->
         let xPct = (toFloat x - toFloat xMin) / toFloat width in
         let yPct = (toFloat y - toFloat yMin) / toFloat height in
-        let xStr = maybeFreeze xPct in
-        let yStr = maybeFreeze yPct in
+        let xStr = maybeThaw xPct in
+        let yStr = maybeThaw yPct in
         Utils.bracks (Utils.spaces [xStr,yStr])
   in
   addToCodeAndRun "polygon" old
     [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
+    , makeLet ["color","strokeColor","strokeWidth"]
+              [randomColor old, eStr "black", eConst 2 dummyLoc]
     , makeLet ["pcts"] [eRaw sPcts] ]
     (eVar0 "stretchyPolygon")
-    [eVar "bounds", randomColor old, eStr "black", eConst 2 dummyLoc, eVar "pcts"]
+    (List.map eVar ["bounds","color","strokeColor","strokeWidth","pcts"])
 
 addStickyPolygon old keysAndPoints =
   let points = List.map snd keysAndPoints in
@@ -565,20 +593,22 @@ addStickyPolygon old keysAndPoints =
           (dxLeft, dxRight) = (x - xMin, x - xMax)
           (dyTop , dyBot  ) = (y - yMin, y - yMax)
           xOff = if dxLeft <= abs dxRight
-                   then Utils.bracks (Utils.spaces ["left", toString dxLeft])
-                   else Utils.bracks (Utils.spaces ["right", toString dxRight])
+                   then Utils.bracks (Utils.spaces ["left", maybeThaw0 (toString dxLeft)])
+                   else Utils.bracks (Utils.spaces ["right", maybeThaw0 (toString dxRight)])
           yOff = if dyTop <= abs dyBot
-                   then Utils.bracks (Utils.spaces ["top", toString dyTop])
-                   else Utils.bracks (Utils.spaces ["bot", toString dyBot])
+                   then Utils.bracks (Utils.spaces ["top", maybeThaw0 (toString dyTop)])
+                   else Utils.bracks (Utils.spaces ["bot", maybeThaw0 (toString dyBot)])
         in
         Utils.bracks (Utils.spaces [xOff,yOff])
   in
   addToCodeAndRun "polygon" old
     [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
+    , makeLet ["color","strokeColor","strokeWidth"]
+              [randomColor old, eStr "black", eConst 2 dummyLoc]
     , makeLet ["offsets"] [eRaw sOffsets] ]
     (eVar0 "stickyPolygon")
-    [eVar "bounds", randomColor old, eStr "black", eConst 2 dummyLoc, eVar "offsets"]
+    (List.map eVar ["bounds","color","strokeColor","strokeWidth","offsets"])
 
 strPoint strX strY (x,y) = Utils.spaces [strX x, strY y]
 
@@ -643,9 +673,12 @@ pathCommands strX strY keysAndPoints =
 addAbsolutePath old keysAndPoints =
   let (extraLets, sD) = pathCommands toString toString keysAndPoints in
   addToCodeAndRun "path" old
-    (extraLets ++ [ makeLet ["d"] [eVar sD] ])
+    ([ makeLet ["strokeColor","strokeWidth","color"]
+               [randomColor old, eConst 5 dummyLoc, eStr "white"] ]
+    ++ extraLets
+    ++ [makeLet ["d"] [eVar sD] ])
     (eVar0 "pointyPath")
-    [eStr "white", randomColor old, eConst 5 dummyLoc, eVar "d"]
+    (List.map eVar ["color","strokeColor","strokeWidth","d"])
 
 addStretchyPath old keysAndPoints =
   let (xs,ys) = List.unzip (List.map snd keysAndPoints) in
@@ -654,16 +687,18 @@ addStretchyPath old keysAndPoints =
   let yMax = Utils.fromJust <| List.maximum ys in
   let yMin = Utils.fromJust <| List.minimum ys in
   let (width, height) = (toFloat (xMax - xMin), toFloat (yMax - yMin)) in
-  let strX x = toString (toFloat (x - xMin) / width) in
-  let strY y = toString (toFloat (y - yMin) / height) in
+  let strX x = maybeThaw (toFloat (x - xMin) / width) in
+  let strY y = maybeThaw (toFloat (y - yMin) / height) in
   let (extraLets, sD) = pathCommands strX strY keysAndPoints in
   addToCodeAndRun "path" old
     ([ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing] ]
+     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing] 
+     , makeLet ["strokeColor","strokeWidth","color"]
+               [randomColor old, eConst 5 dummyLoc, eStr "white"] ]
      ++ extraLets
      ++ [ makeLet ["dPcts"] [eVar sD] ])
     (eVar0 "stretchyPath")
-    [eVar "bounds", eStr "white", randomColor old, eConst 5 dummyLoc, eVar "dPcts"]
+    (List.map eVar ["bounds","color","strokeColor","strokeWidth","dPcts"])
 
 addStickyPath old keysAndPoints =
   Debug.crash "TODO: addStickyPath"

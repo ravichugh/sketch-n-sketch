@@ -790,6 +790,7 @@ ePlus e1 e2 = withDummyPos <| EOp "" (withDummyRange Plus) [e1,e2] ""
 
 eBool  = withDummyPos << EBase " " << Bool
 eStr   = withDummyPos << EBase " " << String
+eStr0  = withDummyPos << EBase "" << String
 eTrue  = eBool True
 eFalse = eBool False
 
