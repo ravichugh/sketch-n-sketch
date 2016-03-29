@@ -207,7 +207,17 @@ allSame list = case list of
   []    -> False
   v::vs -> List.filter ((/=) v) vs == []
 
+removeDupes : List comparable -> List comparable
 removeDupes = Set.toList << Set.fromList
+
+removeDupesSlow : List a -> List a
+removeDupesSlow xs =
+  case xs of
+    []     -> []
+    x::xs' -> let result = removeDupesSlow xs' in
+              if List.member x result
+                then result
+                else x :: result
 
 delimit a b s = String.concat [a, s, b]
 

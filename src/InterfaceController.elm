@@ -1284,10 +1284,10 @@ abstractOne (i, eBlob, x) (defs, blobs) =
               let params = listOfPVars (List.map fst restOfMapping) in
               withDummyPos (EFun " " (params ++ [pBounds]) e' "")
             in
-            let eBounds = eList (listOfNums [left, top, right, bot]) Nothing in
+            let eBounds = eList (listOfAnnotatedNums [left, top, right, bot]) Nothing in
             let newCall =
               let eBlah =
-                case listOfNums1 (List.map snd restOfMapping) of
+                case listOfAnnotatedNums1 (List.map snd restOfMapping) of
                   []   -> eVar x
                   args -> withDummyPos (EApp " " (eVar0 x) args "")
               in
@@ -1302,7 +1302,7 @@ abstractOne (i, eBlob, x) (defs, blobs) =
               withDummyPos (EFun " " params e' "")
             in
             let newBlob =
-              case listOfNums1 (List.map snd mapping) of
+              case listOfAnnotatedNums1 (List.map snd mapping) of
                 []   -> varBlob (eVar x) x
                 args ->
                   let newCall = withDummyPos (EApp "\n  " (eVar0 x) args "") in
@@ -1318,15 +1318,13 @@ abstractOne (i, eBlob, x) (defs, blobs) =
       let _ = Debug.log "abstractOne: multiple defs..." in
       (defs, blobs)
 
--- TODO keep Locs around to preserve freeze annotations
-
-collectUnfrozenConstants : Exp -> (Exp, List (Ident, Num))
+collectUnfrozenConstants : Exp -> (Exp, List (Ident, AnnotatedNum))
 collectUnfrozenConstants =
      Utils.mapFst removeRedundantBindings
   << Utils.mapSnd List.reverse
   << collectUnfrozenConstants_
 
-collectUnfrozenConstants_ : Exp -> (Exp, List (Ident, Num))
+collectUnfrozenConstants_ : Exp -> (Exp, List (Ident, AnnotatedNum))
 collectUnfrozenConstants_ e =
   let foo e__ =
     let default = (e__, []) in
@@ -1335,7 +1333,7 @@ collectUnfrozenConstants_ e =
         if ann == unann || ann == thawed then
           if x == ""
           then default -- (EVar ws x, [("k" ++ toString locid, n)])
-          else let x' = x ++ toString locid in (EVar ws x', [(x', n)])
+          else let x' = x ++ toString locid in (EVar ws x', [(x', (n,ann,wd))])
           -- TODO only add numerals when there are name clashes
           -- else (EVar ws x, [(x, n)])
 
@@ -1349,7 +1347,7 @@ collectUnfrozenConstants_ e =
   let mapping = foldExpViaE__ ((++) << snd << foo) [] e in
   (e', mapping)
 
-findBoundsInMapping : List (Ident, Num) -> Maybe (List (Ident, Num), Num, Num, Num, Num)
+findBoundsInMapping : List (Ident, a) -> Maybe (List (Ident, a), a, a, a, a)
 findBoundsInMapping mapping =
   case mapping of
     ("left", left) :: ("top", top) :: ("right", right) :: ("bot", bot) :: rest ->
@@ -1533,7 +1531,7 @@ mergeSelectedVarBlobs model defs blobs selectedVarBlobs =
             -- let _ = Debug.log "numLists:" numLists in
             List.map
                (\nums ->
-                  let args = listOfNums1 nums in
+                  let args = listOfAnnotatedNums1 nums in
                   let e = withDummyPos <| EApp "\n  " (eVar0 f) args "" in
                   callBlob e (f, args)
                ) numLists in
@@ -1544,7 +1542,7 @@ mergeSelectedVarBlobs model defs blobs selectedVarBlobs =
 
 mergeExpressions
     : Exp -> List Exp
-   -> Maybe (Exp, List (Ident, List Num)) -- TODO keep Loc and WidgetDecl
+   -> Maybe (Exp, List (Ident, List AnnotatedNum))
 mergeExpressions eFirst eRest =
   let wrap e__ =
     let e_val = eFirst.val in { eFirst | val = { e_val | e__ = e__ } } in
@@ -1555,17 +1553,18 @@ mergeExpressions eFirst eRest =
 
     EConst ws1 n loc wd ->
       let match eNext = case eNext.val.e__ of
-        EConst _ nNext _ _ -> Just nNext
-        _                  -> Nothing
+        EConst _ nNext (_,annNext,_) wdNext -> Just (nNext, annNext, wdNext)
+        _                                   -> Nothing
       in
-      matchAllAndBind match eRest <| \nums ->
-        case Utils.removeDupes (n::nums) of
+      matchAllAndBind match eRest <| \restAnnotatedNums ->
+        let (locid,ann,x) = loc in
+        let allAnnotatedNums = (n,ann,wd) :: restAnnotatedNums in
+        case Utils.removeDupesSlow allAnnotatedNums of
           [_] -> return eFirst.val.e__ []
           _   ->
-            let (locid,_,x) = loc in
             let var = if x == "" then "k" ++ toString locid else x in
             -- let _ = Debug.log "var for merge: " (var, n::nums) in
-            return (EVar ws1 var) [(var, (n::nums))]
+            return (EVar ws1 var) [(var, allAnnotatedNums)]
 
     EBase _ bv ->
       let match eNext = case eNext.val.e__ of
@@ -1691,7 +1690,7 @@ matchAllAndBind f xs g = Utils.bindMaybe g (Utils.projJusts (List.map f xs))
 
 mergeExpressionLists
     : List (List Exp)
-   -> Maybe (List Exp, List (Ident, List Num))
+   -> Maybe (List Exp, List (Ident, List AnnotatedNum))
 mergeExpressionLists lists =
   case Utils.maybeZipN lists of
     Nothing -> Nothing
@@ -1709,7 +1708,7 @@ mergeExpressionLists lists =
 
 mergeMaybeExpressions
     : Maybe Exp -> List (Maybe Exp)
-   -> Maybe (Maybe Exp, List (Ident, List Num))
+   -> Maybe (Maybe Exp, List (Ident, List AnnotatedNum))
 mergeMaybeExpressions me mes =
   case me of
     Nothing ->

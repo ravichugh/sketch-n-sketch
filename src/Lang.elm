@@ -876,7 +876,20 @@ listOfNums ns =
     []     -> []
     n::ns' -> eConst0 n dummyLoc :: List.map (flip eConst dummyLoc) ns'
 
-listOfNums1 = List.map (flip eConst dummyLoc)
+-- listOfNums1 = List.map (flip eConst dummyLoc)
+
+type alias AnnotatedNum = (Num, Frozen, WidgetDecl)
+  -- may want to move this up into EConst
+
+listOfAnnotatedNums : List AnnotatedNum -> List Exp
+listOfAnnotatedNums list =
+  case list of
+    [] -> []
+    (n,ann,wd) :: list' ->
+      withDummyPos (EConst "" n (dummyLoc_ ann) wd) :: listOfAnnotatedNums1 list'
+
+listOfAnnotatedNums1 =
+ List.map (\(n,ann,wd) -> withDummyPos (EConst " " n (dummyLoc_ ann) wd))
 
 minMax x y             = (min x y, max x y)
 minNumTr (a,t1) (b,t2) = if a <= b then (a,t1) else (b,t2)
