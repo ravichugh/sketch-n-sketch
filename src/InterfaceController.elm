@@ -1069,7 +1069,28 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs =
   in
   let defs' =
     let matches = matchesAnySelectedVarBlob selectedNiceBlobs in
-    let (pluckedDefs, beforeDefs, afterDefs) = pluckFromList matches defs in
+    let (pluckedDefs, beforeDefs, afterDefs) =
+      let (plucked, before, after) = pluckFromList matches defs in
+      let getExps = List.map (\(_,_,e,_) -> e) in
+      let (beforeInside, beforeOutside) =
+        Utils.reverse2 <|
+          List.foldl
+             (\beforeDef (acc1,acc2) ->
+               -- if needed, could split a multi-binding into smaller chunks
+               let (_,p,_,_) = beforeDef in
+               let vars = varsOfPat p in
+               let someVarAppearsIn e = List.any (\x -> occursFreeIn x e) vars in
+               let noVarAppearsIn e = List.all (\x -> not (occursFreeIn x e)) vars in
+               if List.any someVarAppearsIn (getExps (plucked ++ acc1)) &&
+                  List.all noVarAppearsIn (getExps (after ++ acc2))
+               then (beforeDef :: acc1, acc2)
+               else (acc1, beforeDef :: acc2)
+             )
+             ([],[])
+             before
+      in
+      (beforeInside ++ plucked, beforeOutside, after)
+    in
     let selectedBlobIndices = Dict.keys model.selectedBlobs in
     let (left, top, right, bot) =
       case selectedBlobIndices of
@@ -1180,6 +1201,27 @@ offsetXY base1 base2 baseVal1 baseVal2 ws (n,t) eSubst =
       Dict.insert locid (eRaw__ "" app) eSubst
     _ ->
       eSubst
+
+varsOfPat : Pat -> List Ident
+varsOfPat p =
+  case p.val of
+    PConst _ _              -> []
+    PBase _ _               -> []
+    PVar _ x _              -> [x]
+    PList _ ps _ Nothing _  -> List.concatMap varsOfPat ps
+    PList _ ps _ (Just p) _ -> List.concatMap varsOfPat (p::ps)
+
+-- TODO for now, just checking occursIn
+occursFreeIn : Ident -> Exp -> Bool
+occursFreeIn x e =
+  let vars =
+    foldExpViaE__ (\e__ acc ->
+      case e__ of
+        EVar _ x -> Set.insert x acc
+        _        -> acc
+      ) Set.empty e
+  in
+  Set.member x vars
 
 
 --------------------------------------------------------------------------------
@@ -1293,7 +1335,10 @@ collectUnfrozenConstants_ e =
         if ann == unann || ann == thawed then
           if x == ""
           then default -- (EVar ws x, [("k" ++ toString locid, n)])
-          else (EVar ws x, [(x, n)])
+          else let x' = x ++ toString locid in (EVar ws x', [(x', n)])
+          -- TODO only add numerals when there are name clashes
+          -- else (EVar ws x, [(x, n)])
+
         else
           default
       _ ->
