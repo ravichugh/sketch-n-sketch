@@ -808,6 +808,12 @@ ePair e1 e2 = withDummyPos <| EList " " [e1,e2] "" Nothing ""
 
 noWidgetDecl = withDummyRange NoWidgetDecl
 
+intSlider a b =
+  withDummyRange <|
+    IntSlider (withDummyRange a) (withDummyRange "-") (withDummyRange b) Nothing
+
+colorNumberSlider = intSlider 0 499
+
 eLets xes eBody = case xes of
   (x,e)::xes' -> withDummyPos <|
                    ELet "\n" Let False (withDummyRange (PVar " " x noWidgetDecl)) e (eLets xes' eBody) ""

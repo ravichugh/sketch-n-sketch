@@ -388,6 +388,9 @@ fromBlobExp be =
 
 randomColor model = eConst0 (toFloat model.randomColor) dummyLoc
 
+randomColorWithSlider model =
+  withDummyPos (EConst "" (toFloat model.randomColor) dummyLoc colorNumberSlider)
+
 -- when line is snapped, not enforcing the angle in code
 addLineToCodeAndRun old click2 click1 =
   let ((_,(x2,y2)),(_,(x1,y1))) = (click2, click1) in
@@ -395,7 +398,7 @@ addLineToCodeAndRun old click2 click1 =
   let color =
     if old.shapeTool == HelperLine
       then eStr "aqua"
-      else randomColor old
+      else randomColorWithSlider old
   in
   let (f, args) =
     maybeGhost (old.shapeTool == HelperLine)
@@ -404,7 +407,8 @@ addLineToCodeAndRun old click2 click1 =
   in
   addToCodeAndRun "line" old
     [ makeLet ["x1","y1","x2","y2"] (makeInts [x1,y1,xb,yb])
-    , makeLet ["color", "width"] [color, eConst 5 dummyLoc]
+    , makeLet ["color", "width"]
+              [ color , withDummyPos (EConst " " 5 dummyLoc (intSlider 0 40)) ]
     ] f args
 
 {- using variables x1/x2/y1/y2 instead of left/top/right/bot:
