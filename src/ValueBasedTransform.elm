@@ -706,6 +706,10 @@ solveForLoc locId locIdToNum rhs lhs =
 
 -- Repeated perform simple simplifications:
 -- Remove multiply/divide by 1
+-- Turn divide by -1 into multiply by -1
+-- Cause multiply by -1 on subtraction to merely flip operands
+-- Turn division by constant into multiplication by constant
+-- Combine multiple multiplications by constants
 -- Remove add or subtract by 0
 -- Remove multiply/divide by 0
 -- Combine operations on constants
@@ -751,17 +755,27 @@ locEqnSimplify eqn =
                   (_, LocEqnConst 0) -> LocEqnConst 0
                   (LocEqnConst a,
                    LocEqnConst b)    -> LocEqnConst (a * b)
-                  _                  -> eqn'
+                  -- Multiplication by -1 of subtraction...just flip operands:
+                  (LocEqnConst -1, LocEqnOp Minus  [subleft, subright]) -> LocEqnOp Minus  [subright, subleft]
+                  (LocEqnOp Minus [subleft, subright], LocEqnConst -1)  -> LocEqnOp Minus  [subright, subleft]
+                  -- Turn 6 * (x * 7) into 42 * x
+                  (LocEqnConst c1, LocEqnOp Mult [LocEqnConst c2, sub]) -> LocEqnOp Mult [LocEqnConst (c1 * c2), sub]
+                  (LocEqnConst c1, LocEqnOp Mult [sub, LocEqnConst c2]) -> LocEqnOp Mult [LocEqnConst (c1 * c2), sub]
+                  (LocEqnOp Mult [LocEqnConst c2, sub], LocEqnConst c1) -> LocEqnOp Mult [LocEqnConst (c1 * c2), sub]
+                  (LocEqnOp Mult [sub, LocEqnConst c2], LocEqnConst c1) -> LocEqnOp Mult [LocEqnConst (c1 * c2), sub]
+                  _ -> eqn'
 
               Div ->
                 case (left, right) of
-                  (_, LocEqnConst 1) -> left
+                  (_, LocEqnConst 1)  -> left
+                  (_, LocEqnConst -1) -> LocEqnOp Mult [(LocEqnConst -1), left]
                   -- Division by 0 will be handled elsewhere.
                   -- We don't want to produce infinity here.
                   (LocEqnConst a,
-                   LocEqnConst b)    -> if b /= 0 then LocEqnConst (a / b) else eqn'
-                  (LocEqnConst 0, _) -> LocEqnConst 0
-                  _                  ->
+                   LocEqnConst b)     -> if b /= 0 then LocEqnConst (a / b) else eqn'
+                  (LocEqnConst 0, _)  -> LocEqnConst 0
+                  (_, LocEqnConst b)  -> LocEqnOp Mult [(LocEqnConst (1 / b)), left]
+                  _                   ->
                     -- Alas, this is syntactic equality not semantic.
                     if left == right && right /= LocEqnConst 0 then
                       LocEqnConst 1
