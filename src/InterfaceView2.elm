@@ -629,33 +629,21 @@ zoneSelectLine_ model nodeIdAndFeature (x1,y1) (x2,y2) =
 
 
 --------------------------------------------------------------------------------
--- Select Group (aka "Blob") Zones
+-- Select Blob Zones
 
-zoneGroupStrokeWidth = 8
-zoneGroupPadding     = 10
+zoneBlobStrokeWidth  = 8
+zoneBlobPadding      = 10
 roundBounds          = True
 
-zoneGroup model options blobId nodeId bounds =
-  if options.addSelectShapes
-    then zoneGroup_ model blobId nodeId bounds
-    else []
-
-zoneGroup_ model blobId nodeId bounds =
-  let (left, top, right, bot) =
-    let (a,b,c,d) = bounds in (fst a, fst b, fst c, fst d)
-  in
+zoneBlobEdges model blobId nodeId lineEndpoints transparency =
   let stroke =
     if Dict.member blobId model.selectedBlobs
-      then "#03C03C"
-      else "rgba(255,255,0,1.0)" in
-  let pad = zoneGroupPadding in
-  let (x1,y1) = (left  - pad, top - pad) in
-  let (x2,y2) = (right + pad, bot + pad) in
-  let fourCorners = [(x1,y1), (x2,y1), (x2,y2), (x1,y2)] in
+      then "rgba(3,192,60," ++ transparency ++ ")" -- then "#03C03C"
+      else "rgba(255,255,0," ++ transparency ++ ")" in
   let edge (pt1,pt2) =
     svgLine
        [ LangSvg.attr "stroke" stroke
-       , LangSvg.attr "stroke-width" (toString zoneGroupStrokeWidth)
+       , LangSvg.attr "stroke-width" (toString zoneBlobStrokeWidth)
        , LangSvg.attr "fill" "rgba(0,0,0,0)"
        , cursorStyle "pointer"
        , onMouseDown (toggleSelectedBlob model blobId nodeId)
@@ -663,7 +651,26 @@ zoneGroup_ model blobId nodeId bounds =
        , attrNum "x2" (fst pt2), attrNum "y2" (snd pt2)
        ]
   in
-  List.map edge (Utils.adjacentPairs True fourCorners)
+  List.map edge lineEndpoints
+
+zoneBlobBox model options blobId nodeId (a,b,c,d) =
+  if not options.addSelectShapes then []
+  else
+    let (left, top, right, bot) = (fst a, fst b, fst c, fst d) in
+    let (x1,y1) = (left  - zoneBlobPadding, top - zoneBlobPadding) in
+    let (x2,y2) = (right + zoneBlobPadding, bot + zoneBlobPadding) in
+    let fourCorners = [(x1,y1), (x2,y1), (x2,y2), (x1,y2)] in
+    let lineEndpoints = Utils.adjacentPairs True fourCorners in
+    zoneBlobEdges model blobId nodeId lineEndpoints "1.0"
+
+zoneBlobLine model options blobId nodeId (x1,_) (x2,_) (y1,_) (y2,_) =
+  if not options.addSelectShapes then []
+  else
+    let pct = 0.25 in
+    let (width, height) = (x2 - x1, y2 - y1) in
+    let (dx, dy) = (pct * width, pct * height) in
+    let lineEndpoints = [ ((x1 + dx, y1 + dy), (x2 - dx, y2 - dy)) ] in
+    zoneBlobEdges model blobId nodeId lineEndpoints "0.7"
 
 {-
 toggle x set = if Set.member x set then Set.remove x set else Set.insert x set
@@ -733,9 +740,7 @@ makeZones model options shape id l =
         let zGroup =
           case maybeFindBlobId l of
             Nothing     -> []
-            Just blobId -> zoneGroup model options blobId id
-                             (minNumTr x1 x2, minNumTr y1 y2,
-                              maxNumTr x1 x2, maxNumTr y1 y2)
+            Just blobId -> zoneBlobLine model options blobId id x1 x2 y1 y2
         in
         zLine :: zPts ++ zRot ++ zSelect ++ zGroup
 
@@ -938,7 +943,7 @@ makeZonesPath showBasic shape id l =
 
 makeZonesGroup model options nodeId l =
   case (maybeFindBounds l, maybeFindBlobId l) of
-    (Just bounds, Just blobId) -> zoneGroup model options blobId nodeId bounds
+    (Just bounds, Just blobId) -> zoneBlobBox model options blobId nodeId bounds
     _                          -> []
 
 
