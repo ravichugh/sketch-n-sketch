@@ -2504,8 +2504,9 @@ upstate evt old = case debugLog "Event" evt of
           (Shapes, MouseNothing)   -> { new | toolMode = Cursors }
           (Shapes, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
           (Cursors, _) ->
-            if new.showZones == showZonesSelectAttrs && not (Set.isEmpty new.selectedFeatures) then
-              { new | selectedFeatures = Set.empty }
+            if new.showZones == showZonesSelectAttrs &&
+               not (Set.isEmpty new.selectedFeatures && Set.isEmpty new.selectedWidgets) then
+              { new | selectedFeatures = Set.empty, selectedWidgets = Set.empty }
             else if new.showZones == showZonesSelectShapes && not (Dict.isEmpty new.selectedBlobs) then
               { new | selectedBlobs = Dict.empty }
             else

@@ -202,9 +202,11 @@ buildSvg_ stuff d i =
 --------------------------------------------------------------------------------
 -- Widget Layer
 
-buildSvgWidgets : Int -> Int -> Widgets -> Svg.Svg
-buildSvgWidgets wCanvas hCanvas widgets =
+buildSvgWidgets : Int -> Int -> Model -> Svg.Svg
+buildSvgWidgets wCanvas hCanvas model =
   let
+    widgets        = model.widgets
+
     pad            = params.mainSection.uiWidgets.pad
     wSlider        = params.mainSection.uiWidgets.wSlider
     hSlider        = params.mainSection.uiWidgets.hSlider
@@ -224,6 +226,10 @@ buildSvgWidgets wCanvas hCanvas widgets =
   in
   let draw (i_, widget) =
     let i = i_ - 1 in
+    let locid = case widget of
+      WIntSlider _ _ _ _ (k,_,_) -> k
+      WNumSlider _ _ _ _ (k,_,_) -> k
+    in
     let
       (r,c) = (i % numRows, i // numRows)
       xi    = xL  + c*wWidget
@@ -242,12 +248,21 @@ buildSvgWidgets wCanvas hCanvas widgets =
         ]
     in
     let box =
+      let color =
+        case (model.toolMode, model.showZones == showZonesSelectAttrs) of
+          (Cursors, True) ->
+            if Set.member locid model.selectedWidgets
+              then colorPointSelected
+              else colorPointNotSelected
+          _ -> strInterfaceColor
+      in
       flip Svg.rect [] <|
-        [ attr "fill" strInterfaceColor
+        [ attr "fill" color
         , attr "stroke" "20px", attr "stroke-width" "20px"
         , attr "x" (toString (xL  + c*wWidget + pad))
         , attr "y" (toString (yBL - r*hWidget + pad))
         , attr "width" (toString wSlider) , attr "height" (toString hSlider)
+        , onMouseDown (toggleSelectedWidget model locid)
         ]
     in
     let ball =
@@ -289,6 +304,16 @@ sliderZoneEvents widgetState =
     _      -> old
   in
   [ onMouseDown (UpdateModel foo) , onMouseUp MouseUp ]
+
+-- similar to toggleSelected and toggleSelectedBlob
+toggleSelectedWidget model locid =
+  UpdateModel <| \model ->
+    let update =
+      if Set.member locid model.selectedWidgets
+        then Set.remove
+        else Set.insert
+    in
+    { model | selectedWidgets = update locid model.selectedWidgets }
 
 
 --------------------------------------------------------------------------------
@@ -1256,7 +1281,7 @@ canvas_ w h model =
   in
   case (model.mode, model.showWidgets) of
     (Live _, True) ->
-      let widgets = buildSvgWidgets w h model.widgets in
+      let widgets = buildSvgWidgets w h model in
       let svg = mkSvg addZones (Svg.g [] [mainCanvas, widgets]) in
       Html.toElement w h svg
     (SyncSelect possibleChanges, _) ->
