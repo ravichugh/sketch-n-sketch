@@ -66,6 +66,7 @@ type alias Model =
   , toolMode : ToolMode
   , shapeTool : ShapeTool
   , selectedFeatures : Set.Set (NodeId, ShapeFeature)
+  , selectedWidgets : Set.Set LocId
   -- line/g ids assigned by blobs function
   , selectedBlobs : Dict.Dict Int NodeId
   , keysDown : List Char.KeyCode
@@ -316,6 +317,7 @@ sampleModel =
     , toolMode      = Shapes
     , shapeTool     = Line Raw
     , selectedFeatures = Set.empty
+    , selectedWidgets  = Set.empty
     , selectedBlobs = Dict.empty
     , keysDown      = []
     , randomColor   = 100
