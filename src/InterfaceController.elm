@@ -708,10 +708,9 @@ addStickyPath old keysAndPoints =
   Debug.crash "TODO: addStickyPath"
 
 addLambdaToCodeAndRun old (_,pt2) (_,pt1) =
-  let funcName =
-    case old.shapeTool of
-      Lambda f -> f
-      _        -> Debug.crash "addLambdaToCodeAndRun"
+  let func =
+    let (selectedIdx, exps) = old.lambdaTools in
+    Utils.geti selectedIdx exps
   in
   let (xa, xb, ya, yb) =
     if old.keysDown == Keys.shift
@@ -724,8 +723,9 @@ addLambdaToCodeAndRun old (_,pt2) (_,pt1) =
   let bounds = eList (makeInts [xa,ya,xb,yb]) Nothing in
   let args = [] in
   let eNew =
-    withDummyPos (EApp "\n  " (eVar0 "with") [ bounds, eVar funcName ] "") in
-  let newBlob = withBoundsBlob eNew (bounds, funcName, args) in
+    withDummyPos (EApp "\n  " (eVar0 "with") [ bounds, func ] "") in
+  -- TODO refactor Program to keep (f,args) in sync with exp
+  let newBlob = withBoundsBlob eNew (bounds, "XXXXX", args) in
   let (defs, mainExp) = splitExp old.inputExp in
   let mainExp' = addToMainExp newBlob mainExp in
   let code = unparse (fuseExp (defs, mainExp')) in
@@ -768,7 +768,7 @@ makeNewShapeDef model newShapeKind name locals func args =
       [] ->
         let multi = -- check if (func args) returns List SVG or SVG
           case model.shapeTool of
-            Lambda _ -> True
+            Lambda -> True
             _ -> False
         in
         if multi then
@@ -1794,6 +1794,50 @@ mergeMaybePatterns mp mps =
 
 
 --------------------------------------------------------------------------------
+-- Lambda Tool
+
+lambdaToolOptionsOf : Program -> List Exp
+lambdaToolOptionsOf (defs, mainExp) =
+  case mainExp of
+
+    Blobs blobs _ ->
+      let boundedFuncs =
+        -- will be easier with better TopDefs
+        List.concatMap (\(_,p,e,_) ->
+          case (p.val, e.val.e__) of
+            (PVar _ f _, EFun _ params _ _) ->
+              case List.reverse params of
+                lastParam :: _ ->
+                  case varsOfPat lastParam of
+                    ["bounds"]                   -> [f]
+                    ["left","top","right","bot"] -> [f]
+                    _                            -> []
+                [] -> []
+            _ -> []
+          ) defs
+      in
+      let withBoundsBlobs =
+        List.reverse <| -- reverse so that most recent call wins
+          List.concatMap (\blob ->
+            case blob of
+              NiceBlob _ (WithBoundsBlob (_, f, args)) -> [(f,args)]
+              _                                        -> []
+            ) blobs
+      in
+      let lambdaCalls =
+        List.concatMap (\f ->
+          let pred (g,_) = f == g in
+          case Utils.findFirst pred withBoundsBlobs of
+            Nothing       -> []
+            Just (g,args) -> [withDummyPos (EApp " " (eVar0 f) args "")]
+          ) boundedFuncs
+      in
+      lambdaCalls
+
+    _ -> []
+
+
+--------------------------------------------------------------------------------
 -- Updating the Model
 
 upstate : Event -> Model -> Model
@@ -1815,6 +1859,13 @@ upstate evt old = case debugLog "Event" evt of
          in
          let (newVal,ws) = (Eval.run e) in
          let (newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) = LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal in
+         let lambdaTools' =
+           -- TODO should put program into Model
+           let program = splitExp e in
+           let options = lambdaToolOptionsOf program ++ snd sampleModel.lambdaTools in
+           let selectedIdx = min (fst old.lambdaTools) (List.length options) in
+           (selectedIdx, options)
+         in
          let new =
            { old | inputExp      = e
                  , inputVal      = newVal
@@ -1831,6 +1882,7 @@ upstate evt old = case debugLog "Event" evt of
                  , editingMode   = Nothing
                  , caption       = Nothing
                  , syncOptions   = Sync.syncOptionsOf old.syncOptions e
+                 , lambdaTools   = lambdaTools'
            }
          in
           { new | mode = refreshMode_ new
@@ -2034,7 +2086,7 @@ upstate evt old = case debugLog "Event" evt of
 
             (HelperDot, [pt], _) -> addHelperDotToCodeAndRun old pt
 
-            (Lambda _, [pt2, pt1], _) -> addLambdaToCodeAndRun old pt2 pt1
+            (Lambda, [pt2, pt1], _) -> addLambdaToCodeAndRun old pt2 pt1
 
             (Poly _, _, _) -> old
             (Path _, _, _) -> old

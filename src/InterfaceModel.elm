@@ -50,11 +50,15 @@ type alias Model =
   , dimensions : (Int, Int)
   , midOffsetX : Int  -- extra codebox width in vertical orientation
   , midOffsetY : Int  -- extra codebox width in horizontal orientation
+  -- TODO separate Basic/Slider/Feature/Blobs
   , showZones : ShowZones
   , syncOptions : Sync.Options
   , editingMode : Maybe Code -- Nothing means not editing
                              -- Just s is True, where s is previous code
   , caption : Maybe Caption
+  -- TODO separate this into two choices:
+  --    NoSliders/NativeSliders/AllSliders
+  --    NoGhosts/YesGhosts
   , showWidgets : Bool
   , localSaves : List String
   , fieldContents : DialogInfo
@@ -72,6 +76,7 @@ type alias Model =
   , selectedBlobs : Dict.Dict Int NodeId
   , keysDown : List Char.KeyCode
   , randomColor : Int
+  , lambdaTools : (Int, List Exp)
   }
 
 type Mode
@@ -150,7 +155,7 @@ type ShapeTool
   | Text
   | HelperDot
   | HelperLine
-  | Lambda Ident
+  | Lambda
 
 type ShapeToolKind
   = Raw
@@ -323,5 +328,6 @@ sampleModel =
     , selectedBlobs = Dict.empty
     , keysDown      = []
     , randomColor   = 100
+    , lambdaTools   = (1, [eVar "star"])
     }
 

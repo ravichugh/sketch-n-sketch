@@ -6,6 +6,7 @@ module InterfaceView2 (view, scaleColorBall , drawNewPolygonDotSize
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
 import LangParser2 as Parser exposing (parseE)
+import LangUnparser exposing (unparse)
 import Sync
 import Eval
 import Utils
@@ -1019,7 +1020,7 @@ drawNewShape model =
     (Path _,     MouseDrawNew (ptLast::pts)) -> drawNewPath ptLast pts
     (HelperDot,  MouseDrawNew [pt])          -> drawNewHelperDot pt
     (HelperLine, MouseDrawNew [pt2, pt1])    -> drawNewLine model pt2 pt1
-    (Lambda _,   MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
+    (Lambda,     MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
     _                                        -> []
 
 defaultOpacity        = Attr.style [("opacity", "0.5")]
@@ -1455,7 +1456,10 @@ widgetsShapes w h model =
   , twoButtons w h
       (shapeToolButton model HelperLine)
       (shapeToolButton model HelperDot)
-  , shapeToolButton model (Lambda "star") w h
+  , flowRight w h
+       [ (1/4, shapeToolButton model Lambda)
+       , (3/4, dropdownLambdaTool model)
+       ]
   ]
 
 middleWidgets row1 row2 w h wWrap hWrap model =
@@ -1812,7 +1816,7 @@ shapeToolButton model shapeTool w h =
     Text          -> "-"
     HelperLine    -> "(Rule)"
     HelperDot     -> "(Dot)"
-    Lambda f      -> Utils.bracks Utils.uniLambda ++ " " ++ f
+    Lambda        -> Utils.uniLambda
     _             -> Debug.crash ("shapeToolButton: " ++ toString shapeTool)
   in
   let btnKind = if model.shapeTool == shapeTool then Selected else Unselected in
@@ -1981,6 +1985,45 @@ canvasButton model w h =
   let foo model = { model | hideCanvas = not model.hideCanvas } in
   simpleButton_ events.address btnKind Noop
     model.hideCode (UpdateModel foo) cap w h
+
+dropdownLambdaTool : Model -> Int -> Int -> GE.Element
+dropdownLambdaTool model w h =
+  let strExp = String.trim << unparse in
+  let options =
+    let (selectedIdx, exps) = model.lambdaTools in
+    Utils.mapi (\(i,e) ->
+      let s = strExp e in
+      Html.option
+         [ Attr.value s, Attr.selected (i == selectedIdx) ]
+         [ Html.text s ]
+      ) exps
+  in
+  let handler selected =
+    Signal.message events.address <| UpdateModel <| \model ->
+      let (_, exps) = model.lambdaTools in
+      let indexedStrings = Utils.mapi (\(i,e) -> (i, strExp e)) exps in
+      let newSelectedIdx =
+        case Utils.findFirst ((==) selected << snd) indexedStrings of
+          Just (i, _) -> i
+          Nothing     -> Debug.crash "dropdownLambdaTools"
+      in
+      { model | shapeTool = Lambda, lambdaTools = (newSelectedIdx, exps) }
+  in
+  let attrs =
+     -- refactor these attributes, and dropdownExamples
+     [ Attr.style
+        [ ("pointer-events", "auto")
+        , ("border", "0 solid")
+        , ("display", "block")
+        , ("width", "80px")
+        , ("height", "24px")
+        , ("font-family", "sans-serif")
+        , ("font-size", "1em")
+        ]
+     , Events.on "change" Events.targetValue handler
+     ]
+  in
+  Html.toElement 80 24 (Html.select attrs options)
 
 
 --------------------------------------------------------------------------------
