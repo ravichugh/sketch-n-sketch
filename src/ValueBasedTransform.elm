@@ -331,7 +331,16 @@ makeEqual__ originalExp featureAEqn featureBEqn syncOptions =
           Just resultLocEqn ->
             Just (locId, resultLocEqn)
   in
-  case findSolution (Set.toList unfrozenLocset) of
+  -- Prefer to solve for ?-annotated locs
+  let thawedLocsFirst =
+    let (thawed, others) =
+      unfrozenLocset
+      |> Set.toList
+      |> List.partition (\(_, annotation, _) -> annotation == Lang.thawed)
+    in
+    thawed ++ others
+  in
+  case findSolution thawedLocsFirst of
     Nothing ->
       Nothing
 
