@@ -108,10 +108,14 @@ digHole originalExp selectedFeatures slate syncOptions =
   let origNames  = List.reverse <| List.map Utils.snd3 locIdNameOrigNamePrime in
   let primeNames = List.reverse <| List.map Utils.thd3 locIdNameOrigNamePrime in
   let valueStrs =
+    let locIdToWidgetDeclLittle =
+      locIdToWidgetDeclLittleOf originalExp
+    in
     List.map
         (\(locId, annotation, _) ->
           (toString (Utils.justGet_ "ValueBasedTransform.digHole valueStrs" locId subst))
           ++ annotation
+          ++ (Utils.justGet_ "ValueBasedTransform.digHole valueStrs widgetDecl" locId locIdToWidgetDeclLittle)
         )
         (List.reverse locsetList)
   in
@@ -406,10 +410,14 @@ makeEqual__ originalExp featureAEqn featureBEqn syncOptions =
             independentLocIds
       in
       let independentLocValueStrs =
+        let locIdToWidgetDeclLittle =
+          locIdToWidgetDeclLittleOf originalExp
+        in
         List.map
             (\(locId, annotation, _) ->
               (toString (Utils.justGet_ "ValueBasedTransform.makeEqual__ independentLocValueStrs" locId subst))
               ++ annotation
+              ++ (Utils.justGet_ "ValueBasedTransform.makeEqual__ independentLocValueStrs widgetDecl" locId locIdToWidgetDeclLittle)
             )
             independentLocs
       in
@@ -448,21 +456,21 @@ deepestCommonScope exp locset syncOptions =
       EConst ws n loc wd -> Set.member loc locset
       _                  -> False
   in
-  let locsAncestors = debugLog "locsAncestors" <|
+  let locsAncestors = -- debugLog "locsAncestors" <|
     findAllWithAncestors isLocsetNode exp
   in
   -- isScope needs to see the node's parent...because case statements
   -- produce many scopes out of one expression
   -- The below adds a maybe parent to each node, so we get List (List
   -- (Maybe Exp, Exp))
-  let locsAncestorsWithParents = debugLog "locsAncestorsWithParents" <|
+  let locsAncestorsWithParents = -- debugLog "locsAncestorsWithParents" <|
     List.map
         (\locAncestors ->
           Utils.zip (Nothing :: (List.map Just locAncestors)) locAncestors
         )
         locsAncestors
   in
-  let locsAncestorScopesWithParents = debugLog "locsAncestorScopesWithParents" <|
+  let locsAncestorScopesWithParents = -- debugLog "locsAncestorScopesWithParents" <|
     List.map
         (List.filter (\(parent, node) -> isScope parent node))
         locsAncestorsWithParents
@@ -629,6 +637,22 @@ locIdToNumberAndLocOf exp =
       Dict.empty
 
 
+locIdToWidgetDeclOf : Exp -> Dict.Dict LocId WidgetDecl
+locIdToWidgetDeclOf exp =
+  exp
+  |> foldExpViaE__
+      (\e__ dict ->
+        case e__ of
+          EConst _ _ (locId, _, _) wd -> Dict.insert locId wd dict
+          _                           -> dict
+      )
+      Dict.empty
+
+
+locIdToWidgetDeclLittleOf : Exp -> Dict.Dict LocId String
+locIdToWidgetDeclLittleOf exp =
+  (locIdToWidgetDeclOf exp)
+  |> Dict.map (\locId wd -> LangUnparser.unparseWD wd)
 
 
 pluckSelectedVals selectedFeatures slate locIdToNumberAndLoc =
