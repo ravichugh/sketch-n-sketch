@@ -19,7 +19,7 @@ import VirtualDom
 
 --Core Libraries
 import List
-import Dict
+import Dict exposing (Dict)
 import Set
 import String
 import Char
@@ -990,7 +990,7 @@ maybeFindAttr id kind attr attrs =
 --------------------------------------------------------------------------------
 -- Group Blobs
 
-computeSelectedBlobsAndBounds : Model -> Dict.Dict Int (NumTr, NumTr, NumTr, NumTr)
+computeSelectedBlobsAndBounds : Model -> Dict Int (NumTr, NumTr, NumTr, NumTr)
 computeSelectedBlobsAndBounds model =
   let tree = snd model.slate in
   Dict.map
@@ -1323,13 +1323,22 @@ abstractOne (i, eBlob, x) (defs, blobs) =
       (defs, blobs)
 
 collectUnfrozenConstants : Exp -> (Exp, List (Ident, AnnotatedNum))
-collectUnfrozenConstants =
-     Utils.mapFst removeRedundantBindings
-  << Utils.mapSnd List.reverse
-  << collectUnfrozenConstants_
+collectUnfrozenConstants e =
+  -- extra first pass, as a quick and simple way to approximate name clashes
+  let (_, list0) = collectUnfrozenConstants_ Nothing e in
+  let varCounts =
+    List.foldl (\var acc ->
+      case Dict.get var acc of
+        Nothing    -> Dict.insert var 1 acc
+        Just count -> Dict.insert var (1 + count) acc
+      ) Dict.empty (List.map fst list0)
+  in
+  let (e', list) = collectUnfrozenConstants_ (Just varCounts) e in
+  (removeRedundantBindings e', List.reverse list)
 
-collectUnfrozenConstants_ : Exp -> (Exp, List (Ident, AnnotatedNum))
-collectUnfrozenConstants_ e =
+collectUnfrozenConstants_
+     : Maybe (Dict Ident Int) -> Exp -> (Exp, List (Ident, AnnotatedNum))
+collectUnfrozenConstants_ maybeVarCounts e =
   let foo e__ =
     let default = (e__, []) in
     case e__ of
@@ -1337,10 +1346,14 @@ collectUnfrozenConstants_ e =
         if ann == unann || ann == thawed then
           if x == ""
           then default -- (EVar ws x, [("k" ++ toString locid, n)])
-          else let x' = x ++ toString locid in (EVar ws x', [(x', (n,ann,wd))])
-          -- TODO only add numerals when there are name clashes
-          -- else (EVar ws x, [(x, n)])
-
+          else
+            let addVar y = (EVar ws y, [(y, (n,ann,wd))]) in
+            case maybeVarCounts of
+              Nothing -> addVar x
+              Just varCounts ->
+                if Utils.justGet x varCounts == 1
+                then addVar x
+                else addVar (x ++ toString locid)
         else
           default
       _ ->
