@@ -652,6 +652,9 @@ prelude =
     ] []
   ])))
 
+(def hiddenBoundingBox (\\bounds
+  (ghost (box bounds 'transparent' 'transparent' 0))))
+
 (def simpleBoundingBox (\\bounds
   (ghost (box bounds 'transparent' 'darkblue' 1))))
 
@@ -676,7 +679,9 @@ prelude =
 
 (def group (\\(bounds shapes)
   ['g' [['BOUNDS' bounds]]
-       (concat [(fancyBoundingBox bounds) shapes])]))
+       (cons (hiddenBoundingBox bounds) shapes)]))
+
+       ; (concat [(fancyBoundingBox bounds) shapes])]))
 
 (def rotatedRect (\\(fill x y w h rot)
   (let [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))]
