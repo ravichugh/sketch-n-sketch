@@ -99,8 +99,9 @@ digHole originalExp selectedFeatures slate syncOptions =
   let primeNames = List.reverse <| List.map Utils.thd3 locIdNameOrigNamePrime in
   let valueStrs =
     List.map
-        (\(locId, _, _) ->
-          toString (Utils.justGet_ "ValueBasedTransform.digHole valueStrs" locId subst)
+        (\(locId, annotation, _) ->
+          (toString (Utils.justGet_ "ValueBasedTransform.digHole valueStrs" locId subst))
+          ++ annotation
         )
         (List.reverse locsetList)
   in
@@ -243,6 +244,7 @@ makeEquidistant originalExp selectedFeatures slideNumber movieNumber movieTime s
   else
     originalExp
 
+
 makeEquidistantOverlappingTriples originalExp sortedFeatures slideNumber movieNumber movieTime slate syncOptions =
   let relateMore exp =
     case sortedFeatures of
@@ -382,10 +384,11 @@ makeEqual__ originalExp featureAEqn featureBEqn syncOptions =
       in
       let independentLocValueStrs =
         List.map
-            (\locId ->
-              toString (Utils.justGet_ "ValueBasedTransform.makeEqual__ independentLocValueStrs" locId subst)
+            (\(locId, annotation, _) ->
+              (toString (Utils.justGet_ "ValueBasedTransform.makeEqual__ independentLocValueStrs" locId subst))
+              ++ annotation
             )
-            independentLocIds
+            independentLocs
       in
       let dependentLocNameStr  =
         Utils.justGet_ "ValueBasedTransform.makeEqual__ dependentLocNameStr" dependentLocId locIdToNewName
