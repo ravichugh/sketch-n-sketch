@@ -69,14 +69,19 @@ type alias Model =
   , genSymCount : Int
   , toolMode : ToolMode
   , shapeTool : ShapeTool
-  , selectedFeatures : Set.Set (NodeId, ShapeFeature)
-  , selectedWidgets : Set.Set LocId
+  , selectedFeatures : Set.Set (SelectedType, NodeId, ShapeFeature)
   -- line/g ids assigned by blobs function
   , selectedBlobs : Dict.Dict Int NodeId
   , keysDown : List Char.KeyCode
   , randomColor : Int
   , lambdaTools : (Int, List Exp)
   }
+
+-- Trying to imitate a sum type (we need something comparable
+-- so it can go into a set).
+type alias SelectedType = String
+selectedTypeShapeFeature = "shapeFeature"
+selectedTypeWidget       = "widget"
 
 type Mode
   = AdHoc
@@ -324,7 +329,6 @@ sampleModel =
     , toolMode      = Shapes
     , shapeTool     = Line Raw
     , selectedFeatures = Set.empty
-    , selectedWidgets  = Set.empty
     , selectedBlobs = Dict.empty
     , keysDown      = []
     , randomColor   = 100

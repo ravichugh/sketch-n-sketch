@@ -230,7 +230,7 @@ buildSvgWidgets wCanvas hCanvas model =
   in
   let draw (i_, widget) =
     let i = i_ - 1 in
-    let locid = case widget of
+    let locId = case widget of
       WIntSlider _ _ _ _ (k,_,_) -> k
       WNumSlider _ _ _ _ (k,_,_) -> k
     in
@@ -253,9 +253,12 @@ buildSvgWidgets wCanvas hCanvas model =
     in
     let box =
       let color =
+        let feature =
+          (InterfaceModel.selectedTypeWidget, -1, "widget" ++ (toString locId))
+        in
         case (model.toolMode, model.showZones == showZonesSelectAttrs) of
           (Cursors, True) ->
-            if Set.member locid model.selectedWidgets
+            if Set.member feature model.selectedFeatures
               then colorPointSelected
               else colorPointNotSelected
           _ -> strInterfaceColor
@@ -266,7 +269,7 @@ buildSvgWidgets wCanvas hCanvas model =
         , attr "x" (toString (xL  + c*wWidget + pad))
         , attr "y" (toString (yBL - r*hWidget + pad))
         , attr "width" (toString wSlider) , attr "height" (toString hSlider)
-        , onMouseDown (toggleSelectedWidget model locid)
+        , onMouseDown (toggleSelectedWidget model locId)
         ]
     in
     let ball =
@@ -310,14 +313,17 @@ sliderZoneEvents widgetState =
   [ onMouseDown (UpdateModel foo) , onMouseUp MouseUp ]
 
 -- abstract the following with toggleSelected and toggleSelectedBlob
-toggleSelectedWidget model locid =
+toggleSelectedWidget model locId =
+  let feature =
+    (InterfaceModel.selectedTypeWidget, -1, "widget" ++ (toString locId))
+  in
   UpdateModel <| \model ->
     let update =
-      if Set.member locid model.selectedWidgets
+      if Set.member feature model.selectedFeatures
         then Set.remove
         else Set.insert
     in
-    { model | selectedWidgets = update locid model.selectedWidgets }
+    { model | selectedFeatures = update feature model.selectedFeatures }
 
 
 --------------------------------------------------------------------------------
@@ -457,9 +463,9 @@ zoneRotate_ model id shape cx cy r cmds =
     let (strokeColor, maybeEventHandler) =
       case (cmds, model.toolMode, model.showZones == showZonesSelectAttrs) of
         ([LangSvg.Rot (_,trace) _ _], Cursors, True) ->
-          let nodeIdAndFeature = (id, LangSvg.shapeRotation) in
-          let handler = [onMouseDown (toggleSelected model [nodeIdAndFeature])] in
-          if Set.member nodeIdAndFeature model.selectedFeatures
+          let typeAndNodeIdAndFeature = (InterfaceModel.selectedTypeShapeFeature, id, LangSvg.shapeRotation) in
+          let handler = [onMouseDown (toggleSelected model [typeAndNodeIdAndFeature])] in
+          if Set.member typeAndNodeIdAndFeature model.selectedFeatures
             then (colorPointSelected, handler)
             else (colorPointNotSelected, handler)
         _ ->
@@ -540,10 +546,10 @@ zoneColor_ model id shape x y (n, trace) =
   in
   case (model.toolMode, model.showZones == showZonesSelectAttrs) of
     (Cursors, True) ->
-      let nodeIdAndFeature = (id, LangSvg.shapeFill) in
-      let handler = [onMouseDown (toggleSelected model [nodeIdAndFeature])] in
+      let typeAndNodeIdAndFeature = (InterfaceModel.selectedTypeShapeFeature, id, LangSvg.shapeFill) in
+      let handler = [onMouseDown (toggleSelected model [typeAndNodeIdAndFeature])] in
       let color =
-        if Set.member nodeIdAndFeature model.selectedFeatures
+        if Set.member typeAndNodeIdAndFeature model.selectedFeatures
           then colorPointSelected
           else colorPointNotSelected
       in
@@ -621,21 +627,26 @@ zoneSelectCrossDot model addSelect tuple x y =
 
 zoneSelectCrossDot_ model (id, xFeatures, yFeatures) x y =
   let len = 20 in
-  let color nodeIdAndFeatures =
-    if List.all (flip Set.member model.selectedFeatures) nodeIdAndFeatures
+  let color typeAndNodeIdAndFeatures =
+    if List.all (flip Set.member model.selectedFeatures) typeAndNodeIdAndFeatures
     then colorPointSelected
     else colorPointNotSelected
   in
-  let xNodeIdAndFeatures = List.map ((,) id) xFeatures in
-  let yNodeIdAndFeatures = List.map ((,) id) yFeatures in
-  -- let (xNodeIdAndAttrName, yNodeIdAndAttrName) = ((id, xAttr), (id, yAttr)) in
-  let (xColor, yColor) = (color xNodeIdAndFeatures, color yNodeIdAndFeatures) in
+  let xTypeAndNodeIdAndFeatures =
+    xFeatures
+    |> List.map (\featureName -> (InterfaceModel.selectedTypeShapeFeature, id, featureName))
+  in
+  let yTypeAndNodeIdAndFeatures =
+    yFeatures
+    |> List.map (\featureName -> (InterfaceModel.selectedTypeShapeFeature, id, featureName))
+  in
+  let (xColor, yColor) = (color xTypeAndNodeIdAndFeatures, color yTypeAndNodeIdAndFeatures) in
   let yLine =
     svgLine [
         LangSvg.attr "stroke" yColor , strokeWidth
       , LangSvg.attr "x1" (toString (x-len)) , LangSvg.attr "y1" (toString y)
       , LangSvg.attr "x2" (toString (x+len)) , LangSvg.attr "y2" (toString y)
-      , onMouseDown (toggleSelected model yNodeIdAndFeatures)
+      , onMouseDown (toggleSelected model yTypeAndNodeIdAndFeatures)
       ]
   in
   let xLine =
@@ -643,7 +654,7 @@ zoneSelectCrossDot_ model (id, xFeatures, yFeatures) x y =
         LangSvg.attr "stroke" xColor , strokeWidth
       , LangSvg.attr "y1" (toString (y-len)) , LangSvg.attr "x1" (toString x)
       , LangSvg.attr "y2" (toString (y+len)) , LangSvg.attr "x2" (toString x)
-      , onMouseDown (toggleSelected model xNodeIdAndFeatures)
+      , onMouseDown (toggleSelected model xTypeAndNodeIdAndFeatures)
       ]
   in
   let xyDot = zoneSelectDot_ model (id, xFeatures ++ yFeatures) x y in
@@ -653,20 +664,26 @@ zoneSelectDot model addSelect (id, attrNames) x y =
   if addSelect then zoneSelectDot_ model (id, attrNames) x y else []
 
 zoneSelectDot_ model (id, features) x y =
-  let nodeIdAndFeatures = List.map ((,) id) features in
+  let typeAndNodeIdAndFeatures =
+    features
+    |> List.map (\featureName -> (InterfaceModel.selectedTypeShapeFeature, id, featureName))
+  in
   [ svgCircle [
       LangSvg.attr "fill" "darkgray" , LangSvg.attr "r" "6"
     , LangSvg.attr "cx" (toString x) , LangSvg.attr "cy" (toString y)
-    , onMouseDown (toggleSelected model nodeIdAndFeatures)
+    , onMouseDown (toggleSelected model typeAndNodeIdAndFeatures)
     ] ]
 
 -- TODO given need for model, remove addSelect
-zoneSelectLine model addSelect nodeIdAndFeature pt1 pt2 =
-  if addSelect then zoneSelectLine_ model nodeIdAndFeature pt1 pt2 else []
+zoneSelectLine model addSelect nodeId featureName pt1 pt2 =
+  if addSelect then zoneSelectLine_ model nodeId featureName pt1 pt2 else []
 
-zoneSelectLine_ model nodeIdAndFeature (x1,y1) (x2,y2) =
+zoneSelectLine_ model nodeId featureName (x1,y1) (x2,y2) =
+  let typeAndNodeIdAndFeature =
+    (InterfaceModel.selectedTypeShapeFeature, nodeId, featureName)
+  in
   let color =
-    if Set.member nodeIdAndFeature model.selectedFeatures
+    if Set.member typeAndNodeIdAndFeature model.selectedFeatures
     then colorLineSelected
     else colorLineNotSelected
   in
@@ -675,7 +692,7 @@ zoneSelectLine_ model nodeIdAndFeature (x1,y1) (x2,y2) =
         LangSvg.attr "stroke" color , strokeWidth
       , LangSvg.attr "x1" (toString x1) , LangSvg.attr "y1" (toString y1)
       , LangSvg.attr "x2" (toString x2) , LangSvg.attr "y2" (toString y2)
-      , onMouseDown (toggleSelected model [nodeIdAndFeature])
+      , onMouseDown (toggleSelected model [typeAndNodeIdAndFeature])
       ]
   in
   [line]
@@ -834,8 +851,8 @@ makeZonesRect model options shape id l =
     zoneColor model options.addColor id shape x y (maybeColorNumAttr "fill" l)
   in
   let zonesSelect =
-       zoneSelectLine model options.addSelect (id, LangSvg.rectWidth) (x,y+h/2) (x+w,y+h/2)
-    ++ zoneSelectLine model options.addSelect (id, LangSvg.rectHeight) (x+w/2,y) (x+w/2,y+h)
+       zoneSelectLine model options.addSelect id LangSvg.rectWidth (x,y+h/2) (x+w,y+h/2)
+    ++ zoneSelectLine model options.addSelect id LangSvg.rectHeight (x+w/2,y) (x+w/2,y+h)
     ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectTCX], [LangSvg.rectTCY]) (x+w/2) y
     ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectBCX], [LangSvg.rectBCY]) (x+w/2) (y+h)
     ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.rectCLX], [LangSvg.rectCLY]) x (y+h/2)
@@ -890,8 +907,8 @@ makeZonesBox model options id l =
     zoneColor model options.addColor id "BOX" left top (maybeColorNumAttr "fill" l)
   in
   let zonesSelect =
-       zoneSelectLine model options.addSelect (id, LangSvg.boxWidth) (left, cy) (right, cy)
-    ++ zoneSelectLine model options.addSelect (id, LangSvg.boxHeight) (cx, top) (cx, bot)
+       zoneSelectLine model options.addSelect id LangSvg.boxWidth (left, cy) (right, cy)
+    ++ zoneSelectLine model options.addSelect id LangSvg.boxHeight (cx, top) (cx, bot)
     ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxTCX], [LangSvg.boxTCY]) cx top
     ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxBCX], [LangSvg.boxBCY]) cx bot
     ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.boxCLX], [LangSvg.boxCLY]) left cy
@@ -931,7 +948,7 @@ makeZonesCircle model options id l =
   ++ [zoneBorder Svg.circle id "circle" "Interior" False options.showBasic attrs transform]
   ++ (zoneRotate model options.addRot id "circle" (cx,cy) (r + rotZoneDelta) (maybeTransformCmds l))
   ++ (zoneColor model options.addColor id "circle" (cx - r) (cy - r) (maybeColorNumAttr "fill" l))
-  ++ (zoneSelectLine model options.addSelect (id, LangSvg.circleR) (cx,cy) (cx+r,cy))
+  ++ (zoneSelectLine model options.addSelect id LangSvg.circleR (cx,cy) (cx+r,cy))
   ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.circleTCX], [LangSvg.circleTCY]) cx top
   ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.circleBCX], [LangSvg.circleBCY]) cx bottom
   ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.circleCLX], [LangSvg.circleCLY]) left cy
@@ -953,8 +970,8 @@ makeZonesEllipse model options id l =
   ++ [zoneBorder Svg.ellipse id "ellipse" "Interior" False options.showBasic attrs transform]
   ++ (zoneRotate model options.addRot id "circle" (cx,cy) (ry + rotZoneDelta) (maybeTransformCmds l))
   ++ (zoneColor model options.addColor id "ellipse" (cx - rx) (cy - ry) (maybeColorNumAttr "fill" l))
-  ++ (zoneSelectLine model options.addSelect (id, LangSvg.ellipseRX) (cx,cy) (cx+rx,cy))
-  ++ (zoneSelectLine model options.addSelect (id, LangSvg.ellipseRY) (cx,cy-ry) (cx,cy))
+  ++ (zoneSelectLine model options.addSelect id LangSvg.ellipseRX (cx,cy) (cx+rx,cy))
+  ++ (zoneSelectLine model options.addSelect id LangSvg.ellipseRY (cx,cy-ry) (cx,cy))
   ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.ellipseTCX], [LangSvg.ellipseTCY]) cx top
   ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.ellipseBCX], [LangSvg.ellipseBCY]) cx bottom
   ++ zoneSelectCrossDot model options.addSelect (id, [LangSvg.ellipseCLX], [LangSvg.ellipseCLY]) left cy

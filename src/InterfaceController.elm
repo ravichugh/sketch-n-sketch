@@ -1931,7 +1931,11 @@ upstate evt old = case debugLog "Event" evt of
 
 
     RelateAttrs ->
-      let selectedVals = debugLog "selectedVals" <| ValueBasedTransform.pluckSelectedVals old.selectedFeatures old.slate in
+      let selectedVals =
+        let locIdToNumberAndLoc = ValueBasedTransform.locIdToNumberAndLocOf old.inputExp in
+        debugLog "selectedVals" <|
+          ValueBasedTransform.pluckSelectedVals old.selectedFeatures old.slate locIdToNumberAndLoc
+      in
       let revert = (old.inputExp, old.inputVal) in
       let (nextK, l) = Sync.relate old.genSymCount old.inputExp selectedVals in
       let possibleChanges = List.map (addSlateAndCode old) l in
@@ -2197,11 +2201,8 @@ upstate evt old = case debugLog "Event" evt of
           (Shapes, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
           (Cursors, _) ->
             if new.showZones == showZonesSelectAttrs &&
-               not (Set.isEmpty new.selectedFeatures &&
-                    Set.isEmpty new.selectedWidgets) then
-              { new | selectedFeatures = Set.empty
-                    , selectedWidgets = Set.empty
-                    }
+               not (Set.isEmpty new.selectedFeatures) then
+              { new | selectedFeatures = Set.empty }
             else if new.showZones == showZonesSelectShapes && not (Dict.isEmpty new.selectedBlobs) then
               { new | selectedBlobs = Dict.empty }
             else

@@ -10,6 +10,7 @@ import Lang exposing (..)
 import LangTools exposing (..)
 import LangParser2 exposing (parseE, freshen, substOf)
 import LangUnparser exposing (unparse, traceToLittle, precedingWhitespace, addPrecedingWhitespace)
+import InterfaceModel
 import Eval
 import Sync
 import Utils
@@ -41,20 +42,21 @@ type LocEquation
 
 
 digHole originalExp selectedFeatures slate syncOptions =
+  let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
   let selectedFeatureEquationsNamed =
     debugLog "selectedFeatureEquations" <|
-      pluckSelectedFeatureEquationsNamed selectedFeatures slate
+      pluckSelectedFeatureEquationsNamed selectedFeatures slate locIdToNumberAndLoc
   in
   -- If any locs are annotated with "?", only dig those.
   let locset =
     let selectedVals =
       debugLog "selectedVals" <|
-        pluckSelectedVals selectedFeatures slate
+        pluckSelectedVals selectedFeatures slate locIdToNumberAndLoc
     in
     let tracesLocsets =
       List.map ((Sync.locsOfTrace syncOptions) << valToTrace) selectedVals
     in
-    let allLocs = List.foldl Set.union Set.empty tracesLocsets)in
+    let allLocs = List.foldl Set.union Set.empty tracesLocsets in
     let (thawed, others) =
       allLocs
       |> Set.partition (\(_, annotation, _) -> annotation == Lang.thawed)
@@ -238,22 +240,23 @@ makeEqualOverlappingPairs originalExp features slideNumber movieNumber movieTime
 
 
 makeEquidistant originalExp selectedFeatures slideNumber movieNumber movieTime slate syncOptions =
+  let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
   let features = Set.toList selectedFeatures in
   let evaluatedFeatures =
     features
-    |> List.map (\feature -> evaluateFeature feature slate)
+    |> List.map (\feature -> evaluateFeature feature slate locIdToNumberAndLoc)
   in
   if List.all ((/=) Nothing) evaluatedFeatures then
     let sortedFeatures =
       features
-      |> List.sortBy (\feature -> Utils.fromJust <| evaluateFeature feature slate)
+      |> List.sortBy (\feature -> Utils.fromJust <| evaluateFeature feature slate locIdToNumberAndLoc)
     in
-    makeEquidistantOverlappingTriples originalExp sortedFeatures slideNumber movieNumber movieTime slate syncOptions
+    makeEquidistantOverlappingTriples originalExp sortedFeatures slideNumber movieNumber movieTime slate syncOptions locIdToNumberAndLoc
   else
     originalExp
 
 
-makeEquidistantOverlappingTriples originalExp sortedFeatures slideNumber movieNumber movieTime slate syncOptions =
+makeEquidistantOverlappingTriples originalExp sortedFeatures slideNumber movieNumber movieTime slate syncOptions locIdToNumberAndLoc =
   let relateMore exp =
     case sortedFeatures of
       -- If there's at least 3 more features...
@@ -262,6 +265,7 @@ makeEquidistantOverlappingTriples originalExp sortedFeatures slideNumber movieNu
           let (val, _) = Eval.run exp in
           LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val
         in
+        let newLocIdToNumberAndLoc = locIdToNumberAndLocOf exp in
         makeEquidistantOverlappingTriples
             exp
             (featureB::featureC::featureD::otherFeatures)
@@ -270,6 +274,7 @@ makeEquidistantOverlappingTriples originalExp sortedFeatures slideNumber movieNu
             movieTime
             newSlate
             syncOptions
+            newLocIdToNumberAndLoc
 
       _ ->
         exp
@@ -278,9 +283,9 @@ makeEquidistantOverlappingTriples originalExp sortedFeatures slideNumber movieNu
     [featureA, featureB, featureC] ->
       let maybeNewExp =
         let (_, tree) = slate in
-        let maybeAEqn = nodeIdAndFeatureToEquation featureA tree in
-        let maybeBEqn = nodeIdAndFeatureToEquation featureB tree in
-        let maybeCEqn = nodeIdAndFeatureToEquation featureC tree in
+        let maybeAEqn = typeAndNodeIdAndFeatureToEquation featureA tree locIdToNumberAndLoc in
+        let maybeBEqn = typeAndNodeIdAndFeatureToEquation featureB tree locIdToNumberAndLoc in
+        let maybeCEqn = typeAndNodeIdAndFeatureToEquation featureC tree locIdToNumberAndLoc in
         case (maybeAEqn, maybeBEqn, maybeCEqn) of
           (Just aEqn, Just bEqn, Just cEqn) ->
             let distanceAB = EqnOp Minus [bEqn, aEqn] in
@@ -302,8 +307,9 @@ makeEquidistantOverlappingTriples originalExp sortedFeatures slideNumber movieNu
 
 makeEqual_ originalExp featureA featureB slate syncOptions =
   let (_, tree) = slate in
-  case (nodeIdAndFeatureToEquation featureA tree,
-        nodeIdAndFeatureToEquation featureB tree) of
+  let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
+  case (typeAndNodeIdAndFeatureToEquation featureA tree locIdToNumberAndLoc,
+        typeAndNodeIdAndFeatureToEquation featureB tree locIdToNumberAndLoc) of
     (Nothing, _) ->
       Nothing
 
@@ -589,37 +595,52 @@ wrapWithLets listOfListsOfNamesAndAssigns isTopLevel bodyExp =
       wrappedWithLets
 
 
-pluckFeatureEquationNamed nodeIdAndFeature slate =
+pluckFeatureEquationNamed (selectedType, nodeId, featureName) slate locIdToNumberAndLoc =
   let (_, tree) = slate in
-  let (nodeId, feature) = nodeIdAndFeature in
-  case nodeIdAndFeatureToEquation (nodeId, feature) tree of
-    Just eqn -> Just (feature, eqn)
+  case typeAndNodeIdAndFeatureToEquation (selectedType, nodeId, featureName) tree locIdToNumberAndLoc of
+    Just eqn -> Just (featureName, eqn)
     Nothing  -> Nothing
 
 
-pluckSelectedFeatureEquationsNamed selectedFeatures slate =
-  let accumulator nodeIdAndFeature acc =
-    case pluckFeatureEquationNamed nodeIdAndFeature slate of
+pluckSelectedFeatureEquationsNamed selectedFeatures slate locIdToNumberAndLoc =
+  let accumulator typeAndNodeIdAndFeature acc =
+    case pluckFeatureEquationNamed typeAndNodeIdAndFeature slate locIdToNumberAndLoc of
       Just (feature, eqn) -> (feature, eqn) :: acc
       Nothing             -> acc
   in
   Set.foldr accumulator [] selectedFeatures
 
 
-pluckSelectedFeatureEquations selectedFeatures slate =
-  List.map snd <| pluckSelectedFeatureEquationsNamed selectedFeatures slate
+pluckSelectedFeatureEquations selectedFeatures slate locIdToNumberAndLoc =
+  List.map snd <| pluckSelectedFeatureEquationsNamed selectedFeatures slate locIdToNumberAndLoc
 
 
-pluckSelectedVals selectedFeatures slate =
-  let featureEquations = pluckSelectedFeatureEquations selectedFeatures slate in
+locIdToNumberAndLocOf : Exp -> Dict.Dict LocId (Num, Loc)
+locIdToNumberAndLocOf exp =
+  exp
+  |> foldExpViaE__
+      (\e__ dict ->
+        case e__ of
+          EConst _ n (locId, annotation, ident) wd ->
+            Dict.insert locId (n, (locId, annotation, ident)) dict
+          _ ->
+            dict
+      )
+      Dict.empty
+
+
+
+
+pluckSelectedVals selectedFeatures slate locIdToNumberAndLoc =
+  let featureEquations = pluckSelectedFeatureEquations selectedFeatures slate locIdToNumberAndLoc in
   List.concatMap equationVals featureEquations
 
 
-evaluateFeature (nodeId, featureName) slate =
+evaluateFeature typeAndNodeIdAndFeatureName slate locIdToNumberAndLoc =
   let (_, tree) = slate in
-  case nodeIdAndFeatureToEquation (nodeId, featureName) tree of
+  case (typeAndNodeIdAndFeatureToEquation typeAndNodeIdAndFeatureName tree locIdToNumberAndLoc) of
     Just eqn -> evaluateFeatureEquation eqn
-    Nothing -> Nothing
+    Nothing  -> Nothing
 
 
 evaluateFeatureEquation eqn =
@@ -650,16 +671,35 @@ evaluateFeatureEquation eqn =
     _ -> Nothing
 
 
-nodeIdAndFeatureToEquation (nodeId, feature) tree =
-  case Dict.get nodeId tree of
-    Just (LangSvg.SvgNode kind nodeAttrs _) ->
-      Just (featureEquation nodeId kind feature nodeAttrs)
+typeAndNodeIdAndFeatureToEquation (selectedType, nodeId, featureName) tree locIdToNumberAndLoc =
+  if selectedType == InterfaceModel.selectedTypeShapeFeature then
+    case Dict.get nodeId tree of
+      Just (LangSvg.SvgNode kind nodeAttrs _) ->
+        Just (featureEquation nodeId kind featureName nodeAttrs)
 
-    Just (LangSvg.TextNode _) ->
-      Nothing
+      Just (LangSvg.TextNode _) ->
+        Nothing
 
-    Nothing ->
-      Debug.crash <| "nodeIdAndFeatureToEquation " ++ (toString nodeId) ++ " " ++ (toString tree)
+      Nothing ->
+        Debug.crash <| "typeAndNodeIdAndFeatureToEquation " ++ (toString nodeId) ++ " " ++ (toString tree)
+  else if selectedType == InterfaceModel.selectedTypeWidget then
+    -- parse locId from "widget123" feature name
+    let locIdStr =
+      String.dropLeft (String.length "widget") featureName
+    in
+    let locId =
+      String.toInt locIdStr
+      |> Utils.fromOk ("Couldn't parse locId out of " ++ featureName)
+    in
+    let (n, loc) =
+      Utils.justGet_
+          ("Couldn't find locId " ++ (toString locId) ++ " in " ++ (toString locIdToNumberAndLoc))
+          locId
+          locIdToNumberAndLoc
+    in
+    Just (EqnVal <| vConst (n, TrLoc loc))
+  else
+    Debug.crash <| "Unknown selected feature type: " ++ selectedType
 
 
 equationVals eqn =
@@ -1057,21 +1097,21 @@ featurePoints features =
     [] ->
       []
 
-    nodeIdAndFeatureName::otherFeatures ->
-      let (nodeId, featureName) = nodeIdAndFeatureName in
+    typeAndNodeIdAndFeatureName::otherFeatures ->
+      let (selectedType, nodeId, featureName) = typeAndNodeIdAndFeatureName in
       if not <| featureNameIsXOrY featureName then
         featurePoints otherFeatures
       else
-        let nodeFeatures = List.filter (((==) nodeId) << fst) otherFeatures in
+        let nodeFeatures = List.filter (((==) nodeId) << Utils.snd3) otherFeatures in
         let maybePairedFeature =
-          Utils.findFirst ((featuresNamesAreXYPairs featureName) << snd) nodeFeatures
+          Utils.findFirst ((featuresNamesAreXYPairs featureName) << Utils.thd3) nodeFeatures
         in
         case maybePairedFeature of
           Just pairedFeature ->
             let pairToReturn =
               if featureNameIsX featureName
-              then (nodeIdAndFeatureName, pairedFeature)
-              else (pairedFeature, nodeIdAndFeatureName)
+              then (typeAndNodeIdAndFeatureName, pairedFeature)
+              else (pairedFeature, typeAndNodeIdAndFeatureName)
             in
             let remainingFeatures =
               Utils.removeFirst pairedFeature otherFeatures
