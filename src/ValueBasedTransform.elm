@@ -45,15 +45,23 @@ digHole originalExp selectedFeatures slate syncOptions =
     debugLog "selectedFeatureEquations" <|
       pluckSelectedFeatureEquationsNamed selectedFeatures slate
   in
-  let selectedVals =
-    debugLog "selectedVals" <|
-      pluckSelectedVals selectedFeatures slate
-  in
-  let tracesLocsets =
-    List.map ((Sync.locsOfTrace syncOptions) << valToTrace) selectedVals
-  in
+  -- If any locs are annotated with "?", only dig those.
   let locset =
-    List.foldl Set.union Set.empty tracesLocsets
+    let selectedVals =
+      debugLog "selectedVals" <|
+        pluckSelectedVals selectedFeatures slate
+    in
+    let tracesLocsets =
+      List.map ((Sync.locsOfTrace syncOptions) << valToTrace) selectedVals
+    in
+    let allLocs = List.foldl Set.union Set.empty tracesLocsets)in
+    let (thawed, others) =
+      allLocs
+      |> Set.partition (\(_, annotation, _) -> annotation == Lang.thawed)
+    in
+    if Set.isEmpty thawed
+    then others
+    else thawed
   in
   let locsetList =
     Set.toList locset
