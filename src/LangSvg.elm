@@ -484,6 +484,8 @@ type alias ShapeFeature = String
 
 -- Make sure that coordinate features match /.+[X|Y]\d*$/
 -- So we can gather them back up into (X,Y) pairs again.
+shapeFill = "fill"
+shapeRotation = "rotation"
 rectTLX = "rectTLX"
 rectTLY = "rectTLY"
 rectTRX = "rectTRX"

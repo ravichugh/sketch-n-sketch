@@ -682,7 +682,7 @@ addStretchyPath old keysAndPoints =
   let (extraLets, sD) = pathCommands strX strY keysAndPoints in
   addToCodeAndRun "path" old
     ([ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing] 
+     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
      , makeLet ["strokeColor","strokeWidth","color"]
                [randomColor old, eConst 5 dummyLoc, eStr "white"] ]
      ++ extraLets
@@ -2198,11 +2198,9 @@ upstate evt old = case debugLog "Event" evt of
           (Cursors, _) ->
             if new.showZones == showZonesSelectAttrs &&
                not (Set.isEmpty new.selectedFeatures &&
-                    Set.isEmpty new.selectedWidgets &&
-                    List.isEmpty new.selectedExtraAttributes) then
+                    Set.isEmpty new.selectedWidgets) then
               { new | selectedFeatures = Set.empty
                     , selectedWidgets = Set.empty
-                    , selectedExtraAttributes = []
                     }
             else if new.showZones == showZonesSelectShapes && not (Dict.isEmpty new.selectedBlobs) then
               { new | selectedBlobs = Dict.empty }

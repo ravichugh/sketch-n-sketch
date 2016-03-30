@@ -1215,16 +1215,21 @@ featureEquation nodeId kind feature nodeAttrs =
     else Debug.crash <| "Paths do not have this feature: " ++ feature
   in
   let _ = Debug.log "nodeAttrs" nodeAttrs in
-  case kind of
-    "rect"     -> handleRect ()
-    "BOX"      -> handleBox ()
-    "circle"   -> handleCircle ()
-    "ellipse"  -> handleEllipse ()
-    "line"     -> handleLine ()
-    "polygon"  -> handlePoly ()
-    "polyline" -> handlePoly ()
-    "path"     -> handlePath ()
-    _          -> Debug.crash <| "Shape features not implemented yet: " ++ kind
+  if feature == LangSvg.shapeFill then eqnVal "fill"
+  else if feature == LangSvg.shapeRotation then
+    let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ nodeAttrs "transform" in
+    EqnVal (vConst rot)
+  else
+    case kind of
+      "rect"     -> handleRect ()
+      "BOX"      -> handleBox ()
+      "circle"   -> handleCircle ()
+      "ellipse"  -> handleEllipse ()
+      "line"     -> handleLine ()
+      "polygon"  -> handlePoly ()
+      "polyline" -> handlePoly ()
+      "path"     -> handlePath ()
+      _          -> Debug.crash <| "Shape features not implemented yet: " ++ kind
 
 
 maybeFindAttr_ id kind attr attrs =

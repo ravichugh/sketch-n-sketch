@@ -457,8 +457,9 @@ zoneRotate_ model id shape cx cy r cmds =
     let (strokeColor, maybeEventHandler) =
       case (cmds, model.toolMode, model.showZones == showZonesSelectAttrs) of
         ([LangSvg.Rot (_,trace) _ _], Cursors, True) ->
-          let handler = [onMouseDown (toggleSelectedExtraAttribute model (id, trace))] in
-          if List.member (id, trace) model.selectedExtraAttributes
+          let nodeIdAndFeature = (id, LangSvg.shapeRotation) in
+          let handler = [onMouseDown (toggleSelected model [nodeIdAndFeature])] in
+          if Set.member nodeIdAndFeature model.selectedFeatures
             then (colorPointSelected, handler)
             else (colorPointNotSelected, handler)
         _ ->
@@ -539,26 +540,16 @@ zoneColor_ model id shape x y (n, trace) =
   in
   case (model.toolMode, model.showZones == showZonesSelectAttrs) of
     (Cursors, True) ->
-      let handler = [onMouseDown (toggleSelectedExtraAttribute model (id, trace))] in
+      let nodeIdAndFeature = (id, LangSvg.shapeFill) in
+      let handler = [onMouseDown (toggleSelected model [nodeIdAndFeature])] in
       let color =
-        if List.member (id, trace) model.selectedExtraAttributes
+        if Set.member nodeIdAndFeature model.selectedFeatures
           then colorPointSelected
           else colorPointNotSelected
       in
       [box color handler, ball]
     _ ->
       gradient () ++ [box "none" [], ball]
-
-toggleSelectedExtraAttribute model tuple =
-  UpdateModel <| \model ->
-    let list = model.selectedExtraAttributes in
-    let list' =
-      -- do this in one pass...
-      case Utils.findFirst ((==) tuple) list of
-        Nothing -> tuple :: list
-        Just _  -> Utils.removeFirst tuple list
-    in
-    { model | selectedExtraAttributes = list' }
 
 
 -- Stuff for Delete Zones ------------------------------------------------------
