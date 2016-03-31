@@ -50,17 +50,13 @@ type alias Model =
   , dimensions : (Int, Int)
   , midOffsetX : Int  -- extra codebox width in vertical orientation
   , midOffsetY : Int  -- extra codebox width in horizontal orientation
-  -- TODO separate Basic/Slider/Feature/Blobs
-  , showZones : ShowZones
   , syncOptions : Sync.Options
   , editingMode : Maybe Code -- Nothing means not editing
                              -- Just s is True, where s is previous code
   , caption : Maybe Caption
-  -- TODO separate this into two choices:
-  --    NoSliders/NativeSliders/AllSliders
-  --    NoGhosts/YesGhosts
-  , showWidgets : Bool
-  , showGhosts : Bool
+  , showZones : ShowZones
+  , showWidgets : ShowWidgets
+  , showGhosts : ShowGhosts
   , localSaves : List String
   , fieldContents : DialogInfo
   , startup : Bool
@@ -69,6 +65,7 @@ type alias Model =
   , errorBox : Maybe String
   , genSymCount : Int
   , toolMode : ToolMode
+  , cursorTool : CursorTool
   , shapeTool : ShapeTool
   , selectedFeatures : Set.Set (SelectedType, NodeId, ShapeFeature)
   -- line/g ids assigned by blobs function
@@ -134,22 +131,18 @@ type Orientation = Vertical | Horizontal
 
 type alias PossibleChange = (Exp, Val, RootedIndexedTree, Code)
 
--- using Int instead of datatype so serialization/deserialization in
--- InterfaceStorage is more succinct (Enum typeclass would be nice here...)
-type alias ShowZones = Int
-
-showZonesModeCount = 6
-
-showZonesModes = [ 0 .. (showZonesModeCount - 1) ]
-
-(showZonesNone, showZonesBasic,
- showZonesSelectAttrs, showZonesSelectShapes,
- showZonesExtra, showZonesDel) =
-  Utils.unwrap6 showZonesModes
+type alias ShowZones = Bool
+type ShowWidgets = HideWidgets | ShowAnnotatedWidgets | ShowAllWidgets
+type alias ShowGhosts = Bool
 
 type ToolMode
   = Cursors
   | Shapes
+
+type CursorTool
+  = ClickAndDrag
+  | SelectFeatures
+  | SelectBlobs
 
 type ShapeTool
   = Line ShapeToolKind
@@ -199,7 +192,6 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | StartAnimation
            | Redraw
            | ToggleOutput
-           | SelectZonesMode Int
            | NextSlide
            | PreviousSlide
            | NextMovie
@@ -310,11 +302,11 @@ sampleModel =
     , dimensions    = (1000, 800) -- dummy in case foldp' didn't get initial value
     , midOffsetX    = 0
     , midOffsetY    = -100
-    , showZones     = showZonesNone
     , syncOptions   = Sync.defaultOptions
     , editingMode   = Nothing
     , caption       = Nothing
-    , showWidgets   = True
+    , showZones     = False
+    , showWidgets   = ShowAnnotatedWidgets
     , showGhosts    = True
     , localSaves    = []
     , fieldContents = { value = "", hint = "Input File Name" }
@@ -329,6 +321,7 @@ sampleModel =
     -- , genSymCount   = 0
     , genSymCount   = 1
     , toolMode      = Shapes
+    , cursorTool    = ClickAndDrag
     , shapeTool     = Line Raw
     , selectedFeatures = Set.empty
     , selectedBlobs = Dict.empty

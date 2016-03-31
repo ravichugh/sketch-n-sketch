@@ -88,19 +88,6 @@ switchOrient m = case m of
   Vertical -> Horizontal
   Horizontal -> Vertical
 
-{- -- TODO turning off delete zones for now
-toggleShowZones x = (1 + x) % showZonesModeCount
--}
-toggleShowZones x =
-  let i = (1 + x) % showZonesModeCount in
-  if i == showZonesDel then toggleShowZones i else i
-
--- if delete mode is not applicable but set, use oldMode instead
-maybeLeaveDeleteMode newModel oldShowZones =
-  case (newModel.mode, newModel.showZones == showZonesDel) of
-    (Live _, True) -> { newModel | showZones = oldShowZones }
-    _              -> newModel
-
 -- may want to eventually have a maximum history length
 addToHistory s h = (s :: fst h, [])
 
@@ -2084,7 +2071,6 @@ upstate evt old = case debugLog "Event" evt of
         _ -> Debug.crash "upstate Sync"
 
     SelectOption (exp, val, slate, code) ->
-      maybeLeaveDeleteMode
         { old | code          = code
               , inputExp      = exp
               , inputVal      = val
@@ -2093,7 +2079,6 @@ upstate evt old = case debugLog "Event" evt of
               , previewCode   = Nothing
               , toolMode      = Cursors
               , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp val }
-        showZonesNone
 
 
     PreviewCode maybeCode ->
@@ -2140,9 +2125,6 @@ upstate evt old = case debugLog "Event" evt of
     SwitchMode m -> { old | mode = m }
 
     SwitchOrient -> { old | orient = switchOrient old.orient }
-
-    SelectZonesMode i ->
-      maybeLeaveDeleteMode { old | showZones = i } old.showZones
 
     Undo ->
       case (old.code, old.history) of
@@ -2206,13 +2188,16 @@ upstate evt old = case debugLog "Event" evt of
           (Shapes, MouseNothing)   -> { new | toolMode = Cursors }
           (Shapes, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
           (Cursors, _) ->
-            if new.showZones == showZonesSelectAttrs &&
-               not (Set.isEmpty new.selectedFeatures) then
-              { new | selectedFeatures = Set.empty }
-            else if new.showZones == showZonesSelectShapes && not (Dict.isEmpty new.selectedBlobs) then
-              { new | selectedBlobs = Dict.empty }
-            else
-              { new | showZones = showZonesNone }
+            case new.cursorTool of
+              ClickAndDrag -> { new | showZones = False }
+              SelectFeatures ->
+                if Set.isEmpty new.selectedFeatures
+                  then { new | cursorTool = ClickAndDrag }
+                  else { new | selectedFeatures = Set.empty }
+              SelectBlobs ->
+                if Dict.isEmpty new.selectedBlobs
+                  then { new | cursorTool = ClickAndDrag }
+                  else { new | selectedBlobs = Dict.empty }
           _ ->
             new
 

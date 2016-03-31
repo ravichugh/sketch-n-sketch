@@ -14,7 +14,7 @@ import Storage exposing (getItem, setItem, removeItem, keys, clear)
 
 -- JSON encode/decode libraries, as local storage only stores values as Strings
 import Json.Encode as Encode
-import Json.Decode exposing (Decoder, (:=), object5, string, int, bool, customDecoder)
+import Json.Decode exposing (Decoder, (:=), object4, object5, string, int, bool, customDecoder)
 
 -- Task Library
 import Task exposing (Task, succeed, andThen)
@@ -48,7 +48,7 @@ taskMailbox = mailbox (succeed ())
 type alias PartialObject =
     { code        : String
     , orient      : Orientation
-    , showZones   : InterfaceModel.ShowZones -- Int
+    -- , showZones   : InterfaceModel.ShowZones -- Int
     , midOffsetX  : Int
     , midOffsetY  : Int
     }
@@ -70,7 +70,7 @@ modelToValue model =
                 InterfaceModel.Horizontal -> "Horizontal"
             )
         )
-      , ("showZones", Encode.int model.showZones)
+      -- , ("showZones", Encode.int model.showZones)
       , ("midOffsetX", Encode.int model.midOffsetX)
       , ("midOffsetY", Encode.int model.midOffsetY)
       ]
@@ -78,7 +78,8 @@ modelToValue model =
 -- JSON decoder for our Model
 strToModel : Model -> Decoder Model
 strToModel baseModel =
-    let partialObjectDecoder = object5 PartialObject
+    -- let partialObjectDecoder = object5 PartialObject
+    let partialObjectDecoder = object4 PartialObject
             ("code" := string)
             ("orient" := customDecoder string
                 (\v -> case v of
@@ -87,14 +88,14 @@ strToModel baseModel =
                     _ -> Err "Ill-formatted orientation"
                 )
             )
-            ("showZones"   := int)
+            -- ("showZones"   := int)
             ("midOffsetX"  := int)
             ("midOffsetY"  := int)
     in customDecoder partialObjectDecoder
         (\partial ->
             Ok { baseModel | code = partial.code
                            , orient = partial.orient
-                           , showZones = partial.showZones
+                           -- , showZones = partial.showZones
                            , midOffsetX = partial.midOffsetX
                            , midOffsetY = partial.midOffsetY
                            , fieldContents = { value = ""
