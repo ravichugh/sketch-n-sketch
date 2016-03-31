@@ -23,6 +23,7 @@ loc:
     OurParser2.elm Utils.elm \
     Eval.elm Sync.elm \
     InterfaceModel.elm InterfaceView2.elm InterfaceController.elm \
+    LangTools.elm LangTransform.elm ValueBasedTransform.elm \
     InterfaceStorage.elm Storage.elm \
     Codebox.elm Native/codeBox.js \
     Native/toggleAnimationLoopback.js \
