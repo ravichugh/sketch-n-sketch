@@ -926,7 +926,7 @@ locEqnTerms targetLocId eqn =
       let children' = List.map (locEqnTerms targetLocId) children in
       let result =
         case children' of
-          [Just (leftLocPow,  leftCoeff, leftRest),
+          [Just (leftLocPow,  leftCoeff,  leftRest),
            Just (rightLocPow, rightCoeff, rightRest)] ->
             case op of
               Plus ->
@@ -1342,7 +1342,6 @@ featureEquation nodeId kind feature nodeAttrs =
       y i
     else Debug.crash <| "Paths do not have this feature: " ++ feature
   in
-  let _ = Debug.log "nodeAttrs" nodeAttrs in
   if feature == LangSvg.shapeFill then eqnVal "fill"
   else if feature == LangSvg.shapeRotation then
     let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ nodeAttrs "transform" in
