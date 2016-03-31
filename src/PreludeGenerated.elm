@@ -746,8 +746,10 @@ prelude =
   ['g' []
     (cons
       (path fill stroke w d)
-      (pointsOf d)) ]
+      [])]
 ))))
+      ; turning off points for now
+      ; (pointsOf d)) ]
 
 ; can refactor to make one pass
 ; can also change representation/template code to pair points
@@ -786,8 +788,10 @@ prelude =
   (group bounds
     (cons
       (path fill stroke w (toPath d))
-      (pointsOf d)))
+      []))
 )))))))
+      ; turning off points for now
+      ; (pointsOf d)))
 
 (def evalOffset (\\[base off]
   (case off
