@@ -174,7 +174,7 @@ buildSvg_ stuff d i =
   case Utils.justGet_ ("buildSvg_ " ++ toString i) i d of
    LangSvg.TextNode text -> VirtualDom.text text
    LangSvg.SvgNode shape attrs js ->
-    case (model.showWidgets, Utils.maybeRemoveFirst "HIDDEN" attrs) of
+    case (model.showGhosts, Utils.maybeRemoveFirst "HIDDEN" attrs) of
      (False, Just _) -> Svg.svg [] []
      _ ->
       -- TODO: figure out: (LangSvg.attr "draggable" "false")
@@ -1638,10 +1638,13 @@ mainSectionVertical w h model =
                   GE.container wBtn (hZInfo+1) GE.middle <|
                   outputButton model wBtn hBtn
               , colorDebug Color.orange <| GE.spacer wExtra (hZInfo+1)
+{-
               , colorDebug Color.red <|
                   GE.container wBtnWide (hZInfo+1) GE.middle <|
                   ghostsButton model wBtnWide hBtn
               , caption model (wCanvas+1-(wBtn+wExtra+wBtnWide)) (hZInfo+1) -- NOTE: +1 is a band-aid
+-}
+              , caption model (wCanvas+1-(wBtn+wExtra)) (hZInfo+1) -- NOTE: +1 is a band-aid
               ]
           -- , caption model (wCanvas+1) hZInfo -- NOTE: +1 is a band-aid
           ]
@@ -1685,10 +1688,13 @@ mainSectionHorizontal w h model =
                     GE.container wBtn (hZInfo+1) GE.middle <|
                     outputButton model wBtn hBtn
                 , colorDebug Color.orange <| GE.spacer wExtra (hZInfo+1)
+{-
                 , colorDebug Color.red <|
                     GE.container wBtnWide (hZInfo+1) GE.middle <|
                     ghostsButton model wBtnWide hBtn
                 , caption model (w-(wBtn+wExtra+wBtnWide)) (hZInfo+1) -- NOTE: +1 is a band-aid
+-}
+                , caption model (w-(wBtn+wExtra)) (hZInfo+1) -- NOTE: +1 is a band-aid
                 ]
             -- , caption model w (hZInfo+1) -- NOTE: +1 is a band-aid
             ]
@@ -1751,6 +1757,7 @@ outputButton model w h =
   in
   simpleEventButton_ disabled ToggleOutput cap w h
 
+{-
 ghostsButton model w h =
   let cap =
      case model.showWidgets of
@@ -1767,7 +1774,19 @@ ghostsButton model w h =
     { old | showWidgets = showWidgets', mode = mode' }
   in
   simpleEventButton_ False (UpdateModel foo) cap w h
+-}
 
+showWidgetsButton model b cap w h =
+  let selected = (model.showWidgets == b) in
+  let btnKind = if selected then Selected else Unselected in
+  simpleButton_ events.address btnKind Noop False
+    (UpdateModel <| \m -> { m | showWidgets = b }) cap w h
+
+showGhostsButton model b cap w h =
+  let selected = (model.showGhosts == b) in
+  let btnKind = if selected then Selected else Unselected in
+  simpleButton_ events.address btnKind Noop False
+    (UpdateModel <| \m -> { m | showGhosts = b }) cap w h
 
 widgetsCursors w h model =
   let caption mode =
@@ -1791,6 +1810,14 @@ widgetsCursors w h model =
         (zoneButton showZonesNone)
         (zoneButton showZonesBasic)
         (zoneButton showZonesExtra)
+    , threeVersions w h
+        (showWidgetsButton model False "-")
+        (showWidgetsButton model True "Widgets")
+        gapWidget
+    , threeVersions w h
+        (showGhostsButton model False "-")
+        (showGhostsButton model True "Ghosts")
+        gapWidget
     , zoneButton showZonesSelectAttrs w h
     , zoneButton showZonesSelectShapes w h
     ]

@@ -60,6 +60,7 @@ type alias Model =
   --    NoSliders/NativeSliders/AllSliders
   --    NoGhosts/YesGhosts
   , showWidgets : Bool
+  , showGhosts : Bool
   , localSaves : List String
   , fieldContents : DialogInfo
   , startup : Bool
@@ -314,6 +315,7 @@ sampleModel =
     , editingMode   = Nothing
     , caption       = Nothing
     , showWidgets   = True
+    , showGhosts    = True
     , localSaves    = []
     , fieldContents = { value = "", hint = "Input File Name" }
     , startup       = True

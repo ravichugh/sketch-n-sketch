@@ -746,16 +746,16 @@ strEdges =
 -- Printing to SVG format
 
 printSvg : Bool -> RootedIndexedTree -> String
-printSvg showWidgets (rootId, tree) =
-  let s = printNode showWidgets 0 tree rootId in
+printSvg showGhosts (rootId, tree) =
+  let s = printNode showGhosts 0 tree rootId in
   Regex.replace Regex.All (Regex.regex "[ ]+\\n") (\_ -> "") s
 
-printNode showWidgets k slate i =
+printNode showGhosts k slate i =
   case Utils.justGet i slate of
     TextNode s -> s
     SvgNode kind_ l1_ l2 ->
       let (kind,l1) = desugarShapeAttrs kind_ l1_ in
-      case (showWidgets, Utils.maybeRemoveFirst "HIDDEN" l1) of
+      case (showGhosts, Utils.maybeRemoveFirst "HIDDEN" l1) of
         (False, Just _) -> ""
         _ ->
           if l2 == [] then
@@ -765,11 +765,11 @@ printNode showWidgets k slate i =
           else
             let l1' = addAttrs kind (removeSpecialAttrs l1) in
             Utils.delimit "<" ">" (kind ++ printAttrs l1') ++ "\n" ++
-            printNodes showWidgets (k+1) slate l2 ++ "\n" ++
+            printNodes showGhosts (k+1) slate l2 ++ "\n" ++
             tab k ++ Utils.delimit "</" ">" kind
 
-printNodes showWidgets k slate =
-  Utils.lines << List.map ((++) (tab k) << printNode showWidgets k slate)
+printNodes showGhosts k slate =
+  Utils.lines << List.map ((++) (tab k) << printNode showGhosts k slate)
 
 printAttrs l = case l of
   [] -> ""
