@@ -1476,8 +1476,13 @@ widgetsTools w h model =
 widgetsCursorsOrShapes w h model =
   let gap = gapWidget w h in
   case model.toolMode of
+    -- for now. better to remove the wrappers from middleWidgets.
+    Cursors -> widgetsCursors w h model
+    Shapes  -> widgetsShapes w h model
+{-
     Cursors -> gap :: widgetsCursors w h model
     Shapes  -> gap :: widgetsShapes w h model
+-}
 
 threeVersions w h b1 b2 b3 =
   flowRight w h [(1/6, b1), (2/3, b2), (1/6, b3)]
@@ -1795,8 +1800,9 @@ widgetsCursors w h model =
     else
       [ gapWidget w h
       , simpleButton DigHole "Dig" w h
-      , simpleButton MakeEqual "Make =" w h
-      , simpleButton MakeEquidistant "Make Equidist" w h
+      , flowRight w h
+          [ (0.36, simpleButton MakeEqual "Align")
+          , (0.64, simpleButton MakeEquidistant "Distribute") ]
       ]
   in
   let maybeBlobButtons =
