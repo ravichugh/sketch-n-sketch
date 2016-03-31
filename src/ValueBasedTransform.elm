@@ -331,6 +331,7 @@ makeEqual__ originalExp featureAEqn featureBEqn syncOptions =
       (equationLocs syncOptions featureAEqn) ++
       (equationLocs syncOptions featureBEqn)
   in
+  let subst = substOf originalExp in
   let frozenLocIdToNum =
     ((frozenLocIdsAndNumbers originalExp) ++
      (frozenLocIdsAndNumbers LangParser2.prelude))
@@ -342,7 +343,7 @@ makeEqual__ originalExp featureAEqn featureBEqn syncOptions =
         Nothing
 
       (locId, _, _)::rest ->
-        case solveForLoc locId frozenLocIdToNum featureAEqn featureBEqn of
+        case solveForLoc locId frozenLocIdToNum subst featureAEqn featureBEqn of
           Nothing ->
             findSolution rest
 
@@ -741,8 +742,8 @@ equationLocs syncOptions eqn =
 -- Must be linear in the locId solved for.
 --
 -- Convert to just locIds (variables) and constants
-solveForLoc : LocId -> Dict.Dict LocId Num -> FeatureEquation -> FeatureEquation -> Maybe LocEquation
-solveForLoc locId locIdToNum rhs lhs =
+solveForLoc : LocId -> Dict.Dict LocId Num -> Subst -> FeatureEquation -> FeatureEquation -> Maybe LocEquation
+solveForLoc locId locIdToNum subst rhs lhs =
   -- Feature equation contains feature operations and trace operations.
   -- Normalize to simple equations on locIds (variables).
   let
@@ -756,33 +757,46 @@ solveForLoc locId locIdToNum rhs lhs =
     rhs'' = constantifyLocs locIdToNum rhs'
     lhs'' = constantifyLocs locIdToNum lhs'
   in
-  -- Transform   rhs' - lhs' = 0
-  -- to          coeff*x^pow + rest = 0
-  -- where x is our target loc
-  case locEqnTerms locId (LocEqnOp Minus [rhs'', lhs'']) of
-    Just (locPow, locCoeff, rest) ->
-      if locPow == 0 || locCoeff == LocEqnConst 0 then
-        Nothing
-      else if locPow == 1 then
-        -- We have: coeff*x + rest = 0
-        -- We want: x = something
-        Just <|
-        locEqnSimplify <|
-          LocEqnOp Div
-              [ LocEqnOp Minus [LocEqnConst 0, rest]
-              , locCoeff]
+  let maybeEqn =
+    -- Transform   rhs' - lhs' = 0
+    -- to          coeff*x^pow + rest = 0
+    -- where x is our target loc
+    case locEqnTerms locId (LocEqnOp Minus [rhs'', lhs'']) of
+      Just (locPow, locCoeff, rest) ->
+        if locPow == 0 || locCoeff == LocEqnConst 0 then
+          Nothing
+        else if locPow == 1 then
+          -- We have: coeff*x + rest = 0
+          -- We want: x = something
+          Just <|
+          locEqnSimplify <|
+            LocEqnOp Div
+                [ LocEqnOp Minus [LocEqnConst 0, rest]
+                , locCoeff]
 
-      else if locPow == -1 then
-        -- We have: coeff/x + rest = 0
-        -- We want: x = something
-        Just <|
-        locEqnSimplify <|
-          LocEqnOp Div
-              [ locCoeff
-              , LocEqnOp Minus [LocEqnConst 0, rest]]
-      else
-        -- Just need to add a pow op and then we can handle more pows.
+        else if locPow == -1 then
+          -- We have: coeff/x + rest = 0
+          -- We want: x = something
+          Just <|
+          locEqnSimplify <|
+            LocEqnOp Div
+                [ locCoeff
+                , LocEqnOp Minus [LocEqnConst 0, rest]]
+        else
+          -- Just need to add a pow op and then we can handle more pows.
+          Nothing
+
+      Nothing ->
         Nothing
+  in
+  -- Now check that equation doesn't produce NaN or similar...
+  case maybeEqn of
+    Just eqn ->
+      -- Need the full subst, not just frozen constants.
+      let evaled = locEqnEval subst eqn in
+      if (isNaN evaled) || (isInfinite evaled)
+      then Nothing
+      else Just eqn
 
     Nothing ->
       Nothing
@@ -827,6 +841,17 @@ locEqnSimplify eqn =
                   -- Double minus to plus
                   (LocEqnConst 0,
                    LocEqnOp Minus [LocEqnConst 0, stuff]) -> stuff
+                  -- (- 0! (- l r)) to (- r l)
+                  (LocEqnConst 0,
+                   LocEqnOp Minus [subleft, subright]) -> LocEqnOp Minus [subright, subleft]
+                  -- (- 0! (* k stuff)) to (* -k stuff)
+                  (LocEqnConst 0,
+                   LocEqnOp Mult [LocEqnConst k, stuff]) -> LocEqnOp Mult [LocEqnConst -k, stuff]
+                  (LocEqnConst 0,
+                   LocEqnOp Mult [stuff, LocEqnConst k]) -> LocEqnOp Mult [LocEqnConst -k, stuff]
+                  -- (- 0! (/ k stuff)) to (/ -k stuff)
+                  (LocEqnConst 0,
+                   LocEqnOp Div [LocEqnConst k, stuff]) -> LocEqnOp Div [LocEqnConst -k, stuff]
                   (LocEqnConst a,
                    LocEqnConst b)    -> LocEqnConst (a - b)
                   _                  -> eqn'
@@ -858,7 +883,7 @@ locEqnSimplify eqn =
                   (LocEqnConst a,
                    LocEqnConst b)     -> if b /= 0 then LocEqnConst (a / b) else eqn'
                   (LocEqnConst 0, _)  -> LocEqnConst 0
-                  (_, LocEqnConst b)  -> LocEqnOp Mult [(LocEqnConst (1 / b)), left]
+                  (_, LocEqnConst b)  -> if b /= 0 then LocEqnOp Mult [(LocEqnConst (1 / b)), left] else eqn'
                   _                   ->
                     -- Alas, this is syntactic equality not semantic.
                     if left == right && right /= LocEqnConst 0 then
@@ -883,7 +908,7 @@ locEqnSimplify eqn =
 --
 -- i.e. (coeff eqn)*targetLoc^locPow + (everything else eqn)
 --
--- Becaue once in that form, we can solve for the targetLoc.
+-- Because once in that form, we can solve for the targetLoc.
 --
 -- Returns Nothing if equation is not linear in LocId
 locEqnTerms : LocId -> LocEquation -> Maybe (Int, LocEquation, LocEquation)
@@ -901,7 +926,7 @@ locEqnTerms targetLocId eqn =
       let children' = List.map (locEqnTerms targetLocId) children in
       let result =
         case children' of
-          [Just (leftLocPow,  leftCoeff, leftRest),
+          [Just (leftLocPow,  leftCoeff,  leftRest),
            Just (rightLocPow, rightCoeff, rightRest)] ->
             case op of
               Plus ->
@@ -1014,6 +1039,25 @@ locEqnLocIds eqn =
           (\child locs -> Set.union locs <| locEqnLocIds child)
           Set.empty
           children
+
+
+locEqnEval locIdToNum eqn =
+  locEqnEval_ (constantifyLocs locIdToNum eqn)
+
+
+locEqnEval_ eqn =
+  case eqn of
+    LocEqnConst n       -> n
+    LocEqnLoc locId     -> Debug.crash "shouldn't have locs in constantified eqn"
+    LocEqnOp op [leftChild, rightChild] ->
+      let (leftEvaled, rightEvaled) = (locEqnEval_ leftChild, locEqnEval_ rightChild) in
+      case op of
+        Plus  -> leftEvaled + rightEvaled
+        Minus -> leftEvaled - rightEvaled
+        Mult  -> leftEvaled * rightEvaled
+        Div   -> leftEvaled / rightEvaled
+        _     -> Debug.crash <| "Unknown loc equation op: " ++ (toString op)
+    _  -> Debug.crash <| "Loc equation only supports binary operations, but got: " ++ (toString eqn)
 
 
 -- Turns all traces in the equation into equations on the locs
@@ -1298,7 +1342,6 @@ featureEquation nodeId kind feature nodeAttrs =
       y i
     else Debug.crash <| "Paths do not have this feature: " ++ feature
   in
-  let _ = Debug.log "nodeAttrs" nodeAttrs in
   if feature == LangSvg.shapeFill then eqnVal "fill"
   else if feature == LangSvg.shapeRotation then
     let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ nodeAttrs "transform" in
