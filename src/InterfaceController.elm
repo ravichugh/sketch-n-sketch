@@ -892,7 +892,9 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs =
   let defs' =
     let matches = matchesAnySelectedVarBlob selectedNiceBlobs in
     let (pluckedDefs, beforeDefs, afterDefs) =
-      let (plucked, before, after) = pluckFromList matches defs in
+      -- TODO make safe again
+      -- let (plucked, before, after) = pluckFromList matches defs in
+      let (plucked, before, after) = unsafePluckFromList matches defs in
       let getExps = List.map (\(_,_,e,_) -> e) in
       let (beforeInside, beforeOutside) =
         Utils.reverse2 <|
@@ -999,6 +1001,10 @@ pluckFromList pred xs =
       (False, _)  -> (plucked, before, after ++ [x])
   in
   List.foldl foo ([],[],[]) xs
+
+unsafePluckFromList pred xs =
+  let (plucked, before, after) = pluckFromList pred (List.reverse xs) in
+  (List.reverse plucked, List.reverse after, List.reverse before)
 
 scaleXY start end startVal widthOrHeight ws (n,t) eSubst =
   case t of
