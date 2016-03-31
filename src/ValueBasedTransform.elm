@@ -841,6 +841,17 @@ locEqnSimplify eqn =
                   -- Double minus to plus
                   (LocEqnConst 0,
                    LocEqnOp Minus [LocEqnConst 0, stuff]) -> stuff
+                  -- (- 0! (- l r)) to (- r l)
+                  (LocEqnConst 0,
+                   LocEqnOp Minus [subleft, subright]) -> LocEqnOp Minus [subright, subleft]
+                  -- (- 0! (* k stuff)) to (* -k stuff)
+                  (LocEqnConst 0,
+                   LocEqnOp Mult [LocEqnConst k, stuff]) -> LocEqnOp Mult [LocEqnConst -k, stuff]
+                  (LocEqnConst 0,
+                   LocEqnOp Mult [stuff, LocEqnConst k]) -> LocEqnOp Mult [LocEqnConst -k, stuff]
+                  -- (- 0! (/ k stuff)) to (/ -k stuff)
+                  (LocEqnConst 0,
+                   LocEqnOp Div [LocEqnConst k, stuff]) -> LocEqnOp Div [LocEqnConst -k, stuff]
                   (LocEqnConst a,
                    LocEqnConst b)    -> LocEqnConst (a - b)
                   _                  -> eqn'
@@ -872,7 +883,7 @@ locEqnSimplify eqn =
                   (LocEqnConst a,
                    LocEqnConst b)     -> if b /= 0 then LocEqnConst (a / b) else eqn'
                   (LocEqnConst 0, _)  -> LocEqnConst 0
-                  (_, LocEqnConst b)  -> LocEqnOp Mult [(LocEqnConst (1 / b)), left]
+                  (_, LocEqnConst b)  -> if b /= 0 then LocEqnOp Mult [(LocEqnConst (1 / b)), left] else eqn'
                   _                   ->
                     -- Alas, this is syntactic equality not semantic.
                     if left == right && right /= LocEqnConst 0 then
