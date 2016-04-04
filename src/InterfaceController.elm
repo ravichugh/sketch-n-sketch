@@ -884,21 +884,20 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs =
       let (plucked, before, after) = unsafePluckFromList matches defs in
       let getExps = List.map (\(_,_,e,_) -> e) in
       let (beforeInside, beforeOutside) =
-        Utils.reverse2 <|
-          List.foldl
-             (\beforeDef (acc1,acc2) ->
-               -- if needed, could split a multi-binding into smaller chunks
-               let (_,p,_,_) = beforeDef in
-               let vars = varsOfPat p in
-               let someVarAppearsIn e = List.any (\x -> occursFreeIn x e) vars in
-               let noVarAppearsIn e = List.all (\x -> not (occursFreeIn x e)) vars in
-               if List.any someVarAppearsIn (getExps (plucked ++ acc1)) &&
-                  List.all noVarAppearsIn (getExps (after ++ acc2))
-               then (beforeDef :: acc1, acc2)
-               else (acc1, beforeDef :: acc2)
-             )
-             ([],[])
-             before
+        List.foldr
+           (\beforeDef (acc1,acc2) ->
+             -- if needed, could split a multi-binding into smaller chunks
+             let (_,p,_,_) = beforeDef in
+             let vars = varsOfPat p in
+             let someVarAppearsIn e = List.any (\x -> occursFreeIn x e) vars in
+             let noVarAppearsIn e = List.all (\x -> not (occursFreeIn x e)) vars in
+             if List.any someVarAppearsIn (getExps (plucked ++ acc1)) &&
+                List.all noVarAppearsIn (getExps (after ++ acc2))
+             then (beforeDef :: acc1, acc2)
+             else (acc1, beforeDef :: acc2)
+           )
+           ([],[])
+           before
       in
       (beforeInside ++ plucked, beforeOutside, after)
     in
