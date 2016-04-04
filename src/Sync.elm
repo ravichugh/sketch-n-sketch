@@ -1658,7 +1658,7 @@ makeTrigger opts e d0 d2 subst i zone = \newAttrs ->
     in
     List.foldl f (subst, Dict.empty, Set.empty) newAttrs in
     -- if using overconstrained triggers, then some of the newAttr values
-    -- from the UI make be "immediately destroyed" by subsequent ones...
+    -- from the UI may be "immediately destroyed" by subsequent ones...
 
   (applyLocSubst entireSubst e, changedSubst)
 

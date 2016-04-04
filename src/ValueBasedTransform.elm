@@ -860,14 +860,23 @@ locEqnSimplify eqn =
                   -- (+ a c)
                   (a, LocEqnOp Minus [b, c]) -> LocEqnOp Plus [a, LocEqnOp Minus [c, b]]
                   -- (- (+ a b) b) to a
-                  (LocEqnOp Plus [a, b], c) -> if b == c then a else eqn'
-                  (LocEqnOp Plus [b, a], c) -> if b == c then a else eqn'
+                  (LocEqnOp Plus [a, b], c) ->
+                    if b == c then a
+                    else if a == c then b
+                    else eqn'
                   -- (- b (+ a b)) to (- 0 a)
-                  (c, LocEqnOp Plus [a, b]) -> if b == c then LocEqnOp Minus [LocEqnConst 0, a] else eqn'
-                  (c, LocEqnOp Plus [b, a]) -> if b == c then LocEqnOp Minus [LocEqnConst 0, a] else eqn'
+                  (c, LocEqnOp Plus [a, b]) ->
+                    if b == c then LocEqnOp Minus [LocEqnConst 0, a]
+                    else if a == c then LocEqnOp Minus [LocEqnConst 0, b]
+                    else eqn'
                   (LocEqnConst a,
                    LocEqnConst b)    -> LocEqnConst (a - b)
-                  _                  -> eqn'
+                  _                  ->
+                    -- Alas, this is syntactic equality not semantic.
+                    if left == right then
+                      LocEqnConst 0
+                    else
+                      eqn'
 
               Mult ->
                 case (left, right) of
