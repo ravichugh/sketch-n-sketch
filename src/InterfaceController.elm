@@ -1944,7 +1944,6 @@ upstate evt old = case debugLog "Event" evt of
       in
       let (newVal, newWidgets) = Eval.run newExp in
       let (newSlate, newCode)  = slateAndCode old (newExp, newVal) in
-      upstate CleanCode <|
       debugLog "new model" <|
         { old | code             = newCode
               , inputExp         = newExp
