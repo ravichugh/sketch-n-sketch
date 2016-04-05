@@ -1386,7 +1386,7 @@ mergeExpressions eFirst eRest =
       matchAllAndBind match eRest <| \restAnnotatedNums ->
         let (locid,ann,x) = loc in
         let allAnnotatedNums = (n,ann,wd) :: restAnnotatedNums in
-        case Utils.removeDupesSlow allAnnotatedNums of
+        case Utils.dedup_ annotatedNumToComparable allAnnotatedNums of
           [_] -> return eFirst.val.e__ []
           _   ->
             let var = if x == "" then "k" ++ toString locid else x in
@@ -1601,6 +1601,13 @@ mergeMaybePatterns mp mps =
   case mp of
     Nothing -> if List.all ((==) Nothing) mps then Just () else Nothing
     Just p  -> Utils.bindMaybe (mergePatterns p) (Utils.projJusts mps)
+
+annotatedNumToComparable : AnnotatedNum -> (Num, Frozen, Float, Float)
+annotatedNumToComparable (n, frzn, wd) =
+  case wd.val of
+    IntSlider a _ b _ -> (n, frzn, toFloat a.val, toFloat b.val)
+    NumSlider a _ b _ -> (n, frzn, a.val, b.val)
+    NoWidgetDecl      -> (n, frzn, 1, -1)
 
 
 --------------------------------------------------------------------------------
