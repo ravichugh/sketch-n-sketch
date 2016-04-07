@@ -361,6 +361,8 @@ fromBlobExp be =
 
 randomColor model = eConst0 (toFloat model.randomColor) dummyLoc
 
+randomColor1 model = eConst (toFloat model.randomColor) dummyLoc
+
 randomColorWithSlider model =
   withDummyPos (EConst "" (toFloat model.randomColor) dummyLoc colorNumberSlider)
 
@@ -371,7 +373,8 @@ addLineToCodeAndRun old click2 click1 =
   let color =
     if old.shapeTool == HelperLine
       then eStr "aqua"
-      else randomColorWithSlider old
+      -- else randomColorWithSlider old
+      else randomColor old
   in
   let (f, args) =
     maybeGhost (old.shapeTool == HelperLine)
@@ -420,11 +423,13 @@ addStretchyRect old (_,pt2) (_,pt1) =
   addToCodeAndRun "rect" old
     [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
-    , makeLet ["rot"] [eConst 0 dummyLoc]
-    , makeLet ["color","strokeColor","strokeWidth"]
-              [randomColor old, eStr "black", eConst 0 dummyLoc] ]
+    -- , makeLet ["rot"] [eConst 0 dummyLoc]
+    -- , makeLet ["color","strokeColor","strokeWidth"]
+    --           [randomColor old, eStr "black", eConst 0 dummyLoc] ]
+    , makeLet ["color"] [randomColor1 old] ]
     (eVar0 "rectangle")
-    (List.map eVar ["color","strokeColor","strokeWidth","rot","bounds"])
+    [eVar "color", eStr "black", eConst 0 dummyLoc, eConst 0 dummyLoc, eVar "bounds"]
+    -- (List.map eVar ["color","strokeColor","strokeWidth","rot","bounds"])
 
 addStretchySquare old (_,pt2) (_,pt1) =
   let (xMin, xMax, yMin, _) = View.squareBoundingBox pt2 pt1 in
