@@ -1313,7 +1313,7 @@ featureEquation nodeId kind feature nodeAttrs =
     else if feature == LangSvg.ellipseCRX then right
     else if feature == LangSvg.ellipseCRY then eqnVal "cy"
     else if feature == LangSvg.ellipseCX then eqnVal "cx"
-    else if feature == LangSvg.ellipseCY then eqnVal "cx"
+    else if feature == LangSvg.ellipseCY then eqnVal "cy"
     else if feature == LangSvg.ellipseRX then eqnVal "rx"
     else if feature == LangSvg.ellipseRY then eqnVal "ry"
     else Debug.crash <| "Ellipses do not have this feature: " ++ feature
