@@ -1515,9 +1515,11 @@ widgetsShapes w h model =
       (shapeToolButton model (Path Raw))
       (shapeToolButton model (Path Stretchy))
       (shapeToolButton model (Path Sticky))
+{-
   , twoButtons w h
       (shapeToolButton model HelperLine)
       (shapeToolButton model HelperDot)
+-}
   , flowRight w h
        [ (1/4, shapeToolButton model Lambda)
        , (3/4, dropdownLambdaTool model)
@@ -1833,10 +1835,13 @@ widgetsCursors w h model =
     if model.cursorTool /= SelectFeatures then []
     else
       [ gapWidget w h
-      , simpleButton DigHole "Dig" w h
+      , simpleButton DigHole "Dig Hole" w h
+      , simpleButton MakeEqual "Make Equal" w h
+{-
       , flowRight w h
           [ (0.40, simpleButton MakeEqual "x = y")
           , (0.60, simpleButton MakeEquidistant ("xi = " ++ Utils.uniDelta ++ "/n")) ]
+-}
       ]
   in
   let maybeBlobButtons =
