@@ -1495,6 +1495,14 @@ threeVersions w h b1 b2 b3 =
   flowRight w h [(1/6, b1), (2/3, b2), (1/6, b3)]
 
 widgetsShapes w h model =
+  [ twoButtons w h
+      (shapeToolButton model (Line Raw))
+      (shapeToolButton model (Rect Stretchy))
+  , twoButtons w h
+      (shapeToolButton model (Oval Stretchy))
+      (shapeToolButton model (Path Stretchy))
+  , shapeToolButton model (Poly Stretchy) w h
+{-
   [ threeVersions w h
       gapWidget
       (shapeToolButton model (Line Raw))
@@ -1515,6 +1523,7 @@ widgetsShapes w h model =
       (shapeToolButton model (Path Raw))
       (shapeToolButton model (Path Stretchy))
       (shapeToolButton model (Path Sticky))
+-}
 {-
   , twoButtons w h
       (shapeToolButton model HelperLine)
@@ -1908,7 +1917,7 @@ shapeToolButton model shapeTool w h =
     Oval Raw      -> capRaw -- "Oval"
     Oval Stretchy -> "Oval" -- capStretchy
     Poly Raw      -> capRaw -- "Poly"
-    Poly Stretchy -> "Poly" -- capStretchy
+    Poly Stretchy -> "Polygon" -- "Poly" -- capStretchy
     Poly Sticky   -> capSticky
     Path Raw      -> capRaw -- "Path"
     Path Stretchy -> "Path" -- capStretchy
