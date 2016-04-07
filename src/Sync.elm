@@ -1245,6 +1245,10 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v.v_ of
             let ee = ("fill", ("FillBall", tr)) :: extraextra in
             (extra, ee, Dict.insert "fill" tr dAttrs)
 
+          [VBase (String "stroke"), VConst (_,tr)] ->
+            let ee = ("stroke", ("StrokeBall", tr)) :: extraextra in
+            (extra, ee, Dict.insert "stroke" tr dAttrs)
+
           -- NOTE: requires for a single cmd, and "transformRot" is a fake attr....
           [VBase (String "transform"), VList [vBlah]] ->
             case vBlah.v_ of
@@ -1402,6 +1406,7 @@ getZones kind extra ee =
 
 widgetZones = List.map <| \x -> case x of
   ("fill"         , ("FillBall"   , _)) -> ("FillBall"   , ["fill"])
+  ("stroke"       , ("StrokeBall" , _)) -> ("StrokeBall" , ["stroke"])
   ("transformRot" , ("RotateBall" , _)) -> ("RotateBall" , ["transformRot"])
   _                                     -> Debug.crash "widgetZones"
 

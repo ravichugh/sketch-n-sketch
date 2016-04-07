@@ -2402,6 +2402,7 @@ createMousePosCallback mx my objid kind zone old =
         -- first match zones that can be attached to different shape kinds...
 
         (_, "FillBall")   -> ret [fxColorBall "fill"]
+        (_, "StrokeBall") -> ret [fxColorBall "stroke"]
         (_, "RotateBall") -> createCallbackRotate (toFloat mx) (toFloat my)
                                                   (toFloat mx') (toFloat my')
                                                   kind objid old

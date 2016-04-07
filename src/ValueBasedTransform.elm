@@ -1370,6 +1370,7 @@ featureEquation nodeId kind feature nodeAttrs =
     else Debug.crash <| "Paths do not have this feature: " ++ feature
   in
   if feature == LangSvg.shapeFill then eqnVal "fill"
+  else if feature == LangSvg.shapeStroke then eqnVal "stroke"
   else if feature == LangSvg.shapeRotation then
     let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ nodeAttrs "transform" in
     EqnVal (vConst rot)
