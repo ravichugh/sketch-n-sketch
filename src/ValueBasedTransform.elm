@@ -144,10 +144,15 @@ digHole originalExp selectedFeatures slate syncOptions =
         <| List.map (\(locId, nameOrig, namePrime) -> (locId, nameOrig))
         <| locIdNameOrigNamePrime
     in
+    -- Make sure all constants are frozen in the feature equations.
+    let locIdToLittleConst =
+      LangParser2.substStrOf originalExp
+      |> Dict.map (\_ str -> str ++ "!")
+    in
     let substStr =
       Dict.union
           locIdToOrigName
-          (LangParser2.substStrOf originalExp)
+          locIdToLittleConst
     in
     List.map (Utils.mapSnd <| equationToLittle substStr) selectedFeatureEquationsNamedWithScopes
   in
