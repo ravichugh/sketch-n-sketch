@@ -860,11 +860,45 @@ matchesAnySelectedVarBlob selectedNiceBlobs def =
     Just _  -> True
     Nothing -> False
 
+-- TODO refactor/combine with above
+matchesAnySelectedCallBlob_ : List (Int, Exp, NiceBlob) -> TopDef -> Maybe Ident
+matchesAnySelectedCallBlob_ selectedNiceBlobs def =
+  let (_,p,_,_) = def in
+  case p.val of
+    PVar _ y _ ->
+      let foo (_,_,niceBlob) =
+        case niceBlob of
+          VarBlob _                -> False
+          WithBoundsBlob (_, f, _) -> f == y
+          CallBlob (f, _)          -> f == y
+      in
+      case Utils.findFirst foo selectedNiceBlobs of
+        Just (_, _, CallBlob (f, _))          -> Just f
+        Just (_, _, WithBoundsBlob (_, f, _)) -> Just f
+        _                                     -> Nothing
+    _ ->
+      Nothing
+
+matchesAnySelectedCallBlob selectedNiceBlobs def =
+  case matchesAnySelectedCallBlob_ selectedNiceBlobs def of
+    Just _  -> True
+    Nothing -> False
+
+-- TODO
+matchesAnySelectedBlob selectedNiceBlobs def =
+  case matchesAnySelectedVarBlob_ selectedNiceBlobs def of
+    Just _  -> True
+    Nothing ->
+      case matchesAnySelectedCallBlob_ selectedNiceBlobs def of
+        Just _  -> True
+        Nothing -> False
+
 groupSelectedBlobs model defs blobs f =
   let n = List.length blobs in
   let selectedNiceBlobs = selectedBlobsToSelectedNiceBlobs model blobs in
   let newGroup = "newGroup" ++ toString model.genSymCount in
   let (defs', blobs') = groupAndRearrange model newGroup defs blobs selectedNiceBlobs in
+  -- let code' = Debug.log "newGroup" <| unparse (fuseExp (defs', Blobs blobs' f)) in
   let code' = unparse (fuseExp (defs', Blobs blobs' f)) in
   upstate Run
     { model | code = code'
@@ -882,9 +916,11 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs =
     (List.map snd plucked_, List.map snd before_, List.map snd after_)
   in
   let defs' =
-    let matches = matchesAnySelectedVarBlob selectedNiceBlobs in
+    let matches = matchesAnySelectedBlob selectedNiceBlobs in
     let (pluckedDefs, beforeDefs, afterDefs) =
-      let (plucked, before, after) = pluckFromList matches defs in
+      -- TODO make safe again
+      -- let (plucked, before, after) = pluckFromList matches defs in
+      let (plucked, before, after) = unsafePluckFromList matches defs in
       let getExps = List.map (\(_,_,e,_) -> e) in
       let (beforeInside, beforeOutside) =
         List.foldr
@@ -991,6 +1027,10 @@ pluckFromList pred xs =
       (False, _)  -> (plucked, before, after ++ [x])
   in
   List.foldl foo ([],[],[]) xs
+
+unsafePluckFromList pred xs =
+  let (plucked, before, after) = pluckFromList pred (List.reverse xs) in
+  (List.reverse plucked, List.reverse after, List.reverse before)
 
 scaleXY start end startVal widthOrHeight ws (n,t) eSubst =
   case t of

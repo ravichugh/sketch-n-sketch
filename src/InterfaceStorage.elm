@@ -23,6 +23,8 @@ import Task exposing (Task, succeed, andThen)
 import String exposing (all)
 -- Signalling functions
 import Signal exposing (Mailbox, mailbox, send)
+import Dict
+import Set
 
 -- Types for our Model
 import InterfaceModel exposing (Model, Orientation, Event, events)
@@ -178,6 +180,8 @@ installLocalState saveName loadedModel oldModel = debugLog "installLocalState"
                   , exName = saveName
                   , localSaves = oldModel.localSaves
                   , editingMode = Just ""
+                  , selectedFeatures = Set.empty
+                  , selectedBlobs = Dict.empty
     }
 
 -- Gets the names of all of the local saves, returned in a list of strings
