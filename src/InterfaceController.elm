@@ -919,8 +919,8 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs =
     let matches = matchesAnySelectedBlob selectedNiceBlobs in
     let (pluckedDefs, beforeDefs, afterDefs) =
       -- TODO make safe again
-      -- let (plucked, before, after) = pluckFromList matches defs in
-      let (plucked, before, after) = unsafePluckFromList matches defs in
+      let (plucked, before, after) = pluckFromList matches defs in
+      -- let (plucked, before, after) = unsafePluckFromList matches defs in
       let getExps = List.map (\(_,_,e,_) -> e) in
       let (beforeInside, beforeOutside) =
         List.foldr
@@ -1010,7 +1010,8 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs =
           -- TODO flag for fuseExp to insert lets instead of defs
     in
     let newDef = ("\n\n", pVar newGroup, newGroupExp, "") in
-    beforeDefs ++ [newDef] ++ afterDefs
+    -- beforeDefs ++ [newDef] ++ afterDefs
+    beforeDefs ++ afterDefs ++ [newDef]
   in
   let blobs' =
     let newBlob = varBlob (withDummyPos (EVar "\n  " newGroup)) newGroup in
