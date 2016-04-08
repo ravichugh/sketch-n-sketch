@@ -210,6 +210,10 @@ allSame list = case list of
 removeDupes : List comparable -> List comparable
 removeDupes = Set.toList << Set.fromList
 
+count : (a -> Bool) -> List a -> Int
+count pred list =
+  List.filter pred list |> List.length
+
 delimit a b s = String.concat [a, s, b]
 
 parens = delimit "(" ")"

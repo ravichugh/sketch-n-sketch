@@ -748,51 +748,57 @@ equationLocs syncOptions eqn =
 --
 -- Convert to just locIds (variables) and constants
 solveForLoc : LocId -> Dict.Dict LocId Num -> Subst -> FeatureEquation -> FeatureEquation -> Maybe LocEquation
-solveForLoc locId locIdToNum subst rhs lhs =
+solveForLoc locId locIdToNum subst lhs rhs =
   -- Feature equation contains feature operations and trace operations.
   -- Normalize to simple equations on locIds (variables).
   let
-    rhs' = featureEquationToLocEquation rhs
     lhs' = featureEquationToLocEquation lhs
-  in
-  -- We will duplicate frozen constants into the little equation
-  -- string. Otherwise, math values like 0, 1, 2 get assigned to
-  -- variable names.
-  let
-    rhs'' = constantifyLocs locIdToNum rhs'
-    lhs'' = constantifyLocs locIdToNum lhs'
+    rhs' = featureEquationToLocEquation rhs
   in
   let maybeEqn =
-    -- Transform   rhs' - lhs' = 0
-    -- to          coeff*x^pow + rest = 0
-    -- where x is our target loc
-    case locEqnTerms locId (LocEqnOp Minus [rhs'', lhs'']) of
-      Just (locPow, locCoeff, rest) ->
-        if locPow == 0 || locCoeff == LocEqnConst 0 then
-          Nothing
-        else if locPow == 1 then
-          -- We have: coeff*x + rest = 0
-          -- We want: x = something
-          Just <|
-          locEqnSimplify <|
-            LocEqnOp Div
-                [ LocEqnOp Minus [LocEqnConst 0, rest]
-                , locCoeff]
-
-        else if locPow == -1 then
-          -- We have: coeff/x + rest = 0
-          -- We want: x = something
-          Just <|
-          locEqnSimplify <|
-            LocEqnOp Div
-                [ locCoeff
-                , LocEqnOp Minus [LocEqnConst 0, rest]]
-        else
-          -- Just need to add a pow op and then we can handle more pows.
-          Nothing
-
+    -- Help out the silly simplifier.
+    case maybeExtractUnsharedExpression rhs' lhs' of
       Nothing ->
         Nothing
+
+      Just (lhs'', rhs'') ->
+        -- We will duplicate frozen constants into the little equation
+        -- string. Otherwise, math values like 0, 1, 2 get assigned to
+        -- variable names.
+        let
+          lhs''' = constantifyLocs locIdToNum lhs''
+          rhs''' = constantifyLocs locIdToNum rhs''
+        in
+        -- Transform   rhs' - lhs' = 0
+        -- to          coeff*x^pow + rest = 0
+        -- where x is our target loc
+        case locEqnTerms locId (LocEqnOp Minus [lhs''', rhs''']) of
+          Just (locPow, locCoeff, rest) ->
+            if locPow == 0 || locCoeff == LocEqnConst 0 then
+              Nothing
+            else if locPow == 1 then
+              -- We have: coeff*x + rest = 0
+              -- We want: x = something
+              Just <|
+              locEqnSimplify <|
+                LocEqnOp Div
+                    [ LocEqnOp Minus [LocEqnConst 0, rest]
+                    , locCoeff]
+
+            else if locPow == -1 then
+              -- We have: coeff/x + rest = 0
+              -- We want: x = something
+              Just <|
+              locEqnSimplify <|
+                LocEqnOp Div
+                    [ locCoeff
+                    , LocEqnOp Minus [LocEqnConst 0, rest]]
+            else
+              -- Just need to add a pow op and then we can handle more pows.
+              Nothing
+
+          Nothing ->
+            Nothing
   in
   -- Now check that equation doesn't produce NaN or similar...
   case maybeEqn of
@@ -806,6 +812,50 @@ solveForLoc locId locIdToNum subst rhs lhs =
     Nothing ->
       Nothing
 
+
+-- Help out our not-so-smart simplifier.
+-- If lhs and rhs are identical but for some sub-expression,
+-- return just the differing sub-expressions.
+maybeExtractUnsharedExpression : LocEquation -> LocEquation -> Maybe (LocEquation, LocEquation)
+maybeExtractUnsharedExpression lhs rhs =
+  case (lhs, rhs) of
+    (LocEqnConst ln, LocEqnConst rn) ->
+      if ln == rn
+      then Nothing
+      else Just (lhs, rhs)
+
+    (LocEqnLoc lLocId, LocEqnLoc rLocId) ->
+      if lLocId == rLocId
+      then Nothing
+      else Just (lhs, rhs)
+
+    (LocEqnOp lOp lChildren, LocEqnOp rOp rChildren) ->
+      if lOp /= rOp then
+        Just (lhs, rhs)
+      else
+        if lChildren == rChildren then
+          Nothing
+        else if List.length(lChildren) /= List.length(rChildren) then -- Not possible in current grammar, but no reason that, say, addition couldn't take 3 or more arguments.
+          Just (lhs, rhs)
+        else
+          let unsharedSubexpressions =
+            Utils.zip lChildren rChildren
+            |> List.map (\(lChild, rChild) -> maybeExtractUnsharedExpression lChild rChild)
+          in
+          if List.all ((==) Nothing) unsharedSubexpressions then
+            Nothing
+          else if Utils.count ((/=) Nothing) unsharedSubexpressions > 1 then
+            Just (lhs, rhs)
+          else
+            -- All but one child is identical between the lhs and rhs
+            let justUnsharedSubexpressionPair =
+              Utils.findFirst ((/=) Nothing) unsharedSubexpressions
+              |> Utils.fromJust_ "extractUnsharedExpression this is logically impossible"
+            in
+            justUnsharedSubexpressionPair
+
+    _ ->
+      Just (lhs, rhs)
 
 -- Repeated perform simple simplifications:
 -- Remove multiply/divide by 1
