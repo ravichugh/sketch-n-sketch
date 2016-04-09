@@ -1690,25 +1690,28 @@ mainSectionVertical w h model =
 mainSectionHorizontal : Int -> Int -> Model -> GE.Element
 mainSectionHorizontal w h model =
   let
+    wGut    = params.mainSection.vertical.wGut
     hGut    = params.mainSection.horizontal.hGut
-    hMiddle = hBtn
-    hCode_  = (h - 2*hMiddle - 3*hGut) // 2
+    wTools  = wBtn + wGut
+    wRest   = w - wTools
+    hCode_  = (h - hGut) // 2
     hCode   = hCode_ + model.midOffsetY
     hCanvas = hCode_ - model.midOffsetY - hZInfo
     hZInfo  = params.mainSection.canvas.hZoneInfo
-    wWidget = params.mainSection.widgets.wBtn + wExtra
+    hWidget = params.mainSection.widgets.hBtn
+                + params.mainSection.vertical.hExtra
     wExtra  = params.mainSection.horizontal.wExtra
   in
 
   let codeSection = if model.basicCodeBox
-                       then codebox w hCode model
-                       else codeBox w hCode in
+                       then codebox wRest hCode model
+                       else codeBox wRest hCode in
 
   let canvasSection = case model.errorBox of
     Nothing ->
-        GE.size w (hCanvas + hZInfo) <|
+        GE.size wRest (hCanvas + hZInfo) <|
           GE.flow GE.down
-            [ canvas w hCanvas model
+            [ canvas wRest hCanvas model
             , GE.flow GE.left
                 [ colorDebug Color.red <|
                     GE.container wBtn (hZInfo+1) GE.middle <|
@@ -1720,29 +1723,40 @@ mainSectionHorizontal w h model =
                     ghostsButton model wBtnWide hBtn
                 , caption model (w-(wBtn+wExtra+wBtnWide)) (hZInfo+1) -- NOTE: +1 is a band-aid
 -}
-                , caption model (w-(wBtn+wExtra)) (hZInfo+1) -- NOTE: +1 is a band-aid
+                , caption model (wRest-(wBtn+wExtra)) (hZInfo+1) -- NOTE: +1 is a band-aid
                 ]
             -- , caption model w (hZInfo+1) -- NOTE: +1 is a band-aid
             ]
     Just errormsg -> errorBox w (hCanvas + hZInfo) errormsg
   in
 
-  let gutter = gutterForResizing model.orient w hGut in
+  let hGutter = gutterForResizing model.orient wRest hGut in
+  let vGutter = colorDebug Color.darkBlue <| GE.spacer wGut h in
 
-  let (middleSection1, middleSection2) =
-    let foo row1 row2 =
-      colorDebug Color.lightBlue <|
-        GE.size w hMiddle <|
-          GE.flow GE.right <|
-            middleWidgets row1 row2 wBtn hBtn wWidget hMiddle model
-    in
-    (foo True False, foo False True) in
+  -- let (middleSection1, middleSection2) =
+  --   let foo row1 row2 =
+  --     colorDebug Color.lightBlue <|
+  --       GE.size w hMiddle <|
+  --         GE.flow GE.right <|
+  --           middleWidgets row1 row2 wBtn hBtn wWidget hMiddle model
+  --   in
+  --   (foo True False, foo False True) in
+  let mainTools =
+    colorDebug Color.lightBlue <|
+      GE.size wBtn h <|
+        GE.flow GE.down <|
+          middleWidgets True True wBtn hBtn wBtn hWidget model
+  in
+  let codeAndOutput =
+    GE.flow GE.down <|
+      [ codeSection
+      , hGutter
+      , canvasSection
+      ]
+  in
+  GE.flow GE.right <|
+    [ mainTools, vGutter, codeAndOutput ]
 
-  GE.flow GE.down <|
-    [ codeSection
-    , gutter , middleSection1 , gutter , middleSection2 , gutter
-    , canvasSection
-    ]
 
 simpleButton_
    : Signal.Address a -> ButtonKind -> a -> Bool -> a -> String
