@@ -1209,9 +1209,10 @@ locEqnToLittle locIdToLittle eqn =
 
 
 
-xFeatureNameRegex = Regex.regex "^(.*)X(\\d*)$"
-yFeatureNameRegex = Regex.regex "^(.*)Y(\\d*)$"
-xOrYFeatureNameRegex = Regex.regex "^(.*)[XY](\\d*)$"
+-- Explicitly exclude ellipseRX/ellipseRX
+xFeatureNameRegex = Regex.regex "^(?!ellipseR)(.*)X(\\d*)$"
+yFeatureNameRegex = Regex.regex "^(?!ellipseR)(.*)Y(\\d*)$"
+xOrYFeatureNameRegex = Regex.regex "^(?!ellipseR)(.*)[XY](\\d*)$"
 
 featureNameIsX featureName =
   Regex.contains xFeatureNameRegex featureName
