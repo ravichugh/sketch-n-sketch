@@ -23,7 +23,7 @@ import OurParser2 as P
 import LangParser2 as Parser
 import Config
 import LangUnparser as Un
-
+import LocEqn exposing (..)
 
 ------------------------------------------------------------------------------
 
@@ -253,10 +253,38 @@ solve subst eqn =
     let _ = Debug.log "solveTopDown" (n, sExp (traceToExp subst t), ans)
     in ans) <|
 -}
-  (solveTopDown subst eqn) `Utils.plusMaybe` (simpleSolve subst eqn)
+  (termSolve subst eqn) `Utils.plusMaybe` (solveTopDown subst eqn)
 
-  -- both solveTopDown and simpleSolve
+  -- both solveTopDown and termSolve
   -- assumes that a single variable is being solved for
+
+
+-- Use the Make Equal solver
+termSolve : Subst -> Equation -> Maybe Num
+termSolve subst (newN, trace) =
+  -- The locId missing from subst is what we are solving for
+  let locEqn = traceToLocEquation trace in
+  let locIds = locEqnLocIds locEqn |> Set.toList in
+  let targetLocId =
+    locIds
+    |> Utils.findFirst (\locId -> Dict.get locId subst == Nothing)
+    |> Utils.fromJust_ "subst should be missing a locId"
+  in
+  case locEqnTerms targetLocId (LocEqnOp Minus [locEqn, LocEqnConst newN]) of
+    Just (locPow, locCoeff, rest) ->
+      -- We have: coeff*x^pow + rest = 0
+      -- We want: x = (-rest / coeff)^(1/pow)
+      let coeffEvaled = locEqnEval subst locCoeff in
+      let restEvaled  = locEqnEval subst rest in
+      let newLocValue = (-restEvaled / coeffEvaled)^(1/locPow) in
+      if (isNaN newLocValue) || (isInfinite newLocValue) then
+        Nothing
+      else
+        Just newLocValue
+
+    Nothing ->
+      Nothing
+
 
 evalTrace : Subst -> Trace -> Maybe Num
 evalTrace subst t = case t of
