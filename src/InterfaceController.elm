@@ -366,6 +366,9 @@ randomColor1 model = eConst (toFloat model.randomColor) dummyLoc
 randomColorWithSlider model =
   withDummyPos (EConst "" (toFloat model.randomColor) dummyLoc colorNumberSlider)
 
+randomColor1WithSlider model =
+  withDummyPos (EConst " " (toFloat model.randomColor) dummyLoc colorNumberSlider)
+
 -- when line is snapped, not enforcing the angle in code
 addLineToCodeAndRun old click2 click1 =
   let ((_,(x2,y2)),(_,(x1,y1))) = (click2, click1) in
@@ -676,7 +679,10 @@ addStretchyPath old keysAndPoints =
     ([ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
      , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
      , makeLet ["strokeColor","strokeWidth","color"]
-               [randomColor old, eConst 5 dummyLoc, eStr "white"] ]
+               -- [randomColor old, eConst 5 dummyLoc, eStr "white"] ]
+               [ randomColorWithSlider old
+               , withDummyPos (EConst " " 5 dummyLoc (intSlider 0 20))
+               , randomColor1WithSlider old ] ]
      ++ extraLets
      ++ [ makeLet ["dPcts"] [eVar sD] ])
     (eVar0 "stretchyPath")
@@ -966,7 +972,8 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs =
         if model.keysDown == Keys.shift then
           acc |> offsetX "" a |> offsetY " " b |> offsetX " " c |> offsetY " " d
         else
-          acc |> scaleX "" a |> scaleY " " b |> scaleX " " c |> scaleY " " d
+          -- acc |> scaleX "" a |> scaleY " " b |> scaleX " " c |> scaleY " " d
+          acc |> scaleX " " a |> scaleY " " b |> scaleX " " c |> scaleY " " d
       in
       List.foldl foo Dict.empty selectedBlobIndices
     in
@@ -1038,10 +1045,17 @@ scaleXY start end startVal widthOrHeight ws (n,t) eSubst =
     TrLoc (locid,_,_) ->
       let pct = (n - fst startVal) / widthOrHeight in
       let app =
-        ws ++ Utils.parens (Utils.spaces ["scaleBetween", start, end, toString pct]) in
+        if pct == 0 then ws ++ start
+        else if pct == 1 then ws ++ end
+        else
+          ws ++ Utils.parens (Utils.spaces ["scaleBetween", start, end, toString pct]) in
       Dict.insert locid (eRaw__ "" app) eSubst
     _ ->
       eSubst
+
+-- TODO for scaleXY and offsetXY, forgo function call when on
+-- boundaries to improve readability of generated code
+-- (falls back in on little prelude encoding)
 
 offsetXY base1 base2 baseVal1 baseVal2 ws (n,t) eSubst =
   case t of
