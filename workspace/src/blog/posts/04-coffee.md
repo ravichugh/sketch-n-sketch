@@ -3,7 +3,7 @@
 *April 13, 2016* <br><br>
 
 
-In the first milestone for Sketch-n-Sketch (<a href="">v0.4.2</a>),
+In the first milestone for Sketch-n-Sketch (<a href="../releases/v0.4.2/">v0.4.2</a>),
 you start by writing a program complete with all intended
 relationships encoded explicitly (via shared constants).
 Then you can directly manipulate shapes in the canvas
