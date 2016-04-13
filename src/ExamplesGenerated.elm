@@ -155,6 +155,10 @@ sineWaveGrid =
     (place 1 2 x1 y0 w h sep0 amp1 n false) ; update  x0/amp
     (place 2 1 x0 y1 w h sep1 amp0 n false) ; update sep/y0
     (place 2 2 x0 y0 w h sep1 amp1 n false) ; update sep/amp
+
+    ; workaround parser design bug that the comment above
+    ; needs to be followed by an expression
+    []
 ]))
 
 "
