@@ -8,6 +8,7 @@ html:
 	cp ../ace-builds/src/ace.js ../build/out/
 	cp ../ace-builds/src/mode-little.js ../build/out/
 	cp ../ace-builds/src/theme-chrome.js ../build/out/
+	mkdir -p ../build/out/img
 	cp img/*svg ../build/out/img/
 
 prelude:
@@ -21,7 +22,7 @@ loc:
     Lang.elm LangSvg.elm \
     LangParser2.elm LangUnparser.elm \
     OurParser2.elm Utils.elm \
-    Eval.elm Sync.elm \
+    Eval.elm Sync.elm LocEqn.elm \
     InterfaceModel.elm InterfaceView2.elm InterfaceController.elm \
     LangTools.elm LangTransform.elm ValueBasedTransform.elm \
     InterfaceStorage.elm Storage.elm \
