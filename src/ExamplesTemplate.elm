@@ -20,6 +20,7 @@ LITTLE_TO_ELM scratch
 LITTLE_TO_ELM threeBoxes
 LITTLE_TO_ELM nBoxesH2
 LITTLE_TO_ELM sineWaveOfBoxes
+LITTLE_TO_ELM sineWaveGrid
 -- LITTLE_TO_ELM waveOfBoxes
 -- LITTLE_TO_ELM waveOfBoxesTokens
 -- LITTLE_TO_ELM waveOfBoxes3
@@ -117,6 +118,7 @@ examples =
   -- [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
   , makeExample "Wave Boxes" sineWaveOfBoxes
+  , makeExample "Wave Boxes Grid" sineWaveGrid
 
   -- up here during ad-hoc development
   , makeExample "RelateRects0" relateRects0
