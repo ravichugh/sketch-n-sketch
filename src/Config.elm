@@ -37,7 +37,7 @@ params =
         { wBtn = 120
         , wBtnWide = 140
         , hBtn = 25
-        , font = "Tahoma, sans-serif"
+        , font = "Helvetica, sans-serif"
         , fontSize = "10pt"
         }
      , vertical =
@@ -65,6 +65,7 @@ params =
         , wCaption = 100
         , rBall = "10px"
         , fontSize = "11pt"
+        , font = "Tahoma, sans-serif"
         }
      }
   }

@@ -125,7 +125,8 @@ makeButton (kind, status) w h text =
         Html.div
           [ Attr.style
               [ ("color", textColor)
-              , ("font-family", "sans-serif")
+              , ("font-family", params.mainSection.widgets.font)
+              , ("font-size", "16px")
               , ("text-align", "center")
               , ("width", dimToPix w)
               , ("height", dimToPix h)
@@ -303,7 +304,8 @@ buildSvgWidgets wCanvas hCanvas model =
         WNumSlider _ _ s targetVal _ -> s ++ strNumTrunc 5 targetVal
       in
       flip Svg.text' [VirtualDom.text cap] <|
-        [ attr "fill" "black" , attr "font-family" "Tahoma, sans-serif"
+        [ attr "fill" "black"
+        , attr "font-family" params.mainSection.uiWidgets.font
         , attr "font-size" params.mainSection.uiWidgets.fontSize
         , attr "x" (toString (xi' + wSlider + 10))
         , attr "y" (toString (yi' + 18))
@@ -2064,7 +2066,7 @@ dropdownExamples model w h =
           , ("display", "block")
           , ("width", "120px")
           , ("height", "24px")
-          , ("font-family", "sans-serif")
+          , ("font-family", params.mainSection.widgets.font)
           , ("font-size", "1em")
           ]
         , Events.on "change" Events.targetValue
@@ -2148,7 +2150,7 @@ dropdownLambdaTool model w h =
         , ("display", "block")
         , ("width", "80px")
         , ("height", "24px")
-        , ("font-family", "sans-serif")
+        , ("font-family", params.mainSection.widgets.font)
         , ("font-size", "1em")
         ]
      , Events.on "change" Events.targetValue handler
