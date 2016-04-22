@@ -363,11 +363,13 @@ randomColor model = eConst0 (toFloat model.randomColor) dummyLoc
 
 randomColor1 model = eConst (toFloat model.randomColor) dummyLoc
 
+{-
 randomColorWithSlider model =
   withDummyPos (EConst "" (toFloat model.randomColor) dummyLoc colorNumberSlider)
 
 randomColor1WithSlider model =
   withDummyPos (EConst " " (toFloat model.randomColor) dummyLoc colorNumberSlider)
+-}
 
 -- when line is snapped, not enforcing the angle in code
 addLineToCodeAndRun old click2 click1 =
@@ -376,7 +378,6 @@ addLineToCodeAndRun old click2 click1 =
   let color =
     if old.shapeTool == HelperLine
       then eStr "aqua"
-      -- else randomColorWithSlider old
       else randomColor old
   in
   let (f, args) =
@@ -387,7 +388,7 @@ addLineToCodeAndRun old click2 click1 =
   addToCodeAndRun "line" old
     [ makeLet ["x1","y1","x2","y2"] (makeInts [x1,y1,xb,yb])
     , makeLet ["color", "width"]
-              [ color , withDummyPos (EConst " " 5 dummyLoc (intSlider 0 40)) ]
+              [ color , eConst 5 dummyLoc ]
     ] f args
 
 {- using variables x1/x2/y1/y2 instead of left/top/right/bot:
@@ -426,13 +427,9 @@ addStretchyRect old (_,pt2) (_,pt1) =
   addToCodeAndRun "rect" old
     [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
-    -- , makeLet ["rot"] [eConst 0 dummyLoc]
-    -- , makeLet ["color","strokeColor","strokeWidth"]
-    --           [randomColor old, eStr "black", eConst 0 dummyLoc] ]
     , makeLet ["color"] [randomColor1 old] ]
     (eVar0 "rectangle")
-    [eVar "color", eStr "black", eConst 0 dummyLoc, eConst 0 dummyLoc, eVar "bounds"]
-    -- (List.map eVar ["color","strokeColor","strokeWidth","rot","bounds"])
+    [eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc, eConst 0 dummyLoc, eVar "bounds"]
 
 addStretchySquare old (_,pt2) (_,pt1) =
   let (xMin, xMax, yMin, _) = View.squareBoundingBox pt2 pt1 in
@@ -442,7 +439,7 @@ addStretchySquare old (_,pt2) (_,pt1) =
     , makeLet ["bounds"] [eList (listOfRaw ["left","top","(+ left side)","(+ top side)"]) Nothing]
     , makeLet ["rot"] [eConst 0 dummyLoc]
     , makeLet ["color","strokeColor","strokeWidth"]
-              [randomColor old, eStr "black", eConst 0 dummyLoc] ]
+              [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
     (eVar0 "rectangle")
     (List.map eVar ["color","strokeColor","strokeWidth","rot","bounds"])
 
@@ -472,7 +469,7 @@ addStretchyOval old (_,pt2) (_,pt1) =
     [ makeLet ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
     , makeLet ["color","strokeColor","strokeWidth"]
-              [randomColor old, eStr "black", eConst 0 dummyLoc] ]
+              [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
     (eVar0 "oval")
     (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
 
@@ -483,7 +480,7 @@ addStretchyCircle old (_,pt2) (_,pt1) =
     , makeLet ["bounds"]
         [eList [eVar0 "left", eVar "top", eRaw "(+ left (* 2! r))", eRaw "(+ top (* 2! r))"] Nothing]
     , makeLet ["color","strokeColor","strokeWidth"]
-              [randomColor old, eStr "black", eConst 0 dummyLoc] ]
+              [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
     (eVar0 "oval")
     (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
 
@@ -534,7 +531,7 @@ addRawPolygon old keysAndPoints =
   addToCodeAndRun "polygon" old
     [ makeLet ["pts"] [eRaw sPts]
     , makeLet ["color","strokeColor","strokeWidth"]
-              [randomColor old, eStr "black", eConst 2 dummyLoc]
+              [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
     ]
     (eVar0 "rawPolygon")
     (List.map eVar ["color","strokeColor","strokeWidth","pts"])
@@ -559,7 +556,7 @@ addStretchablePolygon old keysAndPoints =
     [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
     , makeLet ["color","strokeColor","strokeWidth"]
-              [randomColor old, eStr "black", eConst 2 dummyLoc]
+              [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
     , makeLet ["pcts"] [eRaw sPcts] ]
     (eVar0 "stretchyPolygon")
     (List.map eVar ["bounds","color","strokeColor","strokeWidth","pcts"])
@@ -590,7 +587,7 @@ addStickyPolygon old keysAndPoints =
     [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
     , makeLet ["color","strokeColor","strokeWidth"]
-              [randomColor old, eStr "black", eConst 2 dummyLoc]
+              [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
     , makeLet ["offsets"] [eRaw sOffsets] ]
     (eVar0 "stickyPolygon")
     (List.map eVar ["bounds","color","strokeColor","strokeWidth","offsets"])
@@ -679,10 +676,7 @@ addStretchyPath old keysAndPoints =
     ([ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
      , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
      , makeLet ["strokeColor","strokeWidth","color"]
-               -- [randomColor old, eConst 5 dummyLoc, eStr "white"] ]
-               [ randomColor old
-               , withDummyPos (EConst " " 5 dummyLoc (intSlider 0 20))
-               , randomColor1WithSlider old ] ]
+               [ randomColor old, eConst 5 dummyLoc, randomColor1 old ] ]
      ++ extraLets
      ++ [ makeLet ["dPcts"] [eVar sD] ])
     (eVar0 "stretchyPath")

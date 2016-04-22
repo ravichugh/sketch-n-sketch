@@ -650,8 +650,9 @@ prelude =
     ] []
   ])))
 
+; string fill/stroke/stroke-width attributes to avoid sliders
 (def hiddenBoundingBox (\\bounds
-  (ghost (box bounds 'transparent' 'transparent' 0))))
+  (ghost (box bounds 'transparent' 'transparent' '0'))))
 
 (def simpleBoundingBox (\\bounds
   (ghost (box bounds 'transparent' 'darkblue' 1))))

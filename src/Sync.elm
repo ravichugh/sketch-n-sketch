@@ -1278,6 +1278,10 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v.v_ of
             let ee = ("stroke", ("StrokeBall", tr)) :: extraextra in
             (extra, ee, Dict.insert "stroke" tr dAttrs)
 
+          [VBase (String "stroke-width"), VConst (_,tr)] ->
+            let ee = ("stroke-width", ("StrokeWidthBall", tr)) :: extraextra in
+            (extra, ee, Dict.insert "stroke-width" tr dAttrs)
+
           -- NOTE: requires for a single cmd, and "transformRot" is a fake attr....
           [VBase (String "transform"), VList [vBlah]] ->
             case vBlah.v_ of
@@ -1442,6 +1446,7 @@ getZones kind extra ee =
 widgetZones = List.map <| \x -> case x of
   ("fill"         , ("FillBall"   , _)) -> ("FillBall"   , ["fill"])
   ("stroke"       , ("StrokeBall" , _)) -> ("StrokeBall" , ["stroke"])
+  ("stroke-width" , ("StrokeWidthBall" , _)) -> ("StrokeWidthBall" , ["stroke-width"])
   ("transformRot" , ("RotateBall" , _)) -> ("RotateBall" , ["transformRot"])
   _                                     -> Debug.crash "widgetZones"
 
@@ -1717,6 +1722,12 @@ makeTrigger_ opts d0 d2 slate subst id kind zone =
         let (n,t) = getAColorNum slate id "stroke" in
         let n' = LangSvg.clampColorNum (n + scaleColorBall * toFloat dx) in
         solveOne "stroke" (n', t)
+
+    (_, "StrokeWidthBall") ->
+      \_ (dx,dy) ->
+        let (n,t) = getANum slate id "stroke-width" in
+        let n' = LangSvg.clampStrokeWidthNum (n + scaleStrokeWidthBall * toFloat dx) in
+        solveOne "stroke-width" (n', t)
 
     (_, "RotateBall") ->
       let (rot,cx,cy) = getATransformRot slate id "transform" in
@@ -2023,6 +2034,9 @@ evalTr subst tr = Utils.fromJust_ "evalTr" (evalTrace subst tr)
 -- duplicated from InterfaceView2 for now
 wGradient = 250
 scaleColorBall = 1 / (wGradient / LangSvg.maxColorNum)
+
+wStrokeWidthBox = 60
+scaleStrokeWidthBall = 1 / (wStrokeWidthBox / LangSvg.maxStrokeWidthNum)
 
 
 ------------------------------------------------------------------------------

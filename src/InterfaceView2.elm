@@ -377,6 +377,7 @@ cursorOfZone zone default = case zone of
   -- indirect manipulation zones
   "FillBall"       -> cursorStyle "pointer"
   "StrokeBall"     -> cursorStyle "pointer"
+  "StrokeWidthBall" -> cursorStyle "pointer"
   "RotateBall"     -> cursorStyle "pointer"
   "SliderBall"     -> cursorStyle "pointer"
   -- default
@@ -498,6 +499,23 @@ projPt (x,y)                   = (fst x, fst y)
 halfwayBetween_ pt1 pt2        = halfwayBetween (projPt pt1) (projPt pt2)
 distance_ pt1 pt2              = distance (projPt pt1) (projPt pt2)
 
+--------------------------------------------------------------------------------
+
+zonesStroke model id shape x y l =
+  let x' = x + wGradient + 5
+      y' = y
+  in
+  zoneStrokeColor model id shape x  y  (maybeColorNumAttr "stroke" l) ++
+  zoneStrokeWidth model id shape x' y' (maybeStrokeWidthNumAttr l)
+
+zonesFillAndStroke model id shape x y l =
+  zoneFillColor model id shape x y (maybeColorNumAttr "fill" l) ++
+  zonesStroke model id shape x (y-20-5) l
+
+zoneFillColor   = zoneColor "FillBall" LangSvg.shapeFill
+zoneStrokeColor = zoneColor "StrokeBall" LangSvg.shapeStroke
+
+
 -- Stuff for Color Zones -------------------------------------------------------
 
 wGradient = 250
@@ -512,9 +530,6 @@ maybeColorNumAttr k l =
       LangSvg.AColorNum n -> Just n
       _                   -> Nothing
     _                     -> Nothing
-
-zoneFillColor   = zoneColor "FillBall" LangSvg.shapeFill
-zoneStrokeColor = zoneColor "StrokeBall" LangSvg.shapeStroke
 
 zoneColor zoneName shapeFeature model id shape x y rgba =
   case (model.showWidgets, rgba) of
@@ -571,6 +586,73 @@ zoneColor_ zoneName shapeFeature model id shape x y (n, trace) =
       [box color handler, ball]
     _ ->
       gradient () ++ [box "none" [], ball]
+
+-- Stuff for Stroke Width Zones ------------------------------------------------
+
+wStrokeWidthBox = 60
+scaleStrokeWidthBall = 1 / (wStrokeWidthBox / LangSvg.maxStrokeWidthNum)
+
+maybeStrokeWidthNumAttr : List LangSvg.Attr -> Maybe NumTr
+maybeStrokeWidthNumAttr l =
+  case Utils.maybeFind "stroke-width" l of
+    Just aval -> case aval.av_ of
+      LangSvg.ANum n -> Just n
+      _              -> Nothing
+    _                -> Nothing
+
+zoneStrokeWidth model id shape x y maybeStrokeWidth =
+  case (model.showWidgets, maybeStrokeWidth) of
+    (ShowAllWidgets, Just nt) -> zoneStrokeWidth_ model id shape x y nt
+    _                         -> []
+
+zoneStrokeWidth_ model id shape x y (n, trace) =
+  let (w, h, a, stroke, strokeWidth, rBall) =
+      (wStrokeWidthBox, LangSvg.maxStrokeWidthNum, 20, "silver", "2", "7") in
+  let yOff = a + rotZoneDelta in
+  let box color maybeEventHandler =
+    flip Svg.rect [] <|
+      [ LangSvg.attr "fill" color
+      , LangSvg.attr "stroke" stroke , LangSvg.attr "stroke-width" strokeWidth
+      , LangSvg.attr "x" (toString x) , LangSvg.attr "y" (toString (y - yOff))
+      , LangSvg.attr "width" (toString w) , LangSvg.attr "height" (toString h)
+      ] ++ maybeEventHandler
+  in
+  let ball =
+    let cx = x + (n / LangSvg.maxStrokeWidthNum) * wStrokeWidthBox in
+    let cy = y - yOff + (h/2) in
+    flip Svg.circle [] <|
+      [ LangSvg.attr "stroke" "black" , LangSvg.attr "stroke-width" strokeWidth
+      , LangSvg.attr "fill" stroke
+      , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString cy)
+      , LangSvg.attr "r"  rBall
+      , cursorOfZone "StrokeWidthBall" "default"
+      ] ++ zoneEvents id shape "StrokeWidthBall"
+  in
+  let triangle =
+    let (x0,y0) = (x                   , y - yOff + h/2 ) in
+    let (x1,y1) = (x + wStrokeWidthBox , y - yOff       ) in
+    let (x2,y2) = (x + wStrokeWidthBox , y - yOff + h   ) in
+    svgPath
+       [ LangSvg.attr "fill" "darkgray"
+       , LangSvg.attr "d"
+           ("M " ++ toString x0 ++ " " ++ toString y0 ++
+           " L " ++ toString x1 ++ " " ++ toString y1 ++
+           " L " ++ toString x2 ++ " " ++ toString y2 ++ " Z")
+       ]
+  in
+  case (model.toolMode, model.cursorTool) of
+    (Cursors, SelectFeatures) ->
+      let typeAndNodeIdAndFeature =
+        (InterfaceModel.selectedTypeShapeFeature, id, LangSvg.shapeStrokeWidth) in
+      let handler = [onMouseDown (toggleSelected model [typeAndNodeIdAndFeature])] in
+      let color =
+        if Set.member typeAndNodeIdAndFeature model.selectedFeatures
+          then colorPointSelected
+          else colorPointNotSelected
+      in
+      [box color handler, ball]
+    _ ->
+      [box "none" [], triangle, ball]
 
 
 -- Stuff for Delete Zones ------------------------------------------------------
@@ -819,9 +901,7 @@ makeZones model shape id l =
           let c = halfwayBetween_ pt1 pt2 in
           let r = (distance_ pt1 pt2 / 2) - rotZoneDelta in
           zoneRotate model id shape c r (maybeTransformCmds l) in
-        let zColor =
-          zoneStrokeColor model id shape (fst x2) (fst y2) (maybeColorNumAttr "stroke" l)
-        in
+        let zStroke = zonesStroke model id shape (fst x2) (fst y2) l in
         let zSelect =
           List.concat
              [ zoneSelectCrossDot model (id, [LangSvg.lineCX], [LangSvg.lineCY]) ((fst x1)/2+(fst x2)/2) ((fst y1)/2+(fst y2)/2)
@@ -832,7 +912,7 @@ makeZones model shape id l =
             Nothing     -> []
             Just blobId -> zoneBlobLine model blobId id x1 x2 y1 y2
         in
-        zLine :: zPts ++ zRot ++ zColor ++ zSelect ++ zGroup
+        zLine :: zPts ++ zRot ++ zStroke ++ zSelect ++ zGroup
 
     "polygon"  -> makeZonesPoly model shape id l
     "polyline" -> makeZonesPoly model shape id l
@@ -867,9 +947,7 @@ makeZonesRect model shape id l =
     let r = rotZoneDelta + (h/2) in
     zoneRotate model id shape c r (maybeTransformCmds l)
   in
-  let zColor =
-    zoneFillColor model id shape x y (maybeColorNumAttr "fill" l)
-  in
+  let zFillAndStroke = zonesFillAndStroke model id shape x y l in
   let zonesSelect =
        zoneSelectLine model id LangSvg.rectWidth (x,y+h/2) (x+w,y+h/2)
     ++ zoneSelectLine model id LangSvg.rectHeight (x+w/2,y) (x+w/2,y+h)
@@ -893,7 +971,7 @@ makeZonesRect model shape id l =
     , mk "TopEdge"        x1 y0 wWide hSlim
     , mk "TopRightCorner" x2 y0 wSlim hSlim
     ] ++ zRot
-      ++ zColor
+      ++ zFillAndStroke
       ++ zoneDelete id shape x y (maybeTransformAttr l)
       ++ zonesSelect
 
@@ -923,9 +1001,7 @@ makeZonesBox model id l =
     let r = rotZoneDelta + (height/2) in
     zoneRotate model id "BOX" (cx,cy) r (maybeTransformCmds l)
   in
-  let zColor =
-    zoneFillColor model id "BOX" left top (maybeColorNumAttr "fill" l)
-  in
+  let zFillAndStroke = zonesFillAndStroke model id "BOX" left top l in
   let zonesSelect =
        zoneSelectLine model id LangSvg.boxWidth (left, cy) (right, cy)
     ++ zoneSelectLine model id LangSvg.boxHeight (cx, top) (cx, bot)
@@ -950,7 +1026,7 @@ makeZonesBox model id l =
     , mkPoint "BotEdge" (left + width / 2) bot
     ] ++ zonesSelect
       ++ zRot
-      ++ zColor
+      ++ zFillAndStroke
     -- TODO styles of interior and point zones
 
 makeZonesCircle model id l =
@@ -966,7 +1042,7 @@ makeZonesCircle model id l =
      [zoneBorder Svg.circle model id "circle" "Edge" True attrs transform]
   ++ [zoneBorder Svg.circle model id "circle" "Interior" False attrs transform]
   ++ (zoneRotate model id "circle" (cx,cy) (r + rotZoneDelta) (maybeTransformCmds l))
-  ++ (zoneFillColor model id "circle" (cx - r) (cy - r) (maybeColorNumAttr "fill" l))
+  ++ (zonesFillAndStroke model id "circle" (cx - r) (cy - r) l)
   ++ (zoneSelectLine model id LangSvg.circleR (cx,cy) (cx+r,cy))
   ++ zoneSelectCrossDot model (id, [LangSvg.circleTCX], [LangSvg.circleTCY]) cx top
   ++ zoneSelectCrossDot model (id, [LangSvg.circleBCX], [LangSvg.circleBCY]) cx bottom
@@ -987,7 +1063,7 @@ makeZonesEllipse model id l =
      [zoneBorder Svg.ellipse model id "ellipse" "Edge" True attrs transform]
   ++ [zoneBorder Svg.ellipse model id "ellipse" "Interior" False attrs transform]
   ++ (zoneRotate model id "circle" (cx,cy) (ry + rotZoneDelta) (maybeTransformCmds l))
-  ++ (zoneFillColor model id "ellipse" (cx - rx) (cy - ry) (maybeColorNumAttr "fill" l))
+  ++ (zonesFillAndStroke model id "ellipse" (cx - rx) (cy - ry) l)
   ++ (zoneSelectLine model id LangSvg.ellipseRX (cx,cy) (cx+rx,cy))
   ++ (zoneSelectLine model id LangSvg.ellipseRY (cx,cy-ry) (cx,cy))
   ++ zoneSelectCrossDot model (id, [LangSvg.ellipseTCX], [LangSvg.ellipseTCY]) cx top
@@ -1009,10 +1085,10 @@ makeZonesPoly model shape id l =
     zoneBorder Svg.polygon model id shape "Interior" False transform [
         LangSvg.compileAttr "points" (LangSvg.aPoints pts)
       ] in
-  let zRot =
+  let zFillAndStroke =
     case pts of
       (((x0,_),(y0,_))::_) ->
-        zoneFillColor model id shape x0 y0 (maybeColorNumAttr "fill" l)
+        zonesFillAndStroke model id shape x0 y0 l
       _ ->
         Debug.crash "makeZonesPoly" in
   let zSelect =
@@ -1034,9 +1110,9 @@ makeZonesPoly model shape id l =
     midptCrossDots ++ crossDots
   in
   let firstEqLast xs = Utils.head_ xs == Utils.head_ (List.reverse xs) in
-  if shape == "polygon"   then zInterior :: (zLines ++ zPts ++ zRot ++ zSelect)
-  else if firstEqLast pts then zInterior :: (zLines ++ zPts ++ zRot ++ zSelect)
-  else                         zLines ++ zPts ++ zRot ++ zSelect
+  if shape == "polygon"   then zInterior :: (zLines ++ zPts ++ zFillAndStroke ++ zSelect)
+  else if firstEqLast pts then zInterior :: (zLines ++ zPts ++ zFillAndStroke ++ zSelect)
+  else                         zLines ++ zPts ++ zFillAndStroke ++ zSelect
 
 makeZonesPath : Model -> String -> Int -> List LangSvg.Attr -> List Svg.Svg
 makeZonesPath model shape id nodeAttrs =
@@ -1058,10 +1134,10 @@ makeZonesPath model shape id nodeAttrs =
   let dots =
     zonePoints model id shape transform pts
   in
-  let zFillColor =
+  let zFillAndStroke =
     case pts of
       (((x0,_),(y0,_))::_) ->
-        zoneFillColor model id shape x0 y0 (maybeColorNumAttr "fill" nodeAttrs)
+        zonesFillAndStroke model id shape x0 y0 nodeAttrs
       _ ->
         Debug.crash "makeZonesPath"
   in
@@ -1074,7 +1150,7 @@ makeZonesPath model shape id nodeAttrs =
     let crossDots = List.concatMap ptCrossDot listOfMaybeIndexWithPt in
     crossDots
   in
-  dots ++ zFillColor ++ zSelect
+  dots ++ zFillAndStroke ++ zSelect
 
 makeZonesGroup model nodeId l =
   case (maybeFindBounds l, maybeFindBlobId l) of

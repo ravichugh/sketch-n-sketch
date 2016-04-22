@@ -1087,6 +1087,7 @@ featureEquation nodeId kind feature nodeAttrs =
   in
   if feature == LangSvg.shapeFill then eqnVal "fill"
   else if feature == LangSvg.shapeStroke then eqnVal "stroke"
+  else if feature == LangSvg.shapeStrokeWidth then eqnVal "stroke-width"
   else if feature == LangSvg.shapeRotation then
     let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ nodeAttrs "transform" in
     EqnVal (vConst rot)

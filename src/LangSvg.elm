@@ -99,6 +99,9 @@ aPath2        = aVal << APath2
 maxColorNum   = 500
 clampColorNum = Utils.clamp 0 (maxColorNum - 1)
 
+maxStrokeWidthNum = 20
+clampStrokeWidthNum = toFloat << round << Utils.clamp 0 maxStrokeWidthNum
+
 type alias Point = (NumTr, NumTr)
 type alias Rgba  = (NumTr, NumTr, NumTr, NumTr)
 
@@ -487,6 +490,7 @@ type alias ShapeFeature = String
 -- So we can gather them back up into (X,Y) pairs again.
 shapeFill = "fill"
 shapeStroke = "stroke"
+shapeStrokeWidth = "strokeWidth"
 shapeRotation = "rotation"
 rectTLX = "rectTLX"
 rectTLY = "rectTLY"
