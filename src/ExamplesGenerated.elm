@@ -2623,23 +2623,7 @@ thawFreeze =
 
 "
 
-deleteBoxes =
- "
-# unannotated-numbers: n!
-
-; notice that need to use * instead of mult
-
-(def deleteBoxes
-  (let [x0 y0 w h sep] [21? 40? 60? 130? 100?]
-  (let boxi (\\i
-    (let xi (+ x0 (* i sep))
-    (rect 'lightblue' xi y0 w h)))
-  (svg (map boxi [| 0 1 2..4 5 |])))))
-
-deleteBoxes
-
-"
-
+-- LITTLE_TO_ELM deleteBoxes
 cover =
  "; Logo for Cover
 ; see https://github.com/florence/cover
@@ -3852,39 +3836,10 @@ spiralSpiralGraph =
 (svg theCircles)
 "
 
-relateRects0 =
- "(svg [
-  (rect 'maroon' 49 106 124 86)
-  (rect 'blue' 214 91 125 102)
-  (rect 'lightgray' 378 231 91 98)
-])
-
-"
-
-relateRects1 =
- "(svg [
-  (addAttr (rect 'maroon' 49 106 124 86) ['rx' 20])
-  (addAttr (addAttr (rect 'blue' 214 91 125 102) ['rx' 10]) ['ry' 30])
-  (rect 'lightgray' 378 231 91 98)
-])
-
-"
-
-relateCircles0 =
- "(svg (map (\\i (circle 'lightblue' (+ 42 (* i 60)) 98 30)) [|0..6|]))
-
-"
-
-relateLines0 =
- "(svg [
-  (line 'darkred' 5 109 274 301 95)
-  (line 'darkgreen' 5 202 100 189 288)
-  (line 'darkblue' 5 100 100 291 282)
-  (line 'salmon' 5 93 178 310 206)
-])
-
-"
-
+-- LITTLE_TO_ELM relateRects0
+-- LITTLE_TO_ELM relateRects1
+-- LITTLE_TO_ELM relateCircles0
+-- LITTLE_TO_ELM relateLines0
 -- LITTLE_TO_ELM relatePoints0
 -- LITTLE_TO_ELM relatePoints1
 -- LITTLE_TO_ELM relatePoints2
@@ -3906,16 +3861,16 @@ examples =
   , makeExample "Wave Boxes Grid" sineWaveGrid
 
   -- up here during ad-hoc development
-  , makeExample "RelateRects0" relateRects0
-  , makeExample "RelateRects1" relateRects1
-  , makeExample "RelateCircles0" relateCircles0
-  , makeExample "RelateLines0" relateLines0
+  -- , makeExample "RelateRects0" relateRects0
+  -- , makeExample "RelateRects1" relateRects1
+  -- , makeExample "RelateCircles0" relateCircles0
+  -- , makeExample "RelateLines0" relateLines0
   -- , makeExample "RelatePoints0" relatePoints0
   -- , makeExample "RelatePoints1" relatePoints1
   -- , makeExample "RelatePoints2" relatePoints2
   -- , makeExample "RelatePoints3" relatePoints3
   -- , makeExample "RelatePoints4" relatePoints4
-  , makeExample "Delete Boxes" deleteBoxes
+  -- , makeExample "Delete Boxes" deleteBoxes
 
   , makeExample "Basic Slides" basicSlides
   , makeExample "Logo" logo

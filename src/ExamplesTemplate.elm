@@ -79,7 +79,7 @@ LITTLE_TO_ELM rotTest
 LITTLE_TO_ELM interfaceButtons
 LITTLE_TO_ELM barGraph
 LITTLE_TO_ELM thawFreeze
-LITTLE_TO_ELM deleteBoxes
+-- LITTLE_TO_ELM deleteBoxes
 LITTLE_TO_ELM cover
 LITTLE_TO_ELM poppl
 LITTLE_TO_ELM bezier
@@ -101,10 +101,10 @@ LITTLE_TO_ELM floralLogo2
 LITTLE_TO_ELM zones
 LITTLE_TO_ELM roundedRect
 LITTLE_TO_ELM spiralSpiralGraph
-LITTLE_TO_ELM relateRects0
-LITTLE_TO_ELM relateRects1
-LITTLE_TO_ELM relateCircles0
-LITTLE_TO_ELM relateLines0
+-- LITTLE_TO_ELM relateRects0
+-- LITTLE_TO_ELM relateRects1
+-- LITTLE_TO_ELM relateCircles0
+-- LITTLE_TO_ELM relateLines0
 -- LITTLE_TO_ELM relatePoints0
 -- LITTLE_TO_ELM relatePoints1
 -- LITTLE_TO_ELM relatePoints2
@@ -121,16 +121,16 @@ examples =
   , makeExample "Wave Boxes Grid" sineWaveGrid
 
   -- up here during ad-hoc development
-  , makeExample "RelateRects0" relateRects0
-  , makeExample "RelateRects1" relateRects1
-  , makeExample "RelateCircles0" relateCircles0
-  , makeExample "RelateLines0" relateLines0
+  -- , makeExample "RelateRects0" relateRects0
+  -- , makeExample "RelateRects1" relateRects1
+  -- , makeExample "RelateCircles0" relateCircles0
+  -- , makeExample "RelateLines0" relateLines0
   -- , makeExample "RelatePoints0" relatePoints0
   -- , makeExample "RelatePoints1" relatePoints1
   -- , makeExample "RelatePoints2" relatePoints2
   -- , makeExample "RelatePoints3" relatePoints3
   -- , makeExample "RelatePoints4" relatePoints4
-  , makeExample "Delete Boxes" deleteBoxes
+  -- , makeExample "Delete Boxes" deleteBoxes
 
   , makeExample "Basic Slides" basicSlides
   , makeExample "Logo" logo
