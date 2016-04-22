@@ -680,7 +680,7 @@ addStretchyPath old keysAndPoints =
      , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
      , makeLet ["strokeColor","strokeWidth","color"]
                -- [randomColor old, eConst 5 dummyLoc, eStr "white"] ]
-               [ randomColorWithSlider old
+               [ randomColor old
                , withDummyPos (EConst " " 5 dummyLoc (intSlider 0 20))
                , randomColor1WithSlider old ] ]
      ++ extraLets

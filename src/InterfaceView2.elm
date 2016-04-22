@@ -1058,6 +1058,13 @@ makeZonesPath model shape id nodeAttrs =
   let dots =
     zonePoints model id shape transform pts
   in
+  let zFillColor =
+    case pts of
+      (((x0,_),(y0,_))::_) ->
+        zoneFillColor model id shape x0 y0 (maybeColorNumAttr "fill" nodeAttrs)
+      _ ->
+        Debug.crash "makeZonesPath"
+  in
   let zSelect =
     let ptCrossDot (maybeIndex, ((xi,_),(yi,_))) =
       let i = Utils.fromJust maybeIndex in
@@ -1067,7 +1074,7 @@ makeZonesPath model shape id nodeAttrs =
     let crossDots = List.concatMap ptCrossDot listOfMaybeIndexWithPt in
     crossDots
   in
-  dots ++ zSelect
+  dots ++ zFillColor ++ zSelect
 
 makeZonesGroup model nodeId l =
   case (maybeFindBounds l, maybeFindBlobId l) of
