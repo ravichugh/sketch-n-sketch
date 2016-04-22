@@ -1866,13 +1866,14 @@ upstate evt old = case debugLog "Event" evt of
           { old | midOffsetX = x , midOffsetY = y }
 
         MouseObject objid kind zone Nothing ->
-          let onNewPos = createMousePosCallback mx my objid kind zone old in
           let mStuff = maybeStuff objid kind zone old in
-          let blah = Just (old.code, mStuff, onNewPos) in
+          let blah = Just (old.code, mStuff, (mx, my)) in
           { old | mouseMode = MouseObject objid kind zone blah }
 
-        MouseObject _ _ _ (Just (_, mStuff, onNewPos)) ->
-          let (newE,newV,changes,newSlate,newWidgets) = onNewPos (mx, my) in
+        MouseObject objid kind zone (Just (_, mStuff, (mx0, my0))) ->
+          let (dx, dy) = (mx - mx0, my - my0) in
+          let (newE,newV,changes,newSlate,newWidgets) =
+            applyTrigger objid kind zone old mx0 my0 dx dy in
           { old | code = unparse newE
                 , inputExp = newE
                 , inputVal = newV
@@ -1941,8 +1942,6 @@ upstate evt old = case debugLog "Event" evt of
         (_, MouseDrawNew points) ->
           case (old.shapeTool, points, old.keysDown == Keys.shift) of
 
-            (_, [], _) -> switchToCursorTool old
-
             (Line _,     [pt2, pt1], _) -> addLineToCodeAndRun old pt2 pt1
             (HelperLine, [pt2, pt1], _) -> addLineToCodeAndRun old pt2 pt1
 
@@ -1962,6 +1961,9 @@ upstate evt old = case debugLog "Event" evt of
 
             (Poly _, _, _) -> old
             (Path _, _, _) -> old
+
+            (_, [], _) -> switchToCursorTool old
+
             _              -> old -- TODO
 
         _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
@@ -2400,297 +2402,20 @@ adjustMidOffsetY old dy =
 --------------------------------------------------------------------------------
 -- Mouse Callbacks for Zones
 
-type alias OnMouse =
-  { posX : Num -> Num , posY : Num -> Num
-  , negX : Num -> Num , negY : Num -> Num
-  -- , posXposY : Num -> Num
-  }
-
-createMousePosCallback mx my objid kind zone old =
- case Utils.justGet_ "#3" objid (snd old.slate) of
- LangSvg.TextNode _ -> Debug.crash "createMousePosCallback TextNode"
- LangSvg.SvgNode _ attrs _ ->
-  let numAttr = toNum << Utils.find_ attrs in
-  let mapNumAttr f a =
-    let av = Utils.find_ attrs a in
-    let (n,trace) = toNumTr av in
-    (a, LangSvg.AVal (LangSvg.ANum (f n, trace)) av.vtrace) in
-      -- preserve existing VTrace
-
-  \(mx',my') ->
-
-    let scaledPosX scale n = n + scale * (toFloat mx' - toFloat mx) in
-
-{-
-    let posX n = n - toFloat mx + toFloat mx' in
-    let posY n = n - toFloat my + toFloat my' in
-    let negX n = n + toFloat mx - toFloat mx' in
-    let negY n = n + toFloat my - toFloat my' in
--}
-    let posX n = if old.keysDown == Keys.y then n else n - toFloat mx + toFloat mx' in
-    let posY n = if old.keysDown == Keys.x then n else n - toFloat my + toFloat my' in
-    let negX n = if old.keysDown == Keys.y then n else n + toFloat mx - toFloat mx' in
-    let negY n = if old.keysDown == Keys.x then n else n + toFloat my - toFloat my' in
-
-    -- let posXposY n =
-    --   let dx = toFloat mx - toFloat mx' in
-    --   let dy = toFloat my - toFloat my' in
-    --   if | abs dx >= abs dy  -> n - dx
-    --      | otherwise         -> n - dy in
-
-    let onMouse =
-      { posX = posX, posY = posY, negX = negX, negY = negY } in
-
-    -- let posX' (n,tr) = (posX n, tr) in
-    -- let posY' (n,tr) = (posY n, tr) in
-    -- let negX' (n,tr) = (negX n, tr) in
-    -- let negY' (n,tr) = (negY n, tr) in
-
-    let fx  = mapNumAttr posX in
-    let fy  = mapNumAttr posY in
-    let fx_ = mapNumAttr negX in
-    let fy_ = mapNumAttr negY in
-
-    let fxColorBall =
-      mapNumAttr (LangSvg.clampColorNum << scaledPosX View.scaleColorBall) in
-
-    let ret l = (l, l) in
-
-    let (newRealAttrs,newFakeAttrs) =
-      case (kind, zone) of
-
-        -- first match zones that can be attached to different shape kinds...
-
-        (_, "FillBall")   -> ret [fxColorBall "fill"]
-        (_, "StrokeBall") -> ret [fxColorBall "stroke"]
-        (_, "RotateBall") -> createCallbackRotate (toFloat mx) (toFloat my)
-                                                  (toFloat mx') (toFloat my')
-                                                  kind objid old
-
-        -- ... and then match each kind of shape separately
-
-        ("rect", "Interior")       -> ret [fx "x", fy "y"]
-        ("rect", "RightEdge")      -> ret [fx "width"]
-        ("rect", "BotRightCorner") -> ret [fx "width", fy "height"]
-        ("rect", "BotEdge")        -> ret [fy "height"]
-        ("rect", "BotLeftCorner")  -> ret [fx "x", fx_ "width", fy "height"]
-        ("rect", "LeftEdge")       -> ret [fx "x", fx_ "width"]
-        ("rect", "TopLeftCorner")  -> ret [fx "x", fy "y", fx_ "width", fy_ "height"]
-        ("rect", "TopEdge")        -> ret [fy "y", fy_ "height"]
-        ("rect", "TopRightCorner") -> ret [fy "y", fx "width", fy_ "height"]
-
-        ("BOX", "Interior")        -> ret [fx "LEFT", fy "TOP", fx "RIGHT", fy "BOT"]
-        ("BOX", "RightEdge")       -> ret [fx "RIGHT"]
-        ("BOX", "BotRightCorner")  -> ret [fx "RIGHT", fy "BOT"]
-        ("BOX", "BotEdge")         -> ret [fy "BOT"]
-        ("BOX", "BotLeftCorner")   -> ret [fx "LEFT", fy "BOT"]
-        ("BOX", "LeftEdge")        -> ret [fx "LEFT"]
-        ("BOX", "TopLeftCorner")   -> ret [fx "LEFT", fy "TOP"]
-        ("BOX", "TopEdge")         -> ret [fy "TOP"]
-        ("BOX", "TopRightCorner")  -> ret [fy "TOP", fx "RIGHT"]
-
-        ("circle", "Interior") -> ret [fx "cx", fy "cy"]
-        ("circle", "Edge") ->
-          let (cx,cy) = Utils.unwrap2 <| List.map numAttr ["cx", "cy"] in
-          let dx = if toFloat mx >= cx then mx' - mx else mx - mx' in
-          let dy = if toFloat my >= cy then my' - my else my - my' in
-          ret [ (mapNumAttr (\r -> r + toFloat (max dx dy)) "r") ]
-
-        ("ellipse", "Interior") -> ret [fx "cx", fy "cy"]
-        ("ellipse", "Edge")     ->
-          let (cx,cy) = Utils.unwrap2 <| List.map numAttr ["cx", "cy"] in
-          let dx = if toFloat mx >= cx then fx else fx_ in
-          let dy = if toFloat my >= cy then fy else fy_ in
-          ret [dx "rx", dy "ry"]
-
-        ("line", "Edge") -> ret [fx "x1", fx "x2", fy "y1", fy "y2"]
-        ("line", _) ->
-          case LangSvg.realZoneOf zone of
-            LangSvg.ZPoint i -> ret [fx (addi "x" i), fy (addi "y" i)]
-            _                -> Debug.crash "createMousePosCallback line"
-
-        ("polygon", _)  -> createCallbackPoly zone kind objid old onMouse
-        ("polyline", _) -> createCallbackPoly zone kind objid old onMouse
-
-        ("path", _) -> createCallbackPath zone kind objid old onMouse
-
-        _ -> Debug.crash "createMousePosCallback"
-
-    in
-    let newTree = List.foldr (upslate objid) (snd old.slate) newRealAttrs in
-      case old.mode of
-        AdHoc -> (old.inputExp, old.inputVal, Dict.empty, (fst old.slate, newTree), old.widgets)
-        Live info ->
-          case Utils.justGet_ "#4" zone (Utils.justGet_ "#5" objid info.triggers) of
-            -- Nothing -> (Utils.fromJust old.inputExp, newSlate)
-            Nothing -> Debug.crash "shouldn't happen due to upstate SelectObject"
-            Just trigger ->
-              -- let (newE,otherChanges) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
-              let (newE,changes) = trigger (List.map (Utils.mapSnd toNum) newFakeAttrs) in
-              if not Sync.tryToBeSmart then
-                let (newV,newWidgets) = Eval.run newE in
-                (newE, newV, changes, LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime newV, newWidgets)
-              else
-                Debug.crash "Controller tryToBeSmart"
-              {-
-              let newSlate' =
-                Dict.foldl (\j dj acc1 ->
-                  let _ = Debug.crash "TODO: dummyTrace is probably a problem..." in
-                  Dict.foldl
-                    (\a n acc2 -> upslate j (a, LangSvg.ANum (n, dummyTrace)) acc2) acc1 dj
-                  ) newSlate otherChanges
-              in
-              (newE, newSlate')
-              -}
-        _ -> Debug.crash "createMousePosCallback"
-
--- Callbacks for Polygons/Polylines
-
-createCallbackPoly zone shape =
-  let _ = Utils.assert "createCallbackPoly" (shape == "polygon" || shape == "polyline") in
-  case LangSvg.realZoneOf zone of
-    LangSvg.Z "Interior" -> polyInterior shape
-    LangSvg.ZPoint i     -> polyPoint i shape
-    LangSvg.ZEdge i      -> polyEdge i shape
-    _                    -> Debug.crash "createCallbackPoly"
-
--- TODO:
---  - differentiate between "polygon" and "polyline" for interior
---  - rethink/refactor point/edge zones
-
-lift : (Num -> Num) -> (NumTr -> NumTr)
-lift f (n,t) = (f n, t)
-
--- TODO everywhere aNum, aTransform, etc is called, preserve vtrace
-
-polyInterior shape objid old onMouse =
-  case Dict.get objid (snd old.slate) of
-    Just (LangSvg.SvgNode _ nodeAttrs _) ->
-      let pts = toPoints <| Utils.find_ nodeAttrs "points" in
-      let accs =
-        let foo (j,(xj,yj)) (acc1,acc2) =
-          let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
-          let acc2' = (addi "x"j, LangSvg.aNum xj') :: (addi "y"j, LangSvg.aNum yj') :: acc2 in
-          ((xj',yj')::acc1, acc2')
-        in
-        Utils.foldli foo ([],[]) pts
-      in
-      let (acc1,acc2) = Utils.reverse2 accs in
-      ([("points", LangSvg.aPoints acc1)], acc2)
-    _ ->
-      Debug.crash "polyInterior"
-
-polyPoint i shape objid old onMouse =
-  case Dict.get objid (snd old.slate) of
-    Just (LangSvg.SvgNode _ nodeAttrs _) ->
-      let pts = toPoints <| Utils.find_ nodeAttrs "points" in
-      let accs =
-        let foo (j,(xj,yj)) (acc1,acc2) =
-          if i /= j
-            then ((xj,yj)::acc1, acc2)
-            else let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
-                 let acc2' = (addi "x"i, LangSvg.aNum xj')
-                             :: (addi "y"i, LangSvg.aNum yj')
-                             :: acc2 in
-                 ((xj',yj')::acc1, acc2')
-        in
-        Utils.foldli foo ([],[]) pts
-      in
-      let (acc1,acc2) = Utils.reverse2 accs in
-      ([("points", LangSvg.aPoints acc1)], acc2)
-    _ ->
-      Debug.crash "polyPoint"
-
-polyEdge i shape objid old onMouse =
-  case Dict.get objid (snd old.slate) of
-    Just (LangSvg.SvgNode _ nodeAttrs _) ->
-      let pts = toPoints <| Utils.find_ nodeAttrs "points" in
-      let n = List.length pts in
-      let accs =
-        let foo (j,(xj,yj)) (acc1,acc2) =
-          if i == j || (i == n && j == 1) || (i < n && j == i+1) then
-            let (xj',yj') = (lift onMouse.posX xj, lift onMouse.posY yj) in
-            let acc2' = (addi "x"j, LangSvg.aNum xj')
-                        :: (addi "y"j, LangSvg.aNum yj')
-                        :: acc2 in
-            ((xj',yj')::acc1, acc2')
-          else
-            ((xj,yj)::acc1, acc2)
-        in
-        Utils.foldli foo ([],[]) pts
-      in
-      let (acc1,acc2) = Utils.reverse2 accs in
-      ([("points", LangSvg.aPoints acc1)], acc2)
-    _ ->
-      Debug.crash "polyEdge"
-
--- Callbacks for Paths
-
-createCallbackPath zone shape =
-  let _ = Utils.assert "createCallbackPath" (shape == "path") in
-  case LangSvg.realZoneOf zone of
-    LangSvg.ZPoint i -> pathPoint i
-    _                -> Debug.crash "createCallbackPath"
-
-pathPoint i objid old onMouse =
-
-  let updatePt (mj,(x,y)) =
-    if mj == Just i
-      then (mj, (lift onMouse.posX x, lift onMouse.posY y))
-      else (mj, (x, y)) in
-  let addFakePts =
-    List.foldl <| \(mj,(x,y)) acc ->
-      if mj == Just i
-        then (addi "x"i, LangSvg.aNum x) :: (addi "y"i, LangSvg.aNum y) :: acc
-        else acc in
-
-  case Dict.get objid (snd old.slate) of
-    Just (LangSvg.SvgNode _ nodeAttrs _) ->
-      let (cmds,counts) = LangSvg.toPath <| Utils.find_ nodeAttrs "d" in
-      let accs =
-        let foo c (acc1,acc2) =
-          let (c',acc2') = case c of
-            LangSvg.CmdZ s ->
-              (LangSvg.CmdZ s, acc2)
-            LangSvg.CmdMLT s pt ->
-              let pt' = updatePt pt in
-              (LangSvg.CmdMLT s pt', addFakePts acc2 [pt'])
-            LangSvg.CmdHV s n ->
-              (LangSvg.CmdHV s n, acc2)
-            LangSvg.CmdC s pt1 pt2 pt3 ->
-              let (pt1',pt2',pt3') = Utils.unwrap3 <| List.map updatePt [pt1,pt2,pt3] in
-              (LangSvg.CmdC s pt1' pt2' pt3', addFakePts acc2 [pt1',pt2',pt3'])
-            LangSvg.CmdSQ s pt1 pt2 ->
-              let (pt1',pt2') = Utils.unwrap2 <| List.map updatePt [pt1,pt2] in
-              (LangSvg.CmdSQ s pt1' pt2' , addFakePts acc2 [pt1',pt2'])
-            LangSvg.CmdA s a b c d e pt ->
-              let pt' = updatePt pt in
-              (LangSvg.CmdA s a b c d e pt', addFakePts acc2 [pt'])
-          in
-          (c' :: acc1, acc2')
-        in
-        List.foldr foo ([],[]) cmds
-      in
-      let (acc1,acc2) = Utils.reverse2 accs in
-      ([("d", LangSvg.aPath2 (acc1, counts))], acc2)
-
-    _ ->
-      Debug.crash "pathPoint"
-
--- Callbacks for Rotate zones
-
-createCallbackRotate mx0 my0 mx1 my1 shape objid old =
-  case Dict.get objid (snd old.slate) of
-    Just (LangSvg.SvgNode _ nodeAttrs _) ->
-      let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ nodeAttrs "transform" in
-      let rot' =
-        let a0 = Utils.radiansToDegrees <| atan2 (fst cy - my0) (mx0 - fst cx) in
-        let a1 = Utils.radiansToDegrees <| atan2 (fst cy - my1) (mx1 - fst cx) in
-        (fst rot + (a0 - a1), snd rot) in
-      let real = [("transform", LangSvg.aTransform [LangSvg.Rot rot' cx cy])] in
-      let fake = [("transformRot", LangSvg.aNum rot')] in
-      (real, fake)
-    _ -> Debug.crash "createCallbackRotate"
+applyTrigger objid kind zone old mx0 my0 dx_ dy_ =
+  let dx = if old.keysDown == Keys.y then 0 else dx_ in
+  let dy = if old.keysDown == Keys.x then 0 else dy_ in
+  case old.mode of
+    AdHoc ->
+      (old.inputExp, old.inputVal, Dict.empty, old.slate, old.widgets)
+    Live info ->
+      case Utils.justGet_ "#4" zone (Utils.justGet_ "#5" objid info.triggers) of
+        Nothing -> Debug.crash "shouldn't happen due to upstate SelectObject"
+        Just trigger ->
+          let (newE,changes) = trigger (mx0, my0) (dx, dy) in
+          let (newVal,newWidgets) = Eval.run newE in
+          (newE, newVal, changes, LangSvg.valToIndexedTree newVal, newWidgets)
+    _ -> Debug.crash "applyTrigger"
 
 
 --------------------------------------------------------------------------------
