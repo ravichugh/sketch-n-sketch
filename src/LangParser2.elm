@@ -119,7 +119,8 @@ freshenRanges k rs =
 recordIdentifiers (p,e) =
  let ret e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
  case (p.val, e.val.e__) of
-  (PVar _ x _, EConst ws n (k, b, "") wd) -> ret <| EConst ws n (k, b, x) wd
+  -- (PVar _ x _, EConst ws n (k, b, "") wd) -> ret <| EConst ws n (k, b, x) wd
+  (PVar _ x _, EConst ws n (k, b, _) wd) -> ret <| EConst ws n (k, b, x) wd
   (PList _ ps _ mp _, EList ws1 es ws2 me ws3) ->
     case U.maybeZip ps es of
       Nothing  -> ret <| EList ws1 es ws2 me ws3
@@ -246,6 +247,8 @@ parens      = delimit "(" ")"
 
 parseNumV = (\(n,b) -> vConst (n, dummyTrace_ b)) <$> parseNum
 
+dummyLocWithDebugInfo b n = (0, b, "literal" ++ toString n)
+
 parseNumE =
   whitespace                   >>= \ws ->
   parseNum                     >>= \nb ->
@@ -254,9 +257,9 @@ parseNumE =
     -- see other comments about NoWidgetDecl
     case wd.val of
       NoWidgetDecl ->
-        P.returnWithInfo (exp_ (EConst ws.val n (dummyLoc_ b) wd)) nb.start nb.end
+        P.returnWithInfo (exp_ (EConst ws.val n (dummyLocWithDebugInfo b n) wd)) nb.start nb.end
       _ ->
-        P.returnWithInfo (exp_ (EConst ws.val n (dummyLoc_ b) wd)) nb.start wd.end
+        P.returnWithInfo (exp_ (EConst ws.val n (dummyLocWithDebugInfo b n) wd)) nb.start wd.end
 {-
         let _ =
           if b == unann then ()

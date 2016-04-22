@@ -1045,37 +1045,28 @@ flw2 =
 "
 
 ferris =
- ";
+ "
 ; Take this ferris wheel for a spin!
-;
 ; Try:
 ;  - Stretching the passenger cars
 ;  - Stretching the central hub
 ;  - Dragging the central hub
 ;  - Setting showSliders to false
-;
-(let [numSpokes_ spokeLen_ rotAngle_] [5 80 0]
-(let showSliders true
-;
-(let [numSpokes s1] (hSlider true 20! 420! 20! 3! 15! '' numSpokes_)
-(let [spokeLen s2] (hSlider true 20! 420! 50! 40! 200! '' spokeLen_)
-(let [rotAngle s3] (hSlider false 20! 420! 80! (neg twoPi) twoPi '' rotAngle_)
-;
-(let sliders (if showSliders (concat [s1 s2 s3]) [])
-(let wheel
-  (let [cx cy] [220 300]
-  (let rim [(ring 'darkgray' 8! cx cy spokeLen)]
-  (let center [(circle 'black' cx cy 20)]
-  (let frame [(nStar 'goldenrod' 'darkgray' 3! numSpokes spokeLen 0! rotAngle cx cy)]
+
+(def wheel (\\(cx cy rCenter wCar rCap numSpokes spokeLen rotAngle)
+  (let rim      [(ring 'darkgray' 6 cx cy spokeLen)]
+  (let center   [(circle 'black' cx cy rCenter)]
+  (let frame    [(nStar 'goldenrod' 'darkgray' 3 numSpokes spokeLen 0 rotAngle cx cy)]
   (let spokePts (nPointsOnCircle numSpokes rotAngle cx cy spokeLen)
-  (let caps (map (\\[x y] (circle 'black' x y 7!)) spokePts)
-  (let cars
-    (let wCar 30
-    (let wHalfCar (/ wCar 2!)
-    (map (\\[x y] (squareCenter 'lightgray' x y wCar)) spokePts)))
-  (concat [rim cars center frame caps]))))))))
-;
-(svg (append sliders wheel)))))))))
+  (let cars     (mapi (\\[i [x y]] (squareCenter (if (= i 0) 'pink' 'lightgray') x y wCar)) spokePts)
+  (let hubcaps  (map (\\[x y] (circle 'black' x y rCap)) spokePts)
+    (concat [rim cars center frame hubcaps])
+))))))))
+
+(def [cx cy spokeLen rCenter wCar rCap] [220 300 80 20 30 7])
+(def [numSpokes rotAngle] [5!{3-15} 0!{-3.14-3.14}])
+
+(svg (wheel cx cy rCenter wCar rCap numSpokes spokeLen rotAngle))
 
 "
 
