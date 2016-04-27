@@ -1,4 +1,5 @@
 module InterfaceView2 (view, scaleColorBall , drawNewPolygonDotSize
+                      , boundingBoxOfPoints
                       , boundingBox , squareBoundingBox , snapLine
                       , maybeFindBounds
                       ) where
@@ -498,6 +499,30 @@ distance (x1,y1) (x2,y2)       = sqrt ((x2-x1)^2 + (y2-y1)^2)
 projPt (x,y)                   = (fst x, fst y)
 halfwayBetween_ pt1 pt2        = halfwayBetween (projPt pt1) (projPt pt2)
 distance_ pt1 pt2              = distance (projPt pt1) (projPt pt2)
+
+zoneRotatePolyOrPath model id kind pts nodeAttrs =
+  let (xMin, xMax, yMin, yMax) =
+    boundingBoxOfPoints_ (List.map (\(x,y) -> (fst x, fst y)) pts) in
+  let (w, h) = (xMax - xMin, yMax - yMin) in
+  let (xMiddle, yMiddle) = (xMin + 0.5 * w, yMin + 0.5 * h) in
+  let r = ((max w h) / 2) + rotZoneDelta in
+  zoneRotate model id kind (xMiddle, yMiddle) r (maybeTransformCmds nodeAttrs)
+
+boundingBoxOfPoints_ : List (Float, Float) -> (Float, Float, Float, Float)
+boundingBoxOfPoints_ pts =
+  let (xs, ys) = List.unzip pts in
+  let xMax = Utils.fromJust <| List.maximum xs in
+  let xMin = Utils.fromJust <| List.minimum xs in
+  let yMax = Utils.fromJust <| List.maximum ys in
+  let yMin = Utils.fromJust <| List.minimum ys in
+  (xMin, xMax, yMin, yMax)
+
+boundingBoxOfPoints : List (Int, Int) -> (Int, Int, Int, Int)
+boundingBoxOfPoints pts =
+  let pts' = List.map (\(x,y) -> (toFloat x, toFloat y)) pts in
+  let (a,b,c,d) = boundingBoxOfPoints_ pts' in
+  (round a, round b, round c, round d)
+
 
 --------------------------------------------------------------------------------
 
@@ -1082,9 +1107,12 @@ makeZonesPoly model shape id l =
     let f (i,(pti,ptj)) = zoneLine model id shape (addi "Edge" i) transform pti ptj in
     Utils.mapi f pairs in
   let zInterior =
-    zoneBorder Svg.polygon model id shape "Interior" False transform [
-        LangSvg.compileAttr "points" (LangSvg.aPoints pts)
-      ] in
+    if shape == "polygon" || (shape == "polyline" && firstEqLast pts)
+    then [ zoneBorder Svg.polygon model id shape "Interior" False transform <|
+             [ LangSvg.compileAttr "points" (LangSvg.aPoints pts) ] ]
+    else []
+  in
+  let zRot = zoneRotatePolyOrPath model id "polygon" pts l in
   let zFillAndStroke =
     case pts of
       (((x0,_),(y0,_))::_) ->
@@ -1109,10 +1137,9 @@ makeZonesPoly model shape id l =
     let crossDots = List.concat <| Utils.mapi ptCrossDot pts in
     midptCrossDots ++ crossDots
   in
-  let firstEqLast xs = Utils.head_ xs == Utils.head_ (List.reverse xs) in
-  if shape == "polygon"   then zInterior :: (zLines ++ zPts ++ zFillAndStroke ++ zSelect)
-  else if firstEqLast pts then zInterior :: (zLines ++ zPts ++ zFillAndStroke ++ zSelect)
-  else                         zLines ++ zPts ++ zFillAndStroke ++ zSelect
+  zInterior ++ zLines ++ zPts ++ zRot ++ zFillAndStroke ++ zSelect
+
+firstEqLast xs = Utils.head_ xs == Utils.head_ (List.reverse xs)
 
 makeZonesPath : Model -> String -> Int -> List LangSvg.Attr -> List Svg.Svg
 makeZonesPath model shape id nodeAttrs =
@@ -1131,9 +1158,8 @@ makeZonesPath model shape id nodeAttrs =
       LangSvg.CmdA   s a b c d e pt -> pt +++ acc) [] cmds
   in
   let pts = List.map snd listOfMaybeIndexWithPt in
-  let dots =
-    zonePoints model id shape transform pts
-  in
+  let dots = zonePoints model id shape transform pts in
+  let zRot = zoneRotatePolyOrPath model id "path" pts nodeAttrs in
   let zFillAndStroke =
     case pts of
       (((x0,_),(y0,_))::_) ->
@@ -1150,7 +1176,7 @@ makeZonesPath model shape id nodeAttrs =
     let crossDots = List.concatMap ptCrossDot listOfMaybeIndexWithPt in
     crossDots
   in
-  dots ++ zFillAndStroke ++ zSelect
+  dots ++ zRot ++ zFillAndStroke ++ zSelect
 
 makeZonesGroup model nodeId l =
   case (maybeFindBounds l, maybeFindBlobId l) of
@@ -1595,36 +1621,15 @@ widgetsShapes w h model =
       (shapeToolButton model (Oval Stretchy))
       (shapeToolButton model (Path Stretchy))
   , shapeToolButton model (Poly Stretchy) w h
-{-
-  [ threeVersions w h
-      gapWidget
-      (shapeToolButton model (Line Raw))
-      gapWidget
-  , threeVersions w h
-      (shapeToolButton model (Rect Raw))
-      (shapeToolButton model (Rect Stretchy))
-      gapWidget
-  , threeVersions w h
-      (shapeToolButton model (Oval Raw))
-      (shapeToolButton model (Oval Stretchy))
-      gapWidget
-  , threeVersions w h
-      (shapeToolButton model (Poly Raw))
-      (shapeToolButton model (Poly Stretchy))
-      (shapeToolButton model (Poly Sticky))
-  , threeVersions w h
-      (shapeToolButton model (Path Raw))
-      (shapeToolButton model (Path Stretchy))
-      (shapeToolButton model (Path Sticky))
--}
-{-
-  , twoButtons w h
-      (shapeToolButton model HelperLine)
-      (shapeToolButton model HelperDot)
--}
   , flowRight w h
        [ (1/4, shapeToolButton model Lambda)
        , (3/4, dropdownLambdaTool model)
+       ]
+  , flowRight w h
+       [ (1/6, shapeToolButton model (Rect Raw))
+       , (1/6, shapeToolButton model (Oval Raw))
+       , (2/6, shapeToolButton model (Poly Raw))
+       , (2/6, shapeToolButton model (Path Raw))
        ]
   ]
 
@@ -2019,14 +2024,14 @@ shapeToolButton model shapeTool w h =
   let capRaw = "=" in
   let cap = case shapeTool of
     Line Raw      -> "Line"
-    Rect Raw      -> capRaw -- "Rect"
+    Rect Raw      -> "R" -- capRaw -- "Rect"
     Rect Stretchy -> "Rect" -- capStretchy
-    Oval Raw      -> capRaw -- "Oval"
+    Oval Raw      -> "E" -- capRaw -- "Oval"
     Oval Stretchy -> "Oval" -- capStretchy
-    Poly Raw      -> capRaw -- "Poly"
+    Poly Raw      -> "Po" -- capRaw -- "Poly"
     Poly Stretchy -> "Polygon" -- "Poly" -- capStretchy
     Poly Sticky   -> capSticky
-    Path Raw      -> capRaw -- "Path"
+    Path Raw      -> "Pa" -- capRaw -- "Path"
     Path Stretchy -> "Path" -- capStretchy
     Path Sticky   -> capSticky
     Text          -> "-"
