@@ -827,14 +827,6 @@ toZEdge s =
 
 zones = [
     ("svg", [])
-  , ("circle",
-      [ ("Interior", ["cx", "cy"])
-      , ("Edge", ["r"])
-      ])
-  , ("ellipse",
-      [ ("Interior", ["cx", "cy"])
-      , ("Edge", ["rx", "ry"])
-      ])
   , ("BOX",
       [ ("Interior", ["LEFT", "TOP", "RIGHT", "BOT"])
       , ("TopLeftCorner", ["LEFT", "TOP"])
@@ -861,6 +853,28 @@ zones = [
       [ ("Point1", ["x1", "y1"])
       , ("Point2", ["x2", "y2"])
       , ("Edge", ["x1", "y1", "x2", "y2"])
+      ])
+  , ("circle",
+      [ ("Interior", ["cx", "cy"])
+      , ("LeftEdge", ["cx", "r"])
+      , ("RightEdge", ["cx", "r"])
+      , ("TopEdge", ["cy", "r"])
+      , ("BotEdge", ["cy", "r"])
+      , ("TopLeftCorner", ["cx", "cy", "r"])
+      , ("TopRightCorner", ["cx", "cy", "r"])
+      , ("BotLeftCorner", ["cx", "cy", "r"])
+      , ("BotRightCorner", ["cx", "cy", "r"])
+      ])
+  , ("ellipse",
+      [ ("Interior", ["cx", "cy"])
+      , ("LeftEdge", ["cx", "rx"])
+      , ("RightEdge", ["cx", "rx"])
+      , ("TopEdge", ["cy", "ry"])
+      , ("BotEdge", ["cy", "ry"])
+      , ("TopLeftCorner", ["cx", "cy", "rx", "ry"])
+      , ("TopRightCorner", ["cx", "cy", "rx", "ry"])
+      , ("BotLeftCorner", ["cx", "cy", "rx", "ry"])
+      , ("BotRightCorner", ["cx", "cy", "rx", "ry"])
       ])
   -- TODO
   , ("g", [])

@@ -1430,7 +1430,7 @@ getZones kind extra ee =
       ("polygon", NumPoints n) ->
         List.map pt [1..n] ++ List.map (edge n) [1..n] ++ [interior n]
       ("path", NumsPath {numPoints}) ->
-        List.map pt [1..numPoints]
+        List.map pt [1..numPoints] ++ [interior numPoints]
       _ ->
         case Utils.maybeFind kind LangSvg.zones of
           Just zones -> zones
@@ -1813,33 +1813,6 @@ makeTrigger_ opts d0 d2 slate subst id kind zone =
         solveOne "LEFT"  (offset dx (boxLeft slate id)) ++
         solveOne "BOT"   (offset dy (boxBot slate id))
 
-    ("circle", "Interior") ->
-      \_ (dx,dy) ->
-        solveOne "cx" (offset dx (getANum slate id "cx")) ++
-        solveOne "cy" (offset dy (getANum slate id "cy"))
-    ("circle", "Edge") ->
-      \(mx0,my0) (dx,dy) ->
-        let (mx1, my1) = (mx0 + dx, my0 + dy) in
-        let (cx,_) = getANum slate id "cx" in
-        let (cy,_) = getANum slate id "cy" in
-        let dx = if toFloat mx0 >= cx then mx1 - mx0 else mx0 - mx1 in
-        let dy = if toFloat my0 >= cy then my1 - my0 else my0 - my1 in
-        let d  = max dx dy in
-        solveOne "r" (offset d (getANum slate id "r"))
-
-    ("ellipse", "Interior") ->
-      \_ (dx,dy) ->
-        solveOne "cx" (offset dx (getANum slate id "cx")) ++
-        solveOne "cy" (offset dy (getANum slate id "cy"))
-    ("ellipse", "Edge") ->
-      \(mx0,my0) (dx,dy) ->
-        let (cx,_) = getANum slate id "cx" in
-        let (cy,_) = getANum slate id "cy" in
-        let dx' = if toFloat mx0 >= cx then dx else -dx in
-        let dy' = if toFloat my0 >= cy then dy else -dy in
-        solveOne "rx" (offset dx' (getANum slate id "rx")) ++
-        solveOne "ry" (offset dy' (getANum slate id "ry"))
-
     ("line", "Edge") ->
       \_ (dx,dy) ->
         solveOne "x1" (offset dx (getANum slate id "x1")) ++
@@ -1855,9 +1828,83 @@ makeTrigger_ opts d0 d2 slate subst id kind zone =
         solveOne "x2" (offset dx (getANum slate id "x2")) ++
         solveOne "y2" (offset dy (getANum slate id "y2"))
 
+    ("ellipse", _)  -> makeTriggerEllipse solveOne offset slate id kind zone
+    ("circle", _)   -> makeTriggerCircle solveOne offset slate id kind zone
     ("polygon", _)  -> makeTriggerPoly solveOne offset slate id kind zone
     ("polyline", _) -> makeTriggerPoly solveOne offset slate id kind zone
     ("path", _)     -> makeTriggerPath solveOne offset slate id zone
+
+    _ -> Debug.crash ("makeTrigger: " ++ kind ++ " " ++ zone)
+
+makeTriggerEllipse solveOne offset slate id kind zone =
+  let
+    left (dx,dy) =
+      solveOne "cx" (offset  (dx//2) (getANum slate id "cx")) ++
+      solveOne "rx" (offset -(dx//2) (getANum slate id "rx"))
+    right (dx,dy) =
+      solveOne "cx" (offset  (dx//2) (getANum slate id "cx")) ++
+      solveOne "rx" (offset  (dx//2) (getANum slate id "rx"))
+    top (dx,dy) =
+      solveOne "cy" (offset  (dy//2) (getANum slate id "cy")) ++
+      solveOne "ry" (offset -(dy//2) (getANum slate id "ry"))
+    bot (dx,dy) =
+      solveOne "cy" (offset  (dy//2) (getANum slate id "cy")) ++
+      solveOne "ry" (offset  (dy//2) (getANum slate id "ry"))
+  in
+
+  case zone of
+    "Interior" ->
+      \_ (dx,dy) ->
+        solveOne "cx" (offset dx (getANum slate id "cx")) ++
+        solveOne "cy" (offset dy (getANum slate id "cy"))
+
+    "LeftEdge"       -> \_ dxy -> left dxy
+    "RightEdge"      -> \_ dxy -> right dxy
+    "TopEdge"        -> \_ dxy -> top dxy
+    "BotEdge"        -> \_ dxy -> bot dxy
+
+    "TopLeftCorner"  -> \_ dxy -> top dxy ++ left dxy
+    "TopRightCorner" -> \_ dxy -> top dxy ++ right dxy
+    "BotLeftCorner"  -> \_ dxy -> bot dxy ++ left dxy
+    "BotRightCorner" -> \_ dxy -> bot dxy ++ right dxy
+
+    _ -> Debug.crash ("makeTrigger: " ++ kind ++ " " ++ zone)
+
+makeTriggerCircle solveOne offset slate id kind zone =
+  let
+    left (dx,dy) =
+      solveOne "cx" (offset  (dx//2) (getANum slate id "cx")) ++
+      solveOne "r"  (offset -(dx//2) (getANum slate id "r"))
+    right (dx,dy) =
+      solveOne "cx" (offset  (dx//2) (getANum slate id "cx")) ++
+      solveOne "r"  (offset  (dx//2) (getANum slate id "r"))
+    top (dx,dy) =
+      solveOne "cy" (offset  (dy//2) (getANum slate id "cy")) ++
+      solveOne "r"  (offset -(dy//2) (getANum slate id "r"))
+    bot (dx,dy) =
+      solveOne "cy" (offset  (dy//2) (getANum slate id "cy")) ++
+      solveOne "r"  (offset  (dy//2) (getANum slate id "r"))
+    corner n fx fy =
+      solveOne "r"  (offset     (n//2)  (getANum slate id "r")) ++
+      solveOne "cx" (offset (fx (n//2)) (getANum slate id "cx")) ++
+      solveOne "cy" (offset (fy (n//2)) (getANum slate id "cy"))
+  in
+
+  case zone of
+    "Interior" ->
+      \_ (dx,dy) ->
+        solveOne "cx" (offset dx (getANum slate id "cx")) ++
+        solveOne "cy" (offset dy (getANum slate id "cy"))
+
+    "LeftEdge"       -> \_ dxy -> left dxy
+    "RightEdge"      -> \_ dxy -> right dxy
+    "TopEdge"        -> \_ dxy -> top dxy
+    "BotEdge"        -> \_ dxy -> bot dxy
+
+    "TopLeftCorner"  -> \_ (dx,dy) -> corner (max -dx -dy) ((*) -1) ((*) -1)
+    "TopRightCorner" -> \_ (dx,dy) -> corner (max  dx -dy) ((*)  1) ((*) -1)
+    "BotLeftCorner"  -> \_ (dx,dy) -> corner (max -dx  dy) ((*) -1) ((*)  1)
+    "BotRightCorner" -> \_ (dx,dy) -> corner (max  dx  dy) ((*)  1) ((*)  1)
 
     _ -> Debug.crash ("makeTrigger: " ++ kind ++ " " ++ zone)
 
@@ -1904,17 +1951,55 @@ makeTriggerPoly solveOne offset slate id kind zone =
      Debug.crash "makeTrigger_: polygon"
 
 makeTriggerPath solveOne offset slate id zone =
+  let solvePoint i (dx,dy) (xt,yt) =
+    solveOne (addi "x" i) (offset dx xt) ++
+    solveOne (addi "y" i) (offset dy yt)
+  in
+
   case LangSvg.realZoneOf zone of
+
     LangSvg.ZPoint i ->
       let cmds = getAPathCmds slate id "d" in
       case findPathPoint cmds i of
-        Nothing -> Debug.crash "makeTrigger_: path"
-        Just (xt,yt) ->
-          \_ (dx,dy) ->
-            solveOne (addi "x" i) (offset dx xt) ++
-            solveOne (addi "y" i) (offset dy yt)
+        Nothing -> Debug.crash ("makeTrigger path Point " ++ toString i)
+        Just pt -> \_ dxy -> solvePoint i dxy pt
+
+    LangSvg.Z "Interior" ->
+      \_ dxy ->
+        let cmds = getAPathCmds slate id "d" in
+        -- TODO if path is closed with Bezier segment,
+        -- don't add equation for last point
+{-
+        let pt1 =
+          case findPathPoint cmds 1 of
+            Just pt1 -> pt1
+            Nothing  -> Debug.crash "makeTrigger path Interior"
+        in
+        let maybeSolvePoint i dxy pti =
+          if pt1 == pti -- if path is closed, don't add equation for last point
+            then []
+            else solvePoint i dxy pti
+        in
+-}
+        List.foldl
+          (\cmd acc ->
+            acc ++ case cmd of
+              CmdMLT _ (Just i1, pt1) ->
+                solvePoint i1 dxy pt1
+              CmdC _ (Just i1, pt1) (Just i2, pt2) (Just i3, pt3) ->
+                solvePoint i1 dxy pt1 ++ solvePoint i2 dxy pt2 ++ solvePoint i3 dxy pt3
+              CmdSQ _ (Just i1, pt1) (Just i2, pt2) ->
+                solvePoint i1 dxy pt1 ++ solvePoint i2 dxy pt2
+              CmdA _ _ _ _ _ _ (Just i1, pt1) ->
+                solvePoint i1 dxy pt1
+              _ ->
+                []
+          )
+          []
+          cmds
+
     _ ->
-      Debug.crash "makeTrigger_: path"
+      Debug.crash ("makeTrigger path " ++ zone)
 
 findPathPoint cmds i =
   let maybeKeepPoint (mj,pt) = if mj == Just i then Just pt else Nothing in

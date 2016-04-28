@@ -54,8 +54,6 @@ type alias Model =
   , editingMode : Maybe Code -- Nothing means not editing
                              -- Just s is True, where s is previous code
   , caption : Maybe Caption
-  , showZones : ShowZones
-  , showWidgets : ShowWidgets
   , showGhosts : ShowGhosts
   , localSaves : List String
   , fieldContents : DialogInfo
@@ -67,6 +65,8 @@ type alias Model =
   , toolMode : ToolMode
   , cursorTool : CursorTool
   , shapeTool : ShapeTool
+  , hoveredShapes : Set.Set NodeId
+  , selectedShapes : Set.Set NodeId
   , selectedFeatures : Set.Set (SelectedType, NodeId, ShapeFeature)
   -- line/g ids assigned by blobs function
   , selectedBlobs : Dict.Dict Int NodeId
@@ -131,8 +131,8 @@ type Orientation = Vertical | Horizontal
 
 type alias PossibleChange = (Exp, Val, RootedIndexedTree, Code)
 
-type alias ShowZones = Bool
-type ShowWidgets = HideWidgets | ShowAnnotatedWidgets | ShowAllWidgets
+-- type alias ShowZones = Bool
+-- type ShowWidgets = HideWidgets | ShowAnnotatedWidgets | ShowAllWidgets
 type alias ShowGhosts = Bool
 
 type ToolMode
@@ -309,8 +309,6 @@ sampleModel =
     , syncOptions   = Sync.defaultOptions
     , editingMode   = Nothing
     , caption       = Nothing
-    , showZones     = False
-    , showWidgets   = ShowAnnotatedWidgets
     , showGhosts    = True
     , localSaves    = []
     , fieldContents = { value = "", hint = "Input File Name" }
@@ -327,6 +325,8 @@ sampleModel =
     , toolMode      = Shapes
     , cursorTool    = ClickAndDrag
     , shapeTool     = Line Raw
+    , hoveredShapes = Set.empty
+    , selectedShapes = Set.empty
     , selectedFeatures = Set.empty
     , selectedBlobs = Dict.empty
     , keysDown      = []

@@ -1782,8 +1782,10 @@ upstate evt old = case debugLog "Event" evt of
 
     MouseClickCanvas ->
       case (old.toolMode, old.mouseMode) of
-        (Shapes, MouseNothing) -> { old | mouseMode = MouseDrawNew [] }
-        _                      -> old
+        (Cursors, MouseObject _ _ _ _) -> old
+        (Shapes, MouseNothing) ->
+          { old | mouseMode = MouseDrawNew [], selectedShapes = Set.empty }
+        _ -> { old | selectedShapes = Set.empty }
 
     MouseClick click ->
       let old =
@@ -1914,12 +1916,27 @@ upstate evt old = case debugLog "Event" evt of
 
         (Print _, _) -> old
 
+        (_, MouseObject i k z Nothing) ->
+          { old | mouseMode = MouseNothing
+                , mode = refreshMode_ old
+                , selectedShapes =
+                    Set.insert i <| if old.keysDown == Keys.shift
+                                    then old.selectedShapes
+                                    else Set.empty
+                }
+
         (_, MouseObject i k z (Just (s, _, _))) ->
+          let old_ = { old | selectedShapes =
+                               if Set.member i old.selectedShapes
+                               then old.selectedShapes
+                               else Set.singleton i
+                     } in
+
           -- 8/10: re-parsing to get new position info after live sync-ing
           -- TODO: could update positions within highlightChanges
           -- TODO: update inputVal?
           let e = Utils.fromOk_ <| parseE old.code in
-          let old' = { old | inputExp = e } in
+          let old' = { old_ | inputExp = e } in
           refreshHighlights i z
             { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
                    , history = addToHistory s old'.history }
@@ -2242,7 +2259,7 @@ upstate evt old = case debugLog "Event" evt of
           (Shapes, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
           (Cursors, _) ->
             case new.cursorTool of
-              ClickAndDrag -> { new | showZones = False }
+              ClickAndDrag -> { new | selectedShapes = Set.empty }
               SelectFeatures ->
                 if Set.isEmpty new.selectedFeatures
                   then { new | cursorTool = ClickAndDrag }
