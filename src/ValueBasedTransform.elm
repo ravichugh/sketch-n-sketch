@@ -985,7 +985,7 @@ featureEquation nodeId kind feature nodeAttrs =
     else if feature == LangSvg.boxTCX then cx
     else if feature == LangSvg.boxTCY then eqnVal "TOP"
     else if feature == LangSvg.boxBCX then cx
-    else if feature == LangSvg.boxBCY then eqnVal "BOTTOM"
+    else if feature == LangSvg.boxBCY then eqnVal "BOT"
     else if feature == LangSvg.boxCLX then eqnVal "LEFT"
     else if feature == LangSvg.boxCLY then cy
     else if feature == LangSvg.boxCRX then eqnVal "RIGHT"
