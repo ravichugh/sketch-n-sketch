@@ -486,6 +486,46 @@ type alias RootedIndexedTree = (NodeId, IndexedTree)
 -- Otherwise, this shouldn't be a string
 type alias ShapeFeature = String
 
+zoneToCrosshair : ShapeKind -> Zone -> Maybe (ShapeFeature, ShapeFeature)
+zoneToCrosshair shape zone =
+  pointCrosshair shape zone `Utils.plusMaybe`
+  cardinalCrosshair shape zone
+
+pointCrosshair shape zone =
+  case (shape, realZoneOf zone) of
+    ("line", ZPoint 1) -> Just (lineX1, lineY1)
+    ("line", ZPoint 2) -> Just (lineX2, lineX2)
+    ("polygon", ZPoint i) ->
+      let f xy = "polyPt" ++ xy ++ toString i in Just (f "X", f "Y")
+    ("path", ZPoint i) ->
+      let f xy = "pathPt" ++ xy ++ toString i in Just (f "X", f "Y")
+    _ -> Nothing
+
+cardinalAbbreviation shape zone =
+  let ifBoxy shape mx =
+    if shape == "rect" || shape == "BOX" then mx else Nothing
+  in
+  case (shape, zone) of
+    (_, "TopLeftCorner")  -> ifBoxy shape (Just "TL")
+    (_, "TopRightCorner") -> ifBoxy shape (Just "TR")
+    (_, "BotLeftCorner")  -> ifBoxy shape (Just "BL")
+    (_, "BotRightCorner") -> ifBoxy shape (Just "BR")
+    (_, "LeftEdge")       -> Just "CL"
+    (_, "RightEdge")      -> Just "CR"
+    (_, "TopEdge")        -> Just "TC"
+    (_, "BotEdge")        -> Just "BC"
+    _                     -> Nothing
+
+cardinalCrosshair shape zone =
+  Utils.bindMaybe
+    (\abbrv ->
+      let xFeatureName = String.toLower shape ++ abbrv ++ "X" in
+      let yFeatureName = String.toLower shape ++ abbrv ++ "Y" in
+      Just (xFeatureName, yFeatureName))
+    (cardinalAbbreviation shape zone)
+
+-- TODO generate some of the strings below from these helpers
+
 -- Make sure that coordinate features match /.+[X|Y]\d*$/
 -- So we can gather them back up into (X,Y) pairs again.
 shapeFill = "fill"
@@ -815,12 +855,16 @@ realZoneOf s =
 
 toZPoint s =
   Utils.mapMaybe
-    (ZPoint << Utils.fromOk_ << String.toInt)
+    (\suffix ->
+      if suffix == "" then Z "Point"
+      else ZPoint (Utils.fromOk_ (String.toInt suffix)))
     (Utils.munchString "Point" s)
 
 toZEdge s =
   Utils.mapMaybe
-    (ZEdge << Utils.fromOk_ << String.toInt)
+    (\suffix ->
+      if suffix == "" then Z "Edge"
+      else ZEdge (Utils.fromOk_ (String.toInt suffix)))
     (Utils.munchString "Edge" s)
 
 -- TODO perhaps define Interface callbacks here
