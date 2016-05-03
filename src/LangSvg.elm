@@ -512,8 +512,8 @@ zoneToCrosshair shape zone =
 
 pointCrosshair shape zone =
   case (shape, realZoneOf zone) of
-    ("line", ZPoint 1) -> Just (lineX1, lineY1)
-    ("line", ZPoint 2) -> Just (lineX2, lineX2)
+    ("line", ZPoint 1) -> Just ("lineX1", "lineY1")
+    ("line", ZPoint 2) -> Just ("lineX2", "lineX2")
     ("polygon", ZPoint i) ->
       let f xy = "polyPt" ++ xy ++ toString i in Just (f "X", f "Y")
     ("path", ZPoint i) ->
@@ -545,7 +545,25 @@ cardinalCrosshair shape zone =
       Just (xFeatureName, yFeatureName))
     (cardinalAbbreviation shape zone)
 
--- TODO generate some of the strings below from these helpers
+-- TODO want to generate some of the strings below from these helpers,
+-- but wouldn't like so nice because top-level patterns aren't allowed
+
+pointCrosshair_ : ShapeKind -> Zone -> (ShapeFeature, ShapeFeature)
+pointCrosshair_ shape zone = Utils.fromJust (zoneToCrosshair shape zone)
+
+cornerCrosshairs_ shape =
+  ( pointCrosshair shape "TopLeftCorner"
+  , pointCrosshair shape "TopRightCorner"
+  , pointCrosshair shape "BotLeftCorner"
+  , pointCrosshair shape "BotRightCorner"
+  )
+
+edgeCrosshairs_ shape =
+  ( pointCrosshair shape "TopEdge"
+  , pointCrosshair shape "RightEdge"
+  , pointCrosshair shape "BotEdge"
+  , pointCrosshair shape "LeftEdge"
+  )
 
 -- Make sure that coordinate features match /.+[X|Y]\d*$/
 -- So we can gather them back up into (X,Y) pairs again.
