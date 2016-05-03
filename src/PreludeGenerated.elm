@@ -747,8 +747,16 @@ prelude =
   ])))))
 
 (def group (\\(bounds shapes)
+  (let [left top right bot] bounds
+  (let pad 15
+  (let paddedBounds [(- left pad) (- top pad) (+ right pad) (+ bot pad)]
   ['g' [['BOUNDS' bounds]]
-       (cons (hiddenBoundingBox bounds) shapes)]))
+       (cons (hiddenBoundingBox paddedBounds) shapes)]
+)))))
+
+; (def group (\\(bounds shapes)
+;   ['g' [['BOUNDS' bounds]]
+;        (cons (hiddenBoundingBox bounds) shapes)]))
 
        ; (concat [(fancyBoundingBox bounds) shapes])]))
 
@@ -764,8 +772,9 @@ prelude =
   (let [left top right bot] bounds
   (let [cx cy] [(+ left (/ (- right left) 2!)) (+ top (/ (- bot top) 2!))]
   (let shape (rotateAround rot cx cy (box bounds fill stroke strokeWidth))
-  (group bounds [shape])
+  shape
 )))))
+  ; (group bounds [shape])
 
 ; TODO no longer used...
 (def rotatedEllipse (\\(fill cx cy rx ry rot)
@@ -777,15 +786,26 @@ prelude =
 ; TODO take rot
 (def oval (\\(fill stroke strokeWidth bounds)
   (let [left top right bot] bounds
-  (let [rx ry] [(/ (- right left) 2!) (/ (- bot top) 2!)]
-  (let [cx cy] [(+ left rx) (+ top ry)]
-  (let shape ; TODO change def ellipse to take stroke/strokeWidth
-    ['ellipse'
-       [ ['cx' cx] ['cy' cy] ['rx' rx] ['ry' ry]
+  (let shape
+    ['OVAL'
+       [ ['LEFT' left] ['TOP' top] ['RIGHT' right] ['BOT' bot]
          ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ]
        []]
-  (group bounds [shape])
-))))))
+  shape
+))))
+
+; ; TODO take rot
+; (def oval (\\(fill stroke strokeWidth bounds)
+;   (let [left top right bot] bounds
+;   (let [rx ry] [(/ (- right left) 2!) (/ (- bot top) 2!)]
+;   (let [cx cy] [(+ left rx) (+ top ry)]
+;   (let shape ; TODO change def ellipse to take stroke/strokeWidth
+;     ['ellipse'
+;        [ ['cx' cx] ['cy' cy] ['rx' rx] ['ry' ry]
+;          ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ]
+;        []]
+;   (group bounds [shape])
+; ))))))
 
 (def scaleBetween (\\(a b pct)
   (case pct
@@ -873,7 +893,9 @@ prelude =
 )))
 
 ; expects (f bounds) to be multiple SVGs
-(def with (\\(bounds f) [(group bounds (f bounds))]))
+(def with (\\(bounds f) (f bounds)))
+
+  ; (def with (\\(bounds f) [(group bounds (f bounds))]))
 
 (def star (\\bounds
   (let [left top right bot] bounds
@@ -885,6 +907,8 @@ prelude =
 (def blobs (\\blobs
   (let modifyBlob (\\[i blob]
     (case blob
+      ([['g' gAttrs [shape | shapes]]]
+       [['g' gAttrs [(consAttr shape ['BLOB' (toString (+ i 1))]) | shapes]]])
       ([shape] [(consAttr shape ['BLOB' (toString (+ i 1))])])
       (_       blob)))
   (svg (concat (mapi modifyBlob blobs)))

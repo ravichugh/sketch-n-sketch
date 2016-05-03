@@ -448,27 +448,46 @@ strBounds (left,top,right,bot) =
 
 desugarKind shape =
   case shape of
-    "BOX" -> "rect"
-    _     -> shape
+    "BOX"  -> "rect"
+    "OVAL" -> "ellipse"
+    _      -> shape
 
 desugarShapeAttrs shape0 attrs0 =
+  let mkNum n = aNum (n, dummyTrace) in
   Maybe.withDefault (shape0, attrs0) <|
     case shape0 of
       "BOX" ->
-        Utils.maybeRemoveFirst "LEFT"  attrs0 `Maybe.andThen` \(vL,attrs1) ->
-        Utils.maybeRemoveFirst "RIGHT" attrs1 `Maybe.andThen` \(vR,attrs2) ->
-        Utils.maybeRemoveFirst "TOP"   attrs2 `Maybe.andThen` \(vT,attrs3) ->
-        Utils.maybeRemoveFirst "BOT"   attrs3 `Maybe.andThen` \(vB,attrs4) ->
-          case (vL.av_, vT.av_, vR.av_, vB.av_) of
-            (ANum (x,_), ANum (y,_), ANum (xw,_), ANum (yh,_)) ->
-              let width = aNum (xw - x, dummyTrace) in
-              let height = aNum (yh - y, dummyTrace) in
-              let attrs = [("x",vL),("y",vT),("width",width),("height",height)] ++ attrs4 in
-              Just ("rect", attrs)
-            _ ->
-              Nothing
+        Utils.mapMaybe (\(left, top, right, bot, restOfAttrs) ->
+          let newAttrs =
+             [ ("x", mkNum left)
+             , ("y", mkNum top)
+             , ("width", mkNum (right - left))
+             , ("height", mkNum (bot - top))
+             ]
+          in ("rect", newAttrs ++ restOfAttrs)
+        ) (getBoundsAttrs attrs0)
+      "OVAL" ->
+        Utils.mapMaybe (\(left, top, right, bot, restOfAttrs) ->
+          let newAttrs =
+             [ ("cx", mkNum (left + (right - left) / 2))
+             , ("cy", mkNum (top + (bot - top) / 2))
+             , ("rx", mkNum ((right - left) / 2))
+             , ("ry", mkNum ((bot - top) / 2))
+             ]
+          in ("ellipse", newAttrs ++ restOfAttrs)
+        ) (getBoundsAttrs attrs0)
       _ ->
         Nothing
+
+getBoundsAttrs attrs0 =
+  Utils.maybeRemoveFirst "LEFT"  attrs0 `Maybe.andThen` \(vL,attrs1) ->
+  Utils.maybeRemoveFirst "RIGHT" attrs1 `Maybe.andThen` \(vR,attrs2) ->
+  Utils.maybeRemoveFirst "TOP"   attrs2 `Maybe.andThen` \(vT,attrs3) ->
+  Utils.maybeRemoveFirst "BOT"   attrs3 `Maybe.andThen` \(vB,attrs4) ->
+    case (vL.av_, vT.av_, vR.av_, vB.av_) of
+      (ANum (left,_), ANum (top,_), ANum (right,_), ANum (bot,_)) ->
+        Just (left, top, right, bot, attrs4)
+      _ -> Nothing
 
 
 ------------------------------------------------------------------------------
@@ -503,7 +522,9 @@ pointCrosshair shape zone =
 
 cardinalAbbreviation shape zone =
   let ifBoxy shape mx =
-    if shape == "rect" || shape == "BOX" then mx else Nothing
+    if shape == "rect" || shape == "BOX" || shape == "OVAL"
+      then mx
+      else Nothing
   in
   case (shape, zone) of
     (_, "TopLeftCorner")  -> ifBoxy shape (Just "TL")
@@ -572,6 +593,26 @@ boxCX = "boxCX"
 boxCY = "boxCY"
 boxWidth = "boxWidth"
 boxHeight = "boxHeight"
+ovalTLX = "ovalTLX"
+ovalTLY = "ovalTLY"
+ovalTRX = "ovalTRX"
+ovalTRY = "ovalTRY"
+ovalBLX = "ovalBLX"
+ovalBLY = "ovalBLY"
+ovalBRX = "ovalBRX"
+ovalBRY = "ovalBRY"
+ovalTCX = "ovalTCX"
+ovalTCY = "ovalTCY"
+ovalCRX = "ovalCRX"
+ovalCRY = "ovalCRY"
+ovalBCX = "ovalBCX"
+ovalBCY = "ovalBCY"
+ovalCLX = "ovalCLX"
+ovalCLY = "ovalCLY"
+ovalCX = "ovalCX"
+ovalCY = "ovalCY"
+ovalRX = "ovalRX"
+ovalRY = "ovalRY"
 circleTCX = "circleTCX"
 circleTCY = "circleTCY"
 circleCRX = "circleCRX"
@@ -919,6 +960,17 @@ zones = [
       , ("TopRightCorner", ["cx", "cy", "rx", "ry"])
       , ("BotLeftCorner", ["cx", "cy", "rx", "ry"])
       , ("BotRightCorner", ["cx", "cy", "rx", "ry"])
+      ])
+  , ("OVAL",
+      [ ("Interior", ["LEFT", "TOP", "RIGHT", "BOT"])
+      , ("TopLeftCorner", ["LEFT", "TOP"])
+      , ("TopRightCorner", ["TOP", "RIGHT"])
+      , ("BotRightCorner", ["RIGHT", "BOT"])
+      , ("BotLeftCorner", ["LEFT", "BOT"])
+      , ("LeftEdge", ["LEFT"])
+      , ("TopEdge", ["TOP"])
+      , ("RightEdge", ["RIGHT"])
+      , ("BotEdge", ["BOT"])
       ])
   -- TODO
   , ("g", [])

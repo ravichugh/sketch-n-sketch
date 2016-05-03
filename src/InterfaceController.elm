@@ -805,6 +805,22 @@ computeSelectedBlobsAndBounds model =
      (\blobId nodeId ->
        case Dict.get nodeId tree of
 
+         -- refactor the following cases for readability
+
+         Just (LangSvg.SvgNode "BOX" nodeAttrs _) ->
+           let get attr = ValueBasedTransform.maybeFindAttr nodeId "BOX" attr nodeAttrs in
+           case List.map .v_ [get "LEFT", get "TOP", get "RIGHT", get "BOT"] of
+             [VConst left, VConst top, VConst right, VConst bot] ->
+               (left, top, right, bot)
+             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+
+         Just (LangSvg.SvgNode "OVAL" nodeAttrs _) ->
+           let get attr = ValueBasedTransform.maybeFindAttr nodeId "OVAL" attr nodeAttrs in
+           case List.map .v_ [get "LEFT", get "TOP", get "RIGHT", get "BOT"] of
+             [VConst left, VConst top, VConst right, VConst bot] ->
+               (left, top, right, bot)
+             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+
          Just (LangSvg.SvgNode "g" nodeAttrs _) ->
            case View.maybeFindBounds nodeAttrs of
              Just bounds -> bounds
@@ -815,6 +831,22 @@ computeSelectedBlobsAndBounds model =
            case List.map .v_ [get "x1", get "y1", get "x2", get "y2"] of
              [VConst x1, VConst y1, VConst x2, VConst y2] ->
                (minNumTr x1 x2, minNumTr y1 y2, maxNumTr x1 x2, maxNumTr y1 y2)
+             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+
+         -- "ellipse" and "circle" aren't handled nicely by grouping
+
+         Just (LangSvg.SvgNode "ellipse" nodeAttrs _) ->
+           let get attr = ValueBasedTransform.maybeFindAttr nodeId "ellipse" attr nodeAttrs in
+           case List.map .v_ [get "cx", get "cy", get "rx", get "ry"] of
+             [VConst cx, VConst cy, VConst rx, VConst ry] ->
+               (cx `minusNumTr` rx, cy `minusNumTr` ry, cx `plusNumTr` rx, cy `plusNumTr` ry)
+             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+
+         Just (LangSvg.SvgNode "circle" nodeAttrs _) ->
+           let get attr = ValueBasedTransform.maybeFindAttr nodeId "circle" attr nodeAttrs in
+           case List.map .v_ [get "cx", get "cy", get "r"] of
+             [VConst cx, VConst cy, VConst r] ->
+               (cx `minusNumTr` r, cy `minusNumTr` r, cx `plusNumTr` r, cy `plusNumTr` r)
              _ -> Debug.crash "computeSelectedBlobsAndBounds"
 
          _ -> Debug.crash "computeSelectedBlobsAndBounds"
@@ -1769,19 +1801,34 @@ onClickPrimaryZone i k z old =
       _ ->
         old.hoveredCrosshairs
   in
-  let selectedShapes' =
+  let (selectedShapes', selectedBlobs') =
     let selectThisShape () =
-      Set.insert i <| if old.keysDown == Keys.shift
-                      then old.selectedShapes
-                      else Set.empty
+      Set.insert i <|
+        if old.keysDown == Keys.shift
+        then old.selectedShapes
+        else Set.empty
     in
-    case (k, z) of
-      ("line", "Edge")     -> selectThisShape ()
-      (_,      "Interior") -> selectThisShape ()
-      _                    -> old.selectedShapes
+    let selectBlob blobId =
+      Dict.insert blobId i <|
+        if old.keysDown == Keys.shift
+        then old.selectedBlobs
+        else Dict.empty
+    in
+    let maybeBlobId =
+      case Dict.get i (snd old.slate) of
+        Just (LangSvg.SvgNode _ l _) -> View.maybeFindBlobId l
+        _                            -> Debug.crash "onClickPrimaryZone"
+    in
+    case (k, z, maybeBlobId) of
+      ("line", "Edge",     Just blobId) -> (selectThisShape (), selectBlob blobId)
+      (_,      "Interior", Just blobId) -> (selectThisShape (), selectBlob blobId)
+      ("line", "Edge",     Nothing)     -> (selectThisShape (), old.selectedBlobs)
+      (_,      "Interior", Nothing)     -> (selectThisShape (), old.selectedBlobs)
+      _                                 -> (old.selectedShapes, old.selectedBlobs)
   in
   { old | hoveredCrosshairs = hoveredCrosshairs'
         , selectedShapes = selectedShapes'
+        , selectedBlobs = selectedBlobs'
         }
 
 onMouseMove (mx0, my0) old =
@@ -1988,10 +2035,12 @@ upstate evt old = case debugLog "Event" evt of
     MouseClickCanvas ->
       case (old.tool, old.mouseMode) of
         (Cursor, MouseObject _ _ _ _) -> old
-        (Cursor, _)                   -> { old | selectedShapes = Set.empty }
+        (Cursor, _) ->
+          { old | selectedShapes = Set.empty, selectedBlobs = Dict.empty }
 
         (_ , MouseNothing) ->
-          { old | mouseMode = MouseDrawNew [], selectedShapes = Set.empty }
+          { old | mouseMode = MouseDrawNew []
+                , selectedShapes = Set.empty, selectedBlobs = Dict.empty }
 
         _ -> old
 
@@ -2025,7 +2074,10 @@ upstate evt old = case debugLog "Event" evt of
           let _ = debugLog "mouse down was preempted by a handler in View" () in
           old
 
-        (True, (Just _, _)) -> Debug.crash "upstate MouseIsDown: impossible"
+        -- (True, (Just _, _)) -> Debug.crash "upstate MouseIsDown: impossible"
+        (True, (Just _, _)) ->
+          let _ = Debug.log "upstate MouseIsDown: impossible" () in
+          old
 
     TickDelta deltaT ->
       case old.mode of

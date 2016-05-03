@@ -700,3 +700,6 @@ minMax x y             = (min x y, max x y)
 minNumTr (a,t1) (b,t2) = if a <= b then (a,t1) else (b,t2)
 maxNumTr (a,t1) (b,t2) = if a >= b then (a,t1) else (b,t2)
 minMaxNumTr nt1 nt2    = (minNumTr nt1 nt2, maxNumTr nt1 nt2)
+
+plusNumTr (n1,t1) (n2,t2)  = (n1 + n2, TrOp Plus [t1, t2])
+minusNumTr (n1,t1) (n2,t2) = (n1 + n2, TrOp Minus [t1, t2])

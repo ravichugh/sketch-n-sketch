@@ -1,7 +1,7 @@
 module InterfaceView2 (view, scaleColorBall , drawNewPolygonDotSize
                       , boundingBoxOfPoints
                       , boundingBox , squareBoundingBox , snapLine
-                      , maybeFindBounds
+                      , maybeFindBounds , maybeFindBlobId
                       ) where
 
 --Import the little language and its parsing utilities
@@ -501,20 +501,27 @@ pointZoneStyles =
   , strokeWidth = "2"
   , fill =
       { shown = "white" -- "silver" -- "rgba(255,0,0,0.5)"
-      , selected = "aqua" -- "rgba(255,255,0,1.0)"
+      , selectedShape = "yellow"
+      , selectedBlob = "aqua" -- "rgba(255,255,0,1.0)"
       , hidden = "rgba(0,0,0,0.0)"
       }
   }
+
+pointZoneStylesFillSelected model nodeId =
+  let d = Dict.filter (\_ nodeId' -> nodeId == nodeId') model.selectedBlobs in
+  if Dict.isEmpty d
+    then pointZoneStyles.fill.selectedShape
+    else pointZoneStyles.fill.selectedBlob
 
 zonePoint model id shape zone transform attrs =
   let maybeStyles =
     let maybeStyles_ () =
       if objectZoneIsCurrentlyBeingManipulated model id ((==) zone) then
-        Just pointZoneStyles.fill.selected
+        Just (pointZoneStylesFillSelected model id)
       else if objectIsCurrentlyBeingManipulated model id then
         Nothing
       else if Set.member id model.selectedShapes then
-        Just pointZoneStyles.fill.selected
+        Just (pointZoneStylesFillSelected model id)
       else if Set.member id model.hoveredShapes then
         Just pointZoneStyles.fill.shown
       else
@@ -854,10 +861,12 @@ zoneDelete_ id shape x y transform =
 --------------------------------------------------------------------------------
 -- Selection Zones
 
-colorPointSelected      = "rgba(0,128,0,1.0)"
-colorPointNotSelected   = "orange"
-colorLineSelected       = "blue"
-colorLineNotSelected    = "red"
+-- http://www.colorpicker.com/
+
+colorPointSelected      = "#38F552" -- "rgba(0,128,0,1.0)"
+colorPointNotSelected   = "#F5B038" -- "orange"
+colorLineSelected       = "#B4FADB" -- "blue"
+colorLineNotSelected    = "#FAB4D3" -- "red"
 
 hairStrokeWidth         = "5" -- pointZoneStyles.radius - 1
 
@@ -926,7 +935,7 @@ zoneSelectCrossDot model thisCrosshair x y =
       [ LangSvg.attr "cx" (toString x) , LangSvg.attr "cy" (toString y)
       , LangSvg.attr "fill" <| -- "darkgray"
           if Set.member id model.selectedShapes
-            then pointZoneStyles.fill.selected
+            then pointZoneStylesFillSelected model id
             else pointZoneStyles.fill.shown
       , LangSvg.attr "stroke" pointZoneStyles.stroke
       , LangSvg.attr "stroke-width" pointZoneStyles.strokeWidth
@@ -1006,6 +1015,8 @@ zoneSelectLine_ model typeAndNodeIdAndFeature (x1,y1) (x2,y2) =
 --------------------------------------------------------------------------------
 -- Select Blob Zones
 
+{-
+
 zoneBlobStrokeWidth  = 8
 zoneBlobPadding      = 10
 roundBounds          = True
@@ -1049,17 +1060,11 @@ zoneBlobLine model blobId nodeId (x1,_) (x2,_) (y1,_) (y2,_) =
     let lineEndpoints = [ ((x1 + dx, y1 + dy), (x2 - dx, y2 - dy)) ] in
     zoneBlobEdges model blobId nodeId lineEndpoints "0.7"
 
-{-
-toggle x set = if Set.member x set then Set.remove x set else Set.insert x set
--}
-toggleDict (k,v) dict =
-  if Dict.member k dict
-    then Dict.remove k dict
-    else Dict.insert k v dict
-
 toggleSelectedBlob blobId nodeId =
   UpdateModel <| \model ->
-    { model | selectedBlobs = toggleDict (blobId, nodeId) model.selectedBlobs }
+    { model | selectedBlobs = Utils.toggleDict (blobId, nodeId) model.selectedBlobs }
+
+-}
 
 maybeFindBlobId l =
   case Utils.maybeFind "BLOB" l of
@@ -1073,6 +1078,7 @@ maybeFindBounds l =
   case Utils.maybeFind "BOUNDS" l of
     Nothing -> Nothing
     Just av ->
+      let roundBounds = True in
       case (av.av_, roundBounds) of
         (LangSvg.ABounds bounds, False) -> Just bounds
         (LangSvg.ABounds (a,b,c,d), True) ->
@@ -1091,11 +1097,12 @@ makeZones model shape id l =
     "rect"     -> makeZonesRectOrBox model id shape l
     "BOX"      -> makeZonesRectOrBox model id shape l
     "circle"   -> makeZonesCircle model id l
-    "ellipse"  -> makeZonesEllipse model id l
+    "ellipse"  -> makeZonesEllipseOrOval model id shape l
+    "OVAL"     -> makeZonesEllipseOrOval model id shape l
     "polygon"  -> makeZonesPoly model shape id l
     "polyline" -> makeZonesPoly model shape id l
     "path"     -> makeZonesPath model shape id l
-    "g"        -> makeZonesGroup model id l
+    -- "g"        -> makeZonesGroup model id l
     _          -> []
 
 findNums l attrs = List.map (toNum << Utils.find_ l) attrs
@@ -1135,12 +1142,15 @@ makeZonesLine model id l =
     zoneRotate model id "line" c r (maybeTransformCmds l) ++
     zonesStroke model id "line" (fst x2) (fst y2) l
   in
+  primaryWidgets :: extraWidgets
+{-
   let zGroup =
     case maybeFindBlobId l of
       Nothing     -> []
       Just blobId -> zoneBlobLine model blobId id x1 x2 y1 y2
   in
   primaryWidgets :: extraWidgets ++ zGroup
+-}
 
 makeZonesRectOrBox model id shape l =
   let (left, top, right, bot, width, height) =
@@ -1238,8 +1248,16 @@ makeZonesCircle model id l =
   in
   primaryWidgets :: extraWidgets
 
-makeZonesEllipse model id l =
-  let (cx,cy,rx,ry) = Utils.unwrap4 <| findNums l ["cx","cy","rx","ry"] in
+makeZonesEllipseOrOval model id shape l =
+  let (cx,cy,rx,ry) =
+    if shape == "ellipse" then
+      Utils.unwrap4 <| findNums l ["cx","cy","rx","ry"]
+    else -- if shape == "OVAL"
+      let (left, top, right, bot) = Utils.unwrap4 <| findNums l ["LEFT","TOP","RIGHT","BOT"] in
+      let rx = (right - left) / 2 in
+      let ry = (bot - top) / 2 in
+      (left + rx, top + ry, rx, ry)
+  in
   let
     top    = cy - ry
     bot    = cy + ry
@@ -1249,29 +1267,43 @@ makeZonesEllipse model id l =
   let bounds = (left, top, right, bot) in
   let transform = maybeTransformAttr l in
   let zoneInterior =
-    draggableZone Svg.ellipse False model id "ellipse" "Interior" <|
+    draggableZone Svg.ellipse False model id shape "Interior" <|
       [ attrNum "cx" cx, attrNum "cy" cy, attrNum "rx" rx, attrNum "ry" ry
       , onMouseEnter (addHoveredShape id)
       ] ++ transform
   in
   let zonesSelect =
-    zoneSelectLine model id LangSvg.ellipseRX (cx,cy) (cx+rx,cy) ++
-    zoneSelectLine model id LangSvg.ellipseRY (cx,cy-ry) (cx,cy) ++
-    zoneSelectCrossDot model (id, LangSvg.ellipseTCX, LangSvg.ellipseTCY) cx top ++
-    zoneSelectCrossDot model (id, LangSvg.ellipseBCX, LangSvg.ellipseBCY) cx bot ++
-    zoneSelectCrossDot model (id, LangSvg.ellipseCLX, LangSvg.ellipseCLY) left cy ++
-    zoneSelectCrossDot model (id, LangSvg.ellipseCRX, LangSvg.ellipseCRY) right cy ++
-    zoneSelectCrossDot model (id, LangSvg.ellipseCX , LangSvg.ellipseCY)  cx cy
+    -- refactor, or get rid of parallel feature names...
+    if shape == "ellipse" then
+      zoneSelectLine model id LangSvg.ellipseRX (cx,cy) (cx+rx,cy) ++
+      zoneSelectLine model id LangSvg.ellipseRY (cx,cy-ry) (cx,cy) ++
+      zoneSelectCrossDot model (id, LangSvg.ellipseTCX, LangSvg.ellipseTCY) cx top ++
+      zoneSelectCrossDot model (id, LangSvg.ellipseBCX, LangSvg.ellipseBCY) cx bot ++
+      zoneSelectCrossDot model (id, LangSvg.ellipseCLX, LangSvg.ellipseCLY) left cy ++
+      zoneSelectCrossDot model (id, LangSvg.ellipseCRX, LangSvg.ellipseCRY) right cy ++
+      zoneSelectCrossDot model (id, LangSvg.ellipseCX , LangSvg.ellipseCY)  cx cy
+    else
+      zoneSelectLine model id LangSvg.ovalRX (cx,cy) (cx+rx,cy) ++
+      zoneSelectLine model id LangSvg.ovalRY (cx,cy-ry) (cx,cy) ++
+      zoneSelectCrossDot model (id, LangSvg.ovalTCX, LangSvg.ovalTCY) cx top ++
+      zoneSelectCrossDot model (id, LangSvg.ovalBCX, LangSvg.ovalBCY) cx bot ++
+      zoneSelectCrossDot model (id, LangSvg.ovalCLX, LangSvg.ovalCLY) left cy ++
+      zoneSelectCrossDot model (id, LangSvg.ovalCRX, LangSvg.ovalCRY) right cy ++
+      zoneSelectCrossDot model (id, LangSvg.ovalTLX, LangSvg.ovalTLY) left top ++
+      zoneSelectCrossDot model (id, LangSvg.ovalTRX, LangSvg.ovalTRY) right top ++
+      zoneSelectCrossDot model (id, LangSvg.ovalBLX, LangSvg.ovalBLY) left bot ++
+      zoneSelectCrossDot model (id, LangSvg.ovalBRX, LangSvg.ovalBRY) right bot ++
+      zoneSelectCrossDot model (id, LangSvg.ovalCX , LangSvg.ovalCY)  cx cy
   in
   let primaryWidgets =
      boundingBoxZones model id bounds <|
        [zoneInterior] ++
        zonesSelect ++
-       eightCardinalZones model id "ellipse" transform bounds
+       eightCardinalZones model id shape transform bounds
   in
   let extraWidgets =
-    zoneRotate model id "ellipse" (cx,cy) (ry + rotZoneDelta) (maybeTransformCmds l) ++
-    zonesFillAndStroke model id "ellipse" (cx - rx) (cy - ry) l
+    zoneRotate model id shape (cx,cy) (ry + rotZoneDelta) (maybeTransformCmds l) ++
+    zonesFillAndStroke model id shape (cx - rx) (cy - ry) l
   in
   primaryWidgets :: extraWidgets
 
@@ -1390,10 +1422,12 @@ makeZonesPath model shape id nodeAttrs =
   in
   primaryWidgets :: zRot ++ zFillAndStroke
 
+{-
 makeZonesGroup model nodeId l =
   case (maybeFindBounds l, maybeFindBlobId l) of
-    (Just bounds, Just blobId) -> zoneBlobBox model blobId nodeId bounds
+    (Just bounds, Just blobId) -> [] -- TODO zoneBlobBox model blobId nodeId bounds
     _                          -> []
+-}
 
 
 --------------------------------------------------------------------------------
@@ -1821,15 +1855,27 @@ widgetsCursorsOrShapes w h model =
 threeVersions w h b1 b2 b3 =
   flowRight w h [(1/6, b1), (2/3, b2), (1/6, b3)]
 
+showRawShapeTools = False
+
 widgetsTools w h model =
-  [ toolButton model Cursor w h
-  , flowRight w h
-       [ (1/5, toolButton model (Rect Raw))
-       , (1/5, toolButton model (Oval Raw))
-       , (1/5, toolButton model (Poly Raw))
-       , (2/5, toolButton model (Path Raw))
-       ]
-  , twoButtons w h
+  let noFeatures = Set.isEmpty model.selectedFeatures in
+  let noBlobs = Dict.isEmpty model.selectedBlobs in
+  let relateButton = simpleEventButton_ noFeatures in
+  let groupButton = simpleEventButton_ (noBlobs || not noFeatures) in
+
+  [ toolButton model Cursor w h ]
+  ++
+  (if not showRawShapeTools then []
+   else
+     [ flowRight w h
+          [ (1/5, toolButton model (Rect Raw))
+          , (1/5, toolButton model (Oval Raw))
+          , (1/5, toolButton model (Poly Raw))
+          , (2/5, toolButton model (Path Raw))
+          ]
+     ])
+  ++
+  [ twoButtons w h
       (toolButton model (Line Raw))
       (toolButton model (Rect Stretchy))
   , twoButtons w h
@@ -1842,15 +1888,15 @@ widgetsTools w h model =
        ]
   , gapWidget w h
   , twoButtons w h
-      (simpleButton DigHole "Dig")
-      (simpleButton MakeEqual "x = y")
+      (relateButton DigHole "Dig")
+      (relateButton MakeEqual "x = y")
   , gapWidget w h
   , twoButtons w h
-      (simpleButton GroupBlobs "Group")
-      (simpleButton AbstractBlobs "Abs")
+      (groupButton GroupBlobs "Group")
+      (groupButton AbstractBlobs "Abs")
   , twoButtons w h
-      (simpleButton DuplicateBlobs "Dupe")
-      (simpleButton MergeBlobs "Merge")
+      (groupButton DuplicateBlobs "Dupe")
+      (groupButton MergeBlobs "Merge")
   ]
 
 middleWidgets row1 row2 w h wWrap hWrap model =
@@ -2151,7 +2197,7 @@ toolButton model tool w h =
     Cursor        -> "Cursor"
     Line Raw      -> "Line"
     Rect Raw      -> "R" -- capRaw -- "Rect"
-    Rect Stretchy -> "Rect" -- capStretchy
+    Rect Stretchy -> "Box" -- "Rect" -- capStretchy
     Oval Raw      -> "E" -- capRaw -- "Oval"
     Oval Stretchy -> "Oval" -- capStretchy
     Poly Raw      -> "P" -- capRaw -- "Poly"

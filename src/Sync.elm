@@ -1778,41 +1778,6 @@ makeTrigger_ opts d0 d2 slate subst id kind zone =
         solveOne "width"  (offset -dx (rectW slate id)) ++
         solveOne "height" (offset  dy (rectH slate id))
 
-    ("BOX", "Interior") ->
-      \_ (dx,dy) ->
-        solveOne "LEFT"  (offset dx (boxLeft slate id)) ++
-        solveOne "RIGHT" (offset dx (boxRight slate id)) ++
-        solveOne "TOP"   (offset dy (boxTop slate id)) ++
-        solveOne "BOT"   (offset dy (boxBot slate id))
-    ("BOX", "RightEdge") ->
-      \_ (dx,dy) ->
-        solveOne "RIGHT" (offset dx (boxRight slate id))
-    ("BOX", "BotEdge") ->
-      \_ (dx,dy) ->
-        solveOne "BOT"   (offset dy (boxBot slate id))
-    ("BOX", "LeftEdge") ->
-      \_ (dx,dy) ->
-        solveOne "LEFT"  (offset dx (boxLeft slate id))
-    ("BOX", "TopEdge") ->
-      \_ (dx,dy) ->
-        solveOne "TOP"   (offset dy (boxTop slate id))
-    ("BOX", "BotRightCorner") ->
-      \_ (dx,dy) ->
-        solveOne "RIGHT" (offset dx (boxRight slate id)) ++
-        solveOne "BOT"   (offset dy (boxBot slate id))
-    ("BOX", "TopRightCorner") ->
-      \_ (dx,dy) ->
-        solveOne "TOP"   (offset dy (boxTop slate id)) ++
-        solveOne "RIGHT" (offset dx (boxRight slate id))
-    ("BOX", "TopLeftCorner") ->
-      \_ (dx,dy) ->
-        solveOne "LEFT"  (offset dx (boxLeft slate id)) ++
-        solveOne "TOP"   (offset dy (boxTop slate id))
-    ("BOX", "BotLeftCorner") ->
-      \_ (dx,dy) ->
-        solveOne "LEFT"  (offset dx (boxLeft slate id)) ++
-        solveOne "BOT"   (offset dy (boxBot slate id))
-
     ("line", "Edge") ->
       \_ (dx,dy) ->
         solveOne "x1" (offset dx (getANum slate id "x1")) ++
@@ -1828,15 +1793,56 @@ makeTrigger_ opts d0 d2 slate subst id kind zone =
         solveOne "x2" (offset dx (getANum slate id "x2")) ++
         solveOne "y2" (offset dy (getANum slate id "y2"))
 
-    ("ellipse", _)  -> makeTriggerEllipse solveOne offset slate id kind zone
-    ("circle", _)   -> makeTriggerCircle solveOne offset slate id kind zone
+    ("BOX", _)      -> makeTriggerBoxOrOval solveOne offset slate id zone
+    ("OVAL", _)     -> makeTriggerBoxOrOval solveOne offset slate id zone
+    ("ellipse", _)  -> makeTriggerEllipse solveOne offset slate id zone
+    ("circle", _)   -> makeTriggerCircle solveOne offset slate id zone
     ("polygon", _)  -> makeTriggerPoly solveOne offset slate id kind zone
     ("polyline", _) -> makeTriggerPoly solveOne offset slate id kind zone
     ("path", _)     -> makeTriggerPath solveOne offset slate id zone
 
     _ -> Debug.crash ("makeTrigger: " ++ kind ++ " " ++ zone)
 
-makeTriggerEllipse solveOne offset slate id kind zone =
+makeTriggerBoxOrOval solveOne offset slate id zone =
+  case zone of
+    "Interior" ->
+      \_ (dx,dy) ->
+        solveOne "LEFT"  (offset dx (getLeft slate id)) ++
+        solveOne "RIGHT" (offset dx (getRight slate id)) ++
+        solveOne "TOP"   (offset dy (getTop slate id)) ++
+        solveOne "BOT"   (offset dy (getBot slate id))
+    "RightEdge" ->
+      \_ (dx,dy) ->
+        solveOne "RIGHT" (offset dx (getRight slate id))
+    "BotEdge" ->
+      \_ (dx,dy) ->
+        solveOne "BOT"   (offset dy (getBot slate id))
+    "LeftEdge" ->
+      \_ (dx,dy) ->
+        solveOne "LEFT"  (offset dx (getLeft slate id))
+    "TopEdge" ->
+      \_ (dx,dy) ->
+        solveOne "TOP"   (offset dy (getTop slate id))
+    "BotRightCorner" ->
+      \_ (dx,dy) ->
+        solveOne "RIGHT" (offset dx (getRight slate id)) ++
+        solveOne "BOT"   (offset dy (getBot slate id))
+    "TopRightCorner" ->
+      \_ (dx,dy) ->
+        solveOne "TOP"   (offset dy (getTop slate id)) ++
+        solveOne "RIGHT" (offset dx (getRight slate id))
+    "TopLeftCorner" ->
+      \_ (dx,dy) ->
+        solveOne "LEFT"  (offset dx (getLeft slate id)) ++
+        solveOne "TOP"   (offset dy (getTop slate id))
+    "BotLeftCorner" ->
+      \_ (dx,dy) ->
+        solveOne "LEFT"  (offset dx (getLeft slate id)) ++
+        solveOne "BOT"   (offset dy (getBot slate id))
+    _ ->
+      Debug.crash ("makeTriggerBoxOrOval: " ++ zone)
+
+makeTriggerEllipse solveOne offset slate id zone =
   let
     left (dx,dy) =
       solveOne "cx" (offset  (dx//2) (getANum slate id "cx")) ++
@@ -1868,9 +1874,9 @@ makeTriggerEllipse solveOne offset slate id kind zone =
     "BotLeftCorner"  -> \_ dxy -> bot dxy ++ left dxy
     "BotRightCorner" -> \_ dxy -> bot dxy ++ right dxy
 
-    _ -> Debug.crash ("makeTrigger: " ++ kind ++ " " ++ zone)
+    _ -> Debug.crash ("makeTriggerEllipse: " ++ zone)
 
-makeTriggerCircle solveOne offset slate id kind zone =
+makeTriggerCircle solveOne offset slate id zone =
   let
     left (dx,dy) =
       solveOne "cx" (offset  (dx//2) (getANum slate id "cx")) ++
@@ -1906,7 +1912,7 @@ makeTriggerCircle solveOne offset slate id kind zone =
     "BotLeftCorner"  -> \_ (dx,dy) -> corner (max -dx  dy) ((*) -1) ((*)  1)
     "BotRightCorner" -> \_ (dx,dy) -> corner (max  dx  dy) ((*)  1) ((*)  1)
 
-    _ -> Debug.crash ("makeTrigger: " ++ kind ++ " " ++ zone)
+    _ -> Debug.crash ("makeTriggerCircle: " ++ zone)
 
 makeTriggerPoly solveOne offset slate id kind zone =
   case LangSvg.realZoneOf zone of
@@ -2070,10 +2076,10 @@ rectY slate i = getANum slate i "y"
 rectW slate i = getANum slate i "width"
 rectH slate i = getANum slate i "height"
 
-boxLeft slate i  = getANum slate i "LEFT"
-boxTop slate i   = getANum slate i "TOP"
-boxRight slate i = getANum slate i "RIGHT"
-boxBot slate i   = getANum slate i "BOT"
+getLeft slate i  = getANum slate i "LEFT"
+getTop slate i   = getANum slate i "TOP"
+getRight slate i = getANum slate i "RIGHT"
+getBot slate i   = getANum slate i "BOT"
 
 {-
 rectRightEdge slate i =
@@ -2082,8 +2088,6 @@ rectRightEdge slate i =
 rectBotEdge slate i =
   getANum slate i "y" `plusNumTr` getANum slate i "height"
 -}
-
-plusNumTr (n1,t1) (n2,t2) = (n1 + n2, TrOp Plus [t1, t2])
 
 -- TODO sloppy way of doing this for now...
 whichLoc : Options -> Dict0 -> Dict2 -> NodeId -> Zone -> AttrName -> Maybe LocId
