@@ -2019,7 +2019,7 @@ mainSectionVertical w h model =
                   GE.container wBtn (hZInfo+1) GE.middle <|
                   outputButton model wBtn hBtn
               , colorDebug Color.orange <| GE.spacer wExtra (hZInfo+1)
-              , colorDebug Color.red <|
+              , colorDebug Color.green <|
                   GE.container wBtnWide (hZInfo+1) GE.middle <|
                   ghostsButton model wBtnWide hBtn
               , caption model (wCanvas+1-(wBtn+wExtra+wBtnWide)) (hZInfo+1) -- NOTE: +1 is a band-aid
@@ -2068,10 +2068,10 @@ mainSectionHorizontal w h model =
                     GE.container wBtn (hZInfo+1) GE.middle <|
                     outputButton model wBtn hBtn
                 , colorDebug Color.orange <| GE.spacer wExtra (hZInfo+1)
-                , colorDebug Color.red <|
+                , colorDebug Color.green <|
                     GE.container wBtnWide (hZInfo+1) GE.middle <|
                     ghostsButton model wBtnWide hBtn
-                , caption model (w-(wBtn+wExtra+wBtnWide)) (hZInfo+1) -- NOTE: +1 is a band-aid
+                , caption model (wRest-(wBtn+wExtra+wBtnWide)) (hZInfo+1) -- NOTE: +1 is a band-aid
                 ]
             ]
     Just errormsg -> errorBox w (hCanvas + hZInfo) errormsg
