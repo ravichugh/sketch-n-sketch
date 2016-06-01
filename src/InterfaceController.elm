@@ -949,8 +949,8 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs =
     let matches = matchesAnySelectedBlob selectedNiceBlobs in
     let (pluckedDefs, beforeDefs, afterDefs) =
       -- TODO make safe again
-      let (plucked, before, after) = pluckFromList matches defs in
-      -- let (plucked, before, after) = unsafePluckFromList matches defs in
+      -- let (plucked, before, after) = pluckFromList matches defs in
+      let (plucked, before, after) = unsafePluckFromList matches defs in
       let getExps = List.map (\(_,_,e,_) -> e) in
       let (beforeInside, beforeOutside) =
         List.foldr
