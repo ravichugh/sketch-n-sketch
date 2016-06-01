@@ -207,14 +207,16 @@ canvasOriginHorizontal old =
   -- TODO in View, the height of codebox isn't the same as the canvas.
   --   hMid is calculated weirdly in View...
   let
+    hTop    = params.topSection.h
+    hBot    = params.botSection.h
     hGut    = params.mainSection.horizontal.hGut
-    hCode_  = (snd old.dimensions - 2*hMid - 3*hGut) // 2 + hMid
+    hCode_  = (snd old.dimensions - hTop - hBot - hGut) // 2
     hCode   = hCode_ + old.midOffsetY
     -- TODO consider hideCode and hideCanvas
-    hMid    = params.mainSection.widgets.hBtn
+    wTools  = params.mainSection.widgets.wBtn + 2 * params.mainSection.vertical.wGut
   in
-    ( params.wGut
-    , params.topSection.h + hCode + hMid
+    ( wTools
+    , params.topSection.h + hCode + hGut
     )
 
 
