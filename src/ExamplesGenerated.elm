@@ -3851,9 +3851,105 @@ blank =
 
 "
 
+bar1 =
+ "
+; define everything in terms of left and top point 
+; similar to positioning in HTML and CSS 
+(def rect2_top 100)
+(def width 50)
+(def start 151)
+(def gap (* 0.2 width))
+(def [d1 d2 d3 d4 d5] [19 74 122 144 181])
+;(def start x (+ x 100))
+
+(def maxD 181)
+(def minD 19)
+
+(def COLORMIN 100)
+(def COLORMAX 250)
+
+(def rect2
+  (let [left bot] [start (+ d1 rect2_top)]
+  (let bounds [left rect2_top (+ width left) bot]
+  (let color (+ (* (- 1 (/ (- d1 minD) (- maxD minD))) COLORMIN) (* (/ (- d1 minD) (- maxD minD)) COLORMAX))
+    [ (rectangle color 'black' 0 0 bounds) ]))))
+
+(def rect3
+  (let [left bot] [(+ gap (+ start width)) (+ d2 rect2_top)]
+  (let bounds [left rect2_top (+ width left) bot]
+  (let color (+ (* (- 1 (/ (- d2 minD) (- maxD minD))) COLORMIN) (* (/ (- d2 minD) (- maxD minD)) COLORMAX))
+    [ (rectangle color 'black' 0 0 bounds) ]))))
+
+(def rect4
+  (let [left bot] [ (+ (* 2 gap) (+ start (* width 2))) (+ d3 rect2_top)]
+  (let bounds [left rect2_top (+ width left) bot]
+  (let color (+ (* (- 1 (/ (- d3 minD) (- maxD minD))) COLORMIN) (* (/ (- d3 minD) (- maxD minD)) COLORMAX))
+    [ (rectangle color 'black' 0 0 bounds) ]))))
+
+(def rect5
+  (let [left bot] [(+ (* 3 gap) (+ start (* width 3))) (+ d4 rect2_top)]
+  (let bounds [left rect2_top (+ width left) bot]
+  (let color (+ (* (- 1 (/ (- d4 minD) (- maxD minD))) COLORMIN) (* (/ (- d4 minD) (- maxD minD)) COLORMAX))
+    [ (rectangle color 'black' 0 0 bounds) ]))))
+
+(def rect6
+  (let [left bot] [(+ (* 4 gap) (+ start (* width 4))) (+ d5 rect2_top)]
+  (let bounds [left rect2_top (+ width left) bot]
+  (let color (+ (* (- 1 (/ (- d5 minD) (- maxD minD))) COLORMIN) (* (/ (- d5 minD) (- maxD minD)) COLORMAX))
+    [ (rectangle color 'black' 0 0 bounds) ]))))
+
+; BOTTOM RECTANGLES 
+(def range 300)
+(def rect3_bot (+ rect2_top range))
+
+(def rect7
+  (let [left top] [start (- rect3_bot d5)]
+  (let bounds [left top (+ width left) rect3_bot]
+  (let color (+ (* (- 1 (/ (- d5 minD) (- maxD minD))) COLORMIN) (* (/ (- d5 minD) (- maxD minD)) COLORMAX))
+    [ (rectangle color 'black' 0 0 bounds) ]))))
+
+(def rect8
+  (let [left top] [(+ gap (+ start width)) (- rect3_bot d4)]
+  (let bounds [left top (+ width left) rect3_bot]
+  (let color (+ (* (- 1 (/ (- d4 minD) (- maxD minD))) COLORMIN) (* (/ (- d4 minD) (- maxD minD)) COLORMAX))
+    [ (rectangle color 'black' 0 0 bounds) ]))))
+    
+(def rect9
+  (let [left top] [(+ (* 2 gap) (+ start (* 2 width))) (- rect3_bot d3)]
+  (let bounds [left top (+ width left) rect3_bot]
+  (let color (+ (* (- 1 (/ (- d3 minD) (- maxD minD))) COLORMIN) (* (/ (- d3 minD) (- maxD minD)) COLORMAX))
+    [ (rectangle color 'black' 0 0 bounds) ]))))
+    
+(def rect10
+  (let [left top] [(+ (* 3 gap) (+ start (* 3 width))) (- rect3_bot d2)]
+  (let bounds [left top (+ width left) rect3_bot]
+  (let color (+ (* (- 1 (/ (- d2 minD) (- maxD minD))) COLORMIN) (* (/ (- d2 minD) (- maxD minD)) COLORMAX))
+    [ (rectangle color 'black' 0 0 bounds) ]))))
+    
+(def rect11
+  (let [left top] [(+ (* 4 gap) (+ start (* 4 width))) (- rect3_bot d1)]
+  (let bounds [left top (+ width left) rect3_bot]
+  (let color (+ (* (- 1 (/ (- d1 minD) (- maxD minD))) COLORMIN) (* (/ (- d1 minD) (- maxD minD)) COLORMAX))
+    [ (rectangle color 'black' 0 0 bounds) ]))))
+
+(blobs [
+  rect2
+  rect3
+  rect4
+  rect5
+  rect6
+  rect7
+  rect8
+  rect9
+  rect10
+  rect11
+])
+"
+
 
 examples =
   [ makeExample "BLANK" blank
+  , makeExample "Bar 1" bar1
   , makeExample scratchName scratch
   -- [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src

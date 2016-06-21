@@ -111,9 +111,11 @@ LITTLE_TO_ELM spiralSpiralGraph
 -- LITTLE_TO_ELM relatePoints3
 -- LITTLE_TO_ELM relatePoints4
 LITTLE_TO_ELM blank
+LITTLE_TO_ELM bar1
 
 examples =
   [ makeExample "BLANK" blank
+  , makeExample "Bar 1" bar1
   , makeExample scratchName scratch
   -- [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
