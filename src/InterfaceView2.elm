@@ -1457,6 +1457,7 @@ drawNewShape model =
     (HelperDot,  MouseDrawNew [pt])          -> drawNewHelperDot pt
     (HelperLine, MouseDrawNew [pt2, pt1])    -> drawNewLine model pt2 pt1
     (Lambda,     MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
+    (Text,       MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
     _                                        -> []
 
 defaultOpacity        = Attr.style [("opacity", "0.5")]
@@ -1895,7 +1896,10 @@ widgetsTools w h model =
   , twoButtons w h
       (toolButton model (Oval Stretchy))
       (toolButton model (Path Stretchy))
-  , toolButton model (Poly Stretchy) w h
+  , flowRight w h
+       [ (1/2, toolButton model (Poly Stretchy))
+       , (1/2, toolButton model Text)
+       ]
   , flowRight w h
        [ (1/4, toolButton model Lambda)
        , (3/4, dropdownLambdaTool model)
@@ -2215,12 +2219,12 @@ toolButton model tool w h =
     Oval Raw      -> "E" -- capRaw -- "Oval"
     Oval Stretchy -> "Oval" -- capStretchy
     Poly Raw      -> "P" -- capRaw -- "Poly"
-    Poly Stretchy -> "Polygon" -- "Poly" -- capStretchy
+    Poly Stretchy -> "Poly" -- "Polygon" -- capStretchy
     Poly Sticky   -> capSticky
     Path Raw      -> "Pa" -- capRaw -- "Path"
     Path Stretchy -> "Path" -- capStretchy
     Path Sticky   -> capSticky
-    Text          -> "-"
+    Text          -> "Text"
     HelperLine    -> "(Rule)"
     HelperDot     -> "(Dot)"
     Lambda        -> Utils.uniLambda

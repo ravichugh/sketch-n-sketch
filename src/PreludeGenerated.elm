@@ -635,6 +635,31 @@ prelude =
     [shape1|slider])))))
   (concat (mapi foo shapesCapsSeeds))))))
 
+; Text Widgets
+
+(def simpleText (\\(family color size x1 x2 y horizAlignSeed textVal)
+  (let xMid (+ x1 (/ (- x2 x1) 2!))
+  (let [anchor hAlignSlider]
+    (let dx (/ (- x2 x1) 4!)
+    (let yLine (+ 40! y)
+    (enumSlider (- xMid dx) (+ xMid dx) yLine
+      ['start' 'middle' 'end'] '' horizAlignSeed)))
+  (let x
+    (if (= anchor 'start') x1
+    (if (= anchor 'middle') xMid x2))
+  (let theText
+    ['text'
+      [['x' x] ['y' y]
+       ['style' (+ 'fill:' color)]
+       ['font-family' family] ['font-size' size]
+       ['text-anchor' anchor]]
+      [['TEXT' textVal]]]
+  (let baseLine
+    (let yLine (+ 15! y)
+    (line 'maroon' 3 x1 yLine x2 yLine))
+  (append [theText baseLine] hAlignSlider)
+)))))))
+
 
 ;; rotate : Shape -> Number -> Number -> Number -> Shape
 ;; argument order - shape, rot, x, y
