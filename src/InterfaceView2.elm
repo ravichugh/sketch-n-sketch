@@ -1233,6 +1233,7 @@ makeZonesCircle model id l =
     right  = cx + r
   in
   let bounds = (left, top, right, bot) in
+  let diameter = right - left in
   let transform = maybeTransformAttr l in
   let zoneInterior =
     draggableZone Svg.circle False model id "circle" "Interior" <|
@@ -1241,12 +1242,12 @@ makeZonesCircle model id l =
       ] ++ transform
   in
   let zonesSelect =
-    zoneSelectLine model id LangSvg.circleR (cx,cy) (cx+r,cy) ++
-    zoneSelectCrossDot model (id, LangSvg.circleTCX, LangSvg.circleTCY) cx top ++
-    zoneSelectCrossDot model (id, LangSvg.circleBCX, LangSvg.circleBCY) cx bot ++
-    zoneSelectCrossDot model (id, LangSvg.circleCLX, LangSvg.circleCLY) left cy ++
-    zoneSelectCrossDot model (id, LangSvg.circleCRX, LangSvg.circleCRY) right cy ++
-    zoneSelectCrossDot model (id, LangSvg.circleCX , LangSvg.circleCY)  cx cy
+    maybeZoneSelectLine diameter model id LangSvg.circleR (cx,cy) (cx+r,cy) ++
+    maybeZoneSelectCrossDot diameter model (id, LangSvg.circleTCX, LangSvg.circleTCY) cx top ++
+    maybeZoneSelectCrossDot diameter model (id, LangSvg.circleBCX, LangSvg.circleBCY) cx bot ++
+    maybeZoneSelectCrossDot diameter model (id, LangSvg.circleCLX, LangSvg.circleCLY) left cy ++
+    maybeZoneSelectCrossDot diameter model (id, LangSvg.circleCRX, LangSvg.circleCRY) right cy ++
+    maybeZoneSelectCrossDot diameter model (id, LangSvg.circleCX, LangSvg.circleCY) cx cy
   in
   let primaryWidgets =
      boundingBoxZones model id bounds <|
