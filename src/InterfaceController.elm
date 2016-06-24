@@ -726,7 +726,8 @@ addLambdaToCodeAndRun old (_,pt2) (_,pt1) =
 addTextBox old click2 click1 =
   let (xa, xb, ya, yb) = View.boundingBox (snd click2) (snd click1) in
   let fontSize =
-    withDummyPos (EConst "" (toFloat (yb - ya)) dummyLoc (intSlider 0 128))
+    eConst0 (toFloat (yb - ya)) dummyLoc
+    -- withDummyPos (EConst "" (toFloat (yb - ya)) dummyLoc (intSlider 0 128))
   in
   addToCodeAndRun "text" old
     [ makeLet ["fontSize","textVal"] [fontSize, eStr "Text"] ]
