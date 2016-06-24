@@ -247,7 +247,9 @@ parens      = delimit "(" ")"
 
 parseNumV = (\(n,b) -> vConst (n, dummyTrace_ b)) <$> parseNum
 
-dummyLocWithDebugInfo b n = (0, b, "literal" ++ toString n)
+-- TODO interacts badly with auto-abstracted variable names...
+-- dummyLocWithDebugInfo b n = (0, b, "literal" ++ toString n)
+dummyLocWithDebugInfo b n = (0, b, "")
 
 parseNumE =
   whitespace                   >>= \ws ->

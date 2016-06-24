@@ -448,27 +448,46 @@ strBounds (left,top,right,bot) =
 
 desugarKind shape =
   case shape of
-    "BOX" -> "rect"
-    _     -> shape
+    "BOX"  -> "rect"
+    "OVAL" -> "ellipse"
+    _      -> shape
 
 desugarShapeAttrs shape0 attrs0 =
+  let mkNum n = aNum (n, dummyTrace) in
   Maybe.withDefault (shape0, attrs0) <|
     case shape0 of
       "BOX" ->
-        Utils.maybeRemoveFirst "LEFT"  attrs0 `Maybe.andThen` \(vL,attrs1) ->
-        Utils.maybeRemoveFirst "RIGHT" attrs1 `Maybe.andThen` \(vR,attrs2) ->
-        Utils.maybeRemoveFirst "TOP"   attrs2 `Maybe.andThen` \(vT,attrs3) ->
-        Utils.maybeRemoveFirst "BOT"   attrs3 `Maybe.andThen` \(vB,attrs4) ->
-          case (vL.av_, vT.av_, vR.av_, vB.av_) of
-            (ANum (x,_), ANum (y,_), ANum (xw,_), ANum (yh,_)) ->
-              let width = aNum (xw - x, dummyTrace) in
-              let height = aNum (yh - y, dummyTrace) in
-              let attrs = [("x",vL),("y",vT),("width",width),("height",height)] ++ attrs4 in
-              Just ("rect", attrs)
-            _ ->
-              Nothing
+        Utils.mapMaybe (\(left, top, right, bot, restOfAttrs) ->
+          let newAttrs =
+             [ ("x", mkNum left)
+             , ("y", mkNum top)
+             , ("width", mkNum (right - left))
+             , ("height", mkNum (bot - top))
+             ]
+          in ("rect", newAttrs ++ restOfAttrs)
+        ) (getBoundsAttrs attrs0)
+      "OVAL" ->
+        Utils.mapMaybe (\(left, top, right, bot, restOfAttrs) ->
+          let newAttrs =
+             [ ("cx", mkNum (left + (right - left) / 2))
+             , ("cy", mkNum (top + (bot - top) / 2))
+             , ("rx", mkNum ((right - left) / 2))
+             , ("ry", mkNum ((bot - top) / 2))
+             ]
+          in ("ellipse", newAttrs ++ restOfAttrs)
+        ) (getBoundsAttrs attrs0)
       _ ->
         Nothing
+
+getBoundsAttrs attrs0 =
+  Utils.maybeRemoveFirst "LEFT"  attrs0 `Maybe.andThen` \(vL,attrs1) ->
+  Utils.maybeRemoveFirst "RIGHT" attrs1 `Maybe.andThen` \(vR,attrs2) ->
+  Utils.maybeRemoveFirst "TOP"   attrs2 `Maybe.andThen` \(vT,attrs3) ->
+  Utils.maybeRemoveFirst "BOT"   attrs3 `Maybe.andThen` \(vB,attrs4) ->
+    case (vL.av_, vT.av_, vR.av_, vB.av_) of
+      (ANum (left,_), ANum (top,_), ANum (right,_), ANum (bot,_)) ->
+        Just (left, top, right, bot, attrs4)
+      _ -> Nothing
 
 
 ------------------------------------------------------------------------------
@@ -485,6 +504,66 @@ type alias RootedIndexedTree = (NodeId, IndexedTree)
 -- Must be a comparable to be put in a Set
 -- Otherwise, this shouldn't be a string
 type alias ShapeFeature = String
+
+zoneToCrosshair : ShapeKind -> Zone -> Maybe (ShapeFeature, ShapeFeature)
+zoneToCrosshair shape zone =
+  pointCrosshair shape zone `Utils.plusMaybe`
+  cardinalCrosshair shape zone
+
+pointCrosshair shape zone =
+  case (shape, realZoneOf zone) of
+    ("line", ZPoint 1) -> Just ("lineX1", "lineY1")
+    ("line", ZPoint 2) -> Just ("lineX2", "lineX2")
+    ("polygon", ZPoint i) ->
+      let f xy = "polyPt" ++ xy ++ toString i in Just (f "X", f "Y")
+    ("path", ZPoint i) ->
+      let f xy = "pathPt" ++ xy ++ toString i in Just (f "X", f "Y")
+    _ -> Nothing
+
+cardinalAbbreviation shape zone =
+  let ifBoxy shape mx =
+    if shape == "rect" || shape == "BOX" || shape == "OVAL"
+      then mx
+      else Nothing
+  in
+  case (shape, zone) of
+    (_, "TopLeftCorner")  -> ifBoxy shape (Just "TL")
+    (_, "TopRightCorner") -> ifBoxy shape (Just "TR")
+    (_, "BotLeftCorner")  -> ifBoxy shape (Just "BL")
+    (_, "BotRightCorner") -> ifBoxy shape (Just "BR")
+    (_, "LeftEdge")       -> Just "CL"
+    (_, "RightEdge")      -> Just "CR"
+    (_, "TopEdge")        -> Just "TC"
+    (_, "BotEdge")        -> Just "BC"
+    _                     -> Nothing
+
+cardinalCrosshair shape zone =
+  Utils.bindMaybe
+    (\abbrv ->
+      let xFeatureName = String.toLower shape ++ abbrv ++ "X" in
+      let yFeatureName = String.toLower shape ++ abbrv ++ "Y" in
+      Just (xFeatureName, yFeatureName))
+    (cardinalAbbreviation shape zone)
+
+-- TODO want to generate some of the strings below from these helpers,
+-- but wouldn't like so nice because top-level patterns aren't allowed
+
+pointCrosshair_ : ShapeKind -> Zone -> (ShapeFeature, ShapeFeature)
+pointCrosshair_ shape zone = Utils.fromJust (zoneToCrosshair shape zone)
+
+cornerCrosshairs_ shape =
+  ( pointCrosshair shape "TopLeftCorner"
+  , pointCrosshair shape "TopRightCorner"
+  , pointCrosshair shape "BotLeftCorner"
+  , pointCrosshair shape "BotRightCorner"
+  )
+
+edgeCrosshairs_ shape =
+  ( pointCrosshair shape "TopEdge"
+  , pointCrosshair shape "RightEdge"
+  , pointCrosshair shape "BotEdge"
+  , pointCrosshair shape "LeftEdge"
+  )
 
 -- Make sure that coordinate features match /.+[X|Y]\d*$/
 -- So we can gather them back up into (X,Y) pairs again.
@@ -532,6 +611,26 @@ boxCX = "boxCX"
 boxCY = "boxCY"
 boxWidth = "boxWidth"
 boxHeight = "boxHeight"
+ovalTLX = "ovalTLX"
+ovalTLY = "ovalTLY"
+ovalTRX = "ovalTRX"
+ovalTRY = "ovalTRY"
+ovalBLX = "ovalBLX"
+ovalBLY = "ovalBLY"
+ovalBRX = "ovalBRX"
+ovalBRY = "ovalBRY"
+ovalTCX = "ovalTCX"
+ovalTCY = "ovalTCY"
+ovalCRX = "ovalCRX"
+ovalCRY = "ovalCRY"
+ovalBCX = "ovalBCX"
+ovalBCY = "ovalBCY"
+ovalCLX = "ovalCLX"
+ovalCLY = "ovalCLY"
+ovalCX = "ovalCX"
+ovalCY = "ovalCY"
+ovalRX = "ovalRX"
+ovalRY = "ovalRY"
 circleTCX = "circleTCX"
 circleTCY = "circleTCY"
 circleCRX = "circleCRX"
@@ -815,26 +914,22 @@ realZoneOf s =
 
 toZPoint s =
   Utils.mapMaybe
-    (ZPoint << Utils.fromOk_ << String.toInt)
+    (\suffix ->
+      if suffix == "" then Z "Point"
+      else ZPoint (Utils.fromOk_ (String.toInt suffix)))
     (Utils.munchString "Point" s)
 
 toZEdge s =
   Utils.mapMaybe
-    (ZEdge << Utils.fromOk_ << String.toInt)
+    (\suffix ->
+      if suffix == "" then Z "Edge"
+      else ZEdge (Utils.fromOk_ (String.toInt suffix)))
     (Utils.munchString "Edge" s)
 
 -- TODO perhaps define Interface callbacks here
 
 zones = [
     ("svg", [])
-  , ("circle",
-      [ ("Interior", ["cx", "cy"])
-      , ("Edge", ["r"])
-      ])
-  , ("ellipse",
-      [ ("Interior", ["cx", "cy"])
-      , ("Edge", ["rx", "ry"])
-      ])
   , ("BOX",
       [ ("Interior", ["LEFT", "TOP", "RIGHT", "BOT"])
       , ("TopLeftCorner", ["LEFT", "TOP"])
@@ -861,6 +956,39 @@ zones = [
       [ ("Point1", ["x1", "y1"])
       , ("Point2", ["x2", "y2"])
       , ("Edge", ["x1", "y1", "x2", "y2"])
+      ])
+  , ("circle",
+      [ ("Interior", ["cx", "cy"])
+      , ("LeftEdge", ["cx", "r"])
+      , ("RightEdge", ["cx", "r"])
+      , ("TopEdge", ["cy", "r"])
+      , ("BotEdge", ["cy", "r"])
+      , ("TopLeftCorner", ["cx", "cy", "r"])
+      , ("TopRightCorner", ["cx", "cy", "r"])
+      , ("BotLeftCorner", ["cx", "cy", "r"])
+      , ("BotRightCorner", ["cx", "cy", "r"])
+      ])
+  , ("ellipse",
+      [ ("Interior", ["cx", "cy"])
+      , ("LeftEdge", ["cx", "rx"])
+      , ("RightEdge", ["cx", "rx"])
+      , ("TopEdge", ["cy", "ry"])
+      , ("BotEdge", ["cy", "ry"])
+      , ("TopLeftCorner", ["cx", "cy", "rx", "ry"])
+      , ("TopRightCorner", ["cx", "cy", "rx", "ry"])
+      , ("BotLeftCorner", ["cx", "cy", "rx", "ry"])
+      , ("BotRightCorner", ["cx", "cy", "rx", "ry"])
+      ])
+  , ("OVAL",
+      [ ("Interior", ["LEFT", "TOP", "RIGHT", "BOT"])
+      , ("TopLeftCorner", ["LEFT", "TOP"])
+      , ("TopRightCorner", ["TOP", "RIGHT"])
+      , ("BotRightCorner", ["RIGHT", "BOT"])
+      , ("BotLeftCorner", ["LEFT", "BOT"])
+      , ("LeftEdge", ["LEFT"])
+      , ("TopEdge", ["TOP"])
+      , ("RightEdge", ["RIGHT"])
+      , ("BotEdge", ["BOT"])
       ])
   -- TODO
   , ("g", [])

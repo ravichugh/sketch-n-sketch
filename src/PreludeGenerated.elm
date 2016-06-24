@@ -198,11 +198,18 @@ prelude =
 (def gt (flip lt))
 (def ge (\\(x y) (or (gt x y) (eq x y))))
 
+(def plus (\\(x y) (+ x y)))
+
 (def min (\\(i j) (if (lt i j) i j)))
 (def max (\\(i j) (if (gt i j) i j)))
 
 (def minimum (\\[hd|tl] (foldl min hd tl)))
 (def maximum (\\[hd|tl] (foldl max hd tl)))
+
+(def average (\\nums
+  (let sum (foldl plus 0 nums)
+  (let n   (len nums)
+    (/ sum n)))))
 
 (def mapi (\\(f xs) (map f (zip (range 0 (- (len xs) 1)) xs))))
 
@@ -640,6 +647,69 @@ prelude =
 
 (def radToDeg (\\rad (* (/ rad (pi)) 180!)))
 
+
+; Polygon and Path Helpers
+
+(def middleOfPoints (\\pts
+  (let [xs ys] [(map fst pts) (map snd pts)]
+  (let [xMin xMax] [(minimum xs) (maximum xs)]
+  (let [yMin yMax] [(minimum ys) (maximum ys)]
+  (let xMiddle (+ xMin (* 0.5 (- xMax xMin)))
+  (let yMiddle (+ yMin (* 0.5 (- yMax yMin)))
+    [xMiddle yMiddle] )))))))
+
+(defrec allPointsOfPathCmds (\\cmds (case cmds
+  ([]    [])
+  (['Z'] [])
+
+  (['M' x y | rest] (cons [x y] (allPointsOfPathCmds rest)))
+  (['L' x y | rest] (cons [x y] (allPointsOfPathCmds rest)))
+
+  (['Q' x1 y1 x y | rest]
+    (append [[x1 y1] [x y]] (allPointsOfPathCmds rest)))
+
+  (['C' x1 y1 x2 y2 x y | rest]
+    (append [[x1 y1] [x2 y2] [x y]] (allPointsOfPathCmds rest)))
+
+  (_ 'ERROR')
+)))
+
+
+; Raw Shapes
+
+(def rawShape (\\(kind attrs) [kind attrs []]))
+
+(def rawRect (\\(fill stroke strokeWidth x y w h rot)
+  (let [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))]
+  (rotateAround rot cx cy
+    (rawShape 'rect' [
+      ['x' x] ['y' y] ['width' w] ['height' h]
+      ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ])))))
+
+(def rawCircle (\\(fill stroke strokeWidth cx cy r)
+  (rawShape 'circle' [
+    ['cx' cx] ['cy' cy] ['r' r]
+    ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ])))
+
+(def rawEllipse (\\(fill stroke strokeWidth cx cy rx ry rot)
+  (rotateAround rot cx cy
+    (rawShape 'ellipse' [
+      ['cx' cx] ['cy' cy] ['rx' rx] ['ry' ry]
+      ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ]))))
+
+(def rawPolygon (\\(fill stroke w pts rot)
+  (let [cx cy] (middleOfPoints pts)
+  (rotateAround rot cx cy
+    (rawShape 'polygon'
+      [ ['fill' fill] ['points' pts] ['stroke' stroke] ['stroke-width' w] ])))))
+
+(def rawPath (\\(fill stroke w d rot)
+  (let [cx cy] (middleOfPoints (allPointsOfPathCmds d))
+  (rotateAround rot cx cy
+    (rawShape 'path'
+      [ ['fill' fill] ['d' d] ['stroke' stroke] ['stroke-width' w] ])))))
+
+
 ; Shapes via Bounding Boxes
 
 (def box (\\(bounds fill stroke strokeWidth)
@@ -677,11 +747,20 @@ prelude =
   ])))))
 
 (def group (\\(bounds shapes)
+  (let [left top right bot] bounds
+  (let pad 15
+  (let paddedBounds [(- left pad) (- top pad) (+ right pad) (+ bot pad)]
   ['g' [['BOUNDS' bounds]]
-       (cons (hiddenBoundingBox bounds) shapes)]))
+       (cons (hiddenBoundingBox paddedBounds) shapes)]
+)))))
+
+; (def group (\\(bounds shapes)
+;   ['g' [['BOUNDS' bounds]]
+;        (cons (hiddenBoundingBox bounds) shapes)]))
 
        ; (concat [(fancyBoundingBox bounds) shapes])]))
 
+; TODO no longer used...
 (def rotatedRect (\\(fill x y w h rot)
   (let [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))]
   (let bounds [x y (+ x w) (+ y h)]
@@ -693,9 +772,11 @@ prelude =
   (let [left top right bot] bounds
   (let [cx cy] [(+ left (/ (- right left) 2!)) (+ top (/ (- bot top) 2!))]
   (let shape (rotateAround rot cx cy (box bounds fill stroke strokeWidth))
-  (group bounds [shape])
+  shape
 )))))
+  ; (group bounds [shape])
 
+; TODO no longer used...
 (def rotatedEllipse (\\(fill cx cy rx ry rot)
   (let bounds [(- cx rx) (- cy ry) (+ cx rx) (+ cy ry)]
   (let shape (rotateAround rot cx cy (ellipse fill cx cy rx ry))
@@ -705,18 +786,26 @@ prelude =
 ; TODO take rot
 (def oval (\\(fill stroke strokeWidth bounds)
   (let [left top right bot] bounds
-  (let [rx ry] [(/ (- right left) 2!) (/ (- bot top) 2!)]
-  (let [cx cy] [(+ left rx) (+ top ry)]
-  (let shape ; TODO change def ellipse to take stroke/strokeWidth
-    ['ellipse'
-       [ ['cx' cx] ['cy' cy] ['rx' rx] ['ry' ry]
+  (let shape
+    ['OVAL'
+       [ ['LEFT' left] ['TOP' top] ['RIGHT' right] ['BOT' bot]
          ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ]
        []]
-  (group bounds [shape])
-))))))
+  shape
+))))
 
-(def rawPolygon (\\(fill stroke w pts)
-  ['g' [] [(polygon fill stroke w pts)]]))
+; ; TODO take rot
+; (def oval (\\(fill stroke strokeWidth bounds)
+;   (let [left top right bot] bounds
+;   (let [rx ry] [(/ (- right left) 2!) (/ (- bot top) 2!)]
+;   (let [cx cy] [(+ left rx) (+ top ry)]
+;   (let shape ; TODO change def ellipse to take stroke/strokeWidth
+;     ['ellipse'
+;        [ ['cx' cx] ['cy' cy] ['rx' rx] ['ry' ry]
+;          ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ]
+;        []]
+;   (group bounds [shape])
+; ))))))
 
 (def scaleBetween (\\(a b pct)
   (case pct
@@ -731,6 +820,7 @@ prelude =
   (group bounds [(polygon fill stroke strokeWidth pts)])
 )))))
 
+; TODO no longer used...
 (def pointyPath (\\(fill stroke w d)
   (let dot (\\(x y) (ghost (circle 'orange' x y 5)))
   (letrec pointsOf (\\cmds
@@ -803,7 +893,9 @@ prelude =
 )))
 
 ; expects (f bounds) to be multiple SVGs
-(def with (\\(bounds f) [(group bounds (f bounds))]))
+(def with (\\(bounds f) (f bounds)))
+
+  ; (def with (\\(bounds f) [(group bounds (f bounds))]))
 
 (def star (\\bounds
   (let [left top right bot] bounds
@@ -815,6 +907,8 @@ prelude =
 (def blobs (\\blobs
   (let modifyBlob (\\[i blob]
     (case blob
+      ([['g' gAttrs [shape | shapes]]]
+       [['g' gAttrs [(consAttr shape ['BLOB' (toString (+ i 1))]) | shapes]]])
       ([shape] [(consAttr shape ['BLOB' (toString (+ i 1))])])
       (_       blob)))
   (svg (concat (mapi modifyBlob blobs)))

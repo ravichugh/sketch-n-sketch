@@ -174,6 +174,7 @@ slateAndCode old (exp, val) =
   in
   (slate, unparse exp)
 
+
 --------------------------------------------------------------------------------
 
 clickToCanvasPoint old (mx, my) =
@@ -206,14 +207,16 @@ canvasOriginHorizontal old =
   -- TODO in View, the height of codebox isn't the same as the canvas.
   --   hMid is calculated weirdly in View...
   let
+    hTop    = params.topSection.h
+    hBot    = params.botSection.h
     hGut    = params.mainSection.horizontal.hGut
-    hCode_  = (snd old.dimensions - 2*hMid - 3*hGut) // 2 + hMid
+    hCode_  = (snd old.dimensions - hTop - hBot - hGut) // 2
     hCode   = hCode_ + old.midOffsetY
     -- TODO consider hideCode and hideCanvas
-    hMid    = params.mainSection.widgets.hBtn
+    wTools  = params.mainSection.widgets.wBtn + 2 * params.mainSection.vertical.wGut
   in
-    ( params.wGut
-    , params.topSection.h + hCode + hMid
+    ( wTools
+    , params.topSection.h + hCode + hGut
     )
 
 
@@ -376,12 +379,12 @@ addLineToCodeAndRun old click2 click1 =
   let ((_,(x2,y2)),(_,(x1,y1))) = (click2, click1) in
   let (xb, yb) = View.snapLine old.keysDown click2 click1 in
   let color =
-    if old.shapeTool == HelperLine
+    if old.tool == HelperLine
       then eStr "aqua"
       else randomColor old
   in
   let (f, args) =
-    maybeGhost (old.shapeTool == HelperLine)
+    maybeGhost (old.tool == HelperLine)
        (eVar0 "line")
        (List.map eVar ["color","width","x1","y1","x2","y2"])
   in
@@ -410,8 +413,9 @@ addRawRect old (_,pt2) (_,pt1) =
   addToCodeAndRun "rect" old
     [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
     , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
-    (eVar0 "rotatedRect")
-    (List.map eVar ["color","x","y","w","h","rot"])
+    (eVar0 "rawRect")
+    [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
+    , eVar "x", eVar "y", eVar "w", eVar "h", eVar "rot" ]
 
 addRawSquare old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.squareBoundingBox pt2 pt1 in
@@ -419,8 +423,9 @@ addRawSquare old (_,pt2) (_,pt1) =
   addToCodeAndRun "square" old
     [ makeLet ["x","y","side"] (makeInts [x,y,side])
     , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
-    (eVar0 "rotatedRect")
-    (List.map eVar ["color","x","y","side","side","rot"])
+    (eVar0 "rawRect")
+    [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
+    , eVar "x", eVar "y", eVar "side", eVar "side", eVar "rot" ]
 
 addStretchyRect old (_,pt2) (_,pt1) =
   let (xMin, xMax, yMin, yMax) = View.boundingBox pt2 pt1 in
@@ -450,8 +455,9 @@ addRawOval old (_,pt2) (_,pt1) =
   addToCodeAndRun "ellipse" old
     [ makeLet ["cx","cy","rx","ry"] (makeInts [cx,cy,rx,ry])
     , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
-    (eVar0 "rotatedEllipse")
-    (List.map eVar ["color","cx","cy","rx","ry","rot"])
+    (eVar0 "rawEllipse")
+    [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
+    , eVar "cx", eVar "cy", eVar "rx", eVar "ry", eVar "rot" ]
 
 addRawCircle old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.squareBoundingBox pt2 pt1 in
@@ -459,9 +465,10 @@ addRawCircle old (_,pt2) (_,pt1) =
   let (cx, cy) = (xa + r, ya + r) in
   addToCodeAndRun "circle" old
     [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r])
-    , makeLet ["color"] [randomColor old] ]
-    (eVar0 "rotatedEllipse")
-    (List.map eVar ["color","cx","cy","r","r"] ++ [eConst 0 (dummyLoc_ frozen)])
+    , makeLet ["color"] [randomColor1 old] ]
+    (eVar0 "rawCircle")
+    [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
+    , eVar "cx", eVar "cy", eVar "r" ]
 
 addStretchyOval old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
@@ -534,14 +541,12 @@ addRawPolygon old keysAndPoints =
               [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
     ]
     (eVar0 "rawPolygon")
-    (List.map eVar ["color","strokeColor","strokeWidth","pts"])
+    [ eVar "color", eVar "strokeColor", eVar "strokeWidth"
+    , eVar "pts", eConst 0 dummyLoc ]
 
 addStretchablePolygon old keysAndPoints =
   let points = List.map snd keysAndPoints in
-  let xMax = Utils.fromJust <| List.maximum (List.map fst points) in
-  let xMin = Utils.fromJust <| List.minimum (List.map fst points) in
-  let yMax = Utils.fromJust <| List.maximum (List.map snd points) in
-  let yMin = Utils.fromJust <| List.minimum (List.map snd points) in
+  let (xMin, xMax, yMin, yMax) = View.boundingBoxOfPoints points in
   let (width, height) = (xMax - xMin, yMax - yMin) in
   let sPcts =
     Utils.bracks <| Utils.spaces <|
@@ -563,10 +568,7 @@ addStretchablePolygon old keysAndPoints =
 
 addStickyPolygon old keysAndPoints =
   let points = List.map snd keysAndPoints in
-  let xMax = Utils.fromJust <| List.maximum (List.map fst points) in
-  let xMin = Utils.fromJust <| List.minimum (List.map fst points) in
-  let yMax = Utils.fromJust <| List.maximum (List.map snd points) in
-  let yMin = Utils.fromJust <| List.minimum (List.map snd points) in
+  let (xMin, xMax, yMin, yMax) = View.boundingBoxOfPoints points in
   let (width, height) = (xMax - xMin, yMax - yMin) in
   let sOffsets =
     Utils.bracks <| Utils.spaces <|
@@ -656,18 +658,16 @@ addAbsolutePath old keysAndPoints =
   let (extraLets, sD) = pathCommands toString toString keysAndPoints in
   addToCodeAndRun "path" old
     ([ makeLet ["strokeColor","strokeWidth","color"]
-               [randomColor old, eConst 5 dummyLoc, eStr "white"] ]
+               [randomColor old, eConst 5 dummyLoc, randomColor1 old] ]
     ++ extraLets
     ++ [makeLet ["d"] [eVar sD] ])
-    (eVar0 "pointyPath")
-    (List.map eVar ["color","strokeColor","strokeWidth","d"])
+    (eVar0 "rawPath")
+    [ eVar "color", eVar "strokeColor", eVar "strokeWidth"
+    , eVar "d", eConst 0 dummyLoc ]
 
 addStretchyPath old keysAndPoints =
-  let (xs,ys) = List.unzip (List.map snd keysAndPoints) in
-  let xMax = Utils.fromJust <| List.maximum xs in
-  let xMin = Utils.fromJust <| List.minimum xs in
-  let yMax = Utils.fromJust <| List.maximum ys in
-  let yMin = Utils.fromJust <| List.minimum ys in
+  let points = List.map snd keysAndPoints in
+  let (xMin, xMax, yMin, yMax) = View.boundingBoxOfPoints points in
   let (width, height) = (toFloat (xMax - xMin), toFloat (yMax - yMin)) in
   let strX x = maybeThaw (toFloat (x - xMin) / width) in
   let strY y = maybeThaw (toFloat (y - yMin) / height) in
@@ -745,7 +745,7 @@ makeNewShapeDef model newShapeKind name locals func args =
     case locals of
       [] ->
         let multi = -- check if (func args) returns List SVG or SVG
-          case model.shapeTool of
+          case model.tool of
             Lambda -> True
             _ -> False
         in
@@ -794,7 +794,7 @@ maybeGhost b f args =
 ghost = maybeGhost True
 
 switchToCursorTool old =
-  { old | mouseMode = MouseNothing , toolMode = Cursors }
+  { old | mouseMode = MouseNothing , tool = Cursor }
 
 
 --------------------------------------------------------------------------------
@@ -807,6 +807,22 @@ computeSelectedBlobsAndBounds model =
      (\blobId nodeId ->
        case Dict.get nodeId tree of
 
+         -- refactor the following cases for readability
+
+         Just (LangSvg.SvgNode "BOX" nodeAttrs _) ->
+           let get attr = ValueBasedTransform.maybeFindAttr nodeId "BOX" attr nodeAttrs in
+           case List.map .v_ [get "LEFT", get "TOP", get "RIGHT", get "BOT"] of
+             [VConst left, VConst top, VConst right, VConst bot] ->
+               (left, top, right, bot)
+             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+
+         Just (LangSvg.SvgNode "OVAL" nodeAttrs _) ->
+           let get attr = ValueBasedTransform.maybeFindAttr nodeId "OVAL" attr nodeAttrs in
+           case List.map .v_ [get "LEFT", get "TOP", get "RIGHT", get "BOT"] of
+             [VConst left, VConst top, VConst right, VConst bot] ->
+               (left, top, right, bot)
+             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+
          Just (LangSvg.SvgNode "g" nodeAttrs _) ->
            case View.maybeFindBounds nodeAttrs of
              Just bounds -> bounds
@@ -817,6 +833,22 @@ computeSelectedBlobsAndBounds model =
            case List.map .v_ [get "x1", get "y1", get "x2", get "y2"] of
              [VConst x1, VConst y1, VConst x2, VConst y2] ->
                (minNumTr x1 x2, minNumTr y1 y2, maxNumTr x1 x2, maxNumTr y1 y2)
+             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+
+         -- "ellipse" and "circle" aren't handled nicely by grouping
+
+         Just (LangSvg.SvgNode "ellipse" nodeAttrs _) ->
+           let get attr = ValueBasedTransform.maybeFindAttr nodeId "ellipse" attr nodeAttrs in
+           case List.map .v_ [get "cx", get "cy", get "rx", get "ry"] of
+             [VConst cx, VConst cy, VConst rx, VConst ry] ->
+               (cx `minusNumTr` rx, cy `minusNumTr` ry, cx `plusNumTr` rx, cy `plusNumTr` ry)
+             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+
+         Just (LangSvg.SvgNode "circle" nodeAttrs _) ->
+           let get attr = ValueBasedTransform.maybeFindAttr nodeId "circle" attr nodeAttrs in
+           case List.map .v_ [get "cx", get "cy", get "r"] of
+             [VConst cx, VConst cy, VConst r] ->
+               (cx `minusNumTr` r, cy `minusNumTr` r, cx `plusNumTr` r, cy `plusNumTr` r)
              _ -> Debug.crash "computeSelectedBlobsAndBounds"
 
          _ -> Debug.crash "computeSelectedBlobsAndBounds"
@@ -919,8 +951,8 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs =
     let matches = matchesAnySelectedBlob selectedNiceBlobs in
     let (pluckedDefs, beforeDefs, afterDefs) =
       -- TODO make safe again
-      let (plucked, before, after) = pluckFromList matches defs in
-      -- let (plucked, before, after) = unsafePluckFromList matches defs in
+      -- let (plucked, before, after) = pluckFromList matches defs in
+      let (plucked, before, after) = unsafePluckFromList matches defs in
       let getExps = List.map (\(_,_,e,_) -> e) in
       let (beforeInside, beforeOutside) =
         List.foldr
@@ -1704,6 +1736,213 @@ lambdaToolOptionsOf (defs, mainExp) =
 
 
 --------------------------------------------------------------------------------
+-- Mouse Events
+
+onMouseClick click old =
+  case (old.tool, old.mouseMode) of
+
+    -- Inactive zone
+    (Cursor, MouseObject i k z Nothing) ->
+      onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
+
+    -- Active zone but not dragged
+    (Cursor, MouseObject i k z (Just (_, _, _, False))) ->
+      onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
+
+    (Poly stk, MouseDrawNew points) ->
+      let pointOnCanvas = clickToCanvasPoint old click in
+      let add () =
+        let points' = (old.keysDown, pointOnCanvas) :: points in
+        { old | mouseMode = MouseDrawNew points' }
+      in
+      if points == [] then add ()
+      else
+        let (_,initialPoint) = Utils.last_ points in
+        if Utils.distanceInt pointOnCanvas initialPoint > View.drawNewPolygonDotSize then add ()
+        else if List.length points == 2 then { old | mouseMode = MouseNothing }
+        else if List.length points == 1 then switchToCursorTool old
+        else addPolygonToCodeAndRun stk old points
+
+    (Path stk, MouseDrawNew points) ->
+      let pointOnCanvas = clickToCanvasPoint old click in
+      let add new =
+        let points' = (old.keysDown, new) :: points in
+        (points', { old | mouseMode = MouseDrawNew points' })
+      in
+      case points of
+        [] -> snd (add pointOnCanvas)
+        (_,firstClick) :: [] ->
+          if Utils.distanceInt pointOnCanvas firstClick < View.drawNewPolygonDotSize
+          then switchToCursorTool old
+          else snd (add pointOnCanvas)
+        (_,lastClick) :: _ ->
+          if Utils.distanceInt pointOnCanvas lastClick < View.drawNewPolygonDotSize
+          then addPathToCodeAndRun stk old points
+          else
+            let (_,firstClick) = Utils.last_ points in
+            if Utils.distanceInt pointOnCanvas firstClick < View.drawNewPolygonDotSize
+            then
+              let (points',old') = add firstClick in
+              addPathToCodeAndRun stk old' points'
+            else
+              snd (add pointOnCanvas)
+
+    (HelperDot, MouseDrawNew []) ->
+      let pointOnCanvas = (old.keysDown, clickToCanvasPoint old click) in
+      { old | mouseMode = MouseDrawNew [pointOnCanvas] }
+
+    (_, MouseDrawNew []) -> switchToCursorTool old
+
+    _ -> old
+
+onClickPrimaryZone i k z old =
+  let hoveredCrosshairs' =
+    case LangSvg.zoneToCrosshair k z of
+      Just (xFeature, yFeature) ->
+        Set.insert (i, xFeature, yFeature) old.hoveredCrosshairs
+      _ ->
+        old.hoveredCrosshairs
+  in
+  let (selectedShapes', selectedBlobs') =
+    let selectThisShape () =
+      Set.insert i <|
+        if old.keysDown == Keys.shift
+        then old.selectedShapes
+        else Set.empty
+    in
+    let selectBlob blobId =
+      Dict.insert blobId i <|
+        if old.keysDown == Keys.shift
+        then old.selectedBlobs
+        else Dict.empty
+    in
+    let maybeBlobId =
+      case Dict.get i (snd old.slate) of
+        Just (LangSvg.SvgNode _ l _) -> View.maybeFindBlobId l
+        _                            -> Debug.crash "onClickPrimaryZone"
+    in
+    case (k, z, maybeBlobId) of
+      ("line", "Edge",     Just blobId) -> (selectThisShape (), selectBlob blobId)
+      (_,      "Interior", Just blobId) -> (selectThisShape (), selectBlob blobId)
+      ("line", "Edge",     Nothing)     -> (selectThisShape (), old.selectedBlobs)
+      (_,      "Interior", Nothing)     -> (selectThisShape (), old.selectedBlobs)
+      _                                 -> (old.selectedShapes, old.selectedBlobs)
+  in
+  { old | hoveredCrosshairs = hoveredCrosshairs'
+        , selectedShapes = selectedShapes'
+        , selectedBlobs = selectedBlobs'
+        }
+
+onMouseMove (mx0, my0) old =
+  let (mx, my) = clickToCanvasPoint old (mx0, my0) in
+  case old.mouseMode of
+
+    MouseNothing -> old
+
+    MouseResizeMid Nothing ->
+      let f =
+        case old.orient of
+          Vertical   -> \(mx1,_) -> (old.midOffsetX + mx1 - mx0, old.midOffsetY)
+          Horizontal -> \(_,my1) -> (old.midOffsetY, old.midOffsetY + my1 - my0)
+      in
+      { old | mouseMode = MouseResizeMid (Just f) }
+
+    MouseResizeMid (Just f) ->
+      let (x,y) = f (mx0, my0) in
+      { old | midOffsetX = x , midOffsetY = y }
+
+    MouseObject id kind zone Nothing ->
+      old
+
+    MouseObject id kind zone (Just (s, mStuff, (mx0, my0), _)) ->
+      let (dx, dy) = (mx - mx0, my - my0) in
+      let (newE,newV,changes,newSlate,newWidgets) =
+        applyTrigger id kind zone old mx0 my0 dx dy in
+      { old | code = unparse newE
+            , inputExp = newE
+            , inputVal = newV
+            , slate = newSlate
+            , widgets = newWidgets
+            , codeBoxInfo = highlightChanges mStuff changes old.codeBoxInfo
+            , mouseMode =
+                MouseObject id kind zone (Just (s, mStuff, (mx0, my0), True))
+            }
+
+    MouseSlider widget Nothing ->
+      let onNewPos = createMousePosCallbackSlider mx my widget old in
+      { old | mouseMode = MouseSlider widget (Just (old.code, onNewPos)) }
+
+    MouseSlider widget (Just (_, onNewPos)) ->
+      let (newE,newV,newSlate,newWidgets) = onNewPos (mx, my) in
+      { old | code = unparse newE
+            , inputExp = newE
+            , inputVal = newV
+            , slate = newSlate
+            , widgets = newWidgets
+            }
+
+    MouseDrawNew points ->
+      case (old.tool, points) of
+        (Poly _, _) -> old -- handled by onMouseClick instead
+        (Path _, _) -> old -- handled by onMouseClick instead
+        (_, []) ->
+          let pointOnCanvas = (old.keysDown, (mx, my)) in
+          { old | mouseMode = MouseDrawNew [pointOnCanvas, pointOnCanvas] }
+        (_, (_::points)) ->
+          let pointOnCanvas = (old.keysDown, (mx, my)) in
+          { old | mouseMode = MouseDrawNew (pointOnCanvas::points) }
+
+onMouseUp old =
+  case (old.mode, old.mouseMode) of
+
+    (Print _, _) -> old
+    (_, MouseObject i k z (Just (s, _, _, _))) ->
+      -- 8/10: re-parsing to get new position info after live sync-ing
+      -- TODO: could update positions within highlightChanges
+      -- TODO: update inputVal?
+      let e = Utils.fromOk_ <| parseE old.code in
+      let old' = { old | inputExp = e } in
+      refreshHighlights i z
+        { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
+               , history = addToHistory s old'.history }
+
+    (_, MouseSlider _ (Just (s, _))) ->
+      let e = Utils.fromOk_ <| parseE old.code in
+      let old' = { old | inputExp = e } in
+        { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
+               , history = addToHistory s old'.history }
+
+    (_, MouseDrawNew points) ->
+      case (old.tool, points, old.keysDown == Keys.shift) of
+
+        (Line _,     [pt2, pt1], _) -> addLineToCodeAndRun old pt2 pt1
+        (HelperLine, [pt2, pt1], _) -> addLineToCodeAndRun old pt2 pt1
+
+        (Rect Raw,      [pt2, pt1], False) -> addRawRect old pt2 pt1
+        (Rect Raw,      [pt2, pt1], True)  -> addRawSquare old pt2 pt1
+        (Rect Stretchy, [pt2, pt1], False) -> addStretchyRect old pt2 pt1
+        (Rect Stretchy, [pt2, pt1], True)  -> addStretchySquare old pt2 pt1
+
+        (Oval Raw,      [pt2, pt1], False) -> addRawOval old pt2 pt1
+        (Oval Raw,      [pt2, pt1], True)  -> addRawCircle old pt2 pt1
+        (Oval Stretchy, [pt2, pt1], False) -> addStretchyOval old pt2 pt1
+        (Oval Stretchy, [pt2, pt1], True)  -> addStretchyCircle old pt2 pt1
+
+        (HelperDot, [pt], _) -> addHelperDotToCodeAndRun old pt
+
+        (Lambda, [pt2, pt1], _) -> addLambdaToCodeAndRun old pt2 pt1
+
+        (Poly _, _, _) -> old
+        (Path _, _, _) -> old
+
+        (_, [], _)     -> switchToCursorTool old
+
+        _              -> old
+
+    _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
+
+
+--------------------------------------------------------------------------------
 -- Updating the Model
 
 upstate : Event -> Model -> Model
@@ -1783,184 +2022,64 @@ upstate evt old = case debugLog "Event" evt of
       else if old.hideCanvas then old
       else { old | mouseMode = MouseResizeMid Nothing }
 
-    MouseClickCanvas ->
-      case (old.toolMode, old.mouseMode) of
-        (Shapes, MouseNothing) -> { old | mouseMode = MouseDrawNew [] }
-        _                      -> old
+    SelectObject id kind zone ->
+      let mStuff = maybeStuff id kind zone old in
+      case mStuff of
 
-    MouseClick click ->
+        Nothing -> -- Inactive zone
+          { old | mouseMode = MouseObject id kind zone Nothing }
+
+        Just _  -> -- Active zone
+          let (mx, my) = clickToCanvasPoint old (snd old.mouseState) in
+          let blah = Just (old.code, mStuff, (mx, my), False) in
+          { old | mouseMode = MouseObject id kind zone blah }
+
+    MouseClickCanvas ->
+      case (old.tool, old.mouseMode) of
+        (Cursor, MouseObject _ _ _ _) -> old
+        (Cursor, _) ->
+          { old | selectedShapes = Set.empty, selectedBlobs = Dict.empty }
+
+        (_ , MouseNothing) ->
+          { old | mouseMode = MouseDrawNew []
+                , selectedShapes = Set.empty, selectedBlobs = Dict.empty }
+
+        _ -> old
+
+    MousePosition pos' ->
+      case old.mouseState of
+        (Nothing, _)    -> { old | mouseState = (Nothing, pos') }
+        (Just False, _) -> onMouseMove pos' { old | mouseState = (Just True, pos') }
+        (Just True, _)  -> onMouseMove pos' { old | mouseState = (Just True, pos') }
+
+    MouseIsDown b ->
       let old =
-        let (x,y) = click in
+        let (x,y) = snd old.mouseState in
         let lightestColor = 470 in
         { old | randomColor = (old.randomColor + x + y) % lightestColor }
       in
-      case (old.shapeTool, old.mouseMode) of
+      case (b, old.mouseState) of
 
-        (Poly stk, MouseDrawNew points) ->
-          let pointOnCanvas = clickToCanvasPoint old click in
-          let add () =
-            let points' = (old.keysDown, pointOnCanvas) :: points in
-            { old | mouseMode = MouseDrawNew points' }
-          in
-          if points == [] then add ()
-          else
-            let (_,initialPoint) = Utils.last_ points in
-            if Utils.distanceInt pointOnCanvas initialPoint > View.drawNewPolygonDotSize then add ()
-            else if List.length points == 2 then { old | mouseMode = MouseNothing }
-            else if List.length points == 1 then switchToCursorTool old
-            else addPolygonToCodeAndRun stk old points
+        (True, (Nothing, pos)) -> -- mouse down
+          let _ = debugLog "mouse down" () in
+          { old | mouseState = (Just False, pos) }
 
-        (Path stk, MouseDrawNew points) ->
-          let pointOnCanvas = clickToCanvasPoint old click in
-          let add new =
-            let points' = (old.keysDown, new) :: points in
-            (points', { old | mouseMode = MouseDrawNew points' })
-          in
-          case points of
-            [] -> snd (add pointOnCanvas)
-            (_,firstClick) :: [] ->
-              if Utils.distanceInt pointOnCanvas firstClick < View.drawNewPolygonDotSize
-              then switchToCursorTool old
-              else snd (add pointOnCanvas)
-            (_,lastClick) :: _ ->
-              if Utils.distanceInt pointOnCanvas lastClick < View.drawNewPolygonDotSize
-              then addPathToCodeAndRun stk old points
-              else
-                let (_,firstClick) = Utils.last_ points in
-                if Utils.distanceInt pointOnCanvas firstClick < View.drawNewPolygonDotSize
-                then
-                  let (points',old') = add firstClick in
-                  addPathToCodeAndRun stk old' points'
-                else
-                  snd (add pointOnCanvas)
+        (False, (Just False, pos)) -> -- click (mouse up after not being dragged)
+          let _ = debugLog "mouse click" () in
+          onMouseClick pos { old | mouseState = (Nothing, pos) }
 
-        (HelperDot, MouseDrawNew []) ->
-          let pointOnCanvas = (old.keysDown, clickToCanvasPoint old click) in
-          { old | mouseMode = MouseDrawNew [pointOnCanvas] }
+        (False, (Just True, pos)) -> -- mouse up (after being dragged)
+          let _ = debugLog "mouse up" () in
+          onMouseUp { old | mouseState = (Nothing, pos) }
 
-        _ ->
+        (False, (Nothing, _)) ->
+          let _ = debugLog "mouse down was preempted by a handler in View" () in
           old
 
-    MousePos (mx0, my0) ->
-      let (mx, my) = clickToCanvasPoint old (mx0, my0) in
-      case old.mouseMode of
-
-        MouseNothing -> old
-
-        MouseResizeMid Nothing ->
-          let f =
-            case old.orient of
-              Vertical   -> \(mx1,_) -> (old.midOffsetX + mx1 - mx0, old.midOffsetY)
-              Horizontal -> \(_,my1) -> (old.midOffsetY, old.midOffsetY + my1 - my0)
-          in
-          { old | mouseMode = MouseResizeMid (Just f) }
-
-        MouseResizeMid (Just f) ->
-          let (x,y) = f (mx0, my0) in
-          { old | midOffsetX = x , midOffsetY = y }
-
-        MouseObject objid kind zone Nothing ->
-          let mStuff = maybeStuff objid kind zone old in
-          let blah = Just (old.code, mStuff, (mx, my)) in
-          { old | mouseMode = MouseObject objid kind zone blah }
-
-        MouseObject objid kind zone (Just (_, mStuff, (mx0, my0))) ->
-          let (dx, dy) = (mx - mx0, my - my0) in
-          let (newE,newV,changes,newSlate,newWidgets) =
-            applyTrigger objid kind zone old mx0 my0 dx dy in
-          { old | code = unparse newE
-                , inputExp = newE
-                , inputVal = newV
-                , slate = newSlate
-                , widgets = newWidgets
-                , codeBoxInfo = highlightChanges mStuff changes old.codeBoxInfo
-                }
-
-        MouseSlider widget Nothing ->
-          let onNewPos = createMousePosCallbackSlider mx my widget old in
-          { old | mouseMode = MouseSlider widget (Just (old.code, onNewPos)) }
-
-        MouseSlider widget (Just (_, onNewPos)) ->
-          let (newE,newV,newSlate,newWidgets) = onNewPos (mx, my) in
-          { old | code = unparse newE
-                , inputExp = newE
-                , inputVal = newV
-                , slate = newSlate
-                , widgets = newWidgets
-                }
-
-        MouseDrawNew points ->
-          case (old.shapeTool, points) of
-            (Poly _, _) -> old -- handled by MouseClick instead
-            (Path _, _) -> old -- handled by MouseClick instead
-            (_, []) ->
-              let pointOnCanvas = (old.keysDown, (mx, my)) in
-              { old | mouseMode = MouseDrawNew [pointOnCanvas, pointOnCanvas] }
-            (_, (_::points)) ->
-              let pointOnCanvas = (old.keysDown, (mx, my)) in
-              { old | mouseMode = MouseDrawNew (pointOnCanvas::points) }
-
-    SelectObject id kind zone ->
-      case old.mode of
-        AdHoc       -> { old | mouseMode = MouseObject id kind zone Nothing }
-        Live info ->
-          case Dict.get id info.triggers of
-            Nothing -> { old | mouseMode = MouseNothing }
-            Just dZones ->
-              case Dict.get zone dZones of
-                Just (Just _) -> { old | mouseMode = MouseObject id kind zone Nothing }
-                _             -> { old | mouseMode = MouseNothing }
-        _ -> old
-
-    MouseUp ->
-      case (old.mode, old.mouseMode) of
-
-        (Print _, _) -> old
-
-        (_, MouseObject i k z (Just (s, _, _))) ->
-          -- 8/10: re-parsing to get new position info after live sync-ing
-          -- TODO: could update positions within highlightChanges
-          -- TODO: update inputVal?
-          let e = Utils.fromOk_ <| parseE old.code in
-          let old' = { old | inputExp = e } in
-          refreshHighlights i z
-            { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
-                   , history = addToHistory s old'.history }
-
-        (_, MouseSlider _ (Just (s, _))) ->
-          let e = Utils.fromOk_ <| parseE old.code in
-          let old' = { old | inputExp = e } in
-            { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
-                   , history = addToHistory s old'.history }
-
-        (_, MouseDrawNew points) ->
-          case (old.shapeTool, points, old.keysDown == Keys.shift) of
-
-            (Line _,     [pt2, pt1], _) -> addLineToCodeAndRun old pt2 pt1
-            (HelperLine, [pt2, pt1], _) -> addLineToCodeAndRun old pt2 pt1
-
-            (Rect Raw,      [pt2, pt1], False) -> addRawRect old pt2 pt1
-            (Rect Raw,      [pt2, pt1], True)  -> addRawSquare old pt2 pt1
-            (Rect Stretchy, [pt2, pt1], False) -> addStretchyRect old pt2 pt1
-            (Rect Stretchy, [pt2, pt1], True)  -> addStretchySquare old pt2 pt1
-
-            (Oval Raw,      [pt2, pt1], False) -> addRawOval old pt2 pt1
-            (Oval Raw,      [pt2, pt1], True)  -> addRawCircle old pt2 pt1
-            (Oval Stretchy, [pt2, pt1], False) -> addStretchyOval old pt2 pt1
-            (Oval Stretchy, [pt2, pt1], True)  -> addStretchyCircle old pt2 pt1
-
-            (HelperDot, [pt], _) -> addHelperDotToCodeAndRun old pt
-
-            (Lambda, [pt2, pt1], _) -> addLambdaToCodeAndRun old pt2 pt1
-
-            (Poly _, _, _) -> old
-            (Path _, _, _) -> old
-
-            (_, [], _) -> switchToCursorTool old
-
-            _              -> old -- TODO
-
-        _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
+        -- (True, (Just _, _)) -> Debug.crash "upstate MouseIsDown: impossible"
+        (True, (Just _, _)) ->
+          let _ = Debug.log "upstate MouseIsDown: impossible" () in
+          old
 
     TickDelta deltaT ->
       case old.mode of
@@ -2133,7 +2252,7 @@ upstate evt old = case debugLog "Event" evt of
               , history       = addToHistory old.code old.history
               , slate         = slate
               , previewCode   = Nothing
-              , toolMode      = Cursors
+              , tool          = Cursor
               , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp val }
 
 
@@ -2234,28 +2353,21 @@ upstate evt old = case debugLog "Event" evt of
         upstate StartAnimation { old | movieNumber = old.movieNumber - 1 }
 
     KeysDown l ->
-      -- let _ = Debug.log "keys" (toString l) in
+      let _ = debugLog "keys" (toString l) in
       let new = { old | keysDown = l } in
 
       if editingMode old then old
 
       else if l == Keys.escape then
-        case (new.toolMode, new.mouseMode) of
-          (Shapes, MouseNothing)   -> { new | toolMode = Cursors }
-          (Shapes, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
-          (Cursors, _) ->
-            case new.cursorTool of
-              ClickAndDrag -> { new | showZones = False }
-              SelectFeatures ->
-                if Set.isEmpty new.selectedFeatures
-                  then { new | cursorTool = ClickAndDrag }
-                  else { new | selectedFeatures = Set.empty }
-              SelectBlobs ->
-                if Dict.isEmpty new.selectedBlobs
-                  then { new | cursorTool = ClickAndDrag }
-                  else { new | selectedBlobs = Dict.empty }
-          _ ->
-            new
+        case (new.tool, new.mouseMode) of
+          (Cursor, _) ->
+            { new | selectedFeatures = Set.empty
+                  , selectedShapes = Set.empty
+                  , selectedBlobs = Dict.empty
+                  }
+          (_, MouseNothing)   -> { new | tool = Cursor }
+          (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
+          _                   -> new
 
       else if l == Keys.delete then
          deleteSelectedBlobs new

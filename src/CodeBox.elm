@@ -232,7 +232,8 @@ packageModel (model, evt) (lastBox, rerenders) =
     in case model.editingMode of
       Nothing -> case (evt, model.mouseMode) of
           --If we're not manipulating, no need to clobber cursor position
-          (Model.MousePos _, Model.MouseNothing) -> poke rerender rerenders model
+          -- TODO
+          -- (Model.MousePos _, Model.MouseNothing) -> poke rerender rerenders model
           (Model.WaitClean, _) -> cleanRequestInfo -- tell Ace to send its version of the code
           _                 -> assertion rerender rerenders model
       Just _ -> case evt of

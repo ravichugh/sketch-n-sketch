@@ -2,8 +2,8 @@ module Utils where
 
 import String
 import Debug
-import Set
-import Dict
+import Set exposing (Set)
+import Dict exposing (Dict)
 
 maybeFind : a -> List (a,b) -> Maybe b
 maybeFind k l = case l of
@@ -256,6 +256,14 @@ getWithDefault key default dict =
   case Dict.get key dict of
     Just val -> val
     Nothing -> default
+
+toggleSet : comparable -> Set comparable -> Set comparable
+toggleSet x set =
+  if Set.member x set then Set.remove x set else Set.insert x set
+
+toggleDict : (comparable, v) -> Dict comparable v -> Dict comparable v
+toggleDict (k,v) dict =
+  if Dict.member k dict then Dict.remove k dict else Dict.insert k v dict
 
 head_ = fromJust_ "Utils.head_" << List.head
 tail_ = fromJust_ "Utils.tail_" << List.tail

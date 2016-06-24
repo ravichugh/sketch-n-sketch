@@ -985,7 +985,7 @@ featureEquation nodeId kind feature nodeAttrs =
     else if feature == LangSvg.boxTCX then cx
     else if feature == LangSvg.boxTCY then eqnVal "TOP"
     else if feature == LangSvg.boxBCX then cx
-    else if feature == LangSvg.boxBCY then eqnVal "BOTTOM"
+    else if feature == LangSvg.boxBCY then eqnVal "BOT"
     else if feature == LangSvg.boxCLX then eqnVal "LEFT"
     else if feature == LangSvg.boxCLY then cy
     else if feature == LangSvg.boxCRX then eqnVal "RIGHT"
@@ -997,6 +997,37 @@ featureEquation nodeId kind feature nodeAttrs =
     else if feature == LangSvg.boxHeight then
       EqnOp Minus [eqnVal "BOT", eqnVal "TOP"] -- (bottom - top)
     else Debug.crash <| "Boxes do not have this feature: " ++ feature
+  in
+  let handleOval () = -- starting by copying handleBox...
+    let
+      -- (left + right)/2
+      cx = EqnOp Div [EqnOp Plus [eqnVal "LEFT", eqnVal "RIGHT"], eqnVal2]
+      -- (top + bottom)/2
+      cy = EqnOp Div [EqnOp Plus [eqnVal "TOP", eqnVal "BOT"], eqnVal2]
+    in
+    if feature == LangSvg.ovalTLX then eqnVal "LEFT"
+    else if feature == LangSvg.ovalTLY then eqnVal "TOP"
+    else if feature == LangSvg.ovalTRX then eqnVal "RIGHT"
+    else if feature == LangSvg.ovalTRY then eqnVal "TOP"
+    else if feature == LangSvg.ovalBLX then eqnVal "LEFT"
+    else if feature == LangSvg.ovalBLY then eqnVal "BOT"
+    else if feature == LangSvg.ovalBRX then eqnVal "RIGHT"
+    else if feature == LangSvg.ovalBRY then eqnVal "BOT"
+    else if feature == LangSvg.ovalTCX then cx
+    else if feature == LangSvg.ovalTCY then eqnVal "TOP"
+    else if feature == LangSvg.ovalBCX then cx
+    else if feature == LangSvg.ovalBCY then eqnVal "BOT"
+    else if feature == LangSvg.ovalCLX then eqnVal "LEFT"
+    else if feature == LangSvg.ovalCLY then cy
+    else if feature == LangSvg.ovalCRX then eqnVal "RIGHT"
+    else if feature == LangSvg.ovalCRY then cy
+    else if feature == LangSvg.ovalCX then cx
+    else if feature == LangSvg.ovalCY then cy
+    else if feature == LangSvg.ovalRX then
+      EqnOp Div [EqnOp Minus [eqnVal "RIGHT", eqnVal "LEFT"], eqnVal2] -- (right - left) / 2
+    else if feature == LangSvg.ovalRY then
+      EqnOp Div [EqnOp Minus [eqnVal "BOT", eqnVal "TOP"], eqnVal2] -- (bot - top) / 2
+    else Debug.crash <| "Ovals do not have this feature: " ++ feature
   in
   let handleCircle () =
     let
@@ -1095,6 +1126,7 @@ featureEquation nodeId kind feature nodeAttrs =
     case kind of
       "rect"     -> handleRect ()
       "BOX"      -> handleBox ()
+      "OVAL"     -> handleOval ()
       "circle"   -> handleCircle ()
       "ellipse"  -> handleEllipse ()
       "line"     -> handleLine ()

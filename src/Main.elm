@@ -41,20 +41,11 @@ combinedEventSig =
   Signal.mergeMany
    -- Window.dimensions first, so that foldp' gets initial value...
     [ Window.dimensions |> Signal.map Model.WindowDimensions
+    , Mouse.isDown |> Signal.map Model.MouseIsDown
+    , Mouse.position |> Signal.map Model.MousePosition
+    , Keyboard.keysDown |> Signal.map (Model.KeysDown << List.sort << Set.toList)
+    , Time.fpsWhen 60 animateSignal |> Signal.map Model.TickDelta
     , events.signal
-    , Signal.map2 (,) Mouse.isDown Mouse.position
-      |> Signal.filter (\(x,y) -> x) (False, (0,0))
-      |> Signal.map (\(x,y) -> y)
-      -- |> Signal.map2 adjustCoords Window.dimensions
-      |> Signal.map Model.MousePos
-    , Mouse.position |> Signal.sampleOn Mouse.clicks |> Signal.map Model.MouseClick
-    , Signal.map
-      (Model.KeysDown << List.sort << Set.toList)
-      Keyboard.keysDown
-    , Signal.map
-        (always Model.MouseUp)
-        (Signal.filter ((==) False) False Mouse.isDown)
-    , Signal.map Model.TickDelta (Time.fpsWhen 60 animateSignal)
     ]
 
 main : Signal Element
@@ -93,7 +84,7 @@ port aceInTheHole =
               Model.WaitClean -> True
               Model.MultiEvent [ _, Model.CleanCode ] -> True
               Model.WaitCodeBox -> True
-              Model.MousePos _ -> True
+--              Model.MousePos _ -> True
 --              Model.KeysDown _ -> False
 --              Model.CodeUpdate _ -> False
               Model.UpdateModel _ -> True

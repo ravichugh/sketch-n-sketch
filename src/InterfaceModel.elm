@@ -50,12 +50,17 @@ type alias Model =
   , dimensions : (Int, Int)
   , midOffsetX : Int  -- extra codebox width in vertical orientation
   , midOffsetY : Int  -- extra codebox width in horizontal orientation
+
+  , mouseState : (Maybe Bool, (Int, Int))
+      -- mouseState ~= (Mouse.isDown, Mouse.position)
+      --  Nothing    : isDown = False
+      --  Just False : isDown = True and position unchanged since isDown became True
+      --  Just True  : isDown = True and position has changed since isDown became True
+
   , syncOptions : Sync.Options
   , editingMode : Maybe Code -- Nothing means not editing
                              -- Just s is True, where s is previous code
   , caption : Maybe Caption
-  , showZones : ShowZones
-  , showWidgets : ShowWidgets
   , showGhosts : ShowGhosts
   , localSaves : List String
   , fieldContents : DialogInfo
@@ -64,9 +69,10 @@ type alias Model =
   , basicCodeBox : Bool
   , errorBox : Maybe String
   , genSymCount : Int
-  , toolMode : ToolMode
-  , cursorTool : CursorTool
-  , shapeTool : ShapeTool
+  , tool : Tool
+  , hoveredShapes : Set.Set NodeId
+  , hoveredCrosshairs : Set.Set (NodeId, ShapeFeature, ShapeFeature)
+  , selectedShapes : Set.Set NodeId
   , selectedFeatures : Set.Set (SelectedType, NodeId, ShapeFeature)
   -- line/g ids assigned by blobs function
   , selectedBlobs : Dict.Dict Int NodeId
@@ -111,9 +117,12 @@ type MouseMode
   = MouseNothing
   | MouseResizeMid (Maybe (MouseTrigger (Int, Int)))
   | MouseObject NodeId ShapeKind Zone
-      (Maybe ( Code                        -- the program upon initial zone click
-             , Maybe (SubstPlus, LocSet)   -- loc-set assigned (live mode only)
-             , (Int, Int) ))               -- initial click
+      (Maybe                        -- Inactive (Nothing) or Active
+        ( Code                          -- the program upon initial zone click
+        , Maybe (SubstPlus, LocSet)     -- loc-set assigned (live mode only)
+        , (Int, Int)                    -- initial click
+        , Bool ))                       -- dragged at least one pixel
+                                        -- TODO remove second Maybe
   | MouseSlider Widget
       (Maybe ( Code                        -- the program upon initial click
              , MouseTrigger (Exp, Val, RootedIndexedTree, Widgets) ))
@@ -131,21 +140,13 @@ type Orientation = Vertical | Horizontal
 
 type alias PossibleChange = (Exp, Val, RootedIndexedTree, Code)
 
-type alias ShowZones = Bool
-type ShowWidgets = HideWidgets | ShowAnnotatedWidgets | ShowAllWidgets
+-- type alias ShowZones = Bool
+-- type ShowWidgets = HideWidgets | ShowAnnotatedWidgets | ShowAllWidgets
 type alias ShowGhosts = Bool
 
-type ToolMode
-  = Cursors
-  | Shapes
-
-type CursorTool
-  = ClickAndDrag
-  | SelectFeatures
-  | SelectBlobs
-
-type ShapeTool
-  = Line ShapeToolKind
+type Tool
+  = Cursor
+  | Line ShapeToolKind
   | Rect ShapeToolKind
   | Oval ShapeToolKind
   | Poly ShapeToolKind
@@ -169,9 +170,8 @@ type alias KeysDown = List Char.KeyCode
 type Event = CodeUpdate String -- TODO this doesn't help with anything
            | SelectObject Int ShapeKind Zone
            | MouseClickCanvas      -- used to initiate drawing new shape
-           | MouseClick (Int, Int) -- used to add points to a new polygon
-           | MouseUp
-           | MousePos (Int, Int)
+           | MouseIsDown Bool
+           | MousePosition (Int, Int)
            | TickDelta Float -- 60fps time tick, Float is time since last tick
            | Sync
            | PreviewCode (Maybe Code)
@@ -306,11 +306,10 @@ sampleModel =
     , dimensions    = (1000, 800) -- dummy in case foldp' didn't get initial value
     , midOffsetX    = 0
     , midOffsetY    = -100
+    , mouseState    = (Nothing, (0, 0))
     , syncOptions   = Sync.defaultOptions
     , editingMode   = Nothing
     , caption       = Nothing
-    , showZones     = False
-    , showWidgets   = ShowAnnotatedWidgets
     , showGhosts    = True
     , localSaves    = []
     , fieldContents = { value = "", hint = "Input File Name" }
@@ -324,9 +323,10 @@ sampleModel =
     -- starting at 1 to match shape ids on blank canvas
     -- , genSymCount   = 0
     , genSymCount   = 1
-    , toolMode      = Shapes
-    , cursorTool    = ClickAndDrag
-    , shapeTool     = Line Raw
+    , tool          = Line Raw
+    , hoveredShapes = Set.empty
+    , hoveredCrosshairs = Set.empty
+    , selectedShapes = Set.empty
     , selectedFeatures = Set.empty
     , selectedBlobs = Dict.empty
     , keysDown      = []
