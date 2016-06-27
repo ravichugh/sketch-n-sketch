@@ -644,18 +644,18 @@ prelude =
     (let yLine (+ 30! y)
     (enumSlider (- xMid dx) (+ xMid dx) yLine
       ['start' 'middle' 'end'] '' horizAlignSeed)))
+  (let x
+    (if (= anchor 'start') x1
+    (if (= anchor 'middle') xMid
+    (if (= anchor 'end') x2
+      'CRASH')))
   (let theText
-    (let x
-      (if (= anchor 'start') x1
-      (if (= anchor 'middle') xMid
-      (if (= anchor 'end') x2
-        'CRASH')))
     ['text'
       [['x' x] ['y' y]
        ['style' (+ 'fill:' color)]
        ['font-family' family] ['font-size' size]
        ['text-anchor' anchor]]
-      [['TEXT' textVal]]])
+      [['TEXT' textVal]]]
   (let rails
     (let pad 15!
     (let yBaseLine (+ y pad)
@@ -663,9 +663,10 @@ prelude =
     (let rail (line 'gray' 3)
     (let baseLine (rail xSideLine yBaseLine x2 yBaseLine)
     (let sideLine (rail xSideLine yBaseLine xSideLine (- y size))
-    (ghosts [baseLine sideLine])))))))
+    (let dragBall (circle 'black' x yBaseLine 8!)
+    (ghosts [baseLine sideLine dragBall]))))))))
   (concat [[theText] hAlignSlider rails])
-))))))
+)))))))
 
 
 ;; rotate : Shape -> Number -> Number -> Number -> Shape
