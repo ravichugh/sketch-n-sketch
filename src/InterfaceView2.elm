@@ -481,8 +481,11 @@ boundingBoxZones model id (left, top, right, bot) shapeWidgets =
     [onMouseLeave (removeHoveredShape id) ]
     (maybeBackgroundBox ++ shapeWidgets)
 
+minLengthForMiddleZones = 30
+
 eightCardinalZones model id shape transform (left, top, right, bot) =
   let (width, height) = (right - left, bot - top) in
+  let ifEnoughSpace len xs = if len < minLengthForMiddleZones then [] else xs in
   let mkPoint zone cx cy =
     zonePoint model id shape zone transform [attrNum "cx" cx, attrNum "cy" cy]
   in
@@ -490,10 +493,10 @@ eightCardinalZones model id shape transform (left, top, right, bot) =
     mkPoint "TopRightCorner" right top ++
     mkPoint "BotLeftCorner" left bot ++
     mkPoint "BotRightCorner" right bot ++
-    mkPoint "LeftEdge" left (top + height / 2) ++
-    mkPoint "RightEdge" right (top + height / 2) ++
-    mkPoint "TopEdge" (left + width / 2) top ++
-    mkPoint "BotEdge" (left + width / 2) bot
+    ifEnoughSpace height (mkPoint "LeftEdge" left (top + height / 2)) ++
+    ifEnoughSpace height (mkPoint "RightEdge" right (top + height / 2)) ++
+    ifEnoughSpace width (mkPoint "TopEdge" (left + width / 2) top) ++
+    ifEnoughSpace width (mkPoint "BotEdge" (left + width / 2) bot)
 
 pointZoneStyles =
   { radius = "6"
@@ -891,6 +894,10 @@ toggleSelectedLambda nodeIdAndFeatures =
     in
     { model | selectedFeatures = List.foldl updateSet model.selectedFeatures nodeIdAndFeatures }
 
+maybeZoneSelectCrossDot sideLength model thisCrosshair x y =
+  if sideLength < minLengthForMiddleZones then []
+  else zoneSelectCrossDot model thisCrosshair x y
+
 zoneSelectCrossDot : Model -> (Int, LangSvg.ShapeFeature, LangSvg.ShapeFeature)
                   -> number -> number' -> List Svg.Svg
 zoneSelectCrossDot model thisCrosshair x y =
@@ -982,6 +989,10 @@ zoneSelectCrossDot model thisCrosshair x y =
   Utils.singleton <| Svg.g
     [onMouseLeave (removeHoveredCrosshair thisCrosshair)]
     [backDisc, xLine, yLine, frontDisc, xyDot]
+
+maybeZoneSelectLine sideLength model nodeId featureName pt1 pt2 =
+  if sideLength < minLengthForMiddleZones then []
+  else zoneSelectLine model nodeId featureName pt1 pt2
 
 zoneSelectLine model nodeId featureName pt1 pt2 =
   let typeAndNodeIdAndFeature =
@@ -1123,7 +1134,8 @@ makeZonesLine model id l =
   in
   let zonesSelect =
     List.concat
-       [ zoneSelectCrossDot model (id, LangSvg.lineCX, LangSvg.lineCY)
+       [ maybeZoneSelectCrossDot (distance_ pt1 pt2) model
+           (id, LangSvg.lineCX, LangSvg.lineCY)
            ((fst x1)/2+(fst x2)/2) ((fst y1)/2+(fst y2)/2)
        , zoneSelectCrossDot model (id, LangSvg.lineX1, LangSvg.lineY1)
            (fst x1) (fst y1)
@@ -1175,29 +1187,29 @@ makeZonesRectOrBox model id shape l =
     -- refactor, or get rid of parallel feature names...
     if shape == "rect" then
       let (x,y,w,h) = (left, top, width, height) in
-      zoneSelectLine model id LangSvg.rectWidth (x,y+h/2) (x+w,y+h/2) ++
-      zoneSelectLine model id LangSvg.rectHeight (x+w/2,y) (x+w/2,y+h) ++
-      zoneSelectCrossDot model (id, LangSvg.rectTCX, LangSvg.rectTCY) (x+w/2) y ++
-      zoneSelectCrossDot model (id, LangSvg.rectBCX, LangSvg.rectBCY) (x+w/2) (y+h) ++
-      zoneSelectCrossDot model (id, LangSvg.rectCLX, LangSvg.rectCLY) x (y+h/2) ++
-      zoneSelectCrossDot model (id, LangSvg.rectCRX, LangSvg.rectCRY) (x+w) (y+h/2) ++
+      maybeZoneSelectLine height model id LangSvg.rectWidth (x,y+h/2) (x+w,y+h/2) ++
+      maybeZoneSelectLine width model id LangSvg.rectHeight (x+w/2,y) (x+w/2,y+h) ++
+      maybeZoneSelectCrossDot width model (id, LangSvg.rectTCX, LangSvg.rectTCY) (x+w/2) y ++
+      maybeZoneSelectCrossDot width model (id, LangSvg.rectBCX, LangSvg.rectBCY) (x+w/2) (y+h) ++
+      maybeZoneSelectCrossDot height model (id, LangSvg.rectCLX, LangSvg.rectCLY) x (y+h/2) ++
+      maybeZoneSelectCrossDot height model (id, LangSvg.rectCRX, LangSvg.rectCRY) (x+w) (y+h/2) ++
       zoneSelectCrossDot model (id, LangSvg.rectTLX, LangSvg.rectTLY) x y ++
       zoneSelectCrossDot model (id, LangSvg.rectTRX, LangSvg.rectTRY) (x+w) y ++
       zoneSelectCrossDot model (id, LangSvg.rectBLX, LangSvg.rectBLY) x (y+h) ++
       zoneSelectCrossDot model (id, LangSvg.rectBRX, LangSvg.rectBRY) (x+w) (y+h) ++
-      zoneSelectCrossDot model (id, LangSvg.rectCX , LangSvg.rectCY)  (x+w/2) (y+h/2)
+      maybeZoneSelectCrossDot (min width height) model (id, LangSvg.rectCX , LangSvg.rectCY)  (x+w/2) (y+h/2)
     else
-      zoneSelectLine model id LangSvg.boxWidth (left, cy) (right, cy) ++
-      zoneSelectLine model id LangSvg.boxHeight (cx, top) (cx, bot) ++
-      zoneSelectCrossDot model (id, LangSvg.boxTCX, LangSvg.boxTCY) cx top ++
-      zoneSelectCrossDot model (id, LangSvg.boxBCX, LangSvg.boxBCY) cx bot ++
-      zoneSelectCrossDot model (id, LangSvg.boxCLX, LangSvg.boxCLY) left cy ++
-      zoneSelectCrossDot model (id, LangSvg.boxCRX, LangSvg.boxCRY) right cy ++
+      maybeZoneSelectLine height model id LangSvg.boxWidth (left, cy) (right, cy) ++
+      maybeZoneSelectLine width model id LangSvg.boxHeight (cx, top) (cx, bot) ++
+      maybeZoneSelectCrossDot width model (id, LangSvg.boxTCX, LangSvg.boxTCY) cx top ++
+      maybeZoneSelectCrossDot width model (id, LangSvg.boxBCX, LangSvg.boxBCY) cx bot ++
+      maybeZoneSelectCrossDot height model (id, LangSvg.boxCLX, LangSvg.boxCLY) left cy ++
+      maybeZoneSelectCrossDot height model (id, LangSvg.boxCRX, LangSvg.boxCRY) right cy ++
       zoneSelectCrossDot model (id, LangSvg.boxTLX, LangSvg.boxTLY) left top ++
       zoneSelectCrossDot model (id, LangSvg.boxTRX, LangSvg.boxTRY) right top ++
       zoneSelectCrossDot model (id, LangSvg.boxBLX, LangSvg.boxBLY) left bot ++
       zoneSelectCrossDot model (id, LangSvg.boxBRX, LangSvg.boxBRY) right bot ++
-      zoneSelectCrossDot model (id, LangSvg.boxCX , LangSvg.boxCY)  cx cy
+      maybeZoneSelectCrossDot (min width height) model (id, LangSvg.boxCX , LangSvg.boxCY)  cx cy
   in
   let primaryWidgets =
     boundingBoxZones model id bounds <|
@@ -1221,6 +1233,7 @@ makeZonesCircle model id l =
     right  = cx + r
   in
   let bounds = (left, top, right, bot) in
+  let diameter = right - left in
   let transform = maybeTransformAttr l in
   let zoneInterior =
     draggableZone Svg.circle False model id "circle" "Interior" <|
@@ -1229,12 +1242,12 @@ makeZonesCircle model id l =
       ] ++ transform
   in
   let zonesSelect =
-    zoneSelectLine model id LangSvg.circleR (cx,cy) (cx+r,cy) ++
-    zoneSelectCrossDot model (id, LangSvg.circleTCX, LangSvg.circleTCY) cx top ++
-    zoneSelectCrossDot model (id, LangSvg.circleBCX, LangSvg.circleBCY) cx bot ++
-    zoneSelectCrossDot model (id, LangSvg.circleCLX, LangSvg.circleCLY) left cy ++
-    zoneSelectCrossDot model (id, LangSvg.circleCRX, LangSvg.circleCRY) right cy ++
-    zoneSelectCrossDot model (id, LangSvg.circleCX , LangSvg.circleCY)  cx cy
+    maybeZoneSelectLine diameter model id LangSvg.circleR (cx,cy) (cx+r,cy) ++
+    maybeZoneSelectCrossDot diameter model (id, LangSvg.circleTCX, LangSvg.circleTCY) cx top ++
+    maybeZoneSelectCrossDot diameter model (id, LangSvg.circleBCX, LangSvg.circleBCY) cx bot ++
+    maybeZoneSelectCrossDot diameter model (id, LangSvg.circleCLX, LangSvg.circleCLY) left cy ++
+    maybeZoneSelectCrossDot diameter model (id, LangSvg.circleCRX, LangSvg.circleCRY) right cy ++
+    maybeZoneSelectCrossDot diameter model (id, LangSvg.circleCX, LangSvg.circleCY) cx cy
   in
   let primaryWidgets =
      boundingBoxZones model id bounds <|
@@ -1265,6 +1278,7 @@ makeZonesEllipseOrOval model id shape l =
     right  = cx + rx
   in
   let bounds = (left, top, right, bot) in
+  let (width, height) = (right - left, bot - top) in
   let transform = maybeTransformAttr l in
   let zoneInterior =
     draggableZone Svg.ellipse False model id shape "Interior" <|
@@ -1283,17 +1297,17 @@ makeZonesEllipseOrOval model id shape l =
       zoneSelectCrossDot model (id, LangSvg.ellipseCRX, LangSvg.ellipseCRY) right cy ++
       zoneSelectCrossDot model (id, LangSvg.ellipseCX , LangSvg.ellipseCY)  cx cy
     else
-      zoneSelectLine model id LangSvg.ovalRX (cx,cy) (cx+rx,cy) ++
-      zoneSelectLine model id LangSvg.ovalRY (cx,cy-ry) (cx,cy) ++
-      zoneSelectCrossDot model (id, LangSvg.ovalTCX, LangSvg.ovalTCY) cx top ++
-      zoneSelectCrossDot model (id, LangSvg.ovalBCX, LangSvg.ovalBCY) cx bot ++
-      zoneSelectCrossDot model (id, LangSvg.ovalCLX, LangSvg.ovalCLY) left cy ++
-      zoneSelectCrossDot model (id, LangSvg.ovalCRX, LangSvg.ovalCRY) right cy ++
+      maybeZoneSelectLine height model id LangSvg.ovalRX (cx,cy) (cx+rx,cy) ++
+      maybeZoneSelectLine width model id LangSvg.ovalRY (cx,cy-ry) (cx,cy) ++
+      maybeZoneSelectCrossDot width model (id, LangSvg.ovalTCX, LangSvg.ovalTCY) cx top ++
+      maybeZoneSelectCrossDot width model (id, LangSvg.ovalBCX, LangSvg.ovalBCY) cx bot ++
+      maybeZoneSelectCrossDot height model (id, LangSvg.ovalCLX, LangSvg.ovalCLY) left cy ++
+      maybeZoneSelectCrossDot height model (id, LangSvg.ovalCRX, LangSvg.ovalCRY) right cy ++
       zoneSelectCrossDot model (id, LangSvg.ovalTLX, LangSvg.ovalTLY) left top ++
       zoneSelectCrossDot model (id, LangSvg.ovalTRX, LangSvg.ovalTRY) right top ++
       zoneSelectCrossDot model (id, LangSvg.ovalBLX, LangSvg.ovalBLY) left bot ++
       zoneSelectCrossDot model (id, LangSvg.ovalBRX, LangSvg.ovalBRY) right bot ++
-      zoneSelectCrossDot model (id, LangSvg.ovalCX , LangSvg.ovalCY)  cx cy
+      maybeZoneSelectCrossDot (min width height) model (id, LangSvg.ovalCX , LangSvg.ovalCY)  cx cy
   in
   let primaryWidgets =
      boundingBoxZones model id bounds <|
@@ -1443,6 +1457,7 @@ drawNewShape model =
     (HelperDot,  MouseDrawNew [pt])          -> drawNewHelperDot pt
     (HelperLine, MouseDrawNew [pt2, pt1])    -> drawNewLine model pt2 pt1
     (Lambda,     MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
+    (Text,       MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
     _                                        -> []
 
 defaultOpacity        = Attr.style [("opacity", "0.5")]
@@ -1881,7 +1896,10 @@ widgetsTools w h model =
   , twoButtons w h
       (toolButton model (Oval Stretchy))
       (toolButton model (Path Stretchy))
-  , toolButton model (Poly Stretchy) w h
+  , flowRight w h
+       [ (1/2, toolButton model (Poly Stretchy))
+       , (1/2, toolButton model Text)
+       ]
   , flowRight w h
        [ (1/4, toolButton model Lambda)
        , (3/4, dropdownLambdaTool model)
@@ -2201,12 +2219,12 @@ toolButton model tool w h =
     Oval Raw      -> "E" -- capRaw -- "Oval"
     Oval Stretchy -> "Oval" -- capStretchy
     Poly Raw      -> "P" -- capRaw -- "Poly"
-    Poly Stretchy -> "Polygon" -- "Poly" -- capStretchy
+    Poly Stretchy -> "Poly" -- "Polygon" -- capStretchy
     Poly Sticky   -> capSticky
     Path Raw      -> "Pa" -- capRaw -- "Path"
     Path Stretchy -> "Path" -- capStretchy
     Path Sticky   -> capSticky
-    Text          -> "-"
+    Text          -> "Text"
     HelperLine    -> "(Rule)"
     HelperDot     -> "(Dot)"
     Lambda        -> Utils.uniLambda
