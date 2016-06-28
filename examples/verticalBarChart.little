@@ -1,0 +1,223 @@
+
+; QUESTIONS: 
+; 1. can lists contain multiple types (number and string)? 
+; 2. any way to get the dimensions of the graphics window (for dynamic resizing)?
+; 3. renaming slider values? 
+
+; TODO: 
+; 1. need to lerp data values to window screen/ fixed box (last thing)
+; 2. positioning/size of text
+; 3. deal with axes' stroke widths
+; 4. save x and y labels' distance from axes as constants
+
+
+; ENTER DATA VALUES HERE ---------->
+
+(def data [90 174 144 168 215])
+(def categorical_data ['Case 1' 'Case 2' 'Case 3' 'Case 4' 'Case 5'])
+
+(def title_text 'Title Here')
+(def xaxis_text 'X Label')
+(def yaxis_text 'Y Label')
+
+(def title_on true)
+(def xaxis_label_on true)
+(def yaxis_label_on true)
+
+(def xaxis_on true)
+(def yaxis_on true)
+
+(def xaxis_ticks_on true)
+(def yaxis_ticks_on true)
+(def yaxis_number_of_ticks 5)
+
+(def numbers_above_bars_on true)
+
+(def bar_stroke_width 4)
+
+(def fit_xlabels_to_bar_width false)
+
+
+; DEFINE CONSTANTS ---------->
+
+; Find maximum and minimum points of data 
+(def maxD (maximum data))
+(def minD (minimum data))
+
+; Deal with starting position, width of bars, and gap between bars 
+; define everything in terms of left and top point 
+; similar to positioning in HTML and CSS 
+(def rect_left 150!)
+(def rect_bot 500!)
+(def width 35!{10-100}) ; let width change if user edits bars 
+(def gap (* (/ 100!{0-100} 100!) width)) ; don't let gap between bars change unless slider value changes 
+
+; round maxD to nearest 10th (that is >= to maxD): 
+(def maxGraph 
+    (let remainder (mod maxD 10)
+    (if (= remainder 0) maxD (+ maxD (- 10 remainder)))))
+
+; Define color range (supplementary)
+(def COLORMIN 100)
+(def COLORMAX 250)
+
+; Assign color to each data point based on color range (supplementary)
+(def mapColor (\(val d_min d_max col_min col_max) 
+(+ (* (- 1 (/ (- val d_min) (- d_max d_min))) col_min) (* (/ (- val d_min) (- d_max d_min)) col_max))))
+
+
+; GRAPH FUNCTIONS AND CONSTANTS ----------> 
+
+; Derive bounds of x and y axes 
+(def data_len (len data))
+(def axis_left 
+    (if (< gap bar_stroke_width) (- rect_left (* 0.5 bar_stroke_width))
+    (- rect_left (- gap (* 0.5 bar_stroke_width)))))
+(def axis_right (+ rect_left (+ (* data_len width) (* data_len gap))))
+(def axis_bot (+ rect_bot (* 0.5 bar_stroke_width)))
+(def axis_top (- axis_bot (+ maxGraph  bar_stroke_width)))
+
+; Define graph labels
+(def title 
+    (if title_on 
+        [(addAttr
+            (addAttr 
+                (addAttr 
+                    (text (/ (+ axis_left axis_right) 2) (- axis_top 20) title_text)
+                    ['text-anchor' 'middle'])
+                ['font-size' '20'])
+            ['font-weight' 'bold'])]
+        []))
+    
+(def xLabel 
+    (if xaxis_label_on
+        [(addAttr
+            (addAttr
+                (text (/ (+ axis_left axis_right) 2) (+ axis_bot 60) xaxis_text)
+                ['text-anchor' 'middle'])
+            ['font-weight' 'bold'])]
+        []))
+    
+(def yLabel
+    (if yaxis_label_on
+        [(addAttr 
+            (addAttr
+                (rotateAround -90 
+                    (- axis_left 60)
+                    (+ axis_top (/ (- axis_bot axis_top) 2))
+                    (text (- axis_left 60) (+ axis_top (/ (- axis_bot axis_top) 2)) yaxis_text))
+                ['text-anchor' 'middle'])
+            ['font-weight' 'bold'])]
+        []))
+        
+; Define lines that comprise x and y axes
+(def xAxis
+    (if xaxis_on 
+        (let [x1 y1 x2 y2] [axis_left axis_bot axis_right axis_bot]
+        (let [color width] [434 2]
+            [(line color width x1 y1 x2 y2)]))
+        []))
+    
+(def yAxis
+    (if yaxis_on
+        (let [x1 y1 x2 y2] [axis_left axis_top axis_left (+ 1 axis_bot)]
+        (let [color width] [434 2]
+            [(line color width x1 y1 x2 y2)]))
+        []))
+
+; Draw bar based on index i and datapoint d 
+(def drawBar (\[i d]
+  (let [left top] [ (+ (* i gap) (+ rect_left (* width i))) (- rect_bot d)]
+  (let bounds [left top (+ width left) rect_bot]
+  (let [color strokeColor] [246 'gray']
+    [ (rectangle color strokeColor bar_stroke_width 0 bounds) ])))))
+
+; Draw bar based on index i and datapoint d 
+; (supplementary, as it is the "colored" version -- bars take a certain color in a range based on their data value)
+; (def drawBar (\[i d]
+;   (let [left top] [ (+ (* i gap) (+ rect_left (* width i))) (- rect_bot d)]
+;   (let bounds [left top (+ width left) rect_bot]
+;   (let color ( mapColor d minD maxD COLORMIN COLORMAX)
+;     [ (rectangle color 'black' 0 0 bounds) ])))))
+
+; Drawing functions for additional features on graph, like 
+; 1. ticks on x axis
+; 2. ticks on y axis
+; 3. labels associated with x axis ticks
+; 4. labels associated with y axis ticks
+; 5. data numbers above the bars 
+
+(def drawXTicks (\[i d]
+    (if xaxis_ticks_on
+        (let [left] [ (+ (* 0.5 width) (+ (* i gap) (+ rect_left (* width i))))]
+        (let [x1 y1 x2 y2] [left axis_bot left (+ axis_bot 10)]
+        (let [color width] [434 2]
+          [(line color width x1 y1 x2 y2)])))
+        [])))
+      
+(def drawYTicks (\i
+    (if yaxis_ticks_on
+        (let height (- axis_bot axis_top)
+        (let ygap (/ height (- yaxis_number_of_ticks 1))
+        (let [bot] [(- axis_bot (* ygap i))]
+        (let [x1 y1 x2 y2] [(- axis_left 10) bot axis_left bot]
+        (let [color width] [434 2]
+            [(line color width x1 y1 x2 y2)])))))
+        [])))
+
+(def drawXLabels (\[i cd]
+    (if fit_xlabels_to_bar_width
+        (let [left] [ (+ (* 0.5 width) (+ (* i gap) (+ rect_left (* width i))))]
+        (let bot (+ axis_bot 30)
+        [(addAttr
+            (addAttr
+                (text left bot cd)
+                ['text-anchor' 'middle'])
+            ['textLength' (toString width)])]))
+        (let [left] [ (+ (* 0.5 width) (+ (* i gap) (+ rect_left (* width i))))]
+        (let bot (+ axis_bot 30)
+        [(addAttr
+            (text left bot cd)
+            ['text-anchor' 'middle'])])))))
+        
+(def drawYLabels (\i 
+    (let height (- axis_bot axis_top)
+    (let ygap (/ height (- yaxis_number_of_ticks 1))
+    (let textgap (/ maxGraph (- yaxis_number_of_ticks 1))
+    (let [bot] [(- axis_bot (* ygap i))]
+    (let val (+ 0 (* textgap i))
+     [(addAttr
+        (text (- axis_left 30) (+ bot 5) (toString (round val)))
+        ['text-anchor' 'middle'])])))))))
+            
+(def drawDataNumbers (\[i d]
+    (if numbers_above_bars_on 
+        (let [left] [ (+ (* 0.5 width) (+ (* i gap) (+ rect_left (* width i))))]
+        (let top_padding 5
+        (let top (- axis_bot (+ top_padding (+ d bar_stroke_width)))
+            [(addAttr
+                (text left top (toString d))
+                ['text-anchor' 'middle'])])))
+
+        [])))
+
+; Now call the drawing functions above to create lists of shapes
+(def Bars (mapi drawBar data))
+(def XTicks (mapi drawXTicks data))
+(def YTicks (map drawYTicks (range 0 (- yaxis_number_of_ticks 1))))
+(def YLabels (map drawYLabels (range 0 (- yaxis_number_of_ticks 1))))
+(def XLabels (mapi drawXLabels categorical_data))
+(def DataNumbers (mapi drawDataNumbers data))
+
+
+; GRAPH REPRESENTATION ----------> 
+
+; Essentially the drawing canvas
+(svg (append (concat [xAxis yAxis title xLabel yLabel]) 
+    (append (concat YTicks)
+    (append (concat XTicks)
+    (append (concat YLabels)
+    (append (concat XLabels)
+    (append (concat DataNumbers)
+    (concat Bars))))))))
+
