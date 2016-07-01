@@ -1901,9 +1901,13 @@ widgetsTools w h model =
        , (3/4, dropdownLambdaTool model)
        ]
   , gapWidget w h
+  , relateButton DigHole "Dig Hole" w h
+  , relateButton MakeEqual "Make Equal" w h
+{-
   , twoButtons w h
       (relateButton DigHole "Dig")
       (relateButton MakeEqual "x = y")
+-}
   , gapWidget w h
   , twoButtons w h
       (groupButton GroupBlobs "Group")
