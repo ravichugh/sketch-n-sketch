@@ -443,47 +443,44 @@ activeTrans2 =
 botanic =
  "
 ; Logo: Chicago Botanic Garden
- 
+
 ; Click '[Zones]' to see the control points for
 ; the various Bezier curves.
-  
-(def [xOff yOff w h]
- [0! 0! 623 622])
 
-(def [xOut xcOut1 ycOut1 xcOut2 ycOut2 xcOut3 ycOut3]
- [292 40 141 97 202 23 24])
+(def [w h] [434! 622])
+(def midline (/ w 2!))
 
-(def [xMid yTip yMid xBud yBud]
- [320! 272 460 -51 272])
+(def [x0  y0  xc1 yc1 x1  y1  xc2 yc2]
+     [185 261 59  232 0   382 28  183])
 
-(def left [[xMid yMid] [(- xMid xOut) yTip]])
-(def right [[xMid yMid] [(+ xMid xOut) yTip]])
-(def bud [[xMid (- yMid 92)] [(+ xMid xBud) yBud] [(- xMid xBud) yBud]])
- 
-(def makePath
-  (\\(c pts [xc1 yc1] [xc2 yc2])
-    (let offsetPts (map (\\[x y] [(+ x xOff) (+ y yOff)]) pts)
-    (let [[x0 y0] [x1 y1]] offsetPts
-    (let commands ['M' x0 y0 'Q' xc1 yc1 x1 y1 'M' x1 y1 'Q' xc2 yc2 x0 y0]
-      (path c 'black' 0 commands))))))
- 
-(def makeArc
-  (\\(c pts [xc1 yc1] [xc2 yc2])
-    (let offsetPts (map (\\[x y] [(+ x xOff) (+ y yOff)]) pts)
-    (let [[x0 y0] [x1 y1] [x2 y2]] offsetPts
-    (let commands ['M' x0 y0 'L' x1 y1 'A' 45 45 0 0 1 x2 y2 'L' x2 y2 'Z']
-      (path c 'black' 0 commands))))))
- 
-(def [leftleaf rightleaf centerbud] [
-  (makePath 'white' left [(- xMid xcOut1) ycOut1] [(- xMid xcOut2) ycOut2])
-  (makePath 'white' right [(+ xMid xcOut1) ycOut1] [(+ xMid xcOut2) ycOut2])
-  (makeArc 'white' bud [(+ xMid xcOut3) ycOut3] [(+ xMid xcOut3) ycOut3])
-])
+(def leaf (\\polarity
+  (let [mx0 mxc1 mx1 mxc2]
+       [(+ midline (* polarity x0))
+        (+ midline (* polarity xc1))
+        (+ midline (* polarity x1))
+        (+ midline (* polarity xc2))]
+    (path 'white' 'none' 0
+      ['M' mx0 y0
+       'Q' mxc1 yc1 mx1 y1
+       'M' mx1 y1
+       'Q' mxc2 yc2 mx0 y0]))))
 
-(def background (zones 'none' [(rect '#83F52C' xOff yOff w h)]))
+(def [budTipY budCornerX budCornerY]
+     [322     34         262       ])
 
-(svg (concat [background [leftleaf rightleaf centerbud]]))
+(def bud
+  (let [rx1 rx2]
+       [(- midline budCornerX)
+        (+ midline budCornerX)]
+    (path 'white' 'none' 0
+      ['M' midline budTipY
+       'L' rx1 budCornerY
+       'A' 31 31 0 0 1 rx2 budCornerY
+       'L' rx2 budCornerY 'Z'])))
 
+(def background (zones 'none' [(rect '#83F52C' 0! 0! w h)]))
+
+(svg (concat [background [(leaf 1!) (leaf -1!) bud]]))
 "
 
 rings =
