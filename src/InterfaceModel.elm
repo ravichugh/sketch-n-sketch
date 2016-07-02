@@ -185,6 +185,7 @@ type Event = ClickZone ZoneKey
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets, ati:AceTypeInfo})
            | Run
+           | TryParseRun Model
            | StartAnimation
            | Redraw
            | ToggleOutput
@@ -218,9 +219,10 @@ events = Signal.mailbox <| Noop
 --------------------------------------------------------------------------------
 
 mkLive opts slideNumber movieNumber movieTime e (val, widgets) =
-  let slate = LangSvg.valToIndexedTree val in
-  Sync.prepareLiveUpdates opts slideNumber movieNumber movieTime e (slate, widgets)
-  |> Result.map (Live)
+  LangSvg.valToIndexedTree val `Result.andThen` (\slate ->
+    Sync.prepareLiveUpdates opts slideNumber movieNumber movieTime e (slate, widgets)
+      |> Result.map (Live)
+  )
 
 mkLive_ opts slideNumber movieNumber movieTime e  =
   Eval.run e `Result.andThen` mkLive opts slideNumber movieNumber movieTime e

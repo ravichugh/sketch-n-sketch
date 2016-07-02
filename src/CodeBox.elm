@@ -180,17 +180,29 @@ interpretAceEvents amsg model =
     "saveResponse" ->
         let newModel = { model | code = amsg.strArg
                                , codeBoxInfo = { cursorPos = amsg.cursorArg
-                                                , selections = amsg.selectionArg
-                                                , highlights =
-                                                    model.codeBoxInfo.highlights
-                                                , annotations = model.codeBoxInfo.annotations
-                                                , tooltips = model.codeBoxInfo.tooltips
-                                                }
+                                               , selections = amsg.selectionArg
+                                               , highlights =
+                                                   model.codeBoxInfo.highlights
+                                               , annotations = model.codeBoxInfo.annotations
+                                               , tooltips = model.codeBoxInfo.tooltips
+                                               }
                         }
         in commitLocalSave model.exName newModel
            `andThen` \_ ->
            Signal.send events.address <| Model.UpdateModel <|
                 \m -> newModel
+    "tryParseRun" ->
+      let newModel = { model | code = amsg.strArg
+                             , codeBoxInfo = { cursorPos = amsg.cursorArg
+                                             , selections = amsg.selectionArg
+                                             , highlights =
+                                                 model.codeBoxInfo.highlights
+                                             , annotations = model.codeBoxInfo.annotations
+                                             , tooltips = model.codeBoxInfo.tooltips
+                                             }
+                      }
+      in
+      Signal.send events.address (Model.TryParseRun newModel)
     "cleanResponse" ->
       Signal.send events.address
       <| Model.MultiEvent [ updateModelEvent, Model.CleanCode ]
