@@ -186,6 +186,7 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets})
            | Run
+           | TryParseRun Model
            | StartAnimation
            | Redraw
            | ToggleOutput

@@ -161,15 +161,25 @@ interpretAceEvents amsg model =
     "saveResponse" ->
         let newModel = { model | code = amsg.strArg
                                , codeBoxInfo = { cursorPos = amsg.cursorArg
-                                                , selections = amsg.selectionArg
-                                                , highlights =
-                                                    model.codeBoxInfo.highlights
-                                                }
+                                               , selections = amsg.selectionArg
+                                               , highlights =
+                                                   model.codeBoxInfo.highlights
+                                               }
                         }
         in commitLocalSave model.exName newModel
            `andThen` \_ ->
            Signal.send events.address <| Model.UpdateModel <|
                 \m -> newModel
+    "tryParseRun" ->
+      let newModel = { model | code = amsg.strArg
+                             , codeBoxInfo = { cursorPos = amsg.cursorArg
+                                             , selections = amsg.selectionArg
+                                             , highlights =
+                                                 model.codeBoxInfo.highlights
+                                             }
+                      }
+      in
+      Signal.send events.address (Model.TryParseRun newModel)
     "cleanResponse" ->
       Signal.send events.address
       <| Model.MultiEvent [ updateModelEvent, Model.CleanCode ]

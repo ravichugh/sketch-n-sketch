@@ -50,8 +50,12 @@ window.initializers.push(function (elmRuntime) {
   editor.setFontSize(14);
   editor.getSession().setMode("ace/mode/little");
 
+  var tryParseRun = false;
+
   // Don't propagate editor keystrokes to the model
   document.getElementById("editor").onkeydown = function (e) { e.stopPropagation(); }
+  document.getElementById("editor").onkeyup   = function (e) { tryParseRun = true; }
+
   //If we reloaded from a crash, then we should do a few things differently:
   // - Set the initial text to what it was when we crashed
   // - Send an event to Elm to let Elm know that we just crashed
@@ -266,5 +270,23 @@ window.initializers.push(function (elmRuntime) {
       //Remember the current document name (for error recovery purposes)
       exName = codeBoxInfo.exName;
   }
+
+  // Start the pinger for live code running
+  tryParseRunFunc = function () {
+    if (tryParseRun) {
+      console.log(tryParseRun);
+      tryParseRun = false;
+      elmRuntime.ports.theTurn.send(
+          { evt : "tryParseRun"
+          , strArg : editor.getSession().getDocument().getValue()
+          , cursorArg : editor.getCursorPosition()
+          , selectionArg : editor.selection.getAllRanges()
+          , exNameArg : ""
+          }
+      );
+    }
+    window.setTimeout(tryParseRunFunc, 50)
+  }
+  window.setTimeout(tryParseRunFunc, 50)
 
 });

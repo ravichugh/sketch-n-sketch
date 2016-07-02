@@ -1988,6 +1988,15 @@ upstate evt old = case debugLog "Event" evt of
         Err err ->
           { old | caption = Just (LangError ("PARSE ERROR!\n" ++ err)) }
 
+
+    TryParseRun newModel ->
+      case parseE newModel.code of
+        Ok e ->
+          upstate Run newModel
+        Err err ->
+          { old | caption = Just (LangError ("PARSE ERROR!\n" ++ err)) }
+
+
     StartAnimation -> upstate Redraw { old | movieTime = 0
                                            , runAnimation = True }
 
