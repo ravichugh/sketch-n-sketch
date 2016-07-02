@@ -714,22 +714,23 @@ middleWidgets w h wWrap hWrap model =
       (False, Print _) ->
         [ dropdownExamples model w h
         , editRunButton model w h
-        , saveButton model w h
-        , saveAsButton model w h
-        , loadButton model w h
+        -- , saveButton model w h
+        -- , saveAsButton model w h
+        -- , loadButton model w h
         , twoButtons (undoButton model) (redoButton model)
         -- , outputButton model w h
         ]
       (False, _) ->
         [ dropdownExamples model w h
         , editRunButton model w h
-        , saveButton model w h
-        , saveAsButton model w h
-        , loadButton model w h
+        -- , saveButton model w h
+        -- , saveAsButton model w h
+        -- , loadButton model w h
         , twoButtons (undoButton model) (redoButton model)
         -- , outputButton model w h
         , gapWidget w h
         , zoneButton model w h
+        , ghostsButton model w h
         -- , luckyButton model w h
         -- , frozenButton model w h
         -- , modeButton model w h
@@ -737,9 +738,9 @@ middleWidgets w h wWrap hWrap model =
       (True, _) ->
         [ dropdownExamples model w h
         , editRunButton model w h
-        , saveButton model w h
-        , saveAsButton model w h
-        , loadButton model w h
+        -- , saveButton model w h
+        -- , saveAsButton model w h
+        -- , loadButton model w h
         ]
 
 gapWidget w h = GE.spacer w h
@@ -817,14 +818,11 @@ mainSectionVertical w h model =
         GE.flow GE.down
           [ canvas wCanvas hCanvas model
           , GE.flow GE.left
-              [ colorDebug Color.red <|
-                  GE.container wBtnWide (hZInfo+1) GE.middle <|
-                  outputButton model wBtnWide hBtn
-              , colorDebug Color.orange <| GE.spacer wExtra (hZInfo+1)
+              [ colorDebug Color.orange <| GE.spacer wExtra (hZInfo+1)
               , colorDebug Color.red <|
                   GE.container wBtnWide (hZInfo+1) GE.middle <|
-                  ghostsButton model wBtnWide hBtn
-              , caption model (wCanvas+1-(wBtnWide+wExtra+wBtnWide)) (hZInfo+1) -- NOTE: +1 is a band-aid
+                  outputButton model wBtnWide hBtn
+              , caption model (wCanvas+1-(wExtra+wBtnWide)) (hZInfo+1) -- NOTE: +1 is a band-aid
               ]
           -- , caption model (wCanvas+1) hZInfo -- NOTE: +1 is a band-aid
           ]
@@ -864,14 +862,11 @@ mainSectionHorizontal w h model =
           GE.flow GE.down
             [ canvas w hCanvas model
             , GE.flow GE.left
-                [ colorDebug Color.red <|
-                    GE.container wBtnWide (hZInfo+1) GE.middle <|
-                    outputButton model wBtnWide hBtn
-                , colorDebug Color.orange <| GE.spacer wExtra (hZInfo+1)
+                [ colorDebug Color.orange <| GE.spacer wExtra (hZInfo+1)
                 , colorDebug Color.red <|
                     GE.container wBtnWide (hZInfo+1) GE.middle <|
                     ghostsButton model wBtnWide hBtn
-                , caption model (w-(wBtnWide+wExtra+wBtnWide)) (hZInfo+1) -- NOTE: +1 is a band-aid
+                , caption model (w-(wExtra+wBtnWide)) (hZInfo+1) -- NOTE: +1 is a band-aid
                 ]
             -- , caption model w (hZInfo+1) -- NOTE: +1 is a band-aid
             ]
