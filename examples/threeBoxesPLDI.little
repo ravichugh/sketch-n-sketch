@@ -1,0 +1,9 @@
+
+(def [x0 y0  w  h  sep n]
+     [50 120 20 90 30  3])
+
+(def boxi (\i
+  (let xi (+ x0 (* i sep ))
+  (rect 'lightblue' xi y0 w h))))
+
+(svg (map boxi (zeroTo n)))

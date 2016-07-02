@@ -30,6 +30,19 @@ scratch =
 
 "
 
+threeBoxesPLDI =
+ "
+(def [x0 y0  w  h  sep n]
+     [50 120 20 90 30  3])
+
+(def boxi (\\i
+  (let xi (+ x0 (* i sep ))
+  (rect 'lightblue' xi y0 w h))))
+
+(svg (map boxi (zeroTo n)))
+
+"
+
 threeBoxes =
  "
 (def threeBoxesInt
@@ -38,7 +51,7 @@ threeBoxes =
     (let xi (+ x0 (mult i sep))
     (rect 'lightblue' xi y0 w h)))
   (svg (map boxi [0 1 2])))))
- 
+
 threeBoxesInt
 
 "
@@ -56,6 +69,22 @@ nBoxesH2 =
   (svg (map boxi (zeroTo n))))))
  
 nBoxes
+
+"
+
+waveBoxesPLDI =
+ "
+(def [x0 y0  w  h  sep amp n]
+     [50 120 20 90 30  60  12!{1-30}])
+
+(def twoPi (* 2! (pi)))
+
+(def boxi (\\i
+  (let xi (+ x0 (* i sep))
+  (let yi (- y0 (* amp (sin (* i (/ twoPi n)))))
+  (rect 'lightblue' xi yi w h)))))
+
+(svg (map boxi (zeroTo n)))
 
 "
 
@@ -452,6 +481,49 @@ botanic =
 
 (svg (concat [background [leftleaf rightleaf centerbud]]))
 
+"
+
+botanicPLDI =
+ "
+; Logo: Chicago Botanic Garden
+
+; Click '[Zones]' to see the control points for
+; the various Bezier curves.
+
+(def [w h] [434! 622])
+(def midline (/ w 2!))
+
+(def [x0  y0  xc1 yc1 x1  y1  xc2 yc2]
+     [185 261 59  232 0   382 28  183])
+
+(def leaf (\\polarity
+  (let [mx0 mxc1 mx1 mxc2]
+       [(+ midline (* polarity x0))
+        (+ midline (* polarity xc1))
+        (+ midline (* polarity x1))
+        (+ midline (* polarity xc2))]
+    (path 'white' 'none' 0
+      ['M' mx0 y0
+       'Q' mxc1 yc1 mx1 y1
+       'M' mx1 y1
+       'Q' mxc2 yc2 mx0 y0]))))
+
+(def [budTipY budCornerX budCornerY]
+     [322     34         262       ])
+
+(def bud
+  (let [rx1 rx2]
+       [(- midline budCornerX)
+        (+ midline budCornerX)]
+    (path 'white' 'none' 0
+      ['M' midline budTipY
+       'L' rx1 budCornerY
+       'A' 31 31 0 0 1 rx2 budCornerY
+       'L' rx2 budCornerY 'Z'])))
+
+(def background (zones 'none' [(rect '#83F52C' 0! 0! w h)]))
+
+(svg (concat [background [(leaf 1!) (leaf -1!) bud]]))
 "
 
 rings =
@@ -2303,6 +2375,79 @@ haskell =
 (svg (append [leftWedge lambda] equals))
 "
 
+coniferPLDI =
+ "
+(def triangle (\\(fill x1 y1 x2 y2 x3 y3)
+  (polygon fill 'none' 0 [[x1 y1] [x2 y2] [x3 y3]])
+))
+
+(def [baseX baseY baseW]
+     [200    300  20])
+
+(def [tipX   tipY]
+     [baseX  100])
+
+(def treeH (- tipY baseY))
+
+(def woodColor 20)
+(def leafColor 100)
+
+(def branchLevels 6)
+(def trunkBranchSep 30)
+(def branchBaseW 20)
+(def branchStartHeightRatio 0.1)
+
+(def leafW 5)
+(def leafH 10)
+(def leafSep 5)
+
+(def verticalLeaf (\\(x y)
+  (path leafColor 'none' 0
+    ['M' (- x (/ leafW 2!)) y
+     'L' x (+ y (/ leafH 2!))
+     'L' (+ x (/ leafW 2!)) y
+     'L' x (- y (/ leafH 2!))
+     'Z'])
+))
+
+(def horizontalLeaf (\\(x y)
+  (path leafColor 'none' 0
+    ['M' (- x (/ leafH 2!)) y
+     'L' x (+ y (/ leafW 2!))
+     'L' (+ x (/ leafH 2!)) y
+     'L' x (- y (/ leafW 2!))
+     'Z'])
+))
+
+
+(def trunk
+  (triangle woodColor
+            (- baseX (/ baseW 2!)) baseY
+            (+ baseX (/ baseW 2!)) baseY
+            tipX                   tipY)
+)
+
+(def horizontalLeavesBetween (\\(x1 y1 x2 y2)
+  (let step (+ leafW leafSep)
+  (let stepCount (/ (- x2 x1) step)
+    (map (\\i (verticalLeaf (+ x1 (* i step)) (+ y1 (* (/ i stepCount) (- y2 y1))))) (range 2! (- stepCount 2!)))
+  ))
+))
+
+(def branch (\\(baseX baseY baseW tipX tipY)
+  (concat [
+    [(triangle woodColor
+              baseX (- baseY (/ baseW 2!))
+              baseX (+ baseY (/ baseW 2!))
+              tipX  tipY)]
+    (horizontalLeavesBetween baseX baseY tipX tipY)
+  ])
+))
+
+(svg (concat [[trunk] (branch baseX (+ baseY (* branchStartHeightRatio treeH)) branchBaseW (+ baseX 100) (+ baseY (* branchStartHeightRatio treeH)))]))
+
+"
+
 matrices =
  "; Definitions for 2D matrices and transform application
 ;
@@ -3784,10 +3929,13 @@ spiralSpiralGraph =
 examples =
   [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
+  , makeExample "3 Boxes PLDI" threeBoxesPLDI
+  , makeExample "Wave Boxes PLDI" waveBoxesPLDI
   , makeExample "Wave Boxes" sineWaveOfBoxes
   , makeExample "Wave Boxes Grid" sineWaveGrid
   , makeExample "Logo" logo
   , makeExample "Botanic Garden Logo" botanic
+  , makeExample "Botanic Garden Logo PLDI" botanicPLDI
   , makeExample "Active Trans Logo" activeTrans2
   , makeExample "Sailboat" sailBoat
   , makeExample "Chicago Flag" chicago
@@ -3812,6 +3960,7 @@ examples =
   , makeExample "Haskell.org Logo" haskell
   , makeExample "Cover Logo" cover
   , makeExample "POP-PL Logo" poppl
+  , makeExample "Conifer PLDI" coniferPLDI
   , makeExample "Lillicon P" lilliconP
   , makeExample "Lillicon P, v2" lilliconP2
   , makeExample "Keyboard" keyboard

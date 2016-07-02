@@ -1,0 +1,12 @@
+
+(def [x0 y0  w  h  sep amp n]
+     [50 120 20 90 30  60  12!{1-30}])
+
+(def twoPi (* 2! (pi)))
+
+(def boxi (\i
+  (let xi (+ x0 (* i sep))
+  (let yi (- y0 (* amp (sin (* i (/ twoPi n)))))
+  (rect 'lightblue' xi yi w h)))))
+
+(svg (map boxi (zeroTo n)))

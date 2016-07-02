@@ -1,0 +1,71 @@
+
+(def triangle (\(fill x1 y1 x2 y2 x3 y3)
+  (polygon fill 'none' 0 [[x1 y1] [x2 y2] [x3 y3]])
+))
+
+(def [baseX baseY baseW]
+     [200    300  20])
+
+(def [tipX   tipY]
+     [baseX  100])
+
+(def treeH (- tipY baseY))
+
+(def woodColor 20)
+(def leafColor 100)
+
+(def branchLevels 6)
+(def trunkBranchSep 30)
+(def branchBaseW 20)
+(def branchStartHeightRatio 0.1)
+
+(def leafW 10)
+(def leafH 30)
+(def leafSep 4)
+
+(def verticalLeaf (\(x y)
+  (path leafColor 'none' 0
+    ['M' (- x (/ leafW 2!)) y
+     'L' x (+ y (/ leafH 2!))
+     'L' (+ x (/ leafW 2!)) y
+     'L' x (- y (/ leafH 2!))
+     'Z'])
+))
+
+(def horizontalLeaf (\(x y)
+  (path leafColor 'none' 0
+    ['M' (- x (/ leafH 2!)) y
+     'L' x (+ y (/ leafW 2!))
+     'L' (+ x (/ leafH 2!)) y
+     'L' x (- y (/ leafW 2!))
+     'Z'])
+))
+
+
+(def trunk
+  (triangle woodColor
+            (- baseX (/ baseW 2!)) baseY
+            (+ baseX (/ baseW 2!)) baseY
+            tipX                   tipY)
+)
+
+(def horizontalLeavesBetween (\(x1 y1 x2 y2)
+  (let step (+ leafW leafSep)
+  (let stepCount (/ (- x2 x1) step)
+    (map (\i (verticalLeaf (+ x1 (* i step)) (+ y1 (* (/ i stepCount) (- y2 y1))))) (range 2! (- stepCount 2!)))
+  ))
+))
+
+(def branch (\(baseX baseY baseW tipX tipY)
+  (concat [
+    [(triangle woodColor
+              baseX (- baseY (/ baseW 2!))
+              baseX (+ baseY (/ baseW 2!))
+              tipX  tipY)]
+    (horizontalLeavesBetween baseX baseY tipX tipY)
+  ])
+))
+
+(def leftBranches)
+
+(svg (concat [[trunk] (branch baseX (+ baseY (* branchStartHeightRatio treeH)) branchBaseW (+ baseX 100) (+ baseY (* branchStartHeightRatio treeH)))]))

@@ -1,0 +1,40 @@
+
+; Logo: Chicago Botanic Garden
+
+; Click '[Zones]' to see the control points for
+; the various Bezier curves.
+
+(def [w h] [434! 622])
+(def midline (/ w 2!))
+
+(def [x0  y0  xc1 yc1 x1  y1  xc2 yc2]
+     [185 261 59  232 0   382 28  183])
+
+(def leaf (\polarity
+  (let [mx0 mxc1 mx1 mxc2]
+       [(+ midline (* polarity x0))
+        (+ midline (* polarity xc1))
+        (+ midline (* polarity x1))
+        (+ midline (* polarity xc2))]
+    (path 'white' 'none' 0
+      ['M' mx0 y0
+       'Q' mxc1 yc1 mx1 y1
+       'M' mx1 y1
+       'Q' mxc2 yc2 mx0 y0]))))
+
+(def [budTipY budCornerX budCornerY]
+     [322     34         262       ])
+
+(def bud
+  (let [rx1 rx2]
+       [(- midline budCornerX)
+        (+ midline budCornerX)]
+    (path 'white' 'none' 0
+      ['M' midline budTipY
+       'L' rx1 budCornerY
+       'A' 31 31 0 0 1 rx2 budCornerY
+       'L' rx2 budCornerY 'Z'])))
+
+(def background (zones 'none' [(rect '#83F52C' 0! 0! w h)]))
+
+(svg (concat [background [(leaf 1!) (leaf -1!) bud]]))

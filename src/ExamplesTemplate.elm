@@ -17,8 +17,10 @@ makeExample name s =
 scratchName = "*Scratch*"
 
 LITTLE_TO_ELM scratch
+LITTLE_TO_ELM threeBoxesPLDI
 LITTLE_TO_ELM threeBoxes
 LITTLE_TO_ELM nBoxesH2
+LITTLE_TO_ELM waveBoxesPLDI
 LITTLE_TO_ELM sineWaveOfBoxes
 LITTLE_TO_ELM sineWaveGrid
 -- LITTLE_TO_ELM waveOfBoxes
@@ -35,6 +37,7 @@ LITTLE_TO_ELM elmLogo
 -- LITTLE_TO_ELM activeTrans
 LITTLE_TO_ELM activeTrans2
 LITTLE_TO_ELM botanic
+LITTLE_TO_ELM botanicPLDI
 LITTLE_TO_ELM rings
 LITTLE_TO_ELM polygons
 LITTLE_TO_ELM stars
@@ -73,6 +76,7 @@ LITTLE_TO_ELM sailBoat
 LITTLE_TO_ELM eyeIcon
 LITTLE_TO_ELM wikimedia
 LITTLE_TO_ELM haskell
+LITTLE_TO_ELM coniferPLDI
 LITTLE_TO_ELM matrices
 LITTLE_TO_ELM rotTest
 LITTLE_TO_ELM interfaceButtons
@@ -103,10 +107,13 @@ LITTLE_TO_ELM spiralSpiralGraph
 examples =
   [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
+  , makeExample "3 Boxes PLDI" threeBoxesPLDI
+  , makeExample "Wave Boxes PLDI" waveBoxesPLDI
   , makeExample "Wave Boxes" sineWaveOfBoxes
   , makeExample "Wave Boxes Grid" sineWaveGrid
   , makeExample "Logo" logo
   , makeExample "Botanic Garden Logo" botanic
+  , makeExample "Botanic Garden Logo PLDI" botanicPLDI
   , makeExample "Active Trans Logo" activeTrans2
   , makeExample "Sailboat" sailBoat
   , makeExample "Chicago Flag" chicago
@@ -131,6 +138,7 @@ examples =
   , makeExample "Haskell.org Logo" haskell
   , makeExample "Cover Logo" cover
   , makeExample "POP-PL Logo" poppl
+  , makeExample "Conifer PLDI" coniferPLDI
   , makeExample "Lillicon P" lilliconP
   , makeExample "Lillicon P, v2" lilliconP2
   , makeExample "Keyboard" keyboard
