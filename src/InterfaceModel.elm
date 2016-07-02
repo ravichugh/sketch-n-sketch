@@ -182,6 +182,7 @@ type Event = SelectObject Int ShapeKind Zone
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets, ati:AceTypeInfo})
            | Run
+           | TryParseRun Model
            | Brainstorm
            | StartAnimation
            | Redraw
@@ -216,9 +217,11 @@ events = Signal.mailbox <| Noop
 --------------------------------------------------------------------------------
 
 mkLive opts slideNumber movieNumber movieTime e v =
-  let (_,tree) = LangSvg.valToIndexedTree v in
-  Sync.prepareLiveUpdates opts slideNumber movieNumber movieTime e v tree
-  |> Result.map (Live)
+  LangSvg.valToIndexedTree v
+  `Result.andThen` (\(_,tree) ->
+    Sync.prepareLiveUpdates opts slideNumber movieNumber movieTime e v tree
+    |> Result.map (Live)
+  )
 
 mkLive_ opts slideNumber movieNumber movieTime e  =
   Eval.run e `Result.andThen` (\(val,_) -> mkLive opts slideNumber movieNumber movieTime e val)

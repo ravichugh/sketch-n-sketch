@@ -129,7 +129,8 @@ type alias IdPoint = (Maybe Int, Point)
 
 strValOfAVal = strVal << valOfAVal
 
-expectedButGot x s = crashWithMsg <| "expected " ++ x ++", but got: " ++ s
+expectedButGot x s = crashWithMsg <| expectedButGotStr x s
+expectedButGotStr x s = "expected " ++ x ++ ", but got: " ++ s
 
 -- temporary way to ignore numbers specified as strings (also see Sync)
 
@@ -702,7 +703,7 @@ children n = case n of
   SvgNode _ _ l -> l
 
 emptyTree : RootedIndexedTree
-emptyTree = valToIndexedTree <| vList [vBase (VString "svg"), vList [], vList []]
+emptyTree = Utils.fromOk "LangSvg.emptyTree" <| valToIndexedTree <| vList [vBase (VString "svg"), vList [], vList []]
 
 -- TODO use options for better error messages
 
@@ -740,8 +741,10 @@ fetchEverything_ slideNumber movieNumber movieTime val =
 fetchEverything : Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, RootedIndexedTree)
 fetchEverything slideNumber movieNumber movieTime val =
   fetchEverything_ slideNumber movieNumber movieTime val
-  |> Result.map (\(slideCount, movieCount, movieDuration, continue, movieVal) ->
-                  (slideCount, movieCount, movieDuration, continue, valToIndexedTree movieVal))
+  `Result.andThen` (\(slideCount, movieCount, movieDuration, continue, movieVal) ->
+    valToIndexedTree movieVal
+    |> Result.map (\indexedTree -> (slideCount, movieCount, movieDuration, continue, indexedTree))
+  )
 
 fetchSlideCount : Val -> Int
 fetchSlideCount val =
@@ -838,36 +841,45 @@ fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
     _ -> Ok movieVal -- Program returned a plain SVG array structure...we hope.
 
 
-valToIndexedTree : Val -> RootedIndexedTree
+valToIndexedTree : Val -> Result String RootedIndexedTree
 valToIndexedTree v =
-  let (nextId,tree) = valToIndexedTree_ v (1, Dict.empty) in
-  let rootId = nextId - 1 in
-  (rootId, tree)
+  valToIndexedTree_ v (1, Dict.empty)
+  |> Result.map (\(nextId,tree) ->
+      let rootId = nextId - 1 in
+      (rootId, tree)
+    )
 
 valToIndexedTree_ v (nextId, d) = case v.v_ of
 
   VList vs -> case List.map .v_ vs of
 
     [VBase (VString "TEXT"), VBase (VString s)] ->
-      (1 + nextId, Dict.insert nextId (TextNode s) d)
+      Ok (1 + nextId, Dict.insert nextId (TextNode s) d)
 
     [VBase (VString kind), VList vs1, VList vs2] ->
-      let processChild vi (a_nextId, a_graph , a_children) =
-        let (a_nextId',a_graph') = valToIndexedTree_ vi (a_nextId, a_graph) in
-        let a_children'          = (a_nextId' - 1) :: a_children in
-        (a_nextId', a_graph', a_children') in
-      let (nextId',d',children) = List.foldl processChild (nextId,d,[]) vs2 in
-      let node = SvgNode kind (List.map valToAttr vs1) (List.reverse children) in
-      (1 + nextId', Dict.insert nextId' node d')
+      let processChild vi acc =
+        case acc of
+          Err s -> acc
+          Ok (a_nextId, a_graph , a_children) ->
+            valToIndexedTree_ vi (a_nextId, a_graph)
+            |> Result.map (\(a_nextId',a_graph') ->
+                let a_children' = (a_nextId' - 1) :: a_children in
+                (a_nextId', a_graph', a_children')
+              )
+      in
+      List.foldl processChild (Ok (nextId,d,[])) vs2
+      |> Result.map (\(nextId',d',children) ->
+          let node = SvgNode kind (List.map valToAttr vs1) (List.reverse children) in
+          (1 + nextId', Dict.insert nextId' node d')
+        )
 
-    _ ->
-      "an SVG node" `expectedButGot` strVal v
+    _ -> Err <| "an SVG node" `expectedButGotStr` strVal v
 
-  _ ->
-    "an SVG node" `expectedButGot` strVal v
+  _ -> Err <| "an SVG node" `expectedButGotStr` strVal v
+
 
 printIndexedTree : Val -> String
-printIndexedTree = valToIndexedTree >> snd >> strEdges
+printIndexedTree = valToIndexedTree >> Utils.fromOk "LangSvg.printIndexedTree" >> snd >> strEdges
 
 strEdges : IndexedTree -> String
 strEdges =

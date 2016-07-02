@@ -2,6 +2,7 @@ module InterfaceController (upstate) where
 
 import Lang exposing (..) --For access to what makes up the Vals
 import Types
+import Ace
 import LangParser2 exposing (parseE, freshen)
 import LangUnparser exposing (unparse, precedingWhitespace, addPrecedingWhitespace)
 import Brainstorm
@@ -2032,6 +2033,56 @@ onMouseUp old =
     _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
 
 
+tryRun : Model -> Result (String, Maybe Ace.Annotation) Model
+tryRun old =
+  case parseE old.code of
+    Err (err, annot) -> Err (err, Just annot)
+    Ok e ->
+      let result =
+        let aceTypeInfo = Types.typecheck e in
+        Eval.run e
+        `Result.andThen` (\(newVal,ws) ->
+          LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
+          |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
+            let newCode = unparse e in
+            let lambdaTools' =
+              -- TODO should put program into Model
+              -- TODO actually, ideally not. caching introduces bugs
+              let program = splitExp e in
+              let options = lambdaToolOptionsOf program ++ snd sampleModel.lambdaTools in
+              let selectedIdx = min (fst old.lambdaTools) (List.length options) in
+              (selectedIdx, options)
+            in
+            let new =
+              { old | inputExp      = e
+                    , inputVal      = newVal
+                    , ideas         = if newVal == old.inputVal then old.ideas else []
+                    , code          = newCode
+                    , slideCount    = newSlideCount
+                    , movieCount    = newMovieCount
+                    , movieTime     = 0
+                    , movieDuration = newMovieDuration
+                    , movieContinue = newMovieContinue
+                    , runAnimation  = newMovieDuration > 0
+                    , slate         = newSlate
+                    , widgets       = ws
+                    , history       = addToHistory newCode old.history
+                    , caption       = Nothing
+                    , syncOptions   = Sync.syncOptionsOf old.syncOptions e
+                    , lambdaTools   = lambdaTools'
+                    , codeBoxInfo   = updateCodeBoxWithTypes aceTypeInfo old.codeBoxInfo
+              }
+            in
+            { new | mode = refreshMode_ new
+                  , errorBox = Nothing }
+          )
+        )
+      in
+      case result of
+        Err s    -> Err (s, Nothing)
+        Ok model -> Ok model
+
+
 --------------------------------------------------------------------------------
 -- Updating the Model
 
@@ -2044,52 +2095,23 @@ upstate evt old =
     WindowDimensions wh -> { old | dimensions = wh }
 
     Run ->
-      case parseE old.code of
-        Err (err, annot) ->
-          -- TODO maybe get rid of (computing and) displaying err in caption area
+      case tryRun old of
+        Err (err, Just annot) ->
           { old | errorBox = Just err
                 , codeBoxInfo = updateCodeBoxWithParseError annot old.codeBoxInfo }
-        Ok e ->
-          let result =
-            let aceTypeInfo = Types.typecheck e in
-            Eval.run e
-            `Result.andThen` (\(newVal,ws) ->
-              LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
-              |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
-                let newCode = unparse e in
-                let lambdaTools' =
-                  -- TODO should put program into Model
-                  let program = splitExp e in
-                  let options = lambdaToolOptionsOf program ++ snd sampleModel.lambdaTools in
-                  let selectedIdx = min (fst old.lambdaTools) (List.length options) in
-                  (selectedIdx, options)
-                in
-                let new =
-                  { old | inputExp      = e
-                        , inputVal      = newVal
-                        , ideas         = if newVal == old.inputVal then old.ideas else []
-                        , code          = newCode
-                        , slideCount    = newSlideCount
-                        , movieCount    = newMovieCount
-                        , movieTime     = 0
-                        , movieDuration = newMovieDuration
-                        , movieContinue = newMovieContinue
-                        , runAnimation  = newMovieDuration > 0
-                        , slate         = newSlate
-                        , widgets       = ws
-                        , history       = addToHistory newCode old.history
-                        , caption       = Nothing
-                        , syncOptions   = Sync.syncOptionsOf old.syncOptions e
-                        , lambdaTools   = lambdaTools'
-                        , codeBoxInfo   = updateCodeBoxWithTypes aceTypeInfo old.codeBoxInfo
-                  }
-                in
-                { new | mode = refreshMode_ new
-                      , errorBox = Nothing }
-              )
-            )
-          in
-          handleError old result
+        Err (err, Nothing) ->
+          { old | errorBox = Just err }
+        Ok newModel -> newModel
+
+    TryParseRun newModel ->
+      case tryRun newModel of
+        Err (err, Just annot) ->
+          { old | caption = Just (LangError err)
+                , codeBoxInfo = updateCodeBoxWithParseError annot old.codeBoxInfo }
+        Err (err, Nothing) ->
+          { old | caption = Just (LangError err) }
+        Ok modelAfterRun ->
+          modelAfterRun
 
     StartAnimation -> upstate Redraw { old | movieTime = 0
                                            , runAnimation = True }
@@ -2635,9 +2657,10 @@ applyTrigger objid kind zone old mx0 my0 dx_ dy_ =
         Just trigger ->
           let (newE,changes) = trigger (mx0, my0) (dx, dy) in
           Eval.run newE
-          |> Result.map (\(newVal,newWidgets) ->
-              (newE, newVal, changes, LangSvg.valToIndexedTree newVal, newWidgets)
-            )
+          `Result.andThen` (\(newVal,newWidgets) ->
+            LangSvg.valToIndexedTree newVal
+            |> Result.map (\newSlate -> (newE, newVal, changes, newSlate, newWidgets))
+          )
     _ -> Debug.crash "applyTrigger"
 
 
