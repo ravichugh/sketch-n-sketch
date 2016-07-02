@@ -58,8 +58,6 @@ type alias Model =
       --  Just True  : isDown = True and position has changed since isDown became True
 
   , syncOptions : Sync.Options
-  , editingMode : Maybe Code -- Nothing means not editing
-                             -- Just s is True, where s is previous code
   , caption : Maybe Caption
   , showGhosts : ShowGhosts
   , localSaves : List String
@@ -187,7 +185,6 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | MergeBlobs
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets})
-           | Edit
            | Run
            | StartAnimation
            | Redraw
@@ -229,10 +226,6 @@ mkLive_ opts slideNumber movieNumber movieTime e  =
   mkLive opts slideNumber movieNumber movieTime e (fst (Eval.run e))
   -- TODO maybe put Val into model (in addition to slate)
   --   so that don't need to re-run in some calling contexts
-
-editingMode model = case model.editingMode of
-  Nothing -> False
-  Just _  -> True
 
 liveInfoToHighlights id zone model =
   case model.mode of
@@ -308,7 +301,6 @@ sampleModel =
     , midOffsetY    = -100
     , mouseState    = (Nothing, (0, 0))
     , syncOptions   = Sync.defaultOptions
-    , editingMode   = Nothing
     , caption       = Nothing
     , showGhosts    = True
     , localSaves    = []

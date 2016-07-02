@@ -50,6 +50,8 @@ window.initializers.push(function (elmRuntime) {
   editor.setFontSize(14);
   editor.getSession().setMode("ace/mode/little");
 
+  // Don't propagate editor keystrokes to the model
+  document.getElementById("editor").onkeydown = function (e) { e.stopPropagation(); }
   //If we reloaded from a crash, then we should do a few things differently:
   // - Set the initial text to what it was when we crashed
   // - Send an event to Elm to let Elm know that we just crashed
@@ -94,16 +96,6 @@ window.initializers.push(function (elmRuntime) {
           reembed(false);
           //If we should bounce an update back (force a rerender) then do so
           bounce(codeBoxInfo.bounce);
-          //Set the contents to the correct manipulable state
-          if (!codeBoxInfo.manipulable) {
-              editor.container.style.zIndex = "0";
-              editor.container.style.pointerEvents = "auto";
-              editor.setReadOnly(true);
-          } else {
-              editor.container.style.zIndex = "1";
-              editor.container.style.pointerEvents = "auto";
-              editor.setReadOnly(false);
-          }
           return;
       }
 
@@ -267,17 +259,6 @@ window.initializers.push(function (elmRuntime) {
       //If the div rerendered (kept track of with a special attribute) then we
       // should copy the editor back into it
       reembed(false);
-
-      //Set the contents to the correct manipulable state
-      if (!codeBoxInfo.manipulable) {
-          editor.container.style.zIndex = "0";
-          editor.container.style.pointerEvents = "auto";
-          editor.setReadOnly(true);
-      } else {
-          editor.container.style.zIndex = "1";
-          editor.container.style.pointerEvents = "auto";
-          editor.setReadOnly(false);
-      }
 
       //If we should bounce an update back (force a rerender) then do so
       bounce(codeBoxInfo.bounce);

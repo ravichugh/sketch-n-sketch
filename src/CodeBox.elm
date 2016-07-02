@@ -2,7 +2,7 @@
 -- the Model and the appropriate dimensions.
 
 module CodeBox (interpretAceEvents, packageModel, tripRender,
-                AceMessage, AceCodeBoxInfo, initAceCodeBoxInfo,
+                AceMessage, AceCodeBoxInfo, initAceCodeBoxInfo, initFoldpAceCodeBoxInfo,
                 saveRequestInfo, runRequestInfo) where
 
 import Lang exposing (errorPrefix)
@@ -31,7 +31,6 @@ type alias AceCodeBoxInfo =
     { kind        : String
     , code        : String
     , cursorPos   : Model.AcePos
-    , manipulable : Bool
     , selections  : List Model.Range
     , highlights  : List Model.Highlight
     , bounce      : Bool
@@ -49,15 +48,18 @@ type alias AceMessage =
 -- An initial AceCodeBoxInfo for the foldp
 -- Doesn't actually get sent over the port
 initAceCodeBoxInfo =
-  ( { kind = "assertion"
-    , code = sampleModel.code
-    , cursorPos = sampleModel.codeBoxInfo.cursorPos
-    , manipulable = True
-    , selections = sampleModel.codeBoxInfo.selections
-    , highlights = sampleModel.codeBoxInfo.highlights
-    , bounce = True
-    , exName = ""
-    }
+  { kind = "assertion"
+  , code = sampleModel.code
+  , cursorPos = sampleModel.codeBoxInfo.cursorPos
+  , selections = sampleModel.codeBoxInfo.selections
+  , highlights = sampleModel.codeBoxInfo.highlights
+  , bounce = True
+  , exName = ""
+  }
+
+initFoldpAceCodeBoxInfo =
+  ( False
+  , initAceCodeBoxInfo
   , []
   )
 
@@ -67,7 +69,6 @@ saveRequestInfo saveName =
   ( { kind = "saveRequest"
     , code = ""
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
-    , manipulable = True
     , selections = []
     , highlights = []
     , bounce = True
@@ -81,7 +82,6 @@ runRequestInfo =
   ( { kind = "runRequest"
     , code = ""
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
-    , manipulable = True
     , selections = []
     , highlights = []
     , bounce = True
@@ -95,7 +95,6 @@ cleanRequestInfo =
   ( { kind = "cleanRequest"
     , code = ""
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
-    , manipulable = True
     , selections = []
     , highlights = []
     , bounce = True
@@ -109,7 +108,6 @@ codeRequestInfo =
   ( { kind = "codeRequest"
     , code = ""
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
-    , manipulable = True
     , selections = []
     , highlights = []
     , bounce = True
@@ -120,41 +118,29 @@ codeRequestInfo =
 
 poke : Bool -> List Bool -> Model.Model -> (AceCodeBoxInfo, List Bool)
 poke rerender rerenders model =
-  let manipulable = case (model.mode, model.editingMode) of
-          (Model.SaveDialog _, _) -> False
-          (_, Nothing) -> False
-          _           -> True
-  in
-      ( { kind = "poke"
-        , code = ""
-        , cursorPos = sampleModel.codeBoxInfo.cursorPos
-        , manipulable = manipulable
-        , selections = []
-        , highlights = []
-        , bounce = rerender
-        , exName = ""
-        }
-      , rerender :: List.take (rerenderCount - 1) rerenders
-      )
+  ( { kind = "poke"
+    , code = ""
+    , cursorPos = model.codeBoxInfo.cursorPos
+    , selections = []
+    , highlights = []
+    , bounce = rerender
+    , exName = ""
+    }
+  , rerender :: List.take (rerenderCount - 1) rerenders
+  )
 
 assertion : Bool -> List Bool -> Model.Model -> (AceCodeBoxInfo, List Bool)
 assertion rerender rerenders model =
-  let manipulable = case (model.mode, model.editingMode) of
-          (Model.SaveDialog _, _) -> False
-          (_, Nothing) -> False
-          _           -> True
-  in
-    ( { kind = "assertion"
-      , code = Model.codeToShow model
-      , cursorPos = model.codeBoxInfo.cursorPos
-      , selections = model.codeBoxInfo.selections
-      , manipulable = manipulable
-      , highlights = model.codeBoxInfo.highlights
-      , bounce = rerender
-      , exName = model.exName
-      }
-    , rerender :: List.take (rerenderCount - 1) rerenders
-    )
+  ( { kind = "assertion"
+    , code = Model.codeToShow model
+    , cursorPos = model.codeBoxInfo.cursorPos
+    , selections = model.codeBoxInfo.selections
+    , highlights = model.codeBoxInfo.highlights
+    , bounce = rerender
+    , exName = model.exName
+    }
+  , rerender :: List.take (rerenderCount - 1) rerenders
+  )
 
 -- The second model argument is present to allow Saves to be made from here
 interpretAceEvents : AceMessage -> Model.Model -> Task String ()
@@ -207,7 +193,6 @@ interpretAceEvents amsg model =
 recoverFromError : AceMessage -> Model.Model -> Model.Model
 recoverFromError amsg fresh =
     { fresh | code = amsg.strArg
-            , editingMode = Just amsg.strArg
             , errorBox = Just amsg.evt
             , exName = amsg.exNameArg
             , codeBoxInfo = { selections = amsg.selectionArg
@@ -225,30 +210,29 @@ recoverFromError amsg fresh =
 rerenderCount : Int
 rerenderCount = 4
 
-packageModel : (Model.Model, Event) -> (AceCodeBoxInfo, List Bool) ->
-                    (AceCodeBoxInfo, List Bool)
-packageModel (model, evt) (lastBox, rerenders) =
-    let rerender = tripRender evt rerenders
-    in case model.editingMode of
-      Nothing -> case (evt, model.mouseMode) of
-          --If we're not manipulating, no need to clobber cursor position
-          -- TODO
-          -- (Model.MousePos _, Model.MouseNothing) -> poke rerender rerenders model
-          (Model.WaitClean, _) -> cleanRequestInfo -- tell Ace to send its version of the code
-          _                 -> assertion rerender rerenders model
-      Just _ -> case evt of
+packageModel : (Model.Model, Event) -> (Bool, AceCodeBoxInfo, List Bool) ->
+                    (Bool, AceCodeBoxInfo, List Bool)
+packageModel (model, evt) (_, lastBox, rerenders) =
+    let rerender = tripRender evt rerenders in
+    let (newCodeBoxInfo, newRerenders) =
+      case evt of
           Model.WaitSave saveName -> saveRequestInfo saveName
           Model.WaitRun -> runRequestInfo
           Model.WaitClean -> cleanRequestInfo
           Model.MultiEvent [ _, Model.CleanCode ] -> assertion rerender rerenders model -- tell Ace to render our version of the code
-          Model.Edit -> assertion rerender rerenders model
           Model.Run -> assertion rerender rerenders model
           Model.UpdateModel _ -> assertion rerender rerenders model
           Model.SelectExample _ _ -> assertion rerender rerenders model
           Model.WaitCodeBox -> case model.basicCodeBox of
               True -> poke rerender rerenders model
               False -> codeRequestInfo
-          _ -> poke rerender rerenders model
+          _ -> assertion rerender rerenders model
+    in
+    let notifyAce = (newCodeBoxInfo, newRerenders) /= (lastBox, rerenders) in
+    ( notifyAce
+    , newCodeBoxInfo
+    , newRerenders
+    )
 
 -- Lets a signal pass if it should triger an extra rerender
 -- This is entered into a foldp so that we do not enter into an infinite

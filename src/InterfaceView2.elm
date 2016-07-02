@@ -1662,21 +1662,15 @@ codebox w h model =
                       (Signal.message events.address << CodeUpdate)]
     code = codeToShow model
   in
-    codebox_ w h event code (not (editingMode model))
+    codebox_ w h event code
 
-highlightThisIf b =
-  if b
-  then ("box-shadow", "inset 0 0 10px 4px rgba(231, 76, 60,0.5)")
-  else ("box-shadow", "inset 0 0 10px 4px darkgray")
-
-codebox_ w h event s readOnly =
+codebox_ w h event s =
   let innerPadding = 4
   in
     Html.toElement w h <|
       Html.textarea
         ([ Attr.id "editor"
          , Attr.spellcheck False
-         , Attr.readonly readOnly
          , Attr.style
              [ ("font-family", params.mainSection.codebox.font)
              , ("font-size", params.mainSection.codebox.fontSize)
@@ -1692,7 +1686,6 @@ codebox_ w h event s readOnly =
              , ("padding", toString innerPadding ++ "px")
              -- Makes the 100% for width/height work as intended
              , ("box-sizing", "border-box")
-             , highlightThisIf (not readOnly)
              ]
          , Attr.value s
          -- doesn't work here, need to handle this in Ace
@@ -1723,7 +1716,6 @@ errorBox w h errormsg =
         , ("padding", "4px")
         -- Makes the 100% for width/height work as intended
         , ("box-sizing", "border-box")
-        , highlightThisIf False
         ]
       , Attr.value <| "💥 " ++ errormsg
       ]
@@ -1732,14 +1724,14 @@ errorBox w h errormsg =
 canvas : Int -> Int -> Model -> GE.Element
 canvas w h model =
   case model.mode of
-    Print s -> codebox_ w h [] s True
+    Print s -> codebox_ w h [] s
     _       -> canvas_ w h model
 
 canvas_ w h model =
-  let addZones = case (editingMode model, model.mode) of
-    (False, AdHoc)  -> True
-    (False, Live _) -> model.tool == Cursor
-    _               -> False
+  let addZones = case model.mode of
+    AdHoc  -> True
+    Live _ -> model.tool == Cursor
+    _      -> False
   in
   let mainCanvas_ = buildSvg (model, addZones) model.slate in
   let mainCanvas =
@@ -1812,7 +1804,6 @@ mkSvg hilite svg =
      [ onMouseDown MouseClickCanvas
      , Attr.style [ ("width", "100%") , ("height", "100%")
                   , ("border", params.mainSection.canvas.border)
-                  , highlightThisIf hilite
                   ] ]
      [ svg ]
 
@@ -1832,7 +1823,7 @@ threeButtons w h b1 b2 b3 = flowRight w h [(1/3, b1), (1/3, b2), (1/3, b3)]
 widgetsExampleNavigation w h model =
   [ twoButtons w h (codeButton model) (canvasButton model)
   , dropdownExamples model w h
-  , editRunButton model w h
+  , runButton model w h
   , twoButtons w h (saveButton model) (saveAsButton model)
   , loadButton model w h
   ]
@@ -1933,15 +1924,14 @@ middleWidgets row1 row2 w h wWrap hWrap model =
       else l2_ in                -- horizontal (row1 XOR row2)
 
   List.map (GE.container wWrap hWrap GE.middle) <|
-    case (editingMode model, model.mode, unwrapVList model.inputVal) of
-      (False, SyncSelect _, _) -> []
-      (False, Print _, _) -> l1
-      (False, _, Just [VConst (slideCount, _), _]) ->
+    case (model.mode, unwrapVList model.inputVal) of
+      (SyncSelect _, _) -> []
+      (Print _, _) -> l1
+      (_, Just [VConst (slideCount, _), _]) ->
         l1 ++
         (if row1 then slideNavigation else []) ++
         l2
-      (False, _, _) -> l1 ++ l2
-      (True, _, _) -> l1
+      _ -> l1 ++ l2
 
       -- modeButton and syncButton...
 
@@ -2147,11 +2137,9 @@ simpleTaskButton = simpleTaskButton_ False
 -- displayKey s = " " ++ Utils.parens s
 displayKey s = " " ++ s
 
-editRunButton model w h =
+runButton model w h =
   let disabled = model.mode == AdHoc in
-  case editingMode model of
-    True -> simpleEventButton_ disabled WaitRun "Run Code" w h
-    False -> simpleEventButton_ disabled Edit "Edit Code" w h
+  simpleEventButton_ disabled WaitRun "Run Code" w h
 
 outputButton model w h =
   let disabled = model.mode == AdHoc in
@@ -2373,9 +2361,7 @@ orientationButton w h model =
 basicBoxButton w h model =
     let (text, evt) = case model.basicCodeBox of
           True  -> ("[Code Box] Basic", ToggleBasicCodeBox)
-          False -> case model.editingMode of
-              Nothing -> ("[Code Box] Fancy", ToggleBasicCodeBox)
-              Just _  -> ("[Code Box] Fancy", WaitCodeBox)
+          False -> ("[Code Box] Fancy", WaitCodeBox)
     in
        simpleButton evt text w h
 

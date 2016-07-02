@@ -1952,18 +1952,12 @@ upstate evt old = case debugLog "Event" evt of
 
     WindowDimensions wh -> { old | dimensions = wh }
 
-    Edit -> { old | editingMode = Just old.code }
-
     Run ->
       case parseE old.code of
         Ok e ->
-         let h = case old.editingMode of
-           Nothing -> old.history
-           Just "" -> old.history -- "" from InterfaceStorage
-           Just s  -> addToHistory s old.history
-         in
          let (newVal,ws) = (Eval.run e) in
          let (newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) = LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal in
+         let newCode = unparse e in
          let lambdaTools' =
            -- TODO should put program into Model
            let program = splitExp e in
@@ -1974,7 +1968,7 @@ upstate evt old = case debugLog "Event" evt of
          let new =
            { old | inputExp      = e
                  , inputVal      = newVal
-                 , code          = unparse e
+                 , code          = newCode
                  , slideCount    = newSlideCount
                  , movieCount    = newMovieCount
                  , movieTime     = 0
@@ -1983,8 +1977,7 @@ upstate evt old = case debugLog "Event" evt of
                  , runAnimation  = newMovieDuration > 0
                  , slate         = newSlate
                  , widgets       = ws
-                 , history       = h
-                 , editingMode   = Nothing
+                 , history       = addToHistory newCode old.history
                  , caption       = Nothing
                  , syncOptions   = Sync.syncOptionsOf old.syncOptions e
                  , lambdaTools   = lambdaTools'
@@ -2356,9 +2349,7 @@ upstate evt old = case debugLog "Event" evt of
       let _ = debugLog "keys" (toString l) in
       let new = { old | keysDown = l } in
 
-      if editingMode old then old
-
-      else if l == Keys.escape then
+      if l == Keys.escape then
         case (new.tool, new.mouseMode) of
           (Cursor, _) ->
             { new | selectedFeatures = Set.empty
@@ -2469,9 +2460,7 @@ upstate evt old = case debugLog "Event" evt of
           in
           let _ = debugLog "Cleaned: " code' in
           let newModel = { old | inputExp = cleanedExp, code = code', history = history' } in
-          case old.editingMode of
-            Nothing -> upstate Run newModel
-            _       -> newModel
+          newModel
 
     -- Elm does not have function equivalence/pattern matching, so we need to
     -- thread these events through upstate in order to catch them to rerender

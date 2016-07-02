@@ -179,7 +179,6 @@ installLocalState saveName loadedModel oldModel = debugLog "installLocalState"
     { loadedModel | slate = emptyTree
                   , exName = saveName
                   , localSaves = oldModel.localSaves
-                  , editingMode = Just ""
                   , selectedFeatures = Set.empty
                   , selectedBlobs = Dict.empty
     }

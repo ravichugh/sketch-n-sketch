@@ -4,7 +4,7 @@ import InterfaceController as Controller
 import InterfaceStorage exposing (taskMailbox)
 import CodeBox exposing (interpretAceEvents, packageModel,
                          AceMessage, AceCodeBoxInfo, tripRender,
-                         initAceCodeBoxInfo)
+                         initAceCodeBoxInfo, initFoldpAceCodeBoxInfo)
 import Config
 
 import Graphics.Element exposing (Element)
@@ -74,9 +74,8 @@ port taskPort = Signal.mergeMany
 -- Port for messages to the code box
 port aceInTheHole : Signal AceCodeBoxInfo
 port aceInTheHole =
-    let pickAsserts (m,e) = case m.editingMode of
-          Nothing -> True
-          Just _ -> case e of
+    let pickAsserts (m,e) =
+          case e of
               -- All events let through here that aren't already let through
               -- 'poke' Ace, rerendering if necessary
               Model.WaitRun -> True
@@ -98,7 +97,6 @@ port aceInTheHole =
 --              Model.SelectOption -> False
 --              Model.SwitchMode _ -> False
               Model.SelectExample _ _ -> True
-              Model.Edit -> True
 --              Model.Run -> False
 --              Model.ToggleOutput -> False
 --              Model.ToggleZones -> False
@@ -113,15 +111,14 @@ port aceInTheHole =
               --TODO distinguish installState
               _ -> False
     in
-        Signal.map fst
-                      <| Signal.foldp packageModel initAceCodeBoxInfo
+        Signal.filterMap (\(notifyAce, aceCodeBoxInfo, _) -> if notifyAce then Just aceCodeBoxInfo else Nothing) initAceCodeBoxInfo
+                      <| Signal.foldp packageModel initFoldpAceCodeBoxInfo
                       -- <| Signal.map (\(m, e) -> let _ = Debug.log "Ace Event:" e in (m,e))
-                      <| Signal.filter
-                            (\a -> (not (fst a).basicCodeBox
-                                    || snd a == Model.ToggleBasicCodeBox
-                                        && (fst a).basicCodeBox)
-                                   && pickAsserts a )
-                            (sampleModel, Model.Noop)
+                      -- <| Signal.filter
+                      --       (\a -> not (fst a).basicCodeBox
+                      --               || snd a == Model.ToggleBasicCodeBox
+                      --                   && (fst a).basicCodeBox)
+                      --       (sampleModel, Model.Noop)
                       <| Signal.map2 (,) sigModel combinedEventSig
 
 -- Port for Event messages from the code box
