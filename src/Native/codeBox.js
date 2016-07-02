@@ -50,8 +50,12 @@ window.initializers.push(function (elmRuntime) {
   editor.setFontSize(14);
   editor.getSession().setMode("ace/mode/little");
 
+  var tryParseRun = false;
+
   // Don't propagate editor keystrokes to the model
   document.getElementById("editor").onkeydown = function (e) { e.stopPropagation(); }
+  document.getElementById("editor").onkeyup   = function (e) { tryParseRun = true; }
+
   //If we reloaded from a crash, then we should do a few things differently:
   // - Set the initial text to what it was when we crashed
   // - Send an event to Elm to let Elm know that we just crashed
@@ -187,15 +191,20 @@ window.initializers.push(function (elmRuntime) {
     }
   }
 
+  var lastCode = ""
   // Installs all the values that we got from the assertion from Elm
   function makeAssertion(codeBoxInfo) {
-      //Set the value of the code editor with what we got from Elm
-      editor.getSession().setValue(codeBoxInfo.code, 0);
-      //Set the cursor position to what we got from Elm
-      editor.moveCursorTo(codeBoxInfo.cursorPos.row, codeBoxInfo.cursorPos.column);
-      //Set the selections appropriately
-      //Note that we need to turn the Elm Ranges into Ace Range Objects
-      editor.selection.clearSelection();
+      // Set the value of the code editor with what we got from Elm
+      if (codeBoxInfo.code !== lastCode && !tryParseRun) {
+        editor.getSession().setValue(codeBoxInfo.code, 0);
+        lastCode = codeBoxInfo.code
+
+        //Set the cursor position to what we got from Elm
+        editor.moveCursorTo(codeBoxInfo.cursorPos.row, codeBoxInfo.cursorPos.column);
+        //Set the selections appropriately
+        //Note that we need to turn the Elm Ranges into Ace Range Objects
+        editor.selection.clearSelection();
+      }
 
       /* No need for this anymore, as assertions are not on every input
       //We need to treat the first one differently, so we must iterate
@@ -321,5 +330,24 @@ window.initializers.push(function (elmRuntime) {
     addTooltip(0, 0, "Don't click on me, it hurts.");
     addTooltip(0, 1, "Click on me to rewrite.");
   }
+
+  ////////////////////////////////////////////////////////////
+
+  // Start the pinger for live code running
+  tryParseRunFunc = function () {
+    if (tryParseRun) {
+      tryParseRun = false;
+      elmRuntime.ports.theTurn.send(
+          { evt : "tryParseRun"
+          , strArg : editor.getSession().getDocument().getValue()
+          , cursorArg : editor.getCursorPosition()
+          , selectionArg : editor.selection.getAllRanges()
+          , exNameArg : ""
+          }
+      );
+    }
+    window.setTimeout(tryParseRunFunc, 150)
+  }
+  window.setTimeout(tryParseRunFunc, 150)
 
 });
