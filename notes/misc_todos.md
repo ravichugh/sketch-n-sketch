@@ -3,7 +3,8 @@
 - [ ] File handling
 - [ ] Keyboard shortcuts
 - [ ] Precise traces (which updates will not change control flow?)
-- [ ] Incremental computation
+- [ ] Dataflow traces for non-numerics (strings, bools)
+- - [ ] Incremental computation
 - [ ] Zoom and pan
 - [ ] Rulers/coordinates/snap-to-grid
 - [ ] Reorganize native vs user-defined zones and features
