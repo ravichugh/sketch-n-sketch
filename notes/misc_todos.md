@@ -4,7 +4,7 @@
 - [ ] Keyboard shortcuts
 - [ ] Precise traces (which updates will not change control flow?)
 - [ ] Dataflow traces for non-numerics (strings, bools)
-- - [ ] Incremental computation
+- [ ] Incremental computation
 - [ ] Zoom and pan
 - [ ] Rulers/coordinates/snap-to-grid
 - [ ] Reorganize native vs user-defined zones and features
