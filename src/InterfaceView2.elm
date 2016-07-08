@@ -2250,7 +2250,7 @@ loadButton model w h =
 undoButton : Model -> Int -> Int -> GE.Element
 undoButton model =
   let past = fst model.history in
-  simpleEventButton_ (List.length past == 0) Undo "Undo" -- Utils.uniUndo
+  simpleEventButton_ (List.length past <= 1) Undo "Undo" -- Utils.uniUndo
 
 redoButton : Model -> Int -> Int -> GE.Element
 redoButton model =

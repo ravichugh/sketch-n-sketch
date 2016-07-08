@@ -273,11 +273,12 @@ sampleModel =
     {e,v,ws}   = f ()
   in
   let (slideCount, movieCount, movieDuration, movieContinue, indexedTree) = LangSvg.fetchEverything 1 1 0.0 v in
+  let code = unparse e in
     { scratchCode   = Examples.scratch
     , exName        = name
-    , code          = unparse e
+    , code          = code
     , previewCode   = Nothing
-    , history       = ([], [])
+    , history       = ([code], [])
     , inputExp      = e
     , inputVal      = v
     , slideNumber   = 1

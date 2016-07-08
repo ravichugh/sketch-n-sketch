@@ -89,7 +89,17 @@ switchOrient m = case m of
   Horizontal -> Vertical
 
 -- may want to eventually have a maximum history length
-addToHistory s h = (s :: fst h, [])
+addToHistory currentCode h =
+  let (past, _) = h in
+  case past of
+    [] ->
+      (currentCode::past, [])
+
+    last::older ->
+      if currentCode == last
+      then h
+      else (currentCode::past, [])
+
 
 between1 i (j,k) = i `Utils.between` (j+1, k+1)
 
@@ -710,7 +720,6 @@ addLambdaToCodeAndRun old (_,pt2) (_,pt1) =
 
   upstate Run
     { old | code = code
-          , history = addToHistory old.code old.history
           , mouseMode = MouseNothing }
 
   {- this version adds the call inside a new top-level definition:
@@ -735,7 +744,6 @@ addToCodeAndRun newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
 
   upstate Run
     { old | code = code
-          , history = addToHistory old.code old.history
           , genSymCount = old.genSymCount + 1
           , mouseMode = MouseNothing }
 
@@ -934,7 +942,6 @@ groupSelectedBlobs model defs blobs f =
   let code' = unparse (fuseExp (defs', Blobs blobs' f)) in
   upstate Run
     { model | code = code'
-            , history = addToHistory model.code model.history
             , genSymCount = model.genSymCount + 1
             , selectedBlobs = Dict.empty
             }
@@ -1143,7 +1150,6 @@ abstractSelectedBlobs model =
       let code' = unparse (fuseExp (defs', Blobs blobs' f)) in
       upstate Run
         { model | code = code'
-                , history = addToHistory model.code model.history
                 , selectedBlobs = Dict.empty
                 }
     _ ->
@@ -1298,7 +1304,6 @@ deleteSelectedBlobs model =
       let code' = unparse (fuseExp (defs, Blobs blobs' f)) in
       upstate Run
         { model | code = code'
-              , history = addToHistory model.code model.history
               , selectedBlobs = Dict.empty
               }
     _ ->
@@ -1355,7 +1360,6 @@ duplicateSelectedBlobs model =
       in
       upstate Run
         { model | code = code'
-                , history = addToHistory model.code model.history
                 , genSymCount = List.length newBlobs + model.genSymCount
                 }
     _ ->
@@ -1384,7 +1388,6 @@ mergeSelectedBlobs model =
         let code' = unparse (fuseExp (defs', Blobs blobs' f)) in
         upstate Run
           { model | code = code'
-                  , history = addToHistory model.code model.history
                   , selectedBlobs = Dict.empty
                   }
     _ ->
@@ -2271,12 +2274,13 @@ upstate evt old = case debugLog "Event" evt of
         if old.exName == Examples.scratchName then old.code else old.scratchCode
       in
       let (slideCount, movieCount, movieDuration, movieContinue, slate) = LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v in
+      let code = unparse e in
       { old | scratchCode   = scratchCode'
             , exName        = name
             , inputExp      = e
             , inputVal      = v
-            , code          = unparse e
-            , history       = ([],[])
+            , code          = code
+            , history       = ([code],[])
             , mode          = m
             , syncOptions   = so
             , slideNumber   = 1
@@ -2295,18 +2299,21 @@ upstate evt old = case debugLog "Event" evt of
     SwitchOrient -> { old | orient = switchOrient old.orient }
 
     Undo ->
-      case (old.code, old.history) of
-        (_, ([],_)) -> old                -- because of keyboard shortcuts
-        (current, (s::past, future)) ->
-          let new = { old | history = (past, current::future) } in
-          upstate Run (upstate (CodeUpdate s) new)
+      case old.history of
+        ([],_)         -> old
+        ([firstRun],_) -> old
+        (lastRun::secondToLast::older, future) ->
+          let new = { old | history = (secondToLast::older, lastRun::future)
+                          , code    = secondToLast } in
+          upstate Run new
 
     Redo ->
-      case (old.code, old.history) of
-        (_, (_,[])) -> old                -- because of keyboard shorcuts
-        (current, (past, s::future)) ->
-          let new = { old | history = (current::past, future) } in
-          upstate Run (upstate (CodeUpdate s) new)
+      case old.history of
+        (_,[]) -> old
+        (past, next::future) ->
+          let new = { old | history = (next::past, future)
+                          , code    = next } in
+          upstate Run new
 
     NextSlide ->
       if old.slideNumber >= old.slideCount then
@@ -2456,7 +2463,7 @@ upstate evt old = case debugLog "Event" evt of
           let history' =
             if old.code == code'
               then old.history
-              else addToHistory old.code old.history
+              else addToHistory code' old.history
           in
           let _ = debugLog "Cleaned: " code' in
           let newModel = { old | inputExp = cleanedExp, code = code', history = history' } in
