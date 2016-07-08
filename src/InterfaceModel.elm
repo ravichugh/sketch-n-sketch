@@ -165,8 +165,7 @@ type Caption
 
 type alias KeysDown = List Char.KeyCode
 
-type Event = CodeUpdate String -- TODO this doesn't help with anything
-           | SelectObject Int ShapeKind Zone
+type Event = SelectObject Int ShapeKind Zone
            | MouseClickCanvas      -- used to initiate drawing new shape
            | MouseIsDown Bool
            | MousePosition (Int, Int)
@@ -214,7 +213,7 @@ type Event = CodeUpdate String -- TODO this doesn't help with anything
            | WaitCodeBox
 
 events : Signal.Mailbox Event
-events = Signal.mailbox <| CodeUpdate ""
+events = Signal.mailbox <| Noop
 
 --------------------------------------------------------------------------------
 

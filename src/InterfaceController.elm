@@ -2011,8 +2011,6 @@ upstate evt old = case debugLog "Event" evt of
       in
       { old | mode = m }
 
-    CodeUpdate newcode -> { old | code = newcode }
-
     StartResizingMid ->
       if old.hideCode then old
       else if old.hideCanvas then old

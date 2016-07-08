@@ -1653,44 +1653,35 @@ colorDebug_ c1 c2 =
 
 colorDebug c1 = colorDebug_ c1 interfaceColor
 
-codebox : Int -> Int -> Model -> GE.Element
-codebox w h model =
-  let
-    event = case model.mode of
-              SyncSelect _ -> []
-              _ -> [Events.on "input" Events.targetValue
-                      (Signal.message events.address << CodeUpdate)]
-    code = codeToShow model
-  in
-    codebox_ w h event code
+basicCodeBox : Int -> Int -> Model -> GE.Element
+basicCodeBox w h model =
+  basicCodeBox_ w h (codeToShow model)
 
-codebox_ w h event s =
+basicCodeBox_ w h content =
   let innerPadding = 4
   in
     Html.toElement w h <|
       Html.textarea
-        ([ Attr.id "editor"
-         , Attr.spellcheck False
-         , Attr.style
-             [ ("font-family", params.mainSection.codebox.font)
-             , ("font-size", params.mainSection.codebox.fontSize)
-             , ("border", params.mainSection.codebox.border)
-             , ("whiteSpace", "pre")
-             , ("height", "100%")
-             , ("width", "100%")
-             , ("resize", "none")
-             , ("overflow", "auto")
-             -- Horizontal Scrollbars in Chrome
-             , ("word-wrap", "normal")
-             , ("background-color", "whitesmoke")
-             , ("padding", toString innerPadding ++ "px")
-             -- Makes the 100% for width/height work as intended
-             , ("box-sizing", "border-box")
-             ]
-         , Attr.value s
-         -- doesn't work here, need to handle this in Ace
-         -- , Events.onMouseDown events.address Edit
-         ] ++ event)
+        [ Attr.id "editor"
+        , Attr.spellcheck False
+        , Attr.style
+            [ ("font-family", params.mainSection.codebox.font)
+            , ("font-size", params.mainSection.codebox.fontSize)
+            , ("border", params.mainSection.codebox.border)
+            , ("whiteSpace", "pre")
+            , ("height", "100%")
+            , ("width", "100%")
+            , ("resize", "none")
+            , ("overflow", "auto")
+            -- Horizontal Scrollbars in Chrome
+            , ("word-wrap", "normal")
+            , ("background-color", "whitesmoke")
+            , ("padding", toString innerPadding ++ "px")
+            -- Makes the 100% for width/height work as intended
+            , ("box-sizing", "border-box")
+            ]
+        , Attr.value content
+        ]
         []
 
 -- Replaces the canvas if we are displaying an error
@@ -1724,8 +1715,8 @@ errorBox w h errormsg =
 canvas : Int -> Int -> Model -> GE.Element
 canvas w h model =
   case model.mode of
-    Print s -> codebox_ w h [] s
-    _       -> canvas_ w h model
+    Print svgCode -> basicCodeBox_ w h svgCode
+    _             -> canvas_ w h model
 
 canvas_ w h model =
   let addZones = case model.mode of
@@ -1977,11 +1968,11 @@ gutterForResizing orient w h =
 
 -- Makes a div appropriate for the Ace code editor to be inserted into
 -- Flashing of the code editor is caused because of the 'Element' abstraction
--- torching the interior of the codeBox portion of the screen and necessitates a
+-- torching the interior of the fancyCodeBox portion of the screen and necessitates a
 -- re-embedding of the editor on the Ace side of things, the delay of which
 -- (needs to be sent through a port and such) makes it flash.
-codeBox : Int -> Int -> GE.Element
-codeBox w h = Html.toElement w h <|
+fancyCodeBox : Int -> Int -> GE.Element
+fancyCodeBox w h = Html.toElement w h <|
     Html.Lazy.lazy (\a -> Html.div [ Attr.id "editor"
              , Attr.style
                  [ ("width", "100%") -- The toElement makes a wrapping Div that
@@ -2014,8 +2005,8 @@ mainSectionVertical w h model =
   in
 
   let codeSection = if model.basicCodeBox
-                       then codebox wCode h model
-                       else codeBox wCode h in
+                       then basicCodeBox wCode h model
+                       else fancyCodeBox wCode h in
 
   let canvasSection = case model.errorBox of
     Nothing ->
@@ -2063,8 +2054,8 @@ mainSectionHorizontal w h model =
   in
 
   let codeSection = if model.basicCodeBox
-                       then codebox wRest hCode model
-                       else codeBox wRest hCode in
+                       then basicCodeBox wRest hCode model
+                       else fancyCodeBox wRest hCode in
 
   let canvasSection = case model.errorBox of
     Nothing ->
