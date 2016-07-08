@@ -116,14 +116,12 @@ type MouseMode
   | MouseResizeMid (Maybe (MouseTrigger (Int, Int)))
   | MouseObject NodeId ShapeKind Zone
       (Maybe                        -- Inactive (Nothing) or Active
-        ( Code                          -- the program upon initial zone click
-        , Maybe (SubstPlus, LocSet)     -- loc-set assigned (live mode only)
+        ( Maybe (SubstPlus, LocSet)     -- loc-set assigned (live mode only)
         , (Int, Int)                    -- initial click
         , Bool ))                       -- dragged at least one pixel
                                         -- TODO remove second Maybe
   | MouseSlider Widget
-      (Maybe ( Code                        -- the program upon initial click
-             , MouseTrigger (Exp, Val, RootedIndexedTree, Widgets) ))
+      (Maybe ( MouseTrigger (Exp, Val, RootedIndexedTree, Widgets) ))
       -- may add info for hilites later
   | MouseDrawNew (List (KeysDown, (Int, Int)))
       -- invariant on length n of list of points:

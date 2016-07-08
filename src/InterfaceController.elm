@@ -1749,7 +1749,7 @@ onMouseClick click old =
       onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
 
     -- Active zone but not dragged
-    (Cursor, MouseObject i k z (Just (_, _, _, False))) ->
+    (Cursor, MouseObject i k z (Just (_, _, False))) ->
       onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
 
     (Poly stk, MouseDrawNew points) ->
@@ -1857,7 +1857,7 @@ onMouseMove (mx0, my0) old =
     MouseObject id kind zone Nothing ->
       old
 
-    MouseObject id kind zone (Just (s, mStuff, (mx0, my0), _)) ->
+    MouseObject id kind zone (Just (mStuff, (mx0, my0), _)) ->
       let (dx, dy) = (mx - mx0, my - my0) in
       let (newE,newV,changes,newSlate,newWidgets) =
         applyTrigger id kind zone old mx0 my0 dx dy in
@@ -1868,14 +1868,14 @@ onMouseMove (mx0, my0) old =
             , widgets = newWidgets
             , codeBoxInfo = highlightChanges mStuff changes old.codeBoxInfo
             , mouseMode =
-                MouseObject id kind zone (Just (s, mStuff, (mx0, my0), True))
+                MouseObject id kind zone (Just (mStuff, (mx0, my0), True))
             }
 
     MouseSlider widget Nothing ->
       let onNewPos = createMousePosCallbackSlider mx my widget old in
-      { old | mouseMode = MouseSlider widget (Just (old.code, onNewPos)) }
+      { old | mouseMode = MouseSlider widget (Just onNewPos) }
 
-    MouseSlider widget (Just (_, onNewPos)) ->
+    MouseSlider widget (Just onNewPos) ->
       let (newE,newV,newSlate,newWidgets) = onNewPos (mx, my) in
       { old | code = unparse newE
             , inputExp = newE
@@ -1899,7 +1899,7 @@ onMouseUp old =
   case (old.mode, old.mouseMode) of
 
     (Print _, _) -> old
-    (_, MouseObject i k z (Just (s, _, _, _))) ->
+    (_, MouseObject i k z (Just _)) ->
       -- 8/10: re-parsing to get new position info after live sync-ing
       -- TODO: could update positions within highlightChanges
       -- TODO: update inputVal?
@@ -1907,13 +1907,13 @@ onMouseUp old =
       let old' = { old | inputExp = e } in
       refreshHighlights i z
         { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
-               , history = addToHistory s old'.history }
+               , history = addToHistory old.code old'.history }
 
-    (_, MouseSlider _ (Just (s, _))) ->
+    (_, MouseSlider _ (Just _)) ->
       let e = Utils.fromOk_ <| parseE old.code in
       let old' = { old | inputExp = e } in
         { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
-               , history = addToHistory s old'.history }
+               , history = addToHistory old.code old'.history }
 
     (_, MouseDrawNew points) ->
       case (old.tool, points, old.keysDown == Keys.shift) of
@@ -2025,7 +2025,7 @@ upstate evt old = case debugLog "Event" evt of
 
         Just _  -> -- Active zone
           let (mx, my) = clickToCanvasPoint old (snd old.mouseState) in
-          let blah = Just (old.code, mStuff, (mx, my), False) in
+          let blah = Just (mStuff, (mx, my), False) in
           { old | mouseMode = MouseObject id kind zone blah }
 
     MouseClickCanvas ->
