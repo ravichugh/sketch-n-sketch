@@ -44,6 +44,7 @@ type Op_
   | Floor | Ceil | Round
   | ToStr
   | Sqrt
+  | Explode
   -- binary ops
   | Plus | Minus | Mult | Div
   | Lt | Eq
@@ -181,6 +182,7 @@ strOp op = case op of
   Ceil          -> "ceiling"
   Round         -> "round"
   ToStr         -> "toString"
+  Explode       -> "explode"
   Sqrt          -> "sqrt"
   Mod           -> "mod"
   Pow           -> "pow"
