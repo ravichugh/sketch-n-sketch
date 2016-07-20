@@ -602,15 +602,15 @@ prelude =
   (let [minVal maxVal] [0! n]
   (let preVal (clamp minVal maxVal srcVal)
   (let i (floor preVal)
-  (let item (nth enum i)
+  (let item (nth enum (if (= i n) (- n 1) i))
   (let wrap (\\circ (addAttr circ ['SELECTED' ''])) ; TODO
   (let shapes
     (let rail [ (line 'black' 3! x0 y x1 y) ]
     (let ball
       (let [xDiff valDiff] [(- x1 x0) (- maxVal minVal)]
-      (let xBall (+ x0 (* xDiff (/ (- preVal minVal) valDiff)))
-      (let rBall (if (= preVal srcVal) 10! 0!)
-        [ (wrap (circle 'black' xBall y rBall)) ])))
+      (let xBall (+ x0 (* xDiff (/ (- srcVal minVal) valDiff)))
+      (let colorBall (if (= preVal srcVal) 'black' 'red')
+        [ (wrap (circle colorBall xBall y 10!)) ])))
     (let endpoints
       [ (wrap (circle 'black' x0 y 4!)) (wrap (circle 'black' x1 y 4!)) ]
     (let tickpoints
