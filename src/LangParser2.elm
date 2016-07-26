@@ -594,11 +594,14 @@ parseTypeAlias =
     P.returnWithInfo (exp_ (ETypeAlias ws1.val p tipe e ws2.val)) typ.start typ.end
 
 parseType = P.recursively <| \_ ->
+      parseSimpleType
+  <++ parseTArrow
+
+parseSimpleType = P.recursively <| \_ ->
       parseTBase
   <++ parseTList
   <++ parseTDict
   <++ parseTTuple
-  <++ parseTArrow
   <++ parseTUnion
   <++ parseTNamed
   <++ parseTVar
@@ -644,9 +647,9 @@ parseTArrow =
 parseTUnion =
   whitespace >>= \ws1 ->
   parens <|
-    whiteTokenOneWS "union" >>>
-    (P.many parseType)      >>= \types ->
-    whitespace              >>= \ws2 ->
+    whiteTokenOneWS "union"  >>>
+    (P.many parseSimpleType) >>= \types ->
+    whitespace               >>= \ws2 ->
       P.return (TUnion ws1.val types.val ws2.val)
 
 parseTVar =
