@@ -67,6 +67,7 @@ littlePrograms =
   , "  (typ [a b c] [Num String | Bool]) e"
   , "(typ f (-> Num a (List a))) e"
   , "(typ f (-> (Dict String (List Num)) Bool)) e"
+  , "(typ f (union Num String Rgba)) e"
   , "((gt 6 7) : Bool)"
   , "(def Rgba [Num Num Num Num])"
   , "(def [Rgba KVPair] [[Num Num Num Num] [String String]])"

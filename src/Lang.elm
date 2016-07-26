@@ -90,6 +90,7 @@ type Type_
   | TDict WS Type Type WS
   | TTuple WS (List Type) WS (Maybe Type) WS
   | TArrow WS (List Type) WS
+  | TUnion WS (List Type) WS
   | TNamed WS Ident
   | TVar WS Ident
 

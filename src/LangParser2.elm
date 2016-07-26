@@ -599,6 +599,7 @@ parseType = P.recursively <| \_ ->
   <++ parseTDict
   <++ parseTTuple
   <++ parseTArrow
+  <++ parseTUnion
   <++ parseTNamed
   <++ parseTVar
 
@@ -639,6 +640,14 @@ parseTArrow =
     (P.many parseType)   >>= \types ->
     whitespace           >>= \ws2 ->
       P.return (TArrow ws1.val types.val ws2.val)
+
+parseTUnion =
+  whitespace >>= \ws1 ->
+  parens <|
+    whiteTokenOneWS "union" >>>
+    (P.many parseType)      >>= \types ->
+    whitespace              >>= \ws2 ->
+      P.return (TUnion ws1.val types.val ws2.val)
 
 parseTVar =
   whitespace >>= \ws ->
