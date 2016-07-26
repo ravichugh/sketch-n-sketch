@@ -563,6 +563,7 @@ parseColonType =
 parseType = P.recursively <| \_ ->
       parseTBase
   <++ parseTList
+  <++ parseTDict
   <++ parseTTuple
   <++ parseTArrow
   <++ parseTVar
@@ -584,6 +585,15 @@ parseTList =
     parseType                >>= \tipe ->
     whitespace               >>= \ws2 ->
       P.return (TList ws1.val tipe ws2.val)
+
+parseTDict =
+  whitespace >>= \ws1 ->
+  parens <|
+    (whiteTokenOneWS "Dict") >>>
+    parseType                >>= \tipe1 ->
+    parseType                >>= \tipe2 ->
+    whitespace               >>= \ws2 ->
+      P.return (TDict ws1.val tipe1 tipe2 ws2.val)
 
 parseTTuple =
   parseListLiteralOrMultiCons parseType TTuple

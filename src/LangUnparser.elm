@@ -186,10 +186,11 @@ unparsePat p = case p.val of
 unparseType : Type -> String
 unparseType tipe =
   case tipe.val of
-    TNum ws            -> ws ++ "Num"
-    TBool ws           -> ws ++ "Bool"
-    TString ws         -> ws ++ "String"
-    TList ws1 tipe ws2 -> ws1 ++ "(List" ++ (unparseType tipe) ++ ws2 ++ ")"
+    TNum ws                   -> ws ++ "Num"
+    TBool ws                  -> ws ++ "Bool"
+    TString ws                -> ws ++ "String"
+    TList ws1 tipe ws2        -> ws1 ++ "(List" ++ (unparseType tipe) ++ ws2 ++ ")"
+    TDict ws1 tipe1 tipe2 ws2 -> ws1 ++ "(Dict" ++ (unparseType tipe1) ++ (unparseType tipe2) ++ ws2 ++ ")"
     TTuple ws1 typeList ws2 maybeRestType ws3 ->
       case maybeRestType of
         Just restType -> ws1 ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws2 ++ "|" ++ (unparseType restType) ++ ws3 ++ "]"

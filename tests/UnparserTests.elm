@@ -66,6 +66,7 @@ littlePrograms =
   , "(typ x Num) e"
   , "  (typ [a b c] [Num String | Bool]) e"
   , "(typ f (-> Num a (List a))) e"
+  , "(typ f (-> (Dict String (List Num)) Bool)) e"
   , "((gt 6 7) : Bool)"
   , "(def x 6) x"
   , "(def [a b | t] exp) 'body'"

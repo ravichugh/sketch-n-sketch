@@ -86,6 +86,7 @@ type Type_
   | TBool WS
   | TString WS
   | TList WS Type WS
+  | TDict WS Type Type WS
   | TTuple WS (List Type) WS (Maybe Type) WS
   | TArrow WS (List Type) WS
   | TVar WS Ident
