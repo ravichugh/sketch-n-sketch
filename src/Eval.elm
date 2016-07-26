@@ -3,6 +3,7 @@ module Eval (run, parseAndRun, parseAndRun_, evalDelta, eval) where
 import Debug
 
 import Lang exposing (..)
+import LangUnparser exposing (unparse)
 import LangParser2 as Parser
 import Utils
 
@@ -130,7 +131,7 @@ eval env e =
           Just env'' -> addWidgets ws <| eval env'' eBody -- TODO add eid to vTrace
           _          -> errorMsg <| strPos e1.start ++ "bad environment"
       _ ->
-        errorMsg <| strPos e1.start ++ " not a function: " ++ (sExp e)
+        errorMsg <| strPos e1.start ++ " not a function: " ++ (unparse e)
 
   ELet _ _ True p e1 e2 _ ->
     let (v1,ws1) = eval_ env e1 in
@@ -160,13 +161,14 @@ eval env e =
   EApp _ e1 es _           -> retAddWs e.val.eid  <| eval env (eApp e1 es)
   ELet _ _ False p e1 e2 _ -> retAddWs e2.val.eid <| eval env (eApp (eFun [p] e2) [e1])
 
+
 evalOp env opWithInfo es =
   let (op,opStart) = (opWithInfo.val, opWithInfo.start) in
   let (vs,wss) = List.unzip (List.map (eval_ env) es) in
   let error () =
     errorMsg
       <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart
-      ++ ":\n" ++ Utils.lines (List.map sExp es)
+      ++ ":\n" ++ Utils.lines (List.map unparse es)
   in
   (\vOut -> (Val vOut [], List.concat wss)) <|
   case List.map .v_ vs of

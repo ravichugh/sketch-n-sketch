@@ -535,7 +535,7 @@ inferStructuralUpdates eOld v v' =
               eNewCanvas in
 
   -- going through parser so that new location ids are assigned
-  let eNew = Utils.fromOk "Sync.inferStruct" (Parser.parseE (sExp eNew_)) in
+  let eNew = Utils.fromOk "Sync.inferStruct" (Parser.parseE (Un.unparse eNew_)) in
   [(eNew, fst (Eval.run eNew))]
 
 

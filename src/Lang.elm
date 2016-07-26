@@ -138,11 +138,6 @@ strBaseVal v = case v of
   String s   -> "\'" ++ s ++ "\'"
   Star       -> "X"
 
-strRange : Bool -> Int -> Range -> String
-strRange showLocs k r = case r.val of
-  Point e           -> sExp_ showLocs k e
-  Interval e1 ws e2 -> sExp_ showLocs k e1 ++ ".." ++ sExp_ showLocs k e2
-
 strVal     = strVal_ False
 strValLocs = strVal_ True
 
@@ -204,99 +199,6 @@ strPat p = case p.val of
   _ -> Debug.crash "strPat"
 
 tab k = String.repeat k "  "
-
-sExpK k     = (++) (tab k) << sExp_ False k
-sExpLocsK k = (++) (tab k) << sExp_ True k
-sExp        = sExpK 0
-sExpLocs    = sExpLocsK 0
-
-sExp_ : Bool -> Int -> Exp -> String
-sExp_ showLocs k e =
-  let foo = sExp_ showLocs in
-  let indent = maybeIndent showLocs k in
-  let sTrace = if showLocs then Utils.braces (toString e.val.eid) else "" in
-  sTrace ++
-  case e.val.e__ of
-    EBase _ v -> strBaseVal v
-    EConst _ i l _ -> -- TODO
-      let (_,b,_) = l in
-      toString i
-        ++ b
-        ++ if showLocs then Utils.braces (strLoc l) else ""
-    EVar _ x -> x
-    EFun _ [p] e _ ->
-      Utils.parens <| "\\" ++ strPat p ++ indent e
-    EFun _ ps e _ ->
-      let args = Utils.spaces (List.map strPat ps) in
-      Utils.parens <| "\\" ++ Utils.parens args ++ indent e
-    EApp _ e1 [e2] _ ->
-      Utils.parens <| foo k e1 ++ " " ++ indent e2
-    EApp _ e1 es _ ->
-      Utils.parens <|
-        let s1 = foo k e1
-            ss = List.map (foo (k+1)) es
-            s2 = Utils.spaces ss in
-        if fitsOnLine s2
-        then s1 ++ " " ++ s2
-        else String.join ("\n" ++ tab (k+1)) (s1::ss)
-    EOp _ op es _ ->
-      Utils.parens <| String.join " " (strOp op.val :: List.map (foo k) es)
-    EIf _ e1 e2 e3 _ ->
-      let s =
-        Utils.parens <| Utils.spaces [ "if", foo k e1, foo k e2, foo k e3 ] in
-      if fitsOnLine s then s
-      else
-      Utils.parens <|
-        "if " ++ foo k e1 ++ "\n" ++
-          tab (k+1) ++ foo (k+1) e2 ++ "\n" ++
-          tab (k+1) ++ foo (k+1) e3
-    EList _ es _ mrest _ ->
-      Utils.bracks <|
-        let ss = List.map (foo k) es
-            s  = Utils.spaces ss in
-        if fitsOnLine s then
-          case mrest of
-            Nothing -> s
-            Just e  -> s ++ " | " ++ foo k e
-        else
-          let s = String.join ("\n" ++ tab k ++ " ") ss in
-          case mrest of
-            Nothing -> s
-            Just e  -> s ++ "\n" ++ tab k ++ "|" ++ foo k e
-    EIndList _ rs _ ->
-      Utils.ibracks <|
-        let rstrs = List.map (strRange showLocs k) rs
-            totstr = Utils.spaces rstrs
-        in if fitsOnLine totstr then
-          totstr
-        else String.join ("\n" ++ tab k ++ " ") rstrs
-    ELet _ Let b p e1 e2 _ ->
-      Utils.parens <|
-        let k' = if isLet e2 then k else k + 1 in
-        (if b then "letrec " else "let ") ++ strPat p ++
-          indent e1 ++ "\n" ++
-          tab k' ++ foo k' e2
-    ELet _ Def b p e1 e2 _ ->
-      let s = if b then "defrec " else "def " in
-      Utils.parens (s ++ strPat p ++ indent e1) ++ "\n" ++
-      tab k ++ foo k e2
-    ECase _ e1 l _ ->
-      let bar (Branch_ ws1 pi ei ws2) =
-        tab (k+1) ++ Utils.parens (strPat pi ++ " " ++ foo (k+1) ei) in
-      Utils.parens <|
-        "case " ++ foo k e1 ++ "\n" ++ Utils.lines (List.map (bar << .val) l)
-    EComment _ s e1 ->
-      ";" ++ s ++ "\n" ++
-      tab k ++ foo k e1
-    EOption _ s1 _ s2 e1 ->
-      "# " ++ s1.val ++ ": " ++ s2.val ++ "\n" ++
-      tab k ++ foo k e1
-
-maybeIndent showLocs k e =
-  let s = sExp_ showLocs (k+1) e in
-  if fitsOnLine s
-    then " " ++ s
-    else "\n" ++ tab (k+1) ++ s
 
 -- TODO take into account indent and other prefix of current line
 fitsOnLine s =
