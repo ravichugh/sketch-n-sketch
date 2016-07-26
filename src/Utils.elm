@@ -43,6 +43,12 @@ maybeZip xs ys = case (xs, ys) of
   ([], [])         -> Just []
   _                -> Nothing
 
+listsEqualBy elementEqualityFunc xs ys =
+  case (xs, ys) of
+    ([], [])         -> True
+    (x::xs', y::ys') -> (elementEqualityFunc x y) && (listsEqualBy elementEqualityFunc xs' ys')
+    _                -> False -- Lists not the same length
+
 zeroElements xs = case xs of
   [] -> True
   _  -> False
@@ -110,6 +116,28 @@ dedup_ f xs =
       ) ([], Set.empty) xs
   in
     deduped
+
+-- Is there a one-to-one mapping from the elements in l1 to the elements in l2?
+--
+-- e.g oneToOneMappingExists ["a", "b", "a"] ["z", "y", "z"] => True
+--     oneToOneMappingExists ["a", "b", "b"] ["z", "y", "z"] => False
+oneToOneMappingExists l1 l2 =
+  let numericRepresentation list =
+    List.foldl
+        (\x (dict, numRep) ->
+          case Dict.get x dict of
+            Just n  ->
+              (dict, numRep ++ [n])
+            Nothing ->
+              let n     = Dict.size dict in
+              let dict' = Dict.insert x n dict in
+              (dict', numRep ++ [n])
+        )
+        (Dict.empty, [])
+        list
+    |> snd
+  in
+  numericRepresentation l1 == numericRepresentation l2
 
 clamp i j n =
   if n < i then      i

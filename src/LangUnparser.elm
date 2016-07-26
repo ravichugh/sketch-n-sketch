@@ -46,19 +46,21 @@ precedingWhitespacePat pat =
 precedingWhitespaceExp__ : Exp__ -> String
 precedingWhitespaceExp__ e__ =
   case e__ of
-    EBase    ws v                     -> ws
-    EConst   ws n l wd                -> ws
-    EVar     ws x                     -> ws
-    EFun     ws1 ps e1 ws2            -> ws1
-    EApp     ws1 e1 es ws2            -> ws1
-    EList    ws1 es ws2 rest ws3      -> ws1
-    EIndList ws1 rs ws2               -> ws1
-    EOp      ws1 op es ws2            -> ws1
-    EIf      ws1 e1 e2 e3 ws2         -> ws1
-    ELet     ws1 kind rec p e1 e2 ws2 -> ws1
-    ECase    ws1 e1 bs ws2            -> ws1
-    EComment ws s e1                  -> ws
-    EOption  ws1 s1 ws2 s2 e1         -> ws1
+    EBase      ws v                     -> ws
+    EConst     ws n l wd                -> ws
+    EVar       ws x                     -> ws
+    EFun       ws1 ps e1 ws2            -> ws1
+    EApp       ws1 e1 es ws2            -> ws1
+    EList      ws1 es ws2 rest ws3      -> ws1
+    EIndList   ws1 rs ws2               -> ws1
+    EOp        ws1 op es ws2            -> ws1
+    EIf        ws1 e1 e2 e3 ws2         -> ws1
+    ELet       ws1 kind rec p e1 e2 ws2 -> ws1
+    ECase      ws1 e1 bs ws2            -> ws1
+    EComment   ws s e1                  -> ws
+    EOption    ws1 s1 ws2 s2 e1         -> ws1
+    ETyp       ws1 pat tipe e ws2       -> ws1
+    EColonType ws1 e ws2 tipe ws3       -> ws1
 
 
 addPrecedingWhitespace : String -> Exp -> Exp
@@ -80,19 +82,21 @@ mapPrecedingWhitespace : (String -> String) -> Exp -> Exp
 mapPrecedingWhitespace mapWs exp =
   let e__' =
     case exp.val.e__ of
-      EBase    ws v                     -> EBase    (mapWs ws) v
-      EConst   ws n l wd                -> EConst   (mapWs ws) n l wd
-      EVar     ws x                     -> EVar     (mapWs ws) x
-      EFun     ws1 ps e1 ws2            -> EFun     (mapWs ws1) ps e1 ws2
-      EApp     ws1 e1 es ws2            -> EApp     (mapWs ws1) e1 es ws2
-      EList    ws1 es ws2 rest ws3      -> EList    (mapWs ws1) es ws2 rest ws3
-      EIndList ws1 rs ws2               -> EIndList (mapWs ws1) rs ws2
-      EOp      ws1 op es ws2            -> EOp      (mapWs ws1) op es ws2
-      EIf      ws1 e1 e2 e3 ws2         -> EIf      (mapWs ws1) e1 e2 e3 ws2
-      ELet     ws1 kind rec p e1 e2 ws2 -> ELet     (mapWs ws1) kind rec p e1 e2 ws2
-      ECase    ws1 e1 bs ws2            -> ECase    (mapWs ws1) e1 bs ws2
-      EComment ws s e1                  -> EComment (mapWs ws) s e1
-      EOption  ws1 s1 ws2 s2 e1         -> EOption  (mapWs ws1) s1 ws2 s2 e1
+      EBase    ws v                     -> EBase      (mapWs ws) v
+      EConst   ws n l wd                -> EConst     (mapWs ws) n l wd
+      EVar     ws x                     -> EVar       (mapWs ws) x
+      EFun     ws1 ps e1 ws2            -> EFun       (mapWs ws1) ps e1 ws2
+      EApp     ws1 e1 es ws2            -> EApp       (mapWs ws1) e1 es ws2
+      EList    ws1 es ws2 rest ws3      -> EList      (mapWs ws1) es ws2 rest ws3
+      EIndList ws1 rs ws2               -> EIndList   (mapWs ws1) rs ws2
+      EOp      ws1 op es ws2            -> EOp        (mapWs ws1) op es ws2
+      EIf      ws1 e1 e2 e3 ws2         -> EIf        (mapWs ws1) e1 e2 e3 ws2
+      ELet     ws1 kind rec p e1 e2 ws2 -> ELet       (mapWs ws1) kind rec p e1 e2 ws2
+      ECase    ws1 e1 bs ws2            -> ECase      (mapWs ws1) e1 bs ws2
+      EComment ws s e1                  -> EComment   (mapWs ws) s e1
+      EOption  ws1 s1 ws2 s2 e1         -> EOption    (mapWs ws1) s1 ws2 s2 e1
+      ETyp     ws1 pat tipe e ws2       -> ETyp       (mapWs ws1) pat tipe e ws2
+      EColonType ws1 e ws2 tipe ws3     -> EColonType (mapWs ws1) e ws2 tipe ws3
   in
   let val = exp.val in
   { exp | val = { val | e__ = e__' } }
@@ -142,9 +146,11 @@ indent spaces e =
             branches
       in
       wrap (ECase (processWS ws1) newE1 newBranches ws2)
-    EComment ws s e1         -> wrap (EComment (processWS ws) s (recurse e1))
-    EOption ws1 s1 ws2 s2 e1 -> wrap (EOption (processWS ws1) s1 ws2 s2 (recurse e1))
-    ELet ws1 k b p e1 e2 ws2 -> wrap (ELet (processWS ws1) k b p (recurse e1) (recurse e2) ws2)
+    EComment ws s e1              -> wrap (EComment (processWS ws) s (recurse e1))
+    EOption ws1 s1 ws2 s2 e1      -> wrap (EOption (processWS ws1) s1 ws2 s2 (recurse e1))
+    ELet ws1 k b p e1 e2 ws2      -> wrap (ELet (processWS ws1) k b p (recurse e1) (recurse e2) ws2)
+    ETyp ws1 pat tipe e ws2       -> wrap (ETyp (processWS ws1) pat tipe (recurse e) ws2)
+    EColonType ws1 e ws2 tipe ws3 -> wrap (EColonType (processWS ws1) (recurse e) ws2 tipe ws3)
 
 
 mapPrecedingWhitespacePat : (String -> String) -> Pat -> Pat
@@ -176,6 +182,20 @@ unparsePat p = case p.val of
     ws1 ++ "[" ++ (String.concat (List.map unparsePat ps)) ++ ws2 ++ "|" ++ unparsePat pRest ++ ws3 ++ "]"
   PConst ws n -> ws ++ strNum n
   PBase ws bv -> ws ++ strBaseVal bv
+
+unparseType : Type -> String
+unparseType tipe =
+  case tipe.val of
+    TNum ws            -> ws ++ "Num"
+    TBool ws           -> ws ++ "Bool"
+    TString ws         -> ws ++ "String"
+    TList ws1 tipe ws2 -> ws1 ++ "(List" ++ (unparseType tipe) ++ ws2 ++ ")"
+    TTuple ws1 typeList ws2 maybeRestType ws3 ->
+      case maybeRestType of
+        Just restType -> ws1 ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws2 ++ "|" ++ (unparseType restType) ++ ws3 ++ "]"
+        Nothing       -> ws1 ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws3 ++ "]"
+    TArrow ws1 typeList ws2 -> ws1 ++ "(->" ++ (String.concat (List.map unparseType typeList)) ++ ws2 ++ ")"
+    TVar ws1 ident          -> ws1 ++ ident
 
 unparse : Exp -> String
 unparse e = case e.val.e__ of
@@ -219,6 +239,10 @@ unparse e = case e.val.e__ of
     ws ++ ";" ++ s ++ "\n" ++ unparse e1
   EOption ws1 s1 ws2 s2 e1 ->
     ws1 ++ "# " ++ s1.val ++ ":" ++ ws2 ++ s2.val ++ "\n" ++ unparse e1
+  ETyp ws1 pat tipe e ws2 ->
+    ws1 ++ "(typ" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2 ++ ")" ++ unparse e
+  EColonType ws1 e ws2 tipe ws3 ->
+    ws1 ++ "(" ++ (unparse e) ++ ws2 ++ ":" ++ (unparseType tipe) ++ ws3 ++ ")"
 
 unparseRange : Range -> String
 unparseRange r = case r.val of

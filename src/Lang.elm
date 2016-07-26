@@ -25,6 +25,7 @@ type alias LocSet = Set.Set Loc
 
 type alias Pat    = P.WithInfo Pat_
 type alias Exp    = P.WithInfo Exp_
+type alias Type   = P.WithInfo Type_
 type alias Op     = P.WithInfo Op_
 type alias Branch = P.WithInfo Branch_
 type alias Range  = P.WithInfo Range_
@@ -69,6 +70,8 @@ type Exp__
   | ELet WS LetKind Rec Pat Exp Exp WS
   | EComment WS String Exp
   | EOption WS (P.WithInfo String) WS (P.WithInfo String) Exp
+  | ETyp WS Pat Type Exp WS
+  | EColonType WS Exp WS Type WS
 
     -- EFun [] e     impossible
     -- EFun [p] e    (\p. e)
@@ -77,6 +80,15 @@ type Exp__
     -- EApp f []     impossible
     -- EApp f [x]    (f x)
     -- EApp f xs     (f x1 ... xn) === ((... ((f x1) x2) ...) xn)
+
+type Type_
+  = TNum WS
+  | TBool WS
+  | TString WS
+  | TList WS Type WS
+  | TTuple WS (List Type) WS (Maybe Type) WS
+  | TArrow WS (List Type) WS
+  | TVar WS Ident
 
 type alias WS = String
 
@@ -249,9 +261,11 @@ mapExp f e =
             branches
       in
       wrapAndMap (ECase ws1 newE1 newBranches ws2)
-    EComment ws s e1         -> wrapAndMap (EComment ws s (recurse e1))
-    EOption ws1 s1 ws2 s2 e1 -> wrapAndMap (EOption ws1 s1 ws2 s2 (recurse e1))
-    ELet ws1 k b p e1 e2 ws2 -> wrapAndMap (ELet ws1 k b p (recurse e1) (recurse e2) ws2)
+    EComment ws s e1              -> wrapAndMap (EComment ws s (recurse e1))
+    EOption ws1 s1 ws2 s2 e1      -> wrapAndMap (EOption ws1 s1 ws2 s2 (recurse e1))
+    ELet ws1 k b p e1 e2 ws2      -> wrapAndMap (ELet ws1 k b p (recurse e1) (recurse e2) ws2)
+    ETyp ws1 pat tipe e ws2       -> wrapAndMap (ETyp ws1 pat tipe (recurse e) ws2)
+    EColonType ws1 e ws2 tipe ws3 -> wrapAndMap (EColonType ws1 (recurse e) ws2 tipe ws3)
 
 mapExpViaExp__ : (Exp__ -> Exp__) -> Exp -> Exp
 mapExpViaExp__ f e =
@@ -332,12 +346,14 @@ childExps e =
           Point e1          -> [e1]
         )
         ranges
-    EApp ws1 f es ws2        -> f :: es
-    ELet ws1 k b p e1 e2 ws2 -> [e1, e2]
-    EIf ws1 e1 e2 e3 ws2     -> [e1, e2, e3]
-    ECase ws1 e branches ws2 -> e :: (branchExps branches)
-    EComment ws s e1         -> [e1]
-    EOption ws1 s1 ws2 s2 e1 -> [e1]
+    EApp ws1 f es ws2             -> f :: es
+    ELet ws1 k b p e1 e2 ws2      -> [e1, e2]
+    EIf ws1 e1 e2 e3 ws2          -> [e1, e2, e3]
+    ECase ws1 e branches ws2      -> e :: (branchExps branches)
+    EComment ws s e1              -> [e1]
+    EOption ws1 s1 ws2 s2 e1      -> [e1]
+    ETyp ws1 pat tipe e ws2       -> [e]
+    EColonType ws1 e ws2 tipe ws3 -> [e]
 
 
 ------------------------------------------------------------------------------

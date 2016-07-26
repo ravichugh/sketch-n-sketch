@@ -95,6 +95,12 @@ freshen_ k e =
   EOption ws1 s1 ws2 s2 e1 ->
     let (e1',k') = freshen_ k e1 in
     (EOption ws1 s1 ws2 s2 e1', k')
+  ETyp ws1 pat tipe e ws2 ->
+    let (e',k') = freshen_ k e in
+    (ETyp ws1 pat tipe e' ws2, k')
+  EColonType ws1 e ws2 tipe ws3 ->
+    let (e',k') = freshen_ k e in
+    (EColonType ws1 e' ws2 tipe ws3, k')
 
 freshenExps k es =
   List.foldr (\e (es',k') ->
@@ -205,8 +211,13 @@ parseNum =
 
 -- TODO allow '_', disambiguate from wildcard in parsePat
 parseIdent : P.Parser String
-parseIdent =
-  P.satisfy isAlpha                 >>= \c ->
+parseIdent = parseIdent_ isAlpha
+
+parseLowerIdent : P.Parser String
+parseLowerIdent = parseIdent_ Char.isLower
+
+parseIdent_ firstCharPred =
+  P.satisfy firstCharPred           >>= \c ->
   P.many (P.satisfy isIdentChar)    >>= \cs ->
     let x = String.fromList (c.val :: unwrapChars cs) in
     P.returnWithInfo x c.start cs.end
@@ -357,7 +368,8 @@ parseVar =
 
 parseExp : P.Parser Exp_
 parseExp = P.recursively <| \_ ->
-      parseNumE
+      parseColonType -- putting this first probably slows things down
+  <++ parseNumE
   <++ parseEBase
   <++ parseVar
   <++ parseFun
@@ -370,6 +382,7 @@ parseExp = P.recursively <| \_ ->
   <++ parseExpIndList
   <++ parseLet
   <++ parseDef
+  <++ parseTyp
   <++ parseApp
   <++ parseCommentExp
   <++ parseLangOption
@@ -523,6 +536,69 @@ parseDef =
   parseExp >>= \e2 ->
     let (b,p,e1,ws2) = def.val in
     P.returnWithInfo (exp_ (ELet ws1.val Def b.val p e1 e2 ws2.val)) def.start def.end
+
+parseTyp =
+  whitespace >>= \ws1 ->
+  parens (
+      whiteTokenOneWS "typ" >>>
+      parsePat              >>= \p ->
+      parseType             >>= \tipe ->
+      whitespace            >>= \ws2 -> P.return (p,tipe,ws2)
+    )
+           >>= \typ ->
+  parseExp >>= \e ->
+    let (p,tipe,ws2) = typ.val in
+    P.returnWithInfo (exp_ (ETyp ws1.val p tipe e ws2.val)) typ.start typ.end
+
+parseColonType =
+  whitespace >>= \ws1 ->
+  parens <|
+    parseExp     >>= \e ->
+    whitespace   >>= \ws2 ->
+    P.token ":"  >>>
+    parseType    >>= \tipe ->
+    whitespace   >>= \ws3 ->
+      P.return (exp_ (EColonType ws1.val e ws2.val tipe ws3.val))
+
+parseType = P.recursively <| \_ ->
+      parseTBase
+  <++ parseTList
+  <++ parseTTuple
+  <++ parseTArrow
+  <++ parseTVar
+
+parseTBase =
+  whitespace  >>= \ws ->
+  parseTBase_ >>= \type_Constructor ->
+    P.return ((type_Constructor.val) ws.val)
+
+parseTBase_ =
+      (always (TNum)    <$> whiteTokenOneNonIdent "Num")
+  <++ (always (TBool)   <$> whiteTokenOneNonIdent "Bool")
+  <++ (always (TString) <$> whiteTokenOneNonIdent "String")
+
+parseTList =
+  whitespace >>= \ws1 ->
+  parens <|
+    (whiteTokenOneWS "List") >>>
+    parseType                >>= \tipe ->
+    whitespace               >>= \ws2 ->
+      P.return (TList ws1.val tipe ws2.val)
+
+parseTTuple =
+  parseListLiteralOrMultiCons parseType TTuple
+
+parseTArrow =
+  whitespace >>= \ws1 ->
+  parens <|
+    whiteTokenOneWS "->" >>>
+    (P.many parseType)   >>= \types ->
+    whitespace           >>= \ws2 ->
+      P.return (TArrow ws1.val types.val ws2.val)
+
+parseTVar =
+  whitespace >>= \ws ->
+    (\ident -> TVar ws.val ident) <$> parseLowerIdent
 
 parseBinop =
   whitespace >>= \ws1 ->

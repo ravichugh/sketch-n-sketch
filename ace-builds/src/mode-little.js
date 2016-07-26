@@ -10,6 +10,14 @@ var LittleHighlightRules = function() {
     // regexp must not have capturing parentheses. Use (?:) instead.
     // regexps are ordered -> the first match is used
 
+    var rParen = {
+        regex : /\)/,
+        onMatch : function(value, state, stack) {
+            this.next = stack.pop();
+            return "paren.rparen";
+        }
+    };
+
 this.$rules =
         {
     "start": [
@@ -25,13 +33,7 @@ this.$rules =
                 return "paren.lparen";
             }
         },
-        {
-            regex : /\)/,
-            onMatch : function(value, state, stack) {
-                this.next = stack.pop();
-                return "paren.rparen";
-            }
-        },
+        rParen,
         {
             token : "constant.numeric", // float
             regex : /\b\d+(?:\.\d+)?\b/
@@ -48,13 +50,27 @@ this.$rules =
             token : "string",
             regex : '\'(?=.)',
             next  : "qstring"
+        },
+        {
+            token : "keyword.type.little",
+            regex : /:/,
+            next  : "inType"
         }
     ],
     "funcname" : [
         {
             regex : /\b(?:def|defrec|let|letrec)\b/,
             onMatch : function(value, state, stack) {
-                this.next = "pattern";
+                stack.push("start");
+                this.next = "patternStart";
+                return "storage.type.function-type.little";
+            }
+        },
+        {
+            regex : /\btyp\b/,
+            onMatch : function(value, state, stack) {
+                stack.push("inType");
+                this.next = "patternStart";
                 return "storage.type.function-type.little";
             }
         },
@@ -77,7 +93,7 @@ this.$rules =
         },
         {
             token : "keyword.operator.little",
-            regex : /\+|-|\*|\/|</,
+            regex : /\+|-|\*|\/|<\s/,
             next : "start"
         },
         {
@@ -91,12 +107,38 @@ this.$rules =
             next : "start"
         },
     ],
+    "startType" : [
+        {
+            token : "keyword.operator.type.little",
+            regex : /(?:List|->)(?:$|\s)/,
+            next : "inType"
+        }
+    ],
+    "inType" : [
+      {
+          regex : /\(/,
+          onMatch : function(value, state, stack) {
+              stack.push("inType");
+              this.next = "startType";
+              return "paren.lparen";
+          }
+      },
+      rParen,
+      {
+          token : "support.type.little",
+          regex : /\b(?:Num|Bool|String)\b/,
+      },
+      {
+          token : "support.type.little",
+          regex : /\b[a-z]\w*\b/,
+      },
+    ],
     "lambda" : [
         {
             regex : /\[/,
             onMatch : function(value, state, stack) {
-                stack.push("pattern");
-                this.next = "pattern";
+                stack.push("start");
+                this.next = "patternStart";
                 return "paren.lparen";
             }
         },
@@ -122,6 +164,20 @@ this.$rules =
             regex : /\w[\w']*/
         }
     ],
+    "patternStart" : [
+      {
+          token : "paren.lparen",
+          regex : /\[/,
+          next : "pattern"
+      },
+      {
+          regex : /\w[\w']*/,
+          onMatch : function(value, state, stack) {
+              this.next = stack.pop();
+              return "variable.parameter";
+          }
+      },
+    ],
     "pattern" : [
         {
             regex : /\[/,
@@ -134,37 +190,14 @@ this.$rules =
         {
             regex : /\]/,
             onMatch : function(value, state, stack) {
-                var lastPush = stack.pop();
-                if (lastPush == "pattern") {
-                    var nextLastPush = stack.pop();
-                    if (nextLastPush != "pattern") {
-                        this.next = nextLastPush;
-                    } else {
-                        stack.push(nextLastPush);
-                        this.next = lastPush;
-                    }
-                } else {
-                    //Should never get here, but just in case...
-                    this.next = lastPush;
-                }
+                this.next = stack.pop();
                 return "paren.rparen";
             }
         },
         {
             token : "variable.parameter",
             regex : /\w[\w']*/,
-            onMatch : function(value, state, stack) {
-                var lastPush = stack.pop();
-                if (lastPush == "startpat") {
-                    this.next = "start";
-                } else {
-                    stack.push(lastPush);
-                    this.next = lastPush;
-                }
-                return "variable.parameter";
-            }
-        },
-
+        }
     ],
     "qstring": [
         {

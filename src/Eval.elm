@@ -152,8 +152,10 @@ eval env e =
       _ ->
         errorMsg <| strPos e.start ++ "bad ELet"
 
-  EComment _ _ e1    -> eval env e1
-  EOption _ _ _ _ e1 -> eval env e1
+  EComment _ _ e1       -> eval env e1
+  EOption _ _ _ _ e1    -> eval env e1
+  ETyp _ _ _ e1 _       -> eval env e1
+  EColonType _ e1 _ _ _ -> eval env e1
 
   -- abstract syntactic sugar
 

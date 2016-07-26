@@ -1,6 +1,7 @@
 module InterfaceController (upstate) where
 
 import Lang exposing (..) --For access to what makes up the Vals
+import Types
 import LangParser2 exposing (parseE, freshen)
 import LangUnparser exposing (unparse, precedingWhitespace, addPrecedingWhitespace)
 import LangTransform
@@ -1451,6 +1452,7 @@ mergeSelectedVarBlobs model defs blobs selectedVarBlobs =
       let blobs' = beforeBlobs ++ newBlobs ++ afterBlobs in
       (defs', blobs')
 
+-- Merge 2+ expressions
 mergeExpressions
     : Exp -> List Exp
    -> Maybe (Exp, List (Ident, List AnnotatedNum))
@@ -1584,6 +1586,35 @@ mergeExpressions eFirst eRest =
           (\(e',l) -> return (EComment ws s e') l)
           (mergeExpressions e es)
 
+    ETyp ws1 pat tipe e ws2 ->
+      let match eNext = case eNext.val.e__ of
+        ETyp _ pat tipe e _ -> Just ((pat, tipe), e)
+        _                   -> Nothing
+      in
+      matchAllAndBind match eRest <| \stuff ->
+        let ((patList, typeList), eList) =
+          Utils.mapFst List.unzip (List.unzip stuff)
+        in
+        Utils.bindMaybe3
+          (\_ _ (e',l) ->
+            return (ETyp ws1 pat tipe e' ws2) l)
+          (mergePatterns pat patList)
+          (mergeTypes tipe typeList)
+          (mergeExpressions e eList)
+
+    EColonType ws1 e ws2 tipe ws3 ->
+      let match eNext = case eNext.val.e__ of
+        EColonType _ e _ tipe _ -> Just (e,tipe)
+        _                       -> Nothing
+      in
+      matchAllAndBind match eRest <| \stuff ->
+        let (eList, typeList) = List.unzip stuff in
+        Utils.bindMaybe2
+          (\(e',l) _ ->
+            return (EColonType ws1 e' ws2 tipe ws3) l)
+          (mergeExpressions e eList)
+          (mergeTypes tipe typeList)
+
     ECase _ _ _ _ ->
       let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
       Nothing
@@ -1663,6 +1694,12 @@ mergePatterns pFirst pRest =
           (\_ () -> Just ())
           (mergePatternLists (ps::psList))
           (mergeMaybePatterns mp mpList)
+
+mergeTypes : Type -> List Type -> Maybe ()
+mergeTypes tFirst tRest =
+  if List.all (Types.equal tFirst) tRest
+  then Just ()
+  else Nothing
 
 matchAllAndCheckEqual f xs x =
   let g ys = if List.all ((==) x) ys then Just () else Nothing in
