@@ -1615,6 +1615,22 @@ mergeExpressions eFirst eRest =
           (mergeExpressions e eList)
           (mergeTypes tipe typeList)
 
+    ETypeAlias ws1 pat tipe e ws2 ->
+      let match eNext = case eNext.val.e__ of
+        ETypeAlias _ pat tipe e _ -> Just ((pat, tipe), e)
+        _                         -> Nothing
+      in
+      matchAllAndBind match eRest <| \stuff ->
+        let ((patList, typeList), eList) =
+          Utils.mapFst List.unzip (List.unzip stuff)
+        in
+        Utils.bindMaybe3
+          (\_ _ (e',l) ->
+            return (ETypeAlias ws1 pat tipe e' ws2) l)
+          (mergePatterns pat patList)
+          (mergeTypes tipe typeList)
+          (mergeExpressions e eList)
+
     ECase _ _ _ _ ->
       let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
       Nothing

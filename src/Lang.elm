@@ -72,6 +72,7 @@ type Exp__
   | EOption WS (P.WithInfo String) WS (P.WithInfo String) Exp
   | ETyp WS Pat Type Exp WS
   | EColonType WS Exp WS Type WS
+  | ETypeAlias WS Pat Type Exp WS
 
     -- EFun [] e     impossible
     -- EFun [p] e    (\p. e)
@@ -89,6 +90,7 @@ type Type_
   | TDict WS Type Type WS
   | TTuple WS (List Type) WS (Maybe Type) WS
   | TArrow WS (List Type) WS
+  | TNamed WS Ident
   | TVar WS Ident
 
 type alias WS = String
@@ -267,6 +269,7 @@ mapExp f e =
     ELet ws1 k b p e1 e2 ws2      -> wrapAndMap (ELet ws1 k b p (recurse e1) (recurse e2) ws2)
     ETyp ws1 pat tipe e ws2       -> wrapAndMap (ETyp ws1 pat tipe (recurse e) ws2)
     EColonType ws1 e ws2 tipe ws3 -> wrapAndMap (EColonType ws1 (recurse e) ws2 tipe ws3)
+    ETypeAlias ws1 pat tipe e ws2 -> wrapAndMap (ETypeAlias ws1 pat tipe (recurse e) ws2)
 
 mapExpViaExp__ : (Exp__ -> Exp__) -> Exp -> Exp
 mapExpViaExp__ f e =
@@ -355,6 +358,7 @@ childExps e =
     EOption ws1 s1 ws2 s2 e1      -> [e1]
     ETyp ws1 pat tipe e ws2       -> [e]
     EColonType ws1 e ws2 tipe ws3 -> [e]
+    ETypeAlias ws1 pat tipe e ws2 -> [e]
 
 
 ------------------------------------------------------------------------------

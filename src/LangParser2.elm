@@ -101,6 +101,9 @@ freshen_ k e =
   EColonType ws1 e ws2 tipe ws3 ->
     let (e',k') = freshen_ k e in
     (EColonType ws1 e' ws2 tipe ws3, k')
+  ETypeAlias ws1 pat tipe e ws2 ->
+    let (e',k') = freshen_ k e in
+    (ETypeAlias ws1 pat tipe e' ws2, k')
 
 freshenExps k es =
   List.foldr (\e (es',k') ->
@@ -215,6 +218,9 @@ parseIdent = parseIdent_ isAlpha
 
 parseLowerIdent : P.Parser String
 parseLowerIdent = parseIdent_ Char.isLower
+
+parseUpperIdent : P.Parser String
+parseUpperIdent = parseIdent_ Char.isUpper
 
 parseIdent_ firstCharPred =
   P.satisfy firstCharPred           >>= \c ->
@@ -381,6 +387,7 @@ parseExp = P.recursively <| \_ ->
   <++ parseExpList
   <++ parseExpIndList
   <++ parseLet
+  <++ parseTypeAlias
   <++ parseDef
   <++ parseTyp
   <++ parseApp
@@ -402,10 +409,9 @@ parseWildcard =
   P.token "_" >>>
     P.return (PVar ws.val "_" noWidgetDecl)
 
-parsePVar : P.Parser Pat_
-parsePVar =
+parsePVar identParser =
   whitespace >>= \ws ->
-    (\ident -> PVar ws.val ident noWidgetDecl) <$> parseIdent
+    (\ident -> PVar ws.val ident noWidgetDecl) <$> identParser
 
 -- not using this feature downstream, so turning this off
 {-
@@ -418,14 +424,28 @@ parsePVar =
 
 parsePat : P.Parser Pat_
 parsePat = P.recursively <| \_ ->
-      parsePVar
+      (parsePVar parseIdent)
   <++ parsePBase
   <++ parseWildcard
   <++ parsePatList
 
+parseTypeAliasPat : P.Parser Pat_
+parseTypeAliasPat = P.recursively <| \_ ->
+      (parsePVar parseUpperIdent)
+  <++ parseTypeAliasPatList
+
 parsePatList : P.Parser Pat_
 parsePatList =
   parseListLiteralOrMultiCons parsePat PList
+
+parseTypeAliasPatList =
+  let pVarParser = (parsePVar parseUpperIdent) in
+  whitespace          >>= \ws1 ->
+  P.token "["         >>= \opening ->
+  (P.many pVarParser) >>= \pVars ->
+  whitespace          >>= \ws2 ->
+  P.token "]"         >>= \closing ->
+    P.returnWithInfo (PList ws1.val pVars.val "" Nothing ws2.val) opening.start closing.end
 
 parsePats : P.Parser (List Pat)
 parsePats =
@@ -560,12 +580,26 @@ parseColonType =
     whitespace   >>= \ws3 ->
       P.return (exp_ (EColonType ws1.val e ws2.val tipe ws3.val))
 
+parseTypeAlias =
+  whitespace >>= \ws1 ->
+  parens (
+      whiteTokenOneWS "def" >>>
+      parseTypeAliasPat     >>= \p ->
+      parseType             >>= \tipe ->
+      whitespace            >>= \ws2 -> P.return (p,tipe,ws2)
+    )
+           >>= \typ ->
+  parseExp >>= \e ->
+    let (p,tipe,ws2) = typ.val in
+    P.returnWithInfo (exp_ (ETypeAlias ws1.val p tipe e ws2.val)) typ.start typ.end
+
 parseType = P.recursively <| \_ ->
       parseTBase
   <++ parseTList
   <++ parseTDict
   <++ parseTTuple
   <++ parseTArrow
+  <++ parseTNamed
   <++ parseTVar
 
 parseTBase =
@@ -609,6 +643,10 @@ parseTArrow =
 parseTVar =
   whitespace >>= \ws ->
     (\ident -> TVar ws.val ident) <$> parseLowerIdent
+
+parseTNamed =
+  whitespace >>= \ws ->
+    (\ident -> TNamed ws.val ident) <$> parseUpperIdent
 
 parseBinop =
   whitespace >>= \ws1 ->

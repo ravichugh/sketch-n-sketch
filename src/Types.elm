@@ -28,6 +28,8 @@ astsMatch t1 t2 =
       maybeRestTypesMatch && (Utils.listsEqualBy astsMatch typeList1 typeList2)
     (TArrow _ typeList1 _,
      TArrow _ typeList2 _) -> Utils.listsEqualBy astsMatch typeList1 typeList2
+    (TNamed _ ident1,
+     TNamed _ ident2)      -> ident1 == ident2
     (TVar _ _, TVar _ _)   -> True
     _                      -> False
 
@@ -54,6 +56,7 @@ identifiersEquivalent t1 t2 =
         (List.concatMap flatIdents typeList) ++ restTypeIdents
 
       TArrow _ typeList _ -> List.concatMap flatIdents typeList
+      TNamed _ _          -> []
       TVar _ ident        -> [ident]
   in
   Utils.oneToOneMappingExists (flatIdents t1) (flatIdents t2)

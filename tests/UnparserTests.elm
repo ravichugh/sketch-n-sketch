@@ -68,6 +68,8 @@ littlePrograms =
   , "(typ f (-> Num a (List a))) e"
   , "(typ f (-> (Dict String (List Num)) Bool)) e"
   , "((gt 6 7) : Bool)"
+  , "(def Rgba [Num Num Num Num])"
+  , "(def [Rgba KVPair] [[Num Num Num Num] [String String]])"
   , "(def x 6) x"
   , "(def [a b | t] exp) 'body'"
   , "  (defrec a exp   ) 'body'"
