@@ -48,6 +48,16 @@ and to try out the latest release.
       |   (op2 e1 e2)
       |   ;single-line-comment e
       |   #option value e
+      |   (typ p T)
+      |   (e : T)
+
+  T  ::=
+      |   Num | Bool | String
+      |   (-> T1 ... Tn)
+      |   (List T)
+      |   [T1 .... Tn]
+      |   [T1 .... Tn | Trest]
+      |   a | b | c | ...
 ```
 
 Extra parentheses are not permitted.

@@ -8,189 +8,227 @@ prelude =
 ; This is not an example that generates an SVG canvas,
 ; but we include it here for reference.
 
-;; id : a -> a
 ;; The identity function - given a value, returns exactly that value
+(typ id (-> a a))
 (def id (\\x x))
 
-;; always : a -> b -> a
 ;; A function that always returns the same value a, regardless of b
+(typ always (-> a b a))
 (def always (\\(x _) x))
 
-;; compose : (a -> b)-> (b -> c) -> (a -> c)
 ;; Composes two functions together
+(typ compose (-> (-> a b) (-> b c) (-> a c)))
 (def compose (\\(f g) (\\x (f (g x)))))
 
+(typ flip (-> (-> a b c) (-> b a c)))
 (def flip (\\(f x y) (f y x)))
 
-;; fst : List a -> a
 ;; Returns the first element of a given list
+(typ fst (-> (List a) a))
 (def fst (\\[x|_] x))
 
+(typ snd (-> (List a) a))
 (def snd (\\[_ y|_] y))
 
-;; len : List a -> Int
 ;; Returns the length of a given list
+(typ len (-> (List a) Num))
 (defrec len (\\xs (case xs ([] 0) ([_ | xs1] (+ 1 (len xs1))))))
 
-;; map : (a -> b) -> List a -> List b
 ;; Maps a function, f, over a list of values and returns the resulting list
+(typ map (-> (-> a b) (List a) (List b)))
 (defrec map (\\(f xs)
   (case xs ([] []) ([hd|tl] [(f hd)|(map f tl)]))))
 
-;; map2 : (a -> b -> c) -> List a -> List b -> List c
 ;; Combines two lists with a given function, extra elements are dropped
+(typ map2 (-> (-> a b c) (List a) (List b) (List c)))
 (defrec map2 (\\(f xs ys)
   (case [xs ys]
     ([[x|xs1] [y|ys1]] [ (f x y) | (map2 f xs1 ys1) ])
     (_                 []))))
 
-;; foldl : (a -> b -> b) -> b -> List a -> b
 ;; Takes a function, an accumulator, and a list as input and reduces using the function from the left
+(typ foldl (-> (-> a b b) b (List a) b))
 (defrec foldl (\\(f acc xs)
   (case xs ([] acc) ([x|xs1] (foldl f (f x acc) xs1)))))
 
-;; foldl : (a -> b -> b) -> b -> List a -> b
 ;; Takes a function, an accumulator, and a list as input and reduces using the function from the right
+(typ foldr (-> (-> a b b) b (List a) b))
 (defrec foldr (\\(f acc xs)
   (case xs ([] acc) ([x|xs1] (f x (foldr f acc xs1))))))
 
-;; append : List a -> List a -> List a
 ;; Given two lists, append the second list to the end of the first
+(typ append (-> (List a) (List a) (List a)))
 (defrec append (\\(xs ys)
   (case xs ([] ys) ([x|xs1] [ x | (append xs1 ys)]))))
 
-;; concat : List (List a) -> List a
 ;; concatenate a list of lists into a single list
+(typ concat (-> (List (List a)) (List a)))
 (def concat (foldr append []))
 
-;; concatMap : (a -> List b) -> List a -> List b
 ;; Map a given function over a list and concatenate the resulting list of lists
+(typ concatMap (-> (-> a (List b)) (List a) (List b)))
 (def concatMap (\\(f xs) (concat (map f xs))))
 
-;; cartProd : List a -> List b -> List [a b]
 ;; Takes two lists and returns a list that is their cartesian product
+(typ cartProd (-> (List a) (List b) (List [a b])))
 (def cartProd (\\(xs ys)
   (concatMap (\\x (map (\\y [x y]) ys)) xs)))
 
-;; zip : List a -> List b -> List [a b]
 ;; Takes elements at the same position from two input lists and returns a list of pairs of these elements
+(typ zip (-> (List a) (List b) (List [a b])))
 (def zip (map2 (\\(x y) [x y])))
 
-;; nil : List a
 ;; The empty list
+(typ nil (List a))
 (def nil  [])
 
-;; cons : a -> List a -> List a
 ;; attaches an element to the front of a list
+(typ cons (-> a (List a) (List a)))
 (def cons (\\(x xs) [x | xs]))
 
-;; snoc : a -> List a -> List a
 ;; attaches an element to the end of a list
+(typ snoc (-> a (List a) (List a)))
 (def snoc (\\(x ys) (append ys [x])))
 
-;; hd : List a -> a
 ;; Returns the first element of a given list
+(typ hd (-> (List a) a))
 (def hd   (\\[x|xs] x))
 
-;; tl : List a -> a
 ;; Returns the last element of a given list
+(typ tl (-> (List a) a))
 (def tl   (\\[x|xs] xs))
 
-;; reverse : List a -> List a
 ;; Given a list, reverse its order
+(typ reverse (-> (List a) (List a)))
 (def reverse (foldl cons nil))
 
-;; range : a -> a -> List a
 ;; Given two numbers, creates the list between them (inclusive)
+(typ range (-> Num Num (List Num)))
 (defrec range (\\(i j)
   (if (< i (+ j 1))
       (cons i (range (+ i 1) j))
       nil)))
 
-;; list0N : a -> List a
 ;; Given a number, create the list of 0 to that number inclusive (number must be > 0)
+(typ list0N (-> Num (List Num)))
 (def list0N (\\n (range 0 n)))
 
-;; list1N : a -> List a
 ;; Given a number, create the list of 1 to that number inclusive
+(typ list1N (-> Num (List Num)))
 (def list1N (\\n (range 1 n)))
 
+(typ zeroTo (-> Num (List Num)))
 (def zeroTo (\\n (range 0 (- n 1))))
 
-;; repeat : Int -> a -> List a
 ;; Given a number n and some value x, return a list with x repeated n times
+(typ repeat (-> Num a (List a)))
 (def repeat (\\(n x) (map (always x) (range 1 n))))
 
-;; intermingle : List a -> List a -> List a
 ;; Given two lists, return a single list that alternates between their values (first element is from first list)
+(typ intermingle (-> (List a) (List a) (List a)))
 (defrec intermingle (\\(xs ys)
   (case [xs ys]
     ([[x|xs1] [y|ys1]] (cons x (cons y (intermingle xs1 ys1))))
     ([[]      []]      nil)
     (_                 (append xs ys)))))
 
+(typ mapi (-> (-> [Num a] b) (List a) (List b)))
 (def mapi (\\(f xs) (map f (zip (range 0 (- (len xs) 1)) xs))))
 
+(typ nth (-> (List a) Num a))
 (defrec nth (\\(xs n)
-  (if (< n 0)   'ERROR: nth'
-    (case xs
-      ([]       'ERROR: nth')
-      ([x|xs1]  (if (= n 0) x (nth xs1 (- n 1))))))))
+  (if (< n 0)       'ERROR: nth'
+    (case [n xs]
+      ([_ []]       'ERROR: nth')
+      ([0 [x|xs1]]  x)
+      ([_ [x|xs1]]  (nth xs1 (- n 1)))))))
+; (defrec nth (\\(xs n)
+;   (if (< n 0)   'ERROR: nth'
+;     (case xs
+;       ([]       'ERROR: nth')
+;       ([x|xs1]  (if (= n 0) x (nth xs1 (- n 1))))))))
 
+(typ take (-> (List a) Num (List a)))
 (defrec take (\\(xs n)
   (if (= n 0) []
     (case xs
       ([]      'ERROR: take')
       ([x|xs1] [x | (take xs1 (- n 1))])))))
+; (def take
+;   (letrec take_ (\\(n xs)
+;     (case [n xs]
+;       ([0 _]       [])
+;       ([_ []]      [])
+;       ([_ [x|xs1]] [x | (take_ (- n 1) xs1)])))
+;   (compose take_ (max 0))))
 
-;; mult : Number -> Number -> Number
+(typ elem (-> a (List a) Bool))
+(defrec elem (\\(x ys)
+  (case ys
+    ([]      false)
+    ([y|ys1] (or (= x y) (elem x ys1))))))
+
+
 ;; multiply two numbers and return the result
+(typ mult (-> Num Num Num))
 (defrec mult (\\(m n)
   (if (< m 1) 0 (+ n (mult (+ m -1) n)))))
 
-;; minus : Number -> Number -> Number
 ;; Given two numbers, subtract the second from the first
+(typ minus (-> Num Num Num))
 (def minus (\\(x y) (+ x (mult y -1))))
 
-;; div : Number -> Number -> Number
 ;; Given two numbers, divide the first by the second
+(typ div (-> Num Num Num))
 (defrec div (\\(m n)
   (if (< m n) 0
   (if (< n 2) m
     (+ 1 (div (minus m n) n))))))
 
-;; neg : Number -> Number
 ;; Given a number, returns the negative of that number
+(typ neg (-> Num Num))
 (def neg (\\x (- 0 x)))
 
-;; not : Bool -> Bool
 ;; Given a bool, returns the opposite boolean value
+(typ not (-> Bool Bool))
 (def not (\\b (if b false true)))
 
-;; implies : Bool -> Bool -> Bool
 ;; Given two bools, returns a bool regarding if the first argument is true, then the second argument is as well
+(typ implies (-> Bool Bool Bool))
 (def implies (\\(p q) (if p q true)))
+
+(typ or  (-> Bool Bool Bool))
+(typ and (-> Bool Bool Bool))
 
 (def or  (\\(p q) (if p true q)))
 (def and (\\(p q) (if p q false)))
 
+(typ some (-> (-> a Bool) (List a) Bool))
 (defrec some (\\(p xs)
   (case xs
     ([]      false)
     ([x|xs1] (or (p x) (some p xs1))))))
 
+(typ all (-> (-> a Bool) (List a) Bool))
 (defrec all (\\(p xs)
   (case xs
     ([]      true)
     ([x|xs1] (and (p x) (all p xs1))))))
 
-;; clamp : Number -> Number -> Number -> Number
 ;; Given an upper bound, lower bound, and a number, restricts that number between those bounds (inclusive)
 ;; Ex. clamp 1 5 4 = 4
 ;; Ex. clamp 1 5 6 = 5
+(typ clamp (-> Num Num Num Num))
 (def clamp (\\(i j n) (if (< n i) i (if (< j n) j n))))
 
+(typ between (-> Num Num Num Bool))
 (def between (\\(i j n) (= n (clamp i j n))))
+
+(typ lt (-> Num Num Bool))
+(typ eq (-> Num Num Bool))
+(typ le (-> Num Num Bool))
+(typ gt (-> Num Num Bool))
+(typ ge (-> Num Num Bool))
 
 (def lt (\\(x y) (< x y)))
 (def eq (\\(x y) (= x y)))
@@ -198,176 +236,159 @@ prelude =
 (def gt (flip lt))
 (def ge (\\(x y) (or (gt x y) (eq x y))))
 
+(typ plus (-> Num Num Num))
 (def plus (\\(x y) (+ x y)))
 
+(typ min (-> Num Num Num))
 (def min (\\(i j) (if (lt i j) i j)))
+
+(typ max (-> Num Num Num))
 (def max (\\(i j) (if (gt i j) i j)))
 
+(typ minimum (-> (List Num) Num))
 (def minimum (\\[hd|tl] (foldl min hd tl)))
+
+(typ maximum (-> (List Num) Num))
 (def maximum (\\[hd|tl] (foldl max hd tl)))
 
+(typ average (-> (List Num) Num))
 (def average (\\nums
   (let sum (foldl plus 0 nums)
   (let n   (len nums)
     (/ sum n)))))
 
-(def mapi (\\(f xs) (map f (zip (range 0 (- (len xs) 1)) xs))))
-
-(defrec nth (\\(xs n)
-  (if (< n 0)       'ERROR: nth'
-    (case [n xs]
-      ([_ []]       'ERROR: nth')
-      ([0 [x|xs1]]  x)
-      ([_ [x|xs1]]  (nth xs1 (- n 1)))))))
-
-(def take
-  (letrec take_ (\\(n xs)
-    (case [n xs]
-      ([0 _]       [])
-      ([_ []]      [])
-      ([_ [x|xs1]] [x | (take_ (- n 1) xs1)])))
-  (compose take_ (max 0))))
-
-(defrec elem (\\(x ys)
-  (case ys
-    ([]      false)
-    ([y|ys1] (or (= x y) (elem x ys1))))))
-
-;; joinStrings : String -> List String -> String
 ;; Combine a list of strings with a given separator
 ;; Ex. joinStrings ', ' ['hello' 'world'] = 'hello, world'
+(typ joinStrings (-> String (List String) String))
 (def joinStrings (\\(sep ss)
   (foldr (\\(str acc) (if (= acc '') str (+ str (+ sep acc)))) '' ss)))
 
-;; concatStrings : List String -> String
 ;; Concatenate a list of strings and return the resulting string
+(typ concatStrings (-> (List String) String))
 (def concatStrings (joinStrings ''))
 
-;; spaces : List String -> String
 ;; Concatenates a list of strings, interspersing a single space in between each string
+(typ spaces (-> (List String) String))
 (def spaces (joinStrings ' '))
 
-;; delimit : String -> String -> String -> String
 ;; First two arguments are appended at the front and then end of the third argument correspondingly
 ;; Ex. delimit '+' '+' 'plus' = '+plus+'
+(typ delimit (-> String String String String))
 (def delimit (\\(a b s) (concatStrings [a s b])))
 
-;; parens : String -> String
 ;; delimit a string with parentheses
+(typ parens (-> String String))
 (def parens (delimit '(' ')'))
 
 ;
 ; SVG Manipulating Functions
 ;
 
-;; circle : String -> Number -> Number -> Number -> Shape
 ;; argument order - color, x, y, radius
 ;; creates a circle, center at (x,y) with given radius and color
+(typ circle (-> String Num Num Num svg))
 (def circle (\\(fill x y r)
   ['circle'
      [['cx' x] ['cy' y] ['r' r] ['fill' fill]]
      []]))
 
-;; ring : String -> Number -> Number -> Number -> Number -> Shape
 ;; argument order - color, width, x, y, radius
 ;; Just as circle, except new width parameter determines thickness of ring
+(typ ring (-> String Num Num Num Num svg))
 (def ring (\\(c w x y r)
   ['circle'
      [ ['cx' x] ['cy' y] ['r' r] ['fill' 'none'] ['stroke' c] ['stroke-width' w] ]
      []]))
 
-;; ellipse : String -> Number -> Number -> Number -> Number -> Shape
 ;; argument order - color, x, y, x-radius, y-radius
 ;; Just as circle, except radius is separated into x and y parameters
+(typ ellipse (-> String Num Num Num Num svg))
 (def ellipse (\\(fill x y rx ry)
   ['ellipse'
      [ ['cx' x] ['cy' y] ['rx' rx] ['ry' ry] ['fill' fill] ]
      []]))
 
-;; rect : String -> Number -> Number -> Number -> Number -> Shape
 ;; argument order - color, x, y, width, height
 ;; creates a rectangle of given width and height with (x,y) as the top left corner coordinate
+(typ rect (-> String Num Num Num Num svg))
 (def rect (\\(fill x y w h)
   ['rect'
      [ ['x' x] ['y' y] ['width' w] ['height' h] ['fill' fill] ]
      []]))
 
-;; square : String -> Number -> Number -> Number -> Shape
-;; argument order - color, x, y, side
-;; Similar to rect, but only needs one parameter for all four sides
+(typ square (-> String Num Num Num svg))
 (def square (\\(fill x y side) (rect fill x y side side)))
 
-;; line : String -> Number -> Number -> Number -> Number -> Number -> Shape
 ;; argument order - color, width, x1, y1, x1, y2
 ;; creates a line from (x1, y1) to (x2,y2) with given color and width
+(typ line (-> String Num Num Num Num Num svg))
 (def line (\\(fill w x1 y1 x2 y2)
   ['line'
      [ ['x1' x1] ['y1' y1] ['x2' x2] ['y2' y2] ['stroke' fill] ['stroke-width' w] ]
      []]))
 
-;; polygon: String -> String -> Number -> List (List Number) -> Shape
 ;; argument order - fill, stroke, width, points
 ;; creates a polygon following the list of points, with given fill color and a border with given width and stroke
+(typ polygon (-> String String Num (List (List Num)) svg))
 (def polygon (\\(fill stroke w pts)
   ['polygon'
      [ ['fill' fill] ['points' pts] ['stroke' stroke] ['stroke-width' w] ]
      []]))
 
-;; polyline: String -> String -> Number -> List (List Number) -> Shape
 ;; argument order - fill, stroke, width, points
 ;; See polygon
+(typ polyline (-> String String Num (List (List Num)) svg))
 (def polyline (\\(fill stroke w pts)
   ['polyline'
      [ ['fill' fill] ['points' pts] ['stroke' stroke] ['stroke-width' w] ]
      []]))
 
-;; path: String -> String -> Number -> List a -> Shape
 ;; argument order - fill, stroke, width, d
 ;; Given SVG path command d, create path with given fill color, stroke and width
 ;; See https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths for path command info
+(typ path (-> String String Num (List a) svg))
 (def path (\\(fill stroke w d)
   ['path'
      [ ['fill' fill] ['stroke' stroke] ['stroke-width' w] ['d' d] ]
      []]))
 
-;; text : Number -> Number -> String -> Shape
 ;; argument order - x, y, string
 ;; place a text string with top left corner at (x,y) - with default color & font
+(typ text (-> Num Num String svg))
 (def text (\\(x y s)
    ['text' [['x' x] ['y' y] ['style' 'fill:black']
             ['font-family' 'Tahoma, sans-serif']]
            [['TEXT' s]]]))
 
-;; addAttr : Shape-> Attribute -> Shape
 ;; argument order - shape, new attribute
 ;; Add a new attribute to a given Shape
+(typ addAttr (-> svg attr svg))
 (def addAttr (\\([shapeKind oldAttrs children] newAttr)
   [shapeKind (snoc newAttr oldAttrs) children]))
 
+(typ consAttr (-> svg attr svg))
 (def consAttr (\\([shapeKind oldAttrs children] newAttr)
   [shapeKind (cons newAttr oldAttrs) children]))
 
-;; svg : List Shape -> SVG
 ;; Given a list of shapes, compose into a single SVG
 (def svg (\\shapes ['svg' [] shapes]))
 
-;; svgViewBox : Number -> Number -> List Shape -> SVG
 ;; argument order - x-maximum, y-maximum, shapes
 ;; Given a list of shapes, compose into a single SVG within the x & y maxima
+(typ svgViewBox (-> Num Num (List svg) svg))
 (def svgViewBox (\\(xMax yMax shapes)
   (let [sx sy] [(toString xMax) (toString yMax)]
   ['svg'
     [['x' '0'] ['y' '0'] ['viewBox' (joinStrings ' ' ['0' '0' sx sy])]]
     shapes])))
 
-;; rectCenter : String -> Number -> Number -> Number -> Number -> Shape
 ;; As rect, except x & y represent the center of the defined rectangle
+(typ rectCenter (-> String Num Num Num Num svg))
 (def rectCenter (\\(fill cx cy w h)
   (rect fill (- cx (/ w 2)) (- cy (/ h 2)) w h)))
 
-;; squareCenter : String -> Number -> Number -> Number -> Shape
 ;; As square, except x & y represent the center of the defined rectangle
-(def square (\\(fill x y w) (rect fill x y w w)))
+(typ squareCenter (-> String Num Num Num svg))
 (def squareCenter (\\(fill cx cy w) (rectCenter fill cx cy w w)))
 
 ;; Some shapes with given default values for fill, stroke, and stroke width
@@ -380,10 +401,10 @@ prelude =
 (def polygon_   (polygon 'green' 'purple' 3))
 (def path_      (path 'transparent' 'goldenrod' 5))
 
-;; updateCanvas : SVG -> SVG -> SVG
 ;; updates an SVG by comparing differences with another SVG
 ;; Note: accDiff pre-condition: indices in increasing order
 ;; (so can't just use foldr instead of reverse . foldl)
+(typ updateCanvas (-> svg svg svg))
 (def updateCanvas (\\([_ svgAttrs oldShapes] diff)
   (let oldShapesI (zip (list1N (len oldShapes)) oldShapes)
   (let initAcc [[] diff]
@@ -398,28 +419,28 @@ prelude =
   (let newShapes (reverse (fst (foldl f initAcc oldShapesI)))
     ['svg' svgAttrs newShapes]))))))
 
+(typ addShapeToCanvas (-> svg svg svg))
 (def addShapeToCanvas (\\(['svg' svgAttrs oldShapes] newShape)
   ['svg' svgAttrs (append oldShapes [newShape])]))
 
+(typ addShape (-> svg svg svg))
 (def addShape (flip addShapeToCanvas))
 
-(def addShapesToCanvas (\\(['svg' svgAttrs oldShapes] newShapes)
-  ['svg' svgAttrs (append oldShapes newShapes)]))
-
-(def addShapes (flip addShapesToCanvas))
-
+(typ groupMap (-> (List a) (-> a b) (List b)))
 (def groupMap (\\(xs f) (map f xs)))
 
 (def autoChose (\\(_ x _) x))
 (def inferred  (\\(x _ _) x))
 (def flow (\\(_ x) x))
 
+(typ lookupWithDefault (-> v k (List [k v]) v))
 (defrec lookupWithDefault (\\(default k dict)
   (let foo (lookupWithDefault default k)
   (case dict
     ([]            default)
     ([[k1 v]|rest] (if (= k k1) v (foo rest)))))))
 
+(typ lookup (-> k (List [k v]) v))
 (defrec lookup (\\(k dict)
   (let foo (lookup k)
   (case dict
@@ -435,15 +456,16 @@ prelude =
           (addExtras i rest shape)
           (addExtras i rest (addAttr shape [k v]))))))))
 
+(typ lookupAttr (-> svg attrName attrVal))
 (def lookupAttr (\\([_ attrs _] k) (lookup k attrs)))
 
 ; \"constant folding\"
 (def twoPi (* 2 (pi)))
 (def halfPi (/ (pi) 2))
 
-;; nPointsOnUnitCircle : Number -> Number -> List Number
 ;; Helper function for nPointsOnCircle, calculates angle of points
 ;; Note: angles are calculated clockwise from the traditional pi/2 mark
+(typ nPointsOnUnitCircle (-> Num Num (List Num)))
 (def nPointsOnUnitCircle (\\(n rot)
   (let off (- halfPi rot)
   (let foo (\\i
@@ -451,14 +473,14 @@ prelude =
     [(cos ang) (neg (sin ang))]))
   (map foo (list0N (- n 1)))))))
 
-;; nPointsOnCircle : Number -> Number -> Number -> Number -> Number -> List Number
-;; argument order - Number of points, degree of rotation, x-center, y-center, radius
+(typ nPointsOnCircle (-> Num Num Num Num Num (List Num)))
+;; argument order - Num of points, degree of rotation, x-center, y-center, radius
 ;; Scales nPointsOnUnitCircle to the proper size and location with a given radius and center
 (def nPointsOnCircle (\\(n rot cx cy r)
   (let pts (nPointsOnUnitCircle n rot)
   (map (\\[x y] [(+ cx (* x r)) (+ cy (* y r))]) pts))))
 
-;; nStar : color -> color -> Number -> Number -> Number -> Number -> Number -> Number -> Number -> Shape
+(typ nStar (-> color color Num Num Num Num Num Num Num svg))
 ;; argument order -
 ;; fill color - interior color of star
 ;; stroke color - border color of star
@@ -549,7 +571,7 @@ prelude =
 (def hSlider (hSlider_ false))
 (def vSlider (vSlider_ false))
 
-;; button_ : Bool -> Number -> Number -> String -> Number -> SVG
+;; button_ : Bool -> Num -> Num -> String -> Num -> SVG
 ;; Similar to sliders, but just has boolean values
 (def button_ (\\(dropBall xStart y caption xCur)
   (let [rPoint wLine rBall wSlider] [4! 3! 10! 70!]
@@ -636,7 +658,7 @@ prelude =
   (concat (mapi foo shapesCapsSeeds))))))
 
 
-;; rotate : Shape -> Number -> Number -> Number -> Shape
+(typ rotate (-> svg Num Num Num svg))
 ;; argument order - shape, rot, x, y
 ;; Takes a shape rotates it rot degrees around point (x,y)
 (def rotate (\\(shape n1 n2 n3)
@@ -645,6 +667,7 @@ prelude =
 (def rotateAround (\\(rot x y shape)
   (addAttr shape ['transform' [['rotate' rot x y]]])))
 
+(typ radToDeg (-> Num Num))
 (def radToDeg (\\rad (* (/ rad (pi)) 180!)))
 
 
