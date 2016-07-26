@@ -11,6 +11,10 @@ html:
 	mkdir -p ../build/out/img
 	cp img/*svg ../build/out/img/
 
+clean:
+	rm -r elm-stuff/build-artifacts/0.*/user
+	rm -r ../tests/elm-stuff/build-artifacts/0.*/user
+
 prelude:
 	scripts/expandTemplate.py Prelude
 
