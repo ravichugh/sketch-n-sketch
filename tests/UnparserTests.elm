@@ -61,6 +61,8 @@ littlePrograms =
   , "   (if  (= a b )  'body1' 'body2'     )"
   , "(case (+ 4 5) (1 'body1') ([h|tail] 'body2') (true 'body3') (var 'body4'))"
   , "  (case (+ 4 5)\n   (1 'body1')\n   ([ h  | tail   ]\n   'body2') (  true\n   'body3')\n   (var 'body4')\n  )"
+  , "(typecase x (Int (+ x 1)) ([Int String] (length x)) (_ 0))"
+  , "  (typecase [x y] ([Int Int] (+ x y)) (_ 0))"
   , "(let [a b] exp 'body')"
   , "  (letrec [ a b ] exp\n'body'\n  )"
   , "(typ x Num) e"

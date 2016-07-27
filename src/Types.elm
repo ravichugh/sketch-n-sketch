@@ -33,6 +33,8 @@ astsMatch t1 t2 =
     (TNamed _ ident1,
      TNamed _ ident2)      -> ident1 == ident2
     (TVar _ _, TVar _ _)   -> True
+    (TWildcard _,
+     TWildcard _)          -> True
     _                      -> False
 
 -- Presuming the types have the same AST structure, do the identifiers used
@@ -61,5 +63,11 @@ identifiersEquivalent t1 t2 =
       TUnion _ typeList _ -> List.concatMap flatIdents typeList
       TNamed _ _          -> []
       TVar _ ident        -> [ident]
+      TWildcard _         -> []
   in
   Utils.oneToOneMappingExists (flatIdents t1) (flatIdents t2)
+
+
+typeCaseMatch env pat tipe =
+  let _ = Debug.crash "typeCaseMatch not yet implemented" in
+  False

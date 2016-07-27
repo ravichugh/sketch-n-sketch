@@ -89,6 +89,14 @@ freshen_ k e =
       { oldBranch | val = Branch_ bws1 pat newE bws2 }
     in
     (ECase ws1 e' (List.map2 replaceBranch bs bes') ws2, k')
+  ETypeCase ws1 p bs ws2 ->
+    let bes = tbranchExps bs in
+    let (bes', k') = freshenExps k bes in
+    let replaceBranch oldBranch newE =
+      let (TBranch_ bws1 tipe oldE bws2) = oldBranch.val in
+      { oldBranch | val = TBranch_ bws1 tipe newE bws2 }
+    in
+    (ETypeCase ws1 p (List.map2 replaceBranch bs bes') ws2, k')
   EComment ws s e1 ->
     let (e1',k') = freshen_ k e1 in
     (EComment ws s e1', k')
@@ -384,6 +392,7 @@ parseExp = P.recursively <| \_ ->
   <++ parseBinop
   <++ parseIf
   <++ parseCase
+  <++ parseTypeCase
   <++ parseExpList
   <++ parseExpIndList
   <++ parseLet
@@ -432,14 +441,19 @@ parsePat = P.recursively <| \_ ->
 parseTypeAliasPat : P.Parser Pat_
 parseTypeAliasPat = P.recursively <| \_ ->
       (parsePVar parseUpperIdent)
-  <++ parseTypeAliasPatList
+  <++ (parseFlatPatList parseUpperIdent)
+
+parseTypeCasePat : P.Parser Pat_
+parseTypeCasePat = P.recursively <| \_ ->
+      (parsePVar parseIdent)
+  <++ (parseFlatPatList parseIdent)
 
 parsePatList : P.Parser Pat_
 parsePatList =
   parseListLiteralOrMultiCons parsePat PList
 
-parseTypeAliasPatList =
-  let pVarParser = (parsePVar parseUpperIdent) in
+parseFlatPatList identParser =
+  let pVarParser = (parsePVar identParser) in
   whitespace          >>= \ws1 ->
   P.token "["         >>= \opening ->
   (P.many pVarParser) >>= \pVars ->
@@ -605,6 +619,7 @@ parseSimpleType = P.recursively <| \_ ->
   <++ parseTUnion
   <++ parseTNamed
   <++ parseTVar
+  <++ parseTWildcard
 
 parseTBase =
   whitespace  >>= \ws ->
@@ -652,13 +667,17 @@ parseTUnion =
     whitespace               >>= \ws2 ->
       P.return (TUnion ws1.val types.val ws2.val)
 
+parseTNamed =
+  whitespace >>= \ws ->
+    (\ident -> TNamed ws.val ident) <$> parseUpperIdent
+
 parseTVar =
   whitespace >>= \ws ->
     (\ident -> TVar ws.val ident) <$> parseLowerIdent
 
-parseTNamed =
+parseTWildcard =
   whitespace >>= \ws ->
-    (\ident -> TNamed ws.val ident) <$> parseUpperIdent
+    (\_ -> TWildcard ws.val) <$> (whiteTokenOneWS "_")
 
 parseBinop =
   whitespace >>= \ws1 ->
@@ -729,6 +748,15 @@ parseCase =
     whitespace           >>= \ws2 ->
       P.return (exp_ (ECase ws1.val e bs.val ws2.val))
 
+parseTypeCase =
+  whitespace >>= \ws1 ->
+  parens <|
+    whiteTokenOneWS "typecase" >>>
+    parseTypeCasePat           >>= \pat ->
+    (P.some parseTBranch)      >>= \bs ->
+    whitespace                 >>= \ws2 ->
+      P.return (exp_ (ETypeCase ws1.val pat bs.val ws2.val))
+
 parseBranch : P.Parser Branch_
 parseBranch =
   whitespace >>= \ws1 ->
@@ -737,6 +765,15 @@ parseBranch =
     parseExp   >>= \e ->
     whitespace >>= \ws2 ->
       P.return (Branch_ ws1.val p e ws2.val)
+
+parseTBranch : P.Parser TBranch_
+parseTBranch =
+  whitespace >>= \ws1 ->
+  parens <|
+    parseType  >>= \tipe ->
+    parseExp   >>= \e ->
+    whitespace >>= \ws2 ->
+      P.return (TBranch_ ws1.val tipe e ws2.val)
 
 parseCommentExp =
   whitespace                     >>= \ws ->

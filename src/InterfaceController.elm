@@ -1635,6 +1635,10 @@ mergeExpressions eFirst eRest =
       let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
       Nothing
 
+    ETypeCase _ _ _ _ ->
+      let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
+      Nothing
+
     EOption _ _ _ _ _ ->
       let _ = Debug.log "mergeExpressions: options shouldn't appear nested: " () in
       Nothing

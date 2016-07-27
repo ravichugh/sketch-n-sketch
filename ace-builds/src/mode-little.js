@@ -102,6 +102,14 @@ this.$rules =
             next : "start"
         },
         {
+            regex : /\btypecase\b/,
+            onMatch : function(value, state, stack) {
+                stack.push("inTypeCase");
+                this.next = "patternStart";
+                return "storage.type.function-type.little";
+            }
+        },
+        {
             token : "function.little",
             regex: /(?:\w[\w']*)/,
             next : "start"
@@ -115,23 +123,49 @@ this.$rules =
         }
     ],
     "inType" : [
-      {
-          regex : /\(/,
-          onMatch : function(value, state, stack) {
-              stack.push("inType");
-              this.next = "startType";
-              return "paren.lparen";
-          }
-      },
-      rParen,
-      {
-          token : "support.type.little",
-          regex : /\b(?:Num|Bool|String)\b/,
-      },
-      {
-          token : "support.type.little",
-          regex : /\b[a-z]\w*\b/,
-      },
+        {
+            regex : /\(/,
+            onMatch : function(value, state, stack) {
+                stack.push("inType");
+                this.next = "startType";
+                return "paren.lparen";
+            }
+        },
+        rParen,
+        {
+            token : "support.type.little",
+            regex : /\b(?:Num|Bool|String|[A-Z]\w*)\b/,
+        },
+        {
+            token : "support.type.little",
+            regex : /\b[a-z]\w*\b/,
+        },
+    ],
+    "startTypeCaseBranchPat" : [
+        {
+            regex : /\(/,
+            onMatch : function(value, state, stack) {
+                stack.push("start");
+                this.next = "startType";
+                return "paren.lparen";
+            }
+        },
+        {
+            token : "support.type.little",
+            regex : /\b(?:Num|Bool|String|[A-Z]\w*)\b/,
+            next : "start"
+        }
+    ],
+    "inTypeCase" : [
+        {
+            regex : /\(/,
+            onMatch : function(value, state, stack) {
+                stack.push("inTypeCase");
+                this.next = "startTypeCaseBranchPat";
+                return "paren.lparen";
+            }
+        },
+        rParen,
     ],
     "lambda" : [
         {

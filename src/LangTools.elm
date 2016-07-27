@@ -152,6 +152,9 @@ identifiersList exp =
         let pats = branchPats branches in
         (List.concatMap identifiersListInPat pats) ++ acc
 
+      ETypeCase _ pat _ _ ->
+        (identifiersListInPat pat) ++ acc
+
       ELet _ _ _ pat _ _ _ ->
         (identifiersListInPat pat) ++ acc
 
@@ -237,6 +240,9 @@ renameIdentifier old new exp =
               branches
         in
         ECase ws1 e1 branches' ws2
+
+      ETypeCase ws1 pat tbranches ws2 ->
+        ETypeCase ws1 (renameIdentifierInPat old new pat) tbranches ws2
 
       ELet ws1 kind rec pat assign body ws2 ->
         ELet ws1 kind rec (renameIdentifierInPat old new pat) assign body ws2

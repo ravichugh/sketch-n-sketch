@@ -23,12 +23,13 @@ type alias Frozen = String -- b/c comparable
 
 type alias LocSet = Set.Set Loc
 
-type alias Pat    = P.WithInfo Pat_
-type alias Exp    = P.WithInfo Exp_
-type alias Type   = P.WithInfo Type_
-type alias Op     = P.WithInfo Op_
-type alias Branch = P.WithInfo Branch_
-type alias Range  = P.WithInfo Range_
+type alias Pat     = P.WithInfo Pat_
+type alias Exp     = P.WithInfo Exp_
+type alias Type    = P.WithInfo Type_
+type alias Op      = P.WithInfo Op_
+type alias Branch  = P.WithInfo Branch_
+type alias TBranch = P.WithInfo TBranch_
+type alias Range   = P.WithInfo Range_
 
 -- TODO add constant literals to patterns, and match 'svg'
 type Pat_
@@ -67,6 +68,7 @@ type Exp__
   | EIndList WS (List Range) WS
   | EIf WS Exp Exp Exp WS
   | ECase WS Exp (List Branch) WS
+  | ETypeCase WS Pat (List TBranch) WS
   | ELet WS LetKind Rec Pat Exp Exp WS
   | EComment WS String Exp
   | EOption WS (P.WithInfo String) WS (P.WithInfo String) Exp
@@ -93,10 +95,12 @@ type Type_
   | TUnion WS (List Type) WS
   | TNamed WS Ident
   | TVar WS Ident
+  | TWildcard WS
 
 type alias WS = String
 
-type Branch_ = Branch_ WS Pat Exp WS
+type Branch_  = Branch_ WS Pat Exp WS
+type TBranch_ = TBranch_ WS Type Exp WS
 
 type LetKind = Let | Def
 type alias Rec = Bool
@@ -265,6 +269,13 @@ mapExp f e =
             branches
       in
       wrapAndMap (ECase ws1 newE1 newBranches ws2)
+    ETypeCase ws1 pat tbranches ws2 ->
+      let newBranches =
+        List.map
+            (mapValField (\(TBranch_ bws1 t ei bws2) -> TBranch_ bws1 t (recurse ei) bws2))
+            tbranches
+      in
+      wrapAndMap (ETypeCase ws1 pat newBranches ws2)
     EComment ws s e1              -> wrapAndMap (EComment ws s (recurse e1))
     EOption ws1 s1 ws2 s2 e1      -> wrapAndMap (EOption ws1 s1 ws2 s2 (recurse e1))
     ELet ws1 k b p e1 e2 ws2      -> wrapAndMap (ELet ws1 k b p (recurse e1) (recurse e2) ws2)
@@ -351,15 +362,16 @@ childExps e =
           Point e1          -> [e1]
         )
         ranges
-    EApp ws1 f es ws2             -> f :: es
-    ELet ws1 k b p e1 e2 ws2      -> [e1, e2]
-    EIf ws1 e1 e2 e3 ws2          -> [e1, e2, e3]
-    ECase ws1 e branches ws2      -> e :: (branchExps branches)
-    EComment ws s e1              -> [e1]
-    EOption ws1 s1 ws2 s2 e1      -> [e1]
-    ETyp ws1 pat tipe e ws2       -> [e]
-    EColonType ws1 e ws2 tipe ws3 -> [e]
-    ETypeAlias ws1 pat tipe e ws2 -> [e]
+    EApp ws1 f es ws2               -> f :: es
+    ELet ws1 k b p e1 e2 ws2        -> [e1, e2]
+    EIf ws1 e1 e2 e3 ws2            -> [e1, e2, e3]
+    ECase ws1 e branches ws2        -> e :: (branchExps branches)
+    ETypeCase ws1 pat tbranches ws2 -> tbranchExps tbranches
+    EComment ws s e1                -> [e1]
+    EOption ws1 s1 ws2 s2 e1        -> [e1]
+    ETyp ws1 pat tipe e ws2         -> [e]
+    EColonType ws1 e ws2 tipe ws3   -> [e]
+    ETypeAlias ws1 pat tipe e ws2   -> [e]
 
 
 ------------------------------------------------------------------------------
@@ -441,6 +453,12 @@ branchExps branches =
   List.map
     (\b -> let (Branch_ _ _ exp _) = b.val in exp)
     branches
+
+tbranchExps : List TBranch -> List Exp
+tbranchExps tbranches =
+  List.map
+    (\b -> let (TBranch_ _ _ exp _) = b.val in exp)
+    tbranches
 
 branchPats : List Branch -> List Pat
 branchPats branches =

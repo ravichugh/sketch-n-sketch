@@ -5,6 +5,7 @@ import Debug
 import Lang exposing (..)
 import LangUnparser exposing (unparse)
 import LangParser2 as Parser
+import Types
 import Utils
 
 ------------------------------------------------------------------------------
@@ -117,6 +118,11 @@ eval env e =
     case evalBranches env v1 bs of
       Just (v2,ws2) -> retBoth (v2, ws1 ++ ws2)
       _             -> errorMsg <| strPos e1.start ++ " non-exhaustive case statement"
+
+  ETypeCase _ pat tbranches _ ->
+    case evalTBranches env pat tbranches of
+      Just (v,ws) -> retBoth (v, ws)
+      _           -> errorMsg <| strPos pat.start ++ " non-exhaustive typecase statement"
 
   EApp _ e1 [e2] _ ->
     let ((v1,ws1),(v2,ws2)) = (eval_ env e1, eval_ env e2) in
@@ -232,6 +238,14 @@ evalBranches env v bs =
       _                    -> Nothing
 
   ) Nothing (List.map .val bs)
+
+
+evalTBranches env pat tbranches =
+  List.foldl (\(TBranch_ _ tipe exp _) result ->
+    if result == Nothing && Types.typeCaseMatch env pat tipe
+    then Just (eval_ env exp)
+    else result
+  ) Nothing (List.map .val tbranches)
 
 evalDelta op is =
   case (op, is) of

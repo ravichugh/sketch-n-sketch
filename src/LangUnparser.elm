@@ -57,6 +57,7 @@ precedingWhitespaceExp__ e__ =
     EIf        ws1 e1 e2 e3 ws2         -> ws1
     ELet       ws1 kind rec p e1 e2 ws2 -> ws1
     ECase      ws1 e1 bs ws2            -> ws1
+    ETypeCase  ws1 pat bs ws2           -> ws1
     EComment   ws s e1                  -> ws
     EOption    ws1 s1 ws2 s2 e1         -> ws1
     ETyp       ws1 pat tipe e ws2       -> ws1
@@ -94,6 +95,7 @@ mapPrecedingWhitespace mapWs exp =
       EIf        ws1 e1 e2 e3 ws2         -> EIf        (mapWs ws1) e1 e2 e3 ws2
       ELet       ws1 kind rec p e1 e2 ws2 -> ELet       (mapWs ws1) kind rec p e1 e2 ws2
       ECase      ws1 e1 bs ws2            -> ECase      (mapWs ws1) e1 bs ws2
+      ETypeCase  ws1 pat bs ws2           -> ETypeCase  (mapWs ws1) pat bs ws2
       EComment   ws s e1                  -> EComment   (mapWs ws) s e1
       EOption    ws1 s1 ws2 s2 e1         -> EOption    (mapWs ws1) s1 ws2 s2 e1
       ETyp       ws1 pat tipe e ws2       -> ETyp       (mapWs ws1) pat tipe e ws2
@@ -148,6 +150,13 @@ indent spaces e =
             branches
       in
       wrap (ECase (processWS ws1) newE1 newBranches ws2)
+    ETypeCase ws1 pat tbranches ws2 ->
+      let newBranches =
+        List.map
+            (mapValField (\(TBranch_ bws1 tipe ei bws2) -> TBranch_ bws1 tipe (recurse ei) bws2))
+            tbranches
+      in
+      wrap (ETypeCase (processWS ws1) pat newBranches ws2)
     EComment ws s e1              -> wrap (EComment (processWS ws) s (recurse e1))
     EOption ws1 s1 ws2 s2 e1      -> wrap (EOption (processWS ws1) s1 ws2 s2 (recurse e1))
     ELet ws1 k b p e1 e2 ws2      -> wrap (ELet (processWS ws1) k b p (recurse e1) (recurse e2) ws2)
@@ -202,6 +211,7 @@ unparseType tipe =
     TUnion ws1 typeList ws2 -> ws1 ++ "(union" ++ (String.concat (List.map unparseType typeList)) ++ ws2 ++ ")"
     TNamed ws1 ident        -> ws1 ++ ident
     TVar ws1 ident          -> ws1 ++ ident
+    TWildcard ws            -> ws ++ "_"
 
 unparse : Exp -> String
 unparse e = case e.val.e__ of
@@ -241,6 +251,13 @@ unparse e = case e.val.e__ of
         <| List.map (.val) bs
     in
     ws1 ++ "(case" ++ unparse e1 ++ branchesStr ++ ws2 ++ ")"
+  ETypeCase ws1 pat tbranches ws2 ->
+    let tbranchesStr =
+      String.concat
+        <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1 ++ "(" ++ unparseType tipe ++ unparse exp ++ bws2 ++ ")")
+        <| List.map (.val) tbranches
+    in
+    ws1 ++ "(typecase" ++ unparsePat pat ++ tbranchesStr ++ ws2 ++ ")"
   EComment ws s e1 ->
     ws ++ ";" ++ s ++ "\n" ++ unparse e1
   EOption ws1 s1 ws2 s2 e1 ->
