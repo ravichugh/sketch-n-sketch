@@ -36,9 +36,11 @@ and to try out the latest release.
       |   (let p e1 e2)
       |   (letrec p e1 e2)
       |   (def p e1) e2
+	  |   (def p T) e
       |   (defrec p e1) e2
       |   (if e1 e2 e3)
       |   (case e (p1 e1) ... (pn en))
+	  |   (typecase p (t1 e1) ... (tn en))
       |   []
       |   [e1 | e2]
       |   [e1 .... en]
@@ -53,11 +55,13 @@ and to try out the latest release.
 
   T  ::=
       |   Num | Bool | String
+	  |   TypeAliasName
       |   (-> T1 ... Tn)
       |   (List T)
       |   [T1 .... Tn]
       |   [T1 .... Tn | Trest]
       |   a | b | c | ...
+	  |   _
 ```
 
 Extra parentheses are not permitted.
