@@ -14,6 +14,7 @@ astsMatch t1 t2 =
     (TNum _, TNum _)       -> True
     (TBool _, TBool _)     -> True
     (TString _, TString _) -> True
+    (TNull _, TNull _)     -> True
     (TList _ listType1 _, TList _ listType2 _) -> astsMatch listType1 listType2
     (TDict _ keyType1 valueType1 _,
      TDict _ keyType2 valueType2 _) -> (astsMatch keyType1 keyType2) && (astsMatch valueType1 valueType2)
@@ -49,6 +50,7 @@ identifiersEquivalent t1 t2 =
       TNum _    -> []
       TBool _   -> []
       TString _ -> []
+      TNull _   -> []
       TList _ listType _          -> flatIdents listType
       TDict _ keyType valueType _ -> (flatIdents keyType) ++ (flatIdents valueType)
       TTuple _ typeList _ maybeRestType _ ->

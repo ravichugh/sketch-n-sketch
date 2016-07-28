@@ -40,7 +40,7 @@ this.$rules =
         },
         {
             token : "constant.library",
-            regex : /true|false/
+            regex : /true|false|null/
         },
         {
             token : "variable",

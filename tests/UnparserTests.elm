@@ -66,7 +66,7 @@ littlePrograms =
   , "(let [a b] exp 'body')"
   , "  (letrec [ a b ] exp\n'body'\n  )"
   , "(typ x Num) e"
-  , "  (typ [a b c] [Num String | Bool]) e"
+  , "  (typ [a b c] [Num String Null | Bool]) e"
   , "(typ f (-> Num a (List a))) e"
   , "(typ f (-> (Dict String (List Num)) Bool)) e"
   , "(typ f (union Num String Rgba)) e"

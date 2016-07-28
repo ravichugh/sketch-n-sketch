@@ -222,6 +222,10 @@ evalOp env opWithInfo es =
       case op of
         ToStr  -> VBase (String (strBaseVal (String s)))
         _      -> error ()
+    [VBase Null] ->
+      case op of
+        ToStr  -> VBase (String (strBaseVal Null))
+        _      -> error ()
     [_, _] ->
       case op of
         -- polymorphic inequality, added for Prelude.addExtras

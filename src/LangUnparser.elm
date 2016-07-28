@@ -201,6 +201,7 @@ unparseType tipe =
     TNum ws                   -> ws ++ "Num"
     TBool ws                  -> ws ++ "Bool"
     TString ws                -> ws ++ "String"
+    TNull ws                  -> ws ++ "Null"
     TList ws1 tipe ws2        -> ws1 ++ "(List" ++ (unparseType tipe) ++ ws2 ++ ")"
     TDict ws1 tipe1 tipe2 ws2 -> ws1 ++ "(Dict" ++ (unparseType tipe1) ++ (unparseType tipe2) ++ ws2 ++ ")"
     TTuple ws1 typeList ws2 maybeRestType ws3 ->

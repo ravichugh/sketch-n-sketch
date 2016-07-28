@@ -88,6 +88,7 @@ type Type_
   = TNum WS
   | TBool WS
   | TString WS
+  | TNull WS
   | TList WS Type WS
   | TDict WS Type Type WS
   | TTuple WS (List Type) WS (Maybe Type) WS
@@ -142,6 +143,7 @@ type alias NumTr = (Num, Trace)
 type BaseVal -- unlike Ints, these cannot be changed by Sync
   = Bool Bool
   | String String
+  | Null
   | Star -- placeholder used by sync
 
 type Trace = TrLoc Loc | TrOp Op_ (List Trace)
@@ -156,6 +158,7 @@ strBaseVal v = case v of
   Bool True  -> "true"
   Bool False -> "false"
   String s   -> "\'" ++ s ++ "\'"
+  Null       -> "null"
   Star       -> "X"
 
 strVal     = strVal_ False

@@ -304,14 +304,10 @@ parseNumE =
 
 parseEBase =
   whitespace >>= \ws ->
-      (always (exp_ (EBase ws.val (Bool True))) <$> P.token "true")
+      (always (exp_ (EBase ws.val (Bool True)))  <$> P.token "true")
   <++ (always (exp_ (EBase ws.val (Bool False))) <$> P.token "false")
-  <++ ((exp_ << EBase ws.val << String) <$> parseStrLit)
-
-parseVBase =
-      (always vTrue  <$> P.token "true")
-  <++ (always vFalse <$> P.token "false")
-  <++ (vStr <$> parseStrLit)
+  <++ (always (exp_ (EBase ws.val Null))         <$> P.token "null")
+  <++ ((exp_ << EBase ws.val << String)          <$> parseStrLit)
 
 parsePBase =
   whitespace >>= \ws ->
@@ -630,6 +626,7 @@ parseTBase_ =
       (always (TNum)    <$> whiteTokenOneNonIdent "Num")
   <++ (always (TBool)   <$> whiteTokenOneNonIdent "Bool")
   <++ (always (TString) <$> whiteTokenOneNonIdent "String")
+  <++ (always (TNull)   <$> whiteTokenOneNonIdent "Null")
 
 parseTList =
   whitespace >>= \ws1 ->
