@@ -79,6 +79,7 @@ LITTLE_TO_ELM rotTest
 LITTLE_TO_ELM interfaceButtons
 LITTLE_TO_ELM barGraph
 LITTLE_TO_ELM thawFreeze
+LITTLE_TO_ELM dictionaries
 -- LITTLE_TO_ELM deleteBoxes
 LITTLE_TO_ELM cover
 LITTLE_TO_ELM poppl
@@ -173,6 +174,7 @@ examples =
   , makeExample "Rounded Rect" roundedRect
 
   , makeExample "Thaw/Freeze" thawFreeze
+  , makeExample "Dictionaries" dictionaries
   , makeExample "3 Boxes" threeBoxes
   -- , makeExample "N Boxes H2" nBoxesH2
   , makeExample "N Boxes Sli" nBoxes

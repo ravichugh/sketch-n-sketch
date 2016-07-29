@@ -93,6 +93,7 @@ fillHole_ new vc subst = case vc.v_ of
   VBase _          -> vc
   VClosure _ _ _ _ -> vc   -- not recursing into closures
   VList vs         -> vList (List.map (\v -> fillHole_ new v subst) vs)
+  VDict d          -> vDict (Dict.map (\_ v -> fillHole_ new v subst) d)
 
 type VDiff = Same Val | Diff VContext HoleSubst
 
@@ -111,12 +112,16 @@ diff v1 v2 =
     _ ->
       Utils.mapMaybe snd res
 
-eqV (v1,v2) = case (v1.v_, v2.v_) of            -- equality modulo traces
+eqV (v1,v2) = case (v1.v_, v2.v_) of -- equality modulo traces
   (VConst it, VConst jt) -> fst it == fst jt
   (VList vs1, VList vs2) ->
     case Utils.maybeZip vs1 vs2 of
       Nothing -> False
       Just l  -> List.all eqV l
+  (VDict d1, VDict d2) ->
+    case Utils.maybeZipDicts d1 d2 of
+      Nothing -> False
+      Just dd -> List.all eqV (Dict.values dd)
   _ -> v1 == v2
 
 diffNoCheck v1 v2 =
@@ -162,6 +167,34 @@ diff_ k v1 v2 = case (v1.v_, v2.v_) of
                              Just (k, Diff (vList (vc::vs)) d)
                 _ -> Debug.crash "diff_"
         ) (Just (k, Same (vList []))) l
+  (VDict d1, VDict d2) ->
+    case Utils.maybeZipDicts d1 d2 of
+      Nothing -> Nothing
+      Just dd ->
+        Dict.foldr (\key (vi1,vi2) acc ->
+          case acc of
+            Nothing -> Nothing
+            Just (k, Same vUgh) ->
+              case vUgh.v_ of
+                VDict accDict ->
+                  case diff_ k vi1 vi2 of
+                    Nothing                 -> Nothing
+                    Just (k, Same v)        -> Just (k, Same (vDict <| Dict.insert key v accDict))
+                    Just (k, Diff vc subst) -> Just (k, Diff (vDict <| Dict.insert key vc accDict) subst)
+                _ -> Debug.crash "diff_"
+            Just (k, Diff vUgh subst) ->
+              case vUgh.v_ of
+                VDict accDict ->
+                  case diff_ k vi1 vi2 of
+                    Nothing                 -> Nothing
+                    Just (k, Same v)        -> Just (k, Diff (vDict <| Dict.insert key v accDict) subst)
+                    Just (k, Diff vc sub')  ->
+                      if not multiLeafDiffs
+                        then Nothing
+                        else let sub'' = Dict.union subst sub' in
+                             Just (k, Diff (vDict <| Dict.insert key vc accDict) sub'')
+                _ -> Debug.crash "diff_"
+        ) (Just (k, Same (vDict Dict.empty))) dd
   _ ->
     if v1 == v2
       then Just (k, Same v1)
@@ -413,11 +446,14 @@ simpleSolve subst (sum, tr) =
 
 compareVals : (Val, Val) -> Num
 compareVals (v1, v2) = case (v1.v_, v2.v_) of
-  (VConst it, VConst jt)   -> abs (fst it - fst jt)
-  (VList vs1, VList vs2)   -> case Utils.maybeZip vs1 vs2 of
-                                Nothing -> largeInt
-                                Just l  -> Utils.sum (List.map compareVals l)
-  _                        -> if v1 == v2 then 0 else largeInt
+  (VConst it, VConst jt) -> abs (fst it - fst jt)
+  (VList vs1, VList vs2) -> case Utils.maybeZip vs1 vs2 of
+                              Nothing -> largeInt
+                              Just l  -> Utils.sum (List.map compareVals l)
+  (VDict d1, VDict d2)   -> case Utils.maybeZipDicts d1 d2 of
+                              Nothing -> largeInt
+                              Just dd -> Utils.sum (Dict.values dd |> List.map compareVals)
+  _                      -> if v1 == v2 then 0 else largeInt
 
 largeInt = 99999999
 

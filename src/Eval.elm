@@ -1,6 +1,8 @@
 module Eval (run, parseAndRun, parseAndRun_, evalDelta, eval) where
 
 import Debug
+import Dict
+import String
 
 import Lang exposing (..)
 import LangUnparser exposing (unparse)
@@ -26,7 +28,7 @@ match (p,v) = case (p.val, v.v_) of
   (PList _ _ _ _ _, _) -> Nothing
   (PConst _ n, VConst (n',_)) -> if n == n' then Just [] else Nothing
   (PBase _ bv, VBase bv') -> if bv == bv' then Just [] else Nothing
-  _ -> Debug.crash "Eval.match"
+  _ -> Debug.crash <| "Eval.match " ++ (toString p.val) ++ " vs " ++ (toString v.v_)
 
 matchList : List (Pat, Val) -> Maybe Env
 matchList pvs =
@@ -179,60 +181,68 @@ evalOp env opWithInfo es =
       <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart
       ++ ":\n" ++ Utils.lines (List.map unparse es)
   in
-  (\vOut -> (Val vOut [], List.concat wss)) <|
-  case List.map .v_ vs of
-    [VConst (i,it), VConst (j,jt)] ->
-      case op of
-        Plus    -> VConst (evalDelta op [i,j], TrOp op [it,jt])
-        Minus   -> VConst (evalDelta op [i,j], TrOp op [it,jt])
-        Mult    -> VConst (evalDelta op [i,j], TrOp op [it,jt])
-        Div     -> VConst (evalDelta op [i,j], TrOp op [it,jt])
-        Mod     -> VConst (evalDelta op [i,j], TrOp op [it,jt])
-        Pow     -> VConst (evalDelta op [i,j], TrOp op [it,jt])
-        ArcTan2 -> VConst (evalDelta op [i,j], TrOp op [it,jt])
-        Lt      -> VBase (Bool (i < j))
-        Eq      -> VBase (Bool (i == j))
-        _       -> error ()
-    [VBase (String s1), VBase (String s2)] ->
-      case op of
-        Plus  -> VBase (String (s1 ++ s2))
-        Eq    -> VBase (Bool (s1 == s2))
+  let emptyVTrace val_ = Val val_ [] in
+  let nullaryOp args retVal =
+    case args of
+      [] -> retVal
+      _  -> error ()
+  in
+  let unaryMathOp op args =
+    case args of
+      [VConst (n,t)] -> VConst (evalDelta op [n], TrOp op [t]) |> emptyVTrace
+      _              -> error ()
+  in
+  let binMathOp op args =
+    case args of
+      [VConst (i,it), VConst (j,jt)] -> VConst (evalDelta op [i,j], TrOp op [it,jt]) |> emptyVTrace
+      _                              -> error ()
+  in
+  let args = List.map .v_ vs in
+  let newVal =
+    case op of
+      Plus    -> case args of
+        [VBase (String s1), VBase (String s2)] -> VBase (String (s1 ++ s2)) |> emptyVTrace
+        _                                      -> binMathOp op args
+      Minus     -> binMathOp op args
+      Mult      -> binMathOp op args
+      Div       -> binMathOp op args
+      Mod       -> binMathOp op args
+      Pow       -> binMathOp op args
+      ArcTan2   -> binMathOp op args
+      Lt        -> case args of
+        [VConst (i,it), VConst (j,jt)] -> VBase (Bool (i < j)) |> emptyVTrace
+        _                              -> error ()
+      Eq        -> case args of
+        [VConst (i,it), VConst (j,jt)] -> VBase (Bool (i == j)) |> emptyVTrace
+        [_, _]                         -> VBase (Bool False) |> emptyVTrace -- polymorphic inequality, added for Prelude.addExtras
+        _                              -> error ()
+      Pi         -> nullaryOp args (VConst (pi, TrOp op [])) |> emptyVTrace
+      DictEmpty  -> nullaryOp args (VDict Dict.empty) |> emptyVTrace
+      DictInsert -> case vs of
+        [vkey, val, {v_}] -> case v_ of
+          VDict d -> VDict (Dict.insert (valToDictKey vkey.v_) val d) |> emptyVTrace
+          _       -> error()
+        _                 -> error ()
+      DictGet    -> case args of
+        [key, VDict d] -> Utils.getWithDefault (valToDictKey key) (VBase Null |> emptyVTrace) d
+        _              -> error ()
+      DictRemove -> case args of
+        [key, VDict d] -> VDict (Dict.remove (valToDictKey key) d) |> emptyVTrace
+        _              -> error ()
+      Cos        -> unaryMathOp op args
+      Sin        -> unaryMathOp op args
+      ArcCos     -> unaryMathOp op args
+      ArcSin     -> unaryMathOp op args
+      Floor      -> unaryMathOp op args
+      Ceil       -> unaryMathOp op args
+      Round      -> unaryMathOp op args
+      Sqrt       -> unaryMathOp op args
+      ToStr      -> case vs of
+        [val] -> VBase (String (strVal val)) |> emptyVTrace
         _     -> error ()
-    [] ->
-      case op of
-        Pi    -> VConst (pi, TrOp op [])
-        _     -> error ()
-    [VConst (n,t)] ->
-      case op of
-        Cos    -> VConst (evalDelta op [n], TrOp op [t])
-        Sin    -> VConst (evalDelta op [n], TrOp op [t])
-        ArcCos -> VConst (evalDelta op [n], TrOp op [t])
-        ArcSin -> VConst (evalDelta op [n], TrOp op [t])
-        Floor  -> VConst (evalDelta op [n], TrOp op [t])
-        Ceil   -> VConst (evalDelta op [n], TrOp op [t])
-        Round  -> VConst (evalDelta op [n], TrOp op [t])
-        Sqrt   -> VConst (evalDelta op [n], TrOp op [t])
-        ToStr  -> VBase (String (toString n))
-        _      -> error ()
-    [VBase (Bool b)] ->
-      case op of
-        ToStr  -> VBase (String (toString b))
-        _      -> error ()
-    [VBase (String s)] ->
-      case op of
-        ToStr  -> VBase (String (strBaseVal (String s)))
-        _      -> error ()
-    [VBase Null] ->
-      case op of
-        ToStr  -> VBase (String (strBaseVal Null))
-        _      -> error ()
-    [_, _] ->
-      case op of
-        -- polymorphic inequality, added for Prelude.addExtras
-        Eq     -> VBase (Bool False)
-        _      -> error ()
-    _ ->
-      error ()
+      RangeOffset _ -> error ()
+  in
+  (newVal, List.concat wss)
 
 evalBranches env v bs =
   List.foldl (\(Branch_ _ pat exp _) acc ->
@@ -279,6 +289,16 @@ evalDelta op is =
       if m > n2 then n2 else m
 
     _                -> errorMsg <| "Eval.evalDelta " ++ strOp op
+
+valToDictKey : Val_ -> (String, String)
+valToDictKey val_ =
+  case val_ of
+    VConst (n, tr)   -> (toString n, "num")
+    VBase (Bool b)   -> (toString b, "bool")
+    VBase (String s) -> (toString s, "string")
+    VBase Null       -> ("", "null")
+    VList vals       -> (toString <| List.map (valToDictKey << .v_) vals, "list")
+    _                -> errorMsg <| "Cannot use " ++ (strVal (val val_)) ++ " in a key to a dictionary."
 
 initEnv = snd (eval [] Parser.prelude)
 

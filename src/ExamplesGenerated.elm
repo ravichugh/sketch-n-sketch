@@ -2620,6 +2620,21 @@ thawFreeze =
 
 "
 
+dictionaries =
+ "(def d (empty))
+(def d1 (insert 'a' 3 d))
+(def d2 (insert 'b' 4 d1))
+(def d3 (remove 'a' d2))
+
+(blobs [
+    [(text 50 30 (toString d2))]
+    [(text 50 50 (toString d3))]
+    [(text 50 70 (toString (get 'b' d3)))]
+    [(text 50 90 (toString (get 'a' d3)))]
+])
+
+"
+
 -- LITTLE_TO_ELM deleteBoxes
 cover =
  "; Logo for Cover
@@ -3910,6 +3925,7 @@ examples =
   , makeExample "Rounded Rect" roundedRect
 
   , makeExample "Thaw/Freeze" thawFreeze
+  , makeExample "Dictionaries" dictionaries
   , makeExample "3 Boxes" threeBoxes
   -- , makeExample "N Boxes H2" nBoxesH2
   , makeExample "N Boxes Sli" nBoxes

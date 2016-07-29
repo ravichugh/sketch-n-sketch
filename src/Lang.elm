@@ -41,6 +41,7 @@ type Pat_
 type Op_
   -- nullary ops
   = Pi
+  | DictEmpty
   -- unary ops
   | Cos | Sin | ArcCos | ArcSin
   | Floor | Ceil | Round
@@ -51,6 +52,10 @@ type Op_
   | Lt | Eq
   | Mod | Pow
   | ArcTan2
+  | DictGet
+  | DictRemove
+  -- trinary ops
+  | DictInsert
   -- internal ops
   | RangeOffset Int
 
@@ -135,7 +140,10 @@ type Val_
   | VBase BaseVal
   | VClosure (Maybe Ident) Pat Exp Env
   | VList (List Val)
+  | VDict VDict_
   | VHole Int
+
+type alias VDict_ = Dict.Dict (String, String) Val
 
 type alias NumTr = (Num, Trace)
 
@@ -180,6 +188,7 @@ strVal_ showTraces v =
     VBase b          -> strBaseVal b
     VClosure _ _ _ _ -> "<fun>"
     VList vs         -> Utils.bracks (String.join " " (List.map foo vs))
+    VDict d          -> "<dict " ++ (Dict.toList d |> List.map (\(k, v) -> (toString k) ++ ":" ++ (foo v)) |> String.join " ") ++ ">"
     VHole i          -> "HOLE_" ++ toString i
 
 strOp op = case op of
@@ -202,6 +211,10 @@ strOp op = case op of
   Sqrt          -> "sqrt"
   Mod           -> "mod"
   Pow           -> "pow"
+  DictEmpty     -> "empty"
+  DictInsert    -> "insert"
+  DictGet       -> "get"
+  DictRemove    -> "remove"
   RangeOffset i -> "[[rangeOffset " ++ toString i ++ "]]"
 
 strLoc (k, b, mx) =
@@ -295,6 +308,7 @@ mapExpViaExp__ f e =
 mapVal : (Val -> Val) -> Val -> Val
 mapVal f v = case v.v_ of
   VList vs         -> f { v | v_ = VList (List.map (mapVal f) vs) }
+  VDict d          -> f { v | v_ = VDict (Dict.map (\_ v -> mapVal f v) d) } -- keys ignored
   VConst _         -> f v
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
@@ -303,6 +317,7 @@ mapVal f v = case v.v_ of
 foldVal : (Val -> a -> a) -> Val -> a -> a
 foldVal f v a = case v.v_ of
   VList vs         -> f v (List.foldl (foldVal f) a vs)
+  VDict d          -> f v (List.foldl (foldVal f) a (Dict.values d)) -- keys ignored
   VConst _         -> f v a
   VBase _          -> f v a
   VClosure _ _ _ _ -> f v a
@@ -584,6 +599,7 @@ vStr     = val << VBase << String
 vConst   = val << VConst
 vBase    = val << VBase
 vList    = val << VList
+vDict    = val << VDict
 vHole    = val << VHole
 
 unwrapVList : Val -> Maybe (List Val_)

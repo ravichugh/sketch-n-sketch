@@ -386,6 +386,7 @@ parseExp = P.recursively <| \_ ->
   <++ parseConst -- (pi) etc...
   <++ parseUnop
   <++ parseBinop
+  <++ parseTriop
   <++ parseIf
   <++ parseCase
   <++ parseTypeCase
@@ -676,6 +677,19 @@ parseTWildcard =
   whitespace >>= \ws ->
     (\_ -> TWildcard ws.val) <$> (whiteTokenOneWS "_")
 
+parseTriop =
+  whitespace >>= \ws1 ->
+  parens <|
+    parseTOp   >>= \op ->
+    parseExp   >>= \e1 ->
+    parseExp   >>= \e2 ->
+    parseExp   >>= \e3 ->
+    whitespace >>= \ws2 ->
+      P.return (exp_ (EOp ws1.val op [e1,e2,e3] ws2.val))
+
+parseTOp =
+  (always DictInsert <$> whiteTokenOneNonSymbol "insert")
+
 parseBinop =
   whitespace >>= \ws1 ->
   parens <|
@@ -686,15 +700,17 @@ parseBinop =
       P.return (exp_ (EOp ws1.val op [e1,e2] ws2.val))
 
 parseBOp =
-      (always Plus    <$> whiteTokenOneNonSymbol "+")
-  <++ (always Minus   <$> whiteTokenOneNonSymbol "-")
-  <++ (always Mult    <$> whiteTokenOneNonSymbol "*")
-  <++ (always Div     <$> whiteTokenOneNonSymbol "/")
-  <++ (always Lt      <$> whiteTokenOneNonSymbol "<")
-  <++ (always Eq      <$> whiteTokenOneNonSymbol "=")
-  <++ (always Mod     <$> whiteTokenOneWS "mod")
-  <++ (always Pow     <$> whiteTokenOneWS "pow")
-  <++ (always ArcTan2 <$> whiteTokenOneWS "arctan2")
+      (always Plus       <$> whiteTokenOneNonSymbol "+")
+  <++ (always Minus      <$> whiteTokenOneNonSymbol "-")
+  <++ (always Mult       <$> whiteTokenOneNonSymbol "*")
+  <++ (always Div        <$> whiteTokenOneNonSymbol "/")
+  <++ (always Lt         <$> whiteTokenOneNonSymbol "<")
+  <++ (always Eq         <$> whiteTokenOneNonSymbol "=")
+  <++ (always Mod        <$> whiteTokenOneWS "mod")
+  <++ (always Pow        <$> whiteTokenOneWS "pow")
+  <++ (always ArcTan2    <$> whiteTokenOneWS "arctan2")
+  <++ (always DictGet    <$> whiteTokenOneWS "get")
+  <++ (always DictRemove <$> whiteTokenOneWS "remove")
 
 parseUnop =
   whitespace >>= \ws1 ->
@@ -724,7 +740,8 @@ parseConst =
       P.return (exp_ (EOp ws1.val op [] ws2.val))
 
 parseNullOp =
-  always Pi <$> whiteTokenOneNonIdent "pi"
+      (always Pi        <$> whiteTokenOneNonIdent "pi")
+  <++ (always DictEmpty <$> whiteTokenOneNonIdent "empty")
 
 parseIf =
   whitespace >>= \ws1 ->

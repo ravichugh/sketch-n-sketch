@@ -43,6 +43,13 @@ maybeZip xs ys = case (xs, ys) of
   ([], [])         -> Just []
   _                -> Nothing
 
+maybeZipDicts : Dict comparable b -> Dict comparable c -> Maybe (Dict comparable (b,c))
+maybeZipDicts d1 d2 =
+  if Dict.keys d1 /= Dict.keys d2 then
+    Nothing
+  else
+    d1 |> Dict.map (\k v1 -> (v1, justGet k d2)) |> Just
+
 listsEqualBy elementEqualityFunc xs ys =
   case (xs, ys) of
     ([], [])         -> True
