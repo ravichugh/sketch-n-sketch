@@ -243,6 +243,9 @@ evalOp env bt opWithInfo es =
       Ceil       -> unaryMathOp op args
       Round      -> unaryMathOp op args
       Sqrt       -> unaryMathOp op args
+      DebugLog   -> case vs of
+        [v] -> let _ = Debug.log (strVal v) "" in v
+        _   -> error ()
       ToStr      -> case vs of
         [val] -> VBase (String (strVal val)) |> emptyVTrace
         _     -> error ()

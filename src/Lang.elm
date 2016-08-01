@@ -47,6 +47,7 @@ type Op_
   | Floor | Ceil | Round
   | ToStr
   | Sqrt
+  | DebugLog
   -- binary ops
   | Plus | Minus | Mult | Div
   | Lt | Eq
@@ -215,6 +216,7 @@ strOp op = case op of
   DictInsert    -> "insert"
   DictGet       -> "get"
   DictRemove    -> "remove"
+  DebugLog      -> "debug"
   RangeOffset i -> "[[rangeOffset " ++ toString i ++ "]]"
 
 strLoc (k, b, mx) =

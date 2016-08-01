@@ -721,15 +721,16 @@ parseUnop =
       P.return (exp_ (EOp ws1.val op [e1] ws2.val))
 
 parseUOp =
-      (always Cos     <$> whiteTokenOneWS "cos")
-  <++ (always Sin     <$> whiteTokenOneWS "sin")
-  <++ (always ArcCos  <$> whiteTokenOneWS "arccos")
-  <++ (always ArcSin  <$> whiteTokenOneWS "arcsin")
-  <++ (always Floor   <$> whiteTokenOneWS "floor")
-  <++ (always Ceil    <$> whiteTokenOneWS "ceiling")
-  <++ (always Round   <$> whiteTokenOneWS "round")
-  <++ (always ToStr   <$> whiteTokenOneWS "toString")
-  <++ (always Sqrt    <$> whiteTokenOneWS "sqrt")
+      (always Cos      <$> whiteTokenOneWS "cos")
+  <++ (always Sin      <$> whiteTokenOneWS "sin")
+  <++ (always ArcCos   <$> whiteTokenOneWS "arccos")
+  <++ (always ArcSin   <$> whiteTokenOneWS "arcsin")
+  <++ (always Floor    <$> whiteTokenOneWS "floor")
+  <++ (always Ceil     <$> whiteTokenOneWS "ceiling")
+  <++ (always Round    <$> whiteTokenOneWS "round")
+  <++ (always ToStr    <$> whiteTokenOneWS "toString")
+  <++ (always Sqrt     <$> whiteTokenOneWS "sqrt")
+  <++ (always DebugLog <$> whiteTokenOneWS "debug")
 
 -- Parse (pi) etc...
 parseConst =
