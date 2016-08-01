@@ -219,9 +219,10 @@ evalOp env bt opWithInfo es =
         [VConst (i,it), VConst (j,jt)] -> VBase (Bool (i < j)) |> emptyVTrace
         _                              -> error ()
       Eq        -> case args of
-        [VConst (i,it), VConst (j,jt)] -> VBase (Bool (i == j)) |> emptyVTrace
-        [_, _]                         -> VBase (Bool False) |> emptyVTrace -- polymorphic inequality, added for Prelude.addExtras
-        _                              -> error ()
+        [VConst (i,it), VConst (j,jt)]         -> VBase (Bool (i == j)) |> emptyVTrace
+        [VBase (String s1), VBase (String s2)] -> VBase (Bool (s1 == s2)) |> emptyVTrace
+        [_, _]                                 -> VBase (Bool False) |> emptyVTrace -- polymorphic inequality, added for Prelude.addExtras
+        _                                      -> error ()
       Pi         -> nullaryOp args (VConst (pi, TrOp op [])) |> emptyVTrace
       DictEmpty  -> nullaryOp args (VDict Dict.empty) |> emptyVTrace
       DictInsert -> case vs of
