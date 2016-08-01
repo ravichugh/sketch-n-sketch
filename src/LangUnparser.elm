@@ -1,5 +1,5 @@
 module LangUnparser
-  (unparse, unparseWD, traceToLittle, bumpCol, incCol, precedingWhitespace,
+  (unparse, unparsePat, unparseWD, traceToLittle, bumpCol, incCol, precedingWhitespace,
     precedingWhitespaceExp__, addPrecedingWhitespace,
     replacePrecedingWhitespace, replacePrecedingWhitespacePat,
     indent

@@ -2626,11 +2626,19 @@ dictionaries =
 (def d2 (insert 'b' 4 d1))
 (def d3 (remove 'a' d2))
 
+(def getWithDefault (\\(key default dict)
+  (let value (get key dict)
+  (typecase value
+    (Null default)
+    (_ value)))
+))
+
 (blobs [
-    [(text 50 30 (toString d2))]
-    [(text 50 50 (toString d3))]
-    [(text 50 70 (toString (get 'b' d3)))]
-    [(text 50 90 (toString (get 'a' d3)))]
+    [(text 50 30  (toString d2))]
+    [(text 50 50  (toString d3))]
+    [(text 50 70  (toString (get 'b' d3)))]
+    [(text 50 90  (toString (get 'a' d3)))]
+    [(text 50 110 (toString (getWithDefault 'a' 'default' d3)))]
 ])
 
 "

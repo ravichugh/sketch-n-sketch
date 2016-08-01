@@ -134,7 +134,7 @@ this.$rules =
         rParen,
         {
             token : "support.type.little",
-            regex : /\b(?:Num|Bool|String|[A-Z]\w*)\b/,
+            regex : /\b(?:_|Num|Bool|String|Null|[A-Z]\w*)\b/,
         },
         {
             token : "support.type.little",
@@ -152,7 +152,7 @@ this.$rules =
         },
         {
             token : "support.type.little",
-            regex : /\b(?:Num|Bool|String|[A-Z]\w*)\b/,
+            regex : /\b(?:_|Num|Bool|String|Null|[A-Z]\w*)\b/,
             next : "start"
         }
     ],

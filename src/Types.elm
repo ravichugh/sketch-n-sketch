@@ -70,6 +70,36 @@ identifiersEquivalent t1 t2 =
   Utils.oneToOneMappingExists (flatIdents t1) (flatIdents t2)
 
 
-typeCaseMatch env pat tipe =
-  let _ = Debug.crash "typeCaseMatch not yet implemented" in
-  False
+valIsType val tipe =
+  let unsupported msg =
+    Debug.crash <| "typing values against " ++ msg ++ " is not supported"
+  in
+  case (val.v_, tipe.val) of
+    (VConst _, TNum _)               -> True
+    (VBase (Bool _), TBool _)        -> True
+    (VBase (String _), TString _)    -> True
+    (VBase Null, TNull _)            -> True
+    (VList list, TList _ listType _) -> List.all (\v -> valIsType v listType) list
+    (_, TDict _ _ _ _)               -> unsupported "dictionary types"
+    (VList vlist, TTuple _ typeList _ maybeRestType _) ->
+      let typeListsMatch =
+        List.foldl
+            (\(v, t) res -> res && valIsType v t)
+            True
+            (Utils.zip vlist typeList)
+      in
+      case maybeRestType of
+        Nothing ->
+          typeListsMatch && (List.length vlist == List.length typeList)
+        Just restType ->
+          typeListsMatch &&
+          List.length vlist >= List.length typeList &&
+          List.all
+              (\v -> valIsType v restType)
+              (List.drop (List.length typeList) vlist)
+    (_, TArrow _ _ _)        -> unsupported "arrow types"
+    (_, TUnion _ typeList _) -> List.any (valIsType val) typeList
+    (_, TNamed _ _)          -> unsupported "type aliases"
+    (_, TVar _ _)            -> unsupported "type variables"
+    (_, TWildcard _)         -> True
+    _                        -> False

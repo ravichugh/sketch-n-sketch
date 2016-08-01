@@ -5,7 +5,7 @@ import Dict
 import String
 
 import Lang exposing (..)
-import LangUnparser exposing (unparse)
+import LangUnparser exposing (unparse, unparsePat)
 import LangParser2 as Parser
 import Types
 import Utils
@@ -37,6 +37,30 @@ matchList pvs =
       (Just old, Just new) -> Just (new ++ old)
       _                    -> Nothing
   ) (Just []) pvs
+
+typeCaseMatch : Env -> Backtrace -> Pat -> Type -> Bool
+typeCaseMatch env bt pat tipe =
+  case (pat.val, tipe.val) of
+    (PList _ pats _ Nothing _, TTuple _ typeList _ maybeRestType _) ->
+      let typeListsMatch =
+        List.foldl
+            (\(p, t) res -> res && typeCaseMatch env bt p t)
+            True
+            (Utils.zip pats typeList)
+      in
+      case maybeRestType of
+        Nothing ->
+          typeListsMatch && (List.length pats == List.length typeList)
+        Just restType ->
+          typeListsMatch &&
+          List.length pats >= List.length typeList &&
+          List.all
+              (\p -> typeCaseMatch env bt p restType)
+              (List.drop (List.length typeList) pats)
+    (PVar _ ident _, _) ->
+      let val = lookupVar env bt ident pat.start in
+      Types.valIsType val tipe
+    _ -> errorWithBacktrace bt <| "unexpected pattern in typecase: " ++ (unparsePat pat) ++ "\n\nAllowed patterns are bare identifiers and [ident1 ident2 ...]"
 
 cons : (Pat, Val) -> Maybe Env -> Maybe Env
 cons pv menv =
@@ -266,7 +290,7 @@ evalBranches env bt v bs =
 
 evalTBranches env bt pat tbranches =
   List.foldl (\(TBranch_ _ tipe exp _) result ->
-    if result == Nothing && Types.typeCaseMatch env pat tipe
+    if result == Nothing && typeCaseMatch env bt pat tipe
     then Just (eval_ env bt exp)
     else result
   ) Nothing (List.map .val tbranches)
