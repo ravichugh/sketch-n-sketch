@@ -229,14 +229,6 @@ strTrace tr = case tr of
     Utils.parens (String.concat
       [strOp op, " ", String.join " " (List.map strTrace l)])
 
-strPat p = case p.val of
-  PVar _ x _       -> x -- TODO strWidgetDecl wd, but not called anyway
-  PList _ ps _ m _ -> let s = Utils.spaces (List.map strPat ps) in
-                case m of
-                  Nothing   -> Utils.bracks s
-                  Just rest -> Utils.bracks (s ++ " | " ++ strPat rest)
-  _ -> Debug.crash "strPat"
-
 tab k = String.repeat k "  "
 
 -- TODO take into account indent and other prefix of current line
