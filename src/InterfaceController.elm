@@ -881,20 +881,22 @@ selectedBlobsToSelectedNiceBlobs model blobs =
 
 matchesAnySelectedVarBlob_ : List (Int, Exp, NiceBlob) -> TopDef -> Maybe Ident
 matchesAnySelectedVarBlob_ selectedNiceBlobs def =
+  let findBlobForIdent y =
+    let foo (_,_,niceBlob) =
+      case niceBlob of
+        VarBlob x        -> x == y
+        WithBoundsBlob _ -> False
+        CallBlob _       -> False
+    in
+    case Utils.findFirst foo selectedNiceBlobs of
+      Just (_, _, VarBlob x) -> Just x
+      _                      -> Nothing
+  in
   let (_,p,_,_) = def in
   case p.val of
-    PVar _ y _ ->
-      let foo (_,_,niceBlob) =
-        case niceBlob of
-          VarBlob x        -> x == y
-          WithBoundsBlob _ -> False
-          CallBlob _       -> False
-      in
-      case Utils.findFirst foo selectedNiceBlobs of
-        Just (_, _, VarBlob x) -> Just x
-        _                      -> Nothing
-    _ ->
-      Nothing
+    PVar _ y _  -> findBlobForIdent y
+    PAs _ y _ _ -> findBlobForIdent y
+    _           -> Nothing
 
 matchesAnySelectedVarBlob selectedNiceBlobs def =
   case matchesAnySelectedVarBlob_ selectedNiceBlobs def of
@@ -904,21 +906,23 @@ matchesAnySelectedVarBlob selectedNiceBlobs def =
 -- TODO refactor/combine with above
 matchesAnySelectedCallBlob_ : List (Int, Exp, NiceBlob) -> TopDef -> Maybe Ident
 matchesAnySelectedCallBlob_ selectedNiceBlobs def =
+  let findBlobForIdent y =
+    let foo (_,_,niceBlob) =
+      case niceBlob of
+        VarBlob _                -> False
+        WithBoundsBlob (_, f, _) -> f == y
+        CallBlob (f, _)          -> f == y
+    in
+    case Utils.findFirst foo selectedNiceBlobs of
+      Just (_, _, CallBlob (f, _))          -> Just f
+      Just (_, _, WithBoundsBlob (_, f, _)) -> Just f
+      _                                     -> Nothing
+  in
   let (_,p,_,_) = def in
   case p.val of
-    PVar _ y _ ->
-      let foo (_,_,niceBlob) =
-        case niceBlob of
-          VarBlob _                -> False
-          WithBoundsBlob (_, f, _) -> f == y
-          CallBlob (f, _)          -> f == y
-      in
-      case Utils.findFirst foo selectedNiceBlobs of
-        Just (_, _, CallBlob (f, _))          -> Just f
-        Just (_, _, WithBoundsBlob (_, f, _)) -> Just f
-        _                                     -> Nothing
-    _ ->
-      Nothing
+    PVar _ y _  -> findBlobForIdent y
+    PAs _ y _ _ -> findBlobForIdent y
+    _           -> Nothing
 
 matchesAnySelectedCallBlob selectedNiceBlobs def =
   case matchesAnySelectedCallBlob_ selectedNiceBlobs def of
@@ -1106,13 +1110,14 @@ offsetXY base1 base2 baseVal1 baseVal2 ws (n,t) eSubst =
       eSubst
 
 varsOfPat : Pat -> List Ident
-varsOfPat p =
-  case p.val of
+varsOfPat pat =
+  case pat.val of
     PConst _ _              -> []
     PBase _ _               -> []
     PVar _ x _              -> [x]
     PList _ ps _ Nothing _  -> List.concatMap varsOfPat ps
     PList _ ps _ (Just p) _ -> List.concatMap varsOfPat (p::ps)
+    PAs _ x _ p             -> x::(varsOfPat p)
 
 -- TODO for now, just checking occursIn
 occursFreeIn : Ident -> Exp -> Bool
@@ -1714,6 +1719,16 @@ mergePatterns pFirst pRest =
           (\_ () -> Just ())
           (mergePatternLists (ps::psList))
           (mergeMaybePatterns mp mpList)
+    PAs _ x _ p ->
+      let match pNext = case pNext.val of
+        PAs _ x' _ p' -> Just (x', p')
+        _             -> Nothing
+      in
+      matchAllAndBind match pRest <| \stuff ->
+        let (indentList, pList) = List.unzip stuff in
+        Utils.bindMaybe
+          (\() -> if List.all ((==) x) indentList then Just () else Nothing)
+          (mergePatterns p pList)
 
 mergeTypes : Type -> List Type -> Maybe ()
 mergeTypes tFirst tRest =

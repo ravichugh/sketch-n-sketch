@@ -205,12 +205,24 @@ this.$rules =
           next : "pattern"
       },
       {
+          token : "variable.parameter",
+          regex : /\w[\w']*(?=\s*@)/,
+          next : "at"
+      },
+      {
           regex : /\w[\w']*/,
           onMatch : function(value, state, stack) {
               this.next = stack.pop();
               return "variable.parameter";
           }
       },
+    ],
+    "at" : [
+        {
+            token : "keyword",
+            regex : "@",
+            next  : "patternStart"
+        }
     ],
     "pattern" : [
         {
@@ -230,8 +242,13 @@ this.$rules =
         },
         {
             token : "variable.parameter",
+            regex : /\w[\w']*(?=\s*@)/,
+            next : "at"
+        },
+        {
+            token : "variable.parameter",
             regex : /\w[\w']*/,
-        }
+        },
     ],
     "qstring": [
         {

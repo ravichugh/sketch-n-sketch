@@ -41,6 +41,7 @@ precedingWhitespacePat pat =
     PConst ws n                -> ws
     PBase  ws v                -> ws
     PList  ws1 es ws2 rest ws3 -> ws1
+    PAs    ws1 ident ws2 p     -> ws1
 
 
 precedingWhitespaceExp__ : Exp__ -> String
@@ -173,6 +174,7 @@ mapPrecedingWhitespacePat mapWs pat =
       PConst ws n                -> PConst (mapWs ws) n
       PBase  ws v                -> PBase  (mapWs ws) v
       PList  ws1 es ws2 rest ws3 -> PList  (mapWs ws1) es ws2 rest ws3
+      PAs    ws1 ident ws2 p     -> PAs    (mapWs ws1) ident ws2 p
   in
   { pat | val = pat_' }
 
@@ -185,7 +187,7 @@ unparseWD wd =
     NumSlider a tok b _ -> "{" ++ toString a.val ++ tok.val ++ toString b.val ++ "}"
 
 unparsePat : Pat -> String
-unparsePat p = case p.val of
+unparsePat pat = case pat.val of
   PVar ws x wd ->
     ws ++ x ++ unparseWD wd
   PList ws1 ps ws2 Nothing ws3 ->
@@ -194,6 +196,7 @@ unparsePat p = case p.val of
     ws1 ++ "[" ++ (String.concat (List.map unparsePat ps)) ++ ws2 ++ "|" ++ unparsePat pRest ++ ws3 ++ "]"
   PConst ws n -> ws ++ strNum n
   PBase ws bv -> ws ++ strBaseVal bv
+  PAs ws1 ident ws2 p -> ws1 ++ ident ++ ws2 ++ "@" ++ (unparsePat p)
 
 unparseType : Type -> String
 unparseType tipe =

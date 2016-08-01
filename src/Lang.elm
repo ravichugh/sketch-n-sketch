@@ -37,6 +37,7 @@ type Pat_
   | PConst WS Num
   | PBase WS BaseVal
   | PList WS (List Pat) WS (Maybe Pat) WS
+  | PAs WS Ident WS Pat
 
 type Op_
   -- nullary ops

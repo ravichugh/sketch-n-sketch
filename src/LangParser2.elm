@@ -147,6 +147,7 @@ recordIdentifiers (p,e) =
                       (Just p1, Just e1) -> Just (recordIdentifiers (p1,e1))
                       _                  -> me in
                   ret <| EList ws1 es' ws2 me' ws3
+  (PAs _ _ _ p', _) -> recordIdentifiers (p',e)
   (_, e_) -> ret e_
 
 -- this will be done while parsing eventually...
@@ -430,7 +431,8 @@ parsePVar identParser =
 
 parsePat : P.Parser Pat_
 parsePat = P.recursively <| \_ ->
-      (parsePVar parseIdent)
+      parseAsPat
+  <++ (parsePVar parseIdent)
   <++ parsePBase
   <++ parseWildcard
   <++ parsePatList
@@ -462,6 +464,14 @@ parsePats : P.Parser (List Pat)
 parsePats =
       (parsePat >>= \p -> P.returnWithInfo [p] p.start p.end)
   <++ (parens <| P.many parsePat)
+
+parseAsPat =
+  whitespace  >>= \ws1 ->
+  parseIdent  >>= \ident ->
+  whitespace  >>= \ws2 ->
+  P.token "@" >>>
+  parsePat    >>= \pat ->
+    P.returnWithInfo (PAs ws1.val ident.val ws2.val pat) ident.start pat.end
 
 parseMaybeWidgetDecl : Caption -> P.Parser WidgetDecl_
 parseMaybeWidgetDecl cap = P.option NoWidgetDecl (parseWidgetDecl cap)

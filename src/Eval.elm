@@ -16,6 +16,10 @@ import Utils
 match : (Pat, Val) -> Maybe Env
 match (p,v) = case (p.val, v.v_) of
   (PVar _ x _, _) -> Just [(x,v)]
+  (PAs _ x _ innerPat, _) ->
+    case match (innerPat, v) of
+      Just env -> Just ((x,v)::env)
+      Nothing -> Nothing
   (PList _ ps _ Nothing _, VList vs) ->
     Utils.bindMaybe matchList (Utils.maybeZip ps vs)
   (PList _ ps _ (Just rest) _, VList vs) ->

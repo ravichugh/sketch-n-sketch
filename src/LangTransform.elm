@@ -104,6 +104,13 @@ removeUnusedVars exp =
             else
               letRemoved
 
+          -- Check if as-pattern is used
+          (PAs asWs ident _ innerPat, _) ->
+            if Set.member ident usedNames then
+              e__
+            else
+              ELet ws1 letKind rec (replacePrecedingWhitespacePat asWs innerPat) assign body ws2
+
           -- List assignment, no tail.
           (PList pws1 pats pws2 Nothing pws3, EList aws1 assigns aws2 Nothing aws3) ->
             if List.length pats /= List.length assigns then
