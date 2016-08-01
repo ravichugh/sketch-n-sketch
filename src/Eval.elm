@@ -44,10 +44,10 @@ cons pv menv =
     (Just env, Just env') -> Just (env' ++ env)
     _                     -> Nothing
 
-lookupVar env x pos =
+lookupVar env bt x pos =
   case Utils.maybeFind x env of
     Just v -> v
-    Nothing -> errorMsg <| strPos pos ++ " variable not found: " ++ x
+    Nothing -> errorWithBacktrace bt <| strPos pos ++ " variable not found: " ++ x
 
 mkCap mcap l =
   let s =
@@ -63,11 +63,11 @@ mkCap mcap l =
 
 -- eval inserts dummyPos during evaluation
 
-eval_ : Env -> Exp -> (Val, Widgets)
-eval_ env e = fst <| eval env e
+eval_ : Env -> Backtrace -> Exp -> (Val, Widgets)
+eval_ env bt e = fst <| eval env bt e
 
-eval : Env -> Exp -> ((Val, Widgets), Env)
-eval env e =
+eval : Env -> Backtrace -> Exp -> ((Val, Widgets), Env)
+eval env bt e =
 
   let ret v_                         = ((Val v_ [e.val.eid], []), env) in
   let retAdd eid (v,envOut)          = ((Val v.v_ (eid::v.vtrace), []), envOut) in
@@ -76,6 +76,12 @@ eval env e =
   let retAddThis v                   = retAddThis_ (v, env) in
   let retBoth (v,w)                  = (({v | vtrace = e.val.eid :: v.vtrace},w), env) in
   let addWidgets ws1 ((v1,ws2),env1) = ((v1, ws1 ++ ws2), env1) in
+
+  let bt' =
+    if e.start.line >= 1
+    then e::bt
+    else bt
+  in
 
   case e.val.e__ of
 
@@ -87,20 +93,20 @@ eval env e =
       NumSlider a _ b mcap -> retBoth (Val v_ [], [WNumSlider a.val b.val (mkCap mcap l) i l])
 
   EBase _ v      -> ret <| VBase v
-  EVar _ x       -> retAddThis <| lookupVar env x e.start
+  EVar _ x       -> retAddThis <| lookupVar env (e::bt) x e.start
   EFun _ [p] e _ -> ret <| VClosure Nothing p e env
-  EOp _ op es _  -> retAddWs e.val.eid ((evalOp env op es), env)
+  EOp _ op es _  -> retAddWs e.val.eid ((evalOp env (e::bt) op es), env)
 
   EList _ es _ m _ ->
-    let (vs,wss) = List.unzip (List.map (eval_ env) es) in
+    let (vs,wss) = List.unzip (List.map (eval_ env bt') es) in
     let ws = List.concat wss in
     case m of
       Nothing   -> retBoth <| (Val (VList vs) [], ws)
       Just rest ->
-        let (vRest, ws') = eval_ env rest in
+        let (vRest, ws') = eval_ env bt' rest in
         case vRest.v_ of
           VList vs' -> retBoth <| (Val (VList (vs ++ vs')) [], ws ++ ws')
-          _         -> errorMsg <| strPos rest.start ++ " rest expression not a list."
+          _         -> errorWithBacktrace (e::bt) <| strPos rest.start ++ " rest expression not a list."
 
   EIndList _ rs _ ->
     let vs = List.concat <| List.map rangeToList rs in
@@ -109,77 +115,77 @@ eval env e =
     else Debug.crash <| "indices not strictly increasing: " ++ strVal (vList vs)
 
   EIf _ e1 e2 e3 _ ->
-    let (v1,ws1) = eval_ env e1 in
+    let (v1,ws1) = eval_ env bt e1 in
     case v1.v_ of
-      VBase (Bool True)  -> addWidgets ws1 <| eval env e2
-      VBase (Bool False) -> addWidgets ws1 <| eval env e3
-      _                  -> errorMsg <| strPos e1.start ++ " if-exp expected a Bool but got something else."
+      VBase (Bool True)  -> addWidgets ws1 <| eval env bt e2
+      VBase (Bool False) -> addWidgets ws1 <| eval env bt e3
+      _                  -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " if-exp expected a Bool but got something else."
 
   ECase _ e1 bs _ ->
-    let (v1,ws1) = eval_ env e1 in
-    case evalBranches env v1 bs of
+    let (v1,ws1) = eval_ env (e::bt) e1 in
+    case evalBranches env (e::bt) v1 bs of
       Just (v2,ws2) -> retBoth (v2, ws1 ++ ws2)
-      _             -> errorMsg <| strPos e1.start ++ " non-exhaustive case statement"
+      _             -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " non-exhaustive case statement"
 
   ETypeCase _ pat tbranches _ ->
-    case evalTBranches env pat tbranches of
+    case evalTBranches env (e::bt) pat tbranches of
       Just (v,ws) -> retBoth (v, ws)
-      _           -> errorMsg <| strPos pat.start ++ " non-exhaustive typecase statement"
+      _           -> errorWithBacktrace (e::bt) <| strPos pat.start ++ " non-exhaustive typecase statement"
 
   EApp _ e1 [e2] _ ->
-    let ((v1,ws1),(v2,ws2)) = (eval_ env e1, eval_ env e2) in
+    let ((v1,ws1),(v2,ws2)) = (eval_ env bt' e1, eval_ env bt' e2) in
     let ws = ws1 ++ ws2 in
     case v1.v_ of
       VClosure Nothing p eBody env' ->
         case (p, v2) `cons` Just env' of
-          Just env'' -> addWidgets ws <| eval env'' eBody -- TODO add eid to vTrace
-          _          -> errorMsg <| strPos e1.start ++ "bad environment"
+          Just env'' -> addWidgets ws <| eval env'' bt' eBody -- TODO add eid to vTrace
+          _          -> errorWithBacktrace (e::bt) <| strPos e1.start ++ "bad environment"
       VClosure (Just f) p eBody env' ->
         case (pVar f, v1) `cons` ((p, v2) `cons` Just env') of
-          Just env'' -> addWidgets ws <| eval env'' eBody -- TODO add eid to vTrace
-          _          -> errorMsg <| strPos e1.start ++ "bad environment"
+          Just env'' -> addWidgets ws <| eval env'' bt' eBody -- TODO add eid to vTrace
+          _          -> errorWithBacktrace (e::bt) <| strPos e1.start ++ "bad environment"
       _ ->
-        errorMsg <| strPos e1.start ++ " not a function: " ++ (unparse e)
+        errorWithBacktrace (e::bt) <| strPos e1.start ++ " not a function"
 
   ELet _ _ True p e1 e2 _ ->
-    let (v1,ws1) = eval_ env e1 in
+    let (v1,ws1) = eval_ env bt' e1 in
     case (p.val, v1.v_) of
       (PVar _ f _, VClosure Nothing x body env') ->
         let _   = Utils.assert "eval letrec" (env == env') in
         let v1' = Val (VClosure (Just f) x body env) v1.vtrace in
         case (pVar f, v1') `cons` Just env of
-          Just env' -> addWidgets ws1 <| eval env' e2
-          _         -> errorMsg <| strPos e.start ++ "bad ELet"
+          Just env' -> addWidgets ws1 <| eval env' bt' e2
+          _         -> errorWithBacktrace (e::bt) <| strPos e.start ++ "bad ELet"
       (PList _ _ _ _ _, _) ->
-        errorMsg <|
+        errorWithBacktrace (e::bt) <|
           strPos e1.start ++
           "mutually recursive functions (i.e. letrec [...] [...] e) \
            not yet implemented"
            -- Implementation also requires modifications to LangTransform.simply
            -- so that clean up doesn't prune the funtions.
       _ ->
-        errorMsg <| strPos e.start ++ "bad ELet"
+        errorWithBacktrace (e::bt) <| strPos e.start ++ "bad ELet"
 
-  EComment _ _ e1       -> eval env e1
-  EOption _ _ _ _ e1    -> eval env e1
-  ETyp _ _ _ e1 _       -> eval env e1
-  EColonType _ e1 _ _ _ -> eval env e1
-  ETypeAlias _ _ _ e1 _ -> eval env e1
+  EComment _ _ e1       -> eval env bt e1
+  EOption _ _ _ _ e1    -> eval env bt e1
+  ETyp _ _ _ e1 _       -> eval env bt e1
+  EColonType _ e1 _ _ _ -> eval env bt e1
+  ETypeAlias _ _ _ e1 _ -> eval env bt e1
 
   -- abstract syntactic sugar
 
-  EFun _ ps e1 _           -> retAddWs e1.val.eid <| eval env (eFun ps e1)
-  EApp _ e1 es _           -> retAddWs e.val.eid  <| eval env (eApp e1 es)
-  ELet _ _ False p e1 e2 _ -> retAddWs e2.val.eid <| eval env (eApp (eFun [p] e2) [e1])
+  EFun _ ps e1 _           -> retAddWs e1.val.eid <| eval env bt' (eFun ps e1)
+  EApp _ e1 es _           -> retAddWs e.val.eid  <| eval env bt' (eApp e1 es)
+  ELet _ _ False p e1 e2 _ -> retAddWs e2.val.eid <| eval env bt' (eApp (eFun [p] e2) [e1])
 
 
-evalOp env opWithInfo es =
+evalOp env bt opWithInfo es =
   let (op,opStart) = (opWithInfo.val, opWithInfo.start) in
-  let (vs,wss) = List.unzip (List.map (eval_ env) es) in
+  let (vs,wss) = List.unzip (List.map (eval_ env bt) es) in
   let error () =
-    errorMsg
+    errorWithBacktrace bt
       <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart
-      ++ ":\n" ++ Utils.lines (List.map unparse es)
+      ++ ":\n" ++ Utils.lines (Utils.zip vs es |> List.map (\(v,e) -> (strVal v) ++ " from " ++ (unparse e)))
   in
   let emptyVTrace val_ = Val val_ [] in
   let nullaryOp args retVal =
@@ -189,12 +195,12 @@ evalOp env opWithInfo es =
   in
   let unaryMathOp op args =
     case args of
-      [VConst (n,t)] -> VConst (evalDelta op [n], TrOp op [t]) |> emptyVTrace
+      [VConst (n,t)] -> VConst (evalDelta bt op [n], TrOp op [t]) |> emptyVTrace
       _              -> error ()
   in
   let binMathOp op args =
     case args of
-      [VConst (i,it), VConst (j,jt)] -> VConst (evalDelta op [i,j], TrOp op [it,jt]) |> emptyVTrace
+      [VConst (i,it), VConst (j,jt)] -> VConst (evalDelta bt op [i,j], TrOp op [it,jt]) |> emptyVTrace
       _                              -> error ()
   in
   let args = List.map .v_ vs in
@@ -220,14 +226,14 @@ evalOp env opWithInfo es =
       DictEmpty  -> nullaryOp args (VDict Dict.empty) |> emptyVTrace
       DictInsert -> case vs of
         [vkey, val, {v_}] -> case v_ of
-          VDict d -> VDict (Dict.insert (valToDictKey vkey.v_) val d) |> emptyVTrace
+          VDict d -> VDict (Dict.insert (valToDictKey bt vkey.v_) val d) |> emptyVTrace
           _       -> error()
         _                 -> error ()
       DictGet    -> case args of
-        [key, VDict d] -> Utils.getWithDefault (valToDictKey key) (VBase Null |> emptyVTrace) d
+        [key, VDict d] -> Utils.getWithDefault (valToDictKey bt key) (VBase Null |> emptyVTrace) d
         _              -> error ()
       DictRemove -> case args of
-        [key, VDict d] -> VDict (Dict.remove (valToDictKey key) d) |> emptyVTrace
+        [key, VDict d] -> VDict (Dict.remove (valToDictKey bt key) d) |> emptyVTrace
         _              -> error ()
       Cos        -> unaryMathOp op args
       Sin        -> unaryMathOp op args
@@ -244,24 +250,25 @@ evalOp env opWithInfo es =
   in
   (newVal, List.concat wss)
 
-evalBranches env v bs =
+evalBranches env bt v bs =
   List.foldl (\(Branch_ _ pat exp _) acc ->
     case (acc, (pat,v) `cons` Just env) of
       (Just done, _)       -> Just done
-      (Nothing, Just env') -> Just (eval_ env' exp)
+      (Nothing, Just env') -> Just (eval_ env' bt exp)
       _                    -> Nothing
 
   ) Nothing (List.map .val bs)
 
 
-evalTBranches env pat tbranches =
+evalTBranches env bt pat tbranches =
   List.foldl (\(TBranch_ _ tipe exp _) result ->
     if result == Nothing && Types.typeCaseMatch env pat tipe
-    then Just (eval_ env exp)
+    then Just (eval_ env bt exp)
     else result
   ) Nothing (List.map .val tbranches)
 
-evalDelta op is =
+
+evalDelta bt op is =
   case (op, is) of
 
     (Plus,    [i,j]) -> (+) i j
@@ -288,23 +295,23 @@ evalDelta op is =
       let m = n1 + toFloat i in
       if m > n2 then n2 else m
 
-    _                -> errorMsg <| "Eval.evalDelta " ++ strOp op
+    _                -> errorWithBacktrace bt <| "Eval.evalDelta " ++ strOp op
 
-valToDictKey : Val_ -> (String, String)
-valToDictKey val_ =
+valToDictKey : Backtrace -> Val_ -> (String, String)
+valToDictKey bt val_ =
   case val_ of
     VConst (n, tr)   -> (toString n, "num")
     VBase (Bool b)   -> (toString b, "bool")
     VBase (String s) -> (toString s, "string")
     VBase Null       -> ("", "null")
-    VList vals       -> (toString <| List.map (valToDictKey << .v_) vals, "list")
-    _                -> errorMsg <| "Cannot use " ++ (strVal (val val_)) ++ " in a key to a dictionary."
+    VList vals       -> (toString <| List.map ((valToDictKey bt) << .v_) vals, "list")
+    _                -> errorWithBacktrace bt <| "Cannot use " ++ (strVal (val val_)) ++ " in a key to a dictionary."
 
-initEnv = snd (eval [] Parser.prelude)
+initEnv = snd (eval [] [] Parser.prelude)
 
 run : Exp -> (Val, Widgets)
 run e =
-  eval_ initEnv e
+  eval_ initEnv [] e
 
 parseAndRun : String -> String
 parseAndRun = strVal << fst << run << Utils.fromOk_ << Parser.parseE
@@ -349,3 +356,20 @@ isSorted_ mlast vs = case vs of
                        else False
       _ ->
         Debug.crash "isSorted"
+
+btString : Backtrace -> String
+btString bt =
+  case bt of
+    [] -> ""
+    mostRecentExp::others ->
+      let singleLineExpStrs =
+        others
+        |> List.map (Utils.head_ << String.lines << String.trimLeft << unparse)
+        |> List.reverse
+        |> String.join "\n"
+      in
+      singleLineExpStrs ++ "\n" ++ (unparse mostRecentExp)
+
+
+errorWithBacktrace bt message =
+  errorMsg <| (btString bt) ++ "\n" ++ message

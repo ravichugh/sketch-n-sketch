@@ -734,7 +734,7 @@ fetchSlideVal slideNumber val =
         PVar _ argumentName _ ->
           -- Bind the slide number to the function's argument.
           let fenv' = (argumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
-          let ((returnVal, _), _) = Eval.eval fenv' fexp in
+          let ((returnVal, _), _) = Eval.eval fenv' [] fexp in
           returnVal
         _ -> Debug.crash ("expected slide function to take a single argument, got " ++ (toString pat.val))
     _ -> val -- Program returned a plain SVG array structure...we hope.
@@ -747,7 +747,7 @@ fetchMovieVal movieNumber slideVal =
       case pat.val of -- Find the function's argument name
         PVar _ movieNumberArgumentName _ ->
           let fenv' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenv in
-          let ((returnVal, _), _) = Eval.eval fenv' fexp in
+          let ((returnVal, _), _) = Eval.eval fenv' [] fexp in
           returnVal
         _ -> Debug.crash ("expected movie function to take a single argument, got " ++ (toString pat.val))
     _ -> slideVal -- Program returned a plain SVG array structure...we hope.
@@ -770,13 +770,13 @@ fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
       case pat.val of -- Find the function's argument names
         PVar _ slideNumberArgumentName _ ->
           let fenv' = (slideNumberArgumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
-          let ((innerVal, _), _) = Eval.eval fenv' fexp in
+          let ((innerVal, _), _) = Eval.eval fenv' [] fexp in
           case innerVal.v_ of
             VClosure _ patInner fexpInner fenvInner ->
               case patInner.val of
                 PVar _ movieNumberArgumentName _ ->
                   let fenvInner' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenvInner in
-                  let ((returnVal, _), _) = Eval.eval fenvInner' fexpInner in
+                  let ((returnVal, _), _) = Eval.eval fenvInner' [] fexpInner in
                   returnVal
                 _ -> Debug.crash ("expected static movie frame function to take two arguments, got " ++ (toString patInner.val))
             _ -> Debug.crash ("expected static movie frame function to take two arguments, got " ++ (toString innerVal))
@@ -785,19 +785,19 @@ fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
       case pat.val of -- Find the function's argument names
         PVar _ slideNumberArgumentName _ ->
           let fenv' = (slideNumberArgumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
-          let ((innerVal1, _), _) = Eval.eval fenv' fexp in
+          let ((innerVal1, _), _) = Eval.eval fenv' [] fexp in
           case innerVal1.v_ of
             VClosure _ patInner1 fexpInner1 fenvInner1 ->
               case patInner1.val of
                 PVar _ movieNumberArgumentName _ ->
                   let fenvInner1' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenvInner1 in
-                  let ((innerVal2, _), _) = Eval.eval fenvInner1' fexpInner1 in
+                  let ((innerVal2, _), _) = Eval.eval fenvInner1' [] fexpInner1 in
                   case innerVal2.v_ of
                     VClosure _ patInner2 fexpInner2 fenvInner2 ->
                       case patInner2.val of
                         PVar _ movieSecondsArgumentName _ ->
                           let fenvInner2' = (movieSecondsArgumentName, vConst (movieTime, dummyTrace)) :: fenvInner2 in
-                          let ((returnVal, _), _) = Eval.eval fenvInner2' fexpInner2 in
+                          let ((returnVal, _), _) = Eval.eval fenvInner2' [] fexpInner2 in
                           returnVal
                         _ -> Debug.crash ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner2.val))
                     _ -> Debug.crash ("expected dynamic movie frame function to take four arguments, got " ++ (toString innerVal2))

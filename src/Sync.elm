@@ -325,7 +325,7 @@ evalTrace subst t = case t of
   TrLoc (k,_,_) -> Dict.get k subst
   TrOp op ts ->
     Utils.mapMaybe
-      (Eval.evalDelta op)
+      (Eval.evalDelta [] op)
       (Utils.projJusts (List.map (evalTrace subst) ts))
 
 evalLoc : Subst -> Trace -> Maybe (Maybe Num)

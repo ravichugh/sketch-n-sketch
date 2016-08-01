@@ -157,7 +157,7 @@ type BaseVal -- unlike Ints, these cannot be changed by Sync
 type Trace = TrLoc Loc | TrOp Op_ (List Trace)
 
 type alias Env = List (Ident, Val)
-
+type alias Backtrace = List Exp
 
 ------------------------------------------------------------------------------
 -- Unparsing
