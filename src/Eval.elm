@@ -1,6 +1,7 @@
 module Eval (run, parseAndRun, parseAndRun_, evalDelta, eval) where
 
 import Debug
+import String
 
 import Lang exposing (..)
 import LangParser2 as Parser
@@ -209,7 +210,8 @@ evalOp env opWithInfo es =
         _      -> error ()
     [VBase (String s)] ->
       case op of
-        ToStr  -> VBase (String (strBaseVal (String s)))
+        ToStr  -> VBase (String s)
+        Explode -> VList (List.map (vStr << String.fromChar) (String.toList s))
         _      -> error ()
     [_, _] ->
       case op of

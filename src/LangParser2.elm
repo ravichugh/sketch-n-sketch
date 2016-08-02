@@ -562,6 +562,7 @@ parseUOp =
   <++ (always Round   <$> whiteTokenOneWS "round")
   <++ (always ToStr   <$> whiteTokenOneWS "toString")
   <++ (always Sqrt    <$> whiteTokenOneWS "sqrt")
+  <++ (always Explode <$> whiteTokenOneWS "explode")
 
 -- Parse (pi) etc...
 parseConst =
