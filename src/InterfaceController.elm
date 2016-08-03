@@ -431,8 +431,7 @@ addRawSquare old (_,pt2) (_,pt1) =
 addStretchyRect old (_,pt2) (_,pt1) =
   let (xMin, xMax, yMin, yMax) = View.boundingBox pt2 pt1 in
   addToCodeAndRun "rect" old
-    [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-    , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
+    [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
     , makeLet ["color"] [randomColor1 old] ]
     (eVar0 "rectangle")
     [eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc, eConst 0 dummyLoc, eVar "bounds"]
@@ -474,8 +473,7 @@ addRawCircle old (_,pt2) (_,pt1) =
 addStretchyOval old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = View.boundingBox pt2 pt1 in
   addToCodeAndRun "ellipse" old
-    [ makeLet ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
-    , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
+    [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
     , makeLet ["color","strokeColor","strokeWidth"]
               [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
     (eVar0 "oval")
@@ -559,8 +557,7 @@ addStretchablePolygon old keysAndPoints =
         Utils.bracks (Utils.spaces [xStr,yStr])
   in
   addToCodeAndRun "polygon" old
-    [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-    , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
+    [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
     , makeLet ["color","strokeColor","strokeWidth"]
               [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
     , makeLet ["pcts"] [eRaw sPcts] ]
@@ -587,8 +584,7 @@ addStickyPolygon old keysAndPoints =
         Utils.bracks (Utils.spaces [xOff,yOff])
   in
   addToCodeAndRun "polygon" old
-    [ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-    , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
+    [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
     , makeLet ["color","strokeColor","strokeWidth"]
               [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
     , makeLet ["offsets"] [eRaw sOffsets] ]
@@ -674,8 +670,7 @@ addStretchyPath old keysAndPoints =
   let strY y = maybeThaw (toFloat (y - yMin) / height) in
   let (extraLets, sD) = pathCommands strX strY keysAndPoints in
   addToCodeAndRun "path" old
-    ([ makeLet ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-     , makeLet ["bounds"] [eList (listOfVars ["left","top","right","bot"]) Nothing]
+    ([ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
      , makeLet ["strokeColor","strokeWidth","color"]
                [ randomColor old, eConst 5 dummyLoc, randomColor1 old ] ]
      ++ extraLets
@@ -765,6 +760,11 @@ makeLet vars exps =
                      let p = pVar0 x in
                      (pList (p::ps), eList (e::es) Nothing)
     _             -> Debug.crash "makeLet"
+
+makeLetAs : Ident -> List Ident -> List Exp -> (Pat, Exp)
+makeLetAs x vars exps =
+  let (p, e) = makeLet vars exps in
+  (pAs x p, e)
 
 makeInts : List Int -> List Exp
 makeInts nums =
@@ -1007,12 +1007,8 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs =
     in
     let groupDefs =
       [ ( "\n  "
-        , pList (listOfPVars ["left", "top", "right", "bot"])
+        , pAs "bounds" (pList (listOfPVars ["left", "top", "right", "bot"]))
         , eList (listOfNums [fst left, fst top, fst right, fst bot]) Nothing
-        , "")
-      , ( "\n  "
-        , pVar "bounds"
-        , eList (listOfVars ["left", "top", "right", "bot"]) Nothing
         , "")
       ]
     in
