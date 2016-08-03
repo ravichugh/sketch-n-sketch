@@ -13,3 +13,4 @@
 - [ ] Link to specific example
 - [ ] RGBA widgets
 - [ ] Z-order buttons
+- [ ] Preview paths/polygons while drawing
