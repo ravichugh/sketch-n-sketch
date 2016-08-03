@@ -35,7 +35,7 @@ type alias Range   = P.WithInfo Range_
 type Pat_
   = PVar WS Ident WidgetDecl
   | PConst WS Num
-  | PBase WS BaseVal
+  | PBase WS EBaseVal
   | PList WS (List Pat) WS (Maybe Pat) WS
   | PAs WS Ident WS Pat
 
@@ -66,7 +66,7 @@ type alias Exp_ = { e__ : Exp__, eid : EId }
 
 type Exp__
   = EConst WS Num Loc WidgetDecl
-  | EBase WS BaseVal
+  | EBase WS EBaseVal
   | EVar WS Ident
   | EFun WS (List Pat) Exp WS -- WS: before (, before )
   | EApp WS Exp (List Exp) WS
@@ -139,7 +139,7 @@ type alias Val    = { v_ : Val_, vtrace : VTrace }
 
 type Val_
   = VConst NumTr
-  | VBase BaseVal
+  | VBase VBaseVal
   | VClosure (Maybe Ident) Pat Exp Env
   | VList (List Val)
   | VDict VDict_
@@ -149,12 +149,20 @@ type alias VDict_ = Dict.Dict (String, String) Val
 
 type alias NumTr = (Num, Trace)
 
+defaultQuoteChar = "'"
+type alias QuoteChar = String
+
 -- TODO combine all base exps/vals into PBase/EBase/VBase
-type BaseVal -- unlike Ints, these cannot be changed by Sync
-  = Bool Bool
-  | String String
-  | Null
-  | Star -- placeholder used by sync
+type VBaseVal -- unlike Ints, these cannot be changed by Sync
+  = VBool Bool
+  | VString String
+  | VNull
+  | VStar -- placeholder used by sync
+
+type EBaseVal
+  = EBool Bool
+  | EString QuoteChar String
+  | ENull
 
 type Trace = TrLoc Loc | TrOp Op_ (List Trace)
 
@@ -165,11 +173,11 @@ type alias Backtrace = List Exp
 -- Unparsing
 
 strBaseVal v = case v of
-  Bool True  -> "true"
-  Bool False -> "false"
-  String s   -> "\'" ++ s ++ "\'"
-  Null       -> "null"
-  Star       -> "X"
+  VBool True  -> "true"
+  VBool False -> "false"
+  VString s   -> "'" ++ s ++ "'"
+  VNull       -> "null"
+  VStar       -> "X"
 
 strVal     = strVal_ False
 strValLocs = strVal_ True
@@ -542,9 +550,9 @@ dummyTrace = dummyTrace_ unann
 
 ePlus e1 e2 = withDummyPos <| EOp "" (withDummyRange Plus) [e1,e2] ""
 
-eBool  = withDummyPos << EBase " " << Bool
-eStr   = withDummyPos << EBase " " << String
-eStr0  = withDummyPos << EBase "" << String
+eBool  = withDummyPos << EBase " " << EBool
+eStr   = withDummyPos << EBase " " << EString defaultQuoteChar
+eStr0  = withDummyPos << EBase "" << EString defaultQuoteChar
 eTrue  = eBool True
 eFalse = eBool False
 
@@ -589,8 +597,8 @@ pList ps       = withDummyRange <| PList " " ps "" Nothing ""
 -- note: dummy ids...
 vTrue    = vBool True
 vFalse   = vBool False
-vBool    = val << VBase << Bool
-vStr     = val << VBase << String
+vBool    = val << VBase << VBool
+vStr     = val << VBase << VString
 vConst   = val << VConst
 vBase    = val << VBase
 vList    = val << VList
@@ -612,8 +620,8 @@ unwrapVList_ s v = case v.v_ of
 
 unwrapVBaseString_ : String -> Val_ -> String
 unwrapVBaseString_ s v_ = case v_ of
-  VBase (String k) -> k
-  _                -> Debug.crash <| "unwrapVBaseString_: " ++ s
+  VBase (VString k) -> k
+  _                 -> Debug.crash <| "unwrapVBaseString_: " ++ s
 
 
 eRaw__ = EVar

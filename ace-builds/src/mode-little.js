@@ -52,6 +52,11 @@ this.$rules =
             next  : "qstring"
         },
         {
+            token : "string",
+            regex : '"(?=.)',
+            next  : "qqstring"
+        },
+        {
             token : "keyword.type.little",
             regex : /:/,
             next  : "inType"
@@ -262,6 +267,21 @@ this.$rules =
         {
             token : "string",
             regex : '\'',
+            next  : "start"
+        }
+    ],
+    "qqstring": [
+        {
+            token: "constant.character.escape.little",
+            regex: "\\\\."
+        },
+        {
+            token : "string",
+            regex : '[^\"\\\\]+'
+        },
+        {
+            token : "string",
+            regex : '\"',
             next  : "start"
         }
     ]

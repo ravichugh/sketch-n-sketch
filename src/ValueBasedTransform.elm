@@ -594,8 +594,8 @@ wrapWithLets listOfListsOfNamesAndAssigns isTopLevel bodyExp =
         mapExpViaExp__
             (\e__ ->
               case e__ of
-                EBase _ (String "dummy body") -> (addPrecedingWhitespace extraWhitespace bodyExp).val.e__
-                _                             -> e__
+                EBase _ (EString _ "dummy body") -> (addPrecedingWhitespace extraWhitespace bodyExp).val.e__
+                _                                -> e__
             )
             template
       in

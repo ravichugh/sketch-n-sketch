@@ -38,7 +38,7 @@ valToHtml : Int -> Int -> Val -> Html.Html
 valToHtml w h v = case v.v_ of
   VList vs ->
     case List.map .v_ vs of
-      [VBase (String "svg"), VList vs1, VList vs2] ->
+      [VBase (VString "svg"), VList vs1, VList vs2] ->
         let wh = [numAttrToVal "width" w, numAttrToVal "height" h] in
         let v' = vList [vStr "svg", vList (wh ++ vs1), vList vs2] in
         compileValToNode v'
@@ -52,8 +52,8 @@ compileValToNode : Val -> VirtualDom.Node
 compileValToNode v = case v.v_ of
   VList vs ->
     case List.map .v_ vs of
-      [VBase (String "TEXT"), VBase (String s)] -> VirtualDom.text s
-      [VBase (String f), VList vs1, VList vs2] ->
+      [VBase (VString "TEXT"), VBase (VString s)] -> VirtualDom.text s
+      [VBase (VString f), VList vs1, VList vs2] ->
         (Svg.node f) (compileAttrVals vs1) (compileNodeVals vs2)
       _ ->
         Debug.crash "compileValToNode"
@@ -73,7 +73,7 @@ compileAttr : String -> AVal -> Svg.Attribute
 compileAttr k v = (attr k) (strAVal v)
 
 numAttrToVal a i =
-  vList [vBase (String a), vConst (toFloat i, dummyTrace)]
+  vList [vBase (VString a), vConst (toFloat i, dummyTrace)]
 
 type alias AVal = { av_ : AVal_, vtrace : VTrace }
 
@@ -169,7 +169,7 @@ toTransformRot a = case a.av_ of
 
 valToAttr v = case v.v_ of
   VList [v1,v2] -> case (v1.v_, v2.v_) of
-    (VBase (String k), v2_) ->
+    (VBase (VString k), v2_) ->
      -- NOTE: Elm bug? undefined error when shadowing k (instead of choosing k')
      let (k',av_) =
       case (k, v2_) of
@@ -182,7 +182,7 @@ valToAttr v = case v.v_ of
         ("transform", VList vs) -> (k, ATransform (valsToTransform vs))
         ("BOUNDS", VList vs)    -> (k, ABounds <| valToBounds vs)
         (_, VConst it)          -> (k, ANum it)
-        (_, VBase (String s))   -> (k, AString s)
+        (_, VBase (VString s))  -> (k, AString s)
         _                       -> Debug.crash "valToAttr"
      in
      (k', AVal av_ v2.vtrace)
@@ -234,7 +234,7 @@ strAVal a = case a.av_ of
 
 valOfAVal : AVal -> Val
 valOfAVal a = flip Val a.vtrace <| case a.av_ of
-  AString s    -> VBase (String s)
+  AString s    -> VBase (VString s)
   ANum it      -> VConst it
   APoints l    -> VList (List.map pointToVal l)
   ARgba tup    -> VList (rgbaToVal tup)
@@ -283,7 +283,7 @@ pathIndexPoints nodeAttrs =
   pts
 
 
-valOfAttr (k,a) = vList [vBase (String k), valOfAVal a]
+valOfAttr (k,a) = vList [vBase (VString k), valOfAVal a]
   -- no VTrace to preserve...
 
 -- https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
@@ -300,7 +300,7 @@ valsToPath2_ : PathCounts -> List Val -> (List PathCmd, PathCounts)
 valsToPath2_ counts vs = case vs of
   []     -> ([], counts)
   v::vs' -> case v.v_ of
-    VBase (String cmd) ->
+    VBase (VString cmd) ->
       if matchCmd cmd "Z" then
         CmdZ cmd +++ valsToPath2_ counts vs'
       else if matchCmd cmd "MLT" then
@@ -388,7 +388,7 @@ valsToTransform = List.map valToTransformCmd
 
 valToTransformCmd v = case v.v_ of
   VList vs1 -> case List.map .v_ vs1 of
-    (VBase (String k) :: vs) ->
+    (VBase (VString k) :: vs) ->
       case (k, vs) of
         ("rotate",    [VConst n1, VConst n2, VConst n3]) -> Rot n1 n2 n3
         ("scale",     [VConst n1, VConst n2])            -> Scale n1 n2
@@ -416,7 +416,7 @@ valToPath_ vs =
   let pt (i,_) (j,_) = toString i ++ " " ++ toString j in
   case vs of
     [] -> []
-    VBase (String cmd) :: vs' ->
+    VBase (VString cmd) :: vs' ->
       if | matchCmd cmd "Z" -> cmd :: valToPath_ vs'
          | matchCmd cmd "MLT" ->
              let ([sx,sy],vs'') = projConsts 2 vs' in
@@ -672,7 +672,7 @@ children n = case n of
   SvgNode _ _ l -> l
 
 emptyTree : RootedIndexedTree
-emptyTree = valToIndexedTree <| vList [vBase (String "svg"), vList [], vList []]
+emptyTree = valToIndexedTree <| vList [vBase (VString "svg"), vList [], vList []]
 
 -- TODO use options for better error messages
 
@@ -755,9 +755,9 @@ fetchMovieVal movieNumber slideVal =
 fetchMovieDurationAndContinueBool : Val -> (Float, Bool)
 fetchMovieDurationAndContinueBool movieVal =
   case unwrapVList movieVal of
-    Just [VBase (String "Static"), VClosure _ _ _ _] ->
+    Just [VBase (VString "Static"), VClosure _ _ _ _] ->
       (0.0, False)
-    Just [VBase (String "Dynamic"), VConst (movieDuration, _), VClosure _ _ _ _, VBase (Bool continue)] ->
+    Just [VBase (VString "Dynamic"), VConst (movieDuration, _), VClosure _ _ _ _, VBase (VBool continue)] ->
       (movieDuration, continue)
     _ ->
       (0.0, False) -- Program returned a plain SVG array structure...we hope.
@@ -766,7 +766,7 @@ fetchMovieDurationAndContinueBool movieVal =
 fetchMovieFrameVal : Int -> Int -> Float -> Val -> Val
 fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
   case unwrapVList movieVal of
-    Just [VBase (String "Static"), VClosure _ pat fexp fenv] ->
+    Just [VBase (VString "Static"), VClosure _ pat fexp fenv] ->
       case pat.val of -- Find the function's argument names
         PVar _ slideNumberArgumentName _ ->
           let fenv' = (slideNumberArgumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
@@ -781,7 +781,7 @@ fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
                 _ -> Debug.crash ("expected static movie frame function to take two arguments, got " ++ (toString patInner.val))
             _ -> Debug.crash ("expected static movie frame function to take two arguments, got " ++ (toString innerVal))
         _ -> Debug.crash ("expected static movie frame function to take two arguments, got " ++ (toString pat.val))
-    Just [VBase (String "Dynamic"), VConst (movieDuration, _), VClosure _ pat fexp fenv, VBase (Bool _)] ->
+    Just [VBase (VString "Dynamic"), VConst (movieDuration, _), VClosure _ pat fexp fenv, VBase (VBool _)] ->
       case pat.val of -- Find the function's argument names
         PVar _ slideNumberArgumentName _ ->
           let fenv' = (slideNumberArgumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
@@ -817,10 +817,10 @@ valToIndexedTree_ v (nextId, d) = case v.v_ of
 
   VList vs -> case List.map .v_ vs of
 
-    [VBase (String "TEXT"), VBase (String s)] ->
+    [VBase (VString "TEXT"), VBase (VString s)] ->
       (1 + nextId, Dict.insert nextId (TextNode s) d)
 
-    [VBase (String kind), VList vs1, VList vs2] ->
+    [VBase (VString kind), VList vs1, VList vs2] ->
       let processChild vi (a_nextId, a_graph , a_children) =
         let (a_nextId',a_graph') = valToIndexedTree_ vi (a_nextId, a_graph) in
         let a_children'          = (a_nextId' - 1) :: a_children in
