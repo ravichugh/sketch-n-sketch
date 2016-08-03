@@ -100,9 +100,12 @@ type Type_
   | TDict WS Type Type WS
   | TTuple WS (List Type) WS (Maybe Type) WS
   | TArrow WS (List Type) WS
+  -- TODO separate return type:
+  --  | TArrow WS ArrowType WS
   | TUnion WS (List Type) WS
   | TNamed WS Ident
   | TVar WS Ident
+  | TForall WS (List (WS, Ident)) Type WS
   | TWildcard WS
 
 type alias WS = String
@@ -112,6 +115,8 @@ type TBranch_ = TBranch_ WS Type Exp WS
 
 type LetKind = Let | Def
 type alias Rec = Bool
+
+type alias ArrowType = (List Type, Type)
 
 type Range_ -- right now, Exps are always EConsts
   = Interval Exp WS Exp
@@ -533,6 +538,9 @@ exp_ = flip Exp_ (-1)
 withDummyRange x  = P.WithInfo x P.dummyPos P.dummyPos
 withDummyPos e__  = P.WithInfo (exp_ e__) P.dummyPos P.dummyPos
   -- TODO rename withDummyPos
+
+replaceE__ : Exp -> Exp__ -> Exp
+replaceE__ e e__ = let e_ = e.val in { e | val = { e_ | e__ = e__ } }
 
 dummyLoc_ b = (0, b, "")
 dummyTrace_ b = TrLoc (dummyLoc_ b)

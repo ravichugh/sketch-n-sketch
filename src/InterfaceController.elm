@@ -297,6 +297,7 @@ maybeSvgConcat main =
         (EVar _ "svg", EApp ws3 eConcat [e2] ws4) ->
           case (eConcat.val.e__, e2.val.e__) of
             (EVar _ "concat", EList ws5 oldList ws6 Nothing ws7) ->
+              -- TODO use replaceE__
               let updateExpressionList newList =
                 let
                   e2' =
@@ -326,6 +327,7 @@ maybeBlobs main =
     EApp ws1 eBlobs [eArgs] ws2 ->
       case (eBlobs.val.e__, eArgs.val.e__) of
         (EVar _ "blobs", EList ws5 oldList ws6 Nothing ws7) ->
+          -- TODO use replaceE__
           let rebuildExp newBlobExpList =
             let newExpList = List.map fromBlobExp newBlobExpList in
             let
@@ -1462,6 +1464,7 @@ mergeExpressions
     : Exp -> List Exp
    -> Maybe (Exp, List (Ident, List AnnotatedNum))
 mergeExpressions eFirst eRest =
+  -- TODO use replaceE__
   let wrap e__ =
     let e_val = eFirst.val in { eFirst | val = { e_val | e__ = e__ } } in
   let return e__ list =
@@ -2040,6 +2043,7 @@ upstate evt old = case debugLog "Event" evt of
            let selectedIdx = min (fst old.lambdaTools) (List.length options) in
            (selectedIdx, options)
          in
+         let _ = Types.typecheck e in
          let new =
            { old | inputExp      = e
                  , inputVal      = newVal

@@ -1,5 +1,6 @@
 module LangUnparser
-  (unparse, unparsePat, unparseWD, traceToLittle, bumpCol, incCol, precedingWhitespace,
+  (unparse, unparsePat, unparseWD, unparseType,
+    traceToLittle, bumpCol, incCol, precedingWhitespace,
     precedingWhitespaceExp__, addPrecedingWhitespace,
     replacePrecedingWhitespace, replacePrecedingWhitespacePat,
     indent
@@ -216,6 +217,8 @@ unparseType tipe =
     TNamed ws1 ident        -> ws1 ++ ident
     TVar ws1 ident          -> ws1 ++ ident
     TWildcard ws            -> ws ++ "_"
+    TForall ws1 typeVars tipe1 ws2 ->
+      ws1 ++ Utils.parens (String.concat (List.map (\(ws,x) -> ws ++ x) typeVars) ++ unparseType tipe1 ++ ws2)
 
 unparse : Exp -> String
 unparse e = case e.val.e__ of
