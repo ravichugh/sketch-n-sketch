@@ -297,18 +297,11 @@ maybeSvgConcat main =
         (EVar _ "svg", EApp ws3 eConcat [e2] ws4) ->
           case (eConcat.val.e__, e2.val.e__) of
             (EVar _ "concat", EList ws5 oldList ws6 Nothing ws7) ->
-              -- TODO use replaceE__
               let updateExpressionList newList =
                 let
-                  e2' =
-                    { e2 | val = { eid = e2.val.eid , e__ =
-                        EList ws5 newList ws6 Nothing ws7 } }
-                  eAppConcat' =
-                    { eAppConcat | val = { eid = eAppConcat.val.eid , e__ =
-                        EApp ws3 eConcat [e2'] ws4 } }
-                  main' =
-                    { main | val = { eid = main.val.eid , e__ =
-                        EApp ws1 e1 [eAppConcat'] ws2 } }
+                  e2'         = replaceE__ e2 <| EList ws5 newList ws6 Nothing ws7
+                  eAppConcat' = replaceE__ eAppConcat <| EApp ws3 eConcat [e2'] ws4
+                  main'       = replaceE__ main <| EApp ws1 e1 [eAppConcat'] ws2
                 in
                 if ws1 == "" then addPrecedingWhitespace "\n\n" main'
                 else if ws1 == "\n" then addPrecedingWhitespace "\n" main'
@@ -327,16 +320,11 @@ maybeBlobs main =
     EApp ws1 eBlobs [eArgs] ws2 ->
       case (eBlobs.val.e__, eArgs.val.e__) of
         (EVar _ "blobs", EList ws5 oldList ws6 Nothing ws7) ->
-          -- TODO use replaceE__
           let rebuildExp newBlobExpList =
             let newExpList = List.map fromBlobExp newBlobExpList in
             let
-              eArgs' =
-                { eArgs | val = { eid = eArgs.val.eid , e__ =
-                    EList ws5 newExpList ws6 Nothing ws7 } }
-              main' =
-                { main | val = { eid = main.val.eid , e__ =
-                    EApp ws1 eBlobs [eArgs'] ws2 } }
+              eArgs' = replaceE__ eArgs <| EList ws5 newExpList ws6 Nothing ws7
+              main'  = replaceE__ main <| EApp ws1 eBlobs [eArgs'] ws2
             in
             if ws1 == "" then addPrecedingWhitespace "\n\n" main'
             else if ws1 == "\n" then addPrecedingWhitespace "\n" main'
@@ -1464,11 +1452,8 @@ mergeExpressions
     : Exp -> List Exp
    -> Maybe (Exp, List (Ident, List AnnotatedNum))
 mergeExpressions eFirst eRest =
-  -- TODO use replaceE__
-  let wrap e__ =
-    let e_val = eFirst.val in { eFirst | val = { e_val | e__ = e__ } } in
   let return e__ list =
-    Just (wrap e__, list) in
+    Just (replaceE__ eFirst e__, list) in
 
   case eFirst.val.e__ of
 
