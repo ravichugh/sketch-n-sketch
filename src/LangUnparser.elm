@@ -178,11 +178,16 @@ mapPrecedingWhitespacePat mapWs pat =
   in
   { pat | val = pat_' }
 
+escapeQuotes quoteChar string =
+  string
+  |> Regex.replace Regex.All (Regex.regex <| Regex.escape "\\") (\_ -> "\\\\")
+  |> Regex.replace Regex.All (Regex.regex quoteChar)            (\_ -> "\\" ++ quoteChar)
+
 unparseBaseVal bv =
   case bv of
     EBool True   -> "true"
     EBool False  -> "false"
-    EString qc s -> qc ++ s ++ qc
+    EString qc s -> qc ++ (escapeQuotes qc s) ++ qc
     ENull        -> "null"
 
 unparseWD : WidgetDecl -> String

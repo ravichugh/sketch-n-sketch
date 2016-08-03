@@ -238,15 +238,19 @@ parseIdent_ firstCharPred =
     P.returnWithInfo x c.start cs.end
 
 parseStrLit =
-      parseStrDelimit "'"
-  <++ parseStrDelimit "\""
+      parseStrDelimit '\''
+  <++ parseStrDelimit '"'
+
+charInsideString closeStringChar =
+      (P.satisfy (\c -> c /= closeStringChar && c /= '\\'))
+  <++ (P.char '\\' >>> P.satisfy (always True))
 
 parseStrDelimit quoteChar =
-  let pred c = isAlphaNumeric c || List.member c (String.toList "#., -():=%;[]") in
+  let quoteCharString = String.fromChar quoteChar in
   P.between          -- NOTE: not calling delimit...
-    (whiteToken quoteChar) --   okay to chew up whitespace here,
-    (P.token quoteChar)    --   but _not_ here!
-    ((EString quoteChar << String.fromList << List.map .val) <$> P.many (P.satisfy pred))
+    (whiteToken quoteCharString) --   okay to chew up whitespace here,
+    (P.token quoteCharString)    --   but _not_ here!
+    ((EString quoteCharString << String.fromList << List.map .val) <$> P.many (charInsideString quoteChar))
 
 munchManySpaces : P.Parser ()
 munchManySpaces = always () <$> P.munch isWhitespace
