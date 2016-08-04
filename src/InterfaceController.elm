@@ -53,11 +53,11 @@ slateToVal : LangSvg.RootedIndexedTree -> Val
 slateToVal (rootId, tree) =
   let foo n =
     case n of
-      LangSvg.TextNode s -> vList [vBase (String "TEXT"), vBase (String s)]
+      LangSvg.TextNode s -> vList [vBase (VString "TEXT"), vBase (VString s)]
       LangSvg.SvgNode kind l1 l2 ->
         let vs1 = List.map LangSvg.valOfAttr l1 in
         let vs2 = List.map (foo << flip Utils.justGet tree) l2 in
-        vList [vBase (String kind), vList vs1, vList vs2]
+        vList [vBase (VString kind), vList vs1, vList vs2]
           -- NOTE: if relate needs the expression that led to this
           --  SvgNode, need to store it in IndexedTree
   in

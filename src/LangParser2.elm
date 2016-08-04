@@ -238,11 +238,19 @@ parseIdent_ firstCharPred =
     P.returnWithInfo x c.start cs.end
 
 parseStrLit =
-  let pred c = isAlphaNumeric c || List.member c (String.toList "#., -():=%;[]") in
+      parseStrDelimit '\''
+  <++ parseStrDelimit '"'
+
+charInsideString closeStringChar =
+      (P.satisfy (\c -> c /= closeStringChar && c /= '\\'))
+  <++ (P.char '\\' >>> P.satisfy (always True))
+
+parseStrDelimit quoteChar =
+  let quoteCharString = String.fromChar quoteChar in
   P.between          -- NOTE: not calling delimit...
-    (whiteToken "'") --   okay to chew up whitespace here,
-    (P.token "'")    --   but _not_ here!
-    ((String.fromList << List.map .val) <$> P.many (P.satisfy pred))
+    (whiteToken quoteCharString) --   okay to chew up whitespace here,
+    (P.token quoteCharString)    --   but _not_ here!
+    ((EString quoteCharString << String.fromList << List.map .val) <$> P.many (charInsideString quoteChar))
 
 munchManySpaces : P.Parser ()
 munchManySpaces = always () <$> P.munch isWhitespace
@@ -305,17 +313,17 @@ parseNumE =
 
 parseEBase =
   whitespace >>= \ws ->
-      (always (exp_ (EBase ws.val (Bool True)))  <$> P.token "true")
-  <++ (always (exp_ (EBase ws.val (Bool False))) <$> P.token "false")
-  <++ (always (exp_ (EBase ws.val Null))         <$> P.token "null")
-  <++ ((exp_ << EBase ws.val << String)          <$> parseStrLit)
+      (always (exp_ (EBase ws.val (EBool True)))  <$> P.token "true")
+  <++ (always (exp_ (EBase ws.val (EBool False))) <$> P.token "false")
+  <++ (always (exp_ (EBase ws.val ENull))         <$> P.token "null")
+  <++ ((exp_ << EBase ws.val)                     <$> parseStrLit)
 
 parsePBase =
   whitespace >>= \ws ->
-        ((PConst ws.val << fst) <$> parseNum) -- allowing but ignoring frozen annotation
-    <++ (always (PBase ws.val (Bool True)) <$> whiteTokenOneNonIdent "true")
-    <++ (always (PBase ws.val (Bool False)) <$> whiteTokenOneNonIdent "false")
-    <++ ((PBase ws.val << String) <$> parseStrLit)
+        ((PConst ws.val << fst)              <$> parseNum) -- allowing but ignoring frozen annotation
+    <++ (always (PBase ws.val (EBool True))  <$> whiteTokenOneNonIdent "true")
+    <++ (always (PBase ws.val (EBool False)) <$> whiteTokenOneNonIdent "false")
+    <++ ((PBase ws.val)                      <$> parseStrLit)
 
 -- parseList_
 --    : (P.Parser a -> P.Parser sep -> P.Parser (List (P.WithInfo a)))

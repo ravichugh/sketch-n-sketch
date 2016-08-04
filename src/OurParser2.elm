@@ -4,6 +4,8 @@ import String
 import Debug
 import Lazy exposing (Lazy, lazy, force)
 
+import Utils
+
 type alias Pos         = { line : Int, col : Int}
 type alias WithPos a   = { val : a, pos : Pos }
 type alias WithInfo a  = { val : a, start : Pos, end : Pos }
@@ -42,7 +44,7 @@ parse p s =
   case runParser p (WithPos s startPos) of
     [(s,{val})] -> if val == ""
                      then Ok s
-                     else Err "incomplete parse"
+                     else Err <| "incomplete parse, next unparsed: \n" ++ (Utils.takeNLines 10 val)
     [] -> Err ("no parse\n\n" ++ s)
     l  -> Err ("ambiguous parse\n\n" ++ toString (List.map (.val << fst) l))
 

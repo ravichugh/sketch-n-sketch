@@ -167,6 +167,10 @@ munchString prefix s =
     then Just suf
     else Nothing
 
+takeNLines : Int -> String -> String
+takeNLines n s =
+  String.lines s |> List.take n |> String.join "\n"
+
 oneOfEach : List (List a) -> List (List a)
 oneOfEach xss = case xss of
   []       -> [[]]

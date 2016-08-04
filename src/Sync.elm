@@ -132,7 +132,7 @@ diffNoCheck v1 v2 =
 
 diff_ : Int -> Val -> Val -> Maybe (Int, VDiff)
 diff_ k v1 v2 = case (v1.v_, v2.v_) of
-  (VBase Star, VConst _) -> Just (k, Same v2)
+  (VBase VStar, VConst _) -> Just (k, Same v2)
   (VConst (i,tr), VConst (j,_)) ->
     if i == j then
       Just (k, Same (vConst (i,tr)))  -- cf. comment above
@@ -463,7 +463,7 @@ getFillers : HoleSubst -> List Val
 getFillers = List.map (snd << snd) << Dict.toList
 
 leafToStar v = case v.v_ of
-  VConst _ -> vBase Star
+  VConst _ -> vBase VStar
   _        -> v
 
 -- historically, inferLocalUpdates was called "sync"
@@ -513,7 +513,7 @@ stripSvg v =
   case v.v_ of
     VList vs ->
       case List.map .v_ vs of
-        [VBase (String "svg"), VList vs1, VList vs2] ->
+        [VBase (VString "svg"), VList vs1, VList vs2] ->
           (vs1, vs2)
         _ -> Debug.crash "stripSvg"
     _ -> Debug.crash "stripSvg"
@@ -671,7 +671,7 @@ stripSvgNode b1 b2 kPred v =
   case v.v_ of
     VList vsUgh ->
       case List.map .v_ vsUgh of
-        [VBase (String k'), VList vs1, VList vs2] ->
+        [VBase (VString k'), VList vs1, VList vs2] ->
           case (kPred k', b1, vs1, b2, vs2) of
             (True, True, _, False, []) -> Just vs1
             (True, False, [], True, _) -> Just vs2
@@ -767,7 +767,7 @@ chooseFirst list =
 -- TODO this is duplicating toNum for Val rather than AVal...
 valToNum v = case v.v_ of
   VConst (n,_) -> n
-  VBase (String s) ->
+  VBase (VString s) ->
     case String.toFloat s of
       Ok n -> n
       _    -> Debug.crash "valToNum"
@@ -1230,8 +1230,8 @@ inferRelated genSymK e _ v' =
             Nothing -> acc
             Just s  ->
               case s.v_ of
-                VBase (String "") -> acc
-                VBase (String s)  ->
+                VBase (VString "") -> acc
+                VBase (VString s)  ->
                   let goo k = Utils.fromJust_ "inferRelated" (getAttr attrList k) in
                   List.map goo (String.split " " s) ++ acc
                 _ ->
@@ -1296,43 +1296,43 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v.v_ of
 
   VList vsUgh -> case List.map .v_ vsUgh of
 
-    [VBase (String "TEXT"), VBase (String s)] ->
+    [VBase (VString "TEXT"), VBase (VString s)] ->
       (1 + nextId, Dict.insert 1 ("DUMMYTEXT", None, [], Dict.empty) dShapes)
 
-    [VBase (String kind), VList vs', VList children] ->
+    [VBase (VString kind), VList vs', VList children] ->
 
       -- processing attributes of current node
       let processAttr v' (extra,extraextra,dAttrs) = case v'.v_ of
 
         VList vsUghUgh -> case List.map .v_ vsUghUgh of
 
-          [VBase (String "fill"), VConst (_,tr)] ->
+          [VBase (VString "fill"), VConst (_,tr)] ->
             let ee = ("fill", ("FillBall", tr)) :: extraextra in
             (extra, ee, Dict.insert "fill" tr dAttrs)
 
-          [VBase (String "stroke"), VConst (_,tr)] ->
+          [VBase (VString "stroke"), VConst (_,tr)] ->
             let ee = ("stroke", ("StrokeBall", tr)) :: extraextra in
             (extra, ee, Dict.insert "stroke" tr dAttrs)
 
-          [VBase (String "stroke-width"), VConst (_,tr)] ->
+          [VBase (VString "stroke-width"), VConst (_,tr)] ->
             let ee = ("stroke-width", ("StrokeWidthBall", tr)) :: extraextra in
             (extra, ee, Dict.insert "stroke-width" tr dAttrs)
 
           -- NOTE: requires for a single cmd, and "transformRot" is a fake attr....
-          [VBase (String "transform"), VList [vBlah]] ->
+          [VBase (VString "transform"), VList [vBlah]] ->
             case vBlah.v_ of
               VList vsBlah ->
                 case List.map .v_ vsBlah of
-                  [VBase (String "rotate"), VConst (_, tr), _, _] ->
+                  [VBase (VString "rotate"), VConst (_, tr), _, _] ->
                     let ee = ("transformRot", ("RotateBall", tr)) :: extraextra in
                     (extra, ee, Dict.insert "transformRot" tr dAttrs)
                   _ -> Debug.crash "nodeToAttrLocs_"
               _ -> Debug.crash "nodeToAttrLocs_"
 
-          [VBase (String a), VConst (_,tr)] ->
+          [VBase (VString a), VConst (_,tr)] ->
             (extra, extraextra, Dict.insert a tr dAttrs)
 
-          [VBase (String "points"), VList pts] ->
+          [VBase (VString "points"), VList pts] ->
             let acc' =
               Utils.foldli (\(i,vPt) acc ->
                 case vPt.v_ of
@@ -1347,7 +1347,7 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v.v_ of
                ) dAttrs pts in
             (NumPoints (List.length pts), extraextra, acc')
 
-          [VBase (String "d"), VList vs] ->
+          [VBase (VString "d"), VList vs] ->
             let addPt (mi,(xt,yt)) dict =
               case mi of
                 Nothing -> dict

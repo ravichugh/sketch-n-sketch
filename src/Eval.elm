@@ -31,7 +31,7 @@ match (p,v) = case (p.val, v.v_) of
         -- dummy VTrace, since VList itself doesn't matter
   (PList _ _ _ _ _, _) -> Nothing
   (PConst _ n, VConst (n',_)) -> if n == n' then Just [] else Nothing
-  (PBase _ bv, VBase bv') -> if bv == bv' then Just [] else Nothing
+  (PBase _ bv, VBase bv') -> if (eBaseToVBase bv) == bv' then Just [] else Nothing
   _ -> Debug.crash <| "Eval.match " ++ (toString p.val) ++ " vs " ++ (toString v.v_)
 
 matchList : List (Pat, Val) -> Maybe Env
@@ -120,7 +120,7 @@ eval env bt e =
       IntSlider a _ b mcap -> retBoth (Val v_ [], [WIntSlider a.val b.val (mkCap mcap l) (floor i) l])
       NumSlider a _ b mcap -> retBoth (Val v_ [], [WNumSlider a.val b.val (mkCap mcap l) i l])
 
-  EBase _ v      -> ret <| VBase v
+  EBase _ v      -> ret <| VBase (eBaseToVBase v)
   EVar _ x       -> retAddThis <| lookupVar env (e::bt) x e.start
   EFun _ [p] e _ -> ret <| VClosure Nothing p e env
   EOp _ op es _  -> retAddWs e.val.eid ((evalOp env (e::bt) op es), env)
@@ -145,9 +145,9 @@ eval env bt e =
   EIf _ e1 e2 e3 _ ->
     let (v1,ws1) = eval_ env bt e1 in
     case v1.v_ of
-      VBase (Bool True)  -> addWidgets ws1 <| eval env bt e2
-      VBase (Bool False) -> addWidgets ws1 <| eval env bt e3
-      _                  -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " if-exp expected a Bool but got something else."
+      VBase (VBool True)  -> addWidgets ws1 <| eval env bt e2
+      VBase (VBool False) -> addWidgets ws1 <| eval env bt e3
+      _                   -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " if-exp expected a Bool but got something else."
 
   ECase _ e1 bs _ ->
     let (v1,ws1) = eval_ env (e::bt) e1 in
@@ -235,8 +235,8 @@ evalOp env bt opWithInfo es =
   let newVal =
     case op of
       Plus    -> case args of
-        [VBase (String s1), VBase (String s2)] -> VBase (String (s1 ++ s2)) |> emptyVTrace
-        _                                      -> binMathOp op args
+        [VBase (VString s1), VBase (VString s2)] -> VBase (VString (s1 ++ s2)) |> emptyVTrace
+        _                                        -> binMathOp op args
       Minus     -> binMathOp op args
       Mult      -> binMathOp op args
       Div       -> binMathOp op args
@@ -244,12 +244,12 @@ evalOp env bt opWithInfo es =
       Pow       -> binMathOp op args
       ArcTan2   -> binMathOp op args
       Lt        -> case args of
-        [VConst (i,it), VConst (j,jt)] -> VBase (Bool (i < j)) |> emptyVTrace
+        [VConst (i,it), VConst (j,jt)] -> VBase (VBool (i < j)) |> emptyVTrace
         _                              -> error ()
       Eq        -> case args of
-        [VConst (i,it), VConst (j,jt)]         -> VBase (Bool (i == j)) |> emptyVTrace
-        [VBase (String s1), VBase (String s2)] -> VBase (Bool (s1 == s2)) |> emptyVTrace
-        [_, _]                                 -> VBase (Bool False) |> emptyVTrace -- polymorphic inequality, added for Prelude.addExtras
+        [VConst (i,it), VConst (j,jt)]           -> VBase (VBool (i == j)) |> emptyVTrace
+        [VBase (VString s1), VBase (VString s2)] -> VBase (VBool (s1 == s2)) |> emptyVTrace
+        [_, _]                                   -> VBase (VBool False) |> emptyVTrace -- polymorphic inequality, added for Prelude.addExtras
         _                                      -> error ()
       Pi         -> nullaryOp args (VConst (pi, TrOp op [])) |> emptyVTrace
       DictEmpty  -> nullaryOp args (VDict Dict.empty) |> emptyVTrace
@@ -259,7 +259,7 @@ evalOp env bt opWithInfo es =
           _       -> error()
         _                 -> error ()
       DictGet    -> case args of
-        [key, VDict d] -> Utils.getWithDefault (valToDictKey bt key) (VBase Null |> emptyVTrace) d
+        [key, VDict d] -> Utils.getWithDefault (valToDictKey bt key) (VBase VNull |> emptyVTrace) d
         _              -> error ()
       DictRemove -> case args of
         [key, VDict d] -> VDict (Dict.remove (valToDictKey bt key) d) |> emptyVTrace
@@ -276,7 +276,7 @@ evalOp env bt opWithInfo es =
         [v] -> let _ = Debug.log (strVal v) "" in v
         _   -> error ()
       ToStr      -> case vs of
-        [val] -> VBase (String (strVal val)) |> emptyVTrace
+        [val] -> VBase (VString (strVal val)) |> emptyVTrace
         _     -> error ()
       RangeOffset _ -> error ()
   in
@@ -329,15 +329,23 @@ evalDelta bt op is =
 
     _                -> errorWithBacktrace bt <| "Eval.evalDelta " ++ strOp op
 
+
+eBaseToVBase eBaseVal =
+  case eBaseVal of
+    EBool b     -> VBool b
+    EString _ b -> VString b
+    ENull       -> VNull
+
+
 valToDictKey : Backtrace -> Val_ -> (String, String)
 valToDictKey bt val_ =
   case val_ of
-    VConst (n, tr)   -> (toString n, "num")
-    VBase (Bool b)   -> (toString b, "bool")
-    VBase (String s) -> (toString s, "string")
-    VBase Null       -> ("", "null")
-    VList vals       -> (toString <| List.map ((valToDictKey bt) << .v_) vals, "list")
-    _                -> errorWithBacktrace bt <| "Cannot use " ++ (strVal (val val_)) ++ " in a key to a dictionary."
+    VConst (n, tr)    -> (toString n, "num")
+    VBase (VBool b)   -> (toString b, "bool")
+    VBase (VString s) -> (toString s, "string")
+    VBase VNull       -> ("", "null")
+    VList vals        -> (toString <| List.map ((valToDictKey bt) << .v_) vals, "list")
+    _                 -> errorWithBacktrace bt <| "Cannot use " ++ (strVal (val val_)) ++ " in a key to a dictionary."
 
 initEnv = snd (eval [] [] Parser.prelude)
 

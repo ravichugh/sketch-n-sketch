@@ -179,6 +179,17 @@ mapPrecedingWhitespacePat mapWs pat =
   in
   { pat | val = pat_' }
 
+escapeQuotes quoteChar string =
+  string
+  |> Regex.replace Regex.All (Regex.regex <| Regex.escape "\\") (\_ -> "\\\\")
+  |> Regex.replace Regex.All (Regex.regex quoteChar)            (\_ -> "\\" ++ quoteChar)
+
+unparseBaseVal bv =
+  case bv of
+    EBool True   -> "true"
+    EBool False  -> "false"
+    EString qc s -> qc ++ (escapeQuotes qc s) ++ qc
+    ENull        -> "null"
 
 unparseWD : WidgetDecl -> String
 unparseWD wd =
@@ -196,7 +207,7 @@ unparsePat pat = case pat.val of
   PList ws1 ps ws2 (Just pRest) ws3 ->
     ws1 ++ "[" ++ (String.concat (List.map unparsePat ps)) ++ ws2 ++ "|" ++ unparsePat pRest ++ ws3 ++ "]"
   PConst ws n -> ws ++ strNum n
-  PBase ws bv -> ws ++ strBaseVal bv
+  PBase ws bv -> ws ++ unparseBaseVal bv
   PAs ws1 ident ws2 p -> ws1 ++ ident ++ ws2 ++ "@" ++ (unparsePat p)
 
 unparseType : Type -> String
@@ -222,7 +233,7 @@ unparseType tipe =
 
 unparse : Exp -> String
 unparse e = case e.val.e__ of
-  EBase ws v -> ws ++ strBaseVal v
+  EBase ws v -> ws ++ unparseBaseVal v
   EConst ws n l wd ->
     let (_,b,_) = l in
     ws ++ toString n ++ b ++ unparseWD wd
