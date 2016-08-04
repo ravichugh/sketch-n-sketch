@@ -2,6 +2,7 @@ module Types where
 
 import Lang exposing (..)
 import LangParser2
+import OurParser2 as P
 import LangUnparser exposing (unparsePat, unparseType)
 import Utils
 import Config
@@ -47,6 +48,8 @@ astsMatch t1 t2 =
 
 -- Presuming the types have the same AST structure, do the identifiers used
 -- produce the same semantic meaning?
+--
+-- TODO need to take scope into account
 --
 -- e.g. (-> (List a) (List b)) is equivalent to (-> (List b) (List c))
 --      but not to (-> (List y) (List y))
@@ -126,6 +129,7 @@ type alias TypeEnv     = List TypeEnvBinding
 type alias TypeError   = String
 type alias Constraint  = (Type, Type)
 type alias Constraints = List Constraint
+type alias EInfo       = P.WithInfo EId
 
 type alias TypeInfo =
   { constraints : Constraints
@@ -152,6 +156,12 @@ tTuple ts = tTupleRest ts Nothing
 
 tArrow argTypes retType = withDummyRange (TArrow " " (argTypes ++ [retType]) "")
 
+eInfoOf : Exp -> EInfo
+eInfoOf e = { val = e.val.eid, start = e.start, end = e.end }
+
+strEInfo : EInfo -> String
+strEInfo eInfo = Utils.spaces [toString eInfo.val, strPos eInfo.start ]
+
 -- Primitive Types -----------------------------------------------------------
 
 -- could move these to (extern typ x T) definitions in Prelude...
@@ -160,10 +170,10 @@ opTypeTable =
   List.map (Utils.mapSnd parseT)
     [ (Pi         , " Num")
 
-    , (ToStr      , " TODO") -- " (forall a (-> a String))"
-    , (DebugLog   , " TODO") -- " (forall a (-> a String))"
+    , (ToStr      , " (forall a (-> a String))")
+    , (DebugLog   , " (forall a (-> a String))")
 
-    , (Eq         , " TODO") -- " (forall a (-> a a Bool))"
+    , (Eq         , " (forall a (-> a a Bool))")
 
     , (Cos        , " (-> Num Num)")
     , (Sin        , " (-> Num Num)")
@@ -331,8 +341,46 @@ splitTypesInArrow ts =
 
 isArrowTemplate : List Type -> Bool
 isArrowTemplate argTypes =
-  -- TODO detect TS-Fun, to solve on demand...
-  False
+  -- detect constraint vars added by TS-Fun
+  let isConstraintVar a =
+    case Utils.munchString "_x" a of
+      Nothing -> False
+      Just _  -> True
+  in
+  List.any (\argType ->
+    case argType.val of
+      TVar _ a -> isConstraintVar a
+      _        -> False
+  ) argTypes
+
+-- Type Well-Formedness -------------------------------------------- G |- T --
+
+isWellFormed : TypeEnv -> Type -> Bool
+isWellFormed typeEnv tipe =
+  let (prenexVars, tipe') =
+    case tipe.val of
+      TForall _ typeVars t _ -> (List.map snd typeVars, t)
+      _                      -> ([], tipe)
+  in
+  let typeEnv' = List.map TypeVar (List.reverse prenexVars) ++ typeEnv in
+  let noNestedForalls =
+    foldType (\t acc ->
+       case t.val of
+         TForall _ _ _ _ -> False
+         _               -> acc
+     ) tipe' True
+  in
+  let allVarsBound =
+    foldType (\t acc ->
+       case t.val of
+         TNamed _ x -> Debug.log "well-formed TNamed?" <|
+                       acc && List.member (TypeVar x) typeEnv'
+         TVar _ x   -> acc && List.member (TypeVar x) typeEnv'
+         _          -> acc
+     ) tipe' True
+  in
+  noNestedForalls && allVarsBound
+
 
 -- Type Conversion ------------------------------------------ G |- e < T; C --
 
@@ -397,6 +445,7 @@ synthesizeType typeInfo typeEnv e =
     , typeInfo = addRawType e.val.eid maybeType typeInfo'
     }
   in
+  -- TODO add error messages throughout, where finish Nothing ...
 
   let tsAppMono typeInfo eArgs (argTypes, retType) =
     case Utils.maybeZip eArgs argTypes of
@@ -414,10 +463,20 @@ synthesizeType typeInfo typeEnv e =
   case e.val.e__ of
 
     EColonType _ e1 _ t1 _ -> -- [TS-AnnotatedExp]
-      let result1 = checkType typeInfo typeEnv e1 t1 in
-      let tipe = if result1.success then Just t1 else Nothing in
-      let typeInfo' = result1.typeInfo in
-      finish tipe typeInfo'
+      if not (isWellFormed typeEnv t1) then
+        let err =
+          Utils.spaces <|
+            [ (toString e.val.eid)
+            , "Type annotation not well-formed:"
+            , String.trim (unparseType t1)
+            ]
+        in
+        finish Nothing (addTypeError err typeInfo)
+      else
+        let result1 = checkType typeInfo typeEnv e1 t1 in
+        let tipe = if result1.success then Just t1 else Nothing in
+        let typeInfo' = result1.typeInfo in
+        finish tipe typeInfo'
 
     EConst _ _ _ _ -> -- [TS-Const]
       finish (Just tNum) typeInfo
@@ -476,7 +535,7 @@ synthesizeType typeInfo typeEnv e =
           case isPolymorphicArrow t1 of
             Just ([], (argTypes, retType)) ->
               if isArrowTemplate argTypes then
-                let _ = debugLog "TS-App: arrow template TODO" () in
+                let _ = debugLog "TS-App: arrow template, solve on demand TODO" () in
                 finish Nothing result1.typeInfo
               else
                 tsAppMono result1.typeInfo eArgs (argTypes, retType)
@@ -504,9 +563,21 @@ synthesizeType typeInfo typeEnv e =
             Err err -> finish Nothing typeInfo'
             Ok t    -> finish (Just (tTuple ts)) typeInfo'
 
-    EIf _ _ _ _ _ -> -- [TS-If]
-      let _ = debugLog "synthesizeType EIf TODO" () in
-      finish Nothing typeInfo
+    EIf _ e1 e2 e3 _ -> -- [TS-If]
+      let result1 = checkType typeInfo typeEnv e1 tBool in
+      if not result1.success then
+        finish Nothing typeInfo
+      else
+        let result2 = synthesizeType result1.typeInfo typeEnv e2 in
+        let result3 = synthesizeType result2.typeInfo typeEnv e3 in
+        case (result2.tipe, result3.tipe) of
+          (Just t2, Just t3) ->
+            case joinTypes t2 t3 of
+              Ok t23 -> finish (Just t23) result3.typeInfo
+              Err err ->
+                finish Nothing result3.typeInfo
+          _ ->
+            finish Nothing result3.typeInfo
 
     ECase _ _ _ _ -> -- [TS-Case]
       let _ = debugLog "synthesizeType ECase TODO" () in
@@ -546,12 +617,29 @@ synthesizeType typeInfo typeEnv e =
         (Just t1, EColonType _ _ _ t1' _) ->
           if t1 == t1' then tsLet ()
           else -- throwing an error rather than doing a subtype check
-            Debug.crash "[TS-Let]: Double annotation. Remove one."
+            let err =
+              Utils.spaces <|
+                [ "checkType"
+                , (toString e.val.eid)
+                , "Double annotation. Remove one."
+                ]
+            in
+            finish Nothing (addTypeError err typeInfo)
 
         (Just t1, _) -> -- [TS-AnnotatedLet]
-          let e1' = replaceE__ e1 (EColonType "" e1 "" t1 "") in
-          let e' = replaceE__ e (ELet ws1 letKind rec p e1' e2 ws2) in
-          synthesizeType typeInfo typeEnv e'
+          if not (isWellFormed typeEnv t1) then
+            let err =
+              Utils.spaces <|
+                [ (toString e.val.eid)
+                , "Type annotation not well-formed, at def:"
+                , String.trim (unparseType t1)
+                ]
+            in
+            finish Nothing (addTypeError err typeInfo)
+          else
+            let e1' = replaceE__ e1 (EColonType "" e1 "" t1 "") in
+            let e' = replaceE__ e (ELet ws1 letKind rec p e1' e2 ws2) in
+            synthesizeType typeInfo typeEnv e'
 
     EComment _ _ e1 ->
       let result1 = synthesizeType typeInfo typeEnv e1 in
@@ -582,7 +670,9 @@ synthesizeType typeInfo typeEnv e =
 
 checkSubtype : Type -> Type -> Result TypeError (Maybe ())
 checkSubtype t1 t2 =
-  if equal t1 t2 then Ok (Just ())
+  -- if equal t1 t2 then Ok (Just ())
+  -- TODO
+  if t1.val == t2.val then Ok (Just ())
   else case (t1.val, t2.val) of
     -- TODO add more cases
     (TTuple _ ts _ Nothing _, TList _ tInvariant _) ->
@@ -599,7 +689,7 @@ checkSubtype t1 t2 =
     _ ->
       Err <| Utils.spaces
         [ "checkSubtype failed:"
-        , String.trim (unparseType t1)
+        , String.trim (unparseType t1), " <: "
         , String.trim (unparseType t2)
         ]
 
@@ -703,7 +793,7 @@ displayNamedExps typeInfo =
       Just (Just t) ->
         let s1 = String.trim (LangUnparser.unparsePat p) in
         let s2 = String.trim (LangUnparser.unparseType t) in
-        let _ = debugLog (s1 ++ " : " ++ s2 ++ " , eid") eid in
+        let _ = debugLog (s1 ++ " : " ++ s2 ++ " ") (strPos p.start) in
         ()
       _ -> ()
   ) () typeInfo.namedExps

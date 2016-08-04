@@ -347,6 +347,26 @@ replaceExpNode oldNode newNode root =
   let esubst = Dict.singleton oldNode.val.eid newNode.val.e__ in
   applyESubst esubst root
 
+foldType : (Type -> a -> a) -> Type -> a -> a
+foldType f tipe acc =
+  let foldTypes f tipes acc = List.foldl (\t acc -> foldType f t acc) acc tipes in
+  case tipe.val of
+    TNum _          -> acc |> f tipe
+    TBool _         -> acc |> f tipe
+    TString _       -> acc |> f tipe
+    TNull _         -> acc |> f tipe
+    TNamed _ _      -> acc |> f tipe
+    TVar _ _        -> acc |> f tipe
+    TWildcard _     -> acc |> f tipe
+    TList _ t _     -> acc |> foldType f t |> f tipe
+    TDict _ t1 t2 _ -> acc |> foldType f t1 |> foldType f t2 |> f tipe
+    TForall _ _ t _ -> acc |> foldType f t |> f tipe
+    TArrow _ ts _   -> acc |> foldTypes f ts |> f tipe
+    TUnion _ ts _   -> acc |> foldTypes f ts |> f tipe
+
+    TTuple _ ts _ Nothing _  -> acc |> foldTypes f ts |> f tipe
+    TTuple _ ts _ (Just t) _ -> acc |> foldTypes f (ts++[t]) |> f tipe
+
 
 ------------------------------------------------------------------------------
 -- Traversing
