@@ -628,6 +628,7 @@ parseTypeAlias =
 parseType = P.recursively <| \_ ->
       parseSimpleType
   <++ parseTArrow
+  <++ parseTForall
 
 parseSimpleType = P.recursively <| \_ ->
       parseTBase
@@ -697,6 +698,31 @@ parseTVar =
 parseTWildcard =
   whitespace >>= \ws ->
     (\_ -> TWildcard ws.val) <$> (whiteTokenOneWS "_")
+
+parseTForall =
+  whitespace >>= \ws1 ->
+  parens <|
+    whiteTokenOneWS "forall" >>>
+    parseTForallVars         >>= \tVars ->
+    parseType                >>= \t ->
+    whitespace               >>= \ws2 ->
+      P.return (TForall ws1.val tVars.val t ws2.val)
+
+parseTForallVars : P.Parser (List (WS, Ident))
+parseTForallVars =
+      (parseOneTForallVar >>= \tVar -> P.return [tVar.val])
+  <++ parseManyTForallVars
+
+parseOneTForallVar =
+  whitespace      >>= \ws ->
+  parseLowerIdent >>= \a ->
+    P.return (ws.val, a.val)
+
+parseManyTForallVars =
+  parens <|
+    parseOneTForallVar        >>= \tVar ->
+    P.some parseOneTForallVar >>= \tVars ->
+      P.return (tVar.val :: List.map .val tVars.val)
 
 parseTriop =
   whitespace >>= \ws1 ->
