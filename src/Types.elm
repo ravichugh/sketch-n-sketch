@@ -84,9 +84,9 @@ valIsType val tipe =
   in
   case (val.v_, tipe.val) of
     (VConst _, TNum _)               -> True
-    (VBase (Bool _), TBool _)        -> True
-    (VBase (String _), TString _)    -> True
-    (VBase Null, TNull _)            -> True
+    (VBase (VBool _), TBool _)       -> True
+    (VBase (VString _), TString _)   -> True
+    (VBase VNull, TNull _)           -> True
     (VList list, TList _ listType _) -> List.all (\v -> valIsType v listType) list
     (_, TDict _ _ _ _)               -> unsupported "dictionary types"
     (VList vlist, TTuple _ typeList _ maybeRestType _) ->
@@ -424,10 +424,9 @@ synthesizeType typeInfo typeEnv e =
 
     EBase _ baseVal -> -- [TS-Const]
       case baseVal of
-        Bool _   -> finish (Just tBool) typeInfo
-        String _ -> finish (Just tString) typeInfo
-        Null     -> finish (Just tNull) typeInfo
-        Star     -> finish (Nothing) typeInfo
+        EBool _     -> finish (Just tBool) typeInfo
+        EString _ _ -> finish (Just tString) typeInfo
+        ENull       -> finish (Just tNull) typeInfo
 
     EVar _ x -> -- [TS-Var]
       case lookupVar typeEnv x of
