@@ -281,6 +281,19 @@
 ; SVG Manipulating Functions
 ;
 
+(def NodeKind String)
+(def Rgba [Num Num Num Num])
+(def Color (union String Num Rgba))
+(def AttrVal (union String Num Color))
+(def NodeAttrs (Dict String (union AttrVal Null)))
+(def Node [NodeKind NodeAttrs (List Node)])
+
+(def Shape Node)
+(def Rectangle Node)
+(def Svg Node)
+
+(def Blob (List Svg))
+
 ;; argument order - color, x, y, radius
 ;; creates a circle, center at (x,y) with given radius and color
 (typ circle (-> String Num Num Num svg))
