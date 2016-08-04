@@ -1,10 +1,13 @@
 module Types where
 
 import Lang exposing (..)
-import LangUnparser
+import LangParser2
+import LangUnparser exposing (unparsePat, unparseType)
 import Utils
+import Config
 
 import Dict
+import String
 
 equal : Type -> Type -> Bool
 equal t1 t2 =
@@ -126,22 +129,77 @@ type alias Constraints = List Constraint
 
 type alias TypeInfo =
   { constraints : Constraints
-  , errors : ()
+  , typeErrors : List TypeError
   , rawTypes : Dict.Dict EId (Maybe Type)
   , namedExps : List (Pat, EId)
+  , genSymCount : Int
   }
 
 type alias AndTypeInfo a = { a | typeInfo : TypeInfo }
 
+debugLog = Config.debugLog Config.debugTypeChecker
+
 -- AST Helpers for Types -----------------------------------------------------
 
-tBool   = withDummyRange (TBool "")
-tNum    = withDummyRange (TNum "")
-tString = withDummyRange (TString "")
-tNull   = withDummyRange (TNull "")
+tBool   = withDummyRange (TBool " ")
+tNum    = withDummyRange (TNum " ")
+tString = withDummyRange (TString " ")
+tNull   = withDummyRange (TNull " ")
+tVar x  = withDummyRange (TVar " " x)
 
-tTupleRest ts tRest = withDummyRange (TTuple "" ts "" tRest "")
+tTupleRest ts tRest = withDummyRange (TTuple " " ts "" tRest "")
 tTuple ts = tTupleRest ts Nothing
+
+tArrow argTypes retType = withDummyRange (TArrow " " (argTypes ++ [retType]) "")
+
+-- Primitive Types -----------------------------------------------------------
+
+-- could move these to (extern typ x T) definitions in Prelude...
+opTypeTable : List (Op_, Type)
+opTypeTable =
+  List.map (Utils.mapSnd parseT)
+    [ (Pi         , " Num")
+
+    , (ToStr      , " TODO") -- " (forall a (-> a String))"
+    , (DebugLog   , " TODO") -- " (forall a (-> a String))"
+
+    , (Eq         , " TODO") -- " (forall a (-> a a Bool))"
+
+    , (Cos        , " (-> Num Num)")
+    , (Sin        , " (-> Num Num)")
+    , (ArcCos     , " (-> Num Num)")
+    , (ArcSin     , " (-> Num Num)")
+    , (ArcTan2    , " (-> Num Num Num)")
+    , (Floor      , " (-> Num Num)")
+    , (Ceil       , " (-> Num Num)")
+    , (Round      , " (-> Num Num)")
+    , (Sqrt       , " (-> Num Num)")
+    , (Plus       , " (-> Num Num Num)")
+    , (Minus      , " (-> Num Num Num)")
+    , (Mult       , " (-> Num Num Num)")
+    , (Div        , " (-> Num Num Num)")
+    , (Lt         , " (-> Num Num Bool)")
+    , (Mod        , " (-> Num Num Num)")
+    , (Pow        , " (-> Num Num Num)")
+
+    , (DictEmpty  , " TODO") -- " (forall (k v) (Dict k v))")
+    , (DictGet    , " TODO") -- " (forall (k v) (-> k (Dict k v) (union v Null)))"
+    , (DictRemove , " TODO") -- " (forall (k v) (-> k (Dict k v) (Dict k v)))"
+    , (DictInsert , " TODO") -- " (forall (k v) (-> k v (Dict k v) (Dict k v)))"
+    -- , (DictMem , " TODO") -- " (forall (k v) (-> k (Dict k v) Bool))"
+    ]
+
+parseT : String -> Type
+parseT s =
+  case LangParser2.parseT s of
+    Err _ -> Debug.crash <| "bad primitive op type: " ++ s
+    Ok t  -> t
+
+opType : Op -> Type
+opType op =
+  case Utils.maybeFind op.val opTypeTable of
+    Just t  -> t
+    Nothing -> Debug.crash <| "opType not defined: " ++ strOp op.val
 
 -- Operations on Type Environments -------------------------------------------
 
@@ -153,7 +211,7 @@ addBindings : List Pat -> List Type -> Result () TypeEnv
 addBindings pats types =
   case Utils.maybeZip pats types of
     Nothing ->
-      let _ = Debug.log "addBindings: can't zip" () in
+      let _ = debugLog "addBindings: can't zip" () in
       Err ()
     Just patsAndTypes ->
       Ok (List.foldl addBindingsOne [] patsAndTypes)
@@ -161,31 +219,33 @@ addBindings pats types =
 
 addBindingsOne : (Pat, Type) -> TypeEnv -> TypeEnv
 addBindingsOne (p, t) acc =
-  case (p.val, t.val) of
-    (PConst _ _, _) -> acc
-    (PBase _ _, _)  -> acc
-    (PVar _ x _, _) -> HasType x t :: acc
-    (PList _ ps _ pRest _, TTuple _ ts _ tRest _) ->
-      let _ =
-        case (pRest, tRest) of
-          (Nothing, Nothing) -> ()
-          _                  -> Debug.log "addBindings PList: TODO rest" ()
-      in
-      case addBindings ps ts of
-        Ok newBindings -> newBindings ++ acc
-        Err () ->
-          let s1 = LangUnparser.unparsePat p in
-          let s2 = LangUnparser.unparseType t in
-          let _ = Debug.log "addBindings PList: ERROR 1" (s1, s2) in
+  case p.val of
+    PConst _ _     -> acc
+    PBase _ _      -> acc
+    PVar _ x _     -> HasType x t :: acc
+    PAs _ x _ xPat -> addBindingsOne (xPat, t) (HasType x t :: acc)
+    PList _ ps _ mpRest _ ->
+      case t.val of
+        TTuple _ ts _ mtRest _ ->
+          let restBinding =
+            case (mpRest, mtRest) of
+              (Nothing, Nothing) -> []
+              (Just pRest, Just tRest) ->
+                case (pRest.val, tRest.val) of
+                  (PVar _ xRest _, TList _ tInvariant _) -> [HasType xRest tInvariant]
+                  _ -> debugLog "addBindings PList: ERROR 1 TODO" []
+              _ -> debugLog "addBindings PList: ERROR 2 TODO" []
+          in
+          case addBindings ps ts of
+            Ok newBindings -> restBinding ++ newBindings ++ acc
+            Err () ->
+              let s1 = String.trim (unparsePat p) in
+              let s2 = String.trim (unparseType t) in
+              let _ = debugLog "addBindings PList: ERROR 3 TODO" (s1, s2) in
+              restBinding ++ acc
+        _ ->
+          let _ = debugLog "addBindings: PList ERROR 4 TODO" () in
           acc
-    (PList _ _ _ _ _, _) ->
-      let _ = Debug.log "addBindings: PList ERROR 2" () in
-      acc
-    (PAs _ _ _ _, _) ->
-      let s1 = LangUnparser.unparsePat p in
-      let s2 = LangUnparser.unparseType t in
-      let _ = Debug.log "addBindings PAs: TODO" (s1, s2) in
-      acc
 
 addTypBindings : Pat -> Type -> Result () TypeEnv
 addTypBindings p t =
@@ -227,6 +287,24 @@ addConstraints : Constraints -> TypeInfo -> TypeInfo
 addConstraints constraints typeInfo =
   { typeInfo | constraints = typeInfo.constraints ++ constraints }
 
+addNamedExp : Pat -> EId -> TypeInfo -> TypeInfo
+addNamedExp p eid typeInfo =
+  { typeInfo | namedExps = (p, eid) :: typeInfo.namedExps }
+
+addRawType : EId -> Maybe Type -> TypeInfo -> TypeInfo
+addRawType eid mt typeInfo =
+  { typeInfo | rawTypes = Dict.insert eid mt typeInfo.rawTypes }
+
+addTypeError : TypeError -> TypeInfo -> TypeInfo
+addTypeError typeError typeInfo =
+  { typeInfo | typeErrors = typeError :: typeInfo.typeErrors }
+
+generateConstraintVars : Int -> TypeInfo -> (List Ident, TypeInfo)
+generateConstraintVars n typeInfo =
+  let k = typeInfo.genSymCount in
+  let vars = List.map (\i -> "_x" ++ toString i) [k+1..k+n] in
+  (vars, { typeInfo | genSymCount = k + n })
+
 -- Operations on Arrows ------------------------------------------------------
 
 isPolymorphicArrow : Type -> Maybe (List Ident, ArrowType)
@@ -251,26 +329,15 @@ splitTypesInArrow ts =
     [returnType] -> (argTypes, returnType)
     _            -> Debug.crash "splitTypesInArrow"
 
+isArrowTemplate : List Type -> Bool
+isArrowTemplate argTypes =
+  -- TODO detect TS-Fun, to solve on demand...
+  False
+
 -- Type Conversion ------------------------------------------ G |- e < T; C --
 
 checkType : TypeInfo -> TypeEnv -> Exp -> Type -> AndTypeInfo {success: Bool}
 checkType typeInfo typeEnv e goalType =
-  let result = checkType_ typeInfo typeEnv e goalType in
-  if result.success then result
-  else -- [TC-Sub]
-    let result1 = synthesizeType typeInfo typeEnv e in
-    let typeInfo1 = result1.typeInfo in
-    case result1.tipe of
-      Nothing -> { success = False, typeInfo = typeInfo1 }
-      Just t1 ->
-        case checkOrConstrainSubtype t1 goalType of
-          Err err -> { success = False, typeInfo = typeInfo1 }
-          Ok constraints ->
-            { success = True
-            , typeInfo = addConstraints constraints typeInfo1 }
-
-checkType_ : TypeInfo -> TypeEnv -> Exp -> Type -> AndTypeInfo {success: Bool}
-checkType_ typeInfo typeEnv e goalType =
   case e.val.e__ of
 
     EFun _ pats eBody _ -> -- [TC-Fun]
@@ -286,18 +353,39 @@ checkType_ typeInfo typeEnv e goalType =
 
     EIf _ e1 e2 e3 _ -> -- [TC-If]
       let result1 = checkType typeInfo typeEnv e1 tBool in
-      if not result1.success then
-        { typeInfo = typeInfo, success = False }
-      else
-        let result2 = checkType result1.typeInfo typeEnv e2 goalType in
-        if not result2.success then
-          { typeInfo = typeInfo, success = False }
-        else
-          let result3 = checkType result2.typeInfo typeEnv e3 goalType in
-          result3
+      let result2 = checkType result1.typeInfo typeEnv e2 goalType in
+      let result3 = checkType result2.typeInfo typeEnv e3 goalType in
+      { success = result1.success && result2.success && result3.success
+      , typeInfo = result3.typeInfo
+      }
 
-    _ ->
-      { typeInfo = typeInfo, success = False }
+    _ -> -- [TC-Sub]
+      let result1 = synthesizeType typeInfo typeEnv e in
+      let typeInfo1 = result1.typeInfo in
+      case result1.tipe of
+        Nothing ->
+          let err =
+            Utils.spaces <|
+              [ "checkType"
+              , (toString e.val.eid)
+              , String.trim (unparseType goalType)
+              , "failed to synthesize a type"
+              ]
+          in
+          { success = False, typeInfo = addTypeError err typeInfo1 }
+        Just t1 ->
+          case checkOrConstrainSubtype t1 goalType of
+            Err err ->
+              let err' =
+                Utils.spaces <|
+                  [ "checkType"
+                  , (toString e.val.eid)
+                  , err
+                  ]
+              in
+              { success = False, typeInfo = addTypeError err' typeInfo1 }
+            Ok constraints ->
+              { success = True, typeInfo = addConstraints constraints typeInfo1 }
 
 -- Type Synthesis ------------------------------------------- G |- e > T; C --
 
@@ -306,9 +394,21 @@ synthesizeType : TypeInfo -> TypeEnv -> Exp -> AndTypeInfo { tipe: Maybe Type }
 synthesizeType typeInfo typeEnv e =
   let finish maybeType typeInfo' =
     { tipe = maybeType
-    , typeInfo = { typeInfo' |
-        rawTypes = Dict.insert e.val.eid maybeType typeInfo'.rawTypes }
+    , typeInfo = addRawType e.val.eid maybeType typeInfo'
     }
+  in
+
+  let tsAppMono typeInfo eArgs (argTypes, retType) =
+    case Utils.maybeZip eArgs argTypes of
+      Nothing -> finish Nothing typeInfo
+      Just argsAndTypes ->
+        let (argsOkay, typeInfo') =
+           List.foldl (\(ei,ti) (acc1,acc2) ->
+             let res = checkType acc2 typeEnv ei ti in
+             (acc1 && res.success, res.typeInfo)
+           ) (True, typeInfo) argsAndTypes
+        in
+        finish (if argsOkay then Just retType else Nothing) typeInfo'
   in
 
   case e.val.e__ of
@@ -331,20 +431,62 @@ synthesizeType typeInfo typeEnv e =
 
     EVar _ x -> -- [TS-Var]
       case lookupVar typeEnv x of
-        Nothing -> finish Nothing typeInfo
         Just t  -> finish (Just t) typeInfo
+        Nothing ->
+          let err =
+            Utils.spaces <|
+              [ (toString e.val.eid)
+              , "var not found: "
+              , x
+              ]
+          in
+          finish Nothing (addTypeError err typeInfo)
 
-    EFun _ _ _ _ -> -- [TS-Fun]
-      let _ = Debug.log "synthesizeType EFun TODO" () in
-      finish Nothing typeInfo
+    EFun _ ps eBody _ -> -- [TS-Fun]
+      let (constraintVars, typeInfo') = generateConstraintVars (List.length ps) typeInfo in
+      let argTypes = List.map tVar constraintVars in
+      case addBindings ps argTypes of
+        Err () -> finish Nothing typeInfo'
+        Ok newBindings ->
+          let typeEnv' = newBindings ++ typeEnv in
+          let result1 = synthesizeType typeInfo' typeEnv' eBody in
+          case result1.tipe of
+            Nothing -> finish Nothing typeInfo
+            Just retType ->
+              finish (Just (tArrow argTypes retType)) typeInfo'
 
-    EApp _ _ _ _ -> -- [TS-App]
-      let _ = Debug.log "synthesizeType EApp TODO" () in
-      finish Nothing typeInfo
+    EOp _ op [] _ -> -- [TS-Op]
+      finish (Just (opType op)) typeInfo
 
-    EOp _ _ _ _ -> -- [TS-Op]
-      let _ = Debug.log "synthesizeType EOp TODO" () in
-      finish Nothing typeInfo
+    EOp _ op eArgs _ -> -- [TS-Op]
+      case isPolymorphicArrow (opType op) of
+        Just ([], arrowType) ->
+          tsAppMono typeInfo eArgs arrowType
+        Just _ ->
+          let _ = debugLog "TS-Op: handle polymorphism TODO" () in
+          finish Nothing typeInfo
+        Nothing ->
+          finish Nothing typeInfo
+
+    EApp _ eFunc eArgs _ -> -- [TS-App]
+      let result1 = synthesizeType typeInfo typeEnv eFunc in
+      case result1.tipe of
+        Nothing ->
+          finish Nothing result1.typeInfo
+        Just t1 ->
+          case isPolymorphicArrow t1 of
+            Just ([], (argTypes, retType)) ->
+              if isArrowTemplate argTypes then
+                let _ = debugLog "TS-App: arrow template TODO" () in
+                finish Nothing result1.typeInfo
+              else
+                tsAppMono result1.typeInfo eArgs (argTypes, retType)
+            Just _ ->
+              let _ = debugLog "TS-App: handle polymorphism TODO" () in
+              finish Nothing result1.typeInfo
+            Nothing ->
+              let err = "TS-App: t1 not arrow..." in
+              finish Nothing (addTypeError err result1.typeInfo)
 
     EList _ es _ (maybeRest) _ -> -- [TS-List]
       let (maybeTypes, typeInfo') =
@@ -357,21 +499,22 @@ synthesizeType typeInfo typeEnv e =
       in
       case Utils.projJusts maybeTypes of
         Nothing -> finish Nothing typeInfo'
+        Just [] -> finish (Just (tTuple [])) typeInfo'
         Just ts ->
           case joinManyTypes ts of
             Err err -> finish Nothing typeInfo'
             Ok t    -> finish (Just (tTuple ts)) typeInfo'
 
     EIf _ _ _ _ _ -> -- [TS-If]
-      let _ = Debug.log "synthesizeType EIf TODO" () in
+      let _ = debugLog "synthesizeType EIf TODO" () in
       finish Nothing typeInfo
 
     ECase _ _ _ _ -> -- [TS-Case]
-      let _ = Debug.log "synthesizeType ECase TODO" () in
+      let _ = debugLog "synthesizeType ECase TODO" () in
       finish Nothing typeInfo
 
     ETypeCase _ _ _ _ -> -- [TS-Typecase]
-      let _ = Debug.log "synthesizeType ETypeCase TODO" () in
+      let _ = debugLog "synthesizeType ETypeCase TODO" () in
       finish Nothing typeInfo
 
     ELet ws1 letKind rec p e1 e2 ws2 ->
@@ -391,10 +534,7 @@ synthesizeType typeInfo typeEnv e =
               Ok newBindings ->
                 -- TODO eagerly solve and remove constraints
                 let typeEnv' = newBindings ++ typeEnv in
-                let typeInfo1' =
-                  let typeInfo1 = result1.typeInfo in
-                  { typeInfo1 | namedExps = (p, e1.val.eid) :: typeInfo1.namedExps }
-                in
+                let typeInfo1' = addNamedExp p e1.val.eid result1.typeInfo in
                 let result2 = synthesizeType typeInfo1' typeEnv' e2 in
                 finish result2.tipe result2.typeInfo
       in
@@ -436,41 +576,87 @@ synthesizeType typeInfo typeEnv e =
       finish Nothing result1.typeInfo
 
     EIndList _ _ _ ->
-      let _ = Debug.log "synthesizeType EIndList" () in
+      let _ = debugLog "synthesizeType EIndList" () in
       finish Nothing typeInfo
 
 -- Subtype Checking ------------------------------- T1 <: T2 -- T1 <: T2; C --
 
-checkSubtype : Type -> Type -> Result TypeError ()
+checkSubtype : Type -> Type -> Result TypeError (Maybe ())
 checkSubtype t1 t2 =
-  Debug.log "checkSubtype TODO" <| Ok ()
+  if equal t1 t2 then Ok (Just ())
+  else case (t1.val, t2.val) of
+    -- TODO add more cases
+    (TTuple _ ts _ Nothing _, TList _ tInvariant _) ->
+      let n = List.length ts in
+      checkSubtypeList (Utils.zip ts (List.repeat n tInvariant))
+    (TTuple _ ts _ (Just tRest) _, TList _ tInvariant _) ->
+      case tRest.val of
+        TList _ t' _ ->
+          let ts' = ts ++ [t'] in
+          let n = List.length ts' in
+          checkSubtypeList (Utils.zip ts' (List.repeat n tInvariant))
+        _ ->
+          Err "checkSubtype TTuple bad rest"
+    _ ->
+      Err <| Utils.spaces
+        [ "checkSubtype failed:"
+        , String.trim (unparseType t1)
+        , String.trim (unparseType t2)
+        ]
+
+checkSubtypeList : List (Type, Type) -> Result TypeError (Maybe ())
+checkSubtypeList list =
+  List.foldl (\(t1,t2) acc ->
+    case (acc, checkSubtype t1 t2) of
+      (Ok (Just ()), Ok (Just ())) -> Ok (Just ())
+      (Err err, _)                 -> Err err
+      (_, Err err)                 -> Err err
+      _                            -> Err "checkSubtypeList TODO error"
+  ) (Ok (Just ())) list
 
 checkOrConstrainSubtype : Type -> Type -> Result TypeError Constraints
 checkOrConstrainSubtype t1 t2 =
-  Debug.log "checkOrConstrainSubtype TODO" <| Ok []
+  case checkSubtype t1 t2 of
+    Err err      -> Err err
+    Ok (Just ()) -> Ok []
+    Ok Nothing   ->
+      debugLog "checkOrConstrainSubtype TODO add constraint" <| Ok []
 
 -- Joining Types -------------------------------------------------------------
 
 joinTypes : Type -> Type -> Result TypeError Type
 joinTypes t1 t2 =
-  Debug.log "joinTypes TODO" <| Ok t1
+  -- TODO
+  case checkSubtype t1 t2 of
+    Ok (Just ()) -> Ok t2
+    _ ->
+      case checkSubtype t2 t1 of
+        Ok (Just ()) -> Ok t1
+        _ ->
+          Err "joinTypes TODO"
 
 joinManyTypes : List Type -> Result TypeError Type
 joinManyTypes ts =
   case ts of
-    t::_ -> Debug.log "joinManyTypes TODO" <| Ok t
-    []   -> Debug.crash "joinManyTypes: empty list"
+    [] -> Debug.crash "joinManyTypes: empty list"
+    t::ts' ->
+      List.foldl (\tNext acc ->
+        case acc of
+          Err err    -> Err err
+          Ok tJoined -> joinTypes tNext tJoined
+      ) (Ok t) ts'
 
 -- Constraint Solving --------------------------------------------------------
 
 solveConstraints : TypeEnv -> Type -> Constraints -> Result TypeError (Type, Constraints)
 solveConstraints typeEnv t constraints =
-  Debug.log "solveConstraints TODO" <| Ok (t, [])
+  debugLog "solveConstraints TODO" <| Ok (t, [])
 
 -- Entry Point for Typechecking ----------------------------------------------
 
 typecheck : Exp -> TypeInfo
 typecheck e =
+  let _ = debugLog "TYPE CHECKING" "..." in
   let result = synthesizeType initTypeInfo initTypeEnv e in
   let _ = displayTypeInfo result.typeInfo in
   result.typeInfo
@@ -478,18 +664,25 @@ typecheck e =
 initTypeInfo : TypeInfo
 initTypeInfo =
   { constraints = []
-  , errors = ()
+  , typeErrors = []
   , rawTypes = Dict.empty
   , namedExps = []
+  , genSymCount = 0
   }
 
 initTypeEnv : TypeEnv
-initTypeEnv = []
+initTypeEnv =
+  -- TODO typecheck prelude.little
+  [ HasType "blobs" (parseT " (-> (List (List Svg)) Svg)")
+  , HasType "line" (parseT " (-> Num Num Num Num Num Num Svg)")
+  , HasType "rectangle" (parseT " (-> Num Num Num Num [Num Num Num Num] Svg)")
+  ]
 
 displayTypeInfo : TypeInfo -> ()
 displayTypeInfo typeInfo =
   -- let _ = displayRawTypes typeInfo in
   let _ = displayNamedExps typeInfo in
+  let _ = displayTypeErrors typeInfo in
   ()
 
 displayRawTypes : TypeInfo -> ()
@@ -499,22 +692,30 @@ displayRawTypes typeInfo =
       Nothing -> ()
       Just t  ->
         let s = LangUnparser.unparseType t in
-        let _ = Debug.log "synthesized type: " (eid, s) in
+        let _ = debugLog "synthesized type: " (eid, s) in
         ()
   ) () typeInfo.rawTypes
 
 displayNamedExps : TypeInfo -> ()
 displayNamedExps typeInfo =
+  let _ = debugLog "NAMED EXPS" () in
   List.foldr (\(p, eid) () ->
     case Dict.get eid typeInfo.rawTypes of
       Just (Just t) ->
-        let s1 = LangUnparser.unparsePat p in
-        let s2 = LangUnparser.unparseType t in
-        let _ = Debug.log (s1 ++ " : " ++ s2 ++ " , eid") eid in
+        let s1 = String.trim (LangUnparser.unparsePat p) in
+        let s2 = String.trim (LangUnparser.unparseType t) in
+        let _ = debugLog (s1 ++ " : " ++ s2 ++ " , eid") eid in
         ()
       _ -> ()
   ) () typeInfo.namedExps
 
+displayTypeErrors : TypeInfo -> ()
+displayTypeErrors typeInfo =
+  let n = List.length typeInfo.typeErrors in
+  if n == 0 then ()
+  else
+    let _ = debugLog "# TYPE ERRORS" n in
+    List.foldr debugLog () typeInfo.typeErrors
 
 
 

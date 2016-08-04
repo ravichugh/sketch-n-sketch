@@ -2014,6 +2014,7 @@ upstate evt old = case debugLog "Event" evt of
     Run ->
       case parseE old.code of
         Ok e ->
+         let _ = Types.typecheck e in
          let (newVal,ws) = (Eval.run e) in
          let (newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) = LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal in
          let newCode = unparse e in
@@ -2024,7 +2025,6 @@ upstate evt old = case debugLog "Event" evt of
            let selectedIdx = min (fst old.lambdaTools) (List.length options) in
            (selectedIdx, options)
          in
-         let _ = Types.typecheck e in
          let new =
            { old | inputExp      = e
                  , inputVal      = newVal

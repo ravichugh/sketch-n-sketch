@@ -1,5 +1,5 @@
 module LangParser2 (prelude, isPreludeLoc, isPreludeLocId, isPreludeEId,
-                    substOf, substStrOf, parseE,
+                    substOf, substStrOf, parseE, parseT,
                     freshen, substPlusOf) where
 
 import String
@@ -371,6 +371,9 @@ parseE_ f = P.parse <|
 
 parseE : String -> Result String Exp
 parseE = parseE_ freshen
+
+parseT : String -> Result String Type
+parseT = P.parse parseType
 
 parseVar : P.Parser Exp_
 parseVar =

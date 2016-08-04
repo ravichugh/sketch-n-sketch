@@ -49,6 +49,7 @@ type Op_
   | ToStr
   | Sqrt
   | DebugLog
+  --  | DictMem   -- TODO: add this
   -- binary ops
   | Plus | Minus | Mult | Div
   | Lt | Eq
@@ -593,6 +594,7 @@ pVar0 a        = withDummyRange <| PVar "" a noWidgetDecl
 pVar a         = withDummyRange <| PVar " " a noWidgetDecl
 pList0 ps      = withDummyRange <| PList "" ps "" Nothing ""
 pList ps       = withDummyRange <| PList " " ps "" Nothing ""
+pAs x p        = withDummyRange <| PAs " " x " " p
 
 -- note: dummy ids...
 vTrue    = vBool True
