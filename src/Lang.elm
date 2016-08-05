@@ -347,6 +347,30 @@ replaceExpNode oldNode newNode root =
   let esubst = Dict.singleton oldNode.val.eid newNode.val.e__ in
   applyESubst esubst root
 
+mapType : (Type -> Type) -> Type -> Type
+mapType f tipe =
+  let recurse = mapType f in
+  let wrap t_ = P.WithInfo t_ tipe.start tipe.end in
+  case tipe.val of
+    TNum _       -> f tipe
+    TBool _      -> f tipe
+    TString _    -> f tipe
+    TNull _      -> f tipe
+    TNamed _ _   -> f tipe
+    TVar _ _     -> f tipe
+    TWildcard _  -> f tipe
+
+    TList ws1 t1 ws2        -> f (wrap (TList ws1 (recurse t1) ws2))
+    TDict ws1 t1 t2 ws2     -> f (wrap (TDict ws1 (recurse t1) (recurse t2) ws2))
+    TArrow ws1 ts ws2       -> f (wrap (TArrow ws1 (List.map recurse ts) ws2))
+    TUnion ws1 ts ws2       -> f (wrap (TUnion ws1 (List.map recurse ts) ws2))
+    TForall ws1 vars t1 ws2 -> f (wrap (TForall ws1 vars (recurse t1) ws2))
+
+    TTuple ws1 ts ws2 Nothing ws3 ->
+      f (wrap (TTuple ws1 (List.map recurse ts) ws2 Nothing ws3))
+    TTuple ws1 ts ws2 (Just t) ws3 ->
+      f (wrap (TTuple ws1 (List.map recurse ts) ws2 (Just (recurse t)) ws3))
+
 foldType : (Type -> a -> a) -> Type -> a -> a
 foldType f tipe acc =
   let foldTypes f tipes acc = List.foldl (\t acc -> foldType f t acc) acc tipes in
