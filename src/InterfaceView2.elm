@@ -1765,10 +1765,16 @@ canvas_ w h model =
           -- let _ = Debug.log (toString subst) subst in
           -- let _ = Debug.log (toString model.runAnimation) model.runAnimation in
           let newExp = applyLocSubst subst exp in
-          let (newVal,_) = Eval.run newExp in
-          let slateToDraw = LangSvg.resolveToIndexedTree model.slideNumber model.movieNumber model.movieTime newVal in
-          (slateToDraw, (exp, val, slate, code))
-        possibleChangeToSvg (slateToDraw, (exp, val, slate, code)) =
+          let newVal =
+            case Eval.run newExp of
+              Ok (newVal, _) -> newVal
+              Err s          -> val
+          in
+          case LangSvg.resolveToIndexedTree model.slideNumber model.movieNumber model.movieTime newVal of
+            Ok slateToDraw -> (slateToDraw, (exp, val, slate, code))
+            Err s          -> (slate,       (exp, val, slate, code))
+      in
+      let possibleChangeToSvg (slateToDraw, (exp, val, slate, code)) =
           let model' = model in
           Svg.svg [ Svg.Attributes.viewBox (String.join " " (List.map toString [0, 0, w, h]))
                   , Attr.style possibleChangeStyle
@@ -1777,10 +1783,12 @@ canvas_ w h model =
                   , Events.onMouseOut events.address (PreviewCode Nothing)
                   ]
                   [ buildSvg (model', False) slateToDraw ]
-        cancelButton = Html.button [ Attr.style (possibleChangeStyle ++ [("font-size", "25px")])
-                                   , Events.onClick events.address CancelSync
-                                   ]
-                                   [Html.text "Cancel"]
+      in
+      let cancelButton =
+        Html.button [ Attr.style (possibleChangeStyle ++ [("font-size", "25px")])
+                    , Events.onClick events.address CancelSync
+                    ]
+                    [Html.text "Cancel"]
       in
       GE.color (Color.grayscale 0.1)
         <| Html.toElement w h
@@ -2162,12 +2170,12 @@ luckyButton model =
   let foo old =
     let so = old.syncOptions in
     let so' = { so | feelingLucky = Sync.toggleHeuristicMode so.feelingLucky } in
-    let m' =
-      case old.mode of
-        Live _ -> mkLive_ so' old.slideNumber old.movieNumber old.movieTime old.inputExp
-        _      -> old.mode
-    in
-    { old | syncOptions = so', mode = m' }
+    case old.mode of
+      Live _ ->
+        case mkLive_ so' old.slideNumber old.movieNumber old.movieTime old.inputExp of
+          Ok m' -> { old | syncOptions = so', mode = m' }
+          Err s -> { old | syncOptions = so', errorBox = Just s }
+      _ -> { old | syncOptions = so' }
   in
   -- let yesno = if model.syncOptions.feelingLucky then "Yes" else "No" in
   -- simpleButton (UpdateModel foo) "Lucky" "Lucky" ("[Lucky?] " ++ yesno)

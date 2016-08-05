@@ -483,7 +483,7 @@ inferLocalUpdates opts e v v' =
           List.sortBy snd <|
             List.filterMap (\s ->
               let e1 = applyLocSubst s e in
-              let v1 = fst (Eval.run e1) in
+              let v1 = fst (Utils.fromOk "Sync.inferLocalUpdates" <| Eval.run e1) in
               let vcStar = mapVal leafToStar vc in
               case diffNoCheck (fillHole vcStar holeSubst) v1 of
                 -- TODO 9/24: one of the last few commits affected this
@@ -572,7 +572,7 @@ inferStructuralUpdates eOld v v' =
 
   -- going through parser so that new location ids are assigned
   let eNew = Utils.fromOkay "Sync.inferStruct" (Parser.parseE (Un.unparse eNew_)) in
-  [(eNew, fst (Eval.run eNew))]
+  [(eNew, fst (Utils.fromOk "Sync.inferStruct" <| Eval.run eNew))]
 
 
 ------------------------------------------------------------------------------
@@ -660,7 +660,7 @@ inferDeleteUpdates eOld v v' =
   else
     -- freshen is needed b/c EConsts have been added (and removed)
     let eNew = Parser.freshen <| removeDeadIndices eOld v' in
-    just (eNew, fst <| Eval.run eNew)
+    just (eNew, fst <| Utils.fromOk "Sync.inferDeleteUpdates" <| Eval.run eNew)
 
 
 ------------------------------------------------------------------------------
@@ -886,8 +886,8 @@ inferRelatedRects sortRectsByXY flow _ _ v' =
       ""                                                        `nl`
       "(svg newGroup)"
     in
-    let eNew = Utils.fromOkay "Sync.inferRelatedRects" <| Parser.parseE s in
-    let vNew = fst <| Eval.run eNew in
+    let eNew     = Utils.fromOkay "Sync.inferRelatedRects" <| Parser.parseE s in
+    let (vNew,_) = Utils.fromOk "Sync.inferRelatedRects" <| Eval.run eNew in
     Just (eNew, vNew)
   )))
 
@@ -962,8 +962,8 @@ inferCircleOfCircles groupBox _ _ v' =
       ""                                                        `nl`
       "(svg newGroup)"
     in
-    let eNew = Utils.fromOkay "Sync" <| Parser.parseE s in
-    let vNew = fst <| Eval.run eNew in
+    let eNew     = Utils.fromOkay "Sync.inferCircleOfCircles" <| Parser.parseE s in
+    let (vNew,_) = Utils.fromOk "Sync.inferCircleOfCircles" <| Eval.run eNew in
     Just (eNew, vNew)
   )))
 
@@ -1084,8 +1084,8 @@ inferGroupOfLines elastic _ _ v' =
       -- "  (let [yTL yTR yBL yBR] " ++ "[y0 y0 yh yh]"            `nl`
       -- "  (cons box lines))))))))))"                             `nl`
     in
-    let eNew = Utils.fromOkay "Sync" <| Parser.parseE s in
-    let vNew = fst <| Eval.run eNew in
+    let eNew     = Utils.fromOkay "Sync.inferGroupOfLines" <| Parser.parseE s in
+    let (vNew,_) = Utils.fromOk "Sync.inferGroupOfLines" <| Eval.run eNew in
     Just (eNew, vNew)
   )))
 
@@ -1156,7 +1156,7 @@ relateBaseOffset genSymK e ntts_ =
               in
               -- let _ = Debug.log "applied" (toString (Dict.toList esubst)) in
               let eNew = applyESubst esubst e in
-              let vNew = fst <| Eval.run eNew in
+              let (vNew,_) = Utils.fromOk "Sync.relateBaseOffset" <| Eval.run eNew in
               (genSymK, [(eNew, vNew)])
 
 relateNumsWithVar : Int -> Exp -> List NumTr -> (Int, List (Exp, Val))
@@ -1196,9 +1196,9 @@ relateNumsWithVar genSymK e nts =
                 |> Un.unparse
                 |> (++) ("(def " ++ gensym ++ " " ++ gensymVal ++ ")\n")
                 |> Parser.parseE
-                |> Utils.fromOkay "Sync.relate"
+                |> Utils.fromOkay "Sync.relateNumsWithVar"
             in
-            let vNew = fst <| Eval.run eNew in
+            let (vNew,_) = Utils.fromOk "Sync.relateNumsWithVar" <| Eval.run eNew in
             (eNew, vNew)
           in
           let ans1 =
@@ -1678,19 +1678,21 @@ type alias LiveInfo =
 
 tryToBeSmart = False
 
-prepareLiveUpdates : Options -> Int -> Int -> Float -> Exp -> Val -> IndexedTree -> LiveInfo
+prepareLiveUpdates : Options -> Int -> Int -> Float -> Exp -> Val -> IndexedTree -> Result String LiveInfo
 prepareLiveUpdates opts slideNumber movieNumber movieTime e v slate =
-  let v' = LangSvg.resolveToMovieFrameVal slideNumber movieNumber movieTime v in
-  let d0 = nodeToAttrLocs v' in
-  let d1 = shapesToZoneTable opts d0 in
-  -- let d2 = assignTriggers d1 in
-  let d2 = assignTriggers opts d0 d1 in
-  let initSubstPlus = Parser.substPlusOf e in
-  let initSubst = Dict.map (always .val) initSubstPlus in
-    { triggers    = makeTriggers initSubst opts e d0 d2 slate
-    , assignments = zoneAssignments d2
-    , initSubst   = initSubstPlus
-    }
+  LangSvg.resolveToMovieFrameVal slideNumber movieNumber movieTime v
+  |> Result.map (\v' ->
+      let d0 = nodeToAttrLocs v' in
+      let d1 = shapesToZoneTable opts d0 in
+      -- let d2 = assignTriggers d1 in
+      let d2 = assignTriggers opts d0 d1 in
+      let initSubstPlus = Parser.substPlusOf e in
+      let initSubst = Dict.map (always .val) initSubstPlus in
+        { triggers    = makeTriggers initSubst opts e d0 d2 slate
+        , assignments = zoneAssignments d2
+        , initSubst   = initSubstPlus
+        }
+    )
 
 -- TODO refactor Dict data structures above to make this more efficient
 

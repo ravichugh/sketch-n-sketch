@@ -119,7 +119,7 @@ type MouseMode
         , Bool ))                       -- dragged at least one pixel
                                         -- TODO remove second Maybe
   | MouseSlider Widget
-      (Maybe ( MouseTrigger (Exp, Val, RootedIndexedTree, Widgets) ))
+      (Maybe ( MouseTrigger (Result String (Exp, Val, RootedIndexedTree, Widgets)) ))
       -- may add info for hilites later
   | MouseDrawNew (List (KeysDown, (Int, Int)))
       -- invariant on length n of list of points:
@@ -215,10 +215,12 @@ events = Signal.mailbox <| Noop
 
 mkLive opts slideNumber movieNumber movieTime e v =
   let (_,tree) = LangSvg.valToIndexedTree v in
-  Live <| Sync.prepareLiveUpdates opts slideNumber movieNumber movieTime e v tree
+  Sync.prepareLiveUpdates opts slideNumber movieNumber movieTime e v tree
+  |> Result.map (Live)
 
 mkLive_ opts slideNumber movieNumber movieTime e  =
-  mkLive opts slideNumber movieNumber movieTime e (fst (Eval.run e))
+  Eval.run e `Result.andThen` (\(val,_) -> mkLive opts slideNumber movieNumber movieTime e val)
+
   -- TODO maybe put Val into model (in addition to slate)
   --   so that don't need to re-run in some calling contexts
 
@@ -267,7 +269,9 @@ sampleModel =
     (name,_,f) = Utils.head_ Examples.list
     {e,v,ws}   = f ()
   in
-  let (slideCount, movieCount, movieDuration, movieContinue, indexedTree) = LangSvg.fetchEverything 1 1 0.0 v in
+  let (slideCount, movieCount, movieDuration, movieContinue, indexedTree) =
+    Utils.fromOk "generating sample model" <| LangSvg.fetchEverything 1 1 0.0 v
+  in
   let code = unparse e in
     { scratchCode   = Examples.scratch
     , exName        = name
@@ -287,7 +291,7 @@ sampleModel =
     , syncSelectTime = 0.0
     , slate         = indexedTree
     , widgets       = ws
-    , mode          = mkLive Sync.defaultOptions 1 1 0.0 e v
+    , mode          = Utils.fromOk "mkLive sample model" <| mkLive Sync.defaultOptions 1 1 0.0 e v
     , mouseMode     = MouseNothing
     , orient        = Vertical
     , hideCode      = False

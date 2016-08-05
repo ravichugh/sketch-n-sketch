@@ -10,9 +10,9 @@ import PreludeGenerated as Prelude
 makeExample name s =
   let thunk () =
     -- TODO tolerate parse errors, change Select Example
-    let e = Utils.fromOkay ("makeExample: " ++ name) (Parser.parseE s) in
+    let e = Utils.fromOkay ("Error parsing example " ++ name) (Parser.parseE s) in
     let ati = Types.typecheck e in
-    let (v,ws) = Eval.run e in
+    let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| Eval.run e in
     {e=e, v=v, ws=ws, ati=ati}
   in
   (name, s, thunk)

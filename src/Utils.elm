@@ -359,6 +359,18 @@ bindMaybe2 f mx my = bindMaybe (\x -> bindMaybe (f x) my) mx
 bindMaybe3 : (a -> b -> c -> Maybe d) -> Maybe a -> Maybe b -> Maybe c -> Maybe d
 bindMaybe3 f mx my mz = bindMaybe2 (\x y -> bindMaybe (f x y) mz) mx my
 
+projOk : List (Result a b) -> Result a (List b)
+projOk list =
+  List.foldr
+      (\res out ->
+        case (res, out) of
+          (_, Err _)         -> out
+          (Ok elem, Ok tail) -> Ok (elem::tail)
+          (Err s, _)         -> Err s
+      )
+      (Ok [])
+      list
+
 mapFst : (a -> a') -> (a, b) -> (a', b)
 mapFst f (a, b) = (f a, b)
 

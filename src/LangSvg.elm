@@ -129,7 +129,7 @@ type alias IdPoint = (Maybe Int, Point)
 
 strValOfAVal = strVal << valOfAVal
 
-expectedButGot x s = errorMsg <| "expected " ++ x ++", but got: " ++ s
+expectedButGot x s = crashWithMsg <| "expected " ++ x ++", but got: " ++ s
 
 -- temporary way to ignore numbers specified as strings (also see Sync)
 
@@ -676,41 +676,42 @@ emptyTree = valToIndexedTree <| vList [vBase (VString "svg"), vList [], vList []
 
 -- TODO use options for better error messages
 
-resolveToMovieCount : Int -> Val -> Int
+resolveToMovieCount : Int -> Val -> Result String Int
 resolveToMovieCount slideNumber val =
-  let slideVal = fetchSlideVal slideNumber val in
-  fetchMovieCount slideVal
+  fetchSlideVal slideNumber val
+  |> Result.map fetchMovieCount
 
-resolveToMovieFrameVal : Int -> Int -> Float -> Val -> Val
+resolveToMovieFrameVal : Int -> Int -> Float -> Val -> Result String Val
 resolveToMovieFrameVal slideNumber movieNumber movieTime val =
-  let (_, _, _, _, movieFrameVal) = fetchEverything_ slideNumber movieNumber movieTime val in
-    movieFrameVal
+  fetchEverything_ slideNumber movieNumber movieTime val
+  |> Result.map (\(_, _, _, _, movieFrameVal) -> movieFrameVal)
 
-resolveToIndexedTree : Int -> Int -> Float -> Val -> RootedIndexedTree
+resolveToIndexedTree : Int -> Int -> Float -> Val -> Result String RootedIndexedTree
 resolveToIndexedTree slideNumber movieNumber movieTime val =
-  let (_, _, _, _, indexedTree) = fetchEverything slideNumber movieNumber movieTime val in
-    indexedTree
+  fetchEverything slideNumber movieNumber movieTime val
+  |> Result.map (\(_, _, _, _, indexedTree) -> indexedTree)
 
-fetchEverything_ : Int -> Int -> Float -> Val -> (Int, Int, Float, Bool, Val)
+fetchEverything_ : Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, Val)
 fetchEverything_ slideNumber movieNumber movieTime val =
-  let
-    slideCount = fetchSlideCount val
-    slideVal   = fetchSlideVal slideNumber val
-  in
-  let
-    movieCount = fetchMovieCount slideVal
-    movieVal   = fetchMovieVal movieNumber slideVal
-  in
-  let
-    (movieDuration, continue) = fetchMovieDurationAndContinueBool movieVal
-    movieFrameVal             = fetchMovieFrameVal slideNumber movieNumber movieTime movieVal
-  in
-    (slideCount, movieCount, movieDuration, continue, movieFrameVal)
+  let slideCount = fetchSlideCount val in
+  fetchSlideVal slideNumber val
+  `Result.andThen` (\slideVal ->
+    let movieCount = fetchMovieCount slideVal in
+    fetchMovieVal movieNumber slideVal
+    `Result.andThen` (\movieVal ->
+      let (movieDuration, continue) = fetchMovieDurationAndContinueBool movieVal in
+      fetchMovieFrameVal slideNumber movieNumber movieTime movieVal
+      |> Result.map (\movieFrameVal ->
+        (slideCount, movieCount, movieDuration, continue, movieFrameVal)
+      )
+    )
+  )
 
-fetchEverything : Int -> Int -> Float -> Val -> (Int, Int, Float, Bool, RootedIndexedTree)
+fetchEverything : Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, RootedIndexedTree)
 fetchEverything slideNumber movieNumber movieTime val =
-  let (slideCount, movieCount, movieDuration, continue, movieVal) = fetchEverything_ slideNumber movieNumber movieTime val in
-    (slideCount, movieCount, movieDuration, continue, valToIndexedTree movieVal)
+  fetchEverything_ slideNumber movieNumber movieTime val
+  |> Result.map (\(slideCount, movieCount, movieDuration, continue, movieVal) ->
+                  (slideCount, movieCount, movieDuration, continue, valToIndexedTree movieVal))
 
 fetchSlideCount : Val -> Int
 fetchSlideCount val =
@@ -724,7 +725,7 @@ fetchMovieCount slideVal =
     Just [VConst (movieCount, _), _] -> round movieCount
     _ -> 1 -- Program returned a plain SVG array structure...we hope.
 
-fetchSlideVal : Int -> Val -> Val
+fetchSlideVal : Int -> Val -> Result String Val
 fetchSlideVal slideNumber val =
   case unwrapVList val of
     Just [VConst (slideCount, _), VClosure _ pat fexp fenv] ->
@@ -734,23 +735,23 @@ fetchSlideVal slideNumber val =
         PVar _ argumentName _ ->
           -- Bind the slide number to the function's argument.
           let fenv' = (argumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
-          let ((returnVal, _), _) = Eval.eval fenv' [] fexp in
-          returnVal
-        _ -> Debug.crash ("expected slide function to take a single argument, got " ++ (toString pat.val))
-    _ -> val -- Program returned a plain SVG array structure...we hope.
+          Eval.eval fenv' [] fexp
+          |> Result.map (\((returnVal, _), _) -> returnVal)
+        _ -> Err ("expected slide function to take a single argument, got " ++ (toString pat.val))
+    _ -> Ok val -- Program returned a plain SVG array structure...we hope.
 
 -- This is nasty b/c a two-arg function is really a function that returns a function...
-fetchMovieVal : Int -> Val -> Val
+fetchMovieVal : Int -> Val -> Result String Val
 fetchMovieVal movieNumber slideVal =
   case unwrapVList slideVal of
     Just [VConst (movieCount, _), VClosure _ pat fexp fenv] ->
       case pat.val of -- Find the function's argument name
         PVar _ movieNumberArgumentName _ ->
           let fenv' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenv in
-          let ((returnVal, _), _) = Eval.eval fenv' [] fexp in
-          returnVal
-        _ -> Debug.crash ("expected movie function to take a single argument, got " ++ (toString pat.val))
-    _ -> slideVal -- Program returned a plain SVG array structure...we hope.
+          Eval.eval fenv' [] fexp
+          |> Result.map (\((returnVal, _), _) -> returnVal)
+        _ -> Err ("expected movie function to take a single argument, got " ++ (toString pat.val))
+    _ -> Ok slideVal -- Program returned a plain SVG array structure...we hope.
 
 fetchMovieDurationAndContinueBool : Val -> (Float, Bool)
 fetchMovieDurationAndContinueBool movieVal =
@@ -763,48 +764,48 @@ fetchMovieDurationAndContinueBool movieVal =
       (0.0, False) -- Program returned a plain SVG array structure...we hope.
 
 -- This is nasty b/c a two-arg function is really a function that returns a function...
-fetchMovieFrameVal : Int -> Int -> Float -> Val -> Val
+fetchMovieFrameVal : Int -> Int -> Float -> Val -> Result String Val
 fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
   case unwrapVList movieVal of
     Just [VBase (VString "Static"), VClosure _ pat fexp fenv] ->
       case pat.val of -- Find the function's argument names
         PVar _ slideNumberArgumentName _ ->
           let fenv' = (slideNumberArgumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
-          let ((innerVal, _), _) = Eval.eval fenv' [] fexp in
-          case innerVal.v_ of
-            VClosure _ patInner fexpInner fenvInner ->
+          case Eval.eval fenv' [] fexp |> Result.map (\((innerVal, _), _) -> innerVal.v_) of
+            Ok (VClosure _ patInner fexpInner fenvInner) ->
               case patInner.val of
                 PVar _ movieNumberArgumentName _ ->
                   let fenvInner' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenvInner in
-                  let ((returnVal, _), _) = Eval.eval fenvInner' [] fexpInner in
-                  returnVal
-                _ -> Debug.crash ("expected static movie frame function to take two arguments, got " ++ (toString patInner.val))
-            _ -> Debug.crash ("expected static movie frame function to take two arguments, got " ++ (toString innerVal))
-        _ -> Debug.crash ("expected static movie frame function to take two arguments, got " ++ (toString pat.val))
+                  Eval.eval fenvInner' [] fexpInner
+                  |> Result.map (\((returnVal, _), _) -> returnVal)
+                _ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString patInner.val))
+            Ok v_ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString v_))
+            Err s -> Err s
+        _ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString pat.val))
     Just [VBase (VString "Dynamic"), VConst (movieDuration, _), VClosure _ pat fexp fenv, VBase (VBool _)] ->
       case pat.val of -- Find the function's argument names
         PVar _ slideNumberArgumentName _ ->
           let fenv' = (slideNumberArgumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
-          let ((innerVal1, _), _) = Eval.eval fenv' [] fexp in
-          case innerVal1.v_ of
-            VClosure _ patInner1 fexpInner1 fenvInner1 ->
+          case Eval.eval fenv' [] fexp |> Result.map (\((innerVal1, _), _) -> innerVal1.v_) of
+            Ok (VClosure _ patInner1 fexpInner1 fenvInner1) ->
               case patInner1.val of
                 PVar _ movieNumberArgumentName _ ->
                   let fenvInner1' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenvInner1 in
-                  let ((innerVal2, _), _) = Eval.eval fenvInner1' [] fexpInner1 in
-                  case innerVal2.v_ of
-                    VClosure _ patInner2 fexpInner2 fenvInner2 ->
+                  case Eval.eval fenvInner1' [] fexpInner1 |> Result.map (\((innerVal2, _), _) -> innerVal2.v_) of
+                    Ok (VClosure _ patInner2 fexpInner2 fenvInner2) ->
                       case patInner2.val of
                         PVar _ movieSecondsArgumentName _ ->
                           let fenvInner2' = (movieSecondsArgumentName, vConst (movieTime, dummyTrace)) :: fenvInner2 in
-                          let ((returnVal, _), _) = Eval.eval fenvInner2' [] fexpInner2 in
-                          returnVal
-                        _ -> Debug.crash ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner2.val))
-                    _ -> Debug.crash ("expected dynamic movie frame function to take four arguments, got " ++ (toString innerVal2))
-                _ -> Debug.crash ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner1.val))
-            _ -> Debug.crash ("expected dynamic movie frame function to take four arguments, got " ++ (toString innerVal1))
-        _ -> Debug.crash ("expected dynamic movie frame function to take four arguments, got " ++ (toString pat.val))
-    _ -> movieVal -- Program returned a plain SVG array structure...we hope.
+                          Eval.eval fenvInner2' [] fexpInner2
+                          |> Result.map (\((returnVal, _), _) -> returnVal)
+                        _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner2.val))
+                    Ok innerV2_ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString innerV2_))
+                    Err s -> Err s
+                _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner1.val))
+            Ok innerV1_ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString innerV1_))
+            Err s -> Err s
+        _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString pat.val))
+    _ -> Ok movieVal -- Program returned a plain SVG array structure...we hope.
 
 
 valToIndexedTree : Val -> RootedIndexedTree

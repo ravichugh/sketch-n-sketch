@@ -223,19 +223,24 @@ makeEqualOverlappingPairs originalExp features slideNumber movieNumber movieTime
   in
   case List.take 2 features of
     [featureA, featureB] ->
-      let slate =
-        let (val, _) = Eval.run originalExp in
-        LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val
+      let slateRes =
+        Eval.run originalExp
+        `Result.andThen` (\(val, _) ->
+            LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val
+          )
       in
-      let maybeNewExp =
-        makeEqual_ originalExp featureA featureB slate syncOptions
-      in
-      case maybeNewExp of
-        Just newExp ->
-          relateMore newExp
+      case slateRes of
+        Err s -> originalExp
+        Ok slate ->
+          let maybeNewExp =
+            makeEqual_ originalExp featureA featureB slate syncOptions
+          in
+          case maybeNewExp of
+            Just newExp ->
+              relateMore newExp
 
-        Nothing ->
-          relateMore originalExp
+            Nothing ->
+              relateMore originalExp
 
     _ ->
       originalExp
@@ -263,20 +268,25 @@ makeEquidistantOverlappingTriples originalExp sortedFeatures slideNumber movieNu
     case sortedFeatures of
       -- If there's at least 3 more features...
       _::featureB::featureC::featureD::otherFeatures ->
-        let newSlate =
-          let (val, _) = Eval.run exp in
-          LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val
+        let newSlateRes =
+          Eval.run exp
+          `Result.andThen` (\(val, _) ->
+              LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val
+            )
         in
-        let newLocIdToNumberAndLoc = locIdToNumberAndLocOf exp in
-        makeEquidistantOverlappingTriples
-            exp
-            (featureB::featureC::featureD::otherFeatures)
-            slideNumber
-            movieNumber
-            movieTime
-            newSlate
-            syncOptions
-            newLocIdToNumberAndLoc
+        case newSlateRes of
+          Err s -> exp
+          Ok newSlate ->
+            let newLocIdToNumberAndLoc = locIdToNumberAndLocOf exp in
+            makeEquidistantOverlappingTriples
+                exp
+                (featureB::featureC::featureD::otherFeatures)
+                slideNumber
+                movieNumber
+                movieTime
+                newSlate
+                syncOptions
+                newLocIdToNumberAndLoc
 
       _ ->
         exp

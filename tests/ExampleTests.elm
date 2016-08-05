@@ -15,7 +15,8 @@ testEvalsWithoutErrors name code =
     Ok exp ->
       -- Elm will crash first if Eval fails.
       case Eval.run exp of
-        (val, widgets) -> "ok"
+        Ok (val, widgets) -> "ok"
+        Err s             -> "evaluation error running " ++ name ++ ":\n" ++ s
 
 testReparsedUnparsedEvalsWithoutErrors name code =
   case parseE code of
@@ -29,7 +30,8 @@ testReparsedUnparsedEvalsWithoutErrors name code =
         Ok reparsedExp ->
           -- Elm will crash first if Eval fails.
           case Eval.run reparsedExp of
-            (val, widgets) -> "ok"
+            Ok (val, widgets) -> "ok"
+            Err s             -> "evaluation error running unparsed/reparsed " ++ name ++ ":\n" ++ s
 
 testExample name code =
   [ (\() -> testEvalsWithoutErrors name code)

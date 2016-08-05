@@ -74,8 +74,8 @@ upslate id newattr nodes = case Dict.get id nodes of
 
 refreshMode model e =
   case model.mode of
-    Live _  -> mkLive_ model.syncOptions model.slideNumber model.movieNumber model.movieTime e
-    Print _ -> mkLive_ model.syncOptions model.slideNumber model.movieNumber model.movieTime e
+    Live _  -> Utils.fromOk "refreshMode" <| mkLive_ model.syncOptions model.slideNumber model.movieNumber model.movieTime e
+    Print _ -> Utils.fromOk "refreshMode" <| mkLive_ model.syncOptions model.slideNumber model.movieNumber model.movieTime e
     m       -> m
 
 refreshMode_ model = refreshMode model model.inputExp
@@ -177,14 +177,27 @@ highlightChanges mStuff changes codeBoxInfo =
       { codeBoxInfo | highlights = hi' }
 
 addSlateAndCode old (exp, val) =
-  let (slate, code) = slateAndCode old (exp, val) in
-  (exp, val, slate, code)
+  slateAndCode old (exp, val)
+  |> Result.map (\(slate, code) -> (exp, val, slate, code))
 
 slateAndCode old (exp, val) =
-  let slate =
-    LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val
+  LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val
+  |> Result.map (\slate -> (slate, unparse exp))
+
+runWithErrorHandling model exp onOk =
+  let result =
+    Eval.run exp `Result.andThen` (\(val, widgets) ->
+      slateAndCode model (exp, val)
+      |> Result.map (\(slate, code) -> onOk val widgets slate code)
+    )
   in
-  (slate, unparse exp)
+  handleError model result
+
+handleError : Model -> Result String Model -> Model
+handleError oldModel result =
+  case result of
+    Ok newModel -> newModel
+    Err s       -> { oldModel | errorBox = Just s }
 
 updateCodeBoxWithTypes : Types.AceTypeInfo -> CodeBoxInfo -> CodeBoxInfo
 updateCodeBoxWithTypes ati codeBoxInfo =
@@ -1924,30 +1937,33 @@ onMouseMove (mx0, my0) old =
 
     MouseObject id kind zone (Just (mStuff, (mx0, my0), _)) ->
       let (dx, dy) = (mx - mx0, my - my0) in
-      let (newE,newV,changes,newSlate,newWidgets) =
-        applyTrigger id kind zone old mx0 my0 dx dy in
-      { old | code = unparse newE
-            , inputExp = newE
-            , inputVal = newV
-            , slate = newSlate
-            , widgets = newWidgets
-            , codeBoxInfo = highlightChanges mStuff changes old.codeBoxInfo
-            , mouseMode =
-                MouseObject id kind zone (Just (mStuff, (mx0, my0), True))
-            }
+      applyTrigger id kind zone old mx0 my0 dx dy
+      |> Result.map (\(newE,newV,changes,newSlate,newWidgets) ->
+        { old | code = unparse newE
+              , inputExp = newE
+              , inputVal = newV
+              , slate = newSlate
+              , widgets = newWidgets
+              , codeBoxInfo = highlightChanges mStuff changes old.codeBoxInfo
+              , mouseMode =
+                  MouseObject id kind zone (Just (mStuff, (mx0, my0), True))
+              }
+      ) |> handleError old
 
     MouseSlider widget Nothing ->
       let onNewPos = createMousePosCallbackSlider mx my widget old in
       { old | mouseMode = MouseSlider widget (Just onNewPos) }
 
     MouseSlider widget (Just onNewPos) ->
-      let (newE,newV,newSlate,newWidgets) = onNewPos (mx, my) in
-      { old | code = unparse newE
-            , inputExp = newE
-            , inputVal = newV
-            , slate = newSlate
-            , widgets = newWidgets
-            }
+      onNewPos (mx, my)
+      |> Result.map (\(newE,newV,newSlate,newWidgets) ->
+        { old | code = unparse newE
+              , inputExp = newE
+              , inputVal = newV
+              , slate = newSlate
+              , widgets = newWidgets
+              }
+      ) |> handleError old
 
     MouseDrawNew points ->
       case (old.tool, points) of
@@ -2024,54 +2040,61 @@ upstate evt old = case debugLog "Event" evt of
       case parseE old.code of
         Err (err, annot) ->
           -- TODO maybe get rid of (computing and) displaying err in caption area
-          { old | caption = Just (LangError ("PARSE ERROR!\n" ++ err))
+          { old | errorBox = Just err
                 , codeBoxInfo = updateCodeBoxWithParseError annot old.codeBoxInfo }
         Ok e ->
-         let aceTypeInfo = Types.typecheck e in
-         let (newVal,ws) = (Eval.run e) in
-         let (newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) = LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal in
-         let newCode = unparse e in
-         let lambdaTools' =
-           -- TODO should put program into Model
-           let program = splitExp e in
-           let options = lambdaToolOptionsOf program ++ snd sampleModel.lambdaTools in
-           let selectedIdx = min (fst old.lambdaTools) (List.length options) in
-           (selectedIdx, options)
-         in
-         let new =
-           { old | inputExp      = e
-                 , inputVal      = newVal
-                 , code          = newCode
-                 , slideCount    = newSlideCount
-                 , movieCount    = newMovieCount
-                 , movieTime     = 0
-                 , movieDuration = newMovieDuration
-                 , movieContinue = newMovieContinue
-                 , runAnimation  = newMovieDuration > 0
-                 , slate         = newSlate
-                 , widgets       = ws
-                 , history       = addToHistory newCode old.history
-                 , caption       = Nothing
-                 , syncOptions   = Sync.syncOptionsOf old.syncOptions e
-                 , lambdaTools   = lambdaTools'
-                 , codeBoxInfo   = updateCodeBoxWithTypes aceTypeInfo old.codeBoxInfo
-           }
-         in
-          { new | mode = refreshMode_ new
-                , errorBox = Nothing }
+          let result =
+            let aceTypeInfo = Types.typecheck e in
+            Eval.run e
+            `Result.andThen` (\(newVal,ws) ->
+              LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
+              |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
+                let newCode = unparse e in
+                let lambdaTools' =
+                  -- TODO should put program into Model
+                  let program = splitExp e in
+                  let options = lambdaToolOptionsOf program ++ snd sampleModel.lambdaTools in
+                  let selectedIdx = min (fst old.lambdaTools) (List.length options) in
+                  (selectedIdx, options)
+                in
+                let new =
+                  { old | inputExp      = e
+                        , inputVal      = newVal
+                        , code          = newCode
+                        , slideCount    = newSlideCount
+                        , movieCount    = newMovieCount
+                        , movieTime     = 0
+                        , movieDuration = newMovieDuration
+                        , movieContinue = newMovieContinue
+                        , runAnimation  = newMovieDuration > 0
+                        , slate         = newSlate
+                        , widgets       = ws
+                        , history       = addToHistory newCode old.history
+                        , caption       = Nothing
+                        , syncOptions   = Sync.syncOptionsOf old.syncOptions e
+                        , lambdaTools   = lambdaTools'
+                        , codeBoxInfo   = updateCodeBoxWithTypes aceTypeInfo old.codeBoxInfo
+                  }
+                in
+                { new | mode = refreshMode_ new
+                      , errorBox = Nothing }
+              )
+            )
+          in
+          handleError old result
 
     StartAnimation -> upstate Redraw { old | movieTime = 0
                                            , runAnimation = True }
 
     Redraw ->
-      case old.inputVal of
-        val ->
-          let (newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) = LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime val in
+      case LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime old.inputVal of
+        Ok (newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
           { old | slideCount    = newSlideCount
                 , movieCount    = newMovieCount
                 , movieDuration = newMovieDuration
                 , movieContinue = newMovieContinue
                 , slate         = newSlate }
+        Err s -> { old | errorBox = Just s }
 
     ToggleOutput ->
       let m = case old.mode of
@@ -2170,7 +2193,7 @@ upstate evt old = case debugLog "Event" evt of
       in
       let revert = (old.inputExp, old.inputVal) in
       let (nextK, l) = Sync.relate old.genSymCount old.inputExp selectedVals in
-      let possibleChanges = List.map (addSlateAndCode old) l in
+      let possibleChanges = List.filterMap (Result.toMaybe << addSlateAndCode old) l in
         { old | mode = SyncSelect possibleChanges
               , genSymCount = nextK
               , selectedFeatures = Set.empty -- TODO
@@ -2182,19 +2205,19 @@ upstate evt old = case debugLog "Event" evt of
       let newExp =
         ValueBasedTransform.digHole old.inputExp old.selectedFeatures old.slate old.syncOptions
       in
-      let (newVal, newWidgets) = Eval.run newExp in
-      let (newSlate, newCode)  = slateAndCode old (newExp, newVal) in
-      debugLog "new model" <|
-        { old | code             = newCode
-              , inputExp         = newExp
-              , inputVal         = newVal
-              , history          = addToHistory old.code old.history
-              , slate            = newSlate
-              , widgets          = newWidgets
-              , previewCode      = Nothing
-              , mode             = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal
-              , selectedFeatures = Set.empty
-        }
+      runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
+        debugLog "new model" <|
+          { old | code             = newCode
+                , inputExp         = newExp
+                , inputVal         = newVal
+                , history          = addToHistory old.code old.history
+                , slate            = newSlate
+                , widgets          = newWidgets
+                , previewCode      = Nothing
+                , mode             = Utils.fromOk "DigHole MkLive" <| mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal -- we already ran it successfully once so it shouldn't crash the second time
+                , selectedFeatures = Set.empty
+          }
+      )
 
     MakeEqual ->
       let newExp =
@@ -2206,20 +2229,20 @@ upstate evt old = case debugLog "Event" evt of
             old.movieTime
             old.syncOptions
       in
-      let (newVal, newWidgets) = Eval.run newExp in
-      let (newSlate, newCode)  = slateAndCode old (newExp, newVal) in
-      upstate CleanCode <|
-      debugLog "new model" <|
-        { old | code             = newCode
-              , inputExp         = newExp
-              , inputVal         = newVal
-              , history          = addToHistory old.code old.history
-              , slate            = newSlate
-              , widgets          = newWidgets
-              , previewCode      = Nothing
-              , mode             = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal
-              , selectedFeatures = Set.empty
-        }
+      runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
+        upstate CleanCode <|
+        debugLog "new model" <|
+          { old | code             = newCode
+                , inputExp         = newExp
+                , inputVal         = newVal
+                , history          = addToHistory old.code old.history
+                , slate            = newSlate
+                , widgets          = newWidgets
+                , previewCode      = Nothing
+                , mode             = Utils.fromOk "MakeEqual MkLive" <| mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal -- we already ran it successfully once so it shouldn't crash the second time
+                , selectedFeatures = Set.empty
+          }
+      )
 
     MakeEquidistant ->
       let newExp =
@@ -2232,19 +2255,19 @@ upstate evt old = case debugLog "Event" evt of
             old.slate
             old.syncOptions
       in
-      let (newVal, newWidgets) = Eval.run newExp in
-      let (newSlate, newCode)  = slateAndCode old (newExp, newVal) in
-      debugLog "new model" <|
-        { old | code             = newCode
-              , inputExp         = newExp
-              , inputVal         = newVal
-              , history          = addToHistory old.code old.history
-              , slate            = newSlate
-              , widgets          = newWidgets
-              , previewCode      = Nothing
-              , mode             = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal
-              , selectedFeatures = Set.empty
-        }
+      runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
+        debugLog "new model" <|
+          { old | code             = newCode
+                , inputExp         = newExp
+                , inputVal         = newVal
+                , history          = addToHistory old.code old.history
+                , slate            = newSlate
+                , widgets          = newWidgets
+                , previewCode      = Nothing
+                , mode             = Utils.fromOk "MakeEquidistant MkLive" <| mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal -- we already ran it successfully once so it shouldn't crash the second time
+                , selectedFeatures = Set.empty
+          }
+      )
 
     GroupBlobs ->
       if Dict.size old.selectedBlobs <= 1 then old
@@ -2289,9 +2312,9 @@ upstate evt old = case debugLog "Event" evt of
             relatedG   = Sync.inferNewRelationships ip old.inputVal newval
             relatedV   = Sync.relateSelectedAttrs old.genSymCount ip old.inputVal newval
           in
-          let addSlateAndCodeToAll list = List.map (addSlateAndCode old) list in
+          let addSlateAndCodeToAll list = List.filterMap (Result.toMaybe << addSlateAndCode old) list in
             case (local, relatedV) of
-              (Ok [], (_, [])) -> { old | mode = mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime ip }
+              (Ok [], (_, [])) -> { old | mode = Utils.fromOk "Sync mkLive_" <| mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime ip }
               (Ok [], (nextK, changes)) ->
                 let _ = debugLog ("no live updates, only related var") () in
                 let m = SyncSelect (addSlateAndCodeToAll changes) in
@@ -2316,14 +2339,13 @@ upstate evt old = case debugLog "Event" evt of
               , slate         = slate
               , previewCode   = Nothing
               , tool          = Cursor
-              , mode          = mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp val }
-
+              , mode          = Utils.fromOk "SelectOption mkLive" <| mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp val }
 
     PreviewCode maybeCode ->
       { old | previewCode = maybeCode }
 
     CancelSync ->
-      upstate Run { old | mode = mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime old.inputExp }
+      upstate Run { old | mode = Utils.fromOk "CancelSync mkLive_" <| mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime old.inputExp }
 
     SelectExample name thunk ->
       if name == Examples.scratchName then
@@ -2333,34 +2355,36 @@ upstate evt old = case debugLog "Event" evt of
       let {e,v,ws,ati} = thunk () in
       let (so, m) =
         case old.mode of
-          Live _  -> let so = Sync.syncOptionsOf old.syncOptions e in (so, mkLive so old.slideNumber old.movieNumber old.movieTime e v)
-          Print _ -> let so = Sync.syncOptionsOf old.syncOptions e in (so, mkLive so old.slideNumber old.movieNumber old.movieTime e v)
+          Live _  -> let so = Sync.syncOptionsOf old.syncOptions e in (so, Utils.fromOk "SelectExample mkLive_" <| mkLive so old.slideNumber old.movieNumber old.movieTime e v)
+          Print _ -> let so = Sync.syncOptionsOf old.syncOptions e in (so, Utils.fromOk "SelectExample mkLive_" <| mkLive so old.slideNumber old.movieNumber old.movieTime e v)
           _      -> (old.syncOptions, old.mode)
       in
       let scratchCode' =
         if old.exName == Examples.scratchName then old.code else old.scratchCode
       in
-      let (slideCount, movieCount, movieDuration, movieContinue, slate) = LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v in
-      let code = unparse e in
-      { old | scratchCode   = scratchCode'
-            , exName        = name
-            , inputExp      = e
-            , inputVal      = v
-            , code          = code
-            , history       = ([code],[])
-            , mode          = m
-            , syncOptions   = so
-            , slideNumber   = 1
-            , slideCount    = slideCount
-            , movieCount    = movieCount
-            , movieTime     = 0
-            , movieDuration = movieDuration
-            , movieContinue = movieContinue
-            , runAnimation  = movieDuration > 0
-            , slate         = slate
-            , widgets       = ws
-            , codeBoxInfo   = updateCodeBoxWithTypes ati old.codeBoxInfo
-            }
+      LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v
+      |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
+        let code = unparse e in
+        { old | scratchCode   = scratchCode'
+              , exName        = name
+              , inputExp      = e
+              , inputVal      = v
+              , code          = code
+              , history       = ([code],[])
+              , mode          = m
+              , syncOptions   = so
+              , slideNumber   = 1
+              , slideCount    = slideCount
+              , movieCount    = movieCount
+              , movieTime     = 0
+              , movieDuration = movieDuration
+              , movieContinue = movieContinue
+              , runAnimation  = movieDuration > 0
+              , slate         = slate
+              , widgets       = ws
+              , codeBoxInfo   = updateCodeBoxWithTypes ati old.codeBoxInfo
+              }
+      ) |> handleError old
 
     SwitchMode m -> { old | mode = m }
 
@@ -2396,13 +2420,18 @@ upstate evt old = case debugLog "Event" evt of
         upstate StartAnimation { old | slideNumber = 1
                                      , movieNumber = 1 }
       else
-        let previousSlideNumber    = old.slideNumber - 1 in
-        case old.inputExp of
-          exp ->
-            let previousVal = fst <| Eval.run exp in
-            let previousMovieCount = LangSvg.resolveToMovieCount previousSlideNumber previousVal in
-            upstate StartAnimation { old | slideNumber = previousSlideNumber
-                                         , movieNumber = previousMovieCount }
+        let previousSlideNumber = old.slideNumber - 1 in
+        let result =
+          Eval.run old.inputExp
+          `Result.andThen` (\(previousVal, _) ->
+            LangSvg.resolveToMovieCount previousSlideNumber previousVal
+            |> Result.map (\previousMovieCount ->
+              upstate StartAnimation { old | slideNumber = previousSlideNumber
+                                           , movieNumber = previousMovieCount }
+            )
+          )
+        in
+        handleError old result
 
     NextMovie ->
       if old.movieNumber == old.movieCount && old.slideNumber < old.slideCount then
@@ -2557,6 +2586,7 @@ upstate evt old = case debugLog "Event" evt of
     WaitClean -> old
     WaitCodeBox -> old
 
+
 adjustMidOffsetX old dx =
   case old.orient of
     Vertical   -> { old | midOffsetX = old.midOffsetX + dx }
@@ -2577,14 +2607,16 @@ applyTrigger objid kind zone old mx0 my0 dx_ dy_ =
   let dy = if old.keysDown == Keys.x then 0 else dy_ in
   case old.mode of
     AdHoc ->
-      (old.inputExp, old.inputVal, Dict.empty, old.slate, old.widgets)
+      Ok (old.inputExp, old.inputVal, Dict.empty, old.slate, old.widgets)
     Live info ->
       case Utils.justGet_ "#4" zone (Utils.justGet_ "#5" objid info.triggers) of
         Nothing -> Debug.crash "shouldn't happen due to upstate SelectObject"
         Just trigger ->
           let (newE,changes) = trigger (mx0, my0) (dx, dy) in
-          let (newVal,newWidgets) = Eval.run newE in
-          (newE, newVal, changes, LangSvg.valToIndexedTree newVal, newWidgets)
+          Eval.run newE
+          |> Result.map (\(newVal,newWidgets) ->
+              (newE, newVal, changes, LangSvg.valToIndexedTree newVal, newWidgets)
+            )
     _ -> Debug.crash "applyTrigger"
 
 
@@ -2614,7 +2646,9 @@ createMousePosCallbackSlider mx my widget old =
     -- this substitution only binds the location to change
     let subst = Dict.singleton locid newVal in
     let newE = applyLocSubst subst old.inputExp in
-    let (newVal,newWidgets) = Eval.run newE in
-    -- Can't manipulate slideCount/movieCount/movieDuration/movieContinue via sliders at the moment.
-    let newSlate = LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime newVal in
-    (newE, newVal, newSlate, newWidgets)
+    Eval.run newE
+    `Result.andThen` (\(newVal,newWidgets) ->
+      -- Can't manipulate slideCount/movieCount/movieDuration/movieContinue via sliders at the moment.
+      LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime newVal
+      |> Result.map (\newSlate -> (newE, newVal, newSlate, newWidgets))
+    )

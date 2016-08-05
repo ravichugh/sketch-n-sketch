@@ -570,7 +570,8 @@ getOptions e = case e.val.e__ of
 -- Error Messages
 
 errorPrefix = "[Little Error]" -- NOTE: same as errorPrefix in Native/codeBox.js
-errorMsg s  = Debug.crash <| errorPrefix ++ "\n\n" ++ s
+crashWithMsg s  = Debug.crash <| errorPrefix ++ "\n\n" ++ s
+errorMsg s      = Err <| errorPrefix ++ "\n\n" ++ s
 
 strPos = P.strPos
 
