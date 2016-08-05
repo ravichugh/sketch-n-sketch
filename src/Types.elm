@@ -43,7 +43,8 @@ astsMatch t1 t2 =
     (TVar _ _, TVar _ _)   -> True
     (TWildcard _,
      TWildcard _)          -> True
-    (TForall _ typeVars1 t1 _, TForall _ typeVars2 t2 _) ->
+    (TForall _ (One _) t1 _, TForall _ (One _) t2 _) -> astsMatch t1 t2
+    (TForall _ (Many _ typeVars1 _) t1 _, TForall _ (Many _ typeVars2 _) t2 _) ->
       List.length typeVars1 == List.length typeVars2 && astsMatch t1 t2
     _                      -> False
 
@@ -166,12 +167,11 @@ tArrow (argTypes, retType) = withDummyRange (TArrow " " (argTypes ++ [retType]) 
 tPolyArrow vars arrowType  = tForall vars (tArrow arrowType)
 
 tForall vars t =
-  let vars' = case vars of
-    []       -> Debug.crash "tForall: no vars"
-    [a]      -> [(" ", a)]
-    a::vars' -> ("",a) :: List.map (\a' -> (" ", a')) vars'
-  in
-  withDummyRange (TForall " " vars' t "" )
+  case vars of
+    []    -> Debug.crash "tForall: no vars"
+    [a]   -> withDummyRange (TForall " " (One (" ", a)) t "")
+    a::bs -> let typeVars = ("",a) :: List.map (\a -> (" ", a)) bs in
+             withDummyRange (TForall " " (Many "" typeVars "") t "")
 
 eInfoOf : Exp -> EInfo
 eInfoOf e = { val = e.val.eid, start = e.start, end = e.end }
@@ -361,7 +361,10 @@ stripArrow t =
 stripPolymorphicArrow : Type -> Maybe (List Ident, ArrowType)
 stripPolymorphicArrow t =
   case t.val of
-    TForall _ typeVars t0 _ -> -- requiring all type variables in one TForall
+    -- requiring all type variables in one TForall
+    TForall _ (One typeVar) t0 _ ->
+      stripArrow t0 |> Utils.bindMaybe (\arrow -> Just ([snd typeVar], arrow))
+    TForall _ (Many _ typeVars _) t0 _ ->
       stripArrow t0 |> Utils.bindMaybe (\arrow -> Just (List.map snd typeVars, arrow))
     _ ->
       stripArrow t |> Utils.bindMaybe (\arrow -> Just ([], arrow))
@@ -401,8 +404,9 @@ isWellFormed : TypeEnv -> Type -> Bool
 isWellFormed typeEnv tipe =
   let (prenexVars, tipe') =
     case tipe.val of
-      TForall _ typeVars t _ -> (List.map snd typeVars, t)
-      _                      -> ([], tipe)
+      TForall _ (Many _ vars _) t _ -> (List.map snd vars, t)
+      TForall _ (One var) t _       -> ([snd var], t)
+      _                             -> ([], tipe)
   in
   let typeEnv' = List.map TypeVar (List.reverse prenexVars) ++ typeEnv in
   let noNestedForalls =

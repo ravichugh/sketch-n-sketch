@@ -708,9 +708,9 @@ parseTForall =
     whitespace               >>= \ws2 ->
       P.return (TForall ws1.val tVars.val t ws2.val)
 
-parseTForallVars : P.Parser (List (WS, Ident))
+parseTForallVars : P.Parser (OneOrMany (WS, Ident))
 parseTForallVars =
-      (parseOneTForallVar >>= \tVar -> P.return [tVar.val])
+      (parseOneTForallVar >>= \tVar -> P.return (One tVar.val))
   <++ parseManyTForallVars
 
 parseOneTForallVar =
@@ -719,10 +719,12 @@ parseOneTForallVar =
     P.return (ws.val, a.val)
 
 parseManyTForallVars =
+  whitespace      >>= \ws1 ->
   parens <|
     parseOneTForallVar        >>= \tVar ->
     P.some parseOneTForallVar >>= \tVars ->
-      P.return (tVar.val :: List.map .val tVars.val)
+    whitespace                >>= \ws2 ->
+      P.return (Many ws1.val (tVar.val :: List.map .val tVars.val) ws2.val)
 
 parseTriop =
   whitespace >>= \ws1 ->

@@ -70,6 +70,8 @@ type Exp__
   | EBase WS EBaseVal
   | EVar WS Ident
   | EFun WS (List Pat) Exp WS -- WS: before (, before )
+  -- TODO remember paren whitespace for multiple pats, like TForall
+  -- | EFun WS (OneOrMany Pat) Exp WS
   | EApp WS Exp (List Exp) WS
   | EOp WS Op (List Exp) WS
   | EList WS (List Exp) WS (Maybe Exp) WS
@@ -104,10 +106,14 @@ type Type_
   | TUnion WS (List Type) WS
   | TNamed WS Ident
   | TVar WS Ident
-  | TForall WS (List (WS, Ident)) Type WS
+  | TForall WS (OneOrMany (WS, Ident)) Type WS
   | TWildcard WS
 
 type alias WS = String
+
+type OneOrMany a          -- track concrete syntax for:
+  = One a                 --   x
+  | Many WS (List a) WS   --   ws1~(x1~...~xn-ws2)
 
 type Branch_  = Branch_ WS Pat Exp WS
 type TBranch_ = TBranch_ WS Type Exp WS
@@ -362,10 +368,8 @@ mapType f tipe =
     TUnion ws1 ts ws2       -> f (wrap (TUnion ws1 (List.map recurse ts) ws2))
     TForall ws1 vars t1 ws2 -> f (wrap (TForall ws1 vars (recurse t1) ws2))
 
-    TTuple ws1 ts ws2 Nothing ws3 ->
-      f (wrap (TTuple ws1 (List.map recurse ts) ws2 Nothing ws3))
-    TTuple ws1 ts ws2 (Just t) ws3 ->
-      f (wrap (TTuple ws1 (List.map recurse ts) ws2 (Just (recurse t)) ws3))
+    TTuple ws1 ts ws2 mt ws3 ->
+      f (wrap (TTuple ws1 (List.map recurse ts) ws2 (Utils.mapMaybe recurse mt) ws3))
 
 foldType : (Type -> a -> a) -> Type -> a -> a
 foldType f tipe acc =

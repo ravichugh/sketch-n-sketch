@@ -229,11 +229,13 @@ unparseType tipe =
     TVar ws1 ident          -> ws1 ++ ident
     TWildcard ws            -> ws ++ "_"
     TForall ws1 typeVars tipe1 ws2 ->
-      let sVars = String.concat (List.map (\(ws,x) -> ws ++ x) typeVars) in
-      ws1 ++ Utils.parens ("forall"
-          ++ (if List.length typeVars == 1 then sVars else " " ++ Utils.parens sVars)
-          ++ unparseType tipe1
-          ++ ws2)
+      let strVar (ws,x) = ws ++ x in
+      let sVars =
+        case typeVars of
+          One var             -> strVar var
+          Many ws1' vars ws2' -> ws1' ++ Utils.parens (String.concat (List.map strVar vars) ++ ws2')
+      in
+      ws1 ++ Utils.parens ("forall" ++ sVars ++ unparseType tipe1 ++ ws2)
 
 unparse : Exp -> String
 unparse e = case e.val.e__ of
