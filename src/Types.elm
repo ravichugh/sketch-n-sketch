@@ -490,20 +490,6 @@ synthesizeType typeInfo typeEnv e =
   let finish = finishSynthesizeType e.val.eid in
   -- TODO add error messages throughout, where finish Nothing ...
 
-  -- TODO move outside
-  let tsAppMono typeInfo eArgs (argTypes, retType) =
-    case Utils.maybeZip eArgs argTypes of
-      Nothing -> finish Nothing typeInfo
-      Just argsAndTypes ->
-        let (argsOkay, typeInfo') =
-           List.foldl (\(ei,ti) (acc1,acc2) ->
-             let res = checkType acc2 typeEnv ei ti in
-             (acc1 && res.result, res.typeInfo)
-           ) (True, typeInfo) argsAndTypes
-        in
-        finish (if argsOkay then Just retType else Nothing) typeInfo'
-  in
-
   case e.val.e__ of
 
     EColonType _ e1 _ t1 _ -> -- [TS-AnnotatedExp]
@@ -565,7 +551,7 @@ synthesizeType typeInfo typeEnv e =
     EOp _ op eArgs _ -> -- [TS-Op]
       case stripPolymorphicArrow (opType op) of
         Just ([], arrowType) ->
-          tsAppMono typeInfo eArgs arrowType
+          tsAppMono finish typeInfo typeEnv eArgs arrowType
         Just _ ->
           let _ = debugLog "TS-Op: handle polymorphism TODO" () in
           finish Nothing typeInfo
@@ -584,7 +570,7 @@ synthesizeType typeInfo typeEnv e =
                 let _ = debugLog "TS-App: arrow template, solve on demand TODO" () in
                 finish Nothing result1.typeInfo
               else
-                tsAppMono result1.typeInfo eArgs (argTypes, retType)
+                tsAppMono finish result1.typeInfo typeEnv eArgs (argTypes, retType)
             Just _ ->
               let _ = debugLog "TS-App: handle polymorphism TODO" () in
               finish Nothing result1.typeInfo
@@ -633,41 +619,14 @@ synthesizeType typeInfo typeEnv e =
       let _ = debugLog "synthesizeType ETypeCase TODO" () in
       finish Nothing typeInfo
 
-    ELet ws1 letKind rec p e1 e2 ws2 ->
-
-      let tsLet e1HasGoalType =
-        let result1 = synthesizeType typeInfo typeEnv e1 in
-        case result1.result of
-          Nothing ->
-            finish Nothing result1.typeInfo
-          Just t1 ->
-            let result1' =
-              case (e1HasGoalType, e1.val.e__, stripArrow t1) of
-                (False, EFun _ _ _ _, Just arrowType) ->
-                  finishTsLetUnannotatedFunc result1.typeInfo e1.val.eid arrowType
-                _ ->
-                  { result = Just t1, typeInfo = result1.typeInfo }
-            in
-            case result1'.result of
-              Nothing -> result1'
-              Just t1' ->
-                case addBindings [p] [t1'] of
-                  Err () ->
-                    finish Nothing result1'.typeInfo
-                  Ok newBindings ->
-                    let typeEnv' = newBindings ++ typeEnv in
-                    let typeInfo1'' = addNamedExp p e1.val.eid result1'.typeInfo in
-                    let result2 = synthesizeType typeInfo1'' typeEnv' e2 in
-                    finish result2.result result2.typeInfo
-      in
-
+    ELet ws1 _ rec p e1 e2 ws2 ->
       case (lookupTypAnnotation typeEnv p, e1.val.e__) of
 
         (Nothing, _) -> -- [TS-Let]
-          tsLet False
+          tsLet finish typeInfo typeEnv p e1 e2 False
 
         (Just t1, EColonType _ _ _ t1' _) ->
-          if t1 == t1' then tsLet True
+          if t1 == t1' then tsLet finish typeInfo typeEnv p e1 e2 True
           else -- throwing an error rather than doing a subtype check
             let err =
               Utils.spaces <|
@@ -717,6 +676,43 @@ synthesizeType typeInfo typeEnv e =
     EIndList _ _ _ ->
       let _ = debugLog "synthesizeType EIndList" () in
       finish Nothing typeInfo
+
+tsAppMono finish typeInfo typeEnv eArgs (argTypes, retType) =
+  case Utils.maybeZip eArgs argTypes of
+    Nothing -> finish Nothing typeInfo
+    Just argsAndTypes ->
+      let (argsOkay, typeInfo') =
+         List.foldl (\(ei,ti) (acc1,acc2) ->
+           let res = checkType acc2 typeEnv ei ti in
+           (acc1 && res.result, res.typeInfo)
+         ) (True, typeInfo) argsAndTypes
+      in
+      finish (if argsOkay then Just retType else Nothing) typeInfo'
+
+tsLet finish typeInfo typeEnv p e1 e2 e1HasGoalType =
+  let result1 = synthesizeType typeInfo typeEnv e1 in
+  case result1.result of
+    Nothing ->
+      finish Nothing result1.typeInfo
+    Just t1 ->
+      let result1' =
+        case (e1HasGoalType, e1.val.e__, stripArrow t1) of
+          (False, EFun _ _ _ _, Just arrowType) ->
+            finishTsLetUnannotatedFunc result1.typeInfo e1.val.eid arrowType
+          _ ->
+            { result = Just t1, typeInfo = result1.typeInfo }
+      in
+      case result1'.result of
+        Nothing -> result1'
+        Just t1' ->
+          case addBindings [p] [t1'] of
+            Err () ->
+              finish Nothing result1'.typeInfo
+            Ok newBindings ->
+              let typeEnv' = newBindings ++ typeEnv in
+              let typeInfo1'' = addNamedExp p e1.val.eid result1'.typeInfo in
+              let result2 = synthesizeType typeInfo1'' typeEnv' e2 in
+              finish result2.result result2.typeInfo
 
 finishTsLetUnannotatedFunc : TypeInfo -> EId -> ArrowType -> AndTypeInfo (Maybe Type)
 finishTsLetUnannotatedFunc typeInfo eFuncId arrow =
