@@ -749,18 +749,44 @@ finishTsLetUnannotatedFunc typeInfo eFuncId arrow =
 
 -- Subtype Checking ------------------------------------------- T1 <: T2; C --
 
-checkSubtype : TypeInfo -> Type -> Type -> AndTypeInfo (Result TypeError ())
-checkSubtype typeInfo t1 t2 =
-  let err () =
-     Err <| Utils.spaces
-       [ "checkSubtype failed:"
-       , String.trim (unparseType t1), " <: "
-       , String.trim (unparseType t2)
-       ]
-  in
-  if t1.val == t2.val then { result = Ok (), typeInfo = typeInfo }
-  else case (t1.val, t2.val) of
-    -- TODO add more cases
+type alias SubtypeResult = AndTypeInfo (Result TypeError ())
+
+checkSubtype : TypeInfo -> Type -> Type -> SubtypeResult
+checkSubtype typeInfo tipe1 tipe2 =
+
+  let ok  = { typeInfo = typeInfo, result = Ok () } in
+  let err = { typeInfo = typeInfo, result = Err <| Utils.spaces
+                [ "checkSubtype failed:"
+                , String.trim (unparseType tipe1), " <: "
+                , String.trim (unparseType tipe2)
+                ] } in
+
+  case (tipe1.val, tipe2.val) of
+
+    (TNum _, TNum _)       -> ok
+    (TBool _, TBool _)     -> ok
+    (TString _, TString _) -> ok
+    (TNull _, TNull _)     -> ok
+
+    (TVar _ a, TVar _ b)     -> if a == b then ok else err
+    (TNamed _ a, TNamed _ b) -> if a == b then ok else err
+      -- TODO expand aliases
+
+    (TList _ t1 _, TList _ t2 _) -> checkSubtype typeInfo t1 t2
+
+    (TDict _ k1 v1 _, TDict _ k2 v2 _) ->
+      checkEquivType typeInfo k1 k2 `bindSubtypeResult` \typeInfo' ->
+      checkSubtype typeInfo' v1 v2
+
+    (TTuple _ ts1 _ mt1 _, TTuple _ ts2 _ mt2 _) ->
+      case Utils.maybeZip ts1 ts2 of
+        Nothing ->
+          { result = Err "checkSubtype TTuple bad lengths", typeInfo = typeInfo }
+        Just list ->
+          checkSubtypeList typeInfo list `bindSubtypeResult` \typeInfo' ->
+          checkSubMaybeType typeInfo' mt1 mt2
+
+    -- converting from tuples to lists
     (TTuple _ ts _ Nothing _, TList _ tInvariant _) ->
       let n = List.length ts in
       checkSubtypeList typeInfo (Utils.zip ts (List.repeat n tInvariant))
@@ -772,14 +798,19 @@ checkSubtype typeInfo t1 t2 =
           checkSubtypeList typeInfo (Utils.zip ts' (List.repeat n tInvariant))
         _ ->
           { result = Err "checkSubtype TTuple bad rest", typeInfo = typeInfo }
+
+    -- constraining type inference variables
     (TVar _ a, _) ->
       case Utils.munchString "_x" a of
-        Just _  -> { result = Ok (), typeInfo = addRawConstraints [(t1, t2)] typeInfo }
-        Nothing -> { result = err (), typeInfo = typeInfo }
-    _ ->
-      { result = err (), typeInfo = typeInfo }
+        Just _  -> { result = Ok (), typeInfo = addRawConstraints [(tipe1, tipe2)] typeInfo }
+        Nothing -> err
 
-checkSubtypeList : TypeInfo -> List (Type, Type) -> AndTypeInfo (Result TypeError ())
+    (TUnion _ _ _, TUnion _ _ _) -> let _ = debugLog "checkSubtype: TUnion TODO" () in err
+    (TArrow _ _ _, TArrow _ _ _) -> let _ = debugLog "checkSubtype: TArrow TODO" () in err
+
+    _ -> err
+
+checkSubtypeList : TypeInfo -> List (Type, Type) -> SubtypeResult
 checkSubtypeList typeInfo list =
   let (result, typeInfo') =
      List.foldl
@@ -791,6 +822,24 @@ checkSubtypeList typeInfo list =
        ) (Ok (), typeInfo) list
   in
   { result = result, typeInfo = typeInfo' }
+
+checkSubMaybeType : TypeInfo -> Maybe Type -> Maybe Type -> SubtypeResult
+checkSubMaybeType typeInfo mt1 mt2 =
+  case (mt1, mt2) of
+    (Just t1, Just t2) -> checkSubtype typeInfo t1 t2
+    (Nothing, Nothing) -> { result = Ok (), typeInfo = typeInfo }
+    _                  -> { result = Err "checkSubMaybeType failed...", typeInfo = typeInfo}
+
+checkEquivType : TypeInfo -> Type -> Type -> SubtypeResult
+checkEquivType typeInfo tipe1 tipe2 =
+  checkSubtype typeInfo  tipe1 tipe2 `bindSubtypeResult` \typeInfo' ->
+  checkSubtype typeInfo' tipe2 tipe1
+
+bindSubtypeResult : SubtypeResult -> (TypeInfo -> SubtypeResult) -> SubtypeResult
+bindSubtypeResult res1 f =
+  case res1.result of
+    Err err -> { result = Err err, typeInfo = res1.typeInfo }
+    Ok ()   -> f res1.typeInfo
 
 -- Joining Types -------------------------------------------------------------
 
