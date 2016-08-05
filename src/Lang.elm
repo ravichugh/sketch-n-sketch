@@ -101,8 +101,6 @@ type Type_
   | TDict WS Type Type WS
   | TTuple WS (List Type) WS (Maybe Type) WS
   | TArrow WS (List Type) WS
-  -- TODO separate return type:
-  --  | TArrow WS ArrowType WS
   | TUnion WS (List Type) WS
   | TNamed WS Ident
   | TVar WS Ident
@@ -116,8 +114,6 @@ type TBranch_ = TBranch_ WS Type Exp WS
 
 type LetKind = Let | Def
 type alias Rec = Bool
-
-type alias ArrowType = (List Type, Type)
 
 type Range_ -- right now, Exps are always EConsts
   = Interval Exp WS Exp

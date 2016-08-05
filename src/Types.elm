@@ -350,6 +350,8 @@ generateConstraintVars n typeInfo =
 
 -- Operations on Arrows ------------------------------------------------------
 
+type alias ArrowType = (List Type, Type)
+
 stripArrow : Type -> Maybe ArrowType
 stripArrow t =
   case t.val of
@@ -364,7 +366,6 @@ stripPolymorphicArrow t =
     _ ->
       stripArrow t |> Utils.bindMaybe (\arrow -> Just ([], arrow))
 
--- TODO remove this function (or move to Parser) when TArrow is updated
 splitTypesInArrow : List Type -> ArrowType
 splitTypesInArrow ts =
   let n = List.length ts in
@@ -619,7 +620,7 @@ synthesizeType typeInfo typeEnv e =
       let _ = debugLog "synthesizeType ETypeCase TODO" () in
       finish Nothing typeInfo
 
-    ELet ws1 _ rec p e1 e2 ws2 ->
+    ELet ws1 letKind rec p e1 e2 ws2 ->
       case (lookupTypAnnotation typeEnv p, e1.val.e__) of
 
         (Nothing, _) -> -- [TS-Let]
