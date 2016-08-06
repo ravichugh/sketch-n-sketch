@@ -6,50 +6,50 @@
 ; but we include it here for reference.
 
 ;; The identity function - given a value, returns exactly that value
-(typ id (-> a a))
+(typ id (forall a (-> a a)))
 (def id (\x x))
 
 ;; A function that always returns the same value a, regardless of b
-(typ always (-> a b a))
+(typ always (forall (a b) (-> a b a)))
 (def always (\(x _) x))
 
 ;; Composes two functions together
-(typ compose (-> (-> a b) (-> b c) (-> a c)))
+(typ compose (forall (a b c) (-> (-> b c) (-> a b) (-> a c))))
 (def compose (\(f g) (\x (f (g x)))))
 
-(typ flip (-> (-> a b c) (-> b a c)))
-(def flip (\(f x y) (f y x)))
+(typ flip (forall (a b c) (-> (-> a b c) (-> b a c))))
+(def flip (\f (\(x y) (f y x))))
 
 ;; Returns the first element of a given list
-(typ fst (-> (List a) a))
+(typ fst (forall a (-> (List a) a)))
 (def fst (\[x|_] x))
 
-(typ snd (-> (List a) a))
+(typ snd (forall a (-> (List a) a)))
 (def snd (\[_ y|_] y))
 
 ;; Returns the length of a given list
-(typ len (-> (List a) Num))
+(typ len (forall a (-> (List a) Num)))
 (defrec len (\xs (case xs ([] 0) ([_ | xs1] (+ 1 (len xs1))))))
 
 ;; Maps a function, f, over a list of values and returns the resulting list
-(typ map (-> (-> a b) (List a) (List b)))
+(typ map (forall (a b) (-> (-> a b) (List a) (List b))))
 (defrec map (\(f xs)
   (case xs ([] []) ([hd|tl] [(f hd)|(map f tl)]))))
 
 ;; Combines two lists with a given function, extra elements are dropped
-(typ map2 (-> (-> a b c) (List a) (List b) (List c)))
+(typ map2 (forall (a b c) (-> (-> a b c) (List a) (List b) (List c))))
 (defrec map2 (\(f xs ys)
   (case [xs ys]
     ([[x|xs1] [y|ys1]] [ (f x y) | (map2 f xs1 ys1) ])
     (_                 []))))
 
 ;; Takes a function, an accumulator, and a list as input and reduces using the function from the left
-(typ foldl (-> (-> a b b) b (List a) b))
+(typ foldl (forall (a b) (-> (-> a b b) b (List a) b)))
 (defrec foldl (\(f acc xs)
   (case xs ([] acc) ([x|xs1] (foldl f (f x acc) xs1)))))
 
 ;; Takes a function, an accumulator, and a list as input and reduces using the function from the right
-(typ foldr (-> (-> a b b) b (List a) b))
+(typ foldr (forall (a b) (-> (-> a b b) b (List a) b)))
 (defrec foldr (\(f acc xs)
   (case xs ([] acc) ([x|xs1] (f x (foldr f acc xs1))))))
 

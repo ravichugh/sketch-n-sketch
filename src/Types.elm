@@ -1,7 +1,7 @@
 module Types where
 
 import Lang exposing (..)
-import LangParser2
+import LangParser2 as Parser
 import OurParser2 as P
 import LangUnparser exposing (unparsePat, unparseType)
 import Utils
@@ -10,6 +10,7 @@ import Config
 import Dict
 import Set
 import String
+import Graphics.Element exposing (show)
 
 equal : Type -> Type -> Bool
 equal t1 t2 =
@@ -152,6 +153,9 @@ type alias AndTypeInfo a =
 
 debugLog = Config.debugLog Config.debugTypeChecker
 
+stopAtError = False
+sanityChecks = False
+
 -- AST Helpers for Types -----------------------------------------------------
 
 tBool   = withDummyRange (TBool " ")
@@ -226,7 +230,7 @@ opTypeTable =
 
 parseT : String -> Type
 parseT s =
-  case LangParser2.parseT s of
+  case Parser.parseT s of
     Err _ -> Debug.crash <| "bad primitive op type: " ++ s
     Ok t  -> t
 
@@ -484,6 +488,8 @@ checkType typeInfo typeEnv e goalType =
 
 -- Type Synthesis ------------------------------------------- G |- e > T; C --
 
+-- TODO allow mixing syntactic sugar forms for EFun/EApp
+
 finishSynthesizeType eid maybeType typeInfo =
   { result = maybeType
   , typeInfo = addRawType eid maybeType typeInfo
@@ -502,6 +508,7 @@ synthesizeType typeInfo typeEnv e =
         let err =
           Utils.spaces <|
             [ (toString e.val.eid)
+            , strPos t1.start
             , "Type annotation not well-formed:"
             , String.trim (unparseType t1)
             ]
@@ -647,11 +654,17 @@ synthesizeType typeInfo typeEnv e =
             let err =
               Utils.spaces <|
                 [ (toString e.val.eid)
+                , strPos t1.start
                 , "Type annotation not well-formed, at def:"
                 , String.trim (unparseType t1)
                 ]
             in
-            finish Nothing (addTypeError err typeInfo)
+            if stopAtError then
+              finish Nothing (addTypeError err typeInfo)
+            else
+              let t1 = tVar "__NO_TYPE__" in
+              let typeInfo' = addTypeError err typeInfo in
+              tsLetFinishE2 finish typeInfo' typeEnv p t1 e1.val.eid e2
           else
             let e1' = replaceE__ e1 (EColonType "" e1 "" t1 "") in
             let e' = replaceE__ e (ELet ws1 letKind rec p e1' e2 ws2) in
@@ -698,7 +711,12 @@ tsLet finish typeInfo typeEnv p e1 e2 e1HasGoalType =
   let result1 = synthesizeType typeInfo typeEnv e1 in
   case result1.result of
     Nothing ->
-      finish Nothing result1.typeInfo
+      if stopAtError then
+        finish Nothing result1.typeInfo
+      else
+        let t1 = tVar "__NO_TYPE__" in
+        tsLetFinishE2 finish result1.typeInfo typeEnv p t1 e1.val.eid e2
+
     Just t1 ->
       let result1' =
         case (e1HasGoalType, e1.val.e__, stripArrow t1) of
@@ -708,16 +726,39 @@ tsLet finish typeInfo typeEnv p e1 e2 e1HasGoalType =
             { result = Just t1, typeInfo = result1.typeInfo }
       in
       case result1'.result of
-        Nothing -> result1'
-        Just t1' ->
-          case addBindings [p] [t1'] of
-            Err () ->
-              finish Nothing result1'.typeInfo
-            Ok newBindings ->
-              let typeEnv' = newBindings ++ typeEnv in
-              let typeInfo1'' = addNamedExp p e1.val.eid result1'.typeInfo in
-              let result2 = synthesizeType typeInfo1'' typeEnv' e2 in
-              finish result2.result result2.typeInfo
+        Nothing  -> result1'
+        Just t1' -> tsLetFinishE2 finish result1'.typeInfo typeEnv p t1' e1.val.eid e2
+
+tsLetFinishE2 finish typeInfo typeEnv p t1 e1eid e2 =
+  if not sanityChecks then
+    tsLetFinishE2_ finish typeInfo typeEnv p t1 e1eid e2
+  else if isWellFormed typeEnv t1 then
+    tsLetFinishE2_ finish typeInfo typeEnv p t1 e1eid e2
+  else
+    let err =
+      Utils.spaces <|
+        [ "[TYPE SYSTEM BUG]"
+        , (toString e1eid)
+        , strPos t1.start
+        , "Synthesized type not well-formed:"
+        , String.trim (unparseType t1)
+        ]
+    in
+    if stopAtError then
+      finish Nothing (addTypeError err typeInfo)
+    else
+      let typeInfo' = addTypeError err typeInfo in
+      tsLetFinishE2_ finish typeInfo' typeEnv p t1 e1eid e2
+
+tsLetFinishE2_ finish typeInfo typeEnv p t1 e1eid e2 =
+  case addBindings [p] [t1] of
+    Err () ->
+      finish Nothing typeInfo
+    Ok newBindings ->
+      let typeEnv' = newBindings ++ typeEnv in
+      let typeInfo' = typeInfo |> addFinalType e1eid (Just t1) |> addNamedExp p e1eid in
+      let result2 = synthesizeType typeInfo' typeEnv' e2 in
+      finish result2.result result2.typeInfo
 
 finishTsLetUnannotatedFunc : TypeInfo -> EId -> ArrowType -> AndTypeInfo (Maybe Type)
 finishTsLetUnannotatedFunc typeInfo eFuncId arrow =
@@ -956,6 +997,8 @@ initTypeEnv =
   , HasType "rectangle" (parseT " (-> Num Num Num Num [Num Num Num Num] Svg)")
   ]
 
+blah = typecheck Parser.prelude
+
 displayTypeInfo : TypeInfo -> ()
 displayTypeInfo typeInfo =
   -- let _ = displayRawTypes typeInfo in
@@ -1013,6 +1056,8 @@ displayTypeErrors typeInfo =
     let _ = debugLog "# TYPE ERRORS" n in
     List.foldr debugLog () typeInfo.typeErrors
 
+-- dummy for stand-alone compilation
+main = show 1
 
 
 {--
