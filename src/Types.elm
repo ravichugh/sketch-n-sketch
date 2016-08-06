@@ -246,45 +246,60 @@ opType op =
 -- lookup* functions can look for most recent bindings from front
 -- to back.
 --
-addBindings : List Pat -> List Type -> Result () TypeEnv
+addBindings : List Pat -> List Type -> Result TypeError TypeEnv
 addBindings pats types =
   case Utils.maybeZip pats types of
-    Nothing ->
-      let _ = debugLog "addBindings: can't zip" () in
-      Err ()
-    Just patsAndTypes ->
-      Ok (List.foldl addBindingsOne [] patsAndTypes)
-        -- don't reverse, because fold-left
+    Nothing  -> Err "addBindings: can't zip"
+    Just pts -> addBindingsMany pts []
 
-addBindingsOne : (Pat, Type) -> TypeEnv -> TypeEnv
+addBindingsMany : List (Pat, Type) -> TypeEnv -> Result TypeError TypeEnv
+addBindingsMany patsAndTypes typeEnv =
+  List.foldl (\pt macc ->
+    case macc of
+      Err err -> Err err
+      Ok acc  -> addBindingsOne pt acc
+  ) (Ok typeEnv) patsAndTypes -- don't reverse, because fold-left
+
+addBindingsOne : (Pat, Type) -> TypeEnv -> Result TypeError TypeEnv
 addBindingsOne (p, t) acc =
   case p.val of
-    PConst _ _     -> acc
-    PBase _ _      -> acc
-    PVar _ x _     -> HasType x t :: acc
+
+    PConst _ _     -> Ok acc
+    PBase _ _      -> Ok acc
+    PVar _ "_" _   -> Ok acc
+    PVar _ x _     -> Ok (HasType x t :: acc)
     PAs _ x _ xPat -> addBindingsOne (xPat, t) (HasType x t :: acc)
+
     PList _ ps _ mpRest _ ->
       case t.val of
+
         TTuple _ ts _ mtRest _ ->
-          let restBinding =
+          let maybeRestBinding =
             case (mpRest, mtRest) of
-              (Nothing, Nothing) -> []
+              (Nothing, Nothing) -> Ok []
+
               (Just pRest, Just tRest) ->
                 case (pRest.val, tRest.val) of
-                  (PVar _ xRest _, TList _ tInvariant _) -> [HasType xRest tInvariant]
-                  _ -> debugLog "addBindings PList: ERROR 1 TODO" []
-              _ -> debugLog "addBindings PList: ERROR 2 TODO" []
+                  (PVar _ xRest _, TList _ tInvariant _) -> Ok [HasType xRest tInvariant]
+                  _                                      -> Err "addBindings PList: ERROR 1 TODO"
+              _                                          -> Err "addBindings PList: ERROR 2 TODO"
           in
-          case addBindings ps ts of
-            Ok newBindings -> restBinding ++ newBindings ++ acc
-            Err () ->
-              let s1 = String.trim (unparsePat p) in
-              let s2 = String.trim (unparseType t) in
-              let _ = debugLog "addBindings PList: ERROR 3 TODO" (s1, s2) in
-              restBinding ++ acc
+          case (addBindings ps ts, maybeRestBinding) of
+            (Ok newBindings, Ok restBinding) ->
+              Ok (restBinding ++ newBindings ++ acc)
+            _ ->
+              Err (Utils.spaces [unparsePat p, unparseType t])
+
+        TList _ tInvariant _ ->
+          case addBindings ps (List.repeat (List.length ps) tInvariant) of
+            Err err -> Err err
+            Ok acc' ->
+              case mpRest of
+                Nothing    -> Err "addBindings PList: ERROR 3 TODO"
+                Just pRest -> addBindingsOne (pRest, t) acc' -- t ~= tList tInvariant
+
         _ ->
-          let _ = debugLog "addBindings: PList ERROR 4 TODO" () in
-          acc
+          Err <| Utils.spaces [ "addBindings failed:", unparsePat p, unparseType t ]
 
 addTypBindings : Pat -> Type -> Result () TypeEnv
 addTypBindings p t =
@@ -443,7 +458,7 @@ checkType typeInfo typeEnv e goalType =
         Nothing -> { typeInfo = typeInfo, result = False }
         Just (typeVars, (argTypes, returnType)) ->
           case addBindings pats argTypes of
-            Err () -> { typeInfo = typeInfo, result = False }
+            Err err -> { result = False, typeInfo = addTypeError err typeInfo }
             Ok newBindings ->
               let newTypeBindings = List.map TypeVar (List.reverse typeVars) in
               let typeEnv' = newBindings ++ newTypeBindings ++ typeEnv in
@@ -546,7 +561,7 @@ synthesizeType typeInfo typeEnv e =
       let (constraintVars, typeInfo') = generateConstraintVars (List.length ps) typeInfo in
       let argTypes = List.map tVar constraintVars in
       case addBindings ps argTypes of
-        Err () -> finish Nothing typeInfo'
+        Err err -> finish Nothing (addTypeError err typeInfo')
         Ok newBindings ->
           let typeEnv' = newBindings ++ typeEnv in
           let result1 = synthesizeType typeInfo' typeEnv' eBody in
@@ -752,8 +767,8 @@ tsLetFinishE2 finish typeInfo typeEnv p t1 e1eid e2 =
 
 tsLetFinishE2_ finish typeInfo typeEnv p t1 e1eid e2 =
   case addBindings [p] [t1] of
-    Err () ->
-      finish Nothing typeInfo
+    Err err ->
+      finish Nothing (addTypeError err typeInfo)
     Ok newBindings ->
       let typeEnv' = newBindings ++ typeEnv in
       let typeInfo' = typeInfo |> addFinalType e1eid (Just t1) |> addNamedExp p e1eid in
