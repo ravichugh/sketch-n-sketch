@@ -638,9 +638,31 @@ synthesizeType typeInfo typeEnv e =
           _ ->
             finish Nothing result3.typeInfo
 
-    ECase _ _ _ _ -> -- [TS-Case]
-      let _ = debugLog "synthesizeType ECase TODO" () in
-      finish Nothing typeInfo
+    ECase _ e0 branches _ -> -- [TS-Case]
+      let result1 = synthesizeType typeInfo typeEnv e0 in
+      case result1.result of
+        Nothing -> finish Nothing result1.typeInfo
+        Just t1 ->
+          let _ =
+            if Set.isEmpty (constraintVarsOf [t1]) then ()
+            else debugLog "ECase: TODO constraints based on patterns" ()
+          in
+          let things =
+             List.map (\pe ->
+               let (Branch_ _ pi ei _) = pe.val in
+               case addBindingsOne (pi, t1) typeEnv of
+                 Ok typeEnvi -> Just (typeEnvi, ei)
+                 Err err     -> Nothing
+             ) branches in
+          let result2 = synthesizeBranchTypes result1.typeInfo things in
+          case Utils.projJusts result2.result of
+            Nothing ->
+              let err = "ECase: could not typecheck all branches" in
+              finish Nothing (addTypeError err result2.typeInfo)
+            Just ts ->
+              case joinManyTypes ts of
+                Err err -> finish Nothing (addTypeError err result2.typeInfo)
+                Ok t    -> finish (Just t) result2.typeInfo
 
     ETypeCase _ _ _ _ -> -- [TS-Typecase]
       let _ = debugLog "synthesizeType ETypeCase TODO" () in
@@ -802,6 +824,19 @@ finishTsLetUnannotatedFunc typeInfo eFuncId arrow =
                                 , solvedConstraints = solvedConstraints
                                     ++ typeInfo.solvedConstraints }
       }
+
+synthesizeBranchTypes : TypeInfo -> List (Maybe (TypeEnv, Exp)) -> AndTypeInfo (List (Maybe Type))
+synthesizeBranchTypes typeInfo list =
+  let (maybeTypes, typeInfo') =
+     List.foldl (\thingi (acc1,acc2) ->
+       case thingi of
+         Nothing -> (Nothing::acc1, acc2)
+         Just (typeEnvi, ei) ->
+           let resulti = synthesizeType acc2 typeEnvi ei in
+           (resulti.result::acc1, resulti.typeInfo)
+     ) ([], typeInfo) list
+  in
+  { result = List.reverse maybeTypes, typeInfo = typeInfo' }
 
 -- Subtype Checking ------------------------------------------- T1 <: T2; C --
 
