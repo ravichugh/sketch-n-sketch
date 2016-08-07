@@ -154,7 +154,9 @@ type alias AndTypeInfo a =
 debugLog = Config.debugLog Config.debugTypeChecker
 
 stopAtError = False
+  -- if False, continue typechecking after failed let equation (any expression)
 sanityChecks = False
+  -- if True, check well-formedness of synthesized types
 
 -- AST Helpers for Types -----------------------------------------------------
 
@@ -175,7 +177,7 @@ tForall vars t =
     []    -> Debug.crash "tForall: no vars"
     [a]   -> withDummyRange (TForall " " (One (" ", a)) t "")
     a::bs -> let typeVars = ("",a) :: List.map (\a -> (" ", a)) bs in
-             withDummyRange (TForall " " (Many "" typeVars "") t "")
+             withDummyRange (TForall " " (Many " " typeVars "") t "")
 
 eInfoOf : Exp -> EInfo
 eInfoOf e = { val = e.val.eid, start = e.start, end = e.end }
@@ -402,7 +404,7 @@ isArrowTemplate argTypes =
 
 constraintVarsOf : List Type -> Set.Set Ident
 constraintVarsOf argTypes =
-  -- detect constraint vars added by TS-Fun
+  -- detect constraint vars added by TS-Fun (could track in types instead)
   let isConstraintVar a =
     case Utils.munchString "_x" a of
       Nothing -> False
@@ -415,7 +417,8 @@ constraintVarsOf argTypes =
   ) Set.empty argTypes
 
 constraintVarsOfArrow : ArrowType -> Set.Set Ident
-constraintVarsOfArrow (argTypes, _) = constraintVarsOf argTypes
+constraintVarsOfArrow (argTypes, retType) =
+  constraintVarsOf (argTypes ++ [retType])
 
 -- Type Well-Formedness -------------------------------------------- G |- T --
 
@@ -558,8 +561,8 @@ synthesizeType typeInfo typeEnv e =
           finish Nothing (addTypeError err typeInfo)
 
     EFun _ ps eBody _ -> -- [TS-Fun]
-      let (constraintVars, typeInfo') = generateConstraintVars (List.length ps) typeInfo in
-      let argTypes = List.map tVar constraintVars in
+      let (constraintVars, typeInfo') = generateConstraintVars (1 + List.length ps) typeInfo in
+      let (argTypes, retType) = splitTypesInArrow (List.map tVar constraintVars) in
       case addBindings ps argTypes of
         Err err -> finish Nothing (addTypeError err typeInfo')
         Ok newBindings ->
@@ -569,8 +572,10 @@ synthesizeType typeInfo typeEnv e =
             Nothing ->
               let _ = debugLog "can't synthesize type for function body" () in
               finish Nothing result1.typeInfo
-            Just retType ->
-              finish (Just (tArrow (argTypes, retType))) result1.typeInfo
+            Just retType' ->
+              finish
+                (Just (tArrow (argTypes, retType)))
+                (addRawConstraints [(retType, retType')] result1.typeInfo)
 
     EOp _ op [] _ -> -- [TS-Op]
       finish (Just (opType op)) typeInfo
