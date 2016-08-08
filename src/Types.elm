@@ -169,6 +169,8 @@ tVar x  = withDummyRange (TVar " " x)
 tTupleRest ts tRest = withDummyRange (TTuple " " ts "" tRest "")
 tTuple ts = tTupleRest ts Nothing
 
+tList t = withDummyRange (TList " " t "")
+
 tArrow (argTypes, retType) = withDummyRange (TArrow " " (argTypes ++ [retType]) "")
 tPolyArrow vars arrowType  = tForall vars (tArrow arrowType)
 
@@ -500,6 +502,8 @@ checkType typeInfo typeEnv e goalType =
       { result = result1.result && result2.result && result3.result
       , typeInfo = result3.typeInfo
       }
+
+    -- TODO [TC-Case]
 
     _ -> -- [TC-Sub]
       let result1 = synthesizeType typeInfo typeEnv e in
@@ -1022,19 +1026,36 @@ bindSubtypeResult res1 f =
 
 -- Joining Types -------------------------------------------------------------
 
+-- TODO could allow output constraints
 joinTypes : Type -> Type -> Result TypeError Type
 joinTypes t1 t2 =
-  -- TODO add more cases
-  -- TODO could allow output constraints
   let dummyTypeInfo = initTypeInfo in
   case (checkSubtype dummyTypeInfo t1 t2).result of
     Ok () -> Ok t2
     _ ->
       case (checkSubtype dummyTypeInfo t2 t1).result of
         Ok () -> Ok t1
-        _ ->
-          Err <| Utils.spaces
-            [ "joinTypes failed:", unparseType t1, unparseType t2 ]
+        _     ->
+          case joinTypes_ t1 t2 of
+            Ok t  -> Ok t
+            Err _ -> joinTypes_ t2 t1
+
+joinTypes_ : Type -> Type -> Result TypeError Type
+joinTypes_ t1 t2 =
+  let err =
+     Err <| Utils.spaces
+       [ "joinTypes failed:", unparseType t1, unparseType t2 ] in
+
+  case (t1.val, t2.val) of
+
+    (TTuple _ [] _ Nothing _, TList _ tInvariant _) -> Ok t2
+    (TTuple _ [] _ Nothing _, TTuple _ ts _ Nothing _) ->
+      case joinManyTypes ts of
+        Ok tInvariant -> Ok (tList tInvariant)
+        Err _         -> err
+
+    -- TODO add more cases
+    _ -> err
 
 joinManyTypes : List Type -> Result TypeError Type
 joinManyTypes ts =
