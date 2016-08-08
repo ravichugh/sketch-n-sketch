@@ -303,6 +303,13 @@ addBindingsOne (p, t) acc =
         _ ->
           Err <| Utils.spaces [ "addBindings failed:", unparsePat p, unparseType t ]
 
+addRecBinding rec p t typeEnv =
+  if not rec then typeEnv
+  else
+    case p.val of
+      PVar _ x _ -> HasType x t :: typeEnv
+      _          -> debugLog "addRecBinding: multi TODO" typeEnv
+
 addTypBindings : Pat -> Type -> Result () TypeEnv
 addTypBindings p t =
   case p.val of
@@ -398,27 +405,37 @@ splitTypesInArrow ts =
     [returnType] -> (argTypes, returnType)
     _            -> Debug.crash "splitTypesInArrow"
 
-isArrowTemplate : List Type -> Bool
-isArrowTemplate argTypes =
-  not (Set.isEmpty (constraintVarsOf argTypes))
+isArrowTemplate : Type -> Maybe ArrowType
+isArrowTemplate tipe =
+  case tipe.val of
+    TArrow _ ts _ -> if Set.isEmpty (constraintVarsOf ts)
+                       then Nothing
+                       else Just (splitTypesInArrow ts)
+    _             -> Nothing
+
+-- detect constraint vars added by TS-Fun (could track in types instead)
+isConstraintVar : Ident -> Bool
+isConstraintVar a =
+  case Utils.munchString "_x" a of
+    Nothing -> False
+    Just _  -> True
 
 constraintVarsOf : List Type -> Set.Set Ident
-constraintVarsOf argTypes =
-  -- detect constraint vars added by TS-Fun (could track in types instead)
-  let isConstraintVar a =
-    case Utils.munchString "_x" a of
-      Nothing -> False
-      Just _  -> True
-  in
+constraintVarsOf ts =
   List.foldl (\argType acc ->
     case argType.val of
       TVar _ a -> if isConstraintVar a then Set.insert a acc else acc
       _        -> acc
-  ) Set.empty argTypes
+  ) Set.empty ts
 
 constraintVarsOfArrow : ArrowType -> Set.Set Ident
 constraintVarsOfArrow (argTypes, retType) =
   constraintVarsOf (argTypes ++ [retType])
+
+newArrowTemplate typeInfo n =
+  let (constraintVars, typeInfo') = generateConstraintVars (1 + n) typeInfo in
+  let arrow = splitTypesInArrow (List.map tVar constraintVars) in
+  (arrow, typeInfo')
 
 -- Type Well-Formedness -------------------------------------------- G |- T --
 
@@ -443,7 +460,9 @@ isWellFormed typeEnv tipe =
        case t.val of
          TNamed _ x -> Debug.log "well-formed TNamed?" <|
                        acc && List.member (TypeVar x) typeEnv'
-         TVar _ x   -> acc && List.member (TypeVar x) typeEnv'
+         TVar _ x   -> if isConstraintVar x
+                         then True
+                         else acc && List.member (TypeVar x) typeEnv'
          _          -> acc
      ) tipe' True
   in
@@ -561,21 +580,8 @@ synthesizeType typeInfo typeEnv e =
           finish Nothing (addTypeError err typeInfo)
 
     EFun _ ps eBody _ -> -- [TS-Fun]
-      let (constraintVars, typeInfo') = generateConstraintVars (1 + List.length ps) typeInfo in
-      let (argTypes, retType) = splitTypesInArrow (List.map tVar constraintVars) in
-      case addBindings ps argTypes of
-        Err err -> finish Nothing (addTypeError err typeInfo')
-        Ok newBindings ->
-          let typeEnv' = newBindings ++ typeEnv in
-          let result1 = synthesizeType typeInfo' typeEnv' eBody in
-          case result1.result of
-            Nothing ->
-              let _ = debugLog "can't synthesize type for function body" () in
-              finish Nothing result1.typeInfo
-            Just retType' ->
-              finish
-                (Just (tArrow (argTypes, retType)))
-                (addRawConstraints [(retType, retType')] result1.typeInfo)
+      let (arrow, typeInfo') = newArrowTemplate typeInfo (List.length ps) in
+      tsFun finish typeInfo' typeEnv ps eBody arrow
 
     EOp _ op [] _ -> -- [TS-Op]
       finish (Just (opType op)) typeInfo
@@ -598,11 +604,7 @@ synthesizeType typeInfo typeEnv e =
         Just t1 ->
           case stripPolymorphicArrow t1 of
             Just ([], (argTypes, retType)) ->
-              if isArrowTemplate argTypes then
-                let _ = debugLog "TS-App: arrow template, solve on demand TODO" () in
-                finish Nothing result1.typeInfo
-              else
-                tsAppMono finish result1.typeInfo typeEnv eArgs (argTypes, retType)
+              tsAppMono finish result1.typeInfo typeEnv eArgs (argTypes, retType)
             Just _ ->
               let _ = debugLog "TS-App: handle polymorphism TODO" () in
               finish Nothing result1.typeInfo
@@ -674,13 +676,22 @@ synthesizeType typeInfo typeEnv e =
       finish Nothing typeInfo
 
     ELet ws1 letKind rec p e1 e2 ws2 ->
-      case (lookupTypAnnotation typeEnv p, e1.val.e__) of
+      case (lookupTypAnnotation typeEnv p, rec, e1.val.e__) of
 
-        (Nothing, _) -> -- [TS-Let]
-          tsLet finish typeInfo typeEnv p e1 e2 False
+        (Nothing, True, EFun _ ps _ _) -> -- [TS-LetRec-Fun] [TS-Fun-LetRec]
+          let (arrow, typeInfo') = newArrowTemplate typeInfo (List.length ps) in
+          let t1 = tArrow arrow in
+          let e1' = replaceE__ e1 (EColonType "" e1 "" t1 "") in
+          let typeEnv' = addRecBinding True p t1 typeEnv in
+          tsLet finish typeInfo' typeEnv' p e1' e2
 
-        (Just t1, EColonType _ _ _ t1' _) ->
-          if t1 == t1' then tsLet finish typeInfo typeEnv p e1 e2 True
+        (Nothing, _, _) -> -- [TS-Let]
+          tsLet finish typeInfo typeEnv p e1 e2
+
+        (Just t1, _, EColonType _ _ _ t1' _) ->
+          if t1 == t1' then
+            let typeEnv' = addRecBinding rec p t1 typeEnv in
+            tsLet finish typeInfo typeEnv' p e1 e2
           else -- throwing an error rather than doing a subtype check
             let err =
               Utils.spaces <|
@@ -691,7 +702,7 @@ synthesizeType typeInfo typeEnv e =
             in
             finish Nothing (addTypeError err typeInfo)
 
-        (Just t1, _) -> -- [TS-AnnotatedLet]
+        (Just t1, _, _) -> -- [TS-AnnotatedLet]
           if not (isWellFormed typeEnv t1) then
             let err =
               Utils.spaces <|
@@ -708,9 +719,10 @@ synthesizeType typeInfo typeEnv e =
               let typeInfo' = addTypeError err typeInfo in
               tsLetFinishE2 finish typeInfo' typeEnv p t1 e1.val.eid e2
           else
+            let typeEnv' = addRecBinding rec p t1 typeEnv in
             let e1' = replaceE__ e1 (EColonType "" e1 "" t1 "") in
             let e' = replaceE__ e (ELet ws1 letKind rec p e1' e2 ws2) in
-            synthesizeType typeInfo typeEnv e'
+            synthesizeType typeInfo typeEnv' e'
 
     EComment _ _ e1 ->
       let result1 = synthesizeType typeInfo typeEnv e1 in
@@ -749,7 +761,22 @@ tsAppMono finish typeInfo typeEnv eArgs (argTypes, retType) =
       in
       finish (if argsOkay then Just retType else Nothing) typeInfo'
 
-tsLet finish typeInfo typeEnv p e1 e2 e1HasGoalType =
+tsFun finish typeInfo typeEnv ps eBody (argTypes, retType) =
+  case addBindings ps argTypes of
+    Err err -> finish Nothing (addTypeError err typeInfo)
+    Ok newBindings ->
+      let typeEnv' = newBindings ++ typeEnv in
+      let result1 = synthesizeType typeInfo typeEnv' eBody in
+      case result1.result of
+        Nothing ->
+          let _ = debugLog "can't synthesize type for function body" () in
+          finish Nothing result1.typeInfo
+        Just retType' ->
+          finish
+            (Just (tArrow (argTypes, retType)))
+            (addRawConstraints [(retType, retType')] result1.typeInfo)
+
+tsLet finish typeInfo typeEnv p e1 e2 =
   let result1 = synthesizeType typeInfo typeEnv e1 in
   case result1.result of
     Nothing ->
@@ -761,11 +788,9 @@ tsLet finish typeInfo typeEnv p e1 e2 e1HasGoalType =
 
     Just t1 ->
       let result1' =
-        case (e1HasGoalType, e1.val.e__, stripArrow t1) of
-          (False, EFun _ _ _ _, Just arrowType) ->
-            finishTsLetUnannotatedFunc result1.typeInfo e1.val.eid arrowType
-          _ ->
-            { result = Just t1, typeInfo = result1.typeInfo }
+        case isArrowTemplate t1 of
+          Just arrowType -> solveTemplateArrow result1.typeInfo e1.val.eid arrowType
+          Nothing        -> { result = Just t1, typeInfo = result1.typeInfo }
       in
       case result1'.result of
         Nothing  -> result1'
@@ -802,8 +827,8 @@ tsLetFinishE2_ finish typeInfo typeEnv p t1 e1eid e2 =
       let result2 = synthesizeType typeInfo' typeEnv' e2 in
       finish result2.result result2.typeInfo
 
-finishTsLetUnannotatedFunc : TypeInfo -> EId -> ArrowType -> AndTypeInfo (Maybe Type)
-finishTsLetUnannotatedFunc typeInfo eFuncId arrow =
+solveTemplateArrow : TypeInfo -> EId -> ArrowType -> AndTypeInfo (Maybe Type)
+solveTemplateArrow typeInfo eFuncId arrow =
   let vars = Set.toList (constraintVarsOfArrow arrow) in
   case solveConstraints vars typeInfo.constraints of
     Err err ->
@@ -856,6 +881,8 @@ checkSubtype typeInfo tipe1 tipe2 =
                 , String.trim (unparseType tipe1), " <: "
                 , String.trim (unparseType tipe2)
                 ] } in
+  let okConstrain =
+    { result = Ok (), typeInfo = addRawConstraints [(tipe1, tipe2)] typeInfo } in
 
   case (tipe1.val, tipe2.val) of
 
@@ -864,9 +891,22 @@ checkSubtype typeInfo tipe1 tipe2 =
     (TString _, TString _) -> ok
     (TNull _, TNull _)     -> ok
 
-    (TVar _ a, TVar _ b)     -> if a == b then ok else err
-    (TNamed _ a, TNamed _ b) -> if a == b then ok else err
-      -- TODO expand aliases
+    (TNamed _ a, TNamed _ b) ->
+      if a == b then ok
+      else
+        let _ = debugLog "checkSubtype: expand aliases TODO" () in
+        err
+
+    -- constrain type inference vars; equate type vars
+    (TVar _ a, TVar _ b) ->
+      if isConstraintVar a && isConstraintVar b then (if a == b then ok else okConstrain)
+      else if isConstraintVar a then okConstrain
+      else if isConstraintVar b then okConstrain
+      else if a == b then ok
+      else err
+
+    (TVar _ a, _) -> if isConstraintVar a then okConstrain else err
+    (_, TVar _ b) -> if isConstraintVar b then okConstrain else err
 
     (TList _ t1 _, TList _ t2 _) -> checkSubtype typeInfo t1 t2
 
@@ -895,12 +935,6 @@ checkSubtype typeInfo tipe1 tipe2 =
         _ ->
           { result = Err "checkSubtype TTuple bad rest", typeInfo = typeInfo }
 
-    -- constraining type inference variables
-    (TVar _ a, _) ->
-      case Utils.munchString "_x" a of
-        Just _  -> { result = Ok (), typeInfo = addRawConstraints [(tipe1, tipe2)] typeInfo }
-        Nothing -> err
-
     (TUnion _ _ _, TUnion _ _ _) -> let _ = debugLog "checkSubtype: TUnion TODO" () in err
     (TArrow _ _ _, TArrow _ _ _) -> let _ = debugLog "checkSubtype: TArrow TODO" () in err
 
@@ -926,10 +960,21 @@ checkSubMaybeType typeInfo mt1 mt2 =
     (Nothing, Nothing) -> { result = Ok (), typeInfo = typeInfo }
     _                  -> { result = Err "checkSubMaybeType failed...", typeInfo = typeInfo}
 
+-- Check type equality modulo constraints.
+--
 checkEquivType : TypeInfo -> Type -> Type -> SubtypeResult
 checkEquivType typeInfo tipe1 tipe2 =
   checkSubtype typeInfo  tipe1 tipe2 `bindSubtypeResult` \typeInfo' ->
   checkSubtype typeInfo' tipe2 tipe1
+
+-- Check type equality without depending on any constraints.
+--
+checkEqualType : Type -> Type -> Bool
+checkEqualType tipe1 tipe2 =
+  let result = checkEquivType initTypeInfo tipe1 tipe2 in
+  case result.result of
+    Err _ -> False
+    Ok () -> result.typeInfo.constraints == []
 
 bindSubtypeResult : SubtypeResult -> (TypeInfo -> SubtypeResult) -> SubtypeResult
 bindSubtypeResult res1 f =
@@ -967,6 +1012,9 @@ joinManyTypes ts =
 
 type alias Unifier = List (Ident, Type)
 
+-- TODO rework return type
+-- TODO rewrite constraints during unification
+
 solveConstraints : List Ident -> Constraints -> Result TypeError (Unifier, Constraints, Constraints)
 solveConstraints vars constraints =
   -- let _ = debugLog "solveConstraints for" (vars) in
@@ -991,16 +1039,18 @@ solveConstraint vars constraint unifier =
     case Utils.maybeFind a unifier of
       Nothing -> Ok ((a,t) :: unifier, True)
       Just tPrevious ->
-        if t == tPrevious
+        if checkEqualType t tPrevious
           then Ok (unifier, True)
           else Err <| Utils.spaces
                  [ "Unification failure:"
+                 , toString a
                  , String.trim (unparseType tPrevious)
                  , String.trim (unparseType t)
                  ]
   in
   let (id,(t1,t2)) = constraint in
-  case (t1.val, t2.val) of
+  if checkEqualType t1 t2 then Ok (unifier, True)
+  else case (t1.val, t2.val) of
     (TVar _ a, _) -> if List.member a vars then unify a t2 else Ok (unifier, False)
     (_, TVar _ a) -> solveConstraint vars (id, (t2, t1)) unifier
     _ ->
