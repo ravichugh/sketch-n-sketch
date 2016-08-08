@@ -978,7 +978,18 @@ checkSubtype typeInfo tipe1 tipe2 =
           { result = Err "checkSubtype TTuple bad rest", typeInfo = typeInfo }
 
     (TUnion _ _ _, TUnion _ _ _) -> let _ = debugLog "checkSubtype: TUnion TODO" () in err
-    (TArrow _ _ _, TArrow _ _ _) -> let _ = debugLog "checkSubtype: TArrow TODO" () in err
+
+    (TArrow _ arrow1 _, TArrow _ arrow2 _) ->
+       let (args1, ret1) = splitTypesInArrow arrow1 in
+       let (args2, ret2) = splitTypesInArrow arrow2 in
+       case Utils.maybeZip args2 args1 of
+         Nothing -> err
+         Just contraChecks ->
+           let result = checkSubtypeList typeInfo contraChecks in
+           case result.result of
+             Err _ -> err
+             Ok () ->
+               checkSubtype result.typeInfo ret1 ret2
 
     _ -> err
 
@@ -1118,6 +1129,18 @@ solveConstraint vars constraint unifier =
     -- TODO ids for derived constraints
     (TList _ t1' _, TList _ t2' _) ->
       solveConstraint vars (-1, (t1', t2')) unifier
+
+    (TArrow _ ts1 _, TArrow _ ts2 _) ->
+      case Utils.maybeZip ts1 ts2 of
+        Nothing -> Err "solveConstraint TArrow different arity"
+        Just list ->
+          let constraints = List.map (\raw -> (-1, raw)) list in
+          -- TODO redo single solveConstraint
+          case solveConstraints vars constraints of
+            Err err -> Err <| Utils.spaces [ "solveConstraint TArrow...", err ]
+            Ok (unifier, _, _) ->
+              let _ = debugLog "solveConstraint TArrow good..." () in
+              Ok (unifier, True)
 
     _ ->
       let _ = debugLog "solveConstraint TODO" (unparseType t1, unparseType t2) in
