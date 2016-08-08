@@ -365,6 +365,12 @@ mapThd3 f (x,y,z) = (x, y, f z)
 
 fourth4 (_,_,_,x) = x
 
+bindResult : Result a b -> (b -> Result a b') -> Result a b'
+bindResult res f =
+  case res of
+    Err a -> Err a
+    Ok b  -> f b
+
 setIsEmpty  = (==) [] << Set.toList
 dictIsEmpty = (==) [] << Dict.toList
 setCardinal = List.length << Set.toList
