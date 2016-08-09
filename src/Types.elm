@@ -149,6 +149,7 @@ type alias TypeInfo =
 
 type alias AceTypeInfo =
   { annotations : List Ace.Annotation
+  , tooltips : List Ace.Tooltip
   }
 
 type alias AndTypeInfo a =
@@ -1272,7 +1273,21 @@ aceTypeInfo typeInfo =
            acc
      ) [] typeInfo.namedExps
   in
-  { annotations = annots }
+  let tips =
+     List.foldr (\(p, eid) acc ->
+       let s1 = String.trim (LangUnparser.unparsePat p) in
+       case (Dict.get eid typeInfo.finalTypes, Dict.get eid typeInfo.rawTypes) of
+         (Just (Just t), _) ->
+           let text = s1 ++ " : " ++ String.trim (LangUnparser.unparseType t) ++ " " in
+           { row = p.start.line - 1, col = p.start.col - 1, text = text } :: acc
+         (_, Just (Just t)) ->
+           let text = s1 ++ " : " ++ String.trim (LangUnparser.unparseType t) ++ " " in
+           { row = p.start.line - 1, col = p.start.col - 1, text = text } :: acc
+         _ ->
+           acc
+     ) [] typeInfo.namedExps
+  in
+  { annotations = annots, tooltips = tips }
 
 -- dummy for stand-alone compilation
 main = show 1

@@ -187,7 +187,8 @@ slateAndCode old (exp, val) =
 
 updateCodeBoxInfo : Types.AceTypeInfo -> CodeBoxInfo -> CodeBoxInfo
 updateCodeBoxInfo ati codeBoxInfo =
-  { codeBoxInfo | annotations = ati.annotations }
+  { codeBoxInfo | annotations = ati.annotations
+                , tooltips = ati.tooltips }
 
 --------------------------------------------------------------------------------
 

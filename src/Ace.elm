@@ -6,3 +6,10 @@ type alias Annotation =
   , type_ : String  -- {"info", "warning", "error"}
   , text  : String
   }
+
+-- these are "tooltips" when hovering over tokens in Ace
+type alias Tooltip =
+  { row   : Int     -- 0-indexed
+  , col   : Int     -- 0-indexed
+  , text  : String
+  }

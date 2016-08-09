@@ -103,6 +103,7 @@ type alias CodeBoxInfo =
   , selections : List Range
   , highlights : List Highlight
   , annotations : List Ace.Annotation
+  , tooltips : List Ace.Tooltip
   }
 
 -- TODO move the rest of these types to Ace, too
@@ -314,6 +315,7 @@ sampleModel =
                       , selections = []
                       , highlights = []
                       , annotations = []
+                      , tooltips = []
                       }
     , basicCodeBox  = False
     , errorBox      = Nothing

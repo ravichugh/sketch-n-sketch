@@ -270,6 +270,18 @@ window.initializers.push(function (elmRuntime) {
       }
       editor.getSession().setAnnotations(annots);
 
+      // rkc 8/9/16: set 'tooltips' here
+      // setDummyTooltips();
+
+      var typeTooltip = new TokenTooltip(editor, getTooltipText);
+      clearTooltips();
+      for (idx in codeBoxInfo.tooltips) {
+          var row = codeBoxInfo.tooltips[idx].row;
+          var col = codeBoxInfo.tooltips[idx].col;
+          var ann = codeBoxInfo.tooltips[idx].text;
+          addTooltip(row, col, ann);
+      }
+
       //If the div rerendered (kept track of with a special attribute) then we
       // should copy the editor back into it
       reembed(false);
@@ -294,6 +306,20 @@ window.initializers.push(function (elmRuntime) {
     ];
 
     editor.getSession().setAnnotations(annots);
+  }
+
+  ////////////////////////////////////////////////////////////
+
+  // Demo: A "tooltip" provides info when hovering over the token
+  // starting at a given row/column
+  //
+  // clearTooltips() and addTooltip() are defined in aceTooltips.js
+
+  function setDummyTooltips() {
+    var typeTooltip = new TokenTooltip(editor, getTooltipText);
+    clearTooltips();
+    addTooltip(0, 0, "Don't click on me, it hurts.");
+    addTooltip(0, 1, "Click on me to rewrite.");
   }
 
 });

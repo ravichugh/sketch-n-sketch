@@ -4,6 +4,7 @@ all:
 html:
 	elm-make Main.elm --output ../build/out/sns.js
 	cp Native/codeBox.js ../build/out/
+	cp Native/aceTooltips.js ../build/out/
 	cp Native/toggleAnimationLoopback.js ../build/out/
 	cp ../ace-builds/src/ace.js ../build/out/
 	cp ../ace-builds/src/mode-little.js ../build/out/

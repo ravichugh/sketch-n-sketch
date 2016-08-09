@@ -35,6 +35,7 @@ type alias AceCodeBoxInfo =
     , selections  : List Model.Range
     , highlights  : List Model.Highlight
     , annotations : List Ace.Annotation
+    , tooltips    : List Ace.Tooltip
     , bounce      : Bool
     , exName      : String
     }
@@ -56,6 +57,7 @@ initAceCodeBoxInfo =
   , selections = sampleModel.codeBoxInfo.selections
   , highlights = sampleModel.codeBoxInfo.highlights
   , annotations = sampleModel.codeBoxInfo.annotations
+  , tooltips = sampleModel.codeBoxInfo.tooltips
   , bounce = True
   , exName = ""
   }
@@ -75,6 +77,7 @@ saveRequestInfo saveName =
     , selections = []
     , highlights = []
     , annotations = []
+    , tooltips = []
     , bounce = True
     , exName = saveName
     }
@@ -89,6 +92,7 @@ runRequestInfo =
     , selections = []
     , highlights = []
     , annotations = []
+    , tooltips = []
     , bounce = True
     , exName = ""
     }
@@ -103,6 +107,7 @@ cleanRequestInfo =
     , selections = []
     , highlights = []
     , annotations = []
+    , tooltips = []
     , bounce = True
     , exName = ""
     }
@@ -117,6 +122,7 @@ codeRequestInfo =
     , selections = []
     , highlights = []
     , annotations = []
+    , tooltips = []
     , bounce = True
     , exName = ""
     }
@@ -131,6 +137,7 @@ poke rerender rerenders model =
     , selections = []
     , highlights = []
     , annotations = model.codeBoxInfo.annotations
+    , tooltips = model.codeBoxInfo.tooltips
     , bounce = rerender
     , exName = ""
     }
@@ -145,6 +152,7 @@ assertion rerender rerenders model =
     , selections = model.codeBoxInfo.selections
     , highlights = model.codeBoxInfo.highlights
     , annotations = model.codeBoxInfo.annotations
+    , tooltips = model.codeBoxInfo.tooltips
     , bounce = rerender
     , exName = model.exName
     }
@@ -161,6 +169,7 @@ interpretAceEvents amsg model =
                                  , selections = amsg.selectionArg
                                  , highlights = m.codeBoxInfo.highlights
                                  , annotations = m.codeBoxInfo.annotations
+                                 , tooltips = m.codeBoxInfo.tooltips
                                  }
             })
   in
@@ -175,6 +184,7 @@ interpretAceEvents amsg model =
                                                 , highlights =
                                                     model.codeBoxInfo.highlights
                                                 , annotations = model.codeBoxInfo.annotations
+                                                , tooltips = model.codeBoxInfo.tooltips
                                                 }
                         }
         in commitLocalSave model.exName newModel
@@ -210,6 +220,7 @@ recoverFromError amsg fresh =
                              , cursorPos  = amsg.cursorArg
                              , highlights = fresh.codeBoxInfo.highlights
                              , annotations = fresh.codeBoxInfo.annotations
+                             , tooltips = fresh.codeBoxInfo.tooltips
                              }
     }
 
