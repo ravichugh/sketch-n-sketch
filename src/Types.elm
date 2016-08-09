@@ -5,6 +5,7 @@ import LangParser2 as Parser
 import OurParser2 as P
 import LangUnparser exposing (unparsePat, unparseType)
 import Utils
+import Ace
 import Config
 
 import Dict
@@ -144,6 +145,10 @@ type alias TypeInfo =
   , namedExps : List (Pat, EId)
   , constraintCount : Int
   , constraintVarCount : Int
+  }
+
+type alias AceTypeInfo =
+  { annotations : List Ace.Annotation
   }
 
 type alias AndTypeInfo a =
@@ -1164,12 +1169,12 @@ rewriteArrow unifier (argTypes, retType) =
 
 -- Entry Point for Typechecking ----------------------------------------------
 
-typecheck : Exp -> TypeInfo
+typecheck : Exp -> AceTypeInfo
 typecheck e =
   let _ = debugLog "TYPE CHECKING" "..." in
   let result = synthesizeType initTypeInfo initTypeEnv e in
   let _ = displayTypeInfo result.typeInfo in
-  result.typeInfo
+  aceTypeInfo result.typeInfo
 
 initTypeInfo : TypeInfo
 initTypeInfo =
@@ -1249,6 +1254,25 @@ displayTypeErrors typeInfo =
   else
     let _ = debugLog "# TYPE ERRORS" n in
     List.foldr debugLog () typeInfo.typeErrors
+
+aceTypeInfo : TypeInfo -> AceTypeInfo
+aceTypeInfo typeInfo =
+  let annots =
+     -- for now, displaying (one of the) bindings for each line
+     List.foldr (\(p, eid) acc ->
+       let s1 = String.trim (LangUnparser.unparsePat p) in
+       case (Dict.get eid typeInfo.finalTypes, Dict.get eid typeInfo.rawTypes) of
+         (Just (Just t), _) ->
+           let text = s1 ++ " : " ++ String.trim (LangUnparser.unparseType t) ++ " " in
+           { row = p.start.line - 1, text = text, type_ = "info" } :: acc
+         (_, Just (Just t)) ->
+           let text = s1 ++ " : " ++ String.trim (LangUnparser.unparseType t) ++ " " in
+           { row = p.start.line - 1, text = text, type_ = "info" } :: acc
+         _ ->
+           acc
+     ) [] typeInfo.namedExps
+  in
+  { annotations = annots }
 
 -- dummy for stand-alone compilation
 main = show 1

@@ -6,6 +6,7 @@ module CodeBox (interpretAceEvents, packageModel, tripRender,
                 saveRequestInfo, runRequestInfo) where
 
 import Lang exposing (errorPrefix)
+import Ace
 
 import Graphics.Element as GE
 import InterfaceModel as Model exposing (Event, sampleModel, events)
@@ -33,6 +34,7 @@ type alias AceCodeBoxInfo =
     , cursorPos   : Model.AcePos
     , selections  : List Model.Range
     , highlights  : List Model.Highlight
+    , annotations : List Ace.Annotation
     , bounce      : Bool
     , exName      : String
     }
@@ -53,6 +55,7 @@ initAceCodeBoxInfo =
   , cursorPos = sampleModel.codeBoxInfo.cursorPos
   , selections = sampleModel.codeBoxInfo.selections
   , highlights = sampleModel.codeBoxInfo.highlights
+  , annotations = sampleModel.codeBoxInfo.annotations
   , bounce = True
   , exName = ""
   }
@@ -71,6 +74,7 @@ saveRequestInfo saveName =
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
     , selections = []
     , highlights = []
+    , annotations = []
     , bounce = True
     , exName = saveName
     }
@@ -84,6 +88,7 @@ runRequestInfo =
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
     , selections = []
     , highlights = []
+    , annotations = []
     , bounce = True
     , exName = ""
     }
@@ -97,6 +102,7 @@ cleanRequestInfo =
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
     , selections = []
     , highlights = []
+    , annotations = []
     , bounce = True
     , exName = ""
     }
@@ -110,6 +116,7 @@ codeRequestInfo =
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
     , selections = []
     , highlights = []
+    , annotations = []
     , bounce = True
     , exName = ""
     }
@@ -123,6 +130,7 @@ poke rerender rerenders model =
     , cursorPos = model.codeBoxInfo.cursorPos
     , selections = []
     , highlights = []
+    , annotations = model.codeBoxInfo.annotations
     , bounce = rerender
     , exName = ""
     }
@@ -136,6 +144,7 @@ assertion rerender rerenders model =
     , cursorPos = model.codeBoxInfo.cursorPos
     , selections = model.codeBoxInfo.selections
     , highlights = model.codeBoxInfo.highlights
+    , annotations = model.codeBoxInfo.annotations
     , bounce = rerender
     , exName = model.exName
     }
@@ -151,6 +160,7 @@ interpretAceEvents amsg model =
                 , codeBoxInfo = { cursorPos = amsg.cursorArg
                                  , selections = amsg.selectionArg
                                  , highlights = m.codeBoxInfo.highlights
+                                 , annotations = m.codeBoxInfo.annotations
                                  }
             })
   in
@@ -164,6 +174,7 @@ interpretAceEvents amsg model =
                                                 , selections = amsg.selectionArg
                                                 , highlights =
                                                     model.codeBoxInfo.highlights
+                                                , annotations = model.codeBoxInfo.annotations
                                                 }
                         }
         in commitLocalSave model.exName newModel
@@ -198,6 +209,7 @@ recoverFromError amsg fresh =
             , codeBoxInfo = { selections = amsg.selectionArg
                              , cursorPos  = amsg.cursorArg
                              , highlights = fresh.codeBoxInfo.highlights
+                             , annotations = fresh.codeBoxInfo.annotations
                              }
     }
 

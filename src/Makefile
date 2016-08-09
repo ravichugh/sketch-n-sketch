@@ -30,7 +30,7 @@ loc:
     InterfaceModel.elm InterfaceView2.elm InterfaceController.elm \
     LangTools.elm LangTransform.elm ValueBasedTransform.elm \
     InterfaceStorage.elm Storage.elm \
-    Codebox.elm Native/codeBox.js \
+    Ace.elm CodeBox.elm Native/codeBox.js \
     Native/toggleAnimationLoopback.js \
     Main.elm Config.elm \
     PreludeTemplate.elm ExamplesTemplate.elm \

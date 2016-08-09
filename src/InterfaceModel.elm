@@ -8,6 +8,7 @@ import LangSvg exposing (RootedIndexedTree, NodeId, ShapeFeature, ShapeKind, Zon
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparse)
 import OurParser2 as P
+import Ace
 
 import List
 import Debug
@@ -101,8 +102,12 @@ type alias CodeBoxInfo =
   { cursorPos : AcePos
   , selections : List Range
   , highlights : List Highlight
+  , annotations : List Ace.Annotation
   }
 
+-- TODO move the rest of these types to Ace, too
+
+-- these are "markers" in Ace
 type alias Highlight =
   { range : Range, color : String }
 
@@ -181,6 +186,7 @@ type Event = SelectObject Int ShapeKind Zone
            | DuplicateBlobs
            | MergeBlobs
            | SwitchMode Mode
+           -- TODO use AceTypeInfo here, ExamplesTemplate, and InterfaceController
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets})
            | Run
            | StartAnimation
@@ -307,6 +313,7 @@ sampleModel =
     , codeBoxInfo   = { cursorPos = { row = round 0, column = round 0 }
                       , selections = []
                       , highlights = []
+                      , annotations = []
                       }
     , basicCodeBox  = False
     , errorBox      = Nothing
