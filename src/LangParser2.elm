@@ -15,7 +15,7 @@ import PreludeGenerated as Prelude
 
 ------------------------------------------------------------------------------
 
-(prelude, initK) = freshen_ 1 <| U.fromOk_ <| parseE_ identity Prelude.src
+(prelude, initK) = freshen_ 1 <| U.fromOkay "parse prelude" <| parseE_ identity Prelude.src
 
 isPreludeLoc : Loc -> Bool
 isPreludeLoc (k,_,_) = isPreludeLocId k
@@ -371,16 +371,16 @@ parseListLiteralOrMultiCons p constructor = P.recursively <| \_ ->
       (parseListLiteral p constructor)
   <++ (parseMultiCons p constructor)
 
-parseE_ : (Exp -> Exp) -> String -> Result String Exp
+parseE_ : (Exp -> Exp) -> String -> Result P.ParseError Exp
 parseE_ f = P.parse <|
   parseExp       >>= \e ->
   preWhite P.end >>>
     P.returnWithInfo (f e).val e.start e.end
 
-parseE : String -> Result String Exp
+parseE : String -> Result P.ParseError Exp
 parseE = parseE_ freshen
 
-parseT : String -> Result String Type
+parseT : String -> Result P.ParseError Type
 parseT = P.parse parseType
 
 parseVar : P.Parser Exp_

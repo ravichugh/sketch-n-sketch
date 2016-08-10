@@ -9,7 +9,8 @@ import PreludeGenerated as Prelude
 
 makeExample name s =
   let thunk () =
-    let e = Utils.fromOk_ (Parser.parseE s) in
+    -- TODO tolerate parse errors, change Select Example
+    let e = Utils.fromOkay ("makeExample: " ++ name) (Parser.parseE s) in
     let ati = Types.typecheck e in
     let (v,ws) = Eval.run e in
     {e=e, v=v, ws=ws, ati=ati}

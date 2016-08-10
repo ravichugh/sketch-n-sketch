@@ -354,9 +354,9 @@ run e =
   eval_ initEnv [] e
 
 parseAndRun : String -> String
-parseAndRun = strVal << fst << run << Utils.fromOk_ << Parser.parseE
+parseAndRun = strVal << fst << run << Utils.fromOkay "parseAndRun" << Parser.parseE
 
-parseAndRun_ = strVal_ True << fst << run << Utils.fromOk_ << Parser.parseE
+parseAndRun_ = strVal_ True << fst << run << Utils.fromOkay "parseAndRun_" << Parser.parseE
 
 rangeOff l1 i l2 = TrOp (RangeOffset i) [TrLoc l1, TrLoc l2]
 

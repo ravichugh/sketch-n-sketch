@@ -186,11 +186,14 @@ slateAndCode old (exp, val) =
   in
   (slate, unparse exp)
 
-updateCodeBoxInfo : Types.AceTypeInfo -> CodeBoxInfo -> CodeBoxInfo
-updateCodeBoxInfo ati codeBoxInfo =
+updateCodeBoxWithTypes : Types.AceTypeInfo -> CodeBoxInfo -> CodeBoxInfo
+updateCodeBoxWithTypes ati codeBoxInfo =
   { codeBoxInfo | annotations = ati.annotations
                 , highlights = ati.highlights
                 , tooltips = ati.tooltips }
+
+updateCodeBoxWithParseError annot codeBoxInfo =
+  { codeBoxInfo | annotations = [annot] , highlights = [] , tooltips = [] }
 
 --------------------------------------------------------------------------------
 
@@ -1965,14 +1968,14 @@ onMouseUp old =
       -- 8/10: re-parsing to get new position info after live sync-ing
       -- TODO: could update positions within highlightChanges
       -- TODO: update inputVal?
-      let e = Utils.fromOk_ <| parseE old.code in
+      let e = Utils.fromOkay "onMouseUp" <| parseE old.code in
       let old' = { old | inputExp = e } in
       refreshHighlights i z
         { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
                , history = addToHistory old.code old'.history }
 
     (_, MouseSlider _ (Just _)) ->
-      let e = Utils.fromOk_ <| parseE old.code in
+      let e = Utils.fromOkay "onMouseUp" <| parseE old.code in
       let old' = { old | inputExp = e } in
         { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
                , history = addToHistory old.code old'.history }
@@ -2019,6 +2022,10 @@ upstate evt old = case debugLog "Event" evt of
 
     Run ->
       case parseE old.code of
+        Err (err, annot) ->
+          -- TODO maybe get rid of (computing and) displaying err in caption area
+          { old | caption = Just (LangError ("PARSE ERROR!\n" ++ err))
+                , codeBoxInfo = updateCodeBoxWithParseError annot old.codeBoxInfo }
         Ok e ->
          let aceTypeInfo = Types.typecheck e in
          let (newVal,ws) = (Eval.run e) in
@@ -2047,13 +2054,11 @@ upstate evt old = case debugLog "Event" evt of
                  , caption       = Nothing
                  , syncOptions   = Sync.syncOptionsOf old.syncOptions e
                  , lambdaTools   = lambdaTools'
-                 , codeBoxInfo   = updateCodeBoxInfo aceTypeInfo old.codeBoxInfo
+                 , codeBoxInfo   = updateCodeBoxWithTypes aceTypeInfo old.codeBoxInfo
            }
          in
           { new | mode = refreshMode_ new
                 , errorBox = Nothing }
-        Err err ->
-          { old | caption = Just (LangError ("PARSE ERROR!\n" ++ err)) }
 
     StartAnimation -> upstate Redraw { old | movieTime = 0
                                            , runAnimation = True }
@@ -2354,7 +2359,7 @@ upstate evt old = case debugLog "Event" evt of
             , runAnimation  = movieDuration > 0
             , slate         = slate
             , widgets       = ws
-            , codeBoxInfo   = updateCodeBoxInfo ati old.codeBoxInfo
+            , codeBoxInfo   = updateCodeBoxWithTypes ati old.codeBoxInfo
             }
 
     SwitchMode m -> { old | mode = m }
@@ -2512,7 +2517,7 @@ upstate evt old = case debugLog "Event" evt of
 
     CleanCode ->
       case parseE old.code of
-        Err err ->
+        Err (err, _) ->
           { old | caption = Just (LangError ("PARSE ERROR!\n" ++ err)) }
         Ok reparsed ->
           let cleanedExp =

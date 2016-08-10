@@ -554,7 +554,7 @@ inferStructuralUpdates eOld v v' =
   let bindings =
     List.map (\(i,vi) ->
       -- going through parser to avoid adding EVal
-      let ei = Utils.fromOk "Sync.addNew" (Parser.parseE (strVal vi)) in
+      let ei = Utils.fromOkay "Sync.addNew" (Parser.parseE (strVal vi)) in
       (idNewShape i, ei)) diff in
 
   let eNew_ =
@@ -571,7 +571,7 @@ inferStructuralUpdates eOld v v' =
               eNewCanvas in
 
   -- going through parser so that new location ids are assigned
-  let eNew = Utils.fromOk "Sync.inferStruct" (Parser.parseE (Un.unparse eNew_)) in
+  let eNew = Utils.fromOkay "Sync.inferStruct" (Parser.parseE (Un.unparse eNew_)) in
   [(eNew, fst (Eval.run eNew))]
 
 
@@ -886,7 +886,7 @@ inferRelatedRects sortRectsByXY flow _ _ v' =
       ""                                                        `nl`
       "(svg newGroup)"
     in
-    let eNew = Utils.fromOk_ <| Parser.parseE s in
+    let eNew = Utils.fromOkay "Sync.inferRelatedRects" <| Parser.parseE s in
     let vNew = fst <| Eval.run eNew in
     Just (eNew, vNew)
   )))
@@ -962,7 +962,7 @@ inferCircleOfCircles groupBox _ _ v' =
       ""                                                        `nl`
       "(svg newGroup)"
     in
-    let eNew = Utils.fromOk_ <| Parser.parseE s in
+    let eNew = Utils.fromOkay "Sync" <| Parser.parseE s in
     let vNew = fst <| Eval.run eNew in
     Just (eNew, vNew)
   )))
@@ -1084,7 +1084,7 @@ inferGroupOfLines elastic _ _ v' =
       -- "  (let [yTL yTR yBL yBR] " ++ "[y0 y0 yh yh]"            `nl`
       -- "  (cons box lines))))))))))"                             `nl`
     in
-    let eNew = Utils.fromOk_ <| Parser.parseE s in
+    let eNew = Utils.fromOkay "Sync" <| Parser.parseE s in
     let vNew = fst <| Eval.run eNew in
     Just (eNew, vNew)
   )))
@@ -1196,7 +1196,7 @@ relateNumsWithVar genSymK e nts =
                 |> Un.unparse
                 |> (++) ("(def " ++ gensym ++ " " ++ gensymVal ++ ")\n")
                 |> Parser.parseE
-                |> Utils.fromOk "Sync.relate"
+                |> Utils.fromOkay "Sync.relate"
             in
             let vNew = fst <| Eval.run eNew in
             (eNew, vNew)

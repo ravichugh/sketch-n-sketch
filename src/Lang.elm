@@ -572,9 +572,7 @@ getOptions e = case e.val.e__ of
 errorPrefix = "[Little Error]" -- NOTE: same as errorPrefix in Native/codeBox.js
 errorMsg s  = Debug.crash <| errorPrefix ++ "\n\n" ++ s
 
-strPos p =
-  let (i,j) = (toString p.line, toString p.col) in
-  "(Line:" ++ i ++ " Col:" ++ j ++ ")"
+strPos = P.strPos
 
 
 ------------------------------------------------------------------------------

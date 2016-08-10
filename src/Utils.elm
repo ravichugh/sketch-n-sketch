@@ -281,6 +281,14 @@ fromJust_ s mx = case mx of
   Just x  -> x
   Nothing -> Debug.crash <| "Utils.fromJust_: " ++ s
 
+fromOkay : String -> Result err a -> a
+fromOkay s mx = case mx of
+  Ok x  -> x
+  Err _ -> Debug.crash <| "fromOkay [" ++ s ++ "]: "
+
+-- TODO rename fromOkay and fromOk to fromOk and fromOkOrErrString
+
+fromOk : String -> Result String a -> a
 fromOk s mx = case mx of
   Ok x    -> x
   Err err -> Debug.crash <| "fromOk [" ++ s ++ "]: " ++ err

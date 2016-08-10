@@ -587,7 +587,7 @@ wrapWithLets listOfListsOfNamesAndAssigns isTopLevel bodyExp =
       let template =
         case parseE templateStr of
           Ok templateExp -> templateExp
-          Err err        -> Debug.crash <| "Dig template err: " ++ err ++ "\n\n" ++ templateStr
+          Err (err, _)   -> Debug.crash <| "Dig template err: " ++ err ++ "\n\n" ++ templateStr
       in
       -- Finish by replacing the dummy body:
       let wrappedWithLets =
