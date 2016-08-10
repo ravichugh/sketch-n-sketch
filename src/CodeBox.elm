@@ -31,9 +31,9 @@ import Debug
 type alias AceCodeBoxInfo =
     { kind        : String
     , code        : String
-    , cursorPos   : Model.AcePos
-    , selections  : List Model.Range
-    , highlights  : List Model.Highlight
+    , cursorPos   : Ace.Pos
+    , selections  : List Ace.Range
+    , highlights  : List Ace.Highlight
     , annotations : List Ace.Annotation
     , tooltips    : List Ace.Tooltip
     , bounce      : Bool
@@ -43,8 +43,8 @@ type alias AceCodeBoxInfo =
 type alias AceMessage =
   { evt          : String
   , strArg       : String
-  , cursorArg    : Model.AcePos
-  , selectionArg : List Model.Range
+  , cursorArg    : Ace.Pos
+  , selectionArg : List Ace.Range
   , exNameArg    : String
   }
 

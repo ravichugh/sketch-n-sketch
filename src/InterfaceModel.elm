@@ -99,22 +99,12 @@ type alias DialogInfo = { value : String
                         }
 
 type alias CodeBoxInfo =
-  { cursorPos : AcePos
-  , selections : List Range
-  , highlights : List Highlight
+  { cursorPos : Ace.Pos
+  , selections : List Ace.Range
+  , highlights : List Ace.Highlight
   , annotations : List Ace.Annotation
   , tooltips : List Ace.Tooltip
   }
-
--- TODO move the rest of these types to Ace, too
--- TODO remove these duplicates with Ace
-
--- these are "markers" in Ace
-type alias Highlight =
-  { range : Range, color : String }
-
-type alias AcePos = { row : Int, column : Int }
-type alias Range = { start : AcePos, end : AcePos }
 
 type alias RawSvg = String
 
@@ -252,13 +242,13 @@ yellow      = "khaki"
 green       = "limegreen"
 red         = "salmon"
 
-acePos : P.Pos  -> AcePos
+acePos : P.Pos  -> Ace.Pos
 acePos p = { row = p.line, column = p.col }
 
-aceRange : P.WithInfo a -> Range
+aceRange : P.WithInfo a -> Ace.Range
 aceRange x = { start = acePos x.start, end = acePos x.end }
 
-makeHighlight : SubstPlus -> String -> Loc -> Highlight
+makeHighlight : SubstPlus -> String -> Loc -> Ace.Highlight
 makeHighlight subst color (locid,_,_) =
   case Dict.get locid subst of
     Just n  -> { color = color, range = aceRange n }
