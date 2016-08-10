@@ -746,29 +746,32 @@ synthesizeType typeInfo typeEnv e =
             let e' = replaceE__ e (ELet ws1 letKind rec p e1' e2 ws2) in
             synthesizeType typeInfo typeEnv' e'
 
+    EIndList _ _ _ ->
+      let _ = debugLog "synthesizeType EIndList" () in
+      finish Nothing typeInfo
+
+    -- don't need Ace annotations for the remaining expression kinds,
+    -- so not calling not calling addRawType (i.e. finish)
+
     EComment _ _ e1 ->
       let result1 = synthesizeType typeInfo typeEnv e1 in
-      finish Nothing result1.typeInfo
+      { result = Nothing, typeInfo = result1.typeInfo }
 
     EOption _ _ _ _ e1 ->
       let result1 = synthesizeType typeInfo typeEnv e1 in
-      finish Nothing result1.typeInfo
+      { result = Nothing, typeInfo = result1.typeInfo }
 
     ETyp _ p t e1 _ ->
       case addTypBindings p t typeEnv of
-        Err () -> finish Nothing typeInfo
+        Err () -> { result = Nothing, typeInfo = typeInfo }
         Ok typeEnv' ->
           let result1 = synthesizeType typeInfo typeEnv' e1 in
-          finish Nothing result1.typeInfo
+          { result = Nothing, typeInfo = result1.typeInfo }
 
     ETypeAlias _ p t e1 _ ->
       let typeEnv' = TypeAlias p t :: typeEnv in
       let result1 = synthesizeType typeInfo typeEnv' e1 in
-      finish Nothing result1.typeInfo
-
-    EIndList _ _ _ ->
-      let _ = debugLog "synthesizeType EIndList" () in
-      finish Nothing typeInfo
+      { result = Nothing, typeInfo = result1.typeInfo }
 
 tsAppMono finish typeInfo typeEnv eArgs (argTypes, retType) =
   case Utils.maybeZip eArgs argTypes of
