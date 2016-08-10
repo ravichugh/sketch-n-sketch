@@ -13,3 +13,16 @@ type alias Tooltip =
   , col   : Int     -- 0-indexed
   , text  : String
   }
+
+-- these are "markers" in Ace
+type alias Highlight =
+  { range : Range
+  , color : String
+  }
+
+type alias Pos =
+  { row : Int       -- 1-indexed ?
+  , column : Int    -- 1-indexed ?
+  }
+
+type alias Range = { start : Pos, end : Pos }

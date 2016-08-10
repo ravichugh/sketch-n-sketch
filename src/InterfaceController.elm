@@ -80,6 +80,7 @@ refreshMode model e =
 
 refreshMode_ model = refreshMode model model.inputExp
 
+-- TODO refresh type highlights, too
 refreshHighlights id zone model =
   let codeBoxInfo = model.codeBoxInfo in
   let hi = liveInfoToHighlights id zone model in
@@ -188,6 +189,7 @@ slateAndCode old (exp, val) =
 updateCodeBoxInfo : Types.AceTypeInfo -> CodeBoxInfo -> CodeBoxInfo
 updateCodeBoxInfo ati codeBoxInfo =
   { codeBoxInfo | annotations = ati.annotations
+                , highlights = ati.highlights
                 , tooltips = ati.tooltips }
 
 --------------------------------------------------------------------------------

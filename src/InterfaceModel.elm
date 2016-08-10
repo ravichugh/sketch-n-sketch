@@ -107,6 +107,7 @@ type alias CodeBoxInfo =
   }
 
 -- TODO move the rest of these types to Ace, too
+-- TODO remove these duplicates with Ace
 
 -- these are "markers" in Ace
 type alias Highlight =
