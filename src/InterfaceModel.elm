@@ -1,6 +1,7 @@
 module InterfaceModel where
 
 import Lang exposing (..)
+import Types exposing (AceTypeInfo)
 import Eval
 import Sync
 import Utils
@@ -178,8 +179,7 @@ type Event = SelectObject Int ShapeKind Zone
            | DuplicateBlobs
            | MergeBlobs
            | SwitchMode Mode
-           -- TODO use AceTypeInfo here, ExamplesTemplate, and InterfaceController
-           | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets})
+           | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets, ati:AceTypeInfo})
            | Run
            | StartAnimation
            | Redraw

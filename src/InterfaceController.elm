@@ -2325,8 +2325,7 @@ upstate evt old = case debugLog "Event" evt of
         upstate Run { old | exName = name, code = old.scratchCode, history = ([],[]) }
       else
 
-      -- TODO aceTypeInfo
-      let {e,v,ws} = thunk () in
+      let {e,v,ws,ati} = thunk () in
       let (so, m) =
         case old.mode of
           Live _  -> let so = Sync.syncOptionsOf old.syncOptions e in (so, mkLive so old.slideNumber old.movieNumber old.movieTime e v)
@@ -2355,6 +2354,7 @@ upstate evt old = case debugLog "Event" evt of
             , runAnimation  = movieDuration > 0
             , slate         = slate
             , widgets       = ws
+            , codeBoxInfo   = updateCodeBoxInfo ati old.codeBoxInfo
             }
 
     SwitchMode m -> { old | mode = m }

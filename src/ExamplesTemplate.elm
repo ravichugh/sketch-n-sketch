@@ -2,6 +2,7 @@ module ExamplesGenerated (list, scratchName, scratch) where
 
 import Lang
 import LangParser2 as Parser
+import Types
 import Eval
 import Utils
 import PreludeGenerated as Prelude
@@ -9,8 +10,9 @@ import PreludeGenerated as Prelude
 makeExample name s =
   let thunk () =
     let e = Utils.fromOk_ (Parser.parseE s) in
+    let ati = Types.typecheck e in
     let (v,ws) = Eval.run e in
-    {e=e, v=v, ws=ws}
+    {e=e, v=v, ws=ws, ati=ati}
   in
   (name, s, thunk)
 
