@@ -407,12 +407,10 @@ valToDictKey bt val_ =
     _                 -> errorWithBacktrace bt <| "Cannot use " ++ (strVal (val val_)) ++ " in a key to a dictionary."
 
 initEnvRes = Result.map snd <| (eval [] [] Parser.prelude)
+initEnv = Utils.fromOk "Eval.initEnv" <| initEnvRes
 
 run : Exp -> Result String (Val, Widgets)
-run e =
-  Result.andThen
-    initEnvRes
-    (\initEnv -> eval_ initEnv [] e)
+run e = eval_ initEnv [] e
 
 parseAndRun : String -> String
 parseAndRun = strVal << fst << Utils.fromOk_ << run << Utils.fromOkay "parseAndRun" << Parser.parseE
