@@ -145,6 +145,7 @@ type alias TypeInfo =
   , namedExps : List (Pat, EId)
   , constraintCount : Int
   , constraintVarCount : Int
+  , preludeTypeEnv : Maybe TypeEnv
   }
 
 type alias AceTypeInfo =
@@ -715,19 +716,24 @@ synthesizeType typeInfo typeEnv e =
       finish.withType Nothing typeInfo
 
     ELet ws1 letKind rec p e1 e2 ws2 ->
-      case (lookupTypAnnotation typeEnv p, rec, e1.val.e__) of
+      case (p.val, lookupTypAnnotation typeEnv p, rec, e1.val.e__) of
 
-        (Nothing, True, EFun _ ps _ _) -> -- [TS-LetRec-Fun] [TS-Fun-LetRec]
+        (PVar _ "dummyPreludeMain" _, _, _, _) ->
+          { result = Nothing
+          , typeInfo = { typeInfo | preludeTypeEnv = Just typeEnv }
+          }
+
+        (_, Nothing, True, EFun _ ps _ _) -> -- [TS-LetRec-Fun] [TS-Fun-LetRec]
           let (arrow, typeInfo') = newArrowTemplate typeInfo (List.length ps) in
           let t1 = tArrow arrow in
           let e1' = replaceE__ e1 (EColonType "" e1 "" t1 "") in
           let typeEnv' = addRecBinding True p t1 typeEnv in
           tsLet finish.withType typeInfo' typeEnv' p e1' e2
 
-        (Nothing, _, _) -> -- [TS-Let]
+        (_, Nothing, _, _) -> -- [TS-Let]
           tsLet finish.withType typeInfo typeEnv p e1 e2
 
-        (Just t1, _, EColonType _ _ _ t1' _) ->
+        (_, Just t1, _, EColonType _ _ _ t1' _) ->
           if t1 == t1' then
             let typeEnv' = addRecBinding rec p t1 typeEnv in
             tsLet finish.withType typeInfo typeEnv' p e1 e2
@@ -741,7 +747,7 @@ synthesizeType typeInfo typeEnv e =
             in
             finish.withError err typeInfo
 
-        (Just t1, _, _) -> -- [TS-AnnotatedLet]
+        (_, Just t1, _, _) -> -- [TS-AnnotatedLet]
           if not (isWellFormed typeEnv t1) then
             let err =
               Utils.spaces <|
@@ -1188,7 +1194,7 @@ rewriteArrow unifier (argTypes, retType) =
 typecheck : Exp -> AceTypeInfo
 typecheck e =
   let _ = debugLog "TYPE CHECKING" "..." in
-  let result = synthesizeType initTypeInfo initTypeEnv e in
+  let result = synthesizeType initTypeInfo preludeTypeEnv e in
   let _ = displayTypeInfo result.typeInfo in
   aceTypeInfo result.typeInfo
 
@@ -1202,17 +1208,17 @@ initTypeInfo =
   , namedExps = []
   , constraintCount = 0
   , constraintVarCount = 0
+  , preludeTypeEnv = Nothing
   }
 
-initTypeEnv : TypeEnv
-initTypeEnv =
-  -- TODO typecheck prelude.little
-  [ HasType "blobs" (parseT " (-> (List (List Svg)) Svg)")
-  , HasType "line" (parseT " (-> Num Num Num Num Num Num Svg)")
-  , HasType "rectangle" (parseT " (-> Num Num Num Num [Num Num Num Num] Svg)")
-  ]
-
-blah = typecheck Parser.prelude
+preludeTypeEnv : TypeEnv
+preludeTypeEnv =
+  let {typeInfo} = synthesizeType initTypeInfo [] Parser.prelude in
+  case typeInfo.preludeTypeEnv of
+    Just env -> env
+    Nothing ->
+      Debug.log "ERROR with preludeTypeEnv: \
+                 dummyPreludeMain not found in prelude.little" []
 
 displayTypeInfo : TypeInfo -> ()
 displayTypeInfo typeInfo =

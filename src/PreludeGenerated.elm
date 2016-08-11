@@ -951,8 +951,8 @@ prelude =
   (svg (concat (mapi modifyBlob blobs)))
 )))
 
-; 0
-['svg' [] []]
+; The type checker relies on the name of this definition.
+(let dummyPreludeMain ['svg' [] []] dummyPreludeMain)
 
 "
 
