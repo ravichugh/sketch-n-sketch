@@ -555,6 +555,11 @@ finishSynthesizeWithError pos error typeInfo =
   , typeInfo = addTypeErrorAt pos error typeInfo
   }
 
+propagateResult result =
+  { result = Nothing
+  , typeInfo = result.typeInfo
+  }
+
 -- Nothing means type error or N/A (EComment, EOption, ETyp, etc.)
 --
 synthesizeType : TypeInfo -> TypeEnv -> Exp -> AndTypeInfo (Maybe Type)
@@ -766,24 +771,19 @@ synthesizeType typeInfo typeEnv e =
     -- so not calling not calling addRawType (i.e. finish)
 
     EComment _ _ e1 ->
-      let result1 = synthesizeType typeInfo typeEnv e1 in
-      { result = Nothing, typeInfo = result1.typeInfo }
+      propagateResult <| synthesizeType typeInfo typeEnv e1
 
     EOption _ _ _ _ e1 ->
-      let result1 = synthesizeType typeInfo typeEnv e1 in
-      { result = Nothing, typeInfo = result1.typeInfo }
+      propagateResult <| synthesizeType typeInfo typeEnv e1
 
     ETyp _ p t e1 _ ->
       case addTypBindings p t typeEnv of
         Err () -> { result = Nothing, typeInfo = typeInfo }
-        Ok typeEnv' ->
-          let result1 = synthesizeType typeInfo typeEnv' e1 in
-          { result = Nothing, typeInfo = result1.typeInfo }
+        Ok typeEnv' -> propagateResult <| synthesizeType typeInfo typeEnv' e1
 
     ETypeAlias _ p t e1 _ ->
       let typeEnv' = TypeAlias p t :: typeEnv in
-      let result1 = synthesizeType typeInfo typeEnv' e1 in
-      { result = Nothing, typeInfo = result1.typeInfo }
+      propagateResult <| synthesizeType typeInfo typeEnv' e1
 
 tsAppMono finish typeInfo typeEnv eArgs (argTypes, retType) =
   case Utils.maybeZip eArgs argTypes of
