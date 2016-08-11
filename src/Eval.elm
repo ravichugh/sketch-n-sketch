@@ -89,7 +89,7 @@ cons pv menv =
 lookupVar env bt x pos =
   case Utils.maybeFind x env of
     Just v  -> Ok v
-    Nothing -> errorWithBacktrace bt <| strPos pos ++ " variable not found: " ++ x
+    Nothing -> errorWithBacktrace bt <| strPos pos ++ " variable not found: " ++ x ++ "\nVariables in scope: " ++ (String.join " " <| List.map fst env)
 
 
 mkCap mcap l =
