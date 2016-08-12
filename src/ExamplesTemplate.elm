@@ -6,12 +6,18 @@ import Types
 import Eval
 import Utils
 import PreludeGenerated as Prelude
+import LangSvg
 
 makeExample name s =
   let thunk () =
     -- TODO tolerate parse errors, change Select Example
     let e = Utils.fromOkay ("Error parsing example " ++ name) (Parser.parseE s) in
     let ati = Types.typecheck e in
+    -- TODO: remove this temporary fix ------------------
+    if name == "*Prelude*" then
+      {e=e, v=LangSvg.dummySvgVal, ws=[], ati=ati}
+    else
+    -----------------------------------------------------
     let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| Eval.run e in
     {e=e, v=v, ws=ws, ati=ati}
   in
