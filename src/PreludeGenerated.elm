@@ -284,66 +284,467 @@ prelude =
 ; SVG Manipulating Functions
 ;
 
+; === SVG Types ===
+
+(def Point [Num Num])
+(def RGBA [Num Num Num Num])
+(def Color (union String Num RGBA))
+(def PathCmds (List (union String Num)))
+(def Points (List Point))
+(def AttrName String)
+(def AttrVal (union String Num Bool Color PathCmds Points))
+(def AttrPair [AttrName AttrVal])
+(def Attrs (List AttrPair))
 (def NodeKind String)
-(def Rgba [Num Num Num Num])
-(def Color (union String Num Rgba))
-(def AttrVal (union String Num Color))
-(def Attr [String AttrVal])
-(def NodeAttrs (Dict String (union AttrVal Null)))
-(def Node [NodeKind NodeAttrs (List Node)])
+(def SVG [NodeKind Attrs (List SVG)])
+(def Blob (List SVG))
 
-(def Shape Node)
-(def Rectangle Node)
-(def Svg Node)
+; === Attribute Lookup ===
 
-(def Blob (List Svg))
+(typ lookupWithDefault (forall (k v) (-> v k (List [k v]) v)))
+(defrec lookupWithDefault (\\(default k dict)
+  (let foo (lookupWithDefault default k)
+  (case dict
+    ([]            default)
+    ([[k1 v]|rest] (if (= k k1) v (foo rest)))))))
+
+(typ lookup (forall (k v) (-> k (List [k v]) (union v Null))))
+(defrec lookup (\\(k dict)
+  (let foo (lookup k)
+  (case dict
+    ([]            null)
+    ([[k1 v]|rest] (if (= k k1) v (foo rest)))))))
+
+(defrec addExtras (\\(i extras shape)
+  (case extras
+    ([] shape)
+    ([[k table] | rest]
+      (let v (lookup i table)
+      (if (= v null)
+          (addExtras i rest shape)
+          (addExtras i rest (addAttr shape [k v]))))))))
+
+(typ lookupAttr (-> SVG AttrName (union AttrVal Null)))
+(def lookupAttr (\\([_ attrs _] k) (lookup k attrs)))
+
+(typ lookupAttrWithDefault (-> AttrVal SVG AttrName AttrVal))
+(def lookupAttrWithDefault (\\(default [_ attrs _] k) (lookupWithDefault default k attrs)))
+
+
+; === Points ===
+
+(def Vec2D [Num Num])
+
+(typ x (-> Point Num))
+(def x fst)
+
+(typ y (-> Point Num))
+(def y snd)
+
+(typ vec2DPlus (-> Point Vec2D Point))
+(def vec2DPlus (\\(pt vec)
+  [
+    (+ (x pt) (x vec))
+    (+ (y pt) (y vec))
+  ]
+))
+
+(typ vec2DMinus (-> Point Point Vec2D))
+(def vec2DMinus (\\(pt vec)
+  [
+    (- (x pt) (x vec))
+    (- (y pt) (y vec))
+  ]
+))
+
+(typ vec2DScalarMult (-> Vec2D Point))
+(def vec2DScalarMult (\\(num vec)
+  [
+    (* (x vec) num)
+    (* (y vec) num)
+  ]
+))
+
+
+; === Circles ===
+
+(def Circle SVG)
 
 ;; argument order - color, x, y, radius
 ;; creates a circle, center at (x,y) with given radius and color
-(typ circle (-> String Num Num Num Svg))
+(typ circle (-> String Num Num Num Circle))
 (def circle (\\(fill x y r)
   ['circle'
      [['cx' x] ['cy' y] ['r' r] ['fill' fill]]
      []]))
 
+(typ circleCenter (-> Ellipse Point))
+(def circleCenter (\\circle
+  [
+    (lookupAttrWithDefault 0 circle 'cx')
+    (lookupAttrWithDefault 0 circle 'cy')
+  ]
+))
+
+(typ circleRadius (-> Circle Num))
+(def circleRadius (\\circle
+  (lookupAttrWithDefault 0 circle 'r')
+))
+
+(typ circleDiameter (-> Circle Num))
+(def circleDiameter (\\circle
+  (* 2 (circleRadius circle))
+))
+
+(typ circleNorth (-> Circle Point))
+(def circleNorth (\\circle
+  (let [cx cy] (circleCenter circle)
+    [cx (- cy (circleRadius circle))]
+  )
+))
+
+(typ circleEast (-> Circle Point))
+(def circleEast (\\circle
+  (let [cx cy] (circleCenter circle)
+    [(+ cx (circleRadius circle)) cy]
+  )
+))
+
+(typ circleSouth (-> Circle Point))
+(def circleSouth (\\circle
+  (let [cx cy] (circleCenter circle)
+    [cx (+ cy (circleRadius circle))]
+  )
+))
+
+(typ circleWest (-> Circle Point))
+(def circleWest (\\circle
+  (let [cx cy] (circleCenter circle)
+    [(- cx (circleRadius circle)) cy]
+  )
+))
+
+
 ;; argument order - color, width, x, y, radius
 ;; Just as circle, except new width parameter determines thickness of ring
-(typ ring (-> String Num Num Num Num Svg))
+(typ ring (-> String Num Num Num Num SVG))
 (def ring (\\(c w x y r)
   ['circle'
      [ ['cx' x] ['cy' y] ['r' r] ['fill' 'none'] ['stroke' c] ['stroke-width' w] ]
      []]))
 
+
+; === Ellipses ===
+
+(def Ellipse SVG)
+
 ;; argument order - color, x, y, x-radius, y-radius
 ;; Just as circle, except radius is separated into x and y parameters
-(typ ellipse (-> String Num Num Num Num Svg))
+(typ ellipse (-> String Num Num Num Num Ellipse))
 (def ellipse (\\(fill x y rx ry)
   ['ellipse'
      [ ['cx' x] ['cy' y] ['rx' rx] ['ry' ry] ['fill' fill] ]
      []]))
 
+(typ ellipseCenter (-> Ellipse Point))
+(def ellipseCenter (\\ellipse
+  [
+    (lookupAttrWithDefault 0 ellipse 'cx')
+    (lookupAttrWithDefault 0 ellipse 'cy')
+  ]
+))
+
+(typ ellipseRadiusX (-> Ellipse Num))
+(def ellipseRadiusX (\\ellipse
+  (lookupAttrWithDefault 0 ellipse 'rx')
+))
+
+(typ ellipseRadiusY (-> Ellipse Num))
+(def ellipseRadiusY (\\ellipse
+  (lookupAttrWithDefault 0 ellipse 'ry')
+))
+
+(typ ellipseDiameterX (-> Ellipse Num))
+(def ellipseDiameterX (\\ellipse
+  (* 2 (ellipseRadiusX ellipse))
+))
+
+(typ ellipseDiameterY (-> Ellipse Num))
+(def ellipseDiameterY (\\ellipse
+  (* 2 (ellipseRadiusY ellipse))
+))
+
+(typ ellipseNorth (-> Ellipse Point))
+(def ellipseNorth (\\ellipse
+  (let [cx cy] (ellipseCenter ellipse)
+    [cx (- cy (ellipseRadiusY ellipse))]
+  )
+))
+
+(typ ellipseEast (-> Ellipse Point))
+(def ellipseEast (\\ellipse
+  (let [cx cy] (ellipseCenter ellipse)
+    [(+ cx (ellipseRadiusX ellipse)) cy]
+  )
+))
+
+(typ ellipseSouth (-> Ellipse Point))
+(def ellipseSouth (\\ellipse
+  (let [cx cy] (ellipseCenter ellipse)
+    [cx (+ cy (ellipseRadiusY ellipse))]
+  )
+))
+
+(typ ellipseWest (-> Ellipse Point))
+(def ellipseWest (\\ellipse
+  (let [cx cy] (ellipseCenter ellipse)
+    [(- cx (ellipseRadiusX ellipse)) cy]
+  )
+))
+
+
+; === Bounds-based shapes (Oval and Box) ===
+
+(def BoundedShape SVG)
+
+(typ boundedShapeLeft (-> BoundedShape Num))
+(def boundedShapeLeft (\\shape
+  (lookupAttrWithDefault 0 shape 'LEFT')
+))
+
+(typ boundedShapeTop (-> BoundedShape Num))
+(def boundedShapeTop (\\shape
+  (lookupAttrWithDefault 0 shape 'TOP')
+))
+
+(typ boundedShapeRight (-> BoundedShape Num))
+(def boundedShapeRight (\\shape
+  (lookupAttrWithDefault 0 shape 'RIGHT')
+))
+
+(typ boundedShapeBot (-> BoundedShape Num))
+(def boundedShapeBot (\\shape
+  (lookupAttrWithDefault 0 shape 'BOT')
+))
+
+(typ boundedShapeWidth (-> BoundedShape Num))
+(def boundedShapeWidth (\\shape
+  (- (boundedShapeRight shape) boundedShapeLeft)
+))
+
+(typ boundedShapeHeight (-> BoundedShape Num))
+(def boundedShapeHeight (\\shape
+  (lookupAttrWithDefault 0 shape 'height')
+))
+
+(typ boundedShapeLeftTop (-> BoundedShape Point))
+(def boundedShapeLeftTop (\\shape
+  [
+    (boundedShapeLeft shape)
+    (boundedShapeTop shape)
+  ]
+))
+
+(typ boundedShapeCenterTop (-> BoundedShape Point))
+(def boundedShapeCenterTop (\\shape
+  [
+    (/ (+ (boundedShapeLeft shape) (boundedShapeRight shape)) 2)
+    (boundedShapeTop shape)
+  ]
+))
+
+(typ boundedShapeRightTop (-> BoundedShape Point))
+(def boundedShapeRightTop (\\shape
+  [
+    (boundedShapeRight shape)
+    (boundedShapeTop shape)
+  ]
+))
+
+(typ boundedShapeRightCenter (-> BoundedShape Point))
+(def boundedShapeRightCenter (\\shape
+  [
+    (boundedShapeRight shape)
+    (/ (+ (boundedShapeTop shape) (boundedShapeBot shape)) 2)
+  ]
+))
+
+(typ boundedShapeRightBot (-> BoundedShape Point))
+(def boundedShapeRightBot (\\shape
+  [
+    (boundedShapeRight shape)
+    (boundedShapeBot shape)
+  ]
+))
+
+(typ boundedShapeCenterBot (-> BoundedShape Point))
+(def boundedShapeCenterBot (\\shape
+  [
+    (/ (+ (boundedShapeLeft shape) (boundedShapeRight shape)) 2)
+    (boundedShapeBot shape)
+  ]
+))
+
+(typ boundedShapeLeftBot (-> BoundedShape Point))
+(def boundedShapeLeftBot (\\shape
+  [
+    (boundedShapeLeft shape)
+    (boundedShapeBot shape)
+  ]
+))
+
+(typ boundedShapeLeftCenter (-> BoundedShape Point))
+(def boundedShapeLeftCenter (\\shape
+  [
+    (boundedShapeLeft shape)
+    (/ (+ (boundedShapeTop shape) (boundedShapeBot shape)) 2)
+  ]
+))
+
+(typ boundedShapeCenter (-> BoundedShape Point))
+(def boundedShapeCenter (\\shape
+  [
+    (/ (+ (boundedShapeLeft shape) (boundedShapeRight shape)) 2)
+    (/ (+ (boundedShapeTop shape) (boundedShapeBot shape)) 2)
+  ]
+))
+
+
+; === Rectangles ===
+
+(def Rect SVG)
+
 ;; argument order - color, x, y, width, height
 ;; creates a rectangle of given width and height with (x,y) as the top left corner coordinate
-(typ rect (-> String Num Num Num Num Svg))
+(typ rect (-> String Num Num Num Num Rect))
 (def rect (\\(fill x y w h)
   ['rect'
      [ ['x' x] ['y' y] ['width' w] ['height' h] ['fill' fill] ]
      []]))
 
-(typ square (-> String Num Num Num Svg))
+(typ square (-> String Num Num Num Rect))
 (def square (\\(fill x y side) (rect fill x y side side)))
+
+(typ rectWidth (-> Rect Num))
+(def rectWidth (\\rect
+  (lookupAttrWithDefault 0 rect 'width')
+))
+
+(typ rectHeight (-> Rect Num))
+(def rectHeight (\\rect
+  (lookupAttrWithDefault 0 rect 'height')
+))
+
+(typ rectLeftTop (-> Rect Point))
+(def rectLeftTop (\\rect
+  [
+    (lookupAttrWithDefault 0 rect 'x')
+    (lookupAttrWithDefault 0 rect 'y')
+  ]
+))
+
+(typ rectCenterTop (-> Rect Point))
+(def rectCenterTop (\\rect
+  (vec2DPlus
+    (rectLeftTop rect)
+    [ (/ (rectWidth rect) 2) 0 ]
+  )
+))
+
+(typ rectRightTop (-> Rect Point))
+(def rectRightTop (\\rect
+  (vec2DPlus
+    (rectLeftTop rect)
+    [ (rectWidth rect) 0 ]
+  )
+))
+
+(typ rectRightCenter (-> Rect Point))
+(def rectRightCenter (\\rect
+  (vec2DPlus
+    (rectLeftTop rect)
+    [ (rectWidth rect) (/ (rectHeight rect) 2) ]
+  )
+))
+
+(typ rectRightBot (-> Rect Point))
+(def rectRightBot (\\rect
+  (vec2DPlus
+    (rectLeftTop rect)
+    [ (rectWidth rect) (rectHeight rect) ]
+  )
+))
+
+(typ rectCenterBot (-> Rect Point))
+(def rectCenterBot (\\rect
+  (vec2DPlus
+    (rectLeftTop rect)
+    [ (/ (rectWidth rect) 2) (rectHeight rect) ]
+  )
+))
+
+(typ rectLeftBot (-> Rect Point))
+(def rectLeftBot (\\rect
+  (vec2DPlus
+    (rectLeftTop rect)
+    [0 (rectHeight rect) ]
+  )
+))
+
+(typ rectLeftCenter (-> Rect Point))
+(def rectLeftCenter (\\rect
+  (vec2DPlus
+    (rectLeftTop rect)
+    [0 (/ (rectHeight rect) 2) ]
+  )
+))
+
+(typ rectCenter (-> Rect Point))
+(def rectCenter (\\rect
+  (vec2DPlus
+    (rectLeftTop rect)
+    [ (/ (rectWidth rect) 2) (/ (rectHeight rect) 2) ]
+  )
+))
+
+
+; === Lines ===
+
+(def Line SVG)
 
 ;; argument order - color, width, x1, y1, x1, y2
 ;; creates a line from (x1, y1) to (x2,y2) with given color and width
-(typ line (-> String Num Num Num Num Num Svg))
+(typ line (-> String Num Num Num Num Num Line))
 (def line (\\(fill w x1 y1 x2 y2)
   ['line'
      [ ['x1' x1] ['y1' y1] ['x2' x2] ['y2' y2] ['stroke' fill] ['stroke-width' w] ]
      []]))
 
+(typ lineStart (-> Line Point))
+(def lineStart (\\line
+  [
+    (lookupAttrWithDefault 0 line 'x1')
+    (lookupAttrWithDefault 0 line 'y1')
+  ]
+))
+
+(typ lineEnd (-> Line Point))
+(def lineEnd (\\line
+  [
+    (lookupAttrWithDefault 0 line 'x2')
+    (lookupAttrWithDefault 0 line 'y2')
+  ]
+))
+
+(typ lineMidPoint (-> Line Point))
+(def lineMidPoint (\\line
+  (halfwayBetween (lineStart line) (lineEnd line))
+))
+
+
 ;; argument order - fill, stroke, width, points
 ;; creates a polygon following the list of points, with given fill color and a border with given width and stroke
-(typ polygon (-> String String Num (List (List Num)) Svg))
+(typ polygon (-> String String Num Points SVG))
 (def polygon (\\(fill stroke w pts)
   ['polygon'
      [ ['fill' fill] ['points' pts] ['stroke' stroke] ['stroke-width' w] ]
@@ -351,7 +752,7 @@ prelude =
 
 ;; argument order - fill, stroke, width, points
 ;; See polygon
-(typ polyline (-> String String Num (List (List Num)) Svg))
+(typ polyline (-> String String Num Points SVG))
 (def polyline (\\(fill stroke w pts)
   ['polyline'
      [ ['fill' fill] ['points' pts] ['stroke' stroke] ['stroke-width' w] ]
@@ -360,7 +761,7 @@ prelude =
 ;; argument order - fill, stroke, width, d
 ;; Given SVG path command d, create path with given fill color, stroke and width
 ;; See https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths for path command info
-(typ path (-> String String Num (List a) Svg))
+(typ path (-> String String Num PathCmds SVG))
 (def path (\\(fill stroke w d)
   ['path'
      [ ['fill' fill] ['stroke' stroke] ['stroke-width' w] ['d' d] ]
@@ -368,7 +769,7 @@ prelude =
 
 ;; argument order - x, y, string
 ;; place a text string with top left corner at (x,y) - with default color & font
-(typ text (-> Num Num String Svg))
+(typ text (-> Num Num String SVG))
 (def text (\\(x y s)
    ['text' [['x' x] ['y' y] ['style' 'fill:black']
             ['font-family' 'Tahoma, sans-serif']]
@@ -376,11 +777,11 @@ prelude =
 
 ;; argument order - shape, new attribute
 ;; Add a new attribute to a given Shape
-(typ addAttr (-> Svg Attr Svg))
+(typ addAttr (-> SVG AttrPair SVG))
 (def addAttr (\\([shapeKind oldAttrs children] newAttr)
   [shapeKind (snoc newAttr oldAttrs) children]))
 
-(typ consAttr (-> Svg Attr Svg))
+(typ consAttr (-> SVG AttrPair SVG))
 (def consAttr (\\([shapeKind oldAttrs children] newAttr)
   [shapeKind (cons newAttr oldAttrs) children]))
 
@@ -389,7 +790,7 @@ prelude =
 
 ;; argument order - x-maximum, y-maximum, shapes
 ;; Given a list of shapes, compose into a single SVG within the x & y maxima
-(typ svgViewBox (-> Num Num (List Svg) Svg))
+(typ svgViewBox (-> Num Num (List SVG) SVG))
 (def svgViewBox (\\(xMax yMax shapes)
   (let [sx sy] [(toString xMax) (toString yMax)]
   ['svg'
@@ -397,13 +798,13 @@ prelude =
     shapes])))
 
 ;; As rect, except x & y represent the center of the defined rectangle
-(typ rectCenter (-> String Num Num Num Num Svg))
-(def rectCenter (\\(fill cx cy w h)
+(typ rectByCenter (-> String Num Num Num Num Rect))
+(def rectByCenter (\\(fill cx cy w h)
   (rect fill (- cx (/ w 2)) (- cy (/ h 2)) w h)))
 
 ;; As square, except x & y represent the center of the defined rectangle
-(typ squareCenter (-> String Num Num Num Svg))
-(def squareCenter (\\(fill cx cy w) (rectCenter fill cx cy w w)))
+(typ squareByCenter (-> String Num Num Num Rect))
+(def squareByCenter (\\(fill cx cy w) (rectCenter fill cx cy w w)))
 
 ;; Some shapes with given default values for fill, stroke, and stroke width
 ; TODO remove these
@@ -418,7 +819,7 @@ prelude =
 ;; updates an SVG by comparing differences with another SVG
 ;; Note: accDiff pre-condition: indices in increasing order
 ;; (so can't just use foldr instead of reverse . foldl)
-(typ updateCanvas (-> Svg Svg Svg))
+(typ updateCanvas (-> SVG SVG SVG))
 (def updateCanvas (\\([_ svgAttrs oldShapes] diff)
   (let oldShapesI (zip (list1N (len oldShapes)) oldShapes)
   (let initAcc [[] diff]
@@ -433,11 +834,11 @@ prelude =
   (let newShapes (reverse (fst (foldl f initAcc oldShapesI)))
     ['svg' svgAttrs newShapes]))))))
 
-(typ addShapeToCanvas (-> Svg Svg Svg))
+(typ addShapeToCanvas (-> SVG SVG SVG))
 (def addShapeToCanvas (\\(['svg' svgAttrs oldShapes] newShape)
   ['svg' svgAttrs (append oldShapes [newShape])]))
 
-(typ addShape (-> Svg Svg Svg))
+(typ addShape (-> SVG SVG SVG))
 (def addShape (flip addShapeToCanvas))
 
 (typ groupMap (forall (a b) (-> (List a) (-> a b) (List b))))
@@ -447,33 +848,7 @@ prelude =
 (def inferred  (\\(x _ _) x))
 (def flow (\\(_ x) x))
 
-(typ lookupWithDefault (forall (k v) (-> v k (List [k v]) v)))
-(defrec lookupWithDefault (\\(default k dict)
-  (let foo (lookupWithDefault default k)
-  (case dict
-    ([]            default)
-    ([[k1 v]|rest] (if (= k k1) v (foo rest)))))))
-
-(typ lookup (forall (k v) (-> k (List [k v]) v)))
-(defrec lookup (\\(k dict)
-  (let foo (lookup k)
-  (case dict
-    ([]            'NOTFOUND')
-    ([[k1 v]|rest] (if (= k k1) v (foo rest)))))))
-
-(defrec addExtras (\\(i extras shape)
-  (case extras
-    ([] shape)
-    ([[k table] | rest]
-      (let v (lookup i table)
-      (if (= v 'NOTFOUND')
-          (addExtras i rest shape)
-          (addExtras i rest (addAttr shape [k v]))))))))
-
-(typ lookupAttr (-> Svg String AttrVal))
-(def lookupAttr (\\([_ attrs _] k) (lookup k attrs)))
-
-; \"constant folding\"
+; 'constant folding'
 (def twoPi (* 2 (pi)))
 (def halfPi (/ (pi) 2))
 
@@ -494,7 +869,7 @@ prelude =
   (let pts (nPointsOnUnitCircle n rot)
   (map (\\[x y] [(+ cx (* x r)) (+ cy (* y r))]) pts))))
 
-(typ nStar (-> color color Num Num Num Num Num Num Num Svg))
+(typ nStar (-> Color Color Num Num Num Num Num Num Num SVG))
 ;; argument order -
 ;; fill color - interior color of star
 ;; stroke color - border color of star
@@ -533,7 +908,7 @@ prelude =
 
 (def ghost
   ; consAttr (instead of addAttr) makes internal calls to
-  ; Utils.maybeRemoveFirst \"HIDDEN\" slightly faster
+  ; Utils.maybeRemoveFirst 'HIDDEN' slightly faster
   (\\shape (consAttr shape ['HIDDEN' ''])))
 
 (def ghosts (map ghost))
@@ -672,7 +1047,7 @@ prelude =
   (concat (mapi foo shapesCapsSeeds))))))
 
 
-(typ rotate (-> Svg Num Num Num Svg))
+(typ rotate (-> SVG Num Num Num SVG))
 ;; argument order - shape, rot, x, y
 ;; Takes a shape rotates it rot degrees around point (x,y)
 (def rotate (\\(shape n1 n2 n3)
@@ -950,6 +1325,20 @@ prelude =
       (_       blob)))
   (svg (concat (mapi modifyBlob blobs)))
 )))
+
+
+; === Relations ===
+
+(typ halfwayBetween (-> Point Point Point))
+(def halfwayBetween (\\(pt1 pt2)
+  (vec2DScalarMult 0.5 (vec2DPlus pt1 pt2))
+))
+
+(typ nextInLine (-> Point Point Point))
+(def nextInLine (\\(pt1 pt2)
+  (vec2DPlus pt2 (vec2DMinus pt2 pt1))
+))
+
 
 ; The type checker relies on the name of this definition.
 (let dummyPreludeMain ['svg' [] []] dummyPreludeMain)
