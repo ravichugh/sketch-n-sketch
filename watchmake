@@ -12,7 +12,7 @@ FILE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 cd $FILE_DIR
 
-# If you need to work on built-in examples, change to "make examples html"
+# If you need to work on built-in examples, change to "make prelude examples html"
 
 echo "fswatch -Ee 'git|build/|elm-stuff/|Generated' . | xargs -ton 1 sh -c 'cd src; make html'"
 fswatch -Ee 'git|build/|elm-stuff/|Generated' . | xargs -ton 1 sh -c 'cd src; make html'

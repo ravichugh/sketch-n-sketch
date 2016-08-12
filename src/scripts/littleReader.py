@@ -3,8 +3,8 @@ def trimNewline(s): return s[:-1]
 def write(f, s): f.write(s)
 def writeLn(f, s): f.write(s + '\n')
 
-def readLittle(name):
-  f = '../examples/' + name + '.little'
+def readLittle(name, folder='../examples/'):
+  f = folder + name + '.little'
 
   ## yield (name + ' = \"\n')
   ## following version is to facilitate line/col numbers:
