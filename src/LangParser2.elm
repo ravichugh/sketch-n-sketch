@@ -122,12 +122,12 @@ freshenRanges : Int -> List Range -> (List Range, Int)
 freshenRanges k rs =
   List.foldr (\r (rs',k') ->
     let (r_,k_) = case r.val of
-      Point e ->
+      RPoint e ->
         let (e',k'') = freshen_ k' e in
-        (Point e', k'')
-      Interval e1 ws e2 ->
+        (RPoint e', k'')
+      RInterval e1 ws e2 ->
         let ((e1',e2'),k'') = U.mapFst U.unwrap2 <| freshenExps k' [e1,e2] in
-        (Interval e1' ws e2', k'')
+        (RInterval e1' ws e2', k'')
     in
     ({ r | val = r_ } :: rs', k_)
   ) ([],k) rs
@@ -549,14 +549,14 @@ parseBound =
 parsePoint : P.Parser Range_
 parsePoint =
   parseBound >>= \e ->
-    P.return (Point e)
+    P.return (RPoint e)
 
 parseInterval =
   parseBound   >>= \e1 ->
   whitespace   >>= \ws ->
   P.token ".." >>>
   parseBound   >>= \e2 ->
-    P.return (Interval e1 ws.val e2)
+    P.return (RInterval e1 ws.val e2)
 
 parseRec =
       (always True  <$> whiteTokenOneWS "letrec")

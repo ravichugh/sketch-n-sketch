@@ -123,8 +123,8 @@ type LetKind = Let | Def
 type alias Rec = Bool
 
 type Range_ -- right now, Exps are always EConsts
-  = Interval Exp WS Exp
-  | Point Exp
+  = RInterval Exp WS Exp
+  | RPoint Exp
 
 type alias WidgetDecl = P.WithInfo WidgetDecl_
 
@@ -285,8 +285,8 @@ mapExp f e =
     EList ws1 es ws2 m ws3 -> wrapAndMap (EList ws1 (List.map recurse es) ws2 (Utils.mapMaybe recurse m) ws3)
     EIndList ws1 rs ws2    ->
       let rangeRecurse r_ = case r_ of
-        Interval e1 ws e2 -> Interval (recurse e1) ws (recurse e2)
-        Point e1          -> Point (recurse e1)
+        RInterval e1 ws e2 -> RInterval (recurse e1) ws (recurse e2)
+        RPoint e1          -> RPoint (recurse e1)
       in
       wrapAndMap (EIndList ws1 (List.map (mapValField rangeRecurse) rs) ws2)
     EIf ws1 e1 e2 e3 ws2      -> wrapAndMap (EIf ws1 (recurse e1) (recurse e2) (recurse e3) ws2)
@@ -431,8 +431,8 @@ childExps e =
     EIndList ws1 ranges ws2 ->
       List.concatMap
         (\range -> case range.val of
-          Interval e1 ws e2 -> [e1, e2]
-          Point e1          -> [e1]
+          RInterval e1 ws e2 -> [e1, e2]
+          RPoint e1          -> [e1]
         )
         ranges
     EApp ws1 f es ws2               -> f :: es
@@ -604,8 +604,9 @@ dummyTrace = dummyTrace_ unann
 
 ePlus e1 e2 = withDummyPos <| EOp "" (withDummyRange Plus) [e1,e2] ""
 
-eBool  = withDummyPos << EBase " " << EBool
-eStr   = withDummyPos << EBase " " << EString defaultQuoteChar
+eBase  = withDummyPos << EBase " "
+eBool  = eBase << EBool
+eStr   = eBase << EString defaultQuoteChar
 eStr0  = withDummyPos << EBase "" << EString defaultQuoteChar
 eTrue  = eBool True
 eFalse = eBool False

@@ -68,11 +68,28 @@ isTopLevel exp program =
   if exp == program then
     True
   else
-    case program.val.e__ of
-      ELet _ Def _ _ _ body _ -> isTopLevel exp body
-      EComment _ _ e          -> isTopLevel exp e
-      EOption _ _ _ _ e       -> isTopLevel exp e
-      _                       -> False
+    case maybeTopLevelChild program of
+      Just child -> isTopLevel exp child
+      Nothing    -> False
+
+
+maybeTopLevelChild : Exp -> Maybe Exp
+maybeTopLevelChild exp =
+  case exp.val.e__ of
+    ETyp _ _ _ body _       -> Just body
+    EColonType _ body _ _ _ -> Just body
+    ETypeAlias _ _ _ body _ -> Just body
+    ELet _ Def _ _ _ body _ -> Just body
+    EComment _ _ e          -> Just e
+    EOption _ _ _ _ e       -> Just e
+    _                       -> Nothing
+
+
+topLevelExps : Exp -> List Exp
+topLevelExps program =
+  case maybeTopLevelChild program of
+    Just child -> program::(topLevelExps child)
+    Nothing    -> [program]
 
 
 -- Still needs to be rewritten to handle scopes created by case branches.

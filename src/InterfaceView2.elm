@@ -338,6 +338,20 @@ toggleSelectedWidget locId =
     { model | selectedFeatures = update feature model.selectedFeatures }
 
 
+buildSvgIdeas ideas =
+  ideas
+  |> List.map
+      (\(((x,_),(y,_)), depth) ->
+        flip Svg.circle [] <|
+          [ attr "fill" "none"
+          , attr "stroke" ("rgba(0,0,40," ++ (toString (1.0 / (2^(toFloat depth)))) ++ ")") , attr "stroke-width" "1px"
+          , attr "r" "3"
+          , attr "cx" (toString x) , attr "cy" (toString y)
+          ]
+      )
+  |> Svg.svg []
+
+
 --------------------------------------------------------------------------------
 -- Defining Zones
 
@@ -1813,7 +1827,8 @@ canvas_ w h model =
   in
   let makeWidgetsAndZones () =
     let widgets = buildSvgWidgets w h model in
-    let svg = mkSvg addZones (Svg.g [] [mainCanvas, widgets]) in
+    let ideas = buildSvgIdeas model.ideas in
+    let svg = mkSvg addZones (Svg.g [] [mainCanvas, ideas, widgets]) in
     Html.toElement w h svg
   in
   case (model.mode, model.showGhosts) of
@@ -1974,6 +1989,8 @@ widgetsTools w h model =
        [ (1/4, toolButton model Lambda)
        , (3/4, dropdownLambdaTool model)
        ]
+  , gapWidget w h
+  , simpleEventButton_ (List.length model.ideas > 500) Brainstorm "Brainstorm" w h
   , gapWidget w h
   , relateButton DigHole "Dig Hole" w h
   , relateButton MakeEqual "Make Equal" w h

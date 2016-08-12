@@ -139,8 +139,8 @@ indent spaces e =
     EList ws1 es ws2 m ws3 -> wrap (EList (processWS ws1) (List.map recurse es) ws2 (Utils.mapMaybe recurse m) ws3)
     EIndList ws1 rs ws2    ->
       let rangeRecurse r_ = case r_ of
-        Interval e1 ws e2 -> Interval (recurse e1) ws (recurse e2)
-        Point e1          -> Point (recurse e1)
+        RInterval e1 ws e2 -> RInterval (recurse e1) ws (recurse e2)
+        RPoint e1          -> RPoint (recurse e1)
       in
       wrap (EIndList (processWS ws1) (List.map (mapValField rangeRecurse) rs) ws2)
     EIf ws1 e1 e2 e3 ws2     -> wrap (EIf (processWS ws1) (recurse e1) (recurse e2) (recurse e3) ws2)
@@ -299,8 +299,8 @@ unparse e = case e.val.e__ of
 
 unparseRange : Range -> String
 unparseRange r = case r.val of
-  Point e           -> unparse e
-  Interval e1 ws e2 -> unparse e1 ++ ws ++ ".." ++ unparse e2
+  RPoint e           -> unparse e
+  RInterval e1 ws e2 -> unparse e1 ++ ws ++ ".." ++ unparse e2
 
 traceToLittle : SubstStr -> Trace -> String
 traceToLittle substStr trace =

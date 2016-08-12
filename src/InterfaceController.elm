@@ -4,6 +4,7 @@ import Lang exposing (..) --For access to what makes up the Vals
 import Types
 import LangParser2 exposing (parseE, freshen)
 import LangUnparser exposing (unparse, precedingWhitespace, addPrecedingWhitespace)
+import Brainstorm
 import LangTransform
 import ValueBasedTransform
 import Sync
@@ -48,20 +49,6 @@ import Debug
 debugLog = Config.debugLog Config.debugController
 
 --------------------------------------------------------------------------------
-
-slateToVal : LangSvg.RootedIndexedTree -> Val
-slateToVal (rootId, tree) =
-  let foo n =
-    case n of
-      LangSvg.TextNode s -> vList [vBase (VString "TEXT"), vBase (VString s)]
-      LangSvg.SvgNode kind l1 l2 ->
-        let vs1 = List.map LangSvg.valOfAttr l1 in
-        let vs2 = List.map (foo << flip Utils.justGet tree) l2 in
-        vList [vBase (VString kind), vList vs1, vList vs2]
-          -- NOTE: if relate needs the expression that led to this
-          --  SvgNode, need to store it in IndexedTree
-  in
-  foo (Utils.justGet rootId tree)
 
 upslate : LangSvg.NodeId -> (String, LangSvg.AVal) -> LangSvg.IndexedTree -> LangSvg.IndexedTree
 upslate id newattr nodes = case Dict.get id nodes of
@@ -1957,6 +1944,7 @@ onMouseMove (mx0, my0) old =
         { old | code = unparse newE
               , inputExp = newE
               , inputVal = newV
+              , ideas = if newV == old.inputVal then old.ideas else []
               , slate = newSlate
               , widgets = newWidgets
               , codeBoxInfo = highlightChanges mStuff changes old.codeBoxInfo
@@ -1975,6 +1963,7 @@ onMouseMove (mx0, my0) old =
         { old | code = unparse newE
               , inputExp = newE
               , inputVal = newV
+              , ideas = if newV == old.inputVal then old.ideas else []
               , slate = newSlate
               , widgets = newWidgets
               }
@@ -2047,7 +2036,8 @@ onMouseUp old =
 -- Updating the Model
 
 upstate : Event -> Model -> Model
-upstate evt old = case debugLog "Event" evt of
+upstate evt old =
+  case debugLog "Event" evt of
 
     Noop -> old
 
@@ -2077,6 +2067,7 @@ upstate evt old = case debugLog "Event" evt of
                 let new =
                   { old | inputExp      = e
                         , inputVal      = newVal
+                        , ideas         = if newVal == old.inputVal then old.ideas else []
                         , code          = newCode
                         , slideCount    = newSlideCount
                         , movieCount    = newMovieCount
@@ -2189,18 +2180,26 @@ upstate evt old = case debugLog "Event" evt of
         SyncSelect _ ->
           -- Prevent "jump" after slow first frame render.
           let adjustedDeltaT = if old.syncSelectTime == 0.0 then clamp 0.0 50 deltaT else deltaT in
-          upstate Redraw { old | syncSelectTime = old.syncSelectTime + (adjustedDeltaT / 1000) }
+          upstate Redraw { old | syncSelectTime = old.syncSelectTime + (adjustedDeltaT / 1000), ideas = [] }
         _ ->
           if old.movieTime < old.movieDuration then
             -- Prevent "jump" after slow first frame render.
             let adjustedDeltaT = if old.movieTime == 0.0 then clamp 0.0 50 deltaT else deltaT in
             let newMovieTime = clamp 0.0 old.movieDuration (old.movieTime + (adjustedDeltaT / 1000)) in
-            upstate Redraw { old | movieTime = newMovieTime }
+            upstate Redraw { old | movieTime = newMovieTime, ideas = [] }
           else if old.movieContinue == True then
             upstate NextMovie old
           else
             { old | runAnimation = False }
 
+    Brainstorm ->
+      let model = upstate Run old in
+      case model.caption of
+        Just (LangError _) -> model
+        _ ->
+          let _ = debugLog (strVal model.inputVal) () in
+          let ideas = debugLog "ideas" <| Brainstorm.brainstorm model.ideas model.inputExp model.slate in
+          { model | ideas = ideas }
 
     RelateAttrs ->
       let selectedVals =
@@ -2227,6 +2226,7 @@ upstate evt old = case debugLog "Event" evt of
           { old | code             = newCode
                 , inputExp         = newExp
                 , inputVal         = newVal
+                , ideas            = if newVal == old.inputVal then old.ideas else []
                 , history          = addToHistory old.code old.history
                 , slate            = newSlate
                 , widgets          = newWidgets
@@ -2252,6 +2252,7 @@ upstate evt old = case debugLog "Event" evt of
           { old | code             = newCode
                 , inputExp         = newExp
                 , inputVal         = newVal
+                , ideas            = if newVal == old.inputVal then old.ideas else []
                 , history          = addToHistory old.code old.history
                 , slate            = newSlate
                 , widgets          = newWidgets
@@ -2277,6 +2278,7 @@ upstate evt old = case debugLog "Event" evt of
           { old | code             = newCode
                 , inputExp         = newExp
                 , inputVal         = newVal
+                , ideas            = if newVal == old.inputVal then old.ideas else []
                 , history          = addToHistory old.code old.history
                 , slate            = newSlate
                 , widgets          = newWidgets
@@ -2322,7 +2324,7 @@ upstate evt old = case debugLog "Event" evt of
             -- inputval   = fst <| Eval.run ip
             -- inputSlate = LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime inputval
             -- inputval'  = slateToVal inputSlate
-            newval     = slateToVal old.slate
+            newval     = LangSvg.slateToVal old.slate
             local      = Sync.inferLocalUpdates old.syncOptions ip old.inputVal newval
             struct     = Sync.inferStructuralUpdates ip old.inputVal newval
             delete     = Sync.inferDeleteUpdates ip old.inputVal newval
@@ -2352,6 +2354,7 @@ upstate evt old = case debugLog "Event" evt of
         { old | code          = code
               , inputExp      = exp
               , inputVal      = val
+              , ideas         = if val == old.inputVal then old.ideas else []
               , history       = addToHistory old.code old.history
               , slate         = slate
               , previewCode   = Nothing
@@ -2386,6 +2389,7 @@ upstate evt old = case debugLog "Event" evt of
               , exName        = name
               , inputExp      = e
               , inputVal      = v
+              , ideas         = []
               , code          = code
               , history       = ([code],[])
               , mode          = m

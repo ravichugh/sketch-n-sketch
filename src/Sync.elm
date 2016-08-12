@@ -610,10 +610,10 @@ removeDeadIndices e v' =
 expandRange idxTraces r =
   let mem = flip List.member idxTraces in
   case r.val of
-    Point e -> case e.val.e__ of
+    RPoint e -> case e.val.e__ of
       EConst _ n l _ -> if mem (l,l,0) then [e] else []
       _               -> Debug.crash "expandRange"
-    Interval e1 ws e2 -> case (e1.val.e__, e2.val.e__) of
+    RInterval e1 ws e2 -> case (e1.val.e__, e2.val.e__) of
       -- TODO may be better to just put exactly one space in
       -- between each element and ignore existing positions
       (EConst _ n1 l1 _, EConst _ n2 l2 _) ->
@@ -931,7 +931,7 @@ inferCircleOfCircles groupBox _ _ v' =
         "  (let box"                                              `nl`
         "    (let padding " ++ "10!"                              `nl`
         "    (let len       (+ (* 2! gr) (* 2! padding))"         `nl`
-        "      (rectCenter [0! 0! 0! 0!] gcx gcy len len)))"      `nl`
+        "      (rectByCenter [0! 0! 0! 0!] gcx gcy len len)))"      `nl`
         "  (let circles"                                          `nl`
         "    (groupMap " ++ flowIndices ++ " (\\i"                `nl`
         "      (let cx (+ gcx (* gr (cos (* i theta))))"          `nl`

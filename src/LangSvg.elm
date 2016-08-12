@@ -254,14 +254,15 @@ strAVal a = case a.av_ of
 
 valOfAVal : AVal -> Val
 valOfAVal a = flip Val a.vtrace <| case a.av_ of
-  AString s    -> VBase (VString s)
-  ANum it      -> VConst it
-  APoints l    -> VList (List.map pointToVal l)
-  ARgba tup    -> VList (rgbaToVal tup)
-  APath2 p     -> VList (List.concatMap valsOfPathCmd (fst p))
+  AString s                 -> VBase (VString s)
+  ANum it                   -> VConst it
+  APoints l                 -> VList (List.map pointToVal l)
+  ARgba tup                 -> VList (rgbaToVal tup)
+  APath2 p                  -> VList (List.concatMap valsOfPathCmd (fst p))
   AColorNum (nt, Nothing)   -> VConst nt
   AColorNum (nt1, Just nt2) -> VList [vConst nt1, vConst nt2]
-  _            -> Debug.crash "valOfAVal"
+  ATransform cmds           -> VList (List.map transformCmdToVal cmds)
+  _                         -> Debug.crash "valOfAVal"
 
 valsOfPathCmd c =
   Debug.crash "restore valsOfPathCmd"
@@ -417,6 +418,12 @@ valToTransformCmd v = case v.v_ of
         _ -> "a transform command" `expectedButGot` strVal v
     _     -> "a transform command" `expectedButGot` strVal v
   _       -> "a transform command" `expectedButGot` strVal v
+
+transformCmdToVal tc =
+  case tc of
+    Rot n1 n2 n3 -> vList <| [vBase (VString "rotate"),    vConst n1, vConst n2, vConst n3]
+    Scale n1 n2  -> vList <| [vBase (VString "scale"),     vConst n1, vConst n2]
+    Trans n1 n2  -> vList <| [vBase (VString "translate"), vConst n1, vConst n2]
 
 strTransformCmd cmd = case cmd of
   Rot n1 n2 n3 ->
@@ -1041,3 +1048,17 @@ dummySvgVal =
   let attrs = vList <| List.map (\k -> vList [vStr k, zero]) ["cx","cy","r"] in
   let children = vList [] in
   vList [vStr "circle", attrs, children]
+
+svgNodeToVal tree treeNode =
+  case treeNode of
+    TextNode s -> vList [vBase (VString "TEXT"), vBase (VString s)]
+    SvgNode kind l1 l2 ->
+      let vs1 = List.map valOfAttr l1 in
+      let vs2 = List.map (svgNodeToVal tree << flip Utils.justGet tree) l2 in
+      vList [vBase (VString kind), vList vs1, vList vs2]
+        -- NOTE: if relate needs the expression that led to this
+        --  SvgNode, need to store it in IndexedTree
+
+slateToVal : RootedIndexedTree -> Val
+slateToVal (rootId, tree) =
+  svgNodeToVal tree (Utils.justGet rootId tree)

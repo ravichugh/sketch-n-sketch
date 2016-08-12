@@ -1,4 +1,4 @@
-module Eval (run, parseAndRun, parseAndRun_, evalDelta, eval) where
+module Eval (run, parseAndRun, parseAndRun_, evalDelta, eval, initEnv) where
 
 import Debug
 import Dict
@@ -120,10 +120,11 @@ eval env bt e =
   let retAddThis_ (v,envOut)         = retAdd e.val.eid (v,envOut) in
   let retAddThis v                   = retAddThis_ (v, env) in
   let retBoth (v,w)                  = (({v | vtrace = e.val.eid :: v.vtrace},w), env) in
+  let replaceEnv envOut (v,_)        = (v, envOut) in
   let addWidgets ws1 ((v1,ws2),env1) = ((v1, ws1 ++ ws2), env1) in
 
   let bt' =
-    if e.start.line >= 1
+    if e.start.line >= 1 -- Ignore desugared internal expressions
     then e::bt
     else bt
   in
@@ -192,24 +193,12 @@ eval env bt e =
       _                -> errorWithBacktrace (e::bt) <| strPos pat.start ++ " non-exhaustive typecase statement"
 
   EApp _ e1 [e2] _ ->
-    case eval_ env bt' e1 of
-      Err s       -> Err s
-      Ok (v1,ws1) ->
-        case eval_ env bt' e2 of
-          Err s       -> Err s
-          Ok (v2,ws2) ->
-            let ws = ws1 ++ ws2 in
-            case v1.v_ of
-              VClosure Nothing p eBody env' ->
-                case (p, v2) `cons` Just env' of
-                  Just env'' -> Result.map (addWidgets ws) <| eval env'' bt' eBody -- TODO add eid to vTrace
-                  _          -> errorWithBacktrace (e::bt) <| strPos e1.start ++ "bad environment"
-              VClosure (Just f) p eBody env' ->
-                case (pVar f, v1) `cons` ((p, v2) `cons` Just env') of
-                  Just env'' -> Result.map (addWidgets ws) <| eval env'' bt' eBody -- TODO add eid to vTrace
-                  _          -> errorWithBacktrace (e::bt) <| strPos e1.start ++ "bad environment"
-              _ ->
-                errorWithBacktrace (e::bt) <| strPos e1.start ++ " not a function"
+    -- Return env of the call site
+    Result.map (replaceEnv env) <| evalSimpleApp env bt bt' e1 e2
+
+  ELet _ _ False p e1 e2 _ ->
+    -- Return env that the let body returns (so that programs return their final top-level environment)
+    Result.map (retAddWs e2.val.eid) <| evalSimpleApp env bt bt' (eFun [p] e2) e1
 
   ELet _ _ True p e1 e2 _ ->
     case eval_ env bt' e1 of
@@ -232,7 +221,6 @@ eval env bt e =
           _ ->
             errorWithBacktrace (e::bt) <| strPos e.start ++ "bad ELet"
 
-
   EComment _ _ e1       -> eval env bt e1
   EOption _ _ _ _ e1    -> eval env bt e1
   ETyp _ _ _ e1 _       -> eval env bt e1
@@ -243,8 +231,29 @@ eval env bt e =
 
   EFun _ ps e1 _           -> Result.map (retAddWs e1.val.eid) <| eval env bt' (eFun ps e1)
   EApp _ e1 es _           -> Result.map (retAddWs e.val.eid)  <| eval env bt' (eApp e1 es)
-  ELet _ _ False p e1 e2 _ -> Result.map (retAddWs e2.val.eid) <| eval env bt' (eApp (eFun [p] e2) [e1])
 
+
+-- Returns augmented environment (for let/def)
+evalSimpleApp env bt bt' funcExp singleArgExp =
+  let addWidgets ws1 ((v1,ws2),env1) = ((v1, ws1 ++ ws2), env1) in
+  case eval_ env bt' funcExp of
+    Err s       -> Err s
+    Ok (v1,ws1) ->
+      case eval_ env bt' singleArgExp of
+        Err s       -> Err s
+        Ok (v2,ws2) ->
+          let ws = ws1 ++ ws2 in
+          case v1.v_ of
+            VClosure Nothing p eBody env' ->
+              case (p, v2) `cons` Just env' of
+                Just env'' -> Result.map (addWidgets ws) <| eval env'' bt' eBody -- TODO add eid to vTrace
+                _          -> errorWithBacktrace bt' <| strPos funcExp.start ++ "bad environment"
+            VClosure (Just f) p eBody env' ->
+              case (pVar f, v1) `cons` ((p, v2) `cons` Just env') of
+                Just env'' -> Result.map (addWidgets ws) <| eval env'' bt' eBody -- TODO add eid to vTrace
+                _          -> errorWithBacktrace bt' <| strPos funcExp.start ++ "bad environment"
+            _ ->
+              errorWithBacktrace bt' <| strPos funcExp.start ++ " not a function"
 
 evalOp env bt opWithInfo es =
   let (op,opStart) = (opWithInfo.val, opWithInfo.start) in
@@ -429,10 +438,10 @@ rangeToList r =
   case r.val of
     -- dummy VTraces...
     -- TODO: maybe add widgets
-    Point e -> case e.val.e__ of
+    RPoint e -> case e.val.e__ of
       EConst _ n l _ -> Ok [ vConst (n, rangeOff l 0 l) ]
       _              -> err ()
-    Interval e1 _ e2 -> case (e1.val.e__, e2.val.e__) of
+    RInterval e1 _ e2 -> case (e1.val.e__, e2.val.e__) of
       (EConst _ n1 l1 _, EConst _ n2 l2 _) ->
         let walkVal i =
           let m = n1 + toFloat i in

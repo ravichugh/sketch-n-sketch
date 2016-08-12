@@ -312,9 +312,11 @@ toggleDict : (comparable, v) -> Dict comparable v -> Dict comparable v
 toggleDict (k,v) dict =
   if Dict.member k dict then Dict.remove k dict else Dict.insert k v dict
 
-head_ = fromJust_ "Utils.head_" << List.head
+head msg = fromJust_ msg << List.head
+last msg = fromJust_ msg << List.head << List.reverse
+head_ = head "Utils.head_"
 tail_ = fromJust_ "Utils.tail_" << List.tail
-last_ = head_ << List.reverse
+last_ = last "Utils.last_"
 
 uncons xs = case xs of
   x::xs -> (x, xs)

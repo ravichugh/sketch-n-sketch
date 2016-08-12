@@ -33,6 +33,7 @@ type alias Model =
   , history : (List Code, List Code)
   , inputExp : Exp
   , inputVal : Val
+  , ideas : List ((NumTr, NumTr), Int) -- Final int is which round of brainstorming produced the point
   , slideNumber : Int
   , slideCount : Int
   , movieNumber : Int
@@ -181,6 +182,7 @@ type Event = SelectObject Int ShapeKind Zone
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets, ati:AceTypeInfo})
            | Run
+           | Brainstorm
            | StartAnimation
            | Redraw
            | ToggleOutput
@@ -280,6 +282,7 @@ sampleModel =
     , history       = ([code], [])
     , inputExp      = e
     , inputVal      = v
+    , ideas         = []
     , slideNumber   = 1
     , slideCount    = slideCount
     , movieNumber   = 1
