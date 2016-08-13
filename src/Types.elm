@@ -588,7 +588,7 @@ synthesizeType typeInfo typeEnv e =
         let result1 = checkType typeInfo typeEnv e1 t1 in
         if result1.result
           then finish.withType t1 result1.typeInfo
-          else finish.withError "synthesizeType: EColonType ..." result1.typeInfo
+          else { result = Nothing, typeInfo = result1.typeInfo }
 
     EConst _ _ _ _ -> -- [TS-Const]
       finish.withType tNum typeInfo
@@ -666,7 +666,7 @@ synthesizeType typeInfo typeEnv e =
     EIf _ e1 e2 e3 _ -> -- [TS-If]
       let result1 = checkType typeInfo typeEnv e1 tBool in
       if not result1.result then
-        finish.withError "synthesizeType: EIf 1 ..." typeInfo
+        finish.withError "synthesizeType: EIf 1 ..." result1.typeInfo
       else
         let result2 = synthesizeType result1.typeInfo typeEnv e2 in
         let result3 = synthesizeType result2.typeInfo typeEnv e3 in
