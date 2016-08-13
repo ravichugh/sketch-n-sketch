@@ -22,6 +22,8 @@ prelude =
 
 (typ flip (forall (a b c) (-> (-> a b c) (-> b a c))))
 (def flip (\\f (\\(x y) (f y x))))
+  ; TODO other version:
+  ; (def flip (\\(f x y) (f y x)))
 
 ;; Returns the first element of a given list
 (typ fst (forall a (-> (List a) a)))
@@ -63,7 +65,9 @@ prelude =
 
 ;; concatenate a list of lists into a single list
 (typ concat (forall a (-> (List (List a)) (List a))))
-(def concat (foldr append []))
+(def concat (\\xss (foldr append [] xss)))
+  ; TODO eta-reduced version:
+  ; (def concat (foldr append []))
 
 ;; Map a given function over a list and concatenate the resulting list of lists
 (typ concatMap (forall (a b) (-> (-> a (List b)) (List a) (List b))))
@@ -76,7 +80,9 @@ prelude =
 
 ;; Takes elements at the same position from two input lists and returns a list of pairs of these elements
 (typ zip (forall (a b) (-> (List a) (List b) (List [a b]))))
-(def zip (map2 (\\(x y) [x y])))
+(def zip (\\(xs ys) (map2 (\\(x y) [x y]) xs ys)))
+  ; TODO eta-reduced version:
+  ; (def zip (map2 (\\(x y) [x y])))
 
 ;; The empty list
 ;; (typ nil (forall a (List a)))
@@ -96,12 +102,14 @@ prelude =
 (def hd (\\[x|xs] x))
 
 ;; Returns the last element of a given list
-(typ tl (forall a (-> (List a) a)))
+(typ tl (forall a (-> (List a) (List a))))
 (def tl (\\[x|xs] xs))
 
 ;; Given a list, reverse its order
 (typ reverse (forall a (-> (List a) (List a))))
-(def reverse (foldl cons nil))
+(def reverse (\\xs (foldl cons nil xs)))
+  ; TODO eta-reduced version:
+  ; (def reverse (foldl cons nil))
 
 ;; Given two numbers, creates the list between them (inclusive)
 (typ range (-> Num Num (List Num)))
@@ -265,11 +273,15 @@ prelude =
 
 ;; Concatenate a list of strings and return the resulting string
 (typ concatStrings (-> (List String) String))
-(def concatStrings (joinStrings ''))
+(def concatStrings (\\ss (joinStrings '' ss)))
+  ; TODO eta-reduced version:
+  ; (def concatStrings (joinStrings ''))
 
 ;; Concatenates a list of strings, interspersing a single space in between each string
 (typ spaces (-> (List String) String))
-(def spaces (joinStrings ' '))
+(def spaces (\\ss (joinStrings ' ' ss)))
+  ; TODO eta-reduced version:
+  ; (def spaces (joinStrings ' '))
 
 ;; First two arguments are appended at the front and then end of the third argument correspondingly
 ;; Ex. delimit '+' '+' 'plus' = '+plus+'
@@ -278,7 +290,9 @@ prelude =
 
 ;; delimit a string with parentheses
 (typ parens (-> String String))
-(def parens (delimit '(' ')'))
+(def parens (\\s (delimit '(' ')' s)))
+  ; TODO eta-reduced version:
+  ; (def parens (delimit '(' ')'))
 
 ;
 ; SVG Manipulating Functions

@@ -138,7 +138,7 @@ type alias EInfo       = P.WithInfo EId
 
 type alias TypeInfo =
   { constraints : Constraints
-  , solvedConstraints : Constraints
+  , activeConstraints : Constraints
   , typeErrors : List (P.WithPos TypeError)
   -- TODO remove Maybe from rawTypes and finalTypes
   , rawTypes : Dict.Dict EId (P.Pos, Maybe Type)
@@ -373,6 +373,7 @@ addRawConstraints constraints typeInfo =
   let n = List.length constraints in
   let constraints' = Utils.zip [k+1..k+n] constraints in
   { typeInfo | constraints = constraints' ++ typeInfo.constraints
+             , activeConstraints = constraints' ++ typeInfo.activeConstraints
              , constraintCount = k + n }
 
 addNamedExp : Pat -> EId -> TypeInfo -> TypeInfo
@@ -818,19 +819,16 @@ tsAppPoly finish typeInfo typeEnv eArgs (typeVars, (argTypes, retType)) =
       let subst = List.map2 (\x y -> (x, tVar y)) typeVars constraintVars in
       let typeInfo'' =
          addRawConstraints
-           (Utils.zip (List.map (applyTVarSubst subst) argTypes) tActuals)
+           (Utils.zip (List.map (applyUnifier subst) argTypes) tActuals)
            typeInfo'
       in
-      case solveConstraints constraintVars typeInfo''.constraints of
+      let result = solveConstraintsFor typeInfo'' constraintVars in
+      case result.result of
         Err err ->
           finish.withError err typeInfo''
-        Ok (unifier, remainingConstraints, solvedConstraints) ->
-          let retType' =
-            retType |> applyTVarSubst subst |> applyTVarSubst unifier in
-          finish.withType retType'
-            { typeInfo'' | constraints = remainingConstraints
-                         , solvedConstraints = solvedConstraints
-                             ++ typeInfo''.solvedConstraints }
+        Ok unifier ->
+          let retType' = retType |> applyUnifier subst |> applyUnifier unifier in
+          finish.withType retType' result.typeInfo
 
 tsFun finish typeInfo typeEnv ps eBody (argTypes, retType) =
   case addBindings ps argTypes typeEnv of
@@ -900,10 +898,11 @@ tsLetFinishE2_ finishWithType typeInfo typeEnv p t1 e1eid e2 =
 solveTemplateArrow : TypeInfo -> EInfo -> ArrowType -> AndTypeInfo (Maybe Type)
 solveTemplateArrow typeInfo eFuncInfo arrow =
   let vars = Set.toList (constraintVarsOfArrow arrow) in
-  case solveConstraints vars typeInfo.constraints of
+  let result = solveConstraintsFor typeInfo vars in
+  case result.result of
     Err err ->
       { result = Nothing, typeInfo = addTypeErrorAt eFuncInfo.start err typeInfo }
-    Ok (unifier, remainingConstraints, solvedConstraints) ->
+    Ok unifier ->
       let arrow' = rewriteArrow unifier arrow in
       let unconstrainedVars = Set.toList (constraintVarsOfArrow arrow') in
       let arrow =
@@ -919,11 +918,7 @@ solveTemplateArrow typeInfo eFuncInfo arrow =
       in
       -- let _ = debugLog "arrow after solve" (unparseType arrow) in
       { result = Just arrow
-      , typeInfo = addFinalType eFuncInfo.val (Just arrow)
-                     { typeInfo | constraints = remainingConstraints
-                                , solvedConstraints = solvedConstraints
-                                    ++ typeInfo.solvedConstraints }
-      }
+      , typeInfo = addFinalType eFuncInfo.val (Just arrow) result.typeInfo }
 
 synthesizeBranchTypes : TypeInfo -> List (TypeEnv, Exp) -> AndTypeInfo (List (Maybe Type))
 synthesizeBranchTypes typeInfo list =
@@ -1118,71 +1113,77 @@ joinManyTypes ts =
 
 type alias Unifier = List (Ident, Type)
 
--- TODO rework return type
--- TODO rewrite constraints during unification
+strUnifier : Unifier -> String
+strUnifier =
+  Utils.bracks <<
+    Utils.spaces <<
+      List.map (\(x,t) -> x ++ "=" ++ String.trim (unparseType t))
 
-solveConstraints : List Ident -> Constraints -> Result TypeError (Unifier, Constraints, Constraints)
-solveConstraints vars constraints =
-  -- let _ = debugLog "solveConstraints for" (vars) in
-  let result =
-     List.foldl (\constraint acc ->
-       case acc of
-         Err err -> Err err
-         Ok (accUnifier, accRemaining, accRemoved) ->
-           case solveConstraint vars constraint accUnifier of
-             Err err -> Err err
-             Ok (accUnifier', removedThisOne) ->
-               if removedThisOne
-               then Ok (accUnifier', constraint::accRemaining, constraint::accRemoved) -- TODO
-               else Ok (accUnifier', constraint::accRemaining, accRemoved)
-     ) (Ok ([],[],[])) constraints
-  in
-  result
+solveConstraintsFor : TypeInfo -> List Ident -> AndTypeInfo (Result TypeError Unifier)
+solveConstraintsFor typeInfo vars =
+  case unify vars [] [] typeInfo.activeConstraints of
+    Ok (unifier, activeConstraints') ->
+      -- let _ = Debug.log "unifer" (strUnifier unifier) in
+      { result = Ok (List.reverse unifier)
+      , typeInfo = { typeInfo | activeConstraints = List.reverse activeConstraints' } }
+    Err err ->
+      let _ = debugLog "TODO display the constraints that failed..." () in
+      { result = Err err, typeInfo = typeInfo } -- restoring original constraints
 
-solveConstraint : List Ident -> Constraint -> Unifier -> Result TypeError (Unifier, Bool)
-solveConstraint vars constraint unifier =
-  let unify a t =
-    case Utils.maybeFind a unifier of
-      Nothing -> Ok ((a,t) :: unifier, True)
-      Just tPrevious ->
-        if checkEqualType t tPrevious
-          then Ok (unifier, True)
-          else Err <| Utils.spaces
-                 [ "Unification failure:"
-                 , toString a
-                 , String.trim (unparseType tPrevious)
-                 , String.trim (unparseType t)
-                 ]
-  in
-  let (id,(t1,t2)) = constraint in
-  if checkEqualType t1 t2 then Ok (unifier, True)
-  else case (t1.val, t2.val) of
+unify : List Ident -> Constraints -> Unifier -> Constraints -> Result TypeError (Unifier, Constraints)
+unify vars accActive accUnifier cs = case cs of
 
-    (TVar _ a, _) -> if List.member a vars then unify a t2 else Ok (unifier, False)
-    (_, TVar _ a) -> solveConstraint vars (id, (t2, t1)) unifier
+  [] -> Ok (accUnifier, accActive)
 
-    -- TODO ids for derived constraints
-    (TList _ t1' _, TList _ t2' _) ->
-      solveConstraint vars (-1, (t1', t2')) unifier
+  one :: rest ->
+    let (id,(t1,t2)) = one in
+    if checkEqualType t1 t2 then unify vars accActive accUnifier rest
+    else case (t1.val, t2.val) of
 
-    (TArrow _ ts1 _, TArrow _ ts2 _) ->
-      case Utils.maybeZip ts1 ts2 of
-        Nothing -> Err "solveConstraint TArrow different arity"
-        Just list ->
-          let constraints = List.map (\raw -> (-1, raw)) list in
-          -- TODO redo single solveConstraint
-          case solveConstraints vars constraints of
-            Err err -> Err <| Utils.spaces [ "solveConstraint TArrow...", err ]
-            Ok (unifier, _, _) ->
-              let _ = debugLog "solveConstraint TArrow good..." () in
-              Ok (unifier, True)
+      (TVar _ a, TVar _ b) ->
+        if List.member a vars then
+          unify vars accActive ((a,t2)::accUnifier) (applyUnifierToConstraints [(a,t2)] rest)
+        else if List.member b vars then
+          unify vars accActive ((b,t1)::accUnifier) (applyUnifierToConstraints [(b,t1)] rest)
+        else
+          unify vars (one::accActive) accUnifier rest
+      (TVar _ a, _) ->
+        if List.member a vars then
+          unify vars accActive ((a,t2)::accUnifier) (applyUnifierToConstraints [(a,t2)] rest)
+        else
+          unify vars (one::accActive) accUnifier rest
+      (_, TVar _ b) ->
+        if List.member b vars then
+          unify vars accActive ((b,t1)::accUnifier) (applyUnifierToConstraints [(b,t1)] rest)
+        else
+          unify vars (one::accActive) accUnifier rest
 
-    _ ->
-      let _ = debugLog "solveConstraint TODO" (unparseType t1, unparseType t2) in
-      Ok (unifier, False)
+      -- TODO ids for derived constraints
 
-applyTVarSubst : Unifier -> Type -> Type
-applyTVarSubst unifier =
+      (TList _ t1' _, TList _ t2' _) ->
+        let induced = [(-1, (t1', t2'))] in
+        unify vars accActive accUnifier (induced ++ rest)
+
+      (TArrow _ ts1 _, TArrow _ ts2 _) ->
+        case Utils.maybeZip ts1 ts2 of
+          Nothing -> Err "unify TArrow: different arity"
+          Just list ->
+            let induced = List.map (\raw -> (-1, raw)) list in
+            unify vars accActive accUnifier (induced ++ rest)
+
+      _ ->
+        let err = Utils.spaces <|
+          [ "Unification failure:"
+          , String.trim (unparseType t1)
+          , String.trim (unparseType t2) ]
+        in
+        let _ = debugLog "TODO fail rather than continue... " err in
+        unify vars (one::accActive) accUnifier rest
+        -- Err err
+
+-- TODO may need to apply entire unifier left-to-right
+applyUnifier : Unifier -> Type -> Type
+applyUnifier unifier =
   mapType <| \t -> case t.val of
     TVar _ a ->
       case Utils.maybeFind a unifier of
@@ -1191,10 +1192,15 @@ applyTVarSubst unifier =
     _ ->
       t
 
+applyUnifierToConstraints : Unifier -> Constraints -> Constraints
+applyUnifierToConstraints unifier =
+  List.map <| Utils.mapSnd <| \(t1,t2) ->
+    (applyUnifier unifier t1, applyUnifier unifier t2)
+
 rewriteArrow : Unifier -> ArrowType -> ArrowType
 rewriteArrow unifier (argTypes, retType) =
-  let argTypes' = List.map (applyTVarSubst unifier) argTypes in
-  let retType' = applyTVarSubst unifier retType in
+  let argTypes' = List.map (applyUnifier unifier) argTypes in
+  let retType' = applyUnifier unifier retType in
   (argTypes', retType')
 
 -- Entry Point for Typechecking ----------------------------------------------
@@ -1209,7 +1215,7 @@ typecheck e =
 initTypeInfo : TypeInfo
 initTypeInfo =
   { constraints = []
-  , solvedConstraints = []
+  , activeConstraints = []
   , typeErrors = []
   , rawTypes = Dict.empty
   , finalTypes = Dict.empty
@@ -1256,8 +1262,8 @@ displayConstraints typeInfo =
       let _ = List.foldl (debugLog << strConstraint) () constraints in
       ()
   in
-  let _ = display "REMAINING CONSTRAINTS" typeInfo.constraints in
-  let _ = display "SOLVED CONSTRAINTS" typeInfo.solvedConstraints in
+  let _ = display "ALL CONSTRAINTS" typeInfo.constraints in
+  let _ = display "ACTIVE CONSTRAINTS" typeInfo.activeConstraints in
   ()
 
 displayNamedExps : TypeInfo -> ()
