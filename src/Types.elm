@@ -180,6 +180,8 @@ tTuple ts = tTupleRest ts Nothing
 
 tList t = withDummyRange (TList " " t "")
 
+tUnion ts = withDummyRange (TUnion " " ts "")
+
 tArrow (argTypes, retType) = withDummyRange (TArrow " " (argTypes ++ [retType]) "")
 tPolyArrow vars arrowType  = tForall vars (tArrow arrowType)
 
@@ -365,6 +367,18 @@ lookupTypAnnotation_ typeEnv x =
     CheckType x' t :: typeEnv' -> if x == x' then Just t else lookupTypAnnotation_ typeEnv' x
     HasType x' t   :: typeEnv' -> if x == x' then Nothing else lookupTypAnnotation_ typeEnv' x
 
+lookupTypeAlias typeEnv x =
+  let checkPat p =
+    case p.val of
+      PVar _ x' _      -> x == x'
+      PList _ ps _ _ _ -> List.any checkPat ps
+      _                -> False
+  in
+  case typeEnv of
+    TypeAlias p _ :: typeEnv' -> checkPat p || lookupTypeAlias typeEnv' x
+    _ :: typeEnv'             -> lookupTypeAlias typeEnv' x
+    []                        -> False
+
 -- Operations on TypeInfos ---------------------------------------------------
 
 addRawConstraints : (List RawConstraint) -> TypeInfo -> TypeInfo
@@ -480,10 +494,9 @@ isWellFormed typeEnv tipe =
   let allVarsBound =
     foldType (\t acc ->
        case t.val of
-         TNamed _ x -> Debug.log "well-formed TNamed?" <|
-                       acc && List.member (TypeVar x) typeEnv'
+         TNamed _ x -> acc && lookupTypeAlias typeEnv' x
          TVar _ x   -> if isConstraintVar x
-                         then True
+                         then acc
                          else acc && List.member (TypeVar x) typeEnv'
          _          -> acc
      ) tipe' True
@@ -513,7 +526,30 @@ checkType typeInfo typeEnv e goalType =
       , typeInfo = result3.typeInfo
       }
 
-    -- TODO [TC-Case]
+    ECase _ e0 branches _ -> -- [TC-Case]
+      let result1 = synthesizeType typeInfo typeEnv e0 in
+      case result1.result of
+        Nothing -> { result = False, typeInfo = result1.typeInfo }
+        Just t1 ->
+          let result_branches =
+             List.foldl (\pe acc ->
+               let (Branch_ _ pi ei _) = pe.val in
+               case addBindingsOne (pi, t1) typeEnv of
+                 Err err ->
+                   { result = False
+                   , typeInfo = addTypeErrorAt pi.start err acc.typeInfo }
+                 Ok typeEnvi ->
+                   let resulti = checkType acc.typeInfo typeEnvi ei goalType in
+                   { result = resulti.result && acc.result
+                   , typeInfo = resulti.typeInfo }
+             ) { result = True, typeInfo = result1.typeInfo } branches
+          in
+          case result_branches.result of
+            True -> result_branches
+            False ->
+              let err = "couldn't check all branches" in
+              { result = False
+              , typeInfo = addTypeErrorAt e.start err result_branches.typeInfo }
 
     _ -> -- [TC-Sub]
       let result1 = synthesizeType typeInfo typeEnv e in
@@ -963,6 +999,21 @@ checkSubtype typeInfo tipe1 tipe2 =
         let _ = debugLog "checkSubtype: expand aliases TODO" () in
         err
 
+    (TUnion _ ts1 _, TUnion _ ts2 _) ->
+      let allOk =
+         List.foldl
+           (\t1 -> Utils.bindMaybe (\acc -> checkSubtypeSomeRight acc t1 ts2))
+           (Just typeInfo) ts1
+      in
+      case allOk of
+        Nothing        -> err
+        Just typeInfo' -> { result = Ok (), typeInfo = typeInfo' }
+
+    (_, TUnion _ ts _) ->
+      case checkSubtypeSomeRight typeInfo tipe1 ts of
+        Nothing        -> err
+        Just typeInfo' -> { result = Ok (), typeInfo = typeInfo' }
+
     -- constrain type inference vars; equate type vars
     (TVar _ a, TVar _ b) ->
       if isConstraintVar a && isConstraintVar b then (if a == b then ok else okConstrain)
@@ -1001,8 +1052,6 @@ checkSubtype typeInfo tipe1 tipe2 =
         _ ->
           { result = Err "checkSubtype TTuple bad rest", typeInfo = typeInfo }
 
-    (TUnion _ _ _, TUnion _ _ _) -> let _ = debugLog "checkSubtype: TUnion TODO" () in err
-
     (TArrow _ arrow1 _, TArrow _ arrow2 _) ->
        let (args1, ret1) = splitTypesInArrow arrow1 in
        let (args2, ret2) = splitTypesInArrow arrow2 in
@@ -1036,6 +1085,32 @@ checkSubMaybeType typeInfo mt1 mt2 =
     (Just t1, Just t2) -> checkSubtype typeInfo t1 t2
     (Nothing, Nothing) -> { result = Ok (), typeInfo = typeInfo }
     _                  -> { result = Err "checkSubMaybeType failed...", typeInfo = typeInfo}
+
+checkSubtypeSomeRight : TypeInfo -> Type -> List Type -> Maybe TypeInfo
+checkSubtypeSomeRight typeInfo t1 ts2 =
+  List.foldl (\t2 acc ->
+    case acc of
+      Just _  -> acc
+      Nothing ->
+        let result = checkSubtype typeInfo t1 t2 in
+        case result.result of
+          Ok () -> Just result.typeInfo
+          Err _ -> Nothing
+  ) Nothing ts2
+
+{-
+checkSubtypeSomeLeft : TypeInfo -> List Type -> Type -> Maybe TypeInfo
+checkSubtypeSomeLeft typeInfo ts1 t2 =
+  List.foldl (\t1 acc ->
+    case acc of
+      Just _  -> acc
+      Nothing ->
+        let result = checkSubtype typeInfo t1 t2 in
+        case result.result of
+          Ok () -> Just result.typeInfo
+          Err _ -> Nothing
+  ) Nothing ts1
+-}
 
 -- Check type equality modulo constraints.
 --
@@ -1094,6 +1169,19 @@ joinTypes_ t1 t2 =
               case joinTypes (tList tJoin) tRest of
                 Err _ -> err
                 Ok tListType -> Ok tListType
+
+    (_, TUnion _ ts _) ->
+      let someEqualType =
+         List.foldl (\tipe2 acc ->
+           case acc of Just () -> Just ()
+                       Nothing -> if checkEqualType t1 tipe2
+                                    then Just ()
+                                    else Nothing
+         ) Nothing ts
+      in
+      case someEqualType of
+        Just () -> Ok t2
+        Nothing -> Ok (tUnion (t1::ts))
 
     -- TODO add more cases
     _ -> err
