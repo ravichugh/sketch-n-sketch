@@ -228,7 +228,9 @@ opTypeTable =
     , (Ceil       , " (-> Num Num)")
     , (Round      , " (-> Num Num)")
     , (Sqrt       , " (-> Num Num)")
-    , (Plus       , " (-> Num Num Num)")
+    -- hard-coding intersection type for Plus in EOp rule
+    -- , (Plus       , " (-> Num Num Num)")
+    , (Plus       , " DUMMY")
     , (Minus      , " (-> Num Num Num)")
     , (Mult       , " (-> Num Num Num)")
     , (Div        , " (-> Num Num Num)")
@@ -657,12 +659,20 @@ synthesizeType typeInfo typeEnv e =
       finish.withType (opType op) typeInfo
 
     EOp _ op eArgs _ -> -- [TS-Op]
-      case stripPolymorphicArrow (opType op) of
-        Just ([], arrowType) ->
+      case (op.val, stripPolymorphicArrow (opType op)) of
+
+        (Plus, _) -> -- hard-coded intersection type
+          let result = tsAppMono finish typeInfo typeEnv eArgs ([tNum, tNum], tNum) in
+          case result.result of
+            Just _ -> result
+            Nothing ->
+              tsAppMono finish typeInfo typeEnv eArgs ([tString, tString], tString)
+
+        (_, Just ([], arrowType)) ->
           tsAppMono finish typeInfo typeEnv eArgs arrowType
-        Just polyArrowType ->
+        (_, Just polyArrowType) ->
           tsAppPoly finish typeInfo typeEnv eArgs polyArrowType
-        Nothing ->
+        (_, Nothing) ->
           finish.withError "synthesizeType: EOp ..." typeInfo
 
     EApp _ eFunc eArgs _ -> -- [TS-App]
