@@ -1009,22 +1009,6 @@ checkSubtype typeInfo tipe1 tipe2 =
         Nothing        -> err
         Just typeInfo' -> { result = Ok (), typeInfo = typeInfo' }
 
-    (_, TUnion _ ts _) ->
-      case checkSubtypeSomeRight typeInfo tipe1 ts of
-        Nothing        -> err
-        Just typeInfo' -> { result = Ok (), typeInfo = typeInfo' }
-
-    -- constrain type inference vars; equate type vars
-    (TVar _ a, TVar _ b) ->
-      if isConstraintVar a && isConstraintVar b then (if a == b then ok else okConstrain)
-      else if isConstraintVar a then okConstrain
-      else if isConstraintVar b then okConstrain
-      else if a == b then ok
-      else err
-
-    (TVar _ a, _) -> if isConstraintVar a then okConstrain else err
-    (_, TVar _ b) -> if isConstraintVar b then okConstrain else err
-
     (TList _ t1 _, TList _ t2 _) -> checkSubtype typeInfo t1 t2
 
     (TDict _ k1 v1 _, TDict _ k2 v2 _) ->
@@ -1064,7 +1048,57 @@ checkSubtype typeInfo tipe1 tipe2 =
              Ok () ->
                checkSubtype result.typeInfo ret1 ret2
 
-    _ -> err
+    -- constrain type inference vars; equate type vars
+    (TVar _ a, TVar _ b) ->
+      if isConstraintVar a && isConstraintVar b then (if a == b then ok else okConstrain)
+      else if isConstraintVar a then okConstrain
+      else if isConstraintVar b then okConstrain
+      else if a == b then ok
+      else err
+
+    -- handle all cases with one catch-all below:
+
+    _ ->
+      tryCatchAlls err
+         [ \() -> checkSubtypeTVar tipe1 okConstrain err
+         , \() -> checkSubtypeTVar tipe2 okConstrain err
+         , \() -> checkSubtypeUnionRight typeInfo tipe1 tipe2
+         , \() -> checkSubtypeFoldLeft typeInfo tipe1 tipe2
+         ]
+
+tryCatchAlls err list =
+  case list of
+    []         -> err
+    f :: list' -> case f () of
+                    Nothing -> tryCatchAlls err list'
+                    Just typeInfo' -> { result = Ok (), typeInfo = typeInfo' }
+
+checkSubtypeTVar t okConstrain err =
+  case t.val of
+    TVar _ a ->
+      if isConstraintVar a then
+        let result = okConstrain in
+        Just result.typeInfo
+      else
+        Nothing
+    _ -> Nothing
+
+checkSubtypeUnionRight : TypeInfo -> Type -> Type -> Maybe TypeInfo
+checkSubtypeUnionRight typeInfo tipe1 tipe2 =
+  case (tipe1.val, tipe2.val) of
+    (_, TUnion _ ts _) ->
+      Utils.bindMaybe Just (checkSubtypeSomeRight typeInfo tipe1 ts)
+    _ -> Nothing
+
+checkSubtypeFoldLeft : TypeInfo -> Type -> Type -> Maybe TypeInfo
+checkSubtypeFoldLeft typeInfo tipe1 tipe2 =
+  case coerceTupleToList tipe1 of
+    Just (Ok tipe1') ->
+      let result = checkSubtype typeInfo tipe1' tipe2 in
+      case result.result of
+        Ok () -> Just result.typeInfo
+        Err _ -> Nothing
+    _ -> Nothing
 
 checkSubtypeList : TypeInfo -> List (Type, Type) -> SubtypeResult
 checkSubtypeList typeInfo list =
@@ -1134,6 +1168,23 @@ bindSubtypeResult res1 f =
     Err err -> { result = Err err, typeInfo = res1.typeInfo }
     Ok ()   -> f res1.typeInfo
 
+coerceTupleToList : Type -> Maybe (Result TypeError Type)
+coerceTupleToList t =
+  case t.val of
+    TTuple _ [] _ mtRest _ -> Nothing
+    TTuple _ ts _ mtRest _ ->
+      case joinManyTypes ts of
+        Err err -> Just (Err err)
+        Ok tJoin ->
+          case mtRest of
+            Nothing -> Just (Ok (tList tJoin))
+            Just tRest ->
+              case joinTypes (tList tJoin) tRest of
+                Err err      -> Just (Err err)
+                Ok tListType -> Just (Ok tListType)
+    _ ->
+      Nothing
+
 -- Joining Types -------------------------------------------------------------
 
 -- TODO could allow output constraints
@@ -1183,8 +1234,10 @@ joinTypes_ t1 t2 =
         Just () -> Ok t2
         Nothing -> Ok (tUnion (t1::ts))
 
-    -- TODO add more cases
-    _ -> err
+    _ ->
+      -- err
+      -- TODO check that both types are flat
+      Ok (tUnion [t1, t2])
 
 joinManyTypes : List Type -> Result TypeError Type
 joinManyTypes ts =

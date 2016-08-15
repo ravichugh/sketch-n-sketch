@@ -144,25 +144,31 @@ prelude =
 (typ mapi (forall (a b) (-> (-> [Num a] b) (List a) (List b))))
 (def mapi (\\(f xs) (map f (zip (range 0 (- (len xs) 1)) xs))))
 
-(typ nth (forall a (-> (List a) Num a)))
+
+(typ nth (forall a (-> (List a) Num (union Null a))))
 (defrec nth (\\(xs n)
-  (if (< n 0)       'ERROR: nth'
+  (if (< n 0)       null
     (case [n xs]
-      ([_ []]       'ERROR: nth')
+      ([_ []]       null)
       ([0 [x|xs1]]  x)
       ([_ [x|xs1]]  (nth xs1 (- n 1)))))))
+
 ; (defrec nth (\\(xs n)
 ;   (if (< n 0)   'ERROR: nth'
 ;     (case xs
 ;       ([]       'ERROR: nth')
 ;       ([x|xs1]  (if (= n 0) x (nth xs1 (- n 1))))))))
 
-(typ take (forall a (-> (List a) Num (List a))))
+; TODO change typ/def
+; (typ take (forall a (-> (List a) Num (union Null (List a)))))
+
+(typ take (forall a (-> (List a) Num (List (union Null a)))))
 (defrec take (\\(xs n)
   (if (= n 0) []
     (case xs
-      ([]      'ERROR: take')
+      ([]      [null])
       ([x|xs1] [x | (take xs1 (- n 1))])))))
+
 ; (def take
 ;   (letrec take_ (\\(n xs)
 ;     (case [n xs]
