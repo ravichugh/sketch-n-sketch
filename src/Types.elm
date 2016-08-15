@@ -164,7 +164,7 @@ debugLog = Config.debugLog Config.debugTypeChecker
 
 stopAtError = False
   -- if False, continue typechecking after failed let equation (any expression)
-sanityChecks = False
+sanityChecks = True
   -- if True, check well-formedness of synthesized types
 
 -- AST Helpers for Types -----------------------------------------------------
@@ -496,7 +496,7 @@ isWellFormed typeEnv tipe =
        case t.val of
          TNamed _ x -> acc && lookupTypeAlias typeEnv' x
          TVar _ x   -> if isConstraintVar x
-                         then acc
+                         then False
                          else acc && List.member (TypeVar x) typeEnv'
          _          -> acc
      ) tipe' True
@@ -828,25 +828,35 @@ synthesizeType typeInfo typeEnv e =
       propagateResult <| synthesizeType typeInfo typeEnv' e1
 
 tsAppMono finish typeInfo typeEnv eArgs (argTypes, retType) =
-  case Utils.maybeZip eArgs argTypes of
-    Nothing -> finish.withError "tsAppMono 1 ..." typeInfo
-    Just argsAndTypes ->
-      let (argsOkay, typeInfo') =
-         List.foldl (\(ei,ti) (acc1,acc2) ->
-           let res = checkType acc2 typeEnv ei ti in
-           (acc1 && res.result, res.typeInfo)
-         ) (True, typeInfo) argsAndTypes
-      in
-      if argsOkay
-        then finish.withType retType typeInfo'
-        else finish.withError "tsAppMono 2 ..." typeInfo'
+  let checkArgs argsAndTypes retType =
+    let (argsOkay, typeInfo') =
+       List.foldl (\(ei,ti) (acc1,acc2) ->
+         let res = checkType acc2 typeEnv ei ti in
+         (acc1 && res.result, res.typeInfo)
+       ) (True, typeInfo) argsAndTypes
+    in
+    if argsOkay then
+      finish.withType retType typeInfo'
+    else
+      finish.withError "Function arguments don't match required types." typeInfo'
+  in
+  let (nArgs, nTypes) = (List.length eArgs, List.length argTypes) in
+  if nArgs == nTypes then
+    checkArgs (Utils.zip eArgs argTypes) retType
+  else if nArgs < nTypes then
+    let argTypes' = List.take nArgs argTypes in
+    let retType'  = tArrow (List.drop nArgs argTypes, retType) in
+    checkArgs (Utils.zip eArgs argTypes') retType'
+  else
+    -- TODO check syntactic structure of retType for more arrows
+    finish.withError "Too many arguments to this function." typeInfo
 
 tsAppPoly finish typeInfo typeEnv eArgs (typeVars, (argTypes, retType)) =
   let result = synthesizeTypeMany typeInfo typeEnv eArgs in
   case Utils.projJusts result.result of
 
     Nothing ->
-      let err = "TS-App-Poly: could not typecheck all branches" in
+      let err = "Could not typecheck all of the arguments." in
       finish.withError err result.typeInfo
 
     Just tActuals ->
@@ -864,7 +874,19 @@ tsAppPoly finish typeInfo typeEnv eArgs (typeVars, (argTypes, retType)) =
           finish.withError err typeInfo''
         Ok unifier ->
           let retType' = retType |> applyUnifier subst |> applyUnifier unifier in
-          finish.withType retType' result.typeInfo
+          let (nArgs, nTypes) = (List.length eArgs, List.length argTypes) in
+          if nArgs == nTypes then
+            finish.withType retType' result.typeInfo
+          else if nArgs < nTypes then
+            let remainingArgTypes' =
+              List.drop (List.length eArgs) argTypes
+                |> List.map (applyUnifier subst)
+                |> List.map (applyUnifier unifier)
+            in
+            finish.withType (tArrow (remainingArgTypes', retType')) result.typeInfo
+          else
+            -- TODO check syntactic structure of retType for more arrows
+            finish.withError "Too many arguments to this function." result.typeInfo
 
 tsFun finish typeInfo typeEnv ps eBody (argTypes, retType) =
   case addBindings ps argTypes typeEnv of
