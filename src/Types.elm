@@ -325,7 +325,13 @@ addRecBinding rec p t typeEnv =
   if not rec then typeEnv
   else
     case p.val of
-      PVar _ x _ -> HasType x t :: typeEnv
+      PVar _ x _ ->
+        let tMono = -- monomorphic recursion
+          case stripPolymorphicArrow t of
+            Nothing         -> t
+            Just (_, arrow) -> tArrow arrow
+        in
+        HasType x tMono :: typeEnv
       _ ->
         let _ = debugLog "addRecBinding: multi TODO" (unparsePat p, unparseType t) in
         typeEnv
