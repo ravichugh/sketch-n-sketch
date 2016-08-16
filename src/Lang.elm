@@ -175,6 +175,12 @@ type EBaseVal
 
 type Trace = TrLoc Loc | TrOp Op_ (List Trace)
 
+type alias Idea = ((NumTr, NumTr), Int, List IdeaSource) -- int is which round of brainstorming first produced the point
+
+type IdeaSource
+  = PrimitiveFeature Val Ident       -- shape and feature name
+  | BasedOnTwoPoints Idea Idea Ident -- two points and relation name
+
 type alias Env = List (Ident, Val)
 type alias Backtrace = List Exp
 

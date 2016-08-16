@@ -1,5 +1,7 @@
 module Brainstorm where
 
+import Dict
+
 import Utils
 import Lang exposing (..)
 import LangTools exposing (..)
@@ -10,14 +12,34 @@ import Eval
 -- Require ideas to be at least this far from other ideas
 minInterIdeaDistance = 10
 
-type alias Idea = (Point, Int) -- Int is which Brainstorm depth generated the point
-
 brainstorm : List Idea -> Exp -> RootedIndexedTree -> List Idea
 brainstorm previousIdeas inputExp slate =
   case previousIdeas of
-    [] -> shapesToPoints inputExp slate
-    _  -> pointsToMorePoints inputExp previousIdeas
+    [] -> shapesToPoints inputExp slate |> consolidate
+    _  -> previousIdeas ++ (pointsToMorePoints inputExp previousIdeas) |> consolidate
 
+
+-- Combine ideas on the same point into a single idea
+-- Ordered by first appearance of each point
+consolidate ideas =
+  let ideaToPoint (((x,_),(y,_)), _, _) = (x,y) in
+  let ideasByPoint = Utils.groupBy ideaToPoint ideas in
+  let (_, consolidated) =
+      List.foldl
+        (\idea (ideasRemaining, out) ->
+          let key = ideaToPoint idea in
+          case Dict.get key ideasRemaining of
+            Just ideas ->
+              let (point, depth, _) = Utils.head "Brainstorm.consolidate: list of equivalent ideas shouldn't be empty" ideas in
+              let ideaSources = List.concatMap Utils.thd3 ideas in
+              let consolidatedIdea = (point, depth, ideaSources) in
+              (Dict.remove key ideasRemaining, out ++ [consolidatedIdea])
+            Nothing    -> (ideasRemaining, out)
+        )
+        (ideasByPoint, [])
+        ideas
+  in
+  consolidated
 
 programEnv inputExp =
   -- Wrapper ensures the program returns the top-level environment when the root
@@ -46,7 +68,12 @@ shapesToPoints inputExp slate =
           case Eval.eval (("shapeToPointsShapeDummy", shapeVal)::env) [] funcCall of
             Ok ((outVal,_),_) ->
               case unwrapVList outVal of
-                Just [VConst (x,xTr), VConst (y,yTr)] -> if (x,y) /= (0,0) then let _ = Debug.log "func" funcName in [(((x,xTr),(y,yTr)), 1)] else []
+                Just [VConst (x,xTr), VConst (y,yTr)] ->
+                  if (x,y) /= (0,0) then
+                    let _ = Debug.log "func" funcName in
+                    [(((x,xTr),(y,yTr)), 1, [PrimitiveFeature shapeVal funcName])]
+                  else
+                    []
                 _ -> []
             Err s -> []
         )
@@ -139,27 +166,26 @@ pointToPointToPointFunctionsIn exp =
 
 pointsToMorePoints : Exp -> List Idea -> List Idea
 pointsToMorePoints inputExp ideas =
-  let (_,lastDepth) = Utils.head "Brainstorm.pointsToMorePoints: ideas shouldn't be empty here" ideas in
+  let (_,lastDepth,_) = Utils.head "Brainstorm.pointsToMorePoints: ideas shouldn't be empty here" ideas in
   let depth = lastDepth + 1 in
   let env = programEnv inputExp in
-  let pointVals = List.map (LangSvg.pointToVal << fst) ideas in
+  let pointVals = List.map (LangSvg.pointToVal << Utils.fst3) ideas in
+  let pointValAndIdeas = Utils.zip pointVals ideas in
   (pointToPointToPointFunctionsIn LangParser2.prelude) ++ (pointToPointToPointFunctionsIn inputExp)
-  |> List.foldl
-      (\funcName retIdeas ->
+  |> List.concatMap
+      (\funcName ->
         -- let _ = Debug.log "trying func" funcName in
         let funcCall = eApp (eVar0 funcName) [eVar "pt1", eVar "pt2"] in
-        pointVals |> List.foldl (\vPt1 retIdeas ->
-          pointVals |> List.foldl (\vPt2 retIdeas ->
+        pointValAndIdeas |> List.concatMap (\(vPt1, idea1) ->
+          pointValAndIdeas |> List.concatMap (\(vPt2, idea2) ->
             case Eval.eval (("pt1", vPt1)::("pt2", vPt2)::env) [] funcCall of
               Ok ((outVal,_),_) ->
                 case unwrapVList outVal of
                   Just [VConst (x,xTr), VConst (y,yTr)] ->
                     -- let _ = Debug.log "func" funcName in
-                    if List.any (\(((xOther,_),(yOther,_)), _) -> (xOther-x)^2 + (yOther-y)^2 < minInterIdeaDistance^2) retIdeas
-                    then retIdeas
-                    else (((x,xTr),(y,yTr)), depth)::retIdeas
-                  _ -> retIdeas
-              Err s -> retIdeas
-          ) retIdeas
-        ) retIdeas
-      ) ideas
+                    [(((x,xTr),(y,yTr)), depth, [BasedOnTwoPoints idea1 idea2 funcName])]
+                  _ -> []
+              Err s -> []
+          )
+        )
+      )

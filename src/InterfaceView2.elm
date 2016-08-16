@@ -341,7 +341,7 @@ toggleSelectedWidget locId =
 buildSvgIdeas ideas =
   ideas
   |> List.map
-      (\(((x,_),(y,_)), depth) ->
+      (\(((x,_),(y,_)), depth, _) ->
         flip Svg.circle [] <|
           [ attr "fill" "none"
           , attr "stroke" ("rgba(0,0,40," ++ (toString (1.0 / (2^(toFloat depth)))) ++ ")") , attr "stroke-width" "1px"
@@ -1990,7 +1990,7 @@ widgetsTools w h model =
        , (3/4, dropdownLambdaTool model)
        ]
   , gapWidget w h
-  , simpleEventButton_ (List.length model.ideas > 500) Brainstorm "Brainstorm" w h
+  , simpleEventButton_ (List.length model.ideas > 350) Brainstorm "Brainstorm" w h
   , gapWidget w h
   , relateButton DigHole "Dig Hole" w h
   , relateButton MakeEqual "Make Equal" w h

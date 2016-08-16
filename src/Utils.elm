@@ -124,6 +124,17 @@ dedup_ f xs =
   in
     deduped
 
+groupBy : (a -> comparable) -> List a -> Dict.Dict comparable (List a)
+groupBy f xs =
+  List.foldl
+      (\x dict ->
+        let key = f x in
+        let equivalents = getWithDefault key [] dict in
+        Dict.insert key (equivalents ++ [x]) dict
+      )
+      Dict.empty
+      xs
+
 -- Is there a one-to-one mapping from the elements in l1 to the elements in l2?
 --
 -- e.g oneToOneMappingExists ["a", "b", "a"] ["z", "y", "z"] => True
