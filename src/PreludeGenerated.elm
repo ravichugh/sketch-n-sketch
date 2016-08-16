@@ -279,15 +279,11 @@ prelude =
 
 ;; Concatenate a list of strings and return the resulting string
 (typ concatStrings (-> (List String) String))
-(def concatStrings (\\ss (joinStrings '' ss)))
-  ; TODO eta-reduced version:
-  ; (def concatStrings (joinStrings ''))
+(def concatStrings (joinStrings ''))
 
 ;; Concatenates a list of strings, interspersing a single space in between each string
 (typ spaces (-> (List String) String))
-(def spaces (\\ss (joinStrings ' ' ss)))
-  ; TODO eta-reduced version:
-  ; (def spaces (joinStrings ' '))
+(def spaces (joinStrings ' '))
 
 ;; First two arguments are appended at the front and then end of the third argument correspondingly
 ;; Ex. delimit '+' '+' 'plus' = '+plus+'
@@ -296,9 +292,7 @@ prelude =
 
 ;; delimit a string with parentheses
 (typ parens (-> String String))
-(def parens (\\s (delimit '(' ')' s)))
-  ; TODO eta-reduced version:
-  ; (def parens (delimit '(' ')'))
+(def parens (delimit '(' ')'))
 
 ;
 ; SVG Manipulating Functions
@@ -356,10 +350,14 @@ prelude =
 (def Vec2D [Num Num])
 
 (typ x (-> Point Num))
-(def x fst)
+(def x (\\[x _] x))
+  ; TODO
+  ; (def x fst)
 
 (typ y (-> Point Num))
-(def y snd)
+(def y (\\[_ y] y))
+  ; TODO
+  ; (def y snd)
 
 (typ vec2DPlus (-> Point Vec2D Point))
 (def vec2DPlus (\\(pt vec)
@@ -377,7 +375,7 @@ prelude =
   ]
 ))
 
-(typ vec2DScalarMult (-> Vec2D Point))
+(typ vec2DScalarMult (-> Num Vec2D Point))
 (def vec2DScalarMult (\\(num vec)
   [
     (* (x vec) num)

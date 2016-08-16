@@ -594,7 +594,7 @@ checkType typeInfo typeEnv e goalType =
           in
           { result = False, typeInfo = addTypeErrorAt e.start err typeInfo1 }
         Just t1 ->
-          let result2 = checkSubtype typeInfo1 t1 goalType in
+          let result2 = checkSubtype typeInfo1 typeEnv t1 goalType in
           case result2.result of
             Err err ->
               let err' =
@@ -1032,8 +1032,10 @@ synthesizeTypeMany typeInfo typeEnv es =
 
 type alias SubtypeResult = AndTypeInfo (Result TypeError ())
 
-checkSubtype : TypeInfo -> Type -> Type -> SubtypeResult
-checkSubtype typeInfo tipe1 tipe2 =
+-- needs TypeEnv to expand type aliases
+
+checkSubtype : TypeInfo -> TypeEnv -> Type -> Type -> SubtypeResult
+checkSubtype typeInfo typeEnv tipe1 tipe2 =
 
   let ok  = { typeInfo = typeInfo, result = Ok () } in
   let err = { typeInfo = typeInfo, result = Err <| Utils.spaces
@@ -1051,46 +1053,66 @@ checkSubtype typeInfo tipe1 tipe2 =
     (TString _, TString _) -> ok
     (TNull _, TNull _)     -> ok
 
+    -- take care to control unrolling of aliases...
+
     (TNamed _ a, TNamed _ b) ->
       if a == b then ok
       else
-        let _ = debugLog "checkSubtype: expand aliases TODO" () in
-        err
+        let maybeNewGoal =
+          case (expandTypeAlias typeEnv a, expandTypeAlias typeEnv b) of
+            (Just tipe1', Just tipe2') -> Just (tipe1', tipe2')
+            (Just tipe1', Nothing)     -> Just (tipe1', tipe2 )
+            (Nothing, Just tipe2')     -> Just (tipe1 , tipe2')
+            (Nothing, Nothing)         -> Nothing
+        in
+        case maybeNewGoal of
+          Just (tipe1',tipe2') -> checkSubtype typeInfo typeEnv tipe1' tipe2'
+          Nothing              -> err
+
+    (TNamed _ a, _) ->
+      case expandTypeAlias typeEnv a of
+        Just tipe1' -> checkSubtype typeInfo typeEnv tipe1' tipe2
+        Nothing     -> err
+
+    (_, TNamed _ b) ->
+      case expandTypeAlias typeEnv b of
+        Just tipe2' -> checkSubtype typeInfo typeEnv tipe1 tipe2'
+        Nothing     -> err
 
     (TUnion _ ts1 _, TUnion _ ts2 _) ->
       let allOk =
          List.foldl
-           (\t1 -> Utils.bindMaybe (\acc -> checkSubtypeSomeRight acc t1 ts2))
+           (\t1 -> Utils.bindMaybe (\acc -> checkSubtypeSomeRight acc typeEnv t1 ts2))
            (Just typeInfo) ts1
       in
       case allOk of
         Nothing        -> err
         Just typeInfo' -> { result = Ok (), typeInfo = typeInfo' }
 
-    (TList _ t1 _, TList _ t2 _) -> checkSubtype typeInfo t1 t2
+    (TList _ t1 _, TList _ t2 _) -> checkSubtype typeInfo typeEnv t1 t2
 
     (TDict _ k1 v1 _, TDict _ k2 v2 _) ->
-      checkEquivType typeInfo k1 k2 `bindSubtypeResult` \typeInfo' ->
-      checkSubtype typeInfo' v1 v2
+      checkEquivType typeInfo typeEnv k1 k2 `bindSubtypeResult` \typeInfo' ->
+      checkSubtype typeInfo' typeEnv v1 v2
 
     (TTuple _ ts1 _ mt1 _, TTuple _ ts2 _ mt2 _) ->
       case Utils.maybeZip ts1 ts2 of
         Nothing ->
           { result = Err "checkSubtype TTuple bad lengths", typeInfo = typeInfo }
         Just list ->
-          checkSubtypeList typeInfo list `bindSubtypeResult` \typeInfo' ->
-          checkSubMaybeType typeInfo' mt1 mt2
+          checkSubtypeList typeInfo typeEnv list `bindSubtypeResult` \typeInfo' ->
+          checkSubMaybeType typeInfo' typeEnv mt1 mt2
 
     -- converting from tuples to lists
     (TTuple _ ts _ Nothing _, TList _ tInvariant _) ->
       let n = List.length ts in
-      checkSubtypeList typeInfo (Utils.zip ts (List.repeat n tInvariant))
+      checkSubtypeList typeInfo typeEnv (Utils.zip ts (List.repeat n tInvariant))
     (TTuple _ ts _ (Just tRest) _, TList _ tInvariant _) ->
       case tRest.val of
         TList _ t' _ ->
           let ts' = ts ++ [t'] in
           let n = List.length ts' in
-          checkSubtypeList typeInfo (Utils.zip ts' (List.repeat n tInvariant))
+          checkSubtypeList typeInfo typeEnv (Utils.zip ts' (List.repeat n tInvariant))
         _ ->
           { result = Err "checkSubtype TTuple bad rest", typeInfo = typeInfo }
 
@@ -1100,11 +1122,11 @@ checkSubtype typeInfo tipe1 tipe2 =
        case Utils.maybeZip args2 args1 of
          Nothing -> err
          Just contraChecks ->
-           let result = checkSubtypeList typeInfo contraChecks in
+           let result = checkSubtypeList typeInfo typeEnv contraChecks in
            case result.result of
              Err _ -> err
              Ok () ->
-               checkSubtype result.typeInfo ret1 ret2
+               checkSubtype result.typeInfo typeEnv ret1 ret2
 
     -- constrain type inference vars; equate type vars
     (TVar _ a, TVar _ b) ->
@@ -1115,13 +1137,14 @@ checkSubtype typeInfo tipe1 tipe2 =
       else err
 
     -- handle all cases with one catch-all below:
+    -- (but leaving TNamed cases above...)
 
     _ ->
       tryCatchAlls err
          [ \() -> checkSubtypeTVar tipe1 okConstrain err
          , \() -> checkSubtypeTVar tipe2 okConstrain err
-         , \() -> checkSubtypeUnionRight typeInfo tipe1 tipe2
-         , \() -> checkSubtypeFoldLeft typeInfo tipe1 tipe2
+         , \() -> checkSubtypeUnionRight typeInfo typeEnv tipe1 tipe2
+         , \() -> checkSubtypeFoldLeft typeInfo typeEnv tipe1 tipe2
          ]
 
 tryCatchAlls err list =
@@ -1141,50 +1164,50 @@ checkSubtypeTVar t okConstrain err =
         Nothing
     _ -> Nothing
 
-checkSubtypeUnionRight : TypeInfo -> Type -> Type -> Maybe TypeInfo
-checkSubtypeUnionRight typeInfo tipe1 tipe2 =
+checkSubtypeUnionRight : TypeInfo -> TypeEnv -> Type -> Type -> Maybe TypeInfo
+checkSubtypeUnionRight typeInfo typeEnv tipe1 tipe2 =
   case (tipe1.val, tipe2.val) of
     (_, TUnion _ ts _) ->
-      Utils.bindMaybe Just (checkSubtypeSomeRight typeInfo tipe1 ts)
+      Utils.bindMaybe Just (checkSubtypeSomeRight typeInfo typeEnv tipe1 ts)
     _ -> Nothing
 
-checkSubtypeFoldLeft : TypeInfo -> Type -> Type -> Maybe TypeInfo
-checkSubtypeFoldLeft typeInfo tipe1 tipe2 =
+checkSubtypeFoldLeft : TypeInfo -> TypeEnv -> Type -> Type -> Maybe TypeInfo
+checkSubtypeFoldLeft typeInfo typeEnv tipe1 tipe2 =
   case coerceTupleToList tipe1 of
     Just (Ok tipe1') ->
-      let result = checkSubtype typeInfo tipe1' tipe2 in
+      let result = checkSubtype typeInfo typeEnv tipe1' tipe2 in
       case result.result of
         Ok () -> Just result.typeInfo
         Err _ -> Nothing
     _ -> Nothing
 
-checkSubtypeList : TypeInfo -> List (Type, Type) -> SubtypeResult
-checkSubtypeList typeInfo list =
+checkSubtypeList : TypeInfo -> TypeEnv -> List (Type, Type) -> SubtypeResult
+checkSubtypeList typeInfo typeEnv list =
   let (result, typeInfo') =
      List.foldl
        (\(t1,t2) (accResult, accTypeInfo) ->
          case accResult of
            Err err -> (accResult, accTypeInfo)
-           Ok ()   -> let nextResult = checkSubtype accTypeInfo t1 t2 in
+           Ok ()   -> let nextResult = checkSubtype accTypeInfo typeEnv t1 t2 in
                       (nextResult.result, nextResult.typeInfo)
        ) (Ok (), typeInfo) list
   in
   { result = result, typeInfo = typeInfo' }
 
-checkSubMaybeType : TypeInfo -> Maybe Type -> Maybe Type -> SubtypeResult
-checkSubMaybeType typeInfo mt1 mt2 =
+checkSubMaybeType : TypeInfo -> TypeEnv -> Maybe Type -> Maybe Type -> SubtypeResult
+checkSubMaybeType typeInfo typeEnv mt1 mt2 =
   case (mt1, mt2) of
-    (Just t1, Just t2) -> checkSubtype typeInfo t1 t2
+    (Just t1, Just t2) -> checkSubtype typeInfo typeEnv t1 t2
     (Nothing, Nothing) -> { result = Ok (), typeInfo = typeInfo }
     _                  -> { result = Err "checkSubMaybeType failed...", typeInfo = typeInfo}
 
-checkSubtypeSomeRight : TypeInfo -> Type -> List Type -> Maybe TypeInfo
-checkSubtypeSomeRight typeInfo t1 ts2 =
+checkSubtypeSomeRight : TypeInfo -> TypeEnv -> Type -> List Type -> Maybe TypeInfo
+checkSubtypeSomeRight typeInfo typeEnv t1 ts2 =
   List.foldl (\t2 acc ->
     case acc of
       Just _  -> acc
       Nothing ->
-        let result = checkSubtype typeInfo t1 t2 in
+        let result = checkSubtype typeInfo typeEnv t1 t2 in
         case result.result of
           Ok () -> Just result.typeInfo
           Err _ -> Nothing
@@ -1206,16 +1229,17 @@ checkSubtypeSomeLeft typeInfo ts1 t2 =
 
 -- Check type equality modulo constraints.
 --
-checkEquivType : TypeInfo -> Type -> Type -> SubtypeResult
-checkEquivType typeInfo tipe1 tipe2 =
-  checkSubtype typeInfo  tipe1 tipe2 `bindSubtypeResult` \typeInfo' ->
-  checkSubtype typeInfo' tipe2 tipe1
+checkEquivType : TypeInfo -> TypeEnv -> Type -> Type -> SubtypeResult
+checkEquivType typeInfo typeEnv tipe1 tipe2 =
+  checkSubtype typeInfo  typeEnv tipe1 tipe2 `bindSubtypeResult` \typeInfo' ->
+  checkSubtype typeInfo' typeEnv tipe2 tipe1
 
 -- Check type equality without depending on any constraints.
 --
 checkEqualType : Type -> Type -> Bool
 checkEqualType tipe1 tipe2 =
-  let result = checkEquivType initTypeInfo tipe1 tipe2 in
+  let dummyTypeEnv = [] in
+  let result = checkEquivType initTypeInfo dummyTypeEnv tipe1 tipe2 in
   case result.result of
     Err _ -> False
     Ok () -> result.typeInfo.constraints == []
@@ -1243,16 +1267,25 @@ coerceTupleToList t =
     _ ->
       Nothing
 
+{-
+expandType : TypeEnv -> Type -> Maybe Type
+expandType typeEnv t =
+  case t.val of
+    TNamed _ a -> expandTypeAlias typeEnv a
+    _          -> Nothing
+-}
+
 -- Joining Types -------------------------------------------------------------
 
 -- TODO could allow output constraints
 joinTypes : Type -> Type -> Result TypeError Type
 joinTypes t1 t2 =
   let dummyTypeInfo = initTypeInfo in
-  case (checkSubtype dummyTypeInfo t1 t2).result of
+  let dummyTypeEnv = [] in
+  case (checkSubtype dummyTypeInfo dummyTypeEnv t1 t2).result of
     Ok () -> Ok t2
     _ ->
-      case (checkSubtype dummyTypeInfo t2 t1).result of
+      case (checkSubtype dummyTypeInfo dummyTypeEnv t2 t1).result of
         Ok () -> Ok t1
         _     ->
           case joinTypes_ t1 t2 of
