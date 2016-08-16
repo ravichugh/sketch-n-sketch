@@ -27,6 +27,7 @@ scratchName = "*Scratch*"
 
 LITTLE_TO_ELM scratch
 LITTLE_TO_ELM threeBoxes
+LITTLE_TO_ELM liveObjectCountChanging
 LITTLE_TO_ELM nBoxesH2
 LITTLE_TO_ELM sineWaveOfBoxes
 LITTLE_TO_ELM sineWaveGrid
@@ -189,6 +190,7 @@ examples =
   , makeExample "Thaw/Freeze" thawFreeze
   , makeExample "Dictionaries" dictionaries
   , makeExample "3 Boxes" threeBoxes
+  , makeExample "Live Object Count Changing" liveObjectCountChanging
   -- , makeExample "N Boxes H2" nBoxesH2
   , makeExample "N Boxes Sli" nBoxes
   , makeExample "N Boxes" groupOfBoxes

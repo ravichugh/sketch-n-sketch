@@ -52,6 +52,23 @@ threeBoxesInt
 
 "
 
+liveObjectCountChanging =
+ "(def n 3)
+
+(def threeBoxesInt
+  (let [x0 y0 w h sep] [40 28 60 130 110]
+  (let boxi (\\i
+    (let xi (+ x0 (mult i sep))
+    (rect 'lightblue' xi y0 w h)))
+  (map boxi (zeroTo n)))))
+
+(def anotherRect
+  (rect 'blue' 100 300 (* 10! n) 65)
+)
+
+(svg (concat [threeBoxesInt [anotherRect]]))
+"
+
 nBoxesH2 =
  "
 (def [a b c] [0 0 0])
@@ -4051,6 +4068,7 @@ examples =
   , makeExample "Thaw/Freeze" thawFreeze
   , makeExample "Dictionaries" dictionaries
   , makeExample "3 Boxes" threeBoxes
+  , makeExample "Live Object Count Changing" liveObjectCountChanging
   -- , makeExample "N Boxes H2" nBoxesH2
   , makeExample "N Boxes Sli" nBoxes
   , makeExample "N Boxes" groupOfBoxes
