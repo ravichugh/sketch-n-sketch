@@ -281,45 +281,47 @@ addBindingsMany patsAndTypes typeEnv =
 
 addBindingsOne : (Pat, Type) -> TypeEnv -> Result TypeError TypeEnv
 addBindingsOne (p, t) acc =
-  case p.val of
+  let fail s =
+    Err <| Utils.spaces [ "addBindings", unparsePat p, unparseType t, s ] in
 
-    PConst _ _     -> Ok acc
-    PBase _ _      -> Ok acc
-    PVar _ "_" _   -> Ok acc
-    PVar _ x _     -> Ok (HasType x t :: acc)
-    PAs _ x _ xPat -> addBindingsOne (xPat, t) (HasType x t :: acc)
+  case (p.val, t.val) of
 
-    PList _ ps _ mpRest _ ->
-      case t.val of
+    (PList _ _ _ _ _, TNamed _ a) ->
+      case expandTypeAlias acc a of
+        Nothing -> fail "Type alias not defined"
+        Just ta -> addBindingsOne (p, ta) acc
 
-        TTuple _ ts _ mtRest _ ->
-          let maybeRestBinding =
-            case (mpRest, mtRest) of
-              (Nothing, Nothing) -> Ok []
+    (PConst _ _, _)     -> Ok acc
+    (PBase _ _, _)      -> Ok acc
+    (PVar _ "_" _, _)   -> Ok acc
+    (PVar _ x _, _)     -> Ok (HasType x t :: acc)
+    (PAs _ x _ xPat, _) -> addBindingsOne (xPat, t) (HasType x t :: acc)
 
-              (Just pRest, Just tRest) ->
-                case (pRest.val, tRest.val) of
-                  (PVar _ xRest _, TList _ tInvariant _) -> Ok [HasType xRest tInvariant]
-                  _                                      -> Err "addBindings PList: ERROR 1 TODO"
-              _                                          -> Err "addBindings PList: ERROR 2 TODO"
-          in
-          case (addBindings ps ts acc, maybeRestBinding) of
-            (Ok acc', Ok restBinding) -> Ok (restBinding ++ acc')
-            _ ->
-              Err (Utils.spaces [unparsePat p, unparseType t])
+    (PList _ ps _ mpRest _, TTuple _ ts _ mtRest _) ->
+      let maybeRestBinding =
+        case (mpRest, mtRest) of
+          (Nothing, Nothing) -> Ok []
 
-        TList _ tInvariant _ ->
-          case addBindings ps (List.repeat (List.length ps) tInvariant) acc of
-            Err err ->
-              Err <| Utils.spaces <|
-                [ "addBindings", unparsePat p, unparseType t, err ]
-            Ok acc' ->
-              case mpRest of
-                Nothing    -> Ok acc'
-                Just pRest -> addBindingsOne (pRest, t) acc' -- t ~= tList tInvariant
+          (Just pRest, Just tRest) ->
+            case (pRest.val, tRest.val) of
+              (PVar _ xRest _, TList _ tInvariant _) -> Ok [HasType xRest tInvariant]
+              _                                      -> fail "PList ERROR 1 TODO"
 
-        _ ->
-          Err <| Utils.spaces [ "addBindings failed:", unparsePat p, unparseType t ]
+          _ -> fail "PList ERROR 2 TODO"
+      in
+      case (addBindings ps ts acc, maybeRestBinding) of
+        (Ok acc', Ok restBinding) -> Ok (restBinding ++ acc')
+        _                         -> fail ""
+
+    (PList _ ps _ mpRest _, TList _ tInvariant _) ->
+      case addBindings ps (List.repeat (List.length ps) tInvariant) acc of
+        Err err -> fail err
+        Ok acc' ->
+          case mpRest of
+            Nothing    -> Ok acc'
+            Just pRest -> addBindingsOne (pRest, t) acc' -- t ~= tList tInvariant
+
+    _ -> fail ""
 
 addRecBinding rec p t typeEnv =
   if not rec then typeEnv
@@ -375,17 +377,35 @@ lookupTypAnnotation_ typeEnv x =
     CheckType x' t :: typeEnv' -> if x == x' then Just t else lookupTypAnnotation_ typeEnv' x
     HasType x' t   :: typeEnv' -> if x == x' then Nothing else lookupTypAnnotation_ typeEnv' x
 
-lookupTypeAlias typeEnv x =
-  let checkPat p =
-    case p.val of
-      PVar _ x' _      -> x == x'
-      PList _ ps _ _ _ -> List.any checkPat ps
-      _                -> False
+-- expanding once, not recursively
+--
+expandTypeAlias : TypeEnv -> Ident -> Maybe Type
+expandTypeAlias typeEnv x =
+  let check pts =
+    case pts of
+      [] -> Nothing
+      (p,t) :: pts' ->
+        case (p.val, t.val) of
+          (PVar _ x' _, _) ->
+            if x == x' then Just t else check pts'
+          (PList _ ps _ Nothing _, TTuple _ ts _ Nothing _) ->
+            check (Utils.zip ps ts ++ pts')
+               -- arities of ps ts should have been checked at definition
+          _ ->
+            Nothing
   in
   case typeEnv of
-    TypeAlias p _ :: typeEnv' -> checkPat p || lookupTypeAlias typeEnv' x
-    _ :: typeEnv'             -> lookupTypeAlias typeEnv' x
-    []                        -> False
+    TypeAlias p t :: typeEnv' -> case check [(p,t)] of
+                                   Just tx -> Just tx
+                                   Nothing -> expandTypeAlias typeEnv' x
+    _ :: typeEnv'             -> expandTypeAlias typeEnv' x
+    []                        -> Nothing
+
+lookupTypeAlias : TypeEnv -> Ident -> Bool
+lookupTypeAlias typeEnv x =
+  case expandTypeAlias typeEnv x of
+    Just _  -> True
+    Nothing -> False
 
 -- Operations on TypeInfos ---------------------------------------------------
 
