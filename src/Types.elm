@@ -364,6 +364,28 @@ lookupVar typeEnv x =
       else
         lookupVar typeEnv' x
 
+lookupPat : TypeEnv -> Pat -> Maybe Type
+lookupPat typeEnv p =
+  case p.val of
+
+    PVar _ x _  -> lookupVar typeEnv x
+    PAs _ x _ _ -> lookupVar typeEnv x
+
+    PConst _ _            -> Just tNum
+    PBase _ (EBool _)     -> Just tBool
+    PBase _ (EString _ _) -> Just tString
+    PBase _ ENull         -> Just tNull
+
+    PList _ ps _ mp _ ->
+      Utils.projJusts (List.map (lookupPat typeEnv) ps) |> Utils.bindMaybe (\ts ->
+        case mp of
+          Nothing -> Just (tTuple ts)
+          Just pRest ->
+            lookupPat typeEnv pRest |> Utils.bindMaybe (\tRest ->
+              Just (tTupleRest ts (Just tRest))
+            )
+      )
+
 lookupTypAnnotation : TypeEnv -> Pat -> Maybe Type
 lookupTypAnnotation typeEnv p =
   case p.val of
@@ -408,6 +430,27 @@ lookupTypeAlias typeEnv x =
   case expandTypeAlias typeEnv x of
     Just _  -> True
     Nothing -> False
+
+narrowUnionType : Pat -> List Type -> Type -> TypeEnv -> Result TypeError (List Type, TypeEnv)
+narrowUnionType p tAfterPreviousCases tThisCase typeEnv =
+  let tThisCase' =
+    case (tThisCase.val, tAfterPreviousCases) of
+      (TWildcard _, [t1]) -> t1
+      (TWildcard _, _)    -> tUnion tAfterPreviousCases
+      _                   -> tThisCase
+  in
+  let tAfterThisCase = tAfterPreviousCases `subtractType` tThisCase' in
+  case addBindingsOne (p, tThisCase') typeEnv of
+    Err err     -> Err err
+    Ok typeEnv' -> Ok (tAfterThisCase, typeEnv')
+
+subtractType : List Type -> Type -> List Type
+subtractType union1 tipe2 =
+  case tipe2.val of
+    TUnion _ union2 _ -> List.foldl (flip subtractType) union1 union2
+    _                 -> List.foldl
+                           (\t1 acc -> if checkEqualType t1 tipe2 then acc else t1::acc)
+                           [] union1
 
 -- Operations on TypeInfos ---------------------------------------------------
 
@@ -582,30 +625,46 @@ checkType typeInfo typeEnv e goalType =
               , typeInfo = addTypeErrorAt e.start err result_branches.typeInfo }
 
     ETypeCase _ p tbranches _ -> -- [TC-Typecase]
-      -- TODO this case has a lot of copy-paste from above...
-      let result_branches =
-         List.foldl (\te acc ->
-           let (TBranch_ _ ti ei _) = te.val in
-           -- could take into account negation of prior branch types...
-           -- don't shadow previous type when ti = _
-           case addBindingsOne (p, ti) typeEnv of
-             Err err ->
-               { result = False
-               , typeInfo = addTypeErrorAt p.start err acc.typeInfo }
-             Ok typeEnvi ->
-               let resulti = checkType acc.typeInfo typeEnvi ei goalType in
-               { result = resulti.result && acc.result
-               , typeInfo = resulti.typeInfo }
-         ) { result = True, typeInfo = typeInfo } tbranches
-      in
-      case result_branches.result of
-        True -> result_branches
-        False ->
-          let err = "couldn't check all branches" in
-          { result = False
-          , typeInfo = addTypeErrorAt e.start err result_branches.typeInfo }
+      case lookupPat typeEnv p of
+        Nothing ->
+          let err = "no type for the pattern: " ++ unparsePat p in
+          { result = False, typeInfo = addTypeErrorAt p.start err typeInfo }
+
+        Just tp ->
+          case tp.val of
+            TUnion _ union _ ->
+              let (unionResidual, result_branches) =
+                 List.foldl (\te (acc1, acc2) ->
+                   let (TBranch_ _ ti ei _) = te.val in
+                   case narrowUnionType p acc1 ti typeEnv of
+                     Err err ->
+                       let acc2' = { result = False
+                                   , typeInfo = addTypeErrorAt p.start err acc2.typeInfo } in
+                       (acc1, acc2')
+                     Ok (acc1', typeEnvi) ->
+                       let resulti = checkType acc2.typeInfo typeEnvi ei goalType in
+                       let acc2' = { result = resulti.result && acc2.result
+                                   , typeInfo = resulti.typeInfo } in
+                       (acc1', acc2')
+                 ) (union, { result = True, typeInfo = typeInfo }) tbranches
+              in
+              -- TODO could check unionResidual for exhaustiveness
+              case result_branches.result of
+                True -> result_branches
+                False ->
+                  let err = "couldn't check all branches" in
+                  { result = False
+                  , typeInfo = addTypeErrorAt e.start err result_branches.typeInfo }
+
+            _ ->
+              let err = "pattern is not a union type: " ++ unparseType tp in
+              { result = False, typeInfo = addTypeErrorAt p.start err typeInfo }
 
     -- TODO [TC-Let]
+
+    EComment _ _ e1 -> checkType typeInfo typeEnv e1 goalType
+
+    -- TODO push goal down other sequencing forms
 
     _ -> -- [TC-Sub]
       let result1 = synthesizeType typeInfo typeEnv e in
@@ -651,9 +710,12 @@ finishSynthesizeWithError pos error typeInfo =
   }
 
 propagateResult result =
+  result
+{-
   { result = Nothing
   , typeInfo = result.typeInfo
   }
+-}
 
 -- Nothing means type error or N/A (EComment, EOption, ETyp, etc.)
 --
@@ -814,31 +876,41 @@ synthesizeType typeInfo typeEnv e =
                     Ok t    -> finish.withType t result2.typeInfo
 
     ETypeCase _ p tbranches _ -> -- [TS-Typecase]
-      -- TODO this case has a lot of copy-paste from above...
-      let maybeThings =
-         List.foldl (\te acc ->
-           let (TBranch_ _ ti ei _) = te.val in
-           -- don't shadow previous type when ti = _
-           case (acc, addBindingsOne (p, ti) typeEnv) of
-             (Ok things, Ok typeEnvi) -> Ok ((typeEnvi,ei) :: things)
-             (Err err, _)             -> Err err
-             (_, Err err)             -> Err err
-         ) (Ok []) tbranches
-      in
-      case maybeThings of
-        Err err ->
-          let err' = Utils.spaces [ "ETypeCase: could not typecheck all patterns", err ] in
-          finish.withError err' typeInfo
-        Ok things ->
-          let result2 = synthesizeBranchTypes typeInfo things in
-          case Utils.projJusts result2.result of
-            Nothing ->
-              let err = "ETypeCase: could not typecheck all branches" in
-              finish.withError err result2.typeInfo
-            Just ts ->
-              case joinManyTypes ts of
-                Err err -> finish.withError err result2.typeInfo
-                Ok t    -> finish.withType t result2.typeInfo
+      case lookupPat typeEnv p of
+        Nothing ->
+          let err = "no type for the pattern: " ++ unparsePat p in
+          { result = Nothing, typeInfo = addTypeErrorAt p.start err typeInfo }
+
+        Just tp ->
+          case tp.val of
+            TUnion _ union _ ->
+              let (_, maybeThings) =
+                 List.foldl (\te (acc1, acc2) ->
+                   let (TBranch_ _ ti ei _) = te.val in
+                   case (acc2, narrowUnionType p acc1 ti typeEnv) of
+                     (Ok things, Ok (acc1', typeEnvi)) -> (acc1', Ok ((typeEnvi,ei) :: things))
+                     (Err err, _)                      -> (acc1, Err err)
+                     (_, Err err)                      -> (acc1, Err err)
+                 ) (union, (Ok [])) tbranches
+              in
+              case maybeThings of
+                Err err ->
+                  let err' = Utils.spaces [ "ETypeCase: could not typecheck all patterns", err ] in
+                  finish.withError err' typeInfo
+                Ok things ->
+                  let result2 = synthesizeBranchTypes typeInfo things in
+                  case Utils.projJusts result2.result of
+                    Nothing ->
+                      let err = "ETypeCase: could not typecheck all branches" in
+                      finish.withError err result2.typeInfo
+                    Just ts ->
+                      case joinManyTypes ts of
+                        Err err -> finish.withError err result2.typeInfo
+                        Ok t    -> finish.withType t result2.typeInfo
+
+            _ ->
+              let err = "pattern is not a union type: " ++ unparseType tp in
+              { result = Nothing, typeInfo = addTypeErrorAt p.start err typeInfo }
 
     ELet ws1 letKind rec p e1 e2 ws2 ->
       case (p.val, lookupTypAnnotation typeEnv p, rec, e1.val.e__) of
@@ -907,11 +979,13 @@ synthesizeType typeInfo typeEnv e =
       propagateResult <| synthesizeType typeInfo typeEnv e1
 
     ETyp _ p t e1 _ ->
+      -- TODO check well-formedness
       case addTypBindings p t typeEnv of
         Err () -> { result = Nothing, typeInfo = typeInfo }
         Ok typeEnv' -> propagateResult <| synthesizeType typeInfo typeEnv' e1
 
     ETypeAlias _ p t e1 _ ->
+      -- TODO check well-formedness
       let typeEnv' = TypeAlias p t :: typeEnv in
       propagateResult <| synthesizeType typeInfo typeEnv' e1
 
@@ -1232,6 +1306,7 @@ checkSubtype typeInfo typeEnv tipe1 tipe2 =
          , \() -> checkSubtypeTVar tipe2 okConstrain err
          , \() -> checkSubtypeUnionRight typeInfo typeEnv tipe1 tipe2
          , \() -> checkSubtypeFoldLeft typeInfo typeEnv tipe1 tipe2
+         , \() -> checkSubtypeSingletonUnion typeInfo typeEnv tipe1 tipe2
          ]
 
 tryCatchAlls err list =
@@ -1263,6 +1338,16 @@ checkSubtypeFoldLeft typeInfo typeEnv tipe1 tipe2 =
   case coerceTupleToList tipe1 of
     Just (Ok tipe1') ->
       let result = checkSubtype typeInfo typeEnv tipe1' tipe2 in
+      case result.result of
+        Ok () -> Just result.typeInfo
+        Err _ -> Nothing
+    _ -> Nothing
+
+checkSubtypeSingletonUnion : TypeInfo -> TypeEnv -> Type -> Type -> Maybe TypeInfo
+checkSubtypeSingletonUnion typeInfo typeEnv tipe1 tipe2 =
+  case tipe1.val of
+    TUnion _ [t1] _ ->
+      let result = checkSubtype typeInfo typeEnv t1 tipe2 in
       case result.result of
         Ok () -> Just result.typeInfo
         Err _ -> Nothing

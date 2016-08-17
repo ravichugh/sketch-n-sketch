@@ -558,6 +558,7 @@ prelude =
 ; === Bounds-based shapes (Oval and Box) ===
 
 (def BoundedShape SVG)
+(def Bounds [Num Num Num Num])
 
 (typ boundedShapeLeft (-> BoundedShape Num))
 (def boundedShapeLeft (\\shape
@@ -945,19 +946,23 @@ prelude =
   (let indices (list0N (- (* 2! n) 1!))
     (polygon fill stroke w (map pti (zip indices lengths))))))))
 
+(typ setZones (-> String SVG SVG))
 (def setZones (\\(s shape) (addAttr shape ['ZONES' s])))
 
-;; zones : String -> List Shape -> List Shape
-(def zones (\\s (map (setZones s))))
+(typ zones (-> String (List SVG) (List SVG)))
+(def zones (\\(s shapes) (map (setZones s) shapes)))
+  ; TODO eta-reduced version:
+  ; (def zones (\\s (map (setZones s))))
 
-;; hideZonesTail : List Shape -> List Shape
 ;; Remove all zones from shapes except for the first in the list
-(def hideZonesTail  (\\[hd | tl] [hd | (zones 'none'  tl)]))
+(typ hideZonesTail (-> (List SVG) (List SVG)))
+(def hideZonesTail  (\\[hd | tl] [hd | (zones 'none' tl)]))
 
-;; basicZonesTail : List Shape -> List Shape
 ;; Turn all zones to basic for a given list of shapes except for the first shape
+(typ basicZonesTail (-> (List SVG) (List SVG)))
 (def basicZonesTail (\\[hd | tl] [hd | (zones 'basic' tl)]))
 
+(typ ghost (-> SVG SVG))
 (def ghost
   ; consAttr (instead of addAttr) makes internal calls to
   ; Utils.maybeRemoveFirst 'HIDDEN' slightly faster
@@ -1060,12 +1065,17 @@ prelude =
     [ [ xVal yVal ] (ghosts shapes) ]
 ))))))))))))
 
-(def enumSlider (\\(x0 x1 y enum caption srcVal)
+(typ enumSlider (forall a (-> Num Num Num [a|(List a)] String Num [a (List SVG)])))
+(def enumSlider (\\(x0 x1 y enum@[a|_] caption srcVal)
   (let n (len enum)
   (let [minVal maxVal] [0! n]
   (let preVal (clamp minVal maxVal srcVal)
   (let i (floor preVal)
-  (let item (nth enum i)
+  (let item ; using dummy first element for typechecking
+    (let item_ (nth enum i)
+    (typecase item_
+      (Null a)
+      (_    item_)))
   (let wrap (\\circ (addAttr circ ['SELECTED' ''])) ; TODO
   (let shapes
     (let rail [ (line 'black' 3! x0 y x1 y) ]
