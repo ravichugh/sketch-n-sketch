@@ -420,7 +420,7 @@ distanceInt (x1,y1) (x2,y2) =
 
 type alias MaybeOne a = List a
 nothing               = []
-just                  = Utils.singleton
+just                  = singleton
 maybeToMaybeOne mx    = case mx of
   Nothing -> nothing
   Just x  -> just x

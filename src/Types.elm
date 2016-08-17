@@ -579,6 +579,31 @@ checkType typeInfo typeEnv e goalType =
               { result = False
               , typeInfo = addTypeErrorAt e.start err result_branches.typeInfo }
 
+    ETypeCase _ p tbranches _ -> -- [TC-Typecase]
+      -- TODO this case has a lot of copy-paste from above...
+      let result_branches =
+         List.foldl (\te acc ->
+           let (TBranch_ _ ti ei _) = te.val in
+           -- could take into account negation of prior branch types...
+           case addBindingsOne (p, ti) typeEnv of
+             Err err ->
+               { result = False
+               , typeInfo = addTypeErrorAt p.start err acc.typeInfo }
+             Ok typeEnvi ->
+               let resulti = checkType acc.typeInfo typeEnvi ei goalType in
+               { result = resulti.result && acc.result
+               , typeInfo = resulti.typeInfo }
+         ) { result = True, typeInfo = typeInfo } tbranches
+      in
+      case result_branches.result of
+        True -> result_branches
+        False ->
+          let err = "couldn't check all branches" in
+          { result = False
+          , typeInfo = addTypeErrorAt e.start err result_branches.typeInfo }
+
+    -- TODO [TC-Let]
+
     _ -> -- [TC-Sub]
       let result1 = synthesizeType typeInfo typeEnv e in
       let typeInfo1 = result1.typeInfo in
@@ -785,8 +810,31 @@ synthesizeType typeInfo typeEnv e =
                     Err err -> finish.withError err result2.typeInfo
                     Ok t    -> finish.withType t result2.typeInfo
 
-    ETypeCase _ _ _ _ -> -- [TS-Typecase]
-      finish.withError "synthesizeType: ETypeCase ..." typeInfo
+    ETypeCase _ p tbranches _ -> -- [TS-Typecase]
+      -- TODO this case has a lot of copy-paste from above...
+      let maybeThings =
+         List.foldl (\te acc ->
+           let (TBranch_ _ ti ei _) = te.val in
+           case (acc, addBindingsOne (p, ti) typeEnv) of
+             (Ok things, Ok typeEnvi) -> Ok ((typeEnvi,ei) :: things)
+             (Err err, _)             -> Err err
+             (_, Err err)             -> Err err
+         ) (Ok []) tbranches
+      in
+      case maybeThings of
+        Err err ->
+          let err' = Utils.spaces [ "ETypeCase: could not typecheck all patterns", err ] in
+          finish.withError err' typeInfo
+        Ok things ->
+          let result2 = synthesizeBranchTypes typeInfo things in
+          case Utils.projJusts result2.result of
+            Nothing ->
+              let err = "ETypeCase: could not typecheck all branches" in
+              finish.withError err result2.typeInfo
+            Just ts ->
+              case joinManyTypes ts of
+                Err err -> finish.withError err result2.typeInfo
+                Ok t    -> finish.withType t result2.typeInfo
 
     ELet ws1 letKind rec p e1 e2 ws2 ->
       case (p.val, lookupTypAnnotation typeEnv p, rec, e1.val.e__) of
