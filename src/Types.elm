@@ -915,6 +915,7 @@ synthesizeType typeInfo typeEnv e =
       let typeEnv' = TypeAlias p t :: typeEnv in
       propagateResult <| synthesizeType typeInfo typeEnv' e1
 
+-- TODO need to instantiateTypes of arguments, as in tsAppPoly
 tsAppMono finish typeInfo typeEnv eArgs (argTypes, retType) =
   let checkArgs argsAndTypes retType =
     let (argsOkay, typeInfo') =
@@ -939,7 +940,8 @@ tsAppMono finish typeInfo typeEnv eArgs (argTypes, retType) =
     -- TODO check syntactic structure of retType for more arrows
     finish.withError "Too many arguments to this function." typeInfo
 
-tsAppPoly finish typeInfo typeEnv eArgs (typeVars, (argTypes, retType)) =
+tsAppPoly finish typeInfo typeEnv eArgs polyArrow =
+  -- let (typeVars, (argTypes, retType)) = polyArrow in
   let result = synthesizeTypeMany typeInfo typeEnv eArgs in
   case Utils.projJusts result.result of
 
@@ -948,33 +950,60 @@ tsAppPoly finish typeInfo typeEnv eArgs (typeVars, (argTypes, retType)) =
       finish.withError err result.typeInfo
 
     Just tActuals ->
-      let (constraintVars, typeInfo') =
-        generateConstraintVars (List.length typeVars) result.typeInfo in
-      let subst = List.map2 (\x y -> (x, tVar y)) typeVars constraintVars in
-      let typeInfo'' =
-         addRawConstraints
-           (Utils.zip (List.map (applyUnifier subst) argTypes) tActuals)
-           typeInfo'
-      in
-      let result = solveConstraintsFor typeInfo'' typeEnv constraintVars in
-      case result.result of
+      let result1 = instantiatePolyArrowWithConstraintVars result.typeInfo polyArrow in
+      let result2 = instantiateTypesWithConstraintVars result1.typeInfo tActuals in
+      let (constraintVars1, (argTypes', retType')) = result1.result in
+      let (constraintVars2, tActuals') = result2.result in
+      let typeInfo' = addRawConstraints (Utils.zip argTypes' tActuals') result2.typeInfo in
+      let constraintVars = constraintVars1 ++ constraintVars2 in
+      let result3 = solveConstraintsFor typeInfo' typeEnv constraintVars in
+      case result3.result of
         Err err ->
-          finish.withError err typeInfo''
+          finish.withError err typeInfo'
         Ok unifier ->
-          let retType' = retType |> applyUnifier subst |> applyUnifier unifier in
-          let (nArgs, nTypes) = (List.length eArgs, List.length argTypes) in
+          let retType'' = retType' |> applyUnifier unifier in
+          let (nArgs, nTypes) = (List.length eArgs, List.length argTypes') in
           if nArgs == nTypes then
-            finish.withType retType' result.typeInfo
+            finish.withType retType'' result3.typeInfo
           else if nArgs < nTypes then
             let remainingArgTypes' =
-              List.drop (List.length eArgs) argTypes
-                |> List.map (applyUnifier subst)
+              List.drop (List.length eArgs) argTypes'
                 |> List.map (applyUnifier unifier)
             in
-            finish.withType (tArrow (remainingArgTypes', retType')) result.typeInfo
+            finish.withType (tArrow (remainingArgTypes', retType'')) result3.typeInfo
           else
             -- TODO check syntactic structure of retType for more arrows
-            finish.withError "Too many arguments to this function." result.typeInfo
+            finish.withError "Too many arguments to this function." result3.typeInfo
+
+instantiatePolyArrowWithConstraintVars
+  : TypeInfo -> (List Ident, ArrowType) -> AndTypeInfo (List Ident, ArrowType)
+instantiatePolyArrowWithConstraintVars typeInfo (typeVars, (argTypes, retType)) =
+  let (constraintVars, typeInfo') =
+    generateConstraintVars (List.length typeVars) typeInfo in
+  let subst = List.map2 (\x y -> (x, tVar y)) typeVars constraintVars in
+  let argTypes' = List.map (applyUnifier subst) argTypes in
+  let retType' = applyUnifier subst retType in
+  { result = (constraintVars, (argTypes', retType')), typeInfo = typeInfo' }
+
+instantiateTypeWithConstraintVars : TypeInfo -> Type -> AndTypeInfo (List Ident, Type)
+instantiateTypeWithConstraintVars typeInfo t =
+  case stripPolymorphicArrow t of
+    Nothing -> { result = ([], t), typeInfo = typeInfo }
+    Just polyArrow ->
+      let result = instantiatePolyArrowWithConstraintVars typeInfo polyArrow in
+      let (constraintVars, arrow) = result.result in
+      { result = (constraintVars, tArrow arrow), typeInfo = result.typeInfo }
+
+instantiateTypesWithConstraintVars : TypeInfo -> List Type -> AndTypeInfo (List Ident, List Type)
+instantiateTypesWithConstraintVars typeInfo ts =
+  let (newVars, newTypes, newTypeInfo) =
+     List.foldl (\t (acc1,acc2,acc3) ->
+       let result = instantiateTypeWithConstraintVars acc3 t in
+       let (newVars, t') = result.result in
+       (acc1 ++ newVars, acc2 ++ [t'], result.typeInfo)
+     ) ([],[],typeInfo) ts
+  in
+  { result = (newVars, newTypes), typeInfo = newTypeInfo }
 
 tsFun finish typeInfo typeEnv ps eBody (argTypes, retType) =
   case addBindings ps argTypes typeEnv of
@@ -993,8 +1022,7 @@ tsLet finishWithType typeInfo typeEnv p e1 e2 =
   let result1 = synthesizeType typeInfo typeEnv e1 in
   case result1.result of
     Nothing ->
-      if stopAtError then
-        { result = Nothing, typeInfo = result1.typeInfo }
+      if stopAtError then result1
       else
         let t1 = tVar "__NO_TYPE__" in
         tsLetFinishE2 finishWithType result1.typeInfo typeEnv p t1 (eInfoOf e1) e2
@@ -1006,8 +1034,12 @@ tsLet finishWithType typeInfo typeEnv p e1 e2 =
           Nothing        -> { result = Just t1, typeInfo = result1.typeInfo }
       in
       case result1'.result of
-        Nothing  -> result1'
         Just t1' -> tsLetFinishE2 finishWithType result1'.typeInfo typeEnv p t1' (eInfoOf e1) e2
+        Nothing  ->
+          if stopAtError then result1'
+          else
+            let t1' = tVar "__NO_TYPE__" in
+            tsLetFinishE2 finishWithType result1'.typeInfo typeEnv p t1' (eInfoOf e1) e2
 
 tsLetFinishE2 finishWithType typeInfo typeEnv p t1 eInfo1 e2 =
   if not sanityChecks then
@@ -1481,6 +1513,15 @@ unify typeEnv vars accActive accUnifier cs = case cs of
               _ ->
                 Err "unify TTuple: rest types don't match"
 
+      (TList _ tInvariant _, TTuple _ ts _ mtRest _) ->
+        let induced = List.map (\ti -> (-1, (tInvariant, ti))) ts in
+        let induced' =
+          case mtRest of
+            Nothing    -> induced
+            Just tRest -> (-1, (tList tInvariant, tRest)) :: induced
+        in
+        recurse accActive accUnifier (induced' ++ rest)
+
       -- the setup of the TNamed cases is very similar to checkSubtype...
 
       (TNamed _ a, TNamed _ b) ->
@@ -1509,9 +1550,7 @@ unify typeEnv vars accActive accUnifier cs = case cs of
           Nothing  -> Err err
 
       _ ->
-        let _ = debugLog "TODO fail rather than continue... " err in
-        recurse (one::accActive) accUnifier rest
-        -- Err err
+        Err err
 
 -- TODO may need to apply entire unifier left-to-right
 applyUnifier : Unifier -> Type -> Type
@@ -1570,7 +1609,7 @@ displayTypeInfo : TypeInfo -> ()
 displayTypeInfo typeInfo =
   -- let _ = displayRawTypes typeInfo in
   -- let _ = displayConstraints typeInfo in
-  let _ = displayNamedExps typeInfo in
+  -- let _ = displayNamedExps typeInfo in
   let _ = displayTypeErrors typeInfo in
   ()
 
