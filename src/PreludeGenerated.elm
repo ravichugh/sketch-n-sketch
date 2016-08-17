@@ -344,6 +344,37 @@ prelude =
 (typ lookupAttrWithDefault (-> AttrVal SVG AttrName AttrVal))
 (def lookupAttrWithDefault (\\(default [_ attrs _] k) (lookupWithDefault default k attrs)))
 
+; Pairs of Type-Specific Lookup Functions
+
+(typ lookupNumAttr (-> SVG AttrName (union Num Null)))
+(def lookupNumAttr (\\([_ attrs _] k)
+  (let val (lookup k attrs)
+  (typecase val (Num val) (_ null)))))
+
+(typ lookupNumAttrWithDefault (-> Num SVG AttrName Num))
+(def lookupNumAttrWithDefault (\\(default shape k)
+  (let val (lookupNumAttr shape k)
+  (typecase val (Num val) (Null default)))))
+
+(typ lookupPointAttr (-> SVG AttrName (union Point Null)))
+(def lookupPointAttr (\\([_ attrs _] k)
+  (let val (lookup k attrs)
+  (typecase val (Point val) (_ null)))))
+
+(typ lookupPointAttrWithDefault (-> Point SVG AttrName Point))
+(def lookupPointAttrWithDefault (\\(default shape k)
+  (let val (lookupPointAttr shape k)
+  (typecase val (Point val) (Null default)))))
+
+(typ lookupStringAttr (-> SVG AttrName (union String Null)))
+(def lookupStringAttr (\\([_ attrs _] k)
+  (let val (lookup k attrs)
+  (typecase val (String val) (_ null)))))
+
+(typ lookupStringAttrWithDefault (-> String SVG AttrName String))
+(def lookupStringAttrWithDefault (\\(default shape k)
+  (let val (lookupStringAttr shape k)
+  (typecase val (String val) (Null default)))))
 
 ; === Points ===
 
@@ -399,14 +430,14 @@ prelude =
 (typ circleCenter (-> Ellipse Point))
 (def circleCenter (\\circle
   [
-    (lookupAttrWithDefault 0 circle 'cx')
-    (lookupAttrWithDefault 0 circle 'cy')
+    (lookupNumAttrWithDefault 0 circle 'cx')
+    (lookupNumAttrWithDefault 0 circle 'cy')
   ]
 ))
 
 (typ circleRadius (-> Circle Num))
 (def circleRadius (\\circle
-  (lookupAttrWithDefault 0 circle 'r')
+  (lookupNumAttrWithDefault 0 circle 'r')
 ))
 
 (typ circleDiameter (-> Circle Num))
@@ -467,19 +498,19 @@ prelude =
 (typ ellipseCenter (-> Ellipse Point))
 (def ellipseCenter (\\ellipse
   [
-    (lookupAttrWithDefault 0 ellipse 'cx')
-    (lookupAttrWithDefault 0 ellipse 'cy')
+    (lookupNumAttrWithDefault 0 ellipse 'cx')
+    (lookupNumAttrWithDefault 0 ellipse 'cy')
   ]
 ))
 
 (typ ellipseRadiusX (-> Ellipse Num))
 (def ellipseRadiusX (\\ellipse
-  (lookupAttrWithDefault 0 ellipse 'rx')
+  (lookupNumAttrWithDefault 0 ellipse 'rx')
 ))
 
 (typ ellipseRadiusY (-> Ellipse Num))
 (def ellipseRadiusY (\\ellipse
-  (lookupAttrWithDefault 0 ellipse 'ry')
+  (lookupNumAttrWithDefault 0 ellipse 'ry')
 ))
 
 (typ ellipseDiameterX (-> Ellipse Num))
@@ -527,32 +558,32 @@ prelude =
 
 (typ boundedShapeLeft (-> BoundedShape Num))
 (def boundedShapeLeft (\\shape
-  (lookupAttrWithDefault 0 shape 'LEFT')
+  (lookupNumAttrWithDefault 0 shape 'LEFT')
 ))
 
 (typ boundedShapeTop (-> BoundedShape Num))
 (def boundedShapeTop (\\shape
-  (lookupAttrWithDefault 0 shape 'TOP')
+  (lookupNumAttrWithDefault 0 shape 'TOP')
 ))
 
 (typ boundedShapeRight (-> BoundedShape Num))
 (def boundedShapeRight (\\shape
-  (lookupAttrWithDefault 0 shape 'RIGHT')
+  (lookupNumAttrWithDefault 0 shape 'RIGHT')
 ))
 
 (typ boundedShapeBot (-> BoundedShape Num))
 (def boundedShapeBot (\\shape
-  (lookupAttrWithDefault 0 shape 'BOT')
+  (lookupNumAttrWithDefault 0 shape 'BOT')
 ))
 
 (typ boundedShapeWidth (-> BoundedShape Num))
 (def boundedShapeWidth (\\shape
-  (- (boundedShapeRight shape) boundedShapeLeft)
+  (- (boundedShapeRight shape) (boundedShapeLeft shape))
 ))
 
 (typ boundedShapeHeight (-> BoundedShape Num))
 (def boundedShapeHeight (\\shape
-  (lookupAttrWithDefault 0 shape 'height')
+  (- (boundedShapeBot shape) (boundedShapeTop shape))
 ))
 
 (typ boundedShapeLeftTop (-> BoundedShape Point))
@@ -645,19 +676,19 @@ prelude =
 
 (typ rectWidth (-> Rect Num))
 (def rectWidth (\\rect
-  (lookupAttrWithDefault 0 rect 'width')
+  (lookupNumAttrWithDefault 0 rect 'width')
 ))
 
 (typ rectHeight (-> Rect Num))
 (def rectHeight (\\rect
-  (lookupAttrWithDefault 0 rect 'height')
+  (lookupNumAttrWithDefault 0 rect 'height')
 ))
 
 (typ rectLeftTop (-> Rect Point))
 (def rectLeftTop (\\rect
   [
-    (lookupAttrWithDefault 0 rect 'x')
-    (lookupAttrWithDefault 0 rect 'y')
+    (lookupNumAttrWithDefault 0 rect 'x')
+    (lookupNumAttrWithDefault 0 rect 'y')
   ]
 ))
 
@@ -741,16 +772,16 @@ prelude =
 (typ lineStart (-> Line Point))
 (def lineStart (\\line
   [
-    (lookupAttrWithDefault 0 line 'x1')
-    (lookupAttrWithDefault 0 line 'y1')
+    (lookupNumAttrWithDefault 0 line 'x1')
+    (lookupNumAttrWithDefault 0 line 'y1')
   ]
 ))
 
 (typ lineEnd (-> Line Point))
 (def lineEnd (\\line
   [
-    (lookupAttrWithDefault 0 line 'x2')
-    (lookupAttrWithDefault 0 line 'y2')
+    (lookupNumAttrWithDefault 0 line 'x2')
+    (lookupNumAttrWithDefault 0 line 'y2')
   ]
 ))
 
