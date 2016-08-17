@@ -225,6 +225,10 @@ unparseType tipe =
         Nothing       -> ws1 ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws3 ++ "]"
     TArrow ws1 typeList ws2 -> ws1 ++ "(->" ++ (String.concat (List.map unparseType typeList)) ++ ws2 ++ ")"
     TUnion ws1 typeList ws2 -> ws1 ++ "(union" ++ (String.concat (List.map unparseType typeList)) ++ ws2 ++ ")"
+    TNamed ws1 "Num"        -> ws1 ++ "Bad_NUM"
+    TNamed ws1 "Bool"       -> ws1 ++ "Bad_BOOL"
+    TNamed ws1 "String"     -> ws1 ++ "Bad_STRING"
+    TNamed ws1 "Null"       -> ws1 ++ "Bad_NULL"
     TNamed ws1 ident        -> ws1 ++ ident
     TVar ws1 ident          -> ws1 ++ ident
     TWildcard ws            -> ws ++ "_"

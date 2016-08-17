@@ -212,7 +212,7 @@ strConstraint (i,rawConstraint) =
 opTypeTable : List (Op_, Type)
 opTypeTable =
   List.map (Utils.mapSnd parseT)
-    [ (Pi         , " Num")
+    [ (Pi         , " Num ") -- TODO
 
     , (ToStr      , " (forall a (-> a String))")
     , (DebugLog   , " (forall a (-> a String))")
@@ -247,6 +247,8 @@ opTypeTable =
 
 parseT : String -> Type
 parseT s =
+  -- TODO figure out why this is parsing as a TNamed
+  if s == " Num " then tNum else
   case Parser.parseT s of
     Err _ -> Debug.crash <| "bad primitive op type: " ++ s
     Ok t  -> t
@@ -585,6 +587,7 @@ checkType typeInfo typeEnv e goalType =
          List.foldl (\te acc ->
            let (TBranch_ _ ti ei _) = te.val in
            -- could take into account negation of prior branch types...
+           -- don't shadow previous type when ti = _
            case addBindingsOne (p, ti) typeEnv of
              Err err ->
                { result = False
@@ -815,6 +818,7 @@ synthesizeType typeInfo typeEnv e =
       let maybeThings =
          List.foldl (\te acc ->
            let (TBranch_ _ ti ei _) = te.val in
+           -- don't shadow previous type when ti = _
            case (acc, addBindingsOne (p, ti) typeEnv) of
              (Ok things, Ok typeEnvi) -> Ok ((typeEnvi,ei) :: things)
              (Err err, _)             -> Err err
@@ -1085,12 +1089,16 @@ type alias SubtypeResult = AndTypeInfo (Result TypeError ())
 checkSubtype : TypeInfo -> TypeEnv -> Type -> Type -> SubtypeResult
 checkSubtype typeInfo typeEnv tipe1 tipe2 =
 
-  let ok  = { typeInfo = typeInfo, result = Ok () } in
-  let err = { typeInfo = typeInfo, result = Err <| Utils.spaces
-                [ "checkSubtype failed:"
-                , String.trim (unparseType tipe1), " <: "
-                , String.trim (unparseType tipe2)
-                ] } in
+  let errAdd msg =
+    { typeInfo = typeInfo
+    , result = Err <| Utils.spaces
+        [ "checkSubtype failed:"
+        , String.trim (unparseType tipe1), " <: "
+        , String.trim (unparseType tipe2)
+        , msg
+        ] } in
+  let err = errAdd "" in
+  let ok = { typeInfo = typeInfo, result = Ok () } in
   let okConstrain =
     { result = Ok (), typeInfo = addRawConstraints [(tipe1, tipe2)] typeInfo } in
 
@@ -1145,8 +1153,7 @@ checkSubtype typeInfo typeEnv tipe1 tipe2 =
 
     (TTuple _ ts1 _ mt1 _, TTuple _ ts2 _ mt2 _) ->
       case Utils.maybeZip ts1 ts2 of
-        Nothing ->
-          { result = Err "checkSubtype TTuple bad lengths", typeInfo = typeInfo }
+        Nothing -> errAdd "lengths of tuple types are not equal"
         Just list ->
           checkSubtypeList typeInfo typeEnv list `bindSubtypeResult` \typeInfo' ->
           checkSubMaybeType typeInfo' typeEnv mt1 mt2
@@ -1162,7 +1169,7 @@ checkSubtype typeInfo typeEnv tipe1 tipe2 =
           let n = List.length ts' in
           checkSubtypeList typeInfo typeEnv (Utils.zip ts' (List.repeat n tInvariant))
         _ ->
-          { result = Err "checkSubtype TTuple bad rest", typeInfo = typeInfo }
+          errAdd "the rest type of the tuple is not a list type"
 
     (TArrow _ arrow1 _, TArrow _ arrow2 _) ->
        let (args1, ret1) = splitTypesInArrow arrow1 in
