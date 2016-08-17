@@ -904,7 +904,7 @@ tsAppPoly finish typeInfo typeEnv eArgs (typeVars, (argTypes, retType)) =
            (Utils.zip (List.map (applyUnifier subst) argTypes) tActuals)
            typeInfo'
       in
-      let result = solveConstraintsFor typeInfo'' constraintVars in
+      let result = solveConstraintsFor typeInfo'' typeEnv constraintVars in
       case result.result of
         Err err ->
           finish.withError err typeInfo''
@@ -950,7 +950,7 @@ tsLet finishWithType typeInfo typeEnv p e1 e2 =
     Just t1 ->
       let result1' =
         case isArrowTemplate t1 of
-          Just arrowType -> solveTemplateArrow result1.typeInfo (eInfoOf e1) arrowType
+          Just arrowType -> solveTemplateArrow result1.typeInfo typeEnv (eInfoOf e1) arrowType
           Nothing        -> { result = Just t1, typeInfo = result1.typeInfo }
       in
       case result1'.result of
@@ -989,10 +989,10 @@ tsLetFinishE2_ finishWithType typeInfo typeEnv p t1 e1eid e2 =
         Nothing -> { result = Nothing, typeInfo = result2.typeInfo }
         Just t2 -> finishWithType t2 result2.typeInfo
 
-solveTemplateArrow : TypeInfo -> EInfo -> ArrowType -> AndTypeInfo (Maybe Type)
-solveTemplateArrow typeInfo eFuncInfo arrow =
+solveTemplateArrow : TypeInfo -> TypeEnv -> EInfo -> ArrowType -> AndTypeInfo (Maybe Type)
+solveTemplateArrow typeInfo typeEnv eFuncInfo arrow =
   let vars = Set.toList (constraintVarsOfArrow arrow) in
-  let result = solveConstraintsFor typeInfo vars in
+  let result = solveConstraintsFor typeInfo typeEnv vars in
   case result.result of
     Err err ->
       { result = Nothing, typeInfo = addTypeErrorAt eFuncInfo.start err typeInfo }
@@ -1351,9 +1351,11 @@ strUnifier =
     Utils.spaces <<
       List.map (\(x,t) -> x ++ "=" ++ String.trim (unparseType t))
 
-solveConstraintsFor : TypeInfo -> List Ident -> AndTypeInfo (Result TypeError Unifier)
-solveConstraintsFor typeInfo vars =
-  case unify vars [] [] typeInfo.activeConstraints of
+-- needs TypeEnv to expand type aliases
+
+solveConstraintsFor : TypeInfo -> TypeEnv -> List Ident -> AndTypeInfo (Result TypeError Unifier)
+solveConstraintsFor typeInfo typeEnv vars =
+  case unify typeEnv vars [] [] typeInfo.activeConstraints of
     Ok (unifier, activeConstraints') ->
       -- let _ = Debug.log "unifer" (strUnifier unifier) in
       { result = Ok (List.reverse unifier)
@@ -1362,55 +1364,98 @@ solveConstraintsFor typeInfo vars =
       let _ = debugLog "TODO display the constraints that failed..." () in
       { result = Err err, typeInfo = typeInfo } -- restoring original constraints
 
-unify : List Ident -> Constraints -> Unifier -> Constraints -> Result TypeError (Unifier, Constraints)
-unify vars accActive accUnifier cs = case cs of
+unify : TypeEnv -> List Ident -> Constraints -> Unifier -> Constraints -> Result TypeError (Unifier, Constraints)
+unify typeEnv vars accActive accUnifier cs = case cs of
 
   [] -> Ok (accUnifier, accActive)
 
   one :: rest ->
+    let recurse = unify typeEnv vars in
     let (id,(t1,t2)) = one in
-    if checkEqualType t1 t2 then unify vars accActive accUnifier rest
+    let err =
+      Utils.spaces <|
+        [ "Unification failure:"
+        , String.trim (unparseType t1)
+        , String.trim (unparseType t2) ] in
+
+    if checkEqualType t1 t2 then recurse accActive accUnifier rest
     else case (t1.val, t2.val) of
 
       (TVar _ a, TVar _ b) ->
         if List.member a vars then
-          unify vars accActive ((a,t2)::accUnifier) (applyUnifierToConstraints [(a,t2)] rest)
+          recurse accActive ((a,t2)::accUnifier) (applyUnifierToConstraints [(a,t2)] rest)
         else if List.member b vars then
-          unify vars accActive ((b,t1)::accUnifier) (applyUnifierToConstraints [(b,t1)] rest)
+          recurse accActive ((b,t1)::accUnifier) (applyUnifierToConstraints [(b,t1)] rest)
         else
-          unify vars (one::accActive) accUnifier rest
+          recurse (one::accActive) accUnifier rest
       (TVar _ a, _) ->
         if List.member a vars then
-          unify vars accActive ((a,t2)::accUnifier) (applyUnifierToConstraints [(a,t2)] rest)
+          recurse accActive ((a,t2)::accUnifier) (applyUnifierToConstraints [(a,t2)] rest)
         else
-          unify vars (one::accActive) accUnifier rest
+          recurse (one::accActive) accUnifier rest
       (_, TVar _ b) ->
         if List.member b vars then
-          unify vars accActive ((b,t1)::accUnifier) (applyUnifierToConstraints [(b,t1)] rest)
+          recurse accActive ((b,t1)::accUnifier) (applyUnifierToConstraints [(b,t1)] rest)
         else
-          unify vars (one::accActive) accUnifier rest
+          recurse (one::accActive) accUnifier rest
 
       -- TODO ids for derived constraints
 
       (TList _ t1' _, TList _ t2' _) ->
         let induced = [(-1, (t1', t2'))] in
-        unify vars accActive accUnifier (induced ++ rest)
+        recurse accActive accUnifier (induced ++ rest)
 
       (TArrow _ ts1 _, TArrow _ ts2 _) ->
         case Utils.maybeZip ts1 ts2 of
           Nothing -> Err "unify TArrow: different arity"
           Just list ->
             let induced = List.map (\raw -> (-1, raw)) list in
-            unify vars accActive accUnifier (induced ++ rest)
+            recurse accActive accUnifier (induced ++ rest)
+
+      (TTuple _ ts1 _ mtRest1 _, TTuple _ ts2 _ mtRest2 _) ->
+        case Utils.maybeZip ts1 ts2 of
+          Nothing -> Err "unify TTuple: different arity"
+          Just list ->
+            let induced = List.map (\raw -> (-1, raw)) list in
+            case (mtRest1, mtRest2) of
+              (Nothing, Nothing) ->
+                recurse accActive accUnifier (induced ++ rest)
+              (Just tRest1, Just tRest2) ->
+                let induced' = (-1, (tRest1, tRest2)) :: induced in
+                recurse accActive accUnifier (induced' ++ rest)
+              _ ->
+                Err "unify TTuple: rest types don't match"
+
+      -- the setup of the TNamed cases is very similar to checkSubtype...
+
+      (TNamed _ a, TNamed _ b) ->
+        let maybeNewGoal =
+          case (expandTypeAlias typeEnv a, expandTypeAlias typeEnv b) of
+            (Just t1', Just t2') -> Just (t1', t2')
+            (Just t1', Nothing)  -> Just (t1', t2 )
+            (Nothing, Just t2')  -> Just (t1 , t2')
+            (Nothing, Nothing)   -> Nothing
+        in
+        case maybeNewGoal of
+          Just (t1',t2') -> let induced = [(-1, (t1', t2'))] in
+                            recurse accActive accUnifier (induced ++ rest)
+          Nothing        -> Err err
+
+      (TNamed _ a, _) ->
+        case expandTypeAlias typeEnv a of
+          Just t1' -> let induced = [(-1, (t1', t2))] in
+                      recurse accActive accUnifier (induced ++ rest)
+          Nothing  -> Err err
+
+      (_, TNamed _ b) ->
+        case expandTypeAlias typeEnv b of
+          Just t2' -> let induced = [(-1, (t1, t2'))] in
+                      recurse accActive accUnifier (induced ++ rest)
+          Nothing  -> Err err
 
       _ ->
-        let err = Utils.spaces <|
-          [ "Unification failure:"
-          , String.trim (unparseType t1)
-          , String.trim (unparseType t2) ]
-        in
         let _ = debugLog "TODO fail rather than continue... " err in
-        unify vars (one::accActive) accUnifier rest
+        recurse (one::accActive) accUnifier rest
         -- Err err
 
 -- TODO may need to apply entire unifier left-to-right
