@@ -11,7 +11,7 @@
   (let center   [(circle 'black' cx cy rCenter)]
   (let frame    [(nStar 'goldenrod' 'darkgray' 3 numSpokes spokeLen 0 rotAngle cx cy)]
   (let spokePts (nPointsOnCircle numSpokes rotAngle cx cy spokeLen)
-  (let cars     (mapi (\[i [x y]] (squareCenter (if (= i 0) 'pink' 'lightgray') x y wCar)) spokePts)
+  (let cars     (mapi (\[i [x y]] (squareByCenter (if (= i 0) 'pink' 'lightgray') x y wCar)) spokePts)
   (let hubcaps  (map (\[x y] (circle 'black' x y rCap)) spokePts)
     (concat [rim cars center frame hubcaps])
 ))))))))

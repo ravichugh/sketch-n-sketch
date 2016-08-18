@@ -12,7 +12,7 @@
   (let cars
     (let wCar 27
     (let wHalfCar (/ wCar 2!)
-    (mapi (\[i [x y]] (squareCenter (if (= 0 i) 'pink' 'lightgray') x y wCar)) spokePts)))
+    (mapi (\[i [x y]] (squareByCenter (if (= 0 i) 'pink' 'lightgray') x y wCar)) spokePts)))
   (concat [rim cars center frame caps])))))))))
 
 (svg wheel)
