@@ -1859,7 +1859,7 @@ widgetsCursorsOrShapes w h model =
 threeVersions w h b1 b2 b3 =
   flowRight w h [(1/6, b1), (2/3, b2), (1/6, b3)]
 
-showRawShapeTools = False
+showRawShapeTools = True
 
 widgetsTools w h model =
   let noFeatures = Set.isEmpty model.selectedFeatures in

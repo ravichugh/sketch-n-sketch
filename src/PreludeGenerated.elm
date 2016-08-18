@@ -360,15 +360,15 @@ prelude =
   (let val (lookupNumAttr shape k)
   (typecase val (Num val) (Null default)))))
 
-(typ lookupPointAttr (-> SVG AttrName (union Point Null)))
-(def lookupPointAttr (\\([_ attrs _] k)
+(typ lookupPointsAttr (-> SVG AttrName (union Points Null)))
+(def lookupPointsAttr (\\([_ attrs _] k)
   (let val (lookup k attrs)
-  (typecase val (Point val) (_ null)))))
+  (typecase val ((List [Num Num]) val) (_ null)))))
 
-(typ lookupPointAttrWithDefault (-> Point SVG AttrName Point))
-(def lookupPointAttrWithDefault (\\(default shape k)
-  (let val (lookupPointAttr shape k)
-  (typecase val (Point val) (Null default)))))
+(typ lookupPointsAttrWithDefault (-> Points SVG AttrName Points))
+(def lookupPointsAttrWithDefault (\\(default shape k)
+  (let val (lookupPointsAttr shape k)
+  (typecase val ((List [Num Num]) val) (Null default)))))
 
 (typ lookupStringAttr (-> SVG AttrName (union String Null)))
 (def lookupStringAttr (\\([_ attrs _] k)
@@ -1134,6 +1134,12 @@ prelude =
   (let yMiddle (+ yMin (* 0.5 (- yMax yMin)))
     [xMiddle yMiddle] )))))))
 
+(typ polygonPoints (-> SVG Points))
+(def polygonPoints (\\shape@[shapeKind _ _]
+  (case shapeKind
+    ('polygon' (lookupPointsAttrWithDefault [] shape 'points'))
+    (_         []))))
+
 (typ allPointsOfPathCmds_ (-> PathCmds (List [(union Num String) (union Num String)])))
 (defrec allPointsOfPathCmds_ (\\cmds (case cmds
   ([]    [])
@@ -1148,7 +1154,7 @@ prelude =
   (['C' x1 y1 x2 y2 x y | rest]
     (append [[x1 y1] [x2 y2] [x y]] (allPointsOfPathCmds_ rest)))
 
-  (_ [(let (debug \"Prelude.allPointsOfPathCmds_: not Nums...\") [-1 -1])])
+  (_ [(let _ (debug \"Prelude.allPointsOfPathCmds_: not Nums...\") [-1 -1])])
 )))
 
 ; (typ allPointsOfPathCmds (-> PathCmds (List Point)))
@@ -1173,7 +1179,7 @@ prelude =
 
 (def rawShape (\\(kind attrs) [kind attrs []]))
 
-(typ rawRect (-> Color Color Num Num Num Num Num Rect))
+(typ rawRect (-> Color Color Num Num Num Num Num Num Rect))
 (def rawRect (\\(fill stroke strokeWidth x y w h rot)
   (let [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))]
   (rotateAround rot cx cy
@@ -1251,6 +1257,7 @@ prelude =
     (ghost (setZones 'none' (circle c2 (+ left (/ width 2)) bot r)))
   ])))))
 
+(typ group (-> Bounds (List SVG) SVG))
 (def group (\\(bounds shapes)
   (let [left top right bot] bounds
   (let pad 15
@@ -1266,6 +1273,7 @@ prelude =
        ; (concat [(fancyBoundingBox bounds) shapes])]))
 
 ; TODO no longer used...
+(typ rotatedRect (-> Color Num Num Num Num Num Rect))
 (def rotatedRect (\\(fill x y w h rot)
   (let [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))]
   (let bounds [x y (+ x w) (+ y h)]
@@ -1283,6 +1291,7 @@ prelude =
   ; (group bounds [shape])
 
 ; TODO no longer used...
+(typ rotatedEllipse (-> Color Num Num Num Num Num Ellipse))
 (def rotatedEllipse (\\(fill cx cy rx ry rot)
   (let bounds [(- cx rx) (- cy ry) (+ cx rx) (+ cy ry)]
   (let shape (rotateAround rot cx cy (ellipse fill cx cy rx ry))
@@ -1290,6 +1299,7 @@ prelude =
 ))))
 
 ; TODO take rot
+(typ oval (-> Color Color Num Bounds BoundedShape))
 (def oval (\\(fill stroke strokeWidth bounds)
   (let [left top right bot] bounds
   (let shape
@@ -1319,6 +1329,7 @@ prelude =
     (1 b)
     (_ (+ a (* pct (- b a)))))))
 
+(typ stretchyPolygon (-> Bounds Color Color Num (List Num) SVG))
 (def stretchyPolygon (\\(bounds fill stroke strokeWidth percentages)
   (let [left top right bot] bounds
   (let [xScale yScale] [(scaleBetween left right) (scaleBetween top bot)]
@@ -1388,6 +1399,7 @@ prelude =
       ; turning off points for now
       ; (pointsOf d)))
 
+(typ evalOffset (-> [Num Num] Num))
 (def evalOffset (\\[base off]
   (case off
     (0 base)
@@ -1399,10 +1411,12 @@ prelude =
 )))
 
 ; expects (f bounds) to be multiple SVGs
+(typ with (-> Bounds (-> Bounds (List SVG)) (List SVG)))
 (def with (\\(bounds f) (f bounds)))
 
   ; (def with (\\(bounds f) [(group bounds (f bounds))]))
 
+(typ star (-> Bounds (List SVG)))
 (def star (\\bounds
   (let [left top right bot] bounds
   (let [width height] [(- right left) (- bot top)]
@@ -1410,6 +1424,7 @@ prelude =
   [(nStar 'lightblue' 'black' 0 6 (min (/ width 2) (/ height 2)) 10 0 cx cy)]
 )))))
 
+(typ blobs (-> (List Blob) SVG))
 (def blobs (\\blobs
   (let modifyBlob (\\[i blob]
     (case blob

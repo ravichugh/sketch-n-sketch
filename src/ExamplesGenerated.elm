@@ -1064,7 +1064,7 @@ ferris =
   (let center   [(circle 'black' cx cy rCenter)]
   (let frame    [(nStar 'goldenrod' 'darkgray' 3 numSpokes spokeLen 0 rotAngle cx cy)]
   (let spokePts (nPointsOnCircle numSpokes rotAngle cx cy spokeLen)
-  (let cars     (mapi (\\[i [x y]] (squareCenter (if (= i 0) 'pink' 'lightgray') x y wCar)) spokePts)
+  (let cars     (mapi (\\[i [x y]] (squareByCenter (if (= i 0) 'pink' 'lightgray') x y wCar)) spokePts)
   (let hubcaps  (map (\\[x y] (circle 'black' x y rCap)) spokePts)
     (concat [rim cars center frame hubcaps])
 ))))))))
@@ -1091,7 +1091,7 @@ ferris2 =
   (let cars
     (let wCar 30
     (let wHalfCar (/ wCar 2!)
-    (map (\\[x y] (squareCenter 'lightgray' x y wCar)) spokePts)))
+    (map (\\[x y] (squareByCenter 'lightgray' x y wCar)) spokePts)))
   (concat [rim cars center frame caps])))))))))
 
 (svg wheel)
@@ -1113,10 +1113,11 @@ ferris2target =
   (let cars
     (let wCar 27
     (let wHalfCar (/ wCar 2!)
-    (mapi (\\[i [x y]] (squareCenter (if (= 0 i) 'pink' 'lightgray') x y wCar)) spokePts)))
+    (mapi (\\[i [x y]] (squareByCenter (if (= 0 i) 'pink' 'lightgray') x y wCar)) spokePts)))
   (concat [rim cars center frame caps])))))))))
 
 (svg wheel)
+
 "
 
 ferrisWheelSlideshow =
@@ -3880,6 +3881,47 @@ blank =
 
 "
 
+horrorFilms0 =
+ "
+; http://www.awwwards.com/gallery/4453/99-creative-logo-designs-for-inspiration/
+
+(def equiTriAt (\\(cx cy color sideLen rot)
+  (let len1 (* sideLen (/ 2! 3!))
+  (let len2 (* sideLen (/ 1! 3!))
+  (let point (circle color cx cy 15!)
+  (let tri (nStar 'none' color 10! 3! len1 len2 rot cx cy)
+  [tri point]
+))))))
+
+(def horror (\\(cx0 cy0 bgColor fgColor rBig rSmall sep)
+
+  (def helper
+    (ghosts (equiTriAt cx0 cy0 60 sep (pi))))
+
+  (def [ snap3 _ snap2 _ snap1 | _ ]
+    (polygonPoints (hd helper)))
+
+  (def backgroundCircle
+    [ (rawCircle bgColor 360 0 cx0 cy0 rBig) ])
+
+  (def foregroundCircle (\\[cx cy]
+    [ (rawCircle fgColor 360 0 cx cy rSmall) ]))
+
+  (concat [
+    backgroundCircle
+    (foregroundCircle snap1)
+    (foregroundCircle snap2)
+    (foregroundCircle snap3)
+    helper
+  ])
+))
+
+(blobs [
+  (horror 220 250 390 499 172 47 139)
+])
+
+"
+
 
 examples =
   [ makeExample "BLANK" blank
@@ -3928,6 +3970,7 @@ examples =
   , makeExample "Haskell.org Logo" haskell
   , makeExample "Cover Logo" cover
   , makeExample "POP-PL Logo" poppl
+  , makeExample "Horror Films" horrorFilms0
   , makeExample "Lillicon P" lilliconP
   , makeExample "Lillicon P, v2" lilliconP2
   , makeExample "Keyboard" keyboard

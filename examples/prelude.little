@@ -357,15 +357,15 @@
   (let val (lookupNumAttr shape k)
   (typecase val (Num val) (Null default)))))
 
-(typ lookupPointAttr (-> SVG AttrName (union Point Null)))
-(def lookupPointAttr (\([_ attrs _] k)
+(typ lookupPointsAttr (-> SVG AttrName (union Points Null)))
+(def lookupPointsAttr (\([_ attrs _] k)
   (let val (lookup k attrs)
-  (typecase val (Point val) (_ null)))))
+  (typecase val ((List [Num Num]) val) (_ null)))))
 
-(typ lookupPointAttrWithDefault (-> Point SVG AttrName Point))
-(def lookupPointAttrWithDefault (\(default shape k)
-  (let val (lookupPointAttr shape k)
-  (typecase val (Point val) (Null default)))))
+(typ lookupPointsAttrWithDefault (-> Points SVG AttrName Points))
+(def lookupPointsAttrWithDefault (\(default shape k)
+  (let val (lookupPointsAttr shape k)
+  (typecase val ((List [Num Num]) val) (Null default)))))
 
 (typ lookupStringAttr (-> SVG AttrName (union String Null)))
 (def lookupStringAttr (\([_ attrs _] k)
@@ -1130,6 +1130,12 @@
   (let xMiddle (+ xMin (* 0.5 (- xMax xMin)))
   (let yMiddle (+ yMin (* 0.5 (- yMax yMin)))
     [xMiddle yMiddle] )))))))
+
+(typ polygonPoints (-> SVG Points))
+(def polygonPoints (\shape@[shapeKind _ _]
+  (case shapeKind
+    ('polygon' (lookupPointsAttrWithDefault [] shape 'points'))
+    (_         []))))
 
 (typ allPointsOfPathCmds_ (-> PathCmds (List [(union Num String) (union Num String)])))
 (defrec allPointsOfPathCmds_ (\cmds (case cmds
