@@ -302,8 +302,9 @@
 (def Color (union String Num RGBA))
 (def PathCmds (List (union String Num)))
 (def Points (List Point))
+(def RotationCmd [[String Num Num Num]])
+(def AttrVal (union String Num Bool Color PathCmds Points RotationCmd))
 (def AttrName String)
-(def AttrVal (union String Num Bool Color PathCmds Points))
 (def AttrPair [AttrName AttrVal])
 (def Attrs (List AttrPair))
 (def NodeKind String)
@@ -1121,6 +1122,7 @@
 
 ; Polygon and Path Helpers
 
+(typ middleOfPoints (-> (List Point) Point))
 (def middleOfPoints (\pts
   (let [xs ys] [(map fst pts) (map snd pts)]
   (let [xMin xMax] [(minimum xs) (maximum xs)]
@@ -1129,27 +1131,46 @@
   (let yMiddle (+ yMin (* 0.5 (- yMax yMin)))
     [xMiddle yMiddle] )))))))
 
-(defrec allPointsOfPathCmds (\cmds (case cmds
+(typ allPointsOfPathCmds_ (-> PathCmds (List [(union Num String) (union Num String)])))
+(defrec allPointsOfPathCmds_ (\cmds (case cmds
   ([]    [])
   (['Z'] [])
 
-  (['M' x y | rest] (cons [x y] (allPointsOfPathCmds rest)))
-  (['L' x y | rest] (cons [x y] (allPointsOfPathCmds rest)))
+  (['M' x y | rest] (cons [x y] (allPointsOfPathCmds_ rest)))
+  (['L' x y | rest] (cons [x y] (allPointsOfPathCmds_ rest)))
 
   (['Q' x1 y1 x y | rest]
-    (append [[x1 y1] [x y]] (allPointsOfPathCmds rest)))
+    (append [[x1 y1] [x y]] (allPointsOfPathCmds_ rest)))
 
   (['C' x1 y1 x2 y2 x y | rest]
-    (append [[x1 y1] [x2 y2] [x y]] (allPointsOfPathCmds rest)))
+    (append [[x1 y1] [x2 y2] [x y]] (allPointsOfPathCmds_ rest)))
 
-  (_ 'ERROR')
+  (_ [(let _ (debug "Prelude.allPointsOfPathCmds_: not Nums...") [-1 -1])])
 )))
+
+; (typ allPointsOfPathCmds (-> PathCmds (List Point)))
+; (def allPointsOfPathCmds (\cmds
+;   (let toNum (\numOrString
+;     (typecase numOrString (Num numOrString) (String -1)))
+;   (map (\[x y] [(toNum x) (toNum y)]) (allPointsOfPathCmds_ cmds)))))
+
+; TODO remove inner annotations and named lambda
+
+(typ allPointsOfPathCmds (-> PathCmds (List Point)))
+(def allPointsOfPathCmds (\cmds
+  (typ toNum (-> (union Num String) Num))
+  (let toNum (\numOrString
+    (typecase numOrString (Num numOrString) (String -1)))
+  (typ foo (-> [(union Num String) (union Num String)] Point))
+  (let foo (\[x y] [(toNum x) (toNum y)])
+  (map foo (allPointsOfPathCmds_ cmds))))))
 
 
 ; Raw Shapes
 
 (def rawShape (\(kind attrs) [kind attrs []]))
 
+(typ rawRect (-> Color Color Num Num Num Num Num Num Rect))
 (def rawRect (\(fill stroke strokeWidth x y w h rot)
   (let [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))]
   (rotateAround rot cx cy
@@ -1157,23 +1178,27 @@
       ['x' x] ['y' y] ['width' w] ['height' h]
       ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ])))))
 
+(typ rawCircle (-> Color Color Num Num Num Num Circle))
 (def rawCircle (\(fill stroke strokeWidth cx cy r)
   (rawShape 'circle' [
     ['cx' cx] ['cy' cy] ['r' r]
     ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ])))
 
+(typ rawEllipse (-> Color Color Num Num Num Num Num Num Ellipse))
 (def rawEllipse (\(fill stroke strokeWidth cx cy rx ry rot)
   (rotateAround rot cx cy
     (rawShape 'ellipse' [
       ['cx' cx] ['cy' cy] ['rx' rx] ['ry' ry]
       ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ]))))
 
+(typ rawPolygon (-> Color Color Num Points Num SVG))
 (def rawPolygon (\(fill stroke w pts rot)
   (let [cx cy] (middleOfPoints pts)
   (rotateAround rot cx cy
     (rawShape 'polygon'
       [ ['fill' fill] ['points' pts] ['stroke' stroke] ['stroke-width' w] ])))))
 
+(typ rawPath (-> Color Color Num PathCmds Num SVG))
 (def rawPath (\(fill stroke w d rot)
   (let [cx cy] (middleOfPoints (allPointsOfPathCmds d))
   (rotateAround rot cx cy
@@ -1183,6 +1208,7 @@
 
 ; Shapes via Bounding Boxes
 
+(typ box (-> Bounds Color Color Num BoundedShape))
 (def box (\(bounds fill stroke strokeWidth)
   (let [x y xw yh] bounds
   ['BOX'
@@ -1192,16 +1218,21 @@
   ])))
 
 ; string fill/stroke/stroke-width attributes to avoid sliders
+(typ hiddenBoundingBox (-> Bounds BoundedShape))
 (def hiddenBoundingBox (\bounds
-  (ghost (box bounds 'transparent' 'transparent' '0'))))
+  ; (ghost (box bounds 'transparent' 'transparent' '0'))))
+  (ghost (box bounds 'transparent' 'transparent' 0))))
 
+(typ simpleBoundingBox (-> Bounds BoundedShape))
 (def simpleBoundingBox (\bounds
   (ghost (box bounds 'transparent' 'darkblue' 1))))
 
+(typ strList (-> (List String) String))
 (def strList
   (let foo (\(x acc) (+ (+ acc (if (= acc '') '' ' ')) (toString x)))
   (foldl foo '')))
 
+(typ fancyBoundingBox (-> Bounds (List SVG)))
 (def fancyBoundingBox (\bounds
   (let [left top right bot] bounds
   (let [width height] [(- right left) (- bot top)]
@@ -1217,6 +1248,7 @@
     (ghost (setZones 'none' (circle c2 (+ left (/ width 2)) bot r)))
   ])))))
 
+(typ group (-> Bounds (List SVG) SVG))
 (def group (\(bounds shapes)
   (let [left top right bot] bounds
   (let pad 15
@@ -1232,6 +1264,7 @@
        ; (concat [(fancyBoundingBox bounds) shapes])]))
 
 ; TODO no longer used...
+(typ rotatedRect (-> Color Num Num Num Num Num Rect))
 (def rotatedRect (\(fill x y w h rot)
   (let [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))]
   (let bounds [x y (+ x w) (+ y h)]
@@ -1239,6 +1272,7 @@
   (group bounds [shape])
 )))))
 
+(typ rectangle (-> Color Color Num Num Bounds Rect))
 (def rectangle (\(fill stroke strokeWidth rot bounds)
   (let [left top right bot] bounds
   (let [cx cy] [(+ left (/ (- right left) 2!)) (+ top (/ (- bot top) 2!))]
@@ -1248,6 +1282,7 @@
   ; (group bounds [shape])
 
 ; TODO no longer used...
+(typ rotatedEllipse (-> Color Num Num Num Num Num Ellipse))
 (def rotatedEllipse (\(fill cx cy rx ry rot)
   (let bounds [(- cx rx) (- cy ry) (+ cx rx) (+ cy ry)]
   (let shape (rotateAround rot cx cy (ellipse fill cx cy rx ry))
@@ -1255,6 +1290,7 @@
 ))))
 
 ; TODO take rot
+(typ oval (-> Color Color Num Bounds BoundedShape))
 (def oval (\(fill stroke strokeWidth bounds)
   (let [left top right bot] bounds
   (let shape
@@ -1284,6 +1320,7 @@
     (1 b)
     (_ (+ a (* pct (- b a)))))))
 
+(typ stretchyPolygon (-> Bounds Color Color Num (List Num) SVG))
 (def stretchyPolygon (\(bounds fill stroke strokeWidth percentages)
   (let [left top right bot] bounds
   (let [xScale yScale] [(scaleBetween left right) (scaleBetween top bot)]
@@ -1353,6 +1390,7 @@
       ; turning off points for now
       ; (pointsOf d)))
 
+(typ evalOffset (-> [Num Num] Num))
 (def evalOffset (\[base off]
   (case off
     (0 base)
@@ -1364,10 +1402,12 @@
 )))
 
 ; expects (f bounds) to be multiple SVGs
+(typ with (-> Bounds (-> Bounds (List SVG)) (List SVG)))
 (def with (\(bounds f) (f bounds)))
 
   ; (def with (\(bounds f) [(group bounds (f bounds))]))
 
+(typ star (-> Bounds (List SVG)))
 (def star (\bounds
   (let [left top right bot] bounds
   (let [width height] [(- right left) (- bot top)]
@@ -1375,6 +1415,7 @@
   [(nStar 'lightblue' 'black' 0 6 (min (/ width 2) (/ height 2)) 10 0 cx cy)]
 )))))
 
+(typ blobs (-> (List Blob) SVG))
 (def blobs (\blobs
   (let modifyBlob (\[i blob]
     (case blob

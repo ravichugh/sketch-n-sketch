@@ -305,8 +305,9 @@ prelude =
 (def Color (union String Num RGBA))
 (def PathCmds (List (union String Num)))
 (def Points (List Point))
+(def RotationCmd [[String Num Num Num]])
+(def AttrVal (union String Num Bool Color PathCmds Points RotationCmd))
 (def AttrName String)
-(def AttrVal (union String Num Bool Color PathCmds Points))
 (def AttrPair [AttrName AttrVal])
 (def Attrs (List AttrPair))
 (def NodeKind String)
@@ -1124,6 +1125,7 @@ prelude =
 
 ; Polygon and Path Helpers
 
+(typ middleOfPoints (-> (List Point) Point))
 (def middleOfPoints (\\pts
   (let [xs ys] [(map fst pts) (map snd pts)]
   (let [xMin xMax] [(minimum xs) (maximum xs)]
@@ -1132,27 +1134,46 @@ prelude =
   (let yMiddle (+ yMin (* 0.5 (- yMax yMin)))
     [xMiddle yMiddle] )))))))
 
-(defrec allPointsOfPathCmds (\\cmds (case cmds
+(typ allPointsOfPathCmds_ (-> PathCmds (List [(union Num String) (union Num String)])))
+(defrec allPointsOfPathCmds_ (\\cmds (case cmds
   ([]    [])
   (['Z'] [])
 
-  (['M' x y | rest] (cons [x y] (allPointsOfPathCmds rest)))
-  (['L' x y | rest] (cons [x y] (allPointsOfPathCmds rest)))
+  (['M' x y | rest] (cons [x y] (allPointsOfPathCmds_ rest)))
+  (['L' x y | rest] (cons [x y] (allPointsOfPathCmds_ rest)))
 
   (['Q' x1 y1 x y | rest]
-    (append [[x1 y1] [x y]] (allPointsOfPathCmds rest)))
+    (append [[x1 y1] [x y]] (allPointsOfPathCmds_ rest)))
 
   (['C' x1 y1 x2 y2 x y | rest]
-    (append [[x1 y1] [x2 y2] [x y]] (allPointsOfPathCmds rest)))
+    (append [[x1 y1] [x2 y2] [x y]] (allPointsOfPathCmds_ rest)))
 
-  (_ 'ERROR')
+  (_ [(let (debug \"Prelude.allPointsOfPathCmds_: not Nums...\") [-1 -1])])
 )))
+
+; (typ allPointsOfPathCmds (-> PathCmds (List Point)))
+; (def allPointsOfPathCmds (\\cmds
+;   (let toNum (\\numOrString
+;     (typecase numOrString (Num numOrString) (String -1)))
+;   (map (\\[x y] [(toNum x) (toNum y)]) (allPointsOfPathCmds_ cmds)))))
+
+; TODO remove inner annotations and named lambda
+
+(typ allPointsOfPathCmds (-> PathCmds (List Point)))
+(def allPointsOfPathCmds (\\cmds
+  (typ toNum (-> (union Num String) Num))
+  (let toNum (\\numOrString
+    (typecase numOrString (Num numOrString) (String -1)))
+  (typ foo (-> [(union Num String) (union Num String)] Point))
+  (let foo (\\[x y] [(toNum x) (toNum y)])
+  (map foo (allPointsOfPathCmds_ cmds))))))
 
 
 ; Raw Shapes
 
 (def rawShape (\\(kind attrs) [kind attrs []]))
 
+(typ rawRect (-> Color Color Num Num Num Num Num Rect))
 (def rawRect (\\(fill stroke strokeWidth x y w h rot)
   (let [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))]
   (rotateAround rot cx cy
@@ -1160,23 +1181,27 @@ prelude =
       ['x' x] ['y' y] ['width' w] ['height' h]
       ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ])))))
 
+(typ rawCircle (-> Color Color Num Num Num Num Circle))
 (def rawCircle (\\(fill stroke strokeWidth cx cy r)
   (rawShape 'circle' [
     ['cx' cx] ['cy' cy] ['r' r]
     ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ])))
 
+(typ rawEllipse (-> Color Color Num Num Num Num Num Num Ellipse))
 (def rawEllipse (\\(fill stroke strokeWidth cx cy rx ry rot)
   (rotateAround rot cx cy
     (rawShape 'ellipse' [
       ['cx' cx] ['cy' cy] ['rx' rx] ['ry' ry]
       ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ]))))
 
+(typ rawPolygon (-> Color Color Num Points Num SVG))
 (def rawPolygon (\\(fill stroke w pts rot)
   (let [cx cy] (middleOfPoints pts)
   (rotateAround rot cx cy
     (rawShape 'polygon'
       [ ['fill' fill] ['points' pts] ['stroke' stroke] ['stroke-width' w] ])))))
 
+(typ rawPath (-> Color Color Num PathCmds Num SVG))
 (def rawPath (\\(fill stroke w d rot)
   (let [cx cy] (middleOfPoints (allPointsOfPathCmds d))
   (rotateAround rot cx cy
@@ -1186,6 +1211,7 @@ prelude =
 
 ; Shapes via Bounding Boxes
 
+(typ box (-> Bounds Color Color Num BoundedShape))
 (def box (\\(bounds fill stroke strokeWidth)
   (let [x y xw yh] bounds
   ['BOX'
@@ -1195,16 +1221,21 @@ prelude =
   ])))
 
 ; string fill/stroke/stroke-width attributes to avoid sliders
+(typ hiddenBoundingBox (-> Bounds BoundedShape))
 (def hiddenBoundingBox (\\bounds
-  (ghost (box bounds 'transparent' 'transparent' '0'))))
+  ; (ghost (box bounds 'transparent' 'transparent' '0'))))
+  (ghost (box bounds 'transparent' 'transparent' 0))))
 
+(typ simpleBoundingBox (-> Bounds BoundedShape))
 (def simpleBoundingBox (\\bounds
   (ghost (box bounds 'transparent' 'darkblue' 1))))
 
+(typ strList (-> (List String) String))
 (def strList
   (let foo (\\(x acc) (+ (+ acc (if (= acc '') '' ' ')) (toString x)))
   (foldl foo '')))
 
+(typ fancyBoundingBox (-> Bounds (List SVG)))
 (def fancyBoundingBox (\\bounds
   (let [left top right bot] bounds
   (let [width height] [(- right left) (- bot top)]
@@ -1242,6 +1273,7 @@ prelude =
   (group bounds [shape])
 )))))
 
+(typ rectangle (-> Color Color Num Num Bounds Rect))
 (def rectangle (\\(fill stroke strokeWidth rot bounds)
   (let [left top right bot] bounds
   (let [cx cy] [(+ left (/ (- right left) 2!)) (+ top (/ (- bot top) 2!))]
