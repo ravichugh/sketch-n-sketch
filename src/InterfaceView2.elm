@@ -718,7 +718,11 @@ maybeColorNumAttr k l =
 
 zoneColor zoneName shapeFeature model id shape x y maybeColor =
   let pred z = isPrimaryZone z || isRotateZone z in
-  case ( Set.member id model.selectedShapes
+  let shapeSelected = Set.member id model.selectedShapes in
+  let featureSelected =
+    Set.member (InterfaceModel.selectedTypeShapeFeature, id, shapeFeature)
+               model.selectedFeatures in
+  case ( shapeSelected || featureSelected
        , objectZoneIsCurrentlyBeingManipulated model id pred
        , maybeColor ) of
     (True, False, Just nt) -> zoneColor_ zoneName shapeFeature model id shape x y nt
@@ -782,7 +786,11 @@ wOpacityBox = 20
 
 zoneOpacity zoneName shapeFeature model id shape x y maybeOpacity =
   let pred z = isPrimaryZone z || isRotateZone z in
-  case ( Set.member id model.selectedShapes
+  let shapeSelected = Set.member id model.selectedShapes in
+  let featureSelected =
+    Set.member (InterfaceModel.selectedTypeShapeFeature, id, shapeFeature)
+               model.selectedFeatures in
+  case ( shapeSelected || featureSelected
        , objectZoneIsCurrentlyBeingManipulated model id pred
        , maybeOpacity ) of
     (True, False, Just nt) -> zoneOpacity_ zoneName shapeFeature model id shape x y nt
@@ -840,7 +848,11 @@ maybeStrokeWidthNumAttr l =
 
 zoneStrokeWidth model id shape x y maybeStrokeWidth =
   let pred z = isPrimaryZone z || isRotateZone z in
-  case ( Set.member id model.selectedShapes
+  let shapeSelected = Set.member id model.selectedShapes in
+  let featureSelected =
+    Set.member (InterfaceModel.selectedTypeShapeFeature, id, LangSvg.shapeStrokeWidth)
+               model.selectedFeatures in
+  case ( shapeSelected || featureSelected
        , objectZoneIsCurrentlyBeingManipulated model id pred
        , maybeStrokeWidth ) of
     (True, False, Just nt) -> zoneStrokeWidth_ model id shape x y nt
