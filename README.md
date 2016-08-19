@@ -115,6 +115,7 @@ Extra parentheses are not permitted.
         |   floor | ceiling | round
         |   toString
         |   sqrt
+        |   explode             : String -> List String
   op2  ::=  + | - | * | /
         |   < | =
         |   mod | pow

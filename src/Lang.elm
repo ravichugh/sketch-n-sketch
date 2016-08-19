@@ -48,6 +48,7 @@ type Op_
   | Floor | Ceil | Round
   | ToStr
   | Sqrt
+  | Explode
   | DebugLog
   --  | DictMem   -- TODO: add this
   -- binary ops
@@ -226,6 +227,7 @@ strOp op = case op of
   Ceil          -> "ceiling"
   Round         -> "round"
   ToStr         -> "toString"
+  Explode       -> "explode"
   Sqrt          -> "sqrt"
   Mod           -> "mod"
   Pow           -> "pow"

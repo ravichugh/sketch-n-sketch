@@ -316,6 +316,9 @@ evalOp env bt opWithInfo es =
           Ceil       -> unaryMathOp op args
           Round      -> unaryMathOp op args
           Sqrt       -> unaryMathOp op args
+          Explode    -> case args of
+            [VBase (VString s)] -> VList (List.map (vStr << String.fromChar) (String.toList s)) |> emptyVTraceOk
+            _                   -> error ()
           DebugLog   -> case vs of
             [v] -> let _ = Debug.log (strVal v) "" in Ok v
             _   -> error ()

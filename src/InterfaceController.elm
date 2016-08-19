@@ -740,6 +740,20 @@ addLambdaToCodeAndRun old (_,pt2) (_,pt1) =
 
   -}
 
+addTextBox old click2 click1 =
+  let (xa, xb, ya, yb) = View.boundingBox (snd click2) (snd click1) in
+  let fontSize =
+    eConst0 (toFloat (yb - ya)) dummyLoc
+    -- withDummyPos (EConst "" (toFloat (yb - ya)) dummyLoc (intSlider 0 128))
+  in
+  addToCodeAndRun "text" old
+    [ makeLet ["fontSize","textVal"] [fontSize, eStr "Text"] ]
+    (eVar0 "simpleText")
+    [ eStr "Tahoma, sans-serif", eStr "black", eVar "fontSize"
+    , eConst (toFloat xa) dummyLoc, eConst (toFloat xb) dummyLoc
+    , eConst (toFloat yb) dummyLoc
+    , eConst 1.5 dummyLoc, eVar "textVal" ]
+
 addToCodeAndRun newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
 
   let tmp = newShapeKind ++ toString old.genSymCount in
@@ -763,6 +777,7 @@ makeNewShapeDef model newShapeKind name locals func args =
         let multi = -- check if (func args) returns List SVG or SVG
           case model.tool of
             Lambda -> True
+            Text -> True
             _ -> False
         in
         if multi then
@@ -2018,6 +2033,8 @@ onMouseUp old =
 
         (Poly _, _, _) -> old
         (Path _, _, _) -> old
+
+        (Text, [pt2, pt1], _) -> addTextBox old pt2 pt1
 
         (_, [], _)     -> switchToCursorTool old
 
