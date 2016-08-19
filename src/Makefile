@@ -1,8 +1,12 @@
+ELMMAKE=elm-make
+  # for locally-modified Elm compiler, create a symlink to something like:
+  # /PATH/TO/elm-make/.stack-work/install/x86_64-osx/lts-3.22/7.10.2/bin/elm-make
+
 all:
-	elm-make Main.elm --output ../build/out/sns.js
+	$(ELMMAKE) Main.elm --output ../build/out/sns.js
 
 html:
-	elm-make Main.elm --output ../build/out/sns.js
+	$(ELMMAKE) Main.elm --output ../build/out/sns.js
 	cp Native/codeBox.js ../build/out/
 	cp Native/aceTooltips.js ../build/out/
 	cp Native/toggleAnimationLoopback.js ../build/out/
