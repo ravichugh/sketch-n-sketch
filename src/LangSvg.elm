@@ -82,7 +82,7 @@ type AVal_
   | AString String
   | APoints (List Point)
   | ARgba Rgba
-  | AColorNum NumTr -- Utils.numToColor [0,500)
+  | AColorNum (NumTr, Maybe NumTr) -- Utils.numToColor [0,500), and opacity
   | APath2 (List PathCmd, PathCounts)
   | ATransform (List TransformCmd)
   | ABounds (NumTr, NumTr, NumTr, NumTr)
@@ -144,7 +144,8 @@ toNum a = case a.av_ of
 
 toNumTr a = case a.av_ of
   ANum (n,t) -> (n,t)
-  AColorNum (n,t) -> (n,t)
+  -- TODO add back in?
+  -- AColorNum (n,t) -> (n,t)
   AString s  ->
     case String.toFloat s of
       Ok n -> (n, dummyTrace)
@@ -174,15 +175,31 @@ valToAttr v = case v.v_ of
      let (k',av_) =
       case (k, v2_) of
         ("points", VList vs)    -> (k, APoints <| List.map valToPoint vs)
-        ("fill", VList vs)      -> (k, ARgba <| valToRgba vs)
-        ("fill", VConst it)     -> (k, AColorNum it)
-        ("stroke", VList vs)    -> (k, ARgba <| valToRgba vs)
-        ("stroke", VConst it)   -> (k, AColorNum it)
+
+        ("fill"  , VList [v1,v2,v3,v4]) -> (k, ARgba <| valToRgba [v1,v2,v3,v4])
+        ("stroke", VList [v1,v2,v3,v4]) -> (k, ARgba <| valToRgba [v1,v2,v3,v4])
+
+        ("fill",   VConst it) -> (k, AColorNum (it, Nothing))
+        ("stroke", VConst it) -> (k, AColorNum (it, Nothing))
+
+        ("fill",   VList [v1,v2]) ->
+          case (v1.v_, v2.v_) of
+            (VConst it1, VConst it2) -> (k, AColorNum (it1, Just it2))
+            _                        -> Debug.crash "valToAttr: fill"
+        ("stroke", VList [v1,v2]) ->
+          case (v1.v_, v2.v_) of
+            (VConst it1, VConst it2) -> (k, AColorNum (it1, Just it2))
+            _                        -> Debug.crash "valToAttr: stroke"
+
         ("d", VList vs)         -> (k, APath2 (valsToPath2 vs))
+
         ("transform", VList vs) -> (k, ATransform (valsToTransform vs))
+
         ("BOUNDS", VList vs)    -> (k, ABounds <| valToBounds vs)
+
         (_, VConst it)          -> (k, ANum it)
         (_, VBase (String s))   -> (k, AString s)
+
         _                       -> Debug.crash "valToAttr"
      in
      (k', AVal av_ v2.vtrace)
@@ -225,11 +242,14 @@ strAVal a = case a.av_ of
   ARgba tup -> strRgba tup
   APath2 p  -> strAPath2 (fst p)
   ATransform l -> Utils.spaces (List.map strTransformCmd l)
-  AColorNum n ->
+  AColorNum (n, Nothing) ->
     -- slight optimization:
     strRgba_ (ColorNum.convert (fst n))
     -- let (r,g,b) = Utils.numToColor maxColorNum (fst n) in
     -- strRgba_ [r,g,b,1]
+  AColorNum (n, Just (opacity, _)) ->
+    let (r,g,b) = Utils.numToColor maxColorNum (fst n) in
+    strRgba_ [toFloat r, toFloat g, toFloat b, opacity]
   ABounds bounds -> strBounds bounds
 
 valOfAVal : AVal -> Val
@@ -239,7 +259,8 @@ valOfAVal a = flip Val a.vtrace <| case a.av_ of
   APoints l    -> VList (List.map pointToVal l)
   ARgba tup    -> VList (rgbaToVal tup)
   APath2 p     -> VList (List.concatMap valsOfPathCmd (fst p))
-  AColorNum nt -> VConst nt
+  AColorNum (nt, Nothing)   -> VConst nt
+  AColorNum (nt1, Just nt2) -> VList [vConst nt1, vConst nt2]
   _            -> Debug.crash "valOfAVal"
 
 valsOfPathCmd c =
@@ -569,6 +590,8 @@ edgeCrosshairs_ shape =
 -- So we can gather them back up into (X,Y) pairs again.
 shapeFill = "fill"
 shapeStroke = "stroke"
+shapeFillOpacity = "fillOpacity"
+shapeStrokeOpacity = "strokeOpacity"
 shapeStrokeWidth = "strokeWidth"
 shapeRotation = "rotation"
 rectTLX = "rectTLX"

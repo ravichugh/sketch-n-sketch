@@ -407,6 +407,8 @@ cursorOfZone zone default = case LangSvg.realZoneOf zone of
   -- indirect manipulation zones
   LangSvg.Z "FillBall"        -> cursorStyle "pointer"
   LangSvg.Z "StrokeBall"      -> cursorStyle "pointer"
+  LangSvg.Z "FillOpacityBall"   -> cursorStyle "pointer"
+  LangSvg.Z "StrokeOpacityBall" -> cursorStyle "pointer"
   LangSvg.Z "StrokeWidthBall" -> cursorStyle "pointer"
   LangSvg.Z "RotateBall"      -> cursorStyle "pointer"
   LangSvg.Z "SliderBall"      -> cursorStyle "pointer"
@@ -417,6 +419,8 @@ isPrimaryZone zone =
   case zone of
     "FillBall"        -> False
     "StrokeBall"      -> False
+    "FillOpacityBall"   -> False
+    "StrokeOpacityBall" -> False
     "StrokeWidthBall" -> False
     "RotateBall"      -> False
     "SliderBall"      -> False
@@ -426,6 +430,8 @@ isFillStrokeZone zone =
   case zone of
     "FillBall"        -> True
     "StrokeBall"      -> True
+    "FillOpacityBall"   -> True
+    "StrokeOpacityBall" -> True
     "StrokeWidthBall" -> True
     _                 -> False
 
@@ -671,18 +677,26 @@ boundingBoxOfPoints pts =
 --------------------------------------------------------------------------------
 
 zonesStroke model id shape x y l =
-  let x' = x + wGradient + 5
-      y' = y
-  in
-  zoneStrokeColor model id shape x  y  (maybeColorNumAttr "stroke" l) ++
-  zoneStrokeWidth model id shape x' y' (maybeStrokeWidthNumAttr l)
+  let (maybeColor, maybeOpacity) = maybeColorNumAttr "stroke" l in
+  let maybeStrokeWidth = maybeStrokeWidthNumAttr l in
+  zoneStrokeOpacity model id shape (x - wOpacityBox - 5) y maybeOpacity ++
+  zoneStrokeColor model id shape x y maybeColor ++
+  zoneStrokeWidth model id shape (x + wGradient + 5) y maybeStrokeWidth
+
+zonesFill model id shape x y l =
+  let (maybeColor, maybeOpacity) = maybeColorNumAttr "fill" l in
+  zoneFillOpacity model id shape (x - wOpacityBox - 5) y maybeOpacity ++
+  zoneFillColor model id shape x y maybeColor
 
 zonesFillAndStroke model id shape x y l =
-  zoneFillColor model id shape x y (maybeColorNumAttr "fill" l) ++
-  zonesStroke model id shape x (y-20-5) l
+  zonesFill model id shape x y l ++
+  zonesStroke model id shape x (y - hZoneColor - 5) l
 
 zoneFillColor   = zoneColor "FillBall" LangSvg.shapeFill
 zoneStrokeColor = zoneColor "StrokeBall" LangSvg.shapeStroke
+
+zoneFillOpacity   = zoneOpacity "FillOpacityBall" LangSvg.shapeFillOpacity
+zoneStrokeOpacity = zoneOpacity "StrokeOpacityBall" LangSvg.shapeStrokeOpacity
 
 
 -- Stuff for Color Zones -------------------------------------------------------
@@ -690,15 +704,17 @@ zoneStrokeColor = zoneColor "StrokeBall" LangSvg.shapeStroke
 wGradient = 250
 scaleColorBall = 1 / (wGradient / LangSvg.maxColorNum)
 
+hZoneColor = 20
+
 numToColor = Utils.numToColor wGradient
 
-maybeColorNumAttr : String -> List LangSvg.Attr -> Maybe NumTr
+maybeColorNumAttr : String -> List LangSvg.Attr -> (Maybe NumTr, Maybe NumTr)
 maybeColorNumAttr k l =
   case Utils.maybeFind k l of
     Just aval -> case aval.av_ of
-      LangSvg.AColorNum n -> Just n
-      _                   -> Nothing
-    _                     -> Nothing
+      LangSvg.AColorNum (nt, maybeOpacity) -> (Just nt, maybeOpacity)
+      _                                    -> (Nothing, Nothing)
+    _                                      -> (Nothing, Nothing)
 
 zoneColor zoneName shapeFeature model id shape x y maybeColor =
   let pred z = isPrimaryZone z || isRotateZone z in
@@ -712,7 +728,7 @@ zoneColor_ : LangSvg.Zone -> LangSvg.ShapeFeature
           -> Model -> NodeId -> ShapeKind -> Num -> Num -> NumTr -> List Svg.Svg
 zoneColor_ zoneName shapeFeature model id shape x y (n, trace) =
   let (w, h, a, stroke, strokeWidth, rBall) =
-      (wGradient, 20, 20, "silver", "2", "7") in
+      (wGradient, hZoneColor, 20, "silver", "2", "7") in
   let yOff = a + rotZoneDelta in
   let typeAndNodeIdAndFeature = (InterfaceModel.selectedTypeShapeFeature, id, shapeFeature) in
   let ball =
@@ -753,6 +769,58 @@ zoneColor_ zoneName shapeFeature model id shape x y (n, trace) =
   [ Svg.g
       [onMouseDownAndStop (toggleSelected [typeAndNodeIdAndFeature])]
       (gradient () ++ [box])
+  , ball
+  ]
+
+
+-- Stuff for Color Opacity Zones -----------------------------------------------
+
+wOpacityBox = 20
+-- scaleOpacityBall = 1 / wOpacityBox
+
+-- TODO could abstract the zoneColor, zoneOpacity, and zoneStrokeWidth sliders
+
+zoneOpacity zoneName shapeFeature model id shape x y maybeOpacity =
+  let pred z = isPrimaryZone z || isRotateZone z in
+  case ( Set.member id model.selectedShapes
+       , objectZoneIsCurrentlyBeingManipulated model id pred
+       , maybeOpacity ) of
+    (True, False, Just nt) -> zoneOpacity_ zoneName shapeFeature model id shape x y nt
+    _                      -> []
+
+zoneOpacity_
+   : LangSvg.Zone -> LangSvg.ShapeFeature
+  -> Model -> NodeId -> ShapeKind -> Num -> Num -> NumTr -> List Svg.Svg
+zoneOpacity_ zoneName shapeFeature model id shape x y (n, trace) =
+  let (w, h, a, stroke, strokeWidth, rBall) =
+      (wOpacityBox, 20, 20, "silver", "2", "7") in
+  let yOff = a + rotZoneDelta in
+  let typeAndNodeIdAndFeature = (InterfaceModel.selectedTypeShapeFeature, id, shapeFeature) in
+  let ball =
+    let cx = x + n * wOpacityBox in
+    let cy = y - yOff + (h/2) in
+    flip Svg.circle [] <|
+      [ LangSvg.attr "stroke" "black" , LangSvg.attr "stroke-width" strokeWidth
+      , LangSvg.attr "fill" stroke
+      , LangSvg.attr "cx" (toString cx) , LangSvg.attr "cy" (toString cy)
+      , LangSvg.attr "r"  rBall
+      , cursorOfZone zoneName "default"
+      ] ++ zoneEvents id shape zoneName
+  in
+  let box =
+    flip Svg.rect [] <|
+      [ LangSvg.attr "fill" <|
+          if Set.member typeAndNodeIdAndFeature model.selectedFeatures
+            then colorPointSelected
+            else "white" -- colorPointNotSelected
+      , LangSvg.attr "stroke" stroke , LangSvg.attr "stroke-width" strokeWidth
+      , LangSvg.attr "x" (toString x) , LangSvg.attr "y" (toString (y - yOff))
+      , LangSvg.attr "width" (toString w) , LangSvg.attr "height" (toString h)
+      ]
+  in
+  [ Svg.g
+      [onMouseDownAndStop (toggleSelected [typeAndNodeIdAndFeature])]
+      ([box])
   , ball
   ]
 
