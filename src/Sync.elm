@@ -1278,6 +1278,22 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v.v_ of
             let ee = ("stroke", ("StrokeBall", tr)) :: extraextra in
             (extra, ee, Dict.insert "stroke" tr dAttrs)
 
+          [VBase (String "fill"), VList [v1, v2]] ->
+            case (v1.v_, v2.v_) of
+              (VConst (_,tr1), VConst (_,tr2)) ->
+                let ee = ("fill", ("FillBall", tr1)) ::
+                         ("fillOpacity", ("FillOpacityBall", tr2)) :: extraextra in
+                (extra, ee, Dict.insert "fillOpacity" tr2 (Dict.insert "fill" tr1 dAttrs))
+              _ -> Debug.crash "nodeToAttrLocs_"
+
+          [VBase (String "stroke"), VList [v1, v2]] ->
+            case (v1.v_, v2.v_) of
+              (VConst (_,tr1), VConst (_,tr2)) ->
+                let ee = ("stroke", ("StrokeBall", tr1)) ::
+                         ("strokeOpacity", ("StrokeOpacityBall", tr2)) :: extraextra in
+                (extra, ee, Dict.insert "strokeOpacity" tr2 (Dict.insert "stroke" tr1 dAttrs))
+              _ -> Debug.crash "nodeToAttrLocs_"
+
           [VBase (String "stroke-width"), VConst (_,tr)] ->
             let ee = ("stroke-width", ("StrokeWidthBall", tr)) :: extraextra in
             (extra, ee, Dict.insert "stroke-width" tr dAttrs)
@@ -1446,6 +1462,8 @@ getZones kind extra ee =
 widgetZones = List.map <| \x -> case x of
   ("fill"         , ("FillBall"   , _)) -> ("FillBall"   , ["fill"])
   ("stroke"       , ("StrokeBall" , _)) -> ("StrokeBall" , ["stroke"])
+  ("fillOpacity"  , ("FillOpacityBall"   , _)) -> ("FillOpacityBall"   , ["fillOpacity"])
+  ("strokeOpacity", ("StrokeOpacityBall" , _)) -> ("StrokeOpacityBall" , ["strokeOpacity"])
   ("stroke-width" , ("StrokeWidthBall" , _)) -> ("StrokeWidthBall" , ["stroke-width"])
   ("transformRot" , ("RotateBall" , _)) -> ("RotateBall" , ["transformRot"])
   _                                     -> Debug.crash "widgetZones"
@@ -1722,6 +1740,18 @@ makeTrigger_ opts d0 d2 slate subst id kind zone =
         let (n,t) = getAColorNum slate id "stroke" in
         let n' = LangSvg.clampColorNum (n + scaleColorBall * toFloat dx) in
         solveOne "stroke" (n', t)
+
+    (_, "FillOpacityBall")   ->
+      \_ (dx,dy) ->
+        let (n,t) = getAColorNumOpacity slate id "fill" in
+        let n' = Utils.clamp 0.0 1.0 (n + scaleOpacityBall * toFloat dx) in
+        solveOne "fillOpacity" (n', t)
+
+    (_, "StrokeOpacityBall")   ->
+      \_ (dx,dy) ->
+        let (n,t) = getAColorNumOpacity slate id "stroke" in
+        let n' = Utils.clamp 0.0 1.0 (n + scaleOpacityBall * toFloat dx) in
+        solveOne "strokeOpacity" (n', t)
 
     (_, "StrokeWidthBall") ->
       \_ (dx,dy) ->
@@ -2059,8 +2089,13 @@ getATransformRot = getAVal <| \aval ->
 
 getAColorNum = getAVal <| \aval ->
   case aval.av_ of
-    AColorNum nt -> nt
-    _            -> Debug.crash "getAColorNum"
+    AColorNum (nt, _) -> nt
+    _                 -> Debug.crash "getAColorNum"
+
+getAColorNumOpacity = getAVal <| \aval ->
+  case aval.av_ of
+    AColorNum (_, Just nt) -> nt
+    _                      -> Debug.crash "getAColorNumOpacity"
 
 getAVal foo slate i attrName =
   case Dict.get i slate of
@@ -2127,6 +2162,8 @@ scaleColorBall = 1 / (wGradient / LangSvg.maxColorNum)
 wStrokeWidthBox = 60
 scaleStrokeWidthBall = 1 / (wStrokeWidthBox / LangSvg.maxStrokeWidthNum)
 
+wOpacityBox = 20
+scaleOpacityBall = 1 / wOpacityBox
 
 ------------------------------------------------------------------------------
 
