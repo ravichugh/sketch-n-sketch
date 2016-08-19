@@ -122,6 +122,7 @@ LITTLE_TO_ELM spiralSpiralGraph
 -- LITTLE_TO_ELM relatePoints4
 LITTLE_TO_ELM blank
 LITTLE_TO_ELM horrorFilms0
+LITTLE_TO_ELM cyclingAssociation0
 
 examples =
   [ makeExample "BLANK" blank
@@ -171,6 +172,7 @@ examples =
   , makeExample "Cover Logo" cover
   , makeExample "POP-PL Logo" poppl
   , makeExample "Horror Films" horrorFilms0
+  , makeExample "Cycling Association" cyclingAssociation0
   , makeExample "Lillicon P" lilliconP
   , makeExample "Lillicon P, v2" lilliconP2
   , makeExample "Keyboard" keyboard
