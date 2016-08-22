@@ -339,6 +339,15 @@ makeEqual__ originalExp featureAEqn featureBEqn syncOptions =
       (equationLocs syncOptions featureAEqn) ++
       (equationLocs syncOptions featureBEqn)
   in
+  makeEqual___
+      originalExp
+      (featureEquationToLocEquation featureAEqn)
+      (featureEquationToLocEquation featureBEqn)
+      unfrozenLocset
+      syncOptions
+
+
+makeEqual___ originalExp locEquationA locEquationB unfrozenLocset syncOptions =
   let subst = substOf originalExp in
   let frozenLocIdToNum =
     ((frozenLocIdsAndNumbers originalExp) ++
@@ -351,7 +360,7 @@ makeEqual__ originalExp featureAEqn featureBEqn syncOptions =
         Nothing
 
       (locId, _, _)::rest ->
-        case solveForLoc locId frozenLocIdToNum subst featureAEqn featureBEqn of
+        case solveForLoc locId frozenLocIdToNum subst locEquationA locEquationB of
           Nothing ->
             findSolution rest
 
@@ -750,32 +759,26 @@ equationLocs syncOptions eqn =
 -- Must be linear in the locId solved for.
 --
 -- Convert to just locIds (variables) and constants
-solveForLoc : LocId -> Dict.Dict LocId Num -> Subst -> FeatureEquation -> FeatureEquation -> Maybe LocEquation
+solveForLoc : LocId -> Dict.Dict LocId Num -> Subst -> LocEquation -> LocEquation -> Maybe LocEquation
 solveForLoc locId locIdToNum subst lhs rhs =
-  -- Feature equation contains feature operations and trace operations.
-  -- Normalize to simple equations on locIds (variables).
-  let
-    lhs' = featureEquationToLocEquation lhs
-    rhs' = featureEquationToLocEquation rhs
-  in
   let maybeEqn =
     -- Help out the silly simplifier.
-    case maybeExtractUnsharedExpression rhs' lhs' of
+    case maybeExtractUnsharedExpression rhs lhs of
       Nothing ->
         Nothing
 
-      Just (lhs'', rhs'') ->
+      Just (lhs', rhs') ->
         -- We will duplicate frozen constants into the little equation
         -- string. Otherwise, math values like 0, 1, 2 get assigned to
         -- variable names.
         let
-          lhs''' = constantifyLocs locIdToNum lhs''
-          rhs''' = constantifyLocs locIdToNum rhs''
+          lhs'' = constantifyLocs locIdToNum lhs'
+          rhs'' = constantifyLocs locIdToNum rhs'
         in
         -- Transform   rhs' - lhs' = 0
         -- to          coeff*x^pow + rest = 0
         -- where x is our target loc
-        case locEqnTerms locId (LocEqnOp Minus [lhs''', rhs''']) of
+        case locEqnTerms locId (LocEqnOp Minus [lhs'', rhs'']) of
           Just (locPow, locCoeff, rest) ->
             if locPow == 0 || locCoeff == LocEqnConst 0 then
               Nothing

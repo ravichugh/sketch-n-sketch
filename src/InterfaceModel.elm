@@ -75,6 +75,7 @@ type alias Model =
   , hoveredCrosshairs : Set.Set (NodeId, ShapeFeature, ShapeFeature)
   , selectedShapes : Set.Set NodeId
   , selectedFeatures : Set.Set (SelectedType, NodeId, ShapeFeature)
+  , maybeZoneToRelate : Maybe (NodeId, Zone)
   -- line/g ids assigned by blobs function
   , selectedBlobs : Dict.Dict Int NodeId
   , keysDown : List Char.KeyCode
@@ -172,6 +173,7 @@ type Event = SelectObject Int ShapeKind Zone
            | SelectOption PossibleChange
            | CancelSync
            | RelateAttrs -- not using UpdateModel, since want to define handler in Controller
+           | RelateIdea Idea
            | DigHole
            | MakeEqual
            | MakeEquidistant
@@ -328,6 +330,7 @@ sampleModel =
     , hoveredCrosshairs = Set.empty
     , selectedShapes = Set.empty
     , selectedFeatures = Set.empty
+    , maybeZoneToRelate = Nothing
     , selectedBlobs = Dict.empty
     , keysDown      = []
     , randomColor   = 100

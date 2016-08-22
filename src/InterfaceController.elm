@@ -1985,15 +1985,25 @@ onMouseUp old =
   case (old.mode, old.mouseMode) of
 
     (Print _, _) -> old
-    (_, MouseObject i k z (Just _)) ->
+    (_, MouseObject id kind zone (Just _)) ->
       -- 8/10: re-parsing to get new position info after live sync-ing
       -- TODO: could update positions within highlightChanges
       -- TODO: update inputVal?
       let e = Utils.fromOkay "onMouseUp" <| parseE old.code in
       let old' = { old | inputExp = e } in
-      refreshHighlights i z
-        { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
-               , history = addToHistory old.code old'.history }
+      let newModel =
+        refreshHighlights id zone
+            { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
+                   , history = addToHistory old.code old'.history }
+      in
+      let ideas = Brainstorm.possibleRelationsWith newModel.inputExp newModel.slate id zone in
+      let maybeZoneToRelate =
+        -- Is relating supported on this zone?
+        case Brainstorm.shapeZoneToFunctionName kind zone of
+          Just _  -> Just (id, zone)
+          Nothing -> Nothing
+      in
+      { newModel | ideas = ideas, maybeZoneToRelate = maybeZoneToRelate }
 
     (_, MouseSlider _ (Just _)) ->
       let e = Utils.fromOkay "onMouseUp" <| parseE old.code in
@@ -2239,6 +2249,27 @@ upstate evt old =
               , syncSelectTime = 0.0
               }
 
+    RelateIdea idea ->
+      case old.maybeZoneToRelate of
+        Nothing -> old
+        Just zoneToRelate ->
+          let newExp =
+            Brainstorm.relate
+                old.inputExp
+                idea
+                zoneToRelate
+                old.slideNumber
+                old.movieNumber
+                old.movieTime
+                old.syncOptions
+          in
+          -- Clean code will take care of running the new code and updating the model
+          upstate CleanCode <|
+            { old | code              = unparse newExp
+                  , selectedFeatures  = Set.empty
+                  , maybeZoneToRelate = Nothing
+            }
+
     DigHole ->
       let newExp =
         ValueBasedTransform.digHole old.inputExp old.selectedFeatures old.slate old.syncOptions
@@ -2268,21 +2299,11 @@ upstate evt old =
             old.movieTime
             old.syncOptions
       in
-      runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
-        upstate CleanCode <|
-        debugLog "new model" <|
-          { old | code             = newCode
-                , inputExp         = newExp
-                , inputVal         = newVal
-                , ideas            = if newVal == old.inputVal then old.ideas else []
-                , history          = addToHistory old.code old.history
-                , slate            = newSlate
-                , widgets          = newWidgets
-                , previewCode      = Nothing
-                , mode             = Utils.fromOk "MakeEqual MkLive" <| mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal -- we already ran it successfully once so it shouldn't crash the second time
-                , selectedFeatures = Set.empty
-          }
-      )
+      -- Clean code will take care of running the new code and updating the model
+      upstate CleanCode <|
+        { old | code             = unparse newExp
+              , selectedFeatures = Set.empty
+        }
 
     MakeEquidistant ->
       let newExp =
@@ -2590,7 +2611,7 @@ upstate evt old =
     CleanCode ->
       case parseE old.code of
         Err (err, _) ->
-          { old | caption = Just (LangError ("PARSE ERROR!\n" ++ err)) }
+          { old | errorBox = Just ("PARSE ERROR!\n" ++ err) }
         Ok reparsed ->
           let cleanedExp =
             reparsed
@@ -2599,15 +2620,22 @@ upstate evt old =
             |> LangTransform.removeExtraPostfixes ["_orig", "'"]
             |> freshen
           in
-          let code' = unparse cleanedExp in
-          let history' =
-            if old.code == code'
-              then old.history
-              else addToHistory code' old.history
-          in
-          let _ = debugLog "Cleaned: " code' in
-          let newModel = { old | inputExp = cleanedExp, code = code', history = history' } in
-          newModel
+
+          runWithErrorHandling old cleanedExp (\newVal newWidgets newSlate newCode ->
+            debugLog "new model" <|
+            { old | code        = newCode
+                  , inputExp    = cleanedExp
+                  , inputVal    = newVal
+                  , ideas       = if newVal == old.inputVal then old.ideas else []
+                  , history     = addToHistory old.code old.history
+                  , slate       = newSlate
+                  , widgets     = newWidgets
+                  , previewCode = Nothing
+                  , mode        = Utils.fromOk "CleanCode mkLive" <| mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime cleanedExp newVal -- already ran once, shouldn't crash here
+                  , errorBox    = Nothing
+                  , caption     = Nothing
+            }
+          )
 
     -- Elm does not have function equivalence/pattern matching, so we need to
     -- thread these events through upstate in order to catch them to rerender

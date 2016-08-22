@@ -341,12 +341,15 @@ toggleSelectedWidget locId =
 buildSvgIdeas ideas =
   ideas
   |> List.map
-      (\(((x,_),(y,_)), depth, _) ->
+      (\idea ->
+        let (((x,_),(y,_)), depth, _) = idea in
         flip Svg.circle [] <|
-          [ attr "fill" "none"
+          [ attr "fill" "rgba(255,255,255,0.5)"
           , attr "stroke" ("rgba(0,0,40," ++ (toString (1.0 / (2^(toFloat depth)))) ++ ")") , attr "stroke-width" "1px"
-          , attr "r" "3"
+          , attr "r" "6"
           , attr "cx" (toString x) , attr "cy" (toString y)
+          , cursorStyle "pointer"
+          , onMouseDown (RelateIdea idea)
           ]
       )
   |> Svg.svg []

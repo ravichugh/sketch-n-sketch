@@ -446,29 +446,57 @@
   (* 2 (circleRadius circle))
 ))
 
-(typ circleNorth (-> Circle Point))
-(def circleNorth (\circle
+(typ circleLeftTop (-> Circle Point))
+(def circleLeftTop (\circle
+  (let [cx cy] (circleCenter circle)
+    [(- cx (circleRadius circle)) (- cy (circleRadius circle))]
+  )
+))
+
+(typ circleCenterTop (-> Circle Point))
+(def circleCenterTop (\circle
   (let [cx cy] (circleCenter circle)
     [cx (- cy (circleRadius circle))]
   )
 ))
 
-(typ circleEast (-> Circle Point))
-(def circleEast (\circle
+(typ circleRightTop (-> Circle Point))
+(def circleRightTop (\circle
+  (let [cx cy] (circleCenter circle)
+    [(+ cx (circleRadius circle)) (- cy (circleRadius circle))]
+  )
+))
+
+(typ circleRightCenter (-> Circle Point))
+(def circleRightCenter (\circle
   (let [cx cy] (circleCenter circle)
     [(+ cx (circleRadius circle)) cy]
   )
 ))
 
-(typ circleSouth (-> Circle Point))
-(def circleSouth (\circle
+(typ circleRightBot (-> Circle Point))
+(def circleRightBot (\circle
+  (let [cx cy] (circleCenter circle)
+    [(+ cx (circleRadius circle)) (+ cy (circleRadius circle))]
+  )
+))
+
+(typ circleCenterBot (-> Circle Point))
+(def circleCenterBot (\circle
   (let [cx cy] (circleCenter circle)
     [cx (+ cy (circleRadius circle))]
   )
 ))
 
-(typ circleWest (-> Circle Point))
-(def circleWest (\circle
+(typ circleLeftBot (-> Circle Point))
+(def circleLeftBot (\circle
+  (let [cx cy] (circleCenter circle)
+    [(- cx (circleRadius circle)) (+ cy (circleRadius circle))]
+  )
+))
+
+(typ circleLeftCenter (-> Circle Point))
+(def circleLeftCenter (\circle
   (let [cx cy] (circleCenter circle)
     [(- cx (circleRadius circle)) cy]
   )
@@ -524,29 +552,57 @@
   (* 2 (ellipseRadiusY ellipse))
 ))
 
-(typ ellipseNorth (-> Ellipse Point))
-(def ellipseNorth (\ellipse
+(typ ellipseLeftTop (-> Ellipse Point))
+(def ellipseLeftTop (\ellipse
+  (let [cx cy] (ellipseCenter ellipse)
+    [(- cx (ellipseRadiusX ellipse)) (- cy (ellipseRadiusY ellipse))]
+  )
+))
+
+(typ ellipseCenterTop (-> Ellipse Point))
+(def ellipseCenterTop (\ellipse
   (let [cx cy] (ellipseCenter ellipse)
     [cx (- cy (ellipseRadiusY ellipse))]
   )
 ))
 
-(typ ellipseEast (-> Ellipse Point))
-(def ellipseEast (\ellipse
+(typ ellipseRightTop (-> Ellipse Point))
+(def ellipseRightTop (\ellipse
+  (let [cx cy] (ellipseCenter ellipse)
+    [(+ cx (ellipseRadiusX ellipse)) (- cy (ellipseRadiusY ellipse))]
+  )
+))
+
+(typ ellipseRightCenter (-> Ellipse Point))
+(def ellipseRightCenter (\ellipse
   (let [cx cy] (ellipseCenter ellipse)
     [(+ cx (ellipseRadiusX ellipse)) cy]
   )
 ))
 
-(typ ellipseSouth (-> Ellipse Point))
-(def ellipseSouth (\ellipse
+(typ ellipseRightBot (-> Ellipse Point))
+(def ellipseRightBot (\ellipse
+  (let [cx cy] (ellipseCenter ellipse)
+    [(+ cx (ellipseRadiusX ellipse)) (+ cy (ellipseRadiusY ellipse))]
+  )
+))
+
+(typ ellipseCenterBot (-> Ellipse Point))
+(def ellipseCenterBot (\ellipse
   (let [cx cy] (ellipseCenter ellipse)
     [cx (+ cy (ellipseRadiusY ellipse))]
   )
 ))
 
-(typ ellipseWest (-> Ellipse Point))
-(def ellipseWest (\ellipse
+(typ ellipseLeftBot (-> Ellipse Point))
+(def ellipseLeftBot (\ellipse
+  (let [cx cy] (ellipseCenter ellipse)
+    [(- cx (ellipseRadiusX ellipse)) (+ cy (ellipseRadiusY ellipse))]
+  )
+))
+
+(typ ellipseLeftCenter (-> Ellipse Point))
+(def ellipseLeftCenter (\ellipse
   (let [cx cy] (ellipseCenter ellipse)
     [(- cx (ellipseRadiusX ellipse)) cy]
   )

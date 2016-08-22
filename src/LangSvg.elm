@@ -555,22 +555,25 @@ cardinalAbbreviation shape zone =
       then mx
       else Nothing
   in
-  case (shape, zone) of
-    (_, "TopLeftCorner")  -> ifBoxy shape (Just "TL")
-    (_, "TopRightCorner") -> ifBoxy shape (Just "TR")
-    (_, "BotLeftCorner")  -> ifBoxy shape (Just "BL")
-    (_, "BotRightCorner") -> ifBoxy shape (Just "BR")
-    (_, "LeftEdge")       -> Just "CL"
-    (_, "RightEdge")      -> Just "CR"
-    (_, "TopEdge")        -> Just "TC"
-    (_, "BotEdge")        -> Just "BC"
-    _                     -> Nothing
+  let suffix =
+    case (shape, zone) of
+        (_, "TopLeftCorner")  -> ifBoxy shape (Just "TL")
+        (_, "TopRightCorner") -> ifBoxy shape (Just "TR")
+        (_, "BotLeftCorner")  -> ifBoxy shape (Just "BL")
+        (_, "BotRightCorner") -> ifBoxy shape (Just "BR")
+        (_, "LeftEdge")       -> Just "CL"
+        (_, "RightEdge")      -> Just "CR"
+        (_, "TopEdge")        -> Just "TC"
+        (_, "BotEdge")        -> Just "BC"
+        _                     -> Nothing
+  in
+  suffix |> Maybe.map (\suffix -> String.toLower shape ++ suffix)
 
 cardinalCrosshair shape zone =
   Utils.bindMaybe
     (\abbrv ->
-      let xFeatureName = String.toLower shape ++ abbrv ++ "X" in
-      let yFeatureName = String.toLower shape ++ abbrv ++ "Y" in
+      let xFeatureName = abbrv ++ "X" in
+      let yFeatureName = abbrv ++ "Y" in
       Just (xFeatureName, yFeatureName))
     (cardinalAbbreviation shape zone)
 
