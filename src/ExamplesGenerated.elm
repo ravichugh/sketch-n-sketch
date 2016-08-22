@@ -3851,7 +3851,7 @@ blank =
 
 "
 
-verticalBarChart =
+verticalBarChartv1 =
  "
 ; QUESTIONS: 
 ; 1. can lists contain multiple types (number and string)? 
@@ -3903,8 +3903,13 @@ verticalBarChart =
 ; similar to positioning in HTML and CSS 
 (def rect_left 150!)
 (def rect_bot 500!)
-(def width 35!{10-100}) ; let width change if user edits bars 
-(def gap (* (/ 100!{0-100} 100!) width)) ; don't let gap between bars change unless slider value changes 
+(def width 34!{10-100}) ; let width change if user edits bars 
+; don't let the gap between bars change unless slider value changes
+; gap is defined as a percentage of the width 
+; so if the \"spacing\" slider says \"100\", it means 100% of width 
+(def gap 
+    (let spacing 100!{0-100}
+    (* (/ spacing 100!) width)))
 
 ; round maxD to nearest 10th (that is >= to maxD): 
 (def maxGraph 
@@ -4074,6 +4079,2563 @@ verticalBarChart =
     (append (concat XLabels)
     (append (concat DataNumbers)
     (concat Bars))))))))
+"
+
+verticalBarChartv2 =
+ "
+; QUESTIONS: 
+
+; this version (version 2) will be the \"lerped\" version 
+; change size of the chart by clicking on the rectangle
+
+
+; TODO: 
+
+
+; ENTER DATA VALUES HERE ---------->
+
+(def data [90 170 144 200 215 150 120 90])
+(def categorical_data ['Case 1' 'Case 2' 'Case 3' 'Case 4' 'Case 5'
+    'Case 6' 'Case 7' 'Case 8'])
+
+(def title_text 'Title Here')
+(def xaxis_text 'X Label')
+(def yaxis_text 'Y Label')
+
+(def title_on true)
+(def xaxis_label_on true)
+(def yaxis_label_on true)
+
+(def xaxis_on true)
+(def yaxis_on true)
+
+(def xaxis_ticks_on true)
+(def yaxis_ticks_on true)
+(def yaxis_number_of_ticks 5!)
+
+(def numbers_above_bars_on true)
+
+(def bar_color 246{0-499})
+(def bar_stroke_width 1!)
+(def bar_stroke_color 400{0-499})
+
+(def background_color 475{0-499})
+
+(def axis_color 400{0-499})
+(def axis_width 1!)
+
+(def tick_color 400{0-499})
+(def tick_width 1!)
+
+(def fit_xlabels_to_bar_width false)
+
+; DEFINE DATA FUNCTIONS ---------->
+
+(def lerp (\\(w [a b])
+    (+ (* (- 1 w) a) (* w b))))
+
+(def unlerp (\\(x [x0 x1])
+    (/ (- x x0) (- x1 x0))))
+
+; DEFINE CONSTANTS ---------->
+
+; Find maximum and minimum points of data 
+(def maxD (maximum data))
+(def minD (minimum data))
+
+; round maxD to nearest 10th (that is >= to maxD): 
+(def maxGraph 
+    (let remainder (mod maxD 10!)
+    (if (= remainder 0) maxD (+ maxD (- 10! remainder)))))
+
+(def data_len (len data))
+
+; Deal with starting position, width of bars, and gap between bars 
+; define everything in terms of left and top point 
+; similar to positioning in HTML and CSS 
+
+(def [x0 y0 w h] [175 200 275 225])
+
+(def unlerp_y (\\y 
+    (unlerp y [0! maxGraph])))
+
+(def lerp_y (\\yp
+    (round (lerp yp [0! h]))))
+
+(def unlerped_values (map unlerp_y data))
+(def lerped_values (map lerp_y unlerped_values))
+
+(def rect_left x0)
+(def rect_bot (+ y0 h))
+(def width (/ w data_len))
+
+; don't let the gap between bars change unless slider value changes
+; gap is defined as a percentage of the width 
+; so if the \"spacing\" slider says \"100\", it means 100% of width 
+(def gap 
+    (let spacing 94!{0-100}
+    (* (/ spacing 100!) width)))
+
+
+; Define color range (supplementary)
+(def COLORMIN 100)
+(def COLORMAX 250)
+
+; Assign color to each data point based on color range (supplementary)
+(def mapColor (\\(val d_min d_max col_min col_max) 
+(+ (* (- 1 (/ (- val d_min) (- d_max d_min))) col_min) (* (/ (- val d_min) (- d_max d_min)) col_max))))
+
+
+; GRAPH FUNCTIONS AND CONSTANTS ----------> 
+
+; Derive bounds of x and y axes 
+
+(def axis_left 
+    (if (< gap bar_stroke_width) (- rect_left (* 0.5! bar_stroke_width))
+    (- rect_left (- gap (* 0.5! bar_stroke_width)))))
+(def axis_right (+ rect_left (+ (* data_len width) (* data_len gap))))
+(def axis_bot (+ rect_bot (* 0.5! bar_stroke_width)))
+(def axis_top (- axis_bot (+ h  bar_stroke_width)))
+
+; attempt creating a bounding box (for axes)
+(def [x1 y1 w1 h1] [axis_left axis_top (- axis_right axis_left) (- axis_bot axis_top)])
+
+(def BackgroundRect 
+    [(rect background_color (- x1 100!) (- y1 75!) (+ w1 120!) (+ h1 175!))])
+    
+(def ForegroundRect 
+    [(rect 'none' (- x1 120!) (- y1 95!) (+ w1 160!) (+ h1 215!))])
+
+; Define graph labels
+(def title 
+    (if title_on 
+        [(addAttr
+            (addAttr 
+                (addAttr 
+                    (text (/ (+ axis_left axis_right) 2!) (- axis_top 20!) title_text)
+                    ['text-anchor' 'middle'])
+                ['font-size' '20'])
+            ['font-weight' 'bold'])]
+        []))
+    
+(def xLabel 
+    (if xaxis_label_on
+        [(addAttr
+            (addAttr
+                (text (/ (+ axis_left axis_right) 2!) (+ axis_bot 60!) xaxis_text)
+                ['text-anchor' 'middle'])
+            ['font-weight' 'bold'])]
+        []))
+    
+(def yLabel
+    (if yaxis_label_on
+        [(addAttr 
+            (addAttr
+                (rotateAround -90! 
+                    (- axis_left 60!)
+                    (+ axis_top (/ (- axis_bot axis_top) 2!))
+                    (text (- axis_left 60!) (+ axis_top (/ (- axis_bot axis_top) 2!)) yaxis_text))
+                ['text-anchor' 'middle'])
+            ['font-weight' 'bold'])]
+        []))
+        
+; Define lines that comprise x and y axes
+(def xAxis
+    (if xaxis_on 
+        (let [x1 y1 x2 y2] [axis_left axis_bot axis_right axis_bot]
+        (let [color width] [axis_color axis_width]
+            [(line color width x1 y1 x2 y2)]))
+        []))
+    
+(def yAxis
+    (if yaxis_on
+        (let [x1 y1 x2 y2] [axis_left axis_top axis_left (+ 1! axis_bot)]
+        (let [color width] [axis_color axis_width]
+            [(line color width x1 y1 x2 y2)]))
+        []))
+
+; Draw bar based on index i and datapoint d 
+(def drawBar (\\[i d]
+  (let [left top] [ (+ (* i gap) (+ rect_left (* width i))) (- rect_bot d)]
+  (let bounds [left top (+ width left) rect_bot]
+  (let [color strokeColor] [bar_color bar_stroke_color]
+    [ (rectangle color strokeColor bar_stroke_width 0 bounds) ])))))
+
+; Draw bar based on index i and datapoint d 
+; (supplementary, as it is the \"colored\" version -- bars take a certain color in a range based on their data value)
+; (def drawBar (\\[i d]
+;   (let [left top] [ (+ (* i gap) (+ rect_left (* width i))) (- rect_bot d)]
+;   (let bounds [left top (+ width left) rect_bot]
+;   (let color ( mapColor d minD maxD COLORMIN COLORMAX)
+;     [ (rectangle color 'black' 0 0 bounds) ])))))
+
+; Drawing functions for additional features on graph, like 
+; 1. ticks on x axis
+; 2. ticks on y axis
+; 3. labels associated with x axis ticks
+; 4. labels associated with y axis ticks
+; 5. data numbers above the bars 
+
+(def drawXTicks (\\[i d]
+    (if (and xaxis_on xaxis_ticks_on)
+        (let [left] [ (+ (* 0.5! width) (+ (* i gap) (+ rect_left (* width i))))]
+        (let [x1 y1 x2 y2] [left axis_bot left (+ axis_bot 10!)]
+        (let [color width] [tick_color tick_width]
+          [(line color width x1 y1 x2 y2)])))
+        [])))
+      
+(def drawYTicks (\\i
+    (if (and yaxis_on yaxis_ticks_on)
+        (let height (- axis_bot axis_top)
+        (let ygap (/ height (- yaxis_number_of_ticks 1!))
+        (let [bot] [(- axis_bot (* ygap i))]
+        (let [x1 y1 x2 y2] [(- axis_left 10!) bot axis_left bot]
+        (let [color width] [tick_color tick_width]
+            [(line color width x1 y1 x2 y2)])))))
+        [])))
+
+(def drawXLabels (\\[i cd]
+    (if xaxis_on 
+        (if fit_xlabels_to_bar_width
+            (let [left] [ (+ (* 0.5! width) (+ (* i gap) (+ rect_left (* width i))))]
+            (let bot (+ axis_bot 30!)
+            [(addAttr
+                (addAttr
+                    (text left bot cd)
+                    ['text-anchor' 'middle'])
+                ['textLength' (toString width)])]))
+            (let [left] [ (+ (* 0.5! width) (+ (* i gap) (+ rect_left (* width i))))]
+            (let bot (+ axis_bot 30!)
+            [(addAttr
+                (text left bot cd)
+                ['text-anchor' 'middle'])])))
+        [])))
+        
+(def drawYLabels (\\i 
+    (if yaxis_on
+        (let height (- axis_bot axis_top)
+        (let ygap (/ height (- yaxis_number_of_ticks 1))
+        (let textgap (/ maxGraph (- yaxis_number_of_ticks 1))
+        (let [bot] [(- axis_bot (* ygap i))]
+        (let val (+ 0 (* textgap i))
+        [(addAttr
+            (text (- axis_left 30) (+ bot 5) (toString (round val)))
+            ['text-anchor' 'middle'])])))))
+        [])))
+            
+(def drawDataNumbers (\\[i d]
+    (if numbers_above_bars_on 
+        (let [left] [ (+ (* 0.5! width) (+ (* i gap) (+ rect_left (* width i))))]
+        (let top_padding 5!
+        (let lerp_d (lerp_y (unlerp_y d))
+        (let top (- axis_bot (+ top_padding (+ lerp_d bar_stroke_width)))
+        [(addAttr
+            (text left top (toString d))
+            ['text-anchor' 'middle'])]))))
+
+        [])))
+
+; Now call the drawing functions above to create lists of shapes
+(def Bars (mapi drawBar lerped_values))
+(def XTicks (mapi drawXTicks data))
+(def YTicks (map drawYTicks (range 0! (- yaxis_number_of_ticks 1!))))
+(def YLabels (map drawYLabels (range 0! (- yaxis_number_of_ticks 1!))))
+(def XLabels (mapi drawXLabels categorical_data))
+(def DataNumbers (mapi drawDataNumbers data))
+
+
+; GRAPH REPRESENTATION ----------> 
+
+; TESTING (for debugging purposes) ----->
+; testing constants:
+
+(def xval_test 100!)
+(def yval_test 50!)
+(def spacing_test 20!)
+
+; testing functions: 
+(def toText_test (\\[i d]
+    (let x xval_test
+    (let y (+ yval_test (* i spacing_test))
+    [(text x y (toString d))]))))
+    
+(def Text_test (mapi toText_test lerped_values))
+
+
+; CANVAS -----> 
+
+
+; Essentially the drawing canvas
+(svg (append BackgroundRect
+    (append (concat Bars)
+    (append (concat [xAxis yAxis title xLabel yLabel]) 
+    (append (concat YTicks)
+    (append (concat XTicks)
+    (append (concat YLabels)
+    (append (concat XLabels)
+    (append (concat DataNumbers) ForegroundRect)))))))))
+
+
+"
+
+verticalBarChartv3 =
+ "
+; QUESTIONS: 
+
+; this version (version 3) will be the \"lerped\" version
+; change size of graph through clicking on the bars  
+
+
+; TODO: 
+; 1. Fix positioning 
+; 2. Deal with ForegroundRect
+
+
+; ENTER DATA VALUES HERE ---------->
+
+(def data [90 170 144 200 215 150 120 90])
+(def categorical_data ['Case 1' 'Case 2' 'Case 3' 'Case 4' 'Case 5'
+    'Case 6' 'Case 7' 'Case 8'])
+
+(def title_text 'Title Here')
+(def xaxis_text 'X Label')
+(def yaxis_text 'Y Label')
+
+(def title_on true)
+(def xaxis_label_on true)
+(def yaxis_label_on true)
+
+(def xaxis_on true)
+(def yaxis_on true)
+
+(def xaxis_ticks_on true)
+(def yaxis_ticks_on true)
+(def yaxis_number_of_ticks 5!)
+
+(def numbers_above_bars_on true)
+
+(def bar_color 246)
+(def bar_stroke_width 1) ; not fixed, unlike in version 2
+(def bar_stroke_color 499)
+
+(def axis_color 400)
+(def axis_width 1!)
+
+(def tick_color 400)
+(def tick_width 1!)
+
+(def fit_xlabels_to_bar_width false)
+
+; DEFINE DATA FUNCTIONS ---------->
+
+(def lerp (\\(w [a b])
+    (+ (* (- 1 w) a) (* w b))))
+
+(def unlerp (\\(x [x0 x1])
+    (/ (- x x0) (- x1 x0))))
+
+; DEFINE CONSTANTS ---------->
+
+; Find maximum and minimum points of data 
+(def maxD (maximum data))
+(def minD (minimum data))
+
+; round maxD to nearest 10th (that is >= to maxD): 
+(def maxGraph 
+    (let remainder (mod maxD 10!)
+    (if (= remainder 0) maxD (+ maxD (- 10! remainder)))))
+
+(def data_len (len data))
+
+; Deal with starting position, width of bars, and gap between bars 
+; define everything in terms of left and top point 
+; similar to positioning in HTML and CSS 
+
+(def [x0 y0 w h] [175 200 275! 225])
+
+(def unlerp_y (\\y 
+    (unlerp y [0! maxGraph])))
+
+(def lerp_y (\\yp
+    (round (lerp yp [0! h]))))
+
+(def unlerped_values (map unlerp_y data))
+(def lerped_values (map lerp_y unlerped_values))
+
+(def rect_left x0)
+(def rect_bot (+ y0 h))
+(def wid 100!{10-150})
+(def width 
+    (let smoother (/ 100! wid)
+    (/ w (* data_len smoother))))
+
+; don't let the gap between bars change unless slider value changes
+; gap is defined as a percentage of the width 
+; so if the \"spacing\" slider says \"100\", it means 100% of width 
+(def gap 
+    (let spacing 94!{0-100}
+    (* (/ spacing 100!) width)))
+
+
+; Define color range (supplementary)
+(def COLORMIN 100)
+(def COLORMAX 250)
+
+; Assign color to each data point based on color range (supplementary)
+(def mapColor (\\(val d_min d_max col_min col_max) 
+(+ (* (- 1 (/ (- val d_min) (- d_max d_min))) col_min) (* (/ (- val d_min) (- d_max d_min)) col_max))))
+
+
+; GRAPH FUNCTIONS AND CONSTANTS ----------> 
+
+; Derive bounds of x and y axes 
+
+(def axis_left 
+    (if (< gap bar_stroke_width) (- rect_left (* 0.5! bar_stroke_width))
+    (- rect_left (- gap (* 0.5! bar_stroke_width)))))
+(def axis_right (+ rect_left (+ (* data_len width) (* data_len gap))))
+(def axis_bot (+ rect_bot (* 0.5! bar_stroke_width)))
+(def axis_top (- axis_bot (+ h  bar_stroke_width)))
+
+; attempt creating a bounding box (for axes)
+(def [x1 y1 w1 h1] [axis_left axis_top (- axis_right axis_left) (- axis_bot axis_top)])
+(def BackgroundRect 
+    (let background_color 470{0-499}
+    [(rect background_color (- x1 100!) (- y1 75!) (+ w1 120!) (+ h1 175!))]))
+
+; Define graph labels
+(def title 
+    (if title_on 
+        [(addAttr
+            (addAttr 
+                (addAttr 
+                    (text (/ (+ axis_left axis_right) 2!) (- axis_top 20!) title_text)
+                    ['text-anchor' 'middle'])
+                ['font-size' '20'])
+            ['font-weight' 'bold'])]
+        []))
+    
+(def xLabel 
+    (if xaxis_label_on
+        [(addAttr
+            (addAttr
+                (text (/ (+ axis_left axis_right) 2!) (+ axis_bot 60!) xaxis_text)
+                ['text-anchor' 'middle'])
+            ['font-weight' 'bold'])]
+        []))
+    
+(def yLabel
+    (if yaxis_label_on
+        [(addAttr 
+            (addAttr
+                (rotateAround -90! 
+                    (- axis_left 60!)
+                    (+ axis_top (/ (- axis_bot axis_top) 2!))
+                    (text (- axis_left 60!) (+ axis_top (/ (- axis_bot axis_top) 2!)) yaxis_text))
+                ['text-anchor' 'middle'])
+            ['font-weight' 'bold'])]
+        []))
+        
+; Define lines that comprise x and y axes
+(def xAxis
+    (if xaxis_on 
+        (let [x1 y1 x2 y2] [axis_left axis_bot axis_right axis_bot]
+        (let [color width] [axis_color axis_width]
+            [(line color width x1 y1 x2 y2)]))
+        []))
+    
+(def yAxis
+    (if yaxis_on
+        (let [x1 y1 x2 y2] [axis_left axis_top axis_left (+ 1! axis_bot)]
+        (let [color width] [axis_color axis_width]
+            [(line color width x1 y1 x2 y2)]))
+        []))
+
+; Draw bar based on index i and datapoint d 
+(def drawBar (\\[i d]
+  (let [left top] [ (+ (* i gap) (+ rect_left (* width i))) (- rect_bot d)]
+  (let bounds [left top (+ width left) rect_bot]
+  (let [color strokeColor] [bar_color bar_stroke_color]
+    [ (rectangle color strokeColor bar_stroke_width 0 bounds) ])))))
+
+; Draw bar based on index i and datapoint d 
+; (supplementary, as it is the \"colored\" version -- bars take a certain color in a range based on their data value)
+; (def drawBar (\\[i d]
+;   (let [left top] [ (+ (* i gap) (+ rect_left (* width i))) (- rect_bot d)]
+;   (let bounds [left top (+ width left) rect_bot]
+;   (let color ( mapColor d minD maxD COLORMIN COLORMAX)
+;     [ (rectangle color 'black' 0 0 bounds) ])))))
+
+; Drawing functions for additional features on graph, like 
+; 1. ticks on x axis
+; 2. ticks on y axis
+; 3. labels associated with x axis ticks
+; 4. labels associated with y axis ticks
+; 5. data numbers above the bars 
+
+(def drawXTicks (\\[i d]
+    (if (and xaxis_on xaxis_ticks_on)
+        (let [left] [ (+ (* 0.5! width) (+ (* i gap) (+ rect_left (* width i))))]
+        (let [x1 y1 x2 y2] [left axis_bot left (+ axis_bot 10!)]
+        (let [color width] [tick_color tick_width]
+          [(line color width x1 y1 x2 y2)])))
+        [])))
+      
+(def drawYTicks (\\i
+    (if (and yaxis_on yaxis_ticks_on)
+        (let height (- axis_bot axis_top)
+        (let ygap (/ height (- yaxis_number_of_ticks 1!))
+        (let [bot] [(- axis_bot (* ygap i))]
+        (let [x1 y1 x2 y2] [(- axis_left 10!) bot axis_left bot]
+        (let [color width] [tick_color tick_width]
+            [(line color width x1 y1 x2 y2)])))))
+        [])))
+
+(def drawXLabels (\\[i cd]
+    (if xaxis_on 
+        (if fit_xlabels_to_bar_width
+            (let [left] [ (+ (* 0.5! width) (+ (* i gap) (+ rect_left (* width i))))]
+            (let bot (+ axis_bot 30!)
+            [(addAttr
+                (addAttr
+                    (text left bot cd)
+                    ['text-anchor' 'middle'])
+                ['textLength' (toString width)])]))
+            (let [left] [ (+ (* 0.5! width) (+ (* i gap) (+ rect_left (* width i))))]
+            (let bot (+ axis_bot 30!)
+            [(addAttr
+                (text left bot cd)
+                ['text-anchor' 'middle'])])))
+        [])))
+        
+(def drawYLabels (\\i 
+    (if yaxis_on
+        (let height (- axis_bot axis_top)
+        (let ygap (/ height (- yaxis_number_of_ticks 1))
+        (let textgap (/ maxGraph (- yaxis_number_of_ticks 1))
+        (let [bot] [(- axis_bot (* ygap i))]
+        (let val (+ 0 (* textgap i))
+        [(addAttr
+            (text (- axis_left 30) (+ bot 5) (toString (round val)))
+            ['text-anchor' 'middle'])])))))
+        [])))
+            
+(def drawDataNumbers (\\[i d]
+    (if numbers_above_bars_on 
+        (let [left] [ (+ (* 0.5! width) (+ (* i gap) (+ rect_left (* width i))))]
+        (let top_padding 5!
+        (let lerp_d (lerp_y (unlerp_y d))
+        (let top (- axis_bot (+ top_padding (+ lerp_d bar_stroke_width)))
+        [(addAttr
+            (text left top (toString d))
+            ['text-anchor' 'middle'])]))))
+
+        [])))
+
+; Now call the drawing functions above to create lists of shapes
+(def Bars (mapi drawBar lerped_values))
+(def XTicks (mapi drawXTicks data))
+(def YTicks (map drawYTicks (range 0! (- yaxis_number_of_ticks 1!))))
+(def YLabels (map drawYLabels (range 0! (- yaxis_number_of_ticks 1!))))
+(def XLabels (mapi drawXLabels categorical_data))
+(def DataNumbers (mapi drawDataNumbers data))
+
+
+; GRAPH REPRESENTATION ----------> 
+
+; TESTING (for debugging purposes) ----->
+; testing constants:
+
+(def xval_test 100!)
+(def yval_test 50!)
+(def spacing_test 20!)
+
+; testing functions: 
+(def toText_test (\\[i d]
+    (let x xval_test
+    (let y (+ yval_test (* i spacing_test))
+    [(text x y (toString d))]))))
+    
+(def Text_test (mapi toText_test lerped_values))
+
+
+
+; CANVAS -----> 
+
+
+; Essentially the drawing canvas
+(svg (append BackgroundRect 
+    (append (concat Bars)
+    (append (concat [xAxis yAxis title xLabel yLabel]) 
+    (append (concat YTicks)
+    (append (concat XTicks)
+    (append (concat YLabels)
+    (append (concat XLabels)
+    (append (concat DataNumbers) [])))))))))
+
+
+"
+
+clusteredVerticalBarChartv1 =
+ "
+; QUESTIONS: 
+
+; this version will be the \"lerped\" version 
+; change size of the chart by clicking on the rectangle
+
+
+; TODO: 
+; 1. Fix gap_2 left padding 
+; 2. Fix vertical positioning 
+; 3. Fix labels
+; 4. Deal with ForegroundRect
+
+
+; ENTER DATA VALUES HERE ---------->
+
+; now make 'data' into a list of lists 
+(def data [90 170 144 200 215 150 120 90])
+
+(def data_1 [[90 100 110]
+             [150 110 120]
+             [200 300 500]
+             [100 200 400]])
+
+(def colors [100 200 300 270])
+
+(def categorical_data ['Case 1' 'Case 2' 'Case 3'])
+
+(def title_text 'Title Here')
+(def xaxis_text 'X Label')
+(def yaxis_text 'Y Label')
+
+(def title_on true)
+(def xaxis_label_on true)
+(def yaxis_label_on true)
+
+(def xaxis_on true)
+(def yaxis_on true)
+
+(def xaxis_ticks_on true)
+(def yaxis_ticks_on true)
+(def yaxis_number_of_ticks 5!)
+
+(def numbers_above_bars_on true)
+
+(def bar_stroke_width 1!)
+(def bar_stroke_color 400{0-499})
+
+(def background_color 475{0-499})
+
+(def axis_color 400{0-499})
+(def axis_width 1!)
+
+(def tick_color 400{0-499})
+(def tick_width 1!)
+
+(def fit_xlabels_to_bar_width false)
+
+
+
+; DEFINE DATA FUNCTIONS ---------->
+
+(def lerp (\\(w [a b])
+    (+ (* (- 1 w) a) (* w b))))
+
+(def unlerp (\\(x [x0 x1])
+    (/ (- x x0) (- x1 x0))))
+
+; need a function that 
+; 1. extracts the first element from a list (map hd)
+; 2. draws a group for those \"mapped\" elements 
+; 3. recurses down the rest of the 'data' list 
+; 4. lerp all values
+
+; _lol -> list of lists tag
+
+; number of elements in each sublist
+(def num_elements (len (hd data_1)))
+
+; numbers of sublists
+(def num_lists (len data_1))
+
+(def data_len_lol 
+    (* num_elements num_lists))
+
+; l is a list of lists
+(def extractHead (\\l
+    (map hd l)))
+
+(def extractTail (\\l
+    (map tl l)))
+
+; group the elements in clusters 
+(defrec getClusters (\\l
+    (case (concat l)
+        ([] [])
+        ([head|tail]
+            (let cluster (extractHead l)
+            [cluster| (getClusters (extractTail l))])))))
+
+
+
+; DEFINE CONSTANTS ---------->
+
+; Find maximum and minimum points of data 
+(def maxD 
+    (let max_list (map maximum data_1)
+    (maximum max_list)))
+(def minD 
+    (let min_list (map minimum data_1)
+    (minimum min_list)))
+
+; round maxD to nearest 10th (that is >= to maxD): 
+(def maxGraph 
+    (let remainder (mod maxD 10!)
+    (if (= remainder 0) maxD (+ maxD (- 10! remainder)))))
+
+(def data_len (len data))
+
+; Deal with starting position, width of bars, and gap between bars 
+; define everything in terms of left and top point 
+; similar to positioning in HTML and CSS 
+
+(def [x0 y0 w h] [175 200 275! 225])
+
+(def unlerp_y (\\y 
+    (unlerp y [0! maxGraph])))
+
+(def lerp_y (\\yp
+    (round (lerp yp [0! h]))))
+
+(def unlerped_values (map unlerp_y data))
+
+(def lerped_values (map lerp_y unlerped_values))
+
+; -----------> CLUSTERED
+
+
+(def clustered_list (getClusters data_1))
+
+(def unlerp_y_lol (\\sub_l
+    (map unlerp_y sub_l)))
+
+(def lerp_y_lol (\\sub_l
+    (map lerp_y sub_l)))
+
+(def unlerped_values_lol (map unlerp_y_lol clustered_list))
+(def lerped_values_lol (map lerp_y_lol unlerped_values_lol))
+
+
+; ----->
+
+(def rect_left x0)
+(def rect_bot (+ y0 h))
+(def wid 100!{10-150})
+(def width 
+    (let smoother (/ 100! wid)
+    (/ w (* data_len_lol smoother))))
+
+; don't let the gap between bars change unless slider value changes
+; gap is defined as a percentage of the width 
+; so if the \"space\" slider says \"100\", it means 100% of width 
+
+(def gap 
+    (let space 30!{0-100}
+    (* (/ space 100!) width)))
+
+(def gap_2
+    (let group_space 30!{0-100}
+    (* (/ group_space 100!) width)))
+
+
+; GRAPH FUNCTIONS AND CONSTANTS ----------> 
+
+; Derive bounds of x and y axes 
+
+(def axis_left 
+    (if (< gap bar_stroke_width) (- rect_left (* 0.5! bar_stroke_width))
+    (- rect_left (- gap (* 0.5! bar_stroke_width)))))
+(def axis_right (+ (+ rect_left (+ (* data_len_lol width) (* data_len_lol gap))) 
+                (* data_len_lol gap_2)))
+(def axis_bot (+ rect_bot (* 0.5! bar_stroke_width)))
+(def axis_top (- axis_bot (+ h  bar_stroke_width)))
+
+; attempt creating a bounding box (for axes)
+(def [x1 y1 w1 h1] [axis_left axis_top (- axis_right axis_left) (- axis_bot axis_top)])
+
+(def BackgroundRect 
+    [(rect background_color (- x1 100!) (- y1 75!) (+ w1 120!) (+ h1 175!))])
+    
+(def ForegroundRect 
+    [(rect 'none' (- x1 120!) (- y1 95!) (+ w1 160!) (+ h1 215!))])
+
+; Define graph labels
+(def title 
+    (if title_on 
+        [(addAttr
+            (addAttr 
+                (addAttr 
+                    (text (/ (+ axis_left axis_right) 2!) (- axis_top 20!) title_text)
+                    ['text-anchor' 'middle'])
+                ['font-size' '20'])
+            ['font-weight' 'bold'])]
+        []))
+    
+(def xLabel 
+    (if xaxis_label_on
+        [(addAttr
+            (addAttr
+                (text (/ (+ axis_left axis_right) 2!) (+ axis_bot 60!) xaxis_text)
+                ['text-anchor' 'middle'])
+            ['font-weight' 'bold'])]
+        []))
+    
+(def yLabel
+    (if yaxis_label_on
+        [(addAttr 
+            (addAttr
+                (rotateAround -90! 
+                    (- axis_left 60!)
+                    (+ axis_top (/ (- axis_bot axis_top) 2!))
+                    (text (- axis_left 60!) (+ axis_top (/ (- axis_bot axis_top) 2!)) yaxis_text))
+                ['text-anchor' 'middle'])
+            ['font-weight' 'bold'])]
+        []))
+        
+; Define lines that comprise x and y axes
+(def xAxis
+    (if xaxis_on 
+        (let [x1 y1 x2 y2] [axis_left axis_bot axis_right axis_bot]
+        (let [color width] [axis_color axis_width]
+            [(line color width x1 y1 x2 y2)]))
+        []))
+    
+(def yAxis
+    (if yaxis_on
+        (let [x1 y1 x2 y2] [axis_left axis_top axis_left (+ 1! axis_bot)]
+        (let [color width] [axis_color axis_width]
+            [(line color width x1 y1 x2 y2)]))
+        []))
+
+; Draw bar based on index i and datapoint d 
+(def drawBar_lol (\\[i [n d]]
+    (let group_index (* n num_lists)
+    (let padding (* group_index (+ gap (+ gap_2 width)))
+    (let [left top] [ (+ padding (+ (* i gap) (+ rect_left (* width i))))
+        (- rect_bot d)]
+    (let bounds [left top (+ width left) rect_bot]
+    (let [color strokeColor] [(nth colors i) bar_stroke_color]
+    [ (rectangle color strokeColor bar_stroke_width 0 bounds) ])))))))
+
+(defrec makePairedList (\\(x y)
+    (case y
+        ([] [])
+        ([head|tail]
+            (let new_head [x head]
+                [new_head| (makePairedList x tail)])))))
+
+(def drawBars (\\[i d]
+    (let paired_list (makePairedList i d)
+    (mapi drawBar_lol paired_list))))
+
+; Drawing functions for additional features on graph, like 
+; 1. ticks on x axis
+; 2. ticks on y axis
+; 3. labels associated with x axis ticks
+; 4. labels associated with y axis ticks
+; 5. data numbers above the bars 
+
+(def drawXTicks (\\[i d]
+    (if (and xaxis_on xaxis_ticks_on)
+        (let [left] [ (+ (* 0.5! width) (+ (* i gap) (+ rect_left (* width i))))]
+        (let [x1 y1 x2 y2] [left axis_bot left (+ axis_bot 10!)]
+        (let [color width] [tick_color tick_width]
+          [(line color width x1 y1 x2 y2)])))
+        [])))
+      
+(def drawYTicks (\\i
+    (if (and yaxis_on yaxis_ticks_on)
+        (let height (- axis_bot axis_top)
+        (let ygap (/ height (- yaxis_number_of_ticks 1!))
+        (let [bot] [(- axis_bot (* ygap i))]
+        (let [x1 y1 x2 y2] [(- axis_left 10!) bot axis_left bot]
+        (let [color width] [tick_color tick_width]
+            [(line color width x1 y1 x2 y2)])))))
+        [])))
+
+; currently doesn't let the group resize horizontally 
+
+(def drawXLabels (\\[i cd]
+    (if xaxis_on 
+        (if fit_xlabels_to_bar_width
+            (let [left] [ (+ (* 0.5! width) (+ (* i gap) (+ rect_left (* width i))))]
+            (let bot (+ axis_bot 30!)
+            [(addAttr
+                (addAttr
+                    (text left bot cd)
+                    ['text-anchor' 'middle'])
+                ['textLength' (toString width)])]))
+            (let [left] [ (+ (* 0.5! width) (+ (* i gap) (+ rect_left (* width i))))]
+            (let bot (+ axis_bot 30!)
+            [(addAttr
+                (text left bot cd)
+                ['text-anchor' 'middle'])])))
+        [])))
+
+
+(def drawXLabels_lol (\\[i cd]
+    (if xaxis_on 
+        (if fit_xlabels_to_bar_width
+            (let group_index (* (+ i 1!) num_lists)
+            (let left (* group_index (+ gap (+ gap_2 width)))
+            (let bot (+ axis_bot 30!)
+            [(addAttr
+                (addAttr
+                    (text left bot cd)
+                    ['text-anchor' 'middle'])
+                ['textLength' (toString width)])])))
+
+            (let group_index (* (+ i 1!) num_lists)
+            (let left (* group_index (+ gap (+ gap_2 width)))
+            (let bot (+ axis_bot 30!)
+            [(addAttr
+                (text left bot cd)
+                ['text-anchor' 'middle'])]))))
+        [])))
+        
+(def drawYLabels (\\i 
+    (if yaxis_on
+        (let height (- axis_bot axis_top)
+        (let ygap (/ height (- yaxis_number_of_ticks 1))
+        (let textgap (/ maxGraph (- yaxis_number_of_ticks 1))
+        (let [bot] [(- axis_bot (* ygap i))]
+        (let val (+ 0 (* textgap i))
+        [(addAttr
+            (text (- axis_left 30) (+ bot 5) (toString (round val)))
+            ['text-anchor' 'middle'])])))))
+        [])))
+            
+(def drawDataNumber_lol (\\[i [n d]]
+    (if numbers_above_bars_on 
+        (let group_index (* n num_lists)
+        (let padding (* group_index (+ gap (+ gap_2 width)))
+        (let [left] [ (+ (* 0.5! width) (+ padding (+ (* i gap) (+ rect_left (* width i)))))]
+        (let top_padding 5!
+        (let lerp_d (lerp_y (unlerp_y d))
+        (let top (- axis_bot (+ top_padding (+ lerp_d bar_stroke_width)))
+        [(addAttr
+            (text left top (toString d))
+            ['text-anchor' 'middle'])]))))))
+
+        [])))
+
+(def drawDataNumbers (\\[i d]
+    (let paired_list (makePairedList i d)
+    (mapi drawDataNumber_lol paired_list))))
+
+; Now call the drawing functions above to create lists of shapes
+(def Bars (concat (mapi drawBars lerped_values_lol)))
+(def XTicks (mapi drawXTicks (hd data_1)))
+(def YTicks (map drawYTicks (range 0! (- yaxis_number_of_ticks 1!))))
+(def YLabels (map drawYLabels (range 0! (- yaxis_number_of_ticks 1!))))
+(def XLabels (mapi drawXLabels categorical_data))
+(def DataNumbers (concat (mapi drawDataNumbers clustered_list)))
+
+
+; GRAPH REPRESENTATION ----------> 
+
+; TESTING (for debugging purposes) ----->
+; testing constants:
+
+(def xval_test 100!)
+(def yval_test 50!)
+(def spacing_test 20!)
+
+; testing functions: 
+(def toText_test (\\[i d]
+    (let x xval_test
+    (let y (+ yval_test (* i spacing_test))
+    [(text x y (toString d))]))))
+    
+; (def Text_test (mapi toText_test lerped_values))
+(def Text_test (mapi toText_test [width]))
+
+(def testing_getClusters (getClusters data_1))
+
+; CANVAS -----> 
+
+
+; Essentially the drawing canvas
+(svg (append BackgroundRect
+    (append (concat Text_test)
+    (append (concat Bars)
+    (append (concat [xAxis yAxis title xLabel yLabel]) 
+    (append (concat YTicks)
+    (append (concat XTicks)
+    (append (concat YLabels)
+    (append (concat XLabels)
+    (append (concat DataNumbers) ForegroundRect))))))))))
+
+
+"
+
+stackedVerticalBarChartv1 =
+ "
+; QUESTIONS: 
+
+; this version will be the \"lerped\" version 
+; change size of the chart by clicking on the rectangle
+
+
+; TODO: 
+; 1. Fix gap_2 left padding 
+; 2. Fix positioning 
+; 3. Deal with ForegroundRect
+
+
+; ENTER DATA VALUES HERE ---------->
+
+; now make 'data' into a list of lists 
+(def data [90 170 144 200 215 150 120 90])
+
+(def data_1 [[90 100 110]
+             [150 110 120]
+             [200 300 500]
+             [100 200 400]])
+
+(def colors [100 200 300 270])
+
+(def categorical_data ['Case 1' 'Case 2' 'Case 3'])
+
+(def title_text 'Title Here')
+(def xaxis_text 'X Label')
+(def yaxis_text 'Y Label')
+
+(def title_on true)
+(def xaxis_label_on false)
+(def yaxis_label_on true)
+
+(def xaxis_on true)
+(def yaxis_on true)
+
+(def xaxis_ticks_on true)
+(def yaxis_ticks_on true)
+(def yaxis_number_of_ticks 5!)
+
+(def numbers_above_bars_on false)
+
+(def bar_stroke_width 1!)
+(def bar_stroke_color 400{0-499})
+
+(def background_color 475{0-499})
+
+(def axis_color 400{0-499})
+(def axis_width 1!)
+
+(def tick_color 400{0-499})
+(def tick_width 1!)
+
+(def fit_xlabels_to_bar_width false)
+
+
+
+; DEFINE DATA FUNCTIONS ---------->
+
+(def lerp (\\(w [a b])
+    (+ (* (- 1 w) a) (* w b))))
+
+(def unlerp (\\(x [x0 x1])
+    (/ (- x x0) (- x1 x0))))
+
+; need a function that 
+; 1. extracts the first element from a list (map hd)
+; 2. draws a group for those \"mapped\" elements 
+; 3. recurses down the rest of the 'data' list 
+; 4. lerp all values
+
+; _lol -> list of lists tag
+
+; number of elements in each sublist
+(def num_elements (len (hd data_1)))
+
+; numbers of sublists
+(def num_lists (len data_1))
+
+(def data_len_lol 
+    (* num_elements num_lists))
+
+; l is a list of lists
+(def extractHead (\\l
+    (map hd l)))
+
+(def extractTail (\\l
+    (map tl l)))
+
+; group the elements in clusters 
+(defrec getClusters (\\l
+    (case (concat l)
+        ([] [])
+        ([head|tail]
+            (let cluster (extractHead l)
+            [cluster| (getClusters (extractTail l))])))))
+
+
+(defrec sumBefore (\\(l acc)
+    (case l
+        ([] [])
+        ([head|tail]
+            (let new_acc (+ head acc)
+            [new_acc| (sumBefore tail new_acc)])))))
+
+(defrec sumBefore_lol (\\l
+    (case (concat l)
+        ([] [])
+        ([head|tail]
+            (let new_head (sumBefore (hd l) 0)
+            [new_head|(sumBefore_lol (tl l))])))))
+
+
+(def clustered_list (getClusters data_1))
+(def altered_data (sumBefore_lol clustered_list))
+
+
+
+; DEFINE CONSTANTS ---------->
+
+; Find maximum and minimum points of data 
+(def maxD 
+    (let max_list (map maximum altered_data)
+    (maximum max_list)))
+(def minD 
+    (let min_list (map minimum altered_data)
+    (minimum min_list)))
+
+; round maxD to nearest 10th (that is >= to maxD): 
+(def maxGraph 
+    (let remainder (mod maxD 10!)
+    (if (= remainder 0) maxD (+ maxD (- 10! remainder)))))
+
+(def data_len (len data))
+
+; Deal with starting position, width of bars, and gap between bars 
+; define everything in terms of left and top point 
+; similar to positioning in HTML and CSS 
+
+(def [x0 y0 w h] [175 200 275! 225])
+
+(def unlerp_y (\\y 
+    (unlerp y [0! maxGraph])))
+
+(def lerp_y (\\yp
+    (round (lerp yp [0! h]))))
+
+(def unlerped_values (map unlerp_y data))
+
+(def lerped_values (map lerp_y unlerped_values))
+
+; -----------> CLUSTERED
+
+
+(def unlerp_y_lol (\\sub_l
+    (map unlerp_y sub_l)))
+
+(def lerp_y_lol (\\sub_l
+    (reverse (map lerp_y sub_l))))
+
+(def unlerped_values_lol (map unlerp_y_lol altered_data))
+(def lerped_values_lol (map lerp_y_lol unlerped_values_lol))
+
+
+
+; ----->
+
+(def rect_left x0)
+(def rect_bot (+ y0 h))
+(def wid 100!{10-150})
+(def width 
+    (let smoother (/ 100! wid)
+    (/ w (* num_elements smoother))))
+
+
+; don't let the gap between bars change unless slider value changes
+; gap is defined as a percentage of the width 
+; so if the \"space\" slider says \"100\", it means 100% of width 
+
+(def gap 
+    (let space 30!{0-100}
+    (* (/ space 100!) width)))
+
+
+; GRAPH FUNCTIONS AND CONSTANTS ----------> 
+
+; Derive bounds of x and y axes 
+
+(def axis_left 
+    (if (< gap bar_stroke_width) (- rect_left (* 0.5! bar_stroke_width))
+    (- rect_left (- gap (* 0.5! bar_stroke_width)))))
+(def axis_right (+ rect_left (+ (* num_elements width) (* num_elements gap))))
+(def axis_bot (+ rect_bot (* 0.5! bar_stroke_width)))
+(def axis_top (- axis_bot (+ h  bar_stroke_width)))
+
+; attempt creating a bounding box (for axes)
+(def [x1 y1 w1 h1] [axis_left axis_top (- axis_right axis_left) (- axis_bot axis_top)])
+
+(def BackgroundRect 
+    [(rect background_color (- x1 100!) (- y1 75!) (+ w1 120!) (+ h1 175!))])
+    
+(def ForegroundRect 
+    [(rect 'none' (- x1 120!) (- y1 95!) (+ w1 160!) (+ h1 215!))])
+
+; Define graph labels
+(def title 
+    (if title_on 
+        [(addAttr
+            (addAttr 
+                (addAttr 
+                    (text (/ (+ axis_left axis_right) 2!) (- axis_top 20!) title_text)
+                    ['text-anchor' 'middle'])
+                ['font-size' '20'])
+            ['font-weight' 'bold'])]
+        []))
+    
+(def xLabel 
+    (if xaxis_label_on
+        [(addAttr
+            (addAttr
+                (text (/ (+ axis_left axis_right) 2!) (+ axis_bot 60!) xaxis_text)
+                ['text-anchor' 'middle'])
+            ['font-weight' 'bold'])]
+        []))
+    
+(def yLabel
+    (if yaxis_label_on
+        [(addAttr 
+            (addAttr
+                (rotateAround -90! 
+                    (- axis_left 60!)
+                    (+ axis_top (/ (- axis_bot axis_top) 2!))
+                    (text (- axis_left 60!) (+ axis_top (/ (- axis_bot axis_top) 2!)) yaxis_text))
+                ['text-anchor' 'middle'])
+            ['font-weight' 'bold'])]
+        []))
+        
+; Define lines that comprise x and y axes
+(def xAxis
+    (if xaxis_on 
+        (let [x1 y1 x2 y2] [axis_left axis_bot axis_right axis_bot]
+        (let [color width] [axis_color axis_width]
+            [(line color width x1 y1 x2 y2)]))
+        []))
+    
+(def yAxis
+    (if yaxis_on
+        (let [x1 y1 x2 y2] [axis_left axis_top axis_left (+ 1! axis_bot)]
+        (let [color width] [axis_color axis_width]
+            [(line color width x1 y1 x2 y2)]))
+        []))
+
+
+; Draw bar based on index i and datapoint d 
+(def drawBar_lol (\\[i [n d]]
+    (let padding (* n (+ gap width))
+    (let [left top] [ (+ padding rect_left)
+        (- rect_bot d)]
+    (let bounds [left top (+ width left) rect_bot]
+    (let [color strokeColor] [(nth colors i) bar_stroke_color]
+    [ (rectangle color strokeColor bar_stroke_width 0 bounds) ]))))))
+
+(defrec makePairedList (\\(x y)
+    (case y
+        ([] [])
+        ([head|tail]
+            (let new_head [x head]
+                [new_head| (makePairedList x tail)])))))
+
+(def drawBars (\\[i d]
+    (let paired_list (makePairedList i d)
+    (mapi drawBar_lol paired_list))))
+
+; Drawing functions for additional features on graph, like 
+; 1. ticks on x axis
+; 2. ticks on y axis
+; 3. labels associated with x axis ticks
+; 4. labels associated with y axis ticks
+; 5. data numbers above the bars 
+
+(def drawXTicks (\\[i d]
+    (if (and xaxis_on xaxis_ticks_on)
+        (let [left] [ (+ (* 0.5! width) (+ (* i gap) (+ rect_left (* width i))))]
+        (let [x1 y1 x2 y2] [left axis_bot left (+ axis_bot 10!)]
+        (let [color width] [tick_color tick_width]
+          [(line color width x1 y1 x2 y2)])))
+        [])))
+      
+(def drawYTicks (\\i
+    (if (and yaxis_on yaxis_ticks_on)
+        (let height (- axis_bot axis_top)
+        (let ygap (/ height (- yaxis_number_of_ticks 1!))
+        (let [bot] [(- axis_bot (* ygap i))]
+        (let [x1 y1 x2 y2] [(- axis_left 10!) bot axis_left bot]
+        (let [color width] [tick_color tick_width]
+            [(line color width x1 y1 x2 y2)])))))
+        [])))
+
+; currently doesn't let the group resize horizontally 
+
+(def drawXLabels (\\[i cd]
+    (if xaxis_on 
+        (if fit_xlabels_to_bar_width
+            (let [left] [ (+ (* 0.5! width) (+ (* i gap) (+ rect_left (* width i))))]
+            (let bot (+ axis_bot 30!)
+            [(addAttr
+                (addAttr
+                    (text left bot cd)
+                    ['text-anchor' 'middle'])
+                ['textLength' (toString width)])]))
+            (let [left] [ (+ (* 0.5! width) (+ (* i gap) (+ rect_left (* width i))))]
+            (let bot (+ axis_bot 30!)
+            [(addAttr
+                (text left bot cd)
+                ['text-anchor' 'middle'])])))
+        [])))
+
+
+(def drawXLabels_lol (\\[i cd]
+    (if xaxis_on 
+        (if fit_xlabels_to_bar_width
+            (let group_index (* (+ i 1!) num_lists)
+            (let left (* group_index (+ gap width))
+            (let bot (+ axis_bot 30!)
+            [(addAttr
+                (addAttr
+                    (text left bot cd)
+                    ['text-anchor' 'middle'])
+                ['textLength' (toString width)])])))
+
+            (let group_index (* (+ i 1!) num_lists)
+            (let left (* group_index (+ gap width))
+            (let bot (+ axis_bot 30!)
+            [(addAttr
+                (text left bot cd)
+                ['text-anchor' 'middle'])]))))
+        [])))
+        
+(def drawYLabels (\\i 
+    (if yaxis_on
+        (let height (- axis_bot axis_top)
+        (let ygap (/ height (- yaxis_number_of_ticks 1))
+        (let textgap (/ maxGraph (- yaxis_number_of_ticks 1))
+        (let [bot] [(- axis_bot (* ygap i))]
+        (let val (+ 0 (* textgap i))
+        [(addAttr
+            (text (- axis_left 30) (+ bot 5) (toString (round val)))
+            ['text-anchor' 'middle'])])))))
+        [])))
+            
+(def drawDataNumber_lol (\\[i [n d]]
+    (if numbers_above_bars_on 
+        (let group_index (* n num_lists)
+        (let padding (* group_index (+ gap width))
+        (let [left] [ (+ (* 0.5! width) (+ padding (+ (* i gap) (+ rect_left (* width i)))))]
+        (let top_padding 5!
+        (let lerp_d (lerp_y (unlerp_y d))
+        (let top (- axis_bot (+ top_padding (+ lerp_d bar_stroke_width)))
+        [(addAttr
+            (text left top (toString d))
+            ['text-anchor' 'middle'])]))))))
+
+        [])))
+
+(def drawDataNumbers (\\[i d]
+    (let paired_list (makePairedList i d)
+    (mapi drawDataNumber_lol paired_list))))
+
+; Now call the drawing functions above to create lists of shapes
+(def Bars (concat (mapi drawBars lerped_values_lol)))
+(def XTicks (mapi drawXTicks (hd data_1)))
+(def YTicks (map drawYTicks (range 0! (- yaxis_number_of_ticks 1!))))
+(def YLabels (map drawYLabels (range 0! (- yaxis_number_of_ticks 1!))))
+(def XLabels (mapi drawXLabels categorical_data))
+(def DataNumbers (concat (mapi drawDataNumbers clustered_list)))
+
+
+; GRAPH REPRESENTATION ----------> 
+
+; TESTING (for debugging purposes) ----->
+; testing constants:
+
+(def xval_test 100!)
+(def yval_test 50!)
+(def spacing_test 20!)
+
+; testing functions: 
+(def toText_test (\\[i d]
+    (let x xval_test
+    (let y (+ yval_test (* i spacing_test))
+    [(text x y (toString d))]))))
+    
+; (def Text_test (mapi toText_test lerped_values))
+(def Text_test (mapi toText_test [width]))
+
+(def testing_getClusters (getClusters data_1))
+
+; CANVAS -----> 
+
+
+; Essentially the drawing canvas
+(svg (append BackgroundRect
+    (append (concat Text_test)
+    (append (concat Bars)
+    (append (concat [xAxis yAxis title xLabel yLabel]) 
+    (append (concat YTicks)
+    (append (concat XTicks)
+    (append (concat YLabels)
+    (append (concat XLabels)
+    (append (concat DataNumbers) ForegroundRect))))))))))
+
+
+"
+
+pieChartv1 =
+ "
+; QUESTIONS: 
+
+
+; TODO: 
+; 1. Fix legends
+;   a) horizontal legend box
+;   b) vertical legend box
+;   c) legend border
+;   d) legend fill
+;   e) key border 
+;   f) title size --> simple text?
+
+; 2. Organize + clean up code (renaming + refactoring functions)
+; 3. Create donut pie chart 
+; 4. Create version with simple text 
+; 5. Create version with resizing box around entire diagram
+;   a) fill + border 
+
+
+; REFERENCES USED:
+; 1. https://www.smashingmagazine.com/2015/07/designing-simple-pie-charts-with-css/
+
+
+; ENTER DATA VALUES HERE ---------->
+
+; Please make sure 
+; 1. \"data\"
+; 2. \"categorical_data\"
+; 3. \"data_colors\"
+; have the same number of items
+
+(def data [10 20 30 40 50])
+(def categorical_data ['Slice 1' 'Slice 2' 'Slice 3' 'Slice 4' 'Slice 5'])
+
+; 1. can use names of standard colors: 'red', 'blue'
+; 2. can use rgb(a)
+; 3. can use hex 
+; 4. can use integers from 0-499 (use integers if you want sliders to appear)
+(def data_colors ['#F9ED69' '#F08A5D' '#B83B5E' '#6A2C70' 'black'])
+
+(def chart_radius 100)
+
+(def chart_border_width
+    (let border_width 0!{0-20}
+    (* (/ border_width 100!) chart_radius)))
+
+(def chart_border_color 'blue')
+
+(def slice_spacing_width 
+    (let gap_width 3!{0-20}
+    (* (/ gap_width 100!) chart_radius)))
+
+(def slice_spacing_color 'white')
+
+(def title_on true)
+(def title_text 'Title')
+
+(def show_percentages_on true)
+
+; for \"percentage_text_color\" you can only use
+; 1. names of standard colors: 'red', 'blue'
+; 2. rgb(a)
+; 3. hex
+(def percentage_text_color 'white')
+
+; Labels will only be shown when \"legend_on\" is false
+(def label_text_color 'white')
+
+(def legend_on true)
+(def legend_horizontal true)
+(def legend_vertical false)
+
+(def legend_border_width 1)
+(def legend_border_color 'black')
+
+(def legend_key_border_width 0)
+(def legend_key_border_color 'black')
+
+
+
+; DEFINE CONSTANTS ---------->
+
+(def diameter (* 2! chart_radius))
+
+(def radius_and_border
+    (+ chart_radius chart_border_width))
+
+; set up the constants needed for the hidden square around the chart 
+; the square will allow the user to change the size of the chart 
+(def [x0 y0 w h] [200 300 diameter diameter])
+(def BackgroundSquare [(rect 'none' x0 y0 w h)])
+
+; define the middle of the chart (necessary in order to position circle)
+(def x_center (+ x0 chart_radius))
+(def y_center (+ y0 chart_radius))
+
+
+
+; DATA FUNCTIONS ----------> 
+
+; find the total sum of the inputted data 
+(def total_sum (foldl plus 0 data))
+
+(def percentify (\\d
+    (/ d total_sum)))
+
+; assign a percentage (as part of the total sum of data) to each datum
+(def mapPercent (\\d
+    (map percentify d)))
+
+(def data_len (len data))
+(def last_index (- data_len 1!))
+
+
+    
+; GRAPH FUNCTIONS AND CONSTANTS ----------> 
+
+; PIE CHART -----> 
+
+(def r (/ chart_radius 2!))
+(def circumference (* (* 2! (pi)) r))
+(def stroke_width chart_radius)
+
+
+; SLICES ---> 
+
+; input: pair of a list of percentages and accumulator (accumulator is a number)
+(defrec findSliceLengths (\\(l acc)
+    (case l 
+        ([] [])
+        ([hd|tl] 
+            (let percent (+ (* hd circumference) acc)
+            [percent|(findSliceLengths tl percent)])))))
+
+(def drawSlice (\\(sl sc)
+    (let slice_len (toString sl)
+    [(addAttr
+            (addAttr
+                (addAttr (circle 'none' x_center y_center r)
+                    ['stroke' sc])
+                ['stroke-width' (toString stroke_width)])
+            ['stroke-dasharray' (spaces [slice_len (toString circumference)])])])))
+
+(def data_percentages (mapPercent data))
+(def slice_lengths (findSliceLengths data_percentages 0!))
+; reverse in order for piece with largest strokelength to be first 
+(def Slices (map2 drawSlice 
+    (reverse slice_lengths) (reverse data_colors)))
+
+
+; BORDER --->
+
+; draw circle border (basically by having a larger circle underneath)
+(def BackgroundCircle
+    (let radius radius_and_border
+    (let color chart_border_color
+    [(circle color x_center y_center radius)])))
+
+
+; GAPS --->
+
+; draw gaps between slices (should be lines)
+
+; need to calculate the other points based on percentages and radius 
+(def getOverallPercentage (\\sl
+    (/ sl circumference)))
+
+(def getTheta (\\percent
+    (* percent (* 2! (pi)))))
+
+(def getX2Y2 (\\theta
+    (let radius radius_and_border
+    (let x2 (* radius (cos theta))
+    (let y2 (* radius (sin theta))
+    [x2 y2])))))
+
+(def drawGap (\\[x2 y2]
+    (let x1 x_center
+    (let y1 y_center
+    (let color slice_spacing_color
+    (let width slice_spacing_width
+    [(line color width x1 y1 (+ x1 x2) (+ y1 y2))]))))))
+
+(def overall_percentages (map getOverallPercentage slice_lengths))
+(def thetas (map getTheta overall_percentages))
+(def X2Y2s (map getX2Y2 thetas))
+(def Gaps (map drawGap X2Y2s))
+
+
+; PERCENTAGES AND LABELS ---> 
+
+(def percent_dist 62{0-150})
+(def percent_radius (* (/ percent_dist 100!) radius_and_border))
+
+(def label_dist 150{0-180})
+(def label_radius (* (/ label_dist 100!) radius_and_border))
+
+(defrec findSliceMidPoints (\\sl 
+    (case sl 
+        ([] [])
+        ([x] [])
+        ([x y |tl] 
+            (let midpoint (/ (+ x y) 2!)
+            [midpoint|(findSliceMidPoints (cons y tl))])))))
+
+(def getPercentCoord (\\theta
+    (let radius percent_radius
+    (let x2 (* radius (cos theta))
+    (let y2 (* radius (sin theta))
+    [x2 y2])))))
+
+(def drawPercentages (\\(p [x2 y2])
+    (let percentVal (/ (round (* 1000! p)) 10!)
+    (let percent (concatStrings [(toString percentVal) '%'])
+    (let text_color (if (and (< 99! percent_dist) (= percentage_text_color 'white'))
+        'fill:black'
+        (concatStrings['fill:' percentage_text_color]))
+    [(addAttr
+        (addAttr 
+            (addAttr
+                (text (+ x_center x2) (+ y_center y2) percent)
+                ['style' text_color])
+            ['text-anchor' 'middle'])
+        ['font-size' (toString (round (* 0.125 chart_radius)))])])))))
+
+(def getLabelCoord (\\theta
+    (let radius label_radius
+    (let x2 (* radius (cos theta))
+    (let y2 (* radius (sin theta))
+    [x2 y2])))))
+
+(def drawLabels (\\(l [x2 y2])
+    (if legend_on 
+        []
+        (let text_color (if (and (< 99! label_dist) (= label_text_color 'white'))
+            'fill:black'
+            (concatStrings['fill:' label_text_color]))
+        [(addAttr
+            (addAttr 
+                (addAttr 
+                    (addAttr
+                        (text (+ x_center x2) (+ y_center y2) l)
+                        ['style' text_color])
+                    ['text-anchor' 'middle'])
+                ['font-weight' 'bold'])
+            ['font-size' (toString (round (* 0.125 chart_radius)))])]))))
+
+(def slice_mid_points (findSliceMidPoints (cons 0 slice_lengths)))
+(def mid_point_percentages (map getOverallPercentage slice_mid_points))
+(def text_thetas (map getTheta mid_point_percentages))
+(def percent_coord (map getPercentCoord text_thetas))
+(def PercentagesText 
+    (if show_percentages_on
+        (if (and (not legend_on) (< 99! percent_dist))
+            [] 
+            (map2 drawPercentages data_percentages percent_coord))
+        []))
+
+(def combineData (\\(i1 i2)
+    (concatStrings[i1 ' ' (parens i2)])))
+
+(def formatDataPerc (\\i
+    (let perc_val (/ (round (* 1000! i)) 10!)
+    (let perc_str (toString perc_val)
+    (concatStrings[perc_str '%'])))))
+
+(def form_data_percentages (map formatDataPerc data_percentages))
+(def combined_data (map2 combineData categorical_data form_data_percentages))
+
+(def label_coord (map getLabelCoord text_thetas))
+(def LabelsText 
+    (if (and show_percentages_on (< 99! percent_dist))
+        (map2 drawLabels combined_data label_coord)
+        (map2 drawLabels categorical_data label_coord)))
+
+
+
+; TITLE -----> 
+
+; for title
+(def padding_condition_1
+    (or (< 99! percent_dist) (< 150! label_dist)))
+
+; for legends because when legend is on, labels will not be present
+(def padding_condition_2
+    (< 99! percent_dist))
+
+(def Title
+    (let title_x x_center
+    (let title_y_padding 
+        (if padding_condition_1
+            1.9!
+            1.5!)
+    (let title_y (- y_center (* title_y_padding radius_and_border))
+    (let font_height (* 0.25 radius_and_border)
+    [(addAttr
+        (addAttr
+            (addAttr
+                (text title_x title_y title_text)
+                ['text-anchor' 'middle'])
+            ['font-weight' 'bold'])
+        ['font-size' (toString (round font_height))])])))))
+
+
+; VERTICAL LEGEND -----> 
+    
+; adding 0 for movement 
+(def vlegend_left 
+    (let left_padding 
+        (if padding_condition_2
+            1.9!
+            1.5!)
+    (+ (+ x_center (* left_padding radius_and_border)) 0)))
+
+(def vkey_width (* 0.20 radius_and_border))
+(def vkey_padding (* 0.15 radius_and_border))
+(def vlegend_length
+    (+ 0! (+ (* last_index vkey_width) (* last_index vkey_padding))))
+
+; adding 0 for movement 
+(def vlegend_top (+ (- y_center (+ (/ vlegend_length 2!) (/ vkey_width 2!))) 0))
+
+(def vdrawKey (\\[i col] 
+    (let key_x vlegend_left
+    (let key_y (+ (+ vlegend_top (* i vkey_width)) (* i vkey_padding))
+    [(square col key_x key_y vkey_width)]))))
+    
+(def vdrawKeyLabels (\\[i txt]
+    (let key_x (+ (+ vlegend_left vkey_width) vkey_padding)
+    (let text_top (+ vlegend_top (* 0.75 vkey_width)) 
+    (let key_y (+ (+ text_top (* i vkey_width)) (* i vkey_padding))
+    [(addAttr
+        (text key_x key_y txt)
+            ['font-size' (toString (round (* 0.75 vkey_width)))])])))))
+
+(def vlegend_conditions
+    (and legend_on legend_vertical))
+
+(def VertKeys 
+    (if vlegend_conditions
+        (mapi vdrawKey data_colors)
+    []))
+
+(def VertKeyLabels
+    (if vlegend_conditions
+        (mapi vdrawKeyLabels categorical_data)
+        []))
+
+
+; HORIZONTAL LEGEND -----> 
+
+; adding 0 to allow for movement
+(def hlegend_top 
+    (let top_padding
+        (if padding_condition_2
+            1.9!
+            1.5!)
+    (+ (+ y_center (* top_padding radius_and_border)) 0)))
+
+(def hkey_width (* 0.20 radius_and_border))
+(def hkey_right_padding (* 0.625 radius_and_border))
+(def hkey_bottom_padding (* 2! hkey_width))
+(def hlegend_length 
+    (+ 0! (+ (* last_index hkey_width) (* last_index hkey_right_padding))))
+
+; adding 0 to allow for movement 
+(def hlegend_left (+ (- x_center (+ (/ hlegend_length 2!) (/ hkey_width 2!))) 0))
+
+(def hdrawKey (\\[i col] 
+    (let key_x (+ (+ hlegend_left (* i hkey_width)) (* i hkey_right_padding))
+    (let key_y hlegend_top
+    [(square col key_x key_y hkey_width)]))))
+    
+(def hdrawKeyLabels (\\[i txt] 
+    (let key_x (+ (/ hkey_width 2!) (+ (+ hlegend_left (* i hkey_width)) (* i hkey_right_padding)))
+    (let key_y (+ hlegend_top hkey_bottom_padding)
+    [(addAttr
+        (addAttr
+            (text key_x key_y txt)
+                ['font-size' (toString (round (* 0.75 hkey_width)))])
+            ['text-anchor' 'middle'])]))))
+
+(def hlegend_conditions 
+    (and legend_on legend_horizontal))
+
+(def HznKeys 
+    (if hlegend_conditions
+        (mapi hdrawKey data_colors)
+        []))
+
+(def HznKeyLabels 
+    (if hlegend_conditions 
+        (mapi hdrawKeyLabels categorical_data)
+        []))
+
+
+; GRAPH REPRESENTATION ----------> 
+
+; TESTING (for debugging purposes) ----->
+; testing constants:
+
+(def xval_test 100!)
+(def yval_test 50!)
+(def spacing_test 20!)
+
+; testing functions: 
+(def toText_test (\\[i d]
+    (let x xval_test
+    (let y (+ yval_test (* i spacing_test))
+    [(text x y (toString d))]))))
+    
+; (def Text_test (mapi toText_test (cons circumference (mapPercent data))))
+(def Text_test (mapi toText_test thetas))
+
+
+; CANVAS ----->
+
+(svg (append BackgroundCircle
+    (append (concat Slices) 
+    (append (concat Gaps)
+    (append (concat PercentagesText) 
+    (append (concat LabelsText)
+    (append Title
+    (append (concat HznKeys)
+    (append (concat HznKeyLabels)
+    (append (concat VertKeys) 
+    (append (concat VertKeyLabels) BackgroundSquare)))))))))))
+
+
+
+
+"
+
+donutPieChartv1 =
+ "
+; QUESTIONS: 
+
+
+; TODO: 
+
+
+; REFERENCES USED:
+; 1. https://www.smashingmagazine.com/2015/07/designing-simple-pie-charts-with-css/
+
+
+; ENTER DATA VALUES HERE ---------->
+
+; Please make sure 
+; 1. \"data\"
+; 2. \"categorical_data\"
+; 3. \"data_colors\"
+; have the same number of items
+
+(def data [10 20 30 40 50])
+(def categorical_data ['Slice 1' 'Slice 2' 'Slice 3' 'Slice 4' 'Slice 5'])
+
+; 1. can use names of standard colors: 'red', 'blue'
+; 2. can use rgb(a)
+; 3. can use hex 
+; 4. can use integers from 0-499 (use integers if you want sliders to appear)
+(def data_colors ['#F9ED69' '#F08A5D' '#B83B5E' '#6A2C70' 'black'])
+
+(def chart_radius 100)
+
+(def chart_border_width
+    (let outer_border 0!{0-20}
+    (* (/ outer_border 100!) chart_radius)))
+
+(def chart_border_color 'blue')
+
+(def slice_spacing_width 
+    (let gap_width 3!{0-20}
+    (* (/ gap_width 100!) chart_radius)))
+
+(def slice_spacing_color 'white')
+
+(def inner_circle_radius
+    (let inner_radius 40!{0-100}
+    (* (/ inner_radius 100!) chart_radius)))
+
+(def inner_circle_color 'white')
+
+(def inner_circle_border_width 
+    (let inner_border 0!{0-20}
+    (* (/ inner_border 100!) inner_circle_radius)))
+
+(def inner_circle_border_color 'blue')
+
+(def title_on true)
+
+(def title_text 'Title')
+
+(def show_percentages_on true)
+
+; for \"percentage_text_color\" you can only use
+; 1. names of standard colors: 'red', 'blue'
+; 2. rgb(a)
+; 3. hex
+(def percentage_text_color 'white')
+
+; Labels will only be shown when \"legend_on\" is false
+(def label_text_color 'white')
+
+(def legend_on true)
+(def legend_horizontal false)
+(def legend_vertical true)
+
+(def legend_border_width 1)
+(def legend_border_color 'black')
+
+(def legend_key_border_width 0)
+(def legend_key_border_color 'black')
+
+
+
+; DEFINE CONSTANTS ---------->
+
+(def diameter (* 2! chart_radius))
+
+(def radius_and_border
+    (+ chart_radius chart_border_width))
+
+; set up the constants needed for the hidden square around the chart 
+; the square will allow the user to change the size of the chart 
+(def [x0 y0 w h] [200 300 diameter diameter])
+(def BackgroundSquare [(rect 'none' x0 y0 w h)])
+
+; define the middle of the chart (necessary in order to position circle)
+(def x_center (+ x0 chart_radius))
+(def y_center (+ y0 chart_radius))
+
+
+
+; DATA FUNCTIONS ----------> 
+
+; find the total sum of the inputted data 
+(def total_sum (foldl plus 0 data))
+
+(def percentify (\\d
+    (/ d total_sum)))
+
+; assign a percentage (as part of the total sum of data) to each datum
+(def mapPercent (\\d
+    (map percentify d)))
+
+(def data_len (len data))
+(def last_index (- data_len 1!))
+
+
+    
+; GRAPH FUNCTIONS AND CONSTANTS ----------> 
+
+; PIE CHART -----> 
+
+(def r (/ chart_radius 2!))
+(def circumference (* (* 2! (pi)) r))
+(def stroke_width chart_radius)
+
+
+; SLICES ---> 
+
+; input: pair of a list of percentages and accumulator (accumulator is a number)
+(defrec findSliceLengths (\\(l acc)
+    (case l 
+        ([] [])
+        ([hd|tl] 
+            (let percent (+ (* hd circumference) acc)
+            [percent|(findSliceLengths tl percent)])))))
+
+(def drawSlice (\\(sl sc)
+    (let slice_len (toString sl)
+    [(addAttr
+            (addAttr
+                (addAttr (circle 'none' x_center y_center r)
+                    ['stroke' sc])
+                ['stroke-width' (toString stroke_width)])
+            ['stroke-dasharray' (spaces [slice_len (toString circumference)])])])))
+
+(def data_percentages (mapPercent data))
+(def slice_lengths (findSliceLengths data_percentages 0!))
+; reverse in order for piece with largest strokelength to be first 
+(def Slices (map2 drawSlice 
+    (reverse slice_lengths) (reverse data_colors)))
+
+
+; BORDER --->
+
+; draw circle border (basically by having a larger circle underneath)
+(def OuterCircleBorder
+    (let radius radius_and_border
+    (let color chart_border_color
+    [(circle color x_center y_center radius)])))
+
+
+; INNER CIRCLE --->
+
+(def inner_radius_and_border 
+    (+ inner_circle_radius inner_circle_border_width))
+
+; draw inner circle
+(def InnerCircle
+    (let radius inner_circle_radius
+    (let color inner_circle_color
+    [(circle color x_center y_center radius)])))
+
+; draw inner circle border/stroke
+(def InnerCircleBorder
+    (let radius inner_radius_and_border
+    (let color inner_circle_border_color
+    [(circle color x_center y_center radius)])))
+
+
+; GAPS --->
+
+; draw gaps between slices (should be lines)
+
+; need to calculate the other points based on percentages and radius 
+(def getOverallPercentage (\\sl
+    (/ sl circumference)))
+
+(def getTheta (\\percent
+    (* percent (* 2! (pi)))))
+
+(def getX2Y2 (\\theta
+    (let radius radius_and_border
+    (let x2 (* radius (cos theta))
+    (let y2 (* radius (sin theta))
+    [x2 y2])))))
+
+(def drawGap (\\[x2 y2]
+    (let x1 x_center
+    (let y1 y_center
+    (let color slice_spacing_color
+    (let width slice_spacing_width
+    [(line color width x1 y1 (+ x1 x2) (+ y1 y2))]))))))
+
+(def overall_percentages (map getOverallPercentage slice_lengths))
+(def thetas (map getTheta overall_percentages))
+(def X2Y2s (map getX2Y2 thetas))
+(def Gaps (map drawGap X2Y2s))
+
+
+; PERCENTAGES AND LABELS ---> 
+
+(def percent_dist 62{0-150})
+(def percent_radius (* (/ percent_dist 100!) radius_and_border))
+
+(def label_dist 150{0-180})
+(def label_radius (* (/ label_dist 100!) radius_and_border))
+
+(defrec findSliceMidPoints (\\sl 
+    (case sl 
+        ([] [])
+        ([x] [])
+        ([x y |tl] 
+            (let midpoint (/ (+ x y) 2!)
+            [midpoint|(findSliceMidPoints (cons y tl))])))))
+
+(def getPercentCoord (\\theta
+    (let radius percent_radius
+    (let x2 (* radius (cos theta))
+    (let y2 (* radius (sin theta))
+    [x2 y2])))))
+
+(def drawPercentages (\\(p [x2 y2])
+    (let percentVal (/ (round (* 1000! p)) 10!)
+    (let percent (concatStrings [(toString percentVal) '%'])
+    (let text_color (if 
+        (or (and (< 99! percent_dist) (= percentage_text_color 'white'))
+            (and (< percent_dist inner_circle_radius) 
+                (and (= percentage_text_color 'white')
+                     (= inner_circle_color 'white'))))
+        'fill:black'
+        (concatStrings['fill:' percentage_text_color]))
+    [(addAttr
+        (addAttr 
+            (addAttr
+                (text (+ x_center x2) (+ y_center y2) percent)
+                ['style' text_color])
+            ['text-anchor' 'middle'])
+        ['font-size' (toString (round (* 0.125 chart_radius)))])])))))
+
+(def getLabelCoord (\\theta
+    (let radius label_radius
+    (let x2 (* radius (cos theta))
+    (let y2 (* radius (sin theta))
+    [x2 y2])))))
+
+(def drawLabels (\\(l [x2 y2])
+    (if legend_on 
+        []
+        (let text_color (if 
+            (or (and (< 99! label_dist) (= label_text_color 'white'))
+                (and (< label_dist inner_circle_radius)
+                     (and (= label_text_color 'white')
+                          (= inner_circle_color 'white'))))
+            'fill:black'
+            (concatStrings['fill:' label_text_color]))
+        [(addAttr
+            (addAttr 
+                (addAttr 
+                    (addAttr
+                        (text (+ x_center x2) (+ y_center y2) l)
+                        ['style' text_color])
+                    ['text-anchor' 'middle'])
+                ['font-weight' 'bold'])
+            ['font-size' (toString (round (* 0.125 chart_radius)))])]))))
+
+(def slice_mid_points (findSliceMidPoints (cons 0 slice_lengths)))
+(def mid_point_percentages (map getOverallPercentage slice_mid_points))
+(def text_thetas (map getTheta mid_point_percentages))
+(def percent_coord (map getPercentCoord text_thetas))
+(def PercentagesText 
+    (if show_percentages_on
+        (if (and (and (not legend_on) (< 99! percent_dist))
+                 (< percent_dist label_dist))
+            [] 
+            (map2 drawPercentages data_percentages percent_coord))
+        []))
+
+(def combineData (\\(i1 i2)
+    (concatStrings[i1 ' ' (parens i2)])))
+
+(def formatDataPerc (\\i
+    (let perc_val (/ (round (* 1000! i)) 10!)
+    (let perc_str (toString perc_val)
+    (concatStrings[perc_str '%'])))))
+
+(def form_data_percentages (map formatDataPerc data_percentages))
+(def combined_data (map2 combineData categorical_data form_data_percentages))
+
+(def label_coord (map getLabelCoord text_thetas))
+(def LabelsText 
+    (if (and (and show_percentages_on (< 99! percent_dist))
+             (< percent_dist label_dist))
+        (map2 drawLabels combined_data label_coord)
+        (map2 drawLabels categorical_data label_coord)))
+
+
+
+; TITLE -----> 
+
+; for title
+(def padding_condition_1
+    (or (< 99! percent_dist) (< 150! label_dist)))
+
+; for legends because when legend is on, labels will not be present
+(def padding_condition_2
+    (< 99! percent_dist))
+
+(def Title
+    (let title_x x_center
+    (let title_y_padding 
+        (if padding_condition_1
+            1.9!
+            1.5!)
+    (let title_y (- y_center (* title_y_padding radius_and_border))
+    (let font_height (* 0.25 radius_and_border)
+    [(addAttr
+        (addAttr
+            (addAttr
+                (text title_x title_y title_text)
+                ['text-anchor' 'middle'])
+            ['font-weight' 'bold'])
+        ['font-size' (toString (round font_height))])])))))
+
+
+; VERTICAL LEGEND -----> 
+    
+; adding 0 for movement 
+(def vlegend_left 
+    (let left_padding 
+        (if padding_condition_2
+            1.9!
+            1.5!)
+    (+ (+ x_center (* left_padding radius_and_border)) 0)))
+
+(def vkey_width (* 0.20 radius_and_border))
+(def vkey_padding (* 0.15 radius_and_border))
+(def vlegend_length
+    (+ 0! (+ (* last_index vkey_width) (* last_index vkey_padding))))
+
+; adding 0 for movement 
+(def vlegend_top (+ (- y_center (+ (/ vlegend_length 2!) (/ vkey_width 2!))) 0))
+
+(def vdrawKey (\\[i col] 
+    (let key_x vlegend_left
+    (let key_y (+ (+ vlegend_top (* i vkey_width)) (* i vkey_padding))
+    [(square col key_x key_y vkey_width)]))))
+    
+(def vdrawKeyLabels (\\[i txt]
+    (let key_x (+ (+ vlegend_left vkey_width) vkey_padding)
+    (let text_top (+ vlegend_top (* 0.75 vkey_width)) 
+    (let key_y (+ (+ text_top (* i vkey_width)) (* i vkey_padding))
+    [(addAttr
+        (text key_x key_y txt)
+            ['font-size' (toString (round (* 0.75 vkey_width)))])])))))
+
+(def vlegend_conditions
+    (and legend_on legend_vertical))
+
+(def VertKeys 
+    (if vlegend_conditions
+        (mapi vdrawKey data_colors)
+    []))
+
+(def VertKeyLabels
+    (if vlegend_conditions
+        (mapi vdrawKeyLabels categorical_data)
+        []))
+
+
+; HORIZONTAL LEGEND -----> 
+
+; adding 0 to allow for movement
+(def hlegend_top 
+    (let top_padding
+        (if padding_condition_2
+            1.9!
+            1.5!)
+    (+ (+ y_center (* top_padding radius_and_border)) 0)))
+
+(def hkey_width (* 0.20 radius_and_border))
+(def hkey_right_padding (* 0.625 radius_and_border))
+(def hkey_bottom_padding (* 2! hkey_width))
+(def hlegend_length 
+    (+ 0! (+ (* last_index hkey_width) (* last_index hkey_right_padding))))
+
+; adding 0 to allow for movement 
+(def hlegend_left (+ (- x_center (+ (/ hlegend_length 2!) (/ hkey_width 2!))) 0))
+
+(def hdrawKey (\\[i col] 
+    (let key_x (+ (+ hlegend_left (* i hkey_width)) (* i hkey_right_padding))
+    (let key_y hlegend_top
+    [(square col key_x key_y hkey_width)]))))
+    
+(def hdrawKeyLabels (\\[i txt] 
+    (let key_x (+ (/ hkey_width 2!) (+ (+ hlegend_left (* i hkey_width)) (* i hkey_right_padding)))
+    (let key_y (+ hlegend_top hkey_bottom_padding)
+    [(addAttr
+        (addAttr
+            (text key_x key_y txt)
+                ['font-size' (toString (round (* 0.75 hkey_width)))])
+            ['text-anchor' 'middle'])]))))
+
+(def hlegend_conditions 
+    (and legend_on legend_horizontal))
+
+(def HznKeys 
+    (if hlegend_conditions
+        (mapi hdrawKey data_colors)
+        []))
+
+(def HznKeyLabels 
+    (if hlegend_conditions 
+        (mapi hdrawKeyLabels categorical_data)
+        []))
+
+
+; GRAPH REPRESENTATION ----------> 
+
+; TESTING (for debugging purposes) ----->
+; testing constants:
+
+(def xval_test 100!)
+(def yval_test 50!)
+(def spacing_test 20!)
+
+; testing functions: 
+(def toText_test (\\[i d]
+    (let x xval_test
+    (let y (+ yval_test (* i spacing_test))
+    [(text x y (toString d))]))))
+    
+; (def Text_test (mapi toText_test (cons circumference (mapPercent data))))
+(def Text_test (mapi toText_test thetas))
+
+
+; CANVAS ----->
+
+(svg (append OuterCircleBorder
+    (append (concat Slices) 
+    (append (concat Gaps)
+    (append InnerCircleBorder
+    (append InnerCircle
+    (append (concat PercentagesText) 
+    (append (concat LabelsText)
+    (append Title
+    (append (concat HznKeys)
+    (append (concat HznKeyLabels)
+    (append (concat VertKeys) 
+    (append (concat VertKeyLabels) BackgroundSquare)))))))))))))
+
+
+
+
+"
+
+pictogramv1 =
+ "
+; QUESTIONS: 
+
+
+; TODO: 
+
+; 1. axis
+; 2. drawing function
+; 3. background
+
+
+; divide data by a factor (so if an input is 6000, and the division factor is 1000, then we get 6)
+; (def divide_data true)
+; (def division_factor 1)
+
+
+
+; ENTER DATA VALUES HERE ---------->
+
+; 'data' should be numerical
+; 'categorical_data' should be text (strings)
+; 'unit worth' should be text (string)
+(def data [10 4 2.2 10.6])
+(def categorical_data ['Case 1' 'Case 2' 'Case 3' 'Case 4'])
+(def unit_worth '100 people')
+
+; colors of objects (top-down)
+(def colors [100 200 300 270])
+
+(def title_text 'Title Here')
+(def title_on true)
+
+; bound the stroke_width depending on the width of the box?
+(def bar_stroke_width 1{0-20})
+(def bar_stroke_color 195{0-499})
+
+(def background_color 499{0-499})
+
+; include image with categorical labels
+(def image_on true)
+
+
+
+; DEFINE DATA FUNCTIONS ---------->
+
+(def data_len (len data))
+
+(def lerp (\\(w [a b])
+    (+ (* (- 1 w) a) (* w b))))
+
+(def unlerp (\\(x [x0 x1])
+    (/ (- x x0) (- x1 x0))))
+
+
+
+; DEFINE CONSTANTS ---------->
+
+; Find maximum and minimum points of data 
+; minD and maxD will deal with horizontal component
+
+(def maxD 
+    (maximum data))
+(def minD 
+    (minimum data))
+
+; Deal with starting position, width of bars, and gap between bars 
+; define everything in terms of left and top point 
+; similar to positioning in HTML and CSS 
+
+(def [x0 y0 w h] [175 200 275 225])
+
+(def unlerp_y (\\y 
+    (unlerp y [0! maxD])))
+
+(def lerp_y (\\yp
+    (round (lerp yp [0! h]))))
+
+
+
+; DEFINE AND CLEAN POSIITION PARAMETERS ----->
+
+(def rect_left x0)
+(def rect_top y0)
+(def rect_bot (+ y0 h))
+; adjustment for width 
+(def wid 50{10-150})
+(def width 
+    (let smoother (/ 100! wid)
+    (/ w (* data_len smoother))))
+
+
+
+; DEFINE SLIDERS -----> 
+
+; don't let the gap between bars change unless slider value changes
+; gap is defined as a percentage of the width 
+; so if the \"space\" slider says \"100\", it means 100% of width 
+
+(def gap 
+    (let horizontal_space 30!{0-100}
+    (* (/ horizontal_space 100!) width)))
+
+(def gap_2
+    (let vertical_space 20!{0-150}
+    (* (/ vertical_space 100!) width)))
+
+
+
+; GRAPH FUNCTIONS AND CONSTANTS ----------> 
+
+; Derive bounds of x and y axes 
+(def axis_padding width)
+(def axis_left 
+    (if (< gap bar_stroke_width) 
+        (- (- rect_left (* 0.5! bar_stroke_width)) axis_padding)
+        (- (- rect_left (- gap (* 0.5! bar_stroke_width))) axis_padding)))
+(def axis_right (+ rect_left (+ (* data_len width) (* data_len gap))))
+(def axis_bot (+ rect_bot (* 0.5! bar_stroke_width)))
+(def axis_top (- (- axis_bot (+ h  bar_stroke_width)) axis_padding))
+
+; attempt creating a bounding box (for axes)
+(def [x1 y1 w1 h1] [axis_left axis_top (- axis_right axis_left) (- axis_bot axis_top)])
+
+; rectangles that comprise bounding box 
+(def BackgroundRect 
+    [(rect background_color (- x1 100!) (- y1 75!) (+ w1 120!) (+ h1 175!))])
+    
+(def ForegroundRect 
+    [(rect 'none' (- x1 120!) (- y1 95!) (+ w1 160!) (+ h1 215!))])
+
+; create title 
+(def title 
+    (let text_size (round (* 0.75 width))
+    (if title_on 
+        [(addAttr
+            (addAttr 
+                (text rect_left axis_top title_text)
+                ['font-size' (toString text_size)])
+            ['font-weight' 'bold'])]
+        [])))
+
+; make a list of pairs: [(x, y1), (x, y2), ..., (x,yn)]        
+(defrec makePairedList (\\(x y)
+    (case y
+        ([] [])
+        ([head|tail]
+            (let new_head [x head]
+                [new_head| (makePairedList x tail)])))))
+
+; helper function to draw one row of objects 
+(defrec drawObject (\\[i [n d]]
+    (let left (+ (* n gap) (+ rect_left (* width n)))
+    (let top (+ (* i gap_2) (+ rect_top (* width i)))
+    (let bounds [left top (+ width left) (+ width top)]
+    (let trunc_horizontal_shift (* width d)
+    (let trunc_right (+ left trunc_horizontal_shift)
+    (let trunc_bounds [left top trunc_right (+ width top)]
+    (let [color strokeColor] [(nth colors i) bar_stroke_color]
+    (let object (rectangle color strokeColor bar_stroke_width 0 bounds)
+    (let trunc_object (rectangle color strokeColor bar_stroke_width 0 trunc_bounds)
+    (if (or (= d 0) (and (< 0 d) (< d 1)))
+        (if (= d 0)
+            []
+            [trunc_object])
+        (cons object (drawObject [i [(+ n 1!) (- d 1!)]]))))))))))))))
+
+; draws all objects in pictogram
+(def drawObjects (\\d
+    (let paired_list (makePairedList 0! d)
+    (mapi drawObject paired_list))))
+
+(def drawLabel (\\[i cd]
+    (let text_size (round (* 0.5! width))
+    (let top_padding (* 0.6! width)
+    (let left (- axis_left bar_stroke_width)
+    (let top (+ (+ (* i gap_2) (+ rect_top (* width i))) top_padding)
+    [(addAttr 
+        (addAttr 
+            (addAttr
+                (text left top cd)
+                ['text-anchor' 'middle'])
+            ['font-size' (toString text_size)])
+        ['font-weight' 'bold'])]))))))
+
+(def drawDataNumbers (\\[i d]
+    (let adj_d (if (= (mod (* d 10) 10) 0) (+ d 0.3!) (+ d 0.5!))
+    (let text_size (round (* 0.5! width))
+    (let top_padding (* 0.6! width)
+    (let left (+ (* adj_d gap) (+ rect_left (* width adj_d)))
+    (let top (+ (+ (* i gap_2) (+ rect_top (* width i))) top_padding)
+    [(addAttr 
+        (text left top (toString d))
+        ['font-size' (toString text_size)])])))))))
+
+
+
+; CANVAS ELEMENTS (from mapping functions) -----> 
+
+(def Labels (mapi drawLabel categorical_data))
+(def DataNumbers (mapi drawDataNumbers data))
+
+
+
+; GRAPH REPRESENTATION ----------> 
+
+; TESTING (for debugging purposes) ----->
+; testing constants:
+
+(def xval_test 100!)
+(def yval_test 50!)
+(def spacing_test 20!)
+
+; testing functions: 
+(def toText_test (\\[i d]
+    (let x xval_test
+    (let y (+ yval_test (* i spacing_test))
+    [(text x y (toString d))]))))
+    
+(def extractFirst_test (\\[n d]
+    n))
+
+(def extractSnd_test (\\[n d]
+    d))
+
+;(def Text_test (mapi toText_test (map extractSnd_test (makePairedList 0 data))))
+; [(0, 1), (0, 2), (0, 1), (0, 1)]
+
+(def Text_test (mapi toText_test [(mod (* 2.2 10) 10)]))
+
+
+
+; CANVAS -----> 
+
+; Essentially the drawing canvas
+(svg (append (concat Labels)
+    (append (concat DataNumbers)
+    (append (concat Text_test) 
+    (append (concat (drawObjects data)) (concat [title]))))))
 
 
 "
@@ -4081,7 +6643,14 @@ verticalBarChart =
 
 examples =
   [ makeExample "BLANK" blank
-  , makeExample "Vertical Bar Chart" verticalBarChart
+  , makeExample "Vertical Bar Chart (version 1)" verticalBarChartv1
+  , makeExample "Vertical Bar Chart (version 2)" verticalBarChartv2
+  , makeExample "Vertical Bar Chart (version 3)" verticalBarChartv3
+  , makeExample "Clustered Bar Chart (version 1)" clusteredVerticalBarChartv1
+  , makeExample "Stacked Bar Chart (version 1)" stackedVerticalBarChartv1
+  , makeExample "Pie Chart (version 1)" pieChartv1
+  , makeExample "Donut Pie Chart (version 1)" donutPieChartv1
+  , makeExample "Pictogram (version 1)" pictogramv1
   , makeExample scratchName scratch
   -- [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src

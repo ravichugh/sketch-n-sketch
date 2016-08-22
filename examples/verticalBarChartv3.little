@@ -1,11 +1,13 @@
 
 ; QUESTIONS: 
 
-; this version (version 2) will be the "lerped" version 
-; change size of the chart by clicking on the rectangle
+; this version (version 3) will be the "lerped" version
+; change size of graph through clicking on the bars  
 
 
 ; TODO: 
+; 1. Fix positioning 
+; 2. Deal with ForegroundRect
 
 
 ; ENTER DATA VALUES HERE ---------->
@@ -31,16 +33,14 @@
 
 (def numbers_above_bars_on true)
 
-(def bar_color 246{0-499})
-(def bar_stroke_width 1!)
-(def bar_stroke_color 400{0-499})
+(def bar_color 246)
+(def bar_stroke_width 1) ; not fixed, unlike in version 2
+(def bar_stroke_color 499)
 
-(def background_color 475{0-499})
-
-(def axis_color 400{0-499})
+(def axis_color 400)
 (def axis_width 1!)
 
-(def tick_color 400{0-499})
+(def tick_color 400)
 (def tick_width 1!)
 
 (def fit_xlabels_to_bar_width false)
@@ -70,7 +70,7 @@
 ; define everything in terms of left and top point 
 ; similar to positioning in HTML and CSS 
 
-(def [x0 y0 w h] [175 200 275 225])
+(def [x0 y0 w h] [175 200 275! 225])
 
 (def unlerp_y (\y 
     (unlerp y [0! maxGraph])))
@@ -83,7 +83,10 @@
 
 (def rect_left x0)
 (def rect_bot (+ y0 h))
-(def width (/ w data_len))
+(def wid 100!{10-150})
+(def width 
+    (let smoother (/ 100! wid)
+    (/ w (* data_len smoother))))
 
 ; don't let the gap between bars change unless slider value changes
 ; gap is defined as a percentage of the width 
@@ -115,12 +118,9 @@
 
 ; attempt creating a bounding box (for axes)
 (def [x1 y1 w1 h1] [axis_left axis_top (- axis_right axis_left) (- axis_bot axis_top)])
-
 (def BackgroundRect 
-    [(rect background_color (- x1 100!) (- y1 75!) (+ w1 120!) (+ h1 175!))])
-    
-(def ForegroundRect 
-    [(rect 'none' (- x1 120!) (- y1 95!) (+ w1 160!) (+ h1 215!))])
+    (let background_color 470{0-499}
+    [(rect background_color (- x1 100!) (- y1 75!) (+ w1 120!) (+ h1 175!))]))
 
 ; Define graph labels
 (def title 
@@ -278,16 +278,17 @@
 (def Text_test (mapi toText_test lerped_values))
 
 
+
 ; CANVAS -----> 
 
 
 ; Essentially the drawing canvas
-(svg (append BackgroundRect
+(svg (append BackgroundRect 
     (append (concat Bars)
     (append (concat [xAxis yAxis title xLabel yLabel]) 
     (append (concat YTicks)
     (append (concat XTicks)
     (append (concat YLabels)
     (append (concat XLabels)
-    (append (concat DataNumbers) ForegroundRect)))))))))
+    (append (concat DataNumbers) [])))))))))
 

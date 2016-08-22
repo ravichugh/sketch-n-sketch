@@ -1,0 +1,196 @@
+
+; QUESTIONS: 
+; 1. ways to manipulate strings 
+
+
+; TODO: 
+; 1. horizontal legend 
+; 2. spacing
+; 3. square behind
+; 4. legend alterations (including percentages and amount)
+; 5. organize code (using ghosts and case statements)
+
+; REFERENCES USED:
+; 1. https://www.smashingmagazine.com/2015/07/designing-simple-pie-charts-with-css/
+
+
+; ENTER DATA VALUES HERE ---------->
+
+(def data [10 20 30 40 35])
+(def categorical_data ['Slice 1' 'Slice 2' 'Slice 3' 'Slice 4' 'Slice 5'])
+
+; can use names of standard colors: 'red', 'blue'
+; can use rgb(a)
+; can use hex 
+(def data_colors [454 429 412 400 370])
+
+(def chart_radius 100!)
+
+(def slice_spacing 5)
+
+(def legend_on true)
+; If the legend is on, 
+; note that one of 'legend_horizontal' or 'legend_vertical' 
+; must be false and one must be true, otherwise the chart
+; defaults to having a vertical legend
+
+(def legend_horizontal true)
+(def legend_vertical false)
+(def legend_border false)
+
+
+; DEFINE CONSTANTS ---------->
+
+(def left 300!)
+(def top 400!)
+
+
+; DATA FUNCTIONS ----------> 
+
+; find the total sum of the inputted data 
+(def total_sum (foldl plus 0 data))
+
+(def percentify (\d
+    (/ d total_sum)))
+
+; assign a percentage (as part of the total sum of data) to each datum
+(def mapPercent (\d
+	(map percentify d)))
+
+(def data_len (len data))
+(def lastIndex (- data_len 1))
+	
+; GRAPH FUNCTIONS AND CONSTANTS ----------> 
+
+; VERTICAL LEGEND
+    
+(def vlegend_left (+ left (* 1.5 chart_radius)))
+(def vkey_width (* 0.25 chart_radius))
+(def vkey_padding (* 0.15 chart_radius))
+(def vlegend_length
+    (+ 0 (+ (* lastIndex vkey_width) (* lastIndex vkey_padding))))
+(def vlegend_top (- top (+ (/ vlegend_length 2) (/ vkey_width 2))))
+
+(def vdrawKey (\[i col] 
+    (let key_x vlegend_left
+	(let key_y (+ (+ vlegend_top (* i vkey_width)) (* i vkey_padding))
+    [(square col key_x key_y vkey_width)]))))
+    
+(def vdrawKeyLabels (\[i txt]
+    (let key_x (+ (+ vlegend_left vkey_width) vkey_padding)
+    (let text_top (+ vlegend_top (* 0.75 vkey_width)) 
+	(let key_y (+ (+ text_top (* i vkey_width)) (* i vkey_padding))
+    [(addAttr
+        (text key_x key_y txt)
+            ['font-size' (toString (round (* 0.75 vkey_width)))])])))))
+    
+(def VertKeys (mapi vdrawKey data_colors))
+(def VertTextKeys (mapi vdrawKeyLabels categorical_data))
+
+
+; HORIZONTAL LEGEND
+
+(def hlegend_top (+ top (* 1.5 chart_radius)))
+(def hkey_width (* 0.25 chart_radius))
+(def hkey_right_padding (* 0.75 chart_radius))
+(def hkey_bottom_padding (* 2 hkey_width))
+(def hlegend_length 
+    (+ 0 (+ (* lastIndex hkey_width) (* lastIndex hkey_right_padding))))
+(def hlegend_left (- left (+ (/ hlegend_length 2) (/ hkey_width 2))))
+
+(def hdrawKey (\[i col] 
+    (let key_x (+ (+ hlegend_left (* i hkey_width)) (* i hkey_right_padding))
+	(let key_y hlegend_top
+    [(square col key_x key_y hkey_width)]))))
+    
+(def hdrawKeyLabels (\[i txt] 
+    (let key_x (+ (/ hkey_width 2) (+ (+ hlegend_left (* i hkey_width)) (* i hkey_right_padding)))
+    (let key_y (+ hlegend_top hkey_bottom_padding)
+	[(addAttr
+	    (addAttr
+            (text key_x key_y txt)
+                ['font-size' (toString (round (* 0.75 hkey_width)))])
+            ['text-anchor' 'middle'])]))))
+    
+(def HznKeys (mapi hdrawKey data_colors))
+(def HznTextKeys (mapi hdrawKeyLabels categorical_data))
+
+
+; PIE CHART
+
+(def pi 3.14)
+(def r (/ chart_radius 2))
+(def circumference (* (* 2 pi) r))
+(def strokeWidth chart_radius)
+
+; pair of a list of percentages and accumulator (accumulator is a number)
+(defrec findSliceLengths (\(l acc)
+    (case l 
+    	([] [])
+    	([hd|tl] 
+    		(let percent (+ (* hd circumference) acc)
+    		[percent|(findSliceLengths tl percent)])))))
+
+
+(def dataPercentages (mapPercent data))
+(def sliceLengths (findSliceLengths dataPercentages 0))
+
+(def drawSlice (\(sl sc)
+	(let slice_len (toString sl)
+	[(addAttr
+			(addAttr
+				(addAttr (circle 'none' left top r)
+					['stroke' sc])
+				['stroke-width' (toString strokeWidth)])
+			['stroke-dasharray' (spaces [slice_len (toString circumference)])])])))
+
+; reverse in order for piece with largest strokelength to be first 
+(def Slices (map2 drawSlice 
+    (reverse sliceLengths) (reverse data_colors)))
+
+; IGNORE FOLLOWING CODE: BEGIN ---------->
+; (def baseCircle1 
+; 	[(addAttr
+; 		(addAttr
+; 			(addAttr (circle 'black' left top r)
+; 				['stroke' 'red'])
+; 			['stroke-width' (toString strokeWidth)])
+; 		['stroke-dasharray' (spaces ['150' (toString circumference)])])])
+		
+; (def baseCircle2 
+; 	[(addAttr
+; 		(addAttr
+; 			(addAttr (circle 'black' left top r)
+; 				['stroke' 'black'])
+; 			['stroke-width' (toString strokeWidth)])
+; 		['stroke-dasharray' (spaces ['190' (toString circumference)])])])
+
+; (svg (concat [baseCircle2 baseCircle1]))
+; IGNORE FOLLOWING CODE: END ---------->
+
+
+; GRAPH REPRESENTATION ----------> 
+
+; TESTING (for debugging purposes)
+; testing constants:
+
+(def xval_test 100!)
+(def yval_test 50!)
+(def spacing_test 20!)
+
+; testing functions: 
+(def toText_test (\[i d]
+	(let x xval_test
+	(let y (+ yval_test (* i spacing_test))
+	[(text x y (toString d))]))))
+	
+; (def Text_test (mapi toText_test (cons circumference (mapPercent data))))
+(def Text_test (mapi toText_test sliceLengths))
+
+(svg (append 
+	(concat Slices) 
+	(append (concat HznKeys)
+	(append (concat HznTextKeys)
+	(append (concat VertKeys) 
+	(append (concat VertTextKeys) (concat Text_test)))))))
+

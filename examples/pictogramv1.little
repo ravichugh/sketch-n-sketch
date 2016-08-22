@@ -1,0 +1,239 @@
+
+; QUESTIONS: 
+
+
+; TODO: 
+
+; 1. axis
+; 2. drawing function
+; 3. background
+
+
+; divide data by a factor (so if an input is 6000, and the division factor is 1000, then we get 6)
+; (def divide_data true)
+; (def division_factor 1)
+
+
+
+; ENTER DATA VALUES HERE ---------->
+
+; 'data' should be numerical
+; 'categorical_data' should be text (strings)
+; 'unit worth' should be text (string)
+(def data [10 4 2.2 10.6])
+(def categorical_data ['Case 1' 'Case 2' 'Case 3' 'Case 4'])
+(def unit_worth '100 people')
+
+; colors of objects (top-down)
+(def colors [100 200 300 270])
+
+(def title_text 'Title Here')
+(def title_on true)
+
+; bound the stroke_width depending on the width of the box?
+(def bar_stroke_width 1{0-20})
+(def bar_stroke_color 195{0-499})
+
+(def background_color 499{0-499})
+
+; include image with categorical labels
+(def image_on true)
+
+
+
+; DEFINE DATA FUNCTIONS ---------->
+
+(def data_len (len data))
+
+(def lerp (\(w [a b])
+    (+ (* (- 1 w) a) (* w b))))
+
+(def unlerp (\(x [x0 x1])
+    (/ (- x x0) (- x1 x0))))
+
+
+
+; DEFINE CONSTANTS ---------->
+
+; Find maximum and minimum points of data 
+; minD and maxD will deal with horizontal component
+
+(def maxD 
+    (maximum data))
+(def minD 
+    (minimum data))
+
+; Deal with starting position, width of bars, and gap between bars 
+; define everything in terms of left and top point 
+; similar to positioning in HTML and CSS 
+
+(def [x0 y0 w h] [175 200 275 225])
+
+(def unlerp_y (\y 
+    (unlerp y [0! maxD])))
+
+(def lerp_y (\yp
+    (round (lerp yp [0! h]))))
+
+
+
+; DEFINE AND CLEAN POSIITION PARAMETERS ----->
+
+(def rect_left x0)
+(def rect_top y0)
+(def rect_bot (+ y0 h))
+; adjustment for width 
+(def wid 50{10-150})
+(def width 
+    (let smoother (/ 100! wid)
+    (/ w (* data_len smoother))))
+
+
+
+; DEFINE SLIDERS -----> 
+
+; don't let the gap between bars change unless slider value changes
+; gap is defined as a percentage of the width 
+; so if the "space" slider says "100", it means 100% of width 
+
+(def gap 
+    (let horizontal_space 30!{0-100}
+    (* (/ horizontal_space 100!) width)))
+
+(def gap_2
+    (let vertical_space 20!{0-150}
+    (* (/ vertical_space 100!) width)))
+
+
+
+; GRAPH FUNCTIONS AND CONSTANTS ----------> 
+
+; Derive bounds of x and y axes 
+(def axis_padding width)
+(def axis_left 
+    (if (< gap bar_stroke_width) 
+        (- (- rect_left (* 0.5! bar_stroke_width)) axis_padding)
+        (- (- rect_left (- gap (* 0.5! bar_stroke_width))) axis_padding)))
+(def axis_right (+ rect_left (+ (* data_len width) (* data_len gap))))
+(def axis_bot (+ rect_bot (* 0.5! bar_stroke_width)))
+(def axis_top (- (- axis_bot (+ h  bar_stroke_width)) axis_padding))
+
+; attempt creating a bounding box (for axes)
+(def [x1 y1 w1 h1] [axis_left axis_top (- axis_right axis_left) (- axis_bot axis_top)])
+
+; rectangles that comprise bounding box 
+(def BackgroundRect 
+    [(rect background_color (- x1 100!) (- y1 75!) (+ w1 120!) (+ h1 175!))])
+    
+(def ForegroundRect 
+    [(rect 'none' (- x1 120!) (- y1 95!) (+ w1 160!) (+ h1 215!))])
+
+; create title 
+(def title 
+    (let text_size (round (* 0.75 width))
+    (if title_on 
+        [(addAttr
+            (addAttr 
+                (text rect_left axis_top title_text)
+                ['font-size' (toString text_size)])
+            ['font-weight' 'bold'])]
+        [])))
+
+; make a list of pairs: [(x, y1), (x, y2), ..., (x,yn)]        
+(defrec makePairedList (\(x y)
+    (case y
+        ([] [])
+        ([head|tail]
+            (let new_head [x head]
+                [new_head| (makePairedList x tail)])))))
+
+; helper function to draw one row of objects 
+(defrec drawObject (\[i [n d]]
+    (let left (+ (* n gap) (+ rect_left (* width n)))
+    (let top (+ (* i gap_2) (+ rect_top (* width i)))
+    (let bounds [left top (+ width left) (+ width top)]
+    (let trunc_horizontal_shift (* width d)
+    (let trunc_right (+ left trunc_horizontal_shift)
+    (let trunc_bounds [left top trunc_right (+ width top)]
+    (let [color strokeColor] [(nth colors i) bar_stroke_color]
+    (let object (rectangle color strokeColor bar_stroke_width 0 bounds)
+    (let trunc_object (rectangle color strokeColor bar_stroke_width 0 trunc_bounds)
+    (if (or (= d 0) (and (< 0 d) (< d 1)))
+        (if (= d 0)
+            []
+            [trunc_object])
+        (cons object (drawObject [i [(+ n 1!) (- d 1!)]]))))))))))))))
+
+; draws all objects in pictogram
+(def drawObjects (\d
+    (let paired_list (makePairedList 0! d)
+    (mapi drawObject paired_list))))
+
+(def drawLabel (\[i cd]
+    (let text_size (round (* 0.5! width))
+    (let top_padding (* 0.6! width)
+    (let left (- axis_left bar_stroke_width)
+    (let top (+ (+ (* i gap_2) (+ rect_top (* width i))) top_padding)
+    [(addAttr 
+        (addAttr 
+            (addAttr
+                (text left top cd)
+                ['text-anchor' 'middle'])
+            ['font-size' (toString text_size)])
+        ['font-weight' 'bold'])]))))))
+
+(def drawDataNumbers (\[i d]
+    (let adj_d (if (= (mod (* d 10) 10) 0) (+ d 0.3!) (+ d 0.5!))
+    (let text_size (round (* 0.5! width))
+    (let top_padding (* 0.6! width)
+    (let left (+ (* adj_d gap) (+ rect_left (* width adj_d)))
+    (let top (+ (+ (* i gap_2) (+ rect_top (* width i))) top_padding)
+    [(addAttr 
+        (text left top (toString d))
+        ['font-size' (toString text_size)])])))))))
+
+
+
+; CANVAS ELEMENTS (from mapping functions) -----> 
+
+(def Labels (mapi drawLabel categorical_data))
+(def DataNumbers (mapi drawDataNumbers data))
+
+
+
+; GRAPH REPRESENTATION ----------> 
+
+; TESTING (for debugging purposes) ----->
+; testing constants:
+
+(def xval_test 100!)
+(def yval_test 50!)
+(def spacing_test 20!)
+
+; testing functions: 
+(def toText_test (\[i d]
+    (let x xval_test
+    (let y (+ yval_test (* i spacing_test))
+    [(text x y (toString d))]))))
+    
+(def extractFirst_test (\[n d]
+    n))
+
+(def extractSnd_test (\[n d]
+    d))
+
+;(def Text_test (mapi toText_test (map extractSnd_test (makePairedList 0 data))))
+; [(0, 1), (0, 2), (0, 1), (0, 1)]
+
+(def Text_test (mapi toText_test [(mod (* 2.2 10) 10)]))
+
+
+
+; CANVAS -----> 
+
+; Essentially the drawing canvas
+(svg (append (concat Labels)
+    (append (concat DataNumbers)
+    (append (concat Text_test) 
+    (append (concat (drawObjects data)) (concat [title]))))))
+

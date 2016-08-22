@@ -111,11 +111,25 @@ LITTLE_TO_ELM spiralSpiralGraph
 -- LITTLE_TO_ELM relatePoints3
 -- LITTLE_TO_ELM relatePoints4
 LITTLE_TO_ELM blank
-LITTLE_TO_ELM verticalBarChart
+LITTLE_TO_ELM verticalBarChartv1
+LITTLE_TO_ELM verticalBarChartv2
+LITTLE_TO_ELM verticalBarChartv3
+LITTLE_TO_ELM clusteredVerticalBarChartv1
+LITTLE_TO_ELM stackedVerticalBarChartv1
+LITTLE_TO_ELM pieChartv1
+LITTLE_TO_ELM donutPieChartv1
+LITTLE_TO_ELM pictogramv1
 
 examples =
   [ makeExample "BLANK" blank
-  , makeExample "Vertical Bar Chart" verticalBarChart
+  , makeExample "Vertical Bar Chart (version 1)" verticalBarChartv1
+  , makeExample "Vertical Bar Chart (version 2)" verticalBarChartv2
+  , makeExample "Vertical Bar Chart (version 3)" verticalBarChartv3
+  , makeExample "Clustered Bar Chart (version 1)" clusteredVerticalBarChartv1
+  , makeExample "Stacked Bar Chart (version 1)" stackedVerticalBarChartv1
+  , makeExample "Pie Chart (version 1)" pieChartv1
+  , makeExample "Donut Pie Chart (version 1)" donutPieChartv1
+  , makeExample "Pictogram (version 1)" pictogramv1
   , makeExample scratchName scratch
   -- [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src

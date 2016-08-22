@@ -1,0 +1,39 @@
+
+QUESTIONS: 
+
+
+TODO: 
+
+
+; ENTER DATA VALUES HERE ---------->
+
+(def data [10 20 30])
+
+(def number_of_bins 5)
+
+
+
+; DEFINE CONSTANTS ---------->
+
+
+
+; DATA FUNCTIONS ----------> 
+
+; sort and filter data 
+
+
+
+
+
+; GRAPH FUNCTIONS AND CONSTANTS ----------> 
+
+; LEGEND
+
+
+
+; PIE CHART
+
+
+
+
+; GRAPH REPRESENTATION ----------> 

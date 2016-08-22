@@ -1,25 +1,36 @@
 
 ; QUESTIONS: 
 
-; this version (version 2) will be the "lerped" version 
+; this version will be the "lerped" version 
 ; change size of the chart by clicking on the rectangle
 
 
 ; TODO: 
+; 1. Fix gap_2 left padding 
+; 2. Fix positioning 
+; 3. Deal with ForegroundRect
 
 
 ; ENTER DATA VALUES HERE ---------->
 
+; now make 'data' into a list of lists 
 (def data [90 170 144 200 215 150 120 90])
-(def categorical_data ['Case 1' 'Case 2' 'Case 3' 'Case 4' 'Case 5'
-    'Case 6' 'Case 7' 'Case 8'])
+
+(def data_1 [[90 100 110]
+             [150 110 120]
+             [200 300 500]
+             [100 200 400]])
+
+(def colors [100 200 300 270])
+
+(def categorical_data ['Case 1' 'Case 2' 'Case 3'])
 
 (def title_text 'Title Here')
 (def xaxis_text 'X Label')
 (def yaxis_text 'Y Label')
 
 (def title_on true)
-(def xaxis_label_on true)
+(def xaxis_label_on false)
 (def yaxis_label_on true)
 
 (def xaxis_on true)
@@ -29,9 +40,8 @@
 (def yaxis_ticks_on true)
 (def yaxis_number_of_ticks 5!)
 
-(def numbers_above_bars_on true)
+(def numbers_above_bars_on false)
 
-(def bar_color 246{0-499})
 (def bar_stroke_width 1!)
 (def bar_stroke_color 400{0-499})
 
@@ -45,6 +55,8 @@
 
 (def fit_xlabels_to_bar_width false)
 
+
+
 ; DEFINE DATA FUNCTIONS ---------->
 
 (def lerp (\(w [a b])
@@ -53,11 +65,68 @@
 (def unlerp (\(x [x0 x1])
     (/ (- x x0) (- x1 x0))))
 
+; need a function that 
+; 1. extracts the first element from a list (map hd)
+; 2. draws a group for those "mapped" elements 
+; 3. recurses down the rest of the 'data' list 
+; 4. lerp all values
+
+; _lol -> list of lists tag
+
+; number of elements in each sublist
+(def num_elements (len (hd data_1)))
+
+; numbers of sublists
+(def num_lists (len data_1))
+
+(def data_len_lol 
+    (* num_elements num_lists))
+
+; l is a list of lists
+(def extractHead (\l
+    (map hd l)))
+
+(def extractTail (\l
+    (map tl l)))
+
+; group the elements in clusters 
+(defrec getClusters (\l
+    (case (concat l)
+        ([] [])
+        ([head|tail]
+            (let cluster (extractHead l)
+            [cluster| (getClusters (extractTail l))])))))
+
+
+(defrec sumBefore (\(l acc)
+    (case l
+        ([] [])
+        ([head|tail]
+            (let new_acc (+ head acc)
+            [new_acc| (sumBefore tail new_acc)])))))
+
+(defrec sumBefore_lol (\l
+    (case (concat l)
+        ([] [])
+        ([head|tail]
+            (let new_head (sumBefore (hd l) 0)
+            [new_head|(sumBefore_lol (tl l))])))))
+
+
+(def clustered_list (getClusters data_1))
+(def altered_data (sumBefore_lol clustered_list))
+
+
+
 ; DEFINE CONSTANTS ---------->
 
 ; Find maximum and minimum points of data 
-(def maxD (maximum data))
-(def minD (minimum data))
+(def maxD 
+    (let max_list (map maximum altered_data)
+    (maximum max_list)))
+(def minD 
+    (let min_list (map minimum altered_data)
+    (minimum min_list)))
 
 ; round maxD to nearest 10th (that is >= to maxD): 
 (def maxGraph 
@@ -70,7 +139,7 @@
 ; define everything in terms of left and top point 
 ; similar to positioning in HTML and CSS 
 
-(def [x0 y0 w h] [175 200 275 225])
+(def [x0 y0 w h] [175 200 275! 225])
 
 (def unlerp_y (\y 
     (unlerp y [0! maxGraph])))
@@ -79,27 +148,40 @@
     (round (lerp yp [0! h]))))
 
 (def unlerped_values (map unlerp_y data))
+
 (def lerped_values (map lerp_y unlerped_values))
+
+; -----------> CLUSTERED
+
+
+(def unlerp_y_lol (\sub_l
+    (map unlerp_y sub_l)))
+
+(def lerp_y_lol (\sub_l
+    (reverse (map lerp_y sub_l))))
+
+(def unlerped_values_lol (map unlerp_y_lol altered_data))
+(def lerped_values_lol (map lerp_y_lol unlerped_values_lol))
+
+
+
+; ----->
 
 (def rect_left x0)
 (def rect_bot (+ y0 h))
-(def width (/ w data_len))
+(def wid 100!{10-150})
+(def width 
+    (let smoother (/ 100! wid)
+    (/ w (* num_elements smoother))))
+
 
 ; don't let the gap between bars change unless slider value changes
 ; gap is defined as a percentage of the width 
-; so if the "spacing" slider says "100", it means 100% of width 
+; so if the "space" slider says "100", it means 100% of width 
+
 (def gap 
-    (let spacing 94!{0-100}
-    (* (/ spacing 100!) width)))
-
-
-; Define color range (supplementary)
-(def COLORMIN 100)
-(def COLORMAX 250)
-
-; Assign color to each data point based on color range (supplementary)
-(def mapColor (\(val d_min d_max col_min col_max) 
-(+ (* (- 1 (/ (- val d_min) (- d_max d_min))) col_min) (* (/ (- val d_min) (- d_max d_min)) col_max))))
+    (let space 30!{0-100}
+    (* (/ space 100!) width)))
 
 
 ; GRAPH FUNCTIONS AND CONSTANTS ----------> 
@@ -109,7 +191,7 @@
 (def axis_left 
     (if (< gap bar_stroke_width) (- rect_left (* 0.5! bar_stroke_width))
     (- rect_left (- gap (* 0.5! bar_stroke_width)))))
-(def axis_right (+ rect_left (+ (* data_len width) (* data_len gap))))
+(def axis_right (+ rect_left (+ (* num_elements width) (* num_elements gap))))
 (def axis_bot (+ rect_bot (* 0.5! bar_stroke_width)))
 (def axis_top (- axis_bot (+ h  bar_stroke_width)))
 
@@ -170,20 +252,26 @@
             [(line color width x1 y1 x2 y2)]))
         []))
 
-; Draw bar based on index i and datapoint d 
-(def drawBar (\[i d]
-  (let [left top] [ (+ (* i gap) (+ rect_left (* width i))) (- rect_bot d)]
-  (let bounds [left top (+ width left) rect_bot]
-  (let [color strokeColor] [bar_color bar_stroke_color]
-    [ (rectangle color strokeColor bar_stroke_width 0 bounds) ])))))
 
 ; Draw bar based on index i and datapoint d 
-; (supplementary, as it is the "colored" version -- bars take a certain color in a range based on their data value)
-; (def drawBar (\[i d]
-;   (let [left top] [ (+ (* i gap) (+ rect_left (* width i))) (- rect_bot d)]
-;   (let bounds [left top (+ width left) rect_bot]
-;   (let color ( mapColor d minD maxD COLORMIN COLORMAX)
-;     [ (rectangle color 'black' 0 0 bounds) ])))))
+(def drawBar_lol (\[i [n d]]
+    (let padding (* n (+ gap width))
+    (let [left top] [ (+ padding rect_left)
+        (- rect_bot d)]
+    (let bounds [left top (+ width left) rect_bot]
+    (let [color strokeColor] [(nth colors i) bar_stroke_color]
+    [ (rectangle color strokeColor bar_stroke_width 0 bounds) ]))))))
+
+(defrec makePairedList (\(x y)
+    (case y
+        ([] [])
+        ([head|tail]
+            (let new_head [x head]
+                [new_head| (makePairedList x tail)])))))
+
+(def drawBars (\[i d]
+    (let paired_list (makePairedList i d)
+    (mapi drawBar_lol paired_list))))
 
 ; Drawing functions for additional features on graph, like 
 ; 1. ticks on x axis
@@ -210,6 +298,8 @@
             [(line color width x1 y1 x2 y2)])))))
         [])))
 
+; currently doesn't let the group resize horizontally 
+
 (def drawXLabels (\[i cd]
     (if xaxis_on 
         (if fit_xlabels_to_bar_width
@@ -226,6 +316,27 @@
                 (text left bot cd)
                 ['text-anchor' 'middle'])])))
         [])))
+
+
+(def drawXLabels_lol (\[i cd]
+    (if xaxis_on 
+        (if fit_xlabels_to_bar_width
+            (let group_index (* (+ i 1!) num_lists)
+            (let left (* group_index (+ gap width))
+            (let bot (+ axis_bot 30!)
+            [(addAttr
+                (addAttr
+                    (text left bot cd)
+                    ['text-anchor' 'middle'])
+                ['textLength' (toString width)])])))
+
+            (let group_index (* (+ i 1!) num_lists)
+            (let left (* group_index (+ gap width))
+            (let bot (+ axis_bot 30!)
+            [(addAttr
+                (text left bot cd)
+                ['text-anchor' 'middle'])]))))
+        [])))
         
 (def drawYLabels (\i 
     (if yaxis_on
@@ -239,25 +350,31 @@
             ['text-anchor' 'middle'])])))))
         [])))
             
-(def drawDataNumbers (\[i d]
+(def drawDataNumber_lol (\[i [n d]]
     (if numbers_above_bars_on 
-        (let [left] [ (+ (* 0.5! width) (+ (* i gap) (+ rect_left (* width i))))]
+        (let group_index (* n num_lists)
+        (let padding (* group_index (+ gap width))
+        (let [left] [ (+ (* 0.5! width) (+ padding (+ (* i gap) (+ rect_left (* width i)))))]
         (let top_padding 5!
         (let lerp_d (lerp_y (unlerp_y d))
         (let top (- axis_bot (+ top_padding (+ lerp_d bar_stroke_width)))
         [(addAttr
             (text left top (toString d))
-            ['text-anchor' 'middle'])]))))
+            ['text-anchor' 'middle'])]))))))
 
         [])))
 
+(def drawDataNumbers (\[i d]
+    (let paired_list (makePairedList i d)
+    (mapi drawDataNumber_lol paired_list))))
+
 ; Now call the drawing functions above to create lists of shapes
-(def Bars (mapi drawBar lerped_values))
-(def XTicks (mapi drawXTicks data))
+(def Bars (concat (mapi drawBars lerped_values_lol)))
+(def XTicks (mapi drawXTicks (hd data_1)))
 (def YTicks (map drawYTicks (range 0! (- yaxis_number_of_ticks 1!))))
 (def YLabels (map drawYLabels (range 0! (- yaxis_number_of_ticks 1!))))
 (def XLabels (mapi drawXLabels categorical_data))
-(def DataNumbers (mapi drawDataNumbers data))
+(def DataNumbers (concat (mapi drawDataNumbers clustered_list)))
 
 
 ; GRAPH REPRESENTATION ----------> 
@@ -275,19 +392,22 @@
     (let y (+ yval_test (* i spacing_test))
     [(text x y (toString d))]))))
     
-(def Text_test (mapi toText_test lerped_values))
+; (def Text_test (mapi toText_test lerped_values))
+(def Text_test (mapi toText_test [width]))
 
+(def testing_getClusters (getClusters data_1))
 
 ; CANVAS -----> 
 
 
 ; Essentially the drawing canvas
 (svg (append BackgroundRect
+    (append (concat Text_test)
     (append (concat Bars)
     (append (concat [xAxis yAxis title xLabel yLabel]) 
     (append (concat YTicks)
     (append (concat XTicks)
     (append (concat YLabels)
     (append (concat XLabels)
-    (append (concat DataNumbers) ForegroundRect)))))))))
+    (append (concat DataNumbers) ForegroundRect))))))))))
 

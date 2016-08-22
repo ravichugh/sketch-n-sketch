@@ -1,0 +1,461 @@
+
+; QUESTIONS: 
+
+
+; TODO: 
+
+
+; REFERENCES USED:
+; 1. https://www.smashingmagazine.com/2015/07/designing-simple-pie-charts-with-css/
+
+
+; ENTER DATA VALUES HERE ---------->
+
+; Please make sure 
+; 1. "data"
+; 2. "categorical_data"
+; 3. "data_colors"
+; have the same number of items
+
+(def data [10 20 30 40 50])
+(def categorical_data ['Slice 1' 'Slice 2' 'Slice 3' 'Slice 4' 'Slice 5'])
+
+; 1. can use names of standard colors: 'red', 'blue'
+; 2. can use rgb(a)
+; 3. can use hex 
+; 4. can use integers from 0-499 (use integers if you want sliders to appear)
+(def data_colors ['#F9ED69' '#F08A5D' '#B83B5E' '#6A2C70' 'black'])
+
+(def chart_radius 100)
+
+(def chart_border_width
+    (let outer_border 0!{0-20}
+    (* (/ outer_border 100!) chart_radius)))
+
+(def chart_border_color 'blue')
+
+(def slice_spacing_width 
+    (let gap_width 3!{0-20}
+    (* (/ gap_width 100!) chart_radius)))
+
+(def slice_spacing_color 'white')
+
+(def inner_circle_radius
+    (let inner_radius 40!{0-100}
+    (* (/ inner_radius 100!) chart_radius)))
+
+(def inner_circle_color 'white')
+
+(def inner_circle_border_width 
+    (let inner_border 0!{0-20}
+    (* (/ inner_border 100!) inner_circle_radius)))
+
+(def inner_circle_border_color 'blue')
+
+(def title_on true)
+
+(def title_text 'Title')
+
+(def show_percentages_on true)
+
+; for "percentage_text_color" you can only use
+; 1. names of standard colors: 'red', 'blue'
+; 2. rgb(a)
+; 3. hex
+(def percentage_text_color 'white')
+
+; Labels will only be shown when "legend_on" is false
+(def label_text_color 'white')
+
+(def legend_on true)
+(def legend_horizontal false)
+(def legend_vertical true)
+
+(def legend_border_width 1)
+(def legend_border_color 'black')
+
+(def legend_key_border_width 0)
+(def legend_key_border_color 'black')
+
+
+
+; DEFINE CONSTANTS ---------->
+
+(def diameter (* 2! chart_radius))
+
+(def radius_and_border
+    (+ chart_radius chart_border_width))
+
+; set up the constants needed for the hidden square around the chart 
+; the square will allow the user to change the size of the chart 
+(def [x0 y0 w h] [200 300 diameter diameter])
+(def BackgroundSquare [(rect 'none' x0 y0 w h)])
+
+; define the middle of the chart (necessary in order to position circle)
+(def x_center (+ x0 chart_radius))
+(def y_center (+ y0 chart_radius))
+
+
+
+; DATA FUNCTIONS ----------> 
+
+; find the total sum of the inputted data 
+(def total_sum (foldl plus 0 data))
+
+(def percentify (\d
+    (/ d total_sum)))
+
+; assign a percentage (as part of the total sum of data) to each datum
+(def mapPercent (\d
+    (map percentify d)))
+
+(def data_len (len data))
+(def last_index (- data_len 1!))
+
+
+    
+; GRAPH FUNCTIONS AND CONSTANTS ----------> 
+
+; PIE CHART -----> 
+
+(def r (/ chart_radius 2!))
+(def circumference (* (* 2! (pi)) r))
+(def stroke_width chart_radius)
+
+
+; SLICES ---> 
+
+; input: pair of a list of percentages and accumulator (accumulator is a number)
+(defrec findSliceLengths (\(l acc)
+    (case l 
+        ([] [])
+        ([hd|tl] 
+            (let percent (+ (* hd circumference) acc)
+            [percent|(findSliceLengths tl percent)])))))
+
+(def drawSlice (\(sl sc)
+    (let slice_len (toString sl)
+    [(addAttr
+            (addAttr
+                (addAttr (circle 'none' x_center y_center r)
+                    ['stroke' sc])
+                ['stroke-width' (toString stroke_width)])
+            ['stroke-dasharray' (spaces [slice_len (toString circumference)])])])))
+
+(def data_percentages (mapPercent data))
+(def slice_lengths (findSliceLengths data_percentages 0!))
+; reverse in order for piece with largest strokelength to be first 
+(def Slices (map2 drawSlice 
+    (reverse slice_lengths) (reverse data_colors)))
+
+
+; BORDER --->
+
+; draw circle border (basically by having a larger circle underneath)
+(def OuterCircleBorder
+    (let radius radius_and_border
+    (let color chart_border_color
+    [(circle color x_center y_center radius)])))
+
+
+; INNER CIRCLE --->
+
+(def inner_radius_and_border 
+    (+ inner_circle_radius inner_circle_border_width))
+
+; draw inner circle
+(def InnerCircle
+    (let radius inner_circle_radius
+    (let color inner_circle_color
+    [(circle color x_center y_center radius)])))
+
+; draw inner circle border/stroke
+(def InnerCircleBorder
+    (let radius inner_radius_and_border
+    (let color inner_circle_border_color
+    [(circle color x_center y_center radius)])))
+
+
+; GAPS --->
+
+; draw gaps between slices (should be lines)
+
+; need to calculate the other points based on percentages and radius 
+(def getOverallPercentage (\sl
+    (/ sl circumference)))
+
+(def getTheta (\percent
+    (* percent (* 2! (pi)))))
+
+(def getX2Y2 (\theta
+    (let radius radius_and_border
+    (let x2 (* radius (cos theta))
+    (let y2 (* radius (sin theta))
+    [x2 y2])))))
+
+(def drawGap (\[x2 y2]
+    (let x1 x_center
+    (let y1 y_center
+    (let color slice_spacing_color
+    (let width slice_spacing_width
+    [(line color width x1 y1 (+ x1 x2) (+ y1 y2))]))))))
+
+(def overall_percentages (map getOverallPercentage slice_lengths))
+(def thetas (map getTheta overall_percentages))
+(def X2Y2s (map getX2Y2 thetas))
+(def Gaps (map drawGap X2Y2s))
+
+
+; PERCENTAGES AND LABELS ---> 
+
+(def percent_dist 62{0-150})
+(def percent_radius (* (/ percent_dist 100!) radius_and_border))
+
+(def label_dist 150{0-180})
+(def label_radius (* (/ label_dist 100!) radius_and_border))
+
+(defrec findSliceMidPoints (\sl 
+    (case sl 
+        ([] [])
+        ([x] [])
+        ([x y |tl] 
+            (let midpoint (/ (+ x y) 2!)
+            [midpoint|(findSliceMidPoints (cons y tl))])))))
+
+(def getPercentCoord (\theta
+    (let radius percent_radius
+    (let x2 (* radius (cos theta))
+    (let y2 (* radius (sin theta))
+    [x2 y2])))))
+
+(def drawPercentages (\(p [x2 y2])
+    (let percentVal (/ (round (* 1000! p)) 10!)
+    (let percent (concatStrings [(toString percentVal) '%'])
+    (let text_color (if 
+        (or (and (< 99! percent_dist) (= percentage_text_color 'white'))
+            (and (< percent_dist inner_circle_radius) 
+                (and (= percentage_text_color 'white')
+                     (= inner_circle_color 'white'))))
+        'fill:black'
+        (concatStrings['fill:' percentage_text_color]))
+    [(addAttr
+        (addAttr 
+            (addAttr
+                (text (+ x_center x2) (+ y_center y2) percent)
+                ['style' text_color])
+            ['text-anchor' 'middle'])
+        ['font-size' (toString (round (* 0.125 chart_radius)))])])))))
+
+(def getLabelCoord (\theta
+    (let radius label_radius
+    (let x2 (* radius (cos theta))
+    (let y2 (* radius (sin theta))
+    [x2 y2])))))
+
+(def drawLabels (\(l [x2 y2])
+    (if legend_on 
+        []
+        (let text_color (if 
+            (or (and (< 99! label_dist) (= label_text_color 'white'))
+                (and (< label_dist inner_circle_radius)
+                     (and (= label_text_color 'white')
+                          (= inner_circle_color 'white'))))
+            'fill:black'
+            (concatStrings['fill:' label_text_color]))
+        [(addAttr
+            (addAttr 
+                (addAttr 
+                    (addAttr
+                        (text (+ x_center x2) (+ y_center y2) l)
+                        ['style' text_color])
+                    ['text-anchor' 'middle'])
+                ['font-weight' 'bold'])
+            ['font-size' (toString (round (* 0.125 chart_radius)))])]))))
+
+(def slice_mid_points (findSliceMidPoints (cons 0 slice_lengths)))
+(def mid_point_percentages (map getOverallPercentage slice_mid_points))
+(def text_thetas (map getTheta mid_point_percentages))
+(def percent_coord (map getPercentCoord text_thetas))
+(def PercentagesText 
+    (if show_percentages_on
+        (if (and (and (not legend_on) (< 99! percent_dist))
+                 (< percent_dist label_dist))
+            [] 
+            (map2 drawPercentages data_percentages percent_coord))
+        []))
+
+(def combineData (\(i1 i2)
+    (concatStrings[i1 ' ' (parens i2)])))
+
+(def formatDataPerc (\i
+    (let perc_val (/ (round (* 1000! i)) 10!)
+    (let perc_str (toString perc_val)
+    (concatStrings[perc_str '%'])))))
+
+(def form_data_percentages (map formatDataPerc data_percentages))
+(def combined_data (map2 combineData categorical_data form_data_percentages))
+
+(def label_coord (map getLabelCoord text_thetas))
+(def LabelsText 
+    (if (and (and show_percentages_on (< 99! percent_dist))
+             (< percent_dist label_dist))
+        (map2 drawLabels combined_data label_coord)
+        (map2 drawLabels categorical_data label_coord)))
+
+
+
+; TITLE -----> 
+
+; for title
+(def padding_condition_1
+    (or (< 99! percent_dist) (< 150! label_dist)))
+
+; for legends because when legend is on, labels will not be present
+(def padding_condition_2
+    (< 99! percent_dist))
+
+(def Title
+    (let title_x x_center
+    (let title_y_padding 
+        (if padding_condition_1
+            1.9!
+            1.5!)
+    (let title_y (- y_center (* title_y_padding radius_and_border))
+    (let font_height (* 0.25 radius_and_border)
+    [(addAttr
+        (addAttr
+            (addAttr
+                (text title_x title_y title_text)
+                ['text-anchor' 'middle'])
+            ['font-weight' 'bold'])
+        ['font-size' (toString (round font_height))])])))))
+
+
+; VERTICAL LEGEND -----> 
+    
+; adding 0 for movement 
+(def vlegend_left 
+    (let left_padding 
+        (if padding_condition_2
+            1.9!
+            1.5!)
+    (+ (+ x_center (* left_padding radius_and_border)) 0)))
+
+(def vkey_width (* 0.20 radius_and_border))
+(def vkey_padding (* 0.15 radius_and_border))
+(def vlegend_length
+    (+ 0! (+ (* last_index vkey_width) (* last_index vkey_padding))))
+
+; adding 0 for movement 
+(def vlegend_top (+ (- y_center (+ (/ vlegend_length 2!) (/ vkey_width 2!))) 0))
+
+(def vdrawKey (\[i col] 
+    (let key_x vlegend_left
+    (let key_y (+ (+ vlegend_top (* i vkey_width)) (* i vkey_padding))
+    [(square col key_x key_y vkey_width)]))))
+    
+(def vdrawKeyLabels (\[i txt]
+    (let key_x (+ (+ vlegend_left vkey_width) vkey_padding)
+    (let text_top (+ vlegend_top (* 0.75 vkey_width)) 
+    (let key_y (+ (+ text_top (* i vkey_width)) (* i vkey_padding))
+    [(addAttr
+        (text key_x key_y txt)
+            ['font-size' (toString (round (* 0.75 vkey_width)))])])))))
+
+(def vlegend_conditions
+    (and legend_on legend_vertical))
+
+(def VertKeys 
+    (if vlegend_conditions
+        (mapi vdrawKey data_colors)
+    []))
+
+(def VertKeyLabels
+    (if vlegend_conditions
+        (mapi vdrawKeyLabels categorical_data)
+        []))
+
+
+; HORIZONTAL LEGEND -----> 
+
+; adding 0 to allow for movement
+(def hlegend_top 
+    (let top_padding
+        (if padding_condition_2
+            1.9!
+            1.5!)
+    (+ (+ y_center (* top_padding radius_and_border)) 0)))
+
+(def hkey_width (* 0.20 radius_and_border))
+(def hkey_right_padding (* 0.625 radius_and_border))
+(def hkey_bottom_padding (* 2! hkey_width))
+(def hlegend_length 
+    (+ 0! (+ (* last_index hkey_width) (* last_index hkey_right_padding))))
+
+; adding 0 to allow for movement 
+(def hlegend_left (+ (- x_center (+ (/ hlegend_length 2!) (/ hkey_width 2!))) 0))
+
+(def hdrawKey (\[i col] 
+    (let key_x (+ (+ hlegend_left (* i hkey_width)) (* i hkey_right_padding))
+    (let key_y hlegend_top
+    [(square col key_x key_y hkey_width)]))))
+    
+(def hdrawKeyLabels (\[i txt] 
+    (let key_x (+ (/ hkey_width 2!) (+ (+ hlegend_left (* i hkey_width)) (* i hkey_right_padding)))
+    (let key_y (+ hlegend_top hkey_bottom_padding)
+    [(addAttr
+        (addAttr
+            (text key_x key_y txt)
+                ['font-size' (toString (round (* 0.75 hkey_width)))])
+            ['text-anchor' 'middle'])]))))
+
+(def hlegend_conditions 
+    (and legend_on legend_horizontal))
+
+(def HznKeys 
+    (if hlegend_conditions
+        (mapi hdrawKey data_colors)
+        []))
+
+(def HznKeyLabels 
+    (if hlegend_conditions 
+        (mapi hdrawKeyLabels categorical_data)
+        []))
+
+
+; GRAPH REPRESENTATION ----------> 
+
+; TESTING (for debugging purposes) ----->
+; testing constants:
+
+(def xval_test 100!)
+(def yval_test 50!)
+(def spacing_test 20!)
+
+; testing functions: 
+(def toText_test (\[i d]
+    (let x xval_test
+    (let y (+ yval_test (* i spacing_test))
+    [(text x y (toString d))]))))
+    
+; (def Text_test (mapi toText_test (cons circumference (mapPercent data))))
+(def Text_test (mapi toText_test thetas))
+
+
+; CANVAS ----->
+
+(svg (append OuterCircleBorder
+    (append (concat Slices) 
+    (append (concat Gaps)
+    (append InnerCircleBorder
+    (append InnerCircle
+    (append (concat PercentagesText) 
+    (append (concat LabelsText)
+    (append Title
+    (append (concat HznKeys)
+    (append (concat HznKeyLabels)
+    (append (concat VertKeys) 
+    (append (concat VertKeyLabels) BackgroundSquare)))))))))))))
+
+
+
