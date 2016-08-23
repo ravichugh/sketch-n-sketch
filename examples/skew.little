@@ -1,0 +1,83 @@
+
+
+(def path1
+  (let [left top right bot] [225 149 276 241]
+  (let bounds [left top right bot]
+  (let [strokeColor strokeWidth color] [381 9 499]
+  (let dPcts ['M' 0 0.033205619412516076? 'L' -0.28845962361844074? 1 'L' 0.5206611570247934? 0.44316730523627074? 'L' 1.31541079241614? 0.9727057106367452? 'L' 1 0]
+    [ (stretchyPath bounds color strokeColor strokeWidth dPcts) ])))))
+
+(def line2
+  (let [x1 y1 x2 y2] [38 230 83 307]
+  (let [color width] [388 5]
+    [ (line color width x1 y1 x2 y2) ])))
+
+(def line3
+  (let [x1 y1 x2 y2] [26 305 55 263]
+  (let [color width] [78 5]
+    [ (line color width x1 y1 x2 y2) ])))
+
+(def line4
+  (let [x1 y1 x2 y2] [85 308 97 228]
+  (let [color width] [383 5]
+    [ (line color width x1 y1 x2 y2) ])))
+
+(def line5
+  (let [x1 y1 x2 y2] [84 229 121 308]
+  (let [color width] [229 5]
+    [ (line color width x1 y1 x2 y2) ])))
+
+(def line6
+  (let [x1 y1 x2 y2] [121 307 153 232]
+  (let [color width] [185 5]
+    [ (line color width x1 y1 x2 y2) ])))
+
+(def newGroup14
+  (def [left top right bot] [132 367 258 459])
+  (def bounds [left top right bot])
+  (def rect7_k3431 9)
+  (def line8_color 122)
+
+  (def rect7
+    (let [left top right bot] [ left top (scaleBetween left right 0.40476190476190477) bot]
+    (let bounds [left top right bot]
+    (let color 0
+      [ (rectangle color 360 rect7_k3431 0 bounds) ]))))
+
+  (def line8
+    (let [x1 y1 x2 y2] [ (scaleBetween left right 0.06190476190476191) (scaleBetween top bot 0.008695652173913044) (scaleBetween left right 0.40476190476190477) (scaleBetween top bot 0.9565217391304348)]
+      [ (line line8_color rect7_k3431 x1 y1 x2 y2) ]))
+
+  (def line9
+    (let [x1 y1 x2 y2] [ (scaleBetween left right 0.047619047619047616) (scaleBetween top bot 0.9478260869565217) (scaleBetween left right 0.22857142857142856) (scaleBetween top bot 0.5304347826086957)]
+      [ (line line8_color rect7_k3431 x1 y1 x2 y2) ]))
+
+  (def rect10
+    (let [left top right bot] [ (scaleBetween left right 0.40476190476190477) (scaleBetween top bot 0.008695652173913044) right bot]
+    (let bounds [left top right bot]
+    (let color 417
+      [ (rectangle color 360 rect7_k3431 0 bounds) ]))))
+
+  (def line11
+    (let [x1 y1 x2 y2] [ (scaleBetween left right 0.4095238095238095) (scaleBetween top bot 0.9391304347826087) (scaleBetween left right 0.6) (scaleBetween top bot 0.008695652173913044)]
+      [ (line line8_color rect7_k3431 x1 y1 x2 y2) ]))
+
+  (def line12
+    (let [x1 y1 x2 y2] [ (scaleBetween left right 0.6) (scaleBetween top bot 0.017391304347826087) (scaleBetween left right 0.8142857142857143) (scaleBetween top bot 0.9565217391304348)]
+      [ (line line8_color rect7_k3431 x1 y1 x2 y2) ]))
+
+  (def line13
+    (let [x1 y1 x2 y2] [ (scaleBetween left right 0.8238095238095238) (scaleBetween top bot 0.9565217391304348) (scaleBetween left right 0.9666666666666667) (scaleBetween top bot 0.05217391304347826)]
+      [ (line line8_color rect7_k3431 x1 y1 x2 y2) ]))
+
+  [ (group bounds (concat [ rect7 line8 line9 rect10 line11 line12 line13 ])) ])
+
+(blobs [
+  path1
+  line2
+  line3
+  line4
+  line5
+  line6
+  newGroup14
+])
