@@ -3985,6 +3985,64 @@ cyclingAssociation0 =
 
 "
 
+snsLogoWheel =
+ "
+(def logo (\\(rectColor
+             lineColor lineWidth
+             width height
+             rot
+             topLeft@[left top])
+
+  (def botRight@[right bot] [(+ left width) (+ top height)])
+
+  (def rect1
+    (rawRect rectColor 360 0 left top width height rot))
+
+  (def line2
+    (line lineColor lineWidth left top right bot))
+
+  (def line3
+    (lineBetween lineColor lineWidth
+      [left bot]
+      (halfwayBetween topLeft botRight)))
+
+  [ rect1 line2 line3 ]))
+
+(def wheel (\\(n
+              spokeLen spokeColor spokeWidth
+              logoSize logoColor1 logoColor2 logoLineWidth
+              hubRadius
+              rot center@[cx cy])
+
+  (def cars
+    (let car_i (\\[x y]
+      (let cx (- x (/ logoSize 2!))
+      (let cy (- y (/ logoSize 2!))
+        (logo logoColor1 logoColor2 logoLineWidth logoSize logoSize 0 [cx cy]))))
+    (radialArray n spokeLen rot car_i center)))
+
+  (def spokes
+    (let spoke_i (\\endpoint
+      [(lineBetween spokeColor spokeWidth center endpoint)])
+    (radialArray n spokeLen rot spoke_i center)))
+
+  (def hub
+    [(ring spokeColor spokeWidth cx cy hubRadius)])
+
+  (concat [ spokes cars hub ])
+))
+
+(blobs [
+  (wheel
+    (let n 16{1-30} n)
+    100 420 2
+    30 100 200 3
+    20
+    0 [150 150])
+])
+
+"
+
 
 examples =
   [ makeExample "BLANK" blank
@@ -4022,6 +4080,7 @@ examples =
   , makeExample "Ferris Task Before" ferris2
   , makeExample "Ferris Task After" ferris2target
   , makeExample "Ferris Wheel Slideshow" ferrisWheelSlideshow
+  , makeExample "SnS Logo Wheel" snsLogoWheel
   , makeExample "Survey Results" surveyResultsTriHist2
   , makeExample "Hilbert Curve Animation" hilbertCurveAnimation
   , makeExample "Bar Graph" barGraph

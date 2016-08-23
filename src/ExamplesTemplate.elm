@@ -123,6 +123,7 @@ LITTLE_TO_ELM spiralSpiralGraph
 LITTLE_TO_ELM blank
 LITTLE_TO_ELM horrorFilms0
 LITTLE_TO_ELM cyclingAssociation0
+LITTLE_TO_ELM snsLogoWheel
 
 examples =
   [ makeExample "BLANK" blank
@@ -160,6 +161,7 @@ examples =
   , makeExample "Ferris Task Before" ferris2
   , makeExample "Ferris Task After" ferris2target
   , makeExample "Ferris Wheel Slideshow" ferrisWheelSlideshow
+  , makeExample "SnS Logo Wheel" snsLogoWheel
   , makeExample "Survey Results" surveyResultsTriHist2
   , makeExample "Hilbert Curve Animation" hilbertCurveAnimation
   , makeExample "Bar Graph" barGraph

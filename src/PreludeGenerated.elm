@@ -774,6 +774,9 @@ prelude =
      [ ['x1' x1] ['y1' y1] ['x2' x2] ['y2' y2] ['stroke' fill] ['stroke-width' w] ]
      []]))
 
+(def lineBetween (\\(fill w [x1 y1] [x2 y2])
+  (line fill w x1 y1 x2 y2)))
+
 (typ lineStart (-> Line Point))
 (def lineStart (\\line
   [
@@ -1262,8 +1265,7 @@ prelude =
 ; string fill/stroke/stroke-width attributes to avoid sliders
 (typ hiddenBoundingBox (-> Bounds BoundedShape))
 (def hiddenBoundingBox (\\bounds
-  ; (ghost (box bounds 'transparent' 'transparent' '0'))))
-  (ghost (box bounds 'transparent' 'transparent' 0))))
+  (ghost (box bounds 'transparent' 'transparent' '0'))))
 
 (typ simpleBoundingBox (-> Bounds BoundedShape))
 (def simpleBoundingBox (\\bounds
@@ -1480,6 +1482,25 @@ prelude =
 (def nextInLine (\\(pt1 pt2)
   (vec2DPlus pt2 (vec2DMinus pt2 pt1))
 ))
+
+
+; === Basic Replicate ===
+
+; TODO remove anchor dots; add helper dot annotation to language
+
+(def horizontalArray (\\(n sep func [x y])
+  (let draw_i (\\i
+    (let xi (+ x (* i sep))
+    (func [xi y])))
+  (let anchor (ghost (circle 'red' x y 10!))
+  (cons anchor (concat (map draw_i (zeroTo n))))
+))))
+
+(def radialArray (\\(n radius rot func [cx cy])
+  (let endpoints (nPointsOnCircle n rot cx cy radius)
+  (let anchor (ghost (circle 'red' cx cy 10!))
+  (cons anchor (concat (map func endpoints)))
+))))
 
 
 ; The type checker relies on the name of this definition.
