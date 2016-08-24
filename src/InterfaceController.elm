@@ -887,6 +887,13 @@ computeSelectedBlobsAndBounds model =
                (cx `minusNumTr` r, cy `minusNumTr` r, cx `plusNumTr` r, cy `plusNumTr` r)
              _ -> Debug.crash "computeSelectedBlobsAndBounds"
 
+         Just (LangSvg.SvgNode "rect" nodeAttrs _) ->
+           let get attr = ValueBasedTransform.maybeFindAttr nodeId "rect" attr nodeAttrs in
+           case List.map .v_ [get "x", get "y", get "width", get "height"] of
+             [VConst x, VConst y, VConst width, VConst height] ->
+               (x, y, x `plusNumTr` width, y `plusNumTr` height)
+             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+
          _ -> Debug.crash "computeSelectedBlobsAndBounds"
      )
      model.selectedBlobs
