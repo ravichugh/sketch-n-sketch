@@ -136,6 +136,7 @@ type WidgetDecl_
 type Widget
   = WIntSlider Int Int String Int Loc
   | WNumSlider Num Num String Num Loc
+  | WPointSlider NumTr NumTr
 
 type alias Widgets = List Widget
 

@@ -1486,21 +1486,17 @@ prelude =
 
 ; === Basic Replicate ===
 
-; TODO remove anchor dots; add helper dot annotation to language
-
 (def horizontalArray (\\(n sep func [x y])
   (let draw_i (\\i
     (let xi (+ x (* i sep))
     (func [xi y])))
-  (let anchor (ghost (circle 'red' x y 10!))
-  (cons anchor (concat (map draw_i (zeroTo n))))
-))))
+  (concat (map draw_i (zeroTo n)))
+)))
 
 (def radialArray (\\(n radius rot func [cx cy])
   (let endpoints (nPointsOnCircle n rot cx cy radius)
-  (let anchor (ghost (circle 'red' cx cy 10!))
-  (cons anchor (concat (map func endpoints)))
-))))
+  (concat (map func endpoints))
+)))
 
 
 ; The type checker relies on the name of this definition.

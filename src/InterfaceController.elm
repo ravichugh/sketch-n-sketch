@@ -2649,30 +2649,55 @@ applyTrigger objid kind zone old mx0 my0 dx_ dy_ =
 
 wSlider = params.mainSection.uiWidgets.wSlider
 
+pickLocId t =
+  case Set.toList (Sync.locsOfTrace Sync.defaultOptions t) of
+    [(k,_,_)]    -> k
+    (k,_,_) :: _ -> k -- picking arbitrarily...
+    []           -> Debug.crash "InterfaceController.pickLocId"
+
 createMousePosCallbackSlider mx my widget old =
 
-  let (maybeRound, minVal, maxVal, curVal, locid) =
-    case widget of
-      WIntSlider a b _ curVal (locid,_,_) ->
-        (toFloat << round, toFloat a, toFloat b, toFloat curVal, locid)
-      WNumSlider a b _ curVal (locid,_,_) ->
-        (identity, a, b, curVal, locid)
-  in
-  let range = maxVal - minVal in
-
-  \(mx',my') ->
-    let newVal =
-      curVal + (toFloat (mx' - mx) / toFloat wSlider) * range
-        |> clamp minVal maxVal
-        |> maybeRound
+  let create maybeUpdateX maybeUpdateY = \(mx',my') ->
+    let xSubst =
+      case maybeUpdateX of
+        Just (xLoc, xFoo) -> Dict.singleton xLoc (xFoo (toFloat (mx' - mx)))
+        Nothing           -> Dict.empty
+    in
+    let ySubst =
+      case maybeUpdateY of
+        Just (yLoc, yFoo) -> Dict.singleton yLoc (yFoo (toFloat (my' - my)))
+        Nothing           -> Dict.empty
     in
     -- unlike the live triggers via Sync,
     -- this substitution only binds the location to change
-    let subst = Dict.singleton locid newVal in
-    let newE = applyLocSubst subst old.inputExp in
+    let newE = applyLocSubst (Dict.union xSubst ySubst) old.inputExp in
     Eval.run newE
     `Result.andThen` (\(newVal,newWidgets) ->
       -- Can't manipulate slideCount/movieCount/movieDuration/movieContinue via sliders at the moment.
       LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime newVal
       |> Result.map (\newSlate -> (newE, newVal, newSlate, newWidgets))
-    )
+    ) in
+
+  case widget of
+
+    WNumSlider minVal maxVal _ curVal (locid,_,_) ->
+      let updateX dx =
+        curVal + (dx / toFloat wSlider) * (maxVal - minVal)
+          |> clamp minVal maxVal
+      in
+      create (Just (locid, updateX)) Nothing
+
+    WIntSlider a b _ c (locid,_,_) ->
+      let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
+      let updateX dx =
+        curVal + (dx / toFloat wSlider) * (maxVal - minVal)
+          |> clamp minVal maxVal
+          |> round
+          |> toFloat
+      in
+      create (Just (locid, updateX)) Nothing
+
+    WPointSlider (xCur, xTrace) (yCur, yTrace) ->
+      create
+        (Just (pickLocId xTrace, \dx -> xCur + dx))
+        (Just (pickLocId yTrace, \dy -> yCur + dy))

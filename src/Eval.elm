@@ -232,11 +232,31 @@ eval env bt e =
           _ ->
             errorWithBacktrace (e::bt) <| strPos e.start ++ "bad ELet"
 
+  EColonType _ e1 _ t1 _ ->
+    case t1.val of
+      -- using (e : Point) as a "point widget annotation"
+      TNamed _ a ->
+        if String.trim a /= "Point" then eval env bt e1
+        else
+          eval env bt e1 |> Result.map (\result ->
+            let ((v,ws),env') = result in
+            case v.v_ of
+              VList [v1, v2] ->
+                case (v1.v_, v2.v_) of
+                  (VConst nt1, VConst nt2) ->
+                    ((v, ws ++ [WPointSlider nt1 nt2]), env')
+                  _ ->
+                    result
+              _ ->
+                result
+            )
+      _ ->
+        eval env bt e1
 
   EComment _ _ e1       -> eval env bt e1
   EOption _ _ _ _ e1    -> eval env bt e1
   ETyp _ _ _ e1 _       -> eval env bt e1
-  EColonType _ e1 _ _ _ -> eval env bt e1
+  -- EColonType _ e1 _ _ _ -> eval env bt e1
   ETypeAlias _ _ _ e1 _ -> eval env bt e1
 
   -- abstract syntactic sugar

@@ -239,12 +239,9 @@ buildSvgWidgets wCanvas hCanvas model =
     xL            = pad
     yBL           = hCanvas - hWidget - pad
   in
-  let draw (i_, widget) =
+
+  let drawNumWidget i_ widget locId cap_ minVal maxVal curVal =
     let i = i_ - 1 in
-    let locId = case widget of
-      WIntSlider _ _ _ _ (k,_,_) -> k
-      WNumSlider _ _ _ _ (k,_,_) -> k
-    in
     let
       (r,c) = (i % numRows, i // numRows)
       xi    = xL  + c*wWidget
@@ -284,10 +281,6 @@ buildSvgWidgets wCanvas hCanvas model =
         ]
     in
     let ball =
-      let (minVal,maxVal,curVal) = case widget of
-        WIntSlider a b _ c _ -> (toFloat a, toFloat b, toFloat c)
-        WNumSlider a b _ c _ -> (a, b, c)
-      in
       let (range, diff) = (maxVal - minVal, curVal - minVal) in
       let pct = diff / range in
       let cx = xi + pad + round (pct*wSlider) in
@@ -301,10 +294,7 @@ buildSvgWidgets wCanvas hCanvas model =
         ] ++ sliderZoneEvents widget
     in
     let text =
-      let cap = case widget of
-        WIntSlider _ _ s targetVal _ -> s ++ strNumTrunc 5 targetVal
-        WNumSlider _ _ s targetVal _ -> s ++ strNumTrunc 5 targetVal
-      in
+      let cap = cap_ ++ strNumTrunc 5 curVal in
       flip Svg.text' [VirtualDom.text cap] <|
         [ attr "fill" "black"
         , attr "font-family" params.mainSection.uiWidgets.font
@@ -315,6 +305,35 @@ buildSvgWidgets wCanvas hCanvas model =
     in
     [region, box, text, ball]
   in
+
+  let drawPointWidget widget cx cy =
+    -- copied from ball above
+    let ball =
+      flip Svg.circle [] <|
+        [ attr "stroke" "black" , attr "stroke-width" "2px"
+        , attr "fill" strButtonTopColor
+        , attr "r" params.mainSection.uiWidgets.rBall
+        , attr "cx" (toString cx) , attr "cy" (toString cy)
+        , cursorOfZone "SliderBall" "default"
+        ] ++ sliderZoneEvents widget
+    in
+    [ball]
+  in
+
+  let draw (i_, widget) =
+    case widget of
+
+      WNumSlider minVal maxVal cap curVal (k,_,_) ->
+        drawNumWidget i_ widget k cap minVal maxVal curVal
+
+      WIntSlider a b cap c (k,_,_) ->
+        let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
+        drawNumWidget i_ widget k cap minVal maxVal curVal
+
+      WPointSlider (xVal, _) (yVal, _) ->
+        drawPointWidget widget xVal yVal
+  in
+
   Svg.svg [] (List.concat (Utils.mapi draw dedupedWidgets))
 
 sliderZoneEvents widgetState =
