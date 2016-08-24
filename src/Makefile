@@ -35,6 +35,7 @@ loc:
     Eval.elm Sync.elm LocEqn.elm \
     InterfaceModel.elm InterfaceView2.elm InterfaceController.elm \
     LangTools.elm LangTransform.elm ValueBasedTransform.elm \
+    Blobs.elm Draw.elm ExpressionBasedTransform.elm \
     InterfaceStorage.elm Storage.elm \
     Ace.elm CodeBox.elm Native/codeBox.js \
     Native/toggleAnimationLoopback.js \

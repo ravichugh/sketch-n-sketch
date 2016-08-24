@@ -1,14 +1,11 @@
-module InterfaceView2 (view, scaleColorBall , drawNewPolygonDotSize
-                      , boundingBoxOfPoints
-                      , boundingBox , squareBoundingBox , snapLine
-                      , maybeFindBounds , maybeFindBlobId
-                      ) where
+module InterfaceView2 (view, scaleColorBall) where
 
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
 import LangTools
 import LangParser2 as Parser exposing (parseE)
 import LangUnparser exposing (unparse)
+import Draw
 import Sync
 import Eval
 import Utils
@@ -670,27 +667,11 @@ distance_ pt1 pt2              = distance (projPt pt1) (projPt pt2)
 -- TODO redo callsite
 zoneRotatePolyOrPath model id kind pts nodeAttrs =
   let (xMin, xMax, yMin, yMax) =
-    boundingBoxOfPoints_ (List.map (\(x,y) -> (fst x, fst y)) pts) in
+    Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (fst x, fst y)) pts) in
   let (w, h) = (xMax - xMin, yMax - yMin) in
   let (xMiddle, yMiddle) = (xMin + 0.5 * w, yMin + 0.5 * h) in
   let r = ((max w h) / 2) + rotZoneDelta in
   zoneRotate model id kind (xMiddle, yMiddle) r (maybeTransformCmds nodeAttrs)
-
--- TODO change order of return values
-boundingBoxOfPoints_ : List (Float, Float) -> (Float, Float, Float, Float)
-boundingBoxOfPoints_ pts =
-  let (xs, ys) = List.unzip pts in
-  let xMax = Utils.fromJust <| List.maximum xs in
-  let xMin = Utils.fromJust <| List.minimum xs in
-  let yMax = Utils.fromJust <| List.maximum ys in
-  let yMin = Utils.fromJust <| List.minimum ys in
-  (xMin, xMax, yMin, yMax)
-
-boundingBoxOfPoints : List (Int, Int) -> (Int, Int, Int, Int)
-boundingBoxOfPoints pts =
-  let pts' = List.map (\(x,y) -> (toFloat x, toFloat y)) pts in
-  let (a,b,c,d) = boundingBoxOfPoints_ pts' in
-  (round a, round b, round c, round d)
 
 
 --------------------------------------------------------------------------------
@@ -1176,27 +1157,6 @@ toggleSelectedBlob blobId nodeId =
 
 -}
 
-maybeFindBlobId l =
-  case Utils.maybeFind "BLOB" l of
-    Nothing -> Nothing
-    Just av ->
-      case av.av_ of
-        LangSvg.AString sBlobId -> Just (Utils.parseInt sBlobId)
-        _                       -> Nothing
-
-maybeFindBounds l =
-  case Utils.maybeFind "BOUNDS" l of
-    Nothing -> Nothing
-    Just av ->
-      let roundBounds = True in
-      case (av.av_, roundBounds) of
-        (LangSvg.ABounds bounds, False) -> Just bounds
-        (LangSvg.ABounds (a,b,c,d), True) ->
-          let f = Utils.mapFst (toFloat << round) in
-          Just (f a, f b, f c, f d)
-        _ ->
-          Nothing
-
 
 --------------------------------------------------------------------------------
 
@@ -1476,7 +1436,7 @@ makeZonesPoly model shape id l =
     midptCrossDots ++ crossDots
   in
   let primaryWidgets =
-    let (x1,x2,y1,y2) = boundingBoxOfPoints_ (List.map (\(x,y) -> (fst x, fst y)) pts) in
+    let (x1,x2,y1,y2) = Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (fst x, fst y)) pts) in
     boundingBoxZones model id (x1,y1,x2,y2) <|
       [zInterior] ++ zLines ++ zSelect ++ zPts
   in
@@ -1527,7 +1487,7 @@ makeZonesPath model shape id nodeAttrs =
   in
   -- TODO add "Edge" zones
   let primaryWidgets =
-    let (x1,x2,y1,y2) = boundingBoxOfPoints_ (List.map (\(x,y) -> (fst x, fst y)) pts) in
+    let (x1,x2,y1,y2) = Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (fst x, fst y)) pts) in
     boundingBoxZones model id (x1,y1,x2,y2) <|
       [zInterior] ++
       zSelect ++
@@ -1541,204 +1501,6 @@ makeZonesGroup model nodeId l =
     (Just bounds, Just blobId) -> [] -- TODO zoneBlobBox model blobId nodeId bounds
     _                          -> []
 -}
-
-
---------------------------------------------------------------------------------
--- Drawing Tools
-
-drawNewShape model =
-  case (model.tool, model.mouseMode) of
-    (Line _,     MouseDrawNew [pt2, pt1])    -> drawNewLine model pt2 pt1
-    (Rect _,     MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
-    (Oval _,     MouseDrawNew [pt2, pt1])    -> drawNewEllipse model.keysDown pt2 pt1
-    (Poly _,     MouseDrawNew (ptLast::pts)) -> drawNewPolygon ptLast pts
-    (Path _,     MouseDrawNew (ptLast::pts)) -> drawNewPath ptLast pts
-    (HelperDot,  MouseDrawNew [pt])          -> drawNewHelperDot pt
-    (HelperLine, MouseDrawNew [pt2, pt1])    -> drawNewLine model pt2 pt1
-    (Lambda,     MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
-    (Text,       MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
-    _                                        -> []
-
-defaultOpacity        = Attr.style [("opacity", "0.5")]
-defaultStroke         = LangSvg.attr "stroke" "gray"
-defaultStrokeWidth    = LangSvg.attr "stroke-width" "5"
-defaultFill           = LangSvg.attr "fill" "gray"
-dotFill               = LangSvg.attr "fill" "red"
-dotFill2              = LangSvg.attr "fill" "orange"
-dotFillControlPt      = LangSvg.attr "fill" "green"
-dotSize               = LangSvg.attr "r" (toString drawNewPolygonDotSize)
-
-drawNewPolygonDotSize = 10
-
-guideStroke           = LangSvg.attr "stroke" "aqua"
-
-boundingBox : (Int, Int) -> (Int, Int) -> (Int, Int, Int, Int)
-boundingBox (x2,y2) (x1,y1) =
-  (min x1 x2, max x1 x2, min y1 y2, max y1 y2)
-
-squareBoundingBox : (Int, Int) -> (Int, Int) -> (Int, Int, Int, Int)
-squareBoundingBox (x2,y2) (x1,y1) =
-  let (xDiff, yDiff) = (abs (x2 - x1), abs (y2 - y1)) in
-  case (yDiff > xDiff, x1 < x2, y1 < y2) of
-    (True,  True , _    ) -> (x1, x1 + yDiff, min y1 y2, max y1 y2)
-    (True,  False, _    ) -> (x1 - yDiff, x1, min y1 y2, max y1 y2)
-    (False, _    , True ) -> (min x1 x2, max x1 x2, y1, y1 + xDiff)
-    (False, _    , False) -> (min x1 x2, max x1 x2, y1 - xDiff, y1)
-
-slicesPerQuadrant = 2 -- can toggle this parameter
-radiansPerSlice   = pi / (2 * slicesPerQuadrant)
-
-snapLine keysDown (_,(x2,y2)) (_,(x1,y1)) =
-  if keysDown == Keys.shift then
-    let (dx, dy) = (x2 - x1, y2 - y1) in
-    let angle = atan2 (toFloat (-dy)) (toFloat dx) in
-    let slice = round (angle / radiansPerSlice) in
-    let r = Utils.distanceInt (x2,y2) (x1,y1) in
-    let xb = toFloat x1 + r * cos (toFloat slice * radiansPerSlice) in
-    let yb = toFloat y1 - r * sin (toFloat slice * radiansPerSlice) in
-    (round xb, round yb)
-  else
-    (x2, y2)
-
-drawNewLine model click2 click1 =
-  let ((_,(x2,y2)),(_,(x1,y1))) = (click2, click1) in
-  let stroke = if model.tool == HelperLine then guideStroke else defaultStroke in
-  let (xb, yb) = snapLine model.keysDown click2 click1 in
-  let line =
-    svgLine [
-        stroke , defaultStrokeWidth , defaultOpacity
-      , LangSvg.attr "x1" (toString x1) , LangSvg.attr "y1" (toString y1)
-      , LangSvg.attr "x2" (toString xb) , LangSvg.attr "y2" (toString yb)
-      ]
-  in
-  [ line ]
-
-drawNewRect keysDown (_,pt2) (_,pt1) =
-  let (xa, xb, ya, yb) =
-    if keysDown == Keys.shift
-    then squareBoundingBox pt2 pt1
-    else boundingBox pt2 pt1
-  in
-  let rect =
-    svgRect [
-        defaultFill , defaultOpacity
-      , LangSvg.attr "x" (toString xa) , LangSvg.attr "width" (toString (xb-xa))
-      , LangSvg.attr "y" (toString ya) , LangSvg.attr "height" (toString (yb-ya))
-      ]
-  in
-  [ rect ]
-
-drawNewEllipse keysDown (_,pt2) (_,pt1) =
-  let (xa, xb, ya, yb) =
-    if keysDown == Keys.shift
-    then squareBoundingBox pt2 pt1
-    else boundingBox pt2 pt1
-  in
-  let (rx, ry) = ((xb-xa)//2, (yb-ya)//2) in
-  let ellipse =
-    svgEllipse [
-        defaultFill , defaultOpacity
-      , LangSvg.attr "cx" (toString (xa + rx))
-      , LangSvg.attr "cy" (toString (ya + ry))
-      , LangSvg.attr "rx" (toString rx)
-      , LangSvg.attr "ry" (toString ry)
-      ]
-  in
-  [ ellipse ]
-
-drawNewPolygon (_,ptLast) keysAndPoints =
-  let points = List.map snd keysAndPoints in
-  let (xInit,yInit) = Utils.last_ (ptLast::points) in
-  let dot =
-    svgCircle [
-        dotSize , dotFill , defaultOpacity
-      , LangSvg.attr "cx" (toString xInit)
-      , LangSvg.attr "cy" (toString yInit)
-      ] in
-  let maybeShape =
-    case (ptLast::points) of
-      [_] -> []
-      _ ->
-        -- don't need to reverse, but keeping it same as resulting shape
-        let polyPoints = List.reverse (ptLast::points) in
-        let sPoints =
-          Utils.spaces <|
-            List.map (\(x,y) -> String.join "," (List.map toString [x,y]))
-                     polyPoints
-        in
-        [ svgPolygon [
-            defaultStroke , defaultStrokeWidth , defaultFill , defaultOpacity
-          , LangSvg.attr "points" sPoints
-          ] ]
-   in
-   dot :: maybeShape
-
-strPt (x,y) = Utils.spaces [toString x, toString y]
-
-drawNewPath (keysLast,ptLast) keysAndPoints =
-  let points = List.map snd keysAndPoints in
-  let dot fill (cx,cy) =
-    svgCircle [
-        dotSize , fill , defaultOpacity
-      , LangSvg.attr "cx" (toString cx)
-      , LangSvg.attr "cy" (toString cy)
-      ] in
-  let redDot = [dot dotFill (Utils.last_ (ptLast::points))] in
-  let yellowDot =
-    case points of
-      [] -> []
-      _  -> [dot dotFill2 ptLast]
-  in
-  let pathAndPoints =
-    let plus (s1,l1) (s2,l2) = (s1 ++ s2, l1 ++ l2) in
-    let foo list0 = case list0 of
-      [] -> ("", [])
-      (modifiers1,click1) :: list1 ->
-        if modifiers1 == Keys.q then
-          case list1 of
-            [] -> ("", [click1])
-            (_,click2) :: list2 ->
-              let cmd = Utils.spaces [" Q", strPt click1, strPt click2] in
-              (cmd, [click1]) `plus` foo list2
-        else if modifiers1 == Keys.c then
-          case list1 of
-            [] -> ("", [click1])
-            (_,click2) :: [] -> ("", [click1, click2])
-            (_,click2) :: (_,click3) :: list3 ->
-              let cmd = Utils.spaces [" C", strPt click1, strPt click2, strPt click3] in
-              (cmd, [click1, click2]) `plus` foo list3
-        else
-          (Utils.spaces [" L", strPt click1], []) `plus` foo list1
-    in
-    case List.reverse ((keysLast,ptLast)::keysAndPoints) of
-      []  -> []
-      [_] -> []
-      (_,firstClick) :: rest ->
-        let (sPath, controlPoints) =
-          (Utils.spaces ["M", strPt firstClick], []) `plus` foo rest in
-        let path =
-          svgPath [
-              defaultStroke , defaultStrokeWidth , defaultFill , defaultOpacity
-            , LangSvg.attr "d" sPath
-            ] in
-        let points = List.map (dot dotFillControlPt) controlPoints in
-        path :: points
-  in
-  redDot ++ yellowDot ++ pathAndPoints
-
--- TODO this doesn't appear right away
--- (dor does initial poly, which appears only on MouseUp...)
-drawNewHelperDot (x,y) =
-  let r = drawNewPolygonDotSize in
-  let dot =
-    svgCircle [
-        defaultFill , defaultOpacity
-      , LangSvg.attr "cx" (toString 200)
-      , LangSvg.attr "cy" (toString 200)
-      , LangSvg.attr "r" (toString 10)
-      ]
-  in
-  [ dot ]
 
 
 --------------------------------------------------------------------------------
@@ -1826,7 +1588,7 @@ canvas_ w h model =
   in
   let mainCanvas_ = buildSvg (model, addZones) model.slate in
   let mainCanvas =
-    case drawNewShape model of
+    case Draw.drawNewShape model of
       []       -> mkSvg addZones mainCanvas_
       drawings -> mkSvg addZones (Svg.g [] (mainCanvas_ :: drawings))
   in

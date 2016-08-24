@@ -944,7 +944,7 @@ featurePoints features =
 
 
 featureEquation nodeId kind feature nodeAttrs =
-  let eqnVal attr = EqnVal <| maybeFindAttr nodeId kind attr nodeAttrs in
+  let eqnVal attr = EqnVal <| LangSvg.maybeFindAttr nodeId kind attr nodeAttrs in
   let eqnVal2     = EqnVal <| vConst (2, dummyTrace) in
   let handleRect () =
     let
@@ -1090,7 +1090,7 @@ featureEquation nodeId kind feature nodeAttrs =
     else Debug.crash <| "Lines do not have this feature: " ++ feature
   in
   let handlePoly () =
-    let ptCount = getPtCount nodeAttrs in
+    let ptCount = LangSvg.getPtCount nodeAttrs in
     let x i = eqnVal ("x" ++ toString i) in
     let y i = eqnVal ("y" ++ toString i) in
     if String.startsWith LangSvg.polyPtX feature then
@@ -1152,49 +1152,6 @@ featureEquation nodeId kind feature nodeAttrs =
       "polyline" -> handlePoly ()
       "path"     -> handlePath ()
       _          -> Debug.crash <| "Shape features not implemented yet: " ++ kind
-
-
-maybeFindAttr_ id kind attr attrs =
-  case Utils.maybeFind attr attrs of
-    Just aval -> LangSvg.valOfAVal aval
-    Nothing   -> Debug.crash <| toString ("RelateAttrs 2", id, kind, attr, attrs)
-
-
-getPolyXYi attrs si fstOrSnd =
-  let i = Utils.fromOk_ <| String.toInt si in
-  case Utils.maybeFind "points" attrs of
-    Just aval -> case aval.av_ of
-      LangSvg.APoints pts -> LangSvg.valOfAVal <| LangSvg.aNum <| fstOrSnd <| Utils.geti i pts
-      _                   -> Debug.crash "getPolyXYi 2"
-    _ -> Debug.crash "getPolyXYi 1"
-
-
-getPathXYi attrs si fstOrSnd =
-  let i = Utils.fromOk_ <| String.toInt si in
-  let maybeIndexPoint =
-    LangSvg.pathIndexPoints attrs
-    |> Utils.maybeFind i
-  in
-  case maybeIndexPoint of
-    Just pt -> LangSvg.valOfAVal <| LangSvg.aNum <| fstOrSnd pt
-    Nothing -> Debug.crash "getPathXYi 3"
-
-
-maybeFindAttr id kind attr attrs =
-  case (kind, String.uncons attr) of
-    ("polygon", Just ('x', si)) -> getPolyXYi attrs si fst
-    ("polygon", Just ('y', si)) -> getPolyXYi attrs si snd
-    ("path",    Just ('x', si)) -> getPathXYi attrs si fst
-    ("path",    Just ('y', si)) -> getPathXYi attrs si snd
-    _                           -> maybeFindAttr_ id kind attr attrs
-
-
-getPtCount attrs =
-  case Utils.maybeFind "points" attrs of
-    Just aval -> case aval.av_ of
-      LangSvg.APoints pts -> List.length pts
-      _                   -> Debug.crash "getPtCount 2"
-    _ -> Debug.crash "getPtCount 1"
 
 
 equationToLittle : SubstStr -> FeatureEquation -> String

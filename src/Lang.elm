@@ -556,6 +556,16 @@ isScope maybeParent exp =
         _                            -> isObviouslyScope
     Nothing -> isObviouslyScope
 
+varsOfPat : Pat -> List Ident
+varsOfPat pat =
+  case pat.val of
+    PConst _ _              -> []
+    PBase _ _               -> []
+    PVar _ x _              -> [x]
+    PList _ ps _ Nothing _  -> List.concatMap varsOfPat ps
+    PList _ ps _ (Just p) _ -> List.concatMap varsOfPat (p::ps)
+    PAs _ x _ p             -> x::(varsOfPat p)
+
 
 -----------------------------------------------------------------------------
 -- Lang Options

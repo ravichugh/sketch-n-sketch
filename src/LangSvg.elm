@@ -512,6 +512,75 @@ getBoundsAttrs attrs0 =
 
 
 ------------------------------------------------------------------------------
+-- Misc Attribute Helpers
+
+maybeFindAttr_ id kind attr attrs =
+  case Utils.maybeFind attr attrs of
+    Just aval -> valOfAVal aval
+    Nothing   -> Debug.crash <| toString ("RelateAttrs 2", id, kind, attr, attrs)
+
+
+getPolyXYi attrs si fstOrSnd =
+  let i = Utils.fromOk_ <| String.toInt si in
+  case Utils.maybeFind "points" attrs of
+    Just aval -> case aval.av_ of
+      APoints pts -> valOfAVal <| aNum <| fstOrSnd <| Utils.geti i pts
+      _           -> Debug.crash "getPolyXYi 2"
+    _ -> Debug.crash "getPolyXYi 1"
+
+
+getPathXYi attrs si fstOrSnd =
+  let i = Utils.fromOk_ <| String.toInt si in
+  let maybeIndexPoint =
+    pathIndexPoints attrs
+    |> Utils.maybeFind i
+  in
+  case maybeIndexPoint of
+    Just pt -> valOfAVal <| aNum <| fstOrSnd pt
+    Nothing -> Debug.crash "getPathXYi 3"
+
+
+maybeFindAttr id kind attr attrs =
+  case (kind, String.uncons attr) of
+    ("polygon", Just ('x', si)) -> getPolyXYi attrs si fst
+    ("polygon", Just ('y', si)) -> getPolyXYi attrs si snd
+    ("path",    Just ('x', si)) -> getPathXYi attrs si fst
+    ("path",    Just ('y', si)) -> getPathXYi attrs si snd
+    _                           -> maybeFindAttr_ id kind attr attrs
+
+
+getPtCount attrs =
+  case Utils.maybeFind "points" attrs of
+    Just aval -> case aval.av_ of
+      APoints pts -> List.length pts
+      _           -> Debug.crash "getPtCount 2"
+    _ -> Debug.crash "getPtCount 1"
+
+
+maybeFindBlobId l =
+  case Utils.maybeFind "BLOB" l of
+    Nothing -> Nothing
+    Just av ->
+      case av.av_ of
+        AString sBlobId -> Just (Utils.parseInt sBlobId)
+        _               -> Nothing
+
+
+maybeFindBounds l =
+  case Utils.maybeFind "BOUNDS" l of
+    Nothing -> Nothing
+    Just av ->
+      let roundBounds = True in
+      case (av.av_, roundBounds) of
+        (ABounds bounds, False) -> Just bounds
+        (ABounds (a,b,c,d), True) ->
+          let f = Utils.mapFst (toFloat << round) in
+          Just (f a, f b, f c, f d)
+        _ ->
+          Nothing
+
+
+------------------------------------------------------------------------------
 
 type alias ShapeKind = String
 type alias NodeId = Int
