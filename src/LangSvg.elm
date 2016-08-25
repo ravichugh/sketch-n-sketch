@@ -581,15 +581,7 @@ maybeFindBounds l =
 
 
 ------------------------------------------------------------------------------
-
-type alias ShapeKind = String
-type alias NodeId = Int
-type alias IndexedTree = Dict NodeId IndexedTreeNode
-type alias Attr = (String, AVal)
-type IndexedTreeNode
-  = TextNode String
-  | SvgNode ShapeKind (List Attr) (List NodeId)
-type alias RootedIndexedTree = (NodeId, IndexedTree)
+-- Shape Features (for UI Relate/ValueBasedTransform Tools)
 
 -- Must be a comparable to be put in a Set
 -- Otherwise, this shouldn't be a string
@@ -758,6 +750,20 @@ polyMidptX = "polyMidptX"
 polyMidptY = "polyMidptY"
 pathPtX = "pathPtX"
 pathPtY = "pathPtY"
+
+
+------------------------------------------------------------------------------
+-- RootedIndexedTree (a.k.a. "Slate"): tree representation of SVG Canvas Value
+
+type alias ShapeKind = String
+type alias NodeId = Int
+type alias IndexedTree = Dict NodeId IndexedTreeNode
+type alias Attr = (String, AVal)
+type IndexedTreeNode
+  = TextNode String
+  | SvgNode ShapeKind (List Attr) (List NodeId)
+type alias RootedIndexedTree = (NodeId, IndexedTree)
+
 
 children n = case n of
   TextNode _    -> []

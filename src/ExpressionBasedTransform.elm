@@ -4,14 +4,15 @@ module ExpressionBasedTransform -- in contrast to ValueBasedTransform
   , duplicateSelectedBlobs
   , mergeSelectedBlobs
   , deleteSelectedBlobs
+  , anchorOfSelectedFeatures
   ) where
 
 import Lang exposing (..)
 import LangUnparser exposing (unparse)
-import LangSvg
+import LangSvg exposing (NodeId, ShapeFeature)
 import Blobs exposing (..)
 import Types
-import InterfaceModel exposing (Model)
+import InterfaceModel exposing (Model, SelectedType)
 import InterfaceView2 as View
 import Utils
 import Keys
@@ -21,7 +22,7 @@ import Set
 
 
 --------------------------------------------------------------------------------
--- Group Blobs
+-- Group Blobs with Bounding Box
 
 computeSelectedBlobsAndBounds : Model -> Dict Int (NumTr, NumTr, NumTr, NumTr)
 computeSelectedBlobsAndBounds model =
@@ -337,6 +338,28 @@ occursFreeIn x e =
       ) Set.empty e
   in
   Set.member x vars
+
+
+--------------------------------------------------------------------------------
+-- Group Blobs with Anchor
+
+anchorOfSelectedFeatures
+  : Set.Set (SelectedType, NodeId, ShapeFeature)
+ -> Result String (Maybe (NodeId, ())) -- TODO
+anchorOfSelectedFeatures selectedFeatures =
+  let err = Err "To group around an anchor, need to select exactly one point." in
+  case Set.toList selectedFeatures of
+    [] -> Ok Nothing
+    [("shapeFeature", id1, feature1), ("shapeFeature", id2, feature2)] ->
+      if id1 /= id2 then err
+      else if feature1 == LangSvg.rectTLX && feature2 == LangSvg.rectTLY then
+        Ok (Just (id1, ()))
+      else if feature2 == LangSvg.rectTLX && feature1 == LangSvg.rectTLY then
+        Ok (Just (id1, ()))
+      else
+        err
+    _ ->
+      err
 
 
 --------------------------------------------------------------------------------

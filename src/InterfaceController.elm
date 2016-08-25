@@ -481,6 +481,8 @@ upstate evt old = case debugLog "Event" evt of
     WindowDimensions wh -> { old | dimensions = wh }
 
     Run ->
+      -- TODO move upstateRun to a function definition elsewhere,
+      -- to reduce the number of cases that have a dependency on upstate
       case parseE old.code of
         Err (err, annot) ->
           -- TODO maybe get rid of (computing and) displaying err in caption area
@@ -714,6 +716,8 @@ upstate evt old = case debugLog "Event" evt of
       )
 
     GroupBlobs ->
+      -- TODO allow one or more things to be anchored...
+      -- look for anchorOfSelectedFeatures
       if Dict.size old.selectedBlobs <= 1 then old
       else
         let (defs,me) = splitExp old.inputExp in
