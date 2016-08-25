@@ -131,7 +131,7 @@ unexpected results with following k' bug...
 ------------------------------------------------------------------------------
 Graveyard
 
-Commit XXX removed:
+Commit https://github.com/ravichugh/sketch-n-sketch/commit/e99b3996d3e9bf04335b24dc59d362a931020d48 removed:
 
 - Sync.inferStructuralUpdates (from original ad-hoc mode)
 - Lang.EIndList
