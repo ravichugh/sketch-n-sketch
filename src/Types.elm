@@ -1302,6 +1302,7 @@ checkSubtype typeInfo typeEnv tipe1 tipe2 =
          [ \() -> checkSubtypeTVar tipe1 okConstrain err
          , \() -> checkSubtypeTVar tipe2 okConstrain err
          , \() -> checkSubtypeUnionRight typeInfo typeEnv tipe1 tipe2
+         , \() -> checkSubtypeUnionLeft typeInfo typeEnv tipe1 tipe2
          , \() -> checkSubtypeFoldLeft typeInfo typeEnv tipe1 tipe2
          , \() -> checkSubtypeSingletonUnion typeInfo typeEnv tipe1 tipe2
          ]
@@ -1328,6 +1329,17 @@ checkSubtypeUnionRight typeInfo typeEnv tipe1 tipe2 =
   case (tipe1.val, tipe2.val) of
     (_, TUnion _ ts _) ->
       Utils.bindMaybe Just (checkSubtypeSomeRight typeInfo typeEnv tipe1 ts)
+    _ -> Nothing
+
+checkSubtypeUnionLeft : TypeInfo -> TypeEnv -> Type -> Type -> Maybe TypeInfo
+checkSubtypeUnionLeft typeInfo typeEnv tipe1 tipe2 =
+  case (tipe1.val, tipe2.val) of
+    (TUnion _ ts1 _, _) ->
+      let obligations = Utils.zip ts1 (List.repeat (List.length ts1) tipe2) in
+      let result = checkSubtypeList typeInfo typeEnv obligations in
+      case result.result of
+        Ok () -> Just result.typeInfo
+        Err _ -> Nothing
     _ -> Nothing
 
 checkSubtypeFoldLeft : TypeInfo -> TypeEnv -> Type -> Type -> Maybe TypeInfo

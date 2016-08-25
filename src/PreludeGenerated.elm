@@ -25,12 +25,11 @@ prelude =
   ; TODO other version:
   ; (def flip (\\(f x y) (f y x)))
 
-;; Returns the first element of a given list
-(typ fst (forall a (-> (List a) a)))
-(def fst (\\[x|_] x))
+(typ fst (forall (a b) (-> [a b] a)))
+(typ snd (forall (a b) (-> [a b] b)))
 
-(typ snd (forall a (-> (List a) a)))
-(def snd (\\[_ y|_] y))
+(def fst (\\[a _] a))
+(def snd (\\[_ b] b))
 
 ;; Returns the length of a given list
 (typ len (forall a (-> (List a) Num)))
@@ -774,6 +773,7 @@ prelude =
      [ ['x1' x1] ['y1' y1] ['x2' x2] ['y2' y2] ['stroke' fill] ['stroke-width' w] ]
      []]))
 
+(typ lineBetween (-> Color Num Point Point Line))
 (def lineBetween (\\(fill w [x1 y1] [x2 y2])
   (line fill w x1 y1 x2 y2)))
 
@@ -1152,6 +1152,7 @@ prelude =
 (def rotate (\\(shape n1 n2 n3)
   (addAttr shape ['transform' [['rotate' n1 n2 n3]]])))
 
+(typ rotateAround (-> Num Num Num SVG SVG))
 (def rotateAround (\\(rot x y shape)
   (addAttr shape ['transform' [['rotate' rot x y]]])))
 
