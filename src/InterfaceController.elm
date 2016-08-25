@@ -630,23 +630,6 @@ upstate evt old = case debugLog "Event" evt of
           else
             { old | runAnimation = False }
 
-
-    RelateAttrs ->
-      let selectedVals =
-        let locIdToNumberAndLoc = ValueBasedTransform.locIdToNumberAndLocOf old.inputExp in
-        debugLog "selectedVals" <|
-          ValueBasedTransform.pluckSelectedVals old.selectedFeatures old.slate locIdToNumberAndLoc
-      in
-      let revert = (old.inputExp, old.inputVal) in
-      let (nextK, l) = Sync.relate old.genSymCount old.inputExp selectedVals in
-      let possibleChanges = List.filterMap (Result.toMaybe << addSlateAndCode old) l in
-        { old | mode = SyncSelect possibleChanges
-              , genSymCount = nextK
-              , selectedFeatures = Set.empty -- TODO
-              , runAnimation = True
-              , syncSelectTime = 0.0
-              }
-
     DigHole ->
       let newExp =
         ValueBasedTransform.digHole old.inputExp old.selectedFeatures old.slate old.syncOptions
@@ -736,13 +719,6 @@ upstate evt old = case debugLog "Event" evt of
       upstate Run <| ETransform.abstractSelectedBlobs old
 
 {-
-    RelateShapes ->
-      let newval = slateToVal old.slate in
-      let l = Sync.inferNewRelationships old.inputExp old.inputVal newval in
-      let possibleChanges = List.map (addSlateAndCode old) l in
-        { old | mode = SyncSelect possibleChanges, runAnimation = True, syncSelectTime = 0.0 }
--}
-
     -- TODO AdHoc/Sync not used at the moment
     Sync ->
       case (old.mode, old.inputExp) of
@@ -778,6 +754,7 @@ upstate evt old = case debugLog "Event" evt of
                 let m = SyncSelect (addSlateAndCodeToAll changes) in
                 { old | mode = m, runAnimation = True, syncSelectTime = 0.0 }
         _ -> Debug.crash "upstate Sync"
+-}
 
     SelectOption (exp, val, slate, code) ->
         { old | code          = code

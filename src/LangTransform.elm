@@ -335,12 +335,6 @@ changeRenamedVarsToOuter_ renamings exp =
       EApp ws1 e1 es ws2     -> EApp ws1 (recurse e1) (List.map recurse es) ws2
       EOp ws1 op es ws2      -> EOp ws1 op (List.map recurse es) ws2
       EList ws1 es ws2 m ws3 -> EList ws1 (List.map recurse es) ws2 (Utils.mapMaybe recurse m) ws3
-      EIndList ws1 rs ws2    ->
-        let rangeRecurse r_ = case r_ of
-          Interval e1 ws e2 -> Interval (recurse e1) ws (recurse e2)
-          Point e1          -> Point (recurse e1)
-        in
-        EIndList ws1 (List.map (mapValField rangeRecurse) rs) ws2
       EIf ws1 e1 e2 e3 ws2      -> EIf ws1 (recurse e1) (recurse e2) (recurse e3) ws2
       ECase ws1 e1 branches ws2 ->
         -- TODO remove branch pat vars from renamings here (shadow

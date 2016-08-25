@@ -170,7 +170,6 @@ type Event = SelectObject Int ShapeKind Zone
            | PreviewCode (Maybe Code)
            | SelectOption PossibleChange
            | CancelSync
-           | RelateAttrs -- not using UpdateModel, since want to define handler in Controller
            | DigHole
            | MakeEqual
            | MakeEquidistant

@@ -29,7 +29,6 @@ type alias Type    = P.WithInfo Type_
 type alias Op      = P.WithInfo Op_
 type alias Branch  = P.WithInfo Branch_
 type alias TBranch = P.WithInfo TBranch_
-type alias Range   = P.WithInfo Range_
 
 -- TODO add constant literals to patterns, and match 'svg'
 type Pat_
@@ -60,8 +59,6 @@ type Op_
   | DictRemove
   -- trinary ops
   | DictInsert
-  -- internal ops
-  | RangeOffset Int
 
 type alias EId  = Int
 type alias Exp_ = { e__ : Exp__, eid : EId }
@@ -76,7 +73,6 @@ type Exp__
   | EApp WS Exp (List Exp) WS
   | EOp WS Op (List Exp) WS
   | EList WS (List Exp) WS (Maybe Exp) WS
-  | EIndList WS (List Range) WS
   | EIf WS Exp Exp Exp WS
   | ECase WS Exp (List Branch) WS
   | ETypeCase WS Pat (List TBranch) WS
@@ -121,10 +117,6 @@ type TBranch_ = TBranch_ WS Type Exp WS
 
 type LetKind = Let | Def
 type alias Rec = Bool
-
-type Range_ -- right now, Exps are always EConsts
-  = Interval Exp WS Exp
-  | Point Exp
 
 type alias WidgetDecl = P.WithInfo WidgetDecl_
 
@@ -237,7 +229,6 @@ strOp op = case op of
   DictGet       -> "get"
   DictRemove    -> "remove"
   DebugLog      -> "debug"
-  RangeOffset i -> "[[rangeOffset " ++ toString i ++ "]]"
 
 strLoc (k, b, mx) =
   "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx) ++ b
@@ -284,12 +275,6 @@ mapExp f e =
     EApp ws1 e1 es ws2     -> wrapAndMap (EApp ws1 (recurse e1) (List.map recurse es) ws2)
     EOp ws1 op es ws2      -> wrapAndMap (EOp ws1 op (List.map recurse es) ws2)
     EList ws1 es ws2 m ws3 -> wrapAndMap (EList ws1 (List.map recurse es) ws2 (Utils.mapMaybe recurse m) ws3)
-    EIndList ws1 rs ws2    ->
-      let rangeRecurse r_ = case r_ of
-        Interval e1 ws e2 -> Interval (recurse e1) ws (recurse e2)
-        Point e1          -> Point (recurse e1)
-      in
-      wrapAndMap (EIndList ws1 (List.map (mapValField rangeRecurse) rs) ws2)
     EIf ws1 e1 e2 e3 ws2      -> wrapAndMap (EIf ws1 (recurse e1) (recurse e2) (recurse e3) ws2)
     ECase ws1 e1 branches ws2 ->
       let newE1 = recurse e1 in
@@ -429,13 +414,6 @@ childExps e =
       case m of
         Just e  -> es ++ [e]
         Nothing -> es
-    EIndList ws1 ranges ws2 ->
-      List.concatMap
-        (\range -> case range.val of
-          Interval e1 ws e2 -> [e1, e2]
-          Point e1          -> [e1]
-        )
-        ranges
     EApp ws1 f es ws2               -> f :: es
     ELet ws1 k b p e1 e2 ws2        -> [e1, e2]
     EIf ws1 e1 e2 e3 ws2            -> [e1, e2, e3]

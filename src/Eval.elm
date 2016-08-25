@@ -158,15 +158,6 @@ eval env bt e =
                   VList vs' -> Ok <| retBoth <| (Val (VList (vs ++ vs')) [], ws ++ ws')
                   _         -> errorWithBacktrace (e::bt) <| strPos rest.start ++ " rest expression not a list."
 
-  EIndList _ rs _ ->
-    case Utils.projOk <| List.map rangeToList rs of
-      Err s -> errorWithBacktrace (e::bt) <| s
-      Ok listOfVLists ->
-        let vs = List.concat listOfVLists in
-        if isSorted vs
-        then Ok <| ret <| VList vs
-        else errorWithBacktrace (e::bt) <| "indices not strictly increasing: " ++ strVal (vList vs)
-
   EIf _ e1 e2 e3 _ ->
     case eval_ env bt e1 of
       Err s -> Err s
@@ -345,7 +336,6 @@ evalOp env bt opWithInfo es =
           ToStr      -> case vs of
             [val] -> VBase (VString (strVal val)) |> emptyVTraceOk
             _     -> error ()
-          RangeOffset _ -> error ()
       in
       newValRes
       |> Result.map (\newVal -> (newVal, List.concat wss))
@@ -401,10 +391,6 @@ evalDelta bt op is =
 
     (Pi,      [])    -> pi
 
-    (RangeOffset i, [n1,n2]) ->
-      let m = n1 + toFloat i in
-      if m > n2 then n2 else m
-
     _                -> crashWithBacktrace bt <| "Little evaluator bug: Eval.evalDelta " ++ strOp op
 
 
@@ -439,45 +425,6 @@ parseAndRun : String -> String
 parseAndRun = strVal << fst << Utils.fromOk_ << run << Utils.fromOkay "parseAndRun" << Parser.parseE
 
 parseAndRun_ = strVal_ True << fst << Utils.fromOk_ << run << Utils.fromOkay "parseAndRun_" << Parser.parseE
-
-rangeOff l1 i l2 = TrOp (RangeOffset i) [TrLoc l1, TrLoc l2]
-
--- Inflates a range to a list, which is then Concat-ed in eval
-rangeToList : Range -> Result String (List Val)
-rangeToList r =
-  let err () = errorMsg "Range not specified with numeric constants" in
-  case r.val of
-    -- dummy VTraces...
-    -- TODO: maybe add widgets
-    Point e -> case e.val.e__ of
-      EConst _ n l _ -> Ok [ vConst (n, rangeOff l 0 l) ]
-      _              -> err ()
-    Interval e1 _ e2 -> case (e1.val.e__, e2.val.e__) of
-      (EConst _ n1 l1 _, EConst _ n2 l2 _) ->
-        let walkVal i =
-          let m = n1 + toFloat i in
-          let tr = rangeOff l1 i l2 in
-          if m < n2
-            then vConst (m,  tr) :: walkVal (i + 1)
-            else vConst (n2, tr) :: []
-        in
-        Ok <| walkVal 0
-      _ -> err ()
-
--- Could compute this in one pass along with rangeToList
-isSorted = isSorted_ Nothing
-isSorted_ mlast vs = case vs of
-  []     -> True
-  v::vs' ->
-    case v.v_ of
-      VConst (j,_) ->
-        case mlast of
-          Nothing -> isSorted_ (Just j) vs'
-          Just i  -> if i < j
-                       then isSorted_ (Just j) vs'
-                       else False
-      _ ->
-        Debug.crash "isSorted"
 
 btString : Backtrace -> String
 btString bt =

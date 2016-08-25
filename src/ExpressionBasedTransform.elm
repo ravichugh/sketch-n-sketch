@@ -876,10 +876,6 @@ mergeExpressions eFirst eRest =
       let _ = Debug.log "mergeExpressions: options shouldn't appear nested: " () in
       Nothing
 
-    EIndList _ _ _ ->
-      let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
-      Nothing
-
 matchAllAndBind : (a -> Maybe b) -> List a -> (List b -> Maybe c) -> Maybe c
 matchAllAndBind f xs g = Utils.bindMaybe g (Utils.projJusts (List.map f xs))
 

@@ -966,9 +966,6 @@ synthesizeType typeInfo typeEnv e =
             let e' = replaceE__ e (ELet ws1 letKind rec p e1' e2 ws2) in
             synthesizeType typeInfo typeEnv' e'
 
-    EIndList _ _ _ ->
-      finish.withError "synthesizeType: EIndList ..." typeInfo
-
     -- don't need Ace annotations for the remaining expression kinds,
     -- so not calling not calling addRawType (i.e. finish)
 

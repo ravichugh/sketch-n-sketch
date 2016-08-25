@@ -72,8 +72,6 @@ freshen_ k e =
                   Nothing -> (EList ws1 es' ws2 Nothing ws3, k')
                   Just e  -> let (e',k'') = freshen_ k' e in
                              (EList ws1 es' ws2 (Just e') ws3, k'')
-  EIndList ws1 rs ws2-> let (rs', k') = freshenRanges k rs
-                 in (EIndList ws1 rs' ws2, k')
   EIf ws1 e1 e2 e3 ws2 ->
     let ((e1',e2',e3'),k') = U.mapFst U.unwrap3 <| freshenExps k [e1,e2,e3] in
     (EIf ws1 e1' e2' e3' ws2, k')
@@ -117,20 +115,6 @@ freshenExps k es =
   List.foldr (\e (es',k') ->
     let (e1,k1) = freshen_ k' e in
     (e1::es', k1)) ([],k) es
-
-freshenRanges : Int -> List Range -> (List Range, Int)
-freshenRanges k rs =
-  List.foldr (\r (rs',k') ->
-    let (r_,k_) = case r.val of
-      Point e ->
-        let (e',k'') = freshen_ k' e in
-        (Point e', k'')
-      Interval e1 ws e2 ->
-        let ((e1',e2'),k'') = U.mapFst U.unwrap2 <| freshenExps k' [e1,e2] in
-        (Interval e1' ws e2', k'')
-    in
-    ({ r | val = r_ } :: rs', k_)
-  ) ([],k) rs
 
 -- Record the primary identifier in the EConsts' Locs, where appropriate.
 recordIdentifiers (p,e) =
@@ -403,7 +387,6 @@ parseExp = P.recursively <| \_ ->
   <++ parseCase
   <++ parseTypeCase
   <++ parseExpList
-  <++ parseExpIndList
   <++ parseLet
   <++ parseTypeAlias
   <++ parseDef
@@ -525,17 +508,6 @@ parseExpArgs = P.many parseExp
 parseExpList =
   exp_ <$> parseListLiteralOrMultiCons parseExp EList
 
-parseExpIndList =
-  whitespace           >>= \ws1 ->
-  P.token "[|"         >>= \opening ->
-  (P.many parseERange) >>= \rs ->
-  whitespace           >>= \ws2 ->
-  P.token "|]"         >>= \closing ->
-    P.returnWithInfo (exp_ <| EIndList ws1.val rs.val ws2.val) opening.start closing.end
-
-parseERange =
-  (parseInterval <++ parsePoint)
-
 {-
 parseNumEAndFreeze =
   (\(EConst n (i,_,x)) -> EConst n (i,frozen,x)) <$> parseNumE
@@ -545,18 +517,6 @@ parseNumEAndFreeze =
 parseBound =
   parseNumE
   -- parseNumEAndFreeze
-
-parsePoint : P.Parser Range_
-parsePoint =
-  parseBound >>= \e ->
-    P.return (Point e)
-
-parseInterval =
-  parseBound   >>= \e1 ->
-  whitespace   >>= \ws ->
-  P.token ".." >>>
-  parseBound   >>= \e2 ->
-    P.return (Interval e1 ws.val e2)
 
 parseRec =
       (always True  <$> whiteTokenOneWS "letrec")

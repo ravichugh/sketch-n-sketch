@@ -54,7 +54,6 @@ precedingWhitespaceExp__ e__ =
     EFun       ws1 ps e1 ws2            -> ws1
     EApp       ws1 e1 es ws2            -> ws1
     EList      ws1 es ws2 rest ws3      -> ws1
-    EIndList   ws1 rs ws2               -> ws1
     EOp        ws1 op es ws2            -> ws1
     EIf        ws1 e1 e2 e3 ws2         -> ws1
     ELet       ws1 kind rec p e1 e2 ws2 -> ws1
@@ -92,7 +91,6 @@ mapPrecedingWhitespace mapWs exp =
       EFun       ws1 ps e1 ws2            -> EFun       (mapWs ws1) ps e1 ws2
       EApp       ws1 e1 es ws2            -> EApp       (mapWs ws1) e1 es ws2
       EList      ws1 es ws2 rest ws3      -> EList      (mapWs ws1) es ws2 rest ws3
-      EIndList   ws1 rs ws2               -> EIndList   (mapWs ws1) rs ws2
       EOp        ws1 op es ws2            -> EOp        (mapWs ws1) op es ws2
       EIf        ws1 e1 e2 e3 ws2         -> EIf        (mapWs ws1) e1 e2 e3 ws2
       ELet       ws1 kind rec p e1 e2 ws2 -> ELet       (mapWs ws1) kind rec p e1 e2 ws2
@@ -137,12 +135,6 @@ indent spaces e =
     EApp ws1 e1 es ws2     -> wrap (EApp (processWS ws1) (recurse e1) (List.map recurse es) ws2)
     EOp ws1 op es ws2      -> wrap (EOp (processWS ws1) op (List.map recurse es) ws2)
     EList ws1 es ws2 m ws3 -> wrap (EList (processWS ws1) (List.map recurse es) ws2 (Utils.mapMaybe recurse m) ws3)
-    EIndList ws1 rs ws2    ->
-      let rangeRecurse r_ = case r_ of
-        Interval e1 ws e2 -> Interval (recurse e1) ws (recurse e2)
-        Point e1          -> Point (recurse e1)
-      in
-      wrap (EIndList (processWS ws1) (List.map (mapValField rangeRecurse) rs) ws2)
     EIf ws1 e1 e2 e3 ws2     -> wrap (EIf (processWS ws1) (recurse e1) (recurse e2) (recurse e3) ws2)
     ECase ws1 e1 branches ws2 ->
       let newE1 = recurse e1 in
@@ -259,8 +251,6 @@ unparse e = case e.val.e__ of
     ws1 ++ "[" ++ (String.concat (List.map unparse es)) ++ ws3 ++ "]"
   EList ws1 es ws2 (Just eRest) ws3 ->
     ws1 ++ "[" ++ (String.concat (List.map unparse es)) ++ ws2 ++ "|" ++ unparse eRest ++ ws3 ++ "]"
-  EIndList ws1 rs ws2 ->
-    ws1 ++ "[|" ++ (String.concat (List.map unparseRange rs)) ++ ws2 ++ "|]"
   EOp ws1 op es ws2 ->
     ws1 ++ "(" ++ strOp op.val ++ (String.concat (List.map unparse es)) ++ ws2 ++ ")"
   EIf ws1 e1 e2 e3 ws2 ->
@@ -296,11 +286,6 @@ unparse e = case e.val.e__ of
     ws1 ++ "(" ++ (unparse e) ++ ws2 ++ ":" ++ (unparseType tipe) ++ ws3 ++ ")"
   ETypeAlias ws1 pat tipe e ws2 ->
     ws1 ++ "(def" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2 ++ ")" ++ unparse e
-
-unparseRange : Range -> String
-unparseRange r = case r.val of
-  Point e           -> unparse e
-  Interval e1 ws e2 -> unparse e1 ++ ws ++ ".." ++ unparse e2
 
 traceToLittle : SubstStr -> Trace -> String
 traceToLittle substStr trace =
