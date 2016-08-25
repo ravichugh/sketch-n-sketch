@@ -982,6 +982,11 @@ upstate evt old = case debugLog "Event" evt of
             |> freshen
           in
           let code' = unparse cleanedExp in
+          if old.code == code' then old
+          else
+            let _ = debugLog "Cleaned: " code' in
+            upstate Run { old | inputExp = cleanedExp, code = code' }
+{-
           let history' =
             if old.code == code'
               then old.history
@@ -990,6 +995,7 @@ upstate evt old = case debugLog "Event" evt of
           let _ = debugLog "Cleaned: " code' in
           let newModel = { old | inputExp = cleanedExp, code = code', history = history' } in
           newModel
+-}
 
     -- Elm does not have function equivalence/pattern matching, so we need to
     -- thread these events through upstate in order to catch them to rerender
