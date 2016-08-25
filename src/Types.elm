@@ -1413,6 +1413,15 @@ checkEqualType tipe1 tipe2 =
     Err _ -> False
     Ok () -> result.typeInfo.constraints == []
 
+-- Check subtyping without depending on any constraints.
+--
+checkSubtypeSimple : TypeEnv -> Type -> Type -> Bool
+checkSubtypeSimple typeEnv tipe1 tipe2 =
+  let result = checkSubtype initTypeInfo typeEnv tipe1 tipe2 in
+  case result.result of
+    Err _ -> False
+    Ok () -> True
+
 bindSubtypeResult : SubtypeResult -> (TypeInfo -> SubtypeResult) -> SubtypeResult
 bindSubtypeResult res1 f =
   case res1.result of
@@ -1632,6 +1641,11 @@ unify typeEnv vars accActive accUnifier cs = case cs of
           Nothing  -> Err err
 
       _ ->
+        -- simple subtyping in unification to help with union types
+        if checkSubtypeSimple typeEnv t1 t2 then recurse accActive accUnifier rest
+        else if checkSubtypeSimple typeEnv t2 t1 then recurse accActive accUnifier rest
+        else
+
         Err err
 
 -- TODO may need to apply entire unifier left-to-right
