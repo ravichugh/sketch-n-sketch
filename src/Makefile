@@ -32,7 +32,7 @@ loc:
     Lang.elm LangSvg.elm \
     LangParser2.elm LangUnparser.elm \
     OurParser2.elm Utils.elm Types.elm \
-    Eval.elm Sync.elm LocEqn.elm \
+    Eval.elm Sync.elm LocEqn.elm ShapeWidgets.elm \
     InterfaceModel.elm InterfaceView2.elm InterfaceController.elm \
     LangTools.elm LangTransform.elm ValueBasedTransform.elm \
     Blobs.elm Draw.elm ExpressionBasedTransform.elm \

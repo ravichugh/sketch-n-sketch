@@ -15,8 +15,8 @@ import Eval
 import Sync
 import LocEqn exposing (..)
 import Utils
--- import LangSvg exposing (NodeId, ShapeKind, Attr, ShapeFeature, FeatureNum)
-import LangSvg exposing (..)
+import LangSvg exposing (NodeId, ShapeKind, Attr)
+import ShapeWidgets exposing (FeatureEquation)
 import Config
 
 import Dict
@@ -27,12 +27,6 @@ import Regex
 
 debugLog = Config.debugLog Config.debugSync
 
-
--- Can't just use Trace because we need to introduce
--- constants not found in the program's Subst
-type FeatureEquation
-  = EqnVal Val
-  | EqnOp Op_ (List FeatureEquation)
 
 
 digHole originalExp selectedFeatures slate syncOptions =
@@ -301,8 +295,8 @@ makeEquidistantOverlappingTriples originalExp sortedFeatures slideNumber movieNu
         let maybeCEqn = typeAndNodeIdAndFeatureToEquation featureC tree locIdToNumberAndLoc in
         case (maybeAEqn, maybeBEqn, maybeCEqn) of
           (Just aEqn, Just bEqn, Just cEqn) ->
-            let distanceAB = EqnOp Minus [bEqn, aEqn] in
-            let distanceBC = EqnOp Minus [cEqn, bEqn] in
+            let distanceAB = ShapeWidgets.EqnOp Minus [bEqn, aEqn] in
+            let distanceBC = ShapeWidgets.EqnOp Minus [cEqn, bEqn] in
             makeEqual__ originalExp distanceAB distanceBC syncOptions
 
           _ -> Nothing
@@ -679,7 +673,7 @@ evaluateFeature typeAndNodeIdAndFeatureName slate locIdToNumberAndLoc =
 
 evaluateFeatureEquation eqn =
   case eqn of
-    EqnVal val ->
+    ShapeWidgets.EqnVal val ->
       case val.v_ of
         VConst (n, _) ->
           Just n
@@ -687,7 +681,7 @@ evaluateFeatureEquation eqn =
         _ ->
           Debug.crash <| "Found feature equation with a value other than a VConst: " ++ (toString val) ++ "\nin: " ++ (toString eqn)
 
-    EqnOp op [left, right] ->
+    ShapeWidgets.EqnOp op [left, right] ->
       let maybePerformBinop op =
         let maybeLeftResult = evaluateFeatureEquation left in
         let maybeRightResult = evaluateFeatureEquation right in
@@ -706,17 +700,17 @@ evaluateFeatureEquation eqn =
 
 
 typeAndNodeIdAndFeatureToEquation (selectedType, nodeId, featureName) tree locIdToNumberAndLoc =
-  if selectedType == LangSvg.selectedTypeShapeFeature then
+  if selectedType == ShapeWidgets.selectedTypeShapeFeature then
     case Dict.get nodeId tree of
       Just (LangSvg.SvgNode kind nodeAttrs _) ->
-        Just (featureEquation nodeId kind featureName nodeAttrs)
+        Just (ShapeWidgets.featureEquation nodeId kind featureName nodeAttrs)
 
       Just (LangSvg.TextNode _) ->
         Nothing
 
       Nothing ->
         Debug.crash <| "typeAndNodeIdAndFeatureToEquation " ++ (toString nodeId) ++ " " ++ (toString tree)
-  else if selectedType == LangSvg.selectedTypeWidget then
+  else if selectedType == ShapeWidgets.selectedTypeWidget then
     -- parse locId from "widget123" feature name
     let locIdStr =
       String.dropLeft (String.length "widget") featureName
@@ -731,15 +725,15 @@ typeAndNodeIdAndFeatureToEquation (selectedType, nodeId, featureName) tree locId
           locId
           locIdToNumberAndLoc
     in
-    Just (EqnVal <| vConst (n, TrLoc loc))
+    Just (ShapeWidgets.EqnVal <| vConst (n, TrLoc loc))
   else
     Debug.crash <| "Unknown selected feature type: " ++ selectedType
 
 
 equationVals eqn =
   case eqn of
-    EqnVal val   -> [val]
-    EqnOp _ eqns -> List.concatMap equationVals eqns
+    ShapeWidgets.EqnVal val   -> [val]
+    ShapeWidgets.EqnOp _ eqns -> List.concatMap equationVals eqns
 
 
 equationLocs syncOptions eqn =
@@ -866,7 +860,7 @@ maybeExtractUnsharedExpression lhs rhs =
 featureEquationToLocEquation : FeatureEquation -> LocEquation
 featureEquationToLocEquation featureEqn =
   case featureEqn of
-    EqnVal val ->
+    ShapeWidgets.EqnVal val ->
       case val.v_ of
         -- locId of 0 means it's a constant that's part of the feature equation,
         -- not the program
@@ -881,7 +875,7 @@ featureEquationToLocEquation featureEqn =
 
         _ -> Debug.crash <| "Found feature equation with a value other than a VConst: " ++ (toString val) ++ "\nin: " ++ (toString featureEqn)
 
-    EqnOp op featureEqns ->
+    ShapeWidgets.EqnOp op featureEqns ->
       LocEqnOp op (List.map featureEquationToLocEquation featureEqns)
 
 
@@ -944,197 +938,11 @@ featurePoints features =
             featurePoints otherFeatures
 
 
-featureEquation : NodeId -> ShapeKind -> ShapeFeature -> List Attr -> FeatureEquation
-featureEquation nodeId kind feature nodeAttrs =
-  let featureNum = LangSvg.parseFeatureNum feature in
-  featureEquationOf nodeId kind nodeAttrs featureNum
-
-
-featureEquationOf : NodeId -> ShapeKind -> List Attr -> FeatureNum -> FeatureEquation
-featureEquationOf id kind attrs featureNum =
-
-  let eqnVal attr = EqnVal <| LangSvg.maybeFindAttr id kind attr attrs in
-  let eqnVal2     = EqnVal <| vConst (2, dummyTrace) in
-  let crash () =
-    let s = LangSvg.unparseFeatureNum (Just kind) featureNum in
-    Debug.crash <| Utils.spaces [ "featureEquationOf:", kind, s] in
-
-  let handleLine () =
-    case featureNum of
-      X (Point 1) -> eqnVal "x1"
-      X (Point 2) -> eqnVal "x2"
-      Y (Point 1) -> eqnVal "x1"
-      Y (Point 2) -> eqnVal "x2"
-      X Center    -> EqnOp Div [EqnOp Plus [eqnVal "x1", eqnVal "x2"], eqnVal2]
-      Y Center    -> EqnOp Div [EqnOp Plus [eqnVal "y1", eqnVal "y2"], eqnVal2]
-      _           -> crash () in
-
-  let handleBoxyShape () =
-    let equations =
-      case kind of
-
-        "rect" ->
-          { left = eqnVal "x"
-          , top = eqnVal "y"
-          , right = EqnOp Plus [eqnVal "x", eqnVal "width"]
-          , bottom = EqnOp Plus [eqnVal "y", eqnVal "height"]
-          , cx = EqnOp Plus [eqnVal "x", EqnOp Div [eqnVal "width",  eqnVal2]]
-          , cy = EqnOp Plus [eqnVal "y", EqnOp Div [eqnVal "height", eqnVal2]]
-          , mWidth = Just <| eqnVal "width"
-          , mHeight = Just <| eqnVal "height"
-          , mRadius = Nothing
-          , mRadiusX = Nothing
-          , mRadiusY = Nothing
-          }
-
-        "BOX" ->
-          { left = eqnVal "LEFT"
-          , top = eqnVal "TOP"
-          , right = eqnVal "RIGHT"
-          , bottom = eqnVal "BOT"
-          , cx = EqnOp Div [EqnOp Plus [eqnVal "LEFT", eqnVal "RIGHT"], eqnVal2]
-          , cy = EqnOp Div [EqnOp Plus [eqnVal "TOP", eqnVal "BOT"], eqnVal2]
-          , mWidth = Just <| EqnOp Minus [eqnVal "RIGHT", eqnVal "LEFT"]
-          , mHeight = Just <| EqnOp Minus [eqnVal "BOT", eqnVal "TOP"]
-          , mRadius = Nothing
-          , mRadiusX = Nothing
-          , mRadiusY = Nothing
-          }
-
-        "OVAL" ->
-          { left = eqnVal "LEFT"
-          , top = eqnVal "TOP"
-          , right = eqnVal "RIGHT"
-          , bottom = eqnVal "BOT"
-          , cx = EqnOp Div [EqnOp Plus [eqnVal "LEFT", eqnVal "RIGHT"], eqnVal2]
-          , cy = EqnOp Div [EqnOp Plus [eqnVal "TOP", eqnVal "BOT"], eqnVal2]
-          , mWidth = Just <| EqnOp Minus [eqnVal "RIGHT", eqnVal "LEFT"]
-          , mHeight = Just <| EqnOp Minus [eqnVal "BOT", eqnVal "TOP"]
-          , mRadius = Nothing
-          , mRadiusX = Nothing
-          , mRadiusY = Nothing
-          }
-
-        "circle" ->
-          { left = EqnOp Minus [eqnVal "cx", eqnVal "r"]
-          , top = EqnOp Minus [eqnVal "cy", eqnVal "r"]
-          , right = EqnOp Plus  [eqnVal "cx", eqnVal "r"]
-          , bottom = EqnOp Plus  [eqnVal "cy", eqnVal "r"]
-          , cx = eqnVal "cx"
-          , cy = eqnVal "cy"
-          , mWidth = Nothing
-          , mHeight = Nothing
-          , mRadius = Just <| eqnVal "r"
-          , mRadiusX = Nothing
-          , mRadiusY = Nothing
-          }
-
-        "ellipse" ->
-          { left = EqnOp Minus [eqnVal "cx", eqnVal "rx"]
-          , top = EqnOp Minus [eqnVal "cy", eqnVal "ry"]
-          , right = EqnOp Plus  [eqnVal "cx", eqnVal "rx"]
-          , bottom = EqnOp Plus  [eqnVal "cy", eqnVal "ry"]
-          , cx = eqnVal "cx"
-          , cy = eqnVal "cy"
-          , mWidth = Nothing
-          , mHeight = Nothing
-          , mRadius = Nothing
-          , mRadiusX = Just <| eqnVal "rx"
-          , mRadiusY = Just <| eqnVal "ry"
-          }
-
-        _ -> crash () in
-
-    case featureNum of
-
-      X TopLeft   -> equations.left
-      Y TopLeft   -> equations.top
-      X TopRight  -> equations.right
-      Y TopRight  -> equations.bottom
-      X BotLeft   -> equations.left
-      Y BotLeft   -> equations.bottom
-      X BotRight  -> equations.right
-      Y BotRight  -> equations.bottom
-      X TopEdge   -> equations.cx
-      Y TopEdge   -> equations.top
-      X BotEdge   -> equations.cx
-      Y BotEdge   -> equations.bottom
-      X LeftEdge  -> equations.left
-      Y LeftEdge  -> equations.cy
-      X RightEdge -> equations.right
-      Y RightEdge -> equations.cy
-      X Center    -> equations.cx
-      Y Center    -> equations.cy
-
-      D distanceFeature ->
-        let s = LangSvg.strDistanceFeature distanceFeature in
-        let cap = Utils.spaces ["shapeFeatureEquationOf:", kind, s] in
-        case distanceFeature of
-          Width     -> Utils.fromJust_ cap equations.mWidth
-          Height    -> Utils.fromJust_ cap equations.mHeight
-          Radius    -> Utils.fromJust_ cap equations.mRadius
-          RadiusX   -> Utils.fromJust_ cap equations.mRadiusX
-          RadiusY   -> Utils.fromJust_ cap equations.mRadiusY
-
-      _ -> crash () in
-
-  let handlePath () =
-    let x i = eqnVal ("x" ++ toString i) in
-    let y i = eqnVal ("y" ++ toString i) in
-    case featureNum of
-      X (Point i) -> x i
-      Y (Point i) -> y i
-      _           -> crash () in
-
-  let handlePoly () =
-    let ptCount = LangSvg.getPtCount attrs in
-    let x i = eqnVal ("x" ++ toString i) in
-    let y i = eqnVal ("y" ++ toString i) in
-    case featureNum of
-
-      X (Point i) -> x i
-      Y (Point i) -> y i
-
-      X (Midpoint i1) ->
-        let i2 = if i1 == ptCount then 1 else i1 + 1 in
-        EqnOp Div [EqnOp Plus [(x i1), (x i2)], eqnVal2]
-      Y (Midpoint i1) ->
-        let i2 = if i1 == ptCount then 1 else i1 + 1 in
-        EqnOp Div [EqnOp Plus [(y i1), (y i2)], eqnVal2]
-
-      _  -> crash () in
-
-  case featureNum of
-
-    O FillColor   -> eqnVal "fill"
-    O StrokeColor -> eqnVal "stroke"
-    O StrokeWidth -> eqnVal "stroke-width"
-
-    O FillOpacity ->
-      case (Utils.find_ attrs "fill").av_ of
-        LangSvg.AColorNum (_, Just opacity) -> EqnVal (vConst opacity)
-        _                                   -> Debug.crash "featureEquationOf: fillOpacity"
-    O StrokeOpacity ->
-      case (Utils.find_ attrs "stroke").av_ of
-        LangSvg.AColorNum (_, Just opacity) -> EqnVal (vConst opacity)
-        _                                   -> Debug.crash "featureEquationOf: strokeOpacity"
-    O Rotation ->
-      let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ attrs "transform" in
-      EqnVal (vConst rot)
-
-    _ ->
-      case kind of
-        "line"     -> handleLine ()
-        "polygon"  -> handlePoly ()
-        "polyline" -> handlePoly ()
-        "path"     -> handlePath ()
-        _          -> handleBoxyShape ()
-
 
 equationToLittle : SubstStr -> FeatureEquation -> String
 equationToLittle substStr eqn =
   case eqn of
-    EqnVal val ->
+    ShapeWidgets.EqnVal val ->
       case val.v_ of
         VConst (n, trace) ->
           let littlizedTrace = traceToLittle substStr trace in
@@ -1149,6 +957,6 @@ equationToLittle substStr eqn =
         _ ->
           "?"
 
-    EqnOp op childEqns ->
+    ShapeWidgets.EqnOp op childEqns ->
       let childLittleStrs = List.map (equationToLittle substStr) childEqns in
       "(" ++ strOp op ++ " " ++ String.join " " childLittleStrs ++ ")"

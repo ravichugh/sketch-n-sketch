@@ -11,7 +11,8 @@ module ExpressionBasedTransform -- in contrast to ValueBasedTransform
 import Lang exposing (..)
 import LangUnparser exposing (unparse)
 import LangParser2 exposing (parseE)
-import LangSvg exposing (NodeId, PointFeature, SelectedShapeFeature)
+import LangSvg exposing (NodeId)
+import ShapeWidgets exposing (PointFeature, SelectedShapeFeature)
 import Blobs exposing (..)
 import Types
 import InterfaceModel exposing (Model)
@@ -353,7 +354,7 @@ anchorOfSelectedFeatures selectedFeatures =
   let err = Err "To group around an anchor, need to select exactly one point." in
   case Set.toList selectedFeatures of
     [selected1, selected2] ->
-      case LangSvg.selectedPointFeatureOf selected1 selected2 of
+      case ShapeWidgets.selectedPointFeatureOf selected1 selected2 of
         Just result -> Ok (Just result)
         Nothing     -> err
     [] -> Ok Nothing
@@ -365,8 +366,8 @@ groupSelectedBlobsAround model (anchorId, anchorPointFeature) =
 
   -- TODO
   -- simple approach: anchor must be a primitive point
-  case LangSvg.getPointEquations anchorId anchorKind anchorAttrs anchorPointFeature of
-    (LangSvg.EqnVal vxBase, LangSvg.EqnVal vyBase) ->
+  case ShapeWidgets.getPointEquations anchorId anchorKind anchorAttrs anchorPointFeature of
+    (ShapeWidgets.EqnVal vxBase, ShapeWidgets.EqnVal vyBase) ->
 
       -- simple approach: anchor point must be defined by constant literals
       case (vxBase.v_, vyBase.v_) of
@@ -390,7 +391,7 @@ rewritePrimitivePointsOfSelectedBlobs model (vxBase, nxBase, xBaseLoc)
   let (xAnchor, yAnchor) = ("xAnchor", "yAnchor") in
   let pointsOfSelectedBlobs =
      Dict.foldl
-       (\_ nodeId acc -> acc ++ LangSvg.getPrimitivePointEquations model.slate nodeId)
+       (\_ nodeId acc -> acc ++ ShapeWidgets.getPrimitivePointEquations model.slate nodeId)
        [] model.selectedBlobs
   in
   let eSubst =
