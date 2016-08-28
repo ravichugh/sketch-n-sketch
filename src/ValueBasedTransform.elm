@@ -1093,21 +1093,21 @@ featureEquation nodeId kind feature nodeAttrs =
     let ptCount = LangSvg.getPtCount nodeAttrs in
     let x i = eqnVal ("x" ++ toString i) in
     let y i = eqnVal ("y" ++ toString i) in
-    if String.startsWith LangSvg.polyPtX feature then
-      let iStr = String.dropLeft (String.length LangSvg.polyPtX) feature in
+    if String.startsWith LangSvg.polyPtXPrefix feature then
+      let iStr = String.dropLeft (String.length LangSvg.polyPtXPrefix) feature in
       let i    = Utils.fromOk_ <| String.toInt iStr in
       x i
-    else if String.startsWith LangSvg.polyPtY feature then
-      let iStr = String.dropLeft (String.length LangSvg.polyPtY) feature in
+    else if String.startsWith LangSvg.polyPtYPrefix feature then
+      let iStr = String.dropLeft (String.length LangSvg.polyPtYPrefix) feature in
       let i    = Utils.fromOk_ <| String.toInt iStr in
       y i
-    else if String.startsWith LangSvg.polyMidptX feature then
-      let i1Str = String.dropLeft (String.length LangSvg.polyMidptX) feature in
+    else if String.startsWith LangSvg.polyMidptXPrefix feature then
+      let i1Str = String.dropLeft (String.length LangSvg.polyMidptXPrefix) feature in
       let i1    = Utils.fromOk_ <| String.toInt i1Str in
       let i2    = if i1 == ptCount then 1 else i1 + 1 in
       EqnOp Div [EqnOp Plus [(x i1), (x i2)], eqnVal2] -- (x1 + x2) / 2
-    else if String.startsWith LangSvg.polyMidptY feature then
-      let i1Str = String.dropLeft (String.length LangSvg.polyMidptY) feature in
+    else if String.startsWith LangSvg.polyMidptYPrefix feature then
+      let i1Str = String.dropLeft (String.length LangSvg.polyMidptYPrefix) feature in
       let i1    = Utils.fromOk_ <| String.toInt i1Str in
       let i2    = if i1 == ptCount then 1 else i1 + 1 in
       EqnOp Div [EqnOp Plus [(y i1), (y i2)], eqnVal2] -- (y1 + y2) / 2
@@ -1116,12 +1116,12 @@ featureEquation nodeId kind feature nodeAttrs =
   let handlePath () =
     let x i = eqnVal ("x" ++ toString i) in
     let y i = eqnVal ("y" ++ toString i) in
-    if String.startsWith LangSvg.pathPtX feature then
-      let iStr = String.dropLeft (String.length LangSvg.pathPtX) feature in
+    if String.startsWith LangSvg.pathPtXPrefix feature then
+      let iStr = String.dropLeft (String.length LangSvg.pathPtXPrefix) feature in
       let i    = Utils.fromOk_ <| String.toInt iStr in
       x i
-    else if String.startsWith LangSvg.pathPtY feature then
-      let iStr = String.dropLeft (String.length LangSvg.pathPtY) feature in
+    else if String.startsWith LangSvg.pathPtYPrefix feature then
+      let iStr = String.dropLeft (String.length LangSvg.pathPtYPrefix) feature in
       let i    = Utils.fromOk_ <| String.toInt iStr in
       y i
     else Debug.crash <| "Paths do not have this feature: " ++ feature

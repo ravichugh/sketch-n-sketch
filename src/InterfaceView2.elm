@@ -1418,13 +1418,13 @@ makeZonesPoly model shape id l =
       let (xAttr1, yAttr1) = ("x" ++ toString i1, "y" ++ toString i1) in
       let (xAttr2, yAttr2) = ("x" ++ toString i2, "y" ++ toString i2) in
       zoneSelectCrossDot model
-         (id, LangSvg.polyMidptX ++ toString i1, LangSvg.polyMidptY ++ toString i1)
+         (id, LangSvg.polyMidptX i1, LangSvg.polyMidptY i1)
          (xi1/2+xi2/2) (yi1/2+yi2/2)
     in
     let ptCrossDot (i, ((xi,_),(yi,_))) =
       let (xAttr, yAttr) = ("x" ++ toString i, "y" ++ toString i) in
       zoneSelectCrossDot model
-         (id, LangSvg.polyPtX ++ toString i, LangSvg.polyPtY ++ toString i)
+         (id, LangSvg.polyPtX i, LangSvg.polyPtY i)
          xi yi
     in
     let midptCrossDots =
@@ -1474,7 +1474,7 @@ makeZonesPath model shape id nodeAttrs =
     let ptCrossDot (maybeIndex, ((xi,_),(yi,_))) =
       let i = Utils.fromJust maybeIndex in
       let (xAttr, yAttr) = ("x" ++ toString i, "y" ++ toString i) in
-      zoneSelectCrossDot model (id, LangSvg.pathPtX ++ toString i, LangSvg.pathPtY ++ toString i) xi yi
+      zoneSelectCrossDot model (id, LangSvg.pathPtX i, LangSvg.pathPtY i) xi yi
     in
     let crossDots = List.concatMap ptCrossDot listOfMaybeIndexWithPt in
     crossDots
