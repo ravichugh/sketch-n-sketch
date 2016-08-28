@@ -721,7 +721,7 @@ zoneToCrosshair shape zone =
 pointCrosshair shape zone =
   case (shape, realZoneOf zone) of
     ("line", ZPoint 1) -> Just ("lineX1", "lineY1")
-    ("line", ZPoint 2) -> Just ("lineX2", "lineX2")
+    ("line", ZPoint 2) -> Just ("lineX2", "lineY2")
     ("polygon", ZPoint i) ->
       let f xy = "polyPt" ++ xy ++ toString i in Just (f "X", f "Y")
     ("path", ZPoint i) ->

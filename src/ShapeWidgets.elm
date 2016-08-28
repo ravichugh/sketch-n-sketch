@@ -411,8 +411,8 @@ featureEquationOf id kind attrs featureNum =
     case featureNum of
       X (Point 1) -> eqnVal "x1"
       X (Point 2) -> eqnVal "x2"
-      Y (Point 1) -> eqnVal "x1"
-      Y (Point 2) -> eqnVal "x2"
+      Y (Point 1) -> eqnVal "y1"
+      Y (Point 2) -> eqnVal "y2"
       X Center    -> EqnOp Div [EqnOp Plus [eqnVal "x1", eqnVal "x2"], eqnVal2]
       Y Center    -> EqnOp Div [EqnOp Plus [eqnVal "y1", eqnVal "y2"], eqnVal2]
       _           -> crash () in
