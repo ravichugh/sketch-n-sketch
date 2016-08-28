@@ -748,7 +748,7 @@ simpleKindFeatures =
   , ( "circle", ninePointFeatures ++ List.map DistanceFeature [Radius])
   , ( "OVAL", ninePointFeatures ++ List.map DistanceFeature [RadiusX, RadiusY])
   , ( "ellipse", ninePointFeatures ++ List.map DistanceFeature [RadiusX, RadiusY])
-  , ( "line", List.map PointFeature [Point 1, Point 2])
+  , ( "line", List.map PointFeature [Point 1, Point 2, Center])
   ]
 
 polyKindFeatures : ShapeKind -> List Attr -> List Feature
@@ -767,6 +767,20 @@ polyKindFeatures kind attrs =
     err "TODO"
   else
     err "bad shape kind"
+
+featuresOfShape : ShapeKind -> List Attr -> List Feature
+featuresOfShape kind attrs =
+  case Utils.maybeFind kind simpleKindFeatures of
+    Just features -> features
+    Nothing       -> polyKindFeatures kind attrs
+
+pointFeaturesOfShape : ShapeKind -> List Attr -> List PointFeature
+pointFeaturesOfShape kind attrs =
+  featuresOfShape kind attrs |> List.concatMap (\feature ->
+    case feature of
+      PointFeature pf -> [pf]
+      _               -> []
+  )
 
 
 ------------------------------------------------------------------------------
@@ -838,8 +852,9 @@ strOtherFeature otherFeature =
     StrokeWidth   -> "strokeWidth"
     Rotation      -> "rotation"
 
-xShapeFeatureRegex = Regex.regex "^(.*)X(\\d*)$"
-yShapeFeatureRegex = Regex.regex "^(.*)Y(\\d*)$"
+shapeKindRegexStr  = "line|rect|circle|ellipse|polygon|path|box|oval"
+xShapeFeatureRegex = Regex.regex <| "^(" ++ shapeKindRegexStr ++ ")(.*)X(\\d*)$"
+yShapeFeatureRegex = Regex.regex <| "^(" ++ shapeKindRegexStr ++ ")(.*)Y(\\d*)$"
 
 featureNumOf : ShapeFeature -> FeatureNum
 featureNumOf shapeFeature =
@@ -876,25 +891,60 @@ featureNumOf shapeFeature =
 parseShapeFeaturePoint matches =
   case matches of
 
-    [Just "TL", Just ""] -> TopLeft
-    [Just "TR", Just ""] -> TopRight
-    [Just "BL", Just ""] -> BotLeft
-    [Just "BR", Just ""] -> BotRight
-    [Just "TC", Just ""] -> TopEdge
-    [Just "CR", Just ""] -> RightEdge
-    [Just "BC", Just ""] -> BotEdge
-    [Just "CL", Just ""] -> LeftEdge
-    [Just "C" , Just ""] -> Center
+    [Just kind, Just "TL", Just ""] -> TopLeft
+    [Just kind, Just "TR", Just ""] -> TopRight
+    [Just kind, Just "BL", Just ""] -> BotLeft
+    [Just kind, Just "BR", Just ""] -> BotRight
+    [Just kind, Just "TC", Just ""] -> TopEdge
+    [Just kind, Just "CR", Just ""] -> RightEdge
+    [Just kind, Just "BC", Just ""] -> BotEdge
+    [Just kind, Just "CL", Just ""] -> LeftEdge
+    [Just kind, Just "C" , Just ""] -> Center
 
-    [Just "", Just "1"] -> Point 1
-    [Just "", Just "2"] -> Point 2
+    [Just kind, Just "", Just "1"] -> Point 1
+    [Just kind, Just "", Just "2"] -> Point 2
 
-    [Just "Pt", Just s] -> Point (Utils.parseInt s)
+    [Just kind, Just "Pt", Just s] -> Point (Utils.parseInt s)
 
-    [Just "MidPt", Just s] -> Midpoint (Utils.parseInt s)
+    [Just kind, Just "MidPt", Just s] -> Midpoint (Utils.parseInt s)
 
     _ -> Debug.crash <| "parsePoint: " ++ toString matches
 
+
+------------------------------------------------------------------------------
+-- Selected Shape Features
+
+-- String instead of ADT so that it's comparable
+--
+type alias SelectedType  = String
+selectedTypeShapeFeature = "shapeFeature"
+selectedTypeWidget       = "widget"
+
+type alias SelectedShapeFeature = (SelectedType, NodeId, ShapeFeature)
+
+selectedPointFeatureOf : SelectedShapeFeature -> SelectedShapeFeature
+                      -> Maybe (NodeId, PointFeature)
+selectedPointFeatureOf selected1 selected2 =
+  let (_, id1, feature1) = selected1 in
+  let (_, id2, feature2) = selected2 in
+  if id1 /= id2 then Nothing
+  else
+    case pointFeatureOf (feature1, feature2) of
+      Just pt -> Just (id1, pt)
+      Nothing -> selectedPointFeatureOf selected2 selected1
+
+pointFeatureOf : (ShapeFeature, ShapeFeature) -> Maybe PointFeature
+pointFeatureOf (feature1, feature2) =
+  case (featureNumOf feature1, featureNumOf feature2) of
+    (X pointFeature1, Y pointFeature2) ->
+      if pointFeature1 == pointFeature2
+      then Just pointFeature1
+      else Nothing
+    _ ->
+      Nothing
+
+
+------------------------------------------------------------------------------
 
 -- Keeping these Strings around to avoid pervasive changes to
 -- ValueBasedTransform. Can remove them in favor of FeatureNums instead.
@@ -1042,10 +1092,43 @@ type FeatureEquation
 
 -- TODO refactor from ValueBasedTransform
 
-featureEquationOf : ShapeKind -> List Attr -> FeatureNum -> FeatureEquation
-featureEquationOf kind attrs featureNum =
-  Debug.crash "aa"
+featureEquationOf : NodeId -> ShapeKind -> List Attr -> FeatureNum -> FeatureEquation
+featureEquationOf nodeId kind attrs featureNum =
+  let get attr = maybeFindAttr nodeId kind attr attrs in
+  case (kind, featureNum) of
+    ("rect", X TopLeft) -> EqnVal (get "x")
+    ("rect", Y TopLeft) -> EqnVal (get "y")
+    ("circle", X Center) -> EqnVal (get "cx")
+    ("circle", Y Center) -> EqnVal (get "cy")
+    ("ellipse", X Center) -> EqnVal (get "cx")
+    ("ellipse", Y Center) -> EqnVal (get "cy")
+    ("line", X (Point 1)) -> EqnVal (get "x1")
+    ("line", X (Point 2)) -> EqnVal (get "x2")
+    ("line", Y (Point 1)) -> EqnVal (get "y1")
+    ("line", Y (Point 2)) -> EqnVal (get "y2")
+    _ ->
+      let _ = Debug.log "featureEquationOf: _" (kind, featureNum) in
+      -- TODO dummy
+      (EqnOp Plus [])
 
+type alias PointEquations = (FeatureEquation, FeatureEquation)
+
+getPointEquations : NodeId -> ShapeKind -> List Attr -> PointFeature -> PointEquations
+getPointEquations nodeId kind attrs pointFeature =
+  ( featureEquationOf nodeId kind attrs (X pointFeature)
+  , featureEquationOf nodeId kind attrs (Y pointFeature) )
+
+getPrimitivePointEquations : RootedIndexedTree -> NodeId -> List (Val, Val)
+getPrimitivePointEquations (_, tree) nodeId =
+  case Utils.justGet_ "LangSvg.getPrimitivePoints" nodeId tree of
+    SvgNode kind attrs _ ->
+      List.concatMap (\pointFeature ->
+        case getPointEquations nodeId kind attrs pointFeature of
+          (EqnVal v1, EqnVal v2) -> [(v1,v2)]
+          _                      -> []
+      ) (pointFeaturesOfShape kind attrs)
+    _ ->
+      Debug.crash "LangSvg.getPrimitivePoints"
 
 
 ------------------------------------------------------------------------------

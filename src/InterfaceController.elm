@@ -29,7 +29,6 @@ import String
 import Char
 import Graphics.Element as GE
 import Graphics.Collage as GC
-import Regex as Re
 
 --Html Libraries
 import Html
@@ -699,14 +698,18 @@ upstate evt old = case debugLog "Event" evt of
       )
 
     GroupBlobs ->
-      -- TODO allow one or more things to be anchored...
-      -- look for anchorOfSelectedFeatures
-      if Dict.size old.selectedBlobs <= 1 then old
-      else
-        let (defs,me) = splitExp old.inputExp in
-        case me of
-          Blobs blobs f -> upstate Run <| ETransform.groupSelectedBlobs old defs blobs f
-          _             -> old
+      let (defs,me) = splitExp old.inputExp in
+      case me of
+        SvgConcat _ _ -> old
+        OtherExp _    -> old
+        Blobs blobs f ->
+          let maybeAnchorPoint = ETransform.anchorOfSelectedFeatures old.selectedFeatures in
+          let multipleSelectedBlobs = Dict.size old.selectedBlobs > 1 in
+          case (maybeAnchorPoint, multipleSelectedBlobs) of
+            (Ok Nothing, False)   -> old
+            (Ok Nothing, True)    -> upstate Run <| ETransform.groupSelectedBlobs old defs blobs f
+            (Ok (Just anchor), _) -> upstate Run <| ETransform.groupSelectedBlobsAround old anchor
+            (Err err, _)          -> let _ = Debug.log "bad anchor" err in old
 
     DuplicateBlobs ->
       upstate Run <| ETransform.duplicateSelectedBlobs old

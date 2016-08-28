@@ -705,7 +705,7 @@ evaluateFeatureEquation eqn =
 
 
 typeAndNodeIdAndFeatureToEquation (selectedType, nodeId, featureName) tree locIdToNumberAndLoc =
-  if selectedType == InterfaceModel.selectedTypeShapeFeature then
+  if selectedType == LangSvg.selectedTypeShapeFeature then
     case Dict.get nodeId tree of
       Just (LangSvg.SvgNode kind nodeAttrs _) ->
         Just (featureEquation nodeId kind featureName nodeAttrs)
@@ -715,7 +715,7 @@ typeAndNodeIdAndFeatureToEquation (selectedType, nodeId, featureName) tree locId
 
       Nothing ->
         Debug.crash <| "typeAndNodeIdAndFeatureToEquation " ++ (toString nodeId) ++ " " ++ (toString tree)
-  else if selectedType == InterfaceModel.selectedTypeWidget then
+  else if selectedType == LangSvg.selectedTypeWidget then
     -- parse locId from "widget123" feature name
     let locIdStr =
       String.dropLeft (String.length "widget") featureName

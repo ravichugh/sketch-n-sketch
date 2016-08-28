@@ -259,7 +259,7 @@ buildSvgWidgets wCanvas hCanvas model =
     let box =
       let color =
         let feature =
-          (InterfaceModel.selectedTypeWidget, -1, "widget" ++ (toString locId))
+          (LangSvg.selectedTypeWidget, -1, "widget" ++ (toString locId))
         in
         case model.tool of
           Cursor ->
@@ -343,7 +343,7 @@ sliderZoneEvents widgetState =
 -- abstract the following with toggleSelected and toggleSelectedBlob
 toggleSelectedWidget locId =
   let feature =
-    (InterfaceModel.selectedTypeWidget, -1, "widget" ++ (toString locId))
+    (LangSvg.selectedTypeWidget, -1, "widget" ++ (toString locId))
   in
   UpdateModel <| \model ->
     let update =
@@ -640,7 +640,7 @@ zoneRotate_ model id shape cx cy r cmds =
     let (strokeColor, maybeEventHandler) =
       case (cmds, model.tool) of
         ([LangSvg.Rot (_,trace) _ _], Cursor) ->
-          let typeAndNodeIdAndFeature = (InterfaceModel.selectedTypeShapeFeature, id, LangSvg.shapeRotation) in
+          let typeAndNodeIdAndFeature = (LangSvg.selectedTypeShapeFeature, id, LangSvg.shapeRotation) in
           let handler = [onMouseDown (toggleSelected [typeAndNodeIdAndFeature])] in
           if Set.member typeAndNodeIdAndFeature model.selectedFeatures
             then (colorPointSelected, handler)
@@ -720,7 +720,7 @@ zoneColor zoneName shapeFeature model id shape x y maybeColor =
   let pred z = isPrimaryZone z || isRotateZone z in
   let shapeSelected = Set.member id model.selectedShapes in
   let featureSelected =
-    Set.member (InterfaceModel.selectedTypeShapeFeature, id, shapeFeature)
+    Set.member (LangSvg.selectedTypeShapeFeature, id, shapeFeature)
                model.selectedFeatures in
   case ( shapeSelected || featureSelected
        , objectZoneIsCurrentlyBeingManipulated model id pred
@@ -734,7 +734,7 @@ zoneColor_ zoneName shapeFeature model id shape x y (n, trace) =
   let (w, h, a, stroke, strokeWidth, rBall) =
       (wGradient, hZoneColor, 20, "silver", "2", "7") in
   let yOff = a + rotZoneDelta in
-  let typeAndNodeIdAndFeature = (InterfaceModel.selectedTypeShapeFeature, id, shapeFeature) in
+  let typeAndNodeIdAndFeature = (LangSvg.selectedTypeShapeFeature, id, shapeFeature) in
   let ball =
     let cx = x + (n / LangSvg.maxColorNum) * wGradient in
     let cy = y - yOff + (h/2) in
@@ -788,7 +788,7 @@ zoneOpacity zoneName shapeFeature model id shape x y maybeOpacity =
   let pred z = isPrimaryZone z || isRotateZone z in
   let shapeSelected = Set.member id model.selectedShapes in
   let featureSelected =
-    Set.member (InterfaceModel.selectedTypeShapeFeature, id, shapeFeature)
+    Set.member (LangSvg.selectedTypeShapeFeature, id, shapeFeature)
                model.selectedFeatures in
   case ( shapeSelected || featureSelected
        , objectZoneIsCurrentlyBeingManipulated model id pred
@@ -803,7 +803,7 @@ zoneOpacity_ zoneName shapeFeature model id shape x y (n, trace) =
   let (w, h, a, stroke, strokeWidth, rBall) =
       (wOpacityBox, 20, 20, "silver", "2", "7") in
   let yOff = a + rotZoneDelta in
-  let typeAndNodeIdAndFeature = (InterfaceModel.selectedTypeShapeFeature, id, shapeFeature) in
+  let typeAndNodeIdAndFeature = (LangSvg.selectedTypeShapeFeature, id, shapeFeature) in
   let ball =
     let cx = x + n * wOpacityBox in
     let cy = y - yOff + (h/2) in
@@ -850,7 +850,7 @@ zoneStrokeWidth model id shape x y maybeStrokeWidth =
   let pred z = isPrimaryZone z || isRotateZone z in
   let shapeSelected = Set.member id model.selectedShapes in
   let featureSelected =
-    Set.member (InterfaceModel.selectedTypeShapeFeature, id, LangSvg.shapeStrokeWidth)
+    Set.member (LangSvg.selectedTypeShapeFeature, id, LangSvg.shapeStrokeWidth)
                model.selectedFeatures in
   case ( shapeSelected || featureSelected
        , objectZoneIsCurrentlyBeingManipulated model id pred
@@ -863,7 +863,7 @@ zoneStrokeWidth_ model id shape x y (n, trace) =
       (wStrokeWidthBox, LangSvg.maxStrokeWidthNum, 20, "silver", "2", "7") in
   let yOff = a + rotZoneDelta in
   let typeAndNodeIdAndFeature =
-    (InterfaceModel.selectedTypeShapeFeature, id, LangSvg.shapeStrokeWidth) in
+    (LangSvg.selectedTypeShapeFeature, id, LangSvg.shapeStrokeWidth) in
   let box =
     flip Svg.rect [] <|
       [ LangSvg.attr "fill" <|
@@ -989,8 +989,8 @@ zoneSelectCrossDot model thisCrosshair x y =
     else colorPointNotSelected
   in
   let
-    xFeature = (InterfaceModel.selectedTypeShapeFeature, id, xFeatureName)
-    yFeature = (InterfaceModel.selectedTypeShapeFeature, id, yFeatureName)
+    xFeature = (LangSvg.selectedTypeShapeFeature, id, xFeatureName)
+    yFeature = (LangSvg.selectedTypeShapeFeature, id, yFeatureName)
     (xColor, yColor) = (color [xFeature], color [yFeature])
   in
   let (backDisc, frontDisc) =
@@ -1076,7 +1076,7 @@ maybeZoneSelectLine sideLength model nodeId featureName pt1 pt2 =
 
 zoneSelectLine model nodeId featureName pt1 pt2 =
   let typeAndNodeIdAndFeature =
-    (InterfaceModel.selectedTypeShapeFeature, nodeId, featureName) in
+    (LangSvg.selectedTypeShapeFeature, nodeId, featureName) in
   case model.mouseMode of
     MouseObject _ _ _ _ -> []
     _                   ->
@@ -1727,7 +1727,8 @@ widgetsTools w h model =
   let noFeatures = Set.isEmpty model.selectedFeatures in
   let noBlobs = Dict.isEmpty model.selectedBlobs in
   let relateButton = simpleEventButton_ noFeatures in
-  let groupButton = simpleEventButton_ (noBlobs || not noFeatures) in
+  -- let groupButton = simpleEventButton_ (noBlobs || not noFeatures) in
+  let groupButton = simpleEventButton_ noBlobs in
 
   [ toolButton model Cursor w h ]
   ++

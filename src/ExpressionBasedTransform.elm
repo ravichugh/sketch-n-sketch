@@ -5,20 +5,23 @@ module ExpressionBasedTransform -- in contrast to ValueBasedTransform
   , mergeSelectedBlobs
   , deleteSelectedBlobs
   , anchorOfSelectedFeatures
+  , groupSelectedBlobsAround
   ) where
 
 import Lang exposing (..)
 import LangUnparser exposing (unparse)
-import LangSvg exposing (NodeId, ShapeFeature)
+import LangParser2 exposing (parseE)
+import LangSvg exposing (NodeId, PointFeature, SelectedShapeFeature)
 import Blobs exposing (..)
 import Types
-import InterfaceModel exposing (Model, SelectedType)
+import InterfaceModel exposing (Model)
 import InterfaceView2 as View
 import Utils
 import Keys
 
 import Dict exposing (Dict)
 import Set
+import String
 
 
 --------------------------------------------------------------------------------
@@ -344,22 +347,100 @@ occursFreeIn x e =
 -- Group Blobs with Anchor
 
 anchorOfSelectedFeatures
-  : Set.Set (SelectedType, NodeId, ShapeFeature)
- -> Result String (Maybe (NodeId, ())) -- TODO
+    : Set.Set SelectedShapeFeature
+   -> Result String (Maybe (NodeId, PointFeature))
 anchorOfSelectedFeatures selectedFeatures =
   let err = Err "To group around an anchor, need to select exactly one point." in
   case Set.toList selectedFeatures of
+    [selected1, selected2] ->
+      case LangSvg.selectedPointFeatureOf selected1 selected2 of
+        Just result -> Ok (Just result)
+        Nothing     -> err
     [] -> Ok Nothing
-    [("shapeFeature", id1, feature1), ("shapeFeature", id2, feature2)] ->
-      if id1 /= id2 then err
-      else if feature1 == LangSvg.rectTLX && feature2 == LangSvg.rectTLY then
-        Ok (Just (id1, ()))
-      else if feature2 == LangSvg.rectTLX && feature1 == LangSvg.rectTLY then
-        Ok (Just (id1, ()))
-      else
-        err
+    _  -> err
+
+groupSelectedBlobsAround model (anchorId, anchorPointFeature) =
+  let (anchorKind, anchorAttrs) =
+    LangSvg.justGetSvgNode "groupSelectedBlobsAround" anchorId model.slate in
+
+  -- TODO
+  -- simple approach: anchor must be a primitive point
+  case LangSvg.getPointEquations anchorId anchorKind anchorAttrs anchorPointFeature of
+    (LangSvg.EqnVal vxBase, LangSvg.EqnVal vyBase) ->
+
+      -- simple approach: anchor point must be defined by constant literals
+      case (vxBase.v_, vyBase.v_) of
+        (VConst (nxBase, TrLoc xBaseLoc), VConst (nyBase, TrLoc yBaseLoc)) ->
+          rewritePrimitivePointsOfSelectedBlobs model
+            (vxBase, nxBase, xBaseLoc)
+            (vyBase, nyBase, yBaseLoc)
+
+        _ ->
+          let _ = Debug.log "anchor must be defined by constants" in
+          model
+
     _ ->
-      err
+      let _ = Debug.log "for now, anchor must be a primitive point" in
+      model
+
+rewritePrimitivePointsOfSelectedBlobs model (vxBase, nxBase, xBaseLoc)
+                                            (vyBase, nyBase, yBaseLoc) =
+  let (xId, _, xName) = xBaseLoc in
+  let (yId, _, yName) = yBaseLoc in
+  let (xAnchor, yAnchor) = ("xAnchor", "yAnchor") in
+  let pointsOfSelectedBlobs =
+     Dict.foldl
+       (\_ nodeId acc -> acc ++ LangSvg.getPrimitivePointEquations model.slate nodeId)
+       [] model.selectedBlobs
+  in
+  let eSubst =
+    pointsOfSelectedBlobs |> List.foldl (\(vxOther, vyOther) acc ->
+      -- TODO when anchor is derived point, rewrite anchor shape appropriately
+      if (vxBase.v_, vyBase.v_) == (vxOther.v_, vyOther.v_) then
+        acc |> Dict.insert xId (EVar " " xAnchor)
+            |> Dict.insert yId (EVar " " yAnchor)
+      else
+        case (vxOther.v_, vyOther.v_) of
+          -- simple approach: requiring other values to be constant literals
+          ( VConst (nxOther, TrLoc (xOtherId,_,_))
+          , VConst (nyOther, TrLoc (yOtherId,_,_))
+          ) ->
+            acc |> Dict.insert xOtherId (eBaseOffset xAnchor (nxOther - nxBase))
+                |> Dict.insert yOtherId (eBaseOffset yAnchor (nyOther - nyBase))
+          _ ->
+            acc
+      ) Dict.empty
+  in
+  let code' =
+    let anchorDef =
+       Utils.parens <| String.concat
+         [ "def anchor @ "
+         , Utils.bracks (Utils.spaces [xAnchor, yAnchor]) , " "
+         , Utils.parens <| String.concat
+             [ Utils.bracks (Utils.spaces (List.map toString [nxBase, nyBase]))
+             , " : Point"
+             ]
+         ]
+    in
+    -- TODO: for now, adding anchorDef to top of the program.
+    -- better to (a) insert in deepest common scope, or
+    --           (b) put at top of a new lexical group.
+    anchorDef ++ "\n" ++
+    unparse (applyESubst eSubst model.inputExp)
+  in
+  let inputExp' = Utils.fromOkay "groupSelectedBlobsAround" (parseE code') in
+  { model | inputExp = inputExp', code = code'
+          , selectedFeatures = Set.empty, selectedBlobs = Dict.empty
+          }
+
+eBaseOffset baseVar offsetNum =
+  let allowZeroOffsets = True in -- flag for: anchor or (+ anchor 0)
+  if offsetNum == 0 && not allowZeroOffsets then
+    EVar " " baseVar
+  else
+    ePlus (eVar baseVar) (eConst offsetNum (dummyLoc_ unann))
+      |> LangUnparser.replacePrecedingWhitespace " "
+      |> .val |> .e__
 
 
 --------------------------------------------------------------------------------

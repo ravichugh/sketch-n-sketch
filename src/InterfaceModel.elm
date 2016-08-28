@@ -5,7 +5,7 @@ import Types exposing (AceTypeInfo)
 import Eval
 import Sync
 import Utils
-import LangSvg exposing (RootedIndexedTree, NodeId, ShapeFeature, ShapeKind, Zone)
+import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, ShapeFeature, SelectedShapeFeature, Zone)
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparse)
 import OurParser2 as P
@@ -73,19 +73,13 @@ type alias Model =
   , hoveredShapes : Set.Set NodeId
   , hoveredCrosshairs : Set.Set (NodeId, ShapeFeature, ShapeFeature)
   , selectedShapes : Set.Set NodeId
-  , selectedFeatures : Set.Set (SelectedType, NodeId, ShapeFeature)
+  , selectedFeatures : Set.Set SelectedShapeFeature
   -- line/g ids assigned by blobs function
   , selectedBlobs : Dict.Dict Int NodeId
   , keysDown : List Char.KeyCode
   , randomColor : Int
   , lambdaTools : (Int, List Exp)
   }
-
--- Trying to imitate a sum type (we need something comparable
--- so it can go into a set).
-type alias SelectedType = String
-selectedTypeShapeFeature = "shapeFeature"
-selectedTypeWidget       = "widget"
 
 type Mode
   = AdHoc
