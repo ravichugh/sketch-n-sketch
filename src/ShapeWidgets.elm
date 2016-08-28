@@ -157,9 +157,18 @@ shapeKindRegexStr  = "line|rect|circle|ellipse|polygon|path|box|oval"
 xShapeFeatureRegex = Regex.regex <| "^(" ++ shapeKindRegexStr ++ ")(.*)X(\\d*)$"
 yShapeFeatureRegex = Regex.regex <| "^(" ++ shapeKindRegexStr ++ ")(.*)Y(\\d*)$"
 
+distanceFeatureRegex =
+  Regex.regex <| "^(" ++ shapeKindRegexStr ++ ")(Width|Height|R|RX|RY)$"
+
 parseFeatureNum : ShapeFeature -> FeatureNum
 parseFeatureNum shapeFeature =
-  if Regex.contains xShapeFeatureRegex shapeFeature then
+  if Regex.contains distanceFeatureRegex shapeFeature then
+    Regex.find (Regex.AtMost 1) distanceFeatureRegex shapeFeature
+      |> Utils.head_
+      |> (.submatches)
+      |> parseDistanceFeature
+      |> D
+  else if Regex.contains xShapeFeatureRegex shapeFeature then
     Regex.find (Regex.AtMost 1) xShapeFeatureRegex shapeFeature
       |> Utils.head_
       |> (.submatches)
@@ -174,12 +183,6 @@ parseFeatureNum shapeFeature =
   else
     case shapeFeature of
 
-      "Width"  -> D Width
-      "Height" -> D Height
-      "R"      -> D Radius
-      "RX"     -> D RadiusX
-      "RY"     -> D RadiusY
-
       "fill"          -> O FillColor
       "stroke"        -> O StrokeColor
       "fillOpacity"   -> O FillOpacity
@@ -188,6 +191,14 @@ parseFeatureNum shapeFeature =
       "rotation"      -> O Rotation
 
       _ -> Debug.crash <| "parseFeatureNum: " ++ shapeFeature
+
+parseDistanceFeature matches =
+  case matches of
+    [Just kind, Just "Width"]  -> Width
+    [Just kind, Just "Height"] -> Height
+    [Just kind, Just "R"]      -> Radius
+    [Just kind, Just "RX"]     -> RadiusX
+    [Just kind, Just "RY"]     -> RadiusY
 
 parseShapeFeaturePoint matches =
   case matches of
@@ -456,11 +467,11 @@ featureEquationOf id kind attrs featureNum =
           , bottom = eqnVal "BOT"
           , cx = EqnOp Div [EqnOp Plus [eqnVal "LEFT", eqnVal "RIGHT"], eqnVal2]
           , cy = EqnOp Div [EqnOp Plus [eqnVal "TOP", eqnVal "BOT"], eqnVal2]
-          , mWidth = Just <| EqnOp Minus [eqnVal "RIGHT", eqnVal "LEFT"]
-          , mHeight = Just <| EqnOp Minus [eqnVal "BOT", eqnVal "TOP"]
+          , mWidth = Nothing
+          , mHeight = Nothing
           , mRadius = Nothing
-          , mRadiusX = Nothing
-          , mRadiusY = Nothing
+          , mRadiusX = Just <| EqnOp Div [EqnOp Minus [eqnVal "RIGHT", eqnVal "LEFT"], eqnVal2]
+          , mRadiusY = Just <| EqnOp Div [EqnOp Minus [eqnVal "BOT", eqnVal "TOP"], eqnVal2]
           }
 
         "circle" ->
