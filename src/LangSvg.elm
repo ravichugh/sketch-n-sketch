@@ -512,6 +512,114 @@ getBoundsAttrs attrs0 =
 
 
 ------------------------------------------------------------------------------
+-- RootedIndexedTree (a.k.a. "Slate"): tree representation of SVG Canvas Value
+
+type alias ShapeKind = String
+type alias NodeId = Int
+type alias IndexedTree = Dict NodeId IndexedTreeNode
+type alias Attr = (String, AVal)
+type IndexedTreeNode
+  = TextNode String
+  | SvgNode ShapeKind (List Attr) (List NodeId)
+type alias RootedIndexedTree = (NodeId, IndexedTree)
+
+children n = case n of
+  TextNode _    -> []
+  SvgNode _ _ l -> l
+
+emptyTree : RootedIndexedTree
+emptyTree = valToIndexedTree <| vList [vBase (VString "svg"), vList [], vList []]
+
+valToIndexedTree : Val -> RootedIndexedTree
+valToIndexedTree v =
+  let (nextId,tree) = valToIndexedTree_ v (1, Dict.empty) in
+  let rootId = nextId - 1 in
+  (rootId, tree)
+
+valToIndexedTree_ v (nextId, d) = case v.v_ of
+
+  VList vs -> case List.map .v_ vs of
+
+    [VBase (VString "TEXT"), VBase (VString s)] ->
+      (1 + nextId, Dict.insert nextId (TextNode s) d)
+
+    [VBase (VString kind), VList vs1, VList vs2] ->
+      let processChild vi (a_nextId, a_graph , a_children) =
+        let (a_nextId',a_graph') = valToIndexedTree_ vi (a_nextId, a_graph) in
+        let a_children'          = (a_nextId' - 1) :: a_children in
+        (a_nextId', a_graph', a_children') in
+      let (nextId',d',children) = List.foldl processChild (nextId,d,[]) vs2 in
+      let node = SvgNode kind (List.map valToAttr vs1) (List.reverse children) in
+      (1 + nextId', Dict.insert nextId' node d')
+
+    _ ->
+      "an SVG node" `expectedButGot` strVal v
+
+  _ ->
+    "an SVG node" `expectedButGot` strVal v
+
+printIndexedTree : Val -> String
+printIndexedTree = valToIndexedTree >> snd >> strEdges
+
+strEdges : IndexedTree -> String
+strEdges =
+     Dict.toList
+  >> List.map (\(i,n) ->
+       let l = List.map toString (children n) in
+       toString i ++ " " ++ Utils.braces (Utils.spaces l))
+  >> Utils.lines
+
+
+------------------------------------------------------------------------------
+-- Printing to SVG format
+
+printSvg : Bool -> RootedIndexedTree -> String
+printSvg showGhosts (rootId, tree) =
+  let s = printNode showGhosts 0 tree rootId in
+  Regex.replace Regex.All (Regex.regex "[ ]+\\n") (\_ -> "") s
+
+printNode showGhosts k slate i =
+  case Utils.justGet i slate of
+    TextNode s -> s
+    SvgNode kind_ l1_ l2 ->
+      let (kind,l1) = desugarShapeAttrs kind_ l1_ in
+      case (showGhosts, Utils.maybeRemoveFirst "HIDDEN" l1) of
+        (False, Just _) -> ""
+        _ ->
+          if l2 == [] then
+            let l1' = addAttrs kind (removeSpecialAttrs l1) in
+            Utils.delimit "<" ">" (kind ++ printAttrs l1') ++
+            Utils.delimit "</" ">" kind
+          else
+            let l1' = addAttrs kind (removeSpecialAttrs l1) in
+            Utils.delimit "<" ">" (kind ++ printAttrs l1') ++ "\n" ++
+            printNodes showGhosts (k+1) slate l2 ++ "\n" ++
+            tab k ++ Utils.delimit "</" ">" kind
+
+printNodes showGhosts k slate =
+  Utils.lines << List.map ((++) (tab k) << printNode showGhosts k slate)
+
+printAttrs l = case l of
+  [] -> ""
+  _  -> " " ++ Utils.spaces (List.map printAttr l)
+
+printAttr (k,v) =
+  k ++ "=" ++ Utils.delimit "'" "'" (strAVal v)
+
+addAttrs kind attrs =
+  if kind == "svg"
+    then ("xmlns", aString "http://www.w3.org/2000/svg") :: attrs
+    else attrs
+
+specialAttrs = ["HIDDEN", "ZONES"]
+  -- not removing 'BLOB' and 'BOUNDS' since they are useful
+  -- for understanding and debugging
+
+removeSpecialAttrs =
+  List.filter (\(s,_) -> not (List.member s specialAttrs))
+
+
+------------------------------------------------------------------------------
 -- Misc Attribute Helpers
 
 maybeFindAttr_ id kind attr attrs =
@@ -585,6 +693,18 @@ justGetSvgNode cap nodeId (_, indexedTree) =
   case Utils.justGet_ cap nodeId indexedTree of
     SvgNode kind attrs _ -> (kind, attrs)
     TextNode _           -> Debug.crash (cap ++ ": TextNode ?")
+
+
+dummySvgNode =
+  let zero = aNum (0, dummyTrace) in
+  SvgNode "circle" (List.map (\k -> (k, zero)) ["cx","cy","r"]) []
+
+
+dummySvgVal =
+  let zero = vConst (0, dummyTrace) in
+  let attrs = vList <| List.map (\k -> vList [vStr k, zero]) ["cx","cy","r"] in
+  let children = vList [] in
+  vList [vStr "circle", attrs, children]
 
 
 ------------------------------------------------------------------------------
@@ -995,27 +1115,7 @@ edgeCrosshairs_ shape =
 
 
 ------------------------------------------------------------------------------
--- RootedIndexedTree (a.k.a. "Slate"): tree representation of SVG Canvas Value
-
-type alias ShapeKind = String
-type alias NodeId = Int
-type alias IndexedTree = Dict NodeId IndexedTreeNode
-type alias Attr = (String, AVal)
-type IndexedTreeNode
-  = TextNode String
-  | SvgNode ShapeKind (List Attr) (List NodeId)
-type alias RootedIndexedTree = (NodeId, IndexedTree)
-
--- TODO move this above shape point feature stuff
-
-children n = case n of
-  TextNode _    -> []
-  SvgNode _ _ l -> l
-
-emptyTree : RootedIndexedTree
-emptyTree = valToIndexedTree <| vList [vBase (VString "svg"), vList [], vList []]
-
--- TODO reorder animation functions
+-- Little Animations
 
 -- TODO use options for better error messages
 
@@ -1151,95 +1251,6 @@ fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
     _ -> Ok movieVal -- Program returned a plain SVG array structure...we hope.
 
 
-valToIndexedTree : Val -> RootedIndexedTree
-valToIndexedTree v =
-  let (nextId,tree) = valToIndexedTree_ v (1, Dict.empty) in
-  let rootId = nextId - 1 in
-  (rootId, tree)
-
-valToIndexedTree_ v (nextId, d) = case v.v_ of
-
-  VList vs -> case List.map .v_ vs of
-
-    [VBase (VString "TEXT"), VBase (VString s)] ->
-      (1 + nextId, Dict.insert nextId (TextNode s) d)
-
-    [VBase (VString kind), VList vs1, VList vs2] ->
-      let processChild vi (a_nextId, a_graph , a_children) =
-        let (a_nextId',a_graph') = valToIndexedTree_ vi (a_nextId, a_graph) in
-        let a_children'          = (a_nextId' - 1) :: a_children in
-        (a_nextId', a_graph', a_children') in
-      let (nextId',d',children) = List.foldl processChild (nextId,d,[]) vs2 in
-      let node = SvgNode kind (List.map valToAttr vs1) (List.reverse children) in
-      (1 + nextId', Dict.insert nextId' node d')
-
-    _ ->
-      "an SVG node" `expectedButGot` strVal v
-
-  _ ->
-    "an SVG node" `expectedButGot` strVal v
-
-printIndexedTree : Val -> String
-printIndexedTree = valToIndexedTree >> snd >> strEdges
-
-strEdges : IndexedTree -> String
-strEdges =
-     Dict.toList
-  >> List.map (\(i,n) ->
-       let l = List.map toString (children n) in
-       toString i ++ " " ++ Utils.braces (Utils.spaces l))
-  >> Utils.lines
-
-
-------------------------------------------------------------------------------
--- Printing to SVG format
-
-printSvg : Bool -> RootedIndexedTree -> String
-printSvg showGhosts (rootId, tree) =
-  let s = printNode showGhosts 0 tree rootId in
-  Regex.replace Regex.All (Regex.regex "[ ]+\\n") (\_ -> "") s
-
-printNode showGhosts k slate i =
-  case Utils.justGet i slate of
-    TextNode s -> s
-    SvgNode kind_ l1_ l2 ->
-      let (kind,l1) = desugarShapeAttrs kind_ l1_ in
-      case (showGhosts, Utils.maybeRemoveFirst "HIDDEN" l1) of
-        (False, Just _) -> ""
-        _ ->
-          if l2 == [] then
-            let l1' = addAttrs kind (removeSpecialAttrs l1) in
-            Utils.delimit "<" ">" (kind ++ printAttrs l1') ++
-            Utils.delimit "</" ">" kind
-          else
-            let l1' = addAttrs kind (removeSpecialAttrs l1) in
-            Utils.delimit "<" ">" (kind ++ printAttrs l1') ++ "\n" ++
-            printNodes showGhosts (k+1) slate l2 ++ "\n" ++
-            tab k ++ Utils.delimit "</" ">" kind
-
-printNodes showGhosts k slate =
-  Utils.lines << List.map ((++) (tab k) << printNode showGhosts k slate)
-
-printAttrs l = case l of
-  [] -> ""
-  _  -> " " ++ Utils.spaces (List.map printAttr l)
-
-printAttr (k,v) =
-  k ++ "=" ++ Utils.delimit "'" "'" (strAVal v)
-
-addAttrs kind attrs =
-  if kind == "svg"
-    then ("xmlns", aString "http://www.w3.org/2000/svg") :: attrs
-    else attrs
-
-specialAttrs = ["HIDDEN", "ZONES"]
-  -- not removing 'BLOB' and 'BOUNDS' since they are useful
-  -- for understanding and debugging
-
-removeSpecialAttrs =
-  List.filter (\(s,_) -> not (List.member s specialAttrs))
-
-
 ------------------------------------------------------------------------------
 -- Zones
 
@@ -1349,17 +1360,3 @@ zones = [
   -- , ("polyline", [])
   -- , ("path", [])
   ]
-
-
-------------------------------------------------------------------------------
-
-dummySvgNode =
-  let zero = aNum (0, dummyTrace) in
-  SvgNode "circle" (List.map (\k -> (k, zero)) ["cx","cy","r"]) []
-
--- TODO break up and move slateToVal here
-dummySvgVal =
-  let zero = vConst (0, dummyTrace) in
-  let attrs = vList <| List.map (\k -> vList [vStr k, zero]) ["cx","cy","r"] in
-  let children = vList [] in
-  vList [vStr "circle", attrs, children]
