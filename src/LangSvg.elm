@@ -799,12 +799,12 @@ type FeatureNum
 -- Must be a comparable to be put in a Set
 -- Otherwise, this shouldn't be a string
 -- For now, these are unnecessarily entangled with ShapeKinds.
--- See sanityChecks below for the output of getShapeFeature.
+-- See sanityChecks below for the output of unparseFeatureNum.
 --
 type alias ShapeFeature = String
 
-getShapeFeature : Maybe ShapeKind -> FeatureNum -> ShapeFeature
-getShapeFeature mKind featureNum =
+unparseFeatureNum : Maybe ShapeKind -> FeatureNum -> ShapeFeature
+unparseFeatureNum mKind featureNum =
   case mKind of
     Just kind -> String.toLower kind ++ strFeatureNum kind featureNum
     Nothing   -> strFeatureNum "XXX" featureNum
@@ -856,8 +856,8 @@ shapeKindRegexStr  = "line|rect|circle|ellipse|polygon|path|box|oval"
 xShapeFeatureRegex = Regex.regex <| "^(" ++ shapeKindRegexStr ++ ")(.*)X(\\d*)$"
 yShapeFeatureRegex = Regex.regex <| "^(" ++ shapeKindRegexStr ++ ")(.*)Y(\\d*)$"
 
-featureNumOf : ShapeFeature -> FeatureNum
-featureNumOf shapeFeature =
+parseFeatureNum : ShapeFeature -> FeatureNum
+parseFeatureNum shapeFeature =
   if Regex.contains xShapeFeatureRegex shapeFeature then
     Regex.find (Regex.AtMost 1) xShapeFeatureRegex shapeFeature
       |> Utils.head_
@@ -886,7 +886,7 @@ featureNumOf shapeFeature =
       "strokeWidth"   -> O StrokeWidth
       "rotation"      -> O Rotation
 
-      _ -> Debug.crash <| "featureNumOf: " ++ shapeFeature
+      _ -> Debug.crash <| "parseFeatureNum: " ++ shapeFeature
 
 parseShapeFeaturePoint matches =
   case matches of
@@ -935,7 +935,7 @@ selectedPointFeatureOf selected1 selected2 =
 
 pointFeatureOf : (ShapeFeature, ShapeFeature) -> Maybe PointFeature
 pointFeatureOf (feature1, feature2) =
-  case (featureNumOf feature1, featureNumOf feature2) of
+  case (parseFeatureNum feature1, parseFeatureNum feature2) of
     (X pointFeature1, Y pointFeature2) ->
       if pointFeature1 == pointFeature2
       then Just pointFeature1
@@ -954,10 +954,10 @@ assertString string result =
   else Debug.crash <| Utils.spaces ["assertString:", result, "/= ", string]
 
 sanityCheck string kind featureNum =
-  assertString string (getShapeFeature (Just kind) featureNum)
+  assertString string (unparseFeatureNum (Just kind) featureNum)
 
 sanityCheckOther string featureNum =
-  assertString string (getShapeFeature Nothing featureNum)
+  assertString string (unparseFeatureNum Nothing featureNum)
 
 shapeFill          = sanityCheckOther "fill" (O FillColor)
 shapeStroke        = sanityCheckOther "stroke" (O StrokeColor)

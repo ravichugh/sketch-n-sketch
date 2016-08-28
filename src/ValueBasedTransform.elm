@@ -15,7 +15,8 @@ import Eval
 import Sync
 import LocEqn exposing (..)
 import Utils
-import LangSvg
+-- import LangSvg exposing (NodeId, ShapeKind, Attr, ShapeFeature, FeatureNum)
+import LangSvg exposing (..)
 import Config
 
 import Dict
@@ -943,215 +944,191 @@ featurePoints features =
             featurePoints otherFeatures
 
 
+featureEquation : NodeId -> ShapeKind -> ShapeFeature -> List Attr -> FeatureEquation
 featureEquation nodeId kind feature nodeAttrs =
-  let eqnVal attr = EqnVal <| LangSvg.maybeFindAttr nodeId kind attr nodeAttrs in
+  let featureNum = LangSvg.parseFeatureNum feature in
+  featureEquationOf nodeId kind nodeAttrs featureNum
+
+
+featureEquationOf : NodeId -> ShapeKind -> List Attr -> FeatureNum -> FeatureEquation
+featureEquationOf id kind attrs featureNum =
+
+  let eqnVal attr = EqnVal <| LangSvg.maybeFindAttr id kind attr attrs in
   let eqnVal2     = EqnVal <| vConst (2, dummyTrace) in
-  let handleRect () =
-    let
-      right  = EqnOp Plus [eqnVal "x", eqnVal "width"]
-      bottom = EqnOp Plus [eqnVal "y", eqnVal "height"]
-      -- x + (w/2)
-      cx = EqnOp Plus [eqnVal "x", EqnOp Div [eqnVal "width",  eqnVal2]]
-      -- y + (h/2)
-      cy = EqnOp Plus [eqnVal "y", EqnOp Div [eqnVal "height", eqnVal2]]
-    in
-    if feature == LangSvg.rectTLX then eqnVal "x"
-    else if feature == LangSvg.rectTLY then eqnVal "y"
-    else if feature == LangSvg.rectTRX then right
-    else if feature == LangSvg.rectTRY then eqnVal "y"
-    else if feature == LangSvg.rectBLX then eqnVal "x"
-    else if feature == LangSvg.rectBLY then bottom
-    else if feature == LangSvg.rectBRX then right
-    else if feature == LangSvg.rectBRY then bottom
-    else if feature == LangSvg.rectTCX then cx
-    else if feature == LangSvg.rectTCY then eqnVal "y"
-    else if feature == LangSvg.rectBCX then cx
-    else if feature == LangSvg.rectBCY then bottom
-    else if feature == LangSvg.rectCLX then eqnVal "x"
-    else if feature == LangSvg.rectCLY then cy
-    else if feature == LangSvg.rectCRX then right
-    else if feature == LangSvg.rectCRY then cy
-    else if feature == LangSvg.rectCX then cx
-    else if feature == LangSvg.rectCY then cy
-    else if feature == LangSvg.rectWidth  then eqnVal "width"
-    else if feature == LangSvg.rectHeight then eqnVal "height"
-    else Debug.crash <| "Rectangles do not have this feature: " ++ feature
-  in
-  let handleBox () =
-    let
-      -- (left + right)/2
-      cx = EqnOp Div [EqnOp Plus [eqnVal "LEFT", eqnVal "RIGHT"], eqnVal2]
-      -- (top + bottom)/2
-      cy = EqnOp Div [EqnOp Plus [eqnVal "TOP", eqnVal "BOT"], eqnVal2]
-    in
-    if feature == LangSvg.boxTLX then eqnVal "LEFT"
-    else if feature == LangSvg.boxTLY then eqnVal "TOP"
-    else if feature == LangSvg.boxTRX then eqnVal "RIGHT"
-    else if feature == LangSvg.boxTRY then eqnVal "TOP"
-    else if feature == LangSvg.boxBLX then eqnVal "LEFT"
-    else if feature == LangSvg.boxBLY then eqnVal "BOT"
-    else if feature == LangSvg.boxBRX then eqnVal "RIGHT"
-    else if feature == LangSvg.boxBRY then eqnVal "BOT"
-    else if feature == LangSvg.boxTCX then cx
-    else if feature == LangSvg.boxTCY then eqnVal "TOP"
-    else if feature == LangSvg.boxBCX then cx
-    else if feature == LangSvg.boxBCY then eqnVal "BOT"
-    else if feature == LangSvg.boxCLX then eqnVal "LEFT"
-    else if feature == LangSvg.boxCLY then cy
-    else if feature == LangSvg.boxCRX then eqnVal "RIGHT"
-    else if feature == LangSvg.boxCRY then cy
-    else if feature == LangSvg.boxCX then cx
-    else if feature == LangSvg.boxCY then cy
-    else if feature == LangSvg.boxWidth  then
-      EqnOp Minus [eqnVal "RIGHT", eqnVal "LEFT"] -- (right - left)
-    else if feature == LangSvg.boxHeight then
-      EqnOp Minus [eqnVal "BOT", eqnVal "TOP"] -- (bottom - top)
-    else Debug.crash <| "Boxes do not have this feature: " ++ feature
-  in
-  let handleOval () = -- starting by copying handleBox...
-    let
-      -- (left + right)/2
-      cx = EqnOp Div [EqnOp Plus [eqnVal "LEFT", eqnVal "RIGHT"], eqnVal2]
-      -- (top + bottom)/2
-      cy = EqnOp Div [EqnOp Plus [eqnVal "TOP", eqnVal "BOT"], eqnVal2]
-    in
-    if feature == LangSvg.ovalTLX then eqnVal "LEFT"
-    else if feature == LangSvg.ovalTLY then eqnVal "TOP"
-    else if feature == LangSvg.ovalTRX then eqnVal "RIGHT"
-    else if feature == LangSvg.ovalTRY then eqnVal "TOP"
-    else if feature == LangSvg.ovalBLX then eqnVal "LEFT"
-    else if feature == LangSvg.ovalBLY then eqnVal "BOT"
-    else if feature == LangSvg.ovalBRX then eqnVal "RIGHT"
-    else if feature == LangSvg.ovalBRY then eqnVal "BOT"
-    else if feature == LangSvg.ovalTCX then cx
-    else if feature == LangSvg.ovalTCY then eqnVal "TOP"
-    else if feature == LangSvg.ovalBCX then cx
-    else if feature == LangSvg.ovalBCY then eqnVal "BOT"
-    else if feature == LangSvg.ovalCLX then eqnVal "LEFT"
-    else if feature == LangSvg.ovalCLY then cy
-    else if feature == LangSvg.ovalCRX then eqnVal "RIGHT"
-    else if feature == LangSvg.ovalCRY then cy
-    else if feature == LangSvg.ovalCX then cx
-    else if feature == LangSvg.ovalCY then cy
-    else if feature == LangSvg.ovalRX then
-      EqnOp Div [EqnOp Minus [eqnVal "RIGHT", eqnVal "LEFT"], eqnVal2] -- (right - left) / 2
-    else if feature == LangSvg.ovalRY then
-      EqnOp Div [EqnOp Minus [eqnVal "BOT", eqnVal "TOP"], eqnVal2] -- (bot - top) / 2
-    else Debug.crash <| "Ovals do not have this feature: " ++ feature
-  in
-  let handleCircle () =
-    let
-      top    = EqnOp Minus [eqnVal "cy", eqnVal "r"]
-      bottom = EqnOp Plus  [eqnVal "cy", eqnVal "r"]
-      left   = EqnOp Minus [eqnVal "cx", eqnVal "r"]
-      right  = EqnOp Plus  [eqnVal "cx", eqnVal "r"]
-    in
-    if feature == LangSvg.circleTCX then eqnVal "cx"
-    else if feature == LangSvg.circleTCY then top
-    else if feature == LangSvg.circleBCX then eqnVal "cx"
-    else if feature == LangSvg.circleBCY then bottom
-    else if feature == LangSvg.circleCLX then left
-    else if feature == LangSvg.circleCLY then eqnVal "cy"
-    else if feature == LangSvg.circleCRX then right
-    else if feature == LangSvg.circleCRY then eqnVal "cy"
-    else if feature == LangSvg.circleCX then eqnVal "cx"
-    else if feature == LangSvg.circleCY then eqnVal "cy"
-    else if feature == LangSvg.circleR then eqnVal "r"
-    else Debug.crash <| "Circles do not have this feature: " ++ feature
-  in
-  let handleEllipse () =
-    let
-      top    = EqnOp Minus [eqnVal "cy", eqnVal "ry"]
-      bottom = EqnOp Plus  [eqnVal "cy", eqnVal "ry"]
-      left   = EqnOp Minus [eqnVal "cx", eqnVal "rx"]
-      right  = EqnOp Plus  [eqnVal "cx", eqnVal "rx"]
-    in
-    if feature == LangSvg.ellipseTCX then eqnVal "cx"
-    else if feature == LangSvg.ellipseTCY then top
-    else if feature == LangSvg.ellipseBCX then eqnVal "cx"
-    else if feature == LangSvg.ellipseBCY then bottom
-    else if feature == LangSvg.ellipseCLX then left
-    else if feature == LangSvg.ellipseCLY then eqnVal "cy"
-    else if feature == LangSvg.ellipseCRX then right
-    else if feature == LangSvg.ellipseCRY then eqnVal "cy"
-    else if feature == LangSvg.ellipseCX then eqnVal "cx"
-    else if feature == LangSvg.ellipseCY then eqnVal "cy"
-    else if feature == LangSvg.ellipseRX then eqnVal "rx"
-    else if feature == LangSvg.ellipseRY then eqnVal "ry"
-    else Debug.crash <| "Ellipses do not have this feature: " ++ feature
-  in
+  let crash () =
+    let s = LangSvg.unparseFeatureNum (Just kind) featureNum in
+    Debug.crash <| Utils.spaces [ "featureEquationOf:", kind, s] in
+
   let handleLine () =
-    if feature == LangSvg.lineX1 then eqnVal "x1"
-    else if feature == LangSvg.lineY1 then eqnVal "y1"
-    else if feature == LangSvg.lineX2 then eqnVal "x2"
-    else if feature == LangSvg.lineY2 then eqnVal "y2"
-    else if feature == LangSvg.lineCX then EqnOp Div [EqnOp Plus [eqnVal "x1", eqnVal "x2"], eqnVal2] -- (x1 + x2) / 2
-    else if feature == LangSvg.lineCY then EqnOp Div [EqnOp Plus [eqnVal "y1", eqnVal "y2"], eqnVal2] -- (y1 + y2) / 2
-    else Debug.crash <| "Lines do not have this feature: " ++ feature
-  in
-  let handlePoly () =
-    let ptCount = LangSvg.getPtCount nodeAttrs in
-    let x i = eqnVal ("x" ++ toString i) in
-    let y i = eqnVal ("y" ++ toString i) in
-    if String.startsWith LangSvg.polyPtXPrefix feature then
-      let iStr = String.dropLeft (String.length LangSvg.polyPtXPrefix) feature in
-      let i    = Utils.fromOk_ <| String.toInt iStr in
-      x i
-    else if String.startsWith LangSvg.polyPtYPrefix feature then
-      let iStr = String.dropLeft (String.length LangSvg.polyPtYPrefix) feature in
-      let i    = Utils.fromOk_ <| String.toInt iStr in
-      y i
-    else if String.startsWith LangSvg.polyMidptXPrefix feature then
-      let i1Str = String.dropLeft (String.length LangSvg.polyMidptXPrefix) feature in
-      let i1    = Utils.fromOk_ <| String.toInt i1Str in
-      let i2    = if i1 == ptCount then 1 else i1 + 1 in
-      EqnOp Div [EqnOp Plus [(x i1), (x i2)], eqnVal2] -- (x1 + x2) / 2
-    else if String.startsWith LangSvg.polyMidptYPrefix feature then
-      let i1Str = String.dropLeft (String.length LangSvg.polyMidptYPrefix) feature in
-      let i1    = Utils.fromOk_ <| String.toInt i1Str in
-      let i2    = if i1 == ptCount then 1 else i1 + 1 in
-      EqnOp Div [EqnOp Plus [(y i1), (y i2)], eqnVal2] -- (y1 + y2) / 2
-    else Debug.crash <| "Polygons/polylines do not have this feature: " ++ feature
-  in
+    case featureNum of
+      X (Point 1) -> eqnVal "x1"
+      X (Point 2) -> eqnVal "x2"
+      Y (Point 1) -> eqnVal "x1"
+      Y (Point 2) -> eqnVal "x2"
+      X Center    -> EqnOp Div [EqnOp Plus [eqnVal "x1", eqnVal "x2"], eqnVal2]
+      Y Center    -> EqnOp Div [EqnOp Plus [eqnVal "y1", eqnVal "y2"], eqnVal2]
+      _           -> crash () in
+
+  let handleBoxyShape () =
+    let equations =
+      case kind of
+
+        "rect" ->
+          { left = eqnVal "x"
+          , top = eqnVal "y"
+          , right = EqnOp Plus [eqnVal "x", eqnVal "width"]
+          , bottom = EqnOp Plus [eqnVal "y", eqnVal "height"]
+          , cx = EqnOp Plus [eqnVal "x", EqnOp Div [eqnVal "width",  eqnVal2]]
+          , cy = EqnOp Plus [eqnVal "y", EqnOp Div [eqnVal "height", eqnVal2]]
+          , mWidth = Just <| eqnVal "width"
+          , mHeight = Just <| eqnVal "height"
+          , mRadius = Nothing
+          , mRadiusX = Nothing
+          , mRadiusY = Nothing
+          }
+
+        "BOX" ->
+          { left = eqnVal "LEFT"
+          , top = eqnVal "TOP"
+          , right = eqnVal "RIGHT"
+          , bottom = eqnVal "BOT"
+          , cx = EqnOp Div [EqnOp Plus [eqnVal "LEFT", eqnVal "RIGHT"], eqnVal2]
+          , cy = EqnOp Div [EqnOp Plus [eqnVal "TOP", eqnVal "BOT"], eqnVal2]
+          , mWidth = Just <| EqnOp Minus [eqnVal "RIGHT", eqnVal "LEFT"]
+          , mHeight = Just <| EqnOp Minus [eqnVal "BOT", eqnVal "TOP"]
+          , mRadius = Nothing
+          , mRadiusX = Nothing
+          , mRadiusY = Nothing
+          }
+
+        "OVAL" ->
+          { left = eqnVal "LEFT"
+          , top = eqnVal "TOP"
+          , right = eqnVal "RIGHT"
+          , bottom = eqnVal "BOT"
+          , cx = EqnOp Div [EqnOp Plus [eqnVal "LEFT", eqnVal "RIGHT"], eqnVal2]
+          , cy = EqnOp Div [EqnOp Plus [eqnVal "TOP", eqnVal "BOT"], eqnVal2]
+          , mWidth = Just <| EqnOp Minus [eqnVal "RIGHT", eqnVal "LEFT"]
+          , mHeight = Just <| EqnOp Minus [eqnVal "BOT", eqnVal "TOP"]
+          , mRadius = Nothing
+          , mRadiusX = Nothing
+          , mRadiusY = Nothing
+          }
+
+        "circle" ->
+          { left = EqnOp Minus [eqnVal "cx", eqnVal "r"]
+          , top = EqnOp Minus [eqnVal "cy", eqnVal "r"]
+          , right = EqnOp Plus  [eqnVal "cx", eqnVal "r"]
+          , bottom = EqnOp Plus  [eqnVal "cy", eqnVal "r"]
+          , cx = eqnVal "cx"
+          , cy = eqnVal "cy"
+          , mWidth = Nothing
+          , mHeight = Nothing
+          , mRadius = Just <| eqnVal "r"
+          , mRadiusX = Nothing
+          , mRadiusY = Nothing
+          }
+
+        "ellipse" ->
+          { left = EqnOp Minus [eqnVal "cx", eqnVal "rx"]
+          , top = EqnOp Minus [eqnVal "cy", eqnVal "ry"]
+          , right = EqnOp Plus  [eqnVal "cx", eqnVal "rx"]
+          , bottom = EqnOp Plus  [eqnVal "cy", eqnVal "ry"]
+          , cx = eqnVal "cx"
+          , cy = eqnVal "cy"
+          , mWidth = Nothing
+          , mHeight = Nothing
+          , mRadius = Nothing
+          , mRadiusX = Just <| eqnVal "rx"
+          , mRadiusY = Just <| eqnVal "ry"
+          }
+
+        _ -> crash () in
+
+    case featureNum of
+
+      X TopLeft   -> equations.left
+      Y TopLeft   -> equations.top
+      X TopRight  -> equations.right
+      Y TopRight  -> equations.bottom
+      X BotLeft   -> equations.left
+      Y BotLeft   -> equations.bottom
+      X BotRight  -> equations.right
+      Y BotRight  -> equations.bottom
+      X TopEdge   -> equations.cx
+      Y TopEdge   -> equations.top
+      X BotEdge   -> equations.cx
+      Y BotEdge   -> equations.bottom
+      X LeftEdge  -> equations.left
+      Y LeftEdge  -> equations.cy
+      X RightEdge -> equations.right
+      Y RightEdge -> equations.cy
+      X Center    -> equations.cx
+      Y Center    -> equations.cy
+
+      D distanceFeature ->
+        let s = LangSvg.strDistanceFeature distanceFeature in
+        let cap = Utils.spaces ["shapeFeatureEquationOf:", kind, s] in
+        case distanceFeature of
+          Width     -> Utils.fromJust_ cap equations.mWidth
+          Height    -> Utils.fromJust_ cap equations.mHeight
+          Radius    -> Utils.fromJust_ cap equations.mRadius
+          RadiusX   -> Utils.fromJust_ cap equations.mRadiusX
+          RadiusY   -> Utils.fromJust_ cap equations.mRadiusY
+
+      _ -> crash () in
+
   let handlePath () =
     let x i = eqnVal ("x" ++ toString i) in
     let y i = eqnVal ("y" ++ toString i) in
-    if String.startsWith LangSvg.pathPtXPrefix feature then
-      let iStr = String.dropLeft (String.length LangSvg.pathPtXPrefix) feature in
-      let i    = Utils.fromOk_ <| String.toInt iStr in
-      x i
-    else if String.startsWith LangSvg.pathPtYPrefix feature then
-      let iStr = String.dropLeft (String.length LangSvg.pathPtYPrefix) feature in
-      let i    = Utils.fromOk_ <| String.toInt iStr in
-      y i
-    else Debug.crash <| "Paths do not have this feature: " ++ feature
-  in
-  if feature == LangSvg.shapeFill then eqnVal "fill"
-  else if feature == LangSvg.shapeStroke then eqnVal "stroke"
-  else if feature == LangSvg.shapeStrokeWidth then eqnVal "stroke-width"
-  else if feature == LangSvg.shapeFillOpacity then
-    case (Utils.find_ nodeAttrs "fill").av_ of
-      LangSvg.AColorNum (_, Just opacity) -> EqnVal (vConst opacity)
-      _                                   -> Debug.crash "featureEquation: fillOpacity"
-  else if feature == LangSvg.shapeStrokeOpacity then
-    case (Utils.find_ nodeAttrs "stroke").av_ of
-      LangSvg.AColorNum (_, Just opacity) -> EqnVal (vConst opacity)
-      _                                   -> Debug.crash "featureEquation: strokeOpacity"
-  else if feature == LangSvg.shapeRotation then
-    let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ nodeAttrs "transform" in
-    EqnVal (vConst rot)
-  else
-    case kind of
-      "rect"     -> handleRect ()
-      "BOX"      -> handleBox ()
-      "OVAL"     -> handleOval ()
-      "circle"   -> handleCircle ()
-      "ellipse"  -> handleEllipse ()
-      "line"     -> handleLine ()
-      "polygon"  -> handlePoly ()
-      "polyline" -> handlePoly ()
-      "path"     -> handlePath ()
-      _          -> Debug.crash <| "Shape features not implemented yet: " ++ kind
+    case featureNum of
+      X (Point i) -> x i
+      Y (Point i) -> y i
+      _           -> crash () in
+
+  let handlePoly () =
+    let ptCount = LangSvg.getPtCount attrs in
+    let x i = eqnVal ("x" ++ toString i) in
+    let y i = eqnVal ("y" ++ toString i) in
+    case featureNum of
+
+      X (Point i) -> x i
+      Y (Point i) -> y i
+
+      X (Midpoint i1) ->
+        let i2 = if i1 == ptCount then 1 else i1 + 1 in
+        EqnOp Div [EqnOp Plus [(x i1), (x i2)], eqnVal2]
+      Y (Midpoint i1) ->
+        let i2 = if i1 == ptCount then 1 else i1 + 1 in
+        EqnOp Div [EqnOp Plus [(y i1), (y i2)], eqnVal2]
+
+      _  -> crash () in
+
+  case featureNum of
+
+    O FillColor   -> eqnVal "fill"
+    O StrokeColor -> eqnVal "stroke"
+    O StrokeWidth -> eqnVal "stroke-width"
+
+    O FillOpacity ->
+      case (Utils.find_ attrs "fill").av_ of
+        LangSvg.AColorNum (_, Just opacity) -> EqnVal (vConst opacity)
+        _                                   -> Debug.crash "featureEquationOf: fillOpacity"
+    O StrokeOpacity ->
+      case (Utils.find_ attrs "stroke").av_ of
+        LangSvg.AColorNum (_, Just opacity) -> EqnVal (vConst opacity)
+        _                                   -> Debug.crash "featureEquationOf: strokeOpacity"
+    O Rotation ->
+      let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ attrs "transform" in
+      EqnVal (vConst rot)
+
+    _ ->
+      case kind of
+        "line"     -> handleLine ()
+        "polygon"  -> handlePoly ()
+        "polyline" -> handlePoly ()
+        "path"     -> handlePath ()
+        _          -> handleBoxyShape ()
 
 
 equationToLittle : SubstStr -> FeatureEquation -> String
