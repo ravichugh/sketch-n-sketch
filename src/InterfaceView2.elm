@@ -12,7 +12,7 @@ import Utils
 import Keys
 import InterfaceModel exposing (..)
 import LangSvg exposing (toNum, toNumTr, addi, attr, NodeId, ShapeKind)
-import ShapeWidgets
+import ShapeWidgets exposing (..) -- to expose X, Y, D, O, etc.
 import ExamplesGenerated as Examples
 import Config exposing (params)
 import OurParser2 as P
@@ -979,10 +979,13 @@ maybeZoneSelectCrossDot sideLength model thisCrosshair x y =
   if sideLength < minLengthForMiddleZones then []
   else zoneSelectCrossDot model thisCrosshair x y
 
-zoneSelectCrossDot : Model -> (Int, LangSvg.ShapeFeature, LangSvg.ShapeFeature)
+zoneSelectCrossDot : Model -> (Int, ShapeKind, PointFeature)
                   -> number -> number' -> List Svg.Svg
-zoneSelectCrossDot model thisCrosshair x y =
-  let (id, xFeatureName, yFeatureName) = thisCrosshair in
+zoneSelectCrossDot model (id, kind, pointFeature) x y =
+  let xFeatureName = ShapeWidgets.unparseFeatureNum (Just kind) (X pointFeature) in
+  let yFeatureName = ShapeWidgets.unparseFeatureNum (Just kind) (Y pointFeature) in
+  let thisCrosshair = (id, xFeatureName, yFeatureName) in
+
   let len = 20 in
   let color typeAndNodeIdAndFeatures =
     if List.all (flip Set.member model.selectedFeatures) typeAndNodeIdAndFeatures
@@ -1071,13 +1074,15 @@ zoneSelectCrossDot model thisCrosshair x y =
     [onMouseLeave (removeHoveredCrosshair thisCrosshair)]
     [backDisc, xLine, yLine, frontDisc, xyDot]
 
-maybeZoneSelectLine sideLength model nodeId featureName pt1 pt2 =
+maybeZoneSelectLine sideLength model nodeId kind featureNum pt1 pt2 =
   if sideLength < minLengthForMiddleZones then []
-  else zoneSelectLine model nodeId featureName pt1 pt2
+  else zoneSelectLine model nodeId kind featureNum pt1 pt2
 
-zoneSelectLine model nodeId featureName pt1 pt2 =
+zoneSelectLine model nodeId kind featureNum pt1 pt2 =
   let typeAndNodeIdAndFeature =
-    (ShapeWidgets.selectedTypeShapeFeature, nodeId, featureName) in
+    ( ShapeWidgets.selectedTypeShapeFeature
+    , nodeId
+    , ShapeWidgets.unparseFeatureNum (Just kind) featureNum ) in
   case model.mouseMode of
     MouseObject _ _ _ _ -> []
     _                   ->
@@ -1161,6 +1166,9 @@ toggleSelectedBlob blobId nodeId =
 
 --------------------------------------------------------------------------------
 
+-- TODO significantly refactor point selection zones, by using
+-- ShapeWidgets.featuresOfShape, eval FeatureEquations, etc.
+
 makeZones : Model -> String -> LangSvg.NodeId -> List LangSvg.Attr -> List Svg.Svg
 makeZones model shape id l =
   case shape of
@@ -1195,12 +1203,10 @@ makeZonesLine model id l =
   let zonesSelect =
     List.concat
        [ maybeZoneSelectCrossDot (distance_ pt1 pt2) model
-           (id, ShapeWidgets.lineCX, ShapeWidgets.lineCY)
+           (id, "line", Center)
            ((fst x1)/2+(fst x2)/2) ((fst y1)/2+(fst y2)/2)
-       , zoneSelectCrossDot model (id, ShapeWidgets.lineX1, ShapeWidgets.lineY1)
-           (fst x1) (fst y1)
-       , zoneSelectCrossDot model (id, ShapeWidgets.lineX2, ShapeWidgets.lineY2)
-           (fst x2) (fst y2) ]
+       , zoneSelectCrossDot model (id, "line", Point 1) (fst x1) (fst y1)
+       , zoneSelectCrossDot model (id, "line", Point 2) (fst x2) (fst y2) ]
   in
   let primaryWidgets =
     boundingBoxZones model id bounds <|
@@ -1247,29 +1253,29 @@ makeZonesRectOrBox model id shape l =
     -- refactor, or get rid of parallel feature names...
     if shape == "rect" then
       let (x,y,w,h) = (left, top, width, height) in
-      maybeZoneSelectLine height model id ShapeWidgets.rectWidth (x,y+h/2) (x+w,y+h/2) ++
-      maybeZoneSelectLine width model id ShapeWidgets.rectHeight (x+w/2,y) (x+w/2,y+h) ++
-      maybeZoneSelectCrossDot width model (id, ShapeWidgets.rectTCX, ShapeWidgets.rectTCY) (x+w/2) y ++
-      maybeZoneSelectCrossDot width model (id, ShapeWidgets.rectBCX, ShapeWidgets.rectBCY) (x+w/2) (y+h) ++
-      maybeZoneSelectCrossDot height model (id, ShapeWidgets.rectCLX, ShapeWidgets.rectCLY) x (y+h/2) ++
-      maybeZoneSelectCrossDot height model (id, ShapeWidgets.rectCRX, ShapeWidgets.rectCRY) (x+w) (y+h/2) ++
-      zoneSelectCrossDot model (id, ShapeWidgets.rectTLX, ShapeWidgets.rectTLY) x y ++
-      zoneSelectCrossDot model (id, ShapeWidgets.rectTRX, ShapeWidgets.rectTRY) (x+w) y ++
-      zoneSelectCrossDot model (id, ShapeWidgets.rectBLX, ShapeWidgets.rectBLY) x (y+h) ++
-      zoneSelectCrossDot model (id, ShapeWidgets.rectBRX, ShapeWidgets.rectBRY) (x+w) (y+h) ++
-      maybeZoneSelectCrossDot (min width height) model (id, ShapeWidgets.rectCX , ShapeWidgets.rectCY)  (x+w/2) (y+h/2)
+      maybeZoneSelectLine height model id shape (D Width) (x,y+h/2) (x+w,y+h/2) ++
+      maybeZoneSelectLine width model id shape (D Height) (x+w/2,y) (x+w/2,y+h) ++
+      maybeZoneSelectCrossDot width model (id, shape, TopEdge) (x+w/2) y ++
+      maybeZoneSelectCrossDot width model (id, shape, BotEdge) (x+w/2) (y+h) ++
+      maybeZoneSelectCrossDot height model (id, shape, LeftEdge) x (y+h/2) ++
+      maybeZoneSelectCrossDot height model (id, shape, RightEdge) (x+w) (y+h/2) ++
+      zoneSelectCrossDot model (id, shape, TopLeft) x y ++
+      zoneSelectCrossDot model (id, shape, TopRight) (x+w) y ++
+      zoneSelectCrossDot model (id, shape, BotLeft) x (y+h) ++
+      zoneSelectCrossDot model (id, shape, BotRight) (x+w) (y+h) ++
+      maybeZoneSelectCrossDot (min width height) model (id, shape, Center) (x+w/2) (y+h/2)
     else
-      maybeZoneSelectLine height model id ShapeWidgets.boxWidth (left, cy) (right, cy) ++
-      maybeZoneSelectLine width model id ShapeWidgets.boxHeight (cx, top) (cx, bot) ++
-      maybeZoneSelectCrossDot width model (id, ShapeWidgets.boxTCX, ShapeWidgets.boxTCY) cx top ++
-      maybeZoneSelectCrossDot width model (id, ShapeWidgets.boxBCX, ShapeWidgets.boxBCY) cx bot ++
-      maybeZoneSelectCrossDot height model (id, ShapeWidgets.boxCLX, ShapeWidgets.boxCLY) left cy ++
-      maybeZoneSelectCrossDot height model (id, ShapeWidgets.boxCRX, ShapeWidgets.boxCRY) right cy ++
-      zoneSelectCrossDot model (id, ShapeWidgets.boxTLX, ShapeWidgets.boxTLY) left top ++
-      zoneSelectCrossDot model (id, ShapeWidgets.boxTRX, ShapeWidgets.boxTRY) right top ++
-      zoneSelectCrossDot model (id, ShapeWidgets.boxBLX, ShapeWidgets.boxBLY) left bot ++
-      zoneSelectCrossDot model (id, ShapeWidgets.boxBRX, ShapeWidgets.boxBRY) right bot ++
-      maybeZoneSelectCrossDot (min width height) model (id, ShapeWidgets.boxCX , ShapeWidgets.boxCY)  cx cy
+      maybeZoneSelectLine height model id shape (D Width) (left, cy) (right, cy) ++
+      maybeZoneSelectLine width model id shape (D Height) (cx, top) (cx, bot) ++
+      maybeZoneSelectCrossDot width model (id, shape, TopEdge) cx top ++
+      maybeZoneSelectCrossDot width model (id, shape, BotEdge) cx bot ++
+      maybeZoneSelectCrossDot height model (id, shape, LeftEdge) left cy ++
+      maybeZoneSelectCrossDot height model (id, shape, RightEdge) right cy ++
+      zoneSelectCrossDot model (id, shape, TopLeft) left top ++
+      zoneSelectCrossDot model (id, shape, TopRight) right top ++
+      zoneSelectCrossDot model (id, shape, BotLeft) left bot ++
+      zoneSelectCrossDot model (id, shape, BotRight) right bot ++
+      maybeZoneSelectCrossDot (min width height) model (id, shape, Center) cx cy
   in
   let primaryWidgets =
     boundingBoxZones model id bounds <|
@@ -1302,12 +1308,12 @@ makeZonesCircle model id l =
       ] ++ transform
   in
   let zonesSelect =
-    maybeZoneSelectLine diameter model id ShapeWidgets.circleR (cx,cy) (cx+r,cy) ++
-    maybeZoneSelectCrossDot diameter model (id, ShapeWidgets.circleTCX, ShapeWidgets.circleTCY) cx top ++
-    maybeZoneSelectCrossDot diameter model (id, ShapeWidgets.circleBCX, ShapeWidgets.circleBCY) cx bot ++
-    maybeZoneSelectCrossDot diameter model (id, ShapeWidgets.circleCLX, ShapeWidgets.circleCLY) left cy ++
-    maybeZoneSelectCrossDot diameter model (id, ShapeWidgets.circleCRX, ShapeWidgets.circleCRY) right cy ++
-    maybeZoneSelectCrossDot diameter model (id, ShapeWidgets.circleCX, ShapeWidgets.circleCY) cx cy
+    maybeZoneSelectLine diameter model id "circle" (D Radius) (cx,cy) (cx+r,cy) ++
+    maybeZoneSelectCrossDot diameter model (id, "circle", TopEdge) cx top ++
+    maybeZoneSelectCrossDot diameter model (id, "circle", BotEdge) cx bot ++
+    maybeZoneSelectCrossDot diameter model (id, "circle", LeftEdge) left cy ++
+    maybeZoneSelectCrossDot diameter model (id, "circle", RightEdge) right cy ++
+    maybeZoneSelectCrossDot diameter model (id, "circle", Center) cx cy
   in
   let primaryWidgets =
      boundingBoxZones model id bounds <|
@@ -1349,25 +1355,25 @@ makeZonesEllipseOrOval model id shape l =
   let zonesSelect =
     -- refactor, or get rid of parallel feature names...
     if shape == "ellipse" then
-      zoneSelectLine model id ShapeWidgets.ellipseRX (cx,cy) (cx+rx,cy) ++
-      zoneSelectLine model id ShapeWidgets.ellipseRY (cx,cy-ry) (cx,cy) ++
-      zoneSelectCrossDot model (id, ShapeWidgets.ellipseTCX, ShapeWidgets.ellipseTCY) cx top ++
-      zoneSelectCrossDot model (id, ShapeWidgets.ellipseBCX, ShapeWidgets.ellipseBCY) cx bot ++
-      zoneSelectCrossDot model (id, ShapeWidgets.ellipseCLX, ShapeWidgets.ellipseCLY) left cy ++
-      zoneSelectCrossDot model (id, ShapeWidgets.ellipseCRX, ShapeWidgets.ellipseCRY) right cy ++
-      zoneSelectCrossDot model (id, ShapeWidgets.ellipseCX , ShapeWidgets.ellipseCY)  cx cy
+      zoneSelectLine model id shape (D RadiusX) (cx,cy) (cx+rx,cy) ++
+      zoneSelectLine model id shape (D RadiusY) (cx,cy-ry) (cx,cy) ++
+      zoneSelectCrossDot model (id, shape, TopEdge) cx top ++
+      zoneSelectCrossDot model (id, shape, BotEdge) cx bot ++
+      zoneSelectCrossDot model (id, shape, LeftEdge) left cy ++
+      zoneSelectCrossDot model (id, shape, RightEdge) right cy ++
+      zoneSelectCrossDot model (id, shape, Center)  cx cy
     else
-      maybeZoneSelectLine height model id ShapeWidgets.ovalRX (cx,cy) (cx+rx,cy) ++
-      maybeZoneSelectLine width model id ShapeWidgets.ovalRY (cx,cy-ry) (cx,cy) ++
-      maybeZoneSelectCrossDot width model (id, ShapeWidgets.ovalTCX, ShapeWidgets.ovalTCY) cx top ++
-      maybeZoneSelectCrossDot width model (id, ShapeWidgets.ovalBCX, ShapeWidgets.ovalBCY) cx bot ++
-      maybeZoneSelectCrossDot height model (id, ShapeWidgets.ovalCLX, ShapeWidgets.ovalCLY) left cy ++
-      maybeZoneSelectCrossDot height model (id, ShapeWidgets.ovalCRX, ShapeWidgets.ovalCRY) right cy ++
-      zoneSelectCrossDot model (id, ShapeWidgets.ovalTLX, ShapeWidgets.ovalTLY) left top ++
-      zoneSelectCrossDot model (id, ShapeWidgets.ovalTRX, ShapeWidgets.ovalTRY) right top ++
-      zoneSelectCrossDot model (id, ShapeWidgets.ovalBLX, ShapeWidgets.ovalBLY) left bot ++
-      zoneSelectCrossDot model (id, ShapeWidgets.ovalBRX, ShapeWidgets.ovalBRY) right bot ++
-      maybeZoneSelectCrossDot (min width height) model (id, ShapeWidgets.ovalCX , ShapeWidgets.ovalCY)  cx cy
+      maybeZoneSelectLine height model id shape (D RadiusX) (cx,cy) (cx+rx,cy) ++
+      maybeZoneSelectLine width model id shape (D RadiusY) (cx,cy-ry) (cx,cy) ++
+      maybeZoneSelectCrossDot width model (id, shape, TopEdge) cx top ++
+      maybeZoneSelectCrossDot width model (id, shape, BotEdge) cx bot ++
+      maybeZoneSelectCrossDot height model (id, shape, LeftEdge) left cy ++
+      maybeZoneSelectCrossDot height model (id, shape, RightEdge) right cy ++
+      zoneSelectCrossDot model (id, shape, TopLeft) left top ++
+      zoneSelectCrossDot model (id, shape, TopRight) right top ++
+      zoneSelectCrossDot model (id, shape, BotLeft) left bot ++
+      zoneSelectCrossDot model (id, shape, BotRight) right bot ++
+      maybeZoneSelectCrossDot (min width height) model (id, shape, Center) cx cy
   in
   let primaryWidgets =
      boundingBoxZones model id bounds <|
@@ -1418,15 +1424,11 @@ makeZonesPoly model shape id l =
     let midptCrossDot ((i1, ((xi1,_),(yi1,_))), (i2, ((xi2,_),(yi2,_)))) =
       let (xAttr1, yAttr1) = ("x" ++ toString i1, "y" ++ toString i1) in
       let (xAttr2, yAttr2) = ("x" ++ toString i2, "y" ++ toString i2) in
-      zoneSelectCrossDot model
-         (id, ShapeWidgets.polyMidptX i1, ShapeWidgets.polyMidptY i1)
-         (xi1/2+xi2/2) (yi1/2+yi2/2)
+      zoneSelectCrossDot model (id, shape, Midpoint i1) (xi1/2+xi2/2) (yi1/2+yi2/2)
     in
     let ptCrossDot (i, ((xi,_),(yi,_))) =
       let (xAttr, yAttr) = ("x" ++ toString i, "y" ++ toString i) in
-      zoneSelectCrossDot model
-         (id, ShapeWidgets.polyPtX i, ShapeWidgets.polyPtY i)
-         xi yi
+      zoneSelectCrossDot model (id, shape, Point i) xi yi
     in
     let midptCrossDots =
       let ptsI = Utils.mapi identity pts in
@@ -1475,7 +1477,7 @@ makeZonesPath model shape id nodeAttrs =
     let ptCrossDot (maybeIndex, ((xi,_),(yi,_))) =
       let i = Utils.fromJust maybeIndex in
       let (xAttr, yAttr) = ("x" ++ toString i, "y" ++ toString i) in
-      zoneSelectCrossDot model (id, ShapeWidgets.pathPtX i, ShapeWidgets.pathPtY i) xi yi
+      zoneSelectCrossDot model (id, shape, Point i) xi yi
     in
     let crossDots = List.concatMap ptCrossDot listOfMaybeIndexWithPt in
     crossDots

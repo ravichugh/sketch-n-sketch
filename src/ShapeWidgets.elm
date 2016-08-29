@@ -278,6 +278,7 @@ shapeStrokeOpacity = sanityCheckOther "strokeOpacity" (O StrokeOpacity)
 shapeStrokeWidth   = sanityCheckOther "strokeWidth" (O StrokeWidth)
 shapeRotation      = sanityCheckOther "rotation" (O Rotation)
 
+{-
 rectTLX = sanityCheck "rectTLX" "rect" (X TopLeft)
 rectTLY = sanityCheck "rectTLY" "rect" (Y TopLeft)
 rectTRX = sanityCheck "rectTRX" "rect" (X TopRight)
@@ -391,6 +392,7 @@ polyPtXPrefix = "polygonPtX"
 polyPtYPrefix = "polygonPtY"
 polyMidptXPrefix = "polygonMidptX"
 polyMidptYPrefix = "polygonMidptY"
+-}
 
 
 ------------------------------------------------------------------------------
