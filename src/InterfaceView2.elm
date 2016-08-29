@@ -579,10 +579,24 @@ zonePoints model id shape transform pts =
     zonePoint model id shape (addi "Point" i) transform
       [ attrNumTr "cx" x, attrNumTr "cy" y ]
 
+-- TODO rename this once original zonePoints is removed
+zonePoints2 model id shape transform pts =
+  List.concat <| flip Utils.mapi pts <| \(i, (x,y)) ->
+    zonePoint model id shape (addi "Point" i) transform
+      [ attrNum "cx" x, attrNum "cy" y ]
+
 zoneLine model id shape zone (x1,y1) (x2,y2) attrs =
   draggableZone Svg.line True model id shape zone <|
     [ attrNumTr "x1" x1 , attrNumTr "y1" y1
     , attrNumTr "x2" x2 , attrNumTr "y2" y2
+    , cursorStyle "pointer"
+    ] ++ attrs
+
+-- TODO rename this once original zoneLine is removed
+zoneLine2 model id shape zone (x1,y1) (x2,y2) attrs =
+  draggableZone Svg.line True model id shape zone <|
+    [ attrNum "x1" x1 , attrNum "y1" y1
+    , attrNum "x2" x2 , attrNum "y2" y2
     , cursorStyle "pointer"
     ] ++ attrs
 
@@ -1108,6 +1122,48 @@ zoneSelectLine_ model typeAndNodeIdAndFeature (x1,y1) (x2,y2) =
   in
   [line]
 
+boxySelectZones model id kind boxyNums =
+
+  let drawPoint maybeThreshold feature x y =
+    case maybeThreshold of
+      Just thresh -> maybeZoneSelectCrossDot thresh model (id, kind, feature) x y
+      Nothing     -> zoneSelectCrossDot model (id, kind, feature) x y in
+
+  let drawLine threshold feature pt1 pt2 =
+    maybeZoneSelectLine threshold model id kind feature pt1 pt2 in
+
+  let {left, top, right, bot, cx, cy, width, height} = boxyNums in
+
+  let distanceZone f =
+    case f of
+      DistanceFeature Width   -> drawLine height (D Width) (left,cy) (right,cy)
+      DistanceFeature Height  -> drawLine width (D Height) (cx,top) (cx,bot)
+
+      DistanceFeature Radius  -> drawLine width (D Radius) (cx,cy) (right,cy)
+      DistanceFeature RadiusX -> drawLine height (D RadiusX) (cx,cy) (right,cy)
+      DistanceFeature RadiusY -> drawLine width (D RadiusY) (cx,top) (cx,cy)
+
+      _ -> [] in
+
+  let pointZone f =
+    case f of
+      PointFeature TopLeft  -> drawPoint Nothing TopLeft left top
+      PointFeature TopRight -> drawPoint Nothing TopRight right top
+      PointFeature BotLeft  -> drawPoint Nothing BotLeft left bot
+      PointFeature BotRight -> drawPoint Nothing BotRight right bot
+
+      PointFeature TopEdge   -> drawPoint (Just width) TopEdge cx top
+      PointFeature BotEdge   -> drawPoint (Just width) BotEdge cx bot
+      PointFeature LeftEdge  -> drawPoint (Just height) LeftEdge left cy
+      PointFeature RightEdge -> drawPoint (Just height) RightEdge right cy
+      PointFeature Center    -> drawPoint (Just (min width height)) Center cx cy
+
+      _ -> [] in
+
+  let features = Utils.find "boxySelectZones" ShapeWidgets.simpleKindFeatures kind in
+  List.concatMap distanceZone features ++ List.concatMap pointZone features
+    -- draw distance zones below point zones
+
 
 --------------------------------------------------------------------------------
 -- Select Blob Zones
@@ -1188,59 +1244,40 @@ findNums l attrs = List.map (toNum << Utils.find_ l) attrs
 
 makeZonesLine model id l =
   let transform = maybeTransformAttr l in
-  let (x1,y1,x2,y2) =
-    Utils.unwrap4 <| List.map (toNumTr << Utils.find_ l) ["x1","y1","x2","y2"] in
+  let (x1,y1,x2,y2,cx,cy) = ShapeWidgets.evaluateLineFeatures id l in
   let (pt1,pt2) = ((x1,y1), (x2,y2)) in
-  -- let bounds = (fst x1, fst y1, fst x2, fst y2) in
   let bounds =
-    let (xMin,xMax) = minMax (fst x1) (fst x2) in
-    let (yMin,yMax) = minMax (fst y1) (fst y2) in
+    let (xMin,xMax) = minMax x1 x2 in
+    let (yMin,yMax) = minMax y1 y2 in
     (xMin, yMin, xMax, yMax) in
   let zLine =
     let enter = [ onMouseEnter (addHoveredShape id) ] in
-    zoneLine model id "line" "Edge" pt1 pt2 (transform ++ enter)
+    zoneLine2 model id "line" "Edge" pt1 pt2 (transform ++ enter)
   in
   let zonesSelect =
     List.concat
-       [ maybeZoneSelectCrossDot (distance_ pt1 pt2) model
-           (id, "line", Center)
-           ((fst x1)/2+(fst x2)/2) ((fst y1)/2+(fst y2)/2)
-       , zoneSelectCrossDot model (id, "line", Point 1) (fst x1) (fst y1)
-       , zoneSelectCrossDot model (id, "line", Point 2) (fst x2) (fst y2) ]
+       [ maybeZoneSelectCrossDot (distance pt1 pt2) model (id, "line", Center) cx cy
+       , zoneSelectCrossDot model (id, "line", Point 1) x1 y1
+       , zoneSelectCrossDot model (id, "line", Point 2) x2 y2 ]
   in
   let primaryWidgets =
     boundingBoxZones model id bounds <|
       [zLine] ++
       zonesSelect ++
-      zonePoints model id "line" transform [pt1, pt2]
+      zonePoints2 model id "line" transform [pt1, pt2]
   in
   let extraWidgets =
-    let c = halfwayBetween_ pt1 pt2 in
-    let r = (distance_ pt1 pt2 / 2) - rotZoneDelta in
-    zoneRotate model id "line" c r (maybeTransformCmds l) ++
-    zonesStroke model id "line" (fst x2) (fst y2) l
+    let c = halfwayBetween pt1 pt2 in
+    let r = (distance pt1 pt2 / 2) - rotZoneDelta in
+    zoneRotate model id "line" (cx, cy) r (maybeTransformCmds l) ++
+    zonesStroke model id "line" x2 y2 l
   in
   primaryWidgets :: extraWidgets
-{-
-  let zGroup =
-    case maybeFindBlobId l of
-      Nothing     -> []
-      Just blobId -> zoneBlobLine model blobId id x1 x2 y1 y2
-  in
-  primaryWidgets :: extraWidgets ++ zGroup
--}
 
 makeZonesRectOrBox model id shape l =
-  let (left, top, right, bot, width, height) =
-    if shape == "rect" then
-      let (x,y,w,h) = Utils.unwrap4 <| findNums l ["x","y","width","height"] in
-      (x, y, x + w, y + h, w, h)
-    else -- if shape == "BOX"
-      let (left, top, right, bot) = Utils.unwrap4 <| findNums l ["LEFT","TOP","RIGHT","BOT"] in
-      (left, top, right, bot, right - left, bot - top)
-  in
+  let boxyNums = ShapeWidgets.evaluateBoxyNums id shape l in
+  let {left, top, right, bot, cx, cy, width, height} = boxyNums in
   let bounds = (left, top, right, bot) in
-  let (cx, cy) = (left + width/2, top + height/2) in
   let transform = maybeTransformAttr l in
   let zoneInterior =
     draggableZone Svg.rect False model id shape "Interior" <|
@@ -1249,34 +1286,7 @@ makeZonesRectOrBox model id shape l =
       , onMouseEnter (addHoveredShape id)
       ] ++ transform
   in
-  let zonesSelect =
-    -- refactor, or get rid of parallel feature names...
-    if shape == "rect" then
-      let (x,y,w,h) = (left, top, width, height) in
-      maybeZoneSelectLine height model id shape (D Width) (x,y+h/2) (x+w,y+h/2) ++
-      maybeZoneSelectLine width model id shape (D Height) (x+w/2,y) (x+w/2,y+h) ++
-      maybeZoneSelectCrossDot width model (id, shape, TopEdge) (x+w/2) y ++
-      maybeZoneSelectCrossDot width model (id, shape, BotEdge) (x+w/2) (y+h) ++
-      maybeZoneSelectCrossDot height model (id, shape, LeftEdge) x (y+h/2) ++
-      maybeZoneSelectCrossDot height model (id, shape, RightEdge) (x+w) (y+h/2) ++
-      zoneSelectCrossDot model (id, shape, TopLeft) x y ++
-      zoneSelectCrossDot model (id, shape, TopRight) (x+w) y ++
-      zoneSelectCrossDot model (id, shape, BotLeft) x (y+h) ++
-      zoneSelectCrossDot model (id, shape, BotRight) (x+w) (y+h) ++
-      maybeZoneSelectCrossDot (min width height) model (id, shape, Center) (x+w/2) (y+h/2)
-    else
-      maybeZoneSelectLine height model id shape (D Width) (left, cy) (right, cy) ++
-      maybeZoneSelectLine width model id shape (D Height) (cx, top) (cx, bot) ++
-      maybeZoneSelectCrossDot width model (id, shape, TopEdge) cx top ++
-      maybeZoneSelectCrossDot width model (id, shape, BotEdge) cx bot ++
-      maybeZoneSelectCrossDot height model (id, shape, LeftEdge) left cy ++
-      maybeZoneSelectCrossDot height model (id, shape, RightEdge) right cy ++
-      zoneSelectCrossDot model (id, shape, TopLeft) left top ++
-      zoneSelectCrossDot model (id, shape, TopRight) right top ++
-      zoneSelectCrossDot model (id, shape, BotLeft) left bot ++
-      zoneSelectCrossDot model (id, shape, BotRight) right bot ++
-      maybeZoneSelectCrossDot (min width height) model (id, shape, Center) cx cy
-  in
+  let zonesSelect = boxySelectZones model id shape boxyNums in
   let primaryWidgets =
     boundingBoxZones model id bounds <|
       [zoneInterior] ++
@@ -1291,15 +1301,9 @@ makeZonesRectOrBox model id shape l =
   primaryWidgets :: extraWidgets
 
 makeZonesCircle model id l =
-  let (cx,cy,r) = Utils.unwrap3 <| findNums l ["cx","cy","r"] in
-  let
-    top    = cy - r
-    bot    = cy + r
-    left   = cx - r
-    right  = cx + r
-  in
+  let boxyNums = ShapeWidgets.evaluateBoxyNums id "circle" l in
+  let {left, top, right, bot, cx, cy, r} = boxyNums in
   let bounds = (left, top, right, bot) in
-  let diameter = right - left in
   let transform = maybeTransformAttr l in
   let zoneInterior =
     draggableZone Svg.circle False model id "circle" "Interior" <|
@@ -1307,14 +1311,7 @@ makeZonesCircle model id l =
       , onMouseEnter (addHoveredShape id)
       ] ++ transform
   in
-  let zonesSelect =
-    maybeZoneSelectLine diameter model id "circle" (D Radius) (cx,cy) (cx+r,cy) ++
-    maybeZoneSelectCrossDot diameter model (id, "circle", TopEdge) cx top ++
-    maybeZoneSelectCrossDot diameter model (id, "circle", BotEdge) cx bot ++
-    maybeZoneSelectCrossDot diameter model (id, "circle", LeftEdge) left cy ++
-    maybeZoneSelectCrossDot diameter model (id, "circle", RightEdge) right cy ++
-    maybeZoneSelectCrossDot diameter model (id, "circle", Center) cx cy
-  in
+  let zonesSelect = boxySelectZones model id "circle" boxyNums in
   let primaryWidgets =
      boundingBoxZones model id bounds <|
        [zoneInterior] ++
@@ -1328,23 +1325,9 @@ makeZonesCircle model id l =
   primaryWidgets :: extraWidgets
 
 makeZonesEllipseOrOval model id shape l =
-  let (cx,cy,rx,ry) =
-    if shape == "ellipse" then
-      Utils.unwrap4 <| findNums l ["cx","cy","rx","ry"]
-    else -- if shape == "OVAL"
-      let (left, top, right, bot) = Utils.unwrap4 <| findNums l ["LEFT","TOP","RIGHT","BOT"] in
-      let rx = (right - left) / 2 in
-      let ry = (bot - top) / 2 in
-      (left + rx, top + ry, rx, ry)
-  in
-  let
-    top    = cy - ry
-    bot    = cy + ry
-    left   = cx - rx
-    right  = cx + rx
-  in
+  let boxyNums = ShapeWidgets.evaluateBoxyNums id shape l in
+  let {left, top, right, bot, width, height, cx, cy, rx, ry} = boxyNums in
   let bounds = (left, top, right, bot) in
-  let (width, height) = (right - left, bot - top) in
   let transform = maybeTransformAttr l in
   let zoneInterior =
     draggableZone Svg.ellipse False model id shape "Interior" <|
@@ -1352,29 +1335,7 @@ makeZonesEllipseOrOval model id shape l =
       , onMouseEnter (addHoveredShape id)
       ] ++ transform
   in
-  let zonesSelect =
-    -- refactor, or get rid of parallel feature names...
-    if shape == "ellipse" then
-      zoneSelectLine model id shape (D RadiusX) (cx,cy) (cx+rx,cy) ++
-      zoneSelectLine model id shape (D RadiusY) (cx,cy-ry) (cx,cy) ++
-      zoneSelectCrossDot model (id, shape, TopEdge) cx top ++
-      zoneSelectCrossDot model (id, shape, BotEdge) cx bot ++
-      zoneSelectCrossDot model (id, shape, LeftEdge) left cy ++
-      zoneSelectCrossDot model (id, shape, RightEdge) right cy ++
-      zoneSelectCrossDot model (id, shape, Center)  cx cy
-    else
-      maybeZoneSelectLine height model id shape (D RadiusX) (cx,cy) (cx+rx,cy) ++
-      maybeZoneSelectLine width model id shape (D RadiusY) (cx,cy-ry) (cx,cy) ++
-      maybeZoneSelectCrossDot width model (id, shape, TopEdge) cx top ++
-      maybeZoneSelectCrossDot width model (id, shape, BotEdge) cx bot ++
-      maybeZoneSelectCrossDot height model (id, shape, LeftEdge) left cy ++
-      maybeZoneSelectCrossDot height model (id, shape, RightEdge) right cy ++
-      zoneSelectCrossDot model (id, shape, TopLeft) left top ++
-      zoneSelectCrossDot model (id, shape, TopRight) right top ++
-      zoneSelectCrossDot model (id, shape, BotLeft) left bot ++
-      zoneSelectCrossDot model (id, shape, BotRight) right bot ++
-      maybeZoneSelectCrossDot (min width height) model (id, shape, Center) cx cy
-  in
+  let zonesSelect = boxySelectZones model id shape boxyNums in
   let primaryWidgets =
      boundingBoxZones model id bounds <|
        [zoneInterior] ++

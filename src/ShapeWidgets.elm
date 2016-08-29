@@ -650,6 +650,51 @@ evaluateFeatureEquation eqn =
     _ -> Nothing
 
 
+evaluateFeatureEquation_ =
+  Utils.fromJust_ "evaluateFeatureEquation_" << evaluateFeatureEquation
+
+
+evaluateLineFeatures id attrs =
+  Utils.unwrap6 <|
+    List.map (evaluateFeatureEquation_ << featureEquationOf id "line" attrs) <|
+      [ X (Point 1), Y (Point 1)
+      , X (Point 2), Y (Point 2)
+      , X Center, Y Center
+      ]
+
+
+type alias BoxyNums =
+  { left : Num , top : Num , right : Num , bot : Num , width : Num , height : Num
+  , cx : Num , cy : Num
+  , rx : Num , ry : Num , r : Num
+  }
+
+
+evaluateBoxyNums id kind attrs =
+  let equations = boxyFeatureEquationsOf id kind attrs in
+  let (left, top, right, bot, cx, cy) =
+    ( evaluateFeatureEquation_ equations.left
+    , evaluateFeatureEquation_ equations.top
+    , evaluateFeatureEquation_ equations.right
+    , evaluateFeatureEquation_ equations.bottom
+    , evaluateFeatureEquation_ equations.cx
+    , evaluateFeatureEquation_ equations.cy
+    )
+  in
+  let
+    width  = right - left
+    height = bot - top
+    rx     = width / 2
+    ry     = height / 2
+  in
+  { left = left, top = top, right = right, bot = bot
+  , width = width, height = height
+  , cx = cx, cy = cy
+  , rx = rx, ry = ry
+  , r = rx
+  }
+
+
 ------------------------------------------------------------------------------
 -- Point Feature Equations
 
