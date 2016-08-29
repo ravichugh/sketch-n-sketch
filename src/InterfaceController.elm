@@ -15,7 +15,8 @@ import Utils
 import Keys
 import InterfaceModel exposing (..)
 import InterfaceStorage exposing (installSaveState, removeDialog)
-import LangSvg exposing (toNum, toNumTr, toPoints, addi)
+import LangSvg exposing (toNum, toNumTr, toPoints)
+import ShapeWidgets
 import ExamplesGenerated as Examples
 import Config exposing (params)
 
@@ -319,7 +320,7 @@ onMouseClick click old =
 
 onClickPrimaryZone i k z old =
   let hoveredCrosshairs' =
-    case LangSvg.zoneToCrosshair k z of
+    case ShapeWidgets.zoneToCrosshair k z of
       Just (xFeature, yFeature) ->
         Set.insert (i, xFeature, yFeature) old.hoveredCrosshairs
       _ ->

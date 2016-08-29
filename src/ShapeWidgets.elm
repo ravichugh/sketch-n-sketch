@@ -716,3 +716,190 @@ getPrimitivePointEquations (_, tree) nodeId =
       ) (pointFeaturesOfShape kind attrs)
     _ ->
       Debug.crash "LangSvg.getPrimitivePoints"
+
+
+------------------------------------------------------------------------------
+-- Zones
+
+type alias Zone = String
+
+-- NOTE: would like to use only the following definition, but datatypes
+-- aren't comparable... so using Strings for storing in dictionaries, but
+-- using the following for pattern-matching purposes
+
+type RealZone
+  = ZInterior
+  | ZPoint PointFeature
+  | ZLineEdge
+  | ZPolyEdge Int
+  | ZOther OtherFeature   -- fill and stroke sliders
+  | ZSlider               -- range annotations
+
+unparseZone : RealZone -> Zone
+unparseZone z =
+  case z of
+    ZInterior            -> "Interior"
+
+    ZPoint (Point i)     -> "Point" ++ toString i
+    ZPoint (Midpoint _)  -> Debug.crash <| "unparseZone: " ++ toString z
+    ZPoint Center        -> Debug.crash <| "unparseZone: " ++ toString z
+    ZPoint pf            -> strPointFeature pf ""
+
+    ZLineEdge            -> "Edge"
+    ZPolyEdge i          -> "Edge" ++ toString i
+
+    ZOther FillColor     -> "FillBall"
+    ZOther StrokeColor   -> "StrokeBall"
+    ZOther FillOpacity   -> "FillOpacityBall"
+    ZOther StrokeOpacity -> "StrokeOpacityBall"
+    ZOther StrokeWidth   -> "StrokeWidthBall"
+    ZOther Rotation      -> "RotationBall"
+
+    ZSlider              -> "SliderBall"
+
+parseZone : Zone -> RealZone
+parseZone s =
+  case realZoneOf s of
+    Just z  -> z
+    Nothing -> Debug.crash <| "parseZone: " ++ s
+
+realZoneOf s =
+  toInteriorZone s      `Utils.plusMaybe`
+  toCardinalPointZone s `Utils.plusMaybe`
+  toSliderZone s        `Utils.plusMaybe`
+  toPointZone s         `Utils.plusMaybe`
+  toEdgeZone s
+
+toInteriorZone s =
+  case s of
+    "Interior"  -> Just ZInterior
+    _           -> Nothing
+
+toCardinalPointZone s =
+  case s of
+    "TopLeft"   -> Just (ZPoint TopLeft)
+    "TopRight"  -> Just (ZPoint TopRight)
+    "BotLeft"   -> Just (ZPoint BotLeft)
+    "BotRight"  -> Just (ZPoint BotRight)
+    "TopEdge"   -> Just (ZPoint TopEdge)
+    "BotEdge"   -> Just (ZPoint BotEdge)
+    "LeftEdge"  -> Just (ZPoint LeftEdge)
+    "RightEdge" -> Just (ZPoint RightEdge)
+    _           -> Nothing
+
+toSliderZone s =
+  case s of
+    "FillBall"          -> Just (ZOther FillColor)
+    "StrokeBall"        -> Just (ZOther StrokeColor)
+    "FillOpacityBall"   -> Just (ZOther FillOpacity)
+    "StrokeOpacityBall" -> Just (ZOther StrokeOpacity)
+    "StrokeWidthBall"   -> Just (ZOther StrokeWidth)
+    "RotateBall"        -> Just (ZOther Rotation)
+    "SliderBall"        -> Just ZSlider
+    _                   -> Nothing
+
+toPointZone s =
+  Utils.bindMaybe
+    (\suffix ->
+      if suffix == "" then Nothing
+      else Just (ZPoint (Point (Utils.fromOk_ (String.toInt suffix)))))
+    (Utils.munchString "Point" s)
+
+toEdgeZone s =
+  Utils.bindMaybe
+    (\suffix ->
+      if suffix == "" then Just ZLineEdge
+      else Just (ZPolyEdge (Utils.fromOk_ (String.toInt suffix))))
+    (Utils.munchString "Edge" s)
+
+-- TODO
+zones = [
+    ("svg", [])
+  , ("BOX",
+      [ ("Interior", ["LEFT", "TOP", "RIGHT", "BOT"])
+      , ("TopLeft", ["LEFT", "TOP"])
+      , ("TopRight", ["TOP", "RIGHT"])
+      , ("BotRight", ["RIGHT", "BOT"])
+      , ("BotLeft", ["LEFT", "BOT"])
+      , ("LeftEdge", ["LEFT"])
+      , ("TopEdge", ["TOP"])
+      , ("RightEdge", ["RIGHT"])
+      , ("BotEdge", ["BOT"])
+      ])
+  , ("rect",
+      [ ("Interior", ["x", "y"])
+      , ("TopLeft", ["x", "y", "width", "height"])
+      , ("TopRight", ["y", "width", "height"])
+      , ("BotRight", ["width", "height"])
+      , ("BotLeft", ["x", "width", "height"])
+      , ("LeftEdge", ["x", "width"])
+      , ("TopEdge", ["y", "height"])
+      , ("RightEdge", ["width"])
+      , ("BotEdge", ["height"])
+      ])
+  , ("line",
+      [ ("Point1", ["x1", "y1"])
+      , ("Point2", ["x2", "y2"])
+      , ("Edge", ["x1", "y1", "x2", "y2"])
+      ])
+  , ("circle",
+      [ ("Interior", ["cx", "cy"])
+      , ("LeftEdge", ["cx", "r"])
+      , ("RightEdge", ["cx", "r"])
+      , ("TopEdge", ["cy", "r"])
+      , ("BotEdge", ["cy", "r"])
+      , ("TopLeft", ["cx", "cy", "r"])
+      , ("TopRight", ["cx", "cy", "r"])
+      , ("BotLeft", ["cx", "cy", "r"])
+      , ("BotRight", ["cx", "cy", "r"])
+      ])
+  , ("ellipse",
+      [ ("Interior", ["cx", "cy"])
+      , ("LeftEdge", ["cx", "rx"])
+      , ("RightEdge", ["cx", "rx"])
+      , ("TopEdge", ["cy", "ry"])
+      , ("BotEdge", ["cy", "ry"])
+      , ("TopLeft", ["cx", "cy", "rx", "ry"])
+      , ("TopRight", ["cx", "cy", "rx", "ry"])
+      , ("BotLeft", ["cx", "cy", "rx", "ry"])
+      , ("BotRight", ["cx", "cy", "rx", "ry"])
+      ])
+  , ("OVAL",
+      [ ("Interior", ["LEFT", "TOP", "RIGHT", "BOT"])
+      , ("TopLeft", ["LEFT", "TOP"])
+      , ("TopRight", ["TOP", "RIGHT"])
+      , ("BotRight", ["RIGHT", "BOT"])
+      , ("BotLeft", ["LEFT", "BOT"])
+      , ("LeftEdge", ["LEFT"])
+      , ("TopEdge", ["TOP"])
+      , ("RightEdge", ["RIGHT"])
+      , ("BotEdge", ["BOT"])
+      ])
+  -- TODO
+  , ("g", [])
+  , ("text", [])
+  , ("tspan", [])
+
+  -- symptom of the Sync.Dict0 type. see Sync.nodeToAttrLocs_.
+  , ("DUMMYTEXT", [])
+
+  -- NOTE: these are computed in Sync.getZones
+  -- , ("polygon", [])
+  -- , ("polyline", [])
+  -- , ("path", [])
+  ]
+
+
+-- In View, may want to create a single SVG element for points
+-- that double as selection and drag widgets. If so, then
+-- eliminate this connection.
+--
+zoneToCrosshair : ShapeKind -> Zone -> Maybe (ShapeFeature, ShapeFeature)
+zoneToCrosshair shape zone =
+  case parseZone zone of
+    ZPoint point ->
+      let xFeature = unparseFeatureNum (Just shape) (X point) in
+      let yFeature = unparseFeatureNum (Just shape) (Y point) in
+      Just (xFeature, yFeature)
+    _ ->
+      Nothing

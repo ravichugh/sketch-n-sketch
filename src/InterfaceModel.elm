@@ -5,8 +5,8 @@ import Types exposing (AceTypeInfo)
 import Eval
 import Sync
 import Utils
-import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Zone)
-import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature)
+import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
+import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature, Zone)
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparse)
 import OurParser2 as P

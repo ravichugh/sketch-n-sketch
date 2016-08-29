@@ -11,7 +11,7 @@ import Eval
 import Utils
 import Keys
 import InterfaceModel exposing (..)
-import LangSvg exposing (toNum, toNumTr, addi, attr, NodeId, ShapeKind)
+import LangSvg exposing (toNum, toNumTr, attr, NodeId, ShapeKind)
 import ShapeWidgets exposing (..) -- to expose X, Y, D, O, etc.
 import ExamplesGenerated as Examples
 import Config exposing (params)
@@ -380,6 +380,8 @@ handleEventAndStop eventName eventHandler =
     Json.Decode.value
     (\_ -> Signal.message events.address eventHandler)
 
+-- TODO use RealZones rather than Zones more
+
 zoneEvents id shape zone =
   [ onMouseDown (SelectObject id shape zone)
   , onMouseOver (turnOnCaptionAndHighlights id shape zone)
@@ -406,31 +408,26 @@ removeHoveredCrosshair tuple =
 cursorStyle s = LangSvg.attr "cursor" s
 
 -- TODO should take into account disabled zones in Live mode
-cursorOfZone zone default = case LangSvg.realZoneOf zone of
+cursorOfZone zone default = case ShapeWidgets.parseZone zone of
 
   -- primary manipulation zones
-  LangSvg.Z "Interior"        -> cursorStyle "move"
-  LangSvg.Z "RightEdge"       -> cursorStyle "ew-resize"
-  LangSvg.Z "BotRightCorner"  -> cursorStyle "nwse-resize"
-  LangSvg.Z "BotEdge"         -> cursorStyle "ns-resize"
-  LangSvg.Z "BotLeftCorner"   -> cursorStyle "nesw-resize"
-  LangSvg.Z "LeftEdge"        -> cursorStyle "ew-resize"
-  LangSvg.Z "TopLeftCorner"   -> cursorStyle "nwse-resize"
-  LangSvg.Z "TopEdge"         -> cursorStyle "ns-resize"
-  LangSvg.Z "TopRightCorner"  -> cursorStyle "nesw-resize"
-  LangSvg.Z "Edge"            -> cursorStyle "pointer"
-  LangSvg.ZEdge _             -> cursorStyle "pointer"
+  ZInterior        -> cursorStyle "move"
+  ZPoint LeftEdge  -> cursorStyle "ew-resize"
+  ZPoint RightEdge -> cursorStyle "ew-resize"
+  ZPoint TopLeft   -> cursorStyle "nwse-resize"
+  ZPoint BotRight  -> cursorStyle "nwse-resize"
+  ZPoint TopEdge   -> cursorStyle "ns-resize"
+  ZPoint BotEdge   -> cursorStyle "ns-resize"
+  ZPoint BotLeft   -> cursorStyle "nesw-resize"
+  ZPoint TopRight  -> cursorStyle "nesw-resize"
+  ZLineEdge        -> cursorStyle "pointer"
+  ZPolyEdge _      -> cursorStyle "pointer"
 
   -- indirect manipulation zones
-  LangSvg.Z "FillBall"        -> cursorStyle "pointer"
-  LangSvg.Z "StrokeBall"      -> cursorStyle "pointer"
-  LangSvg.Z "FillOpacityBall"   -> cursorStyle "pointer"
-  LangSvg.Z "StrokeOpacityBall" -> cursorStyle "pointer"
-  LangSvg.Z "StrokeWidthBall" -> cursorStyle "pointer"
-  LangSvg.Z "RotateBall"      -> cursorStyle "pointer"
-  LangSvg.Z "SliderBall"      -> cursorStyle "pointer"
+  ZOther _         -> cursorStyle "pointer"
+  ZSlider          -> cursorStyle "pointer"
 
-  _                           -> cursorStyle default
+  _                -> cursorStyle default
 
 isPrimaryZone zone =
   case zone of
@@ -512,10 +509,10 @@ eightCardinalZones model id shape transform (left, top, right, bot) =
   let mkPoint zone cx cy =
     zonePoint model id shape zone transform [attrNum "cx" cx, attrNum "cy" cy]
   in
-    mkPoint "TopLeftCorner" left top ++
-    mkPoint "TopRightCorner" right top ++
-    mkPoint "BotLeftCorner" left bot ++
-    mkPoint "BotRightCorner" right bot ++
+    mkPoint "TopLeft" left top ++
+    mkPoint "TopRight" right top ++
+    mkPoint "BotLeft" left bot ++
+    mkPoint "BotRight" right bot ++
     ifEnoughSpace height (mkPoint "LeftEdge" left (top + height / 2)) ++
     ifEnoughSpace height (mkPoint "RightEdge" right (top + height / 2)) ++
     ifEnoughSpace width (mkPoint "TopEdge" (left + width / 2) top) ++
@@ -553,7 +550,7 @@ zonePoint model id shape zone transform attrs =
       else
         Nothing
     in
-    case LangSvg.zoneToCrosshair shape zone of
+    case ShapeWidgets.zoneToCrosshair shape zone of
       Nothing -> maybeStyles_ ()
       Just (xFeature, yFeature) ->
         if Set.member (id, xFeature, yFeature) model.hoveredCrosshairs
@@ -576,13 +573,13 @@ zonePoint model id shape zone transform attrs =
 
 zonePoints model id shape transform pts =
   List.concat <| flip Utils.mapi pts <| \(i, (x,y)) ->
-    zonePoint model id shape (addi "Point" i) transform
+    zonePoint model id shape ("Point" ++ toString i) transform
       [ attrNumTr "cx" x, attrNumTr "cy" y ]
 
 -- TODO rename this once original zonePoints is removed
 zonePoints2 model id shape transform pts =
   List.concat <| flip Utils.mapi pts <| \(i, (x,y)) ->
-    zonePoint model id shape (addi "Point" i) transform
+    zonePoint model id shape ("Point" ++ toString i) transform
       [ attrNum "cx" x, attrNum "cy" y ]
 
 zoneLine model id shape zone (x1,y1) (x2,y2) attrs =
@@ -743,8 +740,8 @@ zoneColor zoneName shapeFeature model id shape x y maybeColor =
     (True, False, Just nt) -> zoneColor_ zoneName shapeFeature model id shape x y nt
     _                      -> []
 
-zoneColor_ : LangSvg.Zone -> LangSvg.ShapeFeature
-          -> Model -> NodeId -> ShapeKind -> Num -> Num -> NumTr -> List Svg.Svg
+zoneColor_ : Zone -> ShapeFeature -> Model -> NodeId -> ShapeKind
+          -> Num -> Num -> NumTr -> List Svg.Svg
 zoneColor_ zoneName shapeFeature model id shape x y (n, trace) =
   let (w, h, a, stroke, strokeWidth, rBall) =
       (wGradient, hZoneColor, 20, "silver", "2", "7") in
@@ -812,8 +809,8 @@ zoneOpacity zoneName shapeFeature model id shape x y maybeOpacity =
     _                      -> []
 
 zoneOpacity_
-   : LangSvg.Zone -> LangSvg.ShapeFeature
-  -> Model -> NodeId -> ShapeKind -> Num -> Num -> NumTr -> List Svg.Svg
+   : Zone -> ShapeFeature -> Model -> NodeId -> ShapeKind
+  -> Num -> Num -> NumTr -> List Svg.Svg
 zoneOpacity_ zoneName shapeFeature model id shape x y (n, trace) =
   let (w, h, a, stroke, strokeWidth, rBall) =
       (wOpacityBox, 20, 20, "silver", "2", "7") in
@@ -971,7 +968,7 @@ hairStrokeWidth         = "5" -- pointZoneStyles.radius - 1
 type alias NodeIdAndAttrName     = (LangSvg.NodeId, String)
 type alias NodeIdAndTwoAttrNames = (LangSvg.NodeId, String, String)
 
-type alias NodeIdAndFeature      = (LangSvg.NodeId, LangSvg.ShapeFeature)
+type alias NodeIdAndFeature      = (LangSvg.NodeId, ShapeWidgets.ShapeFeature)
 
 
 toggleSelected nodeIdAndFeatures =
@@ -1355,7 +1352,7 @@ makeZonesPoly model shape id l =
   let zPts = zonePoints model id shape transform pts in
   let zLines =
     let pairs = Utils.adjacentPairs (shape == "polygon") pts in
-    let f (i,(pti,ptj)) = zoneLine model id shape (addi "Edge" i) pti ptj transform in
+    let f (i,(pti,ptj)) = zoneLine model id shape ("Edge" ++ toString i) pti ptj transform in
     Utils.mapi f pairs in
   let zInterior =
     draggableZone Svg.polygon False model id shape "Interior" <|
