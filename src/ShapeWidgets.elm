@@ -405,6 +405,27 @@ type FeatureEquation
   | EqnOp Op_ (List FeatureEquation)
 
 
+type alias BoxyFeatureEquations =
+  { left : FeatureEquation
+  , top : FeatureEquation
+  , right : FeatureEquation
+  , bottom : FeatureEquation
+  , cx : FeatureEquation
+  , cy : FeatureEquation
+  , mWidth : Maybe FeatureEquation
+  , mHeight : Maybe FeatureEquation
+  , mRadius : Maybe FeatureEquation
+  , mRadiusX : Maybe FeatureEquation
+  , mRadiusY : Maybe FeatureEquation
+  }
+
+
+two       = EqnVal <| vConst (2, dummyTrace)
+plus a b  = EqnOp Plus [a, b]
+minus a b = EqnOp Minus [a, b]
+div a b   = EqnOp Div [a, b]
+
+
 featureEquation : NodeId -> ShapeKind -> ShapeFeature -> List Attr -> FeatureEquation
 featureEquation nodeId kind feature nodeAttrs =
   let featureNum = parseFeatureNum feature in
@@ -415,10 +436,6 @@ featureEquationOf : NodeId -> ShapeKind -> List Attr -> FeatureNum -> FeatureEqu
 featureEquationOf id kind attrs featureNum =
 
   let get attr  = EqnVal <| LangSvg.maybeFindAttr id kind attr attrs in
-  let two       = EqnVal <| vConst (2, dummyTrace) in
-  let plus a b  = EqnOp Plus [a, b] in
-  let minus a b = EqnOp Minus [a, b] in
-  let div a b   = EqnOp Div [a, b] in
   let crash () =
     let s = unparseFeatureNum (Just kind) featureNum in
     Debug.crash <| Utils.spaces [ "featureEquationOf:", kind, s ] in
@@ -434,81 +451,7 @@ featureEquationOf id kind attrs featureNum =
       _           -> crash () in
 
   let handleBoxyShape () =
-    let equations =
-      case kind of
-
-        "rect" ->
-          { left     = get "x"
-          , top      = get "y"
-          , right    = get "x" `plus` get "width"
-          , bottom   = get "y" `plus` get "height"
-          , cx       = get "x" `plus` (get "width" `div` two)
-          , cy       = get "y" `plus` (get "height" `div` two)
-          , mWidth   = Just <| get "width"
-          , mHeight  = Just <| get "height"
-          , mRadius  = Nothing
-          , mRadiusX = Nothing
-          , mRadiusY = Nothing
-          }
-
-        "BOX" ->
-          { left     = get "LEFT"
-          , top      = get "TOP"
-          , right    = get "RIGHT"
-          , bottom   = get "BOT"
-          , cx       = (get "LEFT" `plus` get "RIGHT") `div` two
-          , cy       = (get "TOP" `plus` get "BOT") `div` two
-          , mWidth   = Just <| get "RIGHT" `minus` get "LEFT"
-          , mHeight  = Just <| get "BOT" `minus` get "TOP"
-          , mRadius  = Nothing
-          , mRadiusX = Nothing
-          , mRadiusY = Nothing
-          }
-
-        "OVAL" ->
-          { left     = get "LEFT"
-          , top      = get "TOP"
-          , right    = get "RIGHT"
-          , bottom   = get "BOT"
-          , cx       = (get "LEFT" `plus` get "RIGHT") `div` two
-          , cy       = (get "TOP" `plus` get "BOT") `div` two
-          , mWidth   = Nothing
-          , mHeight  = Nothing
-          , mRadius  = Nothing
-          , mRadiusX = Just <| (get "RIGHT" `minus` get "LEFT") `div` two
-          , mRadiusY = Just <| (get "BOT" `minus` get "TOP") `div` two
-          }
-
-        "circle" ->
-          { left     = get "cx" `minus` get "r"
-          , top      = get "cy" `minus` get "r"
-          , right    = get "cx" `plus` get "r"
-          , bottom   = get "cy" `plus` get "r"
-          , cx       = get "cx"
-          , cy       = get "cy"
-          , mWidth   = Nothing
-          , mHeight  = Nothing
-          , mRadius  = Just <| get "r"
-          , mRadiusX = Nothing
-          , mRadiusY = Nothing
-          }
-
-        "ellipse" ->
-          { left     = get "cx" `minus` get "rx"
-          , top      = get "cy" `minus` get "ry"
-          , right    = get "cx" `plus` get "rx"
-          , bottom   = get "cy" `plus` get "ry"
-          , cx       = get "cx"
-          , cy       = get "cy"
-          , mWidth   = Nothing
-          , mHeight  = Nothing
-          , mRadius  = Nothing
-          , mRadiusX = Just <| get "rx"
-          , mRadiusY = Just <| get "ry"
-          }
-
-        _ -> crash () in
-
+    let equations = boxyFeatureEquationsOf id kind attrs in
     case featureNum of
 
       X TopLeft   -> equations.left
@@ -593,6 +536,84 @@ featureEquationOf id kind attrs featureNum =
         "polyline" -> handlePoly ()
         "path"     -> handlePath ()
         _          -> handleBoxyShape ()
+
+
+boxyFeatureEquationsOf : NodeId -> ShapeKind -> List Attr -> BoxyFeatureEquations
+boxyFeatureEquationsOf id kind attrs =
+  let get attr  = EqnVal <| LangSvg.maybeFindAttr id kind attr attrs in
+  case kind of
+
+    "rect" ->
+      { left     = get "x"
+      , top      = get "y"
+      , right    = get "x" `plus` get "width"
+      , bottom   = get "y" `plus` get "height"
+      , cx       = get "x" `plus` (get "width" `div` two)
+      , cy       = get "y" `plus` (get "height" `div` two)
+      , mWidth   = Just <| get "width"
+      , mHeight  = Just <| get "height"
+      , mRadius  = Nothing
+      , mRadiusX = Nothing
+      , mRadiusY = Nothing
+      }
+
+    "BOX" ->
+      { left     = get "LEFT"
+      , top      = get "TOP"
+      , right    = get "RIGHT"
+      , bottom   = get "BOT"
+      , cx       = (get "LEFT" `plus` get "RIGHT") `div` two
+      , cy       = (get "TOP" `plus` get "BOT") `div` two
+      , mWidth   = Just <| get "RIGHT" `minus` get "LEFT"
+      , mHeight  = Just <| get "BOT" `minus` get "TOP"
+      , mRadius  = Nothing
+      , mRadiusX = Nothing
+      , mRadiusY = Nothing
+      }
+
+    "OVAL" ->
+      { left     = get "LEFT"
+      , top      = get "TOP"
+      , right    = get "RIGHT"
+      , bottom   = get "BOT"
+      , cx       = (get "LEFT" `plus` get "RIGHT") `div` two
+      , cy       = (get "TOP" `plus` get "BOT") `div` two
+      , mWidth   = Nothing
+      , mHeight  = Nothing
+      , mRadius  = Nothing
+      , mRadiusX = Just <| (get "RIGHT" `minus` get "LEFT") `div` two
+      , mRadiusY = Just <| (get "BOT" `minus` get "TOP") `div` two
+      }
+
+    "circle" ->
+      { left     = get "cx" `minus` get "r"
+      , top      = get "cy" `minus` get "r"
+      , right    = get "cx" `plus` get "r"
+      , bottom   = get "cy" `plus` get "r"
+      , cx       = get "cx"
+      , cy       = get "cy"
+      , mWidth   = Nothing
+      , mHeight  = Nothing
+      , mRadius  = Just <| get "r"
+      , mRadiusX = Nothing
+      , mRadiusY = Nothing
+      }
+
+    "ellipse" ->
+      { left     = get "cx" `minus` get "rx"
+      , top      = get "cy" `minus` get "ry"
+      , right    = get "cx" `plus` get "rx"
+      , bottom   = get "cy" `plus` get "ry"
+      , cx       = get "cx"
+      , cy       = get "cy"
+      , mWidth   = Nothing
+      , mHeight  = Nothing
+      , mRadius  = Nothing
+      , mRadiusX = Just <| get "rx"
+      , mRadiusY = Just <| get "ry"
+      }
+
+    _ -> Debug.crash <| "boxyFeatureEquationsOf: " ++ kind
 
 
 ------------------------------------------------------------------------------

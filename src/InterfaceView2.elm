@@ -1167,7 +1167,7 @@ toggleSelectedBlob blobId nodeId =
 --------------------------------------------------------------------------------
 
 -- TODO significantly refactor point selection zones, by using
--- ShapeWidgets.featuresOfShape, eval FeatureEquations, etc.
+-- ShapeWidgets.featuresOfShape, BoxyFeatureEquations, eval FeatureEquation, etc.
 
 makeZones : Model -> String -> LangSvg.NodeId -> List LangSvg.Attr -> List Svg.Svg
 makeZones model shape id l =
