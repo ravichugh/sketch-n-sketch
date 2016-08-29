@@ -412,20 +412,23 @@ featureEquation nodeId kind feature nodeAttrs =
 featureEquationOf : NodeId -> ShapeKind -> List Attr -> FeatureNum -> FeatureEquation
 featureEquationOf id kind attrs featureNum =
 
-  let eqnVal attr = EqnVal <| LangSvg.maybeFindAttr id kind attr attrs in
-  let eqnVal2     = EqnVal <| vConst (2, dummyTrace) in
+  let get attr  = EqnVal <| LangSvg.maybeFindAttr id kind attr attrs in
+  let two       = EqnVal <| vConst (2, dummyTrace) in
+  let plus a b  = EqnOp Plus [a, b] in
+  let minus a b = EqnOp Minus [a, b] in
+  let div a b   = EqnOp Div [a, b] in
   let crash () =
     let s = unparseFeatureNum (Just kind) featureNum in
     Debug.crash <| Utils.spaces [ "featureEquationOf:", kind, s ] in
 
   let handleLine () =
     case featureNum of
-      X (Point 1) -> eqnVal "x1"
-      X (Point 2) -> eqnVal "x2"
-      Y (Point 1) -> eqnVal "y1"
-      Y (Point 2) -> eqnVal "y2"
-      X Center    -> EqnOp Div [EqnOp Plus [eqnVal "x1", eqnVal "x2"], eqnVal2]
-      Y Center    -> EqnOp Div [EqnOp Plus [eqnVal "y1", eqnVal "y2"], eqnVal2]
+      X (Point 1) -> get "x1"
+      X (Point 2) -> get "x2"
+      Y (Point 1) -> get "y1"
+      Y (Point 2) -> get "y2"
+      X Center    -> (get "x1" `plus` get "x2") `div` two
+      Y Center    -> (get "y1" `plus` get "y2") `div` two
       _           -> crash () in
 
   let handleBoxyShape () =
@@ -433,73 +436,73 @@ featureEquationOf id kind attrs featureNum =
       case kind of
 
         "rect" ->
-          { left = eqnVal "x"
-          , top = eqnVal "y"
-          , right = EqnOp Plus [eqnVal "x", eqnVal "width"]
-          , bottom = EqnOp Plus [eqnVal "y", eqnVal "height"]
-          , cx = EqnOp Plus [eqnVal "x", EqnOp Div [eqnVal "width",  eqnVal2]]
-          , cy = EqnOp Plus [eqnVal "y", EqnOp Div [eqnVal "height", eqnVal2]]
-          , mWidth = Just <| eqnVal "width"
-          , mHeight = Just <| eqnVal "height"
-          , mRadius = Nothing
+          { left     = get "x"
+          , top      = get "y"
+          , right    = get "x" `plus` get "width"
+          , bottom   = get "y" `plus` get "height"
+          , cx       = get "x" `plus` (get "width" `div` two)
+          , cy       = get "y" `plus` (get "height" `div` two)
+          , mWidth   = Just <| get "width"
+          , mHeight  = Just <| get "height"
+          , mRadius  = Nothing
           , mRadiusX = Nothing
           , mRadiusY = Nothing
           }
 
         "BOX" ->
-          { left = eqnVal "LEFT"
-          , top = eqnVal "TOP"
-          , right = eqnVal "RIGHT"
-          , bottom = eqnVal "BOT"
-          , cx = EqnOp Div [EqnOp Plus [eqnVal "LEFT", eqnVal "RIGHT"], eqnVal2]
-          , cy = EqnOp Div [EqnOp Plus [eqnVal "TOP", eqnVal "BOT"], eqnVal2]
-          , mWidth = Just <| EqnOp Minus [eqnVal "RIGHT", eqnVal "LEFT"]
-          , mHeight = Just <| EqnOp Minus [eqnVal "BOT", eqnVal "TOP"]
-          , mRadius = Nothing
+          { left     = get "LEFT"
+          , top      = get "TOP"
+          , right    = get "RIGHT"
+          , bottom   = get "BOT"
+          , cx       = (get "LEFT" `plus` get "RIGHT") `div` two
+          , cy       = (get "TOP" `plus` get "BOT") `div` two
+          , mWidth   = Just <| get "RIGHT" `minus` get "LEFT"
+          , mHeight  = Just <| get "BOT" `minus` get "TOP"
+          , mRadius  = Nothing
           , mRadiusX = Nothing
           , mRadiusY = Nothing
           }
 
         "OVAL" ->
-          { left = eqnVal "LEFT"
-          , top = eqnVal "TOP"
-          , right = eqnVal "RIGHT"
-          , bottom = eqnVal "BOT"
-          , cx = EqnOp Div [EqnOp Plus [eqnVal "LEFT", eqnVal "RIGHT"], eqnVal2]
-          , cy = EqnOp Div [EqnOp Plus [eqnVal "TOP", eqnVal "BOT"], eqnVal2]
-          , mWidth = Nothing
-          , mHeight = Nothing
-          , mRadius = Nothing
-          , mRadiusX = Just <| EqnOp Div [EqnOp Minus [eqnVal "RIGHT", eqnVal "LEFT"], eqnVal2]
-          , mRadiusY = Just <| EqnOp Div [EqnOp Minus [eqnVal "BOT", eqnVal "TOP"], eqnVal2]
+          { left     = get "LEFT"
+          , top      = get "TOP"
+          , right    = get "RIGHT"
+          , bottom   = get "BOT"
+          , cx       = (get "LEFT" `plus` get "RIGHT") `div` two
+          , cy       = (get "TOP" `plus` get "BOT") `div` two
+          , mWidth   = Nothing
+          , mHeight  = Nothing
+          , mRadius  = Nothing
+          , mRadiusX = Just <| (get "RIGHT" `minus` get "LEFT") `div` two
+          , mRadiusY = Just <| (get "BOT" `minus` get "TOP") `div` two
           }
 
         "circle" ->
-          { left = EqnOp Minus [eqnVal "cx", eqnVal "r"]
-          , top = EqnOp Minus [eqnVal "cy", eqnVal "r"]
-          , right = EqnOp Plus  [eqnVal "cx", eqnVal "r"]
-          , bottom = EqnOp Plus  [eqnVal "cy", eqnVal "r"]
-          , cx = eqnVal "cx"
-          , cy = eqnVal "cy"
-          , mWidth = Nothing
-          , mHeight = Nothing
-          , mRadius = Just <| eqnVal "r"
+          { left     = get "cx" `minus` get "r"
+          , top      = get "cy" `minus` get "r"
+          , right    = get "cx" `plus` get "r"
+          , bottom   = get "cy" `plus` get "r"
+          , cx       = get "cx"
+          , cy       = get "cy"
+          , mWidth   = Nothing
+          , mHeight  = Nothing
+          , mRadius  = Just <| get "r"
           , mRadiusX = Nothing
           , mRadiusY = Nothing
           }
 
         "ellipse" ->
-          { left = EqnOp Minus [eqnVal "cx", eqnVal "rx"]
-          , top = EqnOp Minus [eqnVal "cy", eqnVal "ry"]
-          , right = EqnOp Plus  [eqnVal "cx", eqnVal "rx"]
-          , bottom = EqnOp Plus  [eqnVal "cy", eqnVal "ry"]
-          , cx = eqnVal "cx"
-          , cy = eqnVal "cy"
-          , mWidth = Nothing
-          , mHeight = Nothing
-          , mRadius = Nothing
-          , mRadiusX = Just <| eqnVal "rx"
-          , mRadiusY = Just <| eqnVal "ry"
+          { left     = get "cx" `minus` get "rx"
+          , top      = get "cy" `minus` get "ry"
+          , right    = get "cx" `plus` get "rx"
+          , bottom   = get "cy" `plus` get "ry"
+          , cx       = get "cx"
+          , cy       = get "cy"
+          , mWidth   = Nothing
+          , mHeight  = Nothing
+          , mRadius  = Nothing
+          , mRadiusX = Just <| get "rx"
+          , mRadiusY = Just <| get "ry"
           }
 
         _ -> crash () in
@@ -538,8 +541,8 @@ featureEquationOf id kind attrs featureNum =
       _ -> crash () in
 
   let handlePath () =
-    let x i = eqnVal ("x" ++ toString i) in
-    let y i = eqnVal ("y" ++ toString i) in
+    let x i = get ("x" ++ toString i) in
+    let y i = get ("y" ++ toString i) in
     case featureNum of
       X (Point i) -> x i
       Y (Point i) -> y i
@@ -547,8 +550,8 @@ featureEquationOf id kind attrs featureNum =
 
   let handlePoly () =
     let ptCount = LangSvg.getPtCount attrs in
-    let x i = eqnVal ("x" ++ toString i) in
-    let y i = eqnVal ("y" ++ toString i) in
+    let x i = get ("x" ++ toString i) in
+    let y i = get ("y" ++ toString i) in
     case featureNum of
 
       X (Point i) -> x i
@@ -556,18 +559,18 @@ featureEquationOf id kind attrs featureNum =
 
       X (Midpoint i1) ->
         let i2 = if i1 == ptCount then 1 else i1 + 1 in
-        EqnOp Div [EqnOp Plus [(x i1), (x i2)], eqnVal2]
+        ((x i1) `plus` (x i2)) `div` two
       Y (Midpoint i1) ->
         let i2 = if i1 == ptCount then 1 else i1 + 1 in
-        EqnOp Div [EqnOp Plus [(y i1), (y i2)], eqnVal2]
+        ((y i1) `plus` (y i2)) `div` two
 
       _  -> crash () in
 
   case featureNum of
 
-    O FillColor   -> eqnVal "fill"
-    O StrokeColor -> eqnVal "stroke"
-    O StrokeWidth -> eqnVal "stroke-width"
+    O FillColor   -> get "fill"
+    O StrokeColor -> get "stroke"
+    O StrokeWidth -> get "stroke-width"
 
     O FillOpacity ->
       case (Utils.find_ attrs "fill").av_ of
