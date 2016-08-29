@@ -512,7 +512,7 @@ featureEquationOf id kind attrs featureNum =
       X TopLeft   -> equations.left
       Y TopLeft   -> equations.top
       X TopRight  -> equations.right
-      Y TopRight  -> equations.bottom
+      Y TopRight  -> equations.top
       X BotLeft   -> equations.left
       Y BotLeft   -> equations.bottom
       X BotRight  -> equations.right
