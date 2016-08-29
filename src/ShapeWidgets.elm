@@ -535,7 +535,12 @@ featureEquationOf id kind attrs featureNum =
         "polygon"  -> handlePoly ()
         "polyline" -> handlePoly ()
         "path"     -> handlePath ()
-        _          -> handleBoxyShape ()
+        "rect"     -> handleBoxyShape ()
+        "BOX"      -> handleBoxyShape ()
+        "circle"   -> handleBoxyShape ()
+        "ellipse"  -> handleBoxyShape ()
+        "OVAL"     -> handleBoxyShape ()
+        _          -> crash ()
 
 
 boxyFeatureEquationsOf : NodeId -> ShapeKind -> List Attr -> BoxyFeatureEquations
@@ -614,6 +619,35 @@ boxyFeatureEquationsOf id kind attrs =
       }
 
     _ -> Debug.crash <| "boxyFeatureEquationsOf: " ++ kind
+
+
+evaluateFeatureEquation : FeatureEquation -> Maybe Num
+evaluateFeatureEquation eqn =
+  case eqn of
+    EqnVal val ->
+      case val.v_ of
+        VConst (n, _) ->
+          Just n
+
+        _ ->
+          Debug.crash <| "Found feature equation with a value other than a VConst: " ++ (toString val) ++ "\nin: " ++ (toString eqn)
+
+    EqnOp op [left, right] ->
+      let maybePerformBinop op =
+        let maybeLeftResult = evaluateFeatureEquation left in
+        let maybeRightResult = evaluateFeatureEquation right in
+        case (maybeLeftResult, maybeRightResult) of
+          (Just leftResult, Just rightResult) -> Just (op leftResult rightResult)
+          _                                   -> Nothing
+      in
+      case op of
+        Plus  -> maybePerformBinop (+)
+        Minus -> maybePerformBinop (-)
+        Mult  -> maybePerformBinop (*)
+        Div   -> maybePerformBinop (/)
+        _     -> Nothing
+
+    _ -> Nothing
 
 
 ------------------------------------------------------------------------------

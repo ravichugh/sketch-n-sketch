@@ -667,36 +667,8 @@ pluckSelectedVals selectedFeatures slate locIdToNumberAndLoc =
 evaluateFeature typeAndNodeIdAndFeatureName slate locIdToNumberAndLoc =
   let (_, tree) = slate in
   case (typeAndNodeIdAndFeatureToEquation typeAndNodeIdAndFeatureName tree locIdToNumberAndLoc) of
-    Just eqn -> evaluateFeatureEquation eqn
+    Just eqn -> ShapeWidgets.evaluateFeatureEquation eqn
     Nothing  -> Nothing
-
-
-evaluateFeatureEquation eqn =
-  case eqn of
-    ShapeWidgets.EqnVal val ->
-      case val.v_ of
-        VConst (n, _) ->
-          Just n
-
-        _ ->
-          Debug.crash <| "Found feature equation with a value other than a VConst: " ++ (toString val) ++ "\nin: " ++ (toString eqn)
-
-    ShapeWidgets.EqnOp op [left, right] ->
-      let maybePerformBinop op =
-        let maybeLeftResult = evaluateFeatureEquation left in
-        let maybeRightResult = evaluateFeatureEquation right in
-        case (maybeLeftResult, maybeRightResult) of
-          (Just leftResult, Just rightResult) -> Just (op leftResult rightResult)
-          _                                   -> Nothing
-      in
-      case op of
-        Plus  -> maybePerformBinop (+)
-        Minus -> maybePerformBinop (-)
-        Mult  -> maybePerformBinop (*)
-        Div   -> maybePerformBinop (/)
-        _     -> Nothing
-
-    _ -> Nothing
 
 
 typeAndNodeIdAndFeatureToEquation (selectedType, nodeId, featureName) tree locIdToNumberAndLoc =
