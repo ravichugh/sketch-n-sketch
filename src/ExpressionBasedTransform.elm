@@ -14,6 +14,7 @@ import LangParser2 exposing (parseE)
 import LangSvg exposing (NodeId)
 import ShapeWidgets exposing (PointFeature, SelectedShapeFeature)
 import Blobs exposing (..)
+import LangTransform
 import Types
 import InterfaceModel exposing (Model)
 import InterfaceView2 as View
@@ -50,6 +51,7 @@ matchesAnySelectedVarBlob_ selectedNiceBlobs def =
       case niceBlob of
         VarBlob x        -> x == y
         WithBoundsBlob _ -> False
+        WithAnchorBlob _ -> False
         CallBlob _       -> False
     in
     case Utils.findFirst foo selectedNiceBlobs of
@@ -75,11 +77,13 @@ matchesAnySelectedCallBlob_ selectedNiceBlobs def =
       case niceBlob of
         VarBlob _                -> False
         WithBoundsBlob (_, f, _) -> f == y
+        WithAnchorBlob (_, f, _) -> f == y
         CallBlob (f, _)          -> f == y
     in
     case Utils.findFirst foo selectedNiceBlobs of
       Just (_, _, CallBlob (f, _))          -> Just f
       Just (_, _, WithBoundsBlob (_, f, _)) -> Just f
+      Just (_, _, WithAnchorBlob (_, f, _)) -> Just f
       _                                     -> Nothing
   in
   let (_,p,_,_) = def in
@@ -441,9 +445,7 @@ rewritePrimitivePointsOfSelectedBlobs model (vxBase, nxBase, xBaseLoc)
   let anchorDef =
       ( "\n  "
       , pAs "anchor" (pList (listOfPVars [xAnchor, yAnchor]))
-      , withDummyPos <| EColonType " "
-          (eList (listOfNums [nxBase, nyBase]) Nothing) " "
-          (withDummyRange <| TNamed " " "Point") ""
+      , eAsPoint (eList (listOfNums [nxBase, nyBase]) Nothing)
       , ""
       )
   in
@@ -478,6 +480,17 @@ eBaseOffset baseVar offsetNum =
       |> .val |> .e__
 
 
+eAsPoint e =
+  let e' = LangUnparser.replacePrecedingWhitespace "" e in
+  withDummyPos <|
+    EColonType " " e' " " (withDummyRange <| TNamed " " "Point") ""
+
+
+pAsTight x p =
+  let p' = LangUnparser.replacePrecedingWhitespacePat "" p in
+  withDummyRange <| PAs " " x "" p'
+
+
 --------------------------------------------------------------------------------
 -- Abstract Blob
 
@@ -488,6 +501,7 @@ selectedBlobsToSelectedVarBlobs model blobs =
        case niceBlob of
          VarBlob x        -> [(i, e, x)]
          WithBoundsBlob _ -> []
+         WithAnchorBlob _ -> []
          CallBlob _       -> []
      )
      (selectedBlobsToSelectedNiceBlobs model blobs)
@@ -524,9 +538,9 @@ abstractOne (i, eBlob, x) (defs, blobs) =
 
       let (e', mapping) = collectUnfrozenConstants e in
       let (newDef, newBlob) =
-        case findBoundsInMapping mapping of
+        case findSpecialBindingsInMapping mapping of
 
-          Just (restOfMapping, left, top, right, bot) ->
+          Just (restOfMapping, BoundsBindings left top right bot) ->
             let newFunc =
               let pBounds =
                 let pVars = listOfPVars ["left", "top", "right", "bot"] in
@@ -544,9 +558,35 @@ abstractOne (i, eBlob, x) (defs, blobs) =
                   []   -> eVar x
                   args -> withDummyPos (EApp " " (eVar0 x) args "")
               in
-              withDummyPos (EApp "\n  " (eVar0 "with") [eBounds, eBlah] "")
+              withDummyPos (EApp "\n  " (eVar0 "withBounds") [eBounds, eBlah] "")
             in
             let newBlob = NiceBlob newCall (WithBoundsBlob (eBounds, x, [])) in
+            ((ws1, p, newFunc, ws2), newBlob)
+
+          -- mostly copying previous case...
+          Just (restOfMapping, AnchorBindings xAnchor yAnchor) ->
+            let newFunc =
+              let pBounds =
+                let pVars = listOfPVars ["xAnchor", "yAnchor"] in
+                case restOfMapping of
+                  [] -> pList0 pVars
+                  _  -> pList  pVars
+              in
+              let params = listOfPVars (List.map fst restOfMapping) in
+              withDummyPos (EFun " " (params ++ [pAsTight "anchor" pBounds]) e' "")
+            in
+            let eAnchor =
+              eAsPoint (eList (listOfAnnotatedNums [xAnchor, yAnchor]) Nothing)
+            in
+            let newCall =
+              let eBlah =
+                case listOfAnnotatedNums1 (List.map snd restOfMapping) of
+                  []   -> eVar x
+                  args -> withDummyPos (EApp " " (eVar0 x) args "")
+              in
+              withDummyPos (EApp "\n  " (eVar0 "withAnchor") [eAnchor, eBlah] "")
+            in
+            let newBlob = NiceBlob newCall (WithAnchorBlob (eAnchor, x, [])) in
             ((ws1, p, newFunc, ws2), newBlob)
 
           Nothing ->
@@ -571,6 +611,8 @@ abstractOne (i, eBlob, x) (defs, blobs) =
       let _ = Debug.log "abstractOne: multiple defs..." in
       (defs, blobs)
 
+-- TODO handle as-patterns in a general way
+--
 collectUnfrozenConstants : Exp -> (Exp, List (Ident, AnnotatedNum))
 collectUnfrozenConstants e =
   -- extra first pass, as a quick and simple way to approximate name clashes
@@ -583,7 +625,7 @@ collectUnfrozenConstants e =
       ) Dict.empty (List.map fst list0)
   in
   let (e', list) = collectUnfrozenConstants_ (Just varCounts) e in
-  (removeRedundantBindings e', List.reverse list)
+  (clean e', List.reverse list)
 
 collectUnfrozenConstants_
      : Maybe (Dict Ident Int) -> Exp -> (Exp, List (Ident, AnnotatedNum))
@@ -613,11 +655,27 @@ collectUnfrozenConstants_ maybeVarCounts e =
   let mapping = foldExpViaE__ ((++) << snd << foo) [] e in
   (e', mapping)
 
-findBoundsInMapping : List (Ident, a) -> Maybe (List (Ident, a), a, a, a, a)
+type SpecialBindings
+  = BoundsBindings AnnotatedNum AnnotatedNum AnnotatedNum AnnotatedNum
+  | AnchorBindings AnnotatedNum AnnotatedNum
+
+findSpecialBindingsInMapping
+    : List (Ident, AnnotatedNum)
+   -> Maybe (List (Ident, AnnotatedNum), SpecialBindings)
+findSpecialBindingsInMapping mapping =
+  findBoundsInMapping mapping `Utils.plusMaybe` findAnchorInMapping mapping
+
 findBoundsInMapping mapping =
   case mapping of
     ("left", left) :: ("top", top) :: ("right", right) :: ("bot", bot) :: rest ->
-      Just (rest, left, top, right, bot)
+      Just (rest, BoundsBindings left top right bot)
+    _ ->
+      Nothing
+
+findAnchorInMapping mapping =
+  case mapping of
+    ("xAnchor", xAnchor) :: ("yAnchor", yAnchor) :: rest ->
+      Just (rest, AnchorBindings xAnchor yAnchor)
     _ ->
       Nothing
 
@@ -638,7 +696,12 @@ redundantBinding (p, e) =
     (PList _ ps _ (Just p) _, EList _ es _ (Just e) _) ->
       List.all redundantBinding (Utils.zip (p::ps) (e::es))
 
+    (_, EColonType _ e1 _ _ _) -> redundantBinding (p, e1)
+
     _ -> False
+
+clean =
+  removeRedundantBindings << LangTransform.simplify
 
 
 --------------------------------------------------------------------------------
@@ -696,6 +759,7 @@ duplicateSelectedBlobs model =
              (\(_,e,niceBlob) ->
                case niceBlob of
                  WithBoundsBlob _ -> [NiceBlob e niceBlob]
+                 WithAnchorBlob _ -> [NiceBlob e niceBlob]
                  CallBlob _       -> [NiceBlob e niceBlob]
                  VarBlob _        -> []
              )
@@ -779,7 +843,7 @@ mergeSelectedVarBlobs model defs blobs selectedVarBlobs =
       let newDef =
         let newFunc =
           let params = listOfPVars (List.map fst multiMapping) in
-          withDummyPos (EFun " " params (removeRedundantBindings eMerged) "") in
+          withDummyPos (EFun " " params (clean eMerged) "") in
         (ws1, p, newFunc, ws2) in
 
       let f =

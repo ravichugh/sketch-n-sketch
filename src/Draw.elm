@@ -589,7 +589,7 @@ addLambda old (_,pt2) (_,pt1) =
   let bounds = eList (makeInts [xa,ya,xb,yb]) Nothing in
   let args = [] in
   let eNew =
-    withDummyPos (EApp "\n  " (eVar0 "with") [ bounds, func ] "") in
+    withDummyPos (EApp "\n  " (eVar0 "withBounds") [ bounds, func ] "") in
   -- TODO refactor Program to keep (f,args) in sync with exp
   let newBlob = withBoundsBlob eNew (bounds, "XXXXX", args) in
   let (defs, mainExp) = splitExp old.inputExp in

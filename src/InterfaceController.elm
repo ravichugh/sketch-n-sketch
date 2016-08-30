@@ -107,6 +107,7 @@ addToHistory currentCode h =
 
 between1 i (j,k) = i `Utils.between` (j+1, k+1)
 
+{-
 cleanExp =
   mapExpViaExp__ <| \e__ -> case e__ of
     EApp _ e0 [e1,_,_] _ -> case e0.val.e__ of
@@ -120,6 +121,7 @@ cleanExp =
         (Plus, EConst _ 0 _ _) -> e1.val.e__
         _                      -> e__
     _                    -> e__
+-}
 
 
 -- this is a bit redundant with View.turnOn...
@@ -980,7 +982,7 @@ upstate evt old = case debugLog "Event" evt of
         Ok reparsed ->
           let cleanedExp =
             reparsed
-            |> cleanExp
+            -- |> cleanExp
             |> LangTransform.simplify
             |> LangTransform.removeExtraPostfixes ["_orig", "'"]
             |> freshen

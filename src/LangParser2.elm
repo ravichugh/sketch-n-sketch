@@ -120,8 +120,10 @@ freshenExps k es =
 recordIdentifiers (p,e) =
  let ret e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
  case (p.val, e.val.e__) of
+
   -- (PVar _ x _, EConst ws n (k, b, "") wd) -> ret <| EConst ws n (k, b, x) wd
   (PVar _ x _, EConst ws n (k, b, _) wd) -> ret <| EConst ws n (k, b, x) wd
+
   (PList _ ps _ mp _, EList ws1 es ws2 me ws3) ->
     case U.maybeZip ps es of
       Nothing  -> ret <| EList ws1 es ws2 me ws3
@@ -131,8 +133,13 @@ recordIdentifiers (p,e) =
                       (Just p1, Just e1) -> Just (recordIdentifiers (p1,e1))
                       _                  -> me in
                   ret <| EList ws1 es' ws2 me' ws3
+
   (PAs _ _ _ p', _) -> recordIdentifiers (p',e)
-  (_, e_) -> ret e_
+
+  (_, EColonType ws1 e1 ws2 t ws3) ->
+    ret <| EColonType ws1 (recordIdentifiers (p,e1)) ws2 t ws3
+
+  (_, e__) -> ret e__
 
 -- this will be done while parsing eventually...
 

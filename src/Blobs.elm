@@ -27,11 +27,13 @@ type BlobExp
 type NiceBlob
   = VarBlob Ident                          -- x
   | CallBlob (Ident, List Exp)             -- (f args)
-  | WithBoundsBlob (Exp, Ident, List Exp)  -- (with bounds (f args))
+  | WithBoundsBlob (Exp, Ident, List Exp)  -- (withBounds bounds (f args))
+  | WithAnchorBlob (Exp, Ident, List Exp)  -- (withAnchor anchor (f args))
 
 varBlob e x            = NiceBlob e (VarBlob x)
 callBlob e tuple       = NiceBlob e (CallBlob tuple)
 withBoundsBlob e tuple = NiceBlob e (WithBoundsBlob tuple)
+withAnchorBlob e tuple = NiceBlob e (WithAnchorBlob tuple)
 
 splitExp : Exp -> Program
 splitExp e =
@@ -114,14 +116,22 @@ toBlobExp : Exp -> BlobExp
 toBlobExp e =
   case e.val.e__ of
     EVar _ x -> varBlob e x
-    EApp _ eWith [eBounds, eFunc] _ ->
+    EApp _ eWith [eWithArg, eFunc] _ ->
       case (eWith.val.e__) of
-        EVar _ "with" ->
+        EVar _ with ->
           case eFunc.val.e__ of
-            EVar _ x -> NiceBlob e (WithBoundsBlob (eBounds, x, []))
+            EVar _ x ->
+              case with of
+                "withBounds" -> NiceBlob e (WithBoundsBlob (eWithArg, x, []))
+                "withAnchor" -> NiceBlob e (WithAnchorBlob (eWithArg, x, []))
+                _            -> OtherBlob e
             EApp _ eF eArgs _ ->
               case eF.val.e__ of
-                EVar _ f -> NiceBlob e (WithBoundsBlob (eBounds, f, eArgs))
+                EVar _ f ->
+                  case with of
+                    "withBounds" -> NiceBlob e (WithBoundsBlob (eWithArg, f, eArgs))
+                    "withAnchor" -> NiceBlob e (WithAnchorBlob (eWithArg, f, eArgs))
+                    _            -> OtherBlob e
                 _        -> OtherBlob e
             _ -> OtherBlob e
         _ -> OtherBlob e

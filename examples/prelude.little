@@ -1448,11 +1448,11 @@
   (group bounds [(polygon fill stroke strokeWidth pts)])
 )))
 
-; expects (f bounds) to be multiple SVGs
-(typ with (-> Bounds (-> Bounds (List SVG)) (List SVG)))
-(def with (\(bounds f) (f bounds)))
+(typ withBounds (-> Bounds (-> Bounds (List SVG)) (List SVG)))
+(def withBounds (\(bounds f) (f bounds)))
 
-  ; (def with (\(bounds f) [(group bounds (f bounds))]))
+(typ withAnchor (-> Point (-> Point (List SVG)) (List SVG)))
+(def withAnchor (\(anchor f) (f anchor)))
 
 (typ star (-> Bounds (List SVG)))
 (def star (\bounds
