@@ -63,11 +63,17 @@ polyKindFeatures kind attrs =
           (\i -> [PointFeature (Point i), PointFeature (Midpoint i)])
           [1 .. List.length pts]
       _ ->
-        err "bad points"
+        err "polyKindFeatures: points not found"
   else if kind == "path" then
-    err "TODO"
+    case (Utils.find cap attrs "d").av_ of
+      LangSvg.APath2 (_, pathCounts) ->
+        List.concatMap
+          (\i -> [PointFeature (Point i)])
+          [1 .. pathCounts.numPoints]
+      _ ->
+        err "polyKindFeatures: d not found"
   else
-    err "bad shape kind"
+    err <| "polyKindFeatures: " ++ kind
 
 featuresOfShape : ShapeKind -> List Attr -> List Feature
 featuresOfShape kind attrs =
@@ -218,7 +224,7 @@ parseShapeFeaturePoint matches =
 
     [Just kind, Just "Pt", Just s] -> Point (Utils.parseInt s)
 
-    [Just kind, Just "MidPt", Just s] -> Midpoint (Utils.parseInt s)
+    [Just kind, Just "Midpt", Just s] -> Midpoint (Utils.parseInt s)
 
     _ -> Debug.crash <| "parsePoint: " ++ toString matches
 
