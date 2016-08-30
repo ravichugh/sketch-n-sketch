@@ -709,7 +709,7 @@ upstate evt old = case debugLog "Event" evt of
           case (maybeAnchorPoint, multipleSelectedBlobs) of
             (Ok Nothing, False)   -> old
             (Ok Nothing, True)    -> upstate Run <| ETransform.groupSelectedBlobs old defs blobs f
-            (Ok (Just anchor), _) -> upstate Run <| ETransform.groupSelectedBlobsAround old anchor
+            (Ok (Just anchor), _) -> upstate Run <| ETransform.groupSelectedBlobsAround old anchor defs blobs f
             (Err err, _)          -> let _ = Debug.log "bad anchor" err in old
 
     DuplicateBlobs ->

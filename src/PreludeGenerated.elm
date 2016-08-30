@@ -1302,6 +1302,11 @@ prelude =
        (cons (hiddenBoundingBox paddedBounds) shapes)]
 )))))
 
+(typ anchoredGroupClickFirstToSelectBlob (-> (List SVG) SVG))
+(def anchoredGroupClickFirstToSelectBlob (\\shapes
+  ['g' [] shapes]
+))
+
 ; (def group (\\(bounds shapes)
 ;   ['g' [['BOUNDS' bounds]]
 ;        (cons (hiddenBoundingBox bounds) shapes)]))

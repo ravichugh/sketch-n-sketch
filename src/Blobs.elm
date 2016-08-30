@@ -2,7 +2,6 @@ module Blobs where
 
 import Lang exposing (..)
 import LangUnparser exposing (addPrecedingWhitespace)
-import InterfaceModel exposing (Model, Event)
 import Utils
 
 

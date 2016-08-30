@@ -102,7 +102,8 @@ matchesAnySelectedBlob selectedNiceBlobs def =
         Just _  -> True
         Nothing -> False
 
-groupAndRearrange model newGroup defs blobs selectedNiceBlobs groupDefs eSubst =
+groupAndRearrange model newGroup defs blobs selectedNiceBlobs
+    groupDefs eSubst finalExpOfNewGroup =
   let (pluckedBlobs, beforeBlobs, afterBlobs) =
     let indexedBlobs = Utils.zip [1 .. List.length blobs] blobs in
     let matches (i,_) = Dict.member i model.selectedBlobs in
@@ -139,18 +140,7 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs groupDefs eSubst =
         List.map (LangUnparser.replacePrecedingWhitespace " " << fromBlobExp)
                  pluckedBlobs
       in
-      withDummyPos <| EList "\n\n  "
-         [ withDummyPos <| EApp " "
-             (eVar0 "group")
-             [ eVar "bounds"
-             , withDummyPos <| EApp " "
-                 (eVar0 "concat")
-                 [withDummyPos <| EList " " pluckedBlobs' "" Nothing " "]
-                 ""
-             ]
-             ""
-         ]
-         "" Nothing " "
+      finalExpOfNewGroup pluckedBlobs'
     in
     let pluckedDefs' =
       let tab = "  " in
@@ -240,7 +230,22 @@ groupSelectedBlobs model defs blobs f =
   let (groupDefs, eSubst) =
     rewriteBoundingBoxesOfSelectedBlobs model selectedBlobsAndBounds in
   let (defs', blobs') =
-    groupAndRearrange model newGroup defs blobs selectedNiceBlobs groupDefs eSubst
+    groupAndRearrange model newGroup defs blobs selectedNiceBlobs
+       groupDefs eSubst
+       (\pluckedBlobs' ->
+         withDummyPos <| EList "\n\n  "
+           [ withDummyPos <| EApp " "
+               (eVar0 "group")
+               [ eVar "bounds"
+               , withDummyPos <| EApp " "
+                   (eVar0 "concat")
+                   [withDummyPos <| EList " " pluckedBlobs' "" Nothing " "]
+                   ""
+               ]
+               ""
+           ]
+           "" Nothing " "
+       )
   in
   let code' = unparse (fuseExp (defs', Blobs blobs' f)) in
   -- upstate Run
@@ -369,7 +374,8 @@ anchorOfSelectedFeatures selectedFeatures =
     [] -> Ok Nothing
     _  -> err
 
-groupSelectedBlobsAround model (anchorId, anchorPointFeature) =
+
+groupSelectedBlobsAround model (anchorId, anchorPointFeature) defs blobs f =
   let (anchorKind, anchorAttrs) =
     LangSvg.justGetSvgNode "groupSelectedBlobsAround" anchorId model.slate in
 
@@ -381,17 +387,46 @@ groupSelectedBlobsAround model (anchorId, anchorPointFeature) =
       -- simple approach: anchor point must be defined by constant literals
       case (vxBase.v_, vyBase.v_) of
         (VConst (nxBase, TrLoc xBaseLoc), VConst (nyBase, TrLoc yBaseLoc)) ->
-          rewritePrimitivePointsOfSelectedBlobs model
-            (vxBase, nxBase, xBaseLoc)
-            (vyBase, nyBase, yBaseLoc)
+
+          let selectedNiceBlobs = selectedBlobsToSelectedNiceBlobs model blobs in
+          let newGroup = "newGroup" ++ toString model.genSymCount in
+          let (groupDefs, eSubst) =
+            rewritePrimitivePointsOfSelectedBlobs model
+               (vxBase, nxBase, xBaseLoc)
+               (vyBase, nyBase, yBaseLoc)
+          in
+          let (defs', blobs') =
+            groupAndRearrange model newGroup defs blobs selectedNiceBlobs
+               groupDefs eSubst
+               (\pluckedBlobs' ->
+                 withDummyPos <| EList "\n\n  "
+                   [ withDummyPos <| EApp " "
+                       (eVar0 "anchoredGroupClickFirstToSelectBlob")
+                       [ withDummyPos <| EApp " "
+                           (eVar0 "concat")
+                           [withDummyPos <| EList " " pluckedBlobs' "" Nothing " "]
+                           ""
+                       ]
+                       ""
+                   ]
+                   "" Nothing " "
+               )
+          in
+          let code' = unparse (fuseExp (defs', Blobs blobs' f)) in
+          { model | code = code'
+                  , genSymCount = model.genSymCount + 1
+                  , selectedBlobs = Dict.empty
+                  , selectedFeatures = Set.empty
+                  }
 
         _ ->
-          let _ = Debug.log "anchor must be defined by constants" in
+          let _ = Debug.log "WARN: anchor must be defined by constants" () in
           model
 
     _ ->
-      let _ = Debug.log "for now, anchor must be a primitive point" in
+      let _ = Debug.log "WARN: for now, anchor must be a primitive point" () in
       model
+
 
 rewritePrimitivePointsOfSelectedBlobs model (vxBase, nxBase, xBaseLoc)
                                             (vyBase, nyBase, yBaseLoc) =
@@ -402,6 +437,15 @@ rewritePrimitivePointsOfSelectedBlobs model (vxBase, nxBase, xBaseLoc)
      Dict.foldl
        (\_ nodeId acc -> acc ++ ShapeWidgets.getPrimitivePointEquations model.slate nodeId)
        [] model.selectedBlobs
+  in
+  let anchorDef =
+      ( "\n  "
+      , pAs "anchor" (pList (listOfPVars [xAnchor, yAnchor]))
+      , withDummyPos <| EColonType " "
+          (eList (listOfNums [nxBase, nyBase]) Nothing) " "
+          (withDummyRange <| TNamed " " "Point") ""
+      , ""
+      )
   in
   let eSubst =
     pointsOfSelectedBlobs |> List.foldl (\(vxOther, vyOther) acc ->
@@ -421,27 +465,8 @@ rewritePrimitivePointsOfSelectedBlobs model (vxBase, nxBase, xBaseLoc)
             acc
       ) Dict.empty
   in
-  let code' =
-    let anchorDef =
-       Utils.parens <| String.concat
-         [ "def anchor @ "
-         , Utils.bracks (Utils.spaces [xAnchor, yAnchor]) , " "
-         , Utils.parens <| String.concat
-             [ Utils.bracks (Utils.spaces (List.map toString [nxBase, nyBase]))
-             , " : Point"
-             ]
-         ]
-    in
-    -- TODO: for now, adding anchorDef to top of the program.
-    -- better to (a) insert in deepest common scope, or
-    --           (b) put at top of a new lexical group.
-    anchorDef ++ "\n" ++
-    unparse (applyESubst eSubst model.inputExp)
-  in
-  let inputExp' = Utils.fromOkay "groupSelectedBlobsAround" (parseE code') in
-  { model | inputExp = inputExp', code = code'
-          , selectedFeatures = Set.empty, selectedBlobs = Dict.empty
-          }
+  ([anchorDef], eSubst)
+
 
 eBaseOffset baseVar offsetNum =
   let allowZeroOffsets = True in -- flag for: anchor or (+ anchor 0)
