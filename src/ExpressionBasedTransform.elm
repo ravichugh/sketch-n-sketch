@@ -26,7 +26,7 @@ import String
 
 
 --------------------------------------------------------------------------------
--- Group Blobs with Bounding Box
+-- Rewrite Expressions with Bounding Boxes
 
 computeSelectedBlobsAndBounds : Model -> Dict Int (NumTr, NumTr, NumTr, NumTr)
 computeSelectedBlobsAndBounds model =
@@ -89,6 +89,51 @@ computeSelectedBlobsAndBounds model =
          _ -> Debug.crash "computeSelectedBlobsAndBounds"
      )
      model.selectedBlobs
+
+rewriteBoundingBoxesOfSelectedBlobs model selectedBlobsAndBounds =
+  let selectedBlobIndices = Dict.keys model.selectedBlobs in
+  let (left, top, right, bot) =
+    case selectedBlobIndices of
+      [] -> Debug.crash "groupAndRearrange: shouldn't get here"
+      i::is ->
+        let init = Utils.justGet i selectedBlobsAndBounds in
+        let foo j (left,top,right,bot) =
+          let (a,b,c,d) = Utils.justGet j selectedBlobsAndBounds in
+          (minNumTr left a, minNumTr top b, maxNumTr right c, maxNumTr bot d)
+        in
+        List.foldl foo init is
+  in
+  let (width, height) = (fst right - fst left, fst bot - fst top) in
+  let scaleX  = scaleXY  "left" "right" left width in
+  let scaleY  = scaleXY  "top"  "bot"   top  height in
+  let offsetX = offsetXY "left" "right" left right in
+  let offsetY = offsetXY "top"  "bot"   top  bot in
+  let eSubst =
+    -- the spaces inserted by calls to offset*/scale* work best
+    -- when the source expressions being rewritten are of the form
+    --   (let [a b c d] [na nb nc nd] ...)
+    let foo i acc =
+      let (a,b,c,d) = Utils.justGet i selectedBlobsAndBounds in
+      if model.keysDown == Keys.shift then
+        acc |> offsetX "" a |> offsetY " " b |> offsetX " " c |> offsetY " " d
+      else
+        -- acc |> scaleX "" a |> scaleY " " b |> scaleX " " c |> scaleY " " d
+        acc |> scaleX " " a |> scaleY " " b |> scaleX " " c |> scaleY " " d
+    in
+    List.foldl foo Dict.empty selectedBlobIndices
+  in
+  let groupDefs =
+    [ ( "\n  "
+      , pAs "bounds" (pList (listOfPVars ["left", "top", "right", "bot"]))
+      , eList (listOfNums [fst left, fst top, fst right, fst bot]) Nothing
+      , "")
+    ]
+  in
+  (groupDefs, eSubst)
+
+
+--------------------------------------------------------------------------------
+-- Group Blobs with Bounding Box
 
 selectedBlobsToSelectedNiceBlobs : Model -> List BlobExp -> List (Int, Exp, NiceBlob)
 selectedBlobsToSelectedNiceBlobs model blobs =
@@ -165,11 +210,14 @@ matchesAnySelectedBlob selectedNiceBlobs def =
         Nothing -> False
 
 groupSelectedBlobs model defs blobs f =
-  let n = List.length blobs in
   let selectedNiceBlobs = selectedBlobsToSelectedNiceBlobs model blobs in
+  let selectedBlobsAndBounds = computeSelectedBlobsAndBounds model in
   let newGroup = "newGroup" ++ toString model.genSymCount in
-  let (defs', blobs') = groupAndRearrange model newGroup defs blobs selectedNiceBlobs in
-  -- let code' = Debug.log "newGroup" <| unparse (fuseExp (defs', Blobs blobs' f)) in
+  let (groupDefs, eSubst) =
+    rewriteBoundingBoxesOfSelectedBlobs model selectedBlobsAndBounds in
+  let (defs', blobs') =
+    groupAndRearrange model newGroup defs blobs selectedNiceBlobs groupDefs eSubst
+  in
   let code' = unparse (fuseExp (defs', Blobs blobs' f)) in
   -- upstate Run
     { model | code = code'
@@ -177,8 +225,7 @@ groupSelectedBlobs model defs blobs f =
             , selectedBlobs = Dict.empty
             }
 
-groupAndRearrange model newGroup defs blobs selectedNiceBlobs =
-  let selectedBlobsAndBounds = computeSelectedBlobsAndBounds model in
+groupAndRearrange model newGroup defs blobs selectedNiceBlobs groupDefs eSubst =
   let (pluckedBlobs, beforeBlobs, afterBlobs) =
     let indexedBlobs = Utils.zip [1 .. List.length blobs] blobs in
     let matches (i,_) = Dict.member i model.selectedBlobs in
@@ -210,45 +257,7 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs =
       in
       (beforeInside ++ plucked, beforeOutside, after)
     in
-    let selectedBlobIndices = Dict.keys model.selectedBlobs in
-    let (left, top, right, bot) =
-      case selectedBlobIndices of
-        [] -> Debug.crash "groupAndRearrange: shouldn't get here"
-        i::is ->
-          let init = Utils.justGet i selectedBlobsAndBounds in
-          let foo j (left,top,right,bot) =
-            let (a,b,c,d) = Utils.justGet j selectedBlobsAndBounds in
-            (minNumTr left a, minNumTr top b, maxNumTr right c, maxNumTr bot d)
-          in
-          List.foldl foo init is
-    in
-    let (width, height) = (fst right - fst left, fst bot - fst top) in
-    let scaleX  = scaleXY  "left" "right" left width in
-    let scaleY  = scaleXY  "top"  "bot"   top  height in
-    let offsetX = offsetXY "left" "right" left right in
-    let offsetY = offsetXY "top"  "bot"   top  bot in
-    let eSubst =
-      -- the spaces inserted by calls to offset*/scale* work best
-      -- when the source expressions being rewritten are of the form
-      --   (let [a b c d] [na nb nc nd] ...)
-      let foo i acc =
-        let (a,b,c,d) = Utils.justGet i selectedBlobsAndBounds in
-        if model.keysDown == Keys.shift then
-          acc |> offsetX "" a |> offsetY " " b |> offsetX " " c |> offsetY " " d
-        else
-          -- acc |> scaleX "" a |> scaleY " " b |> scaleX " " c |> scaleY " " d
-          acc |> scaleX " " a |> scaleY " " b |> scaleX " " c |> scaleY " " d
-      in
-      List.foldl foo Dict.empty selectedBlobIndices
-    in
-    let groupDefs =
-      [ ( "\n  "
-        , pAs "bounds" (pList (listOfPVars ["left", "top", "right", "bot"]))
-        , eList (listOfNums [fst left, fst top, fst right, fst bot]) Nothing
-        , "")
-      ]
-    in
-    let listBoundedGroup =
+    let listGroup =
       let pluckedBlobs' =
         List.map (LangUnparser.replacePrecedingWhitespace " " << fromBlobExp)
                  pluckedBlobs
@@ -273,7 +282,7 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs =
     in
     let newGroupExp =
       applyESubst eSubst <|
-        fuseExp (groupDefs ++ pluckedDefs', OtherExp listBoundedGroup)
+        fuseExp (groupDefs ++ pluckedDefs', OtherExp listGroup)
           -- TODO flag for fuseExp to insert lets instead of defs
     in
     let newDef = ("\n\n", pVar newGroup, newGroupExp, "") in
