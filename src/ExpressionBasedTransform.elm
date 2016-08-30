@@ -26,114 +26,7 @@ import String
 
 
 --------------------------------------------------------------------------------
--- Rewrite Expressions with Bounding Boxes
-
-computeSelectedBlobsAndBounds : Model -> Dict Int (NumTr, NumTr, NumTr, NumTr)
-computeSelectedBlobsAndBounds model =
-  let tree = snd model.slate in
-  Dict.map
-     (\blobId nodeId ->
-       case Dict.get nodeId tree of
-
-         -- refactor the following cases for readability
-
-         Just (LangSvg.SvgNode "BOX" nodeAttrs _) ->
-           let get attr = LangSvg.maybeFindAttr nodeId "BOX" attr nodeAttrs in
-           case List.map .v_ [get "LEFT", get "TOP", get "RIGHT", get "BOT"] of
-             [VConst left, VConst top, VConst right, VConst bot] ->
-               (left, top, right, bot)
-             _ -> Debug.crash "computeSelectedBlobsAndBounds"
-
-         Just (LangSvg.SvgNode "OVAL" nodeAttrs _) ->
-           let get attr = LangSvg.maybeFindAttr nodeId "OVAL" attr nodeAttrs in
-           case List.map .v_ [get "LEFT", get "TOP", get "RIGHT", get "BOT"] of
-             [VConst left, VConst top, VConst right, VConst bot] ->
-               (left, top, right, bot)
-             _ -> Debug.crash "computeSelectedBlobsAndBounds"
-
-         Just (LangSvg.SvgNode "g" nodeAttrs _) ->
-           case LangSvg.maybeFindBounds nodeAttrs of
-             Just bounds -> bounds
-             Nothing     -> Debug.crash "computeSelectedBlobsAndBounds"
-
-         Just (LangSvg.SvgNode "line" nodeAttrs _) ->
-           let get attr = LangSvg.maybeFindAttr nodeId "line" attr nodeAttrs in
-           case List.map .v_ [get "x1", get "y1", get "x2", get "y2"] of
-             [VConst x1, VConst y1, VConst x2, VConst y2] ->
-               (minNumTr x1 x2, minNumTr y1 y2, maxNumTr x1 x2, maxNumTr y1 y2)
-             _ -> Debug.crash "computeSelectedBlobsAndBounds"
-
-         -- "ellipse" and "circle" aren't handled nicely by grouping
-
-         Just (LangSvg.SvgNode "ellipse" nodeAttrs _) ->
-           let get attr = LangSvg.maybeFindAttr nodeId "ellipse" attr nodeAttrs in
-           case List.map .v_ [get "cx", get "cy", get "rx", get "ry"] of
-             [VConst cx, VConst cy, VConst rx, VConst ry] ->
-               (cx `minusNumTr` rx, cy `minusNumTr` ry, cx `plusNumTr` rx, cy `plusNumTr` ry)
-             _ -> Debug.crash "computeSelectedBlobsAndBounds"
-
-         Just (LangSvg.SvgNode "circle" nodeAttrs _) ->
-           let get attr = LangSvg.maybeFindAttr nodeId "circle" attr nodeAttrs in
-           case List.map .v_ [get "cx", get "cy", get "r"] of
-             [VConst cx, VConst cy, VConst r] ->
-               (cx `minusNumTr` r, cy `minusNumTr` r, cx `plusNumTr` r, cy `plusNumTr` r)
-             _ -> Debug.crash "computeSelectedBlobsAndBounds"
-
-         Just (LangSvg.SvgNode "rect" nodeAttrs _) ->
-           let get attr = LangSvg.maybeFindAttr nodeId "rect" attr nodeAttrs in
-           case List.map .v_ [get "x", get "y", get "width", get "height"] of
-             [VConst x, VConst y, VConst width, VConst height] ->
-               (x, y, x `plusNumTr` width, y `plusNumTr` height)
-             _ -> Debug.crash "computeSelectedBlobsAndBounds"
-
-         _ -> Debug.crash "computeSelectedBlobsAndBounds"
-     )
-     model.selectedBlobs
-
-rewriteBoundingBoxesOfSelectedBlobs model selectedBlobsAndBounds =
-  let selectedBlobIndices = Dict.keys model.selectedBlobs in
-  let (left, top, right, bot) =
-    case selectedBlobIndices of
-      [] -> Debug.crash "groupAndRearrange: shouldn't get here"
-      i::is ->
-        let init = Utils.justGet i selectedBlobsAndBounds in
-        let foo j (left,top,right,bot) =
-          let (a,b,c,d) = Utils.justGet j selectedBlobsAndBounds in
-          (minNumTr left a, minNumTr top b, maxNumTr right c, maxNumTr bot d)
-        in
-        List.foldl foo init is
-  in
-  let (width, height) = (fst right - fst left, fst bot - fst top) in
-  let scaleX  = scaleXY  "left" "right" left width in
-  let scaleY  = scaleXY  "top"  "bot"   top  height in
-  let offsetX = offsetXY "left" "right" left right in
-  let offsetY = offsetXY "top"  "bot"   top  bot in
-  let eSubst =
-    -- the spaces inserted by calls to offset*/scale* work best
-    -- when the source expressions being rewritten are of the form
-    --   (let [a b c d] [na nb nc nd] ...)
-    let foo i acc =
-      let (a,b,c,d) = Utils.justGet i selectedBlobsAndBounds in
-      if model.keysDown == Keys.shift then
-        acc |> offsetX "" a |> offsetY " " b |> offsetX " " c |> offsetY " " d
-      else
-        -- acc |> scaleX "" a |> scaleY " " b |> scaleX " " c |> scaleY " " d
-        acc |> scaleX " " a |> scaleY " " b |> scaleX " " c |> scaleY " " d
-    in
-    List.foldl foo Dict.empty selectedBlobIndices
-  in
-  let groupDefs =
-    [ ( "\n  "
-      , pAs "bounds" (pList (listOfPVars ["left", "top", "right", "bot"]))
-      , eList (listOfNums [fst left, fst top, fst right, fst bot]) Nothing
-      , "")
-    ]
-  in
-  (groupDefs, eSubst)
-
-
---------------------------------------------------------------------------------
--- Group Blobs with Bounding Box
+-- Group Blobs
 
 selectedBlobsToSelectedNiceBlobs : Model -> List BlobExp -> List (Int, Exp, NiceBlob)
 selectedBlobsToSelectedNiceBlobs model blobs =
@@ -208,22 +101,6 @@ matchesAnySelectedBlob selectedNiceBlobs def =
       case matchesAnySelectedCallBlob_ selectedNiceBlobs def of
         Just _  -> True
         Nothing -> False
-
-groupSelectedBlobs model defs blobs f =
-  let selectedNiceBlobs = selectedBlobsToSelectedNiceBlobs model blobs in
-  let selectedBlobsAndBounds = computeSelectedBlobsAndBounds model in
-  let newGroup = "newGroup" ++ toString model.genSymCount in
-  let (groupDefs, eSubst) =
-    rewriteBoundingBoxesOfSelectedBlobs model selectedBlobsAndBounds in
-  let (defs', blobs') =
-    groupAndRearrange model newGroup defs blobs selectedNiceBlobs groupDefs eSubst
-  in
-  let code' = unparse (fuseExp (defs', Blobs blobs' f)) in
-  -- upstate Run
-    { model | code = code'
-            , genSymCount = model.genSymCount + 1
-            , selectedBlobs = Dict.empty
-            }
 
 groupAndRearrange model newGroup defs blobs selectedNiceBlobs groupDefs eSubst =
   let (pluckedBlobs, beforeBlobs, afterBlobs) =
@@ -354,7 +231,130 @@ occursFreeIn x e =
 
 
 --------------------------------------------------------------------------------
--- Group Blobs with Anchor
+-- Rewrite and Group Blobs with Bounding Box
+
+groupSelectedBlobs model defs blobs f =
+  let selectedNiceBlobs = selectedBlobsToSelectedNiceBlobs model blobs in
+  let selectedBlobsAndBounds = computeSelectedBlobsAndBounds model in
+  let newGroup = "newGroup" ++ toString model.genSymCount in
+  let (groupDefs, eSubst) =
+    rewriteBoundingBoxesOfSelectedBlobs model selectedBlobsAndBounds in
+  let (defs', blobs') =
+    groupAndRearrange model newGroup defs blobs selectedNiceBlobs groupDefs eSubst
+  in
+  let code' = unparse (fuseExp (defs', Blobs blobs' f)) in
+  -- upstate Run
+    { model | code = code'
+            , genSymCount = model.genSymCount + 1
+            , selectedBlobs = Dict.empty
+            }
+
+computeSelectedBlobsAndBounds : Model -> Dict Int (NumTr, NumTr, NumTr, NumTr)
+computeSelectedBlobsAndBounds model =
+  let tree = snd model.slate in
+  Dict.map
+     (\blobId nodeId ->
+       case Dict.get nodeId tree of
+
+         -- refactor the following cases for readability
+
+         Just (LangSvg.SvgNode "BOX" nodeAttrs _) ->
+           let get attr = LangSvg.maybeFindAttr nodeId "BOX" attr nodeAttrs in
+           case List.map .v_ [get "LEFT", get "TOP", get "RIGHT", get "BOT"] of
+             [VConst left, VConst top, VConst right, VConst bot] ->
+               (left, top, right, bot)
+             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+
+         Just (LangSvg.SvgNode "OVAL" nodeAttrs _) ->
+           let get attr = LangSvg.maybeFindAttr nodeId "OVAL" attr nodeAttrs in
+           case List.map .v_ [get "LEFT", get "TOP", get "RIGHT", get "BOT"] of
+             [VConst left, VConst top, VConst right, VConst bot] ->
+               (left, top, right, bot)
+             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+
+         Just (LangSvg.SvgNode "g" nodeAttrs _) ->
+           case LangSvg.maybeFindBounds nodeAttrs of
+             Just bounds -> bounds
+             Nothing     -> Debug.crash "computeSelectedBlobsAndBounds"
+
+         Just (LangSvg.SvgNode "line" nodeAttrs _) ->
+           let get attr = LangSvg.maybeFindAttr nodeId "line" attr nodeAttrs in
+           case List.map .v_ [get "x1", get "y1", get "x2", get "y2"] of
+             [VConst x1, VConst y1, VConst x2, VConst y2] ->
+               (minNumTr x1 x2, minNumTr y1 y2, maxNumTr x1 x2, maxNumTr y1 y2)
+             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+
+         -- "ellipse" and "circle" aren't handled nicely by grouping
+
+         Just (LangSvg.SvgNode "ellipse" nodeAttrs _) ->
+           let get attr = LangSvg.maybeFindAttr nodeId "ellipse" attr nodeAttrs in
+           case List.map .v_ [get "cx", get "cy", get "rx", get "ry"] of
+             [VConst cx, VConst cy, VConst rx, VConst ry] ->
+               (cx `minusNumTr` rx, cy `minusNumTr` ry, cx `plusNumTr` rx, cy `plusNumTr` ry)
+             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+
+         Just (LangSvg.SvgNode "circle" nodeAttrs _) ->
+           let get attr = LangSvg.maybeFindAttr nodeId "circle" attr nodeAttrs in
+           case List.map .v_ [get "cx", get "cy", get "r"] of
+             [VConst cx, VConst cy, VConst r] ->
+               (cx `minusNumTr` r, cy `minusNumTr` r, cx `plusNumTr` r, cy `plusNumTr` r)
+             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+
+         Just (LangSvg.SvgNode "rect" nodeAttrs _) ->
+           let get attr = LangSvg.maybeFindAttr nodeId "rect" attr nodeAttrs in
+           case List.map .v_ [get "x", get "y", get "width", get "height"] of
+             [VConst x, VConst y, VConst width, VConst height] ->
+               (x, y, x `plusNumTr` width, y `plusNumTr` height)
+             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+
+         _ -> Debug.crash "computeSelectedBlobsAndBounds"
+     )
+     model.selectedBlobs
+
+rewriteBoundingBoxesOfSelectedBlobs model selectedBlobsAndBounds =
+  let selectedBlobIndices = Dict.keys model.selectedBlobs in
+  let (left, top, right, bot) =
+    case selectedBlobIndices of
+      [] -> Debug.crash "groupAndRearrange: shouldn't get here"
+      i::is ->
+        let init = Utils.justGet i selectedBlobsAndBounds in
+        let foo j (left,top,right,bot) =
+          let (a,b,c,d) = Utils.justGet j selectedBlobsAndBounds in
+          (minNumTr left a, minNumTr top b, maxNumTr right c, maxNumTr bot d)
+        in
+        List.foldl foo init is
+  in
+  let (width, height) = (fst right - fst left, fst bot - fst top) in
+  let scaleX  = scaleXY  "left" "right" left width in
+  let scaleY  = scaleXY  "top"  "bot"   top  height in
+  let offsetX = offsetXY "left" "right" left right in
+  let offsetY = offsetXY "top"  "bot"   top  bot in
+  let eSubst =
+    -- the spaces inserted by calls to offset*/scale* work best
+    -- when the source expressions being rewritten are of the form
+    --   (let [a b c d] [na nb nc nd] ...)
+    let foo i acc =
+      let (a,b,c,d) = Utils.justGet i selectedBlobsAndBounds in
+      if model.keysDown == Keys.shift then
+        acc |> offsetX "" a |> offsetY " " b |> offsetX " " c |> offsetY " " d
+      else
+        -- acc |> scaleX "" a |> scaleY " " b |> scaleX " " c |> scaleY " " d
+        acc |> scaleX " " a |> scaleY " " b |> scaleX " " c |> scaleY " " d
+    in
+    List.foldl foo Dict.empty selectedBlobIndices
+  in
+  let groupDefs =
+    [ ( "\n  "
+      , pAs "bounds" (pList (listOfPVars ["left", "top", "right", "bot"]))
+      , eList (listOfNums [fst left, fst top, fst right, fst bot]) Nothing
+      , "")
+    ]
+  in
+  (groupDefs, eSubst)
+
+
+--------------------------------------------------------------------------------
+-- Rewrite and Group Blobs with Anchor
 
 anchorOfSelectedFeatures
     : Set.Set SelectedShapeFeature
