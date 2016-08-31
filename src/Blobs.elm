@@ -10,6 +10,8 @@ import Utils
 
 type alias Program = (TopDefs, MainExp)
 
+type alias SimpleProgram = (TopDefs, List BlobExp, List BlobExp -> Exp)
+
 -- TODO store Idents and "types" in TopDefs. also use for lambda tool.
 
 type alias TopDef  = (WS, Pat, Exp, WS)
@@ -34,6 +36,14 @@ varBlob e x            = NiceBlob e (VarBlob x)
 callBlob e tuple       = NiceBlob e (CallBlob tuple)
 withBoundsBlob e tuple = NiceBlob e (WithBoundsBlob tuple)
 withAnchorBlob e tuple = NiceBlob e (WithAnchorBlob tuple)
+
+isSimpleProgram : Exp -> Maybe SimpleProgram
+isSimpleProgram e =
+  let (defs, mainExp) = splitExp e in
+  case mainExp of
+    SvgConcat _ _ -> Nothing
+    OtherExp _    -> Nothing
+    Blobs blobs f -> Just (defs, blobs, f)
 
 splitExp : Exp -> Program
 splitExp e =

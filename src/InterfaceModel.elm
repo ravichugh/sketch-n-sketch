@@ -176,6 +176,7 @@ type Event = SelectObject Int ShapeKind Zone
            | AbstractBlobs
            | DuplicateBlobs
            | MergeBlobs
+           | ReplicateBlob
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets, ati:AceTypeInfo})
            | Run

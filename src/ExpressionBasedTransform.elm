@@ -1,6 +1,7 @@
 module ExpressionBasedTransform -- in contrast to ValueBasedTransform
   ( groupSelectedBlobs
   , abstractSelectedBlobs
+  , replicateSelectedBlob
   , duplicateSelectedBlobs
   , mergeSelectedBlobs
   , deleteSelectedBlobs
@@ -227,7 +228,7 @@ occursFreeIn x e =
 --------------------------------------------------------------------------------
 -- Rewrite and Group Blobs with Bounding Box
 
-groupSelectedBlobs model defs blobs f =
+groupSelectedBlobs model (defs, blobs, f) =
   let selectedNiceBlobs = selectedBlobsToSelectedNiceBlobs model blobs in
   let selectedBlobsAndBounds = computeSelectedBlobsAndBounds model in
   let newGroup = "newGroup" ++ toString model.genSymCount in
@@ -379,7 +380,7 @@ anchorOfSelectedFeatures selectedFeatures =
     _  -> err
 
 
-groupSelectedBlobsAround model (anchorId, anchorPointFeature) defs blobs f =
+groupSelectedBlobsAround model (defs, blobs, f) (anchorId, anchorPointFeature) =
   let (anchorKind, anchorAttrs) =
     LangSvg.justGetSvgNode "groupSelectedBlobsAround" anchorId model.slate in
 
@@ -556,7 +557,7 @@ abstractOne (i, eBlob, x) (defs, blobs) =
               let eBlah =
                 case listOfAnnotatedNums1 (List.map snd restOfMapping) of
                   []   -> eVar x
-                  args -> withDummyPos (EApp " " (eVar0 x) args "")
+                  args -> withDummyPos (EApp "\n    " (eVar0 x) args "")
               in
               withDummyPos (EApp "\n  " (eVar0 "withBounds") [eBounds, eBlah] "")
             in
@@ -582,7 +583,7 @@ abstractOne (i, eBlob, x) (defs, blobs) =
               let eBlah =
                 case listOfAnnotatedNums1 (List.map snd restOfMapping) of
                   []   -> eVar x
-                  args -> withDummyPos (EApp " " (eVar0 x) args "")
+                  args -> withDummyPos (EApp "\n    " (eVar0 x) args "")
               in
               withDummyPos (EApp "\n  " (eVar0 "withAnchor") [eAnchor, eBlah] "")
             in
@@ -702,6 +703,37 @@ redundantBinding (p, e) =
 
 clean =
   removeRedundantBindings << LangTransform.simplify
+
+
+--------------------------------------------------------------------------------
+-- Replicate Blob
+
+replicateSelectedBlob model (defs, blobs, f) =
+  case selectedBlobsToSelectedNiceBlobs model blobs of
+
+    [(i, _, WithAnchorBlob (anchor, g, args))] ->
+      let newBlob =
+        let hArray     = "horizontalArray" in
+        let eNum       = withDummyPos <| EConst " " 3 dummyLoc (intSlider 1 20) in
+        let eSep       = withDummyPos <| EConst " " 20 dummyLoc (intSlider 0 200) in
+        let eGroupFunc = withDummyPos <| EApp "\n      " (eVar0 g) args "" in
+        let eNewBlob =
+          withDummyPos <| EApp "\n  " (eVar0 "withAnchor")
+             [ anchor
+             , withDummyPos <| EApp "\n    " (eVar0 hArray)
+                 [ eNum
+                 , eSep
+                 , eGroupFunc] ""
+             ] ""
+        in
+        NiceBlob eNewBlob <|
+          WithAnchorBlob (anchor, hArray, [eNum, eSep, eGroupFunc])
+      in
+      let blobs' = Utils.replacei i newBlob blobs in
+      let code' = unparse (fuseExp (defs, Blobs blobs' f)) in
+      { model | code = code' , selectedBlobs = Dict.empty }
+
+    _ -> model
 
 
 --------------------------------------------------------------------------------

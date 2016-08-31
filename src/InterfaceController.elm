@@ -701,17 +701,15 @@ upstate evt old = case debugLog "Event" evt of
       )
 
     GroupBlobs ->
-      let (defs,me) = splitExp old.inputExp in
-      case me of
-        SvgConcat _ _ -> old
-        OtherExp _    -> old
-        Blobs blobs f ->
+      case Blobs.isSimpleProgram old.inputExp of
+        Nothing -> old
+        Just simple ->
           let maybeAnchorPoint = ETransform.anchorOfSelectedFeatures old.selectedFeatures in
           let multipleSelectedBlobs = Dict.size old.selectedBlobs > 1 in
           case (maybeAnchorPoint, multipleSelectedBlobs) of
             (Ok Nothing, False)   -> old
-            (Ok Nothing, True)    -> upstate Run <| ETransform.groupSelectedBlobs old defs blobs f
-            (Ok (Just anchor), _) -> upstate Run <| ETransform.groupSelectedBlobsAround old anchor defs blobs f
+            (Ok Nothing, True)    -> upstate Run <| ETransform.groupSelectedBlobs old simple
+            (Ok (Just anchor), _) -> upstate Run <| ETransform.groupSelectedBlobsAround old simple anchor
             (Err err, _)          -> let _ = Debug.log "bad anchor" err in old
 
     DuplicateBlobs ->
@@ -723,6 +721,11 @@ upstate evt old = case debugLog "Event" evt of
 
     AbstractBlobs ->
       upstate Run <| ETransform.abstractSelectedBlobs old
+
+    ReplicateBlob ->
+      case Blobs.isSimpleProgram old.inputExp of
+        Nothing     -> old
+        Just simple -> upstate Run <| ETransform.replicateSelectedBlob old simple
 
 {-
     -- TODO AdHoc/Sync not used at the moment

@@ -1690,8 +1690,8 @@ widgetsTools w h model =
   let noFeatures = Set.isEmpty model.selectedFeatures in
   let noBlobs = Dict.isEmpty model.selectedBlobs in
   let relateButton = simpleEventButton_ noFeatures in
-  -- let groupButton = simpleEventButton_ (noBlobs || not noFeatures) in
-  let groupButton = simpleEventButton_ noBlobs in
+  let groupButton = simpleEventButton_ (noBlobs || not noFeatures) in
+  let groupButtonSelectedFeaturesOkay = simpleEventButton_ noBlobs in
 
   [ toolButton model Cursor w h ]
 
@@ -1758,11 +1758,12 @@ widgetsTools w h model =
 -}
   , gapWidget w h
   , twoButtons w h
-      (groupButton GroupBlobs "Group")
-      (groupButton AbstractBlobs "Abs")
-  , twoButtons w h
       (groupButton DuplicateBlobs "Dupe")
       (groupButton MergeBlobs "Merge")
+  , twoButtons w h
+      (groupButtonSelectedFeaturesOkay GroupBlobs "Group")
+      (groupButton AbstractBlobs "Abs")
+  , groupButton ReplicateBlob "Horiz. Repeat" w h
   ]
 
 middleWidgets row1 row2 w h wWrap hWrap model =

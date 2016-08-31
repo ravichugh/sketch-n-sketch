@@ -242,6 +242,10 @@ adjacentPairs includeLast list = case list of
 geti : Int -> List a -> a
 geti i = fromJust_ "Utils.geti" << List.head << List.drop (i-1)
 
+-- 1-based
+replacei : Int -> a -> List a -> List a
+replacei i xi' xs = List.take (i-1) xs ++ [xi'] ++ List.drop i xs
+
 allSame list = case list of
   []    -> False
   v::vs -> List.filter ((/=) v) vs == []
