@@ -759,6 +759,29 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
       let code' = unparse (fuseExp (defs, Blobs blobs' f)) in
       { model | code = code' , selectedBlobs = Dict.empty }
 
+    (RadialRepeat, [(i, _, WithAnchorBlob (anchor, g, args))]) ->
+      let newBlob =
+        -- Don't need a thawed annotation on radius, because radialArray
+        -- uses localFreeze to choose it for live sync.
+        --
+        let rArray  = "radialArray" in
+        let eNum    = withDummyPos <| EConst " " 3 (dummyLoc_ frozen) (intSlider 1 20) in
+        let eRadius = withDummyPos <| EConst " " 100 (dummyLoc_ unann) noWidgetDecl in
+        let eRot    = withDummyPos <| EConst " " 0 (dummyLoc_ frozen) (numSlider 0 6.28) in
+        let eGroupFunc = withDummyPos <| EApp "\n    " (eVar0 g) args "" in
+        -- might want to translate center to current anchor...
+        let eCenter = LangUnparser.replacePrecedingWhitespace "\n    " anchor in
+        let eNewBlob =
+          withDummyPos <| EApp "\n  " (eVar0 rArray)
+             [ eNum, eRadius, eRot, eGroupFunc, eCenter ] ""
+        in
+        NiceBlob eNewBlob <|
+          CallBlob (rArray, [eNum, eRadius, eRot, eGroupFunc, eCenter])
+      in
+      let blobs' = Utils.replacei i newBlob blobs in
+      let code' = unparse (fuseExp (defs, Blobs blobs' f)) in
+      { model | code = code' , selectedBlobs = Dict.empty }
+
     _ -> model
 
 

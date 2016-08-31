@@ -2,7 +2,8 @@ module Sync (Options, defaultOptions, syncOptionsOf,
              heuristicsNone, heuristicsFair, heuristicsBiased, toggleHeuristicMode,
              inferLocalUpdates, prepareLiveUpdates,
              printZoneTable, LiveInfo, Triggers, tryToBeSmart,
-             locsOfTrace
+             locsOfTrace,
+             solve -- Controller needs to fudge directly with solve for point slider widgets...
              ) where
 
 import Dict exposing (Dict)

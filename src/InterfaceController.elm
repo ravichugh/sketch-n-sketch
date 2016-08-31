@@ -1066,10 +1066,11 @@ applyTrigger objid kind zone old mx0 my0 dx_ dy_ =
 wSlider = params.mainSection.uiWidgets.wSlider
 
 pickLocId t =
-  case Set.toList (Sync.locsOfTrace Sync.defaultOptions t) of
-    [(k,_,_)]    -> k
-    (k,_,_) :: _ -> k -- picking arbitrarily...
-    []           -> Debug.crash "InterfaceController.pickLocId"
+  let locs = Set.toList (Sync.locsOfTrace Sync.defaultOptions t) in
+  let thawedLocs = List.filter (\(_,ann,_) -> ann == thawed) locs in
+  Utils.mapMaybe Utils.fst3 <|
+    List.head thawedLocs                   -- favor thawedLocs,
+      `Utils.plusMaybe` List.head locs     -- arbitrarily picking the first
 
 createMousePosCallbackSlider mx my widget old =
 
@@ -1113,7 +1114,15 @@ createMousePosCallbackSlider mx my widget old =
       in
       create (Just (locid, updateX)) Nothing
 
-    WPointSlider (xCur, xTrace) (yCur, yTrace) ->
+    WPointSlider xNumTr yNumTr ->
+      let subst = LangParser2.substOf old.inputExp in
+                    -- might just put subst in the Model,
+                    -- not just in MouseObject MouseMode...
+      let updateXY k (nxy, txy) = \dxy ->
+        case Sync.solve (Dict.remove k subst) (nxy + dxy, txy) of
+          Just newNum -> newNum
+          Nothing     -> Utils.justGet_ "createMousePosCallbackSlider: updateXY" k subst
+      in
       create
-        (Just (pickLocId xTrace, \dx -> xCur + dx))
-        (Just (pickLocId yTrace, \dy -> yCur + dy))
+        (Utils.mapMaybe (\kx -> (kx, updateXY kx xNumTr)) (pickLocId (snd xNumTr)))
+        (Utils.mapMaybe (\ky -> (ky, updateXY ky yNumTr)) (pickLocId (snd yNumTr)))

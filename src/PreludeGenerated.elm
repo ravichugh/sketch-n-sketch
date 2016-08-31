@@ -1518,10 +1518,17 @@ prelude =
     (+ 1 (floorAndLocalFreeze (- n 1))))))
 
 (def radialArray (\\(n radius rot func [cx cy])
+  (let _ ; draw point widget to control radius
+    (let xWidget (floorAndLocalFreeze cx)
+    (let yWidget (- (floorAndLocalFreeze cy) radius)
+      ([xWidget yWidget] : Point)))
   (let endpoints (nPointsOnCircle n rot cx cy radius)
   (concat (map func endpoints))
-)))
+))))
 
+(def offsetAnchor (\\(dx dy f)
+  (\\[x y] (f [(+ x dx) (+ y dy)]))
+))
 
 ; The type checker relies on the name of this definition.
 (let dummyPreludeMain ['svg' [] []] dummyPreludeMain)

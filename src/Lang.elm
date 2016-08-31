@@ -613,9 +613,12 @@ ePair e1 e2 = withDummyPos <| EList " " [e1,e2] "" Nothing ""
 
 noWidgetDecl = withDummyRange NoWidgetDecl
 
-intSlider a b =
+rangeSlider kind a b =
   withDummyRange <|
-    IntSlider (withDummyRange a) (withDummyRange "-") (withDummyRange b) Nothing
+    kind (withDummyRange a) (withDummyRange "-") (withDummyRange b) Nothing
+
+intSlider = rangeSlider IntSlider
+numSlider = rangeSlider NumSlider
 
 colorNumberSlider = intSlider 0 499
 

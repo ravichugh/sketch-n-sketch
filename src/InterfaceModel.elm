@@ -163,6 +163,7 @@ type alias KeysDown = List Char.KeyCode
 type ReplicateKind
   = HorizontalRepeat
   | LinearRepeat
+  | RadialRepeat
 
 type Event = SelectObject Int ShapeKind Zone
            | MouseClickCanvas      -- used to initiate drawing new shape

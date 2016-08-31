@@ -1779,6 +1779,7 @@ widgetsTools w h model =
       (groupButton AbstractBlobs "Abs")
   , groupButton (ReplicateBlob HorizontalRepeat) "Repeat Right" w h
   , groupButton (ReplicateBlob LinearRepeat) "Repeat To" w h
+  , groupButton (ReplicateBlob RadialRepeat) "Repeat Around" w h
   ]
 
 middleWidgets row1 row2 w h wWrap hWrap model =
