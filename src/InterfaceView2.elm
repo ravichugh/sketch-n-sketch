@@ -332,7 +332,19 @@ buildSvgWidgets wCanvas hCanvas model =
         drawPointWidget widget xVal yVal
   in
 
-  Svg.svg [] (List.concat (Utils.mapi draw dedupedWidgets))
+  -- partitioning first, so that point sliders don't affect indexing
+  -- (and, thus, positioning) of range sliders
+  --
+  let (rangeWidgets, pointWidgets) =
+    dedupedWidgets |>
+      List.partition (\widget -> case widget of
+                                 WIntSlider _ _ _ _ _ -> True
+                                 WNumSlider _ _ _ _ _ -> True
+                                 WPointSlider _ _     -> False)
+  in
+  Svg.svg [] <|
+    List.concat <|
+      Utils.mapi draw rangeWidgets ++ Utils.mapi draw pointWidgets
 
 sliderZoneEvents widgetState =
   let foo old = case old.mode of
