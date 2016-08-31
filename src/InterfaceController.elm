@@ -283,7 +283,7 @@ onMouseClick click old =
       if points == [] then add ()
       else
         let (_,initialPoint) = Utils.last_ points in
-        if Utils.distanceInt pointOnCanvas initialPoint > Draw.drawNewPolygonDotSize then add ()
+        if Utils.distanceInt pointOnCanvas initialPoint > Draw.drawDotSize then add ()
         else if List.length points == 2 then { old | mouseMode = MouseNothing }
         else if List.length points == 1 then switchToCursorTool old
         else upstate Run <| Draw.addPolygon stk old points
@@ -297,15 +297,15 @@ onMouseClick click old =
       case points of
         [] -> snd (add pointOnCanvas)
         (_,firstClick) :: [] ->
-          if Utils.distanceInt pointOnCanvas firstClick < Draw.drawNewPolygonDotSize
+          if Utils.distanceInt pointOnCanvas firstClick < Draw.drawDotSize
           then switchToCursorTool old
           else snd (add pointOnCanvas)
         (_,lastClick) :: _ ->
-          if Utils.distanceInt pointOnCanvas lastClick < Draw.drawNewPolygonDotSize
+          if Utils.distanceInt pointOnCanvas lastClick < Draw.drawDotSize
           then upstate Run <| Draw.addPath stk old points
           else
             let (_,firstClick) = Utils.last_ points in
-            if Utils.distanceInt pointOnCanvas firstClick < Draw.drawNewPolygonDotSize
+            if Utils.distanceInt pointOnCanvas firstClick < Draw.drawDotSize
             then
               let (points',old') = add firstClick in
               upstate Run <| Draw.addPath stk old' points'

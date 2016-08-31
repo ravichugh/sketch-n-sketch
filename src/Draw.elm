@@ -1,6 +1,6 @@
 module Draw
   ( drawNewShape
-  , drawNewPolygonDotSize
+  , drawDotSize
   , boundingBoxOfPoints_
   , addLine
   , addRawSquare , addRawRect , addStretchySquare , addStretchyRect
@@ -78,13 +78,19 @@ defaultFill           = LangSvg.attr "fill" "gray"
 dotFill               = LangSvg.attr "fill" "red"
 dotFill2              = LangSvg.attr "fill" "orange"
 dotFillControlPt      = LangSvg.attr "fill" "green"
-dotSize               = LangSvg.attr "r" (toString drawNewPolygonDotSize)
+dotFillCursor         = LangSvg.attr "fill" "none"
+drawDotSize           = 10
+dotSize               = LangSvg.attr "r" (toString drawDotSize)
 dotStroke             = LangSvg.attr "stroke" "black"
 dotStrokeWidth        = LangSvg.attr "stroke-width" "2"
-
-drawNewPolygonDotSize = 10
-
 guideStroke           = LangSvg.attr "stroke" "aqua"
+
+drawDot fill (cx,cy) =
+  svgCircle [
+      dotSize , fill , defaultOpacity , dotStroke, dotStrokeWidth
+    , LangSvg.attr "cx" (toString cx)
+    , LangSvg.attr "cy" (toString cy)
+    ]
 
 boundingBox : (Int, Int) -> (Int, Int) -> (Int, Int, Int, Int)
 boundingBox (x2,y2) (x1,y1) =
@@ -125,7 +131,8 @@ drawNewLine model click2 click1 =
       , LangSvg.attr "x2" (toString xb) , LangSvg.attr "y2" (toString yb)
       ]
   in
-  [ line ]
+  let clearDots = List.map (drawDot dotFillCursor) [(xb,yb),(x2,y2),(x1,y1)] in
+  clearDots ++ [ line ]
 
 drawNewRect keysDown (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) =
@@ -140,7 +147,8 @@ drawNewRect keysDown (_,pt2) (_,pt1) =
       , LangSvg.attr "y" (toString ya) , LangSvg.attr "height" (toString (yb-ya))
       ]
   in
-  [ rect ]
+  let clearDots = List.map (drawDot dotFillCursor) [(xb,yb),(xa,ya),pt2,pt1] in
+  clearDots ++ [ rect ]
 
 drawNewEllipse keysDown (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) =
@@ -158,17 +166,14 @@ drawNewEllipse keysDown (_,pt2) (_,pt1) =
       , LangSvg.attr "ry" (toString ry)
       ]
   in
-  [ ellipse ]
+  let clearDots = List.map (drawDot dotFillCursor) [(xb,yb),(xa,ya),pt2,pt1] in
+  clearDots ++ [ ellipse ]
 
 drawNewPolygon (_,ptLast) keysAndPoints =
   let points = List.map snd keysAndPoints in
   let (xInit,yInit) = Utils.last_ (ptLast::points) in
-  let dot =
-    svgCircle [
-        dotSize , dotFill , defaultOpacity , dotStroke, dotStrokeWidth
-      , LangSvg.attr "cx" (toString xInit)
-      , LangSvg.attr "cy" (toString yInit)
-      ] in
+  let redDot = drawDot dotFill (xInit,yInit) in
+  let clearDots = List.map (drawDot dotFillCursor) (ptLast::points) in
   let maybeShape =
     case (ptLast::points) of
       [_] -> []
@@ -185,23 +190,17 @@ drawNewPolygon (_,ptLast) keysAndPoints =
           , LangSvg.attr "points" sPoints
           ] ]
    in
-   dot :: maybeShape
+   redDot :: clearDots ++ maybeShape
 
 strPt (x,y) = Utils.spaces [toString x, toString y]
 
 drawNewPath (keysLast,ptLast) keysAndPoints =
   let points = List.map snd keysAndPoints in
-  let dot fill (cx,cy) =
-    svgCircle [
-        dotSize , fill , defaultOpacity , dotStroke, dotStrokeWidth
-      , LangSvg.attr "cx" (toString cx)
-      , LangSvg.attr "cy" (toString cy)
-      ] in
-  let redDot = [dot dotFill (Utils.last_ (ptLast::points))] in
+  let redDot = [drawDot dotFill (Utils.last_ (ptLast::points))] in
   let yellowDot =
     case points of
       [] -> []
-      _  -> [dot dotFill2 ptLast]
+      _  -> [drawDot dotFill2 ptLast]
   in
   let pathAndPoints =
     let plus (s1,l1) (s2,l2) = (s1 ++ s2, l1 ++ l2) in
@@ -235,21 +234,21 @@ drawNewPath (keysLast,ptLast) keysAndPoints =
               defaultStroke , defaultStrokeWidth , defaultFill , defaultOpacity
             , LangSvg.attr "d" sPath
             ] in
-        let points = List.map (dot dotFillControlPt) controlPoints in
+        let points = List.map (drawDot dotFillControlPt) controlPoints in
         path :: points
   in
-  redDot ++ yellowDot ++ pathAndPoints
+  let clearDots = List.map (drawDot dotFillCursor) (ptLast::points) in
+  redDot ++ yellowDot ++ clearDots ++ pathAndPoints
 
 -- TODO this doesn't appear right away
 -- (dor does initial poly, which appears only on MouseUp...)
 drawNewHelperDot (x,y) =
-  let r = drawNewPolygonDotSize in
   let dot =
     svgCircle [
         defaultFill , defaultOpacity
       , LangSvg.attr "cx" (toString 200)
       , LangSvg.attr "cy" (toString 200)
-      , LangSvg.attr "r" (toString 10)
+      , LangSvg.attr "r" (toString drawDotSize)
       ]
   in
   [ dot ]
