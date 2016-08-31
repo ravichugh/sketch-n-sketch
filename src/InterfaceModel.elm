@@ -79,7 +79,7 @@ type alias Model =
   , selectedBlobs : Dict.Dict Int NodeId
   , keysDown : List Char.KeyCode
   , randomColor : Int
-  , lambdaTools : (Int, List Exp)
+  , lambdaTools : (Int, List LambdaTool)
   }
 
 type Mode
@@ -149,6 +149,10 @@ type ShapeToolKind
   = Raw
   | Stretchy
   | Sticky
+
+type LambdaTool
+  = LambdaBounds Exp
+  | LambdaAnchor Exp
 
 type Caption
   = Hovering (Int, ShapeKind, Zone)
@@ -319,6 +323,6 @@ sampleModel =
     , selectedBlobs = Dict.empty
     , keysDown      = []
     , randomColor   = 100
-    , lambdaTools   = (1, [eVar "star"])
+    , lambdaTools   = (1, [LambdaBounds (eVar "star")])
     }
 

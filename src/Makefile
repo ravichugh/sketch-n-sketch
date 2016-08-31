@@ -30,9 +30,8 @@ examples:
 loc:
 	wc -l \
     Lang.elm LangSvg.elm \
-    LangParser2.elm LangUnparser.elm \
-    OurParser2.elm Utils.elm Types.elm \
-    Eval.elm Sync.elm LocEqn.elm ShapeWidgets.elm \
+    LangParser2.elm LangUnparser.elm OurParser2.elm \
+    Types.elm Eval.elm Sync.elm LocEqn.elm ShapeWidgets.elm \
     InterfaceModel.elm InterfaceView2.elm InterfaceController.elm \
     LangTools.elm LangTransform.elm ValueBasedTransform.elm \
     Blobs.elm Draw.elm ExpressionBasedTransform.elm \
@@ -40,6 +39,7 @@ loc:
     Ace.elm CodeBox.elm Native/codeBox.js \
     Native/toggleAnimationLoopback.js \
     Main.elm Config.elm \
+    Utils.elm Either.elm \
     PreludeTemplate.elm ExamplesTemplate.elm \
     ColorNum.elm Keys.elm
 

@@ -17,6 +17,7 @@ import Blobs exposing (..)
 import LangUnparser exposing (unparse)
 import InterfaceModel exposing (..)
 import Utils
+import Either exposing (..)
 import Keys
 
 import String
@@ -573,11 +574,26 @@ addStretchyPath old keysAndPoints =
 addStickyPath old keysAndPoints =
   Debug.crash "TODO: addStickyPath"
 
+-- copied from ExpressionBasedTransform
+eAsPoint e =
+  let e' = LangUnparser.replacePrecedingWhitespace "" e in
+  withDummyPos <|
+    EColonType " " e' " " (withDummyRange <| TNamed " " "Point") ""
+
+{-
 addLambda old (_,pt2) (_,pt1) =
   let func =
     let (selectedIdx, exps) = old.lambdaTools in
     Utils.geti selectedIdx exps
   in
+-}
+addLambda old pt2 pt1 =
+  let (selectedIdx, exps) = old.lambdaTools in
+  case Utils.geti selectedIdx exps of
+    LambdaBounds func -> addLambdaBounds old pt2 pt1 func
+    LambdaAnchor func -> addLambdaAnchor old pt2 pt1 func
+
+addLambdaBounds old (_,pt2) (_,pt1) func =
   let (xa, xb, ya, yb) =
     if old.keysDown == Keys.shift
       then squareBoundingBox pt2 pt1
@@ -609,6 +625,22 @@ addLambda old (_,pt2) (_,pt1) =
     (eVar0 "with") [ eVar "bounds" , eVar funcName ]
 
   -}
+
+-- For simplicity, keeping this as a click-and-drag drawing tool instead
+-- of a single-click tool. Therefore, ignoring pt2 argument.
+--
+addLambdaAnchor old _ (_,(x,y)) func =
+  let anchor = eAsPoint (eList (makeInts [x,y]) Nothing) in
+  let args = [] in
+  let eNew =
+    withDummyPos (EApp "\n  " (eVar0 "withAnchor") [ anchor, func ] "") in
+  -- TODO refactor Program to keep (f,args) in sync with exp
+  let newBlob = withAnchorBlob eNew (anchor , "XXXXX", args) in
+  let (defs, mainExp) = splitExp old.inputExp in
+  let mainExp' = addToMainExp newBlob mainExp in
+  let code = unparse (fuseExp (defs, mainExp')) in
+  { old | code = code
+        , mouseMode = MouseNothing }
 
 addTextBox old click2 click1 =
   let (xa, xb, ya, yb) = boundingBox (snd click2) (snd click1) in
@@ -708,12 +740,12 @@ switchToCursorTool old =
 --------------------------------------------------------------------------------
 -- Lambda Tool
 
-lambdaToolOptionsOf : Program -> List Exp
+lambdaToolOptionsOf : Program -> List LambdaTool
 lambdaToolOptionsOf (defs, mainExp) =
   case mainExp of
 
     Blobs blobs _ ->
-      let boundedFuncs =
+      let lambdaPreFuncs =
         -- will be easier with better TopDefs
         List.concatMap (\(_,p,e,_) ->
           case (p.val, e.val.e__) of
@@ -721,28 +753,39 @@ lambdaToolOptionsOf (defs, mainExp) =
               case List.reverse params of
                 lastParam :: _ ->
                   case varsOfPat lastParam of
-                    ["bounds"]                   -> [f]
-                    ["left","top","right","bot"] -> [f]
-                    _                            -> []
+                    ["bounds"]                            -> [Left f]
+                    ["left","top","right","bot"]          -> [Left f]
+                    ["bounds","left","top","right","bot"] -> [Left f]
+                    ["anchor"]                            -> [Right f]
+                    ["xAnchor","yAnchor"]                 -> [Right f]
+                    ["anchor","xAnchor","yAnchor"]        -> [Right f]
+                    _                                     -> []
                 [] -> []
             _ -> []
           ) defs
       in
-      let withBoundsBlobs =
+      let withBlobs =
         List.reverse <| -- reverse so that most recent call wins
           List.concatMap (\blob ->
             case blob of
-              NiceBlob _ (WithBoundsBlob (_, f, args)) -> [(f,args)]
+              NiceBlob _ (WithBoundsBlob (_, f, args)) -> [Left (f,args)]
+              NiceBlob _ (WithAnchorBlob (_, f, args)) -> [Right (f,args)]
               _                                        -> []
             ) blobs
       in
       let lambdaCalls =
-        List.concatMap (\f ->
-          let pred (g,_) = f == g in
-          case Utils.findFirst pred withBoundsBlobs of
-            Nothing       -> []
-            Just (g,args) -> [withDummyPos (EApp " " (eVar0 f) args "")]
-          ) boundedFuncs
+        List.concatMap (\preFunc ->
+          let pred withBlob =
+            case (preFunc, withBlob) of
+              (Left f, Left (g, _))   -> f == g
+              (Right f, Right (g, _)) -> f == g
+              _                       -> False
+          in
+          case Utils.findFirst pred withBlobs of
+            Nothing               -> []
+            Just (Left (f,args))  -> [LambdaBounds <| withDummyPos (EApp " " (eVar0 f) args "")]
+            Just (Right (f,args)) -> [LambdaAnchor <| withDummyPos (EApp " " (eVar0 f) args "")]
+          ) lambdaPreFuncs
       in
       lambdaCalls
 

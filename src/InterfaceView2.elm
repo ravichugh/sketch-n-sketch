@@ -2209,13 +2209,18 @@ canvasButton model w h =
   simpleButton_ events.address btnKind Noop
     model.hideCode (UpdateModel foo) cap w h
 
+strLambdaTool lambdaTool =
+  let strExp = String.trim << unparse in
+  case lambdaTool of
+    LambdaBounds e -> "bounds. " ++ strExp e ++ " bounds"
+    LambdaAnchor e -> "anchor. " ++ strExp e ++ " anchor"
+
 dropdownLambdaTool : Model -> Int -> Int -> GE.Element
 dropdownLambdaTool model w h =
-  let strExp = String.trim << unparse in
   let options =
     let (selectedIdx, exps) = model.lambdaTools in
-    Utils.mapi (\(i,e) ->
-      let s = strExp e in
+    Utils.mapi (\(i,lambdaTool) ->
+      let s = strLambdaTool lambdaTool in
       Html.option
          [ Attr.value s, Attr.selected (i == selectedIdx) ]
          [ Html.text s ]
@@ -2224,7 +2229,7 @@ dropdownLambdaTool model w h =
   let handler selected =
     Signal.message events.address <| UpdateModel <| \model ->
       let (_, exps) = model.lambdaTools in
-      let indexedStrings = Utils.mapi (\(i,e) -> (i, strExp e)) exps in
+      let indexedStrings = Utils.mapi (\(i,lt) -> (i, strLambdaTool lt)) exps in
       let newSelectedIdx =
         case Utils.findFirst ((==) selected << snd) indexedStrings of
           Just (i, _) -> i
