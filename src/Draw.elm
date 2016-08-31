@@ -79,6 +79,8 @@ dotFill               = LangSvg.attr "fill" "red"
 dotFill2              = LangSvg.attr "fill" "orange"
 dotFillControlPt      = LangSvg.attr "fill" "green"
 dotSize               = LangSvg.attr "r" (toString drawNewPolygonDotSize)
+dotStroke             = LangSvg.attr "stroke" "black"
+dotStrokeWidth        = LangSvg.attr "stroke-width" "2"
 
 drawNewPolygonDotSize = 10
 
@@ -163,7 +165,7 @@ drawNewPolygon (_,ptLast) keysAndPoints =
   let (xInit,yInit) = Utils.last_ (ptLast::points) in
   let dot =
     svgCircle [
-        dotSize , dotFill , defaultOpacity
+        dotSize , dotFill , defaultOpacity , dotStroke, dotStrokeWidth
       , LangSvg.attr "cx" (toString xInit)
       , LangSvg.attr "cy" (toString yInit)
       ] in
@@ -191,7 +193,7 @@ drawNewPath (keysLast,ptLast) keysAndPoints =
   let points = List.map snd keysAndPoints in
   let dot fill (cx,cy) =
     svgCircle [
-        dotSize , fill , defaultOpacity
+        dotSize , fill , defaultOpacity , dotStroke, dotStrokeWidth
       , LangSvg.attr "cx" (toString cx)
       , LangSvg.attr "cy" (toString cy)
       ] in
