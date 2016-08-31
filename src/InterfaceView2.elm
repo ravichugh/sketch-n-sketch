@@ -1692,17 +1692,42 @@ widgetsTools w h model =
   let groupButton = simpleEventButton_ noBlobs in
 
   [ toolButton model Cursor w h ]
+
   ++
-  (if not showRawShapeTools then []
-   else
+
+  (
+
+  if False then
      [ flowRight w h
           [ (1/5, toolButton model (Rect Raw))
           , (1/5, toolButton model (Oval Raw))
           , (1/5, toolButton model (Poly Raw))
           , (2/5, toolButton model (Path Raw))
           ]
-     ])
-  ++
+     ]
+
+  else if showRawShapeTools then -- v0.5.2
+
+    [ twoButtons w h
+        (toolButton model (Line Raw))
+        (toolButton model Text)
+    ]
+    ++
+    List.map (\tool ->
+      flowRight w h
+        [ (0.5, toolButton model (tool Raw))
+        , (0.5, toolButton model (tool Stretchy))
+        ]
+    ) [Rect, Oval, Poly, Path]
+    ++
+    [ flowRight w h
+        [ (1/4, toolButton model Lambda)
+        , (3/4, dropdownLambdaTool model)
+        ]
+    ]
+
+  else -- v0.5.1
+
   [ twoButtons w h
       (toolButton model (Line Raw))
       (toolButton model (Rect Stretchy))
@@ -1717,7 +1742,11 @@ widgetsTools w h model =
        [ (1/4, toolButton model Lambda)
        , (3/4, dropdownLambdaTool model)
        ]
-  , gapWidget w h
+  ]
+
+  ) ++
+
+  [ gapWidget w h
   , relateButton DigHole "Dig Hole" w h
   , relateButton MakeEqual "Make Equal" w h
 {-
@@ -2024,18 +2053,18 @@ toolButton : Model -> Tool -> Int -> Int -> GE.Element
 toolButton model tool w h =
   let capStretchy = "%" in
   let capSticky = Utils.uniPlusMinus in -- Utils.uniDelta in
-  let capRaw = "=" in
+  let capRaw = "(Raw)" in
   let cap = case tool of
     Cursor        -> "Cursor"
     Line Raw      -> "Line"
-    Rect Raw      -> "R" -- capRaw -- "Rect"
+    Rect Raw      -> capRaw -- "R" -- "Rect"
     Rect Stretchy -> "Box" -- "Rect" -- capStretchy
-    Oval Raw      -> "E" -- capRaw -- "Oval"
+    Oval Raw      -> capRaw -- "E" -- "Oval"
     Oval Stretchy -> "Oval" -- capStretchy
-    Poly Raw      -> "P" -- capRaw -- "Poly"
+    Poly Raw      -> capRaw -- "P" -- "Poly"
     Poly Stretchy -> "Poly" -- "Polygon" -- capStretchy
     Poly Sticky   -> capSticky
-    Path Raw      -> "Pa" -- capRaw -- "Path"
+    Path Raw      -> capRaw -- "Pa" -- "Path"
     Path Stretchy -> "Path" -- capStretchy
     Path Sticky   -> capSticky
     Text          -> "Text"
