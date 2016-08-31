@@ -1509,6 +1509,14 @@ prelude =
   (concat (map draw_i (zeroTo n)))
 )))))
 
+; To reduce size of resulting trace,
+; could subtract up to M>1 at a time.
+;
+(defrec floorAndLocalFreeze (\\n
+  (if (le n 1) 0
+  ;else
+    (+ 1 (floorAndLocalFreeze (- n 1))))))
+
 (def radialArray (\\(n radius rot func [cx cy])
   (let endpoints (nPointsOnCircle n rot cx cy radius)
   (concat (map func endpoints))
