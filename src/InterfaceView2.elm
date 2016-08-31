@@ -1646,7 +1646,9 @@ widgetsExampleNavigation w h model =
   [ twoButtons w h (codeButton model) (canvasButton model)
   , dropdownExamples model w h
   , runButton model w h
+{-
   , twoButtons w h (saveButton model) (saveAsButton model)
+-}
   , loadButton model w h
   ]
 
