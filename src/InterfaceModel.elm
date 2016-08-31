@@ -160,6 +160,10 @@ type Caption
 
 type alias KeysDown = List Char.KeyCode
 
+type ReplicateKind
+  = HorizontalRepeat
+  | LinearRepeat
+
 type Event = SelectObject Int ShapeKind Zone
            | MouseClickCanvas      -- used to initiate drawing new shape
            | MouseIsDown Bool
@@ -176,7 +180,7 @@ type Event = SelectObject Int ShapeKind Zone
            | AbstractBlobs
            | DuplicateBlobs
            | MergeBlobs
-           | ReplicateBlob
+           | ReplicateBlob ReplicateKind
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets, ati:AceTypeInfo})
            | Run

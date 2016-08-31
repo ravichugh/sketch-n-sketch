@@ -1496,6 +1496,16 @@
   (concat (map draw_i (zeroTo n)))
 )))
 
+(def linearArrayFromTo (\(n func [xStart yStart] [xEnd yEnd])
+  (let xsep (/ (- xEnd xStart) (- n 1))
+  (let ysep (/ (- yEnd yStart) (- n 1))
+  (let draw_i (\i
+    (let xi (+ xStart (* i xsep))
+    (let yi (+ yStart (* i ysep))
+    (func [xi yi]))))
+  (concat (map draw_i (zeroTo n)))
+)))))
+
 (def radialArray (\(n radius rot func [cx cy])
   (let endpoints (nPointsOnCircle n rot cx cy radius)
   (concat (map func endpoints))

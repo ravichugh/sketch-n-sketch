@@ -17,7 +17,7 @@ import ShapeWidgets exposing (PointFeature, SelectedShapeFeature)
 import Blobs exposing (..)
 import LangTransform
 import Types
-import InterfaceModel exposing (Model)
+import InterfaceModel exposing (Model, ReplicateKind(..))
 import InterfaceView2 as View
 import Utils
 import Keys
@@ -708,14 +708,14 @@ clean =
 --------------------------------------------------------------------------------
 -- Replicate Blob
 
-replicateSelectedBlob model (defs, blobs, f) =
-  case selectedBlobsToSelectedNiceBlobs model blobs of
+replicateSelectedBlob replicateKind model (defs, blobs, f) =
+  case (replicateKind, selectedBlobsToSelectedNiceBlobs model blobs) of
 
-    [(i, _, WithAnchorBlob (anchor, g, args))] ->
+    (HorizontalRepeat, [(i, _, WithAnchorBlob (anchor, g, args))]) ->
       let newBlob =
         let hArray     = "horizontalArray" in
         let eNum       = withDummyPos <| EConst " " 3 dummyLoc (intSlider 1 20) in
-        let eSep       = withDummyPos <| EConst " " 20 dummyLoc (intSlider 0 200) in
+        let eSep       = withDummyPos <| EConst " " 20 dummyLoc noWidgetDecl in
         let eGroupFunc = withDummyPos <| EApp "\n      " (eVar0 g) args "" in
         let eNewBlob =
           withDummyPos <| EApp "\n  " (eVar0 "withAnchor")
@@ -733,7 +733,43 @@ replicateSelectedBlob model (defs, blobs, f) =
       let code' = unparse (fuseExp (defs, Blobs blobs' f)) in
       { model | code = code' , selectedBlobs = Dict.empty }
 
+    (LinearRepeat, [(i, _, WithAnchorBlob (anchor, g, args))]) ->
+      let newBlob =
+        let lArray = "linearArrayFromTo" in
+        let eNum   = withDummyPos <| EConst " " 3 dummyLoc (intSlider 1 20) in
+        let eStart = LangUnparser.replacePrecedingWhitespace "\n    " anchor in
+        let eEnd =
+          case stripPointExp anchor of
+            Nothing -> anchor
+            Just (nx,ny) ->
+              let ex' = eConst0 (nx + 100) dummyLoc in
+              let ey' = eConst (ny + 50) dummyLoc in
+              LangUnparser.replacePrecedingWhitespace "\n    " <|
+                eAsPoint (eList [ex', ey'] Nothing)
+        in
+        let eGroupFunc = withDummyPos <| EApp "\n    " (eVar0 g) args "" in
+        let eNewBlob =
+          withDummyPos <| EApp "\n  " (eVar0 lArray)
+             [ eNum, eGroupFunc, eStart, eEnd ] ""
+        in
+        NiceBlob eNewBlob <|
+          CallBlob (lArray, [eNum, eGroupFunc, eStart, eEnd])
+      in
+      let blobs' = Utils.replacei i newBlob blobs in
+      let code' = unparse (fuseExp (defs, Blobs blobs' f)) in
+      { model | code = code' , selectedBlobs = Dict.empty }
+
     _ -> model
+
+
+stripPointExp e =
+  case e.val.e__ of
+    EList _ [ex,ey] _ Nothing _ ->
+      case (ex.val.e__, ey.val.e__) of
+        (EConst _ nx _ _, EConst _ ny _ _) -> Just (nx, ny)
+        _                                  -> Nothing
+    EColonType _ e' _ _ _ -> stripPointExp e'
+    _                     -> Nothing
 
 
 --------------------------------------------------------------------------------

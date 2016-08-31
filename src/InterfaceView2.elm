@@ -1761,21 +1761,24 @@ widgetsTools w h model =
   ) ++
 
   [ gapWidget w h
+{-
   , relateButton DigHole "Dig Hole" w h
   , relateButton MakeEqual "Make Equal" w h
-{-
+-}
   , twoButtons w h
       (relateButton DigHole "Dig")
       (relateButton MakeEqual "x = y")
--}
+{-
   , gapWidget w h
+-}
   , twoButtons w h
       (groupButton DuplicateBlobs "Dupe")
       (groupButton MergeBlobs "Merge")
   , twoButtons w h
       (groupButtonSelectedFeaturesOkay GroupBlobs "Group")
       (groupButton AbstractBlobs "Abs")
-  , groupButton ReplicateBlob "Horiz. Repeat" w h
+  , groupButton (ReplicateBlob HorizontalRepeat) "Repeat Right" w h
+  , groupButton (ReplicateBlob LinearRepeat) "Repeat To" w h
   ]
 
 middleWidgets row1 row2 w h wWrap hWrap model =

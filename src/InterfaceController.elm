@@ -722,10 +722,10 @@ upstate evt old = case debugLog "Event" evt of
     AbstractBlobs ->
       upstate Run <| ETransform.abstractSelectedBlobs old
 
-    ReplicateBlob ->
+    ReplicateBlob option ->
       case Blobs.isSimpleProgram old.inputExp of
         Nothing     -> old
-        Just simple -> upstate Run <| ETransform.replicateSelectedBlob old simple
+        Just simple -> upstate Run <| ETransform.replicateSelectedBlob option old simple
 
 {-
     -- TODO AdHoc/Sync not used at the moment
