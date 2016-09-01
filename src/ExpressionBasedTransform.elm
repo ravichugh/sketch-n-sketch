@@ -714,14 +714,13 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
     [(i, _, WithAnchorBlob (anchor, g, args))] ->
 
       let eGroupFunc = withDummyPos <| EApp "\n    " (eVar0 g) args "" in
+      let eAnchor = LangUnparser.replacePrecedingWhitespace "\n    " anchor in
       let (arrayFunction, arrayArgs) =
         case replicateKind of
 
           HorizontalRepeat ->
             let eNum = withDummyPos <| EConst " " 3 dummyLoc (intSlider 1 20) in
             let eSep = withDummyPos <| EConst " " 20 dummyLoc noWidgetDecl in
-            let eAnchor =
-              LangUnparser.replacePrecedingWhitespace "\n    " anchor in
             ("horizontalArray", [eNum, eSep, eGroupFunc, eAnchor])
 
           LinearRepeat ->
@@ -729,7 +728,7 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
             let eStart = LangUnparser.replacePrecedingWhitespace "\n    " anchor in
             let eEnd =
               case stripPointExp anchor of
-                Nothing -> anchor
+                Nothing -> eAnchor
                 Just (nx,ny) ->
                   let ex' = eConst0 (nx + 100) dummyLoc in
                   let ey' = eConst (ny + 50) dummyLoc in
@@ -739,11 +738,19 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
             ("linearArrayFromTo", [eNum, eGroupFunc, eStart, eEnd])
 
           RadialRepeat ->
+            let nRadius = 100 in
             let eNum    = withDummyPos <| EConst " " 3 (dummyLoc_ frozen) (intSlider 1 20) in
-            let eRadius = withDummyPos <| EConst " " 100 (dummyLoc_ unann) noWidgetDecl in
+            let eRadius = withDummyPos <| EConst " " nRadius (dummyLoc_ unann) noWidgetDecl in
             let eRot    = withDummyPos <| EConst " " 0 (dummyLoc_ frozen) (numSlider 0 6.28) in
-            -- might want to translate center to current anchor...
-            let eCenter = LangUnparser.replacePrecedingWhitespace "\n    " anchor in
+            let eCenter =
+              case stripPointExp anchor of
+                Nothing -> eAnchor
+                Just (nx,ny) ->
+                  let ex' = eConst0 nx dummyLoc in
+                  let ey' = eConst (ny + nRadius) dummyLoc in
+                  LangUnparser.replacePrecedingWhitespace "\n    " <|
+                    eAsPoint (eList [ex', ey'] Nothing)
+            in
             ("radialArray", [ eNum, eRadius, eRot, eGroupFunc, eCenter ])
       in
       let newBlob =
