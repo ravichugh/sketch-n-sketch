@@ -1293,14 +1293,16 @@ prelude =
     (ghost (setZones 'none' (circle c2 (+ left (/ width 2)) bot r)))
   ])))))
 
-(typ group (-> Bounds (List SVG) SVG))
-(def group (\\(bounds shapes)
+(typ groupWithPad (-> Num Bounds (List SVG) SVG))
+(def groupWithPad (\\(pad bounds shapes)
   (let [left top right bot] bounds
-  (let pad 15
   (let paddedBounds [(- left pad) (- top pad) (+ right pad) (+ bot pad)]
   ['g' [['BOUNDS' bounds]]
        (cons (hiddenBoundingBox paddedBounds) shapes)]
-)))))
+))))
+
+(typ group (-> Bounds (List SVG) SVG))
+(def group (groupWithPad 15))
 
 ; TODO make one pass over pts
 (typ boundsOfPoints (-> (List Point) Bounds))
@@ -1579,6 +1581,25 @@ prelude =
 (def offsetAnchor (\\(dx dy f)
   (\\[x y] (f [(+ x dx) (+ y dy)]))
 ))
+
+(def horizontalArrayByBounds (\\(n sep func [left_0 top right_0 bot])
+  (let w_i     (- right_0 left_0)
+  (let left_i  (\\i (+ left_0 (* i (+ w_i sep))))
+  (let right_i (\\i (+ (left_i i) w_i))
+  (let draw_i  (\\i (func [(left_i i) top (right_i i) bot]))
+  (let bounds  [left_0 top (right_i (- n 1)) bot]
+    [(groupWithPad 30 bounds (concat (map draw_i (zeroTo n))))]
+)))))))
+
+(def repeatInsideBounds (\\(n sep func bounds@[left top right bot])
+  (let w_i (/ (- (- right left) (* sep (- n 1))) n)
+  (let draw_i (\\i
+    (let left_i (+ left (* i (+ w_i sep)))
+    (let right_i (+ left_i w_i)
+    (func [left_i top right_i bot]))))
+  [(groupWithPad 30 bounds (concat (map draw_i (zeroTo n))))]
+))))
+
 
 ; The type checker relies on the name of this definition.
 (let dummyPreludeMain ['svg' [] []] dummyPreludeMain)

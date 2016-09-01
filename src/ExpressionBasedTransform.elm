@@ -719,12 +719,12 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
         case replicateKind of
 
           HorizontalRepeat ->
-            let eNum = withDummyPos <| EConst " " 3 dummyLoc (intSlider 1 20) in
+            let eNum = withDummyPos <| EConst " " 3 (dummyLoc_ frozen) (intSlider 1 20) in
             let eSep = withDummyPos <| EConst " " 20 dummyLoc noWidgetDecl in
             ("horizontalArray", [eNum, eSep, eGroupFunc, eAnchor])
 
           LinearRepeat ->
-            let eNum   = withDummyPos <| EConst " " 3 dummyLoc (intSlider 1 20) in
+            let eNum   = withDummyPos <| EConst " " 3 (dummyLoc_ frozen) (intSlider 1 20) in
             let eStart = LangUnparser.replacePrecedingWhitespace "\n    " anchor in
             let eEnd =
               case stripPointExp anchor of
@@ -762,6 +762,47 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
       let code' = unparse (fuseExp (defs, Blobs blobs' f)) in
       { model | code = code' , selectedBlobs = Dict.empty }
 
+    [(i, _, WithBoundsBlob (bounds, g, args))] ->
+
+      let eGroupFunc = withDummyPos <| EApp "\n    " (eVar0 g) args "" in
+      let eBounds = LangUnparser.replacePrecedingWhitespace "\n    " bounds in
+      let (arrayFunction, arrayArgs) =
+        case replicateKind of
+
+          HorizontalRepeat ->
+            let eNum = withDummyPos <| EConst " " 3 (dummyLoc_ frozen) (intSlider 1 10) in
+            let eSep = withDummyPos <| EConst " " 20 dummyLoc noWidgetDecl in
+            ("horizontalArrayByBounds", [eNum, eSep, eGroupFunc, eBounds])
+
+          LinearRepeat ->
+            let (nNum, nSep) = (3, 20) in
+            let eNum = withDummyPos <| EConst " " nNum (dummyLoc_ frozen) (intSlider 1 20) in
+            let eSep = withDummyPos <| EConst " " nSep dummyLoc noWidgetDecl in
+            let eGroupBounds =
+              case stripBoundsExp bounds of
+                Nothing -> eBounds
+                Just (nLeft, nTop, nRight, nBot) ->
+                  let eLeft = eConst0 nLeft dummyLoc in
+                  let eTop = eConst nTop dummyLoc in
+                  let eRight = eConst (nLeft + nNum*(nRight-nLeft) + (nNum-1)*nSep) dummyLoc in
+                  let eBot = eConst nBot dummyLoc in
+                  LangUnparser.replacePrecedingWhitespace "\n    " <|
+                    eList [eLeft, eTop, eRight, eBot] Nothing
+            in
+            ("repeatInsideBounds", [eNum, eSep, eGroupFunc, eGroupBounds])
+
+          RadialRepeat ->
+            Debug.crash "replicateSelectedBlob: TODO"
+      in
+      let newBlob =
+        NiceBlob
+           (withDummyPos <| EApp "\n  " (eVar0 arrayFunction) arrayArgs "")
+           (CallBlob (arrayFunction, arrayArgs))
+      in
+      let blobs' = Utils.replacei i newBlob blobs in
+      let code' = unparse (fuseExp (defs, Blobs blobs' f)) in
+      { model | code = code' , selectedBlobs = Dict.empty }
+
     _ -> model
 
 
@@ -772,6 +813,19 @@ stripPointExp e =
         (EConst _ nx _ _, EConst _ ny _ _) -> Just (nx, ny)
         _                                  -> Nothing
     EColonType _ e' _ _ _ -> stripPointExp e'
+    _                     -> Nothing
+
+
+stripBoundsExp e =
+  case e.val.e__ of
+    EList _ es _ Nothing _ ->
+      case List.map (.val >> .e__) es of
+        [ EConst _ nLeft _ _
+        , EConst _ nTop _ _
+        , EConst _ nRight _ _
+        , EConst _ nBot _ _ ] -> Just (nLeft, nTop, nRight, nBot)
+        _                     -> Nothing
+    EColonType _ e' _ _ _ -> stripBoundsExp e'
     _                     -> Nothing
 
 
