@@ -406,7 +406,7 @@ groupSelectedBlobsAround model (defs, blobs, f) (anchorId, anchorPointFeature) =
                (\pluckedBlobs' ->
                  withDummyPos <| EList "\n\n  "
                    [ withDummyPos <| EApp " "
-                       (eVar0 "anchoredGroupClickFirstToSelectBlob")
+                       (eVar0 "anchoredGroup")
                        [ withDummyPos <| EApp " "
                            (eVar0 "concat")
                            [withDummyPos <| EList " " pluckedBlobs' "" Nothing " "]

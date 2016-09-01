@@ -1299,10 +1299,60 @@
        (cons (hiddenBoundingBox paddedBounds) shapes)]
 )))))
 
-(typ anchoredGroupClickFirstToSelectBlob (-> (List SVG) SVG))
-(def anchoredGroupClickFirstToSelectBlob (\shapes
-  ['g' [] shapes]
-))
+; TODO make one pass over pts
+(typ boundsOfPoints (-> (List Point) Bounds))
+(def boundsOfPoints (\pts
+  (let left  (minimum (map fst pts))
+  (let right (maximum (map fst pts))
+  (let top   (minimum (map snd pts))
+  (let bot   (maximum (map snd pts))
+    [left top right bot]
+))))))
+
+(typ extremeShapePoints (-> SVG Points))
+(def extremeShapePoints (\shape@[kind _ _]
+  (case kind
+
+    ('line'
+      (let attrs@[x1 y1 x2 y2] (map (lookupAttr shape) ["x1" "y1" "x2" "y2"])
+      (typecase attrs
+        ([Num Num Num Num] [[x1 y1] [x2 y2]])
+        (_ []))))
+
+    ('rect'
+      (let attrs@[x y w h] (map (lookupAttr shape) ["x" "y" "width" "height"])
+      (typecase attrs
+        ([Num Num Num Num] [[x y] [(+ x w) (+ y h)]])
+        (_ []))))
+
+    ('circle'
+      (let attrs@[cx cy r] (map (lookupAttr shape) ["cx" "cy" "r"])
+      (typecase attrs
+        ([Num Num Num] [[(- cx r) (- cy r)] [(+ cx r) (+ cy r)]])
+        (_ []))))
+
+    ('ellipse'
+      (let attrs@[cx cy rx ry] (map (lookupAttr shape) ["cx" "cy" "rx" "ry"])
+      (typecase attrs
+        ([Num Num Num Num] [[(- cx rx) (- cy ry)] [(+ cx rx) (+ cy ry)]])
+        (_ []))))
+
+    ('polygon' (polygonPoints shape))
+
+    ('path'
+      (let pathCmds (lookupAttr shape "d")
+      (typecase pathCmds
+        ((List (union String Num)) (allPointsOfPathCmds pathCmds))
+        (_ []))))
+
+    (_ [])
+)))
+
+(typ anchoredGroup (-> (List SVG) SVG))
+(def anchoredGroup (\shapes
+  (let bounds (boundsOfPoints (concat (map extremeShapePoints shapes)))
+  (group bounds shapes)
+)))
 
 ; (def group (\(bounds shapes)
 ;   ['g' [['BOUNDS' bounds]]
