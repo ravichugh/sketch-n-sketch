@@ -709,74 +709,47 @@ clean =
 -- Replicate Blob
 
 replicateSelectedBlob replicateKind model (defs, blobs, f) =
-  case (replicateKind, selectedBlobsToSelectedNiceBlobs model blobs) of
+  case selectedBlobsToSelectedNiceBlobs model blobs of
 
-    (HorizontalRepeat, [(i, _, WithAnchorBlob (anchor, g, args))]) ->
-      let newBlob =
-        let hArray     = "horizontalArray" in
-        let eNum       = withDummyPos <| EConst " " 3 dummyLoc (intSlider 1 20) in
-        let eSep       = withDummyPos <| EConst " " 20 dummyLoc noWidgetDecl in
-        let eGroupFunc = withDummyPos <| EApp "\n      " (eVar0 g) args "" in
-        let eNewBlob =
-          withDummyPos <| EApp "\n  " (eVar0 "withAnchor")
-             [ anchor
-             , withDummyPos <| EApp "\n    " (eVar0 hArray)
-                 [ eNum
-                 , eSep
-                 , eGroupFunc] ""
-             ] ""
-        in
-        NiceBlob eNewBlob <|
-          WithAnchorBlob (anchor, hArray, [eNum, eSep, eGroupFunc])
+    [(i, _, WithAnchorBlob (anchor, g, args))] ->
+
+      let eGroupFunc = withDummyPos <| EApp "\n    " (eVar0 g) args "" in
+      let (arrayFunction, arrayArgs) =
+        case replicateKind of
+
+          HorizontalRepeat ->
+            let eNum = withDummyPos <| EConst " " 3 dummyLoc (intSlider 1 20) in
+            let eSep = withDummyPos <| EConst " " 20 dummyLoc noWidgetDecl in
+            let eAnchor =
+              LangUnparser.replacePrecedingWhitespace "\n    " anchor in
+            ("horizontalArray", [eNum, eSep, eGroupFunc, eAnchor])
+
+          LinearRepeat ->
+            let eNum   = withDummyPos <| EConst " " 3 dummyLoc (intSlider 1 20) in
+            let eStart = LangUnparser.replacePrecedingWhitespace "\n    " anchor in
+            let eEnd =
+              case stripPointExp anchor of
+                Nothing -> anchor
+                Just (nx,ny) ->
+                  let ex' = eConst0 (nx + 100) dummyLoc in
+                  let ey' = eConst (ny + 50) dummyLoc in
+                  LangUnparser.replacePrecedingWhitespace "\n    " <|
+                    eAsPoint (eList [ex', ey'] Nothing)
+            in
+            ("linearArrayFromTo", [eNum, eGroupFunc, eStart, eEnd])
+
+          RadialRepeat ->
+            let eNum    = withDummyPos <| EConst " " 3 (dummyLoc_ frozen) (intSlider 1 20) in
+            let eRadius = withDummyPos <| EConst " " 100 (dummyLoc_ unann) noWidgetDecl in
+            let eRot    = withDummyPos <| EConst " " 0 (dummyLoc_ frozen) (numSlider 0 6.28) in
+            -- might want to translate center to current anchor...
+            let eCenter = LangUnparser.replacePrecedingWhitespace "\n    " anchor in
+            ("radialArray", [ eNum, eRadius, eRot, eGroupFunc, eCenter ])
       in
-      let blobs' = Utils.replacei i newBlob blobs in
-      let code' = unparse (fuseExp (defs, Blobs blobs' f)) in
-      { model | code = code' , selectedBlobs = Dict.empty }
-
-    (LinearRepeat, [(i, _, WithAnchorBlob (anchor, g, args))]) ->
       let newBlob =
-        let lArray = "linearArrayFromTo" in
-        let eNum   = withDummyPos <| EConst " " 3 dummyLoc (intSlider 1 20) in
-        let eStart = LangUnparser.replacePrecedingWhitespace "\n    " anchor in
-        let eEnd =
-          case stripPointExp anchor of
-            Nothing -> anchor
-            Just (nx,ny) ->
-              let ex' = eConst0 (nx + 100) dummyLoc in
-              let ey' = eConst (ny + 50) dummyLoc in
-              LangUnparser.replacePrecedingWhitespace "\n    " <|
-                eAsPoint (eList [ex', ey'] Nothing)
-        in
-        let eGroupFunc = withDummyPos <| EApp "\n    " (eVar0 g) args "" in
-        let eNewBlob =
-          withDummyPos <| EApp "\n  " (eVar0 lArray)
-             [ eNum, eGroupFunc, eStart, eEnd ] ""
-        in
-        NiceBlob eNewBlob <|
-          CallBlob (lArray, [eNum, eGroupFunc, eStart, eEnd])
-      in
-      let blobs' = Utils.replacei i newBlob blobs in
-      let code' = unparse (fuseExp (defs, Blobs blobs' f)) in
-      { model | code = code' , selectedBlobs = Dict.empty }
-
-    (RadialRepeat, [(i, _, WithAnchorBlob (anchor, g, args))]) ->
-      let newBlob =
-        -- Don't need a thawed annotation on radius, because radialArray
-        -- uses localFreeze to choose it for live sync.
-        --
-        let rArray  = "radialArray" in
-        let eNum    = withDummyPos <| EConst " " 3 (dummyLoc_ frozen) (intSlider 1 20) in
-        let eRadius = withDummyPos <| EConst " " 100 (dummyLoc_ unann) noWidgetDecl in
-        let eRot    = withDummyPos <| EConst " " 0 (dummyLoc_ frozen) (numSlider 0 6.28) in
-        let eGroupFunc = withDummyPos <| EApp "\n    " (eVar0 g) args "" in
-        -- might want to translate center to current anchor...
-        let eCenter = LangUnparser.replacePrecedingWhitespace "\n    " anchor in
-        let eNewBlob =
-          withDummyPos <| EApp "\n  " (eVar0 rArray)
-             [ eNum, eRadius, eRot, eGroupFunc, eCenter ] ""
-        in
-        NiceBlob eNewBlob <|
-          CallBlob (rArray, [eNum, eRadius, eRot, eGroupFunc, eCenter])
+        NiceBlob
+           (withDummyPos <| EApp "\n  " (eVar0 arrayFunction) arrayArgs "")
+           (CallBlob (arrayFunction, arrayArgs))
       in
       let blobs' = Utils.replacei i newBlob blobs in
       let code' = unparse (fuseExp (defs, Blobs blobs' f)) in
