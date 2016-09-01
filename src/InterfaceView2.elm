@@ -1956,7 +1956,7 @@ mainSectionHorizontal w h model =
                 , caption model (wRest-(wBtn+wExtra+wBtnWide)) (hZInfo+1) -- NOTE: +1 is a band-aid
                 ]
             ]
-    Just errormsg -> errorBox w (hCanvas + hZInfo) errormsg
+    Just errormsg -> errorBox wRest (hCanvas + hZInfo) errormsg
   in
 
   let hGutter = gutterForResizing model.orient wRest hGut in
