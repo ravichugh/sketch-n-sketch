@@ -12,7 +12,7 @@
   (let cars
     (let wCar 30
     (let wHalfCar (/ wCar 2!)
-    (map (\[x y] (squareCenter 'lightgray' x y wCar)) spokePts)))
+    (map (\[x y] (squareByCenter 'lightgray' x y wCar)) spokePts)))
   (concat [rim cars center frame caps])))))))))
 
 (svg wheel)

@@ -2,15 +2,24 @@ module ExamplesGenerated (list, scratchName, scratch) where
 
 import Lang
 import LangParser2 as Parser
+import Types
 import Eval
 import Utils
 import PreludeGenerated as Prelude
+import LangSvg
 
 makeExample name s =
   let thunk () =
-    let e = Utils.fromOk_ (Parser.parseE s) in
-    let (v,ws) = Eval.run e in
-    {e=e, v=v, ws=ws}
+    -- TODO tolerate parse errors, change Select Example
+    let e = Utils.fromOkay ("Error parsing example " ++ name) (Parser.parseE s) in
+    let ati = Types.typecheck e in
+    -----------------------------------------------------
+    -- if name == "*Prelude*" then
+    --   {e=e, v=LangSvg.dummySvgVal, ws=[], ati=ati}
+    -- else
+    -----------------------------------------------------
+    let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| Eval.run e in
+    {e=e, v=v, ws=ws, ati=ati}
   in
   (name, s, thunk)
 
@@ -79,6 +88,7 @@ LITTLE_TO_ELM rotTest
 LITTLE_TO_ELM interfaceButtons
 LITTLE_TO_ELM barGraph
 LITTLE_TO_ELM thawFreeze
+LITTLE_TO_ELM dictionaries
 -- LITTLE_TO_ELM deleteBoxes
 LITTLE_TO_ELM cover
 LITTLE_TO_ELM poppl
@@ -111,6 +121,9 @@ LITTLE_TO_ELM spiralSpiralGraph
 -- LITTLE_TO_ELM relatePoints3
 -- LITTLE_TO_ELM relatePoints4
 LITTLE_TO_ELM blank
+LITTLE_TO_ELM horrorFilms0
+LITTLE_TO_ELM cyclingAssociation0
+LITTLE_TO_ELM snsLogoWheel
 
 examples =
   [ makeExample "BLANK" blank
@@ -148,6 +161,7 @@ examples =
   , makeExample "Ferris Task Before" ferris2
   , makeExample "Ferris Task After" ferris2target
   , makeExample "Ferris Wheel Slideshow" ferrisWheelSlideshow
+  , makeExample "SnS Logo Wheel" snsLogoWheel
   , makeExample "Survey Results" surveyResultsTriHist2
   , makeExample "Hilbert Curve Animation" hilbertCurveAnimation
   , makeExample "Bar Graph" barGraph
@@ -159,6 +173,8 @@ examples =
   , makeExample "Haskell.org Logo" haskell
   , makeExample "Cover Logo" cover
   , makeExample "POP-PL Logo" poppl
+  , makeExample "Horror Films" horrorFilms0
+  , makeExample "Cycling Association" cyclingAssociation0
   , makeExample "Lillicon P" lilliconP
   , makeExample "Lillicon P, v2" lilliconP2
   , makeExample "Keyboard" keyboard
@@ -173,6 +189,7 @@ examples =
   , makeExample "Rounded Rect" roundedRect
 
   , makeExample "Thaw/Freeze" thawFreeze
+  , makeExample "Dictionaries" dictionaries
   , makeExample "3 Boxes" threeBoxes
   -- , makeExample "N Boxes H2" nBoxesH2
   , makeExample "N Boxes Sli" nBoxes

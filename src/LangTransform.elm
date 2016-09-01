@@ -104,6 +104,13 @@ removeUnusedVars exp =
             else
               letRemoved
 
+          -- Check if as-pattern is used
+          (PAs asWs ident _ innerPat, _) ->
+            if Set.member ident usedNames then
+              e__
+            else
+              ELet ws1 letKind rec (replacePrecedingWhitespacePat asWs innerPat) assign body ws2
+
           -- List assignment, no tail.
           (PList pws1 pats pws2 Nothing pws3, EList aws1 assigns aws2 Nothing aws3) ->
             if List.length pats /= List.length assigns then
@@ -289,7 +296,7 @@ changeRenamedVarsToOuter_ renamings exp =
       EVar ws ident ->
         case Dict.get ident renamings of
           Just newName -> EVar ws newName
-          Nothing      -> exp.val.e__
+          Nothing      -> e__
 
       ELet ws1 letKind rec pat assign body ws2 ->
         -- Newly assigned variables that shadow an outer variable should be
@@ -328,15 +335,9 @@ changeRenamedVarsToOuter_ renamings exp =
       EApp ws1 e1 es ws2     -> EApp ws1 (recurse e1) (List.map recurse es) ws2
       EOp ws1 op es ws2      -> EOp ws1 op (List.map recurse es) ws2
       EList ws1 es ws2 m ws3 -> EList ws1 (List.map recurse es) ws2 (Utils.mapMaybe recurse m) ws3
-      EIndList ws1 rs ws2    ->
-        let rangeRecurse r_ = case r_ of
-          Interval e1 ws e2 -> Interval (recurse e1) ws (recurse e2)
-          Point e1          -> Point (recurse e1)
-        in
-        EIndList ws1 (List.map (mapValField rangeRecurse) rs) ws2
       EIf ws1 e1 e2 e3 ws2      -> EIf ws1 (recurse e1) (recurse e2) (recurse e3) ws2
       ECase ws1 e1 branches ws2 ->
-        -- May need to remove branch pat vars from renamings here (shadow
+        -- TODO remove branch pat vars from renamings here (shadow
         -- checking)
         let newBranches =
           List.map
@@ -348,8 +349,24 @@ changeRenamedVarsToOuter_ renamings exp =
               branches
         in
         ECase ws1 (recurse e1) newBranches ws2
-      EComment ws s e1         -> EComment ws s (recurse e1)
-      EOption ws1 s1 ws2 s2 e1 -> EOption ws1 s1 ws2 s2 (recurse e1)
+      ETypeCase ws1 pat tbranches ws2 ->
+        -- TODO remove branch pat vars from renamings here (shadow
+        -- checking)
+        let newBranches =
+          List.map
+              (mapValField (\(TBranch_ bws1 branchType branchBody bws2) ->
+                -- let newlyAssignedIdents = identifiersSetInPat branchPat in
+                -- let renamingsShadowsRemoved = removeIdentsFromRenaming newlyAssignedIdents renamings in
+                TBranch_ bws1 branchType (recurse branchBody) bws2
+              ))
+              tbranches
+        in
+        ETypeCase ws1 pat newBranches ws2
+      EComment ws s e1              -> EComment ws s (recurse e1)
+      EOption ws1 s1 ws2 s2 e1      -> EOption ws1 s1 ws2 s2 (recurse e1)
+      ETyp ws1 pat tipe e ws2       -> ETyp ws1 pat tipe (recurse e) ws2
+      EColonType ws1 e ws2 tipe ws3 -> EColonType ws1 (recurse e) ws2 tipe ws3
+      ETypeAlias ws1 pat tipe e ws2 -> ETypeAlias ws1 pat tipe (recurse e) ws2
   in
   wrap e__'
 

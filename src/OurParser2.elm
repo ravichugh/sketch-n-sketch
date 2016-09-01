@@ -4,6 +4,9 @@ import String
 import Debug
 import Lazy exposing (Lazy, lazy, force)
 
+import Ace
+import Utils
+
 type alias Pos         = { line : Int, col : Int}
 type alias WithPos a   = { val : a, pos : Pos }
 type alias WithInfo a  = { val : a, start : Pos, end : Pos }
@@ -11,6 +14,10 @@ type alias WithInfo a  = { val : a, start : Pos, end : Pos }
 
 startPos               = { line = 1, col = 1}
 dummyPos               = { line = -1, col = -1 }
+
+strPos p =
+  let (i,j) = (toString p.line, toString p.col) in
+  "(Line:" ++ i ++ " Col:" ++ j ++ ")"
 
 offsetBy : Pos -> String -> Pos
 offsetBy start s =
@@ -37,14 +44,40 @@ runParser p =
     P f         -> f
     LazyP thunk -> force thunk
 
+{-
 parse : Parser a -> String -> Result String (WithInfo a)
 parse p s =
   case runParser p (WithPos s startPos) of
     [(s,{val})] -> if val == ""
                      then Ok s
-                     else Err "incomplete parse"
+                     else Err <| "incomplete parse, next unparsed: \n" ++ (Utils.takeNLines 10 val)
     [] -> Err ("no parse\n\n" ++ s)
     l  -> Err ("ambiguous parse\n\n" ++ toString (List.map (.val << fst) l))
+-}
+
+type alias ParseError = (String, Ace.Annotation)
+
+parse : Parser a -> String -> Result ParseError (WithInfo a)
+parse p s =
+  case runParser p (WithPos s startPos) of
+    [(a,{val})] ->
+      if val == "" then Ok a
+      else
+        let previewSuffix = Utils.takeNLines 10 val in
+        let err = "incomplete parse, next unparsed: \n" ++ previewSuffix in
+        let text = Utils.lines <|
+          [ "Successfully parsed up until: " ++ strPos a.end ++ "\n"
+          , "Here's where things start to go wrong:\n"
+          , previewSuffix
+          , "\n..."
+          ] in
+        Err (err, { row = a.end.line - 1, type_ = "error", text = text })
+    [] ->
+      let err = "no parse\n\n" ++ s in
+      Err (err, { row = 0, type_ = "error", text = "Parse Error..." })
+    l  ->
+      let err = "ambiguous parse\n\n" ++ toString (List.map (.val << fst) l) in
+      Err (err, { row = 0, type_ = "error", text = "Parse Error... ambiguous..." })
 
 
 satisfy : (Char -> Bool) -> Parser Char

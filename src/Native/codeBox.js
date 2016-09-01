@@ -256,6 +256,32 @@ window.initializers.push(function (elmRuntime) {
       }
       editor.updateSelectionMarkers();
 
+      // rkc 8/9/16: set 'annotations' here
+      // setDummyAnnotations();
+
+      editor.getSession().clearAnnotations();
+      var annots = [];
+      for (idx in codeBoxInfo.annotations) {
+          annots.push(
+              { row  : codeBoxInfo.annotations[idx].row
+              , text : codeBoxInfo.annotations[idx].text
+              , type : codeBoxInfo.annotations[idx].type_
+              });
+      }
+      editor.getSession().setAnnotations(annots);
+
+      // rkc 8/9/16: set 'tooltips' here
+      // setDummyTooltips();
+
+      var typeTooltip = new TokenTooltip(editor, getTooltipText);
+      clearTooltips();
+      for (idx in codeBoxInfo.tooltips) {
+          var row = codeBoxInfo.tooltips[idx].row;
+          var col = codeBoxInfo.tooltips[idx].col;
+          var ann = codeBoxInfo.tooltips[idx].text;
+          addTooltip(row, col, ann);
+      }
+
       //If the div rerendered (kept track of with a special attribute) then we
       // should copy the editor back into it
       reembed(false);
@@ -265,6 +291,35 @@ window.initializers.push(function (elmRuntime) {
 
       //Remember the current document name (for error recovery purposes)
       exName = codeBoxInfo.exName;
+  }
+
+  ////////////////////////////////////////////////////////////
+
+  // Demo: Displaying a hover annotation (for entire line)
+
+  function setDummyAnnotations() {
+
+    var annots = [
+      { row: 0 , text: "Info!" , type: "info" }
+    , { row: 1 , text: "Warning!" , type: "warning" }
+    , { row: 2 , text: "Error!" , type: "error" }
+    ];
+
+    editor.getSession().setAnnotations(annots);
+  }
+
+  ////////////////////////////////////////////////////////////
+
+  // Demo: A "tooltip" provides info when hovering over the token
+  // starting at a given row/column
+  //
+  // clearTooltips() and addTooltip() are defined in aceTooltips.js
+
+  function setDummyTooltips() {
+    var typeTooltip = new TokenTooltip(editor, getTooltipText);
+    clearTooltips();
+    addTooltip(0, 0, "Don't click on me, it hurts.");
+    addTooltip(0, 1, "Click on me to rewrite.");
   }
 
 });

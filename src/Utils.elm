@@ -43,6 +43,19 @@ maybeZip xs ys = case (xs, ys) of
   ([], [])         -> Just []
   _                -> Nothing
 
+maybeZipDicts : Dict comparable b -> Dict comparable c -> Maybe (Dict comparable (b,c))
+maybeZipDicts d1 d2 =
+  if Dict.keys d1 /= Dict.keys d2 then
+    Nothing
+  else
+    d1 |> Dict.map (\k v1 -> (v1, justGet k d2)) |> Just
+
+listsEqualBy elementEqualityFunc xs ys =
+  case (xs, ys) of
+    ([], [])         -> True
+    (x::xs', y::ys') -> (elementEqualityFunc x y) && (listsEqualBy elementEqualityFunc xs' ys')
+    _                -> False -- Lists not the same length
+
 zeroElements xs = case xs of
   [] -> True
   _  -> False
@@ -111,6 +124,28 @@ dedup_ f xs =
   in
     deduped
 
+-- Is there a one-to-one mapping from the elements in l1 to the elements in l2?
+--
+-- e.g oneToOneMappingExists ["a", "b", "a"] ["z", "y", "z"] => True
+--     oneToOneMappingExists ["a", "b", "b"] ["z", "y", "z"] => False
+oneToOneMappingExists l1 l2 =
+  let numericRepresentation list =
+    List.foldl
+        (\x (dict, numRep) ->
+          case Dict.get x dict of
+            Just n  ->
+              (dict, numRep ++ [n])
+            Nothing ->
+              let n     = Dict.size dict in
+              let dict' = Dict.insert x n dict in
+              (dict', numRep ++ [n])
+        )
+        (Dict.empty, [])
+        list
+    |> snd
+  in
+  numericRepresentation l1 == numericRepresentation l2
+
 clamp i j n =
   if n < i then      i
   else if j < n then j
@@ -131,6 +166,10 @@ munchString prefix s =
   if pre == prefix
     then Just suf
     else Nothing
+
+takeNLines : Int -> String -> String
+takeNLines n s =
+  String.lines s |> List.take n |> String.join "\n"
 
 oneOfEach : List (List a) -> List (List a)
 oneOfEach xss = case xss of
@@ -203,6 +242,10 @@ adjacentPairs includeLast list = case list of
 geti : Int -> List a -> a
 geti i = fromJust_ "Utils.geti" << List.head << List.drop (i-1)
 
+-- 1-based
+replacei : Int -> a -> List a -> List a
+replacei i xi' xs = List.take (i-1) xs ++ [xi'] ++ List.drop i xs
+
 allSame list = case list of
   []    -> False
   v::vs -> List.filter ((/=) v) vs == []
@@ -242,6 +285,14 @@ fromJust_ s mx = case mx of
   Just x  -> x
   Nothing -> Debug.crash <| "Utils.fromJust_: " ++ s
 
+fromOkay : String -> Result err a -> a
+fromOkay s mx = case mx of
+  Ok x  -> x
+  Err _ -> Debug.crash <| "fromOkay [" ++ s ++ "]: "
+
+-- TODO rename fromOkay and fromOk to fromOk and fromOkOrErrString
+
+fromOk : String -> Result String a -> a
 fromOk s mx = case mx of
   Ok x    -> x
   Err err -> Debug.crash <| "fromOk [" ++ s ++ "]: " ++ err
@@ -312,6 +363,18 @@ bindMaybe2 f mx my = bindMaybe (\x -> bindMaybe (f x) my) mx
 bindMaybe3 : (a -> b -> c -> Maybe d) -> Maybe a -> Maybe b -> Maybe c -> Maybe d
 bindMaybe3 f mx my mz = bindMaybe2 (\x y -> bindMaybe (f x y) mz) mx my
 
+projOk : List (Result a b) -> Result a (List b)
+projOk list =
+  List.foldr
+      (\res out ->
+        case (res, out) of
+          (_, Err _)         -> out
+          (Ok elem, Ok tail) -> Ok (elem::tail)
+          (Err s, _)         -> Err s
+      )
+      (Ok [])
+      list
+
 mapFst : (a -> a') -> (a, b) -> (a', b)
 mapFst f (a, b) = (f a, b)
 
@@ -325,6 +388,12 @@ thd3 (_,_,x) = x
 mapThd3 f (x,y,z) = (x, y, f z)
 
 fourth4 (_,_,_,x) = x
+
+bindResult : Result a b -> (b -> Result a b') -> Result a b'
+bindResult res f =
+  case res of
+    Err a -> Err a
+    Ok b  -> f b
 
 setIsEmpty  = (==) [] << Set.toList
 dictIsEmpty = (==) [] << Dict.toList
@@ -352,6 +421,13 @@ distance (x1,y1) (x2,y2) = sqrt <| (x2-x1)^2 + (y2-y1)^2
 
 distanceInt (x1,y1) (x2,y2) =
   distance (toFloat x1, toFloat y1) (toFloat x2, toFloat y2)
+
+type alias MaybeOne a = List a
+nothing               = []
+just                  = singleton
+maybeToMaybeOne mx    = case mx of
+  Nothing -> nothing
+  Just x  -> just x
 
 -- n:number -> i:[0,n) -> RGB
 numToColor n i =

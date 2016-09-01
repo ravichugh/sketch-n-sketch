@@ -3,13 +3,18 @@
 import sys
 from littleReader import *
 
-if len(sys.argv) != 2:
-  print("Usage: expandTemplate.py BASENAME")
+if len(sys.argv) < 2 or len(sys.argv) > 3:
+  print("Usage: expandTemplate.py BASENAME [SOURCEFOLDER]")
   sys.exit()
 
 base = sys.argv[1]
 baseTemplate = base + 'Template.elm'
 baseGenerated = base + 'Generated.elm'
+
+try:
+  sourceFolder = sys.argv[2]
+except IndexError:
+  sourceFolder = "../examples/"
 
 inn = open(baseTemplate)
 out = open(baseGenerated, "w+")
@@ -23,7 +28,7 @@ for s in inn:
       sys.exit()
     else:
       name = toks[1]
-      for t in readLittle(name): write(out, t)
+      for t in readLittle(name, sourceFolder): write(out, t)
   else:
     writeLn(out, s)
 

@@ -2,15 +2,24 @@ module ExamplesGenerated (list, scratchName, scratch) where
 
 import Lang
 import LangParser2 as Parser
+import Types
 import Eval
 import Utils
 import PreludeGenerated as Prelude
+import LangSvg
 
 makeExample name s =
   let thunk () =
-    let e = Utils.fromOk_ (Parser.parseE s) in
-    let (v,ws) = Eval.run e in
-    {e=e, v=v, ws=ws}
+    -- TODO tolerate parse errors, change Select Example
+    let e = Utils.fromOkay ("Error parsing example " ++ name) (Parser.parseE s) in
+    let ati = Types.typecheck e in
+    -----------------------------------------------------
+    -- if name == "*Prelude*" then
+    --   {e=e, v=LangSvg.dummySvgVal, ws=[], ati=ati}
+    -- else
+    -----------------------------------------------------
+    let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| Eval.run e in
+    {e=e, v=v, ws=ws, ati=ati}
   in
   (name, s, thunk)
 
@@ -1055,7 +1064,7 @@ ferris =
   (let center   [(circle 'black' cx cy rCenter)]
   (let frame    [(nStar 'goldenrod' 'darkgray' 3 numSpokes spokeLen 0 rotAngle cx cy)]
   (let spokePts (nPointsOnCircle numSpokes rotAngle cx cy spokeLen)
-  (let cars     (mapi (\\[i [x y]] (squareCenter (if (= i 0) 'pink' 'lightgray') x y wCar)) spokePts)
+  (let cars     (mapi (\\[i [x y]] (squareByCenter (if (= i 0) 'pink' 'lightgray') x y wCar)) spokePts)
   (let hubcaps  (map (\\[x y] (circle 'black' x y rCap)) spokePts)
     (concat [rim cars center frame hubcaps])
 ))))))))
@@ -1082,7 +1091,7 @@ ferris2 =
   (let cars
     (let wCar 30
     (let wHalfCar (/ wCar 2!)
-    (map (\\[x y] (squareCenter 'lightgray' x y wCar)) spokePts)))
+    (map (\\[x y] (squareByCenter 'lightgray' x y wCar)) spokePts)))
   (concat [rim cars center frame caps])))))))))
 
 (svg wheel)
@@ -1104,10 +1113,11 @@ ferris2target =
   (let cars
     (let wCar 27
     (let wHalfCar (/ wCar 2!)
-    (mapi (\\[i [x y]] (squareCenter (if (= 0 i) 'pink' 'lightgray') x y wCar)) spokePts)))
+    (mapi (\\[i [x y]] (squareByCenter (if (= 0 i) 'pink' 'lightgray') x y wCar)) spokePts)))
   (concat [rim cars center frame caps])))))))))
 
 (svg wheel)
+
 "
 
 ferrisWheelSlideshow =
@@ -2620,6 +2630,29 @@ thawFreeze =
 
 "
 
+dictionaries =
+ "(def d (empty))
+(def d1 (insert 'a' 3 d))
+(def d2 (insert 'b' 4 d1))
+(def d3 (remove 'a' d2))
+
+(def getWithDefault (\\(key default dict)
+  (let value (get key dict)
+  (typecase value
+    (Null default)
+    (_ value)))
+))
+
+(blobs [
+    [(text 50 30  (toString d2))]
+    [(text 50 50  (toString d3))]
+    [(text 50 70  (toString (get 'b' d3)))]
+    [(text 50 90  (toString (get 'a' d3)))]
+    [(text 50 110 (toString (getWithDefault 'a' 'default' d3)))]
+])
+
+"
+
 -- LITTLE_TO_ELM deleteBoxes
 cover =
  "; Logo for Cover
@@ -3848,6 +3881,170 @@ blank =
 
 "
 
+horrorFilms0 =
+ "
+; http://www.awwwards.com/gallery/4453/99-creative-logo-designs-for-inspiration/
+
+(def equiTriAt (\\(cx cy color sideLen rot)
+  (let len1 (* sideLen (/ 2! 3!))
+  (let len2 (* sideLen (/ 1! 3!))
+  (let point (circle color cx cy 15!)
+  (let tri (nStar 'none' color 10! 3! len1 len2 rot cx cy)
+  [tri point]
+))))))
+
+(def horror (\\(cx0 cy0 bgColor fgColor rBig rSmall sep)
+
+  (def helper
+    (ghosts (equiTriAt cx0 cy0 60 sep (pi))))
+
+  (def [ snap3 _ snap2 _ snap1 | _ ]
+    (polygonPoints (hd helper)))
+
+  (def backgroundCircle
+    [ (rawCircle bgColor 360 0 cx0 cy0 rBig) ])
+
+  (def foregroundCircle (\\[cx cy]
+    [ (rawCircle fgColor 360 0 cx cy rSmall) ]))
+
+  (concat [
+    backgroundCircle
+    (foregroundCircle snap1)
+    (foregroundCircle snap2)
+    (foregroundCircle snap3)
+    helper
+  ])
+))
+
+(blobs [
+  (horror 220 250 390 499 172 47 139)
+])
+
+"
+
+cyclingAssociation0 =
+ "
+; http://www.awwwards.com/gallery/4433/99-creative-logo-designs-for-inspiration/
+
+(def equiTriAt (\\(cx cy color sideLen rot)
+  (let len1 (* sideLen (/ 2! 3!))
+  (let len2 (* sideLen (/ 1! 3!))
+  (let point (circle color cx cy 15!)
+  (let tri (nStar 'none' color 10! 3! len1 len2 rot cx cy)
+  [tri (ghost point)]
+))))))
+
+
+(def logo (\\(cx0 cy0
+             wheelRadius wheelDistance
+             armPct
+             wheelCapSize
+             [logoColor logoStrokeWidth])
+
+  (def helper
+    (ghosts (equiTriAt cx0 cy0 60 wheelDistance 0!)))
+
+  (def [ snap1 _ snap2 _ snap3 | _ ]
+    (polygonPoints (hd helper)))
+
+  (def onePiece (\\([cx cy] rot)
+
+    (def wheel
+      (rawCircle 'none' logoColor logoStrokeWidth cx cy wheelRadius))
+
+    (def arm
+      (let armLength (* armPct wheelDistance)
+      (let dx (* armLength (cos (/ (pi) 3!)))
+      (let dy (* armLength (sin (/ (pi) 3!)))
+      (let d ['M' cx cy 'L' (+ cx dx) (- cy dy) 'L' (+ cx 8) (- cy dy)]
+        (rawPath 'none' logoColor logoStrokeWidth d 0))))))
+
+    (def cap
+      (rawCircle logoColor 360 0 cx cy wheelCapSize))
+
+    [wheel (rotateAround rot cx cy arm) cap]
+  ))
+
+  ; TODO use a triangle function that doesn't draw center
+  (def midTriangle
+    ; slightly less than 0.50 to keep room for width of stroke
+    (equiTriAt cx0 cy0 logoColor (* 0.42! wheelDistance) (pi)))
+
+  (concat [
+    (onePiece snap2 0)
+    (onePiece snap1 120)
+    (onePiece snap3 240)
+    midTriangle
+    helper
+  ])
+))
+
+(blobs [
+  (logo 167 182 49 156.42857142857147 0.7 9 [416 9])
+])
+
+"
+
+snsLogoWheel =
+ "
+(def logo (\\(rectColor
+             lineColor lineWidth
+             width height
+             rot
+             topLeft@[left top])
+
+  (def botRight@[right bot] [(+ left width) (+ top height)])
+
+  (def rect1
+    (rawRect rectColor 360 0 left top width height rot))
+
+  (def line2
+    (line lineColor lineWidth left top right bot))
+
+  (def line3
+    (lineBetween lineColor lineWidth
+      [left bot]
+      (halfwayBetween topLeft botRight)))
+
+  [ rect1 line2 line3 ]))
+
+(def wheel (\\(n
+              spokeLen spokeColor spokeWidth
+              logoSize logoColor1 logoColor2 logoLineWidth
+              hubRadius
+              rot center@[cx cy])
+
+  (def cars
+    (let car_i (\\[x y]
+      (let cx (- x (/ logoSize 2!))
+      (let cy (- y (/ logoSize 2!))
+        (logo logoColor1 logoColor2 logoLineWidth logoSize logoSize 0 [cx cy]))))
+    (radialArray n spokeLen rot car_i center)))
+
+  (def spokes
+    (let spoke_i (\\endpoint
+      [(lineBetween spokeColor spokeWidth center endpoint)])
+    (radialArray n spokeLen rot spoke_i center)))
+
+  (def hub
+    [(ring spokeColor spokeWidth cx cy hubRadius)])
+
+  (concat [ spokes cars hub ])
+))
+
+(blobs [
+  (wheel
+    (let n 16{1-30} n)
+    100 420 2
+    30 100 200 3
+    20
+    0
+    ([150 150] : Point)
+  )
+])
+
+"
+
 
 examples =
   [ makeExample "BLANK" blank
@@ -3885,6 +4082,7 @@ examples =
   , makeExample "Ferris Task Before" ferris2
   , makeExample "Ferris Task After" ferris2target
   , makeExample "Ferris Wheel Slideshow" ferrisWheelSlideshow
+  , makeExample "SnS Logo Wheel" snsLogoWheel
   , makeExample "Survey Results" surveyResultsTriHist2
   , makeExample "Hilbert Curve Animation" hilbertCurveAnimation
   , makeExample "Bar Graph" barGraph
@@ -3896,6 +4094,8 @@ examples =
   , makeExample "Haskell.org Logo" haskell
   , makeExample "Cover Logo" cover
   , makeExample "POP-PL Logo" poppl
+  , makeExample "Horror Films" horrorFilms0
+  , makeExample "Cycling Association" cyclingAssociation0
   , makeExample "Lillicon P" lilliconP
   , makeExample "Lillicon P, v2" lilliconP2
   , makeExample "Keyboard" keyboard
@@ -3910,6 +4110,7 @@ examples =
   , makeExample "Rounded Rect" roundedRect
 
   , makeExample "Thaw/Freeze" thawFreeze
+  , makeExample "Dictionaries" dictionaries
   , makeExample "3 Boxes" threeBoxes
   -- , makeExample "N Boxes H2" nBoxesH2
   , makeExample "N Boxes Sli" nBoxes

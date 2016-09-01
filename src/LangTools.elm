@@ -75,7 +75,7 @@ isTopLevel exp program =
       _                       -> False
 
 
--- Still needs to be rewritten to hand scopes created by case branches.
+-- Still needs to be rewritten to handle scopes created by case branches.
 --
 -- We care about the parent scope names for all the nested let/def assigns the
 -- LocId appears in--we don't care about let/def bodies.
@@ -108,8 +108,9 @@ scopeNamesLocLiftedThrough_ targetLocId scopeNames exp =
     ELet _ _ _ pat assigns body _ ->
       let scopeNames' =
         case pat.val of
-          PVar _ ident _ -> scopeNames ++ [ident]
-          _              -> scopeNames
+          PVar _ ident _  -> scopeNames ++ [ident]
+          PAs _ ident _ _ -> scopeNames ++ [ident]
+          _               -> scopeNames
       in
       -- Ident should only be added to assigns. Otherwise you get lots of junk
       -- names.
@@ -152,6 +153,9 @@ identifiersList exp =
         let pats = branchPats branches in
         (List.concatMap identifiersListInPat pats) ++ acc
 
+      ETypeCase _ pat _ _ ->
+        (identifiersListInPat pat) ++ acc
+
       ELet _ _ _ pat _ _ _ ->
         (identifiersListInPat pat) ++ acc
 
@@ -170,6 +174,7 @@ identifiersListInPat pat =
     PVar _ ident _              -> [ident]
     PList _ pats _ (Just pat) _ -> List.concatMap identifiersListInPat (pat::pats)
     PList _ pats _ Nothing    _ -> List.concatMap identifiersListInPat pats
+    PAs _ ident _ pat           -> ident::(identifiersListInPat pat)
     _                           -> []
 
 
@@ -206,6 +211,11 @@ renameIdentifierInPat old new pat =
       PList ws1 pats ws2 (Just pRest) ws3 ->
         PList ws1 (recurseList pats) ws2 (Just (recurse pRest)) ws3
 
+      PAs ws1 ident ws2 innerPat ->
+        if ident == old
+        then PAs ws1 new ws2 (recurse innerPat)
+        else PAs ws1 ident ws2 (recurse innerPat)
+
       _ ->
         pat.val
   in
@@ -237,6 +247,9 @@ renameIdentifier old new exp =
               branches
         in
         ECase ws1 e1 branches' ws2
+
+      ETypeCase ws1 pat tbranches ws2 ->
+        ETypeCase ws1 (renameIdentifierInPat old new pat) tbranches ws2
 
       ELet ws1 kind rec pat assign body ws2 ->
         ELet ws1 kind rec (renameIdentifierInPat old new pat) assign body ws2

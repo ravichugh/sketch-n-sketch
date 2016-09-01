@@ -38,7 +38,7 @@ valToHtml : Int -> Int -> Val -> Html.Html
 valToHtml w h v = case v.v_ of
   VList vs ->
     case List.map .v_ vs of
-      [VBase (String "svg"), VList vs1, VList vs2] ->
+      [VBase (VString "svg"), VList vs1, VList vs2] ->
         let wh = [numAttrToVal "width" w, numAttrToVal "height" h] in
         let v' = vList [vStr "svg", vList (wh ++ vs1), vList vs2] in
         compileValToNode v'
@@ -52,8 +52,8 @@ compileValToNode : Val -> VirtualDom.Node
 compileValToNode v = case v.v_ of
   VList vs ->
     case List.map .v_ vs of
-      [VBase (String "TEXT"), VBase (String s)] -> VirtualDom.text s
-      [VBase (String f), VList vs1, VList vs2] ->
+      [VBase (VString "TEXT"), VBase (VString s)] -> VirtualDom.text s
+      [VBase (VString f), VList vs1, VList vs2] ->
         (Svg.node f) (compileAttrVals vs1) (compileNodeVals vs2)
       _ ->
         Debug.crash "compileValToNode"
@@ -73,7 +73,7 @@ compileAttr : String -> AVal -> Svg.Attribute
 compileAttr k v = (attr k) (strAVal v)
 
 numAttrToVal a i =
-  vList [vBase (String a), vConst (toFloat i, dummyTrace)]
+  vList [vBase (VString a), vConst (toFloat i, dummyTrace)]
 
 type alias AVal = { av_ : AVal_, vtrace : VTrace }
 
@@ -82,7 +82,7 @@ type AVal_
   | AString String
   | APoints (List Point)
   | ARgba Rgba
-  | AColorNum NumTr -- Utils.numToColor [0,500)
+  | AColorNum (NumTr, Maybe NumTr) -- Utils.numToColor [0,500), and opacity
   | APath2 (List PathCmd, PathCounts)
   | ATransform (List TransformCmd)
   | ABounds (NumTr, NumTr, NumTr, NumTr)
@@ -129,7 +129,7 @@ type alias IdPoint = (Maybe Int, Point)
 
 strValOfAVal = strVal << valOfAVal
 
-expectedButGot x s = errorMsg <| "expected " ++ x ++", but got: " ++ s
+expectedButGot x s = crashWithMsg <| "expected " ++ x ++", but got: " ++ s
 
 -- temporary way to ignore numbers specified as strings (also see Sync)
 
@@ -144,7 +144,8 @@ toNum a = case a.av_ of
 
 toNumTr a = case a.av_ of
   ANum (n,t) -> (n,t)
-  AColorNum (n,t) -> (n,t)
+  -- TODO add back in?
+  -- AColorNum (n,t) -> (n,t)
   AString s  ->
     case String.toFloat s of
       Ok n -> (n, dummyTrace)
@@ -169,20 +170,36 @@ toTransformRot a = case a.av_ of
 
 valToAttr v = case v.v_ of
   VList [v1,v2] -> case (v1.v_, v2.v_) of
-    (VBase (String k), v2_) ->
+    (VBase (VString k), v2_) ->
      -- NOTE: Elm bug? undefined error when shadowing k (instead of choosing k')
      let (k',av_) =
       case (k, v2_) of
         ("points", VList vs)    -> (k, APoints <| List.map valToPoint vs)
-        ("fill", VList vs)      -> (k, ARgba <| valToRgba vs)
-        ("fill", VConst it)     -> (k, AColorNum it)
-        ("stroke", VList vs)    -> (k, ARgba <| valToRgba vs)
-        ("stroke", VConst it)   -> (k, AColorNum it)
+
+        ("fill"  , VList [v1,v2,v3,v4]) -> (k, ARgba <| valToRgba [v1,v2,v3,v4])
+        ("stroke", VList [v1,v2,v3,v4]) -> (k, ARgba <| valToRgba [v1,v2,v3,v4])
+
+        ("fill",   VConst it) -> (k, AColorNum (it, Nothing))
+        ("stroke", VConst it) -> (k, AColorNum (it, Nothing))
+
+        ("fill",   VList [v1,v2]) ->
+          case (v1.v_, v2.v_) of
+            (VConst it1, VConst it2) -> (k, AColorNum (it1, Just it2))
+            _                        -> Debug.crash "valToAttr: fill"
+        ("stroke", VList [v1,v2]) ->
+          case (v1.v_, v2.v_) of
+            (VConst it1, VConst it2) -> (k, AColorNum (it1, Just it2))
+            _                        -> Debug.crash "valToAttr: stroke"
+
         ("d", VList vs)         -> (k, APath2 (valsToPath2 vs))
+
         ("transform", VList vs) -> (k, ATransform (valsToTransform vs))
+
         ("BOUNDS", VList vs)    -> (k, ABounds <| valToBounds vs)
+
         (_, VConst it)          -> (k, ANum it)
-        (_, VBase (String s))   -> (k, AString s)
+        (_, VBase (VString s))  -> (k, AString s)
+
         _                       -> Debug.crash "valToAttr"
      in
      (k', AVal av_ v2.vtrace)
@@ -225,21 +242,25 @@ strAVal a = case a.av_ of
   ARgba tup -> strRgba tup
   APath2 p  -> strAPath2 (fst p)
   ATransform l -> Utils.spaces (List.map strTransformCmd l)
-  AColorNum n ->
+  AColorNum (n, Nothing) ->
     -- slight optimization:
     strRgba_ (ColorNum.convert (fst n))
     -- let (r,g,b) = Utils.numToColor maxColorNum (fst n) in
     -- strRgba_ [r,g,b,1]
+  AColorNum (n, Just (opacity, _)) ->
+    let (r,g,b) = Utils.numToColor maxColorNum (fst n) in
+    strRgba_ [toFloat r, toFloat g, toFloat b, opacity]
   ABounds bounds -> strBounds bounds
 
 valOfAVal : AVal -> Val
 valOfAVal a = flip Val a.vtrace <| case a.av_ of
-  AString s    -> VBase (String s)
+  AString s    -> VBase (VString s)
   ANum it      -> VConst it
   APoints l    -> VList (List.map pointToVal l)
   ARgba tup    -> VList (rgbaToVal tup)
   APath2 p     -> VList (List.concatMap valsOfPathCmd (fst p))
-  AColorNum nt -> VConst nt
+  AColorNum (nt, Nothing)   -> VConst nt
+  AColorNum (nt1, Just nt2) -> VList [vConst nt1, vConst nt2]
   _            -> Debug.crash "valOfAVal"
 
 valsOfPathCmd c =
@@ -283,7 +304,7 @@ pathIndexPoints nodeAttrs =
   pts
 
 
-valOfAttr (k,a) = vList [vBase (String k), valOfAVal a]
+valOfAttr (k,a) = vList [vBase (VString k), valOfAVal a]
   -- no VTrace to preserve...
 
 -- https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
@@ -300,7 +321,7 @@ valsToPath2_ : PathCounts -> List Val -> (List PathCmd, PathCounts)
 valsToPath2_ counts vs = case vs of
   []     -> ([], counts)
   v::vs' -> case v.v_ of
-    VBase (String cmd) ->
+    VBase (VString cmd) ->
       if matchCmd cmd "Z" then
         CmdZ cmd +++ valsToPath2_ counts vs'
       else if matchCmd cmd "MLT" then
@@ -388,7 +409,7 @@ valsToTransform = List.map valToTransformCmd
 
 valToTransformCmd v = case v.v_ of
   VList vs1 -> case List.map .v_ vs1 of
-    (VBase (String k) :: vs) ->
+    (VBase (VString k) :: vs) ->
       case (k, vs) of
         ("rotate",    [VConst n1, VConst n2, VConst n3]) -> Rot n1 n2 n3
         ("scale",     [VConst n1, VConst n2])            -> Scale n1 n2
@@ -416,7 +437,7 @@ valToPath_ vs =
   let pt (i,_) (j,_) = toString i ++ " " ++ toString j in
   case vs of
     [] -> []
-    VBase (String cmd) :: vs' ->
+    VBase (VString cmd) :: vs' ->
       if | matchCmd cmd "Z" -> cmd :: valToPath_ vs'
          | matchCmd cmd "MLT" ->
              let ([sx,sy],vs'') = projConsts 2 vs' in
@@ -491,6 +512,7 @@ getBoundsAttrs attrs0 =
 
 
 ------------------------------------------------------------------------------
+-- RootedIndexedTree (a.k.a. "Slate"): tree representation of SVG Canvas Value
 
 type alias ShapeKind = String
 type alias NodeId = Int
@@ -501,311 +523,12 @@ type IndexedTreeNode
   | SvgNode ShapeKind (List Attr) (List NodeId)
 type alias RootedIndexedTree = (NodeId, IndexedTree)
 
--- Must be a comparable to be put in a Set
--- Otherwise, this shouldn't be a string
-type alias ShapeFeature = String
-
-zoneToCrosshair : ShapeKind -> Zone -> Maybe (ShapeFeature, ShapeFeature)
-zoneToCrosshair shape zone =
-  pointCrosshair shape zone `Utils.plusMaybe`
-  cardinalCrosshair shape zone
-
-pointCrosshair shape zone =
-  case (shape, realZoneOf zone) of
-    ("line", ZPoint 1) -> Just ("lineX1", "lineY1")
-    ("line", ZPoint 2) -> Just ("lineX2", "lineX2")
-    ("polygon", ZPoint i) ->
-      let f xy = "polyPt" ++ xy ++ toString i in Just (f "X", f "Y")
-    ("path", ZPoint i) ->
-      let f xy = "pathPt" ++ xy ++ toString i in Just (f "X", f "Y")
-    _ -> Nothing
-
-cardinalAbbreviation shape zone =
-  let ifBoxy shape mx =
-    if shape == "rect" || shape == "BOX" || shape == "OVAL"
-      then mx
-      else Nothing
-  in
-  case (shape, zone) of
-    (_, "TopLeftCorner")  -> ifBoxy shape (Just "TL")
-    (_, "TopRightCorner") -> ifBoxy shape (Just "TR")
-    (_, "BotLeftCorner")  -> ifBoxy shape (Just "BL")
-    (_, "BotRightCorner") -> ifBoxy shape (Just "BR")
-    (_, "LeftEdge")       -> Just "CL"
-    (_, "RightEdge")      -> Just "CR"
-    (_, "TopEdge")        -> Just "TC"
-    (_, "BotEdge")        -> Just "BC"
-    _                     -> Nothing
-
-cardinalCrosshair shape zone =
-  Utils.bindMaybe
-    (\abbrv ->
-      let xFeatureName = String.toLower shape ++ abbrv ++ "X" in
-      let yFeatureName = String.toLower shape ++ abbrv ++ "Y" in
-      Just (xFeatureName, yFeatureName))
-    (cardinalAbbreviation shape zone)
-
--- TODO want to generate some of the strings below from these helpers,
--- but wouldn't like so nice because top-level patterns aren't allowed
-
-pointCrosshair_ : ShapeKind -> Zone -> (ShapeFeature, ShapeFeature)
-pointCrosshair_ shape zone = Utils.fromJust (zoneToCrosshair shape zone)
-
-cornerCrosshairs_ shape =
-  ( pointCrosshair shape "TopLeftCorner"
-  , pointCrosshair shape "TopRightCorner"
-  , pointCrosshair shape "BotLeftCorner"
-  , pointCrosshair shape "BotRightCorner"
-  )
-
-edgeCrosshairs_ shape =
-  ( pointCrosshair shape "TopEdge"
-  , pointCrosshair shape "RightEdge"
-  , pointCrosshair shape "BotEdge"
-  , pointCrosshair shape "LeftEdge"
-  )
-
--- Make sure that coordinate features match /.+[X|Y]\d*$/
--- So we can gather them back up into (X,Y) pairs again.
-shapeFill = "fill"
-shapeStroke = "stroke"
-shapeStrokeWidth = "strokeWidth"
-shapeRotation = "rotation"
-rectTLX = "rectTLX"
-rectTLY = "rectTLY"
-rectTRX = "rectTRX"
-rectTRY = "rectTRY"
-rectBLX = "rectBLX"
-rectBLY = "rectBLY"
-rectBRX = "rectBRX"
-rectBRY = "rectBRY"
-rectTCX = "rectTCX"
-rectTCY = "rectTCY"
-rectCRX = "rectCRX"
-rectCRY = "rectCRY"
-rectBCX = "rectBCX"
-rectBCY = "rectBCY"
-rectCLX = "rectCLX"
-rectCLY = "rectCLY"
-rectCX = "rectCX"
-rectCY = "rectCY"
-rectWidth = "rectWidth"
-rectHeight = "rectHeight"
-boxTLX = "boxTLX"
-boxTLY = "boxTLY"
-boxTRX = "boxTRX"
-boxTRY = "boxTRY"
-boxBLX = "boxBLX"
-boxBLY = "boxBLY"
-boxBRX = "boxBRX"
-boxBRY = "boxBRY"
-boxTCX = "boxTCX"
-boxTCY = "boxTCY"
-boxCRX = "boxCRX"
-boxCRY = "boxCRY"
-boxBCX = "boxBCX"
-boxBCY = "boxBCY"
-boxCLX = "boxCLX"
-boxCLY = "boxCLY"
-boxCX = "boxCX"
-boxCY = "boxCY"
-boxWidth = "boxWidth"
-boxHeight = "boxHeight"
-ovalTLX = "ovalTLX"
-ovalTLY = "ovalTLY"
-ovalTRX = "ovalTRX"
-ovalTRY = "ovalTRY"
-ovalBLX = "ovalBLX"
-ovalBLY = "ovalBLY"
-ovalBRX = "ovalBRX"
-ovalBRY = "ovalBRY"
-ovalTCX = "ovalTCX"
-ovalTCY = "ovalTCY"
-ovalCRX = "ovalCRX"
-ovalCRY = "ovalCRY"
-ovalBCX = "ovalBCX"
-ovalBCY = "ovalBCY"
-ovalCLX = "ovalCLX"
-ovalCLY = "ovalCLY"
-ovalCX = "ovalCX"
-ovalCY = "ovalCY"
-ovalRX = "ovalRX"
-ovalRY = "ovalRY"
-circleTCX = "circleTCX"
-circleTCY = "circleTCY"
-circleCRX = "circleCRX"
-circleCRY = "circleCRY"
-circleBCX = "circleBCX"
-circleBCY = "circleBCY"
-circleCLX = "circleCLX"
-circleCLY = "circleCLY"
-circleCX = "circleCX"
-circleCY = "circleCY"
-circleR = "circleR"
-ellipseTCX = "ellipseTCX"
-ellipseTCY = "ellipseTCY"
-ellipseCRX = "ellipseCRX"
-ellipseCRY = "ellipseCRY"
-ellipseBCX = "ellipseBCX"
-ellipseBCY = "ellipseBCY"
-ellipseCLX = "ellipseCLX"
-ellipseCLY = "ellipseCLY"
-ellipseCX = "ellipseCX"
-ellipseCY = "ellipseCY"
-ellipseRX = "ellipseRX"
-ellipseRY = "ellipseRY"
-lineX1 = "lineX1"
-lineY1 = "lineY1"
-lineX2 = "lineX2"
-lineY2 = "lineY2"
-lineCX = "lineCX"
-lineCY = "lineCY"
-polyPtX = "polyPtX"
-polyPtY = "polyPtY"
-polyMidptX = "polyMidptX"
-polyMidptY = "polyMidptY"
-pathPtX = "pathPtX"
-pathPtY = "pathPtY"
-
 children n = case n of
   TextNode _    -> []
   SvgNode _ _ l -> l
 
 emptyTree : RootedIndexedTree
-emptyTree = valToIndexedTree <| vList [vBase (String "svg"), vList [], vList []]
-
--- TODO use options for better error messages
-
-resolveToMovieCount : Int -> Val -> Int
-resolveToMovieCount slideNumber val =
-  let slideVal = fetchSlideVal slideNumber val in
-  fetchMovieCount slideVal
-
-resolveToMovieFrameVal : Int -> Int -> Float -> Val -> Val
-resolveToMovieFrameVal slideNumber movieNumber movieTime val =
-  let (_, _, _, _, movieFrameVal) = fetchEverything_ slideNumber movieNumber movieTime val in
-    movieFrameVal
-
-resolveToIndexedTree : Int -> Int -> Float -> Val -> RootedIndexedTree
-resolveToIndexedTree slideNumber movieNumber movieTime val =
-  let (_, _, _, _, indexedTree) = fetchEverything slideNumber movieNumber movieTime val in
-    indexedTree
-
-fetchEverything_ : Int -> Int -> Float -> Val -> (Int, Int, Float, Bool, Val)
-fetchEverything_ slideNumber movieNumber movieTime val =
-  let
-    slideCount = fetchSlideCount val
-    slideVal   = fetchSlideVal slideNumber val
-  in
-  let
-    movieCount = fetchMovieCount slideVal
-    movieVal   = fetchMovieVal movieNumber slideVal
-  in
-  let
-    (movieDuration, continue) = fetchMovieDurationAndContinueBool movieVal
-    movieFrameVal             = fetchMovieFrameVal slideNumber movieNumber movieTime movieVal
-  in
-    (slideCount, movieCount, movieDuration, continue, movieFrameVal)
-
-fetchEverything : Int -> Int -> Float -> Val -> (Int, Int, Float, Bool, RootedIndexedTree)
-fetchEverything slideNumber movieNumber movieTime val =
-  let (slideCount, movieCount, movieDuration, continue, movieVal) = fetchEverything_ slideNumber movieNumber movieTime val in
-    (slideCount, movieCount, movieDuration, continue, valToIndexedTree movieVal)
-
-fetchSlideCount : Val -> Int
-fetchSlideCount val =
-  case unwrapVList val of
-    Just [VConst (slideCount, _), _] -> round slideCount
-    _ -> 1 -- Program returned a plain SVG array structure...we hope.
-
-fetchMovieCount : Val -> Int
-fetchMovieCount slideVal =
-  case unwrapVList slideVal of
-    Just [VConst (movieCount, _), _] -> round movieCount
-    _ -> 1 -- Program returned a plain SVG array structure...we hope.
-
-fetchSlideVal : Int -> Val -> Val
-fetchSlideVal slideNumber val =
-  case unwrapVList val of
-    Just [VConst (slideCount, _), VClosure _ pat fexp fenv] ->
-      -- Program returned the slide count and a
-      -- function from slideNumber -> SVG array structure.
-      case pat.val of -- Find that function's argument name
-        PVar _ argumentName _ ->
-          -- Bind the slide number to the function's argument.
-          let fenv' = (argumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
-          let ((returnVal, _), _) = Eval.eval fenv' fexp in
-          returnVal
-        _ -> Debug.crash ("expected slide function to take a single argument, got " ++ (toString pat.val))
-    _ -> val -- Program returned a plain SVG array structure...we hope.
-
--- This is nasty b/c a two-arg function is really a function that returns a function...
-fetchMovieVal : Int -> Val -> Val
-fetchMovieVal movieNumber slideVal =
-  case unwrapVList slideVal of
-    Just [VConst (movieCount, _), VClosure _ pat fexp fenv] ->
-      case pat.val of -- Find the function's argument name
-        PVar _ movieNumberArgumentName _ ->
-          let fenv' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenv in
-          let ((returnVal, _), _) = Eval.eval fenv' fexp in
-          returnVal
-        _ -> Debug.crash ("expected movie function to take a single argument, got " ++ (toString pat.val))
-    _ -> slideVal -- Program returned a plain SVG array structure...we hope.
-
-fetchMovieDurationAndContinueBool : Val -> (Float, Bool)
-fetchMovieDurationAndContinueBool movieVal =
-  case unwrapVList movieVal of
-    Just [VBase (String "Static"), VClosure _ _ _ _] ->
-      (0.0, False)
-    Just [VBase (String "Dynamic"), VConst (movieDuration, _), VClosure _ _ _ _, VBase (Bool continue)] ->
-      (movieDuration, continue)
-    _ ->
-      (0.0, False) -- Program returned a plain SVG array structure...we hope.
-
--- This is nasty b/c a two-arg function is really a function that returns a function...
-fetchMovieFrameVal : Int -> Int -> Float -> Val -> Val
-fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
-  case unwrapVList movieVal of
-    Just [VBase (String "Static"), VClosure _ pat fexp fenv] ->
-      case pat.val of -- Find the function's argument names
-        PVar _ slideNumberArgumentName _ ->
-          let fenv' = (slideNumberArgumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
-          let ((innerVal, _), _) = Eval.eval fenv' fexp in
-          case innerVal.v_ of
-            VClosure _ patInner fexpInner fenvInner ->
-              case patInner.val of
-                PVar _ movieNumberArgumentName _ ->
-                  let fenvInner' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenvInner in
-                  let ((returnVal, _), _) = Eval.eval fenvInner' fexpInner in
-                  returnVal
-                _ -> Debug.crash ("expected static movie frame function to take two arguments, got " ++ (toString patInner.val))
-            _ -> Debug.crash ("expected static movie frame function to take two arguments, got " ++ (toString innerVal))
-        _ -> Debug.crash ("expected static movie frame function to take two arguments, got " ++ (toString pat.val))
-    Just [VBase (String "Dynamic"), VConst (movieDuration, _), VClosure _ pat fexp fenv, VBase (Bool _)] ->
-      case pat.val of -- Find the function's argument names
-        PVar _ slideNumberArgumentName _ ->
-          let fenv' = (slideNumberArgumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
-          let ((innerVal1, _), _) = Eval.eval fenv' fexp in
-          case innerVal1.v_ of
-            VClosure _ patInner1 fexpInner1 fenvInner1 ->
-              case patInner1.val of
-                PVar _ movieNumberArgumentName _ ->
-                  let fenvInner1' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenvInner1 in
-                  let ((innerVal2, _), _) = Eval.eval fenvInner1' fexpInner1 in
-                  case innerVal2.v_ of
-                    VClosure _ patInner2 fexpInner2 fenvInner2 ->
-                      case patInner2.val of
-                        PVar _ movieSecondsArgumentName _ ->
-                          let fenvInner2' = (movieSecondsArgumentName, vConst (movieTime, dummyTrace)) :: fenvInner2 in
-                          let ((returnVal, _), _) = Eval.eval fenvInner2' fexpInner2 in
-                          returnVal
-                        _ -> Debug.crash ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner2.val))
-                    _ -> Debug.crash ("expected dynamic movie frame function to take four arguments, got " ++ (toString innerVal2))
-                _ -> Debug.crash ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner1.val))
-            _ -> Debug.crash ("expected dynamic movie frame function to take four arguments, got " ++ (toString innerVal1))
-        _ -> Debug.crash ("expected dynamic movie frame function to take four arguments, got " ++ (toString pat.val))
-    _ -> movieVal -- Program returned a plain SVG array structure...we hope.
-
+emptyTree = valToIndexedTree <| vList [vBase (VString "svg"), vList [], vList []]
 
 valToIndexedTree : Val -> RootedIndexedTree
 valToIndexedTree v =
@@ -817,10 +540,10 @@ valToIndexedTree_ v (nextId, d) = case v.v_ of
 
   VList vs -> case List.map .v_ vs of
 
-    [VBase (String "TEXT"), VBase (String s)] ->
+    [VBase (VString "TEXT"), VBase (VString s)] ->
       (1 + nextId, Dict.insert nextId (TextNode s) d)
 
-    [VBase (String kind), VList vs1, VList vs2] ->
+    [VBase (VString kind), VList vs1, VList vs2] ->
       let processChild vi (a_nextId, a_graph , a_children) =
         let (a_nextId',a_graph') = valToIndexedTree_ vi (a_nextId, a_graph) in
         let a_children'          = (a_nextId' - 1) :: a_children in
@@ -897,123 +620,225 @@ removeSpecialAttrs =
 
 
 ------------------------------------------------------------------------------
--- Zones
+-- Misc Attribute Helpers
 
-type alias Zone = String
-
--- NOTE: would like to use only the following definition, but datatypes
--- aren't comparable... so using Strings for storing in dictionaries, but
--- using the following for pattern-matching purposes
-
-type RealZone = Z String | ZPoint Int | ZEdge Int
-
-addi s i = s ++ toString i
-
-realZoneOf s =
-  Maybe.withDefault (Z s) (toZPoint s `Utils.plusMaybe` toZEdge s)
-
-toZPoint s =
-  Utils.mapMaybe
-    (\suffix ->
-      if suffix == "" then Z "Point"
-      else ZPoint (Utils.fromOk_ (String.toInt suffix)))
-    (Utils.munchString "Point" s)
-
-toZEdge s =
-  Utils.mapMaybe
-    (\suffix ->
-      if suffix == "" then Z "Edge"
-      else ZEdge (Utils.fromOk_ (String.toInt suffix)))
-    (Utils.munchString "Edge" s)
-
--- TODO perhaps define Interface callbacks here
-
-zones = [
-    ("svg", [])
-  , ("BOX",
-      [ ("Interior", ["LEFT", "TOP", "RIGHT", "BOT"])
-      , ("TopLeftCorner", ["LEFT", "TOP"])
-      , ("TopRightCorner", ["TOP", "RIGHT"])
-      , ("BotRightCorner", ["RIGHT", "BOT"])
-      , ("BotLeftCorner", ["LEFT", "BOT"])
-      , ("LeftEdge", ["LEFT"])
-      , ("TopEdge", ["TOP"])
-      , ("RightEdge", ["RIGHT"])
-      , ("BotEdge", ["BOT"])
-      ])
-  , ("rect",
-      [ ("Interior", ["x", "y"])
-      , ("TopLeftCorner", ["x", "y", "width", "height"])
-      , ("TopRightCorner", ["y", "width", "height"])
-      , ("BotRightCorner", ["width", "height"])
-      , ("BotLeftCorner", ["x", "width", "height"])
-      , ("LeftEdge", ["x", "width"])
-      , ("TopEdge", ["y", "height"])
-      , ("RightEdge", ["width"])
-      , ("BotEdge", ["height"])
-      ])
-  , ("line",
-      [ ("Point1", ["x1", "y1"])
-      , ("Point2", ["x2", "y2"])
-      , ("Edge", ["x1", "y1", "x2", "y2"])
-      ])
-  , ("circle",
-      [ ("Interior", ["cx", "cy"])
-      , ("LeftEdge", ["cx", "r"])
-      , ("RightEdge", ["cx", "r"])
-      , ("TopEdge", ["cy", "r"])
-      , ("BotEdge", ["cy", "r"])
-      , ("TopLeftCorner", ["cx", "cy", "r"])
-      , ("TopRightCorner", ["cx", "cy", "r"])
-      , ("BotLeftCorner", ["cx", "cy", "r"])
-      , ("BotRightCorner", ["cx", "cy", "r"])
-      ])
-  , ("ellipse",
-      [ ("Interior", ["cx", "cy"])
-      , ("LeftEdge", ["cx", "rx"])
-      , ("RightEdge", ["cx", "rx"])
-      , ("TopEdge", ["cy", "ry"])
-      , ("BotEdge", ["cy", "ry"])
-      , ("TopLeftCorner", ["cx", "cy", "rx", "ry"])
-      , ("TopRightCorner", ["cx", "cy", "rx", "ry"])
-      , ("BotLeftCorner", ["cx", "cy", "rx", "ry"])
-      , ("BotRightCorner", ["cx", "cy", "rx", "ry"])
-      ])
-  , ("OVAL",
-      [ ("Interior", ["LEFT", "TOP", "RIGHT", "BOT"])
-      , ("TopLeftCorner", ["LEFT", "TOP"])
-      , ("TopRightCorner", ["TOP", "RIGHT"])
-      , ("BotRightCorner", ["RIGHT", "BOT"])
-      , ("BotLeftCorner", ["LEFT", "BOT"])
-      , ("LeftEdge", ["LEFT"])
-      , ("TopEdge", ["TOP"])
-      , ("RightEdge", ["RIGHT"])
-      , ("BotEdge", ["BOT"])
-      ])
-  -- TODO
-  , ("g", [])
-  , ("text", [])
-  , ("tspan", [])
-
-  -- symptom of the Sync.Dict0 type. see Sync.nodeToAttrLocs_.
-  , ("DUMMYTEXT", [])
-
-  -- NOTE: these are computed in Sync.getZones
-  -- , ("polygon", [])
-  -- , ("polyline", [])
-  -- , ("path", [])
-  ]
+maybeFindAttr_ id kind attr attrs =
+  case Utils.maybeFind attr attrs of
+    Just aval -> valOfAVal aval
+    Nothing   -> Debug.crash <| toString ("RelateAttrs 2", id, kind, attr, attrs)
 
 
-------------------------------------------------------------------------------
+getPolyXYi attrs si fstOrSnd =
+  let i = Utils.fromOk_ <| String.toInt si in
+  case Utils.maybeFind "points" attrs of
+    Just aval -> case aval.av_ of
+      APoints pts -> valOfAVal <| aNum <| fstOrSnd <| Utils.geti i pts
+      _           -> Debug.crash "getPolyXYi 2"
+    _ -> Debug.crash "getPolyXYi 1"
+
+
+getPathXYi attrs si fstOrSnd =
+  let i = Utils.fromOk_ <| String.toInt si in
+  let maybeIndexPoint =
+    pathIndexPoints attrs
+    |> Utils.maybeFind i
+  in
+  case maybeIndexPoint of
+    Just pt -> valOfAVal <| aNum <| fstOrSnd pt
+    Nothing -> Debug.crash "getPathXYi 3"
+
+
+maybeFindAttr id kind attr attrs =
+  case (kind, String.uncons attr) of
+    ("polygon", Just ('x', si)) -> getPolyXYi attrs si fst
+    ("polygon", Just ('y', si)) -> getPolyXYi attrs si snd
+    ("path",    Just ('x', si)) -> getPathXYi attrs si fst
+    ("path",    Just ('y', si)) -> getPathXYi attrs si snd
+    _                           -> maybeFindAttr_ id kind attr attrs
+
+
+getPtCount attrs =
+  case Utils.maybeFind "points" attrs of
+    Just aval -> case aval.av_ of
+      APoints pts -> List.length pts
+      _           -> Debug.crash "getPtCount 2"
+    _ -> Debug.crash "getPtCount 1"
+
+
+maybeFindBlobId l =
+  case Utils.maybeFind "BLOB" l of
+    Nothing -> Nothing
+    Just av ->
+      case av.av_ of
+        AString sBlobId -> Just (Utils.parseInt sBlobId)
+        _               -> Nothing
+
+
+maybeFindBounds l =
+  case Utils.maybeFind "BOUNDS" l of
+    Nothing -> Nothing
+    Just av ->
+      let roundBounds = True in
+      case (av.av_, roundBounds) of
+        (ABounds bounds, False) -> Just bounds
+        (ABounds (a,b,c,d), True) ->
+          let f = Utils.mapFst (toFloat << round) in
+          Just (f a, f b, f c, f d)
+        _ ->
+          Nothing
+
+
+justGetSvgNode : String -> NodeId -> RootedIndexedTree -> (ShapeKind, List Attr)
+justGetSvgNode cap nodeId (_, indexedTree) =
+  case Utils.justGet_ cap nodeId indexedTree of
+    SvgNode kind attrs _ -> (kind, attrs)
+    TextNode _           -> Debug.crash (cap ++ ": TextNode ?")
+
 
 dummySvgNode =
   let zero = aNum (0, dummyTrace) in
   SvgNode "circle" (List.map (\k -> (k, zero)) ["cx","cy","r"]) []
 
--- TODO break up and move slateToVal here
+
 dummySvgVal =
   let zero = vConst (0, dummyTrace) in
   let attrs = vList <| List.map (\k -> vList [vStr k, zero]) ["cx","cy","r"] in
   let children = vList [] in
   vList [vStr "circle", attrs, children]
+
+
+------------------------------------------------------------------------------
+-- Little Animations
+
+-- TODO use options for better error messages
+
+resolveToMovieCount : Int -> Val -> Result String Int
+resolveToMovieCount slideNumber val =
+  fetchSlideVal slideNumber val
+  |> Result.map fetchMovieCount
+
+resolveToMovieFrameVal : Int -> Int -> Float -> Val -> Result String Val
+resolveToMovieFrameVal slideNumber movieNumber movieTime val =
+  fetchEverything_ slideNumber movieNumber movieTime val
+  |> Result.map (\(_, _, _, _, movieFrameVal) -> movieFrameVal)
+
+resolveToIndexedTree : Int -> Int -> Float -> Val -> Result String RootedIndexedTree
+resolveToIndexedTree slideNumber movieNumber movieTime val =
+  fetchEverything slideNumber movieNumber movieTime val
+  |> Result.map (\(_, _, _, _, indexedTree) -> indexedTree)
+
+fetchEverything_ : Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, Val)
+fetchEverything_ slideNumber movieNumber movieTime val =
+  let slideCount = fetchSlideCount val in
+  fetchSlideVal slideNumber val
+  `Result.andThen` (\slideVal ->
+    let movieCount = fetchMovieCount slideVal in
+    fetchMovieVal movieNumber slideVal
+    `Result.andThen` (\movieVal ->
+      let (movieDuration, continue) = fetchMovieDurationAndContinueBool movieVal in
+      fetchMovieFrameVal slideNumber movieNumber movieTime movieVal
+      |> Result.map (\movieFrameVal ->
+        (slideCount, movieCount, movieDuration, continue, movieFrameVal)
+      )
+    )
+  )
+
+fetchEverything : Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, RootedIndexedTree)
+fetchEverything slideNumber movieNumber movieTime val =
+  fetchEverything_ slideNumber movieNumber movieTime val
+  |> Result.map (\(slideCount, movieCount, movieDuration, continue, movieVal) ->
+                  (slideCount, movieCount, movieDuration, continue, valToIndexedTree movieVal))
+
+fetchSlideCount : Val -> Int
+fetchSlideCount val =
+  case unwrapVList val of
+    Just [VConst (slideCount, _), _] -> round slideCount
+    _ -> 1 -- Program returned a plain SVG array structure...we hope.
+
+fetchMovieCount : Val -> Int
+fetchMovieCount slideVal =
+  case unwrapVList slideVal of
+    Just [VConst (movieCount, _), _] -> round movieCount
+    _ -> 1 -- Program returned a plain SVG array structure...we hope.
+
+fetchSlideVal : Int -> Val -> Result String Val
+fetchSlideVal slideNumber val =
+  case unwrapVList val of
+    Just [VConst (slideCount, _), VClosure _ pat fexp fenv] ->
+      -- Program returned the slide count and a
+      -- function from slideNumber -> SVG array structure.
+      case pat.val of -- Find that function's argument name
+        PVar _ argumentName _ ->
+          -- Bind the slide number to the function's argument.
+          let fenv' = (argumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
+          Eval.eval fenv' [] fexp
+          |> Result.map (\((returnVal, _), _) -> returnVal)
+        _ -> Err ("expected slide function to take a single argument, got " ++ (toString pat.val))
+    _ -> Ok val -- Program returned a plain SVG array structure...we hope.
+
+-- This is nasty b/c a two-arg function is really a function that returns a function...
+fetchMovieVal : Int -> Val -> Result String Val
+fetchMovieVal movieNumber slideVal =
+  case unwrapVList slideVal of
+    Just [VConst (movieCount, _), VClosure _ pat fexp fenv] ->
+      case pat.val of -- Find the function's argument name
+        PVar _ movieNumberArgumentName _ ->
+          let fenv' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenv in
+          Eval.eval fenv' [] fexp
+          |> Result.map (\((returnVal, _), _) -> returnVal)
+        _ -> Err ("expected movie function to take a single argument, got " ++ (toString pat.val))
+    _ -> Ok slideVal -- Program returned a plain SVG array structure...we hope.
+
+fetchMovieDurationAndContinueBool : Val -> (Float, Bool)
+fetchMovieDurationAndContinueBool movieVal =
+  case unwrapVList movieVal of
+    Just [VBase (VString "Static"), VClosure _ _ _ _] ->
+      (0.0, False)
+    Just [VBase (VString "Dynamic"), VConst (movieDuration, _), VClosure _ _ _ _, VBase (VBool continue)] ->
+      (movieDuration, continue)
+    _ ->
+      (0.0, False) -- Program returned a plain SVG array structure...we hope.
+
+-- This is nasty b/c a two-arg function is really a function that returns a function...
+fetchMovieFrameVal : Int -> Int -> Float -> Val -> Result String Val
+fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
+  case unwrapVList movieVal of
+    Just [VBase (VString "Static"), VClosure _ pat fexp fenv] ->
+      case pat.val of -- Find the function's argument names
+        PVar _ slideNumberArgumentName _ ->
+          let fenv' = (slideNumberArgumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
+          case Eval.eval fenv' [] fexp |> Result.map (\((innerVal, _), _) -> innerVal.v_) of
+            Ok (VClosure _ patInner fexpInner fenvInner) ->
+              case patInner.val of
+                PVar _ movieNumberArgumentName _ ->
+                  let fenvInner' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenvInner in
+                  Eval.eval fenvInner' [] fexpInner
+                  |> Result.map (\((returnVal, _), _) -> returnVal)
+                _ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString patInner.val))
+            Ok v_ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString v_))
+            Err s -> Err s
+        _ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString pat.val))
+    Just [VBase (VString "Dynamic"), VConst (movieDuration, _), VClosure _ pat fexp fenv, VBase (VBool _)] ->
+      case pat.val of -- Find the function's argument names
+        PVar _ slideNumberArgumentName _ ->
+          let fenv' = (slideNumberArgumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
+          case Eval.eval fenv' [] fexp |> Result.map (\((innerVal1, _), _) -> innerVal1.v_) of
+            Ok (VClosure _ patInner1 fexpInner1 fenvInner1) ->
+              case patInner1.val of
+                PVar _ movieNumberArgumentName _ ->
+                  let fenvInner1' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenvInner1 in
+                  case Eval.eval fenvInner1' [] fexpInner1 |> Result.map (\((innerVal2, _), _) -> innerVal2.v_) of
+                    Ok (VClosure _ patInner2 fexpInner2 fenvInner2) ->
+                      case patInner2.val of
+                        PVar _ movieSecondsArgumentName _ ->
+                          let fenvInner2' = (movieSecondsArgumentName, vConst (movieTime, dummyTrace)) :: fenvInner2 in
+                          Eval.eval fenvInner2' [] fexpInner2
+                          |> Result.map (\((returnVal, _), _) -> returnVal)
+                        _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner2.val))
+                    Ok innerV2_ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString innerV2_))
+                    Err s -> Err s
+                _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner1.val))
+            Ok innerV1_ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString innerV1_))
+            Err s -> Err s
+        _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString pat.val))
+    _ -> Ok movieVal -- Program returned a plain SVG array structure...we hope.

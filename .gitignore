@@ -6,6 +6,7 @@ src/LOG.txt
 build/out/sns.js
 build/out/codeBox.js
 build/out/ace.js
+build/out/aceTooltips.js
 build/out/toggleAnimationLoopback.js
 build/out/mode-little.js
 build/out/theme-chrome.js
@@ -14,6 +15,7 @@ build/out/img/*
 src/*swp
 src/*swo
 examples/*swp
+.bin/
 README.md.bak
 ace-builds/ChangeLog.txt
 ace-builds/LICENSE

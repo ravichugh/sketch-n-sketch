@@ -6,6 +6,7 @@ module CodeBox (interpretAceEvents, packageModel, tripRender,
                 saveRequestInfo, runRequestInfo) where
 
 import Lang exposing (errorPrefix)
+import Ace
 
 import Graphics.Element as GE
 import InterfaceModel as Model exposing (Event, sampleModel, events)
@@ -30,9 +31,11 @@ import Debug
 type alias AceCodeBoxInfo =
     { kind        : String
     , code        : String
-    , cursorPos   : Model.AcePos
-    , selections  : List Model.Range
-    , highlights  : List Model.Highlight
+    , cursorPos   : Ace.Pos
+    , selections  : List Ace.Range
+    , highlights  : List Ace.Highlight
+    , annotations : List Ace.Annotation
+    , tooltips    : List Ace.Tooltip
     , bounce      : Bool
     , exName      : String
     }
@@ -40,8 +43,8 @@ type alias AceCodeBoxInfo =
 type alias AceMessage =
   { evt          : String
   , strArg       : String
-  , cursorArg    : Model.AcePos
-  , selectionArg : List Model.Range
+  , cursorArg    : Ace.Pos
+  , selectionArg : List Ace.Range
   , exNameArg    : String
   }
 
@@ -53,6 +56,8 @@ initAceCodeBoxInfo =
   , cursorPos = sampleModel.codeBoxInfo.cursorPos
   , selections = sampleModel.codeBoxInfo.selections
   , highlights = sampleModel.codeBoxInfo.highlights
+  , annotations = sampleModel.codeBoxInfo.annotations
+  , tooltips = sampleModel.codeBoxInfo.tooltips
   , bounce = True
   , exName = ""
   }
@@ -71,6 +76,8 @@ saveRequestInfo saveName =
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
     , selections = []
     , highlights = []
+    , annotations = []
+    , tooltips = []
     , bounce = True
     , exName = saveName
     }
@@ -84,6 +91,8 @@ runRequestInfo =
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
     , selections = []
     , highlights = []
+    , annotations = []
+    , tooltips = []
     , bounce = True
     , exName = ""
     }
@@ -97,6 +106,8 @@ cleanRequestInfo =
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
     , selections = []
     , highlights = []
+    , annotations = []
+    , tooltips = []
     , bounce = True
     , exName = ""
     }
@@ -110,6 +121,8 @@ codeRequestInfo =
     , cursorPos = sampleModel.codeBoxInfo.cursorPos
     , selections = []
     , highlights = []
+    , annotations = []
+    , tooltips = []
     , bounce = True
     , exName = ""
     }
@@ -123,6 +136,8 @@ poke rerender rerenders model =
     , cursorPos = model.codeBoxInfo.cursorPos
     , selections = []
     , highlights = []
+    , annotations = model.codeBoxInfo.annotations
+    , tooltips = model.codeBoxInfo.tooltips
     , bounce = rerender
     , exName = ""
     }
@@ -136,6 +151,8 @@ assertion rerender rerenders model =
     , cursorPos = model.codeBoxInfo.cursorPos
     , selections = model.codeBoxInfo.selections
     , highlights = model.codeBoxInfo.highlights
+    , annotations = model.codeBoxInfo.annotations
+    , tooltips = model.codeBoxInfo.tooltips
     , bounce = rerender
     , exName = model.exName
     }
@@ -151,6 +168,8 @@ interpretAceEvents amsg model =
                 , codeBoxInfo = { cursorPos = amsg.cursorArg
                                  , selections = amsg.selectionArg
                                  , highlights = m.codeBoxInfo.highlights
+                                 , annotations = m.codeBoxInfo.annotations
+                                 , tooltips = m.codeBoxInfo.tooltips
                                  }
             })
   in
@@ -164,6 +183,8 @@ interpretAceEvents amsg model =
                                                 , selections = amsg.selectionArg
                                                 , highlights =
                                                     model.codeBoxInfo.highlights
+                                                , annotations = model.codeBoxInfo.annotations
+                                                , tooltips = model.codeBoxInfo.tooltips
                                                 }
                         }
         in commitLocalSave model.exName newModel
@@ -198,6 +219,8 @@ recoverFromError amsg fresh =
             , codeBoxInfo = { selections = amsg.selectionArg
                              , cursorPos  = amsg.cursorArg
                              , highlights = fresh.codeBoxInfo.highlights
+                             , annotations = fresh.codeBoxInfo.annotations
+                             , tooltips = fresh.codeBoxInfo.tooltips
                              }
     }
 

@@ -5,10 +5,18 @@ var oop = require("../lib/oop");
 var TextHighlightRules = require("./text_highlight_rules").TextHighlightRules;
 
 var LittleHighlightRules = function() {
-    var builtinFunctions = "if|pi|cos|sin|arccos|arcsin|floor|ceiling|round|toStringid|always|compose|fst|len|map|map2|foldl|foldr|append|concat|concatMap|cartProd|zip|nil|cons|snoc|hd|tl|reverse|range|list0N|list1N|repeat|intermingle|mult|minus|div|neg|not|implies|clamp|joinStrings|concatStrings|spaces|delimit|parens|circle|ring|ellipse|rect|square|line|polygon|polyline|path|text|addAttr|rectCenter|square|squareCenter|circle_|ellipse_|rect_|square_|line_|polygon_|path_|updateCanvas|twoPi|halfPi|nPointsOnUnitCircle|nPointsOnCircle|nStar|zones|hideZonesTail|basicZonesTail|hSlider_|hSlider|button_|button|rotate";
+    var builtinFunctions = "if|pi|cos|sin|arccos|arcsin|floor|ceiling|round|empty|insert|get|remove|always|compose|fst|len|map|map2|foldl|foldr|append|concat|concatMap|cartProd|zip|nil|cons|snoc|hd|tl|reverse|range|list0N|list1N|repeat|intermingle|mult|minus|div|neg|not|implies|clamp|joinStrings|concatStrings|spaces|delimit|parens|circle|ring|ellipse|rect|square|line|polygon|polyline|path|text|addAttr|rectCenter|square|squareCenter|circle_|ellipse_|rect_|square_|line_|polygon_|path_|updateCanvas|twoPi|halfPi|nPointsOnUnitCircle|nPointsOnCircle|nStar|zones|hideZonesTail|basicZonesTail|hSlider_|hSlider|button_|button|rotate";
 
     // regexp must not have capturing parentheses. Use (?:) instead.
     // regexps are ordered -> the first match is used
+
+    var rParen = {
+        regex : /\)/,
+        onMatch : function(value, state, stack) {
+            this.next = stack.pop();
+            return "paren.rparen";
+        }
+    };
 
 this.$rules =
         {
@@ -25,20 +33,14 @@ this.$rules =
                 return "paren.lparen";
             }
         },
-        {
-            regex : /\)/,
-            onMatch : function(value, state, stack) {
-                this.next = stack.pop();
-                return "paren.rparen";
-            }
-        },
+        rParen,
         {
             token : "constant.numeric", // float
             regex : /\b\d+(?:\.\d+)?\b/
         },
         {
             token : "constant.library",
-            regex : /true|false/
+            regex : /true|false|null/
         },
         {
             token : "variable",
@@ -48,13 +50,32 @@ this.$rules =
             token : "string",
             regex : '\'(?=.)',
             next  : "qstring"
+        },
+        {
+            token : "string",
+            regex : '"(?=.)',
+            next  : "qqstring"
+        },
+        {
+            token : "keyword.type.little",
+            regex : /:/,
+            next  : "inType"
         }
     ],
     "funcname" : [
         {
             regex : /\b(?:def|defrec|let|letrec)\b/,
             onMatch : function(value, state, stack) {
-                this.next = "pattern";
+                stack.push("start");
+                this.next = "patternStart";
+                return "storage.type.function-type.little";
+            }
+        },
+        {
+            regex : /\btyp\b/,
+            onMatch : function(value, state, stack) {
+                stack.push("inType");
+                this.next = "patternStart";
                 return "storage.type.function-type.little";
             }
         },
@@ -77,7 +98,7 @@ this.$rules =
         },
         {
             token : "keyword.operator.little",
-            regex : /\+|-|\*|\/|</,
+            regex : /\+|-|\*|\/|<\s/,
             next : "start"
         },
         {
@@ -86,17 +107,77 @@ this.$rules =
             next : "start"
         },
         {
+            regex : /\btypecase\b/,
+            onMatch : function(value, state, stack) {
+                stack.push("inTypeCase");
+                this.next = "patternStart";
+                return "storage.type.function-type.little";
+            }
+        },
+        {
             token : "function.little",
             regex: /(?:\w[\w']*)/,
             next : "start"
         },
     ],
+    "startType" : [
+        {
+            token : "keyword.operator.type.little",
+            regex : /(?:List|->)(?:$|\s)/,
+            next : "inType"
+        }
+    ],
+    "inType" : [
+        {
+            regex : /\(/,
+            onMatch : function(value, state, stack) {
+                stack.push("inType");
+                this.next = "startType";
+                return "paren.lparen";
+            }
+        },
+        rParen,
+        {
+            token : "support.type.little",
+            regex : /\b(?:_|Num|Bool|String|Null|[A-Z]\w*)\b/,
+        },
+        {
+            token : "support.type.little",
+            regex : /\b[a-z]\w*\b/,
+        },
+    ],
+    "startTypeCaseBranchPat" : [
+        {
+            regex : /\(/,
+            onMatch : function(value, state, stack) {
+                stack.push("start");
+                this.next = "startType";
+                return "paren.lparen";
+            }
+        },
+        {
+            token : "support.type.little",
+            regex : /\b(?:_|Num|Bool|String|Null|[A-Z]\w*)\b/,
+            next : "start"
+        }
+    ],
+    "inTypeCase" : [
+        {
+            regex : /\(/,
+            onMatch : function(value, state, stack) {
+                stack.push("inTypeCase");
+                this.next = "startTypeCaseBranchPat";
+                return "paren.lparen";
+            }
+        },
+        rParen,
+    ],
     "lambda" : [
         {
             regex : /\[/,
             onMatch : function(value, state, stack) {
-                stack.push("pattern");
-                this.next = "pattern";
+                stack.push("start");
+                this.next = "patternStart";
                 return "paren.lparen";
             }
         },
@@ -122,6 +203,32 @@ this.$rules =
             regex : /\w[\w']*/
         }
     ],
+    "patternStart" : [
+      {
+          token : "paren.lparen",
+          regex : /\[/,
+          next : "pattern"
+      },
+      {
+          token : "variable.parameter",
+          regex : /\w[\w']*(?=\s*@)/,
+          next : "at"
+      },
+      {
+          regex : /\w[\w']*/,
+          onMatch : function(value, state, stack) {
+              this.next = stack.pop();
+              return "variable.parameter";
+          }
+      },
+    ],
+    "at" : [
+        {
+            token : "keyword",
+            regex : "@",
+            next  : "patternStart"
+        }
+    ],
     "pattern" : [
         {
             regex : /\[/,
@@ -134,37 +241,19 @@ this.$rules =
         {
             regex : /\]/,
             onMatch : function(value, state, stack) {
-                var lastPush = stack.pop();
-                if (lastPush == "pattern") {
-                    var nextLastPush = stack.pop();
-                    if (nextLastPush != "pattern") {
-                        this.next = nextLastPush;
-                    } else {
-                        stack.push(nextLastPush);
-                        this.next = lastPush;
-                    }
-                } else {
-                    //Should never get here, but just in case...
-                    this.next = lastPush;
-                }
+                this.next = stack.pop();
                 return "paren.rparen";
             }
         },
         {
             token : "variable.parameter",
-            regex : /\w[\w']*/,
-            onMatch : function(value, state, stack) {
-                var lastPush = stack.pop();
-                if (lastPush == "startpat") {
-                    this.next = "start";
-                } else {
-                    stack.push(lastPush);
-                    this.next = lastPush;
-                }
-                return "variable.parameter";
-            }
+            regex : /\w[\w']*(?=\s*@)/,
+            next : "at"
         },
-
+        {
+            token : "variable.parameter",
+            regex : /\w[\w']*/,
+        },
     ],
     "qstring": [
         {
@@ -178,6 +267,21 @@ this.$rules =
         {
             token : "string",
             regex : '\'',
+            next  : "start"
+        }
+    ],
+    "qqstring": [
+        {
+            token: "constant.character.escape.little",
+            regex: "\\\\."
+        },
+        {
+            token : "string",
+            regex : '[^\"\\\\]+'
+        },
+        {
+            token : "string",
+            regex : '\"',
             next  : "start"
         }
     ]

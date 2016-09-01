@@ -1,13 +1,9 @@
 module Sync (Options, defaultOptions, syncOptionsOf,
              heuristicsNone, heuristicsFair, heuristicsBiased, toggleHeuristicMode,
-             inferLocalUpdates, inferStructuralUpdates, prepareLiveUpdates,
-             inferDeleteUpdates,
-             inferNewRelationships,
-             relateSelectedAttrs,
-             relate,
-             strCall,
+             inferLocalUpdates, prepareLiveUpdates,
              printZoneTable, LiveInfo, Triggers, tryToBeSmart,
-             locsOfTrace
+             locsOfTrace,
+             solve -- Controller needs to fudge directly with solve for point slider widgets...
              ) where
 
 import Dict exposing (Dict)
@@ -19,6 +15,7 @@ import String
 import Lang exposing (..)
 -- import LangSvg exposing (NodeId, ShapeKind, Zone, addi)
 import LangSvg exposing (..)
+import ShapeWidgets exposing (Zone)
 import Eval
 import OurParser2 as P
 import LangParser2 as Parser
@@ -29,6 +26,10 @@ import LocEqn exposing (..)
 ------------------------------------------------------------------------------
 
 debugLog = Config.debugLog Config.debugSync
+
+------------------------------------------------------------------------------
+
+addi s i = s ++ toString i
 
 ------------------------------------------------------------------------------
 -- Sync.Options
@@ -93,6 +94,7 @@ fillHole_ new vc subst = case vc.v_ of
   VBase _          -> vc
   VClosure _ _ _ _ -> vc   -- not recursing into closures
   VList vs         -> vList (List.map (\v -> fillHole_ new v subst) vs)
+  VDict d          -> vDict (Dict.map (\_ v -> fillHole_ new v subst) d)
 
 type VDiff = Same Val | Diff VContext HoleSubst
 
@@ -111,12 +113,16 @@ diff v1 v2 =
     _ ->
       Utils.mapMaybe snd res
 
-eqV (v1,v2) = case (v1.v_, v2.v_) of            -- equality modulo traces
+eqV (v1,v2) = case (v1.v_, v2.v_) of -- equality modulo traces
   (VConst it, VConst jt) -> fst it == fst jt
   (VList vs1, VList vs2) ->
     case Utils.maybeZip vs1 vs2 of
       Nothing -> False
       Just l  -> List.all eqV l
+  (VDict d1, VDict d2) ->
+    case Utils.maybeZipDicts d1 d2 of
+      Nothing -> False
+      Just dd -> List.all eqV (Dict.values dd)
   _ -> v1 == v2
 
 diffNoCheck v1 v2 =
@@ -127,7 +133,7 @@ diffNoCheck v1 v2 =
 
 diff_ : Int -> Val -> Val -> Maybe (Int, VDiff)
 diff_ k v1 v2 = case (v1.v_, v2.v_) of
-  (VBase Star, VConst _) -> Just (k, Same v2)
+  (VBase VStar, VConst _) -> Just (k, Same v2)
   (VConst (i,tr), VConst (j,_)) ->
     if i == j then
       Just (k, Same (vConst (i,tr)))  -- cf. comment above
@@ -162,6 +168,34 @@ diff_ k v1 v2 = case (v1.v_, v2.v_) of
                              Just (k, Diff (vList (vc::vs)) d)
                 _ -> Debug.crash "diff_"
         ) (Just (k, Same (vList []))) l
+  (VDict d1, VDict d2) ->
+    case Utils.maybeZipDicts d1 d2 of
+      Nothing -> Nothing
+      Just dd ->
+        Dict.foldr (\key (vi1,vi2) acc ->
+          case acc of
+            Nothing -> Nothing
+            Just (k, Same vUgh) ->
+              case vUgh.v_ of
+                VDict accDict ->
+                  case diff_ k vi1 vi2 of
+                    Nothing                 -> Nothing
+                    Just (k, Same v)        -> Just (k, Same (vDict <| Dict.insert key v accDict))
+                    Just (k, Diff vc subst) -> Just (k, Diff (vDict <| Dict.insert key vc accDict) subst)
+                _ -> Debug.crash "diff_"
+            Just (k, Diff vUgh subst) ->
+              case vUgh.v_ of
+                VDict accDict ->
+                  case diff_ k vi1 vi2 of
+                    Nothing                 -> Nothing
+                    Just (k, Same v)        -> Just (k, Diff (vDict <| Dict.insert key v accDict) subst)
+                    Just (k, Diff vc sub')  ->
+                      if not multiLeafDiffs
+                        then Nothing
+                        else let sub'' = Dict.union subst sub' in
+                             Just (k, Diff (vDict <| Dict.insert key vc accDict) sub'')
+                _ -> Debug.crash "diff_"
+        ) (Just (k, Same (vDict Dict.empty))) dd
   _ ->
     if v1 == v2
       then Just (k, Same v1)
@@ -292,7 +326,7 @@ evalTrace subst t = case t of
   TrLoc (k,_,_) -> Dict.get k subst
   TrOp op ts ->
     Utils.mapMaybe
-      (Eval.evalDelta op)
+      (Eval.evalDelta [] op)
       (Utils.projJusts (List.map (evalTrace subst) ts))
 
 evalLoc : Subst -> Trace -> Maybe (Maybe Num)
@@ -374,7 +408,6 @@ solveR op n i = case op of
   Pow     -> Just <| logBase i n
   Mod     -> Nothing
   ArcTan2 -> maybeFloat <| tan(n) * i
-  RangeOffset _ -> Nothing
   _       -> Debug.crash "solveR"
 
 -- n = i op j
@@ -386,7 +419,6 @@ solveL op n j = case op of
   Pow   -> Just <| n ^ (1/j)
   Mod   -> Nothing
   ArcTan2 -> maybeFloat <| j / tan(n)
-  RangeOffset _ -> Nothing
   _     -> Debug.crash "solveL"
 
 
@@ -413,11 +445,14 @@ simpleSolve subst (sum, tr) =
 
 compareVals : (Val, Val) -> Num
 compareVals (v1, v2) = case (v1.v_, v2.v_) of
-  (VConst it, VConst jt)   -> abs (fst it - fst jt)
-  (VList vs1, VList vs2)   -> case Utils.maybeZip vs1 vs2 of
-                                Nothing -> largeInt
-                                Just l  -> Utils.sum (List.map compareVals l)
-  _                        -> if v1 == v2 then 0 else largeInt
+  (VConst it, VConst jt) -> abs (fst it - fst jt)
+  (VList vs1, VList vs2) -> case Utils.maybeZip vs1 vs2 of
+                              Nothing -> largeInt
+                              Just l  -> Utils.sum (List.map compareVals l)
+  (VDict d1, VDict d2)   -> case Utils.maybeZipDicts d1 d2 of
+                              Nothing -> largeInt
+                              Just dd -> Utils.sum (Dict.values dd |> List.map compareVals)
+  _                      -> if v1 == v2 then 0 else largeInt
 
 largeInt = 99999999
 
@@ -427,7 +462,7 @@ getFillers : HoleSubst -> List Val
 getFillers = List.map (snd << snd) << Dict.toList
 
 leafToStar v = case v.v_ of
-  VConst _ -> vBase Star
+  VConst _ -> vBase VStar
   _        -> v
 
 -- historically, inferLocalUpdates was called "sync"
@@ -447,7 +482,7 @@ inferLocalUpdates opts e v v' =
           List.sortBy snd <|
             List.filterMap (\s ->
               let e1 = applyLocSubst s e in
-              let v1 = fst (Eval.run e1) in
+              let v1 = fst (Utils.fromOk "Sync.inferLocalUpdates" <| Eval.run e1) in
               let vcStar = mapVal leafToStar vc in
               case diffNoCheck (fillHole vcStar holeSubst) v1 of
                 -- TODO 9/24: one of the last few commits affected this
@@ -468,753 +503,6 @@ inferLocalUpdates opts e v v' =
       in
       -- TODO: is this a good idea?
       if res == [] then Err "bad change 2" else Ok res
-
-
-------------------------------------------------------------------------------
--- Naive Structural Update
-
-stripSvg v =
-  case v.v_ of
-    VList vs ->
-      case List.map .v_ vs of
-        [VBase (String "svg"), VList vs1, VList vs2] ->
-          (vs1, vs2)
-        _ -> Debug.crash "stripSvg"
-    _ -> Debug.crash "stripSvg"
-
-idOldShapes  = "oldCanvas"
-idNewShape i = "newShape" ++ toString i
-eOldShapes   = eVar idOldShapes
-eNewShape i  = eVar (idNewShape i)
-
-addComments = False -- CONFIG
-
-comment s e =
-  if addComments
-    then eComment s e
-    else e
-
-inferStructuralUpdates : Exp -> Val -> Val -> List (Exp, Val)
-inferStructuralUpdates eOld v v' =
-  let (attrs1,children1) = stripSvg v in
-  let (attrs2,children2) = stripSvg v' in
-  let _ = Utils.assert "Sync.inferStruct" (attrs1 == attrs2) in
-
-  let diff =
-    let foo (i,(vi,vi')) acc =
-      if vi == vi'
-        then acc
-        else (i,vi') :: acc
-    in
-    List.reverse (Utils.foldli foo [] (Utils.zip children1 children2)) in
-
-  let eNewCanvas =
-    let es =
-      List.map (\(i,_) ->
-        let n = toFloat i in
-        ePair (eConst n dummyLoc) (eNewShape i)) diff in
-      eApp (eVar "updateCanvas") [eOldShapes, eList es Nothing] in
-
-  let bindings =
-    List.map (\(i,vi) ->
-      -- going through parser to avoid adding EVal
-      let ei = Utils.fromOk "Sync.addNew" (Parser.parseE (strVal vi)) in
-      (idNewShape i, ei)) diff in
-
-  let eNew_ =
-    comment " Here's your original program..." <|
-    comment "" <|
-      eLets [(idOldShapes, eOld)] <|
-        comment "" <|
-        comment " ... and here are the hard-coded updates:" <|
-        comment "" <|
-          eLets bindings <|
-            comment "" <|
-            comment " Refactor if you'd like!" <|
-            comment "" <|
-              eNewCanvas in
-
-  -- going through parser so that new location ids are assigned
-  let eNew = Utils.fromOk "Sync.inferStruct" (Parser.parseE (sExp eNew_)) in
-  [(eNew, fst (Eval.run eNew))]
-
-
-------------------------------------------------------------------------------
--- "Dead Code Elimination"
-
-type alias IndexTrace = (Loc, Loc, Int)
-
-indexTraces : Trace -> List IndexTrace
-indexTraces t = case t of
-  TrOp (RangeOffset i) [TrLoc l1, TrLoc l2] -> [(l1, l2, i)]
-  TrOp _ ts -> List.concatMap indexTraces ts
-  _ -> []
-
-sortIndexTraces (l1,u1,i1) (l2,u2,i2) =
-  case compare (l1,u1) (l2,u2) of
-    EQ  -> compare i1 i2
-    ord -> ord
-
-indexTracesOfVal : Val -> List IndexTrace
-indexTracesOfVal v =
-  let f v acc = case v.v_ of
-    VConst (_, t) -> indexTraces t ++ acc
-    _             -> acc
-  in
-  List.sortWith sortIndexTraces <| foldVal f v []
-
-removeDeadIndices e v' =
-  let idxTraces = indexTracesOfVal v' in
-  let foo e__ = case e__ of
-    EIndList _ rs _ -> EList " " (List.concatMap (expandRange idxTraces) rs) "" Nothing ""
-    _               -> e__
-  in
-  mapExpViaExp__ foo e
-
-expandRange idxTraces r =
-  let mem = flip List.member idxTraces in
-  case r.val of
-    Point e -> case e.val.e__ of
-      EConst _ n l _ -> if mem (l,l,0) then [e] else []
-      _               -> Debug.crash "expandRange"
-    Interval e1 ws e2 -> case (e1.val.e__, e2.val.e__) of
-      -- TODO may be better to just put exactly one space in
-      -- between each element and ignore existing positions
-      (EConst _ n1 l1 _, EConst _ n2 l2 _) ->
-        let d = ceiling (n2 - n1) in
-        let foo i (nextStart,acc) =
-          let return a =
-            let end = Un.bumpCol (String.length (strNum a)) nextStart in
-            let ei  = P.WithInfo (exp_ (EConst " " a dummyLoc noWidgetDecl)) nextStart end in
-            (Un.incCol end, ei :: acc)
-          in
-          let m = n1 + toFloat i in
-          if mem (l1,l2,i) && m > n2 then return n2 else
-          if mem (l1,l2,i)           then return m
-          else                            (nextStart, acc)
-        in
-        snd <| List.foldr foo (e1.start, []) [0..d]
-      _ -> Debug.crash "expandRange"
-
-type alias MaybeOne a = List a
-nothing               = []
-just                  = Utils.singleton
-maybeToMaybeOne mx    = case mx of
-  Nothing -> nothing
-  Just x  -> just x
-
-inferDeleteUpdates : Exp -> Val -> Val -> MaybeOne (Exp, Val)
-inferDeleteUpdates eOld v v' =
-  let (attrs1,children1) = stripSvg v in
-  let (attrs2,children2) = stripSvg v' in
-  let _ = Utils.assert "Sync.inferDeleteUpdates" (attrs1 == attrs2) in
-
-  let onlyDeletes =
-    let foo (vi,vi') =
-      if vi == vi'                       then Nothing
-      else if vi' == LangSvg.dummySvgVal then Just True
-      else                                    Just False
-    in
-    let l = List.map foo (Utils.zip children1 children2) in
-    List.length (List.filter ((==) (Just True)) l) > 0
-      && List.length (List.filter ((==) (Just False)) l) == 0
-  in
-
-  if not onlyDeletes then nothing
-  else
-    -- freshen is needed b/c EConsts have been added (and removed)
-    let eNew = Parser.freshen <| removeDeadIndices eOld v' in
-    just (eNew, fst <| Eval.run eNew)
-
-
-------------------------------------------------------------------------------
--- "Relate"
-
-stripSvgNode : Bool -> Bool -> (String -> Bool) -> Val -> Maybe (List Val)
-stripSvgNode b1 b2 kPred v =
-  case v.v_ of
-    VList vsUgh ->
-      case List.map .v_ vsUgh of
-        [VBase (String k'), VList vs1, VList vs2] ->
-          case (kPred k', b1, vs1, b2, vs2) of
-            (True, True, _, False, []) -> Just vs1
-            (True, False, [], True, _) -> Just vs2
-            _                          -> Nothing
-        _ ->
-          Debug.crash "stripSvgNode"
-    _ ->
-      Nothing
-
-stripAttrs    = stripSvgNode True False
-stripChildren = stripSvgNode False True
-
-justBind = flip Utils.bindMaybe
-
-getAttr : List Val -> String -> Maybe Val
-getAttr l k = case l of
-  [] -> Nothing
-  v0::l' -> case v0.v_ of
-    VList [vk, v] ->
-      let k' = unwrapVBaseString_ "getAttr" vk.v_ in
-      if k == k'
-        then Just v
-        else getAttr l' k
-    _ ->
-      Debug.crash "getAttr"
-
-getAttrs : List String -> List Val -> Maybe (List Val)
-getAttrs ks l = Utils.projJusts <| List.map (getAttr l) ks
-
-basicRectAttrs     = ["x","y","width","height","fill"]
-getBasicRectAttrs  = getAttrs basicRectAttrs
-
-pluckOut attrLists i = List.map (Utils.geti i) attrLists
-
-unzipBasicRectAttrs attrLists =
-  List.map (pluckOut attrLists) [1 .. List.length basicRectAttrs]
-
-sortRectsByX = List.sortBy (valToNum << Utils.fromJust << flip getAttr "x")
-sortRectsByY = List.sortBy (valToNum << Utils.fromJust << flip getAttr "y")
-
-collectExtraRectAttrs rects =
-  let f attrs acc0 =
-    let g v acc1 =
-      let (vk_, _) = Utils.unwrap2 <| unwrapVList_ "collectExtraRectAttrs" v in
-      let k = unwrapVBaseString_ "collectExtraRectAttrs" vk_ in
-      if List.member k basicRectAttrs
-        then acc1
-        else k :: acc1
-    in
-    List.foldl g acc0 attrs
-  in
-  Utils.removeDupes <| List.foldl f [] rects
-
-makeExtraRectAttrDicts rects =
-  let ks = collectExtraRectAttrs rects in
-  let processKey k =
-    let processRect (i,attrs) acc =
-      case getAttr attrs k of
-        Nothing -> acc
-        Just v  -> (i,v) :: acc
-    in
-    let indexedVals = Utils.foldri processRect [] rects in
-    let table = strDictOfIndexedVals indexedVals in
-    (k, table)
-  in
-  Utils.bracks <|
-  String.join "\n                 " <|
-    List.map
-      (\(k,strTable) -> Utils.bracks (Utils.spaces [strVal (vStr k), strTable]))
-      (List.map processKey ks)
-
-pluckOutExtra attrLists k =
-  Utils.foldri <| \(i,attrs) acc ->
-    case getAttr attrs k of
-      Nothing -> acc
-      Just v  -> (i,v) :: acc
-
-nl a b = a ++ "\n" ++ b
-
-strCall f xs = Utils.parens (Utils.spaces (f::xs))
-
-strInferred cap x ys =
-  strCall "inferred" [x, cap, Utils.bracks (Utils.spaces ys)]
-
--- could switch to most common element if desired
---
-chooseFirst list =
-  let (v,vs) = Utils.uncons list in
-  if Utils.allSame (v::vs)
-    then strVal v
-    else strInferred "'first of'" (strVal v) (List.map strVal (v::vs))
-
--- TODO this is duplicating toNum for Val rather than AVal...
-valToNum v = case v.v_ of
-  VConst (n,_) -> n
-  VBase (String s) ->
-    case String.toFloat s of
-      Ok n -> n
-      _    -> Debug.crash "valToNum"
-  _ -> Debug.crash "valToNum"
-
-chooseAvg_ : List Val -> (Int, String)
-chooseAvg_ vals =
-  let nums = List.map valToNum vals in
-  if Utils.allSame nums then
-    (round <| Utils.head_ nums, toString (Utils.head_ nums))
-  else
-    let avg = round <| Utils.avg nums in
-    let s = strInferred "'average of'" (toString avg) (List.map toString nums) in
-    (avg, s)
-
-chooseAvg = snd << chooseAvg_
-
-{-
-lookupWithDefault def vals =
-  let foo (i,v) = Utils.bracks (Utils.spaces [toString (i-1), strVal v]) in
-  let s = Utils.bracks (Utils.spaces (Utils.mapi foo vals)) in
-  strCall "lookupWithDefault" [toString def, "i", s]
--}
-
-strDictOf vals =
-  let foo (i,v) = Utils.bracks (Utils.spaces [(toString (i-1)) ++ "!", strVal v]) in
-  Utils.bracks (Utils.spaces (Utils.mapi foo vals))
-
-strDictOfIndexedVals indexedVals =
-  Utils.bracks <| Utils.spaces <|
-    List.map
-      (\(i,v) -> Utils.bracks <| Utils.spaces [(toString (i-1)) ++ "!", strVal v])
-      indexedVals
-
--- returns Nothing if not sorted (either non-decreasing or non-increasing)
---
-baseAndOffset vals =
-  let nums   = List.map valToNum vals in
-  let pairs  = Utils.adjacentPairs False nums in
-  let deltas = List.map (\(a,b) -> b-a) pairs in
-  if not (List.all ((<=) 0) deltas || List.all ((>=) 0) deltas) then Nothing
-  else
-    let
-      base   = strInferred "'smallest'"
-                 (toString <| Utils.head_ nums)
-                 (List.map toString nums)
-      offset = strInferred "'average delta between'"
-                 (toString <| round <| Utils.avg <| List.reverse deltas)
-                 (List.map toString nums)
-     in
-     Just (base, offset)
-
-inferXY xy vals =
-  let
-    xyBase          = xy ++ "Base"
-    xyOff           = xy ++ "Off"
-    xyBasePlusOff   = "(+ " ++ xyBase ++ " (mult i " ++ xyOff ++ "))"
-    xyTable         = xy ++ "Table"
-    xyLookup        = strCall "lookupWithDefault" ["10", "i", xyTable]
-  in
-  case baseAndOffset vals of
-    Just (base,off) ->
-      let
-        s1 = "    (let " ++ xyBase ++ "  " ++ base            `nl`
-             "    (let " ++ xyOff ++ "   " ++ off             `nl` ""
-        s2 = "    (let " ++ xy ++ "      " ++ xyBasePlusOff   `nl` ""
-      in
-      (s1, s2, ")))")
-    Nothing ->
-      let
-        s1 = "    (let " ++ xyTable ++ " " ++ strDictOf vals  `nl` ""
-        s2 = "    (let " ++ xy ++ "      " ++ xyLookup        `nl` ""
-      in
-      (s1, s2, "))")
-
-inferRelatedRectsX : Exp -> Val -> Val -> Maybe (Exp, Val)
-inferRelatedRectsX = inferRelatedRects sortRectsByX "'right'"
-
-inferRelatedRectsY : Exp -> Val -> Val -> Maybe (Exp, Val)
-inferRelatedRectsY = inferRelatedRects sortRectsByY "'down'"
-
-inferRelatedRects sortRectsByXY flow _ _ v' =
-  stripChildren ((==) "svg") v' `justBind` (\shapes ->
-  let mRects = List.map (stripAttrs ((==) "rect")) shapes in
-  Utils.projJusts mRects `justBind` (\rects_ ->
-  let rects = sortRectsByXY rects_ in
-  Utils.projJusts (List.map getBasicRectAttrs rects) `justBind` (\attrLists ->
-    let n = List.length attrLists in
-    let indices = Utils.ibracks (Utils.spaces (List.map toString [0..n-1])) in
-    let flowIndices = strCall "flow" [flow, "indices"] in
-    let (xs, ys, widths, heights, fills) = Utils.unwrap5 <| unzipBasicRectAttrs attrLists in
-    let (let_xBaseAndOff, let_x, xParens) = inferXY "x" xs in
-    let (let_yBaseAndOff, let_y, yParens) = inferXY "y" ys in
-    let xyParens = xParens ++ yParens in
-    let extraAttrDicts = makeExtraRectAttrDicts rects in
-    let theRect =
-      if extraAttrDicts == "[]" then
-        "      (rect fill x y width height)"
-      else
-        "    (let extras " ++ extraAttrDicts                    `nl`
-        "      (addExtras i extras"                             `nl`
-        "        (rect fill x y width height)))"
-    in
-    let s =
-      "(def newGroup"                                           `nl`
-      "  (let indices " ++ indices                              `nl`
-      "  (groupMap " ++ flowIndices ++ " (\\i"                  `nl`
-            let_xBaseAndOff                                      ++
-            let_yBaseAndOff                                      ++
-            let_x                                                ++
-            let_y                                                ++
-      "    (let width  " ++ chooseAvg widths                    `nl`
-      "    (let height " ++ chooseAvg heights                   `nl`
-      "    (let fill   " ++ chooseFirst fills                   `nl`
-             theRect ++ ")))))))" ++ xyParens                   `nl`
-      ""                                                        `nl`
-      "(svg newGroup)"
-    in
-    let eNew = Utils.fromOk_ <| Parser.parseE s in
-    let vNew = fst <| Eval.run eNew in
-    Just (eNew, vNew)
-  )))
-
-basicCircleAttrs     = ["cx","cy","r","fill"]
-getBasicCircleAttrs  = getAttrs basicCircleAttrs
-
-unzipBasicCircleAttrs attrLists =
-  List.map (pluckOut attrLists) [1 .. List.length basicCircleAttrs]
-
-sortCirclesByCX = List.sortBy (valToNum << Utils.fromJust << flip getAttr "cx")
-
-inferCircleOfCircles : Bool -> Exp -> Val -> Val -> Maybe (Exp, Val)
-inferCircleOfCircles groupBox _ _ v' =
-  stripChildren ((==) "svg") v' `justBind` (\shapes ->
-  let mCircles = List.map (stripAttrs ((==) "circle")) shapes in
-  Utils.projJusts mCircles `justBind` (\circles_ ->
-  let circles = sortCirclesByCX circles_ in
-  Utils.projJusts (List.map getBasicCircleAttrs circles) `justBind` (\attrLists ->
-    let n = List.length attrLists in
-    let indices =
-      Utils.ibracks (Utils.spaces (List.map (flip (++) "!" << toString) [0..n-1])) in
-    let flowIndices =
-      if groupBox
-      then strCall "flow" ["'ccw and groupbox'", "indices"]
-      else strCall "flow" ["'ccw'", "indices"] in
-    let (cxs, cys, rs, fills) = Utils.unwrap4 <| unzipBasicCircleAttrs attrLists in
-    let (gx, sgx) = chooseAvg_ cxs in
-    let (gy, sgy) = chooseAvg_ cys in
-    let cxys = Utils.zip (List.map valToNum cxs) (List.map valToNum cys) in
-    let dists = List.map (Utils.distance (toFloat gx, toFloat gy)) cxys in
-    let gr = round <| Utils.avg dists in
-    let rot =
-      let (cx,cy) = -- (cx,cy) of rightmost circle
-        Utils.unwrap2 <| List.map (valToNum << Utils.last_) [cxs,cys] in
-      if cy <= toFloat gy
-      then atan ((toFloat gy - cy) / (cx - toFloat gx))        -- quad I
-      else -1 * (atan ((cy - toFloat gy) / (cx - toFloat gx))) -- quad IV
-    in
-    let theShapes =
-      if groupBox then
-        "  (let box"                                              `nl`
-        "    (let padding " ++ "10!"                              `nl`
-        "    (let len       (+ (* 2! gr) (* 2! padding))"         `nl`
-        "      (rectCenter [0! 0! 0! 0!] gcx gcy len len)))"      `nl`
-        "  (let circles"                                          `nl`
-        "    (groupMap " ++ flowIndices ++ " (\\i"                `nl`
-        "      (let cx (+ gcx (* gr (cos (* i theta))))"          `nl`
-        "      (let cy (- gcy (* gr (sin (* i theta))))"          `nl`
-        "      (let r       " ++ chooseAvg rs                     `nl`
-        "      (let fill    " ++ chooseFirst fills                `nl`
-        "        (circle fill cx cy r)))))))"                     `nl`
-        "  (basicZonesTail"                                       `nl`
-        "    (map (rotateAround rot gcx gcy)"                     `nl`
-        "         (cons box circles)))))"
-      else
-        "  (groupMap " ++ flowIndices ++ " (\\i"                  `nl`
-        "    (let cx   (+ gcx (* gr (cos (+ rot (* i theta)))))"  `nl`
-        "    (let cy   (- gcy (* gr (sin (+ rot (* i theta)))))"  `nl`
-        "    (let r    " ++ chooseAvg rs                          `nl`
-        "    (let fill " ++ chooseFirst fills                     `nl`
-        "      (circle fill cx cy r)))))))"
-    in
-    let s =
-      "(def newGroup"                                           `nl`
-      "  (let gcx     " ++ sgx                                  `nl`
-      "  (let gcy     " ++ sgy                                  `nl`
-      "  (let gr      " ++ toString gr                          `nl`
-      "  (let theta   " ++ toString (2*pi / toFloat n) ++ "!"   `nl`
-      "  (let rot     " ++ toString rot                         `nl`
-      "  (let indices " ++ indices                              `nl`
-            theShapes ++ ")))))))"                              `nl`
-      ""                                                        `nl`
-      "(svg newGroup)"
-    in
-    let eNew = Utils.fromOk_ <| Parser.parseE s in
-    let vNew = fst <| Eval.run eNew in
-    Just (eNew, vNew)
-  )))
-
-basicLineAttrs     = ["x1","y1","x2","y2","stroke","stroke-width"]
-getBasicLineAttrs  = getAttrs basicLineAttrs
-
-unzipBasicLineAttrs attrLists =
-  List.map (pluckOut attrLists) [1 .. List.length basicLineAttrs]
-
-type Corner = TL | TR | BL | BR
-
-nearestCorner : (Num,Num) -> List (Corner, (Num,Num)) -> (Corner, (Num,Num))
-nearestCorner pt l0 =
-  let l1 = List.map (\(corner,cornerPt) -> ((corner, cornerPt), Utils.distance pt cornerPt)) l0 in
-  let l2 = List.sortBy snd l1 in
-  fst (Utils.head_ l2)
-
-relativeTo (x',y') (corner,(x,y)) =
-  let sx = case corner of
-    TL -> Utils.parens ("+ x0 " ++ toString (x' - x) ++ "!")
-    BL -> Utils.parens ("+ x0 " ++ toString (x' - x) ++ "!")
-    _  -> Utils.parens ("- xw " ++ toString (x - x') ++ "!")
-  in
-  let sy = case corner of
-    TL -> Utils.parens ("+ y0 " ++ toString (y' - y) ++ "!")
-    TR -> Utils.parens ("+ y0 " ++ toString (y' - y) ++ "!")
-    _  -> Utils.parens ("- yh " ++ toString (y - y') ++ "!")
-  in
-  (sx, sy)
-
-clampX s = Utils.parens ("clampX " ++ s)
-clampY s = Utils.parens ("clampY " ++ s)
-
-placeX n = Utils.parens ("placeX " ++ toString n ++ "!")
-placeY n = Utils.parens ("placeY " ++ toString n ++ "!")
-
--- True: elastic; False: sticky
-inferGroupOfLines : Bool -> Exp -> Val -> Val -> Maybe (Exp, Val)
-inferGroupOfLines elastic _ _ v' =
-  stripChildren ((==) "svg") v' `justBind` (\shapes ->
-  let mLines = List.map (stripAttrs ((==) "line")) shapes in
-  Utils.projJusts mLines `justBind` (\lines ->
-  Utils.projJusts (List.map getBasicLineAttrs lines) `justBind` (\attrLists_ ->
-    -- let attrLists = List.map (List.map valToNum) attrLists_ in
-    let attrLists =
-      List.map
-         (\values ->
-           let (v1,v2,v3,v4,v5,v6) = Utils.unwrap6 values in
-           (List.map valToNum [v1,v2,v3,v4], [v5,v6]))
-         attrLists_ in
-    let (x0,maxX,y0,maxY) =
-      let foo (x1y1x2y2,_) (minX,maxX,minY,maxY) =
-        let (x1,y1,x2,y2) = Utils.unwrap4 x1y1x2y2 in
-        let minX' = if min x1 x2 < minX then min x1 x2 else minX in
-        let maxX' = if max x2 x2 > maxX then max x1 x2 else maxX in
-        let minY' = if min y1 y2 < minY then min y1 y2 else minY in
-        let maxY' = if max y2 y2 > maxY then max y1 y2 else maxY in
-        (minX', maxX', minY', maxY')
-      in
-      let min_ = 99999 in
-      let max_ = -1 * max_ in
-      List.foldl foo (min_, max_, min_, max_) attrLists
-    in
-    let (w,h) = (maxX - x0, maxY - y0) in
-    let (xTL,xTR,xBL,xBR) = (x0, x0 + w, x0, x0 + w) in
-    let (yTL,yTR,yBL,yBR) = (y0, y0, y0 + h, y0 + h) in
-    let corners = [ (TL, (xTL,yTL))
-                  , (TR, (xTR,yTR))
-                  , (BL, (xBL,yBL))
-                  , (BR, (xBR,yBR)) ] in
-    let newLines =
-      let goo (x1y1x2y2,strokesw) acc =
-        let (x1,y1,x2,y2) = Utils.unwrap4 x1y1x2y2 in
-        let (stroke,sw) = Utils.unwrap2 strokesw in
-        let l1 = [ "line", strVal stroke, strVal sw ] in
-        let l2 =
-          if elastic then
-            [ "\n      ", placeX ((x1-x0)/w), placeY ((y1-y0)/h)
-            , "\n      ", placeX ((x2-x0)/w), placeY ((y2-y0)/h) ]
-          else
-            let (x1',y1') = relativeTo (x1,y1) <| nearestCorner (x1,y1) corners in
-            let (x2',y2') = relativeTo (x2,y2) <| nearestCorner (x2,y2) corners in
-            [ "\n      ", clampX x1', clampY y1'
-            , "\n      ", clampX x2', clampY y2' ]
-        in
-        Utils.parens (Utils.spaces (l1 ++ l2)) :: acc
-      in
-      List.foldr goo [] attrLists
-    in
-    let sBounds = Utils.spaces (List.map toString [x0,y0,w,h]) in
-    let sHelpers =
-      if elastic then
-        "[placeX placeY]   " ++ "[(\\p (+ x0 (* p w))) (\\p (+ y0 (* p h)))]"
-      else
-        "[clampX clampY]   " ++ "[(clamp x0 xw) (clamp y0 yh)]"
-    in
-    let s =
-      "(def newGroup (\\(x0 y0 w h)"                            `nl`
-      "  (let [xw yh]           " ++ "[(+ x0 w) (+ y0 h)]"      `nl`
-      "  (let gcx               " ++ " (+ x0 (/ (- xw x0) 2))"  `nl`
-      "  (let gcy               " ++ " (+ y0 (/ (- yh y0) 2))"  `nl`
-      "  (let rot               " ++ "0"                        `nl`
-      "  (let padding           " ++ "10!"                      `nl`
-      "  (let " ++ sHelpers                                     `nl`
-      "  (let box"                                              `nl`
-      "    (let [gx gy] [(- x0 padding) (- y0 padding)]"        `nl`
-      "    (let gw (+ w (mult 2! padding))"                     `nl`
-      "    (let gh (+ h (mult 2! padding))"                     `nl`
-      "      (rect [0! 0! 0! 0!] gx gy gw gh))))"               `nl`
-      "  (let lines"                                            `nl`
-      "    " ++ Utils.bracks (String.join "\n     " newLines)   `nl`
-      "  (basicZonesTail"                                       `nl`
-      "    (map (rotateAround rot gcx gcy)"                     `nl`
-      "         (cons box lines)))))))))))))"                   `nl`
-      ""                                                        `nl`
-      "(svg (newGroup " ++ sBounds ++ "))"
-      -- "  (let [xTL xTR xBL xBR] " ++ "[x0 xw x0 xw]"            `nl`
-      -- "  (let [yTL yTR yBL yBR] " ++ "[y0 y0 yh yh]"            `nl`
-      -- "  (cons box lines))))))))))"                             `nl`
-    in
-    let eNew = Utils.fromOk_ <| Parser.parseE s in
-    let vNew = fst <| Eval.run eNew in
-    Just (eNew, vNew)
-  )))
-
-dummyFrozenLoc = dummyLoc_ frozen
-
--- TODO relate in terms of AVals instead
-
-relate : Int -> Exp -> List Val -> (Int, List (Exp, Val))
-relate k0 e vs =
-  let (k1,l1) = relateNums k0 e vs in
-  (k1, l1)
-
-type alias NTT = (NumTr, VTrace)
-
-relateNums genSymK e vs =
-  let noResults = (genSymK, []) in
-  let foo v = case v.v_ of
-    VConst nt -> Just (nt, v.vtrace)
-    _         -> Nothing
-  in
-  case Utils.projJusts (List.map foo vs) of
-    Nothing   -> noResults
-    Just []   -> noResults
-    Just ntts ->
-      -- not sorting ntts here right now
-      let (k1,l1) = relateNumsWithVar genSymK e (List.map fst ntts) in
-      let (k2,l2) = relateBaseOffset k1 e ntts in
-      (k2, l1 ++ l2)
-
-relateBaseOffset : Int -> Exp -> List NTT -> (Int, List (Exp, Val))
-relateBaseOffset genSymK e ntts_ =
-  -- sorting by the number, so that base is always first
-  let ntts = List.sortBy (fst << fst) ntts_ in
-  let noResults = (genSymK, []) in
-  let projBase t = case snd (fst t) of
-    TrLoc (_,_,"") -> Nothing
-    TrLoc loc      -> Just loc
-    -- _              -> Debug.crash "relateBaseOffset"
-    tr             -> Debug.crash <| "relateBaseOffset: " ++ strTrace tr
-    -- TODO need to take static variable into account...
-    -- the TrLoc cases should be the last resort...
-  in
-  let projBaseOff baseLoc ntt = case ntt of
-    -- TODO check that t2 is a constant (loc w/o var)
-    ((_, TrOp Plus [TrLoc loc, t2]), vtrace) ->
-      if loc == baseLoc
-        then Just vtrace
-        else Nothing
-    _ -> Nothing
-  in
-  case ntts of
-    [] -> noResults
-    ntt0::ntts' ->
-      case projBase ntt0 of
-        Nothing -> noResults
-        Just baseLoc ->
-          let (_,_,baseVar) = baseLoc in
-          case Utils.projJusts (List.map (projBaseOff baseLoc) ntts') of
-            Nothing -> noResults
-            Just vtraces ->
-              let esubst =
-                let foo is acc =
-                  case Utils.findFirst (not << Parser.isPreludeEId) is of
-                    Nothing -> acc
-                    Just i  -> Dict.insert i (EVar " " baseVar) acc
-                in
-                List.foldl foo Dict.empty vtraces
-              in
-              -- let _ = Debug.log "applied" (toString (Dict.toList esubst)) in
-              let eNew = applyESubst esubst e in
-              let vNew = fst <| Eval.run eNew in
-              (genSymK, [(eNew, vNew)])
-
-relateNumsWithVar : Int -> Exp -> List NumTr -> (Int, List (Exp, Val))
-relateNumsWithVar genSymK e nts =
-  let noResults = (genSymK, []) in
-  let gensym = "gensym" ++ toString genSymK in
-  let ((n0,t0),rest) = Utils.uncons <| List.sortBy fst nts in
-  case (t0, rest) of
-    (TrOp _ _, _) -> noResults
-    (TrLoc _, []) -> noResults
-    (TrLoc l0, _) ->
-      let esubstAndNumsMaybe =
-        let foo (ni,ti) acc =
-          case (acc, ti) of
-            (Nothing, _)       -> Nothing
-            (Just _, TrOp _ _) -> Nothing
-            (Just (d,all,someDiffLoc), TrLoc li) ->
-              let e__ =
-                if n0 == ni
-                then EVar " " gensym
-                else
-                  (ePlus (eVar <| " " ++ gensym ++ " ") -- TODO spacing hack...
-                         (eConst (ni-n0) dummyFrozenLoc)).val.e__
-              in
-              let someDiffLoc' = someDiffLoc || li /= l0 in
-              Just (Dict.insert (Utils.fst3 li) e__ d, ni::all, someDiffLoc')
-        in
-        let init = (Dict.singleton (Utils.fst3 l0) (EVar " " gensym), [n0], False) in
-        List.foldl foo (Just init) rest
-      in
-      case esubstAndNumsMaybe of
-        Nothing -> noResults
-        Just (eSubst1, allNums, someDiffLoc) ->
-          let mkAnswer esubst gensymVal =
-            let eNew =
-              applyESubst esubst e
-                |> Un.unparse
-                |> (++) ("(def " ++ gensym ++ " " ++ gensymVal ++ ")\n")
-                |> Parser.parseE
-                |> Utils.fromOk "Sync.relate"
-            in
-            let vNew = fst <| Eval.run eNew in
-            (eNew, vNew)
-          in
-          let ans1 =
-            if someDiffLoc
-            then [mkAnswer eSubst1 (toString n0)]
-            else []
-          in
-          let ans2 =
-            if Utils.allSame allNums then []
-            else
-              let nAvg = Utils.avg allNums in
-              let eSubst2 = Dict.map (\_ _ -> EVar " " gensym) eSubst1 in
-              let eAvg = strInferred "'average of'" (toString nAvg) (List.map toString allNums) in
-              [mkAnswer eSubst2 eAvg]
-          in
-          (1 + genSymK, ans1 ++ ans2)
-
-inferRelated : Int -> Exp -> Val -> Val -> (Int, List (Exp, Val))
-inferRelated genSymK e _ v' =
-  let noResults = (genSymK, []) in
-  case stripChildren ((==) "svg") v' of
-    Nothing -> noResults
-    Just canvas ->
-      let mShapes = List.map (stripAttrs (always True)) canvas in
-      let shapes = Utils.filterJusts mShapes in
-      let selectedAttrs =
-        let foo attrList acc =
-          case getAttr attrList "SELECTED" of
-            Nothing -> acc
-            Just s  ->
-              case s.v_ of
-                VBase (String "") -> acc
-                VBase (String s)  ->
-                  let goo k = Utils.fromJust_ "inferRelated" (getAttr attrList k) in
-                  List.map goo (String.split " " s) ++ acc
-                _ ->
-                  Debug.crash "inferRelated"
-        in
-        List.foldl foo [] shapes
-      in
-      relate genSymK e selectedAttrs
-
-inferNewRelationships e v v' =
-     maybeToMaybeOne (inferRelatedRectsX e v v')
-  ++ maybeToMaybeOne (inferRelatedRectsY e v v')
-  -- ++ maybeToMaybeOne (inferCircleOfCircles False e v v')
-  ++ maybeToMaybeOne (inferCircleOfCircles True e v v')
-  ++ maybeToMaybeOne (inferGroupOfLines True e v v')
-  ++ maybeToMaybeOne (inferGroupOfLines False e v v')
-
-relateSelectedAttrs genSymK e v v' =
-  inferRelated genSymK e v v'
 
 
 ------------------------------------------------------------------------------
@@ -1260,43 +548,59 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v.v_ of
 
   VList vsUgh -> case List.map .v_ vsUgh of
 
-    [VBase (String "TEXT"), VBase (String s)] ->
+    [VBase (VString "TEXT"), VBase (VString s)] ->
       (1 + nextId, Dict.insert 1 ("DUMMYTEXT", None, [], Dict.empty) dShapes)
 
-    [VBase (String kind), VList vs', VList children] ->
+    [VBase (VString kind), VList vs', VList children] ->
 
       -- processing attributes of current node
       let processAttr v' (extra,extraextra,dAttrs) = case v'.v_ of
 
         VList vsUghUgh -> case List.map .v_ vsUghUgh of
 
-          [VBase (String "fill"), VConst (_,tr)] ->
+          [VBase (VString "fill"), VConst (_,tr)] ->
             let ee = ("fill", ("FillBall", tr)) :: extraextra in
             (extra, ee, Dict.insert "fill" tr dAttrs)
 
-          [VBase (String "stroke"), VConst (_,tr)] ->
+          [VBase (VString "stroke"), VConst (_,tr)] ->
             let ee = ("stroke", ("StrokeBall", tr)) :: extraextra in
             (extra, ee, Dict.insert "stroke" tr dAttrs)
 
-          [VBase (String "stroke-width"), VConst (_,tr)] ->
+          [VBase (VString "fill"), VList [v1, v2]] ->
+            case (v1.v_, v2.v_) of
+              (VConst (_,tr1), VConst (_,tr2)) ->
+                let ee = ("fill", ("FillBall", tr1)) ::
+                         ("fillOpacity", ("FillOpacityBall", tr2)) :: extraextra in
+                (extra, ee, Dict.insert "fillOpacity" tr2 (Dict.insert "fill" tr1 dAttrs))
+              _ -> Debug.crash "nodeToAttrLocs_"
+
+          [VBase (VString "stroke"), VList [v1, v2]] ->
+            case (v1.v_, v2.v_) of
+              (VConst (_,tr1), VConst (_,tr2)) ->
+                let ee = ("stroke", ("StrokeBall", tr1)) ::
+                         ("strokeOpacity", ("StrokeOpacityBall", tr2)) :: extraextra in
+                (extra, ee, Dict.insert "strokeOpacity" tr2 (Dict.insert "stroke" tr1 dAttrs))
+              _ -> Debug.crash "nodeToAttrLocs_"
+
+          [VBase (VString "stroke-width"), VConst (_,tr)] ->
             let ee = ("stroke-width", ("StrokeWidthBall", tr)) :: extraextra in
             (extra, ee, Dict.insert "stroke-width" tr dAttrs)
 
           -- NOTE: requires for a single cmd, and "transformRot" is a fake attr....
-          [VBase (String "transform"), VList [vBlah]] ->
+          [VBase (VString "transform"), VList [vBlah]] ->
             case vBlah.v_ of
               VList vsBlah ->
                 case List.map .v_ vsBlah of
-                  [VBase (String "rotate"), VConst (_, tr), _, _] ->
+                  [VBase (VString "rotate"), VConst (_, tr), _, _] ->
                     let ee = ("transformRot", ("RotateBall", tr)) :: extraextra in
                     (extra, ee, Dict.insert "transformRot" tr dAttrs)
                   _ -> Debug.crash "nodeToAttrLocs_"
               _ -> Debug.crash "nodeToAttrLocs_"
 
-          [VBase (String a), VConst (_,tr)] ->
+          [VBase (VString a), VConst (_,tr)] ->
             (extra, extraextra, Dict.insert a tr dAttrs)
 
-          [VBase (String "points"), VList pts] ->
+          [VBase (VString "points"), VList pts] ->
             let acc' =
               Utils.foldli (\(i,vPt) acc ->
                 case vPt.v_ of
@@ -1311,7 +615,7 @@ nodeToAttrLocs_ v (nextId,dShapes) = case v.v_ of
                ) dAttrs pts in
             (NumPoints (List.length pts), extraextra, acc')
 
-          [VBase (String "d"), VList vs] ->
+          [VBase (VString "d"), VList vs] ->
             let addPt (mi,(xt,yt)) dict =
               case mi of
                 Nothing -> dict
@@ -1413,6 +717,7 @@ createLocLists opts sets =
   in
   List.filter ((/=) []) baz
 
+-- TODO refactor/move all of this to ShapeWidgets...
 getZones : ShapeKind -> ExtraInfo -> ExtraExtraInfo -> List (Zone, List AttrName)
 getZones kind extra ee =
   let xy i = [addi "x" i, addi "y" i] in
@@ -1432,7 +737,7 @@ getZones kind extra ee =
       ("path", NumsPath {numPoints}) ->
         List.map pt [1..numPoints] ++ [interior numPoints]
       _ ->
-        case Utils.maybeFind kind LangSvg.zones of
+        case Utils.maybeFind kind ShapeWidgets.zones of
           Just zones -> zones
           Nothing    -> []
 {-
@@ -1446,6 +751,8 @@ getZones kind extra ee =
 widgetZones = List.map <| \x -> case x of
   ("fill"         , ("FillBall"   , _)) -> ("FillBall"   , ["fill"])
   ("stroke"       , ("StrokeBall" , _)) -> ("StrokeBall" , ["stroke"])
+  ("fillOpacity"  , ("FillOpacityBall"   , _)) -> ("FillOpacityBall"   , ["fillOpacity"])
+  ("strokeOpacity", ("StrokeOpacityBall" , _)) -> ("StrokeOpacityBall" , ["strokeOpacity"])
   ("stroke-width" , ("StrokeWidthBall" , _)) -> ("StrokeWidthBall" , ["stroke-width"])
   ("transformRot" , ("RotateBall" , _)) -> ("RotateBall" , ["transformRot"])
   _                                     -> Debug.crash "widgetZones"
@@ -1642,19 +949,21 @@ type alias LiveInfo =
 
 tryToBeSmart = False
 
-prepareLiveUpdates : Options -> Int -> Int -> Float -> Exp -> Val -> IndexedTree -> LiveInfo
+prepareLiveUpdates : Options -> Int -> Int -> Float -> Exp -> Val -> IndexedTree -> Result String LiveInfo
 prepareLiveUpdates opts slideNumber movieNumber movieTime e v slate =
-  let v' = LangSvg.resolveToMovieFrameVal slideNumber movieNumber movieTime v in
-  let d0 = nodeToAttrLocs v' in
-  let d1 = shapesToZoneTable opts d0 in
-  -- let d2 = assignTriggers d1 in
-  let d2 = assignTriggers opts d0 d1 in
-  let initSubstPlus = Parser.substPlusOf e in
-  let initSubst = Dict.map (always .val) initSubstPlus in
-    { triggers    = makeTriggers initSubst opts e d0 d2 slate
-    , assignments = zoneAssignments d2
-    , initSubst   = initSubstPlus
-    }
+  LangSvg.resolveToMovieFrameVal slideNumber movieNumber movieTime v
+  |> Result.map (\v' ->
+      let d0 = nodeToAttrLocs v' in
+      let d1 = shapesToZoneTable opts d0 in
+      -- let d2 = assignTriggers d1 in
+      let d2 = assignTriggers opts d0 d1 in
+      let initSubstPlus = Parser.substPlusOf e in
+      let initSubst = Dict.map (always .val) initSubstPlus in
+        { triggers    = makeTriggers initSubst opts e d0 d2 slate
+        , assignments = zoneAssignments d2
+        , initSubst   = initSubstPlus
+        }
+    )
 
 -- TODO refactor Dict data structures above to make this more efficient
 
@@ -1723,6 +1032,18 @@ makeTrigger_ opts d0 d2 slate subst id kind zone =
         let n' = LangSvg.clampColorNum (n + scaleColorBall * toFloat dx) in
         solveOne "stroke" (n', t)
 
+    (_, "FillOpacityBall")   ->
+      \_ (dx,dy) ->
+        let (n,t) = getAColorNumOpacity slate id "fill" in
+        let n' = Utils.clamp 0.0 1.0 (n + scaleOpacityBall * toFloat dx) in
+        solveOne "fillOpacity" (n', t)
+
+    (_, "StrokeOpacityBall")   ->
+      \_ (dx,dy) ->
+        let (n,t) = getAColorNumOpacity slate id "stroke" in
+        let n' = Utils.clamp 0.0 1.0 (n + scaleOpacityBall * toFloat dx) in
+        solveOne "strokeOpacity" (n', t)
+
     (_, "StrokeWidthBall") ->
       \_ (dx,dy) ->
         let (n,t) = getANum slate id "stroke-width" in
@@ -1757,22 +1078,22 @@ makeTrigger_ opts d0 d2 slate subst id kind zone =
       \_ (dx,dy) ->
         solveOne "y"      (offset  dy (rectY slate id)) ++
         solveOne "height" (offset -dy (rectH slate id))
-    ("rect", "BotRightCorner") ->
+    ("rect", "BotRight") ->
       \_ (dx,dy) ->
         solveOne "width"  (offset  dx (rectW slate id)) ++
         solveOne "height" (offset  dy (rectH slate id))
-    ("rect", "TopRightCorner") ->
+    ("rect", "TopRight") ->
       \_ (dx,dy) ->
         solveOne "y"      (offset  dy (rectY slate id)) ++
         solveOne "width"  (offset  dx (rectW slate id)) ++
         solveOne "height" (offset -dy (rectH slate id))
-    ("rect", "TopLeftCorner") ->
+    ("rect", "TopLeft") ->
       \_ (dx,dy) ->
         solveOne "x"      (offset  dx (rectX slate id)) ++
         solveOne "y"      (offset  dy (rectY slate id)) ++
         solveOne "width"  (offset -dx (rectW slate id)) ++
         solveOne "height" (offset -dy (rectH slate id))
-    ("rect", "BotLeftCorner") ->
+    ("rect", "BotLeft") ->
       \_ (dx,dy) ->
         solveOne "x"      (offset  dx (rectX slate id)) ++
         solveOne "width"  (offset -dx (rectW slate id)) ++
@@ -1823,19 +1144,19 @@ makeTriggerBoxOrOval solveOne offset slate id zone =
     "TopEdge" ->
       \_ (dx,dy) ->
         solveOne "TOP"   (offset dy (getTop slate id))
-    "BotRightCorner" ->
+    "BotRight" ->
       \_ (dx,dy) ->
         solveOne "RIGHT" (offset dx (getRight slate id)) ++
         solveOne "BOT"   (offset dy (getBot slate id))
-    "TopRightCorner" ->
+    "TopRight" ->
       \_ (dx,dy) ->
         solveOne "TOP"   (offset dy (getTop slate id)) ++
         solveOne "RIGHT" (offset dx (getRight slate id))
-    "TopLeftCorner" ->
+    "TopLeft" ->
       \_ (dx,dy) ->
         solveOne "LEFT"  (offset dx (getLeft slate id)) ++
         solveOne "TOP"   (offset dy (getTop slate id))
-    "BotLeftCorner" ->
+    "BotLeft" ->
       \_ (dx,dy) ->
         solveOne "LEFT"  (offset dx (getLeft slate id)) ++
         solveOne "BOT"   (offset dy (getBot slate id))
@@ -1864,15 +1185,15 @@ makeTriggerEllipse solveOne offset slate id zone =
         solveOne "cx" (offset dx (getANum slate id "cx")) ++
         solveOne "cy" (offset dy (getANum slate id "cy"))
 
-    "LeftEdge"       -> \_ dxy -> left dxy
-    "RightEdge"      -> \_ dxy -> right dxy
-    "TopEdge"        -> \_ dxy -> top dxy
-    "BotEdge"        -> \_ dxy -> bot dxy
+    "LeftEdge"  -> \_ dxy -> left dxy
+    "RightEdge" -> \_ dxy -> right dxy
+    "TopEdge"   -> \_ dxy -> top dxy
+    "BotEdge"   -> \_ dxy -> bot dxy
 
-    "TopLeftCorner"  -> \_ dxy -> top dxy ++ left dxy
-    "TopRightCorner" -> \_ dxy -> top dxy ++ right dxy
-    "BotLeftCorner"  -> \_ dxy -> bot dxy ++ left dxy
-    "BotRightCorner" -> \_ dxy -> bot dxy ++ right dxy
+    "TopLeft"   -> \_ dxy -> top dxy ++ left dxy
+    "TopRight"  -> \_ dxy -> top dxy ++ right dxy
+    "BotLeft"   -> \_ dxy -> bot dxy ++ left dxy
+    "BotRight"  -> \_ dxy -> bot dxy ++ right dxy
 
     _ -> Debug.crash ("makeTriggerEllipse: " ++ zone)
 
@@ -1902,22 +1223,22 @@ makeTriggerCircle solveOne offset slate id zone =
         solveOne "cx" (offset dx (getANum slate id "cx")) ++
         solveOne "cy" (offset dy (getANum slate id "cy"))
 
-    "LeftEdge"       -> \_ dxy -> left dxy
-    "RightEdge"      -> \_ dxy -> right dxy
-    "TopEdge"        -> \_ dxy -> top dxy
-    "BotEdge"        -> \_ dxy -> bot dxy
+    "LeftEdge"  -> \_ dxy -> left dxy
+    "RightEdge" -> \_ dxy -> right dxy
+    "TopEdge"   -> \_ dxy -> top dxy
+    "BotEdge"   -> \_ dxy -> bot dxy
 
-    "TopLeftCorner"  -> \_ (dx,dy) -> corner (max -dx -dy) ((*) -1) ((*) -1)
-    "TopRightCorner" -> \_ (dx,dy) -> corner (max  dx -dy) ((*)  1) ((*) -1)
-    "BotLeftCorner"  -> \_ (dx,dy) -> corner (max -dx  dy) ((*) -1) ((*)  1)
-    "BotRightCorner" -> \_ (dx,dy) -> corner (max  dx  dy) ((*)  1) ((*)  1)
+    "TopLeft"   -> \_ (dx,dy) -> corner (max -dx -dy) ((*) -1) ((*) -1)
+    "TopRight"  -> \_ (dx,dy) -> corner (max  dx -dy) ((*)  1) ((*) -1)
+    "BotLeft"   -> \_ (dx,dy) -> corner (max -dx  dy) ((*) -1) ((*)  1)
+    "BotRight"  -> \_ (dx,dy) -> corner (max  dx  dy) ((*)  1) ((*)  1)
 
     _ -> Debug.crash ("makeTriggerCircle: " ++ zone)
 
 makeTriggerPoly solveOne offset slate id kind zone =
-  case LangSvg.realZoneOf zone of
+  case ShapeWidgets.parseZone zone of
 
-    LangSvg.Z "Interior" ->
+    ShapeWidgets.ZInterior ->
       \_ (dx,dy) ->
         let points = getAPoints slate id "points" in
         Utils.foldli
@@ -1929,14 +1250,14 @@ makeTriggerPoly solveOne offset slate id kind zone =
           []
           points
 
-    LangSvg.ZPoint i ->
+    ShapeWidgets.ZPoint (ShapeWidgets.Point i) ->
       let points = getAPoints slate id "points" in
       let (xt,yt) = Utils.geti i points in
       \_ (dx,dy) ->
         solveOne (addi "x" i) (offset dx xt) ++
         solveOne (addi "y" i) (offset dy yt)
 
-    LangSvg.ZEdge i ->
+    ShapeWidgets.ZPolyEdge i ->
       let points = getAPoints slate id "points" in
       let n = List.length points in
       let (xt1,yt1) = Utils.geti i points in
@@ -1962,15 +1283,15 @@ makeTriggerPath solveOne offset slate id zone =
     solveOne (addi "y" i) (offset dy yt)
   in
 
-  case LangSvg.realZoneOf zone of
+  case ShapeWidgets.parseZone zone of
 
-    LangSvg.ZPoint i ->
+    ShapeWidgets.ZPoint (ShapeWidgets.Point i) ->
       let cmds = getAPathCmds slate id "d" in
       case findPathPoint cmds i of
         Nothing -> Debug.crash ("makeTrigger path Point " ++ toString i)
         Just pt -> \_ dxy -> solvePoint i dxy pt
 
-    LangSvg.Z "Interior" ->
+    ShapeWidgets.ZInterior ->
       \_ dxy ->
         let cmds = getAPathCmds slate id "d" in
         -- TODO if path is closed with Bezier segment,
@@ -2059,8 +1380,13 @@ getATransformRot = getAVal <| \aval ->
 
 getAColorNum = getAVal <| \aval ->
   case aval.av_ of
-    AColorNum nt -> nt
-    _            -> Debug.crash "getAColorNum"
+    AColorNum (nt, _) -> nt
+    _                 -> Debug.crash "getAColorNum"
+
+getAColorNumOpacity = getAVal <| \aval ->
+  case aval.av_ of
+    AColorNum (_, Just nt) -> nt
+    _                      -> Debug.crash "getAColorNumOpacity"
 
 getAVal foo slate i attrName =
   case Dict.get i slate of
@@ -2127,6 +1453,8 @@ scaleColorBall = 1 / (wGradient / LangSvg.maxColorNum)
 wStrokeWidthBox = 60
 scaleStrokeWidthBall = 1 / (wStrokeWidthBox / LangSvg.maxStrokeWidthNum)
 
+wOpacityBox = 20
+scaleOpacityBall = 1 / wOpacityBox
 
 ------------------------------------------------------------------------------
 

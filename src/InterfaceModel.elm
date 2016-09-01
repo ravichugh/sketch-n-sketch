@@ -1,13 +1,16 @@
 module InterfaceModel where
 
 import Lang exposing (..)
+import Types exposing (AceTypeInfo)
 import Eval
 import Sync
 import Utils
-import LangSvg exposing (RootedIndexedTree, NodeId, ShapeFeature, ShapeKind, Zone)
+import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
+import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature, Zone)
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparse)
 import OurParser2 as P
+import Ace
 
 import List
 import Debug
@@ -71,19 +74,13 @@ type alias Model =
   , hoveredShapes : Set.Set NodeId
   , hoveredCrosshairs : Set.Set (NodeId, ShapeFeature, ShapeFeature)
   , selectedShapes : Set.Set NodeId
-  , selectedFeatures : Set.Set (SelectedType, NodeId, ShapeFeature)
+  , selectedFeatures : Set.Set SelectedShapeFeature
   -- line/g ids assigned by blobs function
   , selectedBlobs : Dict.Dict Int NodeId
   , keysDown : List Char.KeyCode
   , randomColor : Int
-  , lambdaTools : (Int, List Exp)
+  , lambdaTools : (Int, List LambdaTool)
   }
-
--- Trying to imitate a sum type (we need something comparable
--- so it can go into a set).
-type alias SelectedType = String
-selectedTypeShapeFeature = "shapeFeature"
-selectedTypeWidget       = "widget"
 
 type Mode
   = AdHoc
@@ -98,16 +95,12 @@ type alias DialogInfo = { value : String
                         }
 
 type alias CodeBoxInfo =
-  { cursorPos : AcePos
-  , selections : List Range
-  , highlights : List Highlight
+  { cursorPos : Ace.Pos
+  , selections : List Ace.Range
+  , highlights : List Ace.Highlight
+  , annotations : List Ace.Annotation
+  , tooltips : List Ace.Tooltip
   }
-
-type alias Highlight =
-  { range : Range, color : String }
-
-type alias AcePos = { row : Int, column : Int }
-type alias Range = { start : AcePos, end : AcePos }
 
 type alias RawSvg = String
 
@@ -121,7 +114,7 @@ type MouseMode
         , Bool ))                       -- dragged at least one pixel
                                         -- TODO remove second Maybe
   | MouseSlider Widget
-      (Maybe ( MouseTrigger (Exp, Val, RootedIndexedTree, Widgets) ))
+      (Maybe ( MouseTrigger (Result String (Exp, Val, RootedIndexedTree, Widgets)) ))
       -- may add info for hilites later
   | MouseDrawNew (List (KeysDown, (Int, Int)))
       -- invariant on length n of list of points:
@@ -157,11 +150,20 @@ type ShapeToolKind
   | Stretchy
   | Sticky
 
+type LambdaTool
+  = LambdaBounds Exp
+  | LambdaAnchor Exp
+
 type Caption
   = Hovering (Int, ShapeKind, Zone)
   | LangError String
 
 type alias KeysDown = List Char.KeyCode
+
+type ReplicateKind
+  = HorizontalRepeat
+  | LinearRepeat
+  | RadialRepeat
 
 type Event = SelectObject Int ShapeKind Zone
            | MouseClickCanvas      -- used to initiate drawing new shape
@@ -172,7 +174,6 @@ type Event = SelectObject Int ShapeKind Zone
            | PreviewCode (Maybe Code)
            | SelectOption PossibleChange
            | CancelSync
-           | RelateAttrs -- not using UpdateModel, since want to define handler in Controller
            | DigHole
            | MakeEqual
            | MakeEquidistant
@@ -180,8 +181,9 @@ type Event = SelectObject Int ShapeKind Zone
            | AbstractBlobs
            | DuplicateBlobs
            | MergeBlobs
+           | ReplicateBlob ReplicateKind
            | SwitchMode Mode
-           | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets})
+           | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets, ati:AceTypeInfo})
            | Run
            | StartAnimation
            | Redraw
@@ -217,10 +219,12 @@ events = Signal.mailbox <| Noop
 
 mkLive opts slideNumber movieNumber movieTime e v =
   let (_,tree) = LangSvg.valToIndexedTree v in
-  Live <| Sync.prepareLiveUpdates opts slideNumber movieNumber movieTime e v tree
+  Sync.prepareLiveUpdates opts slideNumber movieNumber movieTime e v tree
+  |> Result.map (Live)
 
 mkLive_ opts slideNumber movieNumber movieTime e  =
-  mkLive opts slideNumber movieNumber movieTime e (fst (Eval.run e))
+  Eval.run e `Result.andThen` (\(val,_) -> mkLive opts slideNumber movieNumber movieTime e val)
+
   -- TODO maybe put Val into model (in addition to slate)
   --   so that don't need to re-run in some calling contexts
 
@@ -244,13 +248,13 @@ yellow      = "khaki"
 green       = "limegreen"
 red         = "salmon"
 
-acePos : P.Pos  -> AcePos
+acePos : P.Pos  -> Ace.Pos
 acePos p = { row = p.line, column = p.col }
 
-aceRange : P.WithInfo a -> Range
+aceRange : P.WithInfo a -> Ace.Range
 aceRange x = { start = acePos x.start, end = acePos x.end }
 
-makeHighlight : SubstPlus -> String -> Loc -> Highlight
+makeHighlight : SubstPlus -> String -> Loc -> Ace.Highlight
 makeHighlight subst color (locid,_,_) =
   case Dict.get locid subst of
     Just n  -> { color = color, range = aceRange n }
@@ -269,7 +273,9 @@ sampleModel =
     (name,_,f) = Utils.head_ Examples.list
     {e,v,ws}   = f ()
   in
-  let (slideCount, movieCount, movieDuration, movieContinue, indexedTree) = LangSvg.fetchEverything 1 1 0.0 v in
+  let (slideCount, movieCount, movieDuration, movieContinue, indexedTree) =
+    Utils.fromOk "generating sample model" <| LangSvg.fetchEverything 1 1 0.0 v
+  in
   let code = unparse e in
     { scratchCode   = Examples.scratch
     , exName        = name
@@ -289,7 +295,7 @@ sampleModel =
     , syncSelectTime = 0.0
     , slate         = indexedTree
     , widgets       = ws
-    , mode          = mkLive Sync.defaultOptions 1 1 0.0 e v
+    , mode          = Utils.fromOk "mkLive sample model" <| mkLive Sync.defaultOptions 1 1 0.0 e v
     , mouseMode     = MouseNothing
     , orient        = Vertical
     , hideCode      = False
@@ -307,6 +313,8 @@ sampleModel =
     , codeBoxInfo   = { cursorPos = { row = round 0, column = round 0 }
                       , selections = []
                       , highlights = []
+                      , annotations = []
+                      , tooltips = []
                       }
     , basicCodeBox  = False
     , errorBox      = Nothing
@@ -321,6 +329,6 @@ sampleModel =
     , selectedBlobs = Dict.empty
     , keysDown      = []
     , randomColor   = 100
-    , lambdaTools   = (1, [eVar "star"])
+    , lambdaTools   = (1, [LambdaBounds (eVar "star")])
     }
 
