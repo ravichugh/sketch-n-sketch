@@ -1605,6 +1605,20 @@ unify typeEnv vars accActive accUnifier cs = case cs of
       (TTuple _ ts1 _ mtRest1 _, TTuple _ ts2 _ mtRest2 _) ->
         case Utils.maybeZip ts1 ts2 of
           Nothing -> Err "unify TTuple: different arity"
+{-
+          Nothing ->
+            let (n1, n2) = (List.length ts1, List.length ts2) in
+            if n1 < n2 then
+              case mtRest1 of
+                Nothing -> errAdd "unify TTuple: different arity"
+                Just tRest1 ->
+                  let (ts2_prefix, ts2_suffix) = (List.take n1 ts2, List.drop n1 ts2) in
+                  let induced = [ (-1, (t1, tTuple ts2_prefix))
+                                , (-1, (tRest1, tTuple ts2_suffix)) ] in
+                  recurse accActive accUnifier (induced ++ rest)
+            else
+              errAdd "unify TTuple: different arity"
+-}
           Just list ->
             let induced = List.map (\raw -> (-1, raw)) list in
             case (mtRest1, mtRest2) of

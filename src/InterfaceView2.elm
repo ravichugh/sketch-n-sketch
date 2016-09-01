@@ -1767,7 +1767,7 @@ widgetsTools w h model =
 -}
   , twoButtons w h
       (relateButton DigHole "Dig")
-      (relateButton MakeEqual "x = y")
+      (relateButton MakeEqual "A = B")
 {-
   , gapWidget w h
 -}
