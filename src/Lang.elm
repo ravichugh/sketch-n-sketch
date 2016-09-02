@@ -145,7 +145,6 @@ type Val_
   | VClosure (Maybe Ident) Pat Exp Env
   | VList (List Val)
   | VDict VDict_
-  | VHole Int
 
 type alias VDict_ = Dict.Dict (String, String) Val
 
@@ -201,7 +200,6 @@ strVal_ showTraces v =
     VClosure _ _ _ _ -> "<fun>"
     VList vs         -> Utils.bracks (String.join " " (List.map foo vs))
     VDict d          -> "<dict " ++ (Dict.toList d |> List.map (\(k, v) -> (toString k) ++ ":" ++ (foo v)) |> String.join " ") ++ ">"
-    VHole i          -> "HOLE_" ++ toString i
 
 strOp op = case op of
   Plus          -> "+"
@@ -311,7 +309,6 @@ mapVal f v = case v.v_ of
   VConst _         -> f v
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
-  VHole _          -> f v
 
 foldVal : (Val -> a -> a) -> Val -> a -> a
 foldVal f v a = case v.v_ of
@@ -320,7 +317,6 @@ foldVal f v a = case v.v_ of
   VConst _         -> f v a
   VBase _          -> f v a
   VClosure _ _ _ _ -> f v a
-  VHole _          -> f v a
 
 -- Fold through preorder traversal
 foldExp : (Exp -> a -> a) -> a -> Exp -> a
@@ -650,7 +646,6 @@ vConst   = val << VConst
 vBase    = val << VBase
 vList    = val << VList
 vDict    = val << VDict
-vHole    = val << VHole
 
 unwrapVList : Val -> Maybe (List Val_)
 unwrapVList v =

@@ -180,9 +180,11 @@ highlightChanges mStuff changes codeBoxInfo =
 
       { codeBoxInfo | highlights = hi' }
 
+{-
 addSlateAndCode old (exp, val) =
   slateAndCode old (exp, val)
   |> Result.map (\(slate, code) -> (exp, val, slate, code))
+-}
 
 slateAndCode old (exp, val) =
   LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val
@@ -726,44 +728,6 @@ upstate evt old = case debugLog "Event" evt of
       case Blobs.isSimpleProgram old.inputExp of
         Nothing     -> old
         Just simple -> upstate Run <| ETransform.replicateSelectedBlob option old simple
-
-{-
-    -- TODO AdHoc/Sync not used at the moment
-    Sync ->
-      case (old.mode, old.inputExp) of
-        (AdHoc, ip) ->
-          let
-            -- If stuff breaks, try re-adding this.
-            -- We forgot why it was here.
-            -- inputval   = fst <| Eval.run ip
-            -- inputSlate = LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime inputval
-            -- inputval'  = slateToVal inputSlate
-            newval     = slateToVal old.slate
-            local      = Sync.inferLocalUpdates old.syncOptions ip old.inputVal newval
-            struct     = Sync.inferStructuralUpdates ip old.inputVal newval
-            delete     = Sync.inferDeleteUpdates ip old.inputVal newval
-            relatedG   = Sync.inferNewRelationships ip old.inputVal newval
-            relatedV   = Sync.relateSelectedAttrs old.genSymCount ip old.inputVal newval
-          in
-          let addSlateAndCodeToAll list = List.filterMap (Result.toMaybe << addSlateAndCode old) list in
-            case (local, relatedV) of
-              (Ok [], (_, [])) -> { old | mode = Utils.fromOk "Sync mkLive_" <| mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime ip }
-              (Ok [], (nextK, changes)) ->
-                let _ = debugLog ("no live updates, only related var") () in
-                let m = SyncSelect (addSlateAndCodeToAll changes) in
-                { old | mode = m, genSymCount = nextK, runAnimation = True, syncSelectTime = 0.0 }
-              (Ok live, _) ->
-                let n = debugLog "# of live updates" (List.length live) in
-                let changes = live ++ delete ++ relatedG ++ struct in
-                let m = SyncSelect (addSlateAndCodeToAll changes) in
-                { old | mode = m, runAnimation = True, syncSelectTime = 0.0 }
-              (Err e, _) ->
-                let _ = debugLog ("no live updates: " ++ e) () in
-                let changes = delete ++ relatedG ++ struct in
-                let m = SyncSelect (addSlateAndCodeToAll changes) in
-                { old | mode = m, runAnimation = True, syncSelectTime = 0.0 }
-        _ -> Debug.crash "upstate Sync"
--}
 
     SelectOption (exp, val, slate, code) ->
         { old | code          = code
