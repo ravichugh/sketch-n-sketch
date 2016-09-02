@@ -124,33 +124,17 @@ type alias Cmd = String -- single uppercase/lowercase letter
 
 type alias IdPoint = (Maybe Int, Point)
 
--- toNum    (ANum (i,_)) = i
--- toNumTr  (ANum (i,t)) = (i,t)
-
 strValOfAVal = strVal << valOfAVal
 
 expectedButGot x s = crashWithMsg <| "expected " ++ x ++", but got: " ++ s
 
--- temporary way to ignore numbers specified as strings (also see Sync)
-
-toNum : AVal -> Num
 toNum a = case a.av_ of
-  ANum (n,_) -> n
-  AString s  ->
-    case String.toFloat s of
-      Ok n -> n
-      _    -> "a number" `expectedButGot` strValOfAVal a
-  _        -> "a number" `expectedButGot` strValOfAVal a
+  ANum nt -> nt
+  _       -> "a number" `expectedButGot` strValOfAVal a
 
-toNumTr a = case a.av_ of
-  ANum (n,t) -> (n,t)
-  -- TODO add back in?
-  -- AColorNum (n,t) -> (n,t)
-  AString s  ->
-    case String.toFloat s of
-      Ok n -> (n, dummyTrace)
-      _    -> "a number" `expectedButGot` strValOfAVal a
-  _        -> "a number" `expectedButGot` strValOfAVal a
+toColorNum a = case a.av_ of
+  AColorNum nt -> nt
+  _            -> "a color number" `expectedButGot` strValOfAVal a
 
 toPoints a = case a.av_ of
   APoints pts -> pts
@@ -168,6 +152,7 @@ toTransformRot a = case a.av_ of
 -- TODO will need to change AVal also
 --   and not insert dummy VTraces (using the v* functions)
 
+valToAttr : Val -> (String, AVal)
 valToAttr v = case v.v_ of
   VList [v1,v2] -> case (v1.v_, v2.v_) of
     (VBase (VString k), v2_) ->

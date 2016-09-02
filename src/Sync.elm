@@ -12,8 +12,7 @@ import Debug
 import String
 
 import Lang exposing (..)
--- import LangSvg exposing (NodeId, ShapeKind, Zone, addi)
-import LangSvg exposing (..)
+import LangSvg exposing (NodeId, ShapeKind, IndexedTree, AVal_(..), TransformCmd(..), PathCmd(..))
 import ShapeWidgets exposing (Zone)
 import Eval
 import OurParser2 as P
@@ -911,43 +910,19 @@ solveOne_ opts d0 d2 subst i zone attr (n',t) =
       let maybeSolution = Solver.solve subst' (n',t) in
       [(k, maybeSolution)]
 
--- some of these helpers overlap with LangSvg
+getANum             = getAVal LangSvg.toNum
+getAPoints          = getAVal LangSvg.toPoints
+getATransformRot    = getAVal LangSvg.toTransformRot
+getAPathCmds        = getAVal (LangSvg.toPath >> fst)
+getAColorNum        = getAVal (LangSvg.toColorNum >> fst)
+getAColorNumOpacity = getAVal (LangSvg.toColorNum >> snd
+                                >> Utils.fromJust_ "getAColorNumOpacity")
 
-getANum = getAVal <| \aval ->
-  case aval.av_ of
-    ANum nt -> nt
-    _       -> Debug.crash "getANum"
-
-getAPoints = getAVal <| \aval ->
-  case aval.av_ of
-    APoints pts -> pts
-    _           -> Debug.crash "getAPoints"
-
-getAPathCmds = getAVal <| \aval ->
-  case aval.av_ of
-    APath2 (cmds, _) -> cmds
-    _                -> Debug.crash "getAPathCmds"
-
-getATransformRot = getAVal <| \aval ->
-  case aval.av_ of
-    ATransform [Rot n1 n2 n3] -> (n1,n2,n3)
-    _                         -> Debug.crash "getATransformRot"
-
-getAColorNum = getAVal <| \aval ->
-  case aval.av_ of
-    AColorNum (nt, _) -> nt
-    _                 -> Debug.crash "getAColorNum"
-
-getAColorNumOpacity = getAVal <| \aval ->
-  case aval.av_ of
-    AColorNum (_, Just nt) -> nt
-    _                      -> Debug.crash "getAColorNumOpacity"
-
-getAVal foo slate i attrName =
+getAVal fooAVal slate i attrName =
   case Dict.get i slate of
     Just (LangSvg.SvgNode _ attrs _) ->
       case Utils.maybeFind attrName attrs of
-        Just aval -> foo aval
+        Just aval -> fooAVal aval
         Nothing   -> Debug.crash ("getAVal: " ++ toString (i, attrName))
     Nothing                   -> Debug.crash "getAVal"
     Just (LangSvg.TextNode _) -> Debug.crash "getAVal"
@@ -962,13 +937,6 @@ getTop slate i   = getANum slate i "TOP"
 getRight slate i = getANum slate i "RIGHT"
 getBot slate i   = getANum slate i "BOT"
 
-{-
-rectRightEdge slate i =
-  getANum slate i "x" `plusNumTr` getANum slate i "width"
-
-rectBotEdge slate i =
-  getANum slate i "y" `plusNumTr` getANum slate i "height"
--}
 
 -- TODO sloppy way of doing this for now...
 whichLoc : Options -> Dict0 -> Dict2 -> NodeId -> Zone -> AttrName -> Maybe LocId
