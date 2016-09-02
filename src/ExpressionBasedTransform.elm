@@ -269,18 +269,12 @@ computeSelectedBlobsAndBounds model =
          -- refactor the following cases for readability
 
          Just (LangSvg.SvgNode "BOX" nodeAttrs _) ->
-           let get attr = LangSvg.maybeFindAttr nodeId "BOX" attr nodeAttrs in
-           case List.map .v_ [get "LEFT", get "TOP", get "RIGHT", get "BOT"] of
-             [VConst left, VConst top, VConst right, VConst bot] ->
-               (left, top, right, bot)
-             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+           let get attr = LangSvg.findNumishAttr nodeId attr nodeAttrs in
+           (get "LEFT", get "TOP", get "RIGHT", get "BOT")
 
          Just (LangSvg.SvgNode "OVAL" nodeAttrs _) ->
-           let get attr = LangSvg.maybeFindAttr nodeId "OVAL" attr nodeAttrs in
-           case List.map .v_ [get "LEFT", get "TOP", get "RIGHT", get "BOT"] of
-             [VConst left, VConst top, VConst right, VConst bot] ->
-               (left, top, right, bot)
-             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+           let get attr = LangSvg.findNumishAttr nodeId attr nodeAttrs in
+           (get "LEFT", get "TOP", get "RIGHT", get "BOT")
 
          Just (LangSvg.SvgNode "g" nodeAttrs _) ->
            case LangSvg.maybeFindBounds nodeAttrs of
@@ -288,34 +282,26 @@ computeSelectedBlobsAndBounds model =
              Nothing     -> Debug.crash "computeSelectedBlobsAndBounds"
 
          Just (LangSvg.SvgNode "line" nodeAttrs _) ->
-           let get attr = LangSvg.maybeFindAttr nodeId "line" attr nodeAttrs in
-           case List.map .v_ [get "x1", get "y1", get "x2", get "y2"] of
-             [VConst x1, VConst y1, VConst x2, VConst y2] ->
-               (minNumTr x1 x2, minNumTr y1 y2, maxNumTr x1 x2, maxNumTr y1 y2)
-             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+           let get attr = LangSvg.findNumishAttr nodeId attr nodeAttrs in
+           let (x1,y1,x2,y2) = (get "x1", get "y1", get "x2", get "y2") in
+           (minNumTr x1 x2, minNumTr y1 y2, maxNumTr x1 x2, maxNumTr y1 y2)
 
          -- "ellipse" and "circle" aren't handled nicely by grouping
 
          Just (LangSvg.SvgNode "ellipse" nodeAttrs _) ->
-           let get attr = LangSvg.maybeFindAttr nodeId "ellipse" attr nodeAttrs in
-           case List.map .v_ [get "cx", get "cy", get "rx", get "ry"] of
-             [VConst cx, VConst cy, VConst rx, VConst ry] ->
-               (cx `minusNumTr` rx, cy `minusNumTr` ry, cx `plusNumTr` rx, cy `plusNumTr` ry)
-             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+           let get attr = LangSvg.findNumishAttr nodeId attr nodeAttrs in
+           let (cx,cy,rx,ry) = (get "cx", get "cy", get "rx", get "ry") in
+           (cx `minusNumTr` rx, cy `minusNumTr` ry, cx `plusNumTr` rx, cy `plusNumTr` ry)
 
          Just (LangSvg.SvgNode "circle" nodeAttrs _) ->
-           let get attr = LangSvg.maybeFindAttr nodeId "circle" attr nodeAttrs in
-           case List.map .v_ [get "cx", get "cy", get "r"] of
-             [VConst cx, VConst cy, VConst r] ->
-               (cx `minusNumTr` r, cy `minusNumTr` r, cx `plusNumTr` r, cy `plusNumTr` r)
-             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+           let get attr = LangSvg.findNumishAttr nodeId attr nodeAttrs in
+           let (cx,cy,r) = (get "cx", get "cy", get "r") in
+           (cx `minusNumTr` r, cy `minusNumTr` r, cx `plusNumTr` r, cy `plusNumTr` r)
 
          Just (LangSvg.SvgNode "rect" nodeAttrs _) ->
-           let get attr = LangSvg.maybeFindAttr nodeId "rect" attr nodeAttrs in
-           case List.map .v_ [get "x", get "y", get "width", get "height"] of
-             [VConst x, VConst y, VConst width, VConst height] ->
-               (x, y, x `plusNumTr` width, y `plusNumTr` height)
-             _ -> Debug.crash "computeSelectedBlobsAndBounds"
+           let get attr = LangSvg.findNumishAttr nodeId attr nodeAttrs in
+           let (x,y,width,height) = (get "x", get "y", get "width", get "height") in
+           (x, y, x `plusNumTr` width, y `plusNumTr` height)
 
          _ -> Debug.crash "computeSelectedBlobsAndBounds"
      )
@@ -387,18 +373,17 @@ groupSelectedBlobsAround model (defs, blobs, f) (anchorId, anchorPointFeature) =
   -- TODO
   -- simple approach: anchor must be a primitive point
   case ShapeWidgets.getPointEquations anchorId anchorKind anchorAttrs anchorPointFeature of
-    (ShapeWidgets.EqnVal vxBase, ShapeWidgets.EqnVal vyBase) ->
+    (ShapeWidgets.EqnNum (nxBase, txBase), ShapeWidgets.EqnNum (nyBase, tyBase)) ->
 
       -- simple approach: anchor point must be defined by constant literals
-      case (vxBase.v_, vyBase.v_) of
-        (VConst (nxBase, TrLoc xBaseLoc), VConst (nyBase, TrLoc yBaseLoc)) ->
+      case (txBase, tyBase) of
+        (TrLoc xBaseLoc, TrLoc yBaseLoc) ->
 
           let selectedNiceBlobs = selectedBlobsToSelectedNiceBlobs model blobs in
           let newGroup = "newGroup" ++ toString model.genSymCount in
           let (groupDefs, eSubst) =
             rewritePrimitivePointsOfSelectedBlobs model
-               (vxBase, nxBase, xBaseLoc)
-               (vyBase, nyBase, yBaseLoc)
+               (nxBase, xBaseLoc) (nyBase, yBaseLoc)
           in
           let (defs', blobs') =
             groupAndRearrange model newGroup defs blobs selectedNiceBlobs
@@ -433,8 +418,8 @@ groupSelectedBlobsAround model (defs, blobs, f) (anchorId, anchorPointFeature) =
       model
 
 
-rewritePrimitivePointsOfSelectedBlobs model (vxBase, nxBase, xBaseLoc)
-                                            (vyBase, nyBase, yBaseLoc) =
+rewritePrimitivePointsOfSelectedBlobs model (nxBase, xBaseLoc)
+                                            (nyBase, yBaseLoc) =
   let (xId, _, xName) = xBaseLoc in
   let (yId, _, yName) = yBaseLoc in
   let (xAnchor, yAnchor) = ("xAnchor", "yAnchor") in
@@ -451,16 +436,15 @@ rewritePrimitivePointsOfSelectedBlobs model (vxBase, nxBase, xBaseLoc)
       )
   in
   let eSubst =
-    pointsOfSelectedBlobs |> List.foldl (\(vxOther, vyOther) acc ->
+    pointsOfSelectedBlobs |> List.foldl (\(xOther, yOther) acc ->
       -- TODO when anchor is derived point, rewrite anchor shape appropriately
-      if (vxBase.v_, vyBase.v_) == (vxOther.v_, vyOther.v_) then
+      if (nxBase, nyBase) == (fst xOther, fst yOther) then
         acc |> Dict.insert xId (EVar " " xAnchor)
             |> Dict.insert yId (EVar " " yAnchor)
       else
-        case (vxOther.v_, vyOther.v_) of
-          -- simple approach: requiring other values to be constant literals
-          ( VConst (nxOther, TrLoc (xOtherId,_,_))
-          , VConst (nyOther, TrLoc (yOtherId,_,_))
+        case (xOther, yOther) of
+          ( (nxOther, TrLoc (xOtherId,_,_))
+          , (nyOther, TrLoc (yOtherId,_,_))
           ) ->
             acc |> Dict.insert xOtherId (eBaseOffset xAnchor (nxOther - nxBase))
                 |> Dict.insert yOtherId (eBaseOffset yAnchor (nyOther - nyBase))

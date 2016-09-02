@@ -406,9 +406,11 @@ polyMidptYPrefix = "polygonMidptY"
 
 -- Can't just use Trace because we need to introduce
 -- constants not found in the program's Subst
+-- If need more structured values in the future,
+-- add EqnVal AVal (rather than EqnVal Val).
+--
 type FeatureEquation
-  = EqnVal Val
-      -- TODO switch Val to NumTr (or AVal), so don't need to keep valOfAVal around
+  = EqnNum NumTr
   | EqnOp Op_ (List FeatureEquation)
 
 
@@ -427,7 +429,7 @@ type alias BoxyFeatureEquations =
   }
 
 
-two       = EqnVal <| vConst (2, dummyTrace)
+two       = EqnNum (2, dummyTrace)
 plus a b  = EqnOp Plus [a, b]
 minus a b = EqnOp Minus [a, b]
 div a b   = EqnOp Div [a, b]
@@ -442,7 +444,7 @@ featureEquation nodeId kind feature nodeAttrs =
 featureEquationOf : NodeId -> ShapeKind -> List Attr -> FeatureNum -> FeatureEquation
 featureEquationOf id kind attrs featureNum =
 
-  let get attr  = EqnVal <| LangSvg.maybeFindAttr id kind attr attrs in
+  let get attr  = EqnNum <| LangSvg.findNumishAttr id attr attrs in
   let crash () =
     let s = unparseFeatureNum (Just kind) featureNum in
     Debug.crash <| Utils.spaces [ "featureEquationOf:", kind, s ] in
@@ -526,15 +528,15 @@ featureEquationOf id kind attrs featureNum =
 
     O FillOpacity ->
       case (Utils.find_ attrs "fill").av_ of
-        LangSvg.AColorNum (_, Just opacity) -> EqnVal (vConst opacity)
+        LangSvg.AColorNum (_, Just opacity) -> EqnNum opacity
         _                                   -> Debug.crash "featureEquationOf: fillOpacity"
     O StrokeOpacity ->
       case (Utils.find_ attrs "stroke").av_ of
-        LangSvg.AColorNum (_, Just opacity) -> EqnVal (vConst opacity)
+        LangSvg.AColorNum (_, Just opacity) -> EqnNum opacity
         _                                   -> Debug.crash "featureEquationOf: strokeOpacity"
     O Rotation ->
       let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ attrs "transform" in
-      EqnVal (vConst rot)
+      EqnNum rot
 
     _ ->
       case kind of
@@ -552,7 +554,7 @@ featureEquationOf id kind attrs featureNum =
 
 boxyFeatureEquationsOf : NodeId -> ShapeKind -> List Attr -> BoxyFeatureEquations
 boxyFeatureEquationsOf id kind attrs =
-  let get attr  = EqnVal <| LangSvg.maybeFindAttr id kind attr attrs in
+  let get attr  = EqnNum <| LangSvg.findNumishAttr id attr attrs in
   case kind of
 
     "rect" ->
@@ -631,13 +633,8 @@ boxyFeatureEquationsOf id kind attrs =
 evaluateFeatureEquation : FeatureEquation -> Maybe Num
 evaluateFeatureEquation eqn =
   case eqn of
-    EqnVal val ->
-      case val.v_ of
-        VConst (n, _) ->
-          Just n
-
-        _ ->
-          Debug.crash <| "Found feature equation with a value other than a VConst: " ++ (toString val) ++ "\nin: " ++ (toString eqn)
+    EqnNum (n, _) ->
+      Just n
 
     EqnOp op [left, right] ->
       let maybePerformBinop op =
@@ -712,13 +709,13 @@ getPointEquations nodeId kind attrs pointFeature =
   ( featureEquationOf nodeId kind attrs (X pointFeature)
   , featureEquationOf nodeId kind attrs (Y pointFeature) )
 
-getPrimitivePointEquations : RootedIndexedTree -> NodeId -> List (Val, Val)
+getPrimitivePointEquations : RootedIndexedTree -> NodeId -> List (NumTr, NumTr)
 getPrimitivePointEquations (_, tree) nodeId =
   case Utils.justGet_ "LangSvg.getPrimitivePoints" nodeId tree of
     LangSvg.SvgNode kind attrs _ ->
       List.concatMap (\pointFeature ->
         case getPointEquations nodeId kind attrs pointFeature of
-          (EqnVal v1, EqnVal v2) -> [(v1,v2)]
+          (EqnNum v1, EqnNum v2) -> [(v1,v2)]
           _                      -> []
       ) (pointFeaturesOfShape kind attrs)
     _ ->

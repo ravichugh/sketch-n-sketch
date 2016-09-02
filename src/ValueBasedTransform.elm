@@ -42,7 +42,7 @@ digHole originalExp selectedFeatures slate syncOptions =
         pluckSelectedVals selectedFeatures slate locIdToNumberAndLoc
     in
     let tracesLocsets =
-      List.map ((Sync.locsOfTrace syncOptions) << valToTrace) selectedVals
+      List.map ((Sync.locsOfTrace syncOptions) << snd) selectedVals
     in
     let allLocs = List.foldl Set.union Set.empty tracesLocsets in
     let (thawed, others) =
@@ -697,19 +697,19 @@ typeAndNodeIdAndFeatureToEquation (selectedType, nodeId, featureName) tree locId
           locId
           locIdToNumberAndLoc
     in
-    Just (ShapeWidgets.EqnVal <| vConst (n, TrLoc loc))
+    Just (ShapeWidgets.EqnNum <| (n, TrLoc loc))
   else
     Debug.crash <| "Unknown selected feature type: " ++ selectedType
 
 
 equationVals eqn =
   case eqn of
-    ShapeWidgets.EqnVal val   -> [val]
+    ShapeWidgets.EqnNum val   -> [val]
     ShapeWidgets.EqnOp _ eqns -> List.concatMap equationVals eqns
 
 
 equationLocs syncOptions eqn =
-  List.concatMap (Set.toList << (Sync.locsOfTrace syncOptions) << valToTrace) (equationVals eqn)
+  List.concatMap (Set.toList << (Sync.locsOfTrace syncOptions) << snd) (equationVals eqn)
 
 
 -- Will abort if any op other than + - * /
@@ -832,20 +832,17 @@ maybeExtractUnsharedExpression lhs rhs =
 featureEquationToLocEquation : FeatureEquation -> LocEquation
 featureEquationToLocEquation featureEqn =
   case featureEqn of
-    ShapeWidgets.EqnVal val ->
-      case val.v_ of
-        -- locId of 0 means it's a constant that's part of the feature equation,
-        -- not the program
-        VConst (n, TrLoc (0, _, _)) ->
-          LocEqnConst n
 
-        VConst (n, TrLoc (locId, _, _)) ->
-          LocEqnLoc locId
+    -- locId of 0 means it's a constant that's part of the feature equation,
+    -- not the program
+    ShapeWidgets.EqnNum (n, TrLoc (0, _, _)) ->
+      LocEqnConst n
 
-        VConst (n, TrOp op traces) ->
-          LocEqnOp op (List.map traceToLocEquation traces)
+    ShapeWidgets.EqnNum (n, TrLoc (locId, _, _)) ->
+      LocEqnLoc locId
 
-        _ -> Debug.crash <| "Found feature equation with a value other than a VConst: " ++ (toString val) ++ "\nin: " ++ (toString featureEqn)
+    ShapeWidgets.EqnNum (n, TrOp op traces) ->
+      LocEqnOp op (List.map traceToLocEquation traces)
 
     ShapeWidgets.EqnOp op featureEqns ->
       LocEqnOp op (List.map featureEquationToLocEquation featureEqns)
@@ -914,20 +911,15 @@ featurePoints features =
 equationToLittle : SubstStr -> FeatureEquation -> String
 equationToLittle substStr eqn =
   case eqn of
-    ShapeWidgets.EqnVal val ->
-      case val.v_ of
-        VConst (n, trace) ->
-          let littlizedTrace = traceToLittle substStr trace in
-          if littlizedTrace /= "?" then
-            littlizedTrace
-          else
-            -- Constants introduced by the equation (e.g. /2 for midpoint) won't
-            -- have a value in subst.
-            -- Also, they should be frozen.
-            toString n ++ "!"
-
-        _ ->
-          "?"
+    ShapeWidgets.EqnNum (n, trace) ->
+      let littlizedTrace = traceToLittle substStr trace in
+      if littlizedTrace /= "?" then
+        littlizedTrace
+      else
+        -- Constants introduced by the equation (e.g. /2 for midpoint) won't
+        -- have a value in subst.
+        -- Also, they should be frozen.
+        toString n ++ "!"
 
     ShapeWidgets.EqnOp op childEqns ->
       let childLittleStrs = List.map (equationToLittle substStr) childEqns in

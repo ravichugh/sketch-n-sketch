@@ -11,7 +11,7 @@ module LangSvg
   , aNum, aPoints, aTransform
   , toNum, toColorNum, toTransformRot, toPoints, toPath
   , valsToPath2
-  , maybeFindAttr, getPtCount, justGetSvgNode, maybeFindBounds, maybeFindBlobId
+  , findNumishAttr, getPtCount, justGetSvgNode, maybeFindBounds, maybeFindBlobId
   , resolveToIndexedTree, resolveToMovieFrameVal, resolveToMovieCount, fetchEverything
   ) where
 
@@ -199,9 +199,6 @@ valToPoint v = case v.v_ of
     _                    -> "a point" `expectedButGot` strVal v
   _                      -> "a point" `expectedButGot` strVal v
 
-pointToVal : Point -> Val
-pointToVal (x,y) = (vList [vConst x, vConst y])
-
 strPoint : Point -> String
 strPoint (x_,y_) =
   let (x,y) = Utils.unwrap2 <| List.map fst [x_,y_] in
@@ -214,9 +211,6 @@ valsToRgba : List Val -> Rgba
 valsToRgba vs = case List.map .v_ vs of
   [VConst r, VConst g, VConst b, VConst a] -> (r,g,b,a)
   _                                        -> "rgba" `expectedButGot` strVal (vList vs)
-
-rgbaToVals : Rgba -> List Val
-rgbaToVals (r,g,b,a) = [vConst r, vConst g, vConst b, vConst a]
 
 strRgba : Rgba -> String
 strRgba (r_,g_,b_,a_) =
@@ -306,18 +300,6 @@ matchCmd cmd s =
   let c  = Utils.unwrap1 <| String.toList cmd in
   let cs = String.toList s in
   List.member c (cs ++ List.map Char.toLower cs)
-
-
-valsOfPathCmd : PathCmd -> List Val
-valsOfPathCmd c =
-  let fooPt (_,(x,y)) = [vConst x, vConst y] in
-  case c of
-    CmdZ   s              -> vStr s :: []
-    CmdMLT s pt           -> vStr s :: fooPt pt
-    CmdHV  s n            -> vStr s :: [vConst n]
-    CmdC   s pt1 pt2 pt3  -> vStr s :: List.concatMap fooPt [pt1,pt2,pt3]
-    CmdSQ  s pt1 pt2      -> vStr s :: List.concatMap fooPt [pt1,pt2]
-    CmdA   s a b c d e pt -> vStr s :: List.map vConst [a,b,c,d,e] ++ fooPt pt
 
 
 strAPathCmds : List PathCmd -> String
@@ -496,26 +478,6 @@ compileAttr k v = (attr k) (strAVal v)
 ------------------------------------------------------------------------------
 -- Misc AVal Helpers
 
--- TODO remove valOfAVal, pointToVal, rgbaToVals, valsOfPathCmd
-
-valOfAVal : AVal -> Val
-valOfAVal a = flip Val a.vtrace <| case a.av_ of
-
-  AString s    -> VBase (VString s)
-  ANum it      -> VConst it
-  APoints l    -> VList (List.map pointToVal l)
-  ARgba tup    -> VList (rgbaToVals tup)
-  APath2 p     -> VList (List.concatMap valsOfPathCmd (fst p))
-
-  AColorNum (nt, Nothing)   -> VConst nt
-  AColorNum (nt1, Just nt2) -> VList [vConst nt1, vConst nt2]
-
-  _ -> Debug.crash <| "valOfAVal: " ++ strAVal a
-
-
--- strValOfAVal = strVal << valOfAVal
-
-
 toNum a = case a.av_ of
   ANum nt -> nt
   _       -> "a number" `expectedButGot` strAVal a
@@ -523,6 +485,11 @@ toNum a = case a.av_ of
 toColorNum a = case a.av_ of
   AColorNum nt -> nt
   _            -> "a color number" `expectedButGot` strAVal a
+
+toNumIsh a = case a.av_ of
+  ANum nt           -> nt
+  AColorNum (nt, _) -> nt
+  _       -> "a number or color number" `expectedButGot` strAVal a
 
 toPoints a = case a.av_ of
   APoints pts -> pts
@@ -551,69 +518,16 @@ aPath2        = aVal << APath2
 ------------------------------------------------------------------------------
 -- Misc Attribute Helpers
 
--- TODO get rid of some of these once valOfAVal is no longer used/needed
 
-maybeFindAttr_ id kind attr attrs =
+findNumishAttr : NodeId -> String -> List Attr -> NumTr
+findNumishAttr id attr attrs = toNumIsh <| findAVal id attr attrs
+
+
+findAVal : NodeId -> String -> List Attr -> AVal
+findAVal id attr attrs =
   case Utils.maybeFind attr attrs of
-    Just aval -> valOfAVal aval
-    Nothing   -> Debug.crash <| toString ("RelateAttrs 2", id, kind, attr, attrs)
-
-
-getPolyXYi attrs si fstOrSnd =
-  let i = Utils.fromOk_ <| String.toInt si in
-  case Utils.maybeFind "points" attrs of
-    Just aval -> case aval.av_ of
-      APoints pts -> valOfAVal <| aNum <| fstOrSnd <| Utils.geti i pts
-      _           -> Debug.crash "getPolyXYi 2"
-    _ -> Debug.crash "getPolyXYi 1"
-
-
-getPathXYi attrs si fstOrSnd =
-  let i = Utils.fromOk_ <| String.toInt si in
-  let maybeIndexPoint =
-    pathIndexPoints attrs
-    |> Utils.maybeFind i
-  in
-  case maybeIndexPoint of
-    Just pt -> valOfAVal <| aNum <| fstOrSnd pt
-    Nothing -> Debug.crash "getPathXYi 3"
-
-
--- Return list of (i, pt).
--- (Includes control points.)
-pathIndexPoints nodeAttrs =
-  let cmds =
-    Utils.find ("pathPoints nodeAttrs looking for \"d\" in " ++ (toString nodeAttrs)) nodeAttrs "d"
-    |> toPath
-    |> fst
-  in
-  let pts =
-    cmds
-    |> List.concatMap
-        (\cmd -> case cmd of
-          CmdZ   s              -> []
-          CmdMLT s pt           -> [pt]
-          CmdHV  s n            -> []
-          CmdC   s pt1 pt2 pt3  -> [pt1, pt2, pt3]
-          CmdSQ  s pt1 pt2      -> [pt1, pt2]
-          CmdA   s a b c d e pt -> [pt]
-        )
-    |> List.filterMap
-        (\(maybeIndex, pt) -> case maybeIndex of
-          Nothing -> Nothing
-          Just i  -> Just (i, pt)
-        )
-  in
-  pts
-
-
-maybeFindAttr id kind attr attrs =
-  case (kind, String.uncons attr) of
-    ("polygon", Just ('x', si)) -> getPolyXYi attrs si fst
-    ("polygon", Just ('y', si)) -> getPolyXYi attrs si snd
-    ("path",    Just ('x', si)) -> getPathXYi attrs si fst
-    ("path",    Just ('y', si)) -> getPathXYi attrs si snd
-    _                           -> maybeFindAttr_ id kind attr attrs
+    Just aval -> aval
+    Nothing   -> Debug.crash <| "findAVal: " ++ attr
 
 
 getPtCount attrs =
