@@ -408,6 +408,7 @@ polyMidptYPrefix = "polygonMidptY"
 -- constants not found in the program's Subst
 type FeatureEquation
   = EqnVal Val
+      -- TODO switch Val to NumTr (or AVal), so don't need to keep valOfAVal around
   | EqnOp Op_ (List FeatureEquation)
 
 
