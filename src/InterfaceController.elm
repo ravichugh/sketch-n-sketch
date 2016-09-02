@@ -10,6 +10,7 @@ import Blobs exposing (..)
 import Draw
 import ExpressionBasedTransform as ETransform
 import Sync
+import Solver
 import Eval
 import Utils
 import Keys
@@ -1083,7 +1084,7 @@ createMousePosCallbackSlider mx my widget old =
                     -- might just put subst in the Model,
                     -- not just in MouseObject MouseMode...
       let updateXY k (nxy, txy) = \dxy ->
-        case Sync.solve (Dict.remove k subst) (nxy + dxy, txy) of
+        case Solver.solve (Dict.remove k subst) (nxy + dxy, txy) of
           Just newNum -> newNum
           Nothing     -> Utils.justGet_ "createMousePosCallbackSlider: updateXY" k subst
       in
