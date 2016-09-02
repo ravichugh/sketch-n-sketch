@@ -24,66 +24,11 @@ debugLog = Config.debugLog Config.debugSync
 
 type alias Equation = (Num, Trace)
 
-{-
-solveOneLeaf : Options -> Subst -> Val -> List (LocId, Num)
-solveOneLeaf opts s v = case v.v_ of
-  VConst (i, tr) ->
-    List.filterMap
-      (\k -> let s' = Dict.remove k s in
-             Utils.mapMaybe (\n -> (k,n)) (solve s' (i, tr)))
-      (List.map Utils.fst3 <| Set.toList <| locsOfTrace opts tr)
-  _ ->
-    Debug.crash "solveOneLeaf"
--}
-
-{-
-inferSubsts : Options -> Subst -> List Val -> List Subst
-inferSubsts opts s0 vs =
-  List.map (solveOneLeaf opts s0) vs
-    |> Utils.oneOfEach
-    |> List.map combine
-    |> List.map (Utils.mapMaybe (\s' -> Dict.union s' s0))  -- pref to s'
-    |> List.filterMap identity
--}
-
-{-
-combine : List (LocId, Num) -> Maybe Subst
-combine solutions =
-  let f (l,n) msubst =
-    let g subst =
-      case Dict.get l subst of
-        Nothing -> Just (Dict.insert l n subst)
-        Just i  -> if i == n
-                     then Just (Dict.insert l n subst)
-                     else Nothing
-    in
-    Utils.bindMaybe g msubst
-  in
-  List.foldl f (Just Dict.empty) solutions
--}
-
--- useful for debugging
-traceToExp : Subst -> Trace -> Exp
-traceToExp subst tr = case tr of
-  TrLoc l ->
-    case Dict.get (Utils.fst3 l) subst of
-      Nothing -> eVar (strLoc l)
-      Just n  -> eConst n l
-  TrOp op ts ->
-    withDummyPos (EOp " " (withDummyRange op) (List.map (traceToExp subst) ts) "")
-
 solve : Subst -> Equation -> Maybe Num
 solve subst eqn =
-{-
-  let (n,t) = eqn in
-  (\ans ->
-    let _ = Debug.log "solveTopDown" (n, sExp (traceToExp subst t), ans)
-    in ans) <|
--}
   (termSolve subst eqn) `Utils.plusMaybe` (solveTopDown subst eqn)
 
-  -- both solveTopDown and termSolve
-  -- assumes that a single variable is being solved for
+  -- both solvers assume that a single variable is being solved for
 
 
 --------------------------------------------------------------------------------

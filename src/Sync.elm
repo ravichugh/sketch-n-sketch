@@ -95,18 +95,6 @@ locsOfTrace opts =
     else
       s
 
-{-
-    else
-      -- want to count the number of non-frozen, non-assignOnce locs
-      let keep = (\(_,ann,_) -> ann /= assignOnlyOnce) in
-      if List.length (List.filter keep (Set.toList s)) <= 1 then
-        -- let _ = Debug.log "dropping" s in
-        Set.empty
-      else
-        s
--}
-
-
 
 ------------------------------------------------------------------------------
 -- Triggers
@@ -126,17 +114,6 @@ type alias NumAttrs = Int
 type alias Dict0 = Dict NodeId (ShapeKind, ExtraInfo, ExtraExtraInfo, Dict AttrName Trace)
 type alias Dict1 = Dict NodeId (ShapeKind, List (Zone, (NumAttrs, List Locs)))
 type alias Dict2 = Dict NodeId (ShapeKind, List (Zone, Maybe (Locs, List Locs)))
-
-printZoneTable : Val -> String
-printZoneTable v =
-  Debug.crash "printZoneTable not called anywhere"
-{-
-  let so = defaultOptions in
-  nodeToAttrLocs v           -- Step 1: Val   -> Dict0
-    |> shapesToZoneTable so  -- Step 2: Dict0 -> Dict1
-    |> assignTriggers        -- Step 3: Dict1 -> Dict2
-    |> strTable              -- Step 4: Dict2 -> String
--}
 
 -- Step 1 --
 
@@ -510,31 +487,6 @@ countLocs d0 =
     ) acc1 dAttrNameTrace
   ) Dict.empty d0
 
--- Step 4 --
-
-strTable : Dict2 -> String
-strTable d =
-  Dict.toList d
-    |> List.map (\(i,(kind,di)) ->
-         let s1 = addi "Shape " i ++ " " ++ Utils.parens kind in
-         let sRows = List.map strRow di in
-         Utils.lines (s1::sRows))
-    |> String.join "\n\n"
-
-strRow (zone, m) = case m of
-  Nothing -> String.padRight 18 ' ' zone
-  Just (set,sets) ->
-       String.padRight 18 ' ' zone
-    ++ String.padRight 25 ' ' (if set == [] then "" else strLocs set)
-    ++ Utils.spaces (List.map strLocs sets)
-
-strLocs = Utils.braces << Utils.commas << List.map strLoc_
-
-strLoc_ l =
-  let (_,_,mx) = l in
-  if mx == ""
-    then strLoc l
-    else mx
 
 ------------------------------------------------------------------------------
 
