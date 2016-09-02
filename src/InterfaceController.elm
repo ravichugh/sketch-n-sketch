@@ -16,7 +16,7 @@ import Utils
 import Keys
 import InterfaceModel exposing (..)
 import InterfaceStorage exposing (installSaveState, removeDialog)
-import LangSvg exposing (toNum, toNumTr, toPoints)
+import LangSvg
 import ShapeWidgets
 import ExamplesGenerated as Examples
 import Config exposing (params)
@@ -51,29 +51,6 @@ import Debug
 debugLog = Config.debugLog Config.debugController
 
 --------------------------------------------------------------------------------
-
-slateToVal : LangSvg.RootedIndexedTree -> Val
-slateToVal (rootId, tree) =
-  let foo n =
-    case n of
-      LangSvg.TextNode s -> vList [vBase (VString "TEXT"), vBase (VString s)]
-      LangSvg.SvgNode kind l1 l2 ->
-        let vs1 = List.map LangSvg.valOfAttr l1 in
-        let vs2 = List.map (foo << flip Utils.justGet tree) l2 in
-        vList [vBase (VString kind), vList vs1, vList vs2]
-          -- NOTE: if relate needs the expression that led to this
-          --  SvgNode, need to store it in IndexedTree
-  in
-  foo (Utils.justGet rootId tree)
-
-upslate : LangSvg.NodeId -> (String, LangSvg.AVal) -> LangSvg.IndexedTree -> LangSvg.IndexedTree
-upslate id newattr nodes = case Dict.get id nodes of
-    Nothing   -> Debug.crash "upslate"
-    Just node -> case node of
-        LangSvg.TextNode x -> nodes
-        LangSvg.SvgNode shape attrs children ->
-            let newnode = LangSvg.SvgNode shape (Utils.update newattr attrs) children
-            in Dict.insert id newnode nodes
 
 refreshMode model e =
   case model.mode of

@@ -11,7 +11,7 @@ import Eval
 import Utils
 import Keys
 import InterfaceModel exposing (..)
-import LangSvg exposing (toNum, toNumTr, attr, NodeId, ShapeKind)
+import LangSvg exposing (NodeId, ShapeKind, attr)
 import ShapeWidgets exposing (..) -- to expose X, Y, D, O, etc.
 import ExamplesGenerated as Examples
 import Config exposing (params)
@@ -1248,8 +1248,6 @@ makeZones model shape id l =
     "path"     -> makeZonesPath model shape id l
     -- "g"        -> makeZonesGroup model id l
     _          -> []
-
-findNums l attrs = List.map (toNum << Utils.find_ l) attrs
 
 makeZonesLine model id l =
   let transform = maybeTransformAttr l in
