@@ -31,40 +31,7 @@ import Eval
 
 attr = VirtualDom.attribute
 
--- TODO probably want to factor HTML attributes and SVG attributes into
--- records rather than lists of lists of ...
-
-valToHtml : Int -> Int -> Val -> Html.Html
-valToHtml w h v = case v.v_ of
-  VList vs ->
-    case List.map .v_ vs of
-      [VBase (VString "svg"), VList vs1, VList vs2] ->
-        let wh = [numAttrToVal "width" w, numAttrToVal "height" h] in
-        let v' = vList [vStr "svg", vList (wh ++ vs1), vList vs2] in
-        compileValToNode v'
-          -- NOTE: not checking if width/height already in vs1
-      _ ->
-        Debug.crash "valToHtml"
-  _ ->
-    Debug.crash "valToHtml"
-
-compileValToNode : Val -> VirtualDom.Node
-compileValToNode v = case v.v_ of
-  VList vs ->
-    case List.map .v_ vs of
-      [VBase (VString "TEXT"), VBase (VString s)] -> VirtualDom.text s
-      [VBase (VString f), VList vs1, VList vs2] ->
-        (Svg.node f) (compileAttrVals vs1) (compileNodeVals vs2)
-      _ ->
-        Debug.crash "compileValToNode"
-  _ ->
-    Debug.crash "compileValToNode"
-
-compileNodeVals : List Val -> List Svg.Svg
-compileNodeVals = List.map compileValToNode
-
-compileAttrVals : List Val -> List Svg.Attribute
-compileAttrVals = List.map (uncurry compileAttr << valToAttr)
+------------------------------------------------------------------------------
 
 compileAttrs    : List Attr -> List Svg.Attribute
 compileAttrs    = List.map (uncurry compileAttr)
@@ -286,9 +253,6 @@ pathIndexPoints nodeAttrs =
   pts
 
 
-valOfAttr (k,a) = vList [vBase (VString k), valOfAVal a]
-  -- no VTrace to preserve...
-
 -- https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
 -- http://www.w3schools.com/svg/svg_path.asp
 --
@@ -410,37 +374,6 @@ strTransformCmd cmd = case cmd of
   Trans n1 n2 ->
     let nums = List.map (toString << fst) [n1,n2] in
     "translate" ++ Utils.parens (Utils.spaces nums)
-
-{- old way of doing things with APath...
-
-valToPath = Utils.spaces << valToPath_
-
-valToPath_ vs =
-  let pt (i,_) (j,_) = toString i ++ " " ++ toString j in
-  case vs of
-    [] -> []
-    VBase (VString cmd) :: vs' ->
-      if | matchCmd cmd "Z" -> cmd :: valToPath_ vs'
-         | matchCmd cmd "MLT" ->
-             let ([sx,sy],vs'') = projConsts 2 vs' in
-             cmd :: pt sx sy :: valToPath_ vs''
-         | matchCmd cmd "HV" ->
-             let ([i],vs'') = projConsts 1 vs' in
-             cmd :: toString i :: valToPath_ vs''
-         | matchCmd cmd "C" ->
-             let ([x1,y1,x2,y2,x,y],vs'') = projConsts 6 vs' in
-             let pts = String.join " , " [pt x1 y1, pt x2 y2, pt x y] in
-             cmd :: pts :: valToPath_ vs''
-         | matchCmd cmd "SQ" ->
-             let ([x1,y1,x,y],vs'') = projConsts 4 vs' in
-             let pts = String.join " , " [pt x1 y1, pt x y] in
-             cmd :: pts :: valToPath_ vs''
-         | matchCmd cmd "A" ->
-             let (ns,vs'') = projConsts 7 vs' in
-             let blah = Utils.spaces (List.map toString ns) in
-             cmd :: blah :: valToPath_ vs'' -- not worrying about commas
-
--}
 
 valToBounds vs = case List.map .v_ vs of
   [VConst a, VConst b, VConst c, VConst d] -> (a,b,c,d)
