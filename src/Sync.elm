@@ -313,19 +313,6 @@ simpleSolve subst (sum, tr) =
     (\(partialSum,n) -> (sum - partialSum) / n)
     (walkTrace tr)
 
-compareVals : (Val, Val) -> Num
-compareVals (v1, v2) = case (v1.v_, v2.v_) of
-  (VConst it, VConst jt) -> abs (fst it - fst jt)
-  (VList vs1, VList vs2) -> case Utils.maybeZip vs1 vs2 of
-                              Nothing -> largeInt
-                              Just l  -> Utils.sum (List.map compareVals l)
-  (VDict d1, VDict d2)   -> case Utils.maybeZipDicts d1 d2 of
-                              Nothing -> largeInt
-                              Just dd -> Utils.sum (Dict.values dd |> List.map compareVals)
-  _                      -> if v1 == v2 then 0 else largeInt
-
-largeInt = 99999999
-
 
 ------------------------------------------------------------------------------
 -- Triggers
