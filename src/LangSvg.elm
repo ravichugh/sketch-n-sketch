@@ -249,8 +249,6 @@ valOfAVal a = flip Val a.vtrace <| case a.av_ of
   _            -> Debug.crash "valOfAVal"
 
 valsOfPathCmd c =
-  Debug.crash "restore valsOfPathCmd"
-{-
   let fooPt (_,(x,y)) = [vConst x, vConst y] in
   case c of
     CmdZ   s              -> vStr s :: []
@@ -259,7 +257,6 @@ valsOfPathCmd c =
     CmdC   s pt1 pt2 pt3  -> vStr s :: List.concatMap fooPt [pt1,pt2,pt3]
     CmdSQ  s pt1 pt2      -> vStr s :: List.concatMap fooPt [pt1,pt2]
     CmdA   s a b c d e pt -> vStr s :: List.map vConst [a,b,c,d,e] ++ fooPt pt
--}
 
 -- Return list of (i, pt).
 -- (Includes control points.)
