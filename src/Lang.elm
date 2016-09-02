@@ -158,7 +158,6 @@ type VBaseVal -- unlike Ints, these cannot be changed by Sync
   = VBool Bool
   | VString String
   | VNull
-  | VStar -- placeholder used by sync
 
 type EBaseVal
   = EBool Bool
@@ -178,7 +177,6 @@ strBaseVal v = case v of
   VBool False -> "false"
   VString s   -> "'" ++ s ++ "'"
   VNull       -> "null"
-  VStar       -> "X"
 
 strVal     = strVal_ False
 strValLocs = strVal_ True
