@@ -1,4 +1,4 @@
-module InterfaceView2 (view, scaleColorBall) where
+module InterfaceView2 (view) where
 
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
@@ -725,12 +725,8 @@ zoneStrokeOpacity = zoneOpacity "StrokeOpacityBall" ShapeWidgets.shapeStrokeOpac
 
 -- Stuff for Color Zones -------------------------------------------------------
 
-wGradient = 250
-scaleColorBall = 1 / (wGradient / LangSvg.maxColorNum)
-
+wGradient = ShapeWidgets.wColorSlider
 hZoneColor = 20
-
-numToColor = Utils.numToColor wGradient
 
 maybeColorNumAttr : String -> List LangSvg.Attr -> (Maybe NumTr, Maybe NumTr)
 maybeColorNumAttr k l =
@@ -784,7 +780,8 @@ zoneColor_ zoneName shapeFeature model id shape x y (n, trace) =
   -- TODO would probably be faster with an image...
   let gradient () =
     List.map (\i ->
-      let (r,g,b) = numToColor i in
+      let (r,g,b) = Utils.numToColor ShapeWidgets.wColorSlider i in
+
       let fill =
         "rgb" ++ Utils.parens (String.join "," (List.map toString [r,g,b]))
       in
@@ -803,8 +800,7 @@ zoneColor_ zoneName shapeFeature model id shape x y (n, trace) =
 
 -- Stuff for Color Opacity Zones -----------------------------------------------
 
-wOpacityBox = 20
--- scaleOpacityBall = 1 / wOpacityBox
+wOpacityBox = ShapeWidgets.wOpacitySlider
 
 -- TODO could abstract the zoneColor, zoneOpacity, and zoneStrokeWidth sliders
 
@@ -859,8 +855,7 @@ zoneOpacity_ zoneName shapeFeature model id shape x y (n, trace) =
 
 -- Stuff for Stroke Width Zones ------------------------------------------------
 
-wStrokeWidthBox = 60
-scaleStrokeWidthBall = 1 / (wStrokeWidthBox / LangSvg.maxStrokeWidthNum)
+wStrokeWidthBox = ShapeWidgets.wStrokeWidthSlider
 
 maybeStrokeWidthNumAttr : List LangSvg.Attr -> Maybe NumTr
 maybeStrokeWidthNumAttr l =

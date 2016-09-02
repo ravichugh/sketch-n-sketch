@@ -577,31 +577,31 @@ makeTrigger_ opts d0 d2 slate subst id kind zone =
     (_, "FillBall")   ->
       \_ (dx,dy) ->
         let (n,t) = getAColorNum slate id "fill" in
-        let n' = LangSvg.clampColorNum (n + scaleColorBall * toFloat dx) in
+        let n' = n `colorNumPlus` dx in
         solveOne "fill" (n', t)
 
     (_, "StrokeBall") ->
       \_ (dx,dy) ->
         let (n,t) = getAColorNum slate id "stroke" in
-        let n' = LangSvg.clampColorNum (n + scaleColorBall * toFloat dx) in
+        let n' = n `colorNumPlus` dx in
         solveOne "stroke" (n', t)
 
     (_, "FillOpacityBall")   ->
       \_ (dx,dy) ->
         let (n,t) = getAColorNumOpacity slate id "fill" in
-        let n' = Utils.clamp 0.0 1.0 (n + scaleOpacityBall * toFloat dx) in
+        let n' = n `opacityNumPlus` dx in
         solveOne "fillOpacity" (n', t)
 
     (_, "StrokeOpacityBall")   ->
       \_ (dx,dy) ->
         let (n,t) = getAColorNumOpacity slate id "stroke" in
-        let n' = Utils.clamp 0.0 1.0 (n + scaleOpacityBall * toFloat dx) in
+        let n' = n `opacityNumPlus` dx in
         solveOne "strokeOpacity" (n', t)
 
     (_, "StrokeWidthBall") ->
       \_ (dx,dy) ->
         let (n,t) = getANum slate id "stroke-width" in
-        let n' = LangSvg.clampStrokeWidthNum (n + scaleStrokeWidthBall * toFloat dx) in
+        let n' = n `strokeWidthNumPlus` dx in
         solveOne "stroke-width" (n', t)
 
     (_, "RotateBall") ->
@@ -938,6 +938,24 @@ getRight slate i = getANum slate i "RIGHT"
 getBot slate i   = getANum slate i "BOT"
 
 
+-- Scale Updates Based on UI Params --
+
+colorNumPlus n dx =
+  let scale = 1 / (ShapeWidgets.wColorSlider / LangSvg.maxColorNum) in
+  let clamp = Utils.clamp 0 (LangSvg.maxColorNum - 1) in
+  clamp (n + scale * toFloat dx)
+
+strokeWidthNumPlus n dx =
+  let scale = 1 / (ShapeWidgets.wStrokeWidthSlider / LangSvg.maxStrokeWidthNum) in
+  let clamp = toFloat << round << Utils.clamp 0 LangSvg.maxStrokeWidthNum in
+  clamp (n + scale * toFloat dx)
+
+opacityNumPlus n dx =
+  let clamp = Utils.clamp 0.0 1.0 in
+  let scale = 1 / ShapeWidgets.wOpacitySlider in
+  clamp (n + scale * toFloat dx)
+
+
 -- TODO sloppy way of doing this for now...
 whichLoc : Options -> Dict0 -> Dict2 -> NodeId -> Zone -> AttrName -> Maybe LocId
 whichLoc opts d0 d2 i z attr =
@@ -967,15 +985,6 @@ whichLoc opts d0 d2 i z attr =
       else
         Debug.crash "whichLoc"
 
--- duplicated from InterfaceView2 for now
-wGradient = 250
-scaleColorBall = 1 / (wGradient / LangSvg.maxColorNum)
-
-wStrokeWidthBox = 60
-scaleStrokeWidthBall = 1 / (wStrokeWidthBox / LangSvg.maxStrokeWidthNum)
-
-wOpacityBox = 20
-scaleOpacityBall = 1 / wOpacityBox
 
 ------------------------------------------------------------------------------
 

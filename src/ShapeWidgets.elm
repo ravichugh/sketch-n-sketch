@@ -907,3 +907,11 @@ zoneToCrosshair shape zone =
       Just (xFeature, yFeature)
     _ ->
       Nothing
+
+
+------------------------------------------------------------------------------
+-- Params for Shape Widget Sliders (needed by Sync and View)
+
+wColorSlider = 250
+wStrokeWidthSlider = 60
+wOpacitySlider = 20

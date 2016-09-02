@@ -3,7 +3,7 @@ module LangSvg
   , NodeId, ShapeKind
   , AVal_(..), PathCounts, PathCmd(..), TransformCmd(..)
   , Attr, IndexedTree, RootedIndexedTree, IndexedTreeNode(..)
-  , maxColorNum, maxStrokeWidthNum, clampColorNum, clampStrokeWidthNum
+  , maxColorNum, maxStrokeWidthNum
   , emptyTree, dummySvgNode
   , valToIndexedTree
   , printSvg
@@ -88,11 +88,8 @@ type alias IdPoint = (Maybe Int, Point)
 
 -- Max Attribute Values for Shape Widget Sliders --
 
-maxColorNum   = 500
-clampColorNum = Utils.clamp 0 (maxColorNum - 1)
-
+maxColorNum = 500
 maxStrokeWidthNum = 20
-clampStrokeWidthNum = toFloat << round << Utils.clamp 0 maxStrokeWidthNum
 
 
 ------------------------------------------------------------------------------
