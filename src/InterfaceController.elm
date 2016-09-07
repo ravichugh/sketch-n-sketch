@@ -102,16 +102,6 @@ cleanExp =
 -}
 
 
--- this is a bit redundant with View.turnOn...
-maybeStuff id shape zone m =
-  case m.mode of
-    Live info ->
-      flip Utils.bindMaybe (Dict.get id info.assignments) <| \d ->
-      flip Utils.bindMaybe (Dict.get zone d) <| \(yellowLocs,_) ->
-        Just (info.initSubst, yellowLocs)
-    _ ->
-      Nothing
-
 highlightChanges mStuff changes codeBoxInfo =
   case mStuff of
     Nothing -> codeBoxInfo
@@ -361,7 +351,7 @@ onMouseMove (mx0, my0) old =
 
     MouseObject id kind zone (Just (mStuff, (mx0, my0), _)) ->
       let (dx, dy) = (mx - mx0, my - my0) in
-      applyTrigger id kind zone old mx0 my0 dx dy
+      applyMouseObjectTrigger id kind zone old mx0 my0 dx dy
       |> Result.map (\(newE,newV,changes,newSlate,newWidgets) ->
         { old | code = unparse newE
               , inputExp = newE
@@ -537,16 +527,9 @@ upstate evt old = case debugLog "Event" evt of
       else { old | mouseMode = MouseResizeMid Nothing }
 
     SelectObject id kind zone ->
-      let mStuff = maybeStuff id kind zone old in
-      case mStuff of
-
-        Nothing -> -- Inactive zone
-          { old | mouseMode = MouseObject id kind zone Nothing }
-
-        Just _  -> -- Active zone
-          let (mx, my) = clickToCanvasPoint old (snd old.mouseState) in
-          let blah = Just (mStuff, (mx, my), False) in
-          { old | mouseMode = MouseObject id kind zone blah }
+      let (mx, my) = clickToCanvasPoint old (snd old.mouseState) in
+      let blah = Just (Nothing, (mx, my), False) in
+      { old | mouseMode = MouseObject id kind zone blah }
 
     MouseClickCanvas ->
       case (old.tool, old.mouseMode) of
@@ -625,7 +608,11 @@ upstate evt old = case debugLog "Event" evt of
                 , slate            = newSlate
                 , widgets          = newWidgets
                 , previewCode      = Nothing
-                , mode             = Utils.fromOk "DigHole MkLive" <| mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal -- we already ran it successfully once so it shouldn't crash the second time
+                  -- we already ran it successfully once so it shouldn't crash the second time
+                , mode             = Utils.fromOk "DigHole MkLive" <|
+                                       mkLive old.syncOptions
+                                         old.slideNumber old.movieNumber old.movieTime newExp
+                                         (newVal, newWidgets)
                 , selectedFeatures = Set.empty
           }
       )
@@ -650,7 +637,11 @@ upstate evt old = case debugLog "Event" evt of
                 , slate            = newSlate
                 , widgets          = newWidgets
                 , previewCode      = Nothing
-                , mode             = Utils.fromOk "MakeEqual MkLive" <| mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal -- we already ran it successfully once so it shouldn't crash the second time
+                  -- we already ran it successfully once so it shouldn't crash the second time
+                , mode             = Utils.fromOk "MakeEqual MkLive" <|
+                                       mkLive old.syncOptions
+                                         old.slideNumber old.movieNumber old.movieTime newExp
+                                         (newVal, newWidgets)
                 , selectedFeatures = Set.empty
           }
       )
@@ -675,7 +666,11 @@ upstate evt old = case debugLog "Event" evt of
                 , slate            = newSlate
                 , widgets          = newWidgets
                 , previewCode      = Nothing
-                , mode             = Utils.fromOk "MakeEquidistant MkLive" <| mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal -- we already ran it successfully once so it shouldn't crash the second time
+                  -- we already ran it successfully once so it shouldn't crash the second time
+                , mode             = Utils.fromOk "MakeEquidistant MkLive" <|
+                                       mkLive old.syncOptions
+                                         old.slideNumber old.movieNumber old.movieTime newExp
+                                         (newVal, newWidgets)
                 , selectedFeatures = Set.empty
           }
       )
@@ -715,7 +710,10 @@ upstate evt old = case debugLog "Event" evt of
               , slate         = slate
               , previewCode   = Nothing
               , tool          = Cursor
-              , mode          = Utils.fromOk "SelectOption mkLive" <| mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp val }
+              , mode          = Utils.fromOk "SelectOption mkLive" <|
+                                  mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp
+                                    (val, []) -- TODO
+              }
 
     PreviewCode maybeCode ->
       { old | previewCode = maybeCode }
@@ -731,8 +729,12 @@ upstate evt old = case debugLog "Event" evt of
       let {e,v,ws,ati} = thunk () in
       let (so, m) =
         case old.mode of
-          Live _  -> let so = Sync.syncOptionsOf old.syncOptions e in (so, Utils.fromOk "SelectExample mkLive_" <| mkLive so old.slideNumber old.movieNumber old.movieTime e v)
-          Print _ -> let so = Sync.syncOptionsOf old.syncOptions e in (so, Utils.fromOk "SelectExample mkLive_" <| mkLive so old.slideNumber old.movieNumber old.movieTime e v)
+          Live _  -> let so = Sync.syncOptionsOf old.syncOptions e in
+                     (so, Utils.fromOk "SelectExample mkLive_" <|
+                        mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws))
+          Print _ -> let so = Sync.syncOptionsOf old.syncOptions e in
+                     (so, Utils.fromOk "SelectExample mkLive_" <|
+                        mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws))
           _      -> (old.syncOptions, old.mode)
       in
       let scratchCode' =
@@ -984,22 +986,28 @@ adjustMidOffsetY old dy =
 --------------------------------------------------------------------------------
 -- Mouse Callbacks for Zones
 
-applyTrigger objid kind zone old mx0 my0 dx_ dy_ =
+applyMouseObjectTrigger objid kind zone old mx0 my0 dx_ dy_ =
+  let errorMsg = "applyMouseObjectTrigger: " ++ toString (objid,kind,zone) in
+
   let dx = if old.keysDown == Keys.y then 0 else dx_ in
   let dy = if old.keysDown == Keys.x then 0 else dy_ in
+
   case old.mode of
-    AdHoc ->
-      Ok (old.inputExp, old.inputVal, Dict.empty, old.slate, old.widgets)
+
     Live info ->
-      case Utils.justGet_ "#4" zone (Utils.justGet_ "#5" objid info.triggers) of
-        Nothing -> Debug.crash "shouldn't happen due to upstate SelectObject"
-        Just trigger ->
-          let (newE,changes) = trigger (mx0, my0) (dx, dy) in
-          Eval.run newE
-          |> Result.map (\(newVal,newWidgets) ->
-              (newE, newVal, changes, LangSvg.valToIndexedTree newVal, newWidgets)
-            )
-    _ -> Debug.crash "applyTrigger"
+      let (trigger, _, _) =
+        Utils.justGet_ errorMsg (objid, zone) info.shapeTriggers
+      in
+      let (newExp, changes) =
+        (Sync.applyTrigger old.inputExp info.initSubstPlus trigger)
+           (mx0, my0) (dx, dy)
+      in
+      Eval.run newExp |> Result.map (\(newVal, newWidgets) ->
+        let newSlate = LangSvg.valToIndexedTree newVal in
+        (newExp, newVal, changes, newSlate, newWidgets)
+      )
+
+    _ -> Debug.crash errorMsg
 
 
 --------------------------------------------------------------------------------

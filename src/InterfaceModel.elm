@@ -128,6 +128,7 @@ type alias MouseTrigger a = (Int, Int) -> a
 type Orientation = Vertical | Horizontal
 
 type alias PossibleChange = (Exp, Val, RootedIndexedTree, Code)
+  -- TODO this should have Widgets...
 
 -- type alias ShowZones = Bool
 -- type ShowWidgets = HideWidgets | ShowAnnotatedWidgets | ShowAllWidgets
@@ -217,27 +218,25 @@ events = Signal.mailbox <| Noop
 
 --------------------------------------------------------------------------------
 
-mkLive opts slideNumber movieNumber movieTime e v =
-  let (_,tree) = LangSvg.valToIndexedTree v in
-  Sync.prepareLiveUpdates opts slideNumber movieNumber movieTime e v tree
+mkLive opts slideNumber movieNumber movieTime e (val, widgets) =
+  let slate = LangSvg.valToIndexedTree val in
+  Sync.prepareLiveUpdates opts slideNumber movieNumber movieTime e (slate, widgets)
   |> Result.map (Live)
 
 mkLive_ opts slideNumber movieNumber movieTime e  =
-  Eval.run e `Result.andThen` (\(val,_) -> mkLive opts slideNumber movieNumber movieTime e val)
+  Eval.run e `Result.andThen` mkLive opts slideNumber movieNumber movieTime e
 
-  -- TODO maybe put Val into model (in addition to slate)
-  --   so that don't need to re-run in some calling contexts
-
+-- TODO move this and the next several into Controller
 liveInfoToHighlights id zone model =
   case model.mode of
     Live info ->
-      let subst = info.initSubst in
+      let subst = info.initSubstPlus in
       Maybe.withDefault [] <|
-        flip Utils.bindMaybe (Dict.get id info.assignments) <| \d ->
-        flip Utils.bindMaybe (Dict.get zone d) <| \(yellowLocs,grayLocs) ->
-        Just
-          <| List.map (makeHighlight subst yellow) (Set.toList yellowLocs)
-          ++ List.map (makeHighlight subst gray) (Set.toList grayLocs)
+        Utils.bindMaybe (\(_,yellowLocs,grayLocs) ->
+          Just
+            <| List.map (makeHighlight subst yellow) (Set.toList yellowLocs)
+            ++ List.map (makeHighlight subst gray) (Set.toList grayLocs)
+        ) (Dict.get (id, zone) info.shapeTriggers)
     _ ->
       []
 
@@ -273,7 +272,7 @@ sampleModel =
     (name,_,f) = Utils.head_ Examples.list
     {e,v,ws}   = f ()
   in
-  let (slideCount, movieCount, movieDuration, movieContinue, indexedTree) =
+  let (slideCount, movieCount, movieDuration, movieContinue, slate) =
     Utils.fromOk "generating sample model" <| LangSvg.fetchEverything 1 1 0.0 v
   in
   let code = unparse e in
@@ -293,9 +292,9 @@ sampleModel =
     , movieContinue = movieContinue
     , runAnimation  = True
     , syncSelectTime = 0.0
-    , slate         = indexedTree
+    , slate         = slate
     , widgets       = ws
-    , mode          = Utils.fromOk "mkLive sample model" <| mkLive Sync.defaultOptions 1 1 0.0 e v
+    , mode          = Utils.fromOk "mkLive sample model" <| mkLive Sync.defaultOptions 1 1 0.0 e (v, ws)
     , mouseMode     = MouseNothing
     , orient        = Vertical
     , hideCode      = False

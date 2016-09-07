@@ -1353,7 +1353,7 @@ makeZonesEllipseOrOval model id shape l =
 makeZonesPoly model shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "polygon" || shape == "polyline") in
   let transform = maybeTransformAttr l in
-  let pts = LangSvg.toPoints <| Utils.find_ l "points" in
+  let pts = LangSvg.getPolyPoints l in
   let zPts = zonePoints model id shape transform pts in
   let zLines =
     let pairs = Utils.adjacentPairs (shape == "polygon") pts in
@@ -2331,14 +2331,14 @@ caption model w h =
           GE.empty
 
 -- this is a bit redundant with Model.liveInfoToHighlights...
+-- TODO: display more information from TriggerElement
 hoverInfo info (i,k,z) =
   let err y = "hoverInfo: " ++ toString y in
-  flip Utils.bindMaybe (Dict.get i info.assignments) <| \d ->
-  flip Utils.bindMaybe (Dict.get z d)                <| \(locset,_) ->
+  flip Utils.bindMaybe (Dict.get (i, z) info.shapeTriggers) <| \(_,locset,_) ->
     let locs = Set.toList locset in
     Just <|
       List.map (\(lid,_,x) ->
-        let n = Utils.justGet_ (err (i,z,lid)) lid info.initSubst in
+        let n = Utils.justGet_ (err (i,z,lid)) lid info.initSubstPlus in
         if x == ""
           then ("loc_" ++ toString lid, n)
           else (x, n)

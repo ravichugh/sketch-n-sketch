@@ -1,17 +1,23 @@
 module LangSvg
   ( attr
   , NodeId, ShapeKind
-  , AVal_(..), PathCounts, PathCmd(..), TransformCmd(..)
+  , AVal, AVal_(..), PathCounts, PathCmd(..), TransformCmd(..)
   , Attr, IndexedTree, RootedIndexedTree, IndexedTreeNode(..)
+  , NodeInfo, foldSlateNodeInfo
   , maxColorNum, maxStrokeWidthNum
   , emptyTree, dummySvgNode
   , valToIndexedTree
   , printSvg
   , compileAttr, compileAttrs, desugarShapeAttrs -- TODO remove in favor of compileSvg
+  , strAVal
   , aNum, aPoints, aTransform
-  , toNum, toColorNum, toTransformRot, toPoints, toPath
+  , toNum, toColorNum, toTransformRot, toPath
   , valsToPath2
-  , findNumishAttr, getPtCount, justGetSvgNode, maybeFindBounds, maybeFindBlobId
+  , findNumishAttr, findAVal
+  , getPolyPoints, getPolyPoint, getPtCount
+  , pathIndexPoints, getPathPoint
+  , maybeFindBounds, maybeFindBlobId
+  , justGetSvgNode
   , resolveToIndexedTree, resolveToMovieFrameVal, resolveToMovieCount, fetchEverything
   ) where
 
@@ -38,8 +44,10 @@ import Regex
 import ColorNum
 
 import Lang exposing (..)
-import Utils
 import Eval
+import Utils
+import Either exposing (Either(..))
+
 
 ------------------------------------------------------------------------------
 
@@ -517,22 +525,59 @@ aPath2        = aVal << APath2
 
 
 findNumishAttr : NodeId -> String -> List Attr -> NumTr
-findNumishAttr id attr attrs = toNumIsh <| findAVal id attr attrs
+findNumishAttr id attr attrs = toNumIsh <| findAVal attr attrs
 
 
-findAVal : NodeId -> String -> List Attr -> AVal
-findAVal id attr attrs =
+findAVal : String -> List Attr -> AVal
+findAVal attr attrs =
   case Utils.maybeFind attr attrs of
     Just aval -> aval
     Nothing   -> Debug.crash <| "findAVal: " ++ attr
 
 
-getPtCount attrs =
+getPtCount attrs = List.length (getPolyPoints attrs)
+
+getPolyPoint attrs i = Utils.geti i (getPolyPoints attrs)
+
+getPolyPoints attrs =
   case Utils.maybeFind "points" attrs of
-    Just aval -> case aval.av_ of
-      APoints pts -> List.length pts
-      _           -> Debug.crash "getPtCount 2"
-    _ -> Debug.crash "getPtCount 1"
+    Just aval -> toPoints aval
+    Nothing   -> Debug.crash "getPolyPoints"
+
+
+getPathPoint attrs i =
+  case Utils.maybeFind i (pathIndexPoints attrs) of
+    Just pt -> pt
+    Nothing -> Debug.crash "getPathPoint"
+
+
+-- Return list of (i, pt).
+-- (Includes control points.)
+pathIndexPoints : List Attr -> List (Int, Point)
+pathIndexPoints nodeAttrs =
+  let cmds =
+    Utils.find ("pathPoints nodeAttrs looking for \"d\" in " ++ (toString nodeAttrs)) nodeAttrs "d"
+    |> toPath
+    |> fst
+  in
+  let pts =
+    cmds
+    |> List.concatMap
+        (\cmd -> case cmd of
+          CmdZ   s              -> []
+          CmdMLT s pt           -> [pt]
+          CmdHV  s n            -> []
+          CmdC   s pt1 pt2 pt3  -> [pt1, pt2, pt3]
+          CmdSQ  s pt1 pt2      -> [pt1, pt2]
+          CmdA   s a b c d e pt -> [pt]
+        )
+    |> List.filterMap
+        (\(maybeIndex, pt) -> case maybeIndex of
+          Nothing -> Nothing
+          Just i  -> Just (i, pt)
+        )
+  in
+  pts
 
 
 maybeFindBlobId l =
@@ -575,6 +620,34 @@ dummySvgVal =
   let attrs = vList <| List.map (\k -> vList [vStr k, zero]) ["cx","cy","r"] in
   let children = vList [] in
   vList [vStr "circle", attrs, children]
+
+
+------------------------------------------------------------------------------
+-- Slate Traversal
+
+foldSlate : RootedIndexedTree -> a -> (NodeId -> IndexedTreeNode -> a -> a) -> a
+foldSlate (rootId, dict) acc f =
+  let
+ -- foldNode : NodeId -> a -> a
+    foldNode i acc =
+      let node = Utils.justGet_ "foldSlate" i dict in
+      case node of
+        TextNode _       -> f i node acc
+        SvgNode _ _ kids -> f i node (List.foldl foldNode acc kids)
+  in
+  foldNode rootId acc
+
+type alias NodeInfo =
+  Either
+    (NodeId, String)                -- for TextNodes
+    (NodeId, ShapeKind, List Attr)  -- for SvgNodes
+
+foldSlateNodeInfo : RootedIndexedTree -> a -> (NodeInfo -> a -> a) -> a
+foldSlateNodeInfo slate acc f =
+  foldSlate slate acc <| \i node ->
+    case node of
+      TextNode s           -> f (Left (i, s))
+      SvgNode kind attrs _ -> f (Right (i, kind, attrs))
 
 
 ------------------------------------------------------------------------------
