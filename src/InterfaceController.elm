@@ -101,6 +101,14 @@ cleanExp =
     _                    -> e__
 -}
 
+-- this is a bit redundant with View.turnOn...
+maybeStuff id shape zone m =
+  case m.mode of
+    Live info ->
+      flip Utils.bindMaybe (Dict.get (id, zone) info.shapeTriggers) <| \(_,yellowLocs,_) ->
+        Just (info.initSubstPlus, yellowLocs)
+    _ ->
+     Nothing
 
 highlightChanges mStuff changes codeBoxInfo =
   case mStuff of
@@ -527,8 +535,9 @@ upstate evt old = case debugLog "Event" evt of
       else { old | mouseMode = MouseResizeMid Nothing }
 
     SelectObject id kind zone ->
+      let mStuff = maybeStuff id kind zone old in
       let (mx, my) = clickToCanvasPoint old (snd old.mouseState) in
-      let blah = Just (Nothing, (mx, my), False) in
+      let blah = Just (mStuff, (mx, my), False) in
       { old | mouseMode = MouseObject id kind zone blah }
 
     MouseClickCanvas ->
