@@ -101,61 +101,6 @@ cleanExp =
     _                    -> e__
 -}
 
--- this is a bit redundant with View.turnOn...
-maybeStuff id shape zone m =
-  case m.mode of
-    Live info ->
-      flip Utils.bindMaybe (Dict.get (id, zone) info.shapeTriggers) <| \(_,yellowLocs,_) ->
-        Just (info.initSubstPlus, yellowLocs)
-    _ ->
-     Nothing
-
-highlightChanges mStuff changes codeBoxInfo =
-  case mStuff of
-    Nothing -> codeBoxInfo
-    Just (initSubstPlus, locs) ->
-
-      let (hi,stringOffsets) =
-        -- hi : List Highlight, stringOffsets : List (Pos, Int)
-        --   where Pos is start pos of a highlight to offset by Int chars
-        let f loc (acc1,acc2) =
-          let (locid,_,_) = loc in
-          let highlight c = makeHighlight initSubstPlus c loc in
-          case (Dict.get locid initSubstPlus, Dict.get locid changes) of
-            (Nothing, _)             -> Debug.crash "Controller.highlightChanges"
-            (Just n, Nothing)        -> (highlight yellow :: acc1, acc2)
-            (Just n, Just Nothing)   -> (highlight red :: acc1, acc2)
-            (Just n, Just (Just n')) ->
-              if n' == n.val then
-                (highlight yellow :: acc1, acc2)
-              else
-                let (s, s') = (strNum n.val, strNum n') in
-                let x = (acePos n.start, String.length s' - String.length s) in
-                (highlight green :: acc1, x :: acc2)
-        in
-        List.foldl f ([],[]) (Set.toList locs)
-      in
-
-      let hi' =
-        let g (startPos,extraChars) (old,new) =
-          let bump pos = { pos | column = pos.column + extraChars } in
-          let ret new' = (old, new') in
-          ret <|
-            if startPos.row    /= old.start.row         then new
-            else if startPos.column >  old.start.column then new
-            else if startPos.column == old.start.column then { start = new.start, end = bump new.end }
-            else if startPos.column <  old.start.column then { start = bump new.start, end = bump new.end }
-            else
-              Debug.crash "highlightChanges"
-        in
-        -- hi has <= 4 elements, so not worrying about the redundant processing
-        flip List.map hi <| \{color,range} ->
-          let (_,range') = List.foldl g (range,range) stringOffsets in
-          { color = color, range = range' }
-      in
-
-      { codeBoxInfo | highlights = hi' }
-
 {-
 addSlateAndCode old (exp, val) =
   slateAndCode old (exp, val)
@@ -357,18 +302,26 @@ onMouseMove (mx0, my0) old =
     MouseObject id kind zone Nothing ->
       old
 
-    MouseObject id kind zone (Just (mStuff, (mx0, my0), _)) ->
-      let (dx, dy) = (mx - mx0, my - my0) in
-      applyMouseObjectTrigger id kind zone old mx0 my0 dx dy
-      |> Result.map (\(newE,newV,changes,newSlate,newWidgets) ->
-        { old | code = unparse newE
-              , inputExp = newE
-              , inputVal = newV
-              , slate = newSlate
+    MouseObject id kind zone (Just (trigger, (mx0, my0), _)) ->
+      let dx = if old.keysDown == Keys.y then 0 else (mx - mx0) in
+      let dy = if old.keysDown == Keys.x then 0 else (my - my0) in
+
+      let (newExp, highlights) = trigger (mx0, my0) (dx, dy) in
+
+      let codeBoxInfo' =
+        let codeBoxInfo = old.codeBoxInfo in
+        { codeBoxInfo | highlights = highlights }
+      in
+      let dragInfo' = (trigger, (mx0, my0), True) in
+
+      Eval.run newExp |> Result.map (\(newVal, newWidgets) ->
+        { old | code = unparse newExp
+              , inputExp = newExp
+              , inputVal = newVal
+              , slate = LangSvg.valToIndexedTree newVal
               , widgets = newWidgets
-              , codeBoxInfo = highlightChanges mStuff changes old.codeBoxInfo
-              , mouseMode =
-                  MouseObject id kind zone (Just (mStuff, (mx0, my0), True))
+              , codeBoxInfo = codeBoxInfo'
+              , mouseMode = MouseObject id kind zone (Just dragInfo')
               }
       ) |> handleError old
 
@@ -535,10 +488,14 @@ upstate evt old = case debugLog "Event" evt of
       else { old | mouseMode = MouseResizeMid Nothing }
 
     SelectObject id kind zone ->
-      let mStuff = maybeStuff id kind zone old in
-      let (mx, my) = clickToCanvasPoint old (snd old.mouseState) in
-      let blah = Just (mStuff, (mx, my), False) in
-      { old | mouseMode = MouseObject id kind zone blah }
+      case old.mode of
+        Live info ->
+          let (mx, my) = clickToCanvasPoint old (snd old.mouseState) in
+          let trigger = Sync.prepareLiveTrigger info old.inputExp id kind zone in
+          let dragInfo = (trigger, (mx, my), False) in
+          { old | mouseMode = MouseObject id kind zone (Just dragInfo) }
+
+        _ -> old
 
     MouseClickCanvas ->
       case (old.tool, old.mouseMode) of
@@ -989,34 +946,6 @@ adjustMidOffsetY old dy =
   case old.orient of
     Horizontal -> { old | midOffsetY = old.midOffsetY + dy }
     Vertical   -> upstate SwitchOrient old
-
-
-
---------------------------------------------------------------------------------
--- Mouse Callbacks for Zones
-
-applyMouseObjectTrigger objid kind zone old mx0 my0 dx_ dy_ =
-  let errorMsg = "applyMouseObjectTrigger: " ++ toString (objid,kind,zone) in
-
-  let dx = if old.keysDown == Keys.y then 0 else dx_ in
-  let dy = if old.keysDown == Keys.x then 0 else dy_ in
-
-  case old.mode of
-
-    Live info ->
-      let (trigger, _, _) =
-        Utils.justGet_ errorMsg (objid, zone) info.shapeTriggers
-      in
-      let (newExp, changes) =
-        (Sync.applyTrigger old.inputExp info.initSubstPlus trigger)
-           (mx0, my0) (dx, dy)
-      in
-      Eval.run newExp |> Result.map (\(newVal, newWidgets) ->
-        let newSlate = LangSvg.valToIndexedTree newVal in
-        (newExp, newVal, changes, newSlate, newWidgets)
-      )
-
-    _ -> Debug.crash errorMsg
 
 
 --------------------------------------------------------------------------------

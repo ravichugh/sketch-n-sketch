@@ -1481,6 +1481,11 @@ colorDebug_ c1 c2 =
 
 colorDebug c1 = colorDebug_ c1 interfaceColor
 
+codeToShow model =
+  case model.previewCode of
+     Just string -> string
+     Nothing     -> model.code
+
 basicCodeBox : Int -> Int -> Model -> GE.Element
 basicCodeBox w h model =
   basicCodeBox_ w h (codeToShow model)
@@ -2307,7 +2312,7 @@ caption model w h =
     GE.container w h GE.topLeft <|
       case (model.caption, model.mode, model.mouseMode) of
         (Just (Hovering (i,k,z)), Live info, MouseNothing) ->
-          case hoverInfo info (i,k,z) of
+          case Sync.hoverInfo info (i,k,z) of
             Nothing -> GE.empty
             Just l ->
               let numLocs = List.map (\(s,n) -> toString n.val ++ Utils.braces s) l in
@@ -2329,20 +2334,6 @@ caption model w h =
           eStr err
         _ ->
           GE.empty
-
--- this is a bit redundant with Model.liveInfoToHighlights...
--- TODO: display more information from TriggerElement
-hoverInfo info (i,k,z) =
-  let err y = "hoverInfo: " ++ toString y in
-  flip Utils.bindMaybe (Dict.get (i, z) info.shapeTriggers) <| \(_,locset,_) ->
-    let locs = Set.toList locset in
-    Just <|
-      List.map (\(lid,_,x) ->
-        let n = Utils.justGet_ (err (i,z,lid)) lid info.initSubstPlus in
-        if x == ""
-          then ("loc_" ++ toString lid, n)
-          else (x, n)
-       ) locs
 
 turnOnCaptionAndHighlights id shape zone =
   UpdateModel <| \m ->

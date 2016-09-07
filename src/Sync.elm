@@ -2,7 +2,9 @@ module Sync
   ( Options, defaultOptions, syncOptionsOf
   , heuristicsNone, heuristicsFair, heuristicsBiased, toggleHeuristicMode
   , locsOfTrace
-  , LiveInfo, ShapeTriggers, prepareLiveUpdates, applyTrigger
+  , LiveInfo, ShapeTriggers, LiveTrigger
+  , prepareLiveUpdates, prepareLiveTrigger
+  , yellowAndGrayHighlights, hoverInfo
   ) where
 
 import Lang exposing (..)
@@ -15,6 +17,8 @@ import ShapeWidgets exposing
   )
 import Solver exposing (Equation)
 import LangParser2 as Parser
+import OurParser2 as P
+import Ace
 import Config
 import Utils
 import Either exposing (Either(..))
@@ -922,17 +926,25 @@ opacityNumPlus n dx =
 
 
 ------------------------------------------------------------------------------
--- Applying Triggers
+-- Preparing Live Triggers
 
 type alias MouseTrigger2 a = (Int, Int) -> (Int, Int) -> a
 
-applyTrigger
-    : Exp -> SubstPlus
-   -> Trigger
-   -> MouseTrigger2 (Exp, SubstMaybeNum)
-        -- i.e. (Int, Int) -> (Int, Int) -> (Exp, SubstMaybeNum)
-applyTrigger exp initSubstPlus trigger (mx0,my0) (dx,dy) =
-  let initSubst = Dict.map (always .val) initSubstPlus in
+type alias LiveTrigger = MouseTrigger2 (Exp, List Ace.Highlight)
+
+prepareLiveTrigger
+    : LiveInfo -> Exp
+   -> NodeId -> ShapeKind -> Zone
+   -> LiveTrigger
+
+prepareLiveTrigger info exp id kind zone (mx0,my0) (dx,dy) =
+
+  let (trigger, yellowLocs, _) =
+    Utils.justGet_ ("prepareLiveTrigger: " ++ toString (id, kind, zone))
+       (id, zone) info.shapeTriggers
+  in
+  let initSubst = Dict.map (always .val) info.initSubstPlus in
+
   let updates =
      List.foldl (\triggerElement acc ->
        let (_, _, (k,_,_), _, updateFunction) = triggerElement in
@@ -960,4 +972,102 @@ applyTrigger exp initSubstPlus trigger (mx0,my0) (dx,dy) =
          Just num -> Dict.insert k num acc
      ) initSubst updates
   in
-  (applyLocSubst newSubst exp, updates)
+  let
+    exp'       = applyLocSubst newSubst exp
+    highlights = highlightChanges info.initSubstPlus yellowLocs updates
+  in
+  (exp', highlights)
+
+
+------------------------------------------------------------------------------
+-- Highlights for Locations
+
+gray   = "lightgray"
+yellow = "khaki"
+green  = "limegreen"
+red    = "salmon"
+
+acePos : P.Pos  -> Ace.Pos
+acePos p = { row = p.line, column = p.col }
+
+aceRange : P.WithInfo a -> Ace.Range
+aceRange x = { start = acePos x.start, end = acePos x.end }
+
+makeHighlight : SubstPlus -> String -> Loc -> Ace.Highlight
+makeHighlight subst color (locid,_,_) =
+  case Dict.get locid subst of
+    Just n  -> { color = color, range = aceRange n }
+    Nothing -> Debug.crash "makeHighlight: locid not in subst"
+
+
+-- Colors and Captions for Zone Locations, Before Direct Manipulation --
+
+yellowAndGrayHighlights id zone info =
+  let subst = info.initSubstPlus in
+  Maybe.withDefault [] <|
+    Utils.bindMaybe (\(_,yellowLocs,grayLocs) ->
+      Just
+        <| List.map (makeHighlight subst yellow) (Set.toList yellowLocs)
+        ++ List.map (makeHighlight subst gray) (Set.toList grayLocs)
+    ) (Dict.get (id, zone) info.shapeTriggers)
+
+-- this is a bit redundant with above
+-- TODO: display more information from TriggerElement
+hoverInfo info (i,k,z) =
+  let err y = "hoverInfo: " ++ toString y in
+  flip Utils.bindMaybe (Dict.get (i, z) info.shapeTriggers) <| \(_,locset,_) ->
+    let locs = Set.toList locset in
+    Just <|
+      List.map (\(lid,_,x) ->
+        let n = Utils.justGet_ (err (i,z,lid)) lid info.initSubstPlus in
+        if x == ""
+          then ("loc_" ++ toString lid, n)
+          else (x, n)
+       ) locs
+
+
+-- Colors for Zone Locations, During Direct Manipulation --
+
+highlightChanges : SubstPlus -> Set Loc -> SubstMaybeNum -> List Ace.Highlight
+highlightChanges initSubstPlus locs changes =
+
+  let (hi,stringOffsets) =
+    -- hi : List Highlight, stringOffsets : List (Pos, Int)
+    --   where Pos is start pos of a highlight to offset by Int chars
+    let f loc (acc1,acc2) =
+      let (locid,_,_) = loc in
+      let highlight c = makeHighlight initSubstPlus c loc in
+      case (Dict.get locid initSubstPlus, Dict.get locid changes) of
+        (Nothing, _)             -> Debug.crash "Controller.highlightChanges"
+        (Just n, Nothing)        -> (highlight yellow :: acc1, acc2)
+        (Just n, Just Nothing)   -> (highlight red :: acc1, acc2)
+        (Just n, Just (Just n')) ->
+          if n' == n.val then
+            (highlight yellow :: acc1, acc2)
+          else
+            let (s, s') = (strNum n.val, strNum n') in
+            let x = (acePos n.start, String.length s' - String.length s) in
+            (highlight green :: acc1, x :: acc2)
+    in
+    List.foldl f ([],[]) (Set.toList locs)
+  in
+
+  let hi' =
+    let g (startPos,extraChars) (old,new) =
+      let bump pos = { pos | column = pos.column + extraChars } in
+      let ret new' = (old, new') in
+      ret <|
+        if startPos.row    /= old.start.row         then new
+        else if startPos.column >  old.start.column then new
+        else if startPos.column == old.start.column then { start = new.start, end = bump new.end }
+        else if startPos.column <  old.start.column then { start = bump new.start, end = bump new.end }
+        else
+          Debug.crash "highlightChanges"
+    in
+    -- hi has <= 4 elements, so not worrying about the redundant processing
+    flip List.map hi <| \{color,range} ->
+      let (_,range') = List.foldl g (range,range) stringOffsets in
+      { color = color, range = range' }
+  in
+
+  hi'

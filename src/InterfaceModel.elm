@@ -9,7 +9,6 @@ import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
 import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature, Zone)
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparse)
-import OurParser2 as P
 import Ace
 
 import List
@@ -106,16 +105,19 @@ type alias RawSvg = String
 
 type MouseMode
   = MouseNothing
+
   | MouseResizeMid (Maybe (MouseTrigger (Int, Int)))
+
   | MouseObject NodeId ShapeKind Zone
-      (Maybe                        -- Inactive (Nothing) or Active
-        ( Maybe (SubstPlus, LocSet)     -- loc-set assigned (live mode only)
-        , (Int, Int)                    -- initial click
-        , Bool ))                       -- dragged at least one pixel
-                                        -- TODO remove second Maybe
+      (Maybe                -- Inactive (Nothing) or Active
+        ( Sync.LiveTrigger      -- computes program update and highlights
+        , (Int, Int)            -- initial click
+        , Bool ))               -- dragged at least one pixel
+
   | MouseSlider Widget
       (Maybe ( MouseTrigger (Result String (Exp, Val, RootedIndexedTree, Widgets)) ))
       -- may add info for hilites later
+
   | MouseDrawNew (List (KeysDown, (Int, Int)))
       -- invariant on length n of list of points:
       --   for line/rect/ellipse, n == 0 or n == 2
@@ -226,38 +228,14 @@ mkLive opts slideNumber movieNumber movieTime e (val, widgets) =
 mkLive_ opts slideNumber movieNumber movieTime e  =
   Eval.run e `Result.andThen` mkLive opts slideNumber movieNumber movieTime e
 
--- TODO move this and the next several into Controller
-liveInfoToHighlights id zone model =
-  case model.mode of
-    Live info ->
-      let subst = info.initSubstPlus in
-      Maybe.withDefault [] <|
-        Utils.bindMaybe (\(_,yellowLocs,grayLocs) ->
-          Just
-            <| List.map (makeHighlight subst yellow) (Set.toList yellowLocs)
-            ++ List.map (makeHighlight subst gray) (Set.toList grayLocs)
-        ) (Dict.get (id, zone) info.shapeTriggers)
-    _ ->
-      []
-
 --------------------------------------------------------------------------------
 
-gray        = "lightgray"
-yellow      = "khaki"
-green       = "limegreen"
-red         = "salmon"
+liveInfoToHighlights id zone model =
+  case model.mode of
+    Live info -> Sync.yellowAndGrayHighlights id zone info
+    _         -> []
 
-acePos : P.Pos  -> Ace.Pos
-acePos p = { row = p.line, column = p.col }
-
-aceRange : P.WithInfo a -> Ace.Range
-aceRange x = { start = acePos x.start, end = acePos x.end }
-
-makeHighlight : SubstPlus -> String -> Loc -> Ace.Highlight
-makeHighlight subst color (locid,_,_) =
-  case Dict.get locid subst of
-    Just n  -> { color = color, range = aceRange n }
-    Nothing -> Debug.crash "makeHighlight: locid not in subst"
+--------------------------------------------------------------------------------
 
 codeToShow model =
   case model.previewCode of
