@@ -34,10 +34,6 @@ import String
 debugLog = Config.debugLog Config.debugSync
 
 
-getCount x dict    = Maybe.withDefault 0 (Dict.get x dict)
-updateCount x dict = Dict.insert x (1 + getCount x dict) dict
-
-
 ------------------------------------------------------------------------------
 
 type alias Canvas = (RootedIndexedTree, Widgets)
@@ -122,6 +118,10 @@ locsOfTraces options traces =
 type alias BiasCounts = Dict Loc Int
 
 
+getCount x dict    = Maybe.withDefault 0 (Dict.get x dict)
+updateCount x dict = Dict.insert x (1 + getCount x dict) dict
+
+
 getLocationCounts : Options -> Canvas -> BiasCounts
 getLocationCounts options (slate, widgets) =
   let addTriggerNode nodeInfo acc =
@@ -140,7 +140,7 @@ getLocationCounts options (slate, widgets) =
         Set.foldl updateCount acc (locsOfTraces options [t1, t2])
   in
   let d  = LangSvg.foldSlateNodeInfo slate Dict.empty addTriggerNode in
-  let d' = List.foldl addTriggerWidget d' widgets in
+  let d' = List.foldl addTriggerWidget d widgets in
   d'
 
 
@@ -168,27 +168,94 @@ tracesOfAVal aval =
 
 
 ------------------------------------------------------------------------------
+-- Counters for Fair Mode
+
+type alias FairCounts = Dict (List MaybeLoc) Int
+
+type alias MaybeLoc = Loc -- workaround because Maybe Loc isn't comparable
+
+coerceMaybeLoc m = case m of
+  Just loc -> loc
+  Nothing  -> dummyLoc
+
+coerceMaybeLocList = List.map coerceMaybeLoc
+
+getFairCount x dict    = getCount (coerceMaybeLocList x) dict
+updateFairCount x dict = updateCount (coerceMaybeLocList x) dict
+
+
+------------------------------------------------------------------------------
 -- Choosing Locations for Triggers
 
 type alias MaybeCounts = Maybe (Either BiasCounts FairCounts)
-type alias FairCounts = Dict Loc Int
 
 
--- TODO for now, simply picking first loc of trace
 pickLocs : Options -> MaybeCounts -> List Trace -> (List (Maybe Loc), Set Loc, MaybeCounts)
 pickLocs options maybeCounts traces =
   let locSets = List.map (locsOfTrace options) traces in
-  -- TODO
-  let chooseFirst locs =
-    case Set.toList locs of
-      loc :: _ -> Just loc
-      []       -> Nothing
-  in
-  let assignedLocs = List.map chooseFirst locSets in
   let allLocs = List.foldl Set.union Set.empty locSets in
-  -- TODO
-  let maybeCounts' = maybeCounts in
-  (assignedLocs, allLocs, maybeCounts)
+  let (assignedMaybeLocs, maybeCounts') =
+    case maybeCounts of
+
+      Nothing ->
+        (List.map (always Nothing) locSets, Nothing)
+
+      Just (Left biasCounts) ->
+        (List.map (chooseBiased biasCounts) locSets, Just (Left biasCounts))
+
+      Just (Right fairCounts) ->
+        Utils.mapSnd (Just << Right) <|
+          chooseFairLocationAssignment locSets fairCounts
+  in
+  (assignedMaybeLocs, allLocs, maybeCounts')
+
+
+chooseBiased biasCounts locSet =
+  let sorted =
+    locSet
+      |> Set.toList
+      |> List.sortBy (\loc -> getCount loc biasCounts)
+           -- lower scores first
+           -- if there are ties, pick arbitrarily
+  in
+  case sorted of
+    loc :: _ -> Just loc
+    []       -> Nothing
+
+
+chooseFairLocationAssignment locSets fairCounts =
+
+  let noAssignment () =
+    let allNothings = List.repeat (List.length locSets) Nothing in
+    (allNothings, fairCounts) in
+
+  -- check if Cartesian product would be too large
+  let numCandidates = List.foldl (*) 1 (List.map Set.size locSets) in
+
+  if numCandidates > 100 then noAssignment ()
+  else
+    let sorted =
+      locSets
+        |> List.map Set.toList
+        |> List.map convertEmptyToNonEmpty
+        |> Utils.oneOfEach
+        |> List.sortBy
+             (\assignment -> getFairCount assignment fairCounts)
+               -- lower counts first
+               -- if there are ties, pick arbitrarily
+    in
+    case sorted of
+      [] -> noAssignment ()
+
+      assignment :: _ ->
+        let fairCounts' = updateFairCount assignment fairCounts in
+        (assignment, fairCounts')
+
+
+convertEmptyToNonEmpty locList =
+  case locList of
+    [] -> [Nothing]
+    _  -> List.map Just locList
 
 
 ------------------------------------------------------------------------------
@@ -224,8 +291,14 @@ prepareLiveUpdates options slideNumber movieNumber movieTime e (slate, widgets) 
 
   let initSubstPlus = Parser.substPlusOf e in
   let initSubst = Dict.map (always .val) initSubstPlus in
-  let maybeCounts = Nothing in -- TODO
-
+  let maybeCounts =
+    if options.feelingLucky == heuristicsFair then
+      Just (Right Dict.empty)
+    else if options.feelingLucky == heuristicsBiased then
+      Just (Left (getLocationCounts options (slate, widgets)))
+    else {- options.feelingLucky == heuristicsNone -}
+      Nothing
+  in
   let (shapeTriggers, maybeCounts') =
     computeShapeTriggers (options, initSubst) slate maybeCounts
   in

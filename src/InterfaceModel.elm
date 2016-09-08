@@ -170,7 +170,7 @@ type Event = ClickZone ZoneKey
            | MouseIsDown Bool
            | MousePosition (Int, Int)
            | TickDelta Float -- 60fps time tick, Float is time since last tick
-           | Sync
+           -- | Sync
            | PreviewCode (Maybe Code)
            | SelectOption PossibleChange
            | CancelSync
