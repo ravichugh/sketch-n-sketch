@@ -16,6 +16,7 @@ import ShapeWidgets exposing (..) -- to expose X, Y, D, O, etc.
 import ExamplesGenerated as Examples
 import Config exposing (params)
 import OurParser2 as P
+import Either exposing (Either(..))
 
 import VirtualDom
 
@@ -213,6 +214,18 @@ buildSvg_ stuff d i =
 
 
 --------------------------------------------------------------------------------
+
+dragZoneEvents zoneKey =
+  [ onMouseDown (ClickZone zoneKey)
+  , onMouseOver (turnOnCaptionAndHighlights zoneKey)
+  , onMouseOut turnOffCaptionAndHighlights
+  ]
+
+zoneEvents id shape zone = dragZoneEvents (Left (id, shape, zone))
+sliderZoneEvents i string = dragZoneEvents (Right (i, string))
+
+
+--------------------------------------------------------------------------------
 -- Widget Layer
 
 buildSvgWidgets : Int -> Int -> Model -> Svg.Svg
@@ -237,7 +250,7 @@ buildSvgWidgets wCanvas hCanvas model =
     yBL           = hCanvas - hWidget - pad
   in
 
-  let drawNumWidget i_ widget locId cap_ minVal maxVal curVal =
+  let drawNumWidget i_ intOrNum widget locId cap_ minVal maxVal curVal =
     let i = i_ - 1 in
     let
       (r,c) = (i % numRows, i // numRows)
@@ -288,7 +301,7 @@ buildSvgWidgets wCanvas hCanvas model =
         , attr "r" params.mainSection.uiWidgets.rBall
         , attr "cx" (toString cx) , attr "cy" (toString cy)
         , cursorOfZone "SliderBall" "default"
-        ] ++ sliderZoneEvents widget
+        ] ++ sliderZoneEvents i_ intOrNum
     in
     let text =
       let cap = cap_ ++ strNumTrunc 5 curVal in
@@ -303,7 +316,7 @@ buildSvgWidgets wCanvas hCanvas model =
     [region, box, text, ball]
   in
 
-  let drawPointWidget widget cx cy =
+  let drawPointWidget i_ widget cx cy =
     -- copied from ball above
     let ball =
       flip Svg.circle [] <|
@@ -312,7 +325,7 @@ buildSvgWidgets wCanvas hCanvas model =
         , attr "r" params.mainSection.uiWidgets.rBall
         , attr "cx" (toString cx) , attr "cy" (toString cy)
         , cursorOfZone "SliderBall" "default"
-        ] ++ sliderZoneEvents widget
+        ] ++ sliderZoneEvents i_ "Point"
     in
     [ball]
   in
@@ -373,12 +386,6 @@ handleEventAndStop eventName eventHandler =
     (\_ -> Signal.message events.address eventHandler)
 
 -- TODO use RealZones rather than Zones more
-
-zoneEvents id shape zone =
-  [ onMouseDown (SelectObject id shape zone)
-  , onMouseOver (turnOnCaptionAndHighlights id shape zone)
-  , onMouseOut turnOffCaptionAndHighlights
-  ]
 
 removeHoveredShape id =
   UpdateModel <| \m ->
@@ -464,8 +471,8 @@ draggableZone svgFunc addStroke model id shape zone attrs =
 
 objectZoneIsCurrentlyBeingManipulated model nodeId zonePred =
   case model.mouseMode of
-    MouseObject id _ zone _ -> nodeId == id && zonePred zone
-    _                       -> False
+    MouseDragZone (Left (id, _, zone)) _ -> nodeId == id && zonePred zone
+    _                                    -> False
 
 objectIsCurrentlyBeingManipulated model nodeId =
   objectZoneIsCurrentlyBeingManipulated model nodeId (always True)
@@ -1082,8 +1089,8 @@ zoneSelectLine model nodeId kind featureNum pt1 pt2 =
     , nodeId
     , ShapeWidgets.unparseFeatureNum (Just kind) featureNum ) in
   case model.mouseMode of
-    MouseObject _ _ _ _ -> []
-    _                   ->
+    MouseDragZone (Left _) _ -> []
+    _ ->
      if Set.member nodeId model.hoveredShapes ||
         Set.member typeAndNodeIdAndFeature model.selectedFeatures
      then zoneSelectLine_ model typeAndNodeIdAndFeature pt1 pt2
@@ -2291,12 +2298,14 @@ caption model w h =
   colorDebug Color.orange <|
     GE.container w h GE.topLeft <|
       case (model.caption, model.mode, model.mouseMode) of
-        (Just (Hovering (i,k,z)), Live info, MouseNothing) ->
-          case Sync.hoverInfo info (i,k,z) of
-            Nothing -> GE.empty
-            Just l ->
+        (Just (Hovering zoneKey), Live info, MouseNothing) ->
+              let l = Sync.hoverInfo zoneKey info in
               let numLocs = List.map (\(s,n) -> toString n.val ++ Utils.braces s) l in
-              let line1 = (k ++ toString i) ++ " " ++ z in
+              let line1 =
+                case zoneKey of
+                  Left (i, k, z) -> (k ++ toString i) ++ " " ++ z
+                  Right (i, s)   -> s ++ "Slider" ++ toString i
+              in
               let line2 = Utils.spaces numLocs in
               -- eStr (" " ++ line1 ++ "\n " ++ line2)
               let cap =
@@ -2315,11 +2324,11 @@ caption model w h =
         _ ->
           GE.empty
 
-turnOnCaptionAndHighlights id shape zone =
+turnOnCaptionAndHighlights zoneKey =
   UpdateModel <| \m ->
     let codeBoxInfo = m.codeBoxInfo in
-    let hi = liveInfoToHighlights id zone m in
-    { m | caption = Just (Hovering (id, shape, zone))
+    let hi = liveInfoToHighlights zoneKey m in
+    { m | caption = Just (Hovering zoneKey)
         , codeBoxInfo = { codeBoxInfo | highlights = hi } }
 
 turnOffCaptionAndHighlights =

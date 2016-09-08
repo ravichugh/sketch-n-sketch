@@ -10,7 +10,6 @@ import Blobs exposing (..)
 import Draw
 import ExpressionBasedTransform as ETransform
 import Sync
-import Solver
 import Eval
 import Utils
 import Keys
@@ -20,6 +19,7 @@ import LangSvg
 import ShapeWidgets
 import ExamplesGenerated as Examples
 import Config exposing (params)
+import Either exposing (Either(..))
 
 import VirtualDom
 
@@ -61,9 +61,9 @@ refreshMode model e =
 refreshMode_ model = refreshMode model model.inputExp
 
 -- TODO refresh type highlights, too
-refreshHighlights id zone model =
+refreshHighlights zoneKey model =
   let codeBoxInfo = model.codeBoxInfo in
-  let hi = liveInfoToHighlights id zone model in
+  let hi = liveInfoToHighlights zoneKey model in
   { model | codeBoxInfo = { codeBoxInfo | highlights = hi } }
 
 switchOrient m = case m of
@@ -190,11 +190,11 @@ onMouseClick click old =
   case (old.tool, old.mouseMode) of
 
     -- Inactive zone
-    (Cursor, MouseObject i k z Nothing) ->
+    (Cursor, MouseDragZone (Left (i, k, z)) Nothing) ->
       onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
 
     -- Active zone but not dragged
-    (Cursor, MouseObject i k z (Just (_, _, False))) ->
+    (Cursor, MouseDragZone (Left (i, k, z)) (Just (_, _, False))) ->
       onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
 
     (Poly stk, MouseDrawNew points) ->
@@ -299,10 +299,10 @@ onMouseMove (mx0, my0) old =
       let (x,y) = f (mx0, my0) in
       { old | midOffsetX = x , midOffsetY = y }
 
-    MouseObject id kind zone Nothing ->
+    MouseDragZone zoneKey Nothing ->
       old
 
-    MouseObject id kind zone (Just (trigger, (mx0, my0), _)) ->
+    MouseDragZone zoneKey (Just (trigger, (mx0, my0), _)) ->
       let dx = if old.keysDown == Keys.y then 0 else (mx - mx0) in
       let dy = if old.keysDown == Keys.x then 0 else (my - my0) in
 
@@ -321,22 +321,7 @@ onMouseMove (mx0, my0) old =
               , slate = LangSvg.valToIndexedTree newVal
               , widgets = newWidgets
               , codeBoxInfo = codeBoxInfo'
-              , mouseMode = MouseObject id kind zone (Just dragInfo')
-              }
-      ) |> handleError old
-
-    MouseSlider widget Nothing ->
-      let onNewPos = createMousePosCallbackSlider mx my widget old in
-      { old | mouseMode = MouseSlider widget (Just onNewPos) }
-
-    MouseSlider widget (Just onNewPos) ->
-      onNewPos (mx, my)
-      |> Result.map (\(newE,newV,newSlate,newWidgets) ->
-        { old | code = unparse newE
-              , inputExp = newE
-              , inputVal = newV
-              , slate = newSlate
-              , widgets = newWidgets
+              , mouseMode = MouseDragZone zoneKey (Just dragInfo')
               }
       ) |> handleError old
 
@@ -355,19 +340,11 @@ onMouseUp old =
   case (old.mode, old.mouseMode) of
 
     (Print _, _) -> old
-    (_, MouseObject i k z (Just _)) ->
-      -- 8/10: re-parsing to get new position info after live sync-ing
-      -- TODO: could update positions within highlightChanges
-      -- TODO: update inputVal?
-      let e = Utils.fromOkay "onMouseUp" <| parseE old.code in
-      let old' = { old | inputExp = e } in
-      refreshHighlights i z
-        { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
-               , history = addToHistory old.code old'.history }
 
-    (_, MouseSlider _ (Just _)) ->
+    (_, MouseDragZone zoneKey (Just _)) ->
       let e = Utils.fromOkay "onMouseUp" <| parseE old.code in
       let old' = { old | inputExp = e } in
+      refreshHighlights zoneKey
         { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
                , history = addToHistory old.code old'.history }
 
@@ -487,19 +464,19 @@ upstate evt old = case debugLog "Event" evt of
       else if old.hideCanvas then old
       else { old | mouseMode = MouseResizeMid Nothing }
 
-    SelectObject id kind zone ->
+    ClickZone zoneKey ->
       case old.mode of
         Live info ->
           let (mx, my) = clickToCanvasPoint old (snd old.mouseState) in
-          let trigger = Sync.prepareLiveTrigger info old.inputExp id kind zone in
+          let trigger = Sync.prepareLiveTrigger info old.inputExp zoneKey in
           let dragInfo = (trigger, (mx, my), False) in
-          { old | mouseMode = MouseObject id kind zone (Just dragInfo) }
+          { old | mouseMode = MouseDragZone zoneKey (Just dragInfo) }
 
         _ -> old
 
     MouseClickCanvas ->
       case (old.tool, old.mouseMode) of
-        (Cursor, MouseObject _ _ _ _) -> old
+        (Cursor, MouseDragZone (Left _) _) -> old
         (Cursor, _) ->
           { old | selectedShapes = Set.empty, selectedBlobs = Dict.empty }
 
@@ -946,71 +923,3 @@ adjustMidOffsetY old dy =
   case old.orient of
     Horizontal -> { old | midOffsetY = old.midOffsetY + dy }
     Vertical   -> upstate SwitchOrient old
-
-
---------------------------------------------------------------------------------
--- Mouse Callbacks for UI Widgets
-
-wSlider = params.mainSection.uiWidgets.wSlider
-
-pickLocId t =
-  let locs = Set.toList (Sync.locsOfTrace Sync.defaultOptions t) in
-  let thawedLocs = List.filter (\(_,ann,_) -> ann == thawed) locs in
-  Utils.mapMaybe Utils.fst3 <|
-    List.head thawedLocs                   -- favor thawedLocs,
-      `Utils.plusMaybe` List.head locs     -- arbitrarily picking the first
-
-createMousePosCallbackSlider mx my widget old =
-
-  let create maybeUpdateX maybeUpdateY = \(mx',my') ->
-    let xSubst =
-      case maybeUpdateX of
-        Just (xLoc, xFoo) -> Dict.singleton xLoc (xFoo (toFloat (mx' - mx)))
-        Nothing           -> Dict.empty
-    in
-    let ySubst =
-      case maybeUpdateY of
-        Just (yLoc, yFoo) -> Dict.singleton yLoc (yFoo (toFloat (my' - my)))
-        Nothing           -> Dict.empty
-    in
-    -- unlike the live triggers via Sync,
-    -- this substitution only binds the location to change
-    let newE = applyLocSubst (Dict.union xSubst ySubst) old.inputExp in
-    Eval.run newE
-    `Result.andThen` (\(newVal,newWidgets) ->
-      -- Can't manipulate slideCount/movieCount/movieDuration/movieContinue via sliders at the moment.
-      LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime newVal
-      |> Result.map (\newSlate -> (newE, newVal, newSlate, newWidgets))
-    ) in
-
-  case widget of
-
-    WNumSlider minVal maxVal _ curVal (locid,_,_) ->
-      let updateX dx =
-        curVal + (dx / toFloat wSlider) * (maxVal - minVal)
-          |> clamp minVal maxVal
-      in
-      create (Just (locid, updateX)) Nothing
-
-    WIntSlider a b _ c (locid,_,_) ->
-      let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
-      let updateX dx =
-        curVal + (dx / toFloat wSlider) * (maxVal - minVal)
-          |> clamp minVal maxVal
-          |> round
-          |> toFloat
-      in
-      create (Just (locid, updateX)) Nothing
-
-    WPointSlider xNumTr yNumTr ->
-      let subst = LangParser2.substOf old.inputExp in
-                    -- might just put subst in the Model,
-                    -- not just in MouseObject MouseMode...
-      let updateXY k (nxy, txy) = \dxy ->
-        case Solver.solve (Dict.remove k subst) (nxy + dxy, txy) of
-          Just newNum -> newNum
-          Nothing     -> Utils.justGet_ "createMousePosCallbackSlider: updateXY" k subst
-      in
-      create
-        (Utils.mapMaybe (\kx -> (kx, updateXY kx xNumTr)) (pickLocId (snd xNumTr)))
-        (Utils.mapMaybe (\ky -> (ky, updateXY ky yNumTr)) (pickLocId (snd yNumTr)))

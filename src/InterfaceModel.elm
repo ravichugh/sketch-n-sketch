@@ -3,13 +3,14 @@ module InterfaceModel where
 import Lang exposing (..)
 import Types exposing (AceTypeInfo)
 import Eval
-import Sync
+import Sync exposing (ZoneKey)
 import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
 import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature, Zone)
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparse)
 import Ace
+import Either exposing (Either(..))
 
 import List
 import Debug
@@ -105,18 +106,14 @@ type alias RawSvg = String
 
 type MouseMode
   = MouseNothing
-
   | MouseResizeMid (Maybe (MouseTrigger (Int, Int)))
 
-  | MouseObject NodeId ShapeKind Zone
+  | MouseDragZone
+      ZoneKey               -- Left shapeZone, Right widget
       (Maybe                -- Inactive (Nothing) or Active
         ( Sync.LiveTrigger      -- computes program update and highlights
         , (Int, Int)            -- initial click
         , Bool ))               -- dragged at least one pixel
-
-  | MouseSlider Widget
-      (Maybe ( MouseTrigger (Result String (Exp, Val, RootedIndexedTree, Widgets)) ))
-      -- may add info for hilites later
 
   | MouseDrawNew (List (KeysDown, (Int, Int)))
       -- invariant on length n of list of points:
@@ -158,7 +155,7 @@ type LambdaTool
   | LambdaAnchor Exp
 
 type Caption
-  = Hovering (Int, ShapeKind, Zone)
+  = Hovering ZoneKey
   | LangError String
 
 type alias KeysDown = List Char.KeyCode
@@ -168,7 +165,7 @@ type ReplicateKind
   | LinearRepeat
   | RadialRepeat
 
-type Event = SelectObject Int ShapeKind Zone
+type Event = ClickZone ZoneKey
            | MouseClickCanvas      -- used to initiate drawing new shape
            | MouseIsDown Bool
            | MousePosition (Int, Int)
@@ -230,9 +227,9 @@ mkLive_ opts slideNumber movieNumber movieTime e  =
 
 --------------------------------------------------------------------------------
 
-liveInfoToHighlights id zone model =
+liveInfoToHighlights zoneKey model =
   case model.mode of
-    Live info -> Sync.yellowAndGrayHighlights id zone info
+    Live info -> Sync.yellowAndGrayHighlights zoneKey info
     _         -> []
 
 --------------------------------------------------------------------------------

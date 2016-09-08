@@ -2,7 +2,7 @@ module Sync
   ( Options, defaultOptions, syncOptionsOf
   , heuristicsNone, heuristicsFair, heuristicsBiased, toggleHeuristicMode
   , locsOfTrace
-  , LiveInfo, ShapeTriggers, LiveTrigger
+  , LiveInfo, ShapeTriggers, LiveTrigger, ZoneKey
   , prepareLiveUpdates, prepareLiveTrigger
   , yellowAndGrayHighlights, hoverInfo
   ) where
@@ -19,7 +19,7 @@ import Solver exposing (Equation)
 import LangParser2 as Parser
 import OurParser2 as P
 import Ace
-import Config
+import Config exposing (params)
 import Utils
 import Either exposing (Either(..))
 
@@ -61,11 +61,13 @@ toggleHeuristicMode x =
 type alias Options =
   { thawedByDefault : Bool
   , feelingLucky : HeuristicModes
+  , unfreezeAll : Bool
   }
 
 defaultOptions =
   { thawedByDefault = True
   , feelingLucky = heuristicsBiased
+  , unfreezeAll = False
   }
 
 syncOptionsOf oldOptions e =
@@ -89,11 +91,13 @@ syncOptionsOf oldOptions e =
 locsOfTrace : Options -> Trace -> Set Loc
 locsOfTrace opts =
   let frozenByDefault = not opts.thawedByDefault in
+  let notUnfreezeAll = not opts.unfreezeAll in
   let foo t = case t of
     TrLoc l ->
       let (_,b,_) = l in
       if      Parser.isPreludeLoc l         then Set.empty
-      else if b == frozen                   then Set.empty
+      -- else if b == frozen                   then Set.empty
+      else if b == frozen && notUnfreezeAll then Set.empty
       else if b == unann && frozenByDefault then Set.empty
       else                                       Set.singleton l
     TrOp _ ts -> List.foldl Set.union Set.empty (List.map foo ts)
@@ -203,31 +207,46 @@ type alias UpdateFunction
 type alias TriggerElement = (AttrName, String, Loc, Trace, UpdateFunction)
 type alias Trigger = List TriggerElement
 
+-- keeping these separate (rather than an Either key, which isn't comparable)
+--
 type alias ShapeTriggers = Dict (NodeId, Zone) (Trigger, Set Loc, Set Loc)
+type alias WidgetTriggers = Dict (Int, String) (Trigger, Set Loc, Set Loc)
 
 type alias LiveInfo =
   { shapeTriggers : ShapeTriggers
-  , widgetTriggers : () -- TODO
+  , widgetTriggers : WidgetTriggers
   , initSubstPlus : SubstPlus -- TODO this and/or initSubst should be in Model
   }
 
 
 prepareLiveUpdates : Options -> Int -> Int -> Float -> Exp -> Canvas -> Result String LiveInfo
 prepareLiveUpdates options slideNumber movieNumber movieTime e (slate, widgets) =
+
   let initSubstPlus = Parser.substPlusOf e in
   let initSubst = Dict.map (always .val) initSubstPlus in
-  let shapeTriggers = computeShapeTriggers (options, initSubst) slate in
+  let maybeCounts = Nothing in -- TODO
+
+  let (shapeTriggers, maybeCounts') =
+    computeShapeTriggers (options, initSubst) slate maybeCounts
+  in
+  let (widgetTriggers, maybeCounts'') =
+    computeWidgetTriggers (options, initSubst) widgets maybeCounts'
+  in
+
   Ok { initSubstPlus = initSubstPlus
      , shapeTriggers = shapeTriggers
-     , widgetTriggers = ()
+     , widgetTriggers = widgetTriggers
      }
 
 
 ------------------------------------------------------------------------------
 -- Computing Triggers
 
-computeShapeTriggers : (Options, Subst) -> RootedIndexedTree -> ShapeTriggers
-computeShapeTriggers info slate =
+computeShapeTriggers
+    : (Options, Subst) -> RootedIndexedTree -> MaybeCounts
+   -> (ShapeTriggers, MaybeCounts)
+
+computeShapeTriggers info slate initMaybeCounts =
   let processNode nodeInfo (dict, maybeCounts) =
     case nodeInfo of
       Left _ -> (dict, maybeCounts)
@@ -256,18 +275,77 @@ computeShapeTriggers info slate =
         in
         (dict', maybeCounts')
   in
-  let maybeCounts = Nothing in -- TODO
-  let result =
-    LangSvg.foldSlateNodeInfo slate (Dict.empty, maybeCounts) processNode
+  LangSvg.foldSlateNodeInfo slate (Dict.empty, initMaybeCounts) processNode
+
+
+computeWidgetTriggers
+    : (Options, Subst) -> Widgets -> MaybeCounts
+   -> (WidgetTriggers, MaybeCounts)
+
+computeWidgetTriggers (options, subst) widgets initMaybeCounts =
+  let wSlider = params.mainSection.uiWidgets.wSlider in
+
+  let processWidget (i, widget) accResult =
+    case widget of
+
+      WNumSlider minVal maxVal _ curVal loc ->
+        let updateX _ (dx,_) =
+          curVal + (toFloat dx / toFloat wSlider) * (maxVal - minVal)
+            |> clamp minVal maxVal
+            |> Just
+        in
+        let options' = { options | unfreezeAll = True } in
+        addWidgetTrigger options' i "Num" [TrLoc loc]
+        (Utils.unwrap1 >> \maybeLoc ->
+          mapMaybeToList maybeLoc
+           (\loc' -> ("", "dx", loc', TrLoc loc, updateX)))
+        accResult
+
+      WIntSlider a b _ c loc ->
+        let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
+        let updateX dx =
+          curVal + (toFloat dx / toFloat wSlider) * (maxVal - minVal)
+            |> clamp minVal maxVal
+            |> round
+            |> toFloat
+        in
+        let options' = { options | unfreezeAll = True } in
+        addWidgetTrigger options' i "Int" [TrLoc loc]
+        (Utils.unwrap1 >> \maybeLoc ->
+          mapMaybeToList maybeLoc (\loc' ->
+            ( "", "dx", loc', TrLoc loc
+            , \_ (dx,_) -> solveOne subst loc' (updateX dx) (TrLoc loc)
+            ))
+        )
+        accResult
+
+      WPointSlider (x, xTrace) (y, yTrace) ->
+        addWidgetTrigger options i "Point" [xTrace, yTrace]
+        ( Utils.unwrap2 >> \(xMaybeLoc, yMaybeLoc) ->
+            mapMaybeToList xMaybeLoc (\xLoc ->
+              ( "", "dx", xLoc, xTrace
+              , \_ (dx,_) -> solveOne subst xLoc (x + toFloat dx) xTrace
+              )) ++
+            mapMaybeToList yMaybeLoc (\yLoc ->
+              ( "", "dy", yLoc, yTrace
+              , \_ (_,dy) -> solveOne subst yLoc (y + toFloat dy) yTrace
+              ))
+        )
+        accResult
   in
-  fst result
+  let indexedWidgets = Utils.mapi identity widgets in
+  List.foldl processWidget (Dict.empty, initMaybeCounts) indexedWidgets
 
 
-type alias ComputeTriggersResult = (ShapeTriggers, MaybeCounts)
+-- Helpers --
 
+addShapeZoneTrigger options id realZone =
+  addTrigger options (id, ShapeWidgets.unparseZone realZone)
 
-addShapeZoneTrigger options id realZone traces makeTrigger (dict, maybeCounts) =
-  let zone = ShapeWidgets.unparseZone realZone in
+addWidgetTrigger options id caption =
+  addTrigger options (id, caption)
+
+addTrigger options key traces makeTrigger (dict, maybeCounts) =
   let (assignedMaybeLocs, allLocs, maybeCounts') =
     pickLocs options maybeCounts traces in
   let trigger = makeTrigger assignedMaybeLocs in
@@ -278,7 +356,7 @@ addShapeZoneTrigger options id realZone traces makeTrigger (dict, maybeCounts) =
      ) Set.empty trigger
   in
   let grayLocs = Set.diff allLocs yellowLocs in
-  let dict' = Dict.insert (id, zone) (trigger, yellowLocs, grayLocs) dict in
+  let dict' = Dict.insert key (trigger, yellowLocs, grayLocs) dict in
   (dict', maybeCounts')
 
 
@@ -932,17 +1010,22 @@ type alias MouseTrigger2 a = (Int, Int) -> (Int, Int) -> a
 
 type alias LiveTrigger = MouseTrigger2 (Exp, List Ace.Highlight)
 
-prepareLiveTrigger
-    : LiveInfo -> Exp
-   -> NodeId -> ShapeKind -> Zone
-   -> LiveTrigger
+type alias ZoneKey =
+  Either
+    (NodeId, ShapeKind, Zone)   -- shape zone
+    (Int, String)               -- widget zone
 
-prepareLiveTrigger info exp id kind zone (mx0,my0) (dx,dy) =
+lookupZoneKey : ZoneKey -> LiveInfo -> (Trigger, Set Loc, Set Loc)
+lookupZoneKey zoneKey info =
+  let errorString = "lookupZoneKey: " ++ toString zoneKey in
+  case zoneKey of
+    Left (id, _, zone) -> Utils.justGet_ errorString (id, zone) info.shapeTriggers
+    Right (id, string) -> Utils.justGet_ errorString (id, string) info.widgetTriggers
 
-  let (trigger, yellowLocs, _) =
-    Utils.justGet_ ("prepareLiveTrigger: " ++ toString (id, kind, zone))
-       (id, zone) info.shapeTriggers
-  in
+prepareLiveTrigger : LiveInfo -> Exp -> ZoneKey -> LiveTrigger
+prepareLiveTrigger info exp zoneKey (mx0,my0) (dx,dy) =
+
+  let (trigger, yellowLocs, _) = lookupZoneKey zoneKey info in
   let initSubst = Dict.map (always .val) info.initSubstPlus in
 
   let updates =
@@ -1002,28 +1085,22 @@ makeHighlight subst color (locid,_,_) =
 
 -- Colors and Captions for Zone Locations, Before Direct Manipulation --
 
-yellowAndGrayHighlights id zone info =
+yellowAndGrayHighlights zoneKey info =
   let subst = info.initSubstPlus in
-  Maybe.withDefault [] <|
-    Utils.bindMaybe (\(_,yellowLocs,grayLocs) ->
-      Just
-        <| List.map (makeHighlight subst yellow) (Set.toList yellowLocs)
-        ++ List.map (makeHighlight subst gray) (Set.toList grayLocs)
-    ) (Dict.get (id, zone) info.shapeTriggers)
+  let (_, yellowLocs, grayLocs) = lookupZoneKey zoneKey info in
+  List.map (makeHighlight subst yellow) (Set.toList yellowLocs)
+  ++ List.map (makeHighlight subst gray) (Set.toList grayLocs)
 
 -- this is a bit redundant with above
 -- TODO: display more information from TriggerElement
-hoverInfo info (i,k,z) =
-  let err y = "hoverInfo: " ++ toString y in
-  flip Utils.bindMaybe (Dict.get (i, z) info.shapeTriggers) <| \(_,locset,_) ->
-    let locs = Set.toList locset in
-    Just <|
-      List.map (\(lid,_,x) ->
-        let n = Utils.justGet_ (err (i,z,lid)) lid info.initSubstPlus in
-        if x == ""
-          then ("loc_" ++ toString lid, n)
-          else (x, n)
-       ) locs
+hoverInfo zoneKey info =
+  let (_, yellowLocs, _) = lookupZoneKey zoneKey info in
+  List.map (\(lid,_,x) ->
+    let n = Utils.justGet_ ("hoverInfo: " ++ toString lid) lid info.initSubstPlus in
+    if x == ""
+      then ("loc_" ++ toString lid, n)
+      else (x, n)
+   ) (Set.toList yellowLocs)
 
 
 -- Colors for Zone Locations, During Direct Manipulation --
