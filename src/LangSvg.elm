@@ -88,7 +88,7 @@ type AVal_
   | ABounds (NumTr, NumTr, NumTr, NumTr)
 
 -- these versions are for when the VTrace doesn't matter
-aVal          = flip AVal [-1]
+aVal          = flip AVal [dummyEId]
 aNum          = aVal << ANum
 aString       = aVal << AString
 aTransform    = aVal << ATransform

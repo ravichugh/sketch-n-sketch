@@ -5,6 +5,8 @@ import Debug
 import Set exposing (Set)
 import Dict exposing (Dict)
 
+flipTuple (a, b) = (b, a)
+
 maybeFind : a -> List (a,b) -> Maybe b
 maybeFind k l = case l of
   []            -> Nothing
@@ -49,6 +51,15 @@ maybeZipDicts d1 d2 =
     Nothing
   else
     d1 |> Dict.map (\k v1 -> (v1, justGet k d2)) |> Just
+
+unzip3 : List (a, b, c) -> (List a, List b, List c)
+unzip3 zipped =
+  List.foldr
+      (\(x, y, z) (xs, ys, zs) -> (x::xs, y::ys, z::zs))
+      ([], [], [])
+      zipped
+
+
 
 listsEqualBy elementEqualityFunc xs ys =
   case (xs, ys) of
@@ -211,6 +222,14 @@ manySetDiffs sets =
     ) locs_i sets
   ) sets
 
+unionAll : List (Set.Set comparable) -> Set.Set comparable
+unionAll sets =
+  List.foldl Set.union Set.empty sets
+
+mergeAll : List (Dict.Dict comparable a) -> Dict.Dict comparable a
+mergeAll dicts =
+  List.foldl Dict.union Dict.empty dicts
+
 -- TODO combine findFirst and removeFirst
 
 findFirst : (a -> Bool) -> List a -> Maybe a
@@ -238,6 +257,18 @@ maybeRemoveFirst x ys = case ys of
 removeLastElement : List a -> List a
 removeLastElement list =
   List.take ((List.length list)-1) list
+
+-- Equivalent to Maybe.oneOf (List.map f list)
+-- but maps the list lazily to return early
+mapFirstSuccess : (a -> Maybe b) -> List a -> Maybe b
+mapFirstSuccess f list =
+  case list of
+    []   -> Nothing
+    x::xs ->
+      case f x of
+        Just result -> Just result
+        Nothing     -> mapFirstSuccess f xs
+
 
 adjacentPairs : Bool -> List a -> List (a, a)
 adjacentPairs includeLast list = case list of
@@ -371,6 +402,15 @@ bindMaybe2 f mx my = bindMaybe (\x -> bindMaybe (f x) my) mx
 
 bindMaybe3 : (a -> b -> c -> Maybe d) -> Maybe a -> Maybe b -> Maybe c -> Maybe d
 bindMaybe3 f mx my mz = bindMaybe2 (\x y -> bindMaybe (f x y) mz) mx my
+
+-- Returns Nothing if function ever returns Nothing
+foldlMaybe : (a -> b -> Maybe b) -> Maybe b -> List a -> Maybe b
+foldlMaybe f maybeAcc list =
+  case (maybeAcc, list) of
+    (Nothing, _)      -> Nothing
+    (Just acc, x::xs) -> foldlMaybe f (f x acc) xs
+    (_, [])           -> maybeAcc
+
 
 projOk : List (Result a b) -> Result a (List b)
 projOk list =

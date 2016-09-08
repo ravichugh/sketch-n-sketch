@@ -65,6 +65,8 @@ precedingWhitespaceExp__ e__ =
     ETyp       ws1 pat tipe e ws2       -> ws1
     EColonType ws1 e ws2 tipe ws3       -> ws1
     ETypeAlias ws1 pat tipe e ws2       -> ws1
+    EVal       _                        -> ""
+    EDict      _                        -> ""
 
 
 addPrecedingWhitespace : String -> Exp -> Exp
@@ -103,6 +105,8 @@ mapPrecedingWhitespace mapWs exp =
       ETyp       ws1 pat tipe e ws2       -> ETyp       (mapWs ws1) pat tipe e ws2
       EColonType ws1 e ws2 tipe ws3       -> EColonType (mapWs ws1) e ws2 tipe ws3
       ETypeAlias ws1 pat tipe e ws2       -> ETypeAlias (mapWs ws1) pat tipe e ws2
+      EVal       _                        -> exp.val.e__
+      EDict      _                        -> exp.val.e__
   in
   let val = exp.val in
   { exp | val = { val | e__ = e__' } }
@@ -165,6 +169,8 @@ indent spaces e =
     ETyp ws1 pat tipe e ws2       -> wrap (ETyp (processWS ws1) pat tipe (recurse e) ws2)
     EColonType ws1 e ws2 tipe ws3 -> wrap (EColonType (processWS ws1) (recurse e) ws2 tipe ws3)
     ETypeAlias ws1 pat tipe e ws2 -> wrap (ETypeAlias (processWS ws1) pat tipe (recurse e) ws2)
+    EVal _                        -> e
+    EDict _                       -> e
 
 
 mapPrecedingWhitespacePat : (String -> String) -> Pat -> Pat
@@ -296,6 +302,8 @@ unparse e = case e.val.e__ of
     ws1 ++ "(" ++ (unparse e) ++ ws2 ++ ":" ++ (unparseType tipe) ++ ws3 ++ ")"
   ETypeAlias ws1 pat tipe e ws2 ->
     ws1 ++ "(def" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2 ++ ")" ++ unparse e
+  EVal val   -> strVal val    -- internal, should not appear in programs
+  EDict dict -> "<some dict>" -- internal, should not appear in programs
 
 unparseRange : Range -> String
 unparseRange r = case r.val of

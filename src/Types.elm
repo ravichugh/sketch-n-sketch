@@ -989,6 +989,12 @@ synthesizeType typeInfo typeEnv e =
       let typeEnv' = TypeAlias p t :: typeEnv in
       propagateResult <| synthesizeType typeInfo typeEnv' e1
 
+    EVal _ ->
+      Debug.crash "Should not be type-checking an exp with an EVal"
+
+    EDict _ ->
+      Debug.crash "Should not be type-checking an exp with an EDict"
+
 -- TODO need to instantiateTypes of arguments, as in tsAppPoly
 tsAppMono finish typeInfo typeEnv eArgs (argTypes, retType) =
   let checkArgs argsAndTypes retType =

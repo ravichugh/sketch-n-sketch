@@ -26,7 +26,7 @@ import Utils
 -- renamings to perform.
 removeExtraPostfixes : List String -> Exp -> Exp
 removeExtraPostfixes postfixes exp =
-  let usedNames = identifiersSet exp in
+  let usedNames = identifiersSetPlusPrelude exp in
   let oldAndNewNames =
     List.concatMap
         (\ident ->
@@ -92,7 +92,7 @@ removeUnusedVars exp =
   let remover e__ =
     case e__ of
       ELet ws1 letKind rec pat assign body ws2 ->
-        let usedNames = identifiersSet body in
+        let usedNames = identifiersSetPlusPrelude body in
         let letRemoved =
           body.val.e__
         in
@@ -325,10 +325,7 @@ changeRenamedVarsToOuter_ renamings exp =
         ELet ws1 letKind rec pat assign' body' ws2
 
       EFun ws1 pats body ws2  ->
-        let newlyAssignedIdents =
-          List.map identifiersSetInPat pats
-          |> List.foldl Set.union Set.empty
-        in
+        let newlyAssignedIdents = identifiersSetInPats pats in
         let renamingsShadowsRemoved = removeIdentsFromRenaming newlyAssignedIdents renamings in
         EFun ws1 pats (changeRenamedVarsToOuter_ renamingsShadowsRemoved body) ws2
 
@@ -373,6 +370,9 @@ changeRenamedVarsToOuter_ renamings exp =
       ETyp ws1 pat tipe e ws2       -> ETyp ws1 pat tipe (recurse e) ws2
       EColonType ws1 e ws2 tipe ws3 -> EColonType ws1 (recurse e) ws2 tipe ws3
       ETypeAlias ws1 pat tipe e ws2 -> ETypeAlias ws1 pat tipe (recurse e) ws2
+
+      EVal _  -> Debug.crash "Should not be transforming an exp with an EVal"
+      EDict _ -> Debug.crash "Should not be transforming an exp with an EDict"
   in
   wrap e__'
 

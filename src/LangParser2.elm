@@ -112,6 +112,9 @@ freshen_ k e =
   ETypeAlias ws1 pat tipe e ws2 ->
     let (e',k') = freshen_ k e in
     (ETypeAlias ws1 pat tipe e' ws2, k')
+  EVal  _ -> Debug.crash "Should not be freshening an exp with an EVal"
+  EDict _ -> Debug.crash "Should not be freshening an exp with an EDict"
+
 
 freshenExps k es =
   List.foldr (\e (es',k') ->
@@ -134,7 +137,7 @@ freshenRanges k rs =
 
 -- Record the primary identifier in the EConsts' Locs, where appropriate.
 recordIdentifiers (p,e) =
- let ret e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
+ let ret e__ = replaceE__ e e__ in
  case (p.val, e.val.e__) of
   -- (PVar _ x _, EConst ws n (k, b, "") wd) -> ret <| EConst ws n (k, b, x) wd
   (PVar _ x _, EConst ws n (k, b, _) wd) -> ret <| EConst ws n (k, b, x) wd

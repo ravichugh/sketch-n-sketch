@@ -229,9 +229,14 @@ eval env bt e =
 
   -- abstract syntactic sugar
 
-  EFun _ ps e1 _           -> Result.map (retAddWs e1.val.eid) <| eval env bt' (eFun ps e1)
-  EApp _ e1 [] _           -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " application with no arguments"
-  EApp _ e1 es _           -> Result.map (retAddWs e.val.eid)  <| eval env bt' (eApp e1 es)
+  EFun _ ps e1 _  -> Result.map (retAddWs e1.val.eid) <| eval env bt' (eFun ps e1)
+  EApp _ e1 [] _  -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " application with no arguments"
+  EApp _ e1 es _  -> Result.map (retAddWs e.val.eid)  <| eval env bt' (eAppExpand e1 es)
+
+  -- Sure, we could just return the val or dict but they really shouldn't be there.
+  EVal val   -> Debug.crash "Should not be evaluating an exp with an EVal"
+  EDict dict -> Debug.crash "Should not be evaluating an exp with an EDict"
+
 
 
 -- Returns augmented environment (for let/def)
@@ -428,7 +433,7 @@ run e = eval_ initEnv [] e
 parseAndRun : String -> String
 parseAndRun = strVal << fst << Utils.fromOk_ << run << Utils.fromOkay "parseAndRun" << Parser.parseE
 
-parseAndRun_ = strVal_ True << fst << Utils.fromOk_ << run << Utils.fromOkay "parseAndRun_" << Parser.parseE
+parseAndRun_ = strValLocs << fst << Utils.fromOk_ << run << Utils.fromOkay "parseAndRun_" << Parser.parseE
 
 rangeOff l1 i l2 = TrOp (RangeOffset i) [TrLoc l1, TrLoc l2]
 

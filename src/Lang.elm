@@ -86,6 +86,12 @@ type Exp__
   | ETyp WS Pat Type Exp WS
   | EColonType WS Exp WS Type WS
   | ETypeAlias WS Pat Type Exp WS
+  | EVal Val     -- used internally by Brainstorm constraint solving
+  | EDict EDict_ -- used internally by Brainstorm constraint solving, may expose via literal eventually
+
+type alias EDict_ = Dict.Dict (String, String) Exp
+
+  -- | EEId EId -- used internally by Brainstorm constraint solving
 
     -- EFun [] e     impossible
     -- EFun [p] e    (\p. e)
@@ -279,7 +285,7 @@ mapValField f r = { r | val = f r.val }
 mapExp : (Exp -> Exp) -> Exp -> Exp
 mapExp f e =
   let recurse = mapExp f in
-  let wrap e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
+  let wrap e__ = replaceE__ e e__ in
   let wrapAndMap = f << wrap in
   case e.val.e__ of
     EConst _ _ _ _         -> f e
@@ -317,10 +323,12 @@ mapExp f e =
     ETyp ws1 pat tipe e ws2       -> wrapAndMap (ETyp ws1 pat tipe (recurse e) ws2)
     EColonType ws1 e ws2 tipe ws3 -> wrapAndMap (EColonType ws1 (recurse e) ws2 tipe ws3)
     ETypeAlias ws1 pat tipe e ws2 -> wrapAndMap (ETypeAlias ws1 pat tipe (recurse e) ws2)
+    EVal _                        -> f e
+    EDict _                       -> f e
 
 mapExpViaExp__ : (Exp__ -> Exp__) -> Exp -> Exp
 mapExpViaExp__ f e =
-  let wrap e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
+  let wrap e__ = replaceE__ e e__ in
   let f' exp = wrap (f exp.val.e__) in
   mapExp f' e
 
@@ -451,6 +459,8 @@ childExps e =
     ETyp ws1 pat tipe e ws2         -> [e]
     EColonType ws1 e ws2 tipe ws3   -> [e]
     ETypeAlias ws1 pat tipe e ws2   -> [e]
+    EVal _                          -> []
+    EDict _                         -> []
 
 
 ------------------------------------------------------------------------------
@@ -504,7 +514,7 @@ applySubst subst exp =
           Just e__New -> e__New
           Nothing     -> e__ConstReplaced
       in
-      P.WithInfo (Exp_ e__' e.val.eid) e.start e.end
+      replaceE__ e e__'
     )
   in
   mapExp replacer exp
@@ -589,11 +599,13 @@ strPos = P.strPos
 
 -- NOTE: the Exp builders use dummyPos
 
+dummyEId = -1
+
 val : Val_ -> Val
-val = flip Val [-1]
+val = flip Val [dummyEId]
 
 exp_ : Exp__ -> Exp_
-exp_ = flip Exp_ (-1)
+exp_ = flip Exp_ (dummyEId)
 
 withDummyRange x  = P.WithInfo x P.dummyPos P.dummyPos
 withDummyPos e__  = P.WithInfo (exp_ e__) P.dummyPos P.dummyPos
@@ -608,7 +620,9 @@ dummyTrace_ b = TrLoc (dummyLoc_ b)
 dummyLoc = dummyLoc_ unann
 dummyTrace = dummyTrace_ unann
 
-ePlus e1 e2 = withDummyPos <| EOp "" (withDummyRange Plus) [e1,e2] ""
+ePlus e1 e2 = eOp Plus [e1, e2]
+
+eOp op_ es = withDummyPos <| EOp " " (withDummyRange op_) es ""
 
 eBase  = withDummyPos << EBase " "
 eBool  = eBase << EBool
@@ -618,9 +632,13 @@ eTrue  = eBool True
 eFalse = eBool False
 
 eApp e es = case es of
-  []      -> Debug.crash "eApp"
+  [] -> Debug.crash "eApp"
+  _  -> withDummyPos <| EApp "\n" e es ""
+
+eAppExpand e es = case es of
+  []      -> Debug.crash "eAppExpand"
   [e1]    -> withDummyPos <| EApp "\n" e [e1] ""
-  e1::es' -> eApp (withDummyPos <| EApp " " e [e1] "") es'
+  e1::es' -> eAppExpand (withDummyPos <| EApp " " e [e1] "") es'
 
 eFun ps e = case ps of
   []      -> Debug.crash "eFun"
@@ -644,11 +662,14 @@ eLets xes eBody = case xes of
 
 eVar0 a        = withDummyPos <| EVar "" a
 eVar a         = withDummyPos <| EVar " " a
-eConst0 a b    = withDummyPos <| EConst "" a b noWidgetDecl
-eConst a b     = withDummyPos <| EConst " " a b noWidgetDecl
+eConst0 n loc  = withDummyPos <| EConst "" n loc noWidgetDecl
+eConst n loc   = withDummyPos <| EConst " " n loc noWidgetDecl
+eConstNoLoc n  = withDummyPos <| EConst " " n dummyLoc noWidgetDecl
 eList0 a b     = withDummyPos <| EList "" a "" b ""
 eList a b      = withDummyPos <| EList " " a "" b ""
+eDict d        = withDummyPos <| EDict d
 eComment a b   = withDummyPos <| EComment " " a b
+eVal val       = withDummyPos <| EVal val
 
 pVar0 a        = withDummyRange <| PVar "" a noWidgetDecl
 pVar a         = withDummyRange <| PVar " " a noWidgetDecl

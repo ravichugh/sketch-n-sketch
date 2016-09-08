@@ -8,6 +8,7 @@ module LangTools where
 -- currently. Also used in InterfaceView to find unfrozen locs to animate in our
 -- (possibly defunct) relate attributes selection screen.
 
+import Eval
 import Lang exposing (..)
 import LangParser2
 import Utils
@@ -144,6 +145,14 @@ scopeNamesLocLiftedThrough_ targetLocId scopeNames exp =
       List.concatMap recurse (childExps exp)
 
 
+preludeIdentifiers = Eval.initEnv |> List.map fst |> Set.fromList
+
+
+identifiersSetPlusPrelude : Exp -> Set.Set Ident
+identifiersSetPlusPrelude exp =
+  Set.union (identifiersSet exp) preludeIdentifiers
+
+
 identifiersSet : Exp -> Set.Set Ident
 identifiersSet exp =
   identifiersList exp
@@ -154,6 +163,12 @@ identifiersSetInPat : Pat -> Set.Set Ident
 identifiersSetInPat pat =
   identifiersListInPat pat
   |> Set.fromList
+
+
+identifiersSetInPats : List Pat -> Set.Set Ident
+identifiersSetInPats pats =
+  List.map identifiersSetInPat pats
+  |> Utils.unionAll
 
 
 identifiersList : Exp -> List Ident
