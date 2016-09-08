@@ -289,16 +289,18 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
     case widget of
 
       WNumSlider minVal maxVal _ curVal loc ->
-        let updateX _ (dx,_) =
+        let updateX dx =
           curVal + (toFloat dx / toFloat wSlider) * (maxVal - minVal)
             |> clamp minVal maxVal
-            |> Just
         in
         let options' = { options | unfreezeAll = True } in
         addWidgetTrigger options' i "Num" [TrLoc loc]
         (Utils.unwrap1 >> \maybeLoc ->
-          mapMaybeToList maybeLoc
-           (\loc' -> ("", "dx", loc', TrLoc loc, updateX)))
+          mapMaybeToList maybeLoc (\loc' ->
+            ( "", "dx", loc', TrLoc loc
+            , \_ (dx,_) -> solveOne subst loc' (updateX dx) (TrLoc loc)
+            ))
+        )
         accResult
 
       WIntSlider a b _ c loc ->
