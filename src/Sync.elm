@@ -1093,9 +1093,14 @@ type alias ZoneKey =
 lookupZoneKey : ZoneKey -> LiveInfo -> (Trigger, Set Loc, Set Loc)
 lookupZoneKey zoneKey info =
   let errorString = "lookupZoneKey: " ++ toString zoneKey in
+  let default =
+    let _ = debugLog errorString ("able to avoid this?") in
+    ([], Set.empty, Set.empty)
+  in
+  let wrap = Maybe.withDefault default in
   case zoneKey of
-    Left (id, _, zone) -> Utils.justGet_ errorString (id, zone) info.shapeTriggers
-    Right (id, string) -> Utils.justGet_ errorString (id, string) info.widgetTriggers
+    Left (id, _, zone) -> wrap <| Dict.get (id, zone) info.shapeTriggers
+    Right (id, string) -> wrap <| Dict.get (id, string) info.widgetTriggers
 
 prepareLiveTrigger : LiveInfo -> Exp -> ZoneKey -> LiveTrigger
 prepareLiveTrigger info exp zoneKey (mx0,my0) (dx,dy) =
