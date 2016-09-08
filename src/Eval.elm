@@ -419,7 +419,23 @@ initEnvRes = Result.map snd <| (eval [] [] Parser.prelude)
 initEnv = Utils.fromOk "Eval.initEnv" <| initEnvRes
 
 run : Exp -> Result String (Val, Widgets)
-run e = eval_ initEnv [] e
+run e =
+  eval_ initEnv [] e |> Result.map (Utils.mapSnd postProcessWidgets)
+
+postProcessWidgets widgets =
+  let dedupedWidgets = Utils.dedup widgets in
+
+  -- partition so that point sliders don't affect indexing
+  -- (and, thus, positioning) of range sliders
+  --
+  let (rangeWidgets, pointWidgets) =
+    dedupedWidgets |>
+      List.partition (\widget -> case widget of
+                                 WIntSlider _ _ _ _ _ -> True
+                                 WNumSlider _ _ _ _ _ -> True
+                                 WPointSlider _ _     -> False)
+  in
+  rangeWidgets ++ pointWidgets
 
 parseAndRun : String -> String
 parseAndRun = strVal << fst << Utils.fromOk_ << run << Utils.fromOkay "parseAndRun" << Parser.parseE

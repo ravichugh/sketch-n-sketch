@@ -224,9 +224,8 @@ buildSvgWidgets wCanvas hCanvas model =
     wSlider        = params.mainSection.uiWidgets.wSlider
     hSlider        = params.mainSection.uiWidgets.hSlider
     wCaption       = params.mainSection.uiWidgets.wCaption
-    dedupedWidgets = Utils.dedup widgets
 
-    numWidgets    = List.length dedupedWidgets
+    numWidgets    = List.length widgets
     wWidget       = wSlider + wCaption + 2*pad
     hWidget       = hSlider + 2*pad
     wToolBoxMax   = wCanvas - 2*pad
@@ -322,36 +321,17 @@ buildSvgWidgets wCanvas hCanvas model =
     case widget of
 
       WNumSlider minVal maxVal cap curVal (k,_,_) ->
-        drawNumWidget i_ widget k cap minVal maxVal curVal
+        drawNumWidget i_ "Num" widget k cap minVal maxVal curVal
 
       WIntSlider a b cap c (k,_,_) ->
         let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
-        drawNumWidget i_ widget k cap minVal maxVal curVal
+        drawNumWidget i_ "Int" widget k cap minVal maxVal curVal
 
       WPointSlider (xVal, _) (yVal, _) ->
-        drawPointWidget widget xVal yVal
+        drawPointWidget i_ widget xVal yVal
   in
 
-  -- partitioning first, so that point sliders don't affect indexing
-  -- (and, thus, positioning) of range sliders
-  --
-  let (rangeWidgets, pointWidgets) =
-    dedupedWidgets |>
-      List.partition (\widget -> case widget of
-                                 WIntSlider _ _ _ _ _ -> True
-                                 WNumSlider _ _ _ _ _ -> True
-                                 WPointSlider _ _     -> False)
-  in
-  Svg.svg [] <|
-    List.concat <|
-      Utils.mapi draw rangeWidgets ++ Utils.mapi draw pointWidgets
-
-sliderZoneEvents widgetState =
-  let foo old = case old.mode of
-    Live _ -> { old | mouseMode = MouseSlider widgetState Nothing }
-    _      -> old
-  in
-  [ onMouseDown (UpdateModel foo) ]
+  Svg.svg [] <| List.concat <| Utils.mapi draw widgets
 
 -- abstract the following with toggleSelected and toggleSelectedBlob
 toggleSelectedWidget locId =
