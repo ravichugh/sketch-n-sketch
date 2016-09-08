@@ -1,4 +1,4 @@
-module InterfaceView2 (view, scaleColorBall) where
+module InterfaceView2 (view) where
 
 --Import the little language and its parsing utilities
 import Lang exposing (..) --For access to what makes up the Vals
@@ -11,11 +11,12 @@ import Eval
 import Utils
 import Keys
 import InterfaceModel exposing (..)
-import LangSvg exposing (toNum, toNumTr, attr, NodeId, ShapeKind)
+import LangSvg exposing (NodeId, ShapeKind, attr)
 import ShapeWidgets exposing (..) -- to expose X, Y, D, O, etc.
 import ExamplesGenerated as Examples
 import Config exposing (params)
 import OurParser2 as P
+import Either exposing (Either(..))
 
 import VirtualDom
 
@@ -213,6 +214,18 @@ buildSvg_ stuff d i =
 
 
 --------------------------------------------------------------------------------
+
+dragZoneEvents zoneKey =
+  [ onMouseDown (ClickZone zoneKey)
+  , onMouseOver (turnOnCaptionAndHighlights zoneKey)
+  , onMouseOut turnOffCaptionAndHighlights
+  ]
+
+zoneEvents id shape zone = dragZoneEvents (Left (id, shape, zone))
+sliderZoneEvents i string = dragZoneEvents (Right (i, string))
+
+
+--------------------------------------------------------------------------------
 -- Widget Layer
 
 buildSvgWidgets : Int -> Int -> Model -> Svg.Svg
@@ -224,9 +237,8 @@ buildSvgWidgets wCanvas hCanvas model =
     wSlider        = params.mainSection.uiWidgets.wSlider
     hSlider        = params.mainSection.uiWidgets.hSlider
     wCaption       = params.mainSection.uiWidgets.wCaption
-    dedupedWidgets = Utils.dedup widgets
 
-    numWidgets    = List.length dedupedWidgets
+    numWidgets    = List.length widgets
     wWidget       = wSlider + wCaption + 2*pad
     hWidget       = hSlider + 2*pad
     wToolBoxMax   = wCanvas - 2*pad
@@ -238,7 +250,7 @@ buildSvgWidgets wCanvas hCanvas model =
     yBL           = hCanvas - hWidget - pad
   in
 
-  let drawNumWidget i_ widget locId cap_ minVal maxVal curVal =
+  let drawNumWidget i_ intOrNum widget locId cap_ minVal maxVal curVal =
     let i = i_ - 1 in
     let
       (r,c) = (i % numRows, i // numRows)
@@ -289,7 +301,7 @@ buildSvgWidgets wCanvas hCanvas model =
         , attr "r" params.mainSection.uiWidgets.rBall
         , attr "cx" (toString cx) , attr "cy" (toString cy)
         , cursorOfZone "SliderBall" "default"
-        ] ++ sliderZoneEvents widget
+        ] ++ sliderZoneEvents i_ intOrNum
     in
     let text =
       let cap = cap_ ++ strNumTrunc 5 curVal in
@@ -304,7 +316,7 @@ buildSvgWidgets wCanvas hCanvas model =
     [region, box, text, ball]
   in
 
-  let drawPointWidget widget cx cy =
+  let drawPointWidget i_ widget cx cy =
     -- copied from ball above
     let ball =
       flip Svg.circle [] <|
@@ -313,7 +325,7 @@ buildSvgWidgets wCanvas hCanvas model =
         , attr "r" params.mainSection.uiWidgets.rBall
         , attr "cx" (toString cx) , attr "cy" (toString cy)
         , cursorOfZone "SliderBall" "default"
-        ] ++ sliderZoneEvents widget
+        ] ++ sliderZoneEvents i_ "Point"
     in
     [ball]
   in
@@ -322,36 +334,17 @@ buildSvgWidgets wCanvas hCanvas model =
     case widget of
 
       WNumSlider minVal maxVal cap curVal (k,_,_) ->
-        drawNumWidget i_ widget k cap minVal maxVal curVal
+        drawNumWidget i_ "Num" widget k cap minVal maxVal curVal
 
       WIntSlider a b cap c (k,_,_) ->
         let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
-        drawNumWidget i_ widget k cap minVal maxVal curVal
+        drawNumWidget i_ "Int" widget k cap minVal maxVal curVal
 
       WPointSlider (xVal, _) (yVal, _) ->
-        drawPointWidget widget xVal yVal
+        drawPointWidget i_ widget xVal yVal
   in
 
-  -- partitioning first, so that point sliders don't affect indexing
-  -- (and, thus, positioning) of range sliders
-  --
-  let (rangeWidgets, pointWidgets) =
-    dedupedWidgets |>
-      List.partition (\widget -> case widget of
-                                 WIntSlider _ _ _ _ _ -> True
-                                 WNumSlider _ _ _ _ _ -> True
-                                 WPointSlider _ _     -> False)
-  in
-  Svg.svg [] <|
-    List.concat <|
-      Utils.mapi draw rangeWidgets ++ Utils.mapi draw pointWidgets
-
-sliderZoneEvents widgetState =
-  let foo old = case old.mode of
-    Live _ -> { old | mouseMode = MouseSlider widgetState Nothing }
-    _      -> old
-  in
-  [ onMouseDown (UpdateModel foo) ]
+  Svg.svg [] <| List.concat <| Utils.mapi draw widgets
 
 -- abstract the following with toggleSelected and toggleSelectedBlob
 toggleSelectedWidget locId =
@@ -393,12 +386,6 @@ handleEventAndStop eventName eventHandler =
     (\_ -> Signal.message events.address eventHandler)
 
 -- TODO use RealZones rather than Zones more
-
-zoneEvents id shape zone =
-  [ onMouseDown (SelectObject id shape zone)
-  , onMouseOver (turnOnCaptionAndHighlights id shape zone)
-  , onMouseOut turnOffCaptionAndHighlights
-  ]
 
 removeHoveredShape id =
   UpdateModel <| \m ->
@@ -484,8 +471,8 @@ draggableZone svgFunc addStroke model id shape zone attrs =
 
 objectZoneIsCurrentlyBeingManipulated model nodeId zonePred =
   case model.mouseMode of
-    MouseObject id _ zone _ -> nodeId == id && zonePred zone
-    _                       -> False
+    MouseDragZone (Left (id, _, zone)) _ -> nodeId == id && zonePred zone
+    _                                    -> False
 
 objectIsCurrentlyBeingManipulated model nodeId =
   objectZoneIsCurrentlyBeingManipulated model nodeId (always True)
@@ -725,12 +712,8 @@ zoneStrokeOpacity = zoneOpacity "StrokeOpacityBall" ShapeWidgets.shapeStrokeOpac
 
 -- Stuff for Color Zones -------------------------------------------------------
 
-wGradient = 250
-scaleColorBall = 1 / (wGradient / LangSvg.maxColorNum)
-
+wGradient = ShapeWidgets.wColorSlider
 hZoneColor = 20
-
-numToColor = Utils.numToColor wGradient
 
 maybeColorNumAttr : String -> List LangSvg.Attr -> (Maybe NumTr, Maybe NumTr)
 maybeColorNumAttr k l =
@@ -784,7 +767,8 @@ zoneColor_ zoneName shapeFeature model id shape x y (n, trace) =
   -- TODO would probably be faster with an image...
   let gradient () =
     List.map (\i ->
-      let (r,g,b) = numToColor i in
+      let (r,g,b) = Utils.numToColor ShapeWidgets.wColorSlider i in
+
       let fill =
         "rgb" ++ Utils.parens (String.join "," (List.map toString [r,g,b]))
       in
@@ -803,8 +787,7 @@ zoneColor_ zoneName shapeFeature model id shape x y (n, trace) =
 
 -- Stuff for Color Opacity Zones -----------------------------------------------
 
-wOpacityBox = 20
--- scaleOpacityBall = 1 / wOpacityBox
+wOpacityBox = ShapeWidgets.wOpacitySlider
 
 -- TODO could abstract the zoneColor, zoneOpacity, and zoneStrokeWidth sliders
 
@@ -859,8 +842,7 @@ zoneOpacity_ zoneName shapeFeature model id shape x y (n, trace) =
 
 -- Stuff for Stroke Width Zones ------------------------------------------------
 
-wStrokeWidthBox = 60
-scaleStrokeWidthBall = 1 / (wStrokeWidthBox / LangSvg.maxStrokeWidthNum)
+wStrokeWidthBox = ShapeWidgets.wStrokeWidthSlider
 
 maybeStrokeWidthNumAttr : List LangSvg.Attr -> Maybe NumTr
 maybeStrokeWidthNumAttr l =
@@ -1107,8 +1089,8 @@ zoneSelectLine model nodeId kind featureNum pt1 pt2 =
     , nodeId
     , ShapeWidgets.unparseFeatureNum (Just kind) featureNum ) in
   case model.mouseMode of
-    MouseObject _ _ _ _ -> []
-    _                   ->
+    MouseDragZone (Left _) _ -> []
+    _ ->
      if Set.member nodeId model.hoveredShapes ||
         Set.member typeAndNodeIdAndFeature model.selectedFeatures
      then zoneSelectLine_ model typeAndNodeIdAndFeature pt1 pt2
@@ -1249,8 +1231,6 @@ makeZones model shape id l =
     -- "g"        -> makeZonesGroup model id l
     _          -> []
 
-findNums l attrs = List.map (toNum << Utils.find_ l) attrs
-
 makeZonesLine model id l =
   let transform = maybeTransformAttr l in
   let (x1,y1,x2,y2,cx,cy) = ShapeWidgets.evaluateLineFeatures id l in
@@ -1360,7 +1340,7 @@ makeZonesEllipseOrOval model id shape l =
 makeZonesPoly model shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "polygon" || shape == "polyline") in
   let transform = maybeTransformAttr l in
-  let pts = LangSvg.toPoints <| Utils.find_ l "points" in
+  let pts = LangSvg.getPolyPoints l in
   let zPts = zonePoints model id shape transform pts in
   let zLines =
     let pairs = Utils.adjacentPairs (shape == "polygon") pts in
@@ -1487,6 +1467,11 @@ colorDebug_ c1 c2 =
     else GE.color c2
 
 colorDebug c1 = colorDebug_ c1 interfaceColor
+
+codeToShow model =
+  case model.previewCode of
+     Just string -> string
+     Nothing     -> model.code
 
 basicCodeBox : Int -> Int -> Model -> GE.Element
 basicCodeBox w h model =
@@ -2313,49 +2298,32 @@ caption model w h =
   colorDebug Color.orange <|
     GE.container w h GE.topLeft <|
       case (model.caption, model.mode, model.mouseMode) of
-        (Just (Hovering (i,k,z)), Live info, MouseNothing) ->
-          case hoverInfo info (i,k,z) of
-            Nothing -> GE.empty
-            Just l ->
-              let numLocs = List.map (\(s,n) -> toString n.val ++ Utils.braces s) l in
-              let line1 = (k ++ toString i) ++ " " ++ z in
-              let line2 = Utils.spaces numLocs in
-              -- eStr (" " ++ line1 ++ "\n " ++ line2)
-              let cap =
-                if line2 == ""
-                then T.bold <| tStr Color.red " (INACTIVE)"
-                else T.bold <| tStr Color.green " (ACTIVE)"
-              in
-              GE.leftAligned <| T.concat
-                 [ tSpace -- slop
-                 , tStr Color.white (" " ++ line1)
-                 , cap
-                 , tStr Color.white ("\n " ++ line2)
-                 ]
+
+        (Just (Hovering zoneKey), Live info, MouseNothing) ->
+          let (line1, line2, cap) =
+            case Sync.hoverInfo zoneKey info of
+              (line1, Nothing) ->
+                (line1, "", T.bold <| tStr Color.red " (INACTIVE)")
+              (line1, Just line2) ->
+                (line1, line2, T.bold <| tStr Color.green " (ACTIVE)")
+          in
+          GE.leftAligned <| T.concat
+             [ tSpace -- slop
+             , tStr Color.white (" " ++ line1)
+             , cap
+             , tStr Color.white ("\n " ++ line2)
+             ]
+
         (Just (LangError err), _, _) ->
           eStr err
         _ ->
           GE.empty
 
--- this is a bit redundant with Model.liveInfoToHighlights...
-hoverInfo info (i,k,z) =
-  let err y = "hoverInfo: " ++ toString y in
-  flip Utils.bindMaybe (Dict.get i info.assignments) <| \d ->
-  flip Utils.bindMaybe (Dict.get z d)                <| \(locset,_) ->
-    let locs = Set.toList locset in
-    Just <|
-      List.map (\(lid,_,x) ->
-        let n = Utils.justGet_ (err (i,z,lid)) lid info.initSubst in
-        if x == ""
-          then ("loc_" ++ toString lid, n)
-          else (x, n)
-       ) locs
-
-turnOnCaptionAndHighlights id shape zone =
+turnOnCaptionAndHighlights zoneKey =
   UpdateModel <| \m ->
     let codeBoxInfo = m.codeBoxInfo in
-    let hi = liveInfoToHighlights id zone m in
-    { m | caption = Just (Hovering (id, shape, zone))
+    let hi = liveInfoToHighlights zoneKey m in
+    { m | caption = Just (Hovering zoneKey)
         , codeBoxInfo = { codeBoxInfo | highlights = hi } }
 
 turnOffCaptionAndHighlights =

@@ -1,40 +1,47 @@
-module Sync (Options, defaultOptions, syncOptionsOf,
-             heuristicsNone, heuristicsFair, heuristicsBiased, toggleHeuristicMode,
-             inferLocalUpdates, prepareLiveUpdates,
-             printZoneTable, LiveInfo, Triggers, tryToBeSmart,
-             locsOfTrace,
-             solve -- Controller needs to fudge directly with solve for point slider widgets...
-             ) where
+module Sync
+  ( Options, defaultOptions, syncOptionsOf
+  , heuristicsNone, heuristicsFair, heuristicsBiased, toggleHeuristicMode
+  , locsOfTrace
+  , LiveInfo, ShapeTriggers, LiveTrigger, ZoneKey
+  , prepareLiveUpdates, prepareLiveTrigger
+  , yellowAndGrayHighlights, hoverInfo
+  ) where
+
+import Lang exposing (..)
+import LangSvg exposing
+  ( NodeId, ShapeKind, Attr, RootedIndexedTree, IndexedTree
+  , AVal, AVal_(..), TransformCmd(..), PathCmd(..)
+  )
+import ShapeWidgets exposing
+  ( Zone, RealZone(..), PointFeature(..), OtherFeature(..)
+  )
+import Solver exposing (Equation)
+import LangParser2 as Parser
+import OurParser2 as P
+import Ace
+import Config exposing (params)
+import Utils
+import Either exposing (Either(..))
 
 import Dict exposing (Dict)
-import Set
-import Utils exposing (justGet_)
+import Set exposing (Set)
 import Debug
 import String
 
-import Lang exposing (..)
--- import LangSvg exposing (NodeId, ShapeKind, Zone, addi)
-import LangSvg exposing (..)
-import ShapeWidgets exposing (Zone)
-import Eval
-import OurParser2 as P
-import LangParser2 as Parser
-import Config
-import LangUnparser as Un
-import LocEqn exposing (..)
 
 ------------------------------------------------------------------------------
 
 debugLog = Config.debugLog Config.debugSync
 
+
 ------------------------------------------------------------------------------
 
-addi s i = s ++ toString i
+type alias Canvas = (RootedIndexedTree, Widgets)
+
 
 ------------------------------------------------------------------------------
 -- Sync.Options
 
--- TODO make general enum functions in Utils
 type alias HeuristicModes = Int
 
 heuristicModes = 3
@@ -50,11 +57,13 @@ toggleHeuristicMode x =
 type alias Options =
   { thawedByDefault : Bool
   , feelingLucky : HeuristicModes
+  , unfreezeAll : Bool
   }
 
 defaultOptions =
   { thawedByDefault = True
   , feelingLucky = heuristicsBiased
+  , unfreezeAll = False
   }
 
 syncOptionsOf oldOptions e =
@@ -73,147 +82,18 @@ syncOptionsOf oldOptions e =
 
 
 ------------------------------------------------------------------------------
--- Value Contexts
+-- Locations of Trace
 
-multiLeafDiffs = True
-
-type alias VContext = Val
-  -- a VContext is a Val with exactly one VHole in single-leaf diff mode
-  -- or multiple VHoles in multi-leaf diff mode
-
-type alias HoleSubst = Dict.Dict Int (Val,Val)
-
-fillHole : VContext -> HoleSubst -> Val
-fillHole = fillHole_ True
-
-fillHole_ new vc subst = case vc.v_ of
-  VHole i          -> case Dict.get i subst of
-                        Just (vOld,vNew) -> if new then vNew else vOld
-                        Nothing          -> Debug.crash "fillHole_"
-  VConst _         -> vc
-  VBase _          -> vc
-  VClosure _ _ _ _ -> vc   -- not recursing into closures
-  VList vs         -> vList (List.map (\v -> fillHole_ new v subst) vs)
-  VDict d          -> vDict (Dict.map (\_ v -> fillHole_ new v subst) d)
-
-type VDiff = Same Val | Diff VContext HoleSubst
-
-diff : Val -> Val -> Maybe VDiff
-diff v1 v2 =
-  let res = diff_ 0 v1 v2 in
-  case res of
-    Just (_, Diff vc subst) ->
-      let (v1',v2') = (fillHole_ False vc subst, fillHole_ True vc subst) in
-      if eqV (v1,v1') && eqV (v2,v2') then
-        Just (Diff vc subst)
-      else
-        let f (i,(vOld,vNew)) = [toString i, strVal vOld, strVal vNew] in
-        Debug.crash <| Utils.lines <|
-          ("bad diff" :: strVal vc :: List.concatMap f (Dict.toList subst))
-    _ ->
-      Utils.mapMaybe snd res
-
-eqV (v1,v2) = case (v1.v_, v2.v_) of -- equality modulo traces
-  (VConst it, VConst jt) -> fst it == fst jt
-  (VList vs1, VList vs2) ->
-    case Utils.maybeZip vs1 vs2 of
-      Nothing -> False
-      Just l  -> List.all eqV l
-  (VDict d1, VDict d2) ->
-    case Utils.maybeZipDicts d1 d2 of
-      Nothing -> False
-      Just dd -> List.all eqV (Dict.values dd)
-  _ -> v1 == v2
-
-diffNoCheck v1 v2 =
-  Utils.mapMaybe snd (diff_ 0 v1 v2)
-
--- assuming that v1 is the value resulting from eval (so it has proper locs)
--- and that v2 has dummy locs
-
-diff_ : Int -> Val -> Val -> Maybe (Int, VDiff)
-diff_ k v1 v2 = case (v1.v_, v2.v_) of
-  (VBase VStar, VConst _) -> Just (k, Same v2)
-  (VConst (i,tr), VConst (j,_)) ->
-    if i == j then
-      Just (k, Same (vConst (i,tr)))  -- cf. comment above
-    else
-      let d = Dict.singleton k (v1, (vConst (j,tr))) in
-      Just (k+1, Diff (vHole k) d)
-  (VList vs1, VList vs2) ->
-    case Utils.maybeZip vs1 vs2 of
-      Nothing -> Nothing
-      Just l ->
-        List.foldr (\(vi1,vi2) acc ->
-          case acc of
-            Nothing -> Nothing
-            Just (k, Same vUgh) ->
-              case vUgh.v_ of
-                VList vs ->
-                  case diff_ k vi1 vi2 of
-                    Nothing                 -> Nothing
-                    Just (k, Same v)        -> Just (k, Same (vList (v::vs)))
-                    Just (k, Diff vc subst) -> Just (k, Diff (vList (vc::vs)) subst)
-                _ -> Debug.crash "diff_"
-            Just (k, Diff vUgh subst) ->
-              case vUgh.v_ of
-                VList vs ->
-                  case diff_ k vi1 vi2 of
-                    Nothing                 -> Nothing
-                    Just (k, Same v)        -> Just (k, Diff (vList (v::vs)) subst)
-                    Just (k, Diff vc sub')  ->
-                      if not multiLeafDiffs
-                        then Nothing
-                        else let d = Dict.union subst sub' in
-                             Just (k, Diff (vList (vc::vs)) d)
-                _ -> Debug.crash "diff_"
-        ) (Just (k, Same (vList []))) l
-  (VDict d1, VDict d2) ->
-    case Utils.maybeZipDicts d1 d2 of
-      Nothing -> Nothing
-      Just dd ->
-        Dict.foldr (\key (vi1,vi2) acc ->
-          case acc of
-            Nothing -> Nothing
-            Just (k, Same vUgh) ->
-              case vUgh.v_ of
-                VDict accDict ->
-                  case diff_ k vi1 vi2 of
-                    Nothing                 -> Nothing
-                    Just (k, Same v)        -> Just (k, Same (vDict <| Dict.insert key v accDict))
-                    Just (k, Diff vc subst) -> Just (k, Diff (vDict <| Dict.insert key vc accDict) subst)
-                _ -> Debug.crash "diff_"
-            Just (k, Diff vUgh subst) ->
-              case vUgh.v_ of
-                VDict accDict ->
-                  case diff_ k vi1 vi2 of
-                    Nothing                 -> Nothing
-                    Just (k, Same v)        -> Just (k, Diff (vDict <| Dict.insert key v accDict) subst)
-                    Just (k, Diff vc sub')  ->
-                      if not multiLeafDiffs
-                        then Nothing
-                        else let sub'' = Dict.union subst sub' in
-                             Just (k, Diff (vDict <| Dict.insert key vc accDict) sub'')
-                _ -> Debug.crash "diff_"
-        ) (Just (k, Same (vDict Dict.empty))) dd
-  _ ->
-    if v1 == v2
-      then Just (k, Same v1)
-      else Nothing
-
-
-------------------------------------------------------------------------------
-
-type alias Equation = (Num, Trace)
-
-locsOfTrace : Options -> Trace -> Set.Set Loc
+locsOfTrace : Options -> Trace -> Set Loc
 locsOfTrace opts =
   let frozenByDefault = not opts.thawedByDefault in
+  let notUnfreezeAll = not opts.unfreezeAll in
   let foo t = case t of
     TrLoc l ->
       let (_,b,_) = l in
       if      Parser.isPreludeLoc l         then Set.empty
-      else if b == frozen                   then Set.empty
+      -- else if b == frozen                   then Set.empty
+      else if b == frozen && notUnfreezeAll then Set.empty
       else if b == unann && frozenByDefault then Set.empty
       else                                       Set.singleton l
     TrOp _ ts -> List.foldl Set.union Set.empty (List.map foo ts)
@@ -227,1251 +107,1151 @@ locsOfTrace opts =
     else
       s
 
-{-
-    else
-      -- want to count the number of non-frozen, non-assignOnce locs
-      let keep = (\(_,ann,_) -> ann /= assignOnlyOnce) in
-      if List.length (List.filter keep (Set.toList s)) <= 1 then
-        -- let _ = Debug.log "dropping" s in
-        Set.empty
-      else
-        s
--}
+locsOfTraces : Options -> List Trace -> Set Loc
+locsOfTraces options traces =
+  List.foldl (\t acc -> Set.union acc (locsOfTrace options t)) Set.empty traces
 
-solveOneLeaf : Options -> Subst -> Val -> List (LocId, Num)
-solveOneLeaf opts s v = case v.v_ of
-  VConst (i, tr) ->
-    List.filterMap
-      (\k -> let s' = Dict.remove k s in
-             Utils.mapMaybe (\n -> (k,n)) (solve s' (i, tr)))
-      (List.map Utils.fst3 <| Set.toList <| locsOfTrace opts tr)
-  _ ->
-    Debug.crash "solveOneLeaf"
 
-inferSubsts : Options -> Subst -> List Val -> List Subst
-inferSubsts opts s0 vs =
-  List.map (solveOneLeaf opts s0) vs
-    |> Utils.oneOfEach
-    |> List.map combine
-    |> List.map (Utils.mapMaybe (\s' -> Dict.union s' s0))  -- pref to s'
-    |> List.filterMap identity
+------------------------------------------------------------------------------
+-- Counters for Biased Mode
 
-combine : List (LocId, Num) -> Maybe Subst
-combine solutions =
-  let f (l,n) msubst =
-    let g subst =
-      case Dict.get l subst of
-        Nothing -> Just (Dict.insert l n subst)
-        Just i  -> if i == n
-                     then Just (Dict.insert l n subst)
-                     else Nothing
-    in
-    Utils.bindMaybe g msubst
+type alias BiasCounts = Dict Loc Int
+
+
+getCount x dict    = Maybe.withDefault 0 (Dict.get x dict)
+updateCount x dict = Dict.insert x (1 + getCount x dict) dict
+
+
+getLocationCounts : Options -> Canvas -> BiasCounts
+getLocationCounts options (slate, widgets) =
+  let addTriggerNode nodeInfo acc =
+    case nodeInfo of
+      Left _ -> acc
+      Right (_, _, attrs) ->
+        List.foldl (\(_,aval) acc' ->
+          Set.foldl updateCount acc' (locsOfTraces options (tracesOfAVal aval))
+        ) acc attrs
   in
-  List.foldl f (Just Dict.empty) solutions
-
--- useful for debugging
-traceToExp : Subst -> Trace -> Exp
-traceToExp subst tr = case tr of
-  TrLoc l ->
-    case Dict.get (Utils.fst3 l) subst of
-      Nothing -> eVar (strLoc l)
-      Just n  -> eConst n l
-  TrOp op ts ->
-    withDummyPos (EOp " " (withDummyRange op) (List.map (traceToExp subst) ts) "")
-
-solve : Subst -> Equation -> Maybe Num
-solve subst eqn =
-{-
-  let (n,t) = eqn in
-  (\ans ->
-    let _ = Debug.log "solveTopDown" (n, sExp (traceToExp subst t), ans)
-    in ans) <|
--}
-  (termSolve subst eqn) `Utils.plusMaybe` (solveTopDown subst eqn)
-
-  -- both solveTopDown and termSolve
-  -- assumes that a single variable is being solved for
-
-
--- Use the Make Equal solver
-termSolve : Subst -> Equation -> Maybe Num
-termSolve subst (newN, trace) =
-  -- The locId missing from subst is what we are solving for
-  let locEqn = traceToLocEquation trace in
-  let locIds = locEqnLocIds locEqn |> Set.toList in
-  let targetLocId =
-    locIds
-    |> Utils.findFirst (\locId -> Dict.get locId subst == Nothing)
-    |> Utils.fromJust_ "subst should be missing a locId"
+  let addTriggerWidget widget acc =
+    case widget of
+      WIntSlider _ _ _ _ loc -> updateCount loc acc
+      WNumSlider _ _ _ _ loc -> updateCount loc acc
+      WPointSlider (_, t1) (_, t2) ->
+        Set.foldl updateCount acc (locsOfTraces options [t1, t2])
   in
-  case locEqnTerms targetLocId (LocEqnOp Minus [locEqn, LocEqnConst newN]) of
-    Just (locPow, locCoeff, rest) ->
-      -- We have: coeff*x^pow + rest = 0
-      -- We want: x = (-rest / coeff)^(1/pow)
-      let coeffEvaled = locEqnEval subst locCoeff in
-      let restEvaled  = locEqnEval subst rest in
-      let newLocValue = (-restEvaled / coeffEvaled)^(1/locPow) in
-      if (isNaN newLocValue) || (isInfinite newLocValue) then
-        Nothing
-      else
-        Just newLocValue
-
-    Nothing ->
-      Nothing
+  let d  = LangSvg.foldSlateNodeInfo slate Dict.empty addTriggerNode in
+  let d' = List.foldl addTriggerWidget d widgets in
+  d'
 
 
-evalTrace : Subst -> Trace -> Maybe Num
-evalTrace subst t = case t of
-  TrLoc (k,_,_) -> Dict.get k subst
-  TrOp op ts ->
-    Utils.mapMaybe
-      (Eval.evalDelta [] op)
-      (Utils.projJusts (List.map (evalTrace subst) ts))
+tracesOfAVals : List AVal -> List Trace
+tracesOfAVals avals = List.foldl (\av acc -> tracesOfAVal av ++ acc) [] avals
 
-evalLoc : Subst -> Trace -> Maybe (Maybe Num)
-  -- Just (Just i)   tr is a location bound in subst
-  -- Just Nothing    tr is a location not bound (i.e. it's being solved for)
-  -- Nothing         tr is not a location
-evalLoc subst tr =
-  case tr of
-    TrOp _ _    -> Nothing
-    TrLoc (k,_,_) -> Just (Dict.get k subst)
 
-solveTopDown subst (n, t) = case t of
+tracesOfAVal : AVal -> List Trace
+tracesOfAVal aval =
+  case aval.av_ of
+    ANum (_,t) -> [t]
 
-  TrLoc (k,_,_) ->
-    case Dict.get k subst of
-      Nothing -> Just n
-      Just _  -> Nothing
+    AColorNum ((_,t), Nothing)     -> [t]
+    AColorNum ((_,t), Just (_,t')) -> [t, t']
 
-  TrOp op [t1,t2] ->
-    let left  = (evalTrace subst t1, evalLoc   subst t2) in
-    let right = (evalLoc   subst t1, evalTrace subst t2) in
-    case (isNumBinop op, left, right) of
+    APoints pts -> List.concatMap (\((_,t1),(_,t2)) -> [t1, t2]) pts
 
-      -- four cases are of the following form,
-      -- where k is the single location variable being solved for:
-      --
-      --    1.   n =  i op k
-      --    2.   n =  i op t2
-      --    3.   n =  k op j
-      --    4.   n = t1 op j
+    ATransform [Rot (_,t1) (_,t2) (_,t3)] -> [t1, t2, t3]
 
-      (True, (Just i, Just Nothing), _) -> solveR op n i
-      (True, (Just i, Nothing), _)      -> Utils.bindMaybe
-                                             (\n -> solveTopDown subst (n, t2))
-                                             (solveR op n i)
-      (True, _, (Just Nothing, Just j)) -> solveL op n j
-      (True, _, (Nothing, Just j))      -> Utils.bindMaybe
-                                             (\n -> solveTopDown subst (n, t1))
-                                             (solveL op n j)
+    AString _ -> []
+    ARgba _   -> [] -- not collecting traces, because currently no RGBA widgets
 
-      _ ->
-        let _ = debugLog "Sync.solveTopDown" <| strTrace t in
-        Nothing
+    _ -> let _ = debugLog "tracesOfAVal?" (LangSvg.strAVal aval) in
+         []
 
-  TrOp op [t1] ->
-    case evalTrace subst t1 of
-      Just _  -> Nothing
+
+------------------------------------------------------------------------------
+-- Counters for Fair Mode
+
+type alias FairCounts = Dict (List MaybeLoc) Int
+
+type alias MaybeLoc = Loc -- workaround because Maybe Loc isn't comparable
+
+coerceMaybeLoc m = case m of
+  Just loc -> loc
+  Nothing  -> dummyLoc
+
+coerceMaybeLocList = List.map coerceMaybeLoc
+
+getFairCount x dict    = getCount (coerceMaybeLocList x) dict
+updateFairCount x dict = updateCount (coerceMaybeLocList x) dict
+
+
+------------------------------------------------------------------------------
+-- Choosing Locations for Triggers
+
+type alias MaybeCounts = Maybe (Either BiasCounts FairCounts)
+
+
+pickLocs : Options -> MaybeCounts -> List Trace -> (List (Maybe Loc), Set Loc, MaybeCounts)
+pickLocs options maybeCounts traces =
+  let locSets = List.map (locsOfTrace options) traces in
+  let allLocs = List.foldl Set.union Set.empty locSets in
+  let (assignedMaybeLocs, maybeCounts') =
+    case maybeCounts of
+
       Nothing ->
-        case op of
-          Cos     -> maybeFloat <| acos n
-          Sin     -> maybeFloat <| asin n
-          ArcCos  -> Just <| cos n
-          ArcSin  -> Just <| sin n
-          Sqrt    -> Just <| n * n
-          Round   -> Nothing
-          Floor   -> Nothing
-          Ceil    -> Nothing
-          _       -> let _ = debugLog "TODO solveTopDown" t in
-                     Nothing
+        (List.map (always Nothing) locSets, Nothing)
 
-  _ ->
-    let _ = debugLog "TODO solveTopDown" t in
-    Nothing
+      Just (Left biasCounts) ->
+        (List.map (chooseBiased biasCounts) locSets, Just (Left biasCounts))
 
-isNumBinop = (/=) Lt
-
-maybeFloat n =
-  let thresh = 1000 in
-  if isNaN n || isInfinite n then debugLog "maybeFloat Nothing" Nothing
-  else if abs n > thresh     then debugLog "maybeFloat (above thresh)" Nothing
-  else                            Just n
-
--- n = i op j
-solveR op n i = case op of
-  Plus    -> maybeFloat <| n - i
-  Minus   -> maybeFloat <| i - n
-  Mult    -> maybeFloat <| n / i
-  Div     -> maybeFloat <| i / n
-  Pow     -> Just <| logBase i n
-  Mod     -> Nothing
-  ArcTan2 -> maybeFloat <| tan(n) * i
-  _       -> Debug.crash "solveR"
-
--- n = i op j
-solveL op n j = case op of
-  Plus  -> maybeFloat <| n - j
-  Minus -> maybeFloat <| j + n
-  Mult  -> maybeFloat <| n / j
-  Div   -> maybeFloat <| j * n
-  Pow   -> Just <| n ^ (1/j)
-  Mod   -> Nothing
-  ArcTan2 -> maybeFloat <| j / tan(n)
-  _     -> Debug.crash "solveL"
-
-
-simpleSolve subst (sum, tr) =
-  let walkTrace t = case t of
-    TrLoc (k,_,_) ->
-      case Dict.get k subst of
-        Nothing -> Just (0, 1)
-        Just i  -> Just (i, 0)
-    TrOp Plus ts ->
-      let foo mx macc =
-        case (mx, macc) of
-          (Just (a,b), Just (acc1,acc2)) -> Just (a+acc1, b+acc2)
-          _                              -> Nothing
-      in
-        List.foldl foo (Just (0,0)) (List.map walkTrace ts)
-    _ ->
-      let _ = debugLog "Sync.simpleSolve" <| strTrace tr in
-      Nothing
+      Just (Right fairCounts) ->
+        Utils.mapSnd (Just << Right) <|
+          chooseFairLocationAssignment locSets fairCounts
   in
-  Utils.mapMaybe
-    (\(partialSum,n) -> (sum - partialSum) / n)
-    (walkTrace tr)
+  (assignedMaybeLocs, allLocs, maybeCounts')
 
-compareVals : (Val, Val) -> Num
-compareVals (v1, v2) = case (v1.v_, v2.v_) of
-  (VConst it, VConst jt) -> abs (fst it - fst jt)
-  (VList vs1, VList vs2) -> case Utils.maybeZip vs1 vs2 of
-                              Nothing -> largeInt
-                              Just l  -> Utils.sum (List.map compareVals l)
-  (VDict d1, VDict d2)   -> case Utils.maybeZipDicts d1 d2 of
-                              Nothing -> largeInt
-                              Just dd -> Utils.sum (Dict.values dd |> List.map compareVals)
-  _                      -> if v1 == v2 then 0 else largeInt
 
-largeInt = 99999999
+chooseBiased biasCounts locSet =
+  let sorted =
+    locSet
+      |> Set.toList
+      |> List.sortBy (\loc -> getCount loc biasCounts)
+           -- lower scores first
+           -- if there are ties, pick arbitrarily
+  in
+  case sorted of
+    loc :: _ -> Just loc
+    []       -> Nothing
 
-------------------------------------------------------------------------------
 
-getFillers : HoleSubst -> List Val
-getFillers = List.map (snd << snd) << Dict.toList
+chooseFairLocationAssignment locSets fairCounts =
 
-leafToStar v = case v.v_ of
-  VConst _ -> vBase VStar
-  _        -> v
+  let noAssignment () =
+    let allNothings = List.repeat (List.length locSets) Nothing in
+    (allNothings, fairCounts) in
 
--- historically, inferLocalUpdates was called "sync"
+  -- check if Cartesian product would be too large
+  let numCandidates = List.foldl (*) 1 (List.map Set.size locSets) in
 
-inferLocalUpdates : Options -> Exp -> Val -> Val -> Result String (List (Exp, Val))
-inferLocalUpdates opts e v v' =
-  case diff v v' of
-    Nothing       -> Err "bad change"
-    -- Just (Same _) -> Err "no change"
-    Just (Same _) -> Ok []
-    Just (Diff vc holeSubst) ->
-      let newNew = getFillers holeSubst in
-      let subst0 = Parser.substOf e in
-      let substs = inferSubsts opts subst0 newNew in
-      let res =
-        List.map fst <|
-          List.sortBy snd <|
-            List.filterMap (\s ->
-              let e1 = applyLocSubst s e in
-              let v1 = fst (Utils.fromOk "Sync.inferLocalUpdates" <| Eval.run e1) in
-              let vcStar = mapVal leafToStar vc in
-              case diffNoCheck (fillHole vcStar holeSubst) v1 of
-                -- TODO 9/24: one of the last few commits affected this
-                --   on RelateRects0...
-                -- Nothing -> Debug.crash "sync: shouldn't happen?"
-                Nothing -> Debug.log "sync: shouldn't happen?" Nothing
-                Just (Same _) ->
-                  let n = compareVals (v, v1) in
-                  Just ((e1, v1), n)
-                Just (Diff _ holeSubst') ->
-                  let oldNew = getFillers holeSubst' in
-                  if newNew /= oldNew
-                    then Nothing
-                    else
-                      let n = compareVals (v, v1) in
-                      Just ((e1, v1), n)
-            ) substs
-      in
-      -- TODO: is this a good idea?
-      if res == [] then Err "bad change 2" else Ok res
+  if numCandidates > 100 then noAssignment ()
+  else
+    let sorted =
+      locSets
+        |> List.map Set.toList
+        |> List.map convertEmptyToNonEmpty
+        |> Utils.oneOfEach
+        |> List.sortBy
+             (\assignment -> getFairCount assignment fairCounts)
+               -- lower counts first
+               -- if there are ties, pick arbitrarily
+    in
+    case sorted of
+      [] -> noAssignment ()
+
+      assignment :: _ ->
+        let fairCounts' = updateFairCount assignment fairCounts in
+        (assignment, fairCounts')
+
+
+convertEmptyToNonEmpty locList =
+  case locList of
+    [] -> [Nothing]
+    _  -> List.map Just locList
 
 
 ------------------------------------------------------------------------------
--- Triggers
-
--- NOTE: AttrNames include "fake" attributes
---   e.g. for polygons, x1,y1,x2,y2,x3,y3,...
+-- Prepare for Live Updates
 
 type alias AttrName = String
-type alias Locs = List Loc
+  -- NOTE: AttrNames include "fake" attributes
+  --   e.g. for polygons, x1,y1,x2,y2,x3,y3,...
+  --   e.g. fillOpacity
 
--- band-aids for extra metadata...
-type ExtraInfo = None | NumPoints Int | NumsPath LangSvg.PathCounts
-type alias ExtraExtraInfo = List (AttrName, (Zone, Trace))
+type alias UpdateFunction
+    = (Int, Int)   -- initial click (mx0, my0)
+   -> (Int, Int)   -- change in mouse position (dx, dy)
+   -> Maybe Num
 
-type alias NumAttrs = Int
+type alias TriggerElement = (AttrName, String, Loc, Trace, UpdateFunction)
+type alias Trigger = List TriggerElement
 
-type alias Dict0 = Dict NodeId (ShapeKind, ExtraInfo, ExtraExtraInfo, Dict AttrName Trace)
-type alias Dict1 = Dict NodeId (ShapeKind, List (Zone, (NumAttrs, List Locs)))
-type alias Dict2 = Dict NodeId (ShapeKind, List (Zone, Maybe (Locs, List Locs)))
-
-printZoneTable : Val -> String
-printZoneTable v =
-  Debug.crash "printZoneTable not called anywhere"
-{-
-  let so = defaultOptions in
-  nodeToAttrLocs v           -- Step 1: Val   -> Dict0
-    |> shapesToZoneTable so  -- Step 2: Dict0 -> Dict1
-    |> assignTriggers        -- Step 3: Dict1 -> Dict2
-    |> strTable              -- Step 4: Dict2 -> String
--}
-
--- Step 1 --
-
--- TODO: assigning IDs is now redundant with valToIndexedTree.
--- so start with IndexedTree rather than Val.
-
-nodeToAttrLocs : Val -> Dict0
-nodeToAttrLocs = snd << flip nodeToAttrLocs_ (1, Dict.empty)
-
-nodeToAttrLocs_ : Val -> (Int, Dict0) -> (Int, Dict0)
-nodeToAttrLocs_ v (nextId,dShapes) = case v.v_ of
-
-  VList vsUgh -> case List.map .v_ vsUgh of
-
-    [VBase (VString "TEXT"), VBase (VString s)] ->
-      (1 + nextId, Dict.insert 1 ("DUMMYTEXT", None, [], Dict.empty) dShapes)
-
-    [VBase (VString kind), VList vs', VList children] ->
-
-      -- processing attributes of current node
-      let processAttr v' (extra,extraextra,dAttrs) = case v'.v_ of
-
-        VList vsUghUgh -> case List.map .v_ vsUghUgh of
-
-          [VBase (VString "fill"), VConst (_,tr)] ->
-            let ee = ("fill", ("FillBall", tr)) :: extraextra in
-            (extra, ee, Dict.insert "fill" tr dAttrs)
-
-          [VBase (VString "stroke"), VConst (_,tr)] ->
-            let ee = ("stroke", ("StrokeBall", tr)) :: extraextra in
-            (extra, ee, Dict.insert "stroke" tr dAttrs)
-
-          [VBase (VString "fill"), VList [v1, v2]] ->
-            case (v1.v_, v2.v_) of
-              (VConst (_,tr1), VConst (_,tr2)) ->
-                let ee = ("fill", ("FillBall", tr1)) ::
-                         ("fillOpacity", ("FillOpacityBall", tr2)) :: extraextra in
-                (extra, ee, Dict.insert "fillOpacity" tr2 (Dict.insert "fill" tr1 dAttrs))
-              _ -> Debug.crash "nodeToAttrLocs_"
-
-          [VBase (VString "stroke"), VList [v1, v2]] ->
-            case (v1.v_, v2.v_) of
-              (VConst (_,tr1), VConst (_,tr2)) ->
-                let ee = ("stroke", ("StrokeBall", tr1)) ::
-                         ("strokeOpacity", ("StrokeOpacityBall", tr2)) :: extraextra in
-                (extra, ee, Dict.insert "strokeOpacity" tr2 (Dict.insert "stroke" tr1 dAttrs))
-              _ -> Debug.crash "nodeToAttrLocs_"
-
-          [VBase (VString "stroke-width"), VConst (_,tr)] ->
-            let ee = ("stroke-width", ("StrokeWidthBall", tr)) :: extraextra in
-            (extra, ee, Dict.insert "stroke-width" tr dAttrs)
-
-          -- NOTE: requires for a single cmd, and "transformRot" is a fake attr....
-          [VBase (VString "transform"), VList [vBlah]] ->
-            case vBlah.v_ of
-              VList vsBlah ->
-                case List.map .v_ vsBlah of
-                  [VBase (VString "rotate"), VConst (_, tr), _, _] ->
-                    let ee = ("transformRot", ("RotateBall", tr)) :: extraextra in
-                    (extra, ee, Dict.insert "transformRot" tr dAttrs)
-                  _ -> Debug.crash "nodeToAttrLocs_"
-              _ -> Debug.crash "nodeToAttrLocs_"
-
-          [VBase (VString a), VConst (_,tr)] ->
-            (extra, extraextra, Dict.insert a tr dAttrs)
-
-          [VBase (VString "points"), VList pts] ->
-            let acc' =
-              Utils.foldli (\(i,vPt) acc ->
-                case vPt.v_ of
-                  VList vsUghUghUgh ->
-                    case List.map .v_ vsUghUghUgh of
-                      [VConst (_,trx), VConst (_,try)] ->
-                        let (ax,ay) = (addi "x" i, addi "y" i) in
-                        acc |> Dict.insert ax trx
-                            |> Dict.insert ay try
-                      _ -> Debug.crash "nodeToAttrLocs_"
-                  _ -> Debug.crash "nodeToAttrLocs_"
-               ) dAttrs pts in
-            (NumPoints (List.length pts), extraextra, acc')
-
-          [VBase (VString "d"), VList vs] ->
-            let addPt (mi,(xt,yt)) dict =
-              case mi of
-                Nothing -> dict
-                Just i  -> dict |> Dict.insert (addi "x" i) (snd xt)
-                                |> Dict.insert (addi "y" i) (snd yt)
-            in
-            let addPts pts dict = List.foldl addPt dict pts in
-            let (cmds,counts) = LangSvg.valsToPath2 vs in
-            let dAttrs' =
-              List.foldl (\c acc -> case c of
-                LangSvg.CmdZ   s              -> acc
-                LangSvg.CmdMLT s pt           -> acc |> addPt pt
-                LangSvg.CmdHV  s n            -> acc
-                LangSvg.CmdC   s pt1 pt2 pt3  -> acc |> addPts [pt1,pt2,pt3]
-                LangSvg.CmdSQ  s pt1 pt2      -> acc |> addPts [pt1,pt2]
-                LangSvg.CmdA   s a b c d e pt -> acc |> addPt pt) dAttrs cmds
-            in
-            (NumsPath counts, extraextra, dAttrs')
-
-          -- NOTE:
-          --   string-valued and RGBA attributes are ignored.
-          --   see LangSvg.valToSvg for spec of attributes.
-          _ ->
-            (extra, extraextra, dAttrs)
-
-        _ -> Debug.crash "nodeToAttrLocs_"
-      in
-      let (extra,ee,attrs) = List.foldl processAttr (None, [], Dict.empty) vs' in
-
-      -- recursing into sub-nodes
-      let (nextId',dShapes') =
-        List.foldl nodeToAttrLocs_ (nextId,dShapes) children in
-
-      (nextId' + 1, Dict.insert nextId' (kind, extra, ee, attrs) dShapes')
-
-    _ -> Debug.crash "nodeToAttrLocs_"
-
-  _ -> Debug.crash <| "Sync.nodeToAttrLocs_: " ++ strVal v
-
--- Step 2 --
-
--- TODO
---   equations are no longer always solvable.
---   so perhaps (symbolically) take into account whether a
---   solution may be Nothing (e.g. because of a division)
---   when computing which Locs may be assigned to a zone.
---   this would go after the cartProdWithDiff...
---   would also need to take into account whether an equation
---   is "top-down solvable" w.r.t to the desired location...
-
-shapesToZoneTable : Options -> Dict0 -> Dict1
-shapesToZoneTable opts d0 =
-  let foo i stuff acc =
-    let (kind,_,_,_) = stuff in
-    Dict.insert i (kind, shapeToZoneInfo opts stuff) acc in
-  Dict.foldl foo Dict.empty d0
-
-shapeToZoneInfo :
-  Options ->
-  (ShapeKind, ExtraInfo, ExtraExtraInfo, Dict AttrName Trace) ->
-  List (Zone, (NumAttrs, List Locs))
-shapeToZoneInfo opts (kind, extra, ee, d) =
-  let zones = getZones kind extra ee in
-  let f (s,l) acc =
-    let numAttrs = List.length l in
-    let sets =
-      -- temporary way to ignore numbers specified as strings
-      -- l |> List.map (\a -> locsOfTrace opts <| justGet_ "%1" a d)
-      l |> List.map (\a -> case Dict.get a d of
-                             Just tr -> locsOfTrace opts tr
-                             Nothing -> Set.empty)
-        |> createLocLists opts in
-    (s, (numAttrs, sets)) :: acc
-  in
-  List.foldr f [] zones
-
-allowOverConstrained = True -- CONFIG
-
-createLocLists opts sets =
-  -- let foo = Utils.cartProdWithDiff sets in
-  let removeEmpties = List.filter ((/=) 0 << Utils.setCardinal) in
-  let foo = Utils.cartProdWithDiff (removeEmpties sets) in
-  let bar =
-    if not allowOverConstrained then []
-    else if opts.feelingLucky == heuristicsNone ||
-            opts.feelingLucky == heuristicsFair then
-      sets |> Utils.intersectMany |> Set.toList |> List.map Utils.singleton
-    else if opts.feelingLucky == heuristicsBiased then
-      let l = sets |> Utils.intersectMany |> Set.toList in
-      Utils.oneOfEach [l,l]
-    else
-      Debug.crash "createLocLists"
-  in
-  let baz =
-    if foo == bar then
-      foo
-    else
-      foo ++ bar
-  in
-  List.filter ((/=) []) baz
-
--- TODO refactor/move all of this to ShapeWidgets...
-getZones : ShapeKind -> ExtraInfo -> ExtraExtraInfo -> List (Zone, List AttrName)
-getZones kind extra ee =
-  let xy i = [addi "x" i, addi "y" i] in
-  let pt i = (addi "Point" i, xy i) in
-  let edge n i =
-    if i <  n then (addi "Edge" i, xy i ++ xy (i+1)) else
-    if i == n then (addi "Edge" i, xy i ++ xy 1)
-    else Debug.crash "getZones"
-  in
-  let interior n = ("Interior", List.concatMap xy [1..n]) in
-  let basicZones =
-    case (kind, extra) of
-      ("polyline", NumPoints n) ->
-        List.map pt [1..n] ++ List.map (edge n) [1..n-1]
-      ("polygon", NumPoints n) ->
-        List.map pt [1..n] ++ List.map (edge n) [1..n] ++ [interior n]
-      ("path", NumsPath {numPoints}) ->
-        List.map pt [1..numPoints] ++ [interior numPoints]
-      _ ->
-        case Utils.maybeFind kind ShapeWidgets.zones of
-          Just zones -> zones
-          Nothing    -> []
-{-
-        Utils.fromJust_
-          ("Sync.getZones " ++ kind)
-          (Utils.maybeFind kind LangSvg.zones)
--}
-  in
-  basicZones ++ widgetZones ee
-
-widgetZones = List.map <| \x -> case x of
-  ("fill"         , ("FillBall"   , _)) -> ("FillBall"   , ["fill"])
-  ("stroke"       , ("StrokeBall" , _)) -> ("StrokeBall" , ["stroke"])
-  ("fillOpacity"  , ("FillOpacityBall"   , _)) -> ("FillOpacityBall"   , ["fillOpacity"])
-  ("strokeOpacity", ("StrokeOpacityBall" , _)) -> ("StrokeOpacityBall" , ["strokeOpacity"])
-  ("stroke-width" , ("StrokeWidthBall" , _)) -> ("StrokeWidthBall" , ["stroke-width"])
-  ("transformRot" , ("RotateBall" , _)) -> ("RotateBall" , ["transformRot"])
-  _                                     -> Debug.crash "widgetZones"
-
--- Step 3 --
-
--- NOTE: choosing same name setSeen for both accumulators leads
---       to JS undefined error. perhaps due to a shadowing bug?
-
-getTriggerType numAttrs locs =
-  let n = List.length locs in
-  if n == numAttrs then ()
-  else if n == 1 then ()
-  else Debug.crash "getTriggerType"
-
-{-
-  old approach:
-    if all locsets in rankedSets have been assigned at least once,
-    then just pick the first set in rankedSets.possible sets have already.
-
-  new approach:
-    evenly distribute the number of times each locset is assigned.
--}
-
-assignTriggers : Options -> Dict0 -> Dict1 -> Dict2
-assignTriggers opts d0 d1 =
-  let hm = opts.feelingLucky in
-  if hm == heuristicsNone then assignTriggersV2 d1
-  else if hm == heuristicsFair then assignTriggersV2 d1
-  else assignTriggersV3 d0 d1
-
-assignTriggersV2 d1 =
-  let f i (kind,zoneLists) (dictSetSeen1,acc) =
-    let g (zone,(numAttrs,sets)) (dictSetSeen2,acc) =
-      -- let rankedSets = List.sortBy scoreOfLocs sets in
-      let rankedSets = sets in
-      let maybeChosenSet =
-        List.foldl (\thisSet acc ->
-          let thisSet' = removeAlreadyAssignedOnce thisSet dictSetSeen2 in
-          case acc of
-            Nothing -> Just thisSet'
-            Just bestSet ->
-            if getCount bestSet dictSetSeen2 < getCount thisSet' dictSetSeen2
-              then acc
-              else Just thisSet') Nothing rankedSets in
-      case maybeChosenSet of
-        Nothing -> (dictSetSeen2, (zone, Nothing) :: acc)
-        Just chosenSet ->
-          (updateCount chosenSet dictSetSeen2, (zone, Just (chosenSet, rankedSets)) :: acc)
-    in
-    let (dictSetSeen,zoneLists') = List.foldl g (dictSetSeen1,[]) zoneLists in
-    (dictSetSeen, Dict.insert i (kind, List.reverse zoneLists') acc)
-  in
-  snd <| Dict.foldl f (Dict.empty, Dict.empty) d1
-
-assignTriggersV3 d0 d1 =
-  let dLocCounts = countLocs d0 in
-  let f i (kind,zoneLists) (dictSetSeen1,acc) =
-    let g (zone,(numAttrs,sets)) (dictSetSeen2,acc) =
-      let rankedSets = List.sortBy (scoreOfLocs2 dLocCounts) sets in
-      let maybeChosenSet =
-        List.foldl (\thisSet acc ->
-          let thisSet' = removeAlreadyAssignedOnce thisSet dictSetSeen2 in
-          -- let _ = Debug.log "consider" (zone, scoreOfLocs2 dLocCounts thisSet', thisSet') in
-          case acc of
-            Nothing -> Just thisSet'
-            Just bestSet -> Just bestSet) Nothing rankedSets in
-            -- TODO not using dictSetSeen (as in V2), so can get rid of them
-      case maybeChosenSet of
-        Nothing -> (dictSetSeen2, (zone, Nothing) :: acc)
-        Just chosenSet ->
-          (dictSetSeen2, (zone, Just (chosenSet, rankedSets)) :: acc)
-    in
-    let (dictSetSeen,zoneLists') = List.foldl g (dictSetSeen1,[]) zoneLists in
-    (dictSetSeen, Dict.insert i (kind, List.reverse zoneLists') acc)
-  in
-  snd <| Dict.foldl f (Dict.empty, Dict.empty) d1
-
-getCount x dict      = Maybe.withDefault 0 (Dict.get x dict)
-updateCount x dict   = Dict.insert x (1 + getCount x dict) dict
-
--- removeAlreadyAssignedOnce : Locs -> Dict Locs Int -> Locs
--- NOTE:
---   important _not_ to annotate with Locs,
---   b/c that will jeopardize comparable-ness..
-removeAlreadyAssignedOnce thisSet counters =
-  let coveredLocs =
-    -- TODO compute this incrementally in assignTriggers
-    Dict.foldl
-       (\locs i acc -> Set.union (Set.fromList locs) acc)
-       Set.empty counters
-  in
-  List.filter (\l ->
-    let (_,ann,_) = l in
-    not (ann == assignOnlyOnce && Set.member l coveredLocs)
-  ) thisSet
-
-assignTriggersV1 : Dict1 -> Dict2
-assignTriggersV1 d1 =
-  let f i (kind,zoneLists) (setSeen1,acc) =
-    let g (zone,(numAttrs,sets)) (setSeen2,acc) =
-      -- let rankedSets = List.sortBy scoreOfLocs sets in
-      let rankedSets = sets in
-      let pred = not << flip Set.member setSeen2 in
-      case (Utils.findFirst pred rankedSets, rankedSets) of
-        (Nothing, [])         -> (setSeen2, (zone,Nothing)::acc)
-        (Nothing, set::sets') ->
-          let _ = getTriggerType numAttrs set in
-          (setSeen2, (zone, Just (set, sets'))::acc)
-        (Just x,  _)          ->
-          let _ = getTriggerType numAttrs x in
-          let setSeen3 = Set.insert x setSeen2 in
-          let acc' = (zone, Just (x, Utils.removeFirst x rankedSets)) :: acc in
-          (setSeen3, acc')
-    in
-    let (setSeen,zoneLists') = List.foldl g (setSeen1,[]) zoneLists in
-    (setSeen, Dict.insert i (kind, List.reverse zoneLists') acc)
-  in
-  snd <| Dict.foldl f (Set.empty, Dict.empty) d1
-
-scoreOfLocs : Locs -> Int
-scoreOfLocs locs =
-  let foo (_,b,mx) acc =
-    let _ = Utils.assert "scoreOfLocs" (b == unann) in
-    if mx == ""
-      then acc
-      else acc + 1
-  in
-  -1 * (List.foldl foo 0 locs)
-
-scoreOfLocs2 : Dict LocId Int -> Locs -> Int
-scoreOfLocs2 dLocCounts locs_ =
-  let locs = Set.fromList locs_ in
-  -- could use log to keep absolute numbers smaller.
-  let foo (i,_,_) acc = acc * getCount i dLocCounts in
-  let score = Set.foldl foo (1) locs in
-  if Utils.setCardinal locs == 1
-    then score * score * score
-    else score
-
--- TODO compute these counts along with Dict0
-countLocs : Dict0 -> Dict LocId Int
-countLocs d0 =
-  Dict.foldl (\_ (_,_,_,dAttrNameTrace) acc1 ->
-    Dict.foldl (\_ tr acc2 ->
-      -- subtle, but should be okay to use defaultOptions,
-      -- since countLocs only gets called in hmBiased
-      let locSet = locsOfTrace defaultOptions tr in
-      Set.foldl (\(locid,_,_) acc3 ->
-        updateCount locid acc3
-      ) acc2 locSet
-    ) acc1 dAttrNameTrace
-  ) Dict.empty d0
-
--- Step 4 --
-
-strTable : Dict2 -> String
-strTable d =
-  Dict.toList d
-    |> List.map (\(i,(kind,di)) ->
-         let s1 = addi "Shape " i ++ " " ++ Utils.parens kind in
-         let sRows = List.map strRow di in
-         Utils.lines (s1::sRows))
-    |> String.join "\n\n"
-
-strRow (zone, m) = case m of
-  Nothing -> String.padRight 18 ' ' zone
-  Just (set,sets) ->
-       String.padRight 18 ' ' zone
-    ++ String.padRight 25 ' ' (if set == [] then "" else strLocs set)
-    ++ Utils.spaces (List.map strLocs sets)
-
-strLocs = Utils.braces << Utils.commas << List.map strLoc_
-
-strLoc_ l =
-  let (_,_,mx) = l in
-  if mx == ""
-    then strLoc l
-    else mx
-
-------------------------------------------------------------------------------
-
--- move this to Model
-type alias MouseTrigger2 a = (Int, Int) -> (Int, Int) -> a
-
-type alias Triggers = Dict NodeId (Dict Zone (Maybe Trigger))
-type alias Trigger  = MouseTrigger2 (Exp, SubstMaybeNum)
+-- keeping these separate (rather than an Either key, which isn't comparable)
+--
+type alias ShapeTriggers = Dict (NodeId, Zone) (Trigger, Set Loc, Set Loc)
+type alias WidgetTriggers = Dict (Int, String) (Trigger, Set Loc, Set Loc)
 
 type alias LiveInfo =
-  { triggers    : Triggers
-  , assignments : Dict NodeId (Dict Zone (LocSet, LocSet))
-  , initSubst   : SubstPlus
+  { shapeTriggers : ShapeTriggers
+  , widgetTriggers : WidgetTriggers
+  , initSubstPlus : SubstPlus -- TODO this and/or initSubst should be in Model
   }
 
-tryToBeSmart = False
 
-prepareLiveUpdates : Options -> Int -> Int -> Float -> Exp -> Val -> IndexedTree -> Result String LiveInfo
-prepareLiveUpdates opts slideNumber movieNumber movieTime e v slate =
-  LangSvg.resolveToMovieFrameVal slideNumber movieNumber movieTime v
-  |> Result.map (\v' ->
-      let d0 = nodeToAttrLocs v' in
-      let d1 = shapesToZoneTable opts d0 in
-      -- let d2 = assignTriggers d1 in
-      let d2 = assignTriggers opts d0 d1 in
-      let initSubstPlus = Parser.substPlusOf e in
-      let initSubst = Dict.map (always .val) initSubstPlus in
-        { triggers    = makeTriggers initSubst opts e d0 d2 slate
-        , assignments = zoneAssignments d2
-        , initSubst   = initSubstPlus
-        }
-    )
+prepareLiveUpdates : Options -> Int -> Int -> Float -> Exp -> Canvas -> Result String LiveInfo
+prepareLiveUpdates options slideNumber movieNumber movieTime e (slate, widgets) =
 
--- TODO refactor Dict data structures above to make this more efficient
-
-makeTriggers : Subst -> Options -> Exp -> Dict0 -> Dict2 -> IndexedTree -> Triggers
-makeTriggers subst opts e d0 d2 slate =
-  let f i (kind,zones) =
-    let g (zone,m) =
-      Dict.insert zone <|
-        case m of
-          Nothing -> Nothing
-          Just _  -> Just (makeTrigger opts e d0 d2 slate subst i kind zone) in
-    List.foldl g Dict.empty zones in
-  Dict.map f d2
-
-makeTrigger
-  : Options -> Exp -> Dict0 -> Dict2 -> IndexedTree
- -> Subst -> NodeId -> ShapeKind -> Zone
- -> Trigger
-makeTrigger opts e d0 d2 slate subst id kind zone =
-  let trigger_ = makeTrigger_ opts d0 d2 slate subst id kind zone in
-  \(mx0,my0) (dx,dy) ->
-    let updates = trigger_ (mx0,my0) (dx,dy) in
-    let (entireSubst, changedSubst) =
-      List.foldl
-         (\(k,maybeSolution) (acc1,acc2) ->
-           let acc1' =
-             case maybeSolution of
-               Nothing        -> acc1
-               Just kSolution -> Dict.insert k kSolution acc1
-           in
-           let acc2' =
-             -- if this solution failed but previous one succeeded,
-             -- don't shadow the previous one
-             case (maybeSolution, Dict.member k acc2) of
-               (Nothing, True)  -> acc2
-               (Nothing, False) -> Dict.insert k maybeSolution acc2
-               (Just _, _)      -> Dict.insert k maybeSolution acc2
-           in
-           (acc1', acc2')
-         )
-         (subst, Dict.empty)
-         updates
-    in
-    (applyLocSubst entireSubst e, changedSubst)
-
-makeTrigger_
-  : Options -> Dict0 -> Dict2 -> IndexedTree
- -> Subst -> NodeId -> ShapeKind -> Zone
- -> MouseTrigger2 (List (LocId, Maybe Num))
-makeTrigger_ opts d0 d2 slate subst id kind zone =
-  let solveOne = solveOne_ opts d0 d2 subst id zone in
-  let offset d = updateBy (toFloat d) in
-  case (kind, zone) of
-
-    -- first match zones that can be attached to different shape kinds...
-
-    (_, "FillBall")   ->
-      \_ (dx,dy) ->
-        let (n,t) = getAColorNum slate id "fill" in
-        let n' = LangSvg.clampColorNum (n + scaleColorBall * toFloat dx) in
-        solveOne "fill" (n', t)
-
-    (_, "StrokeBall") ->
-      \_ (dx,dy) ->
-        let (n,t) = getAColorNum slate id "stroke" in
-        let n' = LangSvg.clampColorNum (n + scaleColorBall * toFloat dx) in
-        solveOne "stroke" (n', t)
-
-    (_, "FillOpacityBall")   ->
-      \_ (dx,dy) ->
-        let (n,t) = getAColorNumOpacity slate id "fill" in
-        let n' = Utils.clamp 0.0 1.0 (n + scaleOpacityBall * toFloat dx) in
-        solveOne "fillOpacity" (n', t)
-
-    (_, "StrokeOpacityBall")   ->
-      \_ (dx,dy) ->
-        let (n,t) = getAColorNumOpacity slate id "stroke" in
-        let n' = Utils.clamp 0.0 1.0 (n + scaleOpacityBall * toFloat dx) in
-        solveOne "strokeOpacity" (n', t)
-
-    (_, "StrokeWidthBall") ->
-      \_ (dx,dy) ->
-        let (n,t) = getANum slate id "stroke-width" in
-        let n' = LangSvg.clampStrokeWidthNum (n + scaleStrokeWidthBall * toFloat dx) in
-        solveOne "stroke-width" (n', t)
-
-    (_, "RotateBall") ->
-      let (rot,cx,cy) = getATransformRot slate id "transform" in
-      \(mx0,my0) (dx,dy) ->
-        let (mx1, my1) = (mx0 + dx, my0 + dy) in
-        let a0 = Utils.radiansToDegrees <| atan2 (fst cy - toFloat my0) (toFloat mx0 - fst cx) in
-        let a1 = Utils.radiansToDegrees <| atan2 (fst cy - toFloat my1) (toFloat mx1 - fst cx) in
-        solveOne "transformRot" (fst rot + (a0 - a1), snd rot)
-
-    -- ... and then match each kind of shape separately
-
-    ("rect", "Interior") ->
-      \_ (dx,dy) ->
-        solveOne "x"      (offset  dx (rectX slate id)) ++
-        solveOne "y"      (offset  dy (rectY slate id))
-    ("rect", "RightEdge") ->
-      \_ (dx,dy) ->
-        solveOne "width"  (offset  dx (rectW slate id))
-    ("rect", "BotEdge") ->
-      \_ (dx,dy) ->
-        solveOne "height" (offset  dy (rectH slate id))
-    ("rect", "LeftEdge") ->
-      \_ (dx,dy) ->
-        solveOne "x"      (offset  dx (rectX slate id)) ++
-        solveOne "width"  (offset -dx (rectW slate id))
-    ("rect", "TopEdge") ->
-      \_ (dx,dy) ->
-        solveOne "y"      (offset  dy (rectY slate id)) ++
-        solveOne "height" (offset -dy (rectH slate id))
-    ("rect", "BotRight") ->
-      \_ (dx,dy) ->
-        solveOne "width"  (offset  dx (rectW slate id)) ++
-        solveOne "height" (offset  dy (rectH slate id))
-    ("rect", "TopRight") ->
-      \_ (dx,dy) ->
-        solveOne "y"      (offset  dy (rectY slate id)) ++
-        solveOne "width"  (offset  dx (rectW slate id)) ++
-        solveOne "height" (offset -dy (rectH slate id))
-    ("rect", "TopLeft") ->
-      \_ (dx,dy) ->
-        solveOne "x"      (offset  dx (rectX slate id)) ++
-        solveOne "y"      (offset  dy (rectY slate id)) ++
-        solveOne "width"  (offset -dx (rectW slate id)) ++
-        solveOne "height" (offset -dy (rectH slate id))
-    ("rect", "BotLeft") ->
-      \_ (dx,dy) ->
-        solveOne "x"      (offset  dx (rectX slate id)) ++
-        solveOne "width"  (offset -dx (rectW slate id)) ++
-        solveOne "height" (offset  dy (rectH slate id))
-
-    ("line", "Edge") ->
-      \_ (dx,dy) ->
-        solveOne "x1" (offset dx (getANum slate id "x1")) ++
-        solveOne "y1" (offset dy (getANum slate id "y1")) ++
-        solveOne "x2" (offset dx (getANum slate id "x2")) ++
-        solveOne "y2" (offset dy (getANum slate id "y2"))
-    ("line", "Point1") ->
-      \_ (dx,dy) ->
-        solveOne "x1" (offset dx (getANum slate id "x1")) ++
-        solveOne "y1" (offset dy (getANum slate id "y1"))
-    ("line", "Point2") ->
-      \_ (dx,dy) ->
-        solveOne "x2" (offset dx (getANum slate id "x2")) ++
-        solveOne "y2" (offset dy (getANum slate id "y2"))
-
-    ("BOX", _)      -> makeTriggerBoxOrOval solveOne offset slate id zone
-    ("OVAL", _)     -> makeTriggerBoxOrOval solveOne offset slate id zone
-    ("ellipse", _)  -> makeTriggerEllipse solveOne offset slate id zone
-    ("circle", _)   -> makeTriggerCircle solveOne offset slate id zone
-    ("polygon", _)  -> makeTriggerPoly solveOne offset slate id kind zone
-    ("polyline", _) -> makeTriggerPoly solveOne offset slate id kind zone
-    ("path", _)     -> makeTriggerPath solveOne offset slate id zone
-
-    _ -> Debug.crash ("makeTrigger: " ++ kind ++ " " ++ zone)
-
-makeTriggerBoxOrOval solveOne offset slate id zone =
-  case zone of
-    "Interior" ->
-      \_ (dx,dy) ->
-        solveOne "LEFT"  (offset dx (getLeft slate id)) ++
-        solveOne "RIGHT" (offset dx (getRight slate id)) ++
-        solveOne "TOP"   (offset dy (getTop slate id)) ++
-        solveOne "BOT"   (offset dy (getBot slate id))
-    "RightEdge" ->
-      \_ (dx,dy) ->
-        solveOne "RIGHT" (offset dx (getRight slate id))
-    "BotEdge" ->
-      \_ (dx,dy) ->
-        solveOne "BOT"   (offset dy (getBot slate id))
-    "LeftEdge" ->
-      \_ (dx,dy) ->
-        solveOne "LEFT"  (offset dx (getLeft slate id))
-    "TopEdge" ->
-      \_ (dx,dy) ->
-        solveOne "TOP"   (offset dy (getTop slate id))
-    "BotRight" ->
-      \_ (dx,dy) ->
-        solveOne "RIGHT" (offset dx (getRight slate id)) ++
-        solveOne "BOT"   (offset dy (getBot slate id))
-    "TopRight" ->
-      \_ (dx,dy) ->
-        solveOne "TOP"   (offset dy (getTop slate id)) ++
-        solveOne "RIGHT" (offset dx (getRight slate id))
-    "TopLeft" ->
-      \_ (dx,dy) ->
-        solveOne "LEFT"  (offset dx (getLeft slate id)) ++
-        solveOne "TOP"   (offset dy (getTop slate id))
-    "BotLeft" ->
-      \_ (dx,dy) ->
-        solveOne "LEFT"  (offset dx (getLeft slate id)) ++
-        solveOne "BOT"   (offset dy (getBot slate id))
-    _ ->
-      Debug.crash ("makeTriggerBoxOrOval: " ++ zone)
-
-makeTriggerEllipse solveOne offset slate id zone =
-  let
-    left (dx,dy) =
-      solveOne "cx" (offset  (dx//2) (getANum slate id "cx")) ++
-      solveOne "rx" (offset -(dx//2) (getANum slate id "rx"))
-    right (dx,dy) =
-      solveOne "cx" (offset  (dx//2) (getANum slate id "cx")) ++
-      solveOne "rx" (offset  (dx//2) (getANum slate id "rx"))
-    top (dx,dy) =
-      solveOne "cy" (offset  (dy//2) (getANum slate id "cy")) ++
-      solveOne "ry" (offset -(dy//2) (getANum slate id "ry"))
-    bot (dx,dy) =
-      solveOne "cy" (offset  (dy//2) (getANum slate id "cy")) ++
-      solveOne "ry" (offset  (dy//2) (getANum slate id "ry"))
+  let initSubstPlus = Parser.substPlusOf e in
+  let initSubst = Dict.map (always .val) initSubstPlus in
+  let maybeCounts =
+    if options.feelingLucky == heuristicsFair then
+      Just (Right Dict.empty)
+    else if options.feelingLucky == heuristicsBiased then
+      Just (Left (getLocationCounts options (slate, widgets)))
+    else {- options.feelingLucky == heuristicsNone -}
+      Nothing
+  in
+  let (shapeTriggers, maybeCounts') =
+    computeShapeTriggers (options, initSubst) slate maybeCounts
+  in
+  let (widgetTriggers, maybeCounts'') =
+    computeWidgetTriggers (options, initSubst) widgets maybeCounts'
   in
 
-  case zone of
-    "Interior" ->
-      \_ (dx,dy) ->
-        solveOne "cx" (offset dx (getANum slate id "cx")) ++
-        solveOne "cy" (offset dy (getANum slate id "cy"))
+  Ok { initSubstPlus = initSubstPlus
+     , shapeTriggers = shapeTriggers
+     , widgetTriggers = widgetTriggers
+     }
 
-    "LeftEdge"  -> \_ dxy -> left dxy
-    "RightEdge" -> \_ dxy -> right dxy
-    "TopEdge"   -> \_ dxy -> top dxy
-    "BotEdge"   -> \_ dxy -> bot dxy
-
-    "TopLeft"   -> \_ dxy -> top dxy ++ left dxy
-    "TopRight"  -> \_ dxy -> top dxy ++ right dxy
-    "BotLeft"   -> \_ dxy -> bot dxy ++ left dxy
-    "BotRight"  -> \_ dxy -> bot dxy ++ right dxy
-
-    _ -> Debug.crash ("makeTriggerEllipse: " ++ zone)
-
-makeTriggerCircle solveOne offset slate id zone =
-  let
-    left (dx,dy) =
-      solveOne "cx" (offset  (dx//2) (getANum slate id "cx")) ++
-      solveOne "r"  (offset -(dx//2) (getANum slate id "r"))
-    right (dx,dy) =
-      solveOne "cx" (offset  (dx//2) (getANum slate id "cx")) ++
-      solveOne "r"  (offset  (dx//2) (getANum slate id "r"))
-    top (dx,dy) =
-      solveOne "cy" (offset  (dy//2) (getANum slate id "cy")) ++
-      solveOne "r"  (offset -(dy//2) (getANum slate id "r"))
-    bot (dx,dy) =
-      solveOne "cy" (offset  (dy//2) (getANum slate id "cy")) ++
-      solveOne "r"  (offset  (dy//2) (getANum slate id "r"))
-    corner n fx fy =
-      solveOne "r"  (offset     (n//2)  (getANum slate id "r")) ++
-      solveOne "cx" (offset (fx (n//2)) (getANum slate id "cx")) ++
-      solveOne "cy" (offset (fy (n//2)) (getANum slate id "cy"))
-  in
-
-  case zone of
-    "Interior" ->
-      \_ (dx,dy) ->
-        solveOne "cx" (offset dx (getANum slate id "cx")) ++
-        solveOne "cy" (offset dy (getANum slate id "cy"))
-
-    "LeftEdge"  -> \_ dxy -> left dxy
-    "RightEdge" -> \_ dxy -> right dxy
-    "TopEdge"   -> \_ dxy -> top dxy
-    "BotEdge"   -> \_ dxy -> bot dxy
-
-    "TopLeft"   -> \_ (dx,dy) -> corner (max -dx -dy) ((*) -1) ((*) -1)
-    "TopRight"  -> \_ (dx,dy) -> corner (max  dx -dy) ((*)  1) ((*) -1)
-    "BotLeft"   -> \_ (dx,dy) -> corner (max -dx  dy) ((*) -1) ((*)  1)
-    "BotRight"  -> \_ (dx,dy) -> corner (max  dx  dy) ((*)  1) ((*)  1)
-
-    _ -> Debug.crash ("makeTriggerCircle: " ++ zone)
-
-makeTriggerPoly solveOne offset slate id kind zone =
-  case ShapeWidgets.parseZone zone of
-
-    ShapeWidgets.ZInterior ->
-      \_ (dx,dy) ->
-        let points = getAPoints slate id "points" in
-        Utils.foldli
-          (\(i,(xt,yt)) acc ->
-            solveOne (addi "x" i) (offset dx xt) ++
-            solveOne (addi "y" i) (offset dy yt) ++
-            acc
-          )
-          []
-          points
-
-    ShapeWidgets.ZPoint (ShapeWidgets.Point i) ->
-      let points = getAPoints slate id "points" in
-      let (xt,yt) = Utils.geti i points in
-      \_ (dx,dy) ->
-        solveOne (addi "x" i) (offset dx xt) ++
-        solveOne (addi "y" i) (offset dy yt)
-
-    ShapeWidgets.ZPolyEdge i ->
-      let points = getAPoints slate id "points" in
-      let n = List.length points in
-      let (xt1,yt1) = Utils.geti i points in
-      if kind == "polyline" && i == n then
-        \_ (dx,dy) ->
-          solveOne (addi "x" i) (offset dx xt1) ++
-          solveOne (addi "y" i) (offset dy yt1)
-      else
-        let j = if i == n then 1 else i + 1 in
-        let (xt2,yt2) = Utils.geti j points in
-        \_ (dx,dy) ->
-          solveOne (addi "x" i) (offset dx xt1) ++
-          solveOne (addi "y" i) (offset dy yt1) ++
-          solveOne (addi "x" j) (offset dx xt2) ++
-          solveOne (addi "y" j) (offset dy yt2)
-
-    _ ->
-     Debug.crash "makeTrigger_: polygon"
-
-makeTriggerPath solveOne offset slate id zone =
-  let solvePoint i (dx,dy) (xt,yt) =
-    solveOne (addi "x" i) (offset dx xt) ++
-    solveOne (addi "y" i) (offset dy yt)
-  in
-
-  case ShapeWidgets.parseZone zone of
-
-    ShapeWidgets.ZPoint (ShapeWidgets.Point i) ->
-      let cmds = getAPathCmds slate id "d" in
-      case findPathPoint cmds i of
-        Nothing -> Debug.crash ("makeTrigger path Point " ++ toString i)
-        Just pt -> \_ dxy -> solvePoint i dxy pt
-
-    ShapeWidgets.ZInterior ->
-      \_ dxy ->
-        let cmds = getAPathCmds slate id "d" in
-        -- TODO if path is closed with Bezier segment,
-        -- don't add equation for last point
-{-
-        let pt1 =
-          case findPathPoint cmds 1 of
-            Just pt1 -> pt1
-            Nothing  -> Debug.crash "makeTrigger path Interior"
-        in
-        let maybeSolvePoint i dxy pti =
-          if pt1 == pti -- if path is closed, don't add equation for last point
-            then []
-            else solvePoint i dxy pti
-        in
--}
-        List.foldl
-          (\cmd acc ->
-            acc ++ case cmd of
-              CmdMLT _ (Just i1, pt1) ->
-                solvePoint i1 dxy pt1
-              CmdC _ (Just i1, pt1) (Just i2, pt2) (Just i3, pt3) ->
-                solvePoint i1 dxy pt1 ++ solvePoint i2 dxy pt2 ++ solvePoint i3 dxy pt3
-              CmdSQ _ (Just i1, pt1) (Just i2, pt2) ->
-                solvePoint i1 dxy pt1 ++ solvePoint i2 dxy pt2
-              CmdA _ _ _ _ _ _ (Just i1, pt1) ->
-                solvePoint i1 dxy pt1
-              _ ->
-                []
-          )
-          []
-          cmds
-
-    _ ->
-      Debug.crash ("makeTrigger path " ++ zone)
-
-findPathPoint cmds i =
-  let maybeKeepPoint (mj,pt) = if mj == Just i then Just pt else Nothing in
-  List.foldl
-     (\cmd acc ->
-       let idPoints =
-         case cmd of
-           CmdMLT _ pt1          -> [pt1]
-           CmdC   _ pt1 pt2 pt3  -> [pt1, pt2, pt3]
-           CmdSQ  _ pt1 pt2      -> [pt1, pt2]
-           CmdA   _ _ _ _ _ _ pt -> [pt]
-           _                     -> []
-       in
-       List.foldl Utils.plusMaybe acc (List.map maybeKeepPoint idPoints)
-     )
-     Nothing
-     cmds
-
-updateBy : Num -> NumTr -> Equation
-updateBy offset (n,t) = let n' = n + offset in (n', t)
-
-solveOne_ opts d0 d2 subst i zone attr (n',t) =
-  case whichLoc opts d0 d2 i zone attr of
-    Nothing -> []
-    Just k ->
-      let subst' = Dict.remove k subst in
-      let maybeSolution = solve subst' (n',t) in
-      [(k, maybeSolution)]
-
--- some of these helpers overlap with LangSvg
-
-getANum = getAVal <| \aval ->
-  case aval.av_ of
-    ANum nt -> nt
-    _       -> Debug.crash "getANum"
-
-getAPoints = getAVal <| \aval ->
-  case aval.av_ of
-    APoints pts -> pts
-    _           -> Debug.crash "getAPoints"
-
-getAPathCmds = getAVal <| \aval ->
-  case aval.av_ of
-    APath2 (cmds, _) -> cmds
-    _                -> Debug.crash "getAPathCmds"
-
-getATransformRot = getAVal <| \aval ->
-  case aval.av_ of
-    ATransform [Rot n1 n2 n3] -> (n1,n2,n3)
-    _                         -> Debug.crash "getATransformRot"
-
-getAColorNum = getAVal <| \aval ->
-  case aval.av_ of
-    AColorNum (nt, _) -> nt
-    _                 -> Debug.crash "getAColorNum"
-
-getAColorNumOpacity = getAVal <| \aval ->
-  case aval.av_ of
-    AColorNum (_, Just nt) -> nt
-    _                      -> Debug.crash "getAColorNumOpacity"
-
-getAVal foo slate i attrName =
-  case Dict.get i slate of
-    Just (LangSvg.SvgNode _ attrs _) ->
-      case Utils.maybeFind attrName attrs of
-        Just aval -> foo aval
-        Nothing   -> Debug.crash ("getAVal: " ++ toString (i, attrName))
-    Nothing                   -> Debug.crash "getAVal"
-    Just (LangSvg.TextNode _) -> Debug.crash "getAVal"
-
-rectX slate i = getANum slate i "x"
-rectY slate i = getANum slate i "y"
-rectW slate i = getANum slate i "width"
-rectH slate i = getANum slate i "height"
-
-getLeft slate i  = getANum slate i "LEFT"
-getTop slate i   = getANum slate i "TOP"
-getRight slate i = getANum slate i "RIGHT"
-getBot slate i   = getANum slate i "BOT"
-
-{-
-rectRightEdge slate i =
-  getANum slate i "x" `plusNumTr` getANum slate i "width"
-
-rectBotEdge slate i =
-  getANum slate i "y" `plusNumTr` getANum slate i "height"
--}
-
--- TODO sloppy way of doing this for now...
-whichLoc : Options -> Dict0 -> Dict2 -> NodeId -> Zone -> AttrName -> Maybe LocId
-whichLoc opts d0 d2 i z attr =
-  let trLocs =
-    -- temporary way to ignore numbers specified as strings
-    -- justGet_ "%4" i d0 |> Utils.thd3 |> justGet_ "%5" attr |> locsOfTrace opts in
-    justGet_ "%4" i d0 |> Utils.fourth4 |> Dict.get attr |>
-      \m -> case m of
-        Just tr -> locsOfTrace opts tr
-        Nothing -> Set.empty in
-  let zoneLocs =
-    justGet_ "%6" i d2
-      |> snd |> Utils.maybeFind z |> Utils.fromJust
-      |> Utils.fromJust_ "guaranteed not to fail b/c of check in makeTriggers"
-      |> fst |> Set.fromList in
-  case Set.toList (trLocs `Set.intersect` zoneLocs) of
-    [(k,_,_)] -> Just k
-    []        -> Nothing
-    -- _         -> Debug.crash "whichLoc"
-    locs ->
-      if opts.feelingLucky == heuristicsBiased then
-        Just <| case (locs, String.left 1 attr) of
-                  ([loc1,loc2], "x") -> Utils.fst3 loc2
-                  ([loc1,loc2], "y") -> Utils.fst3 loc1
-                  (loc1::_,_) -> Utils.fst3 loc1
-                  _ -> Debug.crash "whichLoc"
-      else
-        Debug.crash "whichLoc"
-
-evalTr subst tr = Utils.fromJust_ "evalTr" (evalTrace subst tr)
-
--- duplicated from InterfaceView2 for now
-wGradient = 250
-scaleColorBall = 1 / (wGradient / LangSvg.maxColorNum)
-
-wStrokeWidthBox = 60
-scaleStrokeWidthBall = 1 / (wStrokeWidthBox / LangSvg.maxStrokeWidthNum)
-
-wOpacityBox = 20
-scaleOpacityBall = 1 / wOpacityBox
 
 ------------------------------------------------------------------------------
+-- Computing Triggers
 
-setFromLocLists : List Locs -> LocSet
-setFromLocLists = List.foldl (flip Set.union << Set.fromList) Set.empty
+computeShapeTriggers
+    : (Options, Subst) -> RootedIndexedTree -> MaybeCounts
+   -> (ShapeTriggers, MaybeCounts)
 
--- TODO compute this along with everything else
--- could also make this a single dictionary: Dict (NodeId, Zone) Locs
-zoneAssignments : Dict2 -> Dict NodeId (Dict Zone (LocSet, LocSet))
-zoneAssignments =
-  Dict.map <| \i (_,l) ->
-    List.foldl (\(z,m) acc ->
-      case m of
-        Just (locs,otherLocs) ->
-          let yellowLocs = Set.fromList locs in
-          let grayLocs   = setFromLocLists otherLocs `Set.diff` yellowLocs in
-          Dict.insert z (yellowLocs, grayLocs) acc
-        Nothing       -> acc
-    ) Dict.empty l
+computeShapeTriggers info slate initMaybeCounts =
+  let processNode nodeInfo (dict, maybeCounts) =
+    case nodeInfo of
+      Left _ -> (dict, maybeCounts)
 
+      Right shapeInfo ->
+        let (directZoneTriggers, maybeCounts') =
+          let (_, kind, _) = shapeInfo in
+          case kind of
+            "line"     -> computeLineTriggers info maybeCounts shapeInfo
+            "rect"     -> computeRectTriggers info maybeCounts shapeInfo
+            "ellipse"  -> computeEllipseTriggers info maybeCounts shapeInfo
+            "circle"   -> computeCircleTriggers info maybeCounts shapeInfo
+            "BOX"      -> computeBoxOrOvalTriggers info maybeCounts shapeInfo
+            "OVAL"     -> computeBoxOrOvalTriggers info maybeCounts shapeInfo
+            "polygon"  -> computePolyTriggers info maybeCounts shapeInfo
+            "polyline" -> computePolyTriggers info maybeCounts shapeInfo
+            "path"     -> computePathTriggers info maybeCounts shapeInfo
+            _          -> (Dict.empty, maybeCounts)
+        in
+        let (sliderZoneTriggers, maybeCounts'') =
+          computeFillAndStrokeTriggers info maybeCounts shapeInfo
+        in
+        let dict' =
+          dict |> Dict.union directZoneTriggers
+               |> Dict.union sliderZoneTriggers
+        in
+        (dict', maybeCounts')
+  in
+  LangSvg.foldSlateNodeInfo slate (Dict.empty, initMaybeCounts) processNode
+
+
+computeWidgetTriggers
+    : (Options, Subst) -> Widgets -> MaybeCounts
+   -> (WidgetTriggers, MaybeCounts)
+
+computeWidgetTriggers (options, subst) widgets initMaybeCounts =
+  let wSlider = params.mainSection.uiWidgets.wSlider in
+
+  let processWidget (i, widget) accResult =
+    case widget of
+
+      WNumSlider minVal maxVal _ curVal loc ->
+        let updateX dx =
+          curVal + (toFloat dx / toFloat wSlider) * (maxVal - minVal)
+            |> clamp minVal maxVal
+        in
+        let options' = { options | unfreezeAll = True } in
+        addWidgetTrigger options' i "Num" [TrLoc loc]
+        (Utils.unwrap1 >> \maybeLoc ->
+          mapMaybeToList maybeLoc (\loc' ->
+            ( "", "dx", loc', TrLoc loc
+            , \_ (dx,_) -> solveOne subst loc' (updateX dx) (TrLoc loc)
+            ))
+        )
+        accResult
+
+      WIntSlider a b _ c loc ->
+        let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
+        let updateX dx =
+          curVal + (toFloat dx / toFloat wSlider) * (maxVal - minVal)
+            |> clamp minVal maxVal
+            |> round
+            |> toFloat
+        in
+        let options' = { options | unfreezeAll = True } in
+        addWidgetTrigger options' i "Int" [TrLoc loc]
+        (Utils.unwrap1 >> \maybeLoc ->
+          mapMaybeToList maybeLoc (\loc' ->
+            ( "", "dx", loc', TrLoc loc
+            , \_ (dx,_) -> solveOne subst loc' (updateX dx) (TrLoc loc)
+            ))
+        )
+        accResult
+
+      WPointSlider (x, xTrace) (y, yTrace) ->
+        addWidgetTrigger options i "Point" [xTrace, yTrace]
+        ( Utils.unwrap2 >> \(xMaybeLoc, yMaybeLoc) ->
+            mapMaybeToList xMaybeLoc (\xLoc ->
+              ( "", "dx", xLoc, xTrace
+              , \_ (dx,_) -> solveOne subst xLoc (x + toFloat dx) xTrace
+              )) ++
+            mapMaybeToList yMaybeLoc (\yLoc ->
+              ( "", "dy", yLoc, yTrace
+              , \_ (_,dy) -> solveOne subst yLoc (y + toFloat dy) yTrace
+              ))
+        )
+        accResult
+  in
+  let indexedWidgets = Utils.mapi identity widgets in
+  List.foldl processWidget (Dict.empty, initMaybeCounts) indexedWidgets
+
+
+-- Helpers --
+
+addShapeZoneTrigger options id realZone =
+  addTrigger options (id, ShapeWidgets.unparseZone realZone)
+
+addWidgetTrigger options id caption =
+  addTrigger options (id, caption)
+
+addTrigger options key traces makeTrigger (dict, maybeCounts) =
+  let (assignedMaybeLocs, allLocs, maybeCounts') =
+    pickLocs options maybeCounts traces in
+  let trigger = makeTrigger assignedMaybeLocs in
+  let yellowLocs =
+     List.foldl (\triggerElt acc ->
+       let (_, _, loc, _, _) = triggerElt in
+       Set.insert loc acc
+     ) Set.empty trigger
+  in
+  let grayLocs = Set.diff allLocs yellowLocs in
+  let dict' = Dict.insert key (trigger, yellowLocs, grayLocs) dict in
+  (dict', maybeCounts')
+
+
+solveOne subst (k,_,_) n' t =
+  let subst' = Dict.remove k subst in
+  let maybeSolution = Solver.solve subst' (n',t) in
+  maybeSolution
+
+
+mapMaybeToList mx f =
+  case mx of
+    Nothing -> []
+    Just x  -> [f x]
+
+
+-- Rect Triggers --
+
+computeRectTriggers
+     : (Options, Subst)
+    -> MaybeCounts
+    -> (NodeId, ShapeKind, List Attr)
+    -> (Dict (NodeId, Zone) (Trigger, Set Loc, Set Loc), MaybeCounts)
+
+computeRectTriggers (options, subst) maybeCounts (id, _, attrs) =
+  let finishTrigger = addShapeZoneTrigger options id in
+
+  let ((x, xTrace), (y, yTrace), (w, wTrace), (h, hTrace)) =
+    Utils.unwrap4 <|
+      List.map (LangSvg.toNum << Utils.find_ attrs) <|
+        ["x", "y", "width", "height"] in
+
+  let leftEdge xMaybeLoc wMaybeLoc =
+    mapMaybeToList xMaybeLoc (\xLoc ->
+      ( "x", "dx", xLoc, xTrace
+      , \_ (dx,_) -> solveOne subst xLoc (x + toFloat dx) xTrace
+      )) ++
+    mapMaybeToList wMaybeLoc (\wLoc ->
+      ( "width", "dx", wLoc, wTrace
+      , \_ (dx,_) -> solveOne subst wLoc (w - toFloat dx) wTrace
+      )) in
+
+  let rightEdge wMaybeLoc =
+    mapMaybeToList wMaybeLoc (\wLoc ->
+      ( "width", "dx", wLoc, wTrace
+      , \_ (dx,_) -> solveOne subst wLoc (w + toFloat dx) wTrace
+      )) in
+
+  let topEdge yMaybeLoc hMaybeLoc =
+    mapMaybeToList yMaybeLoc (\yLoc ->
+      ( "y", "dy", yLoc, yTrace
+      , \_ (_,dy) -> solveOne subst yLoc (y + toFloat dy) yTrace
+      )) ++
+    mapMaybeToList hMaybeLoc (\hLoc ->
+      ( "height", "dy", hLoc, hTrace
+      , \_ (_,dy) -> solveOne subst hLoc (h - toFloat dy) hTrace
+      )) in
+
+  let botEdge hMaybeLoc =
+    mapMaybeToList hMaybeLoc (\hLoc ->
+      ( "height", "dy", hLoc, hTrace
+      , \_ (_,dy) -> solveOne subst hLoc (h + toFloat dy) hTrace
+      )) in
+
+  (Dict.empty, maybeCounts)
+
+  |> finishTrigger ZInterior [xTrace, yTrace] (\assignedMaybeLocs ->
+       let (xMaybeLoc, yMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
+       mapMaybeToList xMaybeLoc (\xLoc ->
+         ( "x", "dx", xLoc, xTrace
+         , \_ (dx,_) -> solveOne subst xLoc (x + toFloat dx) xTrace
+         )) ++
+       mapMaybeToList yMaybeLoc (\yLoc ->
+         ( "y", "dy", yLoc, yTrace
+         , \_ (_,dy) -> solveOne subst yLoc (y + toFloat dy) yTrace
+         ))
+     )
+
+  |> finishTrigger (ZPoint TopLeft) [xTrace, yTrace, wTrace, hTrace] (\assignedMaybeLocs ->
+       let (xMaybeLoc, yMaybeLoc, wMaybeLoc, hMaybeLoc) =
+         Utils.unwrap4 assignedMaybeLocs in
+       leftEdge xMaybeLoc wMaybeLoc ++ topEdge yMaybeLoc hMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint TopEdge) [yTrace, hTrace] (\assignedMaybeLocs ->
+       let (yMaybeLoc, hMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
+       topEdge yMaybeLoc hMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint TopRight) [yTrace, wTrace, hTrace] (\assignedMaybeLocs ->
+       let (yMaybeLoc, wMaybeLoc, hMaybeLoc) = Utils.unwrap3 assignedMaybeLocs in
+       topEdge yMaybeLoc hMaybeLoc ++ rightEdge wMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint RightEdge) [wTrace] (\assignedMaybeLocs ->
+       let (wMaybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+       rightEdge wMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint BotRight) [wTrace, hTrace] (\assignedMaybeLocs ->
+       let (wMaybeLoc, hMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
+       rightEdge wMaybeLoc ++ botEdge hMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint BotEdge) [hTrace] (\assignedMaybeLocs ->
+       let (hMaybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+       botEdge hMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint BotLeft) [xTrace, wTrace, hTrace] (\assignedMaybeLocs ->
+       let (xMaybeLoc, wMaybeLoc, hMaybeLoc) = Utils.unwrap3 assignedMaybeLocs in
+       leftEdge xMaybeLoc wMaybeLoc ++ botEdge hMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint LeftEdge) [xTrace, wTrace] (\assignedMaybeLocs ->
+       let (xMaybeLoc, wMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
+       leftEdge xMaybeLoc wMaybeLoc
+     )
+
+
+-- Line Triggers --
+
+computeLineTriggers (options, subst) maybeCounts (id, _, attrs) =
+  let finishTrigger = addShapeZoneTrigger options id in
+
+  let ((x1, x1Trace), (y1, y1Trace), (x2, x2Trace), (y2, y2Trace)) =
+    Utils.unwrap4 <|
+      List.map (LangSvg.toNum << Utils.find_ attrs) ["x1", "y1", "x2", "y2"] in
+
+  let point i xMaybeLoc yMaybeLoc =
+    let (x, xTrace, y, yTrace) =
+      if i == 1 then    (x1, x1Trace, y1, y1Trace)
+      else {- i == 2 -} (x2, x2Trace, y2, y2Trace)
+    in
+    mapMaybeToList xMaybeLoc (\xLoc ->
+      ( "x" ++ toString i, "dx", xLoc, xTrace
+      , \_ (dx,_) -> solveOne subst xLoc (x + toFloat dx) xTrace
+      )) ++
+    mapMaybeToList yMaybeLoc (\yLoc ->
+      ( "y" ++ toString i, "dy", yLoc, yTrace
+      , \_ (_, dy) -> solveOne subst yLoc (y + toFloat dy) yTrace
+      )) in
+
+  (Dict.empty, maybeCounts)
+
+  |> finishTrigger (ZPoint (Point 1)) [x1Trace, y1Trace] (\assignedMaybeLocs ->
+       let (xMaybeLoc1, yMaybeLoc1) = Utils.unwrap2 assignedMaybeLocs in
+       point 1 xMaybeLoc1 yMaybeLoc1
+     )
+
+  |> finishTrigger (ZPoint (Point 2)) [x2Trace, y2Trace] (\assignedMaybeLocs ->
+       let (xMaybeLoc2, yMaybeLoc2) = Utils.unwrap2 assignedMaybeLocs in
+       point 2 xMaybeLoc2 yMaybeLoc2
+     )
+
+  |> finishTrigger ZLineEdge [x1Trace, y1Trace, x2Trace, y2Trace] (\assignedMaybeLocs ->
+       let (xMaybeLoc1, yMaybeLoc1, xMaybeLoc2, yMaybeLoc2) =
+         Utils.unwrap4 assignedMaybeLocs in
+       point 1 xMaybeLoc1 yMaybeLoc1 ++ point 2 xMaybeLoc2 yMaybeLoc2
+     )
+
+
+-- Ellipse Triggers --
+
+-- NOTE: choosing not to update center with eight point zones
+-- TODO: add an option
+
+computeEllipseTriggers (options, subst) maybeCounts (id, _, attrs) =
+  let finishTrigger = addShapeZoneTrigger options id in
+
+  let ((cx, cxTrace), (cy, cyTrace), (rx, rxTrace), (ry, ryTrace)) =
+    Utils.unwrap4 <|
+      List.map (LangSvg.toNum << Utils.find_ attrs) ["cx", "cy", "rx", "ry"] in
+
+  let leftEdge rxMaybeLoc =
+    mapMaybeToList rxMaybeLoc (\rxLoc ->
+      ( "rx", "dx", rxLoc, rxTrace
+      , \_ (dx,_) -> solveOne subst rxLoc (rx - toFloat dx) rxTrace
+      )) in
+
+  let rightEdge rxMaybeLoc =
+    mapMaybeToList rxMaybeLoc (\rxLoc ->
+      ( "rx", "dx", rxLoc, rxTrace
+      , \_ (dx,_) -> solveOne subst rxLoc (rx + toFloat dx) rxTrace
+      )) in
+
+  let topEdge ryMaybeLoc =
+    mapMaybeToList ryMaybeLoc (\ryLoc ->
+      ( "ry", "dy", ryLoc, ryTrace
+      , \_ (_,dy) -> solveOne subst ryLoc (ry - toFloat dy) ryTrace
+      )) in
+
+  let botEdge ryMaybeLoc =
+    mapMaybeToList ryMaybeLoc (\ryLoc ->
+      ( "ry", "dy", ryLoc, ryTrace
+      , \_ (_,dy) -> solveOne subst ryLoc (ry + toFloat dy) ryTrace
+      )) in
+
+  (Dict.empty, maybeCounts)
+
+  |> finishTrigger ZInterior [cxTrace, cyTrace] (\assignedMaybeLocs ->
+       let (cxMaybeLoc, cyMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
+       mapMaybeToList cxMaybeLoc (\cxLoc ->
+         ( "cx", "dx", cxLoc, cxTrace
+         , \_ (dx,_) -> solveOne subst cxLoc (cx + toFloat dx) cxTrace
+         )) ++
+       mapMaybeToList cyMaybeLoc (\cyLoc ->
+         ( "cy", "dy", cyLoc, cyTrace
+         , \_ (_,dy) -> solveOne subst cyLoc (cy + toFloat dy) cyTrace
+         ))
+     )
+
+  |> finishTrigger (ZPoint TopLeft) [rxTrace, ryTrace] (\assignedMaybeLocs ->
+       let (leftMaybeLoc, topMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
+       leftEdge leftMaybeLoc ++ topEdge topMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint TopEdge) [ryTrace] (\assignedMaybeLocs ->
+       let (topMaybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+       topEdge topMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint TopRight) [rxTrace, ryTrace] (\assignedMaybeLocs ->
+       let (rightMaybeLoc, topMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
+       rightEdge rightMaybeLoc ++ topEdge topMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint RightEdge) [rxTrace] (\assignedMaybeLocs ->
+       let (rightMaybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+       rightEdge rightMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint BotRight) [rxTrace, ryTrace] (\assignedMaybeLocs ->
+       let (rightMaybeLoc, botMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
+       rightEdge rightMaybeLoc ++ botEdge botMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint BotEdge) [ryTrace] (\assignedMaybeLocs ->
+       let (botMaybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+       botEdge botMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint BotLeft) [rxTrace, ryTrace] (\assignedMaybeLocs ->
+       let (leftMaybeLoc, botMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
+       leftEdge leftMaybeLoc ++ botEdge botMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint LeftEdge) [rxTrace] (\assignedMaybeLocs ->
+       let (leftMaybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+       leftEdge leftMaybeLoc
+     )
+
+
+-- Circle Triggers --
+
+-- NOTE: choosing not to update center with eight point zones
+-- TODO: add an option
+
+computeCircleTriggers (options, subst) maybeCounts (id, _, attrs) =
+  let finishTrigger = addShapeZoneTrigger options id in
+
+  let co = (*) 1 in
+  let contra = (*) -1 in
+
+  let ((cx, cxTrace), (cy, cyTrace), (r, rTrace)) =
+    Utils.unwrap3 <|
+      List.map (LangSvg.toNum << Utils.find_ attrs) ["cx", "cy", "r"] in
+
+  let leftEdge rMaybeLoc =
+    mapMaybeToList rMaybeLoc (\rLoc ->
+      ( "r", "dx", rLoc, rTrace
+      , \_ (dx,_) -> solveOne subst rLoc (r - toFloat dx) rTrace
+      )) in
+
+  let rightEdge rMaybeLoc =
+    mapMaybeToList rMaybeLoc (\rLoc ->
+      ( "r", "dx", rLoc, rTrace
+      , \_ (dx,_) -> solveOne subst rLoc (r + toFloat dx) rTrace
+      )) in
+
+  let topEdge rMaybeLoc =
+    mapMaybeToList rMaybeLoc (\rLoc ->
+      ( "r", "dy", rLoc, rTrace
+      , \_ (_,dy) -> solveOne subst rLoc (r - toFloat dy) rTrace
+      )) in
+
+  let botEdge rMaybeLoc =
+    mapMaybeToList rMaybeLoc (\rLoc ->
+      ( "r", "dy", rLoc, rTrace
+      , \_ (_,dy) -> solveOne subst rLoc (r + toFloat dy) rTrace
+      )) in
+
+  let corner rMaybeLoc fx fy =
+    mapMaybeToList rMaybeLoc (\rLoc ->
+      ( "r", "dxy", rLoc, rTrace
+      , \_ (dx,dy) ->
+          let d = max (fx dx) (fy dy) in
+          solveOne subst rLoc (r + toFloat d) rTrace
+      )) in
+
+  (Dict.empty, maybeCounts)
+
+  |> finishTrigger ZInterior [cxTrace, cyTrace] (\assignedMaybeLocs ->
+       let (cxMaybeLoc, cyMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
+       mapMaybeToList cxMaybeLoc (\cxLoc ->
+         ( "cx", "dx", cxLoc, cxTrace
+         , \_ (dx,_) -> solveOne subst cxLoc (cx + toFloat dx) cxTrace
+         )
+       ) ++
+       mapMaybeToList cyMaybeLoc (\cyLoc ->
+         ( "cy", "dy", cyLoc, cyTrace
+         , \_ (_,dy) -> solveOne subst cyLoc (cy + toFloat dy) cyTrace
+         )
+       )
+     )
+
+  |> finishTrigger (ZPoint TopLeft) [rTrace] (\assignedMaybeLocs ->
+       let (rMaybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+       corner rMaybeLoc contra contra
+     )
+
+  |> finishTrigger (ZPoint TopEdge) [rTrace] (\assignedMaybeLocs ->
+       let (rMaybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+       topEdge rMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint TopRight) [rTrace] (\assignedMaybeLocs ->
+       let (rMaybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+       corner rMaybeLoc co contra
+     )
+
+  |> finishTrigger (ZPoint RightEdge) [rTrace] (\assignedMaybeLocs ->
+       let (rMaybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+       rightEdge rMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint BotRight) [rTrace] (\assignedMaybeLocs ->
+       let (rMaybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+       corner rMaybeLoc co co
+     )
+
+  |> finishTrigger (ZPoint BotEdge) [rTrace] (\assignedMaybeLocs ->
+       let (rMaybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+       botEdge rMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint BotLeft) [rTrace] (\assignedMaybeLocs ->
+       let (rMaybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+       corner rMaybeLoc contra co
+     )
+
+  |> finishTrigger (ZPoint LeftEdge) [rTrace] (\assignedMaybeLocs ->
+       let (rMaybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+       leftEdge rMaybeLoc
+     )
+
+
+-- Box/Oval Triggers --
+
+computeBoxOrOvalTriggers (options, subst) maybeCounts (id, _, attrs) =
+  let finishTrigger = addShapeZoneTrigger options id in
+
+  let ((left, leftTrace), (top, topTrace), (right, rightTrace), (bot, botTrace)) =
+    Utils.unwrap4 <|
+      List.map (LangSvg.toNum << Utils.find_ attrs) <|
+        ["LEFT", "TOP", "RIGHT", "BOT"] in
+
+  let leftEdge leftMaybeLoc =
+    mapMaybeToList leftMaybeLoc (\leftLoc ->
+      ( "LEFT", "dx", leftLoc, leftTrace
+      , \_ (dx,_) -> solveOne subst leftLoc (left + toFloat dx) leftTrace
+      )) in
+
+  let rightEdge rightMaybeLoc =
+    mapMaybeToList rightMaybeLoc (\rightLoc ->
+      ( "RIGHT", "dx", rightLoc, rightTrace
+      , \_ (dx,_) -> solveOne subst rightLoc (right + toFloat dx) rightTrace
+      )) in
+
+  let topEdge topMaybeLoc =
+    mapMaybeToList topMaybeLoc (\topLoc ->
+      ( "TOP", "dy", topLoc, topTrace
+      , \_ (_,dy) -> solveOne subst topLoc (top + toFloat dy) topTrace
+      )) in
+
+  let botEdge botMaybeLoc =
+    mapMaybeToList botMaybeLoc (\botLoc ->
+      ( "BOT", "dy", botLoc, botTrace
+      , \_ (_,dy) -> solveOne subst botLoc (bot + toFloat dy) botTrace
+      )) in
+
+  (Dict.empty, maybeCounts)
+
+  |> finishTrigger ZInterior [leftTrace, topTrace, rightTrace, botTrace] (\assignedMaybeLocs ->
+       let (leftMaybeLoc, topMaybeLoc, rightMaybeLoc, botMaybeLoc) =
+         Utils.unwrap4 assignedMaybeLocs in
+       leftEdge leftMaybeLoc ++ topEdge topMaybeLoc ++
+       rightEdge rightMaybeLoc ++ botEdge botMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint TopLeft) [leftTrace, topTrace] (\assignedMaybeLocs ->
+       let (leftMaybeLoc, topMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
+       leftEdge leftMaybeLoc ++ topEdge topMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint TopEdge) [topTrace] (\assignedMaybeLocs ->
+       let (topMaybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+       topEdge topMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint TopRight) [rightTrace, topTrace] (\assignedMaybeLocs ->
+       let (rightMaybeLoc, topMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
+       rightEdge rightMaybeLoc ++ topEdge topMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint RightEdge) [rightTrace] (\assignedMaybeLocs ->
+       let (rightMaybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+       rightEdge rightMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint BotRight) [rightTrace, botTrace] (\assignedMaybeLocs ->
+       let (rightMaybeLoc, botMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
+       rightEdge rightMaybeLoc ++ botEdge botMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint BotEdge) [botTrace] (\assignedMaybeLocs ->
+       let (botMaybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+       botEdge botMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint BotLeft) [leftTrace, botTrace] (\assignedMaybeLocs ->
+       let (leftMaybeLoc, botMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
+       leftEdge leftMaybeLoc ++ botEdge botMaybeLoc
+     )
+
+  |> finishTrigger (ZPoint LeftEdge) [leftTrace] (\assignedMaybeLocs ->
+       let (leftMaybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+       leftEdge leftMaybeLoc
+     )
+
+
+-- Polygon/Polyline/Path Triggers --
+
+pointX_ subst i xMaybeLoc x xTrace =
+  mapMaybeToList xMaybeLoc (\xLoc ->
+    ( "X" ++ toString i, "dx", xLoc, xTrace
+    , \_ (dx,_) -> solveOne subst xLoc (x + toFloat dx) xTrace
+    ))
+
+pointY_ subst i yMaybeLoc y yTrace =
+  mapMaybeToList yMaybeLoc (\yLoc ->
+    ( "Y" ++ toString i, "dy", yLoc, yTrace
+    , \_ (_,dy) -> solveOne subst yLoc (y + toFloat dy) yTrace
+    ))
+
+addPointZones_ finishTrigger pointX pointY indexedPoints result =
+  List.foldl
+     (\(i, ((x, xTrace), (y, yTrace))) acc -> acc |>
+        finishTrigger (ZPoint (Point i)) [xTrace, yTrace]
+        ( Utils.unwrap2 >> \(xMaybeLoc, yMaybeLoc) ->
+            pointX i xMaybeLoc x xTrace ++
+            pointY i yMaybeLoc y yTrace
+        )
+     )
+     result
+     indexedPoints
+
+addEdgeZones_ finishTrigger pointX pointY edges result =
+  List.foldl
+     (\((i, ((xi, xiTrace), (yi, yiTrace))),
+        (j, ((xj, xjTrace), (yj, yjTrace)))) acc -> acc |>
+        finishTrigger (ZPolyEdge i) [xiTrace, yiTrace, xjTrace, yjTrace]
+        ( Utils.unwrap4 >> \(xiMaybeLoc, yiMaybeLoc, xjMaybeLoc, yjMaybeLoc) ->
+            pointX i xiMaybeLoc xi xiTrace ++
+            pointY i yiMaybeLoc yi yiTrace ++
+            pointX j xjMaybeLoc xj xjTrace ++
+            pointY j yjMaybeLoc yj yjTrace
+        )
+     )
+     result
+     edges
+
+addInteriorZone_ finishTrigger pointX pointY indexedPoints result =
+  let xTraces = List.map (snd << fst << snd) indexedPoints in
+  let yTraces = List.map (snd << snd << snd) indexedPoints in
+
+  finishTrigger ZInterior (xTraces ++ yTraces) (\assignedMaybeLocs ->
+    case Utils.projJusts assignedMaybeLocs of
+      -- only add Interior if locations chosen for all points
+      Nothing -> []
+      Just assignedLocs ->
+        let n = List.length assignedLocs in
+        let xLocs = List.take (n//2) assignedLocs in
+        let yLocs = List.drop (n//2) assignedLocs in
+        let stuff = Utils.zip (Utils.zip xLocs yLocs) indexedPoints in
+        List.foldl (\((xLoc, yLoc), (i, ((x, xTrace), (y, yTrace)))) acc ->
+           pointX i (Just xLoc) x xTrace ++
+           pointY i (Just yLoc) y yTrace ++
+           acc
+        )
+        []
+        stuff
+  ) result
+
+
+computePolyTriggers (options, subst) maybeCounts (id, kind, attrs) =
+
+  let finishTrigger = addShapeZoneTrigger options id in
+  let pointX = pointX_ subst in
+  let pointY = pointY_ subst in
+
+  let addPointZones = addPointZones_ finishTrigger pointX pointY in
+  let addEdgeZones = addEdgeZones_ finishTrigger pointX pointY in
+  let addInteriorZone = addInteriorZone_ finishTrigger pointX pointY in
+
+  let indexedPoints = Utils.mapi identity (LangSvg.getPolyPoints attrs) in
+  let edges =
+    if kind == "polygon" then Utils.selfZipCircConsecPairs indexedPoints
+    else {- if kind == "polyline" -}
+      let n = List.length indexedPoints in
+      Utils.selfZipCircConsecPairs (List.take (n-1) indexedPoints)
+  in
+
+  (Dict.empty, maybeCounts)
+    |> addPointZones indexedPoints
+    |> addEdgeZones edges
+    |> addInteriorZone indexedPoints
+
+
+computePathTriggers (options, subst) maybeCounts (id, _, attrs) =
+
+  let finishTrigger = addShapeZoneTrigger options id in
+  let pointX = pointX_ subst in
+  let pointY = pointY_ subst in
+
+  let addPointZones = addPointZones_ finishTrigger pointX pointY in
+  let addEdgeZones = addEdgeZones_ finishTrigger pointX pointY in
+  let addInteriorZone = addInteriorZone_ finishTrigger pointX pointY in
+
+  let indexedPoints = LangSvg.pathIndexPoints attrs in
+
+  (Dict.empty, maybeCounts)
+    |> addPointZones indexedPoints
+    |> addInteriorZone indexedPoints
+
+
+-- Fill and Stroke Triggers --
+
+computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
+  let finishTrigger = addShapeZoneTrigger options id in
+
+  let maybeAddColorTrigger realZone fillOrStroke (dict, maybeCounts) =
+    case Utils.mapMaybe .av_ (Utils.maybeFind fillOrStroke attrs) of
+
+      Just (AColorNum ((color, colorTrace), _)) ->
+        finishTrigger realZone [colorTrace] (\assignedMaybeLocs ->
+          let (maybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+          mapMaybeToList maybeLoc (\colorLoc ->
+            ( fillOrStroke, "dx", colorLoc, colorTrace
+            , \_ (dx,_) ->
+                let color' = colorNumPlus color dx in
+                solveOne subst colorLoc color' colorTrace
+            ))
+        ) (dict, maybeCounts)
+
+      _ -> (dict, maybeCounts) in
+
+  let maybeAddOpacityTrigger realZone fillOrStroke (dict, maybeCounts) =
+    case Utils.mapMaybe .av_ (Utils.maybeFind fillOrStroke attrs) of
+
+      Just (AColorNum (_, (Just (opacity, opacityTrace)))) ->
+        finishTrigger realZone [opacityTrace] (\assignedMaybeLocs ->
+          let (maybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+          mapMaybeToList maybeLoc (\opacityLoc ->
+            ( fillOrStroke ++ "Opacity", "dx", opacityLoc, opacityTrace
+            , \_ (dx,_) ->
+                let opacity' = opacityNumPlus opacity dx in
+                solveOne subst opacityLoc opacity' opacityTrace
+            ))
+        ) (dict, maybeCounts)
+
+      _ -> (dict, maybeCounts) in
+
+  let maybeAddStrokeWidthTrigger realZone (dict, maybeCounts) =
+    case Utils.mapMaybe .av_ (Utils.maybeFind "stroke-width" attrs) of
+
+      Just (ANum (width, widthTrace)) ->
+        finishTrigger realZone [widthTrace] (\assignedMaybeLocs ->
+          let (maybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+          mapMaybeToList maybeLoc (\widthLoc ->
+            ( "stroke-width", "dx", widthLoc, widthTrace
+            , \_ (dx,_) ->
+                let width' = strokeWidthNumPlus width dx in
+                solveOne subst widthLoc width'  widthTrace
+            ))
+        ) (dict, maybeCounts)
+
+      _ -> (dict, maybeCounts) in
+
+  let maybeAddRotationTrigger realZone (dict, maybeCounts) =
+    case Utils.mapMaybe .av_ (Utils.maybeFind "transform" attrs) of
+
+      Just (ATransform [Rot (rot, rotTrace) (cx, _) (cy ,_)]) ->
+        finishTrigger realZone [rotTrace] (\assignedMaybeLocs ->
+          let (maybeLoc) = Utils.unwrap1 assignedMaybeLocs in
+          mapMaybeToList maybeLoc (\rotLoc ->
+            ( "transformRot", "dxy", rotLoc, rotTrace
+            , \(mx0,my0) (dx,dy) ->
+                let (mx1, my1) = (mx0 + dx, my0 + dy) in
+                let
+                  radToDeg = Utils.radiansToDegrees
+                  a0 = radToDeg <| atan2 (cy - toFloat my0) (toFloat mx0 - cx)
+                  a1 = radToDeg <| atan2 (cy - toFloat my1) (toFloat mx1 - cx)
+                in
+                solveOne subst rotLoc (rot + (a0 - a1)) rotTrace
+            ))
+        ) (dict, maybeCounts)
+
+      _ -> (dict, maybeCounts) in
+
+  (Dict.empty, maybeCounts)
+    |> maybeAddColorTrigger (ZOther FillColor) "fill"
+    |> maybeAddColorTrigger (ZOther StrokeColor) "stroke"
+    |> maybeAddColorTrigger (ZOther FillOpacity) "fill"
+    |> maybeAddColorTrigger (ZOther StrokeOpacity) "stroke"
+    |> maybeAddStrokeWidthTrigger (ZOther StrokeWidth)
+    |> maybeAddRotationTrigger (ZOther Rotation)
+
+
+-- Scale Updates Based on UI Params --
+
+colorNumPlus n dx =
+  let scale = 1 / (ShapeWidgets.wColorSlider / LangSvg.maxColorNum) in
+  let clamp = Utils.clamp 0 (LangSvg.maxColorNum - 1) in
+  clamp (n + scale * toFloat dx)
+
+strokeWidthNumPlus n dx =
+  let scale = 1 / (ShapeWidgets.wStrokeWidthSlider / LangSvg.maxStrokeWidthNum) in
+  let clamp = toFloat << round << Utils.clamp 0 LangSvg.maxStrokeWidthNum in
+  clamp (n + scale * toFloat dx)
+
+opacityNumPlus n dx =
+  let clamp = Utils.clamp 0.0 1.0 in
+  let scale = 1 / ShapeWidgets.wOpacitySlider in
+  clamp (n + scale * toFloat dx)
+
+
+------------------------------------------------------------------------------
+-- Preparing Live Triggers
+
+type alias MouseTrigger2 a = (Int, Int) -> (Int, Int) -> a
+
+type alias LiveTrigger = MouseTrigger2 (Exp, List Ace.Highlight)
+
+type alias ZoneKey =
+  Either
+    (NodeId, ShapeKind, Zone)   -- shape zone
+    (Int, String)               -- widget zone
+
+lookupZoneKey : ZoneKey -> LiveInfo -> (Trigger, Set Loc, Set Loc)
+lookupZoneKey zoneKey info =
+  let errorString = "lookupZoneKey: " ++ toString zoneKey in
+  let default =
+    let _ = debugLog errorString ("able to avoid this?") in
+    ([], Set.empty, Set.empty)
+  in
+  let wrap = Maybe.withDefault default in
+  case zoneKey of
+    Left (id, _, zone) -> wrap <| Dict.get (id, zone) info.shapeTriggers
+    Right (id, string) -> wrap <| Dict.get (id, string) info.widgetTriggers
+
+prepareLiveTrigger : LiveInfo -> Exp -> ZoneKey -> LiveTrigger
+prepareLiveTrigger info exp zoneKey (mx0,my0) (dx,dy) =
+
+  let (trigger, yellowLocs, _) = lookupZoneKey zoneKey info in
+  let initSubst = Dict.map (always .val) info.initSubstPlus in
+
+  let updates =
+     List.foldl (\triggerElement acc ->
+       let (_, _, (k,_,_), _, updateFunction) = triggerElement in
+       case (Dict.get k acc, updateFunction (mx0,my0) (dx,dy)) of
+
+         (Nothing, maybeSolution) -> Dict.insert k maybeSolution acc
+
+         (Just Nothing, maybeSolution) -> Dict.insert k maybeSolution acc
+
+         (Just (Just oldSolution), Nothing) ->
+           -- keep oldSolution even if these solution failed.
+           acc
+
+         (Just (Just oldSolution), Just newSolution) ->
+           -- letting first solution win.
+           -- could check that solutions agree.
+           acc
+
+     ) Dict.empty trigger
+  in
+  let newSubst =
+     Dict.foldl (\k maybeNum acc ->
+       case maybeNum of
+         Nothing -> acc
+         Just num -> Dict.insert k num acc
+     ) initSubst updates
+  in
+  let
+    exp'       = applyLocSubst newSubst exp
+    highlights = highlightChanges info.initSubstPlus yellowLocs updates
+  in
+  (exp', highlights)
+
+
+------------------------------------------------------------------------------
+-- Highlights for Locations
+
+gray   = "lightgray"
+yellow = "khaki"
+green  = "limegreen"
+red    = "salmon"
+
+acePos : P.Pos  -> Ace.Pos
+acePos p = { row = p.line, column = p.col }
+
+aceRange : P.WithInfo a -> Ace.Range
+aceRange x = { start = acePos x.start, end = acePos x.end }
+
+makeHighlight : SubstPlus -> String -> Loc -> Ace.Highlight
+makeHighlight subst color (locid,_,_) =
+  case Dict.get locid subst of
+    Just n  -> { color = color, range = aceRange n }
+    Nothing -> Debug.crash "makeHighlight: locid not in subst"
+
+
+-- Colors and Captions for Zone Locations, Before Direct Manipulation --
+
+yellowAndGrayHighlights zoneKey info =
+  let subst = info.initSubstPlus in
+  let (_, yellowLocs, grayLocs) = lookupZoneKey zoneKey info in
+  List.map (makeHighlight subst yellow) (Set.toList yellowLocs)
+  ++ List.map (makeHighlight subst gray) (Set.toList grayLocs)
+
+hoverInfo zoneKey info =
+  let line1 =
+    case zoneKey of
+      Left (i, k, z) -> (k ++ toString i) ++ " " ++ z
+      Right (i, s)   -> s ++ "Slider" ++ toString i
+  in
+  let maybeLine2 =
+    let (triggerElements, _, _) = lookupZoneKey zoneKey info in
+    if triggerElements == [] then Nothing
+    else
+      let (dxElements, list2) =
+        List.partition (\(_,s,_,_,_) -> s == "dx") triggerElements
+      in
+      let (dyElements, list3) =
+        List.partition (\(_,s,_,_,_) -> s == "dy") list2
+      in
+      let (dxyElements, otherElements) =
+        List.partition (\(_,s,_,_,_) -> s == "dxy") list3
+      in
+      let strElements caption elements =
+        let foo (_,_,(k,_,x),_,_) =
+          let n = Utils.justGet_ ("hoverInfo: " ++ toString k) k info.initSubstPlus in
+          let locName = if x == "" then ("loc_" ++ toString k) else x in
+          locName ++ Utils.parens (String.left 4 (toString n.val))
+        in
+        case elements of
+          [] -> []
+          _  -> [Utils.bracks caption ++ " " ++ Utils.spaces (List.map foo elements)]
+      in
+      Just <| Utils.spaces <| List.concat <|
+        [ strElements "dx" dxElements
+        , strElements "dy" dyElements
+        , strElements "dxy" dxyElements
+        , strElements "..." otherElements
+        ]
+  in
+  (line1, maybeLine2)
+
+
+-- Colors for Zone Locations, During Direct Manipulation --
+
+highlightChanges : SubstPlus -> Set Loc -> SubstMaybeNum -> List Ace.Highlight
+highlightChanges initSubstPlus locs changes =
+
+  let (hi,stringOffsets) =
+    -- hi : List Highlight, stringOffsets : List (Pos, Int)
+    --   where Pos is start pos of a highlight to offset by Int chars
+    let f loc (acc1,acc2) =
+      let (locid,_,_) = loc in
+      let highlight c = makeHighlight initSubstPlus c loc in
+      case (Dict.get locid initSubstPlus, Dict.get locid changes) of
+        (Nothing, _)             -> Debug.crash "Controller.highlightChanges"
+        (Just n, Nothing)        -> (highlight yellow :: acc1, acc2)
+        (Just n, Just Nothing)   -> (highlight red :: acc1, acc2)
+        (Just n, Just (Just n')) ->
+          if n' == n.val then
+            (highlight yellow :: acc1, acc2)
+          else
+            let (s, s') = (strNum n.val, strNum n') in
+            let x = (acePos n.start, String.length s' - String.length s) in
+            (highlight green :: acc1, x :: acc2)
+    in
+    List.foldl f ([],[]) (Set.toList locs)
+  in
+
+  let hi' =
+    let g (startPos,extraChars) (old,new) =
+      let bump pos = { pos | column = pos.column + extraChars } in
+      let ret new' = (old, new') in
+      ret <|
+        if startPos.row    /= old.start.row         then new
+        else if startPos.column >  old.start.column then new
+        else if startPos.column == old.start.column then { start = new.start, end = bump new.end }
+        else if startPos.column <  old.start.column then { start = bump new.start, end = bump new.end }
+        else
+          Debug.crash "highlightChanges"
+    in
+    -- hi has <= 4 elements, so not worrying about the redundant processing
+    flip List.map hi <| \{color,range} ->
+      let (_,range') = List.foldl g (range,range) stringOffsets in
+      { color = color, range = range' }
+  in
+
+  hi'

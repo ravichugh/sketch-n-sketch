@@ -15,10 +15,11 @@ import Utils
 import Keys
 import InterfaceModel exposing (..)
 import InterfaceStorage exposing (installSaveState, removeDialog)
-import LangSvg exposing (toNum, toNumTr, toPoints)
+import LangSvg
 import ShapeWidgets
 import ExamplesGenerated as Examples
 import Config exposing (params)
+import Either exposing (Either(..))
 
 import VirtualDom
 
@@ -51,29 +52,6 @@ debugLog = Config.debugLog Config.debugController
 
 --------------------------------------------------------------------------------
 
-slateToVal : LangSvg.RootedIndexedTree -> Val
-slateToVal (rootId, tree) =
-  let foo n =
-    case n of
-      LangSvg.TextNode s -> vList [vBase (VString "TEXT"), vBase (VString s)]
-      LangSvg.SvgNode kind l1 l2 ->
-        let vs1 = List.map LangSvg.valOfAttr l1 in
-        let vs2 = List.map (foo << flip Utils.justGet tree) l2 in
-        vList [vBase (VString kind), vList vs1, vList vs2]
-          -- NOTE: if relate needs the expression that led to this
-          --  SvgNode, need to store it in IndexedTree
-  in
-  foo (Utils.justGet rootId tree)
-
-upslate : LangSvg.NodeId -> (String, LangSvg.AVal) -> LangSvg.IndexedTree -> LangSvg.IndexedTree
-upslate id newattr nodes = case Dict.get id nodes of
-    Nothing   -> Debug.crash "upslate"
-    Just node -> case node of
-        LangSvg.TextNode x -> nodes
-        LangSvg.SvgNode shape attrs children ->
-            let newnode = LangSvg.SvgNode shape (Utils.update newattr attrs) children
-            in Dict.insert id newnode nodes
-
 refreshMode model e =
   case model.mode of
     Live _  -> Utils.fromOk "refreshMode" <| mkLive_ model.syncOptions model.slideNumber model.movieNumber model.movieTime e
@@ -83,9 +61,9 @@ refreshMode model e =
 refreshMode_ model = refreshMode model model.inputExp
 
 -- TODO refresh type highlights, too
-refreshHighlights id zone model =
+refreshHighlights zoneKey model =
   let codeBoxInfo = model.codeBoxInfo in
-  let hi = liveInfoToHighlights id zone model in
+  let hi = liveInfoToHighlights zoneKey model in
   { model | codeBoxInfo = { codeBoxInfo | highlights = hi } }
 
 switchOrient m = case m of
@@ -123,66 +101,11 @@ cleanExp =
     _                    -> e__
 -}
 
-
--- this is a bit redundant with View.turnOn...
-maybeStuff id shape zone m =
-  case m.mode of
-    Live info ->
-      flip Utils.bindMaybe (Dict.get id info.assignments) <| \d ->
-      flip Utils.bindMaybe (Dict.get zone d) <| \(yellowLocs,_) ->
-        Just (info.initSubst, yellowLocs)
-    _ ->
-      Nothing
-
-highlightChanges mStuff changes codeBoxInfo =
-  case mStuff of
-    Nothing -> codeBoxInfo
-    Just (initSubstPlus, locs) ->
-
-      let (hi,stringOffsets) =
-        -- hi : List Highlight, stringOffsets : List (Pos, Int)
-        --   where Pos is start pos of a highlight to offset by Int chars
-        let f loc (acc1,acc2) =
-          let (locid,_,_) = loc in
-          let highlight c = makeHighlight initSubstPlus c loc in
-          case (Dict.get locid initSubstPlus, Dict.get locid changes) of
-            (Nothing, _)             -> Debug.crash "Controller.highlightChanges"
-            (Just n, Nothing)        -> (highlight yellow :: acc1, acc2)
-            (Just n, Just Nothing)   -> (highlight red :: acc1, acc2)
-            (Just n, Just (Just n')) ->
-              if n' == n.val then
-                (highlight yellow :: acc1, acc2)
-              else
-                let (s, s') = (strNum n.val, strNum n') in
-                let x = (acePos n.start, String.length s' - String.length s) in
-                (highlight green :: acc1, x :: acc2)
-        in
-        List.foldl f ([],[]) (Set.toList locs)
-      in
-
-      let hi' =
-        let g (startPos,extraChars) (old,new) =
-          let bump pos = { pos | column = pos.column + extraChars } in
-          let ret new' = (old, new') in
-          ret <|
-            if startPos.row    /= old.start.row         then new
-            else if startPos.column >  old.start.column then new
-            else if startPos.column == old.start.column then { start = new.start, end = bump new.end }
-            else if startPos.column <  old.start.column then { start = bump new.start, end = bump new.end }
-            else
-              Debug.crash "highlightChanges"
-        in
-        -- hi has <= 4 elements, so not worrying about the redundant processing
-        flip List.map hi <| \{color,range} ->
-          let (_,range') = List.foldl g (range,range) stringOffsets in
-          { color = color, range = range' }
-      in
-
-      { codeBoxInfo | highlights = hi' }
-
+{-
 addSlateAndCode old (exp, val) =
   slateAndCode old (exp, val)
   |> Result.map (\(slate, code) -> (exp, val, slate, code))
+-}
 
 slateAndCode old (exp, val) =
   LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val
@@ -267,11 +190,11 @@ onMouseClick click old =
   case (old.tool, old.mouseMode) of
 
     -- Inactive zone
-    (Cursor, MouseObject i k z Nothing) ->
+    (Cursor, MouseDragZone (Left (i, k, z)) Nothing) ->
       onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
 
     -- Active zone but not dragged
-    (Cursor, MouseObject i k z (Just (_, _, False))) ->
+    (Cursor, MouseDragZone (Left (i, k, z)) (Just (_, _, False))) ->
       onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
 
     (Poly stk, MouseDrawNew points) ->
@@ -376,36 +299,29 @@ onMouseMove (mx0, my0) old =
       let (x,y) = f (mx0, my0) in
       { old | midOffsetX = x , midOffsetY = y }
 
-    MouseObject id kind zone Nothing ->
+    MouseDragZone zoneKey Nothing ->
       old
 
-    MouseObject id kind zone (Just (mStuff, (mx0, my0), _)) ->
-      let (dx, dy) = (mx - mx0, my - my0) in
-      applyTrigger id kind zone old mx0 my0 dx dy
-      |> Result.map (\(newE,newV,changes,newSlate,newWidgets) ->
-        { old | code = unparse newE
-              , inputExp = newE
-              , inputVal = newV
-              , slate = newSlate
-              , widgets = newWidgets
-              , codeBoxInfo = highlightChanges mStuff changes old.codeBoxInfo
-              , mouseMode =
-                  MouseObject id kind zone (Just (mStuff, (mx0, my0), True))
-              }
-      ) |> handleError old
+    MouseDragZone zoneKey (Just (trigger, (mx0, my0), _)) ->
+      let dx = if old.keysDown == Keys.y then 0 else (mx - mx0) in
+      let dy = if old.keysDown == Keys.x then 0 else (my - my0) in
 
-    MouseSlider widget Nothing ->
-      let onNewPos = createMousePosCallbackSlider mx my widget old in
-      { old | mouseMode = MouseSlider widget (Just onNewPos) }
+      let (newExp, highlights) = trigger (mx0, my0) (dx, dy) in
 
-    MouseSlider widget (Just onNewPos) ->
-      onNewPos (mx, my)
-      |> Result.map (\(newE,newV,newSlate,newWidgets) ->
-        { old | code = unparse newE
-              , inputExp = newE
-              , inputVal = newV
-              , slate = newSlate
+      let codeBoxInfo' =
+        let codeBoxInfo = old.codeBoxInfo in
+        { codeBoxInfo | highlights = highlights }
+      in
+      let dragInfo' = (trigger, (mx0, my0), True) in
+
+      Eval.run newExp |> Result.map (\(newVal, newWidgets) ->
+        { old | code = unparse newExp
+              , inputExp = newExp
+              , inputVal = newVal
+              , slate = LangSvg.valToIndexedTree newVal
               , widgets = newWidgets
+              , codeBoxInfo = codeBoxInfo'
+              , mouseMode = MouseDragZone zoneKey (Just dragInfo')
               }
       ) |> handleError old
 
@@ -424,19 +340,11 @@ onMouseUp old =
   case (old.mode, old.mouseMode) of
 
     (Print _, _) -> old
-    (_, MouseObject i k z (Just _)) ->
-      -- 8/10: re-parsing to get new position info after live sync-ing
-      -- TODO: could update positions within highlightChanges
-      -- TODO: update inputVal?
-      let e = Utils.fromOkay "onMouseUp" <| parseE old.code in
-      let old' = { old | inputExp = e } in
-      refreshHighlights i z
-        { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
-               , history = addToHistory old.code old'.history }
 
-    (_, MouseSlider _ (Just _)) ->
+    (_, MouseDragZone zoneKey (Just _)) ->
       let e = Utils.fromOkay "onMouseUp" <| parseE old.code in
       let old' = { old | inputExp = e } in
+      refreshHighlights zoneKey
         { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
                , history = addToHistory old.code old'.history }
 
@@ -556,21 +464,19 @@ upstate evt old = case debugLog "Event" evt of
       else if old.hideCanvas then old
       else { old | mouseMode = MouseResizeMid Nothing }
 
-    SelectObject id kind zone ->
-      let mStuff = maybeStuff id kind zone old in
-      case mStuff of
-
-        Nothing -> -- Inactive zone
-          { old | mouseMode = MouseObject id kind zone Nothing }
-
-        Just _  -> -- Active zone
+    ClickZone zoneKey ->
+      case old.mode of
+        Live info ->
           let (mx, my) = clickToCanvasPoint old (snd old.mouseState) in
-          let blah = Just (mStuff, (mx, my), False) in
-          { old | mouseMode = MouseObject id kind zone blah }
+          let trigger = Sync.prepareLiveTrigger info old.inputExp zoneKey in
+          let dragInfo = (trigger, (mx, my), False) in
+          { old | mouseMode = MouseDragZone zoneKey (Just dragInfo) }
+
+        _ -> old
 
     MouseClickCanvas ->
       case (old.tool, old.mouseMode) of
-        (Cursor, MouseObject _ _ _ _) -> old
+        (Cursor, MouseDragZone (Left _) _) -> old
         (Cursor, _) ->
           { old | selectedShapes = Set.empty, selectedBlobs = Dict.empty }
 
@@ -645,7 +551,11 @@ upstate evt old = case debugLog "Event" evt of
                 , slate            = newSlate
                 , widgets          = newWidgets
                 , previewCode      = Nothing
-                , mode             = Utils.fromOk "DigHole MkLive" <| mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal -- we already ran it successfully once so it shouldn't crash the second time
+                  -- we already ran it successfully once so it shouldn't crash the second time
+                , mode             = Utils.fromOk "DigHole MkLive" <|
+                                       mkLive old.syncOptions
+                                         old.slideNumber old.movieNumber old.movieTime newExp
+                                         (newVal, newWidgets)
                 , selectedFeatures = Set.empty
           }
       )
@@ -670,7 +580,11 @@ upstate evt old = case debugLog "Event" evt of
                 , slate            = newSlate
                 , widgets          = newWidgets
                 , previewCode      = Nothing
-                , mode             = Utils.fromOk "MakeEqual MkLive" <| mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal -- we already ran it successfully once so it shouldn't crash the second time
+                  -- we already ran it successfully once so it shouldn't crash the second time
+                , mode             = Utils.fromOk "MakeEqual MkLive" <|
+                                       mkLive old.syncOptions
+                                         old.slideNumber old.movieNumber old.movieTime newExp
+                                         (newVal, newWidgets)
                 , selectedFeatures = Set.empty
           }
       )
@@ -695,7 +609,11 @@ upstate evt old = case debugLog "Event" evt of
                 , slate            = newSlate
                 , widgets          = newWidgets
                 , previewCode      = Nothing
-                , mode             = Utils.fromOk "MakeEquidistant MkLive" <| mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime newExp newVal -- we already ran it successfully once so it shouldn't crash the second time
+                  -- we already ran it successfully once so it shouldn't crash the second time
+                , mode             = Utils.fromOk "MakeEquidistant MkLive" <|
+                                       mkLive old.syncOptions
+                                         old.slideNumber old.movieNumber old.movieTime newExp
+                                         (newVal, newWidgets)
                 , selectedFeatures = Set.empty
           }
       )
@@ -727,44 +645,6 @@ upstate evt old = case debugLog "Event" evt of
         Nothing     -> old
         Just simple -> upstate Run <| ETransform.replicateSelectedBlob option old simple
 
-{-
-    -- TODO AdHoc/Sync not used at the moment
-    Sync ->
-      case (old.mode, old.inputExp) of
-        (AdHoc, ip) ->
-          let
-            -- If stuff breaks, try re-adding this.
-            -- We forgot why it was here.
-            -- inputval   = fst <| Eval.run ip
-            -- inputSlate = LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime inputval
-            -- inputval'  = slateToVal inputSlate
-            newval     = slateToVal old.slate
-            local      = Sync.inferLocalUpdates old.syncOptions ip old.inputVal newval
-            struct     = Sync.inferStructuralUpdates ip old.inputVal newval
-            delete     = Sync.inferDeleteUpdates ip old.inputVal newval
-            relatedG   = Sync.inferNewRelationships ip old.inputVal newval
-            relatedV   = Sync.relateSelectedAttrs old.genSymCount ip old.inputVal newval
-          in
-          let addSlateAndCodeToAll list = List.filterMap (Result.toMaybe << addSlateAndCode old) list in
-            case (local, relatedV) of
-              (Ok [], (_, [])) -> { old | mode = Utils.fromOk "Sync mkLive_" <| mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime ip }
-              (Ok [], (nextK, changes)) ->
-                let _ = debugLog ("no live updates, only related var") () in
-                let m = SyncSelect (addSlateAndCodeToAll changes) in
-                { old | mode = m, genSymCount = nextK, runAnimation = True, syncSelectTime = 0.0 }
-              (Ok live, _) ->
-                let n = debugLog "# of live updates" (List.length live) in
-                let changes = live ++ delete ++ relatedG ++ struct in
-                let m = SyncSelect (addSlateAndCodeToAll changes) in
-                { old | mode = m, runAnimation = True, syncSelectTime = 0.0 }
-              (Err e, _) ->
-                let _ = debugLog ("no live updates: " ++ e) () in
-                let changes = delete ++ relatedG ++ struct in
-                let m = SyncSelect (addSlateAndCodeToAll changes) in
-                { old | mode = m, runAnimation = True, syncSelectTime = 0.0 }
-        _ -> Debug.crash "upstate Sync"
--}
-
     SelectOption (exp, val, slate, code) ->
         { old | code          = code
               , inputExp      = exp
@@ -773,7 +653,10 @@ upstate evt old = case debugLog "Event" evt of
               , slate         = slate
               , previewCode   = Nothing
               , tool          = Cursor
-              , mode          = Utils.fromOk "SelectOption mkLive" <| mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp val }
+              , mode          = Utils.fromOk "SelectOption mkLive" <|
+                                  mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp
+                                    (val, []) -- TODO
+              }
 
     PreviewCode maybeCode ->
       { old | previewCode = maybeCode }
@@ -789,8 +672,12 @@ upstate evt old = case debugLog "Event" evt of
       let {e,v,ws,ati} = thunk () in
       let (so, m) =
         case old.mode of
-          Live _  -> let so = Sync.syncOptionsOf old.syncOptions e in (so, Utils.fromOk "SelectExample mkLive_" <| mkLive so old.slideNumber old.movieNumber old.movieTime e v)
-          Print _ -> let so = Sync.syncOptionsOf old.syncOptions e in (so, Utils.fromOk "SelectExample mkLive_" <| mkLive so old.slideNumber old.movieNumber old.movieTime e v)
+          Live _  -> let so = Sync.syncOptionsOf old.syncOptions e in
+                     (so, Utils.fromOk "SelectExample mkLive_" <|
+                        mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws))
+          Print _ -> let so = Sync.syncOptionsOf old.syncOptions e in
+                     (so, Utils.fromOk "SelectExample mkLive_" <|
+                        mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws))
           _      -> (old.syncOptions, old.mode)
       in
       let scratchCode' =
@@ -1036,93 +923,3 @@ adjustMidOffsetY old dy =
   case old.orient of
     Horizontal -> { old | midOffsetY = old.midOffsetY + dy }
     Vertical   -> upstate SwitchOrient old
-
-
-
---------------------------------------------------------------------------------
--- Mouse Callbacks for Zones
-
-applyTrigger objid kind zone old mx0 my0 dx_ dy_ =
-  let dx = if old.keysDown == Keys.y then 0 else dx_ in
-  let dy = if old.keysDown == Keys.x then 0 else dy_ in
-  case old.mode of
-    AdHoc ->
-      Ok (old.inputExp, old.inputVal, Dict.empty, old.slate, old.widgets)
-    Live info ->
-      case Utils.justGet_ "#4" zone (Utils.justGet_ "#5" objid info.triggers) of
-        Nothing -> Debug.crash "shouldn't happen due to upstate SelectObject"
-        Just trigger ->
-          let (newE,changes) = trigger (mx0, my0) (dx, dy) in
-          Eval.run newE
-          |> Result.map (\(newVal,newWidgets) ->
-              (newE, newVal, changes, LangSvg.valToIndexedTree newVal, newWidgets)
-            )
-    _ -> Debug.crash "applyTrigger"
-
-
---------------------------------------------------------------------------------
--- Mouse Callbacks for UI Widgets
-
-wSlider = params.mainSection.uiWidgets.wSlider
-
-pickLocId t =
-  let locs = Set.toList (Sync.locsOfTrace Sync.defaultOptions t) in
-  let thawedLocs = List.filter (\(_,ann,_) -> ann == thawed) locs in
-  Utils.mapMaybe Utils.fst3 <|
-    List.head thawedLocs                   -- favor thawedLocs,
-      `Utils.plusMaybe` List.head locs     -- arbitrarily picking the first
-
-createMousePosCallbackSlider mx my widget old =
-
-  let create maybeUpdateX maybeUpdateY = \(mx',my') ->
-    let xSubst =
-      case maybeUpdateX of
-        Just (xLoc, xFoo) -> Dict.singleton xLoc (xFoo (toFloat (mx' - mx)))
-        Nothing           -> Dict.empty
-    in
-    let ySubst =
-      case maybeUpdateY of
-        Just (yLoc, yFoo) -> Dict.singleton yLoc (yFoo (toFloat (my' - my)))
-        Nothing           -> Dict.empty
-    in
-    -- unlike the live triggers via Sync,
-    -- this substitution only binds the location to change
-    let newE = applyLocSubst (Dict.union xSubst ySubst) old.inputExp in
-    Eval.run newE
-    `Result.andThen` (\(newVal,newWidgets) ->
-      -- Can't manipulate slideCount/movieCount/movieDuration/movieContinue via sliders at the moment.
-      LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime newVal
-      |> Result.map (\newSlate -> (newE, newVal, newSlate, newWidgets))
-    ) in
-
-  case widget of
-
-    WNumSlider minVal maxVal _ curVal (locid,_,_) ->
-      let updateX dx =
-        curVal + (dx / toFloat wSlider) * (maxVal - minVal)
-          |> clamp minVal maxVal
-      in
-      create (Just (locid, updateX)) Nothing
-
-    WIntSlider a b _ c (locid,_,_) ->
-      let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
-      let updateX dx =
-        curVal + (dx / toFloat wSlider) * (maxVal - minVal)
-          |> clamp minVal maxVal
-          |> round
-          |> toFloat
-      in
-      create (Just (locid, updateX)) Nothing
-
-    WPointSlider xNumTr yNumTr ->
-      let subst = LangParser2.substOf old.inputExp in
-                    -- might just put subst in the Model,
-                    -- not just in MouseObject MouseMode...
-      let updateXY k (nxy, txy) = \dxy ->
-        case Sync.solve (Dict.remove k subst) (nxy + dxy, txy) of
-          Just newNum -> newNum
-          Nothing     -> Utils.justGet_ "createMousePosCallbackSlider: updateXY" k subst
-      in
-      create
-        (Utils.mapMaybe (\kx -> (kx, updateXY kx xNumTr)) (pickLocId (snd xNumTr)))
-        (Utils.mapMaybe (\ky -> (ky, updateXY ky yNumTr)) (pickLocId (snd yNumTr)))

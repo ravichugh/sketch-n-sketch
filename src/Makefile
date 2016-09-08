@@ -31,7 +31,8 @@ loc:
 	wc -l \
     Lang.elm LangSvg.elm \
     LangParser2.elm LangUnparser.elm OurParser2.elm \
-    Types.elm Eval.elm Sync.elm LocEqn.elm ShapeWidgets.elm \
+    Types.elm Eval.elm ShapeWidgets.elm \
+    Solver.elm LocEqn.elm Sync.elm \
     InterfaceModel.elm InterfaceView2.elm InterfaceController.elm \
     LangTools.elm LangTransform.elm ValueBasedTransform.elm \
     Blobs.elm Draw.elm ExpressionBasedTransform.elm \

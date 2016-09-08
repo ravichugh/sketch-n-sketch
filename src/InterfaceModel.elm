@@ -3,14 +3,14 @@ module InterfaceModel where
 import Lang exposing (..)
 import Types exposing (AceTypeInfo)
 import Eval
-import Sync
+import Sync exposing (ZoneKey)
 import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
 import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature, Zone)
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparse)
-import OurParser2 as P
 import Ace
+import Either exposing (Either(..))
 
 import List
 import Debug
@@ -107,15 +107,14 @@ type alias RawSvg = String
 type MouseMode
   = MouseNothing
   | MouseResizeMid (Maybe (MouseTrigger (Int, Int)))
-  | MouseObject NodeId ShapeKind Zone
-      (Maybe                        -- Inactive (Nothing) or Active
-        ( Maybe (SubstPlus, LocSet)     -- loc-set assigned (live mode only)
-        , (Int, Int)                    -- initial click
-        , Bool ))                       -- dragged at least one pixel
-                                        -- TODO remove second Maybe
-  | MouseSlider Widget
-      (Maybe ( MouseTrigger (Result String (Exp, Val, RootedIndexedTree, Widgets)) ))
-      -- may add info for hilites later
+
+  | MouseDragZone
+      ZoneKey               -- Left shapeZone, Right widget
+      (Maybe                -- Inactive (Nothing) or Active
+        ( Sync.LiveTrigger      -- computes program update and highlights
+        , (Int, Int)            -- initial click
+        , Bool ))               -- dragged at least one pixel
+
   | MouseDrawNew (List (KeysDown, (Int, Int)))
       -- invariant on length n of list of points:
       --   for line/rect/ellipse, n == 0 or n == 2
@@ -128,6 +127,7 @@ type alias MouseTrigger a = (Int, Int) -> a
 type Orientation = Vertical | Horizontal
 
 type alias PossibleChange = (Exp, Val, RootedIndexedTree, Code)
+  -- TODO this should have Widgets...
 
 -- type alias ShowZones = Bool
 -- type ShowWidgets = HideWidgets | ShowAnnotatedWidgets | ShowAllWidgets
@@ -155,7 +155,7 @@ type LambdaTool
   | LambdaAnchor Exp
 
 type Caption
-  = Hovering (Int, ShapeKind, Zone)
+  = Hovering ZoneKey
   | LangError String
 
 type alias KeysDown = List Char.KeyCode
@@ -165,12 +165,12 @@ type ReplicateKind
   | LinearRepeat
   | RadialRepeat
 
-type Event = SelectObject Int ShapeKind Zone
+type Event = ClickZone ZoneKey
            | MouseClickCanvas      -- used to initiate drawing new shape
            | MouseIsDown Bool
            | MousePosition (Int, Int)
            | TickDelta Float -- 60fps time tick, Float is time since last tick
-           | Sync
+           -- | Sync
            | PreviewCode (Maybe Code)
            | SelectOption PossibleChange
            | CancelSync
@@ -217,48 +217,22 @@ events = Signal.mailbox <| Noop
 
 --------------------------------------------------------------------------------
 
-mkLive opts slideNumber movieNumber movieTime e v =
-  let (_,tree) = LangSvg.valToIndexedTree v in
-  Sync.prepareLiveUpdates opts slideNumber movieNumber movieTime e v tree
+mkLive opts slideNumber movieNumber movieTime e (val, widgets) =
+  let slate = LangSvg.valToIndexedTree val in
+  Sync.prepareLiveUpdates opts slideNumber movieNumber movieTime e (slate, widgets)
   |> Result.map (Live)
 
 mkLive_ opts slideNumber movieNumber movieTime e  =
-  Eval.run e `Result.andThen` (\(val,_) -> mkLive opts slideNumber movieNumber movieTime e val)
-
-  -- TODO maybe put Val into model (in addition to slate)
-  --   so that don't need to re-run in some calling contexts
-
-liveInfoToHighlights id zone model =
-  case model.mode of
-    Live info ->
-      let subst = info.initSubst in
-      Maybe.withDefault [] <|
-        flip Utils.bindMaybe (Dict.get id info.assignments) <| \d ->
-        flip Utils.bindMaybe (Dict.get zone d) <| \(yellowLocs,grayLocs) ->
-        Just
-          <| List.map (makeHighlight subst yellow) (Set.toList yellowLocs)
-          ++ List.map (makeHighlight subst gray) (Set.toList grayLocs)
-    _ ->
-      []
+  Eval.run e `Result.andThen` mkLive opts slideNumber movieNumber movieTime e
 
 --------------------------------------------------------------------------------
 
-gray        = "lightgray"
-yellow      = "khaki"
-green       = "limegreen"
-red         = "salmon"
+liveInfoToHighlights zoneKey model =
+  case model.mode of
+    Live info -> Sync.yellowAndGrayHighlights zoneKey info
+    _         -> []
 
-acePos : P.Pos  -> Ace.Pos
-acePos p = { row = p.line, column = p.col }
-
-aceRange : P.WithInfo a -> Ace.Range
-aceRange x = { start = acePos x.start, end = acePos x.end }
-
-makeHighlight : SubstPlus -> String -> Loc -> Ace.Highlight
-makeHighlight subst color (locid,_,_) =
-  case Dict.get locid subst of
-    Just n  -> { color = color, range = aceRange n }
-    Nothing -> Debug.crash "makeHighlight: locid not in subst"
+--------------------------------------------------------------------------------
 
 codeToShow model =
   case model.previewCode of
@@ -273,7 +247,7 @@ sampleModel =
     (name,_,f) = Utils.head_ Examples.list
     {e,v,ws}   = f ()
   in
-  let (slideCount, movieCount, movieDuration, movieContinue, indexedTree) =
+  let (slideCount, movieCount, movieDuration, movieContinue, slate) =
     Utils.fromOk "generating sample model" <| LangSvg.fetchEverything 1 1 0.0 v
   in
   let code = unparse e in
@@ -293,9 +267,9 @@ sampleModel =
     , movieContinue = movieContinue
     , runAnimation  = True
     , syncSelectTime = 0.0
-    , slate         = indexedTree
+    , slate         = slate
     , widgets       = ws
-    , mode          = Utils.fromOk "mkLive sample model" <| mkLive Sync.defaultOptions 1 1 0.0 e v
+    , mode          = Utils.fromOk "mkLive sample model" <| mkLive Sync.defaultOptions 1 1 0.0 e (v, ws)
     , mouseMode     = MouseNothing
     , orient        = Vertical
     , hideCode      = False

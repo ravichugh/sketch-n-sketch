@@ -406,8 +406,11 @@ polyMidptYPrefix = "polygonMidptY"
 
 -- Can't just use Trace because we need to introduce
 -- constants not found in the program's Subst
+-- If need more structured values in the future,
+-- add EqnVal AVal (rather than EqnVal Val).
+--
 type FeatureEquation
-  = EqnVal Val
+  = EqnNum NumTr
   | EqnOp Op_ (List FeatureEquation)
 
 
@@ -426,7 +429,7 @@ type alias BoxyFeatureEquations =
   }
 
 
-two       = EqnVal <| vConst (2, dummyTrace)
+two       = EqnNum (2, dummyTrace)
 plus a b  = EqnOp Plus [a, b]
 minus a b = EqnOp Minus [a, b]
 div a b   = EqnOp Div [a, b]
@@ -441,7 +444,7 @@ featureEquation nodeId kind feature nodeAttrs =
 featureEquationOf : NodeId -> ShapeKind -> List Attr -> FeatureNum -> FeatureEquation
 featureEquationOf id kind attrs featureNum =
 
-  let get attr  = EqnVal <| LangSvg.maybeFindAttr id kind attr attrs in
+  let get attr  = EqnNum <| LangSvg.findNumishAttr id attr attrs in
   let crash () =
     let s = unparseFeatureNum (Just kind) featureNum in
     Debug.crash <| Utils.spaces [ "featureEquationOf:", kind, s ] in
@@ -492,8 +495,8 @@ featureEquationOf id kind attrs featureNum =
       _ -> crash () in
 
   let handlePath () =
-    let x i = get ("x" ++ toString i) in
-    let y i = get ("y" ++ toString i) in
+    let x i = EqnNum <| fst <| LangSvg.getPathPoint attrs i in
+    let y i = EqnNum <| snd <| LangSvg.getPathPoint attrs i in
     case featureNum of
       X (Point i) -> x i
       Y (Point i) -> y i
@@ -501,8 +504,8 @@ featureEquationOf id kind attrs featureNum =
 
   let handlePoly () =
     let ptCount = LangSvg.getPtCount attrs in
-    let x i = get ("x" ++ toString i) in
-    let y i = get ("y" ++ toString i) in
+    let x i = EqnNum <| fst <| LangSvg.getPolyPoint attrs i in
+    let y i = EqnNum <| snd <| LangSvg.getPolyPoint attrs i in
     case featureNum of
 
       X (Point i) -> x i
@@ -525,15 +528,15 @@ featureEquationOf id kind attrs featureNum =
 
     O FillOpacity ->
       case (Utils.find_ attrs "fill").av_ of
-        LangSvg.AColorNum (_, Just opacity) -> EqnVal (vConst opacity)
+        LangSvg.AColorNum (_, Just opacity) -> EqnNum opacity
         _                                   -> Debug.crash "featureEquationOf: fillOpacity"
     O StrokeOpacity ->
       case (Utils.find_ attrs "stroke").av_ of
-        LangSvg.AColorNum (_, Just opacity) -> EqnVal (vConst opacity)
+        LangSvg.AColorNum (_, Just opacity) -> EqnNum opacity
         _                                   -> Debug.crash "featureEquationOf: strokeOpacity"
     O Rotation ->
       let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ attrs "transform" in
-      EqnVal (vConst rot)
+      EqnNum rot
 
     _ ->
       case kind of
@@ -551,7 +554,7 @@ featureEquationOf id kind attrs featureNum =
 
 boxyFeatureEquationsOf : NodeId -> ShapeKind -> List Attr -> BoxyFeatureEquations
 boxyFeatureEquationsOf id kind attrs =
-  let get attr  = EqnVal <| LangSvg.maybeFindAttr id kind attr attrs in
+  let get attr  = EqnNum <| LangSvg.findNumishAttr id attr attrs in
   case kind of
 
     "rect" ->
@@ -630,13 +633,8 @@ boxyFeatureEquationsOf id kind attrs =
 evaluateFeatureEquation : FeatureEquation -> Maybe Num
 evaluateFeatureEquation eqn =
   case eqn of
-    EqnVal val ->
-      case val.v_ of
-        VConst (n, _) ->
-          Just n
-
-        _ ->
-          Debug.crash <| "Found feature equation with a value other than a VConst: " ++ (toString val) ++ "\nin: " ++ (toString eqn)
+    EqnNum (n, _) ->
+      Just n
 
     EqnOp op [left, right] ->
       let maybePerformBinop op =
@@ -711,13 +709,13 @@ getPointEquations nodeId kind attrs pointFeature =
   ( featureEquationOf nodeId kind attrs (X pointFeature)
   , featureEquationOf nodeId kind attrs (Y pointFeature) )
 
-getPrimitivePointEquations : RootedIndexedTree -> NodeId -> List (Val, Val)
+getPrimitivePointEquations : RootedIndexedTree -> NodeId -> List (NumTr, NumTr)
 getPrimitivePointEquations (_, tree) nodeId =
   case Utils.justGet_ "LangSvg.getPrimitivePoints" nodeId tree of
     LangSvg.SvgNode kind attrs _ ->
       List.concatMap (\pointFeature ->
         case getPointEquations nodeId kind attrs pointFeature of
-          (EqnVal v1, EqnVal v2) -> [(v1,v2)]
+          (EqnNum v1, EqnNum v2) -> [(v1,v2)]
           _                      -> []
       ) (pointFeaturesOfShape kind attrs)
     _ ->
@@ -747,9 +745,17 @@ unparseZone z =
     ZInterior            -> "Interior"
 
     ZPoint (Point i)     -> "Point" ++ toString i
+    ZPoint TopLeft       -> "TopLeft"
+    ZPoint TopRight      -> "TopRight"
+    ZPoint BotLeft       -> "BotLeft"
+    ZPoint BotRight      -> "BotRight"
+    ZPoint TopEdge       -> "TopEdge"
+    ZPoint RightEdge     -> "RightEdge"
+    ZPoint BotEdge       -> "BotEdge"
+    ZPoint LeftEdge      -> "LeftEdge"
+
     ZPoint (Midpoint _)  -> Debug.crash <| "unparseZone: " ++ toString z
     ZPoint Center        -> Debug.crash <| "unparseZone: " ++ toString z
-    ZPoint pf            -> strPointFeature pf ""
 
     ZLineEdge            -> "Edge"
     ZPolyEdge i          -> "Edge" ++ toString i
@@ -759,7 +765,7 @@ unparseZone z =
     ZOther FillOpacity   -> "FillOpacityBall"
     ZOther StrokeOpacity -> "StrokeOpacityBall"
     ZOther StrokeWidth   -> "StrokeWidthBall"
-    ZOther Rotation      -> "RotationBall"
+    ZOther Rotation      -> "RotateBall"
 
     ZSlider              -> "SliderBall"
 
@@ -818,83 +824,9 @@ toEdgeZone s =
       else Just (ZPolyEdge (Utils.fromOk_ (String.toInt suffix))))
     (Utils.munchString "Edge" s)
 
--- TODO
-zones = [
-    ("svg", [])
-  , ("BOX",
-      [ ("Interior", ["LEFT", "TOP", "RIGHT", "BOT"])
-      , ("TopLeft", ["LEFT", "TOP"])
-      , ("TopRight", ["TOP", "RIGHT"])
-      , ("BotRight", ["RIGHT", "BOT"])
-      , ("BotLeft", ["LEFT", "BOT"])
-      , ("LeftEdge", ["LEFT"])
-      , ("TopEdge", ["TOP"])
-      , ("RightEdge", ["RIGHT"])
-      , ("BotEdge", ["BOT"])
-      ])
-  , ("rect",
-      [ ("Interior", ["x", "y"])
-      , ("TopLeft", ["x", "y", "width", "height"])
-      , ("TopRight", ["y", "width", "height"])
-      , ("BotRight", ["width", "height"])
-      , ("BotLeft", ["x", "width", "height"])
-      , ("LeftEdge", ["x", "width"])
-      , ("TopEdge", ["y", "height"])
-      , ("RightEdge", ["width"])
-      , ("BotEdge", ["height"])
-      ])
-  , ("line",
-      [ ("Point1", ["x1", "y1"])
-      , ("Point2", ["x2", "y2"])
-      , ("Edge", ["x1", "y1", "x2", "y2"])
-      ])
-  , ("circle",
-      [ ("Interior", ["cx", "cy"])
-      , ("LeftEdge", ["cx", "r"])
-      , ("RightEdge", ["cx", "r"])
-      , ("TopEdge", ["cy", "r"])
-      , ("BotEdge", ["cy", "r"])
-      , ("TopLeft", ["cx", "cy", "r"])
-      , ("TopRight", ["cx", "cy", "r"])
-      , ("BotLeft", ["cx", "cy", "r"])
-      , ("BotRight", ["cx", "cy", "r"])
-      ])
-  , ("ellipse",
-      [ ("Interior", ["cx", "cy"])
-      , ("LeftEdge", ["cx", "rx"])
-      , ("RightEdge", ["cx", "rx"])
-      , ("TopEdge", ["cy", "ry"])
-      , ("BotEdge", ["cy", "ry"])
-      , ("TopLeft", ["cx", "cy", "rx", "ry"])
-      , ("TopRight", ["cx", "cy", "rx", "ry"])
-      , ("BotLeft", ["cx", "cy", "rx", "ry"])
-      , ("BotRight", ["cx", "cy", "rx", "ry"])
-      ])
-  , ("OVAL",
-      [ ("Interior", ["LEFT", "TOP", "RIGHT", "BOT"])
-      , ("TopLeft", ["LEFT", "TOP"])
-      , ("TopRight", ["TOP", "RIGHT"])
-      , ("BotRight", ["RIGHT", "BOT"])
-      , ("BotLeft", ["LEFT", "BOT"])
-      , ("LeftEdge", ["LEFT"])
-      , ("TopEdge", ["TOP"])
-      , ("RightEdge", ["RIGHT"])
-      , ("BotEdge", ["BOT"])
-      ])
-  -- TODO
-  , ("g", [])
-  , ("text", [])
-  , ("tspan", [])
 
-  -- symptom of the Sync.Dict0 type. see Sync.nodeToAttrLocs_.
-  , ("DUMMYTEXT", [])
-
-  -- NOTE: these are computed in Sync.getZones
-  -- , ("polygon", [])
-  -- , ("polyline", [])
-  -- , ("path", [])
-  ]
-
+------------------------------------------------------------------------------
+-- Relating Zones and Shape Point Features
 
 -- In View, may want to create a single SVG element for points
 -- that double as selection and drag widgets. If so, then
@@ -909,3 +841,11 @@ zoneToCrosshair shape zone =
       Just (xFeature, yFeature)
     _ ->
       Nothing
+
+
+------------------------------------------------------------------------------
+-- Params for Shape Widget Sliders (needed by Sync and View)
+
+wColorSlider = 250
+wStrokeWidthSlider = 60
+wOpacitySlider = 20
