@@ -2298,27 +2298,22 @@ caption model w h =
   colorDebug Color.orange <|
     GE.container w h GE.topLeft <|
       case (model.caption, model.mode, model.mouseMode) of
+
         (Just (Hovering zoneKey), Live info, MouseNothing) ->
-              let l = Sync.hoverInfo zoneKey info in
-              let numLocs = List.map (\(s,n) -> toString n.val ++ Utils.braces s) l in
-              let line1 =
-                case zoneKey of
-                  Left (i, k, z) -> (k ++ toString i) ++ " " ++ z
-                  Right (i, s)   -> s ++ "Slider" ++ toString i
-              in
-              let line2 = Utils.spaces numLocs in
-              -- eStr (" " ++ line1 ++ "\n " ++ line2)
-              let cap =
-                if line2 == ""
-                then T.bold <| tStr Color.red " (INACTIVE)"
-                else T.bold <| tStr Color.green " (ACTIVE)"
-              in
-              GE.leftAligned <| T.concat
-                 [ tSpace -- slop
-                 , tStr Color.white (" " ++ line1)
-                 , cap
-                 , tStr Color.white ("\n " ++ line2)
-                 ]
+          let (line1, line2, cap) =
+            case Sync.hoverInfo zoneKey info of
+              (line1, Nothing) ->
+                (line1, "", T.bold <| tStr Color.red " (INACTIVE)")
+              (line1, Just line2) ->
+                (line1, line2, T.bold <| tStr Color.green " (ACTIVE)")
+          in
+          GE.leftAligned <| T.concat
+             [ tSpace -- slop
+             , tStr Color.white (" " ++ line1)
+             , cap
+             , tStr Color.white ("\n " ++ line2)
+             ]
+
         (Just (LangError err), _, _) ->
           eStr err
         _ ->

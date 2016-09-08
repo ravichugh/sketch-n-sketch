@@ -1171,16 +1171,43 @@ yellowAndGrayHighlights zoneKey info =
   List.map (makeHighlight subst yellow) (Set.toList yellowLocs)
   ++ List.map (makeHighlight subst gray) (Set.toList grayLocs)
 
--- this is a bit redundant with above
--- TODO: display more information from TriggerElement
 hoverInfo zoneKey info =
-  let (_, yellowLocs, _) = lookupZoneKey zoneKey info in
-  List.map (\(lid,_,x) ->
-    let n = Utils.justGet_ ("hoverInfo: " ++ toString lid) lid info.initSubstPlus in
-    if x == ""
-      then ("loc_" ++ toString lid, n)
-      else (x, n)
-   ) (Set.toList yellowLocs)
+  let line1 =
+    case zoneKey of
+      Left (i, k, z) -> (k ++ toString i) ++ " " ++ z
+      Right (i, s)   -> s ++ "Slider" ++ toString i
+  in
+  let maybeLine2 =
+    let (triggerElements, _, _) = lookupZoneKey zoneKey info in
+    if triggerElements == [] then Nothing
+    else
+      let (dxElements, list2) =
+        List.partition (\(_,s,_,_,_) -> s == "dx") triggerElements
+      in
+      let (dyElements, list3) =
+        List.partition (\(_,s,_,_,_) -> s == "dy") list2
+      in
+      let (dxyElements, otherElements) =
+        List.partition (\(_,s,_,_,_) -> s == "dxy") list3
+      in
+      let strElements caption elements =
+        let foo (_,_,(k,_,x),_,_) =
+          let n = Utils.justGet_ ("hoverInfo: " ++ toString k) k info.initSubstPlus in
+          let locName = if x == "" then ("loc_" ++ toString k) else x in
+          locName ++ Utils.parens (String.left 4 (toString n.val))
+        in
+        case elements of
+          [] -> []
+          _  -> [Utils.bracks caption ++ " " ++ Utils.spaces (List.map foo elements)]
+      in
+      Just <| Utils.spaces <| List.concat <|
+        [ strElements "dx" dxElements
+        , strElements "dy" dyElements
+        , strElements "dxy" dxyElements
+        , strElements "..." otherElements
+        ]
+  in
+  (line1, maybeLine2)
 
 
 -- Colors for Zone Locations, During Direct Manipulation --
