@@ -400,7 +400,8 @@ upstate evt old = case debugLog "Event" evt of
                 , codeBoxInfo = updateCodeBoxWithParseError annot old.codeBoxInfo }
         Ok e ->
           let result =
-            let aceTypeInfo = Types.typecheck e in
+            -- let aceTypeInfo = Types.typecheck e in
+            let aceTypeInfo = Types.dummyAceTypeInfo in
             Eval.run e
             `Result.andThen` (\(newVal,ws) ->
               LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
