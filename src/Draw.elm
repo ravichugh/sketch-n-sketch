@@ -307,9 +307,10 @@ addRawRect old (_,pt2) (_,pt1) =
   let (x, y, w, h) = (xa, ya, xb - xa, yb - ya) in
   add "rect" old
     [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
-    , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
+    , makeLet ["fill", "stroke","strokeWidth"] [randomColor old, randomColor1 old, eConst 0 dummyLoc]
+    , makeLet ["rot"] [eConst 0 dummyLoc] ]
     (eVar0 "rawRect")
-    [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
+    [ eVar "fill", eVar "stroke", eVar "strokeWidth"
     , eVar "x", eVar "y", eVar "w", eVar "h", eVar "rot" ]
 
 addRawSquare old (_,pt2) (_,pt1) =
