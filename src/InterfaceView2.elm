@@ -463,7 +463,7 @@ draggableZone svgFunc addStroke model id shape zone attrs =
     zoneEvents id shape zone ++
     [ cursorOfZone zone "default"
     , LangSvg.attr "fill" "rgba(0,0,0,0.0)"
-    , LangSvg.attr "stroke-width" <| if addStroke then "20" else "0"
+    , LangSvg.attr "stroke-width" <| if addStroke then "10" else "0"
     , LangSvg.attr "stroke" <| if showStroke
                                then "rgba(255,0,0,0.5)"
                                else "rgba(0,0,0,0.0)"
