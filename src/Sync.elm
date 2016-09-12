@@ -120,17 +120,34 @@ type alias BiasCounts = Dict Loc Int
 
 getCount x dict    = Maybe.withDefault 0 (Dict.get x dict)
 updateCount x dict = Dict.insert x (1 + getCount x dict) dict
+addCount k x dict  = Dict.insert x (k + getCount x dict) dict
 
 
 getLocationCounts : Options -> Canvas -> BiasCounts
 getLocationCounts options (slate, widgets) =
+  let weightedScore kind (attrName, attrVal) acc =
+    let k =
+      -- because literal bounds will be unambiguously controlled by
+      -- corner zones (and because bounding boxes are used often for
+      -- stretchy shapes and groups), increase the bias against them
+      case (kind, attrName, attrVal.av_) of
+        ("BOX", "LEFT",  ANum (_, TrLoc _)) -> 2
+        ("BOX", "RIGHT", ANum (_, TrLoc _)) -> 2
+        ("BOX", "TOP",   ANum (_, TrLoc _)) -> 2
+        ("BOX", "BOT",   ANum (_, TrLoc _)) -> 2
+        _                                   -> 1
+    in
+    Set.foldl (addCount k) acc (locsOfTraces options (tracesOfAVal attrVal))
+  in
+  {- for comparison to weightedScore:
+  let unweightedScore _ (_, attrVal) acc =
+    Set.foldl updateCount acc (locsOfTraces options (tracesOfAVal attrVal))
+  in
+  -}
   let addTriggerNode nodeInfo acc =
     case nodeInfo of
-      Left _ -> acc
-      Right (_, _, attrs) ->
-        List.foldl (\(_,aval) acc' ->
-          Set.foldl updateCount acc' (locsOfTraces options (tracesOfAVal aval))
-        ) acc attrs
+      Left _                 -> acc
+      Right (_, kind, attrs) -> List.foldl (weightedScore kind) acc attrs
   in
   let addTriggerWidget widget acc =
     case widget of
@@ -157,6 +174,8 @@ tracesOfAVal aval =
     AColorNum ((_,t), Just (_,t')) -> [t, t']
 
     APoints pts -> List.concatMap (\((_,t1),(_,t2)) -> [t1, t2]) pts
+
+    -- TODO APath
 
     ATransform [Rot (_,t1) (_,t2) (_,t3)] -> [t1, t2, t3]
 
