@@ -89,14 +89,14 @@ freshen_ k e =
       { oldBranch | val = Branch_ bws1 pat newE bws2 }
     in
     (ECase ws1 e' (List.map2 replaceBranch bs bes') ws2, k')
-  ETypeCase ws1 p bs ws2 ->
+  ETypeCase ws1 e bs ws2 ->
     let bes = tbranchExps bs in
-    let (bes', k') = freshenExps k bes in
+    let ((e',bes'), k') = U.mapFst U.uncons <| freshenExps k (e::bes) in
     let replaceBranch oldBranch newE =
       let (TBranch_ bws1 tipe oldE bws2) = oldBranch.val in
       { oldBranch | val = TBranch_ bws1 tipe newE bws2 }
     in
-    (ETypeCase ws1 p (List.map2 replaceBranch bs bes') ws2, k')
+    (ETypeCase ws1 e' (List.map2 replaceBranch bs bes') ws2, k')
   EComment ws s e1 ->
     let (e1',k') = freshen_ k e1 in
     (EComment ws s e1', k')
@@ -112,6 +112,9 @@ freshen_ k e =
   ETypeAlias ws1 pat tipe e ws2 ->
     let (e',k') = freshen_ k e in
     (ETypeAlias ws1 pat tipe e' ws2, k')
+  EVal  _ -> Debug.crash "Should not be freshening an exp with an EVal"
+  EDict _ -> Debug.crash "Should not be freshening an exp with an EDict"
+
 
 freshenExps k es =
   List.foldr (\e (es',k') ->
@@ -134,7 +137,7 @@ freshenRanges k rs =
 
 -- Record the primary identifier in the EConsts' Locs, where appropriate.
 recordIdentifiers (p,e) =
- let ret e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
+ let ret e__ = replaceE__ e e__ in
  case (p.val, e.val.e__) of
   -- (PVar _ x _, EConst ws n (k, b, "") wd) -> ret <| EConst ws n (k, b, x) wd
   (PVar _ x _, EConst ws n (k, b, _) wd) -> ret <| EConst ws n (k, b, x) wd
@@ -817,10 +820,10 @@ parseTypeCase =
   whitespace >>= \ws1 ->
   parens <|
     whiteTokenOneWS "typecase" >>>
-    parseTypeCasePat           >>= \pat ->
+    parseExp                   >>= \e ->
     (P.some parseTBranch)      >>= \bs ->
     whitespace                 >>= \ws2 ->
-      P.return (exp_ (ETypeCase ws1.val pat bs.val ws2.val))
+      P.return (exp_ (ETypeCase ws1.val e bs.val ws2.val))
 
 parseBranch : P.Parser Branch_
 parseBranch =

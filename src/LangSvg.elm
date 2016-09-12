@@ -88,7 +88,7 @@ type AVal_
   | ABounds (NumTr, NumTr, NumTr, NumTr)
 
 -- these versions are for when the VTrace doesn't matter
-aVal          = flip AVal [-1]
+aVal          = flip AVal [dummyEId]
 aNum          = aVal << ANum
 aString       = aVal << AString
 aTransform    = aVal << ATransform
@@ -744,8 +744,8 @@ fetchEverything_ slideNumber movieNumber movieTime val =
 fetchEverything : Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, RootedIndexedTree)
 fetchEverything slideNumber movieNumber movieTime val =
   fetchEverything_ slideNumber movieNumber movieTime val
-  `Result.andThen` (\(slideCount, movieCount, movieDuration, continue, movieVal) ->
-    valToIndexedTree movieVal
+  `Result.andThen` (\(slideCount, movieCount, movieDuration, continue, movieFrameVal) ->
+    valToIndexedTree movieFrameVal
     |> Result.map (\indexedTree -> (slideCount, movieCount, movieDuration, continue, indexedTree))
   )
 

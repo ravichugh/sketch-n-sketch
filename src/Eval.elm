@@ -1,4 +1,4 @@
-module Eval (run, parseAndRun, parseAndRun_, evalDelta, eval, initEnv) where
+module Eval (run, parseAndRun, parseAndRun_, evalDelta, eval, initEnv, match) where
 
 import Debug
 import Dict
@@ -42,41 +42,6 @@ matchList pvs =
       (Just old, Just new) -> Just (new ++ old)
       _                    -> Nothing
   ) (Just []) pvs
-
-
-typeCaseMatch : Env -> Backtrace -> Pat -> Type -> Result String Bool
-typeCaseMatch env bt pat tipe =
-  case (pat.val, tipe.val) of
-    (PList _ pats _ Nothing _, TTuple _ typeList _ maybeRestType _) ->
-      let typeListsMatch =
-        Utils.zip pats typeList
-        |> List.map (\(p, t) -> typeCaseMatch env bt p t)
-        |> Utils.projOk
-        |> Result.map (\bools -> List.all ((==) True) bools)
-      in
-      case typeListsMatch of
-        Err s -> Err s
-        Ok False -> Ok False
-        Ok True ->
-          case maybeRestType of
-            Nothing ->
-              Ok (List.length pats == List.length typeList)
-            Just restType ->
-              if List.length pats >= List.length typeList then
-                -- Check the rest part of the tuple type against the rest of the vars in the pattern
-                List.drop (List.length typeList) pats
-                |> List.map (\p -> typeCaseMatch env bt p restType)
-                |> Utils.projOk
-                |> Result.map (\bools -> List.all ((==) True) bools)
-              else
-                -- Maybe we should make an error here
-                Ok False
-
-    (PVar _ ident _, _) ->
-      lookupVar env bt ident pat.start
-      |> Result.map (\val -> Types.valIsType val tipe)
-
-    _ -> errorWithBacktrace bt <| "unexpected pattern in typecase: " ++ (unparsePat pat) ++ "\n\nAllowed patterns are bare identifiers and [ident1 ident2 ...]"
 
 
 cons : (Pat, Val) -> Maybe Env -> Maybe Env
@@ -186,11 +151,14 @@ eval env bt e =
           Err s              -> Err s
           _                  -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " non-exhaustive case statement"
 
-  ETypeCase _ pat tbranches _ ->
-    case evalTBranches env (e::bt) pat tbranches of
-      Ok (Just (v,ws)) -> Ok <| retBoth (v, ws)
-      Err s            -> Err s
-      _                -> errorWithBacktrace (e::bt) <| strPos pat.start ++ " non-exhaustive typecase statement"
+  ETypeCase _ scrutineeExp tbranches _ ->
+    case eval_ env (e::bt) scrutineeExp of
+      Err s -> Err s
+      Ok (scrutineeVal,ws1) ->
+        case evalTBranches env (e::bt) scrutineeVal tbranches of
+          Ok (Just (v2,ws2)) -> Ok <| retBoth (v2, ws1 ++ ws2)
+          Err s              -> Err s
+          _                  -> errorWithBacktrace (e::bt) <| strPos scrutineeExp.start ++ " non-exhaustive typecase statement"
 
   EApp _ e1 [e2] _ ->
     -- Return env of the call site
@@ -229,9 +197,14 @@ eval env bt e =
 
   -- abstract syntactic sugar
 
-  EFun _ ps e1 _           -> Result.map (retAddWs e1.val.eid) <| eval env bt' (eFun ps e1)
-  EApp _ e1 [] _           -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " application with no arguments"
-  EApp _ e1 es _           -> Result.map (retAddWs e.val.eid)  <| eval env bt' (eApp e1 es)
+  EFun _ ps e1 _  -> Result.map (retAddWs e1.val.eid) <| eval env bt' (eFun ps e1)
+  EApp _ e1 [] _  -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " application with no arguments"
+  EApp _ e1 es _  -> Result.map (retAddWs e.val.eid)  <| eval env bt' (eAppExpand e1 es)
+
+  -- Sure, we could just return the val or dict but they really shouldn't be there.
+  EVal val   -> Debug.crash "Should not be evaluating an exp with an EVal"
+  EDict dict -> Debug.crash "Should not be evaluating an exp with an EDict"
+
 
 
 -- Returns augmented environment (for let/def)
@@ -330,7 +303,7 @@ evalOp env bt opWithInfo es =
             [VBase (VString s)] -> VList (List.map (vStr << String.fromChar) (String.toList s)) |> emptyVTraceOk
             _                   -> error ()
           DebugLog   -> case vs of
-            [v] -> let _ = Debug.log (strVal v) "" in Ok v
+            [v] -> let _ = Debug.log (strVal v) v in Ok v
             _   -> error ()
           ToStr      -> case vs of
             [val] -> VBase (VString (strVal val)) |> emptyVTraceOk
@@ -358,13 +331,20 @@ evalBranches env bt v bs =
 -- Returns Ok Nothing if no branch matches
 -- Returns Ok (Just results) if branch matches and no execution errors
 -- Returns Err s if execution error
-evalTBranches env bt pat tbranches =
+evalTBranches env bt val tbranches =
   List.foldl (\(TBranch_ _ tipe exp _) acc ->
-    case (acc, typeCaseMatch env bt pat tipe) of
-      (Ok (Just done), _)       -> acc
-      (Ok Nothing, Ok didMatch) -> if didMatch then eval_ env bt exp |> Result.map Just else acc
-      (Ok Nothing, Err s)       -> Err s
-      (Err s, _)                -> acc
+    case acc of
+      Ok (Just done) ->
+        acc
+
+      Ok Nothing ->
+        if Types.valIsType val tipe then
+          eval_ env bt exp |> Result.map Just
+        else
+          acc
+
+      Err s ->
+        acc
   ) (Ok Nothing) (List.map .val tbranches)
 
 
@@ -428,7 +408,7 @@ run e = eval_ initEnv [] e
 parseAndRun : String -> String
 parseAndRun = strVal << fst << Utils.fromOk_ << run << Utils.fromOkay "parseAndRun" << Parser.parseE
 
-parseAndRun_ = strVal_ True << fst << Utils.fromOk_ << run << Utils.fromOkay "parseAndRun_" << Parser.parseE
+parseAndRun_ = strValLocs << fst << Utils.fromOk_ << run << Utils.fromOkay "parseAndRun_" << Parser.parseE
 
 rangeOff l1 i l2 = TrOp (RangeOffset i) [TrLoc l1, TrLoc l2]
 

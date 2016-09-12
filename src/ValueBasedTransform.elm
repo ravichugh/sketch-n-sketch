@@ -49,7 +49,7 @@ digHole originalExp selectedFeatures slate syncOptions =
     let tracesLocsets =
       List.map ((Sync.locsOfTrace syncOptions) << valToTrace) selectedVals
     in
-    let allLocs = List.foldl Set.union Set.empty tracesLocsets in
+    let allLocs = Utils.unionAll tracesLocsets in
     let (thawed, others) =
       allLocs
       |> Set.partition (\(_, annotation, _) -> annotation == Lang.thawed)
@@ -65,7 +65,7 @@ digHole originalExp selectedFeatures slate syncOptions =
   let commonScope =
     deepestCommonScope originalExp locset syncOptions
   in
-  let existingNames = identifiersSet originalExp in
+  let existingNames = identifiersSetPlusPrelude originalExp in
   let locIdNameOrigNamePrime =
     let (_, result) =
       List.foldr
@@ -388,7 +388,7 @@ makeEqual___ originalExp locEquationA locEquationB unfrozenLocset syncOptions =
       let commonScope =
         deepestCommonScope originalExp locsetToDig syncOptions
       in
-      let existingNames = identifiersSet originalExp in
+      let existingNames = identifiersSetPlusPrelude originalExp in
       let (dependentLocset, independentLocset) =
         Set.partition (\(locId, _, _) -> locId == dependentLocId) locsetToDig
       in
@@ -533,7 +533,7 @@ variableifyConstantsAndWrapTargetExpWithLets locIdToNewName listOfListsOfNamesAn
   -- Debug only:
   let _ = debugLog "wrappedTargetExp" <| unparse wrappedTargetExp in
   let newProgram =
-    replaceExpNode targetExp wrappedTargetExp program
+    replaceExpNodeE__ targetExp wrappedTargetExp program
     |> freshen
   in
   newProgram
@@ -693,7 +693,7 @@ evaluateFeatureEquation eqn =
           Just n
 
         _ ->
-          Debug.crash <| "Found feature equation with a value other than a VConst: " ++ (toString val) ++ "\nin: " ++ (toString eqn)
+          Debug.crash <| "Found feature equation with a value other than a VConst: " ++ (strVal val) ++ "\nin: " ++ (toString eqn)
 
     EqnOp op [left, right] ->
       let maybePerformBinop op =
@@ -881,7 +881,7 @@ featureEquationToLocEquation featureEqn =
         VConst (n, TrOp op traces) ->
           LocEqnOp op (List.map traceToLocEquation traces)
 
-        _ -> Debug.crash <| "Found feature equation with a value other than a VConst: " ++ (toString val) ++ "\nin: " ++ (toString featureEqn)
+        _ -> Debug.crash <| "Found feature equation with a value other than a VConst: " ++ (strVal val) ++ "\nin: " ++ (toString featureEqn)
 
     EqnOp op featureEqns ->
       LocEqnOp op (List.map featureEquationToLocEquation featureEqns)

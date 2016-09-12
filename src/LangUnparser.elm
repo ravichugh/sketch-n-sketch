@@ -59,12 +59,14 @@ precedingWhitespaceExp__ e__ =
     EIf        ws1 e1 e2 e3 ws2         -> ws1
     ELet       ws1 kind rec p e1 e2 ws2 -> ws1
     ECase      ws1 e1 bs ws2            -> ws1
-    ETypeCase  ws1 pat bs ws2           -> ws1
+    ETypeCase  ws1 e1 bs ws2            -> ws1
     EComment   ws s e1                  -> ws
     EOption    ws1 s1 ws2 s2 e1         -> ws1
     ETyp       ws1 pat tipe e ws2       -> ws1
     EColonType ws1 e ws2 tipe ws3       -> ws1
     ETypeAlias ws1 pat tipe e ws2       -> ws1
+    EVal       _                        -> ""
+    EDict      _                        -> ""
 
 
 addPrecedingWhitespace : String -> Exp -> Exp
@@ -97,12 +99,14 @@ mapPrecedingWhitespace mapWs exp =
       EIf        ws1 e1 e2 e3 ws2         -> EIf        (mapWs ws1) e1 e2 e3 ws2
       ELet       ws1 kind rec p e1 e2 ws2 -> ELet       (mapWs ws1) kind rec p e1 e2 ws2
       ECase      ws1 e1 bs ws2            -> ECase      (mapWs ws1) e1 bs ws2
-      ETypeCase  ws1 pat bs ws2           -> ETypeCase  (mapWs ws1) pat bs ws2
+      ETypeCase  ws1 e1 bs ws2            -> ETypeCase  (mapWs ws1) e1 bs ws2
       EComment   ws s e1                  -> EComment   (mapWs ws) s e1
       EOption    ws1 s1 ws2 s2 e1         -> EOption    (mapWs ws1) s1 ws2 s2 e1
       ETyp       ws1 pat tipe e ws2       -> ETyp       (mapWs ws1) pat tipe e ws2
       EColonType ws1 e ws2 tipe ws3       -> EColonType (mapWs ws1) e ws2 tipe ws3
       ETypeAlias ws1 pat tipe e ws2       -> ETypeAlias (mapWs ws1) pat tipe e ws2
+      EVal       _                        -> exp.val.e__
+      EDict      _                        -> exp.val.e__
   in
   let val = exp.val in
   { exp | val = { val | e__ = e__' } }
@@ -152,19 +156,22 @@ indent spaces e =
             branches
       in
       wrap (ECase (processWS ws1) newE1 newBranches ws2)
-    ETypeCase ws1 pat tbranches ws2 ->
+    ETypeCase ws1 e1 tbranches ws2 ->
+      let newE1 = recurse e1 in
       let newBranches =
         List.map
             (mapValField (\(TBranch_ bws1 tipe ei bws2) -> TBranch_ bws1 tipe (recurse ei) bws2))
             tbranches
       in
-      wrap (ETypeCase (processWS ws1) pat newBranches ws2)
+      wrap (ETypeCase (processWS ws1) newE1 newBranches ws2)
     EComment ws s e1              -> wrap (EComment (processWS ws) s (recurse e1))
     EOption ws1 s1 ws2 s2 e1      -> wrap (EOption (processWS ws1) s1 ws2 s2 (recurse e1))
     ELet ws1 k b p e1 e2 ws2      -> wrap (ELet (processWS ws1) k b p (recurse e1) (recurse e2) ws2)
     ETyp ws1 pat tipe e ws2       -> wrap (ETyp (processWS ws1) pat tipe (recurse e) ws2)
     EColonType ws1 e ws2 tipe ws3 -> wrap (EColonType (processWS ws1) (recurse e) ws2 tipe ws3)
     ETypeAlias ws1 pat tipe e ws2 -> wrap (ETypeAlias (processWS ws1) pat tipe (recurse e) ws2)
+    EVal _                        -> e
+    EDict _                       -> e
 
 
 mapPrecedingWhitespacePat : (String -> String) -> Pat -> Pat
@@ -279,13 +286,13 @@ unparse e = case e.val.e__ of
         <| List.map (.val) bs
     in
     ws1 ++ "(case" ++ unparse e1 ++ branchesStr ++ ws2 ++ ")"
-  ETypeCase ws1 pat tbranches ws2 ->
+  ETypeCase ws1 e1 tbranches ws2 ->
     let tbranchesStr =
       String.concat
         <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1 ++ "(" ++ unparseType tipe ++ unparse exp ++ bws2 ++ ")")
         <| List.map (.val) tbranches
     in
-    ws1 ++ "(typecase" ++ unparsePat pat ++ tbranchesStr ++ ws2 ++ ")"
+    ws1 ++ "(typecase" ++ unparse e1 ++ tbranchesStr ++ ws2 ++ ")"
   EComment ws s e1 ->
     ws ++ ";" ++ s ++ "\n" ++ unparse e1
   EOption ws1 s1 ws2 s2 e1 ->
@@ -296,6 +303,8 @@ unparse e = case e.val.e__ of
     ws1 ++ "(" ++ (unparse e) ++ ws2 ++ ":" ++ (unparseType tipe) ++ ws3 ++ ")"
   ETypeAlias ws1 pat tipe e ws2 ->
     ws1 ++ "(def" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2 ++ ")" ++ unparse e
+  EVal val   -> strVal val    -- internal, should not appear in programs
+  EDict dict -> "<some dict>" -- internal, should not appear in programs
 
 unparseRange : Range -> String
 unparseRange r = case r.val of

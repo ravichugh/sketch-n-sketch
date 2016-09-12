@@ -3,7 +3,7 @@ module Types where
 import Lang exposing (..)
 import LangParser2 as Parser
 import OurParser2 as P
-import LangUnparser exposing (unparsePat, unparseType)
+import LangUnparser exposing (unparse, unparsePat, unparseType)
 import Utils
 import Ace
 import Config
@@ -87,7 +87,7 @@ identifiersEquivalent t1 t2 =
 
 valIsType val tipe =
   let unsupported msg =
-    Debug.crash <| "typing values against " ++ msg ++ " is not supported"
+    Debug.crash <| "typing values against " ++ msg ++ " is not supported...yet"
   in
   case (val.v_, tipe.val) of
     (VConst _, TNum _)               -> True
@@ -95,7 +95,6 @@ valIsType val tipe =
     (VBase (VString _), TString _)   -> True
     (VBase VNull, TNull _)           -> True
     (VList list, TList _ listType _) -> List.all (\v -> valIsType v listType) list
-    (_, TDict _ _ _ _)               -> unsupported "dictionary types"
     (VList vlist, TTuple _ typeList _ maybeRestType _) ->
       let typeListsMatch =
         List.foldl
@@ -112,12 +111,191 @@ valIsType val tipe =
           List.all
               (\v -> valIsType v restType)
               (List.drop (List.length typeList) vlist)
+    (_, TDict _ _ _ _)       -> unsupported "dictionary types"
     (_, TArrow _ _ _)        -> unsupported "arrow types"
     (_, TUnion _ typeList _) -> List.any (valIsType val) typeList
     (_, TNamed _ _)          -> unsupported "type aliases"
     (_, TVar _ _)            -> unsupported "type variables"
     (_, TWildcard _)         -> True
     _                        -> False
+
+
+-- Used by Brainstorm
+-- TODO: lean on type synthesis
+expIsType : Exp -> Type -> Maybe Bool
+expIsType exp tipe =
+  let unsupported msg =
+    Debug.crash <| "typing values against " ++ msg ++ " is not supported...yet"
+  in
+  case (exp.val.e__, tipe.val) of
+    (EConst _ _ _ _,        TNum _)    -> Just True
+    (EBase _ (EBool _),     TBool _)   -> Just True
+    (EBase _ (EString _ _), TString _) -> Just True
+    (EBase _ ENull,         TNull _)   -> Just True
+
+    (EList _ heads _ Nothing _, TList _ listType _) ->
+      heads |> List.map (\e -> expIsType e listType) |> Utils.projJusts |> Maybe.map (List.all ((==) True))
+
+    (EList _ heads _ (Just rest) _, TList _ listType _) ->
+      (heads |> List.map (\e -> expIsType e listType) |> Utils.projJusts |> Maybe.map (List.all ((==) True))) `Maybe.andThen` (\doHeadsMatch -> if doHeadsMatch then expIsType rest listType else Just False)
+
+    (EList _ heads _ Nothing _, TTuple _ headTypes _ maybeRestType _) ->
+      if List.length heads < List.length headTypes then
+        Just False
+      else
+        let maybeTypeListsMatch =
+          (Utils.zip heads headTypes)
+          |> Utils.foldlMaybe
+              (\(e, t) bool -> if bool then expIsType e t else Just False)
+              (Just True)
+        in
+        case (maybeTypeListsMatch, maybeRestType) of
+          (Just False, _)      -> Just False
+          (Nothing, _)         -> Nothing
+          (Just True, Nothing) ->
+            if List.length heads > List.length headTypes then
+              Just False
+            else
+              Just True
+
+          (Just True, Just restType) ->
+            (List.drop (List.length headTypes) heads)
+            |> Utils.foldlMaybe
+                (\e bool -> if bool then expIsType e restType else Just False)
+                (Just True)
+
+    (EList _ heads _ (Just rest) _, TTuple _ headTypes _ maybeRestType _) ->
+      if List.length heads < List.length headTypes then
+        Nothing -- Dunno enough about exp's rest.
+      else
+        let maybeTypeListsMatch =
+          (Utils.zip heads headTypes)
+          |> Utils.foldlMaybe
+              (\(e, t) bool -> if bool then expIsType e t else Just False)
+              (Just True)
+        in
+        case (maybeTypeListsMatch, maybeRestType) of
+          (Just False, _)      -> Just False
+          (Nothing, _)         -> Nothing
+          (Just True, Nothing) ->
+            if List.length heads > List.length headTypes then
+              Just False
+            else
+              Nothing -- Dunno if exp's rest is empty or not.
+
+          (Just True, Just restType) ->
+            (List.drop (List.length headTypes) heads)
+            |> Utils.foldlMaybe
+                (\e bool -> if bool then expIsType e restType else Just False)
+                (Just True)
+
+    (_, TDict _ _ _ _)       -> Nothing
+    (_, TArrow _ _ _)        -> Nothing
+    (_, TUnion _ typeList _) ->
+      let matchResults = List.map (expIsType exp) typeList in
+      if List.any ((==) (Just True)) matchResults then
+        Just True
+      else if List.all ((==) (Just False)) matchResults then
+        Just False
+      else
+        Nothing
+
+    (_, TNamed _ _)          -> Nothing
+    (_, TVar _ _)            -> Nothing
+    (_, TWildcard _)         -> Just True
+
+    (EBase _ _,       _) -> Just False
+    (EConst _ _ _ _,  _) -> Just False
+    (EList _ _ _ _ _, _) -> Just False
+    (EVar _ _,        _) -> Nothing
+    (EFun _ _ _ _,    _) -> Nothing
+    (EApp _ _ _ _,    _) -> Nothing
+    (EIndList _ _ _,  _) -> Nothing
+    (EOp _ op es _,   _) ->
+      -- Ops can't be partially applied in little, so this works.
+      case (op.val, tipe.val) of
+        (Pi,            TNum _) -> Just True
+        (Pi,            _)      -> Just False
+        (DictEmpty,     _)      -> Nothing
+        (Cos,           TNum _) -> Just True
+        (Cos,           _)      -> Just False
+        (Sin,           TNum _) -> Just True
+        (Sin,           _)      -> Just False
+        (ArcCos,        TNum _) -> Just True
+        (ArcCos,        _)      -> Just False
+        (ArcSin,        TNum _) -> Just True
+        (ArcSin,        _)      -> Just False
+        (Floor,         TNum _) -> Just True
+        (Floor,         _)      -> Just False
+        (Ceil,          TNum _) -> Just True
+        (Ceil,          _)      -> Just False
+        (Round,         TNum _) -> Just True
+        (Round,         _)      -> Just False
+        (Sqrt,          TNum _) -> Just True
+        (Sqrt,          _)      -> Just False
+
+        (ToStr,         TString _)           -> Just True
+        (ToStr,         _)                   -> Just False
+        (Explode,       TList _ innerType _) -> expIsType (eStr "") innerType -- Recurse to handle union types.
+        (Explode,       TTuple _ _ _ _ _)    -> Nothing
+        (Explode,       _)                   -> Just False
+        (DebugLog,      _)                   -> Nothing
+
+        (Plus,          _)       -> Nothing -- Plus can be either numeric plus or string concat.
+        (Minus,         TNum _)  -> Just True
+        (Minus,         _)       -> Just False
+        (Mult,          TNum _)  -> Just True
+        (Mult,          _)       -> Just False
+        (Div,           TNum _)  -> Just True
+        (Div,           _)       -> Just False
+        (Mod,           TNum _)  -> Just True
+        (Mod,           _)       -> Just False
+        (Pow,           TNum _)  -> Just True
+        (Pow,           _)       -> Just False
+        (ArcTan2,       TNum _)  -> Just True
+        (ArcTan2,       _)       -> Just False
+        (Lt,            TBool _) -> Just True
+        (Lt,            _)       -> Just False
+        (Eq,            TBool _) -> Just True
+        (Eq,            _)       -> Just False
+        (DictGet,       _)       -> Nothing
+        (DictRemove,    _)       -> Nothing
+        (DictInsert,    _)       -> Nothing
+        (RangeOffset _, _)       -> Just False
+
+    (EIf _ e1 e2 e3 _,         _) ->
+      case (expIsType e2 tipe, expIsType e3 tipe) of
+        (Just True, Just True)   -> Just True
+        (Just False, Just False) -> Just False
+        _                        -> Nothing
+
+    (ELet _ kind rec p e1 e2 ws2, _) -> expIsType e2 tipe
+    (ECase ws1 e1 bs ws2,            _) ->
+      let branchMaybeMatches =
+        (branchExps bs)
+        |> List.map (\e -> expIsType e tipe)
+      in
+      -- If we could resolve the matching-ness of all branches and they all agree
+      -- on whether they match the type...
+      (branchMaybeMatches |> Utils.projJusts) `Maybe.andThen` (Utils.maybeConsensus)
+
+    (ETypeCase ws1 e1 bs ws2,            _) ->
+      let tbranchMaybeMatches =
+        (tbranchExps bs)
+        |> List.map (\e -> expIsType e tipe)
+      in
+      -- If we could resolve the matching-ness of all branches and they all agree
+      -- on whether they match the type...
+      (tbranchMaybeMatches |> Utils.projJusts) `Maybe.andThen` (Utils.maybeConsensus)
+
+    (EComment _ _ e1,       _) -> expIsType e1 tipe
+    (EOption _ _ _ _ e1,    _) -> expIsType e1 tipe
+    (ETyp _ _ _ e1 _,       _) -> expIsType e1 tipe
+    (EColonType _ e1 _ _ _, _) -> expIsType e1 tipe -- Don't trust type annotation.
+    (ETypeAlias _ _ _ e1 _, _) -> expIsType e1 tipe
+
+    (EVal val,              _) -> Just (valIsType val tipe)
+    (EDict _,               _) -> Nothing
 
 
 ------------------------------------------------------------------------------
@@ -205,6 +383,29 @@ strRawConstraint (t1,t2) =
 strConstraint : Constraint -> String
 strConstraint (i,rawConstraint) =
   Utils.spaces [Utils.bracks (toString i), strRawConstraint rawConstraint]
+
+
+-- Stop-gap support for ETypeCase --------------------------------------------
+
+expToPat : Exp -> Maybe Pat
+expToPat exp =
+  Maybe.map (\pat_ -> { exp | val = pat_ }) <|
+  case exp.val.e__ of
+    EVar ws1 ident                    -> Just <| PVar ws1 ident noWidgetDecl
+    EConst ws1 num _ _                -> Just <| PConst ws1 num
+    EBase ws1 bVal                    -> Just <| PBase ws1 bVal
+    EList ws1 heads ws2 maybeRest ws3 ->
+      (heads |> List.map expToPat |> Utils.projJusts)
+      `Maybe.andThen`
+          (\headPats ->
+            case maybeRest of
+              Nothing   -> Just <| PList ws1 headPats ws2 Nothing ws3
+              Just rest ->
+                expToPat rest
+                |> Maybe.map (\restPat -> PList ws1 headPats ws2 (Just restPat) ws3)
+          )
+
+    _ -> Nothing
 
 -- Primitive Types -----------------------------------------------------------
 
@@ -624,41 +825,47 @@ checkType typeInfo typeEnv e goalType =
               { result = False
               , typeInfo = addTypeErrorAt e.start err result_branches.typeInfo }
 
-    ETypeCase _ p tbranches _ -> -- [TC-Typecase]
-      case lookupPat typeEnv p of
+    ETypeCase _ e0 tbranches _ -> -- [TC-Typecase]
+      case expToPat e0 of
         Nothing ->
-          let err = "no type for the pattern: " ++ unparsePat p in
-          { result = False, typeInfo = addTypeErrorAt p.start err typeInfo }
+          let err = "could not convert scrutinee to a pattern: " ++ unparse e0 in
+          { result = False, typeInfo = addTypeErrorAt e0.start err typeInfo }
 
-        Just tp ->
-          case tp.val of
-            TUnion _ union _ ->
-              let (unionResidual, result_branches) =
-                 List.foldl (\te (acc1, acc2) ->
-                   let (TBranch_ _ ti ei _) = te.val in
-                   case narrowUnionType p acc1 ti typeEnv of
-                     Err err ->
-                       let acc2' = { result = False
-                                   , typeInfo = addTypeErrorAt p.start err acc2.typeInfo } in
-                       (acc1, acc2')
-                     Ok (acc1', typeEnvi) ->
-                       let resulti = checkType acc2.typeInfo typeEnvi ei goalType in
-                       let acc2' = { result = resulti.result && acc2.result
-                                   , typeInfo = resulti.typeInfo } in
-                       (acc1', acc2')
-                 ) (union, { result = True, typeInfo = typeInfo }) tbranches
-              in
-              -- TODO could check unionResidual for exhaustiveness
-              case result_branches.result of
-                True -> result_branches
-                False ->
-                  let err = "couldn't check all branches" in
-                  { result = False
-                  , typeInfo = addTypeErrorAt e.start err result_branches.typeInfo }
-
-            _ ->
-              let err = "pattern is not a union type: " ++ unparseType tp in
+        Just p ->
+          case lookupPat typeEnv p of
+            Nothing ->
+              let err = "no type for the scrutinee: " ++ unparsePat p in
               { result = False, typeInfo = addTypeErrorAt p.start err typeInfo }
+
+            Just tp ->
+              case tp.val of
+                TUnion _ union _ ->
+                  let (unionResidual, result_branches) =
+                     List.foldl (\te (acc1, acc2) ->
+                       let (TBranch_ _ ti ei _) = te.val in
+                       case narrowUnionType p acc1 ti typeEnv of
+                         Err err ->
+                           let acc2' = { result = False
+                                       , typeInfo = addTypeErrorAt p.start err acc2.typeInfo } in
+                           (acc1, acc2')
+                         Ok (acc1', typeEnvi) ->
+                           let resulti = checkType acc2.typeInfo typeEnvi ei goalType in
+                           let acc2' = { result = resulti.result && acc2.result
+                                       , typeInfo = resulti.typeInfo } in
+                           (acc1', acc2')
+                     ) (union, { result = True, typeInfo = typeInfo }) tbranches
+                  in
+                  -- TODO could check unionResidual for exhaustiveness
+                  case result_branches.result of
+                    True -> result_branches
+                    False ->
+                      let err = "couldn't check all branches" in
+                      { result = False
+                      , typeInfo = addTypeErrorAt e.start err result_branches.typeInfo }
+
+                _ ->
+                  let err = "scrutinee is not a union type: " ++ unparseType tp in
+                  { result = False, typeInfo = addTypeErrorAt p.start err typeInfo }
 
     -- TODO [TC-Let]
 
@@ -875,42 +1082,48 @@ synthesizeType typeInfo typeEnv e =
                     Err err -> finish.withError err result2.typeInfo
                     Ok t    -> finish.withType t result2.typeInfo
 
-    ETypeCase _ p tbranches _ -> -- [TS-Typecase]
-      case lookupPat typeEnv p of
+    ETypeCase _ e0 tbranches _ -> -- [TS-Typecase]
+      case expToPat e0 of
         Nothing ->
-          let err = "no type for the pattern: " ++ unparsePat p in
-          { result = Nothing, typeInfo = addTypeErrorAt p.start err typeInfo }
+          let err = "could not convert scrutinee to a pattern: " ++ unparse e0 in
+          { result = Nothing, typeInfo = addTypeErrorAt e0.start err typeInfo }
 
-        Just tp ->
-          case tp.val of
-            TUnion _ union _ ->
-              let (_, maybeThings) =
-                 List.foldl (\te (acc1, acc2) ->
-                   let (TBranch_ _ ti ei _) = te.val in
-                   case (acc2, narrowUnionType p acc1 ti typeEnv) of
-                     (Ok things, Ok (acc1', typeEnvi)) -> (acc1', Ok ((typeEnvi,ei) :: things))
-                     (Err err, _)                      -> (acc1, Err err)
-                     (_, Err err)                      -> (acc1, Err err)
-                 ) (union, (Ok [])) tbranches
-              in
-              case maybeThings of
-                Err err ->
-                  let err' = Utils.spaces [ "ETypeCase: could not typecheck all patterns", err ] in
-                  finish.withError err' typeInfo
-                Ok things ->
-                  let result2 = synthesizeBranchTypes typeInfo things in
-                  case Utils.projJusts result2.result of
-                    Nothing ->
-                      let err = "ETypeCase: could not typecheck all branches" in
-                      finish.withError err result2.typeInfo
-                    Just ts ->
-                      case joinManyTypes ts of
-                        Err err -> finish.withError err result2.typeInfo
-                        Ok t    -> finish.withType t result2.typeInfo
-
-            _ ->
-              let err = "pattern is not a union type: " ++ unparseType tp in
+        Just p ->
+          case lookupPat typeEnv p of
+            Nothing ->
+              let err = "no type for the scrutinee: " ++ unparsePat p in
               { result = Nothing, typeInfo = addTypeErrorAt p.start err typeInfo }
+
+            Just tp ->
+              case tp.val of
+                TUnion _ union _ ->
+                  let (_, maybeThings) =
+                     List.foldl (\te (acc1, acc2) ->
+                       let (TBranch_ _ ti ei _) = te.val in
+                       case (acc2, narrowUnionType p acc1 ti typeEnv) of
+                         (Ok things, Ok (acc1', typeEnvi)) -> (acc1', Ok ((typeEnvi,ei) :: things))
+                         (Err err, _)                      -> (acc1, Err err)
+                         (_, Err err)                      -> (acc1, Err err)
+                     ) (union, (Ok [])) tbranches
+                  in
+                  case maybeThings of
+                    Err err ->
+                      let err' = Utils.spaces [ "ETypeCase: could not typecheck all patterns", err ] in
+                      finish.withError err' typeInfo
+                    Ok things ->
+                      let result2 = synthesizeBranchTypes typeInfo things in
+                      case Utils.projJusts result2.result of
+                        Nothing ->
+                          let err = "ETypeCase: could not typecheck all branches" in
+                          finish.withError err result2.typeInfo
+                        Just ts ->
+                          case joinManyTypes ts of
+                            Err err -> finish.withError err result2.typeInfo
+                            Ok t    -> finish.withType t result2.typeInfo
+
+                _ ->
+                  let err = "pattern is not a union type: " ++ unparseType tp in
+                  { result = Nothing, typeInfo = addTypeErrorAt p.start err typeInfo }
 
     ELet ws1 letKind rec p e1 e2 ws2 ->
       case (p.val, lookupTypAnnotation typeEnv p, rec, e1.val.e__) of
@@ -988,6 +1201,12 @@ synthesizeType typeInfo typeEnv e =
       -- TODO check well-formedness
       let typeEnv' = TypeAlias p t :: typeEnv in
       propagateResult <| synthesizeType typeInfo typeEnv' e1
+
+    EVal _ ->
+      Debug.crash "Should not be type-checking an exp with an EVal"
+
+    EDict _ ->
+      Debug.crash "Should not be type-checking an exp with an EDict"
 
 -- TODO need to instantiateTypes of arguments, as in tsAppPoly
 tsAppMono finish typeInfo typeEnv eArgs (argTypes, retType) =
@@ -1663,10 +1882,14 @@ rewriteArrow unifier (argTypes, retType) =
 
 typecheck : Exp -> AceTypeInfo
 typecheck e =
-  let _ = debugLog "TYPE CHECKING" "..." in
-  let result = synthesizeType initTypeInfo preludeTypeEnv e in
-  let _ = displayTypeInfo result.typeInfo in
-  aceTypeInfo result.typeInfo
+  { annotations = []
+  , highlights  = []
+  , tooltips    = []
+  }
+  -- let _ = debugLog "TYPE CHECKING" "..." in
+  -- let result = synthesizeType initTypeInfo preludeTypeEnv e in
+  -- let _ = displayTypeInfo result.typeInfo in
+  -- aceTypeInfo result.typeInfo
 
 initTypeInfo : TypeInfo
 initTypeInfo =
@@ -1683,12 +1906,13 @@ initTypeInfo =
 
 preludeTypeEnv : TypeEnv
 preludeTypeEnv =
-  let {typeInfo} = synthesizeType initTypeInfo [] Parser.prelude in
-  case typeInfo.preludeTypeEnv of
-    Just env -> env
-    Nothing ->
-      Debug.log "ERROR with preludeTypeEnv: \
-                 dummyPreludeMain not found in prelude.little" []
+  []
+  -- let {typeInfo} = synthesizeType initTypeInfo [] Parser.prelude in
+  -- case typeInfo.preludeTypeEnv of
+  --   Just env -> env
+  --   Nothing ->
+  --     Debug.log "ERROR with preludeTypeEnv: \
+  --                dummyPreludeMain not found in prelude.little" []
 
 displayTypeInfo : TypeInfo -> ()
 displayTypeInfo typeInfo =

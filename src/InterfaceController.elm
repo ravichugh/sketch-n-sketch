@@ -1661,6 +1661,13 @@ mergeExpressions eFirst eRest =
       let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
       Nothing
 
+    EVal _ ->
+      Debug.crash "mergeExpressions: shouldn't encounter EVal but did"
+
+    EDict _ ->
+      Debug.crash "mergeExpressions: shouldn't encounter EDict but did"
+
+
 matchAllAndBind : (a -> Maybe b) -> List a -> (List b -> Maybe c) -> Maybe c
 matchAllAndBind f xs g = Utils.bindMaybe g (Utils.projJusts (List.map f xs))
 
@@ -1996,14 +2003,24 @@ onMouseUp old =
             { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
                    , history = addToHistory old.code old'.history }
       in
-      let ideas = Brainstorm.possibleRelationsWith newModel.inputExp newModel.slate id zone in
-      let maybeZoneToRelate =
-        -- Is relating supported on this zone?
-        case Brainstorm.shapeZoneToFunctionName kind zone of
-          Just _  -> Just (id, zone)
-          Nothing -> Nothing
+      let movieFrameValRes =
+        LangSvg.fetchEverything_ newModel.slideNumber newModel.movieNumber newModel.movieTime newModel.inputVal
+        |> Result.map (\(_, _, _, _, movieFrameVal) -> movieFrameVal)
       in
-      { newModel | ideas = ideas, maybeZoneToRelate = maybeZoneToRelate }
+      case movieFrameValRes of
+        Err s ->
+          let _ = Debug.log (s ++ " " ++ (strVal newModel.inputVal)) () in
+          newModel
+
+        Ok outputVal ->
+          let ideas = Brainstorm.possibleRelationsWith newModel.inputExp outputVal id zone in
+          let maybeZoneToRelate =
+            -- Is relating supported on this zone?
+            case Brainstorm.shapeZoneToFunctionName kind zone of
+              Just _  -> Just (id, zone)
+              Nothing -> Nothing
+          in
+          { newModel | ideas = ideas, maybeZoneToRelate = maybeZoneToRelate }
 
     (_, MouseSlider _ (Just _)) ->
       let e = Utils.fromOkay "onMouseUp" <| parseE old.code in
@@ -2229,9 +2246,19 @@ upstate evt old =
       case model.caption of
         Just (LangError _) -> model
         _ ->
-          let _ = debugLog (strVal model.inputVal) () in
-          let ideas = debugLog "ideas" <| Brainstorm.brainstorm model.ideas model.inputExp model.slate in
-          { model | ideas = ideas }
+          let movieFrameValRes =
+            LangSvg.fetchEverything_ model.slideNumber model.movieNumber model.movieTime model.inputVal
+            |> Result.map (\(_, _, _, _, movieFrameVal) -> movieFrameVal)
+          in
+          case movieFrameValRes of
+            Err s ->
+              let _ = Debug.log (s ++ " " ++ (strVal model.inputVal)) () in
+              model
+
+            Ok outputVal ->
+              let _ = debugLog (strVal outputVal) () in
+              let ideas = debugLog "ideas" <| Brainstorm.brainstorm model.ideas model.inputExp outputVal in
+              { model | ideas = ideas }
 
     RelateAttrs ->
       let selectedVals =
@@ -2261,7 +2288,6 @@ upstate evt old =
                 old.slideNumber
                 old.movieNumber
                 old.movieTime
-                old.syncOptions
           in
           -- Clean code will take care of running the new code and updating the model
           upstate CleanCode <|

@@ -215,7 +215,7 @@ locsOfTrace opts =
       else if b == frozen                   then Set.empty
       else if b == unann && frozenByDefault then Set.empty
       else                                       Set.singleton l
-    TrOp _ ts -> List.foldl Set.union Set.empty (List.map foo ts)
+    TrOp _ ts -> Utils.unionAll (List.map foo ts)
   in
   -- TODO do this filtering later if want gray highlights
   --   even when not feeling lucky
@@ -549,7 +549,7 @@ inferStructuralUpdates eOld v v' =
       List.map (\(i,_) ->
         let n = toFloat i in
         ePair (eConst n dummyLoc) (eNewShape i)) diff in
-      eApp (eVar "updateCanvas") [eOldShapes, eList es Nothing] in
+      eAppNewline (eVar "updateCanvas") [eOldShapes, eList es Nothing] in
 
   let bindings =
     List.map (\(i,vi) ->
