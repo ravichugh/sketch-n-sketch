@@ -264,6 +264,7 @@ computeSelectedBlobsAndBounds model =
   let tree = snd model.slate in
   Dict.map
      (\blobId nodeId ->
+       undoGroupPadding <|
        case Dict.get nodeId tree of
 
          -- refactor the following cases for readability
@@ -306,6 +307,21 @@ computeSelectedBlobsAndBounds model =
          _ -> Debug.crash "computeSelectedBlobsAndBounds"
      )
      model.selectedBlobs
+
+undoGroupPadding (left, top, right, bot) =
+  let clean (n,t) =
+    case t of
+      -- TODO: remove this reliance on the group function in prelude.little.
+      -- for example, by drawing zones for 'g' nodes that have 'BOUNDS'
+      -- attributes, with extra padding as needed
+      TrOp Minus [t1, TrLoc (_,_,"nGroupPad")] -> (n + 20, t1)
+      TrOp Plus  [t1, TrLoc (_,_,"nGroupPad")] -> (n - 20, t1)
+      TrOp Minus [t1, TrLoc (_,_,"nPolyPathPad")] -> (n + 10, t1)
+      TrOp Plus  [t1, TrLoc (_,_,"nPolyPathPad")] -> (n - 10, t1)
+
+      _ -> (n, t)
+  in
+  (clean left, clean top, clean right, clean bot)
 
 rewriteBoundingBoxesOfSelectedBlobs model selectedBlobsAndBounds =
   let selectedBlobIndices = Dict.keys model.selectedBlobs in

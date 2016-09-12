@@ -1302,7 +1302,15 @@ prelude =
 ))))
 
 (typ group (-> Bounds (List SVG) SVG))
-(def group (groupWithPad 15))
+(def group (groupWithPad (let nGroupPad 20 nGroupPad)))
+
+  ; NOTE:
+  ;   keep the names nGroupPad and nPolyPathPad (and values)
+  ;   in sync with ExpressionBasedTransform.elm
+
+  ; (def group (groupWithPad 15))
+
+(def polyPathGroup (groupWithPad (let nPolyPathPad 10 nPolyPathPad)))
 
 ; TODO make one pass over pts
 (typ boundsOfPoints (-> (List Point) Bounds))
@@ -1427,7 +1435,8 @@ prelude =
   (let [left top right bot] bounds
   (let [xScale yScale] [(scaleBetween left right) (scaleBetween top bot)]
   (let pts (map (\\[xPct yPct] [ (xScale xPct) (yScale yPct) ]) percentages)
-  (group bounds [(polygon fill stroke strokeWidth pts)])
+  ; (group bounds [(polygon fill stroke strokeWidth pts)])
+  (polyPathGroup bounds [(polygon fill stroke strokeWidth pts)])
 )))))
 
 ; TODO no longer used...
@@ -1484,7 +1493,8 @@ prelude =
                  (dot (xScale x)  (yScale y))]
                 (pointsOf rest)))
       (_ 'ERROR')))
-  (group bounds
+  ; (group bounds
+  (polyPathGroup bounds
     (cons
       (path fill stroke w (toPath d))
       []))
