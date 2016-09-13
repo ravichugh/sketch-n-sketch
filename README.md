@@ -237,11 +237,11 @@ where
                    |   [n n]               -- color number and transparency
                    |   [n n n n]           -- RGBA
 
-  pointsValue     ::=  [[nx_1 ny_1] ... ]           -- list of points
+  pointsValue     ::=  [[nx_1 ny_1] ... ]       -- list of points
 
-  pathValue       ::=  pcmd_1 ++ ... ++ pcmd_n      -- list of path commands
+  pathValue       ::=  pcmd_1 ++ ... ++ pcmd_n  -- list of path commands
 
-  transformValue  ::=  [ tcmd_1 ++ ... ++ tcmd_n ]  -- list of transform commands
+  transformValue  ::=  [ tcmd_1 ... tcmd_n ]    -- list of transform commands
 
   pcmd            ::=  [ 'Z' ]                      -- close path
                    |   [ 'M' n1 n2 n3 ]             -- move-to
@@ -252,7 +252,7 @@ where
                    |   [ 'V' n1 ]
                    |   [ 'T' n1 n2 n3 ]
                    |   [ 'S' n1 n2 n3 n4 ]
-                   |   [ 'A' n1 n2 n3 n4 n5 n6 ny ]
+                   |   [ 'A' n1 n2 n3 n4 n5 n6 n7 ]
 
   tcmd            ::=  [ 'rotate' nAngle nx ny ]
                    |   [ 'scale' n1 n2 ]
