@@ -346,8 +346,8 @@ window.initializers.push(function (elmRuntime) {
           }
       );
     }
-    window.setTimeout(tryParseRunFunc, 150)
+    window.setTimeout(tryParseRunFunc, 500)
   }
-  window.setTimeout(tryParseRunFunc, 150)
+  window.setTimeout(tryParseRunFunc, 500)
 
 });
