@@ -1,0 +1,38 @@
+
+(def mug (\(outer_color strokeWidth3280 color strokeWidth3239 strokeColor strokeWidth3142 x0 y0 [left top right bot])
+  (def bounds [left top right bot])
+  (def rFrac 0.2!)
+  (def [outer_right outer_left] [ (scaleBetween left right 1)(scaleBetween left right 0.3575757575757576)])
+  (def outer_x_radius (/ (- outer_right outer_left) 2!))
+  (def [rect3_top outer_bot outer_top] [ (scaleBetween top bot 0.3620689655172414) (scaleBetween top bot 0.9224137931034483) (scaleBetween top bot 0.4396551724137931)])
+  (def outer_ellipseRY (/ (- outer_bot outer_top) 2!))
+
+  (def outer
+    (let bounds [outer_left outer_top outer_right outer_bot]
+    (let [ strokeColor strokeWidth] [ 'black' strokeWidth3280]
+      [ (oval outer_color strokeColor strokeWidth bounds) ])))
+
+  (def inner
+    (let [left top right bot] [(+ outer_left (* rFrac outer_x_radius)) (+ outer_top (* rFrac outer_ellipseRY)) (- outer_right (* rFrac outer_x_radius)) (- outer_bot (* rFrac outer_ellipseRY))]
+    (let bounds [left top right bot]
+    (let [color strokeColor strokeWidth] [color 'black' strokeWidth3239]
+      [ (oval color strokeColor strokeWidth bounds) ]))))
+
+  (def rect3
+    (let [left right bot] [(scaleBetween left right 0) (+ (+ outer_left (* 0.1! (- outer_right outer_left))) (* 0.5! (- (- outer_right (* 0.1! (- outer_right outer_left))) (+ outer_left (* 0.1! (- outer_right outer_left)))))) (* 2! (- (+ (+ outer_top (* 0.1! (- outer_bot outer_top))) (* 0.5! (- (- outer_bot (* 0.1! (- outer_bot outer_top))) (+ outer_top (* 0.1! (- outer_bot outer_top)))))) (* 0.5! rect3_top)))]
+    (let bounds [left rect3_top right bot]
+      [ (rectangle outer_color 'black' 0 0 bounds) ])))
+
+  (def steam (\(left top right bot)
+    (let bounds [left top right bot]
+    (let [strokeColor strokeWidth color] [strokeColor strokeWidth3142 'white']
+    (let dPcts ['M' x0 y0 'C' 0 0.4925373134328358? 0.8076923076923077? 0.6119402985074627? 0.4230769230769231? 1 'C' 1 0.7313432835820896? 0.4230769230769231? 0.6417910447761194? x0 y0]
+      [ (stretchyPath bounds color strokeColor strokeWidth dPcts) ])))))
+
+  [ (group bounds (concat [ outer inner rect3 (steam(scaleBetween left right 0.012121212121212121) (scaleBetween top bot 0.02586206896551724) (scaleBetween left right 0.1696969696969697) (scaleBetween top bot 0.3146551724137931)) (steam(scaleBetween left right 0.2606060606060606) (scaleBetween top bot 0) (scaleBetween left right 0.41818181818181815) (scaleBetween top bot 0.28879310344827586)) (steam(scaleBetween left right 0.5212121212121212) (scaleBetween top bot 0.02586206896551724) (scaleBetween left right 0.6787878787878788) (scaleBetween top bot 0.3146551724137931)) ])) ]))
+
+(blobs [
+  (withBounds [27 27 192 259] (mug 164 0 481 0 102 5 0.8846153846153846? 0))
+  (withBounds [299 214 406 322] (mug 164 0 481 0 102 5 0.8846153846153846? 0))
+  (withBounds [143 380 193 442] (mug 164 0 481 0 102 5 0.8846153846153846? 0))
+])

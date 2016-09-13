@@ -1,0 +1,63 @@
+
+; Try deleting the five helper circles from the main expression.
+
+(def [polygon6_top polygon5_left polygon6_right] [69 92 296])
+(def helper_r 27.5)
+(def polygon7_bot (+ (+ (* 0.5! (+ polygon6_top polygon6_top)) (* 0.5! (- (* 0.5! (+ polygon6_right polygon6_right)) (* 0.5! (+ polygon5_left polygon5_left))))) (* 0.5! (- (* 0.5! (+ polygon6_right polygon6_right)) (* 0.5! (+ polygon5_left polygon5_left))))))
+(def k3105 (/ (- (+ (- polygon6_right helper_r) (* 0.5! (+ (+ (- polygon6_right helper_r) (* 2! helper_r)) (- helper_r polygon6_right)))) (+ (+ (- polygon5_left helper_r) (* 0.5! (+ (+ (- polygon5_left helper_r) (* 2! helper_r)) (- helper_r polygon5_left)))) (* 0.5! (+ (+ (- polygon5_left helper_r) (* 2! helper_r)) (- helper_r polygon5_left))))) (- polygon6_right (+ (+ (- polygon5_left helper_r) (* 0.5! (+ (+ (- polygon5_left helper_r) (* 2! helper_r)) (- helper_r polygon5_left)))) (* 0.5! (+ (+ (- polygon5_left helper_r) (* 2! helper_r)) (- helper_r polygon5_left)))))))
+(def polygon7_top (- (* 0.5! (+ (- polygon7_bot helper_r) (- polygon6_top (+ (- 0! (+ helper_r helper_r)) (* 0.5! (+ (+ (- 0! (+ helper_r helper_r)) (* 2! helper_r)) (+ helper_r helper_r))))))) (+ (- 0! (+ helper_r helper_r)) (* 0.5! (+ (+ (- 0! (+ helper_r helper_r)) (* 2! helper_r)) (+ helper_r helper_r))))))
+(def [polygon5_right k3038] [(- (* 0.5! (+ (+ (+ (- polygon5_left helper_r) (* 0.5! (+ (+ (- polygon5_left helper_r) (* 2! helper_r)) (- helper_r polygon5_left)))) helper_r) (- polygon6_right helper_r))) helper_r) (- (+ (- polygon5_left helper_r) (* 0.5! (+ (+ (- polygon5_left helper_r) (* 2! helper_r)) (- helper_r polygon5_left)))) helper_r)])
+(def k3061 (/ (- (+ polygon5_right helper_r) (+ (+ k3038 helper_r) helper_r)) (- (- polygon6_right helper_r) (+ (+ k3038 helper_r) helper_r))))
+(def polygon6_bot (- (+ (- polygon7_bot helper_r) (* 0.5! (+ (+ (- polygon7_bot helper_r) (* 2! helper_r)) (- helper_r polygon7_bot)))) helper_r))
+(def k3063 (/ (- (+ polygon6_bot helper_r) polygon7_top) (- polygon7_bot polygon7_top)))
+(def k3034 (- polygon6_right helper_r))
+(def polygon5_top (- polygon6_top (+ (- 0! (+ helper_r helper_r)) (* 0.5! (+ (+ (- 0! (+ helper_r helper_r)) (* 2! helper_r)) (+ helper_r helper_r))))))
+(def k3103 (/ (- (+ (- polygon5_top (+ helper_r helper_r)) (* 0.5! (+ (+ (- polygon5_top (+ helper_r helper_r)) (* 2! helper_r)) (- (+ helper_r helper_r) polygon5_top)))) polygon6_top) (- polygon6_bot polygon6_top)))
+(def [k3041 polygon5_bot] [(- polygon7_top (+ helper_r helper_r)) (- polygon7_bot helper_r)])
+(def k3134 (/ (- (+ k3041 helper_r) polygon5_top) (- polygon5_bot polygon5_top)))
+(def k3045 (- polygon5_top (+ helper_r helper_r)))
+(def k3046 (- polygon5_left helper_r))
+(def k3141 (/ (- (+ k3038 helper_r) polygon5_left) (- polygon5_right polygon5_left)))
+
+(def helper (\(left top)
+  (let [left top] [left top]
+  (let bounds [left top (+ left (* 2! helper_r)) (+ top (* 2! helper_r))]
+  (let [color strokeColor strokeWidth] [394 'black' 0]
+    [ (oval color strokeColor strokeWidth bounds) ])))))
+
+(def polygon5
+  (let bounds [polygon5_left polygon5_top polygon5_right polygon5_bot]
+  (let [color strokeColor strokeWidth] [261 'black' 2]
+  (let pcts [[k3141 1] [0 0] [1 k3134]]
+    [ (stretchyPolygon bounds color strokeColor strokeWidth pcts) ]))))
+
+(def polygon6
+  (let left (+ (+ (- polygon5_left helper_r) (* 0.5! (+ (+ (- polygon5_left helper_r) (* 2! helper_r)) (- helper_r polygon5_left)))) (* 0.5! (+ (+ (- polygon5_left helper_r) (* 2! helper_r)) (- helper_r polygon5_left))))
+  (let bounds [left polygon6_top polygon6_right polygon6_bot]
+  (let [color strokeColor strokeWidth] [132 'black' 2]
+  (let pcts [[0 k3103] [k3105 0] [1 1]]
+    [ (stretchyPolygon bounds color strokeColor strokeWidth pcts) ])))))
+
+(def polygon7
+  (let [left right] [(+ (+ k3038 helper_r) helper_r) (- polygon6_right helper_r)]
+  (let bounds [left polygon7_top right polygon7_bot]
+  (let [color strokeColor strokeWidth] [334 'black' 2]
+  (let pcts [[0 1] [1 k3063] [k3061 0]]
+    [ (stretchyPolygon bounds color strokeColor strokeWidth pcts) ])))))
+
+(def circle8
+  (let [left top r] [(* 0.5! (+ polygon5_left polygon5_left)) (* 0.5! (+ polygon6_top polygon6_top)) (* 0.5! (- (* 0.5! (+ polygon6_right polygon6_right)) (* 0.5! (+ polygon5_left polygon5_left))))]
+  (let bounds [left top (+ left (* 2! r)) (+ top (* 2! r))]
+  (let [color strokeColor strokeWidth] [405 'black' 0]
+    [ (oval color strokeColor strokeWidth bounds) ]))))
+
+(blobs [
+  (helper k3046 k3045)
+  (helper polygon5_right k3041)
+  (helper k3038 polygon5_bot)
+  (helper k3034 polygon6_bot)
+  polygon5
+  polygon6
+  polygon7
+  circle8
+])

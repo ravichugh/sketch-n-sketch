@@ -125,12 +125,22 @@ LITTLE_TO_ELM blank
 LITTLE_TO_ELM horrorFilms0
 LITTLE_TO_ELM cyclingAssociation0
 LITTLE_TO_ELM snsLogoWheel
+LITTLE_TO_ELM sns_UIST
+LITTLE_TO_ELM sns_revisited_UIST
+LITTLE_TO_ELM botanic_UIST
+LITTLE_TO_ELM coffee_UIST
 
 examples =
   [ makeExample "BLANK" blank
   , makeExample scratchName scratch
   -- [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
+
+  , makeExample "SnS Logo (UIST)" sns_UIST
+  , makeExample "SnS Logo Revisited (UIST)" sns_revisited_UIST
+  , makeExample "Botanic Garden Logo (UIST)" botanic_UIST
+  , makeExample "Coffee Mugs (UIST)" coffee_UIST
+
   , makeExample "Wave Boxes" sineWaveOfBoxes
   , makeExample "Wave Boxes Grid" sineWaveGrid
 

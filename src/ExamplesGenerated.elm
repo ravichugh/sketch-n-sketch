@@ -4046,12 +4046,191 @@ snsLogoWheel =
 
 "
 
+sns_UIST =
+ "
+(def newGroup4 (\\(line2_width line2_color color [left top right bot])
+  (def bounds [left top right bot])
+
+  (def rect1
+    (let bounds [left top right bot]
+      [ (rectangle color 'black' '0' 0 bounds) ]))
+
+  (def line2
+      [ (line line2_color line2_width left top right bot) ])
+
+  (def line3
+    (let [ x2 y2] [ (* 0.5! (+ left right)) (* 0.5! (+ top bot))]
+      [ (line line2_color line2_width left bot x2 y2) ]))
+
+  [ (group bounds (concat [ rect1 line2 line3 ])) ]))
+
+(blobs [
+  (withBounds [31 100 216 269] (newGroup4 5 202 60))
+])
+
+"
+
+sns_revisited_UIST =
+ "
+; Try deleting the five helper circles from the main expression.
+
+(def [polygon6_top polygon5_left polygon6_right] [69 92 296])
+(def helper_r 27.5)
+(def polygon7_bot (+ (+ (* 0.5! (+ polygon6_top polygon6_top)) (* 0.5! (- (* 0.5! (+ polygon6_right polygon6_right)) (* 0.5! (+ polygon5_left polygon5_left))))) (* 0.5! (- (* 0.5! (+ polygon6_right polygon6_right)) (* 0.5! (+ polygon5_left polygon5_left))))))
+(def k3105 (/ (- (+ (- polygon6_right helper_r) (* 0.5! (+ (+ (- polygon6_right helper_r) (* 2! helper_r)) (- helper_r polygon6_right)))) (+ (+ (- polygon5_left helper_r) (* 0.5! (+ (+ (- polygon5_left helper_r) (* 2! helper_r)) (- helper_r polygon5_left)))) (* 0.5! (+ (+ (- polygon5_left helper_r) (* 2! helper_r)) (- helper_r polygon5_left))))) (- polygon6_right (+ (+ (- polygon5_left helper_r) (* 0.5! (+ (+ (- polygon5_left helper_r) (* 2! helper_r)) (- helper_r polygon5_left)))) (* 0.5! (+ (+ (- polygon5_left helper_r) (* 2! helper_r)) (- helper_r polygon5_left)))))))
+(def polygon7_top (- (* 0.5! (+ (- polygon7_bot helper_r) (- polygon6_top (+ (- 0! (+ helper_r helper_r)) (* 0.5! (+ (+ (- 0! (+ helper_r helper_r)) (* 2! helper_r)) (+ helper_r helper_r))))))) (+ (- 0! (+ helper_r helper_r)) (* 0.5! (+ (+ (- 0! (+ helper_r helper_r)) (* 2! helper_r)) (+ helper_r helper_r))))))
+(def [polygon5_right k3038] [(- (* 0.5! (+ (+ (+ (- polygon5_left helper_r) (* 0.5! (+ (+ (- polygon5_left helper_r) (* 2! helper_r)) (- helper_r polygon5_left)))) helper_r) (- polygon6_right helper_r))) helper_r) (- (+ (- polygon5_left helper_r) (* 0.5! (+ (+ (- polygon5_left helper_r) (* 2! helper_r)) (- helper_r polygon5_left)))) helper_r)])
+(def k3061 (/ (- (+ polygon5_right helper_r) (+ (+ k3038 helper_r) helper_r)) (- (- polygon6_right helper_r) (+ (+ k3038 helper_r) helper_r))))
+(def polygon6_bot (- (+ (- polygon7_bot helper_r) (* 0.5! (+ (+ (- polygon7_bot helper_r) (* 2! helper_r)) (- helper_r polygon7_bot)))) helper_r))
+(def k3063 (/ (- (+ polygon6_bot helper_r) polygon7_top) (- polygon7_bot polygon7_top)))
+(def k3034 (- polygon6_right helper_r))
+(def polygon5_top (- polygon6_top (+ (- 0! (+ helper_r helper_r)) (* 0.5! (+ (+ (- 0! (+ helper_r helper_r)) (* 2! helper_r)) (+ helper_r helper_r))))))
+(def k3103 (/ (- (+ (- polygon5_top (+ helper_r helper_r)) (* 0.5! (+ (+ (- polygon5_top (+ helper_r helper_r)) (* 2! helper_r)) (- (+ helper_r helper_r) polygon5_top)))) polygon6_top) (- polygon6_bot polygon6_top)))
+(def [k3041 polygon5_bot] [(- polygon7_top (+ helper_r helper_r)) (- polygon7_bot helper_r)])
+(def k3134 (/ (- (+ k3041 helper_r) polygon5_top) (- polygon5_bot polygon5_top)))
+(def k3045 (- polygon5_top (+ helper_r helper_r)))
+(def k3046 (- polygon5_left helper_r))
+(def k3141 (/ (- (+ k3038 helper_r) polygon5_left) (- polygon5_right polygon5_left)))
+
+(def helper (\\(left top)
+  (let [left top] [left top]
+  (let bounds [left top (+ left (* 2! helper_r)) (+ top (* 2! helper_r))]
+  (let [color strokeColor strokeWidth] [394 'black' 0]
+    [ (oval color strokeColor strokeWidth bounds) ])))))
+
+(def polygon5
+  (let bounds [polygon5_left polygon5_top polygon5_right polygon5_bot]
+  (let [color strokeColor strokeWidth] [261 'black' 2]
+  (let pcts [[k3141 1] [0 0] [1 k3134]]
+    [ (stretchyPolygon bounds color strokeColor strokeWidth pcts) ]))))
+
+(def polygon6
+  (let left (+ (+ (- polygon5_left helper_r) (* 0.5! (+ (+ (- polygon5_left helper_r) (* 2! helper_r)) (- helper_r polygon5_left)))) (* 0.5! (+ (+ (- polygon5_left helper_r) (* 2! helper_r)) (- helper_r polygon5_left))))
+  (let bounds [left polygon6_top polygon6_right polygon6_bot]
+  (let [color strokeColor strokeWidth] [132 'black' 2]
+  (let pcts [[0 k3103] [k3105 0] [1 1]]
+    [ (stretchyPolygon bounds color strokeColor strokeWidth pcts) ])))))
+
+(def polygon7
+  (let [left right] [(+ (+ k3038 helper_r) helper_r) (- polygon6_right helper_r)]
+  (let bounds [left polygon7_top right polygon7_bot]
+  (let [color strokeColor strokeWidth] [334 'black' 2]
+  (let pcts [[0 1] [1 k3063] [k3061 0]]
+    [ (stretchyPolygon bounds color strokeColor strokeWidth pcts) ])))))
+
+(def circle8
+  (let [left top r] [(* 0.5! (+ polygon5_left polygon5_left)) (* 0.5! (+ polygon6_top polygon6_top)) (* 0.5! (- (* 0.5! (+ polygon6_right polygon6_right)) (* 0.5! (+ polygon5_left polygon5_left))))]
+  (let bounds [left top (+ left (* 2! r)) (+ top (* 2! r))]
+  (let [color strokeColor strokeWidth] [405 'black' 0]
+    [ (oval color strokeColor strokeWidth bounds) ]))))
+
+(blobs [
+  (helper k3046 k3045)
+  (helper polygon5_right k3041)
+  (helper k3038 polygon5_bot)
+  (helper k3034 polygon6_bot)
+  polygon5
+  polygon6
+  polygon7
+  circle8
+])
+
+"
+
+botanic_UIST =
+ "
+(def newGroup4 (\\(leftLeaf_strokeWidth leftLeaf_color leftLeaf_strokeColor leftLeaf_dPcts_k3164 leftLeaf_dPcts_k3166 centerLeftPct leftRightPct leftTopPct leftMidPct x03451 y03450 x03401 y03400 y03344 dPcts_k3058 [left top right bot])
+  (def bounds [left top right bot])
+  (def centerRightPct (- 1! centerLeftPct))
+  (def rightLeftPct (- 1! leftRightPct))
+  (def rightTopPct (- 1! leftTopPct))
+  (def rightMidPct (- 1! leftMidPct))
+
+  (def leftLeaf
+    (let k3186 0!
+    (let [left top right bot] [ left (scaleBetween top bot k3186) (scaleBetween left right leftRightPct) bot]
+    (let bounds [left top right bot]
+    (let [x0 y0] [x03451 y03450]
+    (let dPcts ['M' x0 y0 'Q' leftMidPct leftLeaf_dPcts_k3166 0 leftLeaf_dPcts_k3164 'Q' leftTopPct 0 x0 y0]
+      [ (stretchyPath bounds leftLeaf_color leftLeaf_strokeColor leftLeaf_strokeWidth dPcts) ]))))))
+
+  (def rightLeaf
+    (let k3132 1!
+    (let [left top right bot] [ (scaleBetween left right rightLeftPct) top right (scaleBetween top bot k3132)]
+    (let bounds [left top right bot]
+    (let [x0 y0] [x03401 y03400]
+    (let dPcts ['M' x0 y0 'Q' rightMidPct leftLeaf_dPcts_k3166 1 leftLeaf_dPcts_k3164 'Q' rightTopPct 0 x0 y0]
+      [ (stretchyPath bounds leftLeaf_color leftLeaf_strokeColor leftLeaf_strokeWidth dPcts) ]))))))
+
+  (def centerLeaf
+    (let [left top right bot] [ (scaleBetween left right centerLeftPct) (scaleBetween top bot 0.1166930482692767) (scaleBetween left right centerRightPct) (scaleBetween top bot 0.6433647887474833)]
+    (let bounds [left top right bot]
+    (let [x0 y0] [0.5! y03344]
+    (let dPcts ['M' x0 y0 'L' 0 dPcts_k3058 'Q' 0.5! 0 1 dPcts_k3058 'Z']
+      [ (stretchyPath bounds leftLeaf_color leftLeaf_strokeColor leftLeaf_strokeWidth dPcts) ])))))
+
+  [ (group bounds (concat [ leftLeaf rightLeaf centerLeaf ])) ]))
+
+(blobs [
+  (withBounds [56 45.523358950223596 512 495] (newGroup4 4 100 431 0.4693710270993644? 0.3959689822652434? 0.35053185358677735 0.47858611976259036 0.44362108479755546 0.5977244375980417 1 1 0 1 1 0.3407539747046014?))
+])
+
+"
+
+coffee_UIST =
+ "
+(def mug (\\(outer_color strokeWidth3280 color strokeWidth3239 strokeColor strokeWidth3142 x0 y0 [left top right bot])
+  (def bounds [left top right bot])
+  (def rFrac 0.2!)
+  (def [outer_right outer_left] [ (scaleBetween left right 1)(scaleBetween left right 0.3575757575757576)])
+  (def outer_x_radius (/ (- outer_right outer_left) 2!))
+  (def [rect3_top outer_bot outer_top] [ (scaleBetween top bot 0.3620689655172414) (scaleBetween top bot 0.9224137931034483) (scaleBetween top bot 0.4396551724137931)])
+  (def outer_ellipseRY (/ (- outer_bot outer_top) 2!))
+
+  (def outer
+    (let bounds [outer_left outer_top outer_right outer_bot]
+    (let [ strokeColor strokeWidth] [ 'black' strokeWidth3280]
+      [ (oval outer_color strokeColor strokeWidth bounds) ])))
+
+  (def inner
+    (let [left top right bot] [(+ outer_left (* rFrac outer_x_radius)) (+ outer_top (* rFrac outer_ellipseRY)) (- outer_right (* rFrac outer_x_radius)) (- outer_bot (* rFrac outer_ellipseRY))]
+    (let bounds [left top right bot]
+    (let [color strokeColor strokeWidth] [color 'black' strokeWidth3239]
+      [ (oval color strokeColor strokeWidth bounds) ]))))
+
+  (def rect3
+    (let [left right bot] [(scaleBetween left right 0) (+ (+ outer_left (* 0.1! (- outer_right outer_left))) (* 0.5! (- (- outer_right (* 0.1! (- outer_right outer_left))) (+ outer_left (* 0.1! (- outer_right outer_left)))))) (* 2! (- (+ (+ outer_top (* 0.1! (- outer_bot outer_top))) (* 0.5! (- (- outer_bot (* 0.1! (- outer_bot outer_top))) (+ outer_top (* 0.1! (- outer_bot outer_top)))))) (* 0.5! rect3_top)))]
+    (let bounds [left rect3_top right bot]
+      [ (rectangle outer_color 'black' 0 0 bounds) ])))
+
+  (def steam (\\(left top right bot)
+    (let bounds [left top right bot]
+    (let [strokeColor strokeWidth color] [strokeColor strokeWidth3142 'white']
+    (let dPcts ['M' x0 y0 'C' 0 0.4925373134328358? 0.8076923076923077? 0.6119402985074627? 0.4230769230769231? 1 'C' 1 0.7313432835820896? 0.4230769230769231? 0.6417910447761194? x0 y0]
+      [ (stretchyPath bounds color strokeColor strokeWidth dPcts) ])))))
+
+  [ (group bounds (concat [ outer inner rect3 (steam(scaleBetween left right 0.012121212121212121) (scaleBetween top bot 0.02586206896551724) (scaleBetween left right 0.1696969696969697) (scaleBetween top bot 0.3146551724137931)) (steam(scaleBetween left right 0.2606060606060606) (scaleBetween top bot 0) (scaleBetween left right 0.41818181818181815) (scaleBetween top bot 0.28879310344827586)) (steam(scaleBetween left right 0.5212121212121212) (scaleBetween top bot 0.02586206896551724) (scaleBetween left right 0.6787878787878788) (scaleBetween top bot 0.3146551724137931)) ])) ]))
+
+(blobs [
+  (withBounds [27 27 192 259] (mug 164 0 481 0 102 5 0.8846153846153846? 0))
+  (withBounds [299 214 406 322] (mug 164 0 481 0 102 5 0.8846153846153846? 0))
+  (withBounds [143 380 193 442] (mug 164 0 481 0 102 5 0.8846153846153846? 0))
+])
+
+"
+
 
 examples =
   [ makeExample "BLANK" blank
   , makeExample scratchName scratch
   -- [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
+
+  , makeExample "SnS Logo (UIST)" sns_UIST
+  , makeExample "SnS Logo Revisited (UIST)" sns_revisited_UIST
+  , makeExample "Botanic Garden Logo (UIST)" botanic_UIST
+  , makeExample "Coffee Mugs (UIST)" coffee_UIST
+
   , makeExample "Wave Boxes" sineWaveOfBoxes
   , makeExample "Wave Boxes Grid" sineWaveGrid
 
