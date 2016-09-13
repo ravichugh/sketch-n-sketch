@@ -167,7 +167,6 @@ valToAttr : Val -> Attr
 valToAttr v = case v.v_ of
   VList [v1,v2] -> case (v1.v_, v2.v_) of
     (VBase (VString k), v2_) ->
-     -- NOTE: Elm bug? undefined error when shadowing k (instead of choosing k')
      let (k',av_) =
       case (k, v2_) of
         ("points", VList vs)    -> (k, APoints <| List.map valToPoint vs)

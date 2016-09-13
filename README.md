@@ -217,13 +217,58 @@ where
   children   ::=  [ h1 ... hn ]
 ```
 
+Each attribute expression should compute a pair value
+in one of the following forms
+
+```
+  [ 'fill'          colorValue     ]
+  [ 'stroke'        colorValue     ]
+  [ 'stroke-width'  numValue       ]
+  [ 'points'        pointsValue    ]
+  [ 'd'             pathValue      ]
+  [ 'transform'     transformValue ]
+  [ anyStringValue  anyStringValue ]   -- thin wrapper over full SVG format
+```
+
+where
+
+```
+  colorValue      ::=  n                   -- color number [0, 500)
+                   |   [n n]               -- color number and transparency
+                   |   [n n n n]           -- RGBA
+
+  pointsValue     ::=  [[nx_1 ny_1] ... ]           -- list of points
+
+  pathValue       ::=  pcmd_1 ++ ... ++ pcmd_n      -- list of path commands
+
+  transformValue  ::=  [ tcmd_1 ++ ... ++ tcmd_n ]  -- list of transform commands
+
+  pcmd            ::=  [ 'Z' ]                      -- close path
+                   |   [ 'M' n1 n2 n3 ]             -- move-to
+                   |   [ 'L' n1 n2 n3 ]             -- line-to
+                   |   [ 'Q' n1 n2 n3 n4 ]          -- quadratic Bezier
+                   |   [ 'C' n1 n2 n3 n4 n5 n6 ]    -- cubic Bezier
+                   |   [ 'H' n1 ]
+                   |   [ 'V' n1 ]
+                   |   [ 'T' n1 n2 n3 ]
+                   |   [ 'S' n1 n2 n3 n4 ]
+                   |   [ 'A' n1 n2 n3 n4 n5 n6 ny ]
+
+  tcmd            ::=  [ 'rotate' nAngle nx ny ]
+                   |   [ 'scale' n1 n2 ]
+                   |   [ 'translate' n1 n2 ]
+```
+
+See [this][SvgPath] and [this][SvgTransform] for more information
+about SVG paths and transforms. Notice that `pathValue` is a flat list,
+whereas `transformValue` is a list of lists.
+
 See [`prelude.little`][Prelude] for a small library of SVG-manipulating functions.
 
 The [Prelude][Prelude], the examples that come with the editor,
 the [Tutorial](http://ravichugh.github.io/sketch-n-sketch/tutorial/index.html),
-and the Appendix of [this technical report](http://arxiv.org/pdf/1507.02988v2.pdf)
-provide more details about how different SVG attributes can be
-encoded in Little.
+and the Appendix of [this technical report](http://arxiv.org/pdf/1507.02988v3.pdf)
+provide more details about the above Little encodings of different SVG attributes.
 You can also peek at the `valToAttr` function in [`LangSvg.elm`][LangSvg].
 
 ## Little "REPL"
@@ -289,4 +334,6 @@ If you add or remove a package from the project, the package list for the tests 
 [Prelude]: https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little
 [LangSvg]: https://github.com/ravichugh/sketch-n-sketch/blob/master/src/LangSvg.elm
 [ProjectPage]: http://ravichugh.github.io/sketch-n-sketch
+[SvgPath]: https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
+[SvgTransform]: https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/transform
 
