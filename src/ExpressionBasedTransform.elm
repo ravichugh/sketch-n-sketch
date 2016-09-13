@@ -482,6 +482,10 @@ eBaseOffset baseVar offsetNum =
 
 
 eAsPoint e =
+  let insertPointAnnotations = False in -- Config param
+  if not insertPointAnnotations then e
+  else
+
   let e' = LangUnparser.replacePrecedingWhitespace "" e in
   withDummyPos <|
     EColonType " " e' " " (withDummyRange <| TNamed " " "Point") ""

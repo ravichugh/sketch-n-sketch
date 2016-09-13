@@ -1552,11 +1552,13 @@
 ; === Basic Replicate ===
 
 (def horizontalArray (\(n sep func [x y])
+  (let _ ; draw point widget to control anchor
+    ([x y] : Point)
   (let draw_i (\i
     (let xi (+ x (* i sep))
     (func [xi y])))
   (concat (map draw_i (zeroTo n)))
-)))
+))))
 
 (def linearArrayFromTo (\(n func [xStart yStart] [xEnd yEnd])
   (let xsep (/ (- xEnd xStart) (- n 1))
@@ -1577,13 +1579,15 @@
     (+ 1 (floorAndLocalFreeze (- n 1))))))
 
 (def radialArray (\(n radius rot func [cx cy])
+  (let _ ; draw point widget to control anchor
+    ([cx cy] : Point)
   (let _ ; draw point widget to control radius
     (let xWidget (floorAndLocalFreeze cx)
     (let yWidget (- (floorAndLocalFreeze cy) radius)
       ([xWidget yWidget] : Point)))
   (let endpoints (nPointsOnCircle n rot cx cy radius)
   (concat (map func endpoints))
-))))
+)))))
 
 (def offsetAnchor (\(dx dy f)
   (\[x y] (f [(+ x dx) (+ y dy)]))
