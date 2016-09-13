@@ -724,7 +724,7 @@ addToMainExp newBlob mainExp =
     OtherExp main ->
       let ws = "\n" in -- TODO take main into account
       OtherExp <| withDummyPos <|
-        EApp ws (eVar0 "addShapes") [fromBlobExp newBlob, main] ""
+        EApp ws (eVar0 "addBlob") [fromBlobExp newBlob, main] ""
 
 maybeGhost b f args =
   if b

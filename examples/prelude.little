@@ -888,12 +888,8 @@
   (let newShapes (reverse (fst (foldl f initAcc oldShapesI)))
     ['svg' svgAttrs newShapes]))))))
 
-(typ addShapeToCanvas (-> SVG SVG SVG))
-(def addShapeToCanvas (\(['svg' svgAttrs oldShapes] newShape)
-  ['svg' svgAttrs (append oldShapes [newShape])]))
-
-(typ addShape (-> SVG SVG SVG))
-(def addShape (flip addShapeToCanvas))
+(def addBlob (\(newShapes ['svg' svgAttrs oldShapes])
+  ['svg' svgAttrs (append oldShapes newShapes)]))
 
 (typ groupMap (forall (a b) (-> (List a) (-> a b) (List b))))
 (def groupMap (\(xs f) (map f xs)))
