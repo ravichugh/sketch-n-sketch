@@ -1,4 +1,4 @@
-module ShapeWidgets where 
+module ShapeWidgets where
 
 import Lang exposing (..)
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Attr)
@@ -205,6 +205,8 @@ parseDistanceFeature matches =
     [Just kind, Just "R"]      -> Radius
     [Just kind, Just "RX"]     -> RadiusX
     [Just kind, Just "RY"]     -> RadiusY
+
+    _ -> Debug.crash <| "parseDistanceFeature: " ++ (toString matches)
 
 parseShapeFeaturePoint matches =
   case matches of
