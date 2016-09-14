@@ -51,10 +51,11 @@ window.initializers.push(function (elmRuntime) {
   editor.getSession().setMode("ace/mode/little");
 
   var tryParseRun = false;
+  var lastKeyAt   = new Date();
 
   // Don't propagate editor keystrokes to the model
   document.getElementById("editor").onkeydown = function (e) { e.stopPropagation(); }
-  document.getElementById("editor").onkeyup   = function (e) { tryParseRun = true; }
+  document.getElementById("editor").onkeyup   = function (e) { lastKeyAt = new Date(); tryParseRun = true; }
 
   //If we reloaded from a crash, then we should do a few things differently:
   // - Set the initial text to what it was when we crashed
@@ -333,21 +334,27 @@ window.initializers.push(function (elmRuntime) {
 
   ////////////////////////////////////////////////////////////
 
+  var lastCode = "";
+
   // Start the pinger for live code running
   tryParseRunFunc = function () {
-    if (tryParseRun) {
+    if (tryParseRun && (new Date()) - lastKeyAt > 300) {
       tryParseRun = false;
-      elmRuntime.ports.theTurn.send(
-          { evt : "tryParseRun"
-          , strArg : editor.getSession().getDocument().getValue()
-          , cursorArg : editor.getCursorPosition()
-          , selectionArg : editor.selection.getAllRanges()
-          , exNameArg : ""
-          }
-      );
+      // Don't run if just moving the cursor with arrows.
+      if (lastCode != editor.getSession().getDocument().getValue()) {
+        elmRuntime.ports.theTurn.send(
+            { evt : "tryParseRun"
+            , strArg : editor.getSession().getDocument().getValue()
+            , cursorArg : editor.getCursorPosition()
+            , selectionArg : editor.selection.getAllRanges()
+            , exNameArg : ""
+            }
+        );
+        lastCode = editor.getSession().getDocument().getValue();
+      }
     }
-    window.setTimeout(tryParseRunFunc, 150)
+    window.setTimeout(tryParseRunFunc, 50)
   }
-  window.setTimeout(tryParseRunFunc, 150)
+  window.setTimeout(tryParseRunFunc, 50)
 
 });
