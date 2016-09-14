@@ -192,13 +192,13 @@ window.initializers.push(function (elmRuntime) {
     }
   }
 
-  var lastCode = ""
+  var lastCodeFromElm = ""
   // Installs all the values that we got from the assertion from Elm
   function makeAssertion(codeBoxInfo) {
       // Set the value of the code editor with what we got from Elm
-      if (codeBoxInfo.code !== lastCode && !tryParseRun) {
+      if (codeBoxInfo.code !== lastCodeFromElm && !tryParseRun) {
+        lastCodeFromElm = codeBoxInfo.code
         editor.getSession().setValue(codeBoxInfo.code, 0);
-        lastCode = codeBoxInfo.code
 
         //Set the cursor position to what we got from Elm
         editor.moveCursorTo(codeBoxInfo.cursorPos.row, codeBoxInfo.cursorPos.column);
