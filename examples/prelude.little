@@ -1574,16 +1574,21 @@
   ;else
     (+ 1 (floorAndLocalFreeze (- n 1))))))
 
+  ; (let _ ; draw point widget to control anchor
+  ;   ([cx cy] : Point)
 (def radialArray (\(n radius rot func [cx cy])
-  (let _ ; draw point widget to control anchor
-    ([cx cy] : Point)
+  (let center ; draw ghost circle to control anchor
+              ; not using point widget, since it's not selectable
+    (circle 'orange' cx cy 20)
   (let _ ; draw point widget to control radius
     (let xWidget (floorAndLocalFreeze cx)
     (let yWidget (- (floorAndLocalFreeze cy) radius)
       ([xWidget yWidget] : Point)))
   (let endpoints (nPointsOnCircle n rot cx cy radius)
-  (concat (map func endpoints))
-)))))
+  (let bounds
+    [(- cx radius) (- cy radius) (+ cx radius) (+ cy radius)]
+  [(group bounds (cons center (concat (map func endpoints))))]
+))))))
 
 (def offsetAnchor (\(dx dy f)
   (\[x y] (f [(+ x dx) (+ y dy)]))
