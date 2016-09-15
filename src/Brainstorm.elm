@@ -1,10 +1,3 @@
--- Next time:
---
--- Allow letrec's to evaluate if in Prelu
---   - need to add them to staticEnv in staticEval
---   - need to add the cyclic dependency
---   - need to modify transitive closure calc to handle cycles
-
 module Brainstorm where
 
 import Dict
@@ -359,54 +352,10 @@ tryIndexShapes_ nextShapeId shapeIndex val =
 
     _ -> Err <| "an SVG node" `LangSvg.expectedButGotStr` strVal val
 
---
--- type ShapeSearchState
---   = Searching Int
---   | SearchFound Val
---   | SearchError String
---
 
 maybeFindShape : Int -> Val -> Maybe Val
 maybeFindShape shapeId outputVal =
   maybeIndexShapes outputVal `Maybe.andThen` (Dict.get shapeId)
-
-
--- -- Mirrors numbering of valToIndexedTree_
--- tryMaybeFindShape_ : Int -> Int -> Val -> ShapeSearchState
--- tryMaybeFindShape_ targetShapeId nextShapeId val =
---   case val.v_ of
---     VList vs ->
---       case List.map .v_ vs of
---         [VBase (VString "TEXT"), VBase (VString s)] ->
---           if nextShapeId == targetShapeId then
---             SearchFound val
---           else
---             Searching (1 + nextShapeId)
---
---         [VBase (VString kind), VList attrs, VList childVals] ->
---           -- Id's go to children before parent
---           let processChild vi acc =
---             case acc of
---               SearchError _    -> acc
---               SearchFound _    -> acc
---               Searching nextId -> tryMaybeFindShape_ targetShapeId nextId vi
---           in
---           let childrenResult =
---             childVals
---             |> List.foldl processChild (Searching nextShapeId)
---           in
---           case childrenResult of
---             SearchError _ -> childrenResult
---             SearchFound _ -> childrenResult
---             Searching nextShapeId' ->
---               if nextShapeId' == targetShapeId then
---                 SearchFound val
---               else
---                 Searching (1 + nextShapeId')
---
---         _ -> SearchError <| "an SVG node" `LangSvg.expectedButGotStr` strVal val
---
---     _ -> SearchError <| "an SVG node" `LangSvg.expectedButGotStr` strVal val
 
 
 shapeZoneToIdea programEnv shapeVal zoneName =
@@ -424,45 +373,10 @@ shapeZoneToIdea programEnv shapeVal zoneName =
   functionName `Maybe.andThen` (shapeIdea programEnv shapeVal)
 
 
--- ideaSourceToExp k env ideaSource =
---   case ideaSource of
---     PrimitiveFeature shapeVal functionName ->
---       let dummyVarName = "shapeIdeaDummyVar" ++ (toString k) in
---       let exp = eApp (eVar0 functionName) [eVar dummyVarName] in
---       let env' = (dummyVarName, shapeVal)::env in
---       (k + 1, env', exp)
---
---     BasedOnTwoPoints idea1 idea2 functionName ->
---       let dummyVar1Name = "pointDummyVar" ++ (toString k) in
---       let dummyVar2Name = "pointDummyVar" ++ (toString (k+1)) in
---       let k' = k + 2 in
---       let relateExp = eApp (eVar0 functionName) [eVar dummyVar1Name, eVar dummyVar2Name] in
---       let (k'',  env',  pt1exp) = ideaSourceToExp k'  env  (firstIdeaSource idea1) in
---       let (k''', env'', pt2exp) = ideaSourceToExp k'' env' (firstIdeaSource idea2) in
---       let exp = eLets [(dummyVar1Name, pt1exp), (dummyVar2Name, pt2exp)] relateExp in
---       (k''', env'', exp)
-
-
 firstIdeaSource idea =
   case idea of
     (_, _, ideaSource::_) -> ideaSource
     _                     -> Debug.crash "Brainstorm.firstIdeaSource: given idea without a source!"
-
-
--- ideaToMaybeVal programEnv extraFunctions idea =
---   -- Just use first idea source for now, though there may be other
---   -- functions that resolved to the same point.
---   let (_, env, ideaExp) = ideaSourceToExp 1 programEnv (firstIdeaSource idea) in
---   -- Wrap with extra functions (e.g. to pull out only the x or y coordinate), if necessary
---   let exp = List.foldr (\funcName argExp -> eApp (eVar funcName) [argExp]) ideaExp extraFunctions in
---   case Eval.eval env [] exp of
---     Ok ((outVal,_),_) -> Just outVal
---       -- case unwrapVList outVal of
---       --   Just [VConst (x,xTr), VConst (y,yTr)] ->
---       --     -- let _ = Debug.log "func" funcName in
---       --     [(((x,xTr),(y,yTr)), depth, [BasedOnTwoPoints idea1 idea2 funcName])]
---       --   _ -> []
---     Err s -> Nothing
 
 
 valToExp : Val -> Exp
@@ -522,23 +436,6 @@ ideaToMaybeConstraint constraintType indepIdea depIdea =
   case ideasToConstraints constraintType indepIdea depIdea of
     []            -> Nothing
     constraint::_ -> Just constraint
-
-
--- ***
--- varLookupNoEnv dependencyAnalysis program eid =
---   case Dict.get eid dependencyAnalysis of
---     Just varDep ->
---       case varDep.exp.val.e__ of
---         EVar _ ident ->
---           case Utils.maybeFind ident varDep.staticEnv of
---             Just (Just eid) -> Just eid
---             _               -> Nothing
---
---         _ ->
---           Debug.crash "Brainstorm.varLookupNoEnv exp should be a EVar"
---
---     _ ->
---       Debug.crash <| "Brainstorm.varLookupNoEnv eid " ++ (toString eid) ++ " should be in analysis: " ++ (toString dependencyAnalysis)
 
 
 justGetExpressionAnalysis programAnalysis eid =
@@ -604,39 +501,6 @@ findVarAtEId program varExp =
     let _ = Debug.log "findVarAtEId: not actual eid" varEId in
     Nothing
 
-
--- symbolicallyEvaluateAsFarAsPossible : Exp -> Exp -> Exp
--- symbolicallyEvaluateAsFarAsPossible program exp =
---   case maybeSymbolicallyExpandOneStep program exp of
---     Nothing    -> exp
---     Just child -> symbolicallyEvaluateAsFarAsPossible program child
---
---
--- maybeSymbolicallyExpandOneStep : Exp -> Exp -> Maybe Exp
--- maybeSymbolicallyExpandOneStep program exp =
---   case exp.val.e__ of
---     EConst _ i l wd             -> Nothing
---     EBase _ v                   -> Nothing
---     EVar _ x                    -> findVarAtEId program exp
---     EFun _ ps e _               -> Nothing
---     EOp _ op es _               -> Nothing -- TODO reach into dictionaries (yay)
---     EList _ es _ m _            -> Nothing
---     EIndList _ rs _             -> Nothing
---     EIf _ e1 e2 e3 _            -> Nothing -- Maybe determine which branch???
---     ECase _ e1 bs _             -> Nothing
---     ETypeCase _ e1 tbranches _  -> Nothing
---     EApp _ e1 es _              -> maybeSymbolicallyApply program exp
---     ELet _ _ False p e1 e2 _    ->
---       case trySymbolicMatch program p e1 of
---         Just env -> symbolicSubstitute (Dict.fromList env) e2
---         Nothing  -> Nothing
---
---     ELet _ _ True p e1 e2 _     -> Nothing -- can't handle recursive substitution
---     EComment _ _ e1             -> Just e1
---     EOption _ _ _ _ e1          -> Just e1
---     ETyp _ _ _ e1 _             -> Just e1
---     EColonType _ e1 _ _ _       -> Just e1
---     ETypeAlias _ _ _ e1 _       -> Just e1
 
 -- Only expands child expressions if necessary
 -- e.g. an if-statement will evaluate the predicate and possibly a branch
@@ -836,7 +700,6 @@ maybeExpMatchBranches_ matcherFunc scrutinee branches =
         CannotCompare -> Nothing
 
 
-
 maybeSymbolicMatch : Exp -> Pat -> Exp -> Maybe (List (Ident, Exp))
 maybeSymbolicMatch program pat exp =
   trySymbolicMatch program pat exp |> matchToMaybe
@@ -882,56 +745,6 @@ tryExpMatchTBranches scrutinee tbranches =
             Nothing    -> CannotCompare
     )
     NoMatch
-
--- typedWellEnoughToMatch : Exp -> Exp -> List TBranch -> Bool
--- typedWellEnoughToMatch program scrutinee tbranches =
---   let branchTypes =
---     tbranches |> List.map .val |> List.map (\(TBranch_ _ tipe _ _) -> tipe)
---   in
---   -- Presumes typecase is exhaustive (at least one branch will match).
---   let maybeTypedWellEnough =
---     branchTypes
---     |> List.foldl
---       (\bType maybeTypedWellEnough ->
---         case maybeTypedWellEnough of
---           Just _  -> maybeTypedWellEnough
---           Nothing ->
---             case Types.expIsType scrutinee bType of
---               Just True  -> Just True  -- Definitely matched. The scrutinee is typed well enough to match. Don't look at following branches.
---               Just False -> Nothing    -- Definitely not matched. Don't know if typecase is typed well enough to match. Look at the next branch.
---               Nothing    -> Just False -- Unable to tell if the scrutinee matches this branch or not. This typecase is not yet typed well enough to match. Don't look at following branches.
---       )
---       Nothing
---   in
---   case maybeTypedWellEnough of
---     Just True  -> True
---     Just False -> False
---     Nothing    -> False
-
-
--- symbolicallyEvaluateStepwiseUntilSuccess : Exp -> List Exp -> (List Exp -> Maybe a) -> Maybe a
--- symbolicallyEvaluateStepwiseUntilSuccess program exps thingToAttempt =
---   case thingToAttempt exps of
---     Just result -> Just result
---     Nothing ->
---       -- So, we could do the cross product of each arg's evaluation steps, but
---       -- that's pretty terrible. So let's just try to evaluate each arg one step.
---       -- Overevaluation can produce bad code, but underevaluation can prematurely fail.
---       let didEvaluateAndNewExps =
---         exps
---         |> List.map
---             (\exp ->
---               case maybeSymbolicallyEvaluateOneStep program exp of
---                 Just newExp -> (True, newExp)
---                 Nothing     -> (False, exp)
---             )
---       in
---       let anySuccess = didEvaluateAndNewExps |> List.map fst |> List.any ((==) True) in
---       if anySuccess then
---         let newExps = didEvaluateAndNewExps |> List.map snd in
---         symbolicallyEvaluateStepwiseUntilSuccess program newExps thingToAttempt
---       else
---         Nothing
 
 
 -- Goal here is to evaluate just enough so that e.g. patterns can match.
@@ -1100,82 +913,6 @@ maybeSymbolicallyEvaluateOneStep program exp =
     ETyp _ _ _ body _       -> Just body
     EColonType _ body _ _ _ -> Just body
     ETypeAlias _ _ _ body _ -> Just body
-
-
-
-  -- case pat.val of
-  --   PVar _ ident _            -> Just [(ident, exp)]
-  --   PAs _ ident _ innerPat, _ ->
-  --     trySymbolicMatch program innerPat exp
-  --     |> matchMap (\env -> (ident, exp)::env)
-  --   PList _ ps _ Nothing _ ->
-  --     let evaled = symbolicallyEvaluateAsFarAsPossible program exp in
-  --     case evaled.val.e__ of
-  --       -- TODO: list must not have rest
-  --       EList _ es _ Nothing _ ->
-  --         case Utils.maybeZip ps es of
-  --           Nothing    -> NoMatch
-  --           Just pairs ->
-  --             List.map (\(p, e) -> trySymbolicMatch program p e) pairs
-  --             |> projMatches
-  --
-  --       _ ->
-  --         CannotCompare
-  --
-  --   PList _ ps _ (Just restPat) _ ->
-  --     let evaled = symbolicallyEvaluateAsFarAsPossible program exp in
-  --     case evaled.val.e__ of
-  --       EList _ es _ Nothing _ ->
-  --         if List.length es < List.length ps then
-  --           NoMatch
-  --         else
-  --           headExps, tailExps = Utils.split (List.length ps)
-  --           let tryHeadMatch =
-  --             Utils.zip ps headExps
-  --             |> List.map (\(p, e) -> trySymbolicMatch program p e)
-  --             |> projMatches
-  --           in
-  --           let tryTailMatch =
-  --             trySymbolicMatch program restPat tailExps
-  --           in
-  --           [tryHeadMatch, tryTailMatch]
-  --           |> projMatches
-  --
-  --       -- TODO: must have same number of heads
-  --       EList _ es _ Just restExp _ ->
-  --         if List.length es < List.length ps then
-  --           NoMatch
-  --         else if List.length es /= List.length ps then
-  --           CannotCompare
-  --         else
-  --           let tryHeadMatch =
-  --             Utils.zip ps es
-  --             |> List.map (\(p, e) -> trySymbolicMatch program p e)
-  --             |> projMatches
-  --           in
-  --           let tryTailMatch =
-  --             trySymbolicMatch program restPat restExp
-  --           in
-  --           [tryHeadMatch, tryTailMatch]
-  --           |> projMatches
-  --
-  --       _ ->
-  --         CannotCompare
-  --
-  --   PConst _ n ->
-  --     let evaled = symbolicallyEvaluateAsFarAsPossible program exp in
-  --     case evaled.val.e__ of
-  --       EConst _ num _ _ -> if n == num then Match [] else NoMatch
-  --       _                -> CannotCompare
-  --
-  --   PBase _ bv ->
-  --     let evaled = symbolicallyEvaluateAsFarAsPossible program exp in
-  --     case evaled.val.e__ of
-  --       EBase _ ev -> if bv == ev then Match [] else NoMatch
-  --       _          -> CannotCompare
-  --
-  --   _ ->
-  --     Debug.crash <| "Brainstorm.trySymbolicMatch huh? " ++ (unparsePat pat) ++ " vs " ++ (unparse exp)
 
 
 -- Unlike trySymbolicMatch above, this function presumes the exp has been
@@ -1374,37 +1111,6 @@ solutionsForDependentProgramLocation program constraint =
   in
   let _ = Debug.log ("Exploring " ++ (unparse independent) ++ " = " ++ (unparse dependent)) () in
   case dependent.val.e__ of
-    -- EVal val ->
-    --   -- TODO: filter out dynamic/nonprogram EIds here
-    --   let directSolutions = val.vtrace |> List.filter isProgramEId |> List.map (\eid -> (independent, eid)) in -- may or may not be redundant with expandedSolutions: revisit
-    --   let expandedSolutions = val.vtrace |> List.concatMap (\eid -> recurseSimple (justFindExpByEId program eid)) in
-    --   directSolutions ++ expandedSolutions
-    --
-    -- EDict _ -> []
-    --
-    -- EConst _ _ _ _ -> solutionsIfInProgram depEId
-    --
-    -- EBase _ _ -> solutionsIfInProgram depEId
-    --
-    -- EVar _ ident ->
-    --   let solutionsOnThisTerm = solutionsIfInProgram depEId in
-    --   case findVarAtEId program dependent of
-    --     Just exp -> solutionsOnThisTerm ++ (recurseSimple exp)
-    --     Nothing  -> solutionsOnThisTerm
-    --
-    -- EFun _ ps e _ ->
-    --   -- Not sure when we'd end up solving for a function.
-    --   -- Removing the function could cause the program to crash. I guess we'll check for
-    --   -- that later in the pipeline and discard if so.
-    --   solutionsIfInProgram depEId
-    --
-    -- EApp _ e1 es _ ->
-    --   let solutionsOnThisTerm = solutionsIfInProgram depEId in
-    --   -- Hmm, if the function is recursive this might not know when to stop applying...
-    --   case maybeSymbolicallyApply program dependent of
-    --     Just applied -> solutionsOnThisTerm ++ (recurseSimple applied)
-    --     Nothing      -> solutionsOnThisTerm
-
     -- There's more algebra opportunities here
     -- Be dumb for now
     EOp _ op args _ ->
@@ -1467,26 +1173,6 @@ solutionsForDependentProgramLocation program constraint =
         DictEmpty  -> []
         DictInsert -> []
         DictGet    -> [] -- Ignoring DictGet is going to limit us when we switch SVG attrs to be a dict
-          -- -- If we can symbolically evaluate the lookup, do so.
-          -- case args of
-          --   [keyExp, dictExp] ->
-          --     case (cTermToVal dependencyAnalysis program keyCTerm, cTermToVal dependencyAnalysis program dictCTerm) of
-          --       (Just keyVal, Just dictVal) ->
-          --         case (Eval.valToDictKey [] keyVal.v_, dictVal.v_) of
-          --           (Ok dictKey, VDict dict) ->
-          --             case Dict.get dictKey dict of
-          --               Just val -> recurseSimple (CTermVal val)
-          --               Nothing  -> []
-          --
-          --           _ ->
-          --             []
-          --
-          --       _ ->
-          --         []
-          --
-          --   _ ->
-          --     logBadOp []
-
         DictRemove -> []
         Cos        -> unOpSolutions op_ args
         Sin        -> unOpSolutions op_ args
@@ -1509,54 +1195,6 @@ solutionsForDependentProgramLocation program constraint =
       case maybeSymbolicallyEvaluateOneStep program dependent of
         Just newDependent -> (solutionsIfInProgram depEId) ++ (recurseSimple newDependent)
         Nothing           -> (solutionsIfInProgram depEId)
-
-
-    -- EList _ es _ m _ -> -- TODO: both sides need to be destructured
-    --   solutionsIfInProgram depEId
-    --
-    -- EIndList _ ranges _ ->
-    --   solutionsIfInProgram depEId
-    --
-    -- EIf _ predicate trueBranch falseBranch _ ->
-    --   (solutionsIfInProgram depEId) ++
-    --   case (symbolicallyEvaluateAsFarAsPossible program predicate).val.e__ of
-    --     EBase _ (EBool True)  -> recurseSimple trueBranch
-    --     EBase _ (EBool False) -> recurseSimple falseBranch
-    --     _                     -> []
-    --
-    -- ECase _ scrutinee branches _ ->
-    --   (solutionsIfInProgram depEId) ++
-    --   case maybeSymbolicMatchBranches program scrutinee branches of
-    --     Nothing ->
-    --       []
-    --
-    --     Just (branchEnv, branchExp) ->
-    --       symbolicSubstitute (Dict.fromList branchEnv) branchExp
-    --       |> recurseSimple
-    --
-    -- ETypeCase _ pat tbranches _ ->
-    --   (solutionsIfInProgram depEId) ++
-    --   [] -- TODO: Will need to talk to type checker etc
-    --
-    -- ELet _ letKind rec pat assign body _ ->
-    --   (solutionsIfInProgram depEId) ++ (recurseSimple body)
-    --
-    -- EComment _ _ body ->
-    --   recurseSimple body
-    --
-    -- EOption _ _ _ _ body ->
-    --   recurseSimple body
-    --
-    -- ETyp _ pat tipe body _ ->
-    --   (solutionsIfInProgram depEId) ++ -- If body is replaced the type annotation might be invalid, so do try replacing the annotation
-    --   recurseSimple body
-    --
-    -- EColonType _ body _ tipe _ ->
-    --   (solutionsIfInProgram depEId) ++ -- If body is replaced the type annotation might be invalid, so do try replacing the annotation
-    --   recurseSimple body
-    --
-    -- ETypeAlias _ pat tipe body _ ->
-    --   recurseSimple body
 
 
 -- TODO: change StaticEnv/neededEId into set of EIds instead of single (multiple exps may resolve the same)
@@ -1883,92 +1521,6 @@ ensureSCCDAGDependenceClosure sccId sccsAnalysis =
         sccsAnalysis'
 
 
--- Better be a DAG or this won't terminate.
--- computeDAGTransitiveDependenceClosure : ProgramAnalysis -> ProgramAnalysis
--- computeDAGTransitiveDependenceClosure programAnalysis =
---   Dict.keys programAnalysis
---   |> List.foldl -- left or right could have serious performance implications. I think right starts with deepest nodes. TODO: test
---       ensureDAGDependenceClosure
---       programAnalysis
---
---
--- ensureDAGDependenceClosure : EId -> ProgramAnalysis -> ProgramAnalysis
--- ensureDAGDependenceClosure eid programAnalysis =
---   let expAn = Utils.justGet_ "Brainstorm.ensureDependenceClosure: missing eid" eid programAnalysis in
---   case expAn.dependenceClosure of
---     Just closure ->
---       programAnalysis
---
---     Nothing ->
---       let depEIds = Set.toList expAn.immediatelyDependentOn in
---       let programAnalysis' =
---         depEIds
---         |> List.foldl
---             ensureDAGDependenceClosure
---             programAnalysis
---       in
---       let dependenceClosure =
---         depEIds
---         |> List.map
---             (\depEId ->
---               let depExpAn = Utils.justGet_ "Brainstorm.ensureDAGDependenceClosure: missing dep eid" depEId programAnalysis' in
---               Utils.fromJust_ "Brainstorm.ensureDAGDependenceClosure: closure not computed" depExpAn.dependenceClosure
---             )
---         |> Utils.unionAll
---       in
---       Dict.insert
---         eid
---         { expAn | dependenceClosure = Just dependenceClosure }
---         programAnalysis'
-
-
-
--- computeTransitiveDependenceClosure : ProgramAnalysis -> ProgramAnalysis
--- computeTransitiveDependenceClosure programAnalysis =
---   Dict.keys programAnalysis
---   |> List.foldl -- left or right could have serious performance implications. I think right starts with deepest nodes. TODO: test
---       ensureDependenceClosure
---       programAnalysis
-
-
--- ensureDependenceClosure : EId -> ProgramAnalysis -> ProgramAnalysis
--- ensureDependenceClosure eid programAnalysis =
---   let _ = Debug.log "computing closure of" eid in
---   let expAn = Utils.justGet_ "Brainstorm.ensureDependenceClosure: missing eid" eid programAnalysis in
---   case expAn.dependenceClosure of
---     Just closure ->
---       programAnalysis
---
---     Nothing ->
---       Dict.insert
---         eid
---         { expAn | dependenceClosure = Just <| dependenceClosure programAnalysis expAn.immediatelyDependentOn Set.empty }
---         programAnalysis
-
-
--- Wouldn't it be great if Elm had a method for plucking a single item from a set?
--- dependenceClosure : ProgramAnalysis -> Set.Set EId -> Set.Set EId -> Set.Set EId
--- dependenceClosure programAnalysis toVisit visited =
---   case toVisit |> Set.toList of
---     [] ->
---       visited
---
---     eid::_ ->
---       let expAn = Utils.justGet_ "Brainstorm.dependenceClosure: missing eid" eid programAnalysis in
---       case expAn.dependenceClosure of
---         Just closure ->
---           let visited'  = Set.insert eid visited in
---           let visited'' = Set.union closure visited' in
---           let toVisit'  = Set.diff toVisit visited'' in
---           dependenceClosure programAnalysis toVisit' visited''
---
---         Nothing ->
---           let visited'  = Set.insert eid visited in
---           let toVisit'  = Set.union expAn.immediatelyDependentOn toVisit in
---           let toVisit'' = Set.diff toVisit' visited' in
---           dependenceClosure programAnalysis toVisit'' visited'
-
-
 (_, preludeStaticExpEnv, preludeProgramAnalysis) =
   staticEval_ True [] Dict.empty LangParser2.prelude
 
@@ -2037,16 +1589,6 @@ gatherEquivalentEIds programAnalysis =
 -- If (Just exp) is returned, exp has an actual eid if that eid in the program is known to be statically equivalent to the returned "value".
 staticEval_ : Bool -> StaticExpEnv -> ProgramAnalysis -> Exp -> (Maybe Exp, StaticExpEnv, ProgramAnalysis)
 staticEval_ isStaticEnv env programAnalysis exp =
-
-  -- let ret v_                         = ((Val v_ [e.val.eid], []), env) in
-  -- let retAdd eid (v,envOut)          = ((Val v.v_ (eid::v.vtrace), []), envOut) in
-  -- let retAddWs eid ((v,ws),envOut)   = ((Val v.v_ (eid::v.vtrace), ws), envOut) in
-  -- let retAddThis_ (v,envOut)         = retAdd e.val.eid (v,envOut) in
-  -- let retAddThis v                   = retAddThis_ (v, env) in
-  -- let retBoth (v,w)                  = (({v | vtrace = e.val.eid :: v.vtrace},w), env) in
-  -- let replaceEnv envOut (v,_)        = (v, envOut) in
-  -- let addWidgets ws1 ((v1,ws2),env1) = ((v1, ws1 ++ ws2), env1) in
-
   let replaceExp newE__ =
     if isStaticEnv then -- This is a litlle conservative. More precise is to verify that exp doesn't depend on bound variables.
       replaceE__ exp newE__ -- Preserve EId for later extraction.
@@ -2387,38 +1929,6 @@ staticEval_ isStaticEnv env programAnalysis exp =
       let (funcExpEvaledMaybe, _, programAnalysis'') = staticEval_ isStaticEnv env programAnalysis' funcExp in
       let (evaledArgExpMaybes, programAnalysis''')   = recurseAll env programAnalysis'' argExps in
       retDictNothing programAnalysis'''
-      -- case (funcExpEvaledMaybe, evaledArgExpMaybes |> Utils.projJusts) of
-      --   (Just funcExpEvaled, Just evaledArgExps) ->
-      --     case (funcExpEvaled.val.e__, Dict.get funcExpEvaled.val.eid programAnalysis''') of
-      --       (EFun _ pats body _, Just expAnalysisAtFuncDefinition) ->
-      --         -- Recursive evaluation turned off right now. See comment at top of function.
-      --         -- TODO: This isn't completely robust against recursion (other vars assigned, function itself passed as arg).
-      --         if Nothing == findNameForEIdInStaticExpEnv funcExpEvaled.val.eid expAnalysisAtFuncDefinition.staticExpEnv then
-      --           case Utils.maybeZip pats evaledArgExps of
-      --             Nothing ->
-      --               retDictNothing programAnalysis'''
-      --
-      --             Just pairs ->
-      --               let patEnvMaybes = pairs |> List.map (\(pat, arg) -> maybeMatchExp pat arg) in
-      --               case patEnvMaybes |> Utils.projJusts of
-      --                 Nothing ->
-      --                   retDictNothing programAnalysis'''
-      --
-      --                 Just patEnvs ->
-      --                   let patStaticExpEnv = List.concatMap expEnvToStaticExpEnv (List.reverse patEnvs) in -- reverse hardly matters, shouldn't have duplicate names in patterns
-      --                   -- Discard returned staticExpEnv dict because the body is not
-      --                   -- being evaluated in a static environment.
-      --                   -- let _ = Debug.log ("Applying " ++ unparse funcExpEvaled ++ " " ++ (String.join " " <| List.map unparse evaledArgExps)) () in
-      --                   let (maybeApplied, _, _) = staticEval_ False (patStaticExpEnv ++ expAnalysisAtFuncDefinition.staticExpEnv) programAnalysis''' body in
-      --                   (maybeApplied, env, programAnalysis''')
-      --         else
-      --           retDictNothing programAnalysis'''
-      --
-      --       _ ->
-      --         retDictNothing programAnalysis'''
-      --
-      --   _ ->
-      --     retDictNothing programAnalysis'''
 
     ELet _ _ isRecursive pat assign body _ ->
       let assignEnv =
@@ -2448,98 +1958,6 @@ staticEval_ isStaticEnv env programAnalysis exp =
     ETyp _ _ _ body _       -> retRecurseEquivalentExpression "ETyp"       env programAnalysis' body
     EColonType _ body _ _ _ -> retRecurseEquivalentExpression "EColonType" env programAnalysis' body
     ETypeAlias _ _ _ body _ -> retRecurseEquivalentExpression "ETypeAlias" env programAnalysis' body
-
-
--- staticEnvEval : StaticEnv -> Exp -> StaticEnv
--- staticEnvEval sEnv exp =
---     let ret v_                         = ((Val v_ [e.val.eid], []), env) in
---     let retAdd eid (v,envOut)          = ((Val v.v_ (eid::v.vtrace), []), envOut) in
---     let retAddWs eid ((v,ws),envOut)   = ((Val v.v_ (eid::v.vtrace), ws), envOut) in
---     let retAddThis_ (v,envOut)         = retAdd e.val.eid (v,envOut) in
---     let retAddThis v                   = retAddThis_ (v, env) in
---     let retBoth (v,w)                  = (({v | vtrace = e.val.eid :: v.vtrace},w), env) in
---     let replaceEnv envOut (v,_)        = (v, envOut) in
---     let addWidgets ws1 ((v1,ws2),env1) = ((v1, ws1 ++ ws2), env1) in
---
---     let bt' =
---       if e.start.line >= 1 -- Ignore desugared internal expressions
---       then e::bt
---       else bt
---     in
---
---     case e.val.e__ of
---
---   let eid = exp.val.eid in
---   -- Returns augmented environment (for let/def)
---   let staticEnvSimpleApp sEnv funcExp singleArgExp =
---     let addWidgets ws1 ((v1,ws2),env1) = ((v1, ws1 ++ ws2), env1) in
---     case eval_ env bt' funcExp of
---       Err s       -> Err s
---       Ok (v1,ws1) ->
---         case eval_ env bt' singleArgExp of
---           Err s       -> Err s
---           Ok (v2,ws2) ->
---             let ws = ws1 ++ ws2 in
---             case v1.v_ of
---               VClosure Nothing p eBody env' ->
---                 case (p, v2) `cons` Just env' of
---                   Just env'' -> Result.map (addWidgets ws) <| eval env'' bt' eBody -- TODO add eid to vTrace
---                   _          -> errorWithBacktrace bt' <| strPos funcExp.start ++ "bad environment"
---               VClosure (Just f) p eBody env' ->
---                 case (pVar f, v1) `cons` ((p, v2) `cons` Just env') of
---                   Just env'' -> Result.map (addWidgets ws) <| eval env'' bt' eBody -- TODO add eid to vTrace
---                   _          -> errorWithBacktrace bt' <| strPos funcExp.start ++ "bad environment"
---               _ ->
---                 errorWithBacktrace bt' <| strPos funcExp.start ++ " not a function"
---   case exp.val.e__ of
---     EConst _ i l wd             -> sEnv
---     EBase _ v                   -> sEnv
---     EVar _ x                    -> sEnv
---     EFun _ [p] e _              -> sEnv
---     EOp _ op es _               -> sEnv
---     EList _ es _ m _            -> sEnv
---     EIndList _ rs _             -> sEnv
---     EIf _ e1 e2 e3 _            -> sEnv
---     ECase _ e1 bs _             -> sEnv
---     ETypeCase _ pat tbranches _ -> sEnv
---     EApp _ e1 [e2] _            -> sEnv
---
---     ELet _ _ False p e1 e2 _ ->
---       -- Return env that the let body returns (so that programs return their final top-level environment)
---       Result.map (retAddWs e2.val.eid) <| evalSimpleApp env bt bt' (eFun [p] e2) e1
---
---     ELet _ _ True p e1 e2 _ ->
---       case eval_ env bt' e1 of
---         Err s       -> Err s
---         Ok (v1,ws1) ->
---           case (p.val, v1.v_) of
---             (PVar _ f _, VClosure Nothing x body env') ->
---               let _   = Utils.assert "eval letrec" (env == env') in
---               let v1' = Val (VClosure (Just f) x body env) v1.vtrace in
---               case (pVar f, v1') `cons` Just env of
---                 Just env' -> Result.map (addWidgets ws1) <| eval env' bt' e2
---                 _         -> errorWithBacktrace (e::bt) <| strPos e.start ++ "bad ELet"
---             (PList _ _ _ _ _, _) ->
---               errorWithBacktrace (e::bt) <|
---                 strPos e1.start ++
---                 "mutually recursive functions (i.e. letrec [...] [...] e) \
---                  not yet implemented"
---                  -- Implementation also requires modifications to LangTransform.simply
---                  -- so that clean up doesn't prune the funtions.
---             _ ->
---               errorWithBacktrace (e::bt) <| strPos e.start ++ "bad ELet"
---
---     EComment _ _ e1       -> eval env bt e1
---     EOption _ _ _ _ e1    -> eval env bt e1
---     ETyp _ _ _ e1 _       -> eval env bt e1
---     EColonType _ e1 _ _ _ -> eval env bt e1
---     ETypeAlias _ _ _ e1 _ -> eval env bt e1
---
---     -- abstract syntactic sugar
---
---     EFun _ ps e1 _           -> Result.map (retAddWs e1.val.eid) <| eval env bt' (eFun ps e1)
---     EApp _ e1 [] _           -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " application with no arguments"
---     EApp _ e1 es _           -> Result.map (retAddWs e.val.eid)  <| eval env bt' (eApp e1 es)
 
 
 findWithAncestors : Exp -> EId -> List Exp
@@ -2696,316 +2114,6 @@ redefineExp programEnv originalProgram indep depEId =
         let dependent = turnExpsToVars indep renamings in
         replaceExpNode depEId dependent lifted
       )
-
-
--- type alias ExpressionDependency =
---   { exp : Exp
---   , immediatelyDependentOn : Set.Set EId
---   }
---
---
--- type alias DependencyAnalysis = Dict.Dict EId ExpressionDependency
-
--- sValToV_ (SV v) = v.v_
--- sValToV  (SV v) = v
---
--- sVal v_ = SV { v_ = v_, vtrace = [dummyEId] }
---
--- sVStr = sVal << VBase << VString
---
--- sVUnknown = sVal (VCustom SVUnknown)
---
--- sValToDictKey v_ =
---   Eval.valToDictKey_ v_ sValToV_
-
--- lookupStaticEnv : StaticEnv -> Ident -> Maybe EId
--- lookupStaticEnv staticEnv ident =
---   Utils.maybeFind ident staticEnv
---   -- case Utils.maybeFind ident staticEnv of
---   --   Just (Just eid) -> Just eid
---   --   _               -> Nothing
---
--- analyzeDependence : Exp -> DependencyAnalysis
--- analyzeDependence program =
---   let (_, dependencyAnalysis, _) =
---     analyzeDependence_ [] Dict.empty program
---   in
---   dependencyAnalysis
-
--- analyzeDependence_ : StaticEnv -> DependencyAnalysis -> Exp -> (StaticEnv, DependencyAnalysis, StaticVal)
--- analyzeDependence_ env depAn exp =
---   let eid = exp.val.eid in
---   let expDepTemplate =
---     { eid                    = eid
---     , exp                    = exp
---     , staticEnv              = env
---     , staticVal              = sVUnknown
---     , immediatelyDependentOn = Set.empty
---     , dependentOnClosure     = Set.empty
---     }
---   in
---   let depsBasedOn exps =
---     let newDepAn =
---       exps
---       |> List.foldl
---         (\exp depAnAcc ->
---           let (_, newDepAnAcc, _) = analyzeDependence_ env depAnAcc argExp in
---           newDepAnAcc
---         )
---         depAn
---     in
---     let depEIds = Set.fromList <| List.map (.eid << .val) allExps in
---     let depEIdsClosure =
---       List.foldl
---           Set.union
---           depEIds
---           (List.map (\depEId -> (Utils.justGet_ "Brainstorm.analyzeDependence EList" varEId depAn).dependentOnClosure) depEIds)
---     in
---     let expDep =
---       { expDepTemplate | immediatelyDependentOn = depEIds
---                        , dependentOnClosure     = depEIdsClosure }
---     in
---     (newDepAn, expDep)
---   in
---   -- May (or may not) want to change this so each sVal returned has a vtrace of [eid] rather than [dummyEId]
---   let (newEnv, newDependencyAnalysis, retVal) =
---     case exp.val.e__ of
---       EConst _ num loc wd ->
---         let sv = sVal <| VConst (num, TrLoc loc) in
---         (env, Dict.insert eid { expDepTemplate | staticVal = sv } depAn, sv)
---
---       EBase _ v ->
---         let sv = sVal <| VBase (eBaseToVBase v) in
---         (env, Dict.insert eid { expDepTemplate | staticVal = sv } depAn, sv)
---
---       EVar _ x ->
---         let maybeVarEId = lookupStaticEnv env x in
---         case maybeVarEId of
---           Just (Just varEId) ->
---             let errorMsg = "eid in env should exist in dependency analysis.\nvar: " ++ x ++ "\neid: " ++ varEId ++ "\ndependencyAnalysis: " ++ (toString depAn) in
---             let varDep = Utils.justGet_ errorMsg varEId depAn in
---             let sv = varDep.staticVal in
---             let expDep =
---               { expDepTemplate | staticVal              = sv
---                                , immediatelyDependentOn = Set.singleton varEId
---                                , dependentOnClosure     = Set.insert varEId varDep.dependentOnClosure }
---             in
---             (env, Dict.insert eid expDep depAn, sv)
---
---           _ ->
---             (env, Dict.insert eid expDepTemplate depAn, sVUnknown)
---
---       EFun _ pats body _ ->
---         let sv = sVal <| VClosure pat body env in
---         let expDep = { expDepTemplate | staticVal = sv } in
---         let depAn' = Dict.insert eid expDep depAn in
---         let (_, depAn'', _) =
---           let env' =
---             let boundEnv =
---               List.concatMap identifiersListInPat pats
---               |> List.map (\boundIdent -> (boundIdent, Nothing))
---             in
---             boundEnv ++ env
---           in
---           -- add child deps to closure deps (if closure is lifted, vars inside need to stay in scope)
---           analyzeDependence_ env' depAn' body
---         in
---         let bodyEId = body.val.eid in
---         let bodyExpDep = Utils.justGet_ "Brainstorm.analyzeDependence fun" bodyEId depAn'' in
---         let expDep' = { expDep | immediatelyDependentOn = Set.singleton bodyEId
---                                , dependentOnClosure     = Set.insert bodyEId bodyExpDep.dependentOnClosure }
---         in
---         (env, Dict.insert eid expDep' depAn'', sv)
---
---       EOp _ op exps _ ->
---         let (newDepAn, argSVals) =
---           exps
---           |> List.foldl
---             (\argExp (depAnAcc, sVals) ->
---               let (_, newDepAnAcc, argSVal) = analyzeDependence_ env depAnAcc argExp in
---               (newDepAnAcc, sVals ++ [argSVal])
---             )
---             (depAn, [])
---         in
---         let args = List.map sValToV_ argSVals in
---         let depEIds = Set.fromList <| List.map (.eid << .val) exps in
---         let depEIdsClosure =
---           List.foldl
---               Set.union
---               depEIds
---               (List.map (\depEId -> (Utils.justGet_ "Brainstorm.analyzeDependence op" varEId depAn).dependentOnClosure) depEIds)
---         in
---         let expDepTemplate' =
---           { expDepTemplate | immediatelyDependentOn = depEIds
---                            , dependentOnClosure     = depEIdsClosure }
---         in
---         let returnSVal sv =
---           (env, Dict.insert eid { expDepTemplate' | staticVal = sv } newDepAn, sv)
---         in
---         let return val_ = returnSVal (sVal val_) in
---         let returnUnknown =
---           (env, Dict.insert eid expDepTemplate' newDepAn, sVUnknown)
---         in
---         let nullaryOp args retVal =
---           case args of
---             [] -> return retVal
---             _  -> returnUnknown
---         in
---         let unaryMathOp op args =
---           case args of
---             [VConst (n,t)] ->
---               return <| VConst (Eval.evalDelta bt op [n], TrOp op [t])
---             _ -> returnUnknown
---         in
---         let binMathOp op args =
---           case args of
---             [VConst (i,it), VConst (j,jt)] ->
---               return <| VConst (Eval.evalDelta [] op [i,j], TrOp op [it,jt])
---
---             _ -> returnUnknown
---         in
---         case op of
---           Plus ->
---             case args of
---               [VBase (VString s1), VBase (VString s2)] ->
---                 return <| VBase (VString (s1 ++ s2))
---
---               _ ->
---                 binMathOp op args
---
---           Minus     -> binMathOp op args
---           Mult      -> binMathOp op args
---           Div       -> binMathOp op args
---           Mod       -> binMathOp op args
---           Pow       -> binMathOp op args
---           ArcTan2   -> binMathOp op args
---           Lt        -> case args of
---             [VConst (i,it), VConst (j,jt)] -> return <| VBase (VBool (i < j))
---             _                              -> returnUnknown
---           Eq        -> case args of
---             [VConst (i,it), VConst (j,jt)]           -> return <| VBase (VBool (i == j))
---             [VBase (VString s1), VBase (VString s2)] -> return <| VBase (VBool (s1 == s2))
---             [VCustom SVUnknown, _]                   -> returnUnknown
---             [_, VCustom SVUnknown]                   -> returnUnknown
---             [_, _]                                   -> return <| VBase (VBool False) -- polymorphic inequality, added for Prelude.addExtras
---             _                                        -> returnUnknown
---           Pi         -> nullaryOp args (VConst (pi, TrOp op []))
---           DictEmpty  -> nullaryOp args (VDict Dict.empty)
---           DictInsert -> case argSVals of
---             [vkey, sval, dictVal] -> case (sValToV_ vkey, sValToV_ dictVal) of
---               (VCustom SVUnknown, _) -> returnUnknown -- inserting with unknown key could overwrite any existing key
---               (keyV_, VDict d) ->
---                   case sValToDictKey keyV_ of
---                     Err _   -> returnUnknown
---                     Ok dkey -> return <| VDict (Dict.insert dkey sval d)
---               _ -> returnUnknown
---             _  -> returnUnknown
---           DictGet    -> case args of
---             [keyV_, VDict d] ->
---               case sValToDictKey keyV_ of
---                 Err _   -> returnUnknown
---                 Ok dkey -> returnSVal <| Utils.getWithDefault dkey (sVal <| VBase VNull) d
---             _ -> returnUnknown
---           DictRemove -> case args of
---             [keyV_, VDict d] ->
---               case sValToDictKey keyV_ of
---                 Err _   -> returnUnknown
---                 Ok dkey -> return <| VDict (Dict.remove dkey d)
---             _ -> returnUnknown
---           Cos     -> unaryMathOp op args
---           Sin     -> unaryMathOp op args
---           ArcCos  -> unaryMathOp op args
---           ArcSin  -> unaryMathOp op args
---           Floor   -> unaryMathOp op args
---           Ceil    -> unaryMathOp op args
---           Round   -> unaryMathOp op args
---           Sqrt    -> unaryMathOp op args
---           Explode -> case args of
---             [VBase (VString s)] -> return <| VList (List.map (sVStr << String.fromChar) (String.toList s))
---             _                   -> returnUnknown
---           DebugLog -> case argSVals of
---             [sval] -> returnSVal sval
---             _      -> returnUnknown
---           ToStr -> case argSVals of
---             [sval] ->
---               if sValToV_ sval == VCustom SVUnknown
---               then returnUnknown
---               else return <| VBase (VString (strVal__ False sValToV sval))
---             _ -> returnUnknown
---           RangeOffset _ -> returnUnknown
---
---       --
---       -- Below here does not yet compute staticVal
---       --
---       EList _ _ _ _ _ ->
---         let (newDepAn, expDep) = depsBasedOn (childExps exp) in
---         (env, Dict.insert eid expDep newDepAn, sVUnknown)
---
---       EIndList _ rs _ ->
---         let (newDepAn, expDep) = depsBasedOn (childExps exp) in
---         (env, Dict.insert eid expDep newDepAn, sVUnknown)
---
---       EIf _ e1 e2 e3 _ ->
---         let (newDepAn, expDep) = depsBasedOn (childExps exp) in
---         (env, Dict.insert eid expDep newDepAn, sVUnknown)
---
---       ECase _ e1 bs _ ->
---         let expDep = { expDepTemplate | immediatelyDependentOn = Set.singleton bodyEId
---                                       , dependentOnClosure     = Set.insert bodyEId bodyExpDep.dependentOnClosure }
---         case eval_ env (e::bt) e1 of
---           Err s -> Err s
---           Ok (v1,ws1) ->
---             case evalBranches env (e::bt) v1 bs of
---               Ok (Just (v2,ws2)) -> Ok <| retBoth (v2, ws1 ++ ws2)
---               Err s              -> Err s
---               _                  -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " non-exhaustive case statement"
---
---       ETypeCase _ pat tbranches _ ->
---         case evalTBranches env (e::bt) pat tbranches of
---           Ok (Just (v,ws)) -> Ok <| retBoth (v, ws)
---           Err s            -> Err s
---           _                -> errorWithBacktrace (e::bt) <| strPos pat.start ++ " non-exhaustive typecase statement"
---
---       EApp _ e1 [e2] _ ->
---         -- Return env of the call site
---         Result.map (replaceEnv env) <| evalSimpleApp env bt bt' e1 e2
---
---       ELet _ _ False p e1 e2 _ ->
---         -- Return env that the let body returns (so that programs return their final top-level environment)
---         Result.map (retAddWs e2.val.eid) <| evalSimpleApp env bt bt' (eFun [p] e2) e1
---
---       ELet _ _ True p e1 e2 _ ->
---         case eval_ env bt' e1 of
---           Err s       -> Err s
---           Ok (v1,ws1) ->
---             case (p.val, v1.v_) of
---               (PVar _ f _, VClosure Nothing x body env') ->
---                 let _   = Utils.assert "eval letrec" (env == env') in
---                 let v1' = Val (VClosure (Just f) x body env) v1.vtrace in
---                 case (pVar f, v1') `cons` Just env of
---                   Just env' -> Result.map (addWidgets ws1) <| eval env' bt' e2
---                   _         -> errorWithBacktrace (e::bt) <| strPos e.start ++ "bad ELet"
---               (PList _ _ _ _ _, _) ->
---                 errorWithBacktrace (e::bt) <|
---                   strPos e1.start ++
---                   "mutually recursive functions (i.e. letrec [...] [...] e) \
---                    not yet implemented"
---                    -- Implementation also requires modifications to LangTransform.simply
---                    -- so that clean up doesn't prune the funtions.
---               _ ->
---                 errorWithBacktrace (e::bt) <| strPos e.start ++ "bad ELet"
---
---       EComment _ _ e1       -> eval env bt e1
---       EOption _ _ _ _ e1    -> eval env bt e1
---       ETyp _ _ _ e1 _       -> eval env bt e1
---       EColonType _ e1 _ _ _ -> eval env bt e1
---       ETypeAlias _ _ _ e1 _ -> eval env bt e1
---
---       -- abstract syntactic sugar
---
---       EFun _ ps e1 _           -> Result.map (retAddWs e1.val.eid) <| eval env bt' (eFun ps e1)
---       EApp _ e1 [] _           -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " application with no arguments"
---       EApp _ e1 es _           -> Result.map (retAddWs e.val.eid)  <| eval env bt' (eApp e1 es)
 
 
 maybeMakeEqualConstraint programEnv originalProgram constraint =
