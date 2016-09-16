@@ -379,11 +379,10 @@ firstIdeaSource idea =
     _                     -> Debug.crash "Brainstorm.firstIdeaSource: given idea without a source!"
 
 
-valToExp : Val -> Exp
-valToExp val =
+valToExp : Set.Set EId -> Val -> Exp
+valToExp staticEIds val =
   let eid =
-    -- TODO: limit to only static exps
-    case val.vtrace |> List.filter isProgramEId of
+    case val.vtrace |> List.filter isProgramEId |> List.filter (\eid -> Set.member eid staticEIds) of
       []     -> dummyEId
       eid::_ -> eid
   in
@@ -392,48 +391,55 @@ valToExp val =
     VBase (VBool bool) -> expWithEId eid <| EBase " " (EBool bool)
     VBase (VString s)  -> expWithEId eid <| EBase " " (EString defaultQuoteChar s)
     VBase VNull        -> expWithEId eid <| EBase " " ENull
-    VList vals         -> expWithEId eid <| EList " " (List.map valToExp vals) "" Nothing ""
-    VDict vDict        -> expWithEId eid <| EDict (vDict |> Dict.map (\_ v -> valToExp v))
+    VList vals         -> expWithEId eid <| EList " " (List.map (valToExp staticEIds) vals) "" Nothing ""
+    VDict vDict        -> expWithEId eid <| EDict (vDict |> Dict.map (\_ v -> valToExp staticEIds v))
     _                  -> Debug.crash <| "Unexpected val in valToExp" ++ (strVal val)
 
 
 -- Still only using the first ideaSource
-ideaToConstraintTerm : Idea -> Exp
-ideaToConstraintTerm idea =
+ideaToConstraintTerm : Set.Set EId -> Idea -> Exp
+ideaToConstraintTerm staticEIds idea =
   case firstIdeaSource idea of
     PrimitiveFeature shapeVal functionName ->
       let _ = Debug.log "shape val" shapeVal in
-      let _ = Debug.log "shape val as exp" (valToExp shapeVal) in
-      insertedApp (insertedVar0 functionName) [valToExp shapeVal]
+      let _ = Debug.log "shape val as exp" (valToExp staticEIds shapeVal) in
+      insertedApp (insertedVar0 functionName) [valToExp staticEIds shapeVal]
 
     BasedOnTwoPoints idea1 idea2 functionName ->
       insertedApp
           (insertedVar0 functionName)
-          [ ideaToConstraintTerm idea1
-          , ideaToConstraintTerm idea2
+          [ ideaToConstraintTerm staticEIds idea1
+          , ideaToConstraintTerm staticEIds idea2
           ]
 
 
 -- idea2 is the dependent idea
-ideasToConstraints : ConstraintType -> Idea -> Idea -> List Constraint
-ideasToConstraints constraintType indepIdea depIdea =
+ideasToConstraints : Exp -> ConstraintType -> Idea -> Idea -> List Constraint
+ideasToConstraints program constraintType indepIdea depIdea =
   let extraFunctions =
     case constraintType of
       XConstraint     -> ["x"]
       YConstraint     -> ["y"]
       PointConstraint -> []
   in
-  let lhsIdeaTerm = ideaToConstraintTerm indepIdea in
-  let rhsIdeaTerm = ideaToConstraintTerm depIdea in
+  let staticEIds =
+    staticAnalyzeWithPrelude program
+    |> Dict.toList
+    |> List.filter (\(eid, expAn) -> expAn.isStatic)
+    |> List.map fst
+    |> Set.fromList
+  in
+  let lhsIdeaTerm = ideaToConstraintTerm staticEIds indepIdea in
+  let rhsIdeaTerm = ideaToConstraintTerm staticEIds depIdea in
   let wrapTerm funcName arg = insertedApp (insertedVar0 funcName) [arg] in
   let lhs = List.foldr wrapTerm lhsIdeaTerm extraFunctions in
   let rhs = List.foldr wrapTerm rhsIdeaTerm extraFunctions in
   [ { independent = lhs, dependent = rhs } ]
 
 
-ideaToMaybeConstraint : ConstraintType -> Idea -> Idea -> Maybe Constraint
-ideaToMaybeConstraint constraintType indepIdea depIdea =
-  case ideasToConstraints constraintType indepIdea depIdea of
+ideaToMaybeConstraint : Exp -> ConstraintType -> Idea -> Idea -> Maybe Constraint
+ideaToMaybeConstraint program constraintType indepIdea depIdea =
+  case ideasToConstraints program constraintType indepIdea depIdea of
     []            -> Nothing
     constraint::_ -> Just constraint
 
@@ -451,6 +457,10 @@ resultDependenceTransitiveClosure programAnalysis eid =
 
 eidToExp programAnalysis eid =
   (justGetExpressionAnalysis programAnalysis eid).exp
+
+
+eidIsStatic programAnalysis eid =
+  (justGetExpressionAnalysis programAnalysis eid).isStatic
 
 
 -- Does not check that all indep expressions are static.
@@ -489,10 +499,10 @@ findVarAtEId program varExp =
     case varExp.val.e__ of
       EVar _ ident ->
         case Utils.maybeFind ident visibleVars of
-          Just (Just eid) -> (findExpByEId program eid) `Utils.orTry` (\() -> findExpByEId LangParser2.prelude eid)
-          _               ->
+          Just (Known eid) -> (findExpByEId program eid) `Utils.orTry` (\() -> findExpByEId LangParser2.prelude eid)
+          _                ->
             let _ = Debug.log ("findVarAtEId: " ++ ident ++ " not in env at " ++ (toString searchScopeEId)) (List.map fst visibleVars) in
-            Nothing -- not found in static env, or bound
+            Nothing -- not found in static env, not resolvable to an exp, or bound
 
       _ ->
         let _ = Debug.log ("findVarAtEId: not given an EVar: " ++ (unparse varExp)) () in
@@ -1200,32 +1210,31 @@ solutionsForDependentProgramLocation program constraint =
 -- TODO: change StaticEnv/neededEId into set of EIds instead of single (multiple exps may resolve the same)
 visibleVarsAt : Exp -> EId -> StaticEnv
 visibleVarsAt program observerEId =
-  let (_, _, programAnalysis) = staticEvalWithPrelude program in
+  let programAnalysis = staticAnalyzeWithPrelude program in
   let errorMsg = "Brainstorm.visibleVarsAt: can't find eid " ++ (toString observerEId) ++ " in program analysis" in
   let observerExpAn = Utils.justGet_ errorMsg observerEId programAnalysis in
-  observerExpAn.staticExpEnv
-  |> List.map (\(ident, (maybeEId, maybeExp)) -> (ident, maybeEId))
+  observerExpAn.staticEnv
 
 
 eidsAvailableAsVarsAt : Exp -> EId -> Dict.Dict EId Ident
 eidsAvailableAsVarsAt program observerEId =
-  let (_, _, programAnalysis) = staticEvalWithPrelude program in
+  let programAnalysis = staticAnalyzeWithPrelude program in
   let errorMsg = "Brainstorm.eidsAvailableAsVarsAt: can't find eid " ++ (toString observerEId) ++ " in program analysis" in
   let observerExpAn = Utils.justGet_ errorMsg observerEId programAnalysis in
   let (resultDict, _) =
-    observerExpAn.staticExpEnv
+    observerExpAn.staticEnv
     |> List.foldl
-        (\(ident, (maybeEId, maybeExp)) (dict, seenVars) ->
+        (\(ident, staticVarRef) (dict, seenVars) ->
           -- Make sure var isn't shadowed by something of higher precedence.
           if not <| Set.member ident seenVars then
-            case maybeEId of
-              Just eid ->
+            case staticVarRef of
+              Known eid ->
                 let dict' =
                   (justGetExpressionAnalysis programAnalysis eid).equivalentEIds
                   |> Set.foldl (\equivEId d -> Dict.insert equivEId ident d) dict
                 in
                 (dict', Set.insert ident seenVars)
-              Nothing ->
+              _ ->
                 (dict, Set.insert ident seenVars)
           else
             (dict, seenVars)
@@ -1235,43 +1244,18 @@ eidsAvailableAsVarsAt program observerEId =
   resultDict
 
 
--- Need (Maybe EId) so that we can put function bound vars in the env but
--- they resolve to nothing, statically. If we simply leave them out the
--- lookup might wrongly find a shadowed variable higher up.
-type alias StaticEnv = List (Ident, Maybe EId)
-type alias StaticExpEnv = List (Ident, (Maybe EId, Maybe Exp))
+type StaticVarRef
+  = Known EId     -- Var references a known EId. Var is static if the referenced expression is static.
+  | StaticUnknown -- Var references a static value, but can't say exactly what. (E.g. var came from the deconstruction of a static value, but we're too imprecise to work out the deconstruction exactly)
+  | Bound         -- Var references a bound argument, not static.
+
+type alias StaticEnv = List (Ident, StaticVarRef)
 
 
-findNameForEIdInStaticExpEnv : EId -> StaticExpEnv -> Maybe Ident
-findNameForEIdInStaticExpEnv targetEId env =
-  if isActualEId targetEId then
-    let predicate (_, (maybeEId, maybeExp)) =
-      case (maybeEId, maybeExp) of
-        (Just envEId, _) -> targetEId == envEId
-        (_, Just envExp) -> targetEId == envExp.val.eid
-        _                -> False
-    in
-    Utils.findFirst predicate env |> Maybe.map (\(ident, _) -> ident)
-  else
-    Nothing
-
-
-expEnvToStaticExpEnv : List (Ident, Exp) -> StaticExpEnv
-expEnvToStaticExpEnv expEnv =
-  expEnv
-  |> List.map
-      (\(ident, exp) ->
-        if isActualEId exp.val.eid then
-          (ident, (Just exp.val.eid, Just exp))
-        else
-          (ident, (Nothing, Just exp))
-      )
-
-
-patToDeadStaticExpEnv : Pat -> StaticExpEnv
-patToDeadStaticExpEnv pat =
+patToDeadStaticEnv : Pat -> StaticEnv
+patToDeadStaticEnv pat =
   identifiersListInPat pat
-  |> List.map (\ident -> (ident, (Nothing, Nothing)))
+  |> List.map (\ident -> (ident, Bound))
 
 
 expToDictKey : Exp -> Maybe (String, String)
@@ -1291,7 +1275,8 @@ expToDictKey exp =
 
 type alias ExpressionAnalysis =
   { exp                    : Exp
-  , staticExpEnv           : StaticExpEnv
+  , staticEnv              : StaticEnv
+  , isStatic               : Bool
   , equivalentEIds         : Set.Set EId -- Which other expressions are guaranteed to resolve to this value?
   , immediatelyDependentOn : Set.Set EId
   , dependenceClosure      : Maybe (Set.Set EId)
@@ -1521,22 +1506,22 @@ ensureSCCDAGDependenceClosure sccId sccsAnalysis =
         sccsAnalysis'
 
 
-(_, preludeStaticExpEnv, preludeProgramAnalysis) =
-  staticEval_ True [] Dict.empty LangParser2.prelude
+(_, preludeStaticEnv, preludeProgramAnalysis) =
+  staticAnalyze_ [] Dict.empty LangParser2.prelude
 
 
 -- Also computes dependence closure
-staticEvalWithPrelude : Exp -> (Maybe Exp, StaticExpEnv, ProgramAnalysis)
-staticEvalWithPrelude program =
+staticAnalyzeWithPrelude : Exp -> ProgramAnalysis
+staticAnalyzeWithPrelude program =
   let _ = Debug.log "static evaling program" () in
-  let (maybeResult, staticEnvExp, programAnalysis) =
-    staticEval_ True preludeStaticExpEnv preludeProgramAnalysis program
+  let (_, _, programAnalysis) =
+    staticAnalyze_ preludeStaticEnv preludeProgramAnalysis program
   in
   let _ = Debug.log "gathering equivalent EIds" () in
   let programAnalysis' = gatherEquivalentEIds programAnalysis in
   let _ = Debug.log "computing transitive closure" () in
   let programAnalysis'' = computeTransitiveDependenceClosure programAnalysis' in
-  (maybeResult, staticEnvExp, programAnalysis'')
+  programAnalysis''
 
 
 -- Need to do better than n^2 because all the top-level def's are equivalent to each other.
@@ -1581,105 +1566,84 @@ gatherEquivalentEIds programAnalysis =
 
 
 -- Does not compute dependence closure or full equivalent EId sets.
--- isStaticEnv is a failed attempt to prevent recursion from diverging, left in here
--- because it saves some cycles during non-recursive function application.
--- (Problem: staticEval_ always visits all branches to do analysis; but for recursive functions a branch may diverge)
--- (Can't simply handle branches differently based on having isStaticEnv flag set to false during application; the very first function application could be taken in error)
--- (Turn off recursive evaluation, for now.)
--- If (Just exp) is returned, exp has an actual eid if that eid in the program is known to be statically equivalent to the returned "value".
-staticEval_ : Bool -> StaticExpEnv -> ProgramAnalysis -> Exp -> (Maybe Exp, StaticExpEnv, ProgramAnalysis)
-staticEval_ isStaticEnv env programAnalysis exp =
-  let replaceExp newE__ =
-    if isStaticEnv then -- This is a litlle conservative. More precise is to verify that exp doesn't depend on bound variables.
-      replaceE__ exp newE__ -- Preserve EId for later extraction.
-    else
-      withDummyPos <| newE__
-  in
+staticAnalyze_ : StaticEnv -> ProgramAnalysis -> Exp -> (Bool, StaticEnv, ProgramAnalysis)
+staticAnalyze_ env programAnalysis exp =
+  let replaceExp newE__ = replaceE__ exp newE__ in
   let thisEId = exp.val.eid in
   let programAnalysis' =
-    if isStaticEnv && isActualEId thisEId then
-      let expressionAnalysis =
-        { exp                    = exp
-        , staticExpEnv           = env
-        , equivalentEIds         = Set.singleton thisEId
-        , immediatelyDependentOn = childExps exp |> List.map (.eid << .val) |> List.filter isActualEId |> Set.fromList
-        , dependenceClosure      = Nothing -- calculated separately
-        }
-      in
-      Dict.insert thisEId expressionAnalysis programAnalysis
-    else
-      programAnalysis
+    let expressionAnalysis =
+      { exp                    = exp
+      , staticEnv              = env
+      , isStatic               = True
+      , equivalentEIds         = Set.singleton thisEId
+      , immediatelyDependentOn = childExps exp |> List.map (.eid << .val) |> Set.fromList
+      , dependenceClosure      = Nothing -- calculated separately
+      }
+    in
+    Dict.insert thisEId expressionAnalysis programAnalysis
   in
   let addDependencies progAn dependentEId dependencyEIds =
     let dependencyEIds' = Set.filter isActualEId dependencyEIds in
-    if isStaticEnv && isActualEId dependentEId && (Set.size dependencyEIds' >= 0) then
-      let expAn = justGetExpressionAnalysis progAn dependentEId in
-      let expAn' = { expAn | immediatelyDependentOn = Set.union dependencyEIds' expAn.immediatelyDependentOn } in
-      Dict.insert dependentEId expAn' progAn
-    else
-      progAn
+    let expAn = justGetExpressionAnalysis progAn dependentEId in
+    let expAn' = { expAn | immediatelyDependentOn = Set.union dependencyEIds' expAn.immediatelyDependentOn } in
+    Dict.insert dependentEId expAn' progAn
   in
   let makeSubtreesDependent progAn subtrees dependencyEIds =
-    if isStaticEnv then
-      subtrees
-      |> List.concatMap allActualEIds
-      |> List.foldl
-          (\descendantEId progAn ->
-            addDependencies progAn descendantEId dependencyEIds
-          )
-          progAn
-    else
-      progAn
+    subtrees
+    |> List.concatMap allActualEIds
+    |> List.foldl
+        (\descendantEId progAn ->
+          addDependencies progAn descendantEId dependencyEIds
+        )
+        progAn
   in
   let addDependency progAn eid =
     addDependencies progAn thisEId (Set.singleton eid)
   in
   let addEquivalentEId msg progAn eid1 eid2 =
-    if isStaticEnv && isActualEId eid1 && isActualEId eid2 then
-      -- Just need to make sure connection is bi-directional to ensure we
-      -- can later do a spanning tree search of an equivalent eid group.
-      let expAn1 =
-        Utils.justGet_ ("Couldn't find eid1 " ++ (toString eid1) ++ " with eid1 " ++ (toString eid1) ++ " and eid2 " ++ (toString eid2) ++ ". " ++ msg ++ " Line: " ++ (toString exp.start.line)) eid1 progAn
-      in
-      let expAn2 =
-        Utils.justGet_ ("Couldn't find eid2 " ++ (toString eid2) ++ " with eid1 " ++ (toString eid1) ++ " and eid2 " ++ (toString eid2) ++ ". " ++ msg ++ " Line: " ++ (toString exp.start.line)) eid2 progAn
-      in
-      let progAn'  = Dict.insert eid1 { expAn1 | equivalentEIds = Set.insert eid2 expAn1.equivalentEIds } progAn in
-      let progAn'' = Dict.insert eid2 { expAn2 | equivalentEIds = Set.insert eid1 expAn2.equivalentEIds } progAn' in
-      progAn''
-    else
-      progAn
+    -- Just need to make sure connection is bi-directional to ensure we
+    -- can later do a spanning tree search of an equivalent eid group.
+    let expAn1 =
+      Utils.justGet_ ("Couldn't find eid1 " ++ (toString eid1) ++ " with eid1 " ++ (toString eid1) ++ " and eid2 " ++ (toString eid2) ++ ". " ++ msg ++ " Line: " ++ (toString exp.start.line)) eid1 progAn
+    in
+    let expAn2 =
+      Utils.justGet_ ("Couldn't find eid2 " ++ (toString eid2) ++ " with eid1 " ++ (toString eid1) ++ " and eid2 " ++ (toString eid2) ++ ". " ++ msg ++ " Line: " ++ (toString exp.start.line)) eid2 progAn
+    in
+    let progAn'  = Dict.insert eid1 { expAn1 | equivalentEIds = Set.insert eid2 expAn1.equivalentEIds } progAn in
+    let progAn'' = Dict.insert eid2 { expAn2 | equivalentEIds = Set.insert eid1 expAn2.equivalentEIds } progAn' in
+    progAn''
   in
-  let retDict retProgramAnalysis e      = (Just e, env, retProgramAnalysis) in
-  let retDictNothing retProgramAnalysis = (Nothing, env, retProgramAnalysis) in
-  let ret e                             = retDict programAnalysis' e in
-  let retNothing                        = retDictNothing programAnalysis' in
+  let retEnvDict isStatic retEnv retProgramAnalysis =
+    if isStatic then
+      (True, retEnv, retProgramAnalysis)
+    else
+      let thisExpAn = justGetExpressionAnalysis retProgramAnalysis thisEId in
+      let retProgramAnalysis' = Dict.insert thisEId { thisExpAn | isStatic = False } retProgramAnalysis in
+      (False, retEnv, retProgramAnalysis')
+  in
+  let retDict isStatic retProgramAnalysis = retEnvDict isStatic env retProgramAnalysis in
+  let ret isStatic                        = retDict isStatic programAnalysis' in
   let retRecurseEquivalentExpression msg env progAn exp =
-    let (maybeResult, resultEnv, progAn') = staticEval_ isStaticEnv env progAn exp in
+    let (isStatic, resultEnv, progAn') = staticAnalyze_ env progAn exp in
     let progAn'' = addEquivalentEId msg progAn' thisEId exp.val.eid in
-    (maybeResult, resultEnv, progAn'')
+    retEnvDict isStatic resultEnv progAn''
   in
   let recurseAll env programAnalysis exps =
-    let (resultMaybes, _, programAnalyses) =
-      exps |> List.map (staticEval_ isStaticEnv env programAnalysis) |> Utils.unzip3
+    let (staticBools, _, programAnalyses) =
+      exps |> List.map (staticAnalyze_ env programAnalysis) |> Utils.unzip3
     in
-    let mergedProgramAnalysis = List.foldl Dict.union programAnalysis programAnalyses in
-    (resultMaybes, mergedProgramAnalysis)
+    let mergedProgramAnalysis = Utils.mergeAll (programAnalysis::programAnalyses) in
+    let allStatic = List.all ((==) True) staticBools in
+    (allStatic, mergedProgramAnalysis)
   in
   case exp.val.e__ of
-    EVal _                 -> Debug.crash "Brainstorm.staticEval_: figure out whether to handle EVal"
-    EDict _                -> Debug.crash "Brainstorm.staticEval_: figure out whether to handle EDict"
-    EConst _ n loc wd      -> ret exp
-    EBase _ bVal           -> ret exp
+    EVal _                 -> Debug.crash "Brainstorm.staticAnalyze_: figure out whether to handle EVal"
+    EDict _                -> Debug.crash "Brainstorm.staticAnalyze_: figure out whether to handle EDict"
+    EConst _ n loc wd      -> ret True
+    EBase _ bVal           -> ret True
     EVar _ ident           ->
-      let _ =
-        if ident == "rect1" then
-          Debug.log "rect1" (Utils.maybeFind ident env)
-        else
-          Nothing
-      in
       case Utils.maybeFind ident env of
-        Just (maybeEId, maybeExp) ->
+        Just (Known eid) ->
           -- We could say that a variable reference is dependent on the the expression with the pattern
           -- that defined it (e.g. dependent on the let statement rather than just the assign exp in the
           -- let, or the function that introduced this variable as an argument) but that's not needed in
@@ -1690,14 +1654,22 @@ staticEval_ isStaticEnv env programAnalysis exp =
           -- is independent of the dependent expression). In such a case, e.g. the assign of a let is
           -- a child of the let and so the let cannot be replaced.
           let programAnalysis'' =
-            case maybeEId of
-              Just eid -> addEquivalentEId ("EVar " ++ ident) (addDependency programAnalysis' eid) thisEId eid
-              Nothing  -> programAnalysis'
+            addEquivalentEId ("EVar " ++ ident) (addDependency programAnalysis' eid) thisEId eid
           in
-          (maybeExp, env, programAnalysis'')
+          retDict (eidIsStatic programAnalysis'' eid) programAnalysis''
+
+        Just StaticUnknown ->
+          -- Variable exists and is static but can't be resolved.
+          ret True
+
+        Just Bound ->
+          -- Variable exists but is bound. Non-static.
+          ret False
 
         Nothing ->
-          (Nothing, env, programAnalysis')
+          -- Variable not found. Normal Eval.run will produce a runtime error. Presume non-static, I guess.
+          let _ = Debug.log ("Warning: variable " ++ ident ++ " not found on line " ++ (toString exp.start.line)) () in
+          ret False
 
     EFun _ pats body _     ->
       -- Log static envs of func body.
@@ -1705,253 +1677,105 @@ staticEval_ isStaticEnv env programAnalysis exp =
         let patsEnv =
           identifiersSetInPats pats
           |> Set.toList
-          |> List.map (\ident -> (ident, (Nothing, Nothing)))
+          |> List.map (\ident -> (ident, Bound))
         in
         let bodyEnv = patsEnv ++ env in
-        staticEval_ isStaticEnv bodyEnv programAnalysis' body
+        staticAnalyze_ bodyEnv programAnalysis' body
       in
-      retDict programAnalysis'' exp
+      -- Function is static if all free variables in its body are static.
+      let isStatic =
+        (freeIdentifiers exp)
+        |> Set.toList
+        |> List.all
+            (\ident ->
+              case Utils.maybeFind ident env of
+                Just (Known eid)   -> eidIsStatic programAnalysis'' eid
+                Just StaticUnknown -> True
+                Just Bound         -> False
+                Nothing            -> False -- Var not found; will be a runtime error on Eval.run.
+            )
+      in
+      retDict isStatic programAnalysis''
 
     EOp ws1 op argExps ws2 ->
-      let op_ = op.val in
-      let (evaledArgExpMaybes, programAnalysis'') = recurseAll env programAnalysis' argExps in
-      let ret'        = retDict programAnalysis'' in
-      let retNothing' = retDictNothing programAnalysis'' in
-      let retConst n  = ret' <| replaceExp (EConst ws1 n dummyLoc noWidgetDecl) in
-      let nullaryOp args n =
-        case args of
-          [] -> retConst n
-          _  -> retNothing'
+      let ret' () =
+        let (allArgsStatic, programAnalysis'') =
+          recurseAll env programAnalysis' argExps
+        in
+        retDict allArgsStatic programAnalysis''
       in
-      let unaryMathOp op_ args =
-        case args of
-          [EConst _ n _ _] ->
-            case op_ of
-              Cos    -> retConst (cos n)
-              Sin    -> retConst (sin n)
-              ArcCos -> retConst (acos n)
-              ArcSin -> retConst (asin n)
-              Floor  -> retConst (toFloat <| floor n)
-              Ceil   -> retConst (toFloat <| ceiling n)
-              Round  -> retConst (toFloat <| round n)
-              Sqrt   -> retConst (sqrt n)
-              _      -> retNothing'
-
-          _ ->
-            retNothing'
-      in
-      let binMathOp op_ args =
-        case args of
-          [EConst _ n1 _ _, EConst _ n2 _ _] ->
-            case op_ of
-              Plus    -> retConst (n1 + n2)
-              Minus   -> retConst (n1 - n2)
-              Mult    -> retConst (n1 * n2)
-              Div     -> retConst (n1 / n2)
-              Pow     -> retConst (n1 ^ n2)
-              Mod     -> retConst (toFloat <| (floor n1) % (floor n2))
-              ArcTan2 -> retConst (atan2 n1 n2)
-              _       -> retNothing'
-
-          _ ->
-            retNothing'
-      in
-      case evaledArgExpMaybes |> Utils.projJusts of
-        Nothing ->
-          retNothing'
-
-        Just evaledArgExps ->
-          let args = evaledArgExps |> List.map (.e__ << .val) in
-          case op_ of
-            Plus ->
-              case args of
-                [EBase _ (EString _ s1), EBase _ (EString _ s2)] -> ret' <| replaceExp (EBase ws1 (EString defaultQuoteChar (s1 ++ s2)))
-                _                                                -> binMathOp op_ args
-            Minus   -> binMathOp op_ args
-            Mult    -> binMathOp op_ args
-            Div     -> binMathOp op_ args
-            Mod     -> binMathOp op_ args
-            Pow     -> binMathOp op_ args
-            ArcTan2 -> binMathOp op_ args
-            Lt      -> case args of
-              [EConst _ n1 _ _, EConst _ n2 _ _] -> ret' <| replaceExp (EBase ws1 (EBool (n1 < n2)))
-              _                                  -> retNothing'
-            Eq            -> case args of
-              [EConst _ n1 _ _,        EConst _ n2 _ _]        -> ret' <| replaceExp (EBase ws1 (EBool (n1 == n2)))
-              [EBase _ (EString _ s1), EBase _ (EString _ s2)] -> ret' <| replaceExp (EBase ws1 (EBool (s1 == s2)))
-              _                                                -> retNothing'
-            Pi         -> nullaryOp args pi
-            DictEmpty  -> ret' <| replaceExp (EDict Dict.empty)
-            DictInsert ->
-              case evaledArgExps of
-                [eKey, eVal, dict] ->
-                  case (dict.val.e__, expToDictKey eKey) of
-                    (EDict d, Just dKey) -> ret' <| replaceExp (EDict (Dict.insert dKey eVal d))
-                    _                    -> retNothing'
-                _ ->
-                  retNothing'
-            DictGet ->
-              case evaledArgExps of
-                [eKey, dict] ->
-                  case (dict.val.e__, expToDictKey eKey) of
-                    (EDict d, Just dKey) ->
-                      let retVal = Utils.getWithDefault dKey (replaceExp (EBase ws1 ENull)) d in
-                      let programAnalysis''' = addEquivalentEId ("DictGet " ++ (toString dKey)) programAnalysis'' thisEId retVal.val.eid in -- In case we return null, thisEId == retVal.val.eid, but it works because being equivalent to yourself is fine.
-                      retDict programAnalysis''' retVal
-                    _ ->
-                      retNothing'
-                _ ->
-                  retNothing'
-            DictRemove ->
-              case evaledArgExps of
-                [eKey, dict] ->
-                  case (dict.val.e__, expToDictKey eKey) of
-                    (EDict d, Just dKey) -> ret' <| replaceExp (EDict (Dict.remove dKey d))
-                    _                    -> retNothing'
-                _ ->
-                  retNothing'
-            Cos        -> unaryMathOp op_ args
-            Sin        -> unaryMathOp op_ args
-            ArcCos     -> unaryMathOp op_ args
-            ArcSin     -> unaryMathOp op_ args
-            Floor      -> unaryMathOp op_ args
-            Ceil       -> unaryMathOp op_ args
-            Round      -> unaryMathOp op_ args
-            Sqrt       -> unaryMathOp op_ args
-            Explode    ->
-              case args of
-                [EBase _ (EString _ s)] -> ret' <| replaceExp (EList ws1 (List.map (eStr << String.fromChar) (String.toList s)) "" Nothing ws2)
-                _                       -> retNothing'
-            DebugLog ->
-              case argExps of
-                [childExp] -> retRecurseEquivalentExpression "DebugLog" env programAnalysis' childExp
-                _          -> retNothing'
-            ToStr         -> retNothing'
-            RangeOffset _ -> retNothing'
+      case op.val of
+        DebugLog ->
+          case argExps of
+            [childExp] -> retRecurseEquivalentExpression "DebugLog" env programAnalysis' childExp
+            _          -> ret' ()
+        _  -> ret' ()
 
     EList ws1 heads ws2 maybeRest ws3 ->
-      let (evaledHeadMaybes, programAnalysis'') = recurseAll env programAnalysis' heads in
-      let (evaledRestMaybe, programAnalysis''') =
-        case maybeRest of
-          Just restExp ->
-            let (evaledRestMaybe, _, programAnalysis''') = staticEval_ isStaticEnv env programAnalysis'' restExp in
-            (evaledRestMaybe, programAnalysis''')
-
-          Nothing ->
-            (Nothing, programAnalysis'')
-      in
-      let ret'        = retDict programAnalysis''' in
-      let retNothing' = retDictNothing programAnalysis''' in
-      case evaledHeadMaybes |> Utils.projJusts of
-        Nothing -> retNothing'
-        Just headsEvaled ->
-          case (maybeRest, evaledRestMaybe) of
-            (Nothing, _)                 -> ret' <| replaceExp (EList ws1 headsEvaled ws2 Nothing ws3)
-            (Just rest, Nothing)         -> retNothing'
-            (Just rest, Just restEvaled) ->
-              case restEvaled.val.e__ of
-                EList _ restElements _ Nothing _ -> ret' <| replaceExp (EList ws1 (headsEvaled ++ restElements) ws2 Nothing ws3)
-                _                                -> retNothing'
+      let (allChildrenStatic, programAnalysis'') = recurseAll env programAnalysis' (childExps exp) in
+      retDict allChildrenStatic programAnalysis''
 
     EIndList ws1 ranges ws2 ->
-      let (evaledChildMaybes, programAnalysis'') = recurseAll env programAnalysis' (childExps exp) in
-      retDictNothing programAnalysis'' -- TODO: I don't want to deal with ranges
+      let (allChildrenStatic, programAnalysis'') = recurseAll env programAnalysis' (childExps exp) in
+      retDict allChildrenStatic programAnalysis''
 
     EIf ws1 predicate trueBranch falseBranch ws2 ->
-      let (evaledPartMaybes, programAnalysis'') = recurseAll env programAnalysis' [predicate, trueBranch, falseBranch] in
+      let (allPartsStatic, programAnalysis'') = recurseAll env programAnalysis' [predicate, trueBranch, falseBranch] in
       -- Conservatively make the branch descendants dependent on the predicate.
       let programAnalysis''' =
         makeSubtreesDependent programAnalysis'' [trueBranch, falseBranch] (Set.singleton predicate.val.eid)
       in
-      case evaledPartMaybes of
-        [maybeEvaledPredicate, maybeEvaledTrueBranch, maybeEvaledFalseBranch] ->
-          case maybeEvaledPredicate |> Maybe.map (.e__ << .val) of
-            Just (EBase _ (EBool True)) ->
-              let programAnalysis'''' = addEquivalentEId ("EIf true ") programAnalysis''' thisEId trueBranch.val.eid in
-              (maybeEvaledTrueBranch,  env, programAnalysis'''')
-
-            Just (EBase _ (EBool False)) ->
-              let programAnalysis'''' = addEquivalentEId ("EIf false ") programAnalysis''' thisEId falseBranch.val.eid in
-              (maybeEvaledFalseBranch, env, programAnalysis'''')
-
-            _ ->
-              (Nothing, env, programAnalysis''')
-
-        _ ->
-          Debug.crash "Brainstorm.staticEval_ if: this branch should be unreachable"
+      retDict allPartsStatic programAnalysis'''
 
     ECase ws1 scrutinee branches ws2 ->
-      let (maybeScrutineeEvaled, _, programAnalysis'') = staticEval_ isStaticEnv env programAnalysis' scrutinee in
-      let programAnalysis''' =
+      let (isScrutineeStatic, _, programAnalysis'') = staticAnalyze_ env programAnalysis' scrutinee in
+      let (allBranchesStatic, programAnalysis''') =
         branches
         |> List.map .val
         |> List.foldl
-            (\(Branch_ _ bPat bExp _) progAn ->
-              let patEnv = patToDeadStaticExpEnv bPat in
+            (\(Branch_ _ bPat bExp _) (allBranchesStatic, progAn) ->
+              let patEnv =
+                identifiersListInPat bPat
+                |> List.map (\ident -> if isScrutineeStatic then (ident, StaticUnknown) else (ident, Bound))
+              in
               let branchEnv = patEnv ++ env in
-              let (_, _, progAn') = staticEval_ isStaticEnv branchEnv progAn bExp in
-              progAn'
+              let (isBranchStatic, _, progAn') = staticAnalyze_ branchEnv progAn bExp in
+              (isBranchStatic && allBranchesStatic, progAn')
             )
-            programAnalysis''
-      in
-      let (maybeResult, resultEnv, resultProgAn) =
-        case maybeScrutineeEvaled of
-          Nothing ->
-            retDictNothing programAnalysis'''
-
-          Just scrutineeEvaled ->
-            case maybeExpMatchBranches scrutineeEvaled branches of
-              Nothing ->
-                retDictNothing programAnalysis'''
-
-              Just (branchEnv, branchExp) ->
-                let branchStaticeExpEnv = expEnvToStaticExpEnv branchEnv in
-                -- Yes, this is a re-evaluation. May get more specific results with
-                -- a more specific env.
-                retRecurseEquivalentExpression ("ECase ") (branchStaticeExpEnv ++ env) programAnalysis''' branchExp
+            (True, programAnalysis'')
       in
       -- Conservatively make all branch expression descendants dependent on the scrutinee.
-      let resultProgAn' =
-        makeSubtreesDependent resultProgAn (branchExps branches) (Set.singleton scrutinee.val.eid)
+      let programAnalysis'''' =
+        makeSubtreesDependent programAnalysis''' (branchExps branches) (Set.singleton scrutinee.val.eid)
       in
-      (maybeResult, resultEnv, resultProgAn')
+      retDict (isScrutineeStatic && allBranchesStatic) programAnalysis''''
 
     ETypeCase _ scrutinee tbranches _ ->
-      let (_, programAnalysis'') = recurseAll env programAnalysis' (childExps exp) in
+      let (allPartsStatic, programAnalysis'') = recurseAll env programAnalysis' (childExps exp) in
       -- Conservatively make all branch expression descendants dependent on the scrutinee.
       let programAnalysis''' =
         makeSubtreesDependent programAnalysis'' (tbranchExps tbranches) (Set.singleton scrutinee.val.eid)
       in
-      retDictNothing programAnalysis''' -- TODO handle typecase evaluation...probably need to at least handle null
+      retDict allPartsStatic programAnalysis'''
 
     EApp ws1 funcExp argExps ws2 ->
-      -- Only full application for now.
-      let (funcExpEvaledMaybe, _, programAnalysis'') = staticEval_ isStaticEnv env programAnalysis' funcExp in
-      let (evaledArgExpMaybes, programAnalysis''')   = recurseAll env programAnalysis'' argExps in
-      retDictNothing programAnalysis'''
+      let (allChildrenStatic, programAnalysis'') = recurseAll env programAnalysis' (childExps exp) in
+      retDict allChildrenStatic programAnalysis''
 
     ELet _ _ isRecursive pat assign body _ ->
       let assignEnv =
         case (isRecursive, pat.val) of
-          (True, PVar _ ident _)  -> (expEnvToStaticExpEnv [(ident, assign)]) ++ env
+          (True, PVar _ ident _)  -> (ident, Known assign.val.eid)::env
           (True, PList _ _ _ _ _) -> env -- mutually recursive functions not supported
           _                       -> env
       in
-      let (assignExpEvaledMaybe, _, programAnalysis'') = staticEval_ isStaticEnv assignEnv programAnalysis' assign in
-      let patStaticExpEnv =
-        case assignExpEvaledMaybe of
-          Just assignExpEvaled ->
-            case maybeMatchExp pat assignExpEvaled of
-              Nothing  -> patToDeadStaticExpEnv pat
-              Just env -> expEnvToStaticExpEnv env
-
-          Nothing ->
-            -- Try to match unsimplified expression.
-            case maybeMatchExp pat assign of
-              Nothing  -> patToDeadStaticExpEnv pat
-              Just env -> expEnvToStaticExpEnv env
+      let (isAssignStatic, _, programAnalysis'') = staticAnalyze_ assignEnv programAnalysis' assign in
+      let patStaticEnv =
+        case maybeMatchExp pat assign of
+          Just env -> env |> List.map (\(ident, exp) -> (ident, Known exp.val.eid))
+          Nothing  -> identifiersListInPat pat |> List.map (\ident -> if isAssignStatic then (ident, StaticUnknown) else (ident, Bound))
       in
-      retRecurseEquivalentExpression ("ELet " ++ (toString isRecursive)) (patStaticExpEnv ++ env) programAnalysis'' body
+      retRecurseEquivalentExpression ("ELet " ++ (toString isRecursive)) (patStaticEnv ++ env) programAnalysis'' body
 
     EComment _ _ body       -> retRecurseEquivalentExpression "EComment"   env programAnalysis' body
     EOption _ _ _ _ body    -> retRecurseEquivalentExpression "EOption"    env programAnalysis' body
@@ -1992,8 +1816,8 @@ freeVarEIdsInExp program mobileEId =
   |> Utils.foldlMaybe
       (\freeIdent freeVarEIds ->
         case Utils.maybeFind freeIdent visibleVars of
-          Just (Just eid) -> Just ((freeIdent, eid)::freeVarEIds)
-          _               -> Nothing -- not found in static env, or bound
+          Just (Known eid) -> Just ((freeIdent, eid)::freeVarEIds)
+          _                -> Nothing -- not found in static env, not resolvable to an expression, or bound
       )
       (Just [])
 
@@ -2118,7 +1942,7 @@ redefineExp programEnv originalProgram indep depEId =
 
 maybeMakeEqualConstraint programEnv originalProgram constraint =
   let _ = Debug.log "statically evaluating" () in
-  let (_, _, programAnalysis) = staticEvalWithPrelude originalProgram in
+  let programAnalysis = staticAnalyzeWithPrelude originalProgram in
   let _ = Debug.log "finding solutions" () in
   let solutions =
     solutionsForDependentProgramLocation originalProgram constraint
@@ -2136,7 +1960,7 @@ maybeMakeEqualConstraint programEnv originalProgram constraint =
 relate originalProgram idea zoneToRelate slideNumber movieNumber movieTime =
   let (shapeId, zoneName) = zoneToRelate in
   let _ =
-    let (_, _, progAn) = staticEvalWithPrelude originalProgram in
+    let progAn = staticAnalyzeWithPrelude originalProgram in
     Debug.log (progAn |> Dict.toList |> List.map (\(eid, expAn) -> (toString eid) ++ " " ++ (unparse expAn.exp |> String.trimLeft |> String.left 33)) |> String.join "\n") ()
   in
   case Eval.eval Eval.initEnv [] originalProgram of
@@ -2156,7 +1980,7 @@ relate originalProgram idea zoneToRelate slideNumber movieNumber movieTime =
               case maybeZoneIdea of
                 Nothing       -> originalProgram
                 Just zoneIdea ->
-                  case ideaToMaybeConstraint (zoneNameToConstraintType zoneName) idea zoneIdea of
+                  case ideaToMaybeConstraint originalProgram (zoneNameToConstraintType zoneName) idea zoneIdea of
                     Nothing         -> originalProgram
                     Just constraint ->
                       case maybeMakeEqualConstraint programEnv originalProgram constraint of
