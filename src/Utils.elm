@@ -4,6 +4,7 @@ import String
 import Debug
 import Set exposing (Set)
 import Dict exposing (Dict)
+import Regex
 
 flipTuple (a, b) = (b, a)
 
@@ -200,6 +201,12 @@ munchString prefix s =
 takeNLines : Int -> String -> String
 takeNLines n s =
   String.lines s |> List.take n |> String.join "\n"
+
+-- Replace all runs of whitespace with a single space
+squish : String -> String
+squish str =
+  String.trim <|
+    Regex.replace Regex.All (Regex.regex "\\s+") (\_ -> " ") str
 
 oneOfEach : List (List a) -> List (List a)
 oneOfEach xss = case xss of

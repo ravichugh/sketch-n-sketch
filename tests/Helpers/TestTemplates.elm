@@ -1,11 +1,11 @@
 module Helpers.TestTemplates where
 
 import Helpers.Matchers exposing (..)
-import Helpers.Utils exposing (..)
 
 import LangParser2
 import LangUnparser
 import Lang
+import Utils
 
 
 testCodeTransform : (Lang.Exp -> Lang.Exp) -> String -> String -> String
@@ -17,4 +17,4 @@ testCodeTransform transformer inputCode expectedOutputCode =
     Ok inputExp ->
       let transformedExp  = transformer inputExp in
       let transformedCode = LangUnparser.unparse transformedExp in
-      (squish transformedCode) `shouldEqual` (squish expectedOutputCode)
+      (Utils.squish transformedCode) `shouldEqual` (Utils.squish expectedOutputCode)
