@@ -587,7 +587,7 @@ abstractOne (i, eBlob, x) (defs, blobs) =
               let eBlah =
                 case listOfAnnotatedNums1 (List.map snd restOfMapping) of
                   []   -> eVar x
-                  args -> withDummyPos (EApp "\n    " (eVar0 x) args "")
+                  args -> withDummyPos (EApp " " (eVar0 x) args "")
               in
               withDummyPos (EApp "\n  " (eVar0 "withAnchor") [eAnchor, eBlah] "")
             in
