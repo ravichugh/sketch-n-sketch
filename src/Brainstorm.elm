@@ -448,13 +448,6 @@ justGetExpressionAnalysis programAnalysis eid =
   Utils.justGet_ ("Brainstorm.justGetExpressionAnalysis: could not find eid " ++ (toString eid)) eid programAnalysis
 
 
---- Precondition: programAnalysis has calculated the closures
-resultDependenceTransitiveClosure programAnalysis eid =
-  case (justGetExpressionAnalysis programAnalysis eid).dependenceClosure of
-    Just closure -> closure
-    Nothing      -> Debug.crash <| "Brainstorm.resultDependenceTransitiveClosure: closure not calculated for eid " ++ (toString eid)
-
-
 eidToExp programAnalysis eid =
   (justGetExpressionAnalysis programAnalysis eid).exp
 
@@ -467,70 +460,30 @@ eidIsStatic programAnalysis eid =
 -- Non-static indep expressions will fail to lift (their
 -- bound vars fail a lookup)
 isValidSolution programAnalysis (independent, depEId) =
-  let indepEIds = Set.toList <| Set.fromList <| allActualEIds independent in
-  -- let _ = Debug.log "indepEIds immediate dependence" () in
-  -- let _ =
-  --   Debug.log
-  --       (programAnalysis
-  --       |> Dict.toList
-  --       |> List.filter (\(eid, _) -> List.member eid indepEIds)
-  --       |> List.map
-  --           (\(eid, expAn) ->
-  --             (unparse expAn.exp |> Utils.squish |> String.left 33)
-  --             ++ "\n    " ++ (
-  --               expAn.immediatelyDependentOn
-  --               |> Set.toList
-  --               |> List.map (\depEId -> eidToExp programAnalysis depEId |> unparse |> Utils.squish |> String.left 33)
-  --               |> String.join "\n    "
-  --             )
-  --           )
-  --       |> String.join "\n") ()
-  -- in
-  -- let _ = Debug.log "indepEIds dependence closures" () in
-  -- let _ =
-  --   Debug.log
-  --       (programAnalysis
-  --       |> Dict.toList
-  --       |> List.filter (\(eid, _) -> List.member eid indepEIds)
-  --       |> List.map
-  --           (\(eid, expAn) ->
-  --             (unparse expAn.exp |> Utils.squish |> String.left 33)
-  --             ++ "\n    " ++ (
-  --               expAn.dependenceClosure
-  --               |> Utils.fromJust
-  --               |> Set.toList
-  --               |> List.map (\depEId -> eidToExp programAnalysis depEId |> unparse |> Utils.squish |> String.left 33)
-  --               |> String.join "\n    "
-  --             )
-  --           )
-  --       |> String.join "\n") ()
-  -- in
-  let indepEIdsTransitiveClosure =
-    indepEIds
-    |> List.map (resultDependenceTransitiveClosure programAnalysis)
-    |> Utils.unionAll
-    |> Set.union (Set.fromList indepEIds)
+  -- Look for targets in the transitive dependencies of the toVisit list.
+  let findDependencyBFS_ visited toVisit targets =
+    -- You have to do some set/list conversions here. My guess is this route below is fastest.
+    case toVisit of
+      []             -> False
+      eid::remaining ->
+        if Set.member eid visited then
+          findDependencyBFS_ visited remaining targets
+        else if Set.member eid targets then
+          True
+        else
+          let visited' = Set.insert eid visited in
+          let toVisit' = (Set.toList (justGetExpressionAnalysis programAnalysis eid).immediatelyDependentOn) ++ remaining in
+          findDependencyBFS_ visited' toVisit' targets
   in
-  -- let _ = Debug.log "indepEIdsTransitiveClosure" (Set.toList indepEIdsTransitiveClosure) in
-  -- let _ =
-  --   Debug.log
-  --       ("\n    " ++ (
-  --           indepEIdsTransitiveClosure
-  --           |> Set.toList
-  --           |> List.map (\depEId -> eidToExp programAnalysis depEId |> unparse |> Utils.squish |> String.left 33)
-  --           |> String.join "\n    "
-  --         )
-  --       ) ()
-  -- in
+  let indepEIds = Set.toList <| Set.fromList <| allActualEIds independent in
   let eidsBeingReplaced =
     depEId :: (allActualEIds (eidToExp programAnalysis depEId))
     |> Set.fromList
   in
-  let _ = Debug.log "eidsBeingReplaced" (Set.toList eidsBeingReplaced) in
-  let isIndepNotDependentOnDep =
-    0 == Set.size (Set.intersect indepEIdsTransitiveClosure eidsBeingReplaced)
+  let isIndepDependentOnDep =
+    findDependencyBFS_ Set.empty indepEIds eidsBeingReplaced
   in
-  isIndepNotDependentOnDep
+  not <| isIndepDependentOnDep
 
 
 findVarAtEId program varExp =
@@ -1327,250 +1280,17 @@ type alias ExpressionAnalysis =
   , staticEnv              : StaticEnv
   , isStatic               : Bool
   , equivalentEIds         : Set.Set EId -- Which other expressions are guaranteed to resolve to this value?
-  , immediatelyDependentOn : Set.Set EId
-  , dependenceClosure      : Maybe (Set.Set EId)
+  , immediatelyDependentOn : Set.Set EId -- If these other expressions change, the value at this expression could change.
   }
 
 
 type alias ProgramAnalysis = Dict.Dict EId ExpressionAnalysis
 
 
--- Tarjan's strongly connected components algorithm.
---
--- This would be more efficient in a language that allowed mutation.
-stronglyConnectedComponents programAnalysis =
-  let eids = Dict.keys programAnalysis in
-  let (_, _, sccs) =
-    eids
-    |> List.foldl
-        (\eid acc ->
-          let (i, allVisited, sccs) = acc in
-          if Set.member eid allVisited then
-            acc
-          else
-            let (i', stack', stackMap', allVisited', _, sccs') =
-              tarjansSCC_ eid programAnalysis i [] Dict.empty allVisited sccs
-            in
-            if stack' /= [] || (Dict.size stackMap' > 0) then
-              Debug.crash "Brainstorm.stronglyConnectedComponents: BUG"
-            else
-              (i', allVisited', sccs')
-
-        )
-        (0, Set.empty, [])
-  in
-  let _ =
-    if List.sort eids /= (List.concat sccs |> List.sort) then
-      Debug.crash <| "Missing EIds in SCCs: " ++ (toString <| Utils.listDiff eids (List.concat sccs))
-    else
-      ()
-  in
-  sccs
-
-
--- Where's a for loop when you need it?
-tarjansSCC_ eid programAnalysis i stack stackMap allVisited sccs =
-  -- returns (newStack, newStackMap)
-  let pushStack eid i stack stackMap =
-    (eid::stack, Dict.insert eid i stackMap)
-  in
-  -- returns (eid, newStack, newStackMap)
-  let popStack stack stackMap =
-    case stack of
-      headEId::rest ->
-        (headEId, rest, Dict.remove headEId stackMap)
-
-      [] ->
-        Debug.crash "Brainstorm.tarjansSCC_: Should never pop empty stack but did!"
-  in
-  -- returns (poppedList, newStack, newStackMap)
-  let popUntil eid stack stackMap =
-    let (poppedEId, newStack, newStackMap) = popStack stack stackMap in
-    if poppedEId == eid then
-      ([eid], newStack, newStackMap)
-    else
-      let (poppedList, retStack, retStackMap) = popUntil eid newStack newStackMap in
-      (poppedEId::poppedList, retStack, retStackMap)
-  in
-  let i'                  = i + 1 in
-  let (stack', stackMap') = pushStack eid i stack stackMap in
-  let allVisited'         = Set.insert eid allVisited in
-  let sccRootI'           = i in
-  let expAn        = justGetExpressionAnalysis programAnalysis eid in
-  let childrenEIds = Set.toList expAn.immediatelyDependentOn in
-  let (retI, retStack, retStackMap, retAllVisited, lowestChildSccRootI, retSccs) =
-    childrenEIds
-    |> List.foldl
-        (\childEId acc ->
-          let (i'', stack'', stackMap'', allVisited'', sccRootI'', sccs'') = acc in
-          case Dict.get childEId stackMap'' of
-            Just childI ->
-              let sccRootI''' = min childI sccRootI'' in
-              (i'', stack'', stackMap'', allVisited'', sccRootI''', sccs'')
-
-            Nothing ->
-              if Set.member childEId allVisited'' then
-                acc -- Visited on a previous pass. Already in an SCC that we're not in.
-              else
-                let (childI, childStack, childStackMap, childAllVisited, childSccRootI, childSccs) =
-                  tarjansSCC_ childEId programAnalysis i'' stack'' stackMap'' allVisited'' sccs''
-                in
-                let sccRootI''' = min childSccRootI sccRootI'' in
-                (childI, childStack, childStackMap, childAllVisited, sccRootI''', childSccs)
-        )
-        (i', stack', stackMap', allVisited', sccRootI', sccs)
-  in
-  if i == lowestChildSccRootI then
-    let (newScc, retStack', retStackMap') = popUntil eid retStack retStackMap in
-    (retI, retStack', retStackMap', retAllVisited, lowestChildSccRootI, newScc::retSccs)
-  else
-    (retI, retStack, retStackMap, retAllVisited, lowestChildSccRootI, retSccs)
-
-
-type alias SCCId = EId -- Representative EId for each strongly connected component.
-
-type alias SCCAnalysis =
-  { eids                   : List EId
-  , immediatelyDependentOn : Set.Set SCCId
-  , dependenceClosure      : Maybe (Set.Set SCCId)
-  , dependenceClosureEIds  : Maybe (Set.Set EId)
-  }
-
-type alias SCCsAnalysis = Dict.Dict SCCId SCCAnalysis
-
-
-computeTransitiveDependenceClosure : ProgramAnalysis -> ProgramAnalysis
-computeTransitiveDependenceClosure programAnalysis =
-  let sccsAsEIdLists = stronglyConnectedComponents programAnalysis in
-  let blankSccsAnalysis =
-    sccsAsEIdLists
-    |> List.map
-        (\eids ->
-          let sccId = Utils.head "Brainstorm.computeTransitiveDependenceClosure0: SCC should not be empty but was!" eids in
-          let blankSccAnalysis =
-            { eids                   = eids
-            , immediatelyDependentOn = Set.empty
-            , dependenceClosure      = Nothing
-            , dependenceClosureEIds  = Nothing
-            }
-          in
-          (sccId, blankSccAnalysis)
-        )
-    |> Dict.fromList
-  in
-  let eidToSccId =
-    blankSccsAnalysis
-    |> Dict.toList
-    |> List.concatMap
-        (\(sccId, sccAn) ->
-          List.map (\eid -> (eid, sccId)) sccAn.eids
-        )
-    |> Dict.fromList
-  in
-  -- Fill in immediate dependence.
-  let initialSccsAnalysis =
-    blankSccsAnalysis
-    |> Dict.map
-        (\sccId sccAn ->
-          let immediateDependenceEIds =
-            sccAn.eids
-            |> List.map (\eid -> (justGetExpressionAnalysis programAnalysis eid).immediatelyDependentOn)
-            |> Utils.unionAll
-          in
-          let immediateDependentSccIds =
-            immediateDependenceEIds
-            |> Set.map (\eid -> Utils.justGet_ "Brainstorm.computeDAGTransitiveDependenceClosure1: Couldn't find SCC for eid!" eid eidToSccId)
-          in
-          { sccAn | immediatelyDependentOn = immediateDependentSccIds }
-        )
-  in
-  -- Compute SCC transitive closure.
-  let closedSccsAnalysis =
-    computeSCCDAGTransitiveDependenceClosure initialSccsAnalysis
-  in
-  let closedProgramAnalysis =
-    programAnalysis
-    |> Dict.map
-        (\eid expAn ->
-          let expSccId = Utils.justGet_ ("Brainstorm.computeDAGTransitiveDependenceClosure2: Couldn't find SCC for eid! " ++ (toString eid)) eid eidToSccId in
-          let expSccAn = Utils.justGet_ ("Brainstorm.computeDAGTransitiveDependenceClosure2: Couldn't find SCCAnalysis for sccId! " ++ (toString expSccId)) expSccId closedSccsAnalysis in
-          { expAn | dependenceClosure = expSccAn.dependenceClosureEIds }
-        )
-  in
-  let _ =
-    let sanityCheck =
-      closedProgramAnalysis
-      |> Dict.toList
-      |> List.all
-          (\(_, expAn) ->
-            0 == Set.size (Set.diff expAn.immediatelyDependentOn (expAn.dependenceClosure |> Utils.fromJust))
-          )
-    in
-    if sanityCheck then () else Debug.crash "Immediate dependencies not in closure!!"
-  in
-  -- Note that all nodes are now dependent on themselves.
-  closedProgramAnalysis
-
-
--- Better be a DAG or this won't terminate.
-computeSCCDAGTransitiveDependenceClosure : SCCsAnalysis -> SCCsAnalysis
-computeSCCDAGTransitiveDependenceClosure sccsAnalysis =
-  Dict.keys sccsAnalysis
-  |> List.foldl
-      ensureSCCDAGDependenceClosure
-      sccsAnalysis
-
-
-ensureSCCDAGDependenceClosure : SCCId -> SCCsAnalysis -> SCCsAnalysis
-ensureSCCDAGDependenceClosure sccId sccsAnalysis =
-  let sccAn = Utils.justGet_ "Brainstorm.ensureSCCDAGDependenceClosure: missing sccId" sccId sccsAnalysis in
-  case sccAn.dependenceClosure of
-    Just closure ->
-      sccsAnalysis
-
-    Nothing ->
-      let nonSelfDepSccIds = Set.toList (Set.remove sccId sccAn.immediatelyDependentOn) in
-      let sccsAnalysis' =
-        nonSelfDepSccIds
-        |> List.foldl
-            ensureSCCDAGDependenceClosure
-            sccsAnalysis
-      in
-      let initialEIds =
-        if Set.member sccId sccAn.immediatelyDependentOn then
-          Set.fromList sccAn.eids
-        else
-          Set.empty
-      in
-      let (dependenceClosure, dependenceClosureEIds) =
-        nonSelfDepSccIds
-        |> List.foldl
-            (\depSccId (depSccIds, depEIds) ->
-              let depExpAn =
-                Utils.justGet_ "Brainstorm.ensureSCCDAGDependenceClosure: missing dep sccId" depSccId sccsAnalysis'
-              in
-              let depClosure =
-                depExpAn.dependenceClosure |> Utils.fromJust_ "Brainstorm.ensureSCCDAGDependenceClosure: closure not computed"
-              in
-              let depClosureEIds =
-                depExpAn.dependenceClosureEIds |> Utils.fromJust_ "Brainstorm.ensureSCCDAGDependenceClosure: eid closure not computed"
-                |> Set.union (Set.fromList depExpAn.eids)
-              in
-              (Set.union depClosure depSccIds, Set.union depEIds depClosureEIds)
-            )
-            (sccAn.immediatelyDependentOn, initialEIds)
-      in
-      Dict.insert
-        sccId
-        { sccAn | dependenceClosure = Just dependenceClosure, dependenceClosureEIds = Just dependenceClosureEIds }
-        sccsAnalysis'
-
-
 (_, preludeStaticEnv, preludeProgramAnalysis) =
   staticAnalyze_ [] Dict.empty LangParser2.prelude
 
 
--- Also computes dependence closure
 staticAnalyzeWithPrelude : Exp -> ProgramAnalysis
 staticAnalyzeWithPrelude program =
   let _ = Debug.log "static evaling program" () in
@@ -1579,26 +1299,7 @@ staticAnalyzeWithPrelude program =
   in
   let _ = Debug.log "gathering equivalent EIds" () in
   let programAnalysis' = gatherEquivalentEIds programAnalysis in
-  -- let _ =
-  --   Debug.log
-  --       (programAnalysis'
-  --       |> Dict.toList
-  --       |> List.filter (\(eid, _) -> isProgramEId eid)
-  --       |> List.map
-  --           (\(eid, expAn) ->
-  --             (unparse expAn.exp |> Utils.squish |> String.left 33)
-  --             ++ "\n    " ++ (
-  --               expAn.immediatelyDependentOn
-  --               |> Set.toList
-  --               |> List.map (\depEId -> eidToExp programAnalysis' depEId |> unparse |> Utils.squish |> String.left 33)
-  --               |> String.join "\n    "
-  --             )
-  --           )
-  --       |> String.join "\n") ()
-  -- in
-  let _ = Debug.log "computing transitive closure" () in
-  let programAnalysis'' = computeTransitiveDependenceClosure programAnalysis' in
-  programAnalysis''
+  programAnalysis'
 
 
 -- Need to do better than n^2 because all the top-level def's are equivalent to each other.
@@ -1654,7 +1355,6 @@ staticAnalyze_ env programAnalysis exp =
       , isStatic               = True
       , equivalentEIds         = Set.singleton thisEId
       , immediatelyDependentOn = childExps exp |> List.map (.eid << .val) |> Set.fromList
-      , dependenceClosure      = Nothing -- calculated separately
       }
     in
     Dict.insert thisEId expressionAnalysis programAnalysis
