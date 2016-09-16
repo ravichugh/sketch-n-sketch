@@ -1,0 +1,20 @@
+
+(def newGroup4 (\(line2_width line2_color color [left top right bot])
+  (def bounds [left top right bot])
+
+  (def rect1
+    (let bounds [left top right bot]
+      [ (rectangle color 'black' '0' 0 bounds) ]))
+
+  (def line2
+      [ (line line2_color line2_width left top right bot) ])
+
+  (def line3
+    (let [ x2 y2] [ (* 0.5! (+ left right)) (* 0.5! (+ top bot))]
+      [ (line line2_color line2_width left bot x2 y2) ]))
+
+  [ (group bounds (concat [ rect1 line2 line3 ])) ]))
+
+(blobs [
+  (withBounds [31 100 216 269] (newGroup4 5 202 60))
+])

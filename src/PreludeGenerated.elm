@@ -891,12 +891,8 @@ prelude =
   (let newShapes (reverse (fst (foldl f initAcc oldShapesI)))
     ['svg' svgAttrs newShapes]))))))
 
-(typ addShapeToCanvas (-> SVG SVG SVG))
-(def addShapeToCanvas (\\(['svg' svgAttrs oldShapes] newShape)
-  ['svg' svgAttrs (append oldShapes [newShape])]))
-
-(typ addShape (-> SVG SVG SVG))
-(def addShape (flip addShapeToCanvas))
+(def addBlob (\\(newShapes ['svg' svgAttrs oldShapes])
+  ['svg' svgAttrs (append oldShapes newShapes)]))
 
 (typ groupMap (forall (a b) (-> (List a) (-> a b) (List b))))
 (def groupMap (\\(xs f) (map f xs)))
@@ -1302,7 +1298,15 @@ prelude =
 ))))
 
 (typ group (-> Bounds (List SVG) SVG))
-(def group (groupWithPad 15))
+(def group (groupWithPad (let nGroupPad 20 nGroupPad)))
+
+  ; NOTE:
+  ;   keep the names nGroupPad and nPolyPathPad (and values)
+  ;   in sync with ExpressionBasedTransform.elm
+
+  ; (def group (groupWithPad 15))
+
+(def polyPathGroup (groupWithPad (let nPolyPathPad 10 nPolyPathPad)))
 
 ; TODO make one pass over pts
 (typ boundsOfPoints (-> (List Point) Bounds))
@@ -1427,7 +1431,8 @@ prelude =
   (let [left top right bot] bounds
   (let [xScale yScale] [(scaleBetween left right) (scaleBetween top bot)]
   (let pts (map (\\[xPct yPct] [ (xScale xPct) (yScale yPct) ]) percentages)
-  (group bounds [(polygon fill stroke strokeWidth pts)])
+  ; (group bounds [(polygon fill stroke strokeWidth pts)])
+  (polyPathGroup bounds [(polygon fill stroke strokeWidth pts)])
 )))))
 
 ; TODO no longer used...
@@ -1484,7 +1489,8 @@ prelude =
                  (dot (xScale x)  (yScale y))]
                 (pointsOf rest)))
       (_ 'ERROR')))
-  (group bounds
+  ; (group bounds
+  (polyPathGroup bounds
     (cons
       (path fill stroke w (toPath d))
       []))
@@ -1545,11 +1551,13 @@ prelude =
 ; === Basic Replicate ===
 
 (def horizontalArray (\\(n sep func [x y])
+  (let _ ; draw point widget to control anchor
+    ([x y] : Point)
   (let draw_i (\\i
     (let xi (+ x (* i sep))
     (func [xi y])))
   (concat (map draw_i (zeroTo n)))
-)))
+))))
 
 (def linearArrayFromTo (\\(n func [xStart yStart] [xEnd yEnd])
   (let xsep (/ (- xEnd xStart) (- n 1))
@@ -1569,14 +1577,21 @@ prelude =
   ;else
     (+ 1 (floorAndLocalFreeze (- n 1))))))
 
+  ; (let _ ; draw point widget to control anchor
+  ;   ([cx cy] : Point)
 (def radialArray (\\(n radius rot func [cx cy])
+  (let center ; draw ghost circle to control anchor
+              ; not using point widget, since it's not selectable
+    (circle 'orange' cx cy 20)
   (let _ ; draw point widget to control radius
     (let xWidget (floorAndLocalFreeze cx)
     (let yWidget (- (floorAndLocalFreeze cy) radius)
       ([xWidget yWidget] : Point)))
   (let endpoints (nPointsOnCircle n rot cx cy radius)
-  (concat (map func endpoints))
-))))
+  (let bounds
+    [(- cx radius) (- cy radius) (+ cx radius) (+ cy radius)]
+  [(group bounds (cons center (concat (map func endpoints))))]
+))))))
 
 (def offsetAnchor (\\(dx dy f)
   (\\[x y] (f [(+ x dx) (+ y dy)]))

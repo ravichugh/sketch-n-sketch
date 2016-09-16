@@ -463,7 +463,7 @@ draggableZone svgFunc addStroke model id shape zone attrs =
     zoneEvents id shape zone ++
     [ cursorOfZone zone "default"
     , LangSvg.attr "fill" "rgba(0,0,0,0.0)"
-    , LangSvg.attr "stroke-width" <| if addStroke then "20" else "0"
+    , LangSvg.attr "stroke-width" <| if addStroke then "10" else "0"
     , LangSvg.attr "stroke" <| if showStroke
                                then "rgba(255,0,0,0.5)"
                                else "rgba(0,0,0,0.0)"
@@ -1714,8 +1714,8 @@ widgetsTools w h model =
     ++
     List.map (\tool ->
       flowRight w h
-        [ (0.5, toolButton model (tool Raw))
-        , (0.5, toolButton model (tool Stretchy))
+        [ (0.70, toolButton model (tool Raw))
+        , (0.30, toolButton model (tool Stretchy))
         ]
     ) [Rect, Oval, Poly, Path]
     ++
@@ -2055,21 +2055,21 @@ frozenButton model =
 
 toolButton : Model -> Tool -> Int -> Int -> GE.Element
 toolButton model tool w h =
-  let capStretchy = "%" in
+  let capStretchy s = if showRawShapeTools then "BB" else s in
   let capSticky = Utils.uniPlusMinus in -- Utils.uniDelta in
   let capRaw = "(Raw)" in
   let cap = case tool of
     Cursor        -> "Cursor"
     Line Raw      -> "Line"
-    Rect Raw      -> capRaw -- "R" -- "Rect"
-    Rect Stretchy -> "Box" -- "Rect" -- capStretchy
-    Oval Raw      -> capRaw -- "E" -- "Oval"
-    Oval Stretchy -> "Oval" -- capStretchy
-    Poly Raw      -> capRaw -- "P" -- "Poly"
-    Poly Stretchy -> "Poly" -- "Polygon" -- capStretchy
+    Rect Raw      -> "Rect"
+    Rect Stretchy -> capStretchy "Box"
+    Oval Raw      -> "Ellipse"
+    Oval Stretchy -> capStretchy "Oval"
+    Poly Raw      -> "Polygon"
+    Poly Stretchy -> capStretchy "Polygon"
     Poly Sticky   -> capSticky
-    Path Raw      -> capRaw -- "Pa" -- "Path"
-    Path Stretchy -> "Path" -- capStretchy
+    Path Raw      -> "Path"
+    Path Stretchy -> capStretchy "Path"
     Path Sticky   -> capSticky
     Text          -> "Text"
     HelperLine    -> "(Rule)"

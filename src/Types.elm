@@ -1720,12 +1720,15 @@ initTypeInfo =
 
 preludeTypeEnv : TypeEnv
 preludeTypeEnv =
+  []
+{-
   let {typeInfo} = synthesizeType initTypeInfo [] Parser.prelude in
   case typeInfo.preludeTypeEnv of
     Just env -> env
     Nothing ->
       Debug.log "ERROR with preludeTypeEnv: \
                  dummyPreludeMain not found in prelude.little" []
+-}
 
 displayTypeInfo : TypeInfo -> ()
 displayTypeInfo typeInfo =
@@ -1856,6 +1859,10 @@ aceTypeInfo typeInfo =
   , tooltips = -- errorTips last to shadow any expTypeTips
       varTypeTips ++ expTypeTips ++ errorTips
   }
+
+
+dummyAceTypeInfo = { annotations = [], highlights = [], tooltips = [] }
+
 
 -- dummy for stand-alone compilation
 main = show 1

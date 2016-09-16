@@ -55,7 +55,9 @@ window.initializers.push(function (elmRuntime) {
 
   // Don't propagate editor keystrokes to the model
   document.getElementById("editor").onkeydown = function (e) { e.stopPropagation(); }
-  document.getElementById("editor").onkeyup   = function (e) { lastKeyAt = new Date(); tryParseRun = true; }
+
+  // NOTE: comment out the line above to turn off auto-run / live programming
+  // document.getElementById("editor").onkeyup   = function (e) { lastKeyAt = new Date(); tryParseRun = true; }
 
   //If we reloaded from a crash, then we should do a few things differently:
   // - Set the initial text to what it was when we crashed
