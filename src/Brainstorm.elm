@@ -468,18 +468,67 @@ eidIsStatic programAnalysis eid =
 -- bound vars fail a lookup)
 isValidSolution programAnalysis (independent, depEId) =
   let indepEIds = Set.toList <| Set.fromList <| allActualEIds independent in
+  -- let _ = Debug.log "indepEIds immediate dependence" () in
+  -- let _ =
+  --   Debug.log
+  --       (programAnalysis
+  --       |> Dict.toList
+  --       |> List.filter (\(eid, _) -> List.member eid indepEIds)
+  --       |> List.map
+  --           (\(eid, expAn) ->
+  --             (unparse expAn.exp |> Utils.squish |> String.left 33)
+  --             ++ "\n    " ++ (
+  --               expAn.immediatelyDependentOn
+  --               |> Set.toList
+  --               |> List.map (\depEId -> eidToExp programAnalysis depEId |> unparse |> Utils.squish |> String.left 33)
+  --               |> String.join "\n    "
+  --             )
+  --           )
+  --       |> String.join "\n") ()
+  -- in
+  -- let _ = Debug.log "indepEIds dependence closures" () in
+  -- let _ =
+  --   Debug.log
+  --       (programAnalysis
+  --       |> Dict.toList
+  --       |> List.filter (\(eid, _) -> List.member eid indepEIds)
+  --       |> List.map
+  --           (\(eid, expAn) ->
+  --             (unparse expAn.exp |> Utils.squish |> String.left 33)
+  --             ++ "\n    " ++ (
+  --               expAn.dependenceClosure
+  --               |> Utils.fromJust
+  --               |> Set.toList
+  --               |> List.map (\depEId -> eidToExp programAnalysis depEId |> unparse |> Utils.squish |> String.left 33)
+  --               |> String.join "\n    "
+  --             )
+  --           )
+  --       |> String.join "\n") ()
+  -- in
   let indepEIdsTransitiveClosure =
     indepEIds
     |> List.map (resultDependenceTransitiveClosure programAnalysis)
     |> Utils.unionAll
     |> Set.union (Set.fromList indepEIds)
   in
+  -- let _ = Debug.log "indepEIdsTransitiveClosure" (Set.toList indepEIdsTransitiveClosure) in
+  -- let _ =
+  --   Debug.log
+  --       ("\n    " ++ (
+  --           indepEIdsTransitiveClosure
+  --           |> Set.toList
+  --           |> List.map (\depEId -> eidToExp programAnalysis depEId |> unparse |> Utils.squish |> String.left 33)
+  --           |> String.join "\n    "
+  --         )
+  --       ) ()
+  -- in
   let eidsBeingReplaced =
     depEId :: (allActualEIds (eidToExp programAnalysis depEId))
     |> Set.fromList
   in
+  let _ = Debug.log "eidsBeingReplaced" (Set.toList eidsBeingReplaced) in
   let isIndepNotDependentOnDep =
-    0 == (Set.size <| Set.intersect indepEIdsTransitiveClosure eidsBeingReplaced)
+    0 == Set.size (Set.intersect indepEIdsTransitiveClosure eidsBeingReplaced)
   in
   isIndepNotDependentOnDep
 
@@ -1427,7 +1476,6 @@ computeTransitiveDependenceClosure programAnalysis =
             sccAn.eids
             |> List.map (\eid -> (justGetExpressionAnalysis programAnalysis eid).immediatelyDependentOn)
             |> Utils.unionAll
-            |> ((flip Set.diff) (Set.fromList sccAn.eids)) -- Remove EIds in this SCC.
           in
           let immediateDependentSccIds =
             immediateDependenceEIds
@@ -1448,6 +1496,17 @@ computeTransitiveDependenceClosure programAnalysis =
           let expSccAn = Utils.justGet_ ("Brainstorm.computeDAGTransitiveDependenceClosure2: Couldn't find SCCAnalysis for sccId! " ++ (toString expSccId)) expSccId closedSccsAnalysis in
           { expAn | dependenceClosure = expSccAn.dependenceClosureEIds }
         )
+  in
+  let _ =
+    let sanityCheck =
+      closedProgramAnalysis
+      |> Dict.toList
+      |> List.all
+          (\(_, expAn) ->
+            0 == Set.size (Set.diff expAn.immediatelyDependentOn (expAn.dependenceClosure |> Utils.fromJust))
+          )
+    in
+    if sanityCheck then () else Debug.crash "Immediate dependencies not in closure!!"
   in
   -- Note that all nodes are now dependent on themselves.
   closedProgramAnalysis
@@ -1470,35 +1529,36 @@ ensureSCCDAGDependenceClosure sccId sccsAnalysis =
       sccsAnalysis
 
     Nothing ->
-      let depSccIds = Set.toList sccAn.immediatelyDependentOn in
+      let nonSelfDepSccIds = Set.toList (Set.remove sccId sccAn.immediatelyDependentOn) in
       let sccsAnalysis' =
-        depSccIds
+        nonSelfDepSccIds
         |> List.foldl
             ensureSCCDAGDependenceClosure
             sccsAnalysis
       in
-      let depSccAns =
-        depSccIds
-        |> List.map
-            (\depSccId ->
-              Utils.justGet_ "Brainstorm.ensureSCCDAGDependenceClosure: missing dep sccId" depSccId sccsAnalysis'
-            )
+      let initialEIds =
+        if Set.member sccId sccAn.immediatelyDependentOn then
+          Set.fromList sccAn.eids
+        else
+          Set.empty
       in
-      let dependenceClosure =
-        depSccAns
-        |> List.map
-            (\depSccAn ->
-              Utils.fromJust_ "Brainstorm.ensureSCCDAGDependenceClosure: closure not computed" depSccAn.dependenceClosure
+      let (dependenceClosure, dependenceClosureEIds) =
+        nonSelfDepSccIds
+        |> List.foldl
+            (\depSccId (depSccIds, depEIds) ->
+              let depExpAn =
+                Utils.justGet_ "Brainstorm.ensureSCCDAGDependenceClosure: missing dep sccId" depSccId sccsAnalysis'
+              in
+              let depClosure =
+                depExpAn.dependenceClosure |> Utils.fromJust_ "Brainstorm.ensureSCCDAGDependenceClosure: closure not computed"
+              in
+              let depClosureEIds =
+                depExpAn.dependenceClosureEIds |> Utils.fromJust_ "Brainstorm.ensureSCCDAGDependenceClosure: eid closure not computed"
+                |> Set.union (Set.fromList depExpAn.eids)
+              in
+              (Set.union depClosure depSccIds, Set.union depEIds depClosureEIds)
             )
-        |> Utils.unionAll
-      in
-      let dependenceClosureEIds =
-        depSccAns
-        |> List.map
-            (\depSccAn ->
-              Utils.fromJust_ "Brainstorm.ensureSCCDAGDependenceClosure: closure not computed" depSccAn.dependenceClosureEIds
-            )
-        |> Utils.unionAll
+            (sccAn.immediatelyDependentOn, initialEIds)
       in
       Dict.insert
         sccId
@@ -1519,6 +1579,23 @@ staticAnalyzeWithPrelude program =
   in
   let _ = Debug.log "gathering equivalent EIds" () in
   let programAnalysis' = gatherEquivalentEIds programAnalysis in
+  -- let _ =
+  --   Debug.log
+  --       (programAnalysis'
+  --       |> Dict.toList
+  --       |> List.filter (\(eid, _) -> isProgramEId eid)
+  --       |> List.map
+  --           (\(eid, expAn) ->
+  --             (unparse expAn.exp |> Utils.squish |> String.left 33)
+  --             ++ "\n    " ++ (
+  --               expAn.immediatelyDependentOn
+  --               |> Set.toList
+  --               |> List.map (\depEId -> eidToExp programAnalysis' depEId |> unparse |> Utils.squish |> String.left 33)
+  --               |> String.join "\n    "
+  --             )
+  --           )
+  --       |> String.join "\n") ()
+  -- in
   let _ = Debug.log "computing transitive closure" () in
   let programAnalysis'' = computeTransitiveDependenceClosure programAnalysis' in
   programAnalysis''
@@ -1561,7 +1638,7 @@ gatherEquivalentEIds programAnalysis =
         )
         (programAnalysis, [], Set.empty)
   in
-  let _ = Debug.log "Equivalent sets" (List.map Set.toList equivSets) in
+  -- let _ = Debug.log "Equivalent sets" (List.map Set.toList equivSets) in
   programAnalysis'
 
 
@@ -1771,6 +1848,12 @@ staticAnalyze_ env programAnalysis exp =
       in
       let (isAssignStatic, _, programAnalysis'') = staticAnalyze_ assignEnv programAnalysis' assign in
       let patStaticEnv =
+        -- let _ =
+        --   if isProgramEId thisEId then
+        --     Debug.log ("Static pat match " ++ unparsePat pat) (maybeMatchExp pat assign)
+        --   else
+        --     Nothing
+        -- in
         case maybeMatchExp pat assign of
           Just env -> env |> List.map (\(ident, exp) -> (ident, Known exp.val.eid))
           Nothing  -> identifiersListInPat pat |> List.map (\ident -> if isAssignStatic then (ident, StaticUnknown) else (ident, Bound))
@@ -1952,7 +2035,7 @@ maybeMakeEqualConstraint programEnv originalProgram constraint =
   solutions
   |> Utils.mapFirstSuccess
       (\(indep, depEId) ->
-        let _ = Debug.log "trying solution" (indep, depEId) in
+        let _ = Debug.log "trying solution" (unparse indep, depEId) in
         redefineExp programEnv originalProgram indep depEId
       )
 
