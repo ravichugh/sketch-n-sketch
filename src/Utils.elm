@@ -241,10 +241,6 @@ unionAll : List (Set.Set comparable) -> Set.Set comparable
 unionAll sets =
   List.foldl Set.union Set.empty sets
 
-mergeAll : List (Dict.Dict comparable a) -> Dict.Dict comparable a
-mergeAll dicts =
-  List.foldl Dict.union Dict.empty dicts
-
 -- TODO combine findFirst and removeFirst
 
 findFirst : (a -> Bool) -> List a -> Maybe a

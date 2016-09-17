@@ -1293,7 +1293,7 @@ type alias ProgramAnalysis = Dict.Dict EId ExpressionAnalysis
 
 staticAnalyzeWithPrelude : Exp -> ProgramAnalysis
 staticAnalyzeWithPrelude program =
-  let _ = Debug.log "static evaling program" () in
+  let _ = Debug.log "analyzing program" () in
   let (_, _, programAnalysis) =
     staticAnalyze_ preludeStaticEnv preludeProgramAnalysis program
   in
@@ -1406,12 +1406,16 @@ staticAnalyze_ env programAnalysis exp =
     retEnvDict isStatic resultEnv progAn''
   in
   let recurseAll env programAnalysis exps =
-    let (staticBools, _, programAnalyses) =
-      exps |> List.map (staticAnalyze_ env programAnalysis) |> Utils.unzip3
+    let (allStatic, programAnalysis') =
+      exps
+      |> List.foldl
+          (\e (allStatic, progAn) ->
+            let (expStatic, _, progAn') = staticAnalyze_ env progAn e in
+            (expStatic && allStatic, progAn')
+          )
+          (True, programAnalysis)
     in
-    let mergedProgramAnalysis = Utils.mergeAll (programAnalysis::programAnalyses) in
-    let allStatic = List.all ((==) True) staticBools in
-    (allStatic, mergedProgramAnalysis)
+    (allStatic, programAnalysis')
   in
   case exp.val.e__ of
     EVal _                 -> Debug.crash "Brainstorm.staticAnalyze_: figure out whether to handle EVal"
