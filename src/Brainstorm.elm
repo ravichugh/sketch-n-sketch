@@ -27,14 +27,19 @@ type ConstraintType = XConstraint | YConstraint | PointConstraint
 
 type alias Constraint = { independent: Exp, dependent: Exp }
 
+constraintFromTuple : (Exp, Exp) -> Constraint
+constraintFromTuple (indep, dep) = { independent = indep, dependent = dep }
 
 -- Expressions inserted into constraints get a special dummy EId.
 -- In the case of EVar, this EId says "do variable lookup at the top level".
 insertedEId = -9124923
 
-
 expWithEId eid e__ =
   { e__ = e__, eid = eid } |> withDummyRange
+
+
+independentDummyEId = -8273412
+independentDummyExp = expWithEId independentDummyEId (EVar "" "__insert_independent_expression_here__")
 
 
 insertedExp e__ =
@@ -58,7 +63,7 @@ isProgramEId eid =
 
 
 allActualEIds exp =
-  flattenExpTree exp |> List.map (.eid << .val) |> List.filter isActualEId
+  flattenExpTree exp |> List.map (.val >> .eid) |> List.filter isActualEId
 
 
 possibleRelationsWith : Exp -> Val -> NodeId -> Zone -> List Idea
@@ -293,7 +298,7 @@ pointsToMorePoints program ideas =
   let (_,lastDepth,_) = Utils.head "Brainstorm.pointsToMorePoints: ideas shouldn't be empty here" ideas in
   let depth = lastDepth + 1 in
   let env = programEnv program in
-  let pointVals = List.map (LangSvg.pointToVal << Utils.fst3) ideas in
+  let pointVals = List.map (Utils.fst3 >> LangSvg.pointToVal) ideas in
   let pointValAndIdeas = Utils.zip pointVals ideas in
   (pointToPointToPointFunctionsIn LangParser2.prelude) ++ (pointToPointToPointFunctionsIn program)
   |> List.concatMap
@@ -456,10 +461,23 @@ eidIsStatic programAnalysis eid =
   (justGetExpressionAnalysis programAnalysis eid).isStatic
 
 
+isValidSolution programAnalysis constraintList =
+  let allIndependentsIndependent =
+    List.all (isIndependentActuallyIndependent programAnalysis) constraintList
+  in
+  let allDependentsIndependentlyReplaceable =
+    constraintList
+    |> List.map (\(_, depEId) -> allActualEIds (eidToExp programAnalysis depEId) |> Set.fromList)
+    |> Utils.anyOverlap
+    |> not
+  in
+  allIndependentsIndependent && allDependentsIndependentlyReplaceable
+
+
 -- Does not check that all indep expressions are static.
 -- Non-static indep expressions will fail to lift (their
 -- bound vars fail a lookup)
-isValidSolution programAnalysis (independent, depEId) =
+isIndependentActuallyIndependent programAnalysis (independent, depEId) =
   -- Look for targets in the transitive dependencies of the toVisit list.
   let findDependencyBFS_ visited toVisit targets =
     -- You have to do some set/list conversions here. My guess is this route below is fastest.
@@ -477,8 +495,7 @@ isValidSolution programAnalysis (independent, depEId) =
   in
   let indepEIds = Set.toList <| Set.fromList <| allActualEIds independent in
   let eidsBeingReplaced =
-    depEId :: (allActualEIds (eidToExp programAnalysis depEId))
-    |> Set.fromList
+    allActualEIds (eidToExp programAnalysis depEId) |> Set.fromList
   in
   let isIndepDependentOnDep =
     findDependencyBFS_ Set.empty indepEIds eidsBeingReplaced
@@ -486,22 +503,23 @@ isValidSolution programAnalysis (independent, depEId) =
   not <| isIndepDependentOnDep
 
 
-findVarAtEId program varExp =
+findVarAtEId : ProgramAnalysisWithTLEId -> Exp -> Maybe Exp
+findVarAtEId programAnalysisTLE varExp =
   let varEId = varExp.val.eid in
   if isActualEId varEId || isInsertedEId varEId then
     let searchScopeEId =
       if isInsertedEId varEId then
         -- If this is a var inserted into the constraint, resolve at the top level.
         let errorMsg = "Brainstorm.findVarAtEId: can't handle empty program" in
-        (Utils.last errorMsg (topLevelExps program)).val.eid
+        programAnalysisTLE.lastTopLevelEId
       else
         varEId
     in
-    let visibleVars = visibleVarsAt program searchScopeEId in
+    let visibleVars = visibleVarsAt programAnalysisTLE.programAnalysis searchScopeEId in
     case varExp.val.e__ of
       EVar _ ident ->
         case Utils.maybeFind ident visibleVars of
-          Just (Known eid) -> (findExpByEId program eid) `Utils.orTry` (\() -> findExpByEId LangParser2.prelude eid)
+          Just (Known eid) -> Just <| eidToExp programAnalysisTLE.programAnalysis eid
           _                ->
             let _ = Debug.log ("findVarAtEId: " ++ ident ++ " not in env at " ++ (toString searchScopeEId)) (List.map fst visibleVars) in
             Nothing -- not found in static env, not resolvable to an exp, or bound
@@ -517,16 +535,16 @@ findVarAtEId program varExp =
 -- Only expands child expressions if necessary
 -- e.g. an if-statement will evaluate the predicate and possibly a branch
 --      but a list literal will not try to expand each list element
-symbolicallyEvaluateAsFarAsPossible : Exp -> Exp -> Exp
-symbolicallyEvaluateAsFarAsPossible program exp =
-  let recurse e = symbolicallyEvaluateAsFarAsPossible program e in
+symbolicallyEvaluateAsFarAsPossible : ProgramAnalysisWithTLEId -> Exp -> Exp
+symbolicallyEvaluateAsFarAsPossible programAnalysisTLE exp =
+  let recurse e = symbolicallyEvaluateAsFarAsPossible programAnalysisTLE e in
   case exp.val.e__ of
     EVal _             -> exp -- TODO: How should we handle EVal's here?
     EDict _            -> exp -- TODO: How should we handle EDict's here?
     EConst _ n loc wd  -> exp
     EBase _ bVal       -> exp
     EVar _ ident       ->
-      case findVarAtEId program exp of
+      case findVarAtEId programAnalysisTLE exp of
         Just newExp -> recurse newExp
         Nothing     -> exp
     EFun _ pats body _ -> exp
@@ -571,7 +589,7 @@ symbolicallyEvaluateAsFarAsPossible program exp =
             exp
       in
       let evaledArgExps = argExps |> List.map recurse in
-      let args          = evaledArgExps |> List.map (.e__ << .val) in
+      let args          = evaledArgExps |> List.map (.val >> .e__) in
       case op_ of
         Plus ->
           case args of
@@ -621,7 +639,7 @@ symbolicallyEvaluateAsFarAsPossible program exp =
         _                     -> exp
 
     ECase _ scrutinee branches _ ->
-      case maybeSymbolicMatchBranches program scrutinee branches of
+      case maybeSymbolicMatchBranches programAnalysisTLE scrutinee branches of
         Nothing ->
           exp
 
@@ -630,10 +648,10 @@ symbolicallyEvaluateAsFarAsPossible program exp =
           |> recurse
 
     ETypeCase _ scrutinee tbranches _ -> exp -- TODO: symbolic expansion of typecase
-    EApp _ funcExp argExps _          -> Maybe.withDefault exp (maybeSymbolicallyApply program exp)
+    EApp _ funcExp argExps _          -> Maybe.withDefault exp (maybeSymbolicallyApply programAnalysisTLE exp)
     ELet _ _ True pat assigns body _  -> exp -- can't handle recursive substitution
     ELet _ _ False pat assigns body _ ->
-      case maybeSymbolicMatch program pat assigns of
+      case maybeSymbolicMatch programAnalysisTLE pat assigns of
         Just env -> recurse (symbolicSubstitute (Dict.fromList env) body)
         Nothing  -> exp
 
@@ -686,9 +704,9 @@ projMatches resultList =
 
 -- For use in case branch determinations.
 -- Aborts early if any match returns CannotCompare.
-maybeSymbolicMatchBranches : Exp -> Exp -> List Branch -> Maybe (List (Ident, Exp), Exp)
-maybeSymbolicMatchBranches program scrutinee branches =
-  maybeExpMatchBranches_ (trySymbolicMatch program) scrutinee branches
+maybeSymbolicMatchBranches : ProgramAnalysisWithTLEId -> Exp -> List Branch -> Maybe (List (Ident, Exp), Exp)
+maybeSymbolicMatchBranches programAnalysisTLE scrutinee branches =
+  maybeExpMatchBranches_ (trySymbolicMatch programAnalysisTLE) scrutinee branches
 
 
 -- For use in case branch determinations.
@@ -712,9 +730,9 @@ maybeExpMatchBranches_ matcherFunc scrutinee branches =
         CannotCompare -> Nothing
 
 
-maybeSymbolicMatch : Exp -> Pat -> Exp -> Maybe (List (Ident, Exp))
-maybeSymbolicMatch program pat exp =
-  trySymbolicMatch program pat exp |> matchToMaybe
+maybeSymbolicMatch : ProgramAnalysisWithTLEId -> Pat -> Exp -> Maybe (List (Ident, Exp))
+maybeSymbolicMatch programAnalysisTLE pat exp =
+  trySymbolicMatch programAnalysisTLE pat exp |> matchToMaybe
 
 
 maybeMatchExp : Pat -> Exp -> Maybe (List (Ident, Exp))
@@ -724,14 +742,14 @@ maybeMatchExp pat exp =
 
 -- The pat may not match if the exp hasn't been evaluated far enough.
 -- Try to evaluate just far enough to match.
-trySymbolicMatch : Exp -> Pat -> Exp -> SymbolicMatchResult
-trySymbolicMatch program pat exp =
-  let result = tryMatchExp_ (trySymbolicMatch program) pat exp in
+trySymbolicMatch : ProgramAnalysisWithTLEId -> Pat -> Exp -> SymbolicMatchResult
+trySymbolicMatch programAnalysisTLE pat exp =
+  let result = tryMatchExp_ (trySymbolicMatch programAnalysisTLE) pat exp in
   let recurse () =
     let _ = Debug.log ((unparse exp) ++ " didn't match " ++ (unparsePat pat) ++ ", attempting one step of evaluation") in
-    case maybeSymbolicallyEvaluateOneStep program exp of
+    case maybeSymbolicallyEvaluateOneStep programAnalysisTLE exp of
       Nothing            -> result
-      Just oneStepEvaled -> trySymbolicMatch program pat oneStepEvaled
+      Just oneStepEvaled -> trySymbolicMatch programAnalysisTLE pat oneStepEvaled
   in
   case result of
     Match _       -> result
@@ -759,18 +777,43 @@ tryExpMatchTBranches scrutinee tbranches =
     NoMatch
 
 
+-- Don't evaluate list heads when the root expression is a list.
+maybeSymbolicallyEvaluateOneStepForConstraintEnumeration : ProgramAnalysisWithTLEId -> Exp -> Maybe Exp
+maybeSymbolicallyEvaluateOneStepForConstraintEnumeration programAnalysisTLE exp =
+  case exp.val.e__ of
+    EList ws1 heads ws2 maybeTail ws3 ->
+      let tailMaybeEvaluated =
+        case Maybe.map (.e__ << .val) maybeTail of
+          Just (EList _ tailHeads _ tailMaybeTail _) ->
+            -- Graft tail into list.
+            Just <| replaceE__ exp (EList ws1 (heads ++ tailHeads) ws2 tailMaybeTail ws3)
+
+          Just _ ->
+            let tailExp = Utils.fromJust maybeTail in
+            maybeSymbolicallyEvaluateOneStep programAnalysisTLE tailExp
+            |> Maybe.map (\newTail -> replaceE__ exp (EList ws1 heads ws2 (Just newTail) ws3))
+
+          _ ->
+            Nothing
+      in
+      tailMaybeEvaluated
+
+    _ ->
+      maybeSymbolicallyEvaluateOneStep programAnalysisTLE exp
+
+
 -- Goal here is to evaluate just enough so that e.g. patterns can match.
 --
 -- Returns Nothing if no progress.
-maybeSymbolicallyEvaluateOneStep : Exp -> Exp -> Maybe Exp
-maybeSymbolicallyEvaluateOneStep program exp =
+maybeSymbolicallyEvaluateOneStep : ProgramAnalysisWithTLEId -> Exp -> Maybe Exp
+maybeSymbolicallyEvaluateOneStep programAnalysisTLE exp =
   -- Return Just newExps if progress made on one expression.
   -- Return Nothing if no progress made on any expressions.
   let evalOneOf exps =
     case exps of
       []    -> Nothing
       e::es ->
-        case maybeSymbolicallyEvaluateOneStep program e of
+        case maybeSymbolicallyEvaluateOneStep programAnalysisTLE e of
           Just newE -> Just (newE::es)
           Nothing   -> evalOneOf es |> Maybe.map (\rest -> e::rest)
   in
@@ -779,7 +822,7 @@ maybeSymbolicallyEvaluateOneStep program exp =
     EDict _            -> Nothing -- TODO: How should we handle EDict's here?
     EConst _ n loc wd  -> Nothing
     EBase _ bVal       -> Nothing
-    EVar _ ident       -> findVarAtEId program exp
+    EVar _ ident       -> findVarAtEId programAnalysisTLE exp
     EFun _ pats body _ -> Nothing
     EOp ws1 op argExps ws2 ->
       case evalOneOf argExps of
@@ -825,7 +868,7 @@ maybeSymbolicallyEvaluateOneStep program exp =
                 Nothing
           in
           let evaledArgExps = argExps in
-          let args          = evaledArgExps |> List.map (.e__ << .val) in
+          let args          = evaledArgExps |> List.map (.val >> .e__) in
           case op_ of
             Plus ->
               case args of
@@ -867,17 +910,32 @@ maybeSymbolicallyEvaluateOneStep program exp =
             RangeOffset _ -> Nothing
 
     EList ws1 heads ws2 maybeTail ws3 ->
-      case evalOneOf heads of
-        Just newHeads -> Just <| replaceE__ exp (EList ws1 newHeads ws2 maybeTail ws3)
+      let tailMaybeEvaluated =
+        case Maybe.map (.e__ << .val) maybeTail of
+          Just (EList _ tailHeads _ tailMaybeTail _) ->
+            -- Graft tail into list.
+            Just <| replaceE__ exp (EList ws1 (heads ++ tailHeads) ws2 tailMaybeTail ws3)
+
+          Just _ ->
+            let tailExp = Utils.fromJust maybeTail in
+            maybeSymbolicallyEvaluateOneStep programAnalysisTLE tailExp
+            |> Maybe.map (\newTail -> replaceE__ exp (EList ws1 heads ws2 (Just newTail) ws3))
+
+          _ ->
+            Nothing
+      in
+      case tailMaybeEvaluated of
+        Just newExp -> Just newExp
         Nothing ->
-          maybeTail
-          |> Maybe.map (\newTail -> replaceE__ exp (EList ws1 heads ws2 (Just newTail) ws3))
+          case evalOneOf heads of
+            Just newHeads -> Just <| replaceE__ exp (EList ws1 newHeads ws2 maybeTail ws3)
+            Nothing       -> Nothing
 
     EIndList _ ranges _ ->
       Nothing
 
     EIf ws1 predicate trueBranch falseBranch ws2 ->
-      case maybeSymbolicallyEvaluateOneStep program predicate of
+      case maybeSymbolicallyEvaluateOneStep programAnalysisTLE predicate of
         Just newPredicate -> Just <| replaceE__ exp (EIf ws1 newPredicate trueBranch falseBranch ws2)
         Nothing ->
           case predicate.val.e__ of
@@ -886,18 +944,18 @@ maybeSymbolicallyEvaluateOneStep program exp =
             _                     -> Nothing
 
     ECase ws1 scrutinee branches ws2 ->
-      case maybeSymbolicMatchBranches program scrutinee branches of
+      case maybeSymbolicMatchBranches programAnalysisTLE scrutinee branches of
         Just (branchEnv, branchExp) ->
           Just <| symbolicSubstitute (Dict.fromList branchEnv) branchExp
 
         Nothing ->
-          maybeSymbolicallyEvaluateOneStep program scrutinee
+          maybeSymbolicallyEvaluateOneStep programAnalysisTLE scrutinee
           |> Maybe.map (\newScrutinee -> replaceE__ exp (ECase ws1 scrutinee branches ws2))
 
     ETypeCase ws1 scrutinee tbranches ws2 ->
       case tryExpMatchTBranches scrutinee tbranches of
         CannotCompare ->
-          maybeSymbolicallyEvaluateOneStep program scrutinee
+          maybeSymbolicallyEvaluateOneStep programAnalysisTLE scrutinee
           |> Maybe.map (\newScrutinee -> replaceE__ exp (ETypeCase ws1 newScrutinee tbranches ws2))
 
         Match branchExp ->
@@ -907,16 +965,16 @@ maybeSymbolicallyEvaluateOneStep program exp =
           Nothing
 
     EApp _ funcExp argExps _ ->
-      maybeSymbolicallyApply program exp -- This may skip a few steps. It's okay.
+      maybeSymbolicallyApply programAnalysisTLE exp -- This may skip a few steps. It's okay.
 
     ELet _ _ True pat assigns body _ ->
       Nothing -- can't handle recursive substitution
 
     ELet ws1 kind False pat assigns body ws2 ->
-      case maybeSymbolicMatch program pat assigns of
+      case maybeSymbolicMatch programAnalysisTLE pat assigns of
         Just env -> Just <| symbolicSubstitute (Dict.fromList env) body
         Nothing  ->
-          maybeSymbolicallyEvaluateOneStep program assigns
+          maybeSymbolicallyEvaluateOneStep programAnalysisTLE assigns
           |> Maybe.map (\newAssigns -> replaceE__ exp (ELet ws1 kind False pat newAssigns body ws2))
           -- Might also try evaluating the let body...but that's almost certainly pointless.
 
@@ -1026,13 +1084,13 @@ symbolicSubstitute subst exp =
   transformVarsUntilBound fnSubst exp
 
 
-maybeSymbolicallyApply : Exp -> Exp -> Maybe Exp
-maybeSymbolicallyApply program appExp =
-  let _ = Debug.log ("Attempting to apply " ++ (unparse appExp)) () in
+maybeSymbolicallyApply : ProgramAnalysisWithTLEId -> Exp -> Maybe Exp
+maybeSymbolicallyApply programAnalysisTLE appExp =
+  -- let _ = Debug.log ("Attempting to apply " ++ (unparse appExp)) () in
   case appExp.val.e__ of
     EApp _ funcExp argExps _ ->
       let maybeFuncToApply =
-        let evaledFuncExp = symbolicallyEvaluateAsFarAsPossible program funcExp in
+        let evaledFuncExp = symbolicallyEvaluateAsFarAsPossible programAnalysisTLE funcExp in
         case evaledFuncExp.val.e__ of
           EFun _ pats body _ -> Just evaledFuncExp
           _                  -> Nothing
@@ -1044,7 +1102,7 @@ maybeSymbolicallyApply program appExp =
               EFun ws1 pats body ws2 ->
                 -- Only apply recursive functions in prelude
                 -- This isn't a completely reliable check for if the function is recursive (e.g. passing function to itself).
-                if LangParser2.isPreludeEId funcExp.val.eid || (isActualEId funcExp.val.eid && (eidsAvailableAsVarsAt program funcExp.val.eid |> Dict.member funcExp.val.eid |> not)) then
+                if LangParser2.isPreludeEId funcExp.val.eid || (isActualEId funcExp.val.eid && (eidsAvailableAsVarsAt programAnalysisTLE.programAnalysis funcExp.val.eid |> Dict.member funcExp.val.eid |> not)) then
                   let patsAndArgExps = Utils.zip pats argExps in
                   if List.length argExps <= List.length pats then
                     -- Full or partial application
@@ -1052,7 +1110,7 @@ maybeSymbolicallyApply program appExp =
                       patsAndArgExps
                       |> Utils.foldlMaybe
                           (\(pat, argExp) subst ->
-                            case maybeSymbolicMatch program pat argExp of
+                            case maybeSymbolicMatch programAnalysisTLE pat argExp of
                               Nothing  -> let _ = Debug.log ("pat didn't match arg") (unparsePat pat, unparse argExp) in Nothing
                               Just env -> Just <| Dict.union (Dict.fromList <| List.reverse env) subst -- reverse b/c technically early entries overwrite later entires; pats shouldn't have repeat vars though
                           )
@@ -1080,9 +1138,10 @@ maybeSymbolicallyApply program appExp =
                         _ ->
                           Nothing
                     in
-                    case maybeResult of
-                      Just exp -> let _ = Debug.log ("symbolic result: " ++ unparse exp) () in maybeResult
-                      Nothing  -> let _ = Debug.log "application failed" () in maybeResult
+                    maybeResult
+                    -- case maybeResult of
+                    --   Just exp -> let _ = Debug.log ("symbolic result: " ++ unparse exp) () in maybeResult
+                    --   Nothing  -> let _ = Debug.log "application failed" () in maybeResult
                   else
                     let _ = Debug.log ("arg count doesn't match pattern count") (pats, argExps) in
                     Nothing
@@ -1107,120 +1166,158 @@ maybeSymbolicallyApply program appExp =
 --   - Allow expansions of independent side
 --     - Allow solving for locs (eids??) that initially appear on both sides, to match the power
 --       of the original loc-based solver
-solutionsForDependentProgramLocation : Exp -> Constraint -> List (Exp, EId)
-solutionsForDependentProgramLocation program constraint =
+solutionsForDependentProgramLocation : ProgramAnalysisWithTLEId -> Constraint -> List (List (Exp, EId))
+solutionsForDependentProgramLocation programAnalysisTLE constraint =
   let { independent, dependent } = constraint in
-  let recurse newConstraint      = solutionsForDependentProgramLocation program newConstraint in
-  let recurseSimple newDependent = recurse (Constraint independent newDependent) in
+  -- let recurse newConstraint      = solutionsForDependentProgramLocation program newConstraint in
+  -- let recurseSimple newDependent = recurse (Constraint independent newDependent) in
   -- let eidToExpAnalysis eid       = Utils.justGet_ "Brainstorm.solutionsForDependentProgramLocation" eid dependencyAnalysis in
   -- let eidToCTerm eid             = expToCTerm (eidToExpAnalysis eid).exp in
-  let depEId = dependent.val.eid in
-  let solutionsIfInProgram eid =
-    let candidateSolution = (independent, eid) in
-    if isProgramEId eid
-    then [candidateSolution]
-    else []
+  -- let depEId = dependent.val.eid in
+  let _ = Debug.log "generating independent expression options" () in
+  let independentOptions =
+    let generateOptions_ indep =
+      case maybeSymbolicallyEvaluateOneStepForConstraintEnumeration programAnalysisTLE indep of
+        Just newIndep -> indep::(generateOptions_ newIndep)
+        Nothing       -> [indep]
+    in
+    generateOptions_ independent
   in
-  let _ = Debug.log ("Exploring " ++ (unparse independent) ++ " = " ++ (unparse dependent)) () in
-  case dependent.val.e__ of
-    -- There's more algebra opportunities here
-    -- Be dumb for now
-    EOp _ op args _ ->
-      let solutionsOnThisTerm = solutionsIfInProgram depEId in
-      let op_ = op.val in
-      let logBadOp ret =
-        let _ = Debug.log "Bad op" (unparse dependent) in
-        ret
-      in
-      let binOpInverseConstraints binOp lhs leftArg rightArg =
-        List.map (\(indep, dep) -> { independent = indep, dependent = dep })
-        <| case binOp of
-          Plus  -> [ (eOp Minus [lhs, rightArg], leftArg), (eOp Minus [lhs, leftArg], rightArg) ]
-          Minus -> [ (eOp Plus  [lhs, rightArg], leftArg), (eOp Minus [leftArg, lhs], rightArg) ]
-          Mult  -> [ (eOp Div   [lhs, rightArg], leftArg), (eOp Div   [lhs, leftArg], rightArg) ]
-          Div   -> [ (eOp Mult  [lhs, rightArg], leftArg), (eOp Div   [leftArg, lhs], rightArg) ]
-          Pow   -> [ (eOp Pow [lhs, (eOp Div [eConstNoLoc 1, rightArg])], leftArg) ] --  lhs^(1/r) = l; but need log op to solve for r
-          _     -> []
-      in
-      let binOpSolutions binOp args =
-        case args of
-          [leftArg, rightArg] ->
-            binOpInverseConstraints binOp independent leftArg rightArg
-            |> List.concatMap recurse
+  let _ = Debug.log "independent options count" (List.length independentOptions) in
+  let dependentOptions =
+    let generateOptions_ indep dep =
+      let optionsViaEquationRearrangement =
+        case dep.val.e__ of
+          -- There's more algebra opportunities here
+          -- Be dumb for now
+          EOp _ op args _ ->
+            let op_ = op.val in
+            let logBadOp ret =
+              let _ = Debug.log "Bad op" (unparse dep) in
+              ret
+            in
+            let binOpInverseConstraints binOp leftArg rightArg =
+             case binOp of
+                Plus  -> [ (eOp Minus [indep, rightArg], leftArg), (eOp Minus [indep, leftArg], rightArg) ]
+                Minus -> [ (eOp Plus  [indep, rightArg], leftArg), (eOp Minus [leftArg, indep], rightArg) ]
+                Mult  -> [ (eOp Div   [indep, rightArg], leftArg), (eOp Div   [indep, leftArg], rightArg) ]
+                Div   -> [ (eOp Mult  [indep, rightArg], leftArg), (eOp Div   [leftArg, indep], rightArg) ]
+                Pow   -> [ (eOp Pow [indep, (eOp Div [eConstNoLoc 1, rightArg])], leftArg) ] --  lhs^(1/r) = l; but need log op to solve for r
+                _     -> []
+            in
+            let binOpSolutions binOp args =
+              case args of
+                [leftArg, rightArg] ->
+                  binOpInverseConstraints binOp leftArg rightArg
+
+                _ ->
+                  logBadOp []
+            in
+            let unOpInverseMaybeConstraint unOp arg =
+              case unOp of
+                Cos    -> [ (eOp ArcCos [indep],             arg) ]
+                Sin    -> [ (eOp ArcSin [indep],             arg) ]
+                ArcCos -> [ (eOp Cos [indep],                arg) ]
+                ArcSin -> [ (eOp Sin [indep],                arg) ]
+                Sqrt   -> [ (eOp Pow [indep, eConstNoLoc 2], arg) ]
+                _      -> []
+            in
+            let unOpSolutions unOp args =
+              case args of
+                [arg] ->
+                  unOpInverseMaybeConstraint unOp arg
+
+                _ ->
+                  logBadOp []
+            in
+            case op_ of
+              Plus          -> binOpSolutions op_ args -- need type checker here to differentiate from string plus; just rely on the crash check for now
+              Minus         -> binOpSolutions op_ args
+              Mult          -> binOpSolutions op_ args
+              Div           -> binOpSolutions op_ args
+              Mod           -> []
+              Pow           -> binOpSolutions op_ args
+              ArcTan2       -> []
+              Lt            -> [] -- heh; handling inequalities could be fun
+              Eq            -> []
+              Pi            -> []
+              DictEmpty     -> []
+              DictInsert    -> []
+              DictGet       -> [] -- Ignoring DictGet will limit us when we switch SVG attrs to be a dict
+              DictRemove    -> []
+              Cos           -> unOpSolutions op_ args
+              Sin           -> unOpSolutions op_ args
+              ArcCos        -> unOpSolutions op_ args
+              ArcSin        -> unOpSolutions op_ args
+              Floor         -> []
+              Ceil          -> []
+              Round         -> []
+              Sqrt          -> unOpSolutions op_ args
+              Explode       -> []
+              DebugLog      -> []
+              ToStr         -> []
+              RangeOffset _ -> logBadOp []
 
           _ ->
-            logBadOp []
+            []
       in
-      let unOpInverseMaybeConstraint unOp lhs arg =
-        case unOp of
-          Cos    -> Just { independent = eOp ArcCos [lhs],             dependent = arg }
-          Sin    -> Just { independent = eOp ArcSin [lhs],             dependent = arg }
-          ArcCos -> Just { independent = eOp Cos [lhs],                dependent = arg }
-          ArcSin -> Just { independent = eOp Sin [lhs],                dependent = arg }
-          Sqrt   -> Just { independent = eOp Pow [lhs, eConstNoLoc 2], dependent = arg }
-          _      -> Nothing
+      let optionsOnThisIteration = (indep, dep)::optionsViaEquationRearrangement in
+      let evaluatedOneStep =
+        optionsOnThisIteration
+        |> List.filterMap (\(i, d) -> maybeSymbolicallyEvaluateOneStepForConstraintEnumeration programAnalysisTLE d |> Maybe.map ((,) i))
       in
-      let unOpSolutions unOp args =
-        case args of
-          [arg] ->
-            case unOpInverseMaybeConstraint unOp independent arg of
-              Just constraint -> recurse constraint
-              Nothing         -> []
-
-          _ ->
-            logBadOp []
-      in
-      solutionsOnThisTerm ++
-      case op_ of
-        Plus       -> binOpSolutions op_ args -- need type checker here to differentiate from string plus; just rely on the crash check for now
-        Minus      -> binOpSolutions op_ args
-        Mult       -> binOpSolutions op_ args
-        Div        -> binOpSolutions op_ args
-        Mod        -> []
-        Pow        -> binOpSolutions op_ args
-        ArcTan2    -> []
-        Lt         -> [] -- heh; handling inequalities could be fun
-        Eq         -> []
-        Pi         -> []
-        DictEmpty  -> []
-        DictInsert -> []
-        DictGet    -> [] -- Ignoring DictGet is going to limit us when we switch SVG attrs to be a dict
-        DictRemove -> []
-        Cos        -> unOpSolutions op_ args
-        Sin        -> unOpSolutions op_ args
-        ArcCos     -> unOpSolutions op_ args
-        ArcSin     -> unOpSolutions op_ args
-        Floor      -> []
-        Ceil       -> []
-        Round      -> []
-        Sqrt       -> unOpSolutions op_ args
-        Explode    -> []
-        DebugLog   ->
-          case args of
-            [arg] -> recurseSimple arg
-            _     -> logBadOp []
-
-        ToStr         -> []
-        RangeOffset _ -> logBadOp []
-
-    _ ->
-      case maybeSymbolicallyEvaluateOneStep program dependent of
-        Just newDependent -> (solutionsIfInProgram depEId) ++ (recurseSimple newDependent)
-        Nothing           -> (solutionsIfInProgram depEId)
+      optionsOnThisIteration ++ (evaluatedOneStep |> List.concatMap (\(i, d) -> generateOptions_ i d))
+    in
+    generateOptions_ independentDummyExp dependent
+  in
+  let multiConstraintSolutions =
+    let dependentWithBareIndependent =
+      dependentOptions |> List.filter (\(i, d) -> i == independentDummyExp)
+    in
+    Utils.cartProd independentOptions dependentWithBareIndependent
+    |> List.filterMap
+        (\(indep, (_, dep)) ->
+          case (indep.val.e__, dep.val.e__) of
+            (EList _ indepHeads _ Nothing _, EList _ depHeads _ Nothing _) -> Utils.maybeZip indepHeads depHeads
+            _                                                              -> Nothing
+        )
+    |> List.map (List.map constraintFromTuple)
+    |> List.concatMap
+        (\constraints ->
+          let solutionsForEachConstraint =
+            constraints |> List.map (solutionsForDependentProgramLocation programAnalysisTLE)
+          in
+          let solutionCombos =
+            Utils.oneOfEach solutionsForEachConstraint |> List.map List.concat
+          in
+          solutionCombos
+        )
+  in
+  let _ = Debug.log "multi-constraint solutions count" (List.length multiConstraintSolutions) in
+  let singleConstraintSolutions =
+    let dependentOptionsInProgram =
+      dependentOptions |> List.filter (\(i, d) -> isProgramEId d.val.eid)
+    in
+    let _ = Debug.log "dependent options in program count" (List.length dependentOptionsInProgram) in
+    Utils.cartProd independentOptions dependentOptionsInProgram
+    |> List.map
+        (\(indep, (indepWrapped, dep)) ->
+          [(replaceExpNode independentDummyEId indep indepWrapped, dep.val.eid)]
+        )
+  in
+  singleConstraintSolutions ++ multiConstraintSolutions
 
 
 -- TODO: change StaticEnv/neededEId into set of EIds instead of single (multiple exps may resolve the same)
-visibleVarsAt : Exp -> EId -> StaticEnv
-visibleVarsAt program observerEId =
-  let programAnalysis = staticAnalyzeWithPrelude program in
+visibleVarsAt : ProgramAnalysis -> EId -> StaticEnv
+visibleVarsAt programAnalysis observerEId =
   let errorMsg = "Brainstorm.visibleVarsAt: can't find eid " ++ (toString observerEId) ++ " in program analysis" in
   let observerExpAn = Utils.justGet_ errorMsg observerEId programAnalysis in
   observerExpAn.staticEnv
 
 
-eidsAvailableAsVarsAt : Exp -> EId -> Dict.Dict EId Ident
-eidsAvailableAsVarsAt program observerEId =
-  let programAnalysis = staticAnalyzeWithPrelude program in
+eidsAvailableAsVarsAt : ProgramAnalysis -> EId -> Dict.Dict EId Ident
+eidsAvailableAsVarsAt programAnalysis observerEId =
   let errorMsg = "Brainstorm.eidsAvailableAsVarsAt: can't find eid " ++ (toString observerEId) ++ " in program analysis" in
   let observerExpAn = Utils.justGet_ errorMsg observerEId programAnalysis in
   let (resultDict, _) =
@@ -1284,8 +1381,8 @@ type alias ExpressionAnalysis =
   }
 
 
-type alias ProgramAnalysis = Dict.Dict EId ExpressionAnalysis
-
+type alias ProgramAnalysis          = Dict.Dict EId ExpressionAnalysis
+type alias ProgramAnalysisWithTLEId = { programAnalysis : ProgramAnalysis, lastTopLevelEId : EId }
 
 (_, preludeStaticEnv, preludeProgramAnalysis) =
   staticAnalyze_ [] Dict.empty LangParser2.prelude
@@ -1354,7 +1451,7 @@ staticAnalyze_ env programAnalysis exp =
       , staticEnv              = env
       , isStatic               = True
       , equivalentEIds         = Set.singleton thisEId
-      , immediatelyDependentOn = childExps exp |> List.map (.eid << .val) |> Set.fromList
+      , immediatelyDependentOn = childExps exp |> List.map (.val >> .eid) |> Set.fromList
       }
     in
     Dict.insert thisEId expressionAnalysis programAnalysis
@@ -1571,6 +1668,17 @@ staticAnalyze_ env programAnalysis exp =
     ETypeAlias _ _ _ body _ -> retRecurseEquivalentExpression "ETypeAlias" env programAnalysis' body
 
 
+programAnalysisWithTopLevelEId : Exp -> ProgramAnalysisWithTLEId
+programAnalysisWithTopLevelEId program =
+  let programAnalysis = staticAnalyzeWithPrelude program in
+  let lastTopLevelEId =
+    (Utils.last "Brainstorm.programAnalysisWithTopLevelEId: can't handle empty program" (topLevelExps program)).val.eid
+  in
+  { programAnalysis = programAnalysis
+  , lastTopLevelEId = lastTopLevelEId
+  }
+
+
 findWithAncestors : Exp -> EId -> List Exp
 findWithAncestors program eid =
   findAllWithAncestors (\exp -> eid == exp.val.eid) program
@@ -1594,11 +1702,12 @@ justFindExpByEId exp eid =
 -- Which EIds do we need in scope were we to lift this expression?
 -- This is where bound variables fail the transformation.
 -- TODO: make sure recursive vars fail the transformation.
-freeVarEIdsInExp : Exp -> EId -> Maybe (List (Ident, EId))
-freeVarEIdsInExp program mobileEId =
-  let mobileExp   = justFindExpByEId program mobileEId in
+freeVarEIdsInExp : ProgramAnalysis -> EId -> Maybe (List (Ident, EId))
+freeVarEIdsInExp programAnalysis mobileEId =
+  let mobileExpAn = justGetExpressionAnalysis programAnalysis mobileEId in
+  let mobileExp   = mobileExpAn.exp in
   let freeIdents  = freeIdentifiers mobileExp |> Set.toList in
-  let visibleVars = visibleVarsAt program mobileEId in
+  let visibleVars = mobileExpAn.staticEnv in
   freeIdents
   |> Utils.foldlMaybe
       (\freeIdent freeVarEIds ->
@@ -1628,10 +1737,11 @@ turnExpsToVars exp renamings =
 -- so caller can use it on "off-program" expressions. TODO: revisit, may not need renamings
 liftSoVisbleTo : Exp -> EId -> EId -> Maybe (Exp, Dict.Dict EId Ident)
 liftSoVisbleTo originalProgram mobileEId observerEId =
-  let _ = Debug.log "looking for eid" mobileEId in
-  case Dict.get mobileEId (eidsAvailableAsVarsAt originalProgram observerEId) of
+  -- let _ = Debug.log "looking for eid" mobileEId in
+  let programAnalysis = staticAnalyzeWithPrelude originalProgram in
+  case Dict.get mobileEId (eidsAvailableAsVarsAt programAnalysis observerEId) of
     Just ident ->
-      let _ = Debug.log "found as" ident in
+      -- let _ = Debug.log "found as" ident in
       let renamings = Dict.singleton mobileEId ident in
       Just (originalProgram, renamings)
 
@@ -1647,13 +1757,13 @@ liftSoVisbleTo originalProgram mobileEId observerEId =
         deepestCommonAncestor.val.eid
       in
       let maybeDependenciesLifted =
-        case freeVarEIdsInExp originalProgram mobileEId of
+        case freeVarEIdsInExp programAnalysis mobileEId of
           Nothing ->
-            let _ = Debug.log "not found, can't lift" () in
+            -- let _ = Debug.log "not found, can't lift" () in
             Nothing -- need to lift a bound var. TODO: allow lifting if we don't exceed its scope
 
           Just varEidsToLift ->
-            let _ = Debug.log "found, trying to lift dependencies" varEidsToLift in
+            -- let _ = Debug.log "found, trying to lift dependencies" varEidsToLift in
             varEidsToLift
             |> Utils.foldlMaybe
                 (\(varName, eidToLift) program ->
@@ -1684,33 +1794,88 @@ liftSoVisbleTo originalProgram mobileEId observerEId =
             -- TODO: pretty whitespace
             let liftedSubtree = eLets [(liftedName, (replacePrecedingWhitespace " " expToLift))] deepestCommonAncestorTargetExpRenamed in
             let lifted = replaceExpNode deepestCommonAncestorEId liftedSubtree dependenciesLifted in
-            let _ = Debug.log (unparse lifted) () in
+            -- let _ = Debug.log (unparse lifted) () in
             (lifted, Dict.singleton mobileEId liftedName)
           )
 
 
--- Recurse down to EId's in program/prelude
--- (eid's not in program/prelude are inserted expressions)
-neededEIds : Env -> Exp -> List EId
-neededEIds programEnv exp =
-  let recurse = neededEIds programEnv in
+-- EId's not in program/prelude are inserted expressions)
+--
+-- Different from freeVarEIdsInExp b/c we expressions tagged as
+-- already in the program are denoted as needed and will be assigned
+-- to variables and so we don't need to recurse through them.
+neededEIds : ProgramAnalysisWithTLEId -> Exp -> Set.Set EId
+neededEIds programAnalysisTLE exp =
+  neededEIds_ Set.empty programAnalysisTLE exp
+
+
+neededEIds_ : Set.Set Ident -> ProgramAnalysisWithTLEId -> Exp -> Set.Set EId
+neededEIds_ boundIdentsSet programAnalysisTLE exp =
+  let recurse = neededEIds_ boundIdentsSet programAnalysisTLE in
+  let recurseChildren () =
+    List.map recurse (childExps exp)
+    |> Utils.unionAll
+  in
   let eid = exp.val.eid in
-  if isActualEId eid then
-    [eid]
+  if isProgramEId eid then
+    Set.singleton eid
   else
     case exp.val.e__ of
-      EVar _ x ->
-        case Utils.maybeFind x programEnv of
-          Just val -> [val.vtrace |> Utils.head ("expected var " ++ x ++ " to resolve to val with non-empty vtrace")]
-          Nothing  -> Debug.crash <| "independent side has reference to unknown var " ++ x
+      EConst _ i l wd             -> Set.empty
+      EBase _ v                   -> Set.empty
+      EVar _ x                    ->
+        if Set.member x boundIdentsSet then
+          Set.empty
+        else
+          case findVarAtEId programAnalysisTLE exp of
+            Just assignedExp ->
+              if isActualEId assignedExp.val.eid then
+                Set.singleton assignedExp.val.eid
+              else
+                Debug.crash <| "independent side has reference to var " ++ x ++ " which refers to a non-actual EId"
 
-      _ ->
-        List.concatMap recurse (childExps exp)
+            Nothing ->
+              Debug.crash <| "independent side has reference to unknown var " ++ x
+
+      EFun _ ps e _               -> neededEIds_ (Set.union (identifiersSetInPats ps) boundIdentsSet) programAnalysisTLE e
+      EOp _ op es _               -> recurseChildren ()
+      EList _ es _ m _            -> recurseChildren ()
+      EIndList _ rs _             -> recurseChildren ()
+      EIf _ e1 e2 e3 _            -> recurseChildren ()
+      ECase _ e1 bs _             ->
+        let neededInScrutinee = recurse e1 in
+        let neededInEachBranch =
+          (List.map .val bs)
+          |> List.map (\(Branch_ _ bPat bExp _) -> neededEIds_ (Set.union (identifiersSetInPat bPat) boundIdentsSet) programAnalysisTLE bExp)
+        in
+        Utils.unionAll (neededInScrutinee::neededInEachBranch)
+
+      ETypeCase _ e1 tbranches _  -> recurseChildren ()
+      EApp _ e1 es _              -> recurseChildren ()
+      ELet _ _ False p e1 e2 _    ->
+        let neededInAssigns = recurse e1 in
+        let neededInBody    = neededEIds_ (Set.union (identifiersSetInPat p) boundIdentsSet) programAnalysisTLE e2 in
+        Set.union neededInAssigns neededInBody
+
+      ELet _ _ True p e1 e2 _ ->
+        let neededInAssigns = neededEIds_ (Set.union (identifiersSetInPat p) boundIdentsSet) programAnalysisTLE e1 in
+        let neededInBody    = neededEIds_ (Set.union (identifiersSetInPat p) boundIdentsSet) programAnalysisTLE e2 in
+        Set.union neededInAssigns neededInBody
+
+      EComment _ _ e1       -> recurseChildren ()
+      EOption _ _ _ _ e1    -> recurseChildren ()
+      ETyp _ _ _ e1 _       -> recurseChildren ()
+      EColonType _ e1 _ _ _ -> recurseChildren ()
+      ETypeAlias _ _ _ e1 _ -> recurseChildren ()
+      EVal _                -> Debug.crash "Brainstorm.neededEIds_: shouldn't have an EVal in given expression"
+      EDict _               -> Debug.crash "Brainstorm.neededEIds_: shouldn't have an EDict in given expression"
 
 
-redefineExp programEnv originalProgram indep depEId =
+redefineExp originalProgram indep depEId =
+  let programAnalysisTLE = programAnalysisWithTopLevelEId originalProgram in
   let maybeLiftedAndRenamings =
-    (Debug.log "neededEIDs" <| neededEIds programEnv indep)
+    (Debug.log "neededEIDs" <| neededEIds programAnalysisTLE indep)
+    |> Set.toList
     |> Utils.foldlMaybe
         (\eid (program, renamings) ->
           liftSoVisbleTo program eid depEId
@@ -1721,35 +1886,46 @@ redefineExp programEnv originalProgram indep depEId =
   maybeLiftedAndRenamings
   |> Maybe.map
       (\(lifted, renamings) ->
-        let _ = Debug.log "renamings" renamings in
+        -- let _ = Debug.log "renamings" renamings in
         let dependent = turnExpsToVars indep renamings in
-        replaceExpNode depEId dependent lifted
+        let maxEId = List.maximum ([LangParser2.initK] ++ allActualEIds originalProgram ++ allLocIds originalProgram) |> Utils.fromJust in
+        let (freshenedDependent, _) = LangParser2.freshen_ (maxEId + 10) dependent in
+        let dependentReplaced = replaceExpNode depEId freshenedDependent lifted in
+        dependentReplaced
       )
 
 
-maybeMakeEqualConstraint programEnv originalProgram constraint =
+maybeMakeEqualConstraint originalProgram constraint =
   let _ = Debug.log "statically evaluating" () in
-  let programAnalysis = staticAnalyzeWithPrelude originalProgram in
+  let programAnalysisTLE = programAnalysisWithTopLevelEId originalProgram in
   let _ = Debug.log "finding solutions" () in
   let solutions =
-    solutionsForDependentProgramLocation originalProgram constraint
-    |> List.filter (isValidSolution programAnalysis)
+    solutionsForDependentProgramLocation programAnalysisTLE constraint
+    |> List.filter (isValidSolution programAnalysisTLE.programAnalysis)
   in
-  let _ = Debug.log "solutions" solutions in
+  let _ = Debug.log "solution count" (List.length solutions) in
   solutions
   |> Utils.mapFirstSuccess
-      (\(indep, depEId) ->
-        let _ = Debug.log "trying solution" (unparse indep, depEId) in
-        redefineExp programEnv originalProgram indep depEId
+      (\solutionParts ->
+        let _ = Debug.log "trying solution" <| List.map (\(indep, depEId) -> (unparse indep, depEId)) solutionParts in
+        solutionParts
+        |> Utils.foldlMaybe
+            (\(indep, depEId) prog ->
+              let _ = Debug.log "trying to transform" (unparse indep, depEId) in
+              redefineExp prog indep depEId
+            )
+            (Just originalProgram)
+        |> Maybe.map (\newProgram -> let _ = Debug.log (unparse newProgram) () in newProgram)
       )
+  -- |> Maybe.oneOf
 
 
 relate originalProgram idea zoneToRelate slideNumber movieNumber movieTime =
   let (shapeId, zoneName) = zoneToRelate in
-  let _ =
-    let progAn = staticAnalyzeWithPrelude originalProgram in
-    Debug.log (progAn |> Dict.toList |> List.map (\(eid, expAn) -> (toString eid) ++ " " ++ (unparse expAn.exp |> String.trimLeft |> String.left 33)) |> String.join "\n") ()
-  in
+  -- let _ =
+  --   let progAn = staticAnalyzeWithPrelude originalProgram in
+  --   Debug.log (progAn |> Dict.toList |> List.map (\(eid, expAn) -> (toString eid) ++ " " ++ (unparse expAn.exp |> String.trimLeft |> String.left 33)) |> String.join "\n") ()
+  -- in
   case Eval.eval Eval.initEnv [] originalProgram of
     Err s -> let _ = Debug.log ("Brainstorm.relate eval failed: " ++ s) () in originalProgram
     Ok ((val, _), programEnv) ->
@@ -1770,6 +1946,6 @@ relate originalProgram idea zoneToRelate slideNumber movieNumber movieTime =
                   case ideaToMaybeConstraint originalProgram (zoneNameToConstraintType zoneName) idea zoneIdea of
                     Nothing         -> originalProgram
                     Just constraint ->
-                      case maybeMakeEqualConstraint programEnv originalProgram constraint of
+                      case maybeMakeEqualConstraint originalProgram constraint of
                         Nothing         -> originalProgram
                         Just newProgram -> newProgram

@@ -60,6 +60,11 @@ allLocsAndNumbers exp =
     exp
 
 
+allLocIds exp =
+  allLocsAndNumbers exp
+  |> List.map (\((locId, _, _), _) -> locId)
+
+
 -- Is the expression in the body of only defs/comments/options?
 --
 -- The "top level" is a single path on the tree, so walk it and look
@@ -419,7 +424,7 @@ freeIdentifiers_ boundIdentsSet exp =
 renameVarsUntilBound : Dict.Dict Ident Ident -> Exp -> Exp
 renameVarsUntilBound renamings exp =
   let renamer newName e =
-    let _ = Debug.log ("Renaming " ++ newName ++ " on") e in
+    -- let _ = Debug.log ("Renaming " ++ newName ++ " on") e in
     case e.val.e__ of
       EVar ws oldName -> replaceE__ e (EVar ws newName)
       _               -> Debug.crash <| "LangTools.renameVarsUntilBound: renamer should only be passed an EVar, but given: " ++ (toString e)
@@ -515,7 +520,6 @@ transformVarsUntilBound subst exp =
     else
       transformVarsUntilBound newSubst e
   in
-  let _ = Debug.log "recursing through" exp in
   case exp.val.e__ of
     EVal _                      -> exp
     EConst _ _ _ _              -> exp

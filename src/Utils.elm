@@ -208,6 +208,11 @@ squish str =
   String.trim <|
     Regex.replace Regex.All (Regex.regex "\\s+") (\_ -> " ") str
 
+cartProd : List a -> List b -> List (a, b)
+cartProd xs ys =
+   xs |> List.concatMap (\x -> List.map ((,) x) ys)
+
+-- Cartesian product for arbitrary many lists of the same type
 oneOfEach : List (List a) -> List (List a)
 oneOfEach xss = case xss of
   []       -> [[]]
@@ -240,6 +245,12 @@ manySetDiffs sets =
 unionAll : List (Set.Set comparable) -> Set.Set comparable
 unionAll sets =
   List.foldl Set.union Set.empty sets
+
+-- Returns false if any two sets share an element.
+-- Can help answer, "Is this a valid partition?"
+anyOverlap : List (Set.Set comparable) -> Bool
+anyOverlap sets =
+  Set.size (unionAll sets) < List.sum (List.map Set.size sets)
 
 -- TODO combine findFirst and removeFirst
 
