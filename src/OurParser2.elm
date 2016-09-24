@@ -57,6 +57,10 @@ parse p s =
 
 type alias ParseError = (String, Ace.Annotation)
 
+formatError : ParseError -> String
+formatError p =
+  " row " ++ toString (snd p).row ++ ": " ++ (fst p)
+
 parse : Parser a -> String -> Result ParseError (WithInfo a)
 parse p s =
   case runParser p (WithPos s startPos) of

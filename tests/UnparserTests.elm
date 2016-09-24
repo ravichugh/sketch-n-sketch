@@ -6,11 +6,12 @@ import String
 
 import LangParser2
 import LangUnparser
+import OurParser2 exposing (formatError)
 
 testParseUnparseMatch littleStr =
   case LangParser2.parseE littleStr of
     Err s ->
-      "can't parse: " ++ s ++ "\n" ++ littleStr
+      "can't parse: " ++ formatError s ++ "\n"
     Ok parsed ->
       let unparsed =
         LangUnparser.unparse parsed
