@@ -202,6 +202,36 @@ identifiersList exp =
     exp
 
 
+-- Look for all non-free identifiers in the expression.
+identifiersSetPatsOnly : Exp -> Set.Set Ident
+identifiersSetPatsOnly exp =
+  identifiersListPatsOnly exp
+  |> Set.fromList
+
+
+identifiersListPatsOnly : Exp -> List Ident
+identifiersListPatsOnly exp =
+  let folder e__ acc =
+    case e__ of
+      EFun _ pats _ _ ->
+        (List.concatMap identifiersListInPat pats) ++ acc
+
+      ECase _ _ branches _ ->
+        let pats = branchPats branches in
+        (List.concatMap identifiersListInPat pats) ++ acc
+
+      ELet _ _ _ pat _ _ _ ->
+        (identifiersListInPat pat) ++ acc
+
+      _ ->
+        acc
+  in
+  foldExpViaE__
+    folder
+    []
+    exp
+
+
 identifiersListInPat : Pat -> List Ident
 identifiersListInPat pat =
   case pat.val of
@@ -581,3 +611,73 @@ transformVarsUntilBound subst exp =
     ETypeAlias ws1 pat tipe e ws2   -> replaceE__ exp (ETypeAlias ws1 pat tipe (recurse e) ws2)
 
     EDict _                         -> Debug.crash "LangTools.transformVarsUntilBound: shouldn't have an EDict in given expression"
+
+
+
+-- What variable names are in use at any of the given locations?
+-- For help finding unused names during synthesis.
+visibleIdentifiersAtEIds : Exp -> Set.Set EId -> Set.Set Ident
+visibleIdentifiersAtEIds program eids =
+  let programIdents = visibleIdentifiersAtEIds_ Set.empty program eids in
+  let preludeIdents = List.map fst Eval.initEnv |> Set.fromList in
+  Set.union programIdents preludeIdents
+
+
+visibleIdentifiersAtEIds_ : Set.Set Ident -> Exp -> Set.Set EId -> Set.Set Ident
+visibleIdentifiersAtEIds_ idents exp eids =
+  let ret deeperIdents =
+    -- If any child was a target EId, then deeperIdents is a superset of idents,
+    -- so no need to union.
+    if (0 == Set.size deeperIdents) && Set.member exp.val.eid eids then
+      idents
+    else
+      deeperIdents
+  in
+  let recurse e =
+    visibleIdentifiersAtEIds_ idents e eids
+  in
+  let recurseAllChildren () =
+    childExps exp |> List.map recurse |> Utils.unionAll
+  in
+  let recurseWithNewIdents pats e =
+    visibleIdentifiersAtEIds_ (Set.union (identifiersSetInPats pats) idents) e eids
+  in
+  case exp.val.e__ of
+    EVal _           -> ret Set.empty
+    EConst _ _ _ _   -> ret Set.empty
+    EBase _ _        -> ret Set.empty
+    EVar _ ident     -> ret Set.empty -- Referencing a var doesn't count.
+    EFun _ ps e _    -> ret <| recurseWithNewIdents ps e
+    EOp _ op es _    -> ret <| recurseAllChildren ()
+    EList _ es _ m _ -> ret <| recurseAllChildren ()
+    EIndList _ rs _  -> ret <| recurseAllChildren ()
+    EIf _ e1 e2 e3 _ -> ret <| recurseAllChildren ()
+    ECase _ e1 bs _  ->
+      let scrutineeResult = recurse e1 in
+      let branchResults =
+        bs
+        |> List.map .val
+        |> List.map
+            (\(Branch_ _ bPat bExp _) -> recurseWithNewIdents [bPat] bExp)
+      in
+      ret <| Utils.unionAll (scrutineeResult::branchResults)
+
+    ETypeCase _ scrutinee tbranches _ -> ret <| recurseAllChildren ()
+    EApp _ e1 es _                    -> ret <| recurseAllChildren ()
+    ELet _ kind False p e1 e2 _       ->
+      let assignResult = recurse e1 in
+      let bodyResult   = recurseWithNewIdents [p] e2 in
+      ret <| Set.union assignResult bodyResult
+
+    ELet _ kind True p e1 e2 _ ->
+      let assignResult = recurseWithNewIdents [p] e1 in
+      let bodyResult   = recurseWithNewIdents [p] e2 in
+      ret <| Set.union assignResult bodyResult
+
+    EComment _ s e1           -> ret <| recurse e1
+    EOption _ s1 _ s2 e1      -> ret <| recurse e1
+    ETyp _ pat tipe e _       -> ret <| recurse e
+    EColonType _ e _ tipe _   -> ret <| recurse e
+    ETypeAlias _ pat tipe e _ -> ret <| recurse e
+
+    EDict _                   -> Debug.crash "LangTools.visibleIdentifiersAtEIds_: shouldn't have an EDict in given expression"

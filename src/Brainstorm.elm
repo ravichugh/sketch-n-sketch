@@ -1556,49 +1556,107 @@ turnExpsToVars exp renamings =
   mapExp varRenamer exp
 
 
+-- Simple expression name suggestion.
+-- TODO: If exp used as an argument, can use the function's argument names
+nameForEId : Exp -> EId -> Maybe Ident
+nameForEId exp eid =
+  let recurseChildren () =
+    childExps exp
+    |> Utils.mapFirstSuccess (\child -> nameForEId child eid)
+  in
+  case exp.val.e__ of
+    EVar _ ident ->
+      if exp.val.eid == eid then
+        Just ident
+      else
+        Nothing
+
+    ELet _ _ _ pat assign body _ ->
+      case maybeMatchExp pat assign of
+        Just env ->
+          case env |> Utils.findFirst (\(ident, e) -> e.val.eid == eid) of
+            Just (ident, _) -> Just ident
+            Nothing         -> recurseChildren ()
+
+        Nothing  ->
+          recurseChildren ()
+
+    _ ->
+      recurseChildren ()
+
+
+nameForLift : Exp -> EId -> Set.Set EId -> Set.Set Ident -> Ident
+nameForLift program mobileEId usageEIds extraNamesToAvoid =
+  let _ = Debug.log "extraNamesToAvoid" extraNamesToAvoid in
+  let _ = Debug.log "visible at eids" (visibleIdentifiersAtEIds program (Set.insert mobileEId usageEIds) |> Set.toList) in
+  -- Needs to be a name free at both the needed location and the lifted location
+  let usedNames =
+    visibleIdentifiersAtEIds program (Set.insert mobileEId usageEIds)
+    |> Set.union extraNamesToAvoid
+  in
+  let suggestedName = Maybe.withDefault "lifted" <| nameForEId program mobileEId in
+  ValueBasedTransform.nonCollidingName suggestedName usedNames
+
+
 -- Performs renamings in program, but returns renaming on mobileEId
 -- so caller can use it on "off-program" expressions. TODO: revisit, may not need renamings
-liftSoVisbleTo : Exp -> EId -> EId -> Maybe (Exp, Dict.Dict EId Ident)
-liftSoVisbleTo originalProgram mobileEId observerEId =
+liftSoVisbleTo : Exp -> EId -> EId -> Set.Set Ident -> Maybe (Exp, Dict.Dict EId Ident)
+liftSoVisbleTo originalProgram mobileEId observerEId extraNamesToAvoid =
   -- let _ = Debug.log "looking for eid" mobileEId in
   let programAnalysis = staticAnalyzeWithPrelude originalProgram in
-  case Dict.get mobileEId (eidsAvailableAsVarsAt programAnalysis observerEId) of
+  -- If there are equivalent expressions, lift the highest one.
+  let mobileEId' =
+    if isProgramEId mobileEId then
+      let equivalentEIds = (justGetExpressionAnalysis programAnalysis mobileEId).equivalentEIds in
+      let findFirst_ e =
+        if Set.member e.val.eid equivalentEIds then
+          Just e.val.eid
+        else
+          Utils.mapFirstSuccess findFirst_ (childExps e)
+      in
+      findFirst_ originalProgram |> Utils.fromJust_ "expected mobileEId (or equivalent) to exist in program"
+    else
+      mobileEId
+  in
+  case Dict.get mobileEId' (eidsAvailableAsVarsAt programAnalysis observerEId) of
     Just ident ->
-      -- let _ = Debug.log "found as" ident in
-      let renamings = Dict.singleton mobileEId ident in
+      let _ = Debug.log "found as" ident in
+      let renamings = Dict.singleton mobileEId' ident in
       Just (originalProgram, renamings)
 
     Nothing ->
       let deepestCommonAncestorEId =
         let deepestCommonAncestor =
-          let ancestorsAndMobileExp   = findWithAncestors originalProgram mobileEId in
+          let ancestorsAndMobileExp   = findWithAncestors originalProgram mobileEId' in
           let ancestorsAndObserverExp = findWithAncestors originalProgram observerEId in
           let commonAncestors = Utils.commonPrefix [ancestorsAndMobileExp, ancestorsAndObserverExp] in
-          let errorMsg = "couldn't find common ancestor of " ++ (toString mobileEId) ++ " and " ++ (toString observerEId) in
+          let errorMsg = "couldn't find common ancestor of " ++ (toString mobileEId') ++ " and " ++ (toString observerEId) in
           Utils.last errorMsg commonAncestors
         in
         deepestCommonAncestor.val.eid
       in
       let maybeDependenciesLifted =
-        case freeVarEIdsInExp programAnalysis mobileEId of
+        case freeVarEIdsInExp programAnalysis mobileEId' of
           Nothing ->
             -- let _ = Debug.log "not found, can't lift" () in
             Nothing -- need to lift a bound var. TODO: allow lifting if we don't exceed its scope
 
-          Just varEidsToLift ->
-            -- let _ = Debug.log "found, trying to lift dependencies" varEidsToLift in
-            varEidsToLift
+          Just varEIdsToLift ->
+            let _ = Debug.log "found, trying to lift dependencies" varEIdsToLift in
+            varEIdsToLift
             |> Utils.foldlMaybe
                 (\(varName, eidToLift) program ->
-                  liftSoVisbleTo program eidToLift deepestCommonAncestorEId
+                  liftSoVisbleTo program eidToLift deepestCommonAncestorEId extraNamesToAvoid
                   |> Maybe.map
                       (\(newProgram, renamings) ->
                         -- MobileEId is going to be moved, so it needs to use the lifted name, not the original.
-                        let mobileExp = justFindExpByEId program mobileEId in
+                        let mobileExp = justFindExpByEId program mobileEId' in
                         let mobileExp' =
                           renameVarsUntilBound (Dict.singleton varName (Utils.justGet_ "Brainstorm.liftSoVisbleTo: recursion shoulda worked" eidToLift renamings)) mobileExp
                         in
-                        replaceExpNode mobileExp.val.eid mobileExp' newProgram
+                        let prog' = replaceExpNode mobileExp.val.eid mobileExp' newProgram in
+                        let _ = Debug.log (unparse prog') () in
+                        prog'
                       )
                 )
                 (Just originalProgram)
@@ -1607,10 +1665,10 @@ liftSoVisbleTo originalProgram mobileEId observerEId =
       |> Maybe.map
           (\dependenciesLifted ->
             -- TODO: better names
-            let liftedName = ValueBasedTransform.nonCollidingName "lifted" (identifiersSet dependenciesLifted) in
+            let liftedName            = nameForLift dependenciesLifted mobileEId' (Set.singleton observerEId) extraNamesToAvoid in
             let deepestCommonAncestor = justFindExpByEId dependenciesLifted deepestCommonAncestorEId in
-            let expToLift             = justFindExpByEId deepestCommonAncestor mobileEId in
-            let renamings             = Dict.singleton mobileEId liftedName in
+            let expToLift             = justFindExpByEId deepestCommonAncestor mobileEId' in
+            let renamings             = Dict.singleton mobileEId' liftedName in
             let deepestCommonAncestorTargetExpRenamed = turnExpsToVars deepestCommonAncestor renamings in
             -- c.f. ValueBasedTransform.wrapWithLets for possible code deduplication
             -- we need to preserve EIds here
@@ -1618,7 +1676,7 @@ liftSoVisbleTo originalProgram mobileEId observerEId =
             let liftedSubtree = eLets [(liftedName, (replacePrecedingWhitespace " " expToLift))] deepestCommonAncestorTargetExpRenamed in
             let lifted = replaceExpNode deepestCommonAncestorEId liftedSubtree dependenciesLifted in
             -- let _ = Debug.log (unparse lifted) () in
-            (lifted, Dict.singleton mobileEId liftedName)
+            (lifted, Dict.singleton mobileEId' liftedName)
           )
 
 
@@ -1696,12 +1754,16 @@ neededEIds_ boundIdentsSet programAnalysisTLE exp =
 
 redefineExp originalProgram indep depEId =
   let programAnalysisTLE = programAnalysisWithTopLevelEId originalProgram in
+  let boundIdentsInIndep =
+    -- Names to avoid for lifted renamings
+    identifiersSetPatsOnly indep
+  in
   let maybeLiftedAndRenamings =
     (Debug.log "neededEIDs" <| neededEIds programAnalysisTLE indep)
     |> Set.toList
     |> Utils.foldlMaybe
         (\eid (program, renamings) ->
-          liftSoVisbleTo program eid depEId
+          liftSoVisbleTo program eid depEId boundIdentsInIndep
           |> Maybe.map (\(newProgram, newestRenamings) -> (newProgram, Dict.union newestRenamings renamings))
         )
         (Just (originalProgram, Dict.empty))
