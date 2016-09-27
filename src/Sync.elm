@@ -305,8 +305,8 @@ type alias LiveInfo =
   }
 
 
-prepareLiveUpdates : Options -> Int -> Int -> Float -> Exp -> Canvas -> Result String LiveInfo
-prepareLiveUpdates options slideNumber movieNumber movieTime e (slate, widgets) =
+prepareLiveUpdates : Options -> Exp -> Canvas -> Result String LiveInfo
+prepareLiveUpdates options e (slate, widgets) =
 
   let initSubstPlus = Parser.substPlusOf e in
   let initSubst = Dict.map (always .val) initSubstPlus in

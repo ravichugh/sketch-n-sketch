@@ -18,7 +18,7 @@ module LangSvg
   , pathIndexPoints, getPathPoint
   , maybeFindBounds, maybeFindBlobId
   , justGetSvgNode
-  , resolveToIndexedTree, resolveToMovieFrameVal, resolveToMovieCount, fetchEverything
+  , resolveToIndexedTree, resolveToMovieCount, fetchEverything
   ) where
 
 import Html
@@ -664,6 +664,14 @@ foldSlateNodeInfo slate acc f =
 
 -- TODO use options for better error messages
 
+-- TODO use this to reduce clutter
+type alias AnimationKey = (Int, Int, Float)
+
+-- HACK: see LocEqn.traceToLocEquation...
+-- TODO: streamline Trace, LocEquation, etc.
+vNumFrozen n = val (VConst (n, TrLoc (-999, frozen, toString n)))
+vIntFrozen i = vNumFrozen (toFloat i)
+
 resolveToMovieCount : Int -> Val -> Result String Int
 resolveToMovieCount slideNumber val =
   fetchSlideVal slideNumber val
@@ -724,7 +732,7 @@ fetchSlideVal slideNumber val =
       case pat.val of -- Find that function's argument name
         PVar _ argumentName _ ->
           -- Bind the slide number to the function's argument.
-          let fenv' = (argumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
+          let fenv' = (argumentName, vIntFrozen slideNumber) :: fenv in
           Eval.eval fenv' [] fexp
           |> Result.map (\((returnVal, _), _) -> returnVal)
         _ -> Err ("expected slide function to take a single argument, got " ++ (toString pat.val))
@@ -737,7 +745,7 @@ fetchMovieVal movieNumber slideVal =
     Just [VConst (movieCount, _), VClosure _ pat fexp fenv] ->
       case pat.val of -- Find the function's argument name
         PVar _ movieNumberArgumentName _ ->
-          let fenv' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenv in
+          let fenv' = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenv in
           Eval.eval fenv' [] fexp
           |> Result.map (\((returnVal, _), _) -> returnVal)
         _ -> Err ("expected movie function to take a single argument, got " ++ (toString pat.val))
@@ -760,12 +768,12 @@ fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
     Just [VBase (VString "Static"), VClosure _ pat fexp fenv] ->
       case pat.val of -- Find the function's argument names
         PVar _ slideNumberArgumentName _ ->
-          let fenv' = (slideNumberArgumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
+          let fenv' = (slideNumberArgumentName, vIntFrozen slideNumber) :: fenv in
           case Eval.eval fenv' [] fexp |> Result.map (\((innerVal, _), _) -> innerVal.v_) of
             Ok (VClosure _ patInner fexpInner fenvInner) ->
               case patInner.val of
                 PVar _ movieNumberArgumentName _ ->
-                  let fenvInner' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenvInner in
+                  let fenvInner' = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenvInner in
                   Eval.eval fenvInner' [] fexpInner
                   |> Result.map (\((returnVal, _), _) -> returnVal)
                 _ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString patInner.val))
@@ -775,17 +783,17 @@ fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
     Just [VBase (VString "Dynamic"), VConst (movieDuration, _), VClosure _ pat fexp fenv, VBase (VBool _)] ->
       case pat.val of -- Find the function's argument names
         PVar _ slideNumberArgumentName _ ->
-          let fenv' = (slideNumberArgumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
+          let fenv' = (slideNumberArgumentName, vIntFrozen slideNumber) :: fenv in
           case Eval.eval fenv' [] fexp |> Result.map (\((innerVal1, _), _) -> innerVal1.v_) of
             Ok (VClosure _ patInner1 fexpInner1 fenvInner1) ->
               case patInner1.val of
                 PVar _ movieNumberArgumentName _ ->
-                  let fenvInner1' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenvInner1 in
+                  let fenvInner1' = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenvInner1 in
                   case Eval.eval fenvInner1' [] fexpInner1 |> Result.map (\((innerVal2, _), _) -> innerVal2.v_) of
                     Ok (VClosure _ patInner2 fexpInner2 fenvInner2) ->
                       case patInner2.val of
                         PVar _ movieSecondsArgumentName _ ->
-                          let fenvInner2' = (movieSecondsArgumentName, vConst (movieTime, dummyTrace)) :: fenvInner2 in
+                          let fenvInner2' = (movieSecondsArgumentName, vNumFrozen movieTime) :: fenvInner2 in
                           Eval.eval fenvInner2' [] fexpInner2
                           |> Result.map (\((returnVal, _), _) -> returnVal)
                         _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner2.val))

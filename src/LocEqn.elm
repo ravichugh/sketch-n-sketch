@@ -2,6 +2,7 @@ module LocEqn where
 
 import Lang exposing (..)
 import Config
+import Utils
 
 import Dict
 import Set
@@ -301,6 +302,11 @@ traceToLocEquation trace =
     -- not the program. These should not be in traces produced by execution.
     TrLoc (0, _, _) ->
       Debug.crash <| "traceToLocEquation: Found locId of 0 in trace. " ++ (toString trace)
+
+    -- HACK: see LangSvg.vNumFrozen...
+    -- TODO: streamline Trace, LocEquation, etc.
+    TrLoc (-999, _, numString) ->
+      LocEqnConst (Utils.fromOkay "traceToLocEquation" (String.toFloat numString))
 
     TrLoc (locId, _, _) ->
       LocEqnLoc locId

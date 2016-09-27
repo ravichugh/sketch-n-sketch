@@ -193,6 +193,7 @@ type Event = ClickZone ZoneKey
            | PreviousSlide
            | NextMovie
            | PreviousMovie
+           | PauseResumeMovie
            | SwitchOrient
            | InstallSaveState
            | RemoveDialog Bool String
@@ -219,10 +220,10 @@ events = Signal.mailbox <| Noop
 --------------------------------------------------------------------------------
 
 mkLive opts slideNumber movieNumber movieTime e (val, widgets) =
-  LangSvg.valToIndexedTree val `Result.andThen` (\slate ->
-    Sync.prepareLiveUpdates opts slideNumber movieNumber movieTime e (slate, widgets)
-      |> Result.map (Live)
-  )
+  LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val `Result.andThen` (\slate ->
+  Sync.prepareLiveUpdates opts e (slate, widgets)                    `Result.andThen` (\liveInfo ->
+    Ok (Live liveInfo)
+  ))
 
 mkLive_ opts slideNumber movieNumber movieTime e  =
   Eval.run e `Result.andThen` mkLive opts slideNumber movieNumber movieTime e

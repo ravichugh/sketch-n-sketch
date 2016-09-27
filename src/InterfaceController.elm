@@ -316,7 +316,7 @@ onMouseMove (mx0, my0) old =
       let dragInfo' = (trigger, (mx0, my0), True) in
 
       Eval.run newExp `Result.andThen` (\(newVal, newWidgets) ->
-      LangSvg.valToIndexedTree newVal |> Result.map (\newSlate ->
+      LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
         { old | code = unparse newExp
               , inputExp = newExp
               , inputVal = newVal
@@ -791,6 +791,10 @@ upstate evt old = case debugLog "Event" evt of
         upstate PreviousSlide old
       else
         upstate StartAnimation { old | movieNumber = old.movieNumber - 1 }
+
+    PauseResumeMovie ->
+      -- TODO stop/start ticker
+      { old | runAnimation = not old.runAnimation }
 
     KeysDown l ->
       let _ = debugLog "keys" (toString l) in
