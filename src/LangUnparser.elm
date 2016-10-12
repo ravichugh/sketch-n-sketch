@@ -3,7 +3,7 @@ module LangUnparser
     traceToLittle, bumpCol, incCol, precedingWhitespace,
     precedingWhitespaceExp__, addPrecedingWhitespace,
     replacePrecedingWhitespace, replacePrecedingWhitespacePat,
-    indent
+    indent, ensureNewline
   ) where
 
 import Lang exposing (..)
@@ -108,8 +108,7 @@ mapPrecedingWhitespace mapWs exp =
       EVal       _                        -> exp.val.e__
       EDict      _                        -> exp.val.e__
   in
-  let val = exp.val in
-  { exp | val = { val | e__ = e__' } }
+  replaceE__ exp e__'
 
 {- TODO:
      add a flag to mapPrecedingWhitespace that specifies whether
@@ -185,6 +184,15 @@ mapPrecedingWhitespacePat mapWs pat =
       PAs    ws1 ident ws2 p     -> PAs    (mapWs ws1) ident ws2 p
   in
   { pat | val = pat_' }
+
+
+ensureNewline : Exp -> Exp
+ensureNewline exp =
+  if String.contains "\n" (precedingWhitespace exp) then
+    exp
+  else
+    addPrecedingWhitespace "\n" exp
+
 
 escapeQuotes quoteChar string =
   string

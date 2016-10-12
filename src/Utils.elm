@@ -390,6 +390,13 @@ toggleDict : (comparable, v) -> Dict comparable v -> Dict comparable v
 toggleDict (k,v) dict =
   if Dict.member k dict then Dict.remove k dict else Dict.insert k v dict
 
+multiKeySingleValue : List comparable -> v -> Dict comparable v
+multiKeySingleValue keys value =
+  List.foldl
+      (\key dict -> Dict.insert key value dict)
+      Dict.empty
+      keys
+
 head msg = fromJust_ msg << List.head
 last msg = fromJust_ msg << List.head << List.reverse
 head_ = head "Utils.head_"

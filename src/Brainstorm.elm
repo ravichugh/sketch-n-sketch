@@ -1605,23 +1605,27 @@ liftSoVisbleTo originalProgram mobileEId observerEId extraNamesToAvoid =
   -- let _ = Debug.log "looking for eid" mobileEId in
   let programAnalysis = staticAnalyzeWithPrelude originalProgram in
   -- If there are equivalent expressions, lift the highest one.
-  let mobileEId' =
+  let (mobileEId', equivalentsToMobile) =
     if isProgramEId mobileEId then
-      let equivalentEIds = (justGetExpressionAnalysis programAnalysis mobileEId).equivalentEIds in
+      let _ = Debug.log "mobile eid" mobileEId in
+      let equivalentEIds = Debug.log "equiv eids" (justGetExpressionAnalysis programAnalysis mobileEId).equivalentEIds in
       let findFirst_ e =
         if Set.member e.val.eid equivalentEIds then
           Just e.val.eid
         else
           Utils.mapFirstSuccess findFirst_ (childExps e)
       in
-      findFirst_ originalProgram |> Utils.fromJust_ "expected mobileEId (or equivalent) to exist in program"
+      let mobileEId' =
+        findFirst_ originalProgram |> Utils.fromJust_ "expected mobileEId (or equivalent) to exist in program" |> Debug.log "first in program"
+      in
+      (mobileEId', equivalentEIds |> Set.toList)
     else
-      mobileEId
+      (mobileEId, Set.singleton mobileEId |> Set.toList)
   in
   case Dict.get mobileEId' (eidsAvailableAsVarsAt programAnalysis observerEId) of
     Just ident ->
       let _ = Debug.log "found as" ident in
-      let renamings = Dict.singleton mobileEId' ident in
+      let renamings = Utils.multiKeySingleValue equivalentsToMobile ident in
       Just (originalProgram, renamings)
 
     Nothing ->
@@ -1668,15 +1672,14 @@ liftSoVisbleTo originalProgram mobileEId observerEId extraNamesToAvoid =
             let liftedName            = nameForLift dependenciesLifted mobileEId' (Set.singleton observerEId) extraNamesToAvoid in
             let deepestCommonAncestor = justFindExpByEId dependenciesLifted deepestCommonAncestorEId in
             let expToLift             = justFindExpByEId deepestCommonAncestor mobileEId' in
-            let renamings             = Dict.singleton mobileEId' liftedName in
+            let renamings             = Utils.multiKeySingleValue equivalentsToMobile liftedName in
             let deepestCommonAncestorTargetExpRenamed = turnExpsToVars deepestCommonAncestor renamings in
             -- c.f. ValueBasedTransform.wrapWithLets for possible code deduplication
-            -- we need to preserve EIds here
-            -- TODO: pretty whitespace
-            let liftedSubtree = eLets [(liftedName, (replacePrecedingWhitespace " " expToLift))] deepestCommonAncestorTargetExpRenamed in
+            -- We have to preserve EIds here.
+            let liftedSubtree = eLets [(liftedName, expToLift)] (LangUnparser.ensureNewline deepestCommonAncestorTargetExpRenamed) in
             let lifted = replaceExpNode deepestCommonAncestorEId liftedSubtree dependenciesLifted in
             -- let _ = Debug.log (unparse lifted) () in
-            (lifted, Dict.singleton mobileEId' liftedName)
+            (lifted, renamings)
           )
 
 

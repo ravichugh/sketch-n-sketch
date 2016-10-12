@@ -97,6 +97,15 @@ removeUnusedVars exp =
           body.val.e__
         in
         case (pat.val, assign.val.e__) of
+          -- Possible rename to same variable.
+          (PVar _ pIdent _, EVar _ aIdent) ->
+            if pIdent == aIdent then
+              letRemoved
+            else if Set.member pIdent usedNames then
+              e__
+            else
+              letRemoved
+
           -- Simple assignment.
           (PVar _ ident _, _) ->
             if Set.member ident usedNames then
@@ -113,33 +122,33 @@ removeUnusedVars exp =
 
           -- List assignment, no tail.
           (PList pws1 pats pws2 Nothing pws3, EList aws1 assigns aws2 Nothing aws3) ->
-            if List.length pats /= List.length assigns then
-              e__
-            else
-              let patsAssigns = Utils.zip pats assigns in
-              let usedPatsAssigns =
-                List.filter
-                    (\(pat, assign) ->
-                      case pat.val of
-                        PVar _ ident _ -> Set.member ident usedNames
-                        _              -> True
-                    )
-                    patsAssigns
-              in
-              case List.length usedPatsAssigns of
-                0 ->
-                  letRemoved
+            case Utils.maybeZip pats assigns of
+              Nothing -> e__
+              Just patsAssigns ->
+                let usedPatsAssigns =
+                  List.filter
+                      (\(pat, assign) ->
+                        case (pat.val, assign.val.e__) of
+                          (PVar _ pIdent _, EVar _ aIdent) -> pIdent /= aIdent && Set.member pIdent usedNames
+                          (PVar _ ident _, _)              -> Set.member ident usedNames
+                          _                                -> True
+                      )
+                      patsAssigns
+                in
+                case List.length usedPatsAssigns of
+                  0 ->
+                    letRemoved
 
-                1 ->
-                  let (thePat, theAssign) = Utils.head_ usedPatsAssigns in
-                  let newPat    = replacePrecedingWhitespacePat pws1 thePat in
-                  let newAssign = replacePrecedingWhitespace aws1 theAssign in
-                  ELet ws1 letKind rec newPat newAssign body ws2
+                  1 ->
+                    let (thePat, theAssign) = Utils.head_ usedPatsAssigns in
+                    let newPat    = replacePrecedingWhitespacePat pws1 thePat in
+                    let newAssign = replacePrecedingWhitespace aws1 theAssign in
+                    ELet ws1 letKind rec newPat newAssign body ws2
 
-                _ ->
-                  let newPat    = withDummyRange <| PList pws1 (List.map fst usedPatsAssigns) pws2 Nothing pws3 in
-                  let newAssign = withDummyPos   <| EList aws1 (List.map snd usedPatsAssigns) aws2 Nothing aws3 in
-                  ELet ws1 letKind rec newPat newAssign body ws2
+                  _ ->
+                    let newPat    = withDummyRange <| PList pws1 (List.map fst usedPatsAssigns) pws2 Nothing pws3 in
+                    let newAssign = withDummyPos   <| EList aws1 (List.map snd usedPatsAssigns) aws2 Nothing aws3 in
+                    ELet ws1 letKind rec newPat newAssign body ws2
 
           _ ->
             e__
