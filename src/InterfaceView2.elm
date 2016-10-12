@@ -1681,7 +1681,8 @@ widgetsCursorsOrShapes w h model =
 threeVersions w h b1 b2 b3 =
   flowRight w h [(1/6, b1), (2/3, b2), (1/6, b3)]
 
-showRawShapeTools = True
+-- showRawShapeTools = True
+showRawShapeTools = False
 
 widgetsTools w h model =
   let noFeatures = Set.isEmpty model.selectedFeatures in
@@ -1762,9 +1763,11 @@ widgetsTools w h model =
   , twoButtons w h
       (groupButtonSelectedFeaturesOkay GroupBlobs "Group")
       (groupButton AbstractBlobs "Abs")
+{-
   , groupButton (ReplicateBlob HorizontalRepeat) "Repeat Right" w h
   , groupButton (ReplicateBlob LinearRepeat) "Repeat To" w h
   , groupButton (ReplicateBlob RadialRepeat) "Repeat Around" w h
+-}
   ]
 
 middleWidgets row1 row2 w h wWrap hWrap model =
@@ -2066,7 +2069,8 @@ toolButton model tool w h =
     Oval Raw      -> "Ellipse"
     Oval Stretchy -> capStretchy "Oval"
     Poly Raw      -> "Polygon"
-    Poly Stretchy -> capStretchy "Polygon"
+    -- Poly Stretchy -> capStretchy "Polygon"
+    Poly Stretchy -> capStretchy "Poly"
     Poly Sticky   -> capSticky
     Path Raw      -> "Path"
     Path Stretchy -> capStretchy "Path"
