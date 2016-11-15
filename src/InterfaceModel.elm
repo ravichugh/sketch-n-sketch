@@ -165,59 +165,57 @@ type ReplicateKind
   | LinearRepeat
   | RadialRepeat
 
--- TODO rename Event to Msg
-type alias Msg = Event
-
-type Event = ClickZone ZoneKey
-           | MouseClickCanvas      -- used to initiate drawing new shape
-           | MouseIsDown Bool
-           | MousePosition Mouse.Position
-           | TickDelta Float -- 60fps time tick, Float is time since last tick
-           -- | Sync
-           | PreviewCode (Maybe Code)
-           | SelectOption PossibleChange
-           | CancelSync
-           | DigHole
-           | MakeEqual
-           | MakeEquidistant
-           | GroupBlobs
-           | AbstractBlobs
-           | DuplicateBlobs
-           | MergeBlobs
-           | ReplicateBlob ReplicateKind
-           | SwitchMode Mode
-           | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets, ati:AceTypeInfo})
-           | CodeUpdate String -- for basic codebox
-           | Run
-           | TryParseRun Model
-           | StartAnimation
-           | Redraw
-           | ToggleOutput
-           | NextSlide
-           | PreviousSlide
-           | NextMovie
-           | PreviousMovie
-           | SwitchOrient
-           | InstallSaveState
-           | RemoveDialog Bool String
-           | ToggleBasicCodeBox
-           | StartResizingMid
-           | Undo | Redo
-           | KeyPress Char.KeyCode
-           | KeyDown Char.KeyCode
-           | KeyUp Char.KeyCode
-           | WindowDimensions Window.Size
-           | Noop
-           | UpdateFieldContents DialogInfo
-           | CleanCode
-           | UpdateModel (Model -> Model)
-               -- TODO could write other events in terms of UpdateModel
-           | MultiEvent (List Event)
-           --A state such that we're waiting for a response from Ace
-           | WaitRun
-           | WaitSave String
-           | WaitClean
-           | WaitCodeBox
+type Msg
+  = ClickZone ZoneKey
+  | MouseClickCanvas      -- used to initiate drawing new shape
+  | MouseIsDown Bool
+  | MousePosition Mouse.Position
+  | TickDelta Float -- 60fps time tick, Float is time since last tick
+  -- | Sync
+  | PreviewCode (Maybe Code)
+  | SelectOption PossibleChange
+  | CancelSync
+  | DigHole
+  | MakeEqual
+  | MakeEquidistant
+  | GroupBlobs
+  | AbstractBlobs
+  | DuplicateBlobs
+  | MergeBlobs
+  | ReplicateBlob ReplicateKind
+  | SwitchMode Mode
+  | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets, ati:AceTypeInfo})
+  | CodeUpdate String -- for basic codebox
+  | Run
+  | TryParseRun Model
+  | StartAnimation
+  | Redraw
+  | ToggleOutput
+  | NextSlide
+  | PreviousSlide
+  | NextMovie
+  | PreviousMovie
+  | SwitchOrient
+  | InstallSaveState
+  | RemoveDialog Bool String
+  | ToggleBasicCodeBox
+  | StartResizingMid
+  | Undo | Redo
+  | KeyPress Char.KeyCode
+  | KeyDown Char.KeyCode
+  | KeyUp Char.KeyCode
+  | WindowDimensions Window.Size
+  | Noop
+  | UpdateFieldContents DialogInfo
+  | CleanCode
+  | UpdateModel (Model -> Model)
+      -- TODO could write other events in terms of UpdateModel
+  | MultiEvent (List Msg)
+  --A state such that we're waiting for a response from Ace
+  | WaitRun
+  | WaitSave String
+  | WaitClean
+  | WaitCodeBox
 
 
 --------------------------------------------------------------------------------
@@ -247,18 +245,17 @@ codeToShow model =
 
 --------------------------------------------------------------------------------
 
--- TODO rename sampleModel to initModel
 initModel : Model
-initModel = sampleModel
-
-sampleModel =
+initModel =
   let
     (name,(_,f)) = Utils.head_ Examples.list
     {e,v,ws}     = f ()
   in
+  let unwrap = Utils.fromOk "generating initModel" in
   let (slideCount, movieCount, movieDuration, movieContinue, slate) =
-    Utils.fromOk "generating sample model" <| LangSvg.fetchEverything 1 1 0.0 v
+    unwrap (LangSvg.fetchEverything 1 1 0.0 v)
   in
+  let liveModeInfo = unwrap (mkLive Sync.defaultOptions 1 1 0.0 e (v, ws)) in
   let code = unparse e in
     { scratchCode   = Examples.scratch
     , exName        = name
@@ -278,7 +275,7 @@ sampleModel =
     , syncSelectTime = 0.0
     , slate         = slate
     , widgets       = ws
-    , mode          = Utils.fromOk "mkLive sample model" <| mkLive Sync.defaultOptions 1 1 0.0 e (v, ws)
+    , mode          = liveModeInfo
     , mouseMode     = MouseNothing
     , orient        = Vertical
     , hideCode      = False

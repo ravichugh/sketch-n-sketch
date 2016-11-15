@@ -389,7 +389,7 @@ tryRun old =
               -- TODO should put program into Model
               -- TODO actually, ideally not. caching introduces bugs
               let program = splitExp e in
-              let options = Draw.lambdaToolOptionsOf program ++ Tuple.second sampleModel.lambdaTools in
+              let options = Draw.lambdaToolOptionsOf program ++ Tuple.second initModel.lambdaTools in
               let selectedIdx = min (Tuple.first old.lambdaTools) (List.length options) in
               (selectedIdx, options)
             in
@@ -425,8 +425,8 @@ tryRun old =
 --------------------------------------------------------------------------------
 -- Updating the Model
 
-upstate : Event -> Model -> Model
-upstate evt old = case debugLog "Event" evt of
+upstate : Msg -> Model -> Model
+upstate evt old = case debugLog "Msg" evt of
 
     Noop -> old
 

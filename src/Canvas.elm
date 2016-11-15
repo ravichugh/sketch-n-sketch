@@ -279,7 +279,7 @@ attrNumTr k nt = LangSvg.compileAttr k (LangSvg.aNum nt)
 
 onMouseDownAndStop = handleEventAndStop "mousedown"
 
-handleEventAndStop : String -> Event -> Svg.Attribute Msg
+handleEventAndStop : String -> Msg -> Svg.Attribute Msg
 handleEventAndStop eventName eventHandler =
   onWithOptions eventName
     { defaultOptions | stopPropagation = True}

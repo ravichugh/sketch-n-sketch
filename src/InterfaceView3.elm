@@ -7,7 +7,7 @@ import Utils
 import ExamplesGenerated as Examples
 
 import InterfaceModel as Model exposing
-  ( Msg, Event(..), Model, Tool(..), ShapeToolKind(..), Mode(..)
+  ( Msg(..), Model, Tool(..), ShapeToolKind(..), Mode(..)
   , Caption(..), MouseMode(..)
   , mkLive_
   )
