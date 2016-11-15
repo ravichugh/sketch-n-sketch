@@ -12,7 +12,6 @@ import CodeBox exposing (interpretAceEvents, packageModel,
 import Config
 
 import Html exposing (Html)
-import Html.App as App
 import Mouse
 import Window
 import Keyboard
@@ -25,9 +24,9 @@ import Task exposing (Task, andThen)
 --------------------------------------------------------------------------------
 -- Main
 
-main : Program Never
+main : Program Never Model Msg
 main =
-  App.program
+  Html.program
     { init = init
     , view = view
     , update = update
@@ -58,7 +57,6 @@ init = (Model.initModel, initCmd)
 
 initCmd =
   Task.perform
-    (\_ -> let _ = Debug.log "Window.size failed..." in Model.Noop)
     Model.WindowDimensions
     Window.size
 

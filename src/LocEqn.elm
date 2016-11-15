@@ -35,9 +35,9 @@ locEqnSimplify eqn =
         eqn
 
       LocEqnOp op children ->
-        let children' = List.map locEqnSimplify children in
-        let eqn' = LocEqnOp op children' in
-        case children' of
+        let children_ = List.map locEqnSimplify children in
+        let eqn_ = LocEqnOp op children_ in
+        case children_ of
           [left, right] ->
             case op of
               Plus ->
@@ -45,11 +45,11 @@ locEqnSimplify eqn =
                   (LocEqnConst 0, _) -> right
                   (_, LocEqnConst 0) -> left
                   -- (+ (- a b) b) to a
-                  (LocEqnOp Minus [a, b], c) -> if b == c then a else eqn'
-                  (c, LocEqnOp Minus [a, b]) -> if b == c then a else eqn'
+                  (LocEqnOp Minus [a, b], c) -> if b == c then a else eqn_
+                  (c, LocEqnOp Minus [a, b]) -> if b == c then a else eqn_
                   (LocEqnConst a,
                    LocEqnConst b)    -> LocEqnConst (a + b)
-                  _                  -> eqn'
+                  _                  -> eqn_
 
               Minus ->
                 case (left, right) of
@@ -76,12 +76,12 @@ locEqnSimplify eqn =
                   (LocEqnOp Plus [a, b], c) ->
                     if b == c then a
                     else if a == c then b
-                    else eqn'
+                    else eqn_
                   -- (- b (+ a b)) to (- 0 a)
                   (c, LocEqnOp Plus [a, b]) ->
                     if b == c then LocEqnOp Minus [LocEqnConst 0, a]
                     else if a == c then LocEqnOp Minus [LocEqnConst 0, b]
-                    else eqn'
+                    else eqn_
                   (LocEqnConst a,
                    LocEqnConst b)    -> LocEqnConst (a - b)
                   _                  ->
@@ -89,7 +89,7 @@ locEqnSimplify eqn =
                     if left == right then
                       LocEqnConst 0
                     else
-                      eqn'
+                      eqn_
 
               Mult ->
                 case (left, right) of
@@ -107,27 +107,27 @@ locEqnSimplify eqn =
                   (LocEqnConst c1, LocEqnOp Mult [sub, LocEqnConst c2]) -> LocEqnOp Mult [LocEqnConst (c1 * c2), sub]
                   (LocEqnOp Mult [LocEqnConst c2, sub], LocEqnConst c1) -> LocEqnOp Mult [LocEqnConst (c1 * c2), sub]
                   (LocEqnOp Mult [sub, LocEqnConst c2], LocEqnConst c1) -> LocEqnOp Mult [LocEqnConst (c1 * c2), sub]
-                  _ -> eqn'
+                  _ -> eqn_
 
               Div ->
                 case (left, right) of
                   (_, LocEqnConst 1)  -> left
                   (_, LocEqnConst -1) -> LocEqnOp Mult [(LocEqnConst -1), left]
                   -- Division by 0 will be handled elsewhere.
-                  -- We don't want to produce infinity here.
+                  -- We don_t want to produce infinity here.
                   (LocEqnConst a,
-                   LocEqnConst b)     -> if b /= 0 then LocEqnConst (a / b) else eqn'
+                   LocEqnConst b)     -> if b /= 0 then LocEqnConst (a / b) else eqn_
                   (LocEqnConst 0, _)  -> LocEqnConst 0
-                  (_, LocEqnConst b)  -> if b /= 0 then LocEqnOp Mult [(LocEqnConst (1 / b)), left] else eqn'
+                  (_, LocEqnConst b)  -> if b /= 0 then LocEqnOp Mult [(LocEqnConst (1 / b)), left] else eqn_
                   _                   ->
                     -- Alas, this is syntactic equality not semantic.
                     if left == right && right /= LocEqnConst 0 then
                       LocEqnConst 1
                     else
-                      eqn'
+                      eqn_
 
               _ ->
-                eqn'
+                eqn_
 
           _ ->
             Debug.crash <| "locEqnSimplify: op without 2 children " ++ (toString eqn)
@@ -158,9 +158,9 @@ locEqnTerms targetLocId eqn =
       else Just (1, LocEqnConst 0, eqn)
 
     LocEqnOp op children ->
-      let children' = List.map (locEqnTerms targetLocId) children in
+      let children_ = List.map (locEqnTerms targetLocId) children in
       let result =
-        case children' of
+        case children_ of
           [Just (leftLocPow,  leftCoeff,  leftRest),
            Just (rightLocPow, rightCoeff, rightRest)] ->
             case op of

@@ -82,7 +82,7 @@ addToHistory currentCode h =
       else (currentCode::past, [])
 
 
-between1 i (j,k) = i `Utils.between` (j+1, k+1)
+between1 i (j,k) = Utils.between i (j+1, k+1)
 
 {-
 cleanExp =
@@ -112,7 +112,7 @@ slateAndCode old (exp, val) =
 
 runWithErrorHandling model exp onOk =
   let result =
-    Eval.run exp `Result.andThen` (\(val, widgets) ->
+    Eval.run exp |> Result.andThen (\(val, widgets) ->
       slateAndCode model (exp, val)
       |> Result.map (\(slate, code) -> onOk val widgets slate code)
     )
@@ -189,8 +189,8 @@ onMouseClick click old =
     (Poly stk, MouseDrawNew points) ->
       let pointOnCanvas = clickToCanvasPoint old click in
       let add () =
-        let points' = (old.keysDown, pointOnCanvas) :: points in
-        { old | mouseMode = MouseDrawNew points' }
+        let points_ = (old.keysDown, pointOnCanvas) :: points in
+        { old | mouseMode = MouseDrawNew points_ }
       in
       if points == [] then add ()
       else
@@ -203,15 +203,15 @@ onMouseClick click old =
     (Path stk, MouseDrawNew points) ->
       let pointOnCanvas = clickToCanvasPoint old click in
       let add new =
-        let points' = (old.keysDown, new) :: points in
-        (points', { old | mouseMode = MouseDrawNew points' })
+        let points_ = (old.keysDown, new) :: points in
+        (points_, { old | mouseMode = MouseDrawNew points_ })
       in
       case points of
-        [] -> snd (add pointOnCanvas)
+        [] -> Tuple.second (add pointOnCanvas)
         (_,firstClick) :: [] ->
           if Utils.distanceInt pointOnCanvas firstClick < Draw.drawDotSize
           then switchToCursorTool old
-          else snd (add pointOnCanvas)
+          else Tuple.second (add pointOnCanvas)
         (_,lastClick) :: _ ->
           if Utils.distanceInt pointOnCanvas lastClick < Draw.drawDotSize
           then upstate Run <| Draw.addPath stk old points
@@ -219,10 +219,10 @@ onMouseClick click old =
             let (_,firstClick) = Utils.last_ points in
             if Utils.distanceInt pointOnCanvas firstClick < Draw.drawDotSize
             then
-              let (points',old') = add firstClick in
-              upstate Run <| Draw.addPath stk old' points'
+              let (points_,old_) = add firstClick in
+              upstate Run <| Draw.addPath stk old_ points_
             else
-              snd (add pointOnCanvas)
+              Tuple.second (add pointOnCanvas)
 
     (HelperDot, MouseDrawNew []) ->
       let pointOnCanvas = (old.keysDown, clickToCanvasPoint old click) in
@@ -234,14 +234,14 @@ onMouseClick click old =
       old
 
 onClickPrimaryZone i k z old =
-  let hoveredCrosshairs' =
+  let hoveredCrosshairs_ =
     case ShapeWidgets.zoneToCrosshair k z of
       Just (xFeature, yFeature) ->
         Set.insert (i, xFeature, yFeature) old.hoveredCrosshairs
       _ ->
         old.hoveredCrosshairs
   in
-  let (selectedShapes', selectedBlobs') =
+  let (selectedShapes_, selectedBlobs_) =
     let selectThisShape () =
       Set.insert i <|
         if old.keysDown == Keys.shift
@@ -255,7 +255,7 @@ onClickPrimaryZone i k z old =
         else Dict.empty
     in
     let maybeBlobId =
-      case Dict.get i (snd old.slate) of
+      case Dict.get i (Tuple.second old.slate) of
         Just (LangSvg.SvgNode _ l _) -> LangSvg.maybeFindBlobId l
         _                            -> Debug.crash "onClickPrimaryZone"
     in
@@ -266,9 +266,9 @@ onClickPrimaryZone i k z old =
       (_,      "Interior", Nothing)     -> (selectThisShape (), old.selectedBlobs)
       _                                 -> (old.selectedShapes, old.selectedBlobs)
   in
-  { old | hoveredCrosshairs = hoveredCrosshairs'
-        , selectedShapes = selectedShapes'
-        , selectedBlobs = selectedBlobs'
+  { old | hoveredCrosshairs = hoveredCrosshairs_
+        , selectedShapes = selectedShapes_
+        , selectedBlobs = selectedBlobs_
         }
 
 onMouseMove newPosition old =
@@ -299,21 +299,21 @@ onMouseMove newPosition old =
 
       let (newExp, highlights) = trigger (mx0, my0) (dx, dy) in
 
-      let codeBoxInfo' =
+      let codeBoxInfo_ =
         let codeBoxInfo = old.codeBoxInfo in
         { codeBoxInfo | highlights = highlights }
       in
-      let dragInfo' = (trigger, (mx0, my0), True) in
+      let dragInfo_ = (trigger, (mx0, my0), True) in
 
-      Eval.run newExp `Result.andThen` (\(newVal, newWidgets) ->
+      Eval.run newExp |> Result.andThen (\(newVal, newWidgets) ->
       LangSvg.valToIndexedTree newVal |> Result.map (\newSlate ->
         { old | code = unparse newExp
               , inputExp = newExp
               , inputVal = newVal
               , slate = newSlate
               , widgets = newWidgets
-              , codeBoxInfo = codeBoxInfo'
-              , mouseMode = MouseDragZone zoneKey (Just dragInfo')
+              , codeBoxInfo = codeBoxInfo_
+              , mouseMode = MouseDragZone zoneKey (Just dragInfo_)
               }
       )) |> handleError old
 
@@ -335,10 +335,10 @@ onMouseUp old =
 
     (_, MouseDragZone zoneKey (Just _)) ->
       let e = Utils.fromOkay "onMouseUp" <| parseE old.code in
-      let old' = { old | inputExp = e } in
+      let old_ = { old | inputExp = e } in
       refreshHighlights zoneKey
-        { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
-               , history = addToHistory old.code old'.history }
+        { old_ | mouseMode = MouseNothing, mode = refreshMode_ old_
+               , history = addToHistory old.code old_.history }
 
     (_, MouseDrawNew points) ->
       case (old.tool, points, old.keysDown == Keys.shift) of
@@ -380,17 +380,17 @@ tryRun old =
       let result =
         -- let aceTypeInfo = Types.typecheck e in
         let aceTypeInfo = Types.dummyAceTypeInfo in
-        Eval.run e
-        `Result.andThen` (\(newVal,ws) ->
+        Eval.run e |>
+        Result.andThen (\(newVal,ws) ->
           LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
           |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
             let newCode = unparse e in
-            let lambdaTools' =
+            let lambdaTools_ =
               -- TODO should put program into Model
               -- TODO actually, ideally not. caching introduces bugs
               let program = splitExp e in
-              let options = Draw.lambdaToolOptionsOf program ++ snd sampleModel.lambdaTools in
-              let selectedIdx = min (fst old.lambdaTools) (List.length options) in
+              let options = Draw.lambdaToolOptionsOf program ++ Tuple.second sampleModel.lambdaTools in
+              let selectedIdx = min (Tuple.first old.lambdaTools) (List.length options) in
               (selectedIdx, options)
             in
             let new =
@@ -408,7 +408,7 @@ tryRun old =
                     , history       = addToHistory newCode old.history
                     , caption       = Nothing
                     , syncOptions   = Sync.syncOptionsOf old.syncOptions e
-                    , lambdaTools   = lambdaTools'
+                    , lambdaTools   = lambdaTools_
                     , codeBoxInfo   = updateCodeBoxWithTypes aceTypeInfo old.codeBoxInfo
               }
             in
@@ -481,7 +481,7 @@ upstate evt old = case debugLog "Event" evt of
     ClickZone zoneKey ->
       case old.mode of
         Live info ->
-          let (mx, my) = clickToCanvasPoint old (snd old.mouseState) in
+          let (mx, my) = clickToCanvasPoint old (Tuple.second old.mouseState) in
           let trigger = Sync.prepareLiveTrigger info old.inputExp zoneKey in
           let dragInfo = (trigger, (mx, my), False) in
           { old | mouseMode = MouseDragZone zoneKey (Just dragInfo) }
@@ -500,40 +500,40 @@ upstate evt old = case debugLog "Event" evt of
 
         _ -> old
 
-    MousePosition pos' ->
+    MousePosition pos_ ->
       case old.mouseState of
-        (Nothing, _)    -> { old | mouseState = (Nothing, pos') }
-        (Just False, _) -> onMouseMove pos' { old | mouseState = (Just True, pos') }
-        (Just True, _)  -> onMouseMove pos' { old | mouseState = (Just True, pos') }
+        (Nothing, _)    -> { old | mouseState = (Nothing, pos_) }
+        (Just False, _) -> onMouseMove pos_ { old | mouseState = (Just True, pos_) }
+        (Just True, _)  -> onMouseMove pos_ { old | mouseState = (Just True, pos_) }
 
     MouseIsDown b ->
-      let old =
-        let {x,y} = snd old.mouseState in
+      let new =
+        let {x,y} = Tuple.second old.mouseState in
         let lightestColor = 470 in
         { old | randomColor = (old.randomColor + x + y) % lightestColor }
       in
-      case (b, old.mouseState) of
+      case (b, new.mouseState) of
 
         (True, (Nothing, pos)) -> -- mouse down
           let _ = debugLog "mouse down" () in
-          { old | mouseState = (Just False, pos) }
+          { new | mouseState = (Just False, pos) }
 
         (False, (Just False, pos)) -> -- click (mouse up after not being dragged)
           let _ = debugLog "mouse click" () in
-          onMouseClick pos { old | mouseState = (Nothing, pos) }
+          onMouseClick pos { new | mouseState = (Nothing, pos) }
 
         (False, (Just True, pos)) -> -- mouse up (after being dragged)
           let _ = debugLog "mouse up" () in
-          onMouseUp { old | mouseState = (Nothing, pos) }
+          onMouseUp { new | mouseState = (Nothing, pos) }
 
         (False, (Nothing, _)) ->
           let _ = debugLog "mouse down was preempted by a handler in View" () in
-          old
+          new
 
         -- (True, (Just _, _)) -> Debug.crash "upstate MouseIsDown: impossible"
         (True, (Just _, _)) ->
           let _ = Debug.log "upstate MouseIsDown: impossible" () in
-          old
+          new
 
     TickDelta deltaT ->
       case old.mode of
@@ -694,13 +694,13 @@ upstate evt old = case debugLog "Event" evt of
                         mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws))
           _      -> (old.syncOptions, old.mode)
       in
-      let scratchCode' =
+      let scratchCode_ =
         if old.exName == Examples.scratchName then old.code else old.scratchCode
       in
       LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v
       |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
         let code = unparse e in
-        { old | scratchCode   = scratchCode'
+        { old | scratchCode   = scratchCode_
               , exName        = name
               , inputExp      = e
               , inputVal      = v
@@ -757,8 +757,8 @@ upstate evt old = case debugLog "Event" evt of
       else
         let previousSlideNumber = old.slideNumber - 1 in
         let result =
-          Eval.run old.inputExp
-          `Result.andThen` (\(previousVal, _) ->
+          Eval.run old.inputExp |>
+          Result.andThen (\(previousVal, _) ->
             LangSvg.resolveToMovieCount previousSlideNumber previousVal
             |> Result.map (\previousMovieCount ->
               upstate StartAnimation { old | slideNumber = previousSlideNumber
@@ -915,11 +915,11 @@ upstate evt old = case debugLog "Event" evt of
             |> LangTransform.removeExtraPostfixes ["_orig", "'"]
             |> freshen
           in
-          let code' = unparse cleanedExp in
-          if old.code == code' then old
+          let code_ = unparse cleanedExp in
+          if old.code == code_ then old
           else
-            let _ = debugLog "Cleaned: " code' in
-            upstate Run { old | inputExp = cleanedExp, code = code' }
+            let _ = debugLog "Cleaned: " code_ in
+            upstate Run { old | inputExp = cleanedExp, code = code_ }
 {-
           let history' =
             if old.code == code'

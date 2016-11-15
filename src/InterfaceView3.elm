@@ -204,23 +204,23 @@ cleanButton model =
   htmlButton "Clean Up" WaitClean Regular disabled
 
 undoButton model =
-  let past = fst model.history in
+  let past = Tuple.first model.history in
   htmlButton "Undo" Undo Regular (List.length past <= 1)
 
 redoButton model =
-  let future = snd model.history in
+  let future = Tuple.second model.history in
   htmlButton "Redo" Redo Regular (List.length future == 0)
 
 heuristicsButton model =
   let foo old =
     let so = old.syncOptions in
-    let so' = { so | feelingLucky = Sync.toggleHeuristicMode so.feelingLucky } in
+    let so_ = { so | feelingLucky = Sync.toggleHeuristicMode so.feelingLucky } in
     case old.mode of
       Live _ ->
-        case mkLive_ so' old.slideNumber old.movieNumber old.movieTime old.inputExp of
-          Ok m' -> { old | syncOptions = so', mode = m' }
-          Err s -> { old | syncOptions = so', errorBox = Just s }
-      _ -> { old | syncOptions = so' }
+        case mkLive_ so_ old.slideNumber old.movieNumber old.movieTime old.inputExp of
+          Ok m_ -> { old | syncOptions = so_, mode = m_ }
+          Err s -> { old | syncOptions = so_, errorBox = Just s }
+      _ -> { old | syncOptions = so_ }
   in
   let yesno =
     let hm = model.syncOptions.feelingLucky in
@@ -250,13 +250,13 @@ ghostsButton model =
        False -> "[Ghosts] Hidden"
   in
   let foo old =
-    let showGhosts' = not old.showGhosts in
-    let mode' =
+    let showGhosts_ = not old.showGhosts in
+    let mode_ =
       case old.mode of
-        Print _ -> Print (LangSvg.printSvg showGhosts' old.slate)
+        Print _ -> Print (LangSvg.printSvg showGhosts_ old.slate)
         _       -> old.mode
     in
-    { old | showGhosts = showGhosts', mode = mode' }
+    { old | showGhosts = showGhosts_, mode = mode_ }
   in
   htmlButton cap (UpdateModel foo) Regular False
 
@@ -284,12 +284,12 @@ toolButton model tool =
     Lambda        -> Utils.uniLambda
     _             -> Debug.crash ("toolButton: " ++ toString tool)
   in
-  let btnKind = if model.tool == tool then Selected else Unselected in
   -- TODO temporarily disabling a couple tools
   let (btnKind, disabled) =
-    case tool of
-      Path Sticky -> (Regular, True)
-      _           -> (btnKind, False)
+    case (model.tool == tool, tool) of
+      (True, _)            -> (Selected, False)
+      (False, Path Sticky) -> (Regular, True)
+      (False, _)           -> (Unselected, False)
   in
   htmlButton cap (UpdateModel (\m -> { m | tool = tool })) btnKind disabled
 

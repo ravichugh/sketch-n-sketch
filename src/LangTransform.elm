@@ -47,8 +47,8 @@ removeExtraPostfixes postfixes exp =
   in
   case renameToPerform of
     Just (oldName, newName) ->
-      let exp' = renameIdentifier oldName newName exp in
-      removeExtraPostfixes postfixes exp'
+      let exp_ = renameIdentifier oldName newName exp in
+      removeExtraPostfixes postfixes exp_
 
     Nothing ->
       exp
@@ -137,8 +137,8 @@ removeUnusedVars exp =
                   ELet ws1 letKind rec newPat newAssign body ws2
 
                 _ ->
-                  let newPat    = withDummyRange <| PList pws1 (List.map fst usedPatsAssigns) pws2 Nothing pws3 in
-                  let newAssign = withDummyPos   <| EList aws1 (List.map snd usedPatsAssigns) aws2 Nothing aws3 in
+                  let newPat    = withDummyRange <| PList pws1 (List.map Tuple.first usedPatsAssigns) pws2 Nothing pws3 in
+                  let newAssign = withDummyPos   <| EList aws1 (List.map Tuple.second usedPatsAssigns) aws2 Nothing aws3 in
                   ELet ws1 letKind rec newPat newAssign body ws2
 
           _ ->
@@ -279,7 +279,7 @@ changeRenamedVarsToOuter exp =
 changeRenamedVarsToOuter_ renamings exp =
   let wrap e__ = OurParser2.WithInfo (Exp_ e__ exp.val.eid) exp.start exp.end in
   let recurse = changeRenamedVarsToOuter_ renamings in
-  let e__' =
+  let e__New =
     let e__ = exp.val.e__ in
     let removeIdentsFromRenaming identsToRemove renamings =
       Dict.filter
@@ -304,13 +304,13 @@ changeRenamedVarsToOuter_ renamings exp =
         -- something else now, now what's in the dictionary.
         let newlyAssignedIdents = identifiersSetInPat pat in
         let renamingsShadowsRemoved = removeIdentsFromRenaming newlyAssignedIdents renamings in
-        let assign' =
+        let assign_ =
            if rec then
              changeRenamedVarsToOuter_ renamingsShadowsRemoved assign
            else
              recurse assign
         in
-        let identsAndAssigns = simpleIdentsAndAssigns pat assign' in
+        let identsAndAssigns = simpleIdentsAndAssigns pat assign_ in
         let simpleRenamings =
           List.filterMap
               (\(ident, assign) ->
@@ -320,9 +320,9 @@ changeRenamedVarsToOuter_ renamings exp =
               )
               identsAndAssigns
         in
-        let renamings' = Dict.union (Dict.fromList simpleRenamings) renamingsShadowsRemoved in
-        let body' = changeRenamedVarsToOuter_ renamings' body in
-        ELet ws1 letKind rec pat assign' body' ws2
+        let renamings_ = Dict.union (Dict.fromList simpleRenamings) renamingsShadowsRemoved in
+        let body_ = changeRenamedVarsToOuter_ renamings_ body in
+        ELet ws1 letKind rec pat assign_ body_ ws2
 
       EFun ws1 pats body ws2  ->
         let newlyAssignedIdents =
@@ -368,5 +368,5 @@ changeRenamedVarsToOuter_ renamings exp =
       EColonType ws1 e ws2 tipe ws3 -> EColonType ws1 (recurse e) ws2 tipe ws3
       ETypeAlias ws1 pat tipe e ws2 -> ETypeAlias ws1 pat tipe (recurse e) ws2
   in
-  wrap e__'
+  wrap e__New
 

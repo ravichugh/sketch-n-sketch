@@ -8,16 +8,15 @@
     ],
     "exposed-modules": [],
     "native-modules": true,
-    "elm-version": "0.17.0 <= v < 0.18.0",
+    "elm-version": "0.18.0 <= v < 0.19.0",
     "dependencies": {
-        "elm-lang/core" : "4.0.0 <= v < 5.0.0"
-      , "elm-lang/lazy" : "1.0.0 <= v < 2.0.0"
-      , "elm-lang/html" : "1.1.0 <= v < 2.0.0"
-      , "elm-lang/svg" : "1.1.0 <= v < 2.0.0"
-      , "elm-lang/virtual-dom" : "1.1.0 <= v < 2.0.0"
+        "elm-lang/core" : "5.0.0 <= v < 6.0.0"
+      , "elm-lang/lazy" : "2.0.0 <= v < 3.0.0"
+      , "elm-lang/html" : "2.0.0 <= v < 3.0.0"
+      , "elm-lang/svg" : "2.0.0 <= v < 3.0.0"
+      , "elm-lang/virtual-dom" : "2.0.0 <= v < 3.0.0"
       , "elm-lang/mouse" : "1.0.0 <= v < 2.0.0"
       , "elm-lang/window" : "1.0.0 <= v < 2.0.0"
       , "elm-lang/keyboard" : "1.0.0 <= v < 2.0.0"
-      , "evancz/elm-graphics" : "1.0.0 <= v < 2.0.0"
     }
 }

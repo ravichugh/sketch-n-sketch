@@ -42,7 +42,7 @@ digHole originalExp selectedFeatures slate syncOptions =
         pluckSelectedVals selectedFeatures slate locIdToNumberAndLoc
     in
     let tracesLocsets =
-      List.map ((Sync.locsOfTrace syncOptions) << snd) selectedVals
+      List.map ((Sync.locsOfTrace syncOptions) << Tuple.second) selectedVals
     in
     let allLocs = List.foldl Set.union Set.empty tracesLocsets in
     let (thawed, others) =
@@ -119,10 +119,10 @@ digHole originalExp selectedFeatures slate syncOptions =
           let commonScopeNamesLocsLiftedThrough =
             Utils.commonPrefix scopeNamesLocsLiftedThrough
           in
-          let featureName' =
+          let featureName_ =
             String.join "_" (commonScopeNamesLocsLiftedThrough ++ [featureName])
           in
-          (featureName', eqn)
+          (featureName_, eqn)
         )
         selectedFeatureEquationsNamed
   in
@@ -150,16 +150,16 @@ digHole originalExp selectedFeatures slate syncOptions =
         (\(name, expStr) -> String.contains " " expStr)
         featureNamesWithExpressionStrs
   in
-  let featureNames          = List.map fst significantFeatureNamesWithExpressionStrs in
-  let featureExpressionStrs = List.map snd significantFeatureNamesWithExpressionStrs in
+  let featureNames          = List.map Tuple.first significantFeatureNamesWithExpressionStrs in
+  let featureExpressionStrs = List.map Tuple.second significantFeatureNamesWithExpressionStrs in
   let nonCollidingFeatureNames =
     let (newNamesToAvoid, result) =
       List.foldr
           (\featureName (usedNames, result) ->
-            let featureName' = nonCollidingName featureName usedNames in
+            let featureName_ = nonCollidingName featureName usedNames in
             (
-              Set.insert featureName' usedNames,
-              featureName'::result
+              Set.insert featureName_ usedNames,
+              featureName_::result
             )
           )
           (namesToAvoid, [])
@@ -194,8 +194,8 @@ makeEqual originalExp selectedFeatures slideNumber movieNumber movieTime syncOpt
     -- We have only selected x&y of several points.
     -- Make all the selected points overlap, that is: make all the x's equal to
     -- each other and all the y's equal to each other.
-    let xFeatures = List.map fst selectedPoints in
-    let yFeatures = List.map snd selectedPoints in
+    let xFeatures = List.map Tuple.first selectedPoints in
+    let yFeatures = List.map Tuple.second selectedPoints in
     let xsEqualized  = equalize originalExp xFeatures in
     let xysEqualized = equalize xsEqualized yFeatures in
     xysEqualized
@@ -219,8 +219,8 @@ makeEqualOverlappingPairs originalExp features slideNumber movieNumber movieTime
   case List.take 2 features of
     [featureA, featureB] ->
       let slateRes =
-        Eval.run originalExp
-        `Result.andThen` (\(val, _) ->
+        Eval.run originalExp |>
+        Result.andThen (\(val, _) ->
             LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val
           )
       in
@@ -264,8 +264,8 @@ makeEquidistantOverlappingTriples originalExp sortedFeatures slideNumber movieNu
       -- If there's at least 3 more features...
       _::featureB::featureC::featureD::otherFeatures ->
         let newSlateRes =
-          Eval.run exp
-          `Result.andThen` (\(val, _) ->
+          Eval.run exp |>
+          Result.andThen (\(val, _) ->
               LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val
             )
         in
@@ -479,7 +479,7 @@ deepestCommonScope exp locset syncOptions =
         (List.filter (\(parent, node) -> isScope parent node))
         locsAncestorsWithParents
   in
-  let locsAncestorScopes = List.map (List.map snd) locsAncestorScopesWithParents in
+  let locsAncestorScopes = List.map (List.map Tuple.second) locsAncestorScopesWithParents in
   let deepestCommonScope =
     Utils.last_
     <| exp :: (Utils.commonPrefix locsAncestorScopes)
@@ -566,8 +566,8 @@ wrapWithLets listOfListsOfNamesAndAssigns isTopLevel bodyExp =
               ++ body ++ ")"
         in
         let letStr precedingWs letNamesAndAssigns body =
-          let patStrs    = List.map fst letNamesAndAssigns in
-          let assignStrs = List.map snd letNamesAndAssigns in
+          let patStrs    = List.map Tuple.first letNamesAndAssigns in
+          let assignStrs = List.map Tuple.second letNamesAndAssigns in
           let patsStr    = String.join " " patStrs in
           let assignsStr = String.join " " assignStrs in
           precedingWs ++ (letOrDef patsStr assignsStr body)
@@ -624,7 +624,7 @@ pluckSelectedFeatureEquationsNamed selectedFeatures slate locIdToNumberAndLoc =
 
 
 pluckSelectedFeatureEquations selectedFeatures slate locIdToNumberAndLoc =
-  List.map snd <| pluckSelectedFeatureEquationsNamed selectedFeatures slate locIdToNumberAndLoc
+  List.map Tuple.second <| pluckSelectedFeatureEquationsNamed selectedFeatures slate locIdToNumberAndLoc
 
 
 locIdToNumberAndLocOf : Exp -> Dict.Dict LocId (Num, Loc)
@@ -709,7 +709,7 @@ equationVals eqn =
 
 
 equationLocs syncOptions eqn =
-  List.concatMap (Set.toList << (Sync.locsOfTrace syncOptions) << snd) (equationVals eqn)
+  List.concatMap (Set.toList << (Sync.locsOfTrace syncOptions) << Tuple.second) (equationVals eqn)
 
 
 -- Will abort if any op other than + - * /
@@ -722,27 +722,27 @@ solveForLoc locId locIdToNum subst lhs rhs =
   -- Feature equation contains feature operations and trace operations.
   -- Normalize to simple equations on locIds (variables).
   let
-    lhs' = featureEquationToLocEquation lhs
-    rhs' = featureEquationToLocEquation rhs
+    lhs_ = featureEquationToLocEquation lhs
+    rhs_ = featureEquationToLocEquation rhs
   in
   let maybeEqn =
     -- Help out the silly simplifier.
-    case maybeExtractUnsharedExpression rhs' lhs' of
+    case maybeExtractUnsharedExpression rhs_ lhs_ of
       Nothing ->
         Nothing
 
-      Just (lhs'', rhs'') ->
+      Just (lhs__, rhs__) ->
         -- We will duplicate frozen constants into the little equation
         -- string. Otherwise, math values like 0, 1, 2 get assigned to
         -- variable names.
         let
-          lhs''' = constantifyLocs locIdToNum lhs''
-          rhs''' = constantifyLocs locIdToNum rhs''
+          lhs___ = constantifyLocs locIdToNum lhs__
+          rhs___ = constantifyLocs locIdToNum rhs__
         in
-        -- Transform   rhs' - lhs' = 0
+        -- Transform   rhs_ - lhs_ = 0
         -- to          coeff*x^pow + rest = 0
         -- where x is our target loc
-        case locEqnTerms locId (LocEqnOp Minus [lhs''', rhs''']) of
+        case locEqnTerms locId (LocEqnOp Minus [lhs___, rhs___]) of
           Just (locPow, locCoeff, rest) ->
             if locPow == 0 || locCoeff == LocEqnConst 0 then
               Nothing

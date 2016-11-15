@@ -94,7 +94,7 @@ buildSvg_ stuff d i =
      (False, Just _) -> Svg.svg [] []
      _ ->
       -- TODO: figure out: (LangSvg.attr "draggable" "false")
-      let (zones, attrs') =
+      let (zones, attrs_) =
         case (addZones, Utils.maybeRemoveFirst "ZONES" attrs) of
           (False, Nothing)     -> ([], attrs)
           (False, Just (_, l)) -> ([], l)
@@ -109,14 +109,14 @@ buildSvg_ stuff d i =
               (makeZones model zoneOptions0 shape i attrs, l)
             LangSvg.AString "basic" ->
               let options' = { options | addRot = False, addColor = False } in
-              (makeZones model options' shape i attrs, l)
+              (makeZones model options_ shape i attrs, l)
             _ -> Debug.crash "buildSvg_"
 -}
       in
       let children = List.map (buildSvg_ stuff d) js in
       -- let mainshape = (Svg.node shape) (LangSvg.compileAttrs attrs') children in
       let mainshape =
-        let (rawKind, rawAttrs) = LangSvg.desugarShapeAttrs shape attrs' in
+        let (rawKind, rawAttrs) = LangSvg.desugarShapeAttrs shape attrs_ in
         (Svg.node rawKind) (LangSvg.compileAttrs rawAttrs) children in
       if zones == []
         then mainshape
@@ -151,7 +151,7 @@ buildSvgWidgets wCanvas hCanvas model =
     numWidgets    = List.length widgets
     wWidget       = wSlider + wCaption + 2*pad
     hWidget       = hSlider + 2*pad
-    wToolBoxMax   = wCanvas - 2*pad
+    wToolBoxMax   = toFloat <| wCanvas - 2*pad
     numCols       = floor (wToolBoxMax / wWidget)
     numRows       = ceiling (toFloat numWidgets / toFloat numCols)
     wToolBox      = numCols * wWidget
@@ -166,8 +166,8 @@ buildSvgWidgets wCanvas hCanvas model =
       (r,c) = (i % numRows, i // numRows)
       xi    = xL  + c*wWidget
       yi    = yBL - r*hWidget
-      xi'   = xi + pad
-      yi'   = yi + pad
+      xi_   = xi + pad
+      yi_   = yi + pad
     in
     let region =
       flip Svg.rect [] <|
@@ -215,12 +215,12 @@ buildSvgWidgets wCanvas hCanvas model =
     in
     let text =
       let cap = cap_ ++ strNumTrunc 5 curVal in
-      flip Svg.text' [VirtualDom.text cap] <|
+      flip Svg.text_ [VirtualDom.text cap] <|
         [ attr "fill" "black"
         , attr "font-family" params.mainSection.uiWidgets.font
         , attr "font-size" params.mainSection.uiWidgets.fontSize
-        , attr "x" (toString (xi' + wSlider + 10))
-        , attr "y" (toString (yi' + 18))
+        , attr "x" (toString (xi_ + wSlider + 10))
+        , attr "y" (toString (yi_ + 18))
         ]
     in
     [region, box, text, ball]
@@ -430,7 +430,7 @@ pointZoneStyles =
   }
 
 pointZoneStylesFillSelected model nodeId =
-  let d = Dict.filter (\_ nodeId' -> nodeId == nodeId') model.selectedBlobs in
+  let d = Dict.filter (\_ nodeId_ -> nodeId == nodeId_) model.selectedBlobs in
   if Dict.isEmpty d
     then pointZoneStyles.fill.selectedShape
     else pointZoneStyles.fill.selectedBlob
@@ -571,14 +571,14 @@ zoneRotate_ model id shape cx cy r cmds =
 halfwayBetween (x1,y1) (x2,y2) = ((x1 + x2) / 2, (y1 + y2) / 2)
 distance (x1,y1) (x2,y2)       = sqrt ((x2-x1)^2 + (y2-y1)^2)
 
-projPt (x,y)                   = (fst x, fst y)
+projPt (x,y)                   = (Tuple.first x, Tuple.first y)
 halfwayBetween_ pt1 pt2        = halfwayBetween (projPt pt1) (projPt pt2)
 distance_ pt1 pt2              = distance (projPt pt1) (projPt pt2)
 
 -- TODO redo callsite
 zoneRotatePolyOrPath model id kind pts nodeAttrs =
   let (xMin, xMax, yMin, yMax) =
-    Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (fst x, fst y)) pts) in
+    Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) in
   let (w, h) = (xMax - xMin, yMax - yMin) in
   let (xMiddle, yMiddle) = (xMin + 0.5 * w, yMin + 0.5 * h) in
   let r = ((max w h) / 2) + rotZoneDelta in
@@ -676,7 +676,7 @@ zoneColor_ zoneName shapeFeature model id shape x y (n, trace) =
         [ LangSvg.attr "fill" fill
         , LangSvg.attr "x" (toString (x+i)) , LangSvg.attr "y" (toString (y - yOff))
         , LangSvg.attr "width" "1" , LangSvg.attr "height" (toString h)
-        ]) [0 .. w]
+        ]) (List.map toFloat (List.range 0 w))
   in
   [ Svg.g
       [onMouseDownAndStop (toggleSelected [typeAndNodeIdAndFeature])]
@@ -885,7 +885,7 @@ maybeZoneSelectCrossDot sideLength model thisCrosshair x y =
   else zoneSelectCrossDot model thisCrosshair x y
 
 zoneSelectCrossDot : Model -> (Int, ShapeKind, PointFeature)
-                  -> number -> number' -> List (Svg Msg)
+                  -> number -> number2 -> List (Svg Msg)
 zoneSelectCrossDot model (id, kind, pointFeature) x y =
   let xFeatureName = ShapeWidgets.unparseFeatureNum (Just kind) (X pointFeature) in
   let yFeatureName = ShapeWidgets.unparseFeatureNum (Just kind) (Y pointFeature) in
@@ -1234,7 +1234,7 @@ makeZonesPoly model shape id l =
     midptCrossDots ++ crossDots
   in
   let primaryWidgets =
-    let (x1,x2,y1,y2) = Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (fst x, fst y)) pts) in
+    let (x1,x2,y1,y2) = Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) in
     boundingBoxZones model id (x1,y1,x2,y2) <|
       [zInterior] ++ zLines ++ zSelect ++ zPts
   in
@@ -1246,19 +1246,19 @@ makeZonesPath : Model -> String -> Int -> List LangSvg.Attr -> List (Svg Msg)
 makeZonesPath model shape id nodeAttrs =
   let _ = Utils.assert "makeZonesPoly" (shape == "path") in
   let transform = maybeTransformAttr nodeAttrs in
-  let cmds = fst <| LangSvg.toPath <| Utils.find_ nodeAttrs "d" in
+  let cmds = Tuple.first <| LangSvg.toPath <| Utils.find_ nodeAttrs "d" in
   let add (mi,pt) acc = case mi of Nothing -> acc
                                    _       -> (mi,pt) :: acc in
   let listOfMaybeIndexWithPt =
     List.foldr (\c acc -> case c of
       LangSvg.CmdZ   s              -> acc
-      LangSvg.CmdMLT s pt           -> pt `add` acc
+      LangSvg.CmdMLT s pt           -> add pt acc
       LangSvg.CmdHV  s n            -> acc
-      LangSvg.CmdC   s pt1 pt2 pt3  -> pt1 `add` (pt2 `add` (pt3 `add` acc))
-      LangSvg.CmdSQ  s pt1 pt2      -> pt1 `add` (pt2 `add` acc)
-      LangSvg.CmdA   s a b c d e pt -> pt `add` acc) [] cmds
+      LangSvg.CmdC   s pt1 pt2 pt3  -> add pt1 (add pt2 (add pt3 acc))
+      LangSvg.CmdSQ  s pt1 pt2      -> add pt1 (add pt2 acc)
+      LangSvg.CmdA   s a b c d e pt -> add pt acc) [] cmds
   in
-  let pts = List.map snd listOfMaybeIndexWithPt in
+  let pts = List.map Tuple.second listOfMaybeIndexWithPt in
   let dots = zonePoints model id shape transform pts in
   let zRot = zoneRotatePolyOrPath model id "path" pts nodeAttrs in
   let zFillAndStroke =
@@ -1285,7 +1285,7 @@ makeZonesPath model shape id nodeAttrs =
   in
   -- TODO add "Edge" zones
   let primaryWidgets =
-    let (x1,x2,y1,y2) = Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (fst x, fst y)) pts) in
+    let (x1,x2,y1,y2) = Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) in
     boundingBoxZones model id (x1,y1,x2,y2) <|
       [zInterior] ++
       zSelect ++

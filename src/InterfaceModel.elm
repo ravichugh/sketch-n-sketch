@@ -223,13 +223,13 @@ type Event = ClickZone ZoneKey
 --------------------------------------------------------------------------------
 
 mkLive opts slideNumber movieNumber movieTime e (val, widgets) =
-  LangSvg.valToIndexedTree val `Result.andThen` (\slate ->
+  LangSvg.valToIndexedTree val |> Result.andThen (\slate ->
     Sync.prepareLiveUpdates opts slideNumber movieNumber movieTime e (slate, widgets)
       |> Result.map (Live)
   )
 
 mkLive_ opts slideNumber movieNumber movieTime e  =
-  Eval.run e `Result.andThen` mkLive opts slideNumber movieNumber movieTime e
+  Eval.run e |> Result.andThen (mkLive opts slideNumber movieNumber movieTime e)
 
 --------------------------------------------------------------------------------
 

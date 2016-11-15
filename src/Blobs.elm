@@ -59,14 +59,16 @@ fuseExp (defs, mainExp) =
   let recurse defs =
     case defs of
       [] -> fromMainExp mainExp
-      (ws1,p1,e1,ws2)::defs' ->
-        withDummyPos <| ELet ws1 Def False p1 e1 (recurse defs') ws2
+      (ws1,p1,e1,ws2)::defs_ ->
+        withDummyPos <| ELet ws1 Def False p1 e1 (recurse defs_) ws2
   in
   recurse defs
 
 toMainExp : Exp -> MainExp
 toMainExp e =
-  maybeSvgConcat e `Utils.plusMaybe` maybeBlobs e `Utils.elseMaybe` OtherExp e
+  Utils.elseMaybe
+    (Utils.plusMaybe (maybeSvgConcat e) (maybeBlobs e))
+    (OtherExp e)
 
 fromMainExp : MainExp -> Exp
 fromMainExp me =
@@ -85,13 +87,13 @@ maybeSvgConcat main =
             (EVar _ "concat", EList ws5 oldList ws6 Nothing ws7) ->
               let updateExpressionList newList =
                 let
-                  e2'         = replaceE__ e2 <| EList ws5 newList ws6 Nothing ws7
-                  eAppConcat' = replaceE__ eAppConcat <| EApp ws3 eConcat [e2'] ws4
-                  main'       = replaceE__ main <| EApp ws1 e1 [eAppConcat'] ws2
+                  e2New         = replaceE__ e2 <| EList ws5 newList ws6 Nothing ws7
+                  eAppConcatNew = replaceE__ eAppConcat <| EApp ws3 eConcat [e2New] ws4
+                  mainNew       = replaceE__ main <| EApp ws1 e1 [eAppConcatNew] ws2
                 in
-                if ws1 == "" then addPrecedingWhitespace "\n\n" main'
-                else if ws1 == "\n" then addPrecedingWhitespace "\n" main'
-                else main'
+                if ws1 == "" then addPrecedingWhitespace "\n\n" mainNew
+                else if ws1 == "\n" then addPrecedingWhitespace "\n" mainNew
+                else mainNew
               in
               Just (SvgConcat oldList updateExpressionList)
 
@@ -109,12 +111,12 @@ maybeBlobs main =
           let rebuildExp newBlobExpList =
             let newExpList = List.map fromBlobExp newBlobExpList in
             let
-              eArgs' = replaceE__ eArgs <| EList ws5 newExpList ws6 Nothing ws7
-              main'  = replaceE__ main <| EApp ws1 eBlobs [eArgs'] ws2
+              eArgsNew = replaceE__ eArgs <| EList ws5 newExpList ws6 Nothing ws7
+              mainNew  = replaceE__ main <| EApp ws1 eBlobs [eArgsNew] ws2
             in
-            if ws1 == "" then addPrecedingWhitespace "\n\n" main'
-            else if ws1 == "\n" then addPrecedingWhitespace "\n" main'
-            else main'
+            if ws1 == "" then addPrecedingWhitespace "\n\n" mainNew
+            else if ws1 == "\n" then addPrecedingWhitespace "\n" mainNew
+            else mainNew
           in
           let blobs = List.map toBlobExp oldList in
           Just (Blobs blobs rebuildExp)

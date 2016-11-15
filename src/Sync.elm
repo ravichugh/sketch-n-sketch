@@ -48,7 +48,7 @@ heuristicModes = 3
 
 (heuristicsNone, heuristicsFair, heuristicsBiased) =
   Utils.unwrap3
-    [ 0 .. (heuristicModes - 1) ]
+    (List.range 0 (heuristicModes - 1))
 
 toggleHeuristicMode x =
   let i = (1 + x) % heuristicModes in
@@ -157,8 +157,8 @@ getLocationCounts options (slate, widgets) =
         Set.foldl updateCount acc (locsOfTraces options [t1, t2])
   in
   let d  = LangSvg.foldSlateNodeInfo slate Dict.empty addTriggerNode in
-  let d' = List.foldl addTriggerWidget d widgets in
-  d'
+  let d_ = List.foldl addTriggerWidget d widgets in
+  d_
 
 
 tracesOfAVals : List AVal -> List Trace
@@ -171,7 +171,7 @@ tracesOfAVal aval =
     ANum (_,t) -> [t]
 
     AColorNum ((_,t), Nothing)     -> [t]
-    AColorNum ((_,t), Just (_,t')) -> [t, t']
+    AColorNum ((_,t), Just (_,t_)) -> [t, t_]
 
     APoints pts -> List.concatMap (\((_,t1),(_,t2)) -> [t1, t2]) pts
 
@@ -213,7 +213,7 @@ pickLocs : Options -> MaybeCounts -> List Trace -> (List (Maybe Loc), Set Loc, M
 pickLocs options maybeCounts traces =
   let locSets = List.map (locsOfTrace options) traces in
   let allLocs = List.foldl Set.union Set.empty locSets in
-  let (assignedMaybeLocs, maybeCounts') =
+  let (assignedMaybeLocs, maybeCounts_) =
     case maybeCounts of
 
       Nothing ->
@@ -226,7 +226,7 @@ pickLocs options maybeCounts traces =
         Utils.mapSnd (Just << Right) <|
           chooseFairLocationAssignment locSets fairCounts
   in
-  (assignedMaybeLocs, allLocs, maybeCounts')
+  (assignedMaybeLocs, allLocs, maybeCounts_)
 
 
 chooseBiased biasCounts locSet =
@@ -267,8 +267,8 @@ chooseFairLocationAssignment locSets fairCounts =
       [] -> noAssignment ()
 
       assignment :: _ ->
-        let fairCounts' = updateFairCount assignment fairCounts in
-        (assignment, fairCounts')
+        let fairCounts_ = updateFairCount assignment fairCounts in
+        (assignment, fairCounts_)
 
 
 convertEmptyToNonEmpty locList =
@@ -318,11 +318,11 @@ prepareLiveUpdates options slideNumber movieNumber movieTime e (slate, widgets) 
     else {- options.feelingLucky == heuristicsNone -}
       Nothing
   in
-  let (shapeTriggers, maybeCounts') =
+  let (shapeTriggers, maybeCounts_) =
     computeShapeTriggers (options, initSubst) slate maybeCounts
   in
-  let (widgetTriggers, maybeCounts'') =
-    computeWidgetTriggers (options, initSubst) widgets maybeCounts'
+  let (widgetTriggers, maybeCounts__) =
+    computeWidgetTriggers (options, initSubst) widgets maybeCounts_
   in
 
   Ok { initSubstPlus = initSubstPlus
@@ -344,7 +344,7 @@ computeShapeTriggers info slate initMaybeCounts =
       Left _ -> (dict, maybeCounts)
 
       Right shapeInfo ->
-        let (directZoneTriggers, maybeCounts') =
+        let (directZoneTriggers, maybeCounts_) =
           let (_, kind, _) = shapeInfo in
           case kind of
             "line"     -> computeLineTriggers info maybeCounts shapeInfo
@@ -358,14 +358,14 @@ computeShapeTriggers info slate initMaybeCounts =
             "path"     -> computePathTriggers info maybeCounts shapeInfo
             _          -> (Dict.empty, maybeCounts)
         in
-        let (sliderZoneTriggers, maybeCounts'') =
+        let (sliderZoneTriggers, maybeCounts__) =
           computeFillAndStrokeTriggers info maybeCounts shapeInfo
         in
-        let dict' =
+        let dict_ =
           dict |> Dict.union directZoneTriggers
                |> Dict.union sliderZoneTriggers
         in
-        (dict', maybeCounts')
+        (dict_, maybeCounts_)
   in
   LangSvg.foldSlateNodeInfo slate (Dict.empty, initMaybeCounts) processNode
 
@@ -385,12 +385,12 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
           curVal + (toFloat dx / toFloat wSlider) * (maxVal - minVal)
             |> clamp minVal maxVal
         in
-        let options' = { options | unfreezeAll = True } in
-        addWidgetTrigger options' i "Num" [TrLoc loc]
+        let options_ = { options | unfreezeAll = True } in
+        addWidgetTrigger options_ i "Num" [TrLoc loc]
         (Utils.unwrap1 >> \maybeLoc ->
-          mapMaybeToList maybeLoc (\loc' ->
-            ( "", "dx", loc', TrLoc loc
-            , \_ (dx,_) -> solveOne subst loc' (updateX dx) (TrLoc loc)
+          mapMaybeToList maybeLoc (\loc_ ->
+            ( "", "dx", loc_, TrLoc loc
+            , \_ (dx,_) -> solveOne subst loc_ (updateX dx) (TrLoc loc)
             ))
         )
         accResult
@@ -403,12 +403,12 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
             |> round
             |> toFloat
         in
-        let options' = { options | unfreezeAll = True } in
-        addWidgetTrigger options' i "Int" [TrLoc loc]
+        let options_ = { options | unfreezeAll = True } in
+        addWidgetTrigger options_ i "Int" [TrLoc loc]
         (Utils.unwrap1 >> \maybeLoc ->
-          mapMaybeToList maybeLoc (\loc' ->
-            ( "", "dx", loc', TrLoc loc
-            , \_ (dx,_) -> solveOne subst loc' (updateX dx) (TrLoc loc)
+          mapMaybeToList maybeLoc (\loc_ ->
+            ( "", "dx", loc_, TrLoc loc
+            , \_ (dx,_) -> solveOne subst loc_ (updateX dx) (TrLoc loc)
             ))
         )
         accResult
@@ -440,7 +440,7 @@ addWidgetTrigger options id caption =
   addTrigger options (id, caption)
 
 addTrigger options key traces makeTrigger (dict, maybeCounts) =
-  let (assignedMaybeLocs, allLocs, maybeCounts') =
+  let (assignedMaybeLocs, allLocs, maybeCounts_) =
     pickLocs options maybeCounts traces in
   let trigger = makeTrigger assignedMaybeLocs in
   let yellowLocs =
@@ -450,13 +450,13 @@ addTrigger options key traces makeTrigger (dict, maybeCounts) =
      ) Set.empty trigger
   in
   let grayLocs = Set.diff allLocs yellowLocs in
-  let dict' = Dict.insert key (trigger, yellowLocs, grayLocs) dict in
-  (dict', maybeCounts')
+  let dict_ = Dict.insert key (trigger, yellowLocs, grayLocs) dict in
+  (dict_, maybeCounts_)
 
 
-solveOne subst (k,_,_) n' t =
-  let subst' = Dict.remove k subst in
-  let maybeSolution = Solver.solve subst' (n',t) in
+solveOne subst (k,_,_) n_ t =
+  let subst_ = Dict.remove k subst in
+  let maybeSolution = Solver.solve subst_ (n_,t) in
   maybeSolution
 
 
@@ -933,8 +933,8 @@ addEdgeZones_ finishTrigger pointX pointY edges result =
      edges
 
 addInteriorZone_ finishTrigger pointX pointY indexedPoints result =
-  let xTraces = List.map (snd << fst << snd) indexedPoints in
-  let yTraces = List.map (snd << snd << snd) indexedPoints in
+  let xTraces = List.map (Tuple.second << Tuple.first << Tuple.second) indexedPoints in
+  let yTraces = List.map (Tuple.second << Tuple.second << Tuple.second) indexedPoints in
 
   finishTrigger ZInterior (xTraces ++ yTraces) (\assignedMaybeLocs ->
     case Utils.projJusts assignedMaybeLocs of
@@ -1010,8 +1010,8 @@ computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
           mapMaybeToList maybeLoc (\colorLoc ->
             ( fillOrStroke, "dx", colorLoc, colorTrace
             , \_ (dx,_) ->
-                let color' = colorNumPlus color dx in
-                solveOne subst colorLoc color' colorTrace
+                let color_ = colorNumPlus color dx in
+                solveOne subst colorLoc color_ colorTrace
             ))
         ) (dict, maybeCounts)
 
@@ -1026,8 +1026,8 @@ computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
           mapMaybeToList maybeLoc (\opacityLoc ->
             ( fillOrStroke ++ "Opacity", "dx", opacityLoc, opacityTrace
             , \_ (dx,_) ->
-                let opacity' = opacityNumPlus opacity dx in
-                solveOne subst opacityLoc opacity' opacityTrace
+                let opacity_ = opacityNumPlus opacity dx in
+                solveOne subst opacityLoc opacity_ opacityTrace
             ))
         ) (dict, maybeCounts)
 
@@ -1042,8 +1042,8 @@ computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
           mapMaybeToList maybeLoc (\widthLoc ->
             ( "stroke-width", "dx", widthLoc, widthTrace
             , \_ (dx,_) ->
-                let width' = strokeWidthNumPlus width dx in
-                solveOne subst widthLoc width'  widthTrace
+                let width_ = strokeWidthNumPlus width dx in
+                solveOne subst widthLoc width_  widthTrace
             ))
         ) (dict, maybeCounts)
 
@@ -1155,10 +1155,10 @@ prepareLiveTrigger info exp zoneKey (mx0,my0) (dx,dy) =
      ) initSubst updates
   in
   let
-    exp'       = applyLocSubst newSubst exp
+    exp_       = applyLocSubst newSubst exp
     highlights = highlightChanges info.initSubstPlus yellowLocs updates
   in
-  (exp', highlights)
+  (exp_, highlights)
 
 
 ------------------------------------------------------------------------------
@@ -1244,21 +1244,21 @@ highlightChanges initSubstPlus locs changes =
         (Nothing, _)             -> Debug.crash "Controller.highlightChanges"
         (Just n, Nothing)        -> (highlight yellow :: acc1, acc2)
         (Just n, Just Nothing)   -> (highlight red :: acc1, acc2)
-        (Just n, Just (Just n')) ->
-          if n' == n.val then
+        (Just n, Just (Just n_)) ->
+          if n_ == n.val then
             (highlight yellow :: acc1, acc2)
           else
-            let (s, s') = (strNum n.val, strNum n') in
-            let x = (acePos n.start, String.length s' - String.length s) in
+            let (s, s_) = (strNum n.val, strNum n_) in
+            let x = (acePos n.start, String.length s_ - String.length s) in
             (highlight green :: acc1, x :: acc2)
     in
     List.foldl f ([],[]) (Set.toList locs)
   in
 
-  let hi' =
+  let hi_ =
     let g (startPos,extraChars) (old,new) =
       let bump pos = { pos | column = pos.column + extraChars } in
-      let ret new' = (old, new') in
+      let ret new_ = (old, new_) in
       ret <|
         if startPos.row    /= old.start.row         then new
         else if startPos.column >  old.start.column then new
@@ -1269,8 +1269,8 @@ highlightChanges initSubstPlus locs changes =
     in
     -- hi has <= 4 elements, so not worrying about the redundant processing
     flip List.map hi <| \{color,range} ->
-      let (_,range') = List.foldl g (range,range) stringOffsets in
-      { color = color, range = range' }
+      let (_,range_) = List.foldl g (range,range) stringOffsets in
+      { color = color, range = range_ }
   in
 
-  hi'
+  hi_

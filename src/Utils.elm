@@ -8,9 +8,9 @@ import Dict exposing (Dict)
 maybeFind : a -> List (a,b) -> Maybe b
 maybeFind k l = case l of
   []            -> Nothing
-  (k0,v0) :: l' -> if k == k0
+  (k0,v0) :: l_ -> if k == k0
                      then Just v0
-                     else maybeFind k l'
+                     else maybeFind k l_
 
 find err d k =
   case maybeFind k d of
@@ -32,12 +32,12 @@ update (k1, v1) vals =
 -- Resulting list length is minimum of (length xs, length ys)
 zip : List a -> List b -> List (a,b)
 zip xs ys = case (xs, ys) of
-  (x::xs', y::ys') -> (x,y) :: zip xs' ys'
+  (x::xs_, y::ys_) -> (x,y) :: zip xs_ ys_
   _                -> []
 
 maybeZip : List a -> List b -> Maybe (List (a,b))
 maybeZip xs ys = case (xs, ys) of
-  (x::xs', y::ys') -> case maybeZip xs' ys' of
+  (x::xs_, y::ys_) -> case maybeZip xs_ ys_ of
                         Nothing  -> Nothing
                         Just xys -> Just ((x,y) :: xys)
   ([], [])         -> Just []
@@ -53,7 +53,7 @@ maybeZipDicts d1 d2 =
 listsEqualBy elementEqualityFunc xs ys =
   case (xs, ys) of
     ([], [])         -> True
-    (x::xs', y::ys') -> (elementEqualityFunc x y) && (listsEqualBy elementEqualityFunc xs' ys')
+    (x::xs_, y::ys_) -> (elementEqualityFunc x y) && (listsEqualBy elementEqualityFunc xs_ ys_)
     _                -> False -- Lists not the same length
 
 zeroElements xs = case xs of
@@ -80,12 +80,12 @@ maybeZipN lists =
 mapi : ((Int, a) -> b) -> List a -> List b
 mapi f xs =
   let n = List.length xs in
-  List.map f (zip [1..n] xs)
+  List.map f (zip (List.range 1 n) xs)
 
 foldli : ((Int, a) -> b -> b) -> b -> List a -> b
 foldli f init xs =
   let n = List.length xs in
-  List.foldl f init (zip [1..n] xs)
+  List.foldl f init (zip (List.range 1 n) xs)
 
 foldri f init xs = List.reverse (foldli f init xs)
 
@@ -93,7 +93,7 @@ foldri f init xs = List.reverse (foldli f init xs)
 filteri : ((Int, a) -> Bool) -> List a -> List a
 filteri f xs =
   let n = List.length xs in
-  List.map snd (List.filter f (zip [1..n] xs))
+  List.map Tuple.second (List.filter f (zip (List.range 1 n) xs))
 
 reverse2 (xs,ys) = (List.reverse xs, List.reverse ys)
 
@@ -137,12 +137,12 @@ oneToOneMappingExists l1 l2 =
               (dict, numRep ++ [n])
             Nothing ->
               let n     = Dict.size dict in
-              let dict' = Dict.insert x n dict in
-              (dict', numRep ++ [n])
+              let dict_ = Dict.insert x n dict in
+              (dict_, numRep ++ [n])
         )
         (Dict.empty, [])
         list
-    |> snd
+    |> Tuple.second
   in
   numericRepresentation l1 == numericRepresentation l2
 
@@ -174,9 +174,9 @@ takeNLines n s =
 oneOfEach : List (List a) -> List (List a)
 oneOfEach xss = case xss of
   []       -> [[]]
-  xs::xss' -> List.concatMap (\x -> List.map ((::) x) (oneOfEach xss')) xs
+  xs::xss_ -> List.concatMap (\x -> List.map ((::) x) (oneOfEach xss_)) xs
 
--- given [s1, ..., sn], compute s1' x ... x sn' where
+-- given [s1, ..., sn], compute s1_ x ... x sn_ where
 --   s1'  =  s1 - s2 - s3 - ... - sn
 --   s2'  =  s2 - s1 - s3 - ... - sn
 --       ...
@@ -196,7 +196,7 @@ manySetDiffs sets =
     foldli (\(j,locs_j) acc ->
       if i == j
         then acc
-        else acc `Set.diff` locs_j
+        else Set.diff acc locs_j
     ) locs_i sets
   ) sets
 
@@ -205,24 +205,24 @@ manySetDiffs sets =
 findFirst : (a -> Bool) -> List a -> Maybe a
 findFirst p xs = case xs of
   []     -> Nothing
-  x::xs' -> if p x
+  x::xs_ -> if p x
               then Just x
-              else findFirst p xs'
+              else findFirst p xs_
 
 removeFirst : a -> List a -> List a
 removeFirst x ys = case ys of
   []     -> []
-  y::ys' -> if x == y then ys' else y :: removeFirst x ys'
+  y::ys_ -> if x == y then ys_ else y :: removeFirst x ys_
 
 maybeRemoveFirst : a -> List (a,b) -> Maybe (b, List (a,b))
 maybeRemoveFirst x ys = case ys of
   []         -> Nothing
-  (a,b)::ys' ->
+  (a,b)::ys_ ->
     if x == a
-      then Just (b, ys')
-      else case maybeRemoveFirst x ys' of
+      then Just (b, ys_)
+      else case maybeRemoveFirst x ys_ of
              Nothing      -> Nothing
-             Just (b', l) -> Just (b', (a,b) :: l)
+             Just (b_, l) -> Just (b_, (a,b) :: l)
 
 removeLastElement : List a -> List a
 removeLastElement list =
@@ -244,7 +244,7 @@ geti i = fromJust_ "Utils.geti" << List.head << List.drop (i-1)
 
 -- 1-based
 replacei : Int -> a -> List a -> List a
-replacei i xi' xs = List.take (i-1) xs ++ [xi'] ++ List.drop i xs
+replacei i xi_ xs = List.take (i-1) xs ++ [xi_] ++ List.drop i xs
 
 allSame list = case list of
   []    -> False
@@ -339,6 +339,9 @@ plusMaybe mx my = case mx of
   Just _  -> mx
   Nothing -> my
 
+firstMaybe : List (Maybe a) -> Maybe a
+firstMaybe list = List.foldr plusMaybe Nothing list
+
 elseMaybe : Maybe a -> a -> a
 elseMaybe mx default = case mx of
   Just x  -> x
@@ -375,10 +378,10 @@ projOk list =
       (Ok [])
       list
 
-mapFst : (a -> a') -> (a, b) -> (a', b)
+mapFst : (a -> a_) -> (a, b) -> (a_, b)
 mapFst f (a, b) = (f a, b)
 
-mapSnd : (b -> b') -> (a, b) -> (a, b')
+mapSnd : (b -> b_) -> (a, b) -> (a, b_)
 mapSnd f (a, b) = (a, f b)
 
 fst3 (x,_,_) = x
@@ -389,7 +392,7 @@ mapThd3 f (x,y,z) = (x, y, f z)
 
 fourth4 (_,_,_,x) = x
 
-bindResult : Result a b -> (b -> Result a b') -> Result a b'
+bindResult : Result a b -> (b -> Result a b_) -> Result a b_
 bindResult res f =
   case res of
     Err a -> Err a
@@ -432,10 +435,10 @@ maybeToMaybeOne mx    = case mx of
 -- n:number -> i:[0,n) -> RGB
 numToColor n i =
   let j = round <| (i/n) * 500 in
-  if j `between` (  0, 360) then numToColor_ j   else -- color
-  if j `between` (360, 380) then (0, 0, 0)       else -- black
-  if j `between` (480, 500) then (255, 255, 255)      -- white
-  else                                                -- grayscale
+  if between j (  0, 360) then numToColor_ j   else -- color
+  if between j (360, 380) then (0, 0, 0)       else -- black
+  if between j (480, 500) then (255, 255, 255)      -- white
+  else                                              -- grayscale
     let x =
     round <| 255 * ((toFloat j - 380) / 100) in (x,x,x)
 

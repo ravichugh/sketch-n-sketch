@@ -33,7 +33,7 @@ isPreludeEId k = k < initK
 
 -- reassigns eid's and locId's
 freshen : Exp -> Exp
-freshen e = fst (freshen_ initK e)
+freshen e = Tuple.first (freshen_ initK e)
 
 substPlusOf : Exp -> SubstPlus
 substPlusOf e =
@@ -50,11 +50,11 @@ substStrOf = Dict.map (always toString) << substOf
 
 freshen_ : Int -> Exp -> (Exp, Int)
 freshen_ k e =
-  (\(e__,k') ->
+  (\(e__,k_) ->
     let nextK =
       case e__ of
-        EConst _ _ (kk, _, _) _ -> kk -- invariant: kk = k' - 1
-        _                       -> k'
+        EConst _ _ (kk, _, _) _ -> kk -- invariant: kk = k_ - 1
+        _                       -> k_
     in
     (P.WithInfo (Exp_ e__ nextK) e.start e.end, nextK + 1)) <|
  case e.val.e__ of
@@ -63,61 +63,61 @@ freshen_ k e =
   EConst ws i l wd -> let (_,b,x) = l in (EConst ws i (k, b, x) wd, k + 1)
   EBase ws v    -> (EBase ws v, k)
   EVar ws x     -> (EVar ws x, k)
-  EFun ws1 ps e ws2 -> let (e',k') = freshen_ k e in (EFun ws1 ps e' ws2, k')
+  EFun ws1 ps e ws2 -> let (e_,k_) = freshen_ k e in (EFun ws1 ps e_ ws2, k_)
   EApp ws1 f es ws2 ->
-    let ((f',es'),k') = U.mapFst U.uncons <| freshenExps k (f::es) in
-    (EApp ws1 f' es' ws2, k')
-  EOp ws1 op es ws2 -> let (es',k') = freshenExps k es in (EOp ws1 op es' ws2, k')
-  EList ws1 es ws2 m ws3 -> let (es',k') = freshenExps k es in
+    let ((f_,es_),k_) = U.mapFst U.uncons <| freshenExps k (f::es) in
+    (EApp ws1 f_ es_ ws2, k_)
+  EOp ws1 op es ws2 -> let (es_,k_) = freshenExps k es in (EOp ws1 op es_ ws2, k_)
+  EList ws1 es ws2 m ws3 -> let (es_,k_) = freshenExps k es in
                 case m of
-                  Nothing -> (EList ws1 es' ws2 Nothing ws3, k')
-                  Just e  -> let (e',k'') = freshen_ k' e in
-                             (EList ws1 es' ws2 (Just e') ws3, k'')
+                  Nothing -> (EList ws1 es_ ws2 Nothing ws3, k_)
+                  Just e  -> let (e_,k__) = freshen_ k_ e in
+                             (EList ws1 es_ ws2 (Just e_) ws3, k__)
   EIf ws1 e1 e2 e3 ws2 ->
-    let ((e1',e2',e3'),k') = U.mapFst U.unwrap3 <| freshenExps k [e1,e2,e3] in
-    (EIf ws1 e1' e2' e3' ws2, k')
+    let ((e1_,e2_,e3_),k_) = U.mapFst U.unwrap3 <| freshenExps k [e1,e2,e3] in
+    (EIf ws1 e1_ e2_ e3_ ws2, k_)
   ELet ws1 kind b p e1 e2 ws2 ->
-    let ((e1',e2'),k') = U.mapFst U.unwrap2 <| freshenExps k [e1,e2] in
-    let e1'' = recordIdentifiers (p, e1') in
-    (ELet ws1 kind b p e1'' e2' ws2, k')
+    let ((e1_,e2_),k_) = U.mapFst U.unwrap2 <| freshenExps k [e1,e2] in
+    let e1__ = recordIdentifiers (p, e1_) in
+    (ELet ws1 kind b p e1__ e2_ ws2, k_)
   ECase ws1 e bs ws2 ->
     let bes = branchExps bs in
-    let ((e',bes'), k') = U.mapFst U.uncons <| freshenExps k (e::bes) in
+    let ((e_,bes_), k_) = U.mapFst U.uncons <| freshenExps k (e::bes) in
     let replaceBranch oldBranch newE =
       let (Branch_ bws1 pat oldE bws2) = oldBranch.val in
       { oldBranch | val = Branch_ bws1 pat newE bws2 }
     in
-    (ECase ws1 e' (List.map2 replaceBranch bs bes') ws2, k')
+    (ECase ws1 e_ (List.map2 replaceBranch bs bes_) ws2, k_)
   ETypeCase ws1 p bs ws2 ->
     let bes = tbranchExps bs in
-    let (bes', k') = freshenExps k bes in
+    let (bes_, k_) = freshenExps k bes in
     let replaceBranch oldBranch newE =
       let (TBranch_ bws1 tipe oldE bws2) = oldBranch.val in
       { oldBranch | val = TBranch_ bws1 tipe newE bws2 }
     in
-    (ETypeCase ws1 p (List.map2 replaceBranch bs bes') ws2, k')
+    (ETypeCase ws1 p (List.map2 replaceBranch bs bes_) ws2, k_)
   EComment ws s e1 ->
-    let (e1',k') = freshen_ k e1 in
-    (EComment ws s e1', k')
+    let (e1_,k_) = freshen_ k e1 in
+    (EComment ws s e1_, k_)
   EOption ws1 s1 ws2 s2 e1 ->
-    let (e1',k') = freshen_ k e1 in
-    (EOption ws1 s1 ws2 s2 e1', k')
+    let (e1_,k_) = freshen_ k e1 in
+    (EOption ws1 s1 ws2 s2 e1_, k_)
   ETyp ws1 pat tipe e ws2 ->
-    let (e',k') = freshen_ k e in
-    (ETyp ws1 pat tipe e' ws2, k')
+    let (e_,k_) = freshen_ k e in
+    (ETyp ws1 pat tipe e_ ws2, k_)
   EColonType ws1 e ws2 tipe ws3 ->
-    let (e',k') = freshen_ k e in
-    (EColonType ws1 e' ws2 tipe ws3, k')
+    let (e_,k_) = freshen_ k e in
+    (EColonType ws1 e_ ws2 tipe ws3, k_)
   ETypeAlias ws1 pat tipe e ws2 ->
-    let (e',k') = freshen_ k e in
-    (ETypeAlias ws1 pat tipe e' ws2, k')
+    let (e_,k_) = freshen_ k e in
+    (ETypeAlias ws1 pat tipe e_ ws2, k_)
 
 freshenExps k es =
-  List.foldr (\e (es',k') ->
-    let (e1,k1) = freshen_ k' e in
-    (e1::es', k1)) ([],k) es
+  List.foldr (\e (es_,k_) ->
+    let (e1,k1) = freshen_ k_ e in
+    (e1::es_, k1)) ([],k) es
 
--- Record the primary identifier in the EConsts' Locs, where appropriate.
+-- Record the primary identifier in the EConsts_ Locs, where appropriate.
 recordIdentifiers (p,e) =
  let ret e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
  case (p.val, e.val.e__) of
@@ -128,14 +128,14 @@ recordIdentifiers (p,e) =
   (PList _ ps _ mp _, EList ws1 es ws2 me ws3) ->
     case U.maybeZip ps es of
       Nothing  -> ret <| EList ws1 es ws2 me ws3
-      Just pes -> let es' = List.map recordIdentifiers pes in
-                  let me' =
+      Just pes -> let es_ = List.map recordIdentifiers pes in
+                  let me_ =
                     case (mp, me) of
                       (Just p1, Just e1) -> Just (recordIdentifiers (p1,e1))
                       _                  -> me in
-                  ret <| EList ws1 es' ws2 me' ws3
+                  ret <| EList ws1 es_ ws2 me_ ws3
 
-  (PAs _ _ _ p', _) -> recordIdentifiers (p',e)
+  (PAs _ _ _ p_, _) -> recordIdentifiers (p_,e)
 
   (_, EColonType ws1 e1 ws2 t ws3) ->
     ret <| EColonType ws1 (recordIdentifiers (p,e1)) ws2 t ws3
@@ -312,7 +312,7 @@ parseEBase =
 
 parsePBase =
   whitespace >>= \ws ->
-        ((PConst ws.val << fst)              <$> parseNum) -- allowing but ignoring frozen annotation
+        ((PConst ws.val << Tuple.first)      <$> parseNum) -- allowing but ignoring frozen annotation
     <++ (always (PBase ws.val (EBool True))  <$> whiteTokenOneNonIdent "true")
     <++ (always (PBase ws.val (EBool False)) <$> whiteTokenOneNonIdent "false")
     <++ ((PBase ws.val)                      <$> parseStrLit)
@@ -488,13 +488,13 @@ parseWidgetDecl cap =
   preWhite parseNum >>= \max ->
   whiteToken "}"    >>= \close ->
   -- for now, not optionally parsing a caption here
-    let a = { min | val = fst min.val } in
-    let b = { max | val = fst max.val } in
+    let a = { min | val = Tuple.first min.val } in
+    let b = { max | val = Tuple.first max.val } in
     let wd =
       if List.all isInt [a.val, b.val] then
-        let a' = { a | val = floor a.val } in
-        let b' = { b | val = floor b.val } in
-        IntSlider a' tok b' cap
+        let a_ = { a | val = floor a.val } in
+        let b_ = { b | val = floor b.val } in
+        IntSlider a_ tok b_ cap
       else
         NumSlider a tok b cap
     in
