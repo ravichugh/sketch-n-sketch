@@ -1,4 +1,4 @@
-module Ace where
+module Ace exposing (..)
 
 -- these are per-line "annotations" in Ace
 type alias Annotation =

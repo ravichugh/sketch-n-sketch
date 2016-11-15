@@ -1,4 +1,4 @@
-module Draw
+module Draw exposing
   ( drawNewShape
   , drawDotSize
   , boundingBoxOfPoints_
@@ -9,7 +9,7 @@ module Draw
   , addLambda , addHelperDot
   , addTextBox
   , lambdaToolOptionsOf
-  ) where
+  )
 
 import Lang exposing (..)
 import LangSvg
@@ -742,7 +742,7 @@ switchToCursorTool old =
 --------------------------------------------------------------------------------
 -- Lambda Tool
 
-lambdaToolOptionsOf : Program -> List LambdaTool
+lambdaToolOptionsOf : LittleProgram -> List LambdaTool
 lambdaToolOptionsOf (defs, mainExp) =
   case mainExp of
 

@@ -3,8 +3,10 @@
   <head>
     <title>Sketch-n-Sketch</title>
     <script type="text/javascript" src="sns.js"></script>
+<!--
     <script type="text/javascript" src="ace.js"></script>
     <script type="text/javascript" src="aceTooltips.js"></script>
+-->
     <link rel="shortcut icon" type="image/png" href="sketch-n-sketch-logo.png">
     <meta charset="UTF-8">
     <style type="text/css" media="screen">
@@ -27,11 +29,14 @@
       window.initialPortValues = {};
       window.initializers      = [];
     </script>
+<!--
     <script type="text/javascript" src="codeBox.js"></script>
     <script type="text/javascript" src="toggleAnimationLoopback.js"></script>
+-->
     <script>
       // Start up Elm
-      var elmRuntime = Elm.fullscreen(Elm.Main, window.initialPortValues);
+      // var elmRuntime = Elm.fullscreen(Elm.Main, window.initialPortValues);
+      var elmRuntime = Elm.Main.fullscreen();
 
       // Call the initializers
       for (var i in window.initializers) {

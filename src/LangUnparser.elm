@@ -1,10 +1,10 @@
-module LangUnparser
+module LangUnparser exposing
   (unparse, unparsePat, unparseWD, unparseType,
     traceToLittle, bumpCol, incCol, precedingWhitespace,
     precedingWhitespaceExp__, addPrecedingWhitespace,
     replacePrecedingWhitespace, replacePrecedingWhitespacePat,
     indent
-  ) where
+  )
 
 import Lang exposing (..)
 import OurParser2 exposing (Pos, WithPos, WithInfo, startPos)

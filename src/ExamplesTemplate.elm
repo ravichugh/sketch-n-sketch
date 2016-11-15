@@ -1,4 +1,4 @@
-module ExamplesGenerated (list, scratchName, scratch) where
+module ExamplesGenerated exposing (list, scratchName, scratch)
 
 import Lang
 import LangParser2 as Parser
@@ -22,7 +22,7 @@ makeExample name s =
     let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| Eval.run e in
     {e=e, v=v, ws=ws, ati=ati}
   in
-  (name, s, thunk)
+  (name, (s, thunk))
 
 scratchName = "*Scratch*"
 

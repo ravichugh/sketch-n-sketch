@@ -1,4 +1,4 @@
-module Types where
+module Types exposing (..)
 
 import Lang exposing (..)
 import LangParser2 as Parser
@@ -11,7 +11,6 @@ import Config
 import Dict
 import Set
 import String
-import Graphics.Element exposing (show)
 
 equal : Type -> Type -> Bool
 equal t1 t2 =
@@ -1864,8 +1863,6 @@ aceTypeInfo typeInfo =
 dummyAceTypeInfo = { annotations = [], highlights = [], tooltips = [] }
 
 
--- dummy for stand-alone compilation
-main = show 1
 
 
 {--

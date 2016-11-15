@@ -1,4 +1,4 @@
-module LangTools where
+module LangTools exposing (..)
 
 -- Most of these methods used to be in Lang.elm
 --

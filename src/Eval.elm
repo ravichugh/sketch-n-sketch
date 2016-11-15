@@ -1,4 +1,4 @@
-module Eval (run, parseAndRun, parseAndRun_, evalDelta, eval) where
+module Eval exposing (run, parseAndRun, parseAndRun_, evalDelta, eval)
 
 import Debug
 import Dict

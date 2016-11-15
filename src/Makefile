@@ -33,7 +33,9 @@ loc:
     LangParser2.elm LangUnparser.elm OurParser2.elm \
     Types.elm Eval.elm ShapeWidgets.elm \
     Solver.elm LocEqn.elm Sync.elm \
-    InterfaceModel.elm InterfaceView2.elm InterfaceController.elm \
+    InterfaceModel.elm \
+    InterfaceView3.elm Canvas.elm \
+    InterfaceController.elm \
     LangTools.elm LangTransform.elm ValueBasedTransform.elm \
     Blobs.elm Draw.elm ExpressionBasedTransform.elm \
     InterfaceStorage.elm Storage.elm \

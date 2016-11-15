@@ -1,6 +1,7 @@
-module LangParser2 (prelude, isPreludeLoc, isPreludeLocId, isPreludeEId,
+module LangParser2 exposing
+                   (prelude, isPreludeLoc, isPreludeLocId, isPreludeEId,
                     substOf, substStrOf, parseE, parseT,
-                    freshen, substPlusOf) where
+                    freshen, substPlusOf)
 
 import String
 import Dict

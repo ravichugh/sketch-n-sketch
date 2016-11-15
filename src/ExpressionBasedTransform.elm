@@ -1,4 +1,4 @@
-module ExpressionBasedTransform -- in contrast to ValueBasedTransform
+module ExpressionBasedTransform exposing -- in contrast to ValueBasedTransform
   ( groupSelectedBlobs
   , abstractSelectedBlobs
   , replicateSelectedBlob
@@ -7,7 +7,7 @@ module ExpressionBasedTransform -- in contrast to ValueBasedTransform
   , deleteSelectedBlobs
   , anchorOfSelectedFeatures
   , groupSelectedBlobsAround
-  ) where
+  )
 
 import Lang exposing (..)
 import LangUnparser exposing (unparse)
@@ -18,7 +18,6 @@ import Blobs exposing (..)
 import LangTransform
 import Types
 import InterfaceModel exposing (Model, ReplicateKind(..))
-import InterfaceView2 as View
 import Utils
 import Keys
 

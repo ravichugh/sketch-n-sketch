@@ -1,11 +1,11 @@
-module Sync
+module Sync exposing
   ( Options, defaultOptions, syncOptionsOf
   , heuristicsNone, heuristicsFair, heuristicsBiased, toggleHeuristicMode
   , locsOfTrace
   , LiveInfo, ShapeTriggers, LiveTrigger, ZoneKey
   , prepareLiveUpdates, prepareLiveTrigger
   , yellowAndGrayHighlights, hoverInfo
-  ) where
+  )
 
 import Lang exposing (..)
 import LangSvg exposing

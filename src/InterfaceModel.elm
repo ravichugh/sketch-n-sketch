@@ -1,4 +1,4 @@
-module InterfaceModel where
+module InterfaceModel exposing (..)
 
 import Lang exposing (..)
 import Types exposing (AceTypeInfo)
@@ -12,12 +12,12 @@ import LangUnparser exposing (unparse)
 import Ace
 import Either exposing (Either(..))
 
-import List
-import Debug
 import String
-import Dict
-import Set
+import Dict exposing (Dict)
+import Set exposing (Set)
 import Char
+import Window
+import Mouse
 
 import Svg
 import Lazy
@@ -50,11 +50,11 @@ type alias Model =
   , orient : Orientation
   , hideCode : Bool
   , hideCanvas : Bool
-  , dimensions : (Int, Int)
+  , dimensions : Window.Size
   , midOffsetX : Int  -- extra codebox width in vertical orientation
   , midOffsetY : Int  -- extra codebox width in horizontal orientation
 
-  , mouseState : (Maybe Bool, (Int, Int))
+  , mouseState : (Maybe Bool, Mouse.Position)
       -- mouseState ~= (Mouse.isDown, Mouse.position)
       --  Nothing    : isDown = False
       --  Just False : isDown = True and position unchanged since isDown became True
@@ -76,7 +76,7 @@ type alias Model =
   , selectedShapes : Set.Set NodeId
   , selectedFeatures : Set.Set SelectedShapeFeature
   -- line/g ids assigned by blobs function
-  , selectedBlobs : Dict.Dict Int NodeId
+  , selectedBlobs : Dict Int NodeId
   , keysDown : List Char.KeyCode
   , randomColor : Int
   , lambdaTools : (Int, List LambdaTool)
@@ -165,10 +165,13 @@ type ReplicateKind
   | LinearRepeat
   | RadialRepeat
 
+-- TODO rename Event to Msg
+type alias Msg = Event
+
 type Event = ClickZone ZoneKey
            | MouseClickCanvas      -- used to initiate drawing new shape
            | MouseIsDown Bool
-           | MousePosition (Int, Int)
+           | MousePosition Mouse.Position
            | TickDelta Float -- 60fps time tick, Float is time since last tick
            -- | Sync
            | PreviewCode (Maybe Code)
@@ -184,6 +187,7 @@ type Event = ClickZone ZoneKey
            | ReplicateBlob ReplicateKind
            | SwitchMode Mode
            | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets, ati:AceTypeInfo})
+           | CodeUpdate String -- for basic codebox
            | Run
            | TryParseRun Model
            | StartAnimation
@@ -199,8 +203,10 @@ type Event = ClickZone ZoneKey
            | ToggleBasicCodeBox
            | StartResizingMid
            | Undo | Redo
-           | KeysDown KeysDown
-           | WindowDimensions (Int, Int)
+           | KeyPress Char.KeyCode
+           | KeyDown Char.KeyCode
+           | KeyUp Char.KeyCode
+           | WindowDimensions Window.Size
            | Noop
            | UpdateFieldContents DialogInfo
            | CleanCode
@@ -213,8 +219,6 @@ type Event = ClickZone ZoneKey
            | WaitClean
            | WaitCodeBox
 
-events : Signal.Mailbox Event
-events = Signal.mailbox <| Noop
 
 --------------------------------------------------------------------------------
 
@@ -243,11 +247,14 @@ codeToShow model =
 
 --------------------------------------------------------------------------------
 
-sampleModel : Model
+-- TODO rename sampleModel to initModel
+initModel : Model
+initModel = sampleModel
+
 sampleModel =
   let
-    (name,_,f) = Utils.head_ Examples.list
-    {e,v,ws}   = f ()
+    (name,(_,f)) = Utils.head_ Examples.list
+    {e,v,ws}     = f ()
   in
   let (slideCount, movieCount, movieDuration, movieContinue, slate) =
     Utils.fromOk "generating sample model" <| LangSvg.fetchEverything 1 1 0.0 v
@@ -276,10 +283,10 @@ sampleModel =
     , orient        = Vertical
     , hideCode      = False
     , hideCanvas    = False
-    , dimensions    = (1000, 800) -- dummy in case foldp' didn't get initial value
+    , dimensions    = { width = 1000, height = 800 } -- dummy in case initCmd fails
     , midOffsetX    = 0
     , midOffsetY    = -100
-    , mouseState    = (Nothing, (0, 0))
+    , mouseState    = (Nothing, {x = 0, y = 0})
     , syncOptions   = Sync.defaultOptions
     , caption       = Nothing
     , showGhosts    = True

@@ -1,4 +1,4 @@
-module LangSvg
+module LangSvg exposing
   ( attr
   , NodeId, ShapeKind
   , AVal, AVal_(..), PathCounts, PathCmd(..), TransformCmd(..)
@@ -19,7 +19,7 @@ module LangSvg
   , maybeFindBounds, maybeFindBlobId
   , justGetSvgNode
   , resolveToIndexedTree, resolveToMovieFrameVal, resolveToMovieCount, fetchEverything
-  ) where
+  )
 
 import Html
 import Html.Attributes as HA
@@ -480,10 +480,10 @@ strAVal a = case a.av_ of
 ------------------------------------------------------------------------------
 -- Compiling to SVG (DOM)
 
-compileAttrs : List Attr -> List Svg.Attribute
+compileAttrs : List Attr -> List (Svg.Attribute a)
 compileAttrs = List.map (uncurry compileAttr)
 
-compileAttr : String -> AVal -> Svg.Attribute
+compileAttr : String -> AVal -> Svg.Attribute a
 compileAttr k v = (attr k) (strAVal v)
 
   -- TODO move rest of View.buildSvg here

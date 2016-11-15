@@ -1,4 +1,4 @@
-module Keys where
+module Keys exposing (..)
 
 import Char
 

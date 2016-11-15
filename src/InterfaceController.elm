@@ -1,4 +1,4 @@
-module InterfaceController (upstate) where
+module InterfaceController exposing (upstate)
 
 import Lang exposing (..) --For access to what makes up the Vals
 import Types
@@ -15,7 +15,7 @@ import Eval
 import Utils
 import Keys
 import InterfaceModel exposing (..)
-import InterfaceStorage exposing (installSaveState, removeDialog)
+-- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
 import ShapeWidgets
 import ExamplesGenerated as Examples
@@ -30,8 +30,6 @@ import Dict exposing (Dict)
 import Set
 import String
 import Char
-import Graphics.Element as GE
-import Graphics.Collage as GC
 
 --Html Libraries
 import Html
@@ -141,30 +139,20 @@ switchToCursorTool old =
 
 --------------------------------------------------------------------------------
 
-clickToCanvasPoint old (mx, my) =
+clickToCanvasPoint old {x, y} =
   let (xOrigin, yOrigin) = case old.orient of
     Vertical   -> canvasOriginVertical old
     Horizontal -> canvasOriginHorizontal old
   in
-  (mx - xOrigin, my - yOrigin)
+  (x - xOrigin, y - yOrigin)
 
 -- the computations of the top-left corner of the canvas
 -- are based on copying the computations from View
 -- TODO: refactor these
 
 canvasOriginVertical old =
-  let
-    sideGut = params.topSection.h
-    wGut    = params.mainSection.vertical.wGut
-    wMiddle = params.mainSection.widgets.wBtn
-    wCode_  = (fst old.dimensions - sideGut - sideGut - wMiddle - wGut - wGut) // 2
-    wCode   = if old.hideCode then 0
-              else if old.hideCanvas then (fst old.dimensions - sideGut - sideGut - wMiddle - wGut - wGut)
-              else wCode_ + old.midOffsetX
-  in
-    ( sideGut + wCode + 2*wGut + wMiddle
-    , params.topSection.h
-    )
+  let layout = Config.computeLayoutInfo old in
+  (layout.xCanvas, layout.hTop)
 
 canvasOriginHorizontal old =
   -- TODO the y-position in horizontal mode is off by a few pixels
@@ -174,7 +162,7 @@ canvasOriginHorizontal old =
     hTop    = params.topSection.h
     hBot    = params.botSection.h
     hGut    = params.mainSection.horizontal.hGut
-    hCode_  = (snd old.dimensions - hTop - hBot - hGut) // 2
+    hCode_  = (old.dimensions.height - hTop - hBot - hGut) // 2
     hCode   = hCode_ + old.midOffsetY
     -- TODO consider hideCode and hideCanvas
     wTools  = params.mainSection.widgets.wBtn + 2 * params.mainSection.vertical.wGut
@@ -242,7 +230,8 @@ onMouseClick click old =
 
     (_, MouseDrawNew []) -> switchToCursorTool old
 
-    _ -> old
+    _ ->
+      old
 
 onClickPrimaryZone i k z old =
   let hoveredCrosshairs' =
@@ -282,8 +271,9 @@ onClickPrimaryZone i k z old =
         , selectedBlobs = selectedBlobs'
         }
 
-onMouseMove (mx0, my0) old =
-  let (mx, my) = clickToCanvasPoint old (mx0, my0) in
+onMouseMove newPosition old =
+  let (mx0, my0) = (newPosition.x, newPosition.y) in
+  let (mx, my) = clickToCanvasPoint old newPosition in
   case old.mouseMode of
 
     MouseNothing -> old
@@ -442,6 +432,8 @@ upstate evt old = case debugLog "Event" evt of
 
     WindowDimensions wh -> { old | dimensions = wh }
 
+    CodeUpdate s -> { old | code = s }
+
     Run ->
       case tryRun old of
         Err (err, Just annot) ->
@@ -516,7 +508,7 @@ upstate evt old = case debugLog "Event" evt of
 
     MouseIsDown b ->
       let old =
-        let (x,y) = snd old.mouseState in
+        let {x,y} = snd old.mouseState in
         let lightestColor = 470 in
         { old | randomColor = (old.randomColor + x + y) % lightestColor }
       in
@@ -792,6 +784,29 @@ upstate evt old = case debugLog "Event" evt of
       else
         upstate StartAnimation { old | movieNumber = old.movieNumber - 1 }
 
+    KeyPress keyCode ->
+        old
+
+    KeyDown keyCode ->
+      if [keyCode] == Keys.escape then
+        case (old.tool, old.mouseMode) of
+          (Cursor, _) ->
+            { old | selectedFeatures = Set.empty
+                  , selectedShapes = Set.empty
+                  , selectedBlobs = Dict.empty
+                  }
+          (_, MouseNothing)   -> { old | tool = Cursor }
+          (_, MouseDrawNew _) -> { old | mouseMode = MouseNothing }
+          _                   -> old
+      else if [keyCode] == Keys.shift then
+        { old | keysDown = keyCode :: old.keysDown }
+      else
+        old
+
+    KeyUp keyCode ->
+      { old | keysDown = Utils.removeFirst keyCode old.keysDown }
+
+{-
     KeysDown l ->
       let _ = debugLog "keys" (toString l) in
       let new = { old | keysDown = l } in
@@ -818,6 +833,7 @@ upstate evt old = case debugLog "Event" evt of
       --   duplicateSelectedBlobs new
       else
         new
+-}
 
 {-      case old.mode of
           SaveDialog _ -> old
@@ -918,8 +934,12 @@ upstate evt old = case debugLog "Event" evt of
     -- Elm does not have function equivalence/pattern matching, so we need to
     -- thread these events through upstate in order to catch them to rerender
     -- appropriately (see CodeBox.elm)
+{-- TODO
     InstallSaveState -> installSaveState old
     RemoveDialog makeSave saveName -> removeDialog makeSave saveName old
+--}
+    InstallSaveState -> Debug.crash "InstallSaveState"
+    RemoveDialog makeSave saveName -> Debug.crash "RemoveDialog"
     ToggleBasicCodeBox -> { old | basicCodeBox = not old.basicCodeBox }
     UpdateFieldContents fieldContents -> { old | fieldContents = fieldContents }
 

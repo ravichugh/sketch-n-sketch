@@ -4,7 +4,7 @@
 -- Transformations of the code that do not change its output.
 --
 
-module LangTransform (simplify, removeExtraPostfixes) where
+module LangTransform exposing (simplify, removeExtraPostfixes)
 
 import Set
 import Dict

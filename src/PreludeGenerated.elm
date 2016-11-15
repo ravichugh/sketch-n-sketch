@@ -1,4 +1,4 @@
-module PreludeGenerated (src) where
+module PreludeGenerated exposing (src)
 
 prelude =
  "

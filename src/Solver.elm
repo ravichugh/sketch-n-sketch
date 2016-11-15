@@ -1,7 +1,7 @@
-module Solver
+module Solver exposing
   ( Equation
   , solve
-  ) where
+  )
 
 import Lang exposing (..)
 import Eval

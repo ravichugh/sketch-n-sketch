@@ -4,10 +4,11 @@
 -- interface.
 --
 
-module InterfaceStorage (taskMailbox, saveStateLocally, loadLocalState,
+module InterfaceStorage exposing
+                        (taskMailbox, saveStateLocally, loadLocalState,
                          getLocalSaves, checkAndSave, clearLocalSaves,
                          removeDialog, deleteLocalSave, installSaveState,
-                         commitLocalSave) where
+                         commitLocalSave)
 
 -- Storage library, for in browser storage
 import Storage exposing (getItem, setItem, removeItem, keys, clear)

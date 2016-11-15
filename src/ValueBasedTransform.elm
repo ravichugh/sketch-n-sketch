@@ -4,7 +4,7 @@
 -- Code transformations based on values selected in the output.
 --
 
-module ValueBasedTransform where
+module ValueBasedTransform exposing (..)
 
 import Lang exposing (..)
 import LangTools exposing (..)

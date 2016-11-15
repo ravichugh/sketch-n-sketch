@@ -1,4 +1,4 @@
-module LocEqn where
+module LocEqn exposing (..)
 
 import Lang exposing (..)
 import Config

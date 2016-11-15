@@ -1,4 +1,4 @@
-module Lang where
+module Lang exposing (..)
 
 import String
 import Debug

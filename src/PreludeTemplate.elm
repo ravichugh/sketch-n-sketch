@@ -1,4 +1,4 @@
-module PreludeGenerated (src) where
+module PreludeGenerated exposing (src)
 
 LITTLE_TO_ELM prelude
 

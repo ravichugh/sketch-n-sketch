@@ -1,14 +1,15 @@
 -- This is the elm file responsible for returning the completed code box given
 -- the Model and the appropriate dimensions.
 
-module CodeBox (interpretAceEvents, packageModel, tripRender,
+module CodeBox exposing
+               (interpretAceEvents, packageModel, tripRender,
                 AceMessage, AceCodeBoxInfo, initAceCodeBoxInfo, initFoldpAceCodeBoxInfo,
-                saveRequestInfo, runRequestInfo) where
+                saveRequestInfo, runRequestInfo)
 
 import Lang exposing (errorPrefix)
 import Ace
 
-import Graphics.Element as GE
+import Element as GE
 import InterfaceModel as Model exposing (Event, sampleModel, events)
 
 -- So we can check on the installSaveState update

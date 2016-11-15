@@ -1,4 +1,4 @@
-module Utils where
+module Utils exposing (..)
 
 import String
 import Debug

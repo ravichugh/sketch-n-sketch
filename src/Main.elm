@@ -1,29 +1,68 @@
-import InterfaceModel as Model exposing (events, sampleModel)
-import InterfaceView2 as View
+module Main exposing (main)
+
+import InterfaceModel as Model exposing (Msg, Model)
+import InterfaceView3 as View
 import InterfaceController as Controller
+{-
 import InterfaceStorage exposing (taskMailbox)
 import CodeBox exposing (interpretAceEvents, packageModel,
                          AceMessage, AceCodeBoxInfo, tripRender,
                          initAceCodeBoxInfo, initFoldpAceCodeBoxInfo)
+-}
 import Config
 
-import Graphics.Element exposing (Element)
+import Html exposing (Html)
+import Html.App as App
 import Mouse
 import Window
 import Keyboard
 import Time
 import Set
 
-import Signal.Extra
-
 import Task exposing (Task, andThen)
 
---TEMP FOR DEVELOPMENT
-import Html
-import Debug
 
 --------------------------------------------------------------------------------
 -- Main
+
+main : Program Never
+main =
+  App.program
+    { init = init
+    , view = view
+    , update = update
+    , subscriptions = subscriptions
+    }
+
+update : Msg -> Model -> (Model, Cmd Msg)
+update msg model =
+  (Controller.upstate msg model, Cmd.none)
+
+view : Model -> Html Msg
+view = View.view
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+  Sub.batch
+    [ Window.resizes Model.WindowDimensions
+    , Mouse.downs (always (Model.MouseIsDown True))
+    , Mouse.ups (always (Model.MouseIsDown False))
+    , Mouse.moves Model.MousePosition
+    , Keyboard.presses Model.KeyPress
+    , Keyboard.downs Model.KeyDown
+    , Keyboard.ups Model.KeyUp
+    ]
+
+init : (Model, Cmd Msg)
+init = (Model.initModel, initCmd)
+
+initCmd =
+  Task.perform
+    (\_ -> let _ = Debug.log "Window.size failed..." in Model.Noop)
+    Model.WindowDimensions
+    Window.size
+
+{----
 
 sigModel : Signal Model.Model
 sigModel =
@@ -123,3 +162,5 @@ port aceInTheHole =
 
 -- Port for Event messages from the code box
 port theTurn : Signal AceMessage
+
+----}

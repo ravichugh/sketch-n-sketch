@@ -1,4 +1,4 @@
-module ShapeWidgets where
+module ShapeWidgets exposing (..)
 
 import Lang exposing (..)
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Attr)

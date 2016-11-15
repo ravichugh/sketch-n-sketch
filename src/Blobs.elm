@@ -1,4 +1,4 @@
-module Blobs where
+module Blobs exposing (..)
 
 import Lang exposing (..)
 import LangUnparser exposing (addPrecedingWhitespace)
@@ -8,9 +8,9 @@ import Utils
 --------------------------------------------------------------------------------
 -- Simple Program and Blob Types
 
-type alias Program = (TopDefs, MainExp)
+type alias LittleProgram = (TopDefs, MainExp)
 
-type alias SimpleProgram = (TopDefs, List BlobExp, List BlobExp -> Exp)
+type alias SimpleLittleProgram = (TopDefs, List BlobExp, List BlobExp -> Exp)
 
 -- TODO store Idents and "types" in TopDefs. also use for lambda tool.
 
@@ -37,7 +37,7 @@ callBlob e tuple       = NiceBlob e (CallBlob tuple)
 withBoundsBlob e tuple = NiceBlob e (WithBoundsBlob tuple)
 withAnchorBlob e tuple = NiceBlob e (WithAnchorBlob tuple)
 
-isSimpleProgram : Exp -> Maybe SimpleProgram
+isSimpleProgram : Exp -> Maybe SimpleLittleProgram
 isSimpleProgram e =
   let (defs, mainExp) = splitExp e in
   case mainExp of
@@ -45,7 +45,7 @@ isSimpleProgram e =
     OtherExp _    -> Nothing
     Blobs blobs f -> Just (defs, blobs, f)
 
-splitExp : Exp -> Program
+splitExp : Exp -> LittleProgram
 splitExp e =
   case e.val.e__ of
     ELet ws1 Def False p1 e1 e2 ws2 ->
@@ -54,7 +54,7 @@ splitExp e =
     _ ->
       ([], toMainExp e)
 
-fuseExp : Program -> Exp
+fuseExp : LittleProgram -> Exp
 fuseExp (defs, mainExp) =
   let recurse defs =
     case defs of
