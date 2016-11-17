@@ -1,4 +1,4 @@
-module InterfaceController exposing (upstate)
+module InterfaceController exposing (update)
 
 import Lang exposing (..) --For access to what makes up the Vals
 import Types
@@ -15,6 +15,7 @@ import Eval
 import Utils
 import Keys
 import InterfaceModel exposing (..)
+import AceCodeBox
 -- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
 import ShapeWidgets
@@ -931,37 +932,30 @@ upstate evt old = case debugLog "Msg" evt of
           newModel
 -}
 
-    -- Elm does not have function equivalence/pattern matching, so we need to
-    -- thread these events through upstate in order to catch them to rerender
-    -- appropriately (see CodeBox.elm)
-{-- TODO
-    InstallSaveState -> installSaveState old
-    RemoveDialog makeSave saveName -> removeDialog makeSave saveName old
---}
-    InstallSaveState -> Debug.crash "InstallSaveState"
-    RemoveDialog makeSave saveName -> Debug.crash "RemoveDialog"
     ToggleBasicCodeBox -> { old | basicCodeBox = not old.basicCodeBox }
-    UpdateFieldContents fieldContents -> { old | fieldContents = fieldContents }
 
     UpdateModel f -> f old
 
-    -- Lets multiple events be executed in sequence (useful for CodeBox.elm)
-    MultiEvent evts -> case evts of
-      [] -> old
-      e1 :: es -> upstate e1 old |> upstate (MultiEvent es)
+    AceMsg info ->
+      let new = { old | code = info.code } in
+      upstate Run new
 
-    WaitRun -> old
-    WaitSave saveName -> { old | exName = saveName }
-    WaitClean -> old
-    WaitCodeBox -> old
-
-
-adjustMidOffsetX old dx =
-  case old.orient of
-    Vertical   -> { old | midOffsetX = old.midOffsetX + dx }
-    Horizontal -> upstate SwitchOrient old
-
-adjustMidOffsetY old dy =
-  case old.orient of
-    Horizontal -> { old | midOffsetY = old.midOffsetY + dy }
-    Vertical   -> upstate SwitchOrient old
+-- TODO: this is temporarily a separate step after upstate
+update : Msg -> Model -> (Model, Cmd Msg)
+update msg model =
+  let newModel = upstate msg model in
+  let cmd =
+    case msg of
+      Run ->
+        AceCodeBox.requestEditorState ()
+      ToggleBasicCodeBox ->
+        if newModel.basicCodeBox
+          then Cmd.none
+          else AceCodeBox.initializeAndDisplay newModel
+            -- TODO crash: "Uncaught Error: ace.edit can't find div #editor"
+      _ ->
+        if model.code == newModel.code
+          then Cmd.none
+          else AceCodeBox.display newModel
+  in
+  (newModel, cmd)

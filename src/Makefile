@@ -7,7 +7,7 @@ all:
 
 html:
 	$(ELMMAKE) Main.elm --output ../build/out/sns.js
-	cp Native/codeBox.js ../build/out/
+	cp Native/aceCodeBox.js ../build/out/
 	cp Native/aceTooltips.js ../build/out/
 	cp Native/toggleAnimationLoopback.js ../build/out/
 	cp ../ace-builds/src/ace.js ../build/out/
@@ -39,7 +39,7 @@ loc:
     LangTools.elm LangTransform.elm ValueBasedTransform.elm \
     Blobs.elm Draw.elm ExpressionBasedTransform.elm \
     InterfaceStorage.elm Storage.elm \
-    Ace.elm CodeBox.elm Native/codeBox.js \
+    Ace.elm AceCodeBox.elm Native/aceCodeBox.js \
     Native/toggleAnimationLoopback.js \
     Main.elm Config.elm \
     Utils.elm Either.elm \

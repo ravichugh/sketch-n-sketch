@@ -3,12 +3,7 @@ module Main exposing (main)
 import InterfaceModel as Model exposing (Msg, Model)
 import InterfaceView3 as View
 import InterfaceController as Controller
-{-
-import InterfaceStorage exposing (taskMailbox)
-import CodeBox exposing (interpretAceEvents, packageModel,
-                         AceMessage, AceCodeBoxInfo, tripRender,
-                         initAceCodeBoxInfo, initFoldpAceCodeBoxInfo)
--}
+import AceCodeBox
 import Config
 
 import Html exposing (Html)
@@ -33,12 +28,21 @@ main =
     , subscriptions = subscriptions
     }
 
-update : Msg -> Model -> (Model, Cmd Msg)
-update msg model =
-  (Controller.upstate msg model, Cmd.none)
+init : (Model, Cmd Msg)
+init = (Model.initModel, initCmd)
 
 view : Model -> Html Msg
 view = View.view
+
+update : Msg -> Model -> (Model, Cmd Msg)
+update = Controller.update
+
+initCmd : Cmd Msg
+initCmd =
+  Cmd.batch
+    [ Task.perform Model.WindowDimensions Window.size
+    , AceCodeBox.initializeAndDisplay Model.initModel
+    ]
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -50,15 +54,9 @@ subscriptions model =
     , Keyboard.presses Model.KeyPress
     , Keyboard.downs Model.KeyDown
     , Keyboard.ups Model.KeyUp
+    , AceCodeBox.receiveEditorState Model.AceMsg
     ]
 
-init : (Model, Cmd Msg)
-init = (Model.initModel, initCmd)
-
-initCmd =
-  Task.perform
-    Model.WindowDimensions
-    Window.size
 
 {----
 

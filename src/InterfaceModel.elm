@@ -12,17 +12,11 @@ import LangUnparser exposing (unparse)
 import Ace
 import Either exposing (Either(..))
 
-import String
 import Dict exposing (Dict)
 import Set exposing (Set)
 import Char
 import Window
 import Mouse
-
-import Svg
-import Lazy
-
-import Task exposing (Task, succeed, andThen)
 
 type alias Code = String
 
@@ -64,7 +58,6 @@ type alias Model =
   , caption : Maybe Caption
   , showGhosts : ShowGhosts
   , localSaves : List String
-  , fieldContents : DialogInfo
   , startup : Bool
   , codeBoxInfo : CodeBoxInfo
   , basicCodeBox : Bool
@@ -88,11 +81,6 @@ type Mode
   | Live Sync.LiveInfo
   | Print RawSvg
       -- TODO might add a print mode where <g BLOB BOUNDS> nodes are removed
-  | SaveDialog Mode -- SaveDialog saves last mode
-
-type alias DialogInfo = { value : String
-                        , hint   : String
-                        }
 
 type alias CodeBoxInfo =
   { cursorPos : Ace.Pos
@@ -196,8 +184,6 @@ type Msg
   | NextMovie
   | PreviousMovie
   | SwitchOrient
-  | InstallSaveState
-  | RemoveDialog Bool String
   | ToggleBasicCodeBox
   | StartResizingMid
   | Undo | Redo
@@ -206,16 +192,15 @@ type Msg
   | KeyUp Char.KeyCode
   | WindowDimensions Window.Size
   | Noop
-  | UpdateFieldContents DialogInfo
   | CleanCode
   | UpdateModel (Model -> Model)
       -- TODO could write other events in terms of UpdateModel
-  | MultiEvent (List Msg)
-  --A state such that we're waiting for a response from Ace
-  | WaitRun
-  | WaitSave String
-  | WaitClean
-  | WaitCodeBox
+  | AceMsg AceCodeBoxInfo
+
+type alias AceCodeBoxInfo = -- subset of Model
+  { code : String
+  , codeBoxInfo : CodeBoxInfo
+  }
 
 
 --------------------------------------------------------------------------------
@@ -288,7 +273,6 @@ initModel =
     , caption       = Nothing
     , showGhosts    = True
     , localSaves    = []
-    , fieldContents = { value = "", hint = "Input File Name" }
     , startup       = True
     , codeBoxInfo   = { cursorPos = { row = round 0, column = round 0 }
                       , selections = []
@@ -298,9 +282,7 @@ initModel =
                       }
     , basicCodeBox  = False
     , errorBox      = Nothing
-    -- starting at 1 to match shape ids on blank canvas
-    -- , genSymCount   = 0
-    , genSymCount   = 1
+    , genSymCount   = 1 -- starting at 1 to match shape ids on blank canvas
     , tool          = Line Raw
     , hoveredShapes = Set.empty
     , hoveredCrosshairs = Set.empty

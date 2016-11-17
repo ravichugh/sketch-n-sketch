@@ -72,7 +72,8 @@ build wCanvas hCanvas model =
       _               -> []
   in
   Svg.svg
-     [ onMouseDown MouseClickCanvas
+     [ Attr.id "outputCanvas"
+     , onMouseDown MouseClickCanvas
      , Attr.style [ ("width", pixels wCanvas), ("height", pixels hCanvas) ]
      ]
      ([outputShapes] ++ newShape ++ widgets)

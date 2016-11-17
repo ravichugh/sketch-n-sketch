@@ -25,6 +25,7 @@ import Svg.Events exposing (onMouseDown, onMouseUp, onMouseOver, onMouseOut)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events exposing (onClick, onInput, on)
+import Html.Lazy
 import Json.Decode
 
 
@@ -46,7 +47,8 @@ view model =
   let wLogo = params.topSection.wLogo in
   let top =
     Html.div
-       [ Attr.style
+       [ Attr.id "topStrip"
+       , Attr.style
            [ ("height", pixels layout.hTop)
            , ("padding", "2pt")
            ] ]
@@ -63,12 +65,13 @@ view model =
        , orientationButton model
        , outputButton model
        , ghostsButton model
+       , codeBoxButton model
        , caption model
        ]
   in
   let bot =
     Html.div
-       [ Attr.style [] ]
+       [ Attr.id "bottomStrip", Attr.style [] ]
        [ Html.span
            [ Attr.style [ ("width", pixels layout.wCodebox)
                         , ("display", "inline-block")
@@ -100,12 +103,11 @@ view model =
            ]
        ]
   in
-  let codebox =
-    textArea model model.code <|
-      [ onInput CodeUpdate
-      , Attr.style [ ("width", pixels layout.wCodebox)
-                   ]
-      ] in
+  let codeBox =
+    if model.basicCodeBox
+      then basicCodeBox model layout
+      else aceCodeBox model layout
+  in
   let outputArea =
     case (model.errorBox, model.mode) of
       (Nothing, Print svgCode) ->
@@ -119,7 +121,8 @@ view model =
   in
   let canvas =
     Html.div
-       [ Attr.style [ ("width", pixels layout.wCanvas)
+       [ Attr.id "outputArea"
+       , Attr.style [ ("width", pixels layout.wCanvas)
                     , ("height", pixels layout.hCanvas)
                     , ("display", "inline-block")
                     , ("border", params.mainSection.canvas.border)
@@ -130,8 +133,10 @@ view model =
     [ Html.div []
         [ top
         , Html.div
-            [ Attr.style [ ("height", pixels layout.hMid) ] ]
-            [ codebox, canvas ]
+            [ Attr.id "middleStrip"
+            , Attr.style [ ("height", pixels layout.hMid) ]
+            ]
+            [ codeBox, canvas ]
         , bot
         ]
     ]
@@ -171,6 +176,31 @@ textArea model text attrs =
   in
   Html.textarea (commonAttrs ++ attrs) [ Html.text text ]
 
+--------------------------------------------------------------------------------
+
+basicCodeBox model layout =
+  textArea model model.code <|
+    [ onInput CodeUpdate
+    , Attr.style [ ("width", pixels layout.wCodebox)
+                 ]
+    ]
+
+aceCodeBox model layout =
+  Html.span
+    [ Attr.id "editor"
+    , Attr.style [ ("width", pixels layout.wCodebox)
+                 , ("height", "100%")
+                 , ("pointer-events", "auto")
+                 -- , ("z-index", "1")
+                 , ("display", "inline-block")
+                 ]
+    ]
+    [ ]
+{-
+    Html.Lazy.lazy
+      (\_ -> Html.div [ Attr.id "editor" ] [ Html.text "initial" ]) ()
+-}
+
 
 --------------------------------------------------------------------------------
 
@@ -201,7 +231,7 @@ cleanButton model =
       Live _ -> False
       _      -> True
   in
-  htmlButton "Clean Up" WaitClean Regular disabled
+  htmlButton "Clean Up" CleanCode Regular disabled
 
 undoButton model =
   let past = Tuple.first model.history in
@@ -259,6 +289,10 @@ ghostsButton model =
     { old | showGhosts = showGhosts_, mode = mode_ }
   in
   htmlButton cap (UpdateModel foo) Regular False
+
+codeBoxButton model =
+  let text = "[Code Box] " ++ if model.basicCodeBox then "Basic" else "Fancy" in
+  htmlButton text ToggleBasicCodeBox Regular False
 
 toolButton model tool =
   let capStretchy s = if showRawShapeTools then "BB" else s in
