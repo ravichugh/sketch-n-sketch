@@ -426,6 +426,17 @@ tryRun old =
 --------------------------------------------------------------------------------
 -- Updating the Model
 
+-- 1. Compute a "pure" update (only the newModel), and then
+-- 2. Decide whether to issue a command based on simple predicates
+--    (name of Msg, and simple comparison of oldModel and newModel).
+--
+update : Msg -> Model -> (Model, Cmd Msg)
+update msg oldModel =
+  let newModel = upstate msg oldModel in
+  let cmd = andThenCommand msg oldModel newModel in
+  (newModel, cmd)
+
+
 upstate : Msg -> Model -> Model
 upstate evt old = case debugLog "Msg" evt of
 
@@ -940,22 +951,23 @@ upstate evt old = case debugLog "Msg" evt of
       let new = { old | code = info.code } in
       upstate Run new
 
--- TODO: this is temporarily a separate step after upstate
-update : Msg -> Model -> (Model, Cmd Msg)
-update msg model =
-  let newModel = upstate msg model in
-  let cmd =
-    case msg of
-      Run ->
-        AceCodeBox.requestEditorState ()
-      ToggleBasicCodeBox ->
-        if newModel.basicCodeBox
-          then Cmd.none
-          else AceCodeBox.initializeAndDisplay newModel
-            -- TODO crash: "Uncaught Error: ace.edit can't find div #editor"
-      _ ->
-        if model.code == newModel.code
-          then Cmd.none
-          else AceCodeBox.display newModel
-  in
-  (newModel, cmd)
+
+andThenCommand : Msg -> Model -> Model -> Cmd Msg
+andThenCommand msg oldModel newModel =
+  case msg of
+    Run ->
+      AceCodeBox.requestEditorState ()
+
+    ToggleBasicCodeBox ->
+      if newModel.basicCodeBox
+        then Cmd.none
+        else AceCodeBox.initializeAndDisplay newModel
+          -- TODO crash: "Uncaught Error: ace.edit can't find div #editor"
+
+    _ ->
+      if newModel.code == oldModel.code &&
+         newModel.codeBoxInfo == oldModel.codeBoxInfo
+      then
+        Cmd.none
+      else
+        AceCodeBox.display newModel
