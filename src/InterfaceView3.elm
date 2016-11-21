@@ -348,10 +348,6 @@ heuristicsButton model =
   in
   htmlButton ("[Heuristics] " ++ yesno) (UpdateModel foo) Regular False
 
-orientationButton model =
-  let text = "[Orientation] " ++ toString model.orient in
-  htmlButton text SwitchOrient Regular False
-
 outputButton model =
   let disabled = model.mode == AdHoc in
   let cap =

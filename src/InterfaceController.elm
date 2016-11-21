@@ -67,10 +67,6 @@ refreshHighlights zoneKey model =
   let hi = liveInfoToHighlights zoneKey model in
   { model | codeBoxInfo = { codeBoxInfo | highlights = hi } }
 
-switchOrient m = case m of
-  Vertical -> Horizontal
-  Horizontal -> Vertical
-
 -- may want to eventually have a maximum history length
 addToHistory currentCode h =
   let (past, _) = h in
@@ -141,37 +137,10 @@ switchToCursorTool old =
 
 --------------------------------------------------------------------------------
 
-clickToCanvasPoint old {x, y} =
-  let (xOrigin, yOrigin) = case old.orient of
-    Vertical   -> canvasOriginVertical old
-    Horizontal -> canvasOriginHorizontal old
-  in
-  (x - xOrigin, y - yOrigin)
-
--- the computations of the top-left corner of the canvas
--- are based on copying the computations from View
--- TODO: refactor these
-
-canvasOriginVertical model =
+clickToCanvasPoint model {x,y} =
   let layout = Layout.computeLayout model in
-  (layout.canvas.left, layout.canvas.top)
-
-canvasOriginHorizontal old =
-  -- TODO the y-position in horizontal mode is off by a few pixels
-  -- TODO in View, the height of codebox isn't the same as the canvas.
-  --   hMid is calculated weirdly in View...
-  let
-    hTop    = params.topSection.h
-    hBot    = params.botSection.h
-    hGut    = params.mainSection.horizontal.hGut
-    hCode_  = (old.dimensions.height - hTop - hBot - hGut) // 2
-    hCode   = hCode_ + old.midOffsetY
-    -- TODO consider hideCode and hideCanvas
-    wTools  = params.mainSection.widgets.wBtn + 2 * params.mainSection.vertical.wGut
-  in
-    ( wTools
-    , params.topSection.h + hCode + hGut
-    )
+  let (xOrigin, yOrigin) = (layout.canvas.left, layout.canvas.top) in
+  (x - xOrigin, y - yOrigin)
 
 
 --------------------------------------------------------------------------------
@@ -279,18 +248,6 @@ onMouseMove newPosition old =
   case old.mouseMode of
 
     MouseNothing -> old
-
-    MouseResizeMid Nothing ->
-      let f =
-        case old.orient of
-          Vertical   -> \(mx1,_) -> (old.midOffsetX + mx1 - mx0, old.midOffsetY)
-          Horizontal -> \(_,my1) -> (old.midOffsetY, old.midOffsetY + my1 - my0)
-      in
-      { old | mouseMode = MouseResizeMid (Just f) }
-
-    MouseResizeMid (Just f) ->
-      let (x,y) = f (mx0, my0) in
-      { old | midOffsetX = x , midOffsetY = y }
 
     MouseDragLayoutWidget f ->
       f (mx0, my0) old
@@ -488,11 +445,6 @@ upstate evt old = case debugLog "Msg" evt of
         _       -> Print (LangSvg.printSvg old.showGhosts old.slate)
       in
       { old | mode = m }
-
-    StartResizingMid ->
-      if old.hideCode then old
-      else if old.hideCanvas then old
-      else { old | mouseMode = MouseResizeMid Nothing }
 
     ClickZone zoneKey ->
       case old.mode of
@@ -738,8 +690,6 @@ upstate evt old = case debugLog "Msg" evt of
       ) |> handleError old
 
     SwitchMode m -> { old | mode = m }
-
-    SwitchOrient -> { old | orient = switchOrient old.orient }
 
     Undo ->
       case old.history of

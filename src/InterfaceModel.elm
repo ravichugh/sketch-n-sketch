@@ -41,12 +41,9 @@ type alias Model =
   , widgets : Widgets
   , mode : Mode
   , mouseMode : MouseMode
-  , orient : Orientation
   , hideCode : Bool
   , hideCanvas : Bool
   , dimensions : Window.Size
-  , midOffsetX : Int  -- extra codebox width in vertical orientation
-  , midOffsetY : Int  -- extra codebox width in horizontal orientation
 
   , mouseState : (Maybe Bool, Mouse.Position)
       -- mouseState ~= (Mouse.isDown, Mouse.position)
@@ -95,7 +92,6 @@ type alias RawSvg = String
 
 type MouseMode
   = MouseNothing
-  | MouseResizeMid (Maybe (MouseTrigger (Int, Int)))
   | MouseDragLayoutWidget (MouseTrigger (Model -> Model))
 
   | MouseDragZone
@@ -113,8 +109,6 @@ type MouseMode
       --   for lambda,            n == 0 or n == 2
 
 type alias MouseTrigger a = (Int, Int) -> a
-
-type Orientation = Vertical | Horizontal
 
 type alias PossibleChange = (Exp, Val, RootedIndexedTree, Code)
   -- TODO this should have Widgets...
@@ -185,9 +179,7 @@ type Msg
   | PreviousSlide
   | NextMovie
   | PreviousMovie
-  | SwitchOrient
   | ToggleBasicCodeBox
-  | StartResizingMid
   | Undo | Redo
   | KeyPress Char.KeyCode
   | KeyDown Char.KeyCode
@@ -291,12 +283,9 @@ initModel =
     , widgets       = ws
     , mode          = liveModeInfo
     , mouseMode     = MouseNothing
-    , orient        = Vertical
     , hideCode      = False
     , hideCanvas    = False
     , dimensions    = { width = 1000, height = 800 } -- dummy in case initCmd fails
-    , midOffsetX    = 0
-    , midOffsetY    = -100
     , mouseState    = (Nothing, {x = 0, y = 0})
     , syncOptions   = Sync.defaultOptions
     , caption       = Nothing
