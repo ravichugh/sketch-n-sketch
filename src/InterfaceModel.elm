@@ -73,6 +73,7 @@ type alias Model =
   , keysDown : List Char.KeyCode
   , randomColor : Int
   , lambdaTools : (Int, List LambdaTool)
+  , layoutOffsets : LayoutOffsets
   }
 
 type Mode
@@ -95,6 +96,7 @@ type alias RawSvg = String
 type MouseMode
   = MouseNothing
   | MouseResizeMid (Maybe (MouseTrigger (Int, Int)))
+  | MouseDragLayoutWidget (MouseTrigger (Model -> Model))
 
   | MouseDragZone
       ZoneKey               -- Left shapeZone, Right widget
@@ -202,6 +204,33 @@ type alias AceCodeBoxInfo = -- subset of Model
   , codeBoxInfo : CodeBoxInfo
   }
 
+type alias Offsets = {dx:Int, dy:Int}
+
+type alias LayoutOffsets =
+  { codeBox : Offsets
+  , canvas : Offsets
+  , fileToolBox : Offsets
+  , codeToolBox : Offsets
+  , drawToolBox : Offsets
+  , attributeToolBox : Offsets
+  , blobToolBox : Offsets
+  , outputToolBox : Offsets
+  }
+
+
+initialLayoutOffsets : LayoutOffsets
+initialLayoutOffsets =
+  let init = { dx = 0, dy = 0 } in
+  { codeBox = init
+  , canvas = init
+  , fileToolBox = init
+  , codeToolBox = init
+  , drawToolBox = init
+  , attributeToolBox = init
+  , blobToolBox = init
+  , outputToolBox = init
+  }
+
 
 --------------------------------------------------------------------------------
 
@@ -292,5 +321,6 @@ initModel =
     , keysDown      = []
     , randomColor   = 100
     , lambdaTools   = (1, [LambdaBounds (eVar "star")])
+    , layoutOffsets = initialLayoutOffsets
     }
 

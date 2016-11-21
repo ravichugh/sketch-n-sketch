@@ -5,6 +5,7 @@ module Canvas exposing (build)
 import Config exposing (params)
 import Utils
 import Either exposing (Either(..))
+import HtmlUtils exposing (handleEventAndStop)
 
 import Lang exposing (..)
 import LangSvg exposing (NodeId, ShapeKind, attr)
@@ -13,6 +14,7 @@ import ShapeWidgets exposing
   , ShapeFeature, Feature(..), PointFeature(..), DistanceFeature(..)
   , FeatureNum(..)
   )
+import Layout
 import Draw
 import InterfaceModel exposing (..)
 
@@ -49,14 +51,6 @@ svgPath      = flip Svg.path []
 
 --------------------------------------------------------------------------------
 
-interfaceColor = Color.rgba 52 73 94 1.0
-strInterfaceColor = "rgba(52,73,94,1.0)"
-strButtonTopColor = "rgba(231,76,60,1.0)" -- from InterfaceButtons example
-textColor = "white"
-
-
---------------------------------------------------------------------------------
-
 -- NOTE: removed SyncSelect animations from InterfaceView2
 build wCanvas hCanvas model =
   let addZones = case model.mode of
@@ -74,7 +68,10 @@ build wCanvas hCanvas model =
   Svg.svg
      [ Attr.id "outputCanvas"
      , onMouseDown MouseClickCanvas
-     , Attr.style [ ("width", pixels wCanvas), ("height", pixels hCanvas) ]
+     , Attr.style
+         [ ("width", pixels wCanvas)
+         , ("height", pixels hCanvas)
+         ]
      ]
      ([outputShapes] ++ newShape ++ widgets)
 
@@ -173,7 +170,7 @@ buildSvgWidgets wCanvas hCanvas model =
     let region =
       flip Svg.rect [] <|
         [ attr "fill" "lightgray"
-        , attr "stroke" strInterfaceColor , attr "stroke-width" "3px"
+        , attr "stroke" Layout.strInterfaceColor , attr "stroke-width" "3px"
         , attr "rx" "9px" , attr "ry" "9px"
         , attr "x" (toString (xL  + c*wWidget))
         , attr "y" (toString (yBL - r*hWidget))
@@ -189,8 +186,8 @@ buildSvgWidgets wCanvas hCanvas model =
           Cursor ->
             if Set.member feature model.selectedFeatures
               then colorPointSelected
-              else strInterfaceColor -- colorPointNotSelected
-          _ -> strInterfaceColor
+              else Layout.strInterfaceColor -- colorPointNotSelected
+          _ -> Layout.strInterfaceColor
       in
       flip Svg.rect [] <|
         [ attr "fill" color
@@ -208,7 +205,7 @@ buildSvgWidgets wCanvas hCanvas model =
       let cy = yi + pad + (hSlider//2) in
       flip Svg.circle [] <|
         [ attr "stroke" "black" , attr "stroke-width" "2px"
-        , attr "fill" strButtonTopColor
+        , attr "fill" Layout.strButtonTopColor
         , attr "r" params.mainSection.uiWidgets.rBall
         , attr "cx" (toString cx) , attr "cy" (toString cy)
         , cursorOfZone "SliderBall" "default"
@@ -232,7 +229,7 @@ buildSvgWidgets wCanvas hCanvas model =
     let ball =
       flip Svg.circle [] <|
         [ attr "stroke" "black" , attr "stroke-width" "2px"
-        , attr "fill" strButtonTopColor
+        , attr "fill" Layout.strButtonTopColor
         , attr "r" params.mainSection.uiWidgets.rBall
         , attr "cx" (toString cx) , attr "cy" (toString cy)
         , cursorOfZone "SliderBall" "default"
@@ -279,12 +276,6 @@ attrNum k n    = LangSvg.compileAttr k (LangSvg.aNum (n, dummyTrace))
 attrNumTr k nt = LangSvg.compileAttr k (LangSvg.aNum nt)
 
 onMouseDownAndStop = handleEventAndStop "mousedown"
-
-handleEventAndStop : String -> Msg -> Svg.Attribute Msg
-handleEventAndStop eventName eventHandler =
-  onWithOptions eventName
-    { defaultOptions | stopPropagation = True}
-    (Json.Decode.map (always eventHandler) Json.Decode.value)
 
 -- TODO use RealZones rather than Zones more
 

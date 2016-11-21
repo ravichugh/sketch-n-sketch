@@ -34,7 +34,7 @@ loc:
     Types.elm Eval.elm ShapeWidgets.elm \
     Solver.elm LocEqn.elm Sync.elm \
     InterfaceModel.elm \
-    InterfaceView3.elm Canvas.elm \
+    InterfaceView3.elm Layout.elm Canvas.elm \
     InterfaceController.elm \
     LangTools.elm LangTransform.elm ValueBasedTransform.elm \
     Blobs.elm Draw.elm ExpressionBasedTransform.elm \
@@ -43,6 +43,7 @@ loc:
     Native/toggleAnimationLoopback.js \
     Main.elm Config.elm \
     Utils.elm Either.elm \
+    HtmlUtils.elm \
     PreludeTemplate.elm ExamplesTemplate.elm \
     ColorNum.elm Keys.elm
 

@@ -73,9 +73,13 @@ function setDummyTooltips() {
 
 
 //////////////////////////////////////////////////////////////////////
-// Display AceCodeBox.Info from Elm
+// Display AceCodeBoxInfo from Elm
 
 function display(info) {
+  // TODO get resizing working better with dragLayoutWidget
+  // editor.resize();
+  // reembed(false);
+
   displayCode(info.code);
   displayCursor(info.codeBoxInfo.cursorPos);
   editor.selection.clearSelection(); // TODO selections
@@ -140,7 +144,7 @@ function displayTooltips() {
 
 
 //////////////////////////////////////////////////////////////////////
-// Get Current AceCodeBox.Info to Send to Elm
+// Update AceCodeBoxInfo to Send to Elm
 
 function getEditorState() {
   var codeBoxInfo =

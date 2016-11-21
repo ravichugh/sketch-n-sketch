@@ -5,6 +5,7 @@ src/scripts/littleReader.pyc
 src/LOG.txt
 build/out/sns.js
 build/out/codeBox.js
+build/out/aceCodeBox.js
 build/out/ace.js
 build/out/aceTooltips.js
 build/out/toggleAnimationLoopback.js

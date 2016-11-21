@@ -2,17 +2,20 @@ module InterfaceView3 exposing (view)
 
 -- Sketch-n-Sketch Libraries ---------------------------------------------------
 
-import Config exposing (params)
-import Utils
+import Config exposing (params) -- TODO remove
 import ExamplesGenerated as Examples
+import Utils
+import HtmlUtils exposing (handleEventAndStop)
+import Either exposing (..)
 
 import InterfaceModel as Model exposing
   ( Msg(..), Model, Tool(..), ShapeToolKind(..), Mode(..)
   , Caption(..), MouseMode(..)
   , mkLive_
   )
+import Layout
 import Canvas
-import LangSvg
+import LangSvg exposing (attr)
 import Sync
 
 -- Elm Libraries ---------------------------------------------------------------
@@ -24,7 +27,10 @@ import Svg exposing (Svg)
 import Svg.Events exposing (onMouseDown, onMouseUp, onMouseOver, onMouseOut)
 import Html exposing (Html)
 import Html.Attributes as Attr
-import Html.Events exposing (onClick, onInput, on)
+import Html.Events exposing
+  ( onClick, onInput, on
+  , onWithOptions, defaultOptions
+  )
 import Html.Lazy
 import Json.Decode
 
@@ -35,117 +41,164 @@ pixels n = toString n ++ "px"
 
 imgPath s = "img/" ++ s
 
--- TODO move to Config
+
+--------------------------------------------------------------------------------
+-- Configuration Parameters
+
 showRawShapeTools = False
 
 
 --------------------------------------------------------------------------------
+-- Top-Level View Function
 
 view : Model -> Html Msg
 view model =
-  let layout = Config.computeLayoutInfo model in
-  let wLogo = params.topSection.wLogo in
-  let top =
-    Html.div
-       [ Attr.id "topStrip"
-       , Attr.style
-           [ ("height", pixels layout.hTop)
-           , ("padding", "2pt")
-           ] ]
-       [ Html.span [] [ Html.text ("Sketch-n-Sketch " ++ params.strVersion) ]
-       , Html.img
-           [ Attr.src (imgPath "../sketch-n-sketch-logo.png")
-           , Attr.style
-               [ ("width", pixels wLogo)
-               , ("height", pixels wLogo)
-               ]
-           ]
-           []
-       , heuristicsButton model
-       , orientationButton model
-       , outputButton model
-       , ghostsButton model
-       , codeBoxButton model
-       , caption model
-       ]
-  in
-  let bot =
-    Html.div
-       [ Attr.id "bottomStrip", Attr.style [] ]
-       [ Html.span
-           [ Attr.style [ ("width", pixels layout.wCodebox)
-                        , ("display", "inline-block")
-                        , ("padding", "2pt")
-                        ] ]
-           [ dropdownExamples model
-           , runButton
-           , undoButton model
-           , redoButton model
-           , cleanButton model
-           ]
-       , Html.span
-           [ Attr.style [ ("width", pixels layout.wCanvas)
-                        , ("display", "inline-block")
-                        , ("padding", "2pt")
-                        ] ]
-           [ toolButton model Cursor
-           , toolButton model (Line Raw)
-           , toolButton model (Rect Raw)
-           , toolButton model (Oval Raw)
-           , toolButton model (Poly Raw)
-           , toolButton model (Path Raw)
-           , relateButton model "Dig" DigHole
-           , relateButton model "A = B" MakeEqual
-           , groupButton model "Dupe" DuplicateBlobs
-           , groupButton model "Merge" MergeBlobs
-           , groupButton model "Group" GroupBlobs
-           , groupButton model "Abs" AbstractBlobs
-           ]
-       ]
-  in
+  let layout = Layout.computeLayout model in
+
+  let fileTools = fileToolBox model layout in
+  let codeTools = codeToolBox model layout in
+  let drawTools = drawToolBox model layout in
+  let attributeTools = attributeToolBox model layout in
+  let blobTools = blobToolBox model layout in
+  let outputTools = outputToolBox model layout in
+
   let codeBox =
     if model.basicCodeBox
-      then basicCodeBox model layout
-      else aceCodeBox model layout
+      then basicCodeBox model layout.codeBox
+      else aceCodeBox model layout.codeBox in
+
+  let outputBox = outputArea model layout in
+
+  let resizeCodeBox =
+    resizeWidget "resizeCodeBox" model layout Layout.getPutCodeBox
+       (layout.codeBox.left + layout.codeBox.width)
+       (layout.codeBox.top + layout.codeBox.height) in
+
+  let resizeCanvas =
+    resizeWidget "resizeCanvas" model layout Layout.getPutCanvas
+       layout.canvas.left
+       layout.canvas.top in
+
+  let caption = captionArea model layout in
+
+  let everything = -- z-order in decreasing order
+
+     -- bottom-most
+     [ codeBox, outputBox
+
+     -- toolboxes in reverse order
+     , outputTools
+     , blobTools, attributeTools, drawTools
+     , codeTools, fileTools
+
+     -- top-most
+     , resizeCodeBox
+     , resizeCanvas
+     , caption
+
+     ]
   in
-  let outputArea =
-    case (model.errorBox, model.mode) of
-      (Nothing, Print svgCode) ->
-        textArea model svgCode
-          [ Attr.style [ ("width", pixels layout.wCodebox) ] ]
-      (Nothing, _) ->
-        Canvas.build layout.wCanvas layout.hCanvas model
-      (Just errorMsg, _) ->
-        textArea model errorMsg
-          [ Attr.style [ ("width", pixels layout.wCodebox) ] ]
-  in
-  let canvas =
-    Html.div
-       [ Attr.id "outputArea"
-       , Attr.style [ ("width", pixels layout.wCanvas)
-                    , ("height", pixels layout.hCanvas)
-                    , ("display", "inline-block")
-                    , ("border", params.mainSection.canvas.border)
-                    ] ]
-       [ outputArea ]
-  in
-  Html.div []
-    [ Html.div []
-        [ top
-        , Html.div
-            [ Attr.id "middleStrip"
-            , Attr.style [ ("height", pixels layout.hMid) ]
-            ]
-            [ codeBox, canvas ]
-        , bot
+
+  Html.div
+    [ Attr.id "containerDiv"
+    , Attr.style
+        [ ("position", "fixed")
+        , ("width", pixels model.dimensions.width)
+        , ("height", pixels model.dimensions.height)
+        , ("background", "white")
         ]
     ]
+    everything
 
 
 --------------------------------------------------------------------------------
+-- Tool Boxes
 
-textArea model text attrs =
-  let layout = Config.computeLayoutInfo model in
+fileToolBox model layout =
+  toolBox model "fileToolBox" Layout.getPutFileToolBox layout.fileTools
+    [ dropdownExamples model ]
+
+codeToolBox model layout =
+  toolBox model "codeToolBox" Layout.getPutCodeToolBox layout.codeTools
+    [ runButton
+    , undoButton model
+    , redoButton model
+    , cleanButton model
+    ]
+
+drawToolBox model layout =
+  toolBox model "drawToolBox" Layout.getPutDrawToolBox layout.drawTools
+    [ toolButton model Cursor
+    , toolButton model (Line Raw)
+    , toolButton model (Rect Raw)
+    , toolButton model (Oval Raw)
+    , toolButton model (Poly Raw)
+    , toolButton model (Path Raw)
+    ]
+
+attributeToolBox model layout =
+  toolBox model "attributeToolBox" Layout.getPutAttributeToolBox layout.attributeTools
+    [ relateButton model "Dig Hole" DigHole
+    , relateButton model "Make Equal" MakeEqual
+    ]
+
+blobToolBox model layout =
+  toolBox model "blobToolBox" Layout.getPutBlobToolBox layout.blobTools
+    [ groupButton model "Dupe" DuplicateBlobs
+    , groupButton model "Merge" MergeBlobs
+    , groupButton model "Group" GroupBlobs
+    , groupButton model "Abs" AbstractBlobs
+    ]
+
+outputToolBox model layout =
+  toolBox model "outputToolBox" Layout.getPutOutputToolBox layout.outputTools
+    [ -- codeBoxButton model
+      heuristicsButton model
+    , outputButton model
+    , ghostsButton model
+    ]
+
+toolBox model id (getOffset, putOffset) leftRightTopBottom elements =
+  Html.div
+    [ Attr.id id
+    , Attr.style <|
+        [ ("position", "fixed")
+        , ("padding", "0px 0px 0px 15px")
+        , ("background", Layout.strInterfaceColor) -- "#444444")
+        , ("border-radius", "10px 0px 0px 10px")
+        , ("box-shadow", "6px 6px 3px #888888")
+        , ("cursor", "move")
+        ] ++ Layout.fixedPosition leftRightTopBottom
+    , onMouseDown <| Layout.dragLayoutWidgetTrigger (getOffset model) putOffset
+    ]
+    elements
+
+
+--------------------------------------------------------------------------------
+-- Code Box
+
+aceCodeBox model dim =
+  Html.div
+    [ Attr.id "editor"
+    , Attr.style [ ("position", "absolute")
+                 , ("width", pixels dim.width)
+                 , ("height", pixels dim.height)
+                 , ("left", pixels Layout.windowPadding)
+                 , ("top", pixels Layout.windowPadding)
+                 , ("pointer-events", "auto")
+                 ]
+    ]
+    [ ]
+    {- Html.Lazy.lazy ... -}
+
+basicCodeBox model dim =
+  textArea model.code <|
+    [ onInput CodeUpdate
+    , Attr.style [ ("width", pixels dim.width)
+                 ]
+    ]
+
+textArea text attrs =
   let innerPadding = 4 in
   -- NOTE: using both Attr.value and Html.text seems to allow read/write...
   let commonAttrs =
@@ -157,11 +210,6 @@ textArea model text attrs =
         , ("border", params.mainSection.codebox.border)
         , ("whiteSpace", "pre")
         , ("height", "100%")
-        -- , ("height", pixels hMid)
-        -- , ("width", "50%")
-{-
-        , ("width", pixels layout.wCodebox)
--}
         , ("resize", "none")
         , ("overflow", "auto")
         -- Horizontal Scrollbars in Chrome
@@ -176,33 +224,69 @@ textArea model text attrs =
   in
   Html.textarea (commonAttrs ++ attrs) [ Html.text text ]
 
---------------------------------------------------------------------------------
-
-basicCodeBox model layout =
-  textArea model model.code <|
-    [ onInput CodeUpdate
-    , Attr.style [ ("width", pixels layout.wCodebox)
-                 ]
-    ]
-
-aceCodeBox model layout =
-  Html.span
-    [ Attr.id "editor"
-    , Attr.style [ ("width", pixels layout.wCodebox)
-                 , ("height", "100%")
-                 , ("pointer-events", "auto")
-                 -- , ("z-index", "1")
-                 , ("display", "inline-block")
-                 ]
-    ]
-    [ ]
-{-
-    Html.Lazy.lazy
-      (\_ -> Html.div [ Attr.id "editor" ] [ Html.text "initial" ]) ()
--}
-
 
 --------------------------------------------------------------------------------
+-- Output Box
+
+outputArea model layout =
+  let output =
+    case (model.errorBox, model.mode) of
+      (Just errorMsg, _) ->
+        textArea errorMsg
+          [ Attr.style [ ("width", pixels layout.canvas.width) ] ]
+      (Nothing, Print svgCode) ->
+        textArea svgCode
+          [ Attr.style [ ("width", pixels layout.canvas.width) ] ]
+      (Nothing, _) ->
+        Canvas.build layout.canvas.width layout.canvas.height model
+  in
+  Html.div
+     [ Attr.id "outputArea"
+     , Attr.style
+         [ ("width", pixels layout.canvas.width)
+         , ("height", pixels layout.canvas.height)
+         , ("position", "fixed")
+         , ("border", params.mainSection.canvas.border)
+         , ("left", pixels layout.canvas.left)
+         , ("top", pixels layout.canvas.top)
+         , ("background", "white")
+         , ("border-radius", "0px 10px 10px 10px")
+         , ("box-shadow", "10px 10px 5px #888888")
+         ]
+     ]
+     [ output ]
+
+
+--------------------------------------------------------------------------------
+-- Resizing Widgets
+
+rResizeWidgetBall = 5
+
+resizeWidget id model layout (getOffset, putOffset) left top =
+  Svg.svg
+    [ Attr.id id
+    , Attr.style
+        [ ("position", "fixed")
+        , ("left", pixels (left - 2 * rResizeWidgetBall))
+        , ("top", pixels (top - 2 * rResizeWidgetBall))
+        , ("width", pixels (4 * rResizeWidgetBall))
+        , ("height", pixels (4 * rResizeWidgetBall))
+        ]
+    ]
+    [ flip Svg.circle [] <|
+        [ attr "stroke" "black" , attr "stroke-width" "2px"
+        , attr "fill" Layout.strButtonTopColor
+        , attr "r" (pixels rResizeWidgetBall)
+        , attr "cx" (toString (2 * rResizeWidgetBall))
+        , attr "cy" (toString (2 * rResizeWidgetBall))
+        , attr "cursor" "move"
+        , onMouseDown <| Layout.dragLayoutWidgetTrigger (getOffset model) putOffset
+        ]
+    ]
+
+
+--------------------------------------------------------------------------------
+-- Buttons
 
 type ButtonKind = Regular | Selected | Unselected
 
@@ -217,10 +301,14 @@ htmlButton text onClickHandler btnKind disabled =
     [ Attr.disabled disabled
     , Attr.style [ ("font", params.mainSection.widgets.font)
                  , ("fontSize", params.mainSection.widgets.fontSize)
+                 , ("height", pixels Layout.buttonHeight)
                  , ("background", color)
+                 , ("user-select", "none")
                  ] ]
   in
-  Html.button (commonAttrs ++ [ onClick onClickHandler ]) [ Html.text text ]
+  Html.button
+    (commonAttrs ++ [ handleEventAndStop "mousedown" Noop, onClick onClickHandler ])
+    [ Html.text text ]
 
 runButton =
   htmlButton "Run" Run Regular False
@@ -338,6 +426,7 @@ groupButton model text handler =
 
 
 --------------------------------------------------------------------------------
+-- Dropdown Menu
 
 dropdownExamples model =
   let options =
@@ -350,24 +439,29 @@ dropdownExamples model =
   in
   Html.select
     [ on "change" (Json.Decode.map mapTargetValue Html.Events.targetValue)
+    , handleEventAndStop "mousedown" Noop
+        -- to prevent underlying toolBox from starting dragLayoutWidgetTrigger
     , Attr.style
         [ ("pointer-events", "auto")
         , ("border", "0 solid")
-        -- , ("display", "block")
-        -- , ("width", "120px")
         , ("width", "200px")
-        , ("height", "24px")
+        , ("height", pixels Layout.buttonHeight)
         , ("font-family", params.mainSection.widgets.font)
-        -- , ("font-size", "1em")
-        , ("font-size", params.mainSection.widgets.font)
+        , ("font-size", params.mainSection.widgets.fontSize)
+
+        -- https://stackoverflow.com/questions/24210132/remove-border-radius-from-select-tag-in-bootstrap-3
+        , ("outline", "1px solid #CCC")
+        , ("outline-offset", "-1px")
+        , ("background-color", "white")
         ]
     ]
     options
 
 
 --------------------------------------------------------------------------------
+-- Hover Caption
 
-caption model =
+captionArea model layout =
   let (text, color) =
     case (model.caption, model.mode, model.mouseMode) of
       (Just (Hovering zoneKey), Live info, MouseNothing) ->
@@ -385,5 +479,10 @@ caption model =
 
   in
   Html.span
-    [ Attr.style [ ("color", color) ] ]
+    [ Attr.id "captionArea"
+    , Attr.style <|
+        [ ("color", color)
+        , ("position", "fixed")
+        ] ++ Layout.fixedPosition layout.captionArea
+    ]
     [ Html.text text ]

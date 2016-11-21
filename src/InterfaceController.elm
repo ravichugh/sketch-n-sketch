@@ -15,6 +15,7 @@ import Eval
 import Utils
 import Keys
 import InterfaceModel exposing (..)
+import Layout
 import AceCodeBox
 -- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
@@ -151,9 +152,9 @@ clickToCanvasPoint old {x, y} =
 -- are based on copying the computations from View
 -- TODO: refactor these
 
-canvasOriginVertical old =
-  let layout = Config.computeLayoutInfo old in
-  (layout.xCanvas, layout.hTop)
+canvasOriginVertical model =
+  let layout = Layout.computeLayout model in
+  (layout.canvas.left, layout.canvas.top)
 
 canvasOriginHorizontal old =
   -- TODO the y-position in horizontal mode is off by a few pixels
@@ -290,6 +291,9 @@ onMouseMove newPosition old =
     MouseResizeMid (Just f) ->
       let (x,y) = f (mx0, my0) in
       { old | midOffsetX = x , midOffsetY = y }
+
+    MouseDragLayoutWidget f ->
+      f (mx0, my0) old
 
     MouseDragZone zoneKey Nothing ->
       old
