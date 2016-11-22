@@ -1657,8 +1657,13 @@ widgetsUndoRedo w h model =
 widgetsSlideNavigation w h model =
   [ gapWidget w h
   , twoButtons w h (previousSlideButton model) (nextSlideButton model)
-  , twoButtons w h (previousMovieButton model) (nextMovieButton model)
+  , flowRight w h
+      [ (1/4, previousMovieButton model)
+      , (2/4, pauseResumeMovieButton model)
+      , (1/4, nextMovieButton model)
+      ]
   , slideNumber model w h
+  , movieNumber model w h
   ]
 
 {-
@@ -2136,11 +2141,41 @@ nextMovieButton : Model -> Int -> Int -> GE.Element
 nextMovieButton model =
   simpleEventButton_ (model.slideNumber == model.slideCount && model.movieNumber == model.movieCount) NextMovie "▶"
 
+pauseResumeMovieButton : Model -> Int -> Int -> GE.Element
+pauseResumeMovieButton model =
+  let enabled = model.movieTime < model.movieDuration in
+  let caption =
+    if enabled && not model.runAnimation then "Play"
+    else "Pause"
+  in
+  simpleEventButton_
+    (not enabled) PauseResumeMovie caption
+
+slideNumberElement =
+  GE.centered << T.color Color.white << (T.typeface ["sans-serif"]) << T.fromString
+
 slideNumber : Model -> Int -> Int -> GE.Element
 slideNumber model w h =
-  let slideNumberElement = GE.centered << T.color Color.white << (T.typeface ["sans-serif"]) << T.fromString in
   GE.container w h GE.middle <|
-    slideNumberElement ("Slide " ++ toString model.slideNumber ++ "/" ++ toString model.slideCount)
+    slideNumberElement <|
+      "Slide " ++ toString model.slideNumber ++ "/" ++ toString model.slideCount
+
+movieNumber model w h =
+  GE.container w h GE.middle <|
+    slideNumberElement <|
+      Utils.spaces
+        [ String.concat [ toString model.movieNumber, "/", toString model.movieCount ]
+        , Utils.bracks <|
+            String.concat [ truncateFloat model.movieTime, "/", truncateFloat model.movieDuration ]
+        ]
+
+truncateFloat : Float -> String
+truncateFloat n =
+  case String.split "." (toString n) of
+    [whole]           -> whole ++ "." ++ String.padRight 1 '0' ""
+    [whole, fraction] -> whole ++ "." ++ String.left 1 (String.padRight 1 '0' fraction)
+    _                 -> Debug.crash "truncateFloat"
+
 
 dropdownExamples : Model -> Int -> Int -> GE.Element
 dropdownExamples model w h =

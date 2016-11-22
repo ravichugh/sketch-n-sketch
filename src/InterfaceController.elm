@@ -17,6 +17,7 @@ module InterfaceController exposing
   , msgStartAnimation, msgRedraw, msgTickDelta
   , msgNextSlide, msgPreviousSlide
   , msgNextMovie, msgPreviousMovie
+  , msgPauseResumeMovie
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -287,7 +288,7 @@ onMouseMove newPosition old =
       let dragInfo_ = (trigger, (mx0, my0), True) in
 
       Eval.run newExp |> Result.andThen (\(newVal, newWidgets) ->
-      LangSvg.valToIndexedTree newVal |> Result.map (\newSlate ->
+      LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
         { old | code = unparse newExp
               , inputExp = newExp
               , inputVal = newVal
@@ -854,6 +855,10 @@ msgPreviousMovie = Msg "Previous Movie" <| \old ->
     upstate msgPreviousSlide old
   else
     upstate msgStartAnimation { old | movieNumber = old.movieNumber - 1 }
+
+msgPauseResumeMovie = Msg "Pause/Resume Movie" <| \old ->
+  -- TODO stop/start ticker
+  { old | runAnimation = not old.runAnimation }
 
 --------------------------------------------------------------------------------
 
