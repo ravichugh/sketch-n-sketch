@@ -63,6 +63,11 @@ view model =
   let blobTools = blobToolBox model layout in
   let outputTools = outputToolBox model layout in
 
+  let animationTools =
+    if model.slideCount > 1 || model.movieCount > 1
+    then [ animationToolBox model layout ]
+    else [] in
+
   let codeBox =
     if model.basicCodeBox
       then basicCodeBox model layout.codeBox
@@ -88,8 +93,8 @@ view model =
      [ codeBox, outputBox
 
      -- toolboxes in reverse order
-     , outputTools
-     , blobTools, attributeTools, drawTools
+     , outputTools] ++ animationTools ++
+     [ blobTools, attributeTools, drawTools
      , codeTools, fileTools
 
      -- top-most
@@ -157,6 +162,15 @@ outputToolBox model layout =
       heuristicsButton model
     , outputButton model
     , ghostsButton model
+    ]
+
+animationToolBox model layout =
+  toolBox model "animationToolBox" Layout.getPutAnimationToolBox layout.animationTools
+    [ previousSlideButton model
+    , previousMovieButton model
+    , pauseResumeMovieButton model
+    , nextMovieButton model
+    , nextSlideButton model
     ]
 
 toolBox model id (getOffset, putOffset) leftRightTopBottom elements =
@@ -424,6 +438,32 @@ groupButton model text handler =
   let noBlobs = Dict.isEmpty model.selectedBlobs in
   htmlButton text handler Regular (noBlobs || not noFeatures)
 
+previousSlideButton model =
+  htmlButton "◀◀" Controller.msgPreviousSlide Regular
+    (model.slideNumber == 1 && model.movieNumber == 1)
+
+nextSlideButton model =
+  htmlButton "▶▶" Controller.msgNextSlide Regular
+    (model.slideNumber == model.slideCount
+      && model.movieNumber == model.movieCount)
+
+previousMovieButton model =
+  htmlButton "◀" Controller.msgPreviousMovie Regular
+    (model.slideNumber == 1 && model.movieNumber == 1)
+
+nextMovieButton model =
+  htmlButton "▶" Controller.msgNextMovie Regular
+    (model.slideNumber == model.slideCount
+      && model.movieNumber == model.movieCount)
+
+pauseResumeMovieButton model =
+  let enabled = model.movieTime < model.movieDuration in
+  let caption =
+    if enabled && not model.runAnimation then "Play"
+    else "Pause"
+  in
+  htmlButton caption Controller.msgPauseResumeMovie Regular (not enabled)
+
 
 --------------------------------------------------------------------------------
 -- Dropdown Menu
@@ -470,7 +510,16 @@ captionArea model layout =
         (err, "black")
 
       _ ->
-        ("", "white")
+        if model.slideCount > 1 then
+          let
+            s1 = toString model.slideNumber ++ "/" ++ toString model.slideCount
+            s2 = toString model.movieNumber ++ "/" ++ toString model.movieCount
+            s3 = truncateFloat model.movieTime ++ "/" ++ truncateFloat model.movieDuration
+          in
+          (Utils.spaces ["Slide", s1, ":: Movie", s2, ":: Time", s3], "black")
+
+        else
+          ("", "white")
 
   in
   Html.span
@@ -481,3 +530,10 @@ captionArea model layout =
         ] ++ Layout.fixedPosition layout.captionArea
     ]
     [ Html.text text ]
+
+truncateFloat : Float -> String
+truncateFloat n =
+  case String.split "." (toString n) of
+    [whole]           -> whole ++ "." ++ String.padRight 1 '0' ""
+    [whole, fraction] -> whole ++ "." ++ String.left 1 (String.padRight 1 '0' fraction)
+    _                 -> Debug.crash "truncateFloat"

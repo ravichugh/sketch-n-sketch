@@ -74,6 +74,7 @@ getPutDrawToolBox      = (getDrawToolBox,      putDrawToolBox)
 getPutAttributeToolBox = (getAttributeToolBox, putAttributeToolBox)
 getPutBlobToolBox      = (getBlobToolBox,      putBlobToolBox)
 getPutOutputToolBox    = (getOutputToolBox,    putOutputToolBox)
+getPutAnimationToolBox = (getAnimationToolBox,    putAnimationToolBox)
 getPutCodeBox          = (getCodeBox,          putCodeBox)
 getPutCanvas           = (getCanvas,           putCanvas)
 
@@ -83,6 +84,7 @@ getDrawToolBox      = .layoutOffsets >> .drawToolBox
 getAttributeToolBox = .layoutOffsets >> .attributeToolBox
 getBlobToolBox      = .layoutOffsets >> .blobToolBox
 getOutputToolBox    = .layoutOffsets >> .outputToolBox
+getAnimationToolBox = .layoutOffsets >> .animationToolBox
 getCodeBox          = .layoutOffsets >> .codeBox
 getCanvas           = .layoutOffsets >> .canvas
 
@@ -115,6 +117,11 @@ putOutputToolBox dx dy model =
   let layoutOffsets = model.layoutOffsets in
   { model | layoutOffsets =
     { layoutOffsets | outputToolBox = { dx = dx, dy = dy } } }
+
+putAnimationToolBox dx dy model =
+  let layoutOffsets = model.layoutOffsets in
+  { model | layoutOffsets =
+    { layoutOffsets | animationToolBox = { dx = dx, dy = dy } } }
 
 putCodeBox dx dy model =
   let layoutOffsets = model.layoutOffsets in
@@ -160,6 +167,7 @@ type alias Info =
   , attributeTools : FixedPosition
   , blobTools : FixedPosition
   , outputTools : FixedPosition
+  , animationTools : FixedPosition
   , captionArea : FixedPosition
   }
 
@@ -212,6 +220,10 @@ computeLayout m =
   , outputTools = offset m getOutputToolBox
      { leftRight = Right  <| windowPadding
      , topBottom = Bottom <| windowPadding + 0 * (rowGap + buttonHeight)
+     }
+  , animationTools = offset m getAnimationToolBox
+     { leftRight = Right  <| windowPadding
+     , topBottom = Bottom <| windowPadding + 1 * (rowGap + buttonHeight)
      }
   , captionArea =
      { leftRight = Left   <| windowPadding

@@ -167,6 +167,7 @@ type alias LayoutOffsets =
   , attributeToolBox : Offsets
   , blobToolBox : Offsets
   , outputToolBox : Offsets
+  , animationToolBox : Offsets
   }
 
 
@@ -181,6 +182,7 @@ initialLayoutOffsets =
   , attributeToolBox = init
   , blobToolBox = init
   , outputToolBox = init
+  , animationToolBox = init
   }
 
 

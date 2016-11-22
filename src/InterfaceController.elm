@@ -37,6 +37,7 @@ import Keys
 import InterfaceModel exposing (..)
 import Layout
 import AceCodeBox
+import AnimationLoop
 -- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
 import ShapeWidgets
@@ -437,12 +438,14 @@ issueCommand (Msg kind _) oldModel newModel =
           -- TODO crash: "Uncaught Error: ace.edit can't find div #editor"
 
     _ ->
-      if newModel.code == oldModel.code &&
-         newModel.codeBoxInfo == oldModel.codeBoxInfo
+      if newModel.code /= oldModel.code ||
+         newModel.codeBoxInfo /= oldModel.codeBoxInfo
       then
-        Cmd.none
-      else
         AceCodeBox.display newModel
+      else if newModel.runAnimation then
+        AnimationLoop.requestFrame ()
+      else
+        Cmd.none
 
 
 --------------------------------------------------------------------------------
@@ -857,7 +860,6 @@ msgPreviousMovie = Msg "Previous Movie" <| \old ->
     upstate msgStartAnimation { old | movieNumber = old.movieNumber - 1 }
 
 msgPauseResumeMovie = Msg "Pause/Resume Movie" <| \old ->
-  -- TODO stop/start ticker
   { old | runAnimation = not old.runAnimation }
 
 --------------------------------------------------------------------------------

@@ -9,7 +9,7 @@ html:
 	$(ELMMAKE) Main.elm --output ../build/out/sns.js
 	cp Native/aceCodeBox.js ../build/out/
 	cp Native/aceTooltips.js ../build/out/
-	cp Native/toggleAnimationLoopback.js ../build/out/
+	cp Native/animationLoop.js ../build/out/
 	cp ../ace-builds/src/ace.js ../build/out/
 	cp ../ace-builds/src/mode-little.js ../build/out/
 	cp ../ace-builds/src/theme-chrome.js ../build/out/
@@ -40,7 +40,7 @@ loc:
     Blobs.elm Draw.elm ExpressionBasedTransform.elm \
     InterfaceStorage.elm Storage.elm \
     Ace.elm AceCodeBox.elm Native/aceCodeBox.js \
-    Native/toggleAnimationLoopback.js \
+    AnimationLoop.elm Native/animationLoop.js \
     Main.elm Config.elm \
     Utils.elm Either.elm \
     HtmlUtils.elm \

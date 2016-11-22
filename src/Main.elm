@@ -4,6 +4,7 @@ import InterfaceModel as Model exposing (Msg, Model)
 import InterfaceView3 as View
 import InterfaceController as Controller
 import AceCodeBox
+import AnimationLoop
 
 import Html exposing (Html)
 import Mouse
@@ -53,4 +54,5 @@ subscriptions model =
     , Keyboard.downs Controller.msgKeyDown
     , Keyboard.ups Controller.msgKeyUp
     , AceCodeBox.receiveEditorState Controller.msgFromAce
+    , AnimationLoop.receiveFrame Controller.msgTickDelta
     ]
