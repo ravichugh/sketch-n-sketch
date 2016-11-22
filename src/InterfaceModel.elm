@@ -74,9 +74,8 @@ type alias Model =
   }
 
 type Mode
-  = AdHoc
+  = Live Sync.LiveInfo
   | SyncSelect (List PossibleChange)
-  | Live Sync.LiveInfo
   | Print RawSvg
       -- TODO might add a print mode where <g BLOB BOUNDS> nodes are removed
 
@@ -150,46 +149,7 @@ type ReplicateKind
   | RadialRepeat
 
 type Msg
-  = ClickZone ZoneKey
-  | MouseClickCanvas      -- used to initiate drawing new shape
-  | MouseIsDown Bool
-  | MousePosition Mouse.Position
-  | TickDelta Float -- 60fps time tick, Float is time since last tick
-  -- | Sync
-  | PreviewCode (Maybe Code)
-  | SelectOption PossibleChange
-  | CancelSync
-  | DigHole
-  | MakeEqual
-  | MakeEquidistant
-  | GroupBlobs
-  | AbstractBlobs
-  | DuplicateBlobs
-  | MergeBlobs
-  | ReplicateBlob ReplicateKind
-  | SwitchMode Mode
-  | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets, ati:AceTypeInfo})
-  | CodeUpdate String -- for basic codebox
-  | Run
-  | TryParseRun Model
-  | StartAnimation
-  | Redraw
-  | ToggleOutput
-  | NextSlide
-  | PreviousSlide
-  | NextMovie
-  | PreviousMovie
-  | ToggleBasicCodeBox
-  | Undo | Redo
-  | KeyPress Char.KeyCode
-  | KeyDown Char.KeyCode
-  | KeyUp Char.KeyCode
-  | WindowDimensions Window.Size
-  | Noop
-  | CleanCode
-  | UpdateModel (Model -> Model)
-      -- TODO could write other events in terms of UpdateModel
-  | AceMsg AceCodeBoxInfo
+  = Msg String (Model -> Model)
 
 type alias AceCodeBoxInfo = -- subset of Model
   { code : String

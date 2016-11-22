@@ -13,6 +13,7 @@ import InterfaceModel as Model exposing
   , Caption(..), MouseMode(..)
   , mkLive_
   )
+import InterfaceController as Controller
 import Layout
 import Canvas
 import LangSvg exposing (attr)
@@ -138,16 +139,16 @@ drawToolBox model layout =
 
 attributeToolBox model layout =
   toolBox model "attributeToolBox" Layout.getPutAttributeToolBox layout.attributeTools
-    [ relateButton model "Dig Hole" DigHole
-    , relateButton model "Make Equal" MakeEqual
+    [ relateButton model "Dig Hole" Controller.msgDigHole
+    , relateButton model "Make Equal" Controller.msgMakeEqual
     ]
 
 blobToolBox model layout =
   toolBox model "blobToolBox" Layout.getPutBlobToolBox layout.blobTools
-    [ groupButton model "Dupe" DuplicateBlobs
-    , groupButton model "Merge" MergeBlobs
-    , groupButton model "Group" GroupBlobs
-    , groupButton model "Abs" AbstractBlobs
+    [ groupButton model "Dupe" Controller.msgDuplicateBlobs
+    , groupButton model "Merge" Controller.msgMergeBlobs
+    , groupButton model "Group" Controller.msgGroupBlobs
+    , groupButton model "Abs" Controller.msgAbstractBlobs
     ]
 
 outputToolBox model layout =
@@ -193,7 +194,7 @@ aceCodeBox model dim =
 
 basicCodeBox model dim =
   textArea model.code <|
-    [ onInput CodeUpdate
+    [ onInput Controller.msgCodeUpdate
     , Attr.style [ ("width", pixels dim.width)
                  ]
     ]
@@ -307,11 +308,14 @@ htmlButton text onClickHandler btnKind disabled =
                  ] ]
   in
   Html.button
-    (commonAttrs ++ [ handleEventAndStop "mousedown" Noop, onClick onClickHandler ])
+    (commonAttrs ++
+      [ handleEventAndStop "mousedown" Controller.msgNoop
+      , onClick onClickHandler
+      ])
     [ Html.text text ]
 
 runButton =
-  htmlButton "Run" Run Regular False
+  htmlButton "Run" Controller.msgRun Regular False
 
 cleanButton model =
   let disabled =
@@ -319,15 +323,15 @@ cleanButton model =
       Live _ -> False
       _      -> True
   in
-  htmlButton "Clean Up" CleanCode Regular disabled
+  htmlButton "Clean Up" Controller.msgCleanCode Regular disabled
 
 undoButton model =
   let past = Tuple.first model.history in
-  htmlButton "Undo" Undo Regular (List.length past <= 1)
+  htmlButton "Undo" Controller.msgUndo Regular (List.length past <= 1)
 
 redoButton model =
   let future = Tuple.second model.history in
-  htmlButton "Redo" Redo Regular (List.length future == 0)
+  htmlButton "Redo" Controller.msgRedo Regular (List.length future == 0)
 
 heuristicsButton model =
   let foo old =
@@ -346,16 +350,16 @@ heuristicsButton model =
     else if hm == Sync.heuristicsFair then "Fair"
     else "Biased"
   in
-  htmlButton ("[Heuristics] " ++ yesno) (UpdateModel foo) Regular False
+  htmlButton ("[Heuristics] " ++ yesno)
+    (Msg "Toggle Heuristics" foo) Regular False
 
 outputButton model =
-  let disabled = model.mode == AdHoc in
   let cap =
      case model.mode of
        Print _ -> "[Out] SVG"
        _       -> "[Out] Canvas"
   in
-  htmlButton cap ToggleOutput Regular disabled
+  htmlButton cap Controller.msgToggleOutput Regular False
 
 ghostsButton model =
   let cap =
@@ -372,11 +376,11 @@ ghostsButton model =
     in
     { old | showGhosts = showGhosts_, mode = mode_ }
   in
-  htmlButton cap (UpdateModel foo) Regular False
+  htmlButton cap (Msg "Toggle Ghosts" foo) Regular False
 
 codeBoxButton model =
   let text = "[Code Box] " ++ if model.basicCodeBox then "Basic" else "Fancy" in
-  htmlButton text ToggleBasicCodeBox Regular False
+  htmlButton text Controller.msgToggleCodeBox Regular False
 
 toolButton model tool =
   let capStretchy s = if showRawShapeTools then "BB" else s in
@@ -409,7 +413,7 @@ toolButton model tool =
       (False, Path Sticky) -> (Regular, True)
       (False, _)           -> (Unselected, False)
   in
-  htmlButton cap (UpdateModel (\m -> { m | tool = tool })) btnKind disabled
+  htmlButton cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled
 
 relateButton model text handler =
   let noFeatures = Set.isEmpty model.selectedFeatures in
@@ -428,14 +432,9 @@ dropdownExamples model =
   let options =
     List.map (\(name,_) -> Html.option [] [ Html.text name ]) Examples.list
   in
-  let mapTargetValue name =
-    case Utils.maybeFind name Examples.list of
-      Just (_, thunk) -> SelectExample name thunk
-      Nothing         -> let _ = Debug.log "WARN: not found:" name in Noop
-  in
   Html.select
-    [ on "change" (Json.Decode.map mapTargetValue Html.Events.targetValue)
-    , handleEventAndStop "mousedown" Noop
+    [ on "change" (Json.Decode.map Controller.msgSelectExample Html.Events.targetValue)
+    , handleEventAndStop "mousedown" Controller.msgNoop
         -- to prevent underlying toolBox from starting dragLayoutWidgetTrigger
     , Attr.style
         [ ("pointer-events", "auto")

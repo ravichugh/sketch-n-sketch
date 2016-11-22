@@ -17,6 +17,7 @@ import ShapeWidgets exposing
 import Layout
 import Draw
 import InterfaceModel exposing (..)
+import InterfaceController as Controller
 
 -- Elm Libraries ---------------------------------------------------------------
 
@@ -54,7 +55,6 @@ svgPath      = flip Svg.path []
 -- NOTE: removed SyncSelect animations from InterfaceView2
 build wCanvas hCanvas model =
   let addZones = case model.mode of
-    AdHoc  -> True
     Live _ -> model.tool == Cursor
     _      -> False
   in
@@ -67,7 +67,7 @@ build wCanvas hCanvas model =
   in
   Svg.svg
      [ Attr.id "outputCanvas"
-     , onMouseDown MouseClickCanvas
+     , onMouseDown Controller.msgMouseClickCanvas
      , Attr.style
          [ ("width", pixels wCanvas)
          , ("height", pixels hCanvas)
@@ -124,7 +124,7 @@ buildSvg_ stuff d i =
 --------------------------------------------------------------------------------
 
 dragZoneEvents zoneKey =
-  [ onMouseDown (ClickZone zoneKey)
+  [ onMouseDown (Controller.msgClickZone zoneKey)
   , onMouseOver (turnOnCaptionAndHighlights zoneKey)
   , onMouseOut turnOffCaptionAndHighlights
   ]
@@ -259,7 +259,7 @@ toggleSelectedWidget locId =
   let feature =
     (ShapeWidgets.selectedTypeWidget, -1, "widget" ++ (toString locId))
   in
-  UpdateModel <| \model ->
+  Msg ("Toggle Selected Widget " ++ toString locId) <| \model ->
     let update =
       if Set.member feature model.selectedFeatures
         then Set.remove
@@ -280,20 +280,20 @@ onMouseDownAndStop = handleEventAndStop "mousedown"
 -- TODO use RealZones rather than Zones more
 
 removeHoveredShape id =
-  UpdateModel <| \m ->
+  Msg ("Remove Hovered Shape " ++ toString id) <| \m ->
     { m | hoveredShapes = Set.remove id m.hoveredShapes }
 
 addHoveredShape id =
-  UpdateModel <| \m ->
+  Msg ("Add Hovered Shape " ++ toString id) <| \m ->
     { m | hoveredShapes = Set.singleton id }
     -- { m | hoveredShapes = Set.insert id m.hoveredShapes }
 
 addHoveredCrosshair tuple =
-  UpdateModel <| \m ->
+  Msg ("Add Hovered Crosshair " ++ toString tuple) <| \m ->
     { m | hoveredCrosshairs = Set.insert tuple m.hoveredCrosshairs }
 
 removeHoveredCrosshair tuple =
-  UpdateModel <| \m ->
+  Msg ("Remove Hovered Crosshair " ++ toString tuple) <| \m ->
     { m | hoveredCrosshairs = Set.remove tuple m.hoveredCrosshairs }
 
 cursorStyle s = LangSvg.attr "cursor" s
@@ -816,7 +816,7 @@ zoneDelete_ id shape x y transform =
     let foo old =
       { old | slate = Utils.mapSnd (Dict.insert id LangSvg.dummySvgNode) old.slate }
     in
-    onMouseDown (UpdateModel foo) in
+    onMouseDown (Msg "Delete..." foo) in
   let lines =
     let f x1 y1 x2 y2 =
       flip Svg.line [] <|
@@ -858,7 +858,7 @@ type alias NodeIdAndFeature      = (LangSvg.NodeId, ShapeWidgets.ShapeFeature)
 
 
 toggleSelected nodeIdAndFeatures =
-  UpdateModel <| toggleSelectedLambda nodeIdAndFeatures
+  Msg "Toggle Selected..." <| toggleSelectedLambda nodeIdAndFeatures
 
 toggleSelectedLambda nodeIdAndFeatures =
   \model ->
@@ -934,7 +934,7 @@ zoneSelectCrossDot model (id, kind, pointFeature) x y =
                  Set.member thisCrosshair model.hoveredCrosshairs)
           then pointZoneStyles.radius
           else "0"
-      , onMouseDown <| UpdateModel <| \model ->
+      , onMouseDown <| Msg "Select Cross Dot..." <| \model ->
           if Set.member thisCrosshair model.hoveredCrosshairs
             then toggleSelectedLambda [xFeature, yFeature] model
             else { model | hoveredCrosshairs = Set.insert thisCrosshair model.hoveredCrosshairs }
@@ -1290,14 +1290,14 @@ makeZonesPath model shape id nodeAttrs =
 -- Zone Caption and Highlights
 
 turnOnCaptionAndHighlights zoneKey =
-  UpdateModel <| \m ->
+  Msg ("Turn On Caption " ++ toString zoneKey) <| \m ->
     let codeBoxInfo = m.codeBoxInfo in
     let hi = liveInfoToHighlights zoneKey m in
     { m | caption = Just (Hovering zoneKey)
         , codeBoxInfo = { codeBoxInfo | highlights = hi } }
 
 turnOffCaptionAndHighlights =
-  UpdateModel <| \m ->
+  Msg "Turn Off Caption" <| \m ->
     let codeBoxInfo = m.codeBoxInfo in
     { m | caption = Nothing
         , codeBoxInfo = { codeBoxInfo | highlights = [] } }

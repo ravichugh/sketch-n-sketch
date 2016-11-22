@@ -131,7 +131,7 @@ putCanvas dx dy model =
 -- Handler for Resize Widgets
 
 dragLayoutWidgetTrigger {dx,dy} put =
-  Model.UpdateModel <| \m ->
+  Model.Msg "Drag Layout Widget Trigger" <| \m ->
     let {x,y} = Tuple.second m.mouseState in
     let f (x2,y2) = put (dx + x2 - x) (dy + y2 - y) in
     { m | mouseMode = Model.MouseDragLayoutWidget f }

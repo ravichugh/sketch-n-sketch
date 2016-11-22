@@ -40,21 +40,21 @@ update = Controller.update
 initCmd : Cmd Msg
 initCmd =
   Cmd.batch
-    [ Task.perform Model.WindowDimensions Window.size
+    [ Task.perform Controller.msgWindowDimensions Window.size
     , AceCodeBox.initializeAndDisplay Model.initModel
     ]
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
   Sub.batch
-    [ Window.resizes Model.WindowDimensions
-    , Mouse.downs (always (Model.MouseIsDown True))
-    , Mouse.ups (always (Model.MouseIsDown False))
-    , Mouse.moves Model.MousePosition
-    , Keyboard.presses Model.KeyPress
-    , Keyboard.downs Model.KeyDown
-    , Keyboard.ups Model.KeyUp
-    , AceCodeBox.receiveEditorState Model.AceMsg
+    [ Window.resizes Controller.msgWindowDimensions
+    , Mouse.downs (always (Controller.msgMouseIsDown True))
+    , Mouse.ups (always (Controller.msgMouseIsDown False))
+    , Mouse.moves Controller.msgMousePosition
+    , Keyboard.presses Controller.msgKeyPress
+    , Keyboard.downs Controller.msgKeyDown
+    , Keyboard.ups Controller.msgKeyUp
+    , AceCodeBox.receiveEditorState Controller.msgFromAce
     ]
 
 
