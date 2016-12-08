@@ -1,4 +1,4 @@
-module ExamplesGenerated (list, scratchName, scratch) where
+module ExamplesGenerated exposing (list, scratchName, scratch)
 
 import Lang
 import LangParser2 as Parser
@@ -22,12 +22,12 @@ makeExample name s =
     let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| Eval.run e in
     {e=e, v=v, ws=ws, ati=ati}
   in
-  (name, s, thunk)
+  (name, (s, thunk))
 
 scratchName = "*Scratch*"
 
 scratch =
- " 
+ """ 
 ; Write a little program below.
 ; Or choose an example from the list.
 ;
@@ -38,10 +38,10 @@ scratch =
  
 (svg [(rect 'maroon' 100 15 200 50)])
 
-"
+"""
 
 threeBoxes =
- "
+ """
 (def threeBoxesInt
   (let [x0 y0 w h sep] [40 28 60 130 110]
   (let boxi (\\i
@@ -51,10 +51,10 @@ threeBoxes =
  
 threeBoxesInt
 
-"
+"""
 
 nBoxesH2 =
- "
+ """
 (def [a b c] [0 0 0])
 (def something (+ a (+ a (+ b (+ b (+ c c))))))
 
@@ -67,10 +67,10 @@ nBoxesH2 =
  
 nBoxes
 
-"
+"""
 
 sineWaveOfBoxes =
- "(def [x0 y0 w h sep amp] [50 120 20 90 30 60])
+ """(def [x0 y0 w h sep amp] [50 120 20 90 30 60])
 (def n 12!{3-30})
 (def boxi (\\i
    (let xi (+ x0 (* i sep))
@@ -79,10 +79,10 @@ sineWaveOfBoxes =
 
 (svg (map boxi (zeroTo n)))
 
-"
+"""
 
 sineWaveGrid =
- "; WORKAROUND: Switch to [Heuristics] None before using sliders.
+ """; WORKAROUND: Switch to [Heuristics] None before using sliders.
 ; (Better yet, toggle Heuristics before selecting this example.)
 ; Both heuristics modes use a naive algorithm to compute triggers,
 ; which runs very slowly with the number of shapes in this canvas.
@@ -171,13 +171,13 @@ sineWaveGrid =
     []
 ]))
 
-"
+"""
 
 -- LITTLE_TO_ELM waveOfBoxes
 -- LITTLE_TO_ELM waveOfBoxesTokens
 -- LITTLE_TO_ELM waveOfBoxes3
 nBoxes =
- "
+ """
 (def nBoxes
   (let [n x0 y0 w h sep] [3{1-10} 40 28 60 130 110{50-200}]
   (let boxi (\\i
@@ -187,10 +187,10 @@ nBoxes =
  
 nBoxes
 
-"
+"""
 
 groupOfBoxes =
- "
+ """
 ; Try:
 ;  - replacing (basicZonesTail nBoxes) with nBoxes
 
@@ -224,12 +224,12 @@ groupOfBoxes =
 (svg (concat
   [ slider [groupBox] (basicZonesTail nBoxes) ]))
 
-"
+"""
 
 -- LITTLE_TO_ELM sixBoxesA
 -- LITTLE_TO_ELM sixBoxesB
 basicSlides =
- "(def slideCount 5)
+ """(def slideCount 5)
 (def slideMovieCount 5)
 
 [
@@ -258,10 +258,10 @@ basicSlides =
     ]
   )
 ]
-"
+"""
 
 logo =
- "; sketch-n-sketch logo
+ """; sketch-n-sketch logo
 ;
 (let [x0 y0 w h delta] [50 50 200 200 10]
 (let [xw yh w2 h2] [(+ x0 w) (+ y0 h) (div w 2) (div h 2)]
@@ -282,10 +282,10 @@ logo =
      [(+ x0 w2) (+ (+ y0 h2) delta)]])
 ]))))
 
-"
+"""
 
 logo2 =
- "; sketch-n-sketch logo, v2
+ """; sketch-n-sketch logo, v2
 ; better lines for non-square scaling
 
 (def logo (\\(x0 y0 w h delta1 delta2 fg bg)
@@ -321,10 +321,10 @@ logo2 =
 
 (logo x0 y0 w h delta1 delta2 fg bg)
 
-"
+"""
 
 logoSizes =
- "
+ """
 (def logo (\\(x0 y0 w h delta1 delta2 fg bg)
   (let [xw yh w2 h2] [(+ x0 w) (+ y0 h) (div w 2) (div h 2)]
   (let poly (\\(c pts) (polygon c 'none' 0 pts))
@@ -376,10 +376,10 @@ logoSizes =
   (zones 'basic' small)
 ]))
 
-"
+"""
 
 elmLogo =
- "; Elm logo, based on:
+ """; Elm logo, based on:
 ; https://github.com/evancz/elm-svg/blob/1.0.2/examples/Logo.elm
 ;
 ; Notice how the 'viewBox' attribute puts the canvas in
@@ -400,11 +400,11 @@ elmLogo =
   (foo '#60B5CC' [[161 170] [8 323] [314 323]])
 ]))
 
-"
+"""
 
 -- LITTLE_TO_ELM activeTrans
 activeTrans2 =
- "
+ """
 ; Logo based on Active Transportation Alliance
 ; (http://activetrans.org/)
  
@@ -448,10 +448,10 @@ activeTrans2 =
 
 (svg (append [groupBox grayPath greenPath] buttonShapes))
 
-"
+"""
 
 botanic =
- "
+ """
 ; Logo: Chicago Botanic Garden
 
 ; Click '[Zones]' to see the control points for
@@ -491,10 +491,10 @@ botanic =
 (def background (zones 'none' [(rect '#83F52C' 0! 0! w h)]))
 
 (svg (concat [background [(leaf 1!) (leaf -1!) bud]]))
-"
+"""
 
 rings =
- "
+ """
 (let [x0 y0 w r dx dy] [30 30 7 20 32 20]
 (let dxHalf (div dx 2)
  
@@ -511,10 +511,10 @@ rings =
  
 (svg (append row1 row2))))))
 
-"
+"""
 
 polygons =
- "(let ngon (\\(n cx cy len1 len2)
+ """(let ngon (\\(n cx cy len1 len2)
   (let dangle (/ (* 3! (pi)) 2!)
   (let anglei (\\i (+ dangle (/ (* i (* 2! (pi))) n)))
   (let xi     (\\i (+ cx (* len1 (cos (anglei i)))))
@@ -530,10 +530,10 @@ polygons =
   (ngon 15 100 400 40 40)
 ]))
 
-"
+"""
 
 stars =
- " 
+ """ 
 (let nStar (\\(fill stroke w n len1 len2 rot cx cy)
   (let pti (\\[i len]
     (let anglei (+ (- (/ (* i (pi)) n) rot) halfPi)
@@ -555,10 +555,10 @@ stars =
  
 (svg (map iStar (range ni nj)))))))
 
-"
+"""
 
 sliders =
- ";
+ """;
 ; The ni constants get adjusted by the sliders,
 ; and then clamped to fit within the [min, max] range.
 ; Also try changing the min and max constants below.
@@ -612,10 +612,10 @@ sliders =
 ;
   (svg (append sliders displays)))))))))
 
-"
+"""
 
 buttons =
- ";
+ """;
 (let button_ (\\(dropBall xStart y caption xCur)
   (let [rPoint wLine rBall wSlider] [4! 3! 10! 70!]
   (let xEnd (+ xStart wSlider)
@@ -634,10 +634,10 @@ buttons =
 (let [b b1] (button_ true 20! 20! 'b = ' 0.25)
   (svg b1)))
 
-"
+"""
 
 widgets =
- "; library widgets
+ """; library widgets
 ;
 (let [n  s1] (hSlider false 20! 90!  20! 0! 5! 'n = ' 3.1415)
 (let [i  s2] (hSlider true  20! 90!  50! 0! 5! 'i = ' 3.1415)
@@ -645,10 +645,10 @@ widgets =
 (let [b2 s4] (button        20!     110!       'b2 = ' 0.75)
   (svg (concat [s1 s2 s3 s4]))))))
 
-"
+"""
 
 xySlider =
- "; A two dimensional slider in a similar style to the other sliders
+ """; A two dimensional slider in a similar style to the other sliders
 (def xySlider_
   (\\(dropBall roundInt xStart xEnd yStart yEnd minx maxx miny maxy xcaption ycaption curx cury)
     (let [rCorner wEdge rBall] [4! 3! 10!]
@@ -686,10 +686,10 @@ xySlider =
 
 (svg slider)
 
-"
+"""
 
 rgba =
- ";
+ """;
 ; A Color Picker
 ; 
 ; Move the sliders to change the rgba
@@ -707,11 +707,11 @@ rgba =
 ;
   (svg (cons ball sliders)))))))))
 
-"
+"""
 
 -- LITTLE_TO_ELM boxGrid
 boxGridTokenFilter =
- "
+ """
 ; Drag some \"filter tokens\" from the right over the grid.
 ; Toggle between positive/negative filtering.
 
@@ -801,10 +801,10 @@ boxGridTokenFilter =
   tokens
 ]))
 
-"
+"""
 
 usFlag13 =
- ";
+ """;
 ; Original flag of the United States
 ;
 ; A few ways to mainpulate this example:
@@ -839,10 +839,10 @@ usFlag13 =
            (+ (+ y0 (* hstripe 3.5!)) (* min (sin (rotate i))))))
         (range ni nj))))))))))))))
 
-"
+"""
 
 usFlag50 =
- ";
+ """;
 ; Current Flag of the United States
 ; (using circles for now, since 50 stars is slow)
 ;
@@ -871,10 +871,10 @@ usFlag50 =
         (append (cartProd (range 0.5! 5.5!) (range 0.75! 4.75!))
                 (cartProd (range 1! 5!) (range 1.2! 4.2!))))))))))))
 
-"
+"""
 
 chicago =
- " 
+ """ 
 ; The flag of Chicago
 ;
 ; Possible ways to manipulate
@@ -902,11 +902,11 @@ chicago =
 
 (svg (concat [background stripes stars]))
 
-"
+"""
 
 -- LITTLE_TO_ELM chicagoColors
 frenchSudan =
- ";
+ """;
 ; The Flag of French Sudan, based on:
 ;
 ; A few ways to manipulate:
@@ -942,10 +942,10 @@ frenchSudan =
            [[x3 y3] [x3 y4]]
            [[x2 y1] [x2 y3]]]))))))))))))))
 
-"
+"""
 
 flw1 =
- ";
+ """;
 ; A Frank Lloyd Wright design inspired by:
 ; http://www.glass-by-design.com/images3/skylight3.jpg
 ;
@@ -990,10 +990,10 @@ flw1 =
            [(xoff  6) (yoff  7) (/ (+ wbox hbox) 4)]
            [(xoff  6) (yoff  5) (/ (+ wbox hbox) 2)]])))))))))))))))
 
-"
+"""
 
 flw2 =
- ";
+ """;
 ; A Frank Lloyd Wright design based on:
 ; http://www.glass-by-design.com/images3/skylight3.jpg
 ;
@@ -1049,10 +1049,10 @@ flw2 =
     (cons (rect 'white' (- x0 10!) (- y0 10!) (+ (* 3 w) 20!) (+ (* 2 h) 20!))
       (concatMap singletile grid))))))))))))))
 
-"
+"""
 
 ferris =
- "
+ """
 ; Take this ferris wheel for a spin!
 ; Try:
 ;  - Stretching the passenger cars
@@ -1075,10 +1075,10 @@ ferris =
 
 (svg (wheel cx cy rCenter wCar rCap numSpokes spokeLen rotAngle))
 
-"
+"""
 
 ferris2 =
- "(def n 5)
+ """(def n 5)
 (def len 80)
 (def rot 0)
 
@@ -1097,10 +1097,10 @@ ferris2 =
 
 (svg wheel)
 
-"
+"""
 
 ferris2target =
- "(def n 8)
+ """(def n 8)
 (def len 142)
 (def rot -0.13796015197333036)
 
@@ -1119,10 +1119,10 @@ ferris2target =
 
 (svg wheel)
 
-"
+"""
 
 ferrisWheelSlideshow =
- "(def [slideN slideSlider] (hSlider true 20! 400! 20! 1! 13! 'Slide ' 1))
+ """(def [slideN slideSlider] (hSlider true 20! 400! 20! 1! 13! 'Slide ' 1))
 (def [timeInSlide timeInSlideSlider] (hSlider false 20! 400! 40! 0.0! 1.0! 'Time in Slide ' 0.0))
 
 (def rimColor [0 0 0 1])
@@ -1395,10 +1395,10 @@ ferrisWheelSlideshow =
 )
 
 (svg (append (concat elements) (concat [slideSlider timeInSlideSlider])))
-"
+"""
 
 pieChart1 =
- "; A Pie Chart
+ """; A Pie Chart
 ;
 ; Move the sliders to change the size of a particular slice
 ;
@@ -1441,10 +1441,10 @@ pieChart1 =
   wedges))))))))))
 ;
 (svg (cons (circle 'lightgray' cx cy (* 1.1 r)) (append (append sliders swatches) pie))))))))))))))))))))
-"
+"""
 
 solarSystem =
- "; Visualization of the solar system 
+ """; Visualization of the solar system 
 ;
 ; The slider on top controls the \"animation.\"
 ; Try changing the size of a planet in one frame,
@@ -1495,10 +1495,10 @@ solarSystem =
 
 (svg (concat [ rings [sun | planets] timeslider ]))
 
-"
+"""
 
 fractalTree =
- "; A fractal tree
+ """; A fractal tree
 ;
 (defrec mod (\\(x m) (if (< x m) x (mod (- x m) m))))
 (def nsin (\\n (if (< n (/ 3.14159 2)) (sin n) (cos (mod n (/ 3.14159 2))))))
@@ -1539,10 +1539,10 @@ fractalTree =
 (def branches (genchildren 2 steps initangle 210 250))
 (svg (concat [ [ trunk | branches ] bendnslider stepslider]))
 
-"
+"""
 
 hilbertCurveAnimation =
- "; How to draw a Hilbert curve.
+ """; How to draw a Hilbert curve.
 ;
 ; https://thoughtstreams.io/jtauber/on-drawing-owls-and-teaching-non-beginners/
 ; 1. Draw a U.
@@ -1936,10 +1936,10 @@ hilbertCurveAnimation =
     )))
   )
 ]
-"
+"""
 
 stickFigures =
- ";
+ """;
 ; A diagram of a sketch-n-sketch demo w/ audience
 ;
 (let [x0 y0 w h] [60 -22 417! 915!]
@@ -2005,10 +2005,10 @@ stickFigures =
           (\\[x y] (figure (+ x0 x) (+ y0 y)))
           [[-24 245] [-96 140] [325 321] [405 184] [474 298]]))))))))))))))
 
-"
+"""
 
 cultOfLambda =
- ";
+ """;
 ; Cult of Lambda
 ;
 ; Some fun 
@@ -2073,10 +2073,10 @@ cultOfLambda =
             (+ (* 0.38! h) (+ y0 (* min (sin (rotate i)))))))
         (range 0! 7!)))))))))))))
 
-"
+"""
 
 clique =
- ";
+ """;
 ; A six node clique
 ;
 (let node (\\[x y] (circle 'lightblue' x y 20))
@@ -2093,10 +2093,10 @@ clique =
 (let edges (map edge pairs)
   (svg (append edges nodes)))))))))
 
-"
+"""
 
 miscShapes =
- "(let [x y] [200 150] (svg [
+ """(let [x y] [200 150] (svg [
   (rect '#999999'  50 10 80 130)
   (circle 'lightblue' 300 100 50)
   (ellipse 'orange' 40 280 30 50)
@@ -2105,19 +2105,19 @@ miscShapes =
   (line 'blue' 4 10 20 300 40)
 ]))
 
-"
+"""
 
 paths1 =
- "(svg [
+ """(svg [
   (path_ ['M' 10 10 'H' 90 'V' 90 'H' 10 'L' 10 10 'Z'])
   (path_ ['M' 20 20 'L' 60 20 'L' 60 80 'Z'])
   (path_ ['M' 150 0 'L' 75 200 'L' 225 200 'Z'])
 ])
 
-"
+"""
 
 paths2 =
- "; Adapted from:
+ """; Adapted from:
 ; https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
 ;
 ; Turn on the zones to see the Bezier control points.
@@ -2135,19 +2135,19 @@ paths2 =
   (path_ ['M' 130 110 'C' 120 140 180 140 170 110])
 ])
 
-"
+"""
 
 paths3 =
- "(svg [
+ """(svg [
   (path_ ['M' 10 80 'C' 40 10 65 10 95 80 'S' 150 150 180 80])
   (path_ ['M' 10 80 'Q' 95 10 180 80])
   (path_ ['M' 10 80 'Q' 52.5 10 95 80 'T' 180 80])
 ])
 
-"
+"""
 
 paths4 =
- "; Adapted from:
+ """; Adapted from:
 ; https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
 ;
 (svg [
@@ -2162,10 +2162,10 @@ paths4 =
     ['opacity' 0.5])
 ])
 
-"
+"""
 
 paths5 =
- "; Adapted from:
+ """; Adapted from:
 ; https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
 ;
 (svg [
@@ -2179,10 +2179,10 @@ paths5 =
     ['M' 230 230 'A' 45 45 0 1 1 275 275 'L' 275 230 'Z'])
 ])
 
-"
+"""
 
 sailBoat =
- "; A sail boat on the ocean
+ """; A sail boat on the ocean
 ;
 ; Try mainupulating:
 ;   - The position of the boat by dragging the sail
@@ -2249,10 +2249,10 @@ sailBoat =
     (mkwaves nodes)
     boat]))
 
-"
+"""
 
 eyeIcon =
- "; An eye icon
+ """; An eye icon
 ; Recreation of https://commons.wikimedia.org/wiki/Category:SVG_eye_icons#/media/File:Eye_open_font_awesome.svg
 ;
 ; Try unfreezing:
@@ -2299,10 +2299,10 @@ eyeIcon =
      'Z']))
 (svg  [outerBorder innerBorder cornea glint])
 
-"
+"""
 
 wikimedia =
- "; Wikimedia Logo
+ """; Wikimedia Logo
 ; Recreation of https://upload.wikimedia.org/wikipedia/commons/8/81/Wikimedia-logo.svg
  
 ; The white objects are an example of using masks as opposed to paths to create
@@ -2329,10 +2329,10 @@ wikimedia =
 
 (svg [blueCirc whiteRing greenCirc whiteWedge whiteBar redDot])
 
-"
+"""
 
 haskell =
- "; Haskell.org Logo
+ """; Haskell.org Logo
 ; SVG version of https://www.haskell.org/static/img/logo.png?etag=rJR84DMh
 ;
 ; Try making a slider for the bend amount to adjust that parameter indirectly.
@@ -2396,10 +2396,10 @@ haskell =
             (+ (+ (/ totalHeight 2!) (* equalsSep 0.75!)) (* equalsWidth (cos bend)))
         'Z'])])
 (svg (append [leftWedge lambda] equals))
-"
+"""
 
 matrices =
- "; Definitions for 2D matrices and transform application
+ """; Definitions for 2D matrices and transform application
 ;
 ; Similar to the SVG transform operation
 ; See https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/transform
@@ -2434,10 +2434,10 @@ matrices =
 (def shearsquare (toPath (toPts (translatert (translatert (translatert (translatert (translatedn (shear ps)))))))))
 (def scalesquare (toPath (toPts (translatert (translatert (translatert (translatert (translatert (translatert (translatedn (scale ps)))))))))))
 (svg [square1 square2 rotsquare shearsquare scalesquare])
-"
+"""
 
 rotTest =
- "
+ """
 (def [x y w h] [257 54 152 261])
 (def rot 38.166250526006905)
 (def colorNum 100)
@@ -2465,10 +2465,10 @@ rotTest =
 
 (svg [r e])
 
-"
+"""
 
 interfaceButtons =
- "(def [w h depth shadow r] [120 22.5 4 0.5 2])
+ """(def [w h depth shadow r] [120 22.5 4 0.5 2])
 (def shadowcol [180 180 180 1])
 
 (def draw (\\(topcolor botcolor offset)
@@ -2538,10 +2538,10 @@ interfaceButtons =
     disabledButton3)))
 ))
 
-"
+"""
 
 barGraph =
- "; A Bar Graph
+ """; A Bar Graph
 ;
 ; Try:
 ;   - Manipulating the height of the bars
@@ -2616,10 +2616,10 @@ barGraph =
 
 (if doneEditing (svgViewBox (+ (* 2! x0) totwd) (+ y0 (+ (* 3! textht) totht)) (concat [bars axes xlabels ylabels names]))
                 (svg (concat [bars axes xlabels ylabels names windowslider])) )
-"
+"""
 
 thawFreeze =
- "
+ """
 # unannotated-numbers: n!
 
 ; Set [unannotated-numbers] to [n?] or [n!] to declare that
@@ -2629,10 +2629,10 @@ thawFreeze =
 
 (svg [(rect 'maroon' 100? 15 200! 50)])
 
-"
+"""
 
 dictionaries =
- "(def d (empty))
+ """(def d (empty))
 (def d1 (insert 'a' 3 d))
 (def d2 (insert 'b' 4 d1))
 (def d3 (remove 'a' d2))
@@ -2652,11 +2652,11 @@ dictionaries =
     [(text 50 110 (toString (getWithDefault 'a' 'default' d3)))]
 ])
 
-"
+"""
 
 -- LITTLE_TO_ELM deleteBoxes
 cover =
- "; Logo for Cover
+ """; Logo for Cover
 ; see https://github.com/florence/cover
 
 (def size 300!)
@@ -2714,10 +2714,10 @@ cover =
   (rotate (bottomb x y3) rot m m)
 ]]
 
-"
+"""
 
 poppl =
- "; Logo for POP-PL
+ """; Logo for POP-PL
 ; see https://github.com/florence/pop-pl
 
 (def M 'M')
@@ -2785,10 +2785,10 @@ poppl =
       scope2
 ]]
 
-"
+"""
 
 bezier =
- "; Animated Bezier Curves
+ """; Animated Bezier Curves
 ; Recreating https://www.jasondavies.com/animated-bezier/
 ;
 ; Bezier functions
@@ -2930,12 +2930,12 @@ bezier =
 ; Putting it all together
 ;
 (svg (concat [linCurve quadCurve cuCurve tslider]))
-"
+"""
 
 -- LITTLE_TO_ELM surveyResultsTriBubbles
 -- LITTLE_TO_ELM surveyResultsTriHist
 surveyResultsTriHist2 =
- "
+ """
 ; Interactive charts that show results from user study:
 ; http://ravichugh.github.io/sketch-n-sketch/blog/03-user-study-videos.html
 
@@ -3075,10 +3075,10 @@ surveyResultsTriHist2 =
     (\\[i countsi] (tri cx0 (+ cy0 (* i sep)) countsi))
     [ferrisCounts keyboardCounts tesselationCounts])))
 
-"
+"""
 
 equiTri =
- "
+ """
 ; Equilateral Triangles
 ; (derived in terms of nStar, rather than nGon)
 
@@ -3098,10 +3098,10 @@ equiTri =
     10)
 ])
 
-"
+"""
 
 gridTile =
- "
+ """
 (def grid (\\(x0 y0 w h n m)
   (let [xw yh] [(+ x0 w) (+ y0 h)]
   (let [rowH colW] [(/ h n) (/ w m)]
@@ -3129,10 +3129,10 @@ gridTile =
   [blob]
 ))
 
-"
+"""
 
 lilliconP =
- "
+ """
 (def [x0 x1 x2 x3 x4] [20 80 150 240 380])
 (def [y0 y1 y2 y3]    [20 125 296 424])
 
@@ -3166,10 +3166,10 @@ lilliconP =
 
 (svg (cons theP (if true highlights [])))
 
-"
+"""
 
 lilliconP2 =
- "
+ """
 (def [x0 x1 x2 x3 x4] [20 80 150 240 380])
 (def [y0 y1 y2 y3]    [20 125 296 424])
 
@@ -3194,10 +3194,10 @@ lilliconP2 =
 
 (svg (cons theP (if true highlights [])))
 
-"
+"""
 
 keyboard =
- "(def scale 25)
+ """(def scale 25)
 (def keyBaseHeight scale)
 (def keyBaseWidth keyBaseHeight)
 (def relativeSpacing 0.3333333333333)
@@ -3285,10 +3285,10 @@ keyboard =
   [topArrow]
   row4
 ]))
-"
+"""
 
 keyboard2 =
- "(def scale 40)
+ """(def scale 40)
 (def keyBaseHeight scale)
 (def keyBaseWidth keyBaseHeight)
 (def relativeSpacing 0.3333333333333)
@@ -3346,10 +3346,10 @@ keyboard2 =
   row3
   row4
 ]))
-"
+"""
 
 keyboard2target =
- "(def scale 40)
+ """(def scale 40)
 (def keyBaseHeight scale)
 (def keyBaseWidth keyBaseHeight)
 (def relativeSpacing 0.3333333333333)
@@ -3411,10 +3411,10 @@ keyboard2target =
   row3
   row4
 ]))
-"
+"""
 
 tessellation =
- "; I believe this is set up for group p6mm
+ """; I believe this is set up for group p6mm
 ; https://en.wikipedia.org/wiki/Wallpaper_group#Group_p6mm_.28.2A632.29
 
 ; SVG transforms to flip, rotate, and position.
@@ -3507,10 +3507,10 @@ tessellation =
 ])
 
 (svg primitiveHexagonColumns)
-"
+"""
 
 tessellationTarget =
- "; I believe this is set up for group p6mm
+ """; I believe this is set up for group p6mm
 ; https://en.wikipedia.org/wiki/Wallpaper_group#Group_p6mm_.28.2A632.29
 
 ; SVG transforms to flip, rotate, and position.
@@ -3596,10 +3596,10 @@ tessellationTarget =
 ])
 
 (svg primitiveHexagonColumns)
-"
+"""
 
 tessellation2 =
- "; I believe this is set up for group p6mm
+ """; I believe this is set up for group p6mm
 ; https://en.wikipedia.org/wiki/Wallpaper_group#Group_p6mm_.28.2A632.29
 
 ; SVG transforms to flip, rotate, and position.
@@ -3683,10 +3683,10 @@ tessellation2 =
 ])
 
 (svg primitiveHexagonColumns)
-"
+"""
 
 floralLogo =
- "(def spiralArmCount 5)
+ """(def spiralArmCount 5)
 (def ringParameters [
   ; petalSize petalRotation ringRadius ringRotation
   [ 118{0-300}  0.63{-3.2-3.2} -16{-100-300}      0{-3.2-3.2}]
@@ -3740,10 +3740,10 @@ floralLogo =
 
 (svg flower)
 
-"
+"""
 
 floralLogo2 =
- "(def ringParameters [
+ """(def ringParameters [
   ; petalSize petalRotation ringRadius ringRotation
   [ 76{0-300} -0.266{-3.2-3.2}  -12{-100-300}   0.128{-3.2-3.2}]
   [ 52{0-300} -0.317{-3.2-3.2}   60{-100-300}  -0.320{-3.2-3.2}]
@@ -3800,10 +3800,10 @@ floralLogo2 =
 )
 
 (svg flower)
-"
+"""
 
 zones =
- "(def ngon (\\(n cx cy len1 len2)
+ """(def ngon (\\(n cx cy len1 len2)
   (let dangle (/ (* 3! (pi)) 2!)
   (let anglei (\\i (+ dangle (/ (* i (* 2! (pi))) n)))
   (let xi     (\\i (+ cx (* len1 (cos (anglei i)))))
@@ -3819,10 +3819,10 @@ zones =
   (path_ ['M' 261 250 'Q' 316.5 306 307 231 'C' 317 179 341 256 366 188 'T' 380 274])
 ])
 
-"
+"""
 
 roundedRect =
- "
+ """
 (def roundedRect (\\(fill x y w h rxSeed rySeed)
   (let off 20!
   (let [wHalf hHalf] [(/ w 2!) (/ h 2!)]
@@ -3839,10 +3839,10 @@ roundedRect =
   (roundedRect 150 100 100 80 200 10 20)
 ]))
 
-"
+"""
 
 spiralSpiralGraph =
- "; Spiral Spiral-Graph
+ """; Spiral Spiral-Graph
 ; Somewhat like the Spirograph toy, but based on a circle
 ; following a spiral rather than a circle in a circle.
 
@@ -3865,7 +3865,7 @@ spiralSpiralGraph =
 (def theCircles (map placeCircle (range 1 n)))
 
 (svg theCircles)
-"
+"""
 
 -- LITTLE_TO_ELM relateRects0
 -- LITTLE_TO_ELM relateRects1
@@ -3877,13 +3877,13 @@ spiralSpiralGraph =
 -- LITTLE_TO_ELM relatePoints3
 -- LITTLE_TO_ELM relatePoints4
 blank =
- "(blobs [
+ """(blobs [
 ])
 
-"
+"""
 
 horrorFilms0 =
- "
+ """
 ; http://www.awwwards.com/gallery/4453/99-creative-logo-designs-for-inspiration/
 
 (def equiTriAt (\\(cx cy color sideLen rot)
@@ -3921,10 +3921,10 @@ horrorFilms0 =
   (horror 220 250 390 499 172 47 139)
 ])
 
-"
+"""
 
 cyclingAssociation0 =
- "
+ """
 ; http://www.awwwards.com/gallery/4433/99-creative-logo-designs-for-inspiration/
 
 (def equiTriAt (\\(cx cy color sideLen rot)
@@ -3984,10 +3984,10 @@ cyclingAssociation0 =
   (logo 167 182 49 156.42857142857147 0.7 9 [416 9])
 ])
 
-"
+"""
 
 snsLogoWheel =
- "
+ """
 (def logo (\\(rectColor
              lineColor lineWidth
              width height
@@ -4044,10 +4044,10 @@ snsLogoWheel =
   )
 ])
 
-"
+"""
 
 sns_UIST =
- "
+ """
 (def newGroup4 (\\(line2_width line2_color color [left top right bot])
   (def bounds [left top right bot])
 
@@ -4068,10 +4068,10 @@ sns_UIST =
   (withBounds [31 100 216 269] (newGroup4 5 202 60))
 ])
 
-"
+"""
 
 sns_revisited_UIST =
- "
+ """
 ; Try deleting the five helper circles from the main expression.
 
 (def [polygon6_top polygon5_left polygon6_right] [69 92 296])
@@ -4135,10 +4135,10 @@ sns_revisited_UIST =
   circle8
 ])
 
-"
+"""
 
 botanic_UIST =
- "
+ """
 (def newGroup4 (\\(leftLeaf_strokeWidth leftLeaf_color leftLeaf_strokeColor leftLeaf_dPcts_k3164 leftLeaf_dPcts_k3166 centerLeftPct leftRightPct leftTopPct leftMidPct x03451 y03450 x03401 y03400 y03344 dPcts_k3058 [left top right bot])
   (def bounds [left top right bot])
   (def centerRightPct (- 1! centerLeftPct))
@@ -4175,10 +4175,10 @@ botanic_UIST =
   (withBounds [56 45.523358950223596 512 495] (newGroup4 4 100 431 0.4693710270993644? 0.3959689822652434? 0.35053185358677735 0.47858611976259036 0.44362108479755546 0.5977244375980417 1 1 0 1 1 0.3407539747046014?))
 ])
 
-"
+"""
 
 coffee_UIST =
- "
+ """
 (def mug (\\(outer_color strokeWidth3280 color strokeWidth3239 strokeColor strokeWidth3142 x0 y0 [left top right bot])
   (def bounds [left top right bot])
   (def rFrac 0.2!)
@@ -4217,7 +4217,7 @@ coffee_UIST =
   (withBounds [143 380 193 442] (mug 164 0 481 0 102 5 0.8846153846153846? 0))
 ])
 
-"
+"""
 
 
 examples =

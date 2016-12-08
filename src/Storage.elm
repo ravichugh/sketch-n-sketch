@@ -1,4 +1,4 @@
-module Storage where
+module Storage exposing (..)
 
 import Json.Encode exposing (Value)
 import Json.Decode exposing (Decoder, decodeValue)

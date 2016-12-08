@@ -1,4 +1,4 @@
-module Eval (run, parseAndRun, parseAndRun_, evalDelta, eval) where
+module Eval exposing (run, parseAndRun, parseAndRun_, evalDelta, eval)
 
 import Debug
 import Dict
@@ -27,11 +27,11 @@ match (p,v) = case (p.val, v.v_) of
     if n > m then Nothing
     else
       let (vs1,vs2) = Utils.split n vs in
-      (rest, vList vs2) `cons` (matchList (Utils.zip ps vs1))
+      cons (rest, vList vs2) (matchList (Utils.zip ps vs1))
         -- dummy VTrace, since VList itself doesn't matter
   (PList _ _ _ _ _, _) -> Nothing
-  (PConst _ n, VConst (n',_)) -> if n == n' then Just [] else Nothing
-  (PBase _ bv, VBase bv') -> if (eBaseToVBase bv) == bv' then Just [] else Nothing
+  (PConst _ n, VConst (n_,_)) -> if n == n_ then Just [] else Nothing
+  (PBase _ bv, VBase bv_) -> if (eBaseToVBase bv) == bv_ then Just [] else Nothing
   _ -> Debug.crash <| "Little evaluator bug: Eval.match " ++ (toString p.val) ++ " vs " ++ (toString v.v_)
 
 
@@ -82,14 +82,14 @@ typeCaseMatch env bt pat tipe =
 cons : (Pat, Val) -> Maybe Env -> Maybe Env
 cons pv menv =
   case (menv, match pv) of
-    (Just env, Just env') -> Just (env' ++ env)
+    (Just env, Just env_) -> Just (env_ ++ env)
     _                     -> Nothing
 
 
 lookupVar env bt x pos =
   case Utils.maybeFind x env of
     Just v  -> Ok v
-    Nothing -> errorWithBacktrace bt <| strPos pos ++ " variable not found: " ++ x ++ "\nVariables in scope: " ++ (String.join " " <| List.map fst env)
+    Nothing -> errorWithBacktrace bt <| strPos pos ++ " variable not found: " ++ x ++ "\nVariables in scope: " ++ (String.join " " <| List.map Tuple.first env)
 
 
 mkCap mcap l =
@@ -108,7 +108,7 @@ mkCap mcap l =
 -- eval inserts dummyPos during evaluation
 
 eval_ : Env -> Backtrace -> Exp -> Result String (Val, Widgets)
-eval_ env bt e = Result.map fst <| eval env bt e
+eval_ env bt e = Result.map Tuple.first <| eval env bt e
 
 
 eval : Env -> Backtrace -> Exp -> Result String ((Val, Widgets), Env)
@@ -122,7 +122,7 @@ eval env bt e =
   let retBoth (v,w)                  = (({v | vtrace = e.val.eid :: v.vtrace},w), env) in
   let addWidgets ws1 ((v1,ws2),env1) = ((v1, ws1 ++ ws2), env1) in
 
-  let bt' =
+  let bt_ =
     if e.start.line >= 1
     then e::bt
     else bt
@@ -143,7 +143,7 @@ eval env bt e =
   EOp _ op es _  -> Result.map (\res -> retAddWs e.val.eid (res, env)) <| evalOp env (e::bt) op es
 
   EList _ es _ m _ ->
-    case Utils.projOk <| List.map (eval_ env bt') es of
+    case Utils.projOk <| List.map (eval_ env bt_) es of
       Err s -> Err s
       Ok results ->
         let (vs,wss) = List.unzip results in
@@ -151,11 +151,11 @@ eval env bt e =
         case m of
           Nothing   -> Ok <| retBoth <| (Val (VList vs) [], ws)
           Just rest ->
-            case eval_ env bt' rest of
+            case eval_ env bt_ rest of
               Err s -> Err s
-              Ok (vRest, ws') ->
+              Ok (vRest, ws_) ->
                 case vRest.v_ of
-                  VList vs' -> Ok <| retBoth <| (Val (VList (vs ++ vs')) [], ws ++ ws')
+                  VList vs_ -> Ok <| retBoth <| (Val (VList (vs ++ vs_)) [], ws ++ ws_)
                   _         -> errorWithBacktrace (e::bt) <| strPos rest.start ++ " rest expression not a list."
 
   EIf _ e1 e2 e3 _ ->
@@ -183,41 +183,41 @@ eval env bt e =
       _                -> errorWithBacktrace (e::bt) <| strPos pat.start ++ " non-exhaustive typecase statement"
 
   EApp _ e1 [e2] _ ->
-    case eval_ env bt' e1 of
+    case eval_ env bt_ e1 of
       Err s       -> Err s
       Ok (v1,ws1) ->
-        case eval_ env bt' e2 of
+        case eval_ env bt_ e2 of
           Err s       -> Err s
           Ok (v2,ws2) ->
             let ws = ws1 ++ ws2 in
             case v1.v_ of
-              VClosure Nothing p eBody env' ->
-                case (p, v2) `cons` Just env' of
-                  Just env'' -> Result.map (addWidgets ws) <| eval env'' bt' eBody -- TODO add eid to vTrace
+              VClosure Nothing p eBody env_ ->
+                case cons (p, v2) (Just env_) of
+                  Just env__ -> Result.map (addWidgets ws) <| eval env__ bt_ eBody -- TODO add eid to vTrace
                   _          -> errorWithBacktrace (e::bt) <| strPos e1.start ++ "bad environment"
-              VClosure (Just f) p eBody env' ->
-                case (pVar f, v1) `cons` ((p, v2) `cons` Just env') of
-                  Just env'' -> Result.map (addWidgets ws) <| eval env'' bt' eBody -- TODO add eid to vTrace
+              VClosure (Just f) p eBody env_ ->
+                case cons (pVar f, v1) (cons (p, v2) (Just env_)) of
+                  Just env__ -> Result.map (addWidgets ws) <| eval env__ bt_ eBody -- TODO add eid to vTrace
                   _          -> errorWithBacktrace (e::bt) <| strPos e1.start ++ "bad environment"
               _ ->
                 errorWithBacktrace (e::bt) <| strPos e1.start ++ " not a function"
 
   ELet _ _ True p e1 e2 _ ->
-    case eval_ env bt' e1 of
+    case eval_ env bt_ e1 of
       Err s       -> Err s
       Ok (v1,ws1) ->
         case (p.val, v1.v_) of
-          (PVar _ f _, VClosure Nothing x body env') ->
-            let _   = Utils.assert "eval letrec" (env == env') in
-            let v1' = Val (VClosure (Just f) x body env) v1.vtrace in
-            case (pVar f, v1') `cons` Just env of
-              Just env' -> Result.map (addWidgets ws1) <| eval env' bt' e2
+          (PVar _ f _, VClosure Nothing x body env_) ->
+            let _   = Utils.assert "eval letrec" (env == env_) in
+            let v1_ = Val (VClosure (Just f) x body env) v1.vtrace in
+            case cons (pVar f, v1_) (Just env) of
+              Just env_ -> Result.map (addWidgets ws1) <| eval env_ bt_ e2
               _         -> errorWithBacktrace (e::bt) <| strPos e.start ++ "bad ELet"
           (PList _ _ _ _ _, _) ->
             errorWithBacktrace (e::bt) <|
               strPos e1.start ++
-              "mutually recursive functions (i.e. letrec [...] [...] e) \
-               not yet implemented"
+              """mutually recursive functions (i.e. letrec [...] [...] e) \
+                 not yet implemented"""
                -- Implementation also requires modifications to LangTransform.simply
                -- so that clean up doesn't prune the funtions.
           _ ->
@@ -230,12 +230,12 @@ eval env bt e =
         if String.trim a /= "Point" then eval env bt e1
         else
           eval env bt e1 |> Result.map (\result ->
-            let ((v,ws),env') = result in
+            let ((v,ws),env_) = result in
             case v.v_ of
               VList [v1, v2] ->
                 case (v1.v_, v2.v_) of
                   (VConst nt1, VConst nt2) ->
-                    ((v, ws ++ [WPointSlider nt1 nt2]), env')
+                    ((v, ws ++ [WPointSlider nt1 nt2]), env_)
                   _ ->
                     result
               _ ->
@@ -252,10 +252,10 @@ eval env bt e =
 
   -- abstract syntactic sugar
 
-  EFun _ ps e1 _           -> Result.map (retAddWs e1.val.eid) <| eval env bt' (eFun ps e1)
+  EFun _ ps e1 _           -> Result.map (retAddWs e1.val.eid) <| eval env bt_ (eFun ps e1)
   EApp _ e1 [] _           -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " application with no arguments"
-  EApp _ e1 es _           -> Result.map (retAddWs e.val.eid)  <| eval env bt' (eApp e1 es)
-  ELet _ _ False p e1 e2 _ -> Result.map (retAddWs e2.val.eid) <| eval env bt' (eApp (eFun [p] e2) [e1])
+  EApp _ e1 es _           -> Result.map (retAddWs e.val.eid)  <| eval env bt_ (eApp e1 es)
+  ELet _ _ False p e1 e2 _ -> Result.map (retAddWs e2.val.eid) <| eval env bt_ (eApp (eFun [p] e2) [e1])
 
 
 evalOp env bt opWithInfo es =
@@ -347,9 +347,9 @@ evalOp env bt opWithInfo es =
 -- Returns Err s if execution error
 evalBranches env bt v bs =
   List.foldl (\(Branch_ _ pat exp _) acc ->
-    case (acc, (pat,v) `cons` Just env) of
+    case (acc, cons (pat,v) (Just env)) of
       (Ok (Just done), _)     -> acc
-      (Ok Nothing, Just env') -> eval_ env' bt exp |> Result.map Just
+      (Ok Nothing, Just env_) -> eval_ env_ bt exp |> Result.map Just
       (Err s, _)              -> acc
       _                       -> Ok Nothing
 
@@ -416,7 +416,7 @@ valToDictKey bt val_ =
       |> Result.map (\keyStrings -> (toString keyStrings, "list"))
     _                 -> errorWithBacktrace bt <| "Cannot use " ++ (strVal (val val_)) ++ " in a key to a dictionary."
 
-initEnvRes = Result.map snd <| (eval [] [] Parser.prelude)
+initEnvRes = Result.map Tuple.second <| (eval [] [] Parser.prelude)
 initEnv = Utils.fromOk "Eval.initEnv" <| initEnvRes
 
 run : Exp -> Result String (Val, Widgets)
@@ -439,9 +439,9 @@ postProcessWidgets widgets =
   rangeWidgets ++ pointWidgets
 
 parseAndRun : String -> String
-parseAndRun = strVal << fst << Utils.fromOk_ << run << Utils.fromOkay "parseAndRun" << Parser.parseE
+parseAndRun = strVal << Tuple.first << Utils.fromOk_ << run << Utils.fromOkay "parseAndRun" << Parser.parseE
 
-parseAndRun_ = strVal_ True << fst << Utils.fromOk_ << run << Utils.fromOkay "parseAndRun_" << Parser.parseE
+parseAndRun_ = strVal_ True << Tuple.first << Utils.fromOk_ << run << Utils.fromOkay "parseAndRun_" << Parser.parseE
 
 btString : Backtrace -> String
 btString bt =

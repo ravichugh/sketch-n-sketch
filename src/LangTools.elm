@@ -1,4 +1,4 @@
-module LangTools where
+module LangTools exposing (..)
 
 -- Most of these methods used to be in Lang.elm
 --
@@ -106,7 +106,7 @@ scopeNamesLocLiftedThrough newLetBody targetLoc =
 scopeNamesLocLiftedThrough_ targetLocId scopeNames exp =
   case exp.val.e__ of
     ELet _ _ _ pat assigns body _ ->
-      let scopeNames' =
+      let scopeNames_ =
         case pat.val of
           PVar _ ident _  -> scopeNames ++ [ident]
           PAs _ ident _ _ -> scopeNames ++ [ident]
@@ -114,7 +114,7 @@ scopeNamesLocLiftedThrough_ targetLocId scopeNames exp =
       in
       -- Ident should only be added to assigns. Otherwise you get lots of junk
       -- names.
-      (scopeNamesLocLiftedThrough_ targetLocId scopeNames' assigns) ++
+      (scopeNamesLocLiftedThrough_ targetLocId scopeNames_ assigns) ++
       (scopeNamesLocLiftedThrough_ targetLocId scopeNames  body)
 
     EConst _ _ (locId, _, _) _ ->
@@ -198,7 +198,7 @@ identifierCounts exp =
 renameIdentifierInPat old new pat =
   let recurse = renameIdentifierInPat old new in
   let recurseList = List.map recurse in
-  let pat_' =
+  let pat__ =
     case pat.val of
       PVar ws ident wd ->
         if ident == old
@@ -219,7 +219,7 @@ renameIdentifierInPat old new pat =
       _ ->
         pat.val
   in
-  { pat | val = pat_' }
+  { pat | val = pat__ }
 
 
 renameIdentifierInPats old new pats =
@@ -241,12 +241,12 @@ renameIdentifier old new exp =
         EFun ws1 (renameIdentifierInPats old new pats) body ws2
 
       ECase ws1 e1 branches ws2 ->
-        let branches' =
+        let branches_ =
           List.map
               (mapValField (\(Branch_ bws1 pat ei bws2) -> Branch_ bws1 (renameIdentifierInPat old new pat) ei bws2))
               branches
         in
-        ECase ws1 e1 branches' ws2
+        ECase ws1 e1 branches_ ws2
 
       ETypeCase ws1 pat tbranches ws2 ->
         ETypeCase ws1 (renameIdentifierInPat old new pat) tbranches ws2

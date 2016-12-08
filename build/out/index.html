@@ -7,37 +7,15 @@
     <script type="text/javascript" src="aceTooltips.js"></script>
     <link rel="shortcut icon" type="image/png" href="sketch-n-sketch-logo.png">
     <meta charset="UTF-8">
-    <style type="text/css" media="screen">
-        #editor {
-            position: relative;
-            /*top: 0;
-            right: 0;
-            bottom: 0;
-            left: 0;*/
-        }
-    </style>
-    </head>
+  </head>
 
-    <body style="margin: 0 0 0 0;">
-        <div id="main"></div>
-    </body>
+  <body style="margin: 0 0 0 0;"> </body>
 
-    <script>
-      // Scripts below will load these up.
-      window.initialPortValues = {};
-      window.initializers      = [];
-    </script>
-    <script type="text/javascript" src="codeBox.js"></script>
-    <script type="text/javascript" src="toggleAnimationLoopback.js"></script>
-    <script>
-      // Start up Elm
-      var elmRuntime = Elm.fullscreen(Elm.Main, window.initialPortValues);
+  <script>
+    var app = Elm.Main.fullscreen();
+  </script>
 
-      // Call the initializers
-      for (var i in window.initializers) {
-        var intializer = window.initializers[i];
-        intializer(elmRuntime);
-      }
+  <script type="text/javascript" src="aceCodeBox.js"></script>
+  <script type="text/javascript" src="animationLoop.js"></script>
 
-    </script>
 </html>

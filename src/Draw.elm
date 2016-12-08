@@ -1,4 +1,4 @@
-module Draw
+module Draw exposing
   ( drawNewShape
   , drawDotSize
   , boundingBoxOfPoints_
@@ -9,7 +9,7 @@ module Draw
   , addLambda , addHelperDot
   , addTextBox
   , lambdaToolOptionsOf
-  ) where
+  )
 
 import Lang exposing (..)
 import LangSvg
@@ -50,8 +50,8 @@ boundingBoxOfPoints_ pts =
 
 boundingBoxOfPoints : List (Int, Int) -> (Int, Int, Int, Int)
 boundingBoxOfPoints pts =
-  let pts' = List.map (\(x,y) -> (toFloat x, toFloat y)) pts in
-  let (a,b,c,d) = boundingBoxOfPoints_ pts' in
+  let pts_ = List.map (\(x,y) -> (toFloat x, toFloat y)) pts in
+  let (a,b,c,d) = boundingBoxOfPoints_ pts_ in
   (round a, round b, round c, round d)
 
 
@@ -170,7 +170,7 @@ drawNewEllipse keysDown (_,pt2) (_,pt1) =
   clearDots ++ [ ellipse ]
 
 drawNewPolygon (_,ptLast) keysAndPoints =
-  let points = List.map snd keysAndPoints in
+  let points = List.map Tuple.second keysAndPoints in
   let (xInit,yInit) = Utils.last_ (ptLast::points) in
   let redDot = drawDot dotFill (xInit,yInit) in
   let clearDots = List.map (drawDot dotFillCursor) (ptLast::points) in
@@ -195,7 +195,7 @@ drawNewPolygon (_,ptLast) keysAndPoints =
 strPt (x,y) = Utils.spaces [toString x, toString y]
 
 drawNewPath (keysLast,ptLast) keysAndPoints =
-  let points = List.map snd keysAndPoints in
+  let points = List.map Tuple.second keysAndPoints in
   let redDot = [drawDot dotFill (Utils.last_ (ptLast::points))] in
   let yellowDot =
     case points of
@@ -212,23 +212,23 @@ drawNewPath (keysLast,ptLast) keysAndPoints =
             [] -> ("", [click1])
             (_,click2) :: list2 ->
               let cmd = Utils.spaces [" Q", strPt click1, strPt click2] in
-              (cmd, [click1]) `plus` foo list2
+              plus (cmd, [click1]) (foo list2)
         else if modifiers1 == Keys.c then
           case list1 of
             [] -> ("", [click1])
             (_,click2) :: [] -> ("", [click1, click2])
             (_,click2) :: (_,click3) :: list3 ->
               let cmd = Utils.spaces [" C", strPt click1, strPt click2, strPt click3] in
-              (cmd, [click1, click2]) `plus` foo list3
+              plus (cmd, [click1, click2]) (foo list3)
         else
-          (Utils.spaces [" L", strPt click1], []) `plus` foo list1
+          plus (Utils.spaces [" L", strPt click1], []) (foo list1)
     in
     case List.reverse ((keysLast,ptLast)::keysAndPoints) of
       []  -> []
       [_] -> []
       (_,firstClick) :: rest ->
         let (sPath, controlPoints) =
-          (Utils.spaces ["M", strPt firstClick], []) `plus` foo rest in
+          plus (Utils.spaces ["M", strPt firstClick], []) (foo rest) in
         let path =
           svgPath [
               defaultStroke , defaultStrokeWidth , defaultFill , defaultOpacity
@@ -421,7 +421,7 @@ addPolygon stk old points =
     Sticky   -> addStickyPolygon old points
 
 addRawPolygon old keysAndPoints =
-  let points = List.map snd keysAndPoints in
+  let points = List.map Tuple.second keysAndPoints in
   let sPts =
     Utils.bracks <| Utils.spaces <|
       flip List.map (List.reverse points) <| \(x,y) ->
@@ -439,7 +439,7 @@ addRawPolygon old keysAndPoints =
     , eVar "pts", eConst 0 dummyLoc ]
 
 addStretchablePolygon old keysAndPoints =
-  let points = List.map snd keysAndPoints in
+  let points = List.map Tuple.second keysAndPoints in
   let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
   let (width, height) = (xMax - xMin, yMax - yMin) in
   let sPcts =
@@ -460,7 +460,7 @@ addStretchablePolygon old keysAndPoints =
     (List.map eVar ["bounds","color","strokeColor","strokeWidth","pcts"])
 
 addStickyPolygon old keysAndPoints =
-  let points = List.map snd keysAndPoints in
+  let points = List.map Tuple.second keysAndPoints in
   let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
   let (width, height) = (xMax - xMin, yMax - yMin) in
   let sOffsets =
@@ -507,7 +507,7 @@ pathCommands strX strY keysAndPoints =
       let extraLets =
         [ makeLet
            ["x0", "y0"]
-           [ eVar0 (strX (fst firstClick)), eVar (strY (snd firstClick)) ] ]
+           [ eVar0 (strX (Tuple.first firstClick)), eVar (strY (Tuple.second firstClick)) ] ]
       in
       (extraLets, "'M' x0 y0", "x0 y0")
   in
@@ -558,7 +558,7 @@ addAbsolutePath old keysAndPoints =
     , eVar "d", eConst 0 dummyLoc ]
 
 addStretchyPath old keysAndPoints =
-  let points = List.map snd keysAndPoints in
+  let points = List.map Tuple.second keysAndPoints in
   let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
   let (width, height) = (toFloat (xMax - xMin), toFloat (yMax - yMin)) in
   let strX x = maybeThaw (toFloat (x - xMin) / width) in
@@ -578,9 +578,9 @@ addStickyPath old keysAndPoints =
 
 -- copied from ExpressionBasedTransform
 eAsPoint e =
-  let e' = LangUnparser.replacePrecedingWhitespace "" e in
+  let e_ = LangUnparser.replacePrecedingWhitespace "" e in
   withDummyPos <|
-    EColonType " " e' " " (withDummyRange <| TNamed " " "Point") ""
+    EColonType " " e_ " " (withDummyRange <| TNamed " " "Point") ""
 
 {-
 addLambda old (_,pt2) (_,pt1) =
@@ -611,8 +611,8 @@ addLambdaBounds old (_,pt2) (_,pt1) func =
   -- TODO refactor Program to keep (f,args) in sync with exp
   let newBlob = withBoundsBlob eNew (bounds, "XXXXX", args) in
   let (defs, mainExp) = splitExp old.inputExp in
-  let mainExp' = addToMainExp newBlob mainExp in
-  let code = unparse (fuseExp (defs, mainExp')) in
+  let mainExp_ = addToMainExp newBlob mainExp in
+  let code = unparse (fuseExp (defs, mainExp_)) in
 
   -- upstate Run
     { old | code = code
@@ -639,13 +639,13 @@ addLambdaAnchor old _ (_,(x,y)) func =
   -- TODO refactor Program to keep (f,args) in sync with exp
   let newBlob = withAnchorBlob eNew (anchor , "XXXXX", args) in
   let (defs, mainExp) = splitExp old.inputExp in
-  let mainExp' = addToMainExp newBlob mainExp in
-  let code = unparse (fuseExp (defs, mainExp')) in
+  let mainExp_ = addToMainExp newBlob mainExp in
+  let code = unparse (fuseExp (defs, mainExp_)) in
   { old | code = code
         , mouseMode = MouseNothing }
 
 addTextBox old click2 click1 =
-  let (xa, xb, ya, yb) = boundingBox (snd click2) (snd click1) in
+  let (xa, xb, ya, yb) = boundingBox (Tuple.second click2) (Tuple.second click1) in
   let fontSize =
     eConst0 (toFloat (yb - ya)) dummyLoc
     -- withDummyPos (EConst "" (toFloat (yb - ya)) dummyLoc (intSlider 0 128))
@@ -663,10 +663,10 @@ add newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
   let tmp = newShapeKind ++ toString old.genSymCount in
   let newDef = makeNewShapeDef old newShapeKind tmp newShapeLocals newShapeFunc newShapeArgs in
   let (defs, mainExp) = splitExp old.inputExp in
-  let defs' = defs ++ [newDef] in
+  let defs_ = defs ++ [newDef] in
   let eNew = withDummyPos (EVar "\n  " tmp) in
-  let mainExp' = addToMainExp (varBlob eNew tmp) mainExp in
-  let code = unparse (fuseExp (defs', mainExp')) in
+  let mainExp_ = addToMainExp (varBlob eNew tmp) mainExp in
+  let code = unparse (fuseExp (defs_, mainExp_)) in
 
   -- upstate Run
     { old | code = code
@@ -689,7 +689,7 @@ makeNewShapeDef model newShapeKind name locals func args =
         else
           let app = withDummyPos (EApp " " func args "") in
           withDummyPos (EList "\n    " [app] "" Nothing " ")
-      (p,e)::locals' -> withDummyPos (ELet "\n  " Let False p e (recurse locals') "")
+      (p,e)::locals_ -> withDummyPos (ELet "\n  " Let False p e (recurse locals_) "")
   in
   ("\n\n", newShapeName, recurse locals, "")
 
@@ -713,7 +713,7 @@ makeInts nums =
     []    -> Debug.crash "makeInts"
     [n]   -> [eConst0 (toFloat n) dummyLoc]
     n::ns -> let e = eConst0 (toFloat n) dummyLoc in
-             let es = List.map (\n' -> eConst (toFloat n') dummyLoc) ns in
+             let es = List.map (\n_ -> eConst (toFloat n_) dummyLoc) ns in
              e::es
 
 addToMainExp : BlobExp -> MainExp -> MainExp
@@ -742,7 +742,7 @@ switchToCursorTool old =
 --------------------------------------------------------------------------------
 -- Lambda Tool
 
-lambdaToolOptionsOf : Program -> List LambdaTool
+lambdaToolOptionsOf : LittleProgram -> List LambdaTool
 lambdaToolOptionsOf (defs, mainExp) =
   case mainExp of
 

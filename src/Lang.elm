@@ -1,4 +1,4 @@
-module Lang where
+module Lang exposing (..)
 
 import String
 import Debug
@@ -267,7 +267,7 @@ mapExp f e =
     EConst _ _ _ _         -> f e
     EBase _ _              -> f e
     EVar _ _               -> f e
-    EFun ws1 ps e' ws2     -> wrapAndMap (EFun ws1 ps (recurse e') ws2)
+    EFun ws1 ps e_ ws2     -> wrapAndMap (EFun ws1 ps (recurse e_) ws2)
     EApp ws1 e1 es ws2     -> wrapAndMap (EApp ws1 (recurse e1) (List.map recurse es) ws2)
     EOp ws1 op es ws2      -> wrapAndMap (EOp ws1 op (List.map recurse es) ws2)
     EList ws1 es ws2 m ws3 -> wrapAndMap (EList ws1 (List.map recurse es) ws2 (Utils.mapMaybe recurse m) ws3)
@@ -297,8 +297,8 @@ mapExp f e =
 mapExpViaExp__ : (Exp__ -> Exp__) -> Exp -> Exp
 mapExpViaExp__ f e =
   let wrap e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
-  let f' exp = wrap (f exp.val.e__) in
-  mapExp f' e
+  let f_ exp = wrap (f exp.val.e__) in
+  mapExp f_ e
 
 mapVal : (Val -> Val) -> Val -> Val
 mapVal f v = case v.v_ of
@@ -323,8 +323,8 @@ foldExp f acc exp =
 
 foldExpViaE__ : (Exp__ -> a -> a) -> a -> Exp -> a
 foldExpViaE__ f acc exp =
-  let f' exp = f exp.val.e__ in
-  foldExp f' acc exp
+  let f_ exp = f exp.val.e__ in
+  foldExp f_ acc exp
 
 replaceExpNode : Exp -> Exp -> Exp -> Exp
 replaceExpNode oldNode newNode root =
@@ -402,7 +402,7 @@ childExps e =
     EConst _ _ _ _          -> []
     EBase _ _               -> []
     EVar _ _                -> []
-    EFun ws1 ps e' ws2      -> [e']
+    EFun ws1 ps e_ ws2      -> [e_]
     EOp ws1 op es ws2       -> es
     EList ws1 es ws2 m ws3  ->
       case m of
@@ -460,18 +460,18 @@ applySubst subst exp =
           EConst ws n loc wd ->
             let locId = Utils.fst3 loc in
             case Dict.get locId subst.lsubst of
-              Just n' -> EConst ws n' loc wd
+              Just n_ -> EConst ws n_ loc wd
               Nothing -> e__
               -- 10/28: substs from createMousePosCallbackSlider only bind
               -- updated values (unlike substs from Sync)
           _ -> e__
       in
-      let e__' =
+      let e__New =
         case Dict.get e.val.eid subst.esubst of
           Just e__New -> e__New
           Nothing     -> e__ConstReplaced
       in
-      P.WithInfo (Exp_ e__' e.val.eid) e.start e.end
+      P.WithInfo (Exp_ e__New e.val.eid) e.start e.end
     )
   in
   mapExp replacer exp
@@ -596,12 +596,12 @@ eFalse = eBool False
 eApp e es = case es of
   []      -> Debug.crash "eApp"
   [e1]    -> withDummyPos <| EApp "\n" e [e1] ""
-  e1::es' -> eApp (withDummyPos <| EApp " " e [e1] "") es'
+  e1::es_ -> eApp (withDummyPos <| EApp " " e [e1] "") es_
 
 eFun ps e = case ps of
   []      -> Debug.crash "eFun"
   [p]     -> withDummyPos <| EFun " " [p] e ""
-  p::ps'  -> withDummyPos <| EFun " " [p] (eFun ps' e) ""
+  p::ps_  -> withDummyPos <| EFun " " [p] (eFun ps_ e) ""
 
 ePair e1 e2 = withDummyPos <| EList " " [e1,e2] "" Nothing ""
 
@@ -617,8 +617,8 @@ numSlider = rangeSlider NumSlider
 colorNumberSlider = intSlider 0 499
 
 eLets xes eBody = case xes of
-  (x,e)::xes' -> withDummyPos <|
-                   ELet "\n" Let False (withDummyRange (PVar " " x noWidgetDecl)) e (eLets xes' eBody) ""
+  (x,e)::xes_ -> withDummyPos <|
+                   ELet "\n" Let False (withDummyRange (PVar " " x noWidgetDecl)) e (eLets xes_ eBody) ""
   []          -> eBody
 
 eVar0 a        = withDummyPos <| EVar "" a
@@ -673,17 +673,17 @@ listOfRaw = listOfVars
 listOfVars xs =
   case xs of
     []     -> []
-    x::xs' -> eVar0 x :: List.map eVar xs'
+    x::xs_ -> eVar0 x :: List.map eVar xs_
 
 listOfPVars xs =
   case xs of
     []     -> []
-    x::xs' -> pVar0 x :: List.map pVar xs'
+    x::xs_ -> pVar0 x :: List.map pVar xs_
 
 listOfNums ns =
   case ns of
     []     -> []
-    n::ns' -> eConst0 n dummyLoc :: List.map (flip eConst dummyLoc) ns'
+    n::ns_ -> eConst0 n dummyLoc :: List.map (flip eConst dummyLoc) ns_
 
 -- listOfNums1 = List.map (flip eConst dummyLoc)
 
@@ -694,8 +694,8 @@ listOfAnnotatedNums : List AnnotatedNum -> List Exp
 listOfAnnotatedNums list =
   case list of
     [] -> []
-    (n,ann,wd) :: list' ->
-      withDummyPos (EConst "" n (dummyLoc_ ann) wd) :: listOfAnnotatedNums1 list'
+    (n,ann,wd) :: list_ ->
+      withDummyPos (EConst "" n (dummyLoc_ ann) wd) :: listOfAnnotatedNums1 list_
 
 listOfAnnotatedNums1 =
  List.map (\(n,ann,wd) -> withDummyPos (EConst " " n (dummyLoc_ ann) wd))

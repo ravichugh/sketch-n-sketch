@@ -1,7 +1,7 @@
-module PreludeGenerated (src) where
+module PreludeGenerated exposing (src)
 
 prelude =
- "
+ """
 ; prelude.little
 ;
 ; This little library is accessible by every program.
@@ -1619,7 +1619,7 @@ prelude =
 ; The type checker relies on the name of this definition.
 (let dummyPreludeMain ['svg' [] []] dummyPreludeMain)
 
-"
+"""
 
 
 src = prelude

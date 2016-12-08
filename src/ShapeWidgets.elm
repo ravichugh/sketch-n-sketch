@@ -1,4 +1,4 @@
-module ShapeWidgets where
+module ShapeWidgets exposing (..)
 
 import Lang exposing (..)
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Attr)
@@ -61,7 +61,7 @@ polyKindFeatures kind attrs =
       LangSvg.APoints pts ->
         List.concatMap
           (\i -> [PointFeature (Point i), PointFeature (Midpoint i)])
-          [1 .. List.length pts]
+          (List.range 1 (List.length pts))
       _ ->
         err "polyKindFeatures: points not found"
   else if kind == "path" then
@@ -69,7 +69,7 @@ polyKindFeatures kind attrs =
       LangSvg.APath2 (_, pathCounts) ->
         List.concatMap
           (\i -> [PointFeature (Point i)])
-          [1 .. pathCounts.numPoints]
+          (List.range 1 (pathCounts.numPoints))
       _ ->
         err "polyKindFeatures: d not found"
   else
@@ -457,8 +457,8 @@ featureEquationOf id kind attrs featureNum =
       X (Point 2) -> get "x2"
       Y (Point 1) -> get "y1"
       Y (Point 2) -> get "y2"
-      X Center    -> (get "x1" `plus` get "x2") `div` two
-      Y Center    -> (get "y1" `plus` get "y2") `div` two
+      X Center    -> div (plus (get "x1") (get "x2")) two
+      Y Center    -> div (plus (get "y1") (get "y2")) two
       _           -> crash () in
 
   let handleBoxyShape () =
@@ -497,8 +497,8 @@ featureEquationOf id kind attrs featureNum =
       _ -> crash () in
 
   let handlePath () =
-    let x i = EqnNum <| fst <| LangSvg.getPathPoint attrs i in
-    let y i = EqnNum <| snd <| LangSvg.getPathPoint attrs i in
+    let x i = EqnNum <| Tuple.first <| LangSvg.getPathPoint attrs i in
+    let y i = EqnNum <| Tuple.second <| LangSvg.getPathPoint attrs i in
     case featureNum of
       X (Point i) -> x i
       Y (Point i) -> y i
@@ -506,8 +506,8 @@ featureEquationOf id kind attrs featureNum =
 
   let handlePoly () =
     let ptCount = LangSvg.getPtCount attrs in
-    let x i = EqnNum <| fst <| LangSvg.getPolyPoint attrs i in
-    let y i = EqnNum <| snd <| LangSvg.getPolyPoint attrs i in
+    let x i = EqnNum <| Tuple.first <| LangSvg.getPolyPoint attrs i in
+    let y i = EqnNum <| Tuple.second <| LangSvg.getPolyPoint attrs i in
     case featureNum of
 
       X (Point i) -> x i
@@ -515,10 +515,10 @@ featureEquationOf id kind attrs featureNum =
 
       X (Midpoint i1) ->
         let i2 = if i1 == ptCount then 1 else i1 + 1 in
-        ((x i1) `plus` (x i2)) `div` two
+        div (plus (x i1) (x i2)) two
       Y (Midpoint i1) ->
         let i2 = if i1 == ptCount then 1 else i1 + 1 in
-        ((y i1) `plus` (y i2)) `div` two
+        div (plus (y i1) (y i2)) two
 
       _  -> crash () in
 
@@ -562,10 +562,10 @@ boxyFeatureEquationsOf id kind attrs =
     "rect" ->
       { left     = get "x"
       , top      = get "y"
-      , right    = get "x" `plus` get "width"
-      , bottom   = get "y" `plus` get "height"
-      , cx       = get "x" `plus` (get "width" `div` two)
-      , cy       = get "y" `plus` (get "height" `div` two)
+      , right    = plus (get "x") (get "width")
+      , bottom   = plus (get "y") (get "height")
+      , cx       = plus (get "x") (div (get "width") two)
+      , cy       = plus (get "y") (div (get "height") two)
       , mWidth   = Just <| get "width"
       , mHeight  = Just <| get "height"
       , mRadius  = Nothing
@@ -578,10 +578,10 @@ boxyFeatureEquationsOf id kind attrs =
       , top      = get "TOP"
       , right    = get "RIGHT"
       , bottom   = get "BOT"
-      , cx       = (get "LEFT" `plus` get "RIGHT") `div` two
-      , cy       = (get "TOP" `plus` get "BOT") `div` two
-      , mWidth   = Just <| get "RIGHT" `minus` get "LEFT"
-      , mHeight  = Just <| get "BOT" `minus` get "TOP"
+      , cx       = div (plus (get "LEFT") (get "RIGHT")) two
+      , cy       = div (plus (get "TOP") (get "BOT")) two
+      , mWidth   = Just <| minus (get "RIGHT") (get "LEFT")
+      , mHeight  = Just <| minus (get "BOT") (get "TOP")
       , mRadius  = Nothing
       , mRadiusX = Nothing
       , mRadiusY = Nothing
@@ -592,20 +592,20 @@ boxyFeatureEquationsOf id kind attrs =
       , top      = get "TOP"
       , right    = get "RIGHT"
       , bottom   = get "BOT"
-      , cx       = (get "LEFT" `plus` get "RIGHT") `div` two
-      , cy       = (get "TOP" `plus` get "BOT") `div` two
+      , cx       = div (plus (get "LEFT") (get "RIGHT")) two
+      , cy       = div (plus (get "TOP") (get "BOT")) two
       , mWidth   = Nothing
       , mHeight  = Nothing
       , mRadius  = Nothing
-      , mRadiusX = Just <| (get "RIGHT" `minus` get "LEFT") `div` two
-      , mRadiusY = Just <| (get "BOT" `minus` get "TOP") `div` two
+      , mRadiusX = Just <| div (minus (get "RIGHT") (get "LEFT")) two
+      , mRadiusY = Just <| div (minus (get "BOT") (get "TOP")) two
       }
 
     "circle" ->
-      { left     = get "cx" `minus` get "r"
-      , top      = get "cy" `minus` get "r"
-      , right    = get "cx" `plus` get "r"
-      , bottom   = get "cy" `plus` get "r"
+      { left     = minus (get "cx") (get "r")
+      , top      = minus (get "cy") (get "r")
+      , right    = plus (get "cx") (get "r")
+      , bottom   = plus (get "cy") (get "r")
       , cx       = get "cx"
       , cy       = get "cy"
       , mWidth   = Nothing
@@ -616,10 +616,10 @@ boxyFeatureEquationsOf id kind attrs =
       }
 
     "ellipse" ->
-      { left     = get "cx" `minus` get "rx"
-      , top      = get "cy" `minus` get "ry"
-      , right    = get "cx" `plus` get "rx"
-      , bottom   = get "cy" `plus` get "ry"
+      { left     = minus (get "cx") (get "rx")
+      , top      = minus (get "cy") (get "ry")
+      , right    = plus (get "cx") (get "rx")
+      , bottom   = plus (get "cy") (get "ry")
       , cx       = get "cx"
       , cy       = get "cy"
       , mWidth   = Nothing
@@ -778,11 +778,13 @@ parseZone s =
     Nothing -> Debug.crash <| "parseZone: " ++ s
 
 realZoneOf s =
-  toInteriorZone s      `Utils.plusMaybe`
-  toCardinalPointZone s `Utils.plusMaybe`
-  toSliderZone s        `Utils.plusMaybe`
-  toPointZone s         `Utils.plusMaybe`
-  toEdgeZone s
+  Utils.firstMaybe
+    [ toInteriorZone s
+    , toCardinalPointZone s
+    , toSliderZone s
+    , toPointZone s
+    , toEdgeZone s
+    ]
 
 toInteriorZone s =
   case s of

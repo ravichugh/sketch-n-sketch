@@ -1,4 +1,4 @@
-module OurParser2 where
+module OurParser2 exposing (..)
 
 import String
 import Debug
@@ -70,26 +70,27 @@ parse p s =
           , "Here's where things start to go wrong:\n"
           , previewSuffix
           , "\n..."
-          ] in
+          ]
+        in
         Err (err, { row = a.end.line - 1, type_ = "error", text = text })
     [] ->
       let err = "no parse\n\n" ++ s in
       Err (err, { row = 0, type_ = "error", text = "Parse Error..." })
     l  ->
-      let err = "ambiguous parse\n\n" ++ toString (List.map (.val << fst) l) in
+      let err = "ambiguous parse\n\n" ++ toString (List.map (.val << Tuple.first) l) in
       Err (err, { row = 0, type_ = "error", text = "Parse Error... ambiguous..." })
 
 
 satisfy : (Char -> Bool) -> Parser Char
 satisfy f = P <| \s ->
   case String.uncons s.val of
-    Just (c,s') ->
+    Just (c,s_) ->
       if not (f c)
         then []
         else
           let start = s.pos in
-          let end   = start `offsetBy` String.fromChar c in
-          [(WithInfo c start end, WithPos s' end)]
+          let end   = offsetBy start (String.fromChar c) in
+          [(WithInfo c start end, WithPos s_ end)]
     Nothing -> []
 
 char : Char -> Parser Char
@@ -113,7 +114,7 @@ string str = P <| \s ->
   else
     let n     = String.length str in
     let start = s.pos in
-    let end   = start `offsetBy` str in
+    let end   = offsetBy start str in
     [(WithInfo str start end, WithPos (String.dropLeft n s.val) end)]
 
 token : String -> Parser ()
@@ -130,13 +131,13 @@ munch f = P <| \s ->
   let walk acc s =
     case String.uncons s of
       Nothing     -> (String.reverse acc, s)
-      Just (c,s') -> if f c
-                       then walk (String.cons c acc) s'
+      Just (c,s_) -> if f c
+                       then walk (String.cons c acc) s_
                        else (String.reverse acc, s)
   in
   let (pre,suf) = walk "" s.val in
   let start     = s.pos in
-  let end       = start `offsetBy` pre in
+  let end       = offsetBy start pre in
   [(WithInfo pre start end, WithPos suf end)]
 
 munch1 : (Char -> Bool) -> Parser String
@@ -153,7 +154,7 @@ choice : List (Parser a) -> Parser a
 choice ps =
   case ps of
     []     -> fail
-    p::ps' -> p `or` choice ps'
+    p::ps_ -> or p (choice ps_)
 
 between : Parser open_ -> Parser close_ -> Parser a -> Parser a
 between p1 p2 p =
@@ -197,7 +198,7 @@ returnWithInfo x start end = P (\s -> [(WithInfo x start end, s)])
 
 bind : Parser a -> (WithInfo a -> Parser b) -> Parser b
 bind pa f = P <| \s ->
-  List.concatMap (\(a,s') -> runParser (f a) s') (runParser pa s)
+  List.concatMap (\(a,s_) -> runParser (f a) s_) (runParser pa s)
 
 sequence : Parser a -> Parser b -> Parser b
 sequence p1 p2 = bind p1 (always p2)
@@ -213,7 +214,7 @@ left_or p1 p2 = P <| \s ->
 
 map : (a -> b) -> Parser a -> Parser b
 map f p = P <| \s ->
-  List.map (\(x,s') -> (WithInfo (f x.val) x.start x.end, s')) (runParser p s)
+  List.map (\(x,s_) -> (WithInfo (f x.val) x.start x.end, s_)) (runParser p s)
 
 (>>=) = bind
 (>>>) = sequence
