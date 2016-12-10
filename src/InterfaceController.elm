@@ -38,6 +38,7 @@ import InterfaceModel exposing (..)
 import Layout
 import AceCodeBox
 import AnimationLoop
+import FileHandler
 -- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
 import ShapeWidgets
@@ -436,6 +437,9 @@ issueCommand (Msg kind _) oldModel newModel =
         then Cmd.none
         else AceCodeBox.initializeAndDisplay newModel
           -- TODO crash: "Uncaught Error: ace.edit can't find div #editor"
+
+    "Alert" ->
+      FileHandler.showAlert ()
 
     _ ->
       if newModel.code /= oldModel.code ||

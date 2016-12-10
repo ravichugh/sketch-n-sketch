@@ -122,7 +122,9 @@ view model =
 
 fileToolBox model layout =
   toolBox model "fileToolBox" Layout.getPutFileToolBox layout.fileTools
-    [ dropdownExamples model ]
+    [ dropdownExamples model
+    , htmlButton "Alert" (Msg "Alert" (\old -> let _ = Debug.log "Alert" () in old)) Regular False
+    ]
 
 codeToolBox model layout =
   toolBox model "codeToolBox" Layout.getPutCodeToolBox layout.codeTools

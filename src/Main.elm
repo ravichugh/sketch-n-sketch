@@ -5,6 +5,7 @@ import InterfaceView3 as View
 import InterfaceController as Controller
 import AceCodeBox
 import AnimationLoop
+import FileHandler
 
 import Html exposing (Html)
 import Mouse
@@ -55,4 +56,5 @@ subscriptions model =
     , Keyboard.ups Controller.msgKeyUp
     , AceCodeBox.receiveEditorState Controller.msgFromAce
     , AnimationLoop.receiveFrame Controller.msgTickDelta
+    , FileHandler.alertDone (always (Model.Msg "blah" (\old -> Debug.log "got it" old)))
     ]
