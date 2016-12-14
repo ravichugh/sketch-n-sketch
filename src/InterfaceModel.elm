@@ -71,6 +71,7 @@ type alias Model =
   , randomColor : Int
   , lambdaTools : (Int, List LambdaTool)
   , layoutOffsets : LayoutOffsets
+  , needsSave : Bool
   }
 
 type Mode
@@ -273,5 +274,6 @@ initModel =
     , randomColor   = 100
     , lambdaTools   = (1, [LambdaBounds (eVar "star")])
     , layoutOffsets = initialLayoutOffsets
+    , needsSave     = False
     }
 

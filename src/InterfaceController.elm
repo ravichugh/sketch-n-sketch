@@ -19,6 +19,10 @@ module InterfaceController exposing
   , msgNextSlide, msgPreviousSlide
   , msgNextMovie, msgPreviousMovie
   , msgPauseResumeMovie
+  , msgSave
+  , msgHasSaved
+  , msgRequestLoad
+  , msgReceiveLoad
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -439,8 +443,11 @@ issueCommand (Msg kind _) oldModel newModel =
         else AceCodeBox.initializeAndDisplay newModel
           -- TODO crash: "Uncaught Error: ace.edit can't find div #editor"
 
-    "Alert" ->
-      FileHandler.showAlert ()
+    "Save" ->
+      FileHandler.save newModel.code
+
+    "Request Load" ->
+      FileHandler.requestLoad ()
 
     -- Do not send changes back to the editor, because this is the command where
     -- we receieve changes (if this is removed, an infinite feedback loop
@@ -480,7 +487,8 @@ msgFromAce aceCodeBoxInfo = Msg "Ace Message" <| \old ->
 
 msgAceUpdate aceCodeBoxInfo = Msg "Ace Update" <| \old ->
     { old | code = aceCodeBoxInfo.code
-          , codeBoxInfo = aceCodeBoxInfo.codeBoxInfo}
+          , codeBoxInfo = aceCodeBoxInfo.codeBoxInfo
+          , needsSave = True }
 
 upstateRun old =
   case tryRun old of
@@ -900,3 +908,15 @@ msgCancelSync = Msg "Cancel Sync" <| \old ->
   upstateRun
     { old | mode = Utils.fromOk "CancelSync mkLive_" <|
               mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime old.inputExp }
+
+--------------------------------------------------------------------------------
+
+msgSave = Msg "Save" identity
+
+msgHasSaved = Msg "Has Saved" <| \old ->
+  { old | needsSave = False }
+
+msgRequestLoad = Msg "Request Load" identity
+
+msgReceiveLoad loadedCode = Msg "Receive Load" <| \old ->
+  { old | code = loadedCode }

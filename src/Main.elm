@@ -57,5 +57,6 @@ subscriptions model =
     , AceCodeBox.receiveEditorState Controller.msgFromAce
     , AceCodeBox.aceUpdate Controller.msgAceUpdate
     , AnimationLoop.receiveFrame Controller.msgTickDelta
-    , FileHandler.alertDone (always (Model.Msg "blah" (\old -> Debug.log "got it" old)))
+    , FileHandler.hasSaved (always Controller.msgHasSaved)
+    , FileHandler.receiveLoad Controller.msgReceiveLoad
     ]

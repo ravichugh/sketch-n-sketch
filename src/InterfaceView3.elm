@@ -123,7 +123,8 @@ view model =
 fileToolBox model layout =
   toolBox model "fileToolBox" Layout.getPutFileToolBox layout.fileTools
     [ dropdownExamples model
-    , htmlButton "Alert" (Msg "Alert" (\old -> let _ = Debug.log "Alert" () in old)) Regular False
+    , saveButton model
+    , loadButton
     ]
 
 codeToolBox model layout =
@@ -466,6 +467,11 @@ pauseResumeMovieButton model =
   in
   htmlButton caption Controller.msgPauseResumeMovie Regular (not enabled)
 
+saveButton model =
+    htmlButton "Save" Controller.msgSave Regular (not model.needsSave)
+
+loadButton =
+    htmlButton "Load" Controller.msgRequestLoad Regular False
 
 --------------------------------------------------------------------------------
 -- Dropdown Menu
