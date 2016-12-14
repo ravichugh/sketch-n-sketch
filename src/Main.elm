@@ -55,6 +55,7 @@ subscriptions model =
     , Keyboard.downs Controller.msgKeyDown
     , Keyboard.ups Controller.msgKeyUp
     , AceCodeBox.receiveEditorState Controller.msgFromAce
+    , AceCodeBox.aceUpdate Controller.msgAceUpdate
     , AnimationLoop.receiveFrame Controller.msgTickDelta
     , FileHandler.alertDone (always (Model.Msg "blah" (\old -> Debug.log "got it" old)))
     ]

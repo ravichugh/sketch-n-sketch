@@ -9,6 +9,7 @@ module InterfaceController exposing
   , msgSelectExample
   , msgRun, upstateRun, msgTryParseRun
   , msgFromAce
+  , msgAceUpdate
   , msgUndo, msgRedo, msgCleanCode
   , msgDigHole, msgMakeEqual
   , msgGroupBlobs, msgDuplicateBlobs, msgMergeBlobs, msgAbstractBlobs
@@ -441,6 +442,12 @@ issueCommand (Msg kind _) oldModel newModel =
     "Alert" ->
       FileHandler.showAlert ()
 
+    -- Do not send changes back to the editor, because this is the command where
+    -- we receieve changes (if this is removed, an infinite feedback loop
+    -- occurs).
+    "Ace Update" ->
+        Cmd.none
+
     _ ->
       if newModel.code /= oldModel.code ||
          newModel.codeBoxInfo /= oldModel.codeBoxInfo
@@ -466,9 +473,14 @@ msgCodeUpdate s = Msg "Code Update" <| \old ->
 
 msgRun = Msg "Run" <| \old -> upstateRun old
 
-msgFromAce codeBoxInfo = Msg "Ace Message" <| \old ->
-  let new = { old | code = codeBoxInfo.code } in
+msgFromAce aceCodeBoxInfo = Msg "Ace Message" <| \old ->
+  let new = { old | code = aceCodeBoxInfo.code
+                  , codeBoxInfo = aceCodeBoxInfo.codeBoxInfo} in
   upstateRun new
+
+msgAceUpdate aceCodeBoxInfo = Msg "Ace Update" <| \old ->
+    { old | code = aceCodeBoxInfo.code
+          , codeBoxInfo = aceCodeBoxInfo.codeBoxInfo}
 
 upstateRun old =
   case tryRun old of
