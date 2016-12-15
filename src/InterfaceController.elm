@@ -486,9 +486,10 @@ msgFromAce aceCodeBoxInfo = Msg "Ace Message" <| \old ->
   upstateRun new
 
 msgAceUpdate aceCodeBoxInfo = Msg "Ace Update" <| \old ->
+    let isSame = aceCodeBoxInfo.code == old.lastSaveState in
     { old | code = aceCodeBoxInfo.code
           , codeBoxInfo = aceCodeBoxInfo.codeBoxInfo
-          , needsSave = True }
+          , needsSave = not isSame }
 
 upstateRun old =
   case tryRun old of
@@ -914,9 +915,15 @@ msgCancelSync = Msg "Cancel Sync" <| \old ->
 msgSave = Msg "Save" identity
 
 msgHasSaved = Msg "Has Saved" <| \old ->
-  { old | needsSave = False }
+  { old | needsSave = False
+        , lastSaveState = old.code }
 
 msgRequestLoad = Msg "Request Load" identity
 
 msgReceiveLoad loadedCode = Msg "Receive Load" <| \old ->
-  { old | code = loadedCode }
+  case old.firstLoad of
+    True  -> { old | code = loadedCode
+                   , lastSaveState = loadedCode
+                   , needsSave = False
+                   , firstLoad = False }
+    False -> { old | code = loadedCode }

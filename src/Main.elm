@@ -42,6 +42,7 @@ initCmd =
   Cmd.batch
     [ Task.perform Controller.msgWindowDimensions Window.size
     , AceCodeBox.initializeAndDisplay Model.initModel
+    , FileHandler.requestLoad ()
     ]
 
 subscriptions : Model -> Sub Msg

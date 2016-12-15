@@ -72,6 +72,8 @@ type alias Model =
   , lambdaTools : (Int, List LambdaTool)
   , layoutOffsets : LayoutOffsets
   , needsSave : Bool
+  , lastSaveState : Code
+  , firstLoad : Bool
   }
 
 type Mode
@@ -275,5 +277,7 @@ initModel =
     , lambdaTools   = (1, [LambdaBounds (eVar "star")])
     , layoutOffsets = initialLayoutOffsets
     , needsSave     = False
+    , lastSaveState = code
+    , firstLoad     = True
     }
 
