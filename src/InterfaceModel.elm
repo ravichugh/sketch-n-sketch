@@ -74,6 +74,7 @@ type alias Model =
   , needsSave : Bool
   , lastSaveState : Code
   , firstLoad : Bool
+  , autosave : Bool
   }
 
 type Mode
@@ -279,5 +280,6 @@ initModel =
     , needsSave     = False
     , lastSaveState = code
     , firstLoad     = True
+    , autosave      = True
     }
 

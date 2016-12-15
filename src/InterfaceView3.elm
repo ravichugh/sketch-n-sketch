@@ -125,6 +125,7 @@ fileToolBox model layout =
     [ dropdownExamples model
     , saveButton model
     , loadButton
+    , autosaveButton model
     ]
 
 codeToolBox model layout =
@@ -472,6 +473,13 @@ saveButton model =
 
 loadButton =
     htmlButton "Load" Controller.msgRequestLoad Regular False
+
+autosaveButton model =
+    let cap = case model.autosave of
+      True  -> "[Autosave] Yes"
+      False -> "[Autosave] No"
+    in
+      htmlButton cap Controller.msgToggleAutosave Regular False
 
 --------------------------------------------------------------------------------
 -- Dropdown Menu

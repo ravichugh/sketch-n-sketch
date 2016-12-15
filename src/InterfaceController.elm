@@ -19,10 +19,9 @@ module InterfaceController exposing
   , msgNextSlide, msgPreviousSlide
   , msgNextMovie, msgPreviousMovie
   , msgPauseResumeMovie
-  , msgSave
-  , msgHasSaved
-  , msgRequestLoad
-  , msgReceiveLoad
+  , msgSave, msgHasSaved
+  , msgRequestLoad, msgReceiveLoad
+  , msgToggleAutosave
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -453,7 +452,10 @@ issueCommand (Msg kind _) oldModel newModel =
     -- we receieve changes (if this is removed, an infinite feedback loop
     -- occurs).
     "Ace Update" ->
-        Cmd.none
+        if newModel.autosave && newModel.needsSave then
+          FileHandler.save newModel.code
+        else
+          Cmd.none
 
     _ ->
       if newModel.code /= oldModel.code ||
@@ -927,3 +929,6 @@ msgReceiveLoad loadedCode = Msg "Receive Load" <| \old ->
                    , needsSave = False
                    , firstLoad = False }
     False -> { old | code = loadedCode }
+
+msgToggleAutosave = Msg "Toggle Autosave" <| \old ->
+  { old | autosave = not old.autosave }
