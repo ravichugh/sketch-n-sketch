@@ -3,7 +3,11 @@ function save(code) {
 }
 
 function load() {
-    return localStorage.getItem("file");
+  var code = localStorage.getItem("file");
+  if (code === null) {
+    code = "(blobs [\n])"; // same as BLANK template
+  }
+  return code;
 }
 
 app.ports.save.subscribe(function(code) {
