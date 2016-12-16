@@ -292,7 +292,7 @@ initModel =
     , layoutOffsets = initialLayoutOffsets
     , needsSave     = False
     , lastSaveState = code
-    , autosave      = True
+    , autosave      = False
     , filename      = ""
     }
 
