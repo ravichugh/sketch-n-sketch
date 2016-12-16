@@ -123,8 +123,14 @@ view model =
 fileToolBox model layout =
   toolBox model "fileToolBox" Layout.getPutFileToolBox layout.fileTools
     [ dropdownExamples model
+    , newButton
+    , saveAsButton
     , saveButton model
-    , loadButton
+    , openButton
+    , exportCodeButton
+    , importCodeButton
+    , exportSvgButton
+    , importSvgButton
     , autosaveButton model
     ]
 
@@ -468,18 +474,36 @@ pauseResumeMovieButton model =
   in
   htmlButton caption Controller.msgPauseResumeMovie Regular (not enabled)
 
+newButton =
+    htmlButton "New" Controller.msgNew Regular False
+
+saveAsButton =
+    htmlButton "Save As" Controller.msgSaveAs Regular False
+
 saveButton model =
     htmlButton "Save" Controller.msgSave Regular (not model.needsSave)
 
-loadButton =
-    htmlButton "Load" Controller.msgRequestLoad Regular False
+openButton =
+    htmlButton "Open" Controller.msgOpen Regular False
+
+exportCodeButton =
+    htmlButton "Export Code" Controller.msgExportCode Regular False
+
+importCodeButton =
+    htmlButton "Import Code" Controller.msgImportCode Regular False
+
+exportSvgButton =
+    htmlButton "Export SVG" Controller.msgExportSvg Regular False
+
+importSvgButton =
+    htmlButton "Import SVG" Controller.msgImportCode Regular True
 
 autosaveButton model =
     let cap = case model.autosave of
       True  -> "[Autosave] Yes"
       False -> "[Autosave] No"
     in
-      htmlButton cap Controller.msgToggleAutosave Regular False
+      htmlButton cap Controller.msgToggleAutosave Regular True
 
 --------------------------------------------------------------------------------
 -- Dropdown Menu

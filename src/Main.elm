@@ -42,7 +42,7 @@ initCmd =
   Cmd.batch
     [ Task.perform Controller.msgWindowDimensions Window.size
     , AceCodeBox.initializeAndDisplay Model.initModel
-    , FileHandler.requestLoad ()
+    , FileHandler.requestFile "__buffer__"
     ]
 
 subscriptions : Model -> Sub Msg
@@ -58,6 +58,6 @@ subscriptions model =
     , AceCodeBox.receiveEditorState Controller.msgFromAce
     , AceCodeBox.aceUpdate Controller.msgAceUpdate
     , AnimationLoop.receiveFrame Controller.msgTickDelta
-    , FileHandler.hasSaved (always Controller.msgHasSaved)
-    , FileHandler.receiveLoad Controller.msgReceiveLoad
+    , FileHandler.writeConfirmations Controller.msgConfirmWrite
+    , FileHandler.requestedFiles Controller.msgReadFile
     ]

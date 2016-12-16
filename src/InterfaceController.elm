@@ -19,8 +19,10 @@ module InterfaceController exposing
   , msgNextSlide, msgPreviousSlide
   , msgNextMovie, msgPreviousMovie
   , msgPauseResumeMovie
-  , msgSave, msgHasSaved
-  , msgRequestLoad, msgReceiveLoad
+  , msgWrite, msgConfirmWrite
+  , msgRequestFile, msgReadFile
+  , msgNew, msgSaveAs, msgSave, msgOpen
+  , msgExportCode, msgImportCode, msgExportSvg, msgImportSvg
   , msgToggleAutosave
   )
 
@@ -442,18 +444,18 @@ issueCommand (Msg kind _) oldModel newModel =
         else AceCodeBox.initializeAndDisplay newModel
           -- TODO crash: "Uncaught Error: ace.edit can't find div #editor"
 
-    "Save" ->
-      FileHandler.save newModel.code
+    "Write" ->
+      FileHandler.write <| getFile newModel
 
-    "Request Load" ->
-      FileHandler.requestLoad ()
+    "Request File" ->
+      FileHandler.requestFile newModel.filename
 
     -- Do not send changes back to the editor, because this is the command where
     -- we receieve changes (if this is removed, an infinite feedback loop
     -- occurs).
     "Ace Update" ->
         if newModel.autosave && newModel.needsSave then
-          FileHandler.save newModel.code
+          FileHandler.write <| getFile newModel
         else
           Cmd.none
 
@@ -913,24 +915,44 @@ msgCancelSync = Msg "Cancel Sync" <| \old ->
               mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime old.inputExp }
 
 --------------------------------------------------------------------------------
+-- File Handling API
 
-msgSave = Msg "Save" identity
+msgWrite = Msg "Write" identity
 
-msgHasSaved = Msg "Has Saved" <| \old ->
+msgConfirmWrite savedFilename = Msg "Confirm Write" <| \old ->
   { old | needsSave = False
         , lastSaveState = old.code }
 
-msgRequestLoad = Msg "Request Load" identity
+msgRequestFile requestedFilename = Msg "Request File" <| \old ->
+  { old | filename = requestedFilename }
 
-msgReceiveLoad loadedCode = Msg "Receive Load" <| \old ->
-  let new = case old.firstLoad of
-    True  -> { old | code = loadedCode
-                   , lastSaveState = loadedCode
-                   , needsSave = False
-                   , firstLoad = False }
-    False -> { old | code = loadedCode }
+msgReadFile file = Msg "Read File" <| \old ->
+  let new = { old | filename = file.filename
+                  , code = file.code
+                  , lastSaveState = file.code
+                  , needsSave = False }
   in
     upstateRun new
 
+--------------------------------------------------------------------------------
+-- File Handling Buttons
+
+msgNew = Msg "New" identity
+
+msgSaveAs = Msg "Save As" identity
+
+msgSave = Msg "Save" identity
+
+msgOpen = Msg "Open" identity
+
+msgExportCode = Msg "Export Code" identity
+
+msgImportCode = Msg "Import Code" identity
+
+msgExportSvg = Msg "Export SVG" identity
+
+msgImportSvg = Msg "Import SVG" identity
+
 msgToggleAutosave = Msg "Toggle Autosave" <| \old ->
   { old | autosave = not old.autosave }
+

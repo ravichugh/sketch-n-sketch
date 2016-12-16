@@ -20,6 +20,13 @@ import Mouse
 
 type alias Code = String
 
+type alias Filename = String
+
+type alias File = {
+  filename : Filename,
+  code : Code
+}
+
 type alias Model =
   { scratchCode : String
   , exName : String
@@ -73,8 +80,8 @@ type alias Model =
   , layoutOffsets : LayoutOffsets
   , needsSave : Bool
   , lastSaveState : Code
-  , firstLoad : Bool
   , autosave : Bool
+  , filename : Filename
   }
 
 type Mode
@@ -217,6 +224,12 @@ codeToShow model =
 
 --------------------------------------------------------------------------------
 
+getFile model = { filename = model.filename
+                , code     = model.code
+                }
+
+--------------------------------------------------------------------------------
+
 initModel : Model
 initModel =
   let
@@ -279,7 +292,7 @@ initModel =
     , layoutOffsets = initialLayoutOffsets
     , needsSave     = False
     , lastSaveState = code
-    , firstLoad     = True
     , autosave      = True
+    , filename      = ""
     }
 

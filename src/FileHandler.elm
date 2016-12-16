@@ -1,11 +1,14 @@
-port module FileHandler exposing (save, hasSaved, requestLoad, receiveLoad)
+port module FileHandler exposing (
+  write, writeConfirmations,
+  requestFile, requestedFiles
+  )
 
-import InterfaceModel exposing (Code)
+import InterfaceModel exposing (Filename, File)
 
-port save : Code -> Cmd msg
+port write : File -> Cmd msg
 
-port hasSaved : (() -> msg) -> Sub msg
+port writeConfirmations : (Filename -> msg) -> Sub msg
 
-port requestLoad : () -> Cmd msg
+port requestFile : Filename -> Cmd msg
 
-port receiveLoad : (Code -> msg) -> Sub msg
+port requestedFiles : (File -> msg) -> Sub msg

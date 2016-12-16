@@ -1,21 +1,27 @@
-function save(code) {
-  localStorage.setItem("file", code);
+function write(file) {
+  var filename = file.filename;
+  var code = file.code;
+  localStorage.setItem(filename, code);
 }
 
-function load() {
-  var code = localStorage.getItem("file");
+function read(filename) {
+  var code = localStorage.getItem(filename);
   if (code === null) {
     code = "(blobs [\n])"; // same as BLANK template
   }
   return code;
 }
 
-app.ports.save.subscribe(function(code) {
-  save(code);
-  app.ports.hasSaved.send(null);
+app.ports.write.subscribe(function(file) {
+  write(file);
+  app.ports.writeConfirmations.send(file.filename);
 });
 
-app.ports.requestLoad.subscribe(function() {
-    var code = load();
-    app.ports.receiveLoad.send(code);
+app.ports.requestFile.subscribe(function(filename) {
+  var code = read(filename);
+  var file = {
+    filename: filename,
+    code: code
+  }
+  app.ports.requestedFiles.send(file);
 });
