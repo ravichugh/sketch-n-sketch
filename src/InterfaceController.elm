@@ -923,12 +923,14 @@ msgHasSaved = Msg "Has Saved" <| \old ->
 msgRequestLoad = Msg "Request Load" identity
 
 msgReceiveLoad loadedCode = Msg "Receive Load" <| \old ->
-  case old.firstLoad of
+  let new = case old.firstLoad of
     True  -> { old | code = loadedCode
                    , lastSaveState = loadedCode
                    , needsSave = False
                    , firstLoad = False }
     False -> { old | code = loadedCode }
+  in
+    upstateRun new
 
 msgToggleAutosave = Msg "Toggle Autosave" <| \old ->
   { old | autosave = not old.autosave }
