@@ -19,6 +19,7 @@ module InterfaceController exposing
   , msgNextSlide, msgPreviousSlide
   , msgNextMovie, msgPreviousMovie
   , msgPauseResumeMovie
+  , msgCloseDialogBox
   , msgWrite, msgConfirmWrite
   , msgRequestFile, msgReadFile
   , msgNew, msgSaveAs, msgSave, msgOpen
@@ -915,6 +916,12 @@ msgCancelSync = Msg "Cancel Sync" <| \old ->
               mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime old.inputExp }
 
 --------------------------------------------------------------------------------
+-- Dialog Box
+
+msgCloseDialogBox = Msg "Close Dialog Box" <| \old ->
+  {old | dialogBox = Nothing }
+
+--------------------------------------------------------------------------------
 -- File Handling API
 
 msgWrite = Msg "Write" identity
@@ -937,7 +944,8 @@ msgReadFile file = Msg "Read File" <| \old ->
 --------------------------------------------------------------------------------
 -- File Handling Buttons
 
-msgNew = Msg "New" identity
+msgNew = Msg "New" <| \old ->
+  {old | dialogBox = Just NewFile }
 
 msgSaveAs = Msg "Save As" identity
 

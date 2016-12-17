@@ -101,6 +101,7 @@ view model =
      , resizeCodeBox
      , resizeCanvas
      , caption
+     , dialogBox model layout
 
      ]
   in
@@ -577,3 +578,36 @@ truncateFloat n =
     [whole]           -> whole ++ "." ++ String.padRight 1 '0' ""
     [whole, fraction] -> whole ++ "." ++ String.left 1 (String.padRight 1 '0' fraction)
     _                 -> Debug.crash "truncateFloat"
+
+--------------------------------------------------------------------------------
+-- Dialog Boxes
+
+closeDialogBoxButton =
+    htmlButton "Close" Controller.msgCloseDialogBox Regular False
+
+dialogBox model layout =
+  let displayStyle = case model.dialogBox of
+                       Nothing -> "none"
+                       Just _  -> "block"
+  in
+    Html.div
+      [ Attr.style <|
+        [ ("position", "fixed")
+        , ("top", "50%")
+        , ("left", "50%")
+        , ("width", "85%")
+        , ("height", "85%")
+        , ("display", displayStyle)
+        , ("text-align", "center")
+        , ("background-color", "#F8F8F8")
+        , ("border", "2px solid " ++ Layout.strInterfaceColor)
+        , ("border-radius", "10px")
+        , ("box-shadow", "0 0 10px 0 #888888")
+        , ("transform", "translateY(-50%) translateX(-50%)")
+        , ("margin", "auto")
+        , ("z-index", "100")
+        ]
+      ]
+      [ closeDialogBoxButton ]
+
+

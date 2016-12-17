@@ -82,6 +82,7 @@ type alias Model =
   , lastSaveState : Code
   , autosave : Bool
   , filename : Filename
+  , dialogBox : Maybe DialogBox
   }
 
 type Mode
@@ -196,6 +197,7 @@ initialLayoutOffsets =
   , animationToolBox = init
   }
 
+type DialogBox = NewFile | OpenFile | SaveFile
 
 --------------------------------------------------------------------------------
 
@@ -294,5 +296,6 @@ initModel =
     , lastSaveState = code
     , autosave      = False
     , filename      = ""
+    , dialogBox     = Nothing
     }
 
