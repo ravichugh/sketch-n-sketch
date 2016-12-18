@@ -12,6 +12,7 @@ import InterfaceModel as Model exposing
   ( Msg(..), Model, Tool(..), ShapeToolKind(..), Mode(..)
   , Caption(..), MouseMode(..)
   , mkLive_
+  , DialogBox(..)
   )
 import InterfaceController as Controller
 import Layout
@@ -63,6 +64,13 @@ view model =
   let blobTools = blobToolBox model layout in
   let outputTools = outputToolBox model layout in
 
+  let dialogBoxes = case model.dialogBox of
+                      Just FileNew    -> [ fileNewDialogBox model ]
+                      Just FileSaveAs -> [ fileSaveAsDialogBox model ]
+                      Just FileOpen   -> [ fileOpenDialogBox model ]
+                      Nothing         -> []
+  in
+
   let animationTools =
     if model.slideCount > 1 || model.movieCount > 1
     then [ animationToolBox model layout ]
@@ -101,9 +109,7 @@ view model =
      , resizeCodeBox
      , resizeCanvas
      , caption
-     , dialogBox model layout
-
-     ]
+     ] ++ dialogBoxes
   in
 
   Html.div
@@ -124,15 +130,9 @@ view model =
 fileToolBox model layout =
   toolBox model "fileToolBox" Layout.getPutFileToolBox layout.fileTools
     [ dropdownExamples model
-    , newButton
-    , saveAsButton
-    , saveButton model
-    , openButton
-    , exportCodeButton
-    , importCodeButton
-    , exportSvgButton
-    , importSvgButton
-    , autosaveButton model
+    , fileNewDialogBoxButton
+    , fileSaveAsDialogBoxButton
+    , fileOpenDialogBoxButton
     ]
 
 codeToolBox model layout =
@@ -475,36 +475,36 @@ pauseResumeMovieButton model =
   in
   htmlButton caption Controller.msgPauseResumeMovie Regular (not enabled)
 
-newButton =
-    htmlButton "New" Controller.msgNew Regular False
+fileNewDialogBoxButton =
+    htmlButton "New" (Controller.msgOpenDialogBox FileNew) Regular False
 
-saveAsButton =
-    htmlButton "Save As" Controller.msgSaveAs Regular False
+fileSaveAsDialogBoxButton =
+    htmlButton "Save As" (Controller.msgOpenDialogBox FileSaveAs) Regular False
 
-saveButton model =
-    htmlButton "Save" Controller.msgSave Regular (not model.needsSave)
+fileOpenDialogBoxButton =
+    htmlButton "Open" (Controller.msgOpenDialogBox FileOpen) Regular False
 
-openButton =
-    htmlButton "Open" Controller.msgOpen Regular False
+closeDialogBoxButton =
+    htmlButton "Close" Controller.msgCloseDialogBox Regular False
 
-exportCodeButton =
-    htmlButton "Export Code" Controller.msgExportCode Regular False
-
-importCodeButton =
-    htmlButton "Import Code" Controller.msgImportCode Regular False
-
-exportSvgButton =
-    htmlButton "Export SVG" Controller.msgExportSvg Regular False
-
-importSvgButton =
-    htmlButton "Import SVG" Controller.msgImportCode Regular True
-
-autosaveButton model =
-    let cap = case model.autosave of
-      True  -> "[Autosave] Yes"
-      False -> "[Autosave] No"
-    in
-      htmlButton cap Controller.msgToggleAutosave Regular True
+-- exportCodeButton =
+--     htmlButton "Export Code" Controller.msgExportCode Regular False
+--
+-- importCodeButton =
+--     htmlButton "Import Code" Controller.msgImportCode Regular False
+--
+-- exportSvgButton =
+--     htmlButton "Export SVG" Controller.msgExportSvg Regular False
+--
+-- importSvgButton =
+--    htmlButton "Import SVG" Controller.msgImportCode Regular True
+--
+-- autosaveButton model =
+--     let cap = case model.autosave of
+--       True  -> "[Autosave] Yes"
+--       False -> "[Autosave] No"
+--     in
+--       htmlButton cap Controller.msgToggleAutosave Regular True
 
 --------------------------------------------------------------------------------
 -- Dropdown Menu
@@ -582,32 +582,51 @@ truncateFloat n =
 --------------------------------------------------------------------------------
 -- Dialog Boxes
 
-closeDialogBoxButton =
-    htmlButton "Close" Controller.msgCloseDialogBox Regular False
-
-dialogBox model layout =
-  let displayStyle = case model.dialogBox of
-                       Nothing -> "none"
-                       Just _  -> "block"
-  in
-    Html.div
-      [ Attr.style <|
-        [ ("position", "fixed")
-        , ("top", "50%")
-        , ("left", "50%")
-        , ("width", "85%")
-        , ("height", "85%")
-        , ("display", displayStyle)
-        , ("text-align", "center")
-        , ("background-color", "#F8F8F8")
-        , ("border", "2px solid " ++ Layout.strInterfaceColor)
-        , ("border-radius", "10px")
-        , ("box-shadow", "0 0 10px 0 #888888")
-        , ("transform", "translateY(-50%) translateX(-50%)")
-        , ("margin", "auto")
-        , ("z-index", "100")
-        ]
+bigDialogBox elements =
+  Html.div
+    [ Attr.style <|
+      [ ("position", "fixed")
+      , ("top", "50%")
+      , ("left", "50%")
+      , ("width", "85%")
+      , ("height", "85%")
+      , ("text-align", "center")
+      , ("background-color", "#F8F8F8")
+      , ("border", "2px solid " ++ Layout.strInterfaceColor)
+      , ("border-radius", "10px")
+      , ("box-shadow", "0 0 10px 0 #888888")
+      , ("transform", "translateY(-50%) translateX(-50%)")
+      , ("margin", "auto")
+      , ("z-index", "100")
       ]
-      [ closeDialogBoxButton ]
+    ]
+    (elements ++ [ closeDialogBoxButton ])
 
+
+fileNewDialogBox model =
+  bigDialogBox []
+
+fileSaveAsDialogBox model =
+  let saveAsInput =
+    Html.input [ Attr.type_ "text"
+               , onInput Controller.msgUpdateFilenameInput
+               ]
+               []
+  in
+  let saveAsButton =
+    htmlButton "Save" Controller.msgSaveAs Regular False
+  in
+    bigDialogBox <| List.map viewFileIndexEntry model.fileIndex
+                      ++ [saveAsInput, saveAsButton]
+
+fileOpenDialogBox model =
+  let fileButton filename = htmlButton filename
+                                       (Controller.msgOpen filename)
+                                       Regular
+                                       False
+  in
+  bigDialogBox <| List.map fileButton model.fileIndex
+
+viewFileIndexEntry filename =
+  Html.div [] [ Html.text filename ]
 

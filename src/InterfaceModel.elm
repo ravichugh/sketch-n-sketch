@@ -22,6 +22,8 @@ type alias Code = String
 
 type alias Filename = String
 
+type alias FileIndex = List Filename
+
 type alias File = {
   filename : Filename,
   code : Code
@@ -82,7 +84,9 @@ type alias Model =
   , lastSaveState : Code
   , autosave : Bool
   , filename : Filename
+  , fileIndex : FileIndex
   , dialogBox : Maybe DialogBox
+  , filenameInput : String
   }
 
 type Mode
@@ -197,7 +201,7 @@ initialLayoutOffsets =
   , animationToolBox = init
   }
 
-type DialogBox = NewFile | OpenFile | SaveFile
+type DialogBox = FileNew | FileSaveAs | FileOpen
 
 --------------------------------------------------------------------------------
 
@@ -296,6 +300,8 @@ initModel =
     , lastSaveState = code
     , autosave      = False
     , filename      = ""
+    , fileIndex     = []
     , dialogBox     = Nothing
+    , filenameInput = ""
     }
 

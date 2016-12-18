@@ -19,11 +19,10 @@ module InterfaceController exposing
   , msgNextSlide, msgPreviousSlide
   , msgNextMovie, msgPreviousMovie
   , msgPauseResumeMovie
-  , msgCloseDialogBox
-  , msgWrite, msgConfirmWrite
-  , msgRequestFile, msgReadFile
-  , msgNew, msgSaveAs, msgSave, msgOpen
-  , msgExportCode, msgImportCode, msgExportSvg, msgImportSvg
+  , msgOpenDialogBox, msgCloseDialogBox
+  , msgUpdateFilenameInput
+  , msgConfirmWrite, msgReadFile, msgUpdateFileIndex
+  , msgNew, msgSaveAs, msgOpen
   , msgToggleAutosave
   )
 
@@ -445,10 +444,10 @@ issueCommand (Msg kind _) oldModel newModel =
         else AceCodeBox.initializeAndDisplay newModel
           -- TODO crash: "Uncaught Error: ace.edit can't find div #editor"
 
-    "Write" ->
+    "Save As" ->
       FileHandler.write <| getFile newModel
 
-    "Request File" ->
+    "Open" ->
       FileHandler.requestFile newModel.filename
 
     -- Do not send changes back to the editor, because this is the command where
@@ -459,6 +458,14 @@ issueCommand (Msg kind _) oldModel newModel =
           FileHandler.write <| getFile newModel
         else
           Cmd.none
+
+    "Open Dialog Box" ->
+      if (List.member newModel.dialogBox [ Just FileNew
+                                         , Just FileSaveAs
+                                         , Just FileOpen ]) then
+        FileHandler.requestFileIndex ()
+      else
+        Cmd.none
 
     _ ->
       if newModel.code /= oldModel.code ||
@@ -918,49 +925,66 @@ msgCancelSync = Msg "Cancel Sync" <| \old ->
 --------------------------------------------------------------------------------
 -- Dialog Box
 
-msgCloseDialogBox = Msg "Close Dialog Box" <| \old ->
+openDialogBox dialogBox old =
+  { old | dialogBox = Just dialogBox }
+
+closeDialogBox old =
   {old | dialogBox = Nothing }
+
+---
+
+msgOpenDialogBox dialogBox =
+  Msg "Open Dialog Box" (openDialogBox dialogBox)
+
+msgCloseDialogBox =
+  Msg "Close Dialog Box" closeDialogBox
+
+msgUpdateFilenameInput str = Msg "Update Filename Input" <| \old ->
+  { old | filenameInput = str }
 
 --------------------------------------------------------------------------------
 -- File Handling API
 
-msgWrite = Msg "Write" identity
-
-msgConfirmWrite savedFilename = Msg "Confirm Write" <| \old ->
+confirmWrite savedFilename old =
   { old | needsSave = False
         , lastSaveState = old.code }
 
-msgRequestFile requestedFilename = Msg "Request File" <| \old ->
+requestFile requestedFilename old =
   { old | filename = requestedFilename }
 
-msgReadFile file = Msg "Read File" <| \old ->
-  let new = { old | filename = file.filename
-                  , code = file.code
-                  , lastSaveState = file.code
-                  , needsSave = False }
-  in
-    upstateRun new
+readFile file old =
+  { old | filename = file.filename
+  , code = file.code
+  , lastSaveState = file.code
+  , needsSave = False }
+
+updateFileIndex fileIndex old =
+  { old | fileIndex = fileIndex }
+
+-- Subscription Handlers
+
+msgConfirmWrite savedFilename =
+  Msg "Confirm Write" (confirmWrite savedFilename)
+
+msgReadFile file =
+  Msg "Read File" (readFile file >> upstateRun)
+
+msgUpdateFileIndex fileIndex =
+  Msg "Update File Index" (updateFileIndex fileIndex)
 
 --------------------------------------------------------------------------------
--- File Handling Buttons
+-- File Operations
 
-msgNew = Msg "New" <| \old ->
-  {old | dialogBox = Just NewFile }
+msgNew = Msg "New File" identity
 
-msgSaveAs = Msg "Save As" identity
+msgSaveAs =
+  let switchFilenameToInput old =
+    { old | filename = old.filenameInput }
+  in
+    Msg "Save As" (switchFilenameToInput >> closeDialogBox)
 
-msgSave = Msg "Save" identity
-
-msgOpen = Msg "Open" identity
-
-msgExportCode = Msg "Export Code" identity
-
-msgImportCode = Msg "Import Code" identity
-
-msgExportSvg = Msg "Export SVG" identity
-
-msgImportSvg = Msg "Import SVG" identity
+msgOpen filename =
+  Msg "Open" (requestFile filename >> closeDialogBox)
 
 msgToggleAutosave = Msg "Toggle Autosave" <| \old ->
   { old | autosave = not old.autosave }
-
