@@ -22,7 +22,7 @@ module InterfaceController exposing
   , msgOpenDialogBox, msgCloseDialogBox
   , msgUpdateFilenameInput
   , msgConfirmWrite, msgReadFile, msgUpdateFileIndex
-  , msgNew, msgSaveAs, msgOpen
+  , msgNew, msgSaveAs, msgSave, msgOpen
   , msgToggleAutosave
   )
 
@@ -40,7 +40,7 @@ import Sync
 import Eval
 import Utils
 import Keys
-import InterfaceModel exposing (..)
+import InterfaceModel as Model exposing (..)
 import Layout
 import AceCodeBox
 import AnimationLoop
@@ -446,6 +446,12 @@ issueCommand (Msg kind _) oldModel newModel =
 
     "Save As" ->
       FileHandler.write <| getFile newModel
+
+    "Save" ->
+      if newModel.filename /= Model.bufferName then
+        FileHandler.write <| getFile newModel
+      else
+        Cmd.none
 
     "Open" ->
       FileHandler.requestFile newModel.filename
@@ -975,13 +981,19 @@ msgUpdateFileIndex fileIndex =
 --------------------------------------------------------------------------------
 -- File Operations
 
-msgNew = Msg "New File" identity
+msgNew = Msg "New" (requestFile Model.bufferName)
 
 msgSaveAs =
   let switchFilenameToInput old =
     { old | filename = old.filenameInput }
   in
     Msg "Save As" (switchFilenameToInput >> closeDialogBox)
+
+msgSave = Msg "Save" <| \old ->
+  if old.filename == Model.bufferName then
+    openDialogBox FileSaveAs old
+  else
+    old
 
 msgOpen filename =
   Msg "Open" (requestFile filename >> closeDialogBox)

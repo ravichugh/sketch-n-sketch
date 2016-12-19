@@ -132,6 +132,7 @@ fileToolBox model layout =
     [ dropdownExamples model
     , fileNewDialogBoxButton
     , fileSaveAsDialogBoxButton
+    , fileSaveButton model
     , fileOpenDialogBoxButton
     ]
 
@@ -480,6 +481,9 @@ fileNewDialogBoxButton =
 
 fileSaveAsDialogBoxButton =
     htmlButton "Save As" (Controller.msgOpenDialogBox FileSaveAs) Regular False
+
+fileSaveButton model =
+    htmlButton "Save" Controller.msgSave Regular (not model.needsSave)
 
 fileOpenDialogBoxButton =
     htmlButton "Open" (Controller.msgOpenDialogBox FileOpen) Regular False
