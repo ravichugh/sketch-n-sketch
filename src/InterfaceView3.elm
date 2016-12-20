@@ -489,7 +489,7 @@ fileOpenDialogBoxButton =
     htmlButton "Open" (Controller.msgOpenDialogBox FileOpen) Regular False
 
 closeDialogBoxButton =
-    htmlButton "Close" Controller.msgCloseDialogBox Regular False
+    htmlButton "Close Dialog Box" Controller.msgCloseDialogBox Regular False
 
 -- exportCodeButton =
 --     htmlButton "Export Code" Controller.msgExportCode Regular False
@@ -588,13 +588,12 @@ truncateFloat n =
 
 bigDialogBox elements =
   Html.div
-    [ Attr.style <|
+    [ Attr.style
       [ ("position", "fixed")
       , ("top", "50%")
       , ("left", "50%")
       , ("width", "85%")
       , ("height", "85%")
-      , ("text-align", "center")
       , ("background-color", "#F8F8F8")
       , ("border", "2px solid " ++ Layout.strInterfaceColor)
       , ("border-radius", "10px")
@@ -602,9 +601,17 @@ bigDialogBox elements =
       , ("transform", "translateY(-50%) translateX(-50%)")
       , ("margin", "auto")
       , ("z-index", "100")
+      , ("overflow", "scroll")
       ]
     ]
-    (elements ++ [ closeDialogBoxButton ])
+    (elements ++ [ Html.div
+                     [ Attr.style
+                         [ ("text-align", "center")
+                         , ("padding", "20px")
+                         ]
+                     ]
+                     [ closeDialogBoxButton ]
+    ])
 
 
 fileNewDialogBox model =
@@ -612,25 +619,71 @@ fileNewDialogBox model =
 
 fileSaveAsDialogBox model =
   let saveAsInput =
-    Html.input [ Attr.type_ "text"
-               , onInput Controller.msgUpdateFilenameInput
-               ]
-               []
-  in
-  let saveAsButton =
-    htmlButton "Save" Controller.msgSaveAs Regular False
+        Html.div
+          [ Attr.style
+            [ ("font-family", "monospace")
+            , ("font-size", "1.2em")
+            , ("padding", "20px")
+            , ("text-align", "right")
+            ]
+          ]
+          [ Html.input
+              [ Attr.type_ "text"
+              , onInput Controller.msgUpdateFilenameInput
+              ]
+              []
+          , Html.text ".little"
+          , Html.span
+              [ Attr.style
+                  [ ("margin-left", "20px")
+                  ]
+              ]
+              [ htmlButton "Save" Controller.msgSaveAs Regular False ]
+          ]
   in
     bigDialogBox <| List.map viewFileIndexEntry model.fileIndex
-                      ++ [saveAsInput, saveAsButton]
+                      ++ [ saveAsInput ]
 
 fileOpenDialogBox model =
-  let fileButton filename = htmlButton filename
-                                       (Controller.msgOpen filename)
-                                       Regular
-                                       False
+  let fileOpenRow filename =
+        Html.div
+          [ Attr.style
+            [ ("font-family", "monospace")
+            , ("font-size", "1.2em")
+            , ("padding", "20px")
+            , ("border-bottom", "1px solid black")
+            , ("overflow", "hidden")
+            ]
+          ]
+          [ Html.span []
+              [ Html.b [] [ Html.text filename ]
+              , Html.text ".little"
+              ]
+          , Html.span
+              [ Attr.style
+                  [ ("float", "right")
+                  ]
+              ]
+              [ htmlButton "Open"
+                           (Controller.msgOpen filename)
+                           Regular
+                           False
+              ]
+          ]
   in
-  bigDialogBox <| List.map fileButton model.fileIndex
+    bigDialogBox <| List.map fileOpenRow model.fileIndex
 
 viewFileIndexEntry filename =
-  Html.div [] [ Html.text filename ]
-
+  Html.div
+    [ Attr.style
+        [ ("font-family", "monospace")
+        , ("font-size", "1.2em")
+        , ("padding", "20px")
+        , ("border-bottom", "1px solid black")
+        ]
+    ]
+    [ Html.span []
+        [ Html.b [] [ Html.text filename ]
+        , Html.text ".little"
+        ]
+    ]
