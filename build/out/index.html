@@ -1,21 +1,41 @@
 <html>
-
   <head>
     <title>Sketch-n-Sketch</title>
+    <link rel="shortcut icon" type="image/png" href="sketch-n-sketch-logo.png">
+    <meta charset="UTF-8">
+    <style>
+      body {
+        margin: 0 0 0 0;
+      }
+
+      #loading {
+        width: 100%;
+        font-family: sans-serif;
+        text-align: center;
+        position: fixed;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: -1;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="loading">
+      <div><img src="load.gif" width="128" height="128" /></div>
+      <div>Loading...</div>
+    </div>
+
     <script type="text/javascript" src="sns.js"></script>
     <script type="text/javascript" src="ace.js"></script>
     <script type="text/javascript" src="aceTooltips.js"></script>
-    <link rel="shortcut icon" type="image/png" href="sketch-n-sketch-logo.png">
-    <meta charset="UTF-8">
-  </head>
 
-  <body style="margin: 0 0 0 0;"> </body>
+    <script>
+      var app = Elm.Main.fullscreen();
+    </script>
 
-  <script>
-    var app = Elm.Main.fullscreen();
-  </script>
-
-  <script type="text/javascript" src="aceCodeBox.js"></script>
-  <script type="text/javascript" src="animationLoop.js"></script>
-
+    <script type="text/javascript" src="aceCodeBox.js"></script>
+    <script type="text/javascript" src="animationLoop.js"></script>
+    <script type="text/javascript" src="fileHandler.js"></script>
+  </body>
 </html>
