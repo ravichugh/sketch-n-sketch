@@ -594,6 +594,7 @@ bigDialogBox elements =
       , ("left", "50%")
       , ("width", "85%")
       , ("height", "85%")
+      , ("font-family", "sans-serif")
       , ("background-color", "#F8F8F8")
       , ("border", "2px solid " ++ Layout.strInterfaceColor)
       , ("border-radius", "10px")
@@ -611,11 +612,20 @@ bigDialogBox elements =
                          ]
                      ]
                      [ closeDialogBoxButton ]
-    ])
+                 ])
 
 
 fileNewDialogBox model =
-  bigDialogBox []
+  bigDialogBox <|
+    [ Html.h2
+      [ Attr.style
+        [ ("padding", "20px")
+        , ("margin", "0")
+        , ("border-bottom", "1px solid black")
+        ]
+      ]
+      [ Html.text "New..." ]
+    ]
 
 fileSaveAsDialogBox model =
   let saveAsInput =
@@ -641,8 +651,18 @@ fileSaveAsDialogBox model =
               [ htmlButton "Save" Controller.msgSaveAs Regular False ]
           ]
   in
-    bigDialogBox <| List.map viewFileIndexEntry model.fileIndex
-                      ++ [ saveAsInput ]
+    bigDialogBox <|
+      [ Html.h2
+        [ Attr.style
+          [ ("padding", "20px")
+          , ("margin", "0")
+          , ("border-bottom", "1px solid black")
+          ]
+        ]
+        [ Html.text "Save As..." ]
+      ]
+        ++ List.map viewFileIndexEntry model.fileIndex
+        ++ [ saveAsInput ]
 
 fileOpenDialogBox model =
   let fileOpenRow filename =
@@ -671,7 +691,17 @@ fileOpenDialogBox model =
               ]
           ]
   in
-    bigDialogBox <| List.map fileOpenRow model.fileIndex
+    bigDialogBox <|
+      [ Html.h2
+        [ Attr.style
+          [ ("padding", "20px")
+          , ("margin", "0")
+          , ("border-bottom", "1px solid black")
+          ]
+        ]
+        [ Html.text "Open..." ]
+      ]
+        ++ List.map fileOpenRow model.fileIndex
 
 viewFileIndexEntry filename =
   Html.div
