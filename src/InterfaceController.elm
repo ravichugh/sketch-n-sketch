@@ -445,7 +445,10 @@ issueCommand (Msg kind _) oldModel newModel =
           -- TODO crash: "Uncaught Error: ace.edit can't find div #editor"
 
     "Save As" ->
-      FileHandler.write <| getFile newModel
+      if newModel.filename /= Model.bufferName then
+        FileHandler.write <| getFile newModel
+      else
+        Cmd.none
 
     "Save" ->
       if newModel.filename /= Model.bufferName then
@@ -1021,10 +1024,16 @@ msgNew template = Msg "New" <| (\old ->
       ) |> handleError old) >> closeDialogBox
 
 msgSaveAs =
-  let switchFilenameToInput old =
-    { old | filename = old.filenameInput }
+  let
+    switchFilenameToInput old =
+      { old | filename = old.filenameInput }
+    closeDialogBoxIfNecessary old =
+      if old.filename /= Model.bufferName then
+        closeDialogBox old
+      else
+        old
   in
-    Msg "Save As" (switchFilenameToInput >> closeDialogBox)
+    Msg "Save As" (switchFilenameToInput >> closeDialogBoxIfNecessary)
 
 msgSave = Msg "Save" <| \old ->
   if old.filename == Model.bufferName then

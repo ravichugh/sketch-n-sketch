@@ -732,15 +732,26 @@ viewFileIndexEntry filename =
     ]
 
 fileIndicator model =
-  Html.div
-    [ Attr.style
-        [ ("color", "white")
-        , ("font-family", "sans-serif")
-        , ("padding", "7px")
-        ]
-    ]
-    [ Html.u [] [ Html.text "File" ]
-    , Html.text ": "
-    , Html.i [] <| [ Html.text model.filename ]
-                     ++ if model.needsSave then [ Html.text " *" ] else []
-    ]
+  let
+    filenameHtml =
+      if model.filename == Model.bufferName then
+          Html.text "Untitled"
+        else
+          Html.text model.filename
+    wrapper =
+      if model.needsSave then
+          Html.i [] [ filenameHtml, Html.text " *" ]
+        else
+          filenameHtml
+  in
+    Html.div
+      [ Attr.style
+          [ ("color", "white")
+          , ("font-family", "sans-serif")
+          , ("padding", "7px")
+          ]
+      ]
+      [ Html.u [] [ Html.text "File" ]
+      , Html.text ": "
+      , wrapper
+      ]

@@ -230,7 +230,7 @@ codeToShow model =
 
 --------------------------------------------------------------------------------
 
-bufferName = "__buffer__"
+bufferName = ""
 
 getFile model = { filename = model.filename
                 , code     = model.code
