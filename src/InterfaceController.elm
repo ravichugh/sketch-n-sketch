@@ -961,6 +961,7 @@ requestFile requestedFilename old =
 readFile file old =
   { old | filename = file.filename
   , code = file.code
+  , history = ([file.code], [])
   , lastSaveState = file.code
   , needsSave = False }
 
@@ -981,7 +982,43 @@ msgUpdateFileIndex fileIndex =
 --------------------------------------------------------------------------------
 -- File Operations
 
-msgNew = Msg "New" (requestFile Model.bufferName)
+msgNew template = Msg "New" <| (\old ->
+  case Utils.maybeFind template Examples.list of
+    Nothing -> let _ = Debug.log "WARN: not found:" template in old
+    Just (_, thunk) ->
+      let {e,v,ws,ati} = thunk () in
+      let (so, m) =
+        case old.mode of
+          Live _  -> let so = Sync.syncOptionsOf old.syncOptions e in
+                     (so, Utils.fromOk "SelectExample mkLive_" <|
+                        mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws))
+          Print _ -> let so = Sync.syncOptionsOf old.syncOptions e in
+                     (so, Utils.fromOk "SelectExample mkLive_" <|
+                        mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws))
+          _      -> (old.syncOptions, old.mode)
+      in
+      LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v
+      |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
+        let code = unparse e in
+        { old | inputExp      = e
+              , inputVal      = v
+              , code          = code
+              , history       = ([code],[])
+              , mode          = m
+              , syncOptions   = so
+              , slideNumber   = 1
+              , slideCount    = slideCount
+              , movieCount    = movieCount
+              , movieTime     = 0
+              , movieDuration = movieDuration
+              , movieContinue = movieContinue
+              , runAnimation  = movieDuration > 0
+              , slate         = slate
+              , widgets       = ws
+              , codeBoxInfo   = updateCodeBoxWithTypes ati old.codeBoxInfo
+              , filename      = Model.bufferName
+              }
+      ) |> handleError old) >> closeDialogBox
 
 msgSaveAs =
   let switchFilenameToInput old =

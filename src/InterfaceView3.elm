@@ -616,16 +616,29 @@ bigDialogBox elements =
 
 
 fileNewDialogBox model =
-  bigDialogBox <|
-    [ Html.h2
-      [ Attr.style
-        [ ("padding", "20px")
-        , ("margin", "0")
-        , ("border-bottom", "1px solid black")
+  let viewTemplate (name, _) =
+        Html.div
+          [ Attr.style
+              [ ("font-family", "monospace")
+              , ("font-size", "1.2em")
+              , ("padding", "20px")
+              , ("border-bottom", "1px solid black")
+              ]
+          ]
+          [ htmlButton name (Controller.msgNew name) Regular False
+          ]
+  in
+    bigDialogBox <|
+      [ Html.h2
+        [ Attr.style
+          [ ("padding", "20px")
+          , ("margin", "0")
+          , ("border-bottom", "1px solid black")
+          ]
         ]
+        [ Html.text "New..." ]
       ]
-      [ Html.text "New..." ]
-    ]
+        ++ List.map viewTemplate Examples.list
 
 fileSaveAsDialogBox model =
   let saveAsInput =
