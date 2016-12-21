@@ -129,7 +129,7 @@ view model =
 
 fileToolBox model layout =
   toolBox model "fileToolBox" Layout.getPutFileToolBox layout.fileTools
-    [ dropdownExamples model
+    [ fileIndicator model
     , fileNewDialogBoxButton
     , fileSaveAsDialogBoxButton
     , fileSaveButton model
@@ -729,4 +729,18 @@ viewFileIndexEntry filename =
         [ Html.b [] [ Html.text filename ]
         , Html.text ".little"
         ]
+    ]
+
+fileIndicator model =
+  Html.div
+    [ Attr.style
+        [ ("color", "white")
+        , ("font-family", "sans-serif")
+        , ("padding", "7px")
+        ]
+    ]
+    [ Html.u [] [ Html.text "File" ]
+    , Html.text ": "
+    , Html.i [] <| [ Html.text model.filename ]
+                     ++ if model.needsSave then [ Html.text " *" ] else []
     ]
