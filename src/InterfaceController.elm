@@ -454,7 +454,7 @@ issueCommand (Msg kind _) oldModel newModel =
       if newModel.filename /= Model.bufferName then
         FileHandler.write <| getFile newModel
       else
-        Cmd.none
+        FileHandler.requestFileIndex ()
 
     "Open" ->
       FileHandler.requestFile newModel.filename
@@ -469,12 +469,7 @@ issueCommand (Msg kind _) oldModel newModel =
           Cmd.none
 
     "Open Dialog Box" ->
-      if (List.member newModel.dialogBox [ Just FileNew
-                                         , Just FileSaveAs
-                                         , Just FileOpen ]) then
-        FileHandler.requestFileIndex ()
-      else
-        Cmd.none
+      FileHandler.requestFileIndex ()
 
     _ ->
       if newModel.code /= oldModel.code ||
