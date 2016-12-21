@@ -232,6 +232,14 @@ codeToShow model =
 
 bufferName = ""
 
+untitledName = "Untitled"
+
+prettyFilename model =
+  if model.filename == bufferName then
+    untitledName
+  else
+    model.filename
+
 getFile model = { filename = model.filename
                 , code     = model.code
                 }

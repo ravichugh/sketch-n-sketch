@@ -134,6 +134,9 @@ fileToolBox model layout =
     , fileSaveAsDialogBoxButton
     , fileSaveButton model
     , fileOpenDialogBoxButton
+    , Html.br [] []
+    , exportCodeButton
+    , exportSvgButton
     ]
 
 codeToolBox model layout =
@@ -477,28 +480,28 @@ pauseResumeMovieButton model =
   htmlButton caption Controller.msgPauseResumeMovie Regular (not enabled)
 
 fileNewDialogBoxButton =
-    htmlButton "New" (Controller.msgOpenDialogBox FileNew) Regular False
+  htmlButton "New" (Controller.msgOpenDialogBox FileNew) Regular False
 
 fileSaveAsDialogBoxButton =
-    htmlButton "Save As" (Controller.msgOpenDialogBox FileSaveAs) Regular False
+  htmlButton "Save As" (Controller.msgOpenDialogBox FileSaveAs) Regular False
 
 fileSaveButton model =
-    htmlButton "Save" Controller.msgSave Regular (not model.needsSave)
+  htmlButton "Save" Controller.msgSave Regular (not model.needsSave)
 
 fileOpenDialogBoxButton =
-    htmlButton "Open" (Controller.msgOpenDialogBox FileOpen) Regular False
+  htmlButton "Open" (Controller.msgOpenDialogBox FileOpen) Regular False
 
 closeDialogBoxButton =
-    htmlButton "Close Dialog Box" Controller.msgCloseDialogBox Regular False
+  htmlButton "Close Dialog Box" Controller.msgCloseDialogBox Regular False
 
--- exportCodeButton =
---     htmlButton "Export Code" Controller.msgExportCode Regular False
+exportCodeButton =
+  htmlButton "Export Code" Controller.msgExportCode Regular False
 --
 -- importCodeButton =
 --     htmlButton "Import Code" Controller.msgImportCode Regular False
 --
--- exportSvgButton =
---     htmlButton "Export SVG" Controller.msgExportSvg Regular False
+exportSvgButton =
+  htmlButton "Export SVG" Controller.msgExportSvg Regular False
 --
 -- importSvgButton =
 --    htmlButton "Import SVG" Controller.msgImportCode Regular True
@@ -734,15 +737,12 @@ viewFileIndexEntry filename =
 fileIndicator model =
   let
     filenameHtml =
-      if model.filename == Model.bufferName then
-          Html.text "Untitled"
-        else
-          Html.text model.filename
+      Html.text (Model.prettyFilename model)
     wrapper =
       if model.needsSave then
-          Html.i [] [ filenameHtml, Html.text " *" ]
-        else
-          filenameHtml
+        Html.i [] [ filenameHtml, Html.text " *" ]
+      else
+        filenameHtml
   in
     Html.div
       [ Attr.style

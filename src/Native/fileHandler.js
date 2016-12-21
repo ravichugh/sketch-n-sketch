@@ -26,6 +26,25 @@ function read(filename) {
   return code;
 }
 
+// http://stackoverflow.com/questions/3665115/create-a-file-in-memory-for-user-to-download-not-through-server
+function download(filename, text) {
+  var downloadLink = document.createElement('a');
+
+  downloadLink.setAttribute(
+    "href", "data:text/plain;charset=utf-8," + encodeURIComponent(text)
+  );
+  downloadLink.setAttribute(
+    "download", filename
+  );
+
+  downloadLink.style.display = 'none';
+  document.body.appendChild(downloadLink);
+
+  downloadLink.click();
+
+  document.body.removeChild(downloadLink);
+}
+
 app.ports.write.subscribe(function(file) {
   write(file);
   app.ports.writeConfirmation.send(file.filename);
@@ -45,3 +64,9 @@ app.ports.requestFileIndex.subscribe(function() {
   var fileIndex = Object.keys(files)
   app.ports.receiveFileIndex.send(fileIndex);
 });
+
+app.ports.download.subscribe(function(downloadInfo) {
+  var filename = downloadInfo.filename;
+  var text = downloadInfo.text;
+  download(filename, text);
+})

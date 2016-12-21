@@ -24,6 +24,7 @@ module InterfaceController exposing
   , msgConfirmWrite, msgReadFile, msgUpdateFileIndex
   , msgNew, msgSaveAs, msgSave, msgOpen
   , msgToggleAutosave
+  , msgExportCode, msgExportSvg
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -458,6 +459,18 @@ issueCommand (Msg kind _) oldModel newModel =
 
     "Open" ->
       FileHandler.requestFile newModel.filename
+
+    "Export Code" ->
+      FileHandler.download
+        { filename = (Model.prettyFilename newModel) ++ ".little"
+        , text = newModel.code
+        }
+
+    "Export SVG" ->
+      FileHandler.download
+        { filename = (Model.prettyFilename newModel) ++ ".svg"
+        , text = LangSvg.printSvg newModel.showGhosts newModel.slate
+        }
 
     -- Do not send changes back to the editor, because this is the command where
     -- we receieve changes (if this is removed, an infinite feedback loop
@@ -1043,3 +1056,10 @@ msgOpen filename =
 
 msgToggleAutosave = Msg "Toggle Autosave" <| \old ->
   { old | autosave = not old.autosave }
+
+--------------------------------------------------------------------------------
+-- Exporting
+
+msgExportCode = Msg "Export Code" identity
+
+msgExportSvg = Msg "Export SVG" identity
