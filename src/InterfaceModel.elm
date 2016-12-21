@@ -81,7 +81,7 @@ type alias Model =
   , lambdaTools : (Int, List LambdaTool)
   , layoutOffsets : LayoutOffsets
   , needsSave : Bool
-  , lastSaveState : Code
+  , lastSaveState : Maybe Code
   , autosave : Bool
   , filename : Filename
   , fileIndex : FileIndex
@@ -299,7 +299,7 @@ initModel =
     , lambdaTools   = (1, [LambdaBounds (eVar "star")])
     , layoutOffsets = initialLayoutOffsets
     , needsSave     = False
-    , lastSaveState = code
+    , lastSaveState = Nothing
     , autosave      = False
     , filename      = ""
     , fileIndex     = []

@@ -507,7 +507,7 @@ msgFromAce aceCodeBoxInfo = Msg "Ace Message" <| \old ->
   upstateRun new
 
 msgAceUpdate aceCodeBoxInfo = Msg "Ace Update" <| \old ->
-    let isSame = aceCodeBoxInfo.code == old.lastSaveState in
+    let isSame = old.lastSaveState == (Just aceCodeBoxInfo.code) in
     { old | code = aceCodeBoxInfo.code
           , codeBoxInfo = aceCodeBoxInfo.codeBoxInfo
           , needsSave = not isSame }
@@ -956,7 +956,7 @@ msgUpdateFilenameInput str = Msg "Update Filename Input" <| \old ->
 
 confirmWrite savedFilename old =
   { old | needsSave = False
-        , lastSaveState = old.code }
+        , lastSaveState = Just old.code }
 
 requestFile requestedFilename old =
   { old | filename = requestedFilename }
@@ -965,7 +965,7 @@ readFile file old =
   { old | filename = file.filename
   , code = file.code
   , history = ([file.code], [])
-  , lastSaveState = file.code
+  , lastSaveState = Just file.code
   , needsSave = False }
 
 updateFileIndex fileIndex old =
@@ -1020,6 +1020,8 @@ msgNew template = Msg "New" <| (\old ->
               , widgets       = ws
               , codeBoxInfo   = updateCodeBoxWithTypes ati old.codeBoxInfo
               , filename      = Model.bufferName
+              , needsSave     = True
+              , lastSaveState = Nothing
               }
       ) |> handleError old) >> closeDialogBox
 
