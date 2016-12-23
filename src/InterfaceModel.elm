@@ -87,6 +87,7 @@ type alias Model =
   , fileIndex : FileIndex
   , dialogBox : Maybe DialogBox
   , filenameInput : String
+  , fileToDelete : Filename
   }
 
 type Mode
@@ -313,5 +314,6 @@ initModel =
     , fileIndex     = []
     , dialogBox     = Nothing
     , filenameInput = ""
+    , fileToDelete  = ""
     }
 

@@ -1,3 +1,5 @@
+"use strict";
+
 function getFiles() {
   return JSON.parse(localStorage.getItem("sketch-files")) || {};
 }
@@ -26,6 +28,12 @@ function read(filename) {
   return code;
 }
 
+function deleteFile(filename) {
+  var files = getFiles();
+  delete files[filename];
+  setFiles(files);
+}
+
 // http://stackoverflow.com/questions/3665115/create-a-file-in-memory-for-user-to-download-not-through-server
 function download(filename, text) {
   var downloadLink = document.createElement('a');
@@ -45,28 +53,39 @@ function download(filename, text) {
   document.body.removeChild(downloadLink);
 }
 
-app.ports.write.subscribe(function(file) {
+function handleWrite(file) {
   write(file);
+  handleRequestFileIndex(); // send back new file index
   app.ports.writeConfirmation.send(file.filename);
-});
+}
+app.ports.write.subscribe(handleWrite);
 
-app.ports.requestFile.subscribe(function(filename) {
+function handleRequestFile(filename) {
   var code = read(filename);
   var file = {
     filename: filename,
     code: code
   }
   app.ports.receiveFile.send(file);
-});
+}
+app.ports.requestFile.subscribe(handleRequestFile);
 
-app.ports.requestFileIndex.subscribe(function() {
+function handleRequestFileIndex() {
   var files = getFiles();
   var fileIndex = Object.keys(files)
   app.ports.receiveFileIndex.send(fileIndex);
-});
+}
+app.ports.requestFileIndex.subscribe(handleRequestFileIndex);
 
-app.ports.download.subscribe(function(downloadInfo) {
+function handleDelete(filename) {
+  deleteFile(filename);
+  handleRequestFileIndex(); // send back new file index
+}
+app.ports.delete.subscribe(handleDelete);
+
+function handleDownload(downloadInfo) {
   var filename = downloadInfo.filename;
   var text = downloadInfo.text;
   download(filename, text);
-})
+}
+app.ports.download.subscribe(handleDownload)

@@ -22,7 +22,7 @@ module InterfaceController exposing
   , msgOpenDialogBox, msgCloseDialogBox
   , msgUpdateFilenameInput
   , msgConfirmWrite, msgReadFile, msgUpdateFileIndex
-  , msgNew, msgSaveAs, msgSave, msgOpen
+  , msgNew, msgSaveAs, msgSave, msgOpen, msgDelete
   , msgToggleAutosave
   , msgExportCode, msgExportSvg
   )
@@ -459,6 +459,9 @@ issueCommand (Msg kind _) oldModel newModel =
 
     "Open" ->
       FileHandler.requestFile newModel.filename
+
+    "Delete" ->
+      FileHandler.delete newModel.fileToDelete
 
     "Export Code" ->
       FileHandler.download
@@ -1053,6 +1056,17 @@ msgSave = Msg "Save" <| \old ->
 
 msgOpen filename =
   Msg "Open" (requestFile filename >> closeDialogBox)
+
+msgDelete filename =
+  Msg "Delete" <| \old ->
+    if filename == old.filename then
+      { old | fileToDelete = filename
+            , needsSave = True
+            , lastSaveState = Nothing
+            }
+    else
+      { old | fileToDelete = filename }
+
 
 msgToggleAutosave = Msg "Toggle Autosave" <| \old ->
   { old | autosave = not old.autosave }

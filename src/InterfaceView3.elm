@@ -704,6 +704,16 @@ fileOpenDialogBox model =
                            (Controller.msgOpen filename)
                            Regular
                            False
+              , Html.span
+                  [ Attr.style
+                    [ ("margin-left", "50px")
+                    ]
+                  ]
+                  [ htmlButton "Delete"
+                               (Controller.msgDelete filename)
+                               Regular
+                               False
+                  ]
               ]
           ]
   in

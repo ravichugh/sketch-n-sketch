@@ -2,6 +2,7 @@ port module FileHandler exposing
   ( write, writeConfirmation
   , requestFile, receiveFile
   , requestFileIndex, receiveFileIndex
+  , delete
   , download
   )
 
@@ -24,5 +25,7 @@ port receiveFile : (File -> msg) -> Sub msg
 port requestFileIndex : () -> Cmd msg
 
 port receiveFileIndex : (FileIndex -> msg) -> Sub msg
+
+port delete : Filename -> Cmd msg
 
 port download : DownloadInfo -> Cmd msg
