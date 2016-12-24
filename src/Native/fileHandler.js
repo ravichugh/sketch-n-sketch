@@ -120,6 +120,8 @@ function handleRequestFileFromInput(inputId) {
       filename: filename,
       code: code
     }
+
+    input.value = "";
     app.ports.receiveFileFromInput.send(file);
   }
 
