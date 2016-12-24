@@ -23,6 +23,8 @@ module InterfaceController exposing
   , msgUpdateFilenameInput
   , msgConfirmWrite, msgReadFile, msgUpdateFileIndex
   , msgNew, msgSaveAs, msgSave, msgOpen, msgDelete
+  , msgAskNew, msgAskOpen
+  , msgConfirmFileOperation, msgCancelFileOperation
   , msgToggleAutosave
   , msgExportCode, msgExportSvg
   )
@@ -422,9 +424,16 @@ tryRun old =
 --
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg oldModel =
-  let newModel = upstate msg oldModel in
-  let cmd = issueCommand msg oldModel newModel in
-  (newModel, cmd)
+  case (oldModel.pendingFileOperation, oldModel.fileOperationConfirmed) of
+    (Just msg2, True) ->
+      update
+        msg2
+        { oldModel | pendingFileOperation = Nothing
+                   , fileOperationConfirmed = False }
+    _ ->
+      let newModel = upstate msg oldModel in
+      let cmd = issueCommand msg oldModel newModel in
+      (newModel, cmd)
 
 
 upstate : Msg -> Model -> Model
@@ -496,7 +505,6 @@ issueCommand (Msg kind _) oldModel newModel =
         AnimationLoop.requestFrame ()
       else
         Cmd.none
-
 
 --------------------------------------------------------------------------------
 
@@ -945,19 +953,11 @@ msgCancelSync = Msg "Cancel Sync" <| \old ->
 --------------------------------------------------------------------------------
 -- Dialog Box
 
-openDialogBox dialogBox old =
-  { old | dialogBox = Just dialogBox }
+msgOpenDialogBox db =
+  Msg "Open Dialog Box" <| Model.openDialogBox db
 
-closeDialogBox old =
-  {old | dialogBox = Nothing }
-
----
-
-msgOpenDialogBox dialogBox =
-  Msg "Open Dialog Box" (openDialogBox dialogBox)
-
-msgCloseDialogBox =
-  Msg "Close Dialog Box" closeDialogBox
+msgCloseDialogBox db =
+  Msg "Close Dialog Box" <| Model.closeDialogBox db
 
 msgUpdateFilenameInput str = Msg "Update Filename Input" <| \old ->
   { old | filenameInput = str }
@@ -1034,7 +1034,16 @@ msgNew template = Msg "New" <| (\old ->
               , needsSave     = True
               , lastSaveState = Nothing
               }
-      ) |> handleError old) >> closeDialogBox
+      ) |> handleError old) >> closeDialogBox New
+
+msgAskNew template needsSave =
+  if needsSave then
+    Msg "Ask New" <| (\old ->
+      { old | pendingFileOperation = Just <| msgNew template
+            , fileOperationConfirmed = False })
+        >> Model.openDialogBox AlertSave
+  else
+    msgNew template
 
 msgSaveAs =
   let
@@ -1042,7 +1051,7 @@ msgSaveAs =
       { old | filename = old.filenameInput }
     closeDialogBoxIfNecessary old =
       if old.filename /= Model.bufferName then
-        closeDialogBox old
+        Model.closeDialogBox SaveAs old
       else
         old
   in
@@ -1050,23 +1059,39 @@ msgSaveAs =
 
 msgSave = Msg "Save" <| \old ->
   if old.filename == Model.bufferName then
-    openDialogBox FileSaveAs old
+    Model.openDialogBox SaveAs old
   else
     old
 
 msgOpen filename =
-  Msg "Open" (requestFile filename >> closeDialogBox)
+  Msg "Open" (requestFile filename >> closeDialogBox Open)
+
+msgAskOpen filename needsSave =
+  if needsSave then
+    Msg "Ask Open" <| (\old ->
+      { old | pendingFileOperation = Just <| msgOpen filename
+            , fileOperationConfirmed = False })
+        >> Model.openDialogBox AlertSave
+  else
+    msgOpen filename
 
 msgDelete filename =
   Msg "Delete" <| \old ->
     if filename == old.filename then
       { old | fileToDelete = filename
             , needsSave = True
-            , lastSaveState = Nothing
-            }
+            , lastSaveState = Nothing }
     else
       { old | fileToDelete = filename }
 
+msgCancelFileOperation = Msg "Cancel File Operation" <| (\old ->
+  { old | pendingFileOperation = Nothing
+        , fileOperationConfirmed = False })
+    >> Model.closeDialogBox AlertSave
+
+msgConfirmFileOperation = Msg "Confirm File Operation" <| (\old ->
+  { old | fileOperationConfirmed = True })
+    >> Model.closeDialogBox AlertSave
 
 msgToggleAutosave = Msg "Toggle Autosave" <| \old ->
   { old | autosave = not old.autosave }

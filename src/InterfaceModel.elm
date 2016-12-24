@@ -85,9 +85,11 @@ type alias Model =
   , autosave : Bool
   , filename : Filename
   , fileIndex : FileIndex
-  , dialogBox : Maybe DialogBox
+  , dialogBoxes : Set Int
   , filenameInput : String
   , fileToDelete : Filename
+  , pendingFileOperation : Maybe Msg
+  , fileOperationConfirmed : Bool
   }
 
 type Mode
@@ -202,7 +204,28 @@ initialLayoutOffsets =
   , animationToolBox = init
   }
 
-type DialogBox = FileNew | FileSaveAs | FileOpen
+type DialogBox = New | SaveAs | Open | AlertSave
+
+dbToInt db =
+  case db of
+    New -> 0
+    SaveAs -> 1
+    Open -> 2
+    AlertSave -> 3
+
+intToDb n =
+  case n of
+    0 -> New
+    1 -> SaveAs
+    2 -> Open
+    3 -> AlertSave
+    _ -> Debug.crash "Undefined Dialog Box Type"
+
+openDialogBox db model =
+  { model | dialogBoxes = Set.insert (dbToInt db) model.dialogBoxes }
+
+closeDialogBox db model =
+  { model | dialogBoxes = Set.remove (dbToInt db) model.dialogBoxes }
 
 --------------------------------------------------------------------------------
 
@@ -312,8 +335,10 @@ initModel =
     , autosave      = False
     , filename      = ""
     , fileIndex     = []
-    , dialogBox     = Nothing
+    , dialogBoxes   = Set.empty
     , filenameInput = ""
     , fileToDelete  = ""
+    , pendingFileOperation = Nothing
+    , fileOperationConfirmed = False
     }
 

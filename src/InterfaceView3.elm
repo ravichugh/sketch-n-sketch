@@ -64,11 +64,21 @@ view model =
   let blobTools = blobToolBox model layout in
   let outputTools = outputToolBox model layout in
 
-  let dialogBoxes = case model.dialogBox of
-                      Just FileNew    -> [ fileNewDialogBox model ]
-                      Just FileSaveAs -> [ fileSaveAsDialogBox model ]
-                      Just FileOpen   -> [ fileOpenDialogBox model ]
-                      Nothing         -> []
+  let
+    dbMap n =
+      case (Model.intToDb n) of
+        New ->
+          fileNewDialogBox model
+        SaveAs ->
+          fileSaveAsDialogBox model
+        Open ->
+          fileOpenDialogBox model
+        AlertSave ->
+          alertSaveDialogBox model
+    dialogBoxes =
+      model.dialogBoxes
+        |> Set.toList
+        |> List.map dbMap
   in
 
   let animationTools =
@@ -480,19 +490,19 @@ pauseResumeMovieButton model =
   htmlButton caption Controller.msgPauseResumeMovie Regular (not enabled)
 
 fileNewDialogBoxButton =
-  htmlButton "New" (Controller.msgOpenDialogBox FileNew) Regular False
+  htmlButton "New" (Controller.msgOpenDialogBox New) Regular False
 
 fileSaveAsDialogBoxButton =
-  htmlButton "Save As" (Controller.msgOpenDialogBox FileSaveAs) Regular False
+  htmlButton "Save As" (Controller.msgOpenDialogBox SaveAs) Regular False
 
 fileSaveButton model =
   htmlButton "Save" Controller.msgSave Regular (not model.needsSave)
 
 fileOpenDialogBoxButton =
-  htmlButton "Open" (Controller.msgOpenDialogBox FileOpen) Regular False
+  htmlButton "Open" (Controller.msgOpenDialogBox Open) Regular False
 
-closeDialogBoxButton =
-  htmlButton "Close Dialog Box" Controller.msgCloseDialogBox Regular False
+closeDialogBoxButton db =
+  htmlButton "Close Dialog Box" (Controller.msgCloseDialogBox db) Regular False
 
 exportCodeButton =
   htmlButton "Export Code" Controller.msgExportCode Regular False
@@ -589,34 +599,43 @@ truncateFloat n =
 --------------------------------------------------------------------------------
 -- Dialog Boxes
 
-bigDialogBox elements =
-  Html.div
-    [ Attr.style
-      [ ("position", "fixed")
-      , ("top", "50%")
-      , ("left", "50%")
-      , ("width", "85%")
-      , ("height", "85%")
-      , ("font-family", "sans-serif")
-      , ("background-color", "#F8F8F8")
-      , ("border", "2px solid " ++ Layout.strInterfaceColor)
-      , ("border-radius", "10px")
-      , ("box-shadow", "0 0 10px 0 #888888")
-      , ("transform", "translateY(-50%) translateX(-50%)")
-      , ("margin", "auto")
-      , ("z-index", "100")
-      , ("overflow", "scroll")
+dialogBox width height closable db elements =
+  let closeButton =
+    if closable then
+      [ Html.div
+          [ Attr.style
+              [ ("text-align", "center")
+              , ("padding", "20px")
+              ]
+          ]
+          [ closeDialogBoxButton db ]
       ]
-    ]
-    (elements ++ [ Html.div
-                     [ Attr.style
-                         [ ("text-align", "center")
-                         , ("padding", "20px")
-                         ]
-                     ]
-                     [ closeDialogBoxButton ]
-                 ])
+    else
+      []
+  in
+    Html.div
+      [ Attr.style
+        [ ("position", "fixed")
+        , ("top", "50%")
+        , ("left", "50%")
+        , ("width", width)
+        , ("height", height)
+        , ("font-family", "sans-serif")
+        , ("background-color", "#F8F8F8")
+        , ("border", "2px solid " ++ Layout.strInterfaceColor)
+        , ("border-radius", "10px")
+        , ("box-shadow", "0 0 10px 0 #888888")
+        , ("transform", "translateY(-50%) translateX(-50%)")
+        , ("margin", "auto")
+        , ("z-index", "100")
+        , ("overflow", "scroll")
+        ]
+      ]
+      (elements ++ closeButton)
 
+bigDialogBox = dialogBox "85%" "85%"
+
+smallDialogBox = dialogBox "35%" "35%"
 
 fileNewDialogBox model =
   let viewTemplate (name, _) =
@@ -628,10 +647,14 @@ fileNewDialogBox model =
               , ("border-bottom", "1px solid black")
               ]
           ]
-          [ htmlButton name (Controller.msgNew name) Regular False
+          [ htmlButton
+              name
+              (Controller.msgAskNew name model.needsSave)
+              Regular
+              False
           ]
   in
-    bigDialogBox <|
+    bigDialogBox True New <|
       [ Html.h2
         [ Attr.style
           [ ("padding", "20px")
@@ -667,7 +690,7 @@ fileSaveAsDialogBox model =
               [ htmlButton "Save" Controller.msgSaveAs Regular False ]
           ]
   in
-    bigDialogBox <|
+    bigDialogBox True SaveAs <|
       [ Html.h2
         [ Attr.style
           [ ("padding", "20px")
@@ -701,7 +724,7 @@ fileOpenDialogBox model =
                   ]
               ]
               [ htmlButton "Open"
-                           (Controller.msgOpen filename)
+                           (Controller.msgAskOpen filename model.needsSave)
                            Regular
                            False
               , Html.span
@@ -717,7 +740,7 @@ fileOpenDialogBox model =
               ]
           ]
   in
-    bigDialogBox <|
+    bigDialogBox True Open <|
       [ Html.h2
         [ Attr.style
           [ ("padding", "20px")
@@ -765,3 +788,44 @@ fileIndicator model =
       , Html.text ": "
       , wrapper
       ]
+
+alertSaveDialogBox model =
+  smallDialogBox False AlertSave <|
+    [ Html.h2
+      [ Attr.style
+        [ ("padding", "20px")
+        , ("margin", "0")
+        , ("border-bottom", "1px solid black")
+        ]
+      ]
+      [ Html.text "Warning" ]
+    , Html.div
+        [ Attr.style
+            [ ("padding", "20px")
+            ]
+        ]
+        [ Html.i []
+            [ Html.text <| Model.prettyFilename model ]
+        , Html.text <|
+            " has unsaved changes. Are you sure that you would like to continue?"
+        , Html.br [] []
+        , Html.br [] []
+        , Html.b []
+            [ Html.text "You will lose your unsaved changes." ]
+        , Html.br [] []
+        , Html.br [] []
+        , Html.div
+            [ Attr.style
+                [ ("float", "right")
+                ]
+            ]
+            [ htmlButton "No" Controller.msgCancelFileOperation Regular False
+            , Html.span
+                [ Attr.style
+                  [ ("margin-left", "50px")
+                  ]
+                ]
+                [ htmlButton "Yes" Controller.msgConfirmFileOperation Regular False ]
+            ]
+        ]
+    ]
