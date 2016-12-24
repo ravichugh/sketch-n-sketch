@@ -65,20 +65,13 @@ view model =
   let outputTools = outputToolBox model layout in
 
   let
-    dbMap n =
-      case (Model.intToDb n) of
-        New ->
-          fileNewDialogBox model
-        SaveAs ->
-          fileSaveAsDialogBox model
-        Open ->
-          fileOpenDialogBox model
-        AlertSave ->
-          alertSaveDialogBox model
     dialogBoxes =
-      model.dialogBoxes
-        |> Set.toList
-        |> List.map dbMap
+      [ fileNewDialogBox model
+      , fileSaveAsDialogBox model
+      , fileOpenDialogBox model
+      , alertSaveDialogBox model
+      , importCodeDialogBox model
+      ]
   in
 
   let animationTools =
@@ -147,6 +140,9 @@ fileToolBox model layout =
     , Html.br [] []
     , exportCodeButton
     , exportSvgButton
+    , Html.br [] []
+    , importCodeButton
+    , importSvgButton
     ]
 
 codeToolBox model layout =
@@ -506,16 +502,16 @@ closeDialogBoxButton db =
 
 exportCodeButton =
   htmlButton "Export Code" Controller.msgExportCode Regular False
---
--- importCodeButton =
---     htmlButton "Import Code" Controller.msgImportCode Regular False
---
+
+importCodeButton =
+    htmlButton "Import Code" (Controller.msgOpenDialogBox ImportCode) Regular False
+
 exportSvgButton =
   htmlButton "Export SVG" Controller.msgExportSvg Regular False
---
--- importSvgButton =
---    htmlButton "Import SVG" Controller.msgImportCode Regular True
---
+
+importSvgButton =
+   htmlButton "Import SVG" Controller.msgNoop Regular True
+
 -- autosaveButton model =
 --     let cap = case model.autosave of
 --       True  -> "[Autosave] Yes"
@@ -599,19 +595,25 @@ truncateFloat n =
 --------------------------------------------------------------------------------
 -- Dialog Boxes
 
-dialogBox width height closable db elements =
-  let closeButton =
-    if closable then
-      [ Html.div
-          [ Attr.style
-              [ ("text-align", "center")
-              , ("padding", "20px")
-              ]
-          ]
-          [ closeDialogBoxButton db ]
-      ]
-    else
-      []
+dialogBox zIndex width height closable db model elements =
+  let
+    closeButton =
+      if closable then
+        [ Html.div
+            [ Attr.style
+                [ ("text-align", "center")
+                , ("padding", "20px")
+                ]
+            ]
+            [ closeDialogBoxButton db ]
+        ]
+      else
+        []
+    displayStyle =
+      if (Set.member (Model.dbToInt db) model.dialogBoxes) then
+        "block"
+      else
+        "none"
   in
     Html.div
       [ Attr.style
@@ -627,15 +629,16 @@ dialogBox width height closable db elements =
         , ("box-shadow", "0 0 10px 0 #888888")
         , ("transform", "translateY(-50%) translateX(-50%)")
         , ("margin", "auto")
-        , ("z-index", "100")
+        , ("z-index", zIndex)
         , ("overflow", "scroll")
+        , ("display", displayStyle)
         ]
       ]
       (elements ++ closeButton)
 
-bigDialogBox = dialogBox "85%" "85%"
+bigDialogBox = dialogBox "100" "85%" "85%"
 
-smallDialogBox = dialogBox "35%" "35%"
+smallDialogBox = dialogBox "101" "35%" "35%"
 
 fileNewDialogBox model =
   let viewTemplate (name, _) =
@@ -654,7 +657,7 @@ fileNewDialogBox model =
               False
           ]
   in
-    bigDialogBox True New <|
+    bigDialogBox True New model <|
       [ Html.h2
         [ Attr.style
           [ ("padding", "20px")
@@ -690,7 +693,7 @@ fileSaveAsDialogBox model =
               [ htmlButton "Save" Controller.msgSaveAs Regular False ]
           ]
   in
-    bigDialogBox True SaveAs <|
+    bigDialogBox True SaveAs model <|
       [ Html.h2
         [ Attr.style
           [ ("padding", "20px")
@@ -740,7 +743,7 @@ fileOpenDialogBox model =
               ]
           ]
   in
-    bigDialogBox True Open <|
+    bigDialogBox True Open model <|
       [ Html.h2
         [ Attr.style
           [ ("padding", "20px")
@@ -790,15 +793,16 @@ fileIndicator model =
       ]
 
 alertSaveDialogBox model =
-  smallDialogBox False AlertSave <|
+  smallDialogBox False AlertSave model
     [ Html.h2
-      [ Attr.style
-        [ ("padding", "20px")
-        , ("margin", "0")
-        , ("border-bottom", "1px solid black")
+        [ Attr.style
+          [ ("color", "#550000")
+          , ("padding", "20px")
+          , ("margin", "0")
+          , ("border-bottom", "1px solid black")
+          ]
         ]
-      ]
-      [ Html.text "Warning" ]
+        [ Html.text "Warning" ]
     , Html.div
         [ Attr.style
             [ ("padding", "20px")
@@ -806,7 +810,7 @@ alertSaveDialogBox model =
         ]
         [ Html.i []
             [ Html.text <| Model.prettyFilename model ]
-        , Html.text <|
+        , Html.text
             " has unsaved changes. Are you sure that you would like to continue?"
         , Html.br [] []
         , Html.br [] []
@@ -829,3 +833,32 @@ alertSaveDialogBox model =
             ]
         ]
     ]
+
+importCodeDialogBox model =
+  bigDialogBox True ImportCode model
+      [ Html.h2
+          [ Attr.style
+            [ ("padding", "20px")
+            , ("margin", "0")
+            , ("border-bottom", "1px solid black")
+            ]
+          ]
+          [ Html.text "Import Code..." ]
+      , Html.div
+          [ Attr.style
+              [ ("padding", "20px")
+              , ("text-align", "center")
+              ]
+          ]
+          [ Html.input
+              [ Attr.type_ "file"
+              , Attr.id Model.importCodeFileInputId
+              ]
+              []
+          , htmlButton
+              "Import"
+              (Controller.msgAskImportCode model.needsSave)
+              Regular
+              False
+          ]
+      ]

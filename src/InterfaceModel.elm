@@ -204,7 +204,7 @@ initialLayoutOffsets =
   , animationToolBox = init
   }
 
-type DialogBox = New | SaveAs | Open | AlertSave
+type DialogBox = New | SaveAs | Open | AlertSave | ImportCode
 
 dbToInt db =
   case db of
@@ -212,6 +212,7 @@ dbToInt db =
     SaveAs -> 1
     Open -> 2
     AlertSave -> 3
+    ImportCode -> 4
 
 intToDb n =
   case n of
@@ -219,6 +220,7 @@ intToDb n =
     1 -> SaveAs
     2 -> Open
     3 -> AlertSave
+    4 -> ImportCode
     _ -> Debug.crash "Undefined Dialog Box Type"
 
 openDialogBox db model =
@@ -234,6 +236,10 @@ templates =
   List.filter
     (\(name, _) -> name /= Examples.scratchName)
     Examples.list
+
+--------------------------------------------------------------------------------
+
+importCodeFileInputId = "import-code-file-input"
 
 --------------------------------------------------------------------------------
 

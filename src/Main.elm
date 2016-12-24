@@ -60,5 +60,6 @@ subscriptions model =
     , AnimationLoop.receiveFrame Controller.msgTickDelta
     , FileHandler.writeConfirmation Controller.msgConfirmWrite
     , FileHandler.receiveFile Controller.msgReadFile
+    , FileHandler.receiveFileFromInput Controller.msgReadFileFromInput
     , FileHandler.receiveFileIndex Controller.msgUpdateFileIndex
     ]

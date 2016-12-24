@@ -21,12 +21,13 @@ module InterfaceController exposing
   , msgPauseResumeMovie
   , msgOpenDialogBox, msgCloseDialogBox
   , msgUpdateFilenameInput
-  , msgConfirmWrite, msgReadFile, msgUpdateFileIndex
+  , msgConfirmWrite, msgReadFile, msgReadFileFromInput, msgUpdateFileIndex
   , msgNew, msgSaveAs, msgSave, msgOpen, msgDelete
   , msgAskNew, msgAskOpen
   , msgConfirmFileOperation, msgCancelFileOperation
   , msgToggleAutosave
   , msgExportCode, msgExportSvg
+  , msgImportCode, msgAskImportCode
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -483,6 +484,9 @@ issueCommand (Msg kind _) oldModel newModel =
         { filename = (Model.prettyFilename newModel) ++ ".svg"
         , text = LangSvg.printSvg newModel.showGhosts newModel.slate
         }
+
+    "Import Code" ->
+      FileHandler.requestFileFromInput Model.importCodeFileInputId
 
     -- Do not send changes back to the editor, because this is the command where
     -- we receieve changes (if this is removed, an infinite feedback loop
@@ -951,6 +955,18 @@ msgCancelSync = Msg "Cancel Sync" <| \old ->
               mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime old.inputExp }
 
 --------------------------------------------------------------------------------
+
+requireSaveAsker ((Msg name _) as msg) needsSave =
+  if needsSave then
+    Msg ("Ask " ++ name) <| (\old ->
+      { old | pendingFileOperation = Just <| msg
+            , fileOperationConfirmed = False })
+        >> Model.openDialogBox AlertSave
+  else
+    msg
+
+--------------------------------------------------------------------------------
+
 -- Dialog Box
 
 msgOpenDialogBox db =
@@ -974,10 +990,17 @@ requestFile requestedFilename old =
 
 readFile file old =
   { old | filename = file.filename
-  , code = file.code
-  , history = ([file.code], [])
-  , lastSaveState = Just file.code
-  , needsSave = False }
+        , code = file.code
+        , history = ([file.code], [])
+        , lastSaveState = Just file.code
+        , needsSave = False }
+
+readFileFromInput file old =
+  { old | filename = file.filename
+        , code = file.code
+        , history = ([file.code], [])
+        , lastSaveState = Nothing
+        , needsSave = True }
 
 updateFileIndex fileIndex old =
   { old | fileIndex = fileIndex }
@@ -989,6 +1012,9 @@ msgConfirmWrite savedFilename =
 
 msgReadFile file =
   Msg "Read File" (readFile file >> upstateRun)
+
+msgReadFileFromInput file =
+  Msg "Read File From Input" (readFileFromInput file >> upstateRun)
 
 msgUpdateFileIndex fileIndex =
   Msg "Update File Index" (updateFileIndex fileIndex)
@@ -1036,14 +1062,7 @@ msgNew template = Msg "New" <| (\old ->
               }
       ) |> handleError old) >> closeDialogBox New
 
-msgAskNew template needsSave =
-  if needsSave then
-    Msg "Ask New" <| (\old ->
-      { old | pendingFileOperation = Just <| msgNew template
-            , fileOperationConfirmed = False })
-        >> Model.openDialogBox AlertSave
-  else
-    msgNew template
+msgAskNew template = requireSaveAsker (msgNew template)
 
 msgSaveAs =
   let
@@ -1066,14 +1085,7 @@ msgSave = Msg "Save" <| \old ->
 msgOpen filename =
   Msg "Open" (requestFile filename >> closeDialogBox Open)
 
-msgAskOpen filename needsSave =
-  if needsSave then
-    Msg "Ask Open" <| (\old ->
-      { old | pendingFileOperation = Just <| msgOpen filename
-            , fileOperationConfirmed = False })
-        >> Model.openDialogBox AlertSave
-  else
-    msgOpen filename
+msgAskOpen filename = requireSaveAsker (msgOpen filename)
 
 msgDelete filename =
   Msg "Delete" <| \old ->
@@ -1102,3 +1114,10 @@ msgToggleAutosave = Msg "Toggle Autosave" <| \old ->
 msgExportCode = Msg "Export Code" identity
 
 msgExportSvg = Msg "Export SVG" identity
+
+--------------------------------------------------------------------------------
+-- Importing
+
+msgImportCode = Msg "Import Code" <| closeDialogBox ImportCode
+
+msgAskImportCode = requireSaveAsker msgImportCode

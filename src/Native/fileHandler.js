@@ -1,5 +1,18 @@
 "use strict";
 
+// Helpers
+
+function stripExtension(str) {
+  var lastDotIndex = str.lastIndexOf(".");
+  if (lastDotIndex === -1) {
+      return str;
+  } else {
+      return str.substring(0, lastDotIndex);
+  }
+}
+
+// Main Functions
+
 function getFiles() {
   return JSON.parse(localStorage.getItem("sketch-files")) || {};
 }
@@ -88,4 +101,28 @@ function handleDownload(downloadInfo) {
   var text = downloadInfo.text;
   download(filename, text);
 }
-app.ports.download.subscribe(handleDownload)
+app.ports.download.subscribe(handleDownload);
+
+function handleRequestFileFromInput(inputId) {
+  var input = document.getElementById(inputId);
+
+  if (input.files.length === 0) {
+      return;
+  }
+
+  var realFile = input.files[0];
+  var reader = new FileReader();
+
+  reader.onload = function(event) {
+    var filename = stripExtension(realFile.name);
+    var code = event.target.result;
+    var file = {
+      filename: filename,
+      code: code
+    }
+    app.ports.receiveFileFromInput.send(file);
+  }
+
+  reader.readAsText(realFile, "UTF-8");
+}
+app.ports.requestFileFromInput.subscribe(handleRequestFileFromInput);
