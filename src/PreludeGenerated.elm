@@ -1622,5 +1622,9 @@ prelude =
 """
 
 
-src = prelude
+-- src = prelude
+src = """
+(def blobs (\\shapes ['svg' [] shapes]))
 
+(let dummyPreludeMain ['svg' [] []] dummyPreludeMain)
+"""
