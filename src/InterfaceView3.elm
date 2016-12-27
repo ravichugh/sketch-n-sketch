@@ -74,6 +74,22 @@ view model =
       ]
   in
 
+  let
+    needsSaveString =
+      if model.needsSave then
+        "true"
+      else
+        "false"
+    onbeforeunloadDataElement =
+      Html.input
+        [ Attr.type_ "hidden"
+        , Attr.id "onbeforeunload-data"
+        , Attr.attribute "data-needs-save" needsSaveString
+        , Attr.attribute "data-filename" (Model.prettyFilename model)
+        ]
+        []
+  in
+
   let animationTools =
     if model.slideCount > 1 || model.movieCount > 1
     then [ animationToolBox model layout ]
@@ -101,7 +117,8 @@ view model =
   let everything = -- z-order in decreasing order
 
      -- bottom-most
-     [ codeBox, outputBox
+     [ onbeforeunloadDataElement
+     , codeBox, outputBox
 
      -- toolboxes in reverse order
      , outputTools] ++ animationTools ++
