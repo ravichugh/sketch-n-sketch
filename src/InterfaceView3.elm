@@ -537,34 +537,6 @@ importSvgButton =
 --       htmlButton cap Controller.msgToggleAutosave Regular True
 
 --------------------------------------------------------------------------------
--- Dropdown Menu
-
-dropdownExamples model =
-  let options =
-    List.map (\(name,_) -> Html.option [] [ Html.text name ]) Examples.list
-  in
-  Html.select
-    [ on "change" (Json.Decode.map Controller.msgSelectExample Html.Events.targetValue)
-    , handleEventAndStop "mousedown" Controller.msgNoop
-        -- to prevent underlying toolBox from starting dragLayoutWidgetTrigger
-    , Attr.style
-        [ ("pointer-events", "auto")
-        , ("border", "0 solid")
-        , ("width", "200px")
-        , ("height", pixels Layout.buttonHeight)
-        , ("font-family", params.mainSection.widgets.font)
-        , ("font-size", params.mainSection.widgets.fontSize)
-
-        -- https://stackoverflow.com/questions/24210132/remove-border-radius-from-select-tag-in-bootstrap-3
-        , ("outline", "1px solid #CCC")
-        , ("outline-offset", "-1px")
-        , ("background-color", "white")
-        ]
-    ]
-    options
-
-
---------------------------------------------------------------------------------
 -- Hover Caption
 
 captionArea model layout =

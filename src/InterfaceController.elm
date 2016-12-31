@@ -6,7 +6,6 @@ module InterfaceController exposing
   , msgKeyPress, msgKeyDown, msgKeyUp
   , msgClickZone
   , msgMouseClickCanvas, msgMouseIsDown, msgMousePosition
-  , msgSelectExample
   , msgRun, upstateRun, msgTryParseRun
   , msgFromAce
   , msgAceUpdate
@@ -788,55 +787,6 @@ msgReplicateBlob option = Msg "Replicate Blob" <| \old ->
   case Blobs.isSimpleProgram old.inputExp of
     Nothing     -> old
     Just simple -> upstateRun <| ETransform.replicateSelectedBlob option old simple
-
---------------------------------------------------------------------------------
-
-msgSelectExample name = Msg ("Select Example " ++ name) <| \old ->
-
-  if name == Examples.scratchName then
-    upstateRun { old | exName = name, code = old.scratchCode, history = ([],[]) }
-  else
-    case Utils.maybeFind name Examples.list of
-      Nothing -> let _ = Debug.log "WARN: not found:" name in old
-      Just (_, thunk) ->
-
-        let {e,v,ws,ati} = thunk () in
-        let (so, m) =
-          case old.mode of
-            Live _  -> let so = Sync.syncOptionsOf old.syncOptions e in
-                       (so, Utils.fromOk "SelectExample mkLive_" <|
-                          mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws))
-            Print _ -> let so = Sync.syncOptionsOf old.syncOptions e in
-                       (so, Utils.fromOk "SelectExample mkLive_" <|
-                          mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws))
-            _      -> (old.syncOptions, old.mode)
-        in
-        let scratchCode_ =
-          if old.exName == Examples.scratchName then old.code else old.scratchCode
-        in
-        LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v
-        |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
-          let code = unparse e in
-          { old | scratchCode   = scratchCode_
-                , exName        = name
-                , inputExp      = e
-                , inputVal      = v
-                , code          = code
-                , history       = ([code],[])
-                , mode          = m
-                , syncOptions   = so
-                , slideNumber   = 1
-                , slideCount    = slideCount
-                , movieCount    = movieCount
-                , movieTime     = 0
-                , movieDuration = movieDuration
-                , movieContinue = movieContinue
-                , runAnimation  = movieDuration > 0
-                , slate         = slate
-                , widgets       = ws
-                , codeBoxInfo   = updateCodeBoxWithTypes ati old.codeBoxInfo
-                }
-        ) |> handleError old
 
 --------------------------------------------------------------------------------
 
