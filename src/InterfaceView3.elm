@@ -810,6 +810,7 @@ alertSaveDialogBox model =
         , Html.div
             [ Attr.style
                 [ ("float", "right")
+                , ("margin-bottom", "20px")
                 ]
             ]
             [ htmlButton "No" Controller.msgCancelFileOperation Regular False
