@@ -20,10 +20,17 @@ import Mouse
 
 type alias Code = String
 
+type alias Filename = String
+
+type alias FileIndex = List Filename
+
+type alias File = {
+  filename : Filename,
+  code : Code
+}
+
 type alias Model =
-  { scratchCode : String
-  , exName : String
-  , code : Code
+  { code : Code
   , previewCode: Maybe Code
   , history : (List Code, List Code)
   , inputExp : Exp
@@ -71,6 +78,16 @@ type alias Model =
   , randomColor : Int
   , lambdaTools : (Int, List LambdaTool)
   , layoutOffsets : LayoutOffsets
+  , needsSave : Bool
+  , lastSaveState : Maybe Code
+  , autosave : Bool
+  , filename : Filename
+  , fileIndex : FileIndex
+  , dialogBoxes : Set Int
+  , filenameInput : String
+  , fileToDelete : Filename
+  , pendingFileOperation : Maybe Msg
+  , fileOperationConfirmed : Bool
   }
 
 type Mode
@@ -185,6 +202,34 @@ initialLayoutOffsets =
   , animationToolBox = init
   }
 
+type DialogBox = New | SaveAs | Open | AlertSave | ImportCode
+
+dbToInt db =
+  case db of
+    New -> 0
+    SaveAs -> 1
+    Open -> 2
+    AlertSave -> 3
+    ImportCode -> 4
+
+intToDb n =
+  case n of
+    0 -> New
+    1 -> SaveAs
+    2 -> Open
+    3 -> AlertSave
+    4 -> ImportCode
+    _ -> Debug.crash "Undefined Dialog Box Type"
+
+openDialogBox db model =
+  { model | dialogBoxes = Set.insert (dbToInt db) model.dialogBoxes }
+
+closeDialogBox db model =
+  { model | dialogBoxes = Set.remove (dbToInt db) model.dialogBoxes }
+
+--------------------------------------------------------------------------------
+
+importCodeFileInputId = "import-code-file-input"
 
 --------------------------------------------------------------------------------
 
@@ -213,6 +258,22 @@ codeToShow model =
 
 --------------------------------------------------------------------------------
 
+bufferName = ""
+
+untitledName = "Untitled"
+
+prettyFilename model =
+  if model.filename == bufferName then
+    untitledName
+  else
+    model.filename
+
+getFile model = { filename = model.filename
+                , code     = model.code
+                }
+
+--------------------------------------------------------------------------------
+
 initModel : Model
 initModel =
   let
@@ -225,9 +286,7 @@ initModel =
   in
   let liveModeInfo = unwrap (mkLive Sync.defaultOptions 1 1 0.0 e (v, ws)) in
   let code = unparse e in
-    { scratchCode   = Examples.scratch
-    , exName        = name
-    , code          = code
+    { code          = code
     , previewCode   = Nothing
     , history       = ([code], [])
     , inputExp      = e
@@ -273,5 +332,15 @@ initModel =
     , randomColor   = 100
     , lambdaTools   = (1, [LambdaBounds (eVar "star")])
     , layoutOffsets = initialLayoutOffsets
+    , needsSave     = False
+    , lastSaveState = Nothing
+    , autosave      = False
+    , filename      = ""
+    , fileIndex     = []
+    , dialogBoxes   = Set.empty
+    , filenameInput = ""
+    , fileToDelete  = ""
+    , pendingFileOperation = Nothing
+    , fileOperationConfirmed = False
     }
 

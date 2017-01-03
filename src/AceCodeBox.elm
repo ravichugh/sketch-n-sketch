@@ -1,6 +1,7 @@
 port module AceCodeBox exposing
   ( initializeAndDisplay, display
   , requestEditorState, receiveEditorState
+  , aceUpdate
   )
 
 import InterfaceModel as Model exposing (Model, AceCodeBoxInfo)
@@ -41,3 +42,5 @@ requestEditorState = aceCodeBoxPoll
 port aceCodeBoxMsg : (AceCodeBoxInfo -> msg) -> Sub msg
 
 receiveEditorState = aceCodeBoxMsg
+
+port aceUpdate : (AceCodeBoxInfo -> msg) -> Sub msg

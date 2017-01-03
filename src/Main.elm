@@ -5,6 +5,7 @@ import InterfaceView3 as View
 import InterfaceController as Controller
 import AceCodeBox
 import AnimationLoop
+import FileHandler
 
 import Html exposing (Html)
 import Mouse
@@ -41,6 +42,7 @@ initCmd =
   Cmd.batch
     [ Task.perform Controller.msgWindowDimensions Window.size
     , AceCodeBox.initializeAndDisplay Model.initModel
+    , Task.perform Controller.msgNew (Task.succeed "BLANK")
     ]
 
 subscriptions : Model -> Sub Msg
@@ -54,5 +56,10 @@ subscriptions model =
     , Keyboard.downs Controller.msgKeyDown
     , Keyboard.ups Controller.msgKeyUp
     , AceCodeBox.receiveEditorState Controller.msgFromAce
+    , AceCodeBox.aceUpdate Controller.msgAceUpdate
     , AnimationLoop.receiveFrame Controller.msgTickDelta
+    , FileHandler.writeConfirmation Controller.msgConfirmWrite
+    , FileHandler.receiveFile Controller.msgReadFile
+    , FileHandler.receiveFileFromInput Controller.msgReadFileFromInput
+    , FileHandler.receiveFileIndex Controller.msgUpdateFileIndex
     ]

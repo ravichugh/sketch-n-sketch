@@ -13,9 +13,24 @@
 
   <script>
     var app = Elm.Main.fullscreen();
+
+    // https://developer.mozilla.org/en-US/docs/Web/API/WindowEventHandlers/onbeforeunload
+    window.onbeforeunload = function(e) {
+      var dataElement = document.getElementById("onbeforeunload-data");
+      if (dataElement !== null) {
+        var needsSave = dataElement.getAttribute("data-needs-save") === "true";
+        if (needsSave) {
+          var filename = dataElement.getAttribute("data-filename")
+          var warning = filename + " has unsaved changes. Are you sure that you would like to leave?\n\nYou will lose your unsaved changes.";
+          e.returnValue = warning;
+          return warning;
+        }
+      }
+    }
   </script>
 
   <script type="text/javascript" src="aceCodeBox.js"></script>
   <script type="text/javascript" src="animationLoop.js"></script>
+  <script type="text/javascript" src="fileHandler.js"></script>
 
 </html>

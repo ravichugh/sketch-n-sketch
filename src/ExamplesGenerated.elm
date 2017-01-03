@@ -1,4 +1,4 @@
-module ExamplesGenerated exposing (list, scratchName, scratch)
+module ExamplesGenerated exposing (list)
 
 import Lang
 import LangParser2 as Parser
@@ -23,22 +23,6 @@ makeExample name s =
     {e=e, v=v, ws=ws, ati=ati}
   in
   (name, (s, thunk))
-
-scratchName = "*Scratch*"
-
-scratch =
- """ 
-; Write a little program below.
-; Or choose an example from the list.
-;
-; Changes to this *Scratch* example will be saved and
-; restored when navigating to and from other examples.
-; For the remaining named examples, changes will be
-; discarded when choosing a different example.
- 
-(svg [(rect 'maroon' 100 15 200 50)])
-
-"""
 
 threeBoxes =
  """
@@ -4222,8 +4206,6 @@ coffee_UIST =
 
 examples =
   [ makeExample "BLANK" blank
-  , makeExample scratchName scratch
-  -- [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
 
   , makeExample "SnS Logo (UIST)" sns_UIST

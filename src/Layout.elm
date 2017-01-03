@@ -203,7 +203,7 @@ computeLayout m =
      }
   , codeTools = offset m getCodeToolBox
      { leftRight = Left   <| dimCanvas.initialLeft + fileAndCodeToolBoxRightOffset
-     , topBottom = Top    <| windowPadding + 1 * (rowGap + buttonHeight)
+     , topBottom = Top    <| windowPadding + round (4.2 * (rowGap + buttonHeight))
      }
   , drawTools = offset m getDrawToolBox
      { leftRight = Right  <| windowPadding

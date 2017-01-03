@@ -9,6 +9,15 @@ function initialize() {
   editor.setTheme("ace/theme/chrome");
   editor.setFontSize(14);
   editor.getSession().setMode("ace/mode/little");
+
+  editor.on("input", function() {
+      var info = getEditorState();
+      app.ports.aceUpdate.send(info);
+  });
+  editor.selection.on("changeCursor", function() {
+      var info = getEditorState();
+      app.ports.aceUpdate.send(info);
+  });
 }
 
 
@@ -185,3 +194,5 @@ app.ports.aceCodeBoxPoll.subscribe(function() {
   var info = getEditorState();
   app.ports.aceCodeBoxMsg.send(info);
 });
+
+// aceUpdate port is in initialize()

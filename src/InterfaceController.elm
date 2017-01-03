@@ -6,9 +6,9 @@ module InterfaceController exposing
   , msgKeyPress, msgKeyDown, msgKeyUp
   , msgClickZone
   , msgMouseClickCanvas, msgMouseIsDown, msgMousePosition
-  , msgSelectExample
   , msgRun, upstateRun, msgTryParseRun
   , msgFromAce
+  , msgAceUpdate
   , msgUndo, msgRedo, msgCleanCode
   , msgDigHole, msgMakeEqual
   , msgGroupBlobs, msgDuplicateBlobs, msgMergeBlobs, msgAbstractBlobs
@@ -18,6 +18,15 @@ module InterfaceController exposing
   , msgNextSlide, msgPreviousSlide
   , msgNextMovie, msgPreviousMovie
   , msgPauseResumeMovie
+  , msgOpenDialogBox, msgCloseDialogBox
+  , msgUpdateFilenameInput
+  , msgConfirmWrite, msgReadFile, msgReadFileFromInput, msgUpdateFileIndex
+  , msgNew, msgSaveAs, msgSave, msgOpen, msgDelete
+  , msgAskNew, msgAskOpen
+  , msgConfirmFileOperation, msgCancelFileOperation
+  , msgToggleAutosave
+  , msgExportCode, msgExportSvg
+  , msgImportCode, msgAskImportCode
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -34,10 +43,11 @@ import Sync
 import Eval
 import Utils
 import Keys
-import InterfaceModel exposing (..)
+import InterfaceModel as Model exposing (..)
 import Layout
 import AceCodeBox
 import AnimationLoop
+import FileHandler
 -- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
 import ShapeWidgets
@@ -414,9 +424,16 @@ tryRun old =
 --
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg oldModel =
-  let newModel = upstate msg oldModel in
-  let cmd = issueCommand msg oldModel newModel in
-  (newModel, cmd)
+  case (oldModel.pendingFileOperation, oldModel.fileOperationConfirmed) of
+    (Just msg2, True) ->
+      update
+        msg2
+        { oldModel | pendingFileOperation = Nothing
+                   , fileOperationConfirmed = False }
+    _ ->
+      let newModel = upstate msg oldModel in
+      let cmd = issueCommand msg oldModel newModel in
+      (newModel, cmd)
 
 
 upstate : Msg -> Model -> Model
@@ -437,6 +454,51 @@ issueCommand (Msg kind _) oldModel newModel =
         else AceCodeBox.initializeAndDisplay newModel
           -- TODO crash: "Uncaught Error: ace.edit can't find div #editor"
 
+    "Save As" ->
+      if newModel.filename /= Model.bufferName then
+        FileHandler.write <| getFile newModel
+      else
+        Cmd.none
+
+    "Save" ->
+      if newModel.filename /= Model.bufferName then
+        FileHandler.write <| getFile newModel
+      else
+        FileHandler.requestFileIndex ()
+
+    "Open" ->
+      FileHandler.requestFile newModel.filename
+
+    "Delete" ->
+      FileHandler.delete newModel.fileToDelete
+
+    "Export Code" ->
+      FileHandler.download
+        { filename = (Model.prettyFilename newModel) ++ ".little"
+        , text = newModel.code
+        }
+
+    "Export SVG" ->
+      FileHandler.download
+        { filename = (Model.prettyFilename newModel) ++ ".svg"
+        , text = LangSvg.printSvg newModel.showGhosts newModel.slate
+        }
+
+    "Import Code" ->
+      FileHandler.requestFileFromInput Model.importCodeFileInputId
+
+    -- Do not send changes back to the editor, because this is the command where
+    -- we receieve changes (if this is removed, an infinite feedback loop
+    -- occurs).
+    "Ace Update" ->
+        if newModel.autosave && newModel.needsSave then
+          FileHandler.write <| getFile newModel
+        else
+          Cmd.none
+
+    "Open Dialog Box" ->
+      FileHandler.requestFileIndex ()
+
     _ ->
       if newModel.code /= oldModel.code ||
          newModel.codeBoxInfo /= oldModel.codeBoxInfo
@@ -446,7 +508,6 @@ issueCommand (Msg kind _) oldModel newModel =
         AnimationLoop.requestFrame ()
       else
         Cmd.none
-
 
 --------------------------------------------------------------------------------
 
@@ -462,9 +523,16 @@ msgCodeUpdate s = Msg "Code Update" <| \old ->
 
 msgRun = Msg "Run" <| \old -> upstateRun old
 
-msgFromAce codeBoxInfo = Msg "Ace Message" <| \old ->
-  let new = { old | code = codeBoxInfo.code } in
+msgFromAce aceCodeBoxInfo = Msg "Ace Message" <| \old ->
+  let new = { old | code = aceCodeBoxInfo.code
+                  , codeBoxInfo = aceCodeBoxInfo.codeBoxInfo} in
   upstateRun new
+
+msgAceUpdate aceCodeBoxInfo = Msg "Ace Update" <| \old ->
+    let isSame = old.lastSaveState == (Just aceCodeBoxInfo.code) in
+    { old | code = aceCodeBoxInfo.code
+          , codeBoxInfo = aceCodeBoxInfo.codeBoxInfo
+          , needsSave = not isSame }
 
 upstateRun old =
   case tryRun old of
@@ -722,55 +790,6 @@ msgReplicateBlob option = Msg "Replicate Blob" <| \old ->
 
 --------------------------------------------------------------------------------
 
-msgSelectExample name = Msg ("Select Example " ++ name) <| \old ->
-
-  if name == Examples.scratchName then
-    upstateRun { old | exName = name, code = old.scratchCode, history = ([],[]) }
-  else
-    case Utils.maybeFind name Examples.list of
-      Nothing -> let _ = Debug.log "WARN: not found:" name in old
-      Just (_, thunk) ->
-
-        let {e,v,ws,ati} = thunk () in
-        let (so, m) =
-          case old.mode of
-            Live _  -> let so = Sync.syncOptionsOf old.syncOptions e in
-                       (so, Utils.fromOk "SelectExample mkLive_" <|
-                          mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws))
-            Print _ -> let so = Sync.syncOptionsOf old.syncOptions e in
-                       (so, Utils.fromOk "SelectExample mkLive_" <|
-                          mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws))
-            _      -> (old.syncOptions, old.mode)
-        in
-        let scratchCode_ =
-          if old.exName == Examples.scratchName then old.code else old.scratchCode
-        in
-        LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v
-        |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
-          let code = unparse e in
-          { old | scratchCode   = scratchCode_
-                , exName        = name
-                , inputExp      = e
-                , inputVal      = v
-                , code          = code
-                , history       = ([code],[])
-                , mode          = m
-                , syncOptions   = so
-                , slideNumber   = 1
-                , slideCount    = slideCount
-                , movieCount    = movieCount
-                , movieTime     = 0
-                , movieDuration = movieDuration
-                , movieContinue = movieContinue
-                , runAnimation  = movieDuration > 0
-                , slate         = slate
-                , widgets       = ws
-                , codeBoxInfo   = updateCodeBoxWithTypes ati old.codeBoxInfo
-                }
-        ) |> handleError old
-
---------------------------------------------------------------------------------
-
 msgToggleCodeBox = Msg "Toggle Code Box" <| \old ->
   { old | basicCodeBox = not old.basicCodeBox }
 
@@ -884,3 +903,171 @@ msgCancelSync = Msg "Cancel Sync" <| \old ->
   upstateRun
     { old | mode = Utils.fromOk "CancelSync mkLive_" <|
               mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime old.inputExp }
+
+--------------------------------------------------------------------------------
+
+requireSaveAsker ((Msg name _) as msg) needsSave =
+  if needsSave then
+    Msg ("Ask " ++ name) <| (\old ->
+      { old | pendingFileOperation = Just <| msg
+            , fileOperationConfirmed = False })
+        >> Model.openDialogBox AlertSave
+  else
+    msg
+
+--------------------------------------------------------------------------------
+
+-- Dialog Box
+
+msgOpenDialogBox db =
+  Msg "Open Dialog Box" <| Model.openDialogBox db
+
+msgCloseDialogBox db =
+  Msg "Close Dialog Box" <| Model.closeDialogBox db
+
+msgUpdateFilenameInput str = Msg "Update Filename Input" <| \old ->
+  { old | filenameInput = str }
+
+--------------------------------------------------------------------------------
+-- File Handling API
+
+confirmWrite savedFilename old =
+  { old | needsSave = False
+        , lastSaveState = Just old.code }
+
+requestFile requestedFilename old =
+  { old | filename = requestedFilename }
+
+readFile file old =
+  { old | filename = file.filename
+        , code = file.code
+        , history = ([file.code], [])
+        , lastSaveState = Just file.code
+        , needsSave = False }
+
+readFileFromInput file old =
+  { old | filename = file.filename
+        , code = file.code
+        , history = ([file.code], [])
+        , lastSaveState = Nothing
+        , needsSave = True }
+
+updateFileIndex fileIndex old =
+  { old | fileIndex = fileIndex }
+
+-- Subscription Handlers
+
+msgConfirmWrite savedFilename =
+  Msg "Confirm Write" (confirmWrite savedFilename)
+
+msgReadFile file =
+  Msg "Read File" (readFile file >> upstateRun)
+
+msgReadFileFromInput file =
+  Msg "Read File From Input" (readFileFromInput file >> upstateRun)
+
+msgUpdateFileIndex fileIndex =
+  Msg "Update File Index" (updateFileIndex fileIndex)
+
+--------------------------------------------------------------------------------
+-- File Operations
+
+msgNew template = Msg "New" <| (\old ->
+  case Utils.maybeFind template Examples.list of
+    Nothing -> let _ = Debug.log "WARN: not found:" template in old
+    Just (_, thunk) ->
+      let {e,v,ws,ati} = thunk () in
+      let (so, m) =
+        case old.mode of
+          Live _  -> let so = Sync.syncOptionsOf old.syncOptions e in
+                     (so, Utils.fromOk "SelectExample mkLive_" <|
+                        mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws))
+          Print _ -> let so = Sync.syncOptionsOf old.syncOptions e in
+                     (so, Utils.fromOk "SelectExample mkLive_" <|
+                        mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws))
+          _      -> (old.syncOptions, old.mode)
+      in
+      LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v
+      |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
+        let code = unparse e in
+        { old | inputExp      = e
+              , inputVal      = v
+              , code          = code
+              , history       = ([code],[])
+              , mode          = m
+              , syncOptions   = so
+              , slideNumber   = 1
+              , slideCount    = slideCount
+              , movieCount    = movieCount
+              , movieTime     = 0
+              , movieDuration = movieDuration
+              , movieContinue = movieContinue
+              , runAnimation  = movieDuration > 0
+              , slate         = slate
+              , widgets       = ws
+              , codeBoxInfo   = updateCodeBoxWithTypes ati old.codeBoxInfo
+              , filename      = Model.bufferName
+              , needsSave     = True
+              , lastSaveState = Nothing
+              }
+      ) |> handleError old) >> closeDialogBox New
+
+msgAskNew template = requireSaveAsker (msgNew template)
+
+msgSaveAs =
+  let
+    switchFilenameToInput old =
+      { old | filename = old.filenameInput }
+    closeDialogBoxIfNecessary old =
+      if old.filename /= Model.bufferName then
+        Model.closeDialogBox SaveAs old
+      else
+        old
+  in
+    Msg "Save As" (switchFilenameToInput >> closeDialogBoxIfNecessary)
+
+msgSave = Msg "Save" <| \old ->
+  if old.filename == Model.bufferName then
+    Model.openDialogBox SaveAs old
+  else
+    old
+
+msgOpen filename =
+  Msg "Open" (requestFile filename >> closeDialogBox Open)
+
+msgAskOpen filename = requireSaveAsker (msgOpen filename)
+
+msgDelete filename =
+  Msg "Delete" <| \old ->
+    if filename == old.filename then
+      { old | fileToDelete = filename
+            , needsSave = True
+            , lastSaveState = Nothing }
+    else
+      { old | fileToDelete = filename }
+
+msgCancelFileOperation = Msg "Cancel File Operation" <| (\old ->
+  { old | pendingFileOperation = Nothing
+        , fileOperationConfirmed = False })
+    >> Model.closeDialogBox AlertSave
+
+msgConfirmFileOperation = Msg "Confirm File Operation" <| (\old ->
+  { old | fileOperationConfirmed = True })
+    >> Model.closeDialogBox AlertSave
+
+msgToggleAutosave = Msg "Toggle Autosave" <| \old ->
+  { old | autosave = not old.autosave }
+
+--------------------------------------------------------------------------------
+-- Exporting
+
+msgExportCode = Msg "Export Code" identity
+
+msgExportSvg = Msg "Export SVG" identity
+
+--------------------------------------------------------------------------------
+-- Importing
+
+msgImportCode = Msg "Import Code" <| closeDialogBox ImportCode
+
+msgAskImportCode = requireSaveAsker msgImportCode
