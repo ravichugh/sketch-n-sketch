@@ -30,9 +30,7 @@ type alias File = {
 }
 
 type alias Model =
-  { scratchCode : String
-  , exName : String
-  , code : Code
+  { code : Code
   , previewCode: Maybe Code
   , history : (List Code, List Code)
   , inputExp : Exp
@@ -231,14 +229,6 @@ closeDialogBox db model =
 
 --------------------------------------------------------------------------------
 
--- Remove scratch example
-templates =
-  List.filter
-    (\(name, _) -> name /= Examples.scratchName)
-    Examples.list
-
---------------------------------------------------------------------------------
-
 importCodeFileInputId = "import-code-file-input"
 
 --------------------------------------------------------------------------------
@@ -296,9 +286,7 @@ initModel =
   in
   let liveModeInfo = unwrap (mkLive Sync.defaultOptions 1 1 0.0 e (v, ws)) in
   let code = unparse e in
-    { scratchCode   = Examples.scratch
-    , exName        = name
-    , code          = code
+    { code          = code
     , previewCode   = Nothing
     , history       = ([code], [])
     , inputExp      = e

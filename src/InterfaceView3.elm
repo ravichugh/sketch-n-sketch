@@ -656,7 +656,7 @@ fileNewDialogBox model =
         ]
         [ Html.text "New..." ]
       ]
-        ++ List.map viewTemplate Model.templates
+        ++ List.map viewTemplate Examples.list
 
 fileSaveAsDialogBox model =
   let saveAsInput =
