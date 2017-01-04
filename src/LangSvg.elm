@@ -1,4 +1,4 @@
-module LangSvg
+module LangSvg exposing
   ( attr
   , NodeId, ShapeKind
   , AVal, AVal_(..), PathCounts, PathCmd(..), TransformCmd(..)
@@ -18,8 +18,8 @@ module LangSvg
   , pathIndexPoints, getPathPoint
   , maybeFindBounds, maybeFindBlobId
   , justGetSvgNode
-  , resolveToIndexedTree, resolveToMovieFrameVal, resolveToMovieCount, fetchEverything
-  ) where
+  , resolveToIndexedTree, resolveToMovieCount, fetchEverything
+  )
 
 import Html
 import Html.Attributes as HA
@@ -144,20 +144,20 @@ valToIndexedTree_ v (nextId, d) = case v.v_ of
           Err s -> acc
           Ok (a_nextId, a_graph , a_children) ->
             valToIndexedTree_ vi (a_nextId, a_graph)
-            |> Result.map (\(a_nextId',a_graph') ->
-                let a_children' = (a_nextId' - 1) :: a_children in
-                (a_nextId', a_graph', a_children')
+            |> Result.map (\(a_nextId_,a_graph_) ->
+                let a_children_ = (a_nextId_ - 1) :: a_children in
+                (a_nextId_, a_graph_, a_children_)
               )
       in
       List.foldl processChild (Ok (nextId,d,[])) vs2
-      |> Result.map (\(nextId',d',children) ->
+      |> Result.map (\(nextId_,d_,children) ->
           let node = SvgNode kind (List.map valToAttr vs1) (List.reverse children) in
-          (1 + nextId', Dict.insert nextId' node d')
+          (1 + nextId_, Dict.insert nextId_ node d_)
         )
 
-    _ -> Err <| "an SVG node" `expectedButGotStr` strVal v
+    _ -> Err <| expectedButGotStr "an SVG node" (strVal v)
 
-  _ -> Err <| "an SVG node" `expectedButGotStr` strVal v
+  _ -> Err <| expectedButGotStr "an SVG node" (strVal v)
 
 
 ------------------------------------------------------------------------------
@@ -167,7 +167,7 @@ valToAttr : Val -> Attr
 valToAttr v = case v.v_ of
   VList [v1,v2] -> case (v1.v_, v2.v_) of
     (VBase (VString k), v2_) ->
-     let (k',av_) =
+     let (k_,av_) =
       case (k, v2_) of
         ("points", VList vs)    -> (k, APoints <| List.map valToPoint vs)
 
@@ -197,7 +197,7 @@ valToAttr v = case v.v_ of
 
         _                       -> Debug.crash "valToAttr"
      in
-     (k', AVal av_ v2.vtrace)
+     (k_, AVal av_ v2.vtrace)
     _ ->
       Debug.crash "valToAttr"
   _ ->
@@ -210,12 +210,12 @@ valToPoint : Val -> Point
 valToPoint v = case v.v_ of
   VList vs -> case List.map .v_ vs of
     [VConst x, VConst y] -> (x,y)
-    _                    -> "a point" `expectedButGot` strVal v
-  _                      -> "a point" `expectedButGot` strVal v
+    _                    -> expectedButGot "a point" (strVal v)
+  _                      -> expectedButGot "a point" (strVal v)
 
 strPoint : Point -> String
 strPoint (x_,y_) =
-  let (x,y) = Utils.unwrap2 <| List.map fst [x_,y_] in
+  let (x,y) = Utils.unwrap2 <| List.map Tuple.first [x_,y_] in
   toString x ++ "," ++ toString y
 
 
@@ -224,11 +224,11 @@ strPoint (x_,y_) =
 valsToRgba : List Val -> Rgba
 valsToRgba vs = case List.map .v_ vs of
   [VConst r, VConst g, VConst b, VConst a] -> (r,g,b,a)
-  _                                        -> "rgba" `expectedButGot` strVal (vList vs)
+  _                                        -> expectedButGot "rgba" (strVal (vList vs))
 
 strRgba : Rgba -> String
 strRgba (r_,g_,b_,a_) =
-  strRgba_ (List.map fst [r_,g_,b_,a_])
+  strRgba_ (List.map Tuple.first [r_,g_,b_,a_])
 
 strRgba_ rgba =
   "rgba" ++ Utils.parens (Utils.commas (List.map toString rgba))
@@ -250,29 +250,29 @@ valsToPath2 = valsToPath2_ {numPoints = 0}
 valsToPath2_ : PathCounts -> List Val -> (List PathCmd, PathCounts)
 valsToPath2_ counts vs = case vs of
   []     -> ([], counts)
-  v::vs' -> case v.v_ of
+  v::vs_ -> case v.v_ of
     VBase (VString cmd) ->
       if matchCmd cmd "Z" then
-        CmdZ cmd +++ valsToPath2_ counts vs'
+        CmdZ cmd +++ valsToPath2_ counts vs_
       else if matchCmd cmd "MLT" then
-        let ((x,y),vs'') = Utils.mapFst Utils.unwrap2 <| projConsts 2 vs' in
-        let (counts',pt) = Utils.mapSnd Utils.unwrap1 <| addIdPoints cmd counts [(x,y)] in
-        CmdMLT cmd pt +++ valsToPath2_ counts' vs''
+        let ((x,y),vs__) = Utils.mapFst Utils.unwrap2 <| projConsts 2 vs_ in
+        let (counts_,pt) = Utils.mapSnd Utils.unwrap1 <| addIdPoints cmd counts [(x,y)] in
+        CmdMLT cmd pt +++ valsToPath2_ counts_ vs__
       else if matchCmd cmd "HV" then
-        let (i,vs'') = Utils.mapFst Utils.unwrap1 <| projConsts 1 vs' in
-        CmdHV cmd i +++ valsToPath2_ counts vs''
+        let (i,vs__) = Utils.mapFst Utils.unwrap1 <| projConsts 1 vs_ in
+        CmdHV cmd i +++ valsToPath2_ counts vs__
       else if matchCmd cmd "C" then
-        let ((x1,y1,x2,y2,x,y),vs'') = Utils.mapFst Utils.unwrap6 <| projConsts 6 vs' in
-        let (counts',(pt1,pt2,pt3)) = Utils.mapSnd Utils.unwrap3 <| addIdPoints cmd counts [(x1,y1),(x2,y2),(x,y)] in
-        CmdC cmd pt1 pt2 pt3 +++ valsToPath2_ counts' vs''
+        let ((x1,y1,x2,y2,x,y),vs__) = Utils.mapFst Utils.unwrap6 <| projConsts 6 vs_ in
+        let (counts_,(pt1,pt2,pt3)) = Utils.mapSnd Utils.unwrap3 <| addIdPoints cmd counts [(x1,y1),(x2,y2),(x,y)] in
+        CmdC cmd pt1 pt2 pt3 +++ valsToPath2_ counts_ vs__
       else if matchCmd cmd "SQ" then
-        let ((x1,y1,x,y),vs'') = Utils.mapFst Utils.unwrap4 <| projConsts 4 vs' in
-        let (counts',(pt1,pt2)) = Utils.mapSnd Utils.unwrap2 <| addIdPoints cmd counts [(x1,y1),(x,y)] in
-        CmdSQ cmd pt1 pt2 +++ valsToPath2_ counts' vs''
+        let ((x1,y1,x,y),vs__) = Utils.mapFst Utils.unwrap4 <| projConsts 4 vs_ in
+        let (counts_,(pt1,pt2)) = Utils.mapSnd Utils.unwrap2 <| addIdPoints cmd counts [(x1,y1),(x,y)] in
+        CmdSQ cmd pt1 pt2 +++ valsToPath2_ counts_ vs__
       else if matchCmd cmd "A" then
-        let ((rx,ry,axis,flag,sweep,x,y),vs'') = Utils.mapFst Utils.unwrap7 <| projConsts 7 vs' in
-        let (counts',pt) = Utils.mapSnd Utils.unwrap1 <| addIdPoints cmd counts [(x,y)] in
-        CmdA cmd rx ry axis flag sweep pt +++ valsToPath2_ counts' vs''
+        let ((rx,ry,axis,flag,sweep,x,y),vs__) = Utils.mapFst Utils.unwrap7 <| projConsts 7 vs_ in
+        let (counts_,pt) = Utils.mapSnd Utils.unwrap1 <| addIdPoints cmd counts [(x,y)] in
+        CmdA cmd rx ry axis flag sweep pt +++ valsToPath2_ counts_ vs__
       else
         Debug.crash "valsToPath2_"
     _ ->
@@ -286,24 +286,24 @@ addIdPoints cmd counts pts =
   if Char.isLower c then
     (counts, List.map ((,) Nothing) pts)
   else if Char.isUpper c then
-    let (counts',l) =
+    let (counts_,l) =
       List.foldl (\pt (acc1,acc2) ->
         let nextId = 1 + acc1.numPoints in
-        let acc1'  = {acc1 | numPoints = nextId} in
-        let acc2'  = (Just nextId, pt) :: acc2 in
-        (acc1', acc2')) (counts, []) pts
+        let acc1_  = {acc1 | numPoints = nextId} in
+        let acc2_  = (Just nextId, pt) :: acc2 in
+        (acc1_, acc2_)) (counts, []) pts
     in
-    (counts', List.reverse l)
+    (counts_, List.reverse l)
   else
     Debug.crash "addIdPoints"
 
 projConsts k vs =
   case (k == 0, vs) of
     (True, _)       -> ([], vs)
-    (False, v::vs') ->
+    (False, v::vs_) ->
       case v.v_ of
         VConst it ->
-          let (l1,l2) = projConsts (k-1) vs' in
+          let (l1,l2) = projConsts (k-1) vs_ in
           (it::l1, l2)
         _ ->
           Debug.crash "projConsts"
@@ -318,7 +318,7 @@ matchCmd cmd s =
 
 strAPathCmds : List PathCmd -> String
 strAPathCmds =
-  let strPt (_,(it,jt)) = toString (fst it) ++ " " ++ toString (fst jt) in
+  let strPt (_,(it,jt)) = toString (Tuple.first it) ++ " " ++ toString (Tuple.first jt) in
   -- TODO turn this into a debug mode for printing traces
   -- let strPt (_,(it,jt)) = strVal_ True (VConst it) ++ " " ++ strVal_ True (VConst jt) in
   let strNum (n,_) = toString n in
@@ -348,20 +348,20 @@ valToTransformCmd v = case v.v_ of
         ("rotate",    [VConst n1, VConst n2, VConst n3]) -> Rot n1 n2 n3
         ("scale",     [VConst n1, VConst n2])            -> Scale n1 n2
         ("translate", [VConst n1, VConst n2])            -> Trans n1 n2
-        _ -> "a transform command" `expectedButGot` strVal v
-    _     -> "a transform command" `expectedButGot` strVal v
-  _       -> "a transform command" `expectedButGot` strVal v
+        _ -> expectedButGot "a transform command" (strVal v)
+    _     -> expectedButGot "a transform command" (strVal v)
+  _       -> expectedButGot "a transform command" (strVal v)
 
 strTransformCmd : TransformCmd -> String
 strTransformCmd cmd = case cmd of
   Rot n1 n2 n3 ->
-    let nums = List.map (toString << fst) [n1,n2,n3] in
+    let nums = List.map (toString << Tuple.first) [n1,n2,n3] in
     "rotate" ++ Utils.parens (Utils.spaces nums)
   Scale n1 n2 ->
-    let nums = List.map (toString << fst) [n1,n2] in
+    let nums = List.map (toString << Tuple.first) [n1,n2] in
     "scale" ++ Utils.parens (Utils.spaces nums)
   Trans n1 n2 ->
-    let nums = List.map (toString << fst) [n1,n2] in
+    let nums = List.map (toString << Tuple.first) [n1,n2] in
     "translate" ++ Utils.parens (Utils.spaces nums)
 
 
@@ -369,10 +369,10 @@ strTransformCmd cmd = case cmd of
 
 valToBounds vs = case List.map .v_ vs of
   [VConst a, VConst b, VConst c, VConst d] -> (a,b,c,d)
-  _                                        -> "bounds" `expectedButGot` strVal (vList vs)
+  _                                        -> expectedButGot "bounds" (strVal (vList vs))
 
 strBounds (left,top,right,bot) =
-  Utils.spaces (List.map (toString << fst) [left,top,right,bot])
+  Utils.spaces (List.map (toString << Tuple.first) [left,top,right,bot])
 
 
 ------------------------------------------------------------------------------
@@ -392,12 +392,12 @@ printNode showGhosts k slate i =
         (False, Just _) -> ""
         _ ->
           if l2 == [] then
-            let l1' = addAttrs kind (removeSpecialAttrs l1) in
-            Utils.delimit "<" ">" (kind ++ printAttrs l1') ++
+            let l1_ = addAttrs kind (removeSpecialAttrs l1) in
+            Utils.delimit "<" ">" (kind ++ printAttrs l1_) ++
             Utils.delimit "</" ">" kind
           else
-            let l1' = addAttrs kind (removeSpecialAttrs l1) in
-            Utils.delimit "<" ">" (kind ++ printAttrs l1') ++ "\n" ++
+            let l1_ = addAttrs kind (removeSpecialAttrs l1) in
+            Utils.delimit "<" ">" (kind ++ printAttrs l1_) ++ "\n" ++
             printNodes showGhosts (k+1) slate l2 ++ "\n" ++
             tab k ++ Utils.delimit "</" ">" kind
 
@@ -451,39 +451,40 @@ desugarShapeAttrs shape0 attrs0 =
         Nothing
 
 getBoundsAttrs attrs0 =
-  Utils.maybeRemoveFirst "LEFT"  attrs0 `Maybe.andThen` \(vL,attrs1) ->
-  Utils.maybeRemoveFirst "RIGHT" attrs1 `Maybe.andThen` \(vR,attrs2) ->
-  Utils.maybeRemoveFirst "TOP"   attrs2 `Maybe.andThen` \(vT,attrs3) ->
-  Utils.maybeRemoveFirst "BOT"   attrs3 `Maybe.andThen` \(vB,attrs4) ->
+  Utils.maybeRemoveFirst "LEFT"  attrs0 |> Maybe.andThen (\(vL,attrs1) ->
+  Utils.maybeRemoveFirst "RIGHT" attrs1 |> Maybe.andThen (\(vR,attrs2) ->
+  Utils.maybeRemoveFirst "TOP"   attrs2 |> Maybe.andThen (\(vT,attrs3) ->
+  Utils.maybeRemoveFirst "BOT"   attrs3 |> Maybe.andThen (\(vB,attrs4) ->
     case (vL.av_, vT.av_, vR.av_, vB.av_) of
       (ANum (left,_), ANum (top,_), ANum (right,_), ANum (bot,_)) ->
         Just (left, top, right, bot, attrs4)
       _ -> Nothing
+  ))))
 
 strAVal : AVal -> String
 strAVal a = case a.av_ of
   AString s -> s
-  ANum it   -> toString (fst it)
+  ANum it   -> toString (Tuple.first it)
   APoints l -> Utils.spaces (List.map strPoint l)
   ARgba tup -> strRgba tup
-  APath2 p  -> strAPathCmds (fst p)
+  APath2 p  -> strAPathCmds (Tuple.first p)
   ATransform l -> Utils.spaces (List.map strTransformCmd l)
   ABounds bounds -> strBounds bounds
   AColorNum (n, Nothing) ->
     -- slight optimization:
-    strRgba_ (ColorNum.convert (fst n))
+    strRgba_ (ColorNum.convert (Tuple.first n))
   AColorNum (n, Just (opacity, _)) ->
-    let (r,g,b) = Utils.numToColor maxColorNum (fst n) in
+    let (r,g,b) = Utils.numToColor maxColorNum (Tuple.first n) in
     strRgba_ [toFloat r, toFloat g, toFloat b, opacity]
 
 
 ------------------------------------------------------------------------------
 -- Compiling to SVG (DOM)
 
-compileAttrs : List Attr -> List Svg.Attribute
+compileAttrs : List Attr -> List (Svg.Attribute a)
 compileAttrs = List.map (uncurry compileAttr)
 
-compileAttr : String -> AVal -> Svg.Attribute
+compileAttr : String -> AVal -> Svg.Attribute a
 compileAttr k v = (attr k) (strAVal v)
 
   -- TODO move rest of View.buildSvg here
@@ -494,29 +495,29 @@ compileAttr k v = (attr k) (strAVal v)
 
 toNum a = case a.av_ of
   ANum nt -> nt
-  _       -> "a number" `expectedButGot` strAVal a
+  _       -> expectedButGot "a number" (strAVal a)
 
 toColorNum a = case a.av_ of
   AColorNum nt -> nt
-  _            -> "a color number" `expectedButGot` strAVal a
+  _            -> expectedButGot "a color number" (strAVal a)
 
 toNumIsh a = case a.av_ of
   ANum nt           -> nt
   AColorNum (nt, _) -> nt
-  _       -> "a number or color number" `expectedButGot` strAVal a
+  _       -> expectedButGot "a number or color number" (strAVal a)
 
 toPoints a = case a.av_ of
   APoints pts -> pts
-  _           -> "a list of points" `expectedButGot` strAVal a
+  _           -> expectedButGot "a list of points" (strAVal a)
 
 toPath : AVal -> (List PathCmd, PathCounts)
 toPath a = case a.av_ of
   APath2 p -> p
-  _        -> "path commands" `expectedButGot` strAVal a
+  _        -> expectedButGot "path commands" (strAVal a)
 
 toTransformRot a = case a.av_ of
   ATransform [Rot n1 n2 n3] -> (n1,n2,n3)
-  _                         -> "a rotation transform" `expectedButGot` strAVal a
+  _                         -> expectedButGot "a rotation transform" (strAVal a)
 
 
 -- these are for when the VTrace doesn't matter
@@ -567,7 +568,7 @@ pathIndexPoints nodeAttrs =
   let cmds =
     Utils.find ("pathPoints nodeAttrs looking for \"d\" in " ++ (toString nodeAttrs)) nodeAttrs "d"
     |> toPath
-    |> fst
+    |> Tuple.first
   in
   let pts =
     cmds
@@ -664,6 +665,14 @@ foldSlateNodeInfo slate acc f =
 
 -- TODO use options for better error messages
 
+-- TODO use this to reduce clutter
+type alias AnimationKey = (Int, Int, Float)
+
+-- HACK: see LocEqn.traceToLocEquation...
+-- TODO: streamline Trace, LocEquation, etc.
+vNumFrozen n = val (VConst (n, TrLoc (-999, frozen, toString n)))
+vIntFrozen i = vNumFrozen (toFloat i)
+
 resolveToMovieCount : Int -> Val -> Result String Int
 resolveToMovieCount slideNumber val =
   fetchSlideVal slideNumber val
@@ -682,11 +691,11 @@ resolveToIndexedTree slideNumber movieNumber movieTime val =
 fetchEverything_ : Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, Val)
 fetchEverything_ slideNumber movieNumber movieTime val =
   let slideCount = fetchSlideCount val in
-  fetchSlideVal slideNumber val
-  `Result.andThen` (\slideVal ->
+  fetchSlideVal slideNumber val |>
+  Result.andThen (\slideVal ->
     let movieCount = fetchMovieCount slideVal in
-    fetchMovieVal movieNumber slideVal
-    `Result.andThen` (\movieVal ->
+    fetchMovieVal movieNumber slideVal |>
+    Result.andThen (\movieVal ->
       let (movieDuration, continue) = fetchMovieDurationAndContinueBool movieVal in
       fetchMovieFrameVal slideNumber movieNumber movieTime movieVal
       |> Result.map (\movieFrameVal ->
@@ -697,8 +706,8 @@ fetchEverything_ slideNumber movieNumber movieTime val =
 
 fetchEverything : Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, RootedIndexedTree)
 fetchEverything slideNumber movieNumber movieTime val =
-  fetchEverything_ slideNumber movieNumber movieTime val
-  `Result.andThen` (\(slideCount, movieCount, movieDuration, continue, movieVal) ->
+  fetchEverything_ slideNumber movieNumber movieTime val |>
+  Result.andThen (\(slideCount, movieCount, movieDuration, continue, movieVal) ->
     valToIndexedTree movieVal
     |> Result.map (\indexedTree -> (slideCount, movieCount, movieDuration, continue, indexedTree))
   )
@@ -724,8 +733,8 @@ fetchSlideVal slideNumber val =
       case pat.val of -- Find that function's argument name
         PVar _ argumentName _ ->
           -- Bind the slide number to the function's argument.
-          let fenv' = (argumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
-          Eval.eval fenv' [] fexp
+          let fenv_ = (argumentName, vIntFrozen slideNumber) :: fenv in
+          Eval.eval fenv_ [] fexp
           |> Result.map (\((returnVal, _), _) -> returnVal)
         _ -> Err ("expected slide function to take a single argument, got " ++ (toString pat.val))
     _ -> Ok val -- Program returned a plain SVG array structure...we hope.
@@ -737,8 +746,8 @@ fetchMovieVal movieNumber slideVal =
     Just [VConst (movieCount, _), VClosure _ pat fexp fenv] ->
       case pat.val of -- Find the function's argument name
         PVar _ movieNumberArgumentName _ ->
-          let fenv' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenv in
-          Eval.eval fenv' [] fexp
+          let fenv_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenv in
+          Eval.eval fenv_ [] fexp
           |> Result.map (\((returnVal, _), _) -> returnVal)
         _ -> Err ("expected movie function to take a single argument, got " ++ (toString pat.val))
     _ -> Ok slideVal -- Program returned a plain SVG array structure...we hope.
@@ -760,13 +769,13 @@ fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
     Just [VBase (VString "Static"), VClosure _ pat fexp fenv] ->
       case pat.val of -- Find the function's argument names
         PVar _ slideNumberArgumentName _ ->
-          let fenv' = (slideNumberArgumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
-          case Eval.eval fenv' [] fexp |> Result.map (\((innerVal, _), _) -> innerVal.v_) of
+          let fenv_ = (slideNumberArgumentName, vIntFrozen slideNumber) :: fenv in
+          case Eval.eval fenv_ [] fexp |> Result.map (\((innerVal, _), _) -> innerVal.v_) of
             Ok (VClosure _ patInner fexpInner fenvInner) ->
               case patInner.val of
                 PVar _ movieNumberArgumentName _ ->
-                  let fenvInner' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenvInner in
-                  Eval.eval fenvInner' [] fexpInner
+                  let fenvInner_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenvInner in
+                  Eval.eval fenvInner_ [] fexpInner
                   |> Result.map (\((returnVal, _), _) -> returnVal)
                 _ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString patInner.val))
             Ok v_ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString v_))
@@ -775,18 +784,18 @@ fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
     Just [VBase (VString "Dynamic"), VConst (movieDuration, _), VClosure _ pat fexp fenv, VBase (VBool _)] ->
       case pat.val of -- Find the function's argument names
         PVar _ slideNumberArgumentName _ ->
-          let fenv' = (slideNumberArgumentName, vConst (toFloat slideNumber, dummyTrace)) :: fenv in
-          case Eval.eval fenv' [] fexp |> Result.map (\((innerVal1, _), _) -> innerVal1.v_) of
+          let fenv_ = (slideNumberArgumentName, vIntFrozen slideNumber) :: fenv in
+          case Eval.eval fenv_ [] fexp |> Result.map (\((innerVal1, _), _) -> innerVal1.v_) of
             Ok (VClosure _ patInner1 fexpInner1 fenvInner1) ->
               case patInner1.val of
                 PVar _ movieNumberArgumentName _ ->
-                  let fenvInner1' = (movieNumberArgumentName, vConst (toFloat movieNumber, dummyTrace)) :: fenvInner1 in
-                  case Eval.eval fenvInner1' [] fexpInner1 |> Result.map (\((innerVal2, _), _) -> innerVal2.v_) of
+                  let fenvInner1_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenvInner1 in
+                  case Eval.eval fenvInner1_ [] fexpInner1 |> Result.map (\((innerVal2, _), _) -> innerVal2.v_) of
                     Ok (VClosure _ patInner2 fexpInner2 fenvInner2) ->
                       case patInner2.val of
                         PVar _ movieSecondsArgumentName _ ->
-                          let fenvInner2' = (movieSecondsArgumentName, vConst (movieTime, dummyTrace)) :: fenvInner2 in
-                          Eval.eval fenvInner2' [] fexpInner2
+                          let fenvInner2_ = (movieSecondsArgumentName, vNumFrozen movieTime) :: fenvInner2 in
+                          Eval.eval fenvInner2_ [] fexpInner2
                           |> Result.map (\((returnVal, _), _) -> returnVal)
                         _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner2.val))
                     Ok innerV2_ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString innerV2_))

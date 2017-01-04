@@ -1,10 +1,10 @@
-module LangUnparser
+module LangUnparser exposing
   (unparse, unparsePat, unparseWD, unparseType,
     traceToLittle, bumpCol, incCol, precedingWhitespace,
     precedingWhitespaceExp__, addPrecedingWhitespace,
     replacePrecedingWhitespace, replacePrecedingWhitespacePat,
     indent
-  ) where
+  )
 
 import Lang exposing (..)
 import OurParser2 exposing (Pos, WithPos, WithInfo, startPos)
@@ -83,7 +83,7 @@ replacePrecedingWhitespacePat newWs pat =
 
 mapPrecedingWhitespace : (String -> String) -> Exp -> Exp
 mapPrecedingWhitespace mapWs exp =
-  let e__' =
+  let e__New =
     case exp.val.e__ of
       EBase      ws v                     -> EBase      (mapWs ws) v
       EConst     ws n l wd                -> EConst     (mapWs ws) n l wd
@@ -103,7 +103,7 @@ mapPrecedingWhitespace mapWs exp =
       ETypeAlias ws1 pat tipe e ws2       -> ETypeAlias (mapWs ws1) pat tipe e ws2
   in
   let val = exp.val in
-  { exp | val = { val | e__ = e__' } }
+  { exp | val = { val | e__ = e__New } }
 
 {- TODO:
      add a flag to mapPrecedingWhitespace that specifies whether
@@ -131,7 +131,7 @@ indent spaces e =
     EConst _ _ _ _         -> e
     EBase _ _              -> e
     EVar _ _               -> e
-    EFun ws1 ps e' ws2     -> wrap (EFun (processWS ws1) ps (recurse e') ws2)
+    EFun ws1 ps e_ ws2     -> wrap (EFun (processWS ws1) ps (recurse e_) ws2)
     EApp ws1 e1 es ws2     -> wrap (EApp (processWS ws1) (recurse e1) (List.map recurse es) ws2)
     EOp ws1 op es ws2      -> wrap (EOp (processWS ws1) op (List.map recurse es) ws2)
     EList ws1 es ws2 m ws3 -> wrap (EList (processWS ws1) (List.map recurse es) ws2 (Utils.mapMaybe recurse m) ws3)
@@ -161,7 +161,7 @@ indent spaces e =
 
 mapPrecedingWhitespacePat : (String -> String) -> Pat -> Pat
 mapPrecedingWhitespacePat mapWs pat =
-  let pat_' =
+  let pat__ =
     case pat.val of
       PVar   ws ident wd         -> PVar   (mapWs ws) ident wd
       PConst ws n                -> PConst (mapWs ws) n
@@ -169,7 +169,7 @@ mapPrecedingWhitespacePat mapWs pat =
       PList  ws1 es ws2 rest ws3 -> PList  (mapWs ws1) es ws2 rest ws3
       PAs    ws1 ident ws2 p     -> PAs    (mapWs ws1) ident ws2 p
   in
-  { pat | val = pat_' }
+  { pat | val = pat__ }
 
 escapeQuotes quoteChar string =
   string
@@ -229,7 +229,7 @@ unparseType tipe =
       let sVars =
         case typeVars of
           One var             -> strVar var
-          Many ws1' vars ws2' -> ws1' ++ Utils.parens (String.concat (List.map strVar vars) ++ ws2')
+          Many ws1_ vars ws2_ -> ws1_ ++ Utils.parens (String.concat (List.map strVar vars) ++ ws2_)
       in
       ws1 ++ Utils.parens ("forall" ++ sVars ++ unparseType tipe1 ++ ws2)
 

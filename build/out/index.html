@@ -7,37 +7,30 @@
     <script type="text/javascript" src="aceTooltips.js"></script>
     <link rel="shortcut icon" type="image/png" href="sketch-n-sketch-logo.png">
     <meta charset="UTF-8">
-    <style type="text/css" media="screen">
-        #editor {
-            position: relative;
-            /*top: 0;
-            right: 0;
-            bottom: 0;
-            left: 0;*/
+  </head>
+
+  <body style="margin: 0 0 0 0;"> </body>
+
+  <script>
+    var app = Elm.Main.fullscreen();
+
+    // https://developer.mozilla.org/en-US/docs/Web/API/WindowEventHandlers/onbeforeunload
+    window.onbeforeunload = function(e) {
+      var dataElement = document.getElementById("onbeforeunload-data");
+      if (dataElement !== null) {
+        var needsSave = dataElement.getAttribute("data-needs-save") === "true";
+        if (needsSave) {
+          var filename = dataElement.getAttribute("data-filename")
+          var warning = filename + " has unsaved changes. Are you sure that you would like to leave?\n\nYou will lose your unsaved changes.";
+          e.returnValue = warning;
+          return warning;
         }
-    </style>
-    </head>
-
-    <body style="margin: 0 0 0 0;">
-        <div id="main"></div>
-    </body>
-
-    <script>
-      // Scripts below will load these up.
-      window.initialPortValues = {};
-      window.initializers      = [];
-    </script>
-    <script type="text/javascript" src="codeBox.js"></script>
-    <script type="text/javascript" src="toggleAnimationLoopback.js"></script>
-    <script>
-      // Start up Elm
-      var elmRuntime = Elm.fullscreen(Elm.Main, window.initialPortValues);
-
-      // Call the initializers
-      for (var i in window.initializers) {
-        var intializer = window.initializers[i];
-        intializer(elmRuntime);
       }
+    }
+  </script>
 
-    </script>
+  <script type="text/javascript" src="aceCodeBox.js"></script>
+  <script type="text/javascript" src="animationLoop.js"></script>
+  <script type="text/javascript" src="fileHandler.js"></script>
+
 </html>

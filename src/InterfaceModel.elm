@@ -1,4 +1,4 @@
-module InterfaceModel where
+module InterfaceModel exposing (..)
 
 import Lang exposing (..)
 import Types exposing (AceTypeInfo)
@@ -12,24 +12,25 @@ import LangUnparser exposing (unparse)
 import Ace
 import Either exposing (Either(..))
 
-import List
-import Debug
-import String
-import Dict
-import Set
+import Dict exposing (Dict)
+import Set exposing (Set)
 import Char
-
-import Svg
-import Lazy
-
-import Task exposing (Task, succeed, andThen)
+import Window
+import Mouse
 
 type alias Code = String
 
+type alias Filename = String
+
+type alias FileIndex = List Filename
+
+type alias File = {
+  filename : Filename,
+  code : Code
+}
+
 type alias Model =
-  { scratchCode : String
-  , exName : String
-  , code : Code
+  { code : Code
   , previewCode: Maybe Code
   , history : (List Code, List Code)
   , inputExp : Exp
@@ -47,14 +48,11 @@ type alias Model =
   , widgets : Widgets
   , mode : Mode
   , mouseMode : MouseMode
-  , orient : Orientation
   , hideCode : Bool
   , hideCanvas : Bool
-  , dimensions : (Int, Int)
-  , midOffsetX : Int  -- extra codebox width in vertical orientation
-  , midOffsetY : Int  -- extra codebox width in horizontal orientation
+  , dimensions : Window.Size
 
-  , mouseState : (Maybe Bool, (Int, Int))
+  , mouseState : (Maybe Bool, Mouse.Position)
       -- mouseState ~= (Mouse.isDown, Mouse.position)
       --  Nothing    : isDown = False
       --  Just False : isDown = True and position unchanged since isDown became True
@@ -64,7 +62,6 @@ type alias Model =
   , caption : Maybe Caption
   , showGhosts : ShowGhosts
   , localSaves : List String
-  , fieldContents : DialogInfo
   , startup : Bool
   , codeBoxInfo : CodeBoxInfo
   , basicCodeBox : Bool
@@ -76,23 +73,28 @@ type alias Model =
   , selectedShapes : Set.Set NodeId
   , selectedFeatures : Set.Set SelectedShapeFeature
   -- line/g ids assigned by blobs function
-  , selectedBlobs : Dict.Dict Int NodeId
+  , selectedBlobs : Dict Int NodeId
   , keysDown : List Char.KeyCode
   , randomColor : Int
   , lambdaTools : (Int, List LambdaTool)
+  , layoutOffsets : LayoutOffsets
+  , needsSave : Bool
+  , lastSaveState : Maybe Code
+  , autosave : Bool
+  , filename : Filename
+  , fileIndex : FileIndex
+  , dialogBoxes : Set Int
+  , filenameInput : String
+  , fileToDelete : Filename
+  , pendingFileOperation : Maybe Msg
+  , fileOperationConfirmed : Bool
   }
 
 type Mode
-  = AdHoc
+  = Live Sync.LiveInfo
   | SyncSelect (List PossibleChange)
-  | Live Sync.LiveInfo
   | Print RawSvg
       -- TODO might add a print mode where <g BLOB BOUNDS> nodes are removed
-  | SaveDialog Mode -- SaveDialog saves last mode
-
-type alias DialogInfo = { value : String
-                        , hint   : String
-                        }
 
 type alias CodeBoxInfo =
   { cursorPos : Ace.Pos
@@ -106,7 +108,7 @@ type alias RawSvg = String
 
 type MouseMode
   = MouseNothing
-  | MouseResizeMid (Maybe (MouseTrigger (Int, Int)))
+  | MouseDragLayoutWidget (MouseTrigger (Model -> Model))
 
   | MouseDragZone
       ZoneKey               -- Left shapeZone, Right widget
@@ -123,8 +125,6 @@ type MouseMode
       --   for lambda,            n == 0 or n == 2
 
 type alias MouseTrigger a = (Int, Int) -> a
-
-type Orientation = Vertical | Horizontal
 
 type alias PossibleChange = (Exp, Val, RootedIndexedTree, Code)
   -- TODO this should have Widgets...
@@ -165,67 +165,82 @@ type ReplicateKind
   | LinearRepeat
   | RadialRepeat
 
-type Event = ClickZone ZoneKey
-           | MouseClickCanvas      -- used to initiate drawing new shape
-           | MouseIsDown Bool
-           | MousePosition (Int, Int)
-           | TickDelta Float -- 60fps time tick, Float is time since last tick
-           -- | Sync
-           | PreviewCode (Maybe Code)
-           | SelectOption PossibleChange
-           | CancelSync
-           | DigHole
-           | MakeEqual
-           | MakeEquidistant
-           | GroupBlobs
-           | AbstractBlobs
-           | DuplicateBlobs
-           | MergeBlobs
-           | ReplicateBlob ReplicateKind
-           | SwitchMode Mode
-           | SelectExample String (() -> {e:Exp, v:Val, ws:Widgets, ati:AceTypeInfo})
-           | Run
-           | TryParseRun Model
-           | StartAnimation
-           | Redraw
-           | ToggleOutput
-           | NextSlide
-           | PreviousSlide
-           | NextMovie
-           | PreviousMovie
-           | SwitchOrient
-           | InstallSaveState
-           | RemoveDialog Bool String
-           | ToggleBasicCodeBox
-           | StartResizingMid
-           | Undo | Redo
-           | KeysDown KeysDown
-           | WindowDimensions (Int, Int)
-           | Noop
-           | UpdateFieldContents DialogInfo
-           | CleanCode
-           | UpdateModel (Model -> Model)
-               -- TODO could write other events in terms of UpdateModel
-           | MultiEvent (List Event)
-           --A state such that we're waiting for a response from Ace
-           | WaitRun
-           | WaitSave String
-           | WaitClean
-           | WaitCodeBox
+type Msg
+  = Msg String (Model -> Model)
 
-events : Signal.Mailbox Event
-events = Signal.mailbox <| Noop
+type alias AceCodeBoxInfo = -- subset of Model
+  { code : String
+  , codeBoxInfo : CodeBoxInfo
+  }
+
+type alias Offsets = {dx:Int, dy:Int}
+
+type alias LayoutOffsets =
+  { codeBox : Offsets
+  , canvas : Offsets
+  , fileToolBox : Offsets
+  , codeToolBox : Offsets
+  , drawToolBox : Offsets
+  , attributeToolBox : Offsets
+  , blobToolBox : Offsets
+  , outputToolBox : Offsets
+  , animationToolBox : Offsets
+  }
+
+
+initialLayoutOffsets : LayoutOffsets
+initialLayoutOffsets =
+  let init = { dx = 0, dy = 0 } in
+  { codeBox = init
+  , canvas = init
+  , fileToolBox = init
+  , codeToolBox = init
+  , drawToolBox = init
+  , attributeToolBox = init
+  , blobToolBox = init
+  , outputToolBox = init
+  , animationToolBox = init
+  }
+
+type DialogBox = New | SaveAs | Open | AlertSave | ImportCode
+
+dbToInt db =
+  case db of
+    New -> 0
+    SaveAs -> 1
+    Open -> 2
+    AlertSave -> 3
+    ImportCode -> 4
+
+intToDb n =
+  case n of
+    0 -> New
+    1 -> SaveAs
+    2 -> Open
+    3 -> AlertSave
+    4 -> ImportCode
+    _ -> Debug.crash "Undefined Dialog Box Type"
+
+openDialogBox db model =
+  { model | dialogBoxes = Set.insert (dbToInt db) model.dialogBoxes }
+
+closeDialogBox db model =
+  { model | dialogBoxes = Set.remove (dbToInt db) model.dialogBoxes }
+
+--------------------------------------------------------------------------------
+
+importCodeFileInputId = "import-code-file-input"
 
 --------------------------------------------------------------------------------
 
 mkLive opts slideNumber movieNumber movieTime e (val, widgets) =
-  LangSvg.valToIndexedTree val `Result.andThen` (\slate ->
-    Sync.prepareLiveUpdates opts slideNumber movieNumber movieTime e (slate, widgets)
-      |> Result.map (Live)
-  )
+  LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val |> Result.andThen (\slate ->
+  Sync.prepareLiveUpdates opts e (slate, widgets)                    |> Result.andThen (\liveInfo ->
+    Ok (Live liveInfo)
+  ))
 
 mkLive_ opts slideNumber movieNumber movieTime e  =
-  Eval.run e `Result.andThen` mkLive opts slideNumber movieNumber movieTime e
+  Eval.run e |> Result.andThen (mkLive opts slideNumber movieNumber movieTime e)
 
 --------------------------------------------------------------------------------
 
@@ -243,19 +258,35 @@ codeToShow model =
 
 --------------------------------------------------------------------------------
 
-sampleModel : Model
-sampleModel =
+bufferName = ""
+
+untitledName = "Untitled"
+
+prettyFilename model =
+  if model.filename == bufferName then
+    untitledName
+  else
+    model.filename
+
+getFile model = { filename = model.filename
+                , code     = model.code
+                }
+
+--------------------------------------------------------------------------------
+
+initModel : Model
+initModel =
   let
-    (name,_,f) = Utils.head_ Examples.list
-    {e,v,ws}   = f ()
+    (name,(_,f)) = Utils.head_ Examples.list
+    {e,v,ws}     = f ()
   in
+  let unwrap = Utils.fromOk "generating initModel" in
   let (slideCount, movieCount, movieDuration, movieContinue, slate) =
-    Utils.fromOk "generating sample model" <| LangSvg.fetchEverything 1 1 0.0 v
+    unwrap (LangSvg.fetchEverything 1 1 0.0 v)
   in
+  let liveModeInfo = unwrap (mkLive Sync.defaultOptions 1 1 0.0 e (v, ws)) in
   let code = unparse e in
-    { scratchCode   = Examples.scratch
-    , exName        = name
-    , code          = code
+    { code          = code
     , previewCode   = Nothing
     , history       = ([code], [])
     , inputExp      = e
@@ -271,20 +302,16 @@ sampleModel =
     , syncSelectTime = 0.0
     , slate         = slate
     , widgets       = ws
-    , mode          = Utils.fromOk "mkLive sample model" <| mkLive Sync.defaultOptions 1 1 0.0 e (v, ws)
+    , mode          = liveModeInfo
     , mouseMode     = MouseNothing
-    , orient        = Vertical
     , hideCode      = False
     , hideCanvas    = False
-    , dimensions    = (1000, 800) -- dummy in case foldp' didn't get initial value
-    , midOffsetX    = 0
-    , midOffsetY    = -100
-    , mouseState    = (Nothing, (0, 0))
+    , dimensions    = { width = 1000, height = 800 } -- dummy in case initCmd fails
+    , mouseState    = (Nothing, {x = 0, y = 0})
     , syncOptions   = Sync.defaultOptions
     , caption       = Nothing
     , showGhosts    = True
     , localSaves    = []
-    , fieldContents = { value = "", hint = "Input File Name" }
     , startup       = True
     , codeBoxInfo   = { cursorPos = { row = round 0, column = round 0 }
                       , selections = []
@@ -294,9 +321,7 @@ sampleModel =
                       }
     , basicCodeBox  = False
     , errorBox      = Nothing
-    -- starting at 1 to match shape ids on blank canvas
-    -- , genSymCount   = 0
-    , genSymCount   = 1
+    , genSymCount   = 1 -- starting at 1 to match shape ids on blank canvas
     , tool          = Line Raw
     , hoveredShapes = Set.empty
     , hoveredCrosshairs = Set.empty
@@ -306,5 +331,16 @@ sampleModel =
     , keysDown      = []
     , randomColor   = 100
     , lambdaTools   = (1, [LambdaBounds (eVar "star")])
+    , layoutOffsets = initialLayoutOffsets
+    , needsSave     = False
+    , lastSaveState = Nothing
+    , autosave      = False
+    , filename      = ""
+    , fileIndex     = []
+    , dialogBoxes   = Set.empty
+    , filenameInput = ""
+    , fileToDelete  = ""
+    , pendingFileOperation = Nothing
+    , fileOperationConfirmed = False
     }
 

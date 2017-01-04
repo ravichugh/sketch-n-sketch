@@ -1,4 +1,33 @@
-module InterfaceController (upstate) where
+module InterfaceController exposing
+  ( update
+  , msgNoop
+  , msgWindowDimensions
+  , msgCodeUpdate
+  , msgKeyPress, msgKeyDown, msgKeyUp
+  , msgClickZone
+  , msgMouseClickCanvas, msgMouseIsDown, msgMousePosition
+  , msgRun, upstateRun, msgTryParseRun
+  , msgFromAce
+  , msgAceUpdate
+  , msgUndo, msgRedo, msgCleanCode
+  , msgDigHole, msgMakeEqual
+  , msgGroupBlobs, msgDuplicateBlobs, msgMergeBlobs, msgAbstractBlobs
+  , msgReplicateBlob
+  , msgToggleCodeBox, msgToggleOutput
+  , msgStartAnimation, msgRedraw, msgTickDelta
+  , msgNextSlide, msgPreviousSlide
+  , msgNextMovie, msgPreviousMovie
+  , msgPauseResumeMovie
+  , msgOpenDialogBox, msgCloseDialogBox
+  , msgUpdateFilenameInput
+  , msgConfirmWrite, msgReadFile, msgReadFileFromInput, msgUpdateFileIndex
+  , msgNew, msgSaveAs, msgSave, msgOpen, msgDelete
+  , msgAskNew, msgAskOpen
+  , msgConfirmFileOperation, msgCancelFileOperation
+  , msgToggleAutosave
+  , msgExportCode, msgExportSvg
+  , msgImportCode, msgAskImportCode
+  )
 
 import Lang exposing (..) --For access to what makes up the Vals
 import Types
@@ -14,8 +43,12 @@ import Sync
 import Eval
 import Utils
 import Keys
-import InterfaceModel exposing (..)
-import InterfaceStorage exposing (installSaveState, removeDialog)
+import InterfaceModel as Model exposing (..)
+import Layout
+import AceCodeBox
+import AnimationLoop
+import FileHandler
+-- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
 import ShapeWidgets
 import ExamplesGenerated as Examples
@@ -30,8 +63,6 @@ import Dict exposing (Dict)
 import Set
 import String
 import Char
-import Graphics.Element as GE
-import Graphics.Collage as GC
 
 --Html Libraries
 import Html
@@ -67,10 +98,6 @@ refreshHighlights zoneKey model =
   let hi = liveInfoToHighlights zoneKey model in
   { model | codeBoxInfo = { codeBoxInfo | highlights = hi } }
 
-switchOrient m = case m of
-  Vertical -> Horizontal
-  Horizontal -> Vertical
-
 -- may want to eventually have a maximum history length
 addToHistory currentCode h =
   let (past, _) = h in
@@ -84,7 +111,7 @@ addToHistory currentCode h =
       else (currentCode::past, [])
 
 
-between1 i (j,k) = i `Utils.between` (j+1, k+1)
+between1 i (j,k) = Utils.between i (j+1, k+1)
 
 {-
 cleanExp =
@@ -114,7 +141,7 @@ slateAndCode old (exp, val) =
 
 runWithErrorHandling model exp onOk =
   let result =
-    Eval.run exp `Result.andThen` (\(val, widgets) ->
+    Eval.run exp |> Result.andThen (\(val, widgets) ->
       slateAndCode model (exp, val)
       |> Result.map (\(slate, code) -> onOk val widgets slate code)
     )
@@ -141,47 +168,10 @@ switchToCursorTool old =
 
 --------------------------------------------------------------------------------
 
-clickToCanvasPoint old (mx, my) =
-  let (xOrigin, yOrigin) = case old.orient of
-    Vertical   -> canvasOriginVertical old
-    Horizontal -> canvasOriginHorizontal old
-  in
-  (mx - xOrigin, my - yOrigin)
-
--- the computations of the top-left corner of the canvas
--- are based on copying the computations from View
--- TODO: refactor these
-
-canvasOriginVertical old =
-  let
-    sideGut = params.topSection.h
-    wGut    = params.mainSection.vertical.wGut
-    wMiddle = params.mainSection.widgets.wBtn
-    wCode_  = (fst old.dimensions - sideGut - sideGut - wMiddle - wGut - wGut) // 2
-    wCode   = if old.hideCode then 0
-              else if old.hideCanvas then (fst old.dimensions - sideGut - sideGut - wMiddle - wGut - wGut)
-              else wCode_ + old.midOffsetX
-  in
-    ( sideGut + wCode + 2*wGut + wMiddle
-    , params.topSection.h
-    )
-
-canvasOriginHorizontal old =
-  -- TODO the y-position in horizontal mode is off by a few pixels
-  -- TODO in View, the height of codebox isn't the same as the canvas.
-  --   hMid is calculated weirdly in View...
-  let
-    hTop    = params.topSection.h
-    hBot    = params.botSection.h
-    hGut    = params.mainSection.horizontal.hGut
-    hCode_  = (snd old.dimensions - hTop - hBot - hGut) // 2
-    hCode   = hCode_ + old.midOffsetY
-    -- TODO consider hideCode and hideCanvas
-    wTools  = params.mainSection.widgets.wBtn + 2 * params.mainSection.vertical.wGut
-  in
-    ( wTools
-    , params.topSection.h + hCode + hGut
-    )
+clickToCanvasPoint model {x,y} =
+  let layout = Layout.computeLayout model in
+  let (xOrigin, yOrigin) = (layout.canvas.left, layout.canvas.top) in
+  (x - xOrigin, y - yOrigin)
 
 
 --------------------------------------------------------------------------------
@@ -201,8 +191,8 @@ onMouseClick click old =
     (Poly stk, MouseDrawNew points) ->
       let pointOnCanvas = clickToCanvasPoint old click in
       let add () =
-        let points' = (old.keysDown, pointOnCanvas) :: points in
-        { old | mouseMode = MouseDrawNew points' }
+        let points_ = (old.keysDown, pointOnCanvas) :: points in
+        { old | mouseMode = MouseDrawNew points_ }
       in
       if points == [] then add ()
       else
@@ -210,31 +200,31 @@ onMouseClick click old =
         if Utils.distanceInt pointOnCanvas initialPoint > Draw.drawDotSize then add ()
         else if List.length points == 2 then { old | mouseMode = MouseNothing }
         else if List.length points == 1 then switchToCursorTool old
-        else upstate Run <| Draw.addPolygon stk old points
+        else upstateRun <| Draw.addPolygon stk old points
 
     (Path stk, MouseDrawNew points) ->
       let pointOnCanvas = clickToCanvasPoint old click in
       let add new =
-        let points' = (old.keysDown, new) :: points in
-        (points', { old | mouseMode = MouseDrawNew points' })
+        let points_ = (old.keysDown, new) :: points in
+        (points_, { old | mouseMode = MouseDrawNew points_ })
       in
       case points of
-        [] -> snd (add pointOnCanvas)
+        [] -> Tuple.second (add pointOnCanvas)
         (_,firstClick) :: [] ->
           if Utils.distanceInt pointOnCanvas firstClick < Draw.drawDotSize
           then switchToCursorTool old
-          else snd (add pointOnCanvas)
+          else Tuple.second (add pointOnCanvas)
         (_,lastClick) :: _ ->
           if Utils.distanceInt pointOnCanvas lastClick < Draw.drawDotSize
-          then upstate Run <| Draw.addPath stk old points
+          then upstateRun <| Draw.addPath stk old points
           else
             let (_,firstClick) = Utils.last_ points in
             if Utils.distanceInt pointOnCanvas firstClick < Draw.drawDotSize
             then
-              let (points',old') = add firstClick in
-              upstate Run <| Draw.addPath stk old' points'
+              let (points_,old_) = add firstClick in
+              upstateRun <| Draw.addPath stk old_ points_
             else
-              snd (add pointOnCanvas)
+              Tuple.second (add pointOnCanvas)
 
     (HelperDot, MouseDrawNew []) ->
       let pointOnCanvas = (old.keysDown, clickToCanvasPoint old click) in
@@ -242,17 +232,18 @@ onMouseClick click old =
 
     (_, MouseDrawNew []) -> switchToCursorTool old
 
-    _ -> old
+    _ ->
+      old
 
 onClickPrimaryZone i k z old =
-  let hoveredCrosshairs' =
+  let hoveredCrosshairs_ =
     case ShapeWidgets.zoneToCrosshair k z of
       Just (xFeature, yFeature) ->
         Set.insert (i, xFeature, yFeature) old.hoveredCrosshairs
       _ ->
         old.hoveredCrosshairs
   in
-  let (selectedShapes', selectedBlobs') =
+  let (selectedShapes_, selectedBlobs_) =
     let selectThisShape () =
       Set.insert i <|
         if old.keysDown == Keys.shift
@@ -266,7 +257,7 @@ onClickPrimaryZone i k z old =
         else Dict.empty
     in
     let maybeBlobId =
-      case Dict.get i (snd old.slate) of
+      case Dict.get i (Tuple.second old.slate) of
         Just (LangSvg.SvgNode _ l _) -> LangSvg.maybeFindBlobId l
         _                            -> Debug.crash "onClickPrimaryZone"
     in
@@ -277,28 +268,20 @@ onClickPrimaryZone i k z old =
       (_,      "Interior", Nothing)     -> (selectThisShape (), old.selectedBlobs)
       _                                 -> (old.selectedShapes, old.selectedBlobs)
   in
-  { old | hoveredCrosshairs = hoveredCrosshairs'
-        , selectedShapes = selectedShapes'
-        , selectedBlobs = selectedBlobs'
+  { old | hoveredCrosshairs = hoveredCrosshairs_
+        , selectedShapes = selectedShapes_
+        , selectedBlobs = selectedBlobs_
         }
 
-onMouseMove (mx0, my0) old =
-  let (mx, my) = clickToCanvasPoint old (mx0, my0) in
+onMouseMove newPosition old =
+  let (mx0, my0) = (newPosition.x, newPosition.y) in
+  let (mx, my) = clickToCanvasPoint old newPosition in
   case old.mouseMode of
 
     MouseNothing -> old
 
-    MouseResizeMid Nothing ->
-      let f =
-        case old.orient of
-          Vertical   -> \(mx1,_) -> (old.midOffsetX + mx1 - mx0, old.midOffsetY)
-          Horizontal -> \(_,my1) -> (old.midOffsetY, old.midOffsetY + my1 - my0)
-      in
-      { old | mouseMode = MouseResizeMid (Just f) }
-
-    MouseResizeMid (Just f) ->
-      let (x,y) = f (mx0, my0) in
-      { old | midOffsetX = x , midOffsetY = y }
+    MouseDragLayoutWidget f ->
+      f (mx0, my0) old
 
     MouseDragZone zoneKey Nothing ->
       old
@@ -309,21 +292,21 @@ onMouseMove (mx0, my0) old =
 
       let (newExp, highlights) = trigger (mx0, my0) (dx, dy) in
 
-      let codeBoxInfo' =
+      let codeBoxInfo_ =
         let codeBoxInfo = old.codeBoxInfo in
         { codeBoxInfo | highlights = highlights }
       in
-      let dragInfo' = (trigger, (mx0, my0), True) in
+      let dragInfo_ = (trigger, (mx0, my0), True) in
 
-      Eval.run newExp `Result.andThen` (\(newVal, newWidgets) ->
-      LangSvg.valToIndexedTree newVal |> Result.map (\newSlate ->
+      Eval.run newExp |> Result.andThen (\(newVal, newWidgets) ->
+      LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
         { old | code = unparse newExp
               , inputExp = newExp
               , inputVal = newVal
               , slate = newSlate
               , widgets = newWidgets
-              , codeBoxInfo = codeBoxInfo'
-              , mouseMode = MouseDragZone zoneKey (Just dragInfo')
+              , codeBoxInfo = codeBoxInfo_
+              , mouseMode = MouseDragZone zoneKey (Just dragInfo_)
               }
       )) |> handleError old
 
@@ -345,35 +328,35 @@ onMouseUp old =
 
     (_, MouseDragZone zoneKey (Just _)) ->
       let e = Utils.fromOkay "onMouseUp" <| parseE old.code in
-      let old' = { old | inputExp = e } in
+      let old_ = { old | inputExp = e } in
       refreshHighlights zoneKey
-        { old' | mouseMode = MouseNothing, mode = refreshMode_ old'
-               , history = addToHistory old.code old'.history }
+        { old_ | mouseMode = MouseNothing, mode = refreshMode_ old_
+               , history = addToHistory old.code old_.history }
 
     (_, MouseDrawNew points) ->
       case (old.tool, points, old.keysDown == Keys.shift) of
 
-        (Line _,     [pt2, pt1], _) -> upstate Run <| Draw.addLine old pt2 pt1
-        (HelperLine, [pt2, pt1], _) -> upstate Run <| Draw.addLine old pt2 pt1
+        (Line _,     [pt2, pt1], _) -> upstateRun <| Draw.addLine old pt2 pt1
+        (HelperLine, [pt2, pt1], _) -> upstateRun <| Draw.addLine old pt2 pt1
 
-        (Rect Raw,      [pt2, pt1], False) -> upstate Run <| Draw.addRawRect old pt2 pt1
-        (Rect Raw,      [pt2, pt1], True)  -> upstate Run <| Draw.addRawSquare old pt2 pt1
-        (Rect Stretchy, [pt2, pt1], False) -> upstate Run <| Draw.addStretchyRect old pt2 pt1
-        (Rect Stretchy, [pt2, pt1], True)  -> upstate Run <| Draw.addStretchySquare old pt2 pt1
+        (Rect Raw,      [pt2, pt1], False) -> upstateRun <| Draw.addRawRect old pt2 pt1
+        (Rect Raw,      [pt2, pt1], True)  -> upstateRun <| Draw.addRawSquare old pt2 pt1
+        (Rect Stretchy, [pt2, pt1], False) -> upstateRun <| Draw.addStretchyRect old pt2 pt1
+        (Rect Stretchy, [pt2, pt1], True)  -> upstateRun <| Draw.addStretchySquare old pt2 pt1
 
-        (Oval Raw,      [pt2, pt1], False) -> upstate Run <| Draw.addRawOval old pt2 pt1
-        (Oval Raw,      [pt2, pt1], True)  -> upstate Run <| Draw.addRawCircle old pt2 pt1
-        (Oval Stretchy, [pt2, pt1], False) -> upstate Run <| Draw.addStretchyOval old pt2 pt1
-        (Oval Stretchy, [pt2, pt1], True)  -> upstate Run <| Draw.addStretchyCircle old pt2 pt1
+        (Oval Raw,      [pt2, pt1], False) -> upstateRun <| Draw.addRawOval old pt2 pt1
+        (Oval Raw,      [pt2, pt1], True)  -> upstateRun <| Draw.addRawCircle old pt2 pt1
+        (Oval Stretchy, [pt2, pt1], False) -> upstateRun <| Draw.addStretchyOval old pt2 pt1
+        (Oval Stretchy, [pt2, pt1], True)  -> upstateRun <| Draw.addStretchyCircle old pt2 pt1
 
-        (HelperDot, [pt], _) -> upstate Run <| Draw.addHelperDot old pt
+        (HelperDot, [pt], _) -> upstateRun <| Draw.addHelperDot old pt
 
-        (Lambda, [pt2, pt1], _) -> upstate Run <| Draw.addLambda old pt2 pt1
+        (Lambda, [pt2, pt1], _) -> upstateRun <| Draw.addLambda old pt2 pt1
 
         (Poly _, _, _) -> old
         (Path _, _, _) -> old
 
-        (Text, [pt2, pt1], _) -> upstate Run <| Draw.addTextBox old pt2 pt1
+        (Text, [pt2, pt1], _) -> upstateRun <| Draw.addTextBox old pt2 pt1
 
         (_, [], _)     -> switchToCursorTool old
 
@@ -390,17 +373,17 @@ tryRun old =
       let result =
         -- let aceTypeInfo = Types.typecheck e in
         let aceTypeInfo = Types.dummyAceTypeInfo in
-        Eval.run e
-        `Result.andThen` (\(newVal,ws) ->
+        Eval.run e |>
+        Result.andThen (\(newVal,ws) ->
           LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
           |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
             let newCode = unparse e in
-            let lambdaTools' =
+            let lambdaTools_ =
               -- TODO should put program into Model
               -- TODO actually, ideally not. caching introduces bugs
               let program = splitExp e in
-              let options = Draw.lambdaToolOptionsOf program ++ snd sampleModel.lambdaTools in
-              let selectedIdx = min (fst old.lambdaTools) (List.length options) in
+              let options = Draw.lambdaToolOptionsOf program ++ Tuple.second initModel.lambdaTools in
+              let selectedIdx = min (Tuple.first old.lambdaTools) (List.length options) in
               (selectedIdx, options)
             in
             let new =
@@ -418,7 +401,7 @@ tryRun old =
                     , history       = addToHistory newCode old.history
                     , caption       = Nothing
                     , syncOptions   = Sync.syncOptionsOf old.syncOptions e
-                    , lambdaTools   = lambdaTools'
+                    , lambdaTools   = lambdaTools_
                     , codeBoxInfo   = updateCodeBoxWithTypes aceTypeInfo old.codeBoxInfo
               }
             in
@@ -435,262 +418,564 @@ tryRun old =
 --------------------------------------------------------------------------------
 -- Updating the Model
 
-upstate : Event -> Model -> Model
-upstate evt old = case debugLog "Event" evt of
+-- 1. Compute a "pure" update (only the newModel), and then
+-- 2. Decide whether to issue a command based on simple predicates
+--    (name of Msg, and simple comparison of oldModel and newModel).
+--
+update : Msg -> Model -> (Model, Cmd Msg)
+update msg oldModel =
+  case (oldModel.pendingFileOperation, oldModel.fileOperationConfirmed) of
+    (Just msg2, True) ->
+      update
+        msg2
+        { oldModel | pendingFileOperation = Nothing
+                   , fileOperationConfirmed = False }
+    _ ->
+      let newModel = upstate msg oldModel in
+      let cmd = issueCommand msg oldModel newModel in
+      (newModel, cmd)
 
-    Noop -> old
 
-    WindowDimensions wh -> { old | dimensions = wh }
+upstate : Msg -> Model -> Model
+upstate (Msg caption updateModel) old =
+  let _ = debugLog "Msg" caption in
+  updateModel old
 
-    Run ->
-      case tryRun old of
-        Err (err, Just annot) ->
-          { old | errorBox = Just err
-                , codeBoxInfo = updateCodeBoxWithParseError annot old.codeBoxInfo }
-        Err (err, Nothing) ->
-          { old | errorBox = Just err }
-        Ok newModel -> newModel
 
-    TryParseRun newModel ->
-      case tryRun newModel of
-        Err (err, Just annot) ->
-          { old | caption = Just (LangError err)
-                , codeBoxInfo = updateCodeBoxWithParseError annot old.codeBoxInfo }
-        Err (err, Nothing) ->
-          { old | caption = Just (LangError err) }
-        Ok modelAfterRun ->
-          modelAfterRun
+issueCommand : Msg -> Model -> Model -> Cmd Msg
+issueCommand (Msg kind _) oldModel newModel =
+  case kind of
+    "Run" ->
+      AceCodeBox.requestEditorState ()
 
-    StartAnimation -> upstate Redraw { old | movieTime = 0
-                                           , runAnimation = True }
+    "Toggle Code Box" ->
+      if newModel.basicCodeBox
+        then Cmd.none
+        else AceCodeBox.initializeAndDisplay newModel
+          -- TODO crash: "Uncaught Error: ace.edit can't find div #editor"
 
-    Redraw ->
-      case LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime old.inputVal of
-        Ok (newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
-          { old | slideCount    = newSlideCount
-                , movieCount    = newMovieCount
-                , movieDuration = newMovieDuration
-                , movieContinue = newMovieContinue
-                , slate         = newSlate }
-        Err s -> { old | errorBox = Just s }
-
-    ToggleOutput ->
-      let m = case old.mode of
-        Print _ -> refreshMode_ old
-        _       -> Print (LangSvg.printSvg old.showGhosts old.slate)
-      in
-      { old | mode = m }
-
-    StartResizingMid ->
-      if old.hideCode then old
-      else if old.hideCanvas then old
-      else { old | mouseMode = MouseResizeMid Nothing }
-
-    ClickZone zoneKey ->
-      case old.mode of
-        Live info ->
-          let (mx, my) = clickToCanvasPoint old (snd old.mouseState) in
-          let trigger = Sync.prepareLiveTrigger info old.inputExp zoneKey in
-          let dragInfo = (trigger, (mx, my), False) in
-          { old | mouseMode = MouseDragZone zoneKey (Just dragInfo) }
-
-        _ -> old
-
-    MouseClickCanvas ->
-      case (old.tool, old.mouseMode) of
-        (Cursor, MouseDragZone (Left _) _) -> old
-        (Cursor, _) ->
-          { old | selectedShapes = Set.empty, selectedBlobs = Dict.empty }
-
-        (_ , MouseNothing) ->
-          { old | mouseMode = MouseDrawNew []
-                , selectedShapes = Set.empty, selectedBlobs = Dict.empty }
-
-        _ -> old
-
-    MousePosition pos' ->
-      case old.mouseState of
-        (Nothing, _)    -> { old | mouseState = (Nothing, pos') }
-        (Just False, _) -> onMouseMove pos' { old | mouseState = (Just True, pos') }
-        (Just True, _)  -> onMouseMove pos' { old | mouseState = (Just True, pos') }
-
-    MouseIsDown b ->
-      let old =
-        let (x,y) = snd old.mouseState in
-        let lightestColor = 470 in
-        { old | randomColor = (old.randomColor + x + y) % lightestColor }
-      in
-      case (b, old.mouseState) of
-
-        (True, (Nothing, pos)) -> -- mouse down
-          let _ = debugLog "mouse down" () in
-          { old | mouseState = (Just False, pos) }
-
-        (False, (Just False, pos)) -> -- click (mouse up after not being dragged)
-          let _ = debugLog "mouse click" () in
-          onMouseClick pos { old | mouseState = (Nothing, pos) }
-
-        (False, (Just True, pos)) -> -- mouse up (after being dragged)
-          let _ = debugLog "mouse up" () in
-          onMouseUp { old | mouseState = (Nothing, pos) }
-
-        (False, (Nothing, _)) ->
-          let _ = debugLog "mouse down was preempted by a handler in View" () in
-          old
-
-        -- (True, (Just _, _)) -> Debug.crash "upstate MouseIsDown: impossible"
-        (True, (Just _, _)) ->
-          let _ = Debug.log "upstate MouseIsDown: impossible" () in
-          old
-
-    TickDelta deltaT ->
-      case old.mode of
-        SyncSelect _ ->
-          -- Prevent "jump" after slow first frame render.
-          let adjustedDeltaT = if old.syncSelectTime == 0.0 then clamp 0.0 50 deltaT else deltaT in
-          upstate Redraw { old | syncSelectTime = old.syncSelectTime + (adjustedDeltaT / 1000) }
-        _ ->
-          if old.movieTime < old.movieDuration then
-            -- Prevent "jump" after slow first frame render.
-            let adjustedDeltaT = if old.movieTime == 0.0 then clamp 0.0 50 deltaT else deltaT in
-            let newMovieTime = clamp 0.0 old.movieDuration (old.movieTime + (adjustedDeltaT / 1000)) in
-            upstate Redraw { old | movieTime = newMovieTime }
-          else if old.movieContinue == True then
-            upstate NextMovie old
-          else
-            { old | runAnimation = False }
-
-    DigHole ->
-      let newExp =
-        ValueBasedTransform.digHole old.inputExp old.selectedFeatures old.slate old.syncOptions
-      in
-      runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
-        debugLog "new model" <|
-          { old | code             = newCode
-                , inputExp         = newExp
-                , inputVal         = newVal
-                , history          = addToHistory old.code old.history
-                , slate            = newSlate
-                , widgets          = newWidgets
-                , previewCode      = Nothing
-                  -- we already ran it successfully once so it shouldn't crash the second time
-                , mode             = Utils.fromOk "DigHole MkLive" <|
-                                       mkLive old.syncOptions
-                                         old.slideNumber old.movieNumber old.movieTime newExp
-                                         (newVal, newWidgets)
-                , selectedFeatures = Set.empty
-          }
-      )
-
-    MakeEqual ->
-      let newExp =
-        ValueBasedTransform.makeEqual
-            old.inputExp
-            old.selectedFeatures
-            old.slideNumber
-            old.movieNumber
-            old.movieTime
-            old.syncOptions
-      in
-      runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
-        upstate CleanCode <|
-        debugLog "new model" <|
-          { old | code             = newCode
-                , inputExp         = newExp
-                , inputVal         = newVal
-                , history          = addToHistory old.code old.history
-                , slate            = newSlate
-                , widgets          = newWidgets
-                , previewCode      = Nothing
-                  -- we already ran it successfully once so it shouldn't crash the second time
-                , mode             = Utils.fromOk "MakeEqual MkLive" <|
-                                       mkLive old.syncOptions
-                                         old.slideNumber old.movieNumber old.movieTime newExp
-                                         (newVal, newWidgets)
-                , selectedFeatures = Set.empty
-          }
-      )
-
-    MakeEquidistant ->
-      let newExp =
-        ValueBasedTransform.makeEquidistant
-            old.inputExp
-            old.selectedFeatures
-            old.slideNumber
-            old.movieNumber
-            old.movieTime
-            old.slate
-            old.syncOptions
-      in
-      runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
-        debugLog "new model" <|
-          { old | code             = newCode
-                , inputExp         = newExp
-                , inputVal         = newVal
-                , history          = addToHistory old.code old.history
-                , slate            = newSlate
-                , widgets          = newWidgets
-                , previewCode      = Nothing
-                  -- we already ran it successfully once so it shouldn't crash the second time
-                , mode             = Utils.fromOk "MakeEquidistant MkLive" <|
-                                       mkLive old.syncOptions
-                                         old.slideNumber old.movieNumber old.movieTime newExp
-                                         (newVal, newWidgets)
-                , selectedFeatures = Set.empty
-          }
-      )
-
-    GroupBlobs ->
-      case Blobs.isSimpleProgram old.inputExp of
-        Nothing -> old
-        Just simple ->
-          let maybeAnchorPoint = ETransform.anchorOfSelectedFeatures old.selectedFeatures in
-          let multipleSelectedBlobs = Dict.size old.selectedBlobs > 1 in
-          case (maybeAnchorPoint, multipleSelectedBlobs) of
-            (Ok Nothing, False)   -> old
-            (Ok Nothing, True)    -> upstate Run <| ETransform.groupSelectedBlobs old simple
-            (Ok (Just anchor), _) -> upstate Run <| ETransform.groupSelectedBlobsAround old simple anchor
-            (Err err, _)          -> let _ = Debug.log "bad anchor" err in old
-
-    DuplicateBlobs ->
-      upstate Run <| ETransform.duplicateSelectedBlobs old
-
-    MergeBlobs ->
-      if Dict.size old.selectedBlobs <= 1 then old
-      else upstate Run <| ETransform.mergeSelectedBlobs old
-
-    AbstractBlobs ->
-      upstate Run <| ETransform.abstractSelectedBlobs old
-
-    ReplicateBlob option ->
-      case Blobs.isSimpleProgram old.inputExp of
-        Nothing     -> old
-        Just simple -> upstate Run <| ETransform.replicateSelectedBlob option old simple
-
-    SelectOption (exp, val, slate, code) ->
-        { old | code          = code
-              , inputExp      = exp
-              , inputVal      = val
-              , history       = addToHistory old.code old.history
-              , slate         = slate
-              , previewCode   = Nothing
-              , tool          = Cursor
-              , mode          = Utils.fromOk "SelectOption mkLive" <|
-                                  mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp
-                                    (val, []) -- TODO
-              }
-
-    PreviewCode maybeCode ->
-      { old | previewCode = maybeCode }
-
-    CancelSync ->
-      upstate Run { old | mode = Utils.fromOk "CancelSync mkLive_" <| mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime old.inputExp }
-
-    SelectExample name thunk ->
-      if name == Examples.scratchName then
-        upstate Run { old | exName = name, code = old.scratchCode, history = ([],[]) }
+    "Save As" ->
+      if newModel.filename /= Model.bufferName then
+        FileHandler.write <| getFile newModel
       else
+        Cmd.none
 
+    "Save" ->
+      if newModel.filename /= Model.bufferName then
+        FileHandler.write <| getFile newModel
+      else
+        FileHandler.requestFileIndex ()
+
+    "Open" ->
+      FileHandler.requestFile newModel.filename
+
+    "Delete" ->
+      FileHandler.delete newModel.fileToDelete
+
+    "Export Code" ->
+      FileHandler.download
+        { filename = (Model.prettyFilename newModel) ++ ".little"
+        , text = newModel.code
+        }
+
+    "Export SVG" ->
+      FileHandler.download
+        { filename = (Model.prettyFilename newModel) ++ ".svg"
+        , text = LangSvg.printSvg newModel.showGhosts newModel.slate
+        }
+
+    "Import Code" ->
+      FileHandler.requestFileFromInput Model.importCodeFileInputId
+
+    -- Do not send changes back to the editor, because this is the command where
+    -- we receieve changes (if this is removed, an infinite feedback loop
+    -- occurs).
+    "Ace Update" ->
+        if newModel.autosave && newModel.needsSave then
+          FileHandler.write <| getFile newModel
+        else
+          Cmd.none
+
+    "Open Dialog Box" ->
+      FileHandler.requestFileIndex ()
+
+    _ ->
+      if newModel.code /= oldModel.code ||
+         newModel.codeBoxInfo /= oldModel.codeBoxInfo
+      then
+        AceCodeBox.display newModel
+      else if newModel.runAnimation then
+        AnimationLoop.requestFrame ()
+      else
+        Cmd.none
+
+--------------------------------------------------------------------------------
+
+msgNoop = Msg "Noop" identity
+
+msgWindowDimensions wh = Msg "Window Dimensions" <| \old ->
+  { old | dimensions = wh }
+
+msgCodeUpdate s = Msg "Code Update" <| \old ->
+  { old | code = s }
+
+--------------------------------------------------------------------------------
+
+msgRun = Msg "Run" <| \old -> upstateRun old
+
+msgFromAce aceCodeBoxInfo = Msg "Ace Message" <| \old ->
+  let new = { old | code = aceCodeBoxInfo.code
+                  , codeBoxInfo = aceCodeBoxInfo.codeBoxInfo} in
+  upstateRun new
+
+msgAceUpdate aceCodeBoxInfo = Msg "Ace Update" <| \old ->
+    let isSame = old.lastSaveState == (Just aceCodeBoxInfo.code) in
+    { old | code = aceCodeBoxInfo.code
+          , codeBoxInfo = aceCodeBoxInfo.codeBoxInfo
+          , needsSave = not isSame }
+
+upstateRun old =
+  case tryRun old of
+    Err (err, Just annot) ->
+      { old | errorBox = Just err
+            , codeBoxInfo = updateCodeBoxWithParseError annot old.codeBoxInfo }
+    Err (err, Nothing) ->
+      { old | errorBox = Just err }
+    Ok newModel -> newModel
+
+msgTryParseRun newModel = Msg "Try Parse Run" <| \old ->
+  case tryRun newModel of
+    Err (err, Just annot) ->
+      { old | caption = Just (LangError err)
+            , codeBoxInfo = updateCodeBoxWithParseError annot old.codeBoxInfo }
+    Err (err, Nothing) ->
+      { old | caption = Just (LangError err) }
+    Ok modelAfterRun ->
+      modelAfterRun
+
+--------------------------------------------------------------------------------
+
+msgUndo = Msg "Undo" <| \old ->
+  case old.history of
+    ([],_)         -> old
+    ([firstRun],_) -> old
+    (lastRun::secondToLast::older, future) ->
+      let new = { old | history = (secondToLast::older, lastRun::future)
+                      , code    = secondToLast } in
+      upstateRun new
+
+msgRedo = Msg "Redo" <| \old ->
+  case old.history of
+    (_,[]) -> old
+    (past, next::future) ->
+      let new = { old | history = (next::past, future)
+                      , code    = next } in
+      upstateRun new
+
+--------------------------------------------------------------------------------
+
+msgCleanCode = Msg "Clean Code" <| \old ->
+  case parseE old.code of
+    Err (err, _) ->
+      { old | caption = Just (LangError ("PARSE ERROR!\n" ++ err)) }
+    Ok reparsed ->
+      let cleanedExp =
+        reparsed
+        -- |> cleanExp
+        |> LangTransform.simplify
+        |> LangTransform.removeExtraPostfixes ["_orig", "'"]
+        |> freshen
+      in
+      let code_ = unparse cleanedExp in
+      if old.code == code_ then old
+      else
+        let _ = debugLog "Cleaned: " code_ in
+        upstateRun { old | inputExp = cleanedExp, code = code_ }
+
+--------------------------------------------------------------------------------
+
+msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
+  case old.mode of
+    Live info ->
+      let (mx, my) = clickToCanvasPoint old (Tuple.second old.mouseState) in
+      let trigger = Sync.prepareLiveTrigger info old.inputExp zoneKey in
+      let dragInfo = (trigger, (mx, my), False) in
+      { old | mouseMode = MouseDragZone zoneKey (Just dragInfo) }
+    _ ->
+      old
+
+--------------------------------------------------------------------------------
+
+msgMouseClickCanvas = Msg "MouseClickCanvas" <| \old ->
+  case (old.tool, old.mouseMode) of
+    (Cursor, MouseDragZone (Left _) _) -> old
+    (Cursor, _) ->
+      { old | selectedShapes = Set.empty, selectedBlobs = Dict.empty }
+
+    (_ , MouseNothing) ->
+      { old | mouseMode = MouseDrawNew []
+            , selectedShapes = Set.empty, selectedBlobs = Dict.empty }
+
+    _ -> old
+
+msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
+  let new =
+    let {x,y} = Tuple.second old.mouseState in
+    let lightestColor = 470 in
+    { old | randomColor = (old.randomColor + x + y) % lightestColor }
+  in
+  case (b, new.mouseState) of
+
+    (True, (Nothing, pos)) -> -- mouse down
+      let _ = debugLog "mouse down" () in
+      { new | mouseState = (Just False, pos) }
+
+    (False, (Just False, pos)) -> -- click (mouse up after not being dragged)
+      let _ = debugLog "mouse click" () in
+      onMouseClick pos { new | mouseState = (Nothing, pos) }
+
+    (False, (Just True, pos)) -> -- mouse up (after being dragged)
+      let _ = debugLog "mouse up" () in
+      onMouseUp { new | mouseState = (Nothing, pos) }
+
+    (False, (Nothing, _)) ->
+      let _ = debugLog "mouse down was preempted by a handler in View" () in
+      new
+
+    -- (True, (Just _, _)) -> Debug.crash "upstate MouseIsDown: impossible"
+    (True, (Just _, _)) ->
+      let _ = Debug.log "upstate MouseIsDown: impossible" () in
+      new
+
+msgMousePosition pos_ = Msg ("MousePosition " ++ toString pos_) <| \old ->
+  case old.mouseState of
+    (Nothing, _)    -> { old | mouseState = (Nothing, pos_) }
+    (Just False, _) -> onMouseMove pos_ { old | mouseState = (Just True, pos_) }
+    (Just True, _)  -> onMouseMove pos_ { old | mouseState = (Just True, pos_) }
+
+--------------------------------------------------------------------------------
+
+msgKeyPress keyCode = Msg ("Key Press " ++ toString keyCode) <| \old ->
+  old
+
+msgKeyDown keyCode = Msg ("Key Down " ++ toString keyCode) <| \old ->
+  if [keyCode] == Keys.escape then
+    case (old.tool, old.mouseMode) of
+      (Cursor, _) ->
+        { old | selectedFeatures = Set.empty
+              , selectedShapes = Set.empty
+              , selectedBlobs = Dict.empty
+              }
+      (_, MouseNothing)   -> { old | tool = Cursor }
+      (_, MouseDrawNew _) -> { old | mouseMode = MouseNothing }
+      _                   -> old
+  else if [keyCode] == Keys.shift then
+    { old | keysDown = keyCode :: old.keysDown }
+  else
+    old
+
+msgKeyUp keyCode = Msg ("Key Up " ++ toString keyCode) <| \old ->
+  { old | keysDown = Utils.removeFirst keyCode old.keysDown }
+
+--------------------------------------------------------------------------------
+
+msgDigHole = Msg "Dig Hole" <| \old ->
+  let newExp =
+    ValueBasedTransform.digHole old.inputExp old.selectedFeatures old.slate old.syncOptions
+  in
+  runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
+    debugLog "new model" <|
+      { old | code             = newCode
+            , inputExp         = newExp
+            , inputVal         = newVal
+            , history          = addToHistory old.code old.history
+            , slate            = newSlate
+            , widgets          = newWidgets
+            , previewCode      = Nothing
+              -- we already ran it successfully once so it shouldn't crash the second time
+            , mode             = Utils.fromOk "DigHole MkLive" <|
+                                   mkLive old.syncOptions
+                                     old.slideNumber old.movieNumber old.movieTime newExp
+                                     (newVal, newWidgets)
+            , selectedFeatures = Set.empty
+      }
+  )
+
+msgMakeEqual = Msg "Make Equal" <| \old ->
+  let newExp =
+    ValueBasedTransform.makeEqual
+        old.inputExp
+        old.selectedFeatures
+        old.slideNumber
+        old.movieNumber
+        old.movieTime
+        old.syncOptions
+  in
+  runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
+    upstate msgCleanCode <|
+    debugLog "new model" <|
+      { old | code             = newCode
+            , inputExp         = newExp
+            , inputVal         = newVal
+            , history          = addToHistory old.code old.history
+            , slate            = newSlate
+            , widgets          = newWidgets
+            , previewCode      = Nothing
+              -- we already ran it successfully once so it shouldn't crash the second time
+            , mode             = Utils.fromOk "MakeEqual MkLive" <|
+                                   mkLive old.syncOptions
+                                     old.slideNumber old.movieNumber old.movieTime newExp
+                                     (newVal, newWidgets)
+            , selectedFeatures = Set.empty
+      }
+  )
+
+msgMakeEquidistant = Msg "Make Equidistant" <| \old ->
+  let newExp =
+    ValueBasedTransform.makeEquidistant
+        old.inputExp
+        old.selectedFeatures
+        old.slideNumber
+        old.movieNumber
+        old.movieTime
+        old.slate
+        old.syncOptions
+  in
+  runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
+    debugLog "new model" <|
+      { old | code             = newCode
+            , inputExp         = newExp
+            , inputVal         = newVal
+            , history          = addToHistory old.code old.history
+            , slate            = newSlate
+            , widgets          = newWidgets
+            , previewCode      = Nothing
+              -- we already ran it successfully once so it shouldn't crash the second time
+            , mode             = Utils.fromOk "MakeEquidistant MkLive" <|
+                                   mkLive old.syncOptions
+                                     old.slideNumber old.movieNumber old.movieTime newExp
+                                     (newVal, newWidgets)
+            , selectedFeatures = Set.empty
+      }
+  )
+
+--------------------------------------------------------------------------------
+
+msgGroupBlobs = Msg "Group Blobs" <| \old ->
+    case Blobs.isSimpleProgram old.inputExp of
+      Nothing -> old
+      Just simple ->
+        let maybeAnchorPoint = ETransform.anchorOfSelectedFeatures old.selectedFeatures in
+        let multipleSelectedBlobs = Dict.size old.selectedBlobs > 1 in
+        case (maybeAnchorPoint, multipleSelectedBlobs) of
+          (Ok Nothing, False)   -> old
+          (Ok Nothing, True)    -> upstateRun <| ETransform.groupSelectedBlobs old simple
+          (Ok (Just anchor), _) -> upstateRun <| ETransform.groupSelectedBlobsAround old simple anchor
+          (Err err, _)          -> let _ = Debug.log "bad anchor" err in old
+
+msgDuplicateBlobs = Msg "Duplicate Blobs" <| \old ->
+  upstateRun <| ETransform.duplicateSelectedBlobs old
+
+msgMergeBlobs = Msg "Merge Blobs" <| \old ->
+  if Dict.size old.selectedBlobs <= 1 then old
+  else upstateRun <| ETransform.mergeSelectedBlobs old
+
+msgAbstractBlobs = Msg "Abstract Blobs" <| \old ->
+  upstateRun <| ETransform.abstractSelectedBlobs old
+
+msgReplicateBlob option = Msg "Replicate Blob" <| \old ->
+  case Blobs.isSimpleProgram old.inputExp of
+    Nothing     -> old
+    Just simple -> upstateRun <| ETransform.replicateSelectedBlob option old simple
+
+--------------------------------------------------------------------------------
+
+msgToggleCodeBox = Msg "Toggle Code Box" <| \old ->
+  { old | basicCodeBox = not old.basicCodeBox }
+
+msgToggleOutput = Msg "Toggle Output" <| \old ->
+  let m = case old.mode of
+    Print _ -> refreshMode_ old
+    _       -> Print (LangSvg.printSvg old.showGhosts old.slate)
+  in
+  { old | mode = m }
+
+--------------------------------------------------------------------------------
+
+msgStartAnimation = Msg "Start Animation" <| \old ->
+  upstate msgRedraw { old | movieTime = 0, runAnimation = True }
+
+msgRedraw = Msg "Redraw" <| \old ->
+  case LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime old.inputVal of
+    Ok (newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
+      { old | slideCount    = newSlideCount
+            , movieCount    = newMovieCount
+            , movieDuration = newMovieDuration
+            , movieContinue = newMovieContinue
+            , slate         = newSlate }
+    Err s -> { old | errorBox = Just s }
+
+msgTickDelta deltaT = Msg ("Tick Delta " ++ toString deltaT) <| \old ->
+  case old.mode of
+    SyncSelect _ ->
+      -- Prevent "jump" after slow first frame render.
+      let adjustedDeltaT = if old.syncSelectTime == 0.0 then clamp 0.0 50 deltaT else deltaT in
+      upstate msgRedraw
+        { old | syncSelectTime = old.syncSelectTime + (adjustedDeltaT / 1000) }
+    _ ->
+      if old.movieTime < old.movieDuration then
+        -- Prevent "jump" after slow first frame render.
+        let adjustedDeltaT = if old.movieTime == 0.0 then clamp 0.0 50 deltaT else deltaT in
+        let newMovieTime = clamp 0.0 old.movieDuration (old.movieTime + (adjustedDeltaT / 1000)) in
+        upstate msgRedraw { old | movieTime = newMovieTime }
+      else if old.movieContinue == True then
+        upstate msgNextMovie old
+      else
+        { old | runAnimation = False }
+
+msgNextSlide = Msg "Next Slide" <| \old ->
+  if old.slideNumber >= old.slideCount then
+    upstate msgStartAnimation
+      { old | slideNumber = old.slideNumber
+            , movieNumber = old.movieCount }
+  else
+    upstate msgStartAnimation
+      { old | slideNumber = old.slideNumber + 1
+            , movieNumber = 1 }
+
+msgPreviousSlide = Msg "Previous Slide" <| \old ->
+  if old.slideNumber <= 1 then
+    upstate msgStartAnimation
+      { old | slideNumber = 1, movieNumber = 1 }
+  else
+    let previousSlideNumber = old.slideNumber - 1 in
+    let result =
+      Eval.run old.inputExp |>
+      Result.andThen (\(previousVal, _) ->
+        LangSvg.resolveToMovieCount previousSlideNumber previousVal
+        |> Result.map (\previousMovieCount ->
+             upstate msgStartAnimation
+               { old | slideNumber = previousSlideNumber
+                     , movieNumber = previousMovieCount }
+        )
+      )
+    in
+    handleError old result
+
+msgNextMovie = Msg "Next Movie" <| \old ->
+  if old.movieNumber == old.movieCount && old.slideNumber < old.slideCount then
+    upstate msgNextSlide old
+  else if old.movieNumber < old.movieCount then
+    upstate msgStartAnimation { old | movieNumber = old.movieNumber + 1 }
+  else
+    -- Last movie of slide show; skip to its end.
+    upstate msgRedraw { old | movieTime    = old.movieDuration
+                            , runAnimation = False }
+
+msgPreviousMovie = Msg "Previous Movie" <| \old ->
+  if old.movieNumber == 1 then
+    upstate msgPreviousSlide old
+  else
+    upstate msgStartAnimation { old | movieNumber = old.movieNumber - 1 }
+
+msgPauseResumeMovie = Msg "Pause/Resume Movie" <| \old ->
+  { old | runAnimation = not old.runAnimation }
+
+--------------------------------------------------------------------------------
+
+msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
+  { old | code          = code
+        , inputExp      = exp
+        , inputVal      = val
+        , history       = addToHistory old.code old.history
+        , slate         = slate
+        , previewCode   = Nothing
+        , tool          = Cursor
+        , mode          = Utils.fromOk "SelectOption mkLive" <|
+                            mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp
+                              (val, []) -- TODO
+        }
+
+msgPreviewCode maybeCode = Msg "Preview Code..." <| \old ->
+  { old | previewCode = maybeCode }
+
+msgCancelSync = Msg "Cancel Sync" <| \old ->
+  upstateRun
+    { old | mode = Utils.fromOk "CancelSync mkLive_" <|
+              mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime old.inputExp }
+
+--------------------------------------------------------------------------------
+
+requireSaveAsker ((Msg name _) as msg) needsSave =
+  if needsSave then
+    Msg ("Ask " ++ name) <| (\old ->
+      { old | pendingFileOperation = Just <| msg
+            , fileOperationConfirmed = False })
+        >> Model.openDialogBox AlertSave
+  else
+    msg
+
+--------------------------------------------------------------------------------
+
+-- Dialog Box
+
+msgOpenDialogBox db =
+  Msg "Open Dialog Box" <| Model.openDialogBox db
+
+msgCloseDialogBox db =
+  Msg "Close Dialog Box" <| Model.closeDialogBox db
+
+msgUpdateFilenameInput str = Msg "Update Filename Input" <| \old ->
+  { old | filenameInput = str }
+
+--------------------------------------------------------------------------------
+-- File Handling API
+
+confirmWrite savedFilename old =
+  { old | needsSave = False
+        , lastSaveState = Just old.code }
+
+requestFile requestedFilename old =
+  { old | filename = requestedFilename }
+
+readFile file old =
+  { old | filename = file.filename
+        , code = file.code
+        , history = ([file.code], [])
+        , lastSaveState = Just file.code
+        , needsSave = False }
+
+readFileFromInput file old =
+  { old | filename = file.filename
+        , code = file.code
+        , history = ([file.code], [])
+        , lastSaveState = Nothing
+        , needsSave = True }
+
+updateFileIndex fileIndex old =
+  { old | fileIndex = fileIndex }
+
+-- Subscription Handlers
+
+msgConfirmWrite savedFilename =
+  Msg "Confirm Write" (confirmWrite savedFilename)
+
+msgReadFile file =
+  Msg "Read File" (readFile file >> upstateRun)
+
+msgReadFileFromInput file =
+  Msg "Read File From Input" (readFileFromInput file >> upstateRun)
+
+msgUpdateFileIndex fileIndex =
+  Msg "Update File Index" (updateFileIndex fileIndex)
+
+--------------------------------------------------------------------------------
+-- File Operations
+
+msgNew template = Msg "New" <| (\old ->
+  case Utils.maybeFind template Examples.list of
+    Nothing -> let _ = Debug.log "WARN: not found:" template in old
+    Just (_, thunk) ->
       let {e,v,ws,ati} = thunk () in
       let (so, m) =
         case old.mode of
@@ -702,15 +987,10 @@ upstate evt old = case debugLog "Event" evt of
                         mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws))
           _      -> (old.syncOptions, old.mode)
       in
-      let scratchCode' =
-        if old.exName == Examples.scratchName then old.code else old.scratchCode
-      in
       LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v
       |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
         let code = unparse e in
-        { old | scratchCode   = scratchCode'
-              , exName        = name
-              , inputExp      = e
+        { old | inputExp      = e
               , inputVal      = v
               , code          = code
               , history       = ([code],[])
@@ -726,222 +1006,68 @@ upstate evt old = case debugLog "Event" evt of
               , slate         = slate
               , widgets       = ws
               , codeBoxInfo   = updateCodeBoxWithTypes ati old.codeBoxInfo
+              , filename      = Model.bufferName
+              , needsSave     = True
+              , lastSaveState = Nothing
               }
-      ) |> handleError old
+      ) |> handleError old) >> closeDialogBox New
 
-    SwitchMode m -> { old | mode = m }
+msgAskNew template = requireSaveAsker (msgNew template)
 
-    SwitchOrient -> { old | orient = switchOrient old.orient }
-
-    Undo ->
-      case old.history of
-        ([],_)         -> old
-        ([firstRun],_) -> old
-        (lastRun::secondToLast::older, future) ->
-          let new = { old | history = (secondToLast::older, lastRun::future)
-                          , code    = secondToLast } in
-          upstate Run new
-
-    Redo ->
-      case old.history of
-        (_,[]) -> old
-        (past, next::future) ->
-          let new = { old | history = (next::past, future)
-                          , code    = next } in
-          upstate Run new
-
-    NextSlide ->
-      if old.slideNumber >= old.slideCount then
-        upstate StartAnimation { old | slideNumber = old.slideNumber
-                                     , movieNumber = old.movieCount }
+msgSaveAs =
+  let
+    switchFilenameToInput old =
+      { old | filename = old.filenameInput }
+    closeDialogBoxIfNecessary old =
+      if old.filename /= Model.bufferName then
+        Model.closeDialogBox SaveAs old
       else
-        upstate StartAnimation { old | slideNumber = old.slideNumber + 1
-                                     , movieNumber = 1 }
+        old
+  in
+    Msg "Save As" (switchFilenameToInput >> closeDialogBoxIfNecessary)
 
-    PreviousSlide ->
-      if old.slideNumber <= 1 then
-        upstate StartAnimation { old | slideNumber = 1
-                                     , movieNumber = 1 }
-      else
-        let previousSlideNumber = old.slideNumber - 1 in
-        let result =
-          Eval.run old.inputExp
-          `Result.andThen` (\(previousVal, _) ->
-            LangSvg.resolveToMovieCount previousSlideNumber previousVal
-            |> Result.map (\previousMovieCount ->
-              upstate StartAnimation { old | slideNumber = previousSlideNumber
-                                           , movieNumber = previousMovieCount }
-            )
-          )
-        in
-        handleError old result
+msgSave = Msg "Save" <| \old ->
+  if old.filename == Model.bufferName then
+    Model.openDialogBox SaveAs old
+  else
+    old
 
-    NextMovie ->
-      if old.movieNumber == old.movieCount && old.slideNumber < old.slideCount then
-        upstate NextSlide old
-      else if old.movieNumber < old.movieCount then
-        upstate StartAnimation { old | movieNumber = old.movieNumber + 1 }
-      else
-        -- Last movie of slide show; skip to its end.
-        upstate Redraw { old | movieTime    = old.movieDuration
-                             , runAnimation = False }
+msgOpen filename =
+  Msg "Open" (requestFile filename >> closeDialogBox Open)
 
-    PreviousMovie ->
-      if old.movieNumber == 1 then
-        upstate PreviousSlide old
-      else
-        upstate StartAnimation { old | movieNumber = old.movieNumber - 1 }
+msgAskOpen filename = requireSaveAsker (msgOpen filename)
 
-    KeysDown l ->
-      let _ = debugLog "keys" (toString l) in
-      let new = { old | keysDown = l } in
+msgDelete filename =
+  Msg "Delete" <| \old ->
+    if filename == old.filename then
+      { old | fileToDelete = filename
+            , needsSave = True
+            , lastSaveState = Nothing }
+    else
+      { old | fileToDelete = filename }
 
-      if l == Keys.escape then
-        case (new.tool, new.mouseMode) of
-          (Cursor, _) ->
-            { new | selectedFeatures = Set.empty
-                  , selectedShapes = Set.empty
-                  , selectedBlobs = Dict.empty
-                  }
-          (_, MouseNothing)   -> { new | tool = Cursor }
-          (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
-          _                   -> new
+msgCancelFileOperation = Msg "Cancel File Operation" <| (\old ->
+  { old | pendingFileOperation = Nothing
+        , fileOperationConfirmed = False })
+    >> Model.closeDialogBox AlertSave
 
-      else if l == Keys.delete then
-         upstate Run <| ETransform.deleteSelectedBlobs new
-      -- else if l == Keys.backspace || l == Keys.delete then
-      --   deleteSelectedBlobs new
-      -- TODO
-      -- else if l == Keys.metaPlus Keys.d then
-      -- else if l == Keys.metaPlus Keys.d || l == Keys.commandPlus Keys.d then
-      -- else if l == Keys.d then
-      --   duplicateSelectedBlobs new
-      else
-        new
+msgConfirmFileOperation = Msg "Confirm File Operation" <| (\old ->
+  { old | fileOperationConfirmed = True })
+    >> Model.closeDialogBox AlertSave
 
-{-      case old.mode of
-          SaveDialog _ -> old
-          _ -> case editingMode old of
-            True -> if
-              | l == keysMetaShift -> upstate Run old
-              | otherwise -> old
-            False -> if
-              | l == keysE -> upstate Edit old
-              | l == keysZ -> upstate Undo old
-              -- | l == keysShiftZ -> upstate Redo old
-              | l == keysY -> upstate Redo old
-              | l == keysG || l == keysH -> -- for right- or left-handers
-                  upstate ToggleZones old
-              | l == keysO -> upstate ToggleOutput old
-              | l == keysP -> upstate SwitchOrient old
-              | l == keysS ->
-                  let _ = Debug.log "TODO Save" () in
-                  upstate Noop old
-              | l == keysShiftS ->
-                  let _ = Debug.log "TODO Save As" () in
-                  upstate Noop old
-              | l == keysRight -> adjustMidOffsetX old 25
-              | l == keysLeft  -> adjustMidOffsetX old (-25)
-              | l == keysUp    -> adjustMidOffsetY old (-25)
-              | l == keysDown  -> adjustMidOffsetY old 25
-              | otherwise -> old
--}
+msgToggleAutosave = Msg "Toggle Autosave" <| \old ->
+  { old | autosave = not old.autosave }
 
-{-
-      let fire evt = upstate evt old in
+--------------------------------------------------------------------------------
+-- Exporting
 
-      case editingMode old of
+msgExportCode = Msg "Export Code" identity
 
-        True ->
-          if l == keysEscShift then fire Run
-          else                      fire Noop
+msgExportSvg = Msg "Export SVG" identity
 
-        False ->
+--------------------------------------------------------------------------------
+-- Importing
 
-          -- events for any non-editing mode
-          if      l == keysO          then fire ToggleOutput
-          else if l == keysP          then fire SwitchOrient
-          else if l == keysShiftRight then adjustMidOffsetX old 25
-          else if l == keysShiftLeft  then adjustMidOffsetX old (-25)
-          else if l == keysShiftUp    then adjustMidOffsetY old (-25)
-          else if l == keysShiftDown  then adjustMidOffsetY old 25
+msgImportCode = Msg "Import Code" <| closeDialogBox ImportCode
 
-          -- events for specific non-editing mode
-          else case old.mode of
-
-              Live _ ->
-                if      l == keysE        then fire Edit
-                else if l == keysZ        then fire Undo
-                else if l == keysY        then fire Redo
-                else if l == keysT        then fire (SwitchMode AdHoc)
-                else if l == keysS        then fire Noop -- placeholder for Save
-                else if l == keysShiftS   then fire Noop -- placeholder for Save As
-                else                           fire Noop
-
-              AdHoc ->
-                if      l == keysZ        then fire Undo
-                else if l == keysY        then fire Redo
-                else if l == keysT        then fire Sync
-                else                           fire Noop
-
-              _                       -> fire Noop
--}
-
-    CleanCode ->
-      case parseE old.code of
-        Err (err, _) ->
-          { old | caption = Just (LangError ("PARSE ERROR!\n" ++ err)) }
-        Ok reparsed ->
-          let cleanedExp =
-            reparsed
-            -- |> cleanExp
-            |> LangTransform.simplify
-            |> LangTransform.removeExtraPostfixes ["_orig", "'"]
-            |> freshen
-          in
-          let code' = unparse cleanedExp in
-          if old.code == code' then old
-          else
-            let _ = debugLog "Cleaned: " code' in
-            upstate Run { old | inputExp = cleanedExp, code = code' }
-{-
-          let history' =
-            if old.code == code'
-              then old.history
-              else addToHistory code' old.history
-          in
-          let _ = debugLog "Cleaned: " code' in
-          let newModel = { old | inputExp = cleanedExp, code = code', history = history' } in
-          newModel
--}
-
-    -- Elm does not have function equivalence/pattern matching, so we need to
-    -- thread these events through upstate in order to catch them to rerender
-    -- appropriately (see CodeBox.elm)
-    InstallSaveState -> installSaveState old
-    RemoveDialog makeSave saveName -> removeDialog makeSave saveName old
-    ToggleBasicCodeBox -> { old | basicCodeBox = not old.basicCodeBox }
-    UpdateFieldContents fieldContents -> { old | fieldContents = fieldContents }
-
-    UpdateModel f -> f old
-
-    -- Lets multiple events be executed in sequence (useful for CodeBox.elm)
-    MultiEvent evts -> case evts of
-      [] -> old
-      e1 :: es -> upstate e1 old |> upstate (MultiEvent es)
-
-    WaitRun -> old
-    WaitSave saveName -> { old | exName = saveName }
-    WaitClean -> old
-    WaitCodeBox -> old
-
-
-adjustMidOffsetX old dx =
-  case old.orient of
-    Vertical   -> { old | midOffsetX = old.midOffsetX + dx }
-    Horizontal -> upstate SwitchOrient old
-
-adjustMidOffsetY old dy =
-  case old.orient of
-    Horizontal -> { old | midOffsetY = old.midOffsetY + dy }
-    Vertical   -> upstate SwitchOrient old
+msgAskImportCode = requireSaveAsker msgImportCode

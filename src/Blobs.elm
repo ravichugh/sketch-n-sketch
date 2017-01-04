@@ -1,4 +1,4 @@
-module Blobs where
+module Blobs exposing (..)
 
 import Lang exposing (..)
 import LangUnparser exposing (addPrecedingWhitespace)
@@ -8,9 +8,9 @@ import Utils
 --------------------------------------------------------------------------------
 -- Simple Program and Blob Types
 
-type alias Program = (TopDefs, MainExp)
+type alias LittleProgram = (TopDefs, MainExp)
 
-type alias SimpleProgram = (TopDefs, List BlobExp, List BlobExp -> Exp)
+type alias SimpleLittleProgram = (TopDefs, List BlobExp, List BlobExp -> Exp)
 
 -- TODO store Idents and "types" in TopDefs. also use for lambda tool.
 
@@ -37,7 +37,7 @@ callBlob e tuple       = NiceBlob e (CallBlob tuple)
 withBoundsBlob e tuple = NiceBlob e (WithBoundsBlob tuple)
 withAnchorBlob e tuple = NiceBlob e (WithAnchorBlob tuple)
 
-isSimpleProgram : Exp -> Maybe SimpleProgram
+isSimpleProgram : Exp -> Maybe SimpleLittleProgram
 isSimpleProgram e =
   let (defs, mainExp) = splitExp e in
   case mainExp of
@@ -45,7 +45,7 @@ isSimpleProgram e =
     OtherExp _    -> Nothing
     Blobs blobs f -> Just (defs, blobs, f)
 
-splitExp : Exp -> Program
+splitExp : Exp -> LittleProgram
 splitExp e =
   case e.val.e__ of
     ELet ws1 Def False p1 e1 e2 ws2 ->
@@ -54,19 +54,21 @@ splitExp e =
     _ ->
       ([], toMainExp e)
 
-fuseExp : Program -> Exp
+fuseExp : LittleProgram -> Exp
 fuseExp (defs, mainExp) =
   let recurse defs =
     case defs of
       [] -> fromMainExp mainExp
-      (ws1,p1,e1,ws2)::defs' ->
-        withDummyPos <| ELet ws1 Def False p1 e1 (recurse defs') ws2
+      (ws1,p1,e1,ws2)::defs_ ->
+        withDummyPos <| ELet ws1 Def False p1 e1 (recurse defs_) ws2
   in
   recurse defs
 
 toMainExp : Exp -> MainExp
 toMainExp e =
-  maybeSvgConcat e `Utils.plusMaybe` maybeBlobs e `Utils.elseMaybe` OtherExp e
+  Utils.elseMaybe
+    (Utils.plusMaybe (maybeSvgConcat e) (maybeBlobs e))
+    (OtherExp e)
 
 fromMainExp : MainExp -> Exp
 fromMainExp me =
@@ -85,13 +87,13 @@ maybeSvgConcat main =
             (EVar _ "concat", EList ws5 oldList ws6 Nothing ws7) ->
               let updateExpressionList newList =
                 let
-                  e2'         = replaceE__ e2 <| EList ws5 newList ws6 Nothing ws7
-                  eAppConcat' = replaceE__ eAppConcat <| EApp ws3 eConcat [e2'] ws4
-                  main'       = replaceE__ main <| EApp ws1 e1 [eAppConcat'] ws2
+                  e2New         = replaceE__ e2 <| EList ws5 newList ws6 Nothing ws7
+                  eAppConcatNew = replaceE__ eAppConcat <| EApp ws3 eConcat [e2New] ws4
+                  mainNew       = replaceE__ main <| EApp ws1 e1 [eAppConcatNew] ws2
                 in
-                if ws1 == "" then addPrecedingWhitespace "\n\n" main'
-                else if ws1 == "\n" then addPrecedingWhitespace "\n" main'
-                else main'
+                if ws1 == "" then addPrecedingWhitespace "\n\n" mainNew
+                else if ws1 == "\n" then addPrecedingWhitespace "\n" mainNew
+                else mainNew
               in
               Just (SvgConcat oldList updateExpressionList)
 
@@ -109,12 +111,12 @@ maybeBlobs main =
           let rebuildExp newBlobExpList =
             let newExpList = List.map fromBlobExp newBlobExpList in
             let
-              eArgs' = replaceE__ eArgs <| EList ws5 newExpList ws6 Nothing ws7
-              main'  = replaceE__ main <| EApp ws1 eBlobs [eArgs'] ws2
+              eArgsNew = replaceE__ eArgs <| EList ws5 newExpList ws6 Nothing ws7
+              mainNew  = replaceE__ main <| EApp ws1 eBlobs [eArgsNew] ws2
             in
-            if ws1 == "" then addPrecedingWhitespace "\n\n" main'
-            else if ws1 == "\n" then addPrecedingWhitespace "\n" main'
-            else main'
+            if ws1 == "" then addPrecedingWhitespace "\n\n" mainNew
+            else if ws1 == "\n" then addPrecedingWhitespace "\n" mainNew
+            else mainNew
           in
           let blobs = List.map toBlobExp oldList in
           Just (Blobs blobs rebuildExp)

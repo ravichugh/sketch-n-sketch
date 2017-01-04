@@ -1,7 +1,7 @@
-module Solver
+module Solver exposing
   ( Equation
   , solve
-  ) where
+  )
 
 import Lang exposing (..)
 import Eval
@@ -26,7 +26,7 @@ type alias Equation = (Num, Trace)
 
 solve : Subst -> Equation -> Maybe Num
 solve subst eqn =
-  (termSolve subst eqn) `Utils.plusMaybe` (solveTopDown subst eqn)
+  Utils.plusMaybe (termSolve subst eqn) (solveTopDown subst eqn)
 
   -- both solvers assume that a single variable is being solved for
 

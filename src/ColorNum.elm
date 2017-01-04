@@ -1,4 +1,4 @@
-module ColorNum (convert) where
+module ColorNum exposing (convert)
 
 import Utils
 import Dict

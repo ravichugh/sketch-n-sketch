@@ -1,4 +1,4 @@
-module ExamplesGenerated (list, scratchName, scratch) where
+module ExamplesGenerated exposing (list)
 
 import Lang
 import LangParser2 as Parser
@@ -22,11 +22,8 @@ makeExample name s =
     let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| Eval.run e in
     {e=e, v=v, ws=ws, ati=ati}
   in
-  (name, s, thunk)
+  (name, (s, thunk))
 
-scratchName = "*Scratch*"
-
-LITTLE_TO_ELM scratch
 LITTLE_TO_ELM threeBoxes
 LITTLE_TO_ELM nBoxesH2
 LITTLE_TO_ELM sineWaveOfBoxes
@@ -132,8 +129,6 @@ LITTLE_TO_ELM coffee_UIST
 
 examples =
   [ makeExample "BLANK" blank
-  , makeExample scratchName scratch
-  -- [ makeExample scratchName scratch
   , makeExample "*Prelude*" Prelude.src
 
   , makeExample "SnS Logo (UIST)" sns_UIST

@@ -8,12 +8,12 @@ def readLittle(name, folder='../examples/'):
 
   ## yield (name + ' = \"\n')
   ## following version is to facilitate line/col numbers:
-  yield (name + ' =\n \"')
+  yield (name + ' =\n \"\"\"')
 
   for s in open(f):
     s = s.replace('\\','\\\\')
     s = s.replace('\"','\\\"')
     yield s
 
-  yield ('\n\"\n\n')
+  yield ('\n\"\"\"\n\n')
 
