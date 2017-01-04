@@ -15032,6 +15032,17 @@ background-color: rgba(255, 255, 0,0.2);\
 position: absolute;\
 z-index: 8;\
 }\
+.deuce_selected-def {\
+background-color: rgba(0, 0, 255, 0.2);\
+position: absolute;\
+z-index: 8;\
+}\
+.deuce_green-drop {\
+background-color: rgba(0, 255, 0, 0.2);\
+position: absolute;\
+z-index: 8;\
+width: 100px;\
+}\
 .ace_br1 {border-top-left-radius    : 3px;}\
 .ace_br2 {border-top-right-radius   : 3px;}\
 .ace_br3 {border-top-left-radius    : 3px; border-top-right-radius:    3px;}\
@@ -18511,4 +18522,3 @@ exports.UndoManager = UndoManager;
                         window.ace[key] = a[key];
                 });
             })();
-        
