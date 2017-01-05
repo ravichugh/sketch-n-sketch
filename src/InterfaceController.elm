@@ -499,6 +499,11 @@ issueCommand (Msg kind _) oldModel newModel =
     "Open Dialog Box" ->
       FileHandler.requestFileIndex ()
 
+    -- Ideally the catch-all case below would be enough, and
+    -- without needing this case.
+    "Turn Off Caption" ->
+      AceCodeBox.display newModel
+
     _ ->
       if newModel.code /= oldModel.code ||
          newModel.codeBoxInfo /= oldModel.codeBoxInfo
