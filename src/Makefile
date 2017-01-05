@@ -39,7 +39,6 @@ loc:
     InterfaceController.elm \
     LangTools.elm LangTransform.elm ValueBasedTransform.elm \
     Blobs.elm Draw.elm ExpressionBasedTransform.elm \
-    InterfaceStorage.elm Storage.elm \
     Ace.elm AceCodeBox.elm Native/aceCodeBox.js \
     AnimationLoop.elm Native/animationLoop.js \
     FileHandler.elm Native/fileHandler.js \
