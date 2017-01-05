@@ -800,11 +800,8 @@ alertSaveDialogBox model =
         [ Html.i []
             [ Html.text <| Model.prettyFilename model ]
         , Html.text
-            " has unsaved changes. Are you sure that you would like to continue?"
+            " has unsaved changes. Would you like to continue anyway?"
         , Html.br [] []
-        , Html.br [] []
-        , Html.b []
-            [ Html.text "You will lose your unsaved changes." ]
         , Html.br [] []
         , Html.br [] []
         , Html.div
@@ -813,13 +810,13 @@ alertSaveDialogBox model =
                 , ("margin-bottom", "20px")
                 ]
             ]
-            [ htmlButton "No" Controller.msgCancelFileOperation Regular False
+            [ htmlButton "Cancel" Controller.msgCancelFileOperation Regular False
             , Html.span
                 [ Attr.style
                   [ ("margin-left", "50px")
                   ]
                 ]
-                [ htmlButton "Yes" Controller.msgConfirmFileOperation Regular False ]
+                [ htmlButton "Yes (Discard Changes)" Controller.msgConfirmFileOperation Regular False ]
             ]
         ]
     ]
