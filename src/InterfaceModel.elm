@@ -9,6 +9,7 @@ import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
 import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature, Zone)
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparse)
+import OurParser2 as P
 import Ace
 import Either exposing (Either(..))
 
@@ -88,6 +89,7 @@ type alias Model =
   , fileToDelete : Filename
   , pendingFileOperation : Maybe Msg
   , fileOperationConfirmed : Bool
+  , selectedEIds : Set.Set EId
   }
 
 type Mode
@@ -251,6 +253,34 @@ liveInfoToHighlights zoneKey model =
 
 --------------------------------------------------------------------------------
 
+computeConstantRanges : Exp -> List (EId, Num, P.Pos, P.Pos)
+computeConstantRanges e =
+  let combine e acc =
+    case e.val.e__ of
+      EConst _ n _ _ -> (e.val.eid, n, e.start, e.end) :: acc
+      _              -> acc
+  in
+  foldExp combine [] e
+
+-- TODO: instead of highlighting all constants, use some
+-- color to denote ones that are selectable, and then attach event
+-- handlers for toggling selectedEIds
+constantRangesToHighlights =
+ List.map <| \(eid,n,start,end) ->
+   { color = "orange"
+   , range = { start = { row = start.line, column = start.col }
+             , end   = { row = end.line,   column = end.col   } }
+   }
+
+highlightsForSelectedEIds : Model -> List Ace.Highlight
+highlightsForSelectedEIds m =
+  computeConstantRanges m.inputExp
+    |> List.filter (\(eid,_,_,_) -> Set.member eid m.selectedEIds)
+    |> constantRangesToHighlights
+
+
+--------------------------------------------------------------------------------
+
 codeToShow model =
   case model.previewCode of
      Just string -> string
@@ -342,5 +372,6 @@ initModel =
     , fileToDelete  = ""
     , pendingFileOperation = Nothing
     , fileOperationConfirmed = False
+    , selectedEIds  = Set.singleton 4747 -- TODO remove this dummy
     }
 

@@ -1300,5 +1300,5 @@ turnOffCaptionAndHighlights =
   Msg "Turn Off Caption" <| \m ->
     let codeBoxInfo = m.codeBoxInfo in
     { m | caption = Nothing
-        , codeBoxInfo = { codeBoxInfo | highlights = [] } }
+        , codeBoxInfo = { codeBoxInfo | highlights = highlightsForSelectedEIds m } }
 

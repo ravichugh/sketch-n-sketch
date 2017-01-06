@@ -30,7 +30,7 @@ import Svg.Events exposing (onMouseDown, onMouseUp, onMouseOver, onMouseOut)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events exposing
-  ( onClick, onInput, on
+  ( onClick, onInput, on, onMouseEnter, onMouseLeave
   , onWithOptions, defaultOptions
   )
 import Html.Lazy
@@ -240,6 +240,8 @@ aceCodeBox model dim =
                  , ("top", pixels Layout.windowPadding)
                  , ("pointer-events", "auto")
                  ]
+    , onMouseEnter Controller.msgMouseEnterCodeBox
+    , onMouseLeave Controller.msgMouseLeaveCodeBox
     ]
     [ ]
     {- Html.Lazy.lazy ... -}

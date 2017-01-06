@@ -26,6 +26,7 @@ module InterfaceController exposing
   , msgToggleAutosave
   , msgExportCode, msgExportSvg
   , msgImportCode, msgAskImportCode
+  , msgMouseEnterCodeBox, msgMouseLeaveCodeBox
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -153,10 +154,11 @@ handleError oldModel result =
     Ok newModel -> newModel
     Err s       -> { oldModel | errorBox = Just s }
 
-updateCodeBoxWithTypes : Types.AceTypeInfo -> CodeBoxInfo -> CodeBoxInfo
-updateCodeBoxWithTypes ati codeBoxInfo =
+updateCodeBoxInfo : Types.AceTypeInfo -> Model -> CodeBoxInfo
+updateCodeBoxInfo ati m =
+  let codeBoxInfo = m.codeBoxInfo in
   { codeBoxInfo | annotations = ati.annotations
-                , highlights = ati.highlights
+                , highlights = ati.highlights ++ highlightsForSelectedEIds m
                 , tooltips = ati.tooltips }
 
 updateCodeBoxWithParseError annot codeBoxInfo =
@@ -376,7 +378,7 @@ tryRun old =
         Result.andThen (\(newVal,ws) ->
           LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
           |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
-            let newCode = unparse e in
+            let newCode = unparse e in -- unnecessary, if parse/unparse were inverses
             let lambdaTools_ =
               -- TODO should put program into Model
               -- TODO actually, ideally not. caching introduces bugs
@@ -401,11 +403,12 @@ tryRun old =
                     , caption       = Nothing
                     , syncOptions   = Sync.syncOptionsOf old.syncOptions e
                     , lambdaTools   = lambdaTools_
-                    , codeBoxInfo   = updateCodeBoxWithTypes aceTypeInfo old.codeBoxInfo
+                    , errorBox      = Nothing
               }
             in
             { new | mode = refreshMode_ new
-                  , errorBox = Nothing }
+                  , codeBoxInfo = updateCodeBoxInfo aceTypeInfo new
+                  }
           )
         )
       in
@@ -496,15 +499,11 @@ issueCommand (Msg kind _) oldModel newModel =
     "Open Dialog Box" ->
       FileHandler.requestFileIndex ()
 
-    -- Ideally the catch-all case below would be enough, and
-    -- without needing this case.
-    "Turn Off Caption" ->
-      AceCodeBox.display newModel
-
     _ ->
       if newModel.code /= oldModel.code ||
          newModel.codeBoxInfo /= oldModel.codeBoxInfo ||
-         kind == "Turn Off Caption"
+         kind == "Turn Off Caption" ||
+         kind == "Mouse Leave CodeBox"
            -- ideally this last condition would not be necessary.
            -- and onMouseLeave from point/crosshair zones still leave
            -- stale yellow highlights.
@@ -991,6 +990,7 @@ msgNew template = Msg "New" <| (\old ->
       LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v
       |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
         let code = unparse e in
+        let new =
         { old | inputExp      = e
               , inputVal      = v
               , code          = code
@@ -1006,11 +1006,12 @@ msgNew template = Msg "New" <| (\old ->
               , runAnimation  = movieDuration > 0
               , slate         = slate
               , widgets       = ws
-              , codeBoxInfo   = updateCodeBoxWithTypes ati old.codeBoxInfo
               , filename      = Model.bufferName
               , needsSave     = True
               , lastSaveState = Nothing
               }
+           in
+           { new | codeBoxInfo = updateCodeBoxInfo ati new }
       ) |> handleError old) >> closeDialogBox New
 
 msgAskNew template = requireSaveAsker (msgNew template)
@@ -1072,3 +1073,20 @@ msgExportSvg = Msg "Export SVG" identity
 msgImportCode = Msg "Import Code" <| closeDialogBox ImportCode
 
 msgAskImportCode = requireSaveAsker msgImportCode
+
+
+--------------------------------------------------------------------------------
+-- Deuce Interactions
+
+msgMouseEnterCodeBox = Msg "Mouse Enter CodeBox" <| \m ->
+  let hi =
+    computeConstantRanges m.inputExp
+      -- |> Debug.log "ranges"
+      |> constantRangesToHighlights
+  in
+  let codeBoxInfo = m.codeBoxInfo in
+  { m | codeBoxInfo = { codeBoxInfo | highlights = hi } }
+
+msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->
+  let codeBoxInfo = m.codeBoxInfo in
+  { m | codeBoxInfo = { codeBoxInfo | highlights = highlightsForSelectedEIds m } }
