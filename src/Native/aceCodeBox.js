@@ -190,9 +190,4 @@ app.ports.aceCodeBoxCmd.subscribe(function(aceCmd) {
 
 });
 
-app.ports.aceCodeBoxPoll.subscribe(function() {
-  var info = getEditorState();
-  app.ports.aceCodeBoxMsg.send(info);
-});
-
 // receiveEditorState port is in initialize()
