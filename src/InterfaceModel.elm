@@ -227,6 +227,9 @@ openDialogBox db model =
 closeDialogBox db model =
   { model | dialogBoxes = Set.remove (dbToInt db) model.dialogBoxes }
 
+isDialogBoxShowing db model =
+  Set.member (dbToInt db) model.dialogBoxes
+
 --------------------------------------------------------------------------------
 
 importCodeFileInputId = "import-code-file-input"

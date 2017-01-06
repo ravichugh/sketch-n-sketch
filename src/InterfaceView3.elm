@@ -514,8 +514,12 @@ fileSaveButton model =
 fileOpenDialogBoxButton =
   htmlButton "Open" (Controller.msgOpenDialogBox Open) Regular False
 
-closeDialogBoxButton db =
-  htmlButton "X" (Controller.msgCloseDialogBox db) Regular False
+closeDialogBoxButton db model =
+  htmlButton
+    "X"
+    (Controller.msgCloseDialogBox db)
+    Regular
+    (Model.isDialogBoxShowing AlertSave model)
 
 exportCodeButton =
   htmlButton "Export Code" Controller.msgExportCode Regular False
@@ -598,11 +602,11 @@ dialogBox
     let
       closeButton =
         if closable then
-          [ closeDialogBoxButton db ]
+          [ closeDialogBoxButton db model ]
         else
           []
       displayStyle =
-        if (Set.member (Model.dbToInt db) model.dialogBoxes) then
+        if (Model.isDialogBoxShowing db model) then
           "flex"
         else
           "none"
