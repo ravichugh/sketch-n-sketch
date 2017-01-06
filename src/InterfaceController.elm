@@ -498,7 +498,11 @@ issueCommand (Msg kind _) oldModel newModel =
 
     _ ->
       if newModel.code /= oldModel.code ||
-         newModel.codeBoxInfo /= oldModel.codeBoxInfo
+         newModel.codeBoxInfo /= oldModel.codeBoxInfo ||
+         kind == "Turn Off Caption"
+           -- ideally this last condition would not be necessary.
+           -- and onMouseLeave from point/crosshair zones still leave
+           -- stale yellow highlights.
       then
         AceCodeBox.display newModel
       else if newModel.runAnimation then
