@@ -584,59 +584,70 @@ truncateFloat n =
 --------------------------------------------------------------------------------
 -- Dialog Boxes
 
-dialogBox zIndex width height closable db model headerElements elements =
-  let
-    closeButton =
-      if closable then
-        [ closeDialogBoxButton db ]
-      else
-        []
-    displayStyle =
-      if (Set.member (Model.dbToInt db) model.dialogBoxes) then
-        "flex"
-      else
-        "none"
-  in
-    Html.div
-      [ Attr.style
-          [ ("position", "fixed")
-          , ("top", "50%")
-          , ("left", "50%")
-          , ("width", width)
-          , ("height", height)
-          , ("font-family", "sans-serif")
-          , ("background-color", "#F8F8F8")
-          , ("border", "2px solid " ++ Layout.strInterfaceColor)
-          , ("border-radius", "10px")
-          , ("box-shadow", "0 0 10px 0 #888888")
-          , ("transform", "translateY(-50%) translateX(-50%)")
-          , ("margin", "auto")
-          , ("z-index", zIndex)
-          , ("display", displayStyle)
-          , ("flex-direction", "column")
-          ]
-      ] <|
-      [ Html.h2
-          [ Attr.style
-              [ ("margin", "0")
-              , ("padding", "0 20px")
-              , ("border-bottom", "1px solid black")
-              , ("flex", "0 0 60px")
-              , ("display", "flex")
-              , ("justify-content", "space-between")
-              , ("align-items", "center")
-              ]
-          ] <|
-          [ Html.div [] headerElements
-          , Html.div [] closeButton
-          ]
-      , Html.div
-          [ Attr.style
-              [ ("overflow", "scroll")
-              ]
-          ]
-          elements
-      ]
+dialogBox
+  zIndex
+  width
+  height
+  closable
+  db
+  model
+  headerStyles
+  headerElements
+  parentStyles
+  elements =
+    let
+      closeButton =
+        if closable then
+          [ closeDialogBoxButton db ]
+        else
+          []
+      displayStyle =
+        if (Set.member (Model.dbToInt db) model.dialogBoxes) then
+          "flex"
+        else
+          "none"
+    in
+      Html.div
+        [ Attr.style
+            [ ("position", "fixed")
+            , ("top", "50%")
+            , ("left", "50%")
+            , ("width", width)
+            , ("height", height)
+            , ("font-family", "sans-serif")
+            , ("background-color", "#F8F8F8")
+            , ("border", "2px solid " ++ Layout.strInterfaceColor)
+            , ("border-radius", "10px")
+            , ("box-shadow", "0 0 10px 0 #888888")
+            , ("transform", "translateY(-50%) translateX(-50%)")
+            , ("margin", "auto")
+            , ("z-index", zIndex)
+            , ("display", displayStyle)
+            , ("flex-direction", "column")
+            ]
+        ] <|
+        [ Html.h2
+            [ Attr.style <|
+                [ ("margin", "0")
+                , ("padding", "0 20px")
+                , ("border-bottom", "1px solid black")
+                , ("flex", "0 0 60px")
+                , ("display", "flex")
+                , ("justify-content", "space-between")
+                , ("align-items", "center")
+                ] ++ headerStyles
+            ] <|
+            [ Html.div [] headerElements
+            , Html.div [] closeButton
+            ]
+        , Html.div
+            [ Attr.style <|
+                [ ("overflow", "scroll")
+                , ("flex-grow", "1")
+                ] ++ parentStyles
+            ]
+            elements
+        ]
 
 bigDialogBox = dialogBox "100" "85%" "85%"
 
@@ -663,7 +674,9 @@ fileNewDialogBox model =
       True
       New
       model
+      []
       [Html.text "New..."]
+      []
       (List.map viewTemplate Examples.list)
 
 fileSaveAsDialogBox model =
@@ -694,7 +707,9 @@ fileSaveAsDialogBox model =
       True
       SaveAs
       model
+      []
       [Html.text "Save As..."]
+      []
       ((List.map viewFileIndexEntry model.fileIndex) ++ [saveAsInput])
 
 fileOpenDialogBox model =
@@ -723,7 +738,7 @@ fileOpenDialogBox model =
                            False
               , Html.span
                   [ Attr.style
-                    [ ("margin-left", "50px")
+                    [ ("margin-left", "30px")
                     ]
                   ]
                   [ htmlButton "Delete"
@@ -738,7 +753,9 @@ fileOpenDialogBox model =
       True
       Open
       model
+      []
       [Html.text "Open..."]
+      []
       (List.map fileOpenRow model.fileIndex)
 
 viewFileIndexEntry filename =
@@ -783,33 +800,38 @@ alertSaveDialogBox model =
     False
     AlertSave
     model
+    []
     [ Html.span
         [ Attr.style [("color", "#550000")] ]
         [ Html.text "Warning" ]
     ]
+    [ ("display", "flex") ]
     [ Html.div
         [ Attr.style
             [ ("padding", "20px")
+            , ("flex-grow", "1")
+            , ("display", "flex")
+            , ("flex-direction", "column")
+            , ("justify-content", "space-between")
             ]
         ]
-        [ Html.i []
-            [ Html.text <| Model.prettyFilename model ]
-        , Html.text
-            " has unsaved changes. Would you like to continue anyway?"
-        , Html.br [] []
-        , Html.br [] []
-        , Html.br [] []
+        [ Html.div
+            []
+            [ Html.i []
+                [ Html.text <| Model.prettyFilename model ]
+            , Html.text
+                " has unsaved changes. Would you like to continue anyway?"
+            ]
         , Html.div
             [ Attr.style
-                [ ("float", "right")
-                , ("margin-bottom", "20px")
+                [ ("text-align", "right")
                 ]
             ]
             [ htmlButton "Cancel" Controller.msgCancelFileOperation Regular False
             , Html.span
                 [ Attr.style
-                  [ ("margin-left", "50px")
-                  ]
+                    [ ("margin-left", "30px")
+                    ]
                 ]
                 [ htmlButton "Yes (Discard Changes)" Controller.msgConfirmFileOperation Regular False ]
             ]
@@ -821,7 +843,9 @@ importCodeDialogBox model =
     True
     ImportCode
     model
+    []
     [ Html.text "Import Code..." ]
+    []
     [ Html.div
         [ Attr.style
             [ ("padding", "20px")
