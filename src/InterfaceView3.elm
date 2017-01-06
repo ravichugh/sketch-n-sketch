@@ -515,7 +515,7 @@ fileOpenDialogBoxButton =
   htmlButton "Open" (Controller.msgOpenDialogBox Open) Regular False
 
 closeDialogBoxButton db =
-  htmlButton "Close Dialog Box" (Controller.msgCloseDialogBox db) Regular False
+  htmlButton "X" (Controller.msgCloseDialogBox db) Regular False
 
 exportCodeButton =
   htmlButton "Export Code" Controller.msgExportCode Regular False
@@ -584,46 +584,59 @@ truncateFloat n =
 --------------------------------------------------------------------------------
 -- Dialog Boxes
 
-dialogBox zIndex width height closable db model elements =
+dialogBox zIndex width height closable db model headerElements elements =
   let
     closeButton =
       if closable then
-        [ Html.div
-            [ Attr.style
-                [ ("text-align", "center")
-                , ("padding", "20px")
-                ]
-            ]
-            [ closeDialogBoxButton db ]
-        ]
+        [ closeDialogBoxButton db ]
       else
         []
     displayStyle =
       if (Set.member (Model.dbToInt db) model.dialogBoxes) then
-        "block"
+        "flex"
       else
         "none"
   in
     Html.div
       [ Attr.style
-        [ ("position", "fixed")
-        , ("top", "50%")
-        , ("left", "50%")
-        , ("width", width)
-        , ("height", height)
-        , ("font-family", "sans-serif")
-        , ("background-color", "#F8F8F8")
-        , ("border", "2px solid " ++ Layout.strInterfaceColor)
-        , ("border-radius", "10px")
-        , ("box-shadow", "0 0 10px 0 #888888")
-        , ("transform", "translateY(-50%) translateX(-50%)")
-        , ("margin", "auto")
-        , ("z-index", zIndex)
-        , ("overflow", "scroll")
-        , ("display", displayStyle)
-        ]
+          [ ("position", "fixed")
+          , ("top", "50%")
+          , ("left", "50%")
+          , ("width", width)
+          , ("height", height)
+          , ("font-family", "sans-serif")
+          , ("background-color", "#F8F8F8")
+          , ("border", "2px solid " ++ Layout.strInterfaceColor)
+          , ("border-radius", "10px")
+          , ("box-shadow", "0 0 10px 0 #888888")
+          , ("transform", "translateY(-50%) translateX(-50%)")
+          , ("margin", "auto")
+          , ("z-index", zIndex)
+          , ("display", displayStyle)
+          , ("flex-direction", "column")
+          ]
+      ] <|
+      [ Html.h2
+          [ Attr.style
+              [ ("margin", "0")
+              , ("padding", "0 20px")
+              , ("border-bottom", "1px solid black")
+              , ("flex", "0 0 60px")
+              , ("display", "flex")
+              , ("justify-content", "space-between")
+              , ("align-items", "center")
+              ]
+          ] <|
+          [ Html.div [] headerElements
+          , Html.div [] closeButton
+          ]
+      , Html.div
+          [ Attr.style
+              [ ("overflow", "scroll")
+              ]
+          ]
+          elements
       ]
-      (elements ++ closeButton)
 
 bigDialogBox = dialogBox "100" "85%" "85%"
 
@@ -646,17 +659,12 @@ fileNewDialogBox model =
               False
           ]
   in
-    bigDialogBox True New model <|
-      [ Html.h2
-        [ Attr.style
-          [ ("padding", "20px")
-          , ("margin", "0")
-          , ("border-bottom", "1px solid black")
-          ]
-        ]
-        [ Html.text "New..." ]
-      ]
-        ++ List.map viewTemplate Examples.list
+    bigDialogBox
+      True
+      New
+      model
+      [Html.text "New..."]
+      (List.map viewTemplate Examples.list)
 
 fileSaveAsDialogBox model =
   let saveAsInput =
@@ -682,18 +690,12 @@ fileSaveAsDialogBox model =
               [ htmlButton "Save" Controller.msgSaveAs Regular False ]
           ]
   in
-    bigDialogBox True SaveAs model <|
-      [ Html.h2
-        [ Attr.style
-          [ ("padding", "20px")
-          , ("margin", "0")
-          , ("border-bottom", "1px solid black")
-          ]
-        ]
-        [ Html.text "Save As..." ]
-      ]
-        ++ List.map viewFileIndexEntry model.fileIndex
-        ++ [ saveAsInput ]
+    bigDialogBox
+      True
+      SaveAs
+      model
+      [Html.text "Save As..."]
+      ((List.map viewFileIndexEntry model.fileIndex) ++ [saveAsInput])
 
 fileOpenDialogBox model =
   let fileOpenRow filename =
@@ -732,17 +734,12 @@ fileOpenDialogBox model =
               ]
           ]
   in
-    bigDialogBox True Open model <|
-      [ Html.h2
-        [ Attr.style
-          [ ("padding", "20px")
-          , ("margin", "0")
-          , ("border-bottom", "1px solid black")
-          ]
-        ]
-        [ Html.text "Open..." ]
-      ]
-        ++ List.map fileOpenRow model.fileIndex
+    bigDialogBox
+      True
+      Open
+      model
+      [Html.text "Open..."]
+      (List.map fileOpenRow model.fileIndex)
 
 viewFileIndexEntry filename =
   Html.div
@@ -782,17 +779,15 @@ fileIndicator model =
       ]
 
 alertSaveDialogBox model =
-  smallDialogBox False AlertSave model
-    [ Html.h2
-        [ Attr.style
-          [ ("color", "#550000")
-          , ("padding", "20px")
-          , ("margin", "0")
-          , ("border-bottom", "1px solid black")
-          ]
-        ]
+  smallDialogBox
+    False
+    AlertSave
+    model
+    [ Html.span
+        [ Attr.style [("color", "#550000")] ]
         [ Html.text "Warning" ]
-    , Html.div
+    ]
+    [ Html.div
         [ Attr.style
             [ ("padding", "20px")
             ]
@@ -800,11 +795,8 @@ alertSaveDialogBox model =
         [ Html.i []
             [ Html.text <| Model.prettyFilename model ]
         , Html.text
-            " has unsaved changes. Are you sure that you would like to continue?"
+            " has unsaved changes. Would you like to continue anyway?"
         , Html.br [] []
-        , Html.br [] []
-        , Html.b []
-            [ Html.text "You will lose your unsaved changes." ]
         , Html.br [] []
         , Html.br [] []
         , Html.div
@@ -813,42 +805,38 @@ alertSaveDialogBox model =
                 , ("margin-bottom", "20px")
                 ]
             ]
-            [ htmlButton "No" Controller.msgCancelFileOperation Regular False
+            [ htmlButton "Cancel" Controller.msgCancelFileOperation Regular False
             , Html.span
                 [ Attr.style
                   [ ("margin-left", "50px")
                   ]
                 ]
-                [ htmlButton "Yes" Controller.msgConfirmFileOperation Regular False ]
+                [ htmlButton "Yes (Discard Changes)" Controller.msgConfirmFileOperation Regular False ]
             ]
         ]
     ]
 
 importCodeDialogBox model =
-  bigDialogBox True ImportCode model
-      [ Html.h2
-          [ Attr.style
+  bigDialogBox
+    True
+    ImportCode
+    model
+    [ Html.text "Import Code..." ]
+    [ Html.div
+        [ Attr.style
             [ ("padding", "20px")
-            , ("margin", "0")
-            , ("border-bottom", "1px solid black")
+            , ("text-align", "center")
             ]
-          ]
-          [ Html.text "Import Code..." ]
-      , Html.div
-          [ Attr.style
-              [ ("padding", "20px")
-              , ("text-align", "center")
-              ]
-          ]
-          [ Html.input
-              [ Attr.type_ "file"
-              , Attr.id Model.importCodeFileInputId
-              ]
-              []
-          , htmlButton
-              "Import"
-              (Controller.msgAskImportCode model.needsSave)
-              Regular
-              False
-          ]
-      ]
+        ]
+        [ Html.input
+            [ Attr.type_ "file"
+            , Attr.id Model.importCodeFileInputId
+            ]
+            []
+        , htmlButton
+            "Import"
+            (Controller.msgAskImportCode model.needsSave)
+            Regular
+            False
+        ]
+    ]

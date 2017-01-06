@@ -55,8 +55,7 @@ subscriptions model =
     , Keyboard.presses Controller.msgKeyPress
     , Keyboard.downs Controller.msgKeyDown
     , Keyboard.ups Controller.msgKeyUp
-    , AceCodeBox.receiveEditorState Controller.msgFromAce
-    , AceCodeBox.aceUpdate Controller.msgAceUpdate
+    , AceCodeBox.receiveEditorState Controller.msgAceUpdate
     , AnimationLoop.receiveFrame Controller.msgTickDelta
     , FileHandler.writeConfirmation Controller.msgConfirmWrite
     , FileHandler.receiveFile Controller.msgReadFile
