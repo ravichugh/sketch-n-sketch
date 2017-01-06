@@ -12,11 +12,11 @@ function initialize() {
 
   editor.on("input", function() {
       var info = getEditorState();
-      app.ports.aceUpdate.send(info);
+      app.ports.receiveEditorState.send(info);
   });
   editor.selection.on("changeCursor", function() {
       var info = getEditorState();
-      app.ports.aceUpdate.send(info);
+      app.ports.receiveEditorState.send(info);
   });
 }
 
@@ -195,4 +195,4 @@ app.ports.aceCodeBoxPoll.subscribe(function() {
   app.ports.aceCodeBoxMsg.send(info);
 });
 
-// aceUpdate port is in initialize()
+// receiveEditorState port is in initialize()

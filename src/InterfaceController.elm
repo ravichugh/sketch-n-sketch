@@ -7,7 +7,6 @@ module InterfaceController exposing
   , msgClickZone
   , msgMouseClickCanvas, msgMouseIsDown, msgMousePosition
   , msgRun, upstateRun, msgTryParseRun
-  , msgFromAce
   , msgAceUpdate
   , msgUndo, msgRedo, msgCleanCode
   , msgDigHole, msgMakeEqual
@@ -445,8 +444,6 @@ upstate (Msg caption updateModel) old =
 issueCommand : Msg -> Model -> Model -> Cmd Msg
 issueCommand (Msg kind _) oldModel newModel =
   case kind of
-    "Run" ->
-      AceCodeBox.requestEditorState ()
 
     "Toggle Code Box" ->
       if newModel.basicCodeBox
@@ -522,11 +519,6 @@ msgCodeUpdate s = Msg "Code Update" <| \old ->
 --------------------------------------------------------------------------------
 
 msgRun = Msg "Run" <| \old -> upstateRun old
-
-msgFromAce aceCodeBoxInfo = Msg "Ace Message" <| \old ->
-  let new = { old | code = aceCodeBoxInfo.code
-                  , codeBoxInfo = aceCodeBoxInfo.codeBoxInfo} in
-  upstateRun new
 
 msgAceUpdate aceCodeBoxInfo = Msg "Ace Update" <| \old ->
     let isSame = old.lastSaveState == (Just aceCodeBoxInfo.code) in
