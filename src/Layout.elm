@@ -171,6 +171,7 @@ type alias Info =
   , fileTools : FixedPosition
   , codeTools : FixedPosition
   , drawTools : FixedPosition
+  , stretchyDrawTools : FixedPosition
   , attributeTools : FixedPosition
   , blobTools : FixedPosition
   , moreBlobTools : FixedPosition
@@ -217,17 +218,21 @@ computeLayout m =
      { leftRight = Right  <| windowPadding
      , topBottom = Top    <| windowPadding + 1 * (rowGap + buttonHeight)
      }
-  , attributeTools = offset m getAttributeToolBox
+  , stretchyDrawTools = offset m getDrawToolBox -- reusing drawTools offset
      { leftRight = Right  <| windowPadding
      , topBottom = Top    <| windowPadding + 2 * (rowGap + buttonHeight)
      }
-  , blobTools = offset m getBlobToolBox
+  , attributeTools = offset m getAttributeToolBox
      { leftRight = Right  <| windowPadding
      , topBottom = Top    <| windowPadding + 3 * (rowGap + buttonHeight)
      }
-  , moreBlobTools = offset m getMoreBlobToolBox
+  , blobTools = offset m getBlobToolBox
      { leftRight = Right  <| windowPadding
      , topBottom = Top    <| windowPadding + 4 * (rowGap + buttonHeight)
+     }
+  , moreBlobTools = offset m getMoreBlobToolBox
+     { leftRight = Right  <| windowPadding
+     , topBottom = Top    <| windowPadding + 5 * (rowGap + buttonHeight)
      }
   , outputTools = offset m getOutputToolBox
      { leftRight = Right  <| windowPadding

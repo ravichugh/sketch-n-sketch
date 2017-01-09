@@ -61,6 +61,7 @@ view model =
   let fileTools = fileToolBox model layout in
   let codeTools = codeToolBox model layout in
   let drawTools = drawToolBox model layout in
+  let stretchyDrawTools = stretchyDrawToolBox model layout in
   let attributeTools = attributeToolBox model layout in
   let blobTools = blobToolBox model layout in
   let moreBlobTools = moreBlobToolBox model layout in
@@ -124,7 +125,7 @@ view model =
 
      -- toolboxes in reverse order
      , outputTools] ++ animationTools ++
-     [ moreBlobTools, blobTools, attributeTools, drawTools
+     [ moreBlobTools, blobTools, attributeTools, stretchyDrawTools, drawTools
      , codeTools, fileTools
 
      -- top-most
@@ -178,6 +179,14 @@ drawToolBox model layout =
     , toolButton model (Oval Raw)
     , toolButton model (Poly Raw)
     , toolButton model (Path Raw)
+    ]
+
+stretchyDrawToolBox model layout =
+  toolBox model "stretchyDrawToolBox" Layout.getPutDrawToolBox layout.stretchyDrawTools
+    [ toolButton model (Rect Stretchy)
+    , toolButton model (Oval Stretchy)
+    , toolButton model (Poly Stretchy)
+    , toolButton model (Path Stretchy)
     ]
 
 attributeToolBox model layout =
@@ -449,12 +458,11 @@ toolButton model tool =
     Cursor        -> "Cursor"
     Line Raw      -> "Line"
     Rect Raw      -> "Rect"
-    Rect Stretchy -> capStretchy "Box"
+    Rect Stretchy -> capStretchy "Rect" -- "Box"
     Oval Raw      -> "Ellipse"
-    Oval Stretchy -> capStretchy "Oval"
+    Oval Stretchy -> capStretchy "Ellipse" -- "Oval"
     Poly Raw      -> "Polygon"
-    -- Poly Stretchy -> capStretchy "Polygon"
-    Poly Stretchy -> capStretchy "Poly"
+    Poly Stretchy -> capStretchy "Polygon"
     Poly Sticky   -> capSticky
     Path Raw      -> "Path"
     Path Stretchy -> capStretchy "Path"
