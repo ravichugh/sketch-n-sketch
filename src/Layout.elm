@@ -73,6 +73,7 @@ getPutCodeToolBox      = (getCodeToolBox,      putCodeToolBox)
 getPutDrawToolBox      = (getDrawToolBox,      putDrawToolBox)
 getPutAttributeToolBox = (getAttributeToolBox, putAttributeToolBox)
 getPutBlobToolBox      = (getBlobToolBox,      putBlobToolBox)
+getPutMoreBlobToolBox  = (getMoreBlobToolBox,  putMoreBlobToolBox)
 getPutOutputToolBox    = (getOutputToolBox,    putOutputToolBox)
 getPutAnimationToolBox = (getAnimationToolBox,    putAnimationToolBox)
 getPutCodeBox          = (getCodeBox,          putCodeBox)
@@ -83,6 +84,7 @@ getCodeToolBox      = .layoutOffsets >> .codeToolBox
 getDrawToolBox      = .layoutOffsets >> .drawToolBox
 getAttributeToolBox = .layoutOffsets >> .attributeToolBox
 getBlobToolBox      = .layoutOffsets >> .blobToolBox
+getMoreBlobToolBox  = .layoutOffsets >> .moreBlobToolBox
 getOutputToolBox    = .layoutOffsets >> .outputToolBox
 getAnimationToolBox = .layoutOffsets >> .animationToolBox
 getCodeBox          = .layoutOffsets >> .codeBox
@@ -112,6 +114,11 @@ putBlobToolBox dx dy model =
   let layoutOffsets = model.layoutOffsets in
   { model | layoutOffsets =
     { layoutOffsets | blobToolBox = { dx = dx, dy = dy } } }
+
+putMoreBlobToolBox dx dy model =
+  let layoutOffsets = model.layoutOffsets in
+  { model | layoutOffsets =
+    { layoutOffsets | moreBlobToolBox = { dx = dx, dy = dy } } }
 
 putOutputToolBox dx dy model =
   let layoutOffsets = model.layoutOffsets in
@@ -166,6 +173,7 @@ type alias Info =
   , drawTools : FixedPosition
   , attributeTools : FixedPosition
   , blobTools : FixedPosition
+  , moreBlobTools : FixedPosition
   , outputTools : FixedPosition
   , animationTools : FixedPosition
   , captionArea : FixedPosition
@@ -216,6 +224,10 @@ computeLayout m =
   , blobTools = offset m getBlobToolBox
      { leftRight = Right  <| windowPadding
      , topBottom = Top    <| windowPadding + 2 * (rowGap + buttonHeight)
+     }
+  , moreBlobTools = offset m getMoreBlobToolBox
+     { leftRight = Right  <| windowPadding
+     , topBottom = Top    <| windowPadding + 3 * (rowGap + buttonHeight)
      }
   , outputTools = offset m getOutputToolBox
      { leftRight = Right  <| windowPadding

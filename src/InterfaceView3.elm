@@ -10,6 +10,7 @@ import Either exposing (..)
 
 import InterfaceModel as Model exposing
   ( Msg(..), Model, Tool(..), ShapeToolKind(..), Mode(..)
+  , ReplicateKind(..)
   , Caption(..), MouseMode(..)
   , mkLive_
   , DialogBox(..)
@@ -62,6 +63,7 @@ view model =
   let drawTools = drawToolBox model layout in
   let attributeTools = attributeToolBox model layout in
   let blobTools = blobToolBox model layout in
+  let moreBlobTools = moreBlobToolBox model layout in
   let outputTools = outputToolBox model layout in
 
   let
@@ -122,7 +124,7 @@ view model =
 
      -- toolboxes in reverse order
      , outputTools] ++ animationTools ++
-     [ blobTools, attributeTools, drawTools
+     [ moreBlobTools, blobTools, attributeTools, drawTools
      , codeTools, fileTools
 
      -- top-most
@@ -191,7 +193,14 @@ blobToolBox model layout =
     [ groupButton model "Dupe" Controller.msgDuplicateBlobs True
     , groupButton model "Merge" Controller.msgMergeBlobs True
     , groupButton model "Group" Controller.msgGroupBlobs False
-    , groupButton model "Abs" Controller.msgAbstractBlobs True
+    , groupButton model "Abstract" Controller.msgAbstractBlobs True
+    ]
+
+moreBlobToolBox model layout =
+  toolBox model "moreBlobToolBox" Layout.getPutMoreBlobToolBox layout.moreBlobTools
+    [ groupButton model "Repeat Right" (Controller.msgReplicateBlob HorizontalRepeat) True
+    , groupButton model "Repeat To" (Controller.msgReplicateBlob LinearRepeat) True
+    , groupButton model "Repeat Around" (Controller.msgReplicateBlob RadialRepeat) True
     ]
 
 outputToolBox model layout =
