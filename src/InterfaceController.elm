@@ -159,7 +159,7 @@ updateCodeBoxInfo : Types.AceTypeInfo -> Model -> CodeBoxInfo
 updateCodeBoxInfo ati m =
   let codeBoxInfo = m.codeBoxInfo in
   { codeBoxInfo | annotations = ati.annotations
-                , highlights = ati.highlights ++ highlightsForSelectedEIds m
+                , highlights = ati.highlights ++ constantRangesToHighlights m
                 , tooltips = ati.tooltips }
 
 updateCodeBoxWithParseError annot codeBoxInfo =
@@ -504,7 +504,9 @@ issueCommand (Msg kind _) oldModel newModel =
       if newModel.code /= oldModel.code ||
          newModel.codeBoxInfo /= oldModel.codeBoxInfo ||
          kind == "Turn Off Caption" ||
-         kind == "Mouse Leave CodeBox"
+         kind == "Mouse Enter CodeBox" ||
+         kind == "Mouse Leave CodeBox" ||
+         kind == "Mouse Click CodeBox"
            -- ideally this last condition would not be necessary.
            -- and onMouseLeave from point/crosshair zones still leave
            -- stale yellow highlights.
@@ -961,6 +963,8 @@ updateFileIndex fileIndex old =
 msgConfirmWrite savedFilename =
   Msg "Confirm Write" (confirmWrite savedFilename)
 
+-- TODO: clear state (e.g. selectedEIds) after read file
+
 msgReadFile file =
   Msg "Read File" (readFile file >> upstateRun)
 
@@ -1010,6 +1014,7 @@ msgNew template = Msg "New" <| (\old ->
               , filename      = Model.bufferName
               , needsSave     = True
               , lastSaveState = Nothing
+              , selectedEIds  = Set.empty
               }
            in
            { new | codeBoxInfo = updateCodeBoxInfo ati new }
@@ -1080,20 +1085,42 @@ msgAskImportCode = requireSaveAsker msgImportCode
 -- Deuce Interactions
 
 msgMouseEnterCodeBox = Msg "Mouse Enter CodeBox" <| \m ->
-  let hi =
-    computeConstantRanges m.inputExp
-       |> Debug.log "ranges"
-      |> constantRangesToHighlights
-  in
   let codeBoxInfo = m.codeBoxInfo in
-  { m | codeBoxInfo = { codeBoxInfo | highlights = hi } }
+  let new = { m | hoveringCodeBox = True } in
+  { new | codeBoxInfo = { codeBoxInfo | highlights = constantRangesToHighlights new }
+        }
 
 msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
-  { m | codeBoxInfo = { codeBoxInfo | highlights = highlightsForSelectedEIds m } }
+  let new = { m | hoveringCodeBox = False } in
+  { new | codeBoxInfo = { codeBoxInfo | highlights = constantRangesToHighlights new }
+        }
 
-msgMouseClickCodeBox = Msg "Deuce Mouse Click" <| \m ->
-  let out = Debug.log "click" m.codeBoxInfo.cursorPos in 
-  let
-  codeBoxInfo = m.codeBoxInfo in
-  { m | codeBoxInfo = { codeBoxInfo | highlights = highlightsForSelectedEIds m } }
+msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
+  let codeBoxInfo = m.codeBoxInfo in
+  let selectedEIds =
+    case getClickedEId (computeConstantRanges m.inputExp) m.codeBoxInfo.cursorPos of
+      Nothing  -> m.selectedEIds
+      Just eid -> if Set.member eid m.selectedEIds
+                  then Set.remove eid m.selectedEIds
+                  else Set.insert eid m.selectedEIds
+  in
+  let new = { m | selectedEIds = selectedEIds } in
+  { new | codeBoxInfo = { codeBoxInfo | highlights = constantRangesToHighlights new }
+        }
+
+betweenPos start cursorPos end =
+  (start.line <= cursorPos.row + 1) &&
+  (start.col <= cursorPos.column + 1) &&
+  (end.line >= cursorPos.row + 1) &&
+  (end.col >= cursorPos.column + 1)
+
+getClickedEId ls cursorPos =
+  let selected =
+    List.filter (\(eid,n,start,end) -> betweenPos start cursorPos end) ls
+  in
+  case selected of
+    []            -> Nothing
+    [(eid,_,_,_)] -> Just eid
+    _             -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
+                     Nothing

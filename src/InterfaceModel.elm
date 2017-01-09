@@ -90,6 +90,7 @@ type alias Model =
   , pendingFileOperation : Maybe Msg
   , fileOperationConfirmed : Bool
   , selectedEIds : Set.Set EId
+  , hoveringCodeBox : Bool
   }
 
 type Mode
@@ -262,45 +263,20 @@ computeConstantRanges e =
   in
   foldExp combine [] e
 
--- TODO: instead of highlighting all constants, use some
--- color to denote ones that are selectable, and then attach event
--- handlers for toggling selectedEIds
-constantRangesToHighlights =
- List.map <| \(eid,n,start,end) ->
-   { color = "orange"
-   , range = { start = { row = start.line, column = start.col }
-             , end   = { row = end.line,   column = end.col   } }
-   }
-
-getSelectedEIds m ls cursorPos =
-  let selected = 
-    List.filter (\(eid,n,start,end) -> ((start.line <= cursorPos.row + 1) && (start.col <= cursorPos.column + 1) && (end.line >= cursorPos.row + 1) && (end.col >= cursorPos.column + 1))) ls
+constantRangesToHighlights m =
+  let maybeHighlight (eid,n,start,end) =
+    let range =
+      { start = { row = start.line, column = start.col }
+      , end   = { row = end.line,   column = end.col   } }
+    in
+    if Set.member eid m.selectedEIds then
+      [ { color = "orange", range = range } ]
+    else if m.hoveringCodeBox then
+      [ { color = "lightgray", range = range } ]
+    else
+      []
   in
-  let addSelectedEIds e acc = 
-    case e of
-      (eid, _, _, _) -> Set.insert eid acc
-  in
-  List.foldl addSelectedEIds Set.empty selected
-
-
-highlightsForSelectedEIds : Model -> List Ace.Highlight
-highlightsForSelectedEIds m =
-  -- computeConstantRanges m.inputExp
-  let constants = computeConstantRanges m.inputExp
-  in 
-  let selected = getSelectedEIds m constants m.codeBoxInfo.cursorPos
-  in 
-  --let
-  --codeBoxInfo = m.codeBoxInfo in
-  --let
-  -- m = { m | codeBoxInfo = { codeBoxInfo | selectedEIds = selected } }
-  --in
-  let out = Debug.log "selected" m.selectedEIds
-  in
-    constants
-    |> List.filter (\(eid,_,_,_) -> Set.member eid selected)
-    |> constantRangesToHighlights
-
+  List.concatMap maybeHighlight (computeConstantRanges m.inputExp)
 
 --------------------------------------------------------------------------------
 
@@ -395,6 +371,7 @@ initModel =
     , fileToDelete  = ""
     , pendingFileOperation = Nothing
     , fileOperationConfirmed = False
-    , selectedEIds  = Set.singleton 4747 -- TODO remove this dummy
+    , selectedEIds  = Set.empty
+    , hoveringCodeBox = False
     }
 
