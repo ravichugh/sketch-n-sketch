@@ -188,10 +188,10 @@ attributeToolBox model layout =
 
 blobToolBox model layout =
   toolBox model "blobToolBox" Layout.getPutBlobToolBox layout.blobTools
-    [ groupButton model "Dupe" Controller.msgDuplicateBlobs
-    , groupButton model "Merge" Controller.msgMergeBlobs
-    , groupButton model "Group" Controller.msgGroupBlobs
-    , groupButton model "Abs" Controller.msgAbstractBlobs
+    [ groupButton model "Dupe" Controller.msgDuplicateBlobs True
+    , groupButton model "Merge" Controller.msgMergeBlobs True
+    , groupButton model "Group" Controller.msgGroupBlobs False
+    , groupButton model "Abs" Controller.msgAbstractBlobs True
     ]
 
 outputToolBox model layout =
@@ -471,10 +471,11 @@ relateButton model text handler =
   let noFeatures = Set.isEmpty model.selectedFeatures in
   htmlButton text handler Regular noFeatures
 
-groupButton model text handler =
+groupButton model text handler disallowSelectedFeatures =
   let noFeatures = Set.isEmpty model.selectedFeatures in
   let noBlobs = Dict.isEmpty model.selectedBlobs in
-  htmlButton text handler Regular (noBlobs || not noFeatures)
+  htmlButton text handler Regular
+    (noBlobs || (disallowSelectedFeatures && (not noFeatures)))
 
 previousSlideButton model =
   htmlButton "◀◀" Controller.msgPreviousSlide Regular
