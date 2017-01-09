@@ -27,6 +27,7 @@ module InterfaceController exposing
   , msgExportCode, msgExportSvg
   , msgImportCode, msgAskImportCode
   , msgMouseEnterCodeBox, msgMouseLeaveCodeBox
+  , msgMouseClickCodeBox
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -1081,7 +1082,7 @@ msgAskImportCode = requireSaveAsker msgImportCode
 msgMouseEnterCodeBox = Msg "Mouse Enter CodeBox" <| \m ->
   let hi =
     computeConstantRanges m.inputExp
-      -- |> Debug.log "ranges"
+       |> Debug.log "ranges"
       |> constantRangesToHighlights
   in
   let codeBoxInfo = m.codeBoxInfo in
@@ -1089,4 +1090,10 @@ msgMouseEnterCodeBox = Msg "Mouse Enter CodeBox" <| \m ->
 
 msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
+  { m | codeBoxInfo = { codeBoxInfo | highlights = highlightsForSelectedEIds m } }
+
+msgMouseClickCodeBox = Msg "Deuce Mouse Click" <| \m ->
+  let out = Debug.log "click" m.codeBoxInfo.cursorPos in 
+  let
+  codeBoxInfo = m.codeBoxInfo in
   { m | codeBoxInfo = { codeBoxInfo | highlights = highlightsForSelectedEIds m } }

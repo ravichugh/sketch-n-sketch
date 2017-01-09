@@ -242,6 +242,7 @@ aceCodeBox model dim =
                  ]
     , onMouseEnter Controller.msgMouseEnterCodeBox
     , onMouseLeave Controller.msgMouseLeaveCodeBox
+    , onClick Controller.msgMouseClick
     ]
     [ ]
     {- Html.Lazy.lazy ... -}

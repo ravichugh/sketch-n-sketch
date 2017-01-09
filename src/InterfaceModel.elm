@@ -272,10 +272,33 @@ constantRangesToHighlights =
              , end   = { row = end.line,   column = end.col   } }
    }
 
+getSelectedEIds m ls cursorPos =
+  let selected = 
+    List.filter (\(eid,n,start,end) -> ((start.line <= cursorPos.row + 1) && (start.col <= cursorPos.column + 1) && (end.line >= cursorPos.row + 1) && (end.col >= cursorPos.column + 1))) ls
+  in
+  let addSelectedEIds e acc = 
+    case e of
+      (eid, _, _, _) -> Set.insert eid acc
+  in
+  List.foldl addSelectedEIds Set.empty selected
+
+
 highlightsForSelectedEIds : Model -> List Ace.Highlight
 highlightsForSelectedEIds m =
-  computeConstantRanges m.inputExp
-    |> List.filter (\(eid,_,_,_) -> Set.member eid m.selectedEIds)
+  -- computeConstantRanges m.inputExp
+  let constants = computeConstantRanges m.inputExp
+  in 
+  let selected = getSelectedEIds m constants m.codeBoxInfo.cursorPos
+  in 
+  --let
+  --codeBoxInfo = m.codeBoxInfo in
+  --let
+  -- m = { m | codeBoxInfo = { codeBoxInfo | selectedEIds = selected } }
+  --in
+  let out = Debug.log "selected" m.selectedEIds
+  in
+    constants
+    |> List.filter (\(eid,_,_,_) -> Set.member eid selected)
     |> constantRangesToHighlights
 
 
