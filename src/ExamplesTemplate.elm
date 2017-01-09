@@ -126,6 +126,14 @@ LITTLE_TO_ELM sns_UIST
 LITTLE_TO_ELM sns_revisited_UIST
 LITTLE_TO_ELM botanic_UIST
 LITTLE_TO_ELM coffee_UIST
+LITTLE_TO_ELM rectangleTrisection
+LITTLE_TO_ELM battery
+LITTLE_TO_ELM mondrianArch
+LITTLE_TO_ELM ladder
+LITTLE_TO_ELM rails
+LITTLE_TO_ELM target
+LITTLE_TO_ELM xs
+
 
 examples =
   [ makeExample "BLANK" blank
@@ -232,6 +240,13 @@ examples =
   , makeExample "Sample Rotations" rotTest
   , makeExample "Grid Tile" gridTile
   , makeExample "Zones" zones
+  , makeExample "Rectangle Trisection" rectangleTrisection
+  , makeExample "Battery" battery
+  , makeExample "Mondrian Arch" mondrianArch
+  , makeExample "Ladder" ladder
+  , makeExample "Rails" rails
+  , makeExample "Target" target
+  , makeExample "Xs" xs
   ]
 
 list = examples

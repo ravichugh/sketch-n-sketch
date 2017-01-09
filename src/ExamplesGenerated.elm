@@ -4203,6 +4203,268 @@ coffee_UIST =
 
 """
 
+rectangleTrisection =
+ """; Rectangle Trisection
+;
+; After Alan Turranksy p566 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+;
+; Straightforward with tools as of UIST 2016, but
+; does require a \"Dig Hole\" to type in \"(/ rect1_w 3)\"
+;
+; To further abstract (as below) requires manual labor (not a bounding box)
+;
+
+(def rectTrisection (\\(x y w h)
+  (def rect1
+    (let [fill stroke strokeWidth] [365 365 0]
+    (let rot 0
+      [ (rawRect fill stroke strokeWidth x y w h rot) ])))
+
+  (def rect2
+    (let [fill stroke strokeWidth] [175 175 0]
+    (let rot 0
+      [ (rawRect fill stroke strokeWidth x y (/ w 3) h rot) ])))
+
+  (concat [rect1 rect2])
+))
+
+
+(blobs [
+  (rectTrisection 91 181 347 177)
+])
+"""
+
+battery =
+ """; Battery
+;
+; After Bernstein and Li \"Lillicon\" 2015.
+;
+; Can be done with tools as of UIST 2016 (minus abstaction), but
+; parameterization is backward; want tip x and y to be dependent but
+; the Make Equal defaults to making x and h dependent (as below).
+;
+; Design decisions:
+;   - w/h of tip absolute or relative to body
+;   - if abstracted, BB or x/y/w/h parameterization
+;
+
+(def [body_w body_x] [147 103])
+(def [tip_y body_h body_y] [223 84 201])
+(def fill 362)
+
+(def body
+  (let [ stroke strokeWidth] [ 250 0]
+  (let rot 0
+    [ (rawRect fill stroke strokeWidth body_x body_y body_w body_h rot) ])))
+
+(def tip
+  (let [x w h] [(+ body_x body_w) 19 (* 2! (- (+ body_y (* 0.5! body_h)) tip_y))]
+  (let [ stroke strokeWidth] [ 182 0]
+  (let rot 0
+    [ (rawRect fill stroke strokeWidth x tip_y w h rot) ]))))
+
+(blobs [
+  body
+  tip
+])
+"""
+
+mondrianArch =
+ """; Mondrian Arch
+;
+; After Henry Lieberman p554 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+;
+; Can be done with tools as of UIST 2016, but
+; parameterization is not anywhere near optimal.
+;
+; Below is hand-rolled (some digging).
+;
+; Design decisions:
+;   - Pillars relative to BB or relative to lintel (below: relative to lintel)
+;   - x/y/w/h or BB for lintel (below: x/y/w/h)
+;   - Pillar width: same as lintel or relative to BB width (below: same as lintel)
+;
+
+(def [lintel_x lintel_y lintel_w lintel_h] [76 146 145 42])
+(def lintelBot (+ lintel_y lintel_h))
+(def pillarHeight 198)
+
+(def leftPillar
+  (let [x y w h] [lintel_x lintelBot lintel_h pillarHeight]
+  (let [fill stroke strokeWidth] [352 352 0]
+  (let rot 0
+    [ (rawRect fill stroke strokeWidth x y w h rot) ]))))
+
+(def lintel
+  (let [fill stroke strokeWidth] [218 218 0]
+  (let rot 0
+    [ (rawRect fill stroke strokeWidth lintel_x lintel_y lintel_w lintel_h rot) ])))
+
+(def rightPillar
+  (let [x y w h] [(- (+ lintel_x lintel_w) lintel_h) lintelBot lintel_h pillarHeight]
+  (let [fill stroke strokeWidth] [146 146 0]
+  (let rot 0
+    [ (rawRect fill stroke strokeWidth x y w h rot) ]))))
+
+(blobs [
+  leftPillar
+  lintel
+  rightPillar
+])
+"""
+
+ladder =
+ """; Ladder
+;
+; After Cheema, Gulwani, and LaViola \"QuickDraw: Improving Drawing Experience for Geometric Diagrams\" CHI 2012.
+; mentioned as originally from an math text
+;
+; Repetition and best implementation of vertical constraint done by hand.
+;
+; Design decisions:
+;   - Linear repetition specification (start sep n (below); start end n; start end sep)
+;   - Ladder bottom: absolute (below) or offset from last rung
+;   - If last rung endpoint specified: absolute or relative to ladder height or offset from ladder bottom
+;
+
+
+(def leftPost_y1 121)
+(def leftPost_y2 250)
+(def leftPost_x1 97)
+(def rightPost_x1 207)
+(def color 130)
+(def width 7)
+(def n 4{1-15})
+
+(def leftPost
+    [ (line color width leftPost_x1 leftPost_y1 leftPost_x1 leftPost_y2) ])
+
+(def rightPost
+    [ (line color width rightPost_x1 leftPost_y1 rightPost_x1 leftPost_y2) ])
+
+(def rungs
+    (def rung (\\i
+    (let y (+ leftPost_y1 (* i 27.666666666666668))
+        [(line color width leftPost_x1 y rightPost_x1 y) ])))
+    (concatMap rung (zeroTo n)))
+
+(blobs [
+  leftPost
+  rightPost
+  rungs
+])
+"""
+
+rails =
+ """; Rails
+;
+; Make Equal helped set up the rails. The rest is basically hand-rolled.
+;
+; Design decisions:
+;   - Ties/rails encoded relative to rails (below) or to BB or to centerline
+;   - If encoded relative to rails, botRail y absolute (below) or offset from topRail y
+;   - Tie sep measured between left edges or between facing edges (below)
+;   - Tie count absolute (below) or relative to rail length or rail length relative to tie count
+;   - Tie start position absolute or based on sep (below)
+;   - Tie hangout absolue (below) or relative to rail offset or BB
+;
+
+
+(def railLength 331)
+(def railWidth 10)
+(def railStart 36)
+(def railFill 460)
+(def topRail_y 151)
+(def botRail_y 204)
+
+(def topRail
+  (let [stroke strokeWidth] [78 0]
+  (let rot 0
+    [ (rawRect railFill stroke strokeWidth railStart topRail_y railLength railWidth rot) ])))
+
+(def botRail
+  (let [stroke strokeWidth] [78 0]
+  (let rot 0
+    [ (rawRect railFill stroke strokeWidth railStart botRail_y railLength railWidth rot) ])))
+
+(def ties
+  (let tie (\\i
+    (let w 12
+    (let sep 20.98947368421053
+    (let sepw (+ sep w)
+    (let x (+ (+ railStart (/ sep 2!)) (* i sepw))
+    (let hangout 12
+    (let y (- topRail_y hangout)
+    (let h (+ (+ (- botRail_y topRail_y) railWidth) (* 2! hangout))
+    (let [fill stroke strokeWidth] [39 85 0]
+    (let rot 0
+      [ (rawRect fill stroke strokeWidth x y w h rot) ]))))))))))
+  (concatMap tie (zeroTo 10))))
+
+(blobs [
+  ties
+  topRail
+  botRail
+])
+"""
+
+target =
+ """; Target
+;
+; Design decisions:
+;   - BB n or BB ringWidth or cx cy r n or cx cy n ringWidth (below) or cx cy r ringWidth
+;   - Inner circle radius absolute or relative to ringWidth (below)
+;
+
+(def target
+  (let circleCount 4{1-10}
+  (let concentricCircle (\\i
+    (let ringWidth 35
+    (let [cx cy r] [182 244 (+ (* 0.7 ringWidth) (* i ringWidth))]
+    (let colors [470 0]
+    (let color (nth colors (mod i 2))
+      [ (rawCircle color 360 0 cx cy r) ])))))
+
+  (concatMap concentricCircle (reverse (zeroTo circleCount))))))
+
+(blobs [
+  target
+])
+"""
+
+xs =
+ """; Xs
+;
+; After David Maulsby p591 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+;
+; Design decisions:
+;   - top left n boxWidth or top left w boxWidth or top left w n or cx cy n boxWidth (below) or cx cy r boxWidth or cx cy r n or BB boxWidth or BB n
+;   - boxes square or rectangular (relevant to several of the above)
+;   - n ∈ {1,2,3,4,...} (below) or n ∈ {1,3,5,7,...}
+;   - colors global (below) or per function call
+;
+
+(def X (\\(cx cy n boxWidth)
+  (let [centerColor descendingColor ascendingColor] [438 32 240]
+  (let square (\\(cx cy color)
+    [ (rectByCenter color cx cy boxWidth boxWidth) ])
+  (let drawLevel (\\i
+    (if (= i 0)
+      (square cx cy centerColor)
+      (let offset (* i boxWidth)
+        (concat [(square (- cx offset) (- cy offset) descendingColor)
+                 (square (+ cx offset) (+ cy offset) descendingColor)
+                 (square (- cx offset) (+ cy offset) ascendingColor)
+                 (square (+ cx offset) (- cy offset) ascendingColor)]))))
+    (concatMap drawLevel (zeroTo n)))))
+  ))
+
+(blobs [
+  (X 199 199.99999999999994 3 55.73333333333333)
+])
+"""
+
+
 
 examples =
   [ makeExample "BLANK" blank
@@ -4309,6 +4571,13 @@ examples =
   , makeExample "Sample Rotations" rotTest
   , makeExample "Grid Tile" gridTile
   , makeExample "Zones" zones
+  , makeExample "Rectangle Trisection" rectangleTrisection
+  , makeExample "Battery" battery
+  , makeExample "Mondrian Arch" mondrianArch
+  , makeExample "Ladder" ladder
+  , makeExample "Rails" rails
+  , makeExample "Target" target
+  , makeExample "Xs" xs
   ]
 
 list = examples
