@@ -156,10 +156,8 @@ fileToolBox model layout =
     , fileSaveAsDialogBoxButton
     , fileSaveButton model
     , fileOpenDialogBoxButton
-    , Html.br [] []
     , exportCodeButton
     , exportSvgButton
-    , Html.br [] []
     , importCodeButton
     , importSvgButton
     ]
@@ -797,17 +795,20 @@ fileIndicator model =
       else
         filenameHtml
   in
-    Html.div
+    Html.span
       [ Attr.style
           [ ("color", "white")
           , ("font-family", "sans-serif")
           , ("padding", "7px")
           ]
       ]
+      [ wrapper ]
+{-
       [ Html.u [] [ Html.text "File" ]
       , Html.text ": "
       , wrapper
       ]
+-}
 
 alertSaveDialogBox model =
   smallDialogBox

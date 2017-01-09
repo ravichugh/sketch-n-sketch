@@ -211,23 +211,23 @@ computeLayout m =
      }
   , codeTools = offset m getCodeToolBox
      { leftRight = Left   <| dimCanvas.initialLeft + fileAndCodeToolBoxRightOffset
-     , topBottom = Top    <| windowPadding + round (4.2 * (rowGap + buttonHeight))
+     , topBottom = Top    <| windowPadding + round (1 * (rowGap + buttonHeight))
      }
   , drawTools = offset m getDrawToolBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + 0 * (rowGap + buttonHeight)
+     , topBottom = Top    <| windowPadding + 1 * (rowGap + buttonHeight)
      }
   , attributeTools = offset m getAttributeToolBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + 1 * (rowGap + buttonHeight)
+     , topBottom = Top    <| windowPadding + 2 * (rowGap + buttonHeight)
      }
   , blobTools = offset m getBlobToolBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + 2 * (rowGap + buttonHeight)
+     , topBottom = Top    <| windowPadding + 3 * (rowGap + buttonHeight)
      }
   , moreBlobTools = offset m getMoreBlobToolBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + 3 * (rowGap + buttonHeight)
+     , topBottom = Top    <| windowPadding + 4 * (rowGap + buttonHeight)
      }
   , outputTools = offset m getOutputToolBox
      { leftRight = Right  <| windowPadding
