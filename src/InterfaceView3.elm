@@ -221,7 +221,8 @@ moreBlobToolBox model layout =
 outputToolBox model layout =
   toolBox model "outputToolBox" Layout.getPutOutputToolBox layout.outputTools
     [ -- codeBoxButton model
-      heuristicsButton model
+      fontSizeButton model
+    , heuristicsButton model
     , outputButton model
     , ghostsButton model
     ]
@@ -564,6 +565,20 @@ importSvgButton =
 --       False -> "[Autosave] No"
 --     in
 --       htmlButton cap Controller.msgToggleAutosave Regular True
+
+fontSizeButton model =
+  let cap = "Font Size " ++ Utils.bracks (toString model.codeBoxInfo.fontSize) in
+  let msg = Msg "Update Font Size" <| \m ->
+    let codeBoxInfo = m.codeBoxInfo in
+    let (minSize, maxSize) = (10, 24) in
+    let fontSize =
+      if codeBoxInfo.fontSize + 2 <= maxSize
+        then codeBoxInfo.fontSize + 2
+        else minSize
+    in
+    { m | codeBoxInfo = { codeBoxInfo | fontSize = fontSize } }
+  in
+  htmlButton cap msg Regular False
 
 
 --------------------------------------------------------------------------------

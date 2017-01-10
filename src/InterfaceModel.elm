@@ -102,6 +102,7 @@ type alias CodeBoxInfo =
   , highlights : List Ace.Highlight
   , annotations : List Ace.Annotation
   , tooltips : List Ace.Tooltip
+  , fontSize : Int
   }
 
 type alias RawSvg = String
@@ -323,6 +324,7 @@ initModel =
                       , highlights = []
                       , annotations = []
                       , tooltips = []
+                      , fontSize = 14
                       }
     , basicCodeBox  = False
     , errorBox      = Nothing

@@ -497,6 +497,9 @@ issueCommand (Msg kind _) oldModel newModel =
       FileHandler.requestFileIndex ()
 
     _ ->
+      if kind == "Update Font Size" then
+        AceCodeBox.updateFontSize newModel
+      else
       if newModel.code /= oldModel.code ||
          newModel.codeBoxInfo /= oldModel.codeBoxInfo ||
          kind == "Turn Off Caption"
