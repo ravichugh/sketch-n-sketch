@@ -184,6 +184,10 @@ app.ports.aceCodeBoxCmd.subscribe(function(aceCmd) {
   } else if (message == "display") {
     display(aceCmd.info);
 
+  } else if (message == "resize") {
+    editor.resize();
+    display(aceCmd.info);
+
   } else {
     console.log("[aceCodeBox.js] unexpected message: " + message);
   }
