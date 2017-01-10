@@ -263,12 +263,27 @@ computeConstantRanges e =
   in
   foldExp combine [] e
 
+-- positions: start, end, end of selection area
+computeExpRanges : Exp -> List (EId, Exp, P.Pos, P.Pos, P.Pos)
+computeExpRanges e =
+  let combine e acc =
+    case e.val.e__ of
+      EConst _ n _ _ -> (e.val.eid, e, e.start, e.end, e.end) :: acc
+      EBase _ b -> (e.val.eid, e, e.start, e.end, e.end) :: acc 
+      EVar _ i -> (e.val.eid, e, e.start, e.end, e.end) :: acc 
+      --EFun _ p e2 _ -> (e.val.eid, e, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }) :: acc
+      ELet _ _ r p e1 e2 _ -> (e.val.eid, e, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }) :: acc 
+      _              -> acc
+  in
+  foldExp combine [] e
+
 constantRangesToHighlights m =
-  let maybeHighlight (eid,n,start,end) =
+  let maybeHighlight (eid,n,start,end,selectEnd) =
     let range =
       { start = { row = start.line, column = start.col }
-      , end   = { row = end.line,   column = end.col   } }
+      , end   = { row = selectEnd.line, column = selectEnd.col  } }
     in
+    let out = Debug.log "selected: " m.selectedEIds in
     if Set.member eid m.selectedEIds then
       [ { color = "orange", range = range } ]
     else if m.hoveringCodeBox then
@@ -276,7 +291,7 @@ constantRangesToHighlights m =
     else
       []
   in
-  List.concatMap maybeHighlight (computeConstantRanges m.inputExp)
+  List.concatMap maybeHighlight (computeExpRanges m.inputExp)
 
 --------------------------------------------------------------------------------
 

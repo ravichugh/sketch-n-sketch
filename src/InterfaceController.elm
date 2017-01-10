@@ -1099,7 +1099,7 @@ msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->
 msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
   let selectedEIds =
-    case getClickedEId (computeConstantRanges m.inputExp) m.codeBoxInfo.cursorPos of
+    case getClickedEId (computeExpRanges m.inputExp) m.codeBoxInfo.cursorPos of
       Nothing  -> m.selectedEIds
       Just eid -> if Set.member eid m.selectedEIds
                   then Set.remove eid m.selectedEIds
@@ -1117,10 +1117,10 @@ betweenPos start cursorPos end =
 
 getClickedEId ls cursorPos =
   let selected =
-    List.filter (\(eid,n,start,end) -> betweenPos start cursorPos end) ls
+    List.filter (\(eid,n,start,end,selectEnd) -> betweenPos start cursorPos selectEnd) ls
   in
   case selected of
     []            -> Nothing
-    [(eid,_,_,_)] -> Just eid
+    [(eid,_,_,_,_)] -> Just eid
     _             -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
                      Nothing
