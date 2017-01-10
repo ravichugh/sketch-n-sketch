@@ -1087,7 +1087,7 @@ msgAskImportCode = requireSaveAsker msgImportCode
 msgMouseEnterCodeBox = Msg "Mouse Enter CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
   let new = { m | hoveringCodeBox = True } in
-  { new | codeBoxInfo = { codeBoxInfo | highlights = constantRangesToHighlights new }
+  { new | codeBoxInfo = { codeBoxInfo | highlights = constantRangesToHighlights new  ++ patRangesToHighlights new}
         }
 
 msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->

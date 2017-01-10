@@ -91,6 +91,8 @@ type alias Model =
   , fileOperationConfirmed : Bool
   , selectedEIds : Set.Set EId
   , hoveringCodeBox : Bool
+  , expRanges : List (EId, Exp, P.Pos, P.Pos, P.Pos)
+  , patRanges : List (Pat, P.Pos, P.Pos)
   }
 
 type Mode
@@ -254,6 +256,27 @@ liveInfoToHighlights zoneKey model =
 
 --------------------------------------------------------------------------------
 
+computePatRanges pat =
+  case pat.val of
+    PConst _ _              -> [(pat.val, pat.start, pat.end)]
+    PBase _ _               -> [(pat.val, pat.start, pat.end)]
+    PVar _ x _              -> [(pat.val, pat.start, pat.end)]
+    PList _ ps _ Nothing _  -> List.concatMap computePatRanges ps
+    PList _ ps _ (Just p) _ -> List.concatMap computePatRanges (p::ps)
+    PAs _ x _ p             -> computePatRanges p
+
+findPats e = 
+  let find e acc = 
+    case e.val.e__ of 
+      EFun _ (p::ps) _ _ -> List.concatMap computePatRanges (p::ps) ++ acc
+      ETypeCase _ p _ _ -> computePatRanges p ++ acc
+      ELet _ _ _ p _ _ _ -> computePatRanges p ++ acc
+      ETyp _ p _ _ _ -> computePatRanges p ++ acc
+      ETypeAlias _ p _ _ _ -> computePatRanges p ++ acc
+      _ -> acc 
+  in
+  foldExp find [] e 
+
 computeConstantRanges : Exp -> List (EId, Num, P.Pos, P.Pos)
 computeConstantRanges e =
   let combine e acc =
@@ -283,7 +306,6 @@ constantRangesToHighlights m =
       { start = { row = start.line, column = start.col }
       , end   = { row = selectEnd.line, column = selectEnd.col  } }
     in
-    let out = Debug.log "selected: " m.selectedEIds in
     if Set.member eid m.selectedEIds then
       [ { color = "orange", range = range } ]
     else if m.hoveringCodeBox then
@@ -293,6 +315,18 @@ constantRangesToHighlights m =
   in
   List.concatMap maybeHighlight (computeExpRanges m.inputExp)
 
+patRangesToHighlights m = 
+  let maybeHighlight (p,start,end) =
+    let range =
+      { start = { row = start.line, column = start.col }
+      , end   = { row = end.line, column = end.col  } }
+    in
+    if m.hoveringCodeBox then
+      [ { color = "yellow", range = range } ]
+    else
+      []
+  in
+  List.concatMap maybeHighlight (findPats m.inputExp)
 --------------------------------------------------------------------------------
 
 codeToShow model =
@@ -388,5 +422,7 @@ initModel =
     , fileOperationConfirmed = False
     , selectedEIds  = Set.empty
     , hoveringCodeBox = False
+    , expRanges = []
+    , patRanges = []
     }
 
