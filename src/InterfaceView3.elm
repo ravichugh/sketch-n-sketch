@@ -263,6 +263,7 @@ aceCodeBox model dim =
                  , ("left", pixels Layout.windowPadding)
                  , ("top", pixels Layout.windowPadding)
                  , ("pointer-events", "auto")
+                 , ("z-index", "-1")
                  ]
     ]
     [ ]
