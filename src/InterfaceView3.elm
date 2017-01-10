@@ -10,7 +10,7 @@ import Either exposing (..)
 
 import InterfaceModel as Model exposing
   ( Msg(..), Model, Tool(..), ShapeToolKind(..), Mode(..)
-  , ReplicateKind(..)
+  , ReplicateKind(..), LambdaTool(..)
   , Caption(..), MouseMode(..)
   , mkLive_
   , DialogBox(..)
@@ -18,6 +18,7 @@ import InterfaceModel as Model exposing
 import InterfaceController as Controller
 import Layout
 import Canvas
+import LangUnparser exposing (unparse)
 import LangSvg exposing (attr)
 import Sync
 
@@ -62,6 +63,7 @@ view model =
   let codeTools = codeToolBox model layout in
   let drawTools = drawToolBox model layout in
   let stretchyDrawTools = stretchyDrawToolBox model layout in
+  let lambdaDrawTools = lambdaDrawToolBox model layout in
   let attributeTools = attributeToolBox model layout in
   let blobTools = blobToolBox model layout in
   let moreBlobTools = moreBlobToolBox model layout in
@@ -125,7 +127,7 @@ view model =
 
      -- toolboxes in reverse order
      , outputTools] ++ animationTools ++
-     [ moreBlobTools, blobTools, attributeTools, stretchyDrawTools, drawTools
+     [ moreBlobTools, blobTools, attributeTools, lambdaDrawTools, stretchyDrawTools, drawTools
      , codeTools, fileTools
 
      -- top-most
@@ -187,6 +189,12 @@ stretchyDrawToolBox model layout =
     , toolButton model (Oval Stretchy)
     , toolButton model (Poly Stretchy)
     , toolButton model (Path Stretchy)
+    ]
+
+lambdaDrawToolBox model layout =
+  toolBox model "lambdaDrawToolBox" Layout.getPutDrawToolBox layout.lambdaDrawTools
+    [ toolButton model Lambda
+    , dropdownLambdaTool model
     ]
 
 attributeToolBox model layout =
@@ -555,6 +563,58 @@ importSvgButton =
 --       False -> "[Autosave] No"
 --     in
 --       htmlButton cap Controller.msgToggleAutosave Regular True
+
+
+--------------------------------------------------------------------------------
+-- Lambda Tool Dropdown Menu
+
+strLambdaTool lambdaTool =
+  let strExp = String.trim << unparse in
+  case lambdaTool of
+    LambdaBounds e -> "bounds. " ++ strExp e ++ " bounds"
+    LambdaAnchor e -> "anchor. " ++ strExp e ++ " anchor"
+
+dropdownLambdaTool model =
+  let options =
+    let (selectedIdx, exps) = model.lambdaTools in
+    Utils.mapi (\(i,lambdaTool) ->
+      let s = strLambdaTool lambdaTool in
+      Html.option
+         [ Attr.value s, Attr.selected (i == selectedIdx) ]
+         [ Html.text s ]
+      ) exps
+  in
+  let handler selected =
+    Msg "Select Lambda Option" <| \model ->
+      let (_, exps) = model.lambdaTools in
+      let indexedStrings = Utils.mapi (\(i,lt) -> (i, strLambdaTool lt)) exps in
+      let newSelectedIdx =
+        case Utils.findFirst ((==) selected << Tuple.second) indexedStrings of
+          Just (i, _) -> i
+          Nothing     -> Debug.crash "dropdownLambdaTools"
+      in
+      { model | tool = Lambda, lambdaTools = (newSelectedIdx, exps) }
+  in
+  Html.select
+    [ on "change" (Json.Decode.map handler Html.Events.targetValue)
+    , handleEventAndStop "mousedown" Controller.msgNoop
+        -- to prevent underlying toolBox from starting dragLayoutWidgetTrigger
+    , Attr.style
+        [ ("pointer-events", "auto")
+        , ("border", "0 solid")
+        , ("width", "140px")
+        , ("height", pixels Layout.buttonHeight)
+        , ("font-family", params.mainSection.widgets.font)
+        , ("font-size", params.mainSection.widgets.fontSize)
+
+        -- https://stackoverflow.com/questions/24210132/remove-border-radius-from-select-tag-in-bootstrap-3
+        , ("outline", "1px solid #CCC")
+        , ("outline-offset", "-1px")
+        , ("background-color", "white")
+        ]
+    ]
+    options
+
 
 --------------------------------------------------------------------------------
 -- Hover Caption

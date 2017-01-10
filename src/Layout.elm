@@ -172,6 +172,7 @@ type alias Info =
   , codeTools : FixedPosition
   , drawTools : FixedPosition
   , stretchyDrawTools : FixedPosition
+  , lambdaDrawTools : FixedPosition
   , attributeTools : FixedPosition
   , blobTools : FixedPosition
   , moreBlobTools : FixedPosition
@@ -216,23 +217,27 @@ computeLayout m =
      }
   , drawTools = offset m getDrawToolBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + 1 * (rowGap + buttonHeight)
+     , topBottom = Top    <| windowPadding + round (1.3 * (rowGap + buttonHeight))
      }
   , stretchyDrawTools = offset m getDrawToolBox -- reusing drawTools offset
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + 2 * (rowGap + buttonHeight)
+     , topBottom = Top    <| windowPadding + round (2.3 * (rowGap + buttonHeight))
+     }
+  , lambdaDrawTools = offset m getDrawToolBox -- reusing drawTools offset
+     { leftRight = Right  <| windowPadding
+     , topBottom = Top    <| windowPadding + round (3.3 * (rowGap + buttonHeight))
      }
   , attributeTools = offset m getAttributeToolBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + 3 * (rowGap + buttonHeight)
+     , topBottom = Top    <| windowPadding + round (4.6 * (rowGap + buttonHeight))
      }
   , blobTools = offset m getBlobToolBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + 4 * (rowGap + buttonHeight)
+     , topBottom = Top    <| windowPadding + round (5.6 * (rowGap + buttonHeight))
      }
   , moreBlobTools = offset m getMoreBlobToolBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + 5 * (rowGap + buttonHeight)
+     , topBottom = Top    <| windowPadding + round (6.6 * (rowGap + buttonHeight))
      }
   , outputTools = offset m getOutputToolBox
      { leftRight = Right  <| windowPadding
