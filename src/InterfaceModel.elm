@@ -323,9 +323,9 @@ patRangesToHighlights m =
       , end   = { row = end.line, column = end.col  } }
     in
     if Set.member (start.line, start.col, end.line, end.col) m.selectedPats then
-      [ { color = "orange", range = range } ]
+      [ { color = "gold", range = range } ]
     else if m.hoveringCodeBox then
-      [ { color = "yellow", range = range } ]
+      [ { color = "lightyellow", range = range } ]
     else
       []
   in
