@@ -1093,7 +1093,7 @@ msgMouseEnterCodeBox = Msg "Mouse Enter CodeBox" <| \m ->
 msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
   let new = { m | hoveringCodeBox = False } in
-  { new | codeBoxInfo = { codeBoxInfo | highlights = constantRangesToHighlights new }
+  { new | codeBoxInfo = { codeBoxInfo | highlights = constantRangesToHighlights new ++ patRangesToHighlights new}
         }
 
 msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
@@ -1105,8 +1105,16 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
                   then Set.remove eid m.selectedEIds
                   else Set.insert eid m.selectedEIds
   in
-  let new = { m | selectedEIds = selectedEIds } in
-  { new | codeBoxInfo = { codeBoxInfo | highlights = constantRangesToHighlights new }
+  let selectedPats = 
+    case getClickedPat (findPats m.inputExp) m.codeBoxInfo.cursorPos of
+      Nothing  -> m.selectedPats
+      Just s -> if Set.member s m.selectedPats
+                  then Set.remove s m.selectedPats
+                  else Set.insert s m.selectedPats
+  in
+  let new = { m | selectedEIds = selectedEIds 
+                , selectedPats = selectedPats } in
+  { new | codeBoxInfo = { codeBoxInfo | highlights = constantRangesToHighlights new ++ patRangesToHighlights new}
         }
 
 betweenPos start cursorPos end =
@@ -1123,4 +1131,14 @@ getClickedEId ls cursorPos =
     []            -> Nothing
     [(eid,_,_,_,_)] -> Just eid
     _             -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
+                     Nothing
+
+getClickedPat ls cursorPos = 
+  let selected =
+    List.filter (\(pat,start,end) -> betweenPos start cursorPos end) ls
+  in
+  case selected of
+    []            -> Nothing
+    [(p,s,e)] -> Just (s.line, s.col, e.line, e.col)
+    _             -> let _ = Debug.log "WARN: getClickedPat: multiple eids" () in
                      Nothing

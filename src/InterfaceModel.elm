@@ -93,6 +93,7 @@ type alias Model =
   , hoveringCodeBox : Bool
   , expRanges : List (EId, Exp, P.Pos, P.Pos, P.Pos)
   , patRanges : List (Pat, P.Pos, P.Pos)
+  , selectedPats : Set.Set (Int, Int, Int, Int)
   }
 
 type Mode
@@ -321,7 +322,9 @@ patRangesToHighlights m =
       { start = { row = start.line, column = start.col }
       , end   = { row = end.line, column = end.col  } }
     in
-    if m.hoveringCodeBox then
+    if Set.member (start.line, start.col, end.line, end.col) m.selectedPats then
+      [ { color = "orange", range = range } ]
+    else if m.hoveringCodeBox then
       [ { color = "yellow", range = range } ]
     else
       []
@@ -424,5 +427,6 @@ initModel =
     , hoveringCodeBox = False
     , expRanges = []
     , patRanges = []
+    , selectedPats = Set.empty
     }
 
