@@ -77,6 +77,7 @@ getPutOutputToolBox    = (getOutputToolBox,    putOutputToolBox)
 getPutAnimationToolBox = (getAnimationToolBox,    putAnimationToolBox)
 getPutCodeBox          = (getCodeBox,          putCodeBox)
 getPutCanvas           = (getCanvas,           putCanvas)
+getPutTextToolBox = (getTextToolBox, putTextToolBox)
 
 getFileToolBox      = .layoutOffsets >> .fileToolBox
 getCodeToolBox      = .layoutOffsets >> .codeToolBox
@@ -87,6 +88,7 @@ getOutputToolBox    = .layoutOffsets >> .outputToolBox
 getAnimationToolBox = .layoutOffsets >> .animationToolBox
 getCodeBox          = .layoutOffsets >> .codeBox
 getCanvas           = .layoutOffsets >> .canvas
+getTextToolBox      = .layoutOffsets >> .textToolBox
 
 putFileToolBox dx dy model =
   let layoutOffsets = model.layoutOffsets in
@@ -133,6 +135,10 @@ putCanvas dx dy model =
   { model | layoutOffsets =
     { layoutOffsets | canvas = { dx = dx, dy = dy } } }
 
+putTextToolBox dx dy model =
+  let layoutOffsets = model.layoutOffsets in
+  { model | layoutOffsets =
+    { layoutOffsets | textToolBox = { dx = dx, dy = dy } } }
 
 --------------------------------------------------------------------------------
 -- Handler for Resize Widgets
@@ -169,6 +175,7 @@ type alias Info =
   , outputTools : FixedPosition
   , animationTools : FixedPosition
   , captionArea : FixedPosition
+  , textTools : FixedPosition
   }
 
 computeLayout : Model -> Info
@@ -228,5 +235,9 @@ computeLayout m =
   , captionArea =
      { leftRight = Left   <| windowPadding
      , topBottom = Bottom <| windowPadding
+     }
+  , textTools = offset m getTextToolBox
+     { leftRight = Left   <| dimCanvas.initialLeft
+     , topBottom = Top    <| windowPadding + round (8.4 * (rowGap + buttonHeight))
      }
   }

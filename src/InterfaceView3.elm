@@ -63,6 +63,7 @@ view model =
   let attributeTools = attributeToolBox model layout in
   let blobTools = blobToolBox model layout in
   let outputTools = outputToolBox model layout in
+  let textTools = textToolBox model layout in
 
   let
     dialogBoxes =
@@ -123,6 +124,7 @@ view model =
      -- toolboxes in reverse order
      , outputTools] ++ animationTools ++
      [ blobTools, attributeTools, drawTools
+     , textTools
      , codeTools, fileTools
 
      -- top-most
@@ -184,6 +186,11 @@ attributeToolBox model layout =
   toolBox model "attributeToolBox" Layout.getPutAttributeToolBox layout.attributeTools
     [ relateButton model "Dig Hole" Controller.msgDigHole
     , relateButton model "Make Equal" Controller.msgMakeEqual
+    ]
+
+textToolBox model layout =
+  toolBox model "textToolBox" Layout.getPutTextToolBox layout.textTools
+    [ relateButton model "Test" Controller.msgMouseEnterCodeBox
     ]
 
 blobToolBox model layout =

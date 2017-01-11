@@ -159,7 +159,7 @@ updateCodeBoxInfo : Types.AceTypeInfo -> Model -> CodeBoxInfo
 updateCodeBoxInfo ati m =
   let codeBoxInfo = m.codeBoxInfo in
   { codeBoxInfo | annotations = ati.annotations
-                , highlights = ati.highlights ++ constantRangesToHighlights m
+                , highlights = ati.highlights ++ expRangesToHighlights m
                 , tooltips = ati.tooltips }
 
 updateCodeBoxWithParseError annot codeBoxInfo =
@@ -1087,13 +1087,13 @@ msgAskImportCode = requireSaveAsker msgImportCode
 msgMouseEnterCodeBox = Msg "Mouse Enter CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
   let new = { m | hoveringCodeBox = True } in
-  { new | codeBoxInfo = { codeBoxInfo | highlights = constantRangesToHighlights new  ++ patRangesToHighlights new}
+  { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new  ++ patRangesToHighlights new}
         }
 
 msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
   let new = { m | hoveringCodeBox = False } in
-  { new | codeBoxInfo = { codeBoxInfo | highlights = constantRangesToHighlights new ++ patRangesToHighlights new}
+  { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new ++ patRangesToHighlights new}
         }
 
 msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
@@ -1114,7 +1114,7 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
   in
   let new = { m | selectedEIds = selectedEIds 
                 , selectedPats = selectedPats } in
-  { new | codeBoxInfo = { codeBoxInfo | highlights = constantRangesToHighlights new ++ patRangesToHighlights new}
+  { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new ++ patRangesToHighlights new}
         }
 
 betweenPos start cursorPos end =
@@ -1128,10 +1128,10 @@ getClickedEId ls cursorPos =
     List.filter (\(eid,n,start,end,selectEnd) -> betweenPos start cursorPos selectEnd) ls
   in
   case selected of
-    []            -> Nothing
+    []              -> Nothing
     [(eid,_,_,_,_)] -> Just eid
-    _             -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
-                     Nothing
+    _               -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
+                        Nothing
 
 getClickedPat ls cursorPos = 
   let selected =
@@ -1139,6 +1139,6 @@ getClickedPat ls cursorPos =
   in
   case selected of
     []            -> Nothing
-    [(p,s,e)] -> Just (s.line, s.col, e.line, e.col)
+    [(p,s,e)]     -> Just (s.line, s.col, e.line, e.col)
     _             -> let _ = Debug.log "WARN: getClickedPat: multiple eids" () in
                      Nothing

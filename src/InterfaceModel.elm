@@ -112,7 +112,7 @@ type alias CodeBoxInfo =
 
 type alias RawSvg = String
 
-type MouseMode
+type MouseMode 
   = MouseNothing
   | MouseDragLayoutWidget (MouseTrigger (Model -> Model))
 
@@ -191,6 +191,7 @@ type alias LayoutOffsets =
   , blobToolBox : Offsets
   , outputToolBox : Offsets
   , animationToolBox : Offsets
+  , textToolBox : Offsets
   }
 
 
@@ -206,6 +207,7 @@ initialLayoutOffsets =
   , blobToolBox = init
   , outputToolBox = init
   , animationToolBox = init
+  , textToolBox = init 
   }
 
 type DialogBox = New | SaveAs | Open | AlertSave | ImportCode
@@ -301,7 +303,7 @@ computeExpRanges e =
   in
   foldExp combine [] e
 
-constantRangesToHighlights m =
+expRangesToHighlights m =
   let maybeHighlight (eid,n,start,end,selectEnd) =
     let range =
       { start = { row = start.line, column = start.col }
