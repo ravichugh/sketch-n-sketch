@@ -1,0 +1,55 @@
+; Koch Snowflake
+;
+; Can be accomplished by graphical search and replace per
+; David Kurlander p556 in "What What I Do: Programming by Demonstration" Appendix B. 1993.
+;
+; What would have helped the creation of the implementation below
+; was some local view of a functions computation (onLine, normPt).
+; Might be nice to augment with program synthesis.
+;
+; Design decisions:
+;   - as patterns (below) or reconstructing points
+;   - manual calculation of dx dy (below) or use of prelude vec2DMinus function
+;   - draw as many lines (below) or one long path
+;   - edge math calculates the three subdivistion points (below) or uses vector addition and rotation functions like turtle graphics
+;   - repeated edge calls (below) or concatMap over list of points
+;
+
+(def iterations 3!{1-4})
+(def [color width] [150 2])
+
+; Point on line segment, at `ratio` location.
+(def onLine (\([x1 y1] [x2 y2] ratio)
+  (let [dx dy] [(- x2 x1) (- y2 y1)]
+  [ (+ x1 (* ratio dx)) (+ y1 (* ratio dy)) ])))
+
+; Point on normal of line, at `ratio` distance from the line
+; relative to line length.
+(def normPt (\(pt1@[x1 y1] pt2@[x2 y2] ratio)
+  (let vec@[dx dy] [(- x2 x1) (- y2 y1)]
+  (vec2DPlus (vec2DScalarMult ratio [(neg dy) dx]) (halfwayBetween pt1 pt2)))))
+
+; Recursive fractal edge.
+(defrec edge (\(pt1@[x1 y1] pt2@[x2 y2] iterationsLeft)
+  (if (= 0 iterationsLeft)
+    [ (line color width x1 y1 x2 y2) ]
+    (let [thirdPt twoThirdsPt] [(onLine pt1 pt2 (/ 1 3!)) (onLine pt1 pt2 (/ 2 3!))]
+    (let outPt (normPt pt1 pt2 (* (/ 1 3!) (/ (sqrt 3!) 2!)))
+    (concat [ (edge pt1         thirdPt     (- iterationsLeft 1))
+              (edge thirdPt     outPt       (- iterationsLeft 1))
+              (edge outPt       twoThirdsPt (- iterationsLeft 1))
+              (edge twoThirdsPt pt2         (- iterationsLeft 1))
+            ]))))))
+
+; Points of initial equilateral triangle.
+(def [triPt1 triPt2 triPt3] (nPointsOnCircle 3! 0 300 300 200))
+
+(def snowflake
+  (concat [ (edge triPt1 triPt2 iterations)
+            (edge triPt2 triPt3 iterations)
+            (edge triPt3 triPt1 iterations)
+          ]))
+
+(blobs [
+  snowflake
+])

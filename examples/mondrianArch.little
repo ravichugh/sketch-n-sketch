@@ -1,0 +1,41 @@
+; Mondrian Arch
+;
+; After Henry Lieberman p554 in "What What I Do: Programming by Demonstration" Appendix B. 1993.
+;
+; Can be done with tools as of UIST 2016, but
+; parameterization is not anywhere near optimal.
+;
+; Below is hand-rolled (some digging).
+;
+; Design decisions:
+;   - Pillars relative to BB or relative to lintel (below: relative to lintel)
+;   - x/y/w/h or BB for lintel (below: x/y/w/h)
+;   - Pillar width: same as lintel or relative to BB width (below: same as lintel)
+;
+
+(def [lintel_x lintel_y lintel_w lintel_h] [76 146 145 42])
+(def lintelBot (+ lintel_y lintel_h))
+(def pillarHeight 198)
+
+(def leftPillar
+  (let [x y w h] [lintel_x lintelBot lintel_h pillarHeight]
+  (let [fill stroke strokeWidth] [352 352 0]
+  (let rot 0
+    [ (rawRect fill stroke strokeWidth x y w h rot) ]))))
+
+(def lintel
+  (let [fill stroke strokeWidth] [218 218 0]
+  (let rot 0
+    [ (rawRect fill stroke strokeWidth lintel_x lintel_y lintel_w lintel_h rot) ])))
+
+(def rightPillar
+  (let [x y w h] [(- (+ lintel_x lintel_w) lintel_h) lintelBot lintel_h pillarHeight]
+  (let [fill stroke strokeWidth] [146 146 0]
+  (let rot 0
+    [ (rawRect fill stroke strokeWidth x y w h rot) ]))))
+
+(blobs [
+  leftPillar
+  lintel
+  rightPillar
+])

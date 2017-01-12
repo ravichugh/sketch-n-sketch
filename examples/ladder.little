@@ -1,0 +1,39 @@
+; Ladder
+;
+; After Cheema, Gulwani, and LaViola "QuickDraw: Improving Drawing Experience for Geometric Diagrams" CHI 2012.
+; mentioned as originally from an math text
+;
+; Repetition and best implementation of vertical constraint done by hand.
+;
+; Design decisions:
+;   - Linear repetition specification (start sep n (below); start end n; start end sep)
+;   - Ladder bottom: absolute (below) or offset from last rung
+;   - If last rung endpoint specified: absolute or relative to ladder height or offset from ladder bottom
+;
+
+
+(def leftPost_y1 121)
+(def leftPost_y2 250)
+(def leftPost_x1 97)
+(def rightPost_x1 207)
+(def color 130)
+(def width 7)
+(def n 4{1-15})
+
+(def leftPost
+    [ (line color width leftPost_x1 leftPost_y1 leftPost_x1 leftPost_y2) ])
+
+(def rightPost
+    [ (line color width rightPost_x1 leftPost_y1 rightPost_x1 leftPost_y2) ])
+
+(def rungs
+    (def rung (\i
+    (let y (+ leftPost_y1 (* i 27.666666666666668))
+        [(line color width leftPost_x1 y rightPost_x1 y) ])))
+    (concatMap rung (zeroTo n)))
+
+(blobs [
+  leftPost
+  rightPost
+  rungs
+])
