@@ -137,6 +137,7 @@ LITTLE_TO_ELM conifer
 LITTLE_TO_ELM ferris3
 LITTLE_TO_ELM gear
 LITTLE_TO_ELM kochSnowflake
+LITTLE_TO_ELM replaceTerminalsWithWorkstations
 
 
 examples =
@@ -255,6 +256,7 @@ examples =
   , makeExample "Ferris Wheel 3" ferris3
   , makeExample "Gear" gear
   , makeExample "Koch Snowflake" kochSnowflake
+  , makeExample "Replace Termins With Workstations" replaceTerminalsWithWorkstations
   ]
 
 list = examples

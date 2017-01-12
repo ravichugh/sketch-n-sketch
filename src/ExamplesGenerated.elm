@@ -4702,6 +4702,32 @@ kochSnowflake =
 ])
 """
 
+replaceTerminalsWithWorkstations =
+ """; Replace Terminals With Workstations
+;
+; A Demo of Kurlander's graphical search and replace.
+; David Kurlander p573,pp275-277 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+;
+; Design decisions:
+;   -
+;
+
+(def polygon2
+  (let pts [[71 208] [156 220] [230 190] [226 68] [134 60] [116 69] [118 171]]
+  (let [color strokeColor strokeWidth] [454 360 2]
+    [ (rawPolygon color strokeColor strokeWidth pts 0) ])))
+
+(def polygon3
+  (let pts [[93 203] [126 180] [180 187] [147 210]]
+  (let [color strokeColor strokeWidth] [308 360 2]
+    [ (rawPolygon color strokeColor strokeWidth pts 0) ])))
+
+(blobs [
+  polygon2
+  polygon3
+])
+"""
+
 
 
 examples =
@@ -4820,6 +4846,7 @@ examples =
   , makeExample "Ferris Wheel 3" ferris3
   , makeExample "Gear" gear
   , makeExample "Koch Snowflake" kochSnowflake
+  , makeExample "Replace Termins With Workstations" replaceTerminalsWithWorkstations
   ]
 
 list = examples
