@@ -133,6 +133,10 @@ LITTLE_TO_ELM ladder
 LITTLE_TO_ELM rails
 LITTLE_TO_ELM target
 LITTLE_TO_ELM xs
+LITTLE_TO_ELM conifer
+LITTLE_TO_ELM ferris3
+LITTLE_TO_ELM gear
+LITTLE_TO_ELM kochSnowflake
 
 
 examples =
@@ -247,6 +251,10 @@ examples =
   , makeExample "Rails" rails
   , makeExample "Target" target
   , makeExample "Xs" xs
+  , makeExample "Conifer" conifer
+  , makeExample "Ferris Wheel 3" ferris3
+  , makeExample "Gear" gear
+  , makeExample "Koch Snowflake" kochSnowflake
   ]
 
 list = examples

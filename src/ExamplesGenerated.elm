@@ -4460,7 +4460,245 @@ xs =
   ))
 
 (blobs [
-  (X 199 199.99999999999994 3 55.73333333333333)
+  (X 200 250 3 50)
+])
+"""
+
+conifer =
+ """; Conifer
+;
+; This design is surprisingly difficult to code.
+;
+; Some notable decisions:
+;   - tree parameters global (below) or passed in to each function
+;   - tree height computed or given (below)
+;   - leaf separation absolute (below) or relative to leaf size
+;   - leaf separation measured as between respective points on consectutive leaves (below) or as space between leaves
+;   - branch start/end height on trunk absolute (below) or offset from base or a ratio
+;   - branch repetition start end sep (below) or start end n or start sep n
+;
+
+
+(defrec spaced (\\(start stop sep)
+  (let direction (sgn sep)
+  (if (< (* direction start) (* direction stop))
+    [start|(spaced (+ start sep) stop sep)]
+    []))))
+
+(def treeX 232)
+(def treeBot 375)
+(def treeHeight 305)
+(def treeTop (- treeBot treeHeight))
+(def [branchBot branchTop] [352 81])
+
+(def trunk
+  (let [baseY baseW] [treeBot 12]
+  (let halfBaseW (/ baseW 2!)
+  (let pts [[(- treeX halfBaseW) baseY]
+            [(+ treeX halfBaseW) baseY]
+            [treeX treeTop]]
+  (let [color strokeColor strokeWidth] [31 0 0]
+    [ (rawPolygon color strokeColor strokeWidth pts 0) ])))))
+
+
+; Draw this to maniplate how high the branches start/stop
+(def branchingLine
+  (let [color width] [280 5]
+    [ (line color width treeX branchBot treeX branchTop) ]))
+
+(def leaf (\\(cx cy)
+  (let [w h] [14 52]
+  (let [halfW halfH] [(/ w 2!) (/ h 2!)]
+  (let [left top right bot] [(- cx halfW) (- cy halfH) (+ cx halfW) (+ cy halfH)]
+  (let pts [[left cy] [cx bot] [right cy] [cx top]]
+  (let [color strokeColor strokeWidth] [127 0 0]
+    [ (rawPolygon color strokeColor strokeWidth pts 0) ])))))))
+
+(def branch (\\(baseY baseW length)
+  (let halfBaseW (/ baseW 2!)
+  (let pts [[treeX (- baseY halfBaseW)]
+            [treeX (+ baseY halfBaseW)]
+            [(+ treeX length) baseY]]
+  (let [color strokeColor strokeWidth] [31 0 0]
+    [ (rawPolygon color strokeColor strokeWidth pts 0) ])))))
+
+(def leafyBranch (\\(baseY baseW length leafSep)
+  (let halfLeafSep (/ leafSep 2!)
+  (let leaves (concatMap (\\x (leaf x baseY)) (spaced (- (+ treeX length) halfLeafSep) (+ treeX halfLeafSep) (neg leafSep)))
+  (concat [(branch baseY baseW length) leaves])))))
+
+(def side (\\direction
+  (let branchSep 38.5
+  (let leafSep (* direction 18)
+  (let drawLeafyBranch (\\y
+    (let lengthRatio (- 1! (/ (- treeBot y) treeHeight))
+    (leafyBranch y (* lengthRatio 30) (* direction (* lengthRatio 190)) leafSep)))
+  (concatMap drawLeafyBranch (spaced branchBot branchTop (neg branchSep))))))))
+
+(blobs [
+  trunk
+  (side 1!)
+  (side -1!)
+])
+"""
+
+ferris3 =
+ """; Ferris Wheel 3
+;
+; Design decisions:
+;   - Which variables to make global vs. local
+;   - Ordering of cars/rim/spokes/hub
+;
+
+(def cx 230)
+(def cy 245)
+(def [r n rot] [137 5{0-20} 0.11{-3.2-3.2}])
+(def ferrisPoints (nPointsOnCircle n rot cx cy r))
+(def spokeWidth 3)
+(def [spokeColor hubColor] [0 382])
+(def [carColor leadCarColor] [50 100])
+
+(def rim
+  [(ring spokeColor spokeWidth cx cy r)])
+
+(def car (\\([x y] color)
+  (let [x y w h] [x y 43 44]
+    [ (rectByCenter color x y w h) ])))
+
+(def spoke (\\[x y]
+    [ (line spokeColor spokeWidth cx cy x y) ]))
+
+(def cars
+  (concat (mapi (\\[i pt] (car pt (if (= 0 i) leadCarColor carColor))) ferrisPoints)))
+
+(def spokes
+  (concatMap spoke ferrisPoints))
+
+(def hub
+  (let r 24
+    [ (rawCircle hubColor 360 0 cx cy r) ]))
+
+(blobs [
+  cars
+  spokes
+  rim
+  hub
+])
+"""
+
+gear =
+ """; Gear
+;
+; Need fancier path tools to create the
+; cut out via direct manipulation.
+;
+; Need better DM to manipulate the design (parameter
+; control and better handling of rotation)
+;
+; Design decisions:
+;   - tip diameter absolute or offset from root diameter
+;   - points defined clockwise (below) or counterclockwise
+;   - how to add the lettered path commands between the points (good opportunity for PBE)
+;   - scope of unshared gear parameters, either local (below, mostly) or global
+;
+
+(def [cx cy] [200 200])
+(def [rootRadius tipRadius] [120 170])
+(def teethCount 9!{1-50})
+(def [botLandRatio topLandRatio] [0.45 0.25])
+(def rot 0)
+
+; direction controls whether points are clockwise or counterclockwise
+(def circlePathCmds (\\(cx cy r direction)
+  (let sweepFlag (if (= 1 direction) 1 0)
+  ['M' (+ cx (* direction r)) cy
+   'a' (* direction r) r 0 0 sweepFlag (* direction (neg r)) r
+   'a' (* direction r) r 0 0 sweepFlag (* direction (neg r)) (neg r)
+   'a' (* direction r) r 0 0 sweepFlag (* direction r) (neg r)
+   'a' (* direction r) r 0 0 sweepFlag (* direction r) r
+   'z'])))
+
+(def gearPts (\\(rotAngularRatioOffset r)
+  (let angularPitch (/ twoPi teethCount)
+  (reverse (nPointsOnCircle teethCount (+ rot (* angularPitch rotAngularRatioOffset)) cx cy r)))))
+
+; 0 degrees is centered on a tip
+(def topLeftPts  (gearPts (/ topLandRatio -2!) tipRadius))
+(def topRightPts (gearPts (/ topLandRatio  2!) tipRadius))
+(def botLeftPts  (gearPts (+ 0.5! (/ botLandRatio -2!)) rootRadius))
+(def botRightPts (gearPts (+ 0.5! (/ botLandRatio  2!)) rootRadius))
+
+; Now interleave all the points
+(def pathPts (concat (map4 (\\(pt1 pt2 pt3 pt4) [pt1 pt2 pt3 pt4]) topLeftPts topRightPts botLeftPts botRightPts)))
+
+(def pathCmds
+   (concat (intermingle (cons ['M'] (snoc ['Z'] (repeat (- (* 4! teethCount) 1!) ['L']))) pathPts)))
+
+(def gear
+  (let [strokeColor strokeWidth color] [372 5 352]
+    [ (rawPath color strokeColor strokeWidth (append pathCmds (circlePathCmds cx cy 50 -1!)) 0) ]))
+
+
+(blobs [
+  gear
+])
+"""
+
+kochSnowflake =
+ """; Koch Snowflake
+;
+; Can be accomplished by graphical search and replace per
+; David Kurlander p556 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+;
+; What would have helped the creation of the implementation below
+; was some local view of a functions computation (onLine, normPt).
+; Might be nice to augment with program synthesis.
+;
+; Design decisions:
+;   - as patterns (below) or reconstructing points
+;   - manual calculation of dx dy (below) or use of prelude vec2DMinus function
+;   - draw as many lines (below) or one long path
+;   - edge math calculates the three subdivistion points (below) or uses vector addition and rotation functions like turtle graphics
+;   - repeated edge calls (below) or concatMap over list of points
+;
+
+(def iterations 3!{1-4})
+(def [color width] [150 2])
+
+; Point on line segment, at `ratio` location.
+(def onLine (\\([x1 y1] [x2 y2] ratio)
+  (let [dx dy] [(- x2 x1) (- y2 y1)]
+  [ (+ x1 (* ratio dx)) (+ y1 (* ratio dy)) ])))
+
+; Point on normal of line, at `ratio` distance from the line
+; relative to line length.
+(def normPt (\\(pt1@[x1 y1] pt2@[x2 y2] ratio)
+  (let vec@[dx dy] [(- x2 x1) (- y2 y1)]
+  (vec2DPlus (vec2DScalarMult ratio [(neg dy) dx]) (halfwayBetween pt1 pt2)))))
+
+; Recursive fractal edge.
+(defrec edge (\\(pt1@[x1 y1] pt2@[x2 y2] iterationsLeft)
+  (if (= 0 iterationsLeft)
+    [ (line color width x1 y1 x2 y2) ]
+    (let [thirdPt twoThirdsPt] [(onLine pt1 pt2 (/ 1 3!)) (onLine pt1 pt2 (/ 2 3!))]
+    (let outPt (normPt pt1 pt2 (* (/ 1 3!) (/ (sqrt 3!) 2!)))
+    (concat [ (edge pt1         thirdPt     (- iterationsLeft 1))
+              (edge thirdPt     outPt       (- iterationsLeft 1))
+              (edge outPt       twoThirdsPt (- iterationsLeft 1))
+              (edge twoThirdsPt pt2         (- iterationsLeft 1))
+            ]))))))
+
+; Points of initial equilateral triangle.
+(def [triPt1 triPt2 triPt3] (nPointsOnCircle 3! 0 300 300 200))
+
+(def snowflake
+  (concat [ (edge triPt1 triPt2 iterations)
+            (edge triPt2 triPt3 iterations)
+            (edge triPt3 triPt1 iterations)
+          ]))
+
+(blobs [
+  snowflake
 ])
 """
 
@@ -4578,6 +4816,10 @@ examples =
   , makeExample "Rails" rails
   , makeExample "Target" target
   , makeExample "Xs" xs
+  , makeExample "Conifer" conifer
+  , makeExample "Ferris Wheel 3" ferris3
+  , makeExample "Gear" gear
+  , makeExample "Koch Snowflake" kochSnowflake
   ]
 
 list = examples

@@ -47,6 +47,20 @@ prelude =
     ([[x|xs1] [y|ys1]] [ (f x y) | (map2 f xs1 ys1) ])
     (_                 []))))
 
+;; Combines three lists with a given function, extra elements are dropped
+(typ map3 (forall (a b c d) (-> (-> a b c d) (List a) (List b) (List c) (List d))))
+(defrec map3 (\\(f xs ys zs)
+  (case [xs ys zs]
+    ([[x|xs1] [y|ys1] [z|zs1]] [ (f x y z) | (map3 f xs1 ys1 zs1) ])
+    (_                         []))))
+
+;; Combines four lists with a given function, extra elements are dropped
+(typ map4 (forall (a b c d e) (-> (-> a b c d e) (List a) (List b) (List c) (List d) (List e))))
+(defrec map4 (\\(f ws xs ys zs)
+  (case [ws xs ys zs]
+    ([[w|ws1] [x|xs1] [y|ys1] [z|zs1]] [ (f w x y z) | (map4 f ws1 xs1 ys1 zs1) ])
+    (_                                 []))))
+
 ;; Takes a function, an accumulator, and a list as input and reduces using the function from the left
 (typ foldl (forall (a b) (-> (-> a b b) b (List a) b)))
 (defrec foldl (\\(f acc xs)
@@ -201,6 +215,14 @@ prelude =
 ;; Given a number, returns the negative of that number
 (typ neg (-> Num Num))
 (def neg (\\x (- 0 x)))
+
+;; Absolute value
+(typ abs (-> Num Num))
+(def abs (\\x (if (< x 0) (neg x) x)))
+
+;; Sign function; -1, 0, or 1 based on sign of given number
+(typ sgn (-> Num Num))
+(def sgn (\\x (if (= 0 x) 0 (/ x (abs x)))))
 
 ;; Given a bool, returns the opposite boolean value
 (typ not (-> Bool Bool))
@@ -416,6 +438,19 @@ prelude =
     (* (y vec) num)
   ]
 ))
+
+(typ vec2DScalarDiv (-> Num Vec2D Point))
+(def vec2DScalarDiv (\\(num vec)
+  [
+    (/ (x vec) num)
+    (/ (y vec) num)
+  ]
+))
+
+(typ vec2DLength (-> Point Point Num))
+(def vec2DLength (\\([x1 y1] [x2 y2] Num)
+  (let [dx dy] [(- x2 x1) (- y2 y1)]
+  (sqrt (+ (* dx dx) (* dy dy))))))
 
 
 ; === Circles ===
