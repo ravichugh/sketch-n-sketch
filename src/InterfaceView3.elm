@@ -190,7 +190,7 @@ attributeToolBox model layout =
 
 textToolBox model layout =
   toolBox model "textToolBox" Layout.getPutTextToolBox layout.textTools
-    [ relateButton model "Test" Controller.msgMouseEnterCodeBox
+    [ deuceButton model "Swap Exp" Controller.msgSwapExp
     ]
 
 blobToolBox model layout =
@@ -476,6 +476,10 @@ toolButton model tool =
       (False, _)           -> (Unselected, False)
   in
   htmlButton cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled
+
+deuceButton model text handler =
+  let noFeatures = Set.isEmpty model.selectedEIds in --&& Set.isEmpty model.selectedPats in
+  htmlButton text handler Regular noFeatures
 
 relateButton model text handler =
   let noFeatures = Set.isEmpty model.selectedFeatures in

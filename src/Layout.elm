@@ -237,7 +237,7 @@ computeLayout m =
      , topBottom = Bottom <| windowPadding
      }
   , textTools = offset m getTextToolBox
-     { leftRight = Left   <| dimCanvas.initialLeft
-     , topBottom = Top    <| windowPadding + round (8.4 * (rowGap + buttonHeight))
+     { leftRight = Left   <| dimCodeBox.left
+     , topBottom = Bottom    <| windowPadding -- + round (8.4 * (rowGap + buttonHeight))
      }
   }
