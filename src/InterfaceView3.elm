@@ -208,6 +208,7 @@ attributeToolBox model layout =
 textToolBox model layout =
   toolBox model "textToolBox" Layout.getPutTextToolBox layout.textTools
     [ deuceButton model "Swap Exp" Controller.msgSwapExp
+    , fontSizeButton model
     ]
 
 blobToolBox model layout =
@@ -228,8 +229,7 @@ moreBlobToolBox model layout =
 outputToolBox model layout =
   toolBox model "outputToolBox" Layout.getPutOutputToolBox layout.outputTools
     [ -- codeBoxButton model
-      fontSizeButton model
-    , heuristicsButton model
+      heuristicsButton model
     , outputButton model
     , ghostsButton model
     ]
