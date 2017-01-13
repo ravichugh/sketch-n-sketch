@@ -108,6 +108,7 @@ type alias CodeBoxInfo =
   , highlights : List Ace.Highlight
   , annotations : List Ace.Annotation
   , tooltips : List Ace.Tooltip
+  , fontSize : Int
   }
 
 type alias RawSvg = String
@@ -189,6 +190,7 @@ type alias LayoutOffsets =
   , drawToolBox : Offsets
   , attributeToolBox : Offsets
   , blobToolBox : Offsets
+  , moreBlobToolBox : Offsets
   , outputToolBox : Offsets
   , animationToolBox : Offsets
   , textToolBox : Offsets
@@ -205,6 +207,7 @@ initialLayoutOffsets =
   , drawToolBox = init
   , attributeToolBox = init
   , blobToolBox = init
+  , moreBlobToolBox = init
   , outputToolBox = init
   , animationToolBox = init
   , textToolBox = init 
@@ -234,6 +237,9 @@ openDialogBox db model =
 
 closeDialogBox db model =
   { model | dialogBoxes = Set.remove (dbToInt db) model.dialogBoxes }
+
+isDialogBoxShowing db model =
+  Set.member (dbToInt db) model.dialogBoxes
 
 --------------------------------------------------------------------------------
 
@@ -401,6 +407,7 @@ initModel =
                       , highlights = []
                       , annotations = []
                       , tooltips = []
+                      , fontSize = 14
                       }
     , basicCodeBox  = False
     , errorBox      = Nothing

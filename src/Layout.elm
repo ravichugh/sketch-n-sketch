@@ -73,6 +73,7 @@ getPutCodeToolBox      = (getCodeToolBox,      putCodeToolBox)
 getPutDrawToolBox      = (getDrawToolBox,      putDrawToolBox)
 getPutAttributeToolBox = (getAttributeToolBox, putAttributeToolBox)
 getPutBlobToolBox      = (getBlobToolBox,      putBlobToolBox)
+getPutMoreBlobToolBox  = (getMoreBlobToolBox,  putMoreBlobToolBox)
 getPutOutputToolBox    = (getOutputToolBox,    putOutputToolBox)
 getPutAnimationToolBox = (getAnimationToolBox,    putAnimationToolBox)
 getPutCodeBox          = (getCodeBox,          putCodeBox)
@@ -84,6 +85,7 @@ getCodeToolBox      = .layoutOffsets >> .codeToolBox
 getDrawToolBox      = .layoutOffsets >> .drawToolBox
 getAttributeToolBox = .layoutOffsets >> .attributeToolBox
 getBlobToolBox      = .layoutOffsets >> .blobToolBox
+getMoreBlobToolBox  = .layoutOffsets >> .moreBlobToolBox
 getOutputToolBox    = .layoutOffsets >> .outputToolBox
 getAnimationToolBox = .layoutOffsets >> .animationToolBox
 getCodeBox          = .layoutOffsets >> .codeBox
@@ -114,6 +116,11 @@ putBlobToolBox dx dy model =
   let layoutOffsets = model.layoutOffsets in
   { model | layoutOffsets =
     { layoutOffsets | blobToolBox = { dx = dx, dy = dy } } }
+
+putMoreBlobToolBox dx dy model =
+  let layoutOffsets = model.layoutOffsets in
+  { model | layoutOffsets =
+    { layoutOffsets | moreBlobToolBox = { dx = dx, dy = dy } } }
 
 putOutputToolBox dx dy model =
   let layoutOffsets = model.layoutOffsets in
@@ -170,8 +177,11 @@ type alias Info =
   , fileTools : FixedPosition
   , codeTools : FixedPosition
   , drawTools : FixedPosition
+  , stretchyDrawTools : FixedPosition
+  , lambdaDrawTools : FixedPosition
   , attributeTools : FixedPosition
   , blobTools : FixedPosition
+  , moreBlobTools : FixedPosition
   , outputTools : FixedPosition
   , animationTools : FixedPosition
   , captionArea : FixedPosition
@@ -210,19 +220,31 @@ computeLayout m =
      }
   , codeTools = offset m getCodeToolBox
      { leftRight = Left   <| dimCanvas.initialLeft + fileAndCodeToolBoxRightOffset
-     , topBottom = Top    <| windowPadding + round (4.2 * (rowGap + buttonHeight))
+     , topBottom = Top    <| windowPadding + round (1 * (rowGap + buttonHeight))
      }
   , drawTools = offset m getDrawToolBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + 0 * (rowGap + buttonHeight)
+     , topBottom = Top    <| windowPadding + round (1.3 * (rowGap + buttonHeight))
+     }
+  , stretchyDrawTools = offset m getDrawToolBox -- reusing drawTools offset
+     { leftRight = Right  <| windowPadding
+     , topBottom = Top    <| windowPadding + round (2.3 * (rowGap + buttonHeight))
+     }
+  , lambdaDrawTools = offset m getDrawToolBox -- reusing drawTools offset
+     { leftRight = Right  <| windowPadding
+     , topBottom = Top    <| windowPadding + round (3.3 * (rowGap + buttonHeight))
      }
   , attributeTools = offset m getAttributeToolBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + 1 * (rowGap + buttonHeight)
+     , topBottom = Top    <| windowPadding + round (4.6 * (rowGap + buttonHeight))
      }
   , blobTools = offset m getBlobToolBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + 2 * (rowGap + buttonHeight)
+     , topBottom = Top    <| windowPadding + round (5.6 * (rowGap + buttonHeight))
+     }
+  , moreBlobTools = offset m getMoreBlobToolBox
+     { leftRight = Right  <| windowPadding
+     , topBottom = Top    <| windowPadding + round (6.6 * (rowGap + buttonHeight))
      }
   , outputTools = offset m getOutputToolBox
      { leftRight = Right  <| windowPadding
