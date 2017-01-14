@@ -10,6 +10,7 @@ import Either exposing (..)
 
 import InterfaceModel as Model exposing
   ( Msg(..), Model, Tool(..), ShapeToolKind(..), Mode(..)
+  , ReplicateKind(..), LambdaTool(..)
   , Caption(..), MouseMode(..)
   , mkLive_
   , DialogBox(..)
@@ -17,6 +18,7 @@ import InterfaceModel as Model exposing
 import InterfaceController as Controller
 import Layout
 import Canvas
+import LangUnparser exposing (unparse)
 import LangSvg exposing (attr)
 import Sync
 
@@ -60,8 +62,11 @@ view model =
   let fileTools = fileToolBox model layout in
   let codeTools = codeToolBox model layout in
   let drawTools = drawToolBox model layout in
+  let stretchyDrawTools = stretchyDrawToolBox model layout in
+  let lambdaDrawTools = lambdaDrawToolBox model layout in
   let attributeTools = attributeToolBox model layout in
   let blobTools = blobToolBox model layout in
+  let moreBlobTools = moreBlobToolBox model layout in
   let outputTools = outputToolBox model layout in
   let textTools = textToolBox model layout in
 
@@ -123,7 +128,7 @@ view model =
 
      -- toolboxes in reverse order
      , outputTools] ++ animationTools ++
-     [ blobTools, attributeTools, drawTools
+     [ moreBlobTools, blobTools, attributeTools, lambdaDrawTools, stretchyDrawTools, drawTools
      , textTools
      , codeTools, fileTools
 
@@ -156,10 +161,8 @@ fileToolBox model layout =
     , fileSaveAsDialogBoxButton
     , fileSaveButton model
     , fileOpenDialogBoxButton
-    , Html.br [] []
     , exportCodeButton
     , exportSvgButton
-    , Html.br [] []
     , importCodeButton
     , importSvgButton
     ]
@@ -182,6 +185,20 @@ drawToolBox model layout =
     , toolButton model (Path Raw)
     ]
 
+stretchyDrawToolBox model layout =
+  toolBox model "stretchyDrawToolBox" Layout.getPutDrawToolBox layout.stretchyDrawTools
+    [ toolButton model (Rect Stretchy)
+    , toolButton model (Oval Stretchy)
+    , toolButton model (Poly Stretchy)
+    , toolButton model (Path Stretchy)
+    ]
+
+lambdaDrawToolBox model layout =
+  toolBox model "lambdaDrawToolBox" Layout.getPutDrawToolBox layout.lambdaDrawTools
+    [ toolButton model Lambda
+    , dropdownLambdaTool model
+    ]
+
 attributeToolBox model layout =
   toolBox model "attributeToolBox" Layout.getPutAttributeToolBox layout.attributeTools
     [ relateButton model "Dig Hole" Controller.msgDigHole
@@ -191,14 +208,22 @@ attributeToolBox model layout =
 textToolBox model layout =
   toolBox model "textToolBox" Layout.getPutTextToolBox layout.textTools
     [ deuceButton model "Swap Exp" Controller.msgSwapExp
+    , fontSizeButton model
     ]
 
 blobToolBox model layout =
   toolBox model "blobToolBox" Layout.getPutBlobToolBox layout.blobTools
-    [ groupButton model "Dupe" Controller.msgDuplicateBlobs
-    , groupButton model "Merge" Controller.msgMergeBlobs
-    , groupButton model "Group" Controller.msgGroupBlobs
-    , groupButton model "Abs" Controller.msgAbstractBlobs
+    [ groupButton model "Dupe" Controller.msgDuplicateBlobs True
+    , groupButton model "Merge" Controller.msgMergeBlobs True
+    , groupButton model "Group" Controller.msgGroupBlobs False
+    , groupButton model "Abstract" Controller.msgAbstractBlobs True
+    ]
+
+moreBlobToolBox model layout =
+  toolBox model "moreBlobToolBox" Layout.getPutMoreBlobToolBox layout.moreBlobTools
+    [ groupButton model "Repeat Right" (Controller.msgReplicateBlob HorizontalRepeat) True
+    , groupButton model "Repeat To" (Controller.msgReplicateBlob LinearRepeat) True
+    , groupButton model "Repeat Around" (Controller.msgReplicateBlob RadialRepeat) True
     ]
 
 outputToolBox model layout =
@@ -246,6 +271,7 @@ aceCodeBox model dim =
                  , ("left", pixels Layout.windowPadding)
                  , ("top", pixels Layout.windowPadding)
                  , ("pointer-events", "auto")
+                 , ("z-index", "-1")
                  ]
     , onMouseEnter Controller.msgMouseEnterCodeBox
     , onMouseLeave Controller.msgMouseLeaveCodeBox
@@ -452,12 +478,11 @@ toolButton model tool =
     Cursor        -> "Cursor"
     Line Raw      -> "Line"
     Rect Raw      -> "Rect"
-    Rect Stretchy -> capStretchy "Box"
+    Rect Stretchy -> capStretchy "Rect" -- "Box"
     Oval Raw      -> "Ellipse"
-    Oval Stretchy -> capStretchy "Oval"
+    Oval Stretchy -> capStretchy "Ellipse" -- "Oval"
     Poly Raw      -> "Polygon"
-    -- Poly Stretchy -> capStretchy "Polygon"
-    Poly Stretchy -> capStretchy "Poly"
+    Poly Stretchy -> capStretchy "Polygon"
     Poly Sticky   -> capSticky
     Path Raw      -> "Path"
     Path Stretchy -> capStretchy "Path"
@@ -485,10 +510,11 @@ relateButton model text handler =
   let noFeatures = Set.isEmpty model.selectedFeatures in
   htmlButton text handler Regular noFeatures
 
-groupButton model text handler =
+groupButton model text handler disallowSelectedFeatures =
   let noFeatures = Set.isEmpty model.selectedFeatures in
   let noBlobs = Dict.isEmpty model.selectedBlobs in
-  htmlButton text handler Regular (noBlobs || not noFeatures)
+  htmlButton text handler Regular
+    (noBlobs || (disallowSelectedFeatures && (not noFeatures)))
 
 previousSlideButton model =
   htmlButton "◀◀" Controller.msgPreviousSlide Regular
@@ -528,8 +554,12 @@ fileSaveButton model =
 fileOpenDialogBoxButton =
   htmlButton "Open" (Controller.msgOpenDialogBox Open) Regular False
 
-closeDialogBoxButton db =
-  htmlButton "X" (Controller.msgCloseDialogBox db) Regular False
+closeDialogBoxButton db model =
+  htmlButton
+    "X"
+    (Controller.msgCloseDialogBox db)
+    Regular
+    (Model.isDialogBoxShowing AlertSave model)
 
 exportCodeButton =
   htmlButton "Export Code" Controller.msgExportCode Regular False
@@ -549,6 +579,72 @@ importSvgButton =
 --       False -> "[Autosave] No"
 --     in
 --       htmlButton cap Controller.msgToggleAutosave Regular True
+
+fontSizeButton model =
+  let cap = "Font Size " ++ Utils.bracks (toString model.codeBoxInfo.fontSize) in
+  let msg = Msg "Update Font Size" <| \m ->
+    let codeBoxInfo = m.codeBoxInfo in
+    let (minSize, maxSize) = (10, 24) in
+    let fontSize =
+      if codeBoxInfo.fontSize + 2 <= maxSize
+        then codeBoxInfo.fontSize + 2
+        else minSize
+    in
+    { m | codeBoxInfo = { codeBoxInfo | fontSize = fontSize } }
+  in
+  htmlButton cap msg Regular False
+
+
+--------------------------------------------------------------------------------
+-- Lambda Tool Dropdown Menu
+
+strLambdaTool lambdaTool =
+  let strExp = String.trim << unparse in
+  case lambdaTool of
+    LambdaBounds e -> "bounds. " ++ strExp e ++ " bounds"
+    LambdaAnchor e -> "anchor. " ++ strExp e ++ " anchor"
+
+dropdownLambdaTool model =
+  let options =
+    let (selectedIdx, exps) = model.lambdaTools in
+    Utils.mapi (\(i,lambdaTool) ->
+      let s = strLambdaTool lambdaTool in
+      Html.option
+         [ Attr.value s, Attr.selected (i == selectedIdx) ]
+         [ Html.text s ]
+      ) exps
+  in
+  let handler selected =
+    Msg "Select Lambda Option" <| \model ->
+      let (_, exps) = model.lambdaTools in
+      let indexedStrings = Utils.mapi (\(i,lt) -> (i, strLambdaTool lt)) exps in
+      let newSelectedIdx =
+        case Utils.findFirst ((==) selected << Tuple.second) indexedStrings of
+          Just (i, _) -> i
+          Nothing     -> Debug.crash "dropdownLambdaTools"
+      in
+      { model | tool = Lambda, lambdaTools = (newSelectedIdx, exps) }
+  in
+  Html.select
+    [ on "change" (Json.Decode.map handler Html.Events.targetValue)
+    , handleEventAndStop "mousedown" Controller.msgNoop
+        -- to prevent underlying toolBox from starting dragLayoutWidgetTrigger
+    , Attr.style
+        [ ("pointer-events", "auto")
+        , ("border", "0 solid")
+        , ("width", "140px")
+        , ("height", pixels Layout.buttonHeight)
+        , ("font-family", params.mainSection.widgets.font)
+        , ("font-size", params.mainSection.widgets.fontSize)
+
+        -- https://stackoverflow.com/questions/24210132/remove-border-radius-from-select-tag-in-bootstrap-3
+        , ("outline", "1px solid #CCC")
+        , ("outline-offset", "-1px")
+        , ("background-color", "white")
+        ]
+    ]
+    options
+
 
 --------------------------------------------------------------------------------
 -- Hover Caption
@@ -598,59 +694,70 @@ truncateFloat n =
 --------------------------------------------------------------------------------
 -- Dialog Boxes
 
-dialogBox zIndex width height closable db model headerElements elements =
-  let
-    closeButton =
-      if closable then
-        [ closeDialogBoxButton db ]
-      else
-        []
-    displayStyle =
-      if (Set.member (Model.dbToInt db) model.dialogBoxes) then
-        "flex"
-      else
-        "none"
-  in
-    Html.div
-      [ Attr.style
-          [ ("position", "fixed")
-          , ("top", "50%")
-          , ("left", "50%")
-          , ("width", width)
-          , ("height", height)
-          , ("font-family", "sans-serif")
-          , ("background-color", "#F8F8F8")
-          , ("border", "2px solid " ++ Layout.strInterfaceColor)
-          , ("border-radius", "10px")
-          , ("box-shadow", "0 0 10px 0 #888888")
-          , ("transform", "translateY(-50%) translateX(-50%)")
-          , ("margin", "auto")
-          , ("z-index", zIndex)
-          , ("display", displayStyle)
-          , ("flex-direction", "column")
-          ]
-      ] <|
-      [ Html.h2
-          [ Attr.style
-              [ ("margin", "0")
-              , ("padding", "0 20px")
-              , ("border-bottom", "1px solid black")
-              , ("flex", "0 0 60px")
-              , ("display", "flex")
-              , ("justify-content", "space-between")
-              , ("align-items", "center")
-              ]
-          ] <|
-          [ Html.div [] headerElements
-          , Html.div [] closeButton
-          ]
-      , Html.div
-          [ Attr.style
-              [ ("overflow", "scroll")
-              ]
-          ]
-          elements
-      ]
+dialogBox
+  zIndex
+  width
+  height
+  closable
+  db
+  model
+  headerStyles
+  headerElements
+  parentStyles
+  elements =
+    let
+      closeButton =
+        if closable then
+          [ closeDialogBoxButton db model ]
+        else
+          []
+      displayStyle =
+        if (Model.isDialogBoxShowing db model) then
+          "flex"
+        else
+          "none"
+    in
+      Html.div
+        [ Attr.style
+            [ ("position", "fixed")
+            , ("top", "50%")
+            , ("left", "50%")
+            , ("width", width)
+            , ("height", height)
+            , ("font-family", "sans-serif")
+            , ("background-color", "#F8F8F8")
+            , ("border", "2px solid " ++ Layout.strInterfaceColor)
+            , ("border-radius", "10px")
+            , ("box-shadow", "0 0 10px 0 #888888")
+            , ("transform", "translateY(-50%) translateX(-50%)")
+            , ("margin", "auto")
+            , ("z-index", zIndex)
+            , ("display", displayStyle)
+            , ("flex-direction", "column")
+            ]
+        ] <|
+        [ Html.h2
+            [ Attr.style <|
+                [ ("margin", "0")
+                , ("padding", "0 20px")
+                , ("border-bottom", "1px solid black")
+                , ("flex", "0 0 60px")
+                , ("display", "flex")
+                , ("justify-content", "space-between")
+                , ("align-items", "center")
+                ] ++ headerStyles
+            ] <|
+            [ Html.div [] headerElements
+            , Html.div [] closeButton
+            ]
+        , Html.div
+            [ Attr.style <|
+                [ ("overflow", "scroll")
+                , ("flex-grow", "1")
+                ] ++ parentStyles
+            ]
+            elements
+        ]
 
 bigDialogBox = dialogBox "100" "85%" "85%"
 
@@ -677,7 +784,9 @@ fileNewDialogBox model =
       True
       New
       model
+      []
       [Html.text "New..."]
+      []
       (List.map viewTemplate Examples.list)
 
 fileSaveAsDialogBox model =
@@ -708,7 +817,9 @@ fileSaveAsDialogBox model =
       True
       SaveAs
       model
+      []
       [Html.text "Save As..."]
+      []
       ((List.map viewFileIndexEntry model.fileIndex) ++ [saveAsInput])
 
 fileOpenDialogBox model =
@@ -737,7 +848,7 @@ fileOpenDialogBox model =
                            False
               , Html.span
                   [ Attr.style
-                    [ ("margin-left", "50px")
+                    [ ("margin-left", "30px")
                     ]
                   ]
                   [ htmlButton "Delete"
@@ -752,7 +863,9 @@ fileOpenDialogBox model =
       True
       Open
       model
+      []
       [Html.text "Open..."]
+      []
       (List.map fileOpenRow model.fileIndex)
 
 viewFileIndexEntry filename =
@@ -780,50 +893,58 @@ fileIndicator model =
       else
         filenameHtml
   in
-    Html.div
+    Html.span
       [ Attr.style
           [ ("color", "white")
           , ("font-family", "sans-serif")
           , ("padding", "7px")
           ]
       ]
+      [ wrapper ]
+{-
       [ Html.u [] [ Html.text "File" ]
       , Html.text ": "
       , wrapper
       ]
+-}
 
 alertSaveDialogBox model =
   smallDialogBox
     False
     AlertSave
     model
+    []
     [ Html.span
         [ Attr.style [("color", "#550000")] ]
         [ Html.text "Warning" ]
     ]
+    [ ("display", "flex") ]
     [ Html.div
         [ Attr.style
             [ ("padding", "20px")
+            , ("flex-grow", "1")
+            , ("display", "flex")
+            , ("flex-direction", "column")
+            , ("justify-content", "space-between")
             ]
         ]
-        [ Html.i []
-            [ Html.text <| Model.prettyFilename model ]
-        , Html.text
-            " has unsaved changes. Would you like to continue anyway?"
-        , Html.br [] []
-        , Html.br [] []
-        , Html.br [] []
+        [ Html.div
+            []
+            [ Html.i []
+                [ Html.text <| Model.prettyFilename model ]
+            , Html.text
+                " has unsaved changes. Would you like to continue anyway?"
+            ]
         , Html.div
             [ Attr.style
-                [ ("float", "right")
-                , ("margin-bottom", "20px")
+                [ ("text-align", "right")
                 ]
             ]
             [ htmlButton "Cancel" Controller.msgCancelFileOperation Regular False
             , Html.span
                 [ Attr.style
-                  [ ("margin-left", "50px")
-                  ]
+                    [ ("margin-left", "30px")
+                    ]
                 ]
                 [ htmlButton "Yes (Discard Changes)" Controller.msgConfirmFileOperation Regular False ]
             ]
@@ -835,7 +956,9 @@ importCodeDialogBox model =
     True
     ImportCode
     model
+    []
     [ Html.text "Import Code..." ]
+    []
     [ Html.div
         [ Attr.style
             [ ("padding", "20px")

@@ -2,13 +2,17 @@
 
 var editor;
 var markers = [];
+var fontSize = 14;
 
 function initialize() {
   editor = ace.edit("editor");
   editor.$blockScrolling = Infinity;
   editor.setTheme("ace/theme/chrome");
-  editor.setFontSize(14);
+  editor.setFontSize(fontSize);
   editor.getSession().setMode("ace/mode/little");
+  editor.setOption("dragEnabled", "true");
+    // this flag is true by default, but adding it for emphasis.
+    // and setting it to false doesn't disable dragging...
 
   editor.on("input", function() {
       var info = getEditorState();
@@ -162,6 +166,7 @@ function getEditorState() {
     , highlights : [] // TODO
     , annotations : [] // TODO
     , tooltips : [] // TODO
+    , fontSize : fontSize
     };
   var info =
     { code : editor.getSession().getDocument().getValue()
@@ -182,6 +187,15 @@ app.ports.aceCodeBoxCmd.subscribe(function(aceCmd) {
     display(aceCmd.info);
 
   } else if (message == "display") {
+    display(aceCmd.info);
+
+  } else if (message == "resize") {
+    editor.resize();
+    display(aceCmd.info);
+
+  } else if (message == "updateFontSize") {
+    fontSize = aceCmd.info.codeBoxInfo.fontSize;
+    editor.setFontSize(fontSize);
     display(aceCmd.info);
 
   } else {

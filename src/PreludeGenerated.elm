@@ -1582,7 +1582,7 @@ prelude =
 (def radialArray (\\(n radius rot func [cx cy])
   (let center ; draw ghost circle to control anchor
               ; not using point widget, since it's not selectable
-    (circle 'orange' cx cy 20)
+    (ghost (circle 'orange' cx cy 20))
   (let _ ; draw point widget to control radius
     (let xWidget (floorAndLocalFreeze cx)
     (let yWidget (- (floorAndLocalFreeze cy) radius)

@@ -502,6 +502,9 @@ issueCommand (Msg kind _) oldModel newModel =
       FileHandler.requestFileIndex ()
 
     _ ->
+      if kind == "Update Font Size" then
+        AceCodeBox.updateFontSize newModel
+      else
       if newModel.code /= oldModel.code ||
          newModel.codeBoxInfo /= oldModel.codeBoxInfo ||
          kind == "Turn Off Caption" ||
@@ -513,6 +516,11 @@ issueCommand (Msg kind _) oldModel newModel =
            -- stale yellow highlights.
       then
         AceCodeBox.display newModel
+      else if kind == "Drag Layout Widget Trigger" then
+        -- TODO: only want to do this for resize code box widget.
+        -- and need to resize during and after the MouseDragLayout trigger.
+        -- (onMouseUp). workaround for now: click widget again.
+        AceCodeBox.resize newModel
       else if newModel.runAnimation then
         AnimationLoop.requestFrame ()
       else
