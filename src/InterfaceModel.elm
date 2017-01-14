@@ -280,6 +280,68 @@ findPats e =
   in
   foldExp find [] e 
 
+computePatSpaces pat =
+  case pat.val of
+    PConst ws _              -> [(pat.val, 
+                                  {line = pat.start.line, col = pat.start.col - 1},
+                                  {line = pat.start.line, col = pat.start.col}),
+                                (pat.val, 
+                                  {line = pat.end.line, col = pat.end.col},
+                                  {line = pat.end.line, col = pat.end.col + 1})
+                                ]
+    PBase ws _               -> [(pat.val, 
+                                  {line = pat.start.line, col = pat.start.col - 1},
+                                  {line = pat.start.line, col = pat.start.col}),
+                                (pat.val, 
+                                  {line = pat.end.line, col = pat.end.col},
+                                  {line = pat.end.line, col = pat.end.col + 1})
+                                ]
+    PVar ws x _              -> [(pat.val, 
+                                  {line = pat.start.line, col = pat.start.col - 1},
+                                  {line = pat.start.line, col = pat.start.col}),
+                                (pat.val, 
+                                  {line = pat.end.line, col = pat.end.col},
+                                  {line = pat.end.line, col = pat.end.col + 1})
+                                ]
+    PList ws1 ps ws2 Nothing ws3  -> 
+                                --[(pat.val, 
+                                --  {line = pat.start.line, col = pat.start.col - (String.length ws1)},
+                                --  {line = pat.start.line, col = pat.start.col - (String.length ws1) + 1}),
+                                --(pat.val, 
+                                --  {line = pat.end.line, col = pat.end.col + (String.length ws2) + (String.length ws3)},
+                                --  {line = pat.end.line, col = pat.end.col + (String.length ws2) + (String.length ws3) + 1})
+                                --] ++ List.concatMap computePatSpaces ps
+                                List.concatMap computePatSpaces ps
+    PList ws1 ps ws2 (Just p) ws3 -> 
+                                --[(pat.val, 
+                                --  {line = pat.start.line, col = pat.start.col - (String.length ws1)},
+                                --  {line = pat.start.line, col = pat.start.col - (String.length ws1) + 1}),
+                                --(pat.val, 
+                                --  {line = pat.end.line, col = pat.end.col + (String.length ws3)},
+                                --  {line = pat.end.line, col = pat.end.col + (String.length ws3) + 1})
+                                --] ++ List.concatMap computePatSpaces (p::ps)
+                                List.concatMap computePatSpaces ps
+    PAs ws1 x ws2 p             -> 
+                                [(pat.val, 
+                                  {line = pat.start.line, col = pat.start.col - 1},
+                                  {line = pat.start.line, col = pat.start.col}),
+                                (pat.val, 
+                                  {line = pat.end.line, col = pat.end.col},
+                                  {line = pat.end.line, col = pat.end.col + 1})
+                                ] ++ computePatSpaces p
+
+findPatSpaces e = 
+  let find e acc = 
+    case e.val.e__ of 
+      EFun _ (p::ps) _ _ -> List.concatMap computePatSpaces (p::ps) ++ acc
+      ETypeCase _ p _ _ -> computePatSpaces p ++ acc
+      ELet _ _ _ p _ _ _ -> computePatSpaces p ++ acc
+      ETyp _ p _ _ _ -> computePatSpaces p ++ acc
+      ETypeAlias _ p _ _ _ -> computePatSpaces p ++ acc
+      _ -> acc 
+  in
+  foldExp find [] e 
+
 computeConstantRanges : Exp -> List (EId, Num, P.Pos, P.Pos)
 computeConstantRanges e =
   let combine e acc =
@@ -332,6 +394,22 @@ patRangesToHighlights m =
       []
   in
   List.concatMap maybeHighlight (findPats m.inputExp)
+
+patSpacesToHighlights m = 
+  let maybeHighlight (p,start,end) =
+    let range =
+      { start = { row = start.line, column = start.col }
+      , end   = { row = end.line, column = end.col  } }
+    in
+    --if Set.member (start.line, start.col, end.line, end.col) m.selectedPats then
+      --[ { color = "gold", range = range } ]
+    if m.hoveringCodeBox then
+      [ { color = "lightgreen", range = range } ]
+    else
+      []
+  in
+  List.concatMap maybeHighlight (findPatSpaces m.inputExp)
+
 --------------------------------------------------------------------------------
 
 codeToShow model =
