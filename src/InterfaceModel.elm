@@ -261,12 +261,12 @@ liveInfoToHighlights zoneKey model =
 
 computePatRanges pat =
   case pat.val of
-    PConst _ _              -> [(pat.val, pat.start, pat.end)]
-    PBase _ _               -> [(pat.val, pat.start, pat.end)]
-    PVar _ x _              -> [(pat.val, pat.start, pat.end)]
-    PList _ ps _ Nothing _  -> List.concatMap computePatRanges ps
-    PList _ ps _ (Just p) _ -> List.concatMap computePatRanges (p::ps)
-    PAs _ x _ p             -> computePatRanges p
+    PConst _ _              -> [(pat.val, pat.start, pat.end, pat.end)]
+    PBase _ _               -> [(pat.val, pat.start, pat.end, pat.end)]
+    PVar _ x _              -> [(pat.val, pat.start, pat.end, pat.end)]
+    PList _ ps _ Nothing _  -> [(pat.val, pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })] ++ List.concatMap computePatRanges ps
+    PList _ ps _ (Just p) _ -> [(pat.val, pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })] ++ List.concatMap computePatRanges (p::ps)
+    PAs _ x _ p             -> [(pat.val, pat.start, pat.end, pat.end)] ++ computePatRanges p
 
 findPats e = 
   let find e acc = 
@@ -297,7 +297,7 @@ computeExpRanges e =
       EConst _ n _ _ -> (e.val.eid, e, e.start, e.end, e.end) :: acc
       EBase _ b -> (e.val.eid, e, e.start, e.end, e.end) :: acc 
       EVar _ i -> (e.val.eid, e, e.start, e.end, e.end) :: acc 
-      --EFun _ p e2 _ -> (e.val.eid, e, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }) :: acc
+      EFun _ p e2 _ -> (e.val.eid, e, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }) :: acc
       ELet _ _ r p e1 e2 _ -> (e.val.eid, e, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }) :: acc 
       _              -> acc
   in
@@ -319,10 +319,10 @@ expRangesToHighlights m =
   List.concatMap maybeHighlight (computeExpRanges m.inputExp)
 
 patRangesToHighlights m = 
-  let maybeHighlight (p,start,end) =
+  let maybeHighlight (p,start,end,selectEnd) =
     let range =
       { start = { row = start.line, column = start.col }
-      , end   = { row = end.line, column = end.col  } }
+      , end   = { row = end.line, column = selectEnd.col  } }
     in
     if Set.member (start.line, start.col, end.line, end.col) m.selectedPats then
       [ { color = "gold", range = range } ]

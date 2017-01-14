@@ -1136,11 +1136,11 @@ getClickedEId ls cursorPos =
 
 getClickedPat ls cursorPos = 
   let selected =
-    List.filter (\(pat,start,end) -> betweenPos start cursorPos end) ls
+    List.filter (\(pat,start,end,selectEnd) -> betweenPos start cursorPos end) ls
   in
   case selected of
     []            -> Nothing
-    [(p,s,e)]     -> Just (s.line, s.col, e.line, e.col)
+    [(p,s,e,se)]     -> Just (s.line, s.col, e.line, e.col)
     _             -> let _ = Debug.log "WARN: getClickedPat: multiple eids" () in
                      Nothing
 
