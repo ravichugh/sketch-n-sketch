@@ -407,8 +407,6 @@ patSpacesToHighlights m =
       { start = { row = start.line, column = start.col }
       , end   = { row = end.line, column = end.col  } }
     in
-    --if Set.member (start.line, start.col, end.line, end.col) m.selectedPats then
-      --[ { color = "gold", range = range } ]
     if m.hoveringCodeBox then
       [ { color = "lightgreen", range = range } ]
     else

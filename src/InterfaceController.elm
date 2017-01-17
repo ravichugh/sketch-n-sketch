@@ -1096,7 +1096,6 @@ msgAskImportCode = requireSaveAsker msgImportCode
 msgMouseEnterCodeBox = Msg "Mouse Enter CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
   let new = { m | hoveringCodeBox = True } in
-  let out = Debug.log "spaces" (patSpacesToHighlights new) in 
   { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new  ++ patRangesToHighlights new ++ patSpacesToHighlights new}
         }
 
@@ -1124,7 +1123,7 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
   in
   let new = { m | selectedEIds = selectedEIds 
                 , selectedPats = selectedPats } in
-  { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new ++ patRangesToHighlights new}
+  { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new ++ patRangesToHighlights new ++ patSpacesToHighlights new}
         }
 
 betweenPos start cursorPos end =
@@ -1145,7 +1144,7 @@ getClickedEId ls cursorPos =
 
 getClickedPat ls cursorPos = 
   let selected =
-    List.filter (\(pat,start,end,selectEnd) -> betweenPos start cursorPos end) ls
+    List.filter (\(pat,start,end,selectEnd) -> betweenPos start cursorPos selectEnd) ls
   in
   case selected of
     []            -> Nothing
