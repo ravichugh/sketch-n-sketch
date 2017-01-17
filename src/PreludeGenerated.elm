@@ -31,6 +31,32 @@ prelude =
 (def fst (\\[a _] a))
 (def snd (\\[_ b] b))
 
+;; Given a bool, returns the opposite boolean value
+(typ not (-> Bool Bool))
+(def not (\\b (if b false true)))
+
+;; Given two bools, returns a bool regarding if the first argument is true, then the second argument is as well
+(typ implies (-> Bool Bool Bool))
+(def implies (\\(p q) (if p q true)))
+
+(typ or  (-> Bool Bool Bool))
+(typ and (-> Bool Bool Bool))
+
+(def or  (\\(p q) (if p true q)))
+(def and (\\(p q) (if p q false)))
+
+(typ lt (-> Num Num Bool))
+(typ eq (-> Num Num Bool))
+(typ le (-> Num Num Bool))
+(typ gt (-> Num Num Bool))
+(typ ge (-> Num Num Bool))
+
+(def lt (\\(x y) (< x y)))
+(def eq (\\(x y) (= x y)))
+(def le (\\(x y) (or (lt x y) (eq x y))))
+(def gt (flip lt))
+(def ge (\\(x y) (or (gt x y) (eq x y))))
+
 ;; Returns the length of a given list
 (typ len (forall a (-> (List a) Num)))
 (defrec len (\\xs (case xs ([] 0) ([_ | xs1] (+ 1 (len xs1))))))
@@ -190,6 +216,22 @@ prelude =
 ;       ([_ [x|xs1]] [x | (take_ (- n 1) xs1)])))
 ;   (compose take_ (max 0))))
 
+(typ drop (forall a (-> (List a) Num (union Null (List a)))))
+(defrec drop (\\(xs n)
+  (if (le n 0)
+    xs
+    (case xs
+      ([]      null)
+      ([x|xs1] (drop xs1 (- n 1)))))))
+
+;; Drop n elements from the end of a list
+(typ dropEnd (forall a (-> (List a) Num (union Null (List a)))))
+(def dropEnd (\\(xs n)
+  (let tryDrop (drop (reverse xs) n)
+  (typecase tryDrop
+    (Null null)
+    (_    (reverse tryDrop))))))
+
 (typ elem (forall a (-> a (List a) Bool)))
 (defrec elem (\\(x ys)
   (case ys
@@ -224,20 +266,6 @@ prelude =
 (typ sgn (-> Num Num))
 (def sgn (\\x (if (= 0 x) 0 (/ x (abs x)))))
 
-;; Given a bool, returns the opposite boolean value
-(typ not (-> Bool Bool))
-(def not (\\b (if b false true)))
-
-;; Given two bools, returns a bool regarding if the first argument is true, then the second argument is as well
-(typ implies (-> Bool Bool Bool))
-(def implies (\\(p q) (if p q true)))
-
-(typ or  (-> Bool Bool Bool))
-(typ and (-> Bool Bool Bool))
-
-(def or  (\\(p q) (if p true q)))
-(def and (\\(p q) (if p q false)))
-
 (typ some (forall a (-> (-> a Bool) (List a) Bool)))
 (defrec some (\\(p xs)
   (case xs
@@ -258,18 +286,6 @@ prelude =
 
 (typ between (-> Num Num Num Bool))
 (def between (\\(i j n) (= n (clamp i j n))))
-
-(typ lt (-> Num Num Bool))
-(typ eq (-> Num Num Bool))
-(typ le (-> Num Num Bool))
-(typ gt (-> Num Num Bool))
-(typ ge (-> Num Num Bool))
-
-(def lt (\\(x y) (< x y)))
-(def eq (\\(x y) (= x y)))
-(def le (\\(x y) (or (lt x y) (eq x y))))
-(def gt (flip lt))
-(def ge (\\(x y) (or (gt x y) (eq x y))))
 
 (typ plus (-> Num Num Num))
 (def plus (\\(x y) (+ x y)))
@@ -1187,9 +1203,13 @@ prelude =
 (def rotateAround (\\(rot x y shape)
   (addAttr shape ['transform' [['rotate' rot x y]]])))
 
+; Convert radians to degrees
 (typ radToDeg (-> Num Num))
 (def radToDeg (\\rad (* (/ rad (pi)) 180!)))
 
+; Convert degrees to radians
+(typ degToRad (-> Num Num))
+(def degToRad (\\deg (* (/ deg 180!) (pi))))
 
 ; Polygon and Path Helpers
 
@@ -1582,6 +1602,11 @@ prelude =
   (vec2DPlus pt2 (vec2DMinus pt2 pt1))
 ))
 
+; Point on line segment, at `ratio` location.
+(typ onLine (-> Point Point Num Point))
+(def onLine (\\(pt1 pt2 ratio)
+  (let vec (vec2DMinus pt2 pt1)
+  (vec2DPlus pt1 (vec2DScalarMult ratio vec)))))
 
 ; === Basic Replicate ===
 

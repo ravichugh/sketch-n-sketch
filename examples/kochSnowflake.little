@@ -10,18 +10,16 @@
 ; Design decisions:
 ;   - as patterns (below) or reconstructing points
 ;   - manual calculation of dx dy (below) or use of prelude vec2DMinus function
-;   - draw as many lines (below) or one long path
+;   - draw as many lines or polyline or polygon (below) or path
 ;   - edge math calculates the three subdivistion points (below) or uses vector addition and rotation functions like turtle graphics
 ;   - repeated edge calls (below) or concatMap over list of points
+;   - The equation for edge width: 1/3 for each successive iteration (below) or constant
 ;
 
-(def iterations 3!{1-4})
-(def [color width] [150 2])
-
-; Point on line segment, at `ratio` location.
-(def onLine (\([x1 y1] [x2 y2] ratio)
-  (let [dx dy] [(- x2 x1) (- y2 y1)]
-  [ (+ x1 (* ratio dx)) (+ y1 (* ratio dy)) ])))
+(def iterations 3!{0-4})
+; Each iteration is 1/3 the scale of the prior, so
+; we divide the line width by 3 on each iteration.
+(def [fill stroke width] [150 386 (/ 45 (pow 3! iterations))])
 
 ; Point on normal of line, at `ratio` distance from the line
 ; relative to line length.
@@ -30,9 +28,11 @@
   (vec2DPlus (vec2DScalarMult ratio [(neg dy) dx]) (halfwayBetween pt1 pt2)))))
 
 ; Recursive fractal edge.
+;
+; Returns list of points (except the last point)
 (defrec edge (\(pt1@[x1 y1] pt2@[x2 y2] iterationsLeft)
   (if (= 0 iterationsLeft)
-    [ (line color width x1 y1 x2 y2) ]
+    [ pt1 ]
     (let [thirdPt twoThirdsPt] [(onLine pt1 pt2 (/ 1 3!)) (onLine pt1 pt2 (/ 2 3!))]
     (let outPt (normPt pt1 pt2 (* (/ 1 3!) (/ (sqrt 3!) 2!)))
     (concat [ (edge pt1         thirdPt     (- iterationsLeft 1))
@@ -44,11 +44,14 @@
 ; Points of initial equilateral triangle.
 (def [triPt1 triPt2 triPt3] (nPointsOnCircle 3! 0 300 300 200))
 
-(def snowflake
+(def snowflakePts
   (concat [ (edge triPt1 triPt2 iterations)
             (edge triPt2 triPt3 iterations)
             (edge triPt3 triPt1 iterations)
           ]))
+
+(def snowflake
+  [ (polygon fill stroke width snowflakePts) ])
 
 (blobs [
   snowflake

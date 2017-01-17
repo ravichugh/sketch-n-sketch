@@ -1,0 +1,59 @@
+; Calendar Icon
+;
+; After Bernstein and Li "Lillicon" 2015.
+;
+; Design Decisions:
+;   - rectangles x/y/w/h or let/top/right/bot (below)
+;   - day locations with margin calculated with start sep n or margin inserted per day based on point pairs from start end n (below)
+;   - cell margins constant or based on number of days in a month (below)
+;   - days in a month calculated inline (below) or a separate variable
+;
+
+
+(def daysInAWeek 4!{1-15})
+(def weeksInAMonth 3!{1-12})
+(def edgeMargin 10)
+(def dayMargin (/ (/ 196 daysInAWeek) weeksInAMonth))
+
+(def left 91)
+(def right 468)
+(def backgroundColor 325)
+
+(def topBar
+  (let bounds @ [left top right bot] [left 71 right 125]
+    [ (rectangle backgroundColor 360 0 0 bounds) ]))
+
+; end points included as part of n
+(def nPointsBetween (\(start end n)
+  (let sep (/ (- end start) (- n 1!))
+  (map (\i (+ start (* i sep))) (zeroTo n)))))
+
+(def [paperTop paperBot] [143 435])
+
+(def xs (nPointsBetween (+ left edgeMargin) (- right edgeMargin) (+ 1! daysInAWeek)))
+(def ys (nPointsBetween (+ paperTop edgeMargin) (- paperBot edgeMargin) (+ 1! weeksInAMonth)))
+(def consecutiveXs (zip xs (drop xs 1)))
+(def consecutiveYs (zip ys (drop ys 1)))
+; Drop some days from beginning/end of month
+;
+; cartProd argument order is so that we drop from the first row rather than first column
+(def dayBounds
+  (let dropFirstN (round (* daysInAWeek 0.3!))
+  (let dropLastN (round (* daysInAWeek 0.3!))
+  (map reverse (dropEnd (drop (cartProd consecutiveYs consecutiveXs) dropFirstN) dropLastN)))))
+
+(def paper
+  (let bounds @ [left top right bot] [left paperTop right paperBot]
+    [ (rectangle backgroundColor 360 0 0 bounds) ]))
+
+(def days
+  (map
+    (\[[left right] [top bot]]
+      (rectangle 479 360 0 0 [(+ left dayMargin) (+ top dayMargin) (- right dayMargin) (- bot dayMargin)]))
+    dayBounds))
+
+(blobs [
+  topBar
+  paper
+  days
+])

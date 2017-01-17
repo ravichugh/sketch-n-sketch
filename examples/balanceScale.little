@@ -1,0 +1,103 @@
+; Balance Scale
+;
+; After David Kurlander p568 in "What What I Do: Programming by Demonstration" Appendix B. 1993.
+;
+; Had to hand-code the arc.
+;
+; It's a reasonable goal to support the ability to draw out the
+; particular constraints that determine the placement of the weights.
+;
+; The mathematics for balancing the scale should probably
+; not be a goal for direct manipulation (for the time being).
+;
+; Design decisions:
+;   - Use polyline (below) or two lines for balance arms
+;   - Arm pivot y absolute (below) or relative to top of pillar or pillar top relative to pivot
+;   - Arms angle in degrees (below) or radians or specified as a distance to drop
+;   - Tray arc radius absolute (below) or a ratio of width
+;   - Each tray hung by two lines or one polyline (below)
+;
+
+
+(def [pillar_x base_cx] [276.5 308])
+(def [pillar_y base_cy] [145 497])
+
+
+(def base
+  (let [ rx ry] [ 95 29]
+  (let [color rot] [420 0]
+    [ (rawEllipse color 360 0 base_cx base_cy rx ry rot) ])))
+
+(def pillar
+  (let [ w h] [ (* 2! (- base_cx pillar_x)) (- base_cy pillar_y)]
+  (let [fill stroke strokeWidth] [41 245 0]
+  (let rot 0
+    [ (rawRect fill stroke strokeWidth pillar_x pillar_y w h rot) ]))))
+
+(def pivot@[px py] [base_cx 181])
+(def armsInnerAngle 2.7!{0-3.14159})
+(def halfArmsInnerAngle (/ armsInnerAngle 2!))
+(def armLength 200)
+(def trayHangHeight 218.00000000000003)
+(def [leftWeightWidth  leftWeightHeight]  [65 65{0-120}])
+(def [rightWeightWidth rightWeightHeight] [65{0-120} 65])
+(def leftWeightMass  (* leftWeightWidth  leftWeightHeight))
+(def rightWeightMass (* rightWeightWidth rightWeightHeight))
+(def totalMass (+ leftWeightMass rightWeightMass))
+; Where does the center of mass fall on the invisible line between the trays?
+; (0 = all the way left, 1 = all the way right)
+(def centerOfMassLeftRightRatio (/ rightWeightMass totalMass))
+
+(def threePiOverTwo (* 1.5! (pi)))
+(def arctan (\theta (arctan2 theta 1!)))
+(def tan (\theta (/ (sin theta) (cos theta))))
+
+; Per my hand calculations
+(def thetaMethod1
+  (arctan (* (- 1! (* 2! centerOfMassLeftRightRatio)) (tan halfArmsInnerAngle))))
+; Per http://stackoverflow.com/a/4451915 arctan[tan(phi)*(m1+m2)/(m1-m2)]
+(def thetaMethod2
+  (let phi (- halfPi halfArmsInnerAngle)
+  (- halfPi (arctan (/ (* (tan phi) totalMass) (- leftWeightMass rightWeightMass))))))
+; They give the same results, though the S.O. answer chooses the opposite arctan for some angles.
+(def theta thetaMethod1)
+
+
+(def [leftHangPt rightHangPt]
+  (let [leftArmAngle rightArmAngle] [(+ theta (- threePiOverTwo halfArmsInnerAngle))
+                                     (+ theta (+ threePiOverTwo halfArmsInnerAngle))]
+  (map (compose (vec2DPlus pivot) (vec2DScalarMult armLength))
+    [[(cos leftArmAngle)  (neg (sin leftArmAngle))]
+     [(cos rightArmAngle) (neg (sin rightArmAngle))]])))
+
+(def arms
+  (let pts [leftHangPt [base_cx 181] rightHangPt]
+  (let [color strokeColor strokeWidth] ["none" 430 30]
+    [ (addAttr (polyline color strokeColor strokeWidth pts) ["stroke-linecap" "round"]) ])))
+
+(def weight (\(cx bot w h)
+  (let halfWidth (/ w 2!)
+  (let [left top right] [(- cx halfWidth) (- bot h) (+ cx halfWidth)]
+  (let color 275
+    [ (rectangle color 360 0 0 [left top right bot]) ])))))
+
+(def hangingTray (\(hangPoint@[hangX hangY] weightWidth weightHeight)
+  (let [strokeColor strokeWidth fill] [380 4 52]
+  (let w 100
+  (let y (+ hangY trayHangHeight)
+  (let arcRadius 300
+  (let [left right] [(- hangX w) (+ hangX w)]
+  (let d ["M" left y "L" right y "A" arcRadius arcRadius 0 0 1 left y "Z"]
+    (concat [
+      [ (path fill strokeColor strokeWidth d) ]
+      [ (polyline 'none' strokeColor strokeWidth [[left y] hangPoint [right y]]) ]
+      (weight hangX y weightWidth weightHeight)
+    ])))))))))
+
+(blobs [
+  base
+  pillar
+  arms
+  (hangingTray leftHangPt  leftWeightWidth  leftWeightHeight)
+  (hangingTray rightHangPt rightWeightWidth rightWeightHeight)
+])

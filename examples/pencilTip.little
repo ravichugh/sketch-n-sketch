@@ -1,0 +1,71 @@
+; Pencil Tip
+;
+; Had to hand code:
+;   - renamings
+;   - initial eraser path arcs
+;   - eraser path arc relations
+;   - co-linearity of graphite tip with shaved wood wedge
+;
+; Design decisions:
+;   - Parts horizonal parameters absolute (below) or offset from each other or relative to entire pencil width
+;   - Pencil vertically paramererized as top/bottom (below) or top/width or centerY/width
+;   - Pencil constituent rects left/right/top/bot (below) or x/y/w/h
+;   - Eraser left x, corner bend start x, corner radius dependency: bend start x on radius and left (below), left on radius and bend start x, or radius on left and bend start x.
+;   - Pencil wood left, wood top right corner, and tip x: wood top right corner on wood left, tip x, and ratio (below); tip x and wood corner top on wood left, wood right, and ratio; tip x on wood left and wood top right corner; tip x on tip angle, wood top right corner on ratio
+;
+
+(def eraserRight 134)
+(def [pencilTop pencilBot] [130 266])
+(def pencilCenterY (* 0.5! (+ pencilBot pencilTop)))
+
+(def eraser
+  (let [strokeColor strokeWidth color] [254 0 4]
+  (let cornerRadius 13
+  (let left 107
+  (let bendStartX (+ left cornerRadius)
+  (let d ['M' eraserRight pencilTop
+          'L' eraserRight pencilBot
+          'L' bendStartX pencilBot
+          'A' cornerRadius cornerRadius 0 0 1 left (- pencilBot cornerRadius)
+          'L' left (+ pencilTop cornerRadius)
+          'A' cornerRadius cornerRadius 0 0 1 bendStartX pencilTop
+          'Z']
+    [ (rawPath color strokeColor strokeWidth d 0) ]))))))
+
+(def ferrule_right 194)
+
+(def ferrule
+  (let bounds @ [left top right bot] [eraserRight pencilTop ferrule_right pencilBot]
+  (let color 458
+    [ (rectangle color 360 0 0 bounds) ])))
+
+(def body_right 334)
+
+(def body
+  (let bounds @ [left top right bot] [ferrule_right pencilTop body_right pencilBot]
+  (let color 43
+    [ (rectangle color 360 0 0 bounds) ])))
+
+(def tipRatio 0.3)
+(def tipRight 437)
+
+(def [woodRight tipTopY] (onLine [tipRight pencilCenterY] [body_right pencilTop] tipRatio))
+(def tipBotY (- (+ pencilBot pencilTop) tipTopY))
+
+(def wood
+  (let pts [[body_right pencilBot] [body_right pencilTop] [woodRight tipTopY] [woodRight tipBotY]]
+  (let [color strokeColor strokeWidth] [470 360 0]
+    [ (rawPolygon color strokeColor strokeWidth pts 0) ])))
+
+(def tip
+  (let pts [[woodRight tipBotY] [woodRight tipTopY] [tipRight pencilCenterY]]
+  (let [color strokeColor strokeWidth] [402 360 0]
+    [ (rawPolygon color strokeColor strokeWidth pts 0) ])))
+
+(blobs [
+  eraser
+  ferrule
+  body
+  wood
+  tip
+])

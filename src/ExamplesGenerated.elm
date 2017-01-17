@@ -4269,6 +4269,63 @@ battery =
 ])
 """
 
+batteryDynamic =
+ """; Battery (Dynamic)
+;
+; Still need tools for reordering shapes.
+;
+; Design decisions:
+;   - battery body made from four rectangles or one path with a hole or one polyline (below)
+;   - body x/y/w/h or left/top/right/bot (below)
+;   - charge bar x/y/w/h or left/top/right/bot (below)
+;   - calculate inner bounds as a variable (below) or inline
+;   - calculate inner width as a variable (below) or inline
+;   - w/h of tip absolute (below) or relative to body
+;   - if abstracted, BB or x/y/w/h parameterization
+;
+
+
+(def chargePercentage 20{0-100})
+(def bodyTop 117)
+(def bodyBot 204)
+(def bodyRight 273)
+(def centerY (/ (+ bodyTop bodyBot) 2!))
+(def bodyLeft 90)
+(def bodyOutlineWidth 18{0-50})
+(def halfOutlineWidth (/ bodyOutlineWidth 2!))
+(def mainColor 360)
+
+(def bodyOutline
+  (let pts [[bodyLeft bodyTop] [bodyRight bodyTop] [bodyRight bodyBot] [bodyLeft bodyBot]]
+    [ (addAttr (polygon 'none' mainColor bodyOutlineWidth pts) [\"stroke-linejoin\" \"round\"]) ]))
+
+(def tip
+  (let h 52
+  (let [y w] [ (- centerY (/ h 2!)) 38]
+  (let [stroke strokeWidth] [368 0]
+  (let rot 0
+    [ (rawRect mainColor stroke strokeWidth bodyRight y w h rot) ])))))
+
+(def [innerLeft innerTop innerRight innerBot]
+  [(+ bodyLeft halfOutlineWidth)
+   (+ bodyTop halfOutlineWidth)
+   (- bodyRight halfOutlineWidth)
+   (- bodyBot halfOutlineWidth)])
+(def innerWidth (- innerRight innerLeft))
+
+(def chargeBar
+  (let bounds @ [left top right bot] [innerLeft innerTop (+ innerLeft (/ (* innerWidth chargePercentage) 100!)) innerBot]
+  (let [drainedColor color fullColor] [0 mainColor 113]
+  (let color (if (le chargePercentage 20) drainedColor (if (ge chargePercentage 99) fullColor mainColor))
+    [ (rectangle color 360 0 0 bounds) ]))))
+
+(blobs [
+  bodyOutline
+  tip
+  chargeBar
+])
+"""
+
 mondrianArch =
  """; Mondrian Arch
 ;
@@ -4283,6 +4340,37 @@ mondrianArch =
 ;   - Pillars relative to BB or relative to lintel (below: relative to lintel)
 ;   - x/y/w/h or BB for lintel (below: x/y/w/h)
 ;   - Pillar width: same as lintel or relative to BB width (below: same as lintel)
+;
+
+; Get the following with vanilla \"Make Equal\":
+;
+; (def [rect3_y rect2_x rect3_w rect4_x] [161 105 170 222])
+; (def rect2_y (+ (- (+ rect2_x rect3_w) rect4_x) rect3_y))
+; (def rect2_h 148)
+;
+; (def rect2
+;   (let w (- rect2_y rect3_y)
+;   (let [fill stroke strokeWidth] [211 381 0]
+;   (let rot 0
+;     [ (rawRect fill stroke strokeWidth rect2_x rect2_y w rect2_h rot) ]))))
+;
+; (def rect3
+;   (let h (- rect2_y rect3_y)
+;   (let [fill stroke strokeWidth] [344 444 0]
+;   (let rot 0
+;     [ (rawRect fill stroke strokeWidth rect2_x rect3_y rect3_w h rot) ]))))
+;
+; (def rect4
+;   (let w (- (+ rect2_x rect3_w) rect4_x)
+;   (let [fill stroke strokeWidth] [117 391 0]
+;   (let rot 0
+;     [ (rawRect fill stroke strokeWidth rect4_x rect2_y w rect2_h rot) ]))))
+;
+; (blobs [
+;   rect2
+;   rect3
+;   rect4
+; ])
 ;
 
 (def [lintel_x lintel_y lintel_w lintel_h] [76 146 145 42])
@@ -4311,6 +4399,7 @@ mondrianArch =
   lintel
   rightPillar
 ])
+
 """
 
 ladder =
@@ -4657,18 +4746,16 @@ kochSnowflake =
 ; Design decisions:
 ;   - as patterns (below) or reconstructing points
 ;   - manual calculation of dx dy (below) or use of prelude vec2DMinus function
-;   - draw as many lines (below) or one long path
+;   - draw as many lines or polyline or polygon (below) or path
 ;   - edge math calculates the three subdivistion points (below) or uses vector addition and rotation functions like turtle graphics
 ;   - repeated edge calls (below) or concatMap over list of points
+;   - The equation for edge width: 1/3 for each successive iteration (below) or constant
 ;
 
-(def iterations 3!{1-4})
-(def [color width] [150 2])
-
-; Point on line segment, at `ratio` location.
-(def onLine (\\([x1 y1] [x2 y2] ratio)
-  (let [dx dy] [(- x2 x1) (- y2 y1)]
-  [ (+ x1 (* ratio dx)) (+ y1 (* ratio dy)) ])))
+(def iterations 3!{0-4})
+; Each iteration is 1/3 the scale of the prior, so
+; we divide the line width by 3 on each iteration.
+(def [fill stroke width] [150 386 (/ 45 (pow 3! iterations))])
 
 ; Point on normal of line, at `ratio` distance from the line
 ; relative to line length.
@@ -4677,9 +4764,11 @@ kochSnowflake =
   (vec2DPlus (vec2DScalarMult ratio [(neg dy) dx]) (halfwayBetween pt1 pt2)))))
 
 ; Recursive fractal edge.
+;
+; Returns list of points (except the last point)
 (defrec edge (\\(pt1@[x1 y1] pt2@[x2 y2] iterationsLeft)
   (if (= 0 iterationsLeft)
-    [ (line color width x1 y1 x2 y2) ]
+    [ pt1 ]
     (let [thirdPt twoThirdsPt] [(onLine pt1 pt2 (/ 1 3!)) (onLine pt1 pt2 (/ 2 3!))]
     (let outPt (normPt pt1 pt2 (* (/ 1 3!) (/ (sqrt 3!) 2!)))
     (concat [ (edge pt1         thirdPt     (- iterationsLeft 1))
@@ -4691,11 +4780,14 @@ kochSnowflake =
 ; Points of initial equilateral triangle.
 (def [triPt1 triPt2 triPt3] (nPointsOnCircle 3! 0 300 300 200))
 
-(def snowflake
+(def snowflakePts
   (concat [ (edge triPt1 triPt2 iterations)
             (edge triPt2 triPt3 iterations)
             (edge triPt3 triPt1 iterations)
           ]))
+
+(def snowflake
+  [ (polygon fill stroke width snowflakePts) ])
 
 (blobs [
   snowflake
@@ -4709,22 +4801,329 @@ replaceTerminalsWithWorkstations =
 ; David Kurlander p573,pp275-277 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
 ;
 ; Design decisions:
-;   -
+;   - x y w h or left top right bot (below) for workstation display and pillar
+;   - how to encode the equalization of the centerpoints of the keyboard, pillar, and display (used \"Make Equal\" version 1 below)
+;   - how to parameterize the design into a function: x y (below) or x y size or left top right bot
+;   - whether to parameterize any other details (e.g. screen color)
+;   - how to implement the x y offset: map and add in each location (below) or prelude SVG translate function (not implemented yet)
 ;
 
-(def polygon2
-  (let pts [[71 208] [156 220] [230 190] [226 68] [134 60] [116 69] [118 171]]
-  (let [color strokeColor strokeWidth] [454 360 2]
+
+(def terminal (\\(x y)
+  (let origin [x y]
+  (let offset (vec2DPlus origin) ; second point unapplied
+  (let body
+    (let pts [[-9 154] [76 166] [150 136] [146 14] [54 6] [36 15] [38 117]]
+    (let [color strokeColor strokeWidth] [454 360 2]
+      [ (rawPolygon color strokeColor strokeWidth (map offset pts) 0) ]))
+
+  (let keyboard
+    (let pts [[15 147] [46 124] [102 131] [69 154]]
+    (let [color strokeColor strokeWidth] [462 360 2]
+      [ (rawPolygon color strokeColor strokeWidth (map offset pts) 0) ]))
+
+  (let screen
+    (let pts [[55 88] [54 32] [108 38] [109 94]]
+    (let [color strokeColor strokeWidth] [103 360 2]
+      [ (rawPolygon color strokeColor strokeWidth (map offset pts) 0) ]))
+
+  (concat [ body keyboard screen ]))))))))
+
+
+(def workstation (\\(x y)
+  (let origin [x y]
+  (let offset (vec2DPlus origin) ; second point unapplied
+  (let [polygon14_pts_k4862 rect11_bounds_left rect11_bounds_right] [71 104 148]
+  (let k4859 (- (+ rect11_bounds_left rect11_bounds_right) polygon14_pts_k4862)
+  (let rect12_bounds_left 46
+  (let right' (- (+ rect11_bounds_left rect11_bounds_right) rect12_bounds_left)
+
+  (let displayPillar
+    (let bounds @ [left top right bot] [(+ x rect11_bounds_left) (+ y 115) (+ x rect11_bounds_right) (+ y 151)]
+    (let color 364
+      [ (rectangle color 360 0 0 bounds) ]))
+
+  (let display
+    (let bounds @ [left top right bot] [(+ x rect12_bounds_left) (+ y 14) (+ x right') (+ y 110)]
+    (let color 110
+      [ (rectangle color 360 15 0 bounds) ]))
+
+  (let keyboard
+    (let pts_k4861 150
+    (let pts_k4855 178
+    (let pts [[polygon14_pts_k4862 pts_k4861] [k4859 pts_k4861] [201 pts_k4855] [53 pts_k4855]]
+    (let [color strokeColor strokeWidth] [460 360 5]
+      [ (rawPolygon color strokeColor strokeWidth (map offset pts) 0) ]))))
+
+  (let mouseCord
+    (let [strokeColor strokeWidth color] [369 1 'none']
+    (let [x0 y0] [21 159]
+    (let d ['M' (+ x x0) (+ y y0) 'L' (+ x 36) (+ y 144) 'L' (+ x 69) (+ y 137) 'L' (+ x 100) (+ y 134) 'L' (+ x 133) (+ y 136)]
+      [ (rawPath color strokeColor strokeWidth d 0) ])))
+
+  (let mouseBody
+    (let pts [[-5 176] [12 158] [28 158] [18 177]]
+    (let [color strokeColor strokeWidth] [462 360 2]
+      [ (rawPolygon color strokeColor strokeWidth (map offset pts) 0) ]))
+
+  (let mouseButton
+    (let pts [[10 165] [14 161] [23 161] [18 166]]
+    (let [color strokeColor strokeWidth] [364 360 2]
+      [ (rawPolygon color strokeColor strokeWidth (map offset pts) 0) ]))
+
+  (concat [ displayPillar display keyboard mouseCord mouseBody mouseButton ])))))))))))))))
+
+(def terminalsOrWorkstations 0!{0-1})
+(def terminalOrWorkstation
+  (if (< terminalsOrWorkstations 0.5!) terminal workstation))
+
+(blobs [
+  (terminalOrWorkstation 0 0)
+  (terminalOrWorkstation 300 200)
+  (terminalOrWorkstation 200 300)
+  (terminalOrWorkstation 400 400)
+])
+"""
+
+balanceScale =
+ """; Balance Scale
+;
+; After David Kurlander p568 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+;
+; Had to hand-code the arc.
+;
+; It's a reasonable goal to support the ability to draw out the
+; particular constraints that determine the placement of the weights.
+;
+; The mathematics for balancing the scale should probably
+; not be a goal for direct manipulation (for the time being).
+;
+; Design decisions:
+;   - Use polyline (below) or two lines for balance arms
+;   - Arm pivot y absolute (below) or relative to top of pillar or pillar top relative to pivot
+;   - Arms angle in degrees (below) or radians or specified as a distance to drop
+;   - Tray arc radius absolute (below) or a ratio of width
+;   - Each tray hung by two lines or one polyline (below)
+;
+
+
+(def [pillar_x base_cx] [276.5 308])
+(def [pillar_y base_cy] [145 497])
+
+
+(def base
+  (let [ rx ry] [ 95 29]
+  (let [color rot] [420 0]
+    [ (rawEllipse color 360 0 base_cx base_cy rx ry rot) ])))
+
+(def pillar
+  (let [ w h] [ (* 2! (- base_cx pillar_x)) (- base_cy pillar_y)]
+  (let [fill stroke strokeWidth] [41 245 0]
+  (let rot 0
+    [ (rawRect fill stroke strokeWidth pillar_x pillar_y w h rot) ]))))
+
+(def pivot@[px py] [base_cx 181])
+(def armsInnerAngle 2.7!{0-3.14159})
+(def halfArmsInnerAngle (/ armsInnerAngle 2!))
+(def armLength 200)
+(def trayHangHeight 218.00000000000003)
+(def [leftWeightWidth  leftWeightHeight]  [65 65{0-120}])
+(def [rightWeightWidth rightWeightHeight] [65{0-120} 65])
+(def leftWeightMass  (* leftWeightWidth  leftWeightHeight))
+(def rightWeightMass (* rightWeightWidth rightWeightHeight))
+(def totalMass (+ leftWeightMass rightWeightMass))
+; Where does the center of mass fall on the invisible line between the trays?
+; (0 = all the way left, 1 = all the way right)
+(def centerOfMassLeftRightRatio (/ rightWeightMass totalMass))
+
+(def threePiOverTwo (* 1.5! (pi)))
+(def arctan (\\theta (arctan2 theta 1!)))
+(def tan (\\theta (/ (sin theta) (cos theta))))
+
+; Per my hand calculations
+(def thetaMethod1
+  (arctan (* (- 1! (* 2! centerOfMassLeftRightRatio)) (tan halfArmsInnerAngle))))
+; Per http://stackoverflow.com/a/4451915 arctan[tan(phi)*(m1+m2)/(m1-m2)]
+(def thetaMethod2
+  (let phi (- halfPi halfArmsInnerAngle)
+  (- halfPi (arctan (/ (* (tan phi) totalMass) (- leftWeightMass rightWeightMass))))))
+; They give the same results, though the S.O. answer chooses the opposite arctan for some angles.
+(def theta thetaMethod1)
+
+
+(def [leftHangPt rightHangPt]
+  (let [leftArmAngle rightArmAngle] [(+ theta (- threePiOverTwo halfArmsInnerAngle))
+                                     (+ theta (+ threePiOverTwo halfArmsInnerAngle))]
+  (map (compose (vec2DPlus pivot) (vec2DScalarMult armLength))
+    [[(cos leftArmAngle)  (neg (sin leftArmAngle))]
+     [(cos rightArmAngle) (neg (sin rightArmAngle))]])))
+
+(def arms
+  (let pts [leftHangPt [base_cx 181] rightHangPt]
+  (let [color strokeColor strokeWidth] [\"none\" 430 30]
+    [ (addAttr (polyline color strokeColor strokeWidth pts) [\"stroke-linecap\" \"round\"]) ])))
+
+(def weight (\\(cx bot w h)
+  (let halfWidth (/ w 2!)
+  (let [left top right] [(- cx halfWidth) (- bot h) (+ cx halfWidth)]
+  (let color 275
+    [ (rectangle color 360 0 0 [left top right bot]) ])))))
+
+(def hangingTray (\\(hangPoint@[hangX hangY] weightWidth weightHeight)
+  (let [strokeColor strokeWidth fill] [380 4 52]
+  (let w 100
+  (let y (+ hangY trayHangHeight)
+  (let arcRadius 300
+  (let [left right] [(- hangX w) (+ hangX w)]
+  (let d [\"M\" left y \"L\" right y \"A\" arcRadius arcRadius 0 0 1 left y \"Z\"]
+    (concat [
+      [ (path fill strokeColor strokeWidth d) ]
+      [ (polyline 'none' strokeColor strokeWidth [[left y] hangPoint [right y]]) ]
+      (weight hangX y weightWidth weightHeight)
+    ])))))))))
+
+(blobs [
+  base
+  pillar
+  arms
+  (hangingTray leftHangPt  leftWeightWidth  leftWeightHeight)
+  (hangingTray rightHangPt rightWeightWidth rightWeightHeight)
+])
+"""
+
+pencilTip =
+ """; Pencil Tip
+;
+; Had to hand code:
+;   - renamings
+;   - initial eraser path arcs
+;   - eraser path arc relations
+;   - co-linearity of graphite tip with shaved wood wedge
+;
+; Design decisions:
+;   - Parts horizonal parameters absolute (below) or offset from each other or relative to entire pencil width
+;   - Pencil vertically paramererized as top/bottom (below) or top/width or centerY/width
+;   - Pencil constituent rects left/right/top/bot (below) or x/y/w/h
+;   - Eraser left x, corner bend start x, corner radius dependency: bend start x on radius and left (below), left on radius and bend start x, or radius on left and bend start x.
+;   - Pencil wood left, wood top right corner, and tip x: wood top right corner on wood left, tip x, and ratio (below); tip x and wood corner top on wood left, wood right, and ratio; tip x on wood left and wood top right corner; tip x on tip angle, wood top right corner on ratio
+;
+
+(def eraserRight 134)
+(def [pencilTop pencilBot] [130 266])
+(def pencilCenterY (* 0.5! (+ pencilBot pencilTop)))
+
+(def eraser
+  (let [strokeColor strokeWidth color] [254 0 4]
+  (let cornerRadius 13
+  (let left 107
+  (let bendStartX (+ left cornerRadius)
+  (let d ['M' eraserRight pencilTop
+          'L' eraserRight pencilBot
+          'L' bendStartX pencilBot
+          'A' cornerRadius cornerRadius 0 0 1 left (- pencilBot cornerRadius)
+          'L' left (+ pencilTop cornerRadius)
+          'A' cornerRadius cornerRadius 0 0 1 bendStartX pencilTop
+          'Z']
+    [ (rawPath color strokeColor strokeWidth d 0) ]))))))
+
+(def ferrule_right 194)
+
+(def ferrule
+  (let bounds @ [left top right bot] [eraserRight pencilTop ferrule_right pencilBot]
+  (let color 458
+    [ (rectangle color 360 0 0 bounds) ])))
+
+(def body_right 334)
+
+(def body
+  (let bounds @ [left top right bot] [ferrule_right pencilTop body_right pencilBot]
+  (let color 43
+    [ (rectangle color 360 0 0 bounds) ])))
+
+(def tipRatio 0.3)
+(def tipRight 437)
+
+(def [woodRight tipTopY] (onLine [tipRight pencilCenterY] [body_right pencilTop] tipRatio))
+(def tipBotY (- (+ pencilBot pencilTop) tipTopY))
+
+(def wood
+  (let pts [[body_right pencilBot] [body_right pencilTop] [woodRight tipTopY] [woodRight tipBotY]]
+  (let [color strokeColor strokeWidth] [470 360 0]
     [ (rawPolygon color strokeColor strokeWidth pts 0) ])))
 
-(def polygon3
-  (let pts [[93 203] [126 180] [180 187] [147 210]]
-  (let [color strokeColor strokeWidth] [308 360 2]
+(def tip
+  (let pts [[woodRight tipBotY] [woodRight tipTopY] [tipRight pencilCenterY]]
+  (let [color strokeColor strokeWidth] [402 360 0]
     [ (rawPolygon color strokeColor strokeWidth pts 0) ])))
 
 (blobs [
-  polygon2
-  polygon3
+  eraser
+  ferrule
+  body
+  wood
+  tip
+])
+"""
+
+calendarIcon =
+ """; Calendar Icon
+;
+; After Bernstein and Li \"Lillicon\" 2015.
+;
+; Design Decisions:
+;   - rectangles x/y/w/h or let/top/right/bot (below)
+;   - day locations with margin calculated with start sep n or margin inserted per day based on point pairs from start end n (below)
+;   - cell margins constant or based on number of days in a month (below)
+;   - days in a month calculated inline (below) or a separate variable
+;
+
+
+(def daysInAWeek 4!{1-15})
+(def weeksInAMonth 3!{1-12})
+(def edgeMargin 10)
+(def dayMargin (/ (/ 196 daysInAWeek) weeksInAMonth))
+
+(def left 91)
+(def right 468)
+(def backgroundColor 325)
+
+(def topBar
+  (let bounds @ [left top right bot] [left 71 right 125]
+    [ (rectangle backgroundColor 360 0 0 bounds) ]))
+
+; end points included as part of n
+(def nPointsBetween (\\(start end n)
+  (let sep (/ (- end start) (- n 1!))
+  (map (\\i (+ start (* i sep))) (zeroTo n)))))
+
+(def [paperTop paperBot] [143 435])
+
+(def xs (nPointsBetween (+ left edgeMargin) (- right edgeMargin) (+ 1! daysInAWeek)))
+(def ys (nPointsBetween (+ paperTop edgeMargin) (- paperBot edgeMargin) (+ 1! weeksInAMonth)))
+(def consecutiveXs (zip xs (drop xs 1)))
+(def consecutiveYs (zip ys (drop ys 1)))
+; Drop some days from beginning/end of month
+;
+; cartProd argument order is so that we drop from the first row rather than first column
+(def dayBounds
+  (let dropFirstN (round (* daysInAWeek 0.3!))
+  (let dropLastN (round (* daysInAWeek 0.3!))
+  (map reverse (dropEnd (drop (cartProd consecutiveYs consecutiveXs) dropFirstN) dropLastN)))))
+
+(def paper
+  (let bounds @ [left top right bot] [left paperTop right paperBot]
+    [ (rectangle backgroundColor 360 0 0 bounds) ]))
+
+(def days
+  (map
+    (\\[[left right] [top bot]]
+      (rectangle 479 360 0 0 [(+ left dayMargin) (+ top dayMargin) (- right dayMargin) (- bot dayMargin)]))
+    dayBounds))
+
+(blobs [
+  topBar
+  paper
+  days
 ])
 """
 
@@ -4837,6 +5236,7 @@ examples =
   , makeExample "Zones" zones
   , makeExample "Rectangle Trisection" rectangleTrisection
   , makeExample "Battery" battery
+  , makeExample "Battery (Dynamic)" batteryDynamic
   , makeExample "Mondrian Arch" mondrianArch
   , makeExample "Ladder" ladder
   , makeExample "Rails" rails
@@ -4846,7 +5246,10 @@ examples =
   , makeExample "Ferris Wheel 3" ferris3
   , makeExample "Gear" gear
   , makeExample "Koch Snowflake" kochSnowflake
-  , makeExample "Replace Termins With Workstations" replaceTerminalsWithWorkstations
+  , makeExample "Replace Terminals With Workstations" replaceTerminalsWithWorkstations
+  , makeExample "Balance Scale" balanceScale
+  , makeExample "Pencil Tip" pencilTip
+  , makeExample "Calendar Icon" calendarIcon
   ]
 
 list = examples

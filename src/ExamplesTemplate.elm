@@ -128,6 +128,7 @@ LITTLE_TO_ELM botanic_UIST
 LITTLE_TO_ELM coffee_UIST
 LITTLE_TO_ELM rectangleTrisection
 LITTLE_TO_ELM battery
+LITTLE_TO_ELM batteryDynamic
 LITTLE_TO_ELM mondrianArch
 LITTLE_TO_ELM ladder
 LITTLE_TO_ELM rails
@@ -138,6 +139,9 @@ LITTLE_TO_ELM ferris3
 LITTLE_TO_ELM gear
 LITTLE_TO_ELM kochSnowflake
 LITTLE_TO_ELM replaceTerminalsWithWorkstations
+LITTLE_TO_ELM balanceScale
+LITTLE_TO_ELM pencilTip
+LITTLE_TO_ELM calendarIcon
 
 
 examples =
@@ -247,6 +251,7 @@ examples =
   , makeExample "Zones" zones
   , makeExample "Rectangle Trisection" rectangleTrisection
   , makeExample "Battery" battery
+  , makeExample "Battery (Dynamic)" batteryDynamic
   , makeExample "Mondrian Arch" mondrianArch
   , makeExample "Ladder" ladder
   , makeExample "Rails" rails
@@ -256,7 +261,10 @@ examples =
   , makeExample "Ferris Wheel 3" ferris3
   , makeExample "Gear" gear
   , makeExample "Koch Snowflake" kochSnowflake
-  , makeExample "Replace Termins With Workstations" replaceTerminalsWithWorkstations
+  , makeExample "Replace Terminals With Workstations" replaceTerminalsWithWorkstations
+  , makeExample "Balance Scale" balanceScale
+  , makeExample "Pencil Tip" pencilTip
+  , makeExample "Calendar Icon" calendarIcon
   ]
 
 list = examples

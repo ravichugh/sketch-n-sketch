@@ -13,6 +13,37 @@
 ;   - Pillar width: same as lintel or relative to BB width (below: same as lintel)
 ;
 
+; Get the following with vanilla "Make Equal":
+;
+; (def [rect3_y rect2_x rect3_w rect4_x] [161 105 170 222])
+; (def rect2_y (+ (- (+ rect2_x rect3_w) rect4_x) rect3_y))
+; (def rect2_h 148)
+;
+; (def rect2
+;   (let w (- rect2_y rect3_y)
+;   (let [fill stroke strokeWidth] [211 381 0]
+;   (let rot 0
+;     [ (rawRect fill stroke strokeWidth rect2_x rect2_y w rect2_h rot) ]))))
+;
+; (def rect3
+;   (let h (- rect2_y rect3_y)
+;   (let [fill stroke strokeWidth] [344 444 0]
+;   (let rot 0
+;     [ (rawRect fill stroke strokeWidth rect2_x rect3_y rect3_w h rot) ]))))
+;
+; (def rect4
+;   (let w (- (+ rect2_x rect3_w) rect4_x)
+;   (let [fill stroke strokeWidth] [117 391 0]
+;   (let rot 0
+;     [ (rawRect fill stroke strokeWidth rect4_x rect2_y w rect2_h rot) ]))))
+;
+; (blobs [
+;   rect2
+;   rect3
+;   rect4
+; ])
+;
+
 (def [lintel_x lintel_y lintel_w lintel_h] [76 146 145 42])
 (def lintelBot (+ lintel_y lintel_h))
 (def pillarHeight 198)
