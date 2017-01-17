@@ -1096,13 +1096,16 @@ msgAskImportCode = requireSaveAsker msgImportCode
 msgMouseEnterCodeBox = Msg "Mouse Enter CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
   let new = { m | hoveringCodeBox = True } in
-  { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new  ++ patRangesToHighlights new ++ patSpacesToHighlights new}
+  { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new  ++ 
+                                                     patRangesToHighlights new ++ 
+                                                     patSpacesToHighlights new }
         }
 
 msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
   let new = { m | hoveringCodeBox = False } in
-  { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new ++ patRangesToHighlights new}
+  { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new ++ 
+                                                     patRangesToHighlights new }
         }
 
 msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
@@ -1123,7 +1126,9 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
   in
   let new = { m | selectedEIds = selectedEIds 
                 , selectedPats = selectedPats } in
-  { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new ++ patRangesToHighlights new ++ patSpacesToHighlights new}
+  { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new ++ 
+                                                     patRangesToHighlights new ++ 
+                                                     patSpacesToHighlights new }
         }
 
 betweenPos start cursorPos end =
@@ -1149,20 +1154,21 @@ getClickedPat ls cursorPos =
   case selected of
     []            -> Nothing
     [(p,s,e,se)]     -> Just (s.line, s.col, e.line, e.col)
-    _             -> let _ = Debug.log "WARN: getClickedPat: multiple eids" () in
+    _             -> let _ = Debug.log "WARN: getClickedPat: multiple pats" () in
                      Nothing
 
 overlap p1 p2 = 
   (p1.start.line <= p2.end.line) && (p1.start.col <= p2.end.col) &&
   (p1.end.line >= p2.start.line) && (p1.end.col >= p2.start.col)
 
--- TODO: replace two exp to be swapped in m.code and run parseAndRun?
+-- TODO: allow for swapping of expressions
 msgSwapExp = Msg "Swap Exp" <| \m -> 
   let size = Set.size m.selectedEIds in 
   if size == 2
   then 
     let expRanges = computeExpRanges m.inputExp in
-    let expsToSwap = List.filter (\(eid,n,start,end,selectEnd) -> Set.member eid m.selectedEIds) expRanges in 
+    let expsToSwap = List.filter (\(eid,n,start,end,selectEnd) ->
+                      Set.member eid m.selectedEIds) expRanges in 
     case expsToSwap of 
       (x1::x2::xs)  -> 
         let pos1 = x1 in
