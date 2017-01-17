@@ -43,7 +43,6 @@ type alias Model =
   , movieDuration : Float
   , movieContinue : Bool
   , runAnimation : Bool
-  , syncSelectTime : Float
   , slate : RootedIndexedTree
   , widgets : Widgets
   , mode : Mode
@@ -92,7 +91,6 @@ type alias Model =
 
 type Mode
   = Live Sync.LiveInfo
-  | SyncSelect (List PossibleChange)
   | Print RawSvg
       -- TODO might add a print mode where <g BLOB BOUNDS> nodes are removed
 
@@ -126,9 +124,6 @@ type MouseMode
       --   for lambda,            n == 0 or n == 2
 
 type alias MouseTrigger a = (Int, Int) -> a
-
-type alias PossibleChange = (Exp, Val, RootedIndexedTree, Code)
-  -- TODO this should have Widgets...
 
 -- type alias ShowZones = Bool
 -- type ShowWidgets = HideWidgets | ShowAnnotatedWidgets | ShowAllWidgets
@@ -305,7 +300,6 @@ initModel =
     , movieDuration = movieDuration
     , movieContinue = movieContinue
     , runAnimation  = True
-    , syncSelectTime = 0.0
     , slate         = slate
     , widgets       = ws
     , mode          = liveModeInfo

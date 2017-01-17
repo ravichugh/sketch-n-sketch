@@ -52,7 +52,6 @@ svgPath      = flip Svg.path []
 
 --------------------------------------------------------------------------------
 
--- NOTE: removed SyncSelect animations from InterfaceView2
 build wCanvas hCanvas model =
   let addZones = case model.mode of
     Live _ -> model.tool == Cursor

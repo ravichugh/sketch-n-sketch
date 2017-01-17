@@ -87,7 +87,6 @@ refreshMode model e =
   case model.mode of
     Live _  -> Utils.fromOk "refreshMode" <| mkLive_ model.syncOptions model.slideNumber model.movieNumber model.movieTime e
     Print _ -> Utils.fromOk "refreshMode" <| mkLive_ model.syncOptions model.slideNumber model.movieNumber model.movieTime e
-    m       -> m
 
 refreshMode_ model = refreshMode model model.inputExp
 
@@ -820,22 +819,15 @@ msgRedraw = Msg "Redraw" <| \old ->
     Err s -> { old | errorBox = Just s }
 
 msgTickDelta deltaT = Msg ("Tick Delta " ++ toString deltaT) <| \old ->
-  case old.mode of
-    SyncSelect _ ->
-      -- Prevent "jump" after slow first frame render.
-      let adjustedDeltaT = if old.syncSelectTime == 0.0 then clamp 0.0 50 deltaT else deltaT in
-      upstate msgRedraw
-        { old | syncSelectTime = old.syncSelectTime + (adjustedDeltaT / 1000) }
-    _ ->
-      if old.movieTime < old.movieDuration then
-        -- Prevent "jump" after slow first frame render.
-        let adjustedDeltaT = if old.movieTime == 0.0 then clamp 0.0 50 deltaT else deltaT in
-        let newMovieTime = clamp 0.0 old.movieDuration (old.movieTime + (adjustedDeltaT / 1000)) in
-        upstate msgRedraw { old | movieTime = newMovieTime }
-      else if old.movieContinue == True then
-        upstate msgNextMovie old
-      else
-        { old | runAnimation = False }
+  if old.movieTime < old.movieDuration then
+    -- Prevent "jump" after slow first frame render.
+    let adjustedDeltaT = if old.movieTime == 0.0 then clamp 0.0 50 deltaT else deltaT in
+    let newMovieTime = clamp 0.0 old.movieDuration (old.movieTime + (adjustedDeltaT / 1000)) in
+    upstate msgRedraw { old | movieTime = newMovieTime }
+  else if old.movieContinue == True then
+    upstate msgNextMovie old
+  else
+    { old | runAnimation = False }
 
 msgNextSlide = Msg "Next Slide" <| \old ->
   if old.slideNumber >= old.slideCount then
@@ -989,7 +981,6 @@ msgNew template = Msg "New" <| (\old ->
           Print _ -> let so = Sync.syncOptionsOf old.syncOptions e in
                      (so, Utils.fromOk "SelectExample mkLive_" <|
                         mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws))
-          _      -> (old.syncOptions, old.mode)
       in
       LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v
       |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
