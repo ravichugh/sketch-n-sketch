@@ -47,8 +47,6 @@ type alias Model =
   , widgets : Widgets
   , mode : Mode
   , mouseMode : MouseMode
-  , hideCode : Bool
-  , hideCanvas : Bool
   , dimensions : Window.Size
 
   , mouseState : (Maybe Bool, Mouse.Position)
@@ -304,8 +302,6 @@ initModel =
     , widgets       = ws
     , mode          = liveModeInfo
     , mouseMode     = MouseNothing
-    , hideCode      = False
-    , hideCanvas    = False
     , dimensions    = { width = 1000, height = 800 } -- dummy in case initCmd fails
     , mouseState    = (Nothing, {x = 0, y = 0})
     , syncOptions   = Sync.defaultOptions
