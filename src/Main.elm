@@ -6,6 +6,7 @@ import InterfaceController as Controller
 import AceCodeBox
 import AnimationLoop
 import FileHandler
+import DependenceGraph
 
 import Html exposing (Html)
 import Mouse
@@ -61,4 +62,5 @@ subscriptions model =
     , FileHandler.receiveFile Controller.msgReadFile
     , FileHandler.receiveFileFromInput Controller.msgReadFileFromInput
     , FileHandler.receiveFileIndex Controller.msgUpdateFileIndex
+    , DependenceGraph.receiveImage Controller.msgReceiveDotImage
     ]

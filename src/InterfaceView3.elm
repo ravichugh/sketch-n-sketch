@@ -21,6 +21,7 @@ import Canvas
 import LangUnparser exposing (unparse)
 import LangSvg exposing (attr)
 import Sync
+import DependenceGraph
 
 -- Elm Libraries ---------------------------------------------------------------
 
@@ -288,19 +289,21 @@ basicCodeBox model dim =
     ]
 
 textArea text attrs =
+  textArea_ [Html.text text] attrs
+
+textArea_ children attrs =
   let innerPadding = 4 in
   -- NOTE: using both Attr.value and Html.text seems to allow read/write...
   let commonAttrs =
     [ Attr.spellcheck False
-    , Attr.value text
     , Attr.style
         [ ("font-family", params.mainSection.codebox.font)
         , ("font-size", params.mainSection.codebox.fontSize)
-        , ("border", params.mainSection.codebox.border)
         , ("whiteSpace", "pre")
         , ("height", "100%")
         , ("resize", "none")
         , ("overflow", "auto")
+        , ("border-radius", "0px 10px 10px 10px") -- like outputArea
         -- Horizontal Scrollbars in Chrome
         , ("word-wrap", "normal")
         -- , ("background-color", "whitesmoke")
@@ -311,7 +314,7 @@ textArea text attrs =
         ]
     ]
   in
-  Html.textarea (commonAttrs ++ attrs) [ Html.text text ]
+  Html.div (commonAttrs ++ attrs) children
 
 
 --------------------------------------------------------------------------------
@@ -320,14 +323,35 @@ textArea text attrs =
 outputArea model layout =
   let output =
     case (model.errorBox, model.mode) of
+
       (Just errorMsg, _) ->
         textArea errorMsg
           [ Attr.style [ ("width", pixels layout.canvas.width) ] ]
+
       (Nothing, Print svgCode) ->
         textArea svgCode
           [ Attr.style [ ("width", pixels layout.canvas.width) ] ]
-      (Nothing, _) ->
+
+      (Nothing, Live _) ->
         Canvas.build layout.canvas.width layout.canvas.height model
+
+      (Nothing, PrintScopeGraph maybeImageData) ->
+        let srcAttr =
+          case maybeImageData of
+            Nothing   -> []
+            Just data -> [Attr.src data]
+        in
+        textArea_
+          [ Html.img (srcAttr ++
+              [ Attr.alt "Dot rendering should appear here..."
+              , Attr.style [ ("max-width", pixels layout.canvas.width)
+                           , ("max-height", pixels layout.canvas.height) ]
+              ]) []
+          , Html.br [] [], Html.br [] []
+          , DependenceGraph.printHtml model.scopeGraph
+          ]
+          [ Attr.style [ ("width", pixels layout.canvas.width) ] ]
+
   in
   Html.div
      [ Attr.id "outputArea"
@@ -445,7 +469,8 @@ outputButton model =
   let cap =
      case model.mode of
        Print _ -> "[Out] SVG"
-       _       -> "[Out] Canvas"
+       Live _  -> "[Out] Canvas"
+       PrintScopeGraph _ -> "[Out] Scope Graph"
   in
   htmlButton cap Controller.msgToggleOutput Regular False
 
