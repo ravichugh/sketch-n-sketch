@@ -9,7 +9,7 @@ import Char
 import Debug
 
 import Lang exposing (..)
-import OurParser2 exposing ((>>=),(>>>),(<$>),(+++),(<++))
+import OurParser2 exposing ((>>=),(>>>),(<<|),(+++),(<++))
 import OurParser2 as P
 import Utils as U
 import PreludeGenerated as Prelude
@@ -204,12 +204,12 @@ parseSign =
 parseFrozen =
   string_ frozen <++ string_ thawed <++ string_ assignOnlyOnce <++ string_ unann
 
-string_ s = always s <$> P.token s
+string_ s = always s <<| P.token s
 
 parseNum : P.Parser (Num, Frozen)
 parseNum =
   parseSign                             >>= \i ->
-  parseFloat <++ (toFloat <$> parseInt) >>= \n ->
+  parseFloat <++ (toFloat <<| parseInt) >>= \n ->
   parseFrozen                           >>= \b ->
     P.returnWithInfo (i.val * n.val, b.val) i.start b.end
 
@@ -242,10 +242,10 @@ parseStrDelimit quoteChar =
   P.between          -- NOTE: not calling delimit...
     (whiteToken quoteCharString) --   okay to chew up whitespace here,
     (P.token quoteCharString)    --   but _not_ here!
-    ((EString quoteCharString << String.fromList << List.map .val) <$> P.many (charInsideString quoteChar))
+    ((EString quoteCharString << String.fromList << List.map .val) <<| P.many (charInsideString quoteChar))
 
 munchManySpaces : P.Parser ()
-munchManySpaces = always () <$> P.munch isWhitespace
+munchManySpaces = always () <<| P.munch isWhitespace
 
 whitespace : P.Parser String
 whitespace = P.munch isWhitespace
@@ -271,7 +271,7 @@ whiteTokenOneNonSymbol token =
 delimit a b = P.between (whiteToken a) (whiteToken b)
 parens      = delimit "(" ")"
 
-parseNumV = (\(n,b) -> vConst (n, dummyTrace_ b)) <$> parseNum
+parseNumV = (\(n,b) -> vConst (n, dummyTrace_ b)) <<| parseNum
 
 -- TODO interacts badly with auto-abstracted variable names...
 -- dummyLocWithDebugInfo b n = (0, b, "literal" ++ toString n)
@@ -300,22 +300,22 @@ parseNumE =
     -- P.returnWithInfo (EConst n (dummyLoc_ b) wd) nb.start end
 
 -- merge conflict:
--- parseNumV = (\(n,b) -> vConst (n, dummyTrace_ b)) <$> parseNum*/
--- parseNumE = (\(n,b) -> exp_ (EConst n (dummyLoc_ b))) <$> parseNum
+-- parseNumV = (\(n,b) -> vConst (n, dummyTrace_ b)) <<| parseNum*/
+-- parseNumE = (\(n,b) -> exp_ (EConst n (dummyLoc_ b))) <<| parseNum
 
 parseEBase =
   whitespace >>= \ws ->
-      (always (exp_ (EBase ws.val (EBool True)))  <$> P.token "true")
-  <++ (always (exp_ (EBase ws.val (EBool False))) <$> P.token "false")
-  <++ (always (exp_ (EBase ws.val ENull))         <$> P.token "null")
-  <++ ((exp_ << EBase ws.val)                     <$> parseStrLit)
+      (always (exp_ (EBase ws.val (EBool True)))  <<| P.token "true")
+  <++ (always (exp_ (EBase ws.val (EBool False))) <<| P.token "false")
+  <++ (always (exp_ (EBase ws.val ENull))         <<| P.token "null")
+  <++ ((exp_ << EBase ws.val)                     <<| parseStrLit)
 
 parsePBase =
   whitespace >>= \ws ->
-        ((PConst ws.val << Tuple.first)      <$> parseNum) -- allowing but ignoring frozen annotation
-    <++ (always (PBase ws.val (EBool True))  <$> whiteTokenOneNonIdent "true")
-    <++ (always (PBase ws.val (EBool False)) <$> whiteTokenOneNonIdent "false")
-    <++ ((PBase ws.val)                      <$> parseStrLit)
+        ((PConst ws.val << Tuple.first)      <<| parseNum) -- allowing but ignoring frozen annotation
+    <++ (always (PBase ws.val (EBool True))  <<| whiteTokenOneNonIdent "true")
+    <++ (always (PBase ws.val (EBool False)) <<| whiteTokenOneNonIdent "false")
+    <++ ((PBase ws.val)                      <<| parseStrLit)
 
 -- parseList_
 --    : (P.Parser a -> P.Parser sep -> P.Parser (List (P.WithInfo a)))
@@ -378,7 +378,7 @@ parseT = P.parse parseType
 parseVar : P.Parser Exp_
 parseVar =
   whitespace >>= \ws ->
-    ((exp_ << EVar ws.val) <$> parseIdent)
+    ((exp_ << EVar ws.val) <<| parseIdent)
 
 parseExp : P.Parser Exp_
 parseExp = P.recursively <| \_ ->
@@ -420,7 +420,7 @@ parseWildcard =
 
 parsePVar identParser =
   whitespace >>= \ws ->
-    (\ident -> PVar ws.val ident noWidgetDecl) <$> identParser
+    (\ident -> PVar ws.val ident noWidgetDecl) <<| identParser
 
 -- not using this feature downstream, so turning this off
 {-
@@ -514,11 +514,11 @@ parseApp =
 parseExpArgs = P.many parseExp
 
 parseExpList =
-  exp_ <$> parseListLiteralOrMultiCons parseExp EList
+  exp_ <<| parseListLiteralOrMultiCons parseExp EList
 
 {-
 parseNumEAndFreeze =
-  (\(EConst n (i,_,x)) -> EConst n (i,frozen,x)) <$> parseNumE
+  (\(EConst n (i,_,x)) -> EConst n (i,frozen,x)) <<| parseNumE
 -}
 
 -- Toggle this to automatically freeze all range numbers
@@ -527,8 +527,8 @@ parseBound =
   -- parseNumEAndFreeze
 
 parseRec =
-      (always True  <$> whiteTokenOneWS "letrec")
-  <++ (always False <$> whiteTokenOneWS "let")
+      (always True  <<| whiteTokenOneWS "letrec")
+  <++ (always False <<| whiteTokenOneWS "let")
 
 parseLet =
   whitespace >>= \ws1 ->
@@ -541,8 +541,8 @@ parseLet =
       P.return (exp_ (ELet ws1.val Let b.val p e1 e2 ws2.val))
 
 parseDefRec =
-      (always True  <$> whiteTokenOneWS "defrec")
-  <++ (always False <$> whiteTokenOneWS "def")
+      (always True  <<| whiteTokenOneWS "defrec")
+  <++ (always False <<| whiteTokenOneWS "def")
 
 parseDef =
   whitespace >>= \ws1 ->
@@ -614,10 +614,10 @@ parseTBase =
     P.return ((type_Constructor.val) ws.val)
 
 parseTBase_ =
-      (always (TNum)    <$> whiteTokenOneNonIdent "Num")
-  <++ (always (TBool)   <$> whiteTokenOneNonIdent "Bool")
-  <++ (always (TString) <$> whiteTokenOneNonIdent "String")
-  <++ (always (TNull)   <$> whiteTokenOneNonIdent "Null")
+      (always (TNum)    <<| whiteTokenOneNonIdent "Num")
+  <++ (always (TBool)   <<| whiteTokenOneNonIdent "Bool")
+  <++ (always (TString) <<| whiteTokenOneNonIdent "String")
+  <++ (always (TNull)   <<| whiteTokenOneNonIdent "Null")
 
 parseTList =
   whitespace >>= \ws1 ->
@@ -657,15 +657,15 @@ parseTUnion =
 
 parseTNamed =
   whitespace >>= \ws ->
-    (\ident -> TNamed ws.val ident) <$> parseUpperIdent
+    (\ident -> TNamed ws.val ident) <<| parseUpperIdent
 
 parseTVar =
   whitespace >>= \ws ->
-    (\ident -> TVar ws.val ident) <$> parseLowerIdent
+    (\ident -> TVar ws.val ident) <<| parseLowerIdent
 
 parseTWildcard =
   whitespace >>= \ws ->
-    (\_ -> TWildcard ws.val) <$> (whiteTokenOneWS "_")
+    (\_ -> TWildcard ws.val) <<| (whiteTokenOneWS "_")
 
 parseTForall =
   whitespace >>= \ws1 ->
@@ -705,7 +705,7 @@ parseTriop =
       P.return (exp_ (EOp ws1.val op [e1,e2,e3] ws2.val))
 
 parseTOp =
-  (always DictInsert <$> whiteTokenOneNonSymbol "insert")
+  (always DictInsert <<| whiteTokenOneNonSymbol "insert")
 
 parseBinop =
   whitespace >>= \ws1 ->
@@ -717,17 +717,17 @@ parseBinop =
       P.return (exp_ (EOp ws1.val op [e1,e2] ws2.val))
 
 parseBOp =
-      (always Plus       <$> whiteTokenOneNonSymbol "+")
-  <++ (always Minus      <$> whiteTokenOneNonSymbol "-")
-  <++ (always Mult       <$> whiteTokenOneNonSymbol "*")
-  <++ (always Div        <$> whiteTokenOneNonSymbol "/")
-  <++ (always Lt         <$> whiteTokenOneNonSymbol "<")
-  <++ (always Eq         <$> whiteTokenOneNonSymbol "=")
-  <++ (always Mod        <$> whiteTokenOneWS "mod")
-  <++ (always Pow        <$> whiteTokenOneWS "pow")
-  <++ (always ArcTan2    <$> whiteTokenOneWS "arctan2")
-  <++ (always DictGet    <$> whiteTokenOneWS "get")
-  <++ (always DictRemove <$> whiteTokenOneWS "remove")
+      (always Plus       <<| whiteTokenOneNonSymbol "+")
+  <++ (always Minus      <<| whiteTokenOneNonSymbol "-")
+  <++ (always Mult       <<| whiteTokenOneNonSymbol "*")
+  <++ (always Div        <<| whiteTokenOneNonSymbol "/")
+  <++ (always Lt         <<| whiteTokenOneNonSymbol "<")
+  <++ (always Eq         <<| whiteTokenOneNonSymbol "=")
+  <++ (always Mod        <<| whiteTokenOneWS "mod")
+  <++ (always Pow        <<| whiteTokenOneWS "pow")
+  <++ (always ArcTan2    <<| whiteTokenOneWS "arctan2")
+  <++ (always DictGet    <<| whiteTokenOneWS "get")
+  <++ (always DictRemove <<| whiteTokenOneWS "remove")
 
 parseUnop =
   whitespace >>= \ws1 ->
@@ -738,17 +738,17 @@ parseUnop =
       P.return (exp_ (EOp ws1.val op [e1] ws2.val))
 
 parseUOp =
-      (always Cos      <$> whiteTokenOneWS "cos")
-  <++ (always Sin      <$> whiteTokenOneWS "sin")
-  <++ (always ArcCos   <$> whiteTokenOneWS "arccos")
-  <++ (always ArcSin   <$> whiteTokenOneWS "arcsin")
-  <++ (always Floor    <$> whiteTokenOneWS "floor")
-  <++ (always Ceil     <$> whiteTokenOneWS "ceiling")
-  <++ (always Round    <$> whiteTokenOneWS "round")
-  <++ (always ToStr    <$> whiteTokenOneWS "toString")
-  <++ (always Sqrt     <$> whiteTokenOneWS "sqrt")
-  <++ (always DebugLog <$> whiteTokenOneWS "debug")
-  <++ (always Explode  <$> whiteTokenOneWS "explode")
+      (always Cos      <<| whiteTokenOneWS "cos")
+  <++ (always Sin      <<| whiteTokenOneWS "sin")
+  <++ (always ArcCos   <<| whiteTokenOneWS "arccos")
+  <++ (always ArcSin   <<| whiteTokenOneWS "arcsin")
+  <++ (always Floor    <<| whiteTokenOneWS "floor")
+  <++ (always Ceil     <<| whiteTokenOneWS "ceiling")
+  <++ (always Round    <<| whiteTokenOneWS "round")
+  <++ (always ToStr    <<| whiteTokenOneWS "toString")
+  <++ (always Sqrt     <<| whiteTokenOneWS "sqrt")
+  <++ (always DebugLog <<| whiteTokenOneWS "debug")
+  <++ (always Explode  <<| whiteTokenOneWS "explode")
 
 -- Parse (pi) etc...
 parseConst =
@@ -759,8 +759,8 @@ parseConst =
       P.return (exp_ (EOp ws1.val op [] ws2.val))
 
 parseNullOp =
-      (always Pi        <$> whiteTokenOneNonIdent "pi")
-  <++ (always DictEmpty <$> whiteTokenOneNonIdent "empty")
+      (always Pi        <<| whiteTokenOneNonIdent "pi")
+  <++ (always DictEmpty <<| whiteTokenOneNonIdent "empty")
 
 parseIf =
   whitespace >>= \ws1 ->
