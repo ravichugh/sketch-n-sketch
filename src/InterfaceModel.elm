@@ -309,8 +309,20 @@ computePatSpaces pat =
                                       {line = pat.end.line, col = pat.end.col},
                                       {line = pat.end.line, col = pat.end.col + 1})
                                     ]
-    PList ws1 ps ws2 Nothing ws3  -> List.concatMap computePatSpaces ps
-    PList ws1 ps ws2 (Just p) ws3 -> List.concatMap computePatSpaces ps
+    PList ws1 ps ws2 Nothing ws3  -> [(pat.val, 
+                                      {line = pat.start.line, col = pat.start.col - 1},
+                                      {line = pat.start.line, col = pat.start.col}),
+                                    (pat.val, 
+                                      {line = pat.end.line, col = pat.end.col},
+                                      {line = pat.end.line, col = pat.end.col + 1})
+                                    ] ++ List.concatMap computePatSpaces ps
+    PList ws1 ps ws2 (Just p) ws3 -> [(pat.val, 
+                                      {line = pat.start.line, col = pat.start.col - 1},
+                                      {line = pat.start.line, col = pat.start.col}),
+                                    (pat.val, 
+                                      {line = pat.end.line, col = pat.end.col},
+                                      {line = pat.end.line, col = pat.end.col + 1})
+                                    ] ++ List.concatMap computePatSpaces ps
     PAs ws1 x ws2 p               -> [(pat.val, 
                                         {line = pat.start.line, col = pat.start.col - 1},
                                         {line = pat.start.line, col = pat.start.col}),
