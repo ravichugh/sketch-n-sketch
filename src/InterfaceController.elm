@@ -29,6 +29,7 @@ module InterfaceController exposing
   , msgMouseEnterCodeBox, msgMouseLeaveCodeBox
   , msgMouseClickCodeBox
   , msgSwapExp
+  , msgReceiveDotImage
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -42,6 +43,7 @@ import Blobs exposing (..)
 import Draw
 import ExpressionBasedTransform as ETransform
 import Sync
+import DependenceGraph
 import Eval
 import Utils
 import Keys
@@ -87,9 +89,8 @@ debugLog = Config.debugLog Config.debugController
 --------------------------------------------------------------------------------
 
 refreshMode model e =
-  case model.mode of
-    Live _  -> Utils.fromOk "refreshMode" <| mkLive_ model.syncOptions model.slideNumber model.movieNumber model.movieTime e
-    Print _ -> Utils.fromOk "refreshMode" <| mkLive_ model.syncOptions model.slideNumber model.movieNumber model.movieTime e
+  Utils.fromOk "refreshMode" <|
+    mkLive_ model.syncOptions model.slideNumber model.movieNumber model.movieTime e
 
 refreshMode_ model = refreshMode model model.inputExp
 
@@ -328,6 +329,8 @@ onMouseUp old =
 
     (Print _, _) -> old
 
+    (PrintScopeGraph _, _) -> old
+
     (_, MouseDragZone zoneKey (Just _)) ->
       let e = Utils.fromOkay "onMouseUp" <| parseE old.code in
       let old_ = { old | inputExp = e } in
@@ -520,6 +523,8 @@ issueCommand (Msg kind _) oldModel newModel =
         -- and need to resize during and after the MouseDragLayout trigger.
         -- (onMouseUp). workaround for now: click widget again.
         AceCodeBox.resize newModel
+      else if kind == "Toggle Output" && newModel.mode == PrintScopeGraph Nothing then
+        DependenceGraph.render newModel.scopeGraph
       else if newModel.runAnimation then
         AnimationLoop.requestFrame ()
       else
@@ -806,8 +811,9 @@ msgToggleCodeBox = Msg "Toggle Code Box" <| \old ->
 
 msgToggleOutput = Msg "Toggle Output" <| \old ->
   let m = case old.mode of
-    Print _ -> refreshMode_ old
-    _       -> Print (LangSvg.printSvg old.showGhosts old.slate)
+    Live _  -> Print (LangSvg.printSvg old.showGhosts old.slate)
+    Print _ -> PrintScopeGraph Nothing
+    PrintScopeGraph _ -> refreshMode_ old
   in
   { old | mode = m }
 
@@ -992,14 +998,10 @@ msgNew template = Msg "New" <| (\old ->
     Nothing -> let _ = Debug.log "WARN: not found:" template in old
     Just (_, thunk) ->
       let {e,v,ws,ati} = thunk () in
-      let (so, m) =
-        case old.mode of
-          Live _  -> let so = Sync.syncOptionsOf old.syncOptions e in
-                     (so, Utils.fromOk "SelectExample mkLive_" <|
-                        mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws))
-          Print _ -> let so = Sync.syncOptionsOf old.syncOptions e in
-                     (so, Utils.fromOk "SelectExample mkLive_" <|
-                        mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws))
+      let so = Sync.syncOptionsOf old.syncOptions e in
+      let m =
+        Utils.fromOk "SelectExample mkLive_" <|
+          mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws)
       in
       LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v
       |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
@@ -1024,6 +1026,7 @@ msgNew template = Msg "New" <| (\old ->
               , needsSave     = True
               , lastSaveState = Nothing
               , selectedEIds  = Set.empty
+              , scopeGraph    = DependenceGraph.compute e
               }
            in
            { new | codeBoxInfo = updateCodeBoxInfo ati new }
@@ -1178,3 +1181,5 @@ msgSwapExp = Msg "Swap Exp" <| \m ->
     --m 
   else m 
 
+msgReceiveDotImage s = Msg "Receive Image" <| \m ->
+  { m | mode = Model.PrintScopeGraph (Just s) }

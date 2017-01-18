@@ -11,9 +11,11 @@ html:
 	cp Native/aceTooltips.js ../build/out/
 	cp Native/animationLoop.js ../build/out/
 	cp Native/fileHandler.js ../build/out/
+	cp Native/dotGraph.js ../build/out/
 	cp ../ace-builds/src/ace.js ../build/out/
 	cp ../ace-builds/src/mode-little.js ../build/out/
 	cp ../ace-builds/src/theme-chrome.js ../build/out/
+	cp ../viz.js/viz.js ../build/out/
 	mkdir -p ../build/out/img
 	cp img/*svg ../build/out/img/
 
@@ -39,6 +41,7 @@ loc:
     InterfaceController.elm \
     LangTools.elm LangTransform.elm ValueBasedTransform.elm \
     Blobs.elm Draw.elm ExpressionBasedTransform.elm \
+    DependenceGraph.elm Native/dotGraph.js \
     Ace.elm AceCodeBox.elm Native/aceCodeBox.js \
     AnimationLoop.elm Native/animationLoop.js \
     FileHandler.elm Native/fileHandler.js \

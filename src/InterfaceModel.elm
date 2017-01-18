@@ -10,6 +10,7 @@ import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature, Zone)
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparse)
 import OurParser2 as P
+import DependenceGraph exposing (ScopeGraph)
 import Ace
 import Either exposing (Either(..))
 
@@ -93,12 +94,17 @@ type alias Model =
   , expRanges : List (EId, Exp, P.Pos, P.Pos, P.Pos)
   , patRanges : List (Pat, P.Pos, P.Pos)
   , selectedPats : Set.Set (Int, Int, Int, Int)
+  , scopeGraph : ScopeGraph
   }
 
 type Mode
   = Live Sync.LiveInfo
   | Print RawSvg
+      -- TODO put rawSvg in Model
       -- TODO might add a print mode where <g BLOB BOUNDS> nodes are removed
+  | PrintScopeGraph (Maybe String)
+                      -- Nothing        after sending renderDotGraph request
+                      -- Just dataURI   after receiving the encoded image
 
 type alias CodeBoxInfo =
   { cursorPos : Ace.Pos
@@ -490,5 +496,6 @@ initModel =
     , expRanges = []
     , patRanges = []
     , selectedPats = Set.empty
+    , scopeGraph = DependenceGraph.compute e
     }
 
