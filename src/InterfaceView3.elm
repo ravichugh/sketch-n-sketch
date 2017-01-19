@@ -413,6 +413,7 @@ htmlButtonExtraAttrs extraAttrs text onClickHandler btnKind disabled =
                  , ("fontSize", params.mainSection.widgets.fontSize)
                  , ("height", pixels Layout.buttonHeight)
                  , ("background", color)
+                 , ("cursor", "pointer")
                  , ("user-select", "none")
                  ] ]
   in
