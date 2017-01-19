@@ -74,8 +74,8 @@ digHole originalExp selectedFeatures slate syncOptions =
               else scopesAndBaseIdent
             in
             let baseIdentPrime = scopesAndBaseIdent ++ "'" in
-            let identOrig  = nonCollidingName baseIdentOrig usedNames in
-            let identPrime = nonCollidingName baseIdentPrime usedNames in
+            let identOrig  = nonCollidingName baseIdentOrig  2 usedNames in
+            let identPrime = nonCollidingName baseIdentPrime 2 usedNames in
             (
               Set.union usedNames (Set.fromList [identOrig, identPrime]),
               (locId, identOrig, identPrime)::result
@@ -156,7 +156,7 @@ digHole originalExp selectedFeatures slate syncOptions =
     let (newNamesToAvoid, result) =
       List.foldr
           (\featureName (usedNames, result) ->
-            let featureName_ = nonCollidingName featureName usedNames in
+            let featureName_ = nonCollidingName featureName 2 usedNames in
             (
               Set.insert featureName_ usedNames,
               featureName_::result
@@ -488,19 +488,16 @@ deepestCommonScope exp locset syncOptions =
 
 
 -- If suggestedName is not in existing names, returns it.
--- Otherwise appends a number (starting at 2) that doesn't collide.
-nonCollidingName : Ident -> Set.Set Ident -> Ident
-nonCollidingName suggestedName existingNames =
+-- Otherwise appends a number (starting at i) that doesn't collide.
+nonCollidingName : Ident -> Int -> Set.Set Ident -> Ident
+nonCollidingName suggestedName i existingNames =
   if not (Set.member suggestedName existingNames) then
     suggestedName
   else
-    let nonCollidingName i =
-      let newName = suggestedName ++ (toString i) in
-      if not (Set.member newName existingNames)
-      then newName
-      else nonCollidingName (i+1)
-    in
-    nonCollidingName 2
+    let newName = suggestedName ++ (toString i) in
+    if not (Set.member newName existingNames)
+    then newName
+    else nonCollidingName suggestedName (i+1) existingNames
 
 
 -- Replace consts in targetExp with given variable names

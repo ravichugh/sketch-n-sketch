@@ -98,6 +98,17 @@ topLevelExps program =
     Nothing    -> [program]
 
 
+lastExp : Exp -> Exp
+lastExp exp =
+  case childExps exp of
+    []       -> exp
+    children -> lastExp <| Utils.last "LangTools.lastExp" children
+
+
+identifiersVisibleAtProgramEnd : Exp -> Set.Set Ident
+identifiersVisibleAtProgramEnd program =
+  let lastEId = (lastExp program).val.eid in
+  visibleIdentifiersAtEIds program (Set.singleton lastEId)
 
 -- Still needs to be rewritten to handle scopes created by case branches.
 --
