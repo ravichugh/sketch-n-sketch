@@ -28,7 +28,6 @@ module InterfaceController exposing
   , msgImportCode, msgAskImportCode
   , msgMouseEnterCodeBox, msgMouseLeaveCodeBox
   , msgMouseClickCodeBox
-  , msgSwapExp
   , msgReceiveDotImage
   )
 
@@ -1164,23 +1163,6 @@ getClickedPat ls cursorPos =
 overlap p1 p2 = 
   (p1.start.line <= p2.end.line) && (p1.start.col <= p2.end.col) &&
   (p1.end.line >= p2.start.line) && (p1.end.col >= p2.start.col)
-
--- TODO: allow for swapping of expressions
-msgSwapExp = Msg "Swap Exp" <| \m -> 
-  let size = Set.size m.selectedEIds in 
-  if size == 2
-  then 
-    let expRanges = computeExpRanges m.inputExp in
-    let expsToSwap = List.filter (\(eid,n,start,end,selectEnd) ->
-                      Set.member eid m.selectedEIds) expRanges in 
-    case expsToSwap of 
-      (x1::x2::xs)  -> 
-        let pos1 = x1 in
-        let pos2 = x2 in 
-        m 
-      _ -> m 
-    --m 
-  else m 
 
 msgReceiveDotImage s = Msg "Receive Image" <| \m ->
   { m | mode = Model.PrintScopeGraph (Just s) }

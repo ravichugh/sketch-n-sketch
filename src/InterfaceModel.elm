@@ -90,6 +90,7 @@ type alias Model =
   , pendingFileOperation : Maybe Msg
   , fileOperationConfirmed : Bool
   , selectedEIds : Set.Set EId
+  , deuceMode : Bool
   , hoveringCodeBox : Bool
   , expRanges : List (EId, Exp, P.Pos, P.Pos, P.Pos)
   , patRanges : List (Pat, P.Pos, P.Pos)
@@ -380,7 +381,9 @@ expRangesToHighlights m =
     else
       []
   in
-  List.concatMap maybeHighlight (computeExpRanges m.inputExp)
+  if m.deuceMode
+    then List.concatMap maybeHighlight (computeExpRanges m.inputExp)
+    else []
 
 patRangesToHighlights m = 
   let maybeHighlight (expId,p,start,end,selectEnd) =
@@ -395,7 +398,9 @@ patRangesToHighlights m =
     else
       []
   in
-  List.concatMap maybeHighlight (findPats m.inputExp)
+  if m.deuceMode
+    then List.concatMap maybeHighlight (findPats m.inputExp)
+    else []
 
 patSpacesToHighlights m = 
   let maybeHighlight (expId, p,start,end) =
@@ -408,7 +413,9 @@ patSpacesToHighlights m =
     else
       []
   in
-  List.concatMap maybeHighlight (findPatSpaces m.inputExp)
+  if m.deuceMode
+    then List.concatMap maybeHighlight (findPatSpaces m.inputExp)
+    else []
 
 --------------------------------------------------------------------------------
 
@@ -504,6 +511,7 @@ initModel =
     , pendingFileOperation = Nothing
     , fileOperationConfirmed = False
     , selectedEIds  = Set.empty
+    , deuceMode = True
     , hoveringCodeBox = False
     , expRanges = []
     , patRanges = []

@@ -208,7 +208,8 @@ attributeToolBox model layout =
 
 textToolBox model layout =
   toolBox model "textToolBox" Layout.getPutTextToolBox layout.textTools
-    [ deuceButton model "Swap Exp" Controller.msgSwapExp
+    [ aceDeuceButton model
+    , deuceMoveExpButton model
     , fontSizeButton model
     ]
 
@@ -527,10 +528,6 @@ toolButton model tool =
   in
   htmlButton cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled
 
-deuceButton model text handler =
-  let noFeatures = Set.isEmpty model.selectedEIds in --&& Set.isEmpty model.selectedPats in
-  htmlButton text handler Regular noFeatures
-
 relateButton model text handler =
   let noFeatures = Set.isEmpty model.selectedFeatures in
   htmlButton text handler Regular noFeatures
@@ -618,6 +615,14 @@ fontSizeButton model =
     { m | codeBoxInfo = { codeBoxInfo | fontSize = fontSize } }
   in
   htmlButton cap msg Regular False
+
+aceDeuceButton model =
+  let text = if model.deuceMode then "[Mode] Deuce" else "[Mode] Ace" in
+  let handler = Msg "Toggle Ace Deuce" <| \m -> { m | deuceMode = not m.deuceMode } in
+  htmlButton text handler Regular False
+
+deuceMoveExpButton model =
+  htmlButton "Move Exp" Controller.msgNoop Regular (not model.deuceMode)
 
 
 --------------------------------------------------------------------------------
