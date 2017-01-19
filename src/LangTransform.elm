@@ -4,7 +4,7 @@
 -- Transformations of the code that do not change its output.
 --
 
-module LangTransform exposing (simplify, removeExtraPostfixes)
+module LangTransform exposing (cleanCode, simplify, removeExtraPostfixes)
 
 import Set
 import Dict
@@ -13,9 +13,17 @@ import String
 import Lang exposing (..)
 import LangTools exposing (..)
 import LangUnparser exposing (..)
+import LangParser2
 import OurParser2
 import Utils
 
+
+cleanCode : Exp -> Exp
+cleanCode exp =
+  exp
+  |> simplify
+  |> removeExtraPostfixes ["_orig", "'"]
+  |> LangParser2.freshen
 
 -- Rename e.g. `x_orig_orig_orig` to `x_orig` (presuming there
 -- is no `x_orig_orig` nor `x_orig` but there is `x`.)

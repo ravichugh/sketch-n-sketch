@@ -512,6 +512,12 @@ branchPats branches =
     (\b -> let (Branch_ _ pat _ _) = b.val in pat)
     branches
 
+tbranchTypes : List TBranch -> List Type
+tbranchTypes tbranches =
+  List.map
+    (\b -> let (TBranch_ _ tipe exp _) = b.val in tipe)
+    tbranches
+
 -- Need parent expression since case expression branches into several scopes
 isScope : Maybe Exp -> Exp -> Bool
 isScope maybeParent exp =

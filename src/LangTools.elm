@@ -17,6 +17,73 @@ import Dict
 import Set
 
 
+-- For ranking synthesized expressions
+nodeCount : Exp -> Int
+nodeCount exp =
+  case exp.val.e__ of
+    EConst _ _ _ _          -> 1
+    EBase _ _               -> 1
+    EVar _ x                -> 1
+    EFun _ ps e _           -> 1 + patsNodeCount ps + nodeCount e
+    EOp _ op es _           -> 1 + expsNodeCount es
+    EList _ es _ (Just e) _ -> 1 + expsNodeCount es + nodeCount e
+    EList _ es _ Nothing _  -> 1 + expsNodeCount es
+    EIf _ e1 e2 e3 _        -> 1 + expsNodeCount [e1, e2, e3]
+    -- Cases have a set of parens around each branch. I suppose each should count as a node.
+    ECase _ e1 bs _         -> 1 + (List.length bs) + nodeCount e1 + patsNodeCount (branchPats bs) + expsNodeCount (branchExps bs)
+    ETypeCase _ p tbs _     -> 1 + (List.length tbs) + patNodeCount p + typesNodeCount (tbranchTypes tbs) + expsNodeCount (tbranchExps tbs)
+    -- ETypeCase _ e1 tbranches _  ->
+    EApp _ e1 es _          -> 1 + nodeCount e1 + expsNodeCount es
+    ELet _ _ _ p e1 e2 _    -> 1 + patNodeCount p + nodeCount e1 + nodeCount e2
+    EComment _ _ e1         -> 0 + nodeCount e1 -- Comments don't count.
+    EOption _ _ _ _ e1      -> 1 + nodeCount e1
+    ETyp _ p t e1 _         -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
+    EColonType _ e1 _ t _   -> 1 + typeNodeCount t + nodeCount e1
+    ETypeAlias _ p t e1 _   -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
+
+
+expsNodeCount : List Exp -> Int
+expsNodeCount exps =
+  exps |> List.map nodeCount |> List.sum
+
+patNodeCount : Pat -> Int
+patNodeCount pat =
+  case pat.val of
+    PVar _ _ _                  -> 1
+    PConst _ _                  -> 1
+    PBase _ _                   -> 1
+    PList _ pats _ (Just pat) _ -> 1 + patsNodeCount pats + patNodeCount pat
+    PList _ pats _ Nothing    _ -> 1 + patsNodeCount pats
+    PAs _ _ _ pat               -> 1 + patNodeCount pat
+
+patsNodeCount : List Pat -> Int
+patsNodeCount pats =
+  pats |> List.map patNodeCount |> List.sum
+
+typeNodeCount : Type -> Int
+typeNodeCount tipe =
+  case tipe.val of
+    TNum _                          -> 1
+    TBool _                         -> 1
+    TString _                       -> 1
+    TNull _                         -> 1
+    TList _ t _                     -> 1 + typeNodeCount t
+    TDict _ kt vt _                 -> 1 + typeNodeCount kt + typeNodeCount vt
+    TTuple _ ts _ Nothing _         -> 1 + typesNodeCount ts
+    TTuple _ ts _ (Just t) _        -> 1 + typesNodeCount ts + typeNodeCount t
+    TArrow _ ts _                   -> 1 + typesNodeCount ts
+    TUnion _ ts _                   -> 1 + typesNodeCount ts
+    TNamed _ _                      -> 1
+    TVar _ _                        -> 1
+    TForall _ (One (_, _)) t _      -> 1 + typeNodeCount t
+    TForall _ (Many _ idents _) t _ -> 1 + List.length idents + typeNodeCount t
+    TWildcard _                     -> 1
+
+typesNodeCount : List Type -> Int
+typesNodeCount types =
+  types |> List.map typeNodeCount |> List.sum
+
+
 replaceConstsWithVars : Dict.Dict LocId Ident -> Exp -> Exp
 replaceConstsWithVars locIdToNewName exp =
   let replacer exp__ =

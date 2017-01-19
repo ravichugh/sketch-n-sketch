@@ -50,13 +50,13 @@ fixedPosition record =
 
 offsetLeftRight leftRight d =
   case leftRight of
-    Left n  -> Left  (n + d) 
-    Right n -> Right (n - d) 
+    Left n  -> Left  (n + d)
+    Right n -> Right (n - d)
 
 offsetTopBottom topBottom d =
   case topBottom of
-    Top n    -> Top    (n + d) 
-    Bottom n -> Bottom (n - d) 
+    Top n    -> Top    (n + d)
+    Bottom n -> Bottom (n - d)
 
 offset model get record =
   let {dx,dy} = get model in
@@ -75,7 +75,8 @@ getPutAttributeToolBox = (getAttributeToolBox, putAttributeToolBox)
 getPutBlobToolBox      = (getBlobToolBox,      putBlobToolBox)
 getPutMoreBlobToolBox  = (getMoreBlobToolBox,  putMoreBlobToolBox)
 getPutOutputToolBox    = (getOutputToolBox,    putOutputToolBox)
-getPutAnimationToolBox = (getAnimationToolBox,    putAnimationToolBox)
+getPutAnimationToolBox = (getAnimationToolBox, putAnimationToolBox)
+getPutSynthesisResultsSelectBox = (getSynthesisResultsSelectBox, putSynthesisResultsSelectBox)
 getPutCodeBox          = (getCodeBox,          putCodeBox)
 getPutCanvas           = (getCanvas,           putCanvas)
 
@@ -87,6 +88,7 @@ getBlobToolBox      = .layoutOffsets >> .blobToolBox
 getMoreBlobToolBox  = .layoutOffsets >> .moreBlobToolBox
 getOutputToolBox    = .layoutOffsets >> .outputToolBox
 getAnimationToolBox = .layoutOffsets >> .animationToolBox
+getSynthesisResultsSelectBox = .layoutOffsets >> .synthesisResultsSelectBox
 getCodeBox          = .layoutOffsets >> .codeBox
 getCanvas           = .layoutOffsets >> .canvas
 
@@ -129,6 +131,11 @@ putAnimationToolBox dx dy model =
   let layoutOffsets = model.layoutOffsets in
   { model | layoutOffsets =
     { layoutOffsets | animationToolBox = { dx = dx, dy = dy } } }
+
+putSynthesisResultsSelectBox dx dy model =
+  let layoutOffsets = model.layoutOffsets in
+  { model | layoutOffsets =
+    { layoutOffsets | synthesisResultsSelectBox = { dx = dx, dy = dy } } }
 
 putCodeBox dx dy model =
   let layoutOffsets = model.layoutOffsets in
@@ -178,6 +185,7 @@ type alias Info =
   , moreBlobTools : FixedPosition
   , outputTools : FixedPosition
   , animationTools : FixedPosition
+  , synthesisResultsSelect : FixedPosition
   , captionArea : FixedPosition
   }
 
@@ -246,6 +254,10 @@ computeLayout m =
   , animationTools = offset m getAnimationToolBox
      { leftRight = Right  <| windowPadding
      , topBottom = Bottom <| windowPadding + 1 * (rowGap + buttonHeight)
+     }
+  , synthesisResultsSelect = offset m getSynthesisResultsSelectBox
+     { leftRight = Right  <| windowPadding
+     , topBottom = Top    <| windowPadding + round (7.6 * (rowGap + buttonHeight))
      }
   , captionArea =
      { leftRight = Left   <| windowPadding

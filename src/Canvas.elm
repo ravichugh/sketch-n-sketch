@@ -53,15 +53,20 @@ svgPath      = flip Svg.path []
 --------------------------------------------------------------------------------
 
 build wCanvas hCanvas model =
-  let addZones = case model.mode of
-    Live _ -> model.tool == Cursor
-    _      -> False
+  let addZones = case (model.mode, model.preview) of
+    (Live _, Nothing) -> model.tool == Cursor
+    _                 -> False
   in
-  let outputShapes = buildSvg (model, addZones) model.slate in
+  let (widgets, slate) =
+    case model.preview of
+      Just (_, Ok (val, widgets, slate)) -> (widgets, slate)
+      _                                  -> (model.widgets, model.slate)
+  in
+  let outputShapes = buildSvg (model, addZones) slate in
   let newShape = Draw.drawNewShape model in
-  let widgets =
+  let svgWidgets =
     case (model.mode, model.showGhosts) of
-      (Live _, True ) -> buildSvgWidgets wCanvas hCanvas model
+      (Live _, True ) -> buildSvgWidgets wCanvas hCanvas widgets model.tool model.selectedFeatures
       _               -> []
   in
   Svg.svg
@@ -72,7 +77,7 @@ build wCanvas hCanvas model =
          , ("height", pixels hCanvas)
          ]
      ]
-     ([outputShapes] ++ newShape ++ widgets)
+     ([outputShapes] ++ newShape ++ svgWidgets)
 
 
 --------------------------------------------------------------------------------
@@ -135,11 +140,9 @@ sliderZoneEvents i string = dragZoneEvents (Right (i, string))
 --------------------------------------------------------------------------------
 -- Widget Layer
 
-buildSvgWidgets : Int -> Int -> Model -> List (Svg Msg)
-buildSvgWidgets wCanvas hCanvas model =
+buildSvgWidgets : Int -> Int -> Widgets -> Tool -> Set.Set ShapeWidgets.SelectedShapeFeature -> List (Svg Msg)
+buildSvgWidgets wCanvas hCanvas widgets selectedTool selectedFeatures =
   let
-    widgets        = model.widgets
-
     pad            = params.mainSection.uiWidgets.pad
     wSlider        = params.mainSection.uiWidgets.wSlider
     hSlider        = params.mainSection.uiWidgets.hSlider
@@ -181,9 +184,9 @@ buildSvgWidgets wCanvas hCanvas model =
         let feature =
           (ShapeWidgets.selectedTypeWidget, -1, "widget" ++ (toString locId))
         in
-        case model.tool of
+        case selectedTool of
           Cursor ->
-            if Set.member feature model.selectedFeatures
+            if Set.member feature selectedFeatures
               then colorPointSelected
               else Layout.strInterfaceColor -- colorPointNotSelected
           _ -> Layout.strInterfaceColor
