@@ -266,80 +266,80 @@ liveInfoToHighlights zoneKey model =
 
 --------------------------------------------------------------------------------
 
-computePatRanges pat =
+computePatRanges expId pat =
   case pat.val of
-    PConst _ _              -> [(pat.val, pat.start, pat.end, pat.end)]
-    PBase _ _               -> [(pat.val, pat.start, pat.end, pat.end)]
-    PVar _ x _              -> [(pat.val, pat.start, pat.end, pat.end)]
-    PList _ ps _ Nothing _  -> [(pat.val, pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })] ++ List.concatMap computePatRanges ps
-    PList _ ps _ (Just p) _ -> [(pat.val, pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })] ++ List.concatMap computePatRanges (p::ps)
-    PAs _ x _ p             -> [(pat.val, pat.start, pat.end, pat.end)] ++ computePatRanges p
+    PConst _ _              -> [(expId, pat.val, pat.start, pat.end, pat.end)]
+    PBase _ _               -> [(expId, pat.val, pat.start, pat.end, pat.end)]
+    PVar _ x _              -> [(expId, pat.val, pat.start, pat.end, pat.end)]
+    PList _ ps _ Nothing _  -> [(expId, pat.val, pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })] ++ List.concatMap (computePatRanges expId) ps
+    PList _ ps _ (Just p) _ -> [(expId, pat.val, pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })] ++ List.concatMap (computePatRanges expId) (p::ps)
+    PAs _ x _ p             -> [(expId, pat.val, pat.start, pat.end, pat.end)] ++ computePatRanges expId p
 
 findPats e = 
   let find e acc = 
     case e.val.e__ of 
-      EFun _ (p::ps) _ _ -> List.concatMap computePatRanges (p::ps) ++ acc
-      ETypeCase _ p _ _ -> computePatRanges p ++ acc
-      ELet _ _ _ p _ _ _ -> computePatRanges p ++ acc
-      ETyp _ p _ _ _ -> computePatRanges p ++ acc
-      ETypeAlias _ p _ _ _ -> computePatRanges p ++ acc
+      EFun _ (p::ps) _ _ -> List.concatMap (computePatRanges e.val.eid) (p::ps) ++ acc
+      ETypeCase _ p _ _ -> (computePatRanges e.val.eid p) ++ acc
+      ELet _ _ _ p _ _ _ -> (computePatRanges e.val.eid p) ++ acc
+      ETyp _ p _ _ _ -> (computePatRanges e.val.eid p) ++ acc
+      ETypeAlias _ p _ _ _ -> (computePatRanges e.val.eid p) ++ acc
       _ -> acc 
   in
   foldExp find [] e 
 
-computePatSpaces pat =
+computePatSpaces expId pat =
   case pat.val of
-    PConst ws _                   -> [(pat.val, 
+    PConst ws _                   -> [(expId, pat.val, 
                                       {line = pat.start.line, col = pat.start.col - 1},
                                       {line = pat.start.line, col = pat.start.col}),
-                                    (pat.val, 
+                                    (expId, pat.val, 
                                       {line = pat.end.line, col = pat.end.col},
                                       {line = pat.end.line, col = pat.end.col + 1})
                                     ]
-    PBase ws _                    -> [(pat.val, 
+    PBase ws _                    -> [(expId, pat.val, 
                                       {line = pat.start.line, col = pat.start.col - 1},
                                       {line = pat.start.line, col = pat.start.col}),
-                                    (pat.val, 
+                                    (expId, pat.val, 
                                       {line = pat.end.line, col = pat.end.col},
                                       {line = pat.end.line, col = pat.end.col + 1})
                                     ]
-    PVar ws x _                   -> [(pat.val, 
+    PVar ws x _                   -> [(expId, pat.val, 
                                       {line = pat.start.line, col = pat.start.col - 1},
                                       {line = pat.start.line, col = pat.start.col}),
-                                    (pat.val, 
+                                    (expId, pat.val, 
                                       {line = pat.end.line, col = pat.end.col},
                                       {line = pat.end.line, col = pat.end.col + 1})
                                     ]
-    PList ws1 ps ws2 Nothing ws3  -> [(pat.val, 
+    PList ws1 ps ws2 Nothing ws3  -> [(expId, pat.val, 
                                       {line = pat.start.line, col = pat.start.col - 1},
                                       {line = pat.start.line, col = pat.start.col}),
-                                    (pat.val, 
+                                    (expId, pat.val, 
                                       {line = pat.end.line, col = pat.end.col},
                                       {line = pat.end.line, col = pat.end.col + 1})
-                                    ] ++ List.concatMap computePatSpaces ps
-    PList ws1 ps ws2 (Just p) ws3 -> [(pat.val, 
+                                    ] ++ List.concatMap (computePatSpaces expId) ps
+    PList ws1 ps ws2 (Just p) ws3 -> [(expId, pat.val, 
                                       {line = pat.start.line, col = pat.start.col - 1},
                                       {line = pat.start.line, col = pat.start.col}),
-                                    (pat.val, 
+                                    (expId, pat.val, 
                                       {line = pat.end.line, col = pat.end.col},
                                       {line = pat.end.line, col = pat.end.col + 1})
-                                    ] ++ List.concatMap computePatSpaces ps
-    PAs ws1 x ws2 p               -> [(pat.val, 
+                                    ] ++ List.concatMap (computePatSpaces expId) ps
+    PAs ws1 x ws2 p               -> [(expId, pat.val, 
                                         {line = pat.start.line, col = pat.start.col - 1},
                                         {line = pat.start.line, col = pat.start.col}),
-                                      (pat.val, 
+                                      (expId, pat.val, 
                                         {line = pat.end.line, col = pat.end.col},
                                         {line = pat.end.line, col = pat.end.col + 1})
-                                      ] ++ computePatSpaces p
+                                      ] ++ computePatSpaces expId p
 
 findPatSpaces e = 
   let find e acc = 
     case e.val.e__ of 
-      EFun _ (p::ps) _ _ -> List.concatMap computePatSpaces (p::ps) ++ acc
-      ETypeCase _ p _ _ -> computePatSpaces p ++ acc
-      ELet _ _ _ p _ _ _ -> computePatSpaces p ++ acc
-      ETyp _ p _ _ _ -> computePatSpaces p ++ acc
-      ETypeAlias _ p _ _ _ -> computePatSpaces p ++ acc
+      EFun _ (p::ps) _ _ -> List.concatMap (computePatSpaces e.val.eid) (p::ps) ++ acc
+      ETypeCase _ p _ _ -> computePatSpaces e.val.eid p ++ acc
+      ELet _ _ _ p _ _ _ -> computePatSpaces e.val.eid p ++ acc
+      ETyp _ p _ _ _ -> computePatSpaces e.val.eid p ++ acc
+      ETypeAlias _ p _ _ _ -> computePatSpaces e.val.eid p ++ acc
       _ -> acc 
   in
   foldExp find [] e 
@@ -383,7 +383,7 @@ expRangesToHighlights m =
   List.concatMap maybeHighlight (computeExpRanges m.inputExp)
 
 patRangesToHighlights m = 
-  let maybeHighlight (p,start,end,selectEnd) =
+  let maybeHighlight (expId,p,start,end,selectEnd) =
     let range =
       { start = { row = start.line, column = start.col }
       , end   = { row = end.line, column = selectEnd.col  } }
@@ -398,7 +398,7 @@ patRangesToHighlights m =
   List.concatMap maybeHighlight (findPats m.inputExp)
 
 patSpacesToHighlights m = 
-  let maybeHighlight (p,start,end) =
+  let maybeHighlight (expId, p,start,end) =
     let range =
       { start = { row = start.line, column = start.col }
       , end   = { row = end.line, column = end.col  } }

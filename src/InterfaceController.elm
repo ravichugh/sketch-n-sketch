@@ -1152,13 +1152,14 @@ getClickedEId ls cursorPos =
 
 getClickedPat ls cursorPos = 
   let selected =
-    List.filter (\(pat,start,end,selectEnd) -> betweenPos start cursorPos selectEnd) ls
+    List.filter (\(expId,pat,start,end,selectEnd) -> betweenPos start cursorPos selectEnd) ls
   in
   case selected of
-    []            -> Nothing
-    [(p,s,e,se)]     -> Just (s.line, s.col, e.line, e.col)
-    _             -> let _ = Debug.log "WARN: getClickedPat: multiple pats" () in
-                     Nothing
+    []                   -> Nothing
+    [(eid,p,s,e,se)]     -> let out = Debug.log "PatternId: " eid in 
+      Just (s.line, s.col, e.line, e.col)
+    _                    -> let _ = Debug.log "WARN: getClickedPat: multiple pats" () in
+                            Nothing
 
 overlap p1 p2 = 
   (p1.start.line <= p2.end.line) && (p1.start.col <= p2.end.col) &&
