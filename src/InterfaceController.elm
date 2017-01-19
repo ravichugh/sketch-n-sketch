@@ -1012,26 +1012,33 @@ msgNew template = Msg "New" <| (\old ->
       LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v
       |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
         let code = unparse e in
-        { old | inputExp      = e
-              , inputVal      = v
-              , code          = code
-              , history       = ([code],[])
-              , mode          = m
-              , syncOptions   = so
-              , slideNumber   = 1
-              , slideCount    = slideCount
-              , movieCount    = movieCount
-              , movieTime     = 0
-              , movieDuration = movieDuration
-              , movieContinue = movieContinue
-              , runAnimation  = movieDuration > 0
-              , slate         = slate
-              , widgets       = ws
-              , codeBoxInfo   = updateCodeBoxWithTypes ati old.codeBoxInfo
-              , filename      = Model.bufferName
-              , needsSave     = True
-              , lastSaveState = Nothing
-              }
+        { initModel | inputExp      = e
+                    , inputVal      = v
+                    , code          = code
+                    , history       = ([code],[])
+                    , mode          = m
+                    , syncOptions   = so
+                    , slideNumber   = 1
+                    , slideCount    = slideCount
+                    , movieCount    = movieCount
+                    , movieTime     = 0
+                    , movieDuration = movieDuration
+                    , movieContinue = movieContinue
+                    , runAnimation  = movieDuration > 0
+                    , slate         = slate
+                    , widgets       = ws
+                    , codeBoxInfo   = updateCodeBoxWithTypes ati old.codeBoxInfo
+                    , filename      = Model.bufferName
+                    , needsSave     = True
+                    , lastSaveState = Nothing
+                    , dimensions    = old.dimensions
+                    , syncOptions   = old.syncOptions
+                    , localSaves    = old.localSaves
+                    , basicCodeBox  = old.basicCodeBox
+                    , randomColor   = old.randomColor
+                    , layoutOffsets = old.layoutOffsets
+                    , fileIndex     = old.fileIndex
+                    }
       ) |> handleError old) >> closeDialogBox New
 
 msgAskNew template = requireSaveAsker (msgNew template)
