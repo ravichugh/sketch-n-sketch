@@ -1,5 +1,5 @@
 port module DependenceGraph exposing
-  ( PatternId(..), BeforeAfter(..), TargetPosition, ScopeGraph
+  ( ScopeGraph, BeforeAfter(..), TargetPosition
   , compute, printHtml, render, receiveImage
   )
 
@@ -16,89 +16,28 @@ import Html exposing (Html)
 
 ------------------------------------------------------------------------------
 
-type PatternId
-  = LetId EId
-  | ListIndex PatternId Int
+type alias ScopeId = EId   -- from an ELet or EFun expression
+type alias LetOrFun = Bool -- True for ELet, False for EFun
+
+type alias PatternId = (ScopeId, List Int)
+
+type alias Nodes = Dict PatternId Ident
+
+type alias ParentTree = Dict ScopeId ScopeId
+
+type alias ScopeGraph =
+  { scopeNodes : Dict ScopeId (LetOrFun, Set PatternId)
+  , idents     : Nodes
+  , tree       : ParentTree
+  }
 
 type BeforeAfter = Before | After
 
 type alias TargetPosition = (BeforeAfter, PatternId)
 
-type alias Nodes = Dict EId Ident -- TODO change EId to PatternId
-
-type alias ParentTree = Dict EId EId
-
-type alias ScopeGraph =
-  { letVars    : Nodes
-  , lambdaVars : Nodes
-  , tree       : ParentTree
-  }
-
-combine x y =
-  { letVars    = Dict.union x.letVars y.letVars
-  , lambdaVars = Dict.union x.lambdaVars y.lambdaVars
-  , tree       = Dict.union x.tree y.tree
-  }
-
-combineMany scopeGraphs = case scopeGraphs of
-  hd :: tl -> List.foldl combine hd tl
-  []       -> Debug.crash "combineMany scopeGraphs: []"
-
 
 ------------------------------------------------------------------------------
-
-rootId = 0
-
-compute : Exp -> ScopeGraph
-compute =
-  computeScopeGraph rootId
-    { letVars = Dict.singleton rootId "ROOT"
-    , lambdaVars = Dict.empty
-    , tree = Dict.empty
-    }
-
-computeScopeGraph currentId acc e =
-  let recurse = computeScopeGraph currentId acc in
-  let addVar x acc =
-    { acc | letVars = Dict.insert e.val.eid x acc.letVars
-          , tree = Dict.insert e.val.eid currentId acc.tree
-          }
-  in
-  let traversePat p acc =
-    case p.val of
-      PVar _ x _               -> addVar x acc
-      PList _ ps _ Nothing _   -> List.foldl traversePat acc ps
-      PList _ ps _ (Just p) _  -> List.foldl traversePat acc (ps++[p])
-      PAs _ x _ p              -> acc -- TODO
-      _                        -> acc
-  in
-  case e.val.e__ of
-
-    EConst _ _ _ _  -> acc
-    EBase _ _       -> acc
-    EVar _ _        -> acc
-
-    -- TODO
-    EFun _ ps e _ -> recurse e
-    EApp _ e es _ -> recurse e
-    EOp _ _ es _ -> acc
-    EList _ es _ me _ -> acc
-    EIf _ e1 e2 e3 _ -> acc
-    ECase _ e branches _ -> acc
-    ETypeCase _ _ tbranches _ -> acc
-
-    ELet _ _ _ p e1 e2 _ ->
-      let acc1 = recurse e1 in
-      computeScopeGraph e.val.eid (traversePat p acc1) e2
-
-    EComment _ _ e        -> recurse e
-    EOption _ _ _ _ e     -> recurse e
-    ETyp _ _ _ e _        -> recurse e
-    EColonType _ e _ _ _  -> recurse e
-    ETypeAlias _ _ _ e _  -> recurse e
-
-
-------------------------------------------------------------------------------
+-- Ports
 
 -- Outgoing
 
@@ -113,6 +52,106 @@ port receiveImage : (String -> msg) -> Sub msg
 
 
 ------------------------------------------------------------------------------
+-- Helpers
+
+strPatId (scopeId, path) =
+  String.join "_" (List.map toString (scopeId :: path))
+
+updateScopeNodes patId scopeNodes =
+  let (scopeId, _) = patId in
+  let (letOrFun, set) = Utils.justGet_ "updateScopeNodes" scopeId scopeNodes in
+  Dict.insert scopeId (letOrFun, Set.insert patId set) scopeNodes
+
+
+------------------------------------------------------------------------------
+-- Computing Scope Tree and Dependency Graph
+
+rootId = 0
+rootPatId = (rootId, [])
+
+compute : Exp -> ScopeGraph
+compute =
+  computeScopeGraph rootId
+    { scopeNodes = Dict.singleton rootId (True, Set.empty)
+    , idents = Dict.empty
+    , tree = Dict.empty
+    }
+
+computeScopeGraph currentId acc e =
+
+  let recurse es =
+    List.foldl (\e acc -> computeScopeGraph currentId acc e) acc es in
+
+  let addScopeNode letOrFun acc =
+    { acc
+       | scopeNodes = Dict.insert e.val.eid (letOrFun, Set.empty) acc.scopeNodes
+       } in
+
+  let addScopeEdge acc =
+    { acc
+       | tree = Dict.insert e.val.eid currentId acc.tree
+       } in
+
+  let addVar x path acc =
+    let patId = (e.val.eid, path) in
+    { acc
+       | scopeNodes = updateScopeNodes patId acc.scopeNodes
+       , idents = Dict.insert patId x acc.idents
+       } in
+
+  let
+    traversePat (pat, path) acc =
+      case pat.val of
+        PConst _ _  -> acc
+        PBase _ _   -> acc
+        PVar _ x _  -> addVar x path acc
+        PAs _ x _ p -> traversePat (p, path) (addVar x path acc)
+        PList _ ps _ Nothing _  -> traversePats ps path acc
+        PList _ ps _ (Just p) _ -> traversePats (ps ++ [p]) path acc
+
+    traversePats pats path acc =
+      Utils.foldli (\(i, pi) -> traversePat (pi, path ++ [i])) acc pats
+  in
+
+  case e.val.e__ of
+
+    ELet _ _ _ p e1 e2 _ ->
+      -- use currentId for e1, then e.val.eid for e2
+      let acc0 = traversePat (p, []) (addScopeEdge (addScopeNode True acc)) in
+      let acc1 = computeScopeGraph currentId acc0 e1 in
+      computeScopeGraph e.val.eid acc1 e2
+
+    EFun _ ps e _ ->
+      let acc0 = addScopeEdge (addScopeNode False acc) in
+      let acc1 = traversePats ps [] acc0 in
+      computeScopeGraph currentId acc1 e
+
+    EConst _ _ _ _  -> acc
+    EBase _ _       -> acc
+    EVar _ _        -> acc
+
+    EApp _ e es _     -> recurse (e::es)
+    EOp _ _ es _      -> recurse es
+    EIf _ e1 e2 e3 _  -> recurse [e1, e2, e3]
+
+    EList _ es _ (Just eRest) _  -> recurse (es++[eRest])
+    EList _ es _ Nothing _       -> recurse es
+
+    ECase _ e branches _ ->
+      let _ = Debug.log "TODO: scope tree ECase" () in acc
+
+    ETypeCase _ _ tbranches _ ->
+      let _ = Debug.log "TODO: scope tree ETypeCase" () in acc
+
+    EComment _ _ e        -> recurse [e]
+    EOption _ _ _ _ e     -> recurse [e]
+    ETyp _ _ _ e _        -> recurse [e]
+    EColonType _ e _ _ _  -> recurse [e]
+    ETypeAlias _ _ _ e _  -> recurse [e]
+
+
+------------------------------------------------------------------------------
+-- DOT Conversion
 
 printHtml : ScopeGraph -> Html msg
 printHtml = print (Html.div []) (List.intersperse (Html.br [] [])) Html.text
@@ -122,22 +161,48 @@ printString = print identity Utils.lines identity
 
 print : (b -> c) -> (List a -> b) -> (String -> a) -> ScopeGraph -> c
 print overall combine f scopeGraph =
-  let letVarNodes = nodes f scopeGraph in
+  let scopeClusters = clusters f scopeGraph in
   let treeEdges = edges f scopeGraph in
   overall <|
     combine <|
       List.concat <|
         [ [f "digraph scopeGraph {"]
-        , letVarNodes
+        , scopeClusters
         , treeEdges
         , [f "}"]
         ]
 
-nodes f scopeGraph =
-  flip List.map (Dict.toList scopeGraph.letVars) <| \(i,x) ->
-    f (x ++ " [label=\"" ++ x ++ "\", style=filled, fillcolor=gray]")
+defineNode color name label =
+  name ++ " [label=\"" ++ label ++ "\", style=filled, fillcolor=" ++ color ++ "]"
+
+-- http://www.graphviz.org/doc/info/colors.html
+
+defineVarNode = defineNode "lemonchiffon1"
+
+defineClusterNode letOrFun =
+  case letOrFun of
+    True  -> defineNode "white"
+    False -> defineNode "lightblue1"
+
+clusterNode i =
+  "scope" ++ toString i
+
+varNode patId =
+  "var" ++ strPatId patId
+
+clusters f scopeGraph =
+  flip List.concatMap (Dict.toList scopeGraph.scopeNodes) <|
+    \(scopeId, (letOrFun, patIds)) ->
+      let s = toString scopeId in
+      List.concat <|
+        [ [f ("subgraph cluster" ++ s ++ " {")]
+        , [f (defineClusterNode letOrFun (clusterNode scopeId) s)]
+        , flip List.map (Set.toList patIds) <| \patId ->
+            let x = Maybe.withDefault "???" (Dict.get patId scopeGraph.idents) in
+            f (defineVarNode (varNode patId) x)
+        , [f "}"]
+        ]
 
 edges f scopeGraph =
   flip List.map (Dict.toList scopeGraph.tree) <| \(i,j) ->
-    let var i = Maybe.withDefault "???" <| Dict.get i scopeGraph.letVars in
-    f (var i ++ " -> " ++ var j)
+    f (clusterNode i ++ " -> " ++ clusterNode j)

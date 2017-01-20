@@ -407,6 +407,7 @@ tryRun old =
                     , syncOptions   = Sync.syncOptionsOf old.syncOptions e
                     , lambdaTools   = lambdaTools_
                     , errorBox      = Nothing
+                    , scopeGraph    = DependenceGraph.compute e
               }
             in
             { new | mode = refreshMode_ new
