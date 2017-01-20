@@ -1,0 +1,55 @@
+; Gear
+;
+; Need fancier path tools to create the
+; cut out via direct manipulation.
+;
+; Need better DM to manipulate the design (parameter
+; control and better handling of rotation)
+;
+; Design decisions:
+;   - tip diameter absolute or offset from root diameter
+;   - points defined clockwise (below) or counterclockwise
+;   - how to add the lettered path commands between the points (good opportunity for PBE)
+;   - scope of unshared gear parameters, either local (below, mostly) or global
+;
+
+(def [cx cy] [200 200])
+(def [rootRadius tipRadius] [120 170])
+(def teethCount 9!{1-50})
+(def [botLandRatio topLandRatio] [0.45 0.25])
+(def rot 0)
+
+; direction controls whether points are clockwise or counterclockwise
+(def circlePathCmds (\(cx cy r direction)
+  (let sweepFlag (if (= 1 direction) 1 0)
+  ['M' (+ cx (* direction r)) cy
+   'a' (* direction r) r 0 0 sweepFlag (* direction (neg r)) r
+   'a' (* direction r) r 0 0 sweepFlag (* direction (neg r)) (neg r)
+   'a' (* direction r) r 0 0 sweepFlag (* direction r) (neg r)
+   'a' (* direction r) r 0 0 sweepFlag (* direction r) r
+   'z'])))
+
+(def gearPts (\(rotAngularRatioOffset r)
+  (let angularPitch (/ twoPi teethCount)
+  (reverse (nPointsOnCircle teethCount (+ rot (* angularPitch rotAngularRatioOffset)) cx cy r)))))
+
+; 0 degrees is centered on a tip
+(def topLeftPts  (gearPts (/ topLandRatio -2!) tipRadius))
+(def topRightPts (gearPts (/ topLandRatio  2!) tipRadius))
+(def botLeftPts  (gearPts (+ 0.5! (/ botLandRatio -2!)) rootRadius))
+(def botRightPts (gearPts (+ 0.5! (/ botLandRatio  2!)) rootRadius))
+
+; Now interleave all the points
+(def pathPts (concat (map4 (\(pt1 pt2 pt3 pt4) [pt1 pt2 pt3 pt4]) topLeftPts topRightPts botLeftPts botRightPts)))
+
+(def pathCmds
+   (concat (intermingle (cons ['M'] (snoc ['Z'] (repeat (- (* 4! teethCount) 1!) ['L']))) pathPts)))
+
+(def gear
+  (let [strokeColor strokeWidth color] [372 5 352]
+    [ (rawPath color strokeColor strokeWidth (append pathCmds (circlePathCmds cx cy 50 -1!)) 0) ]))
+
+
+(blobs [
+  gear
+])

@@ -220,7 +220,7 @@ map f p = P <| \s ->
 (>>>) = sequence
 (+++) = or
 (<++) = left_or
-(<$>) = map
+(<<|) = map
 
 -- functions from Text.ParserCombinators.ReadP not implemented:
 --

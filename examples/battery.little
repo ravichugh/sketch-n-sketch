@@ -1,0 +1,32 @@
+; Battery
+;
+; After Bernstein and Li "Lillicon" 2015.
+;
+; Can be done with tools as of UIST 2016 (minus abstaction), but
+; parameterization is backward; want tip x and y to be dependent but
+; the Make Equal defaults to making x and h dependent (as below).
+;
+; Design decisions:
+;   - w/h of tip absolute or relative to body
+;   - if abstracted, BB or x/y/w/h parameterization
+;
+
+(def [body_w body_x] [147 103])
+(def [tip_y body_h body_y] [223 84 201])
+(def fill 362)
+
+(def body
+  (let [ stroke strokeWidth] [ 250 0]
+  (let rot 0
+    [ (rawRect fill stroke strokeWidth body_x body_y body_w body_h rot) ])))
+
+(def tip
+  (let [x w h] [(+ body_x body_w) 19 (* 2! (- (+ body_y (* 0.5! body_h)) tip_y))]
+  (let [ stroke strokeWidth] [ 182 0]
+  (let rot 0
+    [ (rawRect fill stroke strokeWidth x tip_y w h rot) ]))))
+
+(blobs [
+  body
+  tip
+])

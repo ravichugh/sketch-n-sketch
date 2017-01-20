@@ -8,12 +8,80 @@ module LangTools exposing (..)
 -- currently. Also used in InterfaceView to find unfrozen locs to animate in our
 -- (possibly defunct) relate attributes selection screen.
 
+import Eval
 import Lang exposing (..)
 import LangParser2
 import Utils
 
 import Dict
 import Set
+
+
+-- For ranking synthesized expressions
+nodeCount : Exp -> Int
+nodeCount exp =
+  case exp.val.e__ of
+    EConst _ _ _ _          -> 1
+    EBase _ _               -> 1
+    EVar _ x                -> 1
+    EFun _ ps e _           -> 1 + patsNodeCount ps + nodeCount e
+    EOp _ op es _           -> 1 + expsNodeCount es
+    EList _ es _ (Just e) _ -> 1 + expsNodeCount es + nodeCount e
+    EList _ es _ Nothing _  -> 1 + expsNodeCount es
+    EIf _ e1 e2 e3 _        -> 1 + expsNodeCount [e1, e2, e3]
+    -- Cases have a set of parens around each branch. I suppose each should count as a node.
+    ECase _ e1 bs _         -> 1 + (List.length bs) + nodeCount e1 + patsNodeCount (branchPats bs) + expsNodeCount (branchExps bs)
+    ETypeCase _ p tbs _     -> 1 + (List.length tbs) + patNodeCount p + typesNodeCount (tbranchTypes tbs) + expsNodeCount (tbranchExps tbs)
+    -- ETypeCase _ e1 tbranches _  ->
+    EApp _ e1 es _          -> 1 + nodeCount e1 + expsNodeCount es
+    ELet _ _ _ p e1 e2 _    -> 1 + patNodeCount p + nodeCount e1 + nodeCount e2
+    EComment _ _ e1         -> 0 + nodeCount e1 -- Comments don't count.
+    EOption _ _ _ _ e1      -> 1 + nodeCount e1
+    ETyp _ p t e1 _         -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
+    EColonType _ e1 _ t _   -> 1 + typeNodeCount t + nodeCount e1
+    ETypeAlias _ p t e1 _   -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
+
+
+expsNodeCount : List Exp -> Int
+expsNodeCount exps =
+  exps |> List.map nodeCount |> List.sum
+
+patNodeCount : Pat -> Int
+patNodeCount pat =
+  case pat.val of
+    PVar _ _ _                  -> 1
+    PConst _ _                  -> 1
+    PBase _ _                   -> 1
+    PList _ pats _ (Just pat) _ -> 1 + patsNodeCount pats + patNodeCount pat
+    PList _ pats _ Nothing    _ -> 1 + patsNodeCount pats
+    PAs _ _ _ pat               -> 1 + patNodeCount pat
+
+patsNodeCount : List Pat -> Int
+patsNodeCount pats =
+  pats |> List.map patNodeCount |> List.sum
+
+typeNodeCount : Type -> Int
+typeNodeCount tipe =
+  case tipe.val of
+    TNum _                          -> 1
+    TBool _                         -> 1
+    TString _                       -> 1
+    TNull _                         -> 1
+    TList _ t _                     -> 1 + typeNodeCount t
+    TDict _ kt vt _                 -> 1 + typeNodeCount kt + typeNodeCount vt
+    TTuple _ ts _ Nothing _         -> 1 + typesNodeCount ts
+    TTuple _ ts _ (Just t) _        -> 1 + typesNodeCount ts + typeNodeCount t
+    TArrow _ ts _                   -> 1 + typesNodeCount ts
+    TUnion _ ts _                   -> 1 + typesNodeCount ts
+    TNamed _ _                      -> 1
+    TVar _ _                        -> 1
+    TForall _ (One (_, _)) t _      -> 1 + typeNodeCount t
+    TForall _ (Many _ idents _) t _ -> 1 + List.length idents + typeNodeCount t
+    TWildcard _                     -> 1
+
+typesNodeCount : List Type -> Int
+typesNodeCount types =
+  types |> List.map typeNodeCount |> List.sum
 
 
 replaceConstsWithVars : Dict.Dict LocId Ident -> Exp -> Exp
@@ -59,6 +127,11 @@ allLocsAndNumbers exp =
     exp
 
 
+allLocIds exp =
+  allLocsAndNumbers exp
+  |> List.map (\((locId, _, _), _) -> locId)
+
+
 -- Is the expression in the body of only defs/comments/options?
 --
 -- The "top level" is a single path on the tree, so walk it and look
@@ -68,12 +141,41 @@ isTopLevel exp program =
   if exp == program then
     True
   else
-    case program.val.e__ of
-      ELet _ Def _ _ _ body _ -> isTopLevel exp body
-      EComment _ _ e          -> isTopLevel exp e
-      EOption _ _ _ _ e       -> isTopLevel exp e
-      _                       -> False
+    case maybeTopLevelChild program of
+      Just child -> isTopLevel exp child
+      Nothing    -> False
 
+
+maybeTopLevelChild : Exp -> Maybe Exp
+maybeTopLevelChild exp =
+  case exp.val.e__ of
+    ETyp _ _ _ body _       -> Just body
+    EColonType _ body _ _ _ -> Just body
+    ETypeAlias _ _ _ body _ -> Just body
+    ELet _ Def _ _ _ body _ -> Just body
+    EComment _ _ e          -> Just e
+    EOption _ _ _ _ e       -> Just e
+    _                       -> Nothing
+
+
+topLevelExps : Exp -> List Exp
+topLevelExps program =
+  case maybeTopLevelChild program of
+    Just child -> program::(topLevelExps child)
+    Nothing    -> [program]
+
+
+lastExp : Exp -> Exp
+lastExp exp =
+  case childExps exp of
+    []       -> exp
+    children -> lastExp <| Utils.last "LangTools.lastExp" children
+
+
+identifiersVisibleAtProgramEnd : Exp -> Set.Set Ident
+identifiersVisibleAtProgramEnd program =
+  let lastEId = (lastExp program).val.eid in
+  visibleIdentifiersAtEIds program (Set.singleton lastEId)
 
 -- Still needs to be rewritten to handle scopes created by case branches.
 --
@@ -127,6 +229,14 @@ scopeNamesLocLiftedThrough_ targetLocId scopeNames exp =
       List.concatMap recurse (childExps exp)
 
 
+preludeIdentifiers = Eval.initEnv |> List.map Tuple.first |> Set.fromList
+
+
+identifiersSetPlusPrelude : Exp -> Set.Set Ident
+identifiersSetPlusPrelude exp =
+  Set.union (identifiersSet exp) preludeIdentifiers
+
+
 identifiersSet : Exp -> Set.Set Ident
 identifiersSet exp =
   identifiersList exp
@@ -137,6 +247,12 @@ identifiersSetInPat : Pat -> Set.Set Ident
 identifiersSetInPat pat =
   identifiersListInPat pat
   |> Set.fromList
+
+
+identifiersSetInPats : List Pat -> Set.Set Ident
+identifiersSetInPats pats =
+  List.map identifiersSetInPat pats
+  |> Utils.unionAll
 
 
 identifiersList : Exp -> List Ident
@@ -168,6 +284,40 @@ identifiersList exp =
     exp
 
 
+-- Look for all non-free identifiers in the expression.
+identifiersSetPatsOnly : Exp -> Set.Set Ident
+identifiersSetPatsOnly exp =
+  identifiersListPatsOnly exp
+  |> Set.fromList
+
+
+identifiersListPatsOnly : Exp -> List Ident
+identifiersListPatsOnly exp =
+  let folder e__ acc =
+    case e__ of
+      EFun _ pats _ _ ->
+        (List.concatMap identifiersListInPat pats) ++ acc
+
+      ECase _ _ branches _ ->
+        let pats = branchPats branches in
+        (List.concatMap identifiersListInPat pats) ++ acc
+
+      -- If we are looking for introduced variables, should exclude ETypeCase
+      -- ETypeCase _ pat _ _ ->
+      --   (identifiersListInPat pat) ++ acc
+
+      ELet _ _ _ pat _ _ _ ->
+        (identifiersListInPat pat) ++ acc
+
+      _ ->
+        acc
+  in
+  foldExpViaE__
+    folder
+    []
+    exp
+
+
 identifiersListInPat : Pat -> List Ident
 identifiersListInPat pat =
   case pat.val of
@@ -176,6 +326,13 @@ identifiersListInPat pat =
     PList _ pats _ Nothing    _ -> List.concatMap identifiersListInPat pats
     PAs _ ident _ pat           -> ident::(identifiersListInPat pat)
     _                           -> []
+
+
+identifiersListInPats : List Pat -> List Ident
+identifiersListInPats pats =
+  List.concatMap
+    identifiersListInPat
+    pats
 
 
 identifierCounts : Exp -> Dict.Dict Ident Int
@@ -196,14 +353,18 @@ identifierCounts exp =
 
 
 renameIdentifierInPat old new pat =
-  let recurse = renameIdentifierInPat old new in
+  renameIdentifiersInPat (Dict.singleton old new) pat
+
+
+renameIdentifiersInPat subst pat =
+  let recurse = renameIdentifiersInPat subst in
   let recurseList = List.map recurse in
   let pat__ =
     case pat.val of
       PVar ws ident wd ->
-        if ident == old
-        then PVar ws new wd
-        else pat.val
+        case Dict.get ident subst of
+          Just new -> PVar ws new wd
+          Nothing  -> pat.val
 
       PList ws1 pats ws2 Nothing ws3 ->
         PList ws1 (recurseList pats) ws2 Nothing ws3
@@ -212,9 +373,9 @@ renameIdentifierInPat old new pat =
         PList ws1 (recurseList pats) ws2 (Just (recurse pRest)) ws3
 
       PAs ws1 ident ws2 innerPat ->
-        if ident == old
-        then PAs ws1 new ws2 (recurse innerPat)
-        else PAs ws1 ident ws2 (recurse innerPat)
+        case Dict.get ident subst of
+          Just new -> PAs ws1 new ws2 (recurse innerPat)
+          Nothing  -> PAs ws1 ident ws2 (recurse innerPat)
 
       _ ->
         pat.val
@@ -228,31 +389,39 @@ renameIdentifierInPats old new pats =
     pats
 
 
+renameIdentifiersInPats subst pats =
+  List.map
+    (renameIdentifiersInPat subst)
+    pats
+
+
 renameIdentifier : Ident -> Ident -> Exp -> Exp
 renameIdentifier old new exp =
+  renameIdentifiers (Dict.singleton old new) exp
+
+
+renameIdentifiers : Dict.Dict Ident Ident -> Exp -> Exp
+renameIdentifiers subst exp =
   let exp__Renamer e__ =
     case e__ of
       EVar ws ident ->
-        if ident == old
-        then EVar ws new
-        else e__
+        case Dict.get ident subst of
+          Just new -> EVar ws new
+          Nothing  -> e__
 
       EFun ws1 pats body ws2 ->
-        EFun ws1 (renameIdentifierInPats old new pats) body ws2
+        EFun ws1 (renameIdentifiersInPats subst pats) body ws2
 
       ECase ws1 e1 branches ws2 ->
         let branches_ =
           List.map
-              (mapValField (\(Branch_ bws1 pat ei bws2) -> Branch_ bws1 (renameIdentifierInPat old new pat) ei bws2))
+              (mapValField (\(Branch_ bws1 pat ei bws2) -> Branch_ bws1 (renameIdentifiersInPat subst pat) ei bws2))
               branches
         in
         ECase ws1 e1 branches_ ws2
 
-      ETypeCase ws1 pat tbranches ws2 ->
-        ETypeCase ws1 (renameIdentifierInPat old new pat) tbranches ws2
-
       ELet ws1 kind rec pat assign body ws2 ->
-        ELet ws1 kind rec (renameIdentifierInPat old new pat) assign body ws2
+        ELet ws1 kind rec (renameIdentifiersInPat subst pat) assign body ws2
 
       _ ->
         e__
@@ -260,3 +429,215 @@ renameIdentifier old new exp =
   mapExpViaExp__
     exp__Renamer
     exp
+
+
+-- Which vars in this exp refer to something outside this exp?
+freeIdentifiers : Exp -> Set.Set Ident
+freeIdentifiers exp =
+  freeIdentifiers_ Set.empty exp
+
+
+freeIdentifiers_ : Set.Set Ident -> Exp -> Set.Set Ident
+freeIdentifiers_ boundIdentsSet exp =
+  let recurse () =
+    List.map (freeIdentifiers_ boundIdentsSet) (childExps exp)
+    |> Utils.unionAll
+  in
+  case exp.val.e__ of
+    EConst _ i l wd             -> Set.empty
+    EBase _ v                   -> Set.empty
+    EVar _ x                    -> if Set.member x boundIdentsSet then Set.empty else Set.singleton x
+    EFun _ ps e _               -> freeIdentifiers_ (Set.union (identifiersSetInPats ps) boundIdentsSet) e
+    EOp _ op es _               -> recurse ()
+    EList _ es _ m _            -> recurse ()
+    EIf _ e1 e2 e3 _            -> recurse ()
+    ECase _ e1 bs _             ->
+      let freeInScrutinee = freeIdentifiers_ boundIdentsSet e1 in
+      let freeInEachBranch =
+        (List.map .val bs)
+        |> List.map (\(Branch_ _ bPat bExp _) -> freeIdentifiers_ (Set.union (identifiersSetInPat bPat) boundIdentsSet) bExp)
+      in
+      List.foldl
+          Set.union
+          freeInScrutinee
+          freeInEachBranch
+
+    ETypeCase _ p tbranches _   -> Set.union (Set.diff (identifiersSetInPat p) boundIdentsSet) (recurse ())
+    -- ETypeCase _ e1 tbranches _  -> recurse ()
+    EApp _ e1 es _              -> recurse ()
+    ELet _ _ False p e1 e2 _    ->
+      let freeInAssigns = freeIdentifiers_ boundIdentsSet e1 in
+      let freeInBody    = freeIdentifiers_ (Set.union (identifiersSetInPat p) boundIdentsSet) e2 in
+      Set.union freeInAssigns freeInBody
+
+    ELet _ _ True p e1 e2 _ ->
+      let freeInAssigns = freeIdentifiers_ (Set.union (identifiersSetInPat p) boundIdentsSet) e1 in
+      let freeInBody    = freeIdentifiers_ (Set.union (identifiersSetInPat p) boundIdentsSet) e2 in
+      Set.union freeInAssigns freeInBody
+
+    EComment _ _ e1       -> recurse ()
+    EOption _ _ _ _ e1    -> recurse ()
+    ETyp _ _ _ e1 _       -> recurse ()
+    EColonType _ e1 _ _ _ -> recurse ()
+    ETypeAlias _ _ _ e1 _ -> recurse ()
+    -- EVal _                -> Debug.crash "LangTools.freeIdentifiers_: shouldn't have an EVal in given expression"
+    -- EDict _               -> Debug.crash "LangTools.freeIdentifiers_: shouldn't have an EDict in given expression"
+
+
+-- Renames free variables only, which is great!
+-- Preserves EIds (for Brainstorm)
+renameVarsUntilBound : Dict.Dict Ident Ident -> Exp -> Exp
+renameVarsUntilBound renamings exp =
+  let renamer newName e =
+    -- let _ = Debug.log ("Renaming " ++ newName ++ " on") e in
+    case e.val.e__ of
+      EVar ws oldName -> replaceE__ e (EVar ws newName)
+      _               -> Debug.crash <| "LangTools.renameVarsUntilBound: renamer should only be passed an EVar, but given: " ++ (toString e)
+  in
+  let fnSubst =
+    renamings
+    |> Dict.map (\_ newName -> (renamer newName))
+  in
+  transformVarsUntilBound fnSubst exp
+
+
+-- Transforms only free variables.
+-- Preserves EIds (for Brainstorm)
+transformVarsUntilBound : Dict.Dict Ident (Exp -> Exp) -> Exp -> Exp
+transformVarsUntilBound subst exp =
+  let recurse e = transformVarsUntilBound subst e in
+  let recurseWithout introducedIdents e =
+    let newSubst =
+      List.foldl
+          Dict.remove
+          subst
+          (Set.toList introducedIdents)
+    in
+    if Dict.size newSubst == 0 then
+      e
+    else
+      transformVarsUntilBound newSubst e
+  in
+  case exp.val.e__ of
+    -- EVal _                      -> exp
+    EConst _ _ _ _              -> exp
+    EBase _ _                   -> exp
+    EVar _ ident                ->
+      case Dict.get ident subst of
+        Just f  -> f exp
+        Nothing -> exp
+
+    EFun ws1 ps e ws2           -> replaceE__ exp (EFun ws1 ps (recurseWithout (identifiersSetInPats ps) e) ws2)
+    EOp ws1 op es ws2           -> replaceE__ exp (EOp ws1 op (List.map recurse es) ws2)
+    EList ws1 es ws2 m ws3      -> replaceE__ exp (EList ws1 (List.map recurse es) ws2 (Maybe.map recurse m) ws3)
+
+    EIf ws1 e1 e2 e3 ws2        -> replaceE__ exp (EIf ws1 (recurse e1) (recurse e2) (recurse e3) ws2)
+    ECase ws1 e1 bs ws2         ->
+      let newScrutinee = recurse e1 in
+      let newBranches =
+        bs
+        |> List.map
+            (mapValField (\(Branch_ bws1 bPat bExp bws2) ->
+              Branch_ bws1 bPat (recurseWithout (identifiersSetInPat bPat) bExp) bws2
+            ))
+      in
+      replaceE__ exp (ECase ws1 newScrutinee newBranches ws2)
+
+
+    ETypeCase ws1 scrutinee tbranches ws2 ->
+      Debug.crash "need to change typecase scrutinee to expression; pluck from brainstorm branch"
+    -- Brainstorm changed typecase scrutinee to an evaluated expression
+    -- ETypeCase ws1 scrutinee tbranches ws2 ->
+    --   let newScrutinee = recurse scrutinee in
+    --   let newTBranches =
+    --     tbranches
+    --     |> List.map
+    --         (mapValField (\(TBranch_ bws1 bType bExp bws2) ->
+    --           TBranch_ bws1 bType (recurse bExp) bws2
+    --         ))
+    --   in
+    --   replaceE__ exp (ETypeCase ws1 newScrutinee newTBranches ws2)
+
+    EApp ws1 e1 es ws2              -> replaceE__ exp (EApp ws1 (recurse e1) (List.map recurse es) ws2)
+    ELet ws1 kind False p e1 e2 ws2 ->
+      replaceE__ exp (ELet ws1 kind False p (recurse e1) (recurseWithout (identifiersSetInPat p) e2) ws2)
+
+    ELet ws1 kind True p e1 e2 ws2 ->
+      replaceE__ exp (ELet ws1 kind True p (recurseWithout (identifiersSetInPat p) e1) (recurseWithout (identifiersSetInPat p) e2) ws2)
+
+    EComment ws s e1                -> replaceE__ exp (EComment ws s (recurse e1))
+    EOption ws1 s1 ws2 s2 e1        -> replaceE__ exp (EOption ws1 s1 ws2 s2 (recurse e1))
+    ETyp ws1 pat tipe e ws2         -> replaceE__ exp (ETyp ws1 pat tipe (recurse e) ws2)
+    EColonType ws1 e ws2 tipe ws3   -> replaceE__ exp (EColonType ws1 (recurse e) ws2 tipe ws3)
+    ETypeAlias ws1 pat tipe e ws2   -> replaceE__ exp (ETypeAlias ws1 pat tipe (recurse e) ws2)
+
+    -- EDict _                         -> Debug.crash "LangTools.transformVarsUntilBound: shouldn't have an EDict in given expression"
+
+
+
+-- What variable names are in use at any of the given locations?
+-- For help finding unused names during synthesis.
+visibleIdentifiersAtEIds : Exp -> Set.Set EId -> Set.Set Ident
+visibleIdentifiersAtEIds program eids =
+  let programIdents = visibleIdentifiersAtEIds_ Set.empty program eids in
+  let preludeIdents = List.map Tuple.first Eval.initEnv |> Set.fromList in
+  Set.union programIdents preludeIdents
+
+
+visibleIdentifiersAtEIds_ : Set.Set Ident -> Exp -> Set.Set EId -> Set.Set Ident
+visibleIdentifiersAtEIds_ idents exp eids =
+  let ret deeperIdents =
+    -- If any child was a target EId, then deeperIdents is a superset of idents,
+    -- so no need to union.
+    if (0 == Set.size deeperIdents) && Set.member exp.val.eid eids then
+      idents
+    else
+      deeperIdents
+  in
+  let recurse e =
+    visibleIdentifiersAtEIds_ idents e eids
+  in
+  let recurseAllChildren () =
+    childExps exp |> List.map recurse |> Utils.unionAll
+  in
+  let recurseWithNewIdents pats e =
+    visibleIdentifiersAtEIds_ (Set.union (identifiersSetInPats pats) idents) e eids
+  in
+  case exp.val.e__ of
+    -- EVal _           -> ret Set.empty
+    EConst _ _ _ _   -> ret Set.empty
+    EBase _ _        -> ret Set.empty
+    EVar _ ident     -> ret Set.empty -- Referencing a var doesn't count.
+    EFun _ ps e _    -> ret <| recurseWithNewIdents ps e
+    EOp _ op es _    -> ret <| recurseAllChildren ()
+    EList _ es _ m _ -> ret <| recurseAllChildren ()
+    EIf _ e1 e2 e3 _ -> ret <| recurseAllChildren ()
+    ECase _ e1 bs _  ->
+      let scrutineeResult = recurse e1 in
+      let branchResults =
+        bs
+        |> List.map .val
+        |> List.map
+            (\(Branch_ _ bPat bExp _) -> recurseWithNewIdents [bPat] bExp)
+      in
+      ret <| Utils.unionAll (scrutineeResult::branchResults)
+
+    ETypeCase _ scrutinee tbranches _ -> ret <| recurseAllChildren ()
+    EApp _ e1 es _                    -> ret <| recurseAllChildren ()
+    ELet _ kind False p e1 e2 _       ->
+      let assignResult = recurse e1 in
+      let bodyResult   = recurseWithNewIdents [p] e2 in
+      ret <| Set.union assignResult bodyResult
+
+    ELet _ kind True p e1 e2 _ ->
+      let assignResult = recurseWithNewIdents [p] e1 in
+      let bodyResult   = recurseWithNewIdents [p] e2 in
+      ret <| Set.union assignResult bodyResult
+
+    EComment _ s e1           -> ret <| recurse e1
+    EOption _ s1 _ s2 e1      -> ret <| recurse e1
+    ETyp _ pat tipe e _       -> ret <| recurse e
+    EColonType _ e _ tipe _   -> ret <| recurse e
+    ETypeAlias _ pat tipe e _ -> ret <| recurse e
+
+    -- EDict _                   -> Debug.crash "LangTools.visibleIdentifiersAtEIds_: shouldn't have an EDict in given expression"

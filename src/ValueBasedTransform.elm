@@ -74,8 +74,8 @@ digHole originalExp selectedFeatures slate syncOptions =
               else scopesAndBaseIdent
             in
             let baseIdentPrime = scopesAndBaseIdent ++ "'" in
-            let identOrig  = nonCollidingName baseIdentOrig usedNames in
-            let identPrime = nonCollidingName baseIdentPrime usedNames in
+            let identOrig  = nonCollidingName baseIdentOrig  2 usedNames in
+            let identPrime = nonCollidingName baseIdentPrime 2 usedNames in
             (
               Set.union usedNames (Set.fromList [identOrig, identPrime]),
               (locId, identOrig, identPrime)::result
@@ -156,7 +156,7 @@ digHole originalExp selectedFeatures slate syncOptions =
     let (newNamesToAvoid, result) =
       List.foldr
           (\featureName (usedNames, result) ->
-            let featureName_ = nonCollidingName featureName usedNames in
+            let featureName_ = nonCollidingName featureName 2 usedNames in
             (
               Set.insert featureName_ usedNames,
               featureName_::result
@@ -183,34 +183,36 @@ digHole originalExp selectedFeatures slate syncOptions =
   newExp
 
 
+-- Returns list of synthesis results
 makeEqual originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
-  let equalize exp features =
-    makeEqualOverlappingPairs exp features slideNumber movieNumber movieTime syncOptions
+  let equalize priorResults features =
+    makeEqualOverlappingPairs priorResults features slideNumber movieNumber movieTime syncOptions
   in
   let selectedPoints =
     featurePoints (Set.toList selectedFeatures)
   in
+  let startingResult = { description = "Original", exp = originalExp } in
   if 2 * (List.length selectedPoints) == (Set.size selectedFeatures) then
     -- We have only selected x&y of several points.
     -- Make all the selected points overlap, that is: make all the x's equal to
     -- each other and all the y's equal to each other.
     let xFeatures = List.map Tuple.first selectedPoints in
     let yFeatures = List.map Tuple.second selectedPoints in
-    let xsEqualized  = equalize originalExp xFeatures in
+    let xsEqualized  = equalize [startingResult] xFeatures in
     let xysEqualized = equalize xsEqualized yFeatures in
     xysEqualized
   else
     -- We have not selected only x&y of different points.
     -- Equalize all selected attributes naively.
-    equalize originalExp (Set.toList selectedFeatures)
+    equalize [startingResult] (Set.toList selectedFeatures)
 
 
 -- If given more than two features, run makeEqual_ on each overlapping pair.
-makeEqualOverlappingPairs originalExp features slideNumber movieNumber movieTime syncOptions =
-  let relateMore exp =
+makeEqualOverlappingPairs priorResults features slideNumber movieNumber movieTime syncOptions =
+  let relateMore results =
     case features of
       _::remainingFeatues ->
-        makeEqualOverlappingPairs exp remainingFeatues slideNumber movieNumber movieTime syncOptions
+        makeEqualOverlappingPairs results remainingFeatues slideNumber movieNumber movieTime syncOptions
 
       _ ->
         -- Shouldn't happen.
@@ -218,114 +220,127 @@ makeEqualOverlappingPairs originalExp features slideNumber movieNumber movieTime
   in
   case List.take 2 features of
     [featureA, featureB] ->
-      let slateRes =
-        Eval.run originalExp |>
-        Result.andThen (\(val, _) ->
-            LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val
+      priorResults
+      |> List.concatMap
+          (\{description, exp} ->
+            let priorExp = exp in
+            let slateRes =
+              Eval.run priorExp |>
+              Result.andThen (\(val, _) ->
+                  LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val
+                )
+            in
+            case slateRes of
+              Err s -> []
+              Ok slate ->
+                let newResults =
+                  makeEqual_ priorExp featureA featureB slate syncOptions
+                in
+                case newResults of
+                  [] ->
+                    relateMore [{description = description, exp = priorExp}]
+
+                  _ ->
+                    newResults
+                    |> List.map (InterfaceModel.prependDescription (description ++ " -> "))
+                    |> relateMore
+
           )
-      in
-      case slateRes of
-        Err s -> originalExp
-        Ok slate ->
-          let maybeNewExp =
-            makeEqual_ originalExp featureA featureB slate syncOptions
-          in
-          case maybeNewExp of
-            Just newExp ->
-              relateMore newExp
-
-            Nothing ->
-              relateMore originalExp
 
     _ ->
-      originalExp
+      priorResults
 
 
-makeEquidistant originalExp selectedFeatures slideNumber movieNumber movieTime slate syncOptions =
-  let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
-  let features = Set.toList selectedFeatures in
-  let evaluatedFeatures =
-    features
-    |> List.map (\feature -> evaluateFeature feature slate locIdToNumberAndLoc)
-  in
-  if List.all ((/=) Nothing) evaluatedFeatures then
-    let sortedFeatures =
-      features
-      |> List.sortBy (\feature -> Utils.fromJust <| evaluateFeature feature slate locIdToNumberAndLoc)
-    in
-    makeEquidistantOverlappingTriples originalExp sortedFeatures slideNumber movieNumber movieTime slate syncOptions locIdToNumberAndLoc
-  else
-    originalExp
-
-
-makeEquidistantOverlappingTriples originalExp sortedFeatures slideNumber movieNumber movieTime slate syncOptions locIdToNumberAndLoc =
-  let relateMore exp =
-    case sortedFeatures of
-      -- If there's at least 3 more features...
-      _::featureB::featureC::featureD::otherFeatures ->
-        let newSlateRes =
-          Eval.run exp |>
-          Result.andThen (\(val, _) ->
-              LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val
-            )
-        in
-        case newSlateRes of
-          Err s -> exp
-          Ok newSlate ->
-            let newLocIdToNumberAndLoc = locIdToNumberAndLocOf exp in
-            makeEquidistantOverlappingTriples
-                exp
-                (featureB::featureC::featureD::otherFeatures)
-                slideNumber
-                movieNumber
-                movieTime
-                newSlate
-                syncOptions
-                newLocIdToNumberAndLoc
-
-      _ ->
-        exp
-  in
-  case List.take 3 sortedFeatures of
-    [featureA, featureB, featureC] ->
-      let maybeNewExp =
-        let (_, tree) = slate in
-        let maybeAEqn = typeAndNodeIdAndFeatureToEquation featureA tree locIdToNumberAndLoc in
-        let maybeBEqn = typeAndNodeIdAndFeatureToEquation featureB tree locIdToNumberAndLoc in
-        let maybeCEqn = typeAndNodeIdAndFeatureToEquation featureC tree locIdToNumberAndLoc in
-        case (maybeAEqn, maybeBEqn, maybeCEqn) of
-          (Just aEqn, Just bEqn, Just cEqn) ->
-            let distanceAB = ShapeWidgets.EqnOp Minus [bEqn, aEqn] in
-            let distanceBC = ShapeWidgets.EqnOp Minus [cEqn, bEqn] in
-            makeEqual__ originalExp distanceAB distanceBC syncOptions
-
-          _ -> Nothing
-      in
-      case maybeNewExp of
-        Just newExp ->
-          relateMore newExp
-
-        Nothing ->
-          relateMore originalExp
-
-    _ ->
-      originalExp
+-- makeEquidistant originalExp selectedFeatures slideNumber movieNumber movieTime slate syncOptions =
+--   let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
+--   let features = Set.toList selectedFeatures in
+--   let evaluatedFeatures =
+--     features
+--     |> List.map (\feature -> evaluateFeature feature slate locIdToNumberAndLoc)
+--   in
+--   if List.all ((/=) Nothing) evaluatedFeatures then
+--     let sortedFeatures =
+--       features
+--       |> List.sortBy (\feature -> Utils.fromJust <| evaluateFeature feature slate locIdToNumberAndLoc)
+--     in
+--     makeEquidistantOverlappingTriples originalExp sortedFeatures slideNumber movieNumber movieTime slate syncOptions locIdToNumberAndLoc
+--   else
+--     originalExp
+--
+--
+-- makeEquidistantOverlappingTriples originalExp sortedFeatures slideNumber movieNumber movieTime slate syncOptions locIdToNumberAndLoc =
+--   let relateMore exp =
+--     case sortedFeatures of
+--       -- If there's at least 3 more features...
+--       _::featureB::featureC::featureD::otherFeatures ->
+--         let newSlateRes =
+--           Eval.run exp |>
+--           Result.andThen (\(val, _) ->
+--               LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val
+--             )
+--         in
+--         case newSlateRes of
+--           Err s -> exp
+--           Ok newSlate ->
+--             let newLocIdToNumberAndLoc = locIdToNumberAndLocOf exp in
+--             makeEquidistantOverlappingTriples
+--                 exp
+--                 (featureB::featureC::featureD::otherFeatures)
+--                 slideNumber
+--                 movieNumber
+--                 movieTime
+--                 newSlate
+--                 syncOptions
+--                 newLocIdToNumberAndLoc
+--
+--       _ ->
+--         exp
+--   in
+--   case List.take 3 sortedFeatures of
+--     [featureA, featureB, featureC] ->
+--       let maybeNewExp =
+--         let (_, tree) = slate in
+--         let maybeAEqn = typeAndNodeIdAndFeatureToEquation featureA tree locIdToNumberAndLoc in
+--         let maybeBEqn = typeAndNodeIdAndFeatureToEquation featureB tree locIdToNumberAndLoc in
+--         let maybeCEqn = typeAndNodeIdAndFeatureToEquation featureC tree locIdToNumberAndLoc in
+--         case (maybeAEqn, maybeBEqn, maybeCEqn) of
+--           (Just aEqn, Just bEqn, Just cEqn) ->
+--             let distanceAB = ShapeWidgets.EqnOp Minus [bEqn, aEqn] in
+--             let distanceBC = ShapeWidgets.EqnOp Minus [cEqn, bEqn] in
+--             makeEqual__ originalExp distanceAB distanceBC syncOptions
+--
+--           _ -> Nothing
+--       in
+--       case maybeNewExp of
+--         Just newExp ->
+--           relateMore newExp
+--
+--         Nothing ->
+--           relateMore originalExp
+--
+--     _ ->
+--       originalExp
 
 
 makeEqual_ originalExp featureA featureB slate syncOptions =
   let (_, tree) = slate in
   let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
+  let featureDescription (selectedType, nodeId, featureName) tree = featureName in
   case (typeAndNodeIdAndFeatureToEquation featureA tree locIdToNumberAndLoc,
         typeAndNodeIdAndFeatureToEquation featureB tree locIdToNumberAndLoc) of
     (Nothing, _) ->
-      Nothing
+      []
 
     (_, Nothing) ->
-      Nothing
+      []
 
     (Just featureAEqn,
      Just featureBEqn) ->
+       let descriptionPrefix =
+         (featureDescription featureA tree) ++ " = " ++ (featureDescription featureB tree) ++ " "
+       in
        makeEqual__ originalExp featureAEqn featureBEqn syncOptions
+       |> List.map (InterfaceModel.prependDescription descriptionPrefix)
 
 
 makeEqual__ originalExp featureAEqn featureBEqn syncOptions =
@@ -340,19 +355,6 @@ makeEqual__ originalExp featureAEqn featureBEqn syncOptions =
      (frozenLocIdsAndNumbers LangParser2.prelude))
     |> Dict.fromList
   in
-  let findSolution locs =
-    case locs of
-      [] ->
-        Nothing
-
-      (locId, _, _)::rest ->
-        case solveForLoc locId frozenLocIdToNum subst featureAEqn featureBEqn of
-          Nothing ->
-            findSolution rest
-
-          Just resultLocEqn ->
-            Just (locId, resultLocEqn)
-  in
   -- Prefer to solve for ?-annotated locs
   let thawedLocsFirst =
     let (thawed, others) =
@@ -362,96 +364,104 @@ makeEqual__ originalExp featureAEqn featureBEqn syncOptions =
     in
     thawed ++ others
   in
-  case findSolution thawedLocsFirst of
-    Nothing ->
-      Nothing
+  thawedLocsFirst
+  |> List.filterMap
+      (\dependentLoc ->
+        let (dependentLocId, dependentFrozen, dependentIdent) = dependentLoc in
+        case solveForLoc dependentLocId frozenLocIdToNum subst featureAEqn featureBEqn of
+          Nothing ->
+            Nothing
 
-    Just (dependentLocId, resultLocEqn) ->
-      let locIdSet = Set.insert dependentLocId <| locEqnLocIds resultLocEqn in
-      -- Consequently, we don't need to dig out higher than the frozen locs.
-      let locsetToDig = Set.filter (\(locId, _, _) -> Set.member locId locIdSet) unfrozenLocset in
-      let subst = substOf originalExp in
-      let commonScope =
-        deepestCommonScope originalExp locsetToDig syncOptions
-      in
-      let existingNames = identifiersSet originalExp in
-      let (dependentLocset, independentLocset) =
-        Set.partition (\(locId, _, _) -> locId == dependentLocId) locsetToDig
-      in
-      let dependentLoc    = dependentLocset   |> Set.toList |> Utils.head_ in
-      let independentLocs = independentLocset |> Set.toList in
-      let independentLocIds = List.map Utils.fst3 independentLocs in
-      let locIdToNewName =
-        let (_, result) =
-          List.foldr
-              (\(locId, frozen, ident) (usedNames, result) ->
-                let baseIdent = if ident == "" then "k"++(toString locId) else ident in
-                let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough commonScope (locId, frozen, ident) in
-                let scopesAndBaseIdent = String.join "_" (scopeNamesLiftedThrough ++ [baseIdent]) in
-                let ident =
-                  if locId == dependentLocId then
-                    nonCollidingName (baseIdent ++ "'") usedNames
-                  else
-                    if scopesAndBaseIdent == baseIdent
-                    then nonCollidingName (baseIdent ++ "_orig") usedNames
-                    else nonCollidingName scopesAndBaseIdent usedNames
-                in
-                (
-                  Set.insert ident usedNames,
-                  (locId, ident)::result
-                )
-              )
-              (existingNames, [])
-              (dependentLoc::independentLocs)
-        in
-        Dict.fromList result
-      in
-      let independentLocNames =
-        List.map
-            (\locId ->
-              Utils.justGet_ "ValueBasedTransform.makeEqual__ independentLocNames" locId locIdToNewName
-            )
-            independentLocIds
-      in
-      let independentLocValueStrs =
-        let locIdToWidgetDeclLittle =
-          locIdToWidgetDeclLittleOf originalExp
-        in
-        List.map
-            (\(locId, annotation, _) ->
-              (toString (Utils.justGet_ "ValueBasedTransform.makeEqual__ independentLocValueStrs" locId subst))
-              ++ annotation
-              ++ (Utils.justGet_ "ValueBasedTransform.makeEqual__ independentLocValueStrs widgetDecl" locId locIdToWidgetDeclLittle)
-            )
-            independentLocs
-      in
-      let dependentLocNameStr  =
-        Utils.justGet_ "ValueBasedTransform.makeEqual__ dependentLocNameStr" dependentLocId locIdToNewName
-      in
-      let frozenLocIdToLittle =
-        Dict.map (\locId n -> (toString n) ++ "!") frozenLocIdToNum
-      in
-      let locIdToLittle =
-        Dict.union
-            locIdToNewName
-            frozenLocIdToLittle
-      in
-      let _ = debugLog "locIdToLittle" locIdToLittle in
-      let dependentLocValueStr = locEqnToLittle locIdToLittle resultLocEqn in
-      let listOfListsOfNamesAndAssigns =
-        [ Utils.zip independentLocNames independentLocValueStrs
-        , [(dependentLocNameStr, dependentLocValueStr)]
-        ]
-      in
-      let newExp =
-        variableifyConstantsAndWrapTargetExpWithLets
-            locIdToNewName
-            listOfListsOfNamesAndAssigns
-            commonScope
-            originalExp
-      in
-      Just newExp
-
+          Just resultLocEqn ->
+            let locIdSet = Set.insert dependentLocId <| locEqnLocIds resultLocEqn in
+            -- Consequently, we don't need to dig out higher than the frozen locs.
+            let locsetToDig = Set.filter (\(locId, _, _) -> Set.member locId locIdSet) unfrozenLocset in
+            let commonScope =
+              deepestCommonScope originalExp locsetToDig syncOptions
+            in
+            let existingNames = identifiersSet originalExp in
+            let independentLocs =
+              locsetToDig
+              |> Set.toList
+              |> List.filter (\(locId, _, _) -> locId /= dependentLocId)
+            in
+            let independentLocIds = List.map Utils.fst3 independentLocs in
+            let locIdToNewName =
+              let (_, result) =
+                List.foldr
+                    (\(locId, frozen, ident) (usedNames, result) ->
+                      let baseIdent = if ident == "" then "k"++(toString locId) else ident in
+                      let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough commonScope (locId, frozen, ident) in
+                      let scopesAndBaseIdent = String.join "_" (scopeNamesLiftedThrough ++ [baseIdent]) in
+                      let ident =
+                        if locId == dependentLocId then
+                          nonCollidingName (baseIdent ++ "'") 2 usedNames
+                        else
+                          if scopesAndBaseIdent == baseIdent
+                          then nonCollidingName (baseIdent ++ "_orig") 2 usedNames
+                          else nonCollidingName scopesAndBaseIdent 2 usedNames
+                      in
+                      (
+                        Set.insert ident usedNames,
+                        (locId, ident)::result
+                      )
+                    )
+                    (existingNames, [])
+                    (dependentLoc::independentLocs)
+              in
+              Dict.fromList result
+            in
+            let independentLocNames =
+              List.map
+                  (\locId ->
+                    Utils.justGet_ "ValueBasedTransform.makeEqual__ independentLocNames" locId locIdToNewName
+                  )
+                  independentLocIds
+            in
+            let independentLocValueStrs =
+              let locIdToWidgetDeclLittle =
+                locIdToWidgetDeclLittleOf originalExp
+              in
+              List.map
+                  (\(locId, annotation, _) ->
+                    (toString (Utils.justGet_ "ValueBasedTransform.makeEqual__ independentLocValueStrs" locId subst))
+                    ++ annotation
+                    ++ (Utils.justGet_ "ValueBasedTransform.makeEqual__ independentLocValueStrs widgetDecl" locId locIdToWidgetDeclLittle)
+                  )
+                  independentLocs
+            in
+            let dependentLocNameStr  =
+              Utils.justGet_ "ValueBasedTransform.makeEqual__ dependentLocNameStr" dependentLocId locIdToNewName
+            in
+            let frozenLocIdToLittle =
+              Dict.map (\locId n -> (toString n) ++ "!") frozenLocIdToNum
+            in
+            let locIdToLittle =
+              Dict.union
+                  locIdToNewName
+                  frozenLocIdToLittle
+            in
+            let _ = debugLog "locIdToLittle" locIdToLittle in
+            let dependentLocValueStr = locEqnToLittle locIdToLittle resultLocEqn in
+            let listOfListsOfNamesAndAssigns =
+              [ Utils.zip independentLocNames independentLocValueStrs
+              , [(dependentLocNameStr, dependentLocValueStr)]
+              ]
+            in
+            let newExp =
+              variableifyConstantsAndWrapTargetExpWithLets
+                  locIdToNewName
+                  listOfListsOfNamesAndAssigns
+                  commonScope
+                  originalExp
+            in
+            let dependentIdentDesc =
+              let baseIdent = if dependentIdent == "" then "k"++(toString dependentLocId) else dependentIdent in
+              let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough originalExp dependentLoc in
+              String.join " " (scopeNamesLiftedThrough ++ [baseIdent])
+            in
+            Just {description = "by removing " ++ dependentIdentDesc, exp = newExp}
+      )
 
 deepestCommonScope : Exp -> LocSet -> Sync.Options -> Exp
 deepestCommonScope exp locset syncOptions =
@@ -488,19 +498,16 @@ deepestCommonScope exp locset syncOptions =
 
 
 -- If suggestedName is not in existing names, returns it.
--- Otherwise appends a number (starting at 2) that doesn't collide.
-nonCollidingName : Ident -> Set.Set Ident -> Ident
-nonCollidingName suggestedName existingNames =
+-- Otherwise appends a number (starting at i) that doesn't collide.
+nonCollidingName : Ident -> Int -> Set.Set Ident -> Ident
+nonCollidingName suggestedName i existingNames =
   if not (Set.member suggestedName existingNames) then
     suggestedName
   else
-    let nonCollidingName i =
-      let newName = suggestedName ++ (toString i) in
-      if not (Set.member newName existingNames)
-      then newName
-      else nonCollidingName (i+1)
-    in
-    nonCollidingName 2
+    let newName = suggestedName ++ (toString i) in
+    if not (Set.member newName existingNames)
+    then newName
+    else nonCollidingName suggestedName (i+1) existingNames
 
 
 -- Replace consts in targetExp with given variable names

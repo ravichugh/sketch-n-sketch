@@ -33,7 +33,7 @@ type alias File = {
 
 type alias Model =
   { code : Code
-  , previewCode: Maybe Code
+  , preview: Maybe (Code, Result String (Val, Widgets, RootedIndexedTree))
   , history : (List Code, List Code)
   , inputExp : Exp
   , inputVal : Val
@@ -49,8 +49,6 @@ type alias Model =
   , widgets : Widgets
   , mode : Mode
   , mouseMode : MouseMode
-  , hideCode : Bool
-  , hideCanvas : Bool
   , dimensions : Window.Size
 
   , mouseState : (Maybe Bool, Mouse.Position)
@@ -76,6 +74,7 @@ type alias Model =
   -- line/g ids assigned by blobs function
   , selectedBlobs : Dict Int NodeId
   , keysDown : List Char.KeyCode
+  , synthesisResults: List SynthesisResult
   , randomColor : Int
   , lambdaTools : (Int, List LambdaTool)
   , layoutOffsets : LayoutOffsets
@@ -174,6 +173,11 @@ type ReplicateKind
   | LinearRepeat
   | RadialRepeat
 
+type alias SynthesisResult =
+  { description : String
+  , exp         : Exp
+  }
+
 type Msg
   = Msg String (Model -> Model)
 
@@ -196,6 +200,7 @@ type alias LayoutOffsets =
   , outputToolBox : Offsets
   , animationToolBox : Offsets
   , textToolBox : Offsets
+  , synthesisResultsSelectBox : Offsets
   }
 
 
@@ -213,6 +218,7 @@ initialLayoutOffsets =
   , outputToolBox = init
   , animationToolBox = init
   , textToolBox = init 
+  , synthesisResultsSelectBox = init
   }
 
 type DialogBox = New | SaveAs | Open | AlertSave | ImportCode
@@ -420,9 +426,14 @@ patSpacesToHighlights m =
 --------------------------------------------------------------------------------
 
 codeToShow model =
-  case model.previewCode of
-     Just string -> string
-     Nothing     -> model.code
+  case model.preview of
+     Just (string, _) -> string
+     Nothing          -> model.code
+
+--------------------------------------------------------------------------------
+
+prependDescription newPrefix {description, exp} =
+  { description = (newPrefix ++ description), exp = exp}
 
 --------------------------------------------------------------------------------
 
@@ -455,7 +466,7 @@ initModel =
   let liveModeInfo = unwrap (mkLive Sync.defaultOptions 1 1 0.0 e (v, ws)) in
   let code = unparse e in
     { code          = code
-    , previewCode   = Nothing
+    , preview       = Nothing
     , history       = ([code], [])
     , inputExp      = e
     , inputVal      = v
@@ -471,8 +482,6 @@ initModel =
     , widgets       = ws
     , mode          = liveModeInfo
     , mouseMode     = MouseNothing
-    , hideCode      = False
-    , hideCanvas    = False
     , dimensions    = { width = 1000, height = 800 } -- dummy in case initCmd fails
     , mouseState    = (Nothing, {x = 0, y = 0})
     , syncOptions   = Sync.defaultOptions
@@ -497,6 +506,7 @@ initModel =
     , selectedFeatures = Set.empty
     , selectedBlobs = Dict.empty
     , keysDown      = []
+    , synthesisResults = []
     , randomColor   = 100
     , lambdaTools   = (1, [LambdaBounds (eVar "star")])
     , layoutOffsets = initialLayoutOffsets

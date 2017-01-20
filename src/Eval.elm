@@ -1,4 +1,4 @@
-module Eval exposing (run, parseAndRun, parseAndRun_, evalDelta, eval)
+module Eval exposing (run, parseAndRun, parseAndRun_, evalDelta, eval, initEnv)
 
 import Debug
 import Dict
