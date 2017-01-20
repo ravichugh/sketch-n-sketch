@@ -399,6 +399,15 @@ multiKeySingleValue keys value =
       Dict.empty
       keys
 
+dictAddToSet
+   : comparableK -> comparableV
+  -> Dict comparableK (Set comparableV)
+  -> Dict comparableK (Set comparableV)
+dictAddToSet k v dict =
+  case Dict.get k dict of
+    Just vs -> Dict.insert k (Set.insert v vs) dict
+    Nothing -> Dict.insert k (Set.singleton v) dict
+
 head msg = fromJust_ msg << List.head
 last msg = fromJust_ msg << List.head << List.reverse
 head_ = head "Utils.head_"
