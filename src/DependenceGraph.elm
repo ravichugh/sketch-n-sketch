@@ -77,23 +77,25 @@ compute =
     , tree = Dict.empty
     }
 
-computeScopeGraph currentId acc e =
+computeScopeGraph currentScopeId acc e =
 
   let recurse es =
-    List.foldl (\e acc -> computeScopeGraph currentId acc e) acc es in
+    List.foldl (\e acc -> computeScopeGraph currentScopeId acc e) acc es in
+
+  let newScopeId = e.val.eid in -- only if e is ELet or EFun
 
   let addScopeNode letOrFun acc =
     { acc
-       | scopeNodes = Dict.insert e.val.eid (letOrFun, Set.empty) acc.scopeNodes
+       | scopeNodes = Dict.insert newScopeId (letOrFun, Set.empty) acc.scopeNodes
        } in
 
   let addScopeEdge acc =
     { acc
-       | tree = Dict.insert e.val.eid currentId acc.tree
+       | tree = Dict.insert newScopeId currentScopeId acc.tree
        } in
 
   let addVar x path acc =
-    let patId = (e.val.eid, path) in
+    let patId = (newScopeId, path) in
     { acc
        | scopeNodes = updateScopeNodes patId acc.scopeNodes
        , idents = Dict.insert patId x acc.idents
@@ -116,15 +118,14 @@ computeScopeGraph currentId acc e =
   case e.val.e__ of
 
     ELet _ _ _ p e1 e2 _ ->
-      -- use currentId for e1, then e.val.eid for e2
       let acc0 = traversePat (p, []) (addScopeEdge (addScopeNode True acc)) in
-      let acc1 = computeScopeGraph currentId acc0 e1 in
-      computeScopeGraph e.val.eid acc1 e2
+      let acc1 = computeScopeGraph currentScopeId acc0 e1 in
+      computeScopeGraph newScopeId acc1 e2
 
-    EFun _ ps e _ ->
+    EFun _ ps eBody _ ->
       let acc0 = addScopeEdge (addScopeNode False acc) in
       let acc1 = traversePats ps [] acc0 in
-      computeScopeGraph currentId acc1 e
+      computeScopeGraph newScopeId acc1 eBody
 
     EConst _ _ _ _  -> acc
     EBase _ _       -> acc
