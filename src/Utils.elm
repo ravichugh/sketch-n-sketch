@@ -4,6 +4,7 @@ import String
 import Debug
 import Set exposing (Set)
 import Dict exposing (Dict)
+import Regex
 
 maybeFind : a -> List (a,b) -> Maybe b
 maybeFind k l = case l of
@@ -49,6 +50,15 @@ maybeZipDicts d1 d2 =
     Nothing
   else
     d1 |> Dict.map (\k v1 -> (v1, justGet k d2)) |> Just
+
+unzip3 : List (a, b, c) -> (List a, List b, List c)
+unzip3 zipped =
+  List.foldr
+      (\(x, y, z) (xs, ys, zs) -> (x::xs, y::ys, z::zs))
+      ([], [], [])
+      zipped
+
+
 
 listsEqualBy elementEqualityFunc xs ys =
   case (xs, ys) of
@@ -128,6 +138,25 @@ dedup_ f xs =
   in
     deduped
 
+listDiffSet : List comparable -> Set.Set comparable -> List comparable
+listDiffSet list setToRemove =
+  List.filter (\element -> not <| Set.member element setToRemove) list
+
+listDiff : List comparable -> List comparable -> List comparable
+listDiff l1 l2 =
+  listDiffSet l1 (Set.fromList l2)
+
+groupBy : (a -> comparable) -> List a -> Dict.Dict comparable (List a)
+groupBy f xs =
+  List.foldl
+      (\x dict ->
+        let key = f x in
+        let equivalents = getWithDefault key [] dict in
+        Dict.insert key (equivalents ++ [x]) dict
+      )
+      Dict.empty
+      xs
+
 -- Is there a one-to-one mapping from the elements in l1 to the elements in l2?
 --
 -- e.g oneToOneMappingExists ["a", "b", "a"] ["z", "y", "z"] => True
@@ -175,6 +204,17 @@ takeNLines : Int -> String -> String
 takeNLines n s =
   String.lines s |> List.take n |> String.join "\n"
 
+-- Replace all runs of whitespace with a single space
+squish : String -> String
+squish str =
+  String.trim <|
+    Regex.replace Regex.All (Regex.regex "\\s+") (\_ -> " ") str
+
+cartProd : List a -> List b -> List (a, b)
+cartProd xs ys =
+   xs |> List.concatMap (\x -> List.map ((,) x) ys)
+
+-- Cartesian product for arbitrary many lists of the same type
 oneOfEach : List (List a) -> List (List a)
 oneOfEach xss = case xss of
   []       -> [[]]
@@ -204,6 +244,16 @@ manySetDiffs sets =
     ) locs_i sets
   ) sets
 
+unionAll : List (Set.Set comparable) -> Set.Set comparable
+unionAll sets =
+  List.foldl Set.union Set.empty sets
+
+-- Returns false if any two sets share an element.
+-- Can help answer, "Is this a valid partition?"
+anyOverlap : List (Set.Set comparable) -> Bool
+anyOverlap sets =
+  Set.size (unionAll sets) < List.sum (List.map Set.size sets)
+
 -- TODO combine findFirst and removeFirst
 
 findFirst : (a -> Bool) -> List a -> Maybe a
@@ -232,6 +282,23 @@ removeLastElement : List a -> List a
 removeLastElement list =
   List.take ((List.length list)-1) list
 
+-- Equivalent to Maybe.oneOf (List.map f list)
+-- but maps the list lazily to return early
+mapFirstSuccess : (a -> Maybe b) -> List a -> Maybe b
+mapFirstSuccess f list =
+  case list of
+    []   -> Nothing
+    x::xs ->
+      case f x of
+        Just result -> Just result
+        Nothing     -> mapFirstSuccess f xs
+
+orTry : Maybe a -> (() -> Maybe a) -> Maybe a
+orTry maybe1 lazyMaybe2 =
+  case maybe1 of
+    Just x  -> maybe1
+    Nothing -> lazyMaybe2 ()
+
 adjacentPairs : Bool -> List a -> List (a, a)
 adjacentPairs includeLast list = case list of
   [] -> []
@@ -256,6 +323,15 @@ allSame list = case list of
 
 removeDupes : List comparable -> List comparable
 removeDupes = Set.toList << Set.fromList
+
+maybeConsensus : List Bool -> Maybe Bool
+maybeConsensus bools =
+  if List.all ((==) True) bools then
+    Just True
+  else if List.all ((==) False) bools then
+    Just False
+  else
+    Nothing
 
 count : (a -> Bool) -> List a -> Int
 count pred list =
@@ -320,9 +396,27 @@ toggleDict : (comparable, v) -> Dict comparable v -> Dict comparable v
 toggleDict (k,v) dict =
   if Dict.member k dict then Dict.remove k dict else Dict.insert k v dict
 
-head_ = fromJust_ "Utils.head_" << List.head
+multiKeySingleValue : List comparable -> v -> Dict comparable v
+multiKeySingleValue keys value =
+  List.foldl
+      (\key dict -> Dict.insert key value dict)
+      Dict.empty
+      keys
+
+dictAddToSet
+   : comparableK -> comparableV
+  -> Dict comparableK (Set comparableV)
+  -> Dict comparableK (Set comparableV)
+dictAddToSet k v dict =
+  case Dict.get k dict of
+    Just vs -> Dict.insert k (Set.insert v vs) dict
+    Nothing -> Dict.insert k (Set.singleton v) dict
+
+head msg = fromJust_ msg << List.head
+last msg = fromJust_ msg << List.head << List.reverse
+head_ = head "Utils.head_"
 tail_ = fromJust_ "Utils.tail_" << List.tail
-last_ = head_ << List.reverse
+last_ = last "Utils.last_"
 
 uncons xs = case xs of
   x::xs -> (x, xs)
@@ -369,6 +463,15 @@ bindMaybe2 f mx my = bindMaybe (\x -> bindMaybe (f x) my) mx
 
 bindMaybe3 : (a -> b -> c -> Maybe d) -> Maybe a -> Maybe b -> Maybe c -> Maybe d
 bindMaybe3 f mx my mz = bindMaybe2 (\x y -> bindMaybe (f x y) mz) mx my
+
+-- Returns Nothing if function ever returns Nothing
+foldlMaybe : (a -> b -> Maybe b) -> Maybe b -> List a -> Maybe b
+foldlMaybe f maybeAcc list =
+  case (maybeAcc, list) of
+    (Nothing, _)      -> Nothing
+    (Just acc, x::xs) -> foldlMaybe f (f x acc) xs
+    (_, [])           -> maybeAcc
+
 
 projOk : List (Result a b) -> Result a (List b)
 projOk list =

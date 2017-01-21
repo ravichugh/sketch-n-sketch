@@ -1,0 +1,75 @@
+; Conifer
+;
+; This design is surprisingly difficult to code.
+;
+; Some notable decisions:
+;   - tree parameters global (below) or passed in to each function
+;   - tree height computed or given (below)
+;   - leaf separation absolute (below) or relative to leaf size
+;   - leaf separation measured as between respective points on consectutive leaves (below) or as space between leaves
+;   - branch start/end height on trunk absolute (below) or offset from base or a ratio
+;   - branch repetition start end sep (below) or start end n or start sep n
+;
+
+
+(defrec spaced (\(start stop sep)
+  (let direction (sgn sep)
+  (if (< (* direction start) (* direction stop))
+    [start|(spaced (+ start sep) stop sep)]
+    []))))
+
+(def treeX 232)
+(def treeBot 375)
+(def treeHeight 305)
+(def treeTop (- treeBot treeHeight))
+(def [branchBot branchTop] [352 81])
+
+(def trunk
+  (let [baseY baseW] [treeBot 12]
+  (let halfBaseW (/ baseW 2!)
+  (let pts [[(- treeX halfBaseW) baseY]
+            [(+ treeX halfBaseW) baseY]
+            [treeX treeTop]]
+  (let [color strokeColor strokeWidth] [31 0 0]
+    [ (rawPolygon color strokeColor strokeWidth pts 0) ])))))
+
+
+; Draw this to maniplate how high the branches start/stop
+(def branchingLine
+  (let [color width] [280 5]
+    [ (line color width treeX branchBot treeX branchTop) ]))
+
+(def leaf (\(cx cy)
+  (let [w h] [14 52]
+  (let [halfW halfH] [(/ w 2!) (/ h 2!)]
+  (let [left top right bot] [(- cx halfW) (- cy halfH) (+ cx halfW) (+ cy halfH)]
+  (let pts [[left cy] [cx bot] [right cy] [cx top]]
+  (let [color strokeColor strokeWidth] [127 0 0]
+    [ (rawPolygon color strokeColor strokeWidth pts 0) ])))))))
+
+(def branch (\(baseY baseW length)
+  (let halfBaseW (/ baseW 2!)
+  (let pts [[treeX (- baseY halfBaseW)]
+            [treeX (+ baseY halfBaseW)]
+            [(+ treeX length) baseY]]
+  (let [color strokeColor strokeWidth] [31 0 0]
+    [ (rawPolygon color strokeColor strokeWidth pts 0) ])))))
+
+(def leafyBranch (\(baseY baseW length leafSep)
+  (let halfLeafSep (/ leafSep 2!)
+  (let leaves (concatMap (\x (leaf x baseY)) (spaced (- (+ treeX length) halfLeafSep) (+ treeX halfLeafSep) (neg leafSep)))
+  (concat [(branch baseY baseW length) leaves])))))
+
+(def side (\direction
+  (let branchSep 38.5
+  (let leafSep (* direction 18)
+  (let drawLeafyBranch (\y
+    (let lengthRatio (- 1! (/ (- treeBot y) treeHeight))
+    (leafyBranch y (* lengthRatio 30) (* direction (* lengthRatio 190)) leafSep)))
+  (concatMap drawLeafyBranch (spaced branchBot branchTop (neg branchSep))))))))
+
+(blobs [
+  trunk
+  (side 1!)
+  (side -1!)
+])

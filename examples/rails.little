@@ -1,0 +1,50 @@
+; Rails
+;
+; Make Equal helped set up the rails. The rest is basically hand-rolled.
+;
+; Design decisions:
+;   - Ties/rails encoded relative to rails (below) or to BB or to centerline
+;   - If encoded relative to rails, botRail y absolute (below) or offset from topRail y
+;   - Tie sep measured between left edges or between facing edges (below)
+;   - Tie count absolute (below) or relative to rail length or rail length relative to tie count
+;   - Tie start position absolute or based on sep (below)
+;   - Tie hangout absolue (below) or relative to rail offset or BB
+;
+
+
+(def railLength 331)
+(def railWidth 10)
+(def railStart 36)
+(def railFill 460)
+(def topRail_y 151)
+(def botRail_y 204)
+
+(def topRail
+  (let [stroke strokeWidth] [78 0]
+  (let rot 0
+    [ (rawRect railFill stroke strokeWidth railStart topRail_y railLength railWidth rot) ])))
+
+(def botRail
+  (let [stroke strokeWidth] [78 0]
+  (let rot 0
+    [ (rawRect railFill stroke strokeWidth railStart botRail_y railLength railWidth rot) ])))
+
+(def ties
+  (let tie (\i
+    (let w 12
+    (let sep 20.98947368421053
+    (let sepw (+ sep w)
+    (let x (+ (+ railStart (/ sep 2!)) (* i sepw))
+    (let hangout 12
+    (let y (- topRail_y hangout)
+    (let h (+ (+ (- botRail_y topRail_y) railWidth) (* 2! hangout))
+    (let [fill stroke strokeWidth] [39 85 0]
+    (let rot 0
+      [ (rawRect fill stroke strokeWidth x y w h rot) ]))))))))))
+  (concatMap tie (zeroTo 10))))
+
+(blobs [
+  ties
+  topRail
+  botRail
+])

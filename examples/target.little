@@ -1,0 +1,21 @@
+; Target
+;
+; Design decisions:
+;   - BB n or BB ringWidth or cx cy r n or cx cy n ringWidth (below) or cx cy r ringWidth
+;   - Inner circle radius absolute or relative to ringWidth (below)
+;
+
+(def target
+  (let circleCount 4{1-10}
+  (let concentricCircle (\i
+    (let ringWidth 35
+    (let [cx cy r] [182 244 (+ (* 0.7 ringWidth) (* i ringWidth))]
+    (let colors [470 0]
+    (let color (nth colors (mod i 2))
+      [ (rawCircle color 360 0 cx cy r) ])))))
+
+  (concatMap concentricCircle (reverse (zeroTo circleCount))))))
+
+(blobs [
+  target
+])

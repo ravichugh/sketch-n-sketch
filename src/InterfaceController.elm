@@ -10,6 +10,8 @@ module InterfaceController exposing
   , msgAceUpdate
   , msgUndo, msgRedo, msgCleanCode
   , msgDigHole, msgMakeEqual
+  , msgSelectSynthesisResult, msgClearSynthesisResults
+  , msgPreview, msgClearPreview
   , msgGroupBlobs, msgDuplicateBlobs, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox, msgToggleOutput
@@ -140,12 +142,17 @@ slateAndCode old (exp, val) =
   LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val
   |> Result.map (\slate -> (slate, unparse exp))
 
+runAndResolve model exp =
+  Eval.run exp
+  |> Result.andThen (\(val, widgets) ->
+    slateAndCode model (exp, val)
+    |> Result.map (\(slate, code) -> (val, widgets, slate, code))
+  )
+
 runWithErrorHandling model exp onOk =
   let result =
-    Eval.run exp |> Result.andThen (\(val, widgets) ->
-      slateAndCode model (exp, val)
-      |> Result.map (\(slate, code) -> onOk val widgets slate code)
-    )
+    runAndResolve model exp
+    |> Result.map (\(val, widgets, slate, code) -> onOk val widgets slate code)
   in
   handleError model result
 
@@ -407,6 +414,10 @@ tryRun old =
                     , syncOptions   = Sync.syncOptionsOf old.syncOptions e
                     , lambdaTools   = lambdaTools_
                     , errorBox      = Nothing
+                    , codeBoxInfo   = updateCodeBoxInfo aceTypeInfo old
+                    , scopeGraph    = DependenceGraph.compute e
+                    , preview       = Nothing
+                    , synthesisResults = []
               }
             in
             { new | mode = refreshMode_ new
@@ -508,6 +519,7 @@ issueCommand (Msg kind _) oldModel newModel =
       else
       if newModel.code /= oldModel.code ||
          newModel.codeBoxInfo /= oldModel.codeBoxInfo ||
+         newModel.preview /= oldModel.preview ||
          kind == "Turn Off Caption" ||
          kind == "Mouse Enter CodeBox" ||
          kind == "Mouse Leave CodeBox" ||
@@ -544,10 +556,13 @@ msgCodeUpdate s = Msg "Code Update" <| \old ->
 msgRun = Msg "Run" <| \old -> upstateRun old
 
 msgAceUpdate aceCodeBoxInfo = Msg "Ace Update" <| \old ->
-    let isSame = old.lastSaveState == (Just aceCodeBoxInfo.code) in
-    { old | code = aceCodeBoxInfo.code
-          , codeBoxInfo = aceCodeBoxInfo.codeBoxInfo
-          , needsSave = not isSame }
+    if old.preview /= Nothing then
+      old
+    else
+      let isSame = old.lastSaveState == (Just aceCodeBoxInfo.code) in
+      { old | code = aceCodeBoxInfo.code
+            , codeBoxInfo = aceCodeBoxInfo.codeBoxInfo
+            , needsSave = not isSame }
 
 upstateRun old =
   case tryRun old of
@@ -586,26 +601,6 @@ msgRedo = Msg "Redo" <| \old ->
       let new = { old | history = (next::past, future)
                       , code    = next } in
       upstateRun new
-
---------------------------------------------------------------------------------
-
-msgCleanCode = Msg "Clean Code" <| \old ->
-  case parseE old.code of
-    Err (err, _) ->
-      { old | caption = Just (LangError ("PARSE ERROR!\n" ++ err)) }
-    Ok reparsed ->
-      let cleanedExp =
-        reparsed
-        -- |> cleanExp
-        |> LangTransform.simplify
-        |> LangTransform.removeExtraPostfixes ["_orig", "'"]
-        |> freshen
-      in
-      let code_ = unparse cleanedExp in
-      if old.code == code_ then old
-      else
-        let _ = debugLog "Cleaned: " code_ in
-        upstateRun { old | inputExp = cleanedExp, code = code_ }
 
 --------------------------------------------------------------------------------
 
@@ -694,6 +689,23 @@ msgKeyUp keyCode = Msg ("Key Up " ++ toString keyCode) <| \old ->
 
 --------------------------------------------------------------------------------
 
+cleanSynthesisResult {description, exp} =
+  { description = description ++ " -> Cleaned"
+  , exp = LangTransform.cleanCode exp
+  }
+
+msgCleanCode = Msg "Clean Code" <| \old ->
+  case parseE old.code of
+    Err (err, _) ->
+      { old | caption = Just (LangError ("PARSE ERROR!\n" ++ err)) }
+    Ok reparsed ->
+      let cleanedExp = LangTransform.cleanCode reparsed in
+      let code_ = unparse cleanedExp in
+      if old.code == code_ then old
+      else
+        let _ = debugLog "Cleaned: " code_ in
+        upstateRun { old | inputExp = cleanedExp, code = code_ }
+
 msgDigHole = Msg "Dig Hole" <| \old ->
   let newExp =
     ValueBasedTransform.digHole old.inputExp old.selectedFeatures old.slate old.syncOptions
@@ -706,7 +718,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
             , history          = addToHistory old.code old.history
             , slate            = newSlate
             , widgets          = newWidgets
-            , previewCode      = Nothing
+            , preview          = Nothing
               -- we already ran it successfully once so it shouldn't crash the second time
             , mode             = Utils.fromOk "DigHole MkLive" <|
                                    mkLive old.syncOptions
@@ -717,7 +729,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
   )
 
 msgMakeEqual = Msg "Make Equal" <| \old ->
-  let newExp =
+  let synthesisResults =
     ValueBasedTransform.makeEqual
         old.inputExp
         old.selectedFeatures
@@ -726,8 +738,41 @@ msgMakeEqual = Msg "Make Equal" <| \old ->
         old.movieTime
         old.syncOptions
   in
+  { old | synthesisResults = List.map cleanSynthesisResult synthesisResults }
+
+-- msgMakeEquidistant = Msg "Make Equidistant" <| \old ->
+--   let newExp =
+--     ValueBasedTransform.makeEquidistant
+--         old.inputExp
+--         old.selectedFeatures
+--         old.slideNumber
+--         old.movieNumber
+--         old.movieTime
+--         old.slate
+--         old.syncOptions
+--   in
+--   runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
+--     debugLog "new model" <|
+--       { old | code             = newCode
+--             , inputExp         = newExp
+--             , inputVal         = newVal
+--             , history          = addToHistory old.code old.history
+--             , slate            = newSlate
+--             , widgets          = newWidgets
+--             , preview          = Nothing
+--               -- we already ran it successfully once so it shouldn't crash the second time
+--             , mode             = Utils.fromOk "MakeEquidistant MkLive" <|
+--                                    mkLive old.syncOptions
+--                                      old.slideNumber old.movieNumber old.movieTime newExp
+--                                      (newVal, newWidgets)
+--             , selectedFeatures = Set.empty
+--       }
+--   )
+
+--------------------------------------------------------------------------------
+
+msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
   runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
-    upstate msgCleanCode <|
     debugLog "new model" <|
       { old | code             = newCode
             , inputExp         = newExp
@@ -735,8 +780,8 @@ msgMakeEqual = Msg "Make Equal" <| \old ->
             , history          = addToHistory old.code old.history
             , slate            = newSlate
             , widgets          = newWidgets
-            , previewCode      = Nothing
-              -- we already ran it successfully once so it shouldn't crash the second time
+            , preview          = Nothing
+            , synthesisResults = []
             , mode             = Utils.fromOk "MakeEqual MkLive" <|
                                    mkLive old.syncOptions
                                      old.slideNumber old.movieNumber old.movieTime newExp
@@ -745,34 +790,8 @@ msgMakeEqual = Msg "Make Equal" <| \old ->
       }
   )
 
-msgMakeEquidistant = Msg "Make Equidistant" <| \old ->
-  let newExp =
-    ValueBasedTransform.makeEquidistant
-        old.inputExp
-        old.selectedFeatures
-        old.slideNumber
-        old.movieNumber
-        old.movieTime
-        old.slate
-        old.syncOptions
-  in
-  runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
-    debugLog "new model" <|
-      { old | code             = newCode
-            , inputExp         = newExp
-            , inputVal         = newVal
-            , history          = addToHistory old.code old.history
-            , slate            = newSlate
-            , widgets          = newWidgets
-            , previewCode      = Nothing
-              -- we already ran it successfully once so it shouldn't crash the second time
-            , mode             = Utils.fromOk "MakeEquidistant MkLive" <|
-                                   mkLive old.syncOptions
-                                     old.slideNumber old.movieNumber old.movieTime newExp
-                                     (newVal, newWidgets)
-            , selectedFeatures = Set.empty
-      }
-  )
+msgClearSynthesisResults = Msg "Clear Synthesis Results" <| \old ->
+  { old | preview = Nothing, synthesisResults = [] }
 
 --------------------------------------------------------------------------------
 
@@ -832,24 +851,15 @@ msgRedraw = Msg "Redraw" <| \old ->
     Err s -> { old | errorBox = Just s }
 
 msgTickDelta deltaT = Msg ("Tick Delta " ++ toString deltaT) <| \old ->
-  case old.mode of
-{-
-    SyncSelect _ ->
-      -- Prevent "jump" after slow first frame render.
-      let adjustedDeltaT = if old.syncSelectTime == 0.0 then clamp 0.0 50 deltaT else deltaT in
-      upstate msgRedraw
-        { old | syncSelectTime = old.syncSelectTime + (adjustedDeltaT / 1000) }
--}
-    _ ->
-      if old.movieTime < old.movieDuration then
-        -- Prevent "jump" after slow first frame render.
-        let adjustedDeltaT = if old.movieTime == 0.0 then clamp 0.0 50 deltaT else deltaT in
-        let newMovieTime = clamp 0.0 old.movieDuration (old.movieTime + (adjustedDeltaT / 1000)) in
-        upstate msgRedraw { old | movieTime = newMovieTime }
-      else if old.movieContinue == True then
-        upstate msgNextMovie old
-      else
-        { old | runAnimation = False }
+  if old.movieTime < old.movieDuration then
+    -- Prevent "jump" after slow first frame render.
+    let adjustedDeltaT = if old.movieTime == 0.0 then clamp 0.0 50 deltaT else deltaT in
+    let newMovieTime = clamp 0.0 old.movieDuration (old.movieTime + (adjustedDeltaT / 1000)) in
+    upstate msgRedraw { old | movieTime = newMovieTime }
+  else if old.movieContinue == True then
+    upstate msgNextMovie old
+  else
+    { old | runAnimation = False }
 
 msgNextSlide = Msg "Next Slide" <| \old ->
   if old.slideNumber >= old.slideCount then
@@ -907,15 +917,25 @@ msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
         , inputVal      = val
         , history       = addToHistory old.code old.history
         , slate         = slate
-        , previewCode   = Nothing
+        , preview       = Nothing
+        , synthesisResults = []
         , tool          = Cursor
         , mode          = Utils.fromOk "SelectOption mkLive" <|
                             mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp
                               (val, []) -- TODO
         }
 
-msgPreviewCode maybeCode = Msg "Preview Code..." <| \old ->
-  { old | previewCode = maybeCode }
+msgPreview exp = Msg "Preview" <| \old ->
+  let previewCode = unparse exp in
+  case runAndResolve old exp of
+    Ok (val, widgets, slate, _) ->
+      { old | preview = Just (previewCode, Ok (val, widgets, slate)) }
+
+    Err s ->
+      { old | preview = Just (previewCode, Err s) }
+
+msgClearPreview = Msg "Clear Preview" <| \old ->
+  { old | preview = Nothing }
 
 msgCancelSync = Msg "Cancel Sync" <| \old ->
   upstateRun
@@ -1005,30 +1025,35 @@ msgNew template = Msg "New" <| (\old ->
       LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v
       |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
         let code = unparse e in
-        let new =
-        { old | inputExp      = e
-              , inputVal      = v
-              , code          = code
-              , history       = ([code],[])
-              , mode          = m
-              , syncOptions   = so
-              , slideNumber   = 1
-              , slideCount    = slideCount
-              , movieCount    = movieCount
-              , movieTime     = 0
-              , movieDuration = movieDuration
-              , movieContinue = movieContinue
-              , runAnimation  = movieDuration > 0
-              , slate         = slate
-              , widgets       = ws
-              , filename      = Model.bufferName
-              , needsSave     = True
-              , lastSaveState = Nothing
-              , selectedEIds  = Set.empty
-              , scopeGraph    = DependenceGraph.compute e
-              }
-           in
-           { new | codeBoxInfo = updateCodeBoxInfo ati new }
+        { initModel | inputExp      = e
+                    , inputVal      = v
+                    , code          = code
+                    , history       = ([code],[])
+                    , mode          = m
+                    , syncOptions   = so
+                    , slideNumber   = 1
+                    , slideCount    = slideCount
+                    , movieCount    = movieCount
+                    , movieTime     = 0
+                    , movieDuration = movieDuration
+                    , movieContinue = movieContinue
+                    , runAnimation  = movieDuration > 0
+                    , slate         = slate
+                    , widgets       = ws
+                    , codeBoxInfo   = updateCodeBoxInfo ati old
+                    , filename      = Model.bufferName
+                    , needsSave     = True
+                    , lastSaveState = Nothing
+                    , dimensions    = old.dimensions
+                    , syncOptions   = old.syncOptions
+                    , localSaves    = old.localSaves
+                    , basicCodeBox  = old.basicCodeBox
+                    , randomColor   = old.randomColor
+                    , layoutOffsets = old.layoutOffsets
+                    , fileIndex     = old.fileIndex
+                    , selectedEIds  = Set.empty
+                    , scopeGraph    = DependenceGraph.compute e
+                    }
       ) |> handleError old) >> closeDialogBox New
 
 msgAskNew template = requireSaveAsker (msgNew template)

@@ -16,6 +16,8 @@ import LangSvg
 import Blobs exposing (..)
 import LangUnparser exposing (unparse)
 import InterfaceModel exposing (..)
+import LangTools
+import ValueBasedTransform
 import Utils
 import Either exposing (..)
 import Keys
@@ -659,13 +661,14 @@ addTextBox old click2 click1 =
     , eConst 1.5 dummyLoc, eVar "textVal" ]
 
 add newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
-
-  let tmp = newShapeKind ++ toString old.genSymCount in
-  let newDef = makeNewShapeDef old newShapeKind tmp newShapeLocals newShapeFunc newShapeArgs in
+  let shapeVarName =
+    ValueBasedTransform.nonCollidingName newShapeKind 1 (LangTools.identifiersVisibleAtProgramEnd old.inputExp)
+  in
+  let newDef = makeNewShapeDef old newShapeKind shapeVarName newShapeLocals newShapeFunc newShapeArgs in
   let (defs, mainExp) = splitExp old.inputExp in
   let defs_ = defs ++ [newDef] in
-  let eNew = withDummyPos (EVar "\n  " tmp) in
-  let mainExp_ = addToMainExp (varBlob eNew tmp) mainExp in
+  let eNew = withDummyPos (EVar "\n  " shapeVarName) in
+  let mainExp_ = addToMainExp (varBlob eNew shapeVarName) mainExp in
   let code = unparse (fuseExp (defs_, mainExp_)) in
 
   -- upstate Run

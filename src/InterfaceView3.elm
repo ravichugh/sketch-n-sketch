@@ -20,6 +20,7 @@ import Layout
 import Canvas
 import LangUnparser exposing (unparse)
 import LangSvg exposing (attr)
+import LangTools
 import Sync
 import DependenceGraph
 
@@ -27,6 +28,7 @@ import DependenceGraph
 
 import Set
 import Dict
+import Regex
 
 import Svg exposing (Svg)
 import Svg.Events exposing (onMouseDown, onMouseUp, onMouseOver, onMouseOut)
@@ -70,6 +72,7 @@ view model =
   let moreBlobTools = moreBlobToolBox model layout in
   let outputTools = outputToolBox model layout in
   let textTools = textToolBox model layout in
+  let synthesisResultsSelect = synthesisResultsSelectBox model layout in
 
   let
     dialogBoxes =
@@ -102,6 +105,11 @@ view model =
     then [ animationToolBox model layout ]
     else [] in
 
+  let synthesisResultsSelect =
+    if List.length model.synthesisResults > 0
+    then [ synthesisResultsSelectBox model layout ]
+    else [] in
+
   let codeBox =
     if model.basicCodeBox
       then basicCodeBox model layout.codeBox
@@ -132,9 +140,10 @@ view model =
      [ moreBlobTools, blobTools, attributeTools, lambdaDrawTools, stretchyDrawTools, drawTools
      , textTools
      , codeTools, fileTools
+     ] ++ synthesisResultsSelect ++
 
      -- top-most
-     , resizeCodeBox
+     [ resizeCodeBox
      , resizeCanvas
      , caption
      ] ++ dialogBoxes
@@ -245,6 +254,22 @@ animationToolBox model layout =
     , nextSlideButton model
     ]
 
+synthesisResultsSelectBox model layout =
+  let desc {description, exp} =
+    (Regex.replace Regex.All (Regex.regex "^Original -> | -> Cleaned$") (\_ -> "") description) ++
+    " (" ++ toString (LangTools.nodeCount exp) ++ ")"
+  in
+  let resultButtons =
+    model.synthesisResults
+    |> List.sortBy (\{description, exp} -> (LangTools.nodeCount exp, description))
+    |> List.map (\result -> htmlButtonExtraAttrs [Html.Events.onMouseEnter (Controller.msgPreview result.exp), Html.Events.onMouseLeave Controller.msgClearPreview] (desc result) (Controller.msgSelectSynthesisResult result.exp) Regular False)
+    |> List.intersperse (Html.br [] [])
+  in
+  let cancelButton =
+    htmlButton "Cancel" (Controller.msgClearSynthesisResults) Regular False
+  in
+  toolBox model "synthesisResultsSelect" Layout.getPutSynthesisResultsSelectBox layout.synthesisResultsSelect (resultButtons ++ [Html.br [] [], cancelButton])
+
 toolBox model id (getOffset, putOffset) leftRightTopBottom elements =
   Html.div
     [ Attr.id id
@@ -283,7 +308,7 @@ aceCodeBox model dim =
     {- Html.Lazy.lazy ... -}
 
 basicCodeBox model dim =
-  textArea model.code <|
+  textArea (Model.codeToShow model) <|
     [ onInput Controller.msgCodeUpdate
     , Attr.style [ ("width", pixels dim.width)
                  ]
@@ -323,20 +348,27 @@ textArea_ children attrs =
 
 outputArea model layout =
   let output =
-    case (model.errorBox, model.mode) of
+    case (model.errorBox, model.mode, model.preview) of
 
-      (Just errorMsg, _) ->
+      (_, _, Just (_, Err errorMsg)) ->
         textArea errorMsg
           [ Attr.style [ ("width", pixels layout.canvas.width) ] ]
 
-      (Nothing, Print svgCode) ->
+      (Just errorMsg, _, Nothing) ->
+        textArea errorMsg
+          [ Attr.style [ ("width", pixels layout.canvas.width) ] ]
+
+      (Nothing, Print svgCode, Nothing) ->
         textArea svgCode
           [ Attr.style [ ("width", pixels layout.canvas.width) ] ]
 
-      (Nothing, Live _) ->
+      (_, _, Just (_, Ok _)) ->
         Canvas.build layout.canvas.width layout.canvas.height model
 
-      (Nothing, PrintScopeGraph maybeImageData) ->
+      (Nothing, Live _, Nothing) ->
+        Canvas.build layout.canvas.width layout.canvas.height model
+
+      (Nothing, PrintScopeGraph maybeImageData, Nothing) ->
         let srcAttr =
           case maybeImageData of
             Nothing   -> []
@@ -405,6 +437,9 @@ resizeWidget id model layout (getOffset, putOffset) left top =
 type ButtonKind = Regular | Selected | Unselected
 
 htmlButton text onClickHandler btnKind disabled =
+  htmlButtonExtraAttrs [] text onClickHandler btnKind disabled
+
+htmlButtonExtraAttrs extraAttrs text onClickHandler btnKind disabled =
   let color =
     case btnKind of
       Regular    -> "white"
@@ -417,6 +452,7 @@ htmlButton text onClickHandler btnKind disabled =
                  , ("fontSize", params.mainSection.widgets.fontSize)
                  , ("height", pixels Layout.buttonHeight)
                  , ("background", color)
+                 , ("cursor", "pointer")
                  , ("user-select", "none")
                  ] ]
   in
@@ -424,7 +460,8 @@ htmlButton text onClickHandler btnKind disabled =
     (commonAttrs ++
       [ handleEventAndStop "mousedown" Controller.msgNoop
       , onClick onClickHandler
-      ])
+      ] ++
+      extraAttrs)
     [ Html.text text ]
 
 runButton =

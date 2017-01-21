@@ -1,0 +1,54 @@
+; Battery (Dynamic)
+;
+; Still need tools for reordering shapes.
+;
+; Design decisions:
+;   - battery body made from four rectangles or one path with a hole or one polyline (below)
+;   - body x/y/w/h or left/top/right/bot (below)
+;   - charge bar x/y/w/h or left/top/right/bot (below)
+;   - calculate inner bounds as a variable (below) or inline
+;   - calculate inner width as a variable (below) or inline
+;   - w/h of tip absolute (below) or relative to body
+;   - if abstracted, BB or x/y/w/h parameterization
+;
+
+
+(def chargePercentage 20{0-100})
+(def bodyTop 117)
+(def bodyBot 204)
+(def bodyRight 273)
+(def centerY (/ (+ bodyTop bodyBot) 2!))
+(def bodyLeft 90)
+(def bodyOutlineWidth 18{0-50})
+(def halfOutlineWidth (/ bodyOutlineWidth 2!))
+(def mainColor 360)
+
+(def bodyOutline
+  (let pts [[bodyLeft bodyTop] [bodyRight bodyTop] [bodyRight bodyBot] [bodyLeft bodyBot]]
+    [ (addAttr (polygon 'none' mainColor bodyOutlineWidth pts) ["stroke-linejoin" "round"]) ]))
+
+(def tip
+  (let h 52
+  (let [y w] [ (- centerY (/ h 2!)) 38]
+  (let [stroke strokeWidth] [368 0]
+  (let rot 0
+    [ (rawRect mainColor stroke strokeWidth bodyRight y w h rot) ])))))
+
+(def [innerLeft innerTop innerRight innerBot]
+  [(+ bodyLeft halfOutlineWidth)
+   (+ bodyTop halfOutlineWidth)
+   (- bodyRight halfOutlineWidth)
+   (- bodyBot halfOutlineWidth)])
+(def innerWidth (- innerRight innerLeft))
+
+(def chargeBar
+  (let bounds @ [left top right bot] [innerLeft innerTop (+ innerLeft (/ (* innerWidth chargePercentage) 100!)) innerBot]
+  (let [drainedColor color fullColor] [0 mainColor 113]
+  (let color (if (le chargePercentage 20) drainedColor (if (ge chargePercentage 99) fullColor mainColor))
+    [ (rectangle color 360 0 0 bounds) ]))))
+
+(blobs [
+  bodyOutline
+  tip
+  chargeBar
+])

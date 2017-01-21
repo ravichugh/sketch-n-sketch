@@ -1,0 +1,41 @@
+; Ferris Wheel 3
+;
+; Design decisions:
+;   - Which variables to make global vs. local
+;   - Ordering of cars/rim/spokes/hub
+;
+
+(def cx 230)
+(def cy 245)
+(def [r n rot] [137 5{0-20} 0.11{-3.2-3.2}])
+(def ferrisPoints (nPointsOnCircle n rot cx cy r))
+(def spokeWidth 3)
+(def [spokeColor hubColor] [0 382])
+(def [carColor leadCarColor] [50 100])
+
+(def rim
+  [(ring spokeColor spokeWidth cx cy r)])
+
+(def car (\([x y] color)
+  (let [x y w h] [x y 43 44]
+    [ (rectByCenter color x y w h) ])))
+
+(def spoke (\[x y]
+    [ (line spokeColor spokeWidth cx cy x y) ]))
+
+(def cars
+  (concat (mapi (\[i pt] (car pt (if (= 0 i) leadCarColor carColor))) ferrisPoints)))
+
+(def spokes
+  (concatMap spoke ferrisPoints))
+
+(def hub
+  (let r 24
+    [ (rawCircle hubColor 360 0 cx cy r) ]))
+
+(blobs [
+  cars
+  spokes
+  rim
+  hub
+])

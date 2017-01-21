@@ -4203,6 +4203,931 @@ coffee_UIST =
 
 """
 
+rectangleTrisection =
+ """; Rectangle Trisection
+;
+; After Alan Turranksy p566 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+;
+; Straightforward with tools as of UIST 2016, but
+; does require a \"Dig Hole\" to type in \"(/ rect1_w 3)\"
+;
+; To further abstract (as below) requires manual labor (not a bounding box)
+;
+
+(def rectTrisection (\\(x y w h)
+  (def rect1
+    (let [fill stroke strokeWidth] [365 365 0]
+    (let rot 0
+      [ (rawRect fill stroke strokeWidth x y w h rot) ])))
+
+  (def rect2
+    (let [fill stroke strokeWidth] [175 175 0]
+    (let rot 0
+      [ (rawRect fill stroke strokeWidth x y (/ w 3) h rot) ])))
+
+  (concat [rect1 rect2])
+))
+
+
+(blobs [
+  (rectTrisection 91 181 347 177)
+])
+"""
+
+battery =
+ """; Battery
+;
+; After Bernstein and Li \"Lillicon\" 2015.
+;
+; Can be done with tools as of UIST 2016 (minus abstaction), but
+; parameterization is backward; want tip x and y to be dependent but
+; the Make Equal defaults to making x and h dependent (as below).
+;
+; Design decisions:
+;   - w/h of tip absolute or relative to body
+;   - if abstracted, BB or x/y/w/h parameterization
+;
+
+(def [body_w body_x] [147 103])
+(def [tip_y body_h body_y] [223 84 201])
+(def fill 362)
+
+(def body
+  (let [ stroke strokeWidth] [ 250 0]
+  (let rot 0
+    [ (rawRect fill stroke strokeWidth body_x body_y body_w body_h rot) ])))
+
+(def tip
+  (let [x w h] [(+ body_x body_w) 19 (* 2! (- (+ body_y (* 0.5! body_h)) tip_y))]
+  (let [ stroke strokeWidth] [ 182 0]
+  (let rot 0
+    [ (rawRect fill stroke strokeWidth x tip_y w h rot) ]))))
+
+(blobs [
+  body
+  tip
+])
+"""
+
+batteryDynamic =
+ """; Battery (Dynamic)
+;
+; Still need tools for reordering shapes.
+;
+; Design decisions:
+;   - battery body made from four rectangles or one path with a hole or one polyline (below)
+;   - body x/y/w/h or left/top/right/bot (below)
+;   - charge bar x/y/w/h or left/top/right/bot (below)
+;   - calculate inner bounds as a variable (below) or inline
+;   - calculate inner width as a variable (below) or inline
+;   - w/h of tip absolute (below) or relative to body
+;   - if abstracted, BB or x/y/w/h parameterization
+;
+
+
+(def chargePercentage 20{0-100})
+(def bodyTop 117)
+(def bodyBot 204)
+(def bodyRight 273)
+(def centerY (/ (+ bodyTop bodyBot) 2!))
+(def bodyLeft 90)
+(def bodyOutlineWidth 18{0-50})
+(def halfOutlineWidth (/ bodyOutlineWidth 2!))
+(def mainColor 360)
+
+(def bodyOutline
+  (let pts [[bodyLeft bodyTop] [bodyRight bodyTop] [bodyRight bodyBot] [bodyLeft bodyBot]]
+    [ (addAttr (polygon 'none' mainColor bodyOutlineWidth pts) [\"stroke-linejoin\" \"round\"]) ]))
+
+(def tip
+  (let h 52
+  (let [y w] [ (- centerY (/ h 2!)) 38]
+  (let [stroke strokeWidth] [368 0]
+  (let rot 0
+    [ (rawRect mainColor stroke strokeWidth bodyRight y w h rot) ])))))
+
+(def [innerLeft innerTop innerRight innerBot]
+  [(+ bodyLeft halfOutlineWidth)
+   (+ bodyTop halfOutlineWidth)
+   (- bodyRight halfOutlineWidth)
+   (- bodyBot halfOutlineWidth)])
+(def innerWidth (- innerRight innerLeft))
+
+(def chargeBar
+  (let bounds @ [left top right bot] [innerLeft innerTop (+ innerLeft (/ (* innerWidth chargePercentage) 100!)) innerBot]
+  (let [drainedColor color fullColor] [0 mainColor 113]
+  (let color (if (le chargePercentage 20) drainedColor (if (ge chargePercentage 99) fullColor mainColor))
+    [ (rectangle color 360 0 0 bounds) ]))))
+
+(blobs [
+  bodyOutline
+  tip
+  chargeBar
+])
+"""
+
+mondrianArch =
+ """; Mondrian Arch
+;
+; After Henry Lieberman p554 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+;
+; Can be done with tools as of UIST 2016, but
+; parameterization is not anywhere near optimal.
+;
+; Below is hand-rolled (some digging).
+;
+; Design decisions:
+;   - Pillars relative to BB or relative to lintel (below: relative to lintel)
+;   - x/y/w/h or BB for lintel (below: x/y/w/h)
+;   - Pillar width: same as lintel or relative to BB width (below: same as lintel)
+;
+
+; Get the following with vanilla \"Make Equal\":
+;
+; (def [rect3_y rect2_x rect3_w rect4_x] [161 105 170 222])
+; (def rect2_y (+ (- (+ rect2_x rect3_w) rect4_x) rect3_y))
+; (def rect2_h 148)
+;
+; (def rect2
+;   (let w (- rect2_y rect3_y)
+;   (let [fill stroke strokeWidth] [211 381 0]
+;   (let rot 0
+;     [ (rawRect fill stroke strokeWidth rect2_x rect2_y w rect2_h rot) ]))))
+;
+; (def rect3
+;   (let h (- rect2_y rect3_y)
+;   (let [fill stroke strokeWidth] [344 444 0]
+;   (let rot 0
+;     [ (rawRect fill stroke strokeWidth rect2_x rect3_y rect3_w h rot) ]))))
+;
+; (def rect4
+;   (let w (- (+ rect2_x rect3_w) rect4_x)
+;   (let [fill stroke strokeWidth] [117 391 0]
+;   (let rot 0
+;     [ (rawRect fill stroke strokeWidth rect4_x rect2_y w rect2_h rot) ]))))
+;
+; (blobs [
+;   rect2
+;   rect3
+;   rect4
+; ])
+;
+
+(def [lintel_x lintel_y lintel_w lintel_h] [76 146 145 42])
+(def lintelBot (+ lintel_y lintel_h))
+(def pillarHeight 198)
+
+(def leftPillar
+  (let [x y w h] [lintel_x lintelBot lintel_h pillarHeight]
+  (let [fill stroke strokeWidth] [352 352 0]
+  (let rot 0
+    [ (rawRect fill stroke strokeWidth x y w h rot) ]))))
+
+(def lintel
+  (let [fill stroke strokeWidth] [218 218 0]
+  (let rot 0
+    [ (rawRect fill stroke strokeWidth lintel_x lintel_y lintel_w lintel_h rot) ])))
+
+(def rightPillar
+  (let [x y w h] [(- (+ lintel_x lintel_w) lintel_h) lintelBot lintel_h pillarHeight]
+  (let [fill stroke strokeWidth] [146 146 0]
+  (let rot 0
+    [ (rawRect fill stroke strokeWidth x y w h rot) ]))))
+
+(blobs [
+  leftPillar
+  lintel
+  rightPillar
+])
+
+"""
+
+ladder =
+ """; Ladder
+;
+; After Cheema, Gulwani, and LaViola \"QuickDraw: Improving Drawing Experience for Geometric Diagrams\" CHI 2012.
+; mentioned as originally from an math text
+;
+; Repetition and best implementation of vertical constraint done by hand.
+;
+; Design decisions:
+;   - Linear repetition specification (start sep n (below); start end n; start end sep)
+;   - Ladder bottom: absolute (below) or offset from last rung
+;   - If last rung endpoint specified: absolute or relative to ladder height or offset from ladder bottom
+;
+
+
+(def leftPost_y1 121)
+(def leftPost_y2 250)
+(def leftPost_x1 97)
+(def rightPost_x1 207)
+(def color 130)
+(def width 7)
+(def n 4{1-15})
+
+(def leftPost
+    [ (line color width leftPost_x1 leftPost_y1 leftPost_x1 leftPost_y2) ])
+
+(def rightPost
+    [ (line color width rightPost_x1 leftPost_y1 rightPost_x1 leftPost_y2) ])
+
+(def rungs
+    (def rung (\\i
+    (let y (+ leftPost_y1 (* i 27.666666666666668))
+        [(line color width leftPost_x1 y rightPost_x1 y) ])))
+    (concatMap rung (zeroTo n)))
+
+(blobs [
+  leftPost
+  rightPost
+  rungs
+])
+"""
+
+rails =
+ """; Rails
+;
+; Make Equal helped set up the rails. The rest is basically hand-rolled.
+;
+; Design decisions:
+;   - Ties/rails encoded relative to rails (below) or to BB or to centerline
+;   - If encoded relative to rails, botRail y absolute (below) or offset from topRail y
+;   - Tie sep measured between left edges or between facing edges (below)
+;   - Tie count absolute (below) or relative to rail length or rail length relative to tie count
+;   - Tie start position absolute or based on sep (below)
+;   - Tie hangout absolue (below) or relative to rail offset or BB
+;
+
+
+(def railLength 331)
+(def railWidth 10)
+(def railStart 36)
+(def railFill 460)
+(def topRail_y 151)
+(def botRail_y 204)
+
+(def topRail
+  (let [stroke strokeWidth] [78 0]
+  (let rot 0
+    [ (rawRect railFill stroke strokeWidth railStart topRail_y railLength railWidth rot) ])))
+
+(def botRail
+  (let [stroke strokeWidth] [78 0]
+  (let rot 0
+    [ (rawRect railFill stroke strokeWidth railStart botRail_y railLength railWidth rot) ])))
+
+(def ties
+  (let tie (\\i
+    (let w 12
+    (let sep 20.98947368421053
+    (let sepw (+ sep w)
+    (let x (+ (+ railStart (/ sep 2!)) (* i sepw))
+    (let hangout 12
+    (let y (- topRail_y hangout)
+    (let h (+ (+ (- botRail_y topRail_y) railWidth) (* 2! hangout))
+    (let [fill stroke strokeWidth] [39 85 0]
+    (let rot 0
+      [ (rawRect fill stroke strokeWidth x y w h rot) ]))))))))))
+  (concatMap tie (zeroTo 10))))
+
+(blobs [
+  ties
+  topRail
+  botRail
+])
+"""
+
+target =
+ """; Target
+;
+; Design decisions:
+;   - BB n or BB ringWidth or cx cy r n or cx cy n ringWidth (below) or cx cy r ringWidth
+;   - Inner circle radius absolute or relative to ringWidth (below)
+;
+
+(def target
+  (let circleCount 4{1-10}
+  (let concentricCircle (\\i
+    (let ringWidth 35
+    (let [cx cy r] [182 244 (+ (* 0.7 ringWidth) (* i ringWidth))]
+    (let colors [470 0]
+    (let color (nth colors (mod i 2))
+      [ (rawCircle color 360 0 cx cy r) ])))))
+
+  (concatMap concentricCircle (reverse (zeroTo circleCount))))))
+
+(blobs [
+  target
+])
+"""
+
+xs =
+ """; Xs
+;
+; After David Maulsby p591 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+;
+; Design decisions:
+;   - top left n boxWidth or top left w boxWidth or top left w n or cx cy n boxWidth (below) or cx cy r boxWidth or cx cy r n or BB boxWidth or BB n
+;   - boxes square or rectangular (relevant to several of the above)
+;   - n ∈ {1,2,3,4,...} (below) or n ∈ {1,3,5,7,...}
+;   - colors global (below) or per function call
+;
+
+(def X (\\(cx cy n boxWidth)
+  (let [centerColor descendingColor ascendingColor] [438 32 240]
+  (let square (\\(cx cy color)
+    [ (rectByCenter color cx cy boxWidth boxWidth) ])
+  (let drawLevel (\\i
+    (if (= i 0)
+      (square cx cy centerColor)
+      (let offset (* i boxWidth)
+        (concat [(square (- cx offset) (- cy offset) descendingColor)
+                 (square (+ cx offset) (+ cy offset) descendingColor)
+                 (square (- cx offset) (+ cy offset) ascendingColor)
+                 (square (+ cx offset) (- cy offset) ascendingColor)]))))
+    (concatMap drawLevel (zeroTo n)))))
+  ))
+
+(blobs [
+  (X 200 250 3 50)
+])
+"""
+
+conifer =
+ """; Conifer
+;
+; This design is surprisingly difficult to code.
+;
+; Some notable decisions:
+;   - tree parameters global (below) or passed in to each function
+;   - tree height computed or given (below)
+;   - leaf separation absolute (below) or relative to leaf size
+;   - leaf separation measured as between respective points on consectutive leaves (below) or as space between leaves
+;   - branch start/end height on trunk absolute (below) or offset from base or a ratio
+;   - branch repetition start end sep (below) or start end n or start sep n
+;
+
+
+(defrec spaced (\\(start stop sep)
+  (let direction (sgn sep)
+  (if (< (* direction start) (* direction stop))
+    [start|(spaced (+ start sep) stop sep)]
+    []))))
+
+(def treeX 232)
+(def treeBot 375)
+(def treeHeight 305)
+(def treeTop (- treeBot treeHeight))
+(def [branchBot branchTop] [352 81])
+
+(def trunk
+  (let [baseY baseW] [treeBot 12]
+  (let halfBaseW (/ baseW 2!)
+  (let pts [[(- treeX halfBaseW) baseY]
+            [(+ treeX halfBaseW) baseY]
+            [treeX treeTop]]
+  (let [color strokeColor strokeWidth] [31 0 0]
+    [ (rawPolygon color strokeColor strokeWidth pts 0) ])))))
+
+
+; Draw this to maniplate how high the branches start/stop
+(def branchingLine
+  (let [color width] [280 5]
+    [ (line color width treeX branchBot treeX branchTop) ]))
+
+(def leaf (\\(cx cy)
+  (let [w h] [14 52]
+  (let [halfW halfH] [(/ w 2!) (/ h 2!)]
+  (let [left top right bot] [(- cx halfW) (- cy halfH) (+ cx halfW) (+ cy halfH)]
+  (let pts [[left cy] [cx bot] [right cy] [cx top]]
+  (let [color strokeColor strokeWidth] [127 0 0]
+    [ (rawPolygon color strokeColor strokeWidth pts 0) ])))))))
+
+(def branch (\\(baseY baseW length)
+  (let halfBaseW (/ baseW 2!)
+  (let pts [[treeX (- baseY halfBaseW)]
+            [treeX (+ baseY halfBaseW)]
+            [(+ treeX length) baseY]]
+  (let [color strokeColor strokeWidth] [31 0 0]
+    [ (rawPolygon color strokeColor strokeWidth pts 0) ])))))
+
+(def leafyBranch (\\(baseY baseW length leafSep)
+  (let halfLeafSep (/ leafSep 2!)
+  (let leaves (concatMap (\\x (leaf x baseY)) (spaced (- (+ treeX length) halfLeafSep) (+ treeX halfLeafSep) (neg leafSep)))
+  (concat [(branch baseY baseW length) leaves])))))
+
+(def side (\\direction
+  (let branchSep 38.5
+  (let leafSep (* direction 18)
+  (let drawLeafyBranch (\\y
+    (let lengthRatio (- 1! (/ (- treeBot y) treeHeight))
+    (leafyBranch y (* lengthRatio 30) (* direction (* lengthRatio 190)) leafSep)))
+  (concatMap drawLeafyBranch (spaced branchBot branchTop (neg branchSep))))))))
+
+(blobs [
+  trunk
+  (side 1!)
+  (side -1!)
+])
+"""
+
+ferris3 =
+ """; Ferris Wheel 3
+;
+; Design decisions:
+;   - Which variables to make global vs. local
+;   - Ordering of cars/rim/spokes/hub
+;
+
+(def cx 230)
+(def cy 245)
+(def [r n rot] [137 5{0-20} 0.11{-3.2-3.2}])
+(def ferrisPoints (nPointsOnCircle n rot cx cy r))
+(def spokeWidth 3)
+(def [spokeColor hubColor] [0 382])
+(def [carColor leadCarColor] [50 100])
+
+(def rim
+  [(ring spokeColor spokeWidth cx cy r)])
+
+(def car (\\([x y] color)
+  (let [x y w h] [x y 43 44]
+    [ (rectByCenter color x y w h) ])))
+
+(def spoke (\\[x y]
+    [ (line spokeColor spokeWidth cx cy x y) ]))
+
+(def cars
+  (concat (mapi (\\[i pt] (car pt (if (= 0 i) leadCarColor carColor))) ferrisPoints)))
+
+(def spokes
+  (concatMap spoke ferrisPoints))
+
+(def hub
+  (let r 24
+    [ (rawCircle hubColor 360 0 cx cy r) ]))
+
+(blobs [
+  cars
+  spokes
+  rim
+  hub
+])
+"""
+
+gear =
+ """; Gear
+;
+; Need fancier path tools to create the
+; cut out via direct manipulation.
+;
+; Need better DM to manipulate the design (parameter
+; control and better handling of rotation)
+;
+; Design decisions:
+;   - tip diameter absolute or offset from root diameter
+;   - points defined clockwise (below) or counterclockwise
+;   - how to add the lettered path commands between the points (good opportunity for PBE)
+;   - scope of unshared gear parameters, either local (below, mostly) or global
+;
+
+(def [cx cy] [200 200])
+(def [rootRadius tipRadius] [120 170])
+(def teethCount 9!{1-50})
+(def [botLandRatio topLandRatio] [0.45 0.25])
+(def rot 0)
+
+; direction controls whether points are clockwise or counterclockwise
+(def circlePathCmds (\\(cx cy r direction)
+  (let sweepFlag (if (= 1 direction) 1 0)
+  ['M' (+ cx (* direction r)) cy
+   'a' (* direction r) r 0 0 sweepFlag (* direction (neg r)) r
+   'a' (* direction r) r 0 0 sweepFlag (* direction (neg r)) (neg r)
+   'a' (* direction r) r 0 0 sweepFlag (* direction r) (neg r)
+   'a' (* direction r) r 0 0 sweepFlag (* direction r) r
+   'z'])))
+
+(def gearPts (\\(rotAngularRatioOffset r)
+  (let angularPitch (/ twoPi teethCount)
+  (reverse (nPointsOnCircle teethCount (+ rot (* angularPitch rotAngularRatioOffset)) cx cy r)))))
+
+; 0 degrees is centered on a tip
+(def topLeftPts  (gearPts (/ topLandRatio -2!) tipRadius))
+(def topRightPts (gearPts (/ topLandRatio  2!) tipRadius))
+(def botLeftPts  (gearPts (+ 0.5! (/ botLandRatio -2!)) rootRadius))
+(def botRightPts (gearPts (+ 0.5! (/ botLandRatio  2!)) rootRadius))
+
+; Now interleave all the points
+(def pathPts (concat (map4 (\\(pt1 pt2 pt3 pt4) [pt1 pt2 pt3 pt4]) topLeftPts topRightPts botLeftPts botRightPts)))
+
+(def pathCmds
+   (concat (intermingle (cons ['M'] (snoc ['Z'] (repeat (- (* 4! teethCount) 1!) ['L']))) pathPts)))
+
+(def gear
+  (let [strokeColor strokeWidth color] [372 5 352]
+    [ (rawPath color strokeColor strokeWidth (append pathCmds (circlePathCmds cx cy 50 -1!)) 0) ]))
+
+
+(blobs [
+  gear
+])
+"""
+
+kochSnowflake =
+ """; Koch Snowflake
+;
+; Can be accomplished by graphical search and replace per
+; David Kurlander p556 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+;
+; What would have helped the creation of the implementation below
+; was some local view of a functions computation (onLine, normPt).
+; Might be nice to augment with program synthesis.
+;
+; Design decisions:
+;   - as patterns (below) or reconstructing points
+;   - manual calculation of dx dy (below) or use of prelude vec2DMinus function
+;   - draw as many lines or polyline or polygon (below) or path
+;   - edge math calculates the three subdivistion points (below) or uses vector addition and rotation functions like turtle graphics
+;   - repeated edge calls (below) or concatMap over list of points
+;   - The equation for edge width: 1/3 for each successive iteration (below) or constant
+;
+
+(def iterations 3!{0-4})
+; Each iteration is 1/3 the scale of the prior, so
+; we divide the line width by 3 on each iteration.
+(def [fill stroke width] [150 386 (/ 45 (pow 3! iterations))])
+
+; Point on normal of line, at `ratio` distance from the line
+; relative to line length.
+(def normPt (\\(pt1@[x1 y1] pt2@[x2 y2] ratio)
+  (let vec@[dx dy] [(- x2 x1) (- y2 y1)]
+  (vec2DPlus (vec2DScalarMult ratio [(neg dy) dx]) (halfwayBetween pt1 pt2)))))
+
+; Recursive fractal edge.
+;
+; Returns list of points (except the last point)
+(defrec edge (\\(pt1@[x1 y1] pt2@[x2 y2] iterationsLeft)
+  (if (= 0 iterationsLeft)
+    [ pt1 ]
+    (let [thirdPt twoThirdsPt] [(onLine pt1 pt2 (/ 1 3!)) (onLine pt1 pt2 (/ 2 3!))]
+    (let outPt (normPt pt1 pt2 (* (/ 1 3!) (/ (sqrt 3!) 2!)))
+    (concat [ (edge pt1         thirdPt     (- iterationsLeft 1))
+              (edge thirdPt     outPt       (- iterationsLeft 1))
+              (edge outPt       twoThirdsPt (- iterationsLeft 1))
+              (edge twoThirdsPt pt2         (- iterationsLeft 1))
+            ]))))))
+
+; Points of initial equilateral triangle.
+(def [triPt1 triPt2 triPt3] (nPointsOnCircle 3! 0 300 300 200))
+
+(def snowflakePts
+  (concat [ (edge triPt1 triPt2 iterations)
+            (edge triPt2 triPt3 iterations)
+            (edge triPt3 triPt1 iterations)
+          ]))
+
+(def snowflake
+  [ (polygon fill stroke width snowflakePts) ])
+
+(blobs [
+  snowflake
+])
+"""
+
+replaceTerminalsWithWorkstations =
+ """; Replace Terminals With Workstations
+;
+; A Demo of Kurlander's graphical search and replace.
+; David Kurlander p573,pp275-277 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+;
+; Design decisions:
+;   - x y w h or left top right bot (below) for workstation display and pillar
+;   - how to encode the equalization of the centerpoints of the keyboard, pillar, and display (used \"Make Equal\" version 1 below)
+;   - how to parameterize the design into a function: x y (below) or x y size or left top right bot
+;   - whether to parameterize any other details (e.g. screen color)
+;   - how to implement the x y offset: map and add in each location (below) or prelude SVG translate function (not implemented yet)
+;
+
+
+(def terminal (\\(x y)
+  (let origin [x y]
+  (let offset (vec2DPlus origin) ; second point unapplied
+  (let body
+    (let pts [[-9 154] [76 166] [150 136] [146 14] [54 6] [36 15] [38 117]]
+    (let [color strokeColor strokeWidth] [454 360 2]
+      [ (rawPolygon color strokeColor strokeWidth (map offset pts) 0) ]))
+
+  (let keyboard
+    (let pts [[15 147] [46 124] [102 131] [69 154]]
+    (let [color strokeColor strokeWidth] [462 360 2]
+      [ (rawPolygon color strokeColor strokeWidth (map offset pts) 0) ]))
+
+  (let screen
+    (let pts [[55 88] [54 32] [108 38] [109 94]]
+    (let [color strokeColor strokeWidth] [103 360 2]
+      [ (rawPolygon color strokeColor strokeWidth (map offset pts) 0) ]))
+
+  (concat [ body keyboard screen ]))))))))
+
+
+(def workstation (\\(x y)
+  (let origin [x y]
+  (let offset (vec2DPlus origin) ; second point unapplied
+  (let [polygon14_pts_k4862 rect11_bounds_left rect11_bounds_right] [71 104 148]
+  (let k4859 (- (+ rect11_bounds_left rect11_bounds_right) polygon14_pts_k4862)
+  (let rect12_bounds_left 46
+  (let right' (- (+ rect11_bounds_left rect11_bounds_right) rect12_bounds_left)
+
+  (let displayPillar
+    (let bounds @ [left top right bot] [(+ x rect11_bounds_left) (+ y 115) (+ x rect11_bounds_right) (+ y 151)]
+    (let color 364
+      [ (rectangle color 360 0 0 bounds) ]))
+
+  (let display
+    (let bounds @ [left top right bot] [(+ x rect12_bounds_left) (+ y 14) (+ x right') (+ y 110)]
+    (let color 110
+      [ (rectangle color 360 15 0 bounds) ]))
+
+  (let keyboard
+    (let pts_k4861 150
+    (let pts_k4855 178
+    (let pts [[polygon14_pts_k4862 pts_k4861] [k4859 pts_k4861] [201 pts_k4855] [53 pts_k4855]]
+    (let [color strokeColor strokeWidth] [460 360 5]
+      [ (rawPolygon color strokeColor strokeWidth (map offset pts) 0) ]))))
+
+  (let mouseCord
+    (let [strokeColor strokeWidth color] [369 1 'none']
+    (let [x0 y0] [21 159]
+    (let d ['M' (+ x x0) (+ y y0) 'L' (+ x 36) (+ y 144) 'L' (+ x 69) (+ y 137) 'L' (+ x 100) (+ y 134) 'L' (+ x 133) (+ y 136)]
+      [ (rawPath color strokeColor strokeWidth d 0) ])))
+
+  (let mouseBody
+    (let pts [[-5 176] [12 158] [28 158] [18 177]]
+    (let [color strokeColor strokeWidth] [462 360 2]
+      [ (rawPolygon color strokeColor strokeWidth (map offset pts) 0) ]))
+
+  (let mouseButton
+    (let pts [[10 165] [14 161] [23 161] [18 166]]
+    (let [color strokeColor strokeWidth] [364 360 2]
+      [ (rawPolygon color strokeColor strokeWidth (map offset pts) 0) ]))
+
+  (concat [ displayPillar display keyboard mouseCord mouseBody mouseButton ])))))))))))))))
+
+(def terminalsOrWorkstations 0!{0-1})
+(def terminalOrWorkstation
+  (if (< terminalsOrWorkstations 0.5!) terminal workstation))
+
+(blobs [
+  (terminalOrWorkstation 0 0)
+  (terminalOrWorkstation 300 200)
+  (terminalOrWorkstation 200 300)
+  (terminalOrWorkstation 400 400)
+])
+"""
+
+balanceScale =
+ """; Balance Scale
+;
+; After David Kurlander p568 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+;
+; Had to hand-code the arc.
+;
+; It's a reasonable goal to support the ability to draw out the
+; particular constraints that determine the placement of the weights.
+;
+; The mathematics for balancing the scale should probably
+; not be a goal for direct manipulation (for the time being).
+;
+; Design decisions:
+;   - Use polyline (below) or two lines for balance arms
+;   - Arm pivot y absolute (below) or relative to top of pillar or pillar top relative to pivot
+;   - Arms angle in degrees (below) or radians or specified as a distance to drop
+;   - Tray arc radius absolute (below) or a ratio of width
+;   - Each tray hung by two lines or one polyline (below)
+;
+
+
+(def [pillar_x base_cx] [276.5 308])
+(def [pillar_y base_cy] [145 497])
+
+
+(def base
+  (let [ rx ry] [ 95 29]
+  (let [color rot] [420 0]
+    [ (rawEllipse color 360 0 base_cx base_cy rx ry rot) ])))
+
+(def pillar
+  (let [ w h] [ (* 2! (- base_cx pillar_x)) (- base_cy pillar_y)]
+  (let [fill stroke strokeWidth] [41 245 0]
+  (let rot 0
+    [ (rawRect fill stroke strokeWidth pillar_x pillar_y w h rot) ]))))
+
+(def pivot@[px py] [base_cx 181])
+(def armsInnerAngle 2.7!{0-3.14159})
+(def halfArmsInnerAngle (/ armsInnerAngle 2!))
+(def armLength 200)
+(def trayHangHeight 218.00000000000003)
+(def [leftWeightWidth  leftWeightHeight]  [65 65{0-120}])
+(def [rightWeightWidth rightWeightHeight] [65{0-120} 65])
+(def leftWeightMass  (* leftWeightWidth  leftWeightHeight))
+(def rightWeightMass (* rightWeightWidth rightWeightHeight))
+(def totalMass (+ leftWeightMass rightWeightMass))
+; Where does the center of mass fall on the invisible line between the trays?
+; (0 = all the way left, 1 = all the way right)
+(def centerOfMassLeftRightRatio (/ rightWeightMass totalMass))
+
+(def threePiOverTwo (* 1.5! (pi)))
+(def arctan (\\theta (arctan2 theta 1!)))
+(def tan (\\theta (/ (sin theta) (cos theta))))
+
+; Per my hand calculations
+(def thetaMethod1
+  (arctan (* (- 1! (* 2! centerOfMassLeftRightRatio)) (tan halfArmsInnerAngle))))
+; Per http://stackoverflow.com/a/4451915 arctan[tan(phi)*(m1+m2)/(m1-m2)]
+(def thetaMethod2
+  (let phi (- halfPi halfArmsInnerAngle)
+  (- halfPi (arctan (/ (* (tan phi) totalMass) (- leftWeightMass rightWeightMass))))))
+; They give the same results, though the S.O. answer chooses the opposite arctan for some angles.
+(def theta thetaMethod1)
+
+
+(def [leftHangPt rightHangPt]
+  (let [leftArmAngle rightArmAngle] [(+ theta (- threePiOverTwo halfArmsInnerAngle))
+                                     (+ theta (+ threePiOverTwo halfArmsInnerAngle))]
+  (map (compose (vec2DPlus pivot) (vec2DScalarMult armLength))
+    [[(cos leftArmAngle)  (neg (sin leftArmAngle))]
+     [(cos rightArmAngle) (neg (sin rightArmAngle))]])))
+
+(def arms
+  (let pts [leftHangPt [base_cx 181] rightHangPt]
+  (let [color strokeColor strokeWidth] [\"none\" 430 30]
+    [ (addAttr (polyline color strokeColor strokeWidth pts) [\"stroke-linecap\" \"round\"]) ])))
+
+(def weight (\\(cx bot w h)
+  (let halfWidth (/ w 2!)
+  (let [left top right] [(- cx halfWidth) (- bot h) (+ cx halfWidth)]
+  (let color 275
+    [ (rectangle color 360 0 0 [left top right bot]) ])))))
+
+(def hangingTray (\\(hangPoint@[hangX hangY] weightWidth weightHeight)
+  (let [strokeColor strokeWidth fill] [380 4 52]
+  (let w 100
+  (let y (+ hangY trayHangHeight)
+  (let arcRadius 300
+  (let [left right] [(- hangX w) (+ hangX w)]
+  (let d [\"M\" left y \"L\" right y \"A\" arcRadius arcRadius 0 0 1 left y \"Z\"]
+    (concat [
+      [ (path fill strokeColor strokeWidth d) ]
+      [ (polyline 'none' strokeColor strokeWidth [[left y] hangPoint [right y]]) ]
+      (weight hangX y weightWidth weightHeight)
+    ])))))))))
+
+(blobs [
+  base
+  pillar
+  arms
+  (hangingTray leftHangPt  leftWeightWidth  leftWeightHeight)
+  (hangingTray rightHangPt rightWeightWidth rightWeightHeight)
+])
+"""
+
+pencilTip =
+ """; Pencil Tip
+;
+; Had to hand code:
+;   - renamings
+;   - initial eraser path arcs
+;   - eraser path arc relations
+;   - co-linearity of graphite tip with shaved wood wedge
+;
+; Design decisions:
+;   - Parts horizonal parameters absolute (below) or offset from each other or relative to entire pencil width
+;   - Pencil vertically paramererized as top/bottom (below) or top/width or centerY/width
+;   - Pencil constituent rects left/right/top/bot (below) or x/y/w/h
+;   - Eraser left x, corner bend start x, corner radius dependency: bend start x on radius and left (below), left on radius and bend start x, or radius on left and bend start x.
+;   - Pencil wood left, wood top right corner, and tip x: wood top right corner on wood left, tip x, and ratio (below); tip x and wood corner top on wood left, wood right, and ratio; tip x on wood left and wood top right corner; tip x on tip angle, wood top right corner on ratio
+;
+
+(def eraserRight 134)
+(def [pencilTop pencilBot] [130 266])
+(def pencilCenterY (* 0.5! (+ pencilBot pencilTop)))
+
+(def eraser
+  (let [strokeColor strokeWidth color] [254 0 4]
+  (let cornerRadius 13
+  (let left 107
+  (let bendStartX (+ left cornerRadius)
+  (let d ['M' eraserRight pencilTop
+          'L' eraserRight pencilBot
+          'L' bendStartX pencilBot
+          'A' cornerRadius cornerRadius 0 0 1 left (- pencilBot cornerRadius)
+          'L' left (+ pencilTop cornerRadius)
+          'A' cornerRadius cornerRadius 0 0 1 bendStartX pencilTop
+          'Z']
+    [ (rawPath color strokeColor strokeWidth d 0) ]))))))
+
+(def ferrule_right 194)
+
+(def ferrule
+  (let bounds @ [left top right bot] [eraserRight pencilTop ferrule_right pencilBot]
+  (let color 458
+    [ (rectangle color 360 0 0 bounds) ])))
+
+(def body_right 334)
+
+(def body
+  (let bounds @ [left top right bot] [ferrule_right pencilTop body_right pencilBot]
+  (let color 43
+    [ (rectangle color 360 0 0 bounds) ])))
+
+(def tipRatio 0.3)
+(def tipRight 437)
+
+(def [woodRight tipTopY] (onLine [tipRight pencilCenterY] [body_right pencilTop] tipRatio))
+(def tipBotY (- (+ pencilBot pencilTop) tipTopY))
+
+(def wood
+  (let pts [[body_right pencilBot] [body_right pencilTop] [woodRight tipTopY] [woodRight tipBotY]]
+  (let [color strokeColor strokeWidth] [470 360 0]
+    [ (rawPolygon color strokeColor strokeWidth pts 0) ])))
+
+(def tip
+  (let pts [[woodRight tipBotY] [woodRight tipTopY] [tipRight pencilCenterY]]
+  (let [color strokeColor strokeWidth] [402 360 0]
+    [ (rawPolygon color strokeColor strokeWidth pts 0) ])))
+
+(blobs [
+  eraser
+  ferrule
+  body
+  wood
+  tip
+])
+"""
+
+calendarIcon =
+ """; Calendar Icon
+;
+; After Bernstein and Li \"Lillicon\" 2015.
+;
+; Design Decisions:
+;   - rectangles x/y/w/h or let/top/right/bot (below)
+;   - day locations with margin calculated with start sep n or margin inserted per day based on point pairs from start end n (below)
+;   - cell margins constant or based on number of days in a month (below)
+;   - days in a month calculated inline (below) or a separate variable
+;
+
+
+(def daysInAWeek 4!{1-15})
+(def weeksInAMonth 3!{1-12})
+(def edgeMargin 10)
+(def dayMargin (/ (/ 196 daysInAWeek) weeksInAMonth))
+
+(def left 91)
+(def right 468)
+(def backgroundColor 325)
+
+(def topBar
+  (let bounds @ [left top right bot] [left 71 right 125]
+    [ (rectangle backgroundColor 360 0 0 bounds) ]))
+
+; end points included as part of n
+(def nPointsBetween (\\(start end n)
+  (let sep (/ (- end start) (- n 1!))
+  (map (\\i (+ start (* i sep))) (zeroTo n)))))
+
+(def [paperTop paperBot] [143 435])
+
+(def xs (nPointsBetween (+ left edgeMargin) (- right edgeMargin) (+ 1! daysInAWeek)))
+(def ys (nPointsBetween (+ paperTop edgeMargin) (- paperBot edgeMargin) (+ 1! weeksInAMonth)))
+(def consecutiveXs (zip xs (drop xs 1)))
+(def consecutiveYs (zip ys (drop ys 1)))
+; Drop some days from beginning/end of month
+;
+; cartProd argument order is so that we drop from the first row rather than first column
+(def dayBounds
+  (let dropFirstN (round (* daysInAWeek 0.3!))
+  (let dropLastN (round (* daysInAWeek 0.3!))
+  (map reverse (dropEnd (drop (cartProd consecutiveYs consecutiveXs) dropFirstN) dropLastN)))))
+
+(def paper
+  (let bounds @ [left top right bot] [left paperTop right paperBot]
+    [ (rectangle backgroundColor 360 0 0 bounds) ]))
+
+(def days
+  (map
+    (\\[[left right] [top bot]]
+      (rectangle 479 360 0 0 [(+ left dayMargin) (+ top dayMargin) (- right dayMargin) (- bot dayMargin)]))
+    dayBounds))
+
+(blobs [
+  topBar
+  paper
+  days
+])
+"""
+
+
 
 examples =
   [ makeExample "BLANK" blank
@@ -4309,6 +5234,22 @@ examples =
   , makeExample "Sample Rotations" rotTest
   , makeExample "Grid Tile" gridTile
   , makeExample "Zones" zones
+  , makeExample "Rectangle Trisection" rectangleTrisection
+  , makeExample "Battery" battery
+  , makeExample "Battery (Dynamic)" batteryDynamic
+  , makeExample "Mondrian Arch" mondrianArch
+  , makeExample "Ladder" ladder
+  , makeExample "Rails" rails
+  , makeExample "Target" target
+  , makeExample "Xs" xs
+  , makeExample "Conifer" conifer
+  , makeExample "Ferris Wheel 3" ferris3
+  , makeExample "Gear" gear
+  , makeExample "Koch Snowflake" kochSnowflake
+  , makeExample "Replace Terminals With Workstations" replaceTerminalsWithWorkstations
+  , makeExample "Balance Scale" balanceScale
+  , makeExample "Pencil Tip" pencilTip
+  , makeExample "Calendar Icon" calendarIcon
   ]
 
 list = examples

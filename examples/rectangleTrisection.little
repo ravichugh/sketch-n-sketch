@@ -1,0 +1,28 @@
+; Rectangle Trisection
+;
+; After Alan Turranksy p566 in "What What I Do: Programming by Demonstration" Appendix B. 1993.
+;
+; Straightforward with tools as of UIST 2016, but
+; does require a "Dig Hole" to type in "(/ rect1_w 3)"
+;
+; To further abstract (as below) requires manual labor (not a bounding box)
+;
+
+(def rectTrisection (\(x y w h)
+  (def rect1
+    (let [fill stroke strokeWidth] [365 365 0]
+    (let rot 0
+      [ (rawRect fill stroke strokeWidth x y w h rot) ])))
+
+  (def rect2
+    (let [fill stroke strokeWidth] [175 175 0]
+    (let rot 0
+      [ (rawRect fill stroke strokeWidth x y (/ w 3) h rot) ])))
+
+  (concat [rect1 rect2])
+))
+
+
+(blobs [
+  (rectTrisection 91 181 347 177)
+])
