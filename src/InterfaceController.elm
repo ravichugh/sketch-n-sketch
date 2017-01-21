@@ -1153,11 +1153,10 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
   in
   let selectedPatSpaces = 
     case getClickedPatSpace (findPatSpaces m.inputExp) m.codeBoxInfo.cursorPos of
-      Nothing  -> m.selectedPatSpaces
-      Just s -> if Set.member s m.selectedPatSpaces
-                  then Set.remove s m.selectedPatSpaces
-                  else Set.insert s m.selectedPatSpaces
+      [] -> m.selectedPatSpaces
+      ls -> getSetMembers ls m.selectedPatSpaces
   in
+  let out = Debug.log "selectedPatSpaces" selectedPatSpaces in 
   let new = { m | selectedEIds = selectedEIds 
                 , selectedPats = selectedPats
                 , selectedPatSpaces = selectedPatSpaces } in
@@ -1166,6 +1165,13 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
                                                      patSpacesToHighlights new }
         }
 
+getSetMembers ls s = 
+  case ls of
+    [] -> s
+    first::rest -> if Set.member first s
+                  then Set.remove first (getSetMembers rest s)
+                  else Set.insert first (getSetMembers rest s)
+                  
 betweenPos start cursorPos end =
   (start.line <= cursorPos.row + 1) &&
   (start.col <= cursorPos.column + 1) &&
@@ -1193,12 +1199,17 @@ getClickedPat ls cursorPos =
                                   Nothing
 
 getClickedPatSpace ls cursorPos = 
-  let selected =
+  let selected = 
     List.filter (\(expId,pat,start,end) -> betweenPos start cursorPos end) ls
   in
-  case selected of
-    []                                  -> Nothing
-    ((eid,path,befaft),p,s,e)::rest     -> Just ([eid] ++ path ++ [befaft])
+    List.map (\((eid,path,befaft),pat,start,end) -> [eid] ++ path ++ [befaft]) selected
+
+  --let selected =
+  --  List.filter (\(expId,pat,start,end) -> betweenPos start cursorPos end) ls
+  --in
+  --case selected of
+  --  []                                  -> Nothing
+  --  ((eid,path,befaft),p,s,e)::rest     -> Just ([eid] ++ path ++ [befaft])
     --_                    -> let _ = Debug.log "WARN: getClickedPatSpace: multiple pats" () in
     --                        Nothing
 
