@@ -82,6 +82,10 @@ mapi f xs =
   let n = List.length xs in
   List.map f (zip (List.range 1 n) xs)
 
+concatMapi f xs =
+  let n = List.length xs in
+  List.concatMap f (zip (List.range 1 n) xs)
+
 foldli : ((Int, a) -> b -> b) -> b -> List a -> b
 foldli f init xs =
   let n = List.length xs in

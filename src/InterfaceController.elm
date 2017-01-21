@@ -1126,8 +1126,16 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
                   then Set.remove s m.selectedPats
                   else Set.insert s m.selectedPats
   in
+  let selectedPatSpaces = 
+    case getClickedPatSpace (findPatSpaces m.inputExp) m.codeBoxInfo.cursorPos of
+      Nothing  -> m.selectedPatSpaces
+      Just s -> if Set.member s m.selectedPatSpaces
+                  then Set.remove s m.selectedPatSpaces
+                  else Set.insert s m.selectedPatSpaces
+  in
   let new = { m | selectedEIds = selectedEIds 
-                , selectedPats = selectedPats } in
+                , selectedPats = selectedPats
+                , selectedPatSpaces = selectedPatSpaces } in
   { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new ++ 
                                                      patRangesToHighlights new ++ 
                                                      patSpacesToHighlights new }
@@ -1141,12 +1149,12 @@ betweenPos start cursorPos end =
 
 getClickedEId ls cursorPos =
   let selected =
-    List.filter (\(eid,n,start,end,selectEnd) -> betweenPos start cursorPos selectEnd) ls
+    List.filter (\(eid,n,start,end,selectStart,selectEnd) -> betweenPos selectStart cursorPos selectEnd) ls
   in
   case selected of
-    []              -> Nothing
-    [(eid,_,_,_,_)] -> Just eid
-    _               -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
+    []                -> Nothing
+    [(eid,_,_,_,_,_)] -> Just eid
+    _                 -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
                         Nothing
 
 getClickedPat ls cursorPos = 
@@ -1154,11 +1162,20 @@ getClickedPat ls cursorPos =
     List.filter (\(expId,pat,start,end,selectEnd) -> betweenPos start cursorPos selectEnd) ls
   in
   case selected of
-    []                   -> Nothing
-    [(eid,p,s,e,se)]     -> let out = Debug.log "PatternId: " eid in 
-      Just (s.line, s.col, e.line, e.col)
-    _                    -> let _ = Debug.log "WARN: getClickedPat: multiple pats" () in
-                            Nothing
+    []                          -> Nothing
+    [((eid,path),p,s,e,se)]     -> Just ([eid] ++ path)
+    _                           -> let _ = Debug.log "WARN: getClickedPat: multiple pats" () in
+                                  Nothing
+
+getClickedPatSpace ls cursorPos = 
+  let selected =
+    List.filter (\(expId,pat,start,end) -> betweenPos start cursorPos end) ls
+  in
+  case selected of
+    []                                  -> Nothing
+    ((eid,path,befaft),p,s,e)::rest     -> Just ([eid] ++ path ++ [befaft])
+    --_                    -> let _ = Debug.log "WARN: getClickedPatSpace: multiple pats" () in
+    --                        Nothing
 
 overlap p1 p2 = 
   (p1.start.line <= p2.end.line) && (p1.start.col <= p2.end.col) &&

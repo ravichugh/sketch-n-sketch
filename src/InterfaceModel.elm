@@ -94,7 +94,8 @@ type alias Model =
   , hoveringCodeBox : Bool
   , expRanges : List (EId, Exp, P.Pos, P.Pos, P.Pos)
   , patRanges : List (Pat, P.Pos, P.Pos)
-  , selectedPats : Set.Set (Int, Int, Int, Int)
+  , selectedPats : Set.Set (List Int)
+  , selectedPatSpaces : Set.Set (List Int)
   , scopeGraph : ScopeGraph
   }
 
@@ -267,80 +268,83 @@ liveInfoToHighlights zoneKey model =
 
 --------------------------------------------------------------------------------
 
-computePatRanges expId pat =
+computePatRanges expId path pathNum pat =
   case pat.val of
-    PConst _ _              -> [(expId, pat.val, pat.start, pat.end, pat.end)]
-    PBase _ _               -> [(expId, pat.val, pat.start, pat.end, pat.end)]
-    PVar _ x _              -> [(expId, pat.val, pat.start, pat.end, pat.end)]
-    PList _ ps _ Nothing _  -> [(expId, pat.val, pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })] ++ List.concatMap (computePatRanges expId) ps
-    PList _ ps _ (Just p) _ -> [(expId, pat.val, pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })] ++ List.concatMap (computePatRanges expId) (p::ps)
-    PAs _ x _ p             -> [(expId, pat.val, pat.start, pat.end, pat.end)] ++ computePatRanges expId p
+    PConst _ _              -> [((expId, path ++ [pathNum]), pat.val, pat.start, pat.end, pat.end)]
+    PBase _ _               -> [((expId, path ++ [pathNum]), pat.val, pat.start, pat.end, pat.end)]
+    PVar _ x _              -> [((expId, path ++ [pathNum]), pat.val, pat.start, pat.end, pat.end)]
+    PList _ ps _ Nothing _  -> [((expId, path ++ [pathNum]), pat.val, pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })] 
+                                ++ Utils.concatMapi (\(i,p) -> (computePatRanges expId (path ++ [pathNum]) i p)) ps
+    PList _ ps _ (Just p) _ -> [((expId, path ++ [pathNum]), pat.val, pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })] 
+                                ++ Utils.concatMapi (\(i,p) -> (computePatRanges expId (path ++ [pathNum]) i p)) (p::ps)
+    PAs _ x _ p             -> [((expId, path ++ [pathNum]), pat.val, pat.start, pat.end, pat.end)] 
+                                ++ computePatRanges expId (path ++ [pathNum]) (pathNum + 1) p
 
 findPats e = 
   let find e acc = 
     case e.val.e__ of 
-      EFun _ (p::ps) _ _ -> List.concatMap (computePatRanges e.val.eid) (p::ps) ++ acc
-      ETypeCase _ p _ _ -> (computePatRanges e.val.eid p) ++ acc
-      ELet _ _ _ p _ _ _ -> (computePatRanges e.val.eid p) ++ acc
-      ETyp _ p _ _ _ -> (computePatRanges e.val.eid p) ++ acc
-      ETypeAlias _ p _ _ _ -> (computePatRanges e.val.eid p) ++ acc
+      EFun _ (p::ps) _ _ -> Utils.concatMapi (\(i,p) -> (computePatRanges e.val.eid [] i p)) (p::ps) ++ acc
+      ETypeCase _ p _ _ -> (computePatRanges e.val.eid [] 1 p) ++ acc
+      ELet _ _ _ p _ _ _ -> (computePatRanges e.val.eid [] 1 p) ++ acc
+      ETyp _ p _ _ _ -> (computePatRanges e.val.eid [] 1 p) ++ acc
+      ETypeAlias _ p _ _ _ -> (computePatRanges e.val.eid [] 1 p) ++ acc
       _ -> acc 
   in
   foldExp find [] e 
 
-computePatSpaces expId pat =
+computePatSpaces expId path pathNum pat =
   case pat.val of
-    PConst ws _                   -> [(expId, pat.val, 
+    PConst ws _                   -> [((expId, path ++ [pathNum], 0), pat.val, 
                                       {line = pat.start.line, col = pat.start.col - 1},
                                       {line = pat.start.line, col = pat.start.col}),
-                                    (expId, pat.val, 
+                                    ((expId, path ++ [pathNum], 1), pat.val, 
                                       {line = pat.end.line, col = pat.end.col},
                                       {line = pat.end.line, col = pat.end.col + 1})
                                     ]
-    PBase ws _                    -> [(expId, pat.val, 
+    PBase ws _                    -> [((expId, path ++ [pathNum], 0), pat.val, 
                                       {line = pat.start.line, col = pat.start.col - 1},
                                       {line = pat.start.line, col = pat.start.col}),
-                                    (expId, pat.val, 
+                                    ((expId, path ++ [pathNum], 1), pat.val, 
                                       {line = pat.end.line, col = pat.end.col},
                                       {line = pat.end.line, col = pat.end.col + 1})
                                     ]
-    PVar ws x _                   -> [(expId, pat.val, 
+    PVar ws x _                   -> [((expId, path ++ [pathNum], 0), pat.val, 
                                       {line = pat.start.line, col = pat.start.col - 1},
                                       {line = pat.start.line, col = pat.start.col}),
-                                    (expId, pat.val, 
+                                    ((expId, path ++ [pathNum], 1), pat.val, 
                                       {line = pat.end.line, col = pat.end.col},
                                       {line = pat.end.line, col = pat.end.col + 1})
                                     ]
-    PList ws1 ps ws2 Nothing ws3  -> [(expId, pat.val, 
+    PList ws1 ps ws2 Nothing ws3  -> [((expId, path ++ [pathNum], 0), pat.val, 
                                       {line = pat.start.line, col = pat.start.col - 1},
                                       {line = pat.start.line, col = pat.start.col}),
-                                    (expId, pat.val, 
+                                    ((expId, path ++ [pathNum], 1), pat.val, 
                                       {line = pat.end.line, col = pat.end.col},
                                       {line = pat.end.line, col = pat.end.col + 1})
-                                    ] ++ List.concatMap (computePatSpaces expId) ps
-    PList ws1 ps ws2 (Just p) ws3 -> [(expId, pat.val, 
+                                    ] ++ Utils.concatMapi (\(i,p) -> (computePatSpaces expId (path ++ [pathNum]) i p)) ps
+    PList ws1 ps ws2 (Just p) ws3 -> [((expId, path ++ [pathNum], 0), pat.val, 
                                       {line = pat.start.line, col = pat.start.col - 1},
                                       {line = pat.start.line, col = pat.start.col}),
-                                    (expId, pat.val, 
+                                    ((expId, path ++ [pathNum], 1), pat.val, 
                                       {line = pat.end.line, col = pat.end.col},
                                       {line = pat.end.line, col = pat.end.col + 1})
-                                    ] ++ List.concatMap (computePatSpaces expId) ps
-    PAs ws1 x ws2 p               -> [(expId, pat.val, 
+                                    ] ++ Utils.concatMapi (\(i,p) -> (computePatSpaces expId (path ++ [pathNum]) i p)) (p::ps)
+    PAs ws1 x ws2 p               -> [((expId, path ++ [pathNum], 0), pat.val, 
                                         {line = pat.start.line, col = pat.start.col - 1},
                                         {line = pat.start.line, col = pat.start.col}),
-                                      (expId, pat.val, 
+                                      ((expId, path ++ [pathNum], 1), pat.val, 
                                         {line = pat.end.line, col = pat.end.col},
                                         {line = pat.end.line, col = pat.end.col + 1})
-                                      ] ++ computePatSpaces expId p
+                                    ] ++ computePatSpaces expId (path ++ [pathNum]) (pathNum + 1) p
 
 findPatSpaces e = 
   let find e acc = 
     case e.val.e__ of 
-      EFun _ (p::ps) _ _ -> List.concatMap (computePatSpaces e.val.eid) (p::ps) ++ acc
-      ETypeCase _ p _ _ -> computePatSpaces e.val.eid p ++ acc
-      ELet _ _ _ p _ _ _ -> computePatSpaces e.val.eid p ++ acc
-      ETyp _ p _ _ _ -> computePatSpaces e.val.eid p ++ acc
-      ETypeAlias _ p _ _ _ -> computePatSpaces e.val.eid p ++ acc
+      EFun _ (p::ps) _ _ -> Utils.concatMapi (\(i,p) -> (computePatSpaces e.val.eid [] i p)) (p::ps) ++ acc
+      ETypeCase _ p _ _ -> computePatSpaces e.val.eid [] 1 p ++ acc
+      ELet _ _ _ p _ _ _ -> computePatSpaces e.val.eid [] 1 p ++ acc
+      ETyp _ p _ _ _ -> computePatSpaces e.val.eid [] 1 p ++ acc
+      ETypeAlias _ p _ _ _ -> computePatSpaces e.val.eid [] 1 p ++ acc
       _ -> acc 
   in
   foldExp find [] e 
@@ -354,24 +358,24 @@ computeConstantRanges e =
   in
   foldExp combine [] e
 
--- positions: start, end, end of selection area
-computeExpRanges : Exp -> List (EId, Exp, P.Pos, P.Pos, P.Pos)
+-- positions: start, end, start of selection area, end of selection area
+computeExpRanges : Exp -> List (EId, Exp, P.Pos, P.Pos, P.Pos, P.Pos)
 computeExpRanges e =
   let combine e acc =
     case e.val.e__ of
-      EConst _ n _ _ -> (e.val.eid, e, e.start, e.end, e.end) :: acc
-      EBase _ b -> (e.val.eid, e, e.start, e.end, e.end) :: acc 
-      EVar _ i -> (e.val.eid, e, e.start, e.end, e.end) :: acc 
-      EFun _ p e2 _ -> (e.val.eid, e, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }) :: acc
-      ELet _ _ r p e1 e2 _ -> (e.val.eid, e, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }) :: acc 
+      EConst _ n _ _ -> (e.val.eid, e, e.start, e.end, e.start, e.end) :: acc
+      EBase _ b -> (e.val.eid, e, e.start, e.end, e.start, e.end) :: acc 
+      EVar _ i -> (e.val.eid, e, e.start, e.end, e.start, e.end) :: acc 
+      EFun _ p e2 _ -> (e.val.eid, e, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }, { line = e.start.line, col = e.start.col + 2 }) :: acc
+      ELet _ _ r p e1 e2 _ -> (e.val.eid, e, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }, { line = e.start.line, col = e.start.col + 4 }) :: acc 
       _              -> acc
   in
   foldExp combine [] e
 
 expRangesToHighlights m =
-  let maybeHighlight (eid,n,start,end,selectEnd) =
+  let maybeHighlight (eid,n,start,end,selectStart, selectEnd) =
     let range =
-      { start = { row = start.line, column = start.col }
+      { start = { row = selectStart.line, column = selectStart.col }
       , end   = { row = selectEnd.line, column = selectEnd.col  } }
     in
     if Set.member eid m.selectedEIds then
@@ -386,12 +390,12 @@ expRangesToHighlights m =
     else []
 
 patRangesToHighlights m = 
-  let maybeHighlight (expId,p,start,end,selectEnd) =
+  let maybeHighlight ((expId,path),p,start,end,selectEnd) =
     let range =
       { start = { row = start.line, column = start.col }
       , end   = { row = end.line, column = selectEnd.col  } }
     in
-    if Set.member (start.line, start.col, end.line, end.col) m.selectedPats then
+    if Set.member ([expId] ++ path) m.selectedPats then
       [ { color = "gold", range = range } ]
     else if m.hoveringCodeBox then
       [ { color = "lightyellow", range = range } ]
@@ -403,12 +407,14 @@ patRangesToHighlights m =
     else []
 
 patSpacesToHighlights m = 
-  let maybeHighlight (expId, p,start,end) =
+  let maybeHighlight ((expId,path,befaft), p,start,end) =
     let range =
       { start = { row = start.line, column = start.col }
       , end   = { row = end.line, column = end.col  } }
     in
-    if m.hoveringCodeBox then
+    if Set.member ([expId] ++ path ++ [befaft]) m.selectedPatSpaces then
+      [ { color = "green", range = range } ]
+    else if m.hoveringCodeBox then
       [ { color = "lightgreen", range = range } ]
     else
       []
@@ -516,6 +522,7 @@ initModel =
     , expRanges = []
     , patRanges = []
     , selectedPats = Set.empty
+    , selectedPatSpaces = Set.empty
     , scopeGraph = DependenceGraph.compute e
     }
 
