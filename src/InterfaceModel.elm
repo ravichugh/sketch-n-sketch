@@ -403,6 +403,8 @@ patRangesToHighlights m =
     in
     if Set.member ([expId] ++ path) m.selectedPats then
       [ { color = "gold", range = range } ]
+    else if not (Set.isEmpty m.selectedPats) then
+      []
     else if m.hoveringCodeBox then
       [ { color = "lightyellow", range = range } ]
     else
@@ -418,8 +420,12 @@ patSpacesToHighlights m =
       { start = { row = start.line, column = start.col }
       , end   = { row = end.line, column = end.col  } }
     in
-    if Set.member ([expId] ++ path ++ [befaft]) m.selectedPatSpaces then
+    if Set.isEmpty m.selectedPats then 
+      []
+    else if Set.member ([expId] ++ path ++ [befaft]) m.selectedPatSpaces then
       [ { color = "green", range = range } ]
+    else if not (Set.isEmpty m.selectedPatSpaces) then
+      []
     else if m.hoveringCodeBox then
       [ { color = "lightgreen", range = range } ]
     else

@@ -1132,7 +1132,8 @@ msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
   let new = { m | hoveringCodeBox = False } in
   { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new ++ 
-                                                     patRangesToHighlights new }
+                                                     patRangesToHighlights new ++
+                                                     patSpacesToHighlights new}
         }
 
 msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
@@ -1145,18 +1146,17 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
                   else Set.insert eid m.selectedEIds
   in
   let selectedPats = 
-    case getClickedPat (findPats m.inputExp) m.codeBoxInfo.cursorPos of
+    case getClickedPat (findPats m.inputExp) m.codeBoxInfo.cursorPos m of
       Nothing  -> m.selectedPats
       Just s -> if Set.member s m.selectedPats
                   then Set.remove s m.selectedPats
                   else Set.insert s m.selectedPats
   in
   let selectedPatSpaces = 
-    case getClickedPatSpace (findPatSpaces m.inputExp) m.codeBoxInfo.cursorPos of
+    case getClickedPatSpace (findPatSpaces m.inputExp) m.codeBoxInfo.cursorPos m of
       [] -> m.selectedPatSpaces
       ls -> getSetMembers ls m.selectedPatSpaces
   in
-  let out = Debug.log "selectedPatSpaces" selectedPatSpaces in 
   let new = { m | selectedEIds = selectedEIds 
                 , selectedPats = selectedPats
                 , selectedPatSpaces = selectedPatSpaces } in
@@ -1188,9 +1188,12 @@ getClickedEId ls cursorPos =
     _                 -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
                         Nothing
 
-getClickedPat ls cursorPos = 
+getClickedPat ls cursorPos m = 
   let selected =
-    List.filter (\(expId,pat,start,end,selectEnd) -> betweenPos start cursorPos selectEnd) ls
+    if Set.isEmpty m.selectedPats then  
+      List.filter (\(expId,pat,start,end,selectEnd) -> betweenPos start cursorPos selectEnd) ls
+    else
+      []
   in
   case selected of
     []                          -> Nothing
@@ -1198,9 +1201,12 @@ getClickedPat ls cursorPos =
     _                           -> let _ = Debug.log "WARN: getClickedPat: multiple pats" () in
                                   Nothing
 
-getClickedPatSpace ls cursorPos = 
+getClickedPatSpace ls cursorPos m = 
   let selected = 
-    List.filter (\(expId,pat,start,end) -> betweenPos start cursorPos end) ls
+    if not (Set.isEmpty m.selectedPats) && Set.isEmpty m.selectedPatSpaces then  
+      List.filter (\(expId,pat,start,end) -> betweenPos start cursorPos end) ls
+    else
+      []
   in
     List.map (\((eid,path,befaft),pat,start,end) -> [eid] ++ path ++ [befaft]) selected
 
