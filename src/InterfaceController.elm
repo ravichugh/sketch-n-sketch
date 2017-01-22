@@ -1150,12 +1150,15 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
       Nothing  -> m.selectedPats
       Just s -> if Set.member s m.selectedPats
                   then Set.remove s m.selectedPats
-                  else Set.insert s m.selectedPats
+                  else 
+                    if Set.isEmpty m.selectedPats
+                    then Set.insert s m.selectedPats
+                    else m.selectedPats
   in
   let selectedPatSpaces = 
     case getClickedPatSpace (findPatSpaces m.inputExp) m.codeBoxInfo.cursorPos m of
       [] -> m.selectedPatSpaces
-      ls -> getSetMembers ls m.selectedPatSpaces
+      ls -> getSetMembers ls m.selectedPatSpaces m
   in
   let new = { m | selectedEIds = selectedEIds 
                 , selectedPats = selectedPats
@@ -1165,13 +1168,16 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
                                                      patSpacesToHighlights new }
         }
 
-getSetMembers ls s = 
+getSetMembers ls s m = 
   case ls of
     [] -> s
     first::rest -> if Set.member first s
-                  then Set.remove first (getSetMembers rest s)
-                  else Set.insert first (getSetMembers rest s)
-                  
+                  then Set.remove first (getSetMembers rest s m)
+                  else 
+                    if Set.isEmpty m.selectedPatSpaces
+                    then Set.insert first (getSetMembers rest s m)
+                    else (getSetMembers rest s m)
+               
 betweenPos start cursorPos end =
   (start.line <= cursorPos.row + 1) &&
   (start.col <= cursorPos.column + 1) &&
@@ -1190,10 +1196,7 @@ getClickedEId ls cursorPos =
 
 getClickedPat ls cursorPos m = 
   let selected =
-    if Set.isEmpty m.selectedPats then  
       List.filter (\(expId,pat,start,end,selectEnd) -> betweenPos start cursorPos selectEnd) ls
-    else
-      []
   in
   case selected of
     []                          -> Nothing
@@ -1203,21 +1206,9 @@ getClickedPat ls cursorPos m =
 
 getClickedPatSpace ls cursorPos m = 
   let selected = 
-    if not (Set.isEmpty m.selectedPats) && Set.isEmpty m.selectedPatSpaces then  
-      List.filter (\(expId,pat,start,end) -> betweenPos start cursorPos end) ls
-    else
-      []
+    List.filter (\(expId,pat,start,end) -> betweenPos start cursorPos end) ls
   in
     List.map (\((eid,path,befaft),pat,start,end) -> [eid] ++ path ++ [befaft]) selected
-
-  --let selected =
-  --  List.filter (\(expId,pat,start,end) -> betweenPos start cursorPos end) ls
-  --in
-  --case selected of
-  --  []                                  -> Nothing
-  --  ((eid,path,befaft),p,s,e)::rest     -> Just ([eid] ++ path ++ [befaft])
-    --_                    -> let _ = Debug.log "WARN: getClickedPatSpace: multiple pats" () in
-    --                        Nothing
 
 overlap p1 p2 = 
   (p1.start.line <= p2.end.line) && (p1.start.col <= p2.end.col) &&

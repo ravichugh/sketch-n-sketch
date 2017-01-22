@@ -420,7 +420,7 @@ patSpacesToHighlights m =
       { start = { row = start.line, column = start.col }
       , end   = { row = end.line, column = end.col  } }
     in
-    if Set.isEmpty m.selectedPats then 
+    if Set.isEmpty m.selectedPats && Set.isEmpty m.selectedPatSpaces then 
       []
     else if Set.member ([expId] ++ path ++ [befaft]) m.selectedPatSpaces then
       [ { color = "green", range = range } ]
