@@ -25,6 +25,9 @@ type alias ScopeGraph =
   { scopeNodes   : Dict ScopeId (LetOrFun, Set PatternId)
   , idents       : Dict PatternId Ident
   , tree         : Dict ScopeId ScopeId
+  , dependencies : Dict PatternId (Set PatternId)
+  , usedVars     : Set PatternId
+      -- used temporarily while computing dependencies
   }
 
 type BeforeAfter = Before | After
@@ -54,8 +57,8 @@ strPatId (scopeId, path) =
   String.join "_" (List.map toString (scopeId :: path))
 
 foldPatternsWithIds
-  : (PatternId -> Ident -> a -> a) -> ScopeId -> List Pat -> a -> a
-foldPatternsWithIds f scopeId pats init =
+  : (PatternId -> Ident -> a -> a) -> PatternId -> List Pat -> a -> a
+foldPatternsWithIds f (scopeId, path) pats init =
   let
     doOne f patId pat acc =
       case pat.val of
@@ -70,8 +73,8 @@ foldPatternsWithIds f scopeId pats init =
       Utils.foldli (\(i, pi) -> doOne f (scopeId, path ++ [i]) pi) acc pats
   in
   case pats of
-    [pat] -> doOne  f (scopeId, []) pat init     -- ELet case
-    _     -> doMany f (scopeId, []) pats init    -- EFun case
+    [pat] -> doOne  f (scopeId, path) pat init     -- ELet case
+    _     -> doMany f (scopeId, path) pats init    -- EFun case
 
 addVarToEnv : PatternId -> Ident -> Env -> Env
 addVarToEnv patId x env =
@@ -79,6 +82,12 @@ addVarToEnv patId x env =
   { env
      | varBindings = Dict.insert x (patId :: xBindings) env.varBindings
      }
+
+updateEnv newScopeId pats env =
+  foldPatternsWithIds addVarToEnv (newScopeId, []) pats <|
+    { env | currentScope = newScopeId
+          , currentScopes = Set.insert newScopeId env.currentScopes
+          }
 
 addVarNode : PatternId -> Ident -> ScopeGraph -> ScopeGraph
 addVarNode patId x acc =
@@ -129,52 +138,49 @@ initEnv =
 
 compute : Exp -> ScopeGraph
 compute e =
-  computeScopeGraph initEnv e
+  traverse initEnv e
     { scopeNodes = Dict.singleton rootId (True, Set.empty)
     , idents = Dict.empty
     , tree = Dict.empty
+    , dependencies = Dict.empty
+    , usedVars = Set.empty
     }
 
-computeScopeGraph : Env -> Exp -> ScopeGraph -> ScopeGraph
-computeScopeGraph env exp acc =
+traverse : Env -> Exp -> ScopeGraph -> ScopeGraph
+traverse env exp acc =
 
-  let recurse es = List.foldl (computeScopeGraph env) acc es in
+  let recurse es = List.foldl (traverse env) acc es in
 
   let newScopeId = exp.val.eid in -- only if e is ELet or EFun
 
-  let updateEnv newScopeId pats env =
-    foldPatternsWithIds addVarToEnv newScopeId pats <|
-      { env | currentScope = newScopeId
-            , currentScopes = Set.insert newScopeId env.currentScopes
-            }
-  in
   case exp.val.e__ of
 
     ELet _ _ _ p e1 e2 _ ->
       let acc1 =
         acc |> addScopeNode newScopeId True
             |> addScopeEdge newScopeId env.currentScope
-            |> foldPatternsWithIds addVarNode newScopeId [p]
-            |> computeScopeGraph env e1
+            |> foldPatternsWithIds addVarNode (newScopeId, []) [p]
+            |> traverseAndAddDependencies newScopeId env p e1
       in
       let env1 = updateEnv newScopeId [p] env in
-      computeScopeGraph env1 e2 acc1
+      traverse env1 e2 acc1
 
     EFun _ ps eBody _ ->
       let acc1 =
         acc |> addScopeNode newScopeId False
             |> addScopeEdge newScopeId env.currentScope
-            |> foldPatternsWithIds addVarNode newScopeId ps
+            |> foldPatternsWithIds addVarNode (newScopeId, []) ps
       in
       let env1 = updateEnv newScopeId ps env in
-      computeScopeGraph env1 eBody acc1
+      traverse env1 eBody acc1
 
-    -- NOTE: may want to put resolved PatternIds into AST (annotated EVars)
+    -- NOTE: may want to put resolved PatternIds into AST (annotated EVars).
+    -- then it would be easier to break up analyses into multiple passes.
     --
     EVar _ x ->
-      let resolvedId = resolve x env in
-      -- let _ = Debug.log "resolve" (x, resolvedId) in
-      acc
+      case resolve x env of
+        Nothing -> acc
+        Just id -> { acc | usedVars = Set.insert id acc.usedVars }
 
     EConst _ _ _ _  -> acc
     EBase _ _       -> acc
@@ -199,6 +205,72 @@ computeScopeGraph env exp acc =
     ETypeAlias _ _ _ e _  -> recurse [e]
 
 
+traverseAndAddDependencies newScopeId =
+  traverseAndAddDependencies_ (newScopeId, [])
+
+traverseAndAddDependencies_ patId env pat exp acc =
+
+  let addDependencies somePatId acc =
+    let used =
+      Set.filter
+         (\(scopeId,_) -> Set.member scopeId env.currentScopes)
+         acc.usedVars in
+    { acc
+       | dependencies = Set.foldl (Utils.dictAddToSet somePatId) acc.dependencies used
+       }
+  in
+
+  let addConservativeDependencies acc =
+    foldPatternsWithIds
+       (\innerPatId _ acc -> addDependencies innerPatId acc)
+       patId [pat] acc
+  in
+
+  let clearUsed acc = { acc | usedVars = Set.empty } in
+
+  case (pat.val, exp.val.e__) of
+
+    (PConst _ _, _) -> acc |> traverse env exp
+
+    (PBase _ _, _) -> acc |> traverse env exp
+
+    (PVar _ x _, _) ->
+      acc |> clearUsed
+          |> traverse env exp
+          |> addDependencies patId
+
+    (PAs _ x _ p, _) ->
+      acc |> clearUsed
+          |> traverse env exp
+          |> addDependencies patId
+          |> traverseAndAddDependencies_ patId env p exp
+               -- NOTE: exp gets traversed twice...
+
+    (PList _ ps_ _ pMaybe _, EList _ es_ _ eMaybe _) ->
+
+      let ps = Utils.snocMaybe ps_ pMaybe in
+      let es = Utils.snocMaybe es_ eMaybe in
+
+      if List.length ps == List.length es then
+        let (scopeId, basePath) = patId in
+        Utils.foldli (\(i,(pi,ei)) acc ->
+          let patId = (scopeId, basePath ++ [i]) in
+          traverseAndAddDependencies_ patId env pi ei acc
+        ) acc (Utils.zip ps es)
+
+      -- could be more precise here by traversing as many pairwise
+      -- patterns and expressions as possible
+      else
+        acc |> clearUsed
+            |> traverse env exp
+            |> addConservativeDependencies
+
+    (PList _ _ _ _ _, _) ->
+      acc |> clearUsed
+          |> traverse env exp
+          |> addConservativeDependencies
+
+
 ------------------------------------------------------------------------------
 -- DOT Conversion
 
@@ -210,14 +282,16 @@ printString = print identity Utils.lines identity
 
 print : (b -> c) -> (List a -> b) -> (String -> a) -> ScopeGraph -> c
 print overall combine f scopeGraph =
-  let scopeClusters = clusters f scopeGraph in
-  let treeEdges = edges f scopeGraph in
+  let nodes = clusters f scopeGraph in
+  let edges1 = scopeEdges f scopeGraph in
+  let edges2 = dependencyEdges f scopeGraph in
   overall <|
     combine <|
       List.concat <|
         [ [f "digraph scopeGraph {"]
-        , scopeClusters
-        , treeEdges
+        , nodes
+        , edges1
+        , edges2
         , [f "}"]
         ]
 
@@ -252,6 +326,11 @@ clusters f scopeGraph =
         , [f "}"]
         ]
 
-edges f scopeGraph =
+scopeEdges f scopeGraph =
   flip List.map (Dict.toList scopeGraph.tree) <| \(i,j) ->
     f (clusterNode i ++ " -> " ++ clusterNode j)
+
+dependencyEdges f scopeGraph =
+  flip List.concatMap (Dict.toList scopeGraph.dependencies) <| \(pSource, pTargets) ->
+    flip List.map (Set.toList pTargets) <| \pTarget ->
+      f (varNode pSource ++ " -> " ++ varNode pTarget)
