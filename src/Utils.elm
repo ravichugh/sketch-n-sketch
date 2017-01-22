@@ -187,6 +187,12 @@ clamp i j n =
 singleton : a -> List a
 singleton x = [x]
 
+snoc : List a -> a -> List a
+snoc xs x = xs ++ [x]
+
+snocMaybe : List a -> Maybe a -> List a
+snocMaybe xs mx = Maybe.withDefault xs (mapMaybe (snoc xs) mx)
+
 split : Int -> List a -> (List a, List a)
 split n xs = (List.take n xs, List.drop n xs)
 
