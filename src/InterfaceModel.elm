@@ -10,7 +10,8 @@ import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature, Zone)
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparse)
 import OurParser2 as P
-import DependenceGraph exposing (ScopeGraph)
+import DependenceGraph exposing
+  (ScopeGraph, PatternId, PatTargetPosition, ExpTargetPosition)
 import Ace
 import Either exposing (Either(..))
 
@@ -93,8 +94,15 @@ type alias Model =
   , hoveringCodeBox : Bool
   , expRanges : List (EId, Exp, P.Pos, P.Pos, P.Pos)
   , patRanges : List (Pat, P.Pos, P.Pos)
+
+  -- TODOs:
+  -- selectedPats : Set.Set PatternId
+  -- selectedPatTargets : Set.Set PatTargetPosition
+  -- selectedExpTargets : Set.Set ExpTargetPosition
+
   , selectedPats : Set.Set (List Int)
   , selectedPatSpaces : Set.Set (List Int)
+
   , scopeGraph : ScopeGraph
   }
 
