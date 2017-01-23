@@ -1182,7 +1182,7 @@ betweenPos start cursorPos end =
   (start.line <= cursorPos.row + 1) &&
   (start.col <= cursorPos.column + 1) &&
   (end.line >= cursorPos.row + 1) &&
-  (end.col >= cursorPos.column + 1)
+  (end.col > cursorPos.column + 1)
 
 getClickedEId ls cursorPos =
   let selected =
