@@ -1,5 +1,6 @@
 port module DependenceGraph exposing
-  ( ScopeGraph, BeforeAfter(..), TargetPosition
+  ( ScopeGraph, ScopeId, PatternId
+  , BeforeAfter(..), TargetPosition
   , compute, printHtml, render, receiveImage
   )
 

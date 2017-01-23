@@ -23,6 +23,7 @@ import LangSvg exposing (attr)
 import LangTools
 import Sync
 import DependenceGraph
+import CodeMotion
 
 -- Elm Libraries ---------------------------------------------------------------
 
@@ -655,11 +656,20 @@ fontSizeButton model =
 
 aceDeuceButton model =
   let text = if model.deuceMode then "[Mode] Deuce" else "[Mode] Ace" in
-  let handler = Msg "Toggle Ace Deuce" <| \m -> { m | deuceMode = not m.deuceMode } in
+  let handler = Msg "Toggle Ace Deuce" <| \m ->
+    if m.deuceMode then
+      { m | deuceMode = not m.deuceMode
+            -- TODO: factor these three elsewhere for reuse
+          , selectedEIds = Set.empty
+          , selectedPats = Set.empty
+          , selectedPatSpaces = Set.empty
+          }
+    else { m | deuceMode = not m.deuceMode }
+  in
   htmlButton text handler Regular False
 
 deuceMoveExpButton model =
-  htmlButton "Move Exp" Controller.msgNoop Regular (not model.deuceMode)
+  htmlButton "Move Exp" Controller.msgMoveExp Regular (not model.deuceMode)
 
 
 --------------------------------------------------------------------------------

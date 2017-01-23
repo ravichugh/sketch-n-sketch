@@ -41,7 +41,7 @@ loc:
     InterfaceController.elm \
     LangTools.elm LangTransform.elm ValueBasedTransform.elm \
     Blobs.elm Draw.elm ExpressionBasedTransform.elm \
-    DependenceGraph.elm Native/dotGraph.js \
+    DependenceGraph.elm CodeMotion.elm Native/dotGraph.js \
     Ace.elm AceCodeBox.elm Native/aceCodeBox.js \
     AnimationLoop.elm Native/animationLoop.js \
     FileHandler.elm Native/fileHandler.js \

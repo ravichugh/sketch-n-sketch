@@ -31,6 +31,7 @@ module InterfaceController exposing
   , msgMouseEnterCodeBox, msgMouseLeaveCodeBox
   , msgMouseClickCodeBox
   , msgReceiveDotImage
+  , msgMoveExp
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -44,7 +45,8 @@ import Blobs exposing (..)
 import Draw
 import ExpressionBasedTransform as ETransform
 import Sync
-import DependenceGraph
+import DependenceGraph exposing (BeforeAfter(..))
+import CodeMotion
 import Eval
 import Utils
 import Keys
@@ -787,6 +789,11 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
                                      old.slideNumber old.movieNumber old.movieTime newExp
                                      (newVal, newWidgets)
             , selectedFeatures = Set.empty
+
+            -- TODO: factor these three elsewhere for reuse
+            , selectedEIds      = Set.empty
+            , selectedPats      = Set.empty
+            , selectedPatSpaces = Set.empty
       }
   )
 
@@ -1216,3 +1223,26 @@ overlap p1 p2 =
 
 msgReceiveDotImage s = Msg "Receive Image" <| \m ->
   { m | mode = Model.PrintScopeGraph (Just s) }
+
+msgMoveExp = Msg "Move Exp" <| \m ->
+{-
+  let _ = Debug.log "selectedPats" m.selectedPats in
+  let _ = Debug.log "selectedPatSpaces" m.selectedPatSpaces in
+  let _ = Debug.log "selectedEIds" m.selectedEIds in
+-}
+  -- TODO: change representation of selectedPats to match PatternIds
+  -- TODO: change representation of selectedPatSpaces to TargetPositions
+  -- TODO: change use of selectedEIds to TargetPositions for LetExps
+  case (Set.toList m.selectedPats, Set.toList m.selectedEIds) of
+    ([[sourceId,1]], [targetId]) ->
+      let source = (sourceId, []) in
+      let target = (Before, (targetId, [])) in
+      let newExp = CodeMotion.moveDefinition source target m.inputExp in
+      let caption =
+        let x = Maybe.withDefault "?" (Dict.get (sourceId, []) m.scopeGraph.idents) in
+        let y = Maybe.withDefault "?" (Dict.get (targetId, []) m.scopeGraph.idents) in
+        Utils.spaces ["move", x, "above", y]
+      in
+      { m | synthesisResults = [{description = caption, exp = newExp}] }
+    _ ->
+      m
