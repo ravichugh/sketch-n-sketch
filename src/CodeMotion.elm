@@ -4,7 +4,7 @@ import Lang exposing (..)
 import LangUnparser exposing (replacePrecedingWhitespace)
 import DependenceGraph exposing
   ( ScopeGraph, ScopeId, PatternId
-  , BeforeAfter(..), TargetPosition -- maybe move these here
+  , BeforeAfter, PatTargetPosition, ExpTargetPosition -- maybe move these here
   )
 
 
@@ -46,11 +46,11 @@ getLetBody = mapLetExp <|
 
 ------------------------------------------------------------------------------
 
-moveDefinition : PatternId -> TargetPosition -> Exp -> Exp
+moveDefinition : PatternId -> PatTargetPosition -> Exp -> Exp
 moveDefinition sourceId targetPosition exp =
   case (sourceId, targetPosition) of
 
-    ((xScopeId, []), (Before, (yScopeId, []))) ->
+    ((xScopeId, []), (True, (yScopeId, []))) ->
       flip mapExp exp <| \e ->
         if e.val.eid == xScopeId then
           getLetBody xScopeId exp

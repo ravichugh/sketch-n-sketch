@@ -45,7 +45,7 @@ import Blobs exposing (..)
 import Draw
 import ExpressionBasedTransform as ETransform
 import Sync
-import DependenceGraph exposing (BeforeAfter(..))
+import DependenceGraph exposing (BeforeAfter)
 import CodeMotion
 import Eval
 import Utils
@@ -1236,7 +1236,7 @@ msgMoveExp = Msg "Move Exp" <| \m ->
   case (Set.toList m.selectedPats, Set.toList m.selectedEIds) of
     ([[sourceId,1]], [targetId]) ->
       let source = (sourceId, []) in
-      let target = (Before, (targetId, [])) in
+      let target = (True, (targetId, [])) in
       let newExp = CodeMotion.moveDefinition source target m.inputExp in
       let caption =
         let x = Maybe.withDefault "?" (Dict.get (sourceId, []) m.scopeGraph.idents) in

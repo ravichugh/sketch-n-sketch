@@ -1,6 +1,6 @@
 port module DependenceGraph exposing
   ( ScopeGraph, ScopeId, PatternId
-  , BeforeAfter(..), TargetPosition
+  , BeforeAfter, PatTargetPosition, ExpTargetPosition
   , compute, printHtml, render, receiveImage
   )
 
@@ -31,9 +31,11 @@ type alias ScopeGraph =
       -- used temporarily while computing dependencies
   }
 
-type BeforeAfter = Before | After
+type alias BeforeAfter = Bool -- True for Before, False for After
 
-type alias TargetPosition = (BeforeAfter, PatternId)
+type alias PatTargetPosition = (BeforeAfter, PatternId)
+
+type alias ExpTargetPosition = (BeforeAfter, EId)
 
 
 ------------------------------------------------------------------------------
