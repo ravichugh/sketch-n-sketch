@@ -661,8 +661,9 @@ aceDeuceButton model =
       { m | deuceMode = not m.deuceMode
             -- TODO: factor these three elsewhere for reuse
           , selectedEIds = Set.empty
+          , selectedExpTargets = Set.empty 
           , selectedPats = Set.empty
-          , selectedPatSpaces = Set.empty
+          , selectedPatTargets = Set.empty
           }
     else { m | deuceMode = not m.deuceMode }
   in

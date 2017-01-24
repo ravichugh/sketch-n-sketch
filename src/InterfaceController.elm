@@ -791,9 +791,10 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
             , selectedFeatures = Set.empty
 
             -- TODO: factor these three elsewhere for reuse
-            , selectedEIds      = Set.empty
-            , selectedPats      = Set.empty
-            , selectedPatSpaces = Set.empty
+            , selectedEIds        = Set.empty
+            , selectedExpTargets  = Set.empty
+            , selectedPats        = Set.empty
+            , selectedPatTargets  = Set.empty
       }
   )
 
@@ -1131,6 +1132,7 @@ msgMouseEnterCodeBox = Msg "Mouse Enter CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
   let new = { m | hoveringCodeBox = True } in
   { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new  ++ 
+                                                     expTargetsToHighlights new ++ 
                                                      patRangesToHighlights new ++ 
                                                      patSpacesToHighlights new }
         }
@@ -1139,6 +1141,7 @@ msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
   let new = { m | hoveringCodeBox = False } in
   { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new ++ 
+                                                     expTargetsToHighlights new ++ 
                                                      patRangesToHighlights new ++
                                                      patSpacesToHighlights new}
         }
@@ -1152,38 +1155,41 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
                   then Set.remove eid m.selectedEIds
                   else Set.insert eid m.selectedEIds
   in
+  let selectedExpTargets =
+    case getClickedExpTarget (computeExpTargets m.inputExp) m.codeBoxInfo.cursorPos of
+      Nothing  -> m.selectedExpTargets
+      Just eid -> if Set.member eid m.selectedExpTargets
+                  then Set.remove eid m.selectedExpTargets
+                  else Set.insert eid m.selectedExpTargets
+  in
   let selectedPats = 
     case getClickedPat (findPats m.inputExp) m.codeBoxInfo.cursorPos m of
       Nothing  -> m.selectedPats
       Just s -> if Set.member s m.selectedPats
                   then Set.remove s m.selectedPats
-                  else 
-                    if Set.isEmpty m.selectedPats
-                    then Set.insert s m.selectedPats
-                    else m.selectedPats
+                  else Set.insert s m.selectedPats
   in
-  let selectedPatSpaces = 
+  let selectedPatTargets = 
     case getClickedPatSpace (findPatSpaces m.inputExp) m.codeBoxInfo.cursorPos m of
-      [] -> m.selectedPatSpaces
-      ls -> getSetMembers ls m.selectedPatSpaces m
+      [] -> m.selectedPatTargets
+      ls -> getSetMembers ls m.selectedPatTargets
   in
   let new = { m | selectedEIds = selectedEIds 
                 , selectedPats = selectedPats
-                , selectedPatSpaces = selectedPatSpaces } in
+                , selectedPatTargets = selectedPatTargets
+                , selectedExpTargets = selectedExpTargets } in
   { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new ++ 
+                                                     expTargetsToHighlights new ++ 
                                                      patRangesToHighlights new ++ 
                                                      patSpacesToHighlights new }
         }
 
-getSetMembers ls s m = 
+getSetMembers ls s = 
   case ls of
     [] -> s
     first::rest -> if Set.member first s
-                  then Set.remove first (getSetMembers rest s m)
-                  else 
-                    if Set.isEmpty m.selectedPatSpaces
-                    then Set.insert first (getSetMembers rest s m)
-                    else (getSetMembers rest s m)
+                  then Set.remove first (getSetMembers rest s)
+                  else Set.insert first (getSetMembers rest s)
                
 betweenPos start cursorPos end =
   (start.line <= cursorPos.row + 1) &&
@@ -1201,21 +1207,31 @@ getClickedEId ls cursorPos =
     _                 -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
                         Nothing
 
-getClickedPat ls cursorPos m = 
+getClickedExpTarget ls cursorPos =
   let selected =
-      List.filter (\(expId,pat,start,end,selectEnd) -> betweenPos start cursorPos selectEnd) ls
+    List.filter (\(expTarget,selectStart,selectEnd) -> betweenPos selectStart cursorPos selectEnd) ls
   in
   case selected of
-    []                          -> Nothing
-    [((eid,path),p,s,e,se)]     -> Just ([eid] ++ path)
-    _                           -> let _ = Debug.log "WARN: getClickedPat: multiple pats" () in
-                                  Nothing
+    []                -> Nothing
+    [(expTarget,_,_)] -> Just expTarget
+    _                 -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
+                        Nothing
+
+getClickedPat ls cursorPos m = 
+  let selected =
+      List.filter (\(pid,pat,start,end,selectEnd) -> betweenPos start cursorPos selectEnd) ls
+  in
+  case selected of
+    []                 -> Nothing
+    [(pid,p,s,e,se)]   -> Just pid
+    _                  -> let _ = Debug.log "WARN: getClickedPat: multiple pats" () in
+                        Nothing
 
 getClickedPatSpace ls cursorPos m = 
   let selected = 
-    List.filter (\(expId,pat,start,end) -> betweenPos start cursorPos end) ls
+    List.filter (\(tid,pat,start,end) -> betweenPos start cursorPos end) ls
   in
-    List.map (\((eid,path,befaft),pat,start,end) -> [eid] ++ path ++ [befaft]) selected
+    List.map (\(tid,pat,start,end) -> tid) selected
 
 overlap p1 p2 = 
   (p1.start.line <= p2.end.line) && (p1.start.col <= p2.end.col) &&
@@ -1234,9 +1250,9 @@ msgMoveExp = Msg "Move Exp" <| \m ->
   -- TODO: change representation of selectedPatSpaces to TargetPositions
   -- TODO: change use of selectedEIds to TargetPositions for LetExps
   case (Set.toList m.selectedPats, Set.toList m.selectedEIds) of
-    ([[sourceId,1]], [targetId]) ->
+    ([(sourceId,[])], [targetId]) ->
       let source = (sourceId, []) in
-      let target = (True, (targetId, [])) in
+      let target = (0, (targetId, [])) in
       let newExp = CodeMotion.moveDefinition source target m.inputExp in
       let caption =
         let x = Maybe.withDefault "?" (Dict.get (sourceId, []) m.scopeGraph.idents) in

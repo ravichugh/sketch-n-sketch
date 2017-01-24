@@ -31,7 +31,7 @@ type alias ScopeGraph =
       -- used temporarily while computing dependencies
   }
 
-type alias BeforeAfter = Bool -- True for Before, False for After
+type alias BeforeAfter = Int -- 0 for Before, 1 for After
 
 type alias PatTargetPosition = (BeforeAfter, PatternId)
 

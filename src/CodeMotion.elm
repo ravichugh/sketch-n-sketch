@@ -50,7 +50,7 @@ moveDefinition : PatternId -> PatTargetPosition -> Exp -> Exp
 moveDefinition sourceId targetPosition exp =
   case (sourceId, targetPosition) of
 
-    ((xScopeId, []), (True, (yScopeId, []))) ->
+    ((xScopeId, []), (0, (yScopeId, []))) ->
       flip mapExp exp <| \e ->
         if e.val.eid == xScopeId then
           getLetBody xScopeId exp
