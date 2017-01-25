@@ -1,8 +1,10 @@
 module LangUnparser exposing
   (unparse, unparsePat, unparseWD, unparseType,
-    traceToLittle, bumpCol, incCol, precedingWhitespace,
+    traceToLittle, bumpCol, incCol,
+    precedingWhitespace, precedingWhitespacePat,
     precedingWhitespaceExp__, addPrecedingWhitespace,
     replacePrecedingWhitespace, replacePrecedingWhitespacePat,
+    mapPrecedingWhitespace,
     indent
   )
 

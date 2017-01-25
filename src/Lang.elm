@@ -585,6 +585,9 @@ withDummyPos e__  = P.WithInfo (exp_ e__) P.dummyPos P.dummyPos
 replaceE__ : Exp -> Exp__ -> Exp
 replaceE__ e e__ = let e_ = e.val in { e | val = { e_ | e__ = e__ } }
 
+replaceP_ : Pat -> Pat_ -> Pat
+replaceP_ p p_ = { p | val = p_ }
+
 dummyLoc_ b = (0, b, "")
 dummyTrace_ b = TrLoc (dummyLoc_ b)
 

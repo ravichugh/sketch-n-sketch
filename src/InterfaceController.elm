@@ -45,7 +45,7 @@ import Blobs exposing (..)
 import Draw
 import ExpressionBasedTransform as ETransform
 import Sync
-import DependenceGraph exposing (BeforeAfter)
+import DependenceGraph exposing (BeforeAfter, lookupIdent)
 import CodeMotion
 import Eval
 import Utils
@@ -416,7 +416,7 @@ tryRun old =
                     , syncOptions   = Sync.syncOptionsOf old.syncOptions e
                     , lambdaTools   = lambdaTools_
                     , errorBox      = Nothing
-                    , codeBoxInfo   = updateCodeBoxInfo aceTypeInfo old
+                    -- , codeBoxInfo   = updateCodeBoxInfo aceTypeInfo old
                     , scopeGraph    = DependenceGraph.compute e
                     , preview       = Nothing
                     , synthesisResults = []
@@ -776,6 +776,7 @@ msgMakeEqual = Msg "Make Equal" <| \old ->
 msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
   runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
     debugLog "new model" <|
+      let new =
       { old | code             = newCode
             , inputExp         = newExp
             , inputVal         = newVal
@@ -789,13 +790,11 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
                                      old.slideNumber old.movieNumber old.movieTime newExp
                                      (newVal, newWidgets)
             , selectedFeatures = Set.empty
-
-            -- TODO: factor these three elsewhere for reuse
-            , selectedEIds        = Set.empty
-            , selectedExpTargets  = Set.empty
-            , selectedPats        = Set.empty
-            , selectedPatTargets  = Set.empty
       }
+      in
+      { new | mode = refreshMode_ new
+            , codeBoxInfo = updateCodeBoxInfo Types.dummyAceTypeInfo new
+            }
   )
 
 msgClearSynthesisResults = Msg "Clear Synthesis Results" <| \old ->
@@ -1237,24 +1236,60 @@ msgReceiveDotImage s = Msg "Receive Image" <| \m ->
   { m | mode = Model.PrintScopeGraph (Just s) }
 
 msgMoveExp = Msg "Move Exp" <| \m ->
-{-
-  let _ = Debug.log "selectedPats" m.selectedPats in
-  let _ = Debug.log "selectedPatSpaces" m.selectedPatSpaces in
-  let _ = Debug.log "selectedEIds" m.selectedEIds in
--}
-  -- TODO: change representation of selectedPats to match PatternIds
-  -- TODO: change representation of selectedPatSpaces to TargetPositions
-  -- TODO: change use of selectedEIds to TargetPositions for LetExps
-  case (Set.toList m.selectedPats, Set.toList m.selectedEIds) of
-    ([(sourceId,[])], [targetId]) ->
-      let source = (sourceId, []) in
-      let target = (0, (targetId, [])) in
-      let newExp = CodeMotion.moveDefinition source target m.inputExp in
-      let caption =
-        let x = Maybe.withDefault "?" (Dict.get (sourceId, []) m.scopeGraph.idents) in
-        let y = Maybe.withDefault "?" (Dict.get (targetId, []) m.scopeGraph.idents) in
-        Utils.spaces ["move", x, "above", y]
-      in
-      { m | synthesisResults = [{description = caption, exp = newExp}] }
+  let selections =
+    -- Debug.log "selections" <|
+      { exps = Set.toList m.selectedEIds
+      , pats = Set.toList m.selectedPats
+      , patTargets = Set.toList m.selectedPatTargets
+      , expTargets = Set.toList m.selectedExpTargets
+      } in
+
+  let new = resetDeuceState m in
+  let bad () =
+    let _ = Debug.log "bad selections" (selections) in
+    new
+  in
+
+  let {pats, patTargets, expTargets} = selections in
+  case (pats, patTargets, expTargets) of
+
+    ([source], [], [(0, targetId)]) ->
+      case CodeMotion.moveDefinitionAboveLet source targetId m.inputExp of
+        Nothing -> new
+        Just newExp ->
+          let caption =
+            let x = lookupIdent source m.scopeGraph in
+            let y = lookupIdent (targetId, []) m.scopeGraph in
+            Utils.spaces ["move", x, "above", y]
+          in
+          { new | synthesisResults = [{description = caption, exp = newExp}] }
+
+    ([source], target :: targets, []) ->
+      if not (singleLogicalTarget target targets) then bad ()
+      else
+        case CodeMotion.moveDefinitionPat source target m.inputExp of
+          Nothing -> new
+          Just newExp ->
+            let caption =
+              let x = lookupIdent source m.scopeGraph in
+              let y = lookupIdent (Tuple.second target) m.scopeGraph in
+              let ba = if Tuple.first target == 0 then "before" else "after" in
+              Utils.spaces ["move", x, ba, y]
+            in
+            { new | synthesisResults = [{description = caption, exp = newExp}] }
+
     _ ->
-      m
+      bad ()
+
+resetDeuceState m =
+  { m | selectedEIds       = Set.empty
+      , selectedPats       = Set.empty
+      , selectedPatTargets = Set.empty
+      , selectedExpTargets = Set.empty
+      }
+
+singleLogicalTarget target targets =
+  case targets of
+    []        -> True
+    [target2] -> True -- TODO check
+    _         -> False

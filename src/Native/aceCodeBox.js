@@ -2,7 +2,7 @@
 
 var editor;
 var markers = [];
-var fontSize = 14;
+var fontSize = 16;
 
 function initialize() {
   editor = ace.edit("editor");

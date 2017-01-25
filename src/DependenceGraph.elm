@@ -1,6 +1,7 @@
 port module DependenceGraph exposing
   ( ScopeGraph, ScopeId, PatternId
   , BeforeAfter, PatTargetPosition, ExpTargetPosition
+  , lookupIdent
   , compute, printHtml, render, receiveImage
   )
 
@@ -115,6 +116,10 @@ resolve x env =
   case Dict.get x env.varBindings of
     Just (patId :: _) -> Just patId
     _                 -> Nothing -- should only be for library funcs
+
+lookupIdent : PatternId -> ScopeGraph -> Ident
+lookupIdent patId scopeGraph =
+  Maybe.withDefault "?" (Dict.get patId scopeGraph.idents)
 
 
 ------------------------------------------------------------------------------

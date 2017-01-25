@@ -323,6 +323,14 @@ geti i = fromJust_ "Utils.geti" << List.head << List.drop (i-1)
 replacei : Int -> a -> List a -> List a
 replacei i xi_ xs = List.take (i-1) xs ++ [xi_] ++ List.drop i xs
 
+-- 1-based
+removei : Int -> List a -> List a
+removei i xs = List.take (i-1) xs ++ List.drop i xs
+
+-- 1-based
+inserti : Int -> a -> List a -> List a
+inserti i xi_ xs = List.take (i-1) xs ++ [xi_] ++ List.drop (i-1) xs
+
 allSame list = case list of
   []    -> False
   v::vs -> List.filter ((/=) v) vs == []

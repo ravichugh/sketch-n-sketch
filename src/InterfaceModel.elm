@@ -510,7 +510,7 @@ initModel =
                       , highlights = []
                       , annotations = []
                       , tooltips = []
-                      , fontSize = 14
+                      , fontSize = 16
                       }
     , basicCodeBox  = False
     , errorBox      = Nothing
