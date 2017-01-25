@@ -102,6 +102,12 @@ pluck_ (scopeId, path) e =
 
 ------------------------------------------------------------------------------
 
+getLetKind : Exp -> LetKind
+getLetKind e =
+  case e.val.e__ of
+    ELet _ lk _ _ _ _ _ -> lk
+    _                   -> Debug.log "getLetKind..." Let
+
 insertLet : ScopeId -> (Ident, Exp, Exp) -> ExpTargetPosition -> Exp -> Exp
 insertLet sourceId (xMove, eMove, newSourceIdExp) (beforeAfter, targetId) =
   mapExp <| \e ->
@@ -109,7 +115,8 @@ insertLet sourceId (xMove, eMove, newSourceIdExp) (beforeAfter, targetId) =
       newSourceIdExp
     else if e.val.eid == targetId && beforeAfter == 0 then
       let ws1 = precedingWhitespace e in
-      replacePrecedingWhitespace ws1 (eLets [(xMove, ensureWhitespaceExp eMove)] e)
+      let letKind = getLetKind e in
+      withDummyPos (ELet ws1 letKind False (pVar xMove) eMove e "")
     else
       e
 
@@ -195,9 +202,10 @@ moveDefinitionAboveLet sourcePat targetId exp =
         if e.val.eid == sourceId then
           getLetBody sourceId exp
         else if e.val.eid == targetId then
-          let (_,letKind,rec,px,ex,_,ws2) = getLetDecl sourceId exp in
+          let (_,_,rec,px,ex,_,ws2) = getLetDecl sourceId exp in
           let ws1_ = precedingWhitespace e in
-          replaceE__ e (ELet ws1_ letKind rec px ex e ws2)
+          let letKind_ = getLetKind e in
+          replaceE__ e (ELet ws1_ letKind_ rec px ex e ws2)
         else
           e
 
