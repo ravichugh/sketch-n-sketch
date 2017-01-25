@@ -1134,7 +1134,7 @@ msgMouseEnterCodeBox = Msg "Mouse Enter CodeBox" <| \m ->
   { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new  ++ 
                                                      expTargetsToHighlights new ++ 
                                                      patRangesToHighlights new ++ 
-                                                     patSpacesToHighlights new }
+                                                     patTargetsToHighlights new }
         }
 
 msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->
@@ -1143,7 +1143,7 @@ msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->
   { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new ++ 
                                                      expTargetsToHighlights new ++ 
                                                      patRangesToHighlights new ++
-                                                     patSpacesToHighlights new}
+                                                     patTargetsToHighlights new}
         }
 
 msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
@@ -1170,7 +1170,7 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
                   else Set.insert s m.selectedPats
   in
   let selectedPatTargets = 
-    case getClickedPatSpace (findPatSpaces m.inputExp) m.codeBoxInfo.cursorPos m of
+    case getClickedPatTarget (findPatTargets m.inputExp) m.codeBoxInfo.cursorPos m of
       [] -> m.selectedPatTargets
       ls -> getSetMembers ls m.selectedPatTargets
   in
@@ -1181,7 +1181,7 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
   { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new ++ 
                                                      expTargetsToHighlights new ++ 
                                                      patRangesToHighlights new ++ 
-                                                     patSpacesToHighlights new }
+                                                     patTargetsToHighlights new }
         }
 
 getSetMembers ls s = 
@@ -1199,11 +1199,11 @@ betweenPos start cursorPos end =
 
 getClickedEId ls cursorPos =
   let selected =
-    List.filter (\(eid,n,start,end,selectStart,selectEnd) -> betweenPos selectStart cursorPos selectEnd) ls
+    List.filter (\(eid,start,end,selectStart,selectEnd) -> betweenPos selectStart cursorPos selectEnd) ls
   in
   case selected of
     []                -> Nothing
-    [(eid,_,_,_,_,_)] -> Just eid
+    [(eid,_,_,_,_)] -> Just eid
     _                 -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
                         Nothing
 
@@ -1219,23 +1219,19 @@ getClickedExpTarget ls cursorPos =
 
 getClickedPat ls cursorPos m = 
   let selected =
-      List.filter (\(pid,pat,start,end,selectEnd) -> betweenPos start cursorPos selectEnd) ls
+      List.filter (\(pid,start,end,selectEnd) -> betweenPos start cursorPos selectEnd) ls
   in
   case selected of
     []                 -> Nothing
-    [(pid,p,s,e,se)]   -> Just pid
+    [(pid,s,e,se)]   -> Just pid
     _                  -> let _ = Debug.log "WARN: getClickedPat: multiple pats" () in
                         Nothing
 
-getClickedPatSpace ls cursorPos m = 
+getClickedPatTarget ls cursorPos m = 
   let selected = 
-    List.filter (\(tid,pat,start,end) -> betweenPos start cursorPos end) ls
+    List.filter (\(tid,start,end) -> betweenPos start cursorPos end) ls
   in
-    List.map (\(tid,pat,start,end) -> tid) selected
-
-overlap p1 p2 = 
-  (p1.start.line <= p2.end.line) && (p1.start.col <= p2.end.col) &&
-  (p1.end.line >= p2.start.line) && (p1.end.col >= p2.start.col)
+    List.map (\(tid,start,end) -> tid) selected
 
 msgReceiveDotImage s = Msg "Receive Image" <| \m ->
   { m | mode = Model.PrintScopeGraph (Just s) }
