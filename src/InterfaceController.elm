@@ -665,6 +665,13 @@ msgMousePosition pos_ = Msg ("MousePosition " ++ toString pos_) <| \old ->
     (Just False, _) -> onMouseMove pos_ { old | mouseState = (Just True, pos_) }
     (Just True, _)  -> onMouseMove pos_ { old | mouseState = (Just True, pos_) }
 
+pixelPosition pos m = 
+  let rowPadding = m.codeBoxInfo.offsetHeight in
+  let colPadding = m.codeBoxInfo.offsetLeft +  m.codeBoxInfo.gutterWidth in
+  let row = truncate((toFloat(pos.y) + rowPadding) / m.codeBoxInfo.lineHeight - 1) in
+  let col = truncate((toFloat(pos.x) - colPadding) / m.codeBoxInfo.characterWidth) in 
+    {row = row, column = col}
+
 --------------------------------------------------------------------------------
 
 msgKeyPress keyCode = Msg ("Key Press " ++ toString keyCode) <| \old ->
@@ -1147,29 +1154,32 @@ msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->
 
 msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
+  let mousePos = case m.mouseState of 
+                  (b, pos) -> pos in
+  let pixelPos = pixelPosition mousePos m in 
   let selectedEIds =
-    case getClickedEId (computeExpRanges m.inputExp) m.codeBoxInfo.cursorPos of
+    case getClickedEId (computeExpRanges m.inputExp) pixelPos of
       Nothing  -> m.selectedEIds
       Just eid -> if Set.member eid m.selectedEIds
                   then Set.remove eid m.selectedEIds
                   else Set.insert eid m.selectedEIds
   in
   let selectedExpTargets =
-    case getClickedExpTarget (computeExpTargets m.inputExp) m.codeBoxInfo.cursorPos of
+    case getClickedExpTarget (computeExpTargets m.inputExp) pixelPos of
       Nothing  -> m.selectedExpTargets
       Just eid -> if Set.member eid m.selectedExpTargets
                   then Set.remove eid m.selectedExpTargets
                   else Set.insert eid m.selectedExpTargets
   in
   let selectedPats = 
-    case getClickedPat (findPats m.inputExp) m.codeBoxInfo.cursorPos m of
+    case getClickedPat (findPats m.inputExp) pixelPos m of
       Nothing  -> m.selectedPats
       Just s -> if Set.member s m.selectedPats
                   then Set.remove s m.selectedPats
                   else Set.insert s m.selectedPats
   in
   let selectedPatTargets = 
-    case getClickedPatTarget (findPatTargets m.inputExp) m.codeBoxInfo.cursorPos m of
+    case getClickedPatTarget (findPatTargets m.inputExp) pixelPos m of
       [] -> m.selectedPatTargets
       ls -> getSetMembers ls m.selectedPatTargets
   in

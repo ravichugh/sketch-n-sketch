@@ -116,6 +116,11 @@ type alias CodeBoxInfo =
   , annotations : List Ace.Annotation
   , tooltips : List Ace.Tooltip
   , fontSize : Int
+  , lineHeight : Float
+  , characterWidth : Float
+  , offsetLeft: Float
+  , offsetHeight: Float
+  , gutterWidth: Float
   }
 
 type alias RawSvg = String
@@ -524,6 +529,11 @@ initModel =
                       , annotations = []
                       , tooltips = []
                       , fontSize = 16
+                      , characterWidth = 10.0
+                      , lineHeight = 20.0
+                      , offsetLeft = 10.0
+                      , offsetHeight = 10.0
+                      , gutterWidth = 50.0
                       }
     , basicCodeBox  = False
     , errorBox      = Nothing
