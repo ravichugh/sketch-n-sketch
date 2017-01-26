@@ -1200,15 +1200,15 @@ getSetMembers ls s =
                   then Set.remove first (getSetMembers rest s)
                   else Set.insert first (getSetMembers rest s)
                
-betweenPos start cursorPos end =
-  (start.line <= cursorPos.row + 1) &&
-  (start.col <= cursorPos.column + 1) &&
-  (end.line >= cursorPos.row + 1) &&
-  (end.col > cursorPos.column + 1)
+betweenPos start pixelPos end =
+  (start.line <= pixelPos.row + 1) &&
+  (start.col <= pixelPos.column + 1) &&
+  (end.line >= pixelPos.row + 1) &&
+  (end.col > pixelPos.column + 1)
 
-getClickedEId ls cursorPos =
+getClickedEId ls pixelPos =
   let selected =
-    List.filter (\(eid,start,end,selectStart,selectEnd) -> betweenPos selectStart cursorPos selectEnd) ls
+    List.filter (\(eid,start,end,selectStart,selectEnd) -> betweenPos selectStart pixelPos selectEnd) ls
   in
   case selected of
     []                -> Nothing
@@ -1216,9 +1216,9 @@ getClickedEId ls cursorPos =
     _                 -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
                         Nothing
 
-getClickedExpTarget ls cursorPos =
+getClickedExpTarget ls pixelPos =
   let selected =
-    List.filter (\(expTarget,selectStart,selectEnd) -> betweenPos selectStart cursorPos selectEnd) ls
+    List.filter (\(expTarget,selectStart,selectEnd) -> betweenPos selectStart pixelPos selectEnd) ls
   in
   case selected of
     []                -> Nothing
@@ -1226,9 +1226,9 @@ getClickedExpTarget ls cursorPos =
     _                 -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
                         Nothing
 
-getClickedPat ls cursorPos m = 
+getClickedPat ls pixelPos m = 
   let selected =
-      List.filter (\(pid,start,end,selectEnd) -> betweenPos start cursorPos selectEnd) ls
+      List.filter (\(pid,start,end,selectEnd) -> betweenPos start pixelPos selectEnd) ls
   in
   case selected of
     []                 -> Nothing
@@ -1236,9 +1236,9 @@ getClickedPat ls cursorPos m =
     _                  -> let _ = Debug.log "WARN: getClickedPat: multiple pats" () in
                         Nothing
 
-getClickedPatTarget ls cursorPos m = 
+getClickedPatTarget ls pixelPos m = 
   let selected = 
-    List.filter (\(tid,start,end) -> betweenPos start cursorPos end) ls
+    List.filter (\(tid,start,end) -> betweenPos start pixelPos end) ls
   in
     List.map (\(tid,start,end) -> tid) selected
 

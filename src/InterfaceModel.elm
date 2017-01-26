@@ -378,12 +378,12 @@ computeExpTargets e =
       EBase _ b             -> baseTargets
       EVar _ i              -> baseTargets
       EFun _ p e2 _         -> offsetTargets
-      EApp _ _ _ _          -> offsetTargets
-      EOp _ _ _ _           -> offsetTargets
-      EList _ _ _ _ _       -> offsetTargets
-      EIf _ _ _ _ _         -> offsetTargets
-      ECase _ _ _ _         -> offsetTargets
-      ETypeCase _ _ _ _     -> offsetTargets
+      EApp _ _ _ _          -> baseTargets
+      EOp _ _ _ _           -> baseTargets
+      EList _ _ _ _ _       -> baseTargets
+      EIf _ _ _ _ _         -> baseTargets
+      ECase _ _ _ _         -> baseTargets
+      ETypeCase _ _ _ _     -> baseTargets
       ELet _ _ r p e1 e2 _  -> offsetTargets
       _                     -> acc
   in
