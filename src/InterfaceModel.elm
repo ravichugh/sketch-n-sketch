@@ -362,11 +362,24 @@ computeExpRanges e =
 computeExpTargets : Exp -> List (ExpTargetPosition, P.Pos, P.Pos)
 computeExpTargets e =
   let combine e acc =
-    case e.val.e__ of
-      EFun _ p e2 _         -> [((0,e.val.eid), e.start, { line = e.start.line, col = e.start.col + 1 }),
-                                ((1,e.val.eid), { line = e.end.line, col = e.end.col - 1 }, e.end)] ++ acc 
-      ELet _ _ r p e1 e2 _  -> [((0,e.val.eid), e.start, { line = e.start.line, col = e.start.col + 1 }),
-                                ((1,e.val.eid), { line = e.end.line, col = e.end.col - 1 }, e.end)] ++ acc
+    let baseTargets =    [((0,e.val.eid), { line = e.start.line, col = e.start.col - 1 }, e.start),
+                          ((1,e.val.eid),  e.end, { line = e.end.line, col = e.end.col + 1 })] ++ acc 
+    in
+    let offsetTargets =  [((0,e.val.eid), e.start, { line = e.start.line, col = e.start.col + 1 }),
+                          ((1,e.val.eid), { line = e.end.line, col = e.end.col - 1 }, e.end)] ++ acc 
+    in
+    case e.val.e__ of 
+      EConst _ _ _ _        -> baseTargets
+      EBase _ b             -> baseTargets
+      EVar _ i              -> baseTargets
+      EFun _ p e2 _         -> offsetTargets
+      EApp _ _ _ _          -> offsetTargets
+      EOp _ _ _ _           -> offsetTargets
+      EList _ _ _ _ _       -> offsetTargets
+      EIf _ _ _ _ _         -> offsetTargets
+      ECase _ _ _ _         -> offsetTargets
+      ETypeCase _ _ _ _     -> offsetTargets
+      ELet _ _ r p e1 e2 _  -> offsetTargets
       _                     -> acc
   in
   foldExp combine [] e
