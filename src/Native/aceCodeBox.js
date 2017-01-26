@@ -167,6 +167,11 @@ function getEditorState() {
     , annotations : [] // TODO
     , tooltips : [] // TODO
     , fontSize : fontSize
+    , lineHeight : editor.renderer.layerConfig.lineHeight
+    , characterWidth : editor.renderer.layerConfig.characterWidth
+    , offsetLeft: editor.renderer.container.offsetLeft
+    , offsetHeight: editor.renderer.container.offsetTop
+    , gutterWidth: editor.renderer.gutterWidth
     };
   var info =
     { code : editor.getSession().getDocument().getValue()

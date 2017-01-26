@@ -2,7 +2,7 @@
 
 var editor;
 var markers = [];
-var fontSize = 14;
+var fontSize = 16;
 
 function initialize() {
   editor = ace.edit("editor");
@@ -171,7 +171,7 @@ function getEditorState() {
     , characterWidth : editor.renderer.layerConfig.characterWidth
     , offsetLeft: editor.renderer.container.offsetLeft
     , offsetHeight: editor.renderer.container.offsetTop
-    , gutterWidth: editor.renderer.gutterWidthtenn
+    , gutterWidth: editor.renderer.gutterWidth
     };
   var info =
     { code : editor.getSession().getDocument().getValue()
