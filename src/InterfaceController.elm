@@ -1270,9 +1270,14 @@ msgMoveExp = Msg "Move Exp" <| \m ->
         Nothing -> new
         Just newExp ->
           let caption =
-            let x = lookupIdent source m.scopeGraph in
-            let y = lookupIdent (targetId, []) m.scopeGraph in
-            Utils.spaces ["move", x, "above", y]
+            let
+              x = lookupIdent source m.scopeGraph
+              y = lookupIdent (targetId, []) m.scopeGraph
+              u = if Tuple.first source < targetId then "up"
+                  else if Tuple.first source == targetId then "over"
+                  else "down"
+            in
+            Utils.spaces ["move", x, u, "above", y]
           in
           { new | synthesisResults = [{description = caption, exp = newExp}] }
 
@@ -1283,10 +1288,15 @@ msgMoveExp = Msg "Move Exp" <| \m ->
           Nothing -> new
           Just newExp ->
             let caption =
-              let x = lookupIdent source m.scopeGraph in
-              let y = lookupIdent (Tuple.second target) m.scopeGraph in
-              let ba = if Tuple.first target == 0 then "before" else "after" in
-              Utils.spaces ["move", x, ba, y]
+              let
+                x = lookupIdent source m.scopeGraph
+                y = lookupIdent (Tuple.second target) m.scopeGraph
+                u = if Tuple.first source < Tuple.first (Tuple.second target) then "up"
+                    else if Tuple.first source == Tuple.first (Tuple.second target) then "over"
+                    else "down"
+                b = if Tuple.first target == 0 then "before" else "after"
+              in
+              Utils.spaces ["move", x, u, b, y]
             in
             { new | synthesisResults = [{description = caption, exp = newExp}] }
 

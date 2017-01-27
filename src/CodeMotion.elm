@@ -15,6 +15,7 @@ import Utils
 
 ------------------------------------------------------------------------------
 
+{-
               -- ELet WS LetKind Rec Pat Exp Exp WS
 type alias LetExp  = (WS,LetKind,Rec,Pat,Exp,Exp,WS)
 type alias LetDecl = (WS,LetKind,Rec,Pat,Exp,EId,WS)
@@ -47,6 +48,7 @@ getLetDecl = mapLetExp <|
 getLetBody : EId -> Exp -> Exp
 getLetBody = mapLetExp <|
   \(ws1, letKind, rec, p, e1, e2, ws2) -> e2
+-}
 
 
 ------------------------------------------------------------------------------
@@ -109,27 +111,52 @@ getLetKind e =
     _                   -> Debug.log "getLetKind..." Let
 
 insertLet : ScopeId -> (Ident, Exp, Exp) -> ExpTargetPosition -> Exp -> Exp
-insertLet sourceId (xMove, eMove, newSourceIdExp) (beforeAfter, targetId) =
-  mapExp <| \e ->
-    if e.val.eid == sourceId then
-      newSourceIdExp
-    else if e.val.eid == targetId && beforeAfter == 0 then
-      let ws1 = precedingWhitespace e in
-      let letKind = getLetKind e in
-      withDummyPos <|
-        ELet ws1 letKind False (pVar xMove) (ensureWhitespaceExp eMove) e ""
-    else
-      e
+insertLet sourceId (xMove, eMove, newSourceIdExp) (beforeAfter, targetId) exp =
+
+  let isTargetId eee = eee.val.eid == targetId && beforeAfter == 0 in
+  let rewriteTargetId eee =
+    let ws1 = precedingWhitespace eee in
+    let letKind = getLetKind eee in
+    withDummyPos <|
+      ELet ws1 letKind False (pVar xMove) (ensureWhitespaceExp eMove) eee ""
+  in
+
+  let foo =
+    if sourceId < targetId then -- source scope below target
+      \e ->
+        if e.val.eid == sourceId then newSourceIdExp
+        else if isTargetId e then rewriteTargetId e
+        else e
+    else -- same scope or above
+      \e ->
+        if e.val.eid == sourceId then
+          flip mapExp newSourceIdExp <| \ee ->
+            if isTargetId ee then rewriteTargetId ee
+            else ee
+        else
+          e
+  in
+  mapExp foo exp
 
 insertPat : ScopeId -> (Ident, Exp, Exp) -> PatTargetPosition -> Exp -> Exp
-insertPat sourceId (xMove, eMove, newSourceIdExp) patTargetPosition =
-  mapExp <| \e ->
-    if e.val.eid == sourceId then
-      newSourceIdExp
-    else if e.val.eid == Tuple.first (Tuple.second patTargetPosition) then
-      insertPat_ xMove eMove patTargetPosition e
-    else
-      e
+insertPat sourceId (xMove, eMove, newSourceIdExp) patTargetPosition exp =
+  let targetId = Tuple.first (Tuple.second patTargetPosition) in
+  let foo =
+    if sourceId < targetId then -- source scope below target
+      \e ->
+        if e.val.eid == sourceId then newSourceIdExp
+        else if e.val.eid == targetId then insertPat_ xMove eMove patTargetPosition e
+        else e
+    else -- same scope or above
+      \e ->
+        if e.val.eid == sourceId then
+          flip mapExp newSourceIdExp <| \ee ->
+            if ee.val.eid == targetId then insertPat_ xMove eMove patTargetPosition ee
+            else ee
+        else
+          e
+  in
+  mapExp foo exp
 
 insertPat_ xMove eMove (beforeAfter, (targetId, targetPath)) e =
   case e.val.e__ of
@@ -198,6 +225,7 @@ ensureWhitespacePats pats =
 moveDefinitionAboveLet : PatternId -> EId -> Exp -> Maybe Exp
 moveDefinitionAboveLet sourcePat targetId exp =
   case sourcePat of
+{-
     (sourceId, []) ->
       Just <| flip mapExp exp <| \e ->
         if e.val.eid == sourceId then
@@ -210,6 +238,7 @@ moveDefinitionAboveLet sourcePat targetId exp =
             ELet ws1_ letKind_ rec px (ensureWhitespaceExp ex) e ws2
         else
           e
+-}
 
     (sourceId, sourcePath) ->
       case pluck sourcePat exp of
@@ -220,13 +249,7 @@ moveDefinitionAboveLet sourcePat targetId exp =
 
 moveDefinitionPat : PatternId -> PatTargetPosition -> Exp -> Maybe Exp
 moveDefinitionPat sourcePat targetPosition exp =
-
-  if Tuple.first sourcePat == Tuple.first (Tuple.second targetPosition) then
-    let _ = Debug.log "TODO scope ids are the same" (sourcePat, targetPosition) in
-    Nothing
-
-  else
-    case pluck sourcePat exp of
-      Nothing -> Debug.crash ("couldn't pluck " ++ toString sourcePat)
-      Just stuff ->
-        Just (insertPat (Tuple.first sourcePat) stuff targetPosition exp)
+  case pluck sourcePat exp of
+    Nothing -> Debug.crash ("couldn't pluck " ++ toString sourcePat)
+    Just stuff ->
+      Just (insertPat (Tuple.first sourcePat) stuff targetPosition exp)
