@@ -263,13 +263,22 @@ synthesisResultsSelectBox model layout =
   let resultButtons =
     model.synthesisResults
     |> List.sortBy (\{description, exp} -> (LangTools.nodeCount exp, description))
-    |> List.map (\result -> htmlButtonExtraAttrs [Html.Events.onMouseEnter (Controller.msgPreview result.exp), Html.Events.onMouseLeave Controller.msgClearPreview] (desc result) (Controller.msgSelectSynthesisResult result.exp) Regular False)
+    |> List.map (\result ->
+         htmlButtonExtraAttrs
+           [ Html.Events.onMouseEnter (Controller.msgPreview result.exp)
+           , Html.Events.onMouseLeave Controller.msgClearPreview
+           ]
+           (desc result) (Controller.msgSelectSynthesisResult result.exp)
+           Regular False
+       )
     |> List.intersperse (Html.br [] [])
   in
   let cancelButton =
     htmlButton "Cancel" (Controller.msgClearSynthesisResults) Regular False
   in
-  toolBox model "synthesisResultsSelect" Layout.getPutSynthesisResultsSelectBox layout.synthesisResultsSelect (resultButtons ++ [Html.br [] [], cancelButton])
+  toolBox model "synthesisResultsSelect" Layout.getPutSynthesisResultsSelectBox
+    layout.synthesisResultsSelect
+    (resultButtons ++ [Html.br [] [], cancelButton])
 
 toolBox model id (getOffset, putOffset) leftRightTopBottom elements =
   Html.div

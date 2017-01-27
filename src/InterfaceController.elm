@@ -720,7 +720,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
     ValueBasedTransform.digHole old.inputExp old.selectedFeatures old.slate old.syncOptions
   in
   runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
-    debugLog "new model" <|
+    -- debugLog "new model" <|
       { old | code             = newCode
             , inputExp         = newExp
             , inputVal         = newVal
@@ -782,7 +782,7 @@ msgMakeEqual = Msg "Make Equal" <| \old ->
 
 msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
   runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
-    debugLog "new model" <|
+    -- debugLog "new model" <|
       let new =
       { old | code             = newCode
             , inputExp         = newExp
@@ -792,10 +792,12 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
             , widgets          = newWidgets
             , preview          = Nothing
             , synthesisResults = []
+{-
             , mode             = Utils.fromOk "MakeEqual MkLive" <|
                                    mkLive old.syncOptions
                                      old.slideNumber old.movieNumber old.movieTime newExp
                                      (newVal, newWidgets)
+-}
             , selectedFeatures = Set.empty
       }
       in
