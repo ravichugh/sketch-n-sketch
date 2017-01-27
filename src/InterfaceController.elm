@@ -941,9 +941,13 @@ msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
                               (val, []) -- TODO
         }
 
-msgPreview exp = Msg "Preview" <| \old ->
-  let previewCode = unparse exp in
-  case runAndResolve old exp of
+msgPreview expOrCode = Msg "Preview" <| \old ->
+  let (previewExp, previewCode) =
+    case expOrCode of
+      Left exp   -> (exp, unparse exp)
+      Right code -> (Utils.fromOkay "msgPreview" (parseE code), code)
+  in
+  case runAndResolve old previewExp of
     Ok (val, widgets, slate, _) ->
       { old | preview = Just (previewCode, Ok (val, widgets, slate)) }
 
@@ -1269,6 +1273,10 @@ msgMoveExp = Msg "Move Exp" <| \m ->
       case CodeMotion.moveDefinitionAboveLet source targetId m.inputExp of
         Nothing -> new
         Just newExp ->
+          -- TODO version of upstateRun to avoid unparse then re-parse
+          let newCode = unparse newExp in
+          upstateRun { new | code = newCode }
+{-
           let caption =
             let
               x = lookupIdent source m.scopeGraph
@@ -1280,6 +1288,7 @@ msgMoveExp = Msg "Move Exp" <| \m ->
             Utils.spaces ["move", x, u, "above", y]
           in
           { new | synthesisResults = [{description = caption, exp = newExp}] }
+-}
 
     ([source], target :: targets, []) ->
       if not (singleLogicalTarget target targets) then bad ()
@@ -1287,6 +1296,10 @@ msgMoveExp = Msg "Move Exp" <| \m ->
         case CodeMotion.moveDefinitionPat source target m.inputExp of
           Nothing -> new
           Just newExp ->
+            -- TODO version of upstateRun to avoid unparse then re-parse
+            let newCode = unparse newExp in
+            upstateRun { new | code = newCode }
+{-
             let caption =
               let
                 x = lookupIdent source m.scopeGraph
@@ -1299,6 +1312,7 @@ msgMoveExp = Msg "Move Exp" <| \m ->
               Utils.spaces ["move", x, u, b, y]
             in
             { new | synthesisResults = [{description = caption, exp = newExp}] }
+-}
 
     _ ->
       bad ()

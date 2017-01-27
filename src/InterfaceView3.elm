@@ -218,9 +218,11 @@ attributeToolBox model layout =
 
 textToolBox model layout =
   toolBox model "textToolBox" Layout.getPutTextToolBox layout.textTools
-    [ aceDeuceButton model
+    [ undoButton model
+    , redoButton model
     , deuceMoveExpButton model
     , fontSizeButton model
+    , aceDeuceButton model
     ]
 
 blobToolBox model layout =
@@ -265,7 +267,7 @@ synthesisResultsSelectBox model layout =
     |> List.sortBy (\{description, exp} -> (LangTools.nodeCount exp, description))
     |> List.map (\result ->
          htmlButtonExtraAttrs
-           [ Html.Events.onMouseEnter (Controller.msgPreview result.exp)
+           [ Html.Events.onMouseEnter (Controller.msgPreview (Left result.exp))
            , Html.Events.onMouseLeave Controller.msgClearPreview
            ]
            (desc result) (Controller.msgSelectSynthesisResult result.exp)
@@ -487,11 +489,29 @@ cleanButton model =
 
 undoButton model =
   let past = Tuple.first model.history in
-  htmlButton "Undo" Controller.msgUndo Regular (List.length past <= 1)
+  let extraAttrs =
+    case past of
+      _ :: prevCode :: _ ->
+        [ Html.Events.onMouseEnter (Controller.msgPreview (Right prevCode))
+        , Html.Events.onMouseLeave Controller.msgClearPreview ]
+      _ ->
+       []
+  in
+  htmlButtonExtraAttrs extraAttrs
+    "Undo" Controller.msgUndo Regular (List.length past <= 1)
 
 redoButton model =
   let future = Tuple.second model.history in
-  htmlButton "Redo" Controller.msgRedo Regular (List.length future == 0)
+  let extraAttrs =
+    case future of
+      futureCode :: _ ->
+        [ Html.Events.onMouseEnter (Controller.msgPreview (Right futureCode))
+        , Html.Events.onMouseLeave Controller.msgClearPreview ]
+      _ ->
+       []
+  in
+  htmlButtonExtraAttrs extraAttrs
+    "Redo" Controller.msgRedo Regular (List.length future == 0)
 
 heuristicsButton model =
   let foo old =
