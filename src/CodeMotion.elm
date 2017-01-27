@@ -116,7 +116,8 @@ insertLet sourceId (xMove, eMove, newSourceIdExp) (beforeAfter, targetId) =
     else if e.val.eid == targetId && beforeAfter == 0 then
       let ws1 = precedingWhitespace e in
       let letKind = getLetKind e in
-      withDummyPos (ELet ws1 letKind False (pVar xMove) eMove e "")
+      withDummyPos <|
+        ELet ws1 letKind False (pVar xMove) (ensureWhitespaceExp eMove) e ""
     else
       e
 
@@ -205,7 +206,8 @@ moveDefinitionAboveLet sourcePat targetId exp =
           let (_,_,rec,px,ex,_,ws2) = getLetDecl sourceId exp in
           let ws1_ = precedingWhitespace e in
           let letKind_ = getLetKind e in
-          replaceE__ e (ELet ws1_ letKind_ rec px ex e ws2)
+          replaceE__ e <|
+            ELet ws1_ letKind_ rec px (ensureWhitespaceExp ex) e ws2
         else
           e
 
