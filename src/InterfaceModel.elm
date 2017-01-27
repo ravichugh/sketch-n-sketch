@@ -389,6 +389,9 @@ computeExpTargets e =
   in
   foldExp combine [] e
 
+showDeuceWidgets m =
+  m.hoveringCodeBox && False -- invisible unless selected
+
 expRangesToHighlights m =
   let maybeHighlight (eid,start,end,selectStart,selectEnd) =
     let range =
@@ -397,7 +400,7 @@ expRangesToHighlights m =
     in
     if Set.member eid m.selectedEIds then
       [ { color = "orange", range = range } ]
-    else if m.hoveringCodeBox then
+    else if showDeuceWidgets m then
       [ { color = "peachpuff", range = range } ]
     else
       []
@@ -414,7 +417,7 @@ expTargetsToHighlights m =
     in
     if Set.member expTarget m.selectedExpTargets then
       [ { color = "green", range = range } ]
-    else if m.hoveringCodeBox then
+    else if showDeuceWidgets m then
       [ { color = "lightgreen", range = range } ]
     else
       []
@@ -431,7 +434,7 @@ patRangesToHighlights m =
     in
     if Set.member pid m.selectedPats then
       [ { color = "gold", range = range } ]
-    else if m.hoveringCodeBox then
+    else if showDeuceWidgets m then
       [ { color = "lightyellow", range = range } ]
     else
       []
@@ -448,7 +451,7 @@ patTargetsToHighlights m =
     in
     if Set.member target m.selectedPatTargets then
       [ { color = "green", range = range } ]
-    else if m.hoveringCodeBox then
+    else if showDeuceWidgets m then
       [ { color = "lightgreen", range = range } ]
     else
       []
