@@ -163,6 +163,7 @@ type ReplicateKind
 type alias SynthesisResult =
   { description : String
   , exp         : Exp
+  , sortKey     : List Float -- For custom sorting criteria. Sorts ascending.
   }
 
 type Msg
@@ -265,8 +266,8 @@ codeToShow model =
 
 --------------------------------------------------------------------------------
 
-prependDescription newPrefix {description, exp} =
-  { description = (newPrefix ++ description), exp = exp}
+prependDescription newPrefix synthesisResult =
+  { synthesisResult | description = (newPrefix ++ synthesisResult.description) }
 
 --------------------------------------------------------------------------------
 

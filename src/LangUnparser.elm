@@ -1,10 +1,6 @@
 module LangUnparser exposing
-  (unparse, unparsePat, unparseWD, unparseType,
-    traceToLittle, bumpCol, incCol, precedingWhitespace,
-    precedingWhitespaceExp__, addPrecedingWhitespace,
-    replacePrecedingWhitespace, replacePrecedingWhitespacePat,
-    indent
-  )
+  (unparse, unparsePat, unparseWD, unparseType, unparseWithIds,
+    bumpCol, incCol)
 
 import Lang exposing (..)
 import OurParser2 exposing (Pos, WithPos, WithInfo, startPos)
@@ -28,148 +24,6 @@ bumpCol n pos = { pos | col = n + pos.col }
 incCol = bumpCol 1
 
 ------------------------------------------------------------------------------
-
-
-precedingWhitespace : Exp -> String
-precedingWhitespace exp =
-  precedingWhitespaceExp__ exp.val.e__
-
-
-precedingWhitespacePat : Pat -> String
-precedingWhitespacePat pat =
-  case pat.val of
-    PVar   ws ident wd         -> ws
-    PConst ws n                -> ws
-    PBase  ws v                -> ws
-    PList  ws1 es ws2 rest ws3 -> ws1
-    PAs    ws1 ident ws2 p     -> ws1
-
-
-precedingWhitespaceExp__ : Exp__ -> String
-precedingWhitespaceExp__ e__ =
-  case e__ of
-    EBase      ws v                     -> ws
-    EConst     ws n l wd                -> ws
-    EVar       ws x                     -> ws
-    EFun       ws1 ps e1 ws2            -> ws1
-    EApp       ws1 e1 es ws2            -> ws1
-    EList      ws1 es ws2 rest ws3      -> ws1
-    EOp        ws1 op es ws2            -> ws1
-    EIf        ws1 e1 e2 e3 ws2         -> ws1
-    ELet       ws1 kind rec p e1 e2 ws2 -> ws1
-    ECase      ws1 e1 bs ws2            -> ws1
-    ETypeCase  ws1 pat bs ws2           -> ws1
-    EComment   ws s e1                  -> ws
-    EOption    ws1 s1 ws2 s2 e1         -> ws1
-    ETyp       ws1 pat tipe e ws2       -> ws1
-    EColonType ws1 e ws2 tipe ws3       -> ws1
-    ETypeAlias ws1 pat tipe e ws2       -> ws1
-
-
-addPrecedingWhitespace : String -> Exp -> Exp
-addPrecedingWhitespace newWs exp =
-  mapPrecedingWhitespace (\oldWs -> oldWs ++ newWs) exp
-
-
-replacePrecedingWhitespace : String -> Exp -> Exp
-replacePrecedingWhitespace newWs exp =
-  mapPrecedingWhitespace (\oldWs -> newWs) exp
-
-
-replacePrecedingWhitespacePat : String -> Pat -> Pat
-replacePrecedingWhitespacePat newWs pat =
-  mapPrecedingWhitespacePat (\oldWs -> newWs) pat
-
-
-mapPrecedingWhitespace : (String -> String) -> Exp -> Exp
-mapPrecedingWhitespace mapWs exp =
-  let e__New =
-    case exp.val.e__ of
-      EBase      ws v                     -> EBase      (mapWs ws) v
-      EConst     ws n l wd                -> EConst     (mapWs ws) n l wd
-      EVar       ws x                     -> EVar       (mapWs ws) x
-      EFun       ws1 ps e1 ws2            -> EFun       (mapWs ws1) ps e1 ws2
-      EApp       ws1 e1 es ws2            -> EApp       (mapWs ws1) e1 es ws2
-      EList      ws1 es ws2 rest ws3      -> EList      (mapWs ws1) es ws2 rest ws3
-      EOp        ws1 op es ws2            -> EOp        (mapWs ws1) op es ws2
-      EIf        ws1 e1 e2 e3 ws2         -> EIf        (mapWs ws1) e1 e2 e3 ws2
-      ELet       ws1 kind rec p e1 e2 ws2 -> ELet       (mapWs ws1) kind rec p e1 e2 ws2
-      ECase      ws1 e1 bs ws2            -> ECase      (mapWs ws1) e1 bs ws2
-      ETypeCase  ws1 pat bs ws2           -> ETypeCase  (mapWs ws1) pat bs ws2
-      EComment   ws s e1                  -> EComment   (mapWs ws) s e1
-      EOption    ws1 s1 ws2 s2 e1         -> EOption    (mapWs ws1) s1 ws2 s2 e1
-      ETyp       ws1 pat tipe e ws2       -> ETyp       (mapWs ws1) pat tipe e ws2
-      EColonType ws1 e ws2 tipe ws3       -> EColonType (mapWs ws1) e ws2 tipe ws3
-      ETypeAlias ws1 pat tipe e ws2       -> ETypeAlias (mapWs ws1) pat tipe e ws2
-  in
-  let val = exp.val in
-  { exp | val = { val | e__ = e__New } }
-
-{- TODO:
-     add a flag to mapPrecedingWhitespace that specifies whether
-       or not to recurse into Exp children.
-     then, re-define indent as follows:
-
-indent : String -> Exp -> Exp
-indent spaces =
-  mapPrecedingWhitespace True <| \s ->
-    s |> String.reverse
-      |> Regex.replace (Regex.AtMost 1) (Regex.regex "\n") (\_ -> spaces ++ "\n")
-      |> String.reverse
--}
-
-indent : String -> Exp -> Exp
-indent spaces e =
-  let recurse = indent spaces in
-  let wrap e__ = WithInfo (Exp_ e__ e.val.eid) e.start e.end in
-  let processWS ws =
-    ws |> String.reverse
-       |> Regex.replace (Regex.AtMost 1) (Regex.regex "\n") (\_ -> spaces ++ "\n")
-       |> String.reverse
-  in
-  case e.val.e__ of
-    EConst _ _ _ _         -> e
-    EBase _ _              -> e
-    EVar _ _               -> e
-    EFun ws1 ps e_ ws2     -> wrap (EFun (processWS ws1) ps (recurse e_) ws2)
-    EApp ws1 e1 es ws2     -> wrap (EApp (processWS ws1) (recurse e1) (List.map recurse es) ws2)
-    EOp ws1 op es ws2      -> wrap (EOp (processWS ws1) op (List.map recurse es) ws2)
-    EList ws1 es ws2 m ws3 -> wrap (EList (processWS ws1) (List.map recurse es) ws2 (Utils.mapMaybe recurse m) ws3)
-    EIf ws1 e1 e2 e3 ws2     -> wrap (EIf (processWS ws1) (recurse e1) (recurse e2) (recurse e3) ws2)
-    ECase ws1 e1 branches ws2 ->
-      let newE1 = recurse e1 in
-      let newBranches =
-        List.map
-            (mapValField (\(Branch_ bws1 p ei bws2) -> Branch_ bws1 p (recurse ei) bws2))
-            branches
-      in
-      wrap (ECase (processWS ws1) newE1 newBranches ws2)
-    ETypeCase ws1 pat tbranches ws2 ->
-      let newBranches =
-        List.map
-            (mapValField (\(TBranch_ bws1 tipe ei bws2) -> TBranch_ bws1 tipe (recurse ei) bws2))
-            tbranches
-      in
-      wrap (ETypeCase (processWS ws1) pat newBranches ws2)
-    EComment ws s e1              -> wrap (EComment (processWS ws) s (recurse e1))
-    EOption ws1 s1 ws2 s2 e1      -> wrap (EOption (processWS ws1) s1 ws2 s2 (recurse e1))
-    ELet ws1 k b p e1 e2 ws2      -> wrap (ELet (processWS ws1) k b p (recurse e1) (recurse e2) ws2)
-    ETyp ws1 pat tipe e ws2       -> wrap (ETyp (processWS ws1) pat tipe (recurse e) ws2)
-    EColonType ws1 e ws2 tipe ws3 -> wrap (EColonType (processWS ws1) (recurse e) ws2 tipe ws3)
-    ETypeAlias ws1 pat tipe e ws2 -> wrap (ETypeAlias (processWS ws1) pat tipe (recurse e) ws2)
-
-
-mapPrecedingWhitespacePat : (String -> String) -> Pat -> Pat
-mapPrecedingWhitespacePat mapWs pat =
-  let pat__ =
-    case pat.val of
-      PVar   ws ident wd         -> PVar   (mapWs ws) ident wd
-      PConst ws n                -> PConst (mapWs ws) n
-      PBase  ws v                -> PBase  (mapWs ws) v
-      PList  ws1 es ws2 rest ws3 -> PList  (mapWs ws1) es ws2 rest ws3
-      PAs    ws1 ident ws2 p     -> PAs    (mapWs ws1) ident ws2 p
-  in
-  { pat | val = pat__ }
 
 escapeQuotes quoteChar string =
   string
@@ -287,16 +141,63 @@ unparse e = case e.val.e__ of
   ETypeAlias ws1 pat tipe e ws2 ->
     ws1 ++ "(def" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2 ++ ")" ++ unparse e
 
-traceToLittle : SubstStr -> Trace -> String
-traceToLittle substStr trace =
-  case trace of
-    TrLoc (locId, _, _) ->
-      case Dict.get locId substStr of
-        Just str -> str
-        Nothing  -> "?"
-    TrOp op childTraces ->
-      let childLittleStrs = List.map (traceToLittle substStr) childTraces in
-      "(" ++ strOp op ++ " " ++ String.join " " childLittleStrs ++ ")"
+
+unparseWithIds : Exp -> String
+unparseWithIds e =
+  let eidTag = "<" ++ toString e.val.eid ++ ">" in
+  case e.val.e__ of
+    EBase ws v -> ws ++ unparseBaseVal v ++ eidTag
+    EConst ws n l wd ->
+      let (locId,b,_) = l in
+      ws ++ toString n ++ b ++ unparseWD wd ++ "{" ++ toString locId ++ "}" ++ eidTag
+      -- TODO: parse/unparseWithIds are not inverses for floats (e.g. 1.0)
+    EVar ws x -> ws ++ x ++ eidTag
+    EFun ws1 [p] e1 ws2 ->
+      ws1 ++ "(\\" ++ unparsePat p ++ unparseWithIds e1 ++ ws2 ++ ")" ++ eidTag
+    EFun ws1 ps e1 ws2 ->
+      ws1 ++ "(\\(" ++ (String.concat (List.map unparsePat ps)) ++ ")" ++ unparseWithIds e1 ++ ws2 ++ ")" ++ eidTag
+    EApp ws1 e1 es ws2 ->
+      ws1 ++ "(" ++ unparseWithIds e1 ++ (String.concat (List.map unparseWithIds es)) ++ ws2 ++ ")" ++ eidTag
+    EList ws1 es ws2 Nothing ws3 ->
+      ws1 ++ "[" ++ (String.concat (List.map unparseWithIds es)) ++ ws3 ++ "]" ++ eidTag
+    EList ws1 es ws2 (Just eRest) ws3 ->
+      ws1 ++ "[" ++ (String.concat (List.map unparseWithIds es)) ++ ws2 ++ "|" ++ unparseWithIds eRest ++ ws3 ++ "]" ++ eidTag
+    EOp ws1 op es ws2 ->
+      ws1 ++ "(" ++ strOp op.val ++ (String.concat (List.map unparseWithIds es)) ++ ws2 ++ ")" ++ eidTag
+    EIf ws1 e1 e2 e3 ws2 ->
+      ws1 ++ "(if" ++ unparseWithIds e1 ++ unparseWithIds e2 ++ unparseWithIds e3 ++ ws2 ++ ")" ++ eidTag
+    ELet ws1 Let b p e1 e2 ws2 ->
+      let tok = if b then "letrec" else "let" in
+      ws1 ++ "(" ++ tok ++ unparsePat p ++ unparseWithIds e1 ++ unparseWithIds e2 ++ ws2 ++ ")" ++ eidTag
+    ELet ws1 Def b p e1 e2 ws2 ->
+      -- TODO don't used nested defs until this is re-worked
+      let tok = if b then "defrec" else "def" in
+      ws1 ++ "(" ++ tok ++ unparsePat p ++ unparseWithIds e1 ++ ws2 ++ ")" ++ eidTag ++ unparseWithIds e2
+    ECase ws1 e1 bs ws2 ->
+      let branchesStr =
+        String.concat
+          <| List.map (\(Branch_ bws1 pat exp bws2) -> bws1 ++ "(" ++ unparsePat pat ++ unparseWithIds exp ++ bws2 ++ ")")
+          <| List.map (.val) bs
+      in
+      ws1 ++ "(case" ++ unparseWithIds e1 ++ branchesStr ++ ws2 ++ ")" ++ eidTag
+    ETypeCase ws1 pat tbranches ws2 ->
+      let tbranchesStr =
+        String.concat
+          <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1 ++ "(" ++ unparseType tipe ++ unparseWithIds exp ++ bws2 ++ ")")
+          <| List.map (.val) tbranches
+      in
+      ws1 ++ "(typecase" ++ unparsePat pat ++ tbranchesStr ++ ws2 ++ ")" ++ eidTag
+    EComment ws s e1 ->
+      ws ++ ";" ++ s ++ eidTag ++ "\n" ++ unparseWithIds e1
+    EOption ws1 s1 ws2 s2 e1 ->
+      ws1 ++ "# " ++ s1.val ++ ":" ++ ws2 ++ s2.val ++ eidTag ++ "\n" ++ unparseWithIds e1
+    ETyp ws1 pat tipe e ws2 ->
+      ws1 ++ "(typ" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2 ++ ")" ++ eidTag ++ unparseWithIds e
+    EColonType ws1 e ws2 tipe ws3 ->
+      ws1 ++ "(" ++ (unparseWithIds e) ++ ws2 ++ ":" ++ (unparseType tipe) ++ ws3 ++ ")" ++ eidTag
+    ETypeAlias ws1 pat tipe e ws2 ->
+      ws1 ++ "(def" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2 ++ ")" ++ eidTag ++ unparseWithIds e
+
 
 -- NOTE: use this to go back to original unparser
 -- unparse = sExp

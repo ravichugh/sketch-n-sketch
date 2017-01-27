@@ -5,7 +5,7 @@ module Solver exposing
 
 import Lang exposing (..)
 import Eval
-import LocEqn exposing (LocEquation(..), locEqnEval, locEqnTerms, locEqnLocIds)
+import LocEqn exposing (LocEquation(..), locEqnEval, locEqnTerms, locEqnLocIdSet)
 import Utils
 import Config
 
@@ -39,7 +39,7 @@ termSolve : Subst -> Equation -> Maybe Num
 termSolve subst (newN, trace) =
   -- The locId missing from subst is what we are solving for
   let locEqn = LocEqn.traceToLocEquation trace in
-  let locIds = locEqnLocIds locEqn |> Set.toList in
+  let locIds = locEqnLocIdSet locEqn |> Set.toList in
   let targetLocId =
     locIds
     |> Utils.findFirst (\locId -> Dict.get locId subst == Nothing)

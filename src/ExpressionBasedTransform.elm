@@ -141,14 +141,14 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs
     in
     let listGroup =
       let pluckedBlobs_ =
-        List.map (LangUnparser.replacePrecedingWhitespace " " << fromBlobExp)
+        List.map ( replacePrecedingWhitespace " " << fromBlobExp)
                  pluckedBlobs
       in
       finalExpOfNewGroup pluckedBlobs_
     in
     let pluckedDefs_ =
       let tab = "  " in
-      List.map (\(ws1,p,e,ws2) -> (ws1 ++ tab, p, LangUnparser.indent tab e, ws2))
+      List.map (\(ws1,p,e,ws2) -> (ws1 ++ tab, p,  indent tab e, ws2))
                pluckedDefs
     in
     let newGroupExp =
@@ -476,7 +476,7 @@ eBaseOffset baseVar offsetNum =
     EVar " " baseVar
   else
     ePlus (eVar baseVar) (eConst offsetNum (dummyLoc_ unann))
-      |> LangUnparser.replacePrecedingWhitespace " "
+      |>  replacePrecedingWhitespace " "
       |> .val |> .e__
 
 
@@ -485,13 +485,13 @@ eAsPoint e =
   if not insertPointAnnotations then e
   else
 
-  let e_ = LangUnparser.replacePrecedingWhitespace "" e in
+  let e_ =  replacePrecedingWhitespace "" e in
   withDummyPos <|
     EColonType " " e_ " " (withDummyRange <| TNamed " " "Point") ""
 
 
 pAsTight x p =
-  let p_ = LangUnparser.replacePrecedingWhitespacePat "" p in
+  let p_ =  replacePrecedingWhitespacePat "" p in
   withDummyRange <| PAs " " x "" p_
 
 
@@ -717,7 +717,7 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
     [(i, _, WithAnchorBlob (anchor, g, args))] ->
 
       let eGroupFunc = withDummyPos <| EApp "\n    " (eVar0 g) args "" in
-      let eAnchor = LangUnparser.replacePrecedingWhitespace "\n    " anchor in
+      let eAnchor =  replacePrecedingWhitespace "\n    " anchor in
       let (arrayFunction, arrayArgs) =
         case replicateKind of
 
@@ -728,14 +728,14 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
 
           LinearRepeat ->
             let eNum   = withDummyPos <| EConst " " 3 (dummyLoc_ frozen) (intSlider 1 20) in
-            let eStart = LangUnparser.replacePrecedingWhitespace "\n    " anchor in
+            let eStart =  replacePrecedingWhitespace "\n    " anchor in
             let eEnd =
               case stripPointExp anchor of
                 Nothing -> eAnchor
                 Just (nx,ny) ->
                   let ex_ = eConst0 (nx + 100) dummyLoc in
                   let ey_ = eConst (ny + 50) dummyLoc in
-                  LangUnparser.replacePrecedingWhitespace "\n    " <|
+                   replacePrecedingWhitespace "\n    " <|
                     eAsPoint (eList [ex_, ey_] Nothing)
             in
             ("linearArrayFromTo", [eNum, eGroupFunc, eStart, eEnd])
@@ -751,7 +751,7 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
                 Just (nx,ny) ->
                   let ex_ = eConst0 nx dummyLoc in
                   let ey_ = eConst (ny + nRadius) dummyLoc in
-                  LangUnparser.replacePrecedingWhitespace "\n    " <|
+                   replacePrecedingWhitespace "\n    " <|
                     eAsPoint (eList [ex_, ey_] Nothing)
             in
             ("radialArray", [ eNum, eRadius, eRot, eGroupFunc, eCenter ])
@@ -768,7 +768,7 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
     [(i, _, WithBoundsBlob (bounds, g, args))] ->
 
       let eGroupFunc = withDummyPos <| EApp "\n    " (eVar0 g) args "" in
-      let eBounds = LangUnparser.replacePrecedingWhitespace "\n    " bounds in
+      let eBounds =  replacePrecedingWhitespace "\n    " bounds in
       let (arrayFunction, arrayArgs) =
         case replicateKind of
 
@@ -789,7 +789,7 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
                   let eTop = eConst nTop dummyLoc in
                   let eRight = eConst (nLeft + nNum*(nRight-nLeft) + (nNum-1)*nSep) dummyLoc in
                   let eBot = eConst nBot dummyLoc in
-                  LangUnparser.replacePrecedingWhitespace "\n    " <|
+                   replacePrecedingWhitespace "\n    " <|
                     eList [eLeft, eTop, eRight, eBot] Nothing
             in
             ("repeatInsideBounds", [eNum, eSep, eGroupFunc, eGroupBounds])

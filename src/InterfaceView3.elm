@@ -208,6 +208,7 @@ attributeToolBox model layout =
   toolBox model "attributeToolBox" Layout.getPutAttributeToolBox layout.attributeTools
     [ relateButton model "Dig Hole" Controller.msgDigHole
     , relateButton model "Make Equal" Controller.msgMakeEqual
+    , relateButton model "Relate" Controller.msgRelate
     ]
 
 blobToolBox model layout =
@@ -244,13 +245,13 @@ animationToolBox model layout =
     ]
 
 synthesisResultsSelectBox model layout =
-  let desc {description, exp} =
+  let desc {description, exp, sortKey} =
     (Regex.replace Regex.All (Regex.regex "^Original -> | -> Cleaned$") (\_ -> "") description) ++
-    " (" ++ toString (LangTools.nodeCount exp) ++ ")"
+    " (" ++ toString (LangTools.nodeCount exp) ++ ")" ++ " " ++ toString sortKey
   in
   let resultButtons =
     model.synthesisResults
-    |> List.sortBy (\{description, exp} -> (LangTools.nodeCount exp, description))
+    |> List.sortBy (\{description, exp, sortKey} -> (LangTools.nodeCount exp, sortKey, description))
     |> List.map (\result -> htmlButtonExtraAttrs [Html.Events.onMouseEnter (Controller.msgPreview result.exp), Html.Events.onMouseLeave Controller.msgClearPreview] (desc result) (Controller.msgSelectSynthesisResult result.exp) Regular False)
     |> List.intersperse (Html.br [] [])
   in

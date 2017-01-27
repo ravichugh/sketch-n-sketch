@@ -580,7 +580,7 @@ addStickyPath old keysAndPoints =
 
 -- copied from ExpressionBasedTransform
 eAsPoint e =
-  let e_ = LangUnparser.replacePrecedingWhitespace "" e in
+  let e_ = replacePrecedingWhitespace "" e in
   withDummyPos <|
     EColonType " " e_ " " (withDummyRange <| TNamed " " "Point") ""
 

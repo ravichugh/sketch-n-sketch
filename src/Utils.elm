@@ -6,6 +6,8 @@ import Set exposing (Set)
 import Dict exposing (Dict)
 import Regex
 
+infinity = 1/0
+
 maybeFind : a -> List (a,b) -> Maybe b
 maybeFind k l = case l of
   []            -> Nothing
@@ -134,6 +136,11 @@ dedup_ f xs =
   in
     deduped
 
+-- Dedups based on equality. O(n^2).
+equalityDedup : List a -> List a
+equalityDedup xs =
+  List.foldr addAsSet [] xs
+
 listDiffSet : List comparable -> Set.Set comparable -> List comparable
 listDiffSet list setToRemove =
   List.filter (\element -> not <| Set.member element setToRemove) list
@@ -141,6 +148,12 @@ listDiffSet list setToRemove =
 listDiff : List comparable -> List comparable -> List comparable
 listDiff l1 l2 =
   listDiffSet l1 (Set.fromList l2)
+
+addAsSet : a -> List a -> List a
+addAsSet x xs =
+  if List.member x xs
+  then xs
+  else x::xs
 
 groupBy : (a -> comparable) -> List a -> Dict.Dict comparable (List a)
 groupBy f xs =
@@ -258,6 +271,18 @@ findFirst p xs = case xs of
   x::xs_ -> if p x
               then Just x
               else findFirst p xs_
+
+maybeFindAndRemoveFirst : (a -> Bool) -> List a -> Maybe (a, List a)
+maybeFindAndRemoveFirst p xs =
+  case xs of
+    []     -> Nothing
+    x::xs_ ->
+      if p x then
+        Just (x, xs_)
+      else
+        maybeFindAndRemoveFirst p xs_
+        |> Maybe.map (\(removed, others) -> (removed, x::others))
+
 
 removeFirst : a -> List a -> List a
 removeFirst x ys = case ys of

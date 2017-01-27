@@ -5,6 +5,7 @@ import Debug
 import Dict
 import Set
 import Debug
+import Regex
 
 import OurParser2 as P
 import Utils
@@ -258,41 +259,110 @@ mapValField f r = { r | val = f r.val }
 ------------------------------------------------------------------------------
 -- Mapping
 
-mapExp : (Exp -> Exp) -> Exp -> Exp
-mapExp f e =
-  let recurse = mapExp f in
+-- Leaves visited/replaced first.
+mapFoldExp : (Exp -> a -> (Exp, a)) -> a -> Exp -> (Exp, a)
+mapFoldExp f initAcc e =
+  let recurse = mapFoldExp f in
   let wrap e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
   let wrapAndMap = f << wrap in
+  let recurseAll initAcc exps =
+    exps
+    |> List.foldr
+        (\exp (newExps, acc) ->
+          let (newExp, newAcc) = recurse acc exp in
+          (newExp::newExps, newAcc)
+        )
+        ([], initAcc)
+  in
   case e.val.e__ of
-    EConst _ _ _ _         -> f e
-    EBase _ _              -> f e
-    EVar _ _               -> f e
-    EFun ws1 ps e_ ws2     -> wrapAndMap (EFun ws1 ps (recurse e_) ws2)
-    EApp ws1 e1 es ws2     -> wrapAndMap (EApp ws1 (recurse e1) (List.map recurse es) ws2)
-    EOp ws1 op es ws2      -> wrapAndMap (EOp ws1 op (List.map recurse es) ws2)
-    EList ws1 es ws2 m ws3 -> wrapAndMap (EList ws1 (List.map recurse es) ws2 (Utils.mapMaybe recurse m) ws3)
-    EIf ws1 e1 e2 e3 ws2      -> wrapAndMap (EIf ws1 (recurse e1) (recurse e2) (recurse e3) ws2)
+    EConst _ _ _ _ -> f e initAcc
+    EBase _ _      -> f e initAcc
+    EVar _ _       -> f e initAcc
+    EFun ws1 ps e1 ws2 ->
+      let (newE1, newAcc) = recurse initAcc e1 in
+      wrapAndMap (EFun ws1 ps newE1 ws2) newAcc
+
+    EApp ws1 e1 es ws2 ->
+      let (newEs, newAcc)  = recurseAll initAcc es in
+      let (newE1, newAcc2) = recurse newAcc e1 in
+      wrapAndMap (EApp ws1 newE1 newEs ws2) newAcc2
+
+    EOp ws1 op es ws2 ->
+      let (newEs, newAcc) = recurseAll initAcc es in
+      wrapAndMap (EOp ws1 op newEs ws2) newAcc
+
+    EList ws1 es ws2 Nothing ws3 ->
+      let (newEs, newAcc) = recurseAll initAcc es in
+      wrapAndMap (EList ws1 newEs ws2 Nothing ws3) newAcc
+
+    EList ws1 es ws2 (Just e1) ws3 ->
+      let (newEs, newAcc)  = recurseAll initAcc es in
+      let (newE1, newAcc2) = recurse newAcc e1 in
+      wrapAndMap (EList ws1 newEs ws2 (Just newE1) ws3) newAcc2
+
+    EIf ws1 e1 e2 e3 ws2 ->
+      case recurseAll initAcc [e1, e2, e3] of
+        ([newE1, newE2, newE3], newAcc) -> wrapAndMap (EIf ws1 newE1 newE2 newE3 ws2) newAcc
+        _                               -> Debug.crash "I'll buy you a beer if this line of code executes. - Brian"
+
     ECase ws1 e1 branches ws2 ->
-      let newE1 = recurse e1 in
-      let newBranches =
-        List.map
-            (mapValField (\(Branch_ bws1 p ei bws2) -> Branch_ bws1 p (recurse ei) bws2))
-            branches
+      let (newE1, newAcc) = recurse initAcc e1 in
+      let (newBranches, newAcc2) =
+        branches
+        |> List.foldr
+            (\branch (newBranches, acc) ->
+              let (Branch_ bws1 p ei bws2) = branch.val in
+              let (newEi, newAcc) = recurse acc ei in
+              ({ branch | val = Branch_ bws1 p newEi bws2 }::newBranches, newAcc)
+            )
+            ([], newAcc)
       in
-      wrapAndMap (ECase ws1 newE1 newBranches ws2)
+      wrapAndMap (ECase ws1 newE1 newBranches ws2) newAcc2
+
     ETypeCase ws1 pat tbranches ws2 ->
-      let newBranches =
-        List.map
-            (mapValField (\(TBranch_ bws1 t ei bws2) -> TBranch_ bws1 t (recurse ei) bws2))
-            tbranches
+      let (newBranches, newAcc) =
+        tbranches
+        |> List.foldr
+            (\tbranch (newBranches, acc) ->
+              let (TBranch_ bws1 t ei bws2) = tbranch.val in
+              let (newEi, newAcc) = recurse acc ei in
+              ({ tbranch | val = TBranch_ bws1 t newEi bws2 }::newBranches, newAcc)
+            )
+            ([], initAcc)
       in
-      wrapAndMap (ETypeCase ws1 pat newBranches ws2)
-    EComment ws s e1              -> wrapAndMap (EComment ws s (recurse e1))
-    EOption ws1 s1 ws2 s2 e1      -> wrapAndMap (EOption ws1 s1 ws2 s2 (recurse e1))
-    ELet ws1 k b p e1 e2 ws2      -> wrapAndMap (ELet ws1 k b p (recurse e1) (recurse e2) ws2)
-    ETyp ws1 pat tipe e ws2       -> wrapAndMap (ETyp ws1 pat tipe (recurse e) ws2)
-    EColonType ws1 e ws2 tipe ws3 -> wrapAndMap (EColonType ws1 (recurse e) ws2 tipe ws3)
-    ETypeAlias ws1 pat tipe e ws2 -> wrapAndMap (ETypeAlias ws1 pat tipe (recurse e) ws2)
+      wrapAndMap (ETypeCase ws1 pat newBranches ws2) newAcc
+
+    EComment ws s e1 ->
+      let (newE1, newAcc) = recurse initAcc e1 in
+      wrapAndMap (EComment ws s newE1) newAcc
+
+    EOption ws1 s1 ws2 s2 e1 ->
+      let (newE1, newAcc) = recurse initAcc e1 in
+      wrapAndMap (EOption ws1 s1 ws2 s2 newE1) newAcc
+
+    ELet ws1 k b p e1 e2 ws2 ->
+      let (newE1, newAcc) = recurse initAcc e1 in
+      let (newE2, newAcc2) = recurse newAcc e2 in
+      wrapAndMap (ELet ws1 k b p newE1 newE2 ws2) newAcc2
+
+    ETyp ws1 pat tipe e1 ws2 ->
+      let (newE1, newAcc) = recurse initAcc e1 in
+      wrapAndMap (ETyp ws1 pat tipe newE1 ws2) newAcc
+
+    EColonType ws1 e1 ws2 tipe ws3 ->
+      let (newE1, newAcc) = recurse initAcc e1 in
+      wrapAndMap (EColonType ws1 newE1 ws2 tipe ws3) newAcc
+
+    ETypeAlias ws1 pat tipe e1 ws2 ->
+      let (newE1, newAcc) = recurse initAcc e1 in
+      wrapAndMap (ETypeAlias ws1 pat tipe newE1 ws2) newAcc
+
+
+mapExp : (Exp -> Exp) -> Exp -> Exp
+mapExp f e =
+  -- Accumulator thrown away; just need something that type checks.
+  let (newExp, _) = mapFoldExp (\exp _ -> (f exp, ())) () e in
+  newExp
 
 mapExpViaExp__ : (Exp__ -> Exp__) -> Exp -> Exp
 mapExpViaExp__ f e =
@@ -382,6 +452,28 @@ foldType f tipe acc =
 flattenExpTree : Exp -> List Exp
 flattenExpTree exp =
   exp :: List.concatMap flattenExpTree (childExps exp)
+
+findFirstNode : (Exp -> Bool) -> Exp -> Maybe Exp
+findFirstNode predicate exp =
+  if predicate exp then
+    Just exp
+  else
+    childExps exp
+    |> Utils.mapFirstSuccess (findFirstNode predicate)
+
+findExpByEId : EId -> Exp -> Maybe Exp
+findExpByEId targetEId program =
+  findFirstNode (\exp -> exp.val.eid == targetEId) program
+
+findExpByLocId : LocId -> Exp -> Maybe Exp
+findExpByLocId targetLocId program =
+  let isTarget exp =
+    case exp.val.e__ of
+      EConst _ _ (locId, _, _) _ -> locId == targetLocId
+      _                          -> False
+  in
+  findFirstNode isTarget program
+
 
 -- For each node for which `predicate` returns True, return it and its ancestors
 -- For each matching node, ancestors appear in order: root first, match last.
@@ -591,7 +683,9 @@ dummyTrace_ b = TrLoc (dummyLoc_ b)
 dummyLoc = dummyLoc_ unann
 dummyTrace = dummyTrace_ unann
 
-ePlus e1 e2 = withDummyPos <| EOp "" (withDummyRange Plus) [e1,e2] ""
+eOp op_ es = withDummyPos <| EOp " " (withDummyRange op_) es ""
+
+ePlus e1 e2 = eOp Plus [e1, e2]
 
 eBool  = withDummyPos << EBase " " << EBool
 eStr   = withDummyPos << EBase " " << EString defaultQuoteChar
@@ -626,6 +720,28 @@ eLets xes eBody = case xes of
   (x,e)::xes_ -> withDummyPos <|
                    ELet "\n" Let False (withDummyRange (PVar " " x noWidgetDecl)) e (eLets xes_ eBody) ""
   []          -> eBody
+
+
+-- Given [("a", aExp), ("b", bExp)] bodyExp
+-- Produces (let [a b] [aExp bExp] bodyExp)
+--
+-- If given singleton list, produces a simple non-list let.
+eLetOrDef : LetKind -> List (Ident, Exp) -> Exp -> Exp
+eLetOrDef letKind namesAndAssigns bodyExp =
+  let (pat, assign) =
+    case List.unzip namesAndAssigns of
+      ([name], [assign]) -> (pVar name, replacePrecedingWhitespace " " assign)
+      (names, assigns)   -> (pList (cleanupPatListWhitespace " " <| listOfPVars names), eList (cleanupListWhitespace " " assigns) Nothing)
+  in
+  withDummyPos <|
+  ELet "\n" letKind False pat assign bodyExp ""
+
+eLet : List (Ident, Exp) -> Exp -> Exp
+eLet = eLetOrDef Let
+
+eDef : List (Ident, Exp) -> Exp -> Exp
+eDef = eLetOrDef Def
+
 
 eVar0 a        = withDummyPos <| EVar "" a
 eVar a         = withDummyPos <| EVar " " a
@@ -713,3 +829,164 @@ minMaxNumTr nt1 nt2    = (minNumTr nt1 nt2, maxNumTr nt1 nt2)
 
 plusNumTr (n1,t1) (n2,t2)  = (n1 + n2, TrOp Plus [t1, t2])
 minusNumTr (n1,t1) (n2,t2) = (n1 + n2, TrOp Minus [t1, t2])
+
+
+------------------------------------------------------------------------------
+-- Whitespace helpers
+
+precedingWhitespace : Exp -> String
+precedingWhitespace exp =
+  precedingWhitespaceExp__ exp.val.e__
+
+
+precedingWhitespacePat : Pat -> String
+precedingWhitespacePat pat =
+  case pat.val of
+    PVar   ws ident wd         -> ws
+    PConst ws n                -> ws
+    PBase  ws v                -> ws
+    PList  ws1 es ws2 rest ws3 -> ws1
+    PAs    ws1 ident ws2 p     -> ws1
+
+
+precedingWhitespaceExp__ : Exp__ -> String
+precedingWhitespaceExp__ e__ =
+  case e__ of
+    EBase      ws v                     -> ws
+    EConst     ws n l wd                -> ws
+    EVar       ws x                     -> ws
+    EFun       ws1 ps e1 ws2            -> ws1
+    EApp       ws1 e1 es ws2            -> ws1
+    EList      ws1 es ws2 rest ws3      -> ws1
+    EOp        ws1 op es ws2            -> ws1
+    EIf        ws1 e1 e2 e3 ws2         -> ws1
+    ELet       ws1 kind rec p e1 e2 ws2 -> ws1
+    ECase      ws1 e1 bs ws2            -> ws1
+    ETypeCase  ws1 pat bs ws2           -> ws1
+    EComment   ws s e1                  -> ws
+    EOption    ws1 s1 ws2 s2 e1         -> ws1
+    ETyp       ws1 pat tipe e ws2       -> ws1
+    EColonType ws1 e ws2 tipe ws3       -> ws1
+    ETypeAlias ws1 pat tipe e ws2       -> ws1
+
+
+addPrecedingWhitespace : String -> Exp -> Exp
+addPrecedingWhitespace newWs exp =
+  mapPrecedingWhitespace (\oldWs -> oldWs ++ newWs) exp
+
+
+replacePrecedingWhitespace : String -> Exp -> Exp
+replacePrecedingWhitespace newWs exp =
+  mapPrecedingWhitespace (\oldWs -> newWs) exp
+
+
+replacePrecedingWhitespacePat : String -> Pat -> Pat
+replacePrecedingWhitespacePat newWs pat =
+  mapPrecedingWhitespacePat (\oldWs -> newWs) pat
+
+
+mapPrecedingWhitespace : (String -> String) -> Exp -> Exp
+mapPrecedingWhitespace mapWs exp =
+  let e__New =
+    case exp.val.e__ of
+      EBase      ws v                     -> EBase      (mapWs ws) v
+      EConst     ws n l wd                -> EConst     (mapWs ws) n l wd
+      EVar       ws x                     -> EVar       (mapWs ws) x
+      EFun       ws1 ps e1 ws2            -> EFun       (mapWs ws1) ps e1 ws2
+      EApp       ws1 e1 es ws2            -> EApp       (mapWs ws1) e1 es ws2
+      EList      ws1 es ws2 rest ws3      -> EList      (mapWs ws1) es ws2 rest ws3
+      EOp        ws1 op es ws2            -> EOp        (mapWs ws1) op es ws2
+      EIf        ws1 e1 e2 e3 ws2         -> EIf        (mapWs ws1) e1 e2 e3 ws2
+      ELet       ws1 kind rec p e1 e2 ws2 -> ELet       (mapWs ws1) kind rec p e1 e2 ws2
+      ECase      ws1 e1 bs ws2            -> ECase      (mapWs ws1) e1 bs ws2
+      ETypeCase  ws1 pat bs ws2           -> ETypeCase  (mapWs ws1) pat bs ws2
+      EComment   ws s e1                  -> EComment   (mapWs ws) s e1
+      EOption    ws1 s1 ws2 s2 e1         -> EOption    (mapWs ws1) s1 ws2 s2 e1
+      ETyp       ws1 pat tipe e ws2       -> ETyp       (mapWs ws1) pat tipe e ws2
+      EColonType ws1 e ws2 tipe ws3       -> EColonType (mapWs ws1) e ws2 tipe ws3
+      ETypeAlias ws1 pat tipe e ws2       -> ETypeAlias (mapWs ws1) pat tipe e ws2
+  in
+  let val = exp.val in
+  { exp | val = { val | e__ = e__New } }
+
+cleanupListWhitespace : String -> List Exp -> List Exp
+cleanupListWhitespace sepWs exps =
+  case exps of
+    []                  -> []
+    firstExp::laterExps ->
+      replacePrecedingWhitespace "" firstExp :: List.map (replacePrecedingWhitespace sepWs) laterExps
+
+cleanupPatListWhitespace : String -> List Pat -> List Pat
+cleanupPatListWhitespace sepWs pats =
+  case pats of
+    []                  -> []
+    firstPat::laterPats ->
+      replacePrecedingWhitespacePat "" firstPat :: List.map (replacePrecedingWhitespacePat sepWs) laterPats
+
+
+{- TODO:
+     add a flag to mapPrecedingWhitespace that specifies whether
+       or not to recurse into Exp children.
+     then, re-define indent as follows:
+
+indent : String -> Exp -> Exp
+indent spaces =
+  mapPrecedingWhitespace True <| \s ->
+    s |> String.reverse
+      |> Regex.replace (Regex.AtMost 1) (Regex.regex "\n") (\_ -> spaces ++ "\n")
+      |> String.reverse
+-}
+
+-- I believe this can be rewritten in terms of mapExp
+indent : String -> Exp -> Exp
+indent spaces e =
+  let recurse = indent spaces in
+  let wrap e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
+  let processWS ws =
+    ws |> String.reverse
+       |> Regex.replace (Regex.AtMost 1) (Regex.regex "\n") (\_ -> spaces ++ "\n")
+       |> String.reverse
+  in
+  case e.val.e__ of
+    EConst _ _ _ _         -> e
+    EBase _ _              -> e
+    EVar _ _               -> e
+    EFun ws1 ps e_ ws2     -> wrap (EFun (processWS ws1) ps (recurse e_) ws2)
+    EApp ws1 e1 es ws2     -> wrap (EApp (processWS ws1) (recurse e1) (List.map recurse es) ws2)
+    EOp ws1 op es ws2      -> wrap (EOp (processWS ws1) op (List.map recurse es) ws2)
+    EList ws1 es ws2 m ws3 -> wrap (EList (processWS ws1) (List.map recurse es) ws2 (Utils.mapMaybe recurse m) ws3)
+    EIf ws1 e1 e2 e3 ws2     -> wrap (EIf (processWS ws1) (recurse e1) (recurse e2) (recurse e3) ws2)
+    ECase ws1 e1 branches ws2 ->
+      let newE1 = recurse e1 in
+      let newBranches =
+        List.map
+            (mapValField (\(Branch_ bws1 p ei bws2) -> Branch_ bws1 p (recurse ei) bws2))
+            branches
+      in
+      wrap (ECase (processWS ws1) newE1 newBranches ws2)
+    ETypeCase ws1 pat tbranches ws2 ->
+      let newBranches =
+        List.map
+            (mapValField (\(TBranch_ bws1 tipe ei bws2) -> TBranch_ bws1 tipe (recurse ei) bws2))
+            tbranches
+      in
+      wrap (ETypeCase (processWS ws1) pat newBranches ws2)
+    EComment ws s e1              -> wrap (EComment (processWS ws) s (recurse e1))
+    EOption ws1 s1 ws2 s2 e1      -> wrap (EOption (processWS ws1) s1 ws2 s2 (recurse e1))
+    ELet ws1 k b p e1 e2 ws2      -> wrap (ELet (processWS ws1) k b p (recurse e1) (recurse e2) ws2)
+    ETyp ws1 pat tipe e ws2       -> wrap (ETyp (processWS ws1) pat tipe (recurse e) ws2)
+    EColonType ws1 e ws2 tipe ws3 -> wrap (EColonType (processWS ws1) (recurse e) ws2 tipe ws3)
+    ETypeAlias ws1 pat tipe e ws2 -> wrap (ETypeAlias (processWS ws1) pat tipe (recurse e) ws2)
+
+
+mapPrecedingWhitespacePat : (String -> String) -> Pat -> Pat
+mapPrecedingWhitespacePat mapWs pat =
+  let pat__ =
+    case pat.val of
+      PVar   ws ident wd         -> PVar   (mapWs ws) ident wd
+      PConst ws n                -> PConst (mapWs ws) n
+      PBase  ws v                -> PBase  (mapWs ws) v
+      PList  ws1 es ws2 rest ws3 -> PList  (mapWs ws1) es ws2 rest ws3
+      PAs    ws1 ident ws2 p     -> PAs    (mapWs ws1) ident ws2 p
+  in
+  { pat | val = pat__ }

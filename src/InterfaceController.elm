@@ -9,7 +9,7 @@ module InterfaceController exposing
   , msgRun, upstateRun, msgTryParseRun
   , msgAceUpdate
   , msgUndo, msgRedo, msgCleanCode
-  , msgDigHole, msgMakeEqual
+  , msgDigHole, msgMakeEqual, msgRelate
   , msgSelectSynthesisResult, msgClearSynthesisResults
   , msgPreview, msgClearPreview
   , msgGroupBlobs, msgDuplicateBlobs, msgMergeBlobs, msgAbstractBlobs
@@ -34,7 +34,7 @@ import Lang exposing (..) --For access to what makes up the Vals
 import Types
 import Ace
 import LangParser2 exposing (parseE, freshen)
-import LangUnparser exposing (unparse, precedingWhitespace, addPrecedingWhitespace)
+import LangUnparser exposing (unparse)
 import LangTransform
 import ValueBasedTransform
 import Blobs exposing (..)
@@ -675,9 +675,10 @@ msgKeyUp keyCode = Msg ("Key Up " ++ toString keyCode) <| \old ->
 
 --------------------------------------------------------------------------------
 
-cleanSynthesisResult {description, exp} =
+cleanSynthesisResult {description, exp, sortKey} =
   { description = description ++ " -> Cleaned"
   , exp = LangTransform.cleanCode exp
+  , sortKey = sortKey
   }
 
 msgCleanCode = Msg "Clean Code" <| \old ->
@@ -701,7 +702,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
       { old | code             = newCode
             , inputExp         = newExp
             , inputVal         = newVal
-            , history          = addToHistory old.code old.history
+            , history          = addToHistory newCode old.history
             , slate            = newSlate
             , widgets          = newWidgets
             , preview          = Nothing
@@ -717,6 +718,18 @@ msgDigHole = Msg "Dig Hole" <| \old ->
 msgMakeEqual = Msg "Make Equal" <| \old ->
   let synthesisResults =
     ValueBasedTransform.makeEqual
+        old.inputExp
+        old.selectedFeatures
+        old.slideNumber
+        old.movieNumber
+        old.movieTime
+        old.syncOptions
+  in
+  { old | synthesisResults = List.map cleanSynthesisResult synthesisResults }
+
+msgRelate = Msg "Relate" <| \old ->
+  let synthesisResults =
+    ValueBasedTransform.relate
         old.inputExp
         old.selectedFeatures
         old.slideNumber
@@ -761,9 +774,9 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
   runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
     debugLog "new model" <|
       { old | code             = newCode
-            , inputExp         = newExp
+            , inputExp         = parseE newCode |> Utils.fromOkay "InterfaceController.msgSelectSynthesisResult re-parsing to recompute line numbers"
             , inputVal         = newVal
-            , history          = addToHistory old.code old.history
+            , history          = addToHistory newCode old.history
             , slate            = newSlate
             , widgets          = newWidgets
             , preview          = Nothing
@@ -900,7 +913,7 @@ msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
   { old | code          = code
         , inputExp      = exp
         , inputVal      = val
-        , history       = addToHistory old.code old.history
+        , history       = addToHistory code old.history
         , slate         = slate
         , preview       = Nothing
         , synthesisResults = []
