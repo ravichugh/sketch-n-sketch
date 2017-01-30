@@ -461,9 +461,9 @@ relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
         let isGoodShape locEqn =
           Set.size (locEqnLocIdSet locEqn) > 0 && List.length (locEqnConsts locEqn) <= 1
         in
-        let maxResults = 10 in
+        -- let maxResults = 10 in
         let synthesizeMore astSize results =
-          if List.length results >= maxResults then
+          if False then -- List.length results >= maxResults then
             results
           else
             let eqnTemplates = locEqnsTemplatesOfSize astSize |> List.filter isGoodShape in

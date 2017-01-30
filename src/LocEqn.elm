@@ -882,6 +882,39 @@ normalizeSimplify eqn =
 --       )
 --     )
 
+
+solveForLocValue : LocId -> Subst -> LocEquation -> Num -> Maybe Num
+solveForLocValue targetLocId subst eqn eqnTargetValue =
+  let eqnEqualToZero =
+    constantifyLocs (Dict.remove targetLocId subst) (LocEqnOp Minus [eqn, LocEqnConst eqnTargetValue])
+  in
+  case locEqnTerms targetLocId eqnEqualToZero of
+    Just (pow, coeffEqn, restEqn) ->
+      -- We have: coeff*x^pow + rest = 0
+      -- We want: x = (-rest / coeff)^(1/pow)
+      let coeffEvaled = locEqnEval Dict.empty coeffEqn in
+      let restEvaled  = locEqnEval Dict.empty restEqn in
+      let x = (-restEvaled / coeffEvaled)^(1/pow) in
+      if (isNaN x) || (isInfinite x) then
+        Nothing
+      else
+        Just x
+
+    Nothing ->
+      Nothing
+
+
+solveForConst : Subst -> LocEquation -> Num -> Maybe Num
+solveForConst subst eqn eqnTargetValue =
+  let locifyConstant eqn =
+    case eqn of
+      LocEqnConst _        -> LocEqnLoc -2
+      LocEqnLoc _          -> eqn
+      LocEqnOp op children -> LocEqnOp op (List.map locifyConstant children)
+  in
+  solveForLocValue -2 subst (locifyConstant eqn) eqnTargetValue
+
+
 -- Fill in template with all combinations of locId's in the various locations.
 -- Then choose a single best number for filling in a constant.
 -- (Expects no more than one constant.)
@@ -935,14 +968,31 @@ locEqnTemplateFillings targetValue subst locIdSet template =
       LocEqnOp op children -> LocEqnOp op (List.map (fillInConstant const) children)
 
   in
-  locFillings (locIdSet |> Set.toList) template
-  |> List.map
-      (\locFilledEqn ->
-        constants
-        |> List.map (\const -> fillInConstant const locFilledEqn)
-        |> List.sortBy (\eqn -> abs (locEqnEval subst eqn - targetValue))
-        |> Utils.head "LocEqn.locEqnTemplateFillings ranking"
-      )
+  let allLocFillings = locFillings (locIdSet |> Set.toList) template in
+  let filledWithNiceNumber =
+    allLocFillings
+    |> List.map
+        (\locFilledEqn ->
+          constants
+          |> List.map (\const -> fillInConstant const locFilledEqn)
+          |> List.sortBy (\eqn -> abs (locEqnEval subst eqn - targetValue))
+          |> Utils.head "LocEqn.locEqnTemplateFillings ranking"
+        )
+  in
+  let filledWithExactNumber =
+    allLocFillings
+    |> List.filterMap
+        (\locFilledEqn ->
+          -- Only produce an exact solution if no locs appear more than once.
+          -- Cuts down on *some* junk.
+          if Set.size (locEqnLocIdSet locFilledEqn) == List.length (locEqnLocIds locFilledEqn) then
+            solveForConst subst locFilledEqn targetValue
+            |> Maybe.map (\const -> fillInConstant const locFilledEqn)
+          else
+            Nothing
+        )
+  in
+  filledWithNiceNumber ++ filledWithExactNumber
 
 
 -- Templates for synthesis:

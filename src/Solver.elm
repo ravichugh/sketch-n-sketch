@@ -45,20 +45,7 @@ termSolve subst (newN, trace) =
     |> Utils.findFirst (\locId -> Dict.get locId subst == Nothing)
     |> Utils.fromJust_ "subst should be missing a locId"
   in
-  case locEqnTerms targetLocId (LocEqnOp Minus [locEqn, LocEqnConst newN]) of
-    Just (locPow, locCoeff, rest) ->
-      -- We have: coeff*x^pow + rest = 0
-      -- We want: x = (-rest / coeff)^(1/pow)
-      let coeffEvaled = locEqnEval subst locCoeff in
-      let restEvaled  = locEqnEval subst rest in
-      let newLocValue = (-restEvaled / coeffEvaled)^(1/locPow) in
-      if (isNaN newLocValue) || (isInfinite newLocValue) then
-        Nothing
-      else
-        Just newLocValue
-
-    Nothing ->
-      Nothing
+  LocEqn.solveForLocValue targetLocId subst locEqn newN
 
 
 --------------------------------------------------------------------------------
