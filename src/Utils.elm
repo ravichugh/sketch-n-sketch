@@ -131,7 +131,8 @@ dedupBy : (a -> comparable) -> List a -> List a
 dedupBy f xs =
   let (deduped, _) =
     List.foldl (\x (dd, seen) ->
-        if Set.member (f x) seen then (dd, seen) else (List.append dd [x], Set.insert (f x) seen)
+        let key = f x in
+        if Set.member key seen then (dd, seen) else (List.append dd [x], Set.insert key seen)
       ) ([], Set.empty) xs
   in
     deduped
