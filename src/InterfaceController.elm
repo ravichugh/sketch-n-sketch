@@ -725,7 +725,7 @@ msgMakeEqual = Msg "Make Equal" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = List.map cleanSynthesisResult synthesisResults }
+  { old | synthesisResults = List.map cleanSynthesisResult synthesisResults |> Utils.dedupBy (.exp >> unparse) }
 
 msgRelate = Msg "Relate" <| \old ->
   let synthesisResults =
@@ -737,7 +737,7 @@ msgRelate = Msg "Relate" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = List.map cleanSynthesisResult synthesisResults }
+  { old | synthesisResults = List.map cleanSynthesisResult synthesisResults |> Utils.dedupBy (.exp >> unparse) }
 
 -- msgMakeEquidistant = Msg "Make Equidistant" <| \old ->
 --   let newExp =

@@ -1013,7 +1013,7 @@ mergeExpressions eFirst eRest =
       matchAllAndBind match eRest <| \restAnnotatedNums ->
         let (locid,ann,x) = loc in
         let allAnnotatedNums = (n,ann,wd) :: restAnnotatedNums in
-        case Utils.dedup_ annotatedNumToComparable allAnnotatedNums of
+        case Utils.dedupBy annotatedNumToComparable allAnnotatedNums of
           [_] -> return eFirst.val.e__ []
           _   ->
             let var = if x == "" then "k" ++ toString locid else x in

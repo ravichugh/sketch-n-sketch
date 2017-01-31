@@ -123,12 +123,12 @@ selfZipCircConsecPairs list =
 -- Preserves original list order
 -- Dedups based on toString representation
 dedup : List a -> List a
-dedup xs = dedup_ (toString) xs
+dedup xs = dedupBy toString xs
 
 -- Preserves original list order
 -- Dedups based on a provided function
-dedup_ : (a -> comparable) -> List a -> List a
-dedup_ f xs =
+dedupBy : (a -> comparable) -> List a -> List a
+dedupBy f xs =
   let (deduped, _) =
     List.foldl (\x (dd, seen) ->
         if Set.member (f x) seen then (dd, seen) else (List.append dd [x], Set.insert (f x) seen)
