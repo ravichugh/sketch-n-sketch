@@ -135,6 +135,11 @@ addSlateAndCode old (exp, val) =
   |> Result.map (\(slate, code) -> (exp, val, slate, code))
 -}
 
+-- We may want to revisit our error handling so we don't have different error types floating around.
+discardErrorAnnotations : Result (String, Ace.Annotation) a -> Result String a
+discardErrorAnnotations result =
+  result |> Result.mapError (\(string, annot) -> string)
+
 slateAndCode old (exp, val) =
   LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val
   |> Result.map (\slate -> (slate, unparse exp))
@@ -148,8 +153,13 @@ runAndResolve model exp =
 
 runWithErrorHandling model exp onOk =
   let result =
-    runAndResolve model exp
-    |> Result.map (\(val, widgets, slate, code) -> onOk val widgets slate code)
+    -- runWithErrorHandling is called after synthesis. Recompute line numbers.
+    let reparsedResult = unparse exp |> parseE |> discardErrorAnnotations in
+    reparsedResult
+    |> Result.andThen (\reparsed ->
+      runAndResolve model reparsed
+      |> Result.map (\(val, widgets, slate, code) -> onOk reparsed val widgets slate code)
+    )
   in
   handleError model result
 
@@ -697,10 +707,10 @@ msgDigHole = Msg "Dig Hole" <| \old ->
   let newExp =
     ValueBasedTransform.digHole old.inputExp old.selectedFeatures old.slate old.syncOptions
   in
-  runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
+  runWithErrorHandling old newExp (\reparsed newVal newWidgets newSlate newCode ->
     debugLog "new model" <|
       { old | code             = newCode
-            , inputExp         = newExp
+            , inputExp         = reparsed
             , inputVal         = newVal
             , history          = addToHistory newCode old.history
             , slate            = newSlate
@@ -709,7 +719,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
               -- we already ran it successfully once so it shouldn't crash the second time
             , mode             = Utils.fromOk "DigHole MkLive" <|
                                    mkLive old.syncOptions
-                                     old.slideNumber old.movieNumber old.movieTime newExp
+                                     old.slideNumber old.movieNumber old.movieTime reparsed
                                      (newVal, newWidgets)
             , selectedFeatures = Set.empty
       }
@@ -750,10 +760,10 @@ msgRelate = Msg "Relate" <| \old ->
 --         old.slate
 --         old.syncOptions
 --   in
---   runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
+--   runWithErrorHandling old newExp (\reparsed newVal newWidgets newSlate newCode ->
 --     debugLog "new model" <|
 --       { old | code             = newCode
---             , inputExp         = newExp
+--             , inputExp         = reparsed
 --             , inputVal         = newVal
 --             , history          = addToHistory old.code old.history
 --             , slate            = newSlate
@@ -762,7 +772,7 @@ msgRelate = Msg "Relate" <| \old ->
 --               -- we already ran it successfully once so it shouldn't crash the second time
 --             , mode             = Utils.fromOk "MakeEquidistant MkLive" <|
 --                                    mkLive old.syncOptions
---                                      old.slideNumber old.movieNumber old.movieTime newExp
+--                                      old.slideNumber old.movieNumber old.movieTime reparsed
 --                                      (newVal, newWidgets)
 --             , selectedFeatures = Set.empty
 --       }
@@ -771,19 +781,19 @@ msgRelate = Msg "Relate" <| \old ->
 --------------------------------------------------------------------------------
 
 msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
-  runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
+  runWithErrorHandling old newExp (\reparsed newVal newWidgets newSlate newCode ->
     debugLog "new model" <|
       { old | code             = newCode
-            , inputExp         = parseE newCode |> Utils.fromOkay "InterfaceController.msgSelectSynthesisResult re-parsing to recompute line numbers"
+            , inputExp         = reparsed
             , inputVal         = newVal
             , history          = addToHistory newCode old.history
             , slate            = newSlate
             , widgets          = newWidgets
             , preview          = Nothing
             , synthesisResults = []
-            , mode             = Utils.fromOk "MakeEqual MkLive" <|
+            , mode             = Utils.fromOk "SelectSynthesisResult MkLive" <|
                                    mkLive old.syncOptions
-                                     old.slideNumber old.movieNumber old.movieTime newExp
+                                     old.slideNumber old.movieNumber old.movieTime reparsed
                                      (newVal, newWidgets)
             , selectedFeatures = Set.empty
       }
