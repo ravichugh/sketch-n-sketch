@@ -476,7 +476,7 @@ relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
               |> List.filter (\locEqn -> locEqnSize locEqn >= astSize) -- Equation was not simplified. Still need to handle subtraction well.
             in
             results ++ newEqns
-            |> Utils.equalityDedup
+            |> Utils.dedupByEquality
         in
         let resultEqns = List.foldl synthesizeMore [] (List.range 1 5) in
         resultEqns

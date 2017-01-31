@@ -136,9 +136,9 @@ dedupBy f xs =
   in
     deduped
 
--- Dedups based on equality. O(n^2).
-equalityDedup : List a -> List a
-equalityDedup xs =
+-- O(n^2).
+dedupByEquality : List a -> List a
+dedupByEquality xs =
   List.foldr addAsSet [] xs
 
 listDiffSet : List comparable -> Set.Set comparable -> List comparable
