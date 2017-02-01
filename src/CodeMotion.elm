@@ -53,18 +53,27 @@ getLetBody = mapLetExp <|
   \(ws1, letKind, rec, p, e1, e2, ws2) -> e2
 -}
 
+letBodyOf : Exp -> Exp
+letBodyOf e = case e.val.e__ of
+  ELet ws1 letKind rec p e1 e2 ws2 -> e2
+  _                                -> Debug.crash "letBody"
+
 
 ------------------------------------------------------------------------------
 
--- return value (x, e1, e2') includes
---   the binding (x, e1) to be removed from expression scopeId and
---   the expression e2' that scopeId should be replaced with
+type alias VarEquation = (Ident, Exp)
+type alias RebuildLetExp = Exp -> Exp
+
+-- returns the binding (x, e1) to be removed from let-expression at scopeId,
+-- and a function foo that rewrites this let-expression by wrapping the
+--   residual pattern p_ and equation e1_ (that remain after plucking)
+--   around a rewritten body e2_ (provided as an argument)
 --
-pluck : PatternId -> Exp -> Maybe (Ident, Exp, Exp)
+pluck : PatternId -> Exp -> Maybe (VarEquation, RebuildLetExp)
 pluck patId =
   foldExp (\e acc -> Utils.plusMaybe (pluck_ patId e) acc) Nothing
 
-pluck_ : PatternId -> Exp -> Maybe (Ident, Exp, Exp)
+pluck_ : PatternId -> Exp -> Maybe (VarEquation, RebuildLetExp)
 pluck_ (scopeId, path) e =
   if e.val.eid /= scopeId then Nothing
   else case e.val.e__ of
@@ -73,26 +82,29 @@ pluck_ (scopeId, path) e =
       case (p.val, e1.val.e__, path) of
 
         (PVar _ x _, _, []) ->
-          Just (x, e1, e2)
+          Just ((x, e1), \e2_ -> e2_)
 
         ( PList pws1 ps pws2 Nothing pws3
         , EList ews1 es ews2 Nothing ews3
         , [i]
         ) ->
-          case (Utils.geti i ps).val of
-            PVar _ xi _ ->
+          case (List.length ps == List.length es, (Utils.geti i ps).val) of
+            (False, _) ->
+              Debug.log "pluck different lengths" Nothing
+
+            (True, PVar _ xi _) ->
               let ps_ = Utils.removei i ps in
               let es_ = Utils.removei i es in
               let ei = Utils.geti i es in
               if List.length ps_ == 0 then
-                Just (xi, ei, e2)
+                Just ((xi, ei), \e2_ -> e2_)
               else
                 let p_ = replaceP_  p (PList pws1 ps_ pws2 Nothing pws3) in
                 let e1_ = replaceE__ e1 (EList ews1 es_ ews2 Nothing ews3) in
-                let let_ = replaceE__ e  (ELet ws1 letKind rec p_ e1_ e2 ws2) in
-                Just (xi, ei, let_)
+                let let_ e2_ = replaceE__ e (ELet ws1 letKind rec p_ e1_ e2_ ws2) in
+                Just ((xi, ei), let_)
 
-            pi ->
+            (True, pi) ->
               let _ = Debug.log "trying to pluck" pi in
               Nothing
 
@@ -137,8 +149,7 @@ moveDefinitionBeforeLet scopeGraph sourcePat targetScope exp =
        DependenceGraph.patternTransitivelyDependsOnScope scopeGraph
          sourcePat targetScope
     in
-    moveDefinitionBeforeLet_ scopeGraph sourcePat targetScope exp
-       "up" insertUpBeforeLet unsafe
+    moveDefinitionBeforeLet_ scopeGraph sourcePat targetScope exp "up" unsafe
   in
 
   let sourceScope = Tuple.first sourcePat in
@@ -162,10 +173,9 @@ moveDefinitionBeforeLet scopeGraph sourcePat targetScope exp =
         DependenceGraph.usedOnTheWayDownTo scopeGraph
            sourcePat targetScope False
       in
-      moveDefinitionBeforeLet_ scopeGraph sourcePat targetScope exp
-        "down" insertDownBeforeLet unsafe
+      moveDefinitionBeforeLet_ scopeGraph sourcePat targetScope exp "down" unsafe
 
-moveDefinitionBeforeLet_ scopeGraph sourcePat targetScope exp upDown insertBeforeLet unsafe =
+moveDefinitionBeforeLet_ scopeGraph sourcePat targetScope exp upDown unsafe =
   let sourceScope = Tuple.first sourcePat in
   let pluckedStuff = Utils.fromJust_ "moveDefUpBeforeLet" <|
     pluck sourcePat exp
@@ -174,28 +184,22 @@ moveDefinitionBeforeLet_ scopeGraph sourcePat targetScope exp upDown insertBefor
     captionMoveDefinitionBeforeLet scopeGraph sourcePat targetScope upDown unsafe
   in
   let newExp =
-    insertBeforeLet scopeGraph (Tuple.first sourcePat) pluckedStuff targetScope exp
+    insertLet scopeGraph (Tuple.first sourcePat) pluckedStuff targetScope exp
   in
   [ { description = caption, exp = newExp } ]
 
-insertUpBeforeLet : ScopeGraph -> ScopeId -> (Ident, Exp, Exp) -> ScopeId -> Exp -> Exp
-insertUpBeforeLet scopeGraph sourceId (xMove, eMove, newSourceIdExp) targetId =
-  mapExp <| \e ->
-    if e.val.eid == sourceId then newSourceIdExp
-    else if e.val.eid == targetId then rewriteTargetId_ xMove eMove e
-    else e
-
-insertDownBeforeLet : ScopeGraph -> ScopeId -> (Ident, Exp, Exp) -> ScopeId -> Exp -> Exp
-insertDownBeforeLet scopeGraph sourceId (xMove, eMove, newSourceIdExp) targetId =
+insertLet : ScopeGraph -> ScopeId -> (VarEquation, RebuildLetExp) -> ScopeId -> Exp -> Exp
+insertLet scopeGraph sourceId (pluckedEquation, residualLetExp) targetId =
   mapExp <| \e ->
     if e.val.eid == sourceId then
-      flip mapExp newSourceIdExp <| \ee ->
-        if ee.val.eid == targetId then rewriteTargetId_ xMove eMove ee
-        else ee
+      let e2_ = letBodyOf e in
+      residualLetExp e2_
+    else if e.val.eid == targetId then
+      insertLet_ pluckedEquation e
     else
       e
 
-rewriteTargetId_ xMove eMove eee =
+insertLet_ (xMove, eMove) eee =
   let ws1 = precedingWhitespace eee in
   let letKind = getLetKind eee in
   withDummyPos <|
@@ -233,26 +237,23 @@ moveDefinitionPat scopeGraph sourcePat targetPosition exp =
         DependenceGraph.patternTransitivelyDependsOnScope scopeGraph
            sourcePat targetScope
       in
-      moveDefinitionPat_ scopeGraph sourcePat targetPosition exp
-        "up" insertUpPat unsafe
+      moveDefinitionPat_ scopeGraph sourcePat targetPosition exp "up" unsafe
 
     ParentScope ->
       let unsafe =
         DependenceGraph.usedOnTheWayDownTo scopeGraph
            sourcePat targetScope True
       in
-      moveDefinitionPat_ scopeGraph sourcePat targetPosition exp
-        "down" insertDownPat unsafe
+      moveDefinitionPat_ scopeGraph sourcePat targetPosition exp "down" unsafe
 
     SameScope ->
       let unsafe = False in
-      moveDefinitionPat_ scopeGraph sourcePat targetPosition exp
-        "over" insertDownPat unsafe
+      moveDefinitionPat_ scopeGraph sourcePat targetPosition exp "over" unsafe
 
     NearestCommonAncestor _ ->
       []
 
-moveDefinitionPat_ scopeGraph sourcePat targetPos exp upDownOver insertPat unsafe =
+moveDefinitionPat_ scopeGraph sourcePat targetPos exp upDownOver unsafe =
   let pluckedStuff = Utils.fromJust_ "moveDefPat_" <|
     pluck sourcePat exp
   in
@@ -264,31 +265,21 @@ moveDefinitionPat_ scopeGraph sourcePat targetPos exp upDownOver insertPat unsaf
   in
   [ { description = caption, exp = newExp } ]
 
-insertUpPat : ScopeGraph -> ScopeId -> (Ident, Exp, Exp) -> PatTargetPosition -> Exp -> Exp
-insertUpPat scopeGraph sourceId (xMove, eMove, newSourceIdExp) patTargetPosition =
+insertPat : ScopeGraph -> ScopeId -> (VarEquation, RebuildLetExp) -> PatTargetPosition -> Exp -> Exp
+insertPat scopeGraph sourceId (pluckedEquation, residualLetExp) patTargetPosition =
   let targetId = Tuple.first (Tuple.second patTargetPosition) in
   mapExp <| \e ->
     if e.val.eid == sourceId then
-      newSourceIdExp
+      let e2_ = letBodyOf e in
+      if sourceId /= targetId
+        then residualLetExp e2_
+        else insertPat_ pluckedEquation patTargetPosition (residualLetExp e2_)
     else if e.val.eid == targetId then
-      insertPat_ xMove eMove patTargetPosition e
+      insertPat_ pluckedEquation patTargetPosition e
     else
       e
 
-insertDownPat : ScopeGraph -> ScopeId -> (Ident, Exp, Exp) -> PatTargetPosition -> Exp -> Exp
-insertDownPat scopeGraph sourceId (xMove, eMove, newSourceIdExp) patTargetPosition =
-  let targetId = Tuple.first (Tuple.second patTargetPosition) in
-  mapExp <| \e ->
-    if e.val.eid == sourceId then
-      flip mapExp newSourceIdExp <| \ee ->
-        if ee.val.eid == targetId then
-          insertPat_ xMove eMove patTargetPosition ee
-        else
-          ee
-    else
-      e
-
-insertPat_ xMove eMove (beforeAfter, (targetId, targetPath)) e =
+insertPat_ (xMove, eMove) (beforeAfter, (targetId, targetPath)) e =
   case e.val.e__ of
     ELet ws1 letKind rec p e1 e2 ws2 ->
       case (p.val, e1.val.e__, targetPath) of
