@@ -1,4 +1,4 @@
-module CodeMotion exposing (moveDefinitionPat, moveDefinitionAboveLet)
+module CodeMotion exposing (moveDefinitionPat, moveDefinitionBeforeLet)
 
 import Lang exposing (..)
 import LangUnparser exposing
@@ -9,7 +9,10 @@ import LangUnparser exposing
 import DependenceGraph exposing
   ( ScopeGraph, ScopeId, PatternId
   , BeforeAfter, PatTargetPosition, ExpTargetPosition -- maybe move these here
+  , ScopeOrder(..)
+  , parentScopeOf, childScopesOf
   )
+import InterfaceModel exposing (SynthesisResult)
 import Utils
 
 
@@ -104,59 +107,186 @@ pluck_ (scopeId, path) e =
 
 ------------------------------------------------------------------------------
 
+ensureWhitespace : String -> String
+ensureWhitespace s = if s == "" then " " else s
+
+ensureWhitespaceExp : Exp -> Exp
+ensureWhitespaceExp exp = mapPrecedingWhitespace ensureWhitespace exp
+
+ensureWhitespaceExps : List Exp -> List Exp
+ensureWhitespaceExps exps =
+  case exps of
+    []         -> []
+    hd :: rest -> ensureWhitespaceExp hd :: rest
+
+ensureWhitespacePats : List Pat -> List Pat
+ensureWhitespacePats pats =
+  case pats of
+    []         -> []
+    hd :: rest -> replacePrecedingWhitespacePat
+                    (ensureWhitespace (precedingWhitespacePat hd)) hd :: rest
+
+
+------------------------------------------------------------------------------
+
+moveDefinitionBeforeLet : ScopeGraph -> PatternId -> EId -> Exp -> List SynthesisResult
+moveDefinitionBeforeLet scopeGraph sourcePat targetScope exp =
+
+  let moveUp () =
+    let unsafe =
+       DependenceGraph.patternTransitivelyDependsOnScope scopeGraph
+         sourcePat targetScope
+    in
+    moveDefinitionBeforeLet_ scopeGraph sourcePat targetScope exp
+       "up" insertUpBeforeLet unsafe
+  in
+
+  let sourceScope = Tuple.first sourcePat in
+  case DependenceGraph.scopeOrder scopeGraph sourceScope targetScope of
+
+    SameScope ->
+      []
+
+    ChildScope ->
+      moveUp ()
+
+    NearestCommonAncestor commonScope ->
+      let parentOfTargetScope = parentScopeOf targetScope scopeGraph in
+      case DependenceGraph.scopeOrder scopeGraph commonScope parentOfTargetScope of
+        SameScope  -> moveUp ()
+        _          -> []
+          -- ChildScope case is handled by the outer ChildScope case
+
+    ParentScope ->
+      let unsafe =
+        DependenceGraph.usedOnTheWayDownTo scopeGraph
+           sourcePat targetScope False
+      in
+      moveDefinitionBeforeLet_ scopeGraph sourcePat targetScope exp
+        "down" insertDownBeforeLet unsafe
+
+moveDefinitionBeforeLet_ scopeGraph sourcePat targetScope exp upDown insertBeforeLet unsafe =
+  let sourceScope = Tuple.first sourcePat in
+  let pluckedStuff = Utils.fromJust_ "moveDefUpBeforeLet" <|
+    pluck sourcePat exp
+  in
+  let caption =
+    captionMoveDefinitionBeforeLet scopeGraph sourcePat targetScope upDown unsafe
+  in
+  let newExp =
+    insertBeforeLet scopeGraph (Tuple.first sourcePat) pluckedStuff targetScope exp
+  in
+  [ { description = caption, exp = newExp } ]
+
+insertUpBeforeLet : ScopeGraph -> ScopeId -> (Ident, Exp, Exp) -> ScopeId -> Exp -> Exp
+insertUpBeforeLet scopeGraph sourceId (xMove, eMove, newSourceIdExp) targetId =
+  mapExp <| \e ->
+    if e.val.eid == sourceId then newSourceIdExp
+    else if e.val.eid == targetId then rewriteTargetId_ xMove eMove e
+    else e
+
+insertDownBeforeLet : ScopeGraph -> ScopeId -> (Ident, Exp, Exp) -> ScopeId -> Exp -> Exp
+insertDownBeforeLet scopeGraph sourceId (xMove, eMove, newSourceIdExp) targetId =
+  mapExp <| \e ->
+    if e.val.eid == sourceId then
+      flip mapExp newSourceIdExp <| \ee ->
+        if ee.val.eid == targetId then rewriteTargetId_ xMove eMove ee
+        else ee
+    else
+      e
+
+rewriteTargetId_ xMove eMove eee =
+  let ws1 = precedingWhitespace eee in
+  let letKind = getLetKind eee in
+  withDummyPos <|
+    ELet ws1 letKind False (pVar xMove) (ensureWhitespaceExp eMove) eee ""
+
 getLetKind : Exp -> LetKind
 getLetKind e =
   case e.val.e__ of
     ELet _ lk _ _ _ _ _ -> lk
     _                   -> Debug.log "getLetKind..." Let
 
-insertLet : ScopeId -> (Ident, Exp, Exp) -> ExpTargetPosition -> Exp -> Exp
-insertLet sourceId (xMove, eMove, newSourceIdExp) (beforeAfter, targetId) exp =
-
-  let isTargetId eee = eee.val.eid == targetId && beforeAfter == 0 in
-  let rewriteTargetId eee =
-    let ws1 = precedingWhitespace eee in
-    let letKind = getLetKind eee in
-    withDummyPos <|
-      ELet ws1 letKind False (pVar xMove) (ensureWhitespaceExp eMove) eee ""
+captionMoveDefinitionBeforeLet scopeGraph sourcePat targetScope upDown unsafe =
+  let prefix = if unsafe then "UNSAFE: " else "" in
+  let caption =
+    let
+      x = DependenceGraph.lookupIdent sourcePat scopeGraph
+      y = DependenceGraph.lookupIdent (targetScope, []) scopeGraph
+    in
+    Utils.spaces ["move", x, upDown, "before", y]
   in
+  prefix ++ caption
 
-  let foo =
-    if sourceId < targetId then -- source scope below target
-      \e ->
-        if e.val.eid == sourceId then newSourceIdExp
-        else if isTargetId e then rewriteTargetId e
-        else e
-    else -- same scope or above
-      \e ->
-        if e.val.eid == sourceId then
-          flip mapExp newSourceIdExp <| \ee ->
-            if isTargetId ee then rewriteTargetId ee
-            else ee
-        else
-          e
+
+------------------------------------------------------------------------------
+
+moveDefinitionPat : ScopeGraph -> PatternId -> PatTargetPosition -> Exp -> List SynthesisResult
+moveDefinitionPat scopeGraph sourcePat targetPosition exp =
+  let sourceScope = Tuple.first sourcePat in
+  let targetScope = Tuple.first (Tuple.second targetPosition) in
+
+  case DependenceGraph.scopeOrder scopeGraph sourceScope targetScope of
+
+    ChildScope ->
+      let unsafe =
+        DependenceGraph.patternTransitivelyDependsOnScope scopeGraph
+           sourcePat targetScope
+      in
+      moveDefinitionPat_ scopeGraph sourcePat targetPosition exp
+        "up" insertUpPat unsafe
+
+    ParentScope ->
+      let unsafe =
+        DependenceGraph.usedOnTheWayDownTo scopeGraph
+           sourcePat targetScope True
+      in
+      moveDefinitionPat_ scopeGraph sourcePat targetPosition exp
+        "down" insertDownPat unsafe
+
+    SameScope ->
+      let unsafe = False in
+      moveDefinitionPat_ scopeGraph sourcePat targetPosition exp
+        "over" insertDownPat unsafe
+
+    NearestCommonAncestor _ ->
+      []
+
+moveDefinitionPat_ scopeGraph sourcePat targetPos exp upDownOver insertPat unsafe =
+  let pluckedStuff = Utils.fromJust_ "moveDefPat_" <|
+    pluck sourcePat exp
   in
-  mapExp foo exp
+  let caption =
+    captionMoveDefinitionBeforeAfterPat scopeGraph sourcePat targetPos upDownOver unsafe
+  in
+  let newExp =
+    insertPat scopeGraph (Tuple.first sourcePat) pluckedStuff targetPos exp
+  in
+  [ { description = caption, exp = newExp } ]
 
-insertPat : ScopeId -> (Ident, Exp, Exp) -> PatTargetPosition -> Exp -> Exp
-insertPat sourceId (xMove, eMove, newSourceIdExp) patTargetPosition exp =
+insertUpPat : ScopeGraph -> ScopeId -> (Ident, Exp, Exp) -> PatTargetPosition -> Exp -> Exp
+insertUpPat scopeGraph sourceId (xMove, eMove, newSourceIdExp) patTargetPosition =
   let targetId = Tuple.first (Tuple.second patTargetPosition) in
-  let foo =
-    if sourceId < targetId then -- source scope below target
-      \e ->
-        if e.val.eid == sourceId then newSourceIdExp
-        else if e.val.eid == targetId then insertPat_ xMove eMove patTargetPosition e
-        else e
-    else -- same scope or above
-      \e ->
-        if e.val.eid == sourceId then
-          flip mapExp newSourceIdExp <| \ee ->
-            if ee.val.eid == targetId then insertPat_ xMove eMove patTargetPosition ee
-            else ee
+  mapExp <| \e ->
+    if e.val.eid == sourceId then
+      newSourceIdExp
+    else if e.val.eid == targetId then
+      insertPat_ xMove eMove patTargetPosition e
+    else
+      e
+
+insertDownPat : ScopeGraph -> ScopeId -> (Ident, Exp, Exp) -> PatTargetPosition -> Exp -> Exp
+insertDownPat scopeGraph sourceId (xMove, eMove, newSourceIdExp) patTargetPosition =
+  let targetId = Tuple.first (Tuple.second patTargetPosition) in
+  mapExp <| \e ->
+    if e.val.eid == sourceId then
+      flip mapExp newSourceIdExp <| \ee ->
+        if ee.val.eid == targetId then
+          insertPat_ xMove eMove patTargetPosition ee
         else
-          e
-  in
-  mapExp foo exp
+          ee
+    else
+      e
 
 insertPat_ xMove eMove (beforeAfter, (targetId, targetPath)) e =
   case e.val.e__ of
@@ -199,57 +329,14 @@ insertPat_ xMove eMove (beforeAfter, (targetId, targetPath)) e =
       let _ = Debug.log "insertPat_: not ELet" e.val.e__ in
       e
 
-
-ensureWhitespace : String -> String
-ensureWhitespace s = if s == "" then " " else s
-
-ensureWhitespaceExp : Exp -> Exp
-ensureWhitespaceExp exp = mapPrecedingWhitespace ensureWhitespace exp
-
-ensureWhitespaceExps : List Exp -> List Exp
-ensureWhitespaceExps exps =
-  case exps of
-    []         -> []
-    hd :: rest -> ensureWhitespaceExp hd :: rest
-
-ensureWhitespacePats : List Pat -> List Pat
-ensureWhitespacePats pats =
-  case pats of
-    []         -> []
-    hd :: rest -> replacePrecedingWhitespacePat
-                    (ensureWhitespace (precedingWhitespacePat hd)) hd :: rest
-
-
-------------------------------------------------------------------------------
-
-moveDefinitionAboveLet : PatternId -> EId -> Exp -> Maybe Exp
-moveDefinitionAboveLet sourcePat targetId exp =
-  case sourcePat of
-{-
-    (sourceId, []) ->
-      Just <| flip mapExp exp <| \e ->
-        if e.val.eid == sourceId then
-          getLetBody sourceId exp
-        else if e.val.eid == targetId then
-          let (_,_,rec,px,ex,_,ws2) = getLetDecl sourceId exp in
-          let ws1_ = precedingWhitespace e in
-          let letKind_ = getLetKind e in
-          replaceE__ e <|
-            ELet ws1_ letKind_ rec px (ensureWhitespaceExp ex) e ws2
-        else
-          e
--}
-
-    (sourceId, sourcePath) ->
-      case pluck sourcePat exp of
-        Nothing -> Debug.crash ("couldn't pluck " ++ toString sourcePat)
-        Just stuff ->
-          Just <| insertLet sourceId stuff (0, targetId) exp
-
-
-moveDefinitionPat : PatternId -> PatTargetPosition -> Exp -> Maybe Exp
-moveDefinitionPat sourcePat targetPosition exp =
-  case pluck sourcePat exp of
-    Nothing -> Debug.crash ("couldn't pluck " ++ toString sourcePat)
-    Just stuff ->
-      Just (insertPat (Tuple.first sourcePat) stuff targetPosition exp)
+captionMoveDefinitionBeforeAfterPat scopeGraph sourcePat targetPos upDownOver unsafe =
+  let prefix = if unsafe then "UNSAFE: " else "" in
+  let caption =
+    let
+      x = DependenceGraph.lookupIdent sourcePat scopeGraph
+      y = DependenceGraph.lookupIdent (Tuple.second targetPos) scopeGraph
+      beforeAfter = if Tuple.first targetPos == 0 then "before" else "after"
+    in
+    Utils.spaces ["move", x, upDownOver, beforeAfter, y]
+  in
+  prefix ++ caption

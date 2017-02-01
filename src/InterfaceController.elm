@@ -781,29 +781,28 @@ msgMakeEqual = Msg "Make Equal" <| \old ->
 --------------------------------------------------------------------------------
 
 msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
-  runWithErrorHandling old newExp (\newVal newWidgets newSlate newCode ->
+  -- TODO unparse gets called twice, here and in runWith ...
+  let newCode = unparse newExp in
+  let new =
+    { old | code = newCode
+          , history = addToHistory newCode old.history
+          , synthesisResults = []
+          }
+  in
+  runWithErrorHandling new newExp (\newVal newWidgets newSlate newCode ->
     -- debugLog "new model" <|
-      let new =
-      { old | code             = newCode
-            , inputExp         = newExp
+      let newer =
+      { new | inputExp         = newExp
             , inputVal         = newVal
-            , history          = addToHistory newCode old.history
             , slate            = newSlate
             , widgets          = newWidgets
             , preview          = Nothing
-            , synthesisResults = []
-{-
-            , mode             = Utils.fromOk "MakeEqual MkLive" <|
-                                   mkLive old.syncOptions
-                                     old.slideNumber old.movieNumber old.movieTime newExp
-                                     (newVal, newWidgets)
--}
             , selectedFeatures = Set.empty
       }
       in
-      { new | mode = refreshMode_ new
-            , codeBoxInfo = updateCodeBoxInfo Types.dummyAceTypeInfo new
-            }
+      { newer | mode = refreshMode_ newer
+              , codeBoxInfo = updateCodeBoxInfo Types.dummyAceTypeInfo newer
+              }
   )
 
 msgClearSynthesisResults = Msg "Clear Synthesis Results" <| \old ->
@@ -1270,52 +1269,27 @@ msgMoveExp = Msg "Move Exp" <| \m ->
   case (pats, patTargets, expTargets) of
 
     ([source], [], [(0, targetId)]) ->
-      case CodeMotion.moveDefinitionAboveLet source targetId m.inputExp of
-        Nothing -> new
-        Just newExp ->
-          -- TODO version of upstateRun to avoid unparse then re-parse
-          let newCode = unparse newExp in
-          upstateRun { new | code = newCode }
-{-
-          let caption =
-            let
-              x = lookupIdent source m.scopeGraph
-              y = lookupIdent (targetId, []) m.scopeGraph
-              u = if Tuple.first source < targetId then "up"
-                  else if Tuple.first source == targetId then "over"
-                  else "down"
-            in
-            Utils.spaces ["move", x, u, "above", y]
-          in
-          { new | synthesisResults = [{description = caption, exp = newExp}] }
--}
+      updateWithMoveExpResults new <|
+        CodeMotion.moveDefinitionBeforeLet m.scopeGraph source targetId m.inputExp
 
     ([source], target :: targets, []) ->
       if not (singleLogicalTarget target targets) then bad ()
       else
-        case CodeMotion.moveDefinitionPat source target m.inputExp of
-          Nothing -> new
-          Just newExp ->
-            -- TODO version of upstateRun to avoid unparse then re-parse
-            let newCode = unparse newExp in
-            upstateRun { new | code = newCode }
-{-
-            let caption =
-              let
-                x = lookupIdent source m.scopeGraph
-                y = lookupIdent (Tuple.second target) m.scopeGraph
-                u = if Tuple.first source < Tuple.first (Tuple.second target) then "up"
-                    else if Tuple.first source == Tuple.first (Tuple.second target) then "over"
-                    else "down"
-                b = if Tuple.first target == 0 then "before" else "after"
-              in
-              Utils.spaces ["move", x, u, b, y]
-            in
-            { new | synthesisResults = [{description = caption, exp = newExp}] }
--}
+        updateWithMoveExpResults new <|
+          CodeMotion.moveDefinitionPat m.scopeGraph source target m.inputExp
 
     _ ->
       bad ()
+
+updateWithMoveExpResults new results = case results of
+  []       -> new
+  [result] -> if String.startsWith "UNSAFE" result.description then
+                { new | synthesisResults = [result] }
+              else
+                -- TODO version of upstateRun to avoid unparse then re-parse
+                let newCode = unparse result.exp in
+                upstateRun { new | code = newCode }
+  results  -> { new | synthesisResults = results }
 
 resetDeuceState m =
   { m | selectedEIds       = Set.empty

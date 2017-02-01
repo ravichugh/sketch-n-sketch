@@ -426,6 +426,17 @@ dictAddToSet k v dict =
     Just vs -> Dict.insert k (Set.insert v vs) dict
     Nothing -> Dict.insert k (Set.singleton v) dict
 
+dictGetSet : comparableK -> Dict comparableK (Set comparableV) -> Set comparableV
+dictGetSet k d =
+  Maybe.withDefault Set.empty (Dict.get k d)
+
+dictUnionSet
+   : comparableK -> (Set comparableV)
+  -> Dict comparableK (Set comparableV)
+  -> Dict comparableK (Set comparableV)
+dictUnionSet k more dict =
+  Dict.insert k (Set.union more (dictGetSet k dict)) dict
+
 head msg = fromJust_ msg << List.head
 last msg = fromJust_ msg << List.head << List.reverse
 head_ = head "Utils.head_"
