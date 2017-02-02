@@ -32,6 +32,7 @@ module InterfaceController exposing
   , msgMouseClickCodeBox
   , msgReceiveDotImage
   , msgMoveExp
+  , msgDrag
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -61,6 +62,7 @@ import ShapeWidgets
 import ExamplesGenerated as Examples
 import Config exposing (params)
 import Either exposing (Either(..))
+import DependenceGraph exposing (PatternId, PatTargetPosition, ExpTargetPosition)
 
 import VirtualDom
 
@@ -332,6 +334,9 @@ onMouseMove newPosition old =
           let pointOnCanvas = (old.keysDown, (mx, my)) in
           { old | mouseMode = MouseDrawNew (pointOnCanvas::points) }
 
+    MouseDownInCodebox pos ->
+      old 
+
 onMouseUp old =
   case (old.mode, old.mouseMode) of
 
@@ -375,8 +380,38 @@ onMouseUp old =
 
         _              -> old
 
+    (_, MouseDownInCodebox downPos) -> 
+      let oldPos = pixelPosition downPos old in 
+      let newPos = case old.mouseState of
+                      (_, upPos) -> pixelPosition upPos old in 
+
+      --let _ = Debug.log "item" (getItemToMove oldPos old) in
+      --let _ = Debug.log "target" (getTargetPosition newPos old) in
+
+      let drag = msgDrag (getItemToMove oldPos old) (getTargetPosition newPos old) in 
+      { old | mouseMode = MouseNothing } 
+
     _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
 
+getItemToMove pixelPos m = 
+  let exp = getClickedEId (computeExpRanges m.inputExp) pixelPos in
+  let pat = getClickedPat (findPats m.inputExp) pixelPos m in
+  let item = case exp of 
+                Nothing   -> case pat of 
+                                Nothing   -> Nothing 
+                                Just pid  -> Just (Left pid)
+                Just eid  -> Just (Right eid) in
+  item
+
+getTargetPosition pixelPos m = 
+  let expTarget = getClickedExpTarget (computeExpTargets m.inputExp) pixelPos in 
+  let patTarget = getClickedPatTarget (findPatTargets m.inputExp) pixelPos m in 
+  let target = case expTarget of 
+                Nothing       -> case List.head patTarget of
+                                    Nothing         -> Nothing
+                                    Just firstPat   -> Just (Left firstPat)
+                Just etarget  -> Just (Right etarget) in
+  target
 
 tryRun : Model -> Result (String, Maybe Ace.Annotation) Model
 tryRun old =
@@ -525,7 +560,9 @@ issueCommand (Msg kind _) oldModel newModel =
          kind == "Turn Off Caption" ||
          kind == "Mouse Enter CodeBox" ||
          kind == "Mouse Leave CodeBox" ||
-         kind == "Mouse Click CodeBox"
+         kind == "Mouse Click CodeBox" ||
+         String.startsWith "Key Up" kind ||
+         String.startsWith "Key Down" kind
            -- ideally this last condition would not be necessary.
            -- and onMouseLeave from point/crosshair zones still leave
            -- stale yellow highlights.
@@ -640,7 +677,10 @@ msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
 
     (True, (Nothing, pos)) -> -- mouse down
       let _ = debugLog "mouse down" () in
-      { new | mouseState = (Just False, pos) }
+      if old.hoveringCodeBox 
+      then { new | mouseState = (Just False, pos), 
+                   mouseMode = MouseDownInCodebox pos }
+      else { new | mouseState = (Just False, pos) }
 
     (False, (Just False, pos)) -> -- click (mouse up after not being dragged)
       let _ = debugLog "mouse click" () in
@@ -689,12 +729,24 @@ msgKeyDown keyCode = Msg ("Key Down " ++ toString keyCode) <| \old ->
       (_, MouseDrawNew _) -> { old | mouseMode = MouseNothing }
       _                   -> old
   else if [keyCode] == Keys.shift then
-    { old | keysDown = keyCode :: old.keysDown }
+    let codeBoxInfo = old.codeBoxInfo in
+    let new = { old | keysDown = keyCode :: old.keysDown} in
+    { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new  ++ 
+                                                     expTargetsToHighlights new ++ 
+                                                     patRangesToHighlights new ++ 
+                                                     patTargetsToHighlights new }
+        }
   else
     old
 
 msgKeyUp keyCode = Msg ("Key Up " ++ toString keyCode) <| \old ->
-  { old | keysDown = Utils.removeFirst keyCode old.keysDown }
+    let codeBoxInfo = old.codeBoxInfo in
+    let new = { old | keysDown = Utils.removeFirst keyCode old.keysDown} in
+    { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new  ++ 
+                                                     expTargetsToHighlights new ++ 
+                                                     patRangesToHighlights new ++ 
+                                                     patTargetsToHighlights new }
+        }
 
 --------------------------------------------------------------------------------
 
@@ -1142,7 +1194,7 @@ msgAskImportCode = requireSaveAsker msgImportCode
 
 msgMouseEnterCodeBox = Msg "Mouse Enter CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
-  let new = { m | hoveringCodeBox = True } in
+  let new = { m | hoveringCodeBox = True} in
   { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new  ++ 
                                                      expTargetsToHighlights new ++ 
                                                      patRangesToHighlights new ++ 
@@ -1218,7 +1270,7 @@ getClickedEId ls pixelPos =
   in
   case selected of
     []                -> Nothing
-    [(eid,_,_,_,_)] -> Just eid
+    [(eid,_,_,_,_)]   -> Just eid
     _                 -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
                         Nothing
 
@@ -1238,7 +1290,7 @@ getClickedPat ls pixelPos m =
   in
   case selected of
     []                 -> Nothing
-    [(pid,s,e,se)]   -> Just pid
+    [(pid,s,e,se)]     -> Just pid
     _                  -> let _ = Debug.log "WARN: getClickedPat: multiple pats" () in
                         Nothing
 
@@ -1250,6 +1302,14 @@ getClickedPatTarget ls pixelPos m =
 
 msgReceiveDotImage s = Msg "Receive Image" <| \m ->
   { m | mode = Model.PrintScopeGraph (Just s) }
+
+
+msgDrag : Maybe (Either PatternId EId)
+       -> Maybe (Either PatTargetPosition ExpTargetPosition)
+       -> Msg
+msgDrag dragSource dragTarget = Msg "Deuce Drag" <| \m ->
+  -- TODO
+  m
 
 msgMoveExp = Msg "Move Exp" <| \m ->
   let selections =

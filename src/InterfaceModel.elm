@@ -14,6 +14,7 @@ import DependenceGraph exposing
   (ScopeGraph, PatternId, PatTargetPosition, ExpTargetPosition)
 import Ace
 import Either exposing (Either(..))
+import Keys 
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -92,8 +93,6 @@ type alias Model =
   , selectedEIds : Set.Set EId
   , deuceMode : Bool
   , hoveringCodeBox : Bool
-  , expRanges : List (EId, Exp, P.Pos, P.Pos, P.Pos)
-  , patRanges : List (Pat, P.Pos, P.Pos)
   , selectedPats : Set.Set PatternId
   , selectedPatTargets : Set.Set PatTargetPosition
   , selectedExpTargets : Set.Set ExpTargetPosition
@@ -142,6 +141,8 @@ type MouseMode
       --   for polygon/path,      n >= 0
       --   for helper dot,        n == 0 or n == 1
       --   for lambda,            n == 0 or n == 2
+
+  | MouseDownInCodebox { x : Int, y : Int }
 
 type alias MouseTrigger a = (Int, Int) -> a
 
@@ -389,8 +390,8 @@ computeExpTargets e =
   in
   foldExp combine [] e
 
-showDeuceWidgets m =
-  m.hoveringCodeBox && False -- invisible unless selected
+shiftKeyPressed m = List.member Keys.keyShift m.keysDown
+showDeuceWidgets m = shiftKeyPressed m
 
 expRangesToHighlights m =
   let maybeHighlight (eid,start,end,selectStart,selectEnd) =
@@ -565,8 +566,6 @@ initModel =
     , selectedEIds  = Set.empty
     , deuceMode = True
     , hoveringCodeBox = False
-    , expRanges = []
-    , patRanges = []
     , selectedPats = Set.empty
     , selectedPatTargets = Set.empty
     , selectedExpTargets = Set.empty
