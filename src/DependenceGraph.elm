@@ -1,8 +1,12 @@
 port module DependenceGraph exposing
   ( ScopeGraph, ScopeId, PatternId
   , BeforeAfter, PatTargetPosition, ExpTargetPosition
+  , ScopeOrder(..), scopeOrder
+  , parentScopeOf, childScopesOf
   , lookupIdent
   , compute, printHtml, render, receiveImage
+  , patternTransitivelyDependsOnScope
+  , usedOnTheWayDownTo
   )
 
 import Lang exposing (..)
@@ -26,8 +30,17 @@ type alias PatternId = (ScopeId, List Int)
 type alias ScopeGraph =
   { scopeNodes   : Dict ScopeId (LetOrFun, Set PatternId)
   , idents       : Dict PatternId Ident
-  , tree         : Dict ScopeId ScopeId
-  , dependencies : Dict PatternId (Set PatternId)
+
+  , parents  : Dict ScopeId ScopeId
+  , children : Dict ScopeId (Set ScopeId)
+      -- pre-computing children
+
+  , dependencies   : Dict PatternId (Set PatternId)
+  , dependenciesPS : Dict PatternId (Set ScopeId)
+  , dependenciesSP : Dict ScopeId (Set PatternId)
+  , dependenciesSS : Dict ScopeId (Set ScopeId)
+      -- pre-computing the last three (don't necessarily need the last...)
+
   , usedVars     : Set PatternId
       -- used temporarily while computing dependencies
   }
@@ -56,6 +69,14 @@ port receiveImage : (String -> msg) -> Sub msg
 
 ------------------------------------------------------------------------------
 -- Helpers
+
+parentScopeOf : ScopeId -> ScopeGraph -> ScopeId
+parentScopeOf i sg =
+  Utils.justGet_ ("parentScopeOf " ++ toString i) i sg.parents
+
+childScopesOf : ScopeId -> ScopeGraph -> Set ScopeId
+childScopesOf i sg =
+  Utils.dictGetSet i sg.children
 
 strPatId (scopeId, path) =
   String.join "_" (List.map toString (scopeId :: path))
@@ -109,7 +130,8 @@ addScopeNode newScopeId letOrFun acc =
 
 addScopeEdge newScopeId currentScopeId acc =
   { acc
-     | tree = Dict.insert newScopeId currentScopeId acc.tree
+     | parents = Dict.insert newScopeId currentScopeId acc.parents
+     , children = Utils.dictAddToSet currentScopeId newScopeId acc.children
      }
 
 resolve x env =
@@ -120,6 +142,68 @@ resolve x env =
 lookupIdent : PatternId -> ScopeGraph -> Ident
 lookupIdent patId scopeGraph =
   Maybe.withDefault "?" (Dict.get patId scopeGraph.idents)
+
+
+------------------------------------------------------------------------------
+-- Scope Comparison
+
+type ScopeOrder
+  = SameScope
+  | ParentScope
+  | ChildScope
+  | NearestCommonAncestor ScopeId
+
+pathToRoot : ScopeGraph -> ScopeId -> List ScopeId
+pathToRoot sg i =
+  if i == rootId then
+    [rootId]
+  else
+    i :: pathToRoot sg (parentScopeOf i sg)
+
+pathFromRoot : ScopeGraph -> ScopeId -> List ScopeId
+pathFromRoot sg i =
+  List.reverse (pathToRoot sg i)
+
+scopeOrder : ScopeGraph -> ScopeId -> ScopeId -> ScopeOrder
+scopeOrder sg i j =
+  let walk lastCommonAncestor path1 path2 =
+    -- let _ = Debug.log (toString ("walk", lastCommonAncestor, path1, path2)) () in
+    case (path1, path2) of
+      (head1 :: tail1, head2 :: tail2) ->
+        if head1 == head2 then walk head1 tail1 tail2
+        else if lastCommonAncestor == i then ParentScope
+        else if lastCommonAncestor == j then ChildScope
+        else NearestCommonAncestor lastCommonAncestor
+      (head1 :: _, []) ->
+        if lastCommonAncestor == j then ChildScope
+        else NearestCommonAncestor lastCommonAncestor
+      ([], head2 :: _) ->
+        if lastCommonAncestor == i then ParentScope
+        else NearestCommonAncestor lastCommonAncestor
+      ([], []) ->
+        Debug.log "WARN: SameScope should've been detected already" SameScope
+  in
+  if i == j then SameScope
+  else
+    let
+      iPath = pathFromRoot sg i |> List.drop 1 -- drop rootId
+      jPath = pathFromRoot sg j |> List.drop 1 -- drop rootId
+    in
+    walk rootId iPath jPath
+
+{-
+
+-- "LT" means "below" (or "later") in terms of linear structure of code
+--
+compareScope : ScopeGraph -> ScopeId -> ScopeId -> Order
+compareScope sg i j =
+  case scopeOrder sg i j of
+    ChildScope -> LT
+    NearestCommonAncestor _ -> LT
+    SameScope -> EQ
+    ParentScope -> GT
+
+-}
 
 
 ------------------------------------------------------------------------------
@@ -149,8 +233,12 @@ compute e =
   traverse initEnv e
     { scopeNodes = Dict.singleton rootId (True, Set.empty)
     , idents = Dict.empty
-    , tree = Dict.empty
+    , parents = Dict.empty
+    , children = Dict.empty
     , dependencies = Dict.empty
+    , dependenciesPS = Dict.empty
+    , dependenciesSP = Dict.empty
+    , dependenciesSS = Dict.empty
     , usedVars = Set.empty
     }
 
@@ -223,8 +311,21 @@ traverseAndAddDependencies_ patId env pat exp acc =
       Set.filter
          (\(scopeId,_) -> Set.member scopeId env.currentScopes)
          acc.usedVars in
+    let update dict foo = Set.foldl foo dict used in
+
     { acc
-       | dependencies = Set.foldl (Utils.dictAddToSet somePatId) acc.dependencies used
+       | dependencies =
+           update acc.dependencies
+             (\usedPat -> Utils.dictAddToSet somePatId usedPat)
+       , dependenciesPS =
+           update acc.dependenciesPS
+             (\usedPat -> Utils.dictAddToSet somePatId (Tuple.first usedPat))
+       , dependenciesSP =
+           update acc.dependenciesSP
+             (\usedPat -> Utils.dictAddToSet (Tuple.first somePatId) usedPat)
+       , dependenciesSS =
+           update acc.dependenciesSS
+             (\usedPat -> Utils.dictAddToSet (Tuple.first somePatId) (Tuple.first usedPat))
        }
   in
 
@@ -277,6 +378,58 @@ traverseAndAddDependencies_ patId env pat exp acc =
       acc |> clearUsed
           |> traverse env exp
           |> addConservativeDependencies
+
+
+------------------------------------------------------------------------------
+-- Transitive Dependencies
+
+-- the following x_transitivelyDependsOn_y function assumes
+-- scopeOrder sourceScope targetScope == ChildScope
+
+patternTransitivelyDependsOnScope : ScopeGraph -> PatternId -> ScopeId -> Bool
+patternTransitivelyDependsOnScope scopeGraph sourcePat targetScope =
+  let directDependency =
+     Set.member
+       targetScope
+       (Utils.dictGetSet sourcePat scopeGraph.dependenciesPS)
+  in
+  let transitiveDependency () =
+     List.any
+       (\pat -> patternTransitivelyDependsOnScope scopeGraph pat targetScope)
+       (Set.toList (Utils.dictGetSet sourcePat scopeGraph.dependencies))
+  in
+  directDependency || transitiveDependency ()
+
+-- this checks that sourcePat is used somewhere between its
+-- definition and targetScope. this also requires going down
+-- any branches in the scope tree that occur above targetScope.
+--
+-- assumes that scopeOrder sourceScope targetScope == ParentScope
+--
+usedOnTheWayDownTo : ScopeGraph -> PatternId -> EId -> Bool -> Bool
+usedOnTheWayDownTo scopeGraph sourcePat targetScope includingTarget =
+  let traverseDown currentScope =
+    let usedHere () =
+       Set.member
+         sourcePat
+         (Utils.dictGetSet currentScope scopeGraph.dependenciesSP)
+    in
+
+    if currentScope == targetScope && not includingTarget then
+      False
+
+    else if currentScope == targetScope {- && includingTarget -} then
+      usedHere ()
+
+    else if {- currentScope /= targetScope && -} usedHere () then
+      True -- not recursing into children, since already used here
+
+    else {- currentScope /= targetScope && not (usedHere ()) -}
+      let children = Set.toList (childScopesOf currentScope scopeGraph) in
+      List.any traverseDown children
+  in
+  let sourceScope = Tuple.first sourcePat in
+  traverseDown sourceScope
 
 
 ------------------------------------------------------------------------------
@@ -335,7 +488,7 @@ clusters f scopeGraph =
         ]
 
 scopeEdges f scopeGraph =
-  flip List.map (Dict.toList scopeGraph.tree) <| \(i,j) ->
+  flip List.map (Dict.toList scopeGraph.parents) <| \(i,j) ->
     f (clusterNode i ++ " -> " ++ clusterNode j)
 
 dependencyEdges f scopeGraph =
