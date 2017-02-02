@@ -406,7 +406,7 @@ getItemToMove pixelPos m =
 getTargetPosition pixelPos m = 
   let expTarget = getClickedExpTarget (computeExpTargets m.inputExp) pixelPos in 
   let patTarget = getClickedPatTarget (findPatTargets m.inputExp) pixelPos m in 
-  let target = case expTarget of 
+  let target = case List.head expTarget of 
                 Nothing       -> case List.head patTarget of
                                     Nothing         -> Nothing
                                     Just firstPat   -> Just (Left firstPat)
@@ -1223,11 +1223,9 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
   in
   let selectedExpTargets =
     case getClickedExpTarget (computeExpTargets m.inputExp) pixelPos of
-      Nothing  -> m.selectedExpTargets
-      Just eid -> if Set.member eid m.selectedExpTargets
-                  then Set.remove eid m.selectedExpTargets
-                  else Set.insert eid m.selectedExpTargets
-  in
+      [] -> m.selectedExpTargets
+      ls -> getSetMembers ls m.selectedExpTargets 
+  in 
   let selectedPats = 
     case getClickedPat (findPats m.inputExp) pixelPos m of
       Nothing  -> m.selectedPats
@@ -1276,12 +1274,8 @@ getClickedEId ls pixelPos =
 getClickedExpTarget ls pixelPos =
   let selected =
     List.filter (\(expTarget,selectStart,selectEnd) -> betweenPos selectStart pixelPos selectEnd) ls
-  in
-  case selected of
-    []                -> Nothing
-    [(expTarget,_,_)] -> Just expTarget
-    _                 -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
-                        Nothing
+  in 
+    List.map (\(expTarget,start,end) -> expTarget) selected
 
 getClickedPat ls pixelPos m = 
   let selected =
