@@ -15,6 +15,8 @@ import DependenceGraph exposing
 import InterfaceModel exposing (SynthesisResult)
 import Utils
 
+import Dict
+
 
 ------------------------------------------------------------------------------
 
@@ -138,21 +140,54 @@ ensureWhitespacePats pats =
     hd :: rest -> replacePrecedingWhitespacePat
                     (ensureWhitespace (precedingWhitespacePat hd)) hd :: rest
 
+strUnsafeBool b = if b then "[UNSAFE] " else ""
+
 
 ------------------------------------------------------------------------------
 
 moveDefinitionBeforeLet : ScopeGraph -> PatternId -> EId -> Exp -> List SynthesisResult
 moveDefinitionBeforeLet scopeGraph sourcePat targetScope exp =
 
-  let moveUp () =
-    let unsafe =
-       DependenceGraph.patternTransitivelyDependsOnScope scopeGraph
-         sourcePat targetScope
+  let sourceScope = Tuple.first sourcePat in
+  let ((xPlucked, ePlucked), residualLetExp) =
+    Utils.fromJust_ "moveDefUpBeforeLet" (pluck sourcePat exp) in
+
+  let move upDown prefix =
+    let caption =
+      let
+        x = DependenceGraph.lookupIdent sourcePat scopeGraph
+        y = DependenceGraph.lookupIdent (targetScope, []) scopeGraph
+      in
+      prefix ++ Utils.spaces ["move", x, upDown, "before", y]
     in
-    moveDefinitionBeforeLet_ scopeGraph sourcePat targetScope exp "up" unsafe
+    let newExp =
+      flip mapExp exp <| \e ->   -- this used to be called insertLet
+        if e.val.eid == sourceScope then
+          let e2_ = letBodyOf e in
+          residualLetExp e2_
+        else if e.val.eid == targetScope then
+          withDummyPos <|        -- this used to be called insertLet_
+            ELet (precedingWhitespace e) (getLetKind e) False
+              (pVar xPlucked) (ensureWhitespaceExp ePlucked)
+              e ""
+        else
+          e
+    in
+    [ { description = caption, exp = newExp } ]
   in
 
-  let sourceScope = Tuple.first sourcePat in
+  let shadowing =
+    DependenceGraph.checkVisible scopeGraph xPlucked sourcePat targetScope in
+
+  let moveUp () =
+    let unsafe =
+      strUnsafeBool <|
+        DependenceGraph.patternTransitivelyDependsOnScope scopeGraph
+          sourcePat targetScope
+    in
+    move "up" (shadowing ++ unsafe)
+  in
+
   case DependenceGraph.scopeOrder scopeGraph sourceScope targetScope of
 
     SameScope ->
@@ -170,40 +205,11 @@ moveDefinitionBeforeLet scopeGraph sourcePat targetScope exp =
 
     ParentScope ->
       let unsafe =
-        DependenceGraph.usedOnTheWayDownTo scopeGraph
-           sourcePat targetScope False
+        strUnsafeBool <|
+          DependenceGraph.usedOnTheWayDownTo scopeGraph
+            sourcePat targetScope False
       in
-      moveDefinitionBeforeLet_ scopeGraph sourcePat targetScope exp "down" unsafe
-
-moveDefinitionBeforeLet_ scopeGraph sourcePat targetScope exp upDown unsafe =
-  let sourceScope = Tuple.first sourcePat in
-  let pluckedStuff = Utils.fromJust_ "moveDefUpBeforeLet" <|
-    pluck sourcePat exp
-  in
-  let caption =
-    captionMoveDefinitionBeforeLet scopeGraph sourcePat targetScope upDown unsafe
-  in
-  let newExp =
-    insertLet scopeGraph (Tuple.first sourcePat) pluckedStuff targetScope exp
-  in
-  [ { description = caption, exp = newExp } ]
-
-insertLet : ScopeGraph -> ScopeId -> (VarEquation, RebuildLetExp) -> ScopeId -> Exp -> Exp
-insertLet scopeGraph sourceId (pluckedEquation, residualLetExp) targetId =
-  mapExp <| \e ->
-    if e.val.eid == sourceId then
-      let e2_ = letBodyOf e in
-      residualLetExp e2_
-    else if e.val.eid == targetId then
-      insertLet_ pluckedEquation e
-    else
-      e
-
-insertLet_ (xMove, eMove) eee =
-  let ws1 = precedingWhitespace eee in
-  let letKind = getLetKind eee in
-  withDummyPos <|
-    ELet ws1 letKind False (pVar xMove) (ensureWhitespaceExp eMove) eee ""
+      move "down" (shadowing ++ unsafe)
 
 getLetKind : Exp -> LetKind
 getLetKind e =
@@ -211,54 +217,55 @@ getLetKind e =
     ELet _ lk _ _ _ _ _ -> lk
     _                   -> Debug.log "getLetKind..." Let
 
-captionMoveDefinitionBeforeLet scopeGraph sourcePat targetScope upDown unsafe =
-  let prefix = if unsafe then "UNSAFE: " else "" in
-  let caption =
-    let
-      x = DependenceGraph.lookupIdent sourcePat scopeGraph
-      y = DependenceGraph.lookupIdent (targetScope, []) scopeGraph
-    in
-    Utils.spaces ["move", x, upDown, "before", y]
-  in
-  prefix ++ caption
-
 
 ------------------------------------------------------------------------------
 
 moveDefinitionPat : ScopeGraph -> PatternId -> PatTargetPosition -> Exp -> List SynthesisResult
-moveDefinitionPat scopeGraph sourcePat targetPosition exp =
+moveDefinitionPat scopeGraph sourcePat targetPos exp =
   let sourceScope = Tuple.first sourcePat in
-  let targetScope = Tuple.first (Tuple.second targetPosition) in
+  let targetScope = Tuple.first (Tuple.second targetPos) in
+  let pluckedStuff = Utils.fromJust_ "moveDefPat_" <|
+    pluck sourcePat exp
+  in
+
+  let shadowing =
+    -- TODO checkVisible for PLists
+    let targetId = Tuple.first (Tuple.second targetPos) in
+    DependenceGraph.checkVisible scopeGraph
+       (Tuple.first (Tuple.first pluckedStuff)) sourcePat targetId
+  in
 
   case DependenceGraph.scopeOrder scopeGraph sourceScope targetScope of
 
     ChildScope ->
       let unsafe =
-        DependenceGraph.patternTransitivelyDependsOnScope scopeGraph
-           sourcePat targetScope
+        strUnsafeBool <|
+          DependenceGraph.patternTransitivelyDependsOnScope scopeGraph
+            sourcePat targetScope
       in
-      moveDefinitionPat_ scopeGraph sourcePat targetPosition exp "up" unsafe
+      moveDefinitionPat_ scopeGraph sourcePat targetPos exp
+         pluckedStuff "up" (shadowing ++ unsafe)
 
     ParentScope ->
       let unsafe =
-        DependenceGraph.usedOnTheWayDownTo scopeGraph
-           sourcePat targetScope True
+        strUnsafeBool <|
+          DependenceGraph.usedOnTheWayDownTo scopeGraph
+            sourcePat targetScope True
       in
-      moveDefinitionPat_ scopeGraph sourcePat targetPosition exp "down" unsafe
+      moveDefinitionPat_ scopeGraph sourcePat targetPos exp
+         pluckedStuff "down" (shadowing ++ unsafe)
 
     SameScope ->
-      let unsafe = False in
-      moveDefinitionPat_ scopeGraph sourcePat targetPosition exp "over" unsafe
+      let unsafe = strUnsafeBool False in
+      moveDefinitionPat_ scopeGraph sourcePat targetPos exp
+         pluckedStuff "over" (shadowing ++ unsafe)
 
     NearestCommonAncestor _ ->
       []
 
-moveDefinitionPat_ scopeGraph sourcePat targetPos exp upDownOver unsafe =
-  let pluckedStuff = Utils.fromJust_ "moveDefPat_" <|
-    pluck sourcePat exp
-  in
+moveDefinitionPat_ scopeGraph sourcePat targetPos exp pluckedStuff upDownOver prefix =
   let caption =
-    captionMoveDefinitionBeforeAfterPat scopeGraph sourcePat targetPos upDownOver unsafe
+    captionMoveDefinitionBeforeAfterPat scopeGraph sourcePat targetPos upDownOver prefix
   in
   let newExp =
     insertPat scopeGraph (Tuple.first sourcePat) pluckedStuff targetPos exp
@@ -320,8 +327,7 @@ insertPat_ (xMove, eMove) (beforeAfter, (targetId, targetPath)) e =
       let _ = Debug.log "insertPat_: not ELet" e.val.e__ in
       e
 
-captionMoveDefinitionBeforeAfterPat scopeGraph sourcePat targetPos upDownOver unsafe =
-  let prefix = if unsafe then "UNSAFE: " else "" in
+captionMoveDefinitionBeforeAfterPat scopeGraph sourcePat targetPos upDownOver prefix =
   let caption =
     let
       x = DependenceGraph.lookupIdent sourcePat scopeGraph

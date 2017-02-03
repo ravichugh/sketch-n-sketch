@@ -1346,7 +1346,8 @@ movePatToPat_ bad sourcePat targetPat targetPats m =
 
 updateWithMoveExpResults new results = case results of
   []       -> new
-  [result] -> if String.startsWith "UNSAFE" result.description then
+  [result] -> if String.startsWith "[UNSAFE" result.description ||
+                 String.startsWith "[WARN" result.description then
                 { new | synthesisResults = [result] }
               else
                 -- TODO version of upstateRun to avoid unparse then re-parse
