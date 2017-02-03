@@ -1302,7 +1302,7 @@ onMouseDrag dragSource dragTarget m =
     (Just (Left sourcePat), Just (Left targetPat)) ->
       movePatToPat sourcePat targetPat new
     _ ->
-      m
+      new
 
 msgMoveExp = Msg "Move Exp" <| \m ->
   let selections =
