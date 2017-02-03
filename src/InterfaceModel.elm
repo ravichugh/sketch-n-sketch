@@ -142,7 +142,7 @@ type MouseMode
       --   for helper dot,        n == 0 or n == 1
       --   for lambda,            n == 0 or n == 2
 
-  | MouseDownInCodebox { x : Int, y : Int }
+  | MouseDownInCodebox Mouse.Position
 
 type alias MouseTrigger a = (Int, Int) -> a
 

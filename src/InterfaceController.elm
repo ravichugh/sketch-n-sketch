@@ -32,7 +32,6 @@ module InterfaceController exposing
   , msgMouseClickCodeBox
   , msgReceiveDotImage
   , msgMoveExp
-  , msgDrag
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -382,18 +381,13 @@ onMouseUp old =
 
     (_, MouseDownInCodebox downPos) -> 
       let oldPos = pixelPosition downPos old in 
-      let newPos = case old.mouseState of
-                      (_, upPos) -> pixelPosition upPos old in 
-
-      --let _ = Debug.log "item" (getItemToMove oldPos old) in
-      --let _ = Debug.log "target" (getTargetPosition newPos old) in
-
-      let drag = msgDrag (getItemToMove oldPos old) (getTargetPosition newPos old) in 
-      { old | mouseMode = MouseNothing } 
+      let newPos = pixelPosition (Tuple.second old.mouseState) old in
+      onMouseDrag (dragSource oldPos old) (dragTarget newPos old)
+        { old | mouseMode = MouseNothing }
 
     _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
 
-getItemToMove pixelPos m = 
+dragSource pixelPos m =
   let exp = getClickedEId (computeExpRanges m.inputExp) pixelPos in
   let pat = getClickedPat (findPats m.inputExp) pixelPos m in
   let item = case exp of 
@@ -403,7 +397,7 @@ getItemToMove pixelPos m =
                 Just eid  -> Just (Right eid) in
   item
 
-getTargetPosition pixelPos m = 
+dragTarget pixelPos m =
   let expTarget = getClickedExpTarget (computeExpTargets m.inputExp) pixelPos in 
   let patTarget = getClickedPatTarget (findPatTargets m.inputExp) pixelPos m in 
   let target = case List.head expTarget of 
@@ -1308,13 +1302,19 @@ getClickedPatTarget ls pixelPos m =
 msgReceiveDotImage s = Msg "Receive Image" <| \m ->
   { m | mode = Model.PrintScopeGraph (Just s) }
 
-
-msgDrag : Maybe (Either PatternId EId)
-       -> Maybe (Either PatTargetPosition ExpTargetPosition)
-       -> Msg
-msgDrag dragSource dragTarget = Msg "Deuce Drag" <| \m ->
-  -- TODO
-  m
+onMouseDrag
+    : Maybe (Either PatternId EId)
+   -> Maybe (Either PatTargetPosition ExpTargetPosition)
+   -> Model -> Model
+onMouseDrag dragSource dragTarget m =
+  let new = resetDeuceState m in
+  case (dragSource, dragTarget) of
+    (Just (Left sourcePat), Just (Right (0, targetId))) ->
+      movePatBeforeLet sourcePat targetId new
+    (Just (Left sourcePat), Just (Left targetPat)) ->
+      movePatToPat sourcePat targetPat new
+    _ ->
+      new
 
 msgMoveExp = Msg "Move Exp" <| \m ->
   let selections =
@@ -1334,18 +1334,27 @@ msgMoveExp = Msg "Move Exp" <| \m ->
   let {pats, patTargets, expTargets} = selections in
   case (pats, patTargets, expTargets) of
 
-    ([source], [], [(0, targetId)]) ->
-      updateWithMoveExpResults new <|
-        CodeMotion.moveDefinitionBeforeLet m.scopeGraph source targetId m.inputExp
+    ([sourcePat], [], [(0, targetId)]) ->
+      movePatBeforeLet sourcePat targetId new
 
-    ([source], target :: targets, []) ->
-      if not (singleLogicalTarget target targets) then bad ()
-      else
-        updateWithMoveExpResults new <|
-          CodeMotion.moveDefinitionPat m.scopeGraph source target m.inputExp
+    ([sourcePat], targetPat :: targetPats, []) ->
+      movePatToPat_ bad sourcePat targetPat targetPats new
 
     _ ->
       bad ()
+
+movePatBeforeLet sourcePat targetId m =
+  updateWithMoveExpResults m <|
+    CodeMotion.moveDefinitionBeforeLet m.scopeGraph sourcePat targetId m.inputExp
+
+movePatToPat sourcePat targetPat m =
+  updateWithMoveExpResults m <|
+    CodeMotion.moveDefinitionPat m.scopeGraph sourcePat targetPat m.inputExp
+
+movePatToPat_ bad sourcePat targetPat targetPats m =
+ if singleLogicalTarget targetPat targetPats
+   then movePatToPat sourcePat targetPat m
+   else bad ()
 
 updateWithMoveExpResults new results = case results of
   []       -> new
