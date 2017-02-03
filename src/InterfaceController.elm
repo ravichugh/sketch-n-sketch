@@ -719,15 +719,19 @@ msgKeyPress keyCode = Msg ("Key Press " ++ toString keyCode) <| \old ->
 
 msgKeyDown keyCode = Msg ("Key Down " ++ toString keyCode) <| \old ->
   if [keyCode] == Keys.escape then
+    let new = {old | selectedPats = Set.empty,
+                     selectedEIds = Set.empty,
+                     selectedExpTargets = Set.empty,
+                     selectedPatTargets = Set.empty} in 
     case (old.tool, old.mouseMode) of
       (Cursor, _) ->
-        { old | selectedFeatures = Set.empty
+        { new | selectedFeatures = Set.empty
               , selectedShapes = Set.empty
               , selectedBlobs = Dict.empty
               }
-      (_, MouseNothing)   -> { old | tool = Cursor }
-      (_, MouseDrawNew _) -> { old | mouseMode = MouseNothing }
-      _                   -> old
+      (_, MouseNothing)   -> { new | tool = Cursor }
+      (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
+      _                   -> new 
   else if [keyCode] == Keys.shift then
     let codeBoxInfo = old.codeBoxInfo in
     let new = { old | keysDown = keyCode :: old.keysDown} in
