@@ -1214,43 +1214,51 @@ msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->
         }
 
 msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
-  let codeBoxInfo = m.codeBoxInfo in
-  let mousePos = case m.mouseState of 
-                  (b, pos) -> pos in
-  let pixelPos = pixelPosition mousePos m in 
-  let selectedEIds =
-    case getClickedEId (computeExpRanges m.inputExp) pixelPos of
-      Nothing  -> m.selectedEIds
-      Just eid -> if Set.member eid m.selectedEIds
-                  then Set.remove eid m.selectedEIds
-                  else Set.insert eid m.selectedEIds
-  in
-  let selectedExpTargets =
-    case getClickedExpTarget (computeExpTargets m.inputExp) pixelPos of
-      [] -> m.selectedExpTargets
-      ls -> getSetMembers ls m.selectedExpTargets 
-  in 
-  let selectedPats = 
-    case getClickedPat (findPats m.inputExp) pixelPos m of
-      Nothing  -> m.selectedPats
-      Just s -> if Set.member s m.selectedPats
-                  then Set.remove s m.selectedPats
-                  else Set.insert s m.selectedPats
-  in
-  let selectedPatTargets = 
-    case getClickedPatTarget (findPatTargets m.inputExp) pixelPos m of
-      [] -> m.selectedPatTargets
-      ls -> getSetMembers ls m.selectedPatTargets
-  in
-  let new = { m | selectedEIds = selectedEIds 
-                , selectedPats = selectedPats
-                , selectedPatTargets = selectedPatTargets
-                , selectedExpTargets = selectedExpTargets } in
-  { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new ++ 
-                                                     expTargetsToHighlights new ++ 
-                                                     patRangesToHighlights new ++ 
-                                                     patTargetsToHighlights new }
-        }
+  let downPos = case m.mouseMode of 
+                  MouseDownInCodebox downPos -> downPos
+                  _                          -> { x = 0 , y = 0} in 
+  let pos = case m.mouseState 
+              of (_, p) -> p in 
+  if downPos /= pos 
+    then m 
+  else 
+    let codeBoxInfo = m.codeBoxInfo in
+    let mousePos = case m.mouseState of 
+                    (b, pos) -> pos in
+    let pixelPos = pixelPosition mousePos m in 
+    let selectedEIds =
+      case getClickedEId (computeExpRanges m.inputExp) pixelPos of
+        Nothing  -> m.selectedEIds
+        Just eid -> if Set.member eid m.selectedEIds
+                    then Set.remove eid m.selectedEIds
+                    else Set.insert eid m.selectedEIds
+    in
+    let selectedExpTargets =
+      case getClickedExpTarget (computeExpTargets m.inputExp) pixelPos of
+        [] -> m.selectedExpTargets
+        ls -> getSetMembers ls m.selectedExpTargets 
+    in 
+    let selectedPats = 
+      case getClickedPat (findPats m.inputExp) pixelPos m of
+        Nothing  -> m.selectedPats
+        Just s -> if Set.member s m.selectedPats
+                    then Set.remove s m.selectedPats
+                    else Set.insert s m.selectedPats
+    in
+    let selectedPatTargets = 
+      case getClickedPatTarget (findPatTargets m.inputExp) pixelPos m of
+        [] -> m.selectedPatTargets
+        ls -> getSetMembers ls m.selectedPatTargets
+    in
+    let new = { m | selectedEIds = selectedEIds 
+                  , selectedPats = selectedPats
+                  , selectedPatTargets = selectedPatTargets
+                  , selectedExpTargets = selectedExpTargets } in
+    { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new ++ 
+                                                       expTargetsToHighlights new ++ 
+                                                       patRangesToHighlights new ++ 
+                                                       patTargetsToHighlights new }
+          }
 
 getSetMembers ls s = 
   case ls of
