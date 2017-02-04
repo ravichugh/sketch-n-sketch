@@ -5,6 +5,7 @@ port module DependenceGraph exposing
   , parentScopeOf, childScopesOf
   , lookupIdent
   , compute, printHtml, render, receiveImage
+  , checkVisible
   , patternTransitivelyDependsOnScope
   , usedOnTheWayDownTo
   )
@@ -27,6 +28,8 @@ type alias LetOrFun = Bool -- True for ELet, False for EFun
 
 type alias PatternId = (ScopeId, List Int)
 
+type alias VarBindings = Dict Ident (List PatternId)
+
 type alias ScopeGraph =
   { scopeNodes   : Dict ScopeId (LetOrFun, Set PatternId)
   , idents       : Dict PatternId Ident
@@ -40,6 +43,9 @@ type alias ScopeGraph =
   , dependenciesSP : Dict ScopeId (Set PatternId)
   , dependenciesSS : Dict ScopeId (Set ScopeId)
       -- pre-computing the last three (don't necessarily need the last...)
+
+  , varBindingsBefore : Dict ScopeId VarBindings
+  , varBindingsAfter  : Dict ScopeId VarBindings
 
   , usedVars     : Set PatternId
       -- used temporarily while computing dependencies
@@ -134,8 +140,18 @@ addScopeEdge newScopeId currentScopeId acc =
      , children = Utils.dictAddToSet currentScopeId newScopeId acc.children
      }
 
-resolve x env =
-  case Dict.get x env.varBindings of
+addVarBindingsBefore scopeId varBindings acc =
+  { acc
+     | varBindingsBefore = Dict.insert scopeId varBindings acc.varBindingsBefore
+     }
+
+addVarBindingsAfter scopeId varBindings acc =
+  { acc
+     | varBindingsAfter = Dict.insert scopeId varBindings acc.varBindingsAfter
+     }
+
+resolve x varBindings =
+  case Dict.get x varBindings of
     Just (patId :: _) -> Just patId
     _                 -> Nothing -- should only be for library funcs
 
@@ -212,7 +228,7 @@ compareScope sg i j =
 type alias Env =
   { currentScope  : ScopeId
   , currentScopes : Set ScopeId
-  , varBindings   : Dict Ident (List PatternId)
+  , varBindings   : VarBindings
   }
 
 rootId : ScopeId
@@ -239,6 +255,8 @@ compute e =
     , dependenciesPS = Dict.empty
     , dependenciesSP = Dict.empty
     , dependenciesSS = Dict.empty
+    , varBindingsBefore = Dict.empty
+    , varBindingsAfter = Dict.empty
     , usedVars = Set.empty
     }
 
@@ -252,29 +270,31 @@ traverse env exp acc =
   case exp.val.e__ of
 
     ELet _ _ _ p e1 e2 _ ->
-      let acc1 =
-        acc |> addScopeNode newScopeId True
-            |> addScopeEdge newScopeId env.currentScope
-            |> foldPatternsWithIds addVarNode (newScopeId, []) [p]
-            |> traverseAndAddDependencies newScopeId env p e1
-      in
       let env1 = updateEnv newScopeId [p] env in
-      traverse env1 e2 acc1
+      acc
+        |> addScopeNode newScopeId True
+        |> addScopeEdge newScopeId env.currentScope
+        |> foldPatternsWithIds addVarNode (newScopeId, []) [p]
+        |> traverseAndAddDependencies newScopeId env p e1
+        |> addVarBindingsBefore newScopeId env.varBindings
+        |> addVarBindingsAfter newScopeId env1.varBindings
+        |> traverse env1 e2
 
     EFun _ ps eBody _ ->
-      let acc1 =
-        acc |> addScopeNode newScopeId False
-            |> addScopeEdge newScopeId env.currentScope
-            |> foldPatternsWithIds addVarNode (newScopeId, []) ps
-      in
       let env1 = updateEnv newScopeId ps env in
-      traverse env1 eBody acc1
+      acc
+        |> addScopeNode newScopeId False
+        |> addScopeEdge newScopeId env.currentScope
+        |> foldPatternsWithIds addVarNode (newScopeId, []) ps
+        |> addVarBindingsBefore newScopeId env.varBindings
+        |> addVarBindingsAfter newScopeId env1.varBindings
+        |> traverse env1 eBody
 
     -- NOTE: may want to put resolved PatternIds into AST (annotated EVars).
     -- then it would be easier to break up analyses into multiple passes.
     --
     EVar _ x ->
-      case resolve x env of
+      case resolve x env.varBindings of
         Nothing -> acc
         Just id -> { acc | usedVars = Set.insert id acc.usedVars }
 
@@ -378,6 +398,72 @@ traverseAndAddDependencies_ patId env pat exp acc =
       acc |> clearUsed
           |> traverse env exp
           |> addConservativeDependencies
+
+
+------------------------------------------------------------------------------
+-- Scope Dependencies
+
+-- TODO look for capture, in addition to shadowing
+-- TODO handle case when sourcePat is above targetId
+-- TODO handle order in PLists
+
+-- TODO combine scope and transitive dependencies in one place here,
+--   and expose single safety check to CodeMotion. then scopeOrder
+--   can even remain internal.
+
+checkVisible scopeGraph x sourcePat targetId =
+  let (sourceId, _) = sourcePat in
+  let xBindingsAfterSource =
+    scopeGraph.varBindingsAfter
+      |> Dict.get sourceId
+      |> Maybe.withDefault Dict.empty
+      |> Dict.get x
+      |> Maybe.withDefault []
+  in
+  let xBindingsBeforeTarget =
+    scopeGraph.varBindingsBefore
+      |> Dict.get targetId
+      |> Maybe.withDefault Dict.empty
+      |> Dict.get x
+      |> Maybe.withDefault []
+  in
+  let capturedBy1 =
+    case xBindingsAfterSource of
+      [] -> Debug.crash "blah"
+      xHead :: xRest ->
+        if xHead /= sourcePat then
+          -- let _ = Debug.log "blah 2" (x, sourceId, xHead) in
+          Utils.nothing
+        else case xRest of
+          [] -> Utils.nothing
+          xNext :: _ ->
+            case scopeOrder scopeGraph targetId (Tuple.first xNext) of
+              ChildScope -> Utils.nothing
+              ParentScope ->
+                -- let _ = Debug.log "issue 1" (x, sourcePat, "captured by", xRest) in
+                Utils.just (sourcePat, xNext)
+              SameScope ->
+                -- let _ = Debug.log "issue 1" (x, sourcePat, "captured by", xRest) in
+                Utils.just (sourcePat, xNext)
+              order ->
+                -- let _ =  Debug.log "checkVisible 1 TODO" (targetId, xNext, order) in
+                Utils.nothing
+  in
+  let capturedBy2 =
+    case xBindingsBeforeTarget of
+      [] -> Utils.nothing
+      j::js ->
+        if sourcePat == j
+        then Utils.nothing
+        else
+          -- let _ = Debug.log "issue 2" (x, sourcePat, "captures another", j::js) in
+          Utils.just (j, sourcePat)
+  in
+  let scopeIssues = capturedBy1 ++ capturedBy2 in
+  if scopeIssues == [] then ""
+  else
+    -- let _ = Debug.log "scopeIssues" scopeIssues in
+    "[WARN shadowing] "
 
 
 ------------------------------------------------------------------------------
