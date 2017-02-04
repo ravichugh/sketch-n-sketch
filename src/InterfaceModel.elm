@@ -393,7 +393,18 @@ computeExpTargets e =
 shiftKeyPressed m = List.member Keys.keyShift m.keysDown
 showDeuceWidgets m = shiftKeyPressed m
 
-expRangesToHighlights m =
+betweenPos start pixelPos end =
+  (start.line <= pixelPos.row + 1) &&
+  (start.col <= pixelPos.column + 1) &&
+  (end.line >= pixelPos.row + 1) &&
+  (end.col > pixelPos.column + 1)
+
+hoveringItem start p end = 
+  case p of
+    Nothing   -> False 
+    Just pos  -> betweenPos start pos end  
+
+expRangesToHighlights m pos =
   let maybeHighlight (eid,start,end,selectStart,selectEnd) =
     let range =
       { start = { row = selectStart.line, column = selectStart.col }
@@ -401,7 +412,7 @@ expRangesToHighlights m =
     in
     if Set.member eid m.selectedEIds then
       [ { color = "orange", range = range } ]
-    else if showDeuceWidgets m then
+    else if showDeuceWidgets m || hoveringItem selectStart pos selectEnd then
       [ { color = "peachpuff", range = range } ]
     else
       []
@@ -410,7 +421,7 @@ expRangesToHighlights m =
     then List.concatMap maybeHighlight (computeExpRanges m.inputExp)
     else []
 
-expTargetsToHighlights m =
+expTargetsToHighlights m pos =
   let maybeHighlight (expTarget,selectStart,selectEnd) =
     let range =
       { start = { row = selectStart.line, column = selectStart.col }
@@ -418,7 +429,7 @@ expTargetsToHighlights m =
     in
     if Set.member expTarget m.selectedExpTargets then
       [ { color = "green", range = range } ]
-    else if showDeuceWidgets m then
+    else if showDeuceWidgets m || hoveringItem selectStart pos selectEnd then
       [ { color = "lightgreen", range = range } ]
     else
       []
@@ -427,7 +438,7 @@ expTargetsToHighlights m =
     then List.concatMap maybeHighlight (computeExpTargets m.inputExp)
     else []
 
-patRangesToHighlights m = 
+patRangesToHighlights m pos = 
   let maybeHighlight (pid,start,end,selectEnd) =
     let range =
       { start = { row = start.line, column = start.col }
@@ -435,7 +446,7 @@ patRangesToHighlights m =
     in
     if Set.member pid m.selectedPats then
       [ { color = "gold", range = range } ]
-    else if showDeuceWidgets m then
+    else if showDeuceWidgets m || hoveringItem start pos selectEnd then
       [ { color = "lightyellow", range = range } ]
     else
       []
@@ -444,7 +455,7 @@ patRangesToHighlights m =
     then List.concatMap maybeHighlight (findPats m.inputExp)
     else []
 
-patTargetsToHighlights m = 
+patTargetsToHighlights m pos = 
   let maybeHighlight (target,start,end) =
     let range =
       { start = { row = start.line, column = start.col }
@@ -452,7 +463,7 @@ patTargetsToHighlights m =
     in
     if Set.member target m.selectedPatTargets then
       [ { color = "green", range = range } ]
-    else if showDeuceWidgets m then
+    else if showDeuceWidgets m || hoveringItem start pos end then
       [ { color = "lightgreen", range = range } ]
     else
       []
