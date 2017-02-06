@@ -14,6 +14,7 @@ import Eval
 import Lang exposing (..)
 import LangParser2
 import Utils
+import LangUnparser
 
 import Dict
 import Set
@@ -134,6 +135,12 @@ allLocIds exp =
   |> List.map (\((locId, _, _), _) -> locId)
 
 
+justFindExpByEId : EId -> Exp -> Exp
+justFindExpByEId eid exp =
+  findExpByEId eid exp
+  |> Utils.fromJust__ (\() -> "Couldn't find eid " ++ toString eid ++ " in " ++ LangUnparser.unparseWithIds exp)
+
+
 -- Is the expression in the body of only defs/comments/options?
 --
 -- The "top level" is a single path on the tree, so walk it and look
@@ -178,6 +185,15 @@ identifiersVisibleAtProgramEnd : Exp -> Set.Set Ident
 identifiersVisibleAtProgramEnd program =
   let lastEId = (lastExp program).val.eid in
   visibleIdentifiersAtEIds program (Set.singleton lastEId)
+
+
+-- e.g. "rect1 x" for (def rect1 (let x = ... in ...) ...)
+locDescription program loc =
+  let (locId, _, ident) = loc in
+  let baseIdent = if ident == "" then "k"++(toString locId) else ident in
+  let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough program loc in
+  String.join " " (scopeNamesLiftedThrough ++ [baseIdent])
+
 
 -- Still needs to be rewritten to handle scopes created by case branches.
 --

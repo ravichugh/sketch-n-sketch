@@ -209,6 +209,7 @@ attributeToolBox model layout =
     [ relateButton model "Dig Hole" Controller.msgDigHole
     , relateButton model "Make Equal" Controller.msgMakeEqual
     , relateButton model "Relate" Controller.msgRelate
+    , relateButton model "Robot Revolution" Controller.msgRobotRevolution
     ]
 
 blobToolBox model layout =
@@ -627,7 +628,7 @@ strLambdaTool lambdaTool =
 dropdownLambdaTool model =
   let options =
     let (selectedIdx, exps) = model.lambdaTools in
-    Utils.mapi (\(i,lambdaTool) ->
+    Utils.mapi1 (\(i,lambdaTool) ->
       let s = strLambdaTool lambdaTool in
       Html.option
          [ Attr.value s, Attr.selected (i == selectedIdx) ]
@@ -637,7 +638,7 @@ dropdownLambdaTool model =
   let handler selected =
     Msg "Select Lambda Option" <| \model ->
       let (_, exps) = model.lambdaTools in
-      let indexedStrings = Utils.mapi (\(i,lt) -> (i, strLambdaTool lt)) exps in
+      let indexedStrings = Utils.mapi1 (\(i,lt) -> (i, strLambdaTool lt)) exps in
       let newSelectedIdx =
         case Utils.findFirst ((==) selected << Tuple.second) indexedStrings of
           Just (i, _) -> i

@@ -57,9 +57,7 @@ digHole originalExp selectedFeatures slate syncOptions =
     Set.toList locset
   in
   let subst = substOf originalExp in
-  let commonScope =
-    deepestCommonScope originalExp locset syncOptions
-  in
+  let commonScope = deepestCommonScopeByLocSet originalExp locset in
   let existingNames = identifiersSet originalExp in
   let locIdNameOrigNamePrime =
     let (_, result) =
@@ -166,6 +164,152 @@ digHole originalExp selectedFeatures slate syncOptions =
   newExp
 
 
+
+evalToSlateResult : Exp -> Int -> Int -> Float -> Result String LangSvg.RootedIndexedTree
+evalToSlateResult exp slideNumber movieNumber movieTime =
+  Eval.run exp |>
+  Result.andThen (\(val, _) -> LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val)
+
+
+getIndexedLocIdsWithTarget originalExp locsToRevolutionize =
+  let subst = substOf originalExp in
+  locsToRevolutionize
+  |> List.map (\(locId, frozen, ident) -> (locId, Utils.justGet_ "ValueBasedTransform.stormTheBastille sortedLocs" locId subst))
+  |> List.sortBy Tuple.second
+  |> Utils.mapi0 (\(i, (locId, targetNum))-> (i, locId, targetNum))
+
+
+indexLocId = -2
+
+
+robotRevolutionDistanceScore : Subst -> List (Int, LocId, Num) -> LocEquation -> Num
+robotRevolutionDistanceScore subst indexedLocIdsWithTarget locEqn =
+  let (_, _, targets) = Utils.unzip3 indexedLocIdsWithTarget in
+  let meanAbsoluteDeviation =
+    let absDevs =
+      Utils.zip targets (List.drop 1 targets)
+      |> List.map (\(a, b) -> b - a)
+    in
+    List.sum absDevs / toFloat (List.length absDevs)
+  in
+  let sumOfSquares =
+    indexedLocIdsWithTarget
+    |> List.map (\(i, _, target) -> locEqnEval (Dict.insert indexLocId (toFloat i) subst) locEqn - target)
+    |> List.map (\distance -> (distance / meanAbsoluteDeviation)^2)
+    |> List.sum
+  in
+  sumOfSquares / toFloat (List.length indexedLocIdsWithTarget)
+
+
+robotRevolution : Exp -> Set.Set ShapeWidgets.SelectedShapeFeature -> Set.Set NodeId -> Int -> Int -> Float -> Sync.Options -> List InterfaceModel.SynthesisResult
+robotRevolution originalExp selectedFeatures selectedShapes slideNumber movieNumber movieTime syncOptions =
+  case evalToSlateResult originalExp slideNumber movieNumber movieTime of
+    Err _    -> []
+    Ok slate ->
+      let (_, tree) = slate in
+      let featuresToRevolutionize =
+        if Set.size selectedFeatures > 0 then
+          Set.toList selectedFeatures
+        else
+          selectedShapes
+          |> Set.toList
+          |> List.concatMap
+              (\nodeId ->
+                let (kind, attrs) = LangSvg.justGetSvgNode "ValueBasedTransform.robotRevolution" nodeId slate in
+                ShapeWidgets.featuresOfShape kind attrs
+                |> List.concatMap ShapeWidgets.featureNumsOfFeature
+                |> List.map (ShapeWidgets.strFeatureNum kind)
+                |> List.take 1
+                |> List.map (\featureString -> (kind, nodeId, featureString))
+              )
+      in
+      let locsToRevolutionize =
+        let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
+        let featureEqns =
+          featuresToRevolutionize
+          |> List.map (\feature -> typeAndNodeIdAndFeatureToEquation feature tree locIdToNumberAndLoc)
+          |> Utils.projJusts
+          |> Maybe.withDefault []
+        in
+        let isRevolutionizable featureEqn =
+          List.length (equationLocs syncOptions featureEqn) == 1
+        in
+        if List.all isRevolutionizable featureEqns then
+          let locs =
+            featureEqns
+            |> List.concatMap (equationLocs syncOptions)
+          in
+          if locs == Utils.dedupByEquality locs then
+            locs
+          else
+            []
+        else
+          []
+      in
+      let subst = substOf originalExp in
+      let indexedLocIdsWithTarget = getIndexedLocIdsWithTarget originalExp locsToRevolutionize in
+      let possibleEqns = stormTheBastille subst indexedLocIdsWithTarget in
+      let (_, locIds, targets) = Utils.unzip3 indexedLocIdsWithTarget in
+      let locEIds =
+        locIds
+        |> List.map (\locId -> locIdToEId locId originalExp |> Utils.fromJust_ "ValueBasedTransform.liftLocsSoVisibleTo locEIds")
+      in
+      possibleEqns
+      |> List.map
+          (\eqn ->
+            let eqnLocIds = locEqnLocIdSet eqn in
+            let locsToLift =
+              locsToRevolutionize
+              |> List.filter (\(locId, _, _) -> Set.member locId eqnLocIds)
+            in
+            let (locsLifted, locIdToNewName) = liftLocsSoVisibleTo originalExp (Set.fromList locsToLift) (Set.fromList locEIds) in
+            let description =
+              let eqnDesc = unparse <| locEqnToExp Dict.empty (Dict.insert indexLocId "i" locIdToNewName) eqn in
+              let locDescs = locsToRevolutionize |> List.map (locDescription originalExp) in
+              "compute " ++ String.join ", " locDescs ++ " by " ++ eqnDesc
+            in
+            let newExp =
+              locEIds
+              |> Utils.foldli0
+                  (\(i, locEId) priorExp ->
+                    let eqnExp = locEqnToExp (Dict.singleton indexLocId (toFloat i)) locIdToNewName eqn in
+                    replaceExpNodeE__ByEId locEId eqnExp priorExp
+                  )
+                  locsLifted
+            in
+            let distanceScore = robotRevolutionDistanceScore subst indexedLocIdsWithTarget eqn in
+            { description = description
+            , exp         = newExp
+            , sortKey     = [distanceScore]
+            }
+          )
+
+
+-- Generate loc eqns that, given 0 1 2 3 etc, approximate the numbers at the given locations
+stormTheBastille : Subst -> List (Int, LocId, Num) -> List LocEquation
+stormTheBastille subst indexedLocIdsWithTarget =
+  let (_, locIds, _) = Utils.unzip3 indexedLocIdsWithTarget in
+  let locIdsAndIndex = indexLocId::locIds in
+  let distanceScore locEqn = robotRevolutionDistanceScore subst indexedLocIdsWithTarget locEqn in
+  let eqnsOfSize astSize =
+    locEqnsTemplatesOfSize 1 2 astSize
+    |> List.concatMap (locEqnTemplateLocFillings locIdsAndIndex)
+    |> List.map
+        (\locsFilledTemplate ->
+          -- if atMostNConstants 0 locsFilledTemplate then
+          --   locsFilledTemplate
+          -- else
+          locEqnTemplateConstantFillings littleConstants locsFilledTemplate
+          |> List.sortBy distanceScore
+          |> Utils.head "ValueBasedTransform.stormTheBastille constantFillingRanking"
+        )
+    |> List.filter (\locEqn -> distanceScore locEqn < 0.2^2)
+    |> List.map normalizeSimplify
+    |> List.filter (\locEqn -> locEqnSize locEqn >= astSize) -- Equation was not simplified.
+  in
+  List.concatMap eqnsOfSize (List.range 1 5)
+
+
 type RelateType
   = Equalize
   | Relate
@@ -252,13 +396,7 @@ relateOverlappingPairs relateType priorResults features slideNumber movieNumber 
       |> List.concatMap
           (\{description, exp, sortKey, dependentLocIds} ->
             let priorExp = exp in
-            let slateRes =
-              Eval.run priorExp |>
-              Result.andThen (\(val, _) ->
-                  LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val
-                )
-            in
-            case slateRes of
+            case evalToSlateResult priorExp slideNumber movieNumber movieTime of
               Err s -> []
               Ok slate ->
                 let newResults =
@@ -414,11 +552,7 @@ relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
   in
   let solutionsForLoc dependentLoc =
     let (dependentLocId, dependentFrozen, dependentIdent) = dependentLoc in
-    let dependentIdentDesc =
-      let baseIdent = if dependentIdent == "" then "k"++(toString dependentLocId) else dependentIdent in
-      let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough originalExp dependentLoc in
-      String.join " " (scopeNamesLiftedThrough ++ [baseIdent])
-    in
+    let dependentIdentDesc = locDescription originalExp dependentLoc in
     case relateType of
       Equalize ->
         case solveForLoc dependentLocId frozenLocIdToNum subst featureAEqn featureBEqn of
@@ -456,20 +590,14 @@ relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
             then diff == 0
             else abs (diff / targetValue) < 0.2
         in
-        -- Template must have at least one place for a variable
-        -- and at most one place for a constant
-        let isGoodShape locEqn =
-          Set.size (locEqnLocIdSet locEqn) > 0 && List.length (locEqnConsts locEqn) <= 1
-        in
         -- let maxResults = 10 in
         let synthesizeMore astSize results =
           if False then -- List.length results >= maxResults then
             results
           else
-            let eqnTemplates = locEqnsTemplatesOfSize astSize |> List.filter isGoodShape in
             -- let newEqns = locEqnsOfSize astSize indepLocs |> List.filter isGoodEnough in
             let newEqns =
-              eqnTemplates
+              locEqnsTemplatesOfSize 1 1 astSize
               |> List.concatMap (\template -> locEqnTemplateFillings targetValue subst independentLocIdSet template)
               |> List.filter isGoodEnough
               |> List.map normalizeSimplify
@@ -491,9 +619,7 @@ relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
             let locIdSet = Set.insert dependentLocId <| locEqnLocIdSet resultLocEqn in
             -- Consequently, we don't need to dig out higher than the frozen locs.
             let locsetToDig = Set.filter (\(locId, _, _) -> Set.member locId locIdSet) unfrozenLocset in
-            let commonScope =
-              deepestCommonScope originalExp locsetToDig syncOptions
-            in
+            let commonScope = deepestCommonScopeByLocSet originalExp locsetToDig in
             let existingNames = identifiersSet originalExp in
             let independentLocs =
               locsetToDig
@@ -562,15 +688,82 @@ relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
           )
       )
 
-deepestCommonScope : Exp -> LocSet -> Sync.Options -> Exp
-deepestCommonScope exp locset syncOptions =
+
+liftLocsSoVisibleTo : Exp -> Set.Set Loc -> Set.Set EId -> (Exp, Dict.Dict LocId Ident)
+liftLocsSoVisibleTo originalExp mobileLocset observerEIds =
+  let isPredecessor exp =
+    let isMobileLoc =
+      case exp.val.e__ of
+        EConst ws n loc wd -> Set.member loc mobileLocset
+        _                  -> False
+    in
+    isMobileLoc || Set.member exp.val.eid observerEIds
+  in
+  let commonScope = deepestCommonScope originalExp isPredecessor in
+  let locs = Set.toList mobileLocset in
+  let locIds = List.map (\(locId, _, _) -> locId) locs in
+  let locEIds =
+    locIds
+    |> List.map (\locId -> locIdToEId locId originalExp |> Utils.fromJust_ "ValueBasedTransform.liftLocsSoVisibleTo locEIds")
+  in
+  let eids = Set.union (Set.fromList locEIds) observerEIds in
+  let existingNames = visibleIdentifiersAtEIds originalExp eids in
+  let (_, locIdToNewName) =
+    List.foldr
+        (\(locId, _, ident) (usedNames, locIdToNewName) ->
+          let baseIdent = if ident == "" then "k"++(toString locId) else ident in
+          let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough commonScope (locId, frozen, ident) in
+          let scopesAndBaseIdent = String.join "_" (scopeNamesLiftedThrough ++ [baseIdent]) in
+          let ident =
+            if scopesAndBaseIdent == baseIdent
+            then nonCollidingName (baseIdent ++ "_orig") 2 usedNames
+            else nonCollidingName scopesAndBaseIdent 2 usedNames
+          in
+          (
+            Set.insert ident usedNames,
+            Dict.insert locId ident locIdToNewName
+          )
+        )
+        (existingNames, Dict.empty)
+        (Set.toList mobileLocset)
+  in
+  let locNames =
+    locIds
+    |> List.map
+        (\locId ->
+          Utils.justGet_ "ValueBasedTransform.liftLocsSoVisibleTo locNames" locId locIdToNewName
+        )
+  in
+  let locExps =
+    locIds
+    |> List.map (\locId -> findExpByLocId locId commonScope |> Utils.fromJust_ "ValueBasedTransform.liftLocsSoVisibleTo locExps")
+    |> List.map scrubEId
+  in
+  let listOfListsOfNamesAndAssigns = [ Utils.zip locNames locExps ] in
+  let newExp =
+    variableifyConstantsAndWrapTargetExpWithLets
+        locIdToNewName
+        listOfListsOfNamesAndAssigns
+        commonScope
+        originalExp
+  in
+  (newExp, locIdToNewName)
+
+
+deepestCommonScopeByLocSet : Exp -> LocSet -> Exp
+deepestCommonScopeByLocSet exp locset =
   let isLocsetNode exp =
     case exp.val.e__ of
       EConst ws n loc wd -> Set.member loc locset
       _                  -> False
   in
+  deepestCommonScope exp isLocsetNode
+
+
+deepestCommonScope : Exp -> (Exp -> Bool) -> Exp
+deepestCommonScope exp pred =
   let locsAncestors = -- debugLog "locsAncestors" <|
-    findAllWithAncestors isLocsetNode exp
+    findAllWithAncestors pred exp
   in
   -- isScope needs to see the node's parent...because case statements
   -- produce many scopes out of one expression
@@ -625,7 +818,7 @@ variableifyConstantsAndWrapTargetExpWithLets locIdToNewName listOfListsOfNamesAn
   -- Debug only:
   -- let _ = debugLog "wrappedTargetExp" <| unparse wrappedTargetExp in
   let newProgram =
-    replaceExpNode targetExp wrappedTargetExp program
+    replaceExpNodeE__ targetExp wrappedTargetExp program
     |> freshen
   in
   newProgram
@@ -650,7 +843,7 @@ wrapWithLets listOfListsOfNamesAndAssigns isTopLevel bodyExp =
     [] ->
       bodyExp
 
-    firstLetNamesAndAssigns::laterLetNamesAndAssigns ->
+    _::_ ->
       let oldPrecedingWhitespace = precedingWhitespace bodyExp in
       -- Insure one newline after first let
       let extraWhitespace =
@@ -665,7 +858,7 @@ wrapWithLets listOfListsOfNamesAndAssigns isTopLevel bodyExp =
       let preceedingWs = extraWhitespace ++ limitedOldPrecedingWhitespace in
       let letOrDef = if isTopLevel then Def else Let in
       let wrappedWithLets =
-        listOfListsOfNamesAndAssigns
+        nonEmptyListOfListsOfNamesAndAssigns
         |> List.foldr
             (\letNamesAndAssigns innerExp ->
               eLetOrDef letOrDef letNamesAndAssigns innerExp
@@ -744,7 +937,7 @@ typeAndNodeIdAndFeatureToEquation (selectedType, nodeId, featureName) tree locId
   if selectedType == ShapeWidgets.selectedTypeShapeFeature then
     case Dict.get nodeId tree of
       Just (LangSvg.SvgNode kind nodeAttrs _) ->
-        Just (ShapeWidgets.featureEquation nodeId kind featureName nodeAttrs)
+        Just (ShapeWidgets.featureEquation kind featureName nodeAttrs)
 
       Just (LangSvg.TextNode _) ->
         Nothing

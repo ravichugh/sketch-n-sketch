@@ -364,10 +364,10 @@ mapExp f e =
   let (newExp, _) = mapFoldExp (\exp _ -> (f exp, ())) () e in
   newExp
 
+-- Preserves EIds
 mapExpViaExp__ : (Exp__ -> Exp__) -> Exp -> Exp
 mapExpViaExp__ f e =
-  let wrap e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
-  let f_ exp = wrap (f exp.val.e__) in
+  let f_ exp = replaceE__ exp (f exp.val.e__) in
   mapExp f_ e
 
 mapVal : (Val -> Val) -> Val -> Val
@@ -396,10 +396,25 @@ foldExpViaE__ f acc exp =
   let f_ exp = f exp.val.e__ in
   foldExp f_ acc exp
 
-replaceExpNode : Exp -> Exp -> Exp -> Exp
-replaceExpNode oldNode newNode root =
-  let esubst = Dict.singleton oldNode.val.eid newNode.val.e__ in
+replaceExpNode : EId -> Exp -> Exp -> Exp
+replaceExpNode eid newNode root =
+  mapExp
+      (\exp ->
+        if exp.val.eid == eid
+        then newNode
+        else exp
+      )
+      root
+
+replaceExpNodeE__ : Exp -> Exp -> Exp -> Exp
+replaceExpNodeE__ oldNode newNode root =
+  replaceExpNodeE__ByEId oldNode.val.eid newNode root
+
+replaceExpNodeE__ByEId : EId -> Exp -> Exp -> Exp
+replaceExpNodeE__ByEId eid newNode root =
+  let esubst = Dict.singleton eid newNode.val.e__ in
   applyESubst esubst root
+
 
 mapType : (Type -> Type) -> Type -> Type
 mapType f tipe =
@@ -465,6 +480,12 @@ findExpByEId : EId -> Exp -> Maybe Exp
 findExpByEId targetEId program =
   findFirstNode (\exp -> exp.val.eid == targetEId) program
 
+-- justFindExpByEId is in LangTools (it needs the unparser for error messages).
+-- LangTools.justFindExpByEId : Exp -> EId -> Exp
+-- LangTools.justFindExpByEId exp eid =
+--   findExpByEId exp eid
+--   |> Utils.fromJust__ (\() -> "Couldn't find eid " ++ toString eid ++ " in " ++ unparseWithIds exp)
+
 findExpByLocId : LocId -> Exp -> Maybe Exp
 findExpByLocId targetLocId program =
   let isTarget exp =
@@ -473,6 +494,10 @@ findExpByLocId targetLocId program =
       _                          -> False
   in
   findFirstNode isTarget program
+
+locIdToEId : LocId -> Exp -> Maybe EId
+locIdToEId locId program =
+  findExpByLocId locId program |> Maybe.map (.val >> .eid)
 
 
 -- For each node for which `predicate` returns True, return it and its ancestors
@@ -546,8 +571,8 @@ applySubst : TwoSubsts -> Exp -> Exp
 applySubst subst exp =
   let replacer =
     (\e ->
-      let e__ = e.val.e__ in
       let e__ConstReplaced =
+        let e__ = e.val.e__ in
         case e__ of
           EConst ws n loc wd ->
             let locId = Utils.fst3 loc in
@@ -563,7 +588,7 @@ applySubst subst exp =
           Just e__New -> e__New
           Nothing     -> e__ConstReplaced
       in
-      P.WithInfo (Exp_ e__New e.val.eid) e.start e.end
+      replaceE__ e e__New
     )
   in
   mapExp replacer exp
@@ -676,6 +701,11 @@ withDummyPos e__  = P.WithInfo (exp_ e__) P.dummyPos P.dummyPos
 
 replaceE__ : Exp -> Exp__ -> Exp
 replaceE__ e e__ = let e_ = e.val in { e | val = { e_ | e__ = e__ } }
+
+replaceEId : Exp -> EId -> Exp
+replaceEId e eid = let e_ = e.val in { e | val = { e_ | eid = eid } }
+
+scrubEId e =  replaceEId e -1
 
 dummyLoc_ b = (0, b, "")
 dummyTrace_ b = TrLoc (dummyLoc_ b)
@@ -906,8 +936,8 @@ mapPrecedingWhitespace mapWs exp =
       EColonType ws1 e ws2 tipe ws3       -> EColonType (mapWs ws1) e ws2 tipe ws3
       ETypeAlias ws1 pat tipe e ws2       -> ETypeAlias (mapWs ws1) pat tipe e ws2
   in
-  let val = exp.val in
-  { exp | val = { val | e__ = e__New } }
+  replaceE__ exp e__New
+
 
 cleanupListWhitespace : String -> List Exp -> List Exp
 cleanupListWhitespace sepWs exps =

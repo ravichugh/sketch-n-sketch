@@ -269,11 +269,11 @@ computeSelectedBlobsAndBounds model =
          -- refactor the following cases for readability
 
          Just (LangSvg.SvgNode "BOX" nodeAttrs _) ->
-           let get attr = LangSvg.findNumishAttr nodeId attr nodeAttrs in
+           let get attr = LangSvg.findNumishAttr attr nodeAttrs in
            (get "LEFT", get "TOP", get "RIGHT", get "BOT")
 
          Just (LangSvg.SvgNode "OVAL" nodeAttrs _) ->
-           let get attr = LangSvg.findNumishAttr nodeId attr nodeAttrs in
+           let get attr = LangSvg.findNumishAttr attr nodeAttrs in
            (get "LEFT", get "TOP", get "RIGHT", get "BOT")
 
          Just (LangSvg.SvgNode "g" nodeAttrs _) ->
@@ -282,24 +282,24 @@ computeSelectedBlobsAndBounds model =
              Nothing     -> Debug.crash "computeSelectedBlobsAndBounds"
 
          Just (LangSvg.SvgNode "line" nodeAttrs _) ->
-           let get attr = LangSvg.findNumishAttr nodeId attr nodeAttrs in
+           let get attr = LangSvg.findNumishAttr attr nodeAttrs in
            let (x1,y1,x2,y2) = (get "x1", get "y1", get "x2", get "y2") in
            (minNumTr x1 x2, minNumTr y1 y2, maxNumTr x1 x2, maxNumTr y1 y2)
 
          -- "ellipse" and "circle" aren't handled nicely by grouping
 
          Just (LangSvg.SvgNode "ellipse" nodeAttrs _) ->
-           let get attr = LangSvg.findNumishAttr nodeId attr nodeAttrs in
+           let get attr = LangSvg.findNumishAttr attr nodeAttrs in
            let (cx,cy,rx,ry) = (get "cx", get "cy", get "rx", get "ry") in
            (minusNumTr cx rx, minusNumTr cy ry, plusNumTr cx rx, plusNumTr cy ry)
 
          Just (LangSvg.SvgNode "circle" nodeAttrs _) ->
-           let get attr = LangSvg.findNumishAttr nodeId attr nodeAttrs in
+           let get attr = LangSvg.findNumishAttr attr nodeAttrs in
            let (cx,cy,r) = (get "cx", get "cy", get "r") in
            (minusNumTr cx r, minusNumTr cy r, plusNumTr cx r, plusNumTr cy r)
 
          Just (LangSvg.SvgNode "rect" nodeAttrs _) ->
-           let get attr = LangSvg.findNumishAttr nodeId attr nodeAttrs in
+           let get attr = LangSvg.findNumishAttr attr nodeAttrs in
            let (x,y,width,height) = (get "x", get "y", get "width", get "height") in
            (x, y, plusNumTr x width, plusNumTr y height)
 
@@ -387,7 +387,7 @@ groupSelectedBlobsAround model (defs, blobs, f) (anchorId, anchorPointFeature) =
 
   -- TODO
   -- simple approach: anchor must be a primitive point
-  case ShapeWidgets.getPointEquations anchorId anchorKind anchorAttrs anchorPointFeature of
+  case ShapeWidgets.getPointEquations anchorKind anchorAttrs anchorPointFeature of
     (ShapeWidgets.EqnNum (nxBase, txBase), ShapeWidgets.EqnNum (nyBase, tyBase)) ->
 
       -- simple approach: anchor point must be defined by constant literals
@@ -840,7 +840,7 @@ deleteSelectedBlobs model =
   case mainExp of
     Blobs blobs f ->
       let blobs_ =
-        Utils.filteri
+        Utils.filteri1
            (\(i,_) -> not (Dict.member i model.selectedBlobs))
            blobs
       in

@@ -915,71 +915,54 @@ solveForConst subst eqn eqnTargetValue =
   solveForLocValue -2 subst (locifyConstant eqn) eqnTargetValue
 
 
+littleConstants = -- From stats of all our little programs so far.
+      [ 0
+      , 1
+      , 2
+      , 10
+      , 3
+      , 20
+      , 50
+      , 4
+      , 300
+      , 5
+      , 0.5
+      , 100
+      , 200
+      , 30
+      , 60
+      , 80
+      , 15
+      , 360
+      , 180
+      , 120
+      , 6
+      , 150
+      , 40
+      , 8
+      ]
+
 -- Fill in template with all combinations of locId's in the various locations.
 -- Then choose a single best number for filling in a constant.
 -- (Expects no more than one constant.)
 locEqnTemplateFillings targetValue subst locIdSet template =
-  let constants =
-    [ 0
-    , 1
-    , 2
-    , 10
-    , 3
-    , 20
-    , 50
-    , 4
-    , 300
-    , 5
-    , 0.5
-    , 100
-    , 200
-    , 30
-    , 60
-    , 80
-    , 15
-    , 360
-    , 180
-    , 120
-    , 6
-    , 150
-    , 40
-    , 8
-    ]
-  in
-  let locFillings locs eqn =
-    case eqn of
-      LocEqnConst _        -> [eqn]
-      LocEqnLoc _          -> List.map LocEqnLoc locs
-      LocEqnOp op children ->
-        children
-        |> List.foldl
-          (\child priorCombos ->
-            let thisChildFillings = locFillings locs child in
-            thisChildFillings
-            |> List.concatMap (\childFilling -> priorCombos |> List.map (\priorArgs -> priorArgs ++ [childFilling]))
-          )
-          [[]]
-        |> List.map (LocEqnOp op)
-  in
-  let fillInConstant const eqn =
-    case eqn of
-      LocEqnConst _        -> LocEqnConst const
-      LocEqnLoc _          -> eqn
-      LocEqnOp op children -> LocEqnOp op (List.map (fillInConstant const) children)
-
-  in
-  let allLocFillings = locFillings (locIdSet |> Set.toList) template in
+  let allLocFillings = locEqnTemplateLocFillings (locIdSet |> Set.toList) template in
   let filledWithNiceNumber =
     allLocFillings
     |> List.map
         (\locFilledEqn ->
-          constants
-          |> List.map (\const -> fillInConstant const locFilledEqn)
+          locEqnTemplateConstantFillings littleConstants locFilledEqn
           |> List.sortBy (\eqn -> abs (locEqnEval subst eqn - targetValue))
           |> Utils.head "LocEqn.locEqnTemplateFillings ranking"
         )
   in
   let filledWithExactNumber =
+    let fillInConstant const eqn =
+      case eqn of
+        LocEqnConst _        -> LocEqnConst const
+        LocEqnLoc _          -> eqn
+        LocEqnOp op children -> LocEqnOp op (List.map (fillInConstant const) children)
+    in
     allLocFillings
     |> List.filterMap
         (\locFilledEqn ->
@@ -995,14 +978,55 @@ locEqnTemplateFillings targetValue subst locIdSet template =
   filledWithNiceNumber ++ filledWithExactNumber
 
 
+locEqnTemplateLocFillings : List LocId -> LocEquation -> List LocEquation
+locEqnTemplateLocFillings locIds eqn =
+  case eqn of
+    LocEqnConst _        -> [eqn]
+    LocEqnLoc _          -> List.map LocEqnLoc locIds
+    LocEqnOp op children ->
+      children
+      |> List.foldl
+        (\child priorCombos ->
+          let thisChildFillings = locEqnTemplateLocFillings locIds child in
+          thisChildFillings
+          |> List.concatMap (\childFilling -> priorCombos |> List.map (\priorArgs -> priorArgs ++ [childFilling]))
+        )
+        [[]]
+      |> List.map (LocEqnOp op)
+
+
+locEqnTemplateConstantFillings : List Num -> LocEquation -> List LocEquation
+locEqnTemplateConstantFillings constants eqn =
+  case eqn of
+    LocEqnConst _        -> List.map LocEqnConst constants
+    LocEqnLoc _          -> [eqn]
+    LocEqnOp op children ->
+      children
+      |> List.foldl
+        (\child priorCombos ->
+          let thisChildFillings = locEqnTemplateConstantFillings constants child in
+          thisChildFillings
+          |> List.concatMap (\childFilling -> priorCombos |> List.map (\priorArgs -> priorArgs ++ [childFilling]))
+        )
+        [[]]
+      |> List.map (LocEqnOp op)
+
+
+atLeastNLocs     n template = Set.size (locEqnLocIdSet template) >= n
+atMostNConstants n template = List.length (locEqnConsts template) <= n
+
 -- Templates for synthesis:
 -- Returns all terms of a certain shape.
 -- Exact numberic values and variables will be filled in later.
-locEqnsTemplatesOfSize astSize =
+locEqnsTemplatesOfSize minLocs maxConsts astSize =
+  locEqnsTemplatesOfSize_ astSize
+  |> List.filter (atLeastNLocs minLocs)
+  |> List.filter (atMostNConstants maxConsts)
+
+locEqnsTemplatesOfSize_ astSize =
   if astSize < 1 then
     []
   else if astSize == 1 then
-    -- From stats of all our little programs so far.
     [ LocEqnConst -1, LocEqnLoc -1 ]
   else if astSize == 2 then
     -- No unops in LocEqns yet
@@ -1012,10 +1036,10 @@ locEqnsTemplatesOfSize astSize =
     |> List.concatMap (\op ->
       (List.range 1 (astSize - 2))
       |> List.concatMap (\leftSize ->
-        locEqnsTemplatesOfSize leftSize
+        locEqnsTemplatesOfSize_ leftSize
         |> List.concatMap (\leftEqn ->
           let rightSize = astSize - leftSize - 1 in
-          locEqnsTemplatesOfSize rightSize
+          locEqnsTemplatesOfSize_ rightSize
           |> List.map (\rightEqn ->
             LocEqnOp op [leftEqn, rightEqn]
           )

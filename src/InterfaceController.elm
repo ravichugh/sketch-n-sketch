@@ -9,7 +9,7 @@ module InterfaceController exposing
   , msgRun, upstateRun, msgTryParseRun
   , msgAceUpdate
   , msgUndo, msgRedo, msgCleanCode
-  , msgDigHole, msgMakeEqual, msgRelate
+  , msgDigHole, msgMakeEqual, msgRelate, msgRobotRevolution
   , msgSelectSynthesisResult, msgClearSynthesisResults
   , msgPreview, msgClearPreview
   , msgGroupBlobs, msgDuplicateBlobs, msgMergeBlobs, msgAbstractBlobs
@@ -742,6 +742,19 @@ msgRelate = Msg "Relate" <| \old ->
     ValueBasedTransform.relate
         old.inputExp
         old.selectedFeatures
+        old.slideNumber
+        old.movieNumber
+        old.movieTime
+        old.syncOptions
+  in
+  { old | synthesisResults = List.map cleanSynthesisResult synthesisResults |> Utils.dedupBy (.exp >> unparse) }
+
+msgRobotRevolution = Msg "Robot Revolution" <| \old ->
+  let synthesisResults =
+    ValueBasedTransform.robotRevolution
+        old.inputExp
+        old.selectedFeatures
+        old.selectedShapes
         old.slideNumber
         old.movieNumber
         old.movieTime

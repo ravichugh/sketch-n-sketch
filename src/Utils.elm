@@ -61,7 +61,6 @@ unzip3 zipped =
       zipped
 
 
-
 listsEqualBy elementEqualityFunc xs ys =
   case (xs, ys) of
     ([], [])         -> True
@@ -89,21 +88,32 @@ maybeZipN lists =
       (Just heads, Just tails) -> mapMaybe ((::) heads) (maybeZipN tails)
       _                        -> Nothing
 
-mapi : ((Int, a) -> b) -> List a -> List b
-mapi f xs =
-  let n = List.length xs in
-  List.map f (zip (List.range 1 n) xs)
 
-foldli : ((Int, a) -> b -> b) -> b -> List a -> b
-foldli f init xs =
-  let n = List.length xs in
-  List.foldl f init (zip (List.range 1 n) xs)
+mapi0 : ((Int, a) -> b) -> List a -> List b
+mapi0 = mapi_ 0
 
-foldri f init xs = List.reverse (foldli f init xs)
+mapi1 : ((Int, a) -> b) -> List a -> List b
+mapi1 = mapi_ 1
+
+mapi_ : Int -> ((Int, a) -> b) -> List a -> List b
+mapi_ initI f xs =
+  let n = List.length xs in
+  List.map f (zip (List.range initI n) xs)
+
+foldli0 : ((Int, a) -> b -> b) -> b -> List a -> b
+foldli0 = foldli_ 0
+
+foldli1 : ((Int, a) -> b -> b) -> b -> List a -> b
+foldli1 = foldli_ 1
+
+foldli_ : Int ->((Int, a) -> b -> b) -> b -> List a -> b
+foldli_ initI f init xs =
+  let n = List.length xs in
+  List.foldl f init (zip (List.range initI n) xs)
 
 -- three passes, oh well
-filteri : ((Int, a) -> Bool) -> List a -> List a
-filteri f xs =
+filteri1 : ((Int, a) -> Bool) -> List a -> List a
+filteri1 f xs =
   let n = List.length xs in
   List.map Tuple.second (List.filter f (zip (List.range 1 n) xs))
 
@@ -246,8 +256,8 @@ intersectMany list = case list of
 
 manySetDiffs : List (Set.Set comparable) -> List (Set.Set comparable)
 manySetDiffs sets =
-  mapi (\(i,locs_i) ->
-    foldli (\(j,locs_j) acc ->
+  mapi1 (\(i,locs_i) ->
+    foldli1 (\(j,locs_j) acc ->
       if i == j
         then acc
         else Set.diff acc locs_j
@@ -387,6 +397,11 @@ fromJust_ s mx = case mx of
   Just x  -> x
   Nothing -> Debug.crash <| "Utils.fromJust_: " ++ s
 
+-- Construct error lazily by calling f ()
+fromJust__ f mx = case mx of
+  Just x  -> x
+  Nothing -> Debug.crash <| f ()
+
 fromOkay : String -> Result err a -> a
 fromOkay s mx = case mx of
   Ok x  -> x
@@ -401,9 +416,13 @@ fromOk s mx = case mx of
 
 fromOk_ = fromOk ""
 
-justGet k d = fromJust_ "Utils.justGet" <| Dict.get k d
+-- Don't construct error string on every dictionary lookup. (Serializing dictionary may be expensive)
+justGetError s k d () =
+  "Utils.justGet " ++ s ++ ": key " ++ toString k ++ " not found in dictionary " ++ toString d
 
-justGet_ s k d = fromJust_ ("Utils.justGet " ++ s) <| Dict.get k d
+justGet k d = fromJust__ (justGetError "" k d) <| Dict.get k d
+
+justGet_ s k d = fromJust__ (justGetError s k d) <| Dict.get k d
 
 getWithDefault key default dict =
   case Dict.get key dict of
