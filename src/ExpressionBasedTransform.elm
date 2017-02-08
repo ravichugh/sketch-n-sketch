@@ -129,8 +129,10 @@ passiveSynthesisSearch originalExp =
                       EVar _ "INSERT_ARGUMENT_HERE" ->
                         if List.length args >= 2 then
                           replaceE__ merged (EApp ws1 funcE (List.take (List.length args - 1) args) ws2)
+                          |> replacePrecedingWhitespace " " -- Presume a single line application.
                         else
-                          replacePrecedingWhitespace ws1 funcE
+                          -- funcE is almost certainly an EVar
+                          replacePrecedingWhitespace " " funcE
 
                       _ ->
                         explicitFunc
@@ -151,12 +153,13 @@ passiveSynthesisSearch originalExp =
         in
         let mapCall =
           -- Multiline or single line map call, depending on mapping function
+          let _ = Debug.log "mapping func" (unparse mappingFunc) in
           if String.contains "\n" (unparse mappingFunc) then
             let oldIndentation = indentationOf commonScope in
             let newLineIndent extraIndent exp = replacePrecedingWhitespace ("\n" ++ extraIndent ++ oldIndentation) exp in
             eApp
                 (eVar0 "map")
-                [ replacePrecedingWhitespace " " (indent ("    " ++ oldIndentation) mappingFunc) -- Put arguments on same line as map call.
+                [ replacePrecedingWhitespace " " (indent ("      " ++ oldIndentation) mappingFunc) -- Put arguments on same line as map call.
                 , newLineIndent "    " (eTuple (cleanupListWhitespace " " parameterExps))
                 ]
             |> newLineIndent "  "
