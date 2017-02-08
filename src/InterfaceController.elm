@@ -380,8 +380,8 @@ onMouseUp old =
         _              -> old
 
     (_, MouseDownInCodebox downPos) -> 
-      let oldPos = pixelPosition downPos old in 
-      let newPos = pixelPosition (Tuple.second old.mouseState) old in
+      let oldPos = pixelToRowColPosition downPos old in 
+      let newPos = pixelToRowColPosition (Tuple.second old.mouseState) old in
       onMouseDrag (dragSource oldPos old) (dragTarget newPos old)
         { old | mouseMode = MouseNothing }
 
@@ -694,25 +694,20 @@ msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
       new
 
 msgMousePosition pos_ = Msg ("MousePosition " ++ toString pos_) <| \old ->
-  let pixelPos = pixelPosition pos_ old in 
+  let pixelPos = pixelToRowColPosition pos_ old in 
   let codeBoxInfo = old.codeBoxInfo in
+  let hovered = expRangesToHover old pos_ in 
   let newM = { old | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights old (Just pixelPos) ++ 
                                                        expTargetsToHighlights old (Just pixelPos) ++ 
                                                        patRangesToHighlights old (Just pixelPos) ++ 
                                                        patTargetsToHighlights old (Just pixelPos) }
+                    , hoveredItem = hovered
           }
   in 
   case old.mouseState of
     (Nothing, _)    -> { newM | mouseState = (Nothing, pos_) }
     (Just False, _) -> onMouseMove pos_ { newM | mouseState = (Just True, pos_) }
     (Just True, _)  -> onMouseMove pos_ { newM | mouseState = (Just True, pos_) }
-
-pixelPosition pos m = 
-  let rowPadding = m.codeBoxInfo.offsetHeight in
-  let colPadding = m.codeBoxInfo.offsetLeft +  m.codeBoxInfo.gutterWidth in
-  let row = truncate((toFloat(pos.y) + rowPadding) / m.codeBoxInfo.lineHeight - 1) in
-  let col = truncate((toFloat(pos.x) - colPadding) / m.codeBoxInfo.characterWidth) in 
-    {row = row, column = col}
 
 --------------------------------------------------------------------------------
 
@@ -1219,17 +1214,17 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
   let downPos = case m.mouseMode of 
                   MouseDownInCodebox downPos -> downPos
                   _                          -> { x = 0 , y = 0} in 
-  -- this conditional is used to stop highlights for items and target positions in drag and drop
   let pos = case m.mouseState of
               (Nothing, _) -> downPos
               (_, p)       -> p  in
+  -- this conditional is used to stop highlights for items and target positions in drag and drop
   if downPos /= pos
   then m 
   else 
     let codeBoxInfo = m.codeBoxInfo in
     let mousePos = case m.mouseState of 
                     (b, pos) -> pos in
-    let pixelPos = pixelPosition mousePos m in 
+    let pixelPos = pixelToRowColPosition mousePos m in 
     let selectedEIds =
       case getClickedEId (computeExpRanges m.inputExp) pixelPos of
         Nothing  -> m.selectedEIds
@@ -1257,7 +1252,8 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
     let new = { m | selectedEIds = selectedEIds 
                   , selectedPats = selectedPats
                   , selectedPatTargets = selectedPatTargets
-                  , selectedExpTargets = selectedExpTargets } in
+                  , selectedExpTargets = selectedExpTargets
+                  , mouseMode = MouseNothing } in
     { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new Nothing ++ 
                                                        expTargetsToHighlights new Nothing ++ 
                                                        patRangesToHighlights new Nothing ++ 

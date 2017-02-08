@@ -130,6 +130,17 @@ view model =
 
   let caption = captionArea model layout in
 
+  let hoveredItems = 
+    Html.div 
+    [ Attr.id "containerDiv"
+      , Attr.style
+          [ ("position", "absolute")
+          , ("width", pixels (layout.codeBox.left + layout.codeBox.width))
+          , ("height", pixels (layout.codeBox.top + layout.codeBox.height))
+          ]
+      , onClick Controller.msgMouseClickCodeBox
+    ] model.hoveredItem in 
+
   let everything = -- z-order in decreasing order
 
      -- bottom-most
@@ -137,7 +148,7 @@ view model =
      , codeBox, outputBox
 
      -- toolboxes in reverse order
-     , outputTools] ++ animationTools ++
+     , outputTools] ++ animationTools ++ [hoveredItems] ++ 
      [ moreBlobTools, blobTools, attributeTools, lambdaDrawTools, stretchyDrawTools, drawTools
      , textTools
      , codeTools, fileTools
@@ -304,7 +315,7 @@ toolBox model id (getOffset, putOffset) leftRightTopBottom elements =
 aceCodeBox model dim =
   Html.div
     [ Attr.id "editor"
-    , Attr.style [ ("position", "absolute")
+    , Attr.style [ ("position", "relative")
                  , ("width", pixels dim.width)
                  , ("height", pixels dim.height)
                  , ("left", pixels Layout.windowPadding)

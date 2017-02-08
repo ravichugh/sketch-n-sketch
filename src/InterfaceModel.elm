@@ -15,6 +15,10 @@ import DependenceGraph exposing
 import Ace
 import Either exposing (Either(..))
 import Keys 
+import Svg
+import LangSvg exposing (attr)
+import Html.Attributes as Attr
+import VirtualDom
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -32,6 +36,8 @@ type alias File = {
   filename : Filename,
   code : Code
 }
+
+type alias Html msg = VirtualDom.Node msg
 
 type alias Model =
   { code : Code
@@ -97,6 +103,7 @@ type alias Model =
   , selectedPatTargets : Set.Set PatTargetPosition
   , selectedExpTargets : Set.Set ExpTargetPosition
   , scopeGraph : ScopeGraph
+  , hoveredItem : List (Html Msg)
   }
 
 type Mode
@@ -421,6 +428,61 @@ expRangesToHighlights m pos =
     then List.concatMap maybeHighlight (computeExpRanges m.inputExp)
     else []
 
+pixelToRowColPosition pos m = 
+  let rowPadding = m.codeBoxInfo.offsetHeight in
+  let colPadding = m.codeBoxInfo.offsetLeft +  m.codeBoxInfo.gutterWidth in
+  let row = truncate((toFloat(pos.y) + rowPadding) / m.codeBoxInfo.lineHeight - 1) in
+  let col = truncate((toFloat(pos.x) - colPadding) / m.codeBoxInfo.characterWidth) in 
+    {row = row, column = col}
+
+rowColToPixelPos pos m = 
+  let rowPadding = m.codeBoxInfo.offsetHeight in
+  let colPadding = m.codeBoxInfo.offsetLeft +  m.codeBoxInfo.gutterWidth in
+  let y = toFloat(pos.line) * m.codeBoxInfo.lineHeight - rowPadding in 
+  let x = (toFloat(pos.col) - 0.5) * m.codeBoxInfo.characterWidth + colPadding in 
+    {x = x, y = y}
+
+getBoxWidth start end m = 
+  let characters = end.col - start.col in
+  toFloat(characters) * m.codeBoxInfo.characterWidth 
+
+getBoxHeight start end m = 
+  let lines = end.line - start.line + 1 in 
+  toFloat(lines) * m.codeBoxInfo.lineHeight
+
+expRangesToHover m pos =
+  let pixels n = toString n ++ "px" in 
+  let boxes pos (eid,start,end,selectStart,selectEnd) = 
+    let pixelPos = rowColToPixelPos selectStart m in
+    let w = getBoxWidth start end m in 
+    let h = getBoxHeight start end m in 
+    if hoveringItem selectStart (Just (pixelToRowColPosition pos m)) selectEnd then 
+      [Svg.svg 
+        [Attr.id (toString eid), 
+         Attr.style
+          [ ("position", "fixed")
+          , ("left", pixels pixelPos.x)
+          , ("top", pixels pixelPos.y)
+          , ("width", pixels w)
+          , ("height", pixels h)
+          ]
+        ] 
+        [ flip Svg.rect [] <|
+          [ attr "stroke" "black" , attr "stroke-width" "2px"
+          , attr "fill-opacity" (toString 0) 
+          , attr "width" (toString w)
+          , attr "height" (toString h)
+          ]
+        ] 
+      ]
+    else 
+      []
+
+  in
+  if m.deuceMode
+    then List.concatMap (boxes pos) (computeExpRanges m.inputExp)
+    else []
+
 expTargetsToHighlights m pos =
   let maybeHighlight (expTarget,selectStart,selectEnd) =
     let range =
@@ -581,5 +643,6 @@ initModel =
     , selectedPatTargets = Set.empty
     , selectedExpTargets = Set.empty
     , scopeGraph = DependenceGraph.compute e
+    , hoveredItem = [] 
     }
 
