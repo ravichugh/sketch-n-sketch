@@ -131,15 +131,14 @@ view model =
   let caption = captionArea model layout in
 
   let hoveredItems = 
-    Html.div 
-    [ Attr.id "containerDiv"
-      , Attr.style
-          [ ("position", "absolute")
-          , ("width", pixels (layout.codeBox.left + layout.codeBox.width))
-          , ("height", pixels (layout.codeBox.top + layout.codeBox.height))
-          ]
-      , onClick Controller.msgMouseClickCodeBox
-    ] model.hoveredItem in 
+    Html.div [ Attr.id "hoveredItem"
+              , Attr.style
+                  [ ("position", "absolute")
+                  , ("width", pixels (layout.codeBox.left + layout.codeBox.width))
+                  , ("height", pixels (layout.codeBox.top + layout.codeBox.height))
+                  ]
+              , onClick Controller.msgMouseClickCodeBox
+              ] model.hoveredItem in 
 
   let everything = -- z-order in decreasing order
 

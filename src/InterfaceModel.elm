@@ -450,8 +450,9 @@ getBoxHeight start end m =
   let lines = end.line - start.line + 1 in 
   toFloat(lines) * m.codeBoxInfo.lineHeight
 
+pixels n = toString n ++ "px"
+
 expRangesToHover m pos =
-  let pixels n = toString n ++ "px" in 
   let boxes pos (eid,start,end,selectStart,selectEnd) = 
     let pixelPos = rowColToPixelPos selectStart m in
     let w = getBoxWidth start end m in 
@@ -477,10 +478,40 @@ expRangesToHover m pos =
       ]
     else 
       []
-
   in
   if m.deuceMode
     then List.concatMap (boxes pos) (computeExpRanges m.inputExp)
+    else []
+
+patRangesToHover m pos =
+  let boxes pos (pid,start,end,selectEnd) = 
+    let pixelPos = rowColToPixelPos start m in
+    let w = getBoxWidth start end m in 
+    let h = getBoxHeight start end m in 
+    if hoveringItem start (Just (pixelToRowColPosition pos m)) selectEnd then 
+      [Svg.svg 
+        [Attr.id (toString pid), 
+         Attr.style
+          [ ("position", "fixed")
+          , ("left", pixels pixelPos.x)
+          , ("top", pixels pixelPos.y)
+          , ("width", pixels w)
+          , ("height", pixels h)
+          ]
+        ] 
+        [ flip Svg.rect [] <|
+          [ attr "stroke" "black" , attr "stroke-width" "2px"
+          , attr "fill-opacity" (toString 0) 
+          , attr "width" (toString w)
+          , attr "height" (toString h)
+          ]
+        ] 
+      ]
+    else 
+      []
+  in
+  if m.deuceMode
+    then List.concatMap (boxes pos) (findPats m.inputExp)
     else []
 
 expTargetsToHighlights m pos =

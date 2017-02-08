@@ -696,7 +696,7 @@ msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
 msgMousePosition pos_ = Msg ("MousePosition " ++ toString pos_) <| \old ->
   let pixelPos = pixelToRowColPosition pos_ old in 
   let codeBoxInfo = old.codeBoxInfo in
-  let hovered = expRangesToHover old pos_ in 
+  let hovered = expRangesToHover old pos_ ++ patRangesToHover old pos_ in 
   let newM = { old | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights old (Just pixelPos) ++ 
                                                        expTargetsToHighlights old (Just pixelPos) ++ 
                                                        patRangesToHighlights old (Just pixelPos) ++ 
