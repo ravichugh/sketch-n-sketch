@@ -57,7 +57,7 @@ digHole originalExp selectedFeatures slate syncOptions =
     Set.toList locset
   in
   let subst = substOf originalExp in
-  let commonScope = deepestCommonScopeByLocSet originalExp locset in
+  let commonScope = justInsideDeepestCommonScopeByLocSet originalExp locset in
   let existingNames = identifiersSet originalExp in
   let locIdNameOrigNamePrime =
     let (_, result) =
@@ -292,7 +292,8 @@ stormTheBastille subst indexedLocIdsWithTarget =
   let locIdsAndIndex = indexLocId::locIds in
   let distanceScore locEqn = robotRevolutionDistanceScore subst indexedLocIdsWithTarget locEqn in
   let eqnsOfSize astSize =
-    locEqnsTemplatesOfSize 1 2 astSize
+    locEqnsTemplatesOfSize 1 1 astSize -- allowing two constants is taking too long :(
+    -- locEqnsTemplatesOfSize 1 2 astSize
     |> List.concatMap (locEqnTemplateLocFillings locIdsAndIndex)
     |> List.map
         (\locsFilledTemplate ->
@@ -619,7 +620,7 @@ relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
             let locIdSet = Set.insert dependentLocId <| locEqnLocIdSet resultLocEqn in
             -- Consequently, we don't need to dig out higher than the frozen locs.
             let locsetToDig = Set.filter (\(locId, _, _) -> Set.member locId locIdSet) unfrozenLocset in
-            let commonScope = deepestCommonScopeByLocSet originalExp locsetToDig in
+            let commonScope = justInsideDeepestCommonScopeByLocSet originalExp locsetToDig in
             let existingNames = identifiersSet originalExp in
             let independentLocs =
               locsetToDig
@@ -699,7 +700,7 @@ liftLocsSoVisibleTo originalExp mobileLocset observerEIds =
     in
     isMobileLoc || Set.member exp.val.eid observerEIds
   in
-  let commonScope = deepestCommonScope originalExp isPredecessor in
+  let commonScope = justInsideDeepestCommonScope originalExp isPredecessor in
   let locs = Set.toList mobileLocset in
   let locIds = List.map (\(locId, _, _) -> locId) locs in
   let locEIds =
@@ -750,56 +751,14 @@ liftLocsSoVisibleTo originalExp mobileLocset observerEIds =
   (newExp, locIdToNewName)
 
 
-deepestCommonScopeByLocSet : Exp -> LocSet -> Exp
-deepestCommonScopeByLocSet exp locset =
+justInsideDeepestCommonScopeByLocSet : Exp -> LocSet -> Exp
+justInsideDeepestCommonScopeByLocSet exp locset =
   let isLocsetNode exp =
     case exp.val.e__ of
       EConst ws n loc wd -> Set.member loc locset
       _                  -> False
   in
-  deepestCommonScope exp isLocsetNode
-
-
-deepestCommonScope : Exp -> (Exp -> Bool) -> Exp
-deepestCommonScope exp pred =
-  let locsAncestors = -- debugLog "locsAncestors" <|
-    findAllWithAncestors pred exp
-  in
-  -- isScope needs to see the node's parent...because case statements
-  -- produce many scopes out of one expression
-  -- The below adds a maybe parent to each node, so we get List (List
-  -- (Maybe Exp, Exp))
-  let locsAncestorsWithParents = -- debugLog "locsAncestorsWithParents" <|
-    List.map
-        (\locAncestors ->
-          Utils.zip (Nothing :: (List.map Just locAncestors)) locAncestors
-        )
-        locsAncestors
-  in
-  let locsAncestorScopesWithParents = -- debugLog "locsAncestorScopesWithParents" <|
-    List.map
-        (List.filter (\(parent, node) -> isScope parent node))
-        locsAncestorsWithParents
-  in
-  let locsAncestorScopes = List.map (List.map Tuple.second) locsAncestorScopesWithParents in
-  let deepestCommonScope =
-    Utils.last_
-    <| exp :: (Utils.commonPrefix locsAncestorScopes)
-  in
-  deepestCommonScope
-
-
--- If suggestedName is not in existing names, returns it.
--- Otherwise appends a number (starting at i) that doesn't collide.
-nonCollidingName : Ident -> Int -> Set.Set Ident -> Ident
-nonCollidingName suggestedName i existingNames =
-  if not (Set.member suggestedName existingNames) then
-    suggestedName
-  else
-    let newName = suggestedName ++ (toString i) in
-    if not (Set.member newName existingNames)
-    then newName
-    else nonCollidingName suggestedName (i+1) existingNames
+  justInsideDeepestCommonScope exp isLocsetNode
 
 
 -- Replace consts in targetExp with given variable names
@@ -823,50 +782,6 @@ variableifyConstantsAndWrapTargetExpWithLets locIdToNewName listOfListsOfNamesAn
   in
   newProgram
 
-
--- Given [ [("a", eConst 4 dummyLoc), ("b", eConst 5 dummyLoc)], [("c", eConst 6 dummyLoc)] ] bodyExp
---
--- Produces an Exp of:
---
--- (let [a c] [4 5]
--- (let [c] [6]
---   bodyExp))
---
-wrapWithLets : List (List (String, Exp)) -> Bool -> Exp -> Exp
-wrapWithLets listOfListsOfNamesAndAssigns isTopLevel bodyExp =
-  let nonEmptyListOfListsOfNamesAndAssigns =
-    List.filter
-        (not << List.isEmpty)
-        listOfListsOfNamesAndAssigns
-  in
-  case nonEmptyListOfListsOfNamesAndAssigns of
-    [] ->
-      bodyExp
-
-    _::_ ->
-      let oldPrecedingWhitespace = precedingWhitespace bodyExp in
-      -- Insure one newline after first let
-      let extraWhitespace =
-        if String.contains "\n" oldPrecedingWhitespace then "" else "\n"
-      in
-      -- Limit to one newline for all lets
-      let limitedOldPrecedingWhitespace =
-        case String.split "\n" oldPrecedingWhitespace |> List.reverse of
-          indentation::_ -> "\n" ++ indentation
-          []             -> oldPrecedingWhitespace
-      in
-      let preceedingWs = extraWhitespace ++ limitedOldPrecedingWhitespace in
-      let letOrDef = if isTopLevel then Def else Let in
-      let wrappedWithLets =
-        nonEmptyListOfListsOfNamesAndAssigns
-        |> List.foldr
-            (\letNamesAndAssigns innerExp ->
-              eLetOrDef letOrDef letNamesAndAssigns innerExp
-              |> replacePrecedingWhitespace preceedingWs
-            )
-            (addPrecedingWhitespace extraWhitespace bodyExp)
-      in
-      wrappedWithLets
 
 
 pluckFeatureEquationNamed (selectedType, nodeId, featureName) slate locIdToNumberAndLoc =

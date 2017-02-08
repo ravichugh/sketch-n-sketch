@@ -17,7 +17,6 @@ import Blobs exposing (..)
 import LangUnparser exposing (unparse)
 import InterfaceModel exposing (..)
 import LangTools
-import ValueBasedTransform
 import Utils
 import Either exposing (..)
 import Keys
@@ -662,7 +661,7 @@ addTextBox old click2 click1 =
 
 add newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
   let shapeVarName =
-    ValueBasedTransform.nonCollidingName newShapeKind 1 (LangTools.identifiersVisibleAtProgramEnd old.inputExp)
+    LangTools.nonCollidingName newShapeKind 1 (LangTools.identifiersVisibleAtProgramEnd old.inputExp)
   in
   let newDef = makeNewShapeDef old newShapeKind shapeVarName newShapeLocals newShapeFunc newShapeArgs in
   let (defs, mainExp) = splitExp old.inputExp in

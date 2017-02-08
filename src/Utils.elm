@@ -230,6 +230,14 @@ squish str =
   String.trim <|
     Regex.replace Regex.All (Regex.regex "\\s+") (\_ -> " ") str
 
+-- e.g. niceTruncateString 10 "..." "Really long text here" => "Really..."
+niceTruncateString : Int -> String -> String -> String
+niceTruncateString n toBeContinuedStr str =
+  if String.length str > n then
+    String.trimRight (String.left (n - String.length toBeContinuedStr) str) ++ toBeContinuedStr
+  else
+    str
+
 cartProd : List a -> List b -> List (a, b)
 cartProd xs ys =
    xs |> List.concatMap (\x -> List.map ((,) x) ys)
@@ -282,6 +290,9 @@ findFirst p xs = case xs of
   x::xs_ -> if p x
               then Just x
               else findFirst p xs_
+
+findLast : (a -> Bool) -> List a -> Maybe a
+findLast p xs = findFirst p (List.reverse xs)
 
 maybeFindAndRemoveFirst : (a -> Bool) -> List a -> Maybe (a, List a)
 maybeFindAndRemoveFirst p xs =
@@ -389,6 +400,10 @@ lift_2_2 f (a,b) (c,d) = (f a c, f b d)
 
 assert s b = if b then () else Debug.crash ("assert error: " ++ s)
 
+maybeToBool m = case m of
+  Just _  -> True
+  Nothing -> False
+
 fromJust m = case m of
   Just x -> x
   Nothing -> Debug.crash <| "Utils.fromJust: Nothing"
@@ -454,6 +469,19 @@ uncons xs = case xs of
   x::xs -> (x, xs)
   []    -> Debug.crash "uncons"
 
+takeLast n list =
+  list
+  |> List.reverse
+  |> List.take n
+  |> List.reverse
+
+takeWhile pred list =
+  case list of
+    []    -> []
+    x::xs -> if pred x
+             then x::(takeWhile pred xs)
+             else []
+
 mapMaybe : (a -> b) -> Maybe a -> Maybe b
 mapMaybe f mx = case mx of
   Just x  -> Just (f x)
@@ -477,6 +505,7 @@ elseMaybe mx default = case mx of
   Just x  -> x
   Nothing -> default
 
+-- Return Just [...] only if given list is all Justs
 projJusts : List (Maybe a) -> Maybe (List a)
 projJusts =
   List.foldr (\mx acc ->

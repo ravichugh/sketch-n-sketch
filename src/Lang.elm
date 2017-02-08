@@ -594,6 +594,17 @@ applySubst subst exp =
   mapExp replacer exp
 
 
+applyESubstPreservingPrecedingWhitespace : ESubst -> Exp -> Exp
+applyESubstPreservingPrecedingWhitespace esubst exp =
+  let replacer =
+    (\e ->
+      case Dict.get e.val.eid esubst of
+        Just e__New -> replaceE__PreservingPrecedingWhitespace e e__New
+        Nothing     -> e
+    )
+  in
+  mapExp replacer exp
+
 {-
 -- for now, LocId instead of EId
 type alias ESubst = Dict.Dict LocId Exp__
@@ -651,6 +662,12 @@ isScope maybeParent exp =
         _                            -> isObviouslyScope
     Nothing -> isObviouslyScope
 
+isNumber : Exp -> Bool
+isNumber exp =
+  case exp.val.e__ of
+    EConst _ _ _ _ -> True
+    _              -> False
+
 varsOfPat : Pat -> List Ident
 varsOfPat pat =
   case pat.val of
@@ -702,6 +719,10 @@ withDummyPos e__  = P.WithInfo (exp_ e__) P.dummyPos P.dummyPos
 replaceE__ : Exp -> Exp__ -> Exp
 replaceE__ e e__ = let e_ = e.val in { e | val = { e_ | e__ = e__ } }
 
+replaceE__PreservingPrecedingWhitespace : Exp -> Exp__ -> Exp
+replaceE__PreservingPrecedingWhitespace e e__ =
+  replaceE__ e e__ |> replacePrecedingWhitespace (precedingWhitespace e)
+
 replaceEId : Exp -> EId -> Exp
 replaceEId e eid = let e_ = e.val in { e | val = { e_ | eid = eid } }
 
@@ -723,15 +744,18 @@ eStr0  = withDummyPos << EBase "" << EString defaultQuoteChar
 eTrue  = eBool True
 eFalse = eBool False
 
-eApp e es = case es of
-  []      -> Debug.crash "eApp"
-  [e1]    -> withDummyPos <| EApp "\n" e [e1] ""
-  e1::es_ -> eApp (withDummyPos <| EApp " " e [e1] "") es_
+eApp e es = withDummyPos <| EApp " " e es ""
+eFun ps e = withDummyPos <| EFun " " ps e ""
 
-eFun ps e = case ps of
-  []      -> Debug.crash "eFun"
-  [p]     -> withDummyPos <| EFun " " [p] e ""
-  p::ps_  -> withDummyPos <| EFun " " [p] (eFun ps_ e) ""
+desugarEApp e es = case es of
+  []      -> Debug.crash "desugarEApp"
+  [e1]    -> eApp e [e1]
+  e1::es_ -> desugarEApp (eApp e [e1]) es_
+
+desugarEFun ps e = case ps of
+  []      -> Debug.crash "desugarEFun"
+  [p]     -> eFun [p] e
+  p::ps_  -> eFun [p] (desugarEFun ps_ e)
 
 ePair e1 e2 = withDummyPos <| EList " " [e1,e2] "" Nothing ""
 
@@ -747,8 +771,7 @@ numSlider = rangeSlider NumSlider
 colorNumberSlider = intSlider 0 499
 
 eLets xes eBody = case xes of
-  (x,e)::xes_ -> withDummyPos <|
-                   ELet "\n" Let False (withDummyRange (PVar " " x noWidgetDecl)) e (eLets xes_ eBody) ""
+  (x,e)::xes_ -> eLet [(x,e)] (eLets xes_ eBody)
   []          -> eBody
 
 
@@ -761,7 +784,7 @@ eLetOrDef letKind namesAndAssigns bodyExp =
   let (pat, assign) =
     case List.unzip namesAndAssigns of
       ([name], [assign]) -> (pVar name, replacePrecedingWhitespace " " assign)
-      (names, assigns)   -> (pList (cleanupPatListWhitespace " " <| listOfPVars names), eList (cleanupListWhitespace " " assigns) Nothing)
+      (names, assigns)   -> (pListOfPVars names, eList (cleanupListWhitespace " " assigns) Nothing)
   in
   withDummyPos <|
   ELet "\n" letKind False pat assign bodyExp ""
@@ -779,6 +802,8 @@ eConst0 a b    = withDummyPos <| EConst "" a b noWidgetDecl
 eConst a b     = withDummyPos <| EConst " " a b noWidgetDecl
 eList0 a b     = withDummyPos <| EList "" a "" b ""
 eList a b      = withDummyPos <| EList " " a "" b ""
+eTuple0 a      = eList0 a Nothing
+eTuple a       = eList a Nothing
 eComment a b   = withDummyPos <| EComment " " a b
 
 pVar0 a        = withDummyRange <| PVar "" a noWidgetDecl
@@ -786,6 +811,8 @@ pVar a         = withDummyRange <| PVar " " a noWidgetDecl
 pList0 ps      = withDummyRange <| PList "" ps "" Nothing ""
 pList ps       = withDummyRange <| PList " " ps "" Nothing ""
 pAs x p        = withDummyRange <| PAs " " x " " p
+
+pListOfPVars names = pList (listOfPVars names)
 
 -- note: dummy ids...
 vTrue    = vBool True
@@ -869,6 +896,10 @@ precedingWhitespace exp =
   precedingWhitespaceExp__ exp.val.e__
 
 
+indentationOf : Exp -> String
+indentationOf exp =
+  String.split "\n" (precedingWhitespace exp) |> Utils.last "Lang.indentationOf"
+
 precedingWhitespacePat : Pat -> String
 precedingWhitespacePat pat =
   case pat.val of
@@ -915,6 +946,7 @@ replacePrecedingWhitespacePat newWs pat =
   mapPrecedingWhitespacePat (\oldWs -> newWs) pat
 
 
+-- Does not recurse.
 mapPrecedingWhitespace : (String -> String) -> Exp -> Exp
 mapPrecedingWhitespace mapWs exp =
   let e__New =
@@ -954,59 +986,42 @@ cleanupPatListWhitespace sepWs pats =
       replacePrecedingWhitespacePat "" firstPat :: List.map (replacePrecedingWhitespacePat sepWs) laterPats
 
 
-{- TODO:
-     add a flag to mapPrecedingWhitespace that specifies whether
-       or not to recurse into Exp children.
-     then, re-define indent as follows:
+-- Unindents until an expression is flush to the edge, then adds spaces to the indentation.
+replaceIndentation : String -> Exp -> Exp
+replaceIndentation spaces exp =
+  indent spaces (unindent exp)
 
-indent : String -> Exp -> Exp
-indent spaces =
-  mapPrecedingWhitespace True <| \s ->
-    s |> String.reverse
-      |> Regex.replace (Regex.AtMost 1) (Regex.regex "\n") (\_ -> spaces ++ "\n")
-      |> String.reverse
--}
 
--- I believe this can be rewritten in terms of mapExp
+-- Finds lowest amount of indentation and then removes it from all expressions.
+unindent : Exp -> Exp
+unindent exp =
+  let smallestIndentation =
+    exp
+    |> foldExpViaE__
+        (\e__ smallest ->
+          case Regex.find Regex.All (Regex.regex "\n( *)$") (precedingWhitespaceExp__ e__) |> List.map .submatches |> List.concat of
+            [Just indentation] -> if String.length indentation < String.length smallest then indentation else smallest
+            _                  -> smallest
+        )
+        "                                                                                                                                                                                                                                        "
+  in
+  let removeIndentation ws =
+    ws |> Regex.replace Regex.All (Regex.regex ("\n" ++ smallestIndentation)) (\_ -> "\n")
+  in
+  mapExp (mapPrecedingWhitespace removeIndentation) exp
+
+
+-- Increases indentation by spaces string.
 indent : String -> Exp -> Exp
 indent spaces e =
-  let recurse = indent spaces in
-  let wrap e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
+  -- let recurse = indent spaces in
+  -- let wrap e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
   let processWS ws =
     ws |> String.reverse
        |> Regex.replace (Regex.AtMost 1) (Regex.regex "\n") (\_ -> spaces ++ "\n")
        |> String.reverse
   in
-  case e.val.e__ of
-    EConst _ _ _ _         -> e
-    EBase _ _              -> e
-    EVar _ _               -> e
-    EFun ws1 ps e_ ws2     -> wrap (EFun (processWS ws1) ps (recurse e_) ws2)
-    EApp ws1 e1 es ws2     -> wrap (EApp (processWS ws1) (recurse e1) (List.map recurse es) ws2)
-    EOp ws1 op es ws2      -> wrap (EOp (processWS ws1) op (List.map recurse es) ws2)
-    EList ws1 es ws2 m ws3 -> wrap (EList (processWS ws1) (List.map recurse es) ws2 (Utils.mapMaybe recurse m) ws3)
-    EIf ws1 e1 e2 e3 ws2     -> wrap (EIf (processWS ws1) (recurse e1) (recurse e2) (recurse e3) ws2)
-    ECase ws1 e1 branches ws2 ->
-      let newE1 = recurse e1 in
-      let newBranches =
-        List.map
-            (mapValField (\(Branch_ bws1 p ei bws2) -> Branch_ bws1 p (recurse ei) bws2))
-            branches
-      in
-      wrap (ECase (processWS ws1) newE1 newBranches ws2)
-    ETypeCase ws1 pat tbranches ws2 ->
-      let newBranches =
-        List.map
-            (mapValField (\(TBranch_ bws1 tipe ei bws2) -> TBranch_ bws1 tipe (recurse ei) bws2))
-            tbranches
-      in
-      wrap (ETypeCase (processWS ws1) pat newBranches ws2)
-    EComment ws s e1              -> wrap (EComment (processWS ws) s (recurse e1))
-    EOption ws1 s1 ws2 s2 e1      -> wrap (EOption (processWS ws1) s1 ws2 s2 (recurse e1))
-    ELet ws1 k b p e1 e2 ws2      -> wrap (ELet (processWS ws1) k b p (recurse e1) (recurse e2) ws2)
-    ETyp ws1 pat tipe e ws2       -> wrap (ETyp (processWS ws1) pat tipe (recurse e) ws2)
-    EColonType ws1 e ws2 tipe ws3 -> wrap (EColonType (processWS ws1) (recurse e) ws2 tipe ws3)
-    ETypeAlias ws1 pat tipe e ws2 -> wrap (ETypeAlias (processWS ws1) pat tipe (recurse e) ws2)
+  mapExp (mapPrecedingWhitespace processWS) e
 
 
 mapPrecedingWhitespacePat : (String -> String) -> Pat -> Pat

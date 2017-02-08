@@ -419,7 +419,7 @@ tryRun old =
                     , lambdaTools   = lambdaTools_
                     , codeBoxInfo   = updateCodeBoxWithTypes aceTypeInfo old.codeBoxInfo
                     , preview       = Nothing
-                    , synthesisResults = []
+                    , synthesisResults = cleanDedupSynthesisResults (ETransform.passiveSynthesisSearch e)
               }
             in
             { new | mode = refreshMode_ new
@@ -691,6 +691,11 @@ cleanSynthesisResult {description, exp, sortKey} =
   , sortKey = sortKey
   }
 
+cleanDedupSynthesisResults synthesisResults =
+  synthesisResults
+  |> List.map cleanSynthesisResult
+  |> Utils.dedupBy (.exp >> unparse)
+
 msgCleanCode = Msg "Clean Code" <| \old ->
   case parseE old.code of
     Err (err, _) ->
@@ -735,7 +740,7 @@ msgMakeEqual = Msg "Make Equal" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = List.map cleanSynthesisResult synthesisResults |> Utils.dedupBy (.exp >> unparse) }
+  { old | synthesisResults = cleanDedupSynthesisResults synthesisResults }
 
 msgRelate = Msg "Relate" <| \old ->
   let synthesisResults =
@@ -747,7 +752,7 @@ msgRelate = Msg "Relate" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = List.map cleanSynthesisResult synthesisResults |> Utils.dedupBy (.exp >> unparse) }
+  { old | synthesisResults = cleanDedupSynthesisResults synthesisResults }
 
 msgRobotRevolution = Msg "Robot Revolution" <| \old ->
   let synthesisResults =
@@ -760,7 +765,7 @@ msgRobotRevolution = Msg "Robot Revolution" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = List.map cleanSynthesisResult synthesisResults |> Utils.dedupBy (.exp >> unparse) }
+  { old | synthesisResults = cleanDedupSynthesisResults synthesisResults }
 
 -- msgMakeEquidistant = Msg "Make Equidistant" <| \old ->
 --   let newExp =
@@ -803,7 +808,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
             , slate            = newSlate
             , widgets          = newWidgets
             , preview          = Nothing
-            , synthesisResults = []
+            , synthesisResults = cleanDedupSynthesisResults (ETransform.passiveSynthesisSearch reparsed)
             , mode             = Utils.fromOk "SelectSynthesisResult MkLive" <|
                                    mkLive old.syncOptions
                                      old.slideNumber old.movieNumber old.movieTime reparsed

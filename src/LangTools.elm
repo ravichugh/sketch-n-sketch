@@ -15,6 +15,7 @@ import Lang exposing (..)
 import LangParser2
 import Utils
 import LangUnparser
+import Types
 
 import Dict
 import Set
@@ -85,6 +86,67 @@ typeNodeCount tipe =
 typesNodeCount : List Type -> Int
 typesNodeCount types =
   types |> List.map typeNodeCount |> List.sum
+
+
+
+
+patternListsEqual : List Pat -> List Pat -> Bool
+patternListsEqual patsA patsB =
+  Utils.maybeZip patsA patsB
+  |> Maybe.map (List.all (\(patA, patB) -> patternsEqual patA patB))
+  |> Maybe.withDefault False
+
+-- More syntactically strict than "will these two patterns match/reject the same things?", i.e. identifier strings must also match exactly
+patternsEqual : Pat -> Pat -> Bool
+patternsEqual patA patB =
+  case (patA.val, patB.val) of
+    (PVar ws1A identA wdA,               PVar ws1B identB wdB)               -> identA == identB
+    (PConst ws1A nA,                     PConst ws1B nB)                     -> nA == nB
+    (PBase ws1A (EBool boolA),           PBase ws1B (EBool boolB))           -> boolA == boolB
+    (PBase ws1A (EString qcA strA),      PBase ws1B (EString qcB strB))      -> strA == strB
+    (PBase ws1A ENull,                   PBase ws1B ENull)                   -> True
+    (PList ws1A psA ws2A Nothing ws3A,   PList ws1B psB ws2B Nothing ws3B)   -> patternListsEqual psA psB
+    (PList ws1A psA ws2A (Just pA) ws3A, PList ws1B psB ws2B (Just pB) ws3B) -> patternListsEqual (pA::psA) (pB::psB)
+    (PAs ws1A identA ws2A pA,            PAs ws1B identB ws2B pB)            -> identA == identB && patternsEqual pA pB
+    _                                                                        -> False
+
+
+-- Traverse baseExp and otherExp, comparing them to each other node by node.
+-- When they differ, adds the differing node in otherExp to the return list.
+--
+-- For finding what expressions are being removed when an expression is replaced by a function.
+--
+-- The sister function here is ExpressionBasedTransform.passiveSynthesisSearch.merge
+extraExpsDiff : Exp -> Exp -> List Exp
+extraExpsDiff baseExp otherExp =
+  let childDiffs () =
+    case Utils.maybeZip (childExps baseExp) (childExps otherExp) of
+      Just childPairs -> childPairs |> List.concatMap (\(aChild, bChild) -> extraExpsDiff aChild bChild)
+      Nothing         -> [otherExp]
+  in
+  case (baseExp.val.e__, otherExp.val.e__) of
+    (EConst ws1A nA locA wdA,              EConst ws1B nB locB wdB)              -> if nA == nB then [] else [otherExp]
+    (EBase ws1A (EBool True),              EBase ws1B (EBool True))              -> []
+    (EBase ws1A (EBool False),             EBase ws1B (EBool False))             -> []
+    (EBase ws1A (EString qcA strA),        EBase ws1B (EString qcB strB))        -> if strA == strB then [] else [otherExp]
+    (EBase ws1A ENull,                     EBase ws1B ENull)                     -> []
+    (EVar ws1A identA,                     EVar ws1B identB)                     -> if identA == identB then [] else [otherExp]
+    (EFun ws1A psA eA ws2A,                EFun ws1B psB eB ws2B)                -> if patternListsEqual psA psB then extraExpsDiff eA eB else [otherExp]
+    (EOp ws1A opA esA ws2A,                EOp ws1B opB esB ws2B)                -> if opA.val == opB.val then childDiffs () else [otherExp]
+    (EList ws1A esA ws2A Nothing ws3A,     EList ws1B esB ws2B Nothing ws3B)     -> childDiffs ()
+    (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)   -> childDiffs ()
+    (EApp ws1A fA esA ws2A,                EApp ws1B fB esB ws2B)                -> childDiffs ()
+    (ELet ws1A kindA recA pA e1A e2A ws2A, ELet ws1B kindB recB pB e1B e2B ws2B) -> if recA == recB && patternsEqual pA pB then extraExpsDiff e1A e1B ++ extraExpsDiff e2A e2B else [otherExp]
+    (EIf ws1A e1A e2A e3A ws2A,            EIf ws1B e1B e2B e3B ws2B)            -> extraExpsDiff e1A e1B ++ extraExpsDiff e2A e2B ++ extraExpsDiff e3A e3B
+    (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         -> Utils.maybeZip branchesA branchesB |> Maybe.andThen (\branchPairs -> let bValPairs = branchPairs |> List.map (\(bA, bB) -> (bA.val, bB.val)) in if bValPairs |> List.all (\(Branch_ bws1A bpatA beA bws2A, Branch_ bws1B bpatB beB bws2B) -> patternsEqual bpatA bpatB) then Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
+    (ETypeCase ws1A patA tbranchesA ws2A,  ETypeCase ws1B patB tbranchesB ws2B)  -> if patternsEqual patA patB then Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp] else [otherExp]
+    (EComment wsA sA e1A,                  _)                                    -> extraExpsDiff e1A otherExp
+    (_,                                    EComment wsB sB e1B)                  -> extraExpsDiff baseExp e1B
+    (EOption ws1A s1A ws2A s2A e1A,        EOption ws1B s1B ws2B s2B e1B)        -> [otherExp]
+    (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)         -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
+    (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)   -> if Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
+    (ETypeAlias ws1A patA typeA eA ws2A,   ETypeAlias ws1B patB typeB eB ws2B)   -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
+    _                                                                            -> [otherExp]
 
 
 replaceConstsWithVars : Dict.Dict LocId Ident -> Exp -> Exp
@@ -247,6 +309,85 @@ scopeNamesLocLiftedThrough_ targetLocId scopeNames exp =
       List.concatMap recurse (childExps exp)
 
 
+-- Returns the common ancestor just inside the deepest common scope -- the expression you want to wrap with new defintions.
+-- If the nearest common ancestor is itself a scope, returns that instead.
+justInsideDeepestCommonScope : Exp -> (Exp -> Bool) -> Exp
+justInsideDeepestCommonScope exp pred =
+  let allWithAncestors = -- debugLog "locsAncestors" <|
+    findAllWithAncestors pred exp
+  in
+  let commonAncestors = Utils.commonPrefix allWithAncestors in
+  -- isScope needs to see the node's parent...because case statements
+  -- produce many scopes out of one expression
+  -- The below adds a maybe parent to each node, so we get List (List
+  -- (Maybe Exp, Exp))
+  let commonAncestorsWithParents = -- debugLog "locsAncestorsWithParents" <|
+    Utils.zip (Nothing :: (List.map Just commonAncestors)) commonAncestors
+  in
+  -- Pluck out [exp, deepestCommonScope, justInsideDeepestCommonScope]
+  let candidates =
+    let ancestorJustInsideCommonScope =
+      commonAncestorsWithParents
+      |> List.reverse
+      |> Utils.takeWhile (\(parent, node) -> not <| isScope parent node)
+      |> Utils.takeLast 1
+      |> List.map Tuple.second
+    in
+    let deepestCommonScope =
+      commonAncestorsWithParents
+      |> List.filter (\(parent, node) -> isScope parent node)
+      |> Utils.takeLast 1
+      |> List.map Tuple.second
+    in
+    exp :: (deepestCommonScope ++ ancestorJustInsideCommonScope)
+  in
+  Utils.last_ candidates
+
+
+-- Given [ [("a", eConst 4 dummyLoc), ("b", eConst 5 dummyLoc)], [("c", eConst 6 dummyLoc)] ] False bodyExp
+--
+-- Produces an Exp of:
+--
+-- (let [a c] [4 5]
+-- (let [c] [6]
+--   bodyExp))
+--
+wrapWithLets : List (List (String, Exp)) -> Bool -> Exp -> Exp
+wrapWithLets listOfListsOfNamesAndAssigns isTopLevel bodyExp =
+  let nonEmptyListOfListsOfNamesAndAssigns =
+    List.filter
+        (not << List.isEmpty)
+        listOfListsOfNamesAndAssigns
+  in
+  case nonEmptyListOfListsOfNamesAndAssigns of
+    [] ->
+      bodyExp
+
+    _::_ ->
+      let oldPrecedingWhitespace = precedingWhitespace bodyExp in
+      -- Insure one newline after first let
+      let extraWhitespace =
+        if String.contains "\n" oldPrecedingWhitespace then "" else "\n"
+      in
+      -- Limit to one newline for all lets
+      let limitedOldPrecedingWhitespace =
+        case String.split "\n" oldPrecedingWhitespace |> List.reverse of
+          indentation::_ -> "\n" ++ indentation
+          []             -> oldPrecedingWhitespace
+      in
+      let preceedingWs = extraWhitespace ++ limitedOldPrecedingWhitespace in
+      let letOrDef = if isTopLevel then Def else Let in
+      let wrappedWithLets =
+        nonEmptyListOfListsOfNamesAndAssigns
+        |> List.foldr
+            (\letNamesAndAssigns innerExp ->
+              eLetOrDef letOrDef letNamesAndAssigns innerExp
+              |> replacePrecedingWhitespace preceedingWs
+            )
+            (addPrecedingWhitespace extraWhitespace bodyExp)
+      in
+      wrappedWithLets
+
 preludeIdentifiers = Eval.initEnv |> List.map Tuple.first |> Set.fromList
 
 
@@ -370,6 +511,19 @@ identifierCounts exp =
     (identifiersList exp)
 
 
+-- If suggestedName is not in existing names, returns it.
+-- Otherwise appends a number (starting at i) that doesn't collide.
+nonCollidingName : Ident -> Int -> Set.Set Ident -> Ident
+nonCollidingName suggestedName i existingNames =
+  if not (Set.member suggestedName existingNames) then
+    suggestedName
+  else
+    let newName = suggestedName ++ (toString i) in
+    if not (Set.member newName existingNames)
+    then newName
+    else nonCollidingName suggestedName (i+1) existingNames
+
+
 renameIdentifierInPat old new pat =
   renameIdentifiersInPat (Dict.singleton old new) pat
 
@@ -447,6 +601,19 @@ renameIdentifiers subst exp =
   mapExpViaExp__
     exp__Renamer
     exp
+
+
+expToMaybeNum : Exp -> Maybe Num
+expToMaybeNum exp =
+  case exp.val.e__ of
+    EConst _ n _ _ -> Just n
+    _              -> Nothing
+
+
+-- This is a rather generous definition of literal.
+isLiteral : Exp -> Bool
+isLiteral exp =
+  Set.size (freeIdentifiers exp) == 0
 
 
 -- Which vars in this exp refer to something outside this exp?
