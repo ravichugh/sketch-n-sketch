@@ -966,7 +966,7 @@ prelude =
     [(cos ang) (neg (sin ang))]))
   (map foo (list0N (- n 1)))))))
 
-(typ nPointsOnCircle (-> Num Num Num Num Num (List Num)))
+(typ nPointsOnCircle (-> Num Num Num Num Num (List Point)))
 ;; argument order - Num of points, degree of rotation, x-center, y-center, radius
 ;; Scales nPointsOnUnitCircle to the proper size and location with a given radius and center
 (def nPointsOnCircle (\\(n rot cx cy r)
