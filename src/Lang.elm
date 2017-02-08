@@ -406,6 +406,16 @@ replaceExpNode eid newNode root =
       )
       root
 
+replaceExpNodePreservingPreceedingWhitespace : EId -> Exp -> Exp -> Exp
+replaceExpNodePreservingPreceedingWhitespace eid newNode root =
+  mapExp
+      (\exp ->
+        if exp.val.eid == eid
+        then replacePrecedingWhitespace (precedingWhitespace exp) newNode
+        else exp
+      )
+      root
+
 replaceExpNodeE__ : Exp -> Exp -> Exp -> Exp
 replaceExpNodeE__ oldNode newNode root =
   replaceExpNodeE__ByEId oldNode.val.eid newNode root

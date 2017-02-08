@@ -33,6 +33,51 @@ import String
 
 passiveSynthesisSearch : Exp -> List InterfaceModel.SynthesisResult
 passiveSynthesisSearch originalExp =
+  mapAbstractSynthesisResults originalExp ++ rangeSynthesisResults originalExp
+
+
+rangeSynthesisResults originalExp =
+  let eidAndRangeLists =
+    flattenExpTree originalExp
+    |> List.filterMap
+        (\exp ->
+          case exp.val.e__ of
+            EList ws1 es ws2 Nothing ws3 ->
+              let maybeNums = es |> List.map expToMaybeNum |> Utils.projJusts in
+              case maybeNums of
+                Just [] ->
+                  Nothing
+
+                Just nums ->
+                  let (min, max) = (List.minimum nums |> Utils.fromJust_ "ExpressionBasedTransform.rangeSynthesisResults min" |> round, List.maximum nums |> Utils.fromJust_ "ExpressionBasedTransform.rangeSynthesisResults min" |> round) in
+                  if nums == (List.range min max |> List.map toFloat) then
+                    if List.head nums == Just 0.0 then
+                      Just (exp.val.eid, eApp (eVar0 "zeroTo") [eConst (toFloat max + 1) dummyLoc])
+                    else if List.head nums == Just 1.0 then
+                      Just (exp.val.eid, eApp (eVar0 "list1N") [eConst (toFloat max) dummyLoc])
+                    else
+                      Just (exp.val.eid, eApp (eVar0 "range") [eConst (toFloat min) dummyLoc, eConst (toFloat max) dummyLoc])
+                  else
+                    Nothing
+
+                Nothing ->
+                  Nothing
+
+            _ ->
+              Nothing
+        )
+  in
+  eidAndRangeLists
+  |> List.map
+      (\(eid, newExp) ->
+        { description = "Replace " ++ (unparse >> Utils.squish) (justFindExpByEId eid originalExp) ++ " with " ++ unparse newExp
+        , exp         = replaceExpNodePreservingPreceedingWhitespace eid newExp originalExp
+        , sortKey     = []
+        }
+      )
+
+
+mapAbstractSynthesisResults originalExp =
   let argVar = eVar "INSERT_ARGUMENT_HERE" in
   -- Sister function in LangTools.extraExpsDiff
   let merge expA expB =
@@ -92,7 +137,6 @@ passiveSynthesisSearch originalExp =
   |> List.filter (\(merged, exps) -> exps |> List.concatMap (\exp -> extraExpsDiff merged exp) |> List.all isLiteral) -- No free variables in the part of the expression to parameterize
   |> List.map
       (\(merged, exps) ->
-        -- TODO: add [0 1 2] -> (zeroTo 3) transform
         -- TODO: add attempts to transform [a, x1, x2, x3, z] into [a, (concat xs), z]
         -- TODO: lift dependencies
         -- TODO: Split abstraction -> mapping into two steps
