@@ -1,5 +1,7 @@
 "use strict";
 
+var ICON_PREFIX = "__ui__"
+
 // Helpers
 
 function stripExtension(str) {
@@ -82,6 +84,21 @@ function handleRequestFile(filename) {
   app.ports.receiveFile.send(file);
 }
 app.ports.requestFile.subscribe(handleRequestFile);
+
+function handleRequestIcon(iconName) {
+  var filename = ICON_PREFIX + iconName;
+  var code = read(filename);
+  var icon = {
+    iconName: iconName,
+    code: code
+  }
+  // Fixes weird timing with init commands
+  // See https://github.com/elm-lang/core/issues/595
+  setTimeout(function() {
+    app.ports.receiveIcon.send(icon)
+  }, 0);
+}
+app.ports.requestIcon.subscribe(handleRequestIcon);
 
 function handleRequestFileIndex() {
   var files = getFiles();

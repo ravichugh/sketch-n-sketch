@@ -43,6 +43,7 @@ initCmd =
     [ Task.perform Controller.msgWindowDimensions Window.size
     , AceCodeBox.initializeAndDisplay Model.initModel
     , Task.perform Controller.msgNew (Task.succeed "BLANK")
+    , Cmd.batch <| List.map FileHandler.requestIcon Model.iconNames
     ]
 
 subscriptions : Model -> Sub Msg
@@ -59,6 +60,7 @@ subscriptions model =
     , AnimationLoop.receiveFrame Controller.msgTickDelta
     , FileHandler.writeConfirmation Controller.msgConfirmWrite
     , FileHandler.receiveFile Controller.msgReadFile
+    , FileHandler.receiveIcon Controller.msgLoadIcon
     , FileHandler.receiveFileFromInput Controller.msgReadFileFromInput
     , FileHandler.receiveFileIndex Controller.msgUpdateFileIndex
     ]

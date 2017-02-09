@@ -11,12 +11,15 @@ import ExamplesGenerated as Examples
 import LangUnparser exposing (unparse)
 import Ace
 import Either exposing (Either(..))
+import LangParser2 as Parser
+
 
 import Dict exposing (Dict)
 import Set exposing (Set)
 import Char
 import Window
 import Mouse
+import Html exposing (Html)
 
 type alias Code = String
 
@@ -26,6 +29,13 @@ type alias FileIndex = List Filename
 
 type alias File = {
   filename : Filename,
+  code : Code
+}
+
+type alias IconName = String
+
+type alias Icon = {
+  iconName : IconName,
   code : Code
 }
 
@@ -86,6 +96,7 @@ type alias Model =
   , fileToDelete : Filename
   , pendingFileOperation : Maybe Msg
   , fileOperationConfirmed : Bool
+  , icons : Dict IconName (Html Msg)
   }
 
 type Mode
@@ -286,6 +297,36 @@ getFile model = { filename = model.filename
 
 --------------------------------------------------------------------------------
 
+iconNames = ["cursor", "line", "rect", "ellipse", "polygon", "path", "lambda"]
+
+getIconHtml : Model -> IconName -> Html Msg
+getIconHtml model iconName =
+  let
+    iconNameLower = String.toLower iconName
+  in
+    case Dict.get iconNameLower model.icons of
+      Just h -> h
+      Nothing -> Html.text "?"
+
+mouseIconCode =
+  """
+(def polygon1
+  (let pts_k4913 191
+  (let [pts_k4917 pts_k4911] [114 73]
+  (let k4926 (* 0.5! (+ pts_k4917 pts_k4911))
+  (let pts_k4922 124
+  (let pts_k4910 113
+  (let pts [[30 pts_k4922] [k4926 8] [157 pts_k4922] [pts_k4917 pts_k4910] [pts_k4917 pts_k4913] [pts_k4911 pts_k4913] [pts_k4911 pts_k4910]]
+  (let [color strokeColor strokeWidth] [365 470 7]
+    [ (rawPolygon color strokeColor strokeWidth pts -28.996918547567233) ]))))))))
+
+(svgViewBox 200 200 (concat [
+  polygon1
+]))
+"""
+
+--------------------------------------------------------------------------------
+
 initModel : Model
 initModel =
   let
@@ -353,5 +394,5 @@ initModel =
     , fileToDelete  = ""
     , pendingFileOperation = Nothing
     , fileOperationConfirmed = False
+    , icons = Dict.empty
     }
-

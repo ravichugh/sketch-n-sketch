@@ -25,6 +25,10 @@ strButtonTopColor = "rgba(231,76,60,1.0)" -- from InterfaceButtons example
 
 pixels n = toString n ++ "px"
 
+clickToCanvasPoint model {x,y} =
+  let layout = computeLayout model in
+  let (xOrigin, yOrigin) = (layout.canvas.left, layout.canvas.top) in
+  (x - xOrigin, y - yOrigin)
 
 --------------------------------------------------------------------------------
 -- CSS Fixed Positions

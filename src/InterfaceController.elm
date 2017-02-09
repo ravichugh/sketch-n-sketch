@@ -4,8 +4,7 @@ module InterfaceController exposing
   , msgWindowDimensions
   , msgCodeUpdate
   , msgKeyPress, msgKeyDown, msgKeyUp
-  , msgClickZone
-  , msgMouseClickCanvas, msgMouseIsDown, msgMousePosition
+  , msgMouseIsDown, msgMousePosition
   , msgRun, upstateRun, msgTryParseRun
   , msgAceUpdate
   , msgUndo, msgRedo, msgCleanCode
@@ -22,6 +21,7 @@ module InterfaceController exposing
   , msgOpenDialogBox, msgCloseDialogBox
   , msgUpdateFilenameInput
   , msgConfirmWrite, msgReadFile, msgReadFileFromInput, msgUpdateFileIndex
+  , msgLoadIcon
   , msgNew, msgSaveAs, msgSave, msgOpen, msgDelete
   , msgAskNew, msgAskOpen
   , msgConfirmFileOperation, msgCancelFileOperation
@@ -45,7 +45,7 @@ import Eval
 import Utils
 import Keys
 import InterfaceModel as Model exposing (..)
-import Layout
+import Layout exposing (clickToCanvasPoint)
 import AceCodeBox
 import AnimationLoop
 import FileHandler
@@ -55,6 +55,7 @@ import ShapeWidgets
 import ExamplesGenerated as Examples
 import Config exposing (params)
 import Either exposing (Either(..))
+import Canvas
 
 import VirtualDom
 
@@ -170,14 +171,6 @@ updateCodeBoxWithParseError annot codeBoxInfo =
 
 switchToCursorTool old =
   { old | mouseMode = MouseNothing , tool = Cursor }
-
---------------------------------------------------------------------------------
-
-clickToCanvasPoint model {x,y} =
-  let layout = Layout.computeLayout model in
-  let (xOrigin, yOrigin) = (layout.canvas.left, layout.canvas.top) in
-  (x - xOrigin, y - yOrigin)
-
 
 --------------------------------------------------------------------------------
 -- Mouse Events
@@ -452,7 +445,6 @@ upstate (Msg caption updateModel) old =
 issueCommand : Msg -> Model -> Model -> Cmd Msg
 issueCommand (Msg kind _) oldModel newModel =
   case kind of
-
     "Toggle Code Box" ->
       if newModel.basicCodeBox
         then Cmd.none
@@ -461,13 +453,33 @@ issueCommand (Msg kind _) oldModel newModel =
 
     "Save As" ->
       if newModel.filename /= Model.bufferName then
-        FileHandler.write <| getFile newModel
+        let
+          potentialIconName = String.dropLeft 6 newModel.filename -- __ui__
+          iconCommand =
+            if List.member potentialIconName Model.iconNames then
+              [ FileHandler.requestIcon potentialIconName ]
+            else
+              []
+        in
+          Cmd.batch <|
+            [ FileHandler.write <| getFile newModel
+            ] ++ iconCommand
       else
         Cmd.none
 
     "Save" ->
       if newModel.filename /= Model.bufferName then
-        FileHandler.write <| getFile newModel
+        let
+          potentialIconName = String.dropLeft 6 newModel.filename -- __ui__
+          iconCommand =
+            if List.member potentialIconName Model.iconNames then
+              [ FileHandler.requestIcon potentialIconName ]
+            else
+              []
+        in
+          Cmd.batch <|
+            [ FileHandler.write <| getFile newModel
+            ] ++ iconCommand
       else
         FileHandler.requestFileIndex ()
 
@@ -589,30 +601,6 @@ msgRedo = Msg "Redo" <| \old ->
       upstateRun new
 
 --------------------------------------------------------------------------------
-
-msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
-  case old.mode of
-    Live info ->
-      let (mx, my) = clickToCanvasPoint old (Tuple.second old.mouseState) in
-      let trigger = Sync.prepareLiveTrigger info old.inputExp zoneKey in
-      let dragInfo = (trigger, (mx, my), False) in
-      { old | mouseMode = MouseDragZone zoneKey (Just dragInfo) }
-    _ ->
-      old
-
---------------------------------------------------------------------------------
-
-msgMouseClickCanvas = Msg "MouseClickCanvas" <| \old ->
-  case (old.tool, old.mouseMode) of
-    (Cursor, MouseDragZone (Left _) _) -> old
-    (Cursor, _) ->
-      { old | selectedShapes = Set.empty, selectedBlobs = Dict.empty }
-
-    (_ , MouseNothing) ->
-      { old | mouseMode = MouseDrawNew []
-            , selectedShapes = Set.empty, selectedBlobs = Dict.empty }
-
-    _ -> old
 
 msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
   let new =
@@ -968,6 +956,14 @@ readFile file old =
         , lastSaveState = Just file.code
         , needsSave = False }
 
+loadIcon icon old =
+  let
+    oldIcons = old.icons
+    iconHtml = Canvas.iconify icon.code
+    newIcons = Dict.insert icon.iconName iconHtml oldIcons
+  in
+    { old | icons = newIcons }
+
 readFileFromInput file old =
   { old | filename = file.filename
         , code = file.code
@@ -981,16 +977,19 @@ updateFileIndex fileIndex old =
 -- Subscription Handlers
 
 msgConfirmWrite savedFilename =
-  Msg "Confirm Write" (confirmWrite savedFilename)
+  Msg "Confirm Write" <| confirmWrite savedFilename
 
 msgReadFile file =
-  Msg "Read File" (readFile file >> upstateRun)
+  Msg "Read File" <| readFile file >> upstateRun
+
+msgLoadIcon file =
+  Msg "Load Icon" <| loadIcon file
 
 msgReadFileFromInput file =
-  Msg "Read File From Input" (readFileFromInput file >> upstateRun)
+  Msg "Read File From Input" <| readFileFromInput file >> upstateRun
 
 msgUpdateFileIndex fileIndex =
-  Msg "Update File Index" (updateFileIndex fileIndex)
+  Msg "Update File Index" <| updateFileIndex fileIndex
 
 --------------------------------------------------------------------------------
 -- File Operations
@@ -1038,6 +1037,7 @@ msgNew template = Msg "New" <| (\old ->
                     , randomColor   = old.randomColor
                     , layoutOffsets = old.layoutOffsets
                     , fileIndex     = old.fileIndex
+                    , icons         = old.icons
                     }
       ) |> handleError old) >> closeDialogBox New
 

@@ -1,14 +1,14 @@
 port module FileHandler exposing
   ( write, writeConfirmation
   , requestFile, receiveFile
+  , requestIcon, receiveIcon
   , requestFileFromInput, receiveFileFromInput
   , requestFileIndex, receiveFileIndex
   , delete
   , download
   )
 
-
-import InterfaceModel exposing (Filename, File, FileIndex)
+import InterfaceModel exposing (Filename, File, IconName, Icon, FileIndex)
 
 type alias DownloadInfo =
   { filename : Filename
@@ -22,6 +22,10 @@ port writeConfirmation : (Filename -> msg) -> Sub msg
 port requestFile : Filename -> Cmd msg
 
 port receiveFile : (File -> msg) -> Sub msg
+
+port requestIcon : IconName -> Cmd msg
+
+port receiveIcon : (Icon -> msg) -> Sub msg
 
 port requestFileFromInput : String -> Cmd msg
 

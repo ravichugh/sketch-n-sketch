@@ -17,11 +17,11 @@ import InterfaceModel as Model exposing
   )
 import InterfaceController as Controller
 import Layout
-import Canvas
 import LangUnparser exposing (unparse)
 import LangSvg exposing (attr)
 import LangTools
 import Sync
+import Canvas
 
 -- Elm Libraries ---------------------------------------------------------------
 
@@ -154,7 +154,6 @@ view model =
         ]
     ]
     everything
-
 
 --------------------------------------------------------------------------------
 -- Tool Boxes
@@ -425,6 +424,37 @@ htmlButtonExtraAttrs extraAttrs text onClickHandler btnKind disabled =
       extraAttrs)
     [ Html.text text ]
 
+iconButton model iconName text onClickHandler btnKind disabled =
+  iconButtonExtraAttrs model iconName [] text onClickHandler btnKind disabled
+
+iconButtonExtraAttrs model iconName extraAttrs text onClickHandler btnKind disabled =
+  let
+    color =
+      case btnKind of
+        Regular    -> "white"
+        Unselected -> "white"
+        Selected   -> "lightgray"
+    iconHtml =
+      Model.getIconHtml model iconName
+  in
+  let commonAttrs =
+    [ Attr.disabled disabled
+    , Attr.style [ ("font", params.mainSection.widgets.font)
+                 , ("fontSize", params.mainSection.widgets.fontSize)
+                 , ("height", pixels Layout.buttonHeight)
+                 , ("background", color)
+                 , ("cursor", "pointer")
+                 , ("user-select", "none")
+                 ] ]
+  in
+  Html.button
+    (commonAttrs ++
+      [ handleEventAndStop "mousedown" Controller.msgNoop
+      , onClick onClickHandler
+      ] ++
+      extraAttrs)
+    [ iconHtml ]
+
 runButton =
   htmlButton "Run" Controller.msgRun Regular False
 
@@ -513,7 +543,7 @@ toolButton model tool =
     Text          -> "Text"
     HelperLine    -> "(Rule)"
     HelperDot     -> "(Dot)"
-    Lambda        -> Utils.uniLambda
+    Lambda        -> "Lambda" -- Utils.uniLambda
     _             -> Debug.crash ("toolButton: " ++ toString tool)
   in
   -- TODO temporarily disabling a couple tools
@@ -523,7 +553,8 @@ toolButton model tool =
       (False, Path Sticky) -> (Regular, True)
       (False, _)           -> (Unselected, False)
   in
-  htmlButton cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled
+  --htmlButton cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled
+  iconButton model cap cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled
 
 relateButton model text handler =
   let noFeatures = Set.isEmpty model.selectedFeatures in
