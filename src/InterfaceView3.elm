@@ -424,10 +424,10 @@ htmlButtonExtraAttrs extraAttrs text onClickHandler btnKind disabled =
       extraAttrs)
     [ Html.text text ]
 
-iconButton model iconName text onClickHandler btnKind disabled =
-  iconButtonExtraAttrs model iconName [] text onClickHandler btnKind disabled
+iconButton model iconName onClickHandler btnKind disabled =
+  iconButtonExtraAttrs model iconName [] onClickHandler btnKind disabled
 
-iconButtonExtraAttrs model iconName extraAttrs text onClickHandler btnKind disabled =
+iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
   let
     color =
       case btnKind of
@@ -451,6 +451,7 @@ iconButtonExtraAttrs model iconName extraAttrs text onClickHandler btnKind disab
     (commonAttrs ++
       [ handleEventAndStop "mousedown" Controller.msgNoop
       , onClick onClickHandler
+      , Attr.title iconName
       ] ++
       extraAttrs)
     [ iconHtml ]
@@ -554,7 +555,7 @@ toolButton model tool =
       (False, _)           -> (Unselected, False)
   in
   --htmlButton cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled
-  iconButton model cap cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled
+  iconButton model cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled
 
 relateButton model text handler =
   let noFeatures = Set.isEmpty model.selectedFeatures in
