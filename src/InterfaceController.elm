@@ -1218,7 +1218,7 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
               (Nothing, _) -> downPos
               (_, p)       -> p  in
   -- this conditional is used to stop highlights for items and target positions in drag and drop
-  if downPos /= pos
+  if downPos /= pos && downPos /= { x = 0 , y = 0} 
   then m 
   else 
     let codeBoxInfo = m.codeBoxInfo in
