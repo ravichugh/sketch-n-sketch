@@ -133,12 +133,16 @@ view model =
   let hoveredItems = 
     Html.div [ Attr.id "hoveredItem"
               , Attr.style
+                  -- child div as absolute to overlay on parent div
+                  -- https://stackoverflow.com/questions/2941189/how-to-overlay-one-div-over-another-div
                   [ ("position", "absolute")
                   , ("width", pixels (layout.codeBox.left + layout.codeBox.width))
                   , ("height", pixels (layout.codeBox.top + layout.codeBox.height))
                   ]
+              , onMouseEnter Controller.msgMouseEnterCodeBox
+              , onMouseLeave Controller.msgMouseLeaveCodeBox
               , onClick Controller.msgMouseClickCodeBox
-              ] model.hoveredItem in 
+              ] (deuceHoverBox model.hoveredItem) in 
 
   let everything = -- z-order in decreasing order
 
@@ -314,6 +318,7 @@ toolBox model id (getOffset, putOffset) leftRightTopBottom elements =
 aceCodeBox model dim =
   Html.div
     [ Attr.id "editor"
+    -- parent div as relative to have hover div on top
     , Attr.style [ ("position", "relative")
                  , ("width", pixels dim.width)
                  , ("height", pixels dim.height)
@@ -364,6 +369,28 @@ textArea_ children attrs =
   in
   Html.div (commonAttrs ++ attrs) children
 
+deuceHoverBox inputs = 
+  case inputs of
+    [(pixelPos, w, h)] -> 
+      [Svg.svg 
+        [Attr.id "hover", 
+         Attr.style
+          [ ("position", "fixed")
+          , ("left", pixels pixelPos.x)
+          , ("top", pixels pixelPos.y)
+          , ("width", pixels w)
+          , ("height", pixels h)
+          ]
+        ] 
+        [ flip Svg.rect [] <|
+          [ attr "stroke" "black" , attr "stroke-width" "2px"
+          , attr "fill-opacity" (toString 0) 
+          , attr "width" (toString w)
+          , attr "height" (toString h)
+          ]
+        ]]
+    _ -> [] 
+      
 
 --------------------------------------------------------------------------------
 -- Output Box

@@ -103,7 +103,7 @@ type alias Model =
   , selectedPatTargets : Set.Set PatTargetPosition
   , selectedExpTargets : Set.Set ExpTargetPosition
   , scopeGraph : ScopeGraph
-  , hoveredItem : List (Html Msg)
+  , hoveredItem : List ({ x : Float, y : Float }, Float, Float) 
   }
 
 type Mode
@@ -361,12 +361,20 @@ computeConstantRanges e =
 computeExpRanges : Exp -> List (EId, P.Pos, P.Pos, P.Pos, P.Pos)
 computeExpRanges e =
   let combine e acc =
+    let baseValue = (e.val.eid, e.start, e.end, e.start, e.end) in
+    let parenValue = (e.val.eid, e.start, e.end, e.start, { line = e.start.line, col = e.start.col + 1 }) in 
     case e.val.e__ of
-      EConst _ n _ _        -> (e.val.eid, e.start, e.end, e.start, e.end) :: acc
-      EBase _ b             -> (e.val.eid, e.start, e.end, e.start, e.end) :: acc 
-      EVar _ i              -> (e.val.eid, e.start, e.end, e.start, e.end) :: acc 
+      EConst _ n _ _        -> baseValue :: acc
+      EBase _ b             -> baseValue :: acc 
+      EVar _ i              -> baseValue :: acc 
       EFun _ p e2 _         -> (e.val.eid, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }, { line = e.start.line, col = e.start.col + 2 }) :: acc
       ELet _ _ r p e1 e2 _  -> (e.val.eid, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }, { line = e.start.line, col = e.start.col + 4 }) :: acc 
+      EApp _ e elist _      -> parenValue :: acc
+      EOp _ _ elist _       -> parenValue :: acc 
+      EList _ elist _ e _   -> parenValue :: acc 
+      EIf _ e1 e2 e3 _      -> parenValue :: acc 
+      ECase _ e _ _         -> parenValue :: acc 
+      ETypeCase _ p _ _     -> parenValue :: acc 
       _                     -> acc
   in
   foldExp combine [] e
@@ -443,7 +451,8 @@ rowColToPixelPos pos m =
     {x = x, y = y}
 
 getBoxWidth start end m = 
-  let characters = end.col - start.col in
+  let offSet = if start.line == end.line then 0 else 1 in 
+  let characters = end.col - start.col - offSet in
   toFloat(characters) * m.codeBoxInfo.characterWidth 
 
 getBoxHeight start end m = 
@@ -458,24 +467,7 @@ expRangesToHover m pos =
     let w = getBoxWidth start end m in 
     let h = getBoxHeight start end m in 
     if hoveringItem selectStart (Just (pixelToRowColPosition pos m)) selectEnd then 
-      [Svg.svg 
-        [Attr.id (toString eid), 
-         Attr.style
-          [ ("position", "fixed")
-          , ("left", pixels pixelPos.x)
-          , ("top", pixels pixelPos.y)
-          , ("width", pixels w)
-          , ("height", pixels h)
-          ]
-        ] 
-        [ flip Svg.rect [] <|
-          [ attr "stroke" "black" , attr "stroke-width" "2px"
-          , attr "fill-opacity" (toString 0) 
-          , attr "width" (toString w)
-          , attr "height" (toString h)
-          ]
-        ] 
-      ]
+      [(pixelPos, w, h)]
     else 
       []
   in
@@ -489,24 +481,7 @@ patRangesToHover m pos =
     let w = getBoxWidth start end m in 
     let h = getBoxHeight start end m in 
     if hoveringItem start (Just (pixelToRowColPosition pos m)) selectEnd then 
-      [Svg.svg 
-        [Attr.id (toString pid), 
-         Attr.style
-          [ ("position", "fixed")
-          , ("left", pixels pixelPos.x)
-          , ("top", pixels pixelPos.y)
-          , ("width", pixels w)
-          , ("height", pixels h)
-          ]
-        ] 
-        [ flip Svg.rect [] <|
-          [ attr "stroke" "black" , attr "stroke-width" "2px"
-          , attr "fill-opacity" (toString 0) 
-          , attr "width" (toString w)
-          , attr "height" (toString h)
-          ]
-        ] 
-      ]
+      [(pixelPos, w, h)]
     else 
       []
   in
@@ -674,6 +649,6 @@ initModel =
     , selectedPatTargets = Set.empty
     , selectedExpTargets = Set.empty
     , scopeGraph = DependenceGraph.compute e
-    , hoveredItem = [] 
+    , hoveredItem = []
     }
 
