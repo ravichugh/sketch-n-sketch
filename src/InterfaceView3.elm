@@ -14,6 +14,7 @@ import InterfaceModel as Model exposing
   , Caption(..), MouseMode(..)
   , mkLive_
   , DialogBox(..)
+  , rowColToPixelPos, getBoxWidth, getBoxHeight
   )
 import InterfaceController as Controller
 import Layout
@@ -134,9 +135,9 @@ view model =
     -- TODO maybe have deuceHoverBox return only Svg shape nodes,
     -- and then put into a single top-level Svg.svg here
     let svgWidgets =
-      deuceLayer model.hoveredItem ++
-      deuceLayer model.expSelectionBoxes ++
-      deuceLayer model.patSelectionBoxes
+      deuceLayer model.hoveredItem model ++
+      deuceLayer model.expSelectionBoxes model ++
+      deuceLayer model.patSelectionBoxes model 
     in
     Html.div [ Attr.id "hoveredItem"
               , Attr.style
@@ -383,17 +384,20 @@ textArea_ children attrs =
   in
   Html.div (commonAttrs ++ attrs) children
 
-deuceLayer inputs = 
+deuceLayer inputs model = 
   let (outerPad, innerPad) = (3, 2) in
   let createSVGs input = 
     case input of
-      (_, pixelPos, w, h) -> 
+      (_, selectStart, start, end, w, h) -> 
         let
           width pad  = toString (w + 2 * pad)
           height pad = toString (h + 2 * pad)
+          pixelPos = rowColToPixelPos selectStart model
+          w = getBoxWidth start end model
+          h = getBoxHeight start end model
         in
         [Svg.svg 
-          [Attr.id "hover", 
+          [Attr.id "deuceLayer", 
            Attr.style
             [ ("position", "fixed")
             , ("left", pixels (pixelPos.x - (outerPad + innerPad)))

@@ -39,6 +39,8 @@ type alias File = {
 
 type alias Html msg = VirtualDom.Node msg
 
+type alias Position = { col : Int, line : Int }
+
 type alias Model =
   { code : Code
   , preview: Maybe (Code, Result String (Val, Widgets, RootedIndexedTree))
@@ -103,9 +105,9 @@ type alias Model =
   , selectedPatTargets : Set.Set PatTargetPosition
   , selectedExpTargets : Set.Set ExpTargetPosition
   , scopeGraph : ScopeGraph
-  , hoveredItem : List (EId, { x : Float, y : Float }, Float, Float) 
-  , expSelectionBoxes : List (EId, { x : Float, y : Float }, Float, Float) 
-  , patSelectionBoxes : List (PatternId, { x : Float, y : Float }, Float, Float) 
+  , hoveredItem : List (EId, Position, Position, Position, Float, Float) 
+  , expSelectionBoxes : List (EId, Position, Position, Position, Float, Float) 
+  , patSelectionBoxes : List (PatternId, Position, Position, Position, Float, Float) 
   }
 
 type Mode
@@ -370,6 +372,7 @@ computeExpRanges e =
       EBase _ b             -> baseValue :: acc 
       EVar _ i              -> baseValue :: acc 
       EFun _ p e2 _         -> (e.val.eid, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }, { line = e.start.line, col = e.start.col + 2 }) :: acc
+      -- unique cases for let and def (equations and entire expressions)
       ELet _ _ r p e1 e2 _  -> (e.val.eid, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }, { line = e.start.line, col = e.start.col + 4 }) :: acc 
       EApp _ e elist _      -> parenValue :: acc
       EOp _ _ elist _       -> parenValue :: acc 
@@ -454,6 +457,8 @@ textBoundingBox exp =
   let output = lineStartEnd (Just lines) 1 start end (Dict.empty) in 
   (start, end, lines, output)
 
+--compute tight border
+
 expRangesToHighlights m pos =
   let maybeHighlight (eid,start,end,selectStart,selectEnd) =
     let range =
@@ -484,7 +489,7 @@ expRangeSelections m =
     let w = getBoxWidth start end m in 
     let h = getBoxHeight start end m in
     if Set.member eid m.selectedEIds then
-      [(eid, pixelPos, w, h)]
+      [(eid, selectStart, start, end, w, h)]
     else
       []
   in
@@ -502,7 +507,7 @@ patRangeSelections m =
     let w = getBoxWidth start end m in 
     let h = getBoxHeight start end m in
     if Set.member pid m.selectedPats then
-      [(pid, pixelPos, w, h)]
+      [(pid, start, start, end, w, h)]
     else
       []
   in
@@ -541,7 +546,7 @@ expRangesToHover m pos =
     let w = getBoxWidth start end m in 
     let h = getBoxHeight start end m in 
     if hoveringItem selectStart (Just (pixelToRowColPosition pos m)) selectEnd then 
-      [(eid, pixelPos, w, h)]
+      [(eid, selectStart, start, end, w, h)]
     else 
       []
   in
@@ -555,7 +560,7 @@ patRangesToHover m pos =
     let w = getBoxWidth start end m in 
     let h = getBoxHeight start end m in 
     if hoveringItem start (Just (pixelToRowColPosition pos m)) selectEnd then 
-      [(eid, pixelPos, w, h)]
+      [(eid, start, start, end, w, h)]
     else 
       []
   in
