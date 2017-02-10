@@ -421,6 +421,39 @@ hoveringItem start p end =
     Nothing   -> False 
     Just pos  -> betweenPos start pos end  
 
+leadingTrailingSpaces str = 
+  let leftTrim = String.trimLeft str in
+  let rightTrim = String.trimRight str in 
+  let fullLength = String.length str in 
+  let leftTrimLength = String.length leftTrim in
+  let rightTrimLength = String.length rightTrim in
+  let leading = fullLength - leftTrimLength in 
+  let trailing = rightTrimLength in 
+  (leading, trailing)
+
+lineStartEnd ls currIndex start end results =
+  case ls of 
+    Just lines -> 
+      if currIndex > end.line
+      then results
+      else 
+        if currIndex >= start.line
+        then 
+          case List.head(lines) of
+            Just str -> lineStartEnd (List.tail(lines)) (currIndex + 1) start end (Dict.insert currIndex (leadingTrailingSpaces str) results)
+            _ -> results
+        else 
+          lineStartEnd (List.tail(lines)) (currIndex+1) start end results
+    _ -> results 
+
+textBoundingBox exp = 
+  let start = exp.start in
+  let end = exp.end in 
+  let string = unparse exp in 
+  let lines = String.lines string in 
+  let output = lineStartEnd (Just lines) 1 start end (Dict.empty) in 
+  (start, end, lines, output)
+
 expRangesToHighlights m pos =
   let maybeHighlight (eid,start,end,selectStart,selectEnd) =
     let range =

@@ -142,7 +142,7 @@ view model =
               , onMouseEnter Controller.msgMouseEnterCodeBox
               , onMouseLeave Controller.msgMouseLeaveCodeBox
               , onClick Controller.msgMouseClickCodeBox
-              ] ((deuceHoverBox model.hoveredItem) ++ (deuceHoverBox model.expSelectionBoxes) ++ (deuceHoverBox model.patSelectionBoxes)) in 
+              ] ((deuceLayer model.hoveredItem) ++ (deuceLayer model.expSelectionBoxes) ++ (deuceLayer model.patSelectionBoxes)) in 
 
   let everything = -- z-order in decreasing order
      -- bottom-most
@@ -369,7 +369,7 @@ textArea_ children attrs =
   in
   Html.div (commonAttrs ++ attrs) children
 
-deuceHoverBox inputs = 
+deuceLayer inputs = 
   let createSVGs input = 
     case input of
       (_, pixelPos, w, h) -> 
