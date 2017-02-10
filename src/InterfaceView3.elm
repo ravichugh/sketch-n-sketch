@@ -168,14 +168,13 @@ view model =
      [ moreBlobTools, blobTools, attributeTools, lambdaDrawTools, stretchyDrawTools, drawTools
      , textTools
      , codeTools, fileTools
-     ] ++ synthesisResultsSelect ++
+     ] ++ synthesisResultsSelect ++ [hoveredItems] ++
 
      -- top-most
      [ resizeCodeBox
      , resizeCanvas
      , caption
      ] ++ dialogBoxes
-     ++ [hoveredItems]
   in
 
   Html.div
