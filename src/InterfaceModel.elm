@@ -103,7 +103,7 @@ type alias Model =
   , selectedPatTargets : Set.Set PatTargetPosition
   , selectedExpTargets : Set.Set ExpTargetPosition
   , scopeGraph : ScopeGraph
-  , hoveredItem : List ({ x : Float, y : Float }, Float, Float) 
+  , hoveredItem : List (EId, { x : Float, y : Float }, Float, Float) 
   , selectionBoxes : List (EId, { x : Float, y : Float }, Float, Float) 
   }
 
@@ -489,7 +489,7 @@ expRangesToHover m pos =
     let w = getBoxWidth start end m in 
     let h = getBoxHeight start end m in 
     if hoveringItem selectStart (Just (pixelToRowColPosition pos m)) selectEnd then 
-      [(pixelPos, w, h)]
+      [(eid, pixelPos, w, h)]
     else 
       []
   in
@@ -498,12 +498,12 @@ expRangesToHover m pos =
     else []
 
 patRangesToHover m pos =
-  let boxes pos (pid,start,end,selectEnd) = 
+  let boxes pos ((eid,ls),start,end,selectEnd) = 
     let pixelPos = rowColToPixelPos start m in
     let w = getBoxWidth start end m in 
     let h = getBoxHeight start end m in 
     if hoveringItem start (Just (pixelToRowColPosition pos m)) selectEnd then 
-      [(pixelPos, w, h)]
+      [(eid, pixelPos, w, h)]
     else 
       []
   in
