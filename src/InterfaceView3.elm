@@ -142,7 +142,7 @@ view model =
               , onMouseEnter Controller.msgMouseEnterCodeBox
               , onMouseLeave Controller.msgMouseLeaveCodeBox
               , onClick Controller.msgMouseClickCodeBox
-              ] ((deuceHoverBox model.hoveredItem) ++ (deuceHoverBox model.selectionBoxes)) in --((deuceHoverBox model.hoveredItem) ++ (deuceHoverBox values(model.selectionBoxes))) in 
+              ] ((deuceHoverBox model.hoveredItem) ++ (deuceHoverBox model.expSelectionBoxes) ++ (deuceHoverBox model.patSelectionBoxes)) in 
 
   let everything = -- z-order in decreasing order
      -- bottom-most

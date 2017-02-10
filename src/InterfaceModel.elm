@@ -104,7 +104,8 @@ type alias Model =
   , selectedExpTargets : Set.Set ExpTargetPosition
   , scopeGraph : ScopeGraph
   , hoveredItem : List (EId, { x : Float, y : Float }, Float, Float) 
-  , selectionBoxes : List (EId, { x : Float, y : Float }, Float, Float) 
+  , expSelectionBoxes : List (EId, { x : Float, y : Float }, Float, Float) 
+  , patSelectionBoxes : List (PatternId, { x : Float, y : Float }, Float, Float) 
   }
 
 type Mode
@@ -458,6 +459,24 @@ expRangeSelections m =
     then List.concatMap maybeHighlight (computeExpRanges m.inputExp)
     else []
 
+patRangeSelections m = 
+  let maybeHighlight (pid,start,end,selectEnd) =
+    let range =
+      { start = { row = start.line, column = start.col }
+      , end   = { row = selectEnd.line, column = selectEnd.col  } }
+    in
+    let pixelPos = rowColToPixelPos start m in
+    let w = getBoxWidth start end m in 
+    let h = getBoxHeight start end m in
+    if Set.member pid m.selectedPats then
+      [(pid, pixelPos, w, h)]
+    else
+      []
+  in
+  if m.deuceMode
+    then List.concatMap maybeHighlight (findPats m.inputExp)
+    else []
+
 pixelToRowColPosition pos m = 
   let rowPadding = m.codeBoxInfo.offsetHeight in
   let colPadding = m.codeBoxInfo.offsetLeft +  m.codeBoxInfo.gutterWidth in
@@ -672,6 +691,7 @@ initModel =
     , selectedExpTargets = Set.empty
     , scopeGraph = DependenceGraph.compute e
     , hoveredItem = []
-    , selectionBoxes = [] 
+    , expSelectionBoxes = [] 
+    , patSelectionBoxes = []
     }
 

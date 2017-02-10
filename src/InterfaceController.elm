@@ -716,10 +716,13 @@ msgKeyPress keyCode = Msg ("Key Press " ++ toString keyCode) <| \old ->
 
 msgKeyDown keyCode = Msg ("Key Down " ++ toString keyCode) <| \old ->
   if [keyCode] == Keys.escape then
-    let new = {old | selectedPats = Set.empty,
-                     selectedEIds = Set.empty,
-                     selectedExpTargets = Set.empty,
-                     selectedPatTargets = Set.empty} in 
+    let new = {old | selectedPats = Set.empty
+                     , selectedEIds = Set.empty
+                     , selectedExpTargets = Set.empty
+                     , selectedPatTargets = Set.empty
+                     , expSelectionBoxes = []
+                     , patSelectionBoxes = []
+                     } in 
     case (old.tool, old.mouseMode) of
       (Cursor, _) ->
         { new | selectedFeatures = Set.empty
@@ -1228,11 +1231,6 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
                   then Set.remove eid m.selectedEIds
                   else Set.insert eid m.selectedEIds
   in
-  let selectedEIdBoxes =
-    case getClickedEId (computeExpRanges m.inputExp) pixelPos of
-      Nothing  -> m.selectionBoxes
-      Just eid -> List.filter (\(e, pixelPos, start, end) -> (e /= eid)) m.selectionBoxes
-  in
   let selectedExpTargets =
     case getClickedExpTarget (computeExpTargets m.inputExp) pixelPos of
       [] -> m.selectedExpTargets
@@ -1260,7 +1258,8 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
                                                      patRangesToHighlights new Nothing ++ 
                                                      patTargetsToHighlights new Nothing
                                       }
-          , selectionBoxes = expRangeSelections new
+          , expSelectionBoxes = expRangeSelections new
+          , patSelectionBoxes = patRangeSelections new 
         }
 
 getSetMembers ls s = 
