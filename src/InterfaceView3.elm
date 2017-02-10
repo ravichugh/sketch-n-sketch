@@ -131,6 +131,12 @@ view model =
   let caption = captionArea model layout in
 
   let hoveredItems = 
+    -- TODO maybe have deuceHoverBox return only Svg shape nodes,
+    -- and then put into a single top-level Svg.svg here
+    let svgWidgets =
+      deuceHoverBox model.hoveredItem ++
+      deuceHoverBox model.selectionBoxes
+    in
     Html.div [ Attr.id "hoveredItem"
               , Attr.style
                   -- child div as absolute to overlay on parent div
@@ -138,14 +144,18 @@ view model =
                   [ ("position", "absolute")
                   , ("left", pixels layout.codeBox.left)
                   , ("top", pixels layout.codeBox.top)
-                  , ("width", pixels layout.codeBox.width)
-                  , ("height", pixels layout.codeBox.height)
+                  -- TODO don't want this layer to block clicks to change Ace cursor
+                  -- , ("width", pixels layout.codeBox.width)
+                  -- , ("height", pixels layout.codeBox.height)
+                  , ("width", "0")
+                  , ("height", "0")
                   , ("user-select", "none")
                   ]
+              -- TODO why are these events here and aceCodeBox?
               , onMouseEnter Controller.msgMouseEnterCodeBox
               , onMouseLeave Controller.msgMouseLeaveCodeBox
               , onClick Controller.msgMouseClickCodeBox
-              ] ((deuceHoverBox model.hoveredItem) ++ (deuceHoverBox model.selectionBoxes)) in --((deuceHoverBox model.hoveredItem) ++ (deuceHoverBox values(model.selectionBoxes))) in 
+              ] svgWidgets in
 
   let everything = -- z-order in decreasing order
      -- bottom-most
@@ -373,29 +383,40 @@ textArea_ children attrs =
   Html.div (commonAttrs ++ attrs) children
 
 deuceHoverBox inputs = 
+  let (outerPad, innerPad) = (3, 2) in
   let createSVGs input = 
     case input of
       (_, pixelPos, w, h) -> 
+        let
+          width pad  = toString (w + 2 * pad)
+          height pad = toString (h + 2 * pad)
+        in
         [Svg.svg 
           [Attr.id "hover", 
            Attr.style
             [ ("position", "fixed")
-            , ("left", pixels pixelPos.x)
-            , ("top", pixels pixelPos.y)
-            , ("width", pixels w)
-            , ("height", pixels h)
+            , ("left", pixels (pixelPos.x - (outerPad + innerPad)))
+            , ("top", pixels (pixelPos.y - (outerPad + innerPad)))
+            , ("width", width (outerPad + innerPad))
+            , ("height", height (outerPad + innerPad))
             ]
           ] 
           [ flip Svg.rect [] <|
-            [ attr "stroke" "black" , attr "stroke-width" "2px"
+            [ attr "stroke" "steelblue"
+            , attr "stroke-width" "3px"
             , attr "fill-opacity" (toString 0) 
-            , attr "width" (toString w)
-            , attr "height" (toString h)
+            , attr "x" (pixels outerPad)
+            , attr "y" (pixels outerPad)
+            , attr "width" (width innerPad)
+            , attr "height" (height innerPad)
+            , attr "rx" "8"
+            , attr "ry" "8"
+            , attr "user-select" "none"
             ]
           ]]
   in 
   List.concatMap createSVGs inputs 
-      
+
 
 --------------------------------------------------------------------------------
 -- Output Box
