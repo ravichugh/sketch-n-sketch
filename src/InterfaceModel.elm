@@ -672,6 +672,6 @@ initModel =
     , selectedExpTargets = Set.empty
     , scopeGraph = DependenceGraph.compute e
     , hoveredItem = []
-    , selectionBoxes = []
+    , selectionBoxes = [] 
     }
 

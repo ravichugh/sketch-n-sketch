@@ -1231,7 +1231,7 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
   let selectedEIdsBoxes =
     case getClickedEId (computeExpRanges m.inputExp) pixelPos of
       Nothing  -> m.selectionBoxes
-      Just eid -> List.filter (\(eid, pixelPos, start, end) -> Set.member eid m.selectedEIds) m.selectionBoxes
+      Just eid -> List.filter (\(e, pixelPos, start, end) -> (e /= eid)) m.selectionBoxes
   in
   let selectedExpTargets =
     case getClickedExpTarget (computeExpTargets m.inputExp) pixelPos of
@@ -1263,9 +1263,9 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
                 , selectedExpTargets = selectedExpTargets } 
   in 
   let prevHovered = selectedEIdsBoxes in 
-  let hovered = prevHovered ++ expRangeSelections new in --expRangesToHover m pos ++ patRangesToHover m pos in 
+  let hovered = expRangeSelections new in --expRangesToHover m pos ++ patRangesToHover m pos in 
   let _ = Debug.log "prevHovered" prevHovered in
-  let _ = Debug.log "hovered" hovered in 
+  let _ = Debug.log "hovered" hovered in
   { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new Nothing ++ 
                                                      expTargetsToHighlights new Nothing ++ 
                                                      patRangesToHighlights new Nothing ++ 
