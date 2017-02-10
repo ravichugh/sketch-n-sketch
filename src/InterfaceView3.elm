@@ -136,8 +136,11 @@ view model =
                   -- child div as absolute to overlay on parent div
                   -- https://stackoverflow.com/questions/2941189/how-to-overlay-one-div-over-another-div
                   [ ("position", "absolute")
-                  , ("width", pixels (layout.codeBox.left + layout.codeBox.width))
-                  , ("height", pixels (layout.codeBox.top + layout.codeBox.height))
+                  , ("left", pixels layout.codeBox.left)
+                  , ("top", pixels layout.codeBox.top)
+                  , ("width", pixels layout.codeBox.width)
+                  , ("height", pixels layout.codeBox.height)
+                  , ("user-select", "none")
                   ]
               , onMouseEnter Controller.msgMouseEnterCodeBox
               , onMouseLeave Controller.msgMouseLeaveCodeBox
