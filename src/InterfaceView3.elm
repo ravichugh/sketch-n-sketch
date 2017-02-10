@@ -142,16 +142,15 @@ view model =
               , onMouseEnter Controller.msgMouseEnterCodeBox
               , onMouseLeave Controller.msgMouseLeaveCodeBox
               , onClick Controller.msgMouseClickCodeBox
-              ] (deuceHoverBox model.hoveredItem) in 
+              ] (deuceHoverBox model.selectionBoxes) in --((deuceHoverBox model.hoveredItem) ++ (deuceHoverBox values(model.selectionBoxes))) in 
 
   let everything = -- z-order in decreasing order
-
      -- bottom-most
      [ onbeforeunloadDataElement
      , codeBox, outputBox
 
      -- toolboxes in reverse order
-     , outputTools] ++ animationTools ++ [hoveredItems] ++ 
+     , outputTools] ++ animationTools ++
      [ moreBlobTools, blobTools, attributeTools, lambdaDrawTools, stretchyDrawTools, drawTools
      , textTools
      , codeTools, fileTools
@@ -162,6 +161,7 @@ view model =
      , resizeCanvas
      , caption
      ] ++ dialogBoxes
+     ++ [hoveredItems]
   in
 
   Html.div
@@ -370,26 +370,28 @@ textArea_ children attrs =
   Html.div (commonAttrs ++ attrs) children
 
 deuceHoverBox inputs = 
-  case inputs of
-    [(pixelPos, w, h)] -> 
-      [Svg.svg 
-        [Attr.id "hover", 
-         Attr.style
-          [ ("position", "fixed")
-          , ("left", pixels pixelPos.x)
-          , ("top", pixels pixelPos.y)
-          , ("width", pixels w)
-          , ("height", pixels h)
-          ]
-        ] 
-        [ flip Svg.rect [] <|
-          [ attr "stroke" "black" , attr "stroke-width" "2px"
-          , attr "fill-opacity" (toString 0) 
-          , attr "width" (toString w)
-          , attr "height" (toString h)
-          ]
-        ]]
-    _ -> [] 
+  let createSVGs input = 
+    case input of
+      (_, pixelPos, w, h) -> 
+        [Svg.svg 
+          [Attr.id "hover", 
+           Attr.style
+            [ ("position", "fixed")
+            , ("left", pixels pixelPos.x)
+            , ("top", pixels pixelPos.y)
+            , ("width", pixels w)
+            , ("height", pixels h)
+            ]
+          ] 
+          [ flip Svg.rect [] <|
+            [ attr "stroke" "black" , attr "stroke-width" "2px"
+            , attr "fill-opacity" (toString 0) 
+            , attr "width" (toString w)
+            , attr "height" (toString h)
+            ]
+          ]]
+  in 
+  List.concatMap createSVGs inputs 
       
 
 --------------------------------------------------------------------------------

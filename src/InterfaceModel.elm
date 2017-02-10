@@ -104,6 +104,7 @@ type alias Model =
   , selectedExpTargets : Set.Set ExpTargetPosition
   , scopeGraph : ScopeGraph
   , hoveredItem : List ({ x : Float, y : Float }, Float, Float) 
+  , selectionBoxes : List (EId, { x : Float, y : Float }, Float, Float) 
   }
 
 type Mode
@@ -425,10 +426,31 @@ expRangesToHighlights m pos =
       { start = { row = selectStart.line, column = selectStart.col }
       , end   = { row = selectEnd.line, column = selectEnd.col  } }
     in
+    let pixelPos = rowColToPixelPos selectStart m in
+    let w = getBoxWidth start end m in 
+    let h = getBoxHeight start end m in
     if Set.member eid m.selectedEIds then
       [ { color = "orange", range = range } ]
     else if showDeuceWidgets m || hoveringItem selectStart pos selectEnd then
       [ { color = "peachpuff", range = range } ]
+    else
+      []
+  in
+  if m.deuceMode
+    then List.concatMap maybeHighlight (computeExpRanges m.inputExp)
+    else []
+
+expRangeSelections m = 
+  let maybeHighlight (eid,start,end,selectStart,selectEnd) =
+    let range =
+      { start = { row = selectStart.line, column = selectStart.col }
+      , end   = { row = selectEnd.line, column = selectEnd.col  } }
+    in
+    let pixelPos = rowColToPixelPos selectStart m in
+    let w = getBoxWidth start end m in 
+    let h = getBoxHeight start end m in
+    if Set.member eid m.selectedEIds then
+      [(eid, pixelPos, w, h)]
     else
       []
   in
@@ -650,5 +672,6 @@ initModel =
     , selectedExpTargets = Set.empty
     , scopeGraph = DependenceGraph.compute e
     , hoveredItem = []
+    , selectionBoxes = []
     }
 

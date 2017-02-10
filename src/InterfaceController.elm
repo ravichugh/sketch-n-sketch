@@ -169,7 +169,7 @@ updateCodeBoxInfo : Types.AceTypeInfo -> Model -> CodeBoxInfo
 updateCodeBoxInfo ati m =
   let codeBoxInfo = m.codeBoxInfo in
   { codeBoxInfo | annotations = ati.annotations
-                , highlights = ati.highlights ++ expRangesToHighlights m Nothing 
+                , highlights = ati.highlights --++ expRangesToHighlights m Nothing 
                 , tooltips = ati.tooltips }
 
 updateCodeBoxWithParseError annot codeBoxInfo =
@@ -701,7 +701,7 @@ msgMousePosition pos_ = Msg ("MousePosition " ++ toString pos_) <| \old ->
                                                    expTargetsToHighlights old (Just pixelPos) ++ 
                                                    patRangesToHighlights old (Just pixelPos) ++ 
                                                    patTargetsToHighlights old (Just pixelPos) }
-                    , hoveredItem = hovered
+                    , hoveredItem = hovered --++ expRangesToHighlights old Nothing 
           }
   in 
   case old.mouseState of
@@ -1228,6 +1228,11 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
                   then Set.remove eid m.selectedEIds
                   else Set.insert eid m.selectedEIds
   in
+  let selectedEIdsBoxes =
+    case getClickedEId (computeExpRanges m.inputExp) pixelPos of
+      Nothing  -> m.selectionBoxes
+      Just eid -> List.filter (\(eid, pixelPos, start, end) -> Set.member eid m.selectedEIds) m.selectionBoxes
+  in
   let selectedExpTargets =
     case getClickedExpTarget (computeExpTargets m.inputExp) pixelPos of
       [] -> m.selectedExpTargets
@@ -1245,15 +1250,28 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
       [] -> m.selectedPatTargets
       ls -> getSetMembers ls m.selectedPatTargets
   in
+  --let selectedEIdBoxes =
+  --  case getClickedEId (computeExpRanges m.inputExp) pixelPos of
+  --    Nothing  -> m.selectedEIds
+  --    Just eid -> if Set.member eid m.selectedEIds
+  --                then Set.remove eid m.selectedEIds
+  --                else Set.insert eid m.selectedEIds
+  --in
   let new = { m | selectedEIds = selectedEIds 
                 , selectedPats = selectedPats
                 , selectedPatTargets = selectedPatTargets
                 , selectedExpTargets = selectedExpTargets } 
   in 
+  let prevHovered = selectedEIdsBoxes in 
+  let hovered = prevHovered ++ expRangeSelections new in --expRangesToHover m pos ++ patRangesToHover m pos in 
+  let _ = Debug.log "prevHovered" prevHovered in
+  let _ = Debug.log "hovered" hovered in 
   { new | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights new Nothing ++ 
                                                      expTargetsToHighlights new Nothing ++ 
                                                      patRangesToHighlights new Nothing ++ 
-                                                     patTargetsToHighlights new Nothing }
+                                                     patTargetsToHighlights new Nothing
+                                      }
+          , selectionBoxes = hovered 
         }
 
 getSetMembers ls s = 
