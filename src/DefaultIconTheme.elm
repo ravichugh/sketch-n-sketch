@@ -1,4 +1,4 @@
-module DefaultIconTheme exposing (icons)
+module DefaultIconTheme exposing (..)
 
 import Dict
 
@@ -14,6 +14,8 @@ icons =
     ]
 
 cursor = """
+; To customize, Save As: __ui__cursor.little
+
 (def polygon1
   (let pts_k4913 191
   (let [pts_k4917 pts_k4911] [114 73]
@@ -30,6 +32,8 @@ cursor = """
 """
 
 line = """
+; To customize, Save As: __ui__line.little
+
 (def line1
   (let [x1 y1 x2 y2] [25 25 175 175]
   (let [color width] [379 7]
@@ -41,6 +45,8 @@ line = """
 """
 
 rect = """
+; To customize, Save As: __ui__rect.little
+
 (def rect1
   (let [x y w h] [25 25 150 150]
   (let [fill stroke strokeWidth] [365 470 7]
@@ -53,6 +59,8 @@ rect = """
 """
 
 ellipse = """
+; To customize, Save As: __ui__ellipse.little
+
 (def ellipse1
   (let bounds @ [left top right bot] [25 25 175 175]
   (let [color strokeColor strokeWidth] [365 470 7]
@@ -64,6 +72,8 @@ ellipse = """
 """
 
 polygon = """
+; To customize, Save As: __ui__polygon.little
+
 (def star [(nStar 365 470 7 5 45 90 3.1415 100 110)])
 
 (svgViewBox 200 200
@@ -72,6 +82,8 @@ polygon = """
 """
 
 path = """
+; To customize, Save As: __ui__path.little
+
 (def svgViewBox2 (\\(xMin yMin xMax yMax shapes)
   (let [smx smy sx sy] [(toString xMin) (toString yMin) (toString xMax) (toString yMax)]
     ['svg'
@@ -145,6 +157,8 @@ path = """
 """
 
 lambda = """
+; To customize, Save As: __ui__lambda.little
+
 (let [x0 y0 w h delta] [10 10 180 180 10]
 (let [xw yh w2 h2] [(+ x0 w) (+ y0 h) (div w 2) (div h 2)]
 (let poly (\\pts (polygon 'black' 'none' 0 pts))
