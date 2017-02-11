@@ -168,8 +168,8 @@ iconify code =
       buildSvg (initModel, False) tree
   in
     Svg.svg
-      [ SAttr.width "15px"
-      , SAttr.height "15px"
+      [ SAttr.width "30px"
+      , SAttr.height "30px"
       ]
       [ svgElements ]
 

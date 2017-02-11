@@ -34,10 +34,8 @@ function write(file) {
 function read(filename) {
   var files = getFiles();
   var file = files[filename];
-  var code;
-  if (file === undefined) {
-    code = "(blobs [\n])"; // same as BLANK template
-  } else {
+  var code = "";
+  if (file !== undefined) {
     code = file.code;
   }
   return code;

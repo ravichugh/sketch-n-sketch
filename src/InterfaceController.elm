@@ -56,6 +56,7 @@ import ExamplesGenerated as Examples
 import Config exposing (params)
 import Either exposing (Either(..))
 import Canvas
+import DefaultIconTheme
 
 import VirtualDom
 
@@ -958,9 +959,23 @@ readFile file old =
 
 loadIcon icon old =
   let
-    oldIcons = old.icons
-    iconHtml = Canvas.iconify icon.code
-    newIcons = Dict.insert icon.iconName iconHtml oldIcons
+    iconNameLower =
+      String.toLower icon.iconName
+    actualCode =
+      if icon.code /= "" then
+        icon.code
+      else
+        case Dict.get iconNameLower DefaultIconTheme.icons of
+          Just c ->
+            c
+          Nothing ->
+            "(blobs [])"
+    oldIcons =
+      old.icons
+    iconHtml =
+      Canvas.iconify actualCode
+    newIcons =
+      Dict.insert icon.iconName iconHtml oldIcons
   in
     { old | icons = newIcons }
 

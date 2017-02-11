@@ -441,7 +441,7 @@ iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
     [ Attr.disabled disabled
     , Attr.style [ ("font", params.mainSection.widgets.font)
                  , ("fontSize", params.mainSection.widgets.fontSize)
-                 , ("height", pixels Layout.buttonHeight)
+                 , ("height", pixels Layout.iconButtonHeight)
                  , ("background", color)
                  , ("cursor", "pointer")
                  , ("user-select", "none")

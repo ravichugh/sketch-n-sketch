@@ -306,24 +306,7 @@ getIconHtml model iconName =
   in
     case Dict.get iconNameLower model.icons of
       Just h -> h
-      Nothing -> Html.text "?"
-
-mouseIconCode =
-  """
-(def polygon1
-  (let pts_k4913 191
-  (let [pts_k4917 pts_k4911] [114 73]
-  (let k4926 (* 0.5! (+ pts_k4917 pts_k4911))
-  (let pts_k4922 124
-  (let pts_k4910 113
-  (let pts [[30 pts_k4922] [k4926 8] [157 pts_k4922] [pts_k4917 pts_k4910] [pts_k4917 pts_k4913] [pts_k4911 pts_k4913] [pts_k4911 pts_k4910]]
-  (let [color strokeColor strokeWidth] [365 470 7]
-    [ (rawPolygon color strokeColor strokeWidth pts -28.996918547567233) ]))))))))
-
-(svgViewBox 200 200 (concat [
-  polygon1
-]))
-"""
+      Nothing -> Html.text ""
 
 --------------------------------------------------------------------------------
 
