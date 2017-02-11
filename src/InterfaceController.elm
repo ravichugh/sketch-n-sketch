@@ -20,7 +20,8 @@ module InterfaceController exposing
   , msgPauseResumeMovie
   , msgOpenDialogBox, msgCloseDialogBox
   , msgUpdateFilenameInput
-  , msgConfirmWrite, msgReadFile, msgReadFileFromInput, msgUpdateFileIndex
+  , msgConfirmWrite, msgConfirmDelete
+  , msgReadFile, msgReadFileFromInput, msgUpdateFileIndex
   , msgLoadIcon
   , msgNew, msgSaveAs, msgSave, msgOpen, msgDelete
   , msgAskNew, msgAskOpen
@@ -454,41 +455,27 @@ issueCommand (Msg kind _) oldModel newModel =
 
     "Save As" ->
       if newModel.filename /= Model.bufferName then
-        let
-          potentialIconName = String.dropLeft 6 newModel.filename -- __ui__
-          iconCommand =
-            if List.member potentialIconName Model.iconNames then
-              [ FileHandler.requestIcon potentialIconName ]
-            else
-              []
-        in
-          Cmd.batch <|
-            [ FileHandler.write <| getFile newModel
-            ] ++ iconCommand
+        FileHandler.write <| getFile newModel
       else
         Cmd.none
 
     "Save" ->
       if newModel.filename /= Model.bufferName then
-        let
-          potentialIconName = String.dropLeft 6 newModel.filename -- __ui__
-          iconCommand =
-            if List.member potentialIconName Model.iconNames then
-              [ FileHandler.requestIcon potentialIconName ]
-            else
-              []
-        in
-          Cmd.batch <|
-            [ FileHandler.write <| getFile newModel
-            ] ++ iconCommand
+        FileHandler.write <| getFile newModel
       else
         FileHandler.requestFileIndex ()
+
+    "Confirm Write" ->
+      Cmd.batch <| iconCommand newModel.filename
 
     "Open" ->
       FileHandler.requestFile newModel.filename
 
     "Delete" ->
       FileHandler.delete newModel.fileToDelete
+
+    "Confirm Delete" ->
+      Cmd.batch <| iconCommand newModel.fileToDelete
 
     "Export Code" ->
       FileHandler.download
@@ -539,6 +526,16 @@ issueCommand (Msg kind _) oldModel newModel =
         AnimationLoop.requestFrame ()
       else
         Cmd.none
+
+iconCommand filename =
+  let
+    potentialIconName =
+      String.dropLeft 6 filename -- __ui__
+  in
+    if List.member potentialIconName Model.iconNames then
+      [ FileHandler.requestIcon potentialIconName ]
+    else
+      []
 
 --------------------------------------------------------------------------------
 
@@ -947,6 +944,8 @@ confirmWrite savedFilename old =
   { old | needsSave = False
         , lastSaveState = Just old.code }
 
+confirmDelete deletedFilename = identity
+
 requestFile requestedFilename old =
   { old | filename = requestedFilename }
 
@@ -993,6 +992,9 @@ updateFileIndex fileIndex old =
 
 msgConfirmWrite savedFilename =
   Msg "Confirm Write" <| confirmWrite savedFilename
+
+msgConfirmDelete deletedFilename =
+  Msg "Confirm Delete" <| confirmDelete deletedFilename
 
 msgReadFile file =
   Msg "Read File" <| readFile file >> upstateRun

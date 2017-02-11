@@ -108,6 +108,7 @@ app.ports.requestFileIndex.subscribe(handleRequestFileIndex);
 function handleDelete(filename) {
   deleteFile(filename);
   handleRequestFileIndex(); // send back new file index
+  app.ports.deleteConfirmation.send(filename);
 }
 app.ports.delete.subscribe(handleDelete);
 

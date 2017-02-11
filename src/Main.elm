@@ -59,6 +59,7 @@ subscriptions model =
     , AceCodeBox.receiveEditorState Controller.msgAceUpdate
     , AnimationLoop.receiveFrame Controller.msgTickDelta
     , FileHandler.writeConfirmation Controller.msgConfirmWrite
+    , FileHandler.deleteConfirmation Controller.msgConfirmDelete
     , FileHandler.receiveFile Controller.msgReadFile
     , FileHandler.receiveIcon Controller.msgLoadIcon
     , FileHandler.receiveFileFromInput Controller.msgReadFileFromInput

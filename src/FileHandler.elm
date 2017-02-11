@@ -4,7 +4,7 @@ port module FileHandler exposing
   , requestIcon, receiveIcon
   , requestFileFromInput, receiveFileFromInput
   , requestFileIndex, receiveFileIndex
-  , delete
+  , delete, deleteConfirmation
   , download
   )
 
@@ -36,5 +36,7 @@ port requestFileIndex : () -> Cmd msg
 port receiveFileIndex : (FileIndex -> msg) -> Sub msg
 
 port delete : Filename -> Cmd msg
+
+port deleteConfirmation : (Filename -> msg) -> Sub msg
 
 port download : DownloadInfo -> Cmd msg
