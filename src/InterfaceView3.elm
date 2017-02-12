@@ -65,7 +65,7 @@ view model =
   let codeTools = codeToolBox model layout in
   let drawTools = drawToolBox model layout in
   let stretchyDrawTools = stretchyDrawToolBox model layout in
-  let lambdaDrawTools = lambdaDrawToolBox model layout in
+  let lambdaDrawTools = lambdaDrawToolBoxWithIcons model layout in
   let attributeTools = attributeToolBox model layout in
   let blobTools = blobToolBox model layout in
   let moreBlobTools = moreBlobToolBox model layout in
@@ -197,11 +197,13 @@ stretchyDrawToolBox model layout =
     , toolButton model (Path Stretchy)
     ]
 
+{-
 lambdaDrawToolBox model layout =
   toolBox model "lambdaDrawToolBox" Layout.getPutDrawToolBox layout.lambdaDrawTools
     [ toolButton model Lambda
     , dropdownLambdaTool model
     ]
+-}
 
 attributeToolBox model layout =
   toolBox model "attributeToolBox" Layout.getPutAttributeToolBox layout.attributeTools
@@ -261,6 +263,7 @@ synthesisResultsSelectBox model layout =
 toolBox model id (getOffset, putOffset) leftRightTopBottom elements =
   Html.div
     [ Attr.id id
+    , Attr.title id
     , Attr.style <|
         [ ("position", "fixed")
         , ("padding", "0px 0px 0px 15px")
@@ -544,7 +547,7 @@ toolButton model tool =
     Text          -> "Text"
     HelperLine    -> "(Rule)"
     HelperDot     -> "(Dot)"
-    Lambda        -> "Lambda" -- Utils.uniLambda
+    Lambda _      -> "Lambda" -- Utils.uniLambda
     _             -> Debug.crash ("toolButton: " ++ toString tool)
   in
   -- TODO temporarily disabling a couple tools
@@ -649,12 +652,7 @@ fontSizeButton model =
 --------------------------------------------------------------------------------
 -- Lambda Tool Dropdown Menu
 
-strLambdaTool lambdaTool =
-  let strExp = String.trim << unparse in
-  case lambdaTool of
-    LambdaBounds e -> "bounds. " ++ strExp e ++ " bounds"
-    LambdaAnchor e -> "anchor. " ++ strExp e ++ " anchor"
-
+{-
 dropdownLambdaTool model =
   let options =
     let (selectedIdx, exps) = model.lambdaTools in
@@ -695,6 +693,21 @@ dropdownLambdaTool model =
         ]
     ]
     options
+-}
+
+lambdaDrawToolBoxWithIcons model layout =
+  let buttons =
+    Utils.mapi (\(i, lambdaTool) ->
+      let iconName = Model.strLambdaTool lambdaTool in
+      iconButton model iconName
+        (Msg iconName (\m -> { m | tool = Lambda i }))
+        (if model.tool == Lambda i then Selected else Unselected)
+        False
+      ) model.lambdaTools
+  in
+  toolBox model "lambdaDrawToolBox"
+    Layout.getPutDrawToolBox layout.lambdaDrawTools
+    buttons
 
 
 --------------------------------------------------------------------------------

@@ -69,7 +69,7 @@ drawNewShape model =
     (Path _,     MouseDrawNew (ptLast::pts)) -> drawNewPath ptLast pts
     (HelperDot,  MouseDrawNew [pt])          -> drawNewHelperDot pt
     (HelperLine, MouseDrawNew [pt2, pt1])    -> drawNewLine model pt2 pt1
-    (Lambda,     MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
+    (Lambda _,   MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
     (Text,       MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
     _                                        -> []
 
@@ -591,8 +591,8 @@ addLambda old (_,pt2) (_,pt1) =
     Utils.geti selectedIdx exps
   in
 -}
-addLambda old pt2 pt1 =
-  let (selectedIdx, exps) = old.lambdaTools in
+addLambda selectedIdx old pt2 pt1 =
+  let exps = old.lambdaTools in
   case Utils.geti selectedIdx exps of
     LambdaBounds func -> addLambdaBounds old pt2 pt1 func
     LambdaAnchor func -> addLambdaAnchor old pt2 pt1 func
@@ -683,7 +683,7 @@ makeNewShapeDef model newShapeKind name locals func args =
       [] ->
         let multi = -- check if (func args) returns List SVG or SVG
           case model.tool of
-            Lambda -> True
+            Lambda _ -> True
             Text -> True
             _ -> False
         in

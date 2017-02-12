@@ -44,6 +44,7 @@ initCmd =
     , AceCodeBox.initializeAndDisplay Model.initModel
     , Task.perform Controller.msgNew (Task.succeed "BLANK")
     , Cmd.batch <| List.map FileHandler.requestIcon Model.iconNames
+    , Task.perform Controller.msgLoadIcon (Task.succeed (Model.starLambdaToolIcon))
     ]
 
 subscriptions : Model -> Sub Msg

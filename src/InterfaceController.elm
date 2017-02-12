@@ -174,6 +174,17 @@ updateCodeBoxWithParseError annot codeBoxInfo =
 switchToCursorTool old =
   { old | mouseMode = MouseNothing , tool = Cursor }
 
+-- rewrite the innermost let-body eInner to (let main eInner main).
+-- note that there's nothing special about calling this temp binding "main".
+--
+rewriteInnerMostExpToMain exp =
+  case exp.val.e__ of
+    ELet ws1 lk rec p1 e1 e2 ws2 ->
+      replaceE__ exp (ELet ws1 lk rec p1 e1 (rewriteInnerMostExpToMain e2) ws2)
+    _ ->
+      eLets [("main", exp)] (eVar "main")
+
+
 --------------------------------------------------------------------------------
 -- Mouse Events
 
@@ -351,7 +362,7 @@ onMouseUp old =
 
         (HelperDot, [pt], _) -> upstateRun <| Draw.addHelperDot old pt
 
-        (Lambda, [pt2, pt1], _) -> upstateRun <| Draw.addLambda old pt2 pt1
+        (Lambda i, [pt2, pt1], _) -> upstateRun <| Draw.addLambda i old pt2 pt1
 
         (Poly _, _, _) -> old
         (Path _, _, _) -> old
@@ -373,8 +384,20 @@ tryRun old =
       let result =
         -- let aceTypeInfo = Types.typecheck e in
         let aceTypeInfo = Types.dummyAceTypeInfo in
-        Eval.run e |>
-        Result.andThen (\(newVal,ws) ->
+
+        -- want final environment of top-level definitions when evaluating e,
+        -- for the purposes of running Little code to generate icons.
+        -- but can't just use the output environment from eval directly.
+        -- for example, if the last expression was a function call (either
+        -- within the program or in Prelude), the final environment is from
+        -- that function body. so instead, calling rewriteInnerMostExpToMain
+        -- because the output environment from (let main eFinalBody main)
+        -- will be the top-level definitions (and main).
+        --
+        let rewrittenE = rewriteInnerMostExpToMain e in
+
+        Eval.eval Eval.initEnv [] rewrittenE |>
+        Result.andThen (\((newVal,ws),finalEnv) ->
           LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
           |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
             let newCode = unparse e in
@@ -382,12 +405,13 @@ tryRun old =
               -- TODO should put program into Model
               -- TODO actually, ideally not. caching introduces bugs
               let program = splitExp e in
-              let options = Draw.lambdaToolOptionsOf program ++ Tuple.second initModel.lambdaTools in
-              let selectedIdx = min (Tuple.first old.lambdaTools) (List.length options) in
-              (selectedIdx, options)
+              Draw.lambdaToolOptionsOf program ++ initModel.lambdaTools
             in
             let new =
-              { old | inputExp      = e
+              loadLambdaToolIcons finalEnv { old | lambdaTools = lambdaTools_ }
+            in
+            let new_ =
+              { new | inputExp      = e
                     , inputVal      = newVal
                     , code          = newCode
                     , slideCount    = newSlideCount
@@ -401,14 +425,13 @@ tryRun old =
                     , history       = addToHistory newCode old.history
                     , caption       = Nothing
                     , syncOptions   = Sync.syncOptionsOf old.syncOptions e
-                    , lambdaTools   = lambdaTools_
                     , codeBoxInfo   = updateCodeBoxWithTypes aceTypeInfo old.codeBoxInfo
                     , preview       = Nothing
                     , synthesisResults = []
               }
             in
-            { new | mode = refreshMode_ new
-                  , errorBox = Nothing }
+            { new_ | mode = refreshMode_ new_
+                   , errorBox = Nothing }
           )
         )
       in
@@ -956,7 +979,7 @@ readFile file old =
         , lastSaveState = Just file.code
         , needsSave = False }
 
-loadIcon icon old =
+loadIcon env icon old =
   let
     iconNameLower =
       String.toLower icon.iconName
@@ -972,11 +995,20 @@ loadIcon icon old =
     oldIcons =
       old.icons
     iconHtml =
-      Canvas.iconify actualCode
+      Canvas.iconify env actualCode
     newIcons =
       Dict.insert icon.iconName iconHtml oldIcons
   in
     { old | icons = newIcons }
+
+loadLambdaToolIcons finalEnv old =
+  let foo tool acc =
+    let icon = lambdaToolIcon tool in
+    if Dict.member (String.toLower icon.iconName) old.icons
+      then acc
+      else loadIcon finalEnv icon old
+  in
+  List.foldl foo old old.lambdaTools
 
 readFileFromInput file old =
   { old | filename = file.filename
@@ -1000,7 +1032,7 @@ msgReadFile file =
   Msg "Read File" <| readFile file >> upstateRun
 
 msgLoadIcon file =
-  Msg "Load Icon" <| loadIcon file
+  Msg "Load Icon" <| loadIcon Eval.initEnv file
 
 msgReadFileFromInput file =
   Msg "Read File From Input" <| readFileFromInput file >> upstateRun

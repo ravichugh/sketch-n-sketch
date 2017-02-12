@@ -84,7 +84,7 @@ type alias Model =
   , keysDown : List Char.KeyCode
   , synthesisResults: List SynthesisResult
   , randomColor : Int
-  , lambdaTools : (Int, List LambdaTool)
+  , lambdaTools : List LambdaTool
   , layoutOffsets : LayoutOffsets
   , needsSave : Bool
   , lastSaveState : Maybe Code
@@ -149,7 +149,7 @@ type Tool
   | Text
   | HelperDot
   | HelperLine
-  | Lambda
+  | Lambda Int -- 1-based index of selected LambdaTool
 
 type ShapeToolKind
   = Raw
@@ -276,6 +276,14 @@ codeToShow model =
 
 --------------------------------------------------------------------------------
 
+strLambdaTool lambdaTool =
+  let strExp = String.trim << unparse in
+  case lambdaTool of
+    LambdaBounds e -> Utils.parens <| "\\bounds. " ++ strExp e ++ " bounds"
+    LambdaAnchor e -> Utils.parens <| "\\anchor. " ++ strExp e ++ " anchor"
+
+--------------------------------------------------------------------------------
+
 prependDescription newPrefix {description, exp} =
   { description = (newPrefix ++ description), exp = exp}
 
@@ -299,6 +307,7 @@ getFile model = { filename = model.filename
 
 iconNames = ["cursor", "line", "rect", "ellipse", "polygon", "path", "lambda"]
 
+-- TODO move to View
 getIconHtml : Model -> IconName -> Html Msg
 getIconHtml model iconName =
   let
@@ -307,6 +316,21 @@ getIconHtml model iconName =
     case Dict.get iconNameLower model.icons of
       Just h -> h
       Nothing -> Html.text ""
+
+--------------------------------------------------------------------------------
+
+starLambdaTool = LambdaBounds (eVar "star")
+
+starLambdaToolIcon = lambdaToolIcon starLambdaTool
+
+lambdaToolIcon tool =
+  { iconName = String.toLower (strLambdaTool tool)
+  , code = case tool of
+      LambdaBounds func ->
+        "(svgViewBox 100 100 (" ++ unparse func ++ " [10 10 90 90]))"
+      LambdaAnchor func ->
+        "(svgViewBox 100 100 (" ++ unparse func ++ " [10 10]))"
+  }
 
 --------------------------------------------------------------------------------
 
@@ -365,7 +389,7 @@ initModel =
     , keysDown      = []
     , synthesisResults = []
     , randomColor   = 100
-    , lambdaTools   = (1, [LambdaBounds (eVar "star")])
+    , lambdaTools   = [starLambdaTool]
     , layoutOffsets = initialLayoutOffsets
     , needsSave     = False
     , lastSaveState = Nothing

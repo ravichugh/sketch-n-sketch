@@ -153,14 +153,17 @@ buildSvg_ stuff d i =
         then mainshape
         else Svg.svg [] (mainshape :: zones)
 
-iconify code =
+-- for basic icons, env will be Eval.initEnv.
+-- for LambdaTool icons, env will be from result of running main program.
+--
+iconify env code =
   let
     exp =
       Utils.fromOkay "Error parsing icon"
         <| Parser.parseE code
-    (val, _) =
+    ((val, _), _) =
       Utils.fromOkay "Error evaluating icon"
-        <| Eval.run exp
+        <| Eval.eval env [] exp
     tree =
       Utils.fromOkay "Error resolving index tree of icon"
         <| LangSvg.resolveToIndexedTree 1 1 0 val
