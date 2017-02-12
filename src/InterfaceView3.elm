@@ -438,7 +438,9 @@ iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
         Unselected -> "white"
         Selected   -> "lightgray"
     iconHtml =
-      Model.getIconHtml model iconName
+      case Dict.get (String.toLower iconName) model.icons of
+        Just h -> h
+        Nothing -> Html.text ""
   in
   let commonAttrs =
     [ Attr.disabled disabled

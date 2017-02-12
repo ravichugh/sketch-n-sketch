@@ -307,16 +307,6 @@ getFile model = { filename = model.filename
 
 iconNames = ["cursor", "line", "rect", "ellipse", "polygon", "path", "lambda"]
 
--- TODO move to View
-getIconHtml : Model -> IconName -> Html Msg
-getIconHtml model iconName =
-  let
-    iconNameLower = String.toLower iconName
-  in
-    case Dict.get iconNameLower model.icons of
-      Just h -> h
-      Nothing -> Html.text ""
-
 --------------------------------------------------------------------------------
 
 starLambdaTool = LambdaBounds (eVar "star")
