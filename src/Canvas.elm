@@ -165,7 +165,7 @@ iconify code =
       Utils.fromOkay "Error resolving index tree of icon"
         <| LangSvg.resolveToIndexedTree 1 1 0 val
     svgElements =
-      buildSvg (initModel, False) tree
+      buildSvg ({ initModel | showGhosts = False }, False) tree
   in
     Svg.svg
       [ SAttr.width "30px"
