@@ -678,6 +678,13 @@ isNumber exp =
     EConst _ _ _ _ -> True
     _              -> False
 
+-- Disregards syncOptions
+isFrozenNumber : Exp -> Bool
+isFrozenNumber exp =
+  case exp.val.e__ of
+    EConst _ _ (_, ann, _) _ -> ann == frozen
+    _                        -> False
+
 varsOfPat : Pat -> List Ident
 varsOfPat pat =
   case pat.val of
@@ -687,6 +694,22 @@ varsOfPat pat =
     PList _ ps _ Nothing _  -> List.concatMap varsOfPat ps
     PList _ ps _ (Just p) _ -> List.concatMap varsOfPat (p::ps)
     PAs _ x _ p             -> x::(varsOfPat p)
+
+
+flattenPatTree : Pat -> List Pat
+flattenPatTree pat =
+  pat :: List.concatMap flattenPatTree (childPats pat)
+
+
+childPats : Pat -> List Pat
+childPats pat =
+  case pat.val of
+    PConst _ _              -> []
+    PBase _ _               -> []
+    PVar _ _ _              -> []
+    PList _ ps _ Nothing _  -> ps
+    PList _ ps _ (Just p) _ -> ps ++ [p]
+    PAs _ _ _ p             -> [p]
 
 
 -----------------------------------------------------------------------------
@@ -994,6 +1017,17 @@ cleanupPatListWhitespace sepWs pats =
     []                  -> []
     firstPat::laterPats ->
       replacePrecedingWhitespacePat "" firstPat :: List.map (replacePrecedingWhitespacePat sepWs) laterPats
+
+
+-- copyListWhitespace is in LangTools to access the unparser
+-- copyListWhitespace : Exp -> Exp -> Exp
+-- copyListWhitespace templateList list =
+--   case (templateList.val.e__, list.val.e__) of
+--     (EList ws1 _ ws2 _ ws3, EList _ heads _ maybeTail _) ->
+--       replaceE__ list (EList ws1 heads ws2 maybeTail ws3)
+--
+--     _ ->
+--       Debug.crash <| "Lang.copyListWs expected lists, but given " ++ unparseWithIds templateList ++ " and " ++ unparseWithIds list
 
 
 -- Unindents until an expression is flush to the edge, then adds spaces to the indentation.

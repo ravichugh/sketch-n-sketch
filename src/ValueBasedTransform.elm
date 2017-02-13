@@ -63,7 +63,7 @@ digHole originalExp selectedFeatures slate syncOptions =
     let (_, result) =
       List.foldr
           (\(locId, frozen, ident) (usedNames, result) ->
-            let baseIdent = if ident == "" then "k"++(toString locId) else ident in
+            let baseIdent = locIdToEId locId originalExp |> Maybe.map (expNameForEId originalExp) |> Maybe.withDefault (if ident == "" then "num" else ident) in
             let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough commonScope (locId, frozen, ident) in
             let scopesAndBaseIdent = String.join "_" (scopeNamesLiftedThrough ++ [baseIdent]) in
             let baseIdentOrig  =
@@ -264,7 +264,7 @@ robotRevolution originalExp selectedFeatures selectedShapes slideNumber movieNum
             in
             let (locsLifted, locIdToNewName) = liftLocsSoVisibleTo originalExp (Set.fromList locsToLift) (Set.fromList locEIds) in
             let description =
-              let eqnDesc = unparse <| locEqnToExp Dict.empty (Dict.insert indexLocId "i" locIdToNewName) eqn in
+              let eqnDesc = unparse <| locEqnToExp unann Dict.empty (Dict.insert indexLocId "i" locIdToNewName) eqn in
               let locDescs = locsToRevolutionize |> List.map (locDescription originalExp) in
               "compute " ++ String.join ", " locDescs ++ " by " ++ eqnDesc
             in
@@ -272,7 +272,7 @@ robotRevolution originalExp selectedFeatures selectedShapes slideNumber movieNum
               locEIds
               |> Utils.foldli0
                   (\(i, locEId) priorExp ->
-                    let eqnExp = locEqnToExp (Dict.singleton indexLocId (toFloat i)) locIdToNewName eqn in
+                    let eqnExp = locEqnToExp unann (Dict.singleton indexLocId (toFloat i)) locIdToNewName eqn in
                     replaceExpNodeE__ByEId locEId eqnExp priorExp
                   )
                   locsLifted
@@ -621,18 +621,19 @@ relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
             -- Consequently, we don't need to dig out higher than the frozen locs.
             let locsetToDig = Set.filter (\(locId, _, _) -> Set.member locId locIdSet) unfrozenLocset in
             let commonScope = justInsideDeepestCommonScopeByLocSet originalExp locsetToDig in
-            let existingNames = identifiersSet originalExp in
+            let existingNames = identifiersSet commonScope in
             let independentLocs =
               locsetToDig
               |> Set.toList
               |> List.filter (\(locId, _, _) -> locId /= dependentLocId)
             in
             let independentLocIds = List.map Utils.fst3 independentLocs in
+            -- TODO: Can this be replaced by liftLocsSoVisibleTo??
             let locIdToNewName =
               let (_, result) =
                 List.foldr
                     (\(locId, frozen, ident) (usedNames, result) ->
-                      let baseIdent = if ident == "" then "k"++(toString locId) else ident in
+                      let baseIdent = locIdToEId locId originalExp |> Maybe.map (expNameForEId originalExp) |> Maybe.withDefault (if ident == "" then "num" else ident) in
                       let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough commonScope (locId, frozen, ident) in
                       let scopesAndBaseIdent = String.join "_" (scopeNamesLiftedThrough ++ [baseIdent]) in
                       let ident =
@@ -669,7 +670,8 @@ relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
               Utils.justGet_ "ValueBasedTransform.relate__ dependentLocNameStr" dependentLocId locIdToNewName
             in
             let dependentLocExp =
-              locEqnToExp frozenLocIdToNum locIdToNewName resultLocEqn
+              let constantAnnotation = if relateType == Relate then unann else frozen in
+              locEqnToExp constantAnnotation frozenLocIdToNum locIdToNewName resultLocEqn
             in
             let listOfListsOfNamesAndAssigns =
               [ Utils.zip independentLocNames independentLocExps
@@ -712,7 +714,7 @@ liftLocsSoVisibleTo originalExp mobileLocset observerEIds =
   let (_, locIdToNewName) =
     List.foldr
         (\(locId, _, ident) (usedNames, locIdToNewName) ->
-          let baseIdent = if ident == "" then "k"++(toString locId) else ident in
+          let baseIdent = locIdToEId locId originalExp |> Maybe.map (expNameForEId originalExp) |> Maybe.withDefault (if ident == "" then "num" else ident) in
           let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough commonScope (locId, frozen, ident) in
           let scopesAndBaseIdent = String.join "_" (scopeNamesLiftedThrough ++ [baseIdent]) in
           let ident =

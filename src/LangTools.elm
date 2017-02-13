@@ -12,9 +12,9 @@ module LangTools exposing (..)
 
 import Eval
 import Lang exposing (..)
-import LangParser2
+import LangParser2 as Parser
 import Utils
-import LangUnparser
+import LangUnparser exposing (unparseWithIds)
 import Types
 
 import Dict
@@ -167,7 +167,7 @@ replaceConstsWithVars locIdToNewName exp =
 unfrozenLocIdsAndNumbers : Exp -> List (LocId, Num)
 unfrozenLocIdsAndNumbers exp =
   allLocsAndNumbers exp
-  |> List.filter (\((locId, annotation, _), n) -> annotation /= "!" && not (LangParser2.isPreludeLocId locId))
+  |> List.filter (\((locId, annotation, _), n) -> annotation /= "!" && not (Parser.isPreludeLocId locId))
   |> List.map (\((locId, _, _), n) -> (locId, n))
 
 
@@ -176,7 +176,7 @@ unfrozenLocIdsAndNumbers exp =
 frozenLocIdsAndNumbers : Exp -> List (LocId, Num)
 frozenLocIdsAndNumbers exp =
   allLocsAndNumbers exp
-  |> List.filter (\((locId, annotation, _), n) -> annotation == "!" || LangParser2.isPreludeLocId locId)
+  |> List.filter (\((locId, annotation, _), n) -> annotation == "!" || Parser.isPreludeLocId locId)
   |> List.map (\((locId, _, _), n) -> (locId, n))
 
 
@@ -200,7 +200,7 @@ allLocIds exp =
 justFindExpByEId : EId -> Exp -> Exp
 justFindExpByEId eid exp =
   findExpByEId eid exp
-  |> Utils.fromJust__ (\() -> "Couldn't find eid " ++ toString eid ++ " in " ++ LangUnparser.unparseWithIds exp)
+  |> Utils.fromJust__ (\() -> "Couldn't find eid " ++ toString eid ++ " in " ++ unparseWithIds exp)
 
 
 -- Is the expression in the body of only defs/comments/options?
@@ -243,6 +243,16 @@ lastExp exp =
     children -> lastExp <| Utils.last "LangTools.lastExp" children
 
 
+copyListWhitespace : Exp -> Exp -> Exp
+copyListWhitespace templateList list =
+  case (templateList.val.e__, list.val.e__) of
+    (EList ws1 _ ws2 _ ws3, EList _ heads _ maybeTail _) ->
+      replaceE__ list (EList ws1 heads ws2 maybeTail ws3)
+
+    _ ->
+      Debug.crash <| "Lang.copyListWs expected lists, but given " ++ unparseWithIds templateList ++ " and " ++ unparseWithIds list
+
+
 identifiersVisibleAtProgramEnd : Exp -> Set.Set Ident
 identifiersVisibleAtProgramEnd program =
   let lastEId = (lastExp program).val.eid in
@@ -251,10 +261,193 @@ identifiersVisibleAtProgramEnd program =
 
 -- e.g. "rect1 x" for (def rect1 (let x = ... in ...) ...)
 locDescription program loc =
+  String.join " " (locDescriptionParts program loc)
+
+
+-- e.g. ["rect1", "x"] for (def rect1 (let x = ... in ...) ...)
+locDescriptionParts program loc =
   let (locId, _, ident) = loc in
   let baseIdent = if ident == "" then "k"++(toString locId) else ident in
   let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough program loc in
-  String.join " " (scopeNamesLiftedThrough ++ [baseIdent])
+  scopeNamesLiftedThrough ++ [baseIdent]
+
+
+defaultExpName = "thing"
+
+
+-- Fallback for expDescriptionParts
+simpleExpName : Exp -> String
+simpleExpName exp =
+  case exp.val.e__ of
+    EConst _ _ _ _        -> "num"
+    EVar _ ident          -> ident
+    EApp _ funE _ _       -> expToMaybeIdent funE |> Maybe.withDefault defaultExpName
+    EList _ _ _ _ _       -> "list"
+    EOp _ _ es _          -> List.map simpleExpName es |> Utils.findFirst ((/=) defaultExpName) |> Maybe.withDefault defaultExpName
+    EBase _ ENull         -> "null"
+    EBase _ (EString _ _) -> "string"
+    EBase _ (EBool _)     -> "bool"
+    EFun _ _ _ _          -> "func"
+    _                     -> defaultExpName
+
+
+-- Suggest a name for the expression at eid in program
+expNameForEId : Exp -> EId -> String
+expNameForEId program targetEId =
+  case expDescriptionParts program targetEId |> Utils.takeLast 1 of
+    [name] ->
+      name
+
+    _ ->
+      -- Should only hit this branch if exp not found, so really this
+      -- will always return defaultExpName
+      findExpByEId targetEId program
+      |> Maybe.map simpleExpName
+      |> Maybe.withDefault defaultExpName
+
+
+-- Suggest a name for the expression exp in program
+expNameForExp : Exp -> Exp -> String
+expNameForExp program exp =
+  case expDescriptionParts program exp.val.eid |> Utils.takeLast 1 of
+    [name] ->
+      name
+
+    _ ->
+      simpleExpName exp
+
+
+-- Suggest a common name for the expressions at eids in program
+--
+-- yuck; common prefix of the unscoped names of the expressions
+commonNameForEIds : Exp -> List EId -> String
+commonNameForEIds program eids =
+  let candidate =
+    eids
+    |> List.map (expNameForEId program)
+    |> Debug.log "names for eids"
+    |> Utils.commonPrefixString
+  in
+  if candidate == "" || candidate == "num" || candidate == defaultExpName then
+    -- If candidates are all numbers, see if they look like indices and if so, use "i" as the common name.
+    eids
+    |> List.map (\eid -> findExpByEId eid program |> Maybe.andThen expToMaybeNum)
+    |> Utils.projJusts
+    |> Maybe.map
+        (\nums ->
+          if List.map (round >> toFloat) nums == nums && Utils.dedup nums == nums && (List.member 0 nums || List.member 1 nums) && List.all (\n -> 0 <= n && n < 10) nums
+          then "i"
+          else "num"
+        )
+    |> Maybe.withDefault (if candidate == "" then defaultExpName else candidate)
+  else
+    candidate
+
+
+-- Look for targetEId in program exp.
+--
+-- Returns list of named scopes that contain the expression.
+--
+-- Last element is "name" of expression.
+--
+-- Empty list if not found.
+expDescriptionParts : Exp -> EId -> List String
+expDescriptionParts program targetEId =
+  expDescriptionParts_ program program targetEId
+
+expDescriptionParts_ : Exp -> Exp -> EId -> List String
+expDescriptionParts_ program exp targetEId =
+  let recurse e = expDescriptionParts_ program e targetEId in
+  let varIdentOrDefault e default = expToMaybeIdent e |> Maybe.withDefault default in
+  let searchChildren () =
+    -- Recurse lazily through children.
+    childExps exp
+    |> Utils.mapFirstSuccess
+        (\child ->
+          case recurse child of
+            []    -> Nothing
+            parts -> Just parts
+        )
+    |> Maybe.withDefault []
+  in
+  if exp.val.eid == targetEId then
+    [simpleExpName exp]
+  else
+    case exp.val.e__ of
+      ELet _ _ _ pat assigns body _ ->
+        let namedAssigns =
+          case tryMatchExp pat assigns of
+            Match env -> env
+            _         -> []
+        in
+        case List.filter (\(ident, e) -> findExpByEId targetEId e /= Nothing) namedAssigns of
+          [] ->
+            if assigns.val.eid == targetEId then
+              -- e.g. want whole list, but the let only bound the individual list elements
+              case identifiersListInPat pat of
+                []        -> [simpleExpName assigns]
+                patIdents -> [varIdentOrDefault assigns (String.join "" patIdents)]
+            else
+              let scopeNames =
+                case pat.val of
+                  PVar _ ident _  -> [ident]
+                  PAs _ ident _ _ -> [ident]
+                  _               ->
+                    case identifiersListInPat pat of
+                      []        -> []
+                      patIdents -> [String.join "" patIdents]
+              in
+              case recurse assigns of
+                []          -> recurse body
+                deeperParts -> scopeNames ++ deeperParts
+
+          identsAndMatchingExp ->
+            -- Last match should be most specific.
+            let (ident, matchingExp) = Utils.last "LangTools.expDescriptionParts" identsAndMatchingExp in
+            let (idents, _) = identsAndMatchingExp |> List.unzip in
+            if matchingExp.val.eid == targetEId then
+              (Utils.dropLeft 1 idents) ++ [varIdentOrDefault matchingExp ident]
+            else
+              case recurse matchingExp of
+                []          -> Debug.crash <| "LangTools.expDescriptionParts expected to find targetEId in\n" ++ unparseWithIds matchingExp ++ "\nin\n" ++ unparseWithIds assigns
+                deeperParts -> idents ++ deeperParts
+
+      -- Try to use name of the function argument the expression is bound to.
+      EApp ws1 fExp es ws2 ->
+        -- Probably faster to first check for target in es (which will usually fail); avoids searching for binding of fExp
+        case searchChildren () of
+          [] -> []
+          childrenResult ->
+            expToMaybeIdent fExp
+            |> Maybe.andThen
+                (\funcName ->
+                  case expEnvAt program targetEId |> Maybe.andThen (\visibleBindings -> Dict.get funcName visibleBindings) of
+                    Just (Bound boundExp) ->
+                      case boundExp.val.e__ of
+                        EFun _ pats _ _ ->
+                          Utils.zip pats es
+                          |> Utils.mapFirstSuccess
+                              (\(pat, e) ->
+                                case tryMatchExp pat e of
+                                  Match bindings ->
+                                    -- Not quite as complicated as the Let logic above; should be okay though.
+                                    bindings
+                                    |> Utils.findFirst (\(ident, e) -> e.val.eid == targetEId)
+                                    |> Maybe.map (\(ident, e) -> [varIdentOrDefault e ident])
+                                  _ -> Nothing
+                              )
+
+                        _ ->
+                          Nothing
+
+                    _ ->
+                      Nothing
+
+                )
+            |> Maybe.withDefault childrenResult
+
+      _ ->
+        searchChildren ()
 
 
 -- Still needs to be rewritten to handle scopes created by case branches.
@@ -307,6 +500,115 @@ scopeNamesLocLiftedThrough_ targetLocId scopeNames exp =
     _ ->
       let recurse exp = scopeNamesLocLiftedThrough_ targetLocId scopeNames exp in
       List.concatMap recurse (childExps exp)
+
+
+type ExpMatchResult
+  = Match (List (Ident, Exp))
+  | NoMatch
+  | CannotCompare
+
+
+-- Match an expression with a pattern. (Taken from Brainstorm branch.)
+--
+-- For the purposes of naming, this may be more strict than needed. (No bindings unless complete match.)
+tryMatchExp : Pat -> Exp -> ExpMatchResult
+tryMatchExp pat exp =
+  let matchMap f matchResult =
+    case matchResult of
+      Match env -> Match (f env)
+      _         -> matchResult
+  in
+  -- CannotCompare overrides NoMatch overrides Match
+  let projMatches resultList =
+    resultList
+    |> List.foldl
+        (\matchResult acc ->
+            case (matchResult, acc) of
+              (Match env1, Match env2) -> Match (env1 ++ env2)
+              (Match _, priorFailure)  -> priorFailure
+              (_, CannotCompare)       -> CannotCompare
+              (failure, _)             -> failure
+        )
+        (Match [])
+  in
+  -- case exp.val.e__ of
+  --   EVal val ->
+  --     case Eval.match (pat, val) of
+  --       Nothing     -> NoMatch
+  --       Just valEnv ->
+  --         let expEnv =
+  --           valEnv |> List.map (\(ident, val) -> (ident, eVal val))
+  --         in
+  --         Match expEnv
+  --
+  --   _ ->
+  case pat.val of
+    PVar _ ident _         -> Match [(ident, exp)]
+    PAs _ ident _ innerPat ->
+      tryMatchExp innerPat exp
+      |> matchMap (\env -> (ident, exp)::env)
+
+    PList _ ps _ Nothing _ ->
+      case exp.val.e__ of
+        -- TODO: list must not have rest
+        EList _ es _ Nothing _ ->
+          case Utils.maybeZip ps es of
+            Nothing    -> NoMatch
+            Just pairs ->
+              List.map (\(p, e) -> tryMatchExp p e) pairs
+              |> projMatches
+
+        _ ->
+          CannotCompare
+
+    PList _ ps _ (Just restPat) _ ->
+      case exp.val.e__ of
+        EList _ es _ Nothing _ ->
+          if List.length es < List.length ps then
+            NoMatch
+          else
+            let (headExps, tailExps) = Utils.split (List.length ps) es in
+            let tryHeadMatch =
+              Utils.zip ps headExps
+              |> List.map (\(p, e) -> tryMatchExp p e)
+              |> projMatches
+            in
+            let tryTailMatch =
+              tryMatchExp restPat (eList tailExps Nothing)
+            in
+            [tryHeadMatch, tryTailMatch]
+            |> projMatches
+
+        -- TODO: must have same number of heads
+        EList _ es _ (Just restExp) _ ->
+          if List.length es < List.length ps then
+            NoMatch
+          else if List.length es /= List.length ps then
+            CannotCompare
+          else
+            let tryHeadMatch =
+              Utils.zip ps es
+              |> List.map (\(p, e) -> tryMatchExp p e)
+              |> projMatches
+            in
+            let tryTailMatch =
+              tryMatchExp restPat restExp
+            in
+            [tryHeadMatch, tryTailMatch]
+            |> projMatches
+
+        _ ->
+          CannotCompare
+
+    PConst _ n ->
+      case exp.val.e__ of
+        EConst _ num _ _ -> if n == num then Match [] else NoMatch
+        _                -> CannotCompare
+
+    PBase _ bv ->
+      case exp.val.e__ of
+        EBase _ ev -> if bv == ev then Match [] else NoMatch
+        _          -> CannotCompare
 
 
 -- Returns the common ancestor just inside the deepest common scope -- the expression you want to wrap with new defintions.
@@ -610,63 +912,95 @@ expToMaybeNum exp =
     _              -> Nothing
 
 
+expToMaybeIdent : Exp -> Maybe Ident
+expToMaybeIdent exp =
+  case exp.val.e__ of
+    EVar _ ident -> Just ident
+    _            -> Nothing
+
+
+expToIdent : Exp -> Ident
+expToIdent exp =
+  case exp.val.e__ of
+    EVar _ ident -> ident
+    _            -> Debug.crash <| "LangTools.expToIdent exp is not an EVar: " ++ unparseWithIds exp
+
+
+patToMaybeIdent : Pat -> Maybe Ident
+patToMaybeIdent pat =
+  case pat.val of
+    PVar _ ident _ -> Just ident
+    _              -> Nothing
+
+
 -- This is a rather generous definition of literal.
 isLiteral : Exp -> Bool
 isLiteral exp =
   Set.size (freeIdentifiers exp) == 0
 
 
--- Which vars in this exp refer to something outside this exp?
+-- Which var idents in this exp refer to something outside this exp?
+-- This is wrong for TypeCases; TypeCase scrutinee patterns not included. TypeCase scrutinee needs to turn into an expression (done on Brainstorm branch, I believe).
 freeIdentifiers : Exp -> Set.Set Ident
 freeIdentifiers exp =
-  freeIdentifiers_ Set.empty exp
+  freeVars exp
+  |> List.map expToMaybeIdent
+  |> Utils.projJusts
+  |> Utils.fromJust_ "LangTools.freeIdentifiers"
+  |> Set.fromList
 
 
-freeIdentifiers_ : Set.Set Ident -> Exp -> Set.Set Ident
-freeIdentifiers_ boundIdentsSet exp =
+freeVars : Exp -> List Exp
+freeVars exp =
+  freeVars_ Set.empty exp
+
+
+freeVars_ : Set.Set Ident -> Exp -> List Exp
+freeVars_ boundIdentsSet exp =
   let recurse () =
-    List.map (freeIdentifiers_ boundIdentsSet) (childExps exp)
-    |> Utils.unionAll
+    List.concatMap (freeVars_ boundIdentsSet) (childExps exp)
   in
   case exp.val.e__ of
-    EConst _ i l wd             -> Set.empty
-    EBase _ v                   -> Set.empty
-    EVar _ x                    -> if Set.member x boundIdentsSet then Set.empty else Set.singleton x
-    EFun _ ps e _               -> freeIdentifiers_ (Set.union (identifiersSetInPats ps) boundIdentsSet) e
+    EConst _ i l wd             -> []
+    EBase _ v                   -> []
+    EVar _ x                    -> if Set.member x boundIdentsSet then [] else [exp]
+    EFun _ ps e _               -> freeVars_ (Set.union (identifiersSetInPats ps) boundIdentsSet) e
     EOp _ op es _               -> recurse ()
     EList _ es _ m _            -> recurse ()
     EIf _ e1 e2 e3 _            -> recurse ()
     ECase _ e1 bs _             ->
-      let freeInScrutinee = freeIdentifiers_ boundIdentsSet e1 in
+      let freeInScrutinee = freeVars_ boundIdentsSet e1 in
       let freeInEachBranch =
         (List.map .val bs)
-        |> List.map (\(Branch_ _ bPat bExp _) -> freeIdentifiers_ (Set.union (identifiersSetInPat bPat) boundIdentsSet) bExp)
+        |> List.concatMap (\(Branch_ _ bPat bExp _) -> freeVars_ (Set.union (identifiersSetInPat bPat) boundIdentsSet) bExp)
       in
-      List.foldl
-          Set.union
-          freeInScrutinee
-          freeInEachBranch
+      freeInScrutinee ++ freeInEachBranch
 
-    ETypeCase _ p tbranches _   -> Set.union (Set.diff (identifiersSetInPat p) boundIdentsSet) (recurse ())
+    ETypeCase _ p tbranches _   -> recurse ()
     -- ETypeCase _ e1 tbranches _  -> recurse ()
     EApp _ e1 es _              -> recurse ()
     ELet _ _ False p e1 e2 _    ->
-      let freeInAssigns = freeIdentifiers_ boundIdentsSet e1 in
-      let freeInBody    = freeIdentifiers_ (Set.union (identifiersSetInPat p) boundIdentsSet) e2 in
-      Set.union freeInAssigns freeInBody
+      let freeInAssigns = freeVars_ boundIdentsSet e1 in
+      let freeInBody    = freeVars_ (Set.union (identifiersSetInPat p) boundIdentsSet) e2 in
+      freeInAssigns ++ freeInBody
 
     ELet _ _ True p e1 e2 _ ->
-      let freeInAssigns = freeIdentifiers_ (Set.union (identifiersSetInPat p) boundIdentsSet) e1 in
-      let freeInBody    = freeIdentifiers_ (Set.union (identifiersSetInPat p) boundIdentsSet) e2 in
-      Set.union freeInAssigns freeInBody
+      let freeInAssigns = freeVars_ (Set.union (identifiersSetInPat p) boundIdentsSet) e1 in
+      let freeInBody    = freeVars_ (Set.union (identifiersSetInPat p) boundIdentsSet) e2 in
+      freeInAssigns ++ freeInBody
 
     EComment _ _ e1       -> recurse ()
     EOption _ _ _ _ e1    -> recurse ()
     ETyp _ _ _ e1 _       -> recurse ()
     EColonType _ e1 _ _ _ -> recurse ()
     ETypeAlias _ _ _ e1 _ -> recurse ()
-    -- EVal _                -> Debug.crash "LangTools.freeIdentifiers_: shouldn't have an EVal in given expression"
-    -- EDict _               -> Debug.crash "LangTools.freeIdentifiers_: shouldn't have an EDict in given expression"
+    -- EVal _                -> Debug.crash "LangTools.freeVars_: shouldn't have an EVal in given expression"
+    -- EDict _               -> Debug.crash "LangTools.freeVars_: shouldn't have an EDict in given expression"
+
+
+renameVarUntilBound : Ident -> Ident -> Exp -> Exp
+renameVarUntilBound oldName newName exp =
+  renameVarsUntilBound (Dict.singleton oldName newName) exp
 
 
 -- Renames free variables only, which is great!
@@ -759,6 +1093,72 @@ transformVarsUntilBound subst exp =
     -- EDict _                         -> Debug.crash "LangTools.transformVarsUntilBound: shouldn't have an EDict in given expression"
 
 
+-- Find EVars in the set of identifiers, until name is rebound.
+identifierUses : Set.Set Ident -> Exp -> List Exp
+identifierUses identSet exp =
+  freeVars exp
+  |> List.filter (\varExp -> Set.member (expToIdent varExp) identSet)
+
+  -- let recurse e = indentifierUses identSet e in
+  -- let recurseWithout introducedIdents e =
+  --   let newIdentSet = Set.difference identSet introducedIdents in
+  --   if Set.size newIdentSet == 0 then
+  --     []
+  --   else
+  --     indentifierUses newIdentSet e
+  -- in
+  -- case exp.val.e__ of
+  --   -- EVal _                      -> exp
+  --   EConst _ _ _ _               -> []
+  --   EBase _ _                    -> []
+  --   EVar _ ident                 -> if Set.member ident identSet then [exp] else []
+  --   EFun ws1 ps e ws2            -> recurseWithout (identifiersSetInPats ps) e
+  --   EOp ws1 op es ws2            -> List.concatMap recurse es
+  --   EList ws1 es ws2 Nothing ws3 -> List.concatMap recurse es
+  --
+  --   EIf ws1 e1 e2 e3 ws2        -> replaceE__ exp (EIf ws1 (recurse e1) (recurse e2) (recurse e3) ws2)
+  --   ECase ws1 e1 bs ws2         ->
+  --     let newScrutinee = recurse e1 in
+  --     let newBranches =
+  --       bs
+  --       |> List.map
+  --           (mapValField (\(Branch_ bws1 bPat bExp bws2) ->
+  --             Branch_ bws1 bPat (recurseWithout (identifiersSetInPat bPat) bExp) bws2
+  --           ))
+  --     in
+  --     replaceE__ exp (ECase ws1 newScrutinee newBranches ws2)
+  --
+  --
+  --   ETypeCase ws1 scrutinee tbranches ws2 ->
+  --     Debug.crash "need to change typecase scrutinee to expression; pluck from brainstorm branch"
+  --   -- Brainstorm changed typecase scrutinee to an evaluated expression
+  --   -- ETypeCase ws1 scrutinee tbranches ws2 ->
+  --   --   let newScrutinee = recurse scrutinee in
+  --   --   let newTBranches =
+  --   --     tbranches
+  --   --     |> List.map
+  --   --         (mapValField (\(TBranch_ bws1 bType bExp bws2) ->
+  --   --           TBranch_ bws1 bType (recurse bExp) bws2
+  --   --         ))
+  --   --   in
+  --   --   replaceE__ exp (ETypeCase ws1 newScrutinee newTBranches ws2)
+  --
+  --   EApp ws1 e1 es ws2              -> replaceE__ exp (EApp ws1 (recurse e1) (List.map recurse es) ws2)
+  --   ELet ws1 kind False p e1 e2 ws2 ->
+  --     replaceE__ exp (ELet ws1 kind False p (recurse e1) (recurseWithout (identifiersSetInPat p) e2) ws2)
+  --
+  --   ELet ws1 kind True p e1 e2 ws2 ->
+  --     replaceE__ exp (ELet ws1 kind True p (recurseWithout (identifiersSetInPat p) e1) (recurseWithout (identifiersSetInPat p) e2) ws2)
+  --
+  --   EComment ws s e1                -> replaceE__ exp (EComment ws s (recurse e1))
+  --   EOption ws1 s1 ws2 s2 e1        -> replaceE__ exp (EOption ws1 s1 ws2 s2 (recurse e1))
+  --   ETyp ws1 pat tipe e ws2         -> replaceE__ exp (ETyp ws1 pat tipe (recurse e) ws2)
+  --   EColonType ws1 e ws2 tipe ws3   -> replaceE__ exp (EColonType ws1 (recurse e) ws2 tipe ws3)
+  --   ETypeAlias ws1 pat tipe e ws2   -> replaceE__ exp (ETypeAlias ws1 pat tipe (recurse e) ws2)
+
+  --  -- EDict _                         -> Debug.crash "LangTools.transformVarsUntilBound: shouldn't have an EDict in given expression"
+
+
 
 -- What variable names are in use at any of the given locations?
 -- For help finding unused names during synthesis.
@@ -826,3 +1226,89 @@ visibleIdentifiersAtEIds_ idents exp eids =
     ETypeAlias _ pat tipe e _ -> ret <| recurse e
 
     -- EDict _                   -> Debug.crash "LangTools.visibleIdentifiersAtEIds_: shouldn't have an EDict in given expression"
+
+
+type ExpressionBinding
+  = Bound Exp
+  | BoundUnknown
+
+
+-- Too much recursion here, for some reason.
+preludeExpEnv = expEnvAt_ Parser.prelude (lastExp Parser.prelude).val.eid |> Utils.fromJust_ "LangTools.preludeExpEnv"
+
+-- Return bindings to expressions (as best as possible) at EId
+expEnvAt : Exp -> EId -> Maybe (Dict.Dict Ident ExpressionBinding)
+expEnvAt exp targetEId =
+  expEnvAt_ exp targetEId
+  |> Maybe.map
+      (\bindings -> Dict.union bindings preludeExpEnv)
+
+expEnvAt_ : Exp -> EId -> Maybe (Dict.Dict Ident ExpressionBinding)
+expEnvAt_ exp targetEId =
+  let recurse e = expEnvAt_ e targetEId in
+  let recurseAllChildren () =
+    Utils.mapFirstSuccess recurse (childExps exp)
+  in
+  let addShallowerIdentifiers newIdents deeperBindings =
+    newIdents
+    |> List.foldl
+        (\ident bindings ->
+          if Dict.member ident bindings
+          then bindings
+          else Dict.insert ident BoundUnknown bindings
+        )
+        deeperBindings
+  in
+  let addShallowerBoundExps expEnv deeperBindings =
+    expEnv
+    |> List.foldl
+        (\(ident, boundExp) bindings ->
+          if Dict.member ident bindings
+          then bindings
+          else Dict.insert ident (Bound boundExp) bindings
+        )
+        deeperBindings
+  in
+  let addBindingsFrom pat e deeperBindings =
+    case tryMatchExp pat e of
+      Match newBindings -> addShallowerBoundExps newBindings deeperBindings -- tryMatchExp only returns Match if it can bind all idents; no need to worry about partial matches
+      _                 -> addShallowerIdentifiers (identifiersListInPat pat) deeperBindings
+  in
+  if exp.val.eid == targetEId then
+    Just Dict.empty
+  else
+    case exp.val.e__ of
+      EConst _ _ _ _   -> Nothing
+      EBase _ _        -> Nothing
+      EVar _ ident     -> Nothing
+      EFun _ ps e _    -> recurse e |> Maybe.map (addShallowerIdentifiers (identifiersListInPats ps))
+      EOp _ op es _    -> recurseAllChildren ()
+      EList _ es _ m _ -> recurseAllChildren ()
+      EIf _ e1 e2 e3 _ -> recurseAllChildren ()
+      ECase _ e1 bs _  ->
+        case recurse e1 of
+          Just bindings ->
+            Just bindings -- Found targetEId in scrutinee
+
+          Nothing ->
+            bs
+            |> List.map .val
+            |> Utils.mapFirstSuccess
+                (\(Branch_ _ bPat bExp _) -> recurse bExp |> Maybe.map (addBindingsFrom bPat bExp))
+
+      ETypeCase _ scrutinee tbranches _ -> recurseAllChildren ()
+      EApp _ e1 es _                    -> recurseAllChildren ()
+      ELet _ kind False p e1 e2 _       ->
+        case recurse e1 of
+          Just bindings ->
+            Just bindings -- found targetEId in assigns
+
+          Nothing ->
+            recurse e2 |> Maybe.map (addBindingsFrom p e1)
+
+      ELet _ kind True p e1 e2 _ -> recurseAllChildren () |> Maybe.map (addBindingsFrom p e1)
+      EComment _ s e1            -> recurse e1
+      EOption _ s1 _ s2 e1       -> recurse e1
+      ETyp _ pat tipe e _        -> recurse e
+      EColonType _ e _ tipe _    -> recurse e
+      ETypeAlias _ pat tipe e _  -> recurse e

@@ -11,7 +11,7 @@ module ExpressionBasedTransform exposing -- in contrast to ValueBasedTransform
   )
 
 import Lang exposing (..)
-import LangUnparser exposing (unparse)
+import LangUnparser exposing (unparse, unparsePat)
 import LangParser2 exposing (parseE)
 import LangSvg exposing (NodeId)
 import ShapeWidgets exposing (PointFeature, SelectedShapeFeature)
@@ -31,9 +31,24 @@ import String
 --------------------------------------------------------------------------------
 -- Expression Rewriting
 
+-- x TODO: don't freeze all LocEqnConsts
+-- TODO: Split abstraction -> mapping into two steps
+-- TODO: abstract with n parameters
+-- TODO: fix width + scroll synthesis results box
+-- TODO: multiple rewrites (either speculative or nested dropdowns)
+-- TODO: examine examples again
+-- TODO: write down methodology and document heuristics
+-- TODO: Filter out speculative expressions that error or produce a different result.
+-- TODO: ensure abstracted expressions weren't sub-expressions of each other...?
+-- TODO: lift dependencies (procrastinate this)
+-- TODO: turn off overlapping pairs relation
+
+
 passiveSynthesisSearch : Exp -> List InterfaceModel.SynthesisResult
 passiveSynthesisSearch originalExp =
-  mapAbstractSynthesisResults originalExp ++ rangeSynthesisResults originalExp
+  mapAbstractSynthesisResults originalExp ++
+  rangeSynthesisResults originalExp ++
+  inlineListSynthesisResults originalExp
 
 
 rangeSynthesisResults originalExp =
@@ -45,22 +60,21 @@ rangeSynthesisResults originalExp =
             EList ws1 es ws2 Nothing ws3 ->
               let maybeNums = es |> List.map expToMaybeNum |> Utils.projJusts in
               case maybeNums of
-                Just [] ->
-                  Nothing
-
-                Just nums ->
-                  let (min, max) = (List.minimum nums |> Utils.fromJust_ "ExpressionBasedTransform.rangeSynthesisResults min" |> round, List.maximum nums |> Utils.fromJust_ "ExpressionBasedTransform.rangeSynthesisResults min" |> round) in
+                Just (n1::n2::n3::nRest) -> -- At least three nums
+                  let nums = n1::n2::n3::nRest in
+                  let (min, max) = (List.minimum nums |> Utils.fromJust_ "ExpressionBasedTransform.rangeSynthesisResults min" |> round, List.maximum nums |> Utils.fromJust_ "ExpressionBasedTransform.rangeSynthesisResults max" |> round) in
                   if nums == (List.range min max |> List.map toFloat) then
+                    let insertedLoc = dummyLoc_ (if List.all isFrozenNumber es then frozen else unann) in
                     if List.head nums == Just 0.0 then
-                      Just (exp.val.eid, eApp (eVar0 "zeroTo") [eConst (toFloat max + 1) dummyLoc])
+                      Just (exp.val.eid, eApp (eVar0 "zeroTo") [withDummyPos <| EConst " " (toFloat max + 1) insertedLoc (intSlider 0 (5*(max + 1)))])
                     else if List.head nums == Just 1.0 then
-                      Just (exp.val.eid, eApp (eVar0 "list1N") [eConst (toFloat max) dummyLoc])
+                      Just (exp.val.eid, eApp (eVar0 "list1N") [withDummyPos <| EConst " " (toFloat max) insertedLoc (intSlider 0 (5*(max + 1)-1))])
                     else
-                      Just (exp.val.eid, eApp (eVar0 "range") [eConst (toFloat min) dummyLoc, eConst (toFloat max) dummyLoc])
+                      Just (exp.val.eid, eApp (eVar0 "range") [eConst (toFloat min) insertedLoc, eConst (toFloat max) insertedLoc])
                   else
                     Nothing
 
-                Nothing ->
+                _ ->
                   Nothing
 
             _ ->
@@ -72,6 +86,159 @@ rangeSynthesisResults originalExp =
       (\(eid, newExp) ->
         { description = "Replace " ++ (unparse >> Utils.squish) (justFindExpByEId eid originalExp) ++ " with " ++ unparse newExp
         , exp         = replaceExpNodePreservingPreceedingWhitespace eid newExp originalExp
+        , sortKey     = []
+        }
+      )
+
+
+-- e.g. let [a b c] = ... in [a b c] => let list = ... in list; and other variations
+inlineListSynthesisResults originalExp =
+  let candidatesAndDescription =
+    flattenExpTree originalExp
+    |> List.concatMap
+        (\exp ->
+          case exp.val.e__ of
+            ELet letWs1 letKind False letPat letAssign letBody letWs2 -> -- non-recursive lets only
+              let letExp = exp in
+              case letPat.val of
+                PList _ (p1::p2::p3::pRest) _ Nothing _ -> -- At least three
+                  let pats = p1::p2::p3::pRest in
+                  let maybeIdents = pats |> List.map patToMaybeIdent |> Utils.projJusts in
+                  case maybeIdents of
+                    Just idents ->
+                      let usages = identifierUses (Set.fromList idents) letBody in
+                      if List.map expToIdent usages == idents then -- Each should be used exactly once, in order
+                        -- All idents used in only in same list
+                        let maybeParents =
+                          findAllWithAncestors (\e -> List.member e usages) letBody
+                          |> List.map (Utils.dropLeft 1 >> Utils.maybeLast)
+                        in
+                        case Utils.dedupByEquality maybeParents of
+                          [Just parentExp] ->
+                            -- Single, shared parent.
+
+                            case parentExp.val.e__ of
+                              EList listWs1 heads listWs2 maybeTail listW3 ->
+                                let listName =
+                                  let listBaseName =
+                                    let prefix = Utils.commonPrefixString idents in
+                                    if prefix == "" then
+                                      "list"
+                                    else
+                                      prefix ++ "s"
+                                  in
+                                  nonCollidingName listBaseName 2 (identifiersSet letBody)
+                                in
+                                -- In Sketch-n-Sketch there's a lot of concatenation; try it.
+                                let eConcatExp listExp = eApp (eVar0 "concat") [listExp] in
+                                let eConcat listExps = eApp (eVar0 "concat") [eTuple listExps] in
+                                let eAppend listExpA listExpB = eApp (eVar0 "append") (List.map (replacePrecedingWhitespace " ") [listExpA, listExpB]) in
+                                let usagePrecedingWhitespace = precedingWhitespace (Utils.head "ExpressionBasedTransform.inlineListSynthesisResults usages" usages) in
+                                let useOldWs e = replacePrecedingWhitespace usagePrecedingWhitespace e in
+                                let newListExpCandidates =
+                                  -- Must be used in the heads of the list, in order.
+                                  case heads |> Utils.splitBy usages of
+                                    [[], []] ->
+                                      -- Heads and target match exactly.
+                                      case maybeTail of
+                                        Nothing ->
+                                          [ eVar listName
+                                          , eTuple [eConcatExp (eVar listName) |> useOldWs]
+                                          ]
+
+                                        Just tail ->
+                                          [ eAppend (eVar listName) tail
+                                          , eList [eConcatExp (eVar listName) |> useOldWs] (Just tail)
+                                          ]
+
+                                    [[], restHeads] ->
+                                      -- Target occurs at beginning of heads.
+                                      case maybeTail of
+                                        Nothing ->
+                                          [ eAppend (eVar listName) (eTuple restHeads)
+                                          , eTuple <| useOldWs (eConcatExp (eVar listName)) :: restHeads
+                                          , eList [eConcatExp (eVar listName) |> useOldWs] (Just (eTuple restHeads))
+                                          ]
+
+                                        Just tail ->
+                                          [ eConcat [eVar listName, eTuple restHeads, tail]
+                                          , eAppend (eVar listName) (eList restHeads (Just tail))
+                                          , eList (useOldWs (eConcatExp (eVar listName)) :: restHeads) (Just tail)
+                                          ]
+
+                                    [restHeads, []] ->
+                                      -- Target occurs at end of heads.
+                                      case maybeTail of
+                                        Nothing ->
+                                          [ eAppend (eTuple restHeads) (eVar listName)
+                                          , eList restHeads (Just (eVar listName))
+                                          , eTuple (restHeads ++ [eConcatExp (eVar listName) |> useOldWs])
+                                          , eList restHeads (Just (eConcatExp (eVar listName)))
+                                          ]
+
+                                        Just tail ->
+                                          [ eConcat [eTuple restHeads, eVar listName, tail]
+                                          , eList restHeads (Just (eAppend (eVar listName) tail))
+                                          , eList (restHeads ++ [eConcatExp (eVar listName) |> useOldWs]) (Just tail)
+                                          ]
+
+                                    [headsBefore, headsAfter] ->
+                                      -- Target occurs in the middle of the heads.
+                                      case maybeTail of
+                                        Nothing ->
+                                          [ eConcat [eTuple headsBefore, eVar listName, eTuple headsAfter]
+                                          , eTuple (headsBefore ++ [eConcatExp (eVar listName) |> useOldWs] ++ headsAfter)
+                                          ]
+
+                                        Just tail ->
+                                          [ eConcat [eTuple headsBefore, eVar listName, eTuple headsAfter, tail]
+                                          , eList (headsBefore ++ [eConcatExp (eVar listName) |> useOldWs] ++ headsAfter) (Just tail)
+                                          ]
+
+                                    _ ->
+                                      []
+                                in
+                                newListExpCandidates
+                                |> List.map
+                                    (\newListExp ->
+                                      let prettyNewListExp =
+                                        case newListExp.val.e__ of
+                                          EList _ _ _ _ _ -> copyListWhitespace parentExp newListExp
+                                          _               -> newListExp
+                                      in
+                                      let newLetBody = replaceExpNodePreservingPreceedingWhitespace parentExp.val.eid prettyNewListExp letBody in
+                                      let newLet = replaceE__ letExp (ELet letWs1 letKind False (pVar listName) letAssign newLetBody letWs2) in
+                                      ( replaceExpNode newLet.val.eid newLet originalExp
+                                      , "Inline " ++ (unparsePat >> Utils.squish) letPat ++ " into " ++ (unparse >> Utils.squish) newListExp
+                                      )
+                                    )
+
+                              _ ->
+                                []
+
+                          _ ->
+                            []
+
+                      else
+                        []
+
+                    Nothing ->
+                      []
+
+                _ ->
+                  []
+
+            _ ->
+              []
+        )
+  in
+  -- Candidates are produced speculatively.
+  -- TODO: Filter out those that error or produce a different result.
+  candidatesAndDescription
+  |> List.map
+      (\(candidateExp, description) ->
+        { description = description
+        , exp         = candidateExp
         , sortKey     = []
         }
       )
@@ -137,20 +304,15 @@ mapAbstractSynthesisResults originalExp =
   |> List.filter (\(merged, exps) -> exps |> List.concatMap (\exp -> extraExpsDiff merged exp) |> List.all isLiteral) -- No free variables in the part of the expression to parameterize
   |> List.map
       (\(merged, exps) ->
-        -- TODO: add attempts to transform [a, x1, x2, x3, z] into [a, (concat xs), z]
-        -- TODO: lift dependencies
-        -- TODO: Split abstraction -> mapping into two steps
-        -- TODO: ensure abstracted expressions weren't sub-expressions of each other...?
         let sortedExps  = exps |> List.sortBy (\exp -> (exp.start.line, exp.start.col)) in
         let eidsToReplace = sortedExps |> List.map (.val >> .eid) in
         let commonScope = justInsideDeepestCommonScope originalExp (\exp -> List.member exp.val.eid eidsToReplace) in
         let varBaseName =
-          case merged.val.e__ of
-            EApp _ funE _ _ ->
-              case funE.val.e__ of
-                EVar _ ident -> ident
-                _            -> "newVar"
-            _ -> "newVar"
+          let name = commonNameForEIds originalExp eidsToReplace in
+          if name == "" then
+            if simpleExpName merged == "INSERT_ARGUMENT_HERE" then "thing" else simpleExpName merged
+          else
+            name
         in
         let parameterExps =
           sortedExps
@@ -187,10 +349,10 @@ mapAbstractSynthesisResults originalExp =
                 explicitFunc
           in
           let argBaseName =
-            let maybeParamNums = parameterExps |> List.map expToMaybeNum |> Utils.projJusts in
-            case maybeParamNums of
-              Just paramNums -> if List.map (round >> toFloat) paramNums == paramNums && Utils.dedup paramNums == paramNums && (List.member 0 paramNums || List.member 1 paramNums) && List.all (\n -> 0 <= n && n < 10) paramNums then "i" else "n"
-              Nothing        -> "arg"
+            let candidateName = commonNameForEIds originalExp (List.map (.val >> .eid) parameterExps) in
+            if candidateName == defaultExpName
+            then "arg"
+            else candidateName
           in
           let argName = nonCollidingName argBaseName 2 (identifiersSet funcExp) in
           renameIdentifier "INSERT_ARGUMENT_HERE" argName funcExp

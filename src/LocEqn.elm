@@ -1151,11 +1151,11 @@ locEqnToLittle locIdToLittle eqn =
       "(" ++ strOp op ++ " " ++ String.join " " childLittleStrs ++ ")"
 
 
-locEqnToExp : Dict.Dict LocId Num -> Dict.Dict LocId Ident -> LocEquation -> Exp
-locEqnToExp locIdToFrozenNum locIdToIdent eqn =
+locEqnToExp : Frozen -> Dict.Dict LocId Num -> Dict.Dict LocId Ident -> LocEquation -> Exp
+locEqnToExp constantAnnotation locIdToFrozenNum locIdToIdent eqn =
   case eqn of
     LocEqnConst n ->
-      eConst n (dummyLoc_ frozen)
+      eConst n (dummyLoc_ constantAnnotation)
 
     LocEqnLoc locId ->
       case Dict.get locId locIdToIdent of
@@ -1166,5 +1166,5 @@ locEqnToExp locIdToFrozenNum locIdToIdent eqn =
             Nothing -> eVar ("couldNotFindLocId" ++ toString locId)
 
     LocEqnOp op childEqns ->
-      let childExps = List.map (locEqnToExp locIdToFrozenNum locIdToIdent) childEqns in
+      let childExps = List.map (locEqnToExp constantAnnotation locIdToFrozenNum locIdToIdent) childEqns in
       eOp op childExps

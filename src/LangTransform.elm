@@ -25,41 +25,82 @@ cleanCode exp =
   |> removeExtraPostfixes ["_orig", "'"]
   |> LangParser2.freshen
 
+
 -- Rename e.g. `x_orig_orig_orig` to `x_orig` (presuming there
 -- is no `x_orig_orig` nor `x_orig` but there is `x`.)
---
--- Since renamings could conflict if performed in batches,
--- we rename one variable at a time and then re-evaluate
--- the valid renamings, repeating until there are no more
--- renamings to perform.
 removeExtraPostfixes : List String -> Exp -> Exp
-removeExtraPostfixes postfixes exp =
-  let usedNames = identifiersSet exp in
-  let oldAndNewNames =
-    List.concatMap
-        (\ident ->
-          List.concatMap
-            (\postfix ->
-              if String.endsWith postfix ident
-              then [(ident, (String.dropRight (String.length postfix) ident))]
-              else []
-            )
-            postfixes
-        )
-        (Set.toList usedNames)
+removeExtraPostfixes postfixes program =
+  let maybeNewName oldName =
+    postfixes
+    |> Utils.findFirst (\postfix -> String.endsWith postfix oldName)
+    |> Maybe.map (\postfix -> String.dropRight (String.length postfix) oldName)
   in
-  let renameToPerform =
-    Utils.findFirst
-        (\(_, newName) -> not <| Set.member newName usedNames)
-        oldAndNewNames
-  in
-  case renameToPerform of
-    Just (oldName, newName) ->
-      let exp_ = renameIdentifier oldName newName exp in
-      removeExtraPostfixes postfixes exp_
+  -- Does not remove postfixes if bound in parameter lists and case branches and recursive lets
+  let newProgram =
+    program
+    |> mapExpViaExp__
+        (\e__ ->
+          case e__ of
+            ELet ws1 letKind False pat assign body ws2 ->
+              let (newPat, newBody) =
+                identifiersListInPat pat
+                |> List.foldl
+                    (\oldName (pat, body) ->
+                      case maybeNewName oldName of
+                        Nothing -> (pat, body)
+                        Just newName ->
+                          -- First condition here is technically not supurflous: can happen if a variable is unused.
+                          if (not <| List.member newName (identifiersListInPat pat)) && (not <| Set.member newName (freeIdentifiers body)) then
+                            (renameIdentifierInPat oldName newName pat, renameVarUntilBound oldName newName body)
+                          else
+                            (pat, body)
+                    )
+                    (pat, body)
+              in
+              if pat /= newPat then
+                ELet ws1 letKind False newPat assign newBody ws2
+              else
+                e__
 
-    Nothing ->
-      exp
+            _ ->
+              e__
+        )
+  in
+  if identifiersList newProgram == identifiersList program then
+    program
+  else
+    removeExtraPostfixes postfixes newProgram
+
+
+-- Old version; doesn't handle scoping.
+-- removeExtraPostfixes : List String -> Exp -> Exp
+-- removeExtraPostfixes postfixes exp =
+--   let usedNames = identifiersSet exp in
+--   let oldAndNewNames =
+--     List.concatMap
+--         (\ident ->
+--           List.concatMap
+--             (\postfix ->
+--               if String.endsWith postfix ident
+--               then [(ident, (String.dropRight (String.length postfix) ident))]
+--               else []
+--             )
+--             postfixes
+--         )
+--         (Set.toList usedNames)
+--   in
+--   let renameToPerform =
+--     Utils.findFirst
+--         (\(_, newName) -> not <| Set.member newName usedNames)
+--         oldAndNewNames
+--   in
+--   case renameToPerform of
+--     Just (oldName, newName) ->
+--       let exp_ = renameIdentifier oldName newName exp in
+--       removeExtraPostfixes postfixes exp_
+--
+--     Nothing ->
+--       exp
 
 
 -- 1. Removes unused variables.

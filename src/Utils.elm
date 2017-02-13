@@ -210,6 +210,38 @@ singleton x = [x]
 split : Int -> List a -> (List a, List a)
 split n xs = (List.take n xs, List.drop n xs)
 
+-- Like String.split, but for lists.
+--
+-- Follows Ruby semantics for splitting, just because they never did me wrong.
+--
+-- splitBy [s] [s]       => []
+-- splitBy [s] [s, b]    => [[], [b]]
+-- splitBy [s] [a, s]    => [[a]]
+-- splitBy [s] [a, s, s] => [[a]]
+-- splitBy [s] [a, s, b] => [[a], [b]]
+--
+-- CORRECTION: RUBY HAS DONE ME WRONG.
+--
+-- This follows Python and does not ignore trailing separators:
+--
+-- splitBy [s] [s]       => [[], []]
+-- splitBy [s] [s, b]    => [[], [b]]
+-- splitBy [s] [a, s]    => [[a], []]
+-- splitBy [s] [a, s, s] => [[a], [], []]
+-- splitBy [s] [a, s, b] => [[a], [b]]
+splitBy : List a -> List a -> List (List a)
+splitBy splitElems list =
+  case findSublistIndex splitElems list of
+    Just i  -> (List.take i list) :: splitBy splitElems (List.drop (i + List.length splitElems) list)
+    Nothing -> [list]
+
+dropLeft : Int -> List a -> List a
+dropLeft n list =
+  list
+  |> List.reverse
+  |> List.drop n
+  |> List.reverse
+
 splitString : Int -> String -> (String, String)
 splitString n s = (String.left n s, String.dropLeft n s)
 
@@ -293,6 +325,20 @@ findFirst p xs = case xs of
 
 findLast : (a -> Bool) -> List a -> Maybe a
 findLast p xs = findFirst p (List.reverse xs)
+
+-- Search for a sublist in a list
+findSublistIndex : List a -> List a -> Maybe Int
+findSublistIndex targetList list =
+  findSublistIndex_ 0 targetList list
+
+findSublistIndex_ : Int -> List a -> List a -> Maybe Int
+findSublistIndex_ i targetList list =
+  if List.take (List.length targetList) list == targetList then
+    Just i
+  else
+    case list of
+      []    -> Nothing
+      x::xs -> findSublistIndex_ (i+1) targetList xs
 
 maybeFindAndRemoveFirst : (a -> Bool) -> List a -> Maybe (a, List a)
 maybeFindAndRemoveFirst p xs =
@@ -459,8 +505,10 @@ multiKeySingleValue keys value =
       Dict.empty
       keys
 
+maybeLast = List.reverse >> List.head
+
 head msg = fromJust_ msg << List.head
-last msg = fromJust_ msg << List.head << List.reverse
+last msg = fromJust_ msg << maybeLast
 head_ = head "Utils.head_"
 tail_ = fromJust_ "Utils.tail_" << List.tail
 last_ = last "Utils.last_"
@@ -468,6 +516,10 @@ last_ = last "Utils.last_"
 uncons xs = case xs of
   x::xs -> (x, xs)
   []    -> Debug.crash "uncons"
+
+maybeUncons list = case list of
+  []    -> Nothing
+  x::xs -> Just (x, xs)
 
 takeLast n list =
   list
@@ -577,14 +629,31 @@ parseFloat = fromOk_ << String.toFloat
 commonPrefix : List (List a) -> List a
 commonPrefix lists =
   case lists of
-    first::rest -> List.foldl commonPrefix2 first rest
+    first::rest -> List.foldl commonPrefixPair first rest
     []          -> []
 
-commonPrefix2 : List a -> List a -> List a
-commonPrefix2 l1 l2 =
+commonPrefixPair : List a -> List a -> List a
+commonPrefixPair l1 l2 =
   case (l1, l2) of
-    (x::xs, y::ys) -> if x == y then x::(commonPrefix2 xs ys) else []
+    (x::xs, y::ys) -> if x == y then x::(commonPrefixPair xs ys) else []
     _              -> []
+
+commonPrefixString : List String -> String
+commonPrefixString strings =
+  strings |> List.map String.toList |> commonPrefix |> String.fromList
+
+commonSuffixString : List String -> String
+commonSuffixString strings =
+  strings |> List.map String.reverse |> commonPrefixString |> String.reverse
+
+removeCommonPrefix : List (List a) -> List (List a)
+removeCommonPrefix lists =
+  lists
+  |> List.map maybeUncons
+  |> projJusts
+  |> Maybe.map List.unzip
+  |> Maybe.andThen (\(heads, rests) -> if allSame heads then Just (removeCommonPrefix rests) else Nothing)
+  |> Maybe.withDefault lists
 
 between x (a,b) = a <= x && x < b
 
