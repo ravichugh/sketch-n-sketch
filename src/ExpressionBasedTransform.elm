@@ -32,7 +32,7 @@ import String
 -- Expression Rewriting
 
 -- x TODO: don't freeze all LocEqnConsts
--- TODO: Split abstraction -> mapping into two steps
+-- x TODO: Split abstraction -> mapping into two steps
 -- TODO: abstract with n parameters
 -- TODO: fix width + scroll synthesis results box
 -- TODO: multiple rewrites (either speculative or nested dropdowns)
@@ -46,6 +46,7 @@ import String
 
 passiveSynthesisSearch : Exp -> List InterfaceModel.SynthesisResult
 passiveSynthesisSearch originalExp =
+  cloneEliminationSythesisResults originalExp ++
   mapAbstractSynthesisResults originalExp ++
   rangeSynthesisResults originalExp ++
   inlineListSynthesisResults originalExp
@@ -244,7 +245,13 @@ inlineListSynthesisResults originalExp =
       )
 
 
-mapAbstractSynthesisResults originalExp =
+-- Generate single argument abstractions only (for now).
+--
+-- Returns List of (Sorted List of (EId, Expression to Replace, Argument Expression), Replacing Function, Common Scope, Suggested Function Name)
+--
+-- Suggested function name has *not* been checked for collisions.
+detectClones : Exp -> Int -> Int -> Bool -> List (List (EId, Exp, Exp), Exp, Exp, String)
+detectClones originalExp minCloneCount minCloneSize allowCurrying =
   let argVar = eVar "INSERT_ARGUMENT_HERE" in
   -- Sister function in LangTools.extraExpsDiff
   let merge expA expB =
@@ -281,7 +288,7 @@ mapAbstractSynthesisResults originalExp =
             _            -> False
         )
   in
-  let goodMatch exp = nodeCount exp >= 3 && argVarCount exp == 1 in
+  let goodMatch exp = nodeCount exp >= minCloneSize && argVarCount exp == 1 in
   flattenExpTree originalExp
   |> List.foldl
       (\exp mergeGroups ->
@@ -299,54 +306,50 @@ mapAbstractSynthesisResults originalExp =
         (exp, [exp])::(mergeGroups ++ newMergeGroups)
       )
       []
-  |> List.filter (\(merged, exps) -> List.length exps >= 3)
-  -- |> (\filtered -> let _ = Debug.log ("merge groups >= 3 exps:\n" ++ String.join "\n" (filtered |> List.map Tuple.second |> List.map (List.map (unparse >> Utils.squish) >> String.join ", "))) () in filtered)
-  |> List.filter (\(merged, exps) -> exps |> List.concatMap (\exp -> extraExpsDiff merged exp) |> List.all isLiteral) -- No free variables in the part of the expression to parameterize
+  |> List.filter (\(merged, exps) -> List.length exps >= minCloneCount)
+  |> List.map (\(merged, exps) -> (merged, exps |> List.sortBy (\exp -> (exp.start.line, exp.start.col))))
+  |> List.map (\(merged, sortedExps) -> (merged, sortedExps, sortedExps |> List.concatMap (\exp -> extraExpsDiff merged exp))) -- There should only be one difference per expression.
+  |> List.filter (\(merged, sortedExps, parameterExps) -> List.all isLiteral parameterExps) -- No free variables in the part of the expression to parameterize
+  |> List.sortBy (\(merged, sortedExps, parameterExps) -> -(List.length sortedExps)) -- For each abstraction, perserve only the largest set of clones matching it
+  |> Utils.dedupBy (\(merged, sortedExps, parameterExps) -> LangUnparser.unparseWithUniformWhitespace False False merged)
   |> List.map
-      (\(merged, exps) ->
-        let sortedExps  = exps |> List.sortBy (\exp -> (exp.start.line, exp.start.col)) in
+      (\(merged, sortedExps, parameterExps) ->
         let eidsToReplace = sortedExps |> List.map (.val >> .eid) in
         let commonScope = justInsideDeepestCommonScope originalExp (\exp -> List.member exp.val.eid eidsToReplace) in
-        let varBaseName =
+        let funcSuggestedName =
           let name = commonNameForEIds originalExp eidsToReplace in
           if name == "" then
             if simpleExpName merged == "INSERT_ARGUMENT_HERE" then "thing" else simpleExpName merged
           else
             name
         in
-        let parameterExps =
-          sortedExps
-          |> List.map
-              (\exp ->
-                case extraExpsDiff merged exp of
-                  [parameterExp] -> parameterExp
-                  _              -> Debug.crash <| "ExpressionBasedTransform.passiveSynthesisSearch parameterExps\nmerged: " ++ (unparse >> Utils.squish) merged ++ "\nexps:" ++ String.join ", " (List.map (unparse >> Utils.squish) sortedExps)
-              )
-        in
-        let mappingFunc =
+        let abstractedFunc =
           let funcExp =
-            -- Curry, if body is simple enough
+            -- Curry, if body is simple enough and flag given
             let explicitFunc = eFun [pVar0 "INSERT_ARGUMENT_HERE"] (unindent merged) in
-            case merged.val.e__ of
-              (EApp ws1 funcE args ws2) ->
-                case Utils.takeLast 1 args of
-                  [lastArg] ->
-                    case lastArg.val.e__ of
-                      EVar _ "INSERT_ARGUMENT_HERE" ->
-                        if List.length args >= 2 then
-                          replaceE__ merged (EApp ws1 funcE (List.take (List.length args - 1) args) ws2)
-                          |> replacePrecedingWhitespace " " -- Presume a single line application.
-                        else
-                          -- funcE is almost certainly an EVar
-                          replacePrecedingWhitespace " " funcE
+            if not allowCurrying then
+              explicitFunc
+            else
+              case merged.val.e__ of
+                (EApp ws1 funcE args ws2) ->
+                  case Utils.takeLast 1 args of
+                    [lastArg] ->
+                      case lastArg.val.e__ of
+                        EVar _ "INSERT_ARGUMENT_HERE" ->
+                          if List.length args >= 2 then
+                            replaceE__ merged (EApp ws1 funcE (List.take (List.length args - 1) args) ws2)
+                            |> replacePrecedingWhitespace " " -- Presume a single line application.
+                          else
+                            -- funcE is almost certainly an EVar
+                            replacePrecedingWhitespace " " funcE
 
-                      _ ->
-                        explicitFunc
-                  _ ->
-                    explicitFunc
+                        _ ->
+                          explicitFunc
+                    _ ->
+                      explicitFunc
 
-              _ ->
-                explicitFunc
+                _ ->
+                  explicitFunc
           in
           let argBaseName =
             let candidateName = commonNameForEIds originalExp (List.map (.val >> .eid) parameterExps) in
@@ -357,31 +360,74 @@ mapAbstractSynthesisResults originalExp =
           let argName = nonCollidingName argBaseName 2 (identifiersSet funcExp) in
           renameIdentifier "INSERT_ARGUMENT_HERE" argName funcExp
         in
+        ( Utils.zip3 eidsToReplace sortedExps parameterExps
+        , abstractedFunc
+        , commonScope
+        , funcSuggestedName
+        )
+      )
+
+
+cloneEliminationSythesisResults originalExp =
+  detectClones originalExp 2 5 False
+  |> List.map
+      (\(cloneEIdsAndExpsAndParameterExps, abstractedFunc, commonScope, funcSuggestedName) ->
+        let funcName = nonCollidingName funcSuggestedName 2 (identifiersSet commonScope) in
+        let oldIndentation = indentationOf commonScope in
+        let abstractedFuncIndented =
+          if String.contains "\n" (unparse abstractedFunc) then
+            replacePrecedingWhitespace (" " ++ oldIndentation) (indent ("  " ++ oldIndentation) abstractedFunc)
+          else
+            replacePrecedingWhitespace " " abstractedFunc
+        in
+        let eidToNewE__ =
+          cloneEIdsAndExpsAndParameterExps
+          |> List.map (\(eid, _, parameterExp) -> (eid, EApp " " (eVar0 funcName) [replacePrecedingWhitespace " " parameterExp] ""))
+          |> Dict.fromList
+        in
+        let usagesReplaced = applyESubstPreservingPrecedingWhitespace eidToNewE__ commonScope in
+        let wrapped =
+          let letKind = if isTopLevel commonScope originalExp then Def else Let in
+          withDummyPos <| ELet ("\n" ++ oldIndentation) letKind False (pVar funcName) abstractedFuncIndented usagesReplaced ""
+        in
+        let newProgram = replaceExpNode commonScope.val.eid wrapped originalExp in
+        { description = "Abstract " ++ funcName ++ " as " ++ (unparse >> Utils.squish >> Utils.niceTruncateString 40 "...") abstractedFunc
+        , exp         = newProgram
+        , sortKey     = []
+        }
+      )
+
+
+mapAbstractSynthesisResults originalExp =
+  detectClones originalExp 3 3 True
+  |> List.map
+      (\(cloneEIdsAndExpsAndParameterExps, abstractedFunc, commonScope, funcSuggestedName) ->
+        let (eidsToReplace, sortedExps, parameterExps) = Utils.unzip3 cloneEIdsAndExpsAndParameterExps in
+        let oldIndentation = indentationOf commonScope in
         let mapCall =
           -- Multiline or single line map call, depending on mapping function
-          let _ = Debug.log "mapping func" (unparse mappingFunc) in
-          if String.contains "\n" (unparse mappingFunc) then
-            let oldIndentation = indentationOf commonScope in
+          let _ = Debug.log "mapping func" (unparse abstractedFunc) in
+          if String.contains "\n" (unparse abstractedFunc) then
             let newLineIndent extraIndent exp = replacePrecedingWhitespace ("\n" ++ extraIndent ++ oldIndentation) exp in
             eApp
                 (eVar0 "map")
-                [ replacePrecedingWhitespace " " (indent ("      " ++ oldIndentation) mappingFunc) -- Put arguments on same line as map call.
+                [ replacePrecedingWhitespace " " (indent ("      " ++ oldIndentation) abstractedFunc) -- Put arguments on same line as map call.
                 , newLineIndent "    " (eTuple (cleanupListWhitespace " " parameterExps))
                 ]
             |> newLineIndent "  "
           else
-            eApp (eVar0 "map") [mappingFunc, eTuple (cleanupListWhitespace " " parameterExps)]
+            eApp (eVar0 "map") [abstractedFunc, eTuple (cleanupListWhitespace " " parameterExps)]
         in
         let namesToAvoid = identifiersSet commonScope in
-        let varNames = sortedExps |> Utils.mapi1 (\(i, _) -> nonCollidingName (varBaseName ++ toString i) 2 namesToAvoid) in
+        let varNames = sortedExps |> Utils.mapi1 (\(i, _) -> nonCollidingName (funcSuggestedName ++ toString i) 2 namesToAvoid) in
         let eidToVarE__ = Utils.zip eidsToReplace (varNames |> List.map (\name -> EVar " " name)) |> Dict.fromList in
         let usagesReplaced = applyESubstPreservingPrecedingWhitespace eidToVarE__ commonScope in
         let wrapped =
           let letKind = if isTopLevel commonScope originalExp then Def else Let in
-          withDummyPos <| ELet "\n" letKind False (pListOfPVars varNames) mapCall usagesReplaced ""
+          withDummyPos <| ELet ("\n" ++ oldIndentation) letKind False (pListOfPVars varNames) mapCall usagesReplaced ""
         in
         let newProgram = replaceExpNode commonScope.val.eid wrapped originalExp in
-        { description = "Abstract " ++ String.join ", " (sortedExps |> List.map (unparse >> Utils.squish >> Utils.niceTruncateString 25 "...")) ++ " into " ++ (unparse >> Utils.squish >> Utils.niceTruncateString 40 "...") mapCall
+        { description = "Abstract " ++ (unparse >> Utils.squish >> Utils.niceTruncateString 40 "...") mapCall
         , exp         = newProgram
         , sortKey     = []
         }

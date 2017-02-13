@@ -53,6 +53,13 @@ maybeZipDicts d1 d2 =
   else
     d1 |> Dict.map (\k v1 -> (v1, justGet k d2)) |> Just
 
+-- Extra elements left off if the lists are different lengths.
+-- Resulting list length is minimum of (length xs, length ys, length zs)
+zip3 : List a -> List b -> List c -> List (a,b,c)
+zip3 xs ys zs = case (xs, ys, zs) of
+  (x::xs_, y::ys_, z::zs_) -> (x,y,z) :: zip3 xs_ ys_ zs_
+  _                        -> []
+
 unzip3 : List (a, b, c) -> (List a, List b, List c)
 unzip3 zipped =
   List.foldr
@@ -136,16 +143,16 @@ dedup : List a -> List a
 dedup xs = dedupBy toString xs
 
 -- Preserves original list order
--- Dedups based on a provided function
+-- Dedups based on a provided function (first seen element for each key is preserved)
 dedupBy : (a -> comparable) -> List a -> List a
 dedupBy f xs =
   let (deduped, _) =
     List.foldl (\x (dd, seen) ->
         let key = f x in
-        if Set.member key seen then (dd, seen) else (List.append dd [x], Set.insert key seen)
+        if Set.member key seen then (dd, seen) else (dd ++ [x], Set.insert key seen)
       ) ([], Set.empty) xs
   in
-    deduped
+  deduped
 
 -- O(n^2).
 dedupByEquality : List a -> List a

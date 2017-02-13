@@ -1,5 +1,5 @@
 module LangUnparser exposing
-  (unparse, unparsePat, unparseWD, unparseType, unparseWithIds,
+  (unparse, unparsePat, unparseWD, unparseType, unparseWithIds, unparseWithUniformWhitespace,
     bumpCol, incCol)
 
 import Lang exposing (..)
@@ -37,12 +37,16 @@ unparseBaseVal bv =
     EString qc s -> qc ++ (escapeQuotes qc s) ++ qc
     ENull        -> "null"
 
+unparseBaseValWithUniformWhitespace = unparseBaseVal  -- BaseVals don't have any whitespace yet.
+
 unparseWD : WidgetDecl -> String
 unparseWD wd =
   case wd.val of
     NoWidgetDecl        -> ""
     IntSlider a tok b _ -> "{" ++ toString a.val ++ tok.val ++ toString b.val ++ "}"
     NumSlider a tok b _ -> "{" ++ toString a.val ++ tok.val ++ toString b.val ++ "}"
+
+unparseWDWithUniformWhitespace = unparseWD  -- WidgetDecls don't have any whitespace yet.
 
 unparsePat : Pat -> String
 unparsePat pat = case pat.val of
@@ -55,6 +59,19 @@ unparsePat pat = case pat.val of
   PConst ws n -> ws ++ strNum n
   PBase ws bv -> ws ++ unparseBaseVal bv
   PAs ws1 ident ws2 p -> ws1 ++ ident ++ ws2 ++ "@" ++ (unparsePat p)
+
+unparsePatWithUniformWhitespace includeWidgetDecls pat =
+  let recurse p = unparsePatWithUniformWhitespace includeWidgetDecls p in
+  case pat.val of
+    PVar _ x wd ->
+      " " ++ x ++ (if includeWidgetDecls then unparseWDWithUniformWhitespace wd else "")
+    PList _ ps _ Nothing _ ->
+      " " ++ "[" ++ (String.concat (List.map recurse ps)) ++ " " ++ "]"
+    PList _ ps _ (Just pRest) _ ->
+      " " ++ "[" ++ (String.concat (List.map recurse ps)) ++ " " ++ "|" ++ recurse pRest ++ " " ++ "]"
+    PConst _ n -> " " ++ strNum n
+    PBase _ bv -> " " ++ unparseBaseValWithUniformWhitespace bv
+    PAs _ ident _ p -> " " ++ ident ++ " " ++ "@" ++ recurse p
 
 unparseType : Type -> String
 unparseType tipe =
@@ -86,6 +103,38 @@ unparseType tipe =
           Many ws1_ vars ws2_ -> ws1_ ++ Utils.parens (String.concat (List.map strVar vars) ++ ws2_)
       in
       ws1 ++ Utils.parens ("forall" ++ sVars ++ unparseType tipe1 ++ ws2)
+
+unparseTypeWithUniformWhitespace : Type -> String
+unparseTypeWithUniformWhitespace tipe =
+  let recurse t = unparseTypeWithUniformWhitespace t in
+  case tipe.val of
+    TNum _                -> " " ++ "Num"
+    TBool _               -> " " ++ "Bool"
+    TString _             -> " " ++ "String"
+    TNull _               -> " " ++ "Null"
+    TList _ tipe _        -> " " ++ "(List" ++ (recurse tipe) ++ " " ++ ")"
+    TDict _ tipe1 tipe2 _ -> " " ++ "(Dict" ++ (recurse tipe1) ++ (recurse tipe2) ++ " " ++ ")"
+    TTuple _ typeList _ maybeRestType _ ->
+      case maybeRestType of
+        Just restType -> " " ++ "[" ++ (String.concat (List.map recurse typeList)) ++ " " ++ "|" ++ (recurse restType) ++ " " ++ "]"
+        Nothing       -> " " ++ "[" ++ (String.concat (List.map recurse typeList)) ++ " " ++ "]"
+    TArrow _ typeList _ -> " " ++ "(->" ++ (String.concat (List.map recurse typeList)) ++ " " ++ ")"
+    TUnion _ typeList _ -> " " ++ "(union" ++ (String.concat (List.map recurse typeList)) ++ " " ++ ")"
+    TNamed _ "Num"      -> " " ++ "Bad_NUM"
+    TNamed _ "Bool"     -> " " ++ "Bad_BOOL"
+    TNamed _ "String"   -> " " ++ "Bad_STRING"
+    TNamed _ "Null"     -> " " ++ "Bad_NULL"
+    TNamed _ ident      -> " " ++ ident
+    TVar _ ident        -> " " ++ ident
+    TWildcard _          -> " " ++ "_"
+    TForall _ typeVars tipe1 _ ->
+      let strVar (ws,x) = " " ++ x in
+      let sVars =
+        case typeVars of
+          One var             -> strVar var
+          Many _ vars _ -> " " ++ Utils.parens (String.concat (List.map strVar vars) ++ " ")
+      in
+      " " ++ Utils.parens ("forall" ++ sVars ++ recurse tipe1 ++ " ")
 
 unparse : Exp -> String
 unparse e = case e.val.e__ of
@@ -199,5 +248,62 @@ unparseWithIds e =
       ws1 ++ "(def" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2 ++ ")" ++ eidTag ++ unparseWithIds e
 
 
--- NOTE: use this to go back to original unparser
--- unparse = sExp
+-- Ignores given whitespace.
+--
+-- Useful as a key for equality comparison and deduplication.
+unparseWithUniformWhitespace : Bool -> Bool -> Exp -> String
+unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
+  let recurse e = unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations e in
+  let recursePat e = unparsePatWithUniformWhitespace includeWidgetDecls e in
+  case exp.val.e__ of
+    EBase _ v -> " " ++ unparseBaseValWithUniformWhitespace v
+    EConst _ n l wd ->
+      let (_,b,_) = l in
+      " " ++ toString n ++ (if includeConstAnnotations then b else "") ++ (if includeWidgetDecls then unparseWDWithUniformWhitespace wd else "")
+      -- TODO: parse/recurse are not inverses for floats (e.g. 1.0)
+    EVar _ x -> " " ++ x
+    EFun _ [p] e1 _ ->
+      " " ++ "(\\" ++ recursePat p ++ recurse e1 ++ " " ++ ")"
+    EFun _ ps e1 _ ->
+      " " ++ "(\\(" ++ (String.concat (List.map recursePat ps)) ++ ")" ++ recurse e1 ++ " " ++ ")"
+    EApp _ e1 es _ ->
+      " " ++ "(" ++ recurse e1 ++ (String.concat (List.map recurse es)) ++ " " ++ ")"
+    EList _ es _ Nothing _ ->
+      " " ++ "[" ++ (String.concat (List.map recurse es)) ++ " " ++ "]"
+    EList _ es _ (Just eRest) _ ->
+      " " ++ "[" ++ (String.concat (List.map recurse es)) ++ " " ++ "|" ++ recurse eRest ++ " " ++ "]"
+    EOp _ op es _ ->
+      " " ++ "(" ++ strOp op.val ++ (String.concat (List.map recurse es)) ++ " " ++ ")"
+    EIf _ e1 e2 e3 _ ->
+      " " ++ "(if" ++ recurse e1 ++ recurse e2 ++ recurse e3 ++ " " ++ ")"
+    ELet _ Let b p e1 e2 _ ->
+      let tok = if b then "letrec" else "let" in
+      " " ++ "(" ++ tok ++ recursePat p ++ recurse e1 ++ recurse e2 ++ " " ++ ")"
+    ELet _ Def b p e1 e2 _ ->
+      -- TODO don't used nested defs until this is re-worked
+      let tok = if b then "defrec" else "def" in
+      " " ++ "(" ++ tok ++ recursePat p ++ recurse e1 ++ " " ++ ")" ++ recurse e2
+    ECase _ e1 bs _ ->
+      let branchesStr =
+        String.concat
+          <| List.map (\(Branch_ _ pat exp _) -> " " ++ "(" ++ recursePat pat ++ recurse exp ++ " " ++ ")")
+          <| List.map (.val) bs
+      in
+      " " ++ "(case" ++ recurse e1 ++ branchesStr ++ " " ++ ")"
+    ETypeCase _ pat tbranches _ ->
+      let tbranchesStr =
+        String.concat
+          <| List.map (\(TBranch_ _ tipe exp _) -> " " ++ "(" ++ unparseTypeWithUniformWhitespace tipe ++ recurse exp ++ " " ++ ")")
+          <| List.map (.val) tbranches
+      in
+      " " ++ "(typecase" ++ recursePat pat ++ tbranchesStr ++ " " ++ ")"
+    EComment _ s e1 ->
+      " " ++ ";" ++ s ++ "\n" ++ recurse e1
+    EOption _ s1 _ s2 e1 ->
+      " " ++ "# " ++ s1.val ++ ":" ++ " " ++ s2.val ++ "\n" ++ recurse e1
+    ETyp _ pat tipe e _ ->
+      " " ++ "(typ" ++ (recursePat pat) ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")" ++ recurse e
+    EColonType _ e _ tipe _ ->
+      " " ++ "(" ++ (recurse e) ++ " " ++ ":" ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")"
+    ETypeAlias _ pat tipe e _ ->
+      " " ++ "(def" ++ (recursePat pat) ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")" ++ recurse e

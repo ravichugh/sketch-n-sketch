@@ -116,6 +116,9 @@ patternsEqual patA patB =
 --
 -- For finding what expressions are being removed when an expression is replaced by a function.
 --
+-- Also suitable to compare expressions for equality, discounting whitespace and EIds etc.
+-- (Though see also LangUnparsers.unparseWithUniformWhitespace)
+--
 -- The sister function here is ExpressionBasedTransform.passiveSynthesisSearch.merge
 extraExpsDiff : Exp -> Exp -> List Exp
 extraExpsDiff baseExp otherExp =
@@ -1098,66 +1101,6 @@ identifierUses : Set.Set Ident -> Exp -> List Exp
 identifierUses identSet exp =
   freeVars exp
   |> List.filter (\varExp -> Set.member (expToIdent varExp) identSet)
-
-  -- let recurse e = indentifierUses identSet e in
-  -- let recurseWithout introducedIdents e =
-  --   let newIdentSet = Set.difference identSet introducedIdents in
-  --   if Set.size newIdentSet == 0 then
-  --     []
-  --   else
-  --     indentifierUses newIdentSet e
-  -- in
-  -- case exp.val.e__ of
-  --   -- EVal _                      -> exp
-  --   EConst _ _ _ _               -> []
-  --   EBase _ _                    -> []
-  --   EVar _ ident                 -> if Set.member ident identSet then [exp] else []
-  --   EFun ws1 ps e ws2            -> recurseWithout (identifiersSetInPats ps) e
-  --   EOp ws1 op es ws2            -> List.concatMap recurse es
-  --   EList ws1 es ws2 Nothing ws3 -> List.concatMap recurse es
-  --
-  --   EIf ws1 e1 e2 e3 ws2        -> replaceE__ exp (EIf ws1 (recurse e1) (recurse e2) (recurse e3) ws2)
-  --   ECase ws1 e1 bs ws2         ->
-  --     let newScrutinee = recurse e1 in
-  --     let newBranches =
-  --       bs
-  --       |> List.map
-  --           (mapValField (\(Branch_ bws1 bPat bExp bws2) ->
-  --             Branch_ bws1 bPat (recurseWithout (identifiersSetInPat bPat) bExp) bws2
-  --           ))
-  --     in
-  --     replaceE__ exp (ECase ws1 newScrutinee newBranches ws2)
-  --
-  --
-  --   ETypeCase ws1 scrutinee tbranches ws2 ->
-  --     Debug.crash "need to change typecase scrutinee to expression; pluck from brainstorm branch"
-  --   -- Brainstorm changed typecase scrutinee to an evaluated expression
-  --   -- ETypeCase ws1 scrutinee tbranches ws2 ->
-  --   --   let newScrutinee = recurse scrutinee in
-  --   --   let newTBranches =
-  --   --     tbranches
-  --   --     |> List.map
-  --   --         (mapValField (\(TBranch_ bws1 bType bExp bws2) ->
-  --   --           TBranch_ bws1 bType (recurse bExp) bws2
-  --   --         ))
-  --   --   in
-  --   --   replaceE__ exp (ETypeCase ws1 newScrutinee newTBranches ws2)
-  --
-  --   EApp ws1 e1 es ws2              -> replaceE__ exp (EApp ws1 (recurse e1) (List.map recurse es) ws2)
-  --   ELet ws1 kind False p e1 e2 ws2 ->
-  --     replaceE__ exp (ELet ws1 kind False p (recurse e1) (recurseWithout (identifiersSetInPat p) e2) ws2)
-  --
-  --   ELet ws1 kind True p e1 e2 ws2 ->
-  --     replaceE__ exp (ELet ws1 kind True p (recurseWithout (identifiersSetInPat p) e1) (recurseWithout (identifiersSetInPat p) e2) ws2)
-  --
-  --   EComment ws s e1                -> replaceE__ exp (EComment ws s (recurse e1))
-  --   EOption ws1 s1 ws2 s2 e1        -> replaceE__ exp (EOption ws1 s1 ws2 s2 (recurse e1))
-  --   ETyp ws1 pat tipe e ws2         -> replaceE__ exp (ETyp ws1 pat tipe (recurse e) ws2)
-  --   EColonType ws1 e ws2 tipe ws3   -> replaceE__ exp (EColonType ws1 (recurse e) ws2 tipe ws3)
-  --   ETypeAlias ws1 pat tipe e ws2   -> replaceE__ exp (ETypeAlias ws1 pat tipe (recurse e) ws2)
-
-  --  -- EDict _                         -> Debug.crash "LangTools.transformVarsUntilBound: shouldn't have an EDict in given expression"
-
 
 
 -- What variable names are in use at any of the given locations?
