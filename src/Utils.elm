@@ -81,6 +81,7 @@ oneElement xs = case xs of
   [_] -> True
   _   -> False
 
+-- Tranpose, essentially.
 maybeZipN : List (List a) -> Maybe (List (List a))
 maybeZipN lists =
   if List.all zeroElements lists then
@@ -91,7 +92,7 @@ maybeZipN lists =
     let maybeHeads = projJusts (List.map List.head lists) in
     let maybeTails = projJusts (List.map List.tail lists) in
     case (maybeHeads, maybeTails) of
-      (Just heads, Just tails) -> mapMaybe ((::) heads) (maybeZipN tails)
+      (Just heads, Just tails) -> Maybe.map ((::) heads) (maybeZipN tails)
       _                        -> Nothing
 
 
@@ -540,10 +541,12 @@ takeWhile pred list =
              then x::(takeWhile pred xs)
              else []
 
-mapMaybe : (a -> b) -> Maybe a -> Maybe b
-mapMaybe f mx = case mx of
-  Just x  -> Just (f x)
-  Nothing -> Nothing
+-- Use Maybe.map
+mapMaybe = Maybe.map
+-- mapMaybe : (a -> b) -> Maybe a -> Maybe b
+-- mapMaybe f mx = case mx of
+--   Just x  -> Just (f x)
+--   Nothing -> Nothing
 
 bindMaybe : (a -> Maybe b) -> Maybe a -> Maybe b
 bindMaybe f mx = case mx of

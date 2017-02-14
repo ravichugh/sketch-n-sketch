@@ -259,12 +259,18 @@ mapValField f r = { r | val = f r.val }
 ------------------------------------------------------------------------------
 -- Mapping
 
--- Leaves visited/replaced first.
+-- Children visited/replaced first. (Post-order traversal.)
+--
+-- Note that visit order matters for some code (clone detection: leaf visit order matters to determine argument order).
+--
+-- Children are visited in right-to-left order (opposite of order returned by the childExps function).
+-- This lets you use mapFoldExp as a foldr: a simple cons in the accumulator will result in nodes in left-to-right order.
 mapFoldExp : (Exp -> a -> (Exp, a)) -> a -> Exp -> (Exp, a)
 mapFoldExp f initAcc e =
   let recurse = mapFoldExp f in
   let wrap e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
   let wrapAndMap = f << wrap in
+  -- Make sure exps are left-to-right so they are visted right-to-left.
   let recurseAll initAcc exps =
     exps
     |> List.foldr
@@ -306,8 +312,7 @@ mapFoldExp f initAcc e =
         _                               -> Debug.crash "I'll buy you a beer if this line of code executes. - Brian"
 
     ECase ws1 e1 branches ws2 ->
-      let (newE1, newAcc) = recurse initAcc e1 in
-      let (newBranches, newAcc2) =
+      let (newBranches, newAcc) =
         branches
         |> List.foldr
             (\branch (newBranches, acc) ->
@@ -315,8 +320,9 @@ mapFoldExp f initAcc e =
               let (newEi, newAcc) = recurse acc ei in
               ({ branch | val = Branch_ bws1 p newEi bws2 }::newBranches, newAcc)
             )
-            ([], newAcc)
+            ([], initAcc)
       in
+      let (newE1, newAcc2) = recurse newAcc e1 in
       wrapAndMap (ECase ws1 newE1 newBranches ws2) newAcc2
 
     ETypeCase ws1 pat tbranches ws2 ->
@@ -341,8 +347,8 @@ mapFoldExp f initAcc e =
       wrapAndMap (EOption ws1 s1 ws2 s2 newE1) newAcc
 
     ELet ws1 k b p e1 e2 ws2 ->
-      let (newE1, newAcc) = recurse initAcc e1 in
-      let (newE2, newAcc2) = recurse newAcc e2 in
+      let (newE2, newAcc) = recurse initAcc e2 in
+      let (newE1, newAcc2) = recurse newAcc e1 in
       wrapAndMap (ELet ws1 k b p newE1 newE2 ws2) newAcc2
 
     ETyp ws1 pat tipe e1 ws2 ->
@@ -523,6 +529,7 @@ findAllWithAncestors_ predicate ancestors exp =
   let recurse exp      = findAllWithAncestors_ predicate ancestorsAndThis exp in
   thisResult ++ List.concatMap recurse (childExps exp)
 
+-- Children returned ordered left-to-right.
 childExps : Exp -> List Exp
 childExps e =
   case e.val.e__ of

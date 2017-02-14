@@ -119,7 +119,7 @@ patternsEqual patA patB =
 -- Also suitable to compare expressions for equality, discounting whitespace and EIds etc.
 -- (Though see also LangUnparsers.unparseWithUniformWhitespace)
 --
--- The sister function here is ExpressionBasedTransform.passiveSynthesisSearch.merge
+-- The sister functions here are ExpressionBasedTransform.passiveSynthesisSearch.(merge/mergeSingleArg)
 extraExpsDiff : Exp -> Exp -> List Exp
 extraExpsDiff baseExp otherExp =
   let childDiffs () =
