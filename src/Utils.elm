@@ -67,7 +67,6 @@ unzip3 zipped =
       ([], [], [])
       zipped
 
-
 listsEqualBy elementEqualityFunc xs ys =
   case (xs, ys) of
     ([], [])         -> True

@@ -756,6 +756,16 @@ replaceE__PreservingPrecedingWhitespace : Exp -> Exp__ -> Exp
 replaceE__PreservingPrecedingWhitespace e e__ =
   replaceE__ e e__ |> replacePrecedingWhitespace (precedingWhitespace e)
 
+replaceBranchExp : Branch -> Exp -> Branch
+replaceBranchExp branch exp =
+  let (Branch_ bws1 p _ bws2) = branch.val in
+  { branch | val = Branch_ bws1 p exp bws2 }
+
+replaceTBranchExp : TBranch -> Exp -> TBranch
+replaceTBranchExp tbranch exp =
+  let (TBranch_ tbws1 tipe _ tbws2) = tbranch.val in
+  { tbranch | val = TBranch_ tbws1 tipe exp tbws2 }
+
 replaceEId : Exp -> EId -> Exp
 replaceEId e eid = let e_ = e.val in { e | val = { e_ | eid = eid } }
 
