@@ -54,6 +54,7 @@ passiveSynthesisSearch originalExp =
   inlineListSynthesisResults originalExp
 
 
+rangeSynthesisResults : Exp -> List InterfaceModel.SynthesisResult
 rangeSynthesisResults originalExp =
   let eidAndRangeLists =
     flattenExpTree originalExp
@@ -470,8 +471,16 @@ noExtraneousFreeVarsInRemovedClones cloneExps commonScopeWhereAbstractionWillBeD
         freeVars cloneExp |> List.all (\var -> List.member var freeAtAbstraction)
       )
 
+cloneEliminationSythesisResults : Exp -> List InterfaceModel.SynthesisResult
 cloneEliminationSythesisResults originalExp =
-  (detectClones originalExp 2 5 1 False) ++ (detectClones originalExp 2 10 2 False) ++ (detectClones originalExp 2 15 3 False)
+  detectClones originalExp 2 5 1 False ++
+  detectClones originalExp 2 10 2 False ++
+  detectClones originalExp 2 15 3 False ++
+  detectClones originalExp 2 20 4 False ++
+  detectClones originalExp 2 25 5 False ++
+  detectClones originalExp 2 30 6 False ++
+  detectClones originalExp 2 35 7 False ++
+  detectClones originalExp 2 40 8 False
   |> List.filter
       (\(cloneEIdsAndExpsAndParameterExpLists, _, commonScope, _) ->
         let (_, cloneExps, _) = Utils.unzip3 cloneEIdsAndExpsAndParameterExpLists in
@@ -505,6 +514,7 @@ cloneEliminationSythesisResults originalExp =
       )
 
 
+mapAbstractSynthesisResults : Exp -> List InterfaceModel.SynthesisResult
 mapAbstractSynthesisResults originalExp =
   detectClones originalExp 3 3 1 True
   |> List.filter
