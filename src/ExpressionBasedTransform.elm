@@ -507,7 +507,12 @@ cloneEliminationSythesisResults originalExp =
           withDummyPos <| ELet ("\n" ++ oldIndentation) letKind False (pVar funcName) abstractedFuncIndented usagesReplaced ""
         in
         let newProgram = replaceExpNode commonScope.val.eid wrapped originalExp in
-        { description = "Abstract " ++ funcName ++ " as " ++ (unparse >> Utils.squish >> Utils.niceTruncateString 40 "...") abstractedFunc
+        let argNames =
+          case abstractedFunc.val.e__ of
+            EFun _ ps _ _ -> identifiersListInPats ps
+            _              -> Debug.crash "ExpressionBasedTransform.cloneEliminationSythesisResults abstractedFunc should be an EFun"
+        in
+        { description = "Abstract " ++ funcName ++ " " ++ toString (List.length cloneEIdsAndExpsAndParameterExpLists) ++ "x over " ++ String.join " " argNames
         , exp         = newProgram
         , sortKey     = []
         }
@@ -523,8 +528,8 @@ mapAbstractSynthesisResults originalExp =
          noExtraneousFreeVarsInRemovedClones cloneExps commonScope
       )
   |> List.map
-      (\(cloneEIdsAndExpsAndParameterExps, abstractedFunc, commonScope, funcSuggestedName) ->
-        let (eidsToReplace, sortedExps, parameterExpLists) = Utils.unzip3 cloneEIdsAndExpsAndParameterExps in
+      (\(cloneEIdsAndExpsAndParameterExpLists, abstractedFunc, commonScope, funcSuggestedName) ->
+        let (eidsToReplace, sortedExps, parameterExpLists) = Utils.unzip3 cloneEIdsAndExpsAndParameterExpLists in
         let oldIndentation = indentationOf commonScope in
         let mapCall =
           -- Multiline or single line map call, depending on mapping function
@@ -550,7 +555,18 @@ mapAbstractSynthesisResults originalExp =
           withDummyPos <| ELet ("\n" ++ oldIndentation) letKind False (pListOfPVars varNames) mapCall usagesReplaced ""
         in
         let newProgram = replaceExpNode commonScope.val.eid wrapped originalExp in
-        { description = "Abstract " ++ (unparse >> Utils.squish >> Utils.niceTruncateString 40 "...") mapCall
+        let argNames =
+          case abstractedFunc.val.e__ of
+            EFun _ ps _ _ -> identifiersListInPats ps
+            _              -> Debug.crash "ExpressionBasedTransform.cloneEliminationSythesisResults abstractedFunc should be an EFun"
+        in
+        let listName =
+          if Utils.commonPrefixString varNames /= "" then
+            Utils.commonPrefixString varNames ++ "s"
+          else
+            "list"
+        in
+        { description = "Abstract " ++ listName ++ " " ++ toString (List.length cloneEIdsAndExpsAndParameterExpLists) ++ "x by mapping over " ++ String.join " " argNames
         , exp         = newProgram
         , sortKey     = []
         }
