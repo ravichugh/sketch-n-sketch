@@ -105,9 +105,11 @@ type alias Model =
   , selectedPatTargets : Set.Set PatTargetPosition
   , selectedExpTargets : Set.Set ExpTargetPosition
   , scopeGraph : ScopeGraph
-  , hoveredItem : List (EId, Position, Position, Position, Float, Float) 
-  , expSelectionBoxes : List (EId, Position, Position, Position, Float, Float) 
-  , patSelectionBoxes : List (PatternId, Position, Position, Position, Float, Float) 
+  , hoveredExp : List (Exp, EId, Position, Position, Position, Float, Float) 
+  , hoveredPat : List (Pat, EId, Position, Position, Position, Float, Float) 
+  , expSelectionBoxes : List (Exp, EId, Position, Position, Position, Float, Float) 
+  , patSelectionBoxes : List (Pat, PatternId, Position, Position, Position, Float, Float) 
+  , textBoundingPoly : (Exp, Dict Int (Int, Int))
   }
 
 type Mode
@@ -294,14 +296,14 @@ liveInfoToHighlights zoneKey model =
 --------------------------------------------------------------------------------
 
 computePatRanges expId path addPath pat =
-  let baseResult = [((expId, path ++ addPath), pat.start, pat.end, pat.end)] in 
+  let baseResult = [(pat, (expId, path ++ addPath), pat.start, pat.end, pat.end)] in 
   case pat.val of
     PConst _ _              -> baseResult
     PBase _ _               -> baseResult
     PVar _ x _              -> baseResult
-    PList _ ps _ Nothing _  -> [((expId, path ++ addPath), pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })] 
+    PList _ ps _ Nothing _  -> [(pat, (expId, path ++ addPath), pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })] 
                                 ++ Utils.concatMapi (\(i,p) -> (computePatRanges expId (path ++ addPath) [i] p)) ps
-    PList _ ps _ (Just p) _ -> [((expId, path ++ addPath), pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })] 
+    PList _ ps _ (Just p) _ -> [(pat, (expId, path ++ addPath), pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })] 
                                 ++ Utils.concatMapi (\(i,p) -> (computePatRanges expId (path ++ addPath) [i] p)) (p::ps)
     PAs _ x _ p             -> case addPath of
                                 [n] -> baseResult
@@ -362,18 +364,18 @@ computeConstantRanges e =
   foldExp combine [] e
 
 -- positions: start, end, start of selection area, end of selection area
-computeExpRanges : Exp -> List (EId, P.Pos, P.Pos, P.Pos, P.Pos)
+computeExpRanges : Exp -> List (Exp, EId, P.Pos, P.Pos, P.Pos, P.Pos)
 computeExpRanges e =
   let combine e acc =
-    let baseValue = (e.val.eid, e.start, e.end, e.start, e.end) in
-    let parenValue = (e.val.eid, e.start, e.end, e.start, { line = e.start.line, col = e.start.col + 1 }) in 
+    let baseValue = (e, e.val.eid, e.start, e.end, e.start, e.end) in
+    let parenValue = (e, e.val.eid, e.start, e.end, e.start, { line = e.start.line, col = e.start.col + 1 }) in 
     case e.val.e__ of
       EConst _ n _ _        -> baseValue :: acc
       EBase _ b             -> baseValue :: acc 
       EVar _ i              -> baseValue :: acc 
-      EFun _ p e2 _         -> (e.val.eid, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }, { line = e.start.line, col = e.start.col + 2 }) :: acc
+      EFun _ p e2 _         -> (e, e.val.eid, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }, { line = e.start.line, col = e.start.col + 2 }) :: acc
       -- unique cases for let and def (equations and entire expressions)
-      ELet _ _ r p e1 e2 _  -> (e.val.eid, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }, { line = e.start.line, col = e.start.col + 4 }) :: acc 
+      ELet _ _ r p e1 e2 _  -> (e, e.val.eid, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }, { line = e.start.line, col = e.start.col + 4 }) :: acc 
       EApp _ e elist _      -> parenValue :: acc
       EOp _ _ elist _       -> parenValue :: acc 
       EList _ elist _ e _   -> parenValue :: acc 
@@ -424,7 +426,7 @@ hoveringItem start p end =
     Nothing   -> False 
     Just pos  -> betweenPos start pos end  
 
-leadingTrailingSpaces str = 
+leadingTrailingSpaces str start end = 
   let leftTrim = String.trimLeft str in
   let rightTrim = String.trimRight str in 
   let fullLength = String.length str in 
@@ -443,24 +445,39 @@ lineStartEnd ls currIndex start end results =
         if currIndex >= start.line
         then 
           case List.head(lines) of
-            Just str -> lineStartEnd (List.tail(lines)) (currIndex + 1) start end (Dict.insert currIndex (leadingTrailingSpaces str) results)
+            Just str -> lineStartEnd (List.tail(lines)) (currIndex + 1) start end 
+                                      (Dict.insert currIndex (leadingTrailingSpaces str start end) results)
             _ -> results
         else 
           lineStartEnd (List.tail(lines)) (currIndex+1) start end results
     _ -> results 
 
-textBoundingBox exp = 
+leadingNewlines lines total = 
+  case lines of
+    Just l1 -> 
+      case (List.head l1) of
+        Just l2 -> if l2 == "" 
+                    then leadingNewlines (List.tail l1) (total + 1)
+                    else total
+        _ -> total 
+    Nothing -> total 
+
+textBoundingPolygon exp = 
   let start = exp.start in
   let end = exp.end in 
   let string = unparse exp in 
   let lines = String.lines string in 
-  let output = lineStartEnd (Just lines) 1 start end (Dict.empty) in 
-  (start, end, lines, output)
-
---compute tight border
+  if List.length lines == 1 && start.line == end.line 
+  then 
+    let s = start.line in 
+    (exp, Dict.fromList [(s, (start.col - 1, end.col - 1))]) 
+  else 
+    let leading = leadingNewlines (Just lines) 0 in 
+    let output = lineStartEnd (Just lines) (start.line - leading) start end (Dict.empty) in 
+    (exp, output)
 
 expRangesToHighlights m pos =
-  let maybeHighlight (eid,start,end,selectStart,selectEnd) =
+  let maybeHighlight (exp,eid,start,end,selectStart,selectEnd) =
     let range =
       { start = { row = selectStart.line, column = selectStart.col }
       , end   = { row = selectEnd.line, column = selectEnd.col  } }
@@ -480,7 +497,7 @@ expRangesToHighlights m pos =
     else []
 
 expRangeSelections m = 
-  let maybeHighlight (eid,start,end,selectStart,selectEnd) =
+  let maybeHighlight (exp,eid,start,end,selectStart,selectEnd) =
     let range =
       { start = { row = selectStart.line, column = selectStart.col }
       , end   = { row = selectEnd.line, column = selectEnd.col  } }
@@ -489,7 +506,7 @@ expRangeSelections m =
     let w = getBoxWidth start end m in 
     let h = getBoxHeight start end m in
     if Set.member eid m.selectedEIds then
-      [(eid, selectStart, start, end, w, h)]
+      [(exp, eid, selectStart, start, end, w, h)]
     else
       []
   in
@@ -498,7 +515,7 @@ expRangeSelections m =
     else []
 
 patRangeSelections m = 
-  let maybeHighlight (pid,start,end,selectEnd) =
+  let maybeHighlight (pat,pid,start,end,selectEnd) =
     let range =
       { start = { row = start.line, column = start.col }
       , end   = { row = selectEnd.line, column = selectEnd.col  } }
@@ -507,7 +524,7 @@ patRangeSelections m =
     let w = getBoxWidth start end m in 
     let h = getBoxHeight start end m in
     if Set.member pid m.selectedPats then
-      [(pid, start, start, end, w, h)]
+      [(pat, pid, start, start, end, w, h)]
     else
       []
   in
@@ -541,12 +558,12 @@ getBoxHeight start end m =
 pixels n = toString n ++ "px"
 
 expRangesToHover m pos =
-  let boxes pos (eid,start,end,selectStart,selectEnd) = 
+  let boxes pos (exp,eid,start,end,selectStart,selectEnd) = 
     let pixelPos = rowColToPixelPos selectStart m in
     let w = getBoxWidth start end m in 
     let h = getBoxHeight start end m in 
     if hoveringItem selectStart (Just (pixelToRowColPosition pos m)) selectEnd then 
-      [(eid, selectStart, start, end, w, h)]
+      [(exp,eid, selectStart, start, end, w, h)]
     else 
       []
   in
@@ -555,12 +572,12 @@ expRangesToHover m pos =
     else []
 
 patRangesToHover m pos =
-  let boxes pos ((eid,ls),start,end,selectEnd) = 
+  let boxes pos (pat,(eid,ls),start,end,selectEnd) = 
     let pixelPos = rowColToPixelPos start m in
     let w = getBoxWidth start end m in 
     let h = getBoxHeight start end m in 
     if hoveringItem start (Just (pixelToRowColPosition pos m)) selectEnd then 
-      [(eid, start, start, end, w, h)]
+      [(pat, eid, start, start, end, w, h)]
     else 
       []
   in
@@ -586,7 +603,7 @@ expTargetsToHighlights m pos =
     else []
 
 patRangesToHighlights m pos = 
-  let maybeHighlight (pid,start,end,selectEnd) =
+  let maybeHighlight (pat,pid,start,end,selectEnd) =
     let range =
       { start = { row = start.line, column = start.col }
       , end   = { row = end.line, column = selectEnd.col  } }
@@ -728,8 +745,10 @@ initModel =
     , selectedPatTargets = Set.empty
     , selectedExpTargets = Set.empty
     , scopeGraph = DependenceGraph.compute e
-    , hoveredItem = []
+    , hoveredExp = []
+    , hoveredPat = [] 
     , expSelectionBoxes = [] 
     , patSelectionBoxes = []
+    , textBoundingPoly = (e, Dict.empty)
     }
 

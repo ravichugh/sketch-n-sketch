@@ -14,7 +14,7 @@ import InterfaceModel as Model exposing
   , Caption(..), MouseMode(..)
   , mkLive_
   , DialogBox(..)
-  , rowColToPixelPos, getBoxWidth, getBoxHeight
+  , rowColToPixelPos, getBoxWidth, getBoxHeight, textBoundingPolygon
   )
 import InterfaceController as Controller
 import Layout
@@ -134,11 +134,14 @@ view model =
   let hoveredItems = 
     -- TODO maybe have deuceHoverBox return only Svg shape nodes,
     -- and then put into a single top-level Svg.svg here
+    let exps = List.map (\(e, _, _, _, _, _, _) -> e) model.expSelectionBoxes in 
+    let hoverExps = List.map (\(e, _, _, _, _, _, _) -> e) model.hoveredExp in 
     let svgWidgets =
-      deuceLayer model.hoveredItem model ++
-      deuceLayer model.expSelectionBoxes model ++
-      deuceLayer model.patSelectionBoxes model 
-    in
+      deuceLayer model.hoveredPat model ++
+      deuceLayer model.patSelectionBoxes model ++
+      textBoundingPolygonPoints exps model layout ++
+      textBoundingPolygonPoints hoverExps model layout
+    in  
     Html.div [ Attr.id "hoveredItem"
               , Attr.style
                   -- child div as absolute to overlay on parent div
@@ -158,7 +161,6 @@ view model =
               , onMouseLeave Controller.msgMouseLeaveCodeBox
               , onClick Controller.msgMouseClickCodeBox
               ] svgWidgets in
-
   let everything = -- z-order in decreasing order
      -- bottom-most
      [ onbeforeunloadDataElement
@@ -169,7 +171,7 @@ view model =
      [ moreBlobTools, blobTools, attributeTools, lambdaDrawTools, stretchyDrawTools, drawTools
      , textTools
      , codeTools, fileTools
-     ] ++ synthesisResultsSelect ++ [hoveredItems] ++
+     ] ++ synthesisResultsSelect ++ [hoveredItems] ++ 
 
      -- top-most
      [ resizeCodeBox
@@ -383,11 +385,46 @@ textArea_ children attrs =
   in
   Html.div (commonAttrs ++ attrs) children
 
+computePolygonPoints rcs model = 
+  let left = List.concatMap (\(k,(c1,c2)) -> 
+    let topOffset = rowColToPixelPos {line = k, col = c1} model in
+    let top = {x=topOffset.x, y=topOffset.y - model.codeBoxInfo.offsetHeight} in
+    let bottom = {x=top.x, y=top.y + model.codeBoxInfo.lineHeight} in 
+      [top, bottom]) (Dict.toList (Tuple.second rcs)) in 
+  let right = List.concatMap (\(k,(c1,c2)) -> 
+    let topOffset = rowColToPixelPos {line = k, col = c2} model in
+    let top = {x=topOffset.x, y=topOffset.y - model.codeBoxInfo.offsetHeight} in 
+    let bottom = {x=top.x, y=top.y + model.codeBoxInfo.lineHeight} in 
+      [bottom, top]) (List.reverse (Dict.toList (Tuple.second rcs))) in 
+  let combine point acc = 
+    toString(point.x) ++ "," ++ toString(point.y) ++ " " ++ acc in 
+  List.foldr combine  "" (left ++ right)
+
+textBoundingPolygonPoints exps model layout = 
+  let calculate exp = 
+    let points = computePolygonPoints (textBoundingPolygon exp) model in 
+    let textPolygon = 
+        [Svg.svg [Attr.id "deuceLayer", 
+           Attr.style
+            [ ("position", "fixed")
+            , ("left", pixels layout.codeBox.left)
+            , ("top", pixels layout.codeBox.top)
+            , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft)))
+            , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
+            ]
+          ][ flip Svg.polygon []
+            [LangSvg.attr "stroke" "yellow", LangSvg.attr "stroke-width" "5", Attr.style [("fill-opacity", "0")]
+            , LangSvg.attr "points" points 
+            ] 
+          ]] in 
+      textPolygon
+  in List.concatMap calculate exps
+
 deuceLayer inputs model = 
   let (outerPad, innerPad) = (3, 2) in
   let createSVGs input = 
     case input of
-      (_, selectStart, start, end, w, h) -> 
+      (_, _, selectStart, start, end, w, h) -> 
         let
           width pad  = toString (w + 2 * pad)
           height pad = toString (h + 2 * pad)

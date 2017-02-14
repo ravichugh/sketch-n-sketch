@@ -696,12 +696,14 @@ msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
 msgMousePosition pos_ = Msg ("MousePosition " ++ toString pos_) <| \old ->
   let pixelPos = pixelToRowColPosition pos_ old in 
   let codeBoxInfo = old.codeBoxInfo in
-  let hovered = expRangesToHover old pos_ ++ patRangesToHover old pos_ in 
+  let hoveredExp = expRangesToHover old pos_ in
+  let hoveredPat = patRangesToHover old pos_ in 
   let newM = { old | codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights old (Just pixelPos) ++ 
                                                    expTargetsToHighlights old (Just pixelPos) ++ 
                                                    patRangesToHighlights old (Just pixelPos) ++ 
                                                    patTargetsToHighlights old (Just pixelPos) }
-                    , hoveredItem = hovered
+                    , hoveredExp = hoveredExp
+                    , hoveredPat = hoveredPat
           }
   in 
   case old.mouseState of
@@ -1260,6 +1262,7 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
                                       }
           , expSelectionBoxes = expRangeSelections new
           , patSelectionBoxes = patRangeSelections new 
+          , textBoundingPoly = textBoundingPolygon m.inputExp
         }
 
 getSetMembers ls s = 
@@ -1271,13 +1274,13 @@ getSetMembers ls s =
 
 getClickedEId ls pixelPos =
   let selected =
-    List.filter (\(eid,start,end,selectStart,selectEnd) -> betweenPos selectStart pixelPos selectEnd) ls
+    List.filter (\(exp,eid,start,end,selectStart,selectEnd) -> betweenPos selectStart pixelPos selectEnd) ls
   in
   case selected of
-    []                -> Nothing
-    [(eid,_,_,_,_)]   -> Just eid
-    _                 -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
-                        Nothing
+    []                    -> Nothing
+    [(exp,eid,_,_,_,_)]   -> Just eid
+    _                     -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
+                              Nothing
 
 getClickedExpTarget ls pixelPos =
   let selected =
@@ -1287,13 +1290,13 @@ getClickedExpTarget ls pixelPos =
 
 getClickedPat ls pixelPos m = 
   let selected =
-      List.filter (\(pid,start,end,selectEnd) -> betweenPos start pixelPos selectEnd) ls
+      List.filter (\(pat,pid,start,end,selectEnd) -> betweenPos start pixelPos selectEnd) ls
   in
   case selected of
-    []                 -> Nothing
-    [(pid,s,e,se)]     -> Just pid
-    _                  -> let _ = Debug.log "WARN: getClickedPat: multiple pats" () in
-                        Nothing
+    []                     -> Nothing
+    [(pat,pid,s,e,se)]     -> Just pid
+    _                      -> let _ = Debug.log "WARN: getClickedPat: multiple pats" () in
+                                Nothing
 
 getClickedPatTarget ls pixelPos m = 
   let selected = 
