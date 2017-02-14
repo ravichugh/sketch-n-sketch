@@ -34,7 +34,8 @@ import String
 -- x TODO: don't freeze all LocEqnConsts
 -- x TODO: Split abstraction -> mapping into two steps
 -- x TODO: revisit clone detection -- lists of constants are ignored if >1 constant differs
--- TODO: abstract with n parameters
+-- x TODO: abstract with n parameters
+-- x TODO: don't lift variables usages into an abstraction outside of the variable's original scope (later we may add lifting)
 -- TODO: fix width + scroll synthesis results box
 -- TODO: multiple rewrites (either speculative or nested dropdowns)
 -- TODO: examine examples again
@@ -457,8 +458,25 @@ detectClones originalExp minCloneCount minCloneSize argCount allowCurrying =
       )
 
 
+-- Ensure program won't crash or have bad behavior because we lifted a variable usage out of the variable's scope.
+noExtraneousFreeVarsInRemovedClones : List Exp -> Exp -> Bool
+noExtraneousFreeVarsInRemovedClones cloneExps commonScopeWhereAbstractionWillBeDefined =
+  -- In the current clone detection, parameters necessarily have no free variables so
+  -- we don't have to worry about allowing the new function parameters to be free.
+  let freeAtAbstraction = freeVars commonScopeWhereAbstractionWillBeDefined in
+  cloneExps
+  |> List.all
+      (\cloneExp ->
+        freeVars cloneExp |> List.all (\var -> List.member var freeAtAbstraction)
+      )
+
 cloneEliminationSythesisResults originalExp =
   (detectClones originalExp 2 5 1 False) ++ (detectClones originalExp 2 10 2 False) ++ (detectClones originalExp 2 15 3 False)
+  |> List.filter
+      (\(cloneEIdsAndExpsAndParameterExpLists, _, commonScope, _) ->
+        let (_, cloneExps, _) = Utils.unzip3 cloneEIdsAndExpsAndParameterExpLists in
+         noExtraneousFreeVarsInRemovedClones cloneExps commonScope
+      )
   |> List.map
       (\(cloneEIdsAndExpsAndParameterExpLists, abstractedFunc, commonScope, funcSuggestedName) ->
         let funcName = nonCollidingName funcSuggestedName 2 (identifiersSet commonScope) in
@@ -489,6 +507,11 @@ cloneEliminationSythesisResults originalExp =
 
 mapAbstractSynthesisResults originalExp =
   detectClones originalExp 3 3 1 True
+  |> List.filter
+      (\(cloneEIdsAndExpsAndParameterExpLists, _, commonScope, _) ->
+        let (_, cloneExps, _) = Utils.unzip3 cloneEIdsAndExpsAndParameterExpLists in
+         noExtraneousFreeVarsInRemovedClones cloneExps commonScope
+      )
   |> List.map
       (\(cloneEIdsAndExpsAndParameterExps, abstractedFunc, commonScope, funcSuggestedName) ->
         let (eidsToReplace, sortedExps, parameterExpLists) = Utils.unzip3 cloneEIdsAndExpsAndParameterExps in
