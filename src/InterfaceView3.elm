@@ -14,7 +14,7 @@ import InterfaceModel as Model exposing
   , Caption(..), MouseMode(..)
   , mkLive_
   , DialogBox(..)
-  , rowColToPixelPos, getBoxWidth, getBoxHeight, textBoundingPolygon
+  , rowColToPixelPos, getBoxWidth, getBoxHeight, textBoundingPolygon, patBoundingPolygon
   )
 import InterfaceController as Controller
 import Layout
@@ -136,11 +136,13 @@ view model =
     -- and then put into a single top-level Svg.svg here
     let exps = List.map (\(e, _, _, _, _, _, _) -> e) model.expSelectionBoxes in 
     let hoverExps = List.map (\(e, _, _, _, _, _, _) -> e) model.hoveredExp in 
+    let pats = List.map (\(p, _, _, _, _, _, _) -> p) model.patSelectionBoxes in 
+    let hoverPats = List.map (\(p, _, _, _, _, _, _) -> p) model.hoveredPat in 
     let svgWidgets =
-      deuceLayer model.hoveredPat model ++
-      deuceLayer model.patSelectionBoxes model ++
-      textBoundingPolygonPoints exps model layout ++
-      textBoundingPolygonPoints hoverExps model layout
+      patBoundingPolygonPoints pats model layout++
+      patBoundingPolygonPoints hoverPats model layout ++ 
+      expBoundingPolygonPoints exps model layout ++
+      expBoundingPolygonPoints hoverExps model layout
     in  
     Html.div [ Attr.id "hoveredItem"
               , Attr.style
@@ -400,9 +402,9 @@ computePolygonPoints rcs model =
     toString(point.x) ++ "," ++ toString(point.y) ++ " " ++ acc in 
   List.foldr combine  "" (left ++ right)
 
-textBoundingPolygonPoints exps model layout = 
+expBoundingPolygonPoints exps model layout = 
   let calculate exp = 
-    let points = computePolygonPoints (textBoundingPolygon exp) model in 
+    let points = computePolygonPoints (expBoundingPolygon exp) model in 
     let textPolygon = 
         [Svg.svg [Attr.id "deuceLayer", 
            Attr.style
@@ -419,6 +421,26 @@ textBoundingPolygonPoints exps model layout =
           ]] in 
       textPolygon
   in List.concatMap calculate exps
+
+patBoundingPolygonPoints pats model layout = 
+  let calculate pat = 
+    let points = computePolygonPoints (patBoundingPolygon pat) model in 
+    let textPolygon = 
+        [Svg.svg [Attr.id "deuceLayer", 
+           Attr.style
+            [ ("position", "fixed")
+            , ("left", pixels layout.codeBox.left)
+            , ("top", pixels layout.codeBox.top)
+            , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft)))
+            , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
+            ]
+          ][ flip Svg.polygon []
+            [LangSvg.attr "stroke" "yellow", LangSvg.attr "stroke-width" "5", Attr.style [("fill-opacity", "0")]
+            , LangSvg.attr "points" points 
+            ] 
+          ]] in 
+      textPolygon
+  in List.concatMap calculate pats
 
 deuceLayer inputs model = 
   let (outerPad, innerPad) = (3, 2) in

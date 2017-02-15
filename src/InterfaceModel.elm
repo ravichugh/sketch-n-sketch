@@ -8,7 +8,7 @@ import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
 import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature, Zone)
 import ExamplesGenerated as Examples
-import LangUnparser exposing (unparse)
+import LangUnparser exposing (unparse, unparsePat)
 import OurParser2 as P
 import DependenceGraph exposing
   (ScopeGraph, PatternId, PatTargetPosition, ExpTargetPosition)
@@ -109,7 +109,6 @@ type alias Model =
   , hoveredPat : List (Pat, EId, Position, Position, Position, Float, Float) 
   , expSelectionBoxes : List (Exp, EId, Position, Position, Position, Float, Float) 
   , patSelectionBoxes : List (Pat, PatternId, Position, Position, Position, Float, Float) 
-  , textBoundingPoly : (Exp, Dict Int (Int, Int))
   }
 
 type Mode
@@ -462,7 +461,7 @@ leadingNewlines lines total =
         _ -> total 
     Nothing -> total 
 
-textBoundingPolygon exp = 
+expBoundingPolygon exp = 
   let start = exp.start in
   let end = exp.end in 
   let string = unparse exp in 
@@ -475,6 +474,20 @@ textBoundingPolygon exp =
     let leading = leadingNewlines (Just lines) 0 in 
     let output = lineStartEnd (Just lines) (start.line - leading) start end (Dict.empty) in 
     (exp, output)
+
+patBoundingPolygon pat = 
+  let start = pat.start in
+  let end = pat.end in 
+  let string = unparsePat pat in 
+  let lines = String.lines string in 
+  if List.length lines == 1 && start.line == end.line 
+  then 
+    let s = start.line in 
+    (pat, Dict.fromList [(s, (start.col - 1, end.col - 1))]) 
+  else 
+    let leading = leadingNewlines (Just lines) 0 in 
+    let output = lineStartEnd (Just lines) (start.line - leading) start end (Dict.empty) in 
+    (pat, output)
 
 expRangesToHighlights m pos =
   let maybeHighlight (exp,eid,start,end,selectStart,selectEnd) =
@@ -749,6 +762,5 @@ initModel =
     , hoveredPat = [] 
     , expSelectionBoxes = [] 
     , patSelectionBoxes = []
-    , textBoundingPoly = (e, Dict.empty)
     }
 

@@ -1262,7 +1262,6 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
                                       }
           , expSelectionBoxes = expRangeSelections new
           , patSelectionBoxes = patRangeSelections new 
-          , textBoundingPoly = textBoundingPolygon m.inputExp
         }
 
 getSetMembers ls s = 
