@@ -14,7 +14,7 @@ import InterfaceModel as Model exposing
   , Caption(..), MouseMode(..)
   , mkLive_
   , DialogBox(..)
-  , rowColToPixelPos, getBoxWidth, getBoxHeight
+  , rowColToPixelPos
   , expBoundingPolygon, patBoundingPolygon
   )
 import InterfaceController as Controller
@@ -137,15 +137,11 @@ view model =
     then 
       -- TODO maybe have deuceHoverBox return only Svg shape nodes,
       -- and then put into a single top-level Svg.svg here
-      let exps = List.map (\(e, _, _, _, _, _, _) -> e) model.expSelectionBoxes in 
-      let hoverExps = List.map (\(e, _, _, _, _, _, _) -> e) model.hoveredExp in 
-      let pats = List.map (\(p, _, _, _, _, _, _) -> p) model.patSelectionBoxes in 
-      let hoverPats = List.map (\(p, _, _, _, _, _, _) -> p) model.hoveredPat in 
       let svgWidgets =
-        patBoundingPolygonPoints pats model layout++
-        patBoundingPolygonPoints hoverPats model layout ++ 
-        expBoundingPolygonPoints exps model layout ++
-        expBoundingPolygonPoints hoverExps model layout
+        patBoundingPolygonPoints model.patSelectionBoxes model layout ++
+        patBoundingPolygonPoints model.hoveredPat model layout ++ 
+        expBoundingPolygonPoints model.expSelectionBoxes model layout ++
+        expBoundingPolygonPoints model.hoveredExp model layout
       in  
       Html.div [ Attr.id "hoveredItem"
                 , Attr.style
@@ -417,7 +413,7 @@ expBoundingPolygonPoints exps model layout =
             [ ("position", "fixed")
             , ("left", pixels layout.codeBox.left)
             , ("top", pixels layout.codeBox.top)
-            , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft)))
+            , ("width", pixels (layout.codeBox.width - round(2 * model.codeBoxInfo.offsetLeft)))
             , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
             ]
           ][ flip Svg.polygon []
@@ -448,6 +444,16 @@ patBoundingPolygonPoints pats model layout =
       textPolygon
   in List.concatMap calculate pats
 
+getBoxWidth start end m = 
+  let offSet = if start.line == end.line then 0 else 1 in 
+  let characters = end.col - start.col - offSet in
+  toFloat(characters) * m.codeBoxInfo.characterWidth 
+
+getBoxHeight start end m = 
+  let lines = end.line - start.line + 1 in 
+  toFloat(lines) * m.codeBoxInfo.lineHeight
+
+-- unused function 
 deuceLayer inputs model = 
   let (outerPad, innerPad) = (3, 2) in
   let createSVGs input = 

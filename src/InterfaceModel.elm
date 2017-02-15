@@ -105,10 +105,10 @@ type alias Model =
   , selectedPatTargets : Set.Set PatTargetPosition
   , selectedExpTargets : Set.Set ExpTargetPosition
   , scopeGraph : ScopeGraph
-  , hoveredExp : List (Exp, EId, Position, Position, Position, Float, Float) 
-  , hoveredPat : List (Pat, EId, Position, Position, Position, Float, Float) 
-  , expSelectionBoxes : List (Exp, EId, Position, Position, Position, Float, Float) 
-  , patSelectionBoxes : List (Pat, PatternId, Position, Position, Position, Float, Float) 
+  , hoveredExp : List Exp
+  , hoveredPat : List Pat
+  , expSelectionBoxes : List Exp
+  , patSelectionBoxes : List Pat
   }
 
 type Mode
@@ -298,6 +298,18 @@ liveInfoToHighlights zoneKey model =
 
 --------------------------------------------------------------------------------
 
+findPats e = 
+  let find e acc = 
+    case e.val.e__ of 
+      EFun _ (p::ps) _ _    -> List.concatMap (computePatRanges e.val.eid [] []) (p::ps) ++ acc
+      ETypeCase _ p _ _     -> (computePatRanges e.val.eid [] [] p) ++ acc
+      ELet _ _ _ p _ _ _    -> (computePatRanges e.val.eid [] [] p) ++ acc
+      ETyp _ p _ _ _        -> (computePatRanges e.val.eid [] [] p) ++ acc
+      ETypeAlias _ p _ _ _  -> (computePatRanges e.val.eid [] [] p) ++ acc
+      _                     -> acc 
+  in
+  foldExp find [] e 
+
 computePatRanges expId path addPath pat =
   let baseResult = [(pat, (expId, path ++ addPath), pat.start, pat.end, pat.end)] in 
   case pat.val of
@@ -313,15 +325,15 @@ computePatRanges expId path addPath pat =
                                         ++ computePatRanges expId (path ++ addPath) [n + 1] p
                                 _   -> baseResult
 
-findPats e = 
+findPatTargets e = 
   let find e acc = 
     case e.val.e__ of 
-      EFun _ (p::ps) _ _    -> List.concatMap (computePatRanges e.val.eid [] []) (p::ps) ++ acc
-      ETypeCase _ p _ _     -> (computePatRanges e.val.eid [] [] p) ++ acc
-      ELet _ _ _ p _ _ _    -> (computePatRanges e.val.eid [] [] p) ++ acc
-      ETyp _ p _ _ _        -> (computePatRanges e.val.eid [] [] p) ++ acc
-      ETypeAlias _ p _ _ _  -> (computePatRanges e.val.eid [] [] p) ++ acc
-      _                     -> acc 
+      EFun _ (p::ps) _ _    -> List.concatMap (computePatTargets e.val.eid [] []) (p::ps) ++ acc
+      ETypeCase _ p _ _     -> computePatTargets e.val.eid [] [] p ++ acc
+      ELet _ _ _ p _ _ _    -> computePatTargets e.val.eid [] [] p ++ acc
+      ETyp _ p _ _ _        -> computePatTargets e.val.eid [] [] p ++ acc
+      ETypeAlias _ p _ _ _  -> computePatTargets e.val.eid [] [] p ++ acc
+      _ -> acc 
   in
   foldExp find [] e 
 
@@ -344,27 +356,6 @@ computePatTargets expId path addPath pat =
                                       [n] -> [baseBefore, baseAfter]
                                               ++ computePatTargets expId (path ++ addPath) [n + 1] p
                                       _   -> [baseBefore, baseAfter]
-
-findPatTargets e = 
-  let find e acc = 
-    case e.val.e__ of 
-      EFun _ (p::ps) _ _    -> List.concatMap (computePatTargets e.val.eid [] []) (p::ps) ++ acc
-      ETypeCase _ p _ _     -> computePatTargets e.val.eid [] [] p ++ acc
-      ELet _ _ _ p _ _ _    -> computePatTargets e.val.eid [] [] p ++ acc
-      ETyp _ p _ _ _        -> computePatTargets e.val.eid [] [] p ++ acc
-      ETypeAlias _ p _ _ _  -> computePatTargets e.val.eid [] [] p ++ acc
-      _ -> acc 
-  in
-  foldExp find [] e 
-
-computeConstantRanges : Exp -> List (EId, Num, P.Pos, P.Pos)
-computeConstantRanges e =
-  let combine e acc =
-    case e.val.e__ of
-      EConst _ n _ _ -> (e.val.eid, n, e.start, e.end) :: acc
-      _              -> acc
-  in
-  foldExp combine [] e
 
 -- positions: start, end, start of selection area, end of selection area
 computeExpRanges : Exp -> List (Exp, EId, P.Pos, P.Pos, P.Pos, P.Pos)
@@ -425,6 +416,24 @@ betweenPos start pixelPos end =
   (end.line >= pixelPos.row + 1) &&
   (end.col > pixelPos.column + 1)
 
+pixelToRowColPosition pos m = 
+  let rowPadding = m.codeBoxInfo.offsetHeight in
+  let colPadding = m.codeBoxInfo.offsetLeft +  m.codeBoxInfo.gutterWidth in
+  let row = truncate((toFloat(pos.y) + rowPadding - m.codeBoxInfo.marginTopOffset) / m.codeBoxInfo.lineHeight - 1) in
+  let col = truncate((toFloat(pos.x) - colPadding) / m.codeBoxInfo.characterWidth) in 
+    {row = row + m.codeBoxInfo.firstVisibleRow, column = col}
+
+rowColToPixelPos pos m = 
+  if pos.line > m.codeBoxInfo.firstVisibleRow && pos.line <= (m.codeBoxInfo.lastVisibleRow + 1)
+  then 
+    let rowPadding = m.codeBoxInfo.offsetHeight in
+    let colPadding = m.codeBoxInfo.offsetLeft +  m.codeBoxInfo.gutterWidth in
+    let y = (toFloat(pos.line - m.codeBoxInfo.firstVisibleRow)) * m.codeBoxInfo.lineHeight - rowPadding + m.codeBoxInfo.marginTopOffset in 
+    let x = (toFloat(pos.col) - 0.5) * m.codeBoxInfo.characterWidth + colPadding in 
+      {x = x, y = y}
+  else
+    {x = 0, y = 0}
+    
 hoveringItem start p end = 
   case p of
     Nothing   -> False 
@@ -483,6 +492,7 @@ expBoundingPolygon exp =
 patBoundingPolygon pat = 
   let start = pat.start in
   let end = pat.end in 
+  -- difference from expBoundingPolygon: unparsePat instead of unparse
   let string = unparsePat pat in 
   let lines = String.lines string in 
   if List.length lines == 1 && start.line == end.line 
@@ -494,35 +504,14 @@ patBoundingPolygon pat =
     let output = lineStartEnd (Just lines) (start.line - leading) start end (Dict.empty) in 
     (pat, output)
 
-expRangesToHighlights m pos =
-  let maybeHighlight (exp,eid,start,end,selectStart,selectEnd) =
-    let range =
-      { start = { row = selectStart.line, column = selectStart.col }
-      , end   = { row = selectEnd.line, column = selectEnd.col  } }
-    in
-    let w = getBoxWidth start end m in 
-    let h = getBoxHeight start end m in
-    if Set.member eid m.selectedEIds then
-      [ { color = "orange", range = range } ]
-    else if showAllDeuceWidgets m || hoveringItem selectStart pos selectEnd then
-      [ { color = "peachpuff", range = range } ]
-    else
-      []
-  in
-  if m.deuceMode
-    then List.concatMap maybeHighlight (computeExpRanges m.inputExp)
-    else []
-
 expRangeSelections m = 
   let maybeHighlight (exp,eid,start,end,selectStart,selectEnd) =
     let range =
       { start = { row = selectStart.line, column = selectStart.col }
       , end   = { row = selectEnd.line, column = selectEnd.col  } }
     in
-    let w = getBoxWidth start end m in 
-    let h = getBoxHeight start end m in
     if Set.member eid m.selectedEIds then
-      [(exp, eid, selectStart, start, end, w, h)]
+      [exp]
     else
       []
   in
@@ -536,10 +525,8 @@ patRangeSelections m =
       { start = { row = start.line, column = start.col }
       , end   = { row = selectEnd.line, column = selectEnd.col  } }
     in
-    let w = getBoxWidth start end m in 
-    let h = getBoxHeight start end m in
     if Set.member pid m.selectedPats then
-      [(pat, pid, start, start, end, w, h)]
+      [pat]
     else
       []
   in
@@ -547,41 +534,10 @@ patRangeSelections m =
     then List.concatMap maybeHighlight (findPats m.inputExp)
     else []
 
-pixelToRowColPosition pos m = 
-  let rowPadding = m.codeBoxInfo.offsetHeight in
-  let colPadding = m.codeBoxInfo.offsetLeft +  m.codeBoxInfo.gutterWidth in
-  let row = truncate((toFloat(pos.y) + rowPadding - m.codeBoxInfo.marginTopOffset) / m.codeBoxInfo.lineHeight - 1) in
-  let col = truncate((toFloat(pos.x) - colPadding) / m.codeBoxInfo.characterWidth) in 
-    {row = row + m.codeBoxInfo.firstVisibleRow, column = col}
-
-rowColToPixelPos pos m = 
-  if pos.line > m.codeBoxInfo.firstVisibleRow && pos.line <= (m.codeBoxInfo.lastVisibleRow + 1)
-  then 
-    let rowPadding = m.codeBoxInfo.offsetHeight in
-    let colPadding = m.codeBoxInfo.offsetLeft +  m.codeBoxInfo.gutterWidth in
-    let y = (toFloat(pos.line - m.codeBoxInfo.firstVisibleRow)) * m.codeBoxInfo.lineHeight - rowPadding + m.codeBoxInfo.marginTopOffset in 
-    let x = (toFloat(pos.col) - 0.5) * m.codeBoxInfo.characterWidth + colPadding in 
-      {x = x, y = y}
-  else
-    {x = 0, y = 0}
-
-getBoxWidth start end m = 
-  let offSet = if start.line == end.line then 0 else 1 in 
-  let characters = end.col - start.col - offSet in
-  toFloat(characters) * m.codeBoxInfo.characterWidth 
-
-getBoxHeight start end m = 
-  let lines = end.line - start.line + 1 in 
-  toFloat(lines) * m.codeBoxInfo.lineHeight
-
-pixels n = toString n ++ "px"
-
 expRangesToHover m pos =
   let boxes pos (exp,eid,start,end,selectStart,selectEnd) = 
-    let w = getBoxWidth start end m in 
-    let h = getBoxHeight start end m in 
     if hoveringItem selectStart (Just (pixelToRowColPosition pos m)) selectEnd then 
-      [(exp,eid, selectStart, start, end, w, h)]
+      [exp]
     else 
       []
   in
@@ -591,10 +547,8 @@ expRangesToHover m pos =
 
 patRangesToHover m pos =
   let boxes pos (pat,(eid,ls),start,end,selectEnd) = 
-    let w = getBoxWidth start end m in 
-    let h = getBoxHeight start end m in 
     if hoveringItem start (Just (pixelToRowColPosition pos m)) selectEnd then 
-      [(pat, eid, start, start, end, w, h)]
+      [pat]
     else 
       []
   in
@@ -602,6 +556,25 @@ patRangesToHover m pos =
     then List.concatMap (boxes pos) (findPats m.inputExp)
     else []
 
+-- unused function
+expRangesToHighlights m pos =
+  let maybeHighlight (exp,eid,start,end,selectStart,selectEnd) =
+    let range =
+      { start = { row = selectStart.line, column = selectStart.col }
+      , end   = { row = selectEnd.line, column = selectEnd.col  } }
+    in
+    if Set.member eid m.selectedEIds then
+      [ { color = "orange", range = range } ]
+    else if showAllDeuceWidgets m || hoveringItem selectStart pos selectEnd then
+      [ { color = "peachpuff", range = range } ]
+    else
+      []
+  in
+  if m.deuceMode
+    then List.concatMap maybeHighlight (computeExpRanges m.inputExp)
+    else []
+
+-- unused function
 expTargetsToHighlights m pos =
   let maybeHighlight (expTarget,selectStart,selectEnd) =
     let range =
@@ -619,6 +592,7 @@ expTargetsToHighlights m pos =
     then List.concatMap maybeHighlight (computeExpTargets m.inputExp)
     else []
 
+-- unused function
 patRangesToHighlights m pos = 
   let maybeHighlight (pat,pid,start,end,selectEnd) =
     let range =
@@ -636,6 +610,7 @@ patRangesToHighlights m pos =
     then List.concatMap maybeHighlight (findPats m.inputExp)
     else []
 
+-- unused function
 patTargetsToHighlights m pos = 
   let maybeHighlight (target,start,end) =
     let range =
