@@ -774,7 +774,7 @@ msgRelate = Msg "Relate" <| \old ->
   in
   { old | synthesisResults = cleanDedupSynthesisResults synthesisResults }
 
-msgRobotRevolution = Msg "Robot Revolution" <| \old ->
+msgRobotRevolution = Msg "Indexed Relate" <| \old ->
   let synthesisResults =
     ValueBasedTransform.robotRevolution
         old.inputExp

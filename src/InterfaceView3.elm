@@ -210,7 +210,7 @@ attributeToolBox model layout =
     [ relateButton model "Dig Hole" Controller.msgDigHole
     , relateButton model "Make Equal" Controller.msgMakeEqual
     , relateButton model "Relate" Controller.msgRelate
-    , relateButton model "Robot Revolution" Controller.msgRobotRevolution
+    , relateButton model "Indexed Relate" Controller.msgRobotRevolution
     ]
 
 blobToolBox model layout =
