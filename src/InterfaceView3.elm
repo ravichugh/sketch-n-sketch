@@ -159,7 +159,7 @@ view model =
 -- Tool Boxes
 
 fileToolBox model layout =
-  toolBox model "fileToolBox" Layout.getPutFileToolBox layout.fileTools
+  toolBox model "fileToolBox" [] Layout.getPutFileToolBox layout.fileTools
     [ fileIndicator model
     , fileNewDialogBoxButton
     , fileSaveAsDialogBoxButton
@@ -172,7 +172,7 @@ fileToolBox model layout =
     ]
 
 codeToolBox model layout =
-  toolBox model "codeToolBox" Layout.getPutCodeToolBox layout.codeTools
+  toolBox model "codeToolBox" [] Layout.getPutCodeToolBox layout.codeTools
     [ runButton
     , undoButton model
     , redoButton model
@@ -180,7 +180,7 @@ codeToolBox model layout =
     ]
 
 drawToolBox model layout =
-  toolBox model "drawToolBox" Layout.getPutDrawToolBox layout.drawTools
+  toolBox model "drawToolBox" [] Layout.getPutDrawToolBox layout.drawTools
     [ toolButton model Cursor
     , toolButton model (Line Raw)
     , toolButton model (Rect Raw)
@@ -190,7 +190,7 @@ drawToolBox model layout =
     ]
 
 stretchyDrawToolBox model layout =
-  toolBox model "stretchyDrawToolBox" Layout.getPutDrawToolBox layout.stretchyDrawTools
+  toolBox model "stretchyDrawToolBox" [] Layout.getPutDrawToolBox layout.stretchyDrawTools
     [ toolButton model (Rect Stretchy)
     , toolButton model (Oval Stretchy)
     , toolButton model (Poly Stretchy)
@@ -199,14 +199,14 @@ stretchyDrawToolBox model layout =
 
 {-
 lambdaDrawToolBox model layout =
-  toolBox model "lambdaDrawToolBox" Layout.getPutDrawToolBox layout.lambdaDrawTools
+  toolBox model "lambdaDrawToolBox" [] Layout.getPutDrawToolBox layout.lambdaDrawTools
     [ toolButton model Lambda
     , dropdownLambdaTool model
     ]
 -}
 
 attributeToolBox model layout =
-  toolBox model "attributeToolBox" Layout.getPutAttributeToolBox layout.attributeTools
+  toolBox model "attributeToolBox" [] Layout.getPutAttributeToolBox layout.attributeTools
     [ relateButton model "Dig Hole" Controller.msgDigHole
     , relateButton model "Make Equal" Controller.msgMakeEqual
     , relateButton model "Relate" Controller.msgRelate
@@ -214,7 +214,7 @@ attributeToolBox model layout =
     ]
 
 blobToolBox model layout =
-  toolBox model "blobToolBox" Layout.getPutBlobToolBox layout.blobTools
+  toolBox model "blobToolBox" [] Layout.getPutBlobToolBox layout.blobTools
     [ groupButton model "Dupe" Controller.msgDuplicateBlobs True
     , groupButton model "Merge" Controller.msgMergeBlobs True
     , groupButton model "Group" Controller.msgGroupBlobs False
@@ -222,14 +222,14 @@ blobToolBox model layout =
     ]
 
 moreBlobToolBox model layout =
-  toolBox model "moreBlobToolBox" Layout.getPutMoreBlobToolBox layout.moreBlobTools
+  toolBox model "moreBlobToolBox" [] Layout.getPutMoreBlobToolBox layout.moreBlobTools
     [ groupButton model "Repeat Right" (Controller.msgReplicateBlob HorizontalRepeat) True
     , groupButton model "Repeat To" (Controller.msgReplicateBlob LinearRepeat) True
     , groupButton model "Repeat Around" (Controller.msgReplicateBlob RadialRepeat) True
     ]
 
 outputToolBox model layout =
-  toolBox model "outputToolBox" Layout.getPutOutputToolBox layout.outputTools
+  toolBox model "outputToolBox" [] Layout.getPutOutputToolBox layout.outputTools
     [ -- codeBoxButton model
       fontSizeButton model
     , heuristicsButton model
@@ -239,7 +239,7 @@ outputToolBox model layout =
     ]
 
 animationToolBox model layout =
-  toolBox model "animationToolBox" Layout.getPutAnimationToolBox layout.animationTools
+  toolBox model "animationToolBox" [] Layout.getPutAnimationToolBox layout.animationTools
     [ previousSlideButton model
     , previousMovieButton model
     , pauseResumeMovieButton model
@@ -252,18 +252,31 @@ synthesisResultsSelectBox model layout =
     (Regex.replace Regex.All (Regex.regex "^Original -> | -> Cleaned$") (\_ -> "") description) ++
     " (" ++ toString (LangTools.nodeCount exp) ++ ")" ++ " " ++ toString sortKey
   in
+  let extraButtonStyles =
+    Attr.style
+        [ ("width", "100%")
+        , ("text-align", "left")
+        , ("line-height", "30px")
+        ]
+  in
   let resultButtons =
     model.synthesisResults
     |> List.sortBy (\{description, exp, sortKey} -> (LangTools.nodeCount exp, sortKey, description))
-    |> List.map (\result -> htmlButtonExtraAttrs [Html.Events.onMouseEnter (Controller.msgPreview result.exp), Html.Events.onMouseLeave Controller.msgClearPreview] (desc result) (Controller.msgSelectSynthesisResult result.exp) Regular False)
+    |> List.map (\result -> htmlButtonExtraAttrs [extraButtonStyles, Html.Events.onMouseEnter (Controller.msgPreview result.exp), Html.Events.onMouseLeave Controller.msgClearPreview] (desc result) (Controller.msgSelectSynthesisResult result.exp) Regular False)
     |> List.intersperse (Html.br [] [])
   in
   let cancelButton =
-    htmlButton "Cancel" (Controller.msgClearSynthesisResults) Regular False
+    htmlButtonExtraAttrs [extraButtonStyles, Attr.style [("text-align", "center")]] "Cancel" (Controller.msgClearSynthesisResults) Regular False
   in
-  toolBox model "synthesisResultsSelect" Layout.getPutSynthesisResultsSelectBox layout.synthesisResultsSelect (resultButtons ++ [Html.br [] [], cancelButton])
+  let extraStyles =
+    [ ("max-width", "350px")
+    , ("max-height", "350px")
+    , ("overflow-y", "auto")
+    ]
+  in
+  toolBox model "synthesisResultsSelect" extraStyles Layout.getPutSynthesisResultsSelectBox layout.synthesisResultsSelect (resultButtons ++ [Html.br [] [], cancelButton])
 
-toolBox model id (getOffset, putOffset) leftRightTopBottom elements =
+toolBox model id extraStyles (getOffset, putOffset) leftRightTopBottom elements =
   Html.div
     [ Attr.id id
     , Attr.title id
@@ -274,7 +287,7 @@ toolBox model id (getOffset, putOffset) leftRightTopBottom elements =
         , ("border-radius", "10px 0px 0px 10px")
         , ("box-shadow", "6px 6px 3px #888888")
         , ("cursor", "move")
-        ] ++ Layout.fixedPosition leftRightTopBottom
+        ] ++ extraStyles ++ Layout.fixedPosition leftRightTopBottom
     , onMouseDown <| Layout.dragLayoutWidgetTrigger (getOffset model) putOffset
     ]
     elements
@@ -416,7 +429,7 @@ htmlButtonExtraAttrs extraAttrs text onClickHandler btnKind disabled =
     [ Attr.disabled disabled
     , Attr.style [ ("font", params.mainSection.widgets.font)
                  , ("fontSize", params.mainSection.widgets.fontSize)
-                 , ("height", pixels Layout.buttonHeight)
+                 , ("line-height", pixels (Layout.buttonHeight - 4)) -- Subtract total vertical border width
                  , ("background", color)
                  , ("cursor", "pointer")
                  , ("user-select", "none")
@@ -720,7 +733,7 @@ lambdaDrawToolBoxWithIcons model layout =
         False
       ) model.lambdaTools
   in
-  toolBox model "lambdaDrawToolBox"
+  toolBox model "lambdaDrawToolBox" []
     Layout.getPutDrawToolBox layout.lambdaDrawTools
     buttons
 

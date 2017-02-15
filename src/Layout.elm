@@ -262,7 +262,7 @@ computeLayout m =
      }
   , synthesisResultsSelect = offset m getSynthesisResultsSelectBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + round (1.3 * (rowGap + buttonHeight) + 3.3 * (rowGap + iconButtonHeight))
+     , topBottom = Top    <| windowPadding + round (6.3 * (rowGap + buttonHeight) + 2.3 * (rowGap + iconButtonHeight))
      }
   , captionArea =
      { leftRight = Left   <| windowPadding
