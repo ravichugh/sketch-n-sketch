@@ -684,7 +684,7 @@ msgKeyDown keyCode = Msg ("Key Down " ++ toString keyCode) <| \old ->
       (_, MouseNothing)   -> { old | tool = Cursor }
       (_, MouseDrawNew _) -> { old | mouseMode = MouseNothing }
       _                   -> old
-  else if [keyCode] == Keys.shift then
+  else if not (List.member keyCode old.keysDown) then
     { old | keysDown = keyCode :: old.keysDown }
   else
     old
