@@ -82,6 +82,7 @@ type alias Model =
   -- line/g ids assigned by blobs function
   , selectedBlobs : Dict Int NodeId
   , keysDown : List Char.KeyCode
+  , autoSynthesis : Bool
   , synthesisResults: List SynthesisResult
   , randomColor : Int
   , lambdaTools : List LambdaTool
@@ -378,6 +379,7 @@ initModel =
     , selectedFeatures = Set.empty
     , selectedBlobs = Dict.empty
     , keysDown      = []
+    , autoSynthesis = True
     , synthesisResults = []
     , randomColor   = 100
     , lambdaTools   = [starLambdaTool]

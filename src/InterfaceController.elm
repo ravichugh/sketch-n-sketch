@@ -437,7 +437,7 @@ tryRun old =
                     , syncOptions   = Sync.syncOptionsOf old.syncOptions e
                     , codeBoxInfo   = updateCodeBoxWithTypes aceTypeInfo old.codeBoxInfo
                     , preview       = Nothing
-                    , synthesisResults = cleanDedupSynthesisResults (ETransform.passiveSynthesisSearch e)
+                    , synthesisResults = maybeRunAutoSynthesis old e
               }
             in
             { new_ | mode = refreshMode_ new_
@@ -705,6 +705,11 @@ cleanDedupSynthesisResults synthesisResults =
   |> List.map cleanSynthesisResult
   |> Utils.dedupBy (.exp >> unparse)
 
+maybeRunAutoSynthesis m e =
+  if m.autoSynthesis
+    then cleanDedupSynthesisResults (ETransform.passiveSynthesisSearch e)
+    else []
+
 msgCleanCode = Msg "Clean Code" <| \old ->
   case parseE old.code of
     Err (err, _) ->
@@ -817,7 +822,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
             , slate            = newSlate
             , widgets          = newWidgets
             , preview          = Nothing
-            , synthesisResults = cleanDedupSynthesisResults (ETransform.passiveSynthesisSearch reparsed)
+            , synthesisResults = maybeRunAutoSynthesis old reparsed
             , mode             = Utils.fromOk "SelectSynthesisResult MkLive" <|
                                    mkLive old.syncOptions
                                      old.slideNumber old.movieNumber old.movieTime reparsed

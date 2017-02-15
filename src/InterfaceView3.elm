@@ -235,6 +235,7 @@ outputToolBox model layout =
     , heuristicsButton model
     , outputButton model
     , ghostsButton model
+    , autoSynthesisButton model
     ]
 
 animationToolBox model layout =
@@ -526,6 +527,16 @@ ghostsButton model =
     { old | showGhosts = showGhosts_, mode = mode_ }
   in
   htmlButton cap (Msg "Toggle Ghosts" foo) Regular False
+
+autoSynthesisButton model =
+  let cap =
+     case model.autoSynthesis of
+       True  -> "[Auto-Search] On"
+       False -> "[Auto-Search] Off"
+  in
+  htmlButton cap
+    (Msg "Toggle Auto-Search" (\m -> { m | autoSynthesis = not m.autoSynthesis }))
+    Regular False
 
 codeBoxButton model =
   let text = "[Code Box] " ++ if model.basicCodeBox then "Basic" else "Fancy" in
