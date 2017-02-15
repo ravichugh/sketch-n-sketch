@@ -492,18 +492,18 @@ findFirstNode predicate exp =
     childExps exp
     |> Utils.mapFirstSuccess (findFirstNode predicate)
 
-findExpByEId : EId -> Exp -> Maybe Exp
-findExpByEId targetEId program =
+findExpByEId : Exp -> EId -> Maybe Exp
+findExpByEId program targetEId =
   findFirstNode (\exp -> exp.val.eid == targetEId) program
 
 -- justFindExpByEId is in LangTools (it needs the unparser for error messages).
--- LangTools.justFindExpByEId : Exp -> EId -> Exp
--- LangTools.justFindExpByEId exp eid =
+-- LangTools.justFindExpByEId : EId -> Exp -> Exp
+-- LangTools.justFindExpByEId eid exp =
 --   findExpByEId exp eid
 --   |> Utils.fromJust__ (\() -> "Couldn't find eid " ++ toString eid ++ " in " ++ unparseWithIds exp)
 
-findExpByLocId : LocId -> Exp -> Maybe Exp
-findExpByLocId targetLocId program =
+findExpByLocId : Exp -> LocId -> Maybe Exp
+findExpByLocId program targetLocId =
   let isTarget exp =
     case exp.val.e__ of
       EConst _ _ (locId, _, _) _ -> locId == targetLocId
@@ -511,9 +511,9 @@ findExpByLocId targetLocId program =
   in
   findFirstNode isTarget program
 
-locIdToEId : LocId -> Exp -> Maybe EId
-locIdToEId locId program =
-  findExpByLocId locId program |> Maybe.map (.val >> .eid)
+locIdToEId : Exp -> LocId -> Maybe EId
+locIdToEId program locId =
+  findExpByLocId program locId |> Maybe.map (.val >> .eid)
 
 
 -- For each node for which `predicate` returns True, return it and its ancestors

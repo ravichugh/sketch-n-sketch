@@ -200,9 +200,9 @@ allLocIds exp =
   |> List.map (\((locId, _, _), _) -> locId)
 
 
-justFindExpByEId : EId -> Exp -> Exp
-justFindExpByEId eid exp =
-  findExpByEId eid exp
+justFindExpByEId : Exp -> EId -> Exp
+justFindExpByEId exp eid =
+  findExpByEId exp eid
   |> Utils.fromJust__ (\() -> "Couldn't find eid " ++ toString eid ++ " in " ++ unparseWithIds exp)
 
 
@@ -304,7 +304,7 @@ expNameForEId program targetEId =
     _ ->
       -- Should only hit this branch if exp not found, so really this
       -- will always return defaultExpName
-      findExpByEId targetEId program
+      findExpByEId program targetEId
       |> Maybe.map simpleExpName
       |> Maybe.withDefault defaultExpName
 
@@ -334,7 +334,7 @@ commonNameForEIds program eids =
   if candidate == "" || candidate == "num" || candidate == defaultExpName then
     -- If candidates are all numbers, see if they look like indices and if so, use "i" as the common name.
     eids
-    |> List.map (\eid -> findExpByEId eid program |> Maybe.andThen expToMaybeNum)
+    |> List.map (\eid -> findExpByEId program eid |> Maybe.andThen expToMaybeNum)
     |> Utils.projJusts
     |> Maybe.map
         (\nums ->
@@ -383,7 +383,7 @@ expDescriptionParts_ program exp targetEId =
             Match env -> env
             _         -> []
         in
-        case List.filter (\(ident, e) -> findExpByEId targetEId e /= Nothing) namedAssigns of
+        case List.filter (\(ident, e) -> findExpByEId e targetEId /= Nothing) namedAssigns of
           [] ->
             if assigns.val.eid == targetEId then
               -- e.g. want whole list, but the let only bound the individual list elements

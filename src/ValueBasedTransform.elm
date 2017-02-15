@@ -63,7 +63,7 @@ digHole originalExp selectedFeatures slate syncOptions =
     let (_, result) =
       List.foldr
           (\(locId, frozen, ident) (usedNames, result) ->
-            let baseIdent = locIdToEId locId originalExp |> Maybe.map (expNameForEId originalExp) |> Maybe.withDefault (if ident == "" then "num" else ident) in
+            let baseIdent = locIdToEId originalExp locId |> Maybe.map (expNameForEId originalExp) |> Maybe.withDefault (if ident == "" then "num" else ident) in
             let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough commonScope (locId, frozen, ident) in
             let scopesAndBaseIdent = String.join "_" (scopeNamesLiftedThrough ++ [baseIdent]) in
             let baseIdentOrig  =
@@ -96,7 +96,7 @@ digHole originalExp selectedFeatures slate syncOptions =
   let valueExps =
     List.reverse locsetList
     |> List.map
-        (\(locId, _, _) -> findExpByLocId locId commonScope |> Utils.fromJust_ "ValueBasedTransform.digHole valueExps")
+        (\(locId, _, _) -> findExpByLocId commonScope locId |> Utils.fromJust_ "ValueBasedTransform.digHole valueExps")
   in
   let selectedFeatureEquationsNamedWithScopes =
     List.map
@@ -252,7 +252,7 @@ robotRevolution originalExp selectedFeatures selectedShapes slideNumber movieNum
       let (_, locIds, targets) = Utils.unzip3 indexedLocIdsWithTarget in
       let locEIds =
         locIds
-        |> List.map (\locId -> locIdToEId locId originalExp |> Utils.fromJust_ "ValueBasedTransform.liftLocsSoVisibleTo locEIds")
+        |> List.map (\locId -> locIdToEId originalExp locId |> Utils.fromJust_ "ValueBasedTransform.liftLocsSoVisibleTo locEIds")
       in
       possibleEqns
       |> List.map
@@ -633,7 +633,7 @@ relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
               let (_, result) =
                 List.foldr
                     (\(locId, frozen, ident) (usedNames, result) ->
-                      let baseIdent = locIdToEId locId originalExp |> Maybe.map (expNameForEId originalExp) |> Maybe.withDefault (if ident == "" then "num" else ident) in
+                      let baseIdent = locIdToEId originalExp locId |> Maybe.map (expNameForEId originalExp) |> Maybe.withDefault (if ident == "" then "num" else ident) in
                       let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough commonScope (locId, frozen, ident) in
                       let scopesAndBaseIdent = String.join "_" (scopeNamesLiftedThrough ++ [baseIdent]) in
                       let ident =
@@ -664,7 +664,7 @@ relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
             let independentLocExps =
               independentLocs
               |> List.map
-                  (\(locId, _, _) -> findExpByLocId locId commonScope |> Utils.fromJust_ "ValueBasedTransform.relate__ independentLocValues")
+                  (\(locId, _, _) -> findExpByLocId commonScope locId |> Utils.fromJust_ "ValueBasedTransform.relate__ independentLocValues")
             in
             let dependentLocNameStr  =
               Utils.justGet_ "ValueBasedTransform.relate__ dependentLocNameStr" dependentLocId locIdToNewName
@@ -707,14 +707,14 @@ liftLocsSoVisibleTo originalExp mobileLocset observerEIds =
   let locIds = List.map (\(locId, _, _) -> locId) locs in
   let locEIds =
     locIds
-    |> List.map (\locId -> locIdToEId locId originalExp |> Utils.fromJust_ "ValueBasedTransform.liftLocsSoVisibleTo locEIds")
+    |> List.map (\locId -> locIdToEId originalExp locId |> Utils.fromJust_ "ValueBasedTransform.liftLocsSoVisibleTo locEIds")
   in
   let eids = Set.union (Set.fromList locEIds) observerEIds in
   let existingNames = visibleIdentifiersAtEIds originalExp eids in
   let (_, locIdToNewName) =
     List.foldr
         (\(locId, _, ident) (usedNames, locIdToNewName) ->
-          let baseIdent = locIdToEId locId originalExp |> Maybe.map (expNameForEId originalExp) |> Maybe.withDefault (if ident == "" then "num" else ident) in
+          let baseIdent = locIdToEId originalExp locId |> Maybe.map (expNameForEId originalExp) |> Maybe.withDefault (if ident == "" then "num" else ident) in
           let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough commonScope (locId, frozen, ident) in
           let scopesAndBaseIdent = String.join "_" (scopeNamesLiftedThrough ++ [baseIdent]) in
           let ident =
@@ -739,7 +739,7 @@ liftLocsSoVisibleTo originalExp mobileLocset observerEIds =
   in
   let locExps =
     locIds
-    |> List.map (\locId -> findExpByLocId locId commonScope |> Utils.fromJust_ "ValueBasedTransform.liftLocsSoVisibleTo locExps")
+    |> List.map (\locId -> findExpByLocId commonScope locId |> Utils.fromJust_ "ValueBasedTransform.liftLocsSoVisibleTo locExps")
     |> List.map scrubEId
   in
   let listOfListsOfNamesAndAssigns = [ Utils.zip locNames locExps ] in

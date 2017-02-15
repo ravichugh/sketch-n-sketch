@@ -88,7 +88,7 @@ rangeSynthesisResults originalExp =
   eidAndRangeLists
   |> List.map
       (\(eid, newExp) ->
-        { description = "Replace " ++ (unparse >> Utils.squish) (justFindExpByEId eid originalExp) ++ " with " ++ unparse newExp
+        { description = "Replace " ++ (unparse >> Utils.squish) (justFindExpByEId originalExp eid) ++ " with " ++ unparse newExp
         , exp         = replaceExpNodePreservingPreceedingWhitespace eid newExp originalExp
         , sortKey     = []
         }
@@ -727,7 +727,7 @@ unsafePluckFromList pred xs =
   let (plucked, before, after) = pluckFromList pred (List.reverse xs) in
   (List.reverse plucked, List.reverse after, List.reverse before)
 
-scaleXY start end startVal widthOrHeight ws (n,t) eSubst =
+scaleXY program start end startVal widthOrHeight ws (n,t) eSubst =
   case t of
     TrLoc (locid,_,_) ->
       let pct = (n - Tuple.first startVal) / widthOrHeight in
@@ -736,7 +736,9 @@ scaleXY start end startVal widthOrHeight ws (n,t) eSubst =
         else if pct == 1 then ws ++ end
         else
           ws ++ Utils.parens (Utils.spaces ["scaleBetween", start, end, toString pct]) in
-      Dict.insert locid (eRaw__ "" app) eSubst
+      case locIdToEId program locid of
+        Just eid -> Dict.insert eid (eRaw__ "" app) eSubst
+        Nothing  -> eSubst
     _ ->
       eSubst
 
@@ -744,7 +746,7 @@ scaleXY start end startVal widthOrHeight ws (n,t) eSubst =
 -- boundaries to improve readability of generated code
 -- (falls back in on little prelude encoding)
 
-offsetXY base1 base2 baseVal1 baseVal2 ws (n,t) eSubst =
+offsetXY program base1 base2 baseVal1 baseVal2 ws (n,t) eSubst =
   case t of
     TrLoc (locid,_,_) ->
       let (off1, off2) = (n - Tuple.first baseVal1, n - Tuple.first baseVal2) in
@@ -754,7 +756,9 @@ offsetXY base1 base2 baseVal1 baseVal2 ws (n,t) eSubst =
         ws ++ Utils.parens (Utils.spaces
                 [ "evalOffset"
                 , Utils.bracks (Utils.spaces [base, toString off])]) in
-      Dict.insert locid (eRaw__ "" app) eSubst
+      case locIdToEId program locid of
+        Just eid -> Dict.insert eid (eRaw__ "" app) eSubst
+        Nothing  -> eSubst
     _ ->
       eSubst
 
@@ -883,10 +887,10 @@ rewriteBoundingBoxesOfSelectedBlobs model selectedBlobsAndBounds =
         List.foldl foo init is
   in
   let (width, height) = (Tuple.first right - Tuple.first left, Tuple.first bot - Tuple.first top) in
-  let scaleX  = scaleXY  "left" "right" left width in
-  let scaleY  = scaleXY  "top"  "bot"   top  height in
-  let offsetX = offsetXY "left" "right" left right in
-  let offsetY = offsetXY "top"  "bot"   top  bot in
+  let scaleX  = scaleXY  model.inputExp "left" "right" left width in
+  let scaleY  = scaleXY  model.inputExp "top"  "bot"   top  height in
+  let offsetX = offsetXY model.inputExp "left" "right" left right in
+  let offsetY = offsetXY model.inputExp "top"  "bot"   top  bot in
   let eSubst =
     -- the spaces inserted by calls to offset*/scale* work best
     -- when the source expressions being rewritten are of the form
