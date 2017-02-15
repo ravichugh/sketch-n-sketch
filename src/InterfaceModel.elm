@@ -11,12 +11,15 @@ import ExamplesGenerated as Examples
 import LangUnparser exposing (unparse)
 import Ace
 import Either exposing (Either(..))
+import LangParser2 as Parser
+
 
 import Dict exposing (Dict)
 import Set exposing (Set)
 import Char
 import Window
 import Mouse
+import Html exposing (Html)
 
 type alias Code = String
 
@@ -26,6 +29,13 @@ type alias FileIndex = List Filename
 
 type alias File = {
   filename : Filename,
+  code : Code
+}
+
+type alias IconName = String
+
+type alias Icon = {
+  iconName : IconName,
   code : Code
 }
 
@@ -74,7 +84,7 @@ type alias Model =
   , keysDown : List Char.KeyCode
   , synthesisResults: List SynthesisResult
   , randomColor : Int
-  , lambdaTools : (Int, List LambdaTool)
+  , lambdaTools : List LambdaTool
   , layoutOffsets : LayoutOffsets
   , needsSave : Bool
   , lastSaveState : Maybe Code
@@ -86,6 +96,7 @@ type alias Model =
   , fileToDelete : Filename
   , pendingFileOperation : Maybe Msg
   , fileOperationConfirmed : Bool
+  , icons : Dict IconName (Html Msg)
   }
 
 type Mode
@@ -138,7 +149,7 @@ type Tool
   | Text
   | HelperDot
   | HelperLine
-  | Lambda
+  | Lambda Int -- 1-based index of selected LambdaTool
 
 type ShapeToolKind
   = Raw
@@ -266,6 +277,14 @@ codeToShow model =
 
 --------------------------------------------------------------------------------
 
+strLambdaTool lambdaTool =
+  let strExp = String.trim << unparse in
+  case lambdaTool of
+    LambdaBounds e -> Utils.parens <| "\\bounds. " ++ strExp e ++ " bounds"
+    LambdaAnchor e -> Utils.parens <| "\\anchor. " ++ strExp e ++ " anchor"
+
+--------------------------------------------------------------------------------
+
 prependDescription newPrefix synthesisResult =
   { synthesisResult | description = (newPrefix ++ synthesisResult.description) }
 
@@ -284,6 +303,25 @@ prettyFilename model =
 getFile model = { filename = model.filename
                 , code     = model.code
                 }
+
+--------------------------------------------------------------------------------
+
+iconNames = ["cursor", "line", "rect", "ellipse", "polygon", "path", "lambda"]
+
+--------------------------------------------------------------------------------
+
+starLambdaTool = LambdaBounds (eVar "star")
+
+starLambdaToolIcon = lambdaToolIcon starLambdaTool
+
+lambdaToolIcon tool =
+  { iconName = String.toLower (strLambdaTool tool)
+  , code = case tool of
+      LambdaBounds func ->
+        "(svgViewBox 100 100 (" ++ unparse func ++ " [10 10 90 90]))"
+      LambdaAnchor func ->
+        "(svgViewBox 100 100 (" ++ unparse func ++ " [10 10]))"
+  }
 
 --------------------------------------------------------------------------------
 
@@ -342,7 +380,7 @@ initModel =
     , keysDown      = []
     , synthesisResults = []
     , randomColor   = 100
-    , lambdaTools   = (1, [LambdaBounds (eVar "star")])
+    , lambdaTools   = [starLambdaTool]
     , layoutOffsets = initialLayoutOffsets
     , needsSave     = False
     , lastSaveState = Nothing
@@ -354,5 +392,5 @@ initModel =
     , fileToDelete  = ""
     , pendingFileOperation = Nothing
     , fileOperationConfirmed = False
+    , icons = Dict.empty
     }
-

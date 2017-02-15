@@ -4,8 +4,7 @@ module InterfaceController exposing
   , msgWindowDimensions
   , msgCodeUpdate
   , msgKeyPress, msgKeyDown, msgKeyUp
-  , msgClickZone
-  , msgMouseClickCanvas, msgMouseIsDown, msgMousePosition
+  , msgMouseIsDown, msgMousePosition
   , msgRun, upstateRun, msgTryParseRun
   , msgAceUpdate
   , msgUndo, msgRedo, msgCleanCode
@@ -21,7 +20,9 @@ module InterfaceController exposing
   , msgPauseResumeMovie
   , msgOpenDialogBox, msgCloseDialogBox
   , msgUpdateFilenameInput
-  , msgConfirmWrite, msgReadFile, msgReadFileFromInput, msgUpdateFileIndex
+  , msgConfirmWrite, msgConfirmDelete
+  , msgReadFile, msgReadFileFromInput, msgUpdateFileIndex
+  , msgLoadIcon
   , msgNew, msgSaveAs, msgSave, msgOpen, msgDelete
   , msgAskNew, msgAskOpen
   , msgConfirmFileOperation, msgCancelFileOperation
@@ -45,7 +46,7 @@ import Eval
 import Utils
 import Keys
 import InterfaceModel as Model exposing (..)
-import Layout
+import Layout exposing (clickToCanvasPoint)
 import AceCodeBox
 import AnimationLoop
 import FileHandler
@@ -55,6 +56,8 @@ import ShapeWidgets
 import ExamplesGenerated as Examples
 import Config exposing (params)
 import Either exposing (Either(..))
+import Canvas
+import DefaultIconTheme
 
 import VirtualDom
 
@@ -181,12 +184,15 @@ updateCodeBoxWithParseError annot codeBoxInfo =
 switchToCursorTool old =
   { old | mouseMode = MouseNothing , tool = Cursor }
 
---------------------------------------------------------------------------------
-
-clickToCanvasPoint model {x,y} =
-  let layout = Layout.computeLayout model in
-  let (xOrigin, yOrigin) = (layout.canvas.left, layout.canvas.top) in
-  (x - xOrigin, y - yOrigin)
+-- rewrite the innermost let-body eInner to (let main eInner main).
+-- note that there's nothing special about calling this temp binding "main".
+--
+rewriteInnerMostExpToMain exp =
+  case exp.val.e__ of
+    ELet ws1 lk rec p1 e1 e2 ws2 ->
+      replaceE__ exp (ELet ws1 lk rec p1 e1 (rewriteInnerMostExpToMain e2) ws2)
+    _ ->
+      eLets [("main", exp)] (eVar "main")
 
 
 --------------------------------------------------------------------------------
@@ -366,7 +372,7 @@ onMouseUp old =
 
         (HelperDot, [pt], _) -> upstateRun <| Draw.addHelperDot old pt
 
-        (Lambda, [pt2, pt1], _) -> upstateRun <| Draw.addLambda old pt2 pt1
+        (Lambda i, [pt2, pt1], _) -> upstateRun <| Draw.addLambda i old pt2 pt1
 
         (Poly _, _, _) -> old
         (Path _, _, _) -> old
@@ -388,8 +394,20 @@ tryRun old =
       let result =
         -- let aceTypeInfo = Types.typecheck e in
         let aceTypeInfo = Types.dummyAceTypeInfo in
-        Eval.run e |>
-        Result.andThen (\(newVal,ws) ->
+
+        -- want final environment of top-level definitions when evaluating e,
+        -- for the purposes of running Little code to generate icons.
+        -- but can't just use the output environment from eval directly.
+        -- for example, if the last expression was a function call (either
+        -- within the program or in Prelude), the final environment is from
+        -- that function body. so instead, calling rewriteInnerMostExpToMain
+        -- because the output environment from (let main eFinalBody main)
+        -- will be the top-level definitions (and main).
+        --
+        let rewrittenE = rewriteInnerMostExpToMain e in
+
+        Eval.eval Eval.initEnv [] rewrittenE |>
+        Result.andThen (\((newVal,ws),finalEnv) ->
           LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
           |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
             let newCode = unparse e in
@@ -397,12 +415,13 @@ tryRun old =
               -- TODO should put program into Model
               -- TODO actually, ideally not. caching introduces bugs
               let program = splitExp e in
-              let options = Draw.lambdaToolOptionsOf program ++ Tuple.second initModel.lambdaTools in
-              let selectedIdx = min (Tuple.first old.lambdaTools) (List.length options) in
-              (selectedIdx, options)
+              Draw.lambdaToolOptionsOf program ++ initModel.lambdaTools
             in
             let new =
-              { old | inputExp      = e
+              loadLambdaToolIcons finalEnv { old | lambdaTools = lambdaTools_ }
+            in
+            let new_ =
+              { new | inputExp      = e
                     , inputVal      = newVal
                     , code          = newCode
                     , slideCount    = newSlideCount
@@ -416,14 +435,13 @@ tryRun old =
                     , history       = addToHistory newCode old.history
                     , caption       = Nothing
                     , syncOptions   = Sync.syncOptionsOf old.syncOptions e
-                    , lambdaTools   = lambdaTools_
                     , codeBoxInfo   = updateCodeBoxWithTypes aceTypeInfo old.codeBoxInfo
                     , preview       = Nothing
                     , synthesisResults = cleanDedupSynthesisResults (ETransform.passiveSynthesisSearch e)
               }
             in
-            { new | mode = refreshMode_ new
-                  , errorBox = Nothing }
+            { new_ | mode = refreshMode_ new_
+                   , errorBox = Nothing }
           )
         )
       in
@@ -462,7 +480,6 @@ upstate (Msg caption updateModel) old =
 issueCommand : Msg -> Model -> Model -> Cmd Msg
 issueCommand (Msg kind _) oldModel newModel =
   case kind of
-
     "Toggle Code Box" ->
       if newModel.basicCodeBox
         then Cmd.none
@@ -481,11 +498,17 @@ issueCommand (Msg kind _) oldModel newModel =
       else
         FileHandler.requestFileIndex ()
 
+    "Confirm Write" ->
+      Cmd.batch <| iconCommand newModel.filename
+
     "Open" ->
       FileHandler.requestFile newModel.filename
 
     "Delete" ->
       FileHandler.delete newModel.fileToDelete
+
+    "Confirm Delete" ->
+      Cmd.batch <| iconCommand newModel.fileToDelete
 
     "Export Code" ->
       FileHandler.download
@@ -536,6 +559,16 @@ issueCommand (Msg kind _) oldModel newModel =
         AnimationLoop.requestFrame ()
       else
         Cmd.none
+
+iconCommand filename =
+  let
+    potentialIconName =
+      String.dropLeft 6 filename -- __ui__
+  in
+    if List.member potentialIconName Model.iconNames then
+      [ FileHandler.requestIcon potentialIconName ]
+    else
+      []
 
 --------------------------------------------------------------------------------
 
@@ -599,30 +632,6 @@ msgRedo = Msg "Redo" <| \old ->
       upstateRun new
 
 --------------------------------------------------------------------------------
-
-msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
-  case old.mode of
-    Live info ->
-      let (mx, my) = clickToCanvasPoint old (Tuple.second old.mouseState) in
-      let trigger = Sync.prepareLiveTrigger info old.inputExp zoneKey in
-      let dragInfo = (trigger, (mx, my), False) in
-      { old | mouseMode = MouseDragZone zoneKey (Just dragInfo) }
-    _ ->
-      old
-
---------------------------------------------------------------------------------
-
-msgMouseClickCanvas = Msg "MouseClickCanvas" <| \old ->
-  case (old.tool, old.mouseMode) of
-    (Cursor, MouseDragZone (Left _) _) -> old
-    (Cursor, _) ->
-      { old | selectedShapes = Set.empty, selectedBlobs = Dict.empty }
-
-    (_ , MouseNothing) ->
-      { old | mouseMode = MouseDrawNew []
-            , selectedShapes = Set.empty, selectedBlobs = Dict.empty }
-
-    _ -> old
 
 msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
   let new =
@@ -999,6 +1008,8 @@ confirmWrite savedFilename old =
   { old | needsSave = False
         , lastSaveState = Just old.code }
 
+confirmDelete deletedFilename = identity
+
 requestFile requestedFilename old =
   { old | filename = requestedFilename }
 
@@ -1008,6 +1019,37 @@ readFile file old =
         , history = ([file.code], [])
         , lastSaveState = Just file.code
         , needsSave = False }
+
+loadIcon env icon old =
+  let
+    iconNameLower =
+      String.toLower icon.iconName
+    actualCode =
+      if icon.code /= "" then
+        icon.code
+      else
+        case Dict.get iconNameLower DefaultIconTheme.icons of
+          Just c ->
+            c
+          Nothing ->
+            "(blobs [])"
+    oldIcons =
+      old.icons
+    iconHtml =
+      Canvas.iconify env actualCode
+    newIcons =
+      Dict.insert icon.iconName iconHtml oldIcons
+  in
+    { old | icons = newIcons }
+
+loadLambdaToolIcons finalEnv old =
+  let foo tool acc =
+    let icon = lambdaToolIcon tool in
+    if Dict.member (String.toLower icon.iconName) old.icons
+      then acc
+      else loadIcon finalEnv icon old
+  in
+  List.foldl foo old old.lambdaTools
 
 readFileFromInput file old =
   { old | filename = file.filename
@@ -1022,16 +1064,22 @@ updateFileIndex fileIndex old =
 -- Subscription Handlers
 
 msgConfirmWrite savedFilename =
-  Msg "Confirm Write" (confirmWrite savedFilename)
+  Msg "Confirm Write" <| confirmWrite savedFilename
+
+msgConfirmDelete deletedFilename =
+  Msg "Confirm Delete" <| confirmDelete deletedFilename
 
 msgReadFile file =
-  Msg "Read File" (readFile file >> upstateRun)
+  Msg "Read File" <| readFile file >> upstateRun
+
+msgLoadIcon file =
+  Msg "Load Icon" <| loadIcon Eval.initEnv file
 
 msgReadFileFromInput file =
-  Msg "Read File From Input" (readFileFromInput file >> upstateRun)
+  Msg "Read File From Input" <| readFileFromInput file >> upstateRun
 
 msgUpdateFileIndex fileIndex =
-  Msg "Update File Index" (updateFileIndex fileIndex)
+  Msg "Update File Index" <| updateFileIndex fileIndex
 
 --------------------------------------------------------------------------------
 -- File Operations
@@ -1079,6 +1127,7 @@ msgNew template = Msg "New" <| (\old ->
                     , randomColor   = old.randomColor
                     , layoutOffsets = old.layoutOffsets
                     , fileIndex     = old.fileIndex
+                    , icons         = old.icons
                     }
       ) |> handleError old) >> closeDialogBox New
 

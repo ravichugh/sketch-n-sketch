@@ -17,11 +17,11 @@ import InterfaceModel as Model exposing
   )
 import InterfaceController as Controller
 import Layout
-import Canvas
 import LangUnparser exposing (unparse)
 import LangSvg exposing (attr)
 import LangTools
 import Sync
+import Canvas
 
 -- Elm Libraries ---------------------------------------------------------------
 
@@ -65,7 +65,7 @@ view model =
   let codeTools = codeToolBox model layout in
   let drawTools = drawToolBox model layout in
   let stretchyDrawTools = stretchyDrawToolBox model layout in
-  let lambdaDrawTools = lambdaDrawToolBox model layout in
+  let lambdaDrawTools = lambdaDrawToolBoxWithIcons model layout in
   let attributeTools = attributeToolBox model layout in
   let blobTools = blobToolBox model layout in
   let moreBlobTools = moreBlobToolBox model layout in
@@ -155,7 +155,6 @@ view model =
     ]
     everything
 
-
 --------------------------------------------------------------------------------
 -- Tool Boxes
 
@@ -198,11 +197,13 @@ stretchyDrawToolBox model layout =
     , toolButton model (Path Stretchy)
     ]
 
+{-
 lambdaDrawToolBox model layout =
   toolBox model "lambdaDrawToolBox" Layout.getPutDrawToolBox layout.lambdaDrawTools
     [ toolButton model Lambda
     , dropdownLambdaTool model
     ]
+-}
 
 attributeToolBox model layout =
   toolBox model "attributeToolBox" Layout.getPutAttributeToolBox layout.attributeTools
@@ -264,6 +265,7 @@ synthesisResultsSelectBox model layout =
 toolBox model id (getOffset, putOffset) leftRightTopBottom elements =
   Html.div
     [ Attr.id id
+    , Attr.title id
     , Attr.style <|
         [ ("position", "fixed")
         , ("padding", "0px 0px 0px 15px")
@@ -427,6 +429,40 @@ htmlButtonExtraAttrs extraAttrs text onClickHandler btnKind disabled =
       extraAttrs)
     [ Html.text text ]
 
+iconButton model iconName onClickHandler btnKind disabled =
+  iconButtonExtraAttrs model iconName [] onClickHandler btnKind disabled
+
+iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
+  let
+    color =
+      case btnKind of
+        Regular    -> "white"
+        Unselected -> "white"
+        Selected   -> "lightgray"
+    iconHtml =
+      case Dict.get (String.toLower iconName) model.icons of
+        Just h -> h
+        Nothing -> Html.text ""
+  in
+  let commonAttrs =
+    [ Attr.disabled disabled
+    , Attr.style [ ("font", params.mainSection.widgets.font)
+                 , ("fontSize", params.mainSection.widgets.fontSize)
+                 , ("height", pixels Layout.iconButtonHeight)
+                 , ("background", color)
+                 , ("cursor", "pointer")
+                 , ("user-select", "none")
+                 ] ]
+  in
+  Html.button
+    (commonAttrs ++
+      [ handleEventAndStop "mousedown" Controller.msgNoop
+      , onClick onClickHandler
+      , Attr.title iconName
+      ] ++
+      extraAttrs)
+    [ iconHtml ]
+
 runButton =
   htmlButton "Run" Controller.msgRun Regular False
 
@@ -515,7 +551,7 @@ toolButton model tool =
     Text          -> "Text"
     HelperLine    -> "(Rule)"
     HelperDot     -> "(Dot)"
-    Lambda        -> Utils.uniLambda
+    Lambda _      -> "Lambda" -- Utils.uniLambda
     _             -> Debug.crash ("toolButton: " ++ toString tool)
   in
   -- TODO temporarily disabling a couple tools
@@ -525,7 +561,8 @@ toolButton model tool =
       (False, Path Sticky) -> (Regular, True)
       (False, _)           -> (Unselected, False)
   in
-  htmlButton cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled
+  --htmlButton cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled
+  iconButton model cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled
 
 relateButton model text handler =
   let noFeatures = Set.isEmpty model.selectedFeatures in
@@ -619,12 +656,7 @@ fontSizeButton model =
 --------------------------------------------------------------------------------
 -- Lambda Tool Dropdown Menu
 
-strLambdaTool lambdaTool =
-  let strExp = String.trim << unparse in
-  case lambdaTool of
-    LambdaBounds e -> "bounds. " ++ strExp e ++ " bounds"
-    LambdaAnchor e -> "anchor. " ++ strExp e ++ " anchor"
-
+{-
 dropdownLambdaTool model =
   let options =
     let (selectedIdx, exps) = model.lambdaTools in
@@ -665,6 +697,21 @@ dropdownLambdaTool model =
         ]
     ]
     options
+-}
+
+lambdaDrawToolBoxWithIcons model layout =
+  let buttons =
+    Utils.mapi1 (\(i, lambdaTool) ->
+      let iconName = Model.strLambdaTool lambdaTool in
+      iconButton model iconName
+        (Msg iconName (\m -> { m | tool = Lambda i }))
+        (if model.tool == Lambda i then Selected else Unselected)
+        False
+      ) model.lambdaTools
+  in
+  toolBox model "lambdaDrawToolBox"
+    Layout.getPutDrawToolBox layout.lambdaDrawTools
+    buttons
 
 
 --------------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-module Canvas exposing (build)
+module Canvas exposing (build, buildSvg, iconify)
 
 -- Sketch-n-Sketch Libraries ---------------------------------------------------
 
@@ -14,10 +14,12 @@ import ShapeWidgets exposing
   , ShapeFeature, Feature(..), PointFeature(..), DistanceFeature(..)
   , FeatureNum(..)
   )
-import Layout
+import Layout exposing (clickToCanvasPoint)
+import Sync
 import Draw
 import InterfaceModel exposing (..)
-import InterfaceController as Controller
+import LangParser2 as Parser
+import Eval
 
 -- Elm Libraries ---------------------------------------------------------------
 
@@ -29,6 +31,7 @@ import Color
 import VirtualDom
 import Json.Decode
 import Svg exposing (Svg)
+import Svg.Attributes as SAttr
 import Svg.Events exposing (onMouseDown, onMouseUp, onMouseOver, onMouseOut)
 import Html exposing (Html)
 import Html.Attributes as Attr
@@ -52,6 +55,32 @@ svgPath      = flip Svg.path []
 
 --------------------------------------------------------------------------------
 
+msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
+  case old.mode of
+    Live info ->
+      let (mx, my) = clickToCanvasPoint old (Tuple.second old.mouseState) in
+      let trigger = Sync.prepareLiveTrigger info old.inputExp zoneKey in
+      let dragInfo = (trigger, (mx, my), False) in
+      { old | mouseMode = MouseDragZone zoneKey (Just dragInfo) }
+    _ ->
+      old
+
+msgMouseClickCanvas = Msg "MouseClickCanvas" <| \old ->
+  case (old.tool, old.mouseMode) of
+    (Cursor, MouseDragZone (Left _) _) -> old
+    (Cursor, _) ->
+      { old | selectedShapes = Set.empty, selectedBlobs = Dict.empty }
+
+    (_ , MouseNothing) ->
+      { old | mouseMode = MouseDrawNew []
+            , selectedShapes = Set.empty, selectedBlobs = Dict.empty }
+
+    _ -> old
+
+
+--------------------------------------------------------------------------------
+
+
 build wCanvas hCanvas model =
   let addZones = case (model.mode, model.preview) of
     (Live _, Nothing) -> model.tool == Cursor
@@ -71,7 +100,7 @@ build wCanvas hCanvas model =
   in
   Svg.svg
      [ Attr.id "outputCanvas"
-     , onMouseDown Controller.msgMouseClickCanvas
+     , onMouseDown msgMouseClickCanvas
      , Attr.style
          [ ("width", pixels wCanvas)
          , ("height", pixels hCanvas)
@@ -124,11 +153,33 @@ buildSvg_ stuff d i =
         then mainshape
         else Svg.svg [] (mainshape :: zones)
 
+-- for basic icons, env will be Eval.initEnv.
+-- for LambdaTool icons, env will be from result of running main program.
+--
+iconify env code =
+  let
+    exp =
+      Utils.fromOkay "Error parsing icon"
+        <| Parser.parseE code
+    ((val, _), _) =
+      Utils.fromOkay "Error evaluating icon"
+        <| Eval.eval env [] exp
+    tree =
+      Utils.fromOkay "Error resolving index tree of icon"
+        <| LangSvg.resolveToIndexedTree 1 1 0 val
+    svgElements =
+      buildSvg ({ initModel | showGhosts = False }, False) tree
+  in
+    Svg.svg
+      [ SAttr.width "30px"
+      , SAttr.height "30px"
+      ]
+      [ svgElements ]
 
 --------------------------------------------------------------------------------
 
 dragZoneEvents zoneKey =
-  [ onMouseDown (Controller.msgClickZone zoneKey)
+  [ onMouseDown (msgClickZone zoneKey)
   , onMouseOver (turnOnCaptionAndHighlights zoneKey)
   , onMouseOut turnOffCaptionAndHighlights
   ]
