@@ -98,17 +98,29 @@ type alias Model =
   , fileToDelete : Filename
   , pendingFileOperation : Maybe Msg
   , fileOperationConfirmed : Bool
-  , selectedEIds : Set.Set EId
   , deuceMode : Bool
   , hoveringCodeBox : Bool
-  , selectedPats : Set.Set PatternId
-  , selectedPatTargets : Set.Set PatTargetPosition
-  , selectedExpTargets : Set.Set ExpTargetPosition
   , scopeGraph : ScopeGraph
-  , hoveredExp : List Exp
-  , hoveredPat : List Pat
+
+  --Expression information
+  , selectedEIds : Set.Set EId
   , expSelectionBoxes : List Exp
+
+  , selectedExpTargets : Set.Set ExpTargetPosition
+  , expTargetSelections : List (ExpTargetPosition, P.Pos, P.Pos)
+
+  , hoveredExp : List Exp
+  , hoveredExpTargets : List (ExpTargetPosition, P.Pos, P.Pos)
+
+  --Pattern information
+  , selectedPats : Set.Set PatternId
   , patSelectionBoxes : List Pat
+
+  , selectedPatTargets : Set.Set PatTargetPosition
+  , patTargetSelections : List (PatTargetPosition, P.Pos, P.Pos)
+  
+  , hoveredPat : List Pat
+  , hoveredPatTargets : List (PatTargetPosition, P.Pos, P.Pos)
   }
 
 type Mode
@@ -433,7 +445,7 @@ rowColToPixelPos pos m =
       {x = x, y = y}
   else
     {x = 0, y = 0}
-    
+
 hoveringItem start p end = 
   case p of
     Nothing   -> False 
@@ -628,6 +640,50 @@ patTargetsToHighlights m pos =
     then List.concatMap maybeHighlight (findPatTargets m.inputExp)
     else []
 
+expTargetsToSelect m =
+  let maybeHighlight (expTarget,selectStart,selectEnd) =
+    if Set.member expTarget m.selectedExpTargets then
+      [(expTarget,selectStart,selectEnd)]
+    else 
+      []
+  in
+  if m.deuceMode
+    then List.concatMap maybeHighlight (computeExpTargets m.inputExp)
+    else []
+
+expTargetsToHover m pos =
+  let maybeHighlight (expTarget,selectStart,selectEnd) =
+    if hoveringItem selectStart (Just (pixelToRowColPosition pos m)) selectEnd then
+      [(expTarget,selectStart,selectEnd)]
+    else 
+      []
+  in
+  if m.deuceMode
+    then List.concatMap maybeHighlight (computeExpTargets m.inputExp)
+    else []
+
+patTargetsToSelect m = 
+  let maybeHighlight (target,start,end) =
+    if Set.member target m.selectedPatTargets then
+      [(target, start, end)]
+    else
+      []
+  in
+  if m.deuceMode
+    then List.concatMap maybeHighlight (findPatTargets m.inputExp)
+    else []
+
+patTargetsToHover m pos = 
+  let maybeHighlight (target,start,end) =
+    if hoveringItem start (Just (pixelToRowColPosition pos m)) end then
+      [(target, start, end)]
+    else
+      []
+  in
+  if m.deuceMode
+    then List.concatMap maybeHighlight (findPatTargets m.inputExp)
+    else []
+
 --------------------------------------------------------------------------------
 
 codeToShow model =
@@ -742,7 +798,11 @@ initModel =
     , selectedExpTargets = Set.empty
     , scopeGraph = DependenceGraph.compute e
     , hoveredExp = []
+    , hoveredExpTargets = []
+    , expTargetSelections = []
     , hoveredPat = [] 
+    , hoveredPatTargets = [] 
+    , patTargetSelections = []
     , expSelectionBoxes = [] 
     , patSelectionBoxes = []
     }

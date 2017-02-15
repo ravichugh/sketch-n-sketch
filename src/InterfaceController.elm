@@ -697,9 +697,13 @@ msgMousePosition pos_ = Msg ("MousePosition " ++ toString pos_) <| \old ->
   let pixelPos = pixelToRowColPosition pos_ old in 
   let codeBoxInfo = old.codeBoxInfo in
   let hoveredExp = expRangesToHover old pos_ in
+  let hoveredExpTargets = expTargetsToHover old pos_ in 
   let hoveredPat = patRangesToHover old pos_ in 
+  let hoveredPatTargets = patTargetsToHover old pos_ in 
   let newM = { old | hoveredExp = hoveredExp
+                   , hoveredExpTargets = hoveredExpTargets
                    , hoveredPat = hoveredPat
+                   , hoveredPatTargets = hoveredPatTargets
           }
   in 
   case old.mouseState of
@@ -1241,7 +1245,9 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
                   , selectedExpTargets = selectedExpTargets } 
     in 
     { new | expSelectionBoxes = expRangeSelections new
+          , expTargetSelections = expTargetsToSelect new 
           , patSelectionBoxes = patRangeSelections new 
+          , patTargetSelections = patTargetsToSelect new 
           }
   else
     m 

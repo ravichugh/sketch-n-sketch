@@ -141,7 +141,11 @@ view model =
         patBoundingPolygonPoints model.patSelectionBoxes model layout ++
         patBoundingPolygonPoints model.hoveredPat model layout ++ 
         expBoundingPolygonPoints model.expSelectionBoxes model layout ++
-        expBoundingPolygonPoints model.hoveredExp model layout
+        expBoundingPolygonPoints model.hoveredExp model layout ++
+        targetIndicator model.expTargetSelections model layout ++
+        targetIndicator model.hoveredExpTargets model layout ++
+        targetIndicator model.patTargetSelections model layout ++
+        targetIndicator model.hoveredPatTargets model layout
       in  
       Html.div [ Attr.id "hoveredItem"
                 , Attr.style
@@ -443,6 +447,30 @@ patBoundingPolygonPoints pats model layout =
           ]] in 
       textPolygon
   in List.concatMap calculate pats
+
+targetIndicator targets model layout = 
+  let indicator target = 
+    case target of 
+      (id, start, end) ->
+        let pixelPos = rowColToPixelPos start model in 
+          [Svg.svg [Attr.id "deuceLayer", 
+                    Attr.style
+                      [ ("position", "fixed")
+                      , ("left", pixels pixelPos.x)
+                      , ("top", pixels pixelPos.y)
+                      , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft)))
+                      , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
+                      ]
+                    ][flip Svg.circle []
+                      [ LangSvg.attr "stroke" "black"
+                      , LangSvg.attr "cx" (toString (model.codeBoxInfo.characterWidth/2))
+                      , LangSvg.attr "cy" (toString (model.codeBoxInfo.lineHeight/2))
+                      , LangSvg.attr "r" "2"
+                      ]
+            ]
+          ] 
+  in 
+  List.concatMap indicator targets
 
 getBoxWidth start end m = 
   let offSet = if start.line == end.line then 0 else 1 in 
