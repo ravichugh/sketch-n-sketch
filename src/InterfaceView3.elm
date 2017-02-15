@@ -14,7 +14,8 @@ import InterfaceModel as Model exposing
   , Caption(..), MouseMode(..)
   , mkLive_
   , DialogBox(..)
-  , rowColToPixelPos, getBoxWidth, getBoxHeight, textBoundingPolygon, patBoundingPolygon
+  , rowColToPixelPos, getBoxWidth, getBoxHeight
+  , expBoundingPolygon, patBoundingPolygon
   )
 import InterfaceController as Controller
 import Layout
@@ -132,37 +133,42 @@ view model =
   let caption = captionArea model layout in
 
   let hoveredItems = 
-    -- TODO maybe have deuceHoverBox return only Svg shape nodes,
-    -- and then put into a single top-level Svg.svg here
-    let exps = List.map (\(e, _, _, _, _, _, _) -> e) model.expSelectionBoxes in 
-    let hoverExps = List.map (\(e, _, _, _, _, _, _) -> e) model.hoveredExp in 
-    let pats = List.map (\(p, _, _, _, _, _, _) -> p) model.patSelectionBoxes in 
-    let hoverPats = List.map (\(p, _, _, _, _, _, _) -> p) model.hoveredPat in 
-    let svgWidgets =
-      patBoundingPolygonPoints pats model layout++
-      patBoundingPolygonPoints hoverPats model layout ++ 
-      expBoundingPolygonPoints exps model layout ++
-      expBoundingPolygonPoints hoverExps model layout
-    in  
-    Html.div [ Attr.id "hoveredItem"
-              , Attr.style
-                  -- child div as absolute to overlay on parent div
-                  -- https://stackoverflow.com/questions/2941189/how-to-overlay-one-div-over-another-div
-                  [ ("position", "absolute")
-                  , ("left", pixels layout.codeBox.left)
-                  , ("top", pixels layout.codeBox.top)
-                  -- TODO don't want this layer to block clicks to change Ace cursor
-                  -- , ("width", pixels layout.codeBox.width)
-                  -- , ("height", pixels layout.codeBox.height)
-                  , ("width", "0")
-                  , ("height", "0")
-                  , ("user-select", "none")
-                  ]
-              -- TODO why are these events here and aceCodeBox?
-              , onMouseEnter Controller.msgMouseEnterCodeBox
-              , onMouseLeave Controller.msgMouseLeaveCodeBox
-              , onClick Controller.msgMouseClickCodeBox
-              ] svgWidgets in
+    if model.deuceMode
+    then 
+      -- TODO maybe have deuceHoverBox return only Svg shape nodes,
+      -- and then put into a single top-level Svg.svg here
+      let exps = List.map (\(e, _, _, _, _, _, _) -> e) model.expSelectionBoxes in 
+      let hoverExps = List.map (\(e, _, _, _, _, _, _) -> e) model.hoveredExp in 
+      let pats = List.map (\(p, _, _, _, _, _, _) -> p) model.patSelectionBoxes in 
+      let hoverPats = List.map (\(p, _, _, _, _, _, _) -> p) model.hoveredPat in 
+      let svgWidgets =
+        patBoundingPolygonPoints pats model layout++
+        patBoundingPolygonPoints hoverPats model layout ++ 
+        expBoundingPolygonPoints exps model layout ++
+        expBoundingPolygonPoints hoverExps model layout
+      in  
+      Html.div [ Attr.id "hoveredItem"
+                , Attr.style
+                    -- child div as absolute to overlay on parent div
+                    -- https://stackoverflow.com/questions/2941189/how-to-overlay-one-div-over-another-div
+                    [ ("position", "absolute")
+                    , ("left", pixels layout.codeBox.left)
+                    , ("top", pixels layout.codeBox.top)
+                    -- TODO don't want this layer to block clicks to change Ace cursor
+                    -- , ("width", pixels layout.codeBox.width)
+                    -- , ("height", pixels layout.codeBox.height)
+                    , ("width", "0")
+                    , ("height", "0")
+                    , ("user-select", "none")
+                    ]
+                -- TODO why are these events here and aceCodeBox?
+                , onMouseEnter Controller.msgMouseEnterCodeBox
+                , onMouseLeave Controller.msgMouseLeaveCodeBox
+                , onClick Controller.msgMouseClickCodeBox
+                ] svgWidgets
+    else 
+      Html.div [] [] 
+    in 
   let everything = -- z-order in decreasing order
      -- bottom-most
      [ onbeforeunloadDataElement

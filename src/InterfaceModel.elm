@@ -132,6 +132,10 @@ type alias CodeBoxInfo =
   , offsetLeft: Float
   , offsetHeight: Float
   , gutterWidth: Float
+  , firstVisibleRow: Int 
+  , lastVisibleRow: Int 
+  , marginTopOffset: Float
+  , marginLeftOffset: Float
   }
 
 type alias RawSvg = String
@@ -411,8 +415,9 @@ computeExpTargets e =
   in
   foldExp combine [] e
 
+showAllDeuceWidgets m = List.member Keys.keyA m.keysDown
 shiftKeyPressed m = List.member Keys.keyShift m.keysDown
-showDeuceWidgets m = shiftKeyPressed m
+showDeuceWidgets m = shiftKeyPressed m 
 
 betweenPos start pixelPos end =
   (start.line <= pixelPos.row + 1) &&
@@ -495,12 +500,11 @@ expRangesToHighlights m pos =
       { start = { row = selectStart.line, column = selectStart.col }
       , end   = { row = selectEnd.line, column = selectEnd.col  } }
     in
-    let pixelPos = rowColToPixelPos selectStart m in
     let w = getBoxWidth start end m in 
     let h = getBoxHeight start end m in
     if Set.member eid m.selectedEIds then
       [ { color = "orange", range = range } ]
-    else if showDeuceWidgets m || hoveringItem selectStart pos selectEnd then
+    else if showAllDeuceWidgets m || hoveringItem selectStart pos selectEnd then
       [ { color = "peachpuff", range = range } ]
     else
       []
@@ -515,7 +519,6 @@ expRangeSelections m =
       { start = { row = selectStart.line, column = selectStart.col }
       , end   = { row = selectEnd.line, column = selectEnd.col  } }
     in
-    let pixelPos = rowColToPixelPos selectStart m in
     let w = getBoxWidth start end m in 
     let h = getBoxHeight start end m in
     if Set.member eid m.selectedEIds then
@@ -533,7 +536,6 @@ patRangeSelections m =
       { start = { row = start.line, column = start.col }
       , end   = { row = selectEnd.line, column = selectEnd.col  } }
     in
-    let pixelPos = rowColToPixelPos start m in
     let w = getBoxWidth start end m in 
     let h = getBoxHeight start end m in
     if Set.member pid m.selectedPats then
@@ -548,16 +550,20 @@ patRangeSelections m =
 pixelToRowColPosition pos m = 
   let rowPadding = m.codeBoxInfo.offsetHeight in
   let colPadding = m.codeBoxInfo.offsetLeft +  m.codeBoxInfo.gutterWidth in
-  let row = truncate((toFloat(pos.y) + rowPadding) / m.codeBoxInfo.lineHeight - 1) in
+  let row = truncate((toFloat(pos.y) + rowPadding - m.codeBoxInfo.marginTopOffset) / m.codeBoxInfo.lineHeight - 1) in
   let col = truncate((toFloat(pos.x) - colPadding) / m.codeBoxInfo.characterWidth) in 
-    {row = row, column = col}
+    {row = row + m.codeBoxInfo.firstVisibleRow, column = col}
 
 rowColToPixelPos pos m = 
-  let rowPadding = m.codeBoxInfo.offsetHeight in
-  let colPadding = m.codeBoxInfo.offsetLeft +  m.codeBoxInfo.gutterWidth in
-  let y = toFloat(pos.line) * m.codeBoxInfo.lineHeight - rowPadding in 
-  let x = (toFloat(pos.col) - 0.5) * m.codeBoxInfo.characterWidth + colPadding in 
-    {x = x, y = y}
+  if pos.line > m.codeBoxInfo.firstVisibleRow && pos.line <= (m.codeBoxInfo.lastVisibleRow + 1)
+  then 
+    let rowPadding = m.codeBoxInfo.offsetHeight in
+    let colPadding = m.codeBoxInfo.offsetLeft +  m.codeBoxInfo.gutterWidth in
+    let y = (toFloat(pos.line - m.codeBoxInfo.firstVisibleRow)) * m.codeBoxInfo.lineHeight - rowPadding + m.codeBoxInfo.marginTopOffset in 
+    let x = (toFloat(pos.col) - 0.5) * m.codeBoxInfo.characterWidth + colPadding in 
+      {x = x, y = y}
+  else
+    {x = 0, y = 0}
 
 getBoxWidth start end m = 
   let offSet = if start.line == end.line then 0 else 1 in 
@@ -572,7 +578,6 @@ pixels n = toString n ++ "px"
 
 expRangesToHover m pos =
   let boxes pos (exp,eid,start,end,selectStart,selectEnd) = 
-    let pixelPos = rowColToPixelPos selectStart m in
     let w = getBoxWidth start end m in 
     let h = getBoxHeight start end m in 
     if hoveringItem selectStart (Just (pixelToRowColPosition pos m)) selectEnd then 
@@ -586,7 +591,6 @@ expRangesToHover m pos =
 
 patRangesToHover m pos =
   let boxes pos (pat,(eid,ls),start,end,selectEnd) = 
-    let pixelPos = rowColToPixelPos start m in
     let w = getBoxWidth start end m in 
     let h = getBoxHeight start end m in 
     if hoveringItem start (Just (pixelToRowColPosition pos m)) selectEnd then 
@@ -606,7 +610,7 @@ expTargetsToHighlights m pos =
     in
     if Set.member expTarget m.selectedExpTargets then
       [ { color = "green", range = range } ]
-    else if showDeuceWidgets m || hoveringItem selectStart pos selectEnd then
+    else if showAllDeuceWidgets m || hoveringItem selectStart pos selectEnd then
       [ { color = "lightgreen", range = range } ]
     else
       []
@@ -623,7 +627,7 @@ patRangesToHighlights m pos =
     in
     if Set.member pid m.selectedPats then
       [ { color = "gold", range = range } ]
-    else if showDeuceWidgets m || hoveringItem start pos selectEnd then
+    else if showAllDeuceWidgets m || hoveringItem start pos selectEnd then
       [ { color = "lightyellow", range = range } ]
     else
       []
@@ -640,7 +644,7 @@ patTargetsToHighlights m pos =
     in
     if Set.member target m.selectedPatTargets then
       [ { color = "green", range = range } ]
-    else if showDeuceWidgets m || hoveringItem start pos end then
+    else if showAllDeuceWidgets m || hoveringItem start pos end then
       [ { color = "lightgreen", range = range } ]
     else
       []
@@ -726,6 +730,10 @@ initModel =
                       , offsetLeft = 10.0
                       , offsetHeight = 10.0
                       , gutterWidth = 50.0
+                      , firstVisibleRow = 0 
+                      , lastVisibleRow = 10
+                      , marginTopOffset = 0.0
+                      , marginLeftOffset = 0.0
                       }
     , basicCodeBox  = False
     , errorBox      = Nothing
@@ -752,7 +760,7 @@ initModel =
     , pendingFileOperation = Nothing
     , fileOperationConfirmed = False
     , selectedEIds  = Set.empty
-    , deuceMode = True
+    , deuceMode = False
     , hoveringCodeBox = False
     , selectedPats = Set.empty
     , selectedPatTargets = Set.empty
