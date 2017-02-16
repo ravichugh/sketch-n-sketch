@@ -436,15 +436,11 @@ pixelToRowColPosition pos m =
     {row = row + m.codeBoxInfo.firstVisibleRow, column = col}
 
 rowColToPixelPos pos m = 
-  if pos.line > m.codeBoxInfo.firstVisibleRow && pos.line <= (m.codeBoxInfo.lastVisibleRow + 1)
-  then 
-    let rowPadding = m.codeBoxInfo.offsetHeight in
-    let colPadding = m.codeBoxInfo.offsetLeft +  m.codeBoxInfo.gutterWidth in
-    let y = (toFloat(pos.line - m.codeBoxInfo.firstVisibleRow)) * m.codeBoxInfo.lineHeight - rowPadding + m.codeBoxInfo.marginTopOffset in 
-    let x = (toFloat(pos.col) - 0.5) * m.codeBoxInfo.characterWidth + colPadding in 
-      {x = x, y = y}
-  else
-    {x = 0, y = 0}
+  let rowPadding = m.codeBoxInfo.offsetHeight in
+  let colPadding = m.codeBoxInfo.offsetLeft +  m.codeBoxInfo.gutterWidth in
+  let y = (toFloat(pos.line - m.codeBoxInfo.firstVisibleRow)) * m.codeBoxInfo.lineHeight - rowPadding + m.codeBoxInfo.marginTopOffset in 
+  let x = (toFloat(pos.col) - 0.5) * m.codeBoxInfo.characterWidth + colPadding in 
+    {x = x, y = y}
 
 hoveringItem start p end = 
   case p of
