@@ -32,7 +32,6 @@ module InterfaceController exposing
   , msgMouseClickCodeBox
   , msgReceiveDotImage
   , msgMoveExp
-  , msgTest
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -1188,9 +1187,6 @@ msgAskImportCode = requireSaveAsker msgImportCode
 
 --------------------------------------------------------------------------------
 -- Deuce Interactions
-
-msgTest = Msg "Mouse Test" <| \m ->
-  m
 
 msgMouseEnterCodeBox = Msg "Mouse Enter CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
