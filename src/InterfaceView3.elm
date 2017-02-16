@@ -44,6 +44,7 @@ import Json.Decode
 --------------------------------------------------------------------------------
 
 pixels n = toString n ++ "px"
+unpixels str = Result.withDefault 0 <| String.toFloat (String.dropRight 2 str)
 
 imgPath s = "img/" ++ s
 
@@ -256,7 +257,8 @@ synthesisResultsSelectBox model layout =
     Attr.style
         [ ("width", "100%")
         , ("text-align", "left")
-        , ("line-height", "30px")
+        , ("padding-top", "8px")
+        , ("padding-bottom", "8px")
         ]
   in
   let resultButtons =
@@ -425,11 +427,13 @@ htmlButtonExtraAttrs extraAttrs text onClickHandler btnKind disabled =
       Unselected -> "white"
       Selected   -> "lightgray"
   in
+  -- let lineHeight = 1 + 1.1735 * unpixels params.mainSection.widgets.fontSize |> ((*) 2) |> round |> toFloat |> ((*) 0.5) in -- My best guess based on sampling Firefox's behavior.
   let commonAttrs =
     [ Attr.disabled disabled
     , Attr.style [ ("font", params.mainSection.widgets.font)
                  , ("fontSize", params.mainSection.widgets.fontSize)
-                 , ("line-height", pixels (Layout.buttonHeight - 4)) -- Subtract total vertical border width
+                 , ("box-sizing", "border-box") -- Strangely, Firefox and Chrome on Mac differ on this default.
+                 , ("min-height", pixels Layout.buttonHeight)
                  , ("background", color)
                  , ("cursor", "pointer")
                  , ("user-select", "none")
