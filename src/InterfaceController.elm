@@ -452,6 +452,7 @@ tryRun old =
                     , synthesisResults = []
               }
             in
+            clearDeuceState <|
             { new | mode = refreshMode_ new
                   , codeBoxInfo = updateCodeBoxInfo aceTypeInfo new
                   }
@@ -719,13 +720,7 @@ msgKeyPress keyCode = Msg ("Key Press " ++ toString keyCode) <| \old ->
 
 msgKeyDown keyCode = Msg ("Key Down " ++ toString keyCode) <| \old ->
   if [keyCode] == Keys.escape then
-    let new = {old | selectedPats = Set.empty
-                     , selectedEIds = Set.empty
-                     , selectedExpTargets = Set.empty
-                     , selectedPatTargets = Set.empty
-                     , expSelectionBoxes = []
-                     , patSelectionBoxes = []
-                     } in 
+    let new = clearDeuceState old in
     case (old.tool, old.mouseMode) of
       (Cursor, _) ->
         { new | selectedFeatures = Set.empty
@@ -740,15 +735,14 @@ msgKeyDown keyCode = Msg ("Key Down " ++ toString keyCode) <| \old ->
     { old | keysDown = keyCode :: old.keysDown}
   else if [keyCode] == Keys.shift then
     let codeBoxInfo = old.codeBoxInfo in
-    { old | keysDown = keyCode :: old.keysDown
-          , deuceMode = True}
+    { old | keysDown = keyCode :: old.keysDown }
   else
     old
 
 msgKeyUp keyCode = Msg ("Key Up " ++ toString keyCode) <| \old ->
     let codeBoxInfo = old.codeBoxInfo in
     if [keyCode] == Keys.shift then
-      { old | keysDown = Utils.removeFirst keyCode old.keysDown, deuceMode = False}
+      { old | keysDown = Utils.removeFirst keyCode old.keysDown }
     else 
       { old | keysDown = Utils.removeFirst keyCode old.keysDown}
 
@@ -1207,7 +1201,7 @@ msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->
   { m | hoveringCodeBox = False }
 
 msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
-  if m.deuceMode 
+  if showDeuceWidgets m
   then 
     let downPos = case m.mouseMode of 
                     MouseDownInCodebox downPos -> downPos

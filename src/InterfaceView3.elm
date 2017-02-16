@@ -16,6 +16,7 @@ import InterfaceModel as Model exposing
   , DialogBox(..)
   , rowColToPixelPos
   , expBoundingPolygon, patBoundingPolygon
+  , showDeuceWidgets
   )
 import InterfaceController as Controller
 import Layout
@@ -133,7 +134,8 @@ view model =
   let caption = captionArea model layout in
 
   let hoveredItems = 
-    if model.deuceMode
+{-
+    if showDeuceWidgets model
     then 
       -- TODO maybe have deuceHoverBox return only Svg shape nodes,
       -- and then put into a single top-level Svg.svg here
@@ -147,6 +149,23 @@ view model =
         targetIndicator model.patTargetSelections model layout ++
         targetIndicator model.hoveredPatTargets model layout
       in  
+-}
+    let selectedWidgets =
+      patBoundingPolygonPoints model.patSelectionBoxes model layout ++
+      expBoundingPolygonPoints model.expSelectionBoxes model layout ++
+      targetIndicator model.expTargetSelections model layout ++
+      targetIndicator model.patTargetSelections model layout
+    in
+    let hoveredWidgets =
+      if showDeuceWidgets model then
+        patBoundingPolygonPoints model.hoveredPat model layout ++
+        expBoundingPolygonPoints model.hoveredExp model layout ++
+        targetIndicator model.hoveredExpTargets model layout ++
+        targetIndicator model.hoveredPatTargets model layout
+      else
+        []
+    in
+    let svgWidgets = selectedWidgets ++ hoveredWidgets in
       Html.div [ Attr.id "hoveredItem"
                 , Attr.style
                     -- child div as absolute to overlay on parent div
@@ -166,8 +185,10 @@ view model =
                 , onMouseLeave Controller.msgMouseLeaveCodeBox
                 , onClick Controller.msgMouseClickCodeBox
                 ] svgWidgets
+{-
     else 
       Html.div [] [] 
+-}
     in 
   let everything = -- z-order in decreasing order
      -- bottom-most
@@ -260,7 +281,7 @@ textToolBox model layout =
     , redoButton model
     , deuceMoveExpButton model
     , fontSizeButton model
-    , aceDeuceButton model
+    -- , deuceWidgetsButton model
     ]
 
 blobToolBox model layout =
@@ -453,19 +474,20 @@ targetIndicator targets model layout =
     case target of 
       (id, start, end) ->
         let pixelPos = rowColToPixelPos start model in 
+        let rDot = 4 in
           [Svg.svg [Attr.id "deuceLayer", 
                     Attr.style
                       [ ("position", "fixed")
                       , ("left", pixels pixelPos.x)
                       , ("top", pixels pixelPos.y)
-                      , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft)))
-                      , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
+                      , ("width", toString model.codeBoxInfo.characterWidth)
+                      , ("height", toString model.codeBoxInfo.lineHeight)
                       ]
                     ][flip Svg.circle []
                       [ LangSvg.attr "stroke" "black"
                       , LangSvg.attr "cx" (toString (model.codeBoxInfo.characterWidth/2))
                       , LangSvg.attr "cy" (toString (model.codeBoxInfo.lineHeight/2))
-                      , LangSvg.attr "r" "2"
+                      , LangSvg.attr "r" (toString rDot)
                       ]
             ]
           ] 
@@ -849,23 +871,28 @@ fontSizeButton model =
   in
   htmlButton cap msg Regular False
 
-aceDeuceButton model =
-  let text = if model.deuceMode then "[Mode] Deuce" else "[Mode] Ace" in
+{-
+deuceWidgetsButton model =
+  let text =
+    if model.showAllDeuceWidgets
+      then "[Show Widgets] Always"
+      else "[Show Widgets] On Shift" in
   let handler = Msg "Toggle Ace Deuce" <| \m ->
-    if m.deuceMode then
-      { m | deuceMode = not m.deuceMode
+    if m.showAllDeuceWidgets then
+      { m | showAllDeuceWidgets = not m.showAllDeuceWidgets
             -- TODO: factor these three elsewhere for reuse
           , selectedEIds = Set.empty
           , selectedExpTargets = Set.empty 
           , selectedPats = Set.empty
           , selectedPatTargets = Set.empty
           }
-    else { m | deuceMode = not m.deuceMode }
+    else { m | showAllDeuceWidgets = not m.showAllDeuceWidgets }
   in
   htmlButton text handler Regular False
+-}
 
 deuceMoveExpButton model =
-  htmlButton "Move Exp" Controller.msgMoveExp Regular (not model.deuceMode)
+  htmlButton "Move Exp" Controller.msgMoveExp Regular (not model.showAllDeuceWidgets)
 
 
 --------------------------------------------------------------------------------
