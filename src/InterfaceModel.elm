@@ -98,7 +98,7 @@ type alias Model =
   , fileToDelete : Filename
   , pendingFileOperation : Maybe Msg
   , fileOperationConfirmed : Bool
-  , deuceMode : Bool
+  , showAllDeuceWidgets : Bool
   , hoveringCodeBox : Bool
   , scopeGraph : ScopeGraph
 
@@ -422,6 +422,21 @@ showAllDeuceWidgets m = List.member Keys.keyA m.keysDown
 shiftKeyPressed m = List.member Keys.keyShift m.keysDown
 showDeuceWidgets m = shiftKeyPressed m 
 
+clearDeuceState m =
+  { m | selectedPats = Set.empty
+      , selectedEIds = Set.empty
+      , selectedExpTargets = Set.empty
+      , selectedPatTargets = Set.empty
+      , expSelectionBoxes = []
+      , patSelectionBoxes = []
+      , expTargetSelections = []
+      , patTargetSelections = []
+      , hoveredExp = []
+      , hoveredExpTargets = []
+      , hoveredPat = []
+      , hoveredPatTargets = []
+      }
+
 betweenPos start pixelPos end =
   (start.line <= pixelPos.row + 1) &&
   (start.col <= pixelPos.column + 1) &&
@@ -527,7 +542,7 @@ expRangeSelections m =
     else
       []
   in
-  if m.deuceMode
+  if showDeuceWidgets m
     then List.concatMap maybeHighlight (computeExpRanges m.inputExp)
     else []
 
@@ -542,7 +557,7 @@ patRangeSelections m =
     else
       []
   in
-  if m.deuceMode
+  if showDeuceWidgets m
     then List.concatMap maybeHighlight (findPats m.inputExp)
     else []
 
@@ -553,7 +568,7 @@ expRangesToHover m pos =
     else 
       []
   in
-  if m.deuceMode
+  if showDeuceWidgets m || True
     then List.concatMap (boxes pos) (computeExpRanges m.inputExp)
     else []
 
@@ -564,7 +579,7 @@ patRangesToHover m pos =
     else 
       []
   in
-  if m.deuceMode
+  if showDeuceWidgets m || True
     then List.concatMap (boxes pos) (findPats m.inputExp)
     else []
 
@@ -582,7 +597,7 @@ expRangesToHighlights m pos =
     else
       []
   in
-  if m.deuceMode
+  if showDeuceWidgets m
     then List.concatMap maybeHighlight (computeExpRanges m.inputExp)
     else []
 
@@ -600,7 +615,7 @@ expTargetsToHighlights m pos =
     else
       []
   in
-  if m.deuceMode
+  if showDeuceWidgets m
     then List.concatMap maybeHighlight (computeExpTargets m.inputExp)
     else []
 
@@ -618,7 +633,7 @@ patRangesToHighlights m pos =
     else
       []
   in
-  if m.deuceMode
+  if showDeuceWidgets m
     then List.concatMap maybeHighlight (findPats m.inputExp)
     else []
 
@@ -636,7 +651,7 @@ patTargetsToHighlights m pos =
     else
       []
   in
-  if m.deuceMode
+  if showDeuceWidgets m
     then List.concatMap maybeHighlight (findPatTargets m.inputExp)
     else []
 
@@ -647,7 +662,7 @@ expTargetsToSelect m =
     else 
       []
   in
-  if m.deuceMode
+  if showDeuceWidgets m
     then List.concatMap maybeHighlight (computeExpTargets m.inputExp)
     else []
 
@@ -658,7 +673,7 @@ expTargetsToHover m pos =
     else 
       []
   in
-  if m.deuceMode
+  if showDeuceWidgets m || True
     then List.concatMap maybeHighlight (computeExpTargets m.inputExp)
     else []
 
@@ -669,7 +684,7 @@ patTargetsToSelect m =
     else
       []
   in
-  if m.deuceMode
+  if showDeuceWidgets m
     then List.concatMap maybeHighlight (findPatTargets m.inputExp)
     else []
 
@@ -680,7 +695,7 @@ patTargetsToHover m pos =
     else
       []
   in
-  if m.deuceMode
+  if showDeuceWidgets m || True
     then List.concatMap maybeHighlight (findPatTargets m.inputExp)
     else []
 
@@ -791,7 +806,7 @@ initModel =
     , pendingFileOperation = Nothing
     , fileOperationConfirmed = False
     , selectedEIds  = Set.empty
-    , deuceMode = False
+    , showAllDeuceWidgets = False
     , hoveringCodeBox = False
     , selectedPats = Set.empty
     , selectedPatTargets = Set.empty
