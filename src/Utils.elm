@@ -444,6 +444,14 @@ spaces = String.join " "
 commas = String.join ", "
 lines  = String.join "\n"
 
+-- After ActiveSupport's to_sentence method
+toSentence strings =
+  case (dropLeft 1 strings, maybeLast strings) of
+    (  _, Nothing) -> ""
+    ( [], Just z)  -> z
+    ([y], Just z)  -> y ++ " and " ++ z
+    ( ys, Just z)  -> String.join ", " ys ++ ", and " ++ z
+
 sum = List.foldl (+) 0
 
 avg : List Float -> Float

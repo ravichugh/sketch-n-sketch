@@ -320,15 +320,18 @@ expNameForExp program exp =
       simpleExpName exp
 
 
+commonNameForEIds : Exp -> List EId -> String
+commonNameForEIds program eids =
+  commonNameForEIdsWithDefault defaultExpName program eids
+
 -- Suggest a common name for the expressions at eids in program
 --
 -- yuck; common prefix of the unscoped names of the expressions
-commonNameForEIds : Exp -> List EId -> String
-commonNameForEIds program eids =
+commonNameForEIdsWithDefault : String -> Exp -> List EId -> String
+commonNameForEIdsWithDefault defaultName program eids =
   let candidate =
     eids
     |> List.map (expNameForEId program)
-    |> Debug.log "names for eids"
     |> Utils.commonPrefixString
   in
   if candidate == "" || candidate == "num" || candidate == defaultExpName then
@@ -342,7 +345,7 @@ commonNameForEIds program eids =
           then "i"
           else "num"
         )
-    |> Maybe.withDefault (if candidate == "" then defaultExpName else candidate)
+    |> Maybe.withDefault (if candidate == "" then defaultName else candidate)
   else
     candidate
 
