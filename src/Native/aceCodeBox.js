@@ -23,7 +23,7 @@ function initialize() {
       var info = getEditorState();
       app.ports.receiveEditorState.send(info);
   });
-  
+
 /*
   editor.getSession().on("changeScrollTop", function() {
       console.log("changeScrollTop");
@@ -38,6 +38,7 @@ function initialize() {
       console.log(nodes[0].style["margin-left"]);
   });
 */
+
 }
 
 
@@ -188,6 +189,10 @@ function getEditorState() {
     , offsetLeft: editor.renderer.container.offsetLeft
     , offsetHeight: editor.renderer.container.offsetTop
     , gutterWidth: editor.renderer.gutterWidth
+    , firstVisibleRow: editor.renderer.getFirstVisibleRow()
+    , lastVisibleRow: editor.renderer.getLastVisibleRow()
+    , marginTopOffset: document.getElementsByClassName("ace_content")[0].offsetTop
+    , marginLeftOffset: document.getElementsByClassName("ace_content")[0].offsetLeft
     };
   var info =
     { code : editor.getSession().getDocument().getValue()
