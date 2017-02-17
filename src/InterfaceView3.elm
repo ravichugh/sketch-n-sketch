@@ -414,15 +414,15 @@ textArea_ children attrs =
   in
   Html.div (commonAttrs ++ attrs) children
 
-computePolygonPoints rcs model = 
+computePolygonPoints rcs model layout = 
   let left = List.concatMap (\(k,(c1,c2)) -> 
     let topOffset = rowColToPixelPos {line = k, col = c1} model in
-    let top = {x=topOffset.x, y=topOffset.y - model.codeBoxInfo.offsetHeight} in
+    let top = {x=topOffset.x - model.codeBoxInfo.gutterWidth, y=topOffset.y - model.codeBoxInfo.offsetHeight} in
     let bottom = {x=top.x, y=top.y + model.codeBoxInfo.lineHeight} in 
       [top, bottom]) (Dict.toList (Tuple.second rcs)) in 
   let right = List.concatMap (\(k,(c1,c2)) -> 
     let topOffset = rowColToPixelPos {line = k, col = c2} model in
-    let top = {x=topOffset.x, y=topOffset.y - model.codeBoxInfo.offsetHeight} in 
+    let top = {x=topOffset.x - model.codeBoxInfo.gutterWidth, y=topOffset.y - model.codeBoxInfo.offsetHeight} in 
     let bottom = {x=top.x, y=top.y + model.codeBoxInfo.lineHeight} in 
       [bottom, top]) (List.reverse (Dict.toList (Tuple.second rcs))) in 
   let combine point acc = 
@@ -431,14 +431,14 @@ computePolygonPoints rcs model =
 
 expBoundingPolygonPoints exps model layout = 
   let calculate exp = 
-    let points = computePolygonPoints (expBoundingPolygon exp) model in 
+    let points = computePolygonPoints (expBoundingPolygon exp) model layout in 
     let textPolygon = 
         [Svg.svg [Attr.id "deuceLayer", 
            Attr.style
             [ ("position", "fixed")
-            , ("left", pixels layout.codeBox.left)
+            , ("left", pixels (round(model.codeBoxInfo.gutterWidth) + layout.codeBox.left))
             , ("top", pixels layout.codeBox.top)
-            , ("width", pixels (layout.codeBox.width - round(2 * model.codeBoxInfo.offsetLeft)))
+            , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth)))
             , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
             ]
           ][ flip Svg.polygon []
@@ -451,14 +451,14 @@ expBoundingPolygonPoints exps model layout =
 
 patBoundingPolygonPoints pats model layout = 
   let calculate pat = 
-    let points = computePolygonPoints (patBoundingPolygon pat) model in 
+    let points = computePolygonPoints (patBoundingPolygon pat) model layout in 
     let textPolygon = 
         [Svg.svg [Attr.id "deuceLayer", 
            Attr.style
             [ ("position", "fixed")
-            , ("left", pixels layout.codeBox.left)
+            , ("left", pixels (round(model.codeBoxInfo.gutterWidth) + layout.codeBox.left))
             , ("top", pixels layout.codeBox.top)
-            , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft)))
+            , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth)))
             , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
             ]
           ][ flip Svg.polygon []
@@ -474,23 +474,30 @@ targetIndicator targets model layout =
     case target of 
       (id, start, end) ->
         let pixelPos = rowColToPixelPos start model in 
-        let rDot = 4 in
-          [Svg.svg [Attr.id "deuceLayer", 
-                    Attr.style
-                      [ ("position", "fixed")
-                      , ("left", pixels pixelPos.x)
-                      , ("top", pixels pixelPos.y)
-                      , ("width", toString model.codeBoxInfo.characterWidth)
-                      , ("height", toString model.codeBoxInfo.lineHeight)
-                      ]
-                    ][flip Svg.circle []
-                      [ LangSvg.attr "stroke" "black"
-                      , LangSvg.attr "cx" (toString (model.codeBoxInfo.characterWidth/2))
-                      , LangSvg.attr "cy" (toString (model.codeBoxInfo.lineHeight/2))
-                      , LangSvg.attr "r" (toString rDot)
-                      ]
-            ]
-          ] 
+        if start.line > model.codeBoxInfo.firstVisibleRow && 
+           end.line <= model.codeBoxInfo.lastVisibleRow - 1 && 
+           pixelPos.x > (model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth) && 
+           pixelPos.x < (toFloat(layout.codeBox.width) - (model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth))
+        then 
+          let rDot = 4 in
+            [Svg.svg [Attr.id "deuceLayer", 
+                      Attr.style
+                        [ ("position", "fixed")
+                        , ("left", pixels pixelPos.x)
+                        , ("top", pixels pixelPos.y)
+                        , ("width", toString model.codeBoxInfo.characterWidth)
+                        , ("height", toString model.codeBoxInfo.lineHeight)
+                        ]
+                      ][flip Svg.circle []
+                        [ LangSvg.attr "stroke" "black"
+                        , LangSvg.attr "cx" (toString (model.codeBoxInfo.characterWidth/2))
+                        , LangSvg.attr "cy" (toString (model.codeBoxInfo.lineHeight/2))
+                        , LangSvg.attr "r" (toString rDot)
+                        ]
+              ]
+            ] 
+        else 
+          []
   in 
   List.concatMap indicator targets
 
