@@ -12,7 +12,7 @@ codes = [(200,55,55),(200,57,55),(200,60,55),(200,62,55),(200,65,55),(200,67,55)
 
 dict =
   let f (i,(r,g,b)) acc = Dict.insert (i-1) [r,g,b,1.0] acc in
-  Utils.foldli f Dict.empty codes
+  Utils.foldli1 f Dict.empty codes
 
 convert i =
   case Dict.get (floor i) dict of

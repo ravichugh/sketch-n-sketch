@@ -9,6 +9,7 @@ import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
 import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature, Zone)
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparse, unparsePat)
+import LangParser2 as Parser
 import OurParser2 as P
 import DependenceGraph exposing
   (ScopeGraph, PatternId, PatTargetPosition, ExpTargetPosition)
@@ -17,14 +18,15 @@ import Either exposing (Either(..))
 import Keys 
 import Svg
 import LangSvg exposing (attr)
-import Html.Attributes as Attr
-import VirtualDom
 
 import Dict exposing (Dict)
 import Set exposing (Set)
 import Char
 import Window
 import Mouse
+import Html exposing (Html)
+import Html.Attributes as Attr
+import VirtualDom
 
 type alias Code = String
 
@@ -40,6 +42,13 @@ type alias File = {
 type alias Html msg = VirtualDom.Node msg
 
 type alias Position = { col : Int, line : Int }
+
+type alias IconName = String
+
+type alias Icon = {
+  iconName : IconName,
+  code : Code
+}
 
 type alias Model =
   { code : Code
@@ -84,9 +93,10 @@ type alias Model =
   -- line/g ids assigned by blobs function
   , selectedBlobs : Dict Int NodeId
   , keysDown : List Char.KeyCode
+  , autoSynthesis : Bool
   , synthesisResults: List SynthesisResult
   , randomColor : Int
-  , lambdaTools : (Int, List LambdaTool)
+  , lambdaTools : List LambdaTool
   , layoutOffsets : LayoutOffsets
   , needsSave : Bool
   , lastSaveState : Maybe Code
@@ -98,6 +108,8 @@ type alias Model =
   , fileToDelete : Filename
   , pendingFileOperation : Maybe Msg
   , fileOperationConfirmed : Bool
+  , icons : Dict IconName (Html Msg)
+
   , showAllDeuceWidgets : Bool
   , hoveringCodeBox : Bool
   , scopeGraph : ScopeGraph
@@ -188,7 +200,7 @@ type Tool
   | Text
   | HelperDot
   | HelperLine
-  | Lambda
+  | Lambda Int -- 1-based index of selected LambdaTool
 
 type ShapeToolKind
   = Raw
@@ -213,6 +225,7 @@ type ReplicateKind
 type alias SynthesisResult =
   { description : String
   , exp         : Exp
+  , sortKey     : List Float -- For custom sorting criteria. Sorts ascending.
   }
 
 type Msg
@@ -704,8 +717,16 @@ codeToShow model =
 
 --------------------------------------------------------------------------------
 
-prependDescription newPrefix {description, exp} =
-  { description = (newPrefix ++ description), exp = exp}
+strLambdaTool lambdaTool =
+  let strExp = String.trim << unparse in
+  case lambdaTool of
+    LambdaBounds e -> Utils.parens <| "\\bounds. " ++ strExp e ++ " bounds"
+    LambdaAnchor e -> Utils.parens <| "\\anchor. " ++ strExp e ++ " anchor"
+
+--------------------------------------------------------------------------------
+
+prependDescription newPrefix synthesisResult =
+  { synthesisResult | description = (newPrefix ++ synthesisResult.description) }
 
 --------------------------------------------------------------------------------
 
@@ -722,6 +743,25 @@ prettyFilename model =
 getFile model = { filename = model.filename
                 , code     = model.code
                 }
+
+--------------------------------------------------------------------------------
+
+iconNames = ["cursor", "line", "rect", "ellipse", "polygon", "path", "lambda"]
+
+--------------------------------------------------------------------------------
+
+starLambdaTool = LambdaBounds (eVar "star")
+
+starLambdaToolIcon = lambdaToolIcon starLambdaTool
+
+lambdaToolIcon tool =
+  { iconName = String.toLower (strLambdaTool tool)
+  , code = case tool of
+      LambdaBounds func ->
+        "(svgViewBox 100 100 (" ++ unparse func ++ " [10 10 90 90]))"
+      LambdaAnchor func ->
+        "(svgViewBox 100 100 (" ++ unparse func ++ " [10 10]))"
+  }
 
 --------------------------------------------------------------------------------
 
@@ -787,9 +827,10 @@ initModel =
     , selectedFeatures = Set.empty
     , selectedBlobs = Dict.empty
     , keysDown      = []
+    , autoSynthesis = False
     , synthesisResults = []
     , randomColor   = 100
-    , lambdaTools   = (1, [LambdaBounds (eVar "star")])
+    , lambdaTools   = [starLambdaTool]
     , layoutOffsets = initialLayoutOffsets
     , needsSave     = False
     , lastSaveState = Nothing
@@ -801,6 +842,7 @@ initModel =
     , fileToDelete  = ""
     , pendingFileOperation = Nothing
     , fileOperationConfirmed = False
+    , icons = Dict.empty
     , selectedEIds  = Set.empty
     , showAllDeuceWidgets = False
     , hoveringCodeBox = False
@@ -817,4 +859,3 @@ initModel =
     , expSelectionBoxes = [] 
     , patSelectionBoxes = []
     }
-

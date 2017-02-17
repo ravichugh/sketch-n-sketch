@@ -1,5 +1,6 @@
 module ExpressionBasedTransform exposing -- in contrast to ValueBasedTransform
-  ( groupSelectedBlobs
+  ( passiveSynthesisSearch
+  , groupSelectedBlobs
   , abstractSelectedBlobs
   , replicateSelectedBlob
   , duplicateSelectedBlobs
@@ -10,11 +11,12 @@ module ExpressionBasedTransform exposing -- in contrast to ValueBasedTransform
   )
 
 import Lang exposing (..)
-import LangUnparser exposing (unparse)
+import LangUnparser exposing (unparse, unparsePat)
 import LangParser2 exposing (parseE)
 import LangSvg exposing (NodeId)
 import ShapeWidgets exposing (PointFeature, SelectedShapeFeature)
 import Blobs exposing (..)
+import LangTools exposing (..)
 import LangTransform
 import Types
 import InterfaceModel exposing (Model, ReplicateKind(..))
@@ -24,6 +26,546 @@ import Keys
 import Dict exposing (Dict)
 import Set
 import String
+
+
+--------------------------------------------------------------------------------
+-- Expression Rewriting
+
+-- x TODO: don't freeze all LocEqnConsts
+-- x TODO: Split abstraction -> mapping into two steps
+-- x TODO: revisit clone detection -- lists of constants are ignored if >1 constant differs
+-- x TODO: abstract with n parameters
+-- x TODO: don't lift variables usages into an abstraction outside of the variable's original scope (later we may add lifting)
+-- TODO: fix width + scroll synthesis results box
+-- TODO: multiple rewrites (either speculative or nested dropdowns)
+-- TODO: examine examples again
+-- TODO: write down methodology and document heuristics
+-- TODO: Filter out speculative expressions that error or produce a different result.
+-- TODO: ensure abstracted expressions weren't sub-expressions of each other...?
+-- TODO: lift dependencies (procrastinate this)
+-- TODO: turn off overlapping pairs relation
+
+
+passiveSynthesisSearch : Exp -> List InterfaceModel.SynthesisResult
+passiveSynthesisSearch originalExp =
+  cloneEliminationSythesisResults originalExp ++
+  mapAbstractSynthesisResults originalExp ++
+  rangeSynthesisResults originalExp ++
+  inlineListSynthesisResults originalExp
+
+
+rangeSynthesisResults : Exp -> List InterfaceModel.SynthesisResult
+rangeSynthesisResults originalExp =
+  let eidAndRangeLists =
+    flattenExpTree originalExp
+    |> List.filterMap
+        (\exp ->
+          case exp.val.e__ of
+            EList ws1 es ws2 Nothing ws3 ->
+              let maybeNums = es |> List.map expToMaybeNum |> Utils.projJusts in
+              case maybeNums of
+                Just (n1::n2::n3::nRest) -> -- At least three nums
+                  let nums = n1::n2::n3::nRest in
+                  let (min, max) = (List.minimum nums |> Utils.fromJust_ "ExpressionBasedTransform.rangeSynthesisResults min" |> round, List.maximum nums |> Utils.fromJust_ "ExpressionBasedTransform.rangeSynthesisResults max" |> round) in
+                  if nums == (List.range min max |> List.map toFloat) then
+                    let insertedLoc = dummyLoc_ (if List.all isFrozenNumber es then frozen else unann) in
+                    if List.head nums == Just 0.0 then
+                      Just (exp.val.eid, eApp (eVar0 "zeroTo") [withDummyPos <| EConst " " (toFloat max + 1) insertedLoc (intSlider 0 (5*(max + 1)))])
+                    else if List.head nums == Just 1.0 then
+                      Just (exp.val.eid, eApp (eVar0 "list1N") [withDummyPos <| EConst " " (toFloat max) insertedLoc (intSlider 0 (5*(max + 1)-1))])
+                    else
+                      Just (exp.val.eid, eApp (eVar0 "range") [eConst (toFloat min) insertedLoc, eConst (toFloat max) insertedLoc])
+                  else
+                    Nothing
+
+                _ ->
+                  Nothing
+
+            _ ->
+              Nothing
+        )
+  in
+  eidAndRangeLists
+  |> List.map
+      (\(eid, newExp) ->
+        { description = "Replace " ++ (unparse >> Utils.squish) (justFindExpByEId originalExp eid) ++ " with " ++ unparse newExp
+        , exp         = replaceExpNodePreservingPreceedingWhitespace eid newExp originalExp
+        , sortKey     = []
+        }
+      )
+
+
+-- e.g. let [a b c] = ... in [a b c] => let list = ... in list; and other variations
+inlineListSynthesisResults originalExp =
+  let candidatesAndDescription =
+    flattenExpTree originalExp
+    |> List.concatMap
+        (\exp ->
+          case exp.val.e__ of
+            ELet letWs1 letKind False letPat letAssign letBody letWs2 -> -- non-recursive lets only
+              let letExp = exp in
+              case letPat.val of
+                PList _ (p1::p2::p3::pRest) _ Nothing _ -> -- At least three
+                  let pats = p1::p2::p3::pRest in
+                  let maybeIdents = pats |> List.map patToMaybeIdent |> Utils.projJusts in
+                  case maybeIdents of
+                    Just idents ->
+                      let usages = identifierUses (Set.fromList idents) letBody in
+                      if List.map expToIdent usages == idents then -- Each should be used exactly once, in order
+                        -- All idents used in only in same list
+                        let maybeParents =
+                          findAllWithAncestors (\e -> List.member e usages) letBody
+                          |> List.map (Utils.dropLeft 1 >> Utils.maybeLast)
+                        in
+                        case Utils.dedupByEquality maybeParents of
+                          [Just parentExp] ->
+                            -- Single, shared parent.
+
+                            case parentExp.val.e__ of
+                              EList listWs1 heads listWs2 maybeTail listW3 ->
+                                let listName =
+                                  let listBaseName =
+                                    let prefix = Utils.commonPrefixString idents in
+                                    if prefix == "" then
+                                      "list"
+                                    else
+                                      prefix ++ "s"
+                                  in
+                                  nonCollidingName listBaseName 2 (identifiersSet letBody)
+                                in
+                                -- In Sketch-n-Sketch there's a lot of concatenation; try it.
+                                let eConcatExp listExp = eApp (eVar0 "concat") [listExp] in
+                                let eConcat listExps = eApp (eVar0 "concat") [eTuple listExps] in
+                                let eAppend listExpA listExpB = eApp (eVar0 "append") (List.map (replacePrecedingWhitespace " ") [listExpA, listExpB]) in
+                                let usagePrecedingWhitespace = precedingWhitespace (Utils.head "ExpressionBasedTransform.inlineListSynthesisResults usages" usages) in
+                                let useOldWs e = replacePrecedingWhitespace usagePrecedingWhitespace e in
+                                let newListExpCandidates =
+                                  -- Must be used in the heads of the list, in order.
+                                  case heads |> Utils.splitBy usages of
+                                    [[], []] ->
+                                      -- Heads and target match exactly.
+                                      case maybeTail of
+                                        Nothing ->
+                                          [ eVar listName
+                                          , eTuple [eConcatExp (eVar listName) |> useOldWs]
+                                          ]
+
+                                        Just tail ->
+                                          [ eAppend (eVar listName) tail
+                                          , eList [eConcatExp (eVar listName) |> useOldWs] (Just tail)
+                                          ]
+
+                                    [[], restHeads] ->
+                                      -- Target occurs at beginning of heads.
+                                      case maybeTail of
+                                        Nothing ->
+                                          [ eAppend (eVar listName) (eTuple restHeads)
+                                          , eTuple <| useOldWs (eConcatExp (eVar listName)) :: restHeads
+                                          , eList [eConcatExp (eVar listName) |> useOldWs] (Just (eTuple restHeads))
+                                          ]
+
+                                        Just tail ->
+                                          [ eConcat [eVar listName, eTuple restHeads, tail]
+                                          , eAppend (eVar listName) (eList restHeads (Just tail))
+                                          , eList (useOldWs (eConcatExp (eVar listName)) :: restHeads) (Just tail)
+                                          ]
+
+                                    [restHeads, []] ->
+                                      -- Target occurs at end of heads.
+                                      case maybeTail of
+                                        Nothing ->
+                                          [ eAppend (eTuple restHeads) (eVar listName)
+                                          , eList restHeads (Just (eVar listName))
+                                          , eTuple (restHeads ++ [eConcatExp (eVar listName) |> useOldWs])
+                                          , eList restHeads (Just (eConcatExp (eVar listName)))
+                                          ]
+
+                                        Just tail ->
+                                          [ eConcat [eTuple restHeads, eVar listName, tail]
+                                          , eList restHeads (Just (eAppend (eVar listName) tail))
+                                          , eList (restHeads ++ [eConcatExp (eVar listName) |> useOldWs]) (Just tail)
+                                          ]
+
+                                    [headsBefore, headsAfter] ->
+                                      -- Target occurs in the middle of the heads.
+                                      case maybeTail of
+                                        Nothing ->
+                                          [ eConcat [eTuple headsBefore, eVar listName, eTuple headsAfter]
+                                          , eTuple (headsBefore ++ [eConcatExp (eVar listName) |> useOldWs] ++ headsAfter)
+                                          ]
+
+                                        Just tail ->
+                                          [ eConcat [eTuple headsBefore, eVar listName, eTuple headsAfter, tail]
+                                          , eList (headsBefore ++ [eConcatExp (eVar listName) |> useOldWs] ++ headsAfter) (Just tail)
+                                          ]
+
+                                    _ ->
+                                      []
+                                in
+                                newListExpCandidates
+                                |> List.map
+                                    (\newListExp ->
+                                      let prettyNewListExp =
+                                        case newListExp.val.e__ of
+                                          EList _ _ _ _ _ -> copyListWhitespace parentExp newListExp
+                                          _               -> newListExp
+                                      in
+                                      let newLetBody = replaceExpNodePreservingPreceedingWhitespace parentExp.val.eid prettyNewListExp letBody in
+                                      let newLet = replaceE__ letExp (ELet letWs1 letKind False (pVar listName) letAssign newLetBody letWs2) in
+                                      ( replaceExpNode newLet.val.eid newLet originalExp
+                                      , "Inline " ++ (unparsePat >> Utils.squish) letPat ++ " into " ++ (unparse >> Utils.squish) newListExp
+                                      )
+                                    )
+
+                              _ ->
+                                []
+
+                          _ ->
+                            []
+
+                      else
+                        []
+
+                    Nothing ->
+                      []
+
+                _ ->
+                  []
+
+            _ ->
+              []
+        )
+  in
+  -- Candidates are produced speculatively.
+  -- TODO: Filter out those that error or produce a different result.
+  candidatesAndDescription
+  |> List.map
+      (\(candidateExp, description) ->
+        { description = description
+        , exp         = candidateExp
+        , sortKey     = []
+        }
+      )
+
+
+-- Generate single argument abstractions only (for now).
+--
+-- Returns List of (Sorted List of (EId, Expression to Replace, Argument Expressions), Replacing Function, Common Scope, Suggested Function Name, Argument Names)
+--
+-- Suggested function name has *not* been checked for collisions.
+--
+-- Resulting abstracted functions will evaluate correctly but may not type check (may have more polymorphism in the arguments than the type system can handle).
+detectClones : Exp -> Int -> Int -> Int -> Bool -> List (List (EId, Exp, List Exp), Exp, Exp, String, List String)
+detectClones originalExp minCloneCount minCloneSize argCount allowCurrying =
+  let argVar = eVar "INSERT_ARGUMENT_HERE" in
+  -- Sister function in LangTools.extraExpsDiff
+  -- This version returns the various differing subtrees replaced by argVar:
+  let merge expA expB =
+    case (expA.val.e__, expB.val.e__) of
+      (EConst ws1A nA locA wdA,              EConst ws1B nB locB wdB)              -> if nA == nB then expA else argVar
+      (EBase ws1A (EBool True),              EBase ws1B (EBool True))              -> expA
+      (EBase ws1A (EBool False),             EBase ws1B (EBool False))             -> expA
+      (EBase ws1A (EString qcA strA),        EBase ws1B (EString qcB strB))        -> if strA == strB then expA else argVar
+      (EBase ws1A ENull,                     EBase ws1B ENull)                     -> expA
+      (EVar ws1A identA,                     EVar ws1B identB)                     -> if identA == identB then expA else argVar
+      (EFun ws1A psA eA ws2A,                EFun ws1B psB eB ws2B)                -> if patternListsEqual psA psB then replaceE__ expA (EFun ws1A psA (merge eA eB) ws2A) else argVar
+      (EOp ws1A opA esA ws2A,                EOp ws1B opB esB ws2B)                -> if opA.val == opB.val then Utils.maybeZip esA esB |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EOp ws1A opA newEs ws2A))) |> Maybe.withDefault argVar else argVar
+      (EList ws1A esA ws2A Nothing ws3A,     EList ws1B esB ws2B Nothing ws3B)     -> Utils.maybeZip esA esB |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EList ws1A newEs ws2A Nothing ws3A))) |> Maybe.withDefault argVar
+      (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)   -> Utils.maybeZip esA esB |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EList ws1A newEs ws2A (Just (merge eA eB)) ws3A))) |> Maybe.withDefault argVar
+      (EApp ws1A fA esA ws2A,                EApp ws1B fB esB ws2B)                -> Utils.maybeZip esA esB |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EApp ws1A (merge fA fB) newEs ws2A))) |> Maybe.withDefault argVar
+      (ELet ws1A kindA recA pA e1A e2A ws2A, ELet ws1B kindB recB pB e1B e2B ws2B) -> if recA == recB && patternsEqual pA pB then replaceE__ expA (ELet ws1A kindA recA pA (merge e1A e1B) (merge e2A e2B) ws2A) else argVar
+      (EIf ws1A e1A e2A e3A ws2A,            EIf ws1B e1B e2B e3B ws2B)            -> replaceE__ expA (EIf ws1A (merge e1A e1B) (merge e2A e2B) (merge e3A e3B) ws2A)
+      (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         -> Utils.maybeZip branchesA branchesB |> Maybe.andThen (\branchPairs -> let bValPairs = branchPairs |> List.map (\(bA, bB) -> (bA.val, bB.val)) in if bValPairs |> List.all (\(Branch_ bws1A bpatA beA bws2A, Branch_ bws1B bpatB beB bws2B) -> patternsEqual bpatA bpatB) then Just (replaceE__ expA (ECase ws1A (merge eA eB) (Utils.zip branchPairs bValPairs |> List.map (\((bA, bB), (Branch_ bws1A bpatA beA bws2A, Branch_ bws1B bpatB beB bws2B)) -> {bA | val = Branch_ bws1A bpatA (merge beA beB) bws2A})) ws2A)) else Nothing) |> Maybe.withDefault argVar
+      (ETypeCase ws1A patA tbranchesA ws2A,  ETypeCase ws1B patB tbranchesB ws2B)  -> if patternsEqual patA patB then Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (replaceE__ expA (ETypeCase ws1A patA (Utils.zip tbranchPairs tbValPairs |> List.map (\((tbA, tbB), (TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B)) -> {tbA | val = TBranch_ tbws1A tbtypeA (merge tbeA tbeB) tbws2A})) ws2A)) else Nothing) |> Maybe.withDefault argVar else argVar
+      (EComment wsA sA e1A,                  _)                                    -> replaceE__ expA (EComment wsA sA (merge e1A expB))
+      (_,                                    EComment wsB sB e1B)                  -> replaceE__ expB (EComment wsB sB (merge e1B expA))
+      (EOption ws1A s1A ws2A s2A e1A,        EOption ws1B s1B ws2B s2B e1B)        -> argVar
+      (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)         -> if patternsEqual patA patB && Types.equal typeA typeB then replaceE__ expA (ETyp ws1A patA typeA (merge eA eB) ws2A) else argVar
+      (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)   -> if Types.equal typeA typeB then replaceE__ expA (EColonType ws1A (merge eA eB) ws2A typeA ws3A) else argVar
+      (ETypeAlias ws1A patA typeA eA ws2A,   ETypeAlias ws1B patB typeB eB ws2B)   -> if patternsEqual patA patB && Types.equal typeA typeB then replaceE__ expA (ETypeAlias ws1A patA typeA (merge eA eB) ws2A) else argVar
+      _                                                                            -> argVar
+  in
+  -- This version is limited to at most a single argVar: if multiple subtrees differ, their common ancestor becomes a single argVar.
+  -- Returns (merged, boolean true if merged contains argVar)
+  let mergeSingleArg expA expB =
+    let retArgVar = (argVar, True) in
+    let retSame   = (expA,   False) in
+    -- If at most one child has an argVar, return an exp constructed by newE__Func and an appropriate hasArgVar bool
+    -- If more than one child has an argVar, return (argVar, True)
+    let generalizedMerge precondition maybeE1Pair maybeE2Pair maybeE3Pair maybePairOfEs newE__Func =
+      if precondition then
+        -- Ensure both lists are the same length.
+        -- If "Nothing" given for lists, empty lists will produce the desired results.
+        case maybePairOfEs |> Maybe.withDefault ([], []) |> (\(esA, esB) -> Utils.maybeZip esA esB) of
+          Nothing ->
+            retArgVar
+
+          Just expPairs ->
+            -- Now, see what happens when we merged the given pairs of children.
+            let (e1Merged, e1HasArgVar) = maybeE1Pair |> Maybe.map (\(eA, eB) -> mergeSingleArg eA eB) |> Maybe.withDefault (eVar "ignored", False) in
+            let (e2Merged, e2HasArgVar) = maybeE2Pair |> Maybe.map (\(eA, eB) -> mergeSingleArg eA eB) |> Maybe.withDefault (eVar "ignored", False) in
+            let (e3Merged, e3HasArgVar) = maybeE3Pair |> Maybe.map (\(eA, eB) -> mergeSingleArg eA eB) |> Maybe.withDefault (eVar "ignored", False) in
+            let (esMergers, esHasArgVarBools) = expPairs |> List.map (\(eA, eB) -> mergeSingleArg eA eB) |> List.unzip in
+            let argVarCount = Utils.count ((==) True) (e1HasArgVar::e2HasArgVar::e3HasArgVar::esHasArgVarBools) in
+            if argVarCount <= 1 then
+              let newE__ = newE__Func e1Merged e2Merged e3Merged esMergers in
+              (replaceE__ expA newE__, argVarCount == 1)
+            else
+              retArgVar
+
+      else
+        retArgVar
+    in
+    case (expA.val.e__, expB.val.e__) of
+      (EConst ws1A nA locA wdA,              EConst ws1B nB locB wdB)              -> if nA == nB then retSame else retArgVar
+      (EBase ws1A (EBool True),              EBase ws1B (EBool True))              -> retSame
+      (EBase ws1A (EBool False),             EBase ws1B (EBool False))             -> retSame
+      (EBase ws1A (EString qcA strA),        EBase ws1B (EString qcB strB))        -> if strA == strB then retSame else retArgVar
+      (EBase ws1A ENull,                     EBase ws1B ENull)                     -> retSame
+      (EVar ws1A identA,                     EVar ws1B identB)                     -> if identA == identB then retSame else retArgVar
+      (EFun ws1A psA eA ws2A,                EFun ws1B psB eB ws2B)                -> generalizedMerge (patternListsEqual psA psB) (Just (eA, eB)) Nothing Nothing Nothing (\mergedBody _ _ _ -> EFun ws1A psA mergedBody ws2A)
+      (EOp ws1A opA esA ws2A,                EOp ws1B opB esB ws2B)                -> generalizedMerge (opA.val == opB.val) Nothing Nothing Nothing (Just (esA, esB)) (\_ _ _ mergedEs -> EOp ws1A opA mergedEs ws2A)
+      (EList ws1A esA ws2A Nothing ws3A,     EList ws1B esB ws2B Nothing ws3B)     -> generalizedMerge True Nothing Nothing Nothing (Just (esA, esB)) (\_ _ _ headMergers -> EList ws1A headMergers ws2A Nothing ws3A)
+      (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)   -> generalizedMerge True (Just (eA, eB)) Nothing Nothing (Just (esA, esB)) (\tailMerged _ _ headMergers -> EList ws1A headMergers ws2A (Just tailMerged) ws3A)
+      (EApp ws1A fA esA ws2A,                EApp ws1B fB esB ws2B)                -> generalizedMerge True (Just (fA, fB)) Nothing Nothing (Just (esA, esB)) (\fMerged _ _ argMergers -> EApp ws1A fMerged argMergers ws2A)
+      (ELet ws1A kindA recA pA e1A e2A ws2A, ELet ws1B kindB recB pB e1B e2B ws2B) -> generalizedMerge (recA == recB && patternsEqual pA pB) (Just (e1A, e1B)) (Just (e2A, e2B)) Nothing Nothing (\e1Merged e2Merged _ _ -> ELet ws1A kindA recA pA e1Merged e2Merged ws2A)
+      (EIf ws1A e1A e2A e3A ws2A,            EIf ws1B e1B e2B e3B ws2B)            -> generalizedMerge True (Just (e1A, e1B)) (Just (e2A, e2B)) (Just (e3A, e3B)) Nothing (\e1Merged e2Merged e3Merged _ -> EIf ws1A e1Merged e2Merged e3Merged ws2A)
+      (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         ->
+        let precondition = Utils.listsEqualBy patternsEqual (branchPats branchesA) (branchPats branchesB) in
+        generalizedMerge precondition (Just (eA, eB)) Nothing Nothing (Just (branchExps branchesA, branchExps branchesB)) (\eMerged _ _ branchExpsMerged -> ECase ws1A eMerged (List.map2 replaceBranchExp branchesA branchExpsMerged) ws2A)
+      (ETypeCase ws1A patA tbranchesA ws2A,  ETypeCase ws1B patB tbranchesB ws2B)  ->
+        let precondition = patternsEqual patA patB && Utils.listsEqualBy Types.equal (tbranchTypes tbranchesA) (tbranchTypes tbranchesB) in
+        generalizedMerge precondition Nothing Nothing Nothing (Just (tbranchExps tbranchesA, tbranchExps tbranchesB)) (\_ _ _ tbranchExpsMerged -> ETypeCase ws1A patA (List.map2 replaceTBranchExp tbranchesA tbranchExpsMerged) ws2A)
+      (EComment wsA sA e1A,                  _)                                    -> mergeSingleArg e1A expB |> (\(e1Merged, e1HasArgVar) -> (replaceE__ expA (EComment wsA sA e1Merged), e1HasArgVar))
+      (_,                                    EComment wsB sB e1B)                  -> mergeSingleArg e1B expA |> (\(e1Merged, e1HasArgVar) -> (replaceE__ expB (EComment wsB sB e1Merged), e1HasArgVar))
+      (EOption ws1A s1A ws2A s2A e1A,        EOption ws1B s1B ws2B s2B e1B)        -> retArgVar
+      (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)         -> generalizedMerge (patternsEqual patA patB && Types.equal typeA typeB) (Just (eA, eB)) Nothing Nothing Nothing (\mergedE _ _ _ -> ETyp ws1A patA typeA mergedE ws2A)
+      (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)   -> generalizedMerge (Types.equal typeA typeB) (Just (eA, eB)) Nothing Nothing Nothing (\mergedE _ _ _ -> EColonType ws1A mergedE ws2A typeA ws3A)
+      (ETypeAlias ws1A patA typeA eA ws2A,   ETypeAlias ws1B patB typeB eB ws2B)   -> generalizedMerge (patternsEqual patA patB && Types.equal typeA typeB) (Just (eA, eB)) Nothing Nothing Nothing (\mergedE _ _ _ -> ETypeAlias ws1A patA typeA mergedE ws2A)
+      _                                                                            -> retArgVar
+  in
+  let mergeFunc = if argCount == 1 then (\eA eB -> mergeSingleArg eA eB |> Tuple.first) else merge in
+  let argVarCount exp =
+    flattenExpTree exp
+    |> Utils.count
+        (\exp ->
+          case exp.val.e__ of
+            EVar _ ident -> ident == "INSERT_ARGUMENT_HERE"
+            _            -> False
+        )
+  in
+  flattenExpTree originalExp
+  |> List.foldl
+      (\exp mergeGroups ->
+        let addedMergeGroups =
+          mergeGroups
+          |> List.filterMap
+              (\(priorMerged, priorExps) ->
+                let newMerged = mergeFunc priorMerged exp in
+                -- Node counts can only go down on subsequent mergings, so this is safe.
+                if nodeCount newMerged >= minCloneSize then
+                  Just (newMerged, exp::priorExps)
+                else
+                  Nothing
+              )
+        in
+        (exp, [exp])::(mergeGroups ++ addedMergeGroups)
+      )
+      []
+  |> List.filter (\(merged, exps) -> List.length exps >= minCloneCount && argVarCount merged == argCount)
+  |> List.map (\(merged, exps) -> (merged, exps |> List.sortBy (\exp -> (exp.start.line, exp.start.col))))
+  |> List.map (\(merged, sortedExps) -> (merged, sortedExps, sortedExps |> List.map (\exp -> extraExpsDiff merged exp))) -- There should only be one difference per expression.
+  |> List.filter (\(merged, sortedExps, parameterExpLists) -> List.all isLiteral (List.concat parameterExpLists)) -- No free variables in the part of the expression to parameterize
+  |> List.sortBy (\(merged, sortedExps, parameterExpLists) -> -(List.length sortedExps)) -- For each abstraction, perserve only the largest set of clones matching it
+  |> Utils.dedupBy (\(merged, sortedExps, parameterExpLists) -> LangUnparser.unparseWithUniformWhitespace False False merged)
+  |> List.map
+      (\(merged, sortedExps, parameterExpLists) ->
+        let eidsToReplace = sortedExps |> List.map (.val >> .eid) in
+        let commonScope = justInsideDeepestCommonScope originalExp (\exp -> List.member exp.val.eid eidsToReplace) in
+        let funcSuggestedName =
+          let defaultName = if simpleExpName merged == "INSERT_ARGUMENT_HERE" then "thing" else simpleExpName merged in
+          commonNameForEIdsWithDefault defaultName originalExp eidsToReplace
+        in
+        -- Number the usages of the arguments as 1 2 3 in the merged expression.
+        let (mergedArgUsesEnumerated, _) =
+          -- mapFoldExp and extraExpsDiff visit leaves in exactly the reserve order: so start with argCount and count down.
+          merged
+          |> mapFoldExp
+              (\e argN ->
+                case e.val.e__ of
+                  EVar ws "INSERT_ARGUMENT_HERE" -> (replaceE__ e (EVar ws ("INSERT_ARGUMENT" ++ toString argN ++ "_HERE")), argN-1)
+                  _                              -> (e, argN)
+              )
+              argCount
+        in
+        let funcWithPlaceholders =
+          let argList = List.map (\n -> (if n == 1 then pVar0 else pVar) ("INSERT_ARGUMENT" ++ toString n ++ "_HERE")) (List.range 1 argCount) in
+          let explicitFunc = eFun argList (unindent mergedArgUsesEnumerated) in
+          -- Try to curry, if body is a simple function application and flag given
+          if not allowCurrying || argCount >= 2 then
+            explicitFunc
+          else
+            case mergedArgUsesEnumerated.val.e__ of
+              (EApp ws1 funcE args ws2) ->
+                case Utils.takeLast 1 args of
+                  [lastArg] ->
+                    case lastArg.val.e__ of
+                      EVar _ "INSERT_ARGUMENT1_HERE" ->
+                        if List.length args >= 2 then
+                          replaceE__ mergedArgUsesEnumerated (EApp ws1 funcE (List.take (List.length args - 1) args) ws2)
+                          |> replacePrecedingWhitespace " " -- Presume a single line application.
+                        else
+                          -- funcE is almost certainly an EVar
+                          replacePrecedingWhitespace " " funcE
+
+                      _ ->
+                        explicitFunc
+                  _ ->
+                    explicitFunc
+
+              _ ->
+                explicitFunc
+        in
+        -- Finally, name and replace arguments
+        let (argRenamingsList, _) =
+          Utils.maybeZipN parameterExpLists -- Go from lists of parameters per call to lists of parameters per arg
+          |> Utils.fromJust_ "ExpressionBasedTransform.detectClones maybeZipN"
+          |> Utils.foldli1
+              (\(argN, parametersForArg) (renamings, usedNames) ->
+                let argBaseName =
+                  let defaultName = if argCount == 0 then "arg" else "arg" ++ toString argN in
+                  commonNameForEIdsWithDefault defaultName originalExp (List.map (.val >> .eid) parametersForArg)
+                in
+                let argName = nonCollidingName argBaseName 2 usedNames in
+                ( renamings ++ [("INSERT_ARGUMENT" ++ toString argN ++ "_HERE", argName)]
+                , Set.insert argName usedNames
+                )
+              )
+              ([], identifiersSet funcWithPlaceholders)
+        in
+        let (_, argNames) = List.unzip argRenamingsList in
+        let abstractedFunc =
+          renameIdentifiers (Dict.fromList argRenamingsList) funcWithPlaceholders
+        in
+        ( Utils.zip3 eidsToReplace sortedExps parameterExpLists
+        , abstractedFunc
+        , commonScope
+        , funcSuggestedName
+        , argNames
+        )
+      )
+
+
+-- Ensure program won't crash or have bad behavior because we lifted a variable usage out of the variable's scope.
+noExtraneousFreeVarsInRemovedClones : List Exp -> Exp -> Bool
+noExtraneousFreeVarsInRemovedClones cloneExps commonScopeWhereAbstractionWillBeDefined =
+  -- In the current clone detection, parameters necessarily have no free variables so
+  -- we don't have to worry about allowing the new function parameters to be free.
+  let freeAtAbstraction = freeVars commonScopeWhereAbstractionWillBeDefined in
+  cloneExps
+  |> List.all
+      (\cloneExp ->
+        freeVars cloneExp |> List.all (\var -> List.member var freeAtAbstraction)
+      )
+
+cloneEliminationSythesisResults : Exp -> List InterfaceModel.SynthesisResult
+cloneEliminationSythesisResults originalExp =
+  detectClones originalExp 2 5 1 False ++
+  detectClones originalExp 2 10 2 False ++
+  detectClones originalExp 2 15 3 False ++
+  detectClones originalExp 2 20 4 False ++
+  detectClones originalExp 2 25 5 False ++
+  detectClones originalExp 2 30 6 False ++
+  detectClones originalExp 2 35 7 False ++
+  detectClones originalExp 2 40 8 False
+  |> List.filter
+      (\(cloneEIdsAndExpsAndParameterExpLists, _, commonScope, _, _) ->
+        let (_, cloneExps, _) = Utils.unzip3 cloneEIdsAndExpsAndParameterExpLists in
+         noExtraneousFreeVarsInRemovedClones cloneExps commonScope
+      )
+  |> List.map
+      (\(cloneEIdsAndExpsAndParameterExpLists, abstractedFunc, commonScope, funcSuggestedName, argNames) ->
+        let funcName = nonCollidingName funcSuggestedName 2 (identifiersSet commonScope) in
+        let oldIndentation = indentationOf commonScope in
+        let abstractedFuncIndented =
+          if String.contains "\n" (unparse abstractedFunc) then
+            replacePrecedingWhitespace (" " ++ oldIndentation) (indent ("  " ++ oldIndentation) abstractedFunc)
+          else
+            replacePrecedingWhitespace " " abstractedFunc
+        in
+        let eidToNewE__ =
+          cloneEIdsAndExpsAndParameterExpLists
+          |> List.map (\(eid, _, parameterExps) -> (eid, EApp " " (eVar0 funcName) (List.map (replacePrecedingWhitespace " ") parameterExps) ""))
+          |> Dict.fromList
+        in
+        let usagesReplaced = applyESubstPreservingPrecedingWhitespace eidToNewE__ commonScope in
+        let wrapped =
+          let letKind = if isTopLevel commonScope originalExp then Def else Let in
+          withDummyPos <| ELet ("\n" ++ oldIndentation) letKind False (pVar funcName) abstractedFuncIndented usagesReplaced ""
+        in
+        let newProgram = replaceExpNode commonScope.val.eid wrapped originalExp in
+        let clonesName =
+          let (eidsToReplace, _, _) = Utils.unzip3 cloneEIdsAndExpsAndParameterExpLists in
+          let name = commonNameForEIds originalExp eidsToReplace in
+          if name == "" then
+            eidsToReplace |> List.map (expNameForEId originalExp) |> Utils.toSentence
+          else
+            toString (List.length cloneEIdsAndExpsAndParameterExpLists) ++ " " ++ name ++ "s"
+        in
+        { description = "Merge " ++ clonesName ++ " by abstracting over " ++ Utils.toSentence argNames
+        , exp         = newProgram
+        , sortKey     = []
+        }
+      )
+
+
+mapAbstractSynthesisResults : Exp -> List InterfaceModel.SynthesisResult
+mapAbstractSynthesisResults originalExp =
+  detectClones originalExp 3 3 1 True
+  |> List.filter
+      (\(cloneEIdsAndExpsAndParameterExpLists, _, commonScope, _, _) ->
+        let (_, cloneExps, _) = Utils.unzip3 cloneEIdsAndExpsAndParameterExpLists in
+         noExtraneousFreeVarsInRemovedClones cloneExps commonScope
+      )
+  |> List.map
+      (\(cloneEIdsAndExpsAndParameterExpLists, abstractedFunc, commonScope, funcSuggestedName, argNames) ->
+        let (eidsToReplace, sortedExps, parameterExpLists) = Utils.unzip3 cloneEIdsAndExpsAndParameterExpLists in
+        let oldIndentation = indentationOf commonScope in
+        let mapCall =
+          -- Multiline or single line map call, depending on mapping function
+          let _ = Debug.log "mapping func" (unparse abstractedFunc) in
+          let parameterExps = List.concat parameterExpLists in -- each paramter list should only have one element (single parameter)
+          if String.contains "\n" (unparse abstractedFunc) then
+            let newLineIndent extraIndent exp = replacePrecedingWhitespace ("\n" ++ extraIndent ++ oldIndentation) exp in
+            eApp
+                (eVar0 "map")
+                [ replacePrecedingWhitespace " " (indent ("      " ++ oldIndentation) abstractedFunc) -- Put arguments on same line as map call.
+                , newLineIndent "    " (eTuple (cleanupListWhitespace " " parameterExps))
+                ]
+            |> newLineIndent "  "
+          else
+            eApp (eVar0 "map") [abstractedFunc, eTuple (cleanupListWhitespace " " parameterExps)]
+        in
+        let namesToAvoid = identifiersSet commonScope in
+        let varNames = sortedExps |> Utils.mapi1 (\(i, _) -> nonCollidingName (funcSuggestedName ++ toString i) 2 namesToAvoid) in
+        let eidToVarE__ = Utils.zip eidsToReplace (varNames |> List.map (\name -> EVar " " name)) |> Dict.fromList in
+        let usagesReplaced = applyESubstPreservingPrecedingWhitespace eidToVarE__ commonScope in
+        let wrapped =
+          let letKind = if isTopLevel commonScope originalExp then Def else Let in
+          withDummyPos <| ELet ("\n" ++ oldIndentation) letKind False (pListOfPVars varNames) mapCall usagesReplaced ""
+        in
+        let newProgram = replaceExpNode commonScope.val.eid wrapped originalExp in
+        let clonesName =
+          if Utils.commonPrefixString varNames /= "" then
+            toString (List.length cloneEIdsAndExpsAndParameterExpLists) ++ " " ++ Utils.commonPrefixString varNames ++ "s"
+          else
+            eidsToReplace |> List.map (expNameForEId originalExp) |> Utils.toSentence
+        in
+        { description = "Merge " ++ clonesName ++ " by mapping over " ++ String.join " " argNames
+        , exp         = newProgram
+        , sortKey     = []
+        }
+      )
 
 
 --------------------------------------------------------------------------------
@@ -141,14 +683,14 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs
     in
     let listGroup =
       let pluckedBlobs_ =
-        List.map (LangUnparser.replacePrecedingWhitespace " " << fromBlobExp)
+        List.map ( replacePrecedingWhitespace " " << fromBlobExp)
                  pluckedBlobs
       in
       finalExpOfNewGroup pluckedBlobs_
     in
     let pluckedDefs_ =
       let tab = "  " in
-      List.map (\(ws1,p,e,ws2) -> (ws1 ++ tab, p, LangUnparser.indent tab e, ws2))
+      List.map (\(ws1,p,e,ws2) -> (ws1 ++ tab, p,  indent tab e, ws2))
                pluckedDefs
     in
     let newGroupExp =
@@ -180,7 +722,7 @@ unsafePluckFromList pred xs =
   let (plucked, before, after) = pluckFromList pred (List.reverse xs) in
   (List.reverse plucked, List.reverse after, List.reverse before)
 
-scaleXY start end startVal widthOrHeight ws (n,t) eSubst =
+scaleXY program start end startVal widthOrHeight ws (n,t) eSubst =
   case t of
     TrLoc (locid,_,_) ->
       let pct = (n - Tuple.first startVal) / widthOrHeight in
@@ -189,7 +731,9 @@ scaleXY start end startVal widthOrHeight ws (n,t) eSubst =
         else if pct == 1 then ws ++ end
         else
           ws ++ Utils.parens (Utils.spaces ["scaleBetween", start, end, toString pct]) in
-      Dict.insert locid (eRaw__ "" app) eSubst
+      case locIdToEId program locid of
+        Just eid -> Dict.insert eid (eRaw__ "" app) eSubst
+        Nothing  -> eSubst
     _ ->
       eSubst
 
@@ -197,7 +741,7 @@ scaleXY start end startVal widthOrHeight ws (n,t) eSubst =
 -- boundaries to improve readability of generated code
 -- (falls back in on little prelude encoding)
 
-offsetXY base1 base2 baseVal1 baseVal2 ws (n,t) eSubst =
+offsetXY program base1 base2 baseVal1 baseVal2 ws (n,t) eSubst =
   case t of
     TrLoc (locid,_,_) ->
       let (off1, off2) = (n - Tuple.first baseVal1, n - Tuple.first baseVal2) in
@@ -207,7 +751,9 @@ offsetXY base1 base2 baseVal1 baseVal2 ws (n,t) eSubst =
         ws ++ Utils.parens (Utils.spaces
                 [ "evalOffset"
                 , Utils.bracks (Utils.spaces [base, toString off])]) in
-      Dict.insert locid (eRaw__ "" app) eSubst
+      case locIdToEId program locid of
+        Just eid -> Dict.insert eid (eRaw__ "" app) eSubst
+        Nothing  -> eSubst
     _ ->
       eSubst
 
@@ -269,11 +815,11 @@ computeSelectedBlobsAndBounds model =
          -- refactor the following cases for readability
 
          Just (LangSvg.SvgNode "BOX" nodeAttrs _) ->
-           let get attr = LangSvg.findNumishAttr nodeId attr nodeAttrs in
+           let get attr = LangSvg.findNumishAttr attr nodeAttrs in
            (get "LEFT", get "TOP", get "RIGHT", get "BOT")
 
          Just (LangSvg.SvgNode "OVAL" nodeAttrs _) ->
-           let get attr = LangSvg.findNumishAttr nodeId attr nodeAttrs in
+           let get attr = LangSvg.findNumishAttr attr nodeAttrs in
            (get "LEFT", get "TOP", get "RIGHT", get "BOT")
 
          Just (LangSvg.SvgNode "g" nodeAttrs _) ->
@@ -282,24 +828,24 @@ computeSelectedBlobsAndBounds model =
              Nothing     -> Debug.crash "computeSelectedBlobsAndBounds"
 
          Just (LangSvg.SvgNode "line" nodeAttrs _) ->
-           let get attr = LangSvg.findNumishAttr nodeId attr nodeAttrs in
+           let get attr = LangSvg.findNumishAttr attr nodeAttrs in
            let (x1,y1,x2,y2) = (get "x1", get "y1", get "x2", get "y2") in
            (minNumTr x1 x2, minNumTr y1 y2, maxNumTr x1 x2, maxNumTr y1 y2)
 
          -- "ellipse" and "circle" aren't handled nicely by grouping
 
          Just (LangSvg.SvgNode "ellipse" nodeAttrs _) ->
-           let get attr = LangSvg.findNumishAttr nodeId attr nodeAttrs in
+           let get attr = LangSvg.findNumishAttr attr nodeAttrs in
            let (cx,cy,rx,ry) = (get "cx", get "cy", get "rx", get "ry") in
            (minusNumTr cx rx, minusNumTr cy ry, plusNumTr cx rx, plusNumTr cy ry)
 
          Just (LangSvg.SvgNode "circle" nodeAttrs _) ->
-           let get attr = LangSvg.findNumishAttr nodeId attr nodeAttrs in
+           let get attr = LangSvg.findNumishAttr attr nodeAttrs in
            let (cx,cy,r) = (get "cx", get "cy", get "r") in
            (minusNumTr cx r, minusNumTr cy r, plusNumTr cx r, plusNumTr cy r)
 
          Just (LangSvg.SvgNode "rect" nodeAttrs _) ->
-           let get attr = LangSvg.findNumishAttr nodeId attr nodeAttrs in
+           let get attr = LangSvg.findNumishAttr attr nodeAttrs in
            let (x,y,width,height) = (get "x", get "y", get "width", get "height") in
            (x, y, plusNumTr x width, plusNumTr y height)
 
@@ -336,10 +882,10 @@ rewriteBoundingBoxesOfSelectedBlobs model selectedBlobsAndBounds =
         List.foldl foo init is
   in
   let (width, height) = (Tuple.first right - Tuple.first left, Tuple.first bot - Tuple.first top) in
-  let scaleX  = scaleXY  "left" "right" left width in
-  let scaleY  = scaleXY  "top"  "bot"   top  height in
-  let offsetX = offsetXY "left" "right" left right in
-  let offsetY = offsetXY "top"  "bot"   top  bot in
+  let scaleX  = scaleXY  model.inputExp "left" "right" left width in
+  let scaleY  = scaleXY  model.inputExp "top"  "bot"   top  height in
+  let offsetX = offsetXY model.inputExp "left" "right" left right in
+  let offsetY = offsetXY model.inputExp "top"  "bot"   top  bot in
   let eSubst =
     -- the spaces inserted by calls to offset*/scale* work best
     -- when the source expressions being rewritten are of the form
@@ -387,7 +933,7 @@ groupSelectedBlobsAround model (defs, blobs, f) (anchorId, anchorPointFeature) =
 
   -- TODO
   -- simple approach: anchor must be a primitive point
-  case ShapeWidgets.getPointEquations anchorId anchorKind anchorAttrs anchorPointFeature of
+  case ShapeWidgets.getPointEquations anchorKind anchorAttrs anchorPointFeature of
     (ShapeWidgets.EqnNum (nxBase, txBase), ShapeWidgets.EqnNum (nyBase, tyBase)) ->
 
       -- simple approach: anchor point must be defined by constant literals
@@ -476,7 +1022,7 @@ eBaseOffset baseVar offsetNum =
     EVar " " baseVar
   else
     ePlus (eVar baseVar) (eConst offsetNum (dummyLoc_ unann))
-      |> LangUnparser.replacePrecedingWhitespace " "
+      |>  replacePrecedingWhitespace " "
       |> .val |> .e__
 
 
@@ -485,13 +1031,13 @@ eAsPoint e =
   if not insertPointAnnotations then e
   else
 
-  let e_ = LangUnparser.replacePrecedingWhitespace "" e in
+  let e_ =  replacePrecedingWhitespace "" e in
   withDummyPos <|
     EColonType " " e_ " " (withDummyRange <| TNamed " " "Point") ""
 
 
 pAsTight x p =
-  let p_ = LangUnparser.replacePrecedingWhitespacePat "" p in
+  let p_ =  replacePrecedingWhitespacePat "" p in
   withDummyRange <| PAs " " x "" p_
 
 
@@ -717,7 +1263,7 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
     [(i, _, WithAnchorBlob (anchor, g, args))] ->
 
       let eGroupFunc = withDummyPos <| EApp "\n    " (eVar0 g) args "" in
-      let eAnchor = LangUnparser.replacePrecedingWhitespace "\n    " anchor in
+      let eAnchor =  replacePrecedingWhitespace "\n    " anchor in
       let (arrayFunction, arrayArgs) =
         case replicateKind of
 
@@ -728,14 +1274,14 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
 
           LinearRepeat ->
             let eNum   = withDummyPos <| EConst " " 3 (dummyLoc_ frozen) (intSlider 1 20) in
-            let eStart = LangUnparser.replacePrecedingWhitespace "\n    " anchor in
+            let eStart =  replacePrecedingWhitespace "\n    " anchor in
             let eEnd =
               case stripPointExp anchor of
                 Nothing -> eAnchor
                 Just (nx,ny) ->
                   let ex_ = eConst0 (nx + 100) dummyLoc in
                   let ey_ = eConst (ny + 50) dummyLoc in
-                  LangUnparser.replacePrecedingWhitespace "\n    " <|
+                   replacePrecedingWhitespace "\n    " <|
                     eAsPoint (eList [ex_, ey_] Nothing)
             in
             ("linearArrayFromTo", [eNum, eGroupFunc, eStart, eEnd])
@@ -751,7 +1297,7 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
                 Just (nx,ny) ->
                   let ex_ = eConst0 nx dummyLoc in
                   let ey_ = eConst (ny + nRadius) dummyLoc in
-                  LangUnparser.replacePrecedingWhitespace "\n    " <|
+                   replacePrecedingWhitespace "\n    " <|
                     eAsPoint (eList [ex_, ey_] Nothing)
             in
             ("radialArray", [ eNum, eRadius, eRot, eGroupFunc, eCenter ])
@@ -768,7 +1314,7 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
     [(i, _, WithBoundsBlob (bounds, g, args))] ->
 
       let eGroupFunc = withDummyPos <| EApp "\n    " (eVar0 g) args "" in
-      let eBounds = LangUnparser.replacePrecedingWhitespace "\n    " bounds in
+      let eBounds =  replacePrecedingWhitespace "\n    " bounds in
       let (arrayFunction, arrayArgs) =
         case replicateKind of
 
@@ -789,7 +1335,7 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
                   let eTop = eConst nTop dummyLoc in
                   let eRight = eConst (nLeft + nNum*(nRight-nLeft) + (nNum-1)*nSep) dummyLoc in
                   let eBot = eConst nBot dummyLoc in
-                  LangUnparser.replacePrecedingWhitespace "\n    " <|
+                   replacePrecedingWhitespace "\n    " <|
                     eList [eLeft, eTop, eRight, eBot] Nothing
             in
             ("repeatInsideBounds", [eNum, eSep, eGroupFunc, eGroupBounds])
@@ -840,7 +1386,7 @@ deleteSelectedBlobs model =
   case mainExp of
     Blobs blobs f ->
       let blobs_ =
-        Utils.filteri
+        Utils.filteri1
            (\(i,_) -> not (Dict.member i model.selectedBlobs))
            blobs
       in
@@ -1013,7 +1559,7 @@ mergeExpressions eFirst eRest =
       matchAllAndBind match eRest <| \restAnnotatedNums ->
         let (locid,ann,x) = loc in
         let allAnnotatedNums = (n,ann,wd) :: restAnnotatedNums in
-        case Utils.dedup_ annotatedNumToComparable allAnnotatedNums of
+        case Utils.dedupBy annotatedNumToComparable allAnnotatedNums of
           [_] -> return eFirst.val.e__ []
           _   ->
             let var = if x == "" then "k" ++ toString locid else x in
@@ -1218,6 +1764,7 @@ mergeMaybeExpressions me mes =
       Utils.bindMaybe
         (Utils.mapMaybe (Utils.mapFst Just) << mergeExpressions e)
         (Utils.projJusts mes)
+
 
 mergePatterns : Pat -> List Pat -> Maybe ()
 mergePatterns pFirst pRest =

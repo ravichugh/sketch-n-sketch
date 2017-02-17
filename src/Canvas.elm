@@ -1,4 +1,4 @@
-module Canvas exposing (build)
+module Canvas exposing (build, buildSvg, iconify)
 
 -- Sketch-n-Sketch Libraries ---------------------------------------------------
 
@@ -14,10 +14,12 @@ import ShapeWidgets exposing
   , ShapeFeature, Feature(..), PointFeature(..), DistanceFeature(..)
   , FeatureNum(..)
   )
-import Layout
+import Layout exposing (clickToCanvasPoint)
+import Sync
 import Draw
 import InterfaceModel exposing (..)
-import InterfaceController as Controller
+import LangParser2 as Parser
+import Eval
 
 -- Elm Libraries ---------------------------------------------------------------
 
@@ -29,6 +31,7 @@ import Color
 import VirtualDom
 import Json.Decode
 import Svg exposing (Svg)
+import Svg.Attributes as SAttr
 import Svg.Events exposing (onMouseDown, onMouseUp, onMouseOver, onMouseOut)
 import Html exposing (Html)
 import Html.Attributes as Attr
@@ -52,6 +55,32 @@ svgPath      = flip Svg.path []
 
 --------------------------------------------------------------------------------
 
+msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
+  case old.mode of
+    Live info ->
+      let (mx, my) = clickToCanvasPoint old (Tuple.second old.mouseState) in
+      let trigger = Sync.prepareLiveTrigger info old.inputExp zoneKey in
+      let dragInfo = (trigger, (mx, my), False) in
+      { old | mouseMode = MouseDragZone zoneKey (Just dragInfo) }
+    _ ->
+      old
+
+msgMouseClickCanvas = Msg "MouseClickCanvas" <| \old ->
+  case (old.tool, old.mouseMode) of
+    (Cursor, MouseDragZone (Left _) _) -> old
+    (Cursor, _) ->
+      { old | selectedShapes = Set.empty, selectedBlobs = Dict.empty }
+
+    (_ , MouseNothing) ->
+      { old | mouseMode = MouseDrawNew []
+            , selectedShapes = Set.empty, selectedBlobs = Dict.empty }
+
+    _ -> old
+
+
+--------------------------------------------------------------------------------
+
+
 build wCanvas hCanvas model =
   let addZones = case (model.mode, model.preview) of
     (Live _, Nothing) -> model.tool == Cursor
@@ -71,7 +100,7 @@ build wCanvas hCanvas model =
   in
   Svg.svg
      [ Attr.id "outputCanvas"
-     , onMouseDown Controller.msgMouseClickCanvas
+     , onMouseDown msgMouseClickCanvas
      , Attr.style
          [ ("width", pixels wCanvas)
          , ("height", pixels hCanvas)
@@ -124,11 +153,33 @@ buildSvg_ stuff d i =
         then mainshape
         else Svg.svg [] (mainshape :: zones)
 
+-- for basic icons, env will be Eval.initEnv.
+-- for LambdaTool icons, env will be from result of running main program.
+--
+iconify env code =
+  let
+    exp =
+      Utils.fromOkay "Error parsing icon"
+        <| Parser.parseE code
+    ((val, _), _) =
+      Utils.fromOkay "Error evaluating icon"
+        <| Eval.eval env [] exp
+    tree =
+      Utils.fromOkay "Error resolving index tree of icon"
+        <| LangSvg.resolveToIndexedTree 1 1 0 val
+    svgElements =
+      buildSvg ({ initModel | showGhosts = False }, False) tree
+  in
+    Svg.svg
+      [ SAttr.width "30px"
+      , SAttr.height "30px"
+      ]
+      [ svgElements ]
 
 --------------------------------------------------------------------------------
 
 dragZoneEvents zoneKey =
-  [ onMouseDown (Controller.msgClickZone zoneKey)
+  [ onMouseDown (msgClickZone zoneKey)
   , onMouseOver (turnOnCaptionAndHighlights zoneKey)
   , onMouseOut turnOffCaptionAndHighlights
   ]
@@ -254,7 +305,7 @@ buildSvgWidgets wCanvas hCanvas widgets selectedTool selectedFeatures =
         drawPointWidget i_ widget xVal yVal
   in
 
-  List.concat <| Utils.mapi draw widgets
+  List.concat <| Utils.mapi1 draw widgets
 
 -- abstract the following with toggleSelected and toggleSelectedBlob
 toggleSelectedWidget locId =
@@ -465,13 +516,13 @@ zonePoint model id shape zone transform attrs =
         attrs
 
 zonePoints model id shape transform pts =
-  List.concat <| flip Utils.mapi pts <| \(i, (x,y)) ->
+  List.concat <| flip Utils.mapi1 pts <| \(i, (x,y)) ->
     zonePoint model id shape ("Point" ++ toString i) transform
       [ attrNumTr "cx" x, attrNumTr "cy" y ]
 
 -- TODO rename this once original zonePoints is removed
 zonePoints2 model id shape transform pts =
-  List.concat <| flip Utils.mapi pts <| \(i, (x,y)) ->
+  List.concat <| flip Utils.mapi1 pts <| \(i, (x,y)) ->
     zonePoint model id shape ("Point" ++ toString i) transform
       [ attrNum "cx" x, attrNum "cy" y ]
 
@@ -1072,7 +1123,7 @@ makeZones model shape id l =
 
 makeZonesLine model id l =
   let transform = maybeTransformAttr l in
-  let (x1,y1,x2,y2,cx,cy) = ShapeWidgets.evaluateLineFeatures id l in
+  let (x1,y1,x2,y2,cx,cy) = ShapeWidgets.evaluateLineFeatures l in
   let (pt1,pt2) = ((x1,y1), (x2,y2)) in
   let bounds =
     let (xMin,xMax) = minMax x1 x2 in
@@ -1103,7 +1154,7 @@ makeZonesLine model id l =
   primaryWidgets :: extraWidgets
 
 makeZonesRectOrBox model id shape l =
-  let boxyNums = ShapeWidgets.evaluateBoxyNums id shape l in
+  let boxyNums = ShapeWidgets.evaluateBoxyNums shape l in
   let {left, top, right, bot, cx, cy, width, height} = boxyNums in
   let bounds = (left, top, right, bot) in
   let transform = maybeTransformAttr l in
@@ -1129,7 +1180,7 @@ makeZonesRectOrBox model id shape l =
   primaryWidgets :: extraWidgets
 
 makeZonesCircle model id l =
-  let boxyNums = ShapeWidgets.evaluateBoxyNums id "circle" l in
+  let boxyNums = ShapeWidgets.evaluateBoxyNums "circle" l in
   let {left, top, right, bot, cx, cy, r} = boxyNums in
   let bounds = (left, top, right, bot) in
   let transform = maybeTransformAttr l in
@@ -1153,7 +1204,7 @@ makeZonesCircle model id l =
   primaryWidgets :: extraWidgets
 
 makeZonesEllipseOrOval model id shape l =
-  let boxyNums = ShapeWidgets.evaluateBoxyNums id shape l in
+  let boxyNums = ShapeWidgets.evaluateBoxyNums shape l in
   let {left, top, right, bot, width, height, cx, cy, rx, ry} = boxyNums in
   let bounds = (left, top, right, bot) in
   let transform = maybeTransformAttr l in
@@ -1184,7 +1235,7 @@ makeZonesPoly model shape id l =
   let zLines =
     let pairs = Utils.adjacentPairs (shape == "polygon") pts in
     let f (i,(pti,ptj)) = zoneLine model id shape ("Edge" ++ toString i) pti ptj transform in
-    Utils.mapi f pairs in
+    Utils.mapi1 f pairs in
   let zInterior =
     draggableZone Svg.polygon False model id shape "Interior" <|
       [ LangSvg.compileAttr "points" (LangSvg.aPoints pts)
@@ -1220,11 +1271,11 @@ makeZonesPoly model shape id l =
       zoneSelectCrossDot model (id, shape, Point i) xi yi
     in
     let midptCrossDots =
-      let ptsI = Utils.mapi identity pts in
+      let ptsI = Utils.mapi1 identity pts in
       let ptsIPairs = Utils.selfZipCircConsecPairs ptsI in
       List.concatMap midptCrossDot ptsIPairs
     in
-    let crossDots = List.concat <| Utils.mapi ptCrossDot pts in
+    let crossDots = List.concat <| Utils.mapi1 ptCrossDot pts in
     midptCrossDots ++ crossDots
   in
   let primaryWidgets =

@@ -17,7 +17,6 @@ import Blobs exposing (..)
 import LangUnparser exposing (unparse)
 import InterfaceModel exposing (..)
 import LangTools
-import ValueBasedTransform
 import Utils
 import Either exposing (..)
 import Keys
@@ -69,7 +68,7 @@ drawNewShape model =
     (Path _,     MouseDrawNew (ptLast::pts)) -> drawNewPath ptLast pts
     (HelperDot,  MouseDrawNew [pt])          -> drawNewHelperDot pt
     (HelperLine, MouseDrawNew [pt2, pt1])    -> drawNewLine model pt2 pt1
-    (Lambda,     MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
+    (Lambda _,   MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
     (Text,       MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
     _                                        -> []
 
@@ -580,7 +579,7 @@ addStickyPath old keysAndPoints =
 
 -- copied from ExpressionBasedTransform
 eAsPoint e =
-  let e_ = LangUnparser.replacePrecedingWhitespace "" e in
+  let e_ = replacePrecedingWhitespace "" e in
   withDummyPos <|
     EColonType " " e_ " " (withDummyRange <| TNamed " " "Point") ""
 
@@ -591,8 +590,8 @@ addLambda old (_,pt2) (_,pt1) =
     Utils.geti selectedIdx exps
   in
 -}
-addLambda old pt2 pt1 =
-  let (selectedIdx, exps) = old.lambdaTools in
+addLambda selectedIdx old pt2 pt1 =
+  let exps = old.lambdaTools in
   case Utils.geti selectedIdx exps of
     LambdaBounds func -> addLambdaBounds old pt2 pt1 func
     LambdaAnchor func -> addLambdaAnchor old pt2 pt1 func
@@ -662,7 +661,7 @@ addTextBox old click2 click1 =
 
 add newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
   let shapeVarName =
-    ValueBasedTransform.nonCollidingName newShapeKind 1 (LangTools.identifiersVisibleAtProgramEnd old.inputExp)
+    LangTools.nonCollidingName newShapeKind 1 (LangTools.identifiersVisibleAtProgramEnd old.inputExp)
   in
   let newDef = makeNewShapeDef old newShapeKind shapeVarName newShapeLocals newShapeFunc newShapeArgs in
   let (defs, mainExp) = splitExp old.inputExp in
@@ -683,7 +682,7 @@ makeNewShapeDef model newShapeKind name locals func args =
       [] ->
         let multi = -- check if (func args) returns List SVG or SVG
           case model.tool of
-            Lambda -> True
+            Lambda _ -> True
             Text -> True
             _ -> False
         in

@@ -101,7 +101,7 @@ foldPatternsWithIds f (scopeId, path) pats init =
         PList _ ps _ (Just p) _ -> doMany f patId (ps ++ [p]) acc
 
     doMany f (scopeId, path) pats acc =
-      Utils.foldli (\(i, pi) -> doOne f (scopeId, path ++ [i]) pi) acc pats
+      Utils.foldli1 (\(i, pi) -> doOne f (scopeId, path ++ [i]) pi) acc pats
   in
   case pats of
     [pat] -> doOne  f (scopeId, path) pat init     -- ELet case
@@ -382,7 +382,7 @@ traverseAndAddDependencies_ patId env pat exp acc =
 
       if List.length ps == List.length es then
         let (scopeId, basePath) = patId in
-        Utils.foldli (\(i,(pi,ei)) acc ->
+        Utils.foldli1 (\(i,(pi,ei)) acc ->
           let patId = (scopeId, basePath ++ [i]) in
           traverseAndAddDependencies_ patId env pi ei acc
         ) acc (Utils.zip ps es)

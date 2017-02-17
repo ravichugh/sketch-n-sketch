@@ -534,8 +534,8 @@ aPath2        = aVal << APath2
 -- Misc Attribute Helpers
 
 
-findNumishAttr : NodeId -> String -> List Attr -> NumTr
-findNumishAttr id attr attrs = toNumIsh <| findAVal attr attrs
+findNumishAttr : String -> List Attr -> NumTr
+findNumishAttr attr attrs = toNumIsh <| findAVal attr attrs
 
 
 findAVal : String -> List Attr -> AVal
