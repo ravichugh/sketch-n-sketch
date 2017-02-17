@@ -6,6 +6,8 @@ import Set exposing (Set)
 import Dict exposing (Dict)
 import Regex
 
+infinity = 1/0
+
 maybeFind : a -> List (a,b) -> Maybe b
 maybeFind k l = case l of
   []            -> Nothing
@@ -51,14 +53,19 @@ maybeZipDicts d1 d2 =
   else
     d1 |> Dict.map (\k v1 -> (v1, justGet k d2)) |> Just
 
+-- Extra elements left off if the lists are different lengths.
+-- Resulting list length is minimum of (length xs, length ys, length zs)
+zip3 : List a -> List b -> List c -> List (a,b,c)
+zip3 xs ys zs = case (xs, ys, zs) of
+  (x::xs_, y::ys_, z::zs_) -> (x,y,z) :: zip3 xs_ ys_ zs_
+  _                        -> []
+
 unzip3 : List (a, b, c) -> (List a, List b, List c)
 unzip3 zipped =
   List.foldr
       (\(x, y, z) (xs, ys, zs) -> (x::xs, y::ys, z::zs))
       ([], [], [])
       zipped
-
-
 
 listsEqualBy elementEqualityFunc xs ys =
   case (xs, ys) of
@@ -74,6 +81,7 @@ oneElement xs = case xs of
   [_] -> True
   _   -> False
 
+-- Tranpose, essentially.
 maybeZipN : List (List a) -> Maybe (List (List a))
 maybeZipN lists =
   if List.all zeroElements lists then
@@ -84,28 +92,39 @@ maybeZipN lists =
     let maybeHeads = projJusts (List.map List.head lists) in
     let maybeTails = projJusts (List.map List.tail lists) in
     case (maybeHeads, maybeTails) of
-      (Just heads, Just tails) -> mapMaybe ((::) heads) (maybeZipN tails)
+      (Just heads, Just tails) -> Maybe.map ((::) heads) (maybeZipN tails)
       _                        -> Nothing
 
-mapi : ((Int, a) -> b) -> List a -> List b
-mapi f xs =
-  let n = List.length xs in
-  List.map f (zip (List.range 1 n) xs)
 
 concatMapi f xs =
   let n = List.length xs in
   List.concatMap f (zip (List.range 1 n) xs)
 
-foldli : ((Int, a) -> b -> b) -> b -> List a -> b
-foldli f init xs =
-  let n = List.length xs in
-  List.foldl f init (zip (List.range 1 n) xs)
+mapi0 : ((Int, a) -> b) -> List a -> List b
+mapi0 = mapi_ 0
 
-foldri f init xs = List.reverse (foldli f init xs)
+mapi1 : ((Int, a) -> b) -> List a -> List b
+mapi1 = mapi_ 1
+
+mapi_ : Int -> ((Int, a) -> b) -> List a -> List b
+mapi_ initI f xs =
+  let n = List.length xs in
+  List.map f (zip (List.range initI n) xs)
+
+foldli0 : ((Int, a) -> b -> b) -> b -> List a -> b
+foldli0 = foldli_ 0
+
+foldli1 : ((Int, a) -> b -> b) -> b -> List a -> b
+foldli1 = foldli_ 1
+
+foldli_ : Int ->((Int, a) -> b -> b) -> b -> List a -> b
+foldli_ initI f init xs =
+  let n = List.length xs in
+  List.foldl f init (zip (List.range initI n) xs)
 
 -- three passes, oh well
-filteri : ((Int, a) -> Bool) -> List a -> List a
-filteri f xs =
+filteri1 : ((Int, a) -> Bool) -> List a -> List a
+filteri1 f xs =
   let n = List.length xs in
   List.map Tuple.second (List.filter f (zip (List.range 1 n) xs))
 
@@ -125,18 +144,24 @@ selfZipCircConsecPairs list =
 -- Preserves original list order
 -- Dedups based on toString representation
 dedup : List a -> List a
-dedup xs = dedup_ (toString) xs
+dedup xs = dedupBy toString xs
 
 -- Preserves original list order
--- Dedups based on a provided function
-dedup_ : (a -> comparable) -> List a -> List a
-dedup_ f xs =
+-- Dedups based on a provided function (first seen element for each key is preserved)
+dedupBy : (a -> comparable) -> List a -> List a
+dedupBy f xs =
   let (deduped, _) =
     List.foldl (\x (dd, seen) ->
-        if Set.member (f x) seen then (dd, seen) else (List.append dd [x], Set.insert (f x) seen)
+        let key = f x in
+        if Set.member key seen then (dd, seen) else (dd ++ [x], Set.insert key seen)
       ) ([], Set.empty) xs
   in
-    deduped
+  deduped
+
+-- O(n^2).
+dedupByEquality : List a -> List a
+dedupByEquality xs =
+  List.foldr addAsSet [] xs
 
 listDiffSet : List comparable -> Set.Set comparable -> List comparable
 listDiffSet list setToRemove =
@@ -145,6 +170,12 @@ listDiffSet list setToRemove =
 listDiff : List comparable -> List comparable -> List comparable
 listDiff l1 l2 =
   listDiffSet l1 (Set.fromList l2)
+
+addAsSet : a -> List a -> List a
+addAsSet x xs =
+  if List.member x xs
+  then xs
+  else x::xs
 
 groupBy : (a -> comparable) -> List a -> Dict.Dict comparable (List a)
 groupBy f xs =
@@ -196,6 +227,38 @@ snocMaybe xs mx = Maybe.withDefault xs (mapMaybe (snoc xs) mx)
 split : Int -> List a -> (List a, List a)
 split n xs = (List.take n xs, List.drop n xs)
 
+-- Like String.split, but for lists.
+--
+-- Follows Ruby semantics for splitting, just because they never did me wrong.
+--
+-- splitBy [s] [s]       => []
+-- splitBy [s] [s, b]    => [[], [b]]
+-- splitBy [s] [a, s]    => [[a]]
+-- splitBy [s] [a, s, s] => [[a]]
+-- splitBy [s] [a, s, b] => [[a], [b]]
+--
+-- CORRECTION: RUBY HAS DONE ME WRONG.
+--
+-- This follows Python and does not ignore trailing separators:
+--
+-- splitBy [s] [s]       => [[], []]
+-- splitBy [s] [s, b]    => [[], [b]]
+-- splitBy [s] [a, s]    => [[a], []]
+-- splitBy [s] [a, s, s] => [[a], [], []]
+-- splitBy [s] [a, s, b] => [[a], [b]]
+splitBy : List a -> List a -> List (List a)
+splitBy splitElems list =
+  case findSublistIndex splitElems list of
+    Just i  -> (List.take i list) :: splitBy splitElems (List.drop (i + List.length splitElems) list)
+    Nothing -> [list]
+
+dropLeft : Int -> List a -> List a
+dropLeft n list =
+  list
+  |> List.reverse
+  |> List.drop n
+  |> List.reverse
+
 splitString : Int -> String -> (String, String)
 splitString n s = (String.left n s, String.dropLeft n s)
 
@@ -215,6 +278,14 @@ squish : String -> String
 squish str =
   String.trim <|
     Regex.replace Regex.All (Regex.regex "\\s+") (\_ -> " ") str
+
+-- e.g. niceTruncateString 10 "..." "Really long text here" => "Really..."
+niceTruncateString : Int -> String -> String -> String
+niceTruncateString n toBeContinuedStr str =
+  if String.length str > n then
+    String.trimRight (String.left (n - String.length toBeContinuedStr) str) ++ toBeContinuedStr
+  else
+    str
 
 cartProd : List a -> List b -> List (a, b)
 cartProd xs ys =
@@ -242,8 +313,8 @@ intersectMany list = case list of
 
 manySetDiffs : List (Set.Set comparable) -> List (Set.Set comparable)
 manySetDiffs sets =
-  mapi (\(i,locs_i) ->
-    foldli (\(j,locs_j) acc ->
+  mapi1 (\(i,locs_i) ->
+    foldli1 (\(j,locs_j) acc ->
       if i == j
         then acc
         else Set.diff acc locs_j
@@ -268,6 +339,35 @@ findFirst p xs = case xs of
   x::xs_ -> if p x
               then Just x
               else findFirst p xs_
+
+findLast : (a -> Bool) -> List a -> Maybe a
+findLast p xs = findFirst p (List.reverse xs)
+
+-- Search for a sublist in a list
+findSublistIndex : List a -> List a -> Maybe Int
+findSublistIndex targetList list =
+  findSublistIndex_ 0 targetList list
+
+findSublistIndex_ : Int -> List a -> List a -> Maybe Int
+findSublistIndex_ i targetList list =
+  if List.take (List.length targetList) list == targetList then
+    Just i
+  else
+    case list of
+      []    -> Nothing
+      x::xs -> findSublistIndex_ (i+1) targetList xs
+
+maybeFindAndRemoveFirst : (a -> Bool) -> List a -> Maybe (a, List a)
+maybeFindAndRemoveFirst p xs =
+  case xs of
+    []     -> Nothing
+    x::xs_ ->
+      if p x then
+        Just (x, xs_)
+      else
+        maybeFindAndRemoveFirst p xs_
+        |> Maybe.map (\(removed, others) -> (removed, x::others))
+
 
 removeFirst : a -> List a -> List a
 removeFirst x ys = case ys of
@@ -362,6 +462,14 @@ spaces = String.join " "
 commas = String.join ", "
 lines  = String.join "\n"
 
+-- After ActiveSupport's to_sentence method
+toSentence strings =
+  case (dropLeft 1 strings, maybeLast strings) of
+    (  _, Nothing) -> ""
+    ( [], Just z)  -> z
+    ([y], Just z)  -> y ++ " and " ++ z
+    ( ys, Just z)  -> String.join ", " ys ++ ", and " ++ z
+
 sum = List.foldl (+) 0
 
 avg : List Float -> Float
@@ -371,6 +479,10 @@ lift_2_2 f (a,b) (c,d) = (f a c, f b d)
 
 assert s b = if b then () else Debug.crash ("assert error: " ++ s)
 
+maybeToBool m = case m of
+  Just _  -> True
+  Nothing -> False
+
 fromJust m = case m of
   Just x -> x
   Nothing -> Debug.crash <| "Utils.fromJust: Nothing"
@@ -378,6 +490,11 @@ fromJust m = case m of
 fromJust_ s mx = case mx of
   Just x  -> x
   Nothing -> Debug.crash <| "Utils.fromJust_: " ++ s
+
+-- Construct error lazily by calling f ()
+fromJust__ f mx = case mx of
+  Just x  -> x
+  Nothing -> Debug.crash <| f ()
 
 fromOkay : String -> Result err a -> a
 fromOkay s mx = case mx of
@@ -393,9 +510,13 @@ fromOk s mx = case mx of
 
 fromOk_ = fromOk ""
 
-justGet k d = fromJust_ "Utils.justGet" <| Dict.get k d
+-- Don't construct error string on every dictionary lookup. (Serializing dictionary may be expensive)
+justGetError s k d () =
+  "Utils.justGet " ++ s ++ ": key " ++ toString k ++ " not found in dictionary " ++ toString d
 
-justGet_ s k d = fromJust_ ("Utils.justGet " ++ s) <| Dict.get k d
+justGet k d = fromJust__ (justGetError "" k d) <| Dict.get k d
+
+justGet_ s k d = fromJust__ (justGetError s k d) <| Dict.get k d
 
 getWithDefault key default dict =
   case Dict.get key dict of
@@ -437,8 +558,10 @@ dictUnionSet
 dictUnionSet k more dict =
   Dict.insert k (Set.union more (dictGetSet k dict)) dict
 
+maybeLast = List.reverse >> List.head
+
 head msg = fromJust_ msg << List.head
-last msg = fromJust_ msg << List.head << List.reverse
+last msg = fromJust_ msg << maybeLast
 head_ = head "Utils.head_"
 tail_ = fromJust_ "Utils.tail_" << List.tail
 last_ = last "Utils.last_"
@@ -447,10 +570,29 @@ uncons xs = case xs of
   x::xs -> (x, xs)
   []    -> Debug.crash "uncons"
 
-mapMaybe : (a -> b) -> Maybe a -> Maybe b
-mapMaybe f mx = case mx of
-  Just x  -> Just (f x)
-  Nothing -> Nothing
+maybeUncons list = case list of
+  []    -> Nothing
+  x::xs -> Just (x, xs)
+
+takeLast n list =
+  list
+  |> List.reverse
+  |> List.take n
+  |> List.reverse
+
+takeWhile pred list =
+  case list of
+    []    -> []
+    x::xs -> if pred x
+             then x::(takeWhile pred xs)
+             else []
+
+-- Use Maybe.map
+mapMaybe = Maybe.map
+-- mapMaybe : (a -> b) -> Maybe a -> Maybe b
+-- mapMaybe f mx = case mx of
+--   Just x  -> Just (f x)
+--   Nothing -> Nothing
 
 bindMaybe : (a -> Maybe b) -> Maybe a -> Maybe b
 bindMaybe f mx = case mx of
@@ -470,6 +612,7 @@ elseMaybe mx default = case mx of
   Just x  -> x
   Nothing -> default
 
+-- Return Just [...] only if given list is all Justs
 projJusts : List (Maybe a) -> Maybe (List a)
 projJusts =
   List.foldr (\mx acc ->
@@ -541,14 +684,31 @@ parseFloat = fromOk_ << String.toFloat
 commonPrefix : List (List a) -> List a
 commonPrefix lists =
   case lists of
-    first::rest -> List.foldl commonPrefix2 first rest
+    first::rest -> List.foldl commonPrefixPair first rest
     []          -> []
 
-commonPrefix2 : List a -> List a -> List a
-commonPrefix2 l1 l2 =
+commonPrefixPair : List a -> List a -> List a
+commonPrefixPair l1 l2 =
   case (l1, l2) of
-    (x::xs, y::ys) -> if x == y then x::(commonPrefix2 xs ys) else []
+    (x::xs, y::ys) -> if x == y then x::(commonPrefixPair xs ys) else []
     _              -> []
+
+commonPrefixString : List String -> String
+commonPrefixString strings =
+  strings |> List.map String.toList |> commonPrefix |> String.fromList
+
+commonSuffixString : List String -> String
+commonSuffixString strings =
+  strings |> List.map String.reverse |> commonPrefixString |> String.reverse
+
+removeCommonPrefix : List (List a) -> List (List a)
+removeCommonPrefix lists =
+  lists
+  |> List.map maybeUncons
+  |> projJusts
+  |> Maybe.map List.unzip
+  |> Maybe.andThen (\(heads, rests) -> if allSame heads then Just (removeCommonPrefix rests) else Nothing)
+  |> Maybe.withDefault lists
 
 between x (a,b) = a <= x && x < b
 

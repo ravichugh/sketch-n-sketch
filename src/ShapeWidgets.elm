@@ -40,7 +40,7 @@ eightPointFeatures =
      ]
 
 ninePointFeatures =
-  PointFeature Center :: eightPointFeatures
+  eightPointFeatures ++ [PointFeature Center]
 
 simpleKindFeatures : List (ShapeKind, List Feature)
 simpleKindFeatures =
@@ -98,6 +98,19 @@ type FeatureNum
   | Y PointFeature
   | D DistanceFeature
   | O OtherFeature
+
+
+featureNumsOfFeature : Feature -> List FeatureNum
+featureNumsOfFeature feature =
+  case feature of
+    PointFeature pf    -> [X pf, Y pf]
+    DistanceFeature df -> [D df]
+    OtherFeature feat  -> [O feat]
+
+featureNumsOfShape : ShapeKind -> List Attr -> List FeatureNum
+featureNumsOfShape kind attrs =
+  featuresOfShape kind attrs
+  |> List.concatMap featureNumsOfFeature
 
 
 ------------------------------------------------------------------------------
@@ -437,16 +450,16 @@ minus a b = EqnOp Minus [a, b]
 div a b   = EqnOp Div [a, b]
 
 
-featureEquation : NodeId -> ShapeKind -> ShapeFeature -> List Attr -> FeatureEquation
-featureEquation nodeId kind feature nodeAttrs =
+featureEquation : ShapeKind -> ShapeFeature -> List Attr -> FeatureEquation
+featureEquation kind feature nodeAttrs =
   let featureNum = parseFeatureNum feature in
-  featureEquationOf nodeId kind nodeAttrs featureNum
+  featureEquationOf kind nodeAttrs featureNum
 
 
-featureEquationOf : NodeId -> ShapeKind -> List Attr -> FeatureNum -> FeatureEquation
-featureEquationOf id kind attrs featureNum =
+featureEquationOf : ShapeKind -> List Attr -> FeatureNum -> FeatureEquation
+featureEquationOf kind attrs featureNum =
 
-  let get attr  = EqnNum <| LangSvg.findNumishAttr id attr attrs in
+  let get attr  = EqnNum <| LangSvg.findNumishAttr attr attrs in
   let crash () =
     let s = unparseFeatureNum (Just kind) featureNum in
     Debug.crash <| Utils.spaces [ "featureEquationOf:", kind, s ] in
@@ -462,7 +475,7 @@ featureEquationOf id kind attrs featureNum =
       _           -> crash () in
 
   let handleBoxyShape () =
-    let equations = boxyFeatureEquationsOf id kind attrs in
+    let equations = boxyFeatureEquationsOf kind attrs in
     case featureNum of
 
       X TopLeft   -> equations.left
@@ -554,9 +567,9 @@ featureEquationOf id kind attrs featureNum =
         _          -> crash ()
 
 
-boxyFeatureEquationsOf : NodeId -> ShapeKind -> List Attr -> BoxyFeatureEquations
-boxyFeatureEquationsOf id kind attrs =
-  let get attr  = EqnNum <| LangSvg.findNumishAttr id attr attrs in
+boxyFeatureEquationsOf : ShapeKind -> List Attr -> BoxyFeatureEquations
+boxyFeatureEquationsOf kind attrs =
+  let get attr  = EqnNum <| LangSvg.findNumishAttr attr attrs in
   case kind of
 
     "rect" ->
@@ -660,9 +673,9 @@ evaluateFeatureEquation_ =
   Utils.fromJust_ "evaluateFeatureEquation_" << evaluateFeatureEquation
 
 
-evaluateLineFeatures id attrs =
+evaluateLineFeatures attrs =
   Utils.unwrap6 <|
-    List.map (evaluateFeatureEquation_ << featureEquationOf id "line" attrs) <|
+    List.map (evaluateFeatureEquation_ << featureEquationOf "line" attrs) <|
       [ X (Point 1), Y (Point 1)
       , X (Point 2), Y (Point 2)
       , X Center, Y Center
@@ -676,8 +689,8 @@ type alias BoxyNums =
   }
 
 
-evaluateBoxyNums id kind attrs =
-  let equations = boxyFeatureEquationsOf id kind attrs in
+evaluateBoxyNums kind attrs =
+  let equations = boxyFeatureEquationsOf kind attrs in
   let (left, top, right, bot, cx, cy) =
     ( evaluateFeatureEquation_ equations.left
     , evaluateFeatureEquation_ equations.top
@@ -706,17 +719,17 @@ evaluateBoxyNums id kind attrs =
 
 type alias PointEquations = (FeatureEquation, FeatureEquation)
 
-getPointEquations : NodeId -> ShapeKind -> List Attr -> PointFeature -> PointEquations
-getPointEquations nodeId kind attrs pointFeature =
-  ( featureEquationOf nodeId kind attrs (X pointFeature)
-  , featureEquationOf nodeId kind attrs (Y pointFeature) )
+getPointEquations : ShapeKind -> List Attr -> PointFeature -> PointEquations
+getPointEquations kind attrs pointFeature =
+  ( featureEquationOf kind attrs (X pointFeature)
+  , featureEquationOf kind attrs (Y pointFeature) )
 
 getPrimitivePointEquations : RootedIndexedTree -> NodeId -> List (NumTr, NumTr)
 getPrimitivePointEquations (_, tree) nodeId =
   case Utils.justGet_ "LangSvg.getPrimitivePoints" nodeId tree of
     LangSvg.SvgNode kind attrs _ ->
       List.concatMap (\pointFeature ->
-        case getPointEquations nodeId kind attrs pointFeature of
+        case getPointEquations kind attrs pointFeature of
           (EqnNum v1, EqnNum v2) -> [(v1,v2)]
           _                      -> []
       ) (pointFeaturesOfShape kind attrs)

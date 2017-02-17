@@ -7,8 +7,10 @@ import String
 import Dict
 import Char
 import Debug
+import Set
 
 import Lang exposing (..)
+import LangUnparser
 import OurParser2 exposing ((>>=),(>>>),(<<|),(+++),(<++))
 import OurParser2 as P
 import Utils as U
@@ -16,7 +18,9 @@ import PreludeGenerated as Prelude
 
 ------------------------------------------------------------------------------
 
-(prelude, initK) = freshen_ 1 <| U.fromOkay "parse prelude" <| parseE_ identity Prelude.src
+(prelude, initK) = freshenClean 1 <| U.fromOkay "parse prelude" <| parseE_ identity Prelude.src
+
+preludeIds = allIds prelude
 
 isPreludeLoc : Loc -> Bool
 isPreludeLoc (k,_,_) = isPreludeLocId k
@@ -29,15 +33,101 @@ isPreludeEId k = k < initK
 
 ------------------------------------------------------------------------------
 
--- these top-level freshen and substOf definitions are ugly...
+-- assign EId's and locId's
+-- existing unique EId's/locId's are preserved
+-- duplicated and dummy EId's/locId's are reassigned
 
--- reassigns eid's and locId's
 freshen : Exp -> Exp
-freshen e = Tuple.first (freshen_ initK e)
+freshen e =
+  -- let _ = Debug.log ("To Freshen:\n" ++ LangUnparser.unparseWithIds e) () in
+  let (duplicateIds, allIds) = duplicateAndAllIds e in
+  -- let _ = Debug.log "Duplicate Ids" duplicateIds in
+  -- let _ = Debug.log "All Ids" allIds in
+  let idsToPreserve = Set.diff allIds duplicateIds in
+  -- let _ = Debug.log "Ids to preserve" idsToPreserve in
+  let result = Tuple.first (freshenPreserving idsToPreserve initK e) in
+  -- let _ = Debug.log ("Freshened result:\n" ++ LangUnparser.unparseWithIds result) () in
+  result
+
+-- Overwrite any existing EId's/locId's
+freshenClean : Int -> Exp -> (Exp, Int)
+freshenClean initK e = freshenPreserving Set.empty initK e
+
+-- Reassign any id not in idsToPreserve
+freshenPreserving : Set.Set Int -> Int -> Exp -> (Exp, Int)
+freshenPreserving idsToPreserve initK e =
+  let getId k =
+    if Set.member k idsToPreserve
+    then getId (k+1)
+    else k
+  in
+  let assignIds exp k =
+    let e__ = exp.val.e__ in
+    let (newE__, newK) =
+      case e__ of
+        EConst ws n (locId, frozen, ident) wd ->
+          if Set.member locId idsToPreserve then
+            (e__, k)
+          else
+            let locId = getId k in
+            (EConst ws n (locId, frozen, ident) wd, locId + 1)
+
+        ELet ws1 kind b p e1 e2 ws2 ->
+          let newE1 = recordIdentifiers (p, e1) in
+          (ELet ws1 kind b p newE1 e2 ws2, k)
+
+        _ ->
+          (e__, k)
+    in
+    if Set.member exp.val.eid idsToPreserve then
+      (replaceE__ exp newE__, newK)
+    else
+      let eid = getId newK in
+      (P.WithInfo (Exp_ newE__ eid) exp.start exp.end, eid + 1)
+  in
+  mapFoldExp assignIds initK e
+
+allIds : Exp -> Set.Set Int
+allIds exp = duplicateAndAllIds exp |> Tuple.first
+
+-- Excludes EIds and locIds less than initK (i.e. no prelude locs or dummy EIds)
+duplicateAndAllIds : Exp -> (Set.Set Int, Set.Set Int)
+duplicateAndAllIds exp =
+  let gather exp (duplicateIds, seenIds) =
+    let eid = exp.val.eid in
+    let (duplicateIds_, seenIds_) =
+      if eid >= initK then
+        if Set.member eid seenIds
+        then (Set.insert eid duplicateIds, seenIds)
+        else (duplicateIds, Set.insert eid seenIds)
+      else
+        (duplicateIds, seenIds)
+    in
+    case exp.val.e__ of
+      EConst ws n (locId, frozen, ident) wd ->
+        if locId >= initK then
+          if Set.member locId seenIds
+          then (Set.insert locId duplicateIds_, seenIds_)
+          else (duplicateIds_, Set.insert locId seenIds_)
+        else
+          (duplicateIds_, seenIds_)
+
+      _ ->
+        (duplicateIds_, seenIds_)
+  in
+  let (duplicateIds, seenIds) =
+    foldExp
+        gather
+        (Set.empty, Set.empty)
+        exp
+  in
+  (duplicateIds, seenIds)
+
+
+preludeSubst = substPlusOf_ Dict.empty prelude
 
 substPlusOf : Exp -> SubstPlus
 substPlusOf e =
-  let preludeSubst = substPlusOf_ Dict.empty prelude in
   substPlusOf_ preludeSubst e
 
 substOf : Exp -> Subst
@@ -46,78 +136,9 @@ substOf = Dict.map (always .val) << substPlusOf
 substStrOf : Exp -> SubstStr
 substStrOf = Dict.map (always toString) << substOf
 
--- this will be done while parsing eventually...
-
-freshen_ : Int -> Exp -> (Exp, Int)
-freshen_ k e =
-  (\(e__,k_) ->
-    let nextK =
-      case e__ of
-        EConst _ _ (kk, _, _) _ -> kk -- invariant: kk = k_ - 1
-        _                       -> k_
-    in
-    (P.WithInfo (Exp_ e__ nextK) e.start e.end, nextK + 1)) <|
- case e.val.e__ of
-  -- EConst i l wd -> let (0,b,"") = l in (EConst i (k, b, "") wd, k + 1)
-  -- freshen is now being called externally by Sync.inferDeleteUpdates
-  EConst ws i l wd -> let (_,b,x) = l in (EConst ws i (k, b, x) wd, k + 1)
-  EBase ws v    -> (EBase ws v, k)
-  EVar ws x     -> (EVar ws x, k)
-  EFun ws1 ps e ws2 -> let (e_,k_) = freshen_ k e in (EFun ws1 ps e_ ws2, k_)
-  EApp ws1 f es ws2 ->
-    let ((f_,es_),k_) = U.mapFst U.uncons <| freshenExps k (f::es) in
-    (EApp ws1 f_ es_ ws2, k_)
-  EOp ws1 op es ws2 -> let (es_,k_) = freshenExps k es in (EOp ws1 op es_ ws2, k_)
-  EList ws1 es ws2 m ws3 -> let (es_,k_) = freshenExps k es in
-                case m of
-                  Nothing -> (EList ws1 es_ ws2 Nothing ws3, k_)
-                  Just e  -> let (e_,k__) = freshen_ k_ e in
-                             (EList ws1 es_ ws2 (Just e_) ws3, k__)
-  EIf ws1 e1 e2 e3 ws2 ->
-    let ((e1_,e2_,e3_),k_) = U.mapFst U.unwrap3 <| freshenExps k [e1,e2,e3] in
-    (EIf ws1 e1_ e2_ e3_ ws2, k_)
-  ELet ws1 kind b p e1 e2 ws2 ->
-    let ((e1_,e2_),k_) = U.mapFst U.unwrap2 <| freshenExps k [e1,e2] in
-    let e1__ = recordIdentifiers (p, e1_) in
-    (ELet ws1 kind b p e1__ e2_ ws2, k_)
-  ECase ws1 e bs ws2 ->
-    let bes = branchExps bs in
-    let ((e_,bes_), k_) = U.mapFst U.uncons <| freshenExps k (e::bes) in
-    let replaceBranch oldBranch newE =
-      let (Branch_ bws1 pat oldE bws2) = oldBranch.val in
-      { oldBranch | val = Branch_ bws1 pat newE bws2 }
-    in
-    (ECase ws1 e_ (List.map2 replaceBranch bs bes_) ws2, k_)
-  ETypeCase ws1 p bs ws2 ->
-    let bes = tbranchExps bs in
-    let (bes_, k_) = freshenExps k bes in
-    let replaceBranch oldBranch newE =
-      let (TBranch_ bws1 tipe oldE bws2) = oldBranch.val in
-      { oldBranch | val = TBranch_ bws1 tipe newE bws2 }
-    in
-    (ETypeCase ws1 p (List.map2 replaceBranch bs bes_) ws2, k_)
-  EComment ws s e1 ->
-    let (e1_,k_) = freshen_ k e1 in
-    (EComment ws s e1_, k_)
-  EOption ws1 s1 ws2 s2 e1 ->
-    let (e1_,k_) = freshen_ k e1 in
-    (EOption ws1 s1 ws2 s2 e1_, k_)
-  ETyp ws1 pat tipe e ws2 ->
-    let (e_,k_) = freshen_ k e in
-    (ETyp ws1 pat tipe e_ ws2, k_)
-  EColonType ws1 e ws2 tipe ws3 ->
-    let (e_,k_) = freshen_ k e in
-    (EColonType ws1 e_ ws2 tipe ws3, k_)
-  ETypeAlias ws1 pat tipe e ws2 ->
-    let (e_,k_) = freshen_ k e in
-    (ETypeAlias ws1 pat tipe e_ ws2, k_)
-
-freshenExps k es =
-  List.foldr (\e (es_,k_) ->
-    let (e1,k1) = freshen_ k_ e in
-    (e1::es_, k1)) ([],k) es
 
 -- Record the primary identifier in the EConsts_ Locs, where appropriate.
+recordIdentifiers : (Pat, Exp) -> Exp
 recordIdentifiers (p,e) =
  let ret e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
  case (p.val, e.val.e__) of

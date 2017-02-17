@@ -9,6 +9,7 @@ import Either exposing (..)
 
 windowPadding = 10
 buttonHeight = 25
+iconButtonHeight = 40
 rowGap = 3
 initialCodeBoxWidth = 500
 initialCanvasGapFromTop = 50
@@ -25,6 +26,10 @@ strButtonTopColor = "rgba(231,76,60,1.0)" -- from InterfaceButtons example
 
 pixels n = toString n ++ "px"
 
+clickToCanvasPoint model {x,y} =
+  let layout = computeLayout model in
+  let (xOrigin, yOrigin) = (layout.canvas.left, layout.canvas.top) in
+  (x - xOrigin, y - yOrigin)
 
 --------------------------------------------------------------------------------
 -- CSS Fixed Positions
@@ -236,23 +241,23 @@ computeLayout m =
      }
   , stretchyDrawTools = offset m getDrawToolBox -- reusing drawTools offset
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + round (2.3 * (rowGap + buttonHeight))
+     , topBottom = Top    <| windowPadding + round (1.3 * (rowGap + buttonHeight) + 1.1 * (rowGap + iconButtonHeight))
      }
   , lambdaDrawTools = offset m getDrawToolBox -- reusing drawTools offset
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + round (3.3 * (rowGap + buttonHeight))
+     , topBottom = Top    <| windowPadding + round (1.3 * (rowGap + buttonHeight) + 2.3 * (rowGap + iconButtonHeight))
      }
   , attributeTools = offset m getAttributeToolBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + round (4.6 * (rowGap + buttonHeight))
+     , topBottom = Top    <| windowPadding + round (3.3 * (rowGap + buttonHeight) + 2.3 * (rowGap + iconButtonHeight))
      }
   , blobTools = offset m getBlobToolBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + round (5.6 * (rowGap + buttonHeight))
+     , topBottom = Top    <| windowPadding + round (4.3 * (rowGap + buttonHeight) + 2.3 * (rowGap + iconButtonHeight))
      }
   , moreBlobTools = offset m getMoreBlobToolBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + round (6.6 * (rowGap + buttonHeight))
+     , topBottom = Top    <| windowPadding + round (5.3 * (rowGap + buttonHeight) + 2.3 * (rowGap + iconButtonHeight))
      }
   , outputTools = offset m getOutputToolBox
      { leftRight = Right  <| windowPadding
@@ -264,7 +269,7 @@ computeLayout m =
      }
   , synthesisResultsSelect = offset m getSynthesisResultsSelectBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + round (7.6 * (rowGap + buttonHeight))
+     , topBottom = Top    <| windowPadding + round (6.3 * (rowGap + buttonHeight) + 2.3 * (rowGap + iconButtonHeight))
      }
   , captionArea =
      { leftRight = Left   <| windowPadding

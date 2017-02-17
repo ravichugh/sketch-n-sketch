@@ -427,7 +427,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         )
         accResult
   in
-  let indexedWidgets = Utils.mapi identity widgets in
+  let indexedWidgets = Utils.mapi1 identity widgets in
   List.foldl processWidget (Dict.empty, initMaybeCounts) indexedWidgets
 
 
@@ -965,7 +965,7 @@ computePolyTriggers (options, subst) maybeCounts (id, kind, attrs) =
   let addEdgeZones = addEdgeZones_ finishTrigger pointX pointY in
   let addInteriorZone = addInteriorZone_ finishTrigger pointX pointY in
 
-  let indexedPoints = Utils.mapi identity (LangSvg.getPolyPoints attrs) in
+  let indexedPoints = Utils.mapi1 identity (LangSvg.getPolyPoints attrs) in
   let edges =
     if kind == "polygon" then Utils.selfZipCircConsecPairs indexedPoints
     else {- if kind == "polyline" -}

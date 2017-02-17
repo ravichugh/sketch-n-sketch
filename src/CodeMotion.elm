@@ -1,11 +1,6 @@
 module CodeMotion exposing (moveDefinitionPat, moveDefinitionBeforeLet)
 
 import Lang exposing (..)
-import LangUnparser exposing
-  ( mapPrecedingWhitespace
-  , precedingWhitespace, replacePrecedingWhitespace
-  , precedingWhitespacePat, replacePrecedingWhitespacePat
-  )
 import DependenceGraph exposing
   ( ScopeGraph, ScopeId, PatternId
   , BeforeAfter, PatTargetPosition, ExpTargetPosition -- maybe move these here
@@ -173,7 +168,7 @@ moveDefinitionBeforeLet scopeGraph sourcePat targetScope exp =
         else
           e
     in
-    [ { description = caption, exp = newExp } ]
+    [ { description = caption, exp = newExp, sortKey = [] } ]
   in
 
   let shadowing =
@@ -270,7 +265,7 @@ moveDefinitionPat_ scopeGraph sourcePat targetPos exp pluckedStuff upDownOver pr
   let newExp =
     insertPat scopeGraph (Tuple.first sourcePat) pluckedStuff targetPos exp
   in
-  [ { description = caption, exp = newExp } ]
+  [ { description = caption, exp = newExp, sortKey = [] } ]
 
 insertPat : ScopeGraph -> ScopeId -> (VarEquation, RebuildLetExp) -> PatTargetPosition -> Exp -> Exp
 insertPat scopeGraph sourceId (pluckedEquation, residualLetExp) patTargetPosition =
