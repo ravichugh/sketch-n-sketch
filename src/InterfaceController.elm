@@ -737,7 +737,6 @@ msgKeyPress keyCode = Msg ("Key Press " ++ toString keyCode) <| \old ->
   old
 
 msgKeyDown keyCode = Msg ("Key Down " ++ toString keyCode) <| \old ->
-  -- let _ = Debug.log "Key Down" (keyCode, old.keysDown) in
   if [keyCode] == Keys.escape then
     let new = clearDeuceState old in
     case (old.tool, old.mouseMode) of
@@ -746,9 +745,9 @@ msgKeyDown keyCode = Msg ("Key Down " ++ toString keyCode) <| \old ->
               , selectedShapes = Set.empty
               , selectedBlobs = Dict.empty
               }
-      (_, MouseNothing)   -> { old | tool = Cursor }
-      (_, MouseDrawNew _) -> { old | mouseMode = MouseNothing }
-      _                   -> old
+      (_, MouseNothing)   -> { new | tool = Cursor }
+      (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
+      _                   -> new
   else if List.member Keys.keyMeta old.keysDown then
     -- when keyMeta is down and another key k is downed,
     -- there will not be a key up event for k. so, not putting
