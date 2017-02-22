@@ -479,7 +479,7 @@ tryRun old =
                     , synthesisResults = maybeRunAutoSynthesis old e
               }
             in
-            clearDeuceState <|
+            resetDeuceState <|
             { new_ | mode = refreshMode_ new_
                    , codeBoxInfo = updateCodeBoxInfo aceTypeInfo new_
                    }
@@ -714,17 +714,19 @@ msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
       new
 
 msgMousePosition pos_ = Msg ("MousePosition " ++ toString pos_) <| \old ->
-  let pixelPos = pixelToRowColPosition pos_ old in 
-  let codeBoxInfo = old.codeBoxInfo in
   let hoveredExp = expRangesToHover old pos_ in
   let hoveredExpTargets = expTargetsToHover old pos_ in 
   let hoveredPat = patRangesToHover old pos_ in 
   let hoveredPatTargets = patTargetsToHover old pos_ in 
-  let newM = { old | hoveredExp = hoveredExp
-                   , hoveredExpTargets = hoveredExpTargets
-                   , hoveredPat = hoveredPat
-                   , hoveredPatTargets = hoveredPatTargets
-          }
+  let oldDeuceState = old.deuceState in
+  let newM =
+    { old | deuceState =
+              { oldDeuceState
+              | hoveredExp = hoveredExp
+              , hoveredExpTargets = hoveredExpTargets
+              , hoveredPat = hoveredPat
+              , hoveredPatTargets = hoveredPatTargets
+              } }
   in 
   case old.mouseState of
     (Nothing, _)    -> { newM | mouseState = (Nothing, pos_) }
@@ -738,7 +740,7 @@ msgKeyPress keyCode = Msg ("Key Press " ++ toString keyCode) <| \old ->
 
 msgKeyDown keyCode = Msg ("Key Down " ++ toString keyCode) <| \old ->
   if [keyCode] == Keys.escape then
-    let new = clearDeuceState old in
+    let new = resetDeuceState old in
     case (old.tool, old.mouseMode) of
       (Cursor, _) ->
         { new | selectedFeatures = Set.empty
@@ -1214,8 +1216,8 @@ msgNew template = Msg "New" <| (\old ->
                     , layoutOffsets = old.layoutOffsets
                     , fileIndex     = old.fileIndex
                     , icons         = old.icons
-                    , selectedEIds  = Set.empty
                     , scopeGraph    = DependenceGraph.compute e
+                    , deuceState    = DeuceWidgets.initState
                     }
       ) |> handleError old) >> closeDialogBox New
 
@@ -1304,40 +1306,48 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
     let mousePos = case m.mouseState of 
                     (b, pos) -> pos in
     let pixelPos = pixelToRowColPosition mousePos m in 
+
     let selectedEIds =
       case getClickedEId (computeExpRanges m.inputExp) pixelPos of
-        Nothing  -> m.selectedEIds
-        Just eid -> if Set.member eid m.selectedEIds
-                    then Set.remove eid m.selectedEIds
-                    else Set.insert eid m.selectedEIds
+        Nothing  -> m.deuceState.selectedEIds
+        Just eid -> if Set.member eid m.deuceState.selectedEIds
+                    then Set.remove eid m.deuceState.selectedEIds
+                    else Set.insert eid m.deuceState.selectedEIds
     in
     let selectedExpTargets =
       case getClickedExpTarget (computeExpTargets m.inputExp) pixelPos of
-        [] -> m.selectedExpTargets
-        ls -> getSetMembers ls m.selectedExpTargets 
+        [] -> m.deuceState.selectedExpTargets
+        ls -> getSetMembers ls m.deuceState.selectedExpTargets
     in 
     let selectedPats = 
       case getClickedPat (findPats m.inputExp) pixelPos m of
-        Nothing  -> m.selectedPats
-        Just s -> if Set.member s m.selectedPats
-                    then Set.remove s m.selectedPats
-                    else Set.insert s m.selectedPats
+        Nothing  -> m.deuceState.selectedPats
+        Just s -> if Set.member s m.deuceState.selectedPats
+                    then Set.remove s m.deuceState.selectedPats
+                    else Set.insert s m.deuceState.selectedPats
     in
     let selectedPatTargets = 
       case getClickedPatTarget (findPatTargets m.inputExp) pixelPos m of
-        [] -> m.selectedPatTargets
-        ls -> getSetMembers ls m.selectedPatTargets
+        [] -> m.deuceState.selectedPatTargets
+        ls -> getSetMembers ls m.deuceState.selectedPatTargets
     in
-    let new = { m | selectedEIds = selectedEIds 
-                  , selectedPats = selectedPats
-                  , selectedPatTargets = selectedPatTargets
-                  , selectedExpTargets = selectedExpTargets } 
-    in 
-    { new | expSelectionBoxes = expRangeSelections new
-          , expTargetSelections = expTargetsToSelect new 
-          , patSelectionBoxes = patRangeSelections new 
-          , patTargetSelections = patTargetsToSelect new 
-          }
+    let new =
+      let deuceState = m.deuceState in
+      { m | deuceState =
+              { deuceState
+              | selectedEIds = selectedEIds
+              , selectedPats = selectedPats
+              , selectedPatTargets = selectedPatTargets
+              , selectedExpTargets = selectedExpTargets } }
+    in
+    let deuceState = new.deuceState in
+    { new | deuceState =
+              { deuceState
+              | expSelectionBoxes = expRangeSelections new
+              , expTargetSelections = expTargetsToSelect new
+              , patSelectionBoxes = patRangeSelections new
+              , patTargetSelections = patTargetsToSelect new } }
+
   else
     m 
 
@@ -1400,10 +1410,10 @@ onMouseDrag dragSource dragTarget m =
 msgMoveExp = Msg "Move Exp" <| \m ->
   let selections =
     -- Debug.log "selections" <|
-      { exps = Set.toList m.selectedEIds
-      , pats = Set.toList m.selectedPats
-      , patTargets = Set.toList m.selectedPatTargets
-      , expTargets = Set.toList m.selectedExpTargets
+      { exps = Set.toList m.deuceState.selectedEIds
+      , pats = Set.toList m.deuceState.selectedPats
+      , patTargets = Set.toList m.deuceState.selectedPatTargets
+      , expTargets = Set.toList m.deuceState.selectedExpTargets
       } in
 
   let new = resetDeuceState m in
@@ -1447,13 +1457,6 @@ updateWithMoveExpResults new results = case results of
                 let newCode = unparse result.exp in
                 upstateRun { new | code = newCode }
   results  -> { new | synthesisResults = results }
-
-resetDeuceState m =
-  { m | selectedEIds       = Set.empty
-      , selectedPats       = Set.empty
-      , selectedPatTargets = Set.empty
-      , selectedExpTargets = Set.empty
-      }
 
 singleLogicalTarget target targets =
   case targets of

@@ -15,7 +15,6 @@ import ShapeWidgets exposing
   , FeatureNum(..)
   )
 import Layout exposing (clickToCanvasPoint)
-import DeuceWidgets
 import Sync
 import Draw
 import InterfaceModel exposing (..)
@@ -1354,8 +1353,11 @@ turnOffCaptionAndHighlights =
   Msg "Turn Off Caption" <| \m ->
     let codeBoxInfo = m.codeBoxInfo in
     { m | caption = Nothing
+        , codeBoxInfo = { codeBoxInfo | highlights = [] }
+        }
+{-
         , codeBoxInfo = { codeBoxInfo | highlights = DeuceWidgets.expRangesToHighlights m Nothing ++
                                                      DeuceWidgets.expTargetsToHighlights m Nothing ++
                                                      DeuceWidgets.patRangesToHighlights m Nothing ++
                                                      DeuceWidgets.patTargetsToHighlights m Nothing} }
-
+-}

@@ -12,6 +12,48 @@ import Dict exposing (Dict)
 
 --------------------------------------------------------------------------------
 
+type alias State =
+  {
+  --Expression information
+    selectedEIds : Set.Set EId
+  , expSelectionBoxes : List Exp
+
+  , selectedExpTargets : Set.Set ExpTargetPosition
+  , expTargetSelections : List (ExpTargetPosition, P.Pos, P.Pos)
+
+  , hoveredExp : List Exp
+  , hoveredExpTargets : List (ExpTargetPosition, P.Pos, P.Pos)
+
+  --Pattern information
+  , selectedPats : Set.Set PatternId
+  , patSelectionBoxes : List Pat
+
+  , selectedPatTargets : Set.Set PatTargetPosition
+  , patTargetSelections : List (PatTargetPosition, P.Pos, P.Pos)
+
+  , hoveredPat : List Pat
+  , hoveredPatTargets : List (PatTargetPosition, P.Pos, P.Pos)
+  }
+
+initState : State
+initState =
+  { selectedEIds  = Set.empty
+  , selectedPats = Set.empty
+  , selectedPatTargets = Set.empty
+  , selectedExpTargets = Set.empty
+  , hoveredExp = []
+  , hoveredExpTargets = []
+  , expTargetSelections = []
+  , hoveredPat = []
+  , hoveredPatTargets = []
+  , patTargetSelections = []
+  , expSelectionBoxes = []
+  , patSelectionBoxes = []
+  }
+
+
+--------------------------------------------------------------------------------
+
 findPats e = 
   let find e acc = 
     case e.val.e__ of 
@@ -124,20 +166,7 @@ showAllDeuceWidgets m = List.member Keys.keyA m.keysDown
 shiftKeyPressed m = List.member Keys.keyShift m.keysDown
 showDeuceWidgets m = shiftKeyPressed m 
 
-clearDeuceState m =
-  { m | selectedPats = Set.empty
-      , selectedEIds = Set.empty
-      , selectedExpTargets = Set.empty
-      , selectedPatTargets = Set.empty
-      , expSelectionBoxes = []
-      , patSelectionBoxes = []
-      , expTargetSelections = []
-      , patTargetSelections = []
-      , hoveredExp = []
-      , hoveredExpTargets = []
-      , hoveredPat = []
-      , hoveredPatTargets = []
-      }
+resetDeuceState m = { m | deuceState = initState }
 
 betweenPos start pixelPos end =
   (start.line <= pixelPos.row + 1) &&
@@ -235,7 +264,7 @@ expRangeSelections m =
       { start = { row = selectStart.line, column = selectStart.col }
       , end   = { row = selectEnd.line, column = selectEnd.col  } }
     in
-    if Set.member eid m.selectedEIds then
+    if Set.member eid m.deuceState.selectedEIds then
       [exp]
     else
       []
@@ -250,7 +279,7 @@ patRangeSelections m =
       { start = { row = start.line, column = start.col }
       , end   = { row = selectEnd.line, column = selectEnd.col  } }
     in
-    if Set.member pid m.selectedPats then
+    if Set.member pid m.deuceState.selectedPats then
       [pat]
     else
       []
@@ -281,6 +310,7 @@ patRangesToHover m pos =
     then List.concatMap (boxes pos) (findPats m.inputExp)
     else []
 
+{-
 -- unused function
 expRangesToHighlights m pos =
   let maybeHighlight (exp,eid,start,end,selectStart,selectEnd) =
@@ -352,10 +382,11 @@ patTargetsToHighlights m pos =
   if showDeuceWidgets m
     then List.concatMap maybeHighlight (findPatTargets m.inputExp)
     else []
+-}
 
 expTargetsToSelect m =
   let maybeHighlight (expTarget,selectStart,selectEnd) =
-    if Set.member expTarget m.selectedExpTargets then
+    if Set.member expTarget m.deuceState.selectedExpTargets then
       [(expTarget,selectStart,selectEnd)]
     else 
       []
@@ -377,7 +408,7 @@ expTargetsToHover m pos =
 
 patTargetsToSelect m = 
   let maybeHighlight (target,start,end) =
-    if Set.member target m.selectedPatTargets then
+    if Set.member target m.deuceState.selectedPatTargets then
       [(target, start, end)]
     else
       []

@@ -13,6 +13,7 @@ import LangParser2 as Parser
 import OurParser2 as P
 import DependenceGraph exposing (ScopeGraph)
 import Ace
+import DeuceWidgets exposing (State)
 import Either exposing (Either(..))
 import Keys 
 import Svg
@@ -108,30 +109,10 @@ type alias Model =
   , pendingFileOperation : Maybe Msg
   , fileOperationConfirmed : Bool
   , icons : Dict IconName (Html Msg)
-
   , showAllDeuceWidgets : Bool
   , hoveringCodeBox : Bool
   , scopeGraph : ScopeGraph
-
-  --Expression information
-  , selectedEIds : Set.Set EId
-  , expSelectionBoxes : List Exp
-
-  , selectedExpTargets : Set.Set ExpTargetPosition
-  , expTargetSelections : List (ExpTargetPosition, P.Pos, P.Pos)
-
-  , hoveredExp : List Exp
-  , hoveredExpTargets : List (ExpTargetPosition, P.Pos, P.Pos)
-
-  --Pattern information
-  , selectedPats : Set.Set PatternId
-  , patSelectionBoxes : List Pat
-
-  , selectedPatTargets : Set.Set PatTargetPosition
-  , patTargetSelections : List (PatTargetPosition, P.Pos, P.Pos)
-  
-  , hoveredPat : List Pat
-  , hoveredPatTargets : List (PatTargetPosition, P.Pos, P.Pos)
+  , deuceState : DeuceWidgets.State
   }
 
 type Mode
@@ -455,19 +436,8 @@ initModel =
     , pendingFileOperation = Nothing
     , fileOperationConfirmed = False
     , icons = Dict.empty
-    , selectedEIds  = Set.empty
+    , scopeGraph = DependenceGraph.compute e
     , showAllDeuceWidgets = False
     , hoveringCodeBox = False
-    , selectedPats = Set.empty
-    , selectedPatTargets = Set.empty
-    , selectedExpTargets = Set.empty
-    , scopeGraph = DependenceGraph.compute e
-    , hoveredExp = []
-    , hoveredExpTargets = []
-    , expTargetSelections = []
-    , hoveredPat = [] 
-    , hoveredPatTargets = [] 
-    , patTargetSelections = []
-    , expSelectionBoxes = [] 
-    , patSelectionBoxes = []
+    , deuceState = DeuceWidgets.initState
     }

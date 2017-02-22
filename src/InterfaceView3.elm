@@ -133,34 +133,18 @@ view model =
   let caption = captionArea model layout in
 
   let hoveredItems = 
-{-
-    if showDeuceWidgets model
-    then 
-      -- TODO maybe have deuceHoverBox return only Svg shape nodes,
-      -- and then put into a single top-level Svg.svg here
-      let svgWidgets =
-        patBoundingPolygonPoints model.patSelectionBoxes model layout ++
-        patBoundingPolygonPoints model.hoveredPat model layout ++ 
-        expBoundingPolygonPoints model.expSelectionBoxes model layout ++
-        expBoundingPolygonPoints model.hoveredExp model layout ++
-        targetIndicator model.expTargetSelections model layout ++
-        targetIndicator model.hoveredExpTargets model layout ++
-        targetIndicator model.patTargetSelections model layout ++
-        targetIndicator model.hoveredPatTargets model layout
-      in  
--}
     let selectedWidgets =
-      patBoundingPolygonPoints model.patSelectionBoxes model layout ++
-      expBoundingPolygonPoints model.expSelectionBoxes model layout ++
-      targetIndicator model.expTargetSelections model layout ++
-      targetIndicator model.patTargetSelections model layout
+      patBoundingPolygonPoints model.deuceState.patSelectionBoxes model layout ++
+      expBoundingPolygonPoints model.deuceState.expSelectionBoxes model layout ++
+      targetIndicator model.deuceState.expTargetSelections model layout ++
+      targetIndicator model.deuceState.patTargetSelections model layout
     in
     let hoveredWidgets =
       if showDeuceWidgets model then
-        patBoundingPolygonPoints model.hoveredPat model layout ++
-        expBoundingPolygonPoints model.hoveredExp model layout ++
-        targetIndicator model.hoveredExpTargets model layout ++
-        targetIndicator model.hoveredPatTargets model layout
+        patBoundingPolygonPoints model.deuceState.hoveredPat model layout ++
+        expBoundingPolygonPoints model.deuceState.hoveredExp model layout ++
+        targetIndicator model.deuceState.hoveredExpTargets model layout ++
+        targetIndicator model.deuceState.hoveredPatTargets model layout
       else
         []
     in
