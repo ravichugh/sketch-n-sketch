@@ -46,8 +46,6 @@ import Blobs exposing (..)
 import Draw
 import ExpressionBasedTransform as ETransform
 import Sync
-import DependenceGraph exposing (BeforeAfter, lookupIdent)
-import CodeMotion
 import Eval
 import Utils
 import Keys
@@ -64,7 +62,8 @@ import Config exposing (params)
 import Either exposing (Either(..))
 import Canvas
 import DefaultIconTheme
-import DependenceGraph exposing (PatternId, PatTargetPosition, ExpTargetPosition)
+import DependenceGraph exposing (lookupIdent)
+import CodeMotion
 
 import VirtualDom
 

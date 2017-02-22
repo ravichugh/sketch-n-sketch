@@ -170,6 +170,24 @@ type Trace = TrLoc Loc | TrOp Op_ (List Trace)
 type alias Env = List (Ident, Val)
 type alias Backtrace = List Exp
 
+
+------------------------------------------------------------------------------
+
+type alias ScopeId = EId   -- from an ELet or EFun expression
+
+type alias PatternId = (ScopeId, List Int)
+
+type alias BeforeAfter = Int -- 0 for Before, 1 for After
+
+type alias PatTargetPosition = (BeforeAfter, PatternId)
+
+type alias ExpTargetPosition = (BeforeAfter, EId)
+
+type TargetPosition
+  = ExpTargetPosition ExpTargetPosition
+  | PatTargetPosition PatTargetPosition
+
+
 ------------------------------------------------------------------------------
 -- Unparsing
 

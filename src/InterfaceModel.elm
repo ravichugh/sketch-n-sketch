@@ -11,8 +11,7 @@ import ExamplesGenerated as Examples
 import LangUnparser exposing (unparse, unparsePat)
 import LangParser2 as Parser
 import OurParser2 as P
-import DependenceGraph exposing
-  (ScopeGraph, PatternId, PatTargetPosition, ExpTargetPosition)
+import DependenceGraph exposing (ScopeGraph)
 import Ace
 import Either exposing (Either(..))
 import Keys 

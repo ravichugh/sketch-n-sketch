@@ -1,12 +1,10 @@
-module CodeMotion exposing (moveDefinitionPat, moveDefinitionBeforeLet)
+module CodeMotion exposing
+  ( moveDefinitionPat, moveDefinitionBeforeLet
+  )
 
 import Lang exposing (..)
 import DependenceGraph exposing
-  ( ScopeGraph, ScopeId, PatternId
-  , BeforeAfter, PatTargetPosition, ExpTargetPosition -- maybe move these here
-  , ScopeOrder(..)
-  , parentScopeOf, childScopesOf
-  )
+  (ScopeGraph, ScopeOrder(..), parentScopeOf, childScopesOf)
 import InterfaceModel exposing (SynthesisResult)
 import Utils
 
