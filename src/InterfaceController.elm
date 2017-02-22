@@ -64,6 +64,7 @@ import Canvas
 import DefaultIconTheme
 import DependenceGraph exposing (lookupIdent)
 import CodeMotion
+import DeuceWidgets exposing (..) -- TODO
 
 import VirtualDom
 

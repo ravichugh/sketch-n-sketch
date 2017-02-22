@@ -41,6 +41,7 @@ loc:
     InterfaceController.elm \
     LangTools.elm LangTransform.elm ValueBasedTransform.elm \
     Blobs.elm Draw.elm ExpressionBasedTransform.elm \
+    DeuceWidgets.elm \
     DependenceGraph.elm CodeMotion.elm Native/dotGraph.js \
     Ace.elm AceCodeBox.elm Native/aceCodeBox.js \
     AnimationLoop.elm Native/animationLoop.js \

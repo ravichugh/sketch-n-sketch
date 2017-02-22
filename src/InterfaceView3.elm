@@ -14,9 +14,6 @@ import InterfaceModel as Model exposing
   , Caption(..), MouseMode(..)
   , mkLive_
   , DialogBox(..)
-  , rowColToPixelPos
-  , expBoundingPolygon, patBoundingPolygon
-  , showDeuceWidgets
   )
 import InterfaceController as Controller
 import Layout
@@ -27,6 +24,7 @@ import LangTools
 import Sync
 import DependenceGraph
 import CodeMotion
+import DeuceWidgets exposing (..) -- TODO
 
 -- Elm Libraries ---------------------------------------------------------------
 
