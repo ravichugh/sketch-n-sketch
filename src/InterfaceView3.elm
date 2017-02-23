@@ -188,7 +188,7 @@ view model =
      -- top-most
      [ resizeCodeBox
      , resizeCanvas
-     , caption
+     -- , caption
      ] ++ dialogBoxes
   in
 
