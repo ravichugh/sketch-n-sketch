@@ -132,47 +132,8 @@ view model =
 
   let caption = captionArea model layout in
 
-  let hoveredItems = 
-    let selectedWidgets =
-      patBoundingPolygonPoints model.deuceState.patSelectionBoxes model layout ++
-      expBoundingPolygonPoints model.deuceState.expSelectionBoxes model layout ++
-      targetIndicator model.deuceState.expTargetSelections model layout ++
-      targetIndicator model.deuceState.patTargetSelections model layout
-    in
-    let hoveredWidgets =
-      if showDeuceWidgets model then
-        patBoundingPolygonPoints model.deuceState.hoveredPat model layout ++
-        expBoundingPolygonPoints model.deuceState.hoveredExp model layout ++
-        targetIndicator model.deuceState.hoveredExpTargets model layout ++
-        targetIndicator model.deuceState.hoveredPatTargets model layout
-      else
-        []
-    in
-    let svgWidgets = selectedWidgets ++ hoveredWidgets in
-      Html.div [ Attr.id "hoveredItem"
-                , Attr.style
-                    -- child div as absolute to overlay on parent div
-                    -- https://stackoverflow.com/questions/2941189/how-to-overlay-one-div-over-another-div
-                    [ ("position", "absolute")
-                    , ("left", pixels layout.codeBox.left)
-                    , ("top", pixels layout.codeBox.top)
-                    -- TODO don't want this layer to block clicks to change Ace cursor
-                    -- , ("width", pixels layout.codeBox.width)
-                    -- , ("height", pixels layout.codeBox.height)
-                    , ("width", "0")
-                    , ("height", "0")
-                    , ("user-select", "none")
-                    ]
-                -- TODO why are these events here and aceCodeBox?
-                , onMouseEnter Controller.msgMouseEnterCodeBox
-                , onMouseLeave Controller.msgMouseLeaveCodeBox
-                , onClick Controller.msgMouseClickCodeBox
-                ] svgWidgets
-{-
-    else 
-      Html.div [] [] 
--}
-    in 
+  let deuce = deuceLayer model layout in
+
   let everything = -- z-order in decreasing order
      -- bottom-most
      [ onbeforeunloadDataElement
@@ -183,7 +144,7 @@ view model =
      [ moreBlobTools, blobTools, attributeTools, lambdaDrawTools, stretchyDrawTools, drawTools
      , textTools
      , codeTools, fileTools
-     ] ++ synthesisResultsSelect ++ [hoveredItems] ++ 
+     ] ++ synthesisResultsSelect ++ [deuce] ++
 
      -- top-most
      [ resizeCodeBox
@@ -415,141 +376,6 @@ textArea_ children attrs =
     ]
   in
   Html.div (commonAttrs ++ attrs) children
-
-computePolygonPoints rcs model layout = 
-  let left = List.concatMap (\(k,(c1,c2)) -> 
-    let topOffset = rowColToPixelPos {line = k, col = c1} model in
-    let top = {x=topOffset.x - model.codeBoxInfo.gutterWidth, y=topOffset.y - model.codeBoxInfo.offsetHeight} in
-    let bottom = {x=top.x, y=top.y + model.codeBoxInfo.lineHeight} in 
-      [top, bottom]) (Dict.toList (Tuple.second rcs)) in 
-  let right = List.concatMap (\(k,(c1,c2)) -> 
-    let topOffset = rowColToPixelPos {line = k, col = c2} model in
-    let top = {x=topOffset.x - model.codeBoxInfo.gutterWidth, y=topOffset.y - model.codeBoxInfo.offsetHeight} in 
-    let bottom = {x=top.x, y=top.y + model.codeBoxInfo.lineHeight} in 
-      [bottom, top]) (List.reverse (Dict.toList (Tuple.second rcs))) in 
-  let combine point acc = 
-    toString(point.x) ++ "," ++ toString(point.y) ++ " " ++ acc in 
-  List.foldr combine  "" (left ++ right)
-
-expBoundingPolygonPoints exps model layout = 
-  let calculate exp = 
-    let points = computePolygonPoints (expBoundingPolygon exp) model layout in 
-    let textPolygon = 
-        [Svg.svg [Attr.id "deuceLayer", 
-           Attr.style
-            [ ("position", "fixed")
-            , ("left", pixels (round(model.codeBoxInfo.gutterWidth) + layout.codeBox.left))
-            , ("top", pixels layout.codeBox.top)
-            , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth)))
-            , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
-            ]
-          ][ flip Svg.polygon []
-            [LangSvg.attr "stroke" "yellow", LangSvg.attr "stroke-width" "5", Attr.style [("fill-opacity", "0")]
-            , LangSvg.attr "points" points 
-            ] 
-          ]] in 
-      textPolygon
-  in List.concatMap calculate exps
-
-patBoundingPolygonPoints pats model layout = 
-  let calculate pat = 
-    let points = computePolygonPoints (patBoundingPolygon pat) model layout in 
-    let textPolygon = 
-        [Svg.svg [Attr.id "deuceLayer", 
-           Attr.style
-            [ ("position", "fixed")
-            , ("left", pixels (round(model.codeBoxInfo.gutterWidth) + layout.codeBox.left))
-            , ("top", pixels layout.codeBox.top)
-            , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth)))
-            , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
-            ]
-          ][ flip Svg.polygon []
-            [LangSvg.attr "stroke" "yellow", LangSvg.attr "stroke-width" "5", Attr.style [("fill-opacity", "0")]
-            , LangSvg.attr "points" points 
-            ] 
-          ]] in 
-      textPolygon
-  in List.concatMap calculate pats
-
-targetIndicator targets model layout = 
-  let indicator target = 
-    case target of 
-      (id, start, end) ->
-        let pixelPos = rowColToPixelPos start model in 
-        if start.line > model.codeBoxInfo.firstVisibleRow && 
-           end.line <= model.codeBoxInfo.lastVisibleRow - 1 && 
-           pixelPos.x > (model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth) && 
-           pixelPos.x < (toFloat(layout.codeBox.width) - (model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth))
-        then 
-          let rDot = 4 in
-            [Svg.svg [Attr.id "deuceLayer", 
-                      Attr.style
-                        [ ("position", "fixed")
-                        , ("left", pixels pixelPos.x)
-                        , ("top", pixels pixelPos.y)
-                        , ("width", toString model.codeBoxInfo.characterWidth)
-                        , ("height", toString model.codeBoxInfo.lineHeight)
-                        ]
-                      ][flip Svg.circle []
-                        [ LangSvg.attr "stroke" "black"
-                        , LangSvg.attr "cx" (toString (model.codeBoxInfo.characterWidth/2))
-                        , LangSvg.attr "cy" (toString (model.codeBoxInfo.lineHeight/2))
-                        , LangSvg.attr "r" (toString rDot)
-                        ]
-              ]
-            ] 
-        else 
-          []
-  in 
-  List.concatMap indicator targets
-
-getBoxWidth start end m = 
-  let offSet = if start.line == end.line then 0 else 1 in 
-  let characters = end.col - start.col - offSet in
-  toFloat(characters) * m.codeBoxInfo.characterWidth 
-
-getBoxHeight start end m = 
-  let lines = end.line - start.line + 1 in 
-  toFloat(lines) * m.codeBoxInfo.lineHeight
-
--- unused function 
-deuceLayer inputs model = 
-  let (outerPad, innerPad) = (3, 2) in
-  let createSVGs input = 
-    case input of
-      (_, _, selectStart, start, end, w, h) -> 
-        let
-          width pad  = toString (w + 2 * pad)
-          height pad = toString (h + 2 * pad)
-          pixelPos = rowColToPixelPos selectStart model
-          w = getBoxWidth start end model
-          h = getBoxHeight start end model
-        in
-        [Svg.svg 
-          [Attr.id "deuceLayer", 
-           Attr.style
-            [ ("position", "fixed")
-            , ("left", pixels (pixelPos.x - (outerPad + innerPad)))
-            , ("top", pixels (pixelPos.y - (outerPad + innerPad)))
-            , ("width", width (outerPad + innerPad))
-            , ("height", height (outerPad + innerPad))
-            ]
-          ] 
-          [ flip Svg.rect [] <|
-            [ attr "stroke" "steelblue"
-            , attr "stroke-width" "3px"
-            , attr "fill-opacity" (toString 0) 
-            , attr "x" (pixels outerPad)
-            , attr "y" (pixels outerPad)
-            , attr "width" (width innerPad)
-            , attr "height" (height innerPad)
-            , attr "rx" "8"
-            , attr "ry" "8"
-            , attr "user-select" "none"
-            ]
-          ]]
-  in 
-  List.concatMap createSVGs inputs 
 
 
 --------------------------------------------------------------------------------
@@ -1348,3 +1174,183 @@ importCodeDialogBox model =
             False
         ]
     ]
+
+
+--------------------------------------------------------------------------------
+-- Deuce Widgets
+
+deuceLayer model layout =
+  let selectedWidgets =
+    patBoundingPolygonPoints model.deuceState.patSelectionBoxes model layout ++
+    expBoundingPolygonPoints model.deuceState.expSelectionBoxes model layout ++
+    targetIndicator model.deuceState.expTargetSelections model layout ++
+    targetIndicator model.deuceState.patTargetSelections model layout
+  in
+  let hoveredWidgets =
+    if showDeuceWidgets model then
+      patBoundingPolygonPoints model.deuceState.hoveredPat model layout ++
+      expBoundingPolygonPoints model.deuceState.hoveredExp model layout ++
+      targetIndicator model.deuceState.hoveredExpTargets model layout ++
+      targetIndicator model.deuceState.hoveredPatTargets model layout
+    else
+      []
+  in
+  let svgWidgets = selectedWidgets ++ hoveredWidgets in
+  Html.div
+    [ Attr.id "hoveredItem"
+    , Attr.style
+        -- child div as absolute to overlay on parent div
+        -- https://stackoverflow.com/questions/2941189/how-to-overlay-one-div-over-another-div
+        [ ("position", "absolute")
+        , ("left", pixels layout.codeBox.left)
+        , ("top", pixels layout.codeBox.top)
+        -- TODO don't want this layer to block clicks to change Ace cursor
+        -- , ("width", pixels layout.codeBox.width)
+        -- , ("height", pixels layout.codeBox.height)
+        , ("width", "0")
+        , ("height", "0")
+        , ("user-select", "none")
+        ]
+    -- TODO why are these events here and aceCodeBox?
+    , onMouseEnter Controller.msgMouseEnterCodeBox
+    , onMouseLeave Controller.msgMouseLeaveCodeBox
+    , onClick Controller.msgMouseClickCodeBox
+    ]
+    svgWidgets
+
+computePolygonPoints rcs model layout = 
+  let left = List.concatMap (\(k,(c1,c2)) -> 
+    let topOffset = rowColToPixelPos {line = k, col = c1} model in
+    let top = {x=topOffset.x - model.codeBoxInfo.gutterWidth, y=topOffset.y - model.codeBoxInfo.offsetHeight} in
+    let bottom = {x=top.x, y=top.y + model.codeBoxInfo.lineHeight} in 
+      [top, bottom]) (Dict.toList (Tuple.second rcs)) in 
+  let right = List.concatMap (\(k,(c1,c2)) -> 
+    let topOffset = rowColToPixelPos {line = k, col = c2} model in
+    let top = {x=topOffset.x - model.codeBoxInfo.gutterWidth, y=topOffset.y - model.codeBoxInfo.offsetHeight} in 
+    let bottom = {x=top.x, y=top.y + model.codeBoxInfo.lineHeight} in 
+      [bottom, top]) (List.reverse (Dict.toList (Tuple.second rcs))) in 
+  let combine point acc = 
+    toString(point.x) ++ "," ++ toString(point.y) ++ " " ++ acc in 
+  List.foldr combine  "" (left ++ right)
+
+expBoundingPolygonPoints exps model layout = 
+  let calculate exp = 
+    let points = computePolygonPoints (expBoundingPolygon exp) model layout in 
+    let textPolygon = 
+        [Svg.svg [Attr.id "deuceLayer", 
+           Attr.style
+            [ ("position", "fixed")
+            , ("left", pixels (round(model.codeBoxInfo.gutterWidth) + layout.codeBox.left))
+            , ("top", pixels layout.codeBox.top)
+            , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth)))
+            , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
+            ]
+          ][ flip Svg.polygon []
+            [LangSvg.attr "stroke" "yellow", LangSvg.attr "stroke-width" "5", Attr.style [("fill-opacity", "0")]
+            , LangSvg.attr "points" points 
+            ] 
+          ]] in 
+      textPolygon
+  in List.concatMap calculate exps
+
+patBoundingPolygonPoints pats model layout = 
+  let calculate pat = 
+    let points = computePolygonPoints (patBoundingPolygon pat) model layout in 
+    let textPolygon = 
+        [Svg.svg [Attr.id "deuceLayer", 
+           Attr.style
+            [ ("position", "fixed")
+            , ("left", pixels (round(model.codeBoxInfo.gutterWidth) + layout.codeBox.left))
+            , ("top", pixels layout.codeBox.top)
+            , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth)))
+            , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
+            ]
+          ][ flip Svg.polygon []
+            [LangSvg.attr "stroke" "yellow", LangSvg.attr "stroke-width" "5", Attr.style [("fill-opacity", "0")]
+            , LangSvg.attr "points" points 
+            ] 
+          ]] in 
+      textPolygon
+  in List.concatMap calculate pats
+
+targetIndicator targets model layout = 
+  let indicator target = 
+    case target of 
+      (id, start, end) ->
+        let pixelPos = rowColToPixelPos start model in 
+        if start.line > model.codeBoxInfo.firstVisibleRow && 
+           end.line <= model.codeBoxInfo.lastVisibleRow - 1 && 
+           pixelPos.x > (model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth) && 
+           pixelPos.x < (toFloat(layout.codeBox.width) - (model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth))
+        then 
+          let rDot = 4 in
+            [Svg.svg [Attr.id "deuceLayer", 
+                      Attr.style
+                        [ ("position", "fixed")
+                        , ("left", pixels pixelPos.x)
+                        , ("top", pixels pixelPos.y)
+                        , ("width", toString model.codeBoxInfo.characterWidth)
+                        , ("height", toString model.codeBoxInfo.lineHeight)
+                        ]
+                      ][flip Svg.circle []
+                        [ LangSvg.attr "stroke" "black"
+                        , LangSvg.attr "cx" (toString (model.codeBoxInfo.characterWidth/2))
+                        , LangSvg.attr "cy" (toString (model.codeBoxInfo.lineHeight/2))
+                        , LangSvg.attr "r" (toString rDot)
+                        ]
+              ]
+            ] 
+        else 
+          []
+  in 
+  List.concatMap indicator targets
+
+getBoxWidth start end m = 
+  let offSet = if start.line == end.line then 0 else 1 in 
+  let characters = end.col - start.col - offSet in
+  toFloat(characters) * m.codeBoxInfo.characterWidth 
+
+getBoxHeight start end m = 
+  let lines = end.line - start.line + 1 in 
+  toFloat(lines) * m.codeBoxInfo.lineHeight
+
+{-
+-- unused function 
+deuceLayer inputs model = 
+  let (outerPad, innerPad) = (3, 2) in
+  let createSVGs input = 
+    case input of
+      (_, _, selectStart, start, end, w, h) -> 
+        let
+          width pad  = toString (w + 2 * pad)
+          height pad = toString (h + 2 * pad)
+          pixelPos = rowColToPixelPos selectStart model
+          w = getBoxWidth start end model
+          h = getBoxHeight start end model
+        in
+        [Svg.svg 
+          [Attr.id "deuceLayer", 
+           Attr.style
+            [ ("position", "fixed")
+            , ("left", pixels (pixelPos.x - (outerPad + innerPad)))
+            , ("top", pixels (pixelPos.y - (outerPad + innerPad)))
+            , ("width", width (outerPad + innerPad))
+            , ("height", height (outerPad + innerPad))
+            ]
+          ] 
+          [ flip Svg.rect [] <|
+            [ attr "stroke" "steelblue"
+            , attr "stroke-width" "3px"
+            , attr "fill-opacity" (toString 0) 
+            , attr "x" (pixels outerPad)
+            , attr "y" (pixels outerPad)
+            , attr "width" (width innerPad)
+            , attr "height" (height innerPad)
+            , attr "rx" "8"
+            , attr "ry" "8"
+            , attr "user-select" "none"
+            ]
+          ]]
+  in 
+  List.concatMap createSVGs inputs 
+-}
