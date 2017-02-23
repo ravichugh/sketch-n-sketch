@@ -595,18 +595,23 @@ outputArea model layout =
           [ Attr.style [ ("width", pixels layout.canvas.width) ] ]
 
   in
+  let (border, boxShadow) =
+    if Model.needsRun model
+      then ("2px solid rgba(220,20,60,1)", "10px 10px 5px rgba(220,20,60,0.3)")
+      else (params.mainSection.canvas.border, "10px 10px 5px #888888")
+  in
   Html.div
      [ Attr.id "outputArea"
      , Attr.style
          [ ("width", pixels layout.canvas.width)
          , ("height", pixels layout.canvas.height)
          , ("position", "fixed")
-         , ("border", params.mainSection.canvas.border)
+         , ("border", border)
          , ("left", pixels layout.canvas.left)
          , ("top", pixels layout.canvas.top)
          , ("background", "white")
          , ("border-radius", "0px 10px 10px 10px")
-         , ("box-shadow", "10px 10px 5px #888888")
+         , ("box-shadow", boxShadow)
          ]
      ]
      [ output ]

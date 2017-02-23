@@ -52,6 +52,7 @@ type alias Icon = {
 
 type alias Model =
   { code : Code
+  , lastRunCode : Code
   , preview: Maybe (Code, Result String (Val, Widgets, RootedIndexedTree))
   , history : (List Code, List Code)
   , inputExp : Exp
@@ -358,6 +359,11 @@ lambdaToolIcon tool =
 
 --------------------------------------------------------------------------------
 
+needsRun m =
+  m.code /= m.lastRunCode
+
+--------------------------------------------------------------------------------
+
 initModel : Model
 initModel =
   let
@@ -371,6 +377,7 @@ initModel =
   let liveModeInfo = unwrap (mkLive Sync.defaultOptions 1 1 0.0 e (v, ws)) in
   let code = unparse e in
     { code          = code
+    , lastRunCode   = code
     , preview       = Nothing
     , history       = ([code], [])
     , inputExp      = e

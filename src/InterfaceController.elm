@@ -328,7 +328,9 @@ onMouseMove newPosition old =
 
       Eval.run newExp |> Result.andThen (\(newVal, newWidgets) ->
       LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
-        { old | code = unparse newExp
+        let newCode = unparse newExp in
+        { old | code = newCode
+              , lastRunCode = newCode
               , inputExp = newExp
               , inputVal = newVal
               , slate = newSlate
@@ -461,6 +463,7 @@ tryRun old =
               { new | inputExp      = e
                     , inputVal      = newVal
                     , code          = newCode
+                    , lastRunCode   = newCode
                     , slideCount    = newSlideCount
                     , movieCount    = newMovieCount
                     , movieTime     = 0
@@ -1192,6 +1195,7 @@ msgNew template = Msg "New" <| (\old ->
         { initModel | inputExp      = e
                     , inputVal      = v
                     , code          = code
+                    , lastRunCode   = code
                     , history       = ([code],[])
                     , mode          = m
                     , syncOptions   = so
