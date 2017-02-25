@@ -1110,29 +1110,34 @@ identifierUses identSet exp =
 -- For help finding unused names during synthesis.
 visibleIdentifiersAtEIds : Exp -> Set.Set EId -> Set.Set Ident
 visibleIdentifiersAtEIds program eids =
-  let programIdents = visibleIdentifiersAtEIds_ Set.empty program eids in
+  let programIdents = visibleIdentifiersAtPredicateNoPrelude program (\exp -> Set.member exp.val.eid eids) in
   let preludeIdents = List.map Tuple.first Eval.initEnv |> Set.fromList in
   Set.union programIdents preludeIdents
 
 
-visibleIdentifiersAtEIds_ : Set.Set Ident -> Exp -> Set.Set EId -> Set.Set Ident
-visibleIdentifiersAtEIds_ idents exp eids =
+visibleIdentifiersAtPredicateNoPrelude : Exp -> (Exp -> Bool) -> Set.Set Ident
+visibleIdentifiersAtPredicateNoPrelude exp pred =
+  visibleIdentifiersAtPredicate_ Set.empty exp pred
+
+
+visibleIdentifiersAtPredicate_ : Set.Set Ident -> Exp -> (Exp -> Bool) -> Set.Set Ident
+visibleIdentifiersAtPredicate_ idents exp pred =
   let ret deeperIdents =
-    -- If any child was a target EId, then deeperIdents is a superset of idents,
-    -- so no need to union.
-    if (0 == Set.size deeperIdents) && Set.member exp.val.eid eids then
+    if (0 == Set.size deeperIdents) && pred exp then
+      -- If any child was a target EId, then deeperIdents is a superset of idents,
+      -- so no need to union.
       idents
     else
       deeperIdents
   in
   let recurse e =
-    visibleIdentifiersAtEIds_ idents e eids
+    visibleIdentifiersAtPredicate_ idents e pred
   in
   let recurseAllChildren () =
     childExps exp |> List.map recurse |> Utils.unionAll
   in
   let recurseWithNewIdents pats e =
-    visibleIdentifiersAtEIds_ (Set.union (identifiersSetInPats pats) idents) e eids
+    visibleIdentifiersAtPredicate_ (Set.union (identifiersSetInPats pats) idents) e pred
   in
   case exp.val.e__ of
     -- EVal _           -> ret Set.empty
