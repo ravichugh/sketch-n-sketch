@@ -4207,7 +4207,7 @@ coffee_UIST =
 rectangleTrisection =
  """; Rectangle Trisection
 ;
-; After Alan Turranksy p566 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+; After Alan Turranksy p566 in \"Watch What I Do: Programming by Demonstration\" Appendix B. 1993.
 ;
 ; Straightforward with tools as of UIST 2016, but
 ; does require a \"Dig Hole\" to type in \"(/ rect1_w 3)\"
@@ -4330,7 +4330,7 @@ batteryDynamic =
 mondrianArch =
  """; Mondrian Arch
 ;
-; After Henry Lieberman p554 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+; After Henry Lieberman p554 in \"Watch What I Do: Programming by Demonstration\" Appendix B. 1993.
 ;
 ; Can be done with tools as of UIST 2016, but
 ; parameterization is not anywhere near optimal.
@@ -4525,7 +4525,7 @@ target =
 xs =
  """; Xs
 ;
-; After David Maulsby p591 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+; After David Maulsby p591 in \"Watch What I Do: Programming by Demonstration\" Appendix B. 1993.
 ;
 ; Design decisions:
 ;   - top left n boxWidth or top left w boxWidth or top left w n or cx cy n boxWidth (below) or cx cy r boxWidth or cx cy r n or BB boxWidth or BB n
@@ -4738,7 +4738,7 @@ kochSnowflake =
  """; Koch Snowflake
 ;
 ; Can be accomplished by graphical search and replace per
-; David Kurlander p556 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+; David Kurlander p556 in \"Watch What I Do: Programming by Demonstration\" Appendix B. 1993.
 ;
 ; What would have helped the creation of the implementation below
 ; was some local view of a functions computation (onLine, normPt).
@@ -4799,7 +4799,7 @@ replaceTerminalsWithWorkstations =
  """; Replace Terminals With Workstations
 ;
 ; A Demo of Kurlander's graphical search and replace.
-; David Kurlander p573,pp275-277 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+; David Kurlander p573,pp275-277 in \"Watch What I Do: Programming by Demonstration\" Appendix B. 1993.
 ;
 ; Design decisions:
 ;   - x y w h or left top right bot (below) for workstation display and pillar
@@ -4889,7 +4889,7 @@ replaceTerminalsWithWorkstations =
 balanceScale =
  """; Balance Scale
 ;
-; After David Kurlander p568 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+; After David Kurlander p568 in \"Watch What I Do: Programming by Demonstration\" Appendix B. 1993.
 ;
 ; Had to hand-code the arc.
 ;

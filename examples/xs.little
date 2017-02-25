@@ -1,6 +1,6 @@
 ; Xs
 ;
-; After David Maulsby p591 in "What What I Do: Programming by Demonstration" Appendix B. 1993.
+; After David Maulsby p591 in "Watch What I Do: Programming by Demonstration" Appendix B. 1993.
 ;
 ; Design decisions:
 ;   - top left n boxWidth or top left w boxWidth or top left w n or cx cy n boxWidth (below) or cx cy r boxWidth or cx cy r n or BB boxWidth or BB n

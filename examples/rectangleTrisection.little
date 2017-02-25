@@ -1,6 +1,6 @@
 ; Rectangle Trisection
 ;
-; After Alan Turranksy p566 in "What What I Do: Programming by Demonstration" Appendix B. 1993.
+; After Alan Turranksy p566 in "Watch What I Do: Programming by Demonstration" Appendix B. 1993.
 ;
 ; Straightforward with tools as of UIST 2016, but
 ; does require a "Dig Hole" to type in "(/ rect1_w 3)"
