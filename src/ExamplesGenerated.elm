@@ -4537,7 +4537,7 @@ xs =
 (def X (\\(cx cy n boxWidth)
   (let [centerColor descendingColor ascendingColor] [438 32 240]
   (let square (\\(cx cy color)
-    [ (rectByCenter color cx cy boxWidth boxWidth) ])
+    [ (squareByCenter color cx cy boxWidth) ])
   (let drawLevel (\\i
     (if (= i 0)
       (square cx cy centerColor)
@@ -4550,7 +4550,7 @@ xs =
   ))
 
 (blobs [
-  (X 200 250 3 50)
+  (X 200 250 3{1-6} 50)
 ])
 """
 
@@ -4577,9 +4577,9 @@ conifer =
 
 (def treeX 232)
 (def treeBot 375)
-(def treeHeight 305)
+(def treeHeight 301{1-500})
 (def treeTop (- treeBot treeHeight))
-(def [branchBot branchTop] [352 81])
+(def [branchBot branchTop] [(- treeBot 25) (+ (- treeBot treeHeight) 15)])
 
 (def trunk
   (let [baseY baseW] [treeBot 12]
