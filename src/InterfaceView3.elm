@@ -15,11 +15,6 @@ import InterfaceModel as Model exposing
   , Caption(..), MouseMode(..)
   , mkLive_
   , DialogBox(..)
-  , rowColToPixelPos
-  , findPats, findPatTargets
-  , computeExpTargets
-  , expBoundingPolygon, patBoundingPolygon
-  , showDeuceWidgets
   )
 import InterfaceController as Controller
 import Layout
@@ -30,6 +25,7 @@ import LangTools
 import Sync
 import DependenceGraph
 import CodeMotion
+import DeuceWidgets exposing (..) -- TODO
 
 -- Elm Libraries ---------------------------------------------------------------
 
@@ -136,47 +132,7 @@ view model =
        layout.canvas.top in
 
   let caption = captionArea model layout in
-
-  let deuceWidgets = 
-    let find e acc = 
-      [e] ++ acc 
-    in 
-    let widgets = 
-      expBoundingPolygonPoints (Lang.foldExp find [] model.inputExp) model layout ++
-      patBoundingPolygonPoints (findPats model.inputExp) model layout ++
-      expTargetIndicator (computeExpTargets model.inputExp) model layout ++
-      patTargetIndicator (findPatTargets model.inputExp) model layout 
-    in 
-    let svgWidgets = 
-      [Svg.svg [Attr.id "polygons", 
-           Attr.style
-            [ ("position", "fixed")
-            , ("left", pixels (round(model.codeBoxInfo.gutterWidth) + layout.codeBox.left))
-            , ("top", pixels layout.codeBox.top)
-            , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth)))
-            , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
-            ]] widgets ]
-    in 
-    Html.div [ Attr.id "hoveredItem"
-              , Attr.style
-                  -- child div as absolute to overlay on parent div
-                  -- https://stackoverflow.com/questions/2941189/how-to-overlay-one-div-over-another-div
-                  [ ("position", "absolute")
-                  , ("left", pixels layout.codeBox.left)
-                  , ("top", pixels layout.codeBox.top)
-                  -- TODO don't want this layer to block clicks to change Ace cursor
-                  -- , ("width", pixels layout.codeBox.width)
-                  -- , ("height", pixels layout.codeBox.height)
-                  , ("width", "0")
-                  , ("height", "0")
-                  , ("user-select", "none")
-                  ]
-              -- TODO why are these events here and aceCodeBox?
-              , onMouseEnter Controller.msgMouseEnterCodeBox
-              , onMouseLeave Controller.msgMouseLeaveCodeBox
-              , onClick Controller.msgMouseClickCodeBox
-              ] (List.reverse svgWidgets)
-    in 
+  let deuce = deuceLayer model layout in
   let everything = -- z-order in decreasing order
      -- bottom-most
      [ onbeforeunloadDataElement
@@ -187,12 +143,12 @@ view model =
      [ moreBlobTools, blobTools, attributeTools, lambdaDrawTools, stretchyDrawTools, drawTools
      , textTools
      , codeTools, fileTools
-     ] ++ synthesisResultsSelect ++ [deuceWidgets] ++ 
+     ] ++ synthesisResultsSelect ++ [deuce] ++
 
      -- top-most
      [ resizeCodeBox
      , resizeCanvas
-     , caption
+     -- , caption
      ] ++ dialogBoxes
   in
 
@@ -439,9 +395,9 @@ expBoundingPolygonPoints exps model layout =
   let calculate exp = 
     let points = computePolygonPoints (expBoundingPolygon exp) model layout in 
     let color = --"yellow" in 
-      if List.member exp model.expSelectionBoxes 
+      if List.member exp model.deuceState.expSelectionBoxes 
         then "orange"
-      else if List.member exp model.hoveredExp && showDeuceWidgets model
+      else if List.member exp model.deuceState.hoveredExp && showDeuceWidgets model
         then "yellow"
         else 
           ""
@@ -468,9 +424,9 @@ patBoundingPolygonPoints pats model layout =
       (pat,pid,_,_,_) -> 
         let points = computePolygonPoints (patBoundingPolygon pat) model layout in 
         let color = --"yellow" in 
-          if List.member pat model.patSelectionBoxes 
+          if List.member pat model.deuceState.patSelectionBoxes 
           then "orange"
-          else if List.member pat model.hoveredPat && showDeuceWidgets model
+          else if List.member pat model.deuceState.hoveredPat && showDeuceWidgets model
             then "yellow"
             else 
               ""
@@ -497,9 +453,9 @@ expTargetIndicator targets model layout =
         let pixelPos = rowColToPixelPos start model in 
         let rDot = 4 in
         let opacity = --"yellow" in 
-              if Set.member id model.selectedExpTargets
+              if Set.member id model.deuceState.selectedExpTargets
               then "1.0"
-              else if List.member target model.hoveredExpTargets && showDeuceWidgets model
+              else if List.member target model.deuceState.hoveredExpTargets && showDeuceWidgets model
                 then "1.0"
                 else "0.0"
               in 
@@ -523,10 +479,10 @@ patTargetIndicator targets model layout =
         let pixelPos = rowColToPixelPos start model in 
         let rDot = 4 in
         let opacity =
-              if Set.member pid model.selectedPatTargets
+              if Set.member pid model.deuceState.selectedPatTargets
               then "1.0"
               else 
-                if List.member target model.hoveredPatTargets && showDeuceWidgets model
+                if List.member target model.deuceState.hoveredPatTargets && showDeuceWidgets model
                 then "1.0"
                 else "0.0"
               in 
@@ -551,46 +507,6 @@ getBoxWidth start end m =
 getBoxHeight start end m = 
   let lines = end.line - start.line + 1 in 
   toFloat(lines) * m.codeBoxInfo.lineHeight
-
--- unused function 
-deuceLayer inputs model = 
-  let (outerPad, innerPad) = (3, 2) in
-  let createSVGs input = 
-    case input of
-      (_, _, selectStart, start, end, w, h) -> 
-        let
-          width pad  = toString (w + 2 * pad)
-          height pad = toString (h + 2 * pad)
-          pixelPos = rowColToPixelPos selectStart model
-          w = getBoxWidth start end model
-          h = getBoxHeight start end model
-        in
-        [Svg.svg 
-          [Attr.id "deuceLayer", 
-           Attr.style
-            [ ("position", "fixed")
-            , ("left", pixels (pixelPos.x - (outerPad + innerPad)))
-            , ("top", pixels (pixelPos.y - (outerPad + innerPad)))
-            , ("width", width (outerPad + innerPad))
-            , ("height", height (outerPad + innerPad))
-            ]
-          ] 
-          [ flip Svg.rect [] <|
-            [ attr "stroke" "steelblue"
-            , attr "stroke-width" "3px"
-            , attr "fill-opacity" (toString 0) 
-            , attr "x" (pixels outerPad)
-            , attr "y" (pixels outerPad)
-            , attr "width" (width innerPad)
-            , attr "height" (height innerPad)
-            , attr "rx" "8"
-            , attr "ry" "8"
-            , attr "user-select" "none"
-            ]
-          ]]
-  in 
-  List.concatMap createSVGs inputs 
-
 
 --------------------------------------------------------------------------------
 -- Output Box
@@ -635,18 +551,23 @@ outputArea model layout =
           [ Attr.style [ ("width", pixels layout.canvas.width) ] ]
 
   in
+  let (border, boxShadow) =
+    if Model.needsRun model
+      then ("2px solid rgba(220,20,60,1)", "10px 10px 5px rgba(220,20,60,0.3)")
+      else (params.mainSection.canvas.border, "10px 10px 5px #888888")
+  in
   Html.div
      [ Attr.id "outputArea"
      , Attr.style
          [ ("width", pixels layout.canvas.width)
          , ("height", pixels layout.canvas.height)
          , ("position", "fixed")
-         , ("border", params.mainSection.canvas.border)
+         , ("border", border)
          , ("left", pixels layout.canvas.left)
          , ("top", pixels layout.canvas.top)
          , ("background", "white")
          , ("border-radius", "0px 10px 10px 10px")
-         , ("box-shadow", "10px 10px 5px #888888")
+         , ("box-shadow", boxShadow)
          ]
      ]
      [ output ]
@@ -1383,3 +1304,48 @@ importCodeDialogBox model =
             False
         ]
     ]
+
+
+--------------------------------------------------------------------------------
+-- Deuce Widgets
+
+deuceLayer model layout =
+  let find e acc = 
+    [e] ++ acc 
+  in 
+  let widgets = 
+    expBoundingPolygonPoints (Lang.foldExp find [] model.inputExp) model layout ++
+    patBoundingPolygonPoints (findPats model.inputExp) model layout ++
+    expTargetIndicator (computeExpTargets model.inputExp) model layout ++
+    patTargetIndicator (findPatTargets model.inputExp) model layout 
+  in 
+  let svgWidgets = 
+    [Svg.svg [Attr.id "polygons", 
+         Attr.style
+          [ ("position", "fixed")
+          , ("left", pixels (round(model.codeBoxInfo.gutterWidth) + layout.codeBox.left))
+          , ("top", pixels layout.codeBox.top)
+          , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth)))
+          , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
+          ]] widgets ]
+  in 
+  Html.div [ Attr.id "hoveredItem"
+            , Attr.style
+                -- child div as absolute to overlay on parent div
+                -- https://stackoverflow.com/questions/2941189/how-to-overlay-one-div-over-another-div
+                [ ("position", "absolute")
+                , ("left", pixels layout.codeBox.left)
+                , ("top", pixels layout.codeBox.top)
+                -- TODO don't want this layer to block clicks to change Ace cursor
+                -- , ("width", pixels layout.codeBox.width)
+                -- , ("height", pixels layout.codeBox.height)
+                , ("width", "0")
+                , ("height", "0")
+                , ("user-select", "none")
+                ]
+            -- TODO why are these events here and aceCodeBox?
+            , onMouseEnter Controller.msgMouseEnterCodeBox
+            , onMouseLeave Controller.msgMouseLeaveCodeBox
+            , onClick Controller.msgMouseClickCodeBox
+            ] (List.reverse svgWidgets) 
+

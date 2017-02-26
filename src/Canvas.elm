@@ -1353,8 +1353,11 @@ turnOffCaptionAndHighlights =
   Msg "Turn Off Caption" <| \m ->
     let codeBoxInfo = m.codeBoxInfo in
     { m | caption = Nothing
-        , codeBoxInfo = { codeBoxInfo | highlights = expRangesToHighlights m Nothing ++ 
-                                                     expTargetsToHighlights m Nothing ++ 
-                                                     patRangesToHighlights m Nothing ++ 
-                                                     patTargetsToHighlights m Nothing} }
-
+        , codeBoxInfo = { codeBoxInfo | highlights = [] }
+        }
+{-
+        , codeBoxInfo = { codeBoxInfo | highlights = DeuceWidgets.expRangesToHighlights m Nothing ++
+                                                     DeuceWidgets.expTargetsToHighlights m Nothing ++
+                                                     DeuceWidgets.patRangesToHighlights m Nothing ++
+                                                     DeuceWidgets.patTargetsToHighlights m Nothing} }
+-}

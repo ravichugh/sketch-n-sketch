@@ -1,7 +1,5 @@
 port module DependenceGraph exposing
-  ( ScopeGraph, ScopeId, PatternId
-  , BeforeAfter, PatTargetPosition, ExpTargetPosition
-  , ScopeOrder(..), scopeOrder
+  ( ScopeGraph, ScopeOrder(..), scopeOrder
   , parentScopeOf, childScopesOf
   , lookupIdent
   , compute, printHtml, render, receiveImage
@@ -23,10 +21,7 @@ import Html exposing (Html)
 
 ------------------------------------------------------------------------------
 
-type alias ScopeId = EId   -- from an ELet or EFun expression
 type alias LetOrFun = Bool -- True for ELet, False for EFun
-
-type alias PatternId = (ScopeId, List Int)
 
 type alias VarBindings = Dict Ident (List PatternId)
 
@@ -50,12 +45,6 @@ type alias ScopeGraph =
   , usedVars     : Set PatternId
       -- used temporarily while computing dependencies
   }
-
-type alias BeforeAfter = Int -- 0 for Before, 1 for After
-
-type alias PatTargetPosition = (BeforeAfter, PatternId)
-
-type alias ExpTargetPosition = (BeforeAfter, EId)
 
 
 ------------------------------------------------------------------------------
