@@ -33,6 +33,13 @@ module InterfaceController exposing
   , msgMouseClickCodeBox
   , msgReceiveDotImage
   , msgMoveExp
+  , msgMouseClickExpBoundingBox
+  , msgMouseEnterExpBoundingBox, msgMouseLeaveExpBoundingBox
+  , msgMouseClickPatBoundingBox
+  , msgMouseEnterPatBoundingBox, msgMouseLeavePatBoundingBox
+  , msgMouseClickExpTargetPosition, msgMouseClickPatTargetPosition
+  , msgMouseEnterExpTarget, msgMouseLeaveExpTarget
+  , msgMouseEnterPatTarget, msgMouseLeavePatTarget
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -714,22 +721,10 @@ msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
       new
 
 msgMousePosition pos_ = Msg ("MousePosition " ++ toString pos_) <| \old ->
-  let pixelPos = pixelToRowColPosition pos_ old in 
-  let codeBoxInfo = old.codeBoxInfo in
-  let hoveredExp = expRangesToHover old pos_ in
-  let hoveredExpTargets = expTargetsToHover old pos_ in 
-  let hoveredPat = patRangesToHover old pos_ in 
-  let hoveredPatTargets = patTargetsToHover old pos_ in 
-  let newM = { old | hoveredExp = hoveredExp
-                   , hoveredExpTargets = hoveredExpTargets
-                   , hoveredPat = hoveredPat
-                   , hoveredPatTargets = hoveredPatTargets
-          }
-  in 
   case old.mouseState of
-    (Nothing, _)    -> { newM | mouseState = (Nothing, pos_) }
-    (Just False, _) -> onMouseMove pos_ { newM | mouseState = (Just True, pos_) }
-    (Just True, _)  -> onMouseMove pos_ { newM | mouseState = (Just True, pos_) }
+    (Nothing, _)    -> { old | mouseState = (Nothing, pos_) }
+    (Just False, _) -> onMouseMove pos_ { old | mouseState = (Just True, pos_) }
+    (Just True, _)  -> onMouseMove pos_ { old | mouseState = (Just True, pos_) }
 
 --------------------------------------------------------------------------------
 
@@ -1291,55 +1286,140 @@ msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
   { m | hoveringCodeBox = False }
 
-msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m ->
-  if showDeuceWidgets m
+msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m -> m
+  --let _ = Debug.log "selectedEIds" m.selectedEIds in 
+  --let _ = Debug.log "selectedPats" m.selectedPats in 
+  --let _ = Debug.log "selectedExpTargets" m.selectedExpTargets in 
+  --let _ = Debug.log "selectedPatTargets" m.selectedPatTargets in 
+
+  --if showDeuceWidgets m
+  --then 
+  --  let downPos = case m.mouseMode of 
+  --                  MouseDownInCodebox downPos -> downPos
+  --                  _                          -> { x = 0 , y = 0} in 
+  --  let pos = case m.mouseState of
+  --              (Nothing, _) -> downPos
+  --              (_, p)       -> p  in
+  --  let codeBoxInfo = m.codeBoxInfo in
+  --  let mousePos = case m.mouseState of 
+  --                  (b, pos) -> pos in
+  --  let pixelPos = pixelToRowColPosition mousePos m in 
+  --  let selectedEIds =
+  --    case getClickedEId (computeExpRanges m.inputExp) pixelPos of
+  --      Nothing  -> m.selectedEIds
+  --      Just eid -> if Set.member eid m.selectedEIds
+  --                  then Set.remove eid m.selectedEIds
+  --                  else Set.insert eid m.selectedEIds
+  --  in
+  --  let selectedExpTargets =
+  --    case getClickedExpTarget (computeExpTargets m.inputExp) pixelPos of
+  --      [] -> m.selectedExpTargets
+  --      ls -> getSetMembers ls m.selectedExpTargets 
+  --  in 
+  --  let selectedPats = 
+  --    case getClickedPat (findPats m.inputExp) pixelPos m of
+  --      Nothing  -> m.selectedPats
+  --      Just s -> if Set.member s m.selectedPats
+  --                  then Set.remove s m.selectedPats
+  --                  else Set.insert s m.selectedPats
+  --  in
+  --  let selectedPatTargets = 
+  --    case getClickedPatTarget (findPatTargets m.inputExp) pixelPos m of
+  --      [] -> m.selectedPatTargets
+  --      ls -> getSetMembers ls m.selectedPatTargets
+  --  in
+  --  let new = { m | --selectedEIds = selectedEIds 
+  --                --selectedPats = selectedPats
+  --                selectedPatTargets = selectedPatTargets
+  --                , selectedExpTargets = selectedExpTargets } 
+  --  in 
+  --  { new | --expSelectionBoxes = expRangeSelections new
+  --        expTargetSelections = expTargetsToSelect new 
+  --        --, patSelectionBoxes = patRangeSelections new 
+  --        , patTargetSelections = patTargetsToSelect new 
+  --        }
+  --else
+  --  m 
+
+msgMouseClickExpBoundingBox eid = Msg ("msgMouseClickExpBoundingBox " ++ toString eid) <| \m -> 
+  if showDeuceWidgets m 
   then 
-    let downPos = case m.mouseMode of 
-                    MouseDownInCodebox downPos -> downPos
-                    _                          -> { x = 0 , y = 0} in 
-    let pos = case m.mouseState of
-                (Nothing, _) -> downPos
-                (_, p)       -> p  in
-    let codeBoxInfo = m.codeBoxInfo in
-    let mousePos = case m.mouseState of 
-                    (b, pos) -> pos in
-    let pixelPos = pixelToRowColPosition mousePos m in 
     let selectedEIds =
-      case getClickedEId (computeExpRanges m.inputExp) pixelPos of
-        Nothing  -> m.selectedEIds
-        Just eid -> if Set.member eid m.selectedEIds
-                    then Set.remove eid m.selectedEIds
-                    else Set.insert eid m.selectedEIds
+        if Set.member eid m.selectedEIds
+          then Set.remove eid m.selectedEIds
+          else Set.insert eid m.selectedEIds
     in
-    let selectedExpTargets =
-      case getClickedExpTarget (computeExpTargets m.inputExp) pixelPos of
-        [] -> m.selectedExpTargets
-        ls -> getSetMembers ls m.selectedExpTargets 
+    let new = { m | selectedEIds = selectedEIds }
     in 
-    let selectedPats = 
-      case getClickedPat (findPats m.inputExp) pixelPos m of
-        Nothing  -> m.selectedPats
-        Just s -> if Set.member s m.selectedPats
-                    then Set.remove s m.selectedPats
-                    else Set.insert s m.selectedPats
+    { new | expSelectionBoxes = expRangeSelections new }
+  else
+    m
+
+msgMouseClickPatBoundingBox pat = Msg ("msgMouseClickPatBoundingBox " ++ toString pat) <| \m -> 
+  if showDeuceWidgets m 
+  then 
+    let selectedPats =
+        if Set.member pat m.selectedPats
+          then Set.remove pat m.selectedPats
+          else Set.insert pat m.selectedPats
     in
-    let selectedPatTargets = 
-      case getClickedPatTarget (findPatTargets m.inputExp) pixelPos m of
-        [] -> m.selectedPatTargets
-        ls -> getSetMembers ls m.selectedPatTargets
-    in
-    let new = { m | selectedEIds = selectedEIds 
-                  , selectedPats = selectedPats
-                  , selectedPatTargets = selectedPatTargets
-                  , selectedExpTargets = selectedExpTargets } 
+    let new = { m | selectedPats = selectedPats }
     in 
-    { new | expSelectionBoxes = expRangeSelections new
-          , expTargetSelections = expTargetsToSelect new 
-          , patSelectionBoxes = patRangeSelections new 
-          , patTargetSelections = patTargetsToSelect new 
-          }
+    { new | patSelectionBoxes = patRangeSelections new }
   else
     m 
+
+msgMouseClickExpTargetPosition id = Msg ("msgMouseClickExpTargetPosition " ++ toString id) <| \m -> 
+  if showDeuceWidgets m 
+  then 
+    let selectedExpTargets =
+      if Set.member id m.selectedExpTargets
+      then Set.remove id m.selectedExpTargets
+      else Set.insert id m.selectedExpTargets
+    in 
+    let new = { m | selectedExpTargets = selectedExpTargets }
+    in 
+    { new | expTargetSelections = expTargetsToSelect new  }
+  else
+    m
+
+msgMouseClickPatTargetPosition id = Msg ("msgMouseClickPatTargetPosition " ++ toString id) <| \m -> 
+  if showDeuceWidgets m 
+  then 
+    let selectedPatTargets =
+      if Set.member id m.selectedPatTargets
+      then Set.remove id m.selectedPatTargets
+      else Set.insert id m.selectedPatTargets
+    in 
+    let new = { m | selectedPatTargets = selectedPatTargets }
+    in 
+    { new | patTargetSelections = patTargetsToSelect new }
+  else 
+    m
+
+msgMouseEnterExpBoundingBox exp = Msg ("msgMouseEnterExpBoundingBox " ++ toString exp) <| \old -> 
+  { old | hoveredExp = [exp] } 
+
+msgMouseLeaveExpBoundingBox exp = Msg ("msgMouseLeaveExpBoundingBox " ++ toString exp) <| \old -> 
+  { old | hoveredExp = [] } 
+
+msgMouseEnterPatBoundingBox pat = Msg ("msgMouseEnterPatBoundingBox " ++ toString pat) <| \old -> 
+  { old | hoveredPat = [pat] } 
+
+msgMouseLeavePatBoundingBox pat = Msg ("msgMouseLeavePatBoundingBox " ++ toString pat) <| \old -> 
+  { old | hoveredPat = [] }
+
+msgMouseEnterExpTarget exp = Msg ("msgMouseEnterExpTarget " ++ toString exp) <| \old -> 
+  { old | hoveredExpTargets = [exp] } 
+
+msgMouseLeaveExpTarget exp = Msg ("msgMouseLeaveExpTarget " ++ toString exp) <| \old -> 
+  { old | hoveredExpTargets = [] } 
+
+msgMouseEnterPatTarget pat = Msg ("msgMouseEnterPatTarget " ++ toString pat) <| \old -> 
+  { old | hoveredPatTargets = [pat] } 
+
+msgMouseLeavePatTarget pat = Msg ("msgMouseLeavePatTarget " ++ toString pat) <| \old -> 
+  { old | hoveredPatTargets = [] } 
 
 getSetMembers ls s = 
   case ls of

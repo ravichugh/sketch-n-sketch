@@ -7,6 +7,7 @@ import ExamplesGenerated as Examples
 import Utils
 import HtmlUtils exposing (handleEventAndStop)
 import Either exposing (..)
+import Lang
 
 import InterfaceModel as Model exposing
   ( Msg(..), Model, Tool(..), ShapeToolKind(..), Mode(..)
@@ -15,6 +16,8 @@ import InterfaceModel as Model exposing
   , mkLive_
   , DialogBox(..)
   , rowColToPixelPos
+  , findPats, findPatTargets
+  , computeExpTargets
   , expBoundingPolygon, patBoundingPolygon
   , showDeuceWidgets
   )
@@ -134,62 +137,45 @@ view model =
 
   let caption = captionArea model layout in
 
-  let hoveredItems = 
-{-
-    if showDeuceWidgets model
-    then 
-      -- TODO maybe have deuceHoverBox return only Svg shape nodes,
-      -- and then put into a single top-level Svg.svg here
-      let svgWidgets =
-        patBoundingPolygonPoints model.patSelectionBoxes model layout ++
-        patBoundingPolygonPoints model.hoveredPat model layout ++ 
-        expBoundingPolygonPoints model.expSelectionBoxes model layout ++
-        expBoundingPolygonPoints model.hoveredExp model layout ++
-        targetIndicator model.expTargetSelections model layout ++
-        targetIndicator model.hoveredExpTargets model layout ++
-        targetIndicator model.patTargetSelections model layout ++
-        targetIndicator model.hoveredPatTargets model layout
-      in  
--}
-    let selectedWidgets =
-      patBoundingPolygonPoints model.patSelectionBoxes model layout ++
-      expBoundingPolygonPoints model.expSelectionBoxes model layout ++
-      targetIndicator model.expTargetSelections model layout ++
-      targetIndicator model.patTargetSelections model layout
-    in
-    let hoveredWidgets =
-      if showDeuceWidgets model then
-        patBoundingPolygonPoints model.hoveredPat model layout ++
-        expBoundingPolygonPoints model.hoveredExp model layout ++
-        targetIndicator model.hoveredExpTargets model layout ++
-        targetIndicator model.hoveredPatTargets model layout
-      else
-        []
-    in
-    let svgWidgets = selectedWidgets ++ hoveredWidgets in
-      Html.div [ Attr.id "hoveredItem"
-                , Attr.style
-                    -- child div as absolute to overlay on parent div
-                    -- https://stackoverflow.com/questions/2941189/how-to-overlay-one-div-over-another-div
-                    [ ("position", "absolute")
-                    , ("left", pixels layout.codeBox.left)
-                    , ("top", pixels layout.codeBox.top)
-                    -- TODO don't want this layer to block clicks to change Ace cursor
-                    -- , ("width", pixels layout.codeBox.width)
-                    -- , ("height", pixels layout.codeBox.height)
-                    , ("width", "0")
-                    , ("height", "0")
-                    , ("user-select", "none")
-                    ]
-                -- TODO why are these events here and aceCodeBox?
-                , onMouseEnter Controller.msgMouseEnterCodeBox
-                , onMouseLeave Controller.msgMouseLeaveCodeBox
-                , onClick Controller.msgMouseClickCodeBox
-                ] svgWidgets
-{-
-    else 
-      Html.div [] [] 
--}
+  let deuceWidgets = 
+    let find e acc = 
+      [e] ++ acc 
+    in 
+    let widgets = 
+      expBoundingPolygonPoints (Lang.foldExp find [] model.inputExp) model layout ++
+      patBoundingPolygonPoints (findPats model.inputExp) model layout ++
+      expTargetIndicator (computeExpTargets model.inputExp) model layout ++
+      patTargetIndicator (findPatTargets model.inputExp) model layout 
+    in 
+    let svgWidgets = 
+      [Svg.svg [Attr.id "polygons", 
+           Attr.style
+            [ ("position", "fixed")
+            , ("left", pixels (round(model.codeBoxInfo.gutterWidth) + layout.codeBox.left))
+            , ("top", pixels layout.codeBox.top)
+            , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth)))
+            , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
+            ]] widgets ]
+    in 
+    Html.div [ Attr.id "hoveredItem"
+              , Attr.style
+                  -- child div as absolute to overlay on parent div
+                  -- https://stackoverflow.com/questions/2941189/how-to-overlay-one-div-over-another-div
+                  [ ("position", "absolute")
+                  , ("left", pixels layout.codeBox.left)
+                  , ("top", pixels layout.codeBox.top)
+                  -- TODO don't want this layer to block clicks to change Ace cursor
+                  -- , ("width", pixels layout.codeBox.width)
+                  -- , ("height", pixels layout.codeBox.height)
+                  , ("width", "0")
+                  , ("height", "0")
+                  , ("user-select", "none")
+                  ]
+              -- TODO why are these events here and aceCodeBox?
+              , onMouseEnter Controller.msgMouseEnterCodeBox
+              , onMouseLeave Controller.msgMouseLeaveCodeBox
+              , onClick Controller.msgMouseClickCodeBox
+              ] (List.reverse svgWidgets)
     in 
   let everything = -- z-order in decreasing order
      -- bottom-most
@@ -201,7 +187,7 @@ view model =
      [ moreBlobTools, blobTools, attributeTools, lambdaDrawTools, stretchyDrawTools, drawTools
      , textTools
      , codeTools, fileTools
-     ] ++ synthesisResultsSelect ++ [hoveredItems] ++ 
+     ] ++ synthesisResultsSelect ++ [deuceWidgets] ++ 
 
      -- top-most
      [ resizeCodeBox
@@ -452,72 +438,108 @@ computePolygonPoints rcs model layout =
 expBoundingPolygonPoints exps model layout = 
   let calculate exp = 
     let points = computePolygonPoints (expBoundingPolygon exp) model layout in 
+    let color = --"yellow" in 
+      if List.member exp model.expSelectionBoxes 
+        then "orange"
+      else if List.member exp model.hoveredExp && showDeuceWidgets model
+        then "yellow"
+        else 
+          ""
+    in 
     let textPolygon = 
-        [Svg.svg [Attr.id "deuceLayer", 
-           Attr.style
-            [ ("position", "fixed")
-            , ("left", pixels (round(model.codeBoxInfo.gutterWidth) + layout.codeBox.left))
-            , ("top", pixels layout.codeBox.top)
-            , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth)))
-            , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
-            ]
-          ][ flip Svg.polygon []
-            [LangSvg.attr "stroke" "yellow", LangSvg.attr "stroke-width" "5", Attr.style [("fill-opacity", "0")]
+        [ flip Svg.polygon []
+            [LangSvg.attr "stroke" color
+            , LangSvg.attr "stroke-width" "5"
+            , Attr.style [("fill-opacity", "0")]
             , LangSvg.attr "points" points 
+            , onClick (Controller.msgMouseClickExpBoundingBox exp.val.eid)
+            , onMouseOver (Controller.msgMouseEnterExpBoundingBox exp)
+            , onMouseLeave (Controller.msgMouseLeaveExpBoundingBox exp)
             ] 
-          ]] in 
+          ] in 
       textPolygon
-  in List.concatMap calculate exps
+  in 
+  let polygons = List.reverse (List.concatMap calculate exps) in 
+  polygons
 
 patBoundingPolygonPoints pats model layout = 
-  let calculate pat = 
-    let points = computePolygonPoints (patBoundingPolygon pat) model layout in 
-    let textPolygon = 
-        [Svg.svg [Attr.id "deuceLayer", 
-           Attr.style
-            [ ("position", "fixed")
-            , ("left", pixels (round(model.codeBoxInfo.gutterWidth) + layout.codeBox.left))
-            , ("top", pixels layout.codeBox.top)
-            , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth)))
-            , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
-            ]
-          ][ flip Svg.polygon []
-            [LangSvg.attr "stroke" "yellow", LangSvg.attr "stroke-width" "5", Attr.style [("fill-opacity", "0")]
-            , LangSvg.attr "points" points 
-            ] 
-          ]] in 
-      textPolygon
-  in List.concatMap calculate pats
+  let calculate input = 
+    case input of 
+      (pat,pid,_,_,_) -> 
+        let points = computePolygonPoints (patBoundingPolygon pat) model layout in 
+        let color = --"yellow" in 
+          if List.member pat model.patSelectionBoxes 
+          then "orange"
+          else if List.member pat model.hoveredPat && showDeuceWidgets model
+            then "yellow"
+            else 
+              ""
+          in 
+         let textPolygon = 
+          [ flip Svg.polygon []
+                [LangSvg.attr "stroke" color
+                , LangSvg.attr "stroke-width" "5"
+                , Attr.style [("fill-opacity", "0")]
+                , LangSvg.attr "points" points
+                , onClick (Controller.msgMouseClickPatBoundingBox pid)
+                , onMouseOver (Controller.msgMouseEnterPatBoundingBox pat)
+                , onMouseLeave (Controller.msgMouseLeavePatBoundingBox pat)
+                ]]
+          in textPolygon
+        in 
+        let polygons = List.concatMap calculate pats in 
+          polygons
 
-targetIndicator targets model layout = 
+expTargetIndicator targets model layout = 
   let indicator target = 
     case target of 
       (id, start, end) ->
         let pixelPos = rowColToPixelPos start model in 
-        if start.line > model.codeBoxInfo.firstVisibleRow && 
-           end.line <= model.codeBoxInfo.lastVisibleRow - 1 && 
-           pixelPos.x > (model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth) && 
-           pixelPos.x < (toFloat(layout.codeBox.width) - (model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth))
-        then 
-          let rDot = 4 in
-            [Svg.svg [Attr.id "deuceLayer", 
-                      Attr.style
-                        [ ("position", "fixed")
-                        , ("left", pixels pixelPos.x)
-                        , ("top", pixels pixelPos.y)
-                        , ("width", toString model.codeBoxInfo.characterWidth)
-                        , ("height", toString model.codeBoxInfo.lineHeight)
-                        ]
-                      ][flip Svg.circle []
-                        [ LangSvg.attr "stroke" "black"
-                        , LangSvg.attr "cx" (toString (model.codeBoxInfo.characterWidth/2))
-                        , LangSvg.attr "cy" (toString (model.codeBoxInfo.lineHeight/2))
-                        , LangSvg.attr "r" (toString rDot)
-                        ]
-              ]
-            ] 
-        else 
-          []
+        let rDot = 4 in
+        let opacity = --"yellow" in 
+              if Set.member id model.selectedExpTargets
+              then "1.0"
+              else if List.member target model.hoveredExpTargets && showDeuceWidgets model
+                then "1.0"
+                else "0.0"
+              in 
+              [flip Svg.circle []
+                [ LangSvg.attr "fill" "black"
+                , LangSvg.attr "fill-opacity" opacity 
+                , LangSvg.attr "cx" (toString (pixelPos.x - model.codeBoxInfo.gutterWidth - model.codeBoxInfo.offsetLeft + model.codeBoxInfo.characterWidth/2))
+                , LangSvg.attr "cy" (toString (pixelPos.y))
+                , LangSvg.attr "r" (toString rDot)
+                , onClick (Controller.msgMouseClickExpTargetPosition id)
+                , onMouseOver (Controller.msgMouseEnterExpTarget target)
+                , onMouseLeave (Controller.msgMouseLeaveExpTarget target)
+                ]]
+  in 
+  List.concatMap indicator targets
+
+patTargetIndicator targets model layout = 
+  let indicator target = 
+    case target of 
+      (pid, start, end) ->
+        let pixelPos = rowColToPixelPos start model in 
+        let rDot = 4 in
+        let opacity =
+              if Set.member pid model.selectedPatTargets
+              then "1.0"
+              else 
+                if List.member target model.hoveredPatTargets && showDeuceWidgets model
+                then "1.0"
+                else "0.0"
+              in 
+              [flip Svg.circle []
+                [ LangSvg.attr "fill" "black"
+                , LangSvg.attr "fill-opacity" opacity 
+                , LangSvg.attr "cx" (toString (pixelPos.x - model.codeBoxInfo.gutterWidth - model.codeBoxInfo.offsetLeft + model.codeBoxInfo.characterWidth/2))
+                , LangSvg.attr "cy" (toString (pixelPos.y))
+                , LangSvg.attr "r" (toString rDot)
+                , onClick (Controller.msgMouseClickPatTargetPosition pid)
+                , onMouseOver (Controller.msgMouseEnterPatTarget target)
+                , onMouseLeave (Controller.msgMouseLeavePatTarget target)
+                ]]
   in 
   List.concatMap indicator targets
 
