@@ -132,7 +132,7 @@ view model =
        layout.canvas.top in
 
   let caption = captionArea model layout in
-  let deuce = deuceLayer model layout in
+  let deuce = [deuceLayer model layout] in
   let everything = -- z-order in decreasing order
      -- bottom-most
      [ onbeforeunloadDataElement
@@ -143,7 +143,7 @@ view model =
      [ moreBlobTools, blobTools, attributeTools, lambdaDrawTools, stretchyDrawTools, drawTools
      , textTools
      , codeTools, fileTools
-     ] ++ synthesisResultsSelect ++ [deuce] ++
+     ] ++ synthesisResultsSelect ++ deuce ++
 
      -- top-most
      [ resizeCodeBox
@@ -1329,6 +1329,11 @@ deuceLayer model layout =
           , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
           ]] widgets ]
   in 
+  let pointerEvents = 
+    if showDeuceWidgets model 
+    then "auto"
+    else "none"
+  in 
   Html.div [ Attr.id "hoveredItem"
             , Attr.style
                 -- child div as absolute to overlay on parent div
@@ -1342,6 +1347,7 @@ deuceLayer model layout =
                 , ("width", "0")
                 , ("height", "0")
                 , ("user-select", "none")
+                , ("pointer-events", pointerEvents)
                 ]
             -- TODO why are these events here and aceCodeBox?
             , onMouseEnter Controller.msgMouseEnterCodeBox
