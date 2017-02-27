@@ -211,7 +211,7 @@ attributeToolBox model layout =
     [ relateButton model "Dig Hole" Controller.msgDigHole
     , relateButton model "Make Equal" Controller.msgMakeEqual
     , relateButton model "Relate" Controller.msgRelate
-    , relateButton model "Indexed Relate" Controller.msgRobotRevolution
+    , relateButton model "Indexed Relate" Controller.msgIndexedRelate
     ]
 
 blobToolBox model layout =
@@ -249,7 +249,7 @@ animationToolBox model layout =
     ]
 
 synthesisResultsSelectBox model layout =
-  let desc {description, exp, sortKey} =
+  let desc description exp sortKey =
     (Regex.replace Regex.All (Regex.regex "^Original -> | -> Cleaned$") (\_ -> "") description) ++
     " (" ++ toString (LangTools.nodeCount exp) ++ ")" ++ " " ++ toString sortKey
   in
@@ -261,27 +261,67 @@ synthesisResultsSelectBox model layout =
         , ("padding-bottom", "8px")
         ]
   in
-  let resultButtons =
-    model.synthesisResults
-    |> List.sortBy (\{description, exp, sortKey} -> (LangTools.nodeCount exp, sortKey, description))
-    |> List.map (\result -> htmlButtonExtraAttrs [extraButtonStyles, Html.Events.onMouseEnter (Controller.msgPreview result.exp), Html.Events.onMouseLeave Controller.msgClearPreview] (desc result) (Controller.msgSelectSynthesisResult result.exp) Regular False)
-    |> List.intersperse (Html.br [] [])
-  in
   let cancelButton =
     htmlButtonExtraAttrs [extraButtonStyles, Attr.style [("text-align", "center")]] "Cancel" (Controller.msgClearSynthesisResults) Regular False
   in
   let extraStyles =
-    [ ("max-width", "350px")
-    , ("max-height", "350px")
-    , ("overflow-y", "auto")
+    [ ("display", "block")
     ]
   in
-  toolBox model "synthesisResultsSelect" extraStyles Layout.getPutSynthesisResultsSelectBox layout.synthesisResultsSelect (resultButtons ++ [Html.br [] [], cancelButton])
+  let resultButtonList priorPathByIndices remainingPathByIndicies results =
+    let buttons =
+      results
+      |> Utils.mapi0
+          (\(i, Model.SynthesisResult {description, exp, sortKey, children}) ->
+            let thisElementPath = priorPathByIndices ++ [i] in
+            let (isHovered, nextMenu) =
+              case remainingPathByIndicies of
+                nexti::is ->
+                  if i == nexti then
+                    case children of
+                      Just childResults -> (True, [resultButtonList thisElementPath is childResults])
+                      Nothing           -> (True, [])
+                  else
+                    (False, [])
+                [] ->
+                  (False, [])
+            in
+            nextMenu ++
+            [ htmlButtonExtraAttrs
+                  [ extraButtonStyles
+                  , Attr.style [("background-color", if isHovered then buttonSelectedColor else buttonRegularColor)]
+                  , Html.Events.onMouseEnter (Controller.msgHoverSynthesisResult thisElementPath)
+                  , Html.Events.onMouseLeave (Controller.msgHoverSynthesisResult [])
+                  ]
+                  (desc description exp sortKey)
+                  (Controller.msgSelectSynthesisResult exp)
+                  Regular
+                  False
+            ]
+          )
+      |> List.concat
+    in
+    Html.div
+        [ Attr.style <|
+          [ ("position", if priorPathByIndices == [] then "relative" else "absolute")
+          -- , ("max-height", "325px")
+          , ("width", "325px")
+          , ("overflow", "visible")
+          -- , ("overflow-y", "auto")
+          , ("left", if priorPathByIndices == [] then "0" else "-325px")
+          ]
+        ]
+        buttons
+  in
+  let resultsMenuTree =
+    resultButtonList [] model.hoveredSynthesisResultPathByIndicies model.synthesisResults
+  in
+  toolBox model "synthesisResultsSelect" extraStyles Layout.getPutSynthesisResultsSelectBox layout.synthesisResultsSelect [resultsMenuTree, cancelButton]
 
 toolBox model id extraStyles (getOffset, putOffset) leftRightTopBottom elements =
   Html.div
     [ Attr.id id
-    , Attr.title id
+    -- , Attr.title id
     , Attr.style <|
         [ ("position", "fixed")
         , ("padding", "0px 0px 0px 15px")
@@ -417,15 +457,18 @@ resizeWidget id model layout (getOffset, putOffset) left top =
 
 type ButtonKind = Regular | Selected | Unselected
 
+buttonRegularColor = "white"
+buttonSelectedColor = "lightgray"
+
 htmlButton text onClickHandler btnKind disabled =
   htmlButtonExtraAttrs [] text onClickHandler btnKind disabled
 
 htmlButtonExtraAttrs extraAttrs text onClickHandler btnKind disabled =
   let color =
     case btnKind of
-      Regular    -> "white"
-      Unselected -> "white"
-      Selected   -> "lightgray"
+      Regular    -> buttonRegularColor
+      Unselected -> buttonRegularColor
+      Selected   -> buttonSelectedColor
   in
   -- let lineHeight = 1 + 1.1735 * unpixels params.mainSection.widgets.fontSize |> ((*) 2) |> round |> toFloat |> ((*) 0.5) in -- My best guess based on sampling Firefox's behavior.
   let commonAttrs =
@@ -454,9 +497,9 @@ iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
   let
     color =
       case btnKind of
-        Regular    -> "white"
-        Unselected -> "white"
-        Selected   -> "lightgray"
+        Regular    -> buttonRegularColor
+        Unselected -> buttonRegularColor
+        Selected   -> buttonSelectedColor
     iconHtml =
       case Dict.get (String.toLower iconName) model.icons of
         Just h -> h

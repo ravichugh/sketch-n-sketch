@@ -83,7 +83,8 @@ type alias Model =
   , selectedBlobs : Dict Int NodeId
   , keysDown : List Char.KeyCode
   , autoSynthesis : Bool
-  , synthesisResults: List SynthesisResult
+  , synthesisResults : List SynthesisResult
+  , hoveredSynthesisResultPathByIndicies : List Int
   , randomColor : Int
   , lambdaTools : List LambdaTool
   , layoutOffsets : LayoutOffsets
@@ -172,11 +173,12 @@ type ReplicateKind
   | LinearRepeat
   | RadialRepeat
 
-type alias SynthesisResult =
-  { description : String
-  , exp         : Exp
-  , sortKey     : List Float -- For custom sorting criteria. Sorts ascending.
-  }
+type SynthesisResult =
+  SynthesisResult { description : String
+                  , exp         : Exp
+                  , sortKey     : List Float -- For custom sorting criteria. Sorts ascending.
+                  , children    : Maybe (List SynthesisResult) -- Nothing means not calculated yet.
+                  }
 
 type Msg
   = Msg String (Model -> Model)
@@ -381,6 +383,7 @@ initModel =
     , keysDown      = []
     , autoSynthesis = True
     , synthesisResults = []
+    , hoveredSynthesisResultPathByIndicies = []
     , randomColor   = 100
     , lambdaTools   = [starLambdaTool]
     , layoutOffsets = initialLayoutOffsets

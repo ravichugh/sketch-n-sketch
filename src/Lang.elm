@@ -692,6 +692,18 @@ isFrozenNumber exp =
     EConst _ _ (_, ann, _) _ -> ann == frozen
     _                        -> False
 
+isComment : Exp -> Bool
+isComment exp =
+  case exp.val.e__ of
+    EComment _ _ _ -> True
+    _              -> False
+
+isOption : Exp -> Bool
+isOption exp =
+  case exp.val.e__ of
+    EOption _ _ _ _ _ -> True
+    _                 -> False
+
 varsOfPat : Pat -> List Ident
 varsOfPat pat =
   case pat.val of

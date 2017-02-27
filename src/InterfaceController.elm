@@ -8,9 +8,9 @@ module InterfaceController exposing
   , msgRun, upstateRun, msgTryParseRun
   , msgAceUpdate
   , msgUndo, msgRedo, msgCleanCode
-  , msgDigHole, msgMakeEqual, msgRelate, msgRobotRevolution
+  , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate
   , msgSelectSynthesisResult, msgClearSynthesisResults
-  , msgPreview, msgClearPreview
+  , msgHoverSynthesisResult, msgPreview, msgClearPreview
   , msgGroupBlobs, msgDuplicateBlobs, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox, msgToggleOutput
@@ -36,6 +36,7 @@ import Types
 import Ace
 import LangParser2 exposing (parseE, freshen)
 import LangUnparser exposing (unparse)
+import LangTools
 import LangTransform
 import ValueBasedTransform
 import Blobs exposing (..)
@@ -700,20 +701,23 @@ msgKeyUp keyCode = Msg ("Key Up " ++ toString keyCode) <| \old ->
 
 --------------------------------------------------------------------------------
 
-cleanSynthesisResult {description, exp, sortKey} =
-  { description = description ++ " -> Cleaned"
-  , exp = LangTransform.cleanCode exp
-  , sortKey = sortKey
-  }
+cleanSynthesisResult (SynthesisResult {description, exp, sortKey, children}) =
+  SynthesisResult <|
+    { description = description ++ " -> Cleaned"
+    , exp         = LangTransform.cleanCode exp
+    , sortKey     = sortKey
+    , children    = children
+    }
 
-cleanDedupSynthesisResults synthesisResults =
+cleanDedupSortSynthesisResults synthesisResults =
   synthesisResults
   |> List.map cleanSynthesisResult
-  |> Utils.dedupBy (.exp >> unparse)
+  |> Utils.dedupBy (\(SynthesisResult {description, exp, sortKey, children}) -> unparse exp)
+  |> List.sortBy (\(SynthesisResult {description, exp, sortKey, children}) -> (LangTools.nodeCount exp, sortKey, description))
 
 maybeRunAutoSynthesis m e =
   if m.autoSynthesis
-    then cleanDedupSynthesisResults (ETransform.passiveSynthesisSearch e)
+    then cleanDedupSortSynthesisResults (ETransform.passiveSynthesisSearch e)
     else []
 
 msgCleanCode = Msg "Clean Code" <| \old ->
@@ -760,7 +764,7 @@ msgMakeEqual = Msg "Make Equal" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = cleanDedupSynthesisResults synthesisResults }
+  { old | synthesisResults = cleanDedupSortSynthesisResults synthesisResults }
 
 msgRelate = Msg "Relate" <| \old ->
   let synthesisResults =
@@ -772,11 +776,11 @@ msgRelate = Msg "Relate" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = cleanDedupSynthesisResults synthesisResults }
+  { old | synthesisResults = cleanDedupSortSynthesisResults synthesisResults }
 
-msgRobotRevolution = Msg "Indexed Relate" <| \old ->
+msgIndexedRelate = Msg "Indexed Relate" <| \old ->
   let synthesisResults =
-    ValueBasedTransform.robotRevolution
+    ValueBasedTransform.indexedRelate
         old.inputExp
         old.selectedFeatures
         old.selectedShapes
@@ -785,7 +789,7 @@ msgRobotRevolution = Msg "Indexed Relate" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = cleanDedupSynthesisResults synthesisResults }
+  { old | synthesisResults = cleanDedupSortSynthesisResults synthesisResults }
 
 -- msgMakeEquidistant = Msg "Make Equidistant" <| \old ->
 --   let newExp =
@@ -957,6 +961,15 @@ msgPauseResumeMovie = Msg "Pause/Resume Movie" <| \old ->
 
 --------------------------------------------------------------------------------
 
+showExpPreview old exp =
+  let previewCode = unparse exp in
+  case runAndResolve old exp of
+    Ok (val, widgets, slate, _) ->
+      { old | preview = Just (previewCode, Ok (val, widgets, slate)) }
+
+    Err s ->
+      { old | preview = Just (previewCode, Err s) }
+
 msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
   { old | code          = code
         , inputExp      = exp
@@ -971,14 +984,39 @@ msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
                               (val, []) -- TODO
         }
 
-msgPreview exp = Msg "Preview" <| \old ->
-  let previewCode = unparse exp in
-  case runAndResolve old exp of
-    Ok (val, widgets, slate, _) ->
-      { old | preview = Just (previewCode, Ok (val, widgets, slate)) }
+msgHoverSynthesisResult pathByIndices = Msg "Hover SynthesisResult" <| \old ->
+  let maybeFindResult path results =
+    case path of
+      []    -> Nothing
+      [i]   -> Utils.maybeGet0 i results
+      i::is -> Utils.maybeGet0 i results |> Maybe.andThen (\(SynthesisResult {children}) -> children |> Maybe.andThen (maybeFindResult is))
+  in
+  let setResultChildren path childResults oldResults =
+    case path of
+      []    -> oldResults
+      [i]   -> oldResults |> Utils.getReplacei0 i (\(SynthesisResult attrs) -> SynthesisResult { attrs | children = Just childResults})
+      i::is -> oldResults |> Utils.getReplacei0 i (\(SynthesisResult attrs) -> SynthesisResult { attrs | children = Just (setResultChildren is childResults (attrs.children |> Maybe.withDefault []))})
+  in
+  case maybeFindResult pathByIndices old.synthesisResults of
+    Just (SynthesisResult {description, exp, sortKey, children}) ->
+      let newModel = { old | hoveredSynthesisResultPathByIndicies = pathByIndices } in
+      let newModel2 =
+        case children of
+          Just _  -> newModel -- Children already computed.
+          Nothing ->
+            -- Compute child results.
+            let childResults = cleanDedupSortSynthesisResults (ETransform.passiveSynthesisSearch exp) in
+            let newTopLevelResults = setResultChildren pathByIndices childResults old.synthesisResults in
+            { newModel | synthesisResults = newTopLevelResults
+                       , hoveredSynthesisResultPathByIndicies = pathByIndices }
+      in
+      showExpPreview newModel2 exp
 
-    Err s ->
-      { old | preview = Just (previewCode, Err s) }
+    Nothing ->
+      { old | preview = Nothing
+            , hoveredSynthesisResultPathByIndicies = [] }
+
+msgPreview exp = Msg "Preview" <| (\old -> showExpPreview old exp)
 
 msgClearPreview = Msg "Clear Preview" <| \old ->
   { old | preview = Nothing }

@@ -182,8 +182,8 @@ getIndexedLocIdsWithTarget originalExp locsToRevolutionize =
 indexLocId = -2
 
 
-robotRevolutionDistanceScore : Subst -> List (Int, LocId, Num) -> LocEquation -> Num
-robotRevolutionDistanceScore subst indexedLocIdsWithTarget locEqn =
+indexedRelateDistanceScore : Subst -> List (Int, LocId, Num) -> LocEquation -> Num
+indexedRelateDistanceScore subst indexedLocIdsWithTarget locEqn =
   let (_, _, targets) = Utils.unzip3 indexedLocIdsWithTarget in
   let meanAbsoluteDeviation =
     let absDevs =
@@ -201,8 +201,8 @@ robotRevolutionDistanceScore subst indexedLocIdsWithTarget locEqn =
   sumOfSquares / toFloat (List.length indexedLocIdsWithTarget)
 
 
-robotRevolution : Exp -> Set.Set ShapeWidgets.SelectedShapeFeature -> Set.Set NodeId -> Int -> Int -> Float -> Sync.Options -> List InterfaceModel.SynthesisResult
-robotRevolution originalExp selectedFeatures selectedShapes slideNumber movieNumber movieTime syncOptions =
+indexedRelate : Exp -> Set.Set ShapeWidgets.SelectedShapeFeature -> Set.Set NodeId -> Int -> Int -> Float -> Sync.Options -> List InterfaceModel.SynthesisResult
+indexedRelate originalExp selectedFeatures selectedShapes slideNumber movieNumber movieTime syncOptions =
   case evalToSlateResult originalExp slideNumber movieNumber movieTime of
     Err _    -> []
     Ok slate ->
@@ -215,7 +215,7 @@ robotRevolution originalExp selectedFeatures selectedShapes slideNumber movieNum
           |> Set.toList
           |> List.concatMap
               (\nodeId ->
-                let (kind, attrs) = LangSvg.justGetSvgNode "ValueBasedTransform.robotRevolution" nodeId slate in
+                let (kind, attrs) = LangSvg.justGetSvgNode "ValueBasedTransform.indexedRelate" nodeId slate in
                 ShapeWidgets.featuresOfShape kind attrs
                 |> List.concatMap ShapeWidgets.featureNumsOfFeature
                 |> List.map (ShapeWidgets.strFeatureNum kind)
@@ -277,11 +277,13 @@ robotRevolution originalExp selectedFeatures selectedShapes slideNumber movieNum
                   )
                   locsLifted
             in
-            let distanceScore = robotRevolutionDistanceScore subst indexedLocIdsWithTarget eqn in
-            { description = description
-            , exp         = newExp
-            , sortKey     = [distanceScore]
-            }
+            let distanceScore = indexedRelateDistanceScore subst indexedLocIdsWithTarget eqn in
+            InterfaceModel.SynthesisResult <|
+              { description = description
+              , exp         = newExp
+              , sortKey     = [distanceScore]
+              , children    = Nothing
+              }
           )
 
 
@@ -290,7 +292,7 @@ stormTheBastille : Subst -> List (Int, LocId, Num) -> List LocEquation
 stormTheBastille subst indexedLocIdsWithTarget =
   let (_, locIds, _) = Utils.unzip3 indexedLocIdsWithTarget in
   let locIdsAndIndex = indexLocId::locIds in
-  let distanceScore locEqn = robotRevolutionDistanceScore subst indexedLocIdsWithTarget locEqn in
+  let distanceScore locEqn = indexedRelateDistanceScore subst indexedLocIdsWithTarget locEqn in
   let eqnsOfSize astSize =
     locEqnsTemplatesOfSize 1 1 astSize -- allowing two constants is taking too long :(
     -- locEqnsTemplatesOfSize 1 2 astSize
@@ -347,10 +349,12 @@ rankComparedTo originalExp synthesisResults =
           else
             (List.maximum locLineNums |> Utils.fromJust) - (List.minimum locLineNums |> Utils.fromJust)
         in
-        { description = description
-        , exp         = exp
-        , sortKey     = [removedLocDistance] ++ (locLineNums |> List.map negate |> List.reverse)
-        }
+        InterfaceModel.SynthesisResult <|
+          { description = description
+          , exp         = exp
+          , sortKey     = [removedLocDistance] ++ (locLineNums |> List.map negate |> List.reverse)
+          , children    = Nothing
+          }
       )
 
 -- Returns list of synthesis results

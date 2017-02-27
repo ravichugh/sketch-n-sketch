@@ -18,12 +18,16 @@ import LangUnparser exposing (unparseWithIds)
 import Types
 
 import Dict
+import Regex
 import Set
 
 
 -- For ranking synthesized expressions
 nodeCount : Exp -> Int
 nodeCount exp =
+  let expsNodeCount exps =
+    exps |> List.map nodeCount |> List.sum
+  in
   case exp.val.e__ of
     EConst _ _ _ _          -> 1
     EBase _ _               -> 1
@@ -46,9 +50,99 @@ nodeCount exp =
     ETypeAlias _ p t e1 _   -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
 
 
-expsNodeCount : List Exp -> Int
-expsNodeCount exps =
-  exps |> List.map nodeCount |> List.sum
+-- O(n); for clone detection
+subExpsOfSizeAtLeast : Int -> Exp -> List Exp
+subExpsOfSizeAtLeast min exp =
+  let (_, exps) = subExpsOfSizeAtLeast_ min exp in
+  exps
+
+-- Returns exact self size if < min, otherwise just some number >= min; and any ancestors of the minimum size
+subExpsOfSizeAtLeast_ : Int -> Exp -> (Int, List Exp)
+subExpsOfSizeAtLeast_ min exp =
+  let (childrenTotal, largeSubExps) =
+    childExps exp
+    |> List.map (subExpsOfSizeAtLeast_ min)
+    |> List.unzip
+    |> (\(childrenSizes, subExpLists) -> (List.sum childrenSizes, List.concat subExpLists))
+  in
+  if childrenTotal >= min then
+    if  not (isComment exp) then
+      (childrenTotal, exp::largeSubExps)
+    else
+      (childrenTotal, largeSubExps)
+  else
+    let thisSizeWithoutChildren =
+      case exp.val.e__ of
+        EConst _ _ _ _          -> 1
+        EBase _ _               -> 1
+        EVar _ x                -> 1
+        EFun _ ps e _           -> 1 + patsNodeCount ps
+        EOp _ op es _           -> 1
+        EList _ es _ (Just e) _ -> 1
+        EList _ es _ Nothing _  -> 1
+        EIf _ e1 e2 e3 _        -> 1
+        -- Cases have a set of parens around each branch. I suppose each should count as a node.
+        ECase _ e1 bs _         -> 1 + (List.length bs) + patsNodeCount (branchPats bs)
+        ETypeCase _ p tbs _     -> 1 + (List.length tbs) + patNodeCount p + typesNodeCount (tbranchTypes tbs)
+        -- ETypeCase _ e1 tbranches _  ->
+        EApp _ e1 es _          -> 1
+        ELet _ _ _ p e1 e2 _    -> 1 + patNodeCount p
+        EComment _ _ e1         -> 0 -- Comments don't count.
+        EOption _ _ _ _ e1      -> 1
+        ETyp _ p t e1 _         -> 1 + patNodeCount p + typeNodeCount t
+        EColonType _ e1 _ t _   -> 1 + typeNodeCount t
+        ETypeAlias _ p t e1 _   -> 1 + patNodeCount p + typeNodeCount t
+    in
+    if largeSubExps /= [] then
+      Debug.crash "LangTools.thisSizeWithoutChildren bug"
+    else
+      -- Comment should be excluded here because size 0; if big enough we would have returned already.
+      let thisSize = thisSizeWithoutChildren + childrenTotal in
+      (thisSize, if thisSize >= min then [exp] else [])
+
+
+-- -- Returns early. To turn O(n^2) counting into O(n*min) counting if you
+-- -- count for every program node.
+-- nodeCountAtLeast : Int -> Exp -> Bool
+-- nodeCountAtLeast min exp =
+--   nodeCountAtLeast_ min exp >= min
+--
+-- -- Returns exact count if count < min; otherwise returns some number >= min
+-- nodeCountAtLeast_ : Int -> Exp -> Int
+-- nodeCountAtLeast_ min exp =
+--   let expsNodeCountAtLeast_ min exps =
+--     case exps of
+--       []    -> 0
+--       e::es ->
+--         let eCount = nodeCountAtLeast_ min e in
+--         if eCount >= min
+--         then eCount
+--         else eCount + expsNodeCountAtLeast_ (min - eCount) es
+--   in
+--   if min <= 1 && not (isComment exp) then
+--     1
+--   else
+--     case exp.val.e__ of
+--       EConst _ _ _ _          -> 1
+--       EBase _ _               -> 1
+--       EVar _ x                -> 1
+--       EFun _ ps e _           -> if 3 >= min then 3 else let pCount = patsNodeCount ps in 1 + pCount + nodeCountAtLeast_ (min - 1 - pCount) e
+--       EOp _ op es _           -> 1 + expsNodeCountAtLeast_ (min - 1) es
+--       EList _ es _ (Just e) _ -> 1 + expsNodeCountAtLeast_ (min - 1) (e::es)
+--       EList _ es _ Nothing _  -> 1 + expsNodeCountAtLeast_ (min - 1) es
+--       EIf _ e1 e2 e3 _        -> 1 + expsNodeCountAtLeast_ (min - 1) [e1, e2, e3]
+--       -- Cases have a set of parens around each branch. I suppose each should count as a node.
+--       ECase _ e1 bs _         -> let bCount  = List.length bs  in if 2 + 3*bCount >= min  then 2 + 3*bCount  else let pCounts  = patsNodeCount (branchPats bs)                      in 1 + bCount + pCounts + expsNodeCountAtLeast_ (min - 1 - bCount - pCounts) (e1 :: branchExps bs)
+--       ETypeCase _ p tbs _     -> let tbCount = List.length tbs in if 2 + 3*tbCount >= min then 2 + 3*tbCount else let ptCounts = patNodeCount p + typesNodeCount (tbranchTypes tbs) in 1 + tbCount + ptCounts + expsNodeCountAtLeast_ (min - 1 - tbCount - ptCounts) (tbranchExps tbs)
+--       -- ETypeCase _ e1 tbranches _  ->
+--       EApp _ e1 es _          -> 1 + expsNodeCountAtLeast_ (min - 1) (e1::es)
+--       ELet _ _ _ p e1 e2 _    -> if 4 >= min then 4 else let pCount = patNodeCount p in 1 + pCount + expsNodeCountAtLeast_ (min - 1 - pCount) [e1, e2]
+--       EComment _ _ e1         -> 0 + nodeCountAtLeast_ min e1 -- Comments don't count.
+--       EOption _ _ _ _ e1      -> 1 + nodeCountAtLeast_ (min - 1) e1
+--       ETyp _ p t e1 _         -> if 4 >= min then 4 else let ptCount = patNodeCount p + typeNodeCount t in 1 + ptCount + nodeCountAtLeast_ (min - 1 - ptCount) e1
+--       EColonType _ e1 _ t _   -> if 3 >= min then 3 else let tCount = typeNodeCount t in 1 + tCount + nodeCountAtLeast_ (min - 1 - tCount) e1
+--       ETypeAlias _ p t e1 _   -> if 4 >= min then 4 else let ptCount = patNodeCount p + typeNodeCount t in 1 + ptCount + nodeCountAtLeast_ (min - 1 - ptCount) e1
+
 
 patNodeCount : Pat -> Int
 patNodeCount pat =
@@ -324,15 +418,35 @@ commonNameForEIds : Exp -> List EId -> String
 commonNameForEIds program eids =
   commonNameForEIdsWithDefault defaultExpName program eids
 
+
+leadingCapitals = Regex.regex "^[A-Z]+"
+
+downcaseLeadingCapitals : String -> String
+downcaseLeadingCapitals string =
+  Regex.replace (Regex.AtMost 1) leadingCapitals (\{match} -> String.toLower match) string
+
+
 -- Suggest a common name for the expressions at eids in program
 --
 -- yuck; common prefix of the unscoped names of the expressions
 commonNameForEIdsWithDefault : String -> Exp -> List EId -> String
 commonNameForEIdsWithDefault defaultName program eids =
+  let expNames = eids |> List.map (expNameForEId program) in
+  let prefixCandidate = Utils.commonPrefixString expNames in
+  let suffixCandidate = Utils.commonSuffixString expNames in
   let candidate =
-    eids
-    |> List.map (expNameForEId program)
-    |> Utils.commonPrefixString
+    let candidate =
+      if prefixCandidate == "" then suffixCandidate else
+      if suffixCandidate == "" then prefixCandidate else
+      if prefixCandidate == defaultExpName then suffixCandidate else
+      if suffixCandidate == defaultExpName then prefixCandidate else
+      if prefixCandidate == "num" then suffixCandidate else
+      if suffixCandidate == "num" then prefixCandidate else
+      if String.length prefixCandidate < String.length suffixCandidate
+      then suffixCandidate
+      else prefixCandidate
+    in
+    downcaseLeadingCapitals candidate
   in
   if candidate == "" || candidate == "num" || candidate == defaultExpName then
     -- If candidates are all numbers, see if they look like indices and if so, use "i" as the common name.
@@ -355,6 +469,8 @@ commonNameForEIdsWithDefault defaultName program eids =
 -- Returns list of named scopes that contain the expression.
 --
 -- Last element is "name" of expression.
+--
+-- Could use some speeding up.
 --
 -- Empty list if not found.
 expDescriptionParts : Exp -> EId -> List String

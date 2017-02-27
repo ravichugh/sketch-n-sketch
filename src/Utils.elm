@@ -413,12 +413,21 @@ geti i = fromJust_ "Utils.geti" << List.head << List.drop (i-1)
 replacei : Int -> a -> List a -> List a
 replacei i xi_ xs = List.take (i-1) xs ++ [xi_] ++ List.drop i xs
 
+-- 0-based
+maybeGet0 : Int -> List a -> Maybe a
+maybeGet0 i list = list |> List.drop i |> List.head
+
+-- 0-based
+getReplacei0 : Int -> (a -> a) -> List a -> List a
+getReplacei0 i f list =
+  case (List.take i list, List.drop i list) of
+    (before, x::after) -> before ++ [f x] ++ after
+    _                  -> list
+
+-- O(n)
 allSame list = case list of
   []    -> False
-  v::vs -> List.filter ((/=) v) vs == []
-
-removeDupes : List comparable -> List comparable
-removeDupes = Set.toList << Set.fromList
+  v::vs -> List.all ((==) v) vs
 
 maybeConsensus : List Bool -> Maybe Bool
 maybeConsensus bools =
