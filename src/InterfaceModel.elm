@@ -309,7 +309,7 @@ getFile model = { filename = model.filename
 
 --------------------------------------------------------------------------------
 
-iconNames = ["cursor", "line", "rect", "ellipse", "polygon", "path", "lambda"]
+iconNames = ["cursor", "text", "line", "rect", "ellipse", "polygon", "path", "lambda"]
 
 --------------------------------------------------------------------------------
 

@@ -5253,6 +5253,7 @@ examples =
   , makeExample "Calendar Icon" calendarIcon
 
   , makeExample "Icon: Cursor" DefaultIconTheme.cursor
+  , makeExample "Icon: Text" DefaultIconTheme.text
   , makeExample "Icon: Line" DefaultIconTheme.line
   , makeExample "Icon: Rect" DefaultIconTheme.rect
   , makeExample "Icon: Ellipse" DefaultIconTheme.ellipse

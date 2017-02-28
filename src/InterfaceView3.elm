@@ -183,6 +183,7 @@ codeToolBox model layout =
 drawToolBox model layout =
   toolBox model "drawToolBox" [] Layout.getPutDrawToolBox layout.drawTools
     [ toolButton model Cursor
+    , toolButton model Text
     , toolButton model (Line Raw)
     , toolButton model (Rect Raw)
     , toolButton model (Oval Raw)

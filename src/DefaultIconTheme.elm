@@ -5,6 +5,7 @@ import Dict
 icons =
   Dict.fromList
     [ ("cursor", cursor)
+    , ("text", text)
     , ("line", line)
     , ("rect", rect)
     , ("ellipse", ellipse)
@@ -177,4 +178,23 @@ lambda = """
      [(- xw delta) yh]
      [(+ x0 w2) (+ (+ y0 h2) delta)]])
 ]))))
+"""
+
+text = """
+(def [line2_num line2_x1] [156 41])
+(def line1_y1 36)
+(def line1
+  (let x1 (+ (/ line2_num 2!) (/ line2_x1 2!))
+  (let [x1 y2] [x1 165]
+  (let [color width] [379 15]
+    [ (line color width x1 line1_y1 x1 y2) ]))))
+
+(def line2
+  (let [color width] [379 15]
+    [ (line color width line2_x1 line1_y1 line2_num line1_y1) ]))
+
+(svgViewBox 200 200 (concat [
+  line1
+  line2
+]))
 """
