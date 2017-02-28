@@ -1,4 +1,4 @@
-module RemoveExtraPostfixesTests where
+module RemoveExtraPostfixesTests exposing (..)
 
 import Helpers.TestTemplates exposing (..)
 

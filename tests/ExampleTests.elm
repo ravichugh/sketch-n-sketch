@@ -1,4 +1,4 @@
-module ExampleTests where
+module ExampleTests exposing (..)
 
 import String
 
@@ -38,8 +38,8 @@ testExample name code =
   , (\() -> testReparsedUnparsedEvalsWithoutErrors name code)
   ]
 
-exampleTests : () -> List (() -> List (() -> String))
-exampleTests () =
-  List.map
-    (\(name, code, thunk) -> \() -> testExample name code)
-    Examples.list
+-- exampleTests : () -> List (() -> List (() -> String))
+-- exampleTests () =
+--   List.map
+--     (\(name, code, thunk) -> \() -> testExample name code)
+--     Examples.list

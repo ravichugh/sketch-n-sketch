@@ -1,4 +1,4 @@
-module Helpers.Matchers where
+module Helpers.Matchers exposing (..)
 
 
 shouldEqual : a -> a -> String

@@ -1,4 +1,4 @@
-module FeatureEquationTests where
+module FeatureEquationTests exposing (..)
 
 import Helpers.TestTemplates exposing (..)
 

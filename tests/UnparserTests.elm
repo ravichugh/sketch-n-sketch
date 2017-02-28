@@ -1,4 +1,4 @@
-module UnparserTests where
+module UnparserTests exposing (..)
 
 import Helpers.Matchers exposing (..)
 
@@ -16,7 +16,7 @@ testParseUnparseMatch littleStr =
       let unparsed =
         LangUnparser.unparse parsed
       in
-      unparsed `shouldEqual` littleStr
+      shouldEqual unparsed littleStr
 
 littlePrograms =
   [ "5"

@@ -1,4 +1,4 @@
-module Helpers.Utils where
+module Helpers.Utils exposing (..)
 
 import Regex
 import String

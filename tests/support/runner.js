@@ -9,6 +9,7 @@
 // Invoke this runner with the ./test.sh script.
 
 const fs = require("fs");
+const Elm = require("../build/test.js")
 
 // Load the Elm program into our namespace.
 with (global) {
