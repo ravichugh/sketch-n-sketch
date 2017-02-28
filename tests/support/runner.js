@@ -52,7 +52,7 @@ for (moduleName in Elm) {
       if (itemName.match(/(^t|_t|T)ests?$/) &&
           (itemName.match(testNameFilter) || moduleName.match(testNameFilter)) &&
           typeof item === "function") {
-        testsToRun.push(item);
+        testsToRun.push({"name": itemName, "run":item});
       }
     }
   }
@@ -61,7 +61,7 @@ for (moduleName in Elm) {
 
 var passCount = 0;
 var failCount = 0;
-var failureMessages = [];
+var failures = [];
 
 // Input:
 // { ctor: '::',
@@ -72,27 +72,32 @@ var failureMessages = [];
 //    _1: { ctor: '::', _0: [Function], _1: [Object] } } }
 //
 // Output:
-// [ [Function], [Function], ... ]
-function arrayifyElmList(elmList) {
+// [ {"name":[String], "run":[Function]}, {"name":[String], "run":[Function]}, ... ]
+function arrayifyElmList(elmList, rootName) {
   var list = [];
   var head = elmList;
+  var count = 0;
   while (head.ctor === "::") {
-    list.unshift(head._0);
+    list.unshift({
+      "name":rootName + "_GENERATEDTEST_" + count,
+      "run": head._0
+    });
     head = head._1;
+    count = count + 1;
   }
   return list;
 }
 
-function failTest(failureMessage) {
+function failTest(name, message) {
   failCount++;
   console._stdout.write(red("F"));
-  failureMessages.push(failureMessage);
+  failures.push({"name":name, "message":message});
 }
 
 while (testsToRun.length > 0) {
 
   var test = testsToRun.shift();
-  var result = test();
+  var result = test.run();
 
   if (typeof result === "string") {
 
@@ -101,19 +106,19 @@ while (testsToRun.length > 0) {
       passCount++;
       console._stdout.write(green("."));
     } else {
-      failTest(result);
+      failTest(test.name, result);
     }
 
 
   } else if (result.ctor === "::" && typeof result._0 === "function") {
 
     // We have a list of more tests to run!
-    var newTests = arrayifyElmList(result);
+    var newTests = arrayifyElmList(result, test.name);
     testsToRun = testsToRun.concat(newTests);
 
   } else {
 
-    failTest("Test did not return a string or list of functions: " + test.toString());
+    failTest(test.name, "Test did not return a string or list of functions: " + test.toString());
 
   }
 
@@ -127,8 +132,9 @@ if (passCount + failCount > 0) {
 // Output failure messages, if any.
 if (failCount > 0) {
   console.error("");
-  for (i in failureMessages) {
-    console.error(red(failureMessages[i]));
+  for (i in failures) {
+    console.error(red(failures[i].name));
+    console.error(failures[i].message);
     console.error("");
   }
 }

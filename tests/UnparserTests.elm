@@ -6,11 +6,12 @@ import String
 
 import LangParser2
 import LangUnparser
+import OurParser2 exposing (formatError)
 
 testParseUnparseMatch littleStr =
   case LangParser2.parseE littleStr of
     Err s ->
-      "can't parse: " ++ s ++ "\n" ++ littleStr
+      "can't parse: " ++ formatError s ++ "\n"
     Ok parsed ->
       let unparsed =
         LangUnparser.unparse parsed
@@ -54,12 +55,6 @@ littlePrograms =
   , "[ a b   | []  ]"
   , "[ a b   | c  ]"
   , "[ a b   | [  c ]  ]"
-  , "[||]"
-  , "  [| |]"
-  , "[| 1 2 3 |]"
-  , "  [|   1 2  |]"
-  , "[| 1 2 6..8 |]"
-  , "  [| 1 2 6  ..   8 |]"
   , "(if (= a b) 'body1' 'body2')"
   , "   (if  (= a b )  'body1' 'body2'     )"
   , "(case (+ 4 5) (1 'body1') ([h|tail] 'body2') (true 'body3') (var 'body4'))"
