@@ -420,6 +420,10 @@ outputArea model layout =
          , ("background", "white")
          , ("border-radius", "0px 10px 10px 10px")
          , ("box-shadow", "10px 10px 5px #888888")
+         , ("-ms-user-select", "none")
+         , ("-moz-user-select", "none")
+         , ("-webkit-user-select", "none")
+         , ("user-select", "none")
          ]
      ]
      [ output ]
@@ -480,6 +484,9 @@ htmlButtonExtraAttrs extraAttrs text onClickHandler btnKind disabled =
                  , ("min-height", pixels Layout.buttonHeight)
                  , ("background", color)
                  , ("cursor", "pointer")
+                 , ("-ms-user-select", "none")
+                 , ("-moz-user-select", "none")
+                 , ("-webkit-user-select", "none")
                  , ("user-select", "none")
                  ] ]
   in
@@ -513,6 +520,9 @@ iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
                  , ("height", pixels Layout.iconButtonHeight)
                  , ("background", color)
                  , ("cursor", "pointer")
+                 , ("-ms-user-select", "none")
+                 , ("-moz-user-select", "none")
+                 , ("-webkit-user-select", "none")
                  , ("user-select", "none")
                  ] ]
   in
