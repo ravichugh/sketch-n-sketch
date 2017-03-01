@@ -250,7 +250,7 @@ eval env bt e =
                 case (v1.v_, v2.v_) of
                   (VConst _ nt1, VConst _ nt2) ->
                     let vNew = {v | v_ = VList [{v1 | v_ = VConst (Just (X, nt2)) nt1}, {v2 | v_ = VConst (Just (Y, nt1)) nt2}]} in
-                    ((vNew, ws ++ [WPointSlider nt1 nt2]), env_)
+                    ((vNew, ws ++ [WPoint nt1 nt2]), env_)
                   _ ->
                     result
               _ ->
@@ -364,27 +364,27 @@ evalOp env bt opWithInfo es =
       in
       let newWidgets =
         case (op, args) of
-          (Plus, [VConst (Just (axis, (otherDimNum, otherDimTr))) (n,_), VConst Nothing amountNumTr]) ->
-            let (baseX, baseY) =
+          (Plus, [VConst (Just (axis, otherDimNumTr)) numTr, VConst Nothing amountNumTr]) ->
+            let (baseXNumTr, baseYNumTr) =
               if axis == X
-              then (n, otherDimNum)
-              else (otherDimNum, n)
+              then (numTr, otherDimNumTr)
+              else (otherDimNumTr, numTr)
             in
-            [WOffsetSlider1D baseX baseY axis Positive amountNumTr]
-          (Plus, [VConst Nothing amountNumTr, VConst (Just (axis, (otherDimNum, otherDimTr))) (n,_)]) ->
-            let (baseX, baseY) =
+            [WOffset1D baseXNumTr baseYNumTr axis Positive amountNumTr]
+          (Plus, [VConst Nothing amountNumTr, VConst (Just (axis, otherDimNumTr)) numTr]) ->
+            let (baseXNumTr, baseYNumTr) =
               if axis == X
-              then (n, otherDimNum)
-              else (otherDimNum, n)
+              then (numTr, otherDimNumTr)
+              else (otherDimNumTr, numTr)
             in
-            [WOffsetSlider1D baseX baseY axis Positive amountNumTr]
-          (Minus, [VConst (Just (axis, (otherDimNum, otherDimTr))) (n,_), VConst Nothing amountNumTr]) ->
-            let (baseX, baseY) =
+            [WOffset1D baseXNumTr baseYNumTr axis Positive amountNumTr]
+          (Minus, [VConst (Just (axis, otherDimNumTr)) numTr, VConst Nothing amountNumTr]) ->
+            let (baseXNumTr, baseYNumTr) =
               if axis == X
-              then (n, otherDimNum)
-              else (otherDimNum, n)
+              then (numTr, otherDimNumTr)
+              else (otherDimNumTr, numTr)
             in
-            [WOffsetSlider1D baseX baseY axis Negative amountNumTr]
+            [WOffset1D baseXNumTr baseYNumTr axis Negative amountNumTr]
           _ -> []
       in
       newValRes
@@ -477,8 +477,8 @@ postProcessWidgets widgets =
       List.partition (\widget -> case widget of
                                  WIntSlider _ _ _ _ _      -> True
                                  WNumSlider _ _ _ _ _      -> True
-                                 WPointSlider _ _          -> False
-                                 WOffsetSlider1D _ _ _ _ _ -> False)
+                                 WPoint _ _          -> False
+                                 WOffset1D _ _ _ _ _ -> False)
   in
   rangeWidgets ++ pointWidgets
 

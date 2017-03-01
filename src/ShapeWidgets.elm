@@ -24,6 +24,7 @@ type PointFeature
   | LonePoint
   | Point Int
   | Midpoint Int
+  | EndPoint
 
 type DistanceFeature
   = Width | Height
@@ -157,6 +158,7 @@ strPointFeature pointFeature xy =
     LonePoint  -> xy
     Point i    -> "Pt" ++ xy ++ toString i
     Midpoint i -> "Midpt" ++ xy ++ toString i
+    EndPoint   -> "Endpt" ++ xy
 
 strDistanceFeature distanceFeature =
   case distanceFeature of
@@ -175,7 +177,7 @@ strOtherFeature otherFeature =
     StrokeWidth   -> "strokeWidth"
     Rotation      -> "rotation"
 
-shapeKindRegexStr  = "line|rect|circle|ellipse|polygon|path|box|oval|point"
+shapeKindRegexStr  = "line|rect|circle|ellipse|polygon|path|box|oval|point|offset"
 xShapeFeatureRegex = Regex.regex <| "^(" ++ shapeKindRegexStr ++ ")(.*)X(\\d*)$"
 yShapeFeatureRegex = Regex.regex <| "^(" ++ shapeKindRegexStr ++ ")(.*)Y(\\d*)$"
 
@@ -237,14 +239,15 @@ parseShapeFeaturePoint matches =
     [Just kind, Just "CL", Just ""] -> LeftEdge
     [Just kind, Just "C" , Just ""] -> Center
 
-    [Just kind, Just "", Just ""] -> LonePoint
+    [Just kind, Just "",    Just ""] -> LonePoint
 
     [Just kind, Just "", Just "1"] -> Point 1
     [Just kind, Just "", Just "2"] -> Point 2
 
     [Just kind, Just "Pt", Just s] -> Point (Utils.parseInt s)
 
-    [Just kind, Just "Midpt", Just s] -> Midpoint (Utils.parseInt s)
+    [Just kind, Just "Midpt", Just s]  -> Midpoint (Utils.parseInt s)
+    [Just kind, Just "Endpt", Just ""] -> EndPoint
 
     _ -> Debug.crash <| "parsePoint: " ++ toString matches
 
@@ -468,14 +471,27 @@ widgetFeatureEquation featureName widget locIdToNumberAndLoc =
         Utils.justGet_ "ShapeWidgets.widgetFeatureEquation" locId locIdToNumberAndLoc
       in
       EqnNum (n, TrLoc loc)
-    WPointSlider (x, xTr) (y, yTr) ->
+    WPoint (x, xTr) (y, yTr) ->
       let featureNum = parseFeatureNum featureName in
       case featureNum of
         XFeat LonePoint -> EqnNum (x, xTr)
         YFeat LonePoint -> EqnNum (y, yTr)
-        _               -> Debug.crash <| "WPointSlider only supports XFeat LonePoint and YFeat LonePoint; but asked for " ++ featureName
-    _ ->
-      Debug.crash <| "ShapeWidgets.widgetFeatureEquation: Widget type not supported yet " ++ toString widget
+        _               -> Debug.crash <| "WPoint only supports XFeat LonePoint and YFeat LonePoint; but asked for " ++ featureName
+    WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) ->
+      let featureNum = parseFeatureNum featureName in
+      let op =
+        case sign of
+          Positive -> Plus
+          Negative -> Minus
+      in
+      case (featureNum, axis) of
+        (XFeat EndPoint, X) -> EqnOp op [EqnNum (baseX, baseXTr), EqnNum (amount, amountTr)]
+        (XFeat EndPoint, Y) -> EqnNum (baseX, baseXTr)
+        (YFeat EndPoint, X) -> EqnNum (baseY, baseYTr)
+        (YFeat EndPoint, Y) -> EqnOp op [EqnNum (baseY, baseYTr), EqnNum (amount, amountTr)]
+        _              -> Debug.crash <| "WOffset1D only supports XFeat EndPoint and YFeat EndPoint; but asked for " ++ featureName
+    -- _ ->
+    --   Debug.crash <| "ShapeWidgets.widgetFeatureEquation: Widget type not supported yet " ++ toString widget
 
 
 featureEquationOf : ShapeKind -> List Attr -> FeatureNum -> FeatureEquation
@@ -795,6 +811,7 @@ unparseZone z =
     ZPoint (Midpoint _)  -> Debug.crash <| "unparseZone: " ++ toString z
     ZPoint Center        -> Debug.crash <| "unparseZone: " ++ toString z
     ZPoint LonePoint     -> "LonePoint"
+    ZPoint EndPoint      -> Debug.crash <| "unparseZone: " ++ toString z
 
     ZLineEdge            -> "Edge"
     ZPolyEdge i          -> "Edge" ++ toString i

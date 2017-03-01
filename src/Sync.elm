@@ -153,8 +153,8 @@ getLocationCounts options (slate, widgets) =
     case widget of
       WIntSlider _ _ _ _ loc -> updateCount loc acc
       WNumSlider _ _ _ _ loc -> updateCount loc acc
-      WPointSlider (_, t1) (_, t2)    -> Set.foldl updateCount acc (locsOfTraces options [t1, t2])
-      WOffsetSlider1D _ _ _ _ (_, tr) -> Set.foldl updateCount acc (locsOfTrace options tr)
+      WPoint (_, t1) (_, t2)    -> Set.foldl updateCount acc (locsOfTraces options [t1, t2])
+      WOffset1D _ _ _ _ (_, tr) -> Set.foldl updateCount acc (locsOfTrace options tr)
   in
   let d  = LangSvg.foldSlateNodeInfo slate Dict.empty addTriggerNode in
   let d_ = List.foldl addTriggerWidget d widgets in
@@ -411,7 +411,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         )
         accResult
 
-      WPointSlider (x, xTrace) (y, yTrace) ->
+      WPoint (x, xTrace) (y, yTrace) ->
         addTrigger options idAsShape (ZPoint LonePoint) [xTrace, yTrace]
         ( Utils.unwrap2 >> \(xMaybeLoc, yMaybeLoc) ->
             mapMaybeToList xMaybeLoc (\xLoc ->
@@ -425,7 +425,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         )
         accResult
 
-      WOffsetSlider1D baseX baseY axis sign (amount, amountTrace) ->
+      WOffset1D baseXNumTr baseYNumTr axis sign (amount, amountTrace) ->
         addTrigger options idAsShape ZOffset1D [amountTrace]
         (Utils.unwrap1 >> \maybeLoc ->
           mapMaybeToList maybeLoc (\loc_ ->

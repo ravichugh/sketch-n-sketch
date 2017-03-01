@@ -132,8 +132,8 @@ type Sign = Positive | Negative
 type Widget
   = WIntSlider Int Int String Int Loc
   | WNumSlider Num Num String Num Loc
-  | WPointSlider NumTr NumTr
-  | WOffsetSlider1D Num Num Axis Sign NumTr
+  | WPoint NumTr NumTr
+  | WOffset1D NumTr NumTr Axis Sign NumTr
 
 type alias Widgets = List Widget
 

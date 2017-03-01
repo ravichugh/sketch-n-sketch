@@ -302,7 +302,9 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     in
     let dragStyle =
       if model.tool == Cursor then
-        [ attr "cursor" "pointer" ] ++ dragZoneEvents idAsShape "offset" ZOffset1D
+        [ attr "cursor" "pointer"
+        , onMouseEnter (addHoveredShape idAsShape)
+        ] ++ dragZoneEvents idAsShape "offset" ZOffset1D
       else
         [ attr "cursor" "default" ]
     in
@@ -348,8 +350,14 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         , attr "y" (toString y)
         ] ++ dragStyle
     in
+    let endPt =
+      zoneSelectCrossDot model False (idAsShape, "offset", EndPoint) endX endY
+    in
     if amount /= 0 then
-      [line, cap, endArrow]
+      [ Svg.g
+          [onMouseLeave (removeHoveredShape idAsShape)]
+          <| [line, cap, endArrow] ++ endPt
+      ]
     else
       []
   in
@@ -364,10 +372,10 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
         drawNumWidget i_ widget k cap minVal maxVal curVal
 
-      WPointSlider (xVal, _) (yVal, _) ->
+      WPoint (xVal, _) (yVal, _) ->
         drawPointWidget i_ widget xVal yVal
 
-      WOffsetSlider1D baseX baseY axis sign amountNumTr ->
+      WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign amountNumTr ->
         drawOffsetWidget1D i_ baseX baseY axis sign amountNumTr
   in
 
