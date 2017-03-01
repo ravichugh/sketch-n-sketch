@@ -89,7 +89,7 @@ valIsType val tipe =
     Debug.crash <| "typing values against " ++ msg ++ " is not supported"
   in
   case (val.v_, tipe.val) of
-    (VConst _, TNum _)               -> True
+    (VConst _ _, TNum _)             -> True
     (VBase (VBool _), TBool _)       -> True
     (VBase (VString _), TString _)   -> True
     (VBase VNull, TNull _)           -> True

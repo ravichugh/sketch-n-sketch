@@ -4,6 +4,7 @@ import Lang exposing (..)
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Attr)
 import Utils
 
+import Dict
 import String
 import Regex
 
@@ -20,6 +21,7 @@ type PointFeature
   = TopLeft | TopRight  | BotLeft | BotRight
   | TopEdge | RightEdge | BotEdge | LeftEdge
   | Center
+  | LonePoint
   | Point Int
   | Midpoint Int
 
@@ -94,18 +96,18 @@ pointFeaturesOfShape kind attrs =
 -- FeatureNum (for selecting/relating individual values)
 
 type FeatureNum
-  = X PointFeature
-  | Y PointFeature
-  | D DistanceFeature
-  | O OtherFeature
+  = XFeat PointFeature
+  | YFeat PointFeature
+  | DFeat DistanceFeature
+  | OFeat OtherFeature
 
 
 featureNumsOfFeature : Feature -> List FeatureNum
 featureNumsOfFeature feature =
   case feature of
-    PointFeature pf    -> [X pf, Y pf]
-    DistanceFeature df -> [D df]
-    OtherFeature feat  -> [O feat]
+    PointFeature pf    -> [XFeat pf, YFeat pf]
+    DistanceFeature df -> [DFeat df]
+    OtherFeature feat  -> [OFeat feat]
 
 featureNumsOfShape : ShapeKind -> List Attr -> List FeatureNum
 featureNumsOfShape kind attrs =
@@ -132,14 +134,14 @@ unparseFeatureNum mKind featureNum =
 strFeatureNum : ShapeKind -> FeatureNum -> ShapeFeature
 strFeatureNum kind featureNum =
   case (kind, featureNum) of
-    ("line", X (Point 1)) -> "X1"
-    ("line", X (Point 2)) -> "X2"
-    ("line", Y (Point 1)) -> "Y1"
-    ("line", Y (Point 2)) -> "Y2"
-    (_,      X pf)        -> strPointFeature pf "X"
-    (_,      Y pf)        -> strPointFeature pf "Y"
-    (_,      D df)        -> strDistanceFeature df
-    (_,      O f)         -> strOtherFeature f
+    ("line", XFeat (Point 1)) -> "X1"
+    ("line", XFeat (Point 2)) -> "X2"
+    ("line", YFeat (Point 1)) -> "Y1"
+    ("line", YFeat (Point 2)) -> "Y2"
+    (_,      XFeat pf)        -> strPointFeature pf "X"
+    (_,      YFeat pf)        -> strPointFeature pf "Y"
+    (_,      DFeat df)        -> strDistanceFeature df
+    (_,      OFeat f)         -> strOtherFeature f
 
 strPointFeature pointFeature xy =
   case pointFeature of
@@ -152,6 +154,7 @@ strPointFeature pointFeature xy =
     BotEdge    -> "BC" ++ xy
     LeftEdge   -> "CL" ++ xy
     Center     -> "C" ++ xy
+    LonePoint  -> xy
     Point i    -> "Pt" ++ xy ++ toString i
     Midpoint i -> "Midpt" ++ xy ++ toString i
 
@@ -172,7 +175,7 @@ strOtherFeature otherFeature =
     StrokeWidth   -> "strokeWidth"
     Rotation      -> "rotation"
 
-shapeKindRegexStr  = "line|rect|circle|ellipse|polygon|path|box|oval"
+shapeKindRegexStr  = "line|rect|circle|ellipse|polygon|path|box|oval|point"
 xShapeFeatureRegex = Regex.regex <| "^(" ++ shapeKindRegexStr ++ ")(.*)X(\\d*)$"
 yShapeFeatureRegex = Regex.regex <| "^(" ++ shapeKindRegexStr ++ ")(.*)Y(\\d*)$"
 
@@ -186,28 +189,28 @@ parseFeatureNum shapeFeature =
       |> Utils.head_
       |> (.submatches)
       |> parseDistanceFeature
-      |> D
+      |> DFeat
   else if Regex.contains xShapeFeatureRegex shapeFeature then
     Regex.find (Regex.AtMost 1) xShapeFeatureRegex shapeFeature
       |> Utils.head_
       |> (.submatches)
       |> parseShapeFeaturePoint
-      |> X
+      |> XFeat
   else if Regex.contains yShapeFeatureRegex shapeFeature then
     Regex.find (Regex.AtMost 1) yShapeFeatureRegex shapeFeature
       |> Utils.head_
       |> (.submatches)
       |> parseShapeFeaturePoint
-      |> Y
+      |> YFeat
   else
     case shapeFeature of
 
-      "fill"          -> O FillColor
-      "stroke"        -> O StrokeColor
-      "fillOpacity"   -> O FillOpacity
-      "strokeOpacity" -> O StrokeOpacity
-      "strokeWidth"   -> O StrokeWidth
-      "rotation"      -> O Rotation
+      "fill"          -> OFeat FillColor
+      "stroke"        -> OFeat StrokeColor
+      "fillOpacity"   -> OFeat FillOpacity
+      "strokeOpacity" -> OFeat StrokeOpacity
+      "strokeWidth"   -> OFeat StrokeWidth
+      "rotation"      -> OFeat Rotation
 
       _ -> Debug.crash <| "parseFeatureNum: " ++ shapeFeature
 
@@ -234,6 +237,8 @@ parseShapeFeaturePoint matches =
     [Just kind, Just "CL", Just ""] -> LeftEdge
     [Just kind, Just "C" , Just ""] -> Center
 
+    [Just kind, Just "", Just ""] -> LonePoint
+
     [Just kind, Just "", Just "1"] -> Point 1
     [Just kind, Just "", Just "2"] -> Point 2
 
@@ -247,19 +252,13 @@ parseShapeFeaturePoint matches =
 ------------------------------------------------------------------------------
 -- Selected Shape Features
 
--- String instead of ADT so that it's comparable
---
-type alias SelectedType  = String
-selectedTypeShapeFeature = "shapeFeature"
-selectedTypeWidget       = "widget"
-
-type alias SelectedShapeFeature = (SelectedType, NodeId, ShapeFeature)
+type alias SelectedShapeFeature = (NodeId, ShapeFeature)
 
 selectedPointFeatureOf : SelectedShapeFeature -> SelectedShapeFeature
                       -> Maybe (NodeId, PointFeature)
 selectedPointFeatureOf selected1 selected2 =
-  let (_, id1, feature1) = selected1 in
-  let (_, id2, feature2) = selected2 in
+  let (id1, feature1) = selected1 in
+  let (id2, feature2) = selected2 in
   if id1 /= id2 then Nothing
   else
     case pointFeatureOf (feature1, feature2) of
@@ -269,7 +268,7 @@ selectedPointFeatureOf selected1 selected2 =
 pointFeatureOf : (ShapeFeature, ShapeFeature) -> Maybe PointFeature
 pointFeatureOf (feature1, feature2) =
   case (parseFeatureNum feature1, parseFeatureNum feature2) of
-    (X pointFeature1, Y pointFeature2) ->
+    (XFeat pointFeature1, YFeat pointFeature2) ->
       if pointFeature1 == pointFeature2
       then Just pointFeature1
       else Nothing
@@ -292,12 +291,12 @@ sanityCheck string kind featureNum =
 sanityCheckOther string featureNum =
   assertString string (unparseFeatureNum Nothing featureNum)
 
-shapeFill          = sanityCheckOther "fill" (O FillColor)
-shapeStroke        = sanityCheckOther "stroke" (O StrokeColor)
-shapeFillOpacity   = sanityCheckOther "fillOpacity" (O FillOpacity)
-shapeStrokeOpacity = sanityCheckOther "strokeOpacity" (O StrokeOpacity)
-shapeStrokeWidth   = sanityCheckOther "strokeWidth" (O StrokeWidth)
-shapeRotation      = sanityCheckOther "rotation" (O Rotation)
+shapeFill          = sanityCheckOther "fill" (OFeat FillColor)
+shapeStroke        = sanityCheckOther "stroke" (OFeat StrokeColor)
+shapeFillOpacity   = sanityCheckOther "fillOpacity" (OFeat FillOpacity)
+shapeStrokeOpacity = sanityCheckOther "strokeOpacity" (OFeat StrokeOpacity)
+shapeStrokeWidth   = sanityCheckOther "strokeWidth" (OFeat StrokeWidth)
+shapeRotation      = sanityCheckOther "rotation" (OFeat Rotation)
 
 {-
 rectTLX = sanityCheck "rectTLX" "rect" (X TopLeft)
@@ -451,9 +450,32 @@ div a b   = EqnOp Div [a, b]
 
 
 featureEquation : ShapeKind -> ShapeFeature -> List Attr -> FeatureEquation
-featureEquation kind feature nodeAttrs =
-  let featureNum = parseFeatureNum feature in
+featureEquation kind featureName nodeAttrs =
+  let featureNum = parseFeatureNum featureName in
   featureEquationOf kind nodeAttrs featureNum
+
+
+widgetFeatureEquation : ShapeFeature -> Widget -> Dict.Dict LocId (Num, Loc) -> FeatureEquation
+widgetFeatureEquation featureName widget locIdToNumberAndLoc =
+  case widget of
+    WIntSlider low high caption curVal (locId,_,_) ->
+      let (n, loc) =
+        Utils.justGet_ "ShapeWidgets.widgetFeatureEquation" locId locIdToNumberAndLoc
+      in
+      EqnNum (n, TrLoc loc)
+    WNumSlider low high caption curVal (locId,_,_) ->
+      let (n, loc) =
+        Utils.justGet_ "ShapeWidgets.widgetFeatureEquation" locId locIdToNumberAndLoc
+      in
+      EqnNum (n, TrLoc loc)
+    WPointSlider (x, xTr) (y, yTr) ->
+      let featureNum = parseFeatureNum featureName in
+      case featureNum of
+        XFeat LonePoint -> EqnNum (x, xTr)
+        YFeat LonePoint -> EqnNum (y, yTr)
+        _               -> Debug.crash <| "WPointSlider only supports XFeat LonePoint and YFeat LonePoint; but asked for " ++ featureName
+    _ ->
+      Debug.crash <| "ShapeWidgets.widgetFeatureEquation: Widget type not supported yet " ++ toString widget
 
 
 featureEquationOf : ShapeKind -> List Attr -> FeatureNum -> FeatureEquation
@@ -466,38 +488,38 @@ featureEquationOf kind attrs featureNum =
 
   let handleLine () =
     case featureNum of
-      X (Point 1) -> get "x1"
-      X (Point 2) -> get "x2"
-      Y (Point 1) -> get "y1"
-      Y (Point 2) -> get "y2"
-      X Center    -> div (plus (get "x1") (get "x2")) two
-      Y Center    -> div (plus (get "y1") (get "y2")) two
+      XFeat (Point 1) -> get "x1"
+      XFeat (Point 2) -> get "x2"
+      YFeat (Point 1) -> get "y1"
+      YFeat (Point 2) -> get "y2"
+      XFeat Center    -> div (plus (get "x1") (get "x2")) two
+      YFeat Center    -> div (plus (get "y1") (get "y2")) two
       _           -> crash () in
 
   let handleBoxyShape () =
     let equations = boxyFeatureEquationsOf kind attrs in
     case featureNum of
 
-      X TopLeft   -> equations.left
-      Y TopLeft   -> equations.top
-      X TopRight  -> equations.right
-      Y TopRight  -> equations.top
-      X BotLeft   -> equations.left
-      Y BotLeft   -> equations.bottom
-      X BotRight  -> equations.right
-      Y BotRight  -> equations.bottom
-      X TopEdge   -> equations.cx
-      Y TopEdge   -> equations.top
-      X BotEdge   -> equations.cx
-      Y BotEdge   -> equations.bottom
-      X LeftEdge  -> equations.left
-      Y LeftEdge  -> equations.cy
-      X RightEdge -> equations.right
-      Y RightEdge -> equations.cy
-      X Center    -> equations.cx
-      Y Center    -> equations.cy
+      XFeat TopLeft   -> equations.left
+      YFeat TopLeft   -> equations.top
+      XFeat TopRight  -> equations.right
+      YFeat TopRight  -> equations.top
+      XFeat BotLeft   -> equations.left
+      YFeat BotLeft   -> equations.bottom
+      XFeat BotRight  -> equations.right
+      YFeat BotRight  -> equations.bottom
+      XFeat TopEdge   -> equations.cx
+      YFeat TopEdge   -> equations.top
+      XFeat BotEdge   -> equations.cx
+      YFeat BotEdge   -> equations.bottom
+      XFeat LeftEdge  -> equations.left
+      YFeat LeftEdge  -> equations.cy
+      XFeat RightEdge -> equations.right
+      YFeat RightEdge -> equations.cy
+      XFeat Center    -> equations.cx
+      YFeat Center    -> equations.cy
 
-      D distanceFeature ->
+      DFeat distanceFeature ->
         let s = strDistanceFeature distanceFeature in
         let cap = Utils.spaces ["shapeFeatureEquationOf:", kind, s] in
         case distanceFeature of
@@ -513,8 +535,8 @@ featureEquationOf kind attrs featureNum =
     let x i = EqnNum <| Tuple.first <| LangSvg.getPathPoint attrs i in
     let y i = EqnNum <| Tuple.second <| LangSvg.getPathPoint attrs i in
     case featureNum of
-      X (Point i) -> x i
-      Y (Point i) -> y i
+      XFeat (Point i) -> x i
+      YFeat (Point i) -> y i
       _           -> crash () in
 
   let handlePoly () =
@@ -523,13 +545,13 @@ featureEquationOf kind attrs featureNum =
     let y i = EqnNum <| Tuple.second <| LangSvg.getPolyPoint attrs i in
     case featureNum of
 
-      X (Point i) -> x i
-      Y (Point i) -> y i
+      XFeat (Point i) -> x i
+      YFeat (Point i) -> y i
 
-      X (Midpoint i1) ->
+      XFeat (Midpoint i1) ->
         let i2 = if i1 == ptCount then 1 else i1 + 1 in
         div (plus (x i1) (x i2)) two
-      Y (Midpoint i1) ->
+      YFeat (Midpoint i1) ->
         let i2 = if i1 == ptCount then 1 else i1 + 1 in
         div (plus (y i1) (y i2)) two
 
@@ -537,19 +559,19 @@ featureEquationOf kind attrs featureNum =
 
   case featureNum of
 
-    O FillColor   -> get "fill"
-    O StrokeColor -> get "stroke"
-    O StrokeWidth -> get "stroke-width"
+    OFeat FillColor   -> get "fill"
+    OFeat StrokeColor -> get "stroke"
+    OFeat StrokeWidth -> get "stroke-width"
 
-    O FillOpacity ->
+    OFeat FillOpacity ->
       case (Utils.find_ attrs "fill").av_ of
         LangSvg.AColorNum (_, Just opacity) -> EqnNum opacity
         _                                   -> Debug.crash "featureEquationOf: fillOpacity"
-    O StrokeOpacity ->
+    OFeat StrokeOpacity ->
       case (Utils.find_ attrs "stroke").av_ of
         LangSvg.AColorNum (_, Just opacity) -> EqnNum opacity
         _                                   -> Debug.crash "featureEquationOf: strokeOpacity"
-    O Rotation ->
+    OFeat Rotation ->
       let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ attrs "transform" in
       EqnNum rot
 
@@ -676,9 +698,9 @@ evaluateFeatureEquation_ =
 evaluateLineFeatures attrs =
   Utils.unwrap6 <|
     List.map (evaluateFeatureEquation_ << featureEquationOf "line" attrs) <|
-      [ X (Point 1), Y (Point 1)
-      , X (Point 2), Y (Point 2)
-      , X Center, Y Center
+      [ XFeat (Point 1), YFeat (Point 1)
+      , XFeat (Point 2), YFeat (Point 2)
+      , XFeat Center, YFeat Center
       ]
 
 
@@ -721,8 +743,8 @@ type alias PointEquations = (FeatureEquation, FeatureEquation)
 
 getPointEquations : ShapeKind -> List Attr -> PointFeature -> PointEquations
 getPointEquations kind attrs pointFeature =
-  ( featureEquationOf kind attrs (X pointFeature)
-  , featureEquationOf kind attrs (Y pointFeature) )
+  ( featureEquationOf kind attrs (XFeat pointFeature)
+  , featureEquationOf kind attrs (YFeat pointFeature) )
 
 getPrimitivePointEquations : RootedIndexedTree -> NodeId -> List (NumTr, NumTr)
 getPrimitivePointEquations (_, tree) nodeId =
@@ -740,7 +762,7 @@ getPrimitivePointEquations (_, tree) nodeId =
 ------------------------------------------------------------------------------
 -- Zones
 
-type alias Zone = String
+type alias ZoneName = String
 
 -- NOTE: would like to use only the following definition, but datatypes
 -- aren't comparable... so using Strings for storing in dictionaries, but
@@ -753,8 +775,9 @@ type RealZone
   | ZPolyEdge Int
   | ZOther OtherFeature   -- fill and stroke sliders
   | ZSlider               -- range annotations
+  | ZOffset1D
 
-unparseZone : RealZone -> Zone
+unparseZone : RealZone -> ZoneName
 unparseZone z =
   case z of
     ZInterior            -> "Interior"
@@ -771,6 +794,7 @@ unparseZone z =
 
     ZPoint (Midpoint _)  -> Debug.crash <| "unparseZone: " ++ toString z
     ZPoint Center        -> Debug.crash <| "unparseZone: " ++ toString z
+    ZPoint LonePoint     -> "LonePoint"
 
     ZLineEdge            -> "Edge"
     ZPolyEdge i          -> "Edge" ++ toString i
@@ -783,8 +807,10 @@ unparseZone z =
     ZOther Rotation      -> "RotateBall"
 
     ZSlider              -> "SliderBall"
+    ZOffset1D            -> "Offset1D"
 
-parseZone : Zone -> RealZone
+
+parseZone : ZoneName -> RealZone
 parseZone s =
   case realZoneOf s of
     Just z  -> z
@@ -793,6 +819,7 @@ parseZone s =
 realZoneOf s =
   Utils.firstMaybe
     [ toInteriorZone s
+    , toOtherWidgetZone s
     , toCardinalPointZone s
     , toSliderZone s
     , toPointZone s
@@ -802,6 +829,12 @@ realZoneOf s =
 toInteriorZone s =
   case s of
     "Interior"  -> Just ZInterior
+    _           -> Nothing
+
+toOtherWidgetZone s =
+  case s of
+    "LonePoint" -> Just (ZPoint LonePoint)
+    "Offset1D"  -> Just ZOffset1D
     _           -> Nothing
 
 toCardinalPointZone s =
@@ -849,12 +882,12 @@ toEdgeZone s =
 -- that double as selection and drag widgets. If so, then
 -- eliminate this connection.
 --
-zoneToCrosshair : ShapeKind -> Zone -> Maybe (ShapeFeature, ShapeFeature)
-zoneToCrosshair shape zone =
-  case parseZone zone of
+zoneToCrosshair : ShapeKind -> RealZone -> Maybe (ShapeFeature, ShapeFeature)
+zoneToCrosshair shape realZone =
+  case realZone of
     ZPoint point ->
-      let xFeature = unparseFeatureNum (Just shape) (X point) in
-      let yFeature = unparseFeatureNum (Just shape) (Y point) in
+      let xFeature = unparseFeatureNum (Just shape) (XFeat point) in
+      let yFeature = unparseFeatureNum (Just shape) (YFeat point) in
       Just (xFeature, yFeature)
     _ ->
       Nothing

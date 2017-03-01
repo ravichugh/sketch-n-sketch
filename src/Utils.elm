@@ -96,6 +96,18 @@ maybeZipN lists =
       _                        -> Nothing
 
 
+zipi0 : List a -> List (Int, a)
+zipi0 = zipi_ 0
+
+zipi1 : List a -> List (Int, a)
+zipi1 = zipi_ 1
+
+zipi_ : Int -> List a -> List (Int, a)
+zipi_ i list =
+  case list of
+    []    -> []
+    x::xs -> (i, x) :: zipi_ (i+1) xs
+
 mapi0 : ((Int, a) -> b) -> List a -> List b
 mapi0 = mapi_ 0
 
@@ -104,8 +116,7 @@ mapi1 = mapi_ 1
 
 mapi_ : Int -> ((Int, a) -> b) -> List a -> List b
 mapi_ initI f xs =
-  let n = List.length xs in
-  List.map f (zip (List.range initI n) xs)
+  List.map f (zipi_ initI xs)
 
 foldli0 : ((Int, a) -> b -> b) -> b -> List a -> b
 foldli0 = foldli_ 0
@@ -115,14 +126,12 @@ foldli1 = foldli_ 1
 
 foldli_ : Int ->((Int, a) -> b -> b) -> b -> List a -> b
 foldli_ initI f init xs =
-  let n = List.length xs in
-  List.foldl f init (zip (List.range initI n) xs)
+  List.foldl f init (zipi_ initI xs)
 
 -- three passes, oh well
 filteri1 : ((Int, a) -> Bool) -> List a -> List a
 filteri1 f xs =
-  let n = List.length xs in
-  List.map Tuple.second (List.filter f (zip (List.range 1 n) xs))
+  List.map Tuple.second (List.filter f (zipi1 xs))
 
 reverse2 (xs,ys) = (List.reverse xs, List.reverse ys)
 
@@ -417,6 +426,10 @@ replacei i xi_ xs = List.take (i-1) xs ++ [xi_] ++ List.drop i xs
 maybeGet0 : Int -> List a -> Maybe a
 maybeGet0 i list = list |> List.drop i |> List.head
 
+-- 1-based
+maybeGet1 : Int -> List a -> Maybe a
+maybeGet1 i list = list |> List.drop (i-1) |> List.head
+
 -- 0-based
 getReplacei0 : Int -> (a -> a) -> List a -> List a
 getReplacei0 i f list =
@@ -448,6 +461,7 @@ parens = delimit "(" ")"
 bracks = delimit "[" "]"
 ibracks = delimit "[|" "|]"
 braces = delimit "{" "}"
+angleBracks = delimit "<" ">"
 
 spaces = String.join " "
 commas = String.join ", "
@@ -680,6 +694,12 @@ removeCommonPrefix lists =
   |> Maybe.map List.unzip
   |> Maybe.andThen (\(heads, rests) -> if allSame heads then Just (removeCommonPrefix rests) else Nothing)
   |> Maybe.withDefault lists
+
+sgn x =
+  if x == 0 then 0
+  else if x < 0 then -1
+  else if x > 0 then 1
+  else x -- NaN
 
 between x (a,b) = a <= x && x < b
 

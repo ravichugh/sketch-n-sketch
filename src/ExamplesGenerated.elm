@@ -673,6 +673,18 @@ xySlider =
 
 """
 
+offsets =
+ """(def pt@[x y] ([125 150] : Point))
+
+(def pt2x (+ x 150))
+(def pt3y (+ y 100))
+(def pt4x (+ pt2x 50))
+(def pt5y (- y 40))
+
+(blobs [
+])
+"""
+
 rgba =
  """;
 ; A Color Picker
@@ -5164,6 +5176,7 @@ examples =
   , makeExample "Buttons" buttons
   , makeExample "Widgets" widgets
   , makeExample "xySlider" xySlider
+  , makeExample "Offsets" offsets
   , makeExample "Tile Pattern" boxGridTokenFilter
   , makeExample "Color Picker" rgba
   , makeExample "Ferris Wheel" ferris

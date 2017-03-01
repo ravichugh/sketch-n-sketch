@@ -1,4 +1,4 @@
-module Eval exposing (run, parseAndRun, parseAndRun_, evalDelta, eval, initEnv)
+module Eval exposing (run, doEval, parseAndRun, parseAndRun_, evalDelta, initEnv)
 
 import Debug
 import Dict
@@ -30,7 +30,7 @@ match (p,v) = case (p.val, v.v_) of
       cons (rest, vList vs2) (matchList (Utils.zip ps vs1))
         -- dummy VTrace, since VList itself doesn't matter
   (PList _ _ _ _ _, _) -> Nothing
-  (PConst _ n, VConst (n_,_)) -> if n == n_ then Just [] else Nothing
+  (PConst _ n, VConst _ (n_,_)) -> if n == n_ then Just [] else Nothing
   (PBase _ bv, VBase bv_) -> if (eBaseToVBase bv) == bv_ then Just [] else Nothing
   _ -> Debug.crash <| "Little evaluator bug: Eval.match " ++ (toString p.val) ++ " vs " ++ (toString v.v_)
 
@@ -102,6 +102,20 @@ mkCap mcap l =
   s ++ ": "
 
 
+
+initEnvRes = Result.map Tuple.second <| (eval [] [] Parser.prelude)
+initEnv = Utils.fromOk "Eval.initEnv" <| initEnvRes
+
+run : Exp -> Result String (Val, Widgets)
+run e =
+  doEval initEnv e |> Result.map Tuple.first
+
+doEval : Env -> Exp -> Result String ((Val, Widgets), Env)
+doEval initEnv e =
+  eval initEnv [] e
+  |> Result.map (\((val, widgets), env) -> ((val, postProcessWidgets widgets), env))
+
+
 -- eval propagates output environment in order to extract
 -- initial environment from prelude
 
@@ -131,7 +145,7 @@ eval env bt e =
   case e.val.e__ of
 
   EConst _ i l wd ->
-    let v_ = VConst (i, TrLoc l) in
+    let v_ = VConst Nothing (i, TrLoc l) in
     case wd.val of
       NoWidgetDecl         -> Ok <| ret v_
       IntSlider a _ b mcap -> Ok <| retBoth (Val v_ [], [WIntSlider a.val b.val (mkCap mcap l) (floor i) l])
@@ -234,8 +248,9 @@ eval env bt e =
             case v.v_ of
               VList [v1, v2] ->
                 case (v1.v_, v2.v_) of
-                  (VConst nt1, VConst nt2) ->
-                    ((v, ws ++ [WPointSlider nt1 nt2]), env_)
+                  (VConst _ nt1, VConst _ nt2) ->
+                    let vNew = {v | v_ = VList [{v1 | v_ = VConst (Just (X, nt2)) nt1}, {v2 | v_ = VConst (Just (Y, nt1)) nt2}]} in
+                    ((vNew, ws ++ [WPointSlider nt1 nt2]), env_)
                   _ ->
                     result
               _ ->
@@ -279,13 +294,22 @@ evalOp env bt opWithInfo es =
       in
       let unaryMathOp op args =
         case args of
-          [VConst (n,t)] -> VConst (evalDelta bt op [n], TrOp op [t]) |> emptyVTraceOk
-          _              -> error ()
+          [VConst _ (n,t)] -> VConst Nothing (evalDelta bt op [n], TrOp op [t]) |> emptyVTraceOk
+          _                -> error ()
       in
       let binMathOp op args =
         case args of
-          [VConst (i,it), VConst (j,jt)] -> VConst (evalDelta bt op [i,j], TrOp op [it,jt]) |> emptyVTraceOk
-          _                              -> error ()
+          [VConst maybeAxisAndOtherDim1 (i,it), VConst maybeAxisAndOtherDim2 (j,jt)] ->
+            let maybeAxisAndOtherDim =
+              case (op, maybeAxisAndOtherDim1, maybeAxisAndOtherDim2) of
+                (Plus, Just axisAndOtherDim, Nothing)  -> Just axisAndOtherDim
+                (Plus, Nothing, Just axisAndOtherDim)  -> Just axisAndOtherDim
+                (Minus, Just axisAndOtherDim, Nothing) -> Just axisAndOtherDim
+                _                                      -> Nothing
+            in
+            VConst maybeAxisAndOtherDim (evalDelta bt op [i,j], TrOp op [it,jt]) |> emptyVTraceOk
+          _  ->
+            error ()
       in
       let args = List.map .v_ vs in
       let newValRes =
@@ -300,14 +324,14 @@ evalOp env bt opWithInfo es =
           Pow       -> binMathOp op args
           ArcTan2   -> binMathOp op args
           Lt        -> case args of
-            [VConst (i,it), VConst (j,jt)] -> VBase (VBool (i < j)) |> emptyVTraceOk
-            _                              -> error ()
+            [VConst _ (i,it), VConst _ (j,jt)] -> VBase (VBool (i < j)) |> emptyVTraceOk
+            _                                  -> error ()
           Eq        -> case args of
-            [VConst (i,it), VConst (j,jt)]           -> VBase (VBool (i == j)) |> emptyVTraceOk
+            [VConst _ (i,it), VConst _ (j,jt)]       -> VBase (VBool (i == j)) |> emptyVTraceOk
             [VBase (VString s1), VBase (VString s2)] -> VBase (VBool (s1 == s2)) |> emptyVTraceOk
             [_, _]                                   -> VBase (VBool False) |> emptyVTraceOk -- polymorphic inequality, added for Prelude.addExtras
             _                                        -> error ()
-          Pi         -> nullaryOp args (VConst (pi, TrOp op []))
+          Pi         -> nullaryOp args (VConst Nothing (pi, TrOp op []))
           DictEmpty  -> nullaryOp args (VDict Dict.empty)
           DictInsert -> case vs of
             [vkey, val, {v_}] -> case v_ of
@@ -338,8 +362,33 @@ evalOp env bt opWithInfo es =
             [val] -> VBase (VString (strVal val)) |> emptyVTraceOk
             _     -> error ()
       in
+      let newWidgets =
+        case (op, args) of
+          (Plus, [VConst (Just (axis, (otherDimNum, otherDimTr))) (n,_), VConst Nothing amountNumTr]) ->
+            let (baseX, baseY) =
+              if axis == X
+              then (n, otherDimNum)
+              else (otherDimNum, n)
+            in
+            [WOffsetSlider1D baseX baseY axis Positive amountNumTr]
+          (Plus, [VConst Nothing amountNumTr, VConst (Just (axis, (otherDimNum, otherDimTr))) (n,_)]) ->
+            let (baseX, baseY) =
+              if axis == X
+              then (n, otherDimNum)
+              else (otherDimNum, n)
+            in
+            [WOffsetSlider1D baseX baseY axis Positive amountNumTr]
+          (Minus, [VConst (Just (axis, (otherDimNum, otherDimTr))) (n,_), VConst Nothing amountNumTr]) ->
+            let (baseX, baseY) =
+              if axis == X
+              then (n, otherDimNum)
+              else (otherDimNum, n)
+            in
+            [WOffsetSlider1D baseX baseY axis Negative amountNumTr]
+          _ -> []
+      in
       newValRes
-      |> Result.map (\newVal -> (newVal, List.concat wss))
+      |> Result.map (\newVal -> (newVal, List.concat wss ++ newWidgets))
 
 
 -- Returns Ok Nothing if no branch matches
@@ -405,7 +454,7 @@ eBaseToVBase eBaseVal =
 valToDictKey : Backtrace -> Val_ -> Result String (String, String)
 valToDictKey bt val_ =
   case val_ of
-    VConst (n, tr)    -> Ok <| (toString n, "num")
+    VConst _ (n, tr)  -> Ok <| (toString n, "num")
     VBase (VBool b)   -> Ok <| (toString b, "bool")
     VBase (VString s) -> Ok <| (toString s, "string")
     VBase VNull       -> Ok <| ("", "null")
@@ -416,12 +465,6 @@ valToDictKey bt val_ =
       |> Result.map (\keyStrings -> (toString keyStrings, "list"))
     _                 -> errorWithBacktrace bt <| "Cannot use " ++ (strVal (val val_)) ++ " in a key to a dictionary."
 
-initEnvRes = Result.map Tuple.second <| (eval [] [] Parser.prelude)
-initEnv = Utils.fromOk "Eval.initEnv" <| initEnvRes
-
-run : Exp -> Result String (Val, Widgets)
-run e =
-  eval_ initEnv [] e |> Result.map (Utils.mapSnd postProcessWidgets)
 
 postProcessWidgets widgets =
   let dedupedWidgets = Utils.dedup widgets in
@@ -432,9 +475,10 @@ postProcessWidgets widgets =
   let (rangeWidgets, pointWidgets) =
     dedupedWidgets |>
       List.partition (\widget -> case widget of
-                                 WIntSlider _ _ _ _ _ -> True
-                                 WNumSlider _ _ _ _ _ -> True
-                                 WPointSlider _ _     -> False)
+                                 WIntSlider _ _ _ _ _      -> True
+                                 WNumSlider _ _ _ _ _      -> True
+                                 WPointSlider _ _          -> False
+                                 WOffsetSlider1D _ _ _ _ _ -> False)
   in
   rangeWidgets ++ pointWidgets
 

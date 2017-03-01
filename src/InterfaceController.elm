@@ -53,7 +53,7 @@ import AnimationLoop
 import FileHandler
 -- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
-import ShapeWidgets
+import ShapeWidgets exposing (RealZone(..), PointFeature(..), OtherFeature(..))
 import ExamplesGenerated as Examples
 import Config exposing (params)
 import Either exposing (Either(..))
@@ -203,11 +203,11 @@ onMouseClick click old =
   case (old.tool, old.mouseMode) of
 
     -- Inactive zone
-    (Cursor, MouseDragZone (Left (i, k, z)) Nothing) ->
+    (Cursor, MouseDragZone (i, k, z) Nothing) ->
       onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
 
     -- Active zone but not dragged
-    (Cursor, MouseDragZone (Left (i, k, z)) (Just (_, _, False))) ->
+    (Cursor, MouseDragZone (i, k, z) (Just (_, _, False))) ->
       onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
 
     (Poly stk, MouseDrawNew points) ->
@@ -257,38 +257,43 @@ onMouseClick click old =
     _ ->
       old
 
+onClickPrimaryZone : LangSvg.NodeId -> LangSvg.ShapeKind -> ShapeWidgets.ZoneName -> Model -> Model
 onClickPrimaryZone i k z old =
+  let realZone = ShapeWidgets.parseZone z in
   let hoveredCrosshairs_ =
-    case ShapeWidgets.zoneToCrosshair k z of
+    case ShapeWidgets.zoneToCrosshair k realZone of
       Just (xFeature, yFeature) ->
         Set.insert (i, xFeature, yFeature) old.hoveredCrosshairs
       _ ->
         old.hoveredCrosshairs
   in
   let (selectedShapes_, selectedBlobs_) =
-    let selectThisShape () =
-      Set.insert i <|
-        if old.keysDown == Keys.shift
-        then old.selectedShapes
-        else Set.empty
-    in
-    let selectBlob blobId =
-      Dict.insert blobId i <|
-        if old.keysDown == Keys.shift
-        then old.selectedBlobs
-        else Dict.empty
-    in
-    let maybeBlobId =
-      case Dict.get i (Tuple.second old.slate) of
-        Just (LangSvg.SvgNode _ l _) -> LangSvg.maybeFindBlobId l
-        _                            -> Debug.crash "onClickPrimaryZone"
-    in
-    case (k, z, maybeBlobId) of
-      ("line", "Edge",     Just blobId) -> (selectThisShape (), selectBlob blobId)
-      (_,      "Interior", Just blobId) -> (selectThisShape (), selectBlob blobId)
-      ("line", "Edge",     Nothing)     -> (selectThisShape (), old.selectedBlobs)
-      (_,      "Interior", Nothing)     -> (selectThisShape (), old.selectedBlobs)
-      _                                 -> (old.selectedShapes, old.selectedBlobs)
+    if i < -2 then -- Clicked a widget
+      (old.selectedShapes, old.selectedBlobs)
+    else
+      let selectThisShape () =
+        Set.insert i <|
+          if old.keysDown == Keys.shift
+          then old.selectedShapes
+          else Set.empty
+      in
+      let selectBlob blobId =
+        Dict.insert blobId i <|
+          if old.keysDown == Keys.shift
+          then old.selectedBlobs
+          else Dict.empty
+      in
+      let maybeBlobId =
+        case Dict.get i (Tuple.second old.slate) of
+          Just (LangSvg.SvgNode _ l _) -> LangSvg.maybeFindBlobId l
+          _                            -> Debug.crash "onClickPrimaryZone"
+      in
+      case (k, realZone, maybeBlobId) of
+        ("line", ZLineEdge, Just blobId) -> (selectThisShape (), selectBlob blobId)
+        (_,      ZInterior, Just blobId) -> (selectThisShape (), selectBlob blobId)
+        ("line", ZLineEdge, Nothing)     -> (selectThisShape (), old.selectedBlobs)
+        (_,      ZInterior, Nothing)     -> (selectThisShape (), old.selectedBlobs)
+        _                                -> (old.selectedShapes, old.selectedBlobs)
   in
   { old | hoveredCrosshairs = hoveredCrosshairs_
         , selectedShapes = selectedShapes_
@@ -407,7 +412,7 @@ tryRun old =
         --
         let rewrittenE = rewriteInnerMostExpToMain e in
 
-        Eval.eval Eval.initEnv [] rewrittenE |>
+        Eval.doEval Eval.initEnv rewrittenE |>
         Result.andThen (\((newVal,ws),finalEnv) ->
           LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
           |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
@@ -734,7 +739,7 @@ msgCleanCode = Msg "Clean Code" <| \old ->
 
 msgDigHole = Msg "Dig Hole" <| \old ->
   let newExp =
-    ValueBasedTransform.digHole old.inputExp old.selectedFeatures old.slate old.syncOptions
+    ValueBasedTransform.digHole old.inputExp old.selectedFeatures old.slate old.widgets old.syncOptions
   in
   runWithErrorHandling old newExp (\reparsed newVal newWidgets newSlate newCode ->
     debugLog "new model" <|

@@ -2,7 +2,7 @@ module Sync exposing
   ( Options, defaultOptions, syncOptionsOf
   , heuristicsNone, heuristicsFair, heuristicsBiased, toggleHeuristicMode
   , locsOfTrace
-  , LiveInfo, ShapeTriggers, LiveTrigger, ZoneKey
+  , LiveInfo, Triggers, LiveTrigger, ZoneKey
   , prepareLiveUpdates, prepareLiveTrigger
   , yellowAndGrayHighlights, hoverInfo
   )
@@ -13,7 +13,7 @@ import LangSvg exposing
   , AVal, AVal_(..), TransformCmd(..), PathCmd(..)
   )
 import ShapeWidgets exposing
-  ( Zone, RealZone(..), PointFeature(..), OtherFeature(..)
+  ( ZoneName, RealZone(..), PointFeature(..), OtherFeature(..)
   )
 import Solver exposing (Equation)
 import LangParser2 as Parser
@@ -153,8 +153,8 @@ getLocationCounts options (slate, widgets) =
     case widget of
       WIntSlider _ _ _ _ loc -> updateCount loc acc
       WNumSlider _ _ _ _ loc -> updateCount loc acc
-      WPointSlider (_, t1) (_, t2) ->
-        Set.foldl updateCount acc (locsOfTraces options [t1, t2])
+      WPointSlider (_, t1) (_, t2)    -> Set.foldl updateCount acc (locsOfTraces options [t1, t2])
+      WOffsetSlider1D _ _ _ _ (_, tr) -> Set.foldl updateCount acc (locsOfTrace options tr)
   in
   let d  = LangSvg.foldSlateNodeInfo slate Dict.empty addTriggerNode in
   let d_ = List.foldl addTriggerWidget d widgets in
@@ -295,12 +295,10 @@ type alias Trigger = List TriggerElement
 
 -- keeping these separate (rather than an Either key, which isn't comparable)
 --
-type alias ShapeTriggers = Dict (NodeId, Zone) (Trigger, Set Loc, Set Loc)
-type alias WidgetTriggers = Dict (Int, String) (Trigger, Set Loc, Set Loc)
+type alias Triggers = Dict (NodeId, ZoneName) (Trigger, Set Loc, Set Loc)
 
 type alias LiveInfo =
-  { shapeTriggers : ShapeTriggers
-  , widgetTriggers : WidgetTriggers
+  { triggers : Triggers
   , initSubstPlus : SubstPlus -- TODO this and/or initSubst should be in Model
   }
 
@@ -326,8 +324,7 @@ prepareLiveUpdates options e (slate, widgets) =
   in
 
   Ok { initSubstPlus = initSubstPlus
-     , shapeTriggers = shapeTriggers
-     , widgetTriggers = widgetTriggers
+     , triggers = Dict.union shapeTriggers widgetTriggers
      }
 
 
@@ -336,7 +333,7 @@ prepareLiveUpdates options e (slate, widgets) =
 
 computeShapeTriggers
     : (Options, Subst) -> RootedIndexedTree -> MaybeCounts
-   -> (ShapeTriggers, MaybeCounts)
+   -> (Triggers, MaybeCounts)
 
 computeShapeTriggers info slate initMaybeCounts =
   let processNode nodeInfo (dict, maybeCounts) =
@@ -372,12 +369,13 @@ computeShapeTriggers info slate initMaybeCounts =
 
 computeWidgetTriggers
     : (Options, Subst) -> Widgets -> MaybeCounts
-   -> (WidgetTriggers, MaybeCounts)
+   -> (Triggers, MaybeCounts)
 
 computeWidgetTriggers (options, subst) widgets initMaybeCounts =
   let wSlider = params.mainSection.uiWidgets.wSlider in
 
   let processWidget (i, widget) accResult =
+    let idAsShape = -2 - i in
     case widget of
 
       WNumSlider minVal maxVal _ curVal loc ->
@@ -386,7 +384,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
             |> clamp minVal maxVal
         in
         let options_ = { options | unfreezeAll = True } in
-        addWidgetTrigger options_ i "Num" [TrLoc loc]
+        addTrigger options_ idAsShape ZSlider [TrLoc loc]
         (Utils.unwrap1 >> \maybeLoc ->
           mapMaybeToList maybeLoc (\loc_ ->
             ( "", "dx", loc_, TrLoc loc
@@ -404,7 +402,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
             |> toFloat
         in
         let options_ = { options | unfreezeAll = True } in
-        addWidgetTrigger options_ i "Int" [TrLoc loc]
+        addTrigger options_ idAsShape ZSlider [TrLoc loc]
         (Utils.unwrap1 >> \maybeLoc ->
           mapMaybeToList maybeLoc (\loc_ ->
             ( "", "dx", loc_, TrLoc loc
@@ -414,7 +412,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         accResult
 
       WPointSlider (x, xTrace) (y, yTrace) ->
-        addWidgetTrigger options i "Point" [xTrace, yTrace]
+        addTrigger options idAsShape (ZPoint LonePoint) [xTrace, yTrace]
         ( Utils.unwrap2 >> \(xMaybeLoc, yMaybeLoc) ->
             mapMaybeToList xMaybeLoc (\xLoc ->
               ( "", "dx", xLoc, xTrace
@@ -426,20 +424,24 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
               ))
         )
         accResult
+
+      WOffsetSlider1D baseX baseY axis sign (amount, amountTrace) ->
+        addTrigger options idAsShape ZOffset1D [amountTrace]
+        (Utils.unwrap1 >> \maybeLoc ->
+          mapMaybeToList maybeLoc (\loc_ ->
+            ( "", if axis == X then "dx" else "dy", loc_, amountTrace
+            , \_ (dx,dy) -> solveOne subst loc_ ((if sign == Positive then (+) else (-)) amount (if axis == X then toFloat dx else toFloat dy)) amountTrace
+            ))
+        )
+        accResult
   in
-  let indexedWidgets = Utils.mapi1 identity widgets in
-  List.foldl processWidget (Dict.empty, initMaybeCounts) indexedWidgets
+  Utils.foldli1 processWidget (Dict.empty, initMaybeCounts) widgets
 
 
 -- Helpers --
 
-addShapeZoneTrigger options id realZone =
-  addTrigger options (id, ShapeWidgets.unparseZone realZone)
-
-addWidgetTrigger options id caption =
-  addTrigger options (id, caption)
-
-addTrigger options key traces makeTrigger (dict, maybeCounts) =
+addTrigger options id realZone traces makeTrigger (dict, maybeCounts) =
+  let key = (id, ShapeWidgets.unparseZone realZone) in
   let (assignedMaybeLocs, allLocs, maybeCounts_) =
     pickLocs options maybeCounts traces in
   let trigger = makeTrigger assignedMaybeLocs in
@@ -472,10 +474,10 @@ computeRectTriggers
      : (Options, Subst)
     -> MaybeCounts
     -> (NodeId, ShapeKind, List Attr)
-    -> (Dict (NodeId, Zone) (Trigger, Set Loc, Set Loc), MaybeCounts)
+    -> (Dict (NodeId, ZoneName) (Trigger, Set Loc, Set Loc), MaybeCounts)
 
 computeRectTriggers (options, subst) maybeCounts (id, _, attrs) =
-  let finishTrigger = addShapeZoneTrigger options id in
+  let finishTrigger = addTrigger options id in
 
   let ((x, xTrace), (y, yTrace), (w, wTrace), (h, hTrace)) =
     Utils.unwrap4 <|
@@ -573,7 +575,7 @@ computeRectTriggers (options, subst) maybeCounts (id, _, attrs) =
 -- Line Triggers --
 
 computeLineTriggers (options, subst) maybeCounts (id, _, attrs) =
-  let finishTrigger = addShapeZoneTrigger options id in
+  let finishTrigger = addTrigger options id in
 
   let ((x1, x1Trace), (y1, y1Trace), (x2, x2Trace), (y2, y2Trace)) =
     Utils.unwrap4 <|
@@ -618,7 +620,7 @@ computeLineTriggers (options, subst) maybeCounts (id, _, attrs) =
 -- TODO: add an option
 
 computeEllipseTriggers (options, subst) maybeCounts (id, _, attrs) =
-  let finishTrigger = addShapeZoneTrigger options id in
+  let finishTrigger = addTrigger options id in
 
   let ((cx, cxTrace), (cy, cyTrace), (rx, rxTrace), (ry, ryTrace)) =
     Utils.unwrap4 <|
@@ -709,7 +711,7 @@ computeEllipseTriggers (options, subst) maybeCounts (id, _, attrs) =
 -- TODO: add an option
 
 computeCircleTriggers (options, subst) maybeCounts (id, _, attrs) =
-  let finishTrigger = addShapeZoneTrigger options id in
+  let finishTrigger = addTrigger options id in
 
   let co = (*) 1 in
   let contra = (*) -1 in
@@ -810,7 +812,7 @@ computeCircleTriggers (options, subst) maybeCounts (id, _, attrs) =
 -- Box/Oval Triggers --
 
 computeBoxOrOvalTriggers (options, subst) maybeCounts (id, _, attrs) =
-  let finishTrigger = addShapeZoneTrigger options id in
+  let finishTrigger = addTrigger options id in
 
   let ((left, leftTrace), (top, topTrace), (right, rightTrace), (bot, botTrace)) =
     Utils.unwrap4 <|
@@ -957,7 +959,7 @@ addInteriorZone_ finishTrigger pointX pointY indexedPoints result =
 
 computePolyTriggers (options, subst) maybeCounts (id, kind, attrs) =
 
-  let finishTrigger = addShapeZoneTrigger options id in
+  let finishTrigger = addTrigger options id in
   let pointX = pointX_ subst in
   let pointY = pointY_ subst in
 
@@ -981,7 +983,7 @@ computePolyTriggers (options, subst) maybeCounts (id, kind, attrs) =
 
 computePathTriggers (options, subst) maybeCounts (id, _, attrs) =
 
-  let finishTrigger = addShapeZoneTrigger options id in
+  let finishTrigger = addTrigger options id in
   let pointX = pointX_ subst in
   let pointY = pointY_ subst in
 
@@ -999,7 +1001,7 @@ computePathTriggers (options, subst) maybeCounts (id, _, attrs) =
 -- Fill and Stroke Triggers --
 
 computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
-  let finishTrigger = addShapeZoneTrigger options id in
+  let finishTrigger = addTrigger options id in
 
   let maybeAddColorTrigger realZone fillOrStroke (dict, maybeCounts) =
     case Utils.mapMaybe .av_ (Utils.maybeFind fillOrStroke attrs) of
@@ -1104,10 +1106,8 @@ type alias MouseTrigger2 a = (Int, Int) -> (Int, Int) -> a
 
 type alias LiveTrigger = MouseTrigger2 (Exp, List Ace.Highlight)
 
-type alias ZoneKey =
-  Either
-    (NodeId, ShapeKind, Zone)   -- shape zone
-    (Int, String)               -- widget zone
+-- ShapeKind in zone key is used for display in caption, but not for keying the triggers dictionary.
+type alias ZoneKey = (NodeId, ShapeKind, ZoneName) -- node id for a widget is -2 - (widget number starting from 1)
 
 lookupZoneKey : ZoneKey -> LiveInfo -> (Trigger, Set Loc, Set Loc)
 lookupZoneKey zoneKey info =
@@ -1116,10 +1116,9 @@ lookupZoneKey zoneKey info =
     let _ = debugLog errorString ("able to avoid this?") in
     ([], Set.empty, Set.empty)
   in
-  let wrap = Maybe.withDefault default in
-  case zoneKey of
-    Left (id, _, zone) -> wrap <| Dict.get (id, zone) info.shapeTriggers
-    Right (id, string) -> wrap <| Dict.get (id, string) info.widgetTriggers
+  let (id, _, zoneName) = zoneKey in
+  Dict.get (id, zoneName) info.triggers
+  |> Maybe.withDefault default
 
 prepareLiveTrigger : LiveInfo -> Exp -> ZoneKey -> LiveTrigger
 prepareLiveTrigger info exp zoneKey (mx0,my0) (dx,dy) =
@@ -1192,9 +1191,13 @@ yellowAndGrayHighlights zoneKey info =
 
 hoverInfo zoneKey info =
   let line1 =
-    case zoneKey of
-      Left (i, k, z) -> (k ++ toString i) ++ " " ++ z
-      Right (i, s)   -> s ++ "Slider" ++ toString i
+    let (nodeId, shapeKind, zoneName) = zoneKey in
+    let displayId =
+      if nodeId < -2
+      then -nodeId - 2 -- Widget
+      else nodeId
+    in
+    (shapeKind ++ toString displayId) ++ " " ++ zoneName
   in
   let maybeLine2 =
     let (triggerElements, _, _) = lookupZoneKey zoneKey info in

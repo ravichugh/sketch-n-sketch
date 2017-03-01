@@ -29,17 +29,17 @@ debugLog = Config.debugLog Config.debugSync
 
 
 
-digHole originalExp selectedFeatures slate syncOptions =
+digHole originalExp selectedFeatures slate widgets syncOptions =
   let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
   let selectedFeatureEquationsNamed =
     debugLog "selectedFeatureEquations" <|
-      pluckSelectedFeatureEquationsNamed selectedFeatures slate locIdToNumberAndLoc
+      pluckSelectedFeatureEquationsNamed selectedFeatures slate widgets locIdToNumberAndLoc
   in
   -- If any locs are annotated with "?", only dig those.
   let locset =
     let selectedVals =
       debugLog "selectedVals" <|
-        pluckSelectedVals selectedFeatures slate locIdToNumberAndLoc
+        pluckSelectedVals selectedFeatures slate widgets locIdToNumberAndLoc
     in
     let tracesLocsets =
       List.map ((Sync.locsOfTrace syncOptions) << Tuple.second) selectedVals
@@ -165,10 +165,14 @@ digHole originalExp selectedFeatures slate syncOptions =
 
 
 
-evalToSlateResult : Exp -> Int -> Int -> Float -> Result String LangSvg.RootedIndexedTree
-evalToSlateResult exp slideNumber movieNumber movieTime =
+evalToSlateAndWidgetsResult : Exp -> Int -> Int -> Float -> Result String (LangSvg.RootedIndexedTree, Widgets)
+evalToSlateAndWidgetsResult exp slideNumber movieNumber movieTime =
   Eval.run exp |>
-  Result.andThen (\(val, _) -> LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val)
+  Result.andThen
+    (\(val, widgets) ->
+      LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val
+      |> Result.map (\tree -> (tree, widgets))
+    )
 
 
 getIndexedLocIdsWithTarget originalExp locsToRevolutionize =
@@ -203,9 +207,9 @@ indexedRelateDistanceScore subst indexedLocIdsWithTarget locEqn =
 
 indexedRelate : Exp -> Set.Set ShapeWidgets.SelectedShapeFeature -> Set.Set NodeId -> Int -> Int -> Float -> Sync.Options -> List InterfaceModel.SynthesisResult
 indexedRelate originalExp selectedFeatures selectedShapes slideNumber movieNumber movieTime syncOptions =
-  case evalToSlateResult originalExp slideNumber movieNumber movieTime of
+  case evalToSlateAndWidgetsResult originalExp slideNumber movieNumber movieTime of
     Err _    -> []
-    Ok slate ->
+    Ok (slate, widgets) ->
       let (_, tree) = slate in
       let featuresToRevolutionize =
         if Set.size selectedFeatures > 0 then
@@ -220,14 +224,14 @@ indexedRelate originalExp selectedFeatures selectedShapes slideNumber movieNumbe
                 |> List.concatMap ShapeWidgets.featureNumsOfFeature
                 |> List.map (ShapeWidgets.strFeatureNum kind)
                 |> List.take 1
-                |> List.map (\featureString -> (kind, nodeId, featureString))
+                |> List.map (\featureString -> (nodeId, featureString))
               )
       in
       let locsToRevolutionize =
         let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
         let featureEqns =
           featuresToRevolutionize
-          |> List.map (\feature -> typeAndNodeIdAndFeatureToEquation feature tree locIdToNumberAndLoc)
+          |> List.map (\feature -> nodeIdAndFeatureNameToEquation feature tree widgets locIdToNumberAndLoc)
           |> Utils.projJusts
           |> Maybe.withDefault []
         in
@@ -401,11 +405,11 @@ relateOverlappingPairs relateType priorResults features slideNumber movieNumber 
       |> List.concatMap
           (\{description, exp, sortKey, dependentLocIds} ->
             let priorExp = exp in
-            case evalToSlateResult priorExp slideNumber movieNumber movieTime of
+            case evalToSlateAndWidgetsResult priorExp slideNumber movieNumber movieTime of
               Err s -> []
-              Ok slate ->
+              Ok (slate, widgets) ->
                 let newResults =
-                  relate_ relateType priorExp featureA featureB slate syncOptions
+                  relate_ relateType priorExp featureA featureB slate widgets syncOptions
                 in
                 case newResults of
                   [] ->
@@ -473,9 +477,9 @@ relateOverlappingPairs relateType priorResults features slideNumber movieNumber 
 --     [featureA, featureB, featureC] ->
 --       let maybeNewExp =
 --         let (_, tree) = slate in
---         let maybeAEqn = typeAndNodeIdAndFeatureToEquation featureA tree locIdToNumberAndLoc in
---         let maybeBEqn = typeAndNodeIdAndFeatureToEquation featureB tree locIdToNumberAndLoc in
---         let maybeCEqn = typeAndNodeIdAndFeatureToEquation featureC tree locIdToNumberAndLoc in
+--         let maybeAEqn = nodeIdAndFeatureNameToEquation featureA tree locIdToNumberAndLoc in
+--         let maybeBEqn = nodeIdAndFeatureNameToEquation featureB tree locIdToNumberAndLoc in
+--         let maybeCEqn = nodeIdAndFeatureNameToEquation featureC tree locIdToNumberAndLoc in
 --         case (maybeAEqn, maybeBEqn, maybeCEqn) of
 --           (Just aEqn, Just bEqn, Just cEqn) ->
 --             let distanceAB = ShapeWidgets.EqnOp Minus [bEqn, aEqn] in
@@ -495,12 +499,12 @@ relateOverlappingPairs relateType priorResults features slideNumber movieNumber 
 --       originalExp
 
 
-relate_ relateType originalExp featureA featureB slate syncOptions =
+relate_ relateType originalExp featureA featureB slate widgets syncOptions =
   let (_, tree) = slate in
   let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
-  let featureDescription (selectedType, nodeId, featureName) tree = featureName in
-  case (typeAndNodeIdAndFeatureToEquation featureA tree locIdToNumberAndLoc,
-        typeAndNodeIdAndFeatureToEquation featureB tree locIdToNumberAndLoc) of
+  let featureDescription (nodeId, featureName) tree = featureName in
+  case (nodeIdAndFeatureNameToEquation featureA tree widgets locIdToNumberAndLoc,
+        nodeIdAndFeatureNameToEquation featureB tree widgets locIdToNumberAndLoc) of
     (Nothing, _) ->
       []
 
@@ -790,24 +794,24 @@ variableifyConstantsAndWrapTargetExpWithLets locIdToNewName listOfListsOfNamesAn
 
 
 
-pluckFeatureEquationNamed (selectedType, nodeId, featureName) slate locIdToNumberAndLoc =
+pluckFeatureEquationNamed (nodeId, featureName) slate widgets locIdToNumberAndLoc =
   let (_, tree) = slate in
-  case typeAndNodeIdAndFeatureToEquation (selectedType, nodeId, featureName) tree locIdToNumberAndLoc of
+  case nodeIdAndFeatureNameToEquation (nodeId, featureName) tree widgets locIdToNumberAndLoc of
     Just eqn -> Just (featureName, eqn)
     Nothing  -> Nothing
 
 
-pluckSelectedFeatureEquationsNamed selectedFeatures slate locIdToNumberAndLoc =
+pluckSelectedFeatureEquationsNamed selectedFeatures slate widgets locIdToNumberAndLoc =
   let accumulator typeAndNodeIdAndFeature acc =
-    case pluckFeatureEquationNamed typeAndNodeIdAndFeature slate locIdToNumberAndLoc of
+    case pluckFeatureEquationNamed typeAndNodeIdAndFeature slate widgets locIdToNumberAndLoc of
       Just (feature, eqn) -> (feature, eqn) :: acc
       Nothing             -> acc
   in
   Set.foldr accumulator [] selectedFeatures
 
 
-pluckSelectedFeatureEquations selectedFeatures slate locIdToNumberAndLoc =
-  List.map Tuple.second <| pluckSelectedFeatureEquationsNamed selectedFeatures slate locIdToNumberAndLoc
+pluckSelectedFeatureEquations selectedFeatures slate widgets locIdToNumberAndLoc =
+  List.map Tuple.second <| pluckSelectedFeatureEquationsNamed selectedFeatures slate widgets locIdToNumberAndLoc
 
 
 locIdToNumberAndLocOf : Exp -> Dict.Dict LocId (Num, Loc)
@@ -842,20 +846,21 @@ locIdToWidgetDeclLittleOf exp =
   |> Dict.map (\locId wd -> LangUnparser.unparseWD wd)
 
 
-pluckSelectedVals selectedFeatures slate locIdToNumberAndLoc =
-  let featureEquations = pluckSelectedFeatureEquations selectedFeatures slate locIdToNumberAndLoc in
+pluckSelectedVals selectedFeatures slate widgets locIdToNumberAndLoc =
+  let featureEquations = pluckSelectedFeatureEquations selectedFeatures slate widgets locIdToNumberAndLoc in
   List.concatMap equationVals featureEquations
 
 
-evaluateFeature typeAndNodeIdAndFeatureName slate locIdToNumberAndLoc =
+evaluateFeature nodeIdAndFeatureName slate widgets locIdToNumberAndLoc =
   let (_, tree) = slate in
-  case (typeAndNodeIdAndFeatureToEquation typeAndNodeIdAndFeatureName tree locIdToNumberAndLoc) of
+  case (nodeIdAndFeatureNameToEquation nodeIdAndFeatureName tree widgets locIdToNumberAndLoc) of
     Just eqn -> ShapeWidgets.evaluateFeatureEquation eqn
     Nothing  -> Nothing
 
 
-typeAndNodeIdAndFeatureToEquation (selectedType, nodeId, featureName) tree locIdToNumberAndLoc =
-  if selectedType == ShapeWidgets.selectedTypeShapeFeature then
+nodeIdAndFeatureNameToEquation (nodeId, featureName) tree widgets locIdToNumberAndLoc =
+  if not <| nodeId < -2 then
+    -- shape feature
     case Dict.get nodeId tree of
       Just (LangSvg.SvgNode kind nodeAttrs _) ->
         Just (ShapeWidgets.featureEquation kind featureName nodeAttrs)
@@ -864,25 +869,14 @@ typeAndNodeIdAndFeatureToEquation (selectedType, nodeId, featureName) tree locId
         Nothing
 
       Nothing ->
-        Debug.crash <| "typeAndNodeIdAndFeatureToEquation " ++ (toString nodeId) ++ " " ++ (toString tree)
-  else if selectedType == ShapeWidgets.selectedTypeWidget then
-    -- parse locId from "widget123" feature name
-    let locIdStr =
-      String.dropLeft (String.length "widget") featureName
-    in
-    let locId =
-      String.toInt locIdStr
-      |> Utils.fromOk ("Couldn't parse locId out of " ++ featureName)
-    in
-    let (n, loc) =
-      Utils.justGet_
-          ("Couldn't find locId " ++ (toString locId) ++ " in " ++ (toString locIdToNumberAndLoc))
-          locId
-          locIdToNumberAndLoc
-    in
-    Just (ShapeWidgets.EqnNum <| (n, TrLoc loc))
+        Debug.crash <| "nodeIdAndFeatureNameToEquation " ++ (toString nodeId) ++ " " ++ (toString tree)
   else
-    Debug.crash <| "Unknown selected feature type: " ++ selectedType
+    -- widget feature
+    -- change to index widgets by position in widget list; then pull feature from widget type
+    let widgetId = -nodeId - 2 in -- widget nodeId's are encoded at -2 and count down. (And they are 1-indexed, so actually they start at -3)
+    case Utils.maybeGet1 widgetId widgets of
+      Just widget -> Just (ShapeWidgets.widgetFeatureEquation featureName widget locIdToNumberAndLoc)
+      Nothing     -> Debug.crash <| "nodeIdAndFeatureNameToEquation can't find widget " ++ (toString widgetId) ++ " " ++ (toString widgets)
 
 
 equationVals eqn =
@@ -1065,21 +1059,21 @@ featurePoints features =
     [] ->
       []
 
-    typeAndNodeIdAndFeatureName::otherFeatures ->
-      let (selectedType, nodeId, featureName) = typeAndNodeIdAndFeatureName in
+    nodeIdAndFeatureName::otherFeatures ->
+      let (nodeId, featureName) = nodeIdAndFeatureName in
       if not <| featureNameIsXOrY featureName then
         featurePoints otherFeatures
       else
-        let nodeFeatures = List.filter (((==) nodeId) << Utils.snd3) otherFeatures in
+        let nodeFeatures = List.filter (Tuple.first >> (==) nodeId) otherFeatures in
         let maybePairedFeature =
-          Utils.findFirst ((featuresNamesAreXYPairs featureName) << Utils.thd3) nodeFeatures
+          Utils.findFirst (Tuple.second >> featuresNamesAreXYPairs featureName) nodeFeatures
         in
         case maybePairedFeature of
           Just pairedFeature ->
             let pairToReturn =
               if featureNameIsX featureName
-              then (typeAndNodeIdAndFeatureName, pairedFeature)
-              else (pairedFeature, typeAndNodeIdAndFeatureName)
+              then (nodeIdAndFeatureName, pairedFeature)
+              else (pairedFeature, nodeIdAndFeatureName)
             in
             let remainingFeatures =
               Utils.removeFirst pairedFeature otherFeatures

@@ -126,10 +126,14 @@ type WidgetDecl_
   | NumSlider (P.WithInfo Num) Token (P.WithInfo Num) Caption
   | NoWidgetDecl -- rather than Nothing, to work around parser types
 
+type Axis = X | Y
+type Sign = Positive | Negative
+
 type Widget
   = WIntSlider Int Int String Int Loc
   | WNumSlider Num Num String Num Loc
   | WPointSlider NumTr NumTr
+  | WOffsetSlider1D Num Num Axis Sign NumTr
 
 type alias Widgets = List Widget
 
@@ -141,7 +145,7 @@ type alias VTrace = List EId
 type alias Val    = { v_ : Val_, vtrace : VTrace }
 
 type Val_
-  = VConst NumTr
+  = VConst (Maybe (Axis, NumTr)) NumTr -- Maybe (Axis, value in other dimention)
   | VBase VBaseVal
   | VClosure (Maybe Ident) Pat Exp Env
   | VList (List Val)
@@ -194,11 +198,11 @@ strVal_ showTraces v =
   let sTrace = if showTraces then Utils.braces (toString v.vtrace) else "" in
   sTrace ++
   case v.v_ of
-    VConst (i,tr)    -> strNum i ++ if showTraces then Utils.braces (strTrace tr) else ""
-    VBase b          -> strBaseVal b
-    VClosure _ _ _ _ -> "<fun>"
-    VList vs         -> Utils.bracks (String.join " " (List.map foo vs))
-    VDict d          -> "<dict " ++ (Dict.toList d |> List.map (\(k, v) -> (toString k) ++ ":" ++ (foo v)) |> String.join " ") ++ ">"
+    VConst maybeAxis (i,tr) -> strNum i ++ if showTraces then Utils.angleBracks (toString maybeAxis) ++ Utils.braces (strTrace tr) else ""
+    VBase b                 -> strBaseVal b
+    VClosure _ _ _ _        -> "<fun>"
+    VList vs                -> Utils.bracks (String.join " " (List.map foo vs))
+    VDict d                 -> "<dict " ++ (Dict.toList d |> List.map (\(k, v) -> (toString k) ++ ":" ++ (foo v)) |> String.join " ") ++ ">"
 
 strOp op = case op of
   Plus          -> "+"
@@ -235,6 +239,11 @@ strTrace tr = case tr of
   TrOp op l ->
     Utils.parens (String.concat
       [strOp op, " ", String.join " " (List.map strTrace l)])
+
+traceToMaybeIdent tr =
+  case tr of
+    TrLoc (_, _, ident) -> if ident /= "" then Just ident else Nothing
+    _                   -> Nothing
 
 tab k = String.repeat k "  "
 
@@ -380,7 +389,7 @@ mapVal : (Val -> Val) -> Val -> Val
 mapVal f v = case v.v_ of
   VList vs         -> f { v | v_ = VList (List.map (mapVal f) vs) }
   VDict d          -> f { v | v_ = VDict (Dict.map (\_ v -> mapVal f v) d) } -- keys ignored
-  VConst _         -> f v
+  VConst _ _       -> f v
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
 
@@ -388,7 +397,7 @@ foldVal : (Val -> a -> a) -> Val -> a -> a
 foldVal f v a = case v.v_ of
   VList vs         -> f v (List.foldl (foldVal f) a vs)
   VDict d          -> f v (List.foldl (foldVal f) a (Dict.values d)) -- keys ignored
-  VConst _         -> f v a
+  VConst _ _       -> f v a
   VBase _          -> f v a
   VClosure _ _ _ _ -> f v a
 
@@ -559,8 +568,8 @@ childExps e =
 
 valToTrace : Val -> Trace
 valToTrace v = case v.v_ of
-  VConst (_, trace) -> trace
-  _                 -> Debug.crash "valToTrace"
+  VConst _  (_, trace) -> trace
+  _                    -> Debug.crash "valToTrace"
 
 
 ------------------------------------------------------------------------------
@@ -881,7 +890,7 @@ vTrue    = vBool True
 vFalse   = vBool False
 vBool    = val << VBase << VBool
 vStr     = val << VBase << VString
-vConst   = val << VConst
+vConst   = val << VConst Nothing
 vBase    = val << VBase
 vList    = val << VList
 vDict    = val << VDict

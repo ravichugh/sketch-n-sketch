@@ -6,7 +6,7 @@ import Eval
 import Sync exposing (ZoneKey)
 import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
-import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature, Zone)
+import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature)
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparse)
 import Ace
@@ -122,7 +122,7 @@ type MouseMode
   | MouseDragLayoutWidget (MouseTrigger (Model -> Model))
 
   | MouseDragZone
-      ZoneKey               -- Left shapeZone, Right widget
+      ZoneKey               -- (nodeId, shapeKind, zoneName)
       (Maybe                -- Inactive (Nothing) or Active
         ( Sync.LiveTrigger      -- computes program update and highlights
         , (Int, Int)            -- initial click
