@@ -130,10 +130,10 @@ type MouseMode
 
   | MouseDrawNew (List (KeysDown, (Int, Int)))
       -- invariant on length n of list of points:
-      --   for line/rect/ellipse, n == 0 or n == 2
-      --   for polygon/path,      n >= 0
-      --   for helper dot,        n == 0 or n == 1
-      --   for lambda,            n == 0 or n == 2
+      --   for line/rect/ellipse/offset, n == 0 or n == 2
+      --   for polygon/path,             n >= 0
+      --   for helper dot,               n == 0 or n == 1
+      --   for lambda,                   n == 0 or n == 2
 
 type alias MouseTrigger a = (Int, Int) -> a
 
@@ -149,6 +149,7 @@ type Tool
   | Poly ShapeToolKind
   | Path ShapeToolKind
   | Text
+  | Offset
   | HelperDot
   | HelperLine
   | Lambda Int -- 1-based index of selected LambdaTool

@@ -66,6 +66,7 @@ drawNewShape model =
     (Oval _,     MouseDrawNew [pt2, pt1])    -> drawNewEllipse model.keysDown pt2 pt1
     (Poly _,     MouseDrawNew (ptLast::pts)) -> drawNewPolygon ptLast pts
     (Path _,     MouseDrawNew (ptLast::pts)) -> drawNewPath ptLast pts
+    (Offset,     MouseDrawNew [pt2, pt1])    -> drawNewOffset pt2 pt1
     (HelperDot,  MouseDrawNew [pt])          -> drawNewHelperDot pt
     (HelperLine, MouseDrawNew [pt2, pt1])    -> drawNewLine model pt2 pt1
     (Lambda _,   MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
@@ -240,6 +241,53 @@ drawNewPath (keysLast,ptLast) keysAndPoints =
   in
   let clearDots = List.map (drawDot dotFillCursor) (ptLast::points) in
   redDot ++ yellowDot ++ clearDots ++ pathAndPoints
+
+
+drawNewOffset click2 click1 =
+  let ((_,(x2,y2)),(_,(x1,y1))) = (click2, click1) in
+  let (dx, dy) = (x2 - x1, y2 - y1) in
+  let axis =
+    if abs dx < abs dy
+    then Y
+    else X
+  in
+  let (effectiveAmount, xb, yb) =
+    case axis of
+      X -> (dx, x2, y1)
+      Y -> (dy, x1, y2)
+  in
+  let lineStyle =
+    [ LangSvg.attr "stroke" "black"
+    , LangSvg.attr "stroke-width" "1px"
+    , LangSvg.attr "stroke-dasharray" "1,1"
+    , defaultOpacity
+    ]
+  in
+  let line =
+    svgLine <|
+      [ LangSvg.attr "x1" (toString x1), LangSvg.attr "y1" (toString y1)
+      , LangSvg.attr "x2" (toString xb), LangSvg.attr "y2" (toString yb)
+      ] ++ lineStyle
+  in
+  let endArrow =
+    let arrowOffset = 12 in
+    let (opX1, opY1, opX2, opY2) =
+      case (axis, Utils.sgn effectiveAmount) of
+        (X, 1)  -> ((-), (-), (-), (+))
+        (X, -1) -> ((+), (-), (+), (+))
+        (Y, 1)  -> ((-), (-), (+), (-))
+        _       -> ((-), (+), (+), (+))
+    in
+    flip Svg.polyline [] <|
+      [ LangSvg.attr "fill" "rgba(0,0,0,0.0)"
+      , LangSvg.attr "points" <| toString (opX1 xb arrowOffset) ++ "," ++ toString (opY1 yb arrowOffset) ++ " " ++
+                                 toString xb                    ++ "," ++ toString yb ++ " " ++
+                                 toString (opX2 xb arrowOffset) ++ "," ++ toString (opY2 yb arrowOffset) ++ " "
+      ] ++ lineStyle
+  in
+  let clearDots = List.map (drawDot dotFillCursor) [(xb,yb),(x2,y2),(x1,y1)] in
+  clearDots ++ [ line, endArrow ]
+
 
 -- TODO this doesn't appear right away
 -- (dor does initial poly, which appears only on MouseUp...)

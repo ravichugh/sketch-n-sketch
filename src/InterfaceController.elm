@@ -381,6 +381,8 @@ onMouseUp old =
         (Oval Stretchy, [pt2, pt1], False) -> upstateRun <| Draw.addStretchyOval old pt2 pt1
         (Oval Stretchy, [pt2, pt1], True)  -> upstateRun <| Draw.addStretchyCircle old pt2 pt1
 
+        (Offset,        [pt2, pt1], _)     -> upstateRun <| Draw.addOffset1D old pt2 pt1
+
         (HelperDot, [pt], _) -> upstateRun <| Draw.addHelperDot old pt
 
         (Lambda i, [pt2, pt1], _) -> upstateRun <| Draw.addLambda i old pt2 pt1

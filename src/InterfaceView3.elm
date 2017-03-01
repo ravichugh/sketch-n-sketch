@@ -183,6 +183,7 @@ codeToolBox model layout =
 drawToolBox model layout =
   toolBox model "drawToolBox" [] Layout.getPutDrawToolBox layout.drawTools
     [ toolButton model Cursor
+    , toolButton model Offset
     , toolButton model Text
     , toolButton model (Line Raw)
     , toolButton model (Rect Raw)
@@ -631,6 +632,7 @@ toolButton model tool =
     Path Stretchy -> capStretchy "Path"
     Path Sticky   -> capSticky
     Text          -> "Text"
+    Offset        -> "Offset"
     HelperLine    -> "(Rule)"
     HelperDot     -> "(Dot)"
     Lambda _      -> "Lambda" -- Utils.uniLambda

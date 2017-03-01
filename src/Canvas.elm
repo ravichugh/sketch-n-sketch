@@ -58,7 +58,7 @@ svgPath      = flip Svg.path []
 msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
   case old.mode of
     Live info ->
-      let _ = Debug.log ("Click Zone" ++ toString zoneKey) () in
+      -- let _ = Debug.log ("Click Zone" ++ toString zoneKey) () in
       let (mx, my) = clickToCanvasPoint old (Tuple.second old.mouseState) in
       let trigger = Sync.prepareLiveTrigger info old.inputExp zoneKey in
       let dragInfo = (trigger, (mx, my), False) in
