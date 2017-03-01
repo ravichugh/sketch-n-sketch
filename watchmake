@@ -1,18 +1,33 @@
-#!/usr/bin/env bash
+#!/usr/bin/env ruby
 
 # Script to rebuild the project when a file changes.
-# Does not rebuild the built-in examples.
 #
-# Usage: ./watchmake
+# Runs the make targets given when the script is started.
+#
+# Usage: ./watchmake examples html
 #
 # Requires fs-watch. ($ brew install fswatch)
 # https://emcrisostomo.github.io/fswatch/getting.html
 
-FILE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+require "fileutils"
 
-cd $FILE_DIR
+THIS_DIR = File.expand_path("..", __FILE__)
 
-# If you need to work on built-in examples, change to "make prelude examples html"
+FileUtils.cd THIS_DIR
 
-echo "fswatch --latency 0.1 -Ee 'git|build/|elm-stuff/|Generated' . | xargs -ton 1 sh -c 'cd src; make examples html'"
-fswatch --latency 0.1 -Ee 'git|build/|elm-stuff/|Generated' . | xargs -ton 1 sh -c 'cd src; make examples html'
+FSWATCH_COMMAND = "fswatch --latency 0.1 -Ee 'git|build/|elm-stuff/|Generated' ."
+MAKE_ARGS       = ARGV.size == 0 ? ["html"] : ARGV
+MAKE_COMMAND    = "cd src; make #{MAKE_ARGS.join(" ")}"
+
+IO.popen(FSWATCH_COMMAND) do |fswatch|
+  puts "Will run #{MAKE_COMMAND} on file changes noticed by"
+  puts FSWATCH_COMMAND
+  loop do
+    changed_files = fswatch.readpartial(1_000_000)
+    sleep 0.02 # File changes might still be coming (e.g. git checkout)
+    changed_files << (fswatch.read_nonblock(1_000_000) rescue "")
+    puts changed_files
+    puts MAKE_COMMAND
+    system(MAKE_COMMAND)
+  end
+end
