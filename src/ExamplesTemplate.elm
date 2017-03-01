@@ -51,6 +51,7 @@ LITTLE_TO_ELM sliders
 LITTLE_TO_ELM buttons
 LITTLE_TO_ELM widgets
 LITTLE_TO_ELM xySlider
+LITTLE_TO_ELM offsets
 LITTLE_TO_ELM rgba
 -- LITTLE_TO_ELM boxGrid
 LITTLE_TO_ELM boxGridTokenFilter
@@ -179,6 +180,7 @@ examples =
   , makeExample "Buttons" buttons
   , makeExample "Widgets" widgets
   , makeExample "xySlider" xySlider
+  , makeExample "Offsets" offsets
   , makeExample "Tile Pattern" boxGridTokenFilter
   , makeExample "Color Picker" rgba
   , makeExample "Ferris Wheel" ferris
@@ -268,6 +270,7 @@ examples =
   , makeExample "Calendar Icon" calendarIcon
 
   , makeExample "Icon: Cursor" DefaultIconTheme.cursor
+  , makeExample "Icon: Text" DefaultIconTheme.text
   , makeExample "Icon: Line" DefaultIconTheme.line
   , makeExample "Icon: Rect" DefaultIconTheme.rect
   , makeExample "Icon: Ellipse" DefaultIconTheme.ellipse

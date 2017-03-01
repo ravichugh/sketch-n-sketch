@@ -174,17 +174,17 @@ valToAttr v = case v.v_ of
         ("fill"  , VList [v1,v2,v3,v4]) -> (k, ARgba <| valsToRgba [v1,v2,v3,v4])
         ("stroke", VList [v1,v2,v3,v4]) -> (k, ARgba <| valsToRgba [v1,v2,v3,v4])
 
-        ("fill",   VConst it) -> (k, AColorNum (it, Nothing))
-        ("stroke", VConst it) -> (k, AColorNum (it, Nothing))
+        ("fill",   VConst _ it) -> (k, AColorNum (it, Nothing))
+        ("stroke", VConst _ it) -> (k, AColorNum (it, Nothing))
 
         ("fill",   VList [v1,v2]) ->
           case (v1.v_, v2.v_) of
-            (VConst it1, VConst it2) -> (k, AColorNum (it1, Just it2))
-            _                        -> Debug.crash "valToAttr: fill"
+            (VConst _ it1, VConst _ it2) -> (k, AColorNum (it1, Just it2))
+            _                            -> Debug.crash "valToAttr: fill"
         ("stroke", VList [v1,v2]) ->
           case (v1.v_, v2.v_) of
-            (VConst it1, VConst it2) -> (k, AColorNum (it1, Just it2))
-            _                        -> Debug.crash "valToAttr: stroke"
+            (VConst _ it1, VConst _ it2) -> (k, AColorNum (it1, Just it2))
+            _                            -> Debug.crash "valToAttr: stroke"
 
         ("d", VList vs)         -> (k, APath2 (valsToPath2 vs))
 
@@ -192,7 +192,7 @@ valToAttr v = case v.v_ of
 
         ("BOUNDS", VList vs)    -> (k, ABounds <| valToBounds vs)
 
-        (_, VConst it)          -> (k, ANum it)
+        (_, VConst _ it)        -> (k, ANum it)
         (_, VBase (VString s))  -> (k, AString s)
 
         _                       -> Debug.crash "valToAttr"
@@ -209,9 +209,9 @@ valToAttr v = case v.v_ of
 valToPoint : Val -> Point
 valToPoint v = case v.v_ of
   VList vs -> case List.map .v_ vs of
-    [VConst x, VConst y] -> (x,y)
-    _                    -> expectedButGot "a point" (strVal v)
-  _                      -> expectedButGot "a point" (strVal v)
+    [VConst _ x, VConst _ y] -> (x,y)
+    _                        -> expectedButGot "a point" (strVal v)
+  _                          -> expectedButGot "a point" (strVal v)
 
 strPoint : Point -> String
 strPoint (x_,y_) =
@@ -223,8 +223,8 @@ strPoint (x_,y_) =
 
 valsToRgba : List Val -> Rgba
 valsToRgba vs = case List.map .v_ vs of
-  [VConst r, VConst g, VConst b, VConst a] -> (r,g,b,a)
-  _                                        -> expectedButGot "rgba" (strVal (vList vs))
+  [VConst _ r, VConst _  g, VConst _ b, VConst _ a] -> (r,g,b,a)
+  _                                                 -> expectedButGot "rgba" (strVal (vList vs))
 
 strRgba : Rgba -> String
 strRgba (r_,g_,b_,a_) =
@@ -302,7 +302,7 @@ projConsts k vs =
     (True, _)       -> ([], vs)
     (False, v::vs_) ->
       case v.v_ of
-        VConst it ->
+        VConst _ it ->
           let (l1,l2) = projConsts (k-1) vs_ in
           (it::l1, l2)
         _ ->
@@ -345,9 +345,9 @@ valToTransformCmd v = case v.v_ of
   VList vs1 -> case List.map .v_ vs1 of
     (VBase (VString k) :: vs) ->
       case (k, vs) of
-        ("rotate",    [VConst n1, VConst n2, VConst n3]) -> Rot n1 n2 n3
-        ("scale",     [VConst n1, VConst n2])            -> Scale n1 n2
-        ("translate", [VConst n1, VConst n2])            -> Trans n1 n2
+        ("rotate",    [VConst _ n1, VConst _ n2, VConst _ n3]) -> Rot n1 n2 n3
+        ("scale",     [VConst _ n1, VConst _ n2])              -> Scale n1 n2
+        ("translate", [VConst _ n1, VConst _ n2])              -> Trans n1 n2
         _ -> expectedButGot "a transform command" (strVal v)
     _     -> expectedButGot "a transform command" (strVal v)
   _       -> expectedButGot "a transform command" (strVal v)
@@ -368,8 +368,8 @@ strTransformCmd cmd = case cmd of
 -- Bounds --
 
 valToBounds vs = case List.map .v_ vs of
-  [VConst a, VConst b, VConst c, VConst d] -> (a,b,c,d)
-  _                                        -> expectedButGot "bounds" (strVal (vList vs))
+  [VConst _ a, VConst _ b, VConst _ c, VConst _ d] -> (a,b,c,d)
+  _                                                -> expectedButGot "bounds" (strVal (vList vs))
 
 strBounds (left,top,right,bot) =
   Utils.spaces (List.map (toString << Tuple.first) [left,top,right,bot])
@@ -670,7 +670,7 @@ type alias AnimationKey = (Int, Int, Float)
 
 -- HACK: see LocEqn.traceToLocEquation...
 -- TODO: streamline Trace, LocEquation, etc.
-vNumFrozen n = val (VConst (n, TrLoc (-999, frozen, toString n)))
+vNumFrozen n = val (VConst Nothing (n, TrLoc (-999, frozen, toString n)))
 vIntFrozen i = vNumFrozen (toFloat i)
 
 resolveToMovieCount : Int -> Val -> Result String Int
@@ -715,26 +715,26 @@ fetchEverything slideNumber movieNumber movieTime val =
 fetchSlideCount : Val -> Int
 fetchSlideCount val =
   case unwrapVList val of
-    Just [VConst (slideCount, _), _] -> round slideCount
+    Just [VConst _ (slideCount, _), _] -> round slideCount
     _ -> 1 -- Program returned a plain SVG array structure...we hope.
 
 fetchMovieCount : Val -> Int
 fetchMovieCount slideVal =
   case unwrapVList slideVal of
-    Just [VConst (movieCount, _), _] -> round movieCount
+    Just [VConst _ (movieCount, _), _] -> round movieCount
     _ -> 1 -- Program returned a plain SVG array structure...we hope.
 
 fetchSlideVal : Int -> Val -> Result String Val
 fetchSlideVal slideNumber val =
   case unwrapVList val of
-    Just [VConst (slideCount, _), VClosure _ pat fexp fenv] ->
+    Just [VConst _ (slideCount, _), VClosure _ pat fexp fenv] ->
       -- Program returned the slide count and a
       -- function from slideNumber -> SVG array structure.
       case pat.val of -- Find that function's argument name
         PVar _ argumentName _ ->
           -- Bind the slide number to the function's argument.
           let fenv_ = (argumentName, vIntFrozen slideNumber) :: fenv in
-          Eval.eval fenv_ [] fexp
+          Eval.doEval fenv_ fexp
           |> Result.map (\((returnVal, _), _) -> returnVal)
         _ -> Err ("expected slide function to take a single argument, got " ++ (toString pat.val))
     _ -> Ok val -- Program returned a plain SVG array structure...we hope.
@@ -743,11 +743,11 @@ fetchSlideVal slideNumber val =
 fetchMovieVal : Int -> Val -> Result String Val
 fetchMovieVal movieNumber slideVal =
   case unwrapVList slideVal of
-    Just [VConst (movieCount, _), VClosure _ pat fexp fenv] ->
+    Just [VConst _ (movieCount, _), VClosure _ pat fexp fenv] ->
       case pat.val of -- Find the function's argument name
         PVar _ movieNumberArgumentName _ ->
           let fenv_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenv in
-          Eval.eval fenv_ [] fexp
+          Eval.doEval fenv_ fexp
           |> Result.map (\((returnVal, _), _) -> returnVal)
         _ -> Err ("expected movie function to take a single argument, got " ++ (toString pat.val))
     _ -> Ok slideVal -- Program returned a plain SVG array structure...we hope.
@@ -757,7 +757,7 @@ fetchMovieDurationAndContinueBool movieVal =
   case unwrapVList movieVal of
     Just [VBase (VString "Static"), VClosure _ _ _ _] ->
       (0.0, False)
-    Just [VBase (VString "Dynamic"), VConst (movieDuration, _), VClosure _ _ _ _, VBase (VBool continue)] ->
+    Just [VBase (VString "Dynamic"), VConst _ (movieDuration, _), VClosure _ _ _ _, VBase (VBool continue)] ->
       (movieDuration, continue)
     _ ->
       (0.0, False) -- Program returned a plain SVG array structure...we hope.
@@ -770,32 +770,32 @@ fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
       case pat.val of -- Find the function's argument names
         PVar _ slideNumberArgumentName _ ->
           let fenv_ = (slideNumberArgumentName, vIntFrozen slideNumber) :: fenv in
-          case Eval.eval fenv_ [] fexp |> Result.map (\((innerVal, _), _) -> innerVal.v_) of
+          case Eval.doEval fenv_ fexp |> Result.map (\((innerVal, _), _) -> innerVal.v_) of
             Ok (VClosure _ patInner fexpInner fenvInner) ->
               case patInner.val of
                 PVar _ movieNumberArgumentName _ ->
                   let fenvInner_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenvInner in
-                  Eval.eval fenvInner_ [] fexpInner
+                  Eval.doEval fenvInner_ fexpInner
                   |> Result.map (\((returnVal, _), _) -> returnVal)
                 _ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString patInner.val))
             Ok v_ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString v_))
             Err s -> Err s
         _ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString pat.val))
-    Just [VBase (VString "Dynamic"), VConst (movieDuration, _), VClosure _ pat fexp fenv, VBase (VBool _)] ->
+    Just [VBase (VString "Dynamic"), VConst _ (movieDuration, _), VClosure _ pat fexp fenv, VBase (VBool _)] ->
       case pat.val of -- Find the function's argument names
         PVar _ slideNumberArgumentName _ ->
           let fenv_ = (slideNumberArgumentName, vIntFrozen slideNumber) :: fenv in
-          case Eval.eval fenv_ [] fexp |> Result.map (\((innerVal1, _), _) -> innerVal1.v_) of
+          case Eval.doEval fenv_ fexp |> Result.map (\((innerVal1, _), _) -> innerVal1.v_) of
             Ok (VClosure _ patInner1 fexpInner1 fenvInner1) ->
               case patInner1.val of
                 PVar _ movieNumberArgumentName _ ->
                   let fenvInner1_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenvInner1 in
-                  case Eval.eval fenvInner1_ [] fexpInner1 |> Result.map (\((innerVal2, _), _) -> innerVal2.v_) of
+                  case Eval.doEval fenvInner1_ fexpInner1 |> Result.map (\((innerVal2, _), _) -> innerVal2.v_) of
                     Ok (VClosure _ patInner2 fexpInner2 fenvInner2) ->
                       case patInner2.val of
                         PVar _ movieSecondsArgumentName _ ->
                           let fenvInner2_ = (movieSecondsArgumentName, vNumFrozen movieTime) :: fenvInner2 in
-                          Eval.eval fenvInner2_ [] fexpInner2
+                          Eval.doEval fenvInner2_ fexpInner2
                           |> Result.map (\((returnVal, _), _) -> returnVal)
                         _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner2.val))
                     Ok innerV2_ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString innerV2_))

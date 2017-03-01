@@ -8,9 +8,9 @@ module InterfaceController exposing
   , msgRun, upstateRun, msgTryParseRun
   , msgAceUpdate
   , msgUndo, msgRedo, msgCleanCode
-  , msgDigHole, msgMakeEqual, msgRelate, msgRobotRevolution
+  , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate
   , msgSelectSynthesisResult, msgClearSynthesisResults
-  , msgPreview, msgClearPreview
+  , msgHoverSynthesisResult, msgPreview, msgClearPreview
   , msgGroupBlobs, msgDuplicateBlobs, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox, msgToggleOutput
@@ -47,6 +47,7 @@ import Types
 import Ace
 import LangParser2 exposing (parseE, freshen)
 import LangUnparser exposing (unparse)
+import LangTools
 import LangTransform
 import ValueBasedTransform
 import Blobs exposing (..)
@@ -63,7 +64,7 @@ import AnimationLoop
 import FileHandler
 -- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
-import ShapeWidgets
+import ShapeWidgets exposing (RealZone(..), PointFeature(..), OtherFeature(..))
 import ExamplesGenerated as Examples
 import Config exposing (params)
 import Either exposing (Either(..))
@@ -216,11 +217,11 @@ onMouseClick click old =
   case (old.tool, old.mouseMode) of
 
     -- Inactive zone
-    (Cursor, MouseDragZone (Left (i, k, z)) Nothing) ->
+    (Cursor, MouseDragZone (i, k, z) Nothing) ->
       onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
 
     -- Active zone but not dragged
-    (Cursor, MouseDragZone (Left (i, k, z)) (Just (_, _, False))) ->
+    (Cursor, MouseDragZone (i, k, z) (Just (_, _, False))) ->
       onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
 
     (Poly stk, MouseDrawNew points) ->
@@ -270,40 +271,50 @@ onMouseClick click old =
     _ ->
       old
 
+onClickPrimaryZone : LangSvg.NodeId -> LangSvg.ShapeKind -> ShapeWidgets.ZoneName -> Model -> Model
 onClickPrimaryZone i k z old =
+  let realZone = ShapeWidgets.parseZone z in
   let hoveredCrosshairs_ =
-    case ShapeWidgets.zoneToCrosshair k z of
+    case ShapeWidgets.zoneToCrosshair k realZone of
       Just (xFeature, yFeature) ->
         Set.insert (i, xFeature, yFeature) old.hoveredCrosshairs
       _ ->
         old.hoveredCrosshairs
   in
-  let (selectedShapes_, selectedBlobs_) =
-    let selectThisShape () =
-      Set.insert i <|
-        if old.keysDown == Keys.shift
-        then old.selectedShapes
-        else Set.empty
-    in
-    let selectBlob blobId =
-      Dict.insert blobId i <|
-        if old.keysDown == Keys.shift
-        then old.selectedBlobs
-        else Dict.empty
-    in
-    let maybeBlobId =
-      case Dict.get i (Tuple.second old.slate) of
-        Just (LangSvg.SvgNode _ l _) -> LangSvg.maybeFindBlobId l
-        _                            -> Debug.crash "onClickPrimaryZone"
-    in
-    case (k, z, maybeBlobId) of
-      ("line", "Edge",     Just blobId) -> (selectThisShape (), selectBlob blobId)
-      (_,      "Interior", Just blobId) -> (selectThisShape (), selectBlob blobId)
-      ("line", "Edge",     Nothing)     -> (selectThisShape (), old.selectedBlobs)
-      (_,      "Interior", Nothing)     -> (selectThisShape (), old.selectedBlobs)
-      _                                 -> (old.selectedShapes, old.selectedBlobs)
+  let (selectedFeatures_, selectedShapes_, selectedBlobs_) =
+    if i < -2 then -- Clicked a widget
+      if z == "Offset1D" then
+        let update = if Set.member (i,"offset") old.selectedFeatures then Set.remove else Set.insert in
+        (update (i,"offset") old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
+      else
+        (old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
+    else
+      let selectThisShape () =
+        Set.insert i <|
+          if old.keysDown == Keys.shift
+          then old.selectedShapes
+          else Set.empty
+      in
+      let selectBlob blobId =
+        Dict.insert blobId i <|
+          if old.keysDown == Keys.shift
+          then old.selectedBlobs
+          else Dict.empty
+      in
+      let maybeBlobId =
+        case Dict.get i (Tuple.second old.slate) of
+          Just (LangSvg.SvgNode _ l _) -> LangSvg.maybeFindBlobId l
+          _                            -> Debug.crash "onClickPrimaryZone"
+      in
+      case (k, realZone, maybeBlobId) of
+        ("line", ZLineEdge, Just blobId) -> (old.selectedFeatures, selectThisShape (), selectBlob blobId)
+        (_,      ZInterior, Just blobId) -> (old.selectedFeatures, selectThisShape (), selectBlob blobId)
+        ("line", ZLineEdge, Nothing)     -> (old.selectedFeatures, selectThisShape (), old.selectedBlobs)
+        (_,      ZInterior, Nothing)     -> (old.selectedFeatures, selectThisShape (), old.selectedBlobs)
+        _                                -> (old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
   in
   { old | hoveredCrosshairs = hoveredCrosshairs_
+        , selectedFeatures = selectedFeatures_
         , selectedShapes = selectedShapes_
         , selectedBlobs = selectedBlobs_
         }
@@ -359,7 +370,7 @@ onMouseMove newPosition old =
           { old | mouseMode = MouseDrawNew (pointOnCanvas::points) }
 
     MouseDownInCodebox pos ->
-      old 
+      old
 
 onMouseUp old =
   case (old.mode, old.mouseMode) of
@@ -404,8 +415,8 @@ onMouseUp old =
 
         _              -> old
 
-    (_, MouseDownInCodebox downPos) -> 
-      let oldPos = pixelToRowColPosition downPos old in 
+    (_, MouseDownInCodebox downPos) ->
+      let oldPos = pixelToRowColPosition downPos old in
       let newPos = pixelToRowColPosition (Tuple.second old.mouseState) old in
       onMouseDrag (dragSource oldPos old) (dragTarget newPos old)
         { old | mouseMode = MouseNothing }
@@ -415,17 +426,17 @@ onMouseUp old =
 dragSource pixelPos m =
   let exp = getClickedEId (computeExpRanges m.inputExp) pixelPos in
   let pat = getClickedPat (findPats m.inputExp) pixelPos m in
-  let item = case exp of 
-                Nothing   -> case pat of 
-                                Nothing   -> Nothing 
+  let item = case exp of
+                Nothing   -> case pat of
+                                Nothing   -> Nothing
                                 Just pid  -> Just (Left pid)
                 Just eid  -> Just (Right eid) in
   item
 
 dragTarget pixelPos m =
-  let expTarget = getClickedExpTarget (computeExpTargets m.inputExp) pixelPos in 
-  let patTarget = getClickedPatTarget (findPatTargets m.inputExp) pixelPos m in 
-  let target = case List.head expTarget of 
+  let expTarget = getClickedExpTarget (computeExpTargets m.inputExp) pixelPos in
+  let patTarget = getClickedPatTarget (findPatTargets m.inputExp) pixelPos m in
+  let target = case List.head expTarget of
                 Nothing       -> case List.head patTarget of
                                     Nothing         -> Nothing
                                     Just firstPat   -> Just (Left firstPat)
@@ -452,7 +463,7 @@ tryRun old =
         --
         let rewrittenE = rewriteInnerMostExpToMain e in
 
-        Eval.eval Eval.initEnv [] rewrittenE |>
+        Eval.doEval Eval.initEnv rewrittenE |>
         Result.andThen (\((newVal,ws),finalEnv) ->
           LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
           |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
@@ -701,8 +712,8 @@ msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
 
     (True, (Nothing, pos)) -> -- mouse down
       let _ = debugLog "mouse down" () in
-      if old.hoveringCodeBox 
-      then { new | mouseState = (Just False, pos), 
+      if old.hoveringCodeBox
+      then { new | mouseState = (Just False, pos),
                    mouseMode = MouseDownInCodebox pos }
       else { new | mouseState = (Just False, pos) }
 
@@ -763,20 +774,23 @@ msgKeyUp keyCode = Msg ("Key Up " ++ toString keyCode) <| \old ->
 
 --------------------------------------------------------------------------------
 
-cleanSynthesisResult {description, exp, sortKey} =
-  { description = description ++ " -> Cleaned"
-  , exp = LangTransform.cleanCode exp
-  , sortKey = sortKey
-  }
+cleanSynthesisResult (SynthesisResult {description, exp, sortKey, children}) =
+  SynthesisResult <|
+    { description = description ++ " -> Cleaned"
+    , exp         = LangTransform.cleanCode exp
+    , sortKey     = sortKey
+    , children    = children
+    }
 
-cleanDedupSynthesisResults synthesisResults =
+cleanDedupSortSynthesisResults synthesisResults =
   synthesisResults
   |> List.map cleanSynthesisResult
-  |> Utils.dedupBy (.exp >> unparse)
+  |> Utils.dedupBy (\(SynthesisResult {description, exp, sortKey, children}) -> unparse exp)
+  |> List.sortBy (\(SynthesisResult {description, exp, sortKey, children}) -> (LangTools.nodeCount exp, sortKey, description))
 
 maybeRunAutoSynthesis m e =
   if m.autoSynthesis
-    then cleanDedupSynthesisResults (ETransform.passiveSynthesisSearch e)
+    then cleanDedupSortSynthesisResults (ETransform.passiveSynthesisSearch e)
     else []
 
 msgCleanCode = Msg "Clean Code" <| \old ->
@@ -793,7 +807,7 @@ msgCleanCode = Msg "Clean Code" <| \old ->
 
 msgDigHole = Msg "Dig Hole" <| \old ->
   let newExp =
-    ValueBasedTransform.digHole old.inputExp old.selectedFeatures old.slate old.syncOptions
+    ValueBasedTransform.digHole old.inputExp old.selectedFeatures old.slate old.widgets old.syncOptions
   in
   runWithErrorHandling old newExp (\reparsed newVal newWidgets newSlate newCode ->
     debugLog "new model" <|
@@ -823,7 +837,7 @@ msgMakeEqual = Msg "Make Equal" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = cleanDedupSynthesisResults synthesisResults }
+  { old | synthesisResults = cleanDedupSortSynthesisResults synthesisResults }
 
 msgRelate = Msg "Relate" <| \old ->
   let synthesisResults =
@@ -835,11 +849,11 @@ msgRelate = Msg "Relate" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = cleanDedupSynthesisResults synthesisResults }
+  { old | synthesisResults = cleanDedupSortSynthesisResults synthesisResults }
 
-msgRobotRevolution = Msg "Indexed Relate" <| \old ->
+msgIndexedRelate = Msg "Indexed Relate" <| \old ->
   let synthesisResults =
-    ValueBasedTransform.robotRevolution
+    ValueBasedTransform.indexedRelate
         old.inputExp
         old.selectedFeatures
         old.selectedShapes
@@ -848,7 +862,7 @@ msgRobotRevolution = Msg "Indexed Relate" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = cleanDedupSynthesisResults synthesisResults }
+  { old | synthesisResults = cleanDedupSortSynthesisResults synthesisResults }
 
 -- msgMakeEquidistant = Msg "Make Equidistant" <| \old ->
 --   let newExp =
@@ -1028,6 +1042,15 @@ msgPauseResumeMovie = Msg "Pause/Resume Movie" <| \old ->
 
 --------------------------------------------------------------------------------
 
+showExpPreview old exp =
+  let previewCode = unparse exp in
+  case runAndResolve old exp of
+    Ok (val, widgets, slate, _) ->
+      { old | preview = Just (previewCode, Ok (val, widgets, slate)) }
+
+    Err s ->
+      { old | preview = Just (previewCode, Err s) }
+
 msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
   { old | code          = code
         , inputExp      = exp
@@ -1042,18 +1065,46 @@ msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
                               (val, []) -- TODO
         }
 
-msgPreview expOrCode = Msg "Preview" <| \old ->
-  let (previewExp, previewCode) =
-    case expOrCode of
-      Left exp   -> (exp, unparse exp)
-      Right code -> (Utils.fromOkay "msgPreview" (parseE code), code)
+msgHoverSynthesisResult pathByIndices = Msg "Hover SynthesisResult" <| \old ->
+  let maybeFindResult path results =
+    case path of
+      []    -> Nothing
+      [i]   -> Utils.maybeGet0 i results
+      i::is -> Utils.maybeGet0 i results |> Maybe.andThen (\(SynthesisResult {children}) -> children |> Maybe.andThen (maybeFindResult is))
   in
-  case runAndResolve old previewExp of
-    Ok (val, widgets, slate, _) ->
-      { old | preview = Just (previewCode, Ok (val, widgets, slate)) }
+  let setResultChildren path childResults oldResults =
+    case path of
+      []    -> oldResults
+      [i]   -> oldResults |> Utils.getReplacei0 i (\(SynthesisResult attrs) -> SynthesisResult { attrs | children = Just childResults})
+      i::is -> oldResults |> Utils.getReplacei0 i (\(SynthesisResult attrs) -> SynthesisResult { attrs | children = Just (setResultChildren is childResults (attrs.children |> Maybe.withDefault []))})
+  in
+  case maybeFindResult pathByIndices old.synthesisResults of
+    Just (SynthesisResult {description, exp, sortKey, children}) ->
+      let newModel = { old | hoveredSynthesisResultPathByIndicies = pathByIndices } in
+      let newModel2 =
+        case children of
+          Just _  -> newModel -- Children already computed.
+          Nothing ->
+            -- Compute child results.
+            let childResults = cleanDedupSortSynthesisResults (ETransform.passiveSynthesisSearch exp) in
+            let newTopLevelResults = setResultChildren pathByIndices childResults old.synthesisResults in
+            { newModel | synthesisResults = newTopLevelResults
+                       , hoveredSynthesisResultPathByIndicies = pathByIndices }
+      in
+      showExpPreview newModel2 exp
 
-    Err s ->
-      { old | preview = Just (previewCode, Err s) }
+    Nothing ->
+      { old | preview = Nothing
+            , hoveredSynthesisResultPathByIndicies = [] }
+
+
+msgPreview expOrCode = Msg "Preview" <| \old ->
+  let previewExp =
+    case expOrCode of
+      Left exp   -> exp
+      Right code -> Utils.fromOkay "msgPreview" (parseE code)
+  in
+  showExpPreview old previewExp
 
 msgClearPreview = Msg "Clear Preview" <| \old ->
   { old | preview = Nothing }
@@ -1291,23 +1342,23 @@ msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->
   { m | hoveringCodeBox = False }
 
 msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m -> m
-  --let _ = Debug.log "selectedEIds" m.selectedEIds in 
-  --let _ = Debug.log "selectedPats" m.selectedPats in 
-  --let _ = Debug.log "selectedExpTargets" m.selectedExpTargets in 
-  --let _ = Debug.log "selectedPatTargets" m.selectedPatTargets in 
+  --let _ = Debug.log "selectedEIds" m.selectedEIds in
+  --let _ = Debug.log "selectedPats" m.selectedPats in
+  --let _ = Debug.log "selectedExpTargets" m.selectedExpTargets in
+  --let _ = Debug.log "selectedPatTargets" m.selectedPatTargets in
 
   --if showDeuceWidgets m
-  --then 
-  --  let downPos = case m.mouseMode of 
+  --then
+  --  let downPos = case m.mouseMode of
   --                  MouseDownInCodebox downPos -> downPos
-  --                  _                          -> { x = 0 , y = 0} in 
+  --                  _                          -> { x = 0 , y = 0} in
   --  let pos = case m.mouseState of
   --              (Nothing, _) -> downPos
   --              (_, p)       -> p  in
   --  let codeBoxInfo = m.codeBoxInfo in
-  --  let mousePos = case m.mouseState of 
+  --  let mousePos = case m.mouseState of
   --                  (b, pos) -> pos in
-  --  let pixelPos = pixelToRowColPosition mousePos m in 
+  --  let pixelPos = pixelToRowColPosition mousePos m in
   --  let selectedEIds =
   --    case getClickedEId (computeExpRanges m.inputExp) pixelPos of
   --      Nothing  -> m.selectedEIds
@@ -1318,36 +1369,36 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m -> m
   --  let selectedExpTargets =
   --    case getClickedExpTarget (computeExpTargets m.inputExp) pixelPos of
   --      [] -> m.selectedExpTargets
-  --      ls -> getSetMembers ls m.selectedExpTargets 
-  --  in 
-  --  let selectedPats = 
+  --      ls -> getSetMembers ls m.selectedExpTargets
+  --  in
+  --  let selectedPats =
   --    case getClickedPat (findPats m.inputExp) pixelPos m of
   --      Nothing  -> m.selectedPats
   --      Just s -> if Set.member s m.selectedPats
   --                  then Set.remove s m.selectedPats
   --                  else Set.insert s m.selectedPats
   --  in
-  --  let selectedPatTargets = 
+  --  let selectedPatTargets =
   --    case getClickedPatTarget (findPatTargets m.inputExp) pixelPos m of
   --      [] -> m.selectedPatTargets
   --      ls -> getSetMembers ls m.selectedPatTargets
   --  in
-  --  let new = { m | --selectedEIds = selectedEIds 
+  --  let new = { m | --selectedEIds = selectedEIds
   --                --selectedPats = selectedPats
   --                selectedPatTargets = selectedPatTargets
-  --                , selectedExpTargets = selectedExpTargets } 
-  --  in 
+  --                , selectedExpTargets = selectedExpTargets }
+  --  in
   --  { new | --expSelectionBoxes = expRangeSelections new
-  --        expTargetSelections = expTargetsToSelect new 
-  --        --, patSelectionBoxes = patRangeSelections new 
-  --        , patTargetSelections = patTargetsToSelect new 
+  --        expTargetSelections = expTargetsToSelect new
+  --        --, patSelectionBoxes = patRangeSelections new
+  --        , patTargetSelections = patTargetsToSelect new
   --        }
   --else
-  --  m 
+  --  m
 
-msgMouseClickExpBoundingBox eid = Msg ("msgMouseClickExpBoundingBox " ++ toString eid) <| \m -> 
-  if showDeuceWidgets m 
-  then 
+msgMouseClickExpBoundingBox eid = Msg ("msgMouseClickExpBoundingBox " ++ toString eid) <| \m ->
+  if showDeuceWidgets m
+  then
     let selectedEIds =
         if Set.member eid m.deuceState.selectedEIds
           then Set.remove eid m.deuceState.selectedEIds
@@ -1366,9 +1417,9 @@ msgMouseClickExpBoundingBox eid = Msg ("msgMouseClickExpBoundingBox " ++ toStrin
   else
     m
 
-msgMouseClickPatBoundingBox pat = Msg ("msgMouseClickPatBoundingBox " ++ toString pat) <| \m -> 
-  if showDeuceWidgets m 
-  then 
+msgMouseClickPatBoundingBox pat = Msg ("msgMouseClickPatBoundingBox " ++ toString pat) <| \m ->
+  if showDeuceWidgets m
+  then
     let selectedPats =
         if Set.member pat m.deuceState.selectedPats
           then Set.remove pat m.deuceState.selectedPats
@@ -1385,16 +1436,16 @@ msgMouseClickPatBoundingBox pat = Msg ("msgMouseClickPatBoundingBox " ++ toStrin
               { deuceState
               | patSelectionBoxes = patRangeSelections new } }
   else
-    m 
+    m
 
-msgMouseClickExpTargetPosition id = Msg ("msgMouseClickExpTargetPosition " ++ toString id) <| \m -> 
-  if showDeuceWidgets m 
-  then 
+msgMouseClickExpTargetPosition id = Msg ("msgMouseClickExpTargetPosition " ++ toString id) <| \m ->
+  if showDeuceWidgets m
+  then
     let selectedExpTargets =
       if Set.member id m.deuceState.selectedExpTargets
       then Set.remove id m.deuceState.selectedExpTargets
       else Set.insert id m.deuceState.selectedExpTargets
-    in 
+    in
     let new =
       let deuceState = m.deuceState in
       { m | deuceState =
@@ -1408,14 +1459,14 @@ msgMouseClickExpTargetPosition id = Msg ("msgMouseClickExpTargetPosition " ++ to
   else
     m
 
-msgMouseClickPatTargetPosition id = Msg ("msgMouseClickPatTargetPosition " ++ toString id) <| \m -> 
-  if showDeuceWidgets m 
-  then 
+msgMouseClickPatTargetPosition id = Msg ("msgMouseClickPatTargetPosition " ++ toString id) <| \m ->
+  if showDeuceWidgets m
+  then
     let selectedPatTargets =
       if Set.member id m.deuceState.selectedPatTargets
       then Set.remove id m.deuceState.selectedPatTargets
       else Set.insert id m.deuceState.selectedPatTargets
-    in 
+    in
     let new =
       let deuceState = m.deuceState in
       { m | deuceState =
@@ -1427,58 +1478,58 @@ msgMouseClickPatTargetPosition id = Msg ("msgMouseClickPatTargetPosition " ++ to
               { deuceState
               | patTargetSelections = patTargetsToSelect new } }
 
-  else 
+  else
     m
 
-msgMouseEnterExpBoundingBox exp = Msg ("msgMouseEnterExpBoundingBox " ++ toString exp) <| \old -> 
+msgMouseEnterExpBoundingBox exp = Msg ("msgMouseEnterExpBoundingBox " ++ toString exp) <| \old ->
   let deuceState = old.deuceState in
   { old | deuceState =
               { deuceState
               | hoveredExp = [exp] } }
 
-msgMouseLeaveExpBoundingBox exp = Msg ("msgMouseLeaveExpBoundingBox " ++ toString exp) <| \old -> 
+msgMouseLeaveExpBoundingBox exp = Msg ("msgMouseLeaveExpBoundingBox " ++ toString exp) <| \old ->
   let deuceState = old.deuceState in
   { old | deuceState =
               { deuceState
               | hoveredExp = [] } }
 
-msgMouseEnterPatBoundingBox pat = Msg ("msgMouseEnterPatBoundingBox " ++ toString pat) <| \old -> 
+msgMouseEnterPatBoundingBox pat = Msg ("msgMouseEnterPatBoundingBox " ++ toString pat) <| \old ->
   let deuceState = old.deuceState in
   { old | deuceState =
               { deuceState
               | hoveredPat = [pat] } }
 
-msgMouseLeavePatBoundingBox pat = Msg ("msgMouseLeavePatBoundingBox " ++ toString pat) <| \old -> 
+msgMouseLeavePatBoundingBox pat = Msg ("msgMouseLeavePatBoundingBox " ++ toString pat) <| \old ->
   let deuceState = old.deuceState in
   { old | deuceState =
               { deuceState
               | hoveredPat = [] } }
 
-msgMouseEnterExpTarget exp = Msg ("msgMouseEnterExpTarget " ++ toString exp) <| \old -> 
+msgMouseEnterExpTarget exp = Msg ("msgMouseEnterExpTarget " ++ toString exp) <| \old ->
   let deuceState = old.deuceState in
   { old | deuceState =
               { deuceState
               | hoveredExpTargets = [exp] } }
 
-msgMouseLeaveExpTarget exp = Msg ("msgMouseLeaveExpTarget " ++ toString exp) <| \old -> 
+msgMouseLeaveExpTarget exp = Msg ("msgMouseLeaveExpTarget " ++ toString exp) <| \old ->
   let deuceState = old.deuceState in
   { old | deuceState =
               { deuceState
               | hoveredExpTargets = [] } }
 
-msgMouseEnterPatTarget pat = Msg ("msgMouseEnterPatTarget " ++ toString pat) <| \old -> 
+msgMouseEnterPatTarget pat = Msg ("msgMouseEnterPatTarget " ++ toString pat) <| \old ->
   let deuceState = old.deuceState in
   { old | deuceState =
               { deuceState
               | hoveredPatTargets = [pat] } }
 
-msgMouseLeavePatTarget pat = Msg ("msgMouseLeavePatTarget " ++ toString pat) <| \old -> 
+msgMouseLeavePatTarget pat = Msg ("msgMouseLeavePatTarget " ++ toString pat) <| \old ->
   let deuceState = old.deuceState in
   { old | deuceState =
               { deuceState
               | hoveredPatTargets = [] } }
 
-getSetMembers ls s = 
+getSetMembers ls s =
   case ls of
     [] -> s
     first::rest -> if Set.member first s
@@ -1498,10 +1549,10 @@ getClickedEId ls pixelPos =
 getClickedExpTarget ls pixelPos =
   let selected =
     List.filter (\(expTarget,selectStart,selectEnd) -> betweenPos selectStart pixelPos selectEnd) ls
-  in 
+  in
     List.map (\(expTarget,start,end) -> expTarget) selected
 
-getClickedPat ls pixelPos m = 
+getClickedPat ls pixelPos m =
   let selected =
       List.filter (\(pat,pid,start,end,selectEnd) -> betweenPos start pixelPos selectEnd) ls
   in
@@ -1511,8 +1562,8 @@ getClickedPat ls pixelPos m =
     _                      -> let _ = Debug.log "WARN: getClickedPat: multiple pats" () in
                                 Nothing
 
-getClickedPatTarget ls pixelPos m = 
-  let selected = 
+getClickedPatTarget ls pixelPos m =
+  let selected =
     List.filter (\(tid,start,end) -> betweenPos start pixelPos end) ls
   in
     List.map (\(tid,start,end) -> tid) selected
@@ -1576,13 +1627,14 @@ movePatToPat_ bad sourcePat targetPat targetPats m =
 
 updateWithMoveExpResults new results = case results of
   []       -> new
-  [result] -> if String.startsWith "[UNSAFE" result.description ||
-                 String.startsWith "[WARN" result.description then
-                { new | synthesisResults = [result] }
-              else
-                -- TODO version of upstateRun to avoid unparse then re-parse
-                let newCode = unparse result.exp in
-                upstateRun { new | code = newCode }
+  [SynthesisResult result] ->
+    if String.startsWith "[UNSAFE" result.description ||
+       String.startsWith "[WARN" result.description then
+      { new | synthesisResults = [SynthesisResult result] }
+    else
+      -- TODO version of upstateRun to avoid unparse then re-parse
+      let newCode = unparse result.exp in
+      upstateRun { new | code = newCode }
   results  -> { new | synthesisResults = results }
 
 singleLogicalTarget target targets =

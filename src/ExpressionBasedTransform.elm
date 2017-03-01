@@ -36,10 +36,20 @@ import String
 -- x TODO: revisit clone detection -- lists of constants are ignored if >1 constant differs
 -- x TODO: abstract with n parameters
 -- x TODO: don't lift variables usages into an abstraction outside of the variable's original scope (later we may add lifting)
--- TODO: fix width + scroll synthesis results box
--- TODO: multiple rewrites (either speculative or nested dropdowns)
--- TODO: examine examples again
+-- x TODO: fix grouping so scaling is inserted correctly (use eids not locids for esubst)
+-- x TODO: "Merge 2 rect1s by abstracting over x2 y2"
+-- x TODO: multiple rewrites (either speculative or nested dropdowns)
+-- TODO: make nested dropdowns scrollable
+-- TODO: support 0 parameter clone removal
+-- x TODO: fix width + scroll synthesis results box
+-- TODO: examine examples again (including sine wave)
+-- TODO: think about interactive rewrite rules DSL
+-- TODO: can rewrite rules get us to the UIST steps? e.g. radial repeat?
+-- TODO: think about what the story for this paper can be: maybe take one stage of workflow and make it really great (unlikely we can make all of them better) Draw? Relate? Abstract/Repeat/Rewrite?
+-- TODO: naming for abstracted pts
 -- TODO: write down methodology and document heuristics
+-- TODO: fix lifting a variable name that ends up hiding an in-use variable
+-- TODO: speed up clone detection/passive synthesis (slow on anything other than small programs; particularly slow if program has leading comments)
 -- TODO: Filter out speculative expressions that error or produce a different result.
 -- TODO: ensure abstracted expressions weren't sub-expressions of each other...?
 -- TODO: lift dependencies (procrastinate this)
@@ -67,14 +77,27 @@ rangeSynthesisResults originalExp =
                 Just (n1::n2::n3::nRest) -> -- At least three nums
                   let nums = n1::n2::n3::nRest in
                   let (min, max) = (List.minimum nums |> Utils.fromJust_ "ExpressionBasedTransform.rangeSynthesisResults min" |> round, List.maximum nums |> Utils.fromJust_ "ExpressionBasedTransform.rangeSynthesisResults max" |> round) in
-                  if nums == (List.range min max |> List.map toFloat) then
-                    let insertedLoc = dummyLoc_ (if List.all isFrozenNumber es then frozen else unann) in
-                    if List.head nums == Just 0.0 then
-                      Just (exp.val.eid, eApp (eVar0 "zeroTo") [withDummyPos <| EConst " " (toFloat max + 1) insertedLoc (intSlider 0 (5*(max + 1)))])
-                    else if List.head nums == Just 1.0 then
-                      Just (exp.val.eid, eApp (eVar0 "list1N") [withDummyPos <| EConst " " (toFloat max) insertedLoc (intSlider 0 (5*(max + 1)-1))])
+                  let (characterization, ascending) =
+                    if nums == (List.range min max |> List.map toFloat) then
+                      ("ascending", nums)
+                    else if List.reverse nums == (List.range min max |> List.map toFloat) then
+                      ("descending", List.reverse nums)
                     else
-                      Just (exp.val.eid, eApp (eVar0 "range") [eConst (toFloat min) insertedLoc, eConst (toFloat max) insertedLoc])
+                      ("none", [])
+                  in
+                  if characterization /= "none" then
+                    let insertedLoc = dummyLoc_ (if List.all isFrozenNumber es then frozen else unann) in
+                    let maybeReverse e =
+                      if characterization == "descending"
+                      then eApp (eVar0 "reverse") [e]
+                      else e
+                    in
+                    if List.head ascending == Just 0.0 then
+                      Just (exp.val.eid, maybeReverse <| eApp (eVar0 "zeroTo") [withDummyPos <| EConst " " (toFloat max + 1) insertedLoc (intSlider 0 (5*(max + 1)))])
+                    else if List.head ascending == Just 1.0 then
+                      Just (exp.val.eid, maybeReverse <| eApp (eVar0 "list1N") [withDummyPos <| EConst " " (toFloat max) insertedLoc (intSlider 0 (5*(max + 1)-1))])
+                    else
+                      Just (exp.val.eid, maybeReverse <| eApp (eVar0 "range") [eConst (toFloat min) insertedLoc, eConst (toFloat max) insertedLoc])
                   else
                     Nothing
 
@@ -88,10 +111,12 @@ rangeSynthesisResults originalExp =
   eidAndRangeLists
   |> List.map
       (\(eid, newExp) ->
-        { description = "Replace " ++ (unparse >> Utils.squish) (justFindExpByEId originalExp eid) ++ " with " ++ unparse newExp
-        , exp         = replaceExpNodePreservingPreceedingWhitespace eid newExp originalExp
-        , sortKey     = []
-        }
+        InterfaceModel.SynthesisResult <|
+          { description = "Replace " ++ (unparse >> Utils.squish) (justFindExpByEId originalExp eid) ++ " with " ++ unparse newExp
+          , exp         = replaceExpNodePreservingPreceedingWhitespace eid newExp originalExp
+          , sortKey     = []
+          , children    = Nothing
+          }
       )
 
 
@@ -241,15 +266,15 @@ inlineListSynthesisResults originalExp =
   candidatesAndDescription
   |> List.map
       (\(candidateExp, description) ->
-        { description = description
-        , exp         = candidateExp
-        , sortKey     = []
-        }
+        InterfaceModel.SynthesisResult <|
+          { description = description
+          , exp         = candidateExp
+          , sortKey     = []
+          , children    = Nothing
+          }
       )
 
 
--- Generate single argument abstractions only (for now).
---
 -- Returns List of (Sorted List of (EId, Expression to Replace, Argument Expressions), Replacing Function, Common Scope, Suggested Function Name, Argument Names)
 --
 -- Suggested function name has *not* been checked for collisions.
@@ -277,8 +302,8 @@ detectClones originalExp minCloneCount minCloneSize argCount allowCurrying =
       (EIf ws1A e1A e2A e3A ws2A,            EIf ws1B e1B e2B e3B ws2B)            -> replaceE__ expA (EIf ws1A (merge e1A e1B) (merge e2A e2B) (merge e3A e3B) ws2A)
       (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         -> Utils.maybeZip branchesA branchesB |> Maybe.andThen (\branchPairs -> let bValPairs = branchPairs |> List.map (\(bA, bB) -> (bA.val, bB.val)) in if bValPairs |> List.all (\(Branch_ bws1A bpatA beA bws2A, Branch_ bws1B bpatB beB bws2B) -> patternsEqual bpatA bpatB) then Just (replaceE__ expA (ECase ws1A (merge eA eB) (Utils.zip branchPairs bValPairs |> List.map (\((bA, bB), (Branch_ bws1A bpatA beA bws2A, Branch_ bws1B bpatB beB bws2B)) -> {bA | val = Branch_ bws1A bpatA (merge beA beB) bws2A})) ws2A)) else Nothing) |> Maybe.withDefault argVar
       (ETypeCase ws1A patA tbranchesA ws2A,  ETypeCase ws1B patB tbranchesB ws2B)  -> if patternsEqual patA patB then Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (replaceE__ expA (ETypeCase ws1A patA (Utils.zip tbranchPairs tbValPairs |> List.map (\((tbA, tbB), (TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B)) -> {tbA | val = TBranch_ tbws1A tbtypeA (merge tbeA tbeB) tbws2A})) ws2A)) else Nothing) |> Maybe.withDefault argVar else argVar
-      (EComment wsA sA e1A,                  _)                                    -> replaceE__ expA (EComment wsA sA (merge e1A expB))
-      (_,                                    EComment wsB sB e1B)                  -> replaceE__ expB (EComment wsB sB (merge e1B expA))
+      (EComment wsA sA e1A,                  _)                                    -> replaceE__ expA (EComment wsA sA (merge e1A expB)) -- Keep only comments in expA.
+      (_,                                    EComment wsB sB e1B)                  -> merge expA e1B
       (EOption ws1A s1A ws2A s2A e1A,        EOption ws1B s1B ws2B s2B e1B)        -> argVar
       (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)         -> if patternsEqual patA patB && Types.equal typeA typeB then replaceE__ expA (ETyp ws1A patA typeA (merge eA eB) ws2A) else argVar
       (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)   -> if Types.equal typeA typeB then replaceE__ expA (EColonType ws1A (merge eA eB) ws2A typeA ws3A) else argVar
@@ -337,7 +362,7 @@ detectClones originalExp minCloneCount minCloneSize argCount allowCurrying =
         let precondition = patternsEqual patA patB && Utils.listsEqualBy Types.equal (tbranchTypes tbranchesA) (tbranchTypes tbranchesB) in
         generalizedMerge precondition Nothing Nothing Nothing (Just (tbranchExps tbranchesA, tbranchExps tbranchesB)) (\_ _ _ tbranchExpsMerged -> ETypeCase ws1A patA (List.map2 replaceTBranchExp tbranchesA tbranchExpsMerged) ws2A)
       (EComment wsA sA e1A,                  _)                                    -> mergeSingleArg e1A expB |> (\(e1Merged, e1HasArgVar) -> (replaceE__ expA (EComment wsA sA e1Merged), e1HasArgVar))
-      (_,                                    EComment wsB sB e1B)                  -> mergeSingleArg e1B expA |> (\(e1Merged, e1HasArgVar) -> (replaceE__ expB (EComment wsB sB e1Merged), e1HasArgVar))
+      (_,                                    EComment wsB sB e1B)                  -> mergeSingleArg expA e1B
       (EOption ws1A s1A ws2A s2A e1A,        EOption ws1B s1B ws2B s2B e1B)        -> retArgVar
       (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)         -> generalizedMerge (patternsEqual patA patB && Types.equal typeA typeB) (Just (eA, eB)) Nothing Nothing Nothing (\mergedE _ _ _ -> ETyp ws1A patA typeA mergedE ws2A)
       (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)   -> generalizedMerge (Types.equal typeA typeB) (Just (eA, eB)) Nothing Nothing Nothing (\mergedE _ _ _ -> EColonType ws1A mergedE ws2A typeA ws3A)
@@ -354,7 +379,8 @@ detectClones originalExp minCloneCount minCloneSize argCount allowCurrying =
             _            -> False
         )
   in
-  flattenExpTree originalExp
+  subExpsOfSizeAtLeast minCloneSize originalExp
+  |> List.filter (\e -> not <| isComment e || isOption e) -- Comments and options should not be a base expression of a clone
   |> List.foldl
       (\exp mergeGroups ->
         let addedMergeGroups =
@@ -374,8 +400,8 @@ detectClones originalExp minCloneCount minCloneSize argCount allowCurrying =
       []
   |> List.filter (\(merged, exps) -> List.length exps >= minCloneCount && argVarCount merged == argCount)
   |> List.map (\(merged, exps) -> (merged, exps |> List.sortBy (\exp -> (exp.start.line, exp.start.col))))
-  |> List.map (\(merged, sortedExps) -> (merged, sortedExps, sortedExps |> List.map (\exp -> extraExpsDiff merged exp))) -- There should only be one difference per expression.
-  |> List.filter (\(merged, sortedExps, parameterExpLists) -> List.all isLiteral (List.concat parameterExpLists)) -- No free variables in the part of the expression to parameterize
+  |> List.map (\(merged, sortedExps) -> (merged, sortedExps, sortedExps |> List.map (\exp -> extraExpsDiff merged exp)))
+  |> List.filter (\(merged, sortedExps, parameterExpLists) -> List.all (\e -> isLiteral e || nodeCount e <= 3) (List.concat parameterExpLists)) -- Exps that will become calling arguments must have no free variables or be small.
   |> List.sortBy (\(merged, sortedExps, parameterExpLists) -> -(List.length sortedExps)) -- For each abstraction, perserve only the largest set of clones matching it
   |> Utils.dedupBy (\(merged, sortedExps, parameterExpLists) -> LangUnparser.unparseWithUniformWhitespace False False merged)
   |> List.map
@@ -512,10 +538,12 @@ cloneEliminationSythesisResults originalExp =
           else
             toString (List.length cloneEIdsAndExpsAndParameterExpLists) ++ " " ++ name ++ "s"
         in
-        { description = "Merge " ++ clonesName ++ " by abstracting over " ++ Utils.toSentence argNames
-        , exp         = newProgram
-        , sortKey     = []
-        }
+        InterfaceModel.SynthesisResult <|
+          { description = "Merge " ++ clonesName ++ " by abstracting over " ++ Utils.toSentence argNames
+          , exp         = newProgram
+          , sortKey     = []
+          , children    = Nothing
+          }
       )
 
 
@@ -533,7 +561,7 @@ mapAbstractSynthesisResults originalExp =
         let oldIndentation = indentationOf commonScope in
         let mapCall =
           -- Multiline or single line map call, depending on mapping function
-          let _ = Debug.log "mapping func" (unparse abstractedFunc) in
+          -- let _ = Debug.log "mapping func" (unparse abstractedFunc) in
           let parameterExps = List.concat parameterExpLists in -- each paramter list should only have one element (single parameter)
           if String.contains "\n" (unparse abstractedFunc) then
             let newLineIndent extraIndent exp = replacePrecedingWhitespace ("\n" ++ extraIndent ++ oldIndentation) exp in
@@ -561,10 +589,12 @@ mapAbstractSynthesisResults originalExp =
           else
             eidsToReplace |> List.map (expNameForEId originalExp) |> Utils.toSentence
         in
-        { description = "Merge " ++ clonesName ++ " by mapping over " ++ String.join " " argNames
-        , exp         = newProgram
-        , sortKey     = []
-        }
+        InterfaceModel.SynthesisResult <|
+          { description = "Merge " ++ clonesName ++ " by mapping over " ++ String.join " " argNames
+          , exp         = newProgram
+          , sortKey     = []
+          , children    = Nothing
+          }
       )
 
 

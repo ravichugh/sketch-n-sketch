@@ -50,7 +50,7 @@ removeExtraPostfixes postfixes program =
                         Nothing -> (pat, body)
                         Just newName ->
                           -- First condition here is technically not supurflous: can happen if a variable is unused.
-                          if (not <| List.member newName (identifiersListInPat pat)) && (not <| Set.member newName (freeIdentifiers body)) then
+                          if (not <| List.member newName (identifiersListInPat pat)) && (not <| Set.member newName <| visibleIdentifiersAtPredicateNoPrelude body (\e -> expToMaybeIdent e == Just oldName)) then
                             (renameIdentifierInPat oldName newName pat, renameVarUntilBound oldName newName body)
                           else
                             (pat, body)
@@ -119,7 +119,7 @@ simplify exp =
     let firstTwoSimplified =
       e
       |> inlineTrivialRenamings
-      |> removeUnusedVars
+      -- |> removeUnusedVars
     in
     if firstTwoSimplified == e then
       e

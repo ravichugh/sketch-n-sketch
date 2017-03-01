@@ -54,44 +54,44 @@ initState =
 
 --------------------------------------------------------------------------------
 
-findPats e = 
-  let find e acc = 
-    case e.val.e__ of 
+findPats e =
+  let find e acc =
+    case e.val.e__ of
       EFun _ (p::ps) _ _    -> List.concatMap (computePatRanges e.val.eid [] []) (p::ps) ++ acc
       ETypeCase _ p _ _     -> (computePatRanges e.val.eid [] [] p) ++ acc
       ELet _ _ _ p _ _ _    -> (computePatRanges e.val.eid [] [] p) ++ acc
       ETyp _ p _ _ _        -> (computePatRanges e.val.eid [] [] p) ++ acc
       ETypeAlias _ p _ _ _  -> (computePatRanges e.val.eid [] [] p) ++ acc
-      _                     -> acc 
+      _                     -> acc
   in
-  foldExp find [] e 
+  foldExp find [] e
 
 computePatRanges expId path addPath pat =
-  let baseResult = [(pat, (expId, path ++ addPath), pat.start, pat.end, pat.end)] in 
+  let baseResult = [(pat, (expId, path ++ addPath), pat.start, pat.end, pat.end)] in
   case pat.val of
     PConst _ _              -> baseResult
     PBase _ _               -> baseResult
     PVar _ x _              -> baseResult
-    PList _ ps _ Nothing _  -> [(pat, (expId, path ++ addPath), pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })] 
-                                ++ Utils.concatMapi (\(i,p) -> (computePatRanges expId (path ++ addPath) [i] p)) ps
-    PList _ ps _ (Just p) _ -> [(pat, (expId, path ++ addPath), pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })] 
-                                ++ Utils.concatMapi (\(i,p) -> (computePatRanges expId (path ++ addPath) [i] p)) (p::ps)
+    PList _ ps _ Nothing _  -> [(pat, (expId, path ++ addPath), pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })]
+                                ++ Utils.concatMapi1 (\(i,p) -> (computePatRanges expId (path ++ addPath) [i] p)) ps
+    PList _ ps _ (Just p) _ -> [(pat, (expId, path ++ addPath), pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })]
+                                ++ Utils.concatMapi1 (\(i,p) -> (computePatRanges expId (path ++ addPath) [i] p)) (p::ps)
     PAs _ x _ p             -> case addPath of
                                 [n] -> baseResult
                                         ++ computePatRanges expId (path ++ addPath) [n + 1] p
                                 _   -> baseResult
 
-findPatTargets e = 
-  let find e acc = 
-    case e.val.e__ of 
+findPatTargets e =
+  let find e acc =
+    case e.val.e__ of
       EFun _ (p::ps) _ _    -> List.concatMap (computePatTargets e.val.eid [] []) (p::ps) ++ acc
       ETypeCase _ p _ _     -> computePatTargets e.val.eid [] [] p ++ acc
       ELet _ _ _ p _ _ _    -> computePatTargets e.val.eid [] [] p ++ acc
       ETyp _ p _ _ _        -> computePatTargets e.val.eid [] [] p ++ acc
       ETypeAlias _ p _ _ _  -> computePatTargets e.val.eid [] [] p ++ acc
-      _ -> acc 
+      _ -> acc
   in
-  foldExp find [] e 
+  foldExp find [] e
 
 computePatTargets expId path addPath pat =
   let baseBefore = ((0,(expId, path ++ addPath)),
@@ -104,10 +104,10 @@ computePatTargets expId path addPath pat =
     PConst ws _                   -> [baseBefore, baseAfter]
     PBase ws _                    -> [baseBefore, baseAfter]
     PVar ws x _                   -> [baseBefore, baseAfter]
-    PList ws1 ps ws2 Nothing ws3  -> [baseBefore, baseAfter] 
-                                      ++ Utils.concatMapi (\(i,p) -> (computePatTargets expId (path ++ addPath) [i] p)) ps
+    PList ws1 ps ws2 Nothing ws3  -> [baseBefore, baseAfter]
+                                      ++ Utils.concatMapi1 (\(i,p) -> (computePatTargets expId (path ++ addPath) [i] p)) ps
     PList ws1 ps ws2 (Just p) ws3 -> [baseBefore, baseAfter]
-                                      ++ Utils.concatMapi (\(i,p) -> (computePatTargets expId (path ++ addPath) [i] p)) (p::ps)
+                                      ++ Utils.concatMapi1 (\(i,p) -> (computePatTargets expId (path ++ addPath) [i] p)) (p::ps)
     PAs ws1 x ws2 p               -> case addPath of
                                       [n] -> [baseBefore, baseAfter]
                                               ++ computePatTargets expId (path ++ addPath) [n + 1] p
@@ -118,20 +118,20 @@ computeExpRanges : Exp -> List (Exp, EId, P.Pos, P.Pos, P.Pos, P.Pos)
 computeExpRanges e =
   let combine e acc =
     let baseValue = (e, e.val.eid, e.start, e.end, e.start, e.end) in
-    let parenValue = (e, e.val.eid, e.start, e.end, e.start, { line = e.start.line, col = e.start.col + 1 }) in 
+    let parenValue = (e, e.val.eid, e.start, e.end, e.start, { line = e.start.line, col = e.start.col + 1 }) in
     case e.val.e__ of
       EConst _ n _ _        -> baseValue :: acc
-      EBase _ b             -> baseValue :: acc 
-      EVar _ i              -> baseValue :: acc 
+      EBase _ b             -> baseValue :: acc
+      EVar _ i              -> baseValue :: acc
       EFun _ p e2 _         -> (e, e.val.eid, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }, { line = e.start.line, col = e.start.col + 2 }) :: acc
       -- unique cases for let and def (equations and entire expressions)
-      ELet _ _ r p e1 e2 _  -> (e, e.val.eid, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }, { line = e.start.line, col = e.start.col + 4 }) :: acc 
+      ELet _ _ r p e1 e2 _  -> (e, e.val.eid, e.start, e.end, { line = e.start.line, col = e.start.col + 1 }, { line = e.start.line, col = e.start.col + 4 }) :: acc
       EApp _ e elist _      -> parenValue :: acc
-      EOp _ _ elist _       -> parenValue :: acc 
-      EList _ elist _ e _   -> parenValue :: acc 
-      EIf _ e1 e2 e3 _      -> parenValue :: acc 
-      ECase _ e _ _         -> parenValue :: acc 
-      ETypeCase _ p _ _     -> parenValue :: acc 
+      EOp _ _ elist _       -> parenValue :: acc
+      EList _ elist _ e _   -> parenValue :: acc
+      EIf _ e1 e2 e3 _      -> parenValue :: acc
+      ECase _ e _ _         -> parenValue :: acc
+      ETypeCase _ p _ _     -> parenValue :: acc
       _                     -> acc
   in
   foldExp combine [] e
@@ -141,12 +141,12 @@ computeExpTargets : Exp -> List (ExpTargetPosition, P.Pos, P.Pos)
 computeExpTargets e =
   let combine e acc =
     let baseTargets =    [((0,e.val.eid), { line = e.start.line, col = e.start.col - 1 }, e.start),
-                          ((1,e.val.eid),  e.end, { line = e.end.line, col = e.end.col + 1 })] ++ acc 
+                          ((1,e.val.eid),  e.end, { line = e.end.line, col = e.end.col + 1 })] ++ acc
     in
     let offsetTargets =  [((0,e.val.eid), e.start, { line = e.start.line, col = e.start.col + 1 }),
-                          ((1,e.val.eid), { line = e.end.line, col = e.end.col - 1 }, e.end)] ++ acc 
+                          ((1,e.val.eid), { line = e.end.line, col = e.end.col - 1 }, e.end)] ++ acc
     in
-    case e.val.e__ of 
+    case e.val.e__ of
       EConst _ _ _ _        -> baseTargets
       EBase _ b             -> baseTargets
       EVar _ i              -> baseTargets
@@ -164,7 +164,7 @@ computeExpTargets e =
 
 showAllDeuceWidgets m = List.member Keys.keyA m.keysDown
 shiftKeyPressed m = List.member Keys.keyShift m.keysDown
-showDeuceWidgets m = shiftKeyPressed m 
+showDeuceWidgets m = shiftKeyPressed m
 
 resetDeuceState m = { m | deuceState = initState }
 
@@ -174,91 +174,91 @@ betweenPos start pixelPos end =
   (end.line >= pixelPos.row + 1) &&
   (end.col > pixelPos.column + 1)
 
-pixelToRowColPosition pos m = 
+pixelToRowColPosition pos m =
   let rowPadding = m.codeBoxInfo.offsetHeight in
   let colPadding = m.codeBoxInfo.offsetLeft +  m.codeBoxInfo.gutterWidth in
   let row = truncate((toFloat(pos.y) - rowPadding + m.codeBoxInfo.marginTopOffset) / m.codeBoxInfo.lineHeight) in
-  let col = truncate((toFloat(pos.x) - colPadding - m.codeBoxInfo.marginLeftOffset) / m.codeBoxInfo.characterWidth) in 
+  let col = truncate((toFloat(pos.x) - colPadding - m.codeBoxInfo.marginLeftOffset) / m.codeBoxInfo.characterWidth) in
     {row = row + m.codeBoxInfo.firstVisibleRow, column = col}
 
-rowColToPixelPos pos m = 
+rowColToPixelPos pos m =
   let rowPadding = m.codeBoxInfo.offsetHeight in
   let colPadding = m.codeBoxInfo.offsetLeft +  m.codeBoxInfo.gutterWidth in
-  let y = (toFloat(pos.line - m.codeBoxInfo.firstVisibleRow) - 1) * m.codeBoxInfo.lineHeight + rowPadding + m.codeBoxInfo.marginTopOffset in 
-  let x = (toFloat(pos.col) - 0.5) * m.codeBoxInfo.characterWidth + colPadding + m.codeBoxInfo.marginLeftOffset in 
+  let y = (toFloat(pos.line - m.codeBoxInfo.firstVisibleRow) - 1) * m.codeBoxInfo.lineHeight + rowPadding + m.codeBoxInfo.marginTopOffset in
+  let x = (toFloat(pos.col) - 0.5) * m.codeBoxInfo.characterWidth + colPadding + m.codeBoxInfo.marginLeftOffset in
     {x = x, y = y}
 
-hoveringItem start p end = 
+hoveringItem start p end =
   case p of
-    Nothing   -> False 
-    Just pos  -> betweenPos start pos end  
+    Nothing   -> False
+    Just pos  -> betweenPos start pos end
 
-leadingTrailingSpaces str start end = 
+leadingTrailingSpaces str start end =
   let leftTrim = String.trimLeft str in
-  let rightTrim = String.trimRight str in 
-  let fullLength = String.length str in 
+  let rightTrim = String.trimRight str in
+  let fullLength = String.length str in
   let leftTrimLength = String.length leftTrim in
   let rightTrimLength = String.length rightTrim in
-  let leading = fullLength - leftTrimLength in 
-  let trailing = rightTrimLength in 
+  let leading = fullLength - leftTrimLength in
+  let trailing = rightTrimLength in
   (leading, trailing)
 
 lineStartEnd ls currIndex start end results =
-  case ls of 
-    Just lines -> 
+  case ls of
+    Just lines ->
       if currIndex > end.line
       then results
-      else 
+      else
         if currIndex >= start.line
-        then 
+        then
           case List.head(lines) of
-            Just str -> lineStartEnd (List.tail(lines)) (currIndex + 1) start end 
+            Just str -> lineStartEnd (List.tail(lines)) (currIndex + 1) start end
                                       (Dict.insert currIndex (leadingTrailingSpaces str start end) results)
             _ -> results
-        else 
+        else
           lineStartEnd (List.tail(lines)) (currIndex+1) start end results
-    _ -> results 
+    _ -> results
 
-leadingNewlines lines total = 
+leadingNewlines lines total =
   case lines of
-    Just l1 -> 
+    Just l1 ->
       case (List.head l1) of
-        Just l2 -> if l2 == "" 
+        Just l2 -> if l2 == ""
                     then leadingNewlines (List.tail l1) (total + 1)
                     else total
-        _ -> total 
-    Nothing -> total 
+        _ -> total
+    Nothing -> total
 
-expBoundingPolygon exp = 
+expBoundingPolygon exp =
   let start = exp.start in
-  let end = exp.end in 
-  let string = unparse exp in 
-  let lines = String.lines string in 
-  if List.length lines == 1 && start.line == end.line 
-  then 
-    let s = start.line in 
-    (exp, Dict.fromList [(s, (start.col - 1, end.col - 1))]) 
-  else 
-    let leading = leadingNewlines (Just lines) 0 in 
-    let output = lineStartEnd (Just lines) (start.line - leading) start end (Dict.empty) in 
+  let end = exp.end in
+  let string = unparse exp in
+  let lines = String.lines string in
+  if List.length lines == 1 && start.line == end.line
+  then
+    let s = start.line in
+    (exp, Dict.fromList [(s, (start.col - 1, end.col - 1))])
+  else
+    let leading = leadingNewlines (Just lines) 0 in
+    let output = lineStartEnd (Just lines) (start.line - leading) start end (Dict.empty) in
     (exp, output)
 
-patBoundingPolygon pat = 
+patBoundingPolygon pat =
   let start = pat.start in
-  let end = pat.end in 
+  let end = pat.end in
   -- difference from expBoundingPolygon: unparsePat instead of unparse
-  let string = unparsePat pat in 
-  let lines = String.lines string in 
-  if List.length lines == 1 && start.line == end.line 
-  then 
-    let s = start.line in 
-    (pat, Dict.fromList [(s, (start.col - 1, end.col - 1))]) 
-  else 
-    let leading = leadingNewlines (Just lines) 0 in 
-    let output = lineStartEnd (Just lines) (start.line - leading) start end (Dict.empty) in 
+  let string = unparsePat pat in
+  let lines = String.lines string in
+  if List.length lines == 1 && start.line == end.line
+  then
+    let s = start.line in
+    (pat, Dict.fromList [(s, (start.col - 1, end.col - 1))])
+  else
+    let leading = leadingNewlines (Just lines) 0 in
+    let output = lineStartEnd (Just lines) (start.line - leading) start end (Dict.empty) in
     (pat, output)
 
-expRangeSelections m = 
+expRangeSelections m =
   let maybeHighlight (exp,eid,start,end,selectStart,selectEnd) =
     let range =
       { start = { row = selectStart.line, column = selectStart.col }
@@ -273,7 +273,7 @@ expRangeSelections m =
     then List.concatMap maybeHighlight (computeExpRanges m.inputExp)
     else []
 
-patRangeSelections m = 
+patRangeSelections m =
   let maybeHighlight (pat,pid,start,end,selectEnd) =
     let range =
       { start = { row = start.line, column = start.col }
@@ -289,10 +289,10 @@ patRangeSelections m =
     else []
 
 expRangesToHover m pos =
-  let boxes pos (exp,eid,start,end,selectStart,selectEnd) = 
-    if hoveringItem selectStart (Just (pixelToRowColPosition pos m)) selectEnd then 
+  let boxes pos (exp,eid,start,end,selectStart,selectEnd) =
+    if hoveringItem selectStart (Just (pixelToRowColPosition pos m)) selectEnd then
       [exp]
-    else 
+    else
       []
   in
   if showDeuceWidgets m || True
@@ -300,10 +300,10 @@ expRangesToHover m pos =
     else []
 
 patRangesToHover m pos =
-  let boxes pos (pat,(eid,ls),start,end,selectEnd) = 
-    if hoveringItem start (Just (pixelToRowColPosition pos m)) selectEnd then 
+  let boxes pos (pat,(eid,ls),start,end,selectEnd) =
+    if hoveringItem start (Just (pixelToRowColPosition pos m)) selectEnd then
       [pat]
-    else 
+    else
       []
   in
   if showDeuceWidgets m || True
@@ -348,7 +348,7 @@ expTargetsToHighlights m pos =
     else []
 
 -- unused function
-patRangesToHighlights m pos = 
+patRangesToHighlights m pos =
   let maybeHighlight (pat,pid,start,end,selectEnd) =
     let range =
       { start = { row = start.line, column = start.col }
@@ -366,7 +366,7 @@ patRangesToHighlights m pos =
     else []
 
 -- unused function
-patTargetsToHighlights m pos = 
+patTargetsToHighlights m pos =
   let maybeHighlight (target,start,end) =
     let range =
       { start = { row = start.line, column = start.col }
@@ -388,7 +388,7 @@ expTargetsToSelect m =
   let maybeHighlight (expTarget,selectStart,selectEnd) =
     if Set.member expTarget m.deuceState.selectedExpTargets then
       [(expTarget,selectStart,selectEnd)]
-    else 
+    else
       []
   in
   if showDeuceWidgets m
@@ -399,14 +399,14 @@ expTargetsToHover m pos =
   let maybeHighlight (expTarget,selectStart,selectEnd) =
     if hoveringItem selectStart (Just (pixelToRowColPosition pos m)) selectEnd then
       [(expTarget,selectStart,selectEnd)]
-    else 
+    else
       []
   in
   if showDeuceWidgets m || True
     then List.concatMap maybeHighlight (computeExpTargets m.inputExp)
     else []
 
-patTargetsToSelect m = 
+patTargetsToSelect m =
   let maybeHighlight (target,start,end) =
     if Set.member target m.deuceState.selectedPatTargets then
       [(target, start, end)]
@@ -417,7 +417,7 @@ patTargetsToSelect m =
     then List.concatMap maybeHighlight (findPatTargets m.inputExp)
     else []
 
-patTargetsToHover m pos = 
+patTargetsToHover m pos =
   let maybeHighlight (target,start,end) =
     if hoveringItem start (Just (pixelToRowColPosition pos m)) end then
       [(target, start, end)]

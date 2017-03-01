@@ -1,6 +1,6 @@
 ; Xs
 ;
-; After David Maulsby p591 in "What What I Do: Programming by Demonstration" Appendix B. 1993.
+; After David Maulsby p591 in "Watch What I Do: Programming by Demonstration" Appendix B. 1993.
 ;
 ; Design decisions:
 ;   - top left n boxWidth or top left w boxWidth or top left w n or cx cy n boxWidth (below) or cx cy r boxWidth or cx cy r n or BB boxWidth or BB n
@@ -12,7 +12,7 @@
 (def X (\(cx cy n boxWidth)
   (let [centerColor descendingColor ascendingColor] [438 32 240]
   (let square (\(cx cy color)
-    [ (rectByCenter color cx cy boxWidth boxWidth) ])
+    [ (squareByCenter color cx cy boxWidth) ])
   (let drawLevel (\i
     (if (= i 0)
       (square cx cy centerColor)
@@ -25,5 +25,5 @@
   ))
 
 (blobs [
-  (X 200 250 3 50)
+  (X 200 250 3{1-6} 50)
 ])

@@ -1,6 +1,6 @@
 ; Mondrian Arch
 ;
-; After Henry Lieberman p554 in "What What I Do: Programming by Demonstration" Appendix B. 1993.
+; After Henry Lieberman p554 in "Watch What I Do: Programming by Demonstration" Appendix B. 1993.
 ;
 ; Can be done with tools as of UIST 2016, but
 ; parameterization is not anywhere near optimal.

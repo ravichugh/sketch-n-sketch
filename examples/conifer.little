@@ -20,9 +20,9 @@
 
 (def treeX 232)
 (def treeBot 375)
-(def treeHeight 305)
+(def treeHeight 301{1-500})
 (def treeTop (- treeBot treeHeight))
-(def [branchBot branchTop] [352 81])
+(def [branchBot branchTop] [(- treeBot 25) (+ (- treeBot treeHeight) 15)])
 
 (def trunk
   (let [baseY baseW] [treeBot 12]
