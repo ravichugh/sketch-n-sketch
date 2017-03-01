@@ -1525,14 +1525,18 @@ onMouseDrag
    -> Maybe (Either PatTargetPosition ExpTargetPosition)
    -> Model -> Model
 onMouseDrag dragSource dragTarget m =
-  let new = resetDeuceState m in
-  case (dragSource, dragTarget) of
-    (Just (Left sourcePat), Just (Right (0, targetId))) ->
-      movePatBeforeLet sourcePat targetId new
-    (Just (Left sourcePat), Just (Left targetPat)) ->
-      movePatToPat sourcePat targetPat new
-    _ ->
-      new
+  if showDeuceWidgets m 
+  then 
+    let new = resetDeuceState m in
+    case (dragSource, dragTarget) of
+      (Just (Left sourcePat), Just (Right (0, targetId))) ->
+        movePatBeforeLet sourcePat targetId new
+      (Just (Left sourcePat), Just (Left targetPat)) ->
+        movePatToPat sourcePat targetPat new
+      _ ->
+        new
+  else 
+    m 
 
 msgMoveExp = Msg "Move Exp" <| \m ->
   let selections =

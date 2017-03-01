@@ -395,7 +395,7 @@ expBoundingPolygonPoints exps model layout =
   let calculate exp = 
     let points = computePolygonPoints (expBoundingPolygon exp) model layout in 
     let color = --"yellow" in 
-      if List.member exp model.deuceState.expSelectionBoxes 
+      if List.member exp model.deuceState.expSelectionBoxes && not (needsRun model)
         then "orange"
       else if List.member exp model.deuceState.hoveredExp && showDeuceWidgets model
         then "yellow"
@@ -424,7 +424,7 @@ patBoundingPolygonPoints pats model layout =
       (pat,pid,_,_,_) -> 
         let points = computePolygonPoints (patBoundingPolygon pat) model layout in 
         let color = --"yellow" in 
-          if List.member pat model.deuceState.patSelectionBoxes 
+          if List.member pat model.deuceState.patSelectionBoxes && not (needsRun model)
           then "orange"
           else if List.member pat model.deuceState.hoveredPat && showDeuceWidgets model
             then "yellow"
@@ -453,7 +453,7 @@ expTargetIndicator targets model layout =
         let pixelPos = rowColToPixelPos start model in 
         let rDot = 4 in
         let opacity = --"yellow" in 
-              if Set.member id model.deuceState.selectedExpTargets
+              if Set.member id model.deuceState.selectedExpTargets && not (needsRun model)
               then "1.0"
               else if List.member target model.deuceState.hoveredExpTargets && showDeuceWidgets model
                 then "1.0"
@@ -479,7 +479,7 @@ patTargetIndicator targets model layout =
         let pixelPos = rowColToPixelPos start model in 
         let rDot = 4 in
         let opacity =
-              if Set.member pid model.deuceState.selectedPatTargets
+              if Set.member pid model.deuceState.selectedPatTargets && not (needsRun model)
               then "1.0"
               else 
                 if List.member target model.deuceState.hoveredPatTargets && showDeuceWidgets model

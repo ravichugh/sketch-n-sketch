@@ -164,7 +164,9 @@ computeExpTargets e =
 
 showAllDeuceWidgets m = List.member Keys.keyA m.keysDown
 shiftKeyPressed m = List.member Keys.keyShift m.keysDown
-showDeuceWidgets m = shiftKeyPressed m 
+showDeuceWidgets m = shiftKeyPressed m
+needsRun m =
+  m.code /= m.lastRunCode
 
 resetDeuceState m = { m | deuceState = initState }
 
