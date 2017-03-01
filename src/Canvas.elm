@@ -295,10 +295,15 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         Y -> (baseX, baseY + effectiveAmount)
     in
     let lineStyle =
-      [ attr "stroke" "black"
-      , attr "stroke-width" "1px"
-      , attr "stroke-dasharray" "1,1"
-      ]
+      if Set.member (idAsShape, "offset") model.selectedFeatures then
+        [ attr "stroke" colorPointSelected
+        , attr "stroke-width" "5px"
+        ]
+      else
+        [ attr "stroke" "black"
+        , attr "stroke-width" "1px"
+        , attr "stroke-dasharray" "1,1"
+        ]
     in
     let dragStyle =
       if model.tool == Cursor then
@@ -312,7 +317,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
       flip Svg.line [] <|
         [ attrNum "x1" baseX, attrNum "y1" baseY
         , attrNum "x2" endX,  attrNum "y2" endY
-        ] ++ lineStyle
+        ] ++ lineStyle ++ dragStyle
     in
     let endArrow =
       let arrowOffset = 12 in

@@ -30,6 +30,7 @@ type DistanceFeature
   = Width | Height
   | Radius
   | RadiusX | RadiusY
+  | Offset
 
 type OtherFeature
   = FillColor | FillOpacity
@@ -167,6 +168,7 @@ strDistanceFeature distanceFeature =
     Radius        -> "R"
     RadiusX       -> "RX"
     RadiusY       -> "RY"
+    Offset        -> ""
 
 strOtherFeature otherFeature =
   case otherFeature of
@@ -206,6 +208,7 @@ parseFeatureNum shapeFeature =
       |> YFeat
   else
     case shapeFeature of
+      "offset"        -> DFeat Offset
 
       "fill"          -> OFeat FillColor
       "stroke"        -> OFeat StrokeColor
@@ -485,11 +488,12 @@ widgetFeatureEquation featureName widget locIdToNumberAndLoc =
           Negative -> Minus
       in
       case (featureNum, axis) of
+        (DFeat Offset, _)   -> EqnNum (amount, amountTr)
         (XFeat EndPoint, X) -> EqnOp op [EqnNum (baseX, baseXTr), EqnNum (amount, amountTr)]
         (XFeat EndPoint, Y) -> EqnNum (baseX, baseXTr)
         (YFeat EndPoint, X) -> EqnNum (baseY, baseYTr)
         (YFeat EndPoint, Y) -> EqnOp op [EqnNum (baseY, baseYTr), EqnNum (amount, amountTr)]
-        _              -> Debug.crash <| "WOffset1D only supports XFeat EndPoint and YFeat EndPoint; but asked for " ++ featureName
+        _                   -> Debug.crash <| "WOffset1D only supports DFeat Offset, XFeat EndPoint, and YFeat EndPoint; but asked for " ++ featureName
     -- _ ->
     --   Debug.crash <| "ShapeWidgets.widgetFeatureEquation: Widget type not supported yet " ++ toString widget
 
@@ -544,6 +548,7 @@ featureEquationOf kind attrs featureNum =
           Radius    -> Utils.fromJust_ cap equations.mRadius
           RadiusX   -> Utils.fromJust_ cap equations.mRadiusX
           RadiusY   -> Utils.fromJust_ cap equations.mRadiusY
+          _         -> crash ()
 
       _ -> crash () in
 

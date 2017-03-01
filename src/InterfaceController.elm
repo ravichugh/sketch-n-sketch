@@ -267,9 +267,13 @@ onClickPrimaryZone i k z old =
       _ ->
         old.hoveredCrosshairs
   in
-  let (selectedShapes_, selectedBlobs_) =
+  let (selectedFeatures_, selectedShapes_, selectedBlobs_) =
     if i < -2 then -- Clicked a widget
-      (old.selectedShapes, old.selectedBlobs)
+      if z == "Offset1D" then
+        let update = if Set.member (i,"offset") old.selectedFeatures then Set.remove else Set.insert in
+        (update (i,"offset") old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
+      else
+        (old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
     else
       let selectThisShape () =
         Set.insert i <|
@@ -289,13 +293,14 @@ onClickPrimaryZone i k z old =
           _                            -> Debug.crash "onClickPrimaryZone"
       in
       case (k, realZone, maybeBlobId) of
-        ("line", ZLineEdge, Just blobId) -> (selectThisShape (), selectBlob blobId)
-        (_,      ZInterior, Just blobId) -> (selectThisShape (), selectBlob blobId)
-        ("line", ZLineEdge, Nothing)     -> (selectThisShape (), old.selectedBlobs)
-        (_,      ZInterior, Nothing)     -> (selectThisShape (), old.selectedBlobs)
-        _                                -> (old.selectedShapes, old.selectedBlobs)
+        ("line", ZLineEdge, Just blobId) -> (old.selectedFeatures, selectThisShape (), selectBlob blobId)
+        (_,      ZInterior, Just blobId) -> (old.selectedFeatures, selectThisShape (), selectBlob blobId)
+        ("line", ZLineEdge, Nothing)     -> (old.selectedFeatures, selectThisShape (), old.selectedBlobs)
+        (_,      ZInterior, Nothing)     -> (old.selectedFeatures, selectThisShape (), old.selectedBlobs)
+        _                                -> (old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
   in
   { old | hoveredCrosshairs = hoveredCrosshairs_
+        , selectedFeatures = selectedFeatures_
         , selectedShapes = selectedShapes_
         , selectedBlobs = selectedBlobs_
         }
