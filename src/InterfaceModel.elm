@@ -6,7 +6,7 @@ import Eval
 import Sync exposing (ZoneKey)
 import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
-import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature, Zone)
+import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature)
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparse, unparsePat)
 import LangParser2 as Parser
@@ -95,7 +95,8 @@ type alias Model =
   , selectedBlobs : Dict Int NodeId
   , keysDown : List Char.KeyCode
   , autoSynthesis : Bool
-  , synthesisResults: List SynthesisResult
+  , synthesisResults : List SynthesisResult
+  , hoveredSynthesisResultPathByIndicies : List Int
   , randomColor : Int
   , lambdaTools : List LambdaTool
   , layoutOffsets : LayoutOffsets
@@ -150,7 +151,7 @@ type MouseMode
   | MouseDragLayoutWidget (MouseTrigger (Model -> Model))
 
   | MouseDragZone
-      ZoneKey               -- Left shapeZone, Right widget
+      ZoneKey               -- (nodeId, shapeKind, zoneName)
       (Maybe                -- Inactive (Nothing) or Active
         ( Sync.LiveTrigger      -- computes program update and highlights
         , (Int, Int)            -- initial click
@@ -203,11 +204,12 @@ type ReplicateKind
   | LinearRepeat
   | RadialRepeat
 
-type alias SynthesisResult =
-  { description : String
-  , exp         : Exp
-  , sortKey     : List Float -- For custom sorting criteria. Sorts ascending.
-  }
+type SynthesisResult =
+  SynthesisResult { description : String
+                  , exp         : Exp
+                  , sortKey     : List Float -- For custom sorting criteria. Sorts ascending.
+                  , children    : Maybe (List SynthesisResult) -- Nothing means not calculated yet.
+                  }
 
 type Msg
   = Msg String (Model -> Model)
@@ -340,7 +342,7 @@ getFile model = { filename = model.filename
 
 --------------------------------------------------------------------------------
 
-iconNames = ["cursor", "line", "rect", "ellipse", "polygon", "path", "lambda"]
+iconNames = ["cursor", "text", "line", "rect", "ellipse", "polygon", "path", "lambda"]
 
 --------------------------------------------------------------------------------
 
@@ -429,6 +431,7 @@ initModel =
     , keysDown      = []
     , autoSynthesis = False
     , synthesisResults = []
+    , hoveredSynthesisResultPathByIndicies = []
     , randomColor   = 100
     , lambdaTools   = [starLambdaTool]
     , layoutOffsets = initialLayoutOffsets

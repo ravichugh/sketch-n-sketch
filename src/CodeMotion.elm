@@ -5,7 +5,7 @@ module CodeMotion exposing
 import Lang exposing (..)
 import DependenceGraph exposing
   (ScopeGraph, ScopeOrder(..), parentScopeOf, childScopesOf)
-import InterfaceModel exposing (SynthesisResult)
+import InterfaceModel exposing (SynthesisResult(..))
 import Utils
 
 import Dict
@@ -166,7 +166,7 @@ moveDefinitionBeforeLet scopeGraph sourcePat targetScope exp =
         else
           e
     in
-    [ { description = caption, exp = newExp, sortKey = [] } ]
+    [ SynthesisResult { description = caption, exp = newExp, sortKey = [], children = Nothing } ]
   in
 
   let shadowing =
@@ -263,7 +263,7 @@ moveDefinitionPat_ scopeGraph sourcePat targetPos exp pluckedStuff upDownOver pr
   let newExp =
     insertPat scopeGraph (Tuple.first sourcePat) pluckedStuff targetPos exp
   in
-  [ { description = caption, exp = newExp, sortKey = [] } ]
+  [ SynthesisResult { description = caption, exp = newExp, sortKey = [], children = Nothing } ]
 
 insertPat : ScopeGraph -> ScopeId -> (VarEquation, RebuildLetExp) -> PatTargetPosition -> Exp -> Exp
 insertPat scopeGraph sourceId (pluckedEquation, residualLetExp) patTargetPosition =

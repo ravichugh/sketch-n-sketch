@@ -1,7 +1,7 @@
 ; Koch Snowflake
 ;
 ; Can be accomplished by graphical search and replace per
-; David Kurlander p556 in "What What I Do: Programming by Demonstration" Appendix B. 1993.
+; David Kurlander p556 in "Watch What I Do: Programming by Demonstration" Appendix B. 1993.
 ;
 ; What would have helped the creation of the implementation below
 ; was some local view of a functions computation (onLine, normPt).

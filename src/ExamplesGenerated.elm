@@ -673,6 +673,18 @@ xySlider =
 
 """
 
+offsets =
+ """(def pt@[x y] ([125 150] : Point))
+
+(def pt2x (+ x 150))
+(def pt3y (+ y 100))
+(def pt4x (+ pt2x 50))
+(def pt5y (- y 40))
+
+(blobs [
+])
+"""
+
 rgba =
  """;
 ; A Color Picker
@@ -4207,7 +4219,7 @@ coffee_UIST =
 rectangleTrisection =
  """; Rectangle Trisection
 ;
-; After Alan Turranksy p566 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+; After Alan Turranksy p566 in \"Watch What I Do: Programming by Demonstration\" Appendix B. 1993.
 ;
 ; Straightforward with tools as of UIST 2016, but
 ; does require a \"Dig Hole\" to type in \"(/ rect1_w 3)\"
@@ -4330,7 +4342,7 @@ batteryDynamic =
 mondrianArch =
  """; Mondrian Arch
 ;
-; After Henry Lieberman p554 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+; After Henry Lieberman p554 in \"Watch What I Do: Programming by Demonstration\" Appendix B. 1993.
 ;
 ; Can be done with tools as of UIST 2016, but
 ; parameterization is not anywhere near optimal.
@@ -4525,7 +4537,7 @@ target =
 xs =
  """; Xs
 ;
-; After David Maulsby p591 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+; After David Maulsby p591 in \"Watch What I Do: Programming by Demonstration\" Appendix B. 1993.
 ;
 ; Design decisions:
 ;   - top left n boxWidth or top left w boxWidth or top left w n or cx cy n boxWidth (below) or cx cy r boxWidth or cx cy r n or BB boxWidth or BB n
@@ -4537,7 +4549,7 @@ xs =
 (def X (\\(cx cy n boxWidth)
   (let [centerColor descendingColor ascendingColor] [438 32 240]
   (let square (\\(cx cy color)
-    [ (rectByCenter color cx cy boxWidth boxWidth) ])
+    [ (squareByCenter color cx cy boxWidth) ])
   (let drawLevel (\\i
     (if (= i 0)
       (square cx cy centerColor)
@@ -4550,7 +4562,7 @@ xs =
   ))
 
 (blobs [
-  (X 200 250 3 50)
+  (X 200 250 3{1-6} 50)
 ])
 """
 
@@ -4577,9 +4589,9 @@ conifer =
 
 (def treeX 232)
 (def treeBot 375)
-(def treeHeight 305)
+(def treeHeight 301{1-500})
 (def treeTop (- treeBot treeHeight))
-(def [branchBot branchTop] [352 81])
+(def [branchBot branchTop] [(- treeBot 25) (+ (- treeBot treeHeight) 15)])
 
 (def trunk
   (let [baseY baseW] [treeBot 12]
@@ -4738,7 +4750,7 @@ kochSnowflake =
  """; Koch Snowflake
 ;
 ; Can be accomplished by graphical search and replace per
-; David Kurlander p556 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+; David Kurlander p556 in \"Watch What I Do: Programming by Demonstration\" Appendix B. 1993.
 ;
 ; What would have helped the creation of the implementation below
 ; was some local view of a functions computation (onLine, normPt).
@@ -4799,7 +4811,7 @@ replaceTerminalsWithWorkstations =
  """; Replace Terminals With Workstations
 ;
 ; A Demo of Kurlander's graphical search and replace.
-; David Kurlander p573,pp275-277 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+; David Kurlander p573,pp275-277 in \"Watch What I Do: Programming by Demonstration\" Appendix B. 1993.
 ;
 ; Design decisions:
 ;   - x y w h or left top right bot (below) for workstation display and pillar
@@ -4889,7 +4901,7 @@ replaceTerminalsWithWorkstations =
 balanceScale =
  """; Balance Scale
 ;
-; After David Kurlander p568 in \"What What I Do: Programming by Demonstration\" Appendix B. 1993.
+; After David Kurlander p568 in \"Watch What I Do: Programming by Demonstration\" Appendix B. 1993.
 ;
 ; Had to hand-code the arc.
 ;
@@ -5164,6 +5176,7 @@ examples =
   , makeExample "Buttons" buttons
   , makeExample "Widgets" widgets
   , makeExample "xySlider" xySlider
+  , makeExample "Offsets" offsets
   , makeExample "Tile Pattern" boxGridTokenFilter
   , makeExample "Color Picker" rgba
   , makeExample "Ferris Wheel" ferris
@@ -5253,6 +5266,7 @@ examples =
   , makeExample "Calendar Icon" calendarIcon
 
   , makeExample "Icon: Cursor" DefaultIconTheme.cursor
+  , makeExample "Icon: Text" DefaultIconTheme.text
   , makeExample "Icon: Line" DefaultIconTheme.line
   , makeExample "Icon: Rect" DefaultIconTheme.rect
   , makeExample "Icon: Ellipse" DefaultIconTheme.ellipse

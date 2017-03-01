@@ -190,6 +190,7 @@ codeToolBox model layout =
 drawToolBox model layout =
   toolBox model "drawToolBox" [] Layout.getPutDrawToolBox layout.drawTools
     [ toolButton model Cursor
+    , toolButton model Text
     , toolButton model (Line Raw)
     , toolButton model (Rect Raw)
     , toolButton model (Oval Raw)
@@ -218,7 +219,7 @@ attributeToolBox model layout =
     [ relateButton model "Dig Hole" Controller.msgDigHole
     , relateButton model "Make Equal" Controller.msgMakeEqual
     , relateButton model "Relate" Controller.msgRelate
-    , relateButton model "Indexed Relate" Controller.msgRobotRevolution
+    , relateButton model "Indexed Relate" Controller.msgIndexedRelate
     ]
 
 textToolBox model layout =
@@ -264,7 +265,7 @@ animationToolBox model layout =
     ]
 
 synthesisResultsSelectBox model layout =
-  let desc {description, exp, sortKey} =
+  let desc description exp sortKey =
     (Regex.replace Regex.All (Regex.regex "^Original -> | -> Cleaned$") (\_ -> "") description) ++
     " (" ++ toString (LangTools.nodeCount exp) ++ ")" ++ " " ++ toString sortKey
   in
@@ -276,36 +277,68 @@ synthesisResultsSelectBox model layout =
         , ("padding-bottom", "8px")
         ]
   in
-  let resultButtons =
-    model.synthesisResults
-    |> List.sortBy (\{description, exp, sortKey} -> (LangTools.nodeCount exp, sortKey, description))
-    |> List.map (\result ->
-         htmlButtonExtraAttrs
-           [ Html.Events.onMouseEnter (Controller.msgPreview (Left result.exp))
-           , Html.Events.onMouseLeave Controller.msgClearPreview
-           ]
-           (desc result) (Controller.msgSelectSynthesisResult result.exp)
-           Regular False
-       )
-    |> List.intersperse (Html.br [] [])
-  in
   let cancelButton =
     htmlButtonExtraAttrs [extraButtonStyles, Attr.style [("text-align", "center")]] "Cancel" (Controller.msgClearSynthesisResults) Regular False
   in
   let extraStyles =
-    [ ("max-width", "350px")
-    , ("max-height", "350px")
-    , ("overflow-y", "auto")
+    [ ("display", "block")
     ]
   in
-  toolBox model "synthesisResultsSelect" extraStyles
-    Layout.getPutSynthesisResultsSelectBox layout.synthesisResultsSelect
-    (resultButtons ++ [Html.br [] [], cancelButton])
+  let resultButtonList priorPathByIndices remainingPathByIndicies results =
+    let buttons =
+      results
+      |> Utils.mapi0
+          (\(i, Model.SynthesisResult {description, exp, sortKey, children}) ->
+            let thisElementPath = priorPathByIndices ++ [i] in
+            let (isHovered, nextMenu) =
+              case remainingPathByIndicies of
+                nexti::is ->
+                  if i == nexti then
+                    case children of
+                      Just childResults -> (True, [resultButtonList thisElementPath is childResults])
+                      Nothing           -> (True, [])
+                  else
+                    (False, [])
+                [] ->
+                  (False, [])
+            in
+            nextMenu ++
+            [ htmlButtonExtraAttrs
+                  [ extraButtonStyles
+                  , Attr.style [("background-color", if isHovered then buttonSelectedColor else buttonRegularColor)]
+                  , Html.Events.onMouseEnter (Controller.msgHoverSynthesisResult thisElementPath)
+                  , Html.Events.onMouseLeave (Controller.msgHoverSynthesisResult [])
+                  ]
+                  (desc description exp sortKey)
+                  (Controller.msgSelectSynthesisResult exp)
+                  Regular
+                  False
+            ]
+          )
+      |> List.concat
+    in
+    Html.div
+        [ Attr.style <|
+          [ ("position", if priorPathByIndices == [] then "relative" else "absolute")
+          -- , ("max-height", "325px")
+          , ("width", "325px")
+          , ("overflow", "visible")
+          -- , ("overflow-y", "auto")
+          , ("left", if priorPathByIndices == [] then "0" else "-325px")
+          ]
+        ]
+        buttons
+  in
+  let resultsMenuTree =
+    resultButtonList [] model.hoveredSynthesisResultPathByIndicies model.synthesisResults
+  in
+  toolBox model "synthesisResultsSelect" extraStyles Layout.getPutSynthesisResultsSelectBox layout.synthesisResultsSelect [resultsMenuTree, cancelButton]
+
 
 toolBox model id extraStyles (getOffset, putOffset) leftRightTopBottom elements =
   Html.div
     [ Attr.id id
-    , Attr.title id
+    -- , Attr.title id
     , Attr.style <|
         [ ("position", "fixed")
         , ("padding", "0px 0px 0px 15px")
@@ -376,46 +409,46 @@ textArea_ children attrs =
   in
   Html.div (commonAttrs ++ attrs) children
 
-computePolygonPoints rcs model layout = 
-  let left = List.concatMap (\(k,(c1,c2)) -> 
+computePolygonPoints rcs model layout =
+  let left = List.concatMap (\(k,(c1,c2)) ->
     let topOffset = rowColToPixelPos {line = k, col = c1} model in
     let top = {x=topOffset.x - model.codeBoxInfo.gutterWidth, y=topOffset.y - model.codeBoxInfo.offsetHeight} in
-    let bottom = {x=top.x, y=top.y + model.codeBoxInfo.lineHeight} in 
-      [top, bottom]) (Dict.toList (Tuple.second rcs)) in 
-  let right = List.concatMap (\(k,(c1,c2)) -> 
+    let bottom = {x=top.x, y=top.y + model.codeBoxInfo.lineHeight} in
+      [top, bottom]) (Dict.toList (Tuple.second rcs)) in
+  let right = List.concatMap (\(k,(c1,c2)) ->
     let topOffset = rowColToPixelPos {line = k, col = c2} model in
-    let top = {x=topOffset.x - model.codeBoxInfo.gutterWidth, y=topOffset.y - model.codeBoxInfo.offsetHeight} in 
-    let bottom = {x=top.x, y=top.y + model.codeBoxInfo.lineHeight} in 
-      [bottom, top]) (List.reverse (Dict.toList (Tuple.second rcs))) in 
-  let combine point acc = 
-    toString(point.x) ++ "," ++ toString(point.y) ++ " " ++ acc in 
+    let top = {x=topOffset.x - model.codeBoxInfo.gutterWidth, y=topOffset.y - model.codeBoxInfo.offsetHeight} in
+    let bottom = {x=top.x, y=top.y + model.codeBoxInfo.lineHeight} in
+      [bottom, top]) (List.reverse (Dict.toList (Tuple.second rcs))) in
+  let combine point acc =
+    toString(point.x) ++ "," ++ toString(point.y) ++ " " ++ acc in
   List.foldr combine  "" (left ++ right)
 
 expBoundingPolygonPoints exps model layout = 
   let calculate exp = 
     let points = computePolygonPoints (expBoundingPolygon exp) model layout in 
-    let color = --"yellow" in 
+    let color =
       if List.member exp model.deuceState.expSelectionBoxes && not (needsRun model)
         then "orange"
       else if List.member exp model.deuceState.hoveredExp && showDeuceWidgets model
         then "yellow"
-        else 
+        else
           ""
-    in 
-    let textPolygon = 
+    in
+    let textPolygon =
         [ flip Svg.polygon []
             [LangSvg.attr "stroke" color
             , LangSvg.attr "stroke-width" "5"
             , Attr.style [("fill-opacity", "0")]
-            , LangSvg.attr "points" points 
+            , LangSvg.attr "points" points
             , onClick (Controller.msgMouseClickExpBoundingBox exp.val.eid)
             , onMouseOver (Controller.msgMouseEnterExpBoundingBox exp)
             , onMouseLeave (Controller.msgMouseLeaveExpBoundingBox exp)
-            ] 
-          ] in 
+            ]
+          ] in
       textPolygon
-  in 
-  let polygons = List.reverse (List.concatMap calculate exps) in 
+  in
+  let polygons = List.reverse (List.concatMap calculate exps) in
   polygons
 
 patBoundingPolygonPoints pats model layout = 
@@ -423,15 +456,15 @@ patBoundingPolygonPoints pats model layout =
     case input of 
       (pat,pid,_,_,_) -> 
         let points = computePolygonPoints (patBoundingPolygon pat) model layout in 
-        let color = --"yellow" in 
+        let color =
           if List.member pat model.deuceState.patSelectionBoxes && not (needsRun model)
           then "orange"
           else if List.member pat model.deuceState.hoveredPat && showDeuceWidgets model
             then "yellow"
-            else 
+            else
               ""
-          in 
-         let textPolygon = 
+          in
+         let textPolygon =
           [ flip Svg.polygon []
                 [LangSvg.attr "stroke" color
                 , LangSvg.attr "stroke-width" "5"
@@ -442,26 +475,26 @@ patBoundingPolygonPoints pats model layout =
                 , onMouseLeave (Controller.msgMouseLeavePatBoundingBox pat)
                 ]]
           in textPolygon
-        in 
-        let polygons = List.concatMap calculate pats in 
+        in
+        let polygons = List.concatMap calculate pats in
           polygons
 
-expTargetIndicator targets model layout = 
-  let indicator target = 
-    case target of 
+expTargetIndicator targets model layout =
+  let indicator target =
+    case target of
       (id, start, end) ->
-        let pixelPos = rowColToPixelPos start model in 
+        let pixelPos = rowColToPixelPos start model in
         let rDot = 4 in
-        let opacity = --"yellow" in 
+        let opacity =
               if Set.member id model.deuceState.selectedExpTargets && not (needsRun model)
               then "1.0"
               else if List.member target model.deuceState.hoveredExpTargets && showDeuceWidgets model
                 then "1.0"
                 else "0.0"
-              in 
+              in
               [flip Svg.circle []
                 [ LangSvg.attr "fill" "black"
-                , LangSvg.attr "fill-opacity" opacity 
+                , LangSvg.attr "fill-opacity" opacity
                 , LangSvg.attr "cx" (toString (pixelPos.x - model.codeBoxInfo.gutterWidth - model.codeBoxInfo.offsetLeft + model.codeBoxInfo.characterWidth/2))
                 , LangSvg.attr "cy" (toString (pixelPos.y))
                 , LangSvg.attr "r" (toString rDot)
@@ -469,26 +502,26 @@ expTargetIndicator targets model layout =
                 , onMouseOver (Controller.msgMouseEnterExpTarget target)
                 , onMouseLeave (Controller.msgMouseLeaveExpTarget target)
                 ]]
-  in 
+  in
   List.concatMap indicator targets
 
-patTargetIndicator targets model layout = 
-  let indicator target = 
-    case target of 
+patTargetIndicator targets model layout =
+  let indicator target =
+    case target of
       (pid, start, end) ->
-        let pixelPos = rowColToPixelPos start model in 
+        let pixelPos = rowColToPixelPos start model in
         let rDot = 4 in
         let opacity =
               if Set.member pid model.deuceState.selectedPatTargets && not (needsRun model)
               then "1.0"
-              else 
+              else
                 if List.member target model.deuceState.hoveredPatTargets && showDeuceWidgets model
                 then "1.0"
                 else "0.0"
-              in 
+              in
               [flip Svg.circle []
                 [ LangSvg.attr "fill" "black"
-                , LangSvg.attr "fill-opacity" opacity 
+                , LangSvg.attr "fill-opacity" opacity
                 , LangSvg.attr "cx" (toString (pixelPos.x - model.codeBoxInfo.gutterWidth - model.codeBoxInfo.offsetLeft + model.codeBoxInfo.characterWidth/2))
                 , LangSvg.attr "cy" (toString (pixelPos.y))
                 , LangSvg.attr "r" (toString rDot)
@@ -496,16 +529,16 @@ patTargetIndicator targets model layout =
                 , onMouseOver (Controller.msgMouseEnterPatTarget target)
                 , onMouseLeave (Controller.msgMouseLeavePatTarget target)
                 ]]
-  in 
+  in
   List.concatMap indicator targets
 
-getBoxWidth start end m = 
-  let offSet = if start.line == end.line then 0 else 1 in 
+getBoxWidth start end m =
+  let offSet = if start.line == end.line then 0 else 1 in
   let characters = end.col - start.col - offSet in
-  toFloat(characters) * m.codeBoxInfo.characterWidth 
+  toFloat(characters) * m.codeBoxInfo.characterWidth
 
-getBoxHeight start end m = 
-  let lines = end.line - start.line + 1 in 
+getBoxHeight start end m =
+  let lines = end.line - start.line + 1 in
   toFloat(lines) * m.codeBoxInfo.lineHeight
 
 --------------------------------------------------------------------------------
@@ -568,6 +601,10 @@ outputArea model layout =
          , ("background", "white")
          , ("border-radius", "0px 10px 10px 10px")
          , ("box-shadow", boxShadow)
+         , ("-ms-user-select", "none")
+         , ("-moz-user-select", "none")
+         , ("-webkit-user-select", "none")
+         , ("user-select", "none")
          ]
      ]
      [ output ]
@@ -606,15 +643,18 @@ resizeWidget id model layout (getOffset, putOffset) left top =
 
 type ButtonKind = Regular | Selected | Unselected
 
+buttonRegularColor = "white"
+buttonSelectedColor = "lightgray"
+
 htmlButton text onClickHandler btnKind disabled =
   htmlButtonExtraAttrs [] text onClickHandler btnKind disabled
 
 htmlButtonExtraAttrs extraAttrs text onClickHandler btnKind disabled =
   let color =
     case btnKind of
-      Regular    -> "white"
-      Unselected -> "white"
-      Selected   -> "lightgray"
+      Regular    -> buttonRegularColor
+      Unselected -> buttonRegularColor
+      Selected   -> buttonSelectedColor
   in
   -- let lineHeight = 1 + 1.1735 * unpixels params.mainSection.widgets.fontSize |> ((*) 2) |> round |> toFloat |> ((*) 0.5) in -- My best guess based on sampling Firefox's behavior.
   let commonAttrs =
@@ -625,6 +665,9 @@ htmlButtonExtraAttrs extraAttrs text onClickHandler btnKind disabled =
                  , ("min-height", pixels Layout.buttonHeight)
                  , ("background", color)
                  , ("cursor", "pointer")
+                 , ("-ms-user-select", "none")
+                 , ("-moz-user-select", "none")
+                 , ("-webkit-user-select", "none")
                  , ("user-select", "none")
                  ] ]
   in
@@ -643,9 +686,9 @@ iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
   let
     color =
       case btnKind of
-        Regular    -> "white"
-        Unselected -> "white"
-        Selected   -> "lightgray"
+        Regular    -> buttonRegularColor
+        Unselected -> buttonRegularColor
+        Selected   -> buttonSelectedColor
     iconHtml =
       case Dict.get (String.toLower iconName) model.icons of
         Just h -> h
@@ -658,6 +701,9 @@ iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
                  , ("height", pixels Layout.iconButtonHeight)
                  , ("background", color)
                  , ("cursor", "pointer")
+                 , ("-ms-user-select", "none")
+                 , ("-moz-user-select", "none")
+                 , ("-webkit-user-select", "none")
                  , ("user-select", "none")
                  ] ]
   in
@@ -899,7 +945,7 @@ deuceWidgetsButton model =
       { m | showAllDeuceWidgets = not m.showAllDeuceWidgets
             -- TODO: factor these three elsewhere for reuse
           , selectedEIds = Set.empty
-          , selectedExpTargets = Set.empty 
+          , selectedExpTargets = Set.empty
           , selectedPats = Set.empty
           , selectedPatTargets = Set.empty
           }
@@ -1310,17 +1356,17 @@ importCodeDialogBox model =
 -- Deuce Widgets
 
 deuceLayer model layout =
-  let find e acc = 
-    [e] ++ acc 
-  in 
-  let widgets = 
+  let find e acc =
+    [e] ++ acc
+  in
+  let widgets =
     expBoundingPolygonPoints (Lang.foldExp find [] model.inputExp) model layout ++
     patBoundingPolygonPoints (findPats model.inputExp) model layout ++
     expTargetIndicator (computeExpTargets model.inputExp) model layout ++
-    patTargetIndicator (findPatTargets model.inputExp) model layout 
-  in 
-  let svgWidgets = 
-    [Svg.svg [Attr.id "polygons", 
+    patTargetIndicator (findPatTargets model.inputExp) model layout
+  in
+  let svgWidgets =
+    [Svg.svg [Attr.id "polygons",
          Attr.style
           [ ("position", "fixed")
           , ("left", pixels (round(model.codeBoxInfo.gutterWidth) + layout.codeBox.left))
@@ -1328,12 +1374,12 @@ deuceLayer model layout =
           , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth)))
           , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
           ]] widgets ]
-  in 
-  let pointerEvents = 
-    if showDeuceWidgets model 
+  in
+  let pointerEvents =
+    if showDeuceWidgets model
     then "auto"
     else "none"
-  in 
+  in
   Html.div [ Attr.id "hoveredItem"
             , Attr.style
                 -- child div as absolute to overlay on parent div
@@ -1353,5 +1399,5 @@ deuceLayer model layout =
             , onMouseEnter Controller.msgMouseEnterCodeBox
             , onMouseLeave Controller.msgMouseLeaveCodeBox
             , onClick Controller.msgMouseClickCodeBox
-            ] (List.reverse svgWidgets) 
+            ] (List.reverse svgWidgets)
 
