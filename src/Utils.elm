@@ -182,6 +182,10 @@ addAsSet x xs =
   then xs
   else x::xs
 
+removeAsSet : a -> List a -> List a
+removeAsSet x xs =
+  List.filter ((/=) x) xs
+
 groupBy : (a -> comparable) -> List a -> Dict.Dict comparable (List a)
 groupBy f xs =
   List.foldl
