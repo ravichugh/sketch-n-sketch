@@ -16,6 +16,7 @@ build/out/img/*
 *swp
 src/*swp
 src/*swo
+src/bin/elm-make
 examples/*swp
 .bin/
 elm-package.json
