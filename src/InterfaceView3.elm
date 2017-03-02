@@ -1298,6 +1298,19 @@ computePolygonPoints rcs model layout =
     toString(point.x) ++ "," ++ toString(point.y) ++ " " ++ acc in
   List.foldr combine  "" (left ++ right)
 
+isDefExp exp = 
+  case exp.val.e__ of
+    Lang.ELet wsBef letKind rec pat exp1 exp2 wsAft ->
+      case letKind of 
+        Lang.Def -> (True, exp2)
+        _ -> (False, exp)
+    _ -> (False, exp)
+
+findFirstNonDef exp = 
+  case isDefExp(exp) of
+    (True, secondExp) -> findFirstNonDef secondExp
+    _ -> exp 
+
 expBoundingPolygonPoints =
   boundingPolygonPoints List.reverse
      (\exp -> 
@@ -1307,8 +1320,8 @@ expBoundingPolygonPoints =
             Lang.Let -> 
               [expBoundingPolygon (DeuceEquation exp.val.eid) exp exp1,
                expBoundingPolygon (DeuceExp exp.val.eid) exp exp]
-            Lang.Def -> [expBoundingPolygon (DeuceEquation exp.val.eid) exp exp2,
-                         expBoundingPolygon (DeuceExp exp.val.eid) exp exp]
+            Lang.Def -> [expBoundingPolygon (DeuceEquation exp.val.eid) exp exp,
+                         expBoundingPolygon (DeuceExp exp.val.eid) exp (findFirstNonDef exp)]
         _ ->
           [expBoundingPolygon (DeuceExp exp.val.eid) exp exp])
 
