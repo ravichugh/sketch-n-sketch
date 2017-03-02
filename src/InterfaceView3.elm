@@ -428,9 +428,9 @@ expBoundingPolygonPoints exps model layout =
   let calculate exp = 
     let points = computePolygonPoints (expBoundingPolygon exp) model layout in 
     let color =
-      if List.member exp model.deuceState.expSelectionBoxes && not (needsRun model)
+      if List.member (DeuceExp exp.val.eid) model.deuceState.selectedWidgets && not (needsRun model)
         then "orange"
-      else if List.member exp model.deuceState.hoveredExp && showDeuceWidgets model
+      else if List.member (DeuceExp exp.val.eid) model.deuceState.hoveredWidgets && showDeuceWidgets model
         then "yellow"
         else
           ""
@@ -441,9 +441,9 @@ expBoundingPolygonPoints exps model layout =
             , LangSvg.attr "stroke-width" "5"
             , Attr.style [("fill-opacity", "0")]
             , LangSvg.attr "points" points
-            , onClick (Controller.msgMouseClickExpBoundingBox exp.val.eid)
-            , onMouseOver (Controller.msgMouseEnterExpBoundingBox exp)
-            , onMouseLeave (Controller.msgMouseLeaveExpBoundingBox exp)
+            , onClick (Controller.msgMouseClickDeuceWidget (DeuceExp exp.val.eid))
+            , onMouseOver (Controller.msgMouseEnterDeuceWidget (DeuceExp exp.val.eid))
+            , onMouseLeave (Controller.msgMouseLeaveDeuceWidget (DeuceExp exp.val.eid))
             ]
           ] in
       textPolygon
@@ -457,9 +457,9 @@ patBoundingPolygonPoints pats model layout =
       (pat,pid,_,_,_) -> 
         let points = computePolygonPoints (patBoundingPolygon pat) model layout in 
         let color =
-          if List.member pat model.deuceState.patSelectionBoxes && not (needsRun model)
+          if List.member (DeucePat pid) model.deuceState.selectedWidgets && not (needsRun model)
           then "orange"
-          else if List.member pat model.deuceState.hoveredPat && showDeuceWidgets model
+          else if List.member (DeucePat pid) model.deuceState.hoveredWidgets && showDeuceWidgets model
             then "yellow"
             else
               ""
@@ -470,9 +470,9 @@ patBoundingPolygonPoints pats model layout =
                 , LangSvg.attr "stroke-width" "5"
                 , Attr.style [("fill-opacity", "0")]
                 , LangSvg.attr "points" points
-                , onClick (Controller.msgMouseClickPatBoundingBox pid)
-                , onMouseOver (Controller.msgMouseEnterPatBoundingBox pat)
-                , onMouseLeave (Controller.msgMouseLeavePatBoundingBox pat)
+                , onClick (Controller.msgMouseClickDeuceWidget (DeucePat pid))
+                , onMouseOver (Controller.msgMouseEnterDeuceWidget (DeucePat pid))
+                , onMouseLeave (Controller.msgMouseLeaveDeuceWidget (DeucePat pid))
                 ]]
           in textPolygon
         in
@@ -486,9 +486,9 @@ expTargetIndicator targets model layout =
         let pixelPos = rowColToPixelPos start model in
         let rDot = 4 in
         let opacity =
-              if Set.member id model.deuceState.selectedExpTargets && not (needsRun model)
+              if List.member (DeuceExpTarget id) model.deuceState.selectedWidgets && not (needsRun model)
               then "1.0"
-              else if List.member target model.deuceState.hoveredExpTargets && showDeuceWidgets model
+              else if List.member (DeuceExpTarget id) model.deuceState.hoveredWidgets && showDeuceWidgets model
                 then "1.0"
                 else "0.0"
               in
@@ -498,9 +498,9 @@ expTargetIndicator targets model layout =
                 , LangSvg.attr "cx" (toString (pixelPos.x - model.codeBoxInfo.gutterWidth - model.codeBoxInfo.offsetLeft + model.codeBoxInfo.characterWidth/2))
                 , LangSvg.attr "cy" (toString (pixelPos.y))
                 , LangSvg.attr "r" (toString rDot)
-                , onClick (Controller.msgMouseClickExpTargetPosition id)
-                , onMouseOver (Controller.msgMouseEnterExpTarget target)
-                , onMouseLeave (Controller.msgMouseLeaveExpTarget target)
+                , onClick (Controller.msgMouseClickDeuceWidget (DeuceExpTarget id))
+                , onMouseOver (Controller.msgMouseEnterDeuceWidget (DeuceExpTarget id))
+                , onMouseLeave (Controller.msgMouseLeaveDeuceWidget (DeuceExpTarget id))
                 ]]
   in
   List.concatMap indicator targets
@@ -512,10 +512,10 @@ patTargetIndicator targets model layout =
         let pixelPos = rowColToPixelPos start model in
         let rDot = 4 in
         let opacity =
-              if Set.member pid model.deuceState.selectedPatTargets && not (needsRun model)
+              if List.member (DeucePatTarget pid) model.deuceState.selectedWidgets && not (needsRun model)
               then "1.0"
               else
-                if List.member target model.deuceState.hoveredPatTargets && showDeuceWidgets model
+                if List.member (DeucePatTarget pid) model.deuceState.hoveredWidgets && showDeuceWidgets model
                 then "1.0"
                 else "0.0"
               in
@@ -525,9 +525,9 @@ patTargetIndicator targets model layout =
                 , LangSvg.attr "cx" (toString (pixelPos.x - model.codeBoxInfo.gutterWidth - model.codeBoxInfo.offsetLeft + model.codeBoxInfo.characterWidth/2))
                 , LangSvg.attr "cy" (toString (pixelPos.y))
                 , LangSvg.attr "r" (toString rDot)
-                , onClick (Controller.msgMouseClickPatTargetPosition pid)
-                , onMouseOver (Controller.msgMouseEnterPatTarget target)
-                , onMouseLeave (Controller.msgMouseLeavePatTarget target)
+                , onClick (Controller.msgMouseClickDeuceWidget (DeucePatTarget pid))
+                , onMouseOver (Controller.msgMouseEnterDeuceWidget (DeucePatTarget pid))
+                , onMouseLeave (Controller.msgMouseLeaveDeuceWidget (DeucePatTarget pid))
                 ]]
   in
   List.concatMap indicator targets

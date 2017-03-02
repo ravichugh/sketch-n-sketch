@@ -12,45 +12,25 @@ import Dict exposing (Dict)
 
 --------------------------------------------------------------------------------
 
-type alias State =
-  {
-  --Expression information
-    selectedEIds : Set.Set EId
-  , expSelectionBoxes : List Exp
-
-  , selectedExpTargets : Set.Set ExpTargetPosition
-  , expTargetSelections : List (ExpTargetPosition, P.Pos, P.Pos)
-
-  , hoveredExp : List Exp
-  , hoveredExpTargets : List (ExpTargetPosition, P.Pos, P.Pos)
-
-  --Pattern information
-  , selectedPats : Set.Set PatternId
-  , patSelectionBoxes : List Pat
-
-  , selectedPatTargets : Set.Set PatTargetPosition
-  , patTargetSelections : List (PatTargetPosition, P.Pos, P.Pos)
-
-  , hoveredPat : List Pat
-  , hoveredPatTargets : List (PatTargetPosition, P.Pos, P.Pos)
+type alias DeuceState =
+  { selectedWidgets : List DeuceWidget   -- not Set b/c not comparable
+  , hoveredWidgets : List DeuceWidget    -- not Set b/c not comparable
   }
 
-initState : State
-initState =
-  { selectedEIds  = Set.empty
-  , selectedPats = Set.empty
-  , selectedPatTargets = Set.empty
-  , selectedExpTargets = Set.empty
-  , hoveredExp = []
-  , hoveredExpTargets = []
-  , expTargetSelections = []
-  , hoveredPat = []
-  , hoveredPatTargets = []
-  , patTargetSelections = []
-  , expSelectionBoxes = []
-  , patSelectionBoxes = []
+type DeuceWidget
+  = DeuceExp EId
+  | DeucePat PatternId
+  | DeuceEquation ScopeId
+  | DeuceExpTarget ExpTargetPosition
+  | DeucePatTarget PatTargetPosition 
+
+emptyDeuceState : DeuceState
+emptyDeuceState =
+  { selectedWidgets = []
+  , hoveredWidgets = []
   }
 
+resetDeuceState m = { m | deuceState = emptyDeuceState }
 
 --------------------------------------------------------------------------------
 
@@ -168,8 +148,6 @@ showDeuceWidgets m = shiftKeyPressed m
 needsRun m =
   m.code /= m.lastRunCode
 
-resetDeuceState m = { m | deuceState = initState }
-
 betweenPos start pixelPos end =
   (start.line <= pixelPos.row + 1) &&
   (start.col <= pixelPos.column + 1) &&
@@ -259,174 +237,3 @@ patBoundingPolygon pat =
     let leading = leadingNewlines (Just lines) 0 in
     let output = lineStartEnd (Just lines) (start.line - leading) start end (Dict.empty) in
     (pat, output)
-
-expRangeSelections m =
-  let maybeHighlight (exp,eid,start,end,selectStart,selectEnd) =
-    let range =
-      { start = { row = selectStart.line, column = selectStart.col }
-      , end   = { row = selectEnd.line, column = selectEnd.col  } }
-    in
-    if Set.member eid m.deuceState.selectedEIds then
-      [exp]
-    else
-      []
-  in
-  if showDeuceWidgets m
-    then List.concatMap maybeHighlight (computeExpRanges m.inputExp)
-    else []
-
-patRangeSelections m =
-  let maybeHighlight (pat,pid,start,end,selectEnd) =
-    let range =
-      { start = { row = start.line, column = start.col }
-      , end   = { row = selectEnd.line, column = selectEnd.col  } }
-    in
-    if Set.member pid m.deuceState.selectedPats then
-      [pat]
-    else
-      []
-  in
-  if showDeuceWidgets m
-    then List.concatMap maybeHighlight (findPats m.inputExp)
-    else []
-
-expRangesToHover m pos =
-  let boxes pos (exp,eid,start,end,selectStart,selectEnd) =
-    if hoveringItem selectStart (Just (pixelToRowColPosition pos m)) selectEnd then
-      [exp]
-    else
-      []
-  in
-  if showDeuceWidgets m || True
-    then List.concatMap (boxes pos) (computeExpRanges m.inputExp)
-    else []
-
-patRangesToHover m pos =
-  let boxes pos (pat,(eid,ls),start,end,selectEnd) =
-    if hoveringItem start (Just (pixelToRowColPosition pos m)) selectEnd then
-      [pat]
-    else
-      []
-  in
-  if showDeuceWidgets m || True
-    then List.concatMap (boxes pos) (findPats m.inputExp)
-    else []
-
-{-
--- unused function
-expRangesToHighlights m pos =
-  let maybeHighlight (exp,eid,start,end,selectStart,selectEnd) =
-    let range =
-      { start = { row = selectStart.line, column = selectStart.col }
-      , end   = { row = selectEnd.line, column = selectEnd.col  } }
-    in
-    if Set.member eid m.selectedEIds then
-      [ { color = "orange", range = range } ]
-    else if showAllDeuceWidgets m || hoveringItem selectStart pos selectEnd then
-      [ { color = "peachpuff", range = range } ]
-    else
-      []
-  in
-  if showDeuceWidgets m
-    then List.concatMap maybeHighlight (computeExpRanges m.inputExp)
-    else []
-
--- unused function
-expTargetsToHighlights m pos =
-  let maybeHighlight (expTarget,selectStart,selectEnd) =
-    let range =
-      { start = { row = selectStart.line, column = selectStart.col }
-      , end   = { row = selectEnd.line, column = selectEnd.col  } }
-    in
-    if Set.member expTarget m.selectedExpTargets then
-      [ { color = "green", range = range } ]
-    else if showAllDeuceWidgets m || hoveringItem selectStart pos selectEnd then
-      [ { color = "lightgreen", range = range } ]
-    else
-      []
-  in
-  if showDeuceWidgets m
-    then List.concatMap maybeHighlight (computeExpTargets m.inputExp)
-    else []
-
--- unused function
-patRangesToHighlights m pos =
-  let maybeHighlight (pat,pid,start,end,selectEnd) =
-    let range =
-      { start = { row = start.line, column = start.col }
-      , end   = { row = end.line, column = selectEnd.col  } }
-    in
-    if Set.member pid m.selectedPats then
-      [ { color = "gold", range = range } ]
-    else if showAllDeuceWidgets m || hoveringItem start pos selectEnd then
-      [ { color = "lightyellow", range = range } ]
-    else
-      []
-  in
-  if showDeuceWidgets m
-    then List.concatMap maybeHighlight (findPats m.inputExp)
-    else []
-
--- unused function
-patTargetsToHighlights m pos =
-  let maybeHighlight (target,start,end) =
-    let range =
-      { start = { row = start.line, column = start.col }
-      , end   = { row = end.line, column = end.col  } }
-    in
-    if Set.member target m.selectedPatTargets then
-      [ { color = "green", range = range } ]
-    else if showAllDeuceWidgets m || hoveringItem start pos end then
-      [ { color = "lightgreen", range = range } ]
-    else
-      []
-  in
-  if showDeuceWidgets m
-    then List.concatMap maybeHighlight (findPatTargets m.inputExp)
-    else []
--}
-
-expTargetsToSelect m =
-  let maybeHighlight (expTarget,selectStart,selectEnd) =
-    if Set.member expTarget m.deuceState.selectedExpTargets then
-      [(expTarget,selectStart,selectEnd)]
-    else
-      []
-  in
-  if showDeuceWidgets m
-    then List.concatMap maybeHighlight (computeExpTargets m.inputExp)
-    else []
-
-expTargetsToHover m pos =
-  let maybeHighlight (expTarget,selectStart,selectEnd) =
-    if hoveringItem selectStart (Just (pixelToRowColPosition pos m)) selectEnd then
-      [(expTarget,selectStart,selectEnd)]
-    else
-      []
-  in
-  if showDeuceWidgets m || True
-    then List.concatMap maybeHighlight (computeExpTargets m.inputExp)
-    else []
-
-patTargetsToSelect m =
-  let maybeHighlight (target,start,end) =
-    if Set.member target m.deuceState.selectedPatTargets then
-      [(target, start, end)]
-    else
-      []
-  in
-  if showDeuceWidgets m
-    then List.concatMap maybeHighlight (findPatTargets m.inputExp)
-    else []
-
-patTargetsToHover m pos =
-  let maybeHighlight (target,start,end) =
-    if hoveringItem start (Just (pixelToRowColPosition pos m)) end then
-      [(target, start, end)]
-    else
-      []
-  in
-  if showDeuceWidgets m || True
-    then List.concatMap maybeHighlight (findPatTargets m.inputExp)
-    else []
-

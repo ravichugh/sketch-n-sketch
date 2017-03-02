@@ -13,7 +13,7 @@ import LangParser2 as Parser
 import OurParser2 as P
 import DependenceGraph exposing (ScopeGraph)
 import Ace
-import DeuceWidgets exposing (State)
+import DeuceWidgets exposing (DeuceState)
 import Either exposing (Either(..))
 import Keys 
 import Svg
@@ -114,7 +114,7 @@ type alias Model =
   , showAllDeuceWidgets : Bool
   , hoveringCodeBox : Bool
   , scopeGraph : ScopeGraph
-  , deuceState : DeuceWidgets.State
+  , deuceState : DeuceWidgets.DeuceState
   }
 
 type Mode
@@ -449,5 +449,5 @@ initModel =
     , scopeGraph = DependenceGraph.compute e
     , showAllDeuceWidgets = False
     , hoveringCodeBox = False
-    , deuceState = DeuceWidgets.initState
+    , deuceState = DeuceWidgets.emptyDeuceState
     }
