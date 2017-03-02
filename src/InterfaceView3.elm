@@ -409,121 +409,6 @@ textArea_ children attrs =
   in
   Html.div (commonAttrs ++ attrs) children
 
-computePolygonPoints rcs model layout =
-  let traverse leftSide =
-    let maybeReverse = if leftSide then identity else List.reverse in
-    let things = maybeReverse (Dict.toList (Tuple.second rcs)) in
-    flip List.concatMap things <| \(k,(c1,c2)) ->
-      let c = if leftSide then c1 else c2 in
-      let topOffset = rowColToPixelPos {line = k, col = c} model in
-      let top = {x=topOffset.x - model.codeBoxInfo.gutterWidth, y=topOffset.y - model.codeBoxInfo.offsetHeight} in
-      let bottom = {x=top.x, y=top.y + model.codeBoxInfo.lineHeight} in
-      if leftSide then [top, bottom] else [bottom, top]
-  in
-  let left = traverse True in
-  let right = traverse False in
-  let combine point acc =
-    toString(point.x) ++ "," ++ toString(point.y) ++ " " ++ acc in
-  List.foldr combine  "" (left ++ right)
-
-expBoundingPolygonPoints =
-  boundingPolygonPoints List.reverse
-     (\exp -> (DeuceExp exp.val.eid, expBoundingPolygon exp))
-
-patBoundingPolygonPoints =
-  boundingPolygonPoints identity
-     (\(pat,pid,_,_,_) -> (DeucePat pid, patBoundingPolygon pat))
-
-boundingPolygonPoints maybeReverse deuceWidgetAndBoundingPolygonOf exps model layout =
-  let calculate thing =
-    let (deuceWidget, boundingPolygon) = deuceWidgetAndBoundingPolygonOf thing in
-    let points = computePolygonPoints boundingPolygon model layout in
-    let color =
-      if List.member deuceWidget model.deuceState.selectedWidgets && not (needsRun model)
-        then "orange"
-      else if List.member deuceWidget model.deuceState.hoveredWidgets && showDeuceWidgets model
-        then "yellow"
-        else
-          ""
-    in
-    let textPolygon =
-        [ flip Svg.polygon []
-            [LangSvg.attr "stroke" color
-            , LangSvg.attr "stroke-width" "5"
-            , Attr.style [("fill-opacity", "0")]
-            , LangSvg.attr "points" points
-            , onClick (Controller.msgMouseClickDeuceWidget deuceWidget)
-            , onMouseOver (Controller.msgMouseEnterDeuceWidget deuceWidget)
-            , onMouseLeave (Controller.msgMouseLeaveDeuceWidget deuceWidget)
-            ]
-          ] in
-      textPolygon
-  in
-  let polygons = maybeReverse (List.concatMap calculate exps) in
-  polygons
-
-expTargetIndicator = targetIndicator DeuceExpTarget
-patTargetIndicator = targetIndicator DeucePatTarget
-
-targetIndicator deuceWidgetConstructor targets model layout =
-  let drawTarget deuceWidget pixelPos color opacity numRings =
-    let rDot = 4 in
-    let (cx, cy) =
-      ( toString <|
-          pixelPos.x - model.codeBoxInfo.gutterWidth
-                     - model.codeBoxInfo.offsetLeft
-                     + model.codeBoxInfo.characterWidth / 2
-      -- TODO should pixelPos calculations take care of all these offsets?
-      , toString <|
-          pixelPos.y - model.codeBoxInfo.offsetHeight
-                     + model.codeBoxInfo.lineHeight / 2
-      )
-    in
-    let rings =
-      flip List.map (List.range 1 numRings) <| \i ->
-        flip Svg.circle [] <|
-          [ LangSvg.attr "fill" "none"
-          , LangSvg.attr "fill-opacity" opacity
-          , LangSvg.attr "stroke" color
-          , LangSvg.attr "stroke-width" (toString (rDot//2))
-          , LangSvg.attr "cx" cx, LangSvg.attr "cy" cy
-          , LangSvg.attr "r" (toString ((i+1) * rDot))
-          ]
-    in
-    let center =
-      flip Svg.circle [] <|
-        [ LangSvg.attr "fill" color
-        , LangSvg.attr "fill-opacity" opacity
-        , LangSvg.attr "cx" cx, LangSvg.attr "cy" cy
-        , LangSvg.attr "r" (toString rDot)
-        , onClick (Controller.msgMouseClickDeuceWidget deuceWidget)
-        , onMouseOver (Controller.msgMouseEnterDeuceWidget deuceWidget)
-        , onMouseLeave (Controller.msgMouseLeaveDeuceWidget deuceWidget)
-        ]
-    in
-    center :: rings
-  in
-  flip List.concatMap targets <| \(id, start, end) ->
-    let deuceWidget = deuceWidgetConstructor id in
-    let pixelPos = rowColToPixelPos start model in
-    if List.member deuceWidget model.deuceState.selectedWidgets && not (needsRun model) then
-      drawTarget deuceWidget pixelPos "darkgreen" "1.0" 3
-    else if List.member deuceWidget model.deuceState.hoveredWidgets && showDeuceWidgets model then
-      drawTarget deuceWidget pixelPos "red" "1.0" 3
-    else
-      -- TODO: want to return [], but then targets are never drawn
-      -- []
-      drawTarget deuceWidget pixelPos "white" "0.0" 0
-
-getBoxWidth start end m =
-  let offSet = if start.line == end.line then 0 else 1 in
-  let characters = end.col - start.col - offSet in
-  toFloat(characters) * m.codeBoxInfo.characterWidth
-
-getBoxHeight start end m =
-  let lines = end.line - start.line + 1 in
-  toFloat(lines) * m.codeBoxInfo.lineHeight
-
 
 --------------------------------------------------------------------------------
 -- Output Box
@@ -1385,3 +1270,117 @@ deuceLayer model layout =
             , onClick Controller.msgMouseClickCodeBox
             ] (List.reverse svgWidgets)
 
+computePolygonPoints rcs model layout =
+  let traverse leftSide =
+    let maybeReverse = if leftSide then identity else List.reverse in
+    let things = maybeReverse (Dict.toList (Tuple.second rcs)) in
+    flip List.concatMap things <| \(k,(c1,c2)) ->
+      let c = if leftSide then c1 else c2 in
+      let topOffset = rowColToPixelPos {line = k, col = c} model in
+      let top = {x=topOffset.x - model.codeBoxInfo.gutterWidth, y=topOffset.y - model.codeBoxInfo.offsetHeight} in
+      let bottom = {x=top.x, y=top.y + model.codeBoxInfo.lineHeight} in
+      if leftSide then [top, bottom] else [bottom, top]
+  in
+  let left = traverse True in
+  let right = traverse False in
+  let combine point acc =
+    toString(point.x) ++ "," ++ toString(point.y) ++ " " ++ acc in
+  List.foldr combine  "" (left ++ right)
+
+expBoundingPolygonPoints =
+  boundingPolygonPoints List.reverse
+     (\exp -> (DeuceExp exp.val.eid, expBoundingPolygon exp))
+
+patBoundingPolygonPoints =
+  boundingPolygonPoints identity
+     (\(pat,pid,_,_,_) -> (DeucePat pid, patBoundingPolygon pat))
+
+boundingPolygonPoints maybeReverse deuceWidgetAndBoundingPolygonOf exps model layout =
+  let calculate thing =
+    let (deuceWidget, boundingPolygon) = deuceWidgetAndBoundingPolygonOf thing in
+    let points = computePolygonPoints boundingPolygon model layout in
+    let color =
+      if List.member deuceWidget model.deuceState.selectedWidgets && not (needsRun model)
+        then "orange"
+      else if List.member deuceWidget model.deuceState.hoveredWidgets && showDeuceWidgets model
+        then "yellow"
+        else
+          ""
+    in
+    let textPolygon =
+        [ flip Svg.polygon []
+            [LangSvg.attr "stroke" color
+            , LangSvg.attr "stroke-width" "5"
+            , Attr.style [("fill-opacity", "0")]
+            , LangSvg.attr "points" points
+            , onClick (Controller.msgMouseClickDeuceWidget deuceWidget)
+            , onMouseOver (Controller.msgMouseEnterDeuceWidget deuceWidget)
+            , onMouseLeave (Controller.msgMouseLeaveDeuceWidget deuceWidget)
+            ]
+          ] in
+      textPolygon
+  in
+  let polygons = maybeReverse (List.concatMap calculate exps) in
+  polygons
+
+expTargetIndicator = targetIndicator DeuceExpTarget
+patTargetIndicator = targetIndicator DeucePatTarget
+
+targetIndicator deuceWidgetConstructor targets model layout =
+  let drawTarget deuceWidget pixelPos color opacity numRings =
+    let rDot = 4 in
+    let (cx, cy) =
+      ( toString <|
+          pixelPos.x - model.codeBoxInfo.gutterWidth
+                     - model.codeBoxInfo.offsetLeft
+                     + model.codeBoxInfo.characterWidth / 2
+      -- TODO should pixelPos calculations take care of all these offsets?
+      , toString <|
+          pixelPos.y - model.codeBoxInfo.offsetHeight
+                     + model.codeBoxInfo.lineHeight / 2
+      )
+    in
+    let rings =
+      flip List.map (List.range 1 numRings) <| \i ->
+        flip Svg.circle [] <|
+          [ LangSvg.attr "fill" "none"
+          , LangSvg.attr "fill-opacity" opacity
+          , LangSvg.attr "stroke" color
+          , LangSvg.attr "stroke-width" (toString (rDot//2))
+          , LangSvg.attr "cx" cx, LangSvg.attr "cy" cy
+          , LangSvg.attr "r" (toString ((i+1) * rDot))
+          ]
+    in
+    let center =
+      flip Svg.circle [] <|
+        [ LangSvg.attr "fill" color
+        , LangSvg.attr "fill-opacity" opacity
+        , LangSvg.attr "cx" cx, LangSvg.attr "cy" cy
+        , LangSvg.attr "r" (toString rDot)
+        , onClick (Controller.msgMouseClickDeuceWidget deuceWidget)
+        , onMouseOver (Controller.msgMouseEnterDeuceWidget deuceWidget)
+        , onMouseLeave (Controller.msgMouseLeaveDeuceWidget deuceWidget)
+        ]
+    in
+    center :: rings
+  in
+  flip List.concatMap targets <| \(id, start, end) ->
+    let deuceWidget = deuceWidgetConstructor id in
+    let pixelPos = rowColToPixelPos start model in
+    if List.member deuceWidget model.deuceState.selectedWidgets && not (needsRun model) then
+      drawTarget deuceWidget pixelPos "darkgreen" "1.0" 3
+    else if List.member deuceWidget model.deuceState.hoveredWidgets && showDeuceWidgets model then
+      drawTarget deuceWidget pixelPos "red" "1.0" 3
+    else
+      -- TODO: want to return [], but then targets are never drawn
+      -- []
+      drawTarget deuceWidget pixelPos "white" "0.0" 0
+
+getBoxWidth start end m =
+  let offSet = if start.line == end.line then 0 else 1 in
+  let characters = end.col - start.col - offSet in
+  toFloat(characters) * m.codeBoxInfo.characterWidth
+
+getBoxHeight start end m =
+  let lines = end.line - start.line + 1 in
+  toFloat(lines) * m.codeBoxInfo.lineHeight
