@@ -410,27 +410,38 @@ textArea_ children attrs =
   Html.div (commonAttrs ++ attrs) children
 
 computePolygonPoints rcs model layout =
-  let left = List.concatMap (\(k,(c1,c2)) ->
-    let topOffset = rowColToPixelPos {line = k, col = c1} model in
-    let top = {x=topOffset.x - model.codeBoxInfo.gutterWidth, y=topOffset.y - model.codeBoxInfo.offsetHeight} in
-    let bottom = {x=top.x, y=top.y + model.codeBoxInfo.lineHeight} in
-      [top, bottom]) (Dict.toList (Tuple.second rcs)) in
-  let right = List.concatMap (\(k,(c1,c2)) ->
-    let topOffset = rowColToPixelPos {line = k, col = c2} model in
-    let top = {x=topOffset.x - model.codeBoxInfo.gutterWidth, y=topOffset.y - model.codeBoxInfo.offsetHeight} in
-    let bottom = {x=top.x, y=top.y + model.codeBoxInfo.lineHeight} in
-      [bottom, top]) (List.reverse (Dict.toList (Tuple.second rcs))) in
+  let traverse leftSide =
+    let maybeReverse = if leftSide then identity else List.reverse in
+    let things = maybeReverse (Dict.toList (Tuple.second rcs)) in
+    flip List.concatMap things <| \(k,(c1,c2)) ->
+      let c = if leftSide then c1 else c2 in
+      let topOffset = rowColToPixelPos {line = k, col = c} model in
+      let top = {x=topOffset.x - model.codeBoxInfo.gutterWidth, y=topOffset.y - model.codeBoxInfo.offsetHeight} in
+      let bottom = {x=top.x, y=top.y + model.codeBoxInfo.lineHeight} in
+      if leftSide then [top, bottom] else [bottom, top]
+  in
+  let left = traverse True in
+  let right = traverse False in
   let combine point acc =
     toString(point.x) ++ "," ++ toString(point.y) ++ " " ++ acc in
   List.foldr combine  "" (left ++ right)
 
-expBoundingPolygonPoints exps model layout = 
-  let calculate exp = 
-    let points = computePolygonPoints (expBoundingPolygon exp) model layout in 
+expBoundingPolygonPoints =
+  boundingPolygonPoints List.reverse
+     (\exp -> (DeuceExp exp.val.eid, expBoundingPolygon exp))
+
+patBoundingPolygonPoints =
+  boundingPolygonPoints identity
+     (\(pat,pid,_,_,_) -> (DeucePat pid, patBoundingPolygon pat))
+
+boundingPolygonPoints maybeReverse deuceWidgetAndBoundingPolygonOf exps model layout =
+  let calculate thing =
+    let (deuceWidget, boundingPolygon) = deuceWidgetAndBoundingPolygonOf thing in
+    let points = computePolygonPoints boundingPolygon model layout in
     let color =
-      if List.member (DeuceExp exp.val.eid) model.deuceState.selectedWidgets && not (needsRun model)
+      if List.member deuceWidget model.deuceState.selectedWidgets && not (needsRun model)
         then "orange"
-      else if List.member (DeuceExp exp.val.eid) model.deuceState.hoveredWidgets && showDeuceWidgets model
+      else if List.member deuceWidget model.deuceState.hoveredWidgets && showDeuceWidgets model
         then "yellow"
         else
           ""
@@ -441,54 +452,30 @@ expBoundingPolygonPoints exps model layout =
             , LangSvg.attr "stroke-width" "5"
             , Attr.style [("fill-opacity", "0")]
             , LangSvg.attr "points" points
-            , onClick (Controller.msgMouseClickDeuceWidget (DeuceExp exp.val.eid))
-            , onMouseOver (Controller.msgMouseEnterDeuceWidget (DeuceExp exp.val.eid))
-            , onMouseLeave (Controller.msgMouseLeaveDeuceWidget (DeuceExp exp.val.eid))
+            , onClick (Controller.msgMouseClickDeuceWidget deuceWidget)
+            , onMouseOver (Controller.msgMouseEnterDeuceWidget deuceWidget)
+            , onMouseLeave (Controller.msgMouseLeaveDeuceWidget deuceWidget)
             ]
           ] in
       textPolygon
   in
-  let polygons = List.reverse (List.concatMap calculate exps) in
+  let polygons = maybeReverse (List.concatMap calculate exps) in
   polygons
 
-patBoundingPolygonPoints pats model layout = 
-  let calculate input = 
-    case input of 
-      (pat,pid,_,_,_) -> 
-        let points = computePolygonPoints (patBoundingPolygon pat) model layout in 
-        let color =
-          if List.member (DeucePat pid) model.deuceState.selectedWidgets && not (needsRun model)
-          then "orange"
-          else if List.member (DeucePat pid) model.deuceState.hoveredWidgets && showDeuceWidgets model
-            then "yellow"
-            else
-              ""
-          in
-         let textPolygon =
-          [ flip Svg.polygon []
-                [LangSvg.attr "stroke" color
-                , LangSvg.attr "stroke-width" "5"
-                , Attr.style [("fill-opacity", "0")]
-                , LangSvg.attr "points" points
-                , onClick (Controller.msgMouseClickDeuceWidget (DeucePat pid))
-                , onMouseOver (Controller.msgMouseEnterDeuceWidget (DeucePat pid))
-                , onMouseLeave (Controller.msgMouseLeaveDeuceWidget (DeucePat pid))
-                ]]
-          in textPolygon
-        in
-        let polygons = List.concatMap calculate pats in
-          polygons
+expTargetIndicator = targetIndicator DeuceExpTarget
+patTargetIndicator = targetIndicator DeucePatTarget
 
-expTargetIndicator targets model layout =
+targetIndicator deuceWidgetConstructor targets model layout =
   let indicator target =
     case target of
       (id, start, end) ->
+        let deuceWidget = deuceWidgetConstructor id in
         let pixelPos = rowColToPixelPos start model in
         let rDot = 4 in
         let opacity =
-              if List.member (DeuceExpTarget id) model.deuceState.selectedWidgets && not (needsRun model)
+              if List.member deuceWidget model.deuceState.selectedWidgets && not (needsRun model)
               then "1.0"
-              else if List.member (DeuceExpTarget id) model.deuceState.hoveredWidgets && showDeuceWidgets model
+              else if List.member deuceWidget model.deuceState.hoveredWidgets && showDeuceWidgets model
                 then "1.0"
                 else "0.0"
               in
@@ -498,36 +485,9 @@ expTargetIndicator targets model layout =
                 , LangSvg.attr "cx" (toString (pixelPos.x - model.codeBoxInfo.gutterWidth - model.codeBoxInfo.offsetLeft + model.codeBoxInfo.characterWidth/2))
                 , LangSvg.attr "cy" (toString (pixelPos.y))
                 , LangSvg.attr "r" (toString rDot)
-                , onClick (Controller.msgMouseClickDeuceWidget (DeuceExpTarget id))
-                , onMouseOver (Controller.msgMouseEnterDeuceWidget (DeuceExpTarget id))
-                , onMouseLeave (Controller.msgMouseLeaveDeuceWidget (DeuceExpTarget id))
-                ]]
-  in
-  List.concatMap indicator targets
-
-patTargetIndicator targets model layout =
-  let indicator target =
-    case target of
-      (pid, start, end) ->
-        let pixelPos = rowColToPixelPos start model in
-        let rDot = 4 in
-        let opacity =
-              if List.member (DeucePatTarget pid) model.deuceState.selectedWidgets && not (needsRun model)
-              then "1.0"
-              else
-                if List.member (DeucePatTarget pid) model.deuceState.hoveredWidgets && showDeuceWidgets model
-                then "1.0"
-                else "0.0"
-              in
-              [flip Svg.circle []
-                [ LangSvg.attr "fill" "black"
-                , LangSvg.attr "fill-opacity" opacity
-                , LangSvg.attr "cx" (toString (pixelPos.x - model.codeBoxInfo.gutterWidth - model.codeBoxInfo.offsetLeft + model.codeBoxInfo.characterWidth/2))
-                , LangSvg.attr "cy" (toString (pixelPos.y))
-                , LangSvg.attr "r" (toString rDot)
-                , onClick (Controller.msgMouseClickDeuceWidget (DeucePatTarget pid))
-                , onMouseOver (Controller.msgMouseEnterDeuceWidget (DeucePatTarget pid))
-                , onMouseLeave (Controller.msgMouseLeaveDeuceWidget (DeucePatTarget pid))
+                , onClick (Controller.msgMouseClickDeuceWidget deuceWidget)
+                , onMouseOver (Controller.msgMouseEnterDeuceWidget deuceWidget)
+                , onMouseLeave (Controller.msgMouseLeaveDeuceWidget deuceWidget)
                 ]]
   in
   List.concatMap indicator targets

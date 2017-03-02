@@ -209,31 +209,19 @@ leadingNewlines lines total =
         _ -> total
     Nothing -> total
 
-expBoundingPolygon exp =
-  let start = exp.start in
-  let end = exp.end in
-  let string = unparse exp in
-  let lines = String.lines string in
-  if List.length lines == 1 && start.line == end.line
-  then
-    let s = start.line in
-    (exp, Dict.fromList [(s, (start.col - 1, end.col - 1))])
-  else
-    let leading = leadingNewlines (Just lines) 0 in
-    let output = lineStartEnd (Just lines) (start.line - leading) start end (Dict.empty) in
-    (exp, output)
+patBoundingPolygon = boundingPolygon unparsePat
+expBoundingPolygon = boundingPolygon unparse
 
-patBoundingPolygon pat =
-  let start = pat.start in
-  let end = pat.end in
-  -- difference from expBoundingPolygon: unparsePat instead of unparse
-  let string = unparsePat pat in
+boundingPolygon unparseExpOrPat expOrPat =
+  let start = expOrPat.start in
+  let end = expOrPat.end in
+  let string = unparseExpOrPat expOrPat in
   let lines = String.lines string in
   if List.length lines == 1 && start.line == end.line
   then
     let s = start.line in
-    (pat, Dict.fromList [(s, (start.col - 1, end.col - 1))])
+    (expOrPat, Dict.fromList [(s, (start.col - 1, end.col - 1))])
   else
     let leading = leadingNewlines (Just lines) 0 in
     let output = lineStartEnd (Just lines) (start.line - leading) start end (Dict.empty) in
-    (pat, output)
+    (expOrPat, output)
