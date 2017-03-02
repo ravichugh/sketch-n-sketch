@@ -466,31 +466,54 @@ expTargetIndicator = targetIndicator DeuceExpTarget
 patTargetIndicator = targetIndicator DeucePatTarget
 
 targetIndicator deuceWidgetConstructor targets model layout =
-  let indicator target =
-    case target of
-      (id, start, end) ->
-        let deuceWidget = deuceWidgetConstructor id in
-        let pixelPos = rowColToPixelPos start model in
-        let rDot = 4 in
-        let opacity =
-              if List.member deuceWidget model.deuceState.selectedWidgets && not (needsRun model)
-              then "1.0"
-              else if List.member deuceWidget model.deuceState.hoveredWidgets && showDeuceWidgets model
-                then "1.0"
-                else "0.0"
-              in
-              [flip Svg.circle []
-                [ LangSvg.attr "fill" "black"
-                , LangSvg.attr "fill-opacity" opacity
-                , LangSvg.attr "cx" (toString (pixelPos.x - model.codeBoxInfo.gutterWidth - model.codeBoxInfo.offsetLeft + model.codeBoxInfo.characterWidth/2))
-                , LangSvg.attr "cy" (toString (pixelPos.y))
-                , LangSvg.attr "r" (toString rDot)
-                , onClick (Controller.msgMouseClickDeuceWidget deuceWidget)
-                , onMouseOver (Controller.msgMouseEnterDeuceWidget deuceWidget)
-                , onMouseLeave (Controller.msgMouseLeaveDeuceWidget deuceWidget)
-                ]]
+  let drawTarget deuceWidget pixelPos color opacity numRings =
+    let rDot = 4 in
+    let (cx, cy) =
+      ( toString <|
+          pixelPos.x - model.codeBoxInfo.gutterWidth
+                     - model.codeBoxInfo.offsetLeft
+                     + model.codeBoxInfo.characterWidth / 2
+      -- TODO should pixelPos calculations take care of all these offsets?
+      , toString <|
+          pixelPos.y - model.codeBoxInfo.offsetHeight
+                     + model.codeBoxInfo.lineHeight / 2
+      )
+    in
+    let rings =
+      flip List.map (List.range 1 numRings) <| \i ->
+        flip Svg.circle [] <|
+          [ LangSvg.attr "fill" "none"
+          , LangSvg.attr "fill-opacity" opacity
+          , LangSvg.attr "stroke" color
+          , LangSvg.attr "stroke-width" (toString (rDot//2))
+          , LangSvg.attr "cx" cx, LangSvg.attr "cy" cy
+          , LangSvg.attr "r" (toString ((i+1) * rDot))
+          ]
+    in
+    let center =
+      flip Svg.circle [] <|
+        [ LangSvg.attr "fill" color
+        , LangSvg.attr "fill-opacity" opacity
+        , LangSvg.attr "cx" cx, LangSvg.attr "cy" cy
+        , LangSvg.attr "r" (toString rDot)
+        , onClick (Controller.msgMouseClickDeuceWidget deuceWidget)
+        , onMouseOver (Controller.msgMouseEnterDeuceWidget deuceWidget)
+        , onMouseLeave (Controller.msgMouseLeaveDeuceWidget deuceWidget)
+        ]
+    in
+    center :: rings
   in
-  List.concatMap indicator targets
+  flip List.concatMap targets <| \(id, start, end) ->
+    let deuceWidget = deuceWidgetConstructor id in
+    let pixelPos = rowColToPixelPos start model in
+    if List.member deuceWidget model.deuceState.selectedWidgets && not (needsRun model) then
+      drawTarget deuceWidget pixelPos "darkgreen" "1.0" 3
+    else if List.member deuceWidget model.deuceState.hoveredWidgets && showDeuceWidgets model then
+      drawTarget deuceWidget pixelPos "red" "1.0" 3
+    else
+      -- TODO: want to return [], but then targets are never drawn
+      -- []
+      drawTarget deuceWidget pixelPos "white" "0.0" 0
 
 getBoxWidth start end m =
   let offSet = if start.line == end.line then 0 else 1 in
@@ -500,6 +523,7 @@ getBoxWidth start end m =
 getBoxHeight start end m =
   let lines = end.line - start.line + 1 in
   toFloat(lines) * m.codeBoxInfo.lineHeight
+
 
 --------------------------------------------------------------------------------
 -- Output Box
