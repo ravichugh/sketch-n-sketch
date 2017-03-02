@@ -1271,14 +1271,25 @@ deuceLayer model layout =
             ] (List.reverse svgWidgets)
 
 computePolygonPoints rcs model layout =
+  let pad = 3 in
   let traverse leftSide =
     let maybeReverse = if leftSide then identity else List.reverse in
     let things = maybeReverse (Dict.toList (Tuple.second rcs)) in
-    flip List.concatMap things <| \(k,(c1,c2)) ->
+    let n = List.length things in
+    flip Utils.concatMapi1 things <| \(i,(k,(c1,c2))) ->
       let c = if leftSide then c1 else c2 in
       let topOffset = rowColToPixelPos {line = k, col = c} model in
-      let top = {x=topOffset.x - model.codeBoxInfo.gutterWidth, y=topOffset.y - model.codeBoxInfo.offsetHeight} in
-      let bottom = {x=top.x, y=top.y + model.codeBoxInfo.lineHeight} in
+      let dx = if leftSide then -pad else pad in
+      let dyTop = if (leftSide && i == 1) || i == n then -pad else 0 in
+      let dyBot = if (leftSide && i == n) || i == 1 then  pad else 0 in
+      let top =
+         { x = topOffset.x - model.codeBoxInfo.gutterWidth + dx
+         , y = topOffset.y - model.codeBoxInfo.offsetHeight + dyTop
+         } in
+      let bottom =
+         { x = top.x
+         , y = top.y + model.codeBoxInfo.lineHeight + dyBot
+         } in
       if leftSide then [top, bottom] else [bottom, top]
   in
   let left = traverse True in
