@@ -1274,7 +1274,7 @@ computePolygonPoints rcs model layout =
   let pad = 3 in
   let traverse leftSide =
     let maybeReverse = if leftSide then identity else List.reverse in
-    let things = maybeReverse (Dict.toList (Tuple.second rcs)) in
+    let things = maybeReverse (Dict.toList rcs) in
     let n = List.length things in
     flip Utils.concatMapi1 things <| \(i,(k,(c1,c2))) ->
       let c = if leftSide then c1 else c2 in
@@ -1300,15 +1300,24 @@ computePolygonPoints rcs model layout =
 
 expBoundingPolygonPoints =
   boundingPolygonPoints List.reverse
-     (\exp -> (DeuceExp exp.val.eid, expBoundingPolygon exp))
+     (\exp -> 
+      case exp.val.e__ of 
+        Lang.ELet wsBef letKind rec pat exp1 exp2 wsAft -> 
+          case letKind of 
+            Lang.Let -> 
+              [expBoundingPolygon (DeuceEquation exp.val.eid) exp exp1,
+               expBoundingPolygon (DeuceExp exp.val.eid) exp exp]
+            Lang.Def -> [expBoundingPolygon (DeuceEquation exp.val.eid) exp exp2,
+                         expBoundingPolygon (DeuceExp exp.val.eid) exp exp]
+        _ ->
+          [expBoundingPolygon (DeuceExp exp.val.eid) exp exp])
 
 patBoundingPolygonPoints =
   boundingPolygonPoints identity
-     (\(pat,pid,_,_,_) -> (DeucePat pid, patBoundingPolygon pat))
+     (\(pat,pid,_,_,_) -> [patBoundingPolygon (DeucePat pid) pat pat])
 
 boundingPolygonPoints maybeReverse deuceWidgetAndBoundingPolygonOf exps model layout =
-  let calculate thing =
-    let (deuceWidget, boundingPolygon) = deuceWidgetAndBoundingPolygonOf thing in
+  let calculate (deuceWidget, boundingPolygon) =
     let points = computePolygonPoints boundingPolygon model layout in
     let color =
       if List.member deuceWidget model.deuceState.selectedWidgets && not (needsRun model)
@@ -1331,7 +1340,11 @@ boundingPolygonPoints maybeReverse deuceWidgetAndBoundingPolygonOf exps model la
           ] in
       textPolygon
   in
-  let polygons = maybeReverse (List.concatMap calculate exps) in
+  let calculatePolygons exp = 
+    let polygons = deuceWidgetAndBoundingPolygonOf exp in 
+    List.concatMap calculate polygons 
+  in 
+  let polygons = maybeReverse (List.concatMap calculatePolygons exps) in
   polygons
 
 expTargetIndicator = targetIndicator DeuceExpTarget

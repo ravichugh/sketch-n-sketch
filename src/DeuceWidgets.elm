@@ -209,19 +209,25 @@ leadingNewlines lines total =
         _ -> total
     Nothing -> total
 
-patBoundingPolygon = boundingPolygon unparsePat
-expBoundingPolygon = boundingPolygon unparse
+patBoundingPolygon id start end = boundingPolygon unparsePat id start end 
+expBoundingPolygon id start end = boundingPolygon unparse id start end 
 
-boundingPolygon unparseExpOrPat expOrPat =
+boundingPolygon unparseExpOrPat id expOrPat endExpOrPat =
   let start = expOrPat.start in
-  let end = expOrPat.end in
+  let end = endExpOrPat.end in
   let string = unparseExpOrPat expOrPat in
   let lines = String.lines string in
   if List.length lines == 1 && start.line == end.line
   then
     let s = start.line in
-    (expOrPat, Dict.fromList [(s, (start.col - 1, end.col - 1))])
+    (id, Dict.fromList [(s, (start.col - 1, end.col - 1))])
   else
     let leading = leadingNewlines (Just lines) 0 in
     let output = lineStartEnd (Just lines) (start.line - leading) start end (Dict.empty) in
-    (expOrPat, output)
+    case id of 
+      DeuceEquation _ -> 
+        let parenLine = Dict.get start.line output in 
+        case parenLine of
+            Just (firstLineStart, firstLineEnd) ->  (id, (Dict.insert start.line (firstLineStart + 1, firstLineEnd) output))
+            _ -> (id, output)
+      _ -> (id, output)
