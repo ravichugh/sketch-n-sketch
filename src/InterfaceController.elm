@@ -1085,9 +1085,10 @@ msgHoverSynthesisResult pathByIndices = Msg "Hover SynthesisResult" <| \old ->
     Just (SynthesisResult {description, exp, sortKey, children}) ->
       let newModel = { old | hoveredSynthesisResultPathByIndicies = pathByIndices } in
       let newModel2 =
-        case children of
-          Just _  -> newModel -- Children already computed.
-          Nothing ->
+        case (old.autoSynthesis, children) of
+          (_, Just _)  -> newModel -- Children already computed.
+          (False, _)   -> newModel -- Don't compute children if auto-synth off
+          _            ->
             -- Compute child results.
             let childResults = cleanDedupSortSynthesisResults (ETransform.passiveSynthesisSearch exp) in
             let newTopLevelResults = setResultChildren pathByIndices childResults old.synthesisResults in
