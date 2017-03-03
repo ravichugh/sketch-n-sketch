@@ -1298,29 +1298,29 @@ computePolygonPoints rcs model layout =
     toString(point.x) ++ "," ++ toString(point.y) ++ " " ++ acc in
   List.foldr combine  "" (left ++ right)
 
-isDefExp exp = 
+isDefExp exp =
   case exp.val.e__ of
     Lang.ELet wsBef letKind rec pat exp1 exp2 wsAft ->
-      case letKind of 
+      case letKind of
         Lang.Def -> (True, exp2)
         _ -> (False, exp)
     _ -> (False, exp)
 
-findFirstNonDef exp = 
-  case isDefExp(exp) of
+findFirstNonDef exp =
+  case isDefExp exp of
     (True, secondExp) -> findFirstNonDef secondExp
-    _ -> exp 
+    _ -> exp
 
 expBoundingPolygonPoints =
   boundingPolygonPoints List.reverse
-     (\exp -> 
-      case exp.val.e__ of 
-        Lang.ELet wsBef letKind rec pat exp1 exp2 wsAft -> 
-          case letKind of 
-            Lang.Let -> 
-              [expBoundingPolygon (DeuceEquation exp.val.eid) exp exp1,
+     (\exp ->
+      case exp.val.e__ of
+        Lang.ELet wsBef letKind rec pat exp1 exp2 wsAft ->
+          case letKind of
+            Lang.Let ->
+              [expBoundingPolygon (DeuceEquation (exp.val.eid, 1)) exp exp1,
                expBoundingPolygon (DeuceExp exp.val.eid) exp exp]
-            Lang.Def -> [expBoundingPolygon (DeuceEquation exp.val.eid) exp exp,
+            Lang.Def -> [expBoundingPolygon (DeuceEquation (exp.val.eid, 1)) exp exp,
                          expBoundingPolygon (DeuceExp exp.val.eid) exp (findFirstNonDef exp)]
         _ ->
           [expBoundingPolygon (DeuceExp exp.val.eid) exp exp])
@@ -1329,6 +1329,13 @@ patBoundingPolygonPoints =
   boundingPolygonPoints identity
      (\(pat,pid,_,_,_) -> [patBoundingPolygon (DeucePat pid) pat pat])
 
+boundingPolygonPoints :
+    (List (Svg Msg) -> List (Svg Msg))
+    -> (c -> List ( DeuceWidget, Dict.Dict Int ( Int, Int ) ))
+    -> List c
+    -> Model
+    -> f
+    -> List (Svg Msg)
 boundingPolygonPoints maybeReverse deuceWidgetAndBoundingPolygonOf exps model layout =
   let calculate (deuceWidget, boundingPolygon) =
     let points = computePolygonPoints boundingPolygon model layout in
@@ -1353,10 +1360,10 @@ boundingPolygonPoints maybeReverse deuceWidgetAndBoundingPolygonOf exps model la
           ] in
       textPolygon
   in
-  let calculatePolygons exp = 
-    let polygons = deuceWidgetAndBoundingPolygonOf exp in 
-    List.concatMap calculate polygons 
-  in 
+  let calculatePolygons exp =
+    let polygons = deuceWidgetAndBoundingPolygonOf exp in
+    List.concatMap calculate polygons
+  in
   let polygons = maybeReverse (List.concatMap calculatePolygons exps) in
   polygons
 

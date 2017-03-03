@@ -22,7 +22,7 @@ type DeuceWidget
   | DeucePat PatternId
   | DeuceEquation ScopeId
   | DeuceExpTarget ExpTargetPosition
-  | DeucePatTarget PatTargetPosition 
+  | DeucePatTarget PatTargetPosition
 
 emptyDeuceState : DeuceState
 emptyDeuceState =
@@ -34,50 +34,57 @@ resetDeuceState m = { m | deuceState = emptyDeuceState }
 
 --------------------------------------------------------------------------------
 
+
+-- Returns list of (pat, patId, startPos, endPos, selectionZoneEndPos)
+--
+-- For selecting a code element.
+findPats : Exp -> List (Pat, PatternId, P.Pos, P.Pos, P.Pos)
 findPats e =
   let find e acc =
     case e.val.e__ of
-      EFun _ (p::ps) _ _    -> List.concatMap (computePatRanges e.val.eid [] []) (p::ps) ++ acc
-      ETypeCase _ p _ _     -> (computePatRanges e.val.eid [] [] p) ++ acc
-      ELet _ _ _ p _ _ _    -> (computePatRanges e.val.eid [] [] p) ++ acc
-      ETyp _ p _ _ _        -> (computePatRanges e.val.eid [] [] p) ++ acc
-      ETypeAlias _ p _ _ _  -> (computePatRanges e.val.eid [] [] p) ++ acc
+      -- TODO: Support ECase
+      EFun _ (p::ps) _ _    -> Utils.concatMapi1 (\(i,p) -> computePatRanges (e.val.eid, 1) [] [i] p) (p::ps) ++ acc
+      ETypeCase _ p _ _     -> (computePatRanges (e.val.eid, 1) [] [] p) ++ acc
+      ELet _ _ _ p _ _ _    -> (computePatRanges (e.val.eid, 1) [] [] p) ++ acc
+      ETyp _ p _ _ _        -> (computePatRanges (e.val.eid, 1) [] [] p) ++ acc
+      ETypeAlias _ p _ _ _  -> (computePatRanges (e.val.eid, 1) [] [] p) ++ acc
       _                     -> acc
   in
   foldExp find [] e
 
-computePatRanges expId path addPath pat =
-  let baseResult = [(pat, (expId, path ++ addPath), pat.start, pat.end, pat.end)] in
+computePatRanges scopeId path addPath pat =
+  let baseResult = [(pat, (scopeId, path ++ addPath), pat.start, pat.end, pat.end)] in
   case pat.val of
     PConst _ _              -> baseResult
     PBase _ _               -> baseResult
     PVar _ x _              -> baseResult
-    PList _ ps _ Nothing _  -> [(pat, (expId, path ++ addPath), pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })]
-                                ++ Utils.concatMapi1 (\(i,p) -> (computePatRanges expId (path ++ addPath) [i] p)) ps
-    PList _ ps _ (Just p) _ -> [(pat, (expId, path ++ addPath), pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })]
-                                ++ Utils.concatMapi1 (\(i,p) -> (computePatRanges expId (path ++ addPath) [i] p)) (p::ps)
+    PList _ ps _ Nothing _  -> [(pat, (scopeId, path ++ addPath), pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })]
+                                ++ Utils.concatMapi1 (\(i,p) -> (computePatRanges scopeId (path ++ addPath) [i] p)) ps
+    PList _ ps _ (Just p) _ -> [(pat, (scopeId, path ++ addPath), pat.start, pat.end, { line = pat.start.line, col = pat.start.col + 1 })]
+                                ++ Utils.concatMapi1 (\(i,p) -> (computePatRanges scopeId (path ++ addPath) [i] p)) (p::ps)
     PAs _ x _ p             -> case addPath of
                                 [n] -> baseResult
-                                        ++ computePatRanges expId (path ++ addPath) [n + 1] p
+                                        ++ computePatRanges scopeId (path ++ addPath) [n + 1] p
                                 _   -> baseResult
 
+-- For inserting a code element between other elements
 findPatTargets e =
   let find e acc =
     case e.val.e__ of
-      EFun _ (p::ps) _ _    -> List.concatMap (computePatTargets e.val.eid [] []) (p::ps) ++ acc
-      ETypeCase _ p _ _     -> computePatTargets e.val.eid [] [] p ++ acc
-      ELet _ _ _ p _ _ _    -> computePatTargets e.val.eid [] [] p ++ acc
-      ETyp _ p _ _ _        -> computePatTargets e.val.eid [] [] p ++ acc
-      ETypeAlias _ p _ _ _  -> computePatTargets e.val.eid [] [] p ++ acc
+      EFun _ (p::ps) _ _    -> Utils.concatMapi1 (\(i,p) -> computePatTargets (e.val.eid, 1) [] [i] p) (p::ps) ++ acc
+      ETypeCase _ p _ _     -> computePatTargets (e.val.eid, 1) [] [] p ++ acc
+      ELet _ _ _ p _ _ _    -> computePatTargets (e.val.eid, 1) [] [] p ++ acc
+      ETyp _ p _ _ _        -> computePatTargets (e.val.eid, 1) [] [] p ++ acc
+      ETypeAlias _ p _ _ _  -> computePatTargets (e.val.eid, 1) [] [] p ++ acc
       _ -> acc
   in
   foldExp find [] e
 
-computePatTargets expId path addPath pat =
-  let baseBefore = ((0,(expId, path ++ addPath)),
+computePatTargets scopeId path addPath pat =
+  let baseBefore = ((0,(scopeId, path ++ addPath)),
                     {line = pat.start.line, col = pat.start.col - 1},
                     {line = pat.start.line, col = pat.start.col}) in
-  let baseAfter =  ((1,(expId, path ++ addPath)),
+  let baseAfter =  ((1,(scopeId, path ++ addPath)),
                     {line = pat.end.line, col = pat.end.col},
                     {line = pat.end.line, col = pat.end.col + 1}) in
   case pat.val of
@@ -85,12 +92,12 @@ computePatTargets expId path addPath pat =
     PBase ws _                    -> [baseBefore, baseAfter]
     PVar ws x _                   -> [baseBefore, baseAfter]
     PList ws1 ps ws2 Nothing ws3  -> [baseBefore, baseAfter]
-                                      ++ Utils.concatMapi1 (\(i,p) -> (computePatTargets expId (path ++ addPath) [i] p)) ps
+                                      ++ Utils.concatMapi1 (\(i,p) -> (computePatTargets scopeId (path ++ addPath) [i] p)) ps
     PList ws1 ps ws2 (Just p) ws3 -> [baseBefore, baseAfter]
-                                      ++ Utils.concatMapi1 (\(i,p) -> (computePatTargets expId (path ++ addPath) [i] p)) (p::ps)
+                                      ++ Utils.concatMapi1 (\(i,p) -> (computePatTargets scopeId (path ++ addPath) [i] p)) (p::ps)
     PAs ws1 x ws2 p               -> case addPath of
                                       [n] -> [baseBefore, baseAfter]
-                                              ++ computePatTargets expId (path ++ addPath) [n + 1] p
+                                              ++ computePatTargets scopeId (path ++ addPath) [n + 1] p
                                       _   -> [baseBefore, baseAfter]
 
 -- positions: start, end, start of selection area, end of selection area
@@ -209,9 +216,30 @@ leadingNewlines lines total =
         _ -> total
     Nothing -> total
 
-patBoundingPolygon id start end = boundingPolygon unparsePat id start end 
-expBoundingPolygon id start end = boundingPolygon unparse id start end 
 
+
+patBoundingPolygon :
+    DeuceWidget
+    -> Pat
+    -> { a | end : P.Pos }
+    -> ( DeuceWidget, Dict Int ( Int, Int ) )
+patBoundingPolygon id pat end = boundingPolygon unparsePat id pat end
+
+
+expBoundingPolygon :
+    DeuceWidget
+    -> Exp
+    -> { a | end : P.Pos }
+    -> ( DeuceWidget, Dict Int ( Int, Int ) )
+expBoundingPolygon id exp end = boundingPolygon unparse id exp end
+
+
+boundingPolygon :
+    ({ a | start : P.Pos } -> String)
+    -> DeuceWidget
+    -> { a | start : P.Pos }
+    -> { b | end : P.Pos }
+    -> ( DeuceWidget, Dict Int ( Int, Int ) )
 boundingPolygon unparseExpOrPat id expOrPat endExpOrPat =
   let start = expOrPat.start in
   let end = endExpOrPat.end in
@@ -224,9 +252,9 @@ boundingPolygon unparseExpOrPat id expOrPat endExpOrPat =
   else
     let leading = leadingNewlines (Just lines) 0 in
     let output = lineStartEnd (Just lines) (start.line - leading) start end (Dict.empty) in
-    case id of 
-      DeuceEquation _ -> 
-        let parenLine = Dict.get start.line output in 
+    case id of
+      DeuceEquation _ ->
+        let parenLine = Dict.get start.line output in
         case parenLine of
             Just (firstLineStart, firstLineEnd) ->  (id, (Dict.insert start.line (firstLineStart + 1, firstLineEnd) output))
             _ -> (id, output)

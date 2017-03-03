@@ -119,7 +119,7 @@ simplify exp =
     let firstTwoSimplified =
       e
       |> inlineTrivialRenamings
-      -- |> removeUnusedVars
+      |> removeUnusedVars
     in
     if firstTwoSimplified == e then
       e

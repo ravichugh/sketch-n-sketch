@@ -189,6 +189,17 @@ removeAsSet : a -> List a -> List a
 removeAsSet x xs =
   List.filter ((/=) x) xs
 
+-- O(nm)
+isSublistAsSet : List a -> List a -> Bool
+isSublistAsSet sub super =
+  sub |> List.all (\x -> List.member x super)
+
+-- O(n^2)
+equalAsSets : List a -> List a -> Bool
+equalAsSets a b =
+  isSublistAsSet a b && isSublistAsSet b a
+
+
 groupBy : (a -> comparable) -> List a -> Dict.Dict comparable (List a)
 groupBy f xs =
   List.foldl
@@ -411,8 +422,8 @@ mapFirstSuccess f list =
         Just result -> Just result
         Nothing     -> mapFirstSuccess f xs
 
-orTry : Maybe a -> (() -> Maybe a) -> Maybe a
-orTry maybe1 lazyMaybe2 =
+firstOrLazySecond : Maybe a -> (() -> Maybe a) -> Maybe a
+firstOrLazySecond maybe1 lazyMaybe2 =
   case maybe1 of
     Just x  -> maybe1
     Nothing -> lazyMaybe2 ()
@@ -633,6 +644,7 @@ plusMaybe mx my = case mx of
 firstMaybe : List (Maybe a) -> Maybe a
 firstMaybe list = List.foldr plusMaybe Nothing list
 
+-- Use Maybe.withDefault (note: argument order is reversed)
 elseMaybe : Maybe a -> a -> a
 elseMaybe mx default = case mx of
   Just x  -> x
