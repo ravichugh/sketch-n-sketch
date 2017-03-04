@@ -219,6 +219,8 @@ app.ports.aceCodeBoxCmd.subscribe(function(aceCmd) {
     editor.setFontSize(fontSize);
     display(aceCmd.info);
 
+  } else if (message == "changeScroll") {
+
   } else {
     console.log("[aceCodeBox.js] unexpected message: " + message);
   }
