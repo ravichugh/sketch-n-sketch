@@ -24,20 +24,15 @@ function initialize() {
       app.ports.receiveEditorState.send(info);
   });
 
-/*
   editor.getSession().on("changeScrollTop", function() {
-      console.log("changeScrollTop");
-      var nodes = document.getElementsByClassName("ace_content");
-      console.log(nodes[0].offsetTop);
-      console.log(nodes[0].style["margin-top"]);
+      var info = getEditorState();
+      app.ports.receiveEditorState.send(info);
+
   });
   editor.getSession().on("changeScrollLeft", function() {
-      console.log("changeScrollLeft");
-      var nodes = document.getElementsByClassName("ace_content");
-      console.log(nodes[0].offsetLeft);
-      console.log(nodes[0].style["margin-left"]);
+      var info = getEditorState();
+      app.ports.receiveEditorState.send(info);
   });
-*/
 
 }
 

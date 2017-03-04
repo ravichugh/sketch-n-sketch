@@ -1,5 +1,5 @@
 port module AceCodeBox exposing
-  ( initializeAndDisplay, display, resize, updateFontSize
+  ( initializeAndDisplay, display, resize, updateFontSize, changeScroll
   , receiveEditorState
   )
 
@@ -22,6 +22,7 @@ initializeAndDisplay  = sendCmd "initializeAndDisplay"
 display               = sendCmd "display"
 resize                = sendCmd "resize"
 updateFontSize        = sendCmd "updateFontSize"
+changeScroll          = sendCmd "changeScroll"
 
 sendCmd message model =
   aceCodeBoxCmd <|

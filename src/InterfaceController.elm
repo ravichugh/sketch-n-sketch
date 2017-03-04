@@ -589,7 +589,7 @@ issueCommand (Msg kind _) oldModel newModel =
         if newModel.autosave && newModel.needsSave then
           FileHandler.write <| getFile newModel
         else
-          Cmd.none
+          AceCodeBox.changeScroll newModel
 
     "Open Dialog Box" ->
       FileHandler.requestFileIndex ()
