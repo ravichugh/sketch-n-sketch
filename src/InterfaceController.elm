@@ -424,7 +424,8 @@ dragSource pixelPos m =
   -- TODO: Allow selection of ECase patterns
   let maybePatId = getClickedPat (findPats m.inputExp) pixelPos m in
   let maybeEId   = getClickedEId (computeExpRanges m.inputExp) pixelPos in
-  case Debug.log "source maybeEId, source maybePatId" (maybeEId, maybePatId) of
+  -- case Debug.log "source maybeEId, source maybePatId" (maybeEId, maybePatId) of
+  case (maybeEId, maybePatId) of
     (Nothing, Just pid) -> Just (Left pid)
     (Just eid, _)       -> Just (Right eid)
     _                   -> Nothing
@@ -1469,6 +1470,9 @@ onMouseDrag
 onMouseDrag dragSource dragTarget m =
   if showDeuceWidgets m
   then
+    let _ = Debug.log "ignoring drag" (dragSource, dragTarget) in
+    m
+{-
     let new = resetDeuceState m in
     case Debug.log "source, target" (dragSource, dragTarget) of
       (Just (Left sourcePatId), Just (ExpTargetPosition (Before, targetEId))) ->
@@ -1477,6 +1481,7 @@ onMouseDrag dragSource dragTarget m =
         movePatToPat sourcePatId (patTargetPositionToTargetPatId patTargetPosition) new
       _ ->
         new
+-}
   else
     m
 
