@@ -411,6 +411,11 @@ removeLastElement : List a -> List a
 removeLastElement list =
   List.take ((List.length list)-1) list
 
+maybeMapLastElement : (a -> a) -> List a -> Maybe (List a)
+maybeMapLastElement f list =
+  maybeLast list
+  |> Maybe.map (\last -> removeLastElement list ++ [f last])
+
 -- Equivalent to Maybe.oneOf (List.map f list)
 -- but maps the list lazily to return early
 mapFirstSuccess : (a -> Maybe b) -> List a -> Maybe b
@@ -450,7 +455,7 @@ replacei i xi_ xs = List.take (i-1) xs ++ [xi_] ++ List.drop i xs
 removei : Int -> List a -> List a
 removei i xs = List.take (i-1) xs ++ List.drop i xs
 
--- 1-based
+-- 1-based; inserts so element is at position i in resulting list
 inserti : Int -> a -> List a -> List a
 inserti i xi_ xs = List.take (i-1) xs ++ [xi_] ++ List.drop (i-1) xs
 
@@ -595,7 +600,11 @@ dictUnionSet
 dictUnionSet k more dict =
   Dict.insert k (Set.union more (dictGetSet k dict)) dict
 
-maybeLast = List.reverse >> List.head
+maybeLast list =
+  case list of
+    []    -> Nothing
+    [x]   -> Just x
+    _::xs -> maybeLast xs
 
 head msg = fromJust_ msg << List.head
 last msg = fromJust_ msg << maybeLast

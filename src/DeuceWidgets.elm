@@ -81,10 +81,10 @@ findPatTargets e =
   foldExp find [] e
 
 computePatTargets scopeId path addPath pat =
-  let baseBefore = ((0,(scopeId, path ++ addPath)),
+  let baseBefore = ((Before, (scopeId, path ++ addPath)),
                     {line = pat.start.line, col = pat.start.col - 1},
                     {line = pat.start.line, col = pat.start.col}) in
-  let baseAfter =  ((1,(scopeId, path ++ addPath)),
+  let baseAfter =  ((After, (scopeId, path ++ addPath)),
                     {line = pat.end.line, col = pat.end.col},
                     {line = pat.end.line, col = pat.end.col + 1}) in
   case pat.val of
@@ -127,11 +127,11 @@ computeExpRanges e =
 computeExpTargets : Exp -> List (ExpTargetPosition, P.Pos, P.Pos)
 computeExpTargets e =
   let combine e acc =
-    let baseTargets =    [((0,e.val.eid), { line = e.start.line, col = e.start.col - 1 }, e.start),
-                          ((1,e.val.eid),  e.end, { line = e.end.line, col = e.end.col + 1 })] ++ acc
+    let baseTargets =    [((Before, e.val.eid), { line = e.start.line, col = e.start.col - 1 }, e.start),
+                          ((After,  e.val.eid),  e.end, { line = e.end.line, col = e.end.col + 1 })] ++ acc
     in
-    let offsetTargets =  [((0,e.val.eid), e.start, { line = e.start.line, col = e.start.col + 1 }),
-                          ((1,e.val.eid), { line = e.end.line, col = e.end.col - 1 }, e.end)] ++ acc
+    let offsetTargets =  [((Before, e.val.eid), e.start, { line = e.start.line, col = e.start.col + 1 }),
+                          ((After,  e.val.eid), { line = e.end.line, col = e.end.col - 1 }, e.end)] ++ acc
     in
     case e.val.e__ of
       EConst _ _ _ _        -> baseTargets

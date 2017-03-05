@@ -1063,6 +1063,13 @@ expToLetKind exp =
     _                   -> Debug.crash <| "LangTools.expToLetKind exp is not an ELet: " ++ unparseWithIds exp
 
 
+expToLetPat : Exp -> Pat
+expToLetPat exp =
+  case exp.val.e__ of
+    ELet _ _ _ pat _ _ _ -> pat
+    _                    -> Debug.crash <| "LangTools.expToLetPat exp is not an ELet: " ++ unparseWithIds exp
+
+
 expToLetBody : Exp -> Exp
 expToLetBody exp =
   case exp.val.e__ of

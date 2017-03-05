@@ -181,7 +181,7 @@ type alias ScopeId = (EId, Int) -- ELet/EFun/ECase. Int is the branch number for
 
 type alias PatternId = (ScopeId, List Int)
 
-type alias BeforeAfter = Int -- 0 for Before, 1 for After
+type BeforeAfter = Before | After
 
 type alias PatTargetPosition = (BeforeAfter, PatternId)
 
@@ -190,6 +190,13 @@ type alias ExpTargetPosition = (BeforeAfter, EId)
 type TargetPosition
   = ExpTargetPosition ExpTargetPosition
   | PatTargetPosition PatTargetPosition
+
+
+-- Increment last path index by 1
+patIdRightSibling : PatternId -> Maybe PatternId
+patIdRightSibling (scopeId, path) =
+  Utils.maybeMapLastElement ((+) 1) path
+  |> Maybe.map (\newPath -> (scopeId, newPath))
 
 
 ------------------------------------------------------------------------------

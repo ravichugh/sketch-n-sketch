@@ -423,7 +423,7 @@ dragSource pixelPos m =
   -- TODO: Allow selection of ECase patterns
   let maybePatId = getClickedPat (findPats m.inputExp) pixelPos m in
   let maybeEId   = getClickedEId (computeExpRanges m.inputExp) pixelPos in
-  case (maybeEId, maybePatId) of
+  case Debug.log "source maybeEId, source maybePatId" (maybeEId, maybePatId) of
     (Nothing, Just pid) -> Just (Left pid)
     (Just eid, _)       -> Just (Right eid)
     _                   -> Nothing
@@ -434,8 +434,8 @@ dragTarget pixelPos m =
   let target = case List.head expTarget of
                 Nothing       -> case List.head patTarget of
                                     Nothing         -> Nothing
-                                    Just firstPat   -> Just (Left firstPat)
-                Just etarget  -> Just (Right etarget) in
+                                    Just firstPat   -> Just (PatTargetPosition firstPat)
+                Just etarget  -> Just (ExpTargetPosition etarget) in
   target
 
 tryRun : Model -> Result (String, Maybe Ace.Annotation) Model
@@ -1462,21 +1462,31 @@ msgReceiveDotImage s = Msg "Receive Image" <| \m ->
 
 onMouseDrag
     : Maybe (Either PatternId EId)
-   -> Maybe (Either PatTargetPosition ExpTargetPosition)
+   -> Maybe TargetPosition
    -> Model -> Model
 onMouseDrag dragSource dragTarget m =
   if showDeuceWidgets m
   then
     let new = resetDeuceState m in
-    case (dragSource, dragTarget) of
-      (Just (Left sourcePat), Just (Right (0, targetId))) ->
-        movePatBeforeEId sourcePat targetId new
-      (Just (Left sourcePat), Just (Left targetPat)) ->
-        movePatToPat sourcePat targetPat new
+    case Debug.log "source, target" (dragSource, dragTarget) of
+      (Just (Left sourcePatId), Just (ExpTargetPosition (Before, targetEId))) ->
+        movePatBeforeEId sourcePatId targetEId new
+      (Just (Left sourcePatId), Just (PatTargetPosition patTargetPosition)) ->
+        movePatToPat sourcePatId (patTargetPositionToTargetPatId patTargetPosition) new
       _ ->
         new
   else
     m
+
+
+patTargetPositionToTargetPatId : PatTargetPosition -> PatternId
+patTargetPositionToTargetPatId (beforeAfter, referencePatId) =
+  case beforeAfter of
+    Before -> referencePatId
+    After  ->
+      patIdRightSibling referencePatId
+      |> Utils.fromJust_ ("invalid target pattern id path of [] in target path position: " ++ toString (beforeAfter, referencePatId))
+
 
 msgMoveExp = Msg "Move Exp" <| \m -> m
   --let selections =
@@ -1507,9 +1517,28 @@ msgMoveExp = Msg "Move Exp" <| \m -> m
 
 
 movePatBeforeEId sourcePatId targetEId model =
+  let (safeResults, unsafeResults) =
+    CodeMotion.moveDefinitionBeforeEId sourcePatId targetEId model.inputExp
+  in
+  updateWithMoveExpResults model (safeResults, unsafeResults)
+
+
+movePatToPat sourcePatId targetPatId model =
+  let (safeResults, unsafeResults) =
+    CodeMotion.moveDefinitionPat sourcePatId targetPatId model.inputExp
+  in
+  updateWithMoveExpResults model (safeResults, unsafeResults)
+
+
+-- movePatToPat_ bad sourcePat targetPat targetPats m =
+--  if singleLogicalTarget targetPat targetPats
+--    then movePatToPat sourcePat targetPat m
+--    else bad ()
+
+updateWithMoveExpResults model (safeResults, unsafeResults) =
   -- If exactly one result and it is safe, apply the update to the code immediately.
   -- Otherwise, place results in the synthesis results box.
-  case CodeMotion.moveDefinitionBeforeEId sourcePatId targetEId model.inputExp of
+  case (safeResults, unsafeResults) of
     ([SynthesisResult safeResult], []) ->
       -- TODO version of upstateRun to avoid unparse then re-parse
       let newCode = unparse safeResult.exp in
@@ -1519,29 +1548,8 @@ movePatBeforeEId sourcePatId targetEId model =
       { model | synthesisResults = safeResults ++ unsafeResults }
 
 
-movePatToPat sourcePatId targetPatId model =
-  { model | synthesisResults = CodeMotion.moveDefinitionPat sourcePatId targetPatId model.inputExp }
-
-
-movePatToPat_ bad sourcePat targetPat targetPats m =
- if singleLogicalTarget targetPat targetPats
-   then movePatToPat sourcePat targetPat m
-   else bad ()
-
--- updateWithMoveExpResults new results = case results of
---   []       -> new
---   [SynthesisResult result] ->
---     if String.startsWith "[UNSAFE" result.description ||
---        String.startsWith "[WARN" result.description then
---       { new | synthesisResults = [SynthesisResult result] }
---     else
---       -- TODO version of upstateRun to avoid unparse then re-parse
---       let newCode = unparse result.exp in
---       upstateRun { new | code = newCode }
---   results  -> { new | synthesisResults = results }
-
-singleLogicalTarget target targets =
-  case targets of
-    []        -> True
-    [target2] -> True -- TODO check
-    _         -> False
+-- singleLogicalTarget target targets =
+--   case targets of
+--     []        -> True
+--     [target2] -> True -- TODO check
+--     _         -> False
