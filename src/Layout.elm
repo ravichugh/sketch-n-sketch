@@ -84,7 +84,8 @@ getPutAnimationToolBox = (getAnimationToolBox, putAnimationToolBox)
 getPutSynthesisResultsSelectBox = (getSynthesisResultsSelectBox, putSynthesisResultsSelectBox)
 getPutCodeBox          = (getCodeBox,          putCodeBox)
 getPutCanvas           = (getCanvas,           putCanvas)
-getPutTextToolBox = (getTextToolBox, putTextToolBox)
+getPutTextToolBox      = (getTextToolBox,      putTextToolBox)
+getPutDeuceToolBox     = (getDeuceToolBox,     putDeuceToolBox)
 
 getFileToolBox      = .layoutOffsets >> .fileToolBox
 getCodeToolBox      = .layoutOffsets >> .codeToolBox
@@ -98,6 +99,7 @@ getSynthesisResultsSelectBox = .layoutOffsets >> .synthesisResultsSelectBox
 getCodeBox          = .layoutOffsets >> .codeBox
 getCanvas           = .layoutOffsets >> .canvas
 getTextToolBox      = .layoutOffsets >> .textToolBox
+getDeuceToolBox     = .layoutOffsets >> .deuceToolBox
 
 putFileToolBox dx dy model =
   let layoutOffsets = model.layoutOffsets in
@@ -159,6 +161,12 @@ putTextToolBox dx dy model =
   { model | layoutOffsets =
     { layoutOffsets | textToolBox = { dx = dx, dy = dy } } }
 
+putDeuceToolBox dx dy model =
+  let layoutOffsets = model.layoutOffsets in
+  { model | layoutOffsets =
+    { layoutOffsets | deuceToolBox = { dx = dx, dy = dy } } }
+
+
 --------------------------------------------------------------------------------
 -- Handler for Resize Widgets
 
@@ -199,6 +207,7 @@ type alias Info =
   , synthesisResultsSelect : FixedPosition
   , captionArea : FixedPosition
   , textTools : FixedPosition
+  , deuceTools : FixedPosition
   }
 
 computeLayout : Model -> Info
@@ -277,6 +286,14 @@ computeLayout m =
      }
   , textTools = offset m getTextToolBox
      { leftRight = Left   <| dimCodeBox.left
-     , topBottom = Bottom    <| windowPadding -- + round (8.4 * (rowGap + buttonHeight))
+     , topBottom = Bottom <| windowPadding + (0 * (rowGap + buttonHeight))
+     }
+  , deuceTools = offset m getDeuceToolBox
+     { leftRight = Left   <| dimCanvas.initialLeft + fileAndCodeToolBoxRightOffset
+     , topBottom = Top    <| windowPadding + round (2 * (rowGap + buttonHeight))
+{-
+     { leftRight = Left   <| dimCodeBox.left
+     , topBottom = Bottom <| windowPadding + (1 * (rowGap + buttonHeight))
+-}
      }
   }

@@ -18,6 +18,7 @@ html:
 	cp ../viz.js/viz.js ../build/out/
 	mkdir -p ../build/out/img
 	cp img/*svg ../build/out/img/
+	cp img/*png ../build/out/img/
 
 remove_build_artifacts:
 	rm -r elm-stuff/build-artifacts/0.*/user; rm -r ../tests/elm-stuff/build-artifacts/0.*/user; true

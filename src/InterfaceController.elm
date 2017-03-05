@@ -35,6 +35,7 @@ module InterfaceController exposing
   , msgMoveExp
   , msgMouseClickDeuceWidget
   , msgMouseEnterDeuceWidget, msgMouseLeaveDeuceWidget
+  , contextSensitiveDeuceTools, applyDeuceTool
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -895,6 +896,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
   let newCode = unparse newExp in
   let new =
     { old | code = newCode
+          , lastRunCode = newCode
           , history = addToHistory newCode old.history
           , synthesisResults = []
           }
@@ -1553,3 +1555,111 @@ updateWithMoveExpResults model (safeResults, unsafeResults) =
 --     []        -> True
 --     [target2] -> True -- TODO check
 --     _         -> False
+
+
+contextSensitiveDeuceTools m =
+
+  let {selectedWidgets} = m.deuceState in
+  let nums = selectedNums m in
+  let exps = selectedExps selectedWidgets in
+  let pats = selectedPats selectedWidgets in
+  let expTargets = selectedExpTargets selectedWidgets in
+  let patTargets = selectedPatTargets selectedWidgets in
+
+  case (nums, exps, pats, expTargets, patTargets) of
+
+    ([], [], [], [], []) -> []
+
+    ([], [], [patId], [(Before, eId)], []) ->
+      [ ("Move Definition", \() ->
+          CodeMotion.moveDefinitionBeforeEId patId eId m.inputExp
+        ) ]
+
+    ([], [], [patId], [], [patTarget]) ->
+      [ ("Move Definition", \() ->
+          let targetPatId = patTargetPositionToTargetPatId patTarget in
+          CodeMotion.moveDefinitionPat patId targetPatId m.inputExp
+        ) ]
+
+    ([eId], _, [], [], []) ->
+      if List.length nums /= List.length exps then []
+      else
+        [ ("Thaw/Freeze", dummyDeuceTool m)
+        , ("Add/Remove Range", dummyDeuceTool m)
+        ]
+
+    (eIds, _, [], [], []) ->
+      if List.length nums /= List.length exps then []
+      else
+        [ ("Make Equal", dummyDeuceTool m)
+        , ("Dig Hole", dummyDeuceTool m)
+        ]
+
+    ([eId], _, [], [expTarget], []) ->
+      if List.length nums /= List.length exps then []
+      else
+        [ ("Introduce Var", dummyDeuceTool m) ]
+
+    ([eId], _, [], [], [patTarget]) ->
+      if List.length nums /= List.length exps then []
+      else
+        [ ("Introduce Var", dummyDeuceTool m) ]
+
+    _ -> []
+
+type alias DeuceTool = () -> (List SynthesisResult, List SynthesisResult)
+
+applyDeuceTool : DeuceTool -> Model -> Model
+applyDeuceTool func m =
+  let (safe, unsafe) = func () in
+  case (safe, unsafe) of
+    -- TODO version of tryRun/upstateRun starting with parsed expression
+    ([SynthesisResult {exp}], []) -> { m | code = unparse exp } |> upstateRun
+    _                             -> { m | synthesisResults = safe ++ unsafe }
+
+dummyDeuceTool m = \() ->
+  ([], [SynthesisResult { description = "not yet implemented"
+                        , exp = m.inputExp
+                        , sortKey = []
+                        , children = Nothing
+                        }])
+
+selectedNums : Model -> List LocId
+selectedNums m = flip List.concatMap m.deuceState.selectedWidgets <| \deuceWidget ->
+  -- TODO may want to distinguish between different kinds of selected
+  -- items earlier
+  case deuceWidget of
+    DeuceExp eid ->
+      case findExpByEId m.inputExp eid of
+        Just ePlucked ->
+          case ePlucked.val.e__ of
+            EConst _ _ _ _ -> [eid]
+            _              -> []
+        Nothing ->
+          []
+    _ -> []
+
+selectedExps deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidget ->
+  case deuceWidget of
+    DeuceExp x -> [x]
+    _ -> []
+
+selectedPats deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidget ->
+  case deuceWidget of
+    DeucePat x -> [x]
+    _ -> []
+
+selectedEquations deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidget ->
+  case deuceWidget of
+    DeuceEquation x -> [x]
+    _ -> []
+
+selectedExpTargets deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidget ->
+  case deuceWidget of
+    DeuceExpTarget x -> [x]
+    _ -> []
+
+selectedPatTargets deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidget ->
+  case deuceWidget of
+    DeucePatTarget x -> [x]
+    _ -> []

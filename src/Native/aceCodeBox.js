@@ -164,7 +164,7 @@ function displayAnnotations(annotations) {
 
 function displayTooltips() {
   // TODO
-  setDummyTooltips();
+  // setDummyTooltips();
 }
 
 
