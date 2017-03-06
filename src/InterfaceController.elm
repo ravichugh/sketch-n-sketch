@@ -1587,6 +1587,15 @@ contextSensitiveDeuceTools m =
           CodeMotion.moveDefinitionPat patId targetPatId m.inputExp
         ) ]
 
+    ([], [eId], [], [], []) ->
+      case findExpByEId m.inputExp eId of
+        Nothing -> []
+        Just ePlucked ->
+          let tools = Draw.makeTwiddleTools m eId ePlucked in
+          case tools of
+            _::_ -> tools
+            []   -> [] -- may support other kinds of selections here
+
     ([eId], _, [], [], []) ->
       if List.length nums /= List.length exps then []
       else

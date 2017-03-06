@@ -9,6 +9,7 @@ module Draw exposing
   , addLambda , addHelperDot
   , addTextBox
   , lambdaToolOptionsOf
+  , makeTwiddleTools
   )
 
 import Lang exposing (..)
@@ -22,6 +23,7 @@ import Either exposing (..)
 import Keys
 
 import String
+import Regex
 import Html.Attributes as Attr
 import Svg
 
@@ -270,6 +272,8 @@ randomColor1WithSlider model =
   withDummyPos (EConst " " (toFloat model.randomColor) dummyLoc colorNumberSlider)
 -}
 
+--------------------------------------------------------------------------------
+
 -- when line is snapped, not enforcing the angle in code
 addLine old click2 click1 =
   let ((_,(x2,y2)),(_,(x1,y1))) = (click2, click1) in
@@ -303,16 +307,33 @@ addLine old click2 click1 =
     ] f args
 -}
 
+--------------------------------------------------------------------------------
+
 addRawRect old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = boundingBox pt2 pt1 in
   let (x, y, w, h) = (xa, ya, xb - xa, yb - ya) in
-  add "rect" old
+  let (fill, stroke, strokeWidth) = (old.randomColor, old.randomColor, 0) in
+  let (rot) = 0 in
+  addShape old "rect"
+    (stencilRawRect x y w h fill stroke strokeWidth rot)
+
+stencilRawRect x y w h fill stroke strokeWidth rot =
+  makeCallWithLocals False
     [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
-    , makeLet ["fill", "stroke","strokeWidth"] [randomColor old, randomColor1 old, eConst 0 dummyLoc]
-    , makeLet ["rot"] [eConst 0 dummyLoc] ]
+    , makeLet ["fill", "stroke","strokeWidth"] (makeInts [fill, stroke, strokeWidth])
+    , makeLet ["rot"] [eConst (toFloat rot) dummyLoc] ]
     (eVar0 "rawRect")
     [ eVar "fill", eVar "stroke", eVar "strokeWidth"
     , eVar "x", eVar "y", eVar "w", eVar "h", eVar "rot" ]
+
+reRawRect = -- using . instead of escaping ( ) [ ]
+ """^
+  .let .x y w h. .(\\d+) (\\d+) (\\d+) (\\d+).
+  .let .fill stroke strokeWidth. .(\\d+) (\\d+) (\\d+).
+  .let rot (\\d+)
+    . .rawRect fill stroke strokeWidth x y w h rot. ....$"""
+
+--------------------------------------------------------------------------------
 
 addRawSquare old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = squareBoundingBox pt2 pt1 in
@@ -324,13 +345,30 @@ addRawSquare old (_,pt2) (_,pt1) =
     [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
     , eVar "x", eVar "y", eVar "side", eVar "side", eVar "rot" ]
 
+--------------------------------------------------------------------------------
+
 addStretchyRect old (_,pt2) (_,pt1) =
   let (xMin, xMax, yMin, yMax) = boundingBox pt2 pt1 in
-  add "rect" old
-    [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-    , makeLet ["color"] [randomColor1 old] ]
+  let (fill) = (old.randomColor) in
+  let (stroke, strokeWidth, rot) = (360, 0, 0) in
+  addShape old "rect"
+    (stencilStretchyRect xMin yMin xMax yMax fill stroke strokeWidth rot)
+
+stencilStretchyRect left top right bot fill stroke strokeWidth rot =
+  makeCallWithLocals False
+    [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [left,top,right,bot])
+    , makeLet ["color"] [eConst (toFloat fill) dummyLoc] ]
     (eVar0 "rectangle")
-    [eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc, eConst 0 dummyLoc, eVar "bounds"]
+    [eVar "color", eConst (toFloat stroke) dummyLoc, eConst (toFloat strokeWidth) dummyLoc
+    , eConst (toFloat rot) dummyLoc, eVar "bounds"]
+
+reStretchyRect =
+ """^
+  .let bounds @ .left top right bot. .(\\d+)[ ]+(\\d+)[ ]+(\\d+)[ ]+(\\d+).
+  .let color (\\d+)
+    . .rectangle color (\\d+)[ ]+(\\d+)[ ]+(\\d+)[ ]+bounds. ...$"""
+
+--------------------------------------------------------------------------------
 
 addStretchySquare old (_,pt2) (_,pt1) =
   let (xMin, xMax, yMin, _) = squareBoundingBox pt2 pt1 in
@@ -344,6 +382,8 @@ addStretchySquare old (_,pt2) (_,pt1) =
     (eVar0 "rectangle")
     (List.map eVar ["color","strokeColor","strokeWidth","rot","bounds"])
 
+--------------------------------------------------------------------------------
+
 addRawOval old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = boundingBox pt2 pt1 in
   let (rx, ry) = ((xb-xa)//2, (yb-ya)//2) in
@@ -354,6 +394,8 @@ addRawOval old (_,pt2) (_,pt1) =
     (eVar0 "rawEllipse")
     [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
     , eVar "cx", eVar "cy", eVar "rx", eVar "ry", eVar "rot" ]
+
+--------------------------------------------------------------------------------
 
 addRawCircle old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = squareBoundingBox pt2 pt1 in
@@ -366,6 +408,8 @@ addRawCircle old (_,pt2) (_,pt1) =
     [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
     , eVar "cx", eVar "cy", eVar "r" ]
 
+--------------------------------------------------------------------------------
+
 addStretchyOval old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = boundingBox pt2 pt1 in
   add "ellipse" old
@@ -374,6 +418,8 @@ addStretchyOval old (_,pt2) (_,pt1) =
               [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
     (eVar0 "oval")
     (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
+
+--------------------------------------------------------------------------------
 
 addStretchyCircle old (_,pt2) (_,pt1) =
   let (left, right, top, _) = squareBoundingBox pt2 pt1 in
@@ -386,6 +432,8 @@ addStretchyCircle old (_,pt2) (_,pt1) =
     (eVar0 "oval")
     (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
 
+--------------------------------------------------------------------------------
+
 addHelperDot old (_,(cx,cy)) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)
   let r = 6 in
@@ -396,6 +444,8 @@ addHelperDot old (_,(cx,cy)) =
   add "helperDot" old
     [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r]) ]
     f args
+
+--------------------------------------------------------------------------------
 
 {-
 maybeFreeze n =
@@ -659,11 +709,40 @@ addTextBox old click2 click1 =
     , eConst (toFloat yb) dummyLoc
     , eConst 1.5 dummyLoc, eVar "textVal" ]
 
+--------------------------------------------------------------------------------
+
+addShape old newShapeKind newShapeExp =
+  let shapeVarName =
+    LangTools.nonCollidingName newShapeKind 1 <|
+      LangTools.identifiersVisibleAtProgramEnd old.inputExp in
+  let newShapeName = withDummyRange (PVar " " shapeVarName noWidgetDecl) in
+  let newDef = ("\n\n", newShapeName, newShapeExp, "") in
+  let (defs, mainExp) = splitExp old.inputExp in
+  let defs_ = defs ++ [newDef] in
+  let eNew = withDummyPos (EVar "\n  " shapeVarName) in
+  let mainExp_ = addToMainExp (varBlob eNew shapeVarName) mainExp in
+  let code = unparse (fuseExp (defs_, mainExp_)) in
+  { old | code = code
+        , genSymCount = old.genSymCount + 1
+        , mouseMode = MouseNothing }
+
+-- TODO: replace all calls to "add" to "addShapeToProgram"; remove "add"
+-- TODO: remove randomColor/1 when they are no longer needed
 add newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
   let shapeVarName =
     LangTools.nonCollidingName newShapeKind 1 (LangTools.identifiersVisibleAtProgramEnd old.inputExp)
   in
-  let newDef = makeNewShapeDef old newShapeKind shapeVarName newShapeLocals newShapeFunc newShapeArgs in
+  let newDef =
+    let multi = -- check if the stencil for current tool returns List SVG or SVG
+      case old.tool of
+        Lambda _ -> True
+        Text     -> True
+        _        -> False
+    in
+    let newShapeName = withDummyRange (PVar " " shapeVarName noWidgetDecl) in
+    let newShapeExp = makeCallWithLocals multi newShapeLocals newShapeFunc newShapeArgs in
+    ("\n\n", newShapeName, newShapeExp, "")
+  in
   let (defs, mainExp) = splitExp old.inputExp in
   let defs_ = defs ++ [newDef] in
   let eNew = withDummyPos (EVar "\n  " shapeVarName) in
@@ -675,17 +754,10 @@ add newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
           , genSymCount = old.genSymCount + 1
           , mouseMode = MouseNothing }
 
-makeNewShapeDef model newShapeKind name locals func args =
-  let newShapeName = withDummyRange (PVar " " name noWidgetDecl) in
+makeCallWithLocals multi locals func args =
   let recurse locals =
     case locals of
       [] ->
-        let multi = -- check if (func args) returns List SVG or SVG
-          case model.tool of
-            Lambda _ -> True
-            Text -> True
-            _ -> False
-        in
         if multi then
           withDummyPos (EApp "\n    " func args "")
         else
@@ -693,7 +765,7 @@ makeNewShapeDef model newShapeKind name locals func args =
           withDummyPos (EList "\n    " [app] "" Nothing " ")
       (p,e)::locals_ -> withDummyPos (ELet "\n  " Let False p e (recurse locals_) "")
   in
-  ("\n\n", newShapeName, recurse locals, "")
+  recurse locals
 
 makeLet : List Ident -> List Exp -> (Pat, Exp)
 makeLet vars exps =
@@ -794,3 +866,70 @@ lambdaToolOptionsOf (defs, mainExp) =
       lambdaCalls
 
     _ -> []
+
+
+--------------------------------------------------------------------------------
+-- Syntactic Twiddling
+
+matchOne str (strRegex, f) =
+  case Regex.find (Regex.AtMost 1) (Regex.regex strRegex) str of
+    [match] ->
+      case Utils.projJusts match.submatches of
+        Nothing -> []
+        Just xs -> f xs
+    _ ->
+      []
+
+makeTwiddleTools m eId eShape =
+
+  let strShape = unparse eShape in
+
+  let evaluateRulesUntilMatch rules =
+    case rules of
+      [] -> []
+      rule :: rest ->
+        case matchOne strShape rule of
+          []    -> evaluateRulesUntilMatch rest
+          tools -> tools
+  in
+
+  let rewriteAndReturn newShape =
+    let newExp =
+      replaceExpNodePreservingPreceedingWhitespace eId newShape m.inputExp
+    in
+    let result =
+      { description = "XXX", exp = newExp, sortKey = [], children = Nothing }
+    in
+    ([SynthesisResult result], [])
+  in
+
+  let rewriteRectRawToStretchy args =
+    if List.length args /= 8 then []
+    else
+      let (x, y, w, h, fill, stroke, strokeWidth, rot) =
+        Utils.unwrap8 (List.map Utils.parseInt args)
+      in
+      [ ("Rewrite Stretchy", \() ->
+          let newShape =
+            stencilStretchyRect x y (x + w) (y + h) fill stroke strokeWidth rot in
+          rewriteAndReturn newShape
+        ) ]
+  in
+
+  let rewriteRectStretchyToRaw args =
+    if List.length args /= 8 then []
+    else
+      let (left, top, right, bot, fill, stroke, strokeWidth, rot) =
+        Utils.unwrap8 (List.map Utils.parseInt args)
+      in
+      [ ("Rewrite Raw", \() ->
+          let newShape =
+            stencilRawRect left top (right - left) (bot - top) fill stroke strokeWidth rot in
+          rewriteAndReturn newShape
+        ) ]
+  in
+
+  evaluateRulesUntilMatch <|
+    [ (reStretchyRect, rewriteRectStretchyToRaw)
+    , (reRawRect, rewriteRectRawToStretchy)
+    ]

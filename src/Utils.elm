@@ -862,3 +862,7 @@ unwrap6 xs = case xs of
 unwrap7 xs = case xs of
   [x1,x2,x3,x4,x5,x6,x7] -> (x1, x2, x3, x4, x5, x6, x7)
   _ -> Debug.crash "unwrap7"
+
+unwrap8 xs = case xs of
+  [x1,x2,x3,x4,x5,x6,x7,x8] -> (x1, x2, x3, x4, x5, x6, x7, x8)
+  _ -> Debug.crash "unwrap7"
