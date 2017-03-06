@@ -10,10 +10,8 @@ function initialize() {
   editor.setTheme("ace/theme/chrome");
   editor.setFontSize(fontSize);
   editor.getSession().setMode("ace/mode/little");
-  editor.setOption("dragEnabled", true);
-    // this flag is true by default, but adding it for emphasis.
-    // and setting it to false doesn't disable dragging...
-  editor.setOption("highlightActiveLine", false);
+  editor.setOption("dragEnabled", true); // true by default anyway
+  editor.setOption("highlightActiveLine", true);
 
   editor.on("input", function() {
       var info = getEditorState();
@@ -107,7 +105,7 @@ function display(info) {
 
   displayCode(info.code);
   displayCursor(info.codeBoxInfo.cursorPos);
-  editor.selection.clearSelection(); // TODO selections
+  // editor.selection.clearSelection(); // TODO selections
   displayMarkers(info.codeBoxInfo.highlights);
   displayAnnotations(info.codeBoxInfo.annotations);
   displayTooltips();
