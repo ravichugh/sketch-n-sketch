@@ -191,7 +191,11 @@ moveDefinitionPat sourcePatId targetPatId program =
           freeVars boundExp
           |> List.all (\e -> bindingScopeIdFor e program == bindingScopeIdFor e newProgram)
         in
-        identUsesSafe && boundExpVarsSafe
+        let noDuplicateNamesInPat =
+          let namesDefinedAtNewScope = identifiersListInPat (expToLetPat newScope) in
+          namesDefinedAtNewScope == Utils.dedup namesDefinedAtNewScope
+        in
+        identUsesSafe && boundExpVarsSafe && noDuplicateNamesInPat
       in
       let caption =
         strUnsafeBool (not isSafe) ++ " Move " ++ ident ++ " to make " ++ (unparsePat >> Utils.squish >> Utils.niceTruncateString 20 "...") (expToLetPat newScope)
