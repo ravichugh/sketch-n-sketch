@@ -711,8 +711,12 @@ msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
     (True, (Nothing, pos)) -> -- mouse down
       let _ = debugLog "mouse down" () in
       if old.hoveringCodeBox
+      -- TODO disabling MouseDownInCodeBox because onMouseDrag is disabled
+{-
       then { new | mouseState = (Just False, pos),
                    mouseMode = MouseDownInCodebox pos }
+-}
+      then { new | mouseState = (Just False, pos) }
       else { new | mouseState = (Just False, pos) }
 
     (False, (Just False, pos)) -> -- click (mouse up after not being dragged)
