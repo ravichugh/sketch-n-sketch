@@ -35,6 +35,7 @@ module InterfaceController exposing
   , msgMoveExp
   , msgMouseClickDeuceWidget
   , msgMouseEnterDeuceWidget, msgMouseLeaveDeuceWidget
+  , contextSensitiveDeuceTools, applyDeuceTool
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -419,14 +420,15 @@ onMouseUp old =
     _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
 
 dragSource pixelPos m =
-  let exp = getClickedEId (computeExpRanges m.inputExp) pixelPos in
-  let pat = getClickedPat (findPats m.inputExp) pixelPos m in
-  let item = case exp of
-                Nothing   -> case pat of
-                                Nothing   -> Nothing
-                                Just pid  -> Just (Left pid)
-                Just eid  -> Just (Right eid) in
-  item
+  -- TODO: Allow dragging and scrolling (store touched item in MouseDownInCodebox rather than initial position)
+  -- TODO: Allow selection of ECase patterns
+  let maybePatId = getClickedPat (findPats m.inputExp) pixelPos m in
+  let maybeEId   = getClickedEId (computeExpRanges m.inputExp) pixelPos in
+  -- case Debug.log "source maybeEId, source maybePatId" (maybeEId, maybePatId) of
+  case (maybeEId, maybePatId) of
+    (Nothing, Just pid) -> Just (Left pid)
+    (Just eid, _)       -> Just (Right eid)
+    _                   -> Nothing
 
 dragTarget pixelPos m =
   let expTarget = getClickedExpTarget (computeExpTargets m.inputExp) pixelPos in
@@ -434,8 +436,8 @@ dragTarget pixelPos m =
   let target = case List.head expTarget of
                 Nothing       -> case List.head patTarget of
                                     Nothing         -> Nothing
-                                    Just firstPat   -> Just (Left firstPat)
-                Just etarget  -> Just (Right etarget) in
+                                    Just firstPat   -> Just (PatTargetPosition firstPat)
+                Just etarget  -> Just (ExpTargetPosition etarget) in
   target
 
 tryRun : Model -> Result (String, Maybe Ace.Annotation) Model
@@ -589,7 +591,7 @@ issueCommand (Msg kind _) oldModel newModel =
         if newModel.autosave && newModel.needsSave then
           FileHandler.write <| getFile newModel
         else
-          AceCodeBox.changeScroll newModel
+          Cmd.none
 
     "Open Dialog Box" ->
       FileHandler.requestFileIndex ()
@@ -895,6 +897,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
   let newCode = unparse newExp in
   let new =
     { old | code = newCode
+          , lastRunCode = newCode
           , history = addToHistory newCode old.history
           , synthesisResults = []
           }
@@ -1462,23 +1465,37 @@ msgReceiveDotImage s = Msg "Receive Image" <| \m ->
 
 onMouseDrag
     : Maybe (Either PatternId EId)
-   -> Maybe (Either PatTargetPosition ExpTargetPosition)
+   -> Maybe TargetPosition
    -> Model -> Model
 onMouseDrag dragSource dragTarget m =
-  if showDeuceWidgets m 
-  then 
+  if showDeuceWidgets m
+  then
+    let _ = Debug.log "ignoring drag" (dragSource, dragTarget) in
+    m
+{-
     let new = resetDeuceState m in
-    case (dragSource, dragTarget) of
-      (Just (Left sourcePat), Just (Right (0, targetId))) ->
-        movePatBeforeLet sourcePat targetId new
-      (Just (Left sourcePat), Just (Left targetPat)) ->
-        movePatToPat sourcePat targetPat new
+    case Debug.log "source, target" (dragSource, dragTarget) of
+      (Just (Left sourcePatId), Just (ExpTargetPosition (Before, targetEId))) ->
+        movePatBeforeEId sourcePatId targetEId new
+      (Just (Left sourcePatId), Just (PatTargetPosition patTargetPosition)) ->
+        movePatToPat sourcePatId (patTargetPositionToTargetPatId patTargetPosition) new
       _ ->
         new
-  else 
-    m 
+-}
+  else
+    m
 
-msgMoveExp = Msg "Move Exp" <| \m -> m 
+
+patTargetPositionToTargetPatId : PatTargetPosition -> PatternId
+patTargetPositionToTargetPatId (beforeAfter, referencePatId) =
+  case beforeAfter of
+    Before -> referencePatId
+    After  ->
+      patIdRightSibling referencePatId
+      |> Utils.fromJust_ ("invalid target pattern id path of [] in target path position: " ++ toString (beforeAfter, referencePatId))
+
+
+msgMoveExp = Msg "Move Exp" <| \m -> m
   --let selections =
   --  -- Debug.log "selections" <|
   --    { exps = Set.toList m.deuceState.selectedEIds
@@ -1497,7 +1514,7 @@ msgMoveExp = Msg "Move Exp" <| \m -> m
   --case (pats, patTargets, expTargets) of
 
   --  ([sourcePat], [], [(0, targetId)]) ->
-  --    movePatBeforeLet sourcePat targetId new
+  --    movePatBeforeEId sourcePat targetId new
 
   --  ([sourcePat], targetPat :: targetPats, []) ->
   --    movePatToPat_ bad sourcePat targetPat targetPats new
@@ -1505,33 +1522,149 @@ msgMoveExp = Msg "Move Exp" <| \m -> m
   --  _ ->
   --    bad ()
 
-movePatBeforeLet sourcePat targetId m =
-  updateWithMoveExpResults m <|
-    CodeMotion.moveDefinitionBeforeLet m.scopeGraph sourcePat targetId m.inputExp
 
-movePatToPat sourcePat targetPat m =
-  updateWithMoveExpResults m <|
-    CodeMotion.moveDefinitionPat m.scopeGraph sourcePat targetPat m.inputExp
+movePatBeforeEId sourcePatId targetEId model =
+  let (safeResults, unsafeResults) =
+    CodeMotion.moveDefinitionBeforeEId sourcePatId targetEId model.inputExp
+  in
+  updateWithMoveExpResults model (safeResults, unsafeResults)
 
-movePatToPat_ bad sourcePat targetPat targetPats m =
- if singleLogicalTarget targetPat targetPats
-   then movePatToPat sourcePat targetPat m
-   else bad ()
 
-updateWithMoveExpResults new results = case results of
-  []       -> new
-  [SynthesisResult result] ->
-    if String.startsWith "[UNSAFE" result.description ||
-       String.startsWith "[WARN" result.description then
-      { new | synthesisResults = [SynthesisResult result] }
-    else
+movePatToPat sourcePatId targetPatId model =
+  let (safeResults, unsafeResults) =
+    CodeMotion.moveDefinitionPat sourcePatId targetPatId model.inputExp
+  in
+  updateWithMoveExpResults model (safeResults, unsafeResults)
+
+
+-- movePatToPat_ bad sourcePat targetPat targetPats m =
+--  if singleLogicalTarget targetPat targetPats
+--    then movePatToPat sourcePat targetPat m
+--    else bad ()
+
+updateWithMoveExpResults model (safeResults, unsafeResults) =
+  -- If exactly one result and it is safe, apply the update to the code immediately.
+  -- Otherwise, place results in the synthesis results box.
+  case (safeResults, unsafeResults) of
+    ([SynthesisResult safeResult], []) ->
       -- TODO version of upstateRun to avoid unparse then re-parse
-      let newCode = unparse result.exp in
-      upstateRun { new | code = newCode }
-  results  -> { new | synthesisResults = results }
+      let newCode = unparse safeResult.exp in
+      upstateRun { model | code = newCode, synthesisResults = [] }
 
-singleLogicalTarget target targets =
-  case targets of
-    []        -> True
-    [target2] -> True -- TODO check
-    _         -> False
+    (safeResults, unsafeResults) ->
+      { model | synthesisResults = safeResults ++ unsafeResults }
+
+
+-- singleLogicalTarget target targets =
+--   case targets of
+--     []        -> True
+--     [target2] -> True -- TODO check
+--     _         -> False
+
+
+contextSensitiveDeuceTools m =
+
+  let {selectedWidgets} = m.deuceState in
+  let nums = selectedNums m in
+  let exps = selectedExps selectedWidgets in
+  let pats = selectedPats selectedWidgets in
+  let expTargets = selectedExpTargets selectedWidgets in
+  let patTargets = selectedPatTargets selectedWidgets in
+
+  case (nums, exps, pats, expTargets, patTargets) of
+
+    ([], [], [], [], []) -> []
+
+    ([], [], [patId], [(Before, eId)], []) ->
+      [ ("Move Definition", \() ->
+          CodeMotion.moveDefinitionBeforeEId patId eId m.inputExp
+        ) ]
+
+    ([], [], [patId], [], [patTarget]) ->
+      [ ("Move Definition", \() ->
+          let targetPatId = patTargetPositionToTargetPatId patTarget in
+          CodeMotion.moveDefinitionPat patId targetPatId m.inputExp
+        ) ]
+
+    ([eId], _, [], [], []) ->
+      if List.length nums /= List.length exps then []
+      else
+        [ ("Thaw/Freeze", dummyDeuceTool m)
+        , ("Add/Remove Range", dummyDeuceTool m)
+        ]
+
+    (eIds, _, [], [], []) ->
+      if List.length nums /= List.length exps then []
+      else
+        [ ("Make Equal", dummyDeuceTool m)
+        , ("Dig Hole", dummyDeuceTool m)
+        ]
+
+    ([eId], _, [], [expTarget], []) ->
+      if List.length nums /= List.length exps then []
+      else
+        [ ("Introduce Var", dummyDeuceTool m) ]
+
+    ([eId], _, [], [], [patTarget]) ->
+      if List.length nums /= List.length exps then []
+      else
+        [ ("Introduce Var", dummyDeuceTool m) ]
+
+    _ -> []
+
+type alias DeuceTool = () -> (List SynthesisResult, List SynthesisResult)
+
+applyDeuceTool : DeuceTool -> Model -> Model
+applyDeuceTool func m =
+  let (safe, unsafe) = func () in
+  case (safe, unsafe) of
+    -- TODO version of tryRun/upstateRun starting with parsed expression
+    ([SynthesisResult {exp}], []) -> { m | code = unparse exp } |> upstateRun
+    _                             -> { m | synthesisResults = safe ++ unsafe }
+
+dummyDeuceTool m = \() ->
+  ([], [SynthesisResult { description = "not yet implemented"
+                        , exp = m.inputExp
+                        , sortKey = []
+                        , children = Nothing
+                        }])
+
+selectedNums : Model -> List LocId
+selectedNums m = flip List.concatMap m.deuceState.selectedWidgets <| \deuceWidget ->
+  -- TODO may want to distinguish between different kinds of selected
+  -- items earlier
+  case deuceWidget of
+    DeuceExp eid ->
+      case findExpByEId m.inputExp eid of
+        Just ePlucked ->
+          case ePlucked.val.e__ of
+            EConst _ _ _ _ -> [eid]
+            _              -> []
+        Nothing ->
+          []
+    _ -> []
+
+selectedExps deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidget ->
+  case deuceWidget of
+    DeuceExp x -> [x]
+    _ -> []
+
+selectedPats deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidget ->
+  case deuceWidget of
+    DeucePat x -> [x]
+    _ -> []
+
+selectedEquations deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidget ->
+  case deuceWidget of
+    DeuceEquation x -> [x]
+    _ -> []
+
+selectedExpTargets deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidget ->
+  case deuceWidget of
+    DeuceExpTarget x -> [x]
+    _ -> []
+
+selectedPatTargets deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidget ->
+  case deuceWidget of
+    DeucePatTarget x -> [x]
+    _ -> []

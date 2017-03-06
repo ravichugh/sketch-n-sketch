@@ -189,6 +189,17 @@ removeAsSet : a -> List a -> List a
 removeAsSet x xs =
   List.filter ((/=) x) xs
 
+-- O(nm)
+isSublistAsSet : List a -> List a -> Bool
+isSublistAsSet sub super =
+  sub |> List.all (\x -> List.member x super)
+
+-- O(n^2)
+equalAsSets : List a -> List a -> Bool
+equalAsSets a b =
+  isSublistAsSet a b && isSublistAsSet b a
+
+
 groupBy : (a -> comparable) -> List a -> Dict.Dict comparable (List a)
 groupBy f xs =
   List.foldl
@@ -400,6 +411,11 @@ removeLastElement : List a -> List a
 removeLastElement list =
   List.take ((List.length list)-1) list
 
+maybeMapLastElement : (a -> a) -> List a -> Maybe (List a)
+maybeMapLastElement f list =
+  maybeLast list
+  |> Maybe.map (\last -> removeLastElement list ++ [f last])
+
 -- Equivalent to Maybe.oneOf (List.map f list)
 -- but maps the list lazily to return early
 mapFirstSuccess : (a -> Maybe b) -> List a -> Maybe b
@@ -411,8 +427,8 @@ mapFirstSuccess f list =
         Just result -> Just result
         Nothing     -> mapFirstSuccess f xs
 
-orTry : Maybe a -> (() -> Maybe a) -> Maybe a
-orTry maybe1 lazyMaybe2 =
+firstOrLazySecond : Maybe a -> (() -> Maybe a) -> Maybe a
+firstOrLazySecond maybe1 lazyMaybe2 =
   case maybe1 of
     Just x  -> maybe1
     Nothing -> lazyMaybe2 ()
@@ -439,7 +455,7 @@ replacei i xi_ xs = List.take (i-1) xs ++ [xi_] ++ List.drop i xs
 removei : Int -> List a -> List a
 removei i xs = List.take (i-1) xs ++ List.drop i xs
 
--- 1-based
+-- 1-based; inserts so element is at position i in resulting list
 inserti : Int -> a -> List a -> List a
 inserti i xi_ xs = List.take (i-1) xs ++ [xi_] ++ List.drop (i-1) xs
 
@@ -584,7 +600,11 @@ dictUnionSet
 dictUnionSet k more dict =
   Dict.insert k (Set.union more (dictGetSet k dict)) dict
 
-maybeLast = List.reverse >> List.head
+maybeLast list =
+  case list of
+    []    -> Nothing
+    [x]   -> Just x
+    _::xs -> maybeLast xs
 
 head msg = fromJust_ msg << List.head
 last msg = fromJust_ msg << maybeLast
@@ -633,6 +653,7 @@ plusMaybe mx my = case mx of
 firstMaybe : List (Maybe a) -> Maybe a
 firstMaybe list = List.foldr plusMaybe Nothing list
 
+-- Use Maybe.withDefault (note: argument order is reversed)
 elseMaybe : Maybe a -> a -> a
 elseMaybe mx default = case mx of
   Just x  -> x

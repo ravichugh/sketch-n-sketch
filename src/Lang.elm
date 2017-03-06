@@ -177,11 +177,11 @@ type alias Backtrace = List Exp
 
 ------------------------------------------------------------------------------
 
-type alias ScopeId = EId   -- from an ELet or EFun expression
+type alias ScopeId = (EId, Int) -- ELet/EFun/ECase. Int is the branch number for ECase (always 1 for others)
 
 type alias PatternId = (ScopeId, List Int)
 
-type alias BeforeAfter = Int -- 0 for Before, 1 for After
+type BeforeAfter = Before | After
 
 type alias PatTargetPosition = (BeforeAfter, PatternId)
 
@@ -190,6 +190,13 @@ type alias ExpTargetPosition = (BeforeAfter, EId)
 type TargetPosition
   = ExpTargetPosition ExpTargetPosition
   | PatTargetPosition PatTargetPosition
+
+
+-- Increment last path index by 1
+patIdRightSibling : PatternId -> Maybe PatternId
+patIdRightSibling (scopeId, path) =
+  Utils.maybeMapLastElement ((+) 1) path
+  |> Maybe.map (\newPath -> (scopeId, newPath))
 
 
 ------------------------------------------------------------------------------
@@ -669,26 +676,33 @@ applyESubst esubst =
 branchExps : List Branch -> List Exp
 branchExps branches =
   List.map
-    (\b -> let (Branch_ _ _ exp _) = b.val in exp)
+    (.val >> \(Branch_ _ _ exp _) -> exp)
     branches
 
 tbranchExps : List TBranch -> List Exp
 tbranchExps tbranches =
   List.map
-    (\b -> let (TBranch_ _ _ exp _) = b.val in exp)
+    (.val >> \(TBranch_ _ _ exp _) -> exp)
     tbranches
 
 branchPats : List Branch -> List Pat
 branchPats branches =
   List.map
-    (\b -> let (Branch_ _ pat _ _) = b.val in pat)
+    (.val >> \(Branch_ _ pat _ _) -> pat)
     branches
 
 tbranchTypes : List TBranch -> List Type
 tbranchTypes tbranches =
   List.map
-    (\b -> let (TBranch_ _ tipe exp _) = b.val in tipe)
+    (.val >> \(TBranch_ _ tipe _ _) -> tipe)
     tbranches
+
+branchPatExps : List Branch -> List (Pat, Exp)
+branchPatExps branches =
+  List.map
+    (.val >> \(Branch_ _ pat exp _) -> (pat, exp))
+    branches
+
 
 -- Need parent expression since case expression branches into several scopes
 isScope : Maybe Exp -> Exp -> Bool

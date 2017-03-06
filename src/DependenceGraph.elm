@@ -73,8 +73,9 @@ childScopesOf : ScopeId -> ScopeGraph -> Set ScopeId
 childScopesOf i sg =
   Utils.dictGetSet i sg.children
 
+strPatId : PatternId -> String
 strPatId (scopeId, path) =
-  String.join "_" (List.map toString (scopeId :: path))
+   String.join "_" (strScopeId scopeId :: List.map toString path)
 
 foldPatternsWithIds
   : (PatternId -> Ident -> a -> a) -> PatternId -> List Pat -> a -> a
@@ -159,15 +160,15 @@ type ScopeOrder
   | NearestCommonAncestor ScopeId
 
 pathToRoot : ScopeGraph -> ScopeId -> List ScopeId
-pathToRoot sg i =
-  if i == rootId then
+pathToRoot sg scopeId =
+  if scopeId == rootId then
     [rootId]
   else
-    i :: pathToRoot sg (parentScopeOf i sg)
+    scopeId :: pathToRoot sg (parentScopeOf scopeId sg)
 
 pathFromRoot : ScopeGraph -> ScopeId -> List ScopeId
-pathFromRoot sg i =
-  List.reverse (pathToRoot sg i)
+pathFromRoot sg scopeId =
+  List.reverse (pathToRoot sg scopeId)
 
 scopeOrder : ScopeGraph -> ScopeId -> ScopeId -> ScopeOrder
 scopeOrder sg i j =
@@ -221,7 +222,7 @@ type alias Env =
   }
 
 rootId : ScopeId
-rootId = 0
+rootId = (0, 1)
 
 rootPatId : PatternId
 rootPatId = (rootId, [])
@@ -254,7 +255,7 @@ traverse env exp acc =
 
   let recurse es = List.foldl (traverse env) acc es in
 
-  let newScopeId = exp.val.eid in -- only if e is ELet or EFun
+  let newScopeId = (exp.val.eid, 1) in -- only if e is ELet or EFun; ECase not handled yet
 
   case exp.val.e__ of
 
@@ -481,7 +482,7 @@ patternTransitivelyDependsOnScope scopeGraph sourcePat targetScope =
 --
 -- assumes that scopeOrder sourceScope targetScope == ParentScope
 --
-usedOnTheWayDownTo : ScopeGraph -> PatternId -> EId -> Bool -> Bool
+usedOnTheWayDownTo : ScopeGraph -> PatternId -> ScopeId -> Bool -> Bool
 usedOnTheWayDownTo scopeGraph sourcePat targetScope includingTarget =
   let traverseDown currentScope =
     let usedHere () =
@@ -543,12 +544,19 @@ defineClusterNode letOrFun =
     True  -> defineNode "white"
     False -> defineNode "lightblue1"
 
-clusterNode i =
-  "scope" ++ toString i
+strScopeId : ScopeId -> String
+strScopeId (eid, branchi) =
+  toString eid ++ "-" ++ toString branchi
 
+clusterNode : ScopeId -> String
+clusterNode scopeId =
+  "scope" ++ strScopeId scopeId
+
+varNode : PatternId -> String
 varNode patId =
   "var" ++ strPatId patId
 
+clusters : (String -> a) -> ScopeGraph -> List a
 clusters f scopeGraph =
   flip List.concatMap (Dict.toList scopeGraph.scopeNodes) <|
     \(scopeId, (letOrFun, patIds)) ->

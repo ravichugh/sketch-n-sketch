@@ -135,7 +135,7 @@ inlineListSynthesisResults originalExp =
                   let maybeIdents = pats |> List.map patToMaybeIdent |> Utils.projJusts in
                   case maybeIdents of
                     Just idents ->
-                      let usages = identifierUses (Set.fromList idents) letBody in
+                      let usages = identifierSetUses (Set.fromList idents) letBody in
                       if List.map expToIdent usages == idents then -- Each should be used exactly once, in order
                         -- All idents used in only in same list
                         let maybeParents =

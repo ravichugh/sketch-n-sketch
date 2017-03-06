@@ -76,6 +76,7 @@ view model =
   let moreBlobTools = moreBlobToolBox model layout in
   let outputTools = outputToolBox model layout in
   let textTools = textToolBox model layout in
+  let deuceTools = deuceToolBox model layout in
   let synthesisResultsSelect = synthesisResultsSelectBox model layout in
 
   let
@@ -141,7 +142,7 @@ view model =
      -- toolboxes in reverse order
      , outputTools] ++ animationTools ++
      [ moreBlobTools, blobTools, attributeTools, lambdaDrawTools, stretchyDrawTools, drawTools
-     , textTools
+     , textTools, deuceTools
      , codeTools, fileTools
      ] ++ synthesisResultsSelect ++ deuce ++
 
@@ -224,11 +225,7 @@ attributeToolBox model layout =
 
 textToolBox model layout =
   toolBox model "textToolBox" [] Layout.getPutTextToolBox layout.textTools
-    [ undoButton model
-    , redoButton model
-    , deuceMoveExpButton model
-    , fontSizeButton model
-    -- , deuceWidgetsButton model
+    [ fontSizeButton model
     ]
 
 blobToolBox model layout =
@@ -334,6 +331,19 @@ synthesisResultsSelectBox model layout =
   in
   toolBox model "synthesisResultsSelect" extraStyles Layout.getPutSynthesisResultsSelectBox layout.synthesisResultsSelect [resultsMenuTree, cancelButton]
 
+deuceToolBox model layout =
+  let icon =
+     Html.img
+       [ Attr.src "img/deuce_logo.png"
+       , Attr.style
+           [ ("width", pixels (Layout.buttonHeight - 0))
+           , ("height", pixels (Layout.buttonHeight - 0))
+           , ("vertical-align", "middle")
+           ]
+       ] []
+  in
+  toolBox model "deuceToolBox" [] Layout.getPutDeuceToolBox layout.deuceTools
+    (icon :: deuceTools model)
 
 toolBox model id extraStyles (getOffset, putOffset) leftRightTopBottom elements =
   Html.div
@@ -823,8 +833,10 @@ deuceWidgetsButton model =
   htmlButton text handler Regular False
 -}
 
+{-
 deuceMoveExpButton model =
   htmlButton "Move Exp" Controller.msgMoveExp Regular (not model.showAllDeuceWidgets)
+-}
 
 
 --------------------------------------------------------------------------------
@@ -1298,29 +1310,29 @@ computePolygonPoints rcs model layout =
     toString(point.x) ++ "," ++ toString(point.y) ++ " " ++ acc in
   List.foldr combine  "" (left ++ right)
 
-isDefExp exp = 
+isDefExp exp =
   case exp.val.e__ of
     Lang.ELet wsBef letKind rec pat exp1 exp2 wsAft ->
-      case letKind of 
+      case letKind of
         Lang.Def -> (True, exp2)
         _ -> (False, exp)
     _ -> (False, exp)
 
-findFirstNonDef exp = 
-  case isDefExp(exp) of
+findFirstNonDef exp =
+  case isDefExp exp of
     (True, secondExp) -> findFirstNonDef secondExp
-    _ -> exp 
+    _ -> exp
 
 expBoundingPolygonPoints =
   boundingPolygonPoints List.reverse
-     (\exp -> 
-      case exp.val.e__ of 
-        Lang.ELet wsBef letKind rec pat exp1 exp2 wsAft -> 
-          case letKind of 
-            Lang.Let -> 
-              [expBoundingPolygon (DeuceEquation exp.val.eid) exp exp1,
+     (\exp ->
+      case exp.val.e__ of
+        Lang.ELet wsBef letKind rec pat exp1 exp2 wsAft ->
+          case letKind of
+            Lang.Let ->
+              [expBoundingPolygon (DeuceEquation (exp.val.eid, 1)) exp exp1,
                expBoundingPolygon (DeuceExp exp.val.eid) exp exp]
-            Lang.Def -> [expBoundingPolygon (DeuceEquation exp.val.eid) exp exp,
+            Lang.Def -> [expBoundingPolygon (DeuceEquation (exp.val.eid, 1)) exp exp,
                          expBoundingPolygon (DeuceExp exp.val.eid) exp (findFirstNonDef exp)]
         _ ->
           [expBoundingPolygon (DeuceExp exp.val.eid) exp exp])
@@ -1329,6 +1341,13 @@ patBoundingPolygonPoints =
   boundingPolygonPoints identity
      (\(pat,pid,_,_,_) -> [patBoundingPolygon (DeucePat pid) pat pat])
 
+boundingPolygonPoints :
+    (List (Svg Msg) -> List (Svg Msg))
+    -> (c -> List ( DeuceWidget, Dict.Dict Int ( Int, Int ) ))
+    -> List c
+    -> Model
+    -> f
+    -> List (Svg Msg)
 boundingPolygonPoints maybeReverse deuceWidgetAndBoundingPolygonOf exps model layout =
   let calculate (deuceWidget, boundingPolygon) =
     let points = computePolygonPoints boundingPolygon model layout in
@@ -1353,10 +1372,10 @@ boundingPolygonPoints maybeReverse deuceWidgetAndBoundingPolygonOf exps model la
           ] in
       textPolygon
   in
-  let calculatePolygons exp = 
-    let polygons = deuceWidgetAndBoundingPolygonOf exp in 
-    List.concatMap calculate polygons 
-  in 
+  let calculatePolygons exp =
+    let polygons = deuceWidgetAndBoundingPolygonOf exp in
+    List.concatMap calculate polygons
+  in
   let polygons = maybeReverse (List.concatMap calculatePolygons exps) in
   polygons
 
@@ -1421,3 +1440,15 @@ getBoxWidth start end m =
 getBoxHeight start end m =
   let lines = end.line - start.line + 1 in
   toFloat(lines) * m.codeBoxInfo.lineHeight
+
+
+--------------------------------------------------------------------------------
+-- Deuce Tool Menu
+
+deuceTools model =
+  List.map
+    (\(s, func) ->
+      let msg = Msg "Apply Deuce Tool" (Controller.applyDeuceTool func) in
+      htmlButton s msg Regular False
+    )
+    (Controller.contextSensitiveDeuceTools model)

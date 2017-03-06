@@ -838,6 +838,7 @@ identifiersSetInPats pats =
   |> Utils.unionAll
 
 
+-- All identifiers used or bound throughout the given exp
 identifiersList : Exp -> List Ident
 identifiersList exp =
   let folder e__ acc =
@@ -1055,6 +1056,27 @@ patToMaybeIdent pat =
     _              -> Nothing
 
 
+expToLetKind : Exp -> LetKind
+expToLetKind exp =
+  case exp.val.e__ of
+    ELet _ lk _ _ _ _ _ -> lk
+    _                   -> Debug.crash <| "LangTools.expToLetKind exp is not an ELet: " ++ unparseWithIds exp
+
+
+expToLetPat : Exp -> Pat
+expToLetPat exp =
+  case exp.val.e__ of
+    ELet _ _ _ pat _ _ _ -> pat
+    _                    -> Debug.crash <| "LangTools.expToLetPat exp is not an ELet: " ++ unparseWithIds exp
+
+
+expToLetBody : Exp -> Exp
+expToLetBody exp =
+  case exp.val.e__ of
+    ELet _ _ _ _ _ body _ -> body
+    _                     -> Debug.crash <| "LangTools.expToLetBody exp is not an ELet: " ++ unparseWithIds exp
+
+
 -- This is a rather generous definition of literal.
 isLiteral : Exp -> Bool
 isLiteral exp =
@@ -1215,9 +1237,16 @@ transformVarsUntilBound subst exp =
     -- EDict _                         -> Debug.crash "LangTools.transformVarsUntilBound: shouldn't have an EDict in given expression"
 
 
+-- Find EVars using the given name, until name is rebound.
+identifierUses : Ident -> Exp -> List Exp
+identifierUses ident exp =
+  freeVars exp
+  |> List.filter (expToIdent >> (==) ident)
+
+
 -- Find EVars in the set of identifiers, until name is rebound.
-identifierUses : Set.Set Ident -> Exp -> List Exp
-identifierUses identSet exp =
+identifierSetUses : Set.Set Ident -> Exp -> List Exp
+identifierSetUses identSet exp =
   freeVars exp
   |> List.filter (\varExp -> Set.member (expToIdent varExp) identSet)
 
@@ -1293,6 +1322,52 @@ visibleIdentifiersAtPredicate_ idents exp pred =
     ETypeAlias _ pat tipe e _ -> ret <| recurse e
 
     -- EDict _                   -> Debug.crash "LangTools.visibleIdentifiersAtEIds_: shouldn't have an EDict in given expression"
+
+
+-- Compute the ScopeId that assigned the binding referenced by varExp
+--
+-- Returns Nothing if free in program or not in program
+bindingScopeIdFor : Exp -> Exp -> Maybe ScopeId
+bindingScopeIdFor varExp program =
+  let targetName = expToIdent varExp in
+  let targetEId  = varExp.val.eid in
+  bindingScopeIdFor_ Nothing targetName targetEId program |> Maybe.withDefault Nothing
+
+-- Outer returned maybe indicates if variable found
+-- Inner returned maybe is scopeId that bound the identifier as seen from the usage site (Nothing means free)
+bindingScopeIdFor_ : Maybe ScopeId -> Ident -> EId -> Exp -> Maybe (Maybe ScopeId)
+bindingScopeIdFor_ currentBindingScopeId targetName targetEId exp =
+  let recurse scopeId e = bindingScopeIdFor_ scopeId targetName targetEId e in
+  let newBindingScopeId pats i =
+    if List.member targetName (identifiersListInPats pats)
+    then Just (exp.val.eid, i)
+    else currentBindingScopeId
+  in
+  case exp.val.e__ of
+    EVar _ _ ->
+      if exp.val.eid == targetEId then
+        Just currentBindingScopeId
+      else
+        Nothing
+
+    EFun _ pats body _ ->
+      recurse (newBindingScopeId pats 1) body
+
+    ELet _ _ isRecursive pat assigns body _ ->
+      let newScopeId = newBindingScopeId [pat] 1 in
+      let scopeIdForAssigns = if isRecursive then newScopeId else currentBindingScopeId in
+      Utils.firstOrLazySecond
+          (recurse scopeIdForAssigns assigns)
+          (\() -> recurse newScopeId body)
+
+    ECase _ _ branches _ ->
+      branchPatExps branches
+      |> Utils.zipi1
+      |> Utils.mapFirstSuccess
+          (\(i, (pat, branchExp)) -> recurse (newBindingScopeId [pat] i) branchExp)
+
+    _ ->
+      Utils.mapFirstSuccess (recurse currentBindingScopeId) (childExps exp)
 
 
 type ExpressionBinding
