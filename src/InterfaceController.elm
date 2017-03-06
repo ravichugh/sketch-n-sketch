@@ -605,9 +605,11 @@ issueCommand (Msg kind _) oldModel newModel =
          newModel.preview /= oldModel.preview ||
          kind == "Turn Off Caption" ||
          kind == "Mouse Enter CodeBox" ||
-         kind == "Mouse Leave CodeBox" ||
+         kind == "Mouse Leave CodeBox"
+         {- ||
          String.startsWith "Key Up" kind ||
          String.startsWith "Key Down" kind
+         -}
            -- ideally this last condition would not be necessary.
            -- and onMouseLeave from point/crosshair zones still leave
            -- stale yellow highlights.
