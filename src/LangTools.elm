@@ -314,6 +314,16 @@ isTopLevel exp program =
       Nothing    -> False
 
 
+isTopLevelEId : EId -> Exp -> Bool
+isTopLevelEId eid program =
+  if eid == program.val.eid then
+    True
+  else
+    case maybeTopLevelChild program of
+      Just child -> isTopLevelEId eid child
+      Nothing    -> False
+
+
 maybeTopLevelChild : Exp -> Maybe Exp
 maybeTopLevelChild exp =
   case exp.val.e__ of

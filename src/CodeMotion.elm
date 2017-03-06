@@ -117,7 +117,7 @@ moveDefinitionBeforeEId sourcePatId targetEId program =
           if e.val.eid == sourceScopeEId then
             wrapWithResidualLet (expToLetBody e)
           else if e.val.eid == targetEId then
-            let letOrDef = if isTopLevel e program then Def else Let in
+            let letOrDef = if isTopLevelEId targetEId program then Def else Let in
             withDummyPos <|
               ELet (precedingWhitespace e) letOrDef False
                 (pVar ident) (ensureWhitespaceExp boundExp)
