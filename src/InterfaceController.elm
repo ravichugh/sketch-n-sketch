@@ -606,7 +606,6 @@ issueCommand (Msg kind _) oldModel newModel =
          kind == "Turn Off Caption" ||
          kind == "Mouse Enter CodeBox" ||
          kind == "Mouse Leave CodeBox" ||
-         kind == "Mouse Click CodeBox" ||
          String.startsWith "Key Up" kind ||
          String.startsWith "Key Down" kind
            -- ideally this last condition would not be necessary.
