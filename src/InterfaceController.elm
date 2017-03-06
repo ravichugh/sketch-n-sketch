@@ -1491,13 +1491,30 @@ onMouseDrag dragSource dragTarget m =
     m
 
 
-patTargetPositionToTargetPatId : PatTargetPosition -> PatternId
-patTargetPositionToTargetPatId (beforeAfter, referencePatId) =
-  case beforeAfter of
-    Before -> referencePatId
-    After  ->
-      patIdRightSibling referencePatId
-      |> Utils.fromJust_ ("invalid target pattern id path of [] in target path position: " ++ toString (beforeAfter, referencePatId))
+patTargetPositionToTargetPatId : PatternId -> PatTargetPosition -> Maybe PatternId
+patTargetPositionToTargetPatId mobilePatId (beforeAfter, referencePatId) =
+  let (mobileScopeId, mobilePath) = mobilePatId in
+  let (referenceScopeId, referencePath) = referencePatId in
+  let naiveTargetPath =
+    let referencePathAsPList =
+      case referencePath of
+        [] -> [1]
+        _  -> referencePath
+    in
+    case beforeAfter of
+      Before -> referencePathAsPList
+      After  ->
+        patPathRightSibling referencePathAsPList
+        |> Utils.fromJust_ ("invalid target pattern id path of [] in target path position: " ++ toString (beforeAfter, referencePatId))
+  in
+  -- let _ = Debug.log "(mobilePath, naiveTargetPath)" (mobilePath, naiveTargetPath) in
+  -- let _ = Debug.log "(mobileScopeId, referenceScopeId)" (mobileScopeId, referenceScopeId) in
+  if mobileScopeId == referenceScopeId then
+    pathAfterElementRemoved mobilePath naiveTargetPath
+    |> Maybe.map (\newTargetPath -> (referenceScopeId, newTargetPath))
+    -- |> Debug.log "(referenceScopeId, newTargetPath)"
+  else
+    Just (referenceScopeId, naiveTargetPath)
 
 
 msgMoveExp = Msg "Move Exp" <| \m -> m
@@ -1587,8 +1604,9 @@ contextSensitiveDeuceTools m =
 
     ([], [], [patId], [], [patTarget]) ->
       [ ("Move Definition", \() ->
-          let targetPatId = patTargetPositionToTargetPatId patTarget in
-          CodeMotion.moveDefinitionPat patId targetPatId m.inputExp
+          case patTargetPositionToTargetPatId patId patTarget of
+            Just targetPatId -> CodeMotion.moveDefinitionPat patId targetPatId m.inputExp
+            Nothing          -> ([], [])
         ) ]
 
     ([], [eId], [], [], []) ->

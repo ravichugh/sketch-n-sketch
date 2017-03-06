@@ -195,8 +195,47 @@ type TargetPosition
 -- Increment last path index by 1
 patIdRightSibling : PatternId -> Maybe PatternId
 patIdRightSibling (scopeId, path) =
-  Utils.maybeMapLastElement ((+) 1) path
+  patPathRightSibling path
   |> Maybe.map (\newPath -> (scopeId, newPath))
+
+patPathRightSibling : List Int -> Maybe (List Int)
+patPathRightSibling path =
+  Utils.maybeMapLastElement ((+) 1) path
+
+pathAfterElementRemoved : List Int -> List Int -> Maybe (List Int)
+pathAfterElementRemoved removedPath path =
+  case (removedPath, path) of
+    ([removedI], [pathI]) ->
+      if removedI <= pathI
+      then Just [pathI - 1]
+      else Just [pathI]
+
+    ([removedI], pathI::ps) ->
+      if removedI == pathI then
+        let _ = Debug.log ("removed pat path is supertree of target path " ++ toString (removedPath, path)) in
+        Nothing
+      else if removedI < pathI then
+        Just ((pathI - 1)::ps)
+      else
+        Just path
+
+    (removedI::rs, pathI::ps) ->
+      if removedI == pathI then
+        pathAfterElementRemoved rs ps |> Maybe.map ((::) pathI)
+      else
+        Just path -- Removed element is in a different subtree
+
+    (_::_, []) ->
+        Just path -- Removed element is in a different subtree
+
+    ([], _::_) ->
+      let _ = Debug.log ("removed pat path is supertree of target path " ++ toString (removedPath, path)) in
+      Nothing
+
+    ([], []) ->
+      -- This should be caught by the very first case.
+      -- Unless the initial call was with paths ([], []). But why would that happen?
+      Debug.crash <| "Lang.pathAfterElementRemoved why did this get called?!" ++ toString (removedPath, path)
 
 
 ------------------------------------------------------------------------------
