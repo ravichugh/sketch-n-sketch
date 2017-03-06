@@ -809,14 +809,14 @@ wrapWithLets listOfListsOfNamesAndAssigns isTopLevel bodyExp =
           indentation::_ -> "\n" ++ indentation
           []             -> oldPrecedingWhitespace
       in
-      let preceedingWs = extraWhitespace ++ limitedOldPrecedingWhitespace in
+      let precedingWs = extraWhitespace ++ limitedOldPrecedingWhitespace in
       let letOrDef = if isTopLevel then Def else Let in
       let wrappedWithLets =
         nonEmptyListOfListsOfNamesAndAssigns
         |> List.foldr
             (\letNamesAndAssigns innerExp ->
               eLetOrDef letOrDef letNamesAndAssigns innerExp
-              |> replacePrecedingWhitespace preceedingWs
+              |> replacePrecedingWhitespace precedingWs
             )
             (addPrecedingWhitespace extraWhitespace bodyExp)
       in

@@ -485,8 +485,8 @@ replaceExpNode eid newNode root =
       )
       root
 
-replaceExpNodePreservingPreceedingWhitespace : EId -> Exp -> Exp -> Exp
-replaceExpNodePreservingPreceedingWhitespace eid newNode root =
+replaceExpNodePreservingPrecedingWhitespace : EId -> Exp -> Exp -> Exp
+replaceExpNodePreservingPrecedingWhitespace eid newNode root =
   mapExp
       (\exp ->
         if exp.val.eid == eid
@@ -854,6 +854,10 @@ replaceE__ e e__ = let e_ = e.val in { e | val = { e_ | e__ = e__ } }
 replaceP_ : Pat -> Pat_ -> Pat
 replaceP_ p p_ = { p | val = p_ }
 
+replaceP_PreservingPrecedingWhitespace  : Pat -> Pat_ -> Pat
+replaceP_PreservingPrecedingWhitespace  p p_ =
+  replaceP_ p p_ |> replacePrecedingWhitespacePat (precedingWhitespacePat p)
+
 replaceE__PreservingPrecedingWhitespace : Exp -> Exp__ -> Exp
 replaceE__PreservingPrecedingWhitespace e e__ =
   replaceE__ e e__ |> replacePrecedingWhitespace (precedingWhitespace e)
@@ -929,7 +933,7 @@ eLetOrDef letKind namesAndAssigns bodyExp =
   let (pat, assign) =
     case List.unzip namesAndAssigns of
       ([name], [assign]) -> (pVar name, replacePrecedingWhitespace " " assign)
-      (names, assigns)   -> (pListOfPVars names, eList (cleanupListWhitespace " " assigns) Nothing)
+      (names, assigns)   -> (pListOfPVars names, eList (setExpListWhitespace "" " " assigns) Nothing)
   in
   withDummyPos <|
   ELet "\n" letKind False pat assign bodyExp ""
@@ -1116,19 +1120,19 @@ mapPrecedingWhitespace mapWs exp =
   replaceE__ exp e__New
 
 
-cleanupListWhitespace : String -> List Exp -> List Exp
-cleanupListWhitespace sepWs exps =
+setExpListWhitespace : String -> String -> List Exp -> List Exp
+setExpListWhitespace firstWs sepWs exps =
   case exps of
     []                  -> []
     firstExp::laterExps ->
-      replacePrecedingWhitespace "" firstExp :: List.map (replacePrecedingWhitespace sepWs) laterExps
+      replacePrecedingWhitespace firstWs firstExp :: List.map (replacePrecedingWhitespace sepWs) laterExps
 
-cleanupPatListWhitespace : String -> List Pat -> List Pat
-cleanupPatListWhitespace sepWs pats =
+setPatListWhitespace : String -> String -> List Pat -> List Pat
+setPatListWhitespace firstWs sepWs pats =
   case pats of
     []                  -> []
     firstPat::laterPats ->
-      replacePrecedingWhitespacePat "" firstPat :: List.map (replacePrecedingWhitespacePat sepWs) laterPats
+      replacePrecedingWhitespacePat firstWs firstPat :: List.map (replacePrecedingWhitespacePat sepWs) laterPats
 
 
 -- copyListWhitespace is in LangTools to access the unparser

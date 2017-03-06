@@ -113,7 +113,7 @@ rangeSynthesisResults originalExp =
       (\(eid, newExp) ->
         InterfaceModel.SynthesisResult <|
           { description = "Replace " ++ (unparse >> Utils.squish) (justFindExpByEId originalExp eid) ++ " with " ++ unparse newExp
-          , exp         = replaceExpNodePreservingPreceedingWhitespace eid newExp originalExp
+          , exp         = replaceExpNodePreservingPrecedingWhitespace eid newExp originalExp
           , sortKey     = []
           , children    = Nothing
           }
@@ -235,7 +235,7 @@ inlineListSynthesisResults originalExp =
                                           EList _ _ _ _ _ -> copyListWhitespace parentExp newListExp
                                           _               -> newListExp
                                       in
-                                      let newLetBody = replaceExpNodePreservingPreceedingWhitespace parentExp.val.eid prettyNewListExp letBody in
+                                      let newLetBody = replaceExpNodePreservingPrecedingWhitespace parentExp.val.eid prettyNewListExp letBody in
                                       let newLet = replaceE__ letExp (ELet letWs1 letKind False (pVar listName) letAssign newLetBody letWs2) in
                                       ( replaceExpNode newLet.val.eid newLet originalExp
                                       , "Inline " ++ (unparsePat >> Utils.squish) letPat ++ " into " ++ (unparse >> Utils.squish) newListExp
@@ -568,11 +568,11 @@ mapAbstractSynthesisResults originalExp =
             eApp
                 (eVar0 "map")
                 [ replacePrecedingWhitespace " " (indent ("      " ++ oldIndentation) abstractedFunc) -- Put arguments on same line as map call.
-                , newLineIndent "    " (eTuple (cleanupListWhitespace " " parameterExps))
+                , newLineIndent "    " (eTuple (setExpListWhitespace "" " " parameterExps))
                 ]
             |> newLineIndent "  "
           else
-            eApp (eVar0 "map") [abstractedFunc, eTuple (cleanupListWhitespace " " parameterExps)]
+            eApp (eVar0 "map") [abstractedFunc, eTuple (setExpListWhitespace "" " " parameterExps)]
         in
         let namesToAvoid = identifiersSet commonScope in
         let varNames = sortedExps |> Utils.mapi1 (\(i, _) -> nonCollidingName (funcSuggestedName ++ toString i) 2 namesToAvoid) in

@@ -895,7 +895,7 @@ makeTwiddleTools m eId eShape =
 
   let rewriteAndReturn newShape =
     let newExp =
-      replaceExpNodePreservingPreceedingWhitespace eId newShape m.inputExp
+      replaceExpNodePreservingPrecedingWhitespace eId newShape m.inputExp
     in
     let result =
       { description = "XXX", exp = newExp, sortKey = [], children = Nothing }

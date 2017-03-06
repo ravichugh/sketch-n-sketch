@@ -190,8 +190,8 @@ removeUnusedVars exp =
                     e__
                   else
                     let (usedPats, usedAssigns) = List.unzip usedPatsAssigns in
-                    let newPat    = withDummyRange <| PList pws1 (cleanupPatListWhitespace " " usedPats) pws2 Nothing pws3 in
-                    let newAssign = withDummyPos   <| EList aws1 (cleanupListWhitespace " " usedAssigns) aws2 Nothing aws3 in
+                    let newPat    = withDummyRange <| PList pws1 (setPatListWhitespace "" " " usedPats) pws2 Nothing pws3 in
+                    let newAssign = withDummyPos   <| EList aws1 (setExpListWhitespace "" " " usedAssigns) aws2 Nothing aws3 in
                     ELet ws1 letKind rec newPat newAssign body ws2
 
           _ ->
