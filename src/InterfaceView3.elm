@@ -1354,12 +1354,13 @@ boundingPolygonPoints maybeReverse deuceWidgetAndBoundingPolygonOf exps model la
   let calculate (deuceWidget, boundingPolygon) =
     let points = computePolygonPoints boundingPolygon model layout in
     let color =
-      if List.member deuceWidget model.deuceState.selectedWidgets && not (needsRun model)
-        then "orange"
+      if List.member deuceWidget model.deuceState.selectedWidgets && not (needsRun model) then
+        if List.member deuceWidget model.deuceState.hoveredWidgets
+        then "green"
+        else "orange"
       else if List.member deuceWidget model.deuceState.hoveredWidgets && showDeuceWidgets model
         then "yellow"
-        else
-          ""
+        else ""
     in
     let textPolygon =
         [ flip Svg.polygon []
@@ -1426,7 +1427,9 @@ targetIndicator deuceWidgetConstructor targets model layout =
     let deuceWidget = deuceWidgetConstructor id in
     let pixelPos = rowColToPixelPos start model in
     if List.member deuceWidget model.deuceState.selectedWidgets && not (needsRun model) then
-      drawTarget deuceWidget pixelPos "darkgreen" "1.0" 3
+      if List.member deuceWidget model.deuceState.hoveredWidgets
+      then drawTarget deuceWidget pixelPos "darkgreen" "1.0" 3
+      else drawTarget deuceWidget pixelPos "orange" "1.0" 3
     else if List.member deuceWidget model.deuceState.hoveredWidgets && showDeuceWidgets model then
       drawTarget deuceWidget pixelPos "red" "1.0" 3
     else
