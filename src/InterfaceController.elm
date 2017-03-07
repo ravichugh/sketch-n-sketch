@@ -1618,19 +1618,16 @@ contextSensitiveDeuceTools m =
             _::_ -> tools
             []   -> [] -- may support other kinds of selections here
 
-    ([eId], _, [], [], []) ->
+    (_, _, [], [], []) ->
       if List.length nums /= List.length exps then []
       else
-        [ ("Thaw/Freeze", dummyDeuceTool m)
-        , ("Add/Remove Range", dummyDeuceTool m)
-        ]
-
-    (eIds, _, [], [], []) ->
-      if List.length nums /= List.length exps then []
-      else
-        [ ("Make Equal", dummyDeuceTool m)
-        , ("Dig Hole", dummyDeuceTool m)
-        ]
+        thawOrFreezeTool m nums ++
+        if List.length nums == 1 then
+          [ ("Add/Remove Range", dummyDeuceTool m) ]
+        else
+          [ ("Make Equal", dummyDeuceTool m)
+          , ("Dig Hole", dummyDeuceTool m)
+          ]
 
     ([eId], _, [], [expTarget], []) ->
       if List.length nums /= List.length exps then []
@@ -1661,7 +1658,15 @@ dummyDeuceTool m = \() ->
                         , children = Nothing
                         }])
 
-selectedNums : Model -> List LocId
+oneSafeResult newExp =
+  ( [SynthesisResult { description = "NO DESCRIPTION"
+                     , exp = newExp
+                     , sortKey = []
+                     , children = Nothing
+                     }]
+  , [] )
+
+selectedNums : Model -> List (LocId, WS, Num, Loc, WidgetDecl)
 selectedNums m = flip List.concatMap m.deuceState.selectedWidgets <| \deuceWidget ->
   -- TODO may want to distinguish between different kinds of selected
   -- items earlier
@@ -1670,8 +1675,8 @@ selectedNums m = flip List.concatMap m.deuceState.selectedWidgets <| \deuceWidge
       case findExpByEId m.inputExp eid of
         Just ePlucked ->
           case ePlucked.val.e__ of
-            EConst _ _ _ _ -> [eid]
-            _              -> []
+            EConst ws n loc wd -> [(eid, ws, n, loc, wd)]
+            _                  -> []
         Nothing ->
           []
     _ -> []
@@ -1700,3 +1705,42 @@ selectedPatTargets deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidg
   case deuceWidget of
     DeucePatTarget x -> [x]
     _ -> []
+
+thawOrFreezeTool m nums =
+
+  let thawOrFreeze m nums =
+    let freezeAnnotations = List.map (\(_,_,_,(_,frzn,_),_) -> frzn) nums in
+    case Utils.dedup freezeAnnotations of
+
+      [frzn] ->
+        if m.syncOptions.thawedByDefault then
+          if frzn == unann then Just ("Freeze", frozen)
+          else if frzn == frozen then Just ("Thaw", unann)
+          else if frzn == thawed then Just ("Freeze", frozen)
+          else Nothing
+        else
+          if frzn == unann then Just ("Thaw", thawed)
+          else if frzn == frozen then Just ("Thaw", thawed)
+          else if frzn == thawed then Just ("Freeze", unann)
+          else Nothing
+
+      _ ->
+        if m.syncOptions.thawedByDefault
+        then Just ("Freeze", frozen)
+        else Just ("Thaw", thawed)
+  in
+
+  case thawOrFreeze m nums of
+    Nothing -> []
+    Just (toolName, newAnnotation) ->
+      [ (toolName, \() ->
+          let eSubst =
+             List.foldl
+               (\(eId,ws,n,(locid,_,x),wd) acc ->
+                 Dict.insert eId (EConst ws n (locid, newAnnotation, x) wd) acc
+               )
+               Dict.empty nums
+          in
+          oneSafeResult (applyESubst eSubst m.inputExp)
+        )
+      ]
