@@ -475,24 +475,26 @@ foldExpViaE__ f acc exp =
   let f_ exp = f exp.val.e__ in
   foldExp f_ acc exp
 
-replaceExpNode : EId -> Exp -> Exp -> Exp
-replaceExpNode eid newNode root =
+-- Search for eid in root, replace matching node based on given function
+mapExpNode : EId -> (Exp -> Exp) -> Exp -> Exp
+mapExpNode eid f root =
   mapExp
       (\exp ->
         if exp.val.eid == eid
-        then newNode
+        then f exp
         else exp
       )
       root
 
+replaceExpNode : EId -> Exp -> Exp -> Exp
+replaceExpNode eid newNode root =
+  mapExpNode eid (always newNode) root
+
 replaceExpNodePreservingPrecedingWhitespace : EId -> Exp -> Exp -> Exp
 replaceExpNodePreservingPrecedingWhitespace eid newNode root =
-  mapExp
-      (\exp ->
-        if exp.val.eid == eid
-        then replacePrecedingWhitespace (precedingWhitespace exp) newNode
-        else exp
-      )
+  mapExpNode
+      eid
+      (\exp -> replacePrecedingWhitespace (precedingWhitespace exp) newNode)
       root
 
 replaceExpNodeE__ : Exp -> Exp -> Exp -> Exp
@@ -846,7 +848,7 @@ exp_ = flip Exp_ (-1)
 
 withDummyRange x  = P.WithInfo x P.dummyPos P.dummyPos
 withDummyPos e__  = P.WithInfo (exp_ e__) P.dummyPos P.dummyPos
-  -- TODO rename withDummyPos
+withDummyPosEId eid e__ = P.WithInfo (Exp_ e__ eid) P.dummyPos P.dummyPos
 
 replaceE__ : Exp -> Exp__ -> Exp
 replaceE__ e e__ = let e_ = e.val in { e | val = { e_ | e__ = e__ } }
@@ -1040,6 +1042,7 @@ minusNumTr (n1,t1) (n2,t2) = (n1 + n2, TrOp Minus [t1, t2])
 ------------------------------------------------------------------------------
 -- Whitespace helpers
 
+
 precedingWhitespace : Exp -> String
 precedingWhitespace exp =
   precedingWhitespaceExp__ exp.val.e__
@@ -1048,6 +1051,7 @@ precedingWhitespace exp =
 indentationOf : Exp -> String
 indentationOf exp =
   String.split "\n" (precedingWhitespace exp) |> Utils.last "Lang.indentationOf"
+
 
 precedingWhitespacePat : Pat -> String
 precedingWhitespacePat pat =
@@ -1095,6 +1099,16 @@ replacePrecedingWhitespacePat newWs pat =
   mapPrecedingWhitespacePat (\oldWs -> newWs) pat
 
 
+copyPrecedingWhitespace : Exp -> Exp -> Exp
+copyPrecedingWhitespace source target =
+  replacePrecedingWhitespace (precedingWhitespace source) target
+
+
+copyPrecedingWhitespacePat : Pat -> Pat -> Pat
+copyPrecedingWhitespacePat source target =
+  replacePrecedingWhitespacePat (precedingWhitespacePat source) target
+
+
 -- Does not recurse.
 mapPrecedingWhitespace : (String -> String) -> Exp -> Exp
 mapPrecedingWhitespace mapWs exp =
@@ -1120,12 +1134,42 @@ mapPrecedingWhitespace mapWs exp =
   replaceE__ exp e__New
 
 
+mapPrecedingWhitespacePat : (String -> String) -> Pat -> Pat
+mapPrecedingWhitespacePat mapWs pat =
+  let pat__ =
+    case pat.val of
+      PVar   ws ident wd         -> PVar   (mapWs ws) ident wd
+      PConst ws n                -> PConst (mapWs ws) n
+      PBase  ws v                -> PBase  (mapWs ws) v
+      PList  ws1 es ws2 rest ws3 -> PList  (mapWs ws1) es ws2 rest ws3
+      PAs    ws1 ident ws2 p     -> PAs    (mapWs ws1) ident ws2 p
+  in
+  { pat | val = pat__ }
+
+
+
+ensureWhitespace : String -> String
+ensureWhitespace s =
+  if s == "" then " " else s
+
+
+ensureWhitespaceExp : Exp -> Exp
+ensureWhitespaceExp exp =
+  mapPrecedingWhitespace ensureWhitespace exp
+
+
+ensureWhitespacePat : Pat -> Pat
+ensureWhitespacePat pat =
+  mapPrecedingWhitespacePat ensureWhitespace pat
+
+
 setExpListWhitespace : String -> String -> List Exp -> List Exp
 setExpListWhitespace firstWs sepWs exps =
   case exps of
     []                  -> []
     firstExp::laterExps ->
       replacePrecedingWhitespace firstWs firstExp :: List.map (replacePrecedingWhitespace sepWs) laterExps
+
 
 setPatListWhitespace : String -> String -> List Pat -> List Pat
 setPatListWhitespace firstWs sepWs pats =
@@ -1144,6 +1188,64 @@ setPatListWhitespace firstWs sepWs pats =
 --
 --     _ ->
 --       Debug.crash <| "Lang.copyListWs expected lists, but given " ++ unparseWithIds templateList ++ " and " ++ unparseWithIds list
+
+
+imitateExpListWhitespace : List Exp -> List Exp -> List Exp
+imitateExpListWhitespace oldExps newExps =
+  let (firstWs, sepWs) =
+    case oldExps of
+      first::second::_ -> (precedingWhitespace first, precedingWhitespace second)
+      first::[]        -> (precedingWhitespace first, if precedingWhitespace first == "" then " " else precedingWhitespace first)
+      []               -> ("", " ")
+  in
+  case newExps of
+    [] ->
+      []
+
+    first::rest ->
+      let firstWithNewWs = replacePrecedingWhitespace firstWs first in
+      let restWithNewWs =
+        rest
+        |> List.map
+            (\e ->
+              if precedingWhitespace e == "" then
+                replacePrecedingWhitespace sepWs e
+              else if List.member e oldExps then
+                e
+              else
+                replacePrecedingWhitespace sepWs e
+            )
+      in
+      firstWithNewWs :: restWithNewWs
+
+
+imitatePatListWhitespace : List Pat -> List Pat -> List Pat
+imitatePatListWhitespace oldPats newPats =
+  let (firstWs, sepWs) =
+    case oldPats of
+      first::second::_ -> (precedingWhitespacePat first, precedingWhitespacePat second)
+      first::[]        -> (precedingWhitespacePat first, if precedingWhitespacePat first == "" then " " else precedingWhitespacePat first)
+      []               -> ("", " ")
+  in
+  case newPats of
+    [] ->
+      []
+
+    first::rest ->
+      let firstWithNewWs = replacePrecedingWhitespacePat firstWs first in
+      let restWithNewWs =
+        rest
+        |> List.map
+            (\p ->
+              if precedingWhitespacePat p == "" then
+                replacePrecedingWhitespacePat sepWs p
+              else if List.member p oldPats then
+                p
+              else
+                replacePrecedingWhitespacePat sepWs p
+            )
+      in
+      firstWithNewWs :: restWithNewWs
 
 
 -- Unindents until an expression is flush to the edge, then adds spaces to the indentation.
@@ -1182,16 +1284,3 @@ indent spaces e =
        |> String.reverse
   in
   mapExp (mapPrecedingWhitespace processWS) e
-
-
-mapPrecedingWhitespacePat : (String -> String) -> Pat -> Pat
-mapPrecedingWhitespacePat mapWs pat =
-  let pat__ =
-    case pat.val of
-      PVar   ws ident wd         -> PVar   (mapWs ws) ident wd
-      PConst ws n                -> PConst (mapWs ws) n
-      PBase  ws v                -> PBase  (mapWs ws) v
-      PList  ws1 es ws2 rest ws3 -> PList  (mapWs ws1) es ws2 rest ws3
-      PAs    ws1 ident ws2 p     -> PAs    (mapWs ws1) ident ws2 p
-  in
-  { pat | val = pat__ }

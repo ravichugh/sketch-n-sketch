@@ -1,7 +1,8 @@
 module LangParser2 exposing
                    (prelude, isPreludeLoc, isPreludeLocId, isPreludeEId,
                     substOf, substStrOf, parseE, parseT,
-                    freshen, substPlusOf)
+                    freshen, substPlusOf,
+                    maxId)
 
 import String
 import Dict
@@ -45,7 +46,8 @@ freshen e =
   -- let _ = Debug.log "All Ids" allIds in
   let idsToPreserve = Set.diff allIds duplicateIds in
   -- let _ = Debug.log "Ids to preserve" idsToPreserve in
-  let result = Tuple.first (freshenPreserving idsToPreserve initK e) in
+  let startK      = (List.maximum (initK :: Set.toList allIds) |> U.fromJust) + 1 in
+  let (result, _) = freshenPreserving idsToPreserve startK e in
   -- let _ = Debug.log ("Freshened result:\n" ++ LangUnparser.unparseWithIds result) () in
   result
 
@@ -86,6 +88,11 @@ freshenPreserving idsToPreserve initK e =
       (P.WithInfo (Exp_ newE__ eid) exp.start exp.end, eid + 1)
   in
   mapFoldExp assignIds initK e
+
+maxId : Exp -> Int
+maxId exp =
+  let ids = allIds exp in
+  List.maximum (initK :: Set.toList ids) |> U.fromJust
 
 allIds : Exp -> Set.Set Int
 allIds exp = duplicateAndAllIds exp |> Tuple.first
