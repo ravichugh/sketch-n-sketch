@@ -133,18 +133,20 @@ view model =
        layout.canvas.top in
 
   let caption = captionArea model layout in
-  let deuce = [deuceLayer model layout] in
+  let deuceWidgets = [deuceLayer model layout] in
+
   let everything = -- z-order in decreasing order
      -- bottom-most
      [ onbeforeunloadDataElement
-     , codeBox, outputBox
+     , codeBox
+     ] ++ deuceWidgets ++ [ outputBox
 
      -- toolboxes in reverse order
      , outputTools] ++ animationTools ++
      [ moreBlobTools, blobTools, attributeTools, lambdaDrawTools, stretchyDrawTools, drawTools
      , textTools, deuceTools
      , codeTools, fileTools
-     ] ++ synthesisResultsSelect ++ deuce ++
+     ] ++ synthesisResultsSelect ++
 
      -- top-most
      [ resizeCodeBox
