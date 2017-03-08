@@ -180,7 +180,7 @@ hoveringItem start p end =
     Nothing   -> False
     Just pos  -> betweenPos start pos end
 
-leadingTrailingSpaces str start end =
+leadingTrailingSpaces str index start end =
   let leftTrim = String.trimLeft str in
   let rightTrim = String.trimRight str in
   let fullLength = String.length str in
@@ -188,7 +188,11 @@ leadingTrailingSpaces str start end =
   let rightTrimLength = String.length rightTrim in
   let leading = fullLength - leftTrimLength in
   let trailing = rightTrimLength in
-  (leading, trailing)
+  if index == start.line 
+  then 
+    (start.col - 1, (trailing - leading) + (start.col - 1))
+  else
+    (leading, trailing)
 
 lineStartEnd ls currIndex start end results =
   case ls of
@@ -200,7 +204,7 @@ lineStartEnd ls currIndex start end results =
         then
           case List.head(lines) of
             Just str -> lineStartEnd (List.tail(lines)) (currIndex + 1) start end
-                                      (Dict.insert currIndex (leadingTrailingSpaces str start end) results)
+                                      (Dict.insert currIndex (leadingTrailingSpaces str currIndex start end) results)
             _ -> results
         else
           lineStartEnd (List.tail(lines)) (currIndex+1) start end results
@@ -215,8 +219,6 @@ leadingNewlines lines total =
                     else total
         _ -> total
     Nothing -> total
-
-
 
 patBoundingPolygon :
     DeuceWidget
@@ -248,7 +250,11 @@ boundingPolygon unparseExpOrPat id expOrPat endExpOrPat =
   if List.length lines == 1 && start.line == end.line
   then
     let s = start.line in
-    (id, Dict.fromList [(s, (start.col - 1, end.col - 1))])
+    case id of
+      DeuceEquation _ ->
+        (id, Dict.fromList [(s, (start.col, end.col - 1))])
+      _ -> 
+        (id, Dict.fromList [(s, (start.col - 1, end.col - 1))])
   else
     let leading = leadingNewlines (Just lines) 0 in
     let output = lineStartEnd (Just lines) (start.line - leading) start end (Dict.empty) in
