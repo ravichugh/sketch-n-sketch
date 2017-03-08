@@ -1866,3 +1866,16 @@ renamePat (scopeId, path) newName program =
 
     Nothing ->
       ([], [])
+
+
+renameVar : EId -> String -> Exp -> (List SynthesisResult, List SynthesisResult)
+renameVar varEId newName program =
+  let varExp = LangTools.justFindExpByEId program varEId in
+  let oldName = LangTools.expToIdent varExp in
+  case LangTools.bindingPatternIdFor varExp program of
+    Just patternId ->
+      renamePat patternId newName program
+
+    Nothing ->
+      let _ = Debug.log (oldName ++ " is free at this location in the program") () in
+      ([], [])

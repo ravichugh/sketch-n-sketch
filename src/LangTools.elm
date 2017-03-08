@@ -1251,6 +1251,17 @@ findPatInPat pat path =
       Nothing
 
 
+pathForIdentInPat : Pat -> Ident -> Maybe (List Int)
+pathForIdentInPat pat targetIdent =
+  if patToMaybeIdent pat == Just targetIdent then
+    Just []
+  else
+    childPats pat
+    |> Utils.zipi1
+    |> Utils.mapFirstSuccess (\(i, p) -> pathForIdentInPat p targetIdent |> Maybe.map ((,) i))
+    |> Maybe.map (\(i, path) -> i::path)
+
+
 -- Which var idents in this exp refer to something outside this exp?
 -- This is wrong for TypeCases; TypeCase scrutinee patterns not included. TypeCase scrutinee needs to turn into an expression (done on Brainstorm branch, I believe).
 freeIdentifiers : Exp -> Set.Set Ident
@@ -1492,50 +1503,74 @@ visibleIdentifiersAtPredicate_ idents exp pred =
     -- EDict _                   -> Debug.crash "LangTools.visibleIdentifiersAtEIds_: shouldn't have an EDict in given expression"
 
 
+-- Compute the PatternId that assigned the binding referenced by varExp
+--
+-- Returns Nothing if free in program or not in program
+bindingPatternIdFor : Exp -> Exp -> Maybe PatternId
+bindingPatternIdFor varExp program =
+  let targetName = expToIdent varExp in
+  let targetEId  = varExp.val.eid in
+  bindingPatternIdFor_ Nothing targetName targetEId program |> Maybe.withDefault Nothing
+
+
 -- Compute the ScopeId that assigned the binding referenced by varExp
 --
 -- Returns Nothing if free in program or not in program
 bindingScopeIdFor : Exp -> Exp -> Maybe ScopeId
 bindingScopeIdFor varExp program =
-  let targetName = expToIdent varExp in
-  let targetEId  = varExp.val.eid in
-  bindingScopeIdFor_ Nothing targetName targetEId program |> Maybe.withDefault Nothing
+  bindingPatternIdFor varExp program
+  |> Maybe.map (\(scopeId, path) -> scopeId)
+
 
 -- Outer returned maybe indicates if variable found
 -- Inner returned maybe is scopeId that bound the identifier as seen from the usage site (Nothing means free)
-bindingScopeIdFor_ : Maybe ScopeId -> Ident -> EId -> Exp -> Maybe (Maybe ScopeId)
-bindingScopeIdFor_ currentBindingScopeId targetName targetEId exp =
-  let recurse scopeId e = bindingScopeIdFor_ scopeId targetName targetEId e in
-  let newBindingScopeId pats i =
-    if List.member targetName (identifiersListInPats pats)
-    then Just (exp.val.eid, i)
-    else currentBindingScopeId
+bindingPatternIdFor_ : Maybe PatternId -> Ident -> EId -> Exp -> Maybe (Maybe PatternId)
+bindingPatternIdFor_ currentBindingPatternId targetName targetEId exp =
+  let recurse patternId e = bindingPatternIdFor_ patternId targetName targetEId e in
+  let maybeNewBindingForRecursion pat branchI pathPrefix =
+    pathForIdentInPat pat targetName
+    |> Maybe.map (\path -> Just ((exp.val.eid, branchI), pathPrefix ++ path))
   in
   case exp.val.e__ of
     EVar _ _ ->
       if exp.val.eid == targetEId then
-        Just currentBindingScopeId
+        Just currentBindingPatternId
       else
         Nothing
 
     EFun _ pats body _ ->
-      recurse (newBindingScopeId pats 1) body
+      let newBindingPatternId =
+        pats
+        |> Utils.zipi1
+        |> Utils.mapFirstSuccess (\(i, pat) -> maybeNewBindingForRecursion pat 1 [i])
+        |> Maybe.withDefault currentBindingPatternId
+      in
+      recurse newBindingPatternId body
 
-    ELet _ _ isRecursive pat assigns body _ ->
-      let newScopeId = newBindingScopeId [pat] 1 in
-      let scopeIdForAssigns = if isRecursive then newScopeId else currentBindingScopeId in
+    ELet _ _ isRecursive pat boundExp body _ ->
+      let newBindingPatternId =
+        maybeNewBindingForRecursion pat 1 []
+        |> Maybe.withDefault currentBindingPatternId
+      in
+      let patternIdForBoundExp = if isRecursive then newBindingPatternId else currentBindingPatternId in
       Utils.firstOrLazySecond
-          (recurse scopeIdForAssigns assigns)
-          (\() -> recurse newScopeId body)
+          (recurse patternIdForBoundExp boundExp)
+          (\() -> recurse newBindingPatternId body)
 
     ECase _ _ branches _ ->
       branchPatExps branches
       |> Utils.zipi1
       |> Utils.mapFirstSuccess
-          (\(i, (pat, branchExp)) -> recurse (newBindingScopeId [pat] i) branchExp)
+          (\(i, (pat, branchExp)) ->
+            let newBindingPatternId =
+              maybeNewBindingForRecursion pat i []
+              |> Maybe.withDefault currentBindingPatternId
+            in
+            recurse newBindingPatternId branchExp
+          )
 
     _ ->
-      Utils.mapFirstSuccess (recurse currentBindingScopeId) (childExps exp)
+      Utils.mapFirstSuccess (recurse currentBindingPatternId) (childExps exp)
 
 
 type ExpressionBinding

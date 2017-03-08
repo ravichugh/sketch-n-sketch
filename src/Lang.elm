@@ -605,7 +605,7 @@ findAllWithAncestors_ predicate ancestors exp =
   let recurse exp      = findAllWithAncestors_ predicate ancestorsAndThis exp in
   thisResult ++ List.concatMap recurse (childExps exp)
 
--- Children returned ordered left-to-right.
+-- Children left-to-right.
 childExps : Exp -> List Exp
 childExps e =
   case e.val.e__ of
@@ -803,6 +803,7 @@ flattenPatTree pat =
   pat :: List.concatMap flattenPatTree (childPats pat)
 
 
+-- Children left-to-right.
 childPats : Pat -> List Pat
 childPats pat =
   case pat.val of
