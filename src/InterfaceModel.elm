@@ -368,6 +368,19 @@ needsRun m =
 
 --------------------------------------------------------------------------------
 
+type alias DeuceTool = () -> (List SynthesisResult, List SynthesisResult)
+type alias NamedDeuceTool = (String, DeuceTool)
+
+oneSafeResult newExp =
+  ( [SynthesisResult { description = "NO DESCRIPTION"
+                     , exp = newExp
+                     , sortKey = []
+                     , children = Nothing
+                     }]
+  , [] )
+
+--------------------------------------------------------------------------------
+
 initModel : Model
 initModel =
   let

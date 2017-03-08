@@ -1632,16 +1632,18 @@ contextSensitiveDeuceTools m =
     ([eId], _, [], [expTarget], []) ->
       if List.length nums /= List.length exps then []
       else
-        [ ("Introduce Var", dummyDeuceTool m) ]
+        [ ("Introduce Var", dummyDeuceTool m) ] ++
+        CodeMotion.makeEListReorderTool m exps expTarget
 
     ([eId], _, [], [], [patTarget]) ->
       if List.length nums /= List.length exps then []
       else
         [ ("Introduce Var", dummyDeuceTool m) ]
 
-    _ -> []
+    (_, _ :: _, [], [expTarget], []) ->
+      CodeMotion.makeEListReorderTool m exps expTarget
 
-type alias DeuceTool = () -> (List SynthesisResult, List SynthesisResult)
+    _ -> []
 
 applyDeuceTool : DeuceTool -> Model -> Model
 applyDeuceTool func m =
@@ -1657,14 +1659,6 @@ dummyDeuceTool m = \() ->
                         , sortKey = []
                         , children = Nothing
                         }])
-
-oneSafeResult newExp =
-  ( [SynthesisResult { description = "NO DESCRIPTION"
-                     , exp = newExp
-                     , sortKey = []
-                     , children = Nothing
-                     }]
-  , [] )
 
 selectedNums : Model -> List (LocId, WS, Num, Loc, WidgetDecl)
 selectedNums m = flip List.concatMap m.deuceState.selectedWidgets <| \deuceWidget ->
