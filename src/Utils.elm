@@ -474,6 +474,11 @@ getReplacei0 i f list =
     (before, x::after) -> before ++ [f x] ++ after
     _                  -> list
 
+-- 1-based
+getReplacei1 : Int -> (a -> a) -> List a -> List a
+getReplacei1 i f list =
+  getReplacei0 (i-1) f list
+
 -- O(n)
 allSame list = case list of
   []    -> False

@@ -34,7 +34,7 @@ pluck_ scopeExp path program =
   let (maybePluckedAndMaybeNewPatAndBoundExp, ws1, letKind, isRec, ws2) =
     case scopeExp.val.e__ of
       ELet ws1 letKind False p e1 e2 ws2 -> (pluck__ p e1 path, ws1, letKind, False, ws2)
-      _                                  -> Debug.crash <| "pluck_: bad Exp__ " ++ unparseWithIds scopeExp
+      _                                  -> Debug.crash <| "pluck_: bad Exp__ (note: letrec not supported) " ++ unparseWithIds scopeExp
   in
   case maybePluckedAndMaybeNewPatAndBoundExp of
     Nothing ->
@@ -140,8 +140,6 @@ strUnsafeBool isUnsafe = if isUnsafe then "[UNSAFE] " else ""
 ------------------------------------------------------------------------------
 
 
--- TODO: fix moving a subpattern in front of the scope
-
 -- Moving a definition is safe if all identifiers resolve to the same bindings.
 --
 -- More specifically:
@@ -197,7 +195,7 @@ moveDefinitionBeforeEId sourcePatId targetEId program =
         identUsesSafe && boundExpVarsSafe
       in
       let caption =
-        strUnsafeBool (not isSafe) ++ " Move " ++ (unparsePat >> Utils.squish) pluckedPat ++ " before " ++ (unparse >> Utils.squish >> Utils.niceTruncateString 20 "...") movedScopeBody
+        strUnsafeBool (not isSafe) ++ "Move " ++ (unparsePat >> Utils.squish) pluckedPat ++ " before " ++ (unparse >> Utils.squish >> Utils.niceTruncateString 20 "...") movedScopeBody
       in
       let result =
         SynthesisResult { description = caption, exp = newProgram, sortKey = [], children = Nothing }
@@ -255,7 +253,7 @@ moveDefinitionPat sourcePatId targetPatId program =
         identUsesSafe && boundExpVarsSafe && noDuplicateNamesInPat
       in
       let caption =
-        strUnsafeBool (not isSafe) ++ " Move " ++ (unparsePat >> Utils.squish) pluckedPat ++ " to make " ++ (unparsePat >> Utils.squish >> Utils.niceTruncateString 20 "...") (expToLetPat newScope)
+        strUnsafeBool (not isSafe) ++ "Move " ++ (unparsePat >> Utils.squish) pluckedPat ++ " to make " ++ (unparsePat >> Utils.squish >> Utils.niceTruncateString 20 "...") (expToLetPat newScope)
       in
       let result =
         SynthesisResult { description = caption, exp = newProgram, sortKey = [], children = Nothing }

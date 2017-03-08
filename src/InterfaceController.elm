@@ -1545,43 +1545,33 @@ msgMoveExp = Msg "Move Exp" <| \m -> m
   --    bad ()
 
 
-movePatBeforeEId sourcePatId targetEId model =
-  let (safeResults, unsafeResults) =
-    CodeMotion.moveDefinitionBeforeEId sourcePatId targetEId model.inputExp
-  in
-  updateWithMoveExpResults model (safeResults, unsafeResults)
+-- movePatBeforeEId sourcePatId targetEId model =
+--   let (safeResults, unsafeResults) =
+--     CodeMotion.moveDefinitionBeforeEId sourcePatId targetEId model.inputExp
+--   in
+--   updateWithMoveExpResults model (safeResults, unsafeResults)
+--
+--
+-- movePatToPat sourcePatId targetPatId model =
+--   let (safeResults, unsafeResults) =
+--     CodeMotion.moveDefinitionPat sourcePatId targetPatId model.inputExp
+--   in
+--   updateWithMoveExpResults model (safeResults, unsafeResults)
 
 
-movePatToPat sourcePatId targetPatId model =
-  let (safeResults, unsafeResults) =
-    CodeMotion.moveDefinitionPat sourcePatId targetPatId model.inputExp
-  in
-  updateWithMoveExpResults model (safeResults, unsafeResults)
+-- updateWithMoveExpResults model (safeResults, unsafeResults) =
+--   -- If exactly one result and it is safe, apply the update to the code immediately.
+--   -- Otherwise, place results in the synthesis results box.
+--   case (safeResults, unsafeResults) of
+--     ([SynthesisResult safeResult], []) ->
+--       -- TODO version of upstateRun to avoid unparse then re-parse
+--       let newCode = unparse safeResult.exp in
+--       upstateRun { model | code = newCode, synthesisResults = [] }
+--
+--     (safeResults, unsafeResults) ->
+--       { model | synthesisResults = safeResults ++ unsafeResults }
 
 
--- movePatToPat_ bad sourcePat targetPat targetPats m =
---  if singleLogicalTarget targetPat targetPats
---    then movePatToPat sourcePat targetPat m
---    else bad ()
-
-updateWithMoveExpResults model (safeResults, unsafeResults) =
-  -- If exactly one result and it is safe, apply the update to the code immediately.
-  -- Otherwise, place results in the synthesis results box.
-  case (safeResults, unsafeResults) of
-    ([SynthesisResult safeResult], []) ->
-      -- TODO version of upstateRun to avoid unparse then re-parse
-      let newCode = unparse safeResult.exp in
-      upstateRun { model | code = newCode, synthesisResults = [] }
-
-    (safeResults, unsafeResults) ->
-      { model | synthesisResults = safeResults ++ unsafeResults }
-
-
--- singleLogicalTarget target targets =
---   case targets of
---     []        -> True
---     [target2] -> True -- TODO check
---     _         -> False
 
 
 contextSensitiveDeuceTools m =
@@ -1595,7 +1585,20 @@ contextSensitiveDeuceTools m =
 
   case (nums, exps, pats, expTargets, patTargets) of
 
-    ([], [], [], [], []) -> []
+    ([], [], [patId], [], []) ->
+      case LangTools.findPat m.inputExp patId |> Maybe.map .val of
+        Just (PVar _ ident _) ->
+          [ ("Rename", \() ->
+              ([], [])
+            ) ]
+
+        Just (PAs _ ident _ _) ->
+          [ ("Rename", \() ->
+              ([], [])
+            ) ]
+
+        _ ->
+          []
 
     ([], [], [patId], [(Before, eId)], []) ->
       [ ("Move Definition", \() ->
@@ -1738,3 +1741,42 @@ thawOrFreezeTool m nums =
           oneSafeResult (applyESubst eSubst m.inputExp)
         )
       ]
+
+
+renamePat : PatternId -> String -> Exp -> (List SynthesisResult, List SynthesisResult)
+renamePat (scopeId, path) newName program =
+  case LangTools.findScopeExpAndPat program (scopeId, path) of
+    Just (scopeExp, pat) ->
+      case LangTools.patToMaybeIdent pat of
+        Just oldName ->
+          let scopeAreas = LangTools.findScopeAreas scopeExp scopeId in
+          let oldUseEIds = List.concatMap (LangTools.identifierUses oldName) scopeAreas |> List.map (.val >> .eid) in
+          let newScopeAreas = List.map (LangTools.renameVarUntilBound oldName newName) scopeAreas in
+          let newUseEIds = List.concatMap (LangTools.identifierUses newName) newScopeAreas |> List.map (.val >> .eid) in
+          let isSafe =
+            oldUseEIds == newUseEIds && not (List.member newName (LangTools.identifiersListInPat pat))
+          in
+          let newScopeExp =
+            let scopeAreasReplaced =
+              newScopeAreas
+              |> List.foldl
+                  (\newScopeArea scopeExp -> replaceExpNode newScopeArea.val.eid newScopeArea scopeExp)
+                  scopeExp
+            in
+            LangTools.setPatName (scopeId, path) newName scopeAreasReplaced
+          in
+          let newProgram = replaceExpNode newScopeExp.val.eid newScopeExp program in
+          let caption =
+            (if isSafe then "" else "[UNSAFE] ") ++ "Rename " ++ oldName ++ " to " ++ newName in
+          let result =
+            SynthesisResult { description = caption, exp = newProgram, sortKey = [], children = Nothing }
+          in
+          if isSafe
+          then ([result], [])
+          else ([], [result])
+
+        Nothing ->
+          ([], [])
+
+    Nothing ->
+      ([], [])

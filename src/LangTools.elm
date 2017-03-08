@@ -822,6 +822,81 @@ wrapWithLets listOfListsOfNamesAndAssigns isTopLevel bodyExp =
       in
       wrappedWithLets
 
+
+expToMaybeNum : Exp -> Maybe Num
+expToMaybeNum exp =
+  case exp.val.e__ of
+    EConst _ n _ _ -> Just n
+    _              -> Nothing
+
+
+expToMaybeIdent : Exp -> Maybe Ident
+expToMaybeIdent exp =
+  case exp.val.e__ of
+    EVar _ ident -> Just ident
+    _            -> Nothing
+
+
+expToIdent : Exp -> Ident
+expToIdent exp =
+  case exp.val.e__ of
+    EVar _ ident -> ident
+    _            -> Debug.crash <| "LangTools.expToIdent exp is not an EVar: " ++ unparseWithIds exp
+
+
+patToMaybeIdent : Pat -> Maybe Ident
+patToMaybeIdent pat =
+  case pat.val of
+    PVar _ ident _  -> Just ident
+    PAs _ ident _ _ -> Just ident
+    _               -> Nothing
+
+
+patToMaybePVarIdent : Pat -> Maybe Ident
+patToMaybePVarIdent pat =
+  case pat.val of
+    PVar _ ident _ -> Just ident
+    _              -> Nothing
+
+
+expToLetKind : Exp -> LetKind
+expToLetKind exp =
+  case exp.val.e__ of
+    ELet _ lk _ _ _ _ _ -> lk
+    _                   -> Debug.crash <| "LangTools.expToLetKind exp is not an ELet: " ++ unparseWithIds exp
+
+
+expToLetPat : Exp -> Pat
+expToLetPat exp =
+  case exp.val.e__ of
+    ELet _ _ _ pat _ _ _ -> pat
+    _                    -> Debug.crash <| "LangTools.expToLetPat exp is not an ELet: " ++ unparseWithIds exp
+
+
+expToLetBoundExp : Exp -> Exp
+expToLetBoundExp exp =
+  case exp.val.e__ of
+    ELet _ _ _ _ boundExp _ _ -> boundExp
+    _                         -> Debug.crash <| "LangTools.expToLetPat exp is not an ELet: " ++ unparseWithIds exp
+
+
+expToLetBody : Exp -> Exp
+expToLetBody exp =
+  case exp.val.e__ of
+    ELet _ _ _ _ _ body _ -> body
+    _                     -> Debug.crash <| "LangTools.expToLetBody exp is not an ELet: " ++ unparseWithIds exp
+
+
+-- This is a rather generous definition of literal.
+isLiteral : Exp -> Bool
+isLiteral exp =
+  Set.size (freeIdentifiers exp) == 0
+
+
+-------------------------------------------------------------
+-- Identifier/scoping/binding functions
+
+
 preludeIdentifiers = Eval.initEnv |> List.map Tuple.first |> Set.fromList
 
 
@@ -1038,66 +1113,142 @@ renameIdentifiers subst exp =
     exp
 
 
-expToMaybeNum : Exp -> Maybe Num
-expToMaybeNum exp =
-  case exp.val.e__ of
-    EConst _ n _ _ -> Just n
-    _              -> Nothing
+setPatName : PatternId -> Ident -> Exp -> Exp
+setPatName ((scopeEId, branchI), path) newName exp =
+  let maybeScopeExp = findExpByEId exp scopeEId in
+  let maybeNewScopeExp =
+    let makeNewScope e__ = replaceE__ (Utils.fromJust maybeNewScopeExp) e__ in
+    case (Maybe.map (.val >> .e__) maybeScopeExp, path) of
+      (Just (ELet ws1 letKind isRec pat boundExp body ws2), _)->
+        let newPat = setPatNameInPat path newName pat in
+        Just <| makeNewScope (ELet ws1 letKind isRec newPat boundExp body ws2)
+
+      (Just (EFun ws1 pats body ws2), i::is) ->
+        Utils.maybeGet1 i pats
+        |> Maybe.map
+            (\pat ->
+              let newPat = setPatNameInPat is newName pat in
+              makeNewScope (EFun ws1 (Utils.replacei i newPat pats) body ws2)
+            )
+
+      (Just (ECase ws1 scrutinee branches ws2), _) ->
+        Utils.maybeGet1 branchI branches
+        |> Maybe.map
+            (\branch ->
+              let (Branch_ ws1 pat exp ws2) = branch.val in
+              let newPat = setPatNameInPat path newName pat in
+              let newBranch = { branch | val = Branch_ ws1 newPat exp ws2 } in
+              makeNewScope (ECase ws1 scrutinee (Utils.replacei branchI newBranch branches) ws2)
+            )
+
+      _ ->
+        Nothing
+  in
+  case maybeNewScopeExp of
+    Just newScopeExp -> replaceExpNode newScopeExp.val.eid newScopeExp exp
+    Nothing          -> exp
 
 
-expToMaybeIdent : Exp -> Maybe Ident
-expToMaybeIdent exp =
-  case exp.val.e__ of
-    EVar _ ident -> Just ident
-    _            -> Nothing
+setPatNameInPat : List Int -> Ident -> Pat -> Pat
+setPatNameInPat path newName pat =
+  case (pat.val, path) of
+    (PVar ws ident wd, []) ->
+      replaceP_ pat (PVar ws newName wd)
+
+    (PAs ws1 ident ws2 p, []) ->
+      replaceP_ pat (PAs ws1 newName ws2 p)
+
+    (PAs ws1 ident ws2 p, 1::is) ->
+      replaceP_ pat (PAs ws1 ident ws2 (setPatNameInPat is newName p))
+
+    (PList ws1 ps ws2 Nothing ws3, i::is) ->
+      let newPs = Utils.getReplacei1 i (setPatNameInPat is newName) ps in
+      replaceP_ pat (PList ws1 newPs ws2 Nothing ws3)
+
+    (PList ws1 ps ws2 (Just tailPat) ws3, i::is) ->
+      if i <= List.length ps then
+        let newPs = Utils.getReplacei1 i (setPatNameInPat is newName) ps in
+        replaceP_ pat (PList ws1 newPs ws2 (Just tailPat) ws3)
+      else if i == List.length ps + 1 then
+        replaceP_ pat (PList ws1 ps ws2 (Just (setPatNameInPat is newName tailPat)) ws3)
+      else
+        pat
+
+    _ ->
+      pat
 
 
-expToIdent : Exp -> Ident
-expToIdent exp =
-  case exp.val.e__ of
-    EVar _ ident -> ident
-    _            -> Debug.crash <| "LangTools.expToIdent exp is not an EVar: " ++ unparseWithIds exp
+-- Return the first expression(s) that can see the bound variables
+-- Returns [] if cannot find scope; letrec returns two expressions [boundExp, body]; others return singleton list
+findScopeAreas : Exp -> ScopeId -> List Exp
+findScopeAreas exp (scopeEId, branchI) =
+  let maybeScopeExp = findExpByEId exp scopeEId in
+  case Maybe.map (.val >> .e__) maybeScopeExp of
+    Just (ELet _ _ isRec pat boundExp body _) ->
+      if isRec
+      then [boundExp, body]
+      else [body]
+
+    Just (EFun _ pats body _) ->
+      [body]
+
+    Just (ECase _ _ branches _) ->
+      Utils.maybeGet1 branchI (branchExps branches)
+      |> Maybe.map (\branch -> [branch])
+      |> Maybe.withDefault []
+
+    _ ->
+      []
 
 
-patToMaybeIdent : Pat -> Maybe Ident
-patToMaybeIdent pat =
-  case pat.val of
-    PVar _ ident _ -> Just ident
-    _              -> Nothing
+findScopeExpAndPat : Exp -> PatternId -> Maybe (Exp, Pat)
+findScopeExpAndPat exp ((scopeEId, branchI), path) =
+  let maybeScopeExp = findExpByEId exp scopeEId in
+  let maybePat =
+    case (Maybe.map (.val >> .e__) maybeScopeExp, path) of
+      (Just (ELet _ _ _ pat _ _ _), _) ->
+        findPatInPat pat path
+
+      (Just (EFun _ pats _ _), i::is) ->
+        Utils.maybeGet1 i pats
+        |> Maybe.andThen (\pat -> findPatInPat pat is)
+
+      (Just (ECase _ _ branches _), _) ->
+        Utils.maybeGet1 branchI (branchPats branches)
+        |> Maybe.andThen (\pat -> findPatInPat pat path)
+
+      _ ->
+        Nothing
+  in
+  maybePat
+  |> Maybe.map (\pat -> (Utils.fromJust maybeScopeExp, pat))
 
 
-expToLetKind : Exp -> LetKind
-expToLetKind exp =
-  case exp.val.e__ of
-    ELet _ lk _ _ _ _ _ -> lk
-    _                   -> Debug.crash <| "LangTools.expToLetKind exp is not an ELet: " ++ unparseWithIds exp
+findPat : Exp -> PatternId -> Maybe Pat
+findPat exp patId =
+  findScopeExpAndPat exp patId
+  |> Maybe.map Tuple.second
 
 
-expToLetPat : Exp -> Pat
-expToLetPat exp =
-  case exp.val.e__ of
-    ELet _ _ _ pat _ _ _ -> pat
-    _                    -> Debug.crash <| "LangTools.expToLetPat exp is not an ELet: " ++ unparseWithIds exp
+findPatInPat : Pat -> List Int -> Maybe Pat
+findPatInPat pat path =
+  case (pat.val, path) of
+    (_, []) ->
+      Just pat
 
+    (PAs _ _ _ p, 1::is) ->
+      findPatInPat p is
 
-expToLetBoundExp : Exp -> Exp
-expToLetBoundExp exp =
-  case exp.val.e__ of
-    ELet _ _ _ _ boundExp _ _ -> boundExp
-    _                         -> Debug.crash <| "LangTools.expToLetPat exp is not an ELet: " ++ unparseWithIds exp
+    (PList _ ps _ Nothing _, i::is) ->
+      Utils.maybeGet1 i ps
+      |> Maybe.andThen (\p -> findPatInPat p is)
 
+    (PList _ ps _ (Just tailPat) _, i::is) ->
+      Utils.maybeGet1 i (ps ++ [tailPat])
+      |> Maybe.andThen (\p -> findPatInPat p is)
 
-expToLetBody : Exp -> Exp
-expToLetBody exp =
-  case exp.val.e__ of
-    ELet _ _ _ _ _ body _ -> body
-    _                     -> Debug.crash <| "LangTools.expToLetBody exp is not an ELet: " ++ unparseWithIds exp
-
-
--- This is a rather generous definition of literal.
-isLiteral : Exp -> Bool
-isLiteral exp =
-  Set.size (freeIdentifiers exp) == 0
+    _ ->
+      Nothing
 
 
 -- Which var idents in this exp refer to something outside this exp?

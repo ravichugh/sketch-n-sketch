@@ -132,7 +132,7 @@ inlineListSynthesisResults originalExp =
               case letPat.val of
                 PList _ (p1::p2::p3::pRest) _ Nothing _ -> -- At least three
                   let pats = p1::p2::p3::pRest in
-                  let maybeIdents = pats |> List.map patToMaybeIdent |> Utils.projJusts in
+                  let maybeIdents = pats |> List.map patToMaybePVarIdent |> Utils.projJusts in
                   case maybeIdents of
                     Just idents ->
                       let usages = identifierSetUses (Set.fromList idents) letBody in
