@@ -1294,8 +1294,9 @@ computePolygonPoints rcs model layout =
       let c = if leftSide then c1 else c2 in
       let topOffset = rowColToPixelPos {line = k, col = c} model in
       let dx = if leftSide then -pad else pad in
-      let dyTop = if (leftSide && i == 1) || (not (leftSide) && i == n) then -pad else 0 in
-      let dyBot = if (leftSide && i == n) || (not (leftSide) && i == 1) then  pad else 0 in
+       let dyTop = if (leftSide && i == 1) || (not (leftSide) && i == n) then -pad else 0 in
+       let dyBot = if (leftSide && i == n) || (not (leftSide) && i == 1) || 
+                      (leftSide && i == 1) || (not (leftSide) && i == n) then  pad else 0 in 
       let top =
          { x = topOffset.x - model.codeBoxInfo.gutterWidth + dx
          , y = topOffset.y - model.codeBoxInfo.offsetHeight + dyTop
