@@ -148,8 +148,10 @@ eval env bt e =
     let v_ = VConst Nothing (i, TrLoc l) in
     case wd.val of
       NoWidgetDecl         -> Ok <| ret v_
-      IntSlider a _ b mcap -> Ok <| retBoth (Val v_ [], [WIntSlider a.val b.val (mkCap mcap l) (floor i) l])
-      NumSlider a _ b mcap -> Ok <| retBoth (Val v_ [], [WNumSlider a.val b.val (mkCap mcap l) i l])
+      IntSlider a _ b mcap hidden ->
+        Ok <| retBoth (Val v_ [], [WIntSlider a.val b.val (mkCap mcap l) (floor i) l hidden])
+      NumSlider a _ b mcap hidden ->
+        Ok <| retBoth (Val v_ [], [WNumSlider a.val b.val (mkCap mcap l) i l hidden])
 
   EBase _ v      -> Ok <| ret <| VBase (eBaseToVBase v)
   EVar _ x       -> Result.map retAddThis <| lookupVar env (e::bt) x e.start
@@ -469,16 +471,20 @@ valToDictKey bt val_ =
 postProcessWidgets widgets =
   let dedupedWidgets = Utils.dedup widgets in
 
-  -- partition so that point sliders don't affect indexing
+  -- partition so that hidden and point sliders don't affect indexing
   -- (and, thus, positioning) of range sliders
   --
   let (rangeWidgets, pointWidgets) =
     dedupedWidgets |>
-      List.partition (\widget -> case widget of
-                                 WIntSlider _ _ _ _ _      -> True
-                                 WNumSlider _ _ _ _ _      -> True
-                                 WPoint _ _          -> False
-                                 WOffset1D _ _ _ _ _ -> False)
+      List.partition (\widget ->
+        case widget of
+          WIntSlider _ _ _ _ _ False -> True
+          WNumSlider _ _ _ _ _ False -> True
+          WIntSlider _ _ _ _ _ True  -> False
+          WNumSlider _ _ _ _ _ True  -> False
+          WPoint _ _                 -> False
+          WOffset1D _ _ _ _ _        -> False
+      )
   in
   rangeWidgets ++ pointWidgets
 

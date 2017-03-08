@@ -1870,6 +1870,6 @@ mergeMaybePatterns mp mps =
 annotatedNumToComparable : AnnotatedNum -> (Num, Frozen, Float, Float)
 annotatedNumToComparable (n, frzn, wd) =
   case wd.val of
-    IntSlider a _ b _ -> (n, frzn, toFloat a.val, toFloat b.val)
-    NumSlider a _ b _ -> (n, frzn, a.val, b.val)
-    NoWidgetDecl      -> (n, frzn, 1, -1)
+    IntSlider a _ b _ _ -> (n, frzn, toFloat a.val, toFloat b.val)
+    NumSlider a _ b _ _ -> (n, frzn, a.val, b.val)
+    NoWidgetDecl        -> (n, frzn, 1, -1)

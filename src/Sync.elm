@@ -151,8 +151,8 @@ getLocationCounts options (slate, widgets) =
   in
   let addTriggerWidget widget acc =
     case widget of
-      WIntSlider _ _ _ _ loc -> updateCount loc acc
-      WNumSlider _ _ _ _ loc -> updateCount loc acc
+      WIntSlider _ _ _ _ loc _  -> updateCount loc acc
+      WNumSlider _ _ _ _ loc _  -> updateCount loc acc
       WPoint (_, t1) (_, t2)    -> Set.foldl updateCount acc (locsOfTraces options [t1, t2])
       WOffset1D _ _ _ _ (_, tr) -> Set.foldl updateCount acc (locsOfTrace options tr)
   in
@@ -378,7 +378,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
     let idAsShape = -2 - i in
     case widget of
 
-      WNumSlider minVal maxVal _ curVal loc ->
+      WNumSlider minVal maxVal _ curVal loc _ ->
         let updateX dx =
           curVal + (toFloat dx / toFloat wSlider) * (maxVal - minVal)
             |> clamp minVal maxVal
@@ -393,7 +393,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         )
         accResult
 
-      WIntSlider a b _ c loc ->
+      WIntSlider a b _ c loc _ ->
         let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
         let updateX dx =
           curVal + (toFloat dx / toFloat wSlider) * (maxVal - minVal)

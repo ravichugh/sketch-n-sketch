@@ -514,6 +514,7 @@ parseWidgetDecl cap =
   preWhite parseNum >>= \min ->
   saveToken "-"     >>= \tok ->
   preWhite parseNum >>= \max ->
+  P.option False (P.string ",\"hidden\"" >>> P.return True) >>= \hidden ->
   whiteToken "}"    >>= \close ->
   -- for now, not optionally parsing a caption here
     let a = { min | val = Tuple.first min.val } in
@@ -522,9 +523,9 @@ parseWidgetDecl cap =
       if List.all isInt [a.val, b.val] then
         let a_ = { a | val = floor a.val } in
         let b_ = { b | val = floor b.val } in
-        IntSlider a_ tok b_ cap
+        IntSlider a_ tok b_ cap hidden.val
       else
-        NumSlider a tok b cap
+        NumSlider a tok b cap hidden.val
     in
     P.returnWithInfo wd open.start close.end
 

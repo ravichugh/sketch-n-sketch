@@ -464,12 +464,12 @@ featureEquation kind featureName nodeAttrs =
 widgetFeatureEquation : ShapeFeature -> Widget -> Dict.Dict LocId (Num, Loc) -> FeatureEquation
 widgetFeatureEquation featureName widget locIdToNumberAndLoc =
   case widget of
-    WIntSlider low high caption curVal (locId,_,_) ->
+    WIntSlider low high caption curVal (locId,_,_) _ ->
       let (n, loc) =
         Utils.justGet_ "ShapeWidgets.widgetFeatureEquation" locId locIdToNumberAndLoc
       in
       EqnNum (n, TrLoc loc)
-    WNumSlider low high caption curVal (locId,_,_) ->
+    WNumSlider low high caption curVal (locId,_,_) _ ->
       let (n, loc) =
         Utils.justGet_ "ShapeWidgets.widgetFeatureEquation" locId locIdToNumberAndLoc
       in

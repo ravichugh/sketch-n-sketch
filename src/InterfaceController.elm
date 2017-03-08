@@ -1626,8 +1626,9 @@ contextSensitiveDeuceTools m =
       if List.length nums /= List.length exps then []
       else
         thawOrFreezeTool m nums ++
-        if List.length nums == 1 then
-          [ ("Add/Remove Range", dummyDeuceTool m) ]
+        showOrHideRangeTool m nums ++
+        addOrRemoveRangeTool m nums ++
+        if List.length nums == 1 then []
         else
           [ ("Make Equal", dummyDeuceTool m)
           , ("Dig Hole", dummyDeuceTool m)
@@ -1704,6 +1705,9 @@ selectedPatTargets deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidg
     DeucePatTarget x -> [x]
     _ -> []
 
+
+-- TODO: the following three functions could be factored...
+
 thawOrFreezeTool m nums =
 
   let thawOrFreeze m nums =
@@ -1736,6 +1740,87 @@ thawOrFreezeTool m nums =
              List.foldl
                (\(eId,ws,n,(locid,_,x),wd) acc ->
                  Dict.insert eId (EConst ws n (locid, newAnnotation, x) wd) acc
+               )
+               Dict.empty nums
+          in
+          oneSafeResult (applyESubst eSubst m.inputExp)
+        )
+      ]
+
+showOrHideRangeTool m nums =
+  let showOrHide m nums =
+    let freezeAnnotations = flip List.map nums <| \(_,_,_,_,wd) ->
+      case wd.val of
+        IntSlider _ _ _ _ b -> Just b
+        NumSlider _ _ _ _ b -> Just b
+        _                   -> Nothing
+    in
+    case Utils.dedup freezeAnnotations of
+      [Just b] -> Just b
+      _        -> Nothing
+  in
+  case showOrHide m nums of
+    Nothing -> []
+    Just hidden ->
+      let toolName =
+        case (hidden, List.length nums) of
+          (True, 1)  -> "Show Slider"
+          (True, _)  -> "Show Sliders"
+          (False, 1) -> "Hide Slider"
+          (False, _) -> "Hide Sliders"
+      in
+      [ (toolName, \() ->
+          let eSubst =
+             List.foldl
+               (\(eId,ws,n,loc,wd) acc ->
+                 let wd_ =
+                   case wd.val of
+                     IntSlider a b c d _ -> IntSlider a b c d (not hidden)
+                     NumSlider a b c d _ -> NumSlider a b c d (not hidden)
+                     _                   -> wd.val
+                 in
+                 Dict.insert eId (EConst ws n loc { wd | val = wd_ }) acc
+               )
+               Dict.empty nums
+          in
+          oneSafeResult (applyESubst eSubst m.inputExp)
+        )
+      ]
+
+addOrRemoveRangeTool m nums =
+  let addOrRemove m nums =
+    let freezeAnnotations = flip List.map nums <| \(_,_,_,_,wd) ->
+      case wd.val of
+        NoWidgetDecl -> True
+        _            -> False
+    in
+    case Utils.dedup freezeAnnotations of
+      [b] -> Just b
+      _   -> Nothing
+  in
+  case addOrRemove m nums of
+    Nothing -> []
+    Just noRanges ->
+      let toolName =
+        case (noRanges, List.length nums) of
+          (True, 1)  -> "Add Slider"
+          (True, _)  -> "Add Sliders"
+          (False, 1) -> "Remove Slider"
+          (False, _) -> "Remove Sliders"
+      in
+      [ (toolName, \() ->
+          let eSubst =
+             List.foldl
+               (\(eId,ws,n,loc,_) acc ->
+                 let wd =
+                   if noRanges then
+                     if toFloat (round n) == n
+                     then intSlider (round n - 50) (round n + 50)
+                     else numSlider (n - 50) (n + 50)
+                   else
+                     withDummyRange NoWidgetDecl
+                 in
+                 Dict.insert eId (EConst ws n loc wd) acc
                )
                Dict.empty nums
           in

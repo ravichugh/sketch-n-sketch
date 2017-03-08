@@ -121,17 +121,18 @@ type alias Rec = Bool
 
 type alias WidgetDecl = P.WithInfo WidgetDecl_
 
+-- Bool is True for hidden widget
 type WidgetDecl_
-  = IntSlider (P.WithInfo Int) Token (P.WithInfo Int) Caption
-  | NumSlider (P.WithInfo Num) Token (P.WithInfo Num) Caption
+  = IntSlider (P.WithInfo Int) Token (P.WithInfo Int) Caption Bool
+  | NumSlider (P.WithInfo Num) Token (P.WithInfo Num) Caption Bool
   | NoWidgetDecl -- rather than Nothing, to work around parser types
 
 type Axis = X | Y
 type Sign = Positive | Negative
 
 type Widget
-  = WIntSlider Int Int String Int Loc
-  | WNumSlider Num Num String Num Loc
+  = WIntSlider Int Int String Int Loc Bool
+  | WNumSlider Num Num String Num Loc Bool
   | WPoint NumTr NumTr
   | WOffset1D NumTr NumTr Axis Sign NumTr
 
@@ -914,7 +915,7 @@ noWidgetDecl = withDummyRange NoWidgetDecl
 
 rangeSlider kind a b =
   withDummyRange <|
-    kind (withDummyRange a) (withDummyRange "-") (withDummyRange b) Nothing
+    kind (withDummyRange a) (withDummyRange "-") (withDummyRange b) Nothing False
 
 intSlider = rangeSlider IntSlider
 numSlider = rangeSlider NumSlider

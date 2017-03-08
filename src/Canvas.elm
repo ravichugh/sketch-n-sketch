@@ -370,10 +370,13 @@ buildSvgWidgets wCanvas hCanvas widgets model =
   let draw (i_, widget) =
     case widget of
 
-      WNumSlider minVal maxVal cap curVal (k,_,_) ->
+      WNumSlider _ _ _ _ _ True -> []
+      WIntSlider _ _ _ _ _ True -> []
+
+      WNumSlider minVal maxVal cap curVal (k,_,_) False ->
         drawNumWidget i_ widget k cap minVal maxVal curVal
 
-      WIntSlider a b cap c (k,_,_) ->
+      WIntSlider a b cap c (k,_,_) False ->
         let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
         drawNumWidget i_ widget k cap minVal maxVal curVal
 

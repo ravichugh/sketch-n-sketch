@@ -41,10 +41,13 @@ unparseBaseValWithUniformWhitespace = unparseBaseVal  -- BaseVals don't have any
 
 unparseWD : WidgetDecl -> String
 unparseWD wd =
+  let strHidden bool = if bool then ",\"hidden\"" else "" in
   case wd.val of
     NoWidgetDecl        -> ""
-    IntSlider a tok b _ -> "{" ++ toString a.val ++ tok.val ++ toString b.val ++ "}"
-    NumSlider a tok b _ -> "{" ++ toString a.val ++ tok.val ++ toString b.val ++ "}"
+    IntSlider a tok b _ hidden ->
+      "{" ++ toString a.val ++ tok.val ++ toString b.val ++ strHidden hidden ++ "}"
+    NumSlider a tok b _ hidden ->
+      "{" ++ toString a.val ++ tok.val ++ toString b.val ++ strHidden hidden ++ "}"
 
 unparseWDWithUniformWhitespace = unparseWD  -- WidgetDecls don't have any whitespace yet.
 
