@@ -264,7 +264,8 @@ animationToolBox model layout =
     ]
 
 synthesisResultsSelectBox model layout =
-  let desc description exp sortKey =
+  let desc description exp isSafe sortKey =
+    (if isSafe then "" else "[UNSAFE] ") ++
     (Regex.replace Regex.All (Regex.regex "^Original -> | -> Cleaned$") (\_ -> "") description) ++
     " (" ++ toString (LangTools.nodeCount exp) ++ ")" ++ " " ++ toString sortKey
   in
@@ -287,7 +288,7 @@ synthesisResultsSelectBox model layout =
     let buttons =
       results
       |> Utils.mapi0
-          (\(i, Model.SynthesisResult {description, exp, sortKey, children}) ->
+          (\(i, Model.SynthesisResult {description, exp, isSafe, sortKey, children}) ->
             let thisElementPath = priorPathByIndices ++ [i] in
             let (isHovered, nextMenu) =
               case remainingPathByIndicies of
@@ -308,7 +309,7 @@ synthesisResultsSelectBox model layout =
                   , Html.Events.onMouseEnter (Controller.msgHoverSynthesisResult thisElementPath)
                   , Html.Events.onMouseLeave (Controller.msgHoverSynthesisResult [])
                   ]
-                  (desc description exp sortKey)
+                  (desc description exp isSafe sortKey)
                   (Controller.msgSelectSynthesisResult exp)
                   Regular
                   False
@@ -1295,8 +1296,8 @@ computePolygonPoints rcs model layout =
       let topOffset = rowColToPixelPos {line = k, col = c} model in
       let dx = if leftSide then -pad else pad in
        let dyTop = if (leftSide && i == 1) || (not (leftSide) && i == n) then -pad else 0 in
-       let dyBot = if (leftSide && i == n) || (not (leftSide) && i == 1) || 
-                      (leftSide && i == 1) || (not (leftSide) && i == n) then  pad else 0 in 
+       let dyBot = if (leftSide && i == n) || (not (leftSide) && i == 1) ||
+                      (leftSide && i == 1) || (not (leftSide) && i == n) then  pad else 0 in
       let top =
          { x = topOffset.x - model.codeBoxInfo.gutterWidth + dx
          , y = topOffset.y - model.codeBoxInfo.offsetHeight + dyTop

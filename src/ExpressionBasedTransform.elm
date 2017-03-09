@@ -111,12 +111,9 @@ rangeSynthesisResults originalExp =
   eidAndRangeLists
   |> List.map
       (\(eid, newExp) ->
-        InterfaceModel.SynthesisResult <|
-          { description = "Replace " ++ (unparse >> Utils.squish) (justFindExpByEId originalExp eid) ++ " with " ++ unparse newExp
-          , exp         = replaceExpNodePreservingPrecedingWhitespace eid newExp originalExp
-          , sortKey     = []
-          , children    = Nothing
-          }
+        InterfaceModel.synthesisResult
+            ("Replace " ++ (unparse >> Utils.squish) (justFindExpByEId originalExp eid) ++ " with " ++ unparse newExp)
+            (replaceExpNodePreservingPrecedingWhitespace eid newExp originalExp)
       )
 
 
@@ -266,12 +263,7 @@ inlineListSynthesisResults originalExp =
   candidatesAndDescription
   |> List.map
       (\(candidateExp, description) ->
-        InterfaceModel.SynthesisResult <|
-          { description = description
-          , exp         = candidateExp
-          , sortKey     = []
-          , children    = Nothing
-          }
+        InterfaceModel.synthesisResult description candidateExp
       )
 
 
@@ -538,12 +530,9 @@ cloneEliminationSythesisResults originalExp =
           else
             toString (List.length cloneEIdsAndExpsAndParameterExpLists) ++ " " ++ name ++ "s"
         in
-        InterfaceModel.SynthesisResult <|
-          { description = "Merge " ++ clonesName ++ " by abstracting over " ++ Utils.toSentence argNames
-          , exp         = newProgram
-          , sortKey     = []
-          , children    = Nothing
-          }
+        InterfaceModel.synthesisResult
+            ("Merge " ++ clonesName ++ " by abstracting over " ++ Utils.toSentence argNames)
+            newProgram
       )
 
 
@@ -589,12 +578,9 @@ mapAbstractSynthesisResults originalExp =
           else
             eidsToReplace |> List.map (expNameForEId originalExp) |> Utils.toSentence
         in
-        InterfaceModel.SynthesisResult <|
-          { description = "Merge " ++ clonesName ++ " by mapping over " ++ String.join " " argNames
-          , exp         = newProgram
-          , sortKey     = []
-          , children    = Nothing
-          }
+        InterfaceModel.synthesisResult
+            ("Merge " ++ clonesName ++ " by mapping over " ++ String.join " " argNames)
+            newProgram
       )
 
 

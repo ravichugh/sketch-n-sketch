@@ -15,7 +15,7 @@ import DependenceGraph exposing (ScopeGraph)
 import Ace
 import DeuceWidgets exposing (DeuceState)
 import Either exposing (Either(..))
-import Keys 
+import Keys
 import Svg
 import LangSvg exposing (attr)
 
@@ -138,15 +138,15 @@ type alias CodeBoxInfo =
   , offsetLeft: Float
   , offsetHeight: Float
   , gutterWidth: Float
-  , firstVisibleRow: Int 
-  , lastVisibleRow: Int 
+  , firstVisibleRow: Int
+  , lastVisibleRow: Int
   , marginTopOffset: Float
   , marginLeftOffset: Float
   }
 
 type alias RawSvg = String
 
-type MouseMode 
+type MouseMode
   = MouseNothing
   | MouseDragLayoutWidget (MouseTrigger (Model -> Model))
 
@@ -207,9 +207,25 @@ type ReplicateKind
 type SynthesisResult =
   SynthesisResult { description : String
                   , exp         : Exp
+                  , isSafe      : Bool -- Is this transformation considered "safe"?
                   , sortKey     : List Float -- For custom sorting criteria. Sorts ascending.
                   , children    : Maybe (List SynthesisResult) -- Nothing means not calculated yet.
                   }
+
+synthesisResult description exp =
+  SynthesisResult <|
+    { description = description
+    , exp         = exp
+    , isSafe      = True
+    , sortKey     = []
+    , children    = Nothing
+    }
+
+setResultSafe isSafe (SynthesisResult result) =
+  SynthesisResult { result | isSafe = isSafe }
+
+isResultSafe (SynthesisResult {isSafe}) =
+  isSafe
 
 type Msg
   = Msg String (Model -> Model)
@@ -251,7 +267,7 @@ initialLayoutOffsets =
   , moreBlobToolBox = init
   , outputToolBox = init
   , animationToolBox = init
-  , textToolBox = init 
+  , textToolBox = init
   , deuceToolBox = init
   , synthesisResultsSelectBox = init
   }
@@ -368,16 +384,8 @@ needsRun m =
 
 --------------------------------------------------------------------------------
 
-type alias DeuceTool = () -> (List SynthesisResult, List SynthesisResult)
+type alias DeuceTool = () -> List SynthesisResult
 type alias NamedDeuceTool = (String, DeuceTool)
-
-oneSafeResult newExp =
-  ( [SynthesisResult { description = "NO DESCRIPTION"
-                     , exp = newExp
-                     , sortKey = []
-                     , children = Nothing
-                     }]
-  , [] )
 
 --------------------------------------------------------------------------------
 
@@ -429,7 +437,7 @@ initModel =
                       , offsetLeft = 10.0
                       , offsetHeight = 10.0
                       , gutterWidth = 50.0
-                      , firstVisibleRow = 0 
+                      , firstVisibleRow = 0
                       , lastVisibleRow = 10
                       , marginTopOffset = 0.0
                       , marginLeftOffset = 0.0

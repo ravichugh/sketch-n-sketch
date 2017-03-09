@@ -285,6 +285,7 @@ indexedRelate originalExp selectedFeatures selectedShapes slideNumber movieNumbe
             InterfaceModel.SynthesisResult <|
               { description = description
               , exp         = newExp
+              , isSafe      = True
               , sortKey     = [distanceScore]
               , children    = Nothing
               }
@@ -356,6 +357,7 @@ rankComparedTo originalExp synthesisResults =
         InterfaceModel.SynthesisResult <|
           { description = description
           , exp         = exp
+          , isSafe      = True
           , sortKey     = [removedLocDistance] ++ (locLineNums |> List.map negate |> List.reverse)
           , children    = Nothing
           }

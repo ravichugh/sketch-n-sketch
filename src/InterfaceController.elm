@@ -776,10 +776,11 @@ msgKeyUp keyCode = Msg ("Key Up " ++ toString keyCode) <| \old ->
 
 --------------------------------------------------------------------------------
 
-cleanSynthesisResult (SynthesisResult {description, exp, sortKey, children}) =
+cleanSynthesisResult (SynthesisResult {description, exp, isSafe, sortKey, children}) =
   SynthesisResult <|
     { description = description ++ " -> Cleaned"
     , exp         = LangTransform.cleanCode exp
+    , isSafe      = isSafe
     , sortKey     = sortKey
     , children    = children
     }
@@ -1584,12 +1585,12 @@ contextSensitiveDeuceTools m =
       case LangTools.findPat m.inputExp patId |> Maybe.map .val of
         Just (PVar _ ident _) ->
           [ ("Rename", \() ->
-              ([], [])
+              []
             ) ]
 
         Just (PAs _ ident _ _) ->
           [ ("Rename", \() ->
-              ([], [])
+              []
             ) ]
 
         _ ->
@@ -1654,18 +1655,14 @@ contextSensitiveDeuceTools m =
 
 applyDeuceTool : DeuceTool -> Model -> Model
 applyDeuceTool func m =
-  let (safe, unsafe) = func () in
+  let (safe, unsafe) = func () |> List.partition isResultSafe in
   case (safe, unsafe) of
     -- TODO version of tryRun/upstateRun starting with parsed expression
     ([SynthesisResult {exp}], []) -> { m | code = unparse exp } |> upstateRun
     _                             -> { m | synthesisResults = safe ++ unsafe }
 
 dummyDeuceTool m = \() ->
-  ([], [SynthesisResult { description = "not yet implemented"
-                        , exp = m.inputExp
-                        , sortKey = []
-                        , children = Nothing
-                        }])
+  [synthesisResult "not yet implemented" m.inputExp |> setResultSafe False]
 
 selectedNums : Model -> List (LocId, WS, Num, Loc, WidgetDecl)
 selectedNums m = flip List.concatMap m.deuceState.selectedWidgets <| \deuceWidget ->
@@ -1745,7 +1742,7 @@ thawOrFreezeTool m nums =
                )
                Dict.empty nums
           in
-          oneSafeResult (applyESubst eSubst m.inputExp)
+          [synthesisResult toolName (applyESubst eSubst m.inputExp)]
         )
       ]
 
@@ -1785,7 +1782,7 @@ showOrHideRangeTool m nums =
                )
                Dict.empty nums
           in
-          oneSafeResult (applyESubst eSubst m.inputExp)
+          [synthesisResult toolName (applyESubst eSubst m.inputExp)]
         )
       ]
 
@@ -1826,12 +1823,12 @@ addOrRemoveRangeTool m nums =
                )
                Dict.empty nums
           in
-          oneSafeResult (applyESubst eSubst m.inputExp)
+          [synthesisResult toolName (applyESubst eSubst m.inputExp)]
         )
       ]
 
 
-renamePat : PatternId -> String -> Exp -> (List SynthesisResult, List SynthesisResult)
+renamePat : PatternId -> String -> Exp -> List SynthesisResult
 renamePat (scopeId, path) newName program =
   case LangTools.findScopeExpAndPat program (scopeId, path) of
     Just (scopeExp, pat) ->
@@ -1854,23 +1851,19 @@ renamePat (scopeId, path) newName program =
             LangTools.setPatName (scopeId, path) newName scopeAreasReplaced
           in
           let newProgram = replaceExpNode newScopeExp.val.eid newScopeExp program in
-          let caption =
-            (if isSafe then "" else "[UNSAFE] ") ++ "Rename " ++ oldName ++ " to " ++ newName in
           let result =
-            SynthesisResult { description = caption, exp = newProgram, sortKey = [], children = Nothing }
+            synthesisResult ("Rename " ++ oldName ++ " to " ++ newName) newProgram |> setResultSafe isSafe
           in
-          if isSafe
-          then ([result], [])
-          else ([], [result])
+          [result]
 
         Nothing ->
-          ([], [])
+          []
 
     Nothing ->
-      ([], [])
+      []
 
 
-renameVar : EId -> String -> Exp -> (List SynthesisResult, List SynthesisResult)
+renameVar : EId -> String -> Exp -> List SynthesisResult
 renameVar varEId newName program =
   let varExp = LangTools.justFindExpByEId program varEId in
   let oldName = LangTools.expToIdent varExp in
@@ -1880,4 +1873,4 @@ renameVar varEId newName program =
 
     Nothing ->
       let _ = Debug.log (oldName ++ " is free at this location in the program") () in
-      ([], [])
+      []

@@ -10,7 +10,7 @@ import LangUnparser exposing (unparse, unparseWithIds, unparsePat)
 import LangParser2
 -- import DependenceGraph exposing
   -- (ScopeGraph, ScopeOrder(..), parentScopeOf, childScopesOf)
-import InterfaceModel exposing (Model, SynthesisResult(..), NamedDeuceTool)
+import InterfaceModel exposing (Model, SynthesisResult(..), synthesisResult, setResultSafe, NamedDeuceTool)
 import Utils exposing (MaybeOne)
 
 import Dict
@@ -105,12 +105,6 @@ pluck__ p e1 path =
 ------------------------------------------------------------------------------
 
 
-strUnsafeBool isUnsafe = if isUnsafe then "[UNSAFE] " else ""
-
-
-------------------------------------------------------------------------------
-
-
 -- Moving a definition is safe if all identifiers resolve to the same bindings.
 --
 -- More specifically:
@@ -119,7 +113,7 @@ strUnsafeBool isUnsafe = if isUnsafe then "[UNSAFE] " else ""
 --   - All other variables uses of the same name do not resolve to the moved identifier
 --
 -- Returns (list of safe results, list of unsafe results)
-moveDefinitionsBeforeEId : List PatternId -> EId -> Exp -> (List SynthesisResult, List SynthesisResult)
+moveDefinitionsBeforeEId : List PatternId -> EId -> Exp -> List SynthesisResult
 moveDefinitionsBeforeEId sourcePatIds targetEId program =
   let (pluckedPatAndBoundExpAndOldScopeBodies, programWithoutPlucked) =
     sourcePatIds
@@ -141,7 +135,7 @@ moveDefinitionsBeforeEId sourcePatIds targetEId program =
         ([], program)
   in
   if pluckedPatAndBoundExpAndOldScopeBodies == [] then
-    Debug.log "could not pluck anything" ([], [])
+    Debug.log "could not pluck anything" []
   else
     let (pluckedPats, pluckedBoundExps, _) = Utils.unzip3 pluckedPatAndBoundExpAndOldScopeBodies in
     let (newPat, newBoundExp) =
@@ -195,21 +189,19 @@ moveDefinitionsBeforeEId sourcePatIds targetEId program =
       identUsesSafe && boundExpVarsSafe && noDuplicateNamesInPat
     in
     let caption =
-      strUnsafeBool (not isSafe) ++ "Move " ++ (List.map (unparsePat >> Utils.squish) pluckedPats |> Utils.toSentence) ++ " before " ++ (unparse >> Utils.squish >> Utils.niceTruncateString 20 "...") newScopeBody
+      "Move " ++ (List.map (unparsePat >> Utils.squish) pluckedPats |> Utils.toSentence) ++ " before " ++ (unparse >> Utils.squish >> Utils.niceTruncateString 20 "...") newScopeBody
     in
     let result =
-      SynthesisResult { description = caption, exp = newProgram, sortKey = [], children = Nothing }
+      synthesisResult caption newProgram |> setResultSafe isSafe
     in
-    if isSafe
-    then ([result], [])
-    else ([], [result])
+    [result]
 
 
 ------------------------------------------------------------------------------
 
 
 -- Returns (list of safe results, list of unsafe results)
-moveDefinitionPat : List PatternId -> PatternId -> Exp -> (List SynthesisResult, List SynthesisResult)
+moveDefinitionPat : List PatternId -> PatternId -> Exp -> List SynthesisResult
 moveDefinitionPat sourcePatIds targetPatId program =
   let (pluckedPatAndBoundExpAndOldScopeBodies, programWithoutPlucked) =
     sourcePatIds
@@ -231,7 +223,7 @@ moveDefinitionPat sourcePatIds targetPatId program =
         ([], program)
   in
   if pluckedPatAndBoundExpAndOldScopeBodies == [] then
-    Debug.log "could not pluck anything" ([], [])
+    Debug.log "could not pluck anything" []
   else
     let ((targetEId, _), targetPath) = targetPatId in
     let newProgram =
@@ -282,14 +274,12 @@ moveDefinitionPat sourcePatIds targetPatId program =
     in
     let caption =
       let (pluckedPats, _, _) = Utils.unzip3 pluckedPatAndBoundExpAndOldScopeBodies in
-      strUnsafeBool (not isSafe) ++ "Move " ++ (List.map (unparsePat >> Utils.squish) pluckedPats |> Utils.toSentence) ++ " to make " ++ (unparsePat >> Utils.squish >> Utils.niceTruncateString 20 "...") newScopeLetPat
+      "Move " ++ (List.map (unparsePat >> Utils.squish) pluckedPats |> Utils.toSentence) ++ " to make " ++ (unparsePat >> Utils.squish >> Utils.niceTruncateString 20 "...") newScopeLetPat
     in
     let result =
-      SynthesisResult { description = caption, exp = newProgram, sortKey = [], children = Nothing }
+      synthesisResult caption newProgram |> setResultSafe isSafe
     in
-    if isSafe
-    then ([result], [])
-    else ([], [result])
+    [result]
 
 
 insertPat_ : PatBoundExp -> List Int -> Exp -> Exp
@@ -435,7 +425,7 @@ makeEListReorderTool m expIds expTarget =
       let newExp =
         replaceExpNode eListId reorderedEList m.inputExp
       in
-      [ ("Reorder List", \() -> InterfaceModel.oneSafeResult newExp) ]
+      [ ("Reorder List", \() -> [synthesisResult "Reorder List" newExp]) ]
 
     _ -> []
 

@@ -897,10 +897,7 @@ makeTwiddleTools m eId eShape =
     let newExp =
       replaceExpNodePreservingPrecedingWhitespace eId newShape m.inputExp
     in
-    let result =
-      { description = "XXX", exp = newExp, sortKey = [], children = Nothing }
-    in
-    ([SynthesisResult result], [])
+    [synthesisResult "XXX" newExp]
   in
 
   let rewriteRectRawToStretchy args =
