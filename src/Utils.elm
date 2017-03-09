@@ -612,6 +612,7 @@ maybeLast list =
     _::xs -> maybeLast xs
 
 head msg = fromJust_ msg << List.head
+tail msg = fromJust_ msg << List.tail
 last msg = fromJust_ msg << maybeLast
 head_ = head "Utils.head_"
 tail_ = fromJust_ "Utils.tail_" << List.tail
