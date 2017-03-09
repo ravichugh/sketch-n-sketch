@@ -1586,6 +1586,8 @@ contextSensitiveDeuceTools m =
 
   case (nums, exps, pats, expTargets, patTargets) of
 
+    ([], [], [], [], []) -> []
+
     ([], [], [patId], [], []) ->
       case LangTools.findPat m.inputExp patId |> Maybe.map .val of
         Just (PVar _ ident _) ->
