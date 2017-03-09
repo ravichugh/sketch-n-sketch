@@ -5,7 +5,7 @@ import Dict
 import String
 
 import Lang exposing (..)
-import LangUnparser exposing (unparse, unparsePat)
+import LangUnparser exposing (unparse, unparsePat, unparseWithIds)
 import LangParser2 as Parser
 import Types
 import Utils
@@ -218,6 +218,19 @@ eval env bt e =
               _ ->
                 errorWithBacktrace (e::bt) <| strPos e1.start ++ " not a function"
 
+
+  ELet _ _ False p e1 e2 _ ->
+    case eval_ env bt_ e1 of
+      Err s       -> Err s
+      Ok (v1,ws1) ->
+        case cons (p, v1) (Just env) of
+          Just env_ ->
+            Result.map (addWidgets ws1 << retAddWs e.val.eid) <| eval env_ bt_ e2
+
+          Nothing   ->
+            errorWithBacktrace (e::bt) <| strPos e.start ++ " could not match pattern " ++ (unparsePat >> Utils.squish) p ++ " with " ++ strVal v1
+
+
   ELet _ _ True p e1 e2 _ ->
     case eval_ env bt_ e1 of
       Err s       -> Err s
@@ -272,7 +285,6 @@ eval env bt e =
   EFun _ ps e1 _           -> Result.map (retAddWs e1.val.eid) <| eval env bt_ (desugarEFun ps e1)
   EApp _ e1 [] _           -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " application with no arguments"
   EApp _ e1 es _           -> Result.map (retAddWs e.val.eid)  <| eval env bt_ (desugarEApp e1 es)
-  ELet _ _ False p e1 e2 _ -> Result.map (retAddWs e2.val.eid) <| eval env bt_ (desugarEApp (desugarEFun [p] e2) [e1])
 
 
 evalOp env bt opWithInfo es =
