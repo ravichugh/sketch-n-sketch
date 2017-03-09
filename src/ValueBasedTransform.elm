@@ -277,7 +277,7 @@ indexedRelate originalExp selectedFeatures selectedShapes slideNumber movieNumbe
               |> Utils.foldli0
                   (\(i, locEId) priorExp ->
                     let eqnExp = locEqnToExp unann (Dict.singleton indexLocId (toFloat i)) locIdToNewName eqn in
-                    replaceExpNodeE__ByEId locEId eqnExp priorExp
+                    replaceExpNodeE__ByEId locEId eqnExp.val.e__ priorExp
                   )
                   locsLifted
             in
@@ -787,7 +787,7 @@ variableifyConstantsAndWrapTargetExpWithLets locIdToNewName listOfListsOfNamesAn
   -- Debug only:
   -- let _ = debugLog "wrappedTargetExp" <| unparse wrappedTargetExp in
   let newProgram =
-    replaceExpNodeE__ targetExp wrappedTargetExp program
+    replaceExpNodeE__ targetExp wrappedTargetExp.val.e__ program
     |> freshen
   in
   newProgram

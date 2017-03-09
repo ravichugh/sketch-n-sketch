@@ -203,40 +203,40 @@ patPathRightSibling : List Int -> Maybe (List Int)
 patPathRightSibling path =
   Utils.maybeMapLastElement ((+) 1) path
 
-pathAfterElementRemoved : List Int -> List Int -> Maybe (List Int)
-pathAfterElementRemoved removedPath path =
-  case (removedPath, path) of
-    ([removedI], [pathI]) ->
-      if removedI <= pathI
-      then Just [pathI - 1]
-      else Just [pathI]
-
-    ([removedI], pathI::ps) ->
-      if removedI == pathI then
-        let _ = Debug.log ("removed pat path is supertree of target path " ++ toString (removedPath, path)) in
-        Nothing
-      else if removedI < pathI then
-        Just ((pathI - 1)::ps)
-      else
-        Just path
-
-    (removedI::rs, pathI::ps) ->
-      if removedI == pathI then
-        pathAfterElementRemoved rs ps |> Maybe.map ((::) pathI)
-      else
-        Just path -- Removed element is in a different subtree
-
-    (_::_, []) ->
-        Just path -- Removed element is in a different subtree
-
-    ([], _::_) ->
-      let _ = Debug.log ("removed pat path is supertree of target path " ++ toString (removedPath, path)) in
-      Nothing
-
-    ([], []) ->
-      -- This should be caught by the very first case.
-      -- Unless the initial call was with paths ([], []). But why would that happen?
-      Debug.crash <| "Lang.pathAfterElementRemoved why did this get called?!" ++ toString (removedPath, path)
+-- pathAfterElementRemoved : List Int -> List Int -> Maybe (List Int)
+-- pathAfterElementRemoved removedPath path =
+--   case (removedPath, path) of
+--     ([removedI], [pathI]) ->
+--       if removedI <= pathI
+--       then Just [pathI - 1]
+--       else Just [pathI]
+--
+--     ([removedI], pathI::ps) ->
+--       if removedI == pathI then
+--         let _ = Debug.log ("removed pat path is supertree of target path " ++ toString (removedPath, path)) in
+--         Nothing
+--       else if removedI < pathI then
+--         Just ((pathI - 1)::ps)
+--       else
+--         Just path
+--
+--     (removedI::rs, pathI::ps) ->
+--       if removedI == pathI then
+--         pathAfterElementRemoved rs ps |> Maybe.map ((::) pathI)
+--       else
+--         Just path -- Removed element is in a different subtree
+--
+--     (_::_, []) ->
+--         Just path -- Removed element is in a different subtree
+--
+--     ([], _::_) ->
+--       let _ = Debug.log ("removed pat path is supertree of target path " ++ toString (removedPath, path)) in
+--       Nothing
+--
+--     ([], []) ->
+--       -- This should be caught by the very first case.
+--       -- Unless the initial call was with paths ([], []). But why would that happen?
+--       Debug.crash <| "Lang.pathAfterElementRemoved why did this get called?!" ++ toString (removedPath, path)
 
 
 ------------------------------------------------------------------------------
@@ -498,13 +498,13 @@ replaceExpNodePreservingPrecedingWhitespace eid newNode root =
       (\exp -> replacePrecedingWhitespace (precedingWhitespace exp) newNode)
       root
 
-replaceExpNodeE__ : Exp -> Exp -> Exp -> Exp
-replaceExpNodeE__ oldNode newNode root =
-  replaceExpNodeE__ByEId oldNode.val.eid newNode root
+replaceExpNodeE__ : Exp -> Exp__ -> Exp -> Exp
+replaceExpNodeE__ oldNode newE__ root =
+  replaceExpNodeE__ByEId oldNode.val.eid newE__ root
 
-replaceExpNodeE__ByEId : EId -> Exp -> Exp -> Exp
-replaceExpNodeE__ByEId eid newNode root =
-  let esubst = Dict.singleton eid newNode.val.e__ in
+replaceExpNodeE__ByEId : EId -> Exp__ -> Exp -> Exp
+replaceExpNodeE__ByEId eid newE__ root =
+  let esubst = Dict.singleton eid newE__ in
   applyESubst esubst root
 
 

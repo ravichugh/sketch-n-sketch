@@ -1492,11 +1492,10 @@ onMouseDrag dragSource dragTarget m =
     m
 
 
-patTargetPositionToTargetPatId : PatternId -> PatTargetPosition -> Maybe PatternId
-patTargetPositionToTargetPatId mobilePatId (beforeAfter, referencePatId) =
-  let (mobileScopeId, mobilePath) = mobilePatId in
+patTargetPositionToTargetPatId : PatTargetPosition -> PatternId
+patTargetPositionToTargetPatId (beforeAfter, referencePatId) =
   let (referenceScopeId, referencePath) = referencePatId in
-  let naiveTargetPath =
+  let targetPath =
     let referencePathAsPList =
       case referencePath of
         [] -> [1]
@@ -1508,14 +1507,7 @@ patTargetPositionToTargetPatId mobilePatId (beforeAfter, referencePatId) =
         patPathRightSibling referencePathAsPList
         |> Utils.fromJust_ ("invalid target pattern id path of [] in target path position: " ++ toString (beforeAfter, referencePatId))
   in
-  -- let _ = Debug.log "(mobilePath, naiveTargetPath)" (mobilePath, naiveTargetPath) in
-  -- let _ = Debug.log "(mobileScopeId, referenceScopeId)" (mobileScopeId, referenceScopeId) in
-  if mobileScopeId == referenceScopeId then
-    pathAfterElementRemoved mobilePath naiveTargetPath
-    |> Maybe.map (\newTargetPath -> (referenceScopeId, newTargetPath))
-    -- |> Debug.log "(referenceScopeId, newTargetPath)"
-  else
-    Just (referenceScopeId, naiveTargetPath)
+  (referenceScopeId, targetPath)
 
 
 msgMoveExp = Msg "Move Exp" <| \m -> m
@@ -1580,11 +1572,11 @@ contextSensitiveDeuceTools m =
   let {selectedWidgets} = m.deuceState in
   let nums = selectedNums m in
   let exps = selectedExps selectedWidgets in
-  let pats = selectedPats selectedWidgets in
+  let patIds = selectedPats selectedWidgets in
   let expTargets = selectedExpTargets selectedWidgets in
   let patTargets = selectedPatTargets selectedWidgets in
 
-  case (nums, exps, pats, expTargets, patTargets) of
+  case (nums, exps, patIds, expTargets, patTargets) of
 
     ([], [], [], [], []) -> []
 
@@ -1603,16 +1595,24 @@ contextSensitiveDeuceTools m =
         _ ->
           []
 
-    ([], [], [patId], [(Before, eId)], []) ->
+    ([], [], [_], [(Before, eId)], []) ->
       [ ("Move Definition", \() ->
-          CodeMotion.moveDefinitionBeforeEId patId eId m.inputExp
+          CodeMotion.moveDefinitionsBeforeEId patIds eId m.inputExp
         ) ]
 
-    ([], [], [patId], [], [patTarget]) ->
+    ([], [], _::_, [(Before, eId)], []) ->
+      [ ("Move Definitions", \() ->
+          CodeMotion.moveDefinitionsBeforeEId patIds eId m.inputExp
+        ) ]
+
+    ([], [], [_], [], [patTarget]) ->
       [ ("Move Definition", \() ->
-          case patTargetPositionToTargetPatId patId patTarget of
-            Just targetPatId -> CodeMotion.moveDefinitionPat patId targetPatId m.inputExp
-            Nothing          -> ([], [])
+          CodeMotion.moveDefinitionPat patIds (patTargetPositionToTargetPatId patTarget) m.inputExp
+        ) ]
+
+    ([], [], _::_, [], [patTarget]) ->
+      [ ("Move Definitions", \() ->
+          CodeMotion.moveDefinitionPat patIds (patTargetPositionToTargetPatId patTarget) m.inputExp
         ) ]
 
     ([], [eId], [], [], []) ->

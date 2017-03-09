@@ -4,7 +4,7 @@
 -- Transformations of the code that do not change its output.
 --
 
-module LangTransform exposing (cleanCode, simplify, removeExtraPostfixes)
+module LangTransform exposing (cleanCode, simplify, removeExtraPostfixes, simplifyAssignments)
 
 import Set
 import Dict
@@ -201,6 +201,70 @@ removeUnusedVars exp =
         e__
   in
   mapExpViaExp__ remover exp
+
+
+-- Remove assignments of [] to [] (produced by CodeMotion.pluck)
+-- Flatten assignment of singleton [exp] to singleton [var] (also often produced by CodeMotion.pluck)
+simplifyPatBoundExp : Pat -> Exp -> Maybe (Pat, Exp)
+simplifyPatBoundExp pat boundExp =
+  case (pat.val, boundExp.val.e__) of
+    (PAs ws1 ident ws2 childPat, _) ->
+      case simplifyPatBoundExp childPat boundExp of
+        Just (newChildPat, newBoundExp) -> Just (replaceP_ pat (PAs ws1 ident ws2 newChildPat), newBoundExp)
+        Nothing                         -> Nothing
+
+    ( PList pws1 ps pws2 maybePTail pws3
+    , EList ews1 es ews2 maybeETail ews3
+    ) ->
+      let (newPs, newEs) =
+        Utils.filterMapTogetherPreservingLeftovers simplifyPatBoundExp ps es
+      in
+      let (newMaybePTail, newMaybeETail) =
+        case (maybePTail, maybeETail) of
+          (Just pTail, Just eTail) ->
+            case simplifyPatBoundExp pTail eTail of
+              Just (newPTail, newETail) -> (Just newPTail, Just newETail)
+              Nothing                   -> (Nothing, Nothing)
+
+          _ ->
+            (maybePTail, maybeETail)
+      in
+      case (newPs, newEs, newMaybePTail, newMaybeETail) of
+        ([], [], Nothing, Nothing) ->
+          Nothing
+
+        ([newP], [newE], Nothing, Nothing) ->
+          Just (newP, newE)
+
+        _ ->
+          Just <|
+              ( replaceP_ pat       <| PList pws1 (newPs |> imitatePatListWhitespace ps) pws2 newMaybePTail pws3
+              , replaceE__ boundExp <| EList ews1 (newEs |> imitateExpListWhitespace es) ews2 newMaybeETail ews3
+              )
+
+    _ ->
+      Just (pat, boundExp)
+
+
+-- Remove assignments of [] to [] (produced by CodeMotion.pluck)
+-- Flatten assignment of singleton [exp] to singleton [var] (also often produced by CodeMotion.pluck)
+simplifyAssignments : Exp -> Exp
+simplifyAssignments program =
+  program
+  |> mapExp
+      (\exp ->
+        case exp.val.e__ of
+          ELet ws1 letKind rec pat boundExp body ws2 ->
+            case simplifyPatBoundExp pat boundExp of
+              Just (newPat, newBoundExp) ->
+                replaceE__ exp (ELet ws1 letKind rec (ensureWhitespacePat newPat) (ensureWhitespaceExp newBoundExp) body ws2)
+
+              Nothing ->
+                body
+
+          _ ->
+            exp
+      )
 
 
 -- Single var assignment and one-to-one list assignments.

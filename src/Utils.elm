@@ -67,19 +67,6 @@ unzip3 zipped =
       ([], [], [])
       zipped
 
-listsEqualBy elementEqualityFunc xs ys =
-  case (xs, ys) of
-    ([], [])         -> True
-    (x::xs_, y::ys_) -> (elementEqualityFunc x y) && (listsEqualBy elementEqualityFunc xs_ ys_)
-    _                -> False -- Lists not the same length
-
-zeroElements xs = case xs of
-  [] -> True
-  _  -> False
-
-oneElement xs = case xs of
-  [_] -> True
-  _   -> False
 
 -- Tranpose, essentially.
 maybeZipN : List (List a) -> Maybe (List (List a))
@@ -94,6 +81,19 @@ maybeZipN lists =
     case (maybeHeads, maybeTails) of
       (Just heads, Just tails) -> Maybe.map ((::) heads) (maybeZipN tails)
       _                        -> Nothing
+
+
+-- In:  [1, 2, 3]
+-- Out: [(1,2), (2,3), (3,1)]
+-- c.f. adjacentPairs
+selfZipCircConsecPairs : List a -> List (a, a)
+selfZipCircConsecPairs list =
+  let shiftList =
+    case list of
+      x::xs -> xs ++ [x]
+      _     -> []
+  in
+  zip list shiftList
 
 
 zipi0 : List a -> List (Int, a)
@@ -138,16 +138,29 @@ concatMapi1 f xs =
 
 reverse2 (xs,ys) = (List.reverse xs, List.reverse ys)
 
--- In:  [1, 2, 3]
--- Out: [(1,2), (2,3), (3,1)]
-selfZipCircConsecPairs : List a -> List (a, a)
-selfZipCircConsecPairs list =
-  let shiftList =
-    case list of
-      x::xs -> xs ++ [x]
-      _     -> []
-  in
-  zip list shiftList
+-- If lists are different lengths, extra elements preserved changed.
+filterMapTogetherPreservingLeftovers : (a -> b -> Maybe (a, b)) -> List a -> List b -> (List a, List b)
+filterMapTogetherPreservingLeftovers f l1 l2 =
+  case (l1, l2) of
+    (x::xRest, y::yRest) ->
+      case f x y of
+        Just (xNew, yNew) ->
+          let (newXRest, newYRest) = filterMapTogetherPreservingLeftovers f xRest yRest in
+          (xNew::newXRest, yNew::newYRest)
+
+        Nothing ->
+          filterMapTogetherPreservingLeftovers f xRest yRest
+
+    _ ->
+      (l1, l2)
+
+
+listsEqualBy elementEqualityFunc xs ys =
+  case (xs, ys) of
+    ([], [])         -> True
+    (x::xs_, y::ys_) -> (elementEqualityFunc x y) && (listsEqualBy elementEqualityFunc xs_ ys_)
+    _                -> False -- Lists not the same length
+
 
 -- Preserves original list order
 -- Dedups based on toString representation
@@ -233,10 +246,20 @@ oneToOneMappingExists l1 l2 =
   in
   numericRepresentation l1 == numericRepresentation l2
 
+
 clamp i j n =
   if n < i then      i
   else if j < n then j
   else               n
+
+
+zeroElements xs = case xs of
+  [] -> True
+  _  -> False
+
+oneElement xs = case xs of
+  [_] -> True
+  _   -> False
 
 singleton : a -> List a
 singleton x = [x]
@@ -433,6 +456,7 @@ firstOrLazySecond maybe1 lazyMaybe2 =
     Just x  -> maybe1
     Nothing -> lazyMaybe2 ()
 
+-- c.f. selfZipCircConsecPairs
 adjacentPairs : Bool -> List a -> List (a, a)
 adjacentPairs includeLast list = case list of
   [] -> []

@@ -1,10 +1,11 @@
 module CodeMotion exposing
-  ( moveDefinitionPat, moveDefinitionBeforeEId
+  ( moveDefinitionPat, moveDefinitionsBeforeEId
   , makeEListReorderTool
   )
 
 import Lang exposing (..)
 import LangTools exposing (..)
+import LangTransform
 import LangUnparser exposing (unparse, unparseWithIds, unparsePat)
 import LangParser2
 -- import DependenceGraph exposing
@@ -16,48 +17,45 @@ import Dict
 
 
 type alias PatBoundExp = (Pat, Exp)
-type alias RebuildLetExp = Exp -> Exp
 
--- returns the binding (p, e1) to be removed from let-expression at scopeId,
--- the body of the let at the scopeId
--- and a function foo that rewrites this let-expression by wrapping the
--- residual pattern and residual bound expression (that remain after plucking)
--- around a rewritten body (provided as an argument)
-pluck : PatternId -> Exp -> Maybe (PatBoundExp, RebuildLetExp)
+-- Removes the binding (p, e1) from the program.
+--
+-- If this would remove a whole pattern, the pattern is left as [] matched to [] for a later clean up step.
+--
+-- This technique preserves EIds and pattern paths for later insertion.
+pluck : PatternId -> Exp -> Maybe (PatBoundExp, Exp)
 pluck ((scopeEId, scopeBranchI), path) program =
   findExpByEId program scopeEId
   |> Maybe.andThen (\scope -> pluck_ scope path program)
 
 
-pluck_ : Exp -> List Int -> Exp -> Maybe (PatBoundExp, RebuildLetExp)
+pluck_ : Exp -> List Int -> Exp -> Maybe (PatBoundExp, Exp)
 pluck_ scopeExp path program =
-  let (maybePluckedAndMaybeNewPatAndBoundExp, ws1, letKind, isRec, ws2) =
+  let (maybePluckedAndNewPatAndBoundExp, ws1, letKind, isRec, e2, ws2) =
     case scopeExp.val.e__ of
-      ELet ws1 letKind False p e1 e2 ws2 -> (pluck__ p e1 path, ws1, letKind, False, ws2)
+      ELet ws1 letKind False p e1 e2 ws2 -> (pluck__ p e1 path, ws1, letKind, False, e2, ws2)
       _                                  -> Debug.crash <| "pluck_: bad Exp__ (note: letrec not supported) " ++ unparseWithIds scopeExp
   in
-  case maybePluckedAndMaybeNewPatAndBoundExp of
+  case maybePluckedAndNewPatAndBoundExp of
     Nothing ->
       Nothing
 
-    Just (pluckedPatBoundExp, maybeNewPatAndBoundExp) ->
-      let wrapWithResidualLet =
-        -- let (oldPat, oldBoundExp) =
-        case maybeNewPatAndBoundExp of
-          Nothing ->
-            identity
-
-          Just (newPat, newBoundExp) ->
-            (\newBody -> replaceE__ scopeExp (ELet ws1 letKind isRec newPat newBoundExp newBody ws2))
-      in
-      Just (pluckedPatBoundExp, wrapWithResidualLet)
+    Just (pluckedPatBoundExp, newPat, newBoundExp) ->
+      Just <|
+        ( pluckedPatBoundExp
+        , replaceExpNodeE__ scopeExp (ELet ws1 letKind isRec newPat newBoundExp e2 ws2) program
+        )
 
 
-pluck__ : Pat -> Exp -> List Int -> Maybe (PatBoundExp, Maybe (Pat, Exp))
+pluck__ : Pat -> Exp -> List Int -> Maybe (PatBoundExp, Pat, Exp)
 pluck__ p e1 path =
   case (p.val, e1.val.e__, path) of
     (_, _, []) ->
-      Just ((p, e1), Nothing)
+      Just <|
+        ( (p, e1)
+        , replaceP_ p   <| PList (precedingWhitespacePat p) [] "" Nothing ""
+        , replaceE__ e1 <| EList (precedingWhitespace e1)   [] "" Nothing ""
+        )
 
     (PAs _ _ _ childPat, _, i::is) ->
       -- TODO: allow but mark unsafe if as-pattern is used
@@ -69,41 +67,20 @@ pluck__ p e1 path =
     , i::is
     ) ->
       if List.length ps >= i && List.length es >= i then
-        let (pi, ei) = (Utils.geti i ps, Utils.geti i es) in
+        let pi = Utils.geti i ps in
+        let ei = Utils.geti i es in
         pluck__ pi ei is
         |> Maybe.map
-            (\(plucked, maybeNewPatAndBoundExp) ->
+            (\(plucked, newPat, newBoundExp) ->
               let (newPs, newEs) =
-                case maybeNewPatAndBoundExp of
-                  Just (newPat, newBoundExp) ->
-                    ( Utils.replacei i newPat ps      |> imitatePatListWhitespace ps
-                    , Utils.replacei i newBoundExp es |> imitateExpListWhitespace es
-                    )
-
-                  Nothing ->
-                    ( Utils.removei i ps |> imitatePatListWhitespace ps
-                    , Utils.removei i es |> imitateExpListWhitespace es
-                    )
+                ( Utils.replacei i newPat ps
+                , Utils.replacei i newBoundExp es
+                )
               in
-              case (newPs, newEs, maybePTail, maybeETail) of
-                ([], [], Nothing, Nothing) ->
-                  ( plucked
-                  , Nothing
-                  )
-
-                ([newP], [newE], Nothing, Nothing) ->
-                  -- Delistify singleton lists
-                  ( plucked
-                  , Just (copyPrecedingWhitespacePat p newP,
-                          copyPrecedingWhitespace e1 newE)
-                  )
-
-                _ ->
-                  ( plucked
-                  , Just (replaceP_ p   (PList pws1 newPs pws2 maybePTail pws3),
-                          replaceE__ e1 (EList ews1 newEs ews2 maybeETail ews3))
-                  )
-
+              ( plucked
+              , replaceP_ p   <| PList pws1 newPs pws2 maybePTail pws3
+              , replaceE__ e1 <| EList ews1 newEs ews2 maybeETail ews3
+              )
             )
       else if List.length ps == List.length es && i == 1 + List.length ps && Utils.maybeToBool maybePTail && Utils.maybeToBool maybeETail then
         -- Recursing into the tail binding
@@ -111,19 +88,11 @@ pluck__ p e1 path =
         let ei = Utils.fromJust maybeETail in
         pluck__ pi ei is
         |> Maybe.map
-            (\(plucked, maybeNewPatAndBoundExp) ->
-              case maybeNewPatAndBoundExp of
-                Just (newTailPat, newTailBoundExp) ->
-                  ( plucked
-                  , Just (replaceP_ p   (PList pws1 ps pws2 (Just newTailPat) pws3),
-                          replaceE__ e1 (EList ews1 es ews2 (Just newTailBoundExp) ews3))
-                  )
-
-                Nothing ->
-                  ( plucked
-                  , Just (replaceP_ p   (PList pws1 ps pws2 Nothing pws3),
-                          replaceE__ e1 (EList ews1 es ews2 Nothing ews3))
-                  )
+            (\(plucked, newTailPat, newTailBoundExp) ->
+              ( plucked
+              , replaceP_ p   <| PList pws1 ps pws2 (Just newTailPat) pws3
+              , replaceE__ e1 <| EList ews1 es ews2 (Just newTailBoundExp) ews3
+              )
             )
       else
         Debug.log "pluck index longer than head list of PList or EList" Nothing
@@ -131,6 +100,8 @@ pluck__ p e1 path =
     _ ->
       let _ = Debug.log ("pluck_: bad pattern " ++ unparsePat p) path in
       Nothing
+
+
 ------------------------------------------------------------------------------
 
 
@@ -148,123 +119,181 @@ strUnsafeBool isUnsafe = if isUnsafe then "[UNSAFE] " else ""
 --   - All other variables uses of the same name do not resolve to the moved identifier
 --
 -- Returns (list of safe results, list of unsafe results)
-moveDefinitionBeforeEId : PatternId -> EId -> Exp -> (List SynthesisResult, List SynthesisResult)
-moveDefinitionBeforeEId sourcePatId targetEId program =
-  let ((sourceScopeEId, _), _) = sourcePatId in
-  case pluck sourcePatId program of
-    Nothing -> Debug.crash <| "could not pluck pat " ++ toString sourcePatId ++ " from " ++ unparseWithIds program
-    Just ((pluckedPat, boundExp), wrapWithResidualLet) ->
-      let insertedLetEId = LangParser2.maxId program + 1 in
-      let newProgram =
-        flip mapExp program <| \e ->
-          -- Written oddly, but this correctly handles the cases
-          -- where sourceScopeEId == targetEId; both when a subpattern is extracted
-          -- right before the scope, and when you try to move an entire scope
-          -- right before itself
-          let newE =
-            if e.val.eid == sourceScopeEId
-            then wrapWithResidualLet (expToLetBody e)
-            else e
-          in
-          if e.val.eid == targetEId then
-            let letOrDef = if isTopLevelEId targetEId program then Def else Let in
+moveDefinitionsBeforeEId : List PatternId -> EId -> Exp -> (List SynthesisResult, List SynthesisResult)
+moveDefinitionsBeforeEId sourcePatIds targetEId program =
+  let (pluckedPatAndBoundExpAndOldScopeBodies, programWithoutPlucked) =
+    sourcePatIds
+    |> List.sortBy
+        (\((scopeEId, branchI), path) ->
+          let scope = justFindExpByEId program scopeEId in
+          (scope.start.line, scope.start.col, branchI, path)
+        )
+    |> List.foldr
+        (\sourcePatId (pluckedPatAndBoundExpAndOldScopeBodies, programBeingPlucked) ->
+          case pluck sourcePatId programBeingPlucked of
+            Just ((pluckedPat, pluckedBoundExp), programWithoutPlucked) ->
+              let ((sourceScopeEId, _), _) = sourcePatId in
+              let oldScopeBody = justFindExpByEId program sourceScopeEId |> expToLetBody in -- search in original program b/c old body is for safety check
+              ((pluckedPat, pluckedBoundExp, oldScopeBody)::pluckedPatAndBoundExpAndOldScopeBodies, programWithoutPlucked)
+            Nothing ->
+              (pluckedPatAndBoundExpAndOldScopeBodies, programBeingPlucked)
+        )
+        ([], program)
+  in
+  if pluckedPatAndBoundExpAndOldScopeBodies == [] then
+    Debug.log "could not pluck anything" ([], [])
+  else
+    let (pluckedPats, pluckedBoundExps, _) = Utils.unzip3 pluckedPatAndBoundExpAndOldScopeBodies in
+    let (newPat, newBoundExp) =
+      case (pluckedPats, pluckedBoundExps) of
+        ([pluckedPat], [boundExp]) ->
+          (pluckedPat, boundExp)
+
+        _ ->
+          ( withDummyRange <| PList " " (pluckedPats      |> setPatListWhitespace "" " ") "" Nothing ""
+          , withDummyPos   <| EList " " (pluckedBoundExps |> setExpListWhitespace "" " ") "" Nothing "" -- May want to be smarter about whitespace here to avoid long lines.
+          )
+    in
+    let insertedLetEId = LangParser2.maxId program + 1 in
+    let newProgram =
+      programWithoutPlucked
+      |> mapExpNode
+          targetEId
+          (\expToWrap ->
+            let letOrDef = if isTopLevelEId targetEId programWithoutPlucked then Def else Let in
             withDummyPosEId insertedLetEId <|
-              ELet (precedingWhitespace newE) letOrDef False
-                (ensureWhitespacePat pluckedPat) (ensureWhitespaceExp boundExp)
-                (ensureWhitespaceExp newE) ""
-          else
-            newE
-      in
-      -- let _ = Debug.log ("old: \n" ++ unparseWithIds program) () in
-      -- let _ = Debug.log ("new: \n" ++ unparseWithIds newProgram) () in
-      let oldScopeBody   = justFindExpByEId program sourceScopeEId |> expToLetBody in
-      let movedScopeBody = justFindExpByEId newProgram insertedLetEId |> expToLetBody in
-      let isSafe =
-        let identUsesSafe =
-          -- Effectively comparing EIds of all uses of the identifiers.
-          -- Presumably these will be exactly equal rather than equal as sets since we shouldn't be moving around the relative position of the variable usages...still, I think a set is the natural strucuture here
-          let identSafe ident =
-            Utils.equalAsSets (identifierUses ident oldScopeBody) (identifierUses ident movedScopeBody)
-          in
-          List.all identSafe (identifiersListInPat pluckedPat)
+              ELet (precedingWhitespace expToWrap) letOrDef False
+                (ensureWhitespacePat newPat) (ensureWhitespaceExp newBoundExp)
+                (ensureWhitespaceExp expToWrap) ""
+          )
+      |> LangTransform.simplifyAssignments
+    in
+    -- let _ = Debug.log ("old: \n" ++ unparseWithIds program) () in
+    -- let _ = Debug.log ("new: \n" ++ unparseWithIds newProgram) () in
+    let newScopeBody = justFindExpByEId newProgram insertedLetEId |> expToLetBody in
+    let isSafe =
+      let identUsesSafe =
+        -- Effectively comparing EIds of all uses of the identifiers.
+        -- Presumably these will be exactly equal rather than equal as sets since we shouldn't be moving around the relative position of the variable usages...still, I think a set is the natural strucuture here
+        let identSafe oldScopeBody ident =
+          Utils.equalAsSets (identifierUses ident oldScopeBody) (identifierUses ident newScopeBody)
         in
-        let boundExpVarsSafe =
-          freeVars boundExp
-          |> List.all (\e -> bindingScopeIdFor e program == bindingScopeIdFor e newProgram)
-        in
-        identUsesSafe && boundExpVarsSafe
+        pluckedPatAndBoundExpAndOldScopeBodies
+        |> List.all
+            (\(pluckedPat, _, oldScopeBody) ->
+              identifiersListInPat pluckedPat |> List.all (identSafe oldScopeBody)
+            )
       in
-      let caption =
-        strUnsafeBool (not isSafe) ++ "Move " ++ (unparsePat >> Utils.squish) pluckedPat ++ " before " ++ (unparse >> Utils.squish >> Utils.niceTruncateString 20 "...") movedScopeBody
+      let boundExpVarsSafe =
+        freeVars newBoundExp
+        |> List.all (\e -> bindingScopeIdFor e program == bindingScopeIdFor e newProgram)
       in
-      let result =
-        SynthesisResult { description = caption, exp = newProgram, sortKey = [], children = Nothing }
+      let noDuplicateNamesInPat =
+        let namesDefinedAtNewScope = identifiersListInPat newPat in
+        namesDefinedAtNewScope == Utils.dedup namesDefinedAtNewScope
       in
-      if isSafe
-      then ([result], [])
-      else ([], [result])
+      identUsesSafe && boundExpVarsSafe && noDuplicateNamesInPat
+    in
+    let caption =
+      strUnsafeBool (not isSafe) ++ "Move " ++ (List.map (unparsePat >> Utils.squish) pluckedPats |> Utils.toSentence) ++ " before " ++ (unparse >> Utils.squish >> Utils.niceTruncateString 20 "...") newScopeBody
+    in
+    let result =
+      SynthesisResult { description = caption, exp = newProgram, sortKey = [], children = Nothing }
+    in
+    if isSafe
+    then ([result], [])
+    else ([], [result])
 
 
 ------------------------------------------------------------------------------
 
 
 -- Returns (list of safe results, list of unsafe results)
-moveDefinitionPat : PatternId -> PatternId -> Exp -> (List SynthesisResult, List SynthesisResult)
-moveDefinitionPat sourcePatId targetPatId program =
-  let ((sourceScopeEId, _), _) = sourcePatId in
-  let ((targetEId, _), _) = targetPatId in
-  case pluck sourcePatId program of
-    Nothing -> Debug.crash <| "could not pluck pat " ++ toString sourcePatId ++ " from " ++ unparseWithIds program
-    Just ((pluckedPat, boundExp), wrapWithResidualLet) ->
-      let newProgram =
-        flip mapExp program <| \e ->
-          if e.val.eid == sourceScopeEId then
-            let sourceBody = expToLetBody e in
-            if sourceScopeEId /= targetEId
-              then wrapWithResidualLet sourceBody
-              else insertPat_ (pluckedPat, boundExp) targetPatId (wrapWithResidualLet sourceBody)
-          else if e.val.eid == targetEId then
-            insertPat_ (pluckedPat, boundExp) targetPatId e
-          else
-            e
-      in
-      -- let _ = Debug.log ("old: \n" ++ unparseWithIds program) () in
-      -- let _ = Debug.log ("new: \n" ++ unparseWithIds newProgram) () in
-      let oldScopeBody = justFindExpByEId program sourceScopeEId |> expToLetBody in
-      let newScope     = justFindExpByEId newProgram targetEId in
-      let newScopeBody = expToLetBody newScope in
-      let isSafe =
-        let identUsesSafe =
-          -- Effectively comparing EIds of all uses of the identifier.
-          -- Presumably these will be exactly equal rather than equal as sets since we shouldn't be moving around the relative position of the variable usages...still, I think a set is the natural strucuture here
-          let identSafe ident =
-            Utils.equalAsSets (identifierUses ident oldScopeBody) (identifierUses ident newScopeBody)
-          in
-          List.all identSafe (identifiersListInPat pluckedPat)
+moveDefinitionPat : List PatternId -> PatternId -> Exp -> (List SynthesisResult, List SynthesisResult)
+moveDefinitionPat sourcePatIds targetPatId program =
+  let (pluckedPatAndBoundExpAndOldScopeBodies, programWithoutPlucked) =
+    sourcePatIds
+    |> List.sortBy
+        (\((scopeEId, branchI), path) ->
+          let scope = justFindExpByEId program scopeEId in
+          (scope.start.line, scope.start.col, branchI, path)
+        )
+    |> List.foldr
+        (\sourcePatId (pluckedPatAndBoundExpAndOldScopeBodies, programBeingPlucked) ->
+          case pluck sourcePatId programBeingPlucked of
+            Just ((pluckedPat, pluckedBoundExp), programWithoutPlucked) ->
+              let ((sourceScopeEId, _), _) = sourcePatId in
+              let oldScopeBody = justFindExpByEId program sourceScopeEId |> expToLetBody in -- search in original program b/c old body is for safety check
+              ((pluckedPat, pluckedBoundExp, oldScopeBody)::pluckedPatAndBoundExpAndOldScopeBodies, programWithoutPlucked)
+            Nothing ->
+              (pluckedPatAndBoundExpAndOldScopeBodies, programBeingPlucked)
+        )
+        ([], program)
+  in
+  if pluckedPatAndBoundExpAndOldScopeBodies == [] then
+    Debug.log "could not pluck anything" ([], [])
+  else
+    let ((targetEId, _), targetPath) = targetPatId in
+    let newProgram =
+      programWithoutPlucked
+      |> mapExpNode
+          targetEId
+          (\newScopeExp ->
+            pluckedPatAndBoundExpAndOldScopeBodies
+            |> List.foldr
+                (\(pluckedPat, pluckedBoundExp, _) newScopeExp ->
+                  insertPat_ (pluckedPat, pluckedBoundExp) targetPath newScopeExp
+                )
+                newScopeExp
+          )
+      |> LangTransform.simplifyAssignments
+    in
+    -- let _ = Debug.log ("old: \n" ++ unparseWithIds program) () in
+    -- let _ = Debug.log ("new: \n" ++ unparseWithIds newProgram) () in
+    let newScope       = justFindExpByEId newProgram targetEId in
+    let newScopeLetPat = expToLetPat newScope in
+    let newScopeBody   = expToLetBody newScope in
+    let isSafe =
+      let identUsesSafe =
+        -- Effectively comparing EIds of all uses of the identifiers.
+        -- Presumably these will be exactly equal rather than equal as sets since we shouldn't be moving around the relative position of the variable usages...still, I think a set is the natural strucuture here
+        let identSafe oldScopeBody ident =
+          Utils.equalAsSets (identifierUses ident oldScopeBody) (identifierUses ident newScopeBody)
         in
-        let boundExpVarsSafe =
-          freeVars boundExp
-          |> List.all (\e -> bindingScopeIdFor e program == bindingScopeIdFor e newProgram)
-        in
-        let noDuplicateNamesInPat =
-          let namesDefinedAtNewScope = identifiersListInPat (expToLetPat newScope) in
-          namesDefinedAtNewScope == Utils.dedup namesDefinedAtNewScope
-        in
-        identUsesSafe && boundExpVarsSafe && noDuplicateNamesInPat
+        pluckedPatAndBoundExpAndOldScopeBodies
+        |> List.all
+            (\(pluckedPat, _, oldScopeBody) ->
+              identifiersListInPat pluckedPat |> List.all (identSafe oldScopeBody)
+            )
       in
-      let caption =
-        strUnsafeBool (not isSafe) ++ "Move " ++ (unparsePat >> Utils.squish) pluckedPat ++ " to make " ++ (unparsePat >> Utils.squish >> Utils.niceTruncateString 20 "...") (expToLetPat newScope)
+      let boundExpVarsSafe =
+        pluckedPatAndBoundExpAndOldScopeBodies
+        |> List.all
+            (\(_, pluckedBoundExp, _) ->
+              freeVars pluckedBoundExp
+              |> List.all (\e -> bindingScopeIdFor e program == bindingScopeIdFor e newProgram)
+            )
       in
-      let result =
-        SynthesisResult { description = caption, exp = newProgram, sortKey = [], children = Nothing }
+      let noDuplicateNamesInPat =
+        let namesDefinedAtNewScope = identifiersListInPat newScopeLetPat in
+        namesDefinedAtNewScope == Utils.dedup namesDefinedAtNewScope
       in
-      if isSafe
-      then ([result], [])
-      else ([], [result])
+      identUsesSafe && boundExpVarsSafe && noDuplicateNamesInPat
+    in
+    let caption =
+      let (pluckedPats, _, _) = Utils.unzip3 pluckedPatAndBoundExpAndOldScopeBodies in
+      strUnsafeBool (not isSafe) ++ "Move " ++ (List.map (unparsePat >> Utils.squish) pluckedPats |> Utils.toSentence) ++ " to make " ++ (unparsePat >> Utils.squish >> Utils.niceTruncateString 20 "...") newScopeLetPat
+    in
+    let result =
+      SynthesisResult { description = caption, exp = newProgram, sortKey = [], children = Nothing }
+    in
+    if isSafe
+    then ([result], [])
+    else ([], [result])
 
 
-insertPat_ : PatBoundExp -> PatternId -> Exp -> Exp
-insertPat_ (patToInsert, boundExp) ((_, targetBranchI), targetPath) exp =
+insertPat_ : PatBoundExp -> List Int -> Exp -> Exp
+insertPat_ (patToInsert, boundExp) targetPath exp =
   case exp.val.e__ of
     ELet ws1 letKind rec p e1 e2 ws2 ->
       case insertPat__ (patToInsert, boundExp) p e1 targetPath of
@@ -346,7 +375,7 @@ insertPat__ (patToInsert, boundExp) p e1 path =
   in
   case maybeNewP_E__Pair of
     Just (newP_, newE__) ->
-      Just (replaceP_ p newP_, replaceE__ e1 newE__)
+      Just (replaceP_ p newP_, replaceE__ e1 newE__) -- Hmm this will produce duplicate EIds in the boundExp when PVar or PAs are expanded into PList
 
     Nothing ->
       Nothing
