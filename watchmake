@@ -24,10 +24,13 @@ IO.popen(FSWATCH_COMMAND) do |fswatch|
   puts FSWATCH_COMMAND
   loop do
     changed_files = fswatch.readpartial(1_000_000)
-    sleep 0.02 # File changes might still be coming (e.g. git checkout)
-    changed_files << (fswatch.read_nonblock(1_000_000) rescue "")
+    loop do
+      sleep 0.05 # File changes might still be coming (e.g. git checkout)
+      break unless more_changed_files = (fswatch.read_nonblock(1_000_000) rescue nil)
+      changed_files << more_changed_files
+    end
     puts changed_files
     puts MAKE_COMMAND
-    system(MAKE_COMMAND)
+    system MAKE_COMMAND
   end
 end
