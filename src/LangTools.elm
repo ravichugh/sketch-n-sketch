@@ -1178,10 +1178,10 @@ setPatNameInPat path newName pat =
       pat
 
 
--- Return the first expression(s) that can see the bound variables
--- Returns [] if cannot find scope; letrec returns two expressions [boundExp, body]; others return singleton list
-findScopeAreas : Exp -> ScopeId -> List Exp
-findScopeAreas exp (scopeEId, branchI) =
+-- Return the first expression(s) that can see the bound variables.
+-- Returns [] if cannot find scope; letrec returns two expressions [boundExp, body]; others return singleton list.
+findScopeAreas : ScopeId -> Exp -> List Exp
+findScopeAreas (scopeEId, branchI) exp  =
   let maybeScopeExp = findExpByEId exp scopeEId in
   case Maybe.map (.val >> .e__) maybeScopeExp of
     Just (ELet _ _ isRec pat boundExp body _) ->
@@ -1201,21 +1201,60 @@ findScopeAreas exp (scopeEId, branchI) =
       []
 
 
-findScopeExpAndPat : Exp -> PatternId -> Maybe (Exp, Pat)
-findScopeExpAndPat exp ((scopeEId, branchI), path) =
+-- Return the first expression(s) that can see the bound variables.
+-- Probably only useful if ident is unique across the entire program (otherwise, this returns scope areas for all different bindings of the same name).
+-- Returns [] if ident is not defined in any pattern; letrec returns two expressions [boundExp, body]; others return singleton list.
+findScopeAreasByIdent : Ident -> Exp -> List Exp
+findScopeAreasByIdent ident exp =
+  exp
+  |> flattenExpTree
+  |> List.concatMap
+      (\e ->
+        case e.val.e__ of
+          ELet _ _ isRec pat boundExp body _ ->
+            if List.member ident (identifiersListInPat pat) then
+              if isRec
+              then [boundExp, body]
+              else [body]
+            else
+              []
+
+          EFun _ pats body _ ->
+            if List.member ident (identifiersListInPats pats) then
+              [body]
+            else
+              []
+
+          ECase _ _ branches _ ->
+            branchPatExps branches
+            |> List.concatMap
+                (\(bPat, bExp) ->
+                  if List.member ident (identifiersListInPat bPat) then
+                    [bExp]
+                  else
+                    []
+                )
+
+          _ ->
+            []
+      )
+
+
+findScopeExpAndPat : PatternId -> Exp -> Maybe (Exp, Pat)
+findScopeExpAndPat ((scopeEId, branchI), path) exp =
   let maybeScopeExp = findExpByEId exp scopeEId in
   let maybePat =
     case (Maybe.map (.val >> .e__) maybeScopeExp, path) of
       (Just (ELet _ _ _ pat _ _ _), _) ->
-        findPatInPat pat path
+        findPatInPat path pat
 
       (Just (EFun _ pats _ _), i::is) ->
         Utils.maybeGet1 i pats
-        |> Maybe.andThen (\pat -> findPatInPat pat is)
+        |> Maybe.andThen (\pat -> findPatInPat is pat)
 
       (Just (ECase _ _ branches _), _) ->
         Utils.maybeGet1 branchI (branchPats branches)
-        |> Maybe.andThen (\pat -> findPatInPat pat path)
+        |> Maybe.andThen (\pat -> findPatInPat path pat)
 
       _ ->
         Nothing
@@ -1224,42 +1263,49 @@ findScopeExpAndPat exp ((scopeEId, branchI), path) =
   |> Maybe.map (\pat -> (Utils.fromJust maybeScopeExp, pat))
 
 
-findPat : Exp -> PatternId -> Maybe Pat
-findPat exp patId =
-  findScopeExpAndPat exp patId
+findPat : PatternId -> Exp -> Maybe Pat
+findPat patId exp =
+  findScopeExpAndPat patId exp
   |> Maybe.map Tuple.second
 
 
-findPatInPat : Pat -> List Int -> Maybe Pat
-findPatInPat pat path =
+findPatInPat : List Int -> Pat -> Maybe Pat
+findPatInPat path pat =
   case (pat.val, path) of
     (_, []) ->
       Just pat
 
     (PAs _ _ _ p, 1::is) ->
-      findPatInPat p is
+      findPatInPat is p
 
     (PList _ ps _ Nothing _, i::is) ->
       Utils.maybeGet1 i ps
-      |> Maybe.andThen (\p -> findPatInPat p is)
+      |> Maybe.andThen (\p -> findPatInPat is p)
 
     (PList _ ps _ (Just tailPat) _, i::is) ->
       Utils.maybeGet1 i (ps ++ [tailPat])
-      |> Maybe.andThen (\p -> findPatInPat p is)
+      |> Maybe.andThen (\p -> findPatInPat is p)
 
     _ ->
       Nothing
 
 
-pathForIdentInPat : Pat -> Ident -> Maybe (List Int)
-pathForIdentInPat pat targetIdent =
+pathForIdentInPat : Ident -> Pat -> Maybe (List Int)
+pathForIdentInPat targetIdent pat =
   if patToMaybeIdent pat == Just targetIdent then
     Just []
   else
     childPats pat
     |> Utils.zipi1
-    |> Utils.mapFirstSuccess (\(i, p) -> pathForIdentInPat p targetIdent |> Maybe.map ((,) i))
+    |> Utils.mapFirstSuccess (\(i, p) -> pathForIdentInPat targetIdent p |> Maybe.map ((,) i))
     |> Maybe.map (\(i, path) -> i::path)
+
+
+-- All variables with the given name (no consideration for shadowing)
+varsWithName : Ident -> Exp -> List Exp
+varsWithName ident exp =
+  flattenExpTree exp
+  |> List.filter (expToMaybeIdent >> (==) (Just ident))
 
 
 -- Which var idents in this exp refer to something outside this exp?
@@ -1430,13 +1476,20 @@ identifierSetUses identSet exp =
   |> List.filter (\varExp -> Set.member (expToIdent varExp) identSet)
 
 
+-- Presumes ident is unique in the program (only one pattern defines it).
+-- Returns [] if identifier never used or identifier is free.
+identifierUsesAfterDefiningPat : Ident -> Exp -> List Exp
+identifierUsesAfterDefiningPat ident exp =
+  findScopeAreasByIdent ident exp
+  |> List.concatMap (\scopeAreaExp -> identifierUses ident scopeAreaExp)
+
+
 -- What variable names are in use at any of the given locations?
 -- For help finding unused names during synthesis.
 visibleIdentifiersAtEIds : Exp -> Set.Set EId -> Set.Set Ident
 visibleIdentifiersAtEIds program eids =
   let programIdents = visibleIdentifiersAtPredicateNoPrelude program (\exp -> Set.member exp.val.eid eids) in
-  let preludeIdents = List.map Tuple.first Eval.initEnv |> Set.fromList in
-  Set.union programIdents preludeIdents
+  Set.union programIdents preludeIdentifiers
 
 
 visibleIdentifiersAtPredicateNoPrelude : Exp -> (Exp -> Bool) -> Set.Set Ident
@@ -1503,7 +1556,205 @@ visibleIdentifiersAtPredicate_ idents exp pred =
     -- EDict _                   -> Debug.crash "LangTools.visibleIdentifiersAtEIds_: shouldn't have an EDict in given expression"
 
 
+assignUniqueNames : Exp -> (Exp, Dict.Dict Ident Ident)
+assignUniqueNames program =
+  let initialUsedNames =
+    -- Want to rename _everything_ so that there's multiple options for how to rename back to the originals
+    identifiersSetPlusPrelude program
+  in
+  let (newProgram, usedNames, newNameToOldName) =
+    assignUniqueNames_ program initialUsedNames Dict.empty
+  in
+  (newProgram, newNameToOldName)
+
+
+assignUniqueNames_ : Exp -> Set.Set Ident -> Dict.Dict Ident Ident -> (Exp, Set.Set Ident, Dict.Dict Ident Ident)
+assignUniqueNames_ exp usedNames oldNameToNewName =
+  let recurse = assignUniqueNames_ in
+  let recurseExps es =
+    es
+    |> List.foldl
+        (\e (newEs, usedNames, newNameToOldName) ->
+          let (newE, usedNames_, newNameToOldName_) = recurse e usedNames oldNameToNewName in
+          (newEs ++ [newE], usedNames_, Dict.union newNameToOldName_ newNameToOldName)
+        )
+        ([], usedNames, Dict.empty)
+  in
+  let recurseExp e =
+    let (newEs, usedNames, newNameToOldName) = recurseExps [e] in
+    (Utils.head "assignUniqueNames_ head1" newEs, usedNames, newNameToOldName)
+  in
+  let assignUniqueNamesToPat_ pat usedNames =
+    identifiersListInPat pat
+    |> List.foldl
+        (\name (pat, usedNames, oldNameToNewName) ->
+          if Set.member name usedNames then
+            let newName = nonCollidingName name 2 usedNames in
+            (renameIdentifierInPat name newName pat, Set.insert newName usedNames, Dict.insert name newName oldNameToNewName)
+          else
+            (pat, Set.insert name usedNames, oldNameToNewName)
+        )
+        (pat, usedNames, Dict.empty)
+  in
+  let leafUnchanged = (exp, usedNames, Dict.empty) in
+  case exp.val.e__ of
+    EConst _ _ _ _  -> leafUnchanged
+    EBase _ _       -> leafUnchanged
+    EVar ws oldName ->
+      case Dict.get oldName oldNameToNewName of
+        Just newName  -> (replaceE__ exp (EVar ws newName), usedNames, Dict.empty)
+        Nothing       -> leafUnchanged
+
+    EFun ws1 ps e ws2 ->
+      let (newPs, usedNames_, oldNameToNewNameAdditions) =
+        ps
+        |> List.foldl
+            (\p (newPs, usedNames, oldNameToNewNameAdditions) ->
+              let (newPat, usedNames_, oldNameToNewNameAdditions_) = assignUniqueNamesToPat_ p usedNames in
+              (newPs ++ [newPat], usedNames_, Dict.union oldNameToNewNameAdditions_ oldNameToNewNameAdditions)
+            )
+            ([], usedNames, Dict.empty)
+      in
+      let (newBody, usedNames__, newNameToOldName) = recurse e usedNames_ (Dict.union oldNameToNewNameAdditions oldNameToNewName) in
+      let newNameToOldName_ = Dict.union (Utils.flipDict oldNameToNewNameAdditions) newNameToOldName in
+      ( replaceE__ exp (EFun ws1 newPs newBody ws2)
+      , usedNames__
+      , newNameToOldName_
+      )
+
+    EOp ws1 op es ws2 ->
+      let (newEs, usedNames_, newNameToOldName) = recurseExps es in
+      ( replaceE__ exp (EOp ws1 op newEs ws2)
+      , usedNames_
+      , newNameToOldName
+      )
+
+    EList ws1 es ws2 Nothing ws3 ->
+      let (newEs, usedNames_, newNameToOldName) = recurseExps es in
+      ( replaceE__ exp (EList ws1 newEs ws2 Nothing ws3)
+      , usedNames_
+      , newNameToOldName
+      )
+
+    EList ws1 es ws2 (Just tail) ws3 ->
+      let (newEs, usedNames_, newNameToOldName) = recurseExps (es ++ [tail]) in
+      let (newHeads, newTail) = (Utils.removeLastElement newEs, Utils.last "assignUniqueNames_" newEs) in
+      ( replaceE__ exp (EList ws1 newHeads ws2 (Just newTail) ws3)
+      , usedNames_
+      , newNameToOldName
+      )
+
+    EIf ws1 e1 e2 e3 ws2 ->
+      let (newEs, usedNames_, newNameToOldName) = recurseExps [e1, e2, e3] in
+      case newEs of
+        [newE1, newE2, newE3] ->
+          ( replaceE__ exp (EIf ws1 newE1 newE2 newE3 ws2)
+          , usedNames_
+          , newNameToOldName
+          )
+
+        _ ->
+          Debug.crash "assignUniqueNames_ EIf"
+
+    ECase ws1 e1 bs ws2 ->
+      let (newScrutinee, usedNames_, newNameToOldName) = recurse e1 usedNames oldNameToNewName in
+      let (newBranches, usedNames__, newNameToOldName_) =
+        bs
+        |> List.foldl
+            (\branch (newBranches, usedNames, newNameToOldName) ->
+              let (Branch_ bws1 bPat bExp bws2) = branch.val in
+              let (newPat, usedNames_, oldNameToNewNameAdditions) = assignUniqueNamesToPat_ bPat usedNames in
+              let (newBody, usedNames__, newNameToOldName_) = recurse bExp usedNames_ (Dict.union oldNameToNewNameAdditions oldNameToNewName) in
+              let newBranch = { branch | val = Branch_ bws1 newPat newBody bws2 } in
+              (newBranches ++ [newBranch], usedNames__, Dict.union (Utils.flipDict oldNameToNewNameAdditions) (Dict.union newNameToOldName_ newNameToOldName))
+            )
+            ([], usedNames_, newNameToOldName)
+      in
+      ( replaceE__ exp (ECase ws1 newScrutinee newBranches ws2)
+      , usedNames__
+      , newNameToOldName_
+      )
+
+    ETypeCase ws1 scrutinee tbranches ws2 ->
+      Debug.crash "need to change typecase scrutinee to expression; pluck from brainstorm branch"
+    -- Brainstorm changed typecase scrutinee to an evaluated expression
+    -- ETypeCase ws1 scrutinee tbranches ws2 ->
+    --   let newScrutinee = recurse scrutinee in
+    --   let newTBranches =
+    --     tbranches
+    --     |> List.map
+    --         (mapValField (\(TBranch_ bws1 bType bExp bws2) ->
+    --           TBranch_ bws1 bType (recurse bExp) bws2
+    --         ))
+    --   in
+    --   replaceE__ exp (ETypeCase ws1 newScrutinee newTBranches ws2)
+
+    EApp ws1 e1 es ws2 ->
+      let (newE1AndEs, usedNames_, newNameToOldName) = recurseExps (e1::es) in
+      let (newE1, newEs) = (Utils.head "assignUniqueNames_ head" newE1AndEs, Utils.tail "assignUniqueNames_ tail" newE1AndEs) in
+      ( replaceE__ exp (EApp ws1 newE1 newEs ws2)
+      , usedNames_
+      , newNameToOldName
+      )
+
+    ELet ws1 kind isRec p e1 e2 ws2 ->
+      let (newPat, usedNames_, oldNameToNewNameAdditions) = assignUniqueNamesToPat_ p usedNames in
+      let oldNameToNewNameWithAdditions = Dict.union oldNameToNewNameAdditions oldNameToNewName in
+      let oldNameToNewNameForBoundExp =
+        if isRec then
+          oldNameToNewNameWithAdditions
+        else
+          oldNameToNewName
+      in
+      let (newE1, usedNames__, newNameToOldName)   = recurse e1 usedNames_ oldNameToNewNameForBoundExp in
+      let (newE2, usedNames___, newNameToOldName_) = recurse e2 usedNames__ oldNameToNewNameWithAdditions in
+      let newNameToOldName__ = Dict.union (Utils.flipDict oldNameToNewNameAdditions) (Dict.union newNameToOldName_ newNameToOldName) in
+      ( replaceE__ exp (ELet ws1 kind isRec newPat newE1 newE2 ws2)
+      , usedNames___
+      , newNameToOldName__
+      )
+
+    EComment ws s e1 ->
+      let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
+      ( replaceE__ exp (EComment ws s newE1)
+      , usedNames_
+      , newNameToOldName
+      )
+
+    EOption ws1 s1 ws2 s2 e1 ->
+      let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
+      ( replaceE__ exp (EOption ws1 s1 ws2 s2 newE1)
+      , usedNames_
+      , newNameToOldName
+      )
+
+    ETyp ws1 pat tipe e1 ws2 ->
+      let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
+      ( replaceE__ exp (ETyp ws1 pat tipe newE1 ws2)
+      , usedNames_
+      , newNameToOldName
+      )
+
+    EColonType ws1 e1 ws2 tipe ws3 ->
+      let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
+      ( replaceE__ exp (EColonType ws1 newE1 ws2 tipe ws3)
+      , usedNames_
+      , newNameToOldName
+      )
+
+    ETypeAlias ws1 pat tipe e1 ws2 ->
+      let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
+      ( replaceE__ exp (ETypeAlias ws1 pat tipe newE1 ws2)
+      , usedNames_
+      , newNameToOldName
+      )
+
+    -- EDict _                         -> Debug.crash "LangTools.transformVarsUntilBound: shouldn't have an EDict in given expression"
+
+
 -- Compute the PatternId that assigned the binding referenced by varExp
+--
+-- Uses ident of given varExp, returns that name's binding at varExp's EId in program.
 --
 -- Returns Nothing if free in program or not in program
 bindingPatternIdFor : Exp -> Exp -> Maybe PatternId
@@ -1514,6 +1765,8 @@ bindingPatternIdFor varExp program =
 
 
 -- Compute the ScopeId that assigned the binding referenced by varExp
+--
+-- Uses ident of given varExp, returns that name's binding at varExp's EId in program.
 --
 -- Returns Nothing if free in program or not in program
 bindingScopeIdFor : Exp -> Exp -> Maybe ScopeId
@@ -1528,7 +1781,7 @@ bindingPatternIdFor_ : Maybe PatternId -> Ident -> EId -> Exp -> Maybe (Maybe Pa
 bindingPatternIdFor_ currentBindingPatternId targetName targetEId exp =
   let recurse patternId e = bindingPatternIdFor_ patternId targetName targetEId e in
   let maybeNewBindingForRecursion pat branchI pathPrefix =
-    pathForIdentInPat pat targetName
+    pathForIdentInPat targetName pat
     |> Maybe.map (\path -> Just ((exp.val.eid, branchI), pathPrefix ++ path))
   in
   case exp.val.e__ of

@@ -602,6 +602,13 @@ toggleDict : (comparable, v) -> Dict comparable v -> Dict comparable v
 toggleDict (k,v) dict =
   if Dict.member k dict then Dict.remove k dict else Dict.insert k v dict
 
+flipDict : Dict comparable1 comparable2 -> Dict comparable2 comparable1
+flipDict dict =
+  dict
+  |> Dict.toList
+  |> List.map (\(a, b) -> (b, a))
+  |> Dict.fromList
+
 multiKeySingleValue : List comparable -> v -> Dict comparable v
 multiKeySingleValue keys value =
   List.foldl
@@ -636,6 +643,7 @@ maybeLast list =
     _::xs -> maybeLast xs
 
 head msg = fromJust_ msg << List.head
+tail msg = fromJust_ msg << List.tail
 last msg = fromJust_ msg << maybeLast
 head_ = head "Utils.head_"
 tail_ = fromJust_ "Utils.tail_" << List.tail

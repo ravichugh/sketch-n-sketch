@@ -1582,7 +1582,7 @@ contextSensitiveDeuceTools m =
     ([], [], [], [], []) -> []
 
     ([], [], [patId], [], []) ->
-      case LangTools.findPat m.inputExp patId |> Maybe.map .val of
+      case LangTools.findPat patId m.inputExp |> Maybe.map .val of
         Just (PVar _ ident _) ->
           [ ("Rename", \() ->
               []
@@ -1830,11 +1830,11 @@ addOrRemoveRangeTool m nums =
 
 renamePat : PatternId -> String -> Exp -> List SynthesisResult
 renamePat (scopeId, path) newName program =
-  case LangTools.findScopeExpAndPat program (scopeId, path) of
+  case LangTools.findScopeExpAndPat (scopeId, path) program of
     Just (scopeExp, pat) ->
       case LangTools.patToMaybeIdent pat of
         Just oldName ->
-          let scopeAreas = LangTools.findScopeAreas scopeExp scopeId in
+          let scopeAreas = LangTools.findScopeAreas scopeId scopeExp in
           let oldUseEIds = List.concatMap (LangTools.identifierUses oldName) scopeAreas |> List.map (.val >> .eid) in
           let newScopeAreas = List.map (LangTools.renameVarUntilBound oldName newName) scopeAreas in
           let newUseEIds = List.concatMap (LangTools.identifierUses newName) newScopeAreas |> List.map (.val >> .eid) in

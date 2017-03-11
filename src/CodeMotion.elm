@@ -6,7 +6,7 @@ module CodeMotion exposing
 import Lang exposing (..)
 import LangTools exposing (..)
 import LangTransform
-import LangUnparser exposing (unparse, unparseWithIds, unparsePat)
+import LangUnparser exposing (unparse, unparseWithIds, unparseWithUniformWhitespace, unparsePat)
 import LangParser2
 -- import DependenceGraph exposing
   -- (ScopeGraph, ScopeOrder(..), parentScopeOf, childScopesOf)
@@ -14,6 +14,7 @@ import InterfaceModel exposing (Model, SynthesisResult(..), synthesisResult, set
 import Utils exposing (MaybeOne)
 
 import Dict
+import Set
 
 
 type alias PatBoundExp = (Pat, Exp)
@@ -115,29 +116,33 @@ pluck__ p e1 path =
 -- Returns (list of safe results, list of unsafe results)
 moveDefinitionsBeforeEId : List PatternId -> EId -> Exp -> List SynthesisResult
 moveDefinitionsBeforeEId sourcePatIds targetEId program =
-  let (pluckedPatAndBoundExpAndOldScopeBodies, programWithoutPlucked) =
+  let (programUniqueNames, newNameToOldName) = assignUniqueNames program in
+  let sortedSourcePatIds =
     sourcePatIds
     |> List.sortBy
         (\((scopeEId, branchI), path) ->
-          let scope = justFindExpByEId program scopeEId in
+          let scope = justFindExpByEId programUniqueNames scopeEId in
           (scope.start.line, scope.start.col, branchI, path)
         )
+  in
+  let (pluckedPatAndBoundExpAndOldScopeEIds, programWithoutPlucked) =
+    sortedSourcePatIds
     |> List.foldr
         (\sourcePatId (pluckedPatAndBoundExpAndOldScopeBodies, programBeingPlucked) ->
           case pluck sourcePatId programBeingPlucked of
             Just ((pluckedPat, pluckedBoundExp), programWithoutPlucked) ->
               let ((sourceScopeEId, _), _) = sourcePatId in
-              let oldScopeBody = justFindExpByEId program sourceScopeEId |> expToLetBody in -- search in original program b/c old body is for safety check
-              ((pluckedPat, pluckedBoundExp, oldScopeBody)::pluckedPatAndBoundExpAndOldScopeBodies, programWithoutPlucked)
+              -- let oldScopeBody = justFindExpByEId programUniqueNames sourceScopeEId |> expToLetBody in -- search in original program b/c old body is for safety check
+              ((pluckedPat, pluckedBoundExp, sourceScopeEId)::pluckedPatAndBoundExpAndOldScopeBodies, programWithoutPlucked)
             Nothing ->
               (pluckedPatAndBoundExpAndOldScopeBodies, programBeingPlucked)
         )
-        ([], program)
+        ([], programUniqueNames)
   in
-  if pluckedPatAndBoundExpAndOldScopeBodies == [] then
+  if pluckedPatAndBoundExpAndOldScopeEIds == [] then
     Debug.log "could not pluck anything" []
   else
-    let (pluckedPats, pluckedBoundExps, _) = Utils.unzip3 pluckedPatAndBoundExpAndOldScopeBodies in
+    let (pluckedPats, pluckedBoundExps, _) = Utils.unzip3 pluckedPatAndBoundExpAndOldScopeEIds in
     let (newPat, newBoundExp) =
       case (pluckedPats, pluckedBoundExps) of
         ([pluckedPat], [boundExp]) ->
@@ -148,7 +153,7 @@ moveDefinitionsBeforeEId sourcePatIds targetEId program =
           , withDummyPos   <| EList " " (pluckedBoundExps |> setExpListWhitespace "" " ") "" Nothing "" -- May want to be smarter about whitespace here to avoid long lines.
           )
     in
-    let insertedLetEId = LangParser2.maxId program + 1 in
+    let insertedLetEId = LangParser2.maxId programUniqueNames + 1 in
     let newProgram =
       programWithoutPlucked
       |> mapExpNode
@@ -164,37 +169,108 @@ moveDefinitionsBeforeEId sourcePatIds targetEId program =
     in
     -- let _ = Debug.log ("old: \n" ++ unparseWithIds program) () in
     -- let _ = Debug.log ("new: \n" ++ unparseWithIds newProgram) () in
-    let newScopeBody = justFindExpByEId newProgram insertedLetEId |> expToLetBody in
-    let isSafe =
-      let identUsesSafe =
-        -- Effectively comparing EIds of all uses of the identifiers.
-        -- Presumably these will be exactly equal rather than equal as sets since we shouldn't be moving around the relative position of the variable usages...still, I think a set is the natural strucuture here
-        let identSafe oldScopeBody ident =
-          Utils.equalAsSets (identifierUses ident oldScopeBody) (identifierUses ident newScopeBody)
+    let newProgramOriginalNamesResult =
+      let newProgramOriginalNames = renameIdentifiers newNameToOldName newProgram in
+      let newScopeBody = justFindExpByEId newProgramOriginalNames insertedLetEId |> expToLetBody in
+      let isSafe =
+        let identUsesSafe =
+          -- Effectively comparing EIds of all uses of the identifiers.
+          -- Presumably these will be exactly equal rather than equal as sets since we shouldn't be moving around the relative position of the variable usages...still, I think a set is the natural strucuture here
+          let identSafe oldScopeEId ident =
+            let oldScopeBody = justFindExpByEId program oldScopeEId |> expToLetBody in
+            Utils.equalAsSets (identifierUses ident oldScopeBody) (identifierUses ident newScopeBody)
+          in
+          pluckedPatAndBoundExpAndOldScopeEIds
+          |> List.all
+              (\(pluckedPat, _, oldScopeEId) ->
+                identifiersListInPat (renameIdentifiersInPat newNameToOldName pluckedPat) |> List.all (identSafe oldScopeEId)
+              )
         in
-        pluckedPatAndBoundExpAndOldScopeBodies
-        |> List.all
-            (\(pluckedPat, _, oldScopeBody) ->
-              identifiersListInPat pluckedPat |> List.all (identSafe oldScopeBody)
-            )
+        let boundExpVarsSafe =
+          freeVars newBoundExp
+          |> List.all (\e -> bindingScopeIdFor e programUniqueNames == bindingScopeIdFor (renameIdentifiers newNameToOldName e) newProgramOriginalNames)
+        in
+        let noDuplicateNamesInPat =
+          let namesDefinedAtNewScope = identifiersListInPat (renameIdentifiersInPat newNameToOldName newPat) in
+          namesDefinedAtNewScope == Utils.dedup namesDefinedAtNewScope
+        in
+        identUsesSafe && boundExpVarsSafe && noDuplicateNamesInPat
       in
-      let boundExpVarsSafe =
-        freeVars newBoundExp
-        |> List.all (\e -> bindingScopeIdFor e program == bindingScopeIdFor e newProgram)
+      let caption =
+        "Move " ++ (List.map (renameIdentifiersInPat newNameToOldName >> unparsePat >> Utils.squish) pluckedPats |> Utils.toSentence) ++ " before " ++ (unparse >> Utils.squish >> Utils.niceTruncateString 20 "...") newScopeBody
       in
-      let noDuplicateNamesInPat =
-        let namesDefinedAtNewScope = identifiersListInPat newPat in
-        namesDefinedAtNewScope == Utils.dedup namesDefinedAtNewScope
+      let result =
+        synthesisResult caption newProgramOriginalNames |> setResultSafe isSafe
       in
-      identUsesSafe && boundExpVarsSafe && noDuplicateNamesInPat
+      [result]
     in
-    let caption =
-      "Move " ++ (List.map (unparsePat >> Utils.squish) pluckedPats |> Utils.toSentence) ++ " before " ++ (unparse >> Utils.squish >> Utils.niceTruncateString 20 "...") newScopeBody
+    let newProgramMaybeRenamed =
+      if InterfaceModel.isResultSafe (Utils.head "CodeMotion.moveDefinitionsBeforeEId" newProgramOriginalNamesResult) || Dict.size newNameToOldName == 0 then
+        []
+      else
+        let (newNameToOldNameInNewDef, newNameToOldNameOutOfNewDef) =
+          let namesInNewDef = Set.union (freeIdentifiers newBoundExp) (identifiersSetInPat newPat) in
+          newNameToOldName
+          |> Dict.toList
+          |> List.partition (\(newName, oldName) -> Set.member newName namesInNewDef)
+        in
+        let resultForOriginalNamesPriority newNameToOldNamePrioritized =
+          let (newProgramPartiallyOriginalNames, newPatPartiallyOriginalNames, renamingsPreserved) =
+            -- Try revert back to original names one by one, as safe.
+            newNameToOldNamePrioritized
+            |> List.foldl
+                (\(newName, oldName) (newProgramPartiallyOriginalNames, newPatPartiallyOriginalNames, renamingsPreserved) ->
+                  let intendedUses = varsWithName newName programUniqueNames |> List.map (.val >> .eid) in
+                  let usesInNewProgram = identifierUsesAfterDefiningPat newName newProgram |> List.map (.val >> .eid) in
+                  let identifiersInNewPat = identifiersListInPat newPatPartiallyOriginalNames in
+                  -- If this name is part of the new pattern and renaming it would created a duplicate name, don't rename.
+                  if List.member newName identifiersInNewPat && List.member oldName identifiersInNewPat then
+                    (newProgramPartiallyOriginalNames, newPatPartiallyOriginalNames, renamingsPreserved ++ [(oldName, newName)])
+                  else if not <| Utils.equalAsSets intendedUses usesInNewProgram then
+                    -- Definition of this variable was moved in such a way that renaming can't make the program work.
+                    -- Might as well use the old name and let the programmer fix the mess they made.
+                    ( renameIdentifier newName oldName newProgramPartiallyOriginalNames
+                    , renameIdentifierInPat newName oldName newPatPartiallyOriginalNames
+                    , renamingsPreserved
+                    )
+                  else
+                    let usesIfRenamed =
+                      let identScopeAreas = findScopeAreasByIdent newName newProgramPartiallyOriginalNames in
+                      identScopeAreas
+                      |> List.map (renameIdentifier newName oldName)
+                      |> List.concatMap (identifierUses oldName)
+                      |> List.map (.val >> .eid)
+                    in
+                    if Utils.equalAsSets intendedUses usesIfRenamed then
+                      -- Safe to rename.
+                      ( renameIdentifier newName oldName newProgramPartiallyOriginalNames
+                      , renameIdentifierInPat newName oldName newPatPartiallyOriginalNames
+                      , renamingsPreserved
+                      )
+                    else
+                      (newProgramPartiallyOriginalNames, newPatPartiallyOriginalNames, renamingsPreserved ++ [(oldName, newName)])
+                )
+                (newProgram, newPat, [])
+          in
+          let caption =
+            let renamingsStr =
+              " renaming " ++ (renamingsPreserved |> List.map (\(oldName, newName) -> oldName ++ " to " ++ newName) |> Utils.toSentence)
+            in
+            let newScopeBody = justFindExpByEId newProgramPartiallyOriginalNames insertedLetEId |> expToLetBody in
+            "Move " ++ (List.map (renameIdentifiersInPat newNameToOldName >> unparsePat >> Utils.squish) pluckedPats |> Utils.toSentence) ++ " before " ++ (unparse >> Utils.squish >> Utils.niceTruncateString 20 "...") newScopeBody ++ renamingsStr
+          in
+          let result =
+            -- Presume unsafe for now. TODO
+            synthesisResult caption newProgramPartiallyOriginalNames |> setResultSafe False
+          in
+          result
+        in
+        [ resultForOriginalNamesPriority (newNameToOldNameOutOfNewDef ++ newNameToOldNameInNewDef)
+        , resultForOriginalNamesPriority (newNameToOldNameInNewDef ++ newNameToOldNameOutOfNewDef)
+        ]
     in
-    let result =
-      synthesisResult caption newProgram |> setResultSafe isSafe
-    in
-    [result]
+    newProgramOriginalNamesResult ++ newProgramMaybeRenamed
+    |> Utils.dedupBy (\(SynthesisResult {exp}) -> unparseWithUniformWhitespace False False exp)
 
 
 ------------------------------------------------------------------------------
