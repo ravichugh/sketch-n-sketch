@@ -181,6 +181,8 @@ lambda = """
 """
 
 text = """
+; To customize, Save As: __ui__text.little
+
 (def [line2_num line2_x1] [156 41])
 (def line1_y1 36)
 (def line1
