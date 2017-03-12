@@ -1,6 +1,8 @@
 module CodeMotion exposing
   ( moveDefinitionPat, moveDefinitionsBeforeEId
   , makeEListReorderTool
+  , makeIntroduceVarTool
+  , makeMakeEqualTool
   )
 
 import Lang exposing (..)
@@ -10,7 +12,10 @@ import LangUnparser exposing (unparse, unparseWithIds, unparseWithUniformWhitesp
 import LangParser2
 -- import DependenceGraph exposing
   -- (ScopeGraph, ScopeOrder(..), parentScopeOf, childScopesOf)
-import InterfaceModel exposing (Model, SynthesisResult(..), synthesisResult, setResultSafe, NamedDeuceTool)
+import InterfaceModel exposing
+  ( Model, SynthesisResult(..), NamedDeuceTool
+  , synthesisResult, setResultSafe, oneSafeResult
+  )
 import Utils exposing (MaybeOne)
 
 import Dict
@@ -517,3 +522,74 @@ findParentEList exp eid =
           (mostRecentEList, foundExp)
   in
   foldExp foo (Nothing, False) exp
+
+
+------------------------------------------------------------------------------
+
+makeIntroduceVarTool m expIds targetPos =
+  case targetPos of
+
+    ExpTargetPosition (After, expTargetId) ->
+      []
+
+    ExpTargetPosition (Before, expTargetId) ->
+      let addNewEquationsAt newEquations e =
+        copyPrecedingWhitespace e <|
+          eLetOrDef
+            (if isTopLevelEId expTargetId m.inputExp then Def else Let)
+            newEquations e
+      in
+      makeIntroduceVarTool_ m expIds expTargetId addNewEquationsAt
+
+    PatTargetPosition patTarget ->
+      case patTargetPositionToTargetPatId patTarget of
+        ((targetId, 1), targetPath) ->
+          let addNewEquationsAt newEquations e =
+            insertPat_ (patBoundExpOf newEquations) targetPath e
+          in
+          makeIntroduceVarTool_ m expIds targetId addNewEquationsAt
+
+        _ ->
+          []
+
+makeIntroduceVarTool_ m expIds addNewVarsAtThisId addNewEquationsAt =
+  let toolName =
+    "Introduce Var" ++ (if List.length expIds == 1 then "" else "s")
+  in
+  -- TODO need to check for dependencies among expIds
+  -- if there are, need to insert multiple lets
+  [ (toolName, \() ->
+      let (newEquations, expWithNewVarsUsed) =
+         List.foldl
+           (\eId (acc1, acc2) ->
+             -- TODO version of scopeNamesLiftedThrough for EId instead of Loc?
+             -- let scopes = scopeNamesLocLiftedThrough m.inputExp loc in
+             let scopes = [] in
+             let name = expNameForEId m.inputExp eId in
+             let newVar = String.join "_" (scopes ++ [name]) in
+             let expAtEId = justFindExpByEId m.inputExp eId in
+             let expWithNewVarUsed =
+               replaceExpNodePreservingPrecedingWhitespace eId (eVar newVar) acc2
+             in
+             ((newVar, expAtEId) :: acc1, expWithNewVarUsed)
+           )
+           ([], m.inputExp)
+           expIds
+      in
+      let newExp =
+        -- TODO need to check for scoping issues before addNewEquationsAt
+        mapExp (\e -> if e.val.eid == addNewVarsAtThisId
+                      then addNewEquationsAt newEquations e
+                      else e
+               ) expWithNewVarsUsed
+      in
+      synthesisResult toolName newExp
+        |> setResultSafe (freeVars newExp == freeVars m.inputExp)
+        |> Utils.just
+    ) ]
+
+
+------------------------------------------------------------------------------
+
+makeMakeEqualTool m nums =
+  [ ("Make Equal", \() -> []) ] -- TODO dummyDeuceTool m) ]

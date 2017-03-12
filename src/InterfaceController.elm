@@ -1493,24 +1493,6 @@ onMouseDrag dragSource dragTarget m =
     m
 
 
-patTargetPositionToTargetPatId : PatTargetPosition -> PatternId
-patTargetPositionToTargetPatId (beforeAfter, referencePatId) =
-  let (referenceScopeId, referencePath) = referencePatId in
-  let targetPath =
-    let referencePathAsPList =
-      case referencePath of
-        [] -> [1]
-        _  -> referencePath
-    in
-    case beforeAfter of
-      Before -> referencePathAsPList
-      After  ->
-        patPathRightSibling referencePathAsPList
-        |> Utils.fromJust_ ("invalid target pattern id path of [] in target path position: " ++ toString (beforeAfter, referencePatId))
-  in
-  (referenceScopeId, targetPath)
-
-
 msgMoveExp = Msg "Move Exp" <| \m -> m
   --let selections =
   --  -- Debug.log "selections" <|
@@ -1633,23 +1615,16 @@ contextSensitiveDeuceTools m =
         addOrRemoveRangeTool m nums ++
         if List.length nums == 1 then []
         else
-          [ ("Make Equal", dummyDeuceTool m)
-          , ("Dig Hole", dummyDeuceTool m)
-          ]
+          CodeMotion.makeMakeEqualTool m nums
+          -- [ ("Dig Hole", dummyDeuceTool m) ]
 
-    ([eId], _, [], [expTarget], []) ->
-      if List.length nums /= List.length exps then []
-      else
-        [ ("Introduce Var", dummyDeuceTool m) ] ++
-        CodeMotion.makeEListReorderTool m exps expTarget
-
-    ([eId], _, [], [], [patTarget]) ->
-      if List.length nums /= List.length exps then []
-      else
-        [ ("Introduce Var", dummyDeuceTool m) ]
+    (_, _ :: _, [], [], [patTarget]) ->
+      CodeMotion.makeIntroduceVarTool m exps (PatTargetPosition patTarget)
 
     (_, _ :: _, [], [expTarget], []) ->
-      CodeMotion.makeEListReorderTool m exps expTarget
+      CodeMotion.makeIntroduceVarTool m exps (ExpTargetPosition expTarget)
+      -- TODO turning off until fix
+      -- CodeMotion.makeEListReorderTool m exps expTarget
 
     _ -> []
 

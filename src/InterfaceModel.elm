@@ -387,6 +387,10 @@ needsRun m =
 type alias DeuceTool = () -> List SynthesisResult
 type alias NamedDeuceTool = (String, DeuceTool)
 
+oneSafeResult newExp =
+  Utils.just <|
+    synthesisResult ("NO DESCRIPTION B/C SELECTED AUTOMATICALLY") newExp
+
 --------------------------------------------------------------------------------
 
 initModel : Model

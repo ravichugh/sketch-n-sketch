@@ -239,6 +239,24 @@ patPathRightSibling path =
 --       Debug.crash <| "Lang.pathAfterElementRemoved why did this get called?!" ++ toString (removedPath, path)
 
 
+patTargetPositionToTargetPatId : PatTargetPosition -> PatternId
+patTargetPositionToTargetPatId (beforeAfter, referencePatId) =
+  let (referenceScopeId, referencePath) = referencePatId in
+  let targetPath =
+    let referencePathAsPList =
+      case referencePath of
+        [] -> [1]
+        _  -> referencePath
+    in
+    case beforeAfter of
+      Before -> referencePathAsPList
+      After  ->
+        patPathRightSibling referencePathAsPList
+        |> Utils.fromJust_ ("invalid target pattern id path of [] in target path position: " ++ toString (beforeAfter, referencePatId))
+  in
+  (referenceScopeId, targetPath)
+
+
 ------------------------------------------------------------------------------
 -- Unparsing
 
@@ -934,13 +952,14 @@ eLets xes eBody = case xes of
 -- If given singleton list, produces a simple non-list let.
 eLetOrDef : LetKind -> List (Ident, Exp) -> Exp -> Exp
 eLetOrDef letKind namesAndAssigns bodyExp =
-  let (pat, assign) =
-    case List.unzip namesAndAssigns of
-      ([name], [assign]) -> (pVar name, replacePrecedingWhitespace " " assign)
-      (names, assigns)   -> (pListOfPVars names, eList (setExpListWhitespace "" " " assigns) Nothing)
-  in
-  withDummyPos <|
-  ELet "\n" letKind False pat assign bodyExp ""
+  let (pat, assign) = patBoundExpOf namesAndAssigns in
+  withDummyPos <| ELet "\n" letKind False pat assign bodyExp ""
+
+patBoundExpOf : List (Ident, Exp) -> (Pat, Exp)
+patBoundExpOf namesAndAssigns =
+  case List.unzip namesAndAssigns of
+    ([name], [assign]) -> (pVar name, replacePrecedingWhitespace " " assign)
+    (names, assigns)   -> (pListOfPVars names, eList (setExpListWhitespace "" " " assigns) Nothing)
 
 eLet : List (Ident, Exp) -> Exp -> Exp
 eLet = eLetOrDef Let
