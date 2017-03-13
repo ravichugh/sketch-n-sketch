@@ -1610,7 +1610,7 @@ contextSensitiveDeuceTools m =
               case ePlucked.val.e__ of
                 EVar _ _ ->
                   let newName = m.deuceState.renameVarTextBox in
-                  [("Rename At Use", \() -> renameVar eId newName m.inputExp)]
+                  [("Rename All", \() -> renameVar eId newName m.inputExp)]
                 _        -> [] -- may support other kinds of selections here
 
     (_, _, [], [], []) ->
