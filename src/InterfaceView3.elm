@@ -284,14 +284,14 @@ synthesisResultsSelectBox model layout =
     [ ("display", "block")
     ]
   in
-  let resultButtonList priorPathByIndices remainingPathByIndicies results =
+  let resultButtonList priorPathByIndices remainingPathByIndices results =
     let buttons =
       results
       |> Utils.mapi0
           (\(i, Model.SynthesisResult {description, exp, isSafe, sortKey, children}) ->
             let thisElementPath = priorPathByIndices ++ [i] in
             let (isHovered, nextMenu) =
-              case remainingPathByIndicies of
+              case remainingPathByIndices of
                 nexti::is ->
                   if i == nexti then
                     case children of
@@ -330,7 +330,7 @@ synthesisResultsSelectBox model layout =
         buttons
   in
   let resultsMenuTree =
-    resultButtonList [] model.hoveredSynthesisResultPathByIndicies model.synthesisResults
+    resultButtonList [] model.hoveredSynthesisResultPathByIndices model.synthesisResults
   in
   toolBox model "synthesisResultsSelect" extraStyles Layout.getPutSynthesisResultsSelectBox layout.synthesisResultsSelect [resultsMenuTree, cancelButton]
 

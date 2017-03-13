@@ -96,7 +96,7 @@ type alias Model =
   , keysDown : List Char.KeyCode
   , autoSynthesis : Bool
   , synthesisResults : List SynthesisResult
-  , hoveredSynthesisResultPathByIndicies : List Int
+  , hoveredSynthesisResultPathByIndices : List Int
   , randomColor : Int
   , lambdaTools : List LambdaTool
   , layoutOffsets : LayoutOffsets
@@ -458,7 +458,7 @@ initModel =
     , keysDown      = []
     , autoSynthesis = False
     , synthesisResults = []
-    , hoveredSynthesisResultPathByIndicies = []
+    , hoveredSynthesisResultPathByIndices = []
     , randomColor   = 100
     , lambdaTools   = [starLambdaTool]
     , layoutOffsets = initialLayoutOffsets
