@@ -15,6 +15,7 @@ import Dict exposing (Dict)
 type alias DeuceState =
   { selectedWidgets : List DeuceWidget   -- not Set b/c not comparable
   , hoveredWidgets : List DeuceWidget    -- not Set b/c not comparable
+  , renameVarTextBox : String
   }
 
 type DeuceWidget
@@ -28,6 +29,7 @@ emptyDeuceState : DeuceState
 emptyDeuceState =
   { selectedWidgets = []
   , hoveredWidgets = []
+  , renameVarTextBox = ""
   }
 
 resetDeuceState m = { m | deuceState = emptyDeuceState }

@@ -345,8 +345,19 @@ deuceToolBox model layout =
            ]
        ] []
   in
+  -- TODO: for now, always drawing this text box
+  let renameVarTextBox =
+    Html.input
+       [ Attr.type_ "text"
+       , onInput <| \str ->
+           Msg ("Update Rename Var Textbox: " ++ str) <| \m ->
+             let deuceState = m.deuceState in
+             { m | deuceState = { deuceState | renameVarTextBox = str } }
+       ]
+       []
+  in
   toolBox model "deuceToolBox" [] Layout.getPutDeuceToolBox layout.deuceTools
-    (icon :: deuceTools model)
+    (icon :: deuceTools model ++ [renameVarTextBox])
 
 toolBox model id extraStyles (getOffset, putOffset) leftRightTopBottom elements =
   Html.div

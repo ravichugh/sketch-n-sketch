@@ -1567,7 +1567,8 @@ contextSensitiveDeuceTools m =
       case LangTools.findPat patId m.inputExp |> Maybe.map .val of
         Just (PVar _ ident _) ->
           [ ("Rename", \() ->
-              []
+              let newName = m.deuceState.renameVarTextBox in
+              renamePat patId newName m.inputExp
             ) ]
 
         Just (PAs _ ident _ _) ->
@@ -1605,7 +1606,12 @@ contextSensitiveDeuceTools m =
           let tools = Draw.makeTwiddleTools m eId ePlucked in
           case tools of
             _::_ -> tools
-            []   -> [] -- may support other kinds of selections here
+            []   ->
+              case ePlucked.val.e__ of
+                EVar _ _ ->
+                  let newName = m.deuceState.renameVarTextBox in
+                  [("Rename At Use", \() -> renameVar eId newName m.inputExp)]
+                _        -> [] -- may support other kinds of selections here
 
     (_, _, [], [], []) ->
       if List.length nums /= List.length exps then []
