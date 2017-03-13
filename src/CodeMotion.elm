@@ -22,6 +22,13 @@ import Dict
 import Set
 
 
+getELet program eid =
+  let exp = justFindExpByEId program eid in
+  case exp.val.e__ of
+    ELet ws1 letKind rec p1 e1 e2 ws2 -> (ws1, letKind, rec, p1, e1, e2, ws2)
+    _                                 -> Debug.crash "getELet: shouldn't happen"
+
+
 type alias PatBoundExp = (Pat, Exp)
 
 -- Removes the binding (p, e1) from the program.
@@ -556,17 +563,24 @@ makeIntroduceVarTool_ m expIds addNewVarsAtThisId addNewEquationsAt =
   let toolName =
     "Introduce Var" ++ (if List.length expIds == 1 then "" else "s")
   in
-  -- TODO need to check for dependencies among expIds
-  -- if there are, need to insert multiple lets
+  let (_,_,_,_,_,targetBody,_) = getELet m.inputExp addNewVarsAtThisId in
+  let targetBodyEId = targetBody.val.eid in
+  let visibleAtTargetBody =
+    visibleIdentifiersAtEIds m.inputExp (Set.singleton targetBodyEId)
+  in
   [ (toolName, \() ->
       let (newEquations, expWithNewVarsUsed) =
          List.foldl
            (\eId (acc1, acc2) ->
              -- TODO version of scopeNamesLiftedThrough for EId instead of Loc?
              -- let scopes = scopeNamesLocLiftedThrough m.inputExp loc in
-             let scopes = [] in
+             -- let newVar = String.join "_" (scopes ++ [name]) in
              let name = expNameForEId m.inputExp eId in
-             let newVar = String.join "_" (scopes ++ [name]) in
+             let namesToAvoid =
+               Set.union visibleAtTargetBody
+                   (Set.fromList (List.map Tuple.first acc1))
+             in
+             let newVar = nonCollidingName name 1 namesToAvoid in
              let expAtEId = justFindExpByEId m.inputExp eId in
              let expWithNewVarUsed =
                replaceExpNodePreservingPrecedingWhitespace eId (eVar newVar) acc2
@@ -577,7 +591,6 @@ makeIntroduceVarTool_ m expIds addNewVarsAtThisId addNewEquationsAt =
            expIds
       in
       let newExp =
-        -- TODO need to check for scoping issues before addNewEquationsAt
         mapExp (\e -> if e.val.eid == addNewVarsAtThisId
                       then addNewEquationsAt newEquations e
                       else e
