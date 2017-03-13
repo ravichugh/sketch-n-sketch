@@ -533,6 +533,17 @@ findParentEList exp eid =
 
 ------------------------------------------------------------------------------
 
+addNewEquationsAround program targetId newEquations e =
+  copyPrecedingWhitespace e <|
+    eLetOrDef
+      (if isTopLevelEId targetId program then Def else Let)
+      newEquations e
+
+addNewEquationsInside targetPath newEquations e =
+  insertPat_ (patBoundExpOf newEquations) targetPath e
+
+------------------------------------------------------------------------------
+
 makeIntroduceVarTool m expIds targetPos =
   case targetPos of
 
@@ -540,21 +551,14 @@ makeIntroduceVarTool m expIds targetPos =
       []
 
     ExpTargetPosition (Before, expTargetId) ->
-      let addNewEquationsAt newEquations e =
-        copyPrecedingWhitespace e <|
-          eLetOrDef
-            (if isTopLevelEId expTargetId m.inputExp then Def else Let)
-            newEquations e
-      in
-      makeIntroduceVarTool_ m expIds expTargetId addNewEquationsAt
+      makeIntroduceVarTool_ m expIds expTargetId
+        (addNewEquationsAround m.inputExp expTargetId)
 
     PatTargetPosition patTarget ->
       case patTargetPositionToTargetPatId patTarget of
         ((targetId, 1), targetPath) ->
-          let addNewEquationsAt newEquations e =
-            insertPat_ (patBoundExpOf newEquations) targetPath e
-          in
-          makeIntroduceVarTool_ m expIds targetId addNewEquationsAt
+          makeIntroduceVarTool_ m expIds targetId
+            (addNewEquationsInside targetPath)
 
         _ ->
           []
@@ -605,4 +609,30 @@ makeIntroduceVarTool_ m expIds addNewVarsAtThisId addNewEquationsAt =
 ------------------------------------------------------------------------------
 
 makeMakeEqualTool m nums =
-  [ ("Make Equal", \() -> []) ] -- TODO dummyDeuceTool m) ]
+  let expIds = List.map (\(eid,_,_,_,_) -> eid) nums in
+  let (firstNumExpId,_,firstNum,_,_) = Utils.head_ nums in
+  let targetLet =
+    justInsideDeepestCommonScope m.inputExp (\e -> List.member e.val.eid expIds)
+  in
+  let targetId = targetLet.val.eid in
+  -- TODO: commonName sometimes returns a name like "1"
+  -- let name = commonNameForEIds m.inputExp expIds in
+  -- let name = commonNameForEIdsWithDefault "newVar" m.inputExp expIds in
+  let name = expNameForEId m.inputExp firstNumExpId in
+  let namesToAvoid =
+    visibleIdentifiersAtEIds m.inputExp (Set.singleton targetId)
+  in
+  let newVar = nonCollidingName name 1 namesToAvoid in
+  let newEquation = (newVar, eConst firstNum dummyLoc) in
+  let eSubst =
+    List.foldl (\(eid,ws,_,_,_) -> Dict.insert eid (EVar ws newVar)) Dict.empty nums
+  in
+  let expWithNewVarUsed = applyESubst eSubst m.inputExp in
+  let newExp =
+    expWithNewVarUsed |> mapExp (\e ->
+      if e.val.eid == targetId
+      then addNewEquationsAround m.inputExp targetId [newEquation] e
+      else e
+    )
+  in
+  [ ("Make Equal", \() -> oneSafeResult newExp) ]
