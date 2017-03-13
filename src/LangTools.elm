@@ -1117,7 +1117,7 @@ setPatName : PatternId -> Ident -> Exp -> Exp
 setPatName ((scopeEId, branchI), path) newName exp =
   let maybeScopeExp = findExpByEId exp scopeEId in
   let maybeNewScopeExp =
-    let makeNewScope e__ = replaceE__ (Utils.fromJust maybeNewScopeExp) e__ in
+    let makeNewScope e__ = replaceE__ (Utils.fromJust maybeScopeExp) e__ in
     case (Maybe.map (.val >> .e__) maybeScopeExp, path) of
       (Just (ELet ws1 letKind isRec pat boundExp body ws2), _)->
         let newPat = setPatNameInPat path newName pat in
