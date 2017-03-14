@@ -1469,6 +1469,12 @@ identifierUses ident exp =
   |> List.filter (expToIdent >> (==) ident)
 
 
+identifierUsageEIds : Ident -> Exp -> List EId
+identifierUsageEIds ident exp =
+  identifierUses ident exp
+  |> List.map (.val >> .eid)
+
+
 -- Find EVars in the set of identifiers, until name is rebound.
 identifierSetUses : Set.Set Ident -> Exp -> List Exp
 identifierSetUses identSet exp =

@@ -190,7 +190,7 @@ moveDefinitionsBeforeEId sourcePatIds targetEId program =
           -- Presumably these will be exactly equal rather than equal as sets since we shouldn't be moving around the relative position of the variable usages...still, I think a set is the natural strucuture here
           let identSafe oldScopeEId ident =
             let oldScopeBody = justFindExpByEId program oldScopeEId |> expToLetBody in
-            Utils.equalAsSets (identifierUses ident oldScopeBody) (identifierUses ident newScopeBody)
+            Utils.equalAsSets (identifierUsageEIds ident oldScopeBody) (identifierUsageEIds ident newScopeBody)
           in
           pluckedPatAndBoundExpAndOldScopeEIds
           |> List.all
@@ -250,8 +250,7 @@ moveDefinitionsBeforeEId sourcePatIds targetEId program =
                       let identScopeAreas = findScopeAreasByIdent newName newProgramPartiallyOriginalNames in
                       identScopeAreas
                       |> List.map (renameIdentifier newName oldName)
-                      |> List.concatMap (identifierUses oldName)
-                      |> List.map (.val >> .eid)
+                      |> List.concatMap (identifierUsageEIds oldName)
                     in
                     if Utils.equalAsSets intendedUses usesIfRenamed then
                       -- Safe to rename.
@@ -264,16 +263,40 @@ moveDefinitionsBeforeEId sourcePatIds targetEId program =
                 )
                 (newProgram, newPat, [])
           in
+          let newScopeExp                       = justFindExpByEId newProgramPartiallyOriginalNames insertedLetEId in
+          let newScopeBody                      = newScopeExp |> expToLetBody in
+          let newBoundExpPartiallyOriginalNames = newScopeExp |> expToLetBoundExp in
+          let isSafe =
+            let identUsesSafe =
+              -- Effectively comparing EIds of all uses of the identifiers.
+              -- Presumably these will be exactly equal rather than equal as sets since we shouldn't be moving around the relative position of the variable usages...still, I think a set is the natural strucuture here
+              let identSafe oldScopeEId identNewName identInNewProgram =
+                let oldScopeBody = justFindExpByEId programUniqueNames oldScopeEId |> expToLetBody in
+                Utils.equalAsSets (identifierUsageEIds identNewName oldScopeBody) (identifierUsageEIds identInNewProgram newScopeBody)
+              in
+              pluckedPatAndBoundExpAndOldScopeEIds
+              |> List.all
+                  (\(pluckedPat, _, oldScopeEId) ->
+                    (Utils.zip (identifiersListInPat pluckedPat) (identifiersListInPat newPatPartiallyOriginalNames))
+                    |> List.all (\(newName, nameInPartiallyOriginalNamesProgram) -> identSafe oldScopeEId newName nameInPartiallyOriginalNamesProgram)
+                  )
+            in
+            let boundExpVarsSafe =
+              Utils.zip (freeVars newBoundExp) (freeVars newBoundExpPartiallyOriginalNames)
+              |> List.all (\(varOldUnique, varNew) -> bindingScopeIdFor varOldUnique programUniqueNames == bindingScopeIdFor varNew newProgramPartiallyOriginalNames)
+            in
+            -- Don't need to check for duplicate names in created pattern because
+            -- renaming algorithm already disallows it.
+            identUsesSafe && boundExpVarsSafe
+          in
           let caption =
             let renamingsStr =
               " renaming " ++ (renamingsPreserved |> List.map (\(oldName, newName) -> oldName ++ " to " ++ newName) |> Utils.toSentence)
             in
-            let newScopeBody = justFindExpByEId newProgramPartiallyOriginalNames insertedLetEId |> expToLetBody in
             "Move " ++ (List.map (renameIdentifiersInPat newNameToOldName >> unparsePat >> Utils.squish) pluckedPats |> Utils.toSentence) ++ " before " ++ (unparse >> Utils.squish >> Utils.niceTruncateString 20 "...") newScopeBody ++ renamingsStr
           in
           let result =
-            -- Presume unsafe for now. TODO
-            synthesisResult caption newProgramPartiallyOriginalNames |> setResultSafe False
+            synthesisResult caption newProgramPartiallyOriginalNames |> setResultSafe isSafe
           in
           result
         in
@@ -338,7 +361,7 @@ moveDefinitionPat sourcePatIds targetPatId program =
         -- Effectively comparing EIds of all uses of the identifiers.
         -- Presumably these will be exactly equal rather than equal as sets since we shouldn't be moving around the relative position of the variable usages...still, I think a set is the natural strucuture here
         let identSafe oldScopeBody ident =
-          Utils.equalAsSets (identifierUses ident oldScopeBody) (identifierUses ident newScopeBody)
+          Utils.equalAsSets (identifierUsageEIds ident oldScopeBody) (identifierUsageEIds ident newScopeBody)
         in
         pluckedPatAndBoundExpAndOldScopeBodies
         |> List.all
