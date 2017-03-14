@@ -1244,10 +1244,10 @@ deuceLayer model layout =
     [e] ++ acc
   in
   let widgets =
-    expBoundingPolygonPoints (Lang.foldExp find [] model.inputExp) model layout ++
-    patBoundingPolygonPoints (findPats model.inputExp) model layout ++
-    expTargetIndicator (computeExpTargets model.inputExp) model layout ++
-    patTargetIndicator (findPatTargets model.inputExp) model layout
+    expBoundingPolygonPoints (Lang.foldExp find [] model.inputExp) model ++
+    patBoundingPolygonPoints (findPats model.inputExp) model ++
+    expTargetIndicator (computeExpTargets model.inputExp) model ++
+    patTargetIndicator (findPatTargets model.inputExp) model
   in
   let svgWidgets =
     [Svg.svg [Attr.id "polygons",
@@ -1285,7 +1285,7 @@ deuceLayer model layout =
             , onClick Controller.msgMouseClickCodeBox
             ] (List.reverse svgWidgets)
 
-computePolygonPoints rcs model layout =
+computePolygonPoints rcs model =
   let pad = 3 in
   let traverse leftSide =
     let maybeReverse = if leftSide then identity else List.reverse in
@@ -1312,6 +1312,13 @@ computePolygonPoints rcs model layout =
   let right = traverse False in
   let combine point acc =
     toString(point.x) ++ "," ++ toString(point.y) ++ " " ++ acc in
+{-
+  let _ =
+    if blah
+      then let _ = Debug.log "rightBot" (rightmostBottommostPoint (left++right)) in ()
+      else ()
+  in
+-}
   List.foldr combine  "" (left ++ right)
 
 isDefExp exp =
@@ -1350,16 +1357,20 @@ boundingPolygonPoints :
     -> (c -> List ( DeuceWidget, Dict.Dict Int ( Int, Int ) ))
     -> List c
     -> Model
-    -> f
     -> List (Svg Msg)
-boundingPolygonPoints maybeReverse deuceWidgetAndBoundingPolygonOf exps model layout =
+boundingPolygonPoints maybeReverse deuceWidgetAndBoundingPolygonOf exps model =
   let calculate (deuceWidget, boundingPolygon) =
-    let points = computePolygonPoints boundingPolygon model layout in
+    let points = computePolygonPoints boundingPolygon model in
     let color =
       if showSelectedDeuceWidgets model && List.member deuceWidget model.deuceState.selectedWidgets then
         if List.member deuceWidget model.deuceState.hoveredWidgets
         then "green"
         else "orange"
+{-
+        else 
+          let _ = computePolygonPoints True boundingPolygon model in
+          "orange"
+-}
       else if List.member deuceWidget model.deuceState.hoveredWidgets && showDeuceWidgets model
         then "yellow"
         else ""
@@ -1387,7 +1398,7 @@ boundingPolygonPoints maybeReverse deuceWidgetAndBoundingPolygonOf exps model la
 expTargetIndicator = targetIndicator DeuceExpTarget
 patTargetIndicator = targetIndicator DeucePatTarget
 
-targetIndicator deuceWidgetConstructor targets model layout =
+targetIndicator deuceWidgetConstructor targets model =
   let drawTarget deuceWidget pixelPos color opacity numRings =
     let rDot = 4 in
     let (cx, cy) =
@@ -1447,6 +1458,14 @@ getBoxWidth start end m =
 getBoxHeight start end m =
   let lines = end.line - start.line + 1 in
   toFloat(lines) * m.codeBoxInfo.lineHeight
+
+rightmostBottommostPoint : List {x:Float, y:Float} -> {x:Float, y:Float}
+rightmostBottommostPoint =
+  List.foldl (\point acc ->
+    if point.x > acc.x then point
+    else if point.x == acc.x && point.y > acc.y then point
+    else acc
+  ) {x=0, y=0}
 
 
 --------------------------------------------------------------------------------
