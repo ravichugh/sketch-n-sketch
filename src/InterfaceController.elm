@@ -748,12 +748,17 @@ msgKeyDown keyCode = Msg ("Key Down " ++ toString keyCode) <| \old ->
       (_, MouseNothing)   -> { new | tool = Cursor }
       (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
       _                   -> new
+  else if keyCode == Keys.keyMeta then
+    old
+    -- for now, no need to ever put keyMeta in keysDown
+{-
   else if List.member Keys.keyMeta old.keysDown then
     -- when keyMeta is down and another key k is downed,
     -- there will not be a key up event for k. so, not putting
     -- k in keysDown. if want to handle keyMeta + k, keep track
     -- of this another way.
     old
+-}
   else if not (List.member keyCode old.keysDown) then
     { old | keysDown = keyCode :: old.keysDown }
   else
