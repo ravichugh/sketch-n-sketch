@@ -606,7 +606,7 @@ flipDict : Dict comparable1 comparable2 -> Dict comparable2 comparable1
 flipDict dict =
   dict
   |> Dict.toList
-  |> List.map (\(a, b) -> (b, a))
+  |> List.map flip
   |> Dict.fromList
 
 multiKeySingleValue : List comparable -> v -> Dict comparable v
@@ -750,6 +750,8 @@ thd3 (_,_,x) = x
 mapThd3 f (x,y,z) = (x, y, f z)
 
 fourth4 (_,_,_,x) = x
+
+flip (a, b) = (b, a)
 
 bindResult : Result a b -> (b -> Result a b_) -> Result a b_
 bindResult res f =
