@@ -1562,13 +1562,13 @@ contextSensitiveDeuceTools m =
     ([], [], [patId], [], []) ->
       case LangTools.findPat patId m.inputExp |> Maybe.map .val of
         Just (PVar _ ident _) ->
-          [ ("Rename", \() ->
+          [ ("Rename " ++ ident, \() ->
               let newName = m.deuceState.renameVarTextBox in
               renamePat patId newName m.inputExp
             ) ]
 
         Just (PAs _ ident _ _) ->
-          [ ("Rename", \() ->
+          [ ("Rename " ++ ident, \() ->
               []
             ) ]
 
@@ -1604,9 +1604,9 @@ contextSensitiveDeuceTools m =
             _::_ -> tools
             []   ->
               case ePlucked.val.e__ of
-                EVar _ _ ->
+                EVar _ ident ->
                   let newName = m.deuceState.renameVarTextBox in
-                  [("Rename All", \() -> renameVar eId newName m.inputExp)]
+                  [("Rename All " ++ ident, \() -> renameVar eId newName m.inputExp)]
                 EBase ws (EBool bool) ->
                   let flipped = withDummyPos (EBase ws (EBool (not bool))) in
                   let newExp = replaceExpNode eId flipped m.inputExp in

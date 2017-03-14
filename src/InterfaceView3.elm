@@ -1474,9 +1474,9 @@ deuceToolBoxNested model layout =
     deuceTools model
 
 deuceTools model =
-  let extraButtonStyles =
+  let extraButtonStyles maybeWidth =
     Attr.style
-        [ ("width", "100%")
+        [ ("width", Maybe.withDefault "100%" maybeWidth)
         , ("text-align", "left")
         , ("padding-top", "0px")
         , ("padding-bottom", "0px")
@@ -1498,14 +1498,14 @@ deuceTools model =
         (False, Err err) ->
           (Just (unparse result.exp, Err err), "salmon")
     in
-    let deadButton caption =
-      htmlButtonExtraAttrs [extraButtonStyles] caption
+    let deadButton caption maybeWidth =
+      htmlButtonExtraAttrs [extraButtonStyles maybeWidth] caption
          Controller.msgNoop Regular False
     in
     let previewButton maybeCaption (SynthesisResult result) =
       let (preview, color) = previewAndColor result in
       let attrs =
-        [extraButtonStyles] ++
+        [extraButtonStyles Nothing] ++
         [ Html.Events.onMouseEnter <|
             Msg ("Hover Deuce Tool " ++ toString i) (\m -> { m | preview = preview })
         , Html.Events.onMouseLeave <|
@@ -1522,7 +1522,7 @@ deuceTools model =
       -- (the next menu) can be positioned "absolute"ly in terms
       -- of the parent
       let divAttrs isParent =
-        let width = "200px" in -- "100%"
+        let width = "250px" in -- "100%"
         Attr.style <|
           [ ("position", if isParent then "relative" else "absolute")
           , ("overflow", "visible")
@@ -1535,15 +1535,25 @@ deuceTools model =
           Html.div [divAttrs True] [toolButton]
 
         Right results ->
-          let toolButton = deadButton toolName in
+          let toolButtonAndExtras =
+            if String.startsWith "Rename" toolName
+            then [deadButton toolName (Just "150px"), renameVarTextBox]
+            else [deadButton toolName Nothing]
+          in
           let nextMenu =
             Html.div [divAttrs False] (List.map (previewButton Nothing) results)
           in
           -- nextMenu first, so it pops out at same y-position as toolButton
-          Html.div [divAttrs True] [nextMenu, toolButton]
+          Html.div [divAttrs True] (nextMenu :: toolButtonAndExtras)
     in
     let results = func () in
-    case results of
+
+    if String.startsWith "Rename" toolName then
+      if model.deuceState.renameVarTextBox == ""
+      then buttonAndMaybeMenu (Right [])
+      else buttonAndMaybeMenu (Right results)
+
+    else case results of
       [SynthesisResult result] ->
         if result.isSafe
           then buttonAndMaybeMenu (Left (SynthesisResult result))
@@ -1552,3 +1562,21 @@ deuceTools model =
         buttonAndMaybeMenu (Right results)
   in
   Utils.mapi1 oneTool (Controller.contextSensitiveDeuceTools model)
+
+renameVarTextBox =
+  Html.input
+     [ Attr.type_ "text"
+     , Attr.style <|
+         [ ("width", "100px") -- in sync with 250px - 150px above
+         -- the following are the same as for htmlButton
+         , ("font", params.mainSection.widgets.font)
+         , ("fontSize", params.mainSection.widgets.fontSize)
+         , ("box-sizing", "border-box") -- Strangely, Firefox and Chrome on Mac differ on this default.
+         , ("min-height", pixels Layout.buttonHeight)
+         ]
+     , onInput <| \str ->
+         Msg ("Update Rename Var Textbox: " ++ str) <| \m ->
+           let deuceState = m.deuceState in
+           { m | deuceState = { deuceState | renameVarTextBox = str } }
+     ]
+     []
