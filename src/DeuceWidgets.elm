@@ -32,7 +32,7 @@ emptyDeuceState =
   , renameVarTextBox = ""
   }
 
-resetDeuceState m = { m | deuceState = emptyDeuceState }
+resetDeuceState m = { m | deuceState = emptyDeuceState, preview = Nothing }
 
 --------------------------------------------------------------------------------
 
@@ -156,6 +156,8 @@ shiftKeyPressed m = List.member Keys.keyShift m.keysDown
 showDeuceWidgets m = shiftKeyPressed m
 needsRun m =
   m.code /= m.lastRunCode
+showSelectedDeuceWidgets m =
+  not (needsRun m) && m.preview == Nothing
 
 betweenPos start pixelPos end =
   (start.line <= pixelPos.row + 1) &&

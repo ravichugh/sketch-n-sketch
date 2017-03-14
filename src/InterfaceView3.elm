@@ -13,8 +13,9 @@ import InterfaceModel as Model exposing
   ( Msg(..), Model, Tool(..), ShapeToolKind(..), Mode(..)
   , ReplicateKind(..), LambdaTool(..)
   , Caption(..), MouseMode(..)
-  , mkLive_
+  , runAndResolve, mkLive_
   , DialogBox(..)
+  , SynthesisResult(..)
   )
 import InterfaceController as Controller
 import Layout
@@ -76,7 +77,7 @@ view model =
   let moreBlobTools = moreBlobToolBox model layout in
   let outputTools = outputToolBox model layout in
   let textTools = textToolBox model layout in
-  let deuceTools = deuceToolBox model layout in
+  let deuceTools = deuceToolBoxNested model layout in
   let synthesisResultsSelect = synthesisResultsSelectBox model layout in
 
   let
@@ -334,17 +335,7 @@ synthesisResultsSelectBox model layout =
   in
   toolBox model "synthesisResultsSelect" extraStyles Layout.getPutSynthesisResultsSelectBox layout.synthesisResultsSelect [resultsMenuTree, cancelButton]
 
-deuceToolBox model layout =
-  let icon =
-     Html.img
-       [ Attr.src "img/deuce_logo.png"
-       , Attr.style
-           [ ("width", pixels (Layout.buttonHeight - 0))
-           , ("height", pixels (Layout.buttonHeight - 0))
-           , ("vertical-align", "middle")
-           ]
-       ] []
-  in
+{-
   -- TODO: for now, always drawing this text box
   let renameVarTextBox =
     Html.input
@@ -355,9 +346,7 @@ deuceToolBox model layout =
              { m | deuceState = { deuceState | renameVarTextBox = str } }
        ]
        []
-  in
-  toolBox model "deuceToolBox" [] Layout.getPutDeuceToolBox layout.deuceTools
-    (icon :: deuceTools model ++ [renameVarTextBox])
+-}
 
 toolBox model id extraStyles (getOffset, putOffset) leftRightTopBottom elements =
   Html.div
@@ -1367,7 +1356,7 @@ boundingPolygonPoints maybeReverse deuceWidgetAndBoundingPolygonOf exps model la
   let calculate (deuceWidget, boundingPolygon) =
     let points = computePolygonPoints boundingPolygon model layout in
     let color =
-      if List.member deuceWidget model.deuceState.selectedWidgets && not (needsRun model) then
+      if showSelectedDeuceWidgets model && List.member deuceWidget model.deuceState.selectedWidgets then
         if List.member deuceWidget model.deuceState.hoveredWidgets
         then "green"
         else "orange"
@@ -1439,7 +1428,7 @@ targetIndicator deuceWidgetConstructor targets model layout =
   flip List.concatMap targets <| \(id, start, end) ->
     let deuceWidget = deuceWidgetConstructor id in
     let pixelPos = rowColToPixelPos start model in
-    if List.member deuceWidget model.deuceState.selectedWidgets && not (needsRun model) then
+    if showSelectedDeuceWidgets model && List.member deuceWidget model.deuceState.selectedWidgets then
       if List.member deuceWidget model.deuceState.hoveredWidgets
       then drawTarget deuceWidget pixelPos "darkgreen" "1.0" 3
       else drawTarget deuceWidget pixelPos "orange" "1.0" 3
@@ -1463,10 +1452,103 @@ getBoxHeight start end m =
 --------------------------------------------------------------------------------
 -- Deuce Tool Menu
 
+deuceToolBoxNested model layout =
+  let icon =
+     Html.img
+       [ Attr.src "img/deuce_logo.png"
+       , Attr.style
+           [ ("width", pixels (Layout.buttonHeight - 0))
+           , ("height", pixels (Layout.buttonHeight - 0))
+           , ("vertical-align", "middle")
+           ]
+       ] []
+  in
+  let extraStyles =
+    [ ("display", "block")
+    ]
+  in
+  toolBox model "deuceToolBox" extraStyles Layout.getPutDeuceToolBox layout.deuceTools <|
+    [ icon
+    , htmlButton "Pin" Controller.msgNoop Regular True
+    ] ++
+    deuceTools model
+
 deuceTools model =
-  List.map
-    (\(s, func) ->
-      let msg = Msg "Apply Deuce Tool" (Controller.applyDeuceTool func) in
-      htmlButton s msg Regular False
-    )
-    (Controller.contextSensitiveDeuceTools model)
+  let extraButtonStyles =
+    Attr.style
+        [ ("width", "100%")
+        , ("text-align", "left")
+        , ("padding-top", "0px")
+        , ("padding-bottom", "0px")
+        ]
+  in
+  let oneTool (i, (toolName, func)) =
+    let previewAndColor result =
+      case (result.isSafe, runAndResolve model result.exp) of
+        (True, Err err) ->
+          let _ = Debug.log "not safe after all!" () in
+          (Just (unparse result.exp, Err err), "black")
+
+        (True, Ok (val, widgets, slate, code)) ->
+          (Just (code, Ok (val, widgets, slate)), "white")
+
+        (False, Ok (val, widgets, slate, code)) ->
+          (Just (code, Ok (val, widgets, slate)), "khaki")
+
+        (False, Err err) ->
+          (Just (unparse result.exp, Err err), "salmon")
+    in
+    let deadButton caption =
+      htmlButtonExtraAttrs [extraButtonStyles] caption
+         Controller.msgNoop Regular False
+    in
+    let previewButton maybeCaption (SynthesisResult result) =
+      let (preview, color) = previewAndColor result in
+      let attrs =
+        [extraButtonStyles] ++
+        [ Html.Events.onMouseEnter <|
+            Msg ("Hover Deuce Tool " ++ toString i) (\m -> { m | preview = preview })
+        , Html.Events.onMouseLeave <|
+            Msg ("Leave Deuce Tool " ++ toString i) (\m -> { m | preview = Nothing })
+        , Attr.style [("background-color", color)]
+        ]
+      in
+      let caption = Maybe.withDefault result.description maybeCaption in
+      htmlButtonExtraAttrs attrs caption
+         (Controller.msgChooseDeuceExp result.exp) Regular False
+    in
+    let buttonAndMaybeMenu oneOrMoreResults =
+      -- parent tool button is "relative", so that its descendants
+      -- (the next menu) can be positioned "absolute"ly in terms
+      -- of the parent
+      let divAttrs isParent =
+        let width = "200px" in -- "100%"
+        Attr.style <|
+          [ ("position", if isParent then "relative" else "absolute")
+          , ("overflow", "visible")
+          , ("width", width)
+          ] ++ (if isParent then [] else [("left", width)])
+      in
+      case oneOrMoreResults of
+        Left result ->
+          let toolButton = previewButton (Just toolName) result in
+          Html.div [divAttrs True] [toolButton]
+
+        Right results ->
+          let toolButton = deadButton toolName in
+          let nextMenu =
+            Html.div [divAttrs False] (List.map (previewButton Nothing) results)
+          in
+          -- nextMenu first, so it pops out at same y-position as toolButton
+          Html.div [divAttrs True] [nextMenu, toolButton]
+    in
+    let results = func () in
+    case results of
+      [SynthesisResult result] ->
+        if result.isSafe
+          then buttonAndMaybeMenu (Left (SynthesisResult result))
+          else buttonAndMaybeMenu (Right results)
+      _ ->
+        buttonAndMaybeMenu (Right results)
+  in
+  Utils.mapi1 oneTool (Controller.contextSensitiveDeuceTools model)

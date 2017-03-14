@@ -306,6 +306,19 @@ importCodeFileInputId = "import-code-file-input"
 
 --------------------------------------------------------------------------------
 
+runAndResolve : Model -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
+runAndResolve model exp =
+  Eval.run exp
+  |> Result.andThen (\(val, widgets) -> slateAndCode model (exp, val)
+  |> Result.map (\(slate, code) -> (val, widgets, slate, code)))
+
+slateAndCode : Model -> (Exp, Val) -> Result String (RootedIndexedTree, Code)
+slateAndCode old (exp, val) =
+  LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val
+  |> Result.map (\slate -> (slate, unparse exp))
+
+--------------------------------------------------------------------------------
+
 mkLive opts slideNumber movieNumber movieTime e (val, widgets) =
   LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val |> Result.andThen (\slate ->
   Sync.prepareLiveUpdates opts e (slate, widgets)                    |> Result.andThen (\liveInfo ->

@@ -35,7 +35,7 @@ module InterfaceController exposing
   , msgMoveExp
   , msgMouseClickDeuceWidget
   , msgMouseEnterDeuceWidget, msgMouseLeaveDeuceWidget
-  , contextSensitiveDeuceTools, applyDeuceTool
+  , contextSensitiveDeuceTools, msgChooseDeuceExp
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -152,17 +152,6 @@ addSlateAndCode old (exp, val) =
 discardErrorAnnotations : Result (String, Ace.Annotation) a -> Result String a
 discardErrorAnnotations result =
   result |> Result.mapError (\(string, annot) -> string)
-
-slateAndCode old (exp, val) =
-  LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val
-  |> Result.map (\slate -> (slate, unparse exp))
-
-runAndResolve model exp =
-  Eval.run exp
-  |> Result.andThen (\(val, widgets) ->
-    slateAndCode model (exp, val)
-    |> Result.map (\(slate, code) -> (val, widgets, slate, code))
-  )
 
 runWithErrorHandling model exp onOk =
   let result =
@@ -1549,6 +1538,8 @@ msgMoveExp = Msg "Move Exp" <| \m -> m
 
 
 
+-- TODO if/when drawing extra widgets for tools,
+-- this all should move elsewhere (View, DeuceWidgets, ...)
 
 contextSensitiveDeuceTools m =
 
@@ -1634,13 +1625,9 @@ contextSensitiveDeuceTools m =
 
     _ -> []
 
-applyDeuceTool : DeuceTool -> Model -> Model
-applyDeuceTool func m =
-  let (safe, unsafe) = func () |> List.partition isResultSafe in
-  case (safe, unsafe) of
-    -- TODO version of tryRun/upstateRun starting with parsed expression
-    ([SynthesisResult {exp}], []) -> { m | code = unparse exp } |> upstateRun
-    _                             -> { m | synthesisResults = safe ++ unsafe }
+msgChooseDeuceExp exp = Msg "Choose Deuce Exp" <| \m ->
+  -- TODO version of tryRun/upstateRun starting with parsed expression
+  upstateRun (resetDeuceState { m | code = unparse exp })
 
 dummyDeuceTool m = \() ->
   [synthesisResult "not yet implemented" m.inputExp |> setResultSafe False]
