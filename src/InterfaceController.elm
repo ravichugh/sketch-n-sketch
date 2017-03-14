@@ -1602,6 +1602,10 @@ contextSensitiveDeuceTools m =
                 EVar _ _ ->
                   let newName = m.deuceState.renameVarTextBox in
                   [("Rename All", \() -> renameVar eId newName m.inputExp)]
+                EBase ws (EBool bool) ->
+                  let flipped = withDummyPos (EBase ws (EBool (not bool))) in
+                  let newExp = replaceExpNode eId flipped m.inputExp in
+                  [("Flip Boolean", \() -> oneSafeResult newExp)]
                 _        -> [] -- may support other kinds of selections here
 
     (_, _, [], [], []) ->
