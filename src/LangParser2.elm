@@ -95,7 +95,7 @@ maxId exp =
   List.maximum (initK :: Set.toList ids) |> U.fromJust
 
 allIds : Exp -> Set.Set Int
-allIds exp = duplicateAndAllIds exp |> Tuple.first
+allIds exp = duplicateAndAllIds exp |> Tuple.second
 
 -- Excludes EIds and locIds less than initK (i.e. no prelude locs or dummy EIds)
 duplicateAndAllIds : Exp -> (Set.Set Int, Set.Set Int)
