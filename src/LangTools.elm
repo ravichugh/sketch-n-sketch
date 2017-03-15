@@ -429,7 +429,12 @@ commonNameForEIds program eids =
   commonNameForEIdsWithDefault defaultExpName program eids
 
 
+leadingDigits   = Regex.regex "^[0-9]+"
 leadingCapitals = Regex.regex "^[A-Z]+"
+
+removeLeadingDigits : String -> String
+removeLeadingDigits string =
+  Regex.replace (Regex.AtMost 1) leadingDigits (\_ -> "") string
 
 downcaseLeadingCapitals : String -> String
 downcaseLeadingCapitals string =
@@ -442,8 +447,8 @@ downcaseLeadingCapitals string =
 commonNameForEIdsWithDefault : String -> Exp -> List EId -> String
 commonNameForEIdsWithDefault defaultName program eids =
   let expNames = eids |> List.map (expNameForEId program) in
-  let prefixCandidate = Utils.commonPrefixString expNames in
-  let suffixCandidate = Utils.commonSuffixString expNames in
+  let prefixCandidate = Utils.commonPrefixString expNames |> removeLeadingDigits in
+  let suffixCandidate = Utils.commonSuffixString expNames |> removeLeadingDigits in
   let candidate =
     let candidate =
       if prefixCandidate == "" then suffixCandidate else
