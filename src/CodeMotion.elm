@@ -1,5 +1,6 @@
 module CodeMotion exposing
   ( moveDefinitionPat, moveDefinitionsBeforeEId
+  , duplicateDefinitionsBeforeEId
   , makeEListReorderTool
   , makeIntroduceVarTool
   , makeMakeEqualTool
@@ -30,6 +31,33 @@ getELet program eid =
 
 
 type alias PatBoundExp = (Pat, Exp)
+
+
+pluckAll : List PatternId -> Exp -> (List (Pat, Exp, EId), Exp)
+pluckAll sourcePatIds program =
+    let sortedSourcePatIds =
+      sourcePatIds
+      |> List.sortBy
+          (\((scopeEId, branchI), path) ->
+            let scope = justFindExpByEId program scopeEId in
+            (scope.start.line, scope.start.col, branchI, path)
+          )
+    in
+  let (pluckedPatAndBoundExpAndOldScopeEIds, programWithoutPlucked) =
+    sortedSourcePatIds
+    |> List.foldr
+        (\sourcePatId (pluckedPatAndBoundExpAndOldScopeBodies, programBeingPlucked) ->
+          case pluck sourcePatId programBeingPlucked of
+            Just ((pluckedPat, pluckedBoundExp), programWithoutPlucked) ->
+              let ((sourceScopeEId, _), _) = sourcePatId in
+              ((pluckedPat, pluckedBoundExp, sourceScopeEId)::pluckedPatAndBoundExpAndOldScopeBodies, programWithoutPlucked)
+            Nothing ->
+              (pluckedPatAndBoundExpAndOldScopeBodies, programBeingPlucked)
+        )
+        ([], program)
+  in
+  (pluckedPatAndBoundExpAndOldScopeEIds, programWithoutPlucked)
+
 
 -- Removes the binding (p, e1) from the program.
 --
@@ -128,26 +156,8 @@ pluck__ p e1 path =
 moveDefinitions_ : (List PatBoundExp -> Exp -> (Exp, EId)) -> List PatternId -> Exp -> List SynthesisResult
 moveDefinitions_ makeNewProgram sourcePatIds program =
   let (programUniqueNames, uniqueNameToOldName) = assignUniqueNames program in
-  let sortedSourcePatIds =
-    sourcePatIds
-    |> List.sortBy
-        (\((scopeEId, branchI), path) ->
-          let scope = justFindExpByEId programUniqueNames scopeEId in
-          (scope.start.line, scope.start.col, branchI, path)
-        )
-  in
   let (pluckedPatAndBoundExpAndOldScopeEIds, programWithoutPlucked) =
-    sortedSourcePatIds
-    |> List.foldr
-        (\sourcePatId (pluckedPatAndBoundExpAndOldScopeBodies, programBeingPlucked) ->
-          case pluck sourcePatId programBeingPlucked of
-            Just ((pluckedPat, pluckedBoundExp), programWithoutPlucked) ->
-              let ((sourceScopeEId, _), _) = sourcePatId in
-              ((pluckedPat, pluckedBoundExp, sourceScopeEId)::pluckedPatAndBoundExpAndOldScopeBodies, programWithoutPlucked)
-            Nothing ->
-              (pluckedPatAndBoundExpAndOldScopeBodies, programBeingPlucked)
-        )
-        ([], programUniqueNames)
+    pluckAll sourcePatIds programUniqueNames
   in
   if pluckedPatAndBoundExpAndOldScopeEIds == [] then
     Debug.log "could not pluck anything" []
@@ -325,6 +335,86 @@ moveDefinitionPat sourcePatIds targetPatId program =
     (newProgram, targetEId)
   in
   moveDefinitions_ makeNewProgram sourcePatIds program
+
+
+duplicateDefinitionsBeforeEId : List PatternId -> EId -> Exp -> List SynthesisResult
+duplicateDefinitionsBeforeEId sourcePatIds targetEId originalProgram =
+  let (pluckedPatAndBoundExpAndOldScopeEIds, _) =
+    pluckAll sourcePatIds originalProgram
+  in
+  let (pluckedPats, pluckedBoundExps, _) = Utils.unzip3 pluckedPatAndBoundExpAndOldScopeEIds in
+  let insertedLetEId = LangParser2.maxId originalProgram + 1 in
+  let newProgram =
+    originalProgram
+    |> mapExpNode
+        targetEId
+        (\expToWrap ->
+          let letOrDef = if isTopLevelEId targetEId originalProgram then Def else Let in
+          let (newPat, newBoundExp) =
+            case (pluckedPats, pluckedBoundExps) of
+              ([pluckedPat], [boundExp]) ->
+                (pluckedPat, boundExp)
+
+              _ ->
+                ( withDummyRange <| PList " " (pluckedPats      |> setPatListWhitespace "" " ") "" Nothing ""
+                , withDummyPos   <| EList " " (pluckedBoundExps |> setExpListWhitespace "" " ") "" Nothing "" -- May want to be smarter about whitespace here to avoid long lines.
+                )
+          in
+          withDummyPosEId insertedLetEId <|
+            ELet (precedingWhitespace expToWrap) letOrDef False
+              (ensureWhitespacePat newPat) (ensureWhitespaceExp newBoundExp)
+              (ensureWhitespaceExp expToWrap) ""
+        )
+    |> LangTransform.simplifyAssignments
+    |> LangParser2.freshen -- Remove duplicate EIds
+  in
+  let newScopeExp = justFindExpByEId newProgram insertedLetEId in
+  let newScopePat      = newScopeExp |> expToLetPat in
+  let newScopeBoundExp = newScopeExp |> expToLetBoundExp in
+  let newScopeBody     = newScopeExp |> expToLetBody in
+  let isSafe =
+    let identUsesSafe =
+      0 == Set.size (Set.intersect (identifiersSetInPat newScopePat) (freeIdentifiers newScopeBody))
+    in
+    let boundExpVarsSafe =
+      let oldBoundExpFreeIdentBindingScopeIds =
+        pluckedPatAndBoundExpAndOldScopeEIds
+        |> List.concatMap (\(_, pluckedBoundExp, _) -> freeVars pluckedBoundExp)
+        |> List.map
+            (\var ->
+              ( expToIdent var
+              , bindingScopeIdFor var originalProgram |> Maybe.withDefault (-1, -1)) -- (-1, -1) if free in originalProgram
+            )
+        |> Set.fromList
+      in
+      let newBoundExpFreeIdentBindingScopeIds =
+        freeVars newScopeBoundExp
+        |> List.map
+            (\var ->
+              ( expToIdent var
+              , bindingScopeIdFor var newProgram |> Maybe.withDefault (-1, -1)) -- (-1, -1) if free in newProgram
+            )
+        |> Set.fromList
+      in
+      oldBoundExpFreeIdentBindingScopeIds == newBoundExpFreeIdentBindingScopeIds
+    in
+    let noDuplicateNamesInPat =
+      let namesDefinedAtNewScope = identifiersListInPat newScopePat in
+      namesDefinedAtNewScope == Utils.dedup namesDefinedAtNewScope
+    in
+    identUsesSafe && boundExpVarsSafe && noDuplicateNamesInPat
+  in
+  let caption =
+    let patStrs = List.map (unparsePat >> Utils.squish) pluckedPats in
+    "Duplicate "
+    ++ (if List.length patStrs == 1 then "Definition" else "Definitions")
+    ++ " of "
+    ++ Utils.toSentence patStrs
+  in
+  let result =
+    synthesisResult caption newProgram |> setResultSafe isSafe
+  in
+  [ result ]
 
 
 insertPat_ : PatBoundExp -> List Int -> Exp -> Exp

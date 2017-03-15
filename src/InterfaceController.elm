@@ -1578,11 +1578,17 @@ contextSensitiveDeuceTools m =
     ([], [], [_], [(Before, eId)], []) ->
       [ ("Move Definition", \() ->
           CodeMotion.moveDefinitionsBeforeEId patIds eId m.inputExp
+        ),
+        ("Duplicate Definition", \() ->
+          CodeMotion.duplicateDefinitionsBeforeEId patIds eId m.inputExp
         ) ]
 
     ([], [], _::_, [(Before, eId)], []) ->
       [ ("Move Definitions", \() ->
           CodeMotion.moveDefinitionsBeforeEId patIds eId m.inputExp
+        ),
+        ("Duplicate Definitions", \() ->
+          CodeMotion.duplicateDefinitionsBeforeEId patIds eId m.inputExp
         ) ]
 
     ([], [], [_], [], [patTarget]) ->
