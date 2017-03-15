@@ -572,10 +572,8 @@ makeMakeEqualTool m nums =
     justInsideDeepestCommonScope m.inputExp (\e -> List.member e.val.eid expIds)
   in
   let targetId = targetLet.val.eid in
-  -- TODO: commonName sometimes returns a name like "1"
-  -- let name = commonNameForEIds m.inputExp expIds in
-  -- let name = commonNameForEIdsWithDefault "newVar" m.inputExp expIds in
-  let name = expNameForEId m.inputExp firstNumExpId in
+  let name = commonNameForEIdsWithDefault "newVar" m.inputExp expIds in
+  -- let name = expNameForEId m.inputExp firstNumExpId in
   let namesToAvoid =
     visibleIdentifiersAtEIds m.inputExp (Set.singleton targetId)
   in
