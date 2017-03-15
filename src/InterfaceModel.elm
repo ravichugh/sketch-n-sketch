@@ -249,7 +249,7 @@ type alias LayoutOffsets =
   , outputToolBox : Offsets
   , animationToolBox : Offsets
   , textToolBox : Offsets
-  , deuceToolBox : Offsets
+  , deuceToolBox : {pinned:Bool, offsets:Offsets}
   , synthesisResultsSelectBox : Offsets
   }
 
@@ -268,7 +268,7 @@ initialLayoutOffsets =
   , outputToolBox = init
   , animationToolBox = init
   , textToolBox = init
-  , deuceToolBox = init
+  , deuceToolBox = {pinned=False, offsets=init}
   , synthesisResultsSelectBox = init
   }
 

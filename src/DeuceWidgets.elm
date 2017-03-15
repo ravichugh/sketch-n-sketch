@@ -32,7 +32,20 @@ emptyDeuceState =
   , renameVarTextBox = ""
   }
 
-resetDeuceState m = { m | deuceState = emptyDeuceState, preview = Nothing }
+resetDeuceState m =
+  let layoutOffsets = m.layoutOffsets in
+  { m | deuceState = emptyDeuceState
+      , preview = Nothing
+      , layoutOffsets =
+          { layoutOffsets |
+              deuceToolBox =
+                { pinned = layoutOffsets.deuceToolBox.pinned
+                , offsets = if layoutOffsets.deuceToolBox.pinned
+                            then layoutOffsets.deuceToolBox.offsets
+                            else {dx=0, dy=0}
+                }
+          }
+      }
 
 --------------------------------------------------------------------------------
 

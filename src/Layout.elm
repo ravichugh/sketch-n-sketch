@@ -99,7 +99,7 @@ getSynthesisResultsSelectBox = .layoutOffsets >> .synthesisResultsSelectBox
 getCodeBox          = .layoutOffsets >> .codeBox
 getCanvas           = .layoutOffsets >> .canvas
 getTextToolBox      = .layoutOffsets >> .textToolBox
-getDeuceToolBox     = .layoutOffsets >> .deuceToolBox
+getDeuceToolBox     = .layoutOffsets >> .deuceToolBox >> .offsets
 
 putFileToolBox dx dy model =
   let layoutOffsets = model.layoutOffsets in
@@ -163,8 +163,10 @@ putTextToolBox dx dy model =
 
 putDeuceToolBox dx dy model =
   let layoutOffsets = model.layoutOffsets in
+  let deuceToolBox = layoutOffsets.deuceToolBox in
   { model | layoutOffsets =
-    { layoutOffsets | deuceToolBox = { dx = dx, dy = dy } } }
+    { layoutOffsets | deuceToolBox =
+      { deuceToolBox | offsets = { dx = dx, dy = dy } } } }
 
 
 --------------------------------------------------------------------------------
@@ -207,7 +209,7 @@ type alias Info =
   , synthesisResultsSelect : FixedPosition
   , captionArea : FixedPosition
   , textTools : FixedPosition
-  , deuceTools : FixedPosition
+  , deuceToolsPinnedAnchor : FixedPosition
   }
 
 computeLayout : Model -> Info
@@ -288,7 +290,7 @@ computeLayout m =
      { leftRight = Left   <| dimCodeBox.left
      , topBottom = Bottom <| windowPadding + (0 * (rowGap + buttonHeight))
      }
-  , deuceTools = offset m getDeuceToolBox
+  , deuceToolsPinnedAnchor =
      { leftRight = Left   <| dimCanvas.initialLeft + fileAndCodeToolBoxRightOffset
      , topBottom = Top    <| windowPadding + round (2 * (rowGap + buttonHeight))
 {-

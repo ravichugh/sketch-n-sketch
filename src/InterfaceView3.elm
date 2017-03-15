@@ -77,7 +77,8 @@ view model =
   let moreBlobTools = moreBlobToolBox model layout in
   let outputTools = outputToolBox model layout in
   let textTools = textToolBox model layout in
-  let deuceTools = deuceToolBoxNested model layout in
+  let (deuceWidgets, extremePoint) = deuceLayer model layout in
+  let deuceTools = deuceToolBoxNested model layout extremePoint in
   let synthesisResultsSelect = synthesisResultsSelectBox model layout in
 
   let
@@ -134,13 +135,13 @@ view model =
        layout.canvas.top in
 
   let caption = captionArea model layout in
-  let deuceWidgets = [deuceLayer model layout] in
 
   let everything = -- z-order in decreasing order
      -- bottom-most
      [ onbeforeunloadDataElement
      , codeBox
-     ] ++ deuceWidgets ++ [ outputBox
+     , deuceWidgets
+     , outputBox
 
      -- toolboxes in reverse order
      , outputTools] ++ animationTools ++
@@ -335,19 +336,7 @@ synthesisResultsSelectBox model layout =
   in
   toolBox model "synthesisResultsSelect" extraStyles Layout.getPutSynthesisResultsSelectBox layout.synthesisResultsSelect [resultsMenuTree, cancelButton]
 
-{-
-  -- TODO: for now, always drawing this text box
-  let renameVarTextBox =
-    Html.input
-       [ Attr.type_ "text"
-       , onInput <| \str ->
-           Msg ("Update Rename Var Textbox: " ++ str) <| \m ->
-             let deuceState = m.deuceState in
-             { m | deuceState = { deuceState | renameVarTextBox = str } }
-       ]
-       []
--}
-
+-- Make Tool Box Helper
 toolBox model id extraStyles (getOffset, putOffset) leftRightTopBottom elements =
   Html.div
     [ Attr.id id
@@ -1243,9 +1232,17 @@ deuceLayer model layout =
   let find e acc =
     [e] ++ acc
   in
+  let
+    (widgets1, point1) = expBoundingPolygonPoints (Lang.foldExp find [] model.inputExp) model
+    (widgets2, point2) = patBoundingPolygonPoints (findPats model.inputExp) model
+  in
+  -- for now, not considering target positions when computing extremePoint
+  let extremePoint =
+    rightmostBottommostPoint [point1, point2]
+  in
   let widgets =
-    expBoundingPolygonPoints (Lang.foldExp find [] model.inputExp) model ++
-    patBoundingPolygonPoints (findPats model.inputExp) model ++
+    widgets1 ++
+    widgets2 ++
     expTargetIndicator (computeExpTargets model.inputExp) model ++
     patTargetIndicator (findPatTargets model.inputExp) model
   in
@@ -1264,7 +1261,9 @@ deuceLayer model layout =
     then "auto"
     else "none"
   in
-  Html.div [ Attr.id "hoveredItem"
+  let shapes =
+    Html.div
+            [ Attr.id "hoveredItem"
             , Attr.style
                 -- child div as absolute to overlay on parent div
                 -- https://stackoverflow.com/questions/2941189/how-to-overlay-one-div-over-another-div
@@ -1284,6 +1283,8 @@ deuceLayer model layout =
             , onMouseLeave Controller.msgMouseLeaveCodeBox
             , onClick Controller.msgMouseClickCodeBox
             ] (List.reverse svgWidgets)
+  in
+  (shapes, extremePoint)
 
 computePolygonPoints rcs model =
   let pad = 3 in
@@ -1310,16 +1311,16 @@ computePolygonPoints rcs model =
   in
   let left = traverse True in
   let right = traverse False in
-  let combine point acc =
-    toString(point.x) ++ "," ++ toString(point.y) ++ " " ++ acc in
-{-
-  let _ =
-    if blah
-      then let _ = Debug.log "rightBot" (rightmostBottommostPoint (left++right)) in ()
-      else ()
+  let pointsAttribute =
+    let combine point acc = toString(point.x) ++ "," ++ toString(point.y) ++ " " ++ acc in
+    List.foldr combine  "" (left ++ right)
   in
--}
-  List.foldr combine  "" (left ++ right)
+  let rightBotPoint =
+    left ++ right
+    |> List.map (\{x,y} -> {x = round x, y = round y})
+    |> rightmostBottommostPoint
+  in
+  (pointsAttribute, rightBotPoint)
 
 isDefExp exp =
   case exp.val.e__ of
@@ -1357,20 +1358,20 @@ boundingPolygonPoints :
     -> (c -> List ( DeuceWidget, Dict.Dict Int ( Int, Int ) ))
     -> List c
     -> Model
-    -> List (Svg Msg)
+    -> (List (Svg Msg), {x:Int, y:Int})
 boundingPolygonPoints maybeReverse deuceWidgetAndBoundingPolygonOf exps model =
   let calculate (deuceWidget, boundingPolygon) =
-    let points = computePolygonPoints boundingPolygon model in
+    let (pointsAttribute, extremePoint) = computePolygonPoints boundingPolygon model in
+    let extremeSelectedPoint =
+      if List.member deuceWidget model.deuceState.selectedWidgets
+        then [extremePoint]
+        else []
+    in
     let color =
       if showSelectedDeuceWidgets model && List.member deuceWidget model.deuceState.selectedWidgets then
         if List.member deuceWidget model.deuceState.hoveredWidgets
         then "green"
         else "orange"
-{-
-        else 
-          let _ = computePolygonPoints True boundingPolygon model in
-          "orange"
--}
       else if List.member deuceWidget model.deuceState.hoveredWidgets && showDeuceWidgets model
         then "yellow"
         else ""
@@ -1380,20 +1381,21 @@ boundingPolygonPoints maybeReverse deuceWidgetAndBoundingPolygonOf exps model =
             [LangSvg.attr "stroke" color
             , LangSvg.attr "stroke-width" "5"
             , Attr.style [("fill-opacity", "0")]
-            , LangSvg.attr "points" points
+            , LangSvg.attr "points" pointsAttribute
             , onClick (Controller.msgMouseClickDeuceWidget deuceWidget)
             , onMouseOver (Controller.msgMouseEnterDeuceWidget deuceWidget)
             , onMouseLeave (Controller.msgMouseLeaveDeuceWidget deuceWidget)
             ]
           ] in
-      textPolygon
+    (textPolygon, extremeSelectedPoint)
   in
   let calculatePolygons exp =
     let polygons = deuceWidgetAndBoundingPolygonOf exp in
-    List.concatMap calculate polygons
+    let (list, points) = List.unzip (List.map calculate polygons) in
+    (List.concat list, rightmostBottommostPoint (List.concat points))
   in
-  let polygons = maybeReverse (List.concatMap calculatePolygons exps) in
-  polygons
+  let (list, points) = List.unzip (List.map calculatePolygons exps) in
+  (maybeReverse (List.concat list), rightmostBottommostPoint points)
 
 expTargetIndicator = targetIndicator DeuceExpTarget
 patTargetIndicator = targetIndicator DeucePatTarget
@@ -1459,7 +1461,7 @@ getBoxHeight start end m =
   let lines = end.line - start.line + 1 in
   toFloat(lines) * m.codeBoxInfo.lineHeight
 
-rightmostBottommostPoint : List {x:Float, y:Float} -> {x:Float, y:Float}
+rightmostBottommostPoint : List {x:Int, y:Int} -> {x:Int, y:Int}
 rightmostBottommostPoint =
   List.foldl (\point acc ->
     if point.x > acc.x then point
@@ -1471,7 +1473,10 @@ rightmostBottommostPoint =
 --------------------------------------------------------------------------------
 -- Deuce Tool Menu
 
-deuceToolBoxNested model layout =
+-- extremePoint is the right-most, bottom-most point among the Deuce widgets.
+-- It is computed earlier in the view function and, hence, not stored in Model.
+--
+deuceToolBoxNested model layout extremePoint =
   let icon =
      Html.img
        [ Attr.src "img/deuce_logo.png"
@@ -1486,11 +1491,71 @@ deuceToolBoxNested model layout =
     [ ("display", "block")
     ]
   in
-  toolBox model "deuceToolBox" extraStyles Layout.getPutDeuceToolBox layout.deuceTools <|
-    [ icon
-    , htmlButton "Pin" Controller.msgNoop Regular True
-    ] ++
-    deuceTools model
+  let tools = deuceTools model in
+  let spacer =
+    if tools == [] then []
+    else [Html.div [Attr.style [("height", "5px")]] []]
+  in
+  let maybeNotPinnedAnchor =
+    if extremePoint == {x=0,y=0} then Nothing
+    else
+      let (xOffset, yOffset) = (60, 10) in
+      Just { leftRight = Left       <| extremePoint.x + xOffset
+           , topBottom = Layout.Top <| extremePoint.y + yOffset }
+  in
+  let leftRight =
+    let anchor =
+      case (model.layoutOffsets.deuceToolBox.pinned, maybeNotPinnedAnchor) of
+        (True,  _)                    -> layout.deuceToolsPinnedAnchor
+        (False, Nothing)              -> layout.deuceToolsPinnedAnchor
+        (False, Just notPinnedAnchor) -> notPinnedAnchor
+    in
+    Layout.offset model Layout.getDeuceToolBox anchor
+  in
+  let pinButton =
+    let attrs =
+      if tools == [] then []
+      else [Attr.style [("position", "absolute"), ("right", "0px")]]
+    in
+    let caption =
+      if model.layoutOffsets.deuceToolBox.pinned
+        then "Pinned"
+        else "Not Pinned"
+    in
+    let msgTogglePin =
+      Msg "Toogle Pin Deuce Tools" <| \m ->
+        let layoutOffsets = m.layoutOffsets in
+        let deuceToolBox = layoutOffsets.deuceToolBox in
+        let newOffsets =
+          case maybeNotPinnedAnchor of
+            Nothing ->
+              {dx=0, dy=0}
+
+            Just notPinnedAnchor ->
+              let (ddx, ddy) =
+                let (a, b) =
+                  if deuceToolBox.pinned
+                    then (layout.deuceToolsPinnedAnchor, notPinnedAnchor)
+                    else (notPinnedAnchor, layout.deuceToolsPinnedAnchor)
+                in
+                case (a.leftRight, a.topBottom, b.leftRight, b.topBottom) of
+                  (Left x1, Layout.Top y1, Left x2, Layout.Top y2) ->
+                    (x1 - x2, y1 - y2)
+                  _ ->
+                    Debug.log "msgTogglePin: shouldn't happen" (0, 0)
+              in
+              { dx = deuceToolBox.offsets.dx + ddx
+              , dy = deuceToolBox.offsets.dy + ddy
+              }
+        in
+        { m | layoutOffsets =
+          { layoutOffsets | deuceToolBox =
+            { pinned = not deuceToolBox.pinned , offsets = newOffsets } } }
+    in
+    htmlButtonExtraAttrs attrs caption msgTogglePin Regular False
+  in
+  toolBox model "deuceToolBox" extraStyles Layout.getPutDeuceToolBox leftRight <|
+    [icon, pinButton] ++ spacer ++ tools
 
 deuceTools model =
   let extraButtonStyles maybeWidth =
