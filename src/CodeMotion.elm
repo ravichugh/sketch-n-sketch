@@ -125,8 +125,8 @@ pluck__ p e1 path =
 --   - All previous references to the moved identifier still resolve to that identifer
 --   - All other variables uses of the same name do not resolve to the moved identifier
 --
-moveDefinitionsBeforeEId : List PatternId -> EId -> Exp -> List SynthesisResult
-moveDefinitionsBeforeEId sourcePatIds targetEId program =
+moveDefinitions_ : (List PatBoundExp -> Exp -> (Exp, EId)) -> List PatternId -> Exp -> List SynthesisResult
+moveDefinitions_ makeNewProgram sourcePatIds program =
   let (programUniqueNames, uniqueNameToOldName) = assignUniqueNames program in
   let sortedSourcePatIds =
     sourcePatIds
@@ -143,7 +143,6 @@ moveDefinitionsBeforeEId sourcePatIds targetEId program =
           case pluck sourcePatId programBeingPlucked of
             Just ((pluckedPat, pluckedBoundExp), programWithoutPlucked) ->
               let ((sourceScopeEId, _), _) = sourcePatId in
-              -- let oldScopeBody = justFindExpByEId programUniqueNames sourceScopeEId |> expToLetBody in -- search in original program b/c old body is for safety check
               ((pluckedPat, pluckedBoundExp, sourceScopeEId)::pluckedPatAndBoundExpAndOldScopeBodies, programWithoutPlucked)
             Nothing ->
               (pluckedPatAndBoundExpAndOldScopeBodies, programBeingPlucked)
@@ -153,36 +152,17 @@ moveDefinitionsBeforeEId sourcePatIds targetEId program =
   if pluckedPatAndBoundExpAndOldScopeEIds == [] then
     Debug.log "could not pluck anything" []
   else
-    let (pluckedPats, pluckedBoundExps, _) = Utils.unzip3 pluckedPatAndBoundExpAndOldScopeEIds in
-    let (newPatUniqueNames, newBoundExpUniqueNames) =
-      case (pluckedPats, pluckedBoundExps) of
-        ([pluckedPat], [boundExp]) ->
-          (pluckedPat, boundExp)
-
-        _ ->
-          ( withDummyRange <| PList " " (pluckedPats      |> setPatListWhitespace "" " ") "" Nothing ""
-          , withDummyPos   <| EList " " (pluckedBoundExps |> setExpListWhitespace "" " ") "" Nothing "" -- May want to be smarter about whitespace here to avoid long lines.
-          )
+    let (pluckedPats, pluckedBoundExps, _)   = Utils.unzip3 pluckedPatAndBoundExpAndOldScopeEIds in
+    let pluckedPatIdentifiersUnique          = Utils.unionAll <| List.map identifiersSetInPat pluckedPats in
+    let pluckedBoundExpFreeIdentifiersUnique = Utils.unionAll <| List.map freeIdentifiers pluckedBoundExps in
+    let (newProgramUniqueNames, newScopeEId) =
+      makeNewProgram (Utils.zip pluckedPats pluckedBoundExps) programWithoutPlucked
     in
-    let insertedLetEId = LangParser2.maxId programUniqueNames + 1 in
-    let newProgramUniqueNames =
-      programWithoutPlucked
-      |> mapExpNode
-          targetEId
-          (\expToWrap ->
-            let letOrDef = if isTopLevelEId targetEId programWithoutPlucked then Def else Let in
-            withDummyPosEId insertedLetEId <|
-              ELet (precedingWhitespace expToWrap) letOrDef False
-                (ensureWhitespacePat newPatUniqueNames) (ensureWhitespaceExp newBoundExpUniqueNames)
-                (ensureWhitespaceExp expToWrap) ""
-          )
-      |> LangTransform.simplifyAssignments
-    in
+    let newPatUniqueNames = justFindExpByEId newProgramUniqueNames newScopeEId |> expToLetPat in
     let makeResult renamings newProgram =
-      let newScopeExp  = justFindExpByEId newProgram insertedLetEId in
+      let newScopeExp  = justFindExpByEId newProgram newScopeEId in
       let newScopeBody = newScopeExp |> expToLetBody in
       let newPat       = newScopeExp |> expToLetPat in
-      let newBoundExp  = newScopeExp |> expToLetBoundExp in
       let uniqueNameToOldNameUsed =
         Dict.diff uniqueNameToOldName (List.map Utils.flip renamings |> Dict.fromList)
       in
@@ -201,8 +181,13 @@ moveDefinitionsBeforeEId sourcePatIds targetEId program =
               )
         in
         let boundExpVarsSafe =
-          Utils.zip (freeVars newBoundExpUniqueNames) (freeVars newBoundExp)
-          |> List.all (\(varUnique, varNew) -> bindingScopeIdFor varUnique programUniqueNames == bindingScopeIdFor varNew newProgram)
+          pluckedPatAndBoundExpAndOldScopeEIds
+          |> List.all
+              (\(_, pluckedBoundExp, _) ->
+                let newPluckedBoundExp = renameIdentifiers uniqueNameToOldNameUsed pluckedBoundExp in
+                Utils.zip (freeVars pluckedBoundExp) (freeVars newPluckedBoundExp)
+                |> List.all (\(varUnique, varNew) -> bindingScopeIdFor varUnique programUniqueNames == bindingScopeIdFor varNew newProgram)
+              )
         in
         let noDuplicateNamesInPat =
           let namesDefinedAtNewScope = identifiersListInPat newPat in
@@ -218,8 +203,6 @@ moveDefinitionsBeforeEId sourcePatIds targetEId program =
         in
         "Move "
         ++ (List.map (renameIdentifiersInPat uniqueNameToOldName >> unparsePat >> Utils.squish) pluckedPats |> Utils.toSentence)
-        ++ " before "
-        ++ (newScopeBody |> unparse |> Utils.squish |> Utils.niceTruncateString 20 "...")
         ++ renamingsStr
       in
       let result =
@@ -235,11 +218,11 @@ moveDefinitionsBeforeEId sourcePatIds targetEId program =
       if InterfaceModel.isResultSafe (Utils.head "CodeMotion.moveDefinitionsBeforeEId" newProgramOriginalNamesResult) then
         []
       else
-        let (uniqueNameToOldNameInNewDef, uniqueNameToOldNameOutOfNewDef) =
-          let namesInNewDef = Set.union (freeIdentifiers newBoundExpUniqueNames) (identifiersSetInPat newPatUniqueNames) in
+        let (uniqueNameToOldNameMoved, uniqueNameToOldNameUnmoved) =
+          let namesMoved = Set.union pluckedPatIdentifiersUnique pluckedBoundExpFreeIdentifiersUnique in
           uniqueNameToOldName
           |> Dict.toList
-          |> List.partition (\(uniqueName, oldName) -> Set.member uniqueName namesInNewDef)
+          |> List.partition (\(uniqueName, oldName) -> Set.member uniqueName namesMoved)
         in
         let resultForOriginalNamesPriority uniqueNameToOldNamePrioritized =
           let (newProgramPartiallyOriginalNames, _, renamingsPreserved) =
@@ -280,96 +263,68 @@ moveDefinitionsBeforeEId sourcePatIds targetEId program =
           in
           makeResult renamingsPreserved newProgramPartiallyOriginalNames
         in
-        [ resultForOriginalNamesPriority (uniqueNameToOldNameOutOfNewDef ++ uniqueNameToOldNameInNewDef)
-        , resultForOriginalNamesPriority (uniqueNameToOldNameInNewDef ++ uniqueNameToOldNameOutOfNewDef)
+        [ resultForOriginalNamesPriority (uniqueNameToOldNameUnmoved ++ uniqueNameToOldNameMoved)
+        , resultForOriginalNamesPriority (uniqueNameToOldNameMoved ++ uniqueNameToOldNameUnmoved)
         ]
     in
     newProgramOriginalNamesResult ++ newProgramMaybeRenamedResults
     |> Utils.dedupBy (\(SynthesisResult {exp}) -> unparseWithUniformWhitespace False False exp)
 
 
-------------------------------------------------------------------------------
+moveDefinitionsBeforeEId : List PatternId -> EId -> Exp -> List SynthesisResult
+moveDefinitionsBeforeEId sourcePatIds targetEId program =
+  let makeNewProgram pluckedPatAndBoundExps programWithoutPluckedUniqueNames =
+    let (pluckedPats, pluckedBoundExps) = List.unzip pluckedPatAndBoundExps in
+    let (newPatUniqueNames, newBoundExpUniqueNames) =
+      case (pluckedPats, pluckedBoundExps) of
+        ([pluckedPat], [boundExp]) ->
+          (pluckedPat, boundExp)
+
+        _ ->
+          ( withDummyRange <| PList " " (pluckedPats      |> setPatListWhitespace "" " ") "" Nothing ""
+          , withDummyPos   <| EList " " (pluckedBoundExps |> setExpListWhitespace "" " ") "" Nothing "" -- May want to be smarter about whitespace here to avoid long lines.
+          )
+    in
+    let insertedLetEId = LangParser2.maxId program + 1 in
+    let newProgram =
+      programWithoutPluckedUniqueNames
+      |> mapExpNode
+          targetEId
+          (\expToWrap ->
+            let letOrDef = if isTopLevelEId targetEId programWithoutPluckedUniqueNames then Def else Let in
+            withDummyPosEId insertedLetEId <|
+              ELet (precedingWhitespace expToWrap) letOrDef False
+                (ensureWhitespacePat newPatUniqueNames) (ensureWhitespaceExp newBoundExpUniqueNames)
+                (ensureWhitespaceExp expToWrap) ""
+          )
+      |> LangTransform.simplifyAssignments
+    in
+    (newProgram, insertedLetEId)
+  in
+  moveDefinitions_ makeNewProgram sourcePatIds program
 
 
 moveDefinitionPat : List PatternId -> PatternId -> Exp -> List SynthesisResult
 moveDefinitionPat sourcePatIds targetPatId program =
-  let (pluckedPatAndBoundExpAndOldScopeBodies, programWithoutPlucked) =
-    sourcePatIds
-    |> List.sortBy
-        (\((scopeEId, branchI), path) ->
-          let scope = justFindExpByEId program scopeEId in
-          (scope.start.line, scope.start.col, branchI, path)
-        )
-    |> List.foldr
-        (\sourcePatId (pluckedPatAndBoundExpAndOldScopeBodies, programBeingPlucked) ->
-          case pluck sourcePatId programBeingPlucked of
-            Just ((pluckedPat, pluckedBoundExp), programWithoutPlucked) ->
-              let ((sourceScopeEId, _), _) = sourcePatId in
-              let oldScopeBody = justFindExpByEId program sourceScopeEId |> expToLetBody in -- search in original program b/c old body is for safety check
-              ((pluckedPat, pluckedBoundExp, oldScopeBody)::pluckedPatAndBoundExpAndOldScopeBodies, programWithoutPlucked)
-            Nothing ->
-              (pluckedPatAndBoundExpAndOldScopeBodies, programBeingPlucked)
-        )
-        ([], program)
-  in
-  if pluckedPatAndBoundExpAndOldScopeBodies == [] then
-    Debug.log "could not pluck anything" []
-  else
+  let makeNewProgram pluckedPatAndBoundExps programWithoutPluckedUniqueNames =
     let ((targetEId, _), targetPath) = targetPatId in
     let newProgram =
-      programWithoutPlucked
+      programWithoutPluckedUniqueNames
       |> mapExpNode
           targetEId
           (\newScopeExp ->
-            pluckedPatAndBoundExpAndOldScopeBodies
+            pluckedPatAndBoundExps
             |> List.foldr
-                (\(pluckedPat, pluckedBoundExp, _) newScopeExp ->
+                (\(pluckedPat, pluckedBoundExp) newScopeExp ->
                   insertPat_ (pluckedPat, pluckedBoundExp) targetPath newScopeExp
                 )
                 newScopeExp
           )
       |> LangTransform.simplifyAssignments
     in
-    -- let _ = Debug.log ("old: \n" ++ unparseWithIds program) () in
-    -- let _ = Debug.log ("new: \n" ++ unparseWithIds newProgram) () in
-    let newScope       = justFindExpByEId newProgram targetEId in
-    let newScopeLetPat = expToLetPat newScope in
-    let newScopeBody   = expToLetBody newScope in
-    let isSafe =
-      let identUsesSafe =
-        -- Effectively comparing EIds of all uses of the identifiers.
-        -- Presumably these will be exactly equal rather than equal as sets since we shouldn't be moving around the relative position of the variable usages...still, I think a set is the natural strucuture here
-        let identSafe oldScopeBody ident =
-          Utils.equalAsSets (identifierUsageEIds ident oldScopeBody) (identifierUsageEIds ident newScopeBody)
-        in
-        pluckedPatAndBoundExpAndOldScopeBodies
-        |> List.all
-            (\(pluckedPat, _, oldScopeBody) ->
-              identifiersListInPat pluckedPat |> List.all (identSafe oldScopeBody)
-            )
-      in
-      let boundExpVarsSafe =
-        pluckedPatAndBoundExpAndOldScopeBodies
-        |> List.all
-            (\(_, pluckedBoundExp, _) ->
-              freeVars pluckedBoundExp
-              |> List.all (\e -> bindingScopeIdFor e program == bindingScopeIdFor e newProgram)
-            )
-      in
-      let noDuplicateNamesInPat =
-        let namesDefinedAtNewScope = identifiersListInPat newScopeLetPat in
-        namesDefinedAtNewScope == Utils.dedup namesDefinedAtNewScope
-      in
-      identUsesSafe && boundExpVarsSafe && noDuplicateNamesInPat
-    in
-    let caption =
-      let (pluckedPats, _, _) = Utils.unzip3 pluckedPatAndBoundExpAndOldScopeBodies in
-      "Move " ++ (List.map (unparsePat >> Utils.squish) pluckedPats |> Utils.toSentence) ++ " to make " ++ (unparsePat >> Utils.squish >> Utils.niceTruncateString 20 "...") newScopeLetPat
-    in
-    let result =
-      synthesisResult caption newProgram |> setResultSafe isSafe
-    in
-    [result]
+    (newProgram, targetEId)
+  in
+  moveDefinitions_ makeNewProgram sourcePatIds program
 
 
 insertPat_ : PatBoundExp -> List Int -> Exp -> Exp
