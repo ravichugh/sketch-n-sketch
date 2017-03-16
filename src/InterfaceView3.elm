@@ -145,7 +145,17 @@ view model =
 
      -- toolboxes in reverse order
      , outputTools] ++ animationTools ++
-     [ moreBlobTools, blobTools, attributeTools, lambdaDrawTools, stretchyDrawTools, drawTools
+
+     (if model.showOnlyBasicTools then [] else
+       [ moreBlobTools
+       , blobTools
+       , attributeTools
+       , lambdaDrawTools
+       , stretchyDrawTools
+       ]
+     ) ++
+
+     [ drawTools
      , textTools, deuceTools
      , codeTools, fileTools
      ] ++ synthesisResultsSelect ++
@@ -254,6 +264,7 @@ outputToolBox model layout =
     , outputButton model
     , ghostsButton model
     , autoSynthesisButton model
+    , showOnlyBasicsButton model
     ]
 
 animationToolBox model layout =
@@ -804,6 +815,11 @@ fontSizeButton model =
     { m | codeBoxInfo = { codeBoxInfo | fontSize = fontSize } }
   in
   htmlButton cap msg Regular False
+
+showOnlyBasicsButton model =
+  let cap = "[Tools] " ++ (if model.showOnlyBasicTools then "Basics" else "All") in
+  let foo m = { m | showOnlyBasicTools = not m.showOnlyBasicTools } in
+  htmlButton cap (Msg "Toggle Ghosts" foo) Regular False
 
 {-
 deuceWidgetsButton model =

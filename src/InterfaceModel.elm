@@ -115,6 +115,7 @@ type alias Model =
   , hoveringCodeBox : Bool
   , scopeGraph : ScopeGraph
   , deuceState : DeuceWidgets.DeuceState
+  , showOnlyBasicTools : Bool
   }
 
 type Mode
@@ -490,4 +491,5 @@ initModel =
     , showAllDeuceWidgets = False
     , hoveringCodeBox = False
     , deuceState = DeuceWidgets.emptyDeuceState
+    , showOnlyBasicTools = True
     }
