@@ -7,7 +7,7 @@ import Lang exposing (..)
 
 -- testPostfixRemoval inputCode expectedOutputCode =
 --   Helpers.TestTemplates.testCodeTransform
---     (LangTransform.removeExtraPostfixes ["_orig", "'"])
+--     (LangSimplify.removeExtraPostfixes ["_orig", "'"])
 --     inputCode
 --     expectedOutputCode
 --

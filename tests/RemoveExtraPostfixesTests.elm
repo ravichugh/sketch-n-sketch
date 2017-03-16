@@ -2,12 +2,12 @@ module RemoveExtraPostfixesTests where
 
 import Helpers.TestTemplates exposing (..)
 
-import LangTransform
+import LangSimplify
 
 
 testPostfixRemoval inputCode expectedOutputCode =
   Helpers.TestTemplates.testCodeTransform
-    (LangTransform.removeExtraPostfixes ["_orig", "'"])
+    (LangSimplify.removeExtraPostfixes ["_orig", "'"])
     inputCode
     expectedOutputCode
 

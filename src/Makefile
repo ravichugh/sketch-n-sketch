@@ -40,7 +40,7 @@ loc:
     InterfaceModel.elm \
     InterfaceView3.elm Layout.elm Canvas.elm \
     InterfaceController.elm \
-    LangTools.elm LangTransform.elm ValueBasedTransform.elm \
+    LangTools.elm LangSimplify.elm ValueBasedTransform.elm \
     Blobs.elm Draw.elm ExpressionBasedTransform.elm \
     DeuceWidgets.elm \
     DependenceGraph.elm CodeMotion.elm Native/dotGraph.js \

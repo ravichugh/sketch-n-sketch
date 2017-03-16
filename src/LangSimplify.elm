@@ -1,10 +1,17 @@
 --
--- LangTransform
+-- LangSimplify
 --
--- Transformations of the code that do not change its output.
+-- Simplifications of the code that do not change its output.
 --
 
-module LangTransform exposing (cleanCode, simplify, removeExtraPostfixes, simplifyAssignments)
+module LangSimplify exposing
+  ( cleanCode
+  , simplify
+  , removeExtraPostfixes
+  , removeUnusedVars
+  , simplifyAssignments
+  , changeRenamedVarsToOuter
+  )
 
 import Set
 import Dict
@@ -394,7 +401,6 @@ changeRenamedVarsToOuter exp =
 
 
 changeRenamedVarsToOuter_ renamings exp =
-  let wrap e__ = OurParser2.WithInfo (Exp_ e__ exp.val.eid) exp.start exp.end in
   let recurse = changeRenamedVarsToOuter_ renamings in
   let e__New =
     let e__ = exp.val.e__ in
@@ -485,5 +491,5 @@ changeRenamedVarsToOuter_ renamings exp =
       EColonType ws1 e ws2 tipe ws3 -> EColonType ws1 (recurse e) ws2 tipe ws3
       ETypeAlias ws1 pat tipe e ws2 -> ETypeAlias ws1 pat tipe (recurse e) ws2
   in
-  wrap e__New
+  replaceE__ exp e__New
 

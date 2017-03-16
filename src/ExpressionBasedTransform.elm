@@ -17,7 +17,7 @@ import LangSvg exposing (NodeId)
 import ShapeWidgets exposing (PointFeature, SelectedShapeFeature)
 import Blobs exposing (..)
 import LangTools exposing (..)
-import LangTransform
+import LangSimplify
 import Types
 import InterfaceModel exposing (Model, ReplicateKind(..))
 import Utils
@@ -1267,7 +1267,7 @@ redundantBinding (p, e) =
     _ -> False
 
 clean =
-  removeRedundantBindings << LangTransform.simplify
+  removeRedundantBindings << LangSimplify.simplify
 
 
 --------------------------------------------------------------------------------

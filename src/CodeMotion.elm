@@ -10,7 +10,7 @@ module CodeMotion exposing
 
 import Lang exposing (..)
 import LangTools exposing (..)
-import LangTransform
+import LangSimplify
 import LangUnparser exposing (unparse, unparseWithIds, unparseWithUniformWhitespace, unparsePat)
 import LangParser2
 -- import DependenceGraph exposing
@@ -310,7 +310,7 @@ moveDefinitionsBeforeEId sourcePatIds targetEId program =
                 (ensureWhitespacePat newPatUniqueNames) (ensureWhitespaceExp newBoundExpUniqueNames)
                 (ensureWhitespaceExp expToWrap) ""
           )
-      |> LangTransform.simplifyAssignments
+      |> LangSimplify.simplifyAssignments
     in
     (newProgram, insertedLetEId)
   in
@@ -333,7 +333,7 @@ moveDefinitionsPat sourcePatIds targetPatId program =
                 )
                 newScopeExp
           )
-      |> LangTransform.simplifyAssignments
+      |> LangSimplify.simplifyAssignments
     in
     (newProgram, targetEId)
   in

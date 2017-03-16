@@ -6,7 +6,7 @@ module LangTools exposing (..)
 --
 -- Lots of methods for dealing with identifiers and renaming.
 --
--- Things in here are only used by LangTransform and ValueBasedTransform,
+-- Things in here are only used by LangSimplify and ValueBasedTransform,
 -- currently. Also used in InterfaceView to find unfrozen locs to animate in our
 -- (possibly defunct) relate attributes selection screen.
 

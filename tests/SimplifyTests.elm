@@ -2,12 +2,12 @@ module SimplifyTests where
 
 import Helpers.TestTemplates exposing (..)
 
-import LangTransform
+import LangSimplify
 
 
 testSimplification inputCode expectedSimplification =
   Helpers.TestTemplates.testCodeTransform
-    LangTransform.simplify
+    LangSimplify.simplify
     inputCode
     expectedSimplification
 

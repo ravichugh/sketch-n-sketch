@@ -44,7 +44,7 @@ import Ace
 import LangParser2 exposing (parseE, freshen)
 import LangUnparser exposing (unparse)
 import LangTools
-import LangTransform
+import LangSimplify
 import ValueBasedTransform
 import Blobs exposing (..)
 import Draw
@@ -773,7 +773,7 @@ msgKeyUp keyCode = Msg ("Key Up " ++ toString keyCode) <| \old ->
 cleanSynthesisResult (SynthesisResult {description, exp, isSafe, sortKey, children}) =
   SynthesisResult <|
     { description = description ++ " -> Cleaned"
-    , exp         = LangTransform.cleanCode exp
+    , exp         = LangSimplify.cleanCode exp
     , isSafe      = isSafe
     , sortKey     = sortKey
     , children    = children
@@ -795,7 +795,7 @@ msgCleanCode = Msg "Clean Code" <| \old ->
     Err (err, _) ->
       { old | caption = Just (LangError ("PARSE ERROR!\n" ++ err)) }
     Ok reparsed ->
-      let cleanedExp = LangTransform.cleanCode reparsed in
+      let cleanedExp = LangSimplify.cleanCode reparsed in
       let code_ = unparse cleanedExp in
       if old.code == code_ then old
       else
