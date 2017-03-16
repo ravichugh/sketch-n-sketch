@@ -1574,12 +1574,22 @@ deuceToolBoxNested model layout extremePoint =
     [icon, pinButton] ++ spacer ++ tools
 
 deuceTools model =
-  let extraButtonStyles maybeWidth =
+  let chop = Utils.removeLastElement in
+  let hoveredPath = model.deuceState.hoveredMenuPath in
+  let extraButtonStyles path maybeWidth =
     Attr.style
         [ ("width", Maybe.withDefault "100%" maybeWidth)
         , ("text-align", "left")
         , ("padding-top", "0px")
         , ("padding-bottom", "0px")
+        , ("opacity",
+            if path == hoveredPath then "1.0"
+            else if path == chop hoveredPath then "1.0"
+            else if chop path == hoveredPath then "0.9"
+            else if chop path == chop hoveredPath then "0.9"
+            else if List.length path == 1 then "0.9"
+            else "0.0"
+          )
         ]
   in
   let oneTool (i, (toolName, func)) =
@@ -1587,7 +1597,7 @@ deuceTools model =
       case (result.isSafe, runAndResolve model result.exp) of
         (True, Err err) ->
           let _ = Debug.log "not safe after all!" () in
-          (Just (unparse result.exp, Err err), "black")
+          (Just (unparse result.exp, Err err), "red")
 
         (True, Ok (val, widgets, slate, code)) ->
           (Just (code, Ok (val, widgets, slate)), "white")
@@ -1598,20 +1608,20 @@ deuceTools model =
         (False, Err err) ->
           (Just (unparse result.exp, Err err), "salmon")
     in
-    let deadButton caption maybeWidth =
-      htmlButtonExtraAttrs [extraButtonStyles maybeWidth] caption
-         Controller.msgNoop Regular False
+    -- could refactor deadButton and previewButton...
+    let deadButton path caption maybeWidth =
+      let attrs =
+        [extraButtonStyles path maybeWidth] ++
+        deuceMenuButtonHoverEvents path Nothing
+      in
+      htmlButtonExtraAttrs attrs caption Controller.msgNoop Regular False
     in
-    let previewButton maybeCaption (SynthesisResult result) =
+    let previewButton path maybeCaption (SynthesisResult result) =
       let (preview, color) = previewAndColor result in
       let attrs =
-        [extraButtonStyles Nothing] ++
-        [ Html.Events.onMouseEnter <|
-            Msg ("Hover Deuce Tool " ++ toString i) (\m -> { m | preview = preview })
-        , Html.Events.onMouseLeave <|
-            Msg ("Leave Deuce Tool " ++ toString i) (\m -> { m | preview = Nothing })
-        , Attr.style [("background-color", color)]
-        ]
+        [Attr.style [("background-color", color)]] ++
+        [extraButtonStyles path Nothing] ++
+        deuceMenuButtonHoverEvents path (Just preview)
       in
       let caption = Maybe.withDefault result.description maybeCaption in
       htmlButtonExtraAttrs attrs caption
@@ -1627,21 +1637,30 @@ deuceTools model =
           [ ("position", if isParent then "relative" else "absolute")
           , ("overflow", "visible")
           , ("width", width)
+          , ("background", Layout.strInterfaceColor)
           ] ++ (if isParent then [] else [("left", width)])
       in
       case oneOrMoreResults of
         Left result ->
-          let toolButton = previewButton (Just toolName) result in
+          let toolButton = previewButton [i] (Just toolName) result in
           Html.div [divAttrs True] [toolButton]
 
         Right results ->
           let toolButtonAndExtras =
+            let caption =
+              toolName ++ " " ++ Utils.parens (toString (List.length results))
+            in
             if String.startsWith "Rename" toolName
-            then [deadButton toolName (Just "150px"), renameVarTextBox]
-            else [deadButton toolName Nothing]
+            then [deadButton [i] caption (Just "150px"), renameVarTextBox [i]]
+            else [deadButton [i] caption Nothing]
           in
           let nextMenu =
-            Html.div [divAttrs False] (List.map (previewButton Nothing) results)
+            if hoveredPath == [i] || chop hoveredPath == [i] then
+              Html.div [divAttrs False]
+                (Utils.mapi1 (\(j,result) -> previewButton [i,j] Nothing result)
+                             results)
+            else
+              Html.div [] []
           in
           -- nextMenu first, so it pops out at same y-position as toolButton
           Html.div [divAttrs True] (nextMenu :: toolButtonAndExtras)
@@ -1663,8 +1682,8 @@ deuceTools model =
   in
   Utils.mapi1 oneTool (Controller.contextSensitiveDeuceTools model)
 
-renameVarTextBox =
-  Html.input
+renameVarTextBox path =
+  flip Html.input [] <|
      [ Attr.type_ "text"
      , Attr.style <|
          [ ("width", "100px") -- in sync with 250px - 150px above
@@ -1678,5 +1697,22 @@ renameVarTextBox =
          Msg ("Update Rename Var Textbox: " ++ str) <| \m ->
            let deuceState = m.deuceState in
            { m | deuceState = { deuceState | renameVarTextBox = str } }
-     ]
-     []
+     ] ++
+    deuceMenuButtonHoverEvents path Nothing
+
+deuceMenuButtonHoverEvents path maybePreview =
+  [ Html.Events.onMouseEnter <|
+      Msg ("Hover Deuce Tool " ++ toString path)
+          (setHoveredMenuPath path >>
+           case maybePreview of
+             Just preview -> \m -> { m | preview = preview }
+             Nothing      -> \m -> m
+          )
+  , Html.Events.onMouseLeave <|
+      Msg ("Leave Deuce Tool " ++ toString path)
+          (clearHoveredMenuPath >>
+           case maybePreview of
+             Just preview -> \m -> { m | preview = Nothing }
+             Nothing      -> \m -> m
+          )
+  ]

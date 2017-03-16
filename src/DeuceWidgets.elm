@@ -15,6 +15,7 @@ import Dict exposing (Dict)
 type alias DeuceState =
   { selectedWidgets : List DeuceWidget   -- not Set b/c not comparable
   , hoveredWidgets : List DeuceWidget    -- not Set b/c not comparable
+  , hoveredMenuPath : List Int
   , renameVarTextBox : String
   }
 
@@ -29,6 +30,7 @@ emptyDeuceState : DeuceState
 emptyDeuceState =
   { selectedWidgets = []
   , hoveredWidgets = []
+  , hoveredMenuPath = []
   , renameVarTextBox = ""
   }
 
@@ -46,6 +48,13 @@ resetDeuceState m =
                 }
           }
       }
+
+setHoveredMenuPath path m =
+  let deuceState = m.deuceState in
+  { m | deuceState = { deuceState | hoveredMenuPath = path } }
+
+clearHoveredMenuPath = setHoveredMenuPath []
+
 
 --------------------------------------------------------------------------------
 
