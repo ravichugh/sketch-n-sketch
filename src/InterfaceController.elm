@@ -1542,6 +1542,7 @@ msgMoveExp = Msg "Move Exp" <| \m -> m
 --       { model | synthesisResults = safeResults ++ unsafeResults }
 
 
+--------------------------------------------------------------------------------
 
 -- TODO if/when drawing extra widgets for tools,
 -- this all should move elsewhere (View, DeuceWidgets, ...)
@@ -1554,91 +1555,24 @@ contextSensitiveDeuceTools m =
   let patIds = selectedPats selectedWidgets in
   let expTargets = selectedExpTargets selectedWidgets in
   let patTargets = selectedPatTargets selectedWidgets in
+  let selections = (nums, exps, patIds, expTargets, patTargets) in
 
-  case (nums, exps, patIds, expTargets, patTargets) of
+  List.concat <|
+    [ addToolTwoOrMoreNumsOnly (\_ _ -> CodeMotion.makeMakeEqualTool m nums) m selections
+    , addToolFlipBoolean m selections
+    , addToolRenamePat m selections
+    , addToolRenameVar m selections
+    , addToolTwiddleShapes m selections
+    , addToolIntroduceVar m selections
+    , addToolMoveDefinition m selections
+    , addToolDuplicateDefinition m selections
+    , addToolOneOrMoreNumsOnly thawOrFreezeTool m selections
+    , addToolOneOrMoreNumsOnly showOrHideRangeTool m selections
+    , addToolOneOrMoreNumsOnly addOrRemoveRangeTool m selections
+    ]
 
-    ([], [], [], [], []) -> []
 
-    ([], [], [patId], [], []) ->
-      case LangTools.findPat patId m.inputExp |> Maybe.map .val of
-        Just (PVar _ ident _) ->
-          [ ("Rename " ++ ident, \() ->
-              let newName = m.deuceState.renameVarTextBox in
-              renamePat patId newName m.inputExp
-            ) ]
-
-        Just (PAs _ ident _ _) ->
-          [ ("Rename " ++ ident, \() ->
-              []
-            ) ]
-
-        _ ->
-          []
-
-    ([], [], [_], [(Before, eId)], []) ->
-      [ ("Move Definition", \() ->
-          CodeMotion.moveDefinitionsBeforeEId patIds eId m.inputExp
-        ),
-        ("Duplicate Definition", \() ->
-          CodeMotion.duplicateDefinitionsBeforeEId patIds eId m.inputExp
-        ) ]
-
-    ([], [], _::_, [(Before, eId)], []) ->
-      [ ("Move Definitions", \() ->
-          CodeMotion.moveDefinitionsBeforeEId patIds eId m.inputExp
-        ),
-        ("Duplicate Definitions", \() ->
-          CodeMotion.duplicateDefinitionsBeforeEId patIds eId m.inputExp
-        ) ]
-
-    ([], [], [_], [], [patTarget]) ->
-      [ ("Move Definition", \() ->
-          CodeMotion.moveDefinitionPat patIds (patTargetPositionToTargetPatId patTarget) m.inputExp
-        ) ]
-
-    ([], [], _::_, [], [patTarget]) ->
-      [ ("Move Definitions", \() ->
-          CodeMotion.moveDefinitionPat patIds (patTargetPositionToTargetPatId patTarget) m.inputExp
-        ) ]
-
-    ([], [eId], [], [], []) ->
-      case findExpByEId m.inputExp eId of
-        Nothing -> []
-        Just ePlucked ->
-          let tools = Draw.makeTwiddleTools m eId ePlucked in
-          case tools of
-            _::_ -> tools
-            []   ->
-              case ePlucked.val.e__ of
-                EVar _ ident ->
-                  let newName = m.deuceState.renameVarTextBox in
-                  [("Rename All " ++ ident, \() -> renameVar eId newName m.inputExp)]
-                EBase ws (EBool bool) ->
-                  let flipped = withDummyPos (EBase ws (EBool (not bool))) in
-                  let newExp = replaceExpNode eId flipped m.inputExp in
-                  [("Flip Boolean", \() -> oneSafeResult newExp)]
-                _        -> [] -- may support other kinds of selections here
-
-    (_, _, [], [], []) ->
-      if List.length nums /= List.length exps then []
-      else
-        thawOrFreezeTool m nums ++
-        showOrHideRangeTool m nums ++
-        addOrRemoveRangeTool m nums ++
-        if List.length nums == 1 then []
-        else
-          CodeMotion.makeMakeEqualTool m nums
-          -- [ ("Dig Hole", dummyDeuceTool m) ]
-
-    (_, _ :: _, [], [], [patTarget]) ->
-      CodeMotion.makeIntroduceVarTool m exps (PatTargetPosition patTarget)
-
-    (_, _ :: _, [], [expTarget], []) ->
-      CodeMotion.makeIntroduceVarTool m exps (ExpTargetPosition expTarget)
-      -- TODO turning off until fix
-      -- CodeMotion.makeEListReorderTool m exps expTarget
-
-    _ -> []
+--------------------------------------------------------------------------------
 
 msgChooseDeuceExp exp = Msg "Choose Deuce Exp" <| \m ->
   -- TODO version of tryRun/upstateRun starting with parsed expression
@@ -1646,6 +1580,9 @@ msgChooseDeuceExp exp = Msg "Choose Deuce Exp" <| \m ->
 
 dummyDeuceTool m = \() ->
   [synthesisResult "not yet implemented" m.inputExp |> setResultSafe False]
+
+
+--------------------------------------------------------------------------------
 
 selectedNums : Model -> List (LocId, WS, Num, Loc, WidgetDecl)
 selectedNums m = flip List.concatMap m.deuceState.selectedWidgets <| \deuceWidget ->
@@ -1688,7 +1625,33 @@ selectedPatTargets deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidg
     _ -> []
 
 
--- TODO: the following three functions could be factored...
+--------------------------------------------------------------------------------
+
+addToolOneOrMoreNumsOnly func m selections = case selections of
+  (nums, exps, [], [], []) ->
+    if List.length nums >= 1 &&
+       List.length nums == List.length exps
+    then func m nums
+    else []
+
+  _ -> []
+
+-- TODO call to this is ugly
+addToolTwoOrMoreNumsOnly func m selections = case selections of
+  (nums, exps, [], [], []) ->
+    if List.length nums >= 2 &&
+       List.length nums == List.length exps
+    then func m nums
+    else []
+
+  _ -> []
+
+
+--------------------------------------------------------------------------------
+
+-- TODO: the following three functions
+-- (thawOrFreezeTool, showOrHideRangeTool, addOrRemoveRangeTool)
+-- could be factored...
 
 thawOrFreezeTool m nums =
 
@@ -1811,6 +1774,24 @@ addOrRemoveRangeTool m nums =
       ]
 
 
+--------------------------------------------------------------------------------
+
+addToolRenamePat m selections = case selections of
+  ([], [], [patId], [], []) ->
+    case LangTools.findPat patId m.inputExp |> Maybe.map .val of
+      Just (PVar _ ident _) ->
+        [ ("Rename " ++ ident, \() ->
+            let newName = m.deuceState.renameVarTextBox in
+            renamePat patId newName m.inputExp
+          ) ]
+
+      Just (PAs _ ident _ _) ->
+        [ ("Rename " ++ ident, \() -> []) ]
+
+      _ -> []
+
+  _ -> []
+
 renamePat : PatternId -> String -> Exp -> List SynthesisResult
 renamePat (scopeId, path) newName program =
   case LangTools.findScopeExpAndPat (scopeId, path) program of
@@ -1846,6 +1827,20 @@ renamePat (scopeId, path) newName program =
       []
 
 
+--------------------------------------------------------------------------------
+
+addToolRenameVar m selections = case selections of
+  ([], [eId], [], [], []) ->
+    case findExpByEId m.inputExp eId of
+      Just ePlucked ->
+        case ePlucked.val.e__ of
+          EVar _ ident ->
+            let newName = m.deuceState.renameVarTextBox in
+            [("Rename All " ++ ident, \() -> renameVar eId newName m.inputExp)]
+          _ -> []
+      _ -> []
+  _ -> []
+
 renameVar : EId -> String -> Exp -> List SynthesisResult
 renameVar varEId newName program =
   let varExp = LangTools.justFindExpByEId program varEId in
@@ -1857,3 +1852,78 @@ renameVar varEId newName program =
     Nothing ->
       let _ = Debug.log (oldName ++ " is free at this location in the program") () in
       []
+
+
+--------------------------------------------------------------------------------
+
+addToolFlipBoolean m selections = case selections of
+  ([], [eId], [], [], []) ->
+    case findExpByEId m.inputExp eId of
+      Just ePlucked ->
+        case ePlucked.val.e__ of
+          EBase ws (EBool bool) ->
+            let flipped = withDummyPos (EBase ws (EBool (not bool))) in
+            let newExp = replaceExpNode eId flipped m.inputExp in
+            [("Flip Boolean", \() -> oneSafeResult newExp)]
+          _ -> []
+      _ -> []
+  _ -> []
+
+
+--------------------------------------------------------------------------------
+
+addToolTwiddleShapes m selections = case selections of
+  ([], [eId], [], [], []) ->
+    case findExpByEId m.inputExp eId of
+      Just ePlucked ->
+        let tools = Draw.makeTwiddleTools m eId ePlucked in
+        case tools of
+          _::_ -> tools
+          [] -> []
+      _ -> []
+  _ -> []
+
+
+--------------------------------------------------------------------------------
+
+-- could do the following inside CodeMotion...
+
+addToolIntroduceVar m selections = case selections of
+  (_, [], _, _, _) -> []
+  (_, exps, [], [], [patTarget]) ->
+    CodeMotion.makeIntroduceVarTool m exps (PatTargetPosition patTarget)
+  (_, exps, [], [expTarget], []) ->
+    CodeMotion.makeIntroduceVarTool m exps (ExpTargetPosition expTarget)
+  _ -> []
+
+addToolMoveDefinition m selections = case selections of
+  (_, _, [], _, _) -> []
+  ([], [], [patId], [(Before, eId)], []) ->
+    [ ("Move Definition", \() ->
+        CodeMotion.moveDefinitionsBeforeEId [patId] eId m.inputExp
+      ) ]
+  ([], [], patIds, [(Before, eId)], []) ->
+    [ ("Move Definitions", \() ->
+        CodeMotion.moveDefinitionsBeforeEId patIds eId m.inputExp
+      ) ]
+  ([], [], [patId], [], [patTarget]) ->
+    [ ("Move Definition", \() ->
+        CodeMotion.moveDefinitionPat [patId] (patTargetPositionToTargetPatId patTarget) m.inputExp
+      ) ]
+  ([], [], patIds, [], [patTarget]) ->
+    [ ("Move Definitions", \() ->
+        CodeMotion.moveDefinitionPat patIds (patTargetPositionToTargetPatId patTarget) m.inputExp
+      ) ]
+  _ -> []
+
+addToolDuplicateDefinition m selections = case selections of
+  (_, _, [], _, _) -> []
+  ([], [], [patId], [(Before, eId)], []) ->
+    [ ("Duplicate Definition", \() ->
+        CodeMotion.duplicateDefinitionsBeforeEId [patId] eId m.inputExp
+      ) ]
+  ([], [], patIds, [(Before, eId)], []) ->
+    [ ("Duplicate Definitions", \() ->
+        CodeMotion.duplicateDefinitionsBeforeEId patIds eId m.inputExp
+      ) ]
+  _ -> []
