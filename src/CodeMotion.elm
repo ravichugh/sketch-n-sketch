@@ -5,6 +5,7 @@ module CodeMotion exposing
   , makeEListReorderTool
   , makeIntroduceVarTool
   , makeMakeEqualTool
+  , addToolCommonSubExp
   )
 
 import Lang exposing (..)
@@ -747,3 +748,49 @@ makeMakeEqualTool m literals =
     )
   in
   [ ("Make Equal with New Var", \() -> results) ]
+
+
+------------------------------------------------------------------------------
+
+addToolCommonSubExp m selections =
+  case selections of
+    (_, _, [], _, _, _, _)          -> []
+    (_, _, [_], _, _, _, _)         -> []
+    ([], [], i::js, [], [], [], []) -> makeCommonSubExpTool m i js
+    _                               -> []
+
+makeCommonSubExpTool m firstId restIds =
+  let expIds = firstId :: restIds in
+  let firstExp = justFindExpByEId m.inputExp firstId in
+  let restExps = List.map (justFindExpByEId m.inputExp) restIds in
+  let diffs = List.concatMap (extraExpsDiff firstExp) restExps in
+  if diffs /= [] then []
+  else
+    -- a lot of duplication from makeIntroduceVarTool and makeMakeEqualTool...
+    let name = expNameForEId m.inputExp firstId in
+    let targetLet =
+      justInsideDeepestCommonScope m.inputExp (\e -> List.member e.val.eid expIds)
+    in
+    let targetBodyEId = targetLet.val.eid in
+    let namesToAvoid =
+      visibleIdentifiersAtEIds m.inputExp (Set.singleton targetBodyEId)
+    in
+    let newVar = nonCollidingName name 1 namesToAvoid in
+    let newEquation = (newVar, firstExp) in
+    let expWithNewVarUsed =
+      List.foldl
+         (\eid -> replaceExpNodePreservingPrecedingWhitespace eid (eVar newVar))
+         m.inputExp expIds
+    in
+    let newExp =
+      mapExp (\e -> if e.val.eid == targetBodyEId
+                    then addNewEquationsAround m.inputExp targetBodyEId [newEquation] e
+                    else e
+             ) expWithNewVarUsed
+    in
+    [ ("Eliminate Common Subexpression", \() ->
+        newExp
+        |> synthesisResult "Just Do It."
+        |> setResultSafe False -- TODO
+        |> Utils.singleton
+      ) ]
