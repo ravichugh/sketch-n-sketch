@@ -643,9 +643,13 @@ makeIntroduceVarTool_ m expIds addNewVarsAtThisId addNewEquationsAt =
   let toolName =
     "Introduce Var" ++ (if List.length expIds == 1 then "" else "s")
   in
-  let (_,_,_,_,_,targetBody,_) = getELet m.inputExp addNewVarsAtThisId in
-  let targetBodyEId = targetBody.val.eid in
   let visibleAtTargetBody =
+    let targetBodyEId =
+      let exp = justFindExpByEId m.inputExp addNewVarsAtThisId in
+      case exp.val.e__ of
+        ELet _ _ _ _ _ e2 _ -> e2.val.eid
+        _                   -> exp.val.eid
+    in
     visibleIdentifiersAtEIds m.inputExp (Set.singleton targetBodyEId)
   in
   [ (toolName, \() ->
