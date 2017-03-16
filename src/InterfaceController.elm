@@ -1911,9 +1911,9 @@ addToolTwiddleShapes m selections = case selections of
 
 addToolIntroduceVar m selections = case selections of
   (_, _, [], _, _, _) -> []
-  (_, [], exps, [], [], [patTarget]) ->
+  (_, _, exps, [], [], [patTarget]) ->
     CodeMotion.makeIntroduceVarTool m exps (PatTargetPosition patTarget)
-  (_, [], exps, [], [expTarget], []) ->
+  (_, _, exps, [], [expTarget], []) ->
     CodeMotion.makeIntroduceVarTool m exps (ExpTargetPosition expTarget)
   _ -> []
 
