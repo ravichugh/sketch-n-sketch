@@ -637,34 +637,48 @@ abstractPVar patId originalProgram =
     Just ((pluckedPat, pluckedBoundExp), _) ->
       case pluckedPat.val of
         PVar _ ident _ ->
-          let shouldBeParameter exp originalProgram =
-            case exp.val.e__ of
-              EConst _ _ _ _ -> True
-              _              -> False
-          in
-          let (argumentsForCallSite, abstractedExp) =
-            abstract pluckedBoundExp.val.eid shouldBeParameter originalProgram
-          in
-          let ((scopeEId, _), _) = patId in
-          let scopeExp = justFindExpByEId originalProgram scopeEId in
-          let scopeBody = scopeExp |> expToLetBody in
-          let newScopeBody =
-            let varToApp varExp =
-              case varExp.val.e__ of
-                EVar ws1 _ ->
-                  replaceE__ varExp <| EApp ws1 (eVar0 ident) (argumentsForCallSite |> setExpListWhitespace " " " ") ""
-
-                _ ->
-                  Debug.crash ("CodeMotion.abstractPVar.varToApp transformVarsUntilBound should only yield EVars, got: " ++ toString varExp)
+          let doAbstract shouldBeParameter =
+            let ((scopeEId, _), _) = patId in
+            let scopeExp = justFindExpByEId originalProgram scopeEId in
+            let scopeBody = scopeExp |> expToLetBody in
+            let (argumentsForCallSite, abstractedExp) =
+              abstract pluckedBoundExp.val.eid shouldBeParameter originalProgram
             in
-            transformVarsUntilBound (Dict.singleton ident varToApp) scopeBody
+            let newScopeBody =
+              let varToApp varExp =
+                replaceE__PreservingPrecedingWhitespace varExp (EApp "" (eVar0 ident) (argumentsForCallSite |> setExpListWhitespace " " " ") "")
+              in
+              transformVarsUntilBound (Dict.singleton ident varToApp) scopeBody
+            in
+            let newProgram =
+              originalProgram
+              |> replaceExpNode scopeBody.val.eid newScopeBody
+              |> replaceExpNode pluckedBoundExp.val.eid abstractedExp
+            in
+            newProgram
           in
-          let newProgram =
-            originalProgram
-            |> replaceExpNode scopeBody.val.eid newScopeBody
-            |> replaceExpNode pluckedBoundExp.val.eid abstractedExp
+          let abstractedOverAllConstantsResult =
+            let shouldBeParameter exp originalProgram =
+              case exp.val.e__ of
+                EConst _ _ _ _ -> True
+                _              -> False
+            in
+            let newProgram = doAbstract shouldBeParameter in
+            synthesisResult ("Abstract " ++ ident ++ " over its constants") newProgram
           in
-          [ synthesisResult ("Abstract " ++ ident ++ " over its constants") newProgram ]
+          let abstractedOverNamedUnfrozenConstantsResult =
+            let shouldBeParameter exp originalProgram =
+              case exp.val.e__ of
+                -- Ignore syncOptions.
+                EConst _ _ (_, annot, ident) _ -> ident /= "" && annot /= frozen
+                _                              -> False
+            in
+            let newProgram = doAbstract shouldBeParameter in
+            synthesisResult ("Abstract " ++ ident ++ " over its named unfrozen constants") newProgram
+          in
+          [ abstractedOverAllConstantsResult
+          , abstractedOverNamedUnfrozenConstantsResult
+          ]
 
         _ ->
           Debug.log "Can only abstract a PVar" []
