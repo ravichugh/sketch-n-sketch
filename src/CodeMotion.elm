@@ -662,22 +662,33 @@ makeMakeEqualTool m nums =
     justInsideDeepestCommonScope m.inputExp (\e -> List.member e.val.eid expIds)
   in
   let targetId = targetLet.val.eid in
-  let name = commonNameForEIdsWithDefault "newVar" m.inputExp expIds in
-  -- let name = expNameForEId m.inputExp firstNumExpId in
-  let namesToAvoid =
-    visibleIdentifiersAtEIds m.inputExp (Set.singleton targetId)
+  let potentialNames =
+    let
+      names = Utils.dedupByEquality (List.map (expNameForEId m.inputExp) expIds)
+      joinedNames = String.join "_" names
+      commonName = commonNameForEIdsWithDefault joinedNames m.inputExp expIds
+      namesToAvoid = visibleIdentifiersAtEIds m.inputExp (Set.singleton targetId)
+    in
+    commonName :: joinedNames :: names
+    |> List.map (\name -> nonCollidingName name 1 namesToAvoid)
+    |> Utils.dedupByEquality
+    |> List.sortBy String.length
   in
-  let newVar = nonCollidingName name 1 namesToAvoid in
-  let newEquation = (newVar, eConst firstNum dummyLoc) in
-  let eSubst =
-    List.foldl (\(eid,ws,_,_,_) -> Dict.insert eid (EVar ws newVar)) Dict.empty nums
-  in
-  let expWithNewVarUsed = applyESubst eSubst m.inputExp in
-  let newExp =
-    expWithNewVarUsed |> mapExp (\e ->
-      if e.val.eid == targetId
-      then addNewEquationsAround m.inputExp targetId [newEquation] e
-      else e
+  let results =
+    potentialNames |> List.map (\newVar ->
+      let newEquation = (newVar, eConst firstNum dummyLoc) in
+      let eSubst =
+        List.foldl (\(eid,ws,_,_,_) -> Dict.insert eid (EVar ws newVar)) Dict.empty nums
+      in
+      let expWithNewVarUsed = applyESubst eSubst m.inputExp in
+      let newExp =
+        expWithNewVarUsed |> mapExp (\e ->
+          if e.val.eid == targetId
+          then addNewEquationsAround m.inputExp targetId [newEquation] e
+          else e
+        )
+      in
+      synthesisResult (newVar) newExp
     )
   in
-  [ ("Make Equal", \() -> oneSafeResult newExp) ]
+  [ ("Make Equal with New Var", \() -> results) ]
