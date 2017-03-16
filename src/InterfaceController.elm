@@ -1554,12 +1554,14 @@ contextSensitiveDeuceTools m =
   let baseVals = selectedBaseVals m in
   let exps = selectedExps selectedWidgets in
   let patIds = selectedPats selectedWidgets in
+  let equations = selectedEquations selectedWidgets in
   let expTargets = selectedExpTargets selectedWidgets in
   let patTargets = selectedPatTargets selectedWidgets in
-  let selections = (nums, baseVals, exps, patIds, expTargets, patTargets) in
+  let selections =
+    (nums, baseVals, exps, patIds, equations, expTargets, patTargets) in
 
   List.concat <|
-    [ addMakeEqualTool m selections
+    [ addToolMakeEqual m selections
     , addToolFlipBoolean m selections
     , addToolRenamePat m selections
     , addToolRenameVar m selections
@@ -1646,7 +1648,7 @@ selectedPatTargets deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidg
 --------------------------------------------------------------------------------
 
 addToolOneOrMoreNumsOnly func m selections = case selections of
-  (nums, [], exps, [], [], []) ->
+  (nums, [], exps, [], [], [], []) ->
     if List.length nums >= 1 &&
        List.length nums == List.length exps
     then func m nums
@@ -1657,8 +1659,8 @@ addToolOneOrMoreNumsOnly func m selections = case selections of
 
 --------------------------------------------------------------------------------
 
-addMakeEqualTool m selections = case selections of
-  (nums, baseVals, exps, [], [], []) ->
+addToolMakeEqual m selections = case selections of
+  (nums, baseVals, exps, [], [], [], []) ->
     let literals = List.map Left nums ++ List.map Right baseVals in
     if List.length literals >= 2 &&
        List.length literals == List.length exps
@@ -1798,7 +1800,7 @@ addOrRemoveRangeTool m nums =
 --------------------------------------------------------------------------------
 
 addToolRenamePat m selections = case selections of
-  ([], [], [], [patId], [], []) ->
+  ([], [], [], [patId], [], [], []) ->
     case LangTools.findPat patId m.inputExp |> Maybe.map .val of
       Just (PVar _ ident _) ->
         [ ("Rename " ++ ident, \() ->
@@ -1851,7 +1853,7 @@ renamePat (scopeId, path) newName program =
 --------------------------------------------------------------------------------
 
 addToolRenameVar m selections = case selections of
-  ([], [], [eId], [], [], []) ->
+  ([], [], [eId], [], [], [], []) ->
     case findExpByEId m.inputExp eId of
       Just ePlucked ->
         case ePlucked.val.e__ of
@@ -1878,7 +1880,7 @@ renameVar varEId newName program =
 --------------------------------------------------------------------------------
 
 addToolFlipBoolean m selections = case selections of
-  ([], [], [eId], [], [], []) ->
+  ([], [], [eId], [], [], [], []) ->
     case findExpByEId m.inputExp eId of
       Just ePlucked ->
         case ePlucked.val.e__ of
@@ -1894,7 +1896,7 @@ addToolFlipBoolean m selections = case selections of
 --------------------------------------------------------------------------------
 
 addToolTwiddleShapes m selections = case selections of
-  ([], [], [eId], [], [], []) ->
+  ([], [], [eId], [], [], [], []) ->
     case findExpByEId m.inputExp eId of
       Just ePlucked ->
         let tools = Draw.makeTwiddleTools m eId ePlucked in
@@ -1909,42 +1911,38 @@ addToolTwiddleShapes m selections = case selections of
 
 -- could do the following inside CodeMotion...
 
+maybePluralize str list =
+  str ++ (if List.length list == 1 then "" else "s")
+
 addToolIntroduceVar m selections = case selections of
-  (_, _, [], _, _, _) -> []
-  (_, _, exps, [], [], [patTarget]) ->
+  (_, _, [], _, _, _, _) -> []
+  (_, _, exps, [], [], [], [patTarget]) ->
     CodeMotion.makeIntroduceVarTool m exps (PatTargetPosition patTarget)
-  (_, _, exps, [], [expTarget], []) ->
+  (_, _, exps, [], [], [expTarget], []) ->
     CodeMotion.makeIntroduceVarTool m exps (ExpTargetPosition expTarget)
   _ -> []
 
 addToolMoveDefinition m selections = case selections of
-  (_, _, _, [], _, _) -> []
-  ([], [], [], [patId], [(Before, eId)], []) ->
-    [ ("Move Definition", \() ->
-        CodeMotion.moveDefinitionsBeforeEId [patId] eId m.inputExp
-      ) ]
-  ([], [], [], patIds, [(Before, eId)], []) ->
-    [ ("Move Definitions", \() ->
+  (_, _, _, [], [], _, _) -> []
+  ([], [], [], patIds, [], [(Before, eId)], []) ->
+    [ (maybePluralize "Move Definition" patIds, \() ->
         CodeMotion.moveDefinitionsBeforeEId patIds eId m.inputExp
       ) ]
-  ([], [], [], [patId], [], [patTarget]) ->
-    [ ("Move Definition", \() ->
-        CodeMotion.moveDefinitionPat [patId] (patTargetPositionToTargetPatId patTarget) m.inputExp
-      ) ]
-  ([], [], [], patIds, [], [patTarget]) ->
-    [ ("Move Definitions", \() ->
+  ([], [], [], patIds, [], [], [patTarget]) ->
+    [ (maybePluralize "Move Definition" patIds, \() ->
         CodeMotion.moveDefinitionPat patIds (patTargetPositionToTargetPatId patTarget) m.inputExp
+      ) ]
+  ([], [], [], [], [scopeId], [(Before, eId)], []) ->
+    [ ("Move Definition", \() ->
+        let patId = (scopeId, []) in
+        CodeMotion.moveDefinitionsBeforeEId [patId] eId m.inputExp
       ) ]
   _ -> []
 
 addToolDuplicateDefinition m selections = case selections of
-  (_, _, _, [], _, _) -> []
-  ([], [], [], [patId], [(Before, eId)], []) ->
-    [ ("Duplicate Definition", \() ->
-        CodeMotion.duplicateDefinitionsBeforeEId [patId] eId m.inputExp
-      ) ]
-  ([], [], [], patIds, [(Before, eId)], []) ->
-    [ ("Duplicate Definitions", \() ->
+  (_, _, _, [], _, _, _) -> []
+  ([], [], [], patIds, [], [(Before, eId)], []) ->
+    [ (maybePluralize "Duplicate Definition" patIds, \() ->
         CodeMotion.duplicateDefinitionsBeforeEId patIds eId m.inputExp
       ) ]
   _ -> []
