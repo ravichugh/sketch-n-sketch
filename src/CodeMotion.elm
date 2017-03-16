@@ -18,6 +18,7 @@ import InterfaceModel exposing
   , synthesisResult, setResultSafe, oneSafeResult
   )
 import Utils exposing (MaybeOne)
+import Either exposing (..)
 
 import Dict
 import Set
@@ -655,9 +656,29 @@ makeIntroduceVarTool_ m expIds addNewVarsAtThisId addNewEquationsAt =
 
 ------------------------------------------------------------------------------
 
-makeMakeEqualTool m nums =
-  let expIds = List.map (\(eid,_,_,_,_) -> eid) nums in
-  let (firstNumExpId,_,firstNum,_,_) = Utils.head_ nums in
+type alias Literal =
+  Either
+    (LocId, (WS, Num, Loc, WidgetDecl)) -- from selectedNums
+    (EId, (WS, EBaseVal))               -- from selectedBaseVals
+
+literalEId literal =
+  case literal of
+    Left (eId, _)  -> eId
+    Right (eId, _) -> eId
+
+literalWS literal =
+  case literal of
+    Left (_, (ws,_,_,_)) -> ws
+    Right (_, (ws,_))    -> ws
+
+literalExp literal =
+  case literal of
+    Left (_,(_,firstNum,_,_)) -> eConst firstNum dummyLoc
+    Right (_,(_,baseVal))     -> withDummyPos (EBase " " baseVal)
+
+makeMakeEqualTool m literals =
+  let expIds = List.map literalEId literals in
+  let firstLiteral = literalExp (Utils.head_ literals) in
   let targetLet =
     justInsideDeepestCommonScope m.inputExp (\e -> List.member e.val.eid expIds)
   in
@@ -676,9 +697,11 @@ makeMakeEqualTool m nums =
   in
   let results =
     potentialNames |> List.map (\newVar ->
-      let newEquation = (newVar, eConst firstNum dummyLoc) in
+      let newEquation = (newVar, firstLiteral) in
       let eSubst =
-        List.foldl (\(eid,ws,_,_,_) -> Dict.insert eid (EVar ws newVar)) Dict.empty nums
+        List.foldl
+           (\literal -> Dict.insert (literalEId literal) (EVar (literalWS literal) newVar))
+           Dict.empty literals
       in
       let expWithNewVarUsed = applyESubst eSubst m.inputExp in
       let newExp =
