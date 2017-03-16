@@ -819,14 +819,14 @@ prelude =
 ;; argument order - color, width, x1, y1, x1, y2
 ;; creates a line from (x1, y1) to (x2,y2) with given color and width
 (typ line (-> Color Num Num Num Num Num Line))
-(def line (\\(fill w x1 y1 x2 y2)
+(def line (\\(stroke w x1 y1 x2 y2)
   ['line'
-     [ ['x1' x1] ['y1' y1] ['x2' x2] ['y2' y2] ['stroke' fill] ['stroke-width' w] ]
+     [ ['x1' x1] ['y1' y1] ['x2' x2] ['y2' y2] ['stroke' stroke] ['stroke-width' w] ]
      []]))
 
 (typ lineBetween (-> Color Num Point Point Line))
-(def lineBetween (\\(fill w [x1 y1] [x2 y2])
-  (line fill w x1 y1 x2 y2)))
+(def lineBetween (\\(stroke w [x1 y1] [x2 y2])
+  (line stroke w x1 y1 x2 y2)))
 
 (typ lineStart (-> Line Point))
 (def lineStart (\\line
