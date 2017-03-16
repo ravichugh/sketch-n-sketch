@@ -349,15 +349,21 @@ oneOfEach xss = case xss of
 --       ...
 --   sn'  =  sn - s1 - s2 - ... - s(n-1)
 --
-cartProdWithDiff : List (Set.Set comparable) -> List (List comparable)
+cartProdWithDiff : List (Set comparable) -> List (List comparable)
 cartProdWithDiff = oneOfEach << List.map Set.toList << manySetDiffs
+
+isSubset : Set comparable -> Set comparable -> Bool
+isSubset sub sup =
+  sub
+  |> Set.toList
+  |> List.all (\elem -> Set.member elem sup)
 
 intersectMany : List (Set.Set comparable) -> Set.Set comparable
 intersectMany list = case list of
   set::sets -> List.foldl Set.intersect set sets
   []        -> Debug.crash "intersectMany"
 
-manySetDiffs : List (Set.Set comparable) -> List (Set.Set comparable)
+manySetDiffs : List (Set comparable) -> List (Set.Set comparable)
 manySetDiffs sets =
   mapi1 (\(i,locs_i) ->
     foldli1 (\(j,locs_j) acc ->
@@ -367,13 +373,13 @@ manySetDiffs sets =
     ) locs_i sets
   ) sets
 
-unionAll : List (Set.Set comparable) -> Set.Set comparable
+unionAll : List (Set comparable) -> Set.Set comparable
 unionAll sets =
   List.foldl Set.union Set.empty sets
 
 -- Returns false if any two sets share an element.
 -- Can help answer, "Is this a valid partition?"
-anyOverlap : List (Set.Set comparable) -> Bool
+anyOverlap : List (Set comparable) -> Bool
 anyOverlap sets =
   Set.size (unionAll sets) < List.sum (List.map Set.size sets)
 

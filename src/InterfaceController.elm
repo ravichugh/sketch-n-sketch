@@ -1576,7 +1576,6 @@ contextSensitiveDeuceTools m =
     ]
 
 
---------------------------------------------------------------------------------
 
 msgChooseDeuceExp exp = Msg "Choose Deuce Exp" <| \m ->
   -- TODO version of tryRun/upstateRun starting with parsed expression
@@ -1931,7 +1930,7 @@ addToolMoveDefinition m selections = case selections of
       ) ]
   ([], [], [], patIds, [], [], [patTarget]) ->
     [ (maybePluralize "Move Definition" patIds, \() ->
-        CodeMotion.moveDefinitionPat patIds (patTargetPositionToTargetPatId patTarget) m.inputExp
+        CodeMotion.moveDefinitionsPat patIds (patTargetPositionToTargetPatId patTarget) m.inputExp
       ) ]
   ([], [], [], [], scopeIds, [(Before, eId)], []) ->
     [ (maybePluralize "Move Definition" scopeIds, \() ->
@@ -1945,4 +1944,10 @@ addToolDuplicateDefinition m selections = case selections of
     [ (maybePluralize "Duplicate Definition" patIds, \() ->
         CodeMotion.duplicateDefinitionsBeforeEId patIds eId m.inputExp
       ) ]
+  ([], [], [], patIds, [], [], [patTarget]) ->
+    [ (maybePluralize "Duplicate Definition" patIds, \() ->
+        CodeMotion.duplicateDefinitionsPat patIds (patTargetPositionToTargetPatId patTarget) m.inputExp
+      ) ]
   _ -> []
+
+

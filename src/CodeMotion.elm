@@ -1,7 +1,7 @@
 module CodeMotion exposing
-  ( moveDefinitionPat, moveDefinitionsBeforeEId
+  ( moveDefinitionsPat, moveDefinitionsBeforeEId
   , moveEquationsBeforeEId
-  , duplicateDefinitionsBeforeEId
+  , duplicateDefinitionsPat, duplicateDefinitionsBeforeEId
   , makeEListReorderTool
   , makeIntroduceVarTool
   , makeMakeEqualTool
@@ -317,8 +317,8 @@ moveDefinitionsBeforeEId sourcePatIds targetEId program =
   moveDefinitions_ makeNewProgram sourcePatIds program
 
 
-moveDefinitionPat : List PatternId -> PatternId -> Exp -> List SynthesisResult
-moveDefinitionPat sourcePatIds targetPatId program =
+moveDefinitionsPat : List PatternId -> PatternId -> Exp -> List SynthesisResult
+moveDefinitionsPat sourcePatIds targetPatId program =
   let makeNewProgram pluckedPatAndBoundExps programWithoutPluckedUniqueNames =
     let ((targetEId, _), targetPath) = targetPatId in
     let newProgram =
@@ -338,6 +338,57 @@ moveDefinitionPat sourcePatIds targetPatId program =
     (newProgram, targetEId)
   in
   moveDefinitions_ makeNewProgram sourcePatIds program
+
+
+makeDuplicateResults_ newScopeEId pluckedPatAndBoundExpAndOldScopeEIds newProgram originalProgram =
+  let (pluckedPats, pluckedBoundExps, _) = Utils.unzip3 pluckedPatAndBoundExpAndOldScopeEIds in
+  let newScopeExp = justFindExpByEId newProgram newScopeEId in
+  let newScopePat      = newScopeExp |> expToLetPat in
+  let newScopeBoundExp = newScopeExp |> expToLetBoundExp in
+  let newScopeBody     = newScopeExp |> expToLetBody in
+  let isSafe =
+    let identUsesSafe =
+      0 == Set.size (Set.intersect (identifiersSetInPats pluckedPats) (freeIdentifiers newScopeBody))
+    in
+    let boundExpVarsSafe =
+      let oldBoundExpFreeIdentBindingScopeIds =
+        pluckedBoundExps
+        |> List.concatMap freeVars
+        |> List.map
+            (\var ->
+              ( expToIdent var
+              , bindingScopeIdFor var originalProgram |> Maybe.withDefault (-1, -1)) -- (-1, -1) if free in originalProgram
+            )
+        |> Set.fromList
+      in
+      let newBoundExpFreeIdentBindingScopeIds =
+        freeVars newScopeBoundExp
+        |> List.map
+            (\var ->
+              ( expToIdent var
+              , bindingScopeIdFor var newProgram |> Maybe.withDefault (-1, -1)) -- (-1, -1) if free in newProgram
+            )
+        |> Set.fromList
+      in
+      Utils.isSubset oldBoundExpFreeIdentBindingScopeIds newBoundExpFreeIdentBindingScopeIds
+    in
+    let noDuplicateNamesInPat =
+      let namesDefinedAtNewScope = identifiersListInPat newScopePat in
+      namesDefinedAtNewScope == Utils.dedup namesDefinedAtNewScope
+    in
+    identUsesSafe && boundExpVarsSafe && noDuplicateNamesInPat
+  in
+  let caption =
+    let patStrs = List.map (unparsePat >> Utils.squish) pluckedPats in
+    "Duplicate "
+    ++ (if List.length patStrs == 1 then "Definition" else "Definitions")
+    ++ " of "
+    ++ Utils.toSentence patStrs
+  in
+  let result =
+    synthesisResult caption newProgram |> setResultSafe isSafe
+  in
+  [ result ]
 
 
 duplicateDefinitionsBeforeEId : List PatternId -> EId -> Exp -> List SynthesisResult
@@ -368,56 +419,32 @@ duplicateDefinitionsBeforeEId sourcePatIds targetEId originalProgram =
               (ensureWhitespacePat newPat) (ensureWhitespaceExp newBoundExp)
               (ensureWhitespaceExp expToWrap) ""
         )
-    |> LangTransform.simplifyAssignments
     |> LangParser2.freshen -- Remove duplicate EIds
   in
-  let newScopeExp = justFindExpByEId newProgram insertedLetEId in
-  let newScopePat      = newScopeExp |> expToLetPat in
-  let newScopeBoundExp = newScopeExp |> expToLetBoundExp in
-  let newScopeBody     = newScopeExp |> expToLetBody in
-  let isSafe =
-    let identUsesSafe =
-      0 == Set.size (Set.intersect (identifiersSetInPat newScopePat) (freeIdentifiers newScopeBody))
-    in
-    let boundExpVarsSafe =
-      let oldBoundExpFreeIdentBindingScopeIds =
-        pluckedPatAndBoundExpAndOldScopeEIds
-        |> List.concatMap (\(_, pluckedBoundExp, _) -> freeVars pluckedBoundExp)
-        |> List.map
-            (\var ->
-              ( expToIdent var
-              , bindingScopeIdFor var originalProgram |> Maybe.withDefault (-1, -1)) -- (-1, -1) if free in originalProgram
-            )
-        |> Set.fromList
-      in
-      let newBoundExpFreeIdentBindingScopeIds =
-        freeVars newScopeBoundExp
-        |> List.map
-            (\var ->
-              ( expToIdent var
-              , bindingScopeIdFor var newProgram |> Maybe.withDefault (-1, -1)) -- (-1, -1) if free in newProgram
-            )
-        |> Set.fromList
-      in
-      oldBoundExpFreeIdentBindingScopeIds == newBoundExpFreeIdentBindingScopeIds
-    in
-    let noDuplicateNamesInPat =
-      let namesDefinedAtNewScope = identifiersListInPat newScopePat in
-      namesDefinedAtNewScope == Utils.dedup namesDefinedAtNewScope
-    in
-    identUsesSafe && boundExpVarsSafe && noDuplicateNamesInPat
+  makeDuplicateResults_ insertedLetEId pluckedPatAndBoundExpAndOldScopeEIds newProgram originalProgram
+
+
+duplicateDefinitionsPat : List PatternId -> PatternId -> Exp -> List SynthesisResult
+duplicateDefinitionsPat sourcePatIds targetPatId originalProgram =
+  let (pluckedPatAndBoundExpAndOldScopeEIds, _) =
+    pluckAll sourcePatIds originalProgram
   in
-  let caption =
-    let patStrs = List.map (unparsePat >> Utils.squish) pluckedPats in
-    "Duplicate "
-    ++ (if List.length patStrs == 1 then "Definition" else "Definitions")
-    ++ " of "
-    ++ Utils.toSentence patStrs
+  let ((targetEId, _), targetPath) = targetPatId in
+  let newProgram =
+    originalProgram
+    |> mapExpNode
+        targetEId
+        (\newScopeExp ->
+          pluckedPatAndBoundExpAndOldScopeEIds
+          |> List.foldr
+              (\(pluckedPat, pluckedBoundExp, _) newScopeExp ->
+                insertPat_ (pluckedPat, pluckedBoundExp) targetPath newScopeExp
+              )
+              newScopeExp
+        )
+    |> LangParser2.freshen -- Remove duplicate EIds
   in
-  let result =
-    synthesisResult caption newProgram |> setResultSafe isSafe
-  in
-  [ result ]
+  makeDuplicateResults_ targetEId pluckedPatAndBoundExpAndOldScopeEIds newProgram originalProgram
 
 
 insertPat_ : PatBoundExp -> List Int -> Exp -> Exp
