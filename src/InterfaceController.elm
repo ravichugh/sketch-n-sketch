@@ -1932,10 +1932,9 @@ addToolMoveDefinition m selections = case selections of
     [ (maybePluralize "Move Definition" patIds, \() ->
         CodeMotion.moveDefinitionPat patIds (patTargetPositionToTargetPatId patTarget) m.inputExp
       ) ]
-  ([], [], [], [], [scopeId], [(Before, eId)], []) ->
-    [ ("Move Definition", \() ->
-        let patId = (scopeId, []) in
-        CodeMotion.moveDefinitionsBeforeEId [patId] eId m.inputExp
+  ([], [], [], [], scopeIds, [(Before, eId)], []) ->
+    [ (maybePluralize "Move Definition" scopeIds, \() ->
+        CodeMotion.moveEquationsBeforeEId scopeIds eId m.inputExp
       ) ]
   _ -> []
 

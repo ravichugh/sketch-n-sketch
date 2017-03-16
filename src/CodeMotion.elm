@@ -1,5 +1,6 @@
 module CodeMotion exposing
   ( moveDefinitionPat, moveDefinitionsBeforeEId
+  , moveEquationsBeforeEId
   , duplicateDefinitionsBeforeEId
   , makeEListReorderTool
   , makeIntroduceVarTool
@@ -505,6 +506,33 @@ insertPat__ (patToInsert, boundExp) p e1 path =
 
     Nothing ->
       Nothing
+
+
+------------------------------------------------------------------------------
+
+moveEquationsBeforeEId : List ScopeId -> EId -> Exp -> List SynthesisResult
+moveEquationsBeforeEId scopeIds targetEId program =
+  let patIds =
+    List.map (\scopeId -> (scopeId, [])) scopeIds
+    |> List.sort
+    |> List.reverse -- larger EIds are earlier in the program, move them first
+  in
+  let maybeFinalExp =
+    List.foldl (\patId acc ->
+      acc |> Utils.bindMaybe (\accExp ->
+        case moveDefinitionsBeforeEId [patId] targetEId accExp of
+          -- arbitrarily picking first...
+          SynthesisResult result :: _ -> Just result.exp
+          _                           -> Nothing
+    )) (Just program) patIds
+  in
+  case maybeFinalExp of -- Utils.bindMaybeOne...
+    Nothing -> []
+    Just finalExp ->
+      finalExp |> synthesisResult "Move"
+               |> setResultSafe (List.length scopeIds == 1)
+               |> Utils.singleton
+      -- if multiple equations are moved, mark this unsafe for now
 
 
 ------------------------------------------------------------------------------
