@@ -2,6 +2,7 @@ module CodeMotion exposing
   ( moveDefinitionsPat, moveDefinitionsBeforeEId
   , moveEquationsBeforeEId
   , duplicateDefinitionsPat, duplicateDefinitionsBeforeEId
+  , abstractPVar
   , makeEListReorderTool
   , makeIntroduceVarTool
   , makeMakeEqualTool
@@ -23,6 +24,7 @@ import Utils exposing (MaybeOne)
 import Either exposing (..)
 
 import Dict
+import Regex
 import Set
 
 
@@ -561,6 +563,111 @@ moveEquationsBeforeEId scopeIds targetEId program =
                |> setResultSafe (List.length scopeIds == 1)
                |> Utils.singleton
       -- if multiple equations are moved, mark this unsafe for now
+
+
+------------------------------------------------------------------------------
+
+-- Takes EId of expression to abstract, a predicate on exp and program to choose which expressions should become parameters
+abstract : EId -> (Exp -> Exp -> Bool) -> Exp -> (List Exp, Exp)
+abstract eid shouldBeParameter originalProgram =
+  let expToAbstact = justFindExpByEId originalProgram eid in
+  let eidsToParameterize =
+    -- Do it like this as a moderately straightforward way to not add extra arguments in the
+    -- case that shouldBeParameter returns one expression nested inside another
+    expToAbstact
+    |> mapExp (\e -> if shouldBeParameter e originalProgram then replaceE__ e (EVar " " "INSERT_ARGUMENT_HERE") else e)
+    |> flattenExpTree
+    |> List.filter (expToMaybeIdent >> (==) (Just "INSERT_ARGUMENT_HERE"))
+    |> List.map (.val >> .eid)
+    |> Set.fromList
+  in
+  -- To allow some varaible names in the body to become arguments:
+  --   1. Assign absurd names to the parameters (ARRRG!!!)
+  --   2. Use LangSimplify.changeRenamedVarsToOuter to
+  --      change (\x_ARRRG!!! -> let x = x_ARRRG!!! in x + 1)
+  --      to     (\x_ARRRG!!! -> let x = x_ARRRG!!! in x_ARRRG!!! + 1)
+  --   3. Remove unused variables to free up the names we want.
+  --      Yields (\x_ARRRG!!! -> x_ARRRG!!! + 1)
+  --   4. Recompute non-colliding parameter names without the tags.
+  let (abstractionBody, (_, paramNamesARRRGTagged, paramExps)) =
+    expToAbstact
+    |> mapFoldExp
+        (\e (namesToAvoid, paramNamesARRRGTagged, paramExps) ->
+          if Set.member e.val.eid eidsToParameterize then
+            let naiveName = expNameForEIdWithDefault "arg" originalProgram e.val.eid ++ "_ARRRG!!!" in
+            let name = nonCollidingName naiveName 2 namesToAvoid in
+            let namesToAvoid_ = Set.insert name namesToAvoid in
+            (copyPrecedingWhitespace e (eVar name), (namesToAvoid_, name::paramNamesARRRGTagged, e::paramExps))
+          else
+            (e, (namesToAvoid, paramNamesARRRGTagged, paramExps))
+        )
+        (identifiersSet expToAbstact, [], [])
+  in
+  let (abstractionBodySimplified, _, paramNames) =
+    -- Simplify (\x_ARRRG!!! -> let x = x_ARRRG!!! in ...) to (\x -> ...)
+    let abstractionBodySimplifiedARRRGTags =
+      abstractionBody
+      |> LangSimplify.changeRenamedVarsToOuter
+      |> LangSimplify.removeUnusedVars
+    in
+    let arrrgTagRegex = Regex.regex "_ARRRG!!!\\d*$" in
+    let removeARRRGTag name = Regex.replace (Regex.AtMost 1) arrrgTagRegex (\_ -> "") name in
+    paramNamesARRRGTagged
+    |> List.foldl
+        (\nameARRRGTagged (abstractionBodySimplified, namesToAvoid, paramNames) ->
+          let noARRRGTag = removeARRRGTag nameARRRGTagged in
+          let name = nonCollidingName noARRRGTag 2 namesToAvoid in
+          ( renameIdentifier nameARRRGTagged name abstractionBodySimplified
+          , Set.insert name namesToAvoid
+          , paramNames ++ [name]
+          )
+        )
+        (abstractionBodySimplifiedARRRGTags, identifiersSet abstractionBodySimplifiedARRRGTags, [])
+  in
+  let funcExp = eFun (listOfPVars paramNames) abstractionBodySimplified in
+  (paramExps, funcExp)
+
+
+abstractPVar : PatternId -> Exp -> List SynthesisResult
+abstractPVar patId originalProgram =
+  case pluck patId originalProgram of
+    Nothing ->
+      Debug.log ("abstractPVar Could not find patternId " ++ toString patId ++ " in program\n" ++ unparseWithIds originalProgram) []
+
+    Just ((pluckedPat, pluckedBoundExp), _) ->
+      case pluckedPat.val of
+        PVar _ ident _ ->
+          let shouldBeParameter exp originalProgram =
+            case exp.val.e__ of
+              EConst _ _ _ _ -> True
+              _              -> False
+          in
+          let (argumentsForCallSite, abstractedExp) =
+            abstract pluckedBoundExp.val.eid shouldBeParameter originalProgram
+          in
+          let ((scopeEId, _), _) = patId in
+          let scopeExp = justFindExpByEId originalProgram scopeEId in
+          let scopeBody = scopeExp |> expToLetBody in
+          let newScopeBody =
+            let varToApp varExp =
+              case varExp.val.e__ of
+                EVar ws1 _ ->
+                  replaceE__ varExp <| EApp ws1 (eVar0 ident) (argumentsForCallSite |> setExpListWhitespace " " " ") ""
+
+                _ ->
+                  Debug.crash ("CodeMotion.abstractPVar.varToApp transformVarsUntilBound should only yield EVars, got: " ++ toString varExp)
+            in
+            transformVarsUntilBound (Dict.singleton ident varToApp) scopeBody
+          in
+          let newProgram =
+            originalProgram
+            |> replaceExpNode scopeBody.val.eid newScopeBody
+            |> replaceExpNode pluckedBoundExp.val.eid abstractedExp
+          in
+          [ synthesisResult ("Abstract " ++ ident ++ " over its constants") newProgram ]
+
+        _ ->
+          Debug.log "Can only abstract a PVar" []
 
 
 ------------------------------------------------------------------------------

@@ -1573,6 +1573,7 @@ contextSensitiveDeuceTools m =
     , addToolOneOrMoreNumsOnly thawOrFreezeTool m selections
     , addToolOneOrMoreNumsOnly showOrHideRangeTool m selections
     , addToolOneOrMoreNumsOnly addOrRemoveRangeTool m selections
+    , addToolAbstract m selections
     ]
 
 
@@ -1666,6 +1667,21 @@ addToolMakeEqual m selections = case selections of
        List.length literals == List.length exps
     then CodeMotion.makeMakeEqualTool m literals
     else []
+
+  _ -> []
+
+
+--------------------------------------------------------------------------------
+
+addToolAbstract m selections = case selections of
+  ([], [], [], [patId], [], [], []) ->
+    case LangTools.findPat patId m.inputExp |> Maybe.map .val of
+      Just (PVar _ ident _) ->
+        [ ("Abstract", \() ->
+            CodeMotion.abstractPVar patId m.inputExp
+          ) ]
+
+      _ -> []
 
   _ -> []
 

@@ -385,22 +385,28 @@ defaultExpName = "thing"
 -- Fallback for expDescriptionParts
 simpleExpName : Exp -> String
 simpleExpName exp =
+  simpleExpNameWithDefault defaultExpName exp
+
+simpleExpNameWithDefault default exp =
   case exp.val.e__ of
     EConst _ _ _ _        -> "num"
     EVar _ ident          -> ident
-    EApp _ funE _ _       -> expToMaybeIdent funE |> Maybe.withDefault defaultExpName
+    EApp _ funE _ _       -> expToMaybeIdent funE |> Maybe.withDefault default
     EList _ _ _ _ _       -> "list"
-    EOp _ _ es _          -> List.map simpleExpName es |> Utils.findFirst ((/=) defaultExpName) |> Maybe.withDefault defaultExpName
+    EOp _ _ es _          -> List.map (simpleExpNameWithDefault default) es |> Utils.findFirst ((/=) default) |> Maybe.withDefault default
     EBase _ ENull         -> "null"
     EBase _ (EString _ _) -> "string"
     EBase _ (EBool _)     -> "bool"
     EFun _ _ _ _          -> "func"
-    _                     -> defaultExpName
-
+    _                     -> default
 
 -- Suggest a name for the expression at eid in program
 expNameForEId : Exp -> EId -> String
 expNameForEId program targetEId =
+  expNameForEIdWithDefault defaultExpName program targetEId
+
+expNameForEIdWithDefault : String -> Exp -> EId -> String
+expNameForEIdWithDefault default program targetEId =
   case expDescriptionParts program targetEId |> Utils.takeLast 1 of
     [name] ->
       name
@@ -409,19 +415,23 @@ expNameForEId program targetEId =
       -- Should only hit this branch if exp not found, so really this
       -- will always return defaultExpName
       findExpByEId program targetEId
-      |> Maybe.map simpleExpName
-      |> Maybe.withDefault defaultExpName
+      |> Maybe.map (simpleExpNameWithDefault default)
+      |> Maybe.withDefault default
 
 
 -- Suggest a name for the expression exp in program
 expNameForExp : Exp -> Exp -> String
 expNameForExp program exp =
+  expNameForExpWithDefault defaultExpName program exp
+
+expNameForExpWithDefault : String -> Exp -> Exp -> String
+expNameForExpWithDefault default program exp =
   case expDescriptionParts program exp.val.eid |> Utils.takeLast 1 of
     [name] ->
       name
 
     _ ->
-      simpleExpName exp
+      simpleExpNameWithDefault default exp
 
 
 commonNameForEIds : Exp -> List EId -> String
