@@ -22,7 +22,7 @@ type alias DeuceState =
 type DeuceWidget
   = DeuceExp EId
   | DeucePat PatternId
-  | DeuceEquation ScopeId
+  | DeuceLetBindingEquation EId
   | DeuceExpTarget ExpTargetPosition
   | DeucePatTarget PatTargetPosition
 
@@ -214,8 +214,8 @@ leadingTrailingSpaces str index start end =
   let rightTrimLength = String.length rightTrim in
   let leading = fullLength - leftTrimLength in
   let trailing = rightTrimLength in
-  if index == start.line 
-  then 
+  if index == start.line
+  then
     (start.col - 1, (trailing - leading) + (start.col - 1))
   else
     (leading, trailing)
@@ -277,15 +277,15 @@ boundingPolygon unparseExpOrPat id expOrPat endExpOrPat =
   then
     let s = start.line in
     case id of
-      DeuceEquation _ ->
+      DeuceLetBindingEquation _ ->
         (id, Dict.fromList [(s, (start.col, end.col - 1))])
-      _ -> 
+      _ ->
         (id, Dict.fromList [(s, (start.col - 1, end.col - 1))])
   else
     let leading = leadingNewlines (Just lines) 0 in
     let output = lineStartEnd (Just lines) (start.line - leading) start end (Dict.empty) in
     case id of
-      DeuceEquation _ ->
+      DeuceLetBindingEquation _ ->
         let parenLine = Dict.get start.line output in
         case parenLine of
             Just (firstLineStart, firstLineEnd) ->  (id, (Dict.insert start.line (firstLineStart + 1, firstLineEnd) output))

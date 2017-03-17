@@ -540,10 +540,10 @@ insertPat__ (patToInsert, boundExp) p e1 path =
 
 ------------------------------------------------------------------------------
 
-moveEquationsBeforeEId : List ScopeId -> EId -> Exp -> List SynthesisResult
-moveEquationsBeforeEId scopeIds targetEId program =
+moveEquationsBeforeEId : List EId -> EId -> Exp -> List SynthesisResult
+moveEquationsBeforeEId letEIds targetEId program =
   let patIds =
-    List.map (\scopeId -> (scopeId, [])) scopeIds
+    List.map (\letEId -> ((letEId, 1), [])) letEIds
     |> List.sort
     |> List.reverse -- larger EIds are earlier in the program, move them first
   in
@@ -560,7 +560,7 @@ moveEquationsBeforeEId scopeIds targetEId program =
     Nothing -> []
     Just finalExp ->
       finalExp |> synthesisResult "Move"
-               |> setResultSafe (List.length scopeIds == 1)
+               |> setResultSafe (List.length letEIds == 1)
                |> Utils.singleton
       -- if multiple equations are moved, mark this unsafe for now
 

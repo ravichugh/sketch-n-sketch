@@ -904,6 +904,13 @@ expToLetPat exp =
     _                    -> Debug.crash <| "LangTools.expToLetPat exp is not an ELet: " ++ unparseWithIds exp
 
 
+expToMaybeLetPat : Exp -> Maybe Pat
+expToMaybeLetPat exp =
+  case exp.val.e__ of
+    ELet _ _ _ pat _ _ _ -> Just pat
+    _                    -> Nothing
+
+
 expToLetBoundExp : Exp -> Exp
 expToLetBoundExp exp =
   case exp.val.e__ of

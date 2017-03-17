@@ -1369,9 +1369,9 @@ expBoundingPolygonPoints =
         Lang.ELet wsBef letKind rec pat exp1 exp2 wsAft ->
           case letKind of
             Lang.Let ->
-              [expBoundingPolygon (DeuceEquation (exp.val.eid, 1)) exp exp1,
+              [expBoundingPolygon (DeuceLetBindingEquation exp.val.eid) exp exp1,
                expBoundingPolygon (DeuceExp exp.val.eid) exp exp]
-            Lang.Def -> [expBoundingPolygon (DeuceEquation (exp.val.eid, 1)) exp exp,
+            Lang.Def -> [expBoundingPolygon (DeuceLetBindingEquation exp.val.eid) exp exp,
                          expBoundingPolygon (DeuceExp exp.val.eid) exp (findFirstNonDef exp)]
         _ ->
           [expBoundingPolygon (DeuceExp exp.val.eid) exp exp])

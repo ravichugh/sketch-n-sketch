@@ -1555,11 +1555,11 @@ contextSensitiveDeuceTools m =
   let baseVals = selectedBaseVals m in
   let exps = selectedExps selectedWidgets in
   let patIds = selectedPats selectedWidgets in
-  let equations = selectedEquations selectedWidgets in
+  let letBindingEquations = selectedEquations selectedWidgets in
   let expTargets = selectedExpTargets selectedWidgets in
   let patTargets = selectedPatTargets selectedWidgets in
   let selections =
-    (nums, baseVals, exps, patIds, equations, expTargets, patTargets) in
+    (nums, baseVals, exps, patIds, letBindingEquations, expTargets, patTargets) in
 
   List.concat <|
     [ addToolMakeEqual m selections
@@ -1634,7 +1634,7 @@ selectedPats deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidget ->
 
 selectedEquations deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidget ->
   case deuceWidget of
-    DeuceEquation x -> [x]
+    DeuceLetBindingEquation x -> [x]
     _ -> []
 
 selectedExpTargets deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidget ->
@@ -1697,6 +1697,16 @@ addToolAbstract m selections = case selections of
         ) ]
     else
       []
+
+  ([], [], [], [], [letEId], [], []) ->
+    case LangTools.justFindExpByEId m.inputExp letEId |> LangTools.expToMaybeLetPat |> Maybe.map (.val) of
+      Just (PVar _ _ _) ->
+        [ ("Abstract", \() ->
+            let patId = ((letEId, 1), []) in
+            CodeMotion.abstractPVar patId m.inputExp
+          ) ]
+
+      _ -> []
 
   _ -> []
 
@@ -1982,9 +1992,9 @@ addToolMoveDefinition m selections = case selections of
     [ (maybePluralize "Move Definition" patIds, \() ->
         CodeMotion.moveDefinitionsPat patIds (patTargetPositionToTargetPatId patTarget) m.inputExp
       ) ]
-  ([], [], [], [], scopeIds, [(Before, eId)], []) ->
-    [ (maybePluralize "Move Definition" scopeIds, \() ->
-        CodeMotion.moveEquationsBeforeEId scopeIds eId m.inputExp
+  ([], [], [], [], letEIds, [(Before, eId)], []) ->
+    [ (maybePluralize "Move Definition" letEIds, \() ->
+        CodeMotion.moveEquationsBeforeEId letEIds eId m.inputExp
       ) ]
   _ -> []
 
