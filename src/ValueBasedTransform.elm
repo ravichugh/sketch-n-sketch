@@ -750,7 +750,7 @@ liftLocsSoVisibleTo originalExp mobileLocset observerEIds =
   let locExps =
     locIds
     |> List.map (\locId -> findExpByLocId commonScope locId |> Utils.fromJust_ "ValueBasedTransform.liftLocsSoVisibleTo locExps")
-    |> List.map scrubEId
+    |> List.map clearEId
   in
   let listOfListsOfNamesAndAssigns = [ Utils.zip locNames locExps ] in
   let newExp =

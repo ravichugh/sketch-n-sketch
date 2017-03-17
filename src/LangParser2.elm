@@ -1,7 +1,7 @@
 module LangParser2 exposing
                    (prelude, isPreludeLoc, isPreludeLocId, isPreludeEId,
                     substOf, substStrOf, parseE, parseT,
-                    freshen, substPlusOf,
+                    clearAllIds, freshen, substPlusOf,
                     maxId)
 
 import String
@@ -33,6 +33,10 @@ isPreludeEId : EId -> Bool
 isPreludeEId k = k < initK
 
 ------------------------------------------------------------------------------
+
+clearAllIds : Exp -> Exp
+clearAllIds root =
+  mapExp clearNodeIds root
 
 -- assign EId's and locId's
 -- existing unique EId's/locId's are preserved

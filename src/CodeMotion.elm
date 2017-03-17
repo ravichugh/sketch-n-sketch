@@ -597,7 +597,7 @@ abstract eid shouldBeParameter originalProgram =
             let naiveName = expNameForEIdWithDefault "arg" originalProgram e.val.eid ++ "_ARRRG!!!" in
             let name = nonCollidingName naiveName 2 namesToAvoid in
             let namesToAvoid_ = Set.insert name namesToAvoid in
-            (copyPrecedingWhitespace e (eVar name), (namesToAvoid_, name::paramNamesARRRGTagged, e::paramExps))
+            (copyPrecedingWhitespace e (eVar name), (namesToAvoid_, name::paramNamesARRRGTagged, (LangParser2.clearAllIds e)::paramExps))
           else
             (e, (namesToAvoid, paramNamesARRRGTagged, paramExps))
         )
@@ -609,6 +609,7 @@ abstract eid shouldBeParameter originalProgram =
       abstractionBody
       |> LangSimplify.changeRenamedVarsToOuter
       |> LangSimplify.removeUnusedVars
+      |> ensureWhitespaceExp
     in
     let arrrgTagRegex = Regex.regex "_ARRRG!!!\\d*$" in
     let removeARRRGTag name = Regex.replace (Regex.AtMost 1) arrrgTagRegex (\_ -> "") name in
@@ -624,8 +625,14 @@ abstract eid shouldBeParameter originalProgram =
         )
         (abstractionBodySimplifiedARRRGTags, identifiersSet abstractionBodySimplifiedARRRGTags, [])
   in
-  let funcExp = eFun (listOfPVars paramNames) abstractionBodySimplified in
-  (paramExps, funcExp)
+  case paramExps of
+    [] ->
+      let funcExp = eFun [pList0 []] abstractionBodySimplified in
+      ([eTuple []], funcExp)
+
+    _::_ ->
+      let funcExp = eFun (listOfPVars paramNames) abstractionBodySimplified in
+      (paramExps, funcExp)
 
 
 abstractPVar : PatternId -> Exp -> List SynthesisResult
@@ -653,7 +660,7 @@ abstractPVar patId originalProgram =
             let newProgram =
               originalProgram
               |> replaceExpNode scopeBody.val.eid newScopeBody
-              |> replaceExpNode pluckedBoundExp.val.eid abstractedFuncExp
+              |> replaceExpNodePreservingPrecedingWhitespace pluckedBoundExp.val.eid abstractedFuncExp
             in
             newProgram
           in

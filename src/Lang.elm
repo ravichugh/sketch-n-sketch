@@ -897,7 +897,13 @@ replaceTBranchExp tbranch exp =
 replaceEId : Exp -> EId -> Exp
 replaceEId e eid = let e_ = e.val in { e | val = { e_ | eid = eid } }
 
-scrubEId e =  replaceEId e -1
+clearEId e = replaceEId e -1
+
+clearNodeIds e =
+  let eidCleared = clearEId e in
+  case eidCleared.val.e__ of
+    EConst ws n (locId, annot, ident) wd -> replaceE__ eidCleared (EConst ws n (0, annot, "") wd)
+    _                                    -> eidCleared
 
 dummyLoc_ b = (0, b, "")
 dummyTrace_ b = TrLoc (dummyLoc_ b)
