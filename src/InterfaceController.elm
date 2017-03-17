@@ -1567,7 +1567,7 @@ contextSensitiveDeuceTools m =
     , addToolRenameVar m selections
     , addToolTwiddleShapes m selections
     , addToolIntroduceVar m selections
-    , CodeMotion.addToolCommonSubExp m selections
+    , CodeMotion.addToolCompareSubExpressions m selections
     , addToolMoveDefinition m selections
     , addToolDuplicateDefinition m selections
     , addToolOneOrMoreNumsOnly thawOrFreezeTool m selections

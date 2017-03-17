@@ -6,7 +6,7 @@ module CodeMotion exposing
   , makeEListReorderTool
   , makeIntroduceVarTool
   , makeMakeEqualTool
-  , addToolCommonSubExp
+  , addToolCompareSubExpressions
   )
 
 import Lang exposing (..)
@@ -963,20 +963,19 @@ makeMakeEqualTool m literals =
 
 ------------------------------------------------------------------------------
 
-addToolCommonSubExp m selections =
+addToolCompareSubExpressions m selections =
   case selections of
     (_, _, [], _, _, _, _)          -> []
     (_, _, [_], _, _, _, _)         -> []
-    ([], [], i::js, [], [], [], []) -> makeCommonSubExpTool m i js
+    ([], [], i::js, [], [], [], []) -> makeCompareSubExpressionsTool m i js
     _                               -> []
 
-makeCommonSubExpTool m firstId restIds =
+makeCompareSubExpressionsTool m firstId restIds =
   let expIds = firstId :: restIds in
   let firstExp = justFindExpByEId m.inputExp firstId in
   let restExps = List.map (justFindExpByEId m.inputExp) restIds in
   let diffs = List.concatMap (extraExpsDiff firstExp) restExps in
-  if diffs /= [] then []
-  else
+  if diffs == [] then
     -- a lot of duplication from makeIntroduceVarTool and makeMakeEqualTool...
     let name = expNameForEId m.inputExp firstId in
     let targetLet =
@@ -1004,4 +1003,17 @@ makeCommonSubExpTool m firstId restIds =
         |> synthesisResult "Just Do It."
         |> setResultSafe False -- TODO
         |> Utils.singleton
+      ) ]
+  else
+    [ ("Make Equal", \() ->
+        (firstExp :: restExps) |> List.map (\exp ->
+          let newExp =
+            List.foldl
+               (\eid -> replaceExpNodePreservingPrecedingWhitespace eid exp)
+               m.inputExp expIds
+          in
+          newExp
+          |> synthesisResult (unparse exp)
+          |> setResultSafe False -- TODO
+        )
       ) ]
