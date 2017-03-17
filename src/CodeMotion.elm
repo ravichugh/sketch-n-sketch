@@ -2,7 +2,7 @@ module CodeMotion exposing
   ( moveDefinitionsPat, moveDefinitionsBeforeEId
   , moveEquationsBeforeEId
   , duplicateDefinitionsPat, duplicateDefinitionsBeforeEId
-  , abstractPVar, abstractExp
+  , abstractPVar, abstractExp, shouldBeParameterIsConstant, shouldBeParameterIsNamedUnfrozenConstant
   , makeEListReorderTool
   , makeIntroduceVarTool
   , makeMakeEqualTool
@@ -635,6 +635,35 @@ abstract eid shouldBeParameter originalProgram =
       (paramExps, funcExp)
 
 
+shouldBeParameterIsConstant : Exp -> Exp -> Bool
+shouldBeParameterIsConstant exp originalProgram =
+  case exp.val.e__ of
+    EConst _ _ _ _        -> True
+    EBase _ (EString _ _) -> True
+    _                     -> False
+
+
+shouldBeParameterIsNamedUnfrozenConstant : Exp -> Exp -> Bool
+shouldBeParameterIsNamedUnfrozenConstant exp originalProgram =
+  case exp.val.e__ of
+    -- Ignore syncOptions.
+    EConst _ _ (_, annot, ident) _ ->
+      ident /= "" && annot /= frozen
+
+    EBase _ (EString _ _) ->
+      -- Is this string bound to a name?
+      let bindings =
+        justFindExpWithAncestorsByEId originalProgram exp.val.eid
+        |> List.filterMap expToMaybeLetPatAndBoundExp
+        |> List.concatMap (\(pat, boundExp) -> tryMatchExpReturningList pat boundExp)
+      in
+      bindings
+      |> Utils.findFirst (\(ident, boundExp) -> boundExp.val.eid == exp.val.eid)
+      |> Utils.maybeToBool
+
+    _ -> False
+
+
 abstractPVar : PatternId -> Exp -> List SynthesisResult
 abstractPVar patId originalProgram =
   case pluck patId originalProgram of
@@ -665,22 +694,11 @@ abstractPVar patId originalProgram =
             newProgram
           in
           let abstractedOverAllConstantsResult =
-            let shouldBeParameter exp originalProgram =
-              case exp.val.e__ of
-                EConst _ _ _ _ -> True
-                _              -> False
-            in
-            let newProgram = doAbstract shouldBeParameter in
+            let newProgram = doAbstract shouldBeParameterIsConstant in
             synthesisResult ("Abstract " ++ ident ++ " over its constants") newProgram
           in
           let abstractedOverNamedUnfrozenConstantsResult =
-            let shouldBeParameter exp originalProgram =
-              case exp.val.e__ of
-                -- Ignore syncOptions.
-                EConst _ _ (_, annot, ident) _ -> ident /= "" && annot /= frozen
-                _                              -> False
-            in
-            let newProgram = doAbstract shouldBeParameter in
+            let newProgram = doAbstract shouldBeParameterIsNamedUnfrozenConstant in
             synthesisResult ("Abstract " ++ ident ++ " over its named unfrozen constants") newProgram
           in
           [ abstractedOverAllConstantsResult
@@ -724,22 +742,11 @@ abstractExp eidToAbstract originalProgram =
     newProgram
   in
   let abstractedOverAllConstantsResult =
-    let shouldBeParameter exp originalProgram =
-      case exp.val.e__ of
-        EConst _ _ _ _ -> True
-        _              -> False
-    in
-    let newProgram = doAbstract shouldBeParameter in
+    let newProgram = doAbstract shouldBeParameterIsConstant in
     synthesisResult ("Abstract " ++ (expToAbstract |> unparse |> Utils.squish |> Utils.niceTruncateString 20 "...") ++ " over its constants") newProgram
   in
   let abstractedOverNamedUnfrozenConstantsResult =
-    let shouldBeParameter exp originalProgram =
-      case exp.val.e__ of
-        -- Ignore syncOptions.
-        EConst _ _ (_, annot, ident) _ -> ident /= "" && annot /= frozen
-        _                              -> False
-    in
-    let newProgram = doAbstract shouldBeParameter in
+    let newProgram = doAbstract shouldBeParameterIsNamedUnfrozenConstant in
     synthesisResult ("Abstract " ++ (expToAbstract |> unparse |> Utils.squish |> Utils.niceTruncateString 20 "...") ++ " over its named unfrozen constants") newProgram
   in
   [ abstractedOverAllConstantsResult

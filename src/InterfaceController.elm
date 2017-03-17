@@ -1686,13 +1686,17 @@ addToolAbstract m selections = case selections of
       _ -> []
 
   ([], [], [eid], [], [], [], []) ->
-    case findExpByEId m.inputExp eid |> Maybe.map (\exp -> Utils.count isNumber (flattenExpTree exp)) of
-      Nothing -> []
-      Just 0 -> []
-      _ ->
-        [ ("Extract Function", \() -> -- Martin Fowler's name is "Extract Method" but this is FP
-            CodeMotion.abstractExp eid m.inputExp
-          ) ]
+    let expToAbstractParts = findExpByEId m.inputExp eid |> Maybe.map flattenExpTree |> Maybe.withDefault [] in
+    let parameterCount =
+      Utils.count (\e -> CodeMotion.shouldBeParameterIsConstant e m.inputExp) expToAbstractParts +
+      Utils.count (\e -> CodeMotion.shouldBeParameterIsNamedUnfrozenConstant e m.inputExp) expToAbstractParts
+    in
+    if parameterCount > 0 then
+      [ ("Extract Function", \() -> -- Martin Fowler's name is "Extract Method" but this is FP
+          CodeMotion.abstractExp eid m.inputExp
+        ) ]
+    else
+      []
 
   _ -> []
 

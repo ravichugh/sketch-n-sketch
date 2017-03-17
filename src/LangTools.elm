@@ -529,11 +529,7 @@ expDescriptionParts_ program exp targetEId =
   else
     case exp.val.e__ of
       ELet _ _ _ pat assigns body _ ->
-        let namedAssigns =
-          case tryMatchExp pat assigns of
-            Match env -> env
-            _         -> []
-        in
+        let namedAssigns = tryMatchExpReturningList pat assigns in
         case List.filter (\(ident, e) -> findExpByEId e targetEId /= Nothing) namedAssigns of
           [] ->
             if assigns.val.eid == targetEId then
@@ -661,6 +657,12 @@ type ExpMatchResult
   | NoMatch
   | CannotCompare
 
+
+tryMatchExpReturningList : Pat -> Exp -> List (Ident, Exp)
+tryMatchExpReturningList pat exp =
+  case tryMatchExp pat exp of
+    Match env -> env
+    _         -> []
 
 -- Match an expression with a pattern. (Taken from Brainstorm branch.)
 --
@@ -907,6 +909,13 @@ expToLetBoundExp exp =
   case exp.val.e__ of
     ELet _ _ _ _ boundExp _ _ -> boundExp
     _                         -> Debug.crash <| "LangTools.expToLetPat exp is not an ELet: " ++ unparseWithIds exp
+
+
+expToMaybeLetPatAndBoundExp : Exp -> Maybe (Pat, Exp)
+expToMaybeLetPatAndBoundExp exp =
+  case exp.val.e__ of
+    ELet _ _ _ pat boundExp _ _ -> Just (pat, boundExp)
+    _                           -> Nothing
 
 
 expToLetBody : Exp -> Exp
