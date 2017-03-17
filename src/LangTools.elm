@@ -381,7 +381,7 @@ locDescription program loc =
 -- e.g. ["rect1", "x"] for (def rect1 (let x = ... in ...) ...)
 locDescriptionParts program loc =
   let (locId, _, ident) = loc in
-  let baseIdent = if ident == "" then "k"++(toString locId) else ident in
+  let baseIdent = if ident == "" then "k" ++ toString locId else ident in
   let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough program loc in
   scopeNamesLiftedThrough ++ [baseIdent]
 
@@ -627,7 +627,7 @@ scopeNamesLocLiftedThrough newLetBody targetLoc =
           else scopeNames
 
     _ ->
-      Debug.crash <| "Found locId "++(toString targetLocId)++" more than once in the expression: "++(toString newLetBody)
+      Debug.crash <| "Found locId " ++ toString targetLocId ++ " more than once in the expression: " ++ unparseWithIds newLetBody
 
 
 -- Returns array of matches (easiest to implement).
@@ -1409,7 +1409,7 @@ renameVarsUntilBound renamings exp =
     -- let _ = Debug.log ("Renaming " ++ newName ++ " on") e in
     case e.val.e__ of
       EVar ws oldName -> replaceE__ e (EVar ws newName)
-      _               -> Debug.crash <| "LangTools.renameVarsUntilBound: renamer should only be passed an EVar, but given: " ++ (toString e)
+      _               -> Debug.crash <| "LangTools.renameVarsUntilBound: renamer should only be passed an EVar, but given: " ++ toString e
   in
   let fnSubst =
     renamings
