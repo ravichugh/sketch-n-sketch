@@ -298,8 +298,8 @@ splitBy splitElems list =
     Just i  -> (List.take i list) :: splitBy splitElems (List.drop (i + List.length splitElems) list)
     Nothing -> [list]
 
-dropLeft : Int -> List a -> List a
-dropLeft n list =
+dropLast : Int -> List a -> List a
+dropLast n list =
   list
   |> List.reverse
   |> List.drop n
@@ -541,7 +541,7 @@ lines  = String.join "\n"
 
 -- After ActiveSupport's to_sentence method
 toSentence strings =
-  case (dropLeft 1 strings, maybeLast strings) of
+  case (dropLast 1 strings, maybeLast strings) of
     (  _, Nothing) -> ""
     ( [], Just z)  -> z
     ([y], Just z)  -> y ++ " and " ++ z

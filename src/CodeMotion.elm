@@ -2,7 +2,7 @@ module CodeMotion exposing
   ( moveDefinitionsPat, moveDefinitionsBeforeEId
   , moveEquationsBeforeEId
   , duplicateDefinitionsPat, duplicateDefinitionsBeforeEId
-  , abstractPVar
+  , abstractPVar, abstractExp
   , makeEListReorderTool
   , makeIntroduceVarTool
   , makeMakeEqualTool
@@ -641,7 +641,7 @@ abstractPVar patId originalProgram =
             let ((scopeEId, _), _) = patId in
             let scopeExp = justFindExpByEId originalProgram scopeEId in
             let scopeBody = scopeExp |> expToLetBody in
-            let (argumentsForCallSite, abstractedExp) =
+            let (argumentsForCallSite, abstractedFuncExp) =
               abstract pluckedBoundExp.val.eid shouldBeParameter originalProgram
             in
             let newScopeBody =
@@ -653,7 +653,7 @@ abstractPVar patId originalProgram =
             let newProgram =
               originalProgram
               |> replaceExpNode scopeBody.val.eid newScopeBody
-              |> replaceExpNode pluckedBoundExp.val.eid abstractedExp
+              |> replaceExpNode pluckedBoundExp.val.eid abstractedFuncExp
             in
             newProgram
           in
@@ -682,6 +682,62 @@ abstractPVar patId originalProgram =
 
         _ ->
           Debug.log "Can only abstract a PVar" []
+
+
+abstractExp : EId -> Exp -> List SynthesisResult
+abstractExp eidToAbstract originalProgram =
+  let expToAbstract = justFindExpByEId originalProgram eidToAbstract in
+  let doAbstract shouldBeParameter =
+    -- let ((scopeEId, _), _) = patId in
+    -- let scopeExp = justFindExpByEId originalProgram scopeEId in
+    -- let scopeBody = scopeExp |> expToLetBody in
+    let (argumentsForCallSite, abstractedFuncExp) =
+      abstract eidToAbstract shouldBeParameter originalProgram
+    in
+    let funcName =
+      let naiveName = expNameForEIdWithDefault "func" originalProgram eidToAbstract in
+      let namesToAvoid = visibleIdentifiersAtEIds originalProgram (Set.singleton eidToAbstract) in
+      nonCollidingName naiveName 2 namesToAvoid
+    in
+    let expToWrap =
+      deepestAncestorWithNewline originalProgram eidToAbstract
+    in
+    let expToWrapWithTargetReplaced =
+      expToWrap
+      |> replaceExpNodePreservingPrecedingWhitespace eidToAbstract (eApp (eVar0 funcName) (argumentsForCallSite |> setExpListWhitespace " " " "))
+    in
+    let wrapped =
+      let makeELet = if isTopLevelEId expToWrap.val.eid originalProgram then eDef else eLet in
+      makeELet [(funcName, abstractedFuncExp)] expToWrapWithTargetReplaced
+    in
+    let newProgram =
+      originalProgram
+      |> replaceExpNodePreservingPrecedingWhitespace expToWrap.val.eid wrapped
+    in
+    newProgram
+  in
+  let abstractedOverAllConstantsResult =
+    let shouldBeParameter exp originalProgram =
+      case exp.val.e__ of
+        EConst _ _ _ _ -> True
+        _              -> False
+    in
+    let newProgram = doAbstract shouldBeParameter in
+    synthesisResult ("Abstract " ++ (expToAbstract |> unparse |> Utils.squish |> Utils.niceTruncateString 20 "...") ++ " over its constants") newProgram
+  in
+  let abstractedOverNamedUnfrozenConstantsResult =
+    let shouldBeParameter exp originalProgram =
+      case exp.val.e__ of
+        -- Ignore syncOptions.
+        EConst _ _ (_, annot, ident) _ -> ident /= "" && annot /= frozen
+        _                              -> False
+    in
+    let newProgram = doAbstract shouldBeParameter in
+    synthesisResult ("Abstract " ++ (expToAbstract |> unparse |> Utils.squish |> Utils.niceTruncateString 20 "...") ++ " over its named unfrozen constants") newProgram
+  in
+  [ abstractedOverAllConstantsResult
+  , abstractedOverNamedUnfrozenConstantsResult
+  ]
 
 
 ------------------------------------------------------------------------------

@@ -1683,6 +1683,15 @@ addToolAbstract m selections = case selections of
 
       _ -> []
 
+  ([], [], [eid], [], [], [], []) ->
+    case findExpByEId m.inputExp eid |> Maybe.map (\exp -> Utils.count isNumber (flattenExpTree exp)) of
+      Nothing -> []
+      Just 0 -> []
+      _ ->
+        [ ("Extract Function", \() -> -- Martin Fowler's name is "Extract Method" but this is FP
+            CodeMotion.abstractExp eid m.inputExp
+          ) ]
+
   _ -> []
 
 

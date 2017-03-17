@@ -300,6 +300,13 @@ justFindExpByEId exp eid =
   |> Utils.fromJust__ (\() -> "Couldn't find eid " ++ toString eid ++ " in " ++ unparseWithIds exp)
 
 
+justFindExpWithAncestorsByEId : Exp -> EId -> List Exp
+justFindExpWithAncestorsByEId root eid =
+  case findAllWithAncestors (.val >> .eid >> (==) eid) root of
+    result::_ -> result
+    []        -> Debug.crash <| "justFindExpWithAncestorsByEId: Couldn't find eid " ++ toString eid ++ " in " ++ unparseWithIds root
+
+
 -- Is the expression in the body of only defs/comments/options?
 --
 -- The "top level" is a single path on the tree, so walk it and look
@@ -553,7 +560,7 @@ expDescriptionParts_ program exp targetEId =
             let (ident, matchingExp) = Utils.last "LangTools.expDescriptionParts" identsAndMatchingExp in
             let (idents, _) = identsAndMatchingExp |> List.unzip in
             if matchingExp.val.eid == targetEId then
-              (Utils.dropLeft 1 idents) ++ [varIdentOrDefault matchingExp ident]
+              (Utils.dropLast 1 idents) ++ [varIdentOrDefault matchingExp ident]
             else
               case recurse matchingExp of
                 []          -> Debug.crash <| "LangTools.expDescriptionParts expected to find targetEId in\n" ++ unparseWithIds matchingExp ++ "\nin\n" ++ unparseWithIds assigns
@@ -792,6 +799,13 @@ justInsideDeepestCommonScope exp pred =
   in
   Utils.last_ candidates
 
+deepestAncestorWithNewline : Exp -> EId -> Exp
+deepestAncestorWithNewline program eid =
+  let ancestors = justFindExpWithAncestorsByEId program eid |> Utils.dropLast 1 in
+  let ancestorsWithNewlines =
+    ancestors |> List.filter (precedingWhitespace >> String.contains "\n")
+  in
+  Utils.last_ (program :: ancestorsWithNewlines)
 
 -- Given [ [("a", eConst 4 dummyLoc), ("b", eConst 5 dummyLoc)], [("c", eConst 6 dummyLoc)] ] False bodyExp
 --

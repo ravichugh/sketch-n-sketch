@@ -137,7 +137,7 @@ inlineListSynthesisResults originalExp =
                         -- All idents used in only in same list
                         let maybeParents =
                           findAllWithAncestors (\e -> List.member e usages) letBody
-                          |> List.map (Utils.dropLeft 1 >> Utils.maybeLast)
+                          |> List.map (Utils.dropLast 1 >> Utils.maybeLast)
                         in
                         case Utils.dedupByEquality maybeParents of
                           [Just parentExp] ->
