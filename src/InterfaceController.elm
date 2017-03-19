@@ -69,6 +69,7 @@ import DefaultIconTheme
 import DependenceGraph exposing (lookupIdent)
 import CodeMotion
 import DeuceWidgets exposing (..) -- TODO
+import ColorNum
 
 import VirtualDom
 
@@ -1573,6 +1574,7 @@ contextSensitiveDeuceTools m =
     , addToolOneOrMoreNumsOnly thawOrFreezeTool m selections
     , addToolOneOrMoreNumsOnly showOrHideRangeTool m selections
     , addToolOneOrMoreNumsOnly addOrRemoveRangeTool m selections
+    , addToolConvertColorString m selections
     , addToolAbstract m selections
     ]
 
@@ -1915,6 +1917,25 @@ addToolFlipBoolean m selections = case selections of
             [("Flip Boolean", \() -> oneSafeResult newExp)]
           _ -> []
       _ -> []
+  _ -> []
+
+
+--------------------------------------------------------------------------------
+
+addToolConvertColorString m selections = case selections of
+  ([], [(eid, (_, EString _ string))], [_], [], [], [], []) ->
+    case Utils.maybeFind (String.toLower string) ColorNum.htmlColorNames of
+      Just ((r,g,b), (h,_,_)) ->
+        let replaceString e =
+          replaceExpNodePreservingPrecedingWhitespace eid e m.inputExp
+        in
+        let newExp1 = replaceString (eList (listOfNums [r,g,b,1.0]) Nothing) in
+        let newExp2 = replaceString (eConst h dummyLoc) in
+        [ ("Convert to RGB", \() -> oneSafeResult newExp1)
+        , ("Convert to Color Num (Hue Only)", \() -> oneSafeResult newExp2)
+        ]
+
+      Nothing -> []
   _ -> []
 
 
