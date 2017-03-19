@@ -182,8 +182,19 @@ view model =
 -- Tool Boxes
 
 fileToolBox model layout =
+  let icon =
+     Html.img
+       [ Attr.src "img/light_logo.svg"
+       , Attr.style
+           [ ("width", pixels (Layout.buttonHeight - 5))
+           , ("height", pixels (Layout.buttonHeight - 5))
+           , ("vertical-align", "middle")
+           ]
+       ] []
+  in
   toolBox model "fileToolBox" [] Layout.getPutFileToolBox layout.fileTools
-    [ fileIndicator model
+    [ icon
+    , fileIndicator model
     , fileNewDialogBoxButton
     , fileSaveAsDialogBoxButton
     , fileSaveButton model
@@ -375,8 +386,8 @@ aceCodeBox model dim =
     , Attr.style [ ("position", "relative")
                  , ("width", pixels dim.width)
                  , ("height", pixels dim.height)
-                 , ("left", pixels Layout.windowPadding)
-                 , ("top", pixels Layout.windowPadding)
+                 , ("left", pixels dim.left)
+                 , ("top", pixels dim.top)
                  , ("pointer-events", "auto")
                  , ("z-index", "-1")
                  ]
@@ -1515,7 +1526,13 @@ deuceToolBoxNested model layout extremePoint =
   let maybeNotPinnedAnchor =
     if extremePoint == {x=0,y=0} then Nothing
     else
+{-
       let (xOffset, yOffset) = (60, 10) in
+-}
+      -- TODO: added extra slop offsets here, when changing layout
+      -- of aceCodeBox and deuceTools. figure out how to remove the
+      -- need for this.
+      let (xOffset, yOffset) = (70, 80) in
       Just { leftRight = Left       <| extremePoint.x + xOffset
            , topBottom = Layout.Top <| extremePoint.y + yOffset }
   in

@@ -11,12 +11,11 @@ windowPadding = 10
 buttonHeight = 25
 iconButtonHeight = 40
 rowGap = 3
-initialCodeBoxWidth = 500
+initialCodeBoxWidth = 815  -- 500
 initialCanvasGapFromTop = 50
 extraBotPadding = 40
 extraRightPadding = 15
 middlePadding = 20
-fileAndCodeToolBoxRightOffset = 10
 
 strInterfaceColor = "rgba(52,73,94,1.0)"
 strButtonTopColor = "rgba(231,76,60,1.0)" -- from InterfaceButtons example
@@ -215,13 +214,16 @@ type alias Info =
 computeLayout : Model -> Info
 computeLayout m =
   let dimCodeBox =
-    let initialHeight = m.dimensions.height - 2 * windowPadding in
+    let offsetDownFromCodeTools = 2 * buttonHeight + 18 in
+    let initialHeight =
+      m.dimensions.height - 2 * windowPadding - offsetDownFromCodeTools
+    in
     let width = initialCodeBoxWidth + m.layoutOffsets.codeBox.dx in
     let height = initialHeight + m.layoutOffsets.codeBox.dy - extraBotPadding in
     { width = width
     , height = height
     , left = windowPadding
-    , top = windowPadding
+    , top = windowPadding + offsetDownFromCodeTools
     }
   in
   let dimCanvas =
@@ -239,36 +241,36 @@ computeLayout m =
   { codeBox = dimCodeBox
   , canvas = dimCanvas
   , fileTools = offset m getFileToolBox
-     { leftRight = Left   <| dimCanvas.initialLeft + fileAndCodeToolBoxRightOffset
+     { leftRight = Left   <| dimCodeBox.left
      , topBottom = Top    <| windowPadding + 0 * (rowGap + buttonHeight)
      }
   , codeTools = offset m getCodeToolBox
-     { leftRight = Left   <| dimCanvas.initialLeft + fileAndCodeToolBoxRightOffset
+     { leftRight = Left   <| dimCodeBox.left
      , topBottom = Top    <| windowPadding + round (1 * (rowGap + buttonHeight))
      }
   , drawTools = offset m getDrawToolBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + round (1.3 * (rowGap + buttonHeight))
+     , topBottom = Top    <| windowPadding + round (0.0 * (rowGap + iconButtonHeight))
      }
   , stretchyDrawTools = offset m getDrawToolBox -- reusing drawTools offset
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + round (1.3 * (rowGap + buttonHeight) + 1.1 * (rowGap + iconButtonHeight))
+     , topBottom = Top    <| windowPadding + round (1.0 * (rowGap + iconButtonHeight))
      }
   , lambdaDrawTools = offset m getDrawToolBox -- reusing drawTools offset
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + round (1.3 * (rowGap + buttonHeight) + 2.3 * (rowGap + iconButtonHeight))
+     , topBottom = Top    <| windowPadding + round (2.0 * (rowGap + iconButtonHeight))
      }
   , attributeTools = offset m getAttributeToolBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + round (3.3 * (rowGap + buttonHeight) + 2.3 * (rowGap + iconButtonHeight))
+     , topBottom = Top    <| windowPadding + round (3.0 * (rowGap + iconButtonHeight) + 0.0 * (rowGap + buttonHeight))
      }
   , blobTools = offset m getBlobToolBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + round (4.3 * (rowGap + buttonHeight) + 2.3 * (rowGap + iconButtonHeight))
+     , topBottom = Top    <| windowPadding + round (3.0 * (rowGap + iconButtonHeight) + 1.0 * (rowGap + buttonHeight))
      }
   , moreBlobTools = offset m getMoreBlobToolBox
      { leftRight = Right  <| windowPadding
-     , topBottom = Top    <| windowPadding + round (5.3 * (rowGap + buttonHeight) + 2.3 * (rowGap + iconButtonHeight))
+     , topBottom = Top    <| windowPadding + round (3.0 * (rowGap + iconButtonHeight) + 2.0 * (rowGap + buttonHeight))
      }
   , outputTools = offset m getOutputToolBox
      { leftRight = Right  <| windowPadding
@@ -291,11 +293,7 @@ computeLayout m =
      , topBottom = Bottom <| windowPadding + (0 * (rowGap + buttonHeight))
      }
   , deuceToolsPinnedAnchor =
-     { leftRight = Left   <| dimCanvas.initialLeft + fileAndCodeToolBoxRightOffset
-     , topBottom = Top    <| windowPadding + round (2 * (rowGap + buttonHeight))
-{-
-     { leftRight = Left   <| dimCodeBox.left
-     , topBottom = Bottom <| windowPadding + (1 * (rowGap + buttonHeight))
--}
+     { leftRight = Left   <| dimCodeBox.left + 250 -- to separate codeTools and deuceTools
+     , topBottom = Top    <| windowPadding + round (1 * (rowGap + buttonHeight))
      }
   }
