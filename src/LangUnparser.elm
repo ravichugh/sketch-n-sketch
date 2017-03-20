@@ -1,6 +1,9 @@
 module LangUnparser exposing
-  (unparse, unparsePat, unparseWD, unparseType, unparseWithIds, unparseWithUniformWhitespace,
-    bumpCol, incCol)
+  ( unparse, unparsePat, unparseWD, unparseType
+  , unparseWithIds
+  , unparseWithUniformWhitespace, unparsePatWithUniformWhitespace
+  , bumpCol, incCol
+  )
 
 import Lang exposing (..)
 import OurParser2 exposing (Pos, WithPos, WithInfo, startPos)

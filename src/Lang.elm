@@ -338,7 +338,7 @@ fitsOnLine s =
 
 isLet e = case e.val.e__ of
   ELet _ _ _ _ _ _ _ -> True
-  EComment _ _ e1    -> isLet e1
+  -- EComment _ _ e1    -> isLet e1
   _                  -> False
 
 
@@ -362,7 +362,7 @@ mapFoldExp f initAcc e =
   let recurse = mapFoldExp f in
   let wrap e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
   let wrapAndMap = f << wrap in
-  -- Make sure exps are left-to-right so they are visted right-to-left.
+  -- Make sure exps are left-to-right so they are visited right-to-left.
   let recurseAll initAcc exps =
     exps
     |> List.foldr
@@ -456,10 +456,119 @@ mapFoldExp f initAcc e =
       wrapAndMap (ETypeAlias ws1 pat tipe newE1 ws2) newAcc
 
 
+-- Nodes visited/replaced in top-down, left-to-right order.
+mapFoldExpTopDown : (Exp -> a -> (Exp, a)) -> a -> Exp -> (Exp, a)
+mapFoldExpTopDown f initAcc e =
+  let (newE, newAcc) = f e initAcc in
+  let ret e__ acc =
+    (replaceE__ newE e__, acc)
+  in
+  let recurse acc child =
+    mapFoldExpTopDown f acc child
+  in
+  let recurseAll acc exps =
+    exps
+    |> List.foldl
+        (\exp (newExps, acc) ->
+          let (newExp, newAcc) = recurse acc exp in
+          (newExps ++ [newExp], newAcc)
+        )
+        ([], acc)
+  in
+  case newE.val.e__ of
+    EConst _ _ _ _ -> (newE, newAcc)
+    EBase _ _      -> (newE, newAcc)
+    EVar _ _       -> (newE, newAcc)
+    EFun ws1 ps e1 ws2 ->
+      let (newE1, newAcc2) = recurse newAcc e1 in
+      ret (EFun ws1 ps newE1 ws2) newAcc2
+
+    EApp ws1 e1 es ws2 ->
+      let (newE1, newAcc2) = recurse newAcc e1 in
+      let (newEs, newAcc3) = recurseAll newAcc2 es in
+      ret (EApp ws1 newE1 newEs ws2) newAcc3
+
+    EOp ws1 op es ws2 ->
+      let (newEs, newAcc2) = recurseAll newAcc es in
+      ret (EOp ws1 op newEs ws2) newAcc2
+
+    EList ws1 es ws2 Nothing ws3 ->
+      let (newEs, newAcc2) = recurseAll newAcc es in
+      ret (EList ws1 newEs ws2 Nothing ws3) newAcc2
+
+    EList ws1 es ws2 (Just e1) ws3 ->
+      let (newE1, newAcc2) = recurse newAcc e1 in
+      let (newEs, newAcc3) = recurseAll newAcc2 es in
+      ret (EList ws1 newEs ws2 (Just newE1) ws3) newAcc3
+
+    EIf ws1 e1 e2 e3 ws2 ->
+      case recurseAll newAcc [e1, e2, e3] of
+        ([newE1, newE2, newE3], newAcc2) -> ret (EIf ws1 newE1 newE2 newE3 ws2) newAcc2
+        _                                -> Debug.crash "I'll buy you a beer if this line of code executes. - Brian"
+
+    ECase ws1 e1 branches ws2 ->
+      let (newE1, newAcc2) = recurse newAcc e1 in
+      let (newBranches, newAcc3) =
+        branches
+        |> List.foldl
+            (\branch (newBranches, acc) ->
+              let (Branch_ bws1 p ei bws2) = branch.val in
+              let (newEi, newAcc3) = recurse acc ei in
+              (newBranches ++ [{ branch | val = Branch_ bws1 p newEi bws2 }], newAcc3)
+            )
+            ([], newAcc2)
+      in
+      ret (ECase ws1 newE1 newBranches ws2) newAcc3
+
+    ETypeCase ws1 pat tbranches ws2 ->
+      let (newBranches, newAcc2) =
+        tbranches
+        |> List.foldl
+            (\tbranch (newBranches, acc) ->
+              let (TBranch_ bws1 t ei bws2) = tbranch.val in
+              let (newEi, newAcc2) = recurse acc ei in
+              (newBranches ++ [{ tbranch | val = TBranch_ bws1 t newEi bws2 }], newAcc2)
+            )
+            ([], newAcc)
+      in
+      ret (ETypeCase ws1 pat newBranches ws2) newAcc2
+
+    EComment ws s e1 ->
+      let (newE1, newAcc2) = recurse newAcc e1 in
+      ret (EComment ws s newE1) newAcc2
+
+    EOption ws1 s1 ws2 s2 e1 ->
+      let (newE1, newAcc2) = recurse newAcc e1 in
+      ret (EOption ws1 s1 ws2 s2 newE1) newAcc2
+
+    ELet ws1 k b p e1 e2 ws2 ->
+      let (newE1, newAcc2) = recurse newAcc e1 in
+      let (newE2, newAcc3) = recurse newAcc2 e2 in
+      ret (ELet ws1 k b p newE1 newE2 ws2) newAcc3
+
+    ETyp ws1 pat tipe e1 ws2 ->
+      let (newE1, newAcc2) = recurse newAcc e1 in
+      ret (ETyp ws1 pat tipe newE1 ws2) newAcc2
+
+    EColonType ws1 e1 ws2 tipe ws3 ->
+      let (newE1, newAcc2) = recurse newAcc e1 in
+      ret (EColonType ws1 newE1 ws2 tipe ws3) newAcc2
+
+    ETypeAlias ws1 pat tipe e1 ws2 ->
+      let (newE1, newAcc2) = recurse newAcc e1 in
+      ret (ETypeAlias ws1 pat tipe newE1 ws2) newAcc2
+
+
 mapExp : (Exp -> Exp) -> Exp -> Exp
 mapExp f e =
   -- Accumulator thrown away; just need something that type checks.
   let (newExp, _) = mapFoldExp (\exp _ -> (f exp, ())) () e in
+  newExp
+
+mapExpTopDown : (Exp -> Exp) -> Exp -> Exp
+mapExpTopDown f e =
+  -- Accumulator thrown away; just need something that type checks.
+  let (newExp, _) = mapFoldExpTopDown (\exp _ -> (f exp, ())) () e in
   newExp
 
 -- Preserves EIds

@@ -366,6 +366,99 @@ copyListWhitespace templateList list =
     _ ->
       Debug.crash <| "Lang.copyListWs expected lists, but given " ++ unparseWithIds templateList ++ " and " ++ unparseWithIds list
 
+-- O(n^2) if applied recursively to children
+-- O(n) if used once
+reflowLetWhitespace : Exp -> Exp -> Exp
+reflowLetWhitespace program letExp =
+  let longLineLength = 45 in -- Not precisely 45, but roughly so. (using unparseWithUniformWhitespace to ensure convergence in one step; also don't count length of initial "(let ")
+  case letExp.val.e__ of
+    ELet oldLetWs letKind isRec pat boundExp body ws2 ->
+      case boundExp.val.e__ of
+        EFun fws1 fpats fbody fws2 ->
+          let multipleLinesForFunction =
+            String.contains "\n" (LangUnparser.unparse fbody)
+            || longLineLength < String.length (LangUnparser.unparsePatWithUniformWhitespace True pat ++ LangUnparser.unparseWithUniformWhitespace True True boundExp)
+          in
+          let newLineForFunctionArgs =
+            longLineLength < String.length (LangUnparser.unparsePatWithUniformWhitespace True pat ++ String.join " " (List.map (LangUnparser.unparsePatWithUniformWhitespace True) fpats))
+          in
+          let (letWs, funcWs, fbodyWs, newFBody, bodyWs) =
+            if isTopLevelEId letExp.val.eid program then
+              let oldBodyWs = precedingWhitespace body in
+              if      newLineForFunctionArgs   then ( "\n\n", "\n  ", "\n    ", replaceIndentation "    " fbody, "\n\n" )
+              else if multipleLinesForFunction then ( "\n\n", " "   , "\n  "  , replaceIndentation "  " fbody  , "\n\n" )
+              else                                  ( "\n"  , " "   , " "     , fbody                          , if String.contains "\n" oldBodyWs then oldBodyWs else "\n" )
+            else
+              let oldIndentation = indentationOf letExp in
+              let letWs = "\n" ++ oldIndentation in
+              let (funcWs, fbodyWs, newFBody) =
+                if      newLineForFunctionArgs   then ( "\n" ++ oldIndentation ++ "  ", "\n" ++ oldIndentation ++ "    ", replaceIndentation (oldIndentation ++ "    ") fbody )
+                else if multipleLinesForFunction then ( " "                           , "\n" ++ oldIndentation ++ "  "  , replaceIndentation (oldIndentation ++ "  ") fbody   )
+                else                                  ( " "                           , " "                             , fbody                                               )
+              in
+              let bodyWs =
+                if      isLet body               then "\n" ++ oldIndentation
+                else if multipleLinesForFunction then "\n" ++ oldIndentation ++ ""  -- Can't decide if "" or "    " is better.
+                else                                  "\n" ++ oldIndentation ++ "  "
+              in
+              (letWs, funcWs, fbodyWs, newFBody, bodyWs)
+          in
+          let newFunc =
+            replaceE__ boundExp <|
+              EFun
+                  funcWs
+                  (setPatListWhitespace "" " " fpats)
+                  (replacePrecedingWhitespace fbodyWs newFBody)
+                  ""
+          in
+          replaceE__ letExp <|
+            ELet
+                letWs
+                letKind
+                isRec
+                (replacePrecedingWhitespacePat " " pat)
+                newFunc
+                (replacePrecedingWhitespace bodyWs body)
+                ""
+
+        _ ->
+          let addNewLineForBoundExp =
+            longLineLength < String.length (LangUnparser.unparsePatWithUniformWhitespace True pat ++ LangUnparser.unparseWithUniformWhitespace True True boundExp)
+          in
+          let (letWs, boundExpWs, bodyWs) =
+            if isTopLevelEId letExp.val.eid program then
+              let oldBodyWs = precedingWhitespace body in
+              if addNewLineForBoundExp
+              then ( "\n\n", "\n  ", "\n\n" )
+              else ( "\n"  , " "   , if String.contains "\n" oldBodyWs then oldBodyWs else "\n" )
+            else
+              let oldIndentation = indentationOf letExp in
+              let letWs = "\n" ++ oldIndentation in
+              let boundExpWs =
+                if addNewLineForBoundExp
+                then "\n" ++ oldIndentation ++ "  "
+                else " "
+              in
+              let bodyWs =
+                if      isLet body            then "\n" ++ oldIndentation
+                else if addNewLineForBoundExp then "\n" ++ oldIndentation ++ ""  -- Can't decide if "" or "    " is better.
+                else                               "\n" ++ oldIndentation ++ "  "
+              in
+              (letWs, boundExpWs, bodyWs)
+          in
+          replaceE__ letExp <|
+            ELet
+                letWs
+                letKind
+                isRec
+                (replacePrecedingWhitespacePat " " pat)
+                (replacePrecedingWhitespace boundExpWs boundExp)
+                (replacePrecedingWhitespace bodyWs body)
+                ""
+
+    _ ->
+      Debug.crash <| "reflowLetWhitespace expected an ELet, got: " ++ unparseWithIds letExp
+
 
 identifiersVisibleAtProgramEnd : Exp -> Set.Set Ident
 identifiersVisibleAtProgramEnd program =

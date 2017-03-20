@@ -582,13 +582,13 @@ abstract eid shouldBeParameter originalProgram =
     |> Set.fromList
   in
   -- To allow some varaible names in the body to become arguments:
-  --   1. Assign absurd names to the parameters (ARRRG!!!)
+  --   1. Assign absurd names to the parameters (x_ARRRG!!!)
   --   2. Use LangSimplify.changeRenamedVarsToOuter to
   --      change (\x_ARRRG!!! -> let x = x_ARRRG!!! in x + 1)
   --      to     (\x_ARRRG!!! -> let x = x_ARRRG!!! in x_ARRRG!!! + 1)
   --   3. Remove unused variables to free up the names we want.
   --      Yields (\x_ARRRG!!! -> x_ARRRG!!! + 1)
-  --   4. Recompute non-colliding parameter names without the tags.
+  --   4. Recompute non-colliding parameter names without the _ARRRG!!! tags.
   let (abstractionBody, (_, paramNamesARRRGTagged, paramExps)) =
     expToAbstact
     |> mapFoldExp

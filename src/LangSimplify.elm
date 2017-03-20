@@ -26,10 +26,11 @@ import Utils
 
 
 cleanCode : Exp -> Exp
-cleanCode exp =
-  exp
+cleanCode program =
+  program
   |> simplify
   |> removeExtraPostfixes ["_orig", "'"]
+  |> mapExpTopDown (\e -> if isLet e then reflowLetWhitespace program e else e)
   |> LangParser2.freshen
 
 
