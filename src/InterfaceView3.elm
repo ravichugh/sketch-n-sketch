@@ -76,9 +76,10 @@ view model =
   let blobTools = blobToolBox model layout in
   let moreBlobTools = moreBlobToolBox model layout in
   let outputTools = outputToolBox model layout in
-  let textTools = textToolBox model layout in
   let (deuceWidgets, extremePoint) = deuceLayer model layout in
-  let deuceTools = deuceToolBoxNested model layout extremePoint in
+  let maybeNotPinnedAnchor = addSomeOffsetToExtremePoint extremePoint in
+  let deuceTools = deuceToolBoxNested model layout maybeNotPinnedAnchor in
+  let textTools = textToolBox model layout maybeNotPinnedAnchor in
   let synthesisResultsSelect = synthesisResultsSelectBox model layout in
 
   let
@@ -248,9 +249,10 @@ attributeToolBox model layout =
     , relateButton model "Indexed Relate" Controller.msgIndexedRelate
     ]
 
-textToolBox model layout =
+textToolBox model layout maybeNotPinnedAnchor =
   toolBox model "textToolBox" [] Layout.getPutTextToolBox layout.textTools
     [ fontSizeButton model
+    , pinButton model layout maybeNotPinnedAnchor
     ]
 
 blobToolBox model layout =
@@ -1522,7 +1524,21 @@ rightmostBottommostPoint =
 -- extremePoint is the right-most, bottom-most point among the Deuce widgets.
 -- It is computed earlier in the view function and, hence, not stored in Model.
 --
-deuceToolBoxNested model layout extremePoint =
+addSomeOffsetToExtremePoint extremePoint =
+  if extremePoint == {x=0,y=0} then Nothing
+  else
+{-
+    let (xOffset, yOffset) = (60, 10) in
+-}
+    -- TODO: added extra slop offsets here, when changing layout
+    -- of aceCodeBox and deuceTools. figure out how to remove the
+    -- need for this.
+    let (xOffset, yOffset) = (70, 80) in
+    Just { leftRight = Left       <| extremePoint.x + xOffset
+         , topBottom = Layout.Top <| extremePoint.y + yOffset }
+
+deuceToolBoxNested model layout maybeNotPinnedAnchor =
+{-
   let icon =
      Html.img
        [ Attr.src "img/deuce_logo.png"
@@ -1533,6 +1549,7 @@ deuceToolBoxNested model layout extremePoint =
            ]
        ] []
   in
+-}
   let extraStyles =
     [ ("display", "block")
     ]
@@ -1540,20 +1557,7 @@ deuceToolBoxNested model layout extremePoint =
   let tools = deuceTools model in
   let spacer =
     if tools == [] then []
-    else [Html.div [Attr.style [("height", "5px")]] []]
-  in
-  let maybeNotPinnedAnchor =
-    if extremePoint == {x=0,y=0} then Nothing
-    else
-{-
-      let (xOffset, yOffset) = (60, 10) in
--}
-      -- TODO: added extra slop offsets here, when changing layout
-      -- of aceCodeBox and deuceTools. figure out how to remove the
-      -- need for this.
-      let (xOffset, yOffset) = (70, 80) in
-      Just { leftRight = Left       <| extremePoint.x + xOffset
-           , topBottom = Layout.Top <| extremePoint.y + yOffset }
+    else [Html.div [Attr.style [("height", "7px")]] []]
   in
   let leftRight =
     let anchor =
@@ -1564,50 +1568,51 @@ deuceToolBoxNested model layout extremePoint =
     in
     Layout.offset model Layout.getDeuceToolBox anchor
   in
-  let pinButton =
-    let attrs =
-      if tools == [] then []
-      else [Attr.style [("position", "absolute"), ("right", "0px")]]
-    in
-    let caption =
-      if model.layoutOffsets.deuceToolBox.pinned
-        then "Pinned"
-        else "Not Pinned"
-    in
-    let msgTogglePin =
-      Msg "Toogle Pin Deuce Tools" <| \m ->
-        let layoutOffsets = m.layoutOffsets in
-        let deuceToolBox = layoutOffsets.deuceToolBox in
-        let newOffsets =
-          case maybeNotPinnedAnchor of
-            Nothing ->
-              {dx=0, dy=0}
-
-            Just notPinnedAnchor ->
-              let (ddx, ddy) =
-                let (a, b) =
-                  if deuceToolBox.pinned
-                    then (layout.deuceToolsPinnedAnchor, notPinnedAnchor)
-                    else (notPinnedAnchor, layout.deuceToolsPinnedAnchor)
-                in
-                case (a.leftRight, a.topBottom, b.leftRight, b.topBottom) of
-                  (Left x1, Layout.Top y1, Left x2, Layout.Top y2) ->
-                    (x1 - x2, y1 - y2)
-                  _ ->
-                    Debug.log "msgTogglePin: shouldn't happen" (0, 0)
-              in
-              { dx = deuceToolBox.offsets.dx + ddx
-              , dy = deuceToolBox.offsets.dy + ddy
-              }
-        in
-        { m | layoutOffsets =
-          { layoutOffsets | deuceToolBox =
-            { pinned = not deuceToolBox.pinned , offsets = newOffsets } } }
-    in
-    htmlButtonExtraAttrs attrs caption msgTogglePin Regular False
-  in
   toolBox model "deuceToolBox" extraStyles Layout.getPutDeuceToolBox leftRight <|
-    [icon, pinButton] ++ spacer ++ tools
+    spacer ++ tools
+
+pinButton model layout maybeNotPinnedAnchor =
+  let attrs =
+    [ Attr.title "To use Deuce, hold Shift while hovering over the code box."
+    ]
+  in
+  let caption =
+    "Deuce Tools " ++
+    if model.layoutOffsets.deuceToolBox.pinned
+      then "[Pinned]"
+      else "[Auto-Positioned]"
+  in
+  let msgTogglePin =
+    Msg "Toogle Pin Deuce Tools" <| \m ->
+      let layoutOffsets = m.layoutOffsets in
+      let deuceToolBox = layoutOffsets.deuceToolBox in
+      let newOffsets =
+        case maybeNotPinnedAnchor of
+          Nothing ->
+            {dx=0, dy=0}
+
+          Just notPinnedAnchor ->
+            let (ddx, ddy) =
+              let (a, b) =
+                if deuceToolBox.pinned
+                  then (layout.deuceToolsPinnedAnchor, notPinnedAnchor)
+                  else (notPinnedAnchor, layout.deuceToolsPinnedAnchor)
+              in
+              case (a.leftRight, a.topBottom, b.leftRight, b.topBottom) of
+                (Left x1, Layout.Top y1, Left x2, Layout.Top y2) ->
+                  (x1 - x2, y1 - y2)
+                _ ->
+                  Debug.log "msgTogglePin: shouldn't happen" (0, 0)
+            in
+            { dx = deuceToolBox.offsets.dx + ddx
+            , dy = deuceToolBox.offsets.dy + ddy
+            }
+      in
+      { m | layoutOffsets =
+        { layoutOffsets | deuceToolBox =
+          { pinned = not deuceToolBox.pinned , offsets = newOffsets } } }
+  in
+  htmlButtonExtraAttrs attrs caption msgTogglePin Regular False
 
 deuceTools model =
   let chop = Utils.removeLastElement in
