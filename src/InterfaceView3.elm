@@ -1037,21 +1037,40 @@ bigDialogBox = dialogBox "100" "85%" "85%"
 smallDialogBox = dialogBox "101" "35%" "35%"
 
 fileNewDialogBox model =
-  let viewTemplate (name, _) =
-        Html.div
-          [ Attr.style
-              [ ("font-family", "monospace")
-              , ("font-size", "1.2em")
-              , ("padding", "20px")
-              , ("border-bottom", "1px solid black")
+  let
+    viewTemplate (name, _) =
+      Html.div
+        [ Attr.style
+            [ ("font-family", "monospace")
+            , ("font-size", "1.2em")
+            , ("margin-bottom", "10px")
+            , ("padding", "10px 20px")
+            --, ("border-top", "1px solid black")
+            --, ("border-bottom", "1px solid black")
+            , ("background-color", "rgba(0, 0, 0, 0.1)")
+            ]
+        ]
+        [ htmlButton
+            name
+            (Controller.msgAskNew name model.needsSave)
+            Regular
+            False
+        ]
+    viewCategory (categoryName, templates) =
+      Html.div
+        []
+        ( [ Html.h1
+              [ Attr.style
+                [ ("padding", "10px 20px")
+                --, ("border-top", "2px solid black")
+                --, ("border-bottom", "2px solid black")
+                , ("background-color", "rgba(0, 0, 0, 0.2)")
+                ]
               ]
+              [ Html.text categoryName ]
           ]
-          [ htmlButton
-              name
-              (Controller.msgAskNew name model.needsSave)
-              Regular
-              False
-          ]
+          ++ List.map viewTemplate templates
+        )
   in
     bigDialogBox
       True
@@ -1060,7 +1079,7 @@ fileNewDialogBox model =
       []
       [Html.text "New..."]
       []
-      (List.map viewTemplate Examples.list)
+      (List.map viewCategory Examples.templateCategories)
 
 fileSaveAsDialogBox model =
   let saveAsInput =
