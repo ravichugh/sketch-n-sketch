@@ -960,7 +960,10 @@ msgToggleCodeBox = Msg "Toggle Code Box" <| \old ->
 msgToggleOutput = Msg "Toggle Output" <| \old ->
   let m = case old.mode of
     Live _  -> Print (LangSvg.printSvg old.showGhosts old.slate)
-    Print _ -> PrintScopeGraph Nothing
+    Print _ -> let showScopeGraph = False in
+               if showScopeGraph
+                 then PrintScopeGraph Nothing
+                 else refreshMode_ old
     PrintScopeGraph _ -> refreshMode_ old
   in
   { old | mode = m }
