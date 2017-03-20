@@ -147,6 +147,7 @@ Extra parentheses are not permitted.
       |   [p1 | p2]
       |   [p1 ... pn]
       |   [p1 ... pn | prest]
+      |   x@p
 ```
 
 ### Case Expressions

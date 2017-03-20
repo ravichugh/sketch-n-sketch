@@ -186,6 +186,7 @@ fileToolBox model layout =
   let icon =
      Html.img
        [ Attr.src "img/light_logo.svg"
+       , Attr.title <| "Sketch-n-Sketch " ++ params.strVersion
        , Attr.style
            [ ("width", pixels (Layout.buttonHeight - 5))
            , ("height", pixels (Layout.buttonHeight - 5))
