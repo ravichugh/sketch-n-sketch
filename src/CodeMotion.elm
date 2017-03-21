@@ -877,77 +877,93 @@ removeArg patId originalProgram =
             then identifierUsageEIds funcName func ++ identifierUsageEIds funcName letBody |> Set.fromList
             else identifierUsageEIds funcName letBody |> Set.fromList
           in
-          let transformedApplicationsWithRemovedCallsiteArgument =
-            (if isRec then flattenExpTree func ++ flattenExpTree letBody else flattenExpTree letBody)
-            |> List.filterMap
-                (\exp ->
-                  case exp.val.e__ of
-                    EApp appWs1 appFuncExp appArgs appWs2 ->
-                      if Set.member appFuncExp.val.eid funcVarUsageEIds then
-                        pluckExpFromExpsByPath path appArgs
-                        |> Maybe.map
-                            (\(pluckedExp, remainingArgs) ->
-                              (exp.val.eid, replaceE__ exp (EApp appWs1 appFuncExp remainingArgs appWs2), appFuncExp.val.eid, pluckedExp)
-                            )
-                      else
-                        Nothing
-
-                    _ ->
-                      Nothing
-                )
-          in
           case func.val.e__ of
             EFun fws1 fpats fbody fws2 ->
-              case (pluckPatFromPats path fpats |> Maybe.map (\(p,ps) -> (p.val, ps)), transformedApplicationsWithRemovedCallsiteArgument) of
-                (Just (PVar _ argIdent _, remainingArgPats), (_, _, _, argReplacementValue)::_) ->
-                  -- Another option: declare a new variable right inside the function body.
-                  let newFBody =
-                    transformVarsUntilBound
-                        (Dict.singleton argIdent (\varExp -> LangParser2.clearAllIds argReplacementValue |> setEId varExp.val.eid)) -- need to preserve EId of replacement site for free var safety check below
-                        fbody
+              case pluckPatFromPats path fpats |> Maybe.map (\(p,ps) -> (p.val, ps)) of
+                Just (PVar _ argIdent _, remainingArgPats) ->
+                  let transformedApplicationsWithRemovedCallsiteArgument =
+                    (if isRec then flattenExpTree func ++ flattenExpTree letBody else flattenExpTree letBody)
+                    |> List.filterMap
+                        (\exp ->
+                          case exp.val.e__ of
+                            EApp appWs1 appFuncExp appArgs appWs2 ->
+                              if Set.member appFuncExp.val.eid funcVarUsageEIds then
+                                pluckExpFromExpsByPath path appArgs
+                                |> Maybe.map
+                                    (\(pluckedExp, remainingArgs) ->
+                                      let newAppArgs =
+                                        if remainingArgPats == [] && appArgs /= [] -- appArgs should never be []
+                                        then [ eTuple [] ]
+                                        else remainingArgs
+                                      in
+                                      (exp.val.eid, replaceE__ exp (EApp appWs1 appFuncExp newAppArgs appWs2), appFuncExp.val.eid, pluckedExp)
+                                    )
+                              else
+                                Nothing
+
+                            _ ->
+                              Nothing
+                        )
                   in
-                  let newProgram =
-                    let eidToNewNode =
-                      transformedApplicationsWithRemovedCallsiteArgument
-                      |> List.map (\(eid, newApp, _, _) -> (eid, newApp))
-                      |> Dict.fromList
-                    in
-                    originalProgram
-                    |> replaceExpNodeE__ func (EFun fws1 remainingArgPats newFBody fws2)
-                    |> replaceExpNodes eidToNewNode
-                  in
-                  let isSafe =
-                    let allCallsitesTransformed =
-                      let usagesTransformed =
-                        transformedApplicationsWithRemovedCallsiteArgument
-                        |> List.map (\(_, _, appFuncExpEId, _) -> appFuncExpEId)
-                        |> Set.fromList
+                  case transformedApplicationsWithRemovedCallsiteArgument of
+                    (_, _, _, argReplacementValue)::_ ->
+                      -- Another option: declare a new variable right inside the function body.
+                      let newFBody =
+                        transformVarsUntilBound
+                            (Dict.singleton argIdent (\varExp -> LangParser2.clearAllIds argReplacementValue |> setEId varExp.val.eid)) -- need to preserve EId of replacement site for free var safety check below
+                            fbody
                       in
-                      funcVarUsageEIds == usagesTransformed
-                    in
-                    let argReplacementSafe =
-                      -- Ensure free vars in replacement still refer to the same thing after moving from callsite into function.
-                      let replacementLocationEIds =
-                        identifierUses argIdent fbody |> List.map (.val >> .eid) -- original body (eids same in new body)
+                      let newProgram =
+                        let eidToNewNode =
+                          transformedApplicationsWithRemovedCallsiteArgument
+                          |> List.map (\(eid, newApp, _, _) -> (eid, newApp))
+                          |> Dict.fromList
+                        in
+                        let newArgPats =
+                          if remainingArgPats == []
+                          then [ pList0 [] ]
+                          else remainingArgPats
+                        in
+                        originalProgram
+                        |> replaceExpNodeE__ func (EFun fws1 newArgPats newFBody fws2)
+                        |> replaceExpNodes eidToNewNode
                       in
-                      freeVars argReplacementValue
-                      |> List.all
-                          (\freeVarInReplacement ->
-                            let originalBindingScopeId = bindingScopeIdFor freeVarInReplacement originalProgram in
-                            let freeIdentInReplacement = expToIdent freeVarInReplacement in
-                            replacementLocationEIds
-                            |> List.all
-                                (\replacedEId ->
-                                  originalBindingScopeId == bindingScopeIdForIdentAtEId freeIdentInReplacement replacedEId newProgram
-                                )
-                          )
-                    in
-                    allCallsitesTransformed && argReplacementSafe
-                  in
-                  [ synthesisResult ("Remove Argument " ++ argIdent) newProgram |> setResultSafe isSafe ]
+                      let isSafe =
+                        let allCallsitesTransformed =
+                          let usagesTransformed =
+                            transformedApplicationsWithRemovedCallsiteArgument
+                            |> List.map (\(_, _, appFuncExpEId, _) -> appFuncExpEId)
+                            |> Set.fromList
+                          in
+                          funcVarUsageEIds == usagesTransformed
+                        in
+                        let argReplacementSafe =
+                          -- Ensure free vars in replacement still refer to the same thing after moving from callsite into function.
+                          let replacementLocationEIds =
+                            identifierUses argIdent fbody |> List.map (.val >> .eid) -- original body (eids same in new body)
+                          in
+                          freeVars argReplacementValue
+                          |> List.all
+                              (\freeVarInReplacement ->
+                                let originalBindingScopeId = bindingScopeIdFor freeVarInReplacement originalProgram in
+                                let freeIdentInReplacement = expToIdent freeVarInReplacement in
+                                replacementLocationEIds
+                                |> List.all
+                                    (\replacedEId ->
+                                      originalBindingScopeId == bindingScopeIdForIdentAtEId freeIdentInReplacement replacedEId newProgram
+                                    )
+                              )
+                        in
+                        allCallsitesTransformed && argReplacementSafe
+                      in
+                      [ synthesisResult ("Remove Argument " ++ argIdent) newProgram |> setResultSafe isSafe ]
+
+                    _ ->
+                      let _ = Debug.log "no uses to provide arg replacement value" transformedApplicationsWithRemovedCallsiteArgument in
+                      []
 
                 _ ->
-                  let _ = Debug.log "cannot pluck argument or no uses to provide arg replacement value" (path, fpats, transformedApplicationsWithRemovedCallsiteArgument) in
+                  let _ = Debug.log "cannot pluck argument" (path, fpats) in
                   []
 
             _ ->
