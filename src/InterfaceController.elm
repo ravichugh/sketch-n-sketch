@@ -1940,22 +1940,49 @@ addToolFlipBoolean m selections = case selections of
 --------------------------------------------------------------------------------
 
 addToolConvertColorString m selections = case selections of
-  ([], [(eid, (_, EString _ string))], [_], [], [], [], []) ->
-    case Utils.maybeFind (String.toLower string) ColorNum.htmlColorNames of
-      Just ((r,g,b), (h,_,_)) ->
-        let replaceString e =
-          replaceExpNodePreservingPrecedingWhitespace eid e m.inputExp
-        in
-        let newExp1 = replaceString (eList (listOfNums [r,g,b,1.0]) Nothing) in
-        let newExp2 = replaceString (eConst h dummyLoc) in
-        [ ("Convert to RGB", \() -> oneSafeResult newExp1)
-        , ("Convert to Color Num", \() ->
-            [newExp2 |> synthesisResult "Hue Only" |> setResultSafe False]
-          )
-        ]
+  (_, [], _, _, _, _, _) -> []
 
-      Nothing -> []
+  ([], literals, exps, [], [], [], []) ->
+    if List.length exps /= List.length literals then []
+    else
+      let maybeStrings =
+        List.map (\(eid, (_, baseVal)) ->
+                   case baseVal of
+                     EString _ string -> Just (eid, string)
+                     _                -> Nothing
+                 ) literals
+      in
+      bindMaybesToList maybeStrings <| \idsAndStrings ->
+      let maybeConverted = List.map convertStringToRgbAndHue idsAndStrings in
+      bindMaybesToList maybeConverted <| \converted ->
+      let (newExp1, newExp2) =
+         List.foldl
+           (\(eid,(r,g,b),hue) (acc1,acc2) ->
+             let replaceString = replaceExpNodePreservingPrecedingWhitespace eid in
+             let eRgba = eList (listOfNums [r,g,b,1.0]) Nothing in
+             let eColorNum = eConst hue dummyLoc in
+             (replaceString eRgba acc1, replaceString eColorNum acc2)
+           )
+           (m.inputExp, m.inputExp) converted
+      in
+      [ ("Convert to RGB", \() -> oneSafeResult newExp1)
+      , ("Convert to Color Num", \() ->
+          [newExp2 |> synthesisResult "Hue Only" |> setResultSafe False]
+        )
+      ]
+
   _ -> []
+
+convertStringToRgbAndHue (eid, string) =
+  case Utils.maybeFind (String.toLower string) ColorNum.htmlColorNames of
+    Just ((r,g,b), (h,_,_)) -> Just (eid, (r,g,b), h)
+    Nothing                 -> Nothing
+
+bindMaybesToList : List (Maybe a) -> (List a -> List b) -> List b
+bindMaybesToList list f =
+  case Utils.projJusts list of
+    Nothing -> Utils.nothing
+    Just xs -> f xs
 
 
 --------------------------------------------------------------------------------
