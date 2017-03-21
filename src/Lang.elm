@@ -1021,10 +1021,10 @@ replaceTBranchExp tbranch exp =
   let (TBranch_ tbws1 tipe _ tbws2) = tbranch.val in
   { tbranch | val = TBranch_ tbws1 tipe exp tbws2 }
 
-replaceEId : Exp -> EId -> Exp
-replaceEId e eid = let e_ = e.val in { e | val = { e_ | eid = eid } }
+setEId : EId -> Exp -> Exp
+setEId eid e = let e_ = e.val in { e | val = { e_ | eid = eid } }
 
-clearEId e = replaceEId e -1
+clearEId e = setEId -1 e
 
 clearNodeIds e =
   let eidCleared = clearEId e in

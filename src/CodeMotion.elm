@@ -149,6 +149,7 @@ pluck__ p e1 path =
       Nothing
 
 
+-- Returns Maybe (pluckedPat, patsWithoutPlucked)
 pluckPatFromPats : List Int -> List Pat -> Maybe (Pat, List Pat)
 pluckPatFromPats path pats =
   case path of
@@ -165,6 +166,8 @@ pluckPatFromPats path pats =
     [] ->
       Nothing
 
+
+-- Returns Maybe (pluckedPat, Maybe residualPatWithoutPlucked)
 pluckPat : List Int -> Pat -> Maybe (Pat, Maybe Pat)
 pluckPat path pat =
   case (pat.val, path) of
@@ -172,13 +175,17 @@ pluckPat path pat =
       Just (pat, Nothing)
 
     (PAs ws1 ident ws2 p, 1::is) ->
-      let result = pluckPat is p in
-      case result of
-        Just (pluckedPat, Just remainingPat) ->
-          Just (pluckedPat, Just <| replaceP_ pat (PAs ws1 ident ws2 remainingPat))
+      let _ = Debug.log "plucking out of as-pattern is generally unsafe (not allowed yet)" () in
+      Nothing
 
-        _ ->
-          result
+    -- (PAs ws1 ident ws2 p, 1::is) ->
+    --   let result = pluckPat is p in
+    --   case result of
+    --     Just (pluckedPat, Just remainingPat) ->
+    --       Just (pluckedPat, Just <| replaceP_ pat (PAs ws1 ident ws2 remainingPat))
+    --
+    --     _ ->
+    --       result
 
     (PList ws1 ps ws2 maybeTail ws3, i::is) ->
       if i <= List.length ps then
@@ -200,6 +207,8 @@ pluckPat path pat =
     _ ->
       Nothing
 
+
+-- Returns Maybe (pluckedExp, expsWithoutPlucked)
 pluckExpFromExpsByPath : List Int -> List Exp -> Maybe (Exp, List Exp)
 pluckExpFromExpsByPath path exps =
   case path of
@@ -217,6 +226,7 @@ pluckExpFromExpsByPath path exps =
       Nothing
 
 
+-- Returns Maybe (pluckedExp, Maybe residualExpWithoutPlucked)
 pluckExpByPath : List Int -> Exp -> Maybe (Exp, Maybe Exp)
 pluckExpByPath path exp =
   case (exp.val.e__, path) of
@@ -852,8 +862,8 @@ abstractExp eidToAbstract originalProgram =
 
 ------------------------------------------------------------------------------
 
--- TODO: looser safety criteria: check that free vars resolve to same scope
 -- TODO: allow removing last argument; replace with call to unit
+-- TODO: allow removing non-var patterns
 removeArg : PatternId -> Exp -> List SynthesisResult
 removeArg patId originalProgram =
   let ((funcEId, _), path) = patId in
@@ -893,7 +903,7 @@ removeArg patId originalProgram =
                   -- Another option: declare a new variable right inside the function body.
                   let newFBody =
                     transformVarsUntilBound
-                        (Dict.singleton argIdent (\_ -> LangParser2.clearAllIds argReplacementValue))
+                        (Dict.singleton argIdent (\varExp -> LangParser2.clearAllIds argReplacementValue |> setEId varExp.val.eid)) -- need to preserve EId of replacement site for free var safety check below
                         fbody
                   in
                   let newProgram =
@@ -907,8 +917,32 @@ removeArg patId originalProgram =
                     |> replaceExpNodes eidToNewNode
                   in
                   let isSafe =
-                    funcVarUsageEIds == (transformedApplicationsWithRemovedCallsiteArgument |> List.map (\(_, _, appFuncExpEId, _) -> appFuncExpEId) |> Set.fromList)
-                    && freeVars argReplacementValue == []
+                    let allCallsitesTransformed =
+                      let usagesTransformed =
+                        transformedApplicationsWithRemovedCallsiteArgument
+                        |> List.map (\(_, _, appFuncExpEId, _) -> appFuncExpEId)
+                        |> Set.fromList
+                      in
+                      funcVarUsageEIds == usagesTransformed
+                    in
+                    let argReplacementSafe =
+                      -- Ensure free vars in replacement still refer to the same thing after moving from callsite into function.
+                      let replacementLocationEIds =
+                        identifierUses argIdent fbody |> List.map (.val >> .eid) -- original body (eids same in new body)
+                      in
+                      freeVars argReplacementValue
+                      |> List.all
+                          (\freeVarInReplacement ->
+                            let originalBindingScopeId = bindingScopeIdFor freeVarInReplacement originalProgram in
+                            let freeIdentInReplacement = expToIdent freeVarInReplacement in
+                            replacementLocationEIds
+                            |> List.all
+                                (\replacedEId ->
+                                  originalBindingScopeId == bindingScopeIdForIdentAtEId freeIdentInReplacement replacedEId newProgram
+                                )
+                          )
+                    in
+                    allCallsitesTransformed && argReplacementSafe
                   in
                   [ synthesisResult ("Remove Argument " ++ argIdent) newProgram |> setResultSafe isSafe ]
 

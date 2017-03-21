@@ -1926,7 +1926,13 @@ bindingPatternIdFor : Exp -> Exp -> Maybe PatternId
 bindingPatternIdFor varExp program =
   let targetName = expToIdent varExp in
   let targetEId  = varExp.val.eid in
-  bindingPatternIdFor_ Nothing targetName targetEId program |> Maybe.withDefault Nothing
+  bindingPatternIdForIdentAtEId targetName targetEId program
+
+
+bindingPatternIdForIdentAtEId : Ident -> EId -> Exp -> Maybe PatternId
+bindingPatternIdForIdentAtEId targetName targetEId program =
+  bindingPatternIdFor_ Nothing targetName targetEId program
+  |> Maybe.withDefault Nothing
 
 
 -- Compute the ScopeId that assigned the binding referenced by varExp
@@ -1937,6 +1943,12 @@ bindingPatternIdFor varExp program =
 bindingScopeIdFor : Exp -> Exp -> Maybe ScopeId
 bindingScopeIdFor varExp program =
   bindingPatternIdFor varExp program
+  |> Maybe.map (\(scopeId, path) -> scopeId)
+
+
+bindingScopeIdForIdentAtEId : Ident -> EId -> Exp -> Maybe ScopeId
+bindingScopeIdForIdentAtEId targetName targetEId program =
+  bindingPatternIdForIdentAtEId targetName targetEId program
   |> Maybe.map (\(scopeId, path) -> scopeId)
 
 
