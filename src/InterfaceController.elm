@@ -1579,6 +1579,7 @@ contextSensitiveDeuceTools m =
     , addToolOneOrMoreNumsOnly addOrRemoveRangeTool m selections
     , addToolConvertColorString m selections
     , addToolAbstract m selections
+    , addToolRemoveArg m selections
     ]
 
 
@@ -1680,8 +1681,8 @@ addToolMakeEqual m selections = case selections of
 
 addToolAbstract m selections = case selections of
   ([], [], [], [patId], [], [], []) ->
-    case LangTools.findPat patId m.inputExp |> Maybe.map .val of
-      Just (PVar _ ident _) ->
+    case LangTools.findScopeExpAndPat patId m.inputExp |> Maybe.map (\(e,p) -> (e.val.e__, p.val)) of
+      Just (ELet _ _ _ _ _ _ _, PVar _ ident _) ->
         [ ("Abstract", \() ->
             CodeMotion.abstractPVar patId m.inputExp
           ) ]
@@ -1713,6 +1714,18 @@ addToolAbstract m selections = case selections of
 
   _ -> []
 
+
+addToolRemoveArg m selections = case selections of
+  ([], [], [], [patId], [], [], []) ->
+    case LangTools.findScopeExpAndPat patId m.inputExp |> Maybe.map (\(e,p) -> (e.val.e__, p.val)) of
+      Just (EFun _ _ _ _, PVar _ ident _) ->
+        [ ("Remove argument " ++ ident, \() ->
+            CodeMotion.removeArg patId m.inputExp
+          ) ]
+
+      _ -> []
+
+  _ -> []
 
 --------------------------------------------------------------------------------
 

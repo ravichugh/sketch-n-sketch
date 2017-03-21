@@ -1439,6 +1439,27 @@ pathForIdentInPat targetIdent pat =
     |> Maybe.map (\(i, path) -> i::path)
 
 
+-- Given an EId, look for an name bound to it and the let scope that defined the binding.
+findLetAndIdentBindingExp : EId -> Exp -> Maybe (Exp, Ident)
+findLetAndIdentBindingExp targetEId program =
+  program
+  |> mapFirstSuccessNode
+      (\exp ->
+        case exp.val.e__ of
+          ELet _ _ _ pat boundExp _ _ ->
+            tryMatchExpReturningList pat boundExp
+            |> Utils.mapFirstSuccess
+                (\(ident, boundE) ->
+                  if boundE.val.eid == targetEId
+                  then Just (exp, ident)
+                  else Nothing
+                )
+
+          _ ->
+            Nothing
+      )
+
+
 -- All variables with the given name (no consideration for shadowing)
 varsWithName : Ident -> Exp -> List Exp
 varsWithName ident exp =

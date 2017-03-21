@@ -634,6 +634,16 @@ replaceExpNodeE__ByEId eid newE__ root =
   let esubst = Dict.singleton eid newE__ in
   applyESubst esubst root
 
+-- Like applyESubst, but you give Exp not E__
+replaceExpNodes : (Dict.Dict EId Exp) -> Exp -> Exp
+replaceExpNodes eidToNewNode root =
+  mapExpTopDown -- top down to handle replacements that are subtrees of each other; a naive eidToNewNode could however make this loop forever
+    (\exp ->
+      case Dict.get exp.val.eid eidToNewNode of
+        Just newExp -> newExp
+        Nothing     -> exp
+    )
+    root
 
 mapType : (Type -> Type) -> Type -> Type
 mapType f tipe =
@@ -687,6 +697,7 @@ flattenExpTree : Exp -> List Exp
 flattenExpTree exp =
   exp :: List.concatMap flattenExpTree (childExps exp)
 
+-- DFS
 findFirstNode : (Exp -> Bool) -> Exp -> Maybe Exp
 findFirstNode predicate exp =
   if predicate exp then
@@ -694,6 +705,13 @@ findFirstNode predicate exp =
   else
     childExps exp
     |> Utils.mapFirstSuccess (findFirstNode predicate)
+
+-- find+map a node (DFS)
+mapFirstSuccessNode : (Exp -> Maybe a) -> Exp -> Maybe a
+mapFirstSuccessNode f exp =
+  case f exp of
+    Just result -> Just result
+    Nothing     -> childExps exp |> Utils.mapFirstSuccess (mapFirstSuccessNode f)
 
 findExpByEId : Exp -> EId -> Maybe Exp
 findExpByEId program targetEId =

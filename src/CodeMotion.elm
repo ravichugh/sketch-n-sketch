@@ -3,6 +3,7 @@ module CodeMotion exposing
   , moveEquationsBeforeEId
   , duplicateDefinitionsPat, duplicateDefinitionsBeforeEId
   , abstractPVar, abstractExp, shouldBeParameterIsConstant, shouldBeParameterIsNamedUnfrozenConstant
+  , removeArg
   , makeEListReorderTool
   , makeIntroduceVarTool
   , makeMakeEqualTool
@@ -145,6 +146,101 @@ pluck__ p e1 path =
 
     _ ->
       let _ = Debug.log ("pluck_: bad pattern " ++ unparsePat p) path in
+      Nothing
+
+
+pluckPatFromPats : List Int -> List Pat -> Maybe (Pat, List Pat)
+pluckPatFromPats path pats =
+  case path of
+    i::is ->
+      Utils.maybeGet1 i pats
+      |> Maybe.andThen (pluckPat is)
+      |> Maybe.map
+          (\(pluckedPat, maybeRemainingPat) ->
+            case maybeRemainingPat of
+              Just remainingPat -> (pluckedPat, Utils.replacei i remainingPat pats)
+              Nothing           -> (pluckedPat, Utils.removei i pats)
+          )
+
+    [] ->
+      Nothing
+
+pluckPat : List Int -> Pat -> Maybe (Pat, Maybe Pat)
+pluckPat path pat =
+  case (pat.val, path) of
+    (_, []) ->
+      Just (pat, Nothing)
+
+    (PAs ws1 ident ws2 p, 1::is) ->
+      let result = pluckPat is p in
+      case result of
+        Just (pluckedPat, Just remainingPat) ->
+          Just (pluckedPat, Just <| replaceP_ pat (PAs ws1 ident ws2 remainingPat))
+
+        _ ->
+          result
+
+    (PList ws1 ps ws2 maybeTail ws3, i::is) ->
+      if i <= List.length ps then
+        pluckPatFromPats is ps
+        |> Maybe.map
+            (\(pluckedPat, remainingPats) ->
+              (pluckedPat, Just <| replaceP_ pat (PList ws1 remainingPats ws2 maybeTail ws3))
+            )
+      else if i == List.length ps + 1 then
+        maybeTail
+        |> Maybe.andThen (pluckPat is)
+        |> Maybe.map
+            (\(pluckedPat, maybeRemainingTail) ->
+              (pluckedPat, Just <| replaceP_ pat (PList ws1 ps ws2 maybeRemainingTail ws3))
+            )
+      else
+        Nothing
+
+    _ ->
+      Nothing
+
+pluckExpFromExpsByPath : List Int -> List Exp -> Maybe (Exp, List Exp)
+pluckExpFromExpsByPath path exps =
+  case path of
+    i::is ->
+      Utils.maybeGet1 i exps
+      |> Maybe.andThen (pluckExpByPath is)
+      |> Maybe.map
+          (\(pluckedExp, maybeRemainingExp) ->
+            case maybeRemainingExp of
+              Just remainingExp -> (pluckedExp, Utils.replacei i remainingExp exps)
+              Nothing           -> (pluckedExp, Utils.removei i exps)
+          )
+
+    [] ->
+      Nothing
+
+
+pluckExpByPath : List Int -> Exp -> Maybe (Exp, Maybe Exp)
+pluckExpByPath path exp =
+  case (exp.val.e__, path) of
+    (_, []) ->
+      Just (exp, Nothing)
+
+    (EList ws1 es ws2 maybeTail ws3, i::is) ->
+      if i <= List.length es then
+        pluckExpFromExpsByPath is es
+        |> Maybe.map
+            (\(pluckedExp, remainingExps) ->
+              (pluckedExp, Just <| replaceE__ exp (EList ws1 remainingExps ws2 maybeTail ws3))
+            )
+      else if i == List.length es + 1 then
+        maybeTail
+        |> Maybe.andThen (pluckExpByPath is)
+        |> Maybe.map
+            (\(pluckedExp, maybeRemainingTail) ->
+              (pluckedExp, Just <| replaceE__ exp (EList ws1 es ws2 maybeRemainingTail ws3))
+            )
+      else
+        Nothing
+
+    _ ->
       Nothing
 
 
@@ -752,6 +848,83 @@ abstractExp eidToAbstract originalProgram =
   [ abstractedOverAllConstantsResult
   , abstractedOverNamedUnfrozenConstantsResult
   ]
+
+
+------------------------------------------------------------------------------
+
+-- TODO: looser safety criteria: check that free vars resolve to same scope
+-- TODO: allow removing last argument; replace with call to unit
+removeArg : PatternId -> Exp -> List SynthesisResult
+removeArg patId originalProgram =
+  let ((funcEId, _), path) = patId in
+  case findLetAndIdentBindingExp funcEId originalProgram of
+    Just (letExp, funcName) ->
+      case letExp.val.e__ of
+        ELet ws1 letKind isRec letPat func letBody ws2 ->
+          -- If func is passed to itself as an arg, this probably breaks. (is fixable though)
+          let funcVarUsageEIds =
+            if isRec
+            then identifierUsageEIds funcName func ++ identifierUsageEIds funcName letBody |> Set.fromList
+            else identifierUsageEIds funcName letBody |> Set.fromList
+          in
+          let transformedApplicationsWithRemovedCallsiteArgument =
+            (if isRec then flattenExpTree func ++ flattenExpTree letBody else flattenExpTree letBody)
+            |> List.filterMap
+                (\exp ->
+                  case exp.val.e__ of
+                    EApp appWs1 appFuncExp appArgs appWs2 ->
+                      if Set.member appFuncExp.val.eid funcVarUsageEIds then
+                        pluckExpFromExpsByPath path appArgs
+                        |> Maybe.map
+                            (\(pluckedExp, remainingArgs) ->
+                              (exp.val.eid, replaceE__ exp (EApp appWs1 appFuncExp remainingArgs appWs2), appFuncExp.val.eid, pluckedExp)
+                            )
+                      else
+                        Nothing
+
+                    _ ->
+                      Nothing
+                )
+          in
+          case func.val.e__ of
+            EFun fws1 fpats fbody fws2 ->
+              case (pluckPatFromPats path fpats |> Maybe.map (\(p,ps) -> (p.val, ps)), transformedApplicationsWithRemovedCallsiteArgument) of
+                (Just (PVar _ argIdent _, remainingArgPats), (_, _, _, argReplacementValue)::_) ->
+                  -- Another option: declare a new variable right inside the function body.
+                  let newFBody =
+                    transformVarsUntilBound
+                        (Dict.singleton argIdent (\_ -> LangParser2.clearAllIds argReplacementValue))
+                        fbody
+                  in
+                  let newProgram =
+                    let eidToNewNode =
+                      transformedApplicationsWithRemovedCallsiteArgument
+                      |> List.map (\(eid, newApp, _, _) -> (eid, newApp))
+                      |> Dict.fromList
+                    in
+                    originalProgram
+                    |> replaceExpNodeE__ func (EFun fws1 remainingArgPats newFBody fws2)
+                    |> replaceExpNodes eidToNewNode
+                  in
+                  let isSafe =
+                    funcVarUsageEIds == (transformedApplicationsWithRemovedCallsiteArgument |> List.map (\(_, _, appFuncExpEId, _) -> appFuncExpEId) |> Set.fromList)
+                    && freeVars argReplacementValue == []
+                  in
+                  [ synthesisResult ("Remove Argument " ++ argIdent) newProgram |> setResultSafe isSafe ]
+
+                _ ->
+                  let _ = Debug.log "cannot pluck argument or no uses to provide arg replacement value" (path, fpats, transformedApplicationsWithRemovedCallsiteArgument) in
+                  []
+
+            _ ->
+              Debug.crash <| "CodeMotion.removeArg should've had an EFun here"
+
+        _ ->
+          Debug.crash <| "CodeMotion.removeArg expected findLetAndIdentBindingExp to return ELet"
+
+    Nothing ->
+      -- Can't find a name for this function. Arg removal probably unsafe.
+      []
 
 
 ------------------------------------------------------------------------------
