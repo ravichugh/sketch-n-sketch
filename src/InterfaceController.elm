@@ -1716,16 +1716,30 @@ addToolAbstract m selections = case selections of
 
 
 addToolRemoveArg m selections = case selections of
-  ([], [], [], [patId], [], [], []) ->
-    let ((scopeEId, _), _) = patId in
-    let scopeExp = findExpByEId m.inputExp scopeEId in
-    case scopeExp |> Maybe.map (.val >> .e__) of
-      Just (EFun _ _ _ _) ->
-        [ ("Remove Argument", \() ->
-            CodeMotion.removeArg patId m.inputExp
-          ) ]
+  (_, _, _, [], _, _, _) -> []
 
-      _ -> []
+  ([], [], [], patIds, [], [], []) ->
+    let allArgumentSelected =
+      patIds
+      |> List.all
+          (\patId ->
+            let ((scopeEId, _), _) = patId in
+            let scopeExp = findExpByEId m.inputExp scopeEId in
+            case scopeExp |> Maybe.map (.val >> .e__) of
+              Just (EFun _ _ _ _) -> True
+              _                   -> False
+          )
+    in
+    if allArgumentSelected && List.length patIds == 1 then
+      [ ("Remove Argument", \() ->
+          CodeMotion.removeArg (Utils.head_ patIds) m.inputExp
+        ) ]
+    else if allArgumentSelected then
+      [ ("Remove Arguments", \() ->
+          CodeMotion.removeArgs patIds m.inputExp
+        ) ]
+    else
+      []
 
   _ -> []
 

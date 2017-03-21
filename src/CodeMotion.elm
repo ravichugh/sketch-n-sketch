@@ -3,7 +3,7 @@ module CodeMotion exposing
   , moveEquationsBeforeEId
   , duplicateDefinitionsPat, duplicateDefinitionsBeforeEId
   , abstractPVar, abstractExp, shouldBeParameterIsConstant, shouldBeParameterIsNamedUnfrozenConstant
-  , removeArg
+  , removeArg, removeArgs
   , makeEListReorderTool
   , makeIntroduceVarTool
   , makeMakeEqualTool
@@ -862,7 +862,26 @@ abstractExp eidToAbstract originalProgram =
 
 ------------------------------------------------------------------------------
 
--- TODO: allow removing non-var patterns
+removeArgs : List PatternId -> Exp -> List SynthesisResult
+removeArgs patIds originalProgram =
+  let (maybeNewProgram, isSafe) =
+    patIds
+    |> List.sort
+    |> List.foldr
+        (\patId (maybePriorProgram, safeSoFar) ->
+          case maybePriorProgram |> Maybe.map (removeArg patId) of
+            Just (SynthesisResult newResult :: _) -> (Just newResult.exp, safeSoFar && newResult.isSafe)
+            _                                     -> (Nothing, False)
+        )
+        (Just originalProgram, True)
+  in
+  case maybeNewProgram of
+    Just newProgram ->
+      [ synthesisResult "Remove Arguments" newProgram |> setResultSafe isSafe ]
+
+    Nothing ->
+      []
+
 removeArg : PatternId -> Exp -> List SynthesisResult
 removeArg patId originalProgram =
   let ((funcEId, _), path) = patId in
