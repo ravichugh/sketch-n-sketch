@@ -189,7 +189,7 @@ pluckPat path pat =
 
     (PList ws1 ps ws2 maybeTail ws3, i::is) ->
       if i <= List.length ps then
-        pluckPatFromPats is ps
+        pluckPatFromPats (i::is) ps
         |> Maybe.map
             (\(pluckedPat, remainingPats) ->
               (pluckedPat, Just <| replaceP_ pat (PList ws1 remainingPats ws2 maybeTail ws3))
@@ -235,7 +235,7 @@ pluckExpByPath path exp =
 
     (EList ws1 es ws2 maybeTail ws3, i::is) ->
       if i <= List.length es then
-        pluckExpFromExpsByPath is es
+        pluckExpFromExpsByPath (i::is) es
         |> Maybe.map
             (\(pluckedExp, remainingExps) ->
               (pluckedExp, Just <| replaceE__ exp (EList ws1 remainingExps ws2 maybeTail ws3))
@@ -862,7 +862,6 @@ abstractExp eidToAbstract originalProgram =
 
 ------------------------------------------------------------------------------
 
--- TODO: allow removing last argument; replace with call to unit
 -- TODO: allow removing non-var patterns
 removeArg : PatternId -> Exp -> List SynthesisResult
 removeArg patId originalProgram =
@@ -879,8 +878,8 @@ removeArg patId originalProgram =
           in
           case func.val.e__ of
             EFun fws1 fpats fbody fws2 ->
-              case pluckPatFromPats path fpats |> Maybe.map (\(p,ps) -> (p.val, ps)) of
-                Just (PVar _ argIdent _, remainingArgPats) ->
+              case pluckPatFromPats path fpats of
+                Just (pluckedPat, remainingArgPats) ->
                   let transformedApplicationsWithRemovedCallsiteArgument =
                     (if isRec then flattenExpTree func ++ flattenExpTree letBody else flattenExpTree letBody)
                     |> List.filterMap
@@ -907,11 +906,32 @@ removeArg patId originalProgram =
                   in
                   case transformedApplicationsWithRemovedCallsiteArgument of
                     (_, _, _, argReplacementValue)::_ ->
-                      -- Another option: declare a new variable right inside the function body.
-                      let newFBody =
-                        transformVarsUntilBound
-                            (Dict.singleton argIdent (\varExp -> LangParser2.clearAllIds argReplacementValue |> setEId varExp.val.eid)) -- need to preserve EId of replacement site for free var safety check below
-                            fbody
+                      let (newFBody, replacementLocationEIds) =
+                        -- Either declare a new variable right inside the function body or inline all uses.
+                        case (pluckedPat.val, nodeCount argReplacementValue) of
+                          (PVar _ argName _, 1) ->
+                            -- Inline all uses.
+                            let newFBody =
+                              transformVarsUntilBound
+                                  (Dict.singleton argName (\varExp -> LangParser2.clearAllIds argReplacementValue |> setEId varExp.val.eid)) -- need to preserve EId of replacement site for free var safety check below
+                                  fbody
+                            in
+                            let replacementLocationEIds =
+                              identifierUses argName fbody |> List.map (.val >> .eid) -- original body (eids same in new body)
+                            in
+                            (newFBody, replacementLocationEIds)
+
+                          _ ->
+                            let inlinedArgEId = LangParser2.maxId originalProgram + 1 in
+                            let newFBody =
+                              withDummyPos <|
+                                ELet (precedingWhitespace fbody) Let False
+                                  (ensureWhitespacePat pluckedPat)
+                                  (argReplacementValue |> LangParser2.clearAllIds |> setEId inlinedArgEId |> ensureWhitespaceExp)
+                                  (ensureWhitespaceExp fbody) ""
+                            in
+                            let replacementLocationEIds = [ inlinedArgEId ] in
+                            (newFBody, replacementLocationEIds)
                       in
                       let newProgram =
                         let eidToNewNode =
@@ -939,9 +959,6 @@ removeArg patId originalProgram =
                         in
                         let argReplacementSafe =
                           -- Ensure free vars in replacement still refer to the same thing after moving from callsite into function.
-                          let replacementLocationEIds =
-                            identifierUses argIdent fbody |> List.map (.val >> .eid) -- original body (eids same in new body)
-                          in
                           freeVars argReplacementValue
                           |> List.all
                               (\freeVarInReplacement ->
@@ -956,7 +973,7 @@ removeArg patId originalProgram =
                         in
                         allCallsitesTransformed && argReplacementSafe
                       in
-                      [ synthesisResult ("Remove Argument " ++ argIdent) newProgram |> setResultSafe isSafe ]
+                      [ synthesisResult ("Remove Argument " ++ (pluckedPat |> unparsePat |> Utils.squish)) newProgram |> setResultSafe isSafe ]
 
                     _ ->
                       let _ = Debug.log "no uses to provide arg replacement value" transformedApplicationsWithRemovedCallsiteArgument in

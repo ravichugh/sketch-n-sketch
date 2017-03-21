@@ -1717,9 +1717,11 @@ addToolAbstract m selections = case selections of
 
 addToolRemoveArg m selections = case selections of
   ([], [], [], [patId], [], [], []) ->
-    case LangTools.findScopeExpAndPat patId m.inputExp |> Maybe.map (\(e,p) -> (e.val.e__, p.val)) of
-      Just (EFun _ _ _ _, PVar _ ident _) ->
-        [ ("Remove argument " ++ ident, \() ->
+    let ((scopeEId, _), _) = patId in
+    let scopeExp = findExpByEId m.inputExp scopeEId in
+    case scopeExp |> Maybe.map (.val >> .e__) of
+      Just (EFun _ _ _ _) ->
+        [ ("Remove Argument", \() ->
             CodeMotion.removeArg patId m.inputExp
           ) ]
 
