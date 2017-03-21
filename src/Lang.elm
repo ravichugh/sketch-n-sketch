@@ -750,6 +750,17 @@ findAllWithAncestors_ predicate ancestors exp =
   let recurse exp      = findAllWithAncestors_ predicate ancestorsAndThis exp in
   thisResult ++ List.concatMap recurse (childExps exp)
 
+
+findWithAncestorsByEId : Exp -> EId -> Maybe (List Exp)
+findWithAncestorsByEId exp targetEId =
+  if exp.val.eid == targetEId then
+    Just [exp]
+  else
+    childExps exp
+    |> Utils.mapFirstSuccess (\child -> findWithAncestorsByEId child targetEId)
+    |> Maybe.map (\descendents -> exp::descendents)
+
+
 -- Children left-to-right.
 childExps : Exp -> List Exp
 childExps e =

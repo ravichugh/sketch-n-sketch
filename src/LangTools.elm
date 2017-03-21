@@ -302,9 +302,8 @@ justFindExpByEId exp eid =
 
 justFindExpWithAncestorsByEId : Exp -> EId -> List Exp
 justFindExpWithAncestorsByEId root eid =
-  case findAllWithAncestors (.val >> .eid >> (==) eid) root of
-    result::_ -> result
-    []        -> Debug.crash <| "justFindExpWithAncestorsByEId: Couldn't find eid " ++ toString eid ++ " in " ++ unparseWithIds root
+  findWithAncestorsByEId root eid
+  |> Utils.fromJust__ (\() -> "justFindExpWithAncestorsByEId: Couldn't find eid " ++ toString eid ++ " in " ++ unparseWithIds root)
 
 
 -- Is the expression in the body of only defs/comments/options?
@@ -664,7 +663,7 @@ expDescriptionParts_ program exp targetEId =
             expToMaybeIdent fExp
             |> Maybe.andThen
                 (\funcName ->
-                  case expEnvAt program targetEId |> Maybe.andThen (\visibleBindings -> Dict.get funcName visibleBindings) of
+                  case resolveIdentifierToExp funcName targetEId program of
                     Just (Bound boundExp) ->
                       case boundExp.val.e__ of
                         EFun _ pats _ _ ->
@@ -1439,7 +1438,7 @@ pathForIdentInPat targetIdent pat =
     |> Maybe.map (\(i, path) -> i::path)
 
 
--- Given an EId, look for an name bound to it and the let scope that defined the binding.
+-- Given an EId, look for a name bound to it and the let scope that defined the binding.
 findLetAndIdentBindingExp : EId -> Exp -> Maybe (Exp, Ident)
 findLetAndIdentBindingExp targetEId program =
   program
@@ -2001,6 +2000,16 @@ bindingPatternIdFor_ currentBindingPatternId targetName targetEId exp =
 
     _ ->
       Utils.mapFirstSuccess (recurse currentBindingPatternId) (childExps exp)
+
+
+-- Returns one of:
+--   Just (Bound exp)   -- var bound to expression
+--   Just BoundUnknown  -- var bound, not smart enough to say to which expression
+--   Nothing            -- var is free
+resolveIdentifierToExp : Ident -> EId -> Exp -> Maybe ExpressionBinding
+resolveIdentifierToExp ident viewerEId program =
+  expEnvAt program viewerEId
+  |> Maybe.andThen (Dict.get ident)
 
 
 type ExpressionBinding

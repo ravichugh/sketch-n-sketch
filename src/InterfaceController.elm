@@ -1689,7 +1689,7 @@ addToolAbstract m selections = case selections of
 
       _ -> []
 
-  ([], [], [eid], [], [], [], []) ->
+  (_, _, [eid], [], [], [], []) ->
     let expToAbstractParts = findExpByEId m.inputExp eid |> Maybe.map flattenExpTree |> Maybe.withDefault [] in
     let parameterCount =
       Utils.count (\e -> CodeMotion.shouldBeParameterIsConstant e m.inputExp) expToAbstractParts +
@@ -1716,7 +1716,7 @@ addToolAbstract m selections = case selections of
 
 
 addToolRemoveArg m selections = case selections of
-  (_, _, _, [], _, _, _) -> []
+  (_, _, [], [], _, _, _) -> []
 
   ([], [], [], patIds, [], [], []) ->
     let allArgumentSelected =
@@ -1740,6 +1740,59 @@ addToolRemoveArg m selections = case selections of
         ) ]
     else
       []
+
+  (_, _, eids, [], [], [], []) ->
+    let eidToMaybeCorrespondingArgumentPatId targetEId =
+      -- This should be more efficient than running the massive predicate over every expression in the program
+      findWithAncestorsByEId m.inputExp targetEId
+      |> Maybe.withDefault []
+      |> Utils.mapFirstSuccess
+          (\exp ->
+            case exp.val.e__ of
+              EApp _ appFuncExp argExps _ ->
+                case appFuncExp.val.e__ of
+                  EVar _ funcName ->
+                    case LangTools.resolveIdentifierToExp funcName appFuncExp.val.eid m.inputExp of -- This is probably slow.
+                      Just (LangTools.Bound funcExp) ->
+                        case funcExp.val.e__ of
+                          EFun _ fpats _ _ ->
+                            let maybeArgName =
+                              -- Need to do this because function may have list tail but call site may be explicit.
+                              -- So have to try a real pattern match.
+                              LangTools.tryMatchExpReturningList (pList fpats) (eTuple argExps)
+                              |> Utils.mapFirstSuccess
+                                  (\(argName, boundE) ->
+                                    if boundE.val.eid == targetEId
+                                    then Just argName
+                                    else Nothing
+                                  )
+                            in
+                            maybeArgName
+                            |> Maybe.andThen (\argName -> LangTools.pathForIdentInPat argName (pList fpats))
+                            |> Maybe.map (\path -> ((funcExp.val.eid, 1), path))
+
+                          _ -> Nothing
+
+                      _ -> Nothing
+
+                  _ -> Nothing
+
+              _ -> Nothing
+          )
+    in
+    case eids |> List.map eidToMaybeCorrespondingArgumentPatId |> Utils.projJusts of
+      Just [argPatId] ->
+        [ ("Remove Argument", \() ->
+            CodeMotion.removeArg argPatId m.inputExp
+          ) ]
+
+      Just argPatIds->
+        [ ("Remove Arguments", \() ->
+            CodeMotion.removeArgs argPatIds m.inputExp
+          ) ]
+
+      _ ->
+        []
 
   _ -> []
 
