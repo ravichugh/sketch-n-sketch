@@ -1987,9 +1987,19 @@ addToolConvertColorString m selections = case selections of
   _ -> []
 
 convertStringToRgbAndHue (eid, string) =
-  case Utils.maybeFind (String.toLower string) ColorNum.htmlColorNames of
-    Just ((r,g,b), (h,_,_)) -> Just (eid, (r,g,b), h)
-    Nothing                 -> Nothing
+  let colorName = String.toLower string in
+  let values = Utils.maybeFind colorName ColorNum.htmlColorNames in
+  values |> Utils.mapMaybe (\((r,g,b), (h,_,_)) ->
+    let colorNum =
+      if colorName == "black" then 360
+      else if colorName == "white" then 499
+      else if String.contains "gray" colorName ||
+              String.contains "grey" colorName then 450
+                -- not dealing with different grays individually
+      else h
+    in
+    (eid, (r,g,b), colorNum)
+  )
 
 bindMaybesToList : List (Maybe a) -> (List a -> List b) -> List b
 bindMaybesToList list f =
