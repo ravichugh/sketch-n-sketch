@@ -560,7 +560,7 @@ moveEquationsBeforeEId letEIds targetEId program =
     Nothing -> []
     Just finalExp ->
       finalExp |> synthesisResult "Move"
-               |> setResultSafe (List.length letEIds == 1)
+               |> setResultSafe True -- TODO (List.length letEIds == 1)
                |> Utils.singleton
       -- if multiple equations are moved, mark this unsafe for now
 
@@ -962,10 +962,10 @@ makeMakeEqualTool m literals =
           else e
         )
       in
-      synthesisResult (newVar) newExp
+      synthesisResult ("New variable: " ++ newVar) newExp
     )
   in
-  [ ("Make Equal with New Var", \() -> results) ]
+  [ ("Make Equal", \() -> results) ]
 
 
 ------------------------------------------------------------------------------
@@ -1008,7 +1008,7 @@ makeCompareSubExpressionsTool m firstId restIds =
     [ ("Eliminate Common Subexpression", \() ->
         newExp
         |> synthesisResult "Just Do It."
-        |> setResultSafe False -- TODO
+        |> setResultSafe True -- TODO
         |> Utils.singleton
       ) ]
   else
@@ -1020,7 +1020,7 @@ makeCompareSubExpressionsTool m firstId restIds =
                m.inputExp expIds
           in
           newExp
-          |> synthesisResult (unparse exp)
-          |> setResultSafe False -- TODO
+          |> synthesisResult ("Copy expression: " ++ unparse exp)
+          |> setResultSafe True -- TODO
         )
       ) ]

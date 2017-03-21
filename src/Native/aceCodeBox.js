@@ -11,7 +11,8 @@ function initialize() {
   editor.setFontSize(fontSize);
   editor.getSession().setMode("ace/mode/little");
   editor.setOption("dragEnabled", true); // true by default anyway
-  editor.setOption("highlightActiveLine", true);
+  editor.setOption("highlightActiveLine", false);
+  editor.setShowPrintMargin(false);
 
   editor.on("input", function() {
       var info = getEditorState();

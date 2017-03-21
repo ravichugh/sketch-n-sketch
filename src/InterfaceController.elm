@@ -1949,7 +1949,9 @@ addToolConvertColorString m selections = case selections of
         let newExp1 = replaceString (eList (listOfNums [r,g,b,1.0]) Nothing) in
         let newExp2 = replaceString (eConst h dummyLoc) in
         [ ("Convert to RGB", \() -> oneSafeResult newExp1)
-        , ("Convert to Color Num (Hue Only)", \() -> oneSafeResult newExp2)
+        , ("Convert to Color Num", \() ->
+            [newExp2 |> synthesisResult "Hue Only" |> setResultSafe False]
+          )
         ]
 
       Nothing -> []

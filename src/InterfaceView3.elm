@@ -1513,8 +1513,8 @@ getBoxHeight start end m =
 rightmostBottommostPoint : List {x:Int, y:Int} -> {x:Int, y:Int}
 rightmostBottommostPoint =
   List.foldl (\point acc ->
-    if point.x > acc.x then point
-    else if point.x == acc.x && point.y > acc.y then point
+    if point.y > acc.y then point
+    else if point.y == acc.y && point.x > acc.x then point
     else acc
   ) {x=0, y=0}
 
@@ -1690,7 +1690,8 @@ deuceTools model =
         Right results ->
           let toolButtonAndExtras =
             let caption =
-              toolName ++ " " ++ Utils.parens (toString (List.length results))
+              toolName
+              -- toolName ++ " " ++ Utils.parens (toString (List.length results))
             in
             if String.startsWith "Rename" toolName
             then [deadButton [i] caption (Just "150px"), renameVarTextBox [i]]
