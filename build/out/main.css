@@ -227,13 +227,18 @@ body {
 .tool-panel {
   background-color: #222222;
   margin-left: 10px;
-  flex: 0 0 60px;
+  flex: 0 0 40px;
   align-self: flex-start;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
 }
 
 .tool-panel .tool {
-  width: 60px;
-  height: 60px;
+  width: 40px;
+  height: 40px;
   border-bottom: 1px solid #333333;
 }
 

@@ -1,12 +1,29 @@
 module SleekView exposing (view)
 
 import List
+import Dict
 
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as E
 
-import InterfaceModel as Model exposing (Model, Msg)
+import Utils
+import HtmlUtils exposing (handleEventAndStop)
+
+import InterfaceModel as Model exposing
+  ( Msg(..)
+  , Model
+  , Tool(..)
+  , ShapeToolKind(..)
+  , Mode(..)
+  , ReplicateKind(..)
+  , LambdaTool(..)
+  , Caption(..)
+  , MouseMode(..)
+  , mkLive_
+  , DialogBox(..)
+  )
+
 import InterfaceController as Controller
 
 --------------------------------------------------------------------------------
@@ -208,47 +225,116 @@ outputPanel model =
 -- Tool Panel
 --------------------------------------------------------------------------------
 
+showRawShapeTools = False
+
+type ButtonKind = Regular | Selected | Unselected
+
+buttonRegularColor = "white"
+buttonSelectedColor = "lightgray"
+
+iconButton model iconName onClickHandler btnKind disabled =
+  iconButtonExtraAttrs model iconName [] onClickHandler btnKind disabled
+
+iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
+  let
+    color =
+      case btnKind of
+        Regular    -> buttonRegularColor
+        Unselected -> buttonRegularColor
+        Selected   -> buttonSelectedColor
+    iconHtml =
+      case Dict.get (String.toLower iconName) model.icons of
+        Just h -> h
+        Nothing -> Html.text ""
+  in
+  let commonAttrs =
+    [ Attr.disabled disabled
+    , Attr.style [ ("width", "40px")
+                 , ("height", "40px")
+                 , ("background", color)
+                 , ("cursor", "pointer")
+                 ]
+    ]
+  in
+  Html.button
+    (commonAttrs ++
+      [ handleEventAndStop "mousedown" Controller.msgNoop
+      , E.onClick onClickHandler
+      , Attr.title iconName
+      ] ++
+      extraAttrs)
+    [ iconHtml ]
+
+toolButton model tool =
+  let capStretchy s = if showRawShapeTools then "BB" else s in
+  let capSticky = Utils.uniPlusMinus in -- Utils.uniDelta in
+  let capRaw = "(Raw)" in
+  let cap = case tool of
+    Cursor        -> "Cursor"
+    Line Raw      -> "Line"
+    Rect Raw      -> "Rect"
+    Rect Stretchy -> capStretchy "Rect" -- "Box"
+    Oval Raw      -> "Ellipse"
+    Oval Stretchy -> capStretchy "Ellipse" -- "Oval"
+    Poly Raw      -> "Polygon"
+    Poly Stretchy -> capStretchy "Polygon"
+    Poly Sticky   -> capSticky
+    Path Raw      -> "Path"
+    Path Stretchy -> capStretchy "Path"
+    Path Sticky   -> capSticky
+    Text          -> "Text"
+    HelperLine    -> "(Rule)"
+    HelperDot     -> "(Dot)"
+    Lambda _      -> "Lambda" -- Utils.uniLambda
+    _             -> Debug.crash ("toolButton: " ++ toString tool)
+  in
+  -- TODO temporarily disabling a couple tools
+  let (btnKind, disabled) =
+    case (model.tool == tool, tool) of
+      (True, _)            -> (Selected, False)
+      (False, Path Sticky) -> (Regular, True)
+      (False, _)           -> (Unselected, False)
+  in
+    Html.div
+      [ Attr.class "tool"
+      ]
+      [ iconButton
+          model cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled
+      ]
+
+lambdaTools : Model -> List (Html Msg)
+lambdaTools model =
+  let buttons =
+    Utils.mapi1 (\(i, lambdaTool) ->
+      let
+        iconName = Model.strLambdaTool lambdaTool
+      in
+        Html.div
+          [ Attr.class "tool"
+          ]
+          [ iconButton model iconName
+              (Msg iconName (\m -> { m | tool = Lambda i }))
+              (if model.tool == Lambda i then Selected else Unselected)
+              False
+          ]
+      ) model.lambdaTools
+  in
+    buttons
+
 toolPanel : Model -> Html Msg
 toolPanel model =
   Html.div
     [ Attr.class "panel tool-panel"
     ]
-    [ Html.div
-        [ Attr.class "tool"
-        ]
-        [ Html.text "tool"
-        ]
-    , Html.div
-        [ Attr.class "tool"
-        ]
-        [ Html.text "tool"
-        ]
-    , Html.div
-        [ Attr.class "tool"
-        ]
-        [ Html.text "tool"
-        ]
-    , Html.div
-        [ Attr.class "tool"
-        ]
-        [ Html.text "tool"
-        ]
-    , Html.div
-        [ Attr.class "tool"
-        ]
-        [ Html.text "tool"
-        ]
-    , Html.div
-        [ Attr.class "tool"
-        ]
-        [ Html.text "tool"
-        ]
-    , Html.div
-        [ Attr.class "tool"
-        ]
-        [ Html.text "tool"
-        ]
-    ]
+    ( [ toolButton model Cursor
+      , toolButton model Text
+      , toolButton model (Line Raw)
+      , toolButton model (Rect Raw)
+      , toolButton model (Oval Raw)
+      , toolButton model (Poly Raw)
+      , toolButton model (Path Raw)
+      ] ++ (lambdaTools model)
+    )
 
 --------------------------------------------------------------------------------
 -- Work Area
