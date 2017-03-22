@@ -63,42 +63,70 @@ menuBar model =
     Html.div
       [ Attr.class "menu-bar"
       ]
-      [ Html.img
-          [ Attr.class "logo-image"
-          , Attr.src "img/logo.png"
-          , Attr.width 20
-          , Attr.height 20
+      [ Html.div
+          [ Attr.class "main-bar"
           ]
-          []
-      , menu "File"
-          [ [ Html.text "New"
-            , Html.text "Save As"
-            , Html.text "Save"
-            ]
-          , [ Html.text "Open"
-            ]
-          , [ Html.text "Export Code"
-            , Html.text "Export SVG"
-            ]
-          , [ Html.text "Import Code"
-            , Html.text "Import SVG"
-            ]
+          [ Html.img
+              [ Attr.class "logo-image"
+              , Attr.src "img/logo.png"
+              , Attr.width 20
+              , Attr.height 20
+              ]
+              []
+          , menu "File"
+              [ [ Html.text "New"
+                , Html.text "Save As"
+                , Html.text "Save"
+                ]
+              , [ Html.text "Open"
+                ]
+              , [ Html.text "Export Code"
+                , Html.text "Export SVG"
+                ]
+              , [ Html.text "Import Code"
+                , Html.text "Import SVG"
+                ]
+              ]
+          , menu "Edit"
+              [ [ Html.text "Dig Hole"
+                , Html.text "Make Equal"
+                , Html.text "Relate"
+                , Html.text "Indexed Relate"
+                ]
+              , [ Html.text "Dupe"
+                , Html.text "Merge"
+                , Html.text "Group"
+                , Html.text "Abstract"
+                ]
+              , [ Html.text "Repeat Right"
+                , Html.text "Repeat To"
+                , Html.text "Repeat Around"
+                ]
+              ]
           ]
-      , menu "Edit"
-          [ [ Html.text "Dig Hole"
-            , Html.text "Make Equal"
-            , Html.text "Relate"
-            , Html.text "Indexed Relate"
-            ]
-          , [ Html.text "Dupe"
-            , Html.text "Merge"
-            , Html.text "Group"
-            , Html.text "Abstract"
-            ]
-          , [ Html.text "Repeat Right"
-            , Html.text "Repeat To"
-            , Html.text "Repeat Around"
-            ]
+      , Html.div
+          [ Attr.class "quick-action-bar"
+          ]
+          [ Html.div
+              [ Attr.class "quick-action-bar-label"
+              ]
+              [ Html.text "Quick Actions"
+              ]
+          , Html.div
+              [ Attr.class "quick-action"
+              ]
+              [ Html.text "Save"
+              ]
+          , Html.div
+              [ Attr.class "quick-action"
+              ]
+              [ Html.text "Open"
+              ]
+          , Html.div
+              [ Attr.class "quick-action"
+              ]
+              [ Html.text "Make Equal"
+              ]
           ]
       ]
 
