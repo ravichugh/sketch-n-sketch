@@ -1579,6 +1579,7 @@ contextSensitiveDeuceTools m =
     , addToolOneOrMoreNumsOnly addOrRemoveRangeTool m selections
     , addToolConvertColorString m selections
     , addToolAbstract m selections
+    , addToolAddArg m selections
     , addToolRemoveArg m selections
     ]
 
@@ -1713,6 +1714,27 @@ addToolAbstract m selections = case selections of
       _ -> []
 
   _ -> []
+
+
+addToolAddArg m selections = case selections of
+  -- (_, _, [], [], _, _, _) -> []
+
+  (_, _, [eid], [], [], [], [patTarget]) ->
+    let ((scopeEId, _), path) = patTargetPositionToTargetPatId patTarget in
+    let maybeScopeExp = findExpByEId m.inputExp scopeEId in
+    case maybeScopeExp |> Maybe.map (.val >> .e__) of
+      Just (EFun _ _ fbody _) ->
+        if findExpByEId fbody eid /= Nothing then
+          [ ("Add Argument", \() ->
+              CodeMotion.addArg eid ((scopeEId, 1), path) m.inputExp
+            ) ]
+        else
+          []
+
+      _ -> []
+
+  _ -> []
+
 
 
 addToolRemoveArg m selections = case selections of

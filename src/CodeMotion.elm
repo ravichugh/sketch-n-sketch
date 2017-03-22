@@ -3,7 +3,7 @@ module CodeMotion exposing
   , moveEquationsBeforeEId
   , duplicateDefinitionsPat, duplicateDefinitionsBeforeEId
   , abstractPVar, abstractExp, shouldBeParameterIsConstant, shouldBeParameterIsNamedUnfrozenConstant
-  , removeArg, removeArgs
+  , removeArg, removeArgs, addArg
   , makeEListReorderTool
   , makeIntroduceVarTool
   , makeMakeEqualTool
@@ -644,6 +644,91 @@ insertPat__ (patToInsert, boundExp) p e1 path =
       Nothing
 
 
+addPatToPats : Pat -> List Int -> List Pat -> Maybe (List Pat)
+addPatToPats patToInsert path pats =
+  case path of
+    [i] ->
+      Just <| Utils.inserti i patToInsert pats
+
+    i::is ->
+      Utils.maybeGet1 i pats
+      |> Maybe.andThen (addPatToPat patToInsert is)
+      |> Maybe.map (\newPat -> Utils.replacei i newPat pats)
+
+    [] ->
+      Nothing
+
+
+addPatToPat : Pat -> List Int -> Pat -> Maybe Pat
+addPatToPat patToInsert path pat =
+  case (pat.val, path) of
+    (_, []) ->
+      Nothing
+
+    (PAs ws1 ident ws2 p, 1::is) ->
+      let _ = Debug.log "adding to as pattern not allowed yet because when adding argument, pattern path will not be the same as the path for adding arguments to call sites" () in
+      Nothing
+
+    -- (PAs ws1 ident ws2 p, 1::is) ->
+    --   let result = pluckPat is p in
+    --   case result of
+    --     Just (pluckedPat, Just remainingPat) ->
+    --       Just (pluckedPat, Just <| replaceP_ pat (PAs ws1 ident ws2 remainingPat))
+    --
+    --     _ ->
+    --       result
+
+    (PList ws1 ps ws2 maybeTail ws3, i::is) ->
+      if i == List.length ps + 1 && is /= [] then
+        maybeTail
+        |> Maybe.andThen (addPatToPat patToInsert is)
+        |> Maybe.map (\newTail -> replaceP_ pat <| PList ws1 ps ws2 (Just newTail) ws3 )
+      else if i <= List.length ps + 1 then
+        addPatToPats patToInsert (i::is) ps
+        |> Maybe.map (\newPs -> replaceP_ pat <| PList ws1 newPs ws2 maybeTail ws3)
+      else
+        Nothing
+
+    _ ->
+      Nothing
+
+
+addExpToExpsByPath : Exp -> List Int -> List Exp -> Maybe (List Exp)
+addExpToExpsByPath expToInsert path exps =
+  case path of
+    [i] ->
+      Just <| Utils.inserti i expToInsert exps
+
+    i::is ->
+      Utils.maybeGet1 i exps
+      |> Maybe.andThen (addExpToExpByPath expToInsert is)
+      |> Maybe.map (\newExp -> Utils.replacei i newExp exps)
+
+    [] ->
+      Nothing
+
+
+addExpToExpByPath : Exp -> List Int -> Exp -> Maybe Exp
+addExpToExpByPath expToInsert path exp =
+  case (exp.val.e__, path) of
+    (_, []) ->
+      Nothing
+
+    (EList ws1 es ws2 maybeTail ws3, i::is) ->
+      if i == List.length es + 1 && is /= [] then
+        maybeTail
+        |> Maybe.andThen (addExpToExpByPath expToInsert is)
+        |> Maybe.map (\newTail -> replaceE__ exp <| EList ws1 es ws2 (Just newTail) ws3 )
+      else if i <= List.length es + 1 then
+        addExpToExpsByPath expToInsert (i::is) es
+        |> Maybe.map (\newEs -> replaceE__ exp <| EList ws1 newEs ws2 maybeTail ws3)
+      else
+        Nothing
+
+    _ ->
+      Nothing
+
+
 ------------------------------------------------------------------------------
 
 moveEquationsBeforeEId : List EId -> EId -> Exp -> List SynthesisResult
@@ -861,6 +946,87 @@ abstractExp eidToAbstract originalProgram =
 
 
 ------------------------------------------------------------------------------
+
+-- TODO: relax addArg and removeArg to allow (unsafe) addition/removal from anonymous functions (right now, written as if function must be named).
+
+addArg : EId -> PatternId -> Exp -> List SynthesisResult
+addArg argSourceEId patId originalProgram =
+  let ((funcEId, _), path) = patId in
+  case findLetAndIdentBindingExp funcEId originalProgram of
+    Just (letExp, funcName) ->
+      case letExp.val.e__ of
+        ELet ws1 letKind isRec letPat func letBody ws2 ->
+          -- If func is passed to itself as an arg, this probably breaks. (is fixable though)
+          let funcVarUsageEIds =
+            if isRec
+            then identifierUsageEIds funcName func ++ identifierUsageEIds funcName letBody |> Set.fromList
+            else identifierUsageEIds funcName letBody |> Set.fromList
+          in
+          case func.val.e__ of
+            EFun fws1 fpats fbody fws2 ->
+              case findExpByEId fbody argSourceEId of
+                Just argSourceExp ->
+                  let argName =
+                    let namesToAvoid = identifiersSet (replaceExpNode argSourceEId (eVar "DUMMY VAR") func) in
+                    nonCollidingName (expNameForEId originalProgram argSourceEId) 2 namesToAvoid
+                  in
+                  let patToInsert = pVar argName in -- Whitespace is going to be tricky.
+                  case addPatToPats patToInsert path fpats of
+                    Nothing ->
+                      let _ = Debug.log ("Could not insert pattern into " ++ String.join " "(List.map unparsePat fpats) ++ " at path") path in
+                      []
+
+                    Just newFPats ->
+                      let newFunc =
+                        replaceE__ func <|
+                          EFun fws1 newFPats (replaceExpNodePreservingPrecedingWhitespace argSourceEId (eVar argName) fbody) fws2
+                      in
+                      let programWithNewFunc =
+                        replaceExpNode func.val.eid newFunc originalProgram
+                      in
+                      let (newProgram, funcVarUsagesTransformed) =
+                        programWithNewFunc
+                        |> mapFoldExp
+                            (\exp funcVarUsagesTransformed ->
+                              case exp.val.e__ of
+                                EApp appWs1 appFuncExp appArgs appWs2 ->
+                                  if Set.member appFuncExp.val.eid funcVarUsageEIds then
+                                    case addExpToExpsByPath (LangParser2.clearAllIds argSourceExp) path appArgs of
+                                      Nothing ->
+                                        (exp, funcVarUsagesTransformed)
+
+                                      Just newAppArgs ->
+                                        ( replaceE__ exp <| EApp appWs1 appFuncExp newAppArgs appWs2
+                                        , Set.insert appFuncExp.val.eid funcVarUsagesTransformed
+                                        )
+                                  else
+                                    (exp, funcVarUsagesTransformed)
+
+                                _ ->
+                                  (exp, funcVarUsagesTransformed)
+                            )
+                            Set.empty
+                      in
+                      let isSafe =
+                        funcVarUsagesTransformed == funcVarUsageEIds
+                        && freeVars argSourceExp == []
+                      in
+                      [ synthesisResult ("Insert Argument " ++ argName) newProgram |> setResultSafe isSafe ]
+
+                Nothing ->
+                  let _ = Debug.log <| "couldn't find argument source " ++ toString argSourceEId ++ " in function " ++ unparseWithIds func in
+                  []
+
+            _ ->
+              Debug.crash <| "CodeMotion.removeArg should've had an EFun here"
+
+        _ ->
+          Debug.crash <| "CodeMotion.removeArg expected findLetAndIdentBindingExp to return ELet"
+
+    Nothing ->
+      -- Can't find a name for this function. Arg addition probably unsafe.
+      []
+
 
 removeArgs : List PatternId -> Exp -> List SynthesisResult
 removeArgs patIds originalProgram =
