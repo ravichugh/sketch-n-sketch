@@ -39,6 +39,10 @@ type alias Icon = {
   code : Code
 }
 
+type alias ViewState =
+  { currentMenu : Maybe String
+  }
+
 type alias Model =
   { code : Code
   , preview: Maybe (Code, Result String (Val, Widgets, RootedIndexedTree))
@@ -99,6 +103,7 @@ type alias Model =
   , pendingFileOperation : Maybe Msg
   , fileOperationConfirmed : Bool
   , icons : Dict IconName (Html Msg)
+  , viewState : ViewState
   }
 
 type Mode
@@ -398,4 +403,7 @@ initModel =
     , pendingFileOperation = Nothing
     , fileOperationConfirmed = False
     , icons = Dict.empty
+    , viewState =
+        { currentMenu = Nothing
+        }
     }

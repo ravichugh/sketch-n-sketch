@@ -33,7 +33,11 @@ body {
   margin: 15px;
 }
 
-.menu-bar .menu-heading {
+.menu-bar .menu {
+  position: relative;
+}
+
+.menu-bar .menu .menu-heading {
   white-space: nowrap;
   height: 30px;
   line-height: 30px;
@@ -41,9 +45,46 @@ body {
   cursor: pointer;
 }
 
-.menu-bar .menu-heading:hover {
+.menu-bar .menu .menu-heading:hover,
+.menu-bar .menu.active .menu-heading {
   background-color: rgba(255, 255, 255, 0.1);
   color: #FFFFFF;
+}
+
+.menu-bar .menu .menu-options {
+  display: none;
+  background-color: #222222;
+  border: 1px solid #555555;
+  border-top-color: #333333;
+  box-shadow: 0 3px 7px -3px #000000;
+  position: absolute;
+  top: 30px;
+  left: 0;
+  z-index: 10;
+}
+
+.menu-bar .menu.active .menu-options {
+  display: block;
+}
+
+.menu-bar .menu .menu-option {
+  white-space: nowrap;
+  min-width: 150px;
+  height: 30px;
+  line-height: 30px;
+  padding: 0 15px;
+  cursor: pointer;
+}
+
+.menu-bar .menu .menu-option:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #FFFFFF;
+}
+
+.menu-option-divider {
+  width: 100%;
+  height: 1px;
+  background-color: #333333;
 }
 
 /******************************************************************************

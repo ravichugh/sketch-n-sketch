@@ -1,9 +1,13 @@
 module SleekView exposing (view)
 
+import List
+
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Html.Events as E
 
 import InterfaceModel as Model exposing (Model, Msg)
+import InterfaceController as Controller
 
 --------------------------------------------------------------------------------
 -- Menu Bar
@@ -11,35 +15,92 @@ import InterfaceModel as Model exposing (Model, Msg)
 
 menuBar : Model -> Html Msg
 menuBar model =
-  Html.div
-    [ Attr.class "menu-bar"
-    ]
-    [ Html.img
-        [ Attr.class "logo-image"
-        , Attr.src "img/logo.png"
-        , Attr.width 20
-        , Attr.height 20
-        ]
-        []
-    , Html.div
-        [ Attr.class "menu"
-        ]
-        [ Html.div
-          [ Attr.class "menu-heading"
+  let
+    menu heading options =
+      let
+        activeFlag =
+          if model.viewState.currentMenu == Just heading then
+            " active"
+          else
+            ""
+        menuHeading =
+          Html.div
+            [ Attr.class "menu-heading"
+            , E.onClick (Controller.msgToggleMenu heading)
+            ]
+            [ Html.text heading
+            ]
+        menuOptions =
+          let
+            menuOptionDivider =
+              Html.div
+                [ Attr.class "menu-option-divider"
+                ]
+                []
+            menuOption option =
+              Html.div
+                [ Attr.class "menu-option"
+                ]
+                [ option
+                ]
+          in
+            Html.div
+              [ Attr.class "menu-options"
+              ]
+              ( options
+                  |> List.map (List.map menuOption)
+                  |> List.intersperse [ menuOptionDivider ]
+                  |> List.concat
+              )
+      in
+        Html.div
+          [ Attr.class <| "menu" ++ activeFlag
           ]
-          [ Html.text "File"
+          [ menuHeading
+          , menuOptions
           ]
-        ]
-    , Html.div
-        [ Attr.class "menu"
-        ]
-        [ Html.div
-          [ Attr.class "menu-heading"
+  in
+    Html.div
+      [ Attr.class "menu-bar"
+      ]
+      [ Html.img
+          [ Attr.class "logo-image"
+          , Attr.src "img/logo.png"
+          , Attr.width 20
+          , Attr.height 20
           ]
-          [ Html.text "Edit"
+          []
+      , menu "File"
+          [ [ Html.text "New"
+            , Html.text "Save As"
+            , Html.text "Save"
+            ]
+          , [ Html.text "Open"
+            ]
+          , [ Html.text "Export Code"
+            , Html.text "Export SVG"
+            ]
+          , [ Html.text "Import Code"
+            , Html.text "Import SVG"
+            ]
           ]
-        ]
-    ]
+      , menu "Edit"
+          [ [ Html.text "Dig Hole"
+            , Html.text "Make Equal"
+            , Html.text "Relate"
+            , Html.text "Indexed Relate"
+            ]
+          , [ Html.text "Dupe"
+            , Html.text "Merge"
+            , Html.text "Group"
+            , Html.text "Abstract"
+            ]
+          , [ Html.text "Repeat Right"
+            , Html.text "Repeat To"
+            , Html.text "Repeat Around"
+            ]
+          ]
+      ]
 
 --------------------------------------------------------------------------------
 -- Code Panel
