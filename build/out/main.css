@@ -1,0 +1,158 @@
+/******************************************************************************
+ * General                                                                    *
+ ******************************************************************************/
+
+* {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #333333;
+  color: #CCCCCC;
+  font-family: "Roboto", sans-serif;
+}
+
+/******************************************************************************
+ * Menu Bar                                                                   *
+ ******************************************************************************/
+
+.menu-bar {
+  background-color: #222222;
+  width: 100%;
+  height: 30px;
+  border-bottom: 1px solid #555555;
+  box-shadow: 0 0 7px 0 #000000;
+  display: flex;
+  align-items: center;
+}
+
+.menu-bar .logo-image {
+  width: 20px;
+  height: 20px;
+  margin: 15px;
+}
+
+.menu-bar .menu-heading {
+  white-space: nowrap;
+  height: 30px;
+  line-height: 30px;
+  padding: 0 15px;
+  cursor: pointer;
+}
+
+.menu-bar .menu-heading:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #FFFFFF;
+}
+
+/******************************************************************************
+ * General Panels                                                             *
+ ******************************************************************************/
+
+.panel {
+  border: 1px solid #555555;
+  box-shadow: 0 0 7px 0 #000000;
+}
+
+/******************************************************************************
+ * Code Panel                                                                 *
+ ******************************************************************************/
+
+/* General Code Panel */
+
+.code-panel {
+  background-color: #222222;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Action Bar */
+
+.action-bar {
+  width: 100%;
+  border-bottom: 1px solid #333333;
+  flex: 0;
+}
+
+.action-bar .action {
+  display: inline-block;
+  padding: 15px;
+  cursor: pointer;
+}
+
+.action-bar .action:not(.special):hover {
+  color: #FFFFFF;
+}
+
+.action-bar .run {
+  color: #AAF200;
+  float: right;
+}
+
+/* Editor */
+
+#editor {
+  width: 100%;
+  flex: 1;
+}
+
+/* Status Bar */
+
+.status-bar {
+  width: 100%;
+  border-top: 1px solid #333333;
+  flex: 0;
+}
+
+/******************************************************************************
+ * Resizer                                                                    *
+ ******************************************************************************/
+
+.resizer {
+  flex: 0 0 30px;
+}
+
+/******************************************************************************
+ * Output Panel                                                               *
+ ******************************************************************************/
+
+.output-panel {
+  background-color: #FFFFFF;
+  border: 1px solid #555555;
+  box-shadow: 0 0 7px 0 #000000;
+  flex: 1;
+}
+
+/******************************************************************************
+ * Tool Panel                                                                 *
+ ******************************************************************************/
+
+.tool-panel {
+  background-color: #222222;
+  margin-left: 10px;
+  flex: 0 0 60px;
+  align-self: flex-start;
+}
+
+.tool-panel .tool {
+  width: 60px;
+  height: 60px;
+  border-bottom: 1px solid #333333;
+}
+
+/******************************************************************************
+ * Work Area                                                                  *
+ ******************************************************************************/
+
+.work-area {
+  margin: 30px;
+  display: flex;
+  justify-content: space-between;
+  position: absolute;
+  top: 30px; /* height of header */
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
