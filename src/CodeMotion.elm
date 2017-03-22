@@ -1111,8 +1111,16 @@ makeIntroduceVarTool m expIds targetPos =
     PatTargetPosition patTarget ->
       case patTargetPositionToTargetPatId patTarget of
         ((targetId, 1), targetPath) ->
-          makeIntroduceVarTool_ m expIds targetId
-            (addNewEquationsInside targetPath)
+          case findExpByEId m.inputExp targetId of
+            Just scopeExp ->
+              if isLet scopeExp then
+                makeIntroduceVarTool_ m expIds targetId
+                  (addNewEquationsInside targetPath)
+              else
+                []
+
+            _ ->
+              []
 
         _ ->
           []
