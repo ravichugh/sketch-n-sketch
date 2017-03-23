@@ -648,7 +648,7 @@ addPatToPats : Pat -> List Int -> List Pat -> Maybe (List Pat)
 addPatToPats patToInsert path pats =
   case path of
     [i] ->
-      Just <| Utils.inserti i patToInsert pats
+      Just (Utils.inserti i patToInsert pats |> imitatePatListWhitespace pats)
 
     i::is ->
       Utils.maybeGet1 i pats
@@ -697,7 +697,7 @@ addExpToExpsByPath : Exp -> List Int -> List Exp -> Maybe (List Exp)
 addExpToExpsByPath expToInsert path exps =
   case path of
     [i] ->
-      Just <| Utils.inserti i expToInsert exps
+      Just (Utils.inserti i expToInsert exps |> imitateExpListWhitespace exps)
 
     i::is ->
       Utils.maybeGet1 i exps
@@ -904,9 +904,6 @@ abstractExp : EId -> Exp -> List SynthesisResult
 abstractExp eidToAbstract originalProgram =
   let expToAbstract = justFindExpByEId originalProgram eidToAbstract in
   let doAbstract shouldBeParameter =
-    -- let ((scopeEId, _), _) = patId in
-    -- let scopeExp = justFindExpByEId originalProgram scopeEId in
-    -- let scopeBody = scopeExp |> expToLetBody in
     let (argumentsForCallSite, abstractedFuncExp) =
       abstract eidToAbstract shouldBeParameter originalProgram
     in
@@ -948,7 +945,6 @@ abstractExp eidToAbstract originalProgram =
 ------------------------------------------------------------------------------
 
 -- TODO: relax addArg and removeArg to allow (unsafe) addition/removal from anonymous functions (right now, written as if function must be named).
--- TODO: fix ws issues when adding arg as first argument in a func arg list or plist
 
 addArg_ : PatternId -> (Exp -> Exp -> Maybe (String, Bool, Pat, Exp, Exp)) -> Exp -> List SynthesisResult
 addArg_ patId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody originalProgram =
