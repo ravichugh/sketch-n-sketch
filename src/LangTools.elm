@@ -369,9 +369,16 @@ copyListWhitespace templateList list =
 -- O(n) if used once
 reflowLetWhitespace : Exp -> Exp -> Exp
 reflowLetWhitespace program letExp =
-  let longLineLength = 45 in -- Not precisely 45, but roughly so. (using unparseWithUniformWhitespace to ensure convergence in one step; also don't count length of initial "(let ")
+  let longLineLength = 50 in -- Not precisely 50, but roughly so. (using unparseWithUniformWhitespace to ensure convergence in one step; also don't count length of initial "(let ")
   case letExp.val.e__ of
     ELet oldLetWs letKind isRec pat boundExp body ws2 ->
+      let oldIndentation = indentationOf letExp in
+      let oneOrTwoNewlinesBeforeLet =
+        let newlineCount = List.length (String.split "\n" oldLetWs) - 1 in
+        if newlineCount <= 1
+        then "\n"
+        else "\n\n"
+      in
       case boundExp.val.e__ of
         EFun fws1 fpats fbody fws2 ->
           let multipleLinesForFunction =
@@ -384,12 +391,11 @@ reflowLetWhitespace program letExp =
           let (letWs, funcWs, fbodyWs, newFBody, bodyWs) =
             if isTopLevelEId letExp.val.eid program then
               let oldBodyWs = precedingWhitespace body in
-              if      newLineForFunctionArgs   then ( "\n\n", "\n  ", "\n    ", replaceIndentation "    " fbody, "\n\n" )
-              else if multipleLinesForFunction then ( "\n\n", " "   , "\n  "  , replaceIndentation "  " fbody  , "\n\n" )
-              else                                  ( "\n"  , " "   , " "     , fbody                          , if String.contains "\n" oldBodyWs then oldBodyWs else "\n" )
+              if      newLineForFunctionArgs   then ( "\n\n"                   , "\n  ", "\n    ", replaceIndentation "    " fbody, "\n\n" )
+              else if multipleLinesForFunction then ( "\n\n"                   , " "   , "\n  "  , replaceIndentation "  " fbody  , "\n\n" )
+              else                                  ( oneOrTwoNewlinesBeforeLet, " "   , " "     , fbody                          , if String.contains "\n" oldBodyWs then oldBodyWs else "\n" )
             else
-              let oldIndentation = indentationOf letExp in
-              let letWs = "\n" ++ oldIndentation in
+              let letWs = oneOrTwoNewlinesBeforeLet ++ oldIndentation in
               let (funcWs, fbodyWs, newFBody) =
                 if      newLineForFunctionArgs   then ( "\n" ++ oldIndentation ++ "  ", "\n" ++ oldIndentation ++ "    ", replaceIndentation (oldIndentation ++ "    ") fbody )
                 else if multipleLinesForFunction then ( " "                           , "\n" ++ oldIndentation ++ "  "  , replaceIndentation (oldIndentation ++ "  ") fbody   )
@@ -428,11 +434,10 @@ reflowLetWhitespace program letExp =
             if isTopLevelEId letExp.val.eid program then
               let oldBodyWs = precedingWhitespace body in
               if addNewLineForBoundExp
-              then ( "\n\n", "\n  ", "\n\n" )
-              else ( "\n"  , " "   , if String.contains "\n" oldBodyWs then oldBodyWs else "\n" )
+              then ( "\n\n"                   , "\n  ", "\n\n" )
+              else ( oneOrTwoNewlinesBeforeLet, " "   , if String.contains "\n" oldBodyWs then oldBodyWs else "\n" )
             else
-              let oldIndentation = indentationOf letExp in
-              let letWs = "\n" ++ oldIndentation in
+              let letWs = oneOrTwoNewlinesBeforeLet ++ oldIndentation in
               let boundExpWs =
                 if addNewLineForBoundExp
                 then "\n" ++ oldIndentation ++ "  "
