@@ -3,7 +3,7 @@ module CodeMotion exposing
   , moveEquationsBeforeEId
   , duplicateDefinitionsPat, duplicateDefinitionsBeforeEId
   , abstractPVar, abstractExp, shouldBeParameterIsConstant, shouldBeParameterIsNamedUnfrozenConstant
-  , removeArg, removeArgs, addArg, addArgFromPat, addArgs, addArgsFromPats
+  , removeArg, removeArgs, addArg, addArgFromPat, addArgs, addArgsFromPats, reorderFunctionArgs
   , makeEListReorderTool
   , makeIntroduceVarTool
   , makeMakeEqualTool
@@ -149,6 +149,51 @@ pluck__ p e1 path =
       Nothing
 
 
+-- Find all paths to empty lists.
+-- Pats are presumed not to have constants/base vals. (i.e. pats are function arguments)
+-- Returned dead paths are sorted left-to-right
+deadPathsInPats : List Pat -> List (List Int)
+deadPathsInPats pats =
+  pats
+  |> Utils.zipi1
+  |> List.concatMap
+      (\(i, pat) ->
+        deadPathsInPat pat
+        |> List.map ((::) i)
+      )
+
+
+-- Find all paths to empty lists.
+-- Pat is presumed not to have constants/base vals. (i.e. pat is a function argument)
+-- Returned dead paths are sorted left-to-right
+deadPathsInPat : Pat -> List (List Int)
+deadPathsInPat pat =
+  if identifiersListInPat pat == [] then
+    [[]]
+  else
+    case pat.val of
+      PVar   _ _ _ -> []
+      PConst _ _   -> Debug.log "why do you put constants in your function arguments?!" []
+      PBase  _ _   -> Debug.log "why do you put base vals in your function arguments?!"[]
+
+      PAs _ _ _ _ ->
+        -- plucking out of as-pattern is generally unsafe (not allowed yet)
+        -- so we shouldn't be creating dead paths inside as-patterns
+        []
+
+      PList ws1 ps ws2 maybeTail ws3 ->
+        let deadPathsInTail =
+          maybeTail
+          |> Maybe.map
+              (\tailPat ->
+                let tailI = List.length ps + 1 in
+                deadPathsInPat tailPat |> List.map ((::) tailI)
+              )
+          |> Maybe.withDefault []
+        in
+        deadPathsInPats ps ++ deadPathsInTail
+
+
 -- Returns Maybe (pluckedPat, patsWithoutPlucked)
 pluckPatFromPats : List Int -> List Pat -> Maybe (Pat, List Pat)
 pluckPatFromPats path pats =
@@ -159,12 +204,19 @@ pluckPatFromPats path pats =
       |> Maybe.map
           (\(pluckedPat, maybeRemainingPat) ->
             case maybeRemainingPat of
-              Just remainingPat -> (pluckedPat, Utils.replacei i remainingPat pats)
-              Nothing           -> (pluckedPat, Utils.removei i pats)
+              Just remainingPat -> (pluckedPat, Utils.replacei i remainingPat pats |> imitatePatListWhitespace pats)
+              Nothing           -> (pluckedPat, Utils.removei i pats               |> imitatePatListWhitespace pats)
           )
 
     [] ->
       Nothing
+
+
+justRemovePatFromPats : String -> List Int -> List Pat -> List Pat
+justRemovePatFromPats failureMessage path pats =
+  pluckPatFromPats path pats
+  |> Utils.fromJust_ failureMessage
+  |> Tuple.second
 
 
 -- Returns Maybe (pluckedPat, Maybe residualPatWithoutPlucked)
@@ -944,7 +996,7 @@ abstractExp eidToAbstract originalProgram =
 
 ------------------------------------------------------------------------------
 
--- TODO: relax addArg and removeArg to allow (unsafe) addition/removal from anonymous functions (right now, written as if function must be named).
+-- TODO: relax addArg/removeArg/reorderArgs to allow (unsafe) addition/removal from anonymous functions (right now, written as if function must be named).
 
 addArg_ : PatternId -> (Exp -> Exp -> Maybe (String, Bool, Pat, Exp, Exp)) -> Exp -> List SynthesisResult
 addArg_ patId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody originalProgram =
@@ -1290,6 +1342,148 @@ removeArg patId originalProgram =
       -- Can't find a name for this function. Arg removal probably unsafe.
       []
 
+
+-- This is way nastier than I want it to be, but not sure how to make it
+-- nicer and still support e.g. moving all of the variables outside of a
+-- list and remove the empty list.
+reorderFunctionArgs : EId -> List (List Int) -> List Int -> Exp -> List SynthesisResult
+reorderFunctionArgs funcEId paths targetPath originalProgram =
+  -- let ((funcEId, _), path) = patId in
+  case findLetAndIdentBindingExp funcEId originalProgram of
+    Just (letExp, funcName) ->
+      case letExp.val.e__ of
+        ELet ws1 letKind isRec letPat func letBody ws2 ->
+          -- If func is passed to itself as an arg, this probably breaks. (is fixable though)
+          let funcVarUsageEIds =
+            if isRec
+            then identifierUsageEIds funcName func ++ identifierUsageEIds funcName letBody |> Set.fromList
+            else identifierUsageEIds funcName letBody |> Set.fromList
+          in
+          case func.val.e__ of
+            EFun fws1 fpats fbody fws2 ->
+              let (pluckedPats, fpatsAfterRemoved1, pathsRemoved1) =
+                paths
+                |> List.sort
+                |> List.foldr
+                    (\pathToRemove (pluckedPats, fpatsAfterRemoved, pathsRemoved) ->
+                      case pluckPatFromPats pathToRemove fpatsAfterRemoved of
+                        Just (pluckedPat, newFPatsAfterRemoved) ->
+                          ( pluckedPat::pluckedPats, newFPatsAfterRemoved, pathToRemove::pathsRemoved )
+
+                        _ -> (pluckedPats, fpatsAfterRemoved, pathsRemoved)
+                    )
+                    ([], fpats, [])
+              in
+              -- Adjust insert path based on all the paths removed
+              let maybeInsertPath =
+                pathsRemoved1
+                |> Utils.foldrMaybe
+                    pathAfterElementRemoved
+                    (Just targetPath)
+              in
+              case maybeInsertPath of
+                Nothing ->
+                  let _ = Debug.log "can't insert at that path" (targetPath, fpats) in
+                  []
+
+                Just insertPath ->
+                  let maybeFPatsAfterInsertion =
+                    pluckedPats
+                    |> Utils.foldrMaybe
+                        (\pluckedPat newFPats -> addPatToPats pluckedPat insertPath newFPats)
+                        (Just fpatsAfterRemoved1)
+                  in
+                  case maybeFPatsAfterInsertion of
+                    Nothing ->
+                      let _ = Debug.log "couldn't reorder patterns" (insertPath, fpatsAfterRemoved1) in
+                      []
+
+                    Just fpatsAfterInsertion ->
+                      -- Now, trim out any empty plists created.
+                      let pathsRemoved2 =
+                        deadPathsInPats fpatsAfterInsertion
+                      in
+                      let newFPats =
+                        pathsRemoved2
+                        |> List.foldr
+                            (justRemovePatFromPats "CodeMotion.reorderFunctionArgs shouldn't crash because we are removing paths known to exist")
+                            fpatsAfterInsertion
+                      in
+                      let (newProgram, funcVarUsagesTransformed) =
+                        originalProgram
+                        |> replaceExpNodeE__ByEId func.val.eid (EFun fws1 newFPats fbody fws2)
+                        |> mapFoldExp
+                            (\exp funcVarUsagesTransformed ->
+                              case exp.val.e__ of
+                                EApp appWs1 appFuncExp appArgs appWs2 ->
+                                  if Set.member appFuncExp.val.eid funcVarUsageEIds then
+                                    -- 1. remove args from original locations
+                                    -- 2. insert args into new locations
+                                    -- 3. kill empty lists
+                                    --
+                                    -- 1. remove args from original locations
+                                    let maybePluckedExpsAndExpsAfterRemoved1 =
+                                      pathsRemoved1
+                                      |> Utils.foldrMaybe
+                                          (\pathToRemove (pluckedExps, remainingExps) ->
+                                            pluckExpFromExpsByPath pathToRemove remainingExps
+                                            |> Maybe.map (\(pluckedExp, remainingExps) -> (pluckedExp::pluckedExps, remainingExps))
+                                          )
+                                          (Just ([], appArgs))
+                                    in
+                                    -- 2. insert args into new locations
+                                    case maybePluckedExpsAndExpsAfterRemoved1 of
+                                      Just (pluckedExps, expsAfterRemoved1) ->
+                                        let maybeExpsAfterInsertion =
+                                          pluckedExps
+                                          |> Utils.foldrMaybe
+                                              (\pluckedExp newExps -> addExpToExpsByPath pluckedExp insertPath newExps)
+                                              (Just expsAfterRemoved1)
+                                        in
+                                        -- 3. kill empty lists
+                                        let maybeNewExps =
+                                          let removeExpFromExpsByPath pathToRemove exps =
+                                            pluckExpFromExpsByPath pathToRemove exps |> Maybe.map Tuple.second
+                                          in
+                                          pathsRemoved2
+                                          |> Utils.foldrMaybe
+                                              removeExpFromExpsByPath
+                                              maybeExpsAfterInsertion
+                                        in
+                                        case maybeNewExps of
+                                          Just newExps ->
+                                            ( replaceE__ exp (EApp appWs1 appFuncExp newExps appWs2)
+                                            , Set.insert appFuncExp.val.eid funcVarUsagesTransformed
+                                            )
+
+                                          Nothing ->
+                                            (exp, funcVarUsagesTransformed)
+
+                                      Nothing ->
+                                        (exp, funcVarUsagesTransformed)
+
+                                  else
+                                    (exp, funcVarUsagesTransformed)
+
+                                _ ->
+                                  (exp, funcVarUsagesTransformed)
+                            )
+                            Set.empty
+                      in
+                      let isSafe =
+                        funcVarUsageEIds == funcVarUsagesTransformed
+                      in
+                      [ synthesisResult "Reorder Arguments (unfinished)" newProgram |> setResultSafe isSafe ]
+
+            _ ->
+              Debug.crash <| "CodeMotion.reorderFunctionArgs should've had an EFun here"
+
+        _ ->
+          Debug.crash <| "CodeMotion.reorderFunctionArgs expected findLetAndIdentBindingExp to return ELet"
+
+    Nothing ->
+      -- Can't find a name for this function. Arg removal probably unsafe.
+      []
 
 ------------------------------------------------------------------------------
 

@@ -730,6 +730,14 @@ foldlMaybe f maybeAcc list =
     (Just acc, x::xs) -> foldlMaybe f (f x acc) xs
     (_, [])           -> maybeAcc
 
+-- Returns Nothing if function ever returns Nothing
+foldrMaybe : (a -> b -> Maybe b) -> Maybe b -> List a -> Maybe b
+foldrMaybe f maybeAcc list =
+  case list of
+    []    -> maybeAcc
+    x::xs ->
+      foldrMaybe f maybeAcc xs
+      |> Maybe.andThen (\acc -> f x acc)
 
 projOk : List (Result a b) -> Result a (List b)
 projOk list =

@@ -1581,6 +1581,7 @@ contextSensitiveDeuceTools m =
     , addToolAbstract m selections
     , addToolAddArg m selections
     , addToolRemoveArg m selections
+    , addToolReorderFunctionArgs m selections
     ]
 
 
@@ -1767,6 +1768,27 @@ addToolAddArg m selections = case selections of
 
   _ -> []
 
+
+addToolReorderFunctionArgs m selections = case selections of
+  (_, _, _, [], [], _, _) -> []
+
+  ([], [], [], patIds, [], [], [patTarget]) ->
+    let targetPatId = patTargetPositionToTargetPatId patTarget in
+    let allScopesSame = List.map patIdToScopeId (targetPatId::patIds) |> Utils.allSame in
+    case (allScopesSame, findExpByEId m.inputExp (patIdToScopeEId targetPatId) |> Maybe.map (.val >> .e__)) of
+      (True, Just (EFun _ _ _ _)) ->
+        [ ("Reorder Arguments", \() ->
+            CodeMotion.reorderFunctionArgs
+                (patIdToScopeEId targetPatId)
+                (List.map patIdToPath patIds)
+                (patIdToPath targetPatId)
+                m.inputExp
+          ) ]
+
+      _ -> []
+
+  _ ->
+    []
 
 
 addToolRemoveArg m selections = case selections of
