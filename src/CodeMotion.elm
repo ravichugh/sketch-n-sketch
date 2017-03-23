@@ -3,7 +3,7 @@ module CodeMotion exposing
   , moveEquationsBeforeEId
   , duplicateDefinitionsPat, duplicateDefinitionsBeforeEId
   , abstractPVar, abstractExp, shouldBeParameterIsConstant, shouldBeParameterIsNamedUnfrozenConstant
-  , removeArg, removeArgs, addArg
+  , removeArg, removeArgs, addArg, addArgFromPat
   , makeEListReorderTool
   , makeIntroduceVarTool
   , makeMakeEqualTool
@@ -106,7 +106,7 @@ pluck__ p e1 path =
 
     (PAs _ _ _ childPat, _, i::is) ->
       -- TODO: allow but mark unsafe if as-pattern is used
-      let _ = Debug.log "can't pluck out of as-pattern yet (unsafe)" in
+      let _ = Debug.log "can't pluck out of as-pattern yet (unsafe)" () in
       Nothing
 
     ( PList pws1 ps pws2 maybePTail pws3
@@ -586,7 +586,7 @@ insertPat__ (patToInsert, boundExp) p e1 path =
 
       (PAs pws1 _ _ _, _, i::is) ->
         -- TODO: allow but mark unsafe if as-pattern is used
-        let _ = Debug.log "can't insert into as-pattern yet (unsafe)" in
+        let _ = Debug.log "can't insert into as-pattern yet (unsafe)" () in
         Nothing
 
       ( PList pws1 ps pws2 maybePTail pws3
@@ -948,9 +948,10 @@ abstractExp eidToAbstract originalProgram =
 ------------------------------------------------------------------------------
 
 -- TODO: relax addArg and removeArg to allow (unsafe) addition/removal from anonymous functions (right now, written as if function must be named).
+-- TODO: fix ws issues when adding arg as first argument in a func arg list or plist
 
-addArg : EId -> PatternId -> Exp -> List SynthesisResult
-addArg argSourceEId patId originalProgram =
+addArg_ : PatternId -> (Exp -> Exp -> Maybe (String, Bool, Pat, Exp, Exp)) -> Exp -> List SynthesisResult
+addArg_ patId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody originalProgram =
   let ((funcEId, _), path) = patId in
   case findLetAndIdentBindingExp funcEId originalProgram of
     Just (letExp, funcName) ->
@@ -964,34 +965,26 @@ addArg argSourceEId patId originalProgram =
           in
           case func.val.e__ of
             EFun fws1 fpats fbody fws2 ->
-              case findExpByEId fbody argSourceEId of
-                Just argSourceExp ->
-                  let argName =
-                    let namesToAvoid = identifiersSet (replaceExpNode argSourceEId (eVar "DUMMY VAR") func) in
-                    nonCollidingName (expNameForEId originalProgram argSourceEId) 2 namesToAvoid
-                  in
-                  let patToInsert = pVar argName in -- Whitespace is going to be tricky.
+              case funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody func fbody of
+                Nothing ->
+                  []
+
+                Just (caption, bodyTransformationIsSafe, patToInsert, argValExp, newFBody) ->
                   case addPatToPats patToInsert path fpats of
                     Nothing ->
-                      let _ = Debug.log ("Could not insert pattern into " ++ String.join " "(List.map unparsePat fpats) ++ " at path") path in
+                      let _ = Debug.log ("Could not insert pattern into " ++ String.join " " (List.map unparsePat fpats) ++ " at path") path in
                       []
 
                     Just newFPats ->
-                      let newFunc =
-                        replaceE__ func <|
-                          EFun fws1 newFPats (replaceExpNodePreservingPrecedingWhitespace argSourceEId (eVar argName) fbody) fws2
-                      in
-                      let programWithNewFunc =
-                        replaceExpNode func.val.eid newFunc originalProgram
-                      in
                       let (newProgram, funcVarUsagesTransformed) =
-                        programWithNewFunc
+                        originalProgram
+                        |> replaceExpNodeE__ByEId func.val.eid (EFun fws1 newFPats newFBody fws2)
                         |> mapFoldExp
                             (\exp funcVarUsagesTransformed ->
                               case exp.val.e__ of
                                 EApp appWs1 appFuncExp appArgs appWs2 ->
                                   if Set.member appFuncExp.val.eid funcVarUsageEIds then
-                                    case addExpToExpsByPath (LangParser2.clearAllIds argSourceExp) path appArgs of
+                                    case addExpToExpsByPath (LangParser2.clearAllIds argValExp) path appArgs of
                                       Nothing ->
                                         (exp, funcVarUsagesTransformed)
 
@@ -1010,7 +1003,7 @@ addArg argSourceEId patId originalProgram =
                       let isSafe =
                         let argAdditionsSafe =
                           -- Ensure free vars in replacement still refer to the same thing after moving from callsite into function.
-                          freeVars argSourceExp
+                          freeVars argValExp
                           |> List.all
                               (\freeVarInArgSource ->
                                 let originalBindingScopeId = bindingScopeIdFor freeVarInArgSource originalProgram in
@@ -1023,24 +1016,79 @@ addArg argSourceEId patId originalProgram =
                                     )
                               )
                         in
-                        funcVarUsagesTransformed == funcVarUsageEIds
+                        let noDuplicateNamesInPat =
+                          let newArgList = identifiersListInPats newFPats in
+                          newArgList == Utils.dedup newArgList
+                        in
+                        bodyTransformationIsSafe
+                        && funcVarUsagesTransformed == funcVarUsageEIds
                         && argAdditionsSafe
+                        && noDuplicateNamesInPat
                       in
-                      [ synthesisResult ("Insert Argument " ++ argName) newProgram |> setResultSafe isSafe ]
-
-                Nothing ->
-                  let _ = Debug.log <| "couldn't find argument source " ++ toString argSourceEId ++ " in function " ++ unparseWithIds func in
-                  []
+                      [ synthesisResult caption newProgram |> setResultSafe isSafe ]
 
             _ ->
-              Debug.crash <| "CodeMotion.removeArg should've had an EFun here"
+              Debug.crash <| "CodeMotion.addArg_ should've had an EFun here"
 
         _ ->
-          Debug.crash <| "CodeMotion.removeArg expected findLetAndIdentBindingExp to return ELet"
+          Debug.crash <| "CodeMotion.addArg_ expected findLetAndIdentBindingExp to return ELet"
 
     Nothing ->
       -- Can't find a name for this function. Arg addition probably unsafe.
       []
+
+
+addArgFromPat : PatternId -> PatternId -> Exp -> List SynthesisResult
+addArgFromPat argSourcePatId targetPatId originalProgram =
+  let funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody func fbody =
+    case pluck argSourcePatId fbody of
+      Nothing ->
+        let _ = Debug.log "could not pluck argument source pattern from inside the function" () in
+        Nothing
+
+      Just ((newArgPat, newArgVal), fbodyWithoutPlucked) ->
+        let varUsagesSame =
+          let oldScopeAreas = findScopeAreas (patIdToScopeId argSourcePatId) fbody in
+          identifiersListInPat newArgPat
+          |> List.all
+              (\ident ->
+                identifierUses ident fbodyWithoutPlucked == List.concatMap (identifierUses ident) oldScopeAreas
+              )
+        in
+        Just <|
+          ( "Insert Argument " ++ (newArgPat |> unparsePat |> Utils.squish)
+          , varUsagesSame
+          , newArgPat
+          , newArgVal
+          , fbodyWithoutPlucked |> LangSimplify.simplifyAssignments
+          )
+  in
+  addArg_ targetPatId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody originalProgram
+
+
+addArg : EId -> PatternId -> Exp -> List SynthesisResult
+addArg argSourceEId patId originalProgram =
+  let funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody func fbody =
+    case findExpByEId fbody argSourceEId of
+      Nothing ->
+        let _ = Debug.log ("couldn't find argument source " ++ toString argSourceEId ++ " in function " ++ unparseWithIds func) () in
+        Nothing
+
+      Just argSourceExp ->
+        let argName =
+          let namesToAvoid = identifiersSet (replaceExpNode argSourceEId (eVar "DUMMY VAR") func) in
+          nonCollidingName (expNameForEId originalProgram argSourceEId) 2 namesToAvoid
+        in
+        let patToInsert = pVar argName in -- Whitespace is going to be tricky.
+        Just <|
+          ( "Insert Argument " ++ argName
+          , True
+          , patToInsert
+          , argSourceExp
+          , replaceExpNodePreservingPrecedingWhitespace argSourceEId (eVar argName) fbody
+          )
+  in
+  addArg_ patId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody originalProgram
 
 
 removeArgs : List PatternId -> Exp -> List SynthesisResult

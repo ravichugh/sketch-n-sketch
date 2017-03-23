@@ -1722,13 +1722,27 @@ addToolAddArg m selections = case selections of
   -- (_, _, [], [], _, _, _) -> []
 
   (_, _, [eid], [], [], [], [patTarget]) ->
-    let ((scopeEId, _), path) = patTargetPositionToTargetPatId patTarget in
-    let maybeScopeExp = findExpByEId m.inputExp scopeEId in
+    let targetPatId = patTargetPositionToTargetPatId patTarget in
+    let maybeScopeExp = findExpByEId m.inputExp (patIdToScopeEId targetPatId) in
     case maybeScopeExp |> Maybe.map (.val >> .e__) of
       Just (EFun _ _ fbody _) ->
         if findExpByEId fbody eid /= Nothing then
-          [ ("Add Argument", \() ->
-              CodeMotion.addArg eid ((scopeEId, 1), path) m.inputExp
+          [ ("Add Argument", \() -> -- Fowler calls this "Add Parameter"
+              CodeMotion.addArg eid targetPatId m.inputExp
+            ) ]
+        else
+          []
+
+      _ -> []
+
+  (_, _, [], [argSourcePatId], [], [], [patTarget]) ->
+    let targetPatId = patTargetPositionToTargetPatId patTarget in
+    let maybeScopeExp = findExpByEId m.inputExp (patIdToScopeEId targetPatId) in
+    case maybeScopeExp |> Maybe.map (.val >> .e__) of
+      Just (EFun _ _ fbody _) ->
+        if LangTools.findScopeExpAndPat argSourcePatId fbody /= Nothing then
+          [ ("Add Argument", \() -> -- Fowler calls this "Add Parameter"
+              CodeMotion.addArgFromPat argSourcePatId targetPatId m.inputExp
             ) ]
         else
           []
@@ -1747,8 +1761,7 @@ addToolRemoveArg m selections = case selections of
       patIds
       |> List.all
           (\patId ->
-            let ((scopeEId, _), _) = patId in
-            let scopeExp = findExpByEId m.inputExp scopeEId in
+            let scopeExp = findExpByEId m.inputExp (patIdToScopeEId patId) in
             case scopeExp |> Maybe.map (.val >> .e__) of
               Just (EFun _ _ _ _) -> True
               _                   -> False
@@ -2137,9 +2150,15 @@ addToolMoveDefinition m selections = case selections of
         CodeMotion.moveDefinitionsBeforeEId patIds eId m.inputExp
       ) ]
   ([], [], [], patIds, [], [], [patTarget]) ->
-    [ (maybePluralize "Move Definition" patIds, \() ->
-        CodeMotion.moveDefinitionsPat patIds (patTargetPositionToTargetPatId patTarget) m.inputExp
-      ) ]
+    let targetPatId = patTargetPositionToTargetPatId patTarget in
+    case findExpByEId m.inputExp (patIdToScopeEId targetPatId) |> Maybe.map (.val >> .e__) of
+      Just (ELet _ _ _ _ _ _ _) ->
+        [ (maybePluralize "Move Definition" patIds, \() ->
+            CodeMotion.moveDefinitionsPat patIds targetPatId m.inputExp
+          ) ]
+
+      _ -> []
+
   ([], [], [], [], letEIds, [(Before, eId)], []) ->
     [ (maybePluralize "Move Definition" letEIds, \() ->
         CodeMotion.moveEquationsBeforeEId letEIds eId m.inputExp
@@ -2153,9 +2172,15 @@ addToolDuplicateDefinition m selections = case selections of
         CodeMotion.duplicateDefinitionsBeforeEId patIds eId m.inputExp
       ) ]
   ([], [], [], patIds, [], [], [patTarget]) ->
-    [ (maybePluralize "Duplicate Definition" patIds, \() ->
-        CodeMotion.duplicateDefinitionsPat patIds (patTargetPositionToTargetPatId patTarget) m.inputExp
-      ) ]
+    let targetPatId = patTargetPositionToTargetPatId patTarget in
+    case findExpByEId m.inputExp (patIdToScopeEId targetPatId) |> Maybe.map (.val >> .e__) of
+      Just (ELet _ _ _ _ _ _ _) ->
+        [ (maybePluralize "Duplicate Definition" patIds, \() ->
+            CodeMotion.duplicateDefinitionsPat patIds targetPatId m.inputExp
+          ) ]
+
+      _ -> []
+
   _ -> []
 
 

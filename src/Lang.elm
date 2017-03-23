@@ -193,6 +193,19 @@ type TargetPosition
   | PatTargetPosition PatTargetPosition
 
 
+scopeIdToScopeEId : ScopeId -> EId
+scopeIdToScopeEId (scopeEId, _) = scopeEId
+
+patIdToScopeId : PatternId -> ScopeId
+patIdToScopeId (scopeId, _) = scopeId
+
+patIdToPath : PatternId -> List Int
+patIdToPath (_, path) = path
+
+patIdToScopeEId : PatternId -> EId
+patIdToScopeEId patId =
+  patId |> patIdToScopeId |> scopeIdToScopeEId
+
 -- Increment last path index by 1
 patIdRightSibling : PatternId -> Maybe PatternId
 patIdRightSibling (scopeId, path) =
