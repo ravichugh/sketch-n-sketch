@@ -1721,28 +1721,44 @@ addToolAbstract m selections = case selections of
 addToolAddArg m selections = case selections of
   -- (_, _, [], [], _, _, _) -> []
 
-  (_, _, [eid], [], [], [], [patTarget]) ->
+  (_, _, firstEId::restEIds, [], [], [], [patTarget]) ->
+    let eids = firstEId::restEIds in
     let targetPatId = patTargetPositionToTargetPatId patTarget in
     let maybeScopeExp = findExpByEId m.inputExp (patIdToScopeEId targetPatId) in
     case maybeScopeExp |> Maybe.map (.val >> .e__) of
       Just (EFun _ _ fbody _) ->
-        if findExpByEId fbody eid /= Nothing then
+        let isAllSelectedExpsInFBody =
+          eids |> List.all (\eid -> findExpByEId fbody eid /= Nothing)
+        in
+        if isAllSelectedExpsInFBody && List.length eids == 1 then
           [ ("Add Argument", \() -> -- Fowler calls this "Add Parameter"
-              CodeMotion.addArg eid targetPatId m.inputExp
+              CodeMotion.addArg (Utils.head_ eids) targetPatId m.inputExp
+            ) ]
+        else if isAllSelectedExpsInFBody then
+          [ ("Add Arguments", \() -> -- Fowler calls this "Add Parameter"
+              CodeMotion.addArgs eids targetPatId m.inputExp
             ) ]
         else
           []
 
       _ -> []
 
-  (_, _, [], [argSourcePatId], [], [], [patTarget]) ->
+  (_, _, [], firstArgSourcePatId::restArgSourcePatId, [], [], [patTarget]) ->
+    let argSourcePatIds = firstArgSourcePatId::restArgSourcePatId in
     let targetPatId = patTargetPositionToTargetPatId patTarget in
     let maybeScopeExp = findExpByEId m.inputExp (patIdToScopeEId targetPatId) in
     case maybeScopeExp |> Maybe.map (.val >> .e__) of
       Just (EFun _ _ fbody _) ->
-        if LangTools.findScopeExpAndPat argSourcePatId fbody /= Nothing then
+        let isAllSelectedPatsInFBody =
+          argSourcePatIds |> List.all (\argSourcePatId -> LangTools.findScopeExpAndPat argSourcePatId fbody /= Nothing)
+        in
+        if isAllSelectedPatsInFBody && List.length argSourcePatIds == 1 then
           [ ("Add Argument", \() -> -- Fowler calls this "Add Parameter"
-              CodeMotion.addArgFromPat argSourcePatId targetPatId m.inputExp
+              CodeMotion.addArgFromPat (Utils.head_ argSourcePatIds) targetPatId m.inputExp
+            ) ]
+        else if isAllSelectedPatsInFBody then
+          [ ("Add Arguments", \() -> -- Fowler calls this "Add Parameter"
+              CodeMotion.addArgsFromPats argSourcePatIds targetPatId m.inputExp
             ) ]
         else
           []
@@ -1757,7 +1773,7 @@ addToolRemoveArg m selections = case selections of
   (_, _, [], [], _, _, _) -> []
 
   ([], [], [], patIds, [], [], []) ->
-    let allArgumentSelected =
+    let isAllArgumentSelected =
       patIds
       |> List.all
           (\patId ->
@@ -1767,11 +1783,11 @@ addToolRemoveArg m selections = case selections of
               _                   -> False
           )
     in
-    if allArgumentSelected && List.length patIds == 1 then
+    if isAllArgumentSelected && List.length patIds == 1 then
       [ ("Remove Argument", \() ->
           CodeMotion.removeArg (Utils.head_ patIds) m.inputExp
         ) ]
-    else if allArgumentSelected then
+    else if isAllArgumentSelected then
       [ ("Remove Arguments", \() ->
           CodeMotion.removeArgs patIds m.inputExp
         ) ]

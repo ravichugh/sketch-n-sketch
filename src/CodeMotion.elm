@@ -3,7 +3,7 @@ module CodeMotion exposing
   , moveEquationsBeforeEId
   , duplicateDefinitionsPat, duplicateDefinitionsBeforeEId
   , abstractPVar, abstractExp, shouldBeParameterIsConstant, shouldBeParameterIsNamedUnfrozenConstant
-  , removeArg, removeArgs, addArg, addArgFromPat
+  , removeArg, removeArgs, addArg, addArgFromPat, addArgs, addArgsFromPats
   , makeEListReorderTool
   , makeIntroduceVarTool
   , makeMakeEqualTool
@@ -1034,8 +1034,61 @@ addArg_ patId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody originalProg
       []
 
 
+addArgs : List EId -> PatternId -> Exp -> List SynthesisResult
+addArgs argSourceEIds patId originalProgram =
+  let (maybeNewProgram, isSafe) =
+    argSourceEIds
+    |> List.sortBy (\eid -> let e = justFindExpByEId originalProgram eid in (e.start.line, e.start.col))
+    |> List.foldr
+        (\argSourceEId (maybePriorProgram, safeSoFar) ->
+          case maybePriorProgram |> Maybe.map (addArg argSourceEId patId) of
+            Just (SynthesisResult newResult :: _) -> (Just newResult.exp, safeSoFar && newResult.isSafe)
+            _                                     -> (Nothing, False)
+        )
+        (Just originalProgram, True)
+  in
+  case maybeNewProgram of
+    Just newProgram ->
+      [ synthesisResult "Add Arguments" newProgram |> setResultSafe isSafe ]
+
+    Nothing ->
+      []
+
+addArgsFromPats : List PatternId -> PatternId -> Exp -> List SynthesisResult
+addArgsFromPats argSourcePatIds patId originalProgram =
+  let (maybeNewProgram, isSafe) =
+    argSourcePatIds
+    |> List.sortBy (\((scopeEId, _), path) -> let e = justFindExpByEId originalProgram scopeEId in (e.start.line, e.start.col, path))
+    |> List.foldr
+        (\argSourcePatId (maybePriorProgram, safeSoFar) ->
+          -- Identity for post-processing fbody -- when adding multiple patterns, can't simplify assignments until the very end.
+          case maybePriorProgram |> Maybe.map (addArgFromPat_ identity argSourcePatId patId) of
+            Just (SynthesisResult newResult :: _) -> (Just newResult.exp, safeSoFar && newResult.isSafe)
+            _                                     -> (Nothing, False)
+        )
+        (Just originalProgram, True)
+  in
+  case maybeNewProgram of
+    Just newProgram ->
+      let newProgramWithAssignmentsSimplified =
+        newProgram
+        |> mapExpNode
+            (patIdToScopeEId patId)
+            LangSimplify.simplifyAssignments
+      in
+      [ synthesisResult "Add Arguments" newProgramWithAssignmentsSimplified |> setResultSafe isSafe ]
+
+    Nothing ->
+      []
+
+
 addArgFromPat : PatternId -> PatternId -> Exp -> List SynthesisResult
 addArgFromPat argSourcePatId targetPatId originalProgram =
+  addArgFromPat_ LangSimplify.simplifyAssignments argSourcePatId targetPatId originalProgram
+
+
+addArgFromPat_ : (Exp -> Exp) ->PatternId -> PatternId -> Exp -> List SynthesisResult
+addArgFromPat_ postProcessFBody argSourcePatId targetPatId originalProgram =
   let funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody func fbody =
     case pluck argSourcePatId fbody of
       Nothing ->
@@ -1056,7 +1109,7 @@ addArgFromPat argSourcePatId targetPatId originalProgram =
           , varUsagesSame
           , newArgPat
           , newArgVal
-          , fbodyWithoutPlucked |> LangSimplify.simplifyAssignments
+          , postProcessFBody fbodyWithoutPlucked
           )
   in
   addArg_ targetPatId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody originalProgram
