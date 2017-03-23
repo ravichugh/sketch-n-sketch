@@ -1008,8 +1008,23 @@ addArg argSourceEId patId originalProgram =
                             Set.empty
                       in
                       let isSafe =
+                        let argAdditionsSafe =
+                          -- Ensure free vars in replacement still refer to the same thing after moving from callsite into function.
+                          freeVars argSourceExp
+                          |> List.all
+                              (\freeVarInArgSource ->
+                                let originalBindingScopeId = bindingScopeIdFor freeVarInArgSource originalProgram in
+                                let freeIdentInArgSource = expToIdent freeVarInArgSource in
+                                funcVarUsagesTransformed -- not exactly the same location as the free variable usage, but is always in the same scope based on the current requirements of the transformation
+                                |> Set.toList
+                                |> List.all
+                                    (\funcVarUsageEId ->
+                                      originalBindingScopeId == bindingScopeIdForIdentAtEId freeIdentInArgSource funcVarUsageEId newProgram
+                                    )
+                              )
+                        in
                         funcVarUsagesTransformed == funcVarUsageEIds
-                        && freeVars argSourceExp == []
+                        && argAdditionsSafe
                       in
                       [ synthesisResult ("Insert Argument " ++ argName) newProgram |> setResultSafe isSafe ]
 
