@@ -272,7 +272,12 @@ boundingPolygon unparseExpOrPat id expOrPat endExpOrPat =
   let start = expOrPat.start in
   let end = endExpOrPat.end in
   let string = unparseExpOrPat expOrPat in
-  let lines = String.lines string in
+  let lines =
+    String.lines string
+    -- TODO
+    -- quick fix: truncating lines that are all spaces
+    |> List.filter (String.any ((/=) ' '))
+  in
   if List.length lines == 1 && start.line == end.line
   then
     let s = start.line in
