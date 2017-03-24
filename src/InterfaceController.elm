@@ -2000,9 +2000,14 @@ addOrRemoveRangeTool m nums =
                (\(eId,(ws,n,loc,_)) acc ->
                  let wd =
                    if noRanges then
-                     if toFloat (round n) == n
-                     then intSlider (round n - 50) (round n + 50)
-                     else numSlider (n - 50) (n + 50)
+                     if Utils.between n (0.001, 1) then
+                       numSlider 0.001 1
+                     else
+                       let (i, j) = rangeAround n in
+                       if toFloat (round n) == n then
+                         intSlider (max 0 (round i)) (round j)
+                       else
+                         numSlider (max 0 i) j
                    else
                      withDummyRange NoWidgetDecl
                  in
@@ -2013,6 +2018,11 @@ addOrRemoveRangeTool m nums =
           [synthesisResult toolName (applyESubst eSubst m.inputExp)]
         )
       ]
+
+rangeAround n =
+  let i = n - 3 * n in
+  let j = n + 3 * n in
+  (i, j)
 
 
 --------------------------------------------------------------------------------
