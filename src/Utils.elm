@@ -124,7 +124,7 @@ foldli0 = foldli_ 0
 foldli1 : ((Int, a) -> b -> b) -> b -> List a -> b
 foldli1 = foldli_ 1
 
-foldli_ : Int ->((Int, a) -> b -> b) -> b -> List a -> b
+foldli_ : Int -> ((Int, a) -> b -> b) -> b -> List a -> b
 foldli_ initI f init xs =
   List.foldl f init (zipi_ initI xs)
 

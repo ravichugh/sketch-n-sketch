@@ -301,6 +301,11 @@ justFindExpWithAncestorsByEId root eid =
   |> Utils.fromJust__ (\() -> "justFindExpWithAncestorsByEId: Couldn't find eid " ++ toString eid ++ " in " ++ unparseWithIds root)
 
 
+locationInProgram : Exp -> EId -> (Int, Int)
+locationInProgram program eid =
+  let exp = justFindExpByEId program eid in
+  (exp.start.line, exp.start.col)
+
 -- Is the expression in the body of only defs/comments/options?
 --
 -- The "top level" is a single path on the tree, so walk it and look
@@ -863,6 +868,26 @@ tryMatchExp pat exp =
 -- If the nearest common ancestor is itself a scope, returns that instead.
 justInsideDeepestCommonScope : Exp -> (Exp -> Bool) -> Exp
 justInsideDeepestCommonScope exp pred =
+  let (maybeDeepestCommonScope, maybeAncestorJustInsideCommonScope) =
+    deepestCommonScopeAndJustInside_ exp pred
+  in
+  let candidates =
+    Utils.filterJusts [ Just exp, maybeDeepestCommonScope, maybeAncestorJustInsideCommonScope ]
+  in
+  Utils.last_ candidates
+
+deepestCommonScope : Exp -> (Exp -> Bool) -> Exp
+deepestCommonScope exp pred =
+  let (maybeDeepestCommonScope, _) =
+    deepestCommonScopeAndJustInside_ exp pred
+  in
+  let candidates =
+    Utils.filterJusts [ Just exp, maybeDeepestCommonScope ]
+  in
+  Utils.last_ candidates
+
+deepestCommonScopeAndJustInside_ : Exp -> (Exp -> Bool) -> (Maybe Exp, Maybe Exp)
+deepestCommonScopeAndJustInside_ exp pred =
   let allWithAncestors = -- debugLog "locsAncestors" <|
     findAllWithAncestors pred exp
   in
@@ -874,24 +899,20 @@ justInsideDeepestCommonScope exp pred =
   let commonAncestorsWithParents = -- debugLog "locsAncestorsWithParents" <|
     Utils.zip (Nothing :: (List.map Just commonAncestors)) commonAncestors
   in
-  -- Pluck out [exp, deepestCommonScope, justInsideDeepestCommonScope]
-  let candidates =
-    let ancestorJustInsideCommonScope =
-      commonAncestorsWithParents
-      |> List.reverse
-      |> Utils.takeWhile (\(parent, node) -> not <| isScope parent node)
-      |> Utils.takeLast 1
-      |> List.map Tuple.second
-    in
-    let deepestCommonScope =
-      commonAncestorsWithParents
-      |> List.filter (\(parent, node) -> isScope parent node)
-      |> Utils.takeLast 1
-      |> List.map Tuple.second
-    in
-    exp :: (deepestCommonScope ++ ancestorJustInsideCommonScope)
+  let maybeAncestorJustInsideCommonScope =
+    commonAncestorsWithParents
+    |> List.reverse
+    |> Utils.takeWhile (\(parent, node) -> not <| isScope parent node)
+    |> List.map Tuple.second
+    |> Utils.maybeLast
   in
-  Utils.last_ candidates
+  let maybeDeepestCommonScope =
+    commonAncestorsWithParents
+    |> List.filter (\(parent, node) -> isScope parent node)
+    |> List.map Tuple.second
+    |> Utils.maybeLast
+  in
+  (maybeDeepestCommonScope, maybeAncestorJustInsideCommonScope)
 
 deepestAncestorWithNewline : Exp -> EId -> Exp
 deepestAncestorWithNewline program eid =
@@ -1023,6 +1044,11 @@ expToLetBody exp =
     ELet _ _ _ _ _ body _ -> body
     _                     -> Debug.crash <| "LangTools.expToLetBody exp is not an ELet: " ++ unparseWithIds exp
 
+expToFuncPats : Exp -> List Pat
+expToFuncPats exp =
+  case exp.val.e__ of
+    EFun _ pats _ _ -> pats
+    _               -> Debug.crash <| "LangTools.expToFuncPats exp is not an EFun: " ++ unparseWithIds exp
 
 -- This is a rather generous definition of literal.
 isLiteral : Exp -> Bool
@@ -1429,13 +1455,26 @@ findPatInPat path pat =
 
 pathForIdentInPat : Ident -> Pat -> Maybe (List Int)
 pathForIdentInPat targetIdent pat =
-  if patToMaybeIdent pat == Just targetIdent then
-    Just []
-  else
-    childPats pat
-    |> Utils.zipi1
-    |> Utils.mapFirstSuccess (\(i, p) -> pathForIdentInPat targetIdent p |> Maybe.map ((,) i))
-    |> Maybe.map (\(i, path) -> i::path)
+  indentPathsInPat pat
+  |> Utils.mapFirstSuccess
+      (\(ident, path) ->
+        if ident == targetIdent
+        then Just path
+        else Nothing
+      )
+
+
+indentPathsInPat : Pat -> List (Ident, List Int)
+indentPathsInPat pat =
+  case patToMaybeIdent pat of
+    Just ident -> [(ident, [])]
+    Nothing ->
+      childPats pat
+      |> Utils.concatMapi1
+          (\(i, childPat) ->
+            indentPathsInPat childPat
+            |> List.map (\(ident, path) -> (ident, i::path))
+          )
 
 
 tryMatchExpsPatsToPathsAtFunctionCall : List Pat -> List Exp -> List (List Int, Exp)
@@ -2055,6 +2094,42 @@ bindingScopeIdForIdentAtEId : Ident -> EId -> Exp -> Maybe ScopeId
 bindingScopeIdForIdentAtEId targetName targetEId program =
   bindingPatternIdForIdentAtEId targetName targetEId program
   |> Maybe.map (\(scopeId, path) -> scopeId)
+
+
+-- -- "Nothing" means free in program
+-- allVarEIdsToBindingPatternId : Exp -> Dict.Dict EId (Maybe PatternId)
+-- allVarEIdsToBindingPatternId program =
+--   let addScopeIds scopeId indentPathsInPat =
+--     indentPathsInPat
+--     |> List.map (\(ident, path) -> (ident, (scopeId, path)))
+--   in
+--   let handleELet letExp identToPatternId =
+--     Dict.union
+--         (expToLetPat letExp |> indentPathsInPat |> addScopeIds (letExp.val.eid, 1) |> Dict.fromList)
+--         identToPatternId
+--   in
+--   let handleEFun funcExp identToPatternId =
+--     Dict.union
+--         (pList (expToFuncPats funcExp) |> indentPathsInPat |> addScopeIds (funcExp.val.eid, 1) |> Dict.fromList)
+--         identToPatternId
+--   in
+--   let handleCaseBranch caseExp branch branchI identToPatternId =
+--     Dict.union
+--         (branchPat branch |> indentPathsInPat |> addScopeIds (caseExp.val.eid, branchI) |> Dict.fromList)
+--         identToPatternId
+--   in
+--   program
+--   |> foldExpTopDownWithScope
+--       (\exp eidToMaybePatId identToPatternId ->
+--         case expToMaybeIdent exp of
+--           Just ident -> Dict.insert exp.val.eid (Dict.get ident identToPatternId) eidToMaybePatId
+--           Nothing    -> eidToMaybePatId
+--       )
+--       handleELet
+--       handleEFun
+--       handleCaseBranch
+--       Dict.empty
+--       Dict.empty
 
 
 -- Outer returned maybe indicates if variable found

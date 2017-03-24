@@ -2224,8 +2224,14 @@ addToolMoveDefinition m selections = case selections of
 
       _ -> []
 
+  ([], [], [], [], [letEId], [(Before, eId)], []) ->
+    [ ("Move Definition", \() ->
+        -- Better result names if we hand the singular case directly to moveDefinitionsBeforeEId.
+        CodeMotion.moveDefinitionsBeforeEId [((letEId, 1), [])] eId m.inputExp
+      ) ]
+
   ([], [], [], [], letEIds, [(Before, eId)], []) ->
-    [ (maybePluralize "Move Definition" letEIds, \() ->
+    [ ("Move Definitions", \() ->
         CodeMotion.moveEquationsBeforeEId letEIds eId m.inputExp
       ) ]
   _ -> []

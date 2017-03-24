@@ -578,6 +578,125 @@ mapFoldExpTopDown f initAcc e =
       let (newE1, newAcc2) = recurse newAcc e1 in
       ret (ETypeAlias ws1 pat tipe newE1 ws2) newAcc2
 
+-- Nodes visited/replaced in top-down, left-to-right order.
+-- Includes user-defined scope information.
+mapFoldExpTopDownWithScope
+  :  (Exp -> a -> b -> (Exp, a))
+  -> (Exp -> b -> b)
+  -> (Exp -> b -> b)
+  -> (Exp -> Branch -> Int -> b -> b)
+  -> a
+  -> b
+  -> Exp
+  -> (Exp, a)
+mapFoldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAcc initScopeTempAcc e =
+  let (newE, newGlobalAcc) = f e initGlobalAcc initScopeTempAcc in
+  let ret e__ globalAcc =
+    (replaceE__ newE e__, globalAcc)
+  in
+  let recurse globalAcc scopeTempAcc child =
+    mapFoldExpTopDownWithScope f handleELet handleEFun handleCaseBranch globalAcc scopeTempAcc child
+  in
+  let recurseAll globalAcc scopeTempAcc exps =
+    exps
+    |> List.foldl
+        (\exp (newExps, globalAcc) ->
+          let (newExp, newGlobalAcc) = recurse globalAcc scopeTempAcc exp in
+          (newExps ++ [newExp], newGlobalAcc)
+        )
+        ([], globalAcc)
+  in
+  case newE.val.e__ of
+    EConst _ _ _ _ -> (newE, newGlobalAcc)
+    EBase _ _      -> (newE, newGlobalAcc)
+    EVar _ _       -> (newE, newGlobalAcc)
+    EFun ws1 ps e1 ws2 ->
+      let newScopeTempAcc = handleEFun newE initScopeTempAcc in
+      let (newE1, newGlobalAcc2) = recurse newGlobalAcc newScopeTempAcc e1 in
+      ret (EFun ws1 ps newE1 ws2) newGlobalAcc2
+
+    EApp ws1 e1 es ws2 ->
+      let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
+      let (newEs, newGlobalAcc3) = recurseAll newGlobalAcc2 initScopeTempAcc es in
+      ret (EApp ws1 newE1 newEs ws2) newGlobalAcc3
+
+    EOp ws1 op es ws2 ->
+      let (newEs, newGlobalAcc2) = recurseAll newGlobalAcc initScopeTempAcc es in
+      ret (EOp ws1 op newEs ws2) newGlobalAcc2
+
+    EList ws1 es ws2 Nothing ws3 ->
+      let (newEs, newGlobalAcc2) = recurseAll newGlobalAcc initScopeTempAcc es in
+      ret (EList ws1 newEs ws2 Nothing ws3) newGlobalAcc2
+
+    EList ws1 es ws2 (Just e1) ws3 ->
+      let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
+      let (newEs, newGlobalAcc3) = recurseAll newGlobalAcc2 initScopeTempAcc es in
+      ret (EList ws1 newEs ws2 (Just newE1) ws3) newGlobalAcc3
+
+    EIf ws1 e1 e2 e3 ws2 ->
+      case recurseAll newGlobalAcc initScopeTempAcc [e1, e2, e3] of
+        ([newE1, newE2, newE3], newGlobalAcc2) -> ret (EIf ws1 newE1 newE2 newE3 ws2) newGlobalAcc2
+        _                                      -> Debug.crash "I'll buy you a beer if this line of code executes. - Brian"
+
+    ECase ws1 e1 branches ws2 ->
+      -- Note: ECase given to handleBranch has original scrutinee for now.
+      let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
+      let (newBranches, newGlobalAcc3) =
+        branches
+        |> Utils.foldli1
+            (\(i, branch) (newBranches, globalAcc) ->
+              let newScopeTempAcc = handleCaseBranch newE branch i initScopeTempAcc in
+              let (Branch_ bws1 p ei bws2) = branch.val in
+              let (newEi, newGlobalAcc3) = recurse globalAcc newScopeTempAcc ei in
+              (newBranches ++ [{ branch | val = Branch_ bws1 p newEi bws2 }], newGlobalAcc3)
+            )
+            ([], newGlobalAcc2)
+      in
+      ret (ECase ws1 newE1 newBranches ws2) newGlobalAcc3
+
+    ETypeCase ws1 pat tbranches ws2 ->
+      let (newBranches, newGlobalAcc2) =
+        tbranches
+        |> List.foldl
+            (\tbranch (newBranches, globalAcc) ->
+              let (TBranch_ bws1 t ei bws2) = tbranch.val in
+              let (newEi, newGlobalAcc2) = recurse globalAcc initScopeTempAcc ei in
+              (newBranches ++ [{ tbranch | val = TBranch_ bws1 t newEi bws2 }], newGlobalAcc2)
+            )
+            ([], newGlobalAcc)
+      in
+      ret (ETypeCase ws1 pat newBranches ws2) newGlobalAcc2
+
+    EComment ws s e1 ->
+      let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
+      ret (EComment ws s newE1) newGlobalAcc2
+
+    EOption ws1 s1 ws2 s2 e1 ->
+      let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
+      ret (EOption ws1 s1 ws2 s2 newE1) newGlobalAcc2
+
+    ELet ws1 k isRec p e1 e2 ws2 ->
+      let newScopeTempAcc = handleELet newE initScopeTempAcc in
+      let (newE1, newGlobalAcc2) =
+        if isRec
+        then recurse newGlobalAcc newScopeTempAcc e1
+        else recurse newGlobalAcc initScopeTempAcc e1
+      in
+      let (newE2, newGlobalAcc3) = recurse newGlobalAcc2 newScopeTempAcc e2 in
+      ret (ELet ws1 k isRec p newE1 newE2 ws2) newGlobalAcc3
+
+    ETyp ws1 pat tipe e1 ws2 ->
+      let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
+      ret (ETyp ws1 pat tipe newE1 ws2) newGlobalAcc2
+
+    EColonType ws1 e1 ws2 tipe ws3 ->
+      let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
+      ret (EColonType ws1 newE1 ws2 tipe ws3) newGlobalAcc2
+
+    ETypeAlias ws1 pat tipe e1 ws2 ->
+      let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
+      ret (ETypeAlias ws1 pat tipe newE1 ws2) newGlobalAcc2
+
 
 mapExp : (Exp -> Exp) -> Exp -> Exp
 mapExp f e =
@@ -596,6 +715,24 @@ mapExpViaExp__ : (Exp__ -> Exp__) -> Exp -> Exp
 mapExpViaExp__ f e =
   let f_ exp = replaceE__ exp (f exp.val.e__) in
   mapExp f_ e
+
+-- Folding function returns just newGlobalAcc instead of (newExp, newGlobalAcc)
+foldExpTopDownWithScope
+  :  (Exp -> a -> b -> a)
+  -> (Exp -> b -> b)
+  -> (Exp -> b -> b)
+  -> (Exp -> Branch -> Int -> b -> b)
+  -> a
+  -> b
+  -> Exp
+  -> a
+foldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAcc initScopeTempAcc e =
+  let (_, finalGlobalAcc) =
+    mapFoldExpTopDownWithScope
+        (\e globalAcc scopeTempAcc -> (e, f e globalAcc scopeTempAcc))
+        handleELet handleEFun handleCaseBranch initGlobalAcc initScopeTempAcc e
+  in
+  finalGlobalAcc
 
 mapVal : (Val -> Val) -> Val -> Val
 mapVal f v = case v.v_ of
@@ -903,11 +1040,14 @@ tbranchExps tbranches =
     (.val >> \(TBranch_ _ _ exp _) -> exp)
     tbranches
 
+branchPat : Branch -> Pat
+branchPat branch =
+  let (Branch_ _ pat _ _) = branch.val in
+  pat
+
 branchPats : List Branch -> List Pat
 branchPats branches =
-  List.map
-    (.val >> \(Branch_ _ pat _ _) -> pat)
-    branches
+  List.map branchPat branches
 
 tbranchTypes : List TBranch -> List Type
 tbranchTypes tbranches =

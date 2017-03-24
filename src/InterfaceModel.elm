@@ -222,8 +222,11 @@ synthesisResult description exp =
     , children    = Nothing
     }
 
-setResultSafe isSafe (SynthesisResult result) =
-  SynthesisResult { result | isSafe = isSafe }
+mapResultSafe f (SynthesisResult result) =
+  SynthesisResult { result | isSafe = f result.isSafe }
+
+setResultSafe isSafe synthesisResult =
+  mapResultSafe (\_ -> isSafe) synthesisResult
 
 isResultSafe (SynthesisResult {isSafe}) =
   isSafe
