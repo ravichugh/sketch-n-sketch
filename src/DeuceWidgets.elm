@@ -21,7 +21,7 @@ type alias DeuceState =
 
 type DeuceWidget
   = DeuceExp EId
-  | DeucePat PatternId
+  | DeucePat PathedPatternId
   | DeuceLetBindingEquation EId
   | DeuceExpTarget ExpTargetPosition
   | DeucePatTarget PatTargetPosition
@@ -59,10 +59,10 @@ clearHoveredMenuPath = setHoveredMenuPath []
 --------------------------------------------------------------------------------
 
 
--- Returns list of (pat, patId, startPos, endPos, selectionZoneEndPos)
+-- Returns list of (pat, pathedPatId, startPos, endPos, selectionZoneEndPos)
 --
 -- For selecting a code element.
-findPats : Exp -> List (Pat, PatternId, P.Pos, P.Pos, P.Pos)
+findPats : Exp -> List (Pat, PathedPatternId, P.Pos, P.Pos, P.Pos)
 findPats e =
   let find e acc =
     case e.val.e__ of

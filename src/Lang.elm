@@ -63,6 +63,7 @@ type Op_
 
 type alias EId  = Int
 type alias Exp_ = { e__ : Exp__, eid : EId }
+-- type alias Pat_ = { p__ : Pat__, pid : PId }
 
 type Exp__
   = EConst WS Num Loc WidgetDecl
@@ -187,11 +188,11 @@ type alias Backtrace = List Exp
 
 type alias ScopeId = (EId, Int) -- ELet/EFun/ECase. Int is the branch number for ECase (always 1 for others)
 
-type alias PatternId = (ScopeId, List Int)
+type alias PathedPatternId = (ScopeId, List Int)
 
 type BeforeAfter = Before | After
 
-type alias PatTargetPosition = (BeforeAfter, PatternId)
+type alias PatTargetPosition = (BeforeAfter, PathedPatternId)
 
 type alias ExpTargetPosition = (BeforeAfter, EId)
 
@@ -203,19 +204,19 @@ type TargetPosition
 scopeIdToScopeEId : ScopeId -> EId
 scopeIdToScopeEId (scopeEId, _) = scopeEId
 
-patIdToScopeId : PatternId -> ScopeId
-patIdToScopeId (scopeId, _) = scopeId
+pathedPatIdToScopeId : PathedPatternId -> ScopeId
+pathedPatIdToScopeId (scopeId, _) = scopeId
 
-patIdToPath : PatternId -> List Int
-patIdToPath (_, path) = path
+pathedPatIdToPath : PathedPatternId -> List Int
+pathedPatIdToPath (_, path) = path
 
-patIdToScopeEId : PatternId -> EId
-patIdToScopeEId patId =
-  patId |> patIdToScopeId |> scopeIdToScopeEId
+pathedPatIdToScopeEId : PathedPatternId -> EId
+pathedPatIdToScopeEId pathedPatId =
+  pathedPatId |> pathedPatIdToScopeId |> scopeIdToScopeEId
 
 -- Increment last path index by 1
-patIdRightSibling : PatternId -> Maybe PatternId
-patIdRightSibling (scopeId, path) =
+pathedPatIdRightSibling : PathedPatternId -> Maybe PathedPatternId
+pathedPatIdRightSibling (scopeId, path) =
   patPathRightSibling path
   |> Maybe.map (\newPath -> (scopeId, newPath))
 
@@ -259,9 +260,9 @@ pathAfterElementRemoved removedPath path =
       Debug.crash <| "Lang.pathAfterElementRemoved why did this get called?!" ++ toString (removedPath, path)
 
 
-patTargetPositionToTargetPatId : PatTargetPosition -> PatternId
-patTargetPositionToTargetPatId (beforeAfter, referencePatId) =
-  let (referenceScopeId, referencePath) = referencePatId in
+patTargetPositionToTargetPathedPatId : PatTargetPosition -> PathedPatternId
+patTargetPositionToTargetPathedPatId (beforeAfter, referencePathedPatId) =
+  let (referenceScopeId, referencePath) = referencePathedPatId in
   let targetPath =
     let referencePathAsPList =
       case referencePath of
@@ -272,7 +273,7 @@ patTargetPositionToTargetPatId (beforeAfter, referencePatId) =
       Before -> referencePathAsPList
       After  ->
         patPathRightSibling referencePathAsPList
-        |> Utils.fromJust_ ("invalid target pattern id path of [] in target path position: " ++ toString (beforeAfter, referencePatId))
+        |> Utils.fromJust_ ("invalid target pattern id path of [] in target path position: " ++ toString (beforeAfter, referencePathedPatId))
   in
   (referenceScopeId, targetPath)
 

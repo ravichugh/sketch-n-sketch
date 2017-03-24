@@ -1401,7 +1401,7 @@ expBoundingPolygonPoints =
 
 patBoundingPolygonPoints =
   boundingPolygonPoints identity
-     (\(pat,pid,_,_,_) -> [patBoundingPolygon (DeucePat pid) pat pat])
+     (\(pat,ppid,_,_,_) -> [patBoundingPolygon (DeucePat ppid) pat pat])
 
 boundingPolygonPoints :
     (List (Svg Msg) -> List (Svg Msg))

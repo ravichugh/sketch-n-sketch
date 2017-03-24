@@ -633,7 +633,7 @@ expDescriptionParts_ program exp targetEId =
               -- e.g. want whole list, but the let only bound the individual list elements
               case identifiersListInPat pat of
                 []        -> [simpleExpName assigns]
-                patIdents -> [varIdentOrDefault assigns (String.join "" patIdents)]
+                pathedPatIdents -> [varIdentOrDefault assigns (String.join "" pathedPatIdents)]
             else
               let scopeNames =
                 case pat.val of
@@ -642,7 +642,7 @@ expDescriptionParts_ program exp targetEId =
                   _               ->
                     case identifiersListInPat pat of
                       []        -> []
-                      patIdents -> [String.join "" patIdents]
+                      pathedPatIdents -> [String.join "" pathedPatIdents]
               in
               case recurse assigns of
                 []          -> recurse body
@@ -1276,7 +1276,7 @@ renameIdentifiers subst exp =
     exp
 
 
-setPatName : PatternId -> Ident -> Exp -> Exp
+setPatName : PathedPatternId -> Ident -> Exp -> Exp
 setPatName ((scopeEId, branchI), path) newName exp =
   let maybeScopeExp = findExpByEId exp scopeEId in
   let maybeNewScopeExp =
@@ -1403,7 +1403,7 @@ findScopeAreasByIdent ident exp =
       )
 
 
-findScopeExpAndPat : PatternId -> Exp -> Maybe (Exp, Pat)
+findScopeExpAndPat : PathedPatternId -> Exp -> Maybe (Exp, Pat)
 findScopeExpAndPat ((scopeEId, branchI), path) exp =
   let maybeScopeExp = findExpByEId exp scopeEId in
   let maybePat =
@@ -1426,9 +1426,9 @@ findScopeExpAndPat ((scopeEId, branchI), path) exp =
   |> Maybe.map (\pat -> (Utils.fromJust maybeScopeExp, pat))
 
 
-findPat : PatternId -> Exp -> Maybe Pat
-findPat patId exp =
-  findScopeExpAndPat patId exp
+findPat : PathedPatternId -> Exp -> Maybe Pat
+findPat pathedPatId exp =
+  findScopeExpAndPat pathedPatId exp
   |> Maybe.map Tuple.second
 
 
@@ -2061,21 +2061,21 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
     -- EDict _                         -> Debug.crash "LangTools.transformVarsUntilBound: shouldn't have an EDict in given expression"
 
 
--- Compute the PatternId that assigned the binding referenced by varExp
+-- Compute the PathedPatternId that assigned the binding referenced by varExp
 --
 -- Uses ident of given varExp, returns that name's binding at varExp's EId in program.
 --
 -- Returns Nothing if free in program or not in program
-bindingPatternIdFor : Exp -> Exp -> Maybe PatternId
-bindingPatternIdFor varExp program =
+bindingPathedPatternIdFor : Exp -> Exp -> Maybe PathedPatternId
+bindingPathedPatternIdFor varExp program =
   let targetName = expToIdent varExp in
   let targetEId  = varExp.val.eid in
-  bindingPatternIdForIdentAtEId targetName targetEId program
+  bindingPathedPatternIdForIdentAtEId targetName targetEId program
 
 
-bindingPatternIdForIdentAtEId : Ident -> EId -> Exp -> Maybe PatternId
-bindingPatternIdForIdentAtEId targetName targetEId program =
-  bindingPatternIdFor_ Nothing targetName targetEId program
+bindingPathedPatternIdForIdentAtEId : Ident -> EId -> Exp -> Maybe PathedPatternId
+bindingPathedPatternIdForIdentAtEId targetName targetEId program =
+  bindingPathedPatternIdFor_ Nothing targetName targetEId program
   |> Maybe.withDefault Nothing
 
 
@@ -2086,44 +2086,44 @@ bindingPatternIdForIdentAtEId targetName targetEId program =
 -- Returns Nothing if free in program or not in program
 bindingScopeIdFor : Exp -> Exp -> Maybe ScopeId
 bindingScopeIdFor varExp program =
-  bindingPatternIdFor varExp program
+  bindingPathedPatternIdFor varExp program
   |> Maybe.map (\(scopeId, path) -> scopeId)
 
 
 bindingScopeIdForIdentAtEId : Ident -> EId -> Exp -> Maybe ScopeId
 bindingScopeIdForIdentAtEId targetName targetEId program =
-  bindingPatternIdForIdentAtEId targetName targetEId program
+  bindingPathedPatternIdForIdentAtEId targetName targetEId program
   |> Maybe.map (\(scopeId, path) -> scopeId)
 
 
 -- -- "Nothing" means free in program
--- allVarEIdsToBindingPatternId : Exp -> Dict.Dict EId (Maybe PatternId)
--- allVarEIdsToBindingPatternId program =
+-- allVarEIdsToBindingPathedPatternId : Exp -> Dict.Dict EId (Maybe PathedPatternId)
+-- allVarEIdsToBindingPathedPatternId program =
 --   let addScopeIds scopeId indentPathsInPat =
 --     indentPathsInPat
 --     |> List.map (\(ident, path) -> (ident, (scopeId, path)))
 --   in
---   let handleELet letExp identToPatternId =
+--   let handleELet letExp identToPathedPatternId =
 --     Dict.union
 --         (expToLetPat letExp |> indentPathsInPat |> addScopeIds (letExp.val.eid, 1) |> Dict.fromList)
---         identToPatternId
+--         identToPathedPatternId
 --   in
---   let handleEFun funcExp identToPatternId =
+--   let handleEFun funcExp identToPathedPatternId =
 --     Dict.union
 --         (pList (expToFuncPats funcExp) |> indentPathsInPat |> addScopeIds (funcExp.val.eid, 1) |> Dict.fromList)
---         identToPatternId
+--         identToPathedPatternId
 --   in
---   let handleCaseBranch caseExp branch branchI identToPatternId =
+--   let handleCaseBranch caseExp branch branchI identToPathedPatternId =
 --     Dict.union
 --         (branchPat branch |> indentPathsInPat |> addScopeIds (caseExp.val.eid, branchI) |> Dict.fromList)
---         identToPatternId
+--         identToPathedPatternId
 --   in
 --   program
 --   |> foldExpTopDownWithScope
---       (\exp eidToMaybePatId identToPatternId ->
+--       (\exp eidToMaybePathedPatId identToPathedPatternId ->
 --         case expToMaybeIdent exp of
---           Just ident -> Dict.insert exp.val.eid (Dict.get ident identToPatternId) eidToMaybePatId
---           Nothing    -> eidToMaybePatId
+--           Just ident -> Dict.insert exp.val.eid (Dict.get ident identToPathedPatternId) eidToMaybePathedPatId
+--           Nothing    -> eidToMaybePathedPatId
 --       )
 --       handleELet
 --       handleEFun
@@ -2134,9 +2134,9 @@ bindingScopeIdForIdentAtEId targetName targetEId program =
 
 -- Outer returned maybe indicates if variable found
 -- Inner returned maybe is scopeId that bound the identifier as seen from the usage site (Nothing means free)
-bindingPatternIdFor_ : Maybe PatternId -> Ident -> EId -> Exp -> Maybe (Maybe PatternId)
-bindingPatternIdFor_ currentBindingPatternId targetName targetEId exp =
-  let recurse patternId e = bindingPatternIdFor_ patternId targetName targetEId e in
+bindingPathedPatternIdFor_ : Maybe PathedPatternId -> Ident -> EId -> Exp -> Maybe (Maybe PathedPatternId)
+bindingPathedPatternIdFor_ currentBindingPathedPatternId targetName targetEId exp =
+  let recurse pathedPatternId e = bindingPathedPatternIdFor_ pathedPatternId targetName targetEId e in
   let maybeNewBindingForRecursion pat branchI pathPrefix =
     pathForIdentInPat targetName pat
     |> Maybe.map (\path -> Just ((exp.val.eid, branchI), pathPrefix ++ path))
@@ -2144,43 +2144,43 @@ bindingPatternIdFor_ currentBindingPatternId targetName targetEId exp =
   case exp.val.e__ of
     EVar _ _ ->
       if exp.val.eid == targetEId then
-        Just currentBindingPatternId
+        Just currentBindingPathedPatternId
       else
         Nothing
 
     EFun _ pats body _ ->
-      let newBindingPatternId =
+      let newBindingPathedPatternId =
         pats
         |> Utils.zipi1
         |> Utils.mapFirstSuccess (\(i, pat) -> maybeNewBindingForRecursion pat 1 [i])
-        |> Maybe.withDefault currentBindingPatternId
+        |> Maybe.withDefault currentBindingPathedPatternId
       in
-      recurse newBindingPatternId body
+      recurse newBindingPathedPatternId body
 
     ELet _ _ isRecursive pat boundExp body _ ->
-      let newBindingPatternId =
+      let newBindingPathedPatternId =
         maybeNewBindingForRecursion pat 1 []
-        |> Maybe.withDefault currentBindingPatternId
+        |> Maybe.withDefault currentBindingPathedPatternId
       in
-      let patternIdForBoundExp = if isRecursive then newBindingPatternId else currentBindingPatternId in
+      let pathedPatternIdForBoundExp = if isRecursive then newBindingPathedPatternId else currentBindingPathedPatternId in
       Utils.firstOrLazySecond
-          (recurse patternIdForBoundExp boundExp)
-          (\() -> recurse newBindingPatternId body)
+          (recurse pathedPatternIdForBoundExp boundExp)
+          (\() -> recurse newBindingPathedPatternId body)
 
     ECase _ _ branches _ ->
       branchPatExps branches
       |> Utils.zipi1
       |> Utils.mapFirstSuccess
           (\(i, (pat, branchExp)) ->
-            let newBindingPatternId =
+            let newBindingPathedPatternId =
               maybeNewBindingForRecursion pat i []
-              |> Maybe.withDefault currentBindingPatternId
+              |> Maybe.withDefault currentBindingPathedPatternId
             in
-            recurse newBindingPatternId branchExp
+            recurse newBindingPathedPatternId branchExp
           )
 
     _ ->
-      Utils.mapFirstSuccess (recurse currentBindingPatternId) (childExps exp)
+      Utils.mapFirstSuccess (recurse currentBindingPathedPatternId) (childExps exp)
 
 
 -- Returns one of:

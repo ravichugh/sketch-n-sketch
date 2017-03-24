@@ -39,22 +39,22 @@ getELet program eid =
 type alias PatBoundExp = (Pat, Exp)
 
 
-pluckAll : List PatternId -> Exp -> (List (Pat, Exp, EId), Exp)
-pluckAll sourcePatIds program =
-    let sortedSourcePatIds =
-      sourcePatIds
+pluckAll : List PathedPatternId -> Exp -> (List (Pat, Exp, EId), Exp)
+pluckAll sourcePathedPatIds program =
+    let sortedSourcePathedPatIds =
+      sourcePathedPatIds
       |> List.sortBy
           (\((scopeEId, branchI), path) ->
             (locationInProgram program scopeEId, branchI, path)
           )
     in
   let (pluckedPatAndBoundExpAndOldScopeEIds, programWithoutPlucked) =
-    sortedSourcePatIds
+    sortedSourcePathedPatIds
     |> List.foldr
-        (\sourcePatId (pluckedPatAndBoundExpAndOldScopeBodies, programBeingPlucked) ->
-          case pluck sourcePatId programBeingPlucked of
+        (\sourcePathedPatId (pluckedPatAndBoundExpAndOldScopeBodies, programBeingPlucked) ->
+          case pluck sourcePathedPatId programBeingPlucked of
             Just ((pluckedPat, pluckedBoundExp), programWithoutPlucked) ->
-              let ((sourceScopeEId, _), _) = sourcePatId in
+              let ((sourceScopeEId, _), _) = sourcePathedPatId in
               ((pluckedPat, pluckedBoundExp, sourceScopeEId)::pluckedPatAndBoundExpAndOldScopeBodies, programWithoutPlucked)
             Nothing ->
               (pluckedPatAndBoundExpAndOldScopeBodies, programBeingPlucked)
@@ -69,7 +69,7 @@ pluckAll sourcePatIds program =
 -- If this would remove a whole pattern, the pattern is left as [] matched to [] for a later clean up step.
 --
 -- This technique preserves EIds and pattern paths for later insertion.
-pluck : PatternId -> Exp -> Maybe (PatBoundExp, Exp)
+pluck : PathedPatternId -> Exp -> Maybe (PatBoundExp, Exp)
 pluck ((scopeEId, scopeBranchI), path) program =
   findExpByEId program scopeEId
   |> Maybe.andThen (\scope -> pluck_ scope path program)
@@ -374,8 +374,8 @@ liftDependenciesBasedOnUniqueNames program =
 --   - All previous references to the moved identifier still resolve to that identifer
 --   - All other variables uses of the same name do not resolve to the moved identifier
 --
-moveDefinitions_ : Bool -> (List PatBoundExp -> Exp -> (Exp, EId)) -> List PatternId -> Exp -> List SynthesisResult
-moveDefinitions_ doCleanUp makeNewProgram sourcePatIds program =
+moveDefinitions_ : Bool -> (List PatBoundExp -> Exp -> (Exp, EId)) -> List PathedPatternId -> Exp -> List SynthesisResult
+moveDefinitions_ doCleanUp makeNewProgram sourcePathedPatIds program =
   let maybeClean =
     -- When composing transformations, can't clean up until the end (don't want to remove EIds).
     if doCleanUp
@@ -384,13 +384,13 @@ moveDefinitions_ doCleanUp makeNewProgram sourcePatIds program =
   in
   let (programUniqueNames, uniqueNameToOldName) = assignUniqueNames program in
   let (pluckedPatAndBoundExpAndOldScopeEIds, programWithoutPlucked) =
-    pluckAll sourcePatIds programUniqueNames
+    pluckAll sourcePathedPatIds programUniqueNames
   in
   if pluckedPatAndBoundExpAndOldScopeEIds == [] then
     Debug.log "could not pluck anything" []
   else
     let (pluckedPats, pluckedBoundExps, _)   = Utils.unzip3 pluckedPatAndBoundExpAndOldScopeEIds in
-    let pluckedPatIdentifiersUnique          = Utils.unionAll <| List.map identifiersSetInPat pluckedPats in
+    let pluckedPathedPatIdentifiersUnique          = Utils.unionAll <| List.map identifiersSetInPat pluckedPats in
     let pluckedBoundExpFreeIdentifiersUnique = Utils.unionAll <| List.map freeIdentifiers pluckedBoundExps in
     let (newProgramUniqueNames, newScopeEId) =
       makeNewProgram (Utils.zip pluckedPats pluckedBoundExps) programWithoutPlucked
@@ -470,7 +470,7 @@ moveDefinitions_ doCleanUp makeNewProgram sourcePatIds program =
         []
       else
         let (uniqueNameToOldNameMoved, uniqueNameToOldNameUnmoved) =
-          let namesMoved = Set.union pluckedPatIdentifiersUnique pluckedBoundExpFreeIdentifiersUnique in
+          let namesMoved = Set.union pluckedPathedPatIdentifiersUnique pluckedBoundExpFreeIdentifiersUnique in
           uniqueNameToOldName
           |> Dict.toList
           |> List.partition (\(uniqueName, oldName) -> Set.member uniqueName namesMoved)
@@ -525,14 +525,14 @@ moveDefinitions_ doCleanUp makeNewProgram sourcePatIds program =
     |> Utils.dedupBy (\(SynthesisResult {exp}) -> unparseWithUniformWhitespace False False exp)
 
 
-moveDefinitionsBeforeEId : List PatternId -> EId -> Exp -> List SynthesisResult
-moveDefinitionsBeforeEId sourcePatIds targetEId program =
-  moveDefinitionsBeforeEId_ True sourcePatIds targetEId program
+moveDefinitionsBeforeEId : List PathedPatternId -> EId -> Exp -> List SynthesisResult
+moveDefinitionsBeforeEId sourcePathedPatIds targetEId program =
+  moveDefinitionsBeforeEId_ True sourcePathedPatIds targetEId program
 
 
-moveDefinitionsBeforeEId_ : Bool -> List PatternId -> EId -> Exp -> List SynthesisResult
-moveDefinitionsBeforeEId_ doCleanUp sourcePatIds targetEId program =
-  -- let _ = Debug.log ("moving " ++ toString sourcePatIds ++ " before " ++ toString targetEId ++ " in " ++ unparseWithIds program) () in
+moveDefinitionsBeforeEId_ : Bool -> List PathedPatternId -> EId -> Exp -> List SynthesisResult
+moveDefinitionsBeforeEId_ doCleanUp sourcePathedPatIds targetEId program =
+  -- let _ = Debug.log ("moving " ++ toString sourcePathedPatIds ++ " before " ++ toString targetEId ++ " in " ++ unparseWithIds program) () in
   let makeNewProgram pluckedPatAndBoundExps programWithoutPluckedUniqueNames =
     let (pluckedPats, pluckedBoundExps) = List.unzip pluckedPatAndBoundExps in
     let (newPatUniqueNames, newBoundExpUniqueNames) =
@@ -560,13 +560,13 @@ moveDefinitionsBeforeEId_ doCleanUp sourcePatIds targetEId program =
     in
     (newProgram, insertedLetEId)
   in
-  moveDefinitions_ doCleanUp makeNewProgram sourcePatIds program
+  moveDefinitions_ doCleanUp makeNewProgram sourcePathedPatIds program
 
 
-moveDefinitionsPat : List PatternId -> PatternId -> Exp -> List SynthesisResult
-moveDefinitionsPat sourcePatIds targetPatId program =
+moveDefinitionsPat : List PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
+moveDefinitionsPat sourcePathedPatIds targetPathedPatId program =
   let makeNewProgram pluckedPatAndBoundExps programWithoutPluckedUniqueNames =
-    let ((targetEId, _), targetPath) = targetPatId in
+    let ((targetEId, _), targetPath) = targetPathedPatId in
     let newProgram =
       programWithoutPluckedUniqueNames
       |> mapExpNode
@@ -582,7 +582,7 @@ moveDefinitionsPat sourcePatIds targetPatId program =
     in
     (newProgram, targetEId)
   in
-  moveDefinitions_ True makeNewProgram sourcePatIds program
+  moveDefinitions_ True makeNewProgram sourcePathedPatIds program
 
 
 makeDuplicateResults_ newScopeEId pluckedPatAndBoundExpAndOldScopeEIds newProgram originalProgram =
@@ -636,10 +636,10 @@ makeDuplicateResults_ newScopeEId pluckedPatAndBoundExpAndOldScopeEIds newProgra
   [ result ]
 
 
-duplicateDefinitionsBeforeEId : List PatternId -> EId -> Exp -> List SynthesisResult
-duplicateDefinitionsBeforeEId sourcePatIds targetEId originalProgram =
+duplicateDefinitionsBeforeEId : List PathedPatternId -> EId -> Exp -> List SynthesisResult
+duplicateDefinitionsBeforeEId sourcePathedPatIds targetEId originalProgram =
   let (pluckedPatAndBoundExpAndOldScopeEIds, _) =
-    pluckAll sourcePatIds originalProgram
+    pluckAll sourcePathedPatIds originalProgram
   in
   let (pluckedPats, pluckedBoundExps, _) = Utils.unzip3 pluckedPatAndBoundExpAndOldScopeEIds in
   let insertedLetEId = LangParser2.maxId originalProgram + 1 in
@@ -669,12 +669,12 @@ duplicateDefinitionsBeforeEId sourcePatIds targetEId originalProgram =
   makeDuplicateResults_ insertedLetEId pluckedPatAndBoundExpAndOldScopeEIds newProgram originalProgram
 
 
-duplicateDefinitionsPat : List PatternId -> PatternId -> Exp -> List SynthesisResult
-duplicateDefinitionsPat sourcePatIds targetPatId originalProgram =
+duplicateDefinitionsPat : List PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
+duplicateDefinitionsPat sourcePathedPatIds targetPathedPatId originalProgram =
   let (pluckedPatAndBoundExpAndOldScopeEIds, _) =
-    pluckAll sourcePatIds originalProgram
+    pluckAll sourcePathedPatIds originalProgram
   in
-  let ((targetEId, _), targetPath) = targetPatId in
+  let ((targetEId, _), targetPath) = targetPathedPatId in
   let newProgram =
     originalProgram
     |> mapExpNode
@@ -870,20 +870,20 @@ addExpToExpByPath expToInsert path exp =
 
 moveEquationsBeforeEId : List EId -> EId -> Exp -> List SynthesisResult
 moveEquationsBeforeEId letEIds targetEId program =
-  let patIds =
+  let pathedPatIds =
     letEIds
     |> List.sortBy (locationInProgram program)
     |> List.map (\letEId -> ((letEId, 1), []))
   in
   let synthesisResults =
-    patIds
+    pathedPatIds
     |> List.foldl
-        (\patId priorResults ->
+        (\pathedPatId priorResults ->
           priorResults
           |> List.concatMap
               (\(SynthesisResult {exp, isSafe}) ->
                 -- "False" means don't perform simplifyAssignments (it can remove EIds we need in later iterations)
-                moveDefinitionsBeforeEId_ False [patId] targetEId exp
+                moveDefinitionsBeforeEId_ False [pathedPatId] targetEId exp
                 |> List.map (mapResultSafe ((&&) isSafe))
               )
         )
@@ -998,17 +998,17 @@ shouldBeParameterIsNamedUnfrozenConstant exp originalProgram =
     _ -> False
 
 
-abstractPVar : PatternId -> Exp -> List SynthesisResult
-abstractPVar patId originalProgram =
-  case pluck patId originalProgram of
+abstractPVar : PathedPatternId -> Exp -> List SynthesisResult
+abstractPVar pathedPatId originalProgram =
+  case pluck pathedPatId originalProgram of
     Nothing ->
-      Debug.log ("abstractPVar Could not find patternId " ++ toString patId ++ " in program\n" ++ unparseWithIds originalProgram) []
+      Debug.log ("abstractPVar Could not find pathedPatternId " ++ toString pathedPatId ++ " in program\n" ++ unparseWithIds originalProgram) []
 
     Just ((pluckedPat, pluckedBoundExp), _) ->
       case pluckedPat.val of
         PVar _ ident _ ->
           let doAbstract shouldBeParameter =
-            let ((scopeEId, _), _) = patId in
+            let ((scopeEId, _), _) = pathedPatId in
             let scopeExp = justFindExpByEId originalProgram scopeEId in
             let scopeBody = scopeExp |> expToLetBody in
             let (argumentsForCallSite, abstractedFuncExp) =
@@ -1089,9 +1089,9 @@ abstractExp eidToAbstract originalProgram =
 
 -- TODO: relax addArg/removeArg/reorderArgs to allow (unsafe) addition/removal from anonymous functions (right now, written as if function must be named).
 
-addArg_ : PatternId -> (Exp -> Exp -> Maybe (String, Bool, Pat, Exp, Exp)) -> Exp -> List SynthesisResult
-addArg_ patId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody originalProgram =
-  let ((funcEId, _), path) = patId in
+addArg_ : PathedPatternId -> (Exp -> Exp -> Maybe (String, Bool, Pat, Exp, Exp)) -> Exp -> List SynthesisResult
+addArg_ pathedPatId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody originalProgram =
+  let ((funcEId, _), path) = pathedPatId in
   case findLetAndIdentBindingExp funcEId originalProgram of
     Just (letExp, funcName) ->
       case letExp.val.e__ of
@@ -1177,14 +1177,14 @@ addArg_ patId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody originalProg
       []
 
 
-addArgs : List EId -> PatternId -> Exp -> List SynthesisResult
-addArgs argSourceEIds patId originalProgram =
+addArgs : List EId -> PathedPatternId -> Exp -> List SynthesisResult
+addArgs argSourceEIds pathedPatId originalProgram =
   let (maybeNewProgram, isSafe) =
     argSourceEIds
     |> List.sortBy (locationInProgram originalProgram)
     |> List.foldr
         (\argSourceEId (maybePriorProgram, safeSoFar) ->
-          case maybePriorProgram |> Maybe.map (addArg argSourceEId patId) of
+          case maybePriorProgram |> Maybe.map (addArg argSourceEId pathedPatId) of
             Just (SynthesisResult newResult :: _) -> (Just newResult.exp, safeSoFar && newResult.isSafe)
             _                                     -> (Nothing, False)
         )
@@ -1197,15 +1197,15 @@ addArgs argSourceEIds patId originalProgram =
     Nothing ->
       []
 
-addArgsFromPats : List PatternId -> PatternId -> Exp -> List SynthesisResult
-addArgsFromPats argSourcePatIds patId originalProgram =
+addArgsFromPats : List PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
+addArgsFromPats argSourcePathedPatIds pathedPatId originalProgram =
   let (maybeNewProgram, isSafe) =
-    argSourcePatIds
+    argSourcePathedPatIds
     |> List.sortBy (\((scopeEId, _), path) -> locationInProgram originalProgram scopeEId)
     |> List.foldr
-        (\argSourcePatId (maybePriorProgram, safeSoFar) ->
+        (\argSourcePathedPatId (maybePriorProgram, safeSoFar) ->
           -- Identity for post-processing fbody -- when adding multiple patterns, can't simplify assignments until the very end.
-          case maybePriorProgram |> Maybe.map (addArgFromPat_ identity argSourcePatId patId) of
+          case maybePriorProgram |> Maybe.map (addArgFromPat_ identity argSourcePathedPatId pathedPatId) of
             Just (SynthesisResult newResult :: _) -> (Just newResult.exp, safeSoFar && newResult.isSafe)
             _                                     -> (Nothing, False)
         )
@@ -1216,7 +1216,7 @@ addArgsFromPats argSourcePatIds patId originalProgram =
       let newProgramWithAssignmentsSimplified =
         newProgram
         |> mapExpNode
-            (patIdToScopeEId patId)
+            (pathedPatIdToScopeEId pathedPatId)
             LangSimplify.simplifyAssignments
       in
       [ synthesisResult "Add Arguments" newProgramWithAssignmentsSimplified |> setResultSafe isSafe ]
@@ -1225,22 +1225,22 @@ addArgsFromPats argSourcePatIds patId originalProgram =
       []
 
 
-addArgFromPat : PatternId -> PatternId -> Exp -> List SynthesisResult
-addArgFromPat argSourcePatId targetPatId originalProgram =
-  addArgFromPat_ LangSimplify.simplifyAssignments argSourcePatId targetPatId originalProgram
+addArgFromPat : PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
+addArgFromPat argSourcePathedPatId targetPathedPatId originalProgram =
+  addArgFromPat_ LangSimplify.simplifyAssignments argSourcePathedPatId targetPathedPatId originalProgram
 
 
-addArgFromPat_ : (Exp -> Exp) ->PatternId -> PatternId -> Exp -> List SynthesisResult
-addArgFromPat_ postProcessFBody argSourcePatId targetPatId originalProgram =
+addArgFromPat_ : (Exp -> Exp) ->PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
+addArgFromPat_ postProcessFBody argSourcePathedPatId targetPathedPatId originalProgram =
   let funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody func fbody =
-    case pluck argSourcePatId fbody of
+    case pluck argSourcePathedPatId fbody of
       Nothing ->
         let _ = Debug.log "could not pluck argument source pattern from inside the function" () in
         Nothing
 
       Just ((newArgPat, newArgVal), fbodyWithoutPlucked) ->
         let varUsagesSame =
-          let oldScopeAreas = findScopeAreas (patIdToScopeId argSourcePatId) fbody in
+          let oldScopeAreas = findScopeAreas (pathedPatIdToScopeId argSourcePathedPatId) fbody in
           identifiersListInPat newArgPat
           |> List.all
               (\ident ->
@@ -1255,11 +1255,11 @@ addArgFromPat_ postProcessFBody argSourcePatId targetPatId originalProgram =
           , postProcessFBody fbodyWithoutPlucked
           )
   in
-  addArg_ targetPatId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody originalProgram
+  addArg_ targetPathedPatId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody originalProgram
 
 
-addArg : EId -> PatternId -> Exp -> List SynthesisResult
-addArg argSourceEId patId originalProgram =
+addArg : EId -> PathedPatternId -> Exp -> List SynthesisResult
+addArg argSourceEId pathedPatId originalProgram =
   let funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody func fbody =
     case findExpByEId fbody argSourceEId of
       Nothing ->
@@ -1280,17 +1280,17 @@ addArg argSourceEId patId originalProgram =
           , replaceExpNodePreservingPrecedingWhitespace argSourceEId (eVar argName) fbody
           )
   in
-  addArg_ patId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody originalProgram
+  addArg_ pathedPatId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody originalProgram
 
 
-removeArgs : List PatternId -> Exp -> List SynthesisResult
-removeArgs patIds originalProgram =
+removeArgs : List PathedPatternId -> Exp -> List SynthesisResult
+removeArgs pathedPatIds originalProgram =
   let (maybeNewProgram, isSafe) =
-    patIds
+    pathedPatIds
     |> List.sort
     |> List.foldr
-        (\patId (maybePriorProgram, safeSoFar) ->
-          case maybePriorProgram |> Maybe.map (removeArg patId) of
+        (\pathedPatId (maybePriorProgram, safeSoFar) ->
+          case maybePriorProgram |> Maybe.map (removeArg pathedPatId) of
             Just (SynthesisResult newResult :: _) -> (Just newResult.exp, safeSoFar && newResult.isSafe)
             _                                     -> (Nothing, False)
         )
@@ -1303,9 +1303,9 @@ removeArgs patIds originalProgram =
     Nothing ->
       []
 
-removeArg : PatternId -> Exp -> List SynthesisResult
-removeArg patId originalProgram =
-  let ((funcEId, _), path) = patId in
+removeArg : PathedPatternId -> Exp -> List SynthesisResult
+removeArg pathedPatId originalProgram =
+  let ((funcEId, _), path) = pathedPatId in
   case findLetAndIdentBindingExp funcEId originalProgram of
     Just (letExp, funcName) ->
       case letExp.val.e__ of
@@ -1439,7 +1439,7 @@ removeArg patId originalProgram =
 -- list and remove the empty list.
 reorderFunctionArgs : EId -> List (List Int) -> List Int -> Exp -> List SynthesisResult
 reorderFunctionArgs funcEId paths targetPath originalProgram =
-  -- let ((funcEId, _), path) = patId in
+  -- let ((funcEId, _), path) = pathedPatId in
   case findLetAndIdentBindingExp funcEId originalProgram of
     Just (letExp, funcName) ->
       case letExp.val.e__ of
@@ -1672,7 +1672,7 @@ makeIntroduceVarTool m expIds targetPos =
         (addNewEquationsAround m.inputExp expTargetId)
 
     PatTargetPosition patTarget ->
-      case patTargetPositionToTargetPatId patTarget of
+      case patTargetPositionToTargetPathedPatId patTarget of
         ((targetId, 1), targetPath) ->
           case findExpByEId m.inputExp targetId of
             Just scopeExp ->

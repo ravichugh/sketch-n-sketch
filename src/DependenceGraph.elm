@@ -23,26 +23,26 @@ import Html exposing (Html)
 
 type alias LetOrFun = Bool -- True for ELet, False for EFun
 
-type alias VarBindings = Dict Ident (List PatternId)
+type alias VarBindings = Dict Ident (List PathedPatternId)
 
 type alias ScopeGraph =
-  { scopeNodes   : Dict ScopeId (LetOrFun, Set PatternId)
-  , idents       : Dict PatternId Ident
+  { scopeNodes   : Dict ScopeId (LetOrFun, Set PathedPatternId)
+  , idents       : Dict PathedPatternId Ident
 
   , parents  : Dict ScopeId ScopeId
   , children : Dict ScopeId (Set ScopeId)
       -- pre-computing children
 
-  , dependencies   : Dict PatternId (Set PatternId)
-  , dependenciesPS : Dict PatternId (Set ScopeId)
-  , dependenciesSP : Dict ScopeId (Set PatternId)
+  , dependencies   : Dict PathedPatternId (Set PathedPatternId)
+  , dependenciesPS : Dict PathedPatternId (Set ScopeId)
+  , dependenciesSP : Dict ScopeId (Set PathedPatternId)
   , dependenciesSS : Dict ScopeId (Set ScopeId)
       -- pre-computing the last three (don't necessarily need the last...)
 
   , varBindingsBefore : Dict ScopeId VarBindings
   , varBindingsAfter  : Dict ScopeId VarBindings
 
-  , usedVars     : Set PatternId
+  , usedVars     : Set PathedPatternId
       -- used temporarily while computing dependencies
   }
 
@@ -73,22 +73,22 @@ childScopesOf : ScopeId -> ScopeGraph -> Set ScopeId
 childScopesOf i sg =
   Utils.dictGetSet i sg.children
 
-strPatId : PatternId -> String
-strPatId (scopeId, path) =
+strPathedPatId : PathedPatternId -> String
+strPathedPatId (scopeId, path) =
    String.join "_" (strScopeId scopeId :: List.map toString path)
 
 foldPatternsWithIds
-  : (PatternId -> Ident -> a -> a) -> PatternId -> List Pat -> a -> a
+  : (PathedPatternId -> Ident -> a -> a) -> PathedPatternId -> List Pat -> a -> a
 foldPatternsWithIds f (scopeId, path) pats init =
   let
-    doOne f patId pat acc =
+    doOne f pathedPatId pat acc =
       case pat.val of
         PConst _ _  -> acc
         PBase _ _   -> acc
-        PVar _ x _  -> f patId x acc
-        PAs _ x _ p -> f patId x (doOne f patId p acc)
-        PList _ ps _ Nothing _  -> doMany f patId ps acc
-        PList _ ps _ (Just p) _ -> doMany f patId (ps ++ [p]) acc
+        PVar _ x _  -> f pathedPatId x acc
+        PAs _ x _ p -> f pathedPatId x (doOne f pathedPatId p acc)
+        PList _ ps _ Nothing _  -> doMany f pathedPatId ps acc
+        PList _ ps _ (Just p) _ -> doMany f pathedPatId (ps ++ [p]) acc
 
     doMany f (scopeId, path) pats acc =
       Utils.foldli1 (\(i, pi) -> doOne f (scopeId, path ++ [i]) pi) acc pats
@@ -97,11 +97,11 @@ foldPatternsWithIds f (scopeId, path) pats init =
     [pat] -> doOne  f (scopeId, path) pat init     -- ELet case
     _     -> doMany f (scopeId, path) pats init    -- EFun case
 
-addVarToEnv : PatternId -> Ident -> Env -> Env
-addVarToEnv patId x env =
+addVarToEnv : PathedPatternId -> Ident -> Env -> Env
+addVarToEnv pathedPatId x env =
   let xBindings = Maybe.withDefault [] (Dict.get x env.varBindings) in
   { env
-     | varBindings = Dict.insert x (patId :: xBindings) env.varBindings
+     | varBindings = Dict.insert x (pathedPatId :: xBindings) env.varBindings
      }
 
 updateEnv newScopeId pats env =
@@ -110,13 +110,13 @@ updateEnv newScopeId pats env =
           , currentScopes = Set.insert newScopeId env.currentScopes
           }
 
-addVarNode : PatternId -> Ident -> ScopeGraph -> ScopeGraph
-addVarNode patId x acc =
-  let (scopeId, _) = patId in
+addVarNode : PathedPatternId -> Ident -> ScopeGraph -> ScopeGraph
+addVarNode pathedPatId x acc =
+  let (scopeId, _) = pathedPatId in
   let (letOrFun, set) = Utils.justGet_ "addVarNode" scopeId acc.scopeNodes in
   { acc
-     | scopeNodes = Dict.insert scopeId (letOrFun, Set.insert patId set) acc.scopeNodes
-     , idents = Dict.insert patId x acc.idents
+     | scopeNodes = Dict.insert scopeId (letOrFun, Set.insert pathedPatId set) acc.scopeNodes
+     , idents = Dict.insert pathedPatId x acc.idents
      }
 
 addScopeNode newScopeId letOrFun acc =
@@ -142,12 +142,12 @@ addVarBindingsAfter scopeId varBindings acc =
 
 resolve x varBindings =
   case Dict.get x varBindings of
-    Just (patId :: _) -> Just patId
+    Just (pathedPatId :: _) -> Just pathedPatId
     _                 -> Nothing -- should only be for library funcs
 
-lookupIdent : PatternId -> ScopeGraph -> Ident
-lookupIdent patId scopeGraph =
-  Maybe.withDefault "?" (Dict.get patId scopeGraph.idents)
+lookupIdent : PathedPatternId -> ScopeGraph -> Ident
+lookupIdent pathedPatId scopeGraph =
+  Maybe.withDefault "?" (Dict.get pathedPatId scopeGraph.idents)
 
 
 ------------------------------------------------------------------------------
@@ -224,8 +224,8 @@ type alias Env =
 rootId : ScopeId
 rootId = (0, 1)
 
-rootPatId : PatternId
-rootPatId = (rootId, [])
+rootPathedPatId : PathedPatternId
+rootPathedPatId = (rootId, [])
 
 initEnv : Env
 initEnv =
@@ -280,7 +280,7 @@ traverse env exp acc =
         |> addVarBindingsAfter newScopeId env1.varBindings
         |> traverse env1 eBody
 
-    -- NOTE: may want to put resolved PatternIds into AST (annotated EVars).
+    -- NOTE: may want to put resolved PathedPatternIds into AST (annotated EVars).
     -- then it would be easier to break up analyses into multiple passes.
     --
     EVar _ x ->
@@ -314,9 +314,9 @@ traverse env exp acc =
 traverseAndAddDependencies newScopeId =
   traverseAndAddDependencies_ (newScopeId, [])
 
-traverseAndAddDependencies_ patId env pat exp acc =
+traverseAndAddDependencies_ pathedPatId env pat exp acc =
 
-  let addDependencies somePatId acc =
+  let addDependencies somePathedPatId acc =
     let used =
       Set.filter
          (\(scopeId,_) -> Set.member scopeId env.currentScopes)
@@ -326,23 +326,23 @@ traverseAndAddDependencies_ patId env pat exp acc =
     { acc
        | dependencies =
            update acc.dependencies
-             (\usedPat -> Utils.dictAddToSet somePatId usedPat)
+             (\usedPat -> Utils.dictAddToSet somePathedPatId usedPat)
        , dependenciesPS =
            update acc.dependenciesPS
-             (\usedPat -> Utils.dictAddToSet somePatId (Tuple.first usedPat))
+             (\usedPat -> Utils.dictAddToSet somePathedPatId (Tuple.first usedPat))
        , dependenciesSP =
            update acc.dependenciesSP
-             (\usedPat -> Utils.dictAddToSet (Tuple.first somePatId) usedPat)
+             (\usedPat -> Utils.dictAddToSet (Tuple.first somePathedPatId) usedPat)
        , dependenciesSS =
            update acc.dependenciesSS
-             (\usedPat -> Utils.dictAddToSet (Tuple.first somePatId) (Tuple.first usedPat))
+             (\usedPat -> Utils.dictAddToSet (Tuple.first somePathedPatId) (Tuple.first usedPat))
        }
   in
 
   let addConservativeDependencies acc =
     foldPatternsWithIds
-       (\innerPatId _ acc -> addDependencies innerPatId acc)
-       patId [pat] acc
+       (\innerPathedPatId _ acc -> addDependencies innerPathedPatId acc)
+       pathedPatId [pat] acc
   in
 
   let clearUsed acc = { acc | usedVars = Set.empty } in
@@ -356,13 +356,13 @@ traverseAndAddDependencies_ patId env pat exp acc =
     (PVar _ x _, _) ->
       acc |> clearUsed
           |> traverse env exp
-          |> addDependencies patId
+          |> addDependencies pathedPatId
 
     (PAs _ x _ p, _) ->
       acc |> clearUsed
           |> traverse env exp
-          |> addDependencies patId
-          |> traverseAndAddDependencies_ patId env p exp
+          |> addDependencies pathedPatId
+          |> traverseAndAddDependencies_ pathedPatId env p exp
                -- NOTE: exp gets traversed twice...
 
     (PList _ ps_ _ pMaybe _, EList _ es_ _ eMaybe _) ->
@@ -371,10 +371,10 @@ traverseAndAddDependencies_ patId env pat exp acc =
       let es = Utils.snocMaybe es_ eMaybe in
 
       if List.length ps == List.length es then
-        let (scopeId, basePath) = patId in
+        let (scopeId, basePath) = pathedPatId in
         Utils.foldli1 (\(i,(pi,ei)) acc ->
-          let patId = (scopeId, basePath ++ [i]) in
-          traverseAndAddDependencies_ patId env pi ei acc
+          let pathedPatId = (scopeId, basePath ++ [i]) in
+          traverseAndAddDependencies_ pathedPatId env pi ei acc
         ) acc (Utils.zip ps es)
 
       -- could be more precise here by traversing as many pairwise
@@ -462,7 +462,7 @@ checkVisible scopeGraph x sourcePat targetId =
 -- the following x_transitivelyDependsOn_y function assumes
 -- scopeOrder sourceScope targetScope == ChildScope
 
-patternTransitivelyDependsOnScope : ScopeGraph -> PatternId -> ScopeId -> Bool
+patternTransitivelyDependsOnScope : ScopeGraph -> PathedPatternId -> ScopeId -> Bool
 patternTransitivelyDependsOnScope scopeGraph sourcePat targetScope =
   let directDependency =
      Set.member
@@ -482,7 +482,7 @@ patternTransitivelyDependsOnScope scopeGraph sourcePat targetScope =
 --
 -- assumes that scopeOrder sourceScope targetScope == ParentScope
 --
-usedOnTheWayDownTo : ScopeGraph -> PatternId -> ScopeId -> Bool -> Bool
+usedOnTheWayDownTo : ScopeGraph -> PathedPatternId -> ScopeId -> Bool -> Bool
 usedOnTheWayDownTo scopeGraph sourcePat targetScope includingTarget =
   let traverseDown currentScope =
     let usedHere () =
@@ -552,21 +552,21 @@ clusterNode : ScopeId -> String
 clusterNode scopeId =
   "scope" ++ strScopeId scopeId
 
-varNode : PatternId -> String
-varNode patId =
-  "var" ++ strPatId patId
+varNode : PathedPatternId -> String
+varNode pathedPatId =
+  "var" ++ strPathedPatId pathedPatId
 
 clusters : (String -> a) -> ScopeGraph -> List a
 clusters f scopeGraph =
   flip List.concatMap (Dict.toList scopeGraph.scopeNodes) <|
-    \(scopeId, (letOrFun, patIds)) ->
+    \(scopeId, (letOrFun, pathedPatIds)) ->
       let s = toString scopeId in
       List.concat <|
         [ [f ("subgraph cluster" ++ s ++ " {")]
         , [f (defineClusterNode letOrFun (clusterNode scopeId) s)]
-        , flip List.map (Set.toList patIds) <| \patId ->
-            let x = Maybe.withDefault "???" (Dict.get patId scopeGraph.idents) in
-            f (defineVarNode (varNode patId) x)
+        , flip List.map (Set.toList pathedPatIds) <| \pathedPatId ->
+            let x = Maybe.withDefault "???" (Dict.get pathedPatId scopeGraph.idents) in
+            f (defineVarNode (varNode pathedPatId) x)
         , [f "}"]
         ]
 
