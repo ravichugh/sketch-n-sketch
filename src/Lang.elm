@@ -170,6 +170,13 @@ type EBaseVal
   | EString QuoteChar String
   | ENull
 
+eBaseValsEqual ebv1 ebv2 =
+  case (ebv1, ebv2) of
+    (EBool b1,       EBool b2)       -> b1 == b2
+    (EString _ str1, EString _ str2) -> str1 == str2
+    (ENull,          ENull)          -> True
+    _                                -> False
+
 type Trace = TrLoc Loc | TrOp Op_ (List Trace)
 
 type alias Env = List (Ident, Val)

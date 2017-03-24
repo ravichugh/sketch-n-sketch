@@ -196,9 +196,7 @@ patternsEqual patA patB =
   case (patA.val, patB.val) of
     (PVar ws1A identA wdA,               PVar ws1B identB wdB)               -> identA == identB
     (PConst ws1A nA,                     PConst ws1B nB)                     -> nA == nB
-    (PBase ws1A (EBool boolA),           PBase ws1B (EBool boolB))           -> boolA == boolB
-    (PBase ws1A (EString qcA strA),      PBase ws1B (EString qcB strB))      -> strA == strB
-    (PBase ws1A ENull,                   PBase ws1B ENull)                   -> True
+    (PBase ws1A ebvA,                    PBase ws1B ebvB)                    -> eBaseValsEqual ebvA ebvB
     (PList ws1A psA ws2A Nothing ws3A,   PList ws1B psB ws2B Nothing ws3B)   -> patternListsEqual psA psB
     (PList ws1A psA ws2A (Just pA) ws3A, PList ws1B psB ws2B (Just pB) ws3B) -> patternListsEqual (pA::psA) (pB::psB)
     (PAs ws1A identA ws2A pA,            PAs ws1B identB ws2B pB)            -> identA == identB && patternsEqual pA pB
@@ -223,10 +221,7 @@ extraExpsDiff baseExp otherExp =
   in
   case (baseExp.val.e__, otherExp.val.e__) of
     (EConst ws1A nA locA wdA,              EConst ws1B nB locB wdB)              -> if nA == nB then [] else [otherExp]
-    (EBase ws1A (EBool True),              EBase ws1B (EBool True))              -> []
-    (EBase ws1A (EBool False),             EBase ws1B (EBool False))             -> []
-    (EBase ws1A (EString qcA strA),        EBase ws1B (EString qcB strB))        -> if strA == strB then [] else [otherExp]
-    (EBase ws1A ENull,                     EBase ws1B ENull)                     -> []
+    (EBase ws1A ebvA,                      EBase ws1B ebvB)                      -> if eBaseValsEqual ebvA ebvB then [] else [otherExp]
     (EVar ws1A identA,                     EVar ws1B identB)                     -> if identA == identB then [] else [otherExp]
     (EFun ws1A psA eA ws2A,                EFun ws1B psB eB ws2B)                -> if patternListsEqual psA psB then extraExpsDiff eA eB else [otherExp]
     (EOp ws1A opA esA ws2A,                EOp ws1B opB esB ws2B)                -> if opA.val == opB.val then childDiffs () else [otherExp]
@@ -860,7 +855,7 @@ tryMatchExp pat exp =
 
     PBase _ bv ->
       case exp.val.e__ of
-        EBase _ ev -> if bv == ev then Match [] else NoMatch
+        EBase _ ev -> if eBaseValsEqual bv ev then Match [] else NoMatch
         _          -> CannotCompare
 
 
@@ -1441,6 +1436,112 @@ pathForIdentInPat targetIdent pat =
     |> Utils.zipi1
     |> Utils.mapFirstSuccess (\(i, p) -> pathForIdentInPat targetIdent p |> Maybe.map ((,) i))
     |> Maybe.map (\(i, path) -> i::path)
+
+
+tryMatchExpsPatsToPathsAtFunctionCall : List Pat -> List Exp -> List (List Int, Exp)
+tryMatchExpsPatsToPathsAtFunctionCall pats exps =
+  -- Allow partial application
+  Utils.zip pats exps
+  -- Not simply making a dummy pList/eList and sending that to
+  -- tryMatchExpPatToPaths b/c want if we do then we will get
+  -- a extra ([], dummyEList) result, which we don't want.
+  |> Utils.mapi1
+    (\(i, (p, e)) ->
+      tryMatchExpPatToPaths_ p e
+      |> Maybe.map (\pathAndExps -> List.map (\(path, e) -> (i::path, e)) pathAndExps)
+    )
+  |> Utils.projJusts
+  |> Maybe.withDefault []
+  |> List.concat
+
+
+-- Match exp and pat, returning all the paths that could be matched to an expression
+tryMatchExpPatToPaths : Pat -> Exp -> List (List Int, Exp)
+tryMatchExpPatToPaths pat exp =
+  tryMatchExpPatToPaths_ pat exp
+  |> Maybe.withDefault []
+
+
+-- Unlike tryMatchExp (currently), this will return partial matches
+-- (For matching function calls with function arguments)
+--
+-- i.e. "Just ..." means partial or complete match
+tryMatchExpPatToPaths_ : Pat -> Exp -> Maybe (List (List Int, Exp))
+tryMatchExpPatToPaths_ pat exp =
+  let thisMatch = ([], exp) in
+  let addThisMatch matchResult =
+    Maybe.map ((::) thisMatch) matchResult
+  in
+  let prependPath i (path, e) = (i::path, e) in
+  let prependPathToAll i pathAndExps = List.map (prependPath i) pathAndExps in
+  let matchListsAsFarAsPossible ps es =
+    Utils.zip ps es
+    |> Utils.mapi1
+        (\(i, (p, e)) ->
+          tryMatchExpPatToPaths_ p e |> Maybe.map (prependPathToAll i)
+        )
+    |> Utils.projJusts
+    |> Maybe.map List.concat
+  in
+  case pat.val of
+    PVar _ ident _ ->
+      Just [thisMatch]
+
+    PAs _ ident _ innerPat ->
+      tryMatchExpPatToPaths_ innerPat exp
+      |> Maybe.map (prependPathToAll 1)
+      |> addThisMatch
+
+    PList _ ps _ Nothing _ ->
+      case exp.val.e__ of
+        EList _ es _ Nothing _ ->
+          if List.length ps /= List.length es then
+            Nothing
+          else
+            matchListsAsFarAsPossible ps es
+            |> addThisMatch
+
+        EList _ es _ (Just tail) _ ->
+          if List.length es > List.length ps then
+            Nothing
+          else
+            matchListsAsFarAsPossible ps es
+            |> addThisMatch
+
+        _ ->
+          Just [thisMatch]
+
+    PList _ ps _ (Just restPat) _ ->
+      case exp.val.e__ of
+        EList _ es _ Nothing _ ->
+          if List.length es < List.length ps then
+            Nothing
+          else
+            -- Nothing in the tail has a definite path: skip it.
+            matchListsAsFarAsPossible ps es
+            |> addThisMatch
+
+        EList _ es _ (Just restExp) _ ->
+          if List.length es /= List.length ps then
+            -- Nothing in the tail has a definite path: skip it.
+            matchListsAsFarAsPossible ps es
+            |> addThisMatch
+          else
+            matchListsAsFarAsPossible (ps ++ [restPat]) (es ++ [restExp])
+            |> addThisMatch
+
+        _ ->
+          Just [thisMatch]
+
+    PConst _ n ->
+      case exp.val.e__ of
+        EConst _ num _ _ -> if n == num then Just [thisMatch] else Nothing
+        _                -> Just [thisMatch]
+
+    PBase _ bv ->
+      case exp.val.e__ of
+        EBase _ ev -> if eBaseValsEqual bv ev then Just [thisMatch] else Nothing
+        _          -> Just [thisMatch]
 
 
 -- Given an EId, look for a name bound to it and the let scope that defined the binding.

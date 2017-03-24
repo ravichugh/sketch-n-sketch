@@ -280,10 +280,7 @@ detectClones originalExp minCloneCount minCloneSize argCount allowCurrying =
   let merge expA expB =
     case (expA.val.e__, expB.val.e__) of
       (EConst ws1A nA locA wdA,              EConst ws1B nB locB wdB)              -> if nA == nB then expA else argVar
-      (EBase ws1A (EBool True),              EBase ws1B (EBool True))              -> expA
-      (EBase ws1A (EBool False),             EBase ws1B (EBool False))             -> expA
-      (EBase ws1A (EString qcA strA),        EBase ws1B (EString qcB strB))        -> if strA == strB then expA else argVar
-      (EBase ws1A ENull,                     EBase ws1B ENull)                     -> expA
+      (EBase ws1A ebvA,                      EBase ws1B ebvB)                      -> if eBaseValsEqual ebvA ebvB then expA else argVar
       (EVar ws1A identA,                     EVar ws1B identB)                     -> if identA == identB then expA else argVar
       (EFun ws1A psA eA ws2A,                EFun ws1B psB eB ws2B)                -> if patternListsEqual psA psB then replaceE__ expA (EFun ws1A psA (merge eA eB) ws2A) else argVar
       (EOp ws1A opA esA ws2A,                EOp ws1B opB esB ws2B)                -> if opA.val == opB.val then Utils.maybeZip esA esB |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EOp ws1A opA newEs ws2A))) |> Maybe.withDefault argVar else argVar
@@ -335,10 +332,7 @@ detectClones originalExp minCloneCount minCloneSize argCount allowCurrying =
     in
     case (expA.val.e__, expB.val.e__) of
       (EConst ws1A nA locA wdA,              EConst ws1B nB locB wdB)              -> if nA == nB then retSame else retArgVar
-      (EBase ws1A (EBool True),              EBase ws1B (EBool True))              -> retSame
-      (EBase ws1A (EBool False),             EBase ws1B (EBool False))             -> retSame
-      (EBase ws1A (EString qcA strA),        EBase ws1B (EString qcB strB))        -> if strA == strB then retSame else retArgVar
-      (EBase ws1A ENull,                     EBase ws1B ENull)                     -> retSame
+      (EBase ws1A ebvA,                      EBase ws1B ebvB)                      -> if eBaseValsEqual ebvA ebvB then retSame else retArgVar
       (EVar ws1A identA,                     EVar ws1B identB)                     -> if identA == identB then retSame else retArgVar
       (EFun ws1A psA eA ws2A,                EFun ws1B psB eB ws2B)                -> generalizedMerge (patternListsEqual psA psB) (Just (eA, eB)) Nothing Nothing Nothing (\mergedBody _ _ _ -> EFun ws1A psA mergedBody ws2A)
       (EOp ws1A opA esA ws2A,                EOp ws1B opB esB ws2B)                -> generalizedMerge (opA.val == opB.val) Nothing Nothing Nothing (Just (esA, esB)) (\_ _ _ mergedEs -> EOp ws1A opA mergedEs ws2A)
