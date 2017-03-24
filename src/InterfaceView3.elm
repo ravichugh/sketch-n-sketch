@@ -1302,7 +1302,8 @@ deuceLayer model layout =
           , ("left", pixels (round(model.codeBoxInfo.gutterWidth) + layout.codeBox.left))
           , ("top", pixels layout.codeBox.top)
           , ("width", pixels (layout.codeBox.width - round(model.codeBoxInfo.offsetLeft + model.codeBoxInfo.gutterWidth)))
-          , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
+          , ("height", pixels (layout.codeBox.height))
+          -- , ("height", pixels (layout.codeBox.height - round(model.codeBoxInfo.offsetHeight)))
           ]] widgets ]
   in
   let pointerEvents =
