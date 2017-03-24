@@ -2139,10 +2139,10 @@ addToolConvertColorString m selections = case selections of
            )
            (m.inputExp, m.inputExp) converted
       in
-      [ ("Convert to RGB", \() -> oneSafeResult newExp1)
-      , ("Convert to Color Num", \() ->
-          [newExp2 |> synthesisResult "Hue Only" |> setResultSafe False]
-        )
+      [ (maybePluralize "Convert Color String" literals, \() ->
+          [ newExp1 |> synthesisResult "RGBA"
+          , newExp2 |> synthesisResult "Color Number (Hue Only)" |> setResultSafe False
+          ])
       ]
 
   _ -> []
