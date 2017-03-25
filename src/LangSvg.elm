@@ -730,13 +730,13 @@ fetchSlideVal slideNumber val =
     Just [VConst _ (slideCount, _), VClosure _ pat fexp fenv] ->
       -- Program returned the slide count and a
       -- function from slideNumber -> SVG array structure.
-      case pat.val of -- Find that function's argument name
+      case pat.val.p__ of -- Find that function's argument name
         PVar _ argumentName _ ->
           -- Bind the slide number to the function's argument.
           let fenv_ = (argumentName, vIntFrozen slideNumber) :: fenv in
           Eval.doEval fenv_ fexp
           |> Result.map (\((returnVal, _), _) -> returnVal)
-        _ -> Err ("expected slide function to take a single argument, got " ++ (toString pat.val))
+        _ -> Err ("expected slide function to take a single argument, got " ++ (toString pat.val.p__))
     _ -> Ok val -- Program returned a plain SVG array structure...we hope.
 
 -- This is nasty b/c a two-arg function is really a function that returns a function...
@@ -744,12 +744,12 @@ fetchMovieVal : Int -> Val -> Result String Val
 fetchMovieVal movieNumber slideVal =
   case unwrapVList slideVal of
     Just [VConst _ (movieCount, _), VClosure _ pat fexp fenv] ->
-      case pat.val of -- Find the function's argument name
+      case pat.val.p__ of -- Find the function's argument name
         PVar _ movieNumberArgumentName _ ->
           let fenv_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenv in
           Eval.doEval fenv_ fexp
           |> Result.map (\((returnVal, _), _) -> returnVal)
-        _ -> Err ("expected movie function to take a single argument, got " ++ (toString pat.val))
+        _ -> Err ("expected movie function to take a single argument, got " ++ (toString pat.val.p__))
     _ -> Ok slideVal -- Program returned a plain SVG array structure...we hope.
 
 fetchMovieDurationAndContinueBool : Val -> (Float, Bool)
@@ -767,41 +767,41 @@ fetchMovieFrameVal : Int -> Int -> Float -> Val -> Result String Val
 fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
   case unwrapVList movieVal of
     Just [VBase (VString "Static"), VClosure _ pat fexp fenv] ->
-      case pat.val of -- Find the function's argument names
+      case pat.val.p__ of -- Find the function's argument names
         PVar _ slideNumberArgumentName _ ->
           let fenv_ = (slideNumberArgumentName, vIntFrozen slideNumber) :: fenv in
           case Eval.doEval fenv_ fexp |> Result.map (\((innerVal, _), _) -> innerVal.v_) of
             Ok (VClosure _ patInner fexpInner fenvInner) ->
-              case patInner.val of
+              case patInner.val.p__ of
                 PVar _ movieNumberArgumentName _ ->
                   let fenvInner_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenvInner in
                   Eval.doEval fenvInner_ fexpInner
                   |> Result.map (\((returnVal, _), _) -> returnVal)
-                _ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString patInner.val))
+                _ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString patInner.val.p__))
             Ok v_ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString v_))
             Err s -> Err s
-        _ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString pat.val))
+        _ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString pat.val.p__))
     Just [VBase (VString "Dynamic"), VConst _ (movieDuration, _), VClosure _ pat fexp fenv, VBase (VBool _)] ->
-      case pat.val of -- Find the function's argument names
+      case pat.val.p__ of -- Find the function's argument names
         PVar _ slideNumberArgumentName _ ->
           let fenv_ = (slideNumberArgumentName, vIntFrozen slideNumber) :: fenv in
           case Eval.doEval fenv_ fexp |> Result.map (\((innerVal1, _), _) -> innerVal1.v_) of
             Ok (VClosure _ patInner1 fexpInner1 fenvInner1) ->
-              case patInner1.val of
+              case patInner1.val.p__ of
                 PVar _ movieNumberArgumentName _ ->
                   let fenvInner1_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenvInner1 in
                   case Eval.doEval fenvInner1_ fexpInner1 |> Result.map (\((innerVal2, _), _) -> innerVal2.v_) of
                     Ok (VClosure _ patInner2 fexpInner2 fenvInner2) ->
-                      case patInner2.val of
+                      case patInner2.val.p__ of
                         PVar _ movieSecondsArgumentName _ ->
                           let fenvInner2_ = (movieSecondsArgumentName, vNumFrozen movieTime) :: fenvInner2 in
                           Eval.doEval fenvInner2_ fexpInner2
                           |> Result.map (\((returnVal, _), _) -> returnVal)
-                        _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner2.val))
+                        _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner2.val.p__))
                     Ok innerV2_ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString innerV2_))
                     Err s -> Err s
-                _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner1.val))
+                _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner1.val.p__))
             Ok innerV1_ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString innerV1_))
             Err s -> Err s
-        _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString pat.val))
+        _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString pat.val.p__))
     _ -> Ok movieVal -- Program returned a plain SVG array structure...we hope.

@@ -266,10 +266,10 @@ randomColor1 model = eConst (toFloat model.randomColor) dummyLoc
 
 {-
 randomColorWithSlider model =
-  withDummyPos (EConst "" (toFloat model.randomColor) dummyLoc colorNumberSlider)
+  withDummyExpInfo (EConst "" (toFloat model.randomColor) dummyLoc colorNumberSlider)
 
 randomColor1WithSlider model =
-  withDummyPos (EConst " " (toFloat model.randomColor) dummyLoc colorNumberSlider)
+  withDummyExpInfo (EConst " " (toFloat model.randomColor) dummyLoc colorNumberSlider)
 -}
 
 --------------------------------------------------------------------------------
@@ -630,7 +630,7 @@ addStickyPath old keysAndPoints =
 -- copied from ExpressionBasedTransform
 eAsPoint e =
   let e_ = replacePrecedingWhitespace "" e in
-  withDummyPos <|
+  withDummyExpInfo <|
     EColonType " " e_ " " (withDummyRange <| TNamed " " "Point") ""
 
 {-
@@ -658,7 +658,7 @@ addLambdaBounds old (_,pt2) (_,pt1) func =
   let bounds = eList (makeInts [xa,ya,xb,yb]) Nothing in
   let args = [] in
   let eNew =
-    withDummyPos (EApp "\n  " (eVar0 "withBounds") [ bounds, func ] "") in
+    withDummyExpInfo (EApp "\n  " (eVar0 "withBounds") [ bounds, func ] "") in
   -- TODO refactor Program to keep (f,args) in sync with exp
   let newBlob = withBoundsBlob eNew (bounds, "XXXXX", args) in
   let (defs, mainExp) = splitExp old.inputExp in
@@ -686,7 +686,7 @@ addLambdaAnchor old _ (_,(x,y)) func =
   let anchor = eAsPoint (eList (makeInts [x,y]) Nothing) in
   let args = [] in
   let eNew =
-    withDummyPos (EApp "\n  " (eVar0 "withAnchor") [ anchor, func ] "") in
+    withDummyExpInfo (EApp "\n  " (eVar0 "withAnchor") [ anchor, func ] "") in
   -- TODO refactor Program to keep (f,args) in sync with exp
   let newBlob = withAnchorBlob eNew (anchor , "XXXXX", args) in
   let (defs, mainExp) = splitExp old.inputExp in
@@ -699,7 +699,7 @@ addTextBox old click2 click1 =
   let (xa, xb, ya, yb) = boundingBox (Tuple.second click2) (Tuple.second click1) in
   let fontSize =
     eConst0 (toFloat (yb - ya)) dummyLoc
-    -- withDummyPos (EConst "" (toFloat (yb - ya)) dummyLoc (intSlider 0 128))
+    -- withDummyExpInfo (EConst "" (toFloat (yb - ya)) dummyLoc (intSlider 0 128))
   in
   add "text" old
     [ makeLet ["fontSize","textVal"] [fontSize, eStr "Text"] ]
@@ -715,11 +715,11 @@ addShape old newShapeKind newShapeExp =
   let shapeVarName =
     LangTools.nonCollidingName newShapeKind 1 <|
       LangTools.identifiersVisibleAtProgramEnd old.inputExp in
-  let newShapeName = withDummyRange (PVar " " shapeVarName noWidgetDecl) in
+  let newShapeName = withDummyPatInfo (PVar " " shapeVarName noWidgetDecl) in
   let newDef = ("\n\n", newShapeName, newShapeExp, "") in
   let (defs, mainExp) = splitExp old.inputExp in
   let defs_ = defs ++ [newDef] in
-  let eNew = withDummyPos (EVar "\n  " shapeVarName) in
+  let eNew = withDummyExpInfo (EVar "\n  " shapeVarName) in
   let mainExp_ = addToMainExp (varBlob eNew shapeVarName) mainExp in
   let code = unparse (fuseExp (defs_, mainExp_)) in
   { old | code = code
@@ -739,13 +739,13 @@ add newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
         Text     -> True
         _        -> False
     in
-    let newShapeName = withDummyRange (PVar " " shapeVarName noWidgetDecl) in
+    let newShapeName = withDummyPatInfo (PVar " " shapeVarName noWidgetDecl) in
     let newShapeExp = makeCallWithLocals multi newShapeLocals newShapeFunc newShapeArgs in
     ("\n\n", newShapeName, newShapeExp, "")
   in
   let (defs, mainExp) = splitExp old.inputExp in
   let defs_ = defs ++ [newDef] in
-  let eNew = withDummyPos (EVar "\n  " shapeVarName) in
+  let eNew = withDummyExpInfo (EVar "\n  " shapeVarName) in
   let mainExp_ = addToMainExp (varBlob eNew shapeVarName) mainExp in
   let code = unparse (fuseExp (defs_, mainExp_)) in
 
@@ -759,11 +759,11 @@ makeCallWithLocals multi locals func args =
     case locals of
       [] ->
         if multi then
-          withDummyPos (EApp "\n    " func args "")
+          withDummyExpInfo (EApp "\n    " func args "")
         else
-          let app = withDummyPos (EApp " " func args "") in
-          withDummyPos (EList "\n    " [app] "" Nothing " ")
-      (p,e)::locals_ -> withDummyPos (ELet "\n  " Let False p e (recurse locals_) "")
+          let app = withDummyExpInfo (EApp " " func args "") in
+          withDummyExpInfo (EList "\n    " [app] "" Nothing " ")
+      (p,e)::locals_ -> withDummyExpInfo (ELet "\n  " Let False p e (recurse locals_) "")
   in
   recurse locals
 
@@ -797,12 +797,12 @@ addToMainExp newBlob mainExp =
     Blobs shapes f     -> Blobs (shapes ++ [newBlob]) f
     OtherExp main ->
       let ws = "\n" in -- TODO take main into account
-      OtherExp <| withDummyPos <|
+      OtherExp <| withDummyExpInfo <|
         EApp ws (eVar0 "addBlob") [fromBlobExp newBlob, main] ""
 
 maybeGhost b f args =
   if b
-    then (eVar0 "ghost", [ withDummyPos (EApp " " f args "") ])
+    then (eVar0 "ghost", [ withDummyExpInfo (EApp " " f args "") ])
     else (f, args)
 
 ghost = maybeGhost True
@@ -824,7 +824,7 @@ lambdaToolOptionsOf (defs, mainExp) =
       let lambdaPreFuncs =
         -- will be easier with better TopDefs
         List.concatMap (\(_,p,e,_) ->
-          case (p.val, e.val.e__) of
+          case (p.val.p__, e.val.e__) of
             (PVar _ f _, EFun _ params _ _) ->
               case List.reverse params of
                 lastParam :: _ ->
@@ -859,8 +859,8 @@ lambdaToolOptionsOf (defs, mainExp) =
           in
           case Utils.findFirst pred withBlobs of
             Nothing               -> []
-            Just (Left (f,args))  -> [LambdaBounds <| withDummyPos (EApp " " (eVar0 f) args "")]
-            Just (Right (f,args)) -> [LambdaAnchor <| withDummyPos (EApp " " (eVar0 f) args "")]
+            Just (Left (f,args))  -> [LambdaBounds <| withDummyExpInfo (EApp " " (eVar0 f) args "")]
+            Just (Right (f,args)) -> [LambdaAnchor <| withDummyExpInfo (EApp " " (eVar0 f) args "")]
           ) lambdaPreFuncs
       in
       lambdaCalls

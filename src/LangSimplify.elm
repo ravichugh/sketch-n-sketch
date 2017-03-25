@@ -153,7 +153,7 @@ removeUnusedVars exp =
         let letRemoved =
           body.val.e__
         in
-        case (pat.val, assign.val.e__) of
+        case (pat.val.p__, assign.val.e__) of
           -- Simple assignment.
           (PVar _ ident _, _) ->
             if Set.member ident usedNames then
@@ -177,7 +177,7 @@ removeUnusedVars exp =
               let usedPatsAssigns =
                 List.filter
                     (\(pat, assign) ->
-                      case pat.val of
+                      case pat.val.p__ of
                         PVar _ ident _ -> Set.member ident usedNames
                         _              -> True
                     )
@@ -198,8 +198,8 @@ removeUnusedVars exp =
                     e__
                   else
                     let (usedPats, usedAssigns) = List.unzip usedPatsAssigns in
-                    let newPat    = withDummyRange <| PList pws1 (setPatListWhitespace "" " " usedPats) pws2 Nothing pws3 in
-                    let newAssign = withDummyPos   <| EList aws1 (setExpListWhitespace "" " " usedAssigns) aws2 Nothing aws3 in
+                    let newPat    = withDummyPatInfo <| PList pws1 (setPatListWhitespace "" " " usedPats) pws2 Nothing pws3 in
+                    let newAssign = withDummyExpInfo   <| EList aws1 (setExpListWhitespace "" " " usedAssigns) aws2 Nothing aws3 in
                     ELet ws1 letKind rec newPat newAssign body ws2
 
           _ ->
@@ -215,10 +215,10 @@ removeUnusedVars exp =
 -- Flatten assignment of singleton [exp] to singleton [var] (also often produced by CodeMotion.pluck)
 simplifyPatBoundExp : Pat -> Exp -> Maybe (Pat, Exp)
 simplifyPatBoundExp pat boundExp =
-  case (pat.val, boundExp.val.e__) of
+  case (pat.val.p__, boundExp.val.e__) of
     (PAs ws1 ident ws2 childPat, _) ->
       case simplifyPatBoundExp childPat boundExp of
-        Just (newChildPat, newBoundExp) -> Just (replaceP_ pat (PAs ws1 ident ws2 newChildPat), newBoundExp)
+        Just (newChildPat, newBoundExp) -> Just (replaceP__ pat (PAs ws1 ident ws2 newChildPat), newBoundExp)
         Nothing                         -> Nothing
 
     ( PList pws1 ps pws2 maybePTail pws3
@@ -246,7 +246,7 @@ simplifyPatBoundExp pat boundExp =
 
         _ ->
           Just <|
-              ( replaceP_ pat       <| PList pws1 (newPs |> imitatePatListWhitespace ps) pws2 newMaybePTail pws3
+              ( replaceP__ pat       <| PList pws1 (newPs |> imitatePatListWhitespace ps) pws2 newMaybePTail pws3
               , replaceE__ boundExp <| EList ews1 (newEs |> imitateExpListWhitespace es) ews2 newMaybeETail ews3
               )
 
@@ -280,7 +280,7 @@ simplifyAssignments program =
 -- Returns [(identifer, assignedExpression), ... ]
 simpleIdentsAndAssigns : Pat -> Exp -> List (Ident, Exp)
 simpleIdentsAndAssigns letPat letAssign =
-  case (letPat.val, letAssign.val.e__) of
+  case (letPat.val.p__, letAssign.val.e__) of
     -- Simple assignment.
     (PVar _ ident _, _) ->
       [(ident, letAssign)]
@@ -291,7 +291,7 @@ simpleIdentsAndAssigns letPat letAssign =
       let simplePatsAssigns =
         List.filterMap
             (\(pat, assign) ->
-              case pat.val of
+              case pat.val.p__ of
                 PVar _ ident _ -> Just (ident, assign)
                 _              -> Nothing
             )
@@ -309,7 +309,7 @@ inlineTrivialRenamings exp =
   let inlineReplaceIfTrivialRename targetIdent newExp e__ =
     case e__ of
       ELet ws1 letKind rec pat assign body ws2 ->
-        case (pat.val, assign.val.e__) of
+        case (pat.val.p__, assign.val.e__) of
           -- Simple assignment.
           (PVar _ _ _, EVar oldWs assignIdent) ->
             if assignIdent == targetIdent then
@@ -337,7 +337,7 @@ inlineTrivialRenamings exp =
                   assigns
             in
             let newAssignsListExp =
-              withDummyPos <| EList aws1 newAssigns aws2 Nothing aws3
+              withDummyExpInfo <| EList aws1 newAssigns aws2 Nothing aws3
             in
             ELet ws1 letKind rec pat newAssignsListExp body ws2
 

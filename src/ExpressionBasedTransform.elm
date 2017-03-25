@@ -93,9 +93,9 @@ rangeSynthesisResults originalExp =
                       else e
                     in
                     if List.head ascending == Just 0.0 then
-                      Just (exp.val.eid, maybeReverse <| eApp (eVar0 "zeroTo") [withDummyPos <| EConst " " (toFloat max + 1) insertedLoc (intSlider 0 (5*(max + 1)))])
+                      Just (exp.val.eid, maybeReverse <| eApp (eVar0 "zeroTo") [withDummyExpInfo <| EConst " " (toFloat max + 1) insertedLoc (intSlider 0 (5*(max + 1)))])
                     else if List.head ascending == Just 1.0 then
-                      Just (exp.val.eid, maybeReverse <| eApp (eVar0 "list1N") [withDummyPos <| EConst " " (toFloat max) insertedLoc (intSlider 0 (5*(max + 1)-1))])
+                      Just (exp.val.eid, maybeReverse <| eApp (eVar0 "list1N") [withDummyExpInfo <| EConst " " (toFloat max) insertedLoc (intSlider 0 (5*(max + 1)-1))])
                     else
                       Just (exp.val.eid, maybeReverse <| eApp (eVar0 "range") [eConst (toFloat min) insertedLoc, eConst (toFloat max) insertedLoc])
                   else
@@ -126,7 +126,7 @@ inlineListSynthesisResults originalExp =
           case exp.val.e__ of
             ELet letWs1 letKind False letPat letAssign letBody letWs2 -> -- non-recursive lets only
               let letExp = exp in
-              case letPat.val of
+              case letPat.val.p__ of
                 PList _ (p1::p2::p3::pRest) _ Nothing _ -> -- At least three
                   let pats = p1::p2::p3::pRest in
                   let maybeIdents = pats |> List.map patToMaybePVarIdent |> Utils.projJusts in
@@ -513,7 +513,7 @@ cloneEliminationSythesisResults originalExp =
         let usagesReplaced = applyESubstPreservingPrecedingWhitespace eidToNewE__ commonScope in
         let wrapped =
           let letKind = if isTopLevel commonScope originalExp then Def else Let in
-          withDummyPos <| ELet ("\n" ++ oldIndentation) letKind False (pVar funcName) abstractedFuncIndented usagesReplaced ""
+          withDummyExpInfo <| ELet ("\n" ++ oldIndentation) letKind False (pVar funcName) abstractedFuncIndented usagesReplaced ""
         in
         let newProgram = replaceExpNode commonScope.val.eid wrapped originalExp in
         let clonesName =
@@ -563,7 +563,7 @@ mapAbstractSynthesisResults originalExp =
         let usagesReplaced = applyESubstPreservingPrecedingWhitespace eidToVarE__ commonScope in
         let wrapped =
           let letKind = if isTopLevel commonScope originalExp then Def else Let in
-          withDummyPos <| ELet ("\n" ++ oldIndentation) letKind False (pListOfPVars varNames) mapCall usagesReplaced ""
+          withDummyExpInfo <| ELet ("\n" ++ oldIndentation) letKind False (pListOfPVars varNames) mapCall usagesReplaced ""
         in
         let newProgram = replaceExpNode commonScope.val.eid wrapped originalExp in
         let clonesName =
@@ -611,7 +611,7 @@ matchesAnySelectedVarBlob_ selectedNiceBlobs def =
       _                      -> Nothing
   in
   let (_,p,_,_) = def in
-  case p.val of
+  case p.val.p__ of
     PVar _ y _  -> findBlobForIdent y
     PAs _ y _ _ -> findBlobForIdent y
     _           -> Nothing
@@ -639,7 +639,7 @@ matchesAnySelectedCallBlob_ selectedNiceBlobs def =
       _                                     -> Nothing
   in
   let (_,p,_,_) = def in
-  case p.val of
+  case p.val.p__ of
     PVar _ y _  -> findBlobForIdent y
     PAs _ y _ _ -> findBlobForIdent y
     _           -> Nothing
@@ -713,7 +713,7 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs
     beforeDefs ++ afterDefs ++ [newDef]
   in
   let blobs_ =
-    let newBlob = varBlob (withDummyPos (EVar "\n  " newGroup)) newGroup in
+    let newBlob = varBlob (withDummyExpInfo (EVar "\n  " newGroup)) newGroup in
     beforeBlobs ++ [newBlob] ++ afterBlobs
   in
   (defs_, blobs_)
@@ -793,13 +793,13 @@ groupSelectedBlobs model (defs, blobs, f) =
     groupAndRearrange model newGroup defs blobs selectedNiceBlobs
        groupDefs eSubst
        (\pluckedBlobs_ ->
-         withDummyPos <| EList "\n\n  "
-           [ withDummyPos <| EApp " "
+         withDummyExpInfo <| EList "\n\n  "
+           [ withDummyExpInfo <| EApp " "
                (eVar0 "group")
                [ eVar "bounds"
-               , withDummyPos <| EApp " "
+               , withDummyExpInfo <| EApp " "
                    (eVar0 "concat")
-                   [withDummyPos <| EList " " pluckedBlobs_ "" Nothing " "]
+                   [withDummyExpInfo <| EList " " pluckedBlobs_ "" Nothing " "]
                    ""
                ]
                ""
@@ -960,12 +960,12 @@ groupSelectedBlobsAround model (defs, blobs, f) (anchorId, anchorPointFeature) =
             groupAndRearrange model newGroup defs blobs selectedNiceBlobs
                groupDefs eSubst
                (\pluckedBlobs_ ->
-                 withDummyPos <| EList "\n\n  "
-                   [ withDummyPos <| EApp " "
+                 withDummyExpInfo <| EList "\n\n  "
+                   [ withDummyExpInfo <| EApp " "
                        (eVar0 "anchoredGroup")
-                       [ withDummyPos <| EApp " "
+                       [ withDummyExpInfo <| EApp " "
                            (eVar0 "concat")
-                           [withDummyPos <| EList " " pluckedBlobs_ "" Nothing " "]
+                           [withDummyExpInfo <| EList " " pluckedBlobs_ "" Nothing " "]
                            ""
                        ]
                        ""
@@ -1042,13 +1042,13 @@ eAsPoint e =
   else
 
   let e_ =  replacePrecedingWhitespace "" e in
-  withDummyPos <|
+  withDummyExpInfo <|
     EColonType " " e_ " " (withDummyRange <| TNamed " " "Point") ""
 
 
 pAsTight x p =
   let p_ =  replacePrecedingWhitespacePat "" p in
-  withDummyRange <| PAs " " x "" p_
+  withDummyPatInfo <| PAs " " x "" p_
 
 
 --------------------------------------------------------------------------------
@@ -1109,16 +1109,16 @@ abstractOne (i, eBlob, x) (defs, blobs) =
                   _  -> pList  pVars
               in
               let params = listOfPVars (List.map Tuple.first restOfMapping) in
-              withDummyPos (EFun " " (params ++ [pBounds]) e_ "")
+              withDummyExpInfo (EFun " " (params ++ [pBounds]) e_ "")
             in
             let eBounds = eList (listOfAnnotatedNums [left, top, right, bot]) Nothing in
             let newCall =
               let eBlah =
                 case listOfAnnotatedNums1 (List.map Tuple.second restOfMapping) of
                   []   -> eVar x
-                  args -> withDummyPos (EApp "\n    " (eVar0 x) args "")
+                  args -> withDummyExpInfo (EApp "\n    " (eVar0 x) args "")
               in
-              withDummyPos (EApp "\n  " (eVar0 "withBounds") [eBounds, eBlah] "")
+              withDummyExpInfo (EApp "\n  " (eVar0 "withBounds") [eBounds, eBlah] "")
             in
             let newBlob = NiceBlob newCall (WithBoundsBlob (eBounds, x, [])) in
             ((ws1, p, newFunc, ws2), newBlob)
@@ -1133,7 +1133,7 @@ abstractOne (i, eBlob, x) (defs, blobs) =
                   _  -> pList  pVars
               in
               let params = listOfPVars (List.map Tuple.first restOfMapping) in
-              withDummyPos (EFun " " (params ++ [pAsTight "anchor" pBounds]) e_ "")
+              withDummyExpInfo (EFun " " (params ++ [pAsTight "anchor" pBounds]) e_ "")
             in
             let eAnchor =
               eAsPoint (eList (listOfAnnotatedNums [xAnchor, yAnchor]) Nothing)
@@ -1142,9 +1142,9 @@ abstractOne (i, eBlob, x) (defs, blobs) =
               let eBlah =
                 case listOfAnnotatedNums1 (List.map Tuple.second restOfMapping) of
                   []   -> eVar x
-                  args -> withDummyPos (EApp " " (eVar0 x) args "")
+                  args -> withDummyExpInfo (EApp " " (eVar0 x) args "")
               in
-              withDummyPos (EApp "\n  " (eVar0 "withAnchor") [eAnchor, eBlah] "")
+              withDummyExpInfo (EApp "\n  " (eVar0 "withAnchor") [eAnchor, eBlah] "")
             in
             let newBlob = NiceBlob newCall (WithAnchorBlob (eAnchor, x, [])) in
             ((ws1, p, newFunc, ws2), newBlob)
@@ -1152,13 +1152,13 @@ abstractOne (i, eBlob, x) (defs, blobs) =
           Nothing ->
             let newFunc =
               let params = listOfPVars (List.map Tuple.first mapping) in
-              withDummyPos (EFun " " params e_ "")
+              withDummyExpInfo (EFun " " params e_ "")
             in
             let newBlob =
               case listOfAnnotatedNums1 (List.map Tuple.second mapping) of
                 []   -> varBlob (eVar x) x
                 args ->
-                  let newCall = withDummyPos (EApp "\n  " (eVar0 x) args "") in
+                  let newCall = withDummyExpInfo (EApp "\n  " (eVar0 x) args "") in
                   callBlob newCall (x, args)
             in
             ((ws1, p, newFunc, ws2), newBlob)
@@ -1246,7 +1246,7 @@ removeRedundantBindings =
       _                    -> e
 
 redundantBinding (p, e) =
-  case (p.val, e.val.e__) of
+  case (p.val.p__, e.val.e__) of
     (PConst _ n, EConst _ n_ _ _) -> n == n_
     (PBase _ bv, EBase _ bv_)     -> bv == bv_
     (PVar _ x _, EVar _ x_)       -> x == x_
@@ -1272,18 +1272,18 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
 
     [(i, _, WithAnchorBlob (anchor, g, args))] ->
 
-      let eGroupFunc = withDummyPos <| EApp "\n    " (eVar0 g) args "" in
+      let eGroupFunc = withDummyExpInfo <| EApp "\n    " (eVar0 g) args "" in
       let eAnchor =  replacePrecedingWhitespace "\n    " anchor in
       let (arrayFunction, arrayArgs) =
         case replicateKind of
 
           HorizontalRepeat ->
-            let eNum = withDummyPos <| EConst " " 3 (dummyLoc_ frozen) (intSlider 1 20) in
-            let eSep = withDummyPos <| EConst " " 20 dummyLoc noWidgetDecl in
+            let eNum = withDummyExpInfo <| EConst " " 3 (dummyLoc_ frozen) (intSlider 1 20) in
+            let eSep = withDummyExpInfo <| EConst " " 20 dummyLoc noWidgetDecl in
             ("horizontalArray", [eNum, eSep, eGroupFunc, eAnchor])
 
           LinearRepeat ->
-            let eNum   = withDummyPos <| EConst " " 3 (dummyLoc_ frozen) (intSlider 1 20) in
+            let eNum   = withDummyExpInfo <| EConst " " 3 (dummyLoc_ frozen) (intSlider 1 20) in
             let eStart =  replacePrecedingWhitespace "\n    " anchor in
             let eEnd =
               case stripPointExp anchor of
@@ -1298,9 +1298,9 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
 
           RadialRepeat ->
             let nRadius = 100 in
-            let eNum    = withDummyPos <| EConst " " 3 (dummyLoc_ frozen) (intSlider 1 20) in
-            let eRadius = withDummyPos <| EConst " " nRadius (dummyLoc_ unann) noWidgetDecl in
-            let eRot    = withDummyPos <| EConst " " 0 (dummyLoc_ frozen) (numSlider 0 6.28) in
+            let eNum    = withDummyExpInfo <| EConst " " 3 (dummyLoc_ frozen) (intSlider 1 20) in
+            let eRadius = withDummyExpInfo <| EConst " " nRadius (dummyLoc_ unann) noWidgetDecl in
+            let eRot    = withDummyExpInfo <| EConst " " 0 (dummyLoc_ frozen) (numSlider 0 6.28) in
             let eCenter =
               case stripPointExp anchor of
                 Nothing -> eAnchor
@@ -1314,7 +1314,7 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
       in
       let newBlob =
         NiceBlob
-           (withDummyPos <| EApp "\n  " (eVar0 arrayFunction) arrayArgs "")
+           (withDummyExpInfo <| EApp "\n  " (eVar0 arrayFunction) arrayArgs "")
            (CallBlob (arrayFunction, arrayArgs))
       in
       let blobs_ = Utils.replacei i newBlob blobs in
@@ -1323,20 +1323,20 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
 
     [(i, _, WithBoundsBlob (bounds, g, args))] ->
 
-      let eGroupFunc = withDummyPos <| EApp "\n    " (eVar0 g) args "" in
+      let eGroupFunc = withDummyExpInfo <| EApp "\n    " (eVar0 g) args "" in
       let eBounds =  replacePrecedingWhitespace "\n    " bounds in
       let (arrayFunction, arrayArgs) =
         case replicateKind of
 
           HorizontalRepeat ->
-            let eNum = withDummyPos <| EConst " " 3 (dummyLoc_ frozen) (intSlider 1 10) in
-            let eSep = withDummyPos <| EConst " " 20 dummyLoc noWidgetDecl in
+            let eNum = withDummyExpInfo <| EConst " " 3 (dummyLoc_ frozen) (intSlider 1 10) in
+            let eSep = withDummyExpInfo <| EConst " " 20 dummyLoc noWidgetDecl in
             ("horizontalArrayByBounds", [eNum, eSep, eGroupFunc, eBounds])
 
           LinearRepeat ->
             let (nNum, nSep) = (3, 20) in
-            let eNum = withDummyPos <| EConst " " nNum (dummyLoc_ frozen) (intSlider 1 20) in
-            let eSep = withDummyPos <| EConst " " nSep dummyLoc noWidgetDecl in
+            let eNum = withDummyExpInfo <| EConst " " nNum (dummyLoc_ frozen) (intSlider 1 20) in
+            let eSep = withDummyExpInfo <| EConst " " nSep dummyLoc noWidgetDecl in
             let eGroupBounds =
               case stripBoundsExp bounds of
                 Nothing -> eBounds
@@ -1355,7 +1355,7 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
       in
       let newBlob =
         NiceBlob
-           (withDummyPos <| EApp "\n  " (eVar0 arrayFunction) arrayArgs "")
+           (withDummyExpInfo <| EApp "\n  " (eVar0 arrayFunction) arrayArgs "")
            (CallBlob (arrayFunction, arrayArgs))
       in
       let blobs_ = Utils.replacei i newBlob blobs in
@@ -1425,11 +1425,11 @@ duplicateSelectedBlobs model =
                then (k, acc1, acc2)
                else
                  let (ws1,p,e,ws2) = def in
-                 case p.val of
+                 case p.val.p__ of
                    PVar ws x wd ->
                      let x_ = x ++ "_copy" ++ toString k in
-                     let acc1_ = (ws1, { p | val = PVar ws x_ wd }, e, ws2) :: acc1 in
-                     let acc2_ = varBlob (withDummyPos (EVar "\n  " x_)) x_ :: acc2 in
+                     let acc1_ = (ws1, withDummyPatInfo (PVar ws x_ wd), e, ws2) :: acc1 in
+                     let acc2_ = varBlob (withDummyExpInfo (EVar "\n  " x_)) x_ :: acc2 in
                      (1 + k, acc1_, acc2_)
                    _ ->
                      let _ = Debug.log "duplicateSelectedBlobs: weird..." () in
@@ -1527,11 +1527,11 @@ mergeSelectedVarBlobs model defs blobs selectedVarBlobs =
       let newDef =
         let newFunc =
           let params = listOfPVars (List.map Tuple.first multiMapping) in
-          withDummyPos (EFun " " params (clean eMerged) "") in
+          withDummyExpInfo (EFun " " params (clean eMerged) "") in
         (ws1, p, newFunc, ws2) in
 
       let f =
-        case p.val of
+        case p.val.p__ of
           PVar _ x _ -> x
           _          -> Debug.crash "mergeSelected: not var" in
 
@@ -1543,7 +1543,7 @@ mergeSelectedVarBlobs model defs blobs selectedVarBlobs =
             List.map
                (\nums ->
                   let args = listOfAnnotatedNums1 nums in
-                  let e = withDummyPos <| EApp "\n  " (eVar0 f) args "" in
+                  let e = withDummyExpInfo <| EApp "\n  " (eVar0 f) args "" in
                   callBlob e (f, args)
                ) numLists in
 
@@ -1778,27 +1778,27 @@ mergeMaybeExpressions me mes =
 
 mergePatterns : Pat -> List Pat -> Maybe ()
 mergePatterns pFirst pRest =
-  case pFirst.val of
+  case pFirst.val.p__ of
     PVar _ x _ ->
-      let match pNext = case pNext.val of
+      let match pNext = case pNext.val.p__ of
         PVar _ x_ _ -> Just x_
         _           -> Nothing
       in
       matchAllAndCheckEqual match pRest x
     PConst _ n ->
-      let match pNext = case pNext.val of
+      let match pNext = case pNext.val.p__ of
         PConst _ n_ -> Just n_
         _           -> Nothing
       in
       matchAllAndCheckEqual match pRest n
     PBase _ bv ->
-      let match pNext = case pNext.val of
+      let match pNext = case pNext.val.p__ of
         PBase _ bv_ -> Just bv_
         _           -> Nothing
       in
       matchAllAndCheckEqual match pRest bv
     PList _ ps _ mp _ ->
-      let match pNext = case pNext.val of
+      let match pNext = case pNext.val.p__ of
         PList _ ps_ _ mp_ _ -> Just (ps_, mp_)
         _                   -> Nothing
       in
@@ -1809,7 +1809,7 @@ mergePatterns pFirst pRest =
           (mergePatternLists (ps::psList))
           (mergeMaybePatterns mp mpList)
     PAs _ x _ p ->
-      let match pNext = case pNext.val of
+      let match pNext = case pNext.val.p__ of
         PAs _ x_ _ p_ -> Just (x_, p_)
         _             -> Nothing
       in

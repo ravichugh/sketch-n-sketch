@@ -32,7 +32,7 @@ type alias Branch  = P.WithInfo Branch_
 type alias TBranch = P.WithInfo TBranch_
 
 -- TODO add constant literals to patterns, and match 'svg'
-type Pat_
+type Pat__
   = PVar WS Ident WidgetDecl
   | PConst WS Num
   | PBase WS EBaseVal
@@ -62,8 +62,9 @@ type Op_
   | DictInsert
 
 type alias EId  = Int
+type alias PId  = Int
 type alias Exp_ = { e__ : Exp__, eid : EId }
--- type alias Pat_ = { p__ : Pat__, pid : PId }
+type alias Pat_ = { p__ : Pat__, pid : PId }
 
 type Exp__
   = EConst WS Num Loc WidgetDecl
@@ -415,8 +416,8 @@ mapFoldExp f initAcc e =
       wrapAndMap (EList ws1 newEs ws2 Nothing ws3) newAcc
 
     EList ws1 es ws2 (Just e1) ws3 ->
-      let (newEs, newAcc)  = recurseAll initAcc es in
-      let (newE1, newAcc2) = recurse newAcc e1 in
+      let (newE1, newAcc)  = recurse initAcc e1 in
+      let (newEs, newAcc2) = recurseAll newAcc es in
       wrapAndMap (EList ws1 newEs ws2 (Just newE1) ws3) newAcc2
 
     EIf ws1 e1 e2 e3 ws2 ->
@@ -518,8 +519,8 @@ mapFoldExpTopDown f initAcc e =
       ret (EList ws1 newEs ws2 Nothing ws3) newAcc2
 
     EList ws1 es ws2 (Just e1) ws3 ->
-      let (newE1, newAcc2) = recurse newAcc e1 in
-      let (newEs, newAcc3) = recurseAll newAcc2 es in
+      let (newEs, newAcc2) = recurseAll newAcc es in
+      let (newE1, newAcc3) = recurse newAcc2 e1 in
       ret (EList ws1 newEs ws2 (Just newE1) ws3) newAcc3
 
     EIf ws1 e1 e2 e3 ws2 ->
@@ -578,6 +579,45 @@ mapFoldExpTopDown f initAcc e =
     ETypeAlias ws1 pat tipe e1 ws2 ->
       let (newE1, newAcc2) = recurse newAcc e1 in
       ret (ETypeAlias ws1 pat tipe newE1 ws2) newAcc2
+
+
+-- Nodes visited/replaced in top-down, left-to-right order.
+mapFoldPatTopDown : (Pat -> a -> (Pat, a)) -> a -> Pat -> (Pat, a)
+mapFoldPatTopDown f initAcc p =
+  let (newP, newAcc) = f p initAcc in
+  let ret p__ acc =
+    (replaceP__ newP p__, acc)
+  in
+  let recurse acc child =
+    mapFoldPatTopDown f acc child
+  in
+  let recurseAll acc pats =
+    pats
+    |> List.foldl
+        (\pat (newPats, acc) ->
+          let (newPat, newAcc) = recurse acc pat in
+          (newPats ++ [newPat], newAcc)
+        )
+        ([], acc)
+  in
+  case newP.val.p__ of
+    PVar ws ident wd -> (newP, newAcc)
+    PConst ws num    -> (newP, newAcc)
+    PBase ws ebv     -> (newP, newAcc)
+
+    PList ws1 ps ws2 Nothing ws3 ->
+      let (newPs, newAcc2) = recurseAll newAcc ps in
+      ret (PList ws1 newPs ws2 Nothing ws3) newAcc2
+
+    PList ws1 ps ws2 (Just pTail) ws3 ->
+      let (newPs, newAcc2)    = recurseAll newAcc ps in
+      let (newPTail, newAcc3) = recurse newAcc2 pTail in
+      ret (PList ws1 newPs ws2 (Just newPTail) ws3) newAcc3
+
+    PAs ws1 ident ws2 pChild ->
+      let (newPChild, newAcc2) = recurse newAcc pChild in
+      ret (PAs ws1 ident ws2 newPChild) newAcc2
+
 
 -- Nodes visited/replaced in top-down, left-to-right order.
 -- Includes user-defined scope information.
@@ -710,6 +750,12 @@ mapExpTopDown f e =
   -- Accumulator thrown away; just need something that type checks.
   let (newExp, _) = mapFoldExpTopDown (\exp _ -> (f exp, ())) () e in
   newExp
+
+mapPatTopDown : (Pat -> Pat) -> Pat -> Pat
+mapPatTopDown f p =
+  -- Accumulator thrown away; just need something that type checks.
+  let (newPat, _) = mapFoldPatTopDown (\pat _ -> (f pat, ())) () p in
+  newPat
 
 -- Preserves EIds
 mapExpViaExp__ : (Exp__ -> Exp__) -> Exp -> Exp
@@ -1050,6 +1096,15 @@ branchPats : List Branch -> List Pat
 branchPats branches =
   List.map branchPat branches
 
+mapBranchPats : (Pat -> Pat) -> List Branch -> List Branch
+mapBranchPats f branches =
+  branches
+  |> List.map
+      (\branch ->
+        let (Branch_ ws1 pat exp ws2) = branch.val in
+        { branch | val = Branch_ ws1 (f pat) exp ws2 }
+      )
+
 tbranchTypes : List TBranch -> List Type
 tbranchTypes tbranches =
   List.map
@@ -1106,7 +1161,7 @@ isOption exp =
 
 varsOfPat : Pat -> List Ident
 varsOfPat pat =
-  case pat.val of
+  case pat.val.p__ of
     PConst _ _              -> []
     PBase _ _               -> []
     PVar _ x _              -> [x]
@@ -1123,7 +1178,7 @@ flattenPatTree pat =
 -- Children left-to-right.
 childPats : Pat -> List Pat
 childPats pat =
-  case pat.val of
+  case pat.val.p__ of
     PConst _ _              -> []
     PBase _ _               -> []
     PVar _ _ _              -> []
@@ -1165,19 +1220,24 @@ val = flip Val [-1]
 exp_ : Exp__ -> Exp_
 exp_ = flip Exp_ (-1)
 
-withDummyRange x  = P.WithInfo x P.dummyPos P.dummyPos
-withDummyPos e__  = P.WithInfo (exp_ e__) P.dummyPos P.dummyPos
-withDummyPosEId eid e__ = P.WithInfo (Exp_ e__ eid) P.dummyPos P.dummyPos
+pat_ : Pat__ -> Pat_
+pat_ = flip Pat_ (-1)
+
+withDummyRange x            = P.WithInfo x P.dummyPos P.dummyPos
+withDummyPatInfo p__        = P.WithInfo (pat_ p__) P.dummyPos P.dummyPos
+withDummyExpInfo e__        = P.WithInfo (exp_ e__) P.dummyPos P.dummyPos
+withDummyPatInfoPId pid p__ = P.WithInfo (Pat_ p__ pid) P.dummyPos P.dummyPos
+withDummyExpInfoEId eid e__ = P.WithInfo (Exp_ e__ eid) P.dummyPos P.dummyPos
 
 replaceE__ : Exp -> Exp__ -> Exp
 replaceE__ e e__ = let e_ = e.val in { e | val = { e_ | e__ = e__ } }
 
-replaceP_ : Pat -> Pat_ -> Pat
-replaceP_ p p_ = { p | val = p_ }
+replaceP__ : Pat -> Pat__ -> Pat
+replaceP__ p p__ = let p_ = p.val in { p | val = { p_ | p__ = p__ } }
 
-replaceP_PreservingPrecedingWhitespace  : Pat -> Pat_ -> Pat
-replaceP_PreservingPrecedingWhitespace  p p_ =
-  replaceP_ p p_ |> replacePrecedingWhitespacePat (precedingWhitespacePat p)
+replaceP__PreservingPrecedingWhitespace  : Pat -> Pat__ -> Pat
+replaceP__PreservingPrecedingWhitespace  p p__ =
+  replaceP__ p p__ |> replacePrecedingWhitespacePat (precedingWhitespacePat p)
 
 replaceE__PreservingPrecedingWhitespace : Exp -> Exp__ -> Exp
 replaceE__PreservingPrecedingWhitespace e e__ =
@@ -1196,12 +1256,24 @@ replaceTBranchExp tbranch exp =
 setEId : EId -> Exp -> Exp
 setEId eid e = let e_ = e.val in { e | val = { e_ | eid = eid } }
 
+setPId : PId -> Pat -> Pat
+setPId pid p = let p_ = p.val in { p | val = { p_ | pid = pid } }
+
 clearEId e = setEId -1 e
+clearPId p = setPId -1 p
+
+clearPIds p = mapPatTopDown clearPId p
 
 clearNodeIds e =
   let eidCleared = clearEId e in
   case eidCleared.val.e__ of
     EConst ws n (locId, annot, ident) wd -> replaceE__ eidCleared (EConst ws n (0, annot, "") wd)
+    ELet ws1 kind b p e1 e2 ws2          -> replaceE__ eidCleared (ELet ws1 kind b (clearPIds p) e1 e2 ws2)
+    EFun ws1 pats body ws2               -> replaceE__ eidCleared (EFun ws1 (List.map clearPIds pats) body ws2)
+    ECase ws1 scrutinee branches ws2     -> replaceE__ eidCleared (ECase ws1 scrutinee (mapBranchPats clearPIds branches) ws2)
+    ETypeCase ws1 pat tbranches ws2      -> replaceE__ eidCleared (ETypeCase ws1 (clearPIds pat) tbranches ws2)
+    ETyp ws1 pat tipe e ws2              -> replaceE__ eidCleared (ETyp ws1 (clearPIds pat) tipe e ws2)
+    ETypeAlias ws1 pat tipe e ws2        -> replaceE__ eidCleared (ETypeAlias ws1 (clearPIds pat) tipe e ws2)
     _                                    -> eidCleared
 
 dummyLoc_ b = (0, b, "")
@@ -1210,18 +1282,18 @@ dummyTrace_ b = TrLoc (dummyLoc_ b)
 dummyLoc = dummyLoc_ unann
 dummyTrace = dummyTrace_ unann
 
-eOp op_ es = withDummyPos <| EOp " " (withDummyRange op_) es ""
+eOp op_ es = withDummyExpInfo <| EOp " " (withDummyRange op_) es ""
 
 ePlus e1 e2 = eOp Plus [e1, e2]
 
-eBool  = withDummyPos << EBase " " << EBool
-eStr   = withDummyPos << EBase " " << EString defaultQuoteChar
-eStr0  = withDummyPos << EBase "" << EString defaultQuoteChar
+eBool  = withDummyExpInfo << EBase " " << EBool
+eStr   = withDummyExpInfo << EBase " " << EString defaultQuoteChar
+eStr0  = withDummyExpInfo << EBase "" << EString defaultQuoteChar
 eTrue  = eBool True
 eFalse = eBool False
 
-eApp e es = withDummyPos <| EApp " " e es ""
-eFun ps e = withDummyPos <| EFun " " ps e ""
+eApp e es = withDummyExpInfo <| EApp " " e es ""
+eFun ps e = withDummyExpInfo <| EFun " " ps e ""
 
 desugarEApp e es = case es of
   []      -> Debug.crash "desugarEApp"
@@ -1233,7 +1305,7 @@ desugarEFun ps e = case ps of
   [p]     -> eFun [p] e
   p::ps_  -> eFun [p] (desugarEFun ps_ e)
 
-ePair e1 e2 = withDummyPos <| EList " " [e1,e2] "" Nothing ""
+ePair e1 e2 = withDummyExpInfo <| EList " " [e1,e2] "" Nothing ""
 
 noWidgetDecl = withDummyRange NoWidgetDecl
 
@@ -1258,7 +1330,7 @@ eLets xes eBody = case xes of
 eLetOrDef : LetKind -> List (Ident, Exp) -> Exp -> Exp
 eLetOrDef letKind namesAndAssigns bodyExp =
   let (pat, assign) = patBoundExpOf namesAndAssigns in
-  withDummyPos <| ELet "\n" letKind False pat assign bodyExp ""
+  withDummyExpInfo <| ELet "\n" letKind False pat assign bodyExp ""
 
 patBoundExpOf : List (Ident, Exp) -> (Pat, Exp)
 patBoundExpOf namesAndAssigns =
@@ -1273,21 +1345,21 @@ eDef : List (Ident, Exp) -> Exp -> Exp
 eDef = eLetOrDef Def
 
 
-eVar0 a        = withDummyPos <| EVar "" a
-eVar a         = withDummyPos <| EVar " " a
-eConst0 a b    = withDummyPos <| EConst "" a b noWidgetDecl
-eConst a b     = withDummyPos <| EConst " " a b noWidgetDecl
-eList0 a b     = withDummyPos <| EList "" a "" b ""
-eList a b      = withDummyPos <| EList " " a "" b ""
+eVar0 a        = withDummyExpInfo <| EVar "" a
+eVar a         = withDummyExpInfo <| EVar " " a
+eConst0 a b    = withDummyExpInfo <| EConst "" a b noWidgetDecl
+eConst a b     = withDummyExpInfo <| EConst " " a b noWidgetDecl
+eList0 a b     = withDummyExpInfo <| EList "" a "" b ""
+eList a b      = withDummyExpInfo <| EList " " a "" b ""
 eTuple0 a      = eList0 a Nothing
 eTuple a       = eList a Nothing
-eComment a b   = withDummyPos <| EComment " " a b
+eComment a b   = withDummyExpInfo <| EComment " " a b
 
-pVar0 a        = withDummyRange <| PVar "" a noWidgetDecl
-pVar a         = withDummyRange <| PVar " " a noWidgetDecl
-pList0 ps      = withDummyRange <| PList "" ps "" Nothing ""
-pList ps       = withDummyRange <| PList " " ps "" Nothing ""
-pAs x p        = withDummyRange <| PAs " " x " " p
+pVar0 a        = withDummyPatInfo <| PVar "" a noWidgetDecl
+pVar a         = withDummyPatInfo <| PVar " " a noWidgetDecl
+pList0 ps      = withDummyPatInfo <| PList "" ps "" Nothing ""
+pList ps       = withDummyPatInfo <| PList " " ps "" Nothing ""
+pAs x p        = withDummyPatInfo <| PAs " " x " " p
 
 pListOfPVars names = pList (listOfPVars names)
 
@@ -1351,10 +1423,10 @@ listOfAnnotatedNums list =
   case list of
     [] -> []
     (n,ann,wd) :: list_ ->
-      withDummyPos (EConst "" n (dummyLoc_ ann) wd) :: listOfAnnotatedNums1 list_
+      withDummyExpInfo (EConst "" n (dummyLoc_ ann) wd) :: listOfAnnotatedNums1 list_
 
 listOfAnnotatedNums1 =
- List.map (\(n,ann,wd) -> withDummyPos (EConst " " n (dummyLoc_ ann) wd))
+ List.map (\(n,ann,wd) -> withDummyExpInfo (EConst " " n (dummyLoc_ ann) wd))
 
 minMax x y             = (min x y, max x y)
 minNumTr (a,t1) (b,t2) = if a <= b then (a,t1) else (b,t2)
@@ -1381,7 +1453,7 @@ indentationOf exp =
 
 precedingWhitespacePat : Pat -> String
 precedingWhitespacePat pat =
-  case pat.val of
+  case pat.val.p__ of
     PVar   ws ident wd         -> ws
     PConst ws n                -> ws
     PBase  ws v                -> ws
@@ -1463,14 +1535,15 @@ mapPrecedingWhitespace mapWs exp =
 mapPrecedingWhitespacePat : (String -> String) -> Pat -> Pat
 mapPrecedingWhitespacePat mapWs pat =
   let pat__ =
-    case pat.val of
+    case pat.val.p__ of
       PVar   ws ident wd         -> PVar   (mapWs ws) ident wd
       PConst ws n                -> PConst (mapWs ws) n
       PBase  ws v                -> PBase  (mapWs ws) v
       PList  ws1 es ws2 rest ws3 -> PList  (mapWs ws1) es ws2 rest ws3
       PAs    ws1 ident ws2 p     -> PAs    (mapWs ws1) ident ws2 p
   in
-  { pat | val = pat__ }
+  let val = pat.val in
+  { pat | val = { val | p__ = pat__ } }
 
 
 

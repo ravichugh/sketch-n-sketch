@@ -79,8 +79,39 @@ freshenPreserving idsToPreserve initK e =
             (EConst ws n (locId, frozen, ident) wd, locId + 1)
 
         ELet ws1 kind b p e1 e2 ws2 ->
-          let newE1 = recordIdentifiers (p, e1) in
-          (ELet ws1 kind b p newE1 e2 ws2, k)
+          let (newP, newK) = freshenPatPreserving idsToPreserve k p in
+          let newE1 = recordIdentifiers (newP, e1) in
+          (ELet ws1 kind b newP newE1 e2 ws2, newK)
+
+        EFun ws1 pats body ws2 ->
+          let (newPats, newK) = freshenPatsPreserving idsToPreserve k pats in
+          (EFun ws1 newPats body ws2, newK)
+
+        ECase ws1 scrutinee branches ws2 ->
+          let (newBranches, newK) =
+            branches
+            |> List.foldl
+                (\branch (newBranches, k) ->
+                  let (Branch_ bws1 pat ei bws2) = branch.val in
+                  let (newPi, newK) = freshenPatPreserving idsToPreserve k pat in
+                  (newBranches ++ [{ branch | val = Branch_ bws1 newPi ei bws2 }], newK)
+                )
+                ([], k)
+          in
+          (ECase ws1 scrutinee newBranches ws2, newK)
+
+        -- TypeCase scrutinee will be changed to an exp eventually.
+        ETypeCase ws1 pat tbranches ws2 ->
+          let (newPat, newK) = freshenPatPreserving idsToPreserve k pat in
+          (ETypeCase ws1 newPat tbranches ws2, newK)
+
+        ETyp ws1 pat tipe e ws2 ->
+          let (newPat, newK) = freshenPatPreserving idsToPreserve k pat in
+          (ETyp ws1 newPat tipe e ws2, newK)
+
+        ETypeAlias ws1 pat tipe e ws2 ->
+          let (newPat, newK) = freshenPatPreserving idsToPreserve k pat in
+          (ETypeAlias ws1 newPat tipe e ws2, newK)
 
         _ ->
           (e__, k)
@@ -93,47 +124,83 @@ freshenPreserving idsToPreserve initK e =
   in
   mapFoldExp assignIds initK e
 
+
+-- Reassign any id not in idsToPreserve
+freshenPatsPreserving : Set.Set Int -> Int -> List Pat -> (List Pat, Int)
+freshenPatsPreserving idsToPreserve initK pats =
+  pats
+  |> List.foldl
+      (\pat (finalPats, k) ->
+        let (newPat, newK) = freshenPatPreserving idsToPreserve k pat in
+        (finalPats ++ [newPat], newK)
+      )
+      ([], initK)
+
+
+-- Reassign any id not in idsToPreserve
+freshenPatPreserving : Set.Set Int -> Int -> Pat -> (Pat, Int)
+freshenPatPreserving idsToPreserve initK p =
+  let getId k =
+    if Set.member k idsToPreserve
+    then getId (k+1)
+    else k
+  in
+  let assignIds pat k =
+    if Set.member pat.val.pid idsToPreserve then
+      (pat, k)
+    else
+      let pid = getId k in
+      (setPId pid pat, pid + 1)
+  in
+  mapFoldPatTopDown assignIds initK p
+
 maxId : Exp -> Int
 maxId exp =
   let ids = allIds exp in
   List.maximum (initK :: Set.toList ids) |> U.fromJust
 
+-- Excludes EIds, PIds, and locIds less than initK (i.e. no prelude locs or dummy EIds)
 allIds : Exp -> Set.Set Int
 allIds exp = duplicateAndAllIds exp |> Tuple.second
 
--- Excludes EIds and locIds less than initK (i.e. no prelude locs or dummy EIds)
+-- Raw list of all ids
+allIdsRaw : Exp -> List Int
+allIdsRaw exp =
+  let pidsInPat pat   = flattenPatTree pat |> List.map (.val >> .pid) in
+  let pidsInPats pats = pats |> List.concatMap pidsInPat in
+  let flattened = flattenExpTree exp in
+  let eids = flattened |> List.map (.val >> .eid) in
+  let otherIds =
+    flattened
+    |> List.concatMap
+        (\exp ->
+          case exp.val.e__ of
+            EConst ws n (locId, frozen, ident) wd -> [locId]
+            ELet ws1 kind b p e1 e2 ws2           -> pidsInPat p
+            EFun ws1 pats body ws2                -> pidsInPats pats
+            ECase ws1 scrutinee branches ws2      -> pidsInPats (branchPats branches)
+            ETypeCase ws1 pat tbranches ws2       -> pidsInPat pat
+            ETyp ws1 pat tipe e ws2               -> pidsInPat pat
+            ETypeAlias ws1 pat tipe e ws2         -> pidsInPat pat
+            _                                     -> []
+        )
+  in
+  eids ++ otherIds
+
+-- Excludes EIds, PIds, and locIds less than initK (i.e. no prelude locs or dummy EIds)
 duplicateAndAllIds : Exp -> (Set.Set Int, Set.Set Int)
 duplicateAndAllIds exp =
-  let gather exp (duplicateIds, seenIds) =
-    let eid = exp.val.eid in
-    let (duplicateIds_, seenIds_) =
-      if eid >= initK then
-        if Set.member eid seenIds
-        then (Set.insert eid duplicateIds, seenIds)
-        else (duplicateIds, Set.insert eid seenIds)
-      else
-        (duplicateIds, seenIds)
-    in
-    case exp.val.e__ of
-      EConst ws n (locId, frozen, ident) wd ->
-        if locId >= initK then
-          if Set.member locId seenIds
-          then (Set.insert locId duplicateIds_, seenIds_)
-          else (duplicateIds_, Set.insert locId seenIds_)
+  allIdsRaw exp
+  |> List.foldl
+      (\id (duplicateIds, seenIds) ->
+        if id >= initK then
+          if Set.member id seenIds
+          then (Set.insert id duplicateIds, seenIds)
+          else (duplicateIds, Set.insert id seenIds)
         else
-          (duplicateIds_, seenIds_)
-
-      _ ->
-        (duplicateIds_, seenIds_)
-  in
-  let (duplicateIds, seenIds) =
-    foldExp
-        gather
-        (Set.empty, Set.empty)
-        exp
-  in
-  (duplicateIds, seenIds)
-
+          (duplicateIds, seenIds)
+      )
+      (Set.empty, Set.empty)
 
 preludeSubst = substPlusOf_ Dict.empty prelude
 
@@ -152,7 +219,7 @@ substStrOf = Dict.map (always toString) << substOf
 recordIdentifiers : (Pat, Exp) -> Exp
 recordIdentifiers (p,e) =
  let ret e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
- case (p.val, e.val.e__) of
+ case (p.val.p__, e.val.e__) of
 
   -- (PVar _ x _, EConst ws n (k, b, "") wd) -> ret <| EConst ws n (k, b, x) wd
   (PVar _ x _, EConst ws n (k, b, _) wd) -> ret <| EConst ws n (k, b, x) wd
@@ -344,10 +411,10 @@ parseEBase =
 
 parsePBase =
   whitespace >>= \ws ->
-        ((PConst ws.val << Tuple.first)      <<| parseNum) -- allowing but ignoring frozen annotation
-    <++ (always (PBase ws.val (EBool True))  <<| whiteTokenOneNonIdent "true")
-    <++ (always (PBase ws.val (EBool False)) <<| whiteTokenOneNonIdent "false")
-    <++ ((PBase ws.val)                      <<| parseStrLit)
+        ((pat_ << PConst ws.val << Tuple.first)     <<| parseNum) -- allowing but ignoring frozen annotation
+    <++ (always (pat_ (PBase ws.val (EBool True)))  <<| whiteTokenOneNonIdent "true")
+    <++ (always (pat_ (PBase ws.val (EBool False))) <<| whiteTokenOneNonIdent "false")
+    <++ ((pat_ << PBase ws.val)                     <<| parseStrLit)
 
 -- parseList_
 --    : (P.Parser a -> P.Parser sep -> P.Parser (List (P.WithInfo a)))
@@ -448,11 +515,11 @@ parseWildcard : P.Parser Pat_
 parseWildcard =
   whitespace  >>= \ws ->
   P.token "_" >>>
-    P.return (PVar ws.val "_" noWidgetDecl)
+    P.return (pat_ (PVar ws.val "_" noWidgetDecl))
 
 parsePVar identParser =
   whitespace >>= \ws ->
-    (\ident -> PVar ws.val ident noWidgetDecl) <<| identParser
+    (\ident -> pat_ (PVar ws.val ident noWidgetDecl)) <<| identParser
 
 -- not using this feature downstream, so turning this off
 {-
@@ -483,7 +550,7 @@ parseTypeCasePat = P.recursively <| \_ ->
 
 parsePatList : P.Parser Pat_
 parsePatList =
-  parseListLiteralOrMultiCons parsePat PList
+  pat_ <<| parseListLiteralOrMultiCons parsePat PList
 
 parseFlatPatList identParser =
   let pVarParser = (parsePVar identParser) in
@@ -492,7 +559,7 @@ parseFlatPatList identParser =
   (P.many pVarParser) >>= \pVars ->
   whitespace          >>= \ws2 ->
   P.token "]"         >>= \closing ->
-    P.returnWithInfo (PList ws1.val pVars.val "" Nothing ws2.val) opening.start closing.end
+    P.returnWithInfo (pat_ (PList ws1.val pVars.val "" Nothing ws2.val)) opening.start closing.end
 
 parsePats : P.Parser (List Pat)
 parsePats =
@@ -505,7 +572,7 @@ parseAsPat =
   whitespace  >>= \ws2 ->
   P.token "@" >>>
   parsePat    >>= \pat ->
-    P.returnWithInfo (PAs ws1.val ident.val ws2.val pat) ident.start pat.end
+    P.returnWithInfo (pat_ (PAs ws1.val ident.val ws2.val pat)) ident.start pat.end
 
 parseMaybeWidgetDecl : Caption -> P.Parser WidgetDecl_
 parseMaybeWidgetDecl cap = P.option NoWidgetDecl (parseWidgetDecl cap)

@@ -285,7 +285,7 @@ addBindingsOne (p, t) acc =
   let fail s =
     Err <| Utils.spaces [ "addBindings", unparsePat p, unparseType t, s ] in
 
-  case (p.val, t.val) of
+  case (p.val.p__, t.val) of
 
     (PList _ _ _ _ _, TNamed _ a) ->
       case expandTypeAlias acc a of
@@ -304,7 +304,7 @@ addBindingsOne (p, t) acc =
           (Nothing, Nothing) -> Ok []
 
           (Just pRest, Just tRest) ->
-            case (pRest.val, tRest.val) of
+            case (pRest.val.p__, tRest.val) of
               (PVar _ xRest _, TList _ tInvariant _) -> Ok [HasType xRest tInvariant]
               _                                      -> fail "PList ERROR 1 TODO"
 
@@ -327,7 +327,7 @@ addBindingsOne (p, t) acc =
 addRecBinding rec p t typeEnv =
   if not rec then typeEnv
   else
-    case p.val of
+    case p.val.p__ of
       PVar _ x _ ->
         let tMono = -- monomorphic recursion
           case stripPolymorphicArrow t of
@@ -346,7 +346,7 @@ addTypeVarBindings typeVars typeEnv =
 
 addTypBindings : Pat -> Type -> TypeEnv -> Result () TypeEnv
 addTypBindings p t typeEnv =
-  case p.val of
+  case p.val.p__ of
     PVar _ x _ -> Ok (CheckType x t :: typeEnv)
     _          -> Debug.crash "addTypBindings: Currently, only (typ x T) is supported."
 
@@ -365,7 +365,7 @@ lookupVar typeEnv x =
 
 lookupPat : TypeEnv -> Pat -> Maybe Type
 lookupPat typeEnv p =
-  case p.val of
+  case p.val.p__ of
 
     PVar _ x _  -> lookupVar typeEnv x
     PAs _ x _ _ -> lookupVar typeEnv x
@@ -387,7 +387,7 @@ lookupPat typeEnv p =
 
 lookupTypAnnotation : TypeEnv -> Pat -> Maybe Type
 lookupTypAnnotation typeEnv p =
-  case p.val of
+  case p.val.p__ of
     PVar _ x _ -> lookupTypAnnotation_ typeEnv x
     _          -> Nothing -- only supporting (typ x T) for now
 
@@ -408,7 +408,7 @@ expandTypeAlias typeEnv x =
     case pts of
       [] -> Nothing
       (p,t) :: pts_ ->
-        case (p.val, t.val) of
+        case (p.val.p__, t.val) of
           (PVar _ x_ _, _) ->
             if x == x_ then Just t else check pts_
           (PList _ ps _ Nothing _, TTuple _ ts _ Nothing _) ->
@@ -913,7 +913,7 @@ synthesizeType typeInfo typeEnv e =
               { result = Nothing, typeInfo = addTypeErrorAt p.start err typeInfo }
 
     ELet ws1 letKind rec p e1 e2 ws2 ->
-      case (p.val, lookupTypAnnotation typeEnv p, rec, e1.val.e__) of
+      case (p.val.p__, lookupTypAnnotation typeEnv p, rec, e1.val.e__) of
 
         (PVar _ "dummyPreludeMain" _, _, _, _) ->
           { result = Nothing

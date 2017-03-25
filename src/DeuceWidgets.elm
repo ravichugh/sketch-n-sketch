@@ -78,7 +78,7 @@ findPats e =
 
 computePatRanges scopeId path addPath pat =
   let baseResult = [(pat, (scopeId, path ++ addPath), pat.start, pat.end, pat.end)] in
-  case pat.val of
+  case pat.val.p__ of
     PConst _ _              -> baseResult
     PBase _ _               -> baseResult
     PVar _ x _              -> baseResult
@@ -111,7 +111,7 @@ computePatTargets scopeId path addPath pat =
   let baseAfter =  ((After, (scopeId, path ++ addPath)),
                     {line = pat.end.line, col = pat.end.col},
                     {line = pat.end.line, col = pat.end.col + 1}) in
-  case pat.val of
+  case pat.val.p__ of
     PConst ws _                   -> [baseBefore, baseAfter]
     PBase ws _                    -> [baseBefore, baseAfter]
     PVar ws x _                   -> [baseBefore, baseAfter]

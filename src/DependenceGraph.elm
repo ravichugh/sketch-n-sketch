@@ -82,7 +82,7 @@ foldPatternsWithIds
 foldPatternsWithIds f (scopeId, path) pats init =
   let
     doOne f pathedPatId pat acc =
-      case pat.val of
+      case pat.val.p__ of
         PConst _ _  -> acc
         PBase _ _   -> acc
         PVar _ x _  -> f pathedPatId x acc
@@ -347,7 +347,7 @@ traverseAndAddDependencies_ pathedPatId env pat exp acc =
 
   let clearUsed acc = { acc | usedVars = Set.empty } in
 
-  case (pat.val, exp.val.e__) of
+  case (pat.val.p__, exp.val.e__) of
 
     (PConst _ _, _) -> acc |> traverse env exp
 

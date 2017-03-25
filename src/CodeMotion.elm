@@ -95,11 +95,11 @@ pluck_ scopeExp path program =
 
 pluck__ : Pat -> Exp -> List Int -> Maybe (PatBoundExp, Pat, Exp)
 pluck__ p e1 path =
-  case (p.val, e1.val.e__, path) of
+  case (p.val.p__, e1.val.e__, path) of
     (_, _, []) ->
       Just <|
         ( (p, e1)
-        , replaceP_ p   <| PList (precedingWhitespacePat p) [] "" Nothing ""
+        , replaceP__ p   <| PList (precedingWhitespacePat p) [] "" Nothing ""
         , replaceE__ e1 <| EList (precedingWhitespace e1)   [] "" Nothing ""
         )
 
@@ -124,7 +124,7 @@ pluck__ p e1 path =
                 )
               in
               ( plucked
-              , replaceP_ p   <| PList pws1 newPs pws2 maybePTail pws3
+              , replaceP__ p   <| PList pws1 newPs pws2 maybePTail pws3
               , replaceE__ e1 <| EList ews1 newEs ews2 maybeETail ews3
               )
             )
@@ -136,7 +136,7 @@ pluck__ p e1 path =
         |> Maybe.map
             (\(plucked, newTailPat, newTailBoundExp) ->
               ( plucked
-              , replaceP_ p   <| PList pws1 ps pws2 (Just newTailPat) pws3
+              , replaceP__ p   <| PList pws1 ps pws2 (Just newTailPat) pws3
               , replaceE__ e1 <| EList ews1 es ews2 (Just newTailBoundExp) ews3
               )
             )
@@ -170,7 +170,7 @@ deadPathsInPat pat =
   if identifiersListInPat pat == [] then
     [[]]
   else
-    case pat.val of
+    case pat.val.p__ of
       PVar   _ _ _ -> []
       PConst _ _   -> Debug.log "why do you put constants in your function arguments?!" []
       PBase  _ _   -> Debug.log "why do you put base vals in your function arguments?!"[]
@@ -221,7 +221,7 @@ justRemovePatFromPats failureMessage path pats =
 -- Returns Maybe (pluckedPat, Maybe residualPatWithoutPlucked)
 pluckPat : List Int -> Pat -> Maybe (Pat, Maybe Pat)
 pluckPat path pat =
-  case (pat.val, path) of
+  case (pat.val.p__, path) of
     (_, []) ->
       Just (pat, Nothing)
 
@@ -233,7 +233,7 @@ pluckPat path pat =
     --   let result = pluckPat is p in
     --   case result of
     --     Just (pluckedPat, Just remainingPat) ->
-    --       Just (pluckedPat, Just <| replaceP_ pat (PAs ws1 ident ws2 remainingPat))
+    --       Just (pluckedPat, Just <| replaceP__ pat (PAs ws1 ident ws2 remainingPat))
     --
     --     _ ->
     --       result
@@ -243,14 +243,14 @@ pluckPat path pat =
         pluckPatFromPats (i::is) ps
         |> Maybe.map
             (\(pluckedPat, remainingPats) ->
-              (pluckedPat, Just <| replaceP_ pat (PList ws1 remainingPats ws2 maybeTail ws3))
+              (pluckedPat, Just <| replaceP__ pat (PList ws1 remainingPats ws2 maybeTail ws3))
             )
       else if i == List.length ps + 1 then
         maybeTail
         |> Maybe.andThen (pluckPat is)
         |> Maybe.map
             (\(pluckedPat, maybeRemainingTail) ->
-              (pluckedPat, Just <| replaceP_ pat (PList ws1 ps ws2 maybeRemainingTail ws3))
+              (pluckedPat, Just <| replaceP__ pat (PList ws1 ps ws2 maybeRemainingTail ws3))
             )
       else
         Nothing
@@ -339,7 +339,7 @@ liftDependenciesBasedOnUniqueNames program =
                       eidToWrap
                       (\expToWrap ->
                         let letOrDef = if isTopLevelEId eidToWrap programWithoutPlucked then Def else Let in
-                        withDummyPosEId insertedLetEId <|
+                        withDummyExpInfoEId insertedLetEId <|
                           ELet (precedingWhitespace expToWrap) letOrDef False
                             (ensureWhitespacePat pluckedPat) (ensureWhitespaceExp pluckedBoundExp)
                             (ensureWhitespaceExp expToWrap) ""
@@ -541,8 +541,8 @@ moveDefinitionsBeforeEId_ doCleanUp sourcePathedPatIds targetEId program =
           (pluckedPat, boundExp)
 
         _ ->
-          ( withDummyRange <| PList " " (pluckedPats      |> setPatListWhitespace "" " ") "" Nothing ""
-          , withDummyPos   <| EList " " (pluckedBoundExps |> setExpListWhitespace "" " ") "" Nothing "" -- May want to be smarter about whitespace here to avoid long lines.
+          ( withDummyPatInfo <| PList " " (pluckedPats      |> setPatListWhitespace "" " ") "" Nothing ""
+          , withDummyExpInfo <| EList " " (pluckedBoundExps |> setExpListWhitespace "" " ") "" Nothing "" -- May want to be smarter about whitespace here to avoid long lines.
           )
     in
     let insertedLetEId = LangParser2.maxId program + 1 in
@@ -552,7 +552,7 @@ moveDefinitionsBeforeEId_ doCleanUp sourcePathedPatIds targetEId program =
           targetEId
           (\expToWrap ->
             let letOrDef = if isTopLevelEId targetEId programWithoutPluckedUniqueNames then Def else Let in
-            withDummyPosEId insertedLetEId <|
+            withDummyExpInfoEId insertedLetEId <|
               ELet (precedingWhitespace expToWrap) letOrDef False
                 (ensureWhitespacePat newPatUniqueNames) (ensureWhitespaceExp newBoundExpUniqueNames)
                 (ensureWhitespaceExp expToWrap) ""
@@ -655,11 +655,11 @@ duplicateDefinitionsBeforeEId sourcePathedPatIds targetEId originalProgram =
                 (pluckedPat, boundExp)
 
               _ ->
-                ( withDummyRange <| PList " " (pluckedPats      |> setPatListWhitespace "" " ") "" Nothing ""
-                , withDummyPos   <| EList " " (pluckedBoundExps |> setExpListWhitespace "" " ") "" Nothing "" -- May want to be smarter about whitespace here to avoid long lines.
+                ( withDummyPatInfo <| PList " " (pluckedPats      |> setPatListWhitespace "" " ") "" Nothing ""
+                , withDummyExpInfo <| EList " " (pluckedBoundExps |> setExpListWhitespace "" " ") "" Nothing "" -- May want to be smarter about whitespace here to avoid long lines.
                 )
           in
-          withDummyPosEId insertedLetEId <|
+          withDummyExpInfoEId insertedLetEId <|
             ELet (precedingWhitespace expToWrap) letOrDef False
               (ensureWhitespacePat newPat) (ensureWhitespaceExp newBoundExp)
               (ensureWhitespaceExp expToWrap) ""
@@ -701,7 +701,7 @@ insertPat_ (patToInsert, boundExp) targetPath exp =
           replaceE__ exp (ELet ws1 letKind rec newPat newBoundExp e2 ws2)
 
         Nothing ->
-          let _ = Debug.log "insertPat_: pattern, path " (p.val, targetPath) in
+          let _ = Debug.log "insertPat_: pattern, path " (p.val.p__, targetPath) in
           exp
 
     _ ->
@@ -712,7 +712,7 @@ insertPat_ (patToInsert, boundExp) targetPath exp =
 insertPat__ : PatBoundExp -> Pat -> Exp -> List Int -> Maybe (Pat, Exp)
 insertPat__ (patToInsert, boundExp) p e1 path =
   let maybeNewP_E__Pair =
-    case (p.val, e1.val.e__, path) of
+    case (p.val.p__, e1.val.e__, path) of
       (PVar pws1 _ _, _, [i]) ->
         Just ( PList pws1                      (Utils.inserti i patToInsert [p] |> setPatListWhitespace "" " ") "" Nothing ""
              , EList (precedingWhitespace e1)  (Utils.inserti i boundExp [e1]   |> setExpListWhitespace "" " ") "" Nothing "" )
@@ -770,12 +770,12 @@ insertPat__ (patToInsert, boundExp) p e1 path =
           Nothing
 
       _ ->
-        let _ = Debug.log "insertPat__: pattern, path " (p.val, path) in
+        let _ = Debug.log "insertPat__: pattern, path " (p.val.p__, path) in
         Nothing
   in
   case maybeNewP_E__Pair of
     Just (newP_, newE__) ->
-      Just (replaceP_ p newP_, replaceE__ e1 newE__) -- Hmm this will produce duplicate EIds in the boundExp when PVar or PAs are expanded into PList
+      Just (replaceP__ p newP_, replaceE__ e1 newE__) -- Hmm this will produce duplicate EIds in the boundExp when PVar or PAs are expanded into PList
 
     Nothing ->
       Nothing
@@ -798,7 +798,7 @@ addPatToPats patToInsert path pats =
 
 addPatToPat : Pat -> List Int -> Pat -> Maybe Pat
 addPatToPat patToInsert path pat =
-  case (pat.val, path) of
+  case (pat.val.p__, path) of
     (_, []) ->
       Nothing
 
@@ -810,7 +810,7 @@ addPatToPat patToInsert path pat =
     --   let result = pluckPat is p in
     --   case result of
     --     Just (pluckedPat, Just remainingPat) ->
-    --       Just (pluckedPat, Just <| replaceP_ pat (PAs ws1 ident ws2 remainingPat))
+    --       Just (pluckedPat, Just <| replaceP__ pat (PAs ws1 ident ws2 remainingPat))
     --
     --     _ ->
     --       result
@@ -819,10 +819,10 @@ addPatToPat patToInsert path pat =
       if i == List.length ps + 1 && is /= [] then
         maybeTail
         |> Maybe.andThen (addPatToPat patToInsert is)
-        |> Maybe.map (\newTail -> replaceP_ pat <| PList ws1 ps ws2 (Just newTail) ws3 )
+        |> Maybe.map (\newTail -> replaceP__ pat <| PList ws1 ps ws2 (Just newTail) ws3 )
       else if i <= List.length ps + 1 then
         addPatToPats patToInsert (i::is) ps
-        |> Maybe.map (\newPs -> replaceP_ pat <| PList ws1 newPs ws2 maybeTail ws3)
+        |> Maybe.map (\newPs -> replaceP__ pat <| PList ws1 newPs ws2 maybeTail ws3)
       else
         Nothing
 
@@ -1005,7 +1005,7 @@ abstractPVar pathedPatId originalProgram =
       Debug.log ("abstractPVar Could not find pathedPatternId " ++ toString pathedPatId ++ " in program\n" ++ unparseWithIds originalProgram) []
 
     Just ((pluckedPat, pluckedBoundExp), _) ->
-      case pluckedPat.val of
+      case pluckedPat.val.p__ of
         PVar _ ident _ ->
           let doAbstract shouldBeParameter =
             let ((scopeEId, _), _) = pathedPatId in
@@ -1348,7 +1348,7 @@ removeArg pathedPatId originalProgram =
                     (_, _, _, argReplacementValue)::_ ->
                       let (newFBody, replacementLocationEIds) =
                         -- Either declare a new variable right inside the function body or inline all uses.
-                        case (pluckedPat.val, nodeCount argReplacementValue) of
+                        case (pluckedPat.val.p__, nodeCount argReplacementValue) of
                           (PVar _ argName _, 1) ->
                             -- Inline all uses.
                             let newFBody =
@@ -1364,7 +1364,7 @@ removeArg pathedPatId originalProgram =
                           _ ->
                             let inlinedArgEId = LangParser2.maxId originalProgram + 1 in
                             let newFBody =
-                              withDummyPos <|
+                              withDummyExpInfo <|
                                 ELet (precedingWhitespace fbody) Let False
                                   (ensureWhitespacePat pluckedPat)
                                   (argReplacementValue |> LangParser2.clearAllIds |> setEId inlinedArgEId |> ensureWhitespaceExp)
@@ -1623,7 +1623,7 @@ makeEListReorderTool m expIds expTarget =
           Just suffix -> prefix ++ plucked ++ suffix
       in
       let reorderedEList =
-        withDummyPos <|
+        withDummyExpInfo <|
           EList ws1 (imitateExpListWhitespace listExps reorderedListExps)
                 ws2 Nothing ws3
       in
@@ -1755,7 +1755,7 @@ literalWS literal =
 literalExp literal =
   case literal of
     Left (_,(_,firstNum,_,_)) -> eConst firstNum dummyLoc
-    Right (_,(_,baseVal))     -> withDummyPos (EBase " " baseVal)
+    Right (_,(_,baseVal))     -> withDummyExpInfo (EBase " " baseVal)
 
 makeMakeEqualTool m literals =
   let expIds = List.map literalEId literals in

@@ -146,7 +146,7 @@ subExpsOfSizeAtLeast_ min exp =
 
 patNodeCount : Pat -> Int
 patNodeCount pat =
-  case pat.val of
+  case pat.val.p__ of
     PVar _ _ _                  -> 1
     PConst _ _                  -> 1
     PBase _ _                   -> 1
@@ -193,7 +193,7 @@ patternListsEqual patsA patsB =
 -- More syntactically strict than "will these two patterns match/reject the same things?", i.e. identifier strings must also match exactly
 patternsEqual : Pat -> Pat -> Bool
 patternsEqual patA patB =
-  case (patA.val, patB.val) of
+  case (patA.val.p__, patB.val.p__) of
     (PVar ws1A identA wdA,               PVar ws1B identB wdB)               -> identA == identB
     (PConst ws1A nA,                     PConst ws1B nB)                     -> nA == nB
     (PBase ws1A ebvA,                    PBase ws1B ebvB)                    -> eBaseValsEqual ebvA ebvB
@@ -636,7 +636,7 @@ expDescriptionParts_ program exp targetEId =
                 pathedPatIdents -> [varIdentOrDefault assigns (String.join "" pathedPatIdents)]
             else
               let scopeNames =
-                case pat.val of
+                case pat.val.p__ of
                   PVar _ ident _  -> [ident]
                   PAs _ ident _ _ -> [ident]
                   _               ->
@@ -729,7 +729,7 @@ scopeNamesLocLiftedThrough_ targetLocId scopeNames exp =
   case exp.val.e__ of
     ELet _ _ _ pat assigns body _ ->
       let scopeNames_ =
-        case pat.val of
+        case pat.val.p__ of
           PVar _ ident _  -> scopeNames ++ [ident]
           PAs _ ident _ _ -> scopeNames ++ [ident]
           _               -> scopeNames
@@ -795,7 +795,7 @@ tryMatchExp pat exp =
   --         Match expEnv
   --
   --   _ ->
-  case pat.val of
+  case pat.val.p__ of
     PVar _ ident _         -> Match [(ident, exp)]
     PAs _ ident _ innerPat ->
       tryMatchExp innerPat exp
@@ -990,7 +990,7 @@ expToIdent exp =
 
 patToMaybeIdent : Pat -> Maybe Ident
 patToMaybeIdent pat =
-  case pat.val of
+  case pat.val.p__ of
     PVar _ ident _  -> Just ident
     PAs _ ident _ _ -> Just ident
     _               -> Nothing
@@ -998,7 +998,7 @@ patToMaybeIdent pat =
 
 patToMaybePVarIdent : Pat -> Maybe Ident
 patToMaybePVarIdent pat =
-  case pat.val of
+  case pat.val.p__ of
     PVar _ ident _ -> Just ident
     _              -> Nothing
 
@@ -1152,7 +1152,7 @@ identifiersListPatsOnly exp =
 
 identifiersListInPat : Pat -> List Ident
 identifiersListInPat pat =
-  case pat.val of
+  case pat.val.p__ of
     PVar _ ident _              -> [ident]
     PList _ pats _ (Just pat) _ -> List.concatMap identifiersListInPat (pat::pats)
     PList _ pats _ Nothing    _ -> List.concatMap identifiersListInPat pats
@@ -1205,11 +1205,11 @@ renameIdentifiersInPat subst pat =
   let recurse = renameIdentifiersInPat subst in
   let recurseList = List.map recurse in
   let pat__ =
-    case pat.val of
+    case pat.val.p__ of
       PVar ws ident wd ->
         case Dict.get ident subst of
           Just new -> PVar ws new wd
-          Nothing  -> pat.val
+          Nothing  -> pat.val.p__
 
       PList ws1 pats ws2 Nothing ws3 ->
         PList ws1 (recurseList pats) ws2 Nothing ws3
@@ -1223,9 +1223,9 @@ renameIdentifiersInPat subst pat =
           Nothing  -> PAs ws1 ident ws2 (recurse innerPat)
 
       _ ->
-        pat.val
+        pat.val.p__
   in
-  { pat | val = pat__ }
+  replaceP__ pat pat__
 
 
 renameIdentifierInPats old new pats =
@@ -1314,26 +1314,26 @@ setPatName ((scopeEId, branchI), path) newName exp =
 
 setPatNameInPat : List Int -> Ident -> Pat -> Pat
 setPatNameInPat path newName pat =
-  case (pat.val, path) of
+  case (pat.val.p__, path) of
     (PVar ws ident wd, []) ->
-      replaceP_ pat (PVar ws newName wd)
+      replaceP__ pat (PVar ws newName wd)
 
     (PAs ws1 ident ws2 p, []) ->
-      replaceP_ pat (PAs ws1 newName ws2 p)
+      replaceP__ pat (PAs ws1 newName ws2 p)
 
     (PAs ws1 ident ws2 p, 1::is) ->
-      replaceP_ pat (PAs ws1 ident ws2 (setPatNameInPat is newName p))
+      replaceP__ pat (PAs ws1 ident ws2 (setPatNameInPat is newName p))
 
     (PList ws1 ps ws2 Nothing ws3, i::is) ->
       let newPs = Utils.getReplacei1 i (setPatNameInPat is newName) ps in
-      replaceP_ pat (PList ws1 newPs ws2 Nothing ws3)
+      replaceP__ pat (PList ws1 newPs ws2 Nothing ws3)
 
     (PList ws1 ps ws2 (Just tailPat) ws3, i::is) ->
       if i <= List.length ps then
         let newPs = Utils.getReplacei1 i (setPatNameInPat is newName) ps in
-        replaceP_ pat (PList ws1 newPs ws2 (Just tailPat) ws3)
+        replaceP__ pat (PList ws1 newPs ws2 (Just tailPat) ws3)
       else if i == List.length ps + 1 then
-        replaceP_ pat (PList ws1 ps ws2 (Just (setPatNameInPat is newName tailPat)) ws3)
+        replaceP__ pat (PList ws1 ps ws2 (Just (setPatNameInPat is newName tailPat)) ws3)
       else
         pat
 
@@ -1434,7 +1434,7 @@ findPat pathedPatId exp =
 
 findPatInPat : List Int -> Pat -> Maybe Pat
 findPatInPat path pat =
-  case (pat.val, path) of
+  case (pat.val.p__, path) of
     (_, []) ->
       Just pat
 
@@ -1522,7 +1522,7 @@ tryMatchExpPatToPaths_ pat exp =
     |> Utils.projJusts
     |> Maybe.map List.concat
   in
-  case pat.val of
+  case pat.val.p__ of
     PVar _ ident _ ->
       Just [thisMatch]
 

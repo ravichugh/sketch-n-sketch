@@ -14,7 +14,7 @@ import Utils
 -- Big-Step Operational Semantics
 
 match : (Pat, Val) -> Maybe Env
-match (p,v) = case (p.val, v.v_) of
+match (p,v) = case (p.val.p__, v.v_) of
   (PVar _ x _, _) -> Just [(x,v)]
   (PAs _ x _ innerPat, _) ->
     case match (innerPat, v) of
@@ -32,7 +32,7 @@ match (p,v) = case (p.val, v.v_) of
   (PList _ _ _ _ _, _) -> Nothing
   (PConst _ n, VConst _ (n_,_)) -> if n == n_ then Just [] else Nothing
   (PBase _ bv, VBase bv_) -> if (eBaseToVBase bv) == bv_ then Just [] else Nothing
-  _ -> Debug.crash <| "Little evaluator bug: Eval.match " ++ (toString p.val) ++ " vs " ++ (toString v.v_)
+  _ -> Debug.crash <| "Little evaluator bug: Eval.match " ++ (toString p.val.p__) ++ " vs " ++ (toString v.v_)
 
 
 matchList : List (Pat, Val) -> Maybe Env
@@ -46,7 +46,7 @@ matchList pvs =
 
 typeCaseMatch : Env -> Backtrace -> Pat -> Type -> Result String Bool
 typeCaseMatch env bt pat tipe =
-  case (pat.val, tipe.val) of
+  case (pat.val.p__, tipe.val) of
     (PList _ pats _ Nothing _, TTuple _ typeList _ maybeRestType _) ->
       let typeListsMatch =
         Utils.zip pats typeList
@@ -235,7 +235,7 @@ eval env bt e =
     case eval_ env bt_ e1 of
       Err s       -> Err s
       Ok (v1,ws1) ->
-        case (p.val, v1.v_) of
+        case (p.val.p__, v1.v_) of
           (PVar _ f _, VClosure Nothing x body env_) ->
             let _   = Utils.assert "eval letrec" (env == env_) in
             let v1_ = Val (VClosure (Just f) x body env) v1.vtrace in

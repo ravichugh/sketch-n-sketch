@@ -1683,7 +1683,7 @@ addToolMakeEqual m selections = case selections of
 
 addToolAbstract m selections = case selections of
   ([], [], [], [pathedPatId], [], [], []) ->
-    case LangTools.findScopeExpAndPat pathedPatId m.inputExp |> Maybe.map (\(e,p) -> (e.val.e__, p.val)) of
+    case LangTools.findScopeExpAndPat pathedPatId m.inputExp |> Maybe.map (\(e,p) -> (e.val.e__, p.val.p__)) of
       Just (ELet _ _ _ _ _ _ _, PVar _ ident _) ->
         [ ("Abstract", \() ->
             CodeMotion.abstractPVar pathedPatId m.inputExp
@@ -1707,7 +1707,7 @@ addToolAbstract m selections = case selections of
       []
 
   ([], [], [], [], [letEId], [], []) ->
-    case LangTools.justFindExpByEId m.inputExp letEId |> LangTools.expToMaybeLetPat |> Maybe.map (.val) of
+    case LangTools.justFindExpByEId m.inputExp letEId |> LangTools.expToMaybeLetPat |> Maybe.map (.val >> .p__) of
       Just (PVar _ _ _) ->
         [ ("Abstract", \() ->
             let pathedPatId = ((letEId, 1), []) in
@@ -2029,7 +2029,7 @@ rangeAround n =
 
 addToolRenamePat m selections = case selections of
   ([], [], [], [pathedPatId], [], [], []) ->
-    case LangTools.findPat pathedPatId m.inputExp |> Maybe.map .val of
+    case LangTools.findPat pathedPatId m.inputExp |> Maybe.map (.val >> .p__) of
       Just (PVar _ ident _) ->
         [ ("Rename " ++ ident, \() ->
             let newName = m.deuceState.renameVarTextBox in
@@ -2113,7 +2113,7 @@ addToolFlipBoolean m selections = case selections of
       Just ePlucked ->
         case ePlucked.val.e__ of
           EBase ws (EBool bool) ->
-            let flipped = withDummyPos (EBase ws (EBool (not bool))) in
+            let flipped = withDummyExpInfo (EBase ws (EBool (not bool))) in
             let newExp = replaceExpNode eId flipped m.inputExp in
             [("Flip Boolean", \() -> oneSafeResult newExp)]
           _ -> []

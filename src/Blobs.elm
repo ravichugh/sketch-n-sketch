@@ -59,7 +59,7 @@ fuseExp (defs, mainExp) =
     case defs of
       [] -> fromMainExp mainExp
       (ws1,p1,e1,ws2)::defs_ ->
-        withDummyPos <| ELet ws1 Def False p1 e1 (recurse defs_) ws2
+        withDummyExpInfo <| ELet ws1 Def False p1 e1 (recurse defs_) ws2
   in
   recurse defs
 
