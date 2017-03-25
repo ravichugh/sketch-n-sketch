@@ -1,5 +1,6 @@
 module ExpressionBasedTransform exposing -- in contrast to ValueBasedTransform
   ( passiveSynthesisSearch
+  , cloneEliminationSythesisResults
   , groupSelectedBlobs
   , abstractSelectedBlobs
   , replicateSelectedBlob
@@ -58,7 +59,7 @@ import String
 
 passiveSynthesisSearch : Exp -> List InterfaceModel.SynthesisResult
 passiveSynthesisSearch originalExp =
-  cloneEliminationSythesisResults originalExp ++
+  cloneEliminationSythesisResults (always True) 2 originalExp ++
   mapAbstractSynthesisResults originalExp ++
   rangeSynthesisResults originalExp ++
   inlineListSynthesisResults originalExp
@@ -272,8 +273,8 @@ inlineListSynthesisResults originalExp =
 -- Suggested function name has *not* been checked for collisions.
 --
 -- Resulting abstracted functions will evaluate correctly but may not type check (may have more polymorphism in the arguments than the type system can handle).
-detectClones : Exp -> Int -> Int -> Int -> Bool -> List (List (EId, Exp, List Exp), Exp, Exp, String, List String)
-detectClones originalExp minCloneCount minCloneSize argCount allowCurrying =
+detectClones : Exp -> (Exp -> Bool) -> Int -> Int -> Int -> Bool -> List (List (EId, Exp, List Exp), Exp, Exp, String, List String)
+detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount allowCurrying =
   let argVar = eVar "INSERT_ARGUMENT_HERE" in
   -- Sister function in LangTools.extraExpsDiff
   -- This version returns the various differing subtrees replaced by argVar:
@@ -367,6 +368,7 @@ detectClones originalExp minCloneCount minCloneSize argCount allowCurrying =
   in
   subExpsOfSizeAtLeast minCloneSize originalExp
   |> List.filter (\e -> not <| isComment e || isOption e) -- Comments and options should not be a base expression of a clone
+  |> List.filter candidateExpFilter
   |> List.foldl
       (\exp mergeGroups ->
         let addedMergeGroups =
@@ -480,16 +482,16 @@ noExtraneousFreeVarsInRemovedClones cloneExps commonScopeWhereAbstractionWillBeD
         freeVars cloneExp |> List.all (\var -> List.member var freeAtAbstraction)
       )
 
-cloneEliminationSythesisResults : Exp -> List InterfaceModel.SynthesisResult
-cloneEliminationSythesisResults originalExp =
-  detectClones originalExp 2 5 1 False ++
-  detectClones originalExp 2 10 2 False ++
-  detectClones originalExp 2 15 3 False ++
-  detectClones originalExp 2 20 4 False ++
-  detectClones originalExp 2 25 5 False ++
-  detectClones originalExp 2 30 6 False ++
-  detectClones originalExp 2 35 7 False ++
-  detectClones originalExp 2 40 8 False
+cloneEliminationSythesisResults : (Exp -> Bool) -> Int -> Exp -> List InterfaceModel.SynthesisResult
+cloneEliminationSythesisResults candidateExpFilter minCloneCount originalExp =
+  detectClones originalExp candidateExpFilter minCloneCount 5 1 False ++
+  detectClones originalExp candidateExpFilter minCloneCount 10 2 False ++
+  detectClones originalExp candidateExpFilter minCloneCount 15 3 False ++
+  detectClones originalExp candidateExpFilter minCloneCount 20 4 False ++
+  detectClones originalExp candidateExpFilter minCloneCount 25 5 False ++
+  detectClones originalExp candidateExpFilter minCloneCount 30 6 False ++
+  detectClones originalExp candidateExpFilter minCloneCount 35 7 False ++
+  detectClones originalExp candidateExpFilter minCloneCount 40 8 False
   |> List.filter
       (\(cloneEIdsAndExpsAndParameterExpLists, _, commonScope, _, _) ->
         let (_, cloneExps, _) = Utils.unzip3 cloneEIdsAndExpsAndParameterExpLists in
@@ -532,7 +534,7 @@ cloneEliminationSythesisResults originalExp =
 
 mapAbstractSynthesisResults : Exp -> List InterfaceModel.SynthesisResult
 mapAbstractSynthesisResults originalExp =
-  detectClones originalExp 3 3 1 True
+  detectClones originalExp (always True) 3 3 1 True
   |> List.filter
       (\(cloneEIdsAndExpsAndParameterExpLists, _, commonScope, _, _) ->
         let (_, cloneExps, _) = Utils.unzip3 cloneEIdsAndExpsAndParameterExpLists in

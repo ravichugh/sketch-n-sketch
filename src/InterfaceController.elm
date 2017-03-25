@@ -1579,6 +1579,7 @@ contextSensitiveDeuceTools m =
     , addToolOneOrMoreNumsOnly addOrRemoveRangeTool m selections
     , addToolConvertColorString m selections
     , addToolAbstract m selections
+    , addToolMerge m selections
     , addToolAddArg m selections
     , addToolRemoveArg m selections
     , addToolReorderFunctionArgs m selections
@@ -1717,6 +1718,22 @@ addToolAbstract m selections = case selections of
       _ -> []
 
   _ -> []
+
+
+addToolMerge m selections =
+  case selections of
+    (_, _, eid1::eid2::restEIds, [], [], [], []) ->
+      let eids = eid1::eid2::restEIds in
+      let mergeResults =
+        let candidateExpFilter e = List.member e.val.eid eids in
+        let minCloneCount = List.length eids in
+        ETransform.cloneEliminationSythesisResults candidateExpFilter minCloneCount m.inputExp
+      in
+      if mergeResults /= []
+      then [ ("Merge", always mergeResults) ]
+      else []
+
+    _ -> []
 
 
 --------------------------------------------------------------------------------
