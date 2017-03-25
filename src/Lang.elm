@@ -187,6 +187,26 @@ type alias Backtrace = List Exp
 
 ------------------------------------------------------------------------------
 
+-- We currently have two forms of pattern ids.
+--
+-- PathedPatternIds are older and reference a pattern by its scopeId and a
+-- path to the pattern (a list of children indices to follow, 1-based). These
+-- are somewhat useful for inserting (specify the path at which to insert) and
+-- for reordering function arguments (can find the corresponding argument
+-- location at a callsite by following the pattern path through the callsite
+-- argument expressions).
+--
+-- PIds are newer and  reference a pattern by a singular number rather than
+-- PathedPatternId's ((scopeEId, branchI), path). PIds are useful not only
+-- because they are simpler but because a pattern that is moved around the
+-- program will retain its same PId. Checking if we accidently captured or
+-- freed any variables is as simple as checking that all variables references
+-- point to the same PIds as before.
+--
+-- Because PathedPatternIds are older, there are many places in the code that
+-- might benefit from using PIds instead. However, PathedPatternIds are probably
+-- still a better fit in a few places (mentioned above).
+
 type alias ScopeId = (EId, Int) -- ELet/EFun/ECase. Int is the branch number for ECase (always 1 for others)
 
 type alias PathedPatternId = (ScopeId, List Int)
