@@ -39,7 +39,7 @@ getELet program eid =
 type alias PatBoundExp = (Pat, Exp)
 
 
-pluckAll : List PathedPatternId -> Exp -> (List (Pat, Exp, EId), Exp)
+pluckAll : List PathedPatternId -> Exp -> (List (Pat, Exp), Exp)
 pluckAll sourcePathedPatIds program =
     let sortedSourcePathedPatIds =
       sourcePathedPatIds
@@ -48,20 +48,19 @@ pluckAll sourcePathedPatIds program =
             (locationInProgram program scopeEId, branchI, path)
           )
     in
-  let (pluckedPatAndBoundExpAndOldScopeEIds, programWithoutPlucked) =
+  let (pluckedPatAndBoundExps, programWithoutPlucked) =
     sortedSourcePathedPatIds
     |> List.foldr
-        (\sourcePathedPatId (pluckedPatAndBoundExpAndOldScopeBodies, programBeingPlucked) ->
+        (\sourcePathedPatId (pluckedPatAndBoundExps, programBeingPlucked) ->
           case pluck sourcePathedPatId programBeingPlucked of
             Just ((pluckedPat, pluckedBoundExp), programWithoutPlucked) ->
-              let ((sourceScopeEId, _), _) = sourcePathedPatId in
-              ((pluckedPat, pluckedBoundExp, sourceScopeEId)::pluckedPatAndBoundExpAndOldScopeBodies, programWithoutPlucked)
+              ((pluckedPat, pluckedBoundExp)::pluckedPatAndBoundExps, programWithoutPlucked)
             Nothing ->
-              (pluckedPatAndBoundExpAndOldScopeBodies, programBeingPlucked)
+              (pluckedPatAndBoundExps, programBeingPlucked)
         )
         ([], program)
   in
-  (pluckedPatAndBoundExpAndOldScopeEIds, programWithoutPlucked)
+  (pluckedPatAndBoundExps, programWithoutPlucked)
 
 
 -- Removes the binding (p, e1) from the program, returns it and the program without with binding.
@@ -383,14 +382,14 @@ moveDefinitions_ doCleanUp makeNewProgram sourcePathedPatIds program =
     else identity
   in
   let (programUniqueNames, uniqueNameToOldName) = assignUniqueNames program in
-  let (pluckedPatAndBoundExpAndOldScopeEIds, programWithoutPlucked) =
+  let (pluckedPatAndBoundExps, programWithoutPlucked) =
     pluckAll sourcePathedPatIds programUniqueNames
   in
-  if pluckedPatAndBoundExpAndOldScopeEIds == [] then
+  if pluckedPatAndBoundExps == [] then
     Debug.log "could not pluck anything" []
   else
-    let (pluckedPats, pluckedBoundExps, _)   = Utils.unzip3 pluckedPatAndBoundExpAndOldScopeEIds in
-    let pluckedPathedPatIdentifiersUnique          = Utils.unionAll <| List.map identifiersSetInPat pluckedPats in
+    let (pluckedPats, pluckedBoundExps)      = List.unzip pluckedPatAndBoundExps in
+    let pluckedPathedPatIdentifiersUnique    = Utils.unionAll <| List.map identifiersSetInPat pluckedPats in
     let pluckedBoundExpFreeIdentifiersUnique = Utils.unionAll <| List.map freeIdentifiers pluckedBoundExps in
     let (newProgramUniqueNames, newScopeEId) =
       makeNewProgram (Utils.zip pluckedPats pluckedBoundExps) programWithoutPlucked
@@ -404,42 +403,14 @@ moveDefinitions_ doCleanUp makeNewProgram sourcePathedPatIds program =
         Dict.diff uniqueNameToOldName (List.map Utils.flip renamings |> Dict.fromList)
       in
       let isSafe =
-        let identUsesSafe =
-          -- Presumably these will be exactly equal rather than equal as sets since we shouldn't be moving around the relative position of the variable usages...still, I think a set is the natural strucuture here.
-          let identSafe oldScopeEId identUniqueName =
-            let identInNewProgram = Utils.getWithDefault identUniqueName identUniqueName uniqueNameToOldNameUsed in
-            let oldScopeBody = justFindExpByEId programUniqueNames oldScopeEId |> expToLetBody in
-            Utils.equalAsSets (identifierUsageEIds identUniqueName oldScopeBody) (identifierUsageEIds identInNewProgram newScopeBody)
-          in
-          pluckedPatAndBoundExpAndOldScopeEIds
-          |> List.all
-              (\(pluckedPat, _, oldScopeEId) ->
-                identifiersListInPat pluckedPat |> List.all (identSafe oldScopeEId)
-              )
-        in
-        let boundExpVarsSafe =
-          pluckedPatAndBoundExpAndOldScopeEIds
-          |> List.all
-              (\(_, pluckedBoundExp, _) ->
-                let newPluckedBoundExp = renameIdentifiers uniqueNameToOldNameUsed pluckedBoundExp in
-                Utils.zip (freeVars pluckedBoundExp) (freeVars newPluckedBoundExp)
-                |> List.all
-                    (\(varUnique, varNew) ->
-                      let expectedScopeId =
-                        Dict.get (expToIdent varUnique) uniqueIdentToMovedScopeId
-                        |> Maybe.map Just -- If found, "Just" means not free in program.
-                        |> Maybe.withDefault (bindingScopeIdFor varUnique programUniqueNames)
-                        -- "Nothing" here means free in program.
-                      in
-                      expectedScopeId == bindingScopeIdFor varNew newProgram
-                    )
-              )
+        let allReferencesSame =
+          allVarEIdsToBindingPId programUniqueNames == allVarEIdsToBindingPId newProgram
         in
         let noDuplicateNamesInPat =
           let namesDefinedAtNewScope = identifiersListInPat newPat in
           namesDefinedAtNewScope == Utils.dedup namesDefinedAtNewScope
         in
-        identUsesSafe && boundExpVarsSafe && noDuplicateNamesInPat
+        allReferencesSame && noDuplicateNamesInPat
       in
       let caption =
         let renamingsStr =
@@ -585,8 +556,8 @@ moveDefinitionsPat sourcePathedPatIds targetPathedPatId program =
   moveDefinitions_ True makeNewProgram sourcePathedPatIds program
 
 
-makeDuplicateResults_ newScopeEId pluckedPatAndBoundExpAndOldScopeEIds newProgram originalProgram =
-  let (pluckedPats, pluckedBoundExps, _) = Utils.unzip3 pluckedPatAndBoundExpAndOldScopeEIds in
+makeDuplicateResults_ newScopeEId pluckedPatAndBoundExps newProgram originalProgram =
+  let (pluckedPats, pluckedBoundExps) = List.unzip pluckedPatAndBoundExps in
   let newScopeExp = justFindExpByEId newProgram newScopeEId in
   let newScopePat      = newScopeExp |> expToLetPat in
   let newScopeBoundExp = newScopeExp |> expToLetBoundExp in
@@ -638,10 +609,10 @@ makeDuplicateResults_ newScopeEId pluckedPatAndBoundExpAndOldScopeEIds newProgra
 
 duplicateDefinitionsBeforeEId : List PathedPatternId -> EId -> Exp -> List SynthesisResult
 duplicateDefinitionsBeforeEId sourcePathedPatIds targetEId originalProgram =
-  let (pluckedPatAndBoundExpAndOldScopeEIds, _) =
+  let (pluckedPatAndBoundExps, _) =
     pluckAll sourcePathedPatIds originalProgram
   in
-  let (pluckedPats, pluckedBoundExps, _) = Utils.unzip3 pluckedPatAndBoundExpAndOldScopeEIds in
+  let (pluckedPats, pluckedBoundExps) = List.unzip pluckedPatAndBoundExps in
   let insertedLetEId = LangParser2.maxId originalProgram + 1 in
   let newProgram =
     originalProgram
@@ -666,12 +637,12 @@ duplicateDefinitionsBeforeEId sourcePathedPatIds targetEId originalProgram =
         )
     |> LangParser2.freshen -- Remove duplicate EIds
   in
-  makeDuplicateResults_ insertedLetEId pluckedPatAndBoundExpAndOldScopeEIds newProgram originalProgram
+  makeDuplicateResults_ insertedLetEId pluckedPatAndBoundExps newProgram originalProgram
 
 
 duplicateDefinitionsPat : List PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
 duplicateDefinitionsPat sourcePathedPatIds targetPathedPatId originalProgram =
-  let (pluckedPatAndBoundExpAndOldScopeEIds, _) =
+  let (pluckedPatAndBoundExps, _) =
     pluckAll sourcePathedPatIds originalProgram
   in
   let ((targetEId, _), targetPath) = targetPathedPatId in
@@ -680,16 +651,16 @@ duplicateDefinitionsPat sourcePathedPatIds targetPathedPatId originalProgram =
     |> mapExpNode
         targetEId
         (\newScopeExp ->
-          pluckedPatAndBoundExpAndOldScopeEIds
+          pluckedPatAndBoundExps
           |> List.foldr
-              (\(pluckedPat, pluckedBoundExp, _) newScopeExp ->
+              (\(pluckedPat, pluckedBoundExp) newScopeExp ->
                 insertPat_ (pluckedPat, pluckedBoundExp) targetPath newScopeExp
               )
               newScopeExp
         )
     |> LangParser2.freshen -- Remove duplicate EIds
   in
-  makeDuplicateResults_ targetEId pluckedPatAndBoundExpAndOldScopeEIds newProgram originalProgram
+  makeDuplicateResults_ targetEId pluckedPatAndBoundExps newProgram originalProgram
 
 
 insertPat_ : PatBoundExp -> List Int -> Exp -> Exp
@@ -1436,10 +1407,9 @@ removeArg pathedPatId originalProgram =
 
 -- This is way nastier than I want it to be, but not sure how to make it
 -- nicer and still support e.g. moving all of the variables outside of a
--- list and remove the empty list.
+-- list and removing the empty list.
 reorderFunctionArgs : EId -> List (List Int) -> List Int -> Exp -> List SynthesisResult
 reorderFunctionArgs funcEId paths targetPath originalProgram =
-  -- let ((funcEId, _), path) = pathedPatId in
   case findLetAndIdentBindingExp funcEId originalProgram of
     Just (letExp, funcName) ->
       case letExp.val.e__ of

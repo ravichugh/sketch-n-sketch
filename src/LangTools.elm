@@ -1477,6 +1477,17 @@ indentPathsInPat pat =
           )
 
 
+indentPIdsInPat : Pat -> List (Ident, PId)
+indentPIdsInPat pat =
+  flattenPatTree pat
+  |> List.filterMap
+      (\p ->
+        case patToMaybeIdent p of
+          Just ident -> Just (ident, p.val.pid)
+          Nothing    -> Nothing
+      )
+
+
 tryMatchExpsPatsToPathsAtFunctionCall : List Pat -> List Exp -> List (List Int, Exp)
 tryMatchExpsPatsToPathsAtFunctionCall pats exps =
   -- Allow partial application
@@ -2096,40 +2107,36 @@ bindingScopeIdForIdentAtEId targetName targetEId program =
   |> Maybe.map (\(scopeId, path) -> scopeId)
 
 
--- -- "Nothing" means free in program
--- allVarEIdsToBindingPathedPatternId : Exp -> Dict.Dict EId (Maybe PathedPatternId)
--- allVarEIdsToBindingPathedPatternId program =
---   let addScopeIds scopeId indentPathsInPat =
---     indentPathsInPat
---     |> List.map (\(ident, path) -> (ident, (scopeId, path)))
---   in
---   let handleELet letExp identToPathedPatternId =
---     Dict.union
---         (expToLetPat letExp |> indentPathsInPat |> addScopeIds (letExp.val.eid, 1) |> Dict.fromList)
---         identToPathedPatternId
---   in
---   let handleEFun funcExp identToPathedPatternId =
---     Dict.union
---         (pList (expToFuncPats funcExp) |> indentPathsInPat |> addScopeIds (funcExp.val.eid, 1) |> Dict.fromList)
---         identToPathedPatternId
---   in
---   let handleCaseBranch caseExp branch branchI identToPathedPatternId =
---     Dict.union
---         (branchPat branch |> indentPathsInPat |> addScopeIds (caseExp.val.eid, branchI) |> Dict.fromList)
---         identToPathedPatternId
---   in
---   program
---   |> foldExpTopDownWithScope
---       (\exp eidToMaybePathedPatId identToPathedPatternId ->
---         case expToMaybeIdent exp of
---           Just ident -> Dict.insert exp.val.eid (Dict.get ident identToPathedPatternId) eidToMaybePathedPatId
---           Nothing    -> eidToMaybePathedPatId
---       )
---       handleELet
---       handleEFun
---       handleCaseBranch
---       Dict.empty
---       Dict.empty
+-- "Nothing" means free in program
+allVarEIdsToBindingPId : Exp -> Dict.Dict EId (Maybe PId)
+allVarEIdsToBindingPId program =
+  let handleELet letExp identToPId =
+    Dict.union
+        (expToLetPat letExp |> indentPIdsInPat |> Dict.fromList)
+        identToPId
+  in
+  let handleEFun funcExp identToPId =
+    Dict.union
+        (expToFuncPats funcExp |> List.concatMap indentPIdsInPat |> Dict.fromList)
+        identToPId
+  in
+  let handleCaseBranch caseExp branch branchI identToPId =
+    Dict.union
+        (branchPat branch |> indentPIdsInPat |> Dict.fromList)
+        identToPId
+  in
+  program
+  |> foldExpTopDownWithScope
+      (\exp eidToMaybePathedPatId identToPId ->
+        case expToMaybeIdent exp of
+          Just ident -> Dict.insert exp.val.eid (Dict.get ident identToPId) eidToMaybePathedPatId
+          Nothing    -> eidToMaybePathedPatId
+      )
+      handleELet
+      handleEFun
+      handleCaseBranch
+      Dict.empty
+      Dict.empty
 
 
 -- Outer returned maybe indicates if variable found
