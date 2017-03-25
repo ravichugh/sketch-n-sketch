@@ -307,10 +307,10 @@ pluckExpByPath path exp =
 ------------------------------------------------------------------------------
 
 -- Precondition: program has been run through assignUniqueNames
--- Also returns a dictionary of movedIdent to new scopeId
+-- Also returns a dictionary any identifiers lifted
 -- Does not (and should not) run LangSimply.simplifyAssignments
 -- When to run simplifyAssignments depends on how many transformations are being composed.
-liftDependenciesBasedOnUniqueNames : Exp -> (Exp, Dict.Dict Ident ScopeId)
+liftDependenciesBasedOnUniqueNames : Exp -> (Exp, List Ident)
 liftDependenciesBasedOnUniqueNames program =
   let needToLift =
     Set.diff (freeIdentifiers program) preludeIdentifiers
@@ -344,26 +344,23 @@ liftDependenciesBasedOnUniqueNames program =
                             (ensureWhitespaceExp expToWrap) ""
                       )
                 in
-                Just (newProgram, identToLift, insertedLetEId)
+                Just (newProgram, identToLift)
   in
   -- Look for an identifier we can lift
-  let maybeNewProgramIdentAndNewLetEId =
+  let maybeNewProgramAndMovedIdent =
     needToLift |> Utils.mapFirstSuccess bringIdentIntoScope
   in
-  case maybeNewProgramIdentAndNewLetEId of
+  case maybeNewProgramAndMovedIdent of
     Nothing ->
       -- no more dependencies we can lift
-      ( program
-      , Dict.empty
-      )
+      ( program, [] )
 
-    Just (newProgram, movedIdent, insertedLetEId) ->
-      let (finalProgram, movedIdentToScopeId) =
+    Just (newProgram, movedIdent) ->
+      -- Try to lift some more!
+      let (finalProgram, movedIdents) =
         liftDependenciesBasedOnUniqueNames newProgram
       in
-      ( finalProgram
-      , Dict.insert movedIdent (insertedLetEId, 1) movedIdentToScopeId
-      )
+      ( finalProgram, movedIdent::movedIdents )
 
 
 -- Moving a definition is safe if all identifiers resolve to the same bindings.
@@ -395,7 +392,7 @@ moveDefinitions_ doCleanUp makeNewProgram sourcePathedPatIds program =
       makeNewProgram (Utils.zip pluckedPats pluckedBoundExps) programWithoutPlucked
     in
     let newPatUniqueNames = justFindExpByEId newProgramUniqueNames newScopeEId |> expToLetPat in
-    let makeResult renamings uniqueIdentToMovedScopeId newProgram =
+    let makeResult renamings liftedUniqueIdents newProgram =
       let newScopeExp  = justFindExpByEId newProgram newScopeEId in
       let newScopeBody = newScopeExp |> expToLetBody in
       let newPat       = newScopeExp |> expToLetPat in
@@ -419,7 +416,7 @@ moveDefinitions_ doCleanUp makeNewProgram sourcePathedPatIds program =
           else ""
         in
         let movedThingStrings =
-          pluckedPats ++ (Dict.keys uniqueIdentToMovedScopeId |> List.map pVar0)
+          pluckedPats ++ (List.map pVar0 liftedUniqueIdents)
           |> List.map
               (renameIdentifiersInPat uniqueNameToOldName >> unparsePat >> Utils.squish)
         in
@@ -434,7 +431,7 @@ moveDefinitions_ doCleanUp makeNewProgram sourcePathedPatIds program =
     in
     let newProgramOriginalNamesResult =
       let newProgramOriginalNames = renameIdentifiers uniqueNameToOldName newProgramUniqueNames in
-      [ makeResult [] Dict.empty newProgramOriginalNames ]
+      [ makeResult [] [] newProgramOriginalNames ]
     in
     let newProgramMaybeRenamedResults =
       if InterfaceModel.isResultSafe (Utils.head "CodeMotion.moveDefinitionsBeforeEId" newProgramOriginalNamesResult) then
@@ -446,7 +443,7 @@ moveDefinitions_ doCleanUp makeNewProgram sourcePathedPatIds program =
           |> Dict.toList
           |> List.partition (\(uniqueName, oldName) -> Set.member uniqueName namesMoved)
         in
-        let (newProgramUniqueNamesDependenciesLifted, uniqueIdentToMovedScopeId) =
+        let (newProgramUniqueNamesDependenciesLifted, liftedUniqueIdents) =
           liftDependenciesBasedOnUniqueNames newProgramUniqueNames
         in
         let resultForOriginalNamesPriority uniqueNameToOldNamePrioritized =
@@ -486,7 +483,7 @@ moveDefinitions_ doCleanUp makeNewProgram sourcePathedPatIds program =
                 )
                 (newProgramUniqueNamesDependenciesLifted, newPatUniqueNames, [])
           in
-          makeResult renamingsPreserved uniqueIdentToMovedScopeId newProgramPartiallyOriginalNames
+          makeResult renamingsPreserved liftedUniqueIdents newProgramPartiallyOriginalNames
         in
         [ resultForOriginalNamesPriority (uniqueNameToOldNameUnmoved ++ uniqueNameToOldNameMoved)
         , resultForOriginalNamesPriority (uniqueNameToOldNameMoved ++ uniqueNameToOldNameUnmoved)
