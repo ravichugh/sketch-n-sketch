@@ -27,6 +27,27 @@ import InterfaceModel as Model exposing
 import InterfaceController as Controller
 
 --------------------------------------------------------------------------------
+-- Buttons
+--------------------------------------------------------------------------------
+
+textButton : String -> Msg -> Html Msg
+textButton text onClickHandler =
+  textButtonExtra text onClickHandler False
+
+textButtonExtra : String -> Msg -> Bool -> Html Msg
+textButtonExtra text onClickHandler disabled =
+  let
+    disabledFlag =
+      if disabled then " disabled" else ""
+  in
+    Html.span
+      [ Attr.class <| "text-button" ++ disabledFlag
+      , E.onClick onClickHandler
+      ]
+      [ Html.text text
+      ]
+
+--------------------------------------------------------------------------------
 -- Menu Bar
 --------------------------------------------------------------------------------
 
@@ -54,18 +75,11 @@ menuBar model =
                 [ Attr.class "menu-option-divider"
                 ]
                 []
-            menuOption option =
-              Html.div
-                [ Attr.class "menu-option"
-                ]
-                [ option
-                ]
           in
             Html.div
               [ Attr.class "menu-options"
               ]
               ( options
-                  |> List.map (List.map menuOption)
                   |> List.intersperse [ menuOptionDivider ]
                   |> List.concat
               )
@@ -91,17 +105,26 @@ menuBar model =
               ]
               []
           , menu "File"
-              [ [ Html.text "New"
-                , Html.text "Save As"
-                , Html.text "Save"
+              [ [ textButton "New" <|
+                    Controller.msgOpenDialogBox New
+                , textButton "Save As" <|
+                    Controller.msgOpenDialogBox SaveAs
+                , textButtonExtra "Save"
+                    Controller.msgSave
+                    (not model.needsSave)
                 ]
-              , [ Html.text "Open"
+              , [ textButton "Open" <|
+                    Controller.msgOpenDialogBox Open
                 ]
-              , [ Html.text "Export Code"
-                , Html.text "Export SVG"
+              , [ textButton "Export Code"
+                    Controller.msgExportCode
+                , textButton "Export SVG"
+                    Controller.msgExportSvg
                 ]
-              , [ Html.text "Import Code"
-                , Html.text "Import SVG"
+              , [ textButton "Import Code" <|
+                    Controller.msgOpenDialogBox ImportCode
+                , textButton "Import SVG"
+                    Controller.msgNoop
                 ]
               ]
           , menu "Edit"
@@ -129,21 +152,11 @@ menuBar model =
               ]
               [ Html.text "Quick Actions"
               ]
-          , Html.div
-              [ Attr.class "quick-action"
-              ]
-              [ Html.text "Save"
-              ]
-          , Html.div
-              [ Attr.class "quick-action"
-              ]
-              [ Html.text "Open"
-              ]
-          , Html.div
-              [ Attr.class "quick-action"
-              ]
-              [ Html.text "Make Equal"
-              ]
+          , textButtonExtra "Save"
+              Controller.msgSave
+              (not model.needsSave)
+          , textButton "Open" <|
+              Controller.msgOpenDialogBox Open
           ]
       ]
 
@@ -154,30 +167,21 @@ menuBar model =
 codePanel : Model -> Html Msg
 codePanel model =
   let
+    runButton =
+      Html.div
+        [ Attr.class "run"
+        , E.onClick Controller.msgRun
+        ]
+        [ Html.text "Run ▸"
+        ]
     actionBar =
       Html.div
         [ Attr.class "action-bar"
         ]
-        [ Html.div
-            [ Attr.class "action"
-            ]
-            [ Html.text "Undo"
-            ]
-        , Html.div
-            [ Attr.class "action"
-            ]
-            [ Html.text "Redo"
-            ]
-        , Html.div
-            [ Attr.class "action"
-            ]
-            [ Html.text "Clean Up"
-            ]
-        , Html.div
-            [ Attr.class "action special run"
-            ]
-            [ Html.text "Run ▸"
-            ]
+        [ textButton "Undo" Controller.msgUndo
+        , textButton "Redo" Controller.msgRedo
+        , textButton "Clean Up" Controller.msgCleanCode
+        , runButton
         ]
     editor =
       Html.div

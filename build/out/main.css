@@ -14,6 +14,25 @@ body {
 }
 
 /******************************************************************************
+ * Buttons                                                                    *
+ ******************************************************************************/
+
+.text-button {
+  color: #CCCCCC;
+  cursor: pointer;
+}
+
+.text-button:not(.disabled):hover {
+  color: #FFFFFF;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.text-button.disabled {
+  color: #555555;
+  cursor: default;
+}
+
+/******************************************************************************
  * Menu Bar                                                                   *
  ******************************************************************************/
 
@@ -81,18 +100,13 @@ body {
   display: block;
 }
 
-.main-bar .menu .menu-option {
+.main-bar .menu .menu-options .text-button {
+  display: block;
   white-space: nowrap;
   min-width: 150px;
   height: 30px;
   line-height: 30px;
   padding: 0 15px;
-  cursor: pointer;
-}
-
-.main-bar .menu .menu-option:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: #FFFFFF;
 }
 
 .main-bar .menu .menu-option-divider {
@@ -118,17 +132,11 @@ body {
   border-right: 1px solid #333333;
 }
 
-.quick-action-bar .quick-action {
+.quick-action-bar .text-button {
   white-space: nowrap;
   height: 30px;
   line-height: 30px;
   padding: 0 15px;
-  cursor: pointer;
-}
-
-.quick-action-bar .quick-action:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: #FFFFFF;
 }
 
 /******************************************************************************
@@ -159,6 +167,7 @@ body {
   width: 100%;
   border-bottom: 1px solid #333333;
   flex: 0;
+  align-items: center;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
@@ -166,19 +175,42 @@ body {
   user-select: none;
 }
 
-.action-bar .action {
+.action-bar .text-button {
   display: inline-block;
-  padding: 15px;
-  cursor: pointer;
-}
-
-.action-bar .action:not(.special):hover {
-  color: #FFFFFF;
+  white-space: nowrap;
+  height: 45px;
+  line-height: 45px;
+  padding: 0 15px;
 }
 
 .action-bar .run {
-  color: #AAF200;
+  display: inline-block;
+
+  white-space: nowrap;
+  height: 25px;
+  line-height: 25px;
+  padding: 0 15px;
+  cursor: pointer;
+
+  position: relative;
+  top: 10px; /* (height of bar - height of button) / 2 */
+
   float: right;
+  margin-right: 10px;
+
+  background-color: #33aa00;
+  color: #FFFFFF;
+  border-bottom: 2px solid #338800;
+  border-radius: 5px;
+}
+
+.action-bar .run:hover {
+  background-color: #33bb00;
+}
+
+.action-bar .run:active {
+  background-color: #339900;
+  border-bottom-width: 1px;
 }
 
 /* Editor */
