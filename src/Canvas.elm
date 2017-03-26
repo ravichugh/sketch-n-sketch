@@ -14,7 +14,9 @@ import ShapeWidgets exposing
   , ShapeFeature, Feature(..), PointFeature(..), DistanceFeature(..), OtherFeature(..)
   , FeatureNum(..)
   )
-import Layout exposing (clickToCanvasPoint)
+import Layout
+import SleekLayout exposing (clickToCanvasPoint)
+import SleekLayout as Layout exposing (clickToCanvasPoint)
 import Sync
 import Draw
 import InterfaceModel exposing (..)

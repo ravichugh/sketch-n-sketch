@@ -26,6 +26,9 @@ import InterfaceModel as Model exposing
 
 import InterfaceController as Controller
 
+import SleekLayout
+import Canvas
+
 --------------------------------------------------------------------------------
 -- Buttons
 --------------------------------------------------------------------------------
@@ -218,12 +221,59 @@ resizer model =
 -- Output Panel
 --------------------------------------------------------------------------------
 
+textArea text attrs =
+  let innerPadding = 4 in
+  -- NOTE: using both Attr.value and Html.text seems to allow read/write...
+  let commonAttrs =
+    [ Attr.spellcheck False
+    , Attr.value text
+    , Attr.style
+        [ ("font-family", "monospace")
+        , ("font-size", "14px")
+        , ("whiteSpace", "pre")
+        , ("height", "100%")
+        , ("resize", "none")
+        , ("overflow", "auto")
+        -- Horizontal Scrollbars in Chrome
+        , ("word-wrap", "normal")
+        -- , ("background-color", "whitesmoke")
+        , ("background-color", "white")
+        , ("padding", toString innerPadding ++ "px")
+        -- Makes the 100% for width/height work as intended
+        , ("box-sizing", "border-box")
+        ]
+    ]
+  in
+  Html.textarea (commonAttrs ++ attrs) [ Html.text text ]
+
+pixels n = toString n ++ "px"
+
 outputPanel : Model -> Html Msg
 outputPanel model =
-  Html.div
-    [ Attr.class "panel output-panel"
-    ]
-    []
+  let
+    (width, height) =
+      SleekLayout.outputPanelDimensions model
+    output =
+      case (model.errorBox, model.mode, model.preview) of
+        (_, _, Just (_, Err errorMsg)) ->
+          textArea errorMsg
+            [ Attr.style [ ("width", pixels width) ] ]
+        (_, _, Just (_, Ok _)) ->
+          Canvas.build width height model
+        (Just errorMsg, _, Nothing) ->
+          textArea errorMsg
+            [ Attr.style [ ("width", pixels width) ] ]
+        (Nothing, Print svgCode, Nothing) ->
+          textArea svgCode
+            [ Attr.style [ ("width", pixels width) ] ]
+        (Nothing, _, _) ->
+          Canvas.build width height model
+  in
+    Html.div
+      [ Attr.class "panel output-panel"
+      ]
+      [ output
+      ]
 
 --------------------------------------------------------------------------------
 -- Tool Panel
