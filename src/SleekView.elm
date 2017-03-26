@@ -2,6 +2,7 @@ module SleekView exposing (view)
 
 import List
 import Dict
+import Set
 
 import Html exposing (Html)
 import Html.Attributes as Attr
@@ -49,6 +50,27 @@ textButtonExtra text onClickHandler disabled =
       ]
       [ Html.text text
       ]
+
+relateTextButton : Model -> String -> Msg -> Html Msg
+relateTextButton model text onClickHandler =
+  let
+    noFeatures =
+      Set.isEmpty model.selectedFeatures
+  in
+    textButtonExtra text onClickHandler noFeatures
+
+groupTextButton : Model -> String -> Msg -> Bool -> Html Msg
+groupTextButton model text onClickHandler disallowSelectedFeatures =
+  let
+    noFeatures =
+      Set.isEmpty model.selectedFeatures
+    noBlobs =
+      Dict.isEmpty model.selectedBlobs
+  in
+    textButtonExtra
+      text
+      onClickHandler
+      (noBlobs || (disallowSelectedFeatures && (not noFeatures)))
 
 --------------------------------------------------------------------------------
 -- Menu Bar
@@ -131,19 +153,37 @@ menuBar model =
                 ]
               ]
           , menu "Edit"
-              [ [ Html.text "Dig Hole"
-                , Html.text "Make Equal"
-                , Html.text "Relate"
-                , Html.text "Indexed Relate"
+              [ [ relateTextButton model "Dig Hole"
+                    Controller.msgDigHole
+                , relateTextButton model "Make Equal"
+                    Controller.msgMakeEqual
+                , relateTextButton model "Relate"
+                    Controller.msgRelate
+                , relateTextButton model "Indexed Relate"
+                    Controller.msgIndexedRelate
                 ]
-              , [ Html.text "Dupe"
-                , Html.text "Merge"
-                , Html.text "Group"
-                , Html.text "Abstract"
+              , [ groupTextButton model "Dupe"
+                    Controller.msgDuplicateBlobs
+                    True
+                , groupTextButton model "Merge"
+                    Controller.msgMergeBlobs
+                    True
+                , groupTextButton model "Group"
+                    Controller.msgGroupBlobs
+                    False
+                , groupTextButton model "Abstract"
+                    Controller.msgAbstractBlobs
+                    True
                 ]
-              , [ Html.text "Repeat Right"
-                , Html.text "Repeat To"
-                , Html.text "Repeat Around"
+              , [ groupTextButton model "Repeat Right"
+                    (Controller.msgReplicateBlob HorizontalRepeat)
+                    True
+                , groupTextButton model "Repeat To"
+                    (Controller.msgReplicateBlob LinearRepeat)
+                    True
+                , groupTextButton model "Repeat Around"
+                    (Controller.msgReplicateBlob RadialRepeat)
+                    True
                 ]
               ]
           ]
