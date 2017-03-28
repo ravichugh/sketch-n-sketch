@@ -17,6 +17,7 @@ users to freely mix between programmatic and direct manipulation.
 <span style="display: inline-block; width: 222px; text-align: right;">**Sketch-n-Sketch**</span>
   = Prodirect Manipulation Editor for SVG
 
+
 ## [Project Page][ProjectPage]
 
 Check out the [main project page][ProjectPage] for more details
@@ -272,6 +273,22 @@ and the Appendix of [this technical report](http://arxiv.org/pdf/1507.02988v3.pd
 provide more details about the above Little encodings of different SVG attributes.
 You can also peek at the `valToAttr` function in [`LangSvg.elm`][LangSvg].
 
+
+## Building the Project
+
+In the following, `SKETCH-N-SKETCH` stands for the directory
+of the project clone.
+
+1. Install [Elm v0.18](http://elm-lang.org/)
+2. `cd SKETCH-N-SKETCH/src`
+3. `make clean`
+4. Launch `SKETCH-N-SKETCH/build/out/index.html`
+
+Note: The parser has a performance issue that we have not yet addressed.
+If the application runs out of stack space,
+[try this](https://github.com/ravichugh/sketch-n-sketch/issues/84).
+
+
 ## Little "REPL"
 
 ```
@@ -285,9 +302,10 @@ Elm REPL 0.4 (Elm Platform 0.15)
 "[0 1 2 3 4 5 6 7 8 9 10]" : String
 ```
 
+
 ## Adding Examples
 
-To add a new example to the dropdown menu:
+To add a new example to the New menu:
 
 1. Create a file `examples/newExample.little` for your `newExample`.
 
@@ -299,6 +317,7 @@ To add a new example to the dropdown menu:
 3. From the `src/` directory, run `make examples`.
 
 4. Launch Sketch-n-Sketch.
+
 
 ## Running Tests
 
