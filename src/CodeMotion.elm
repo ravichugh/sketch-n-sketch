@@ -30,13 +30,6 @@ import Regex
 import Set
 
 
-getELet program eid =
-  let exp = justFindExpByEId program eid in
-  case exp.val.e__ of
-    ELet ws1 letKind rec p1 e1 e2 ws2 -> (ws1, letKind, rec, p1, e1, e2, ws2)
-    _                                 -> Debug.crash "getELet: shouldn't happen"
-
-
 type alias PatBoundExp = (Pat, Exp)
 
 
@@ -539,6 +532,168 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
   else Nothing
 
 
+makeMoveResult
+    :  Dict.Dict String Ident
+    -> List ( Ident, Ident )
+    -> List Pat
+    -> List Pat
+    -> List Ident
+    -> List Ident
+    -> List Ident
+    -> Exp
+    -> Exp
+    -> SynthesisResult
+makeMoveResult
+    uniqueNameToOldName
+    renamings -- As a list of pairs
+    patsToCheckForDuplicateNames
+    movedPats -- unique names
+    liftedUniqueIdents
+    identsInvalidlyFreeRewritten
+    identsWithInvalidlyFreeVarsHandled
+    originalProgramUniqueNames
+    newProgram =
+  let uniqueNameToOldNameUsed =
+    Dict.diff uniqueNameToOldName (List.map Utils.flip renamings |> Dict.fromList)
+  in
+  let isSafe =
+    let allReferencesSame =
+      allVarEIdsToBindingPId originalProgramUniqueNames == allVarEIdsToBindingPId newProgram
+    in
+    let noDuplicateNamesInPats =
+      patsToCheckForDuplicateNames
+      |> List.all
+          (\pat ->
+            let namesDefinedAtPat = identifiersListInPat pat in
+            namesDefinedAtPat == Utils.dedup namesDefinedAtPat
+          )
+    in
+    allReferencesSame && noDuplicateNamesInPats
+  in
+  let caption =
+    let movedThingStrings =
+      movedPats ++ (List.map pVar0 liftedUniqueIdents)
+      |> List.map
+          (renameIdentifiersInPat uniqueNameToOldName >> unparsePat >> Utils.squish)
+    in
+    let rewrittingsStr =
+      let rewrittenThings =
+        identsInvalidlyFreeRewritten ++ identsWithInvalidlyFreeVarsHandled
+        |> List.map (\ident -> Utils.getWithDefault ident ident uniqueNameToOldNameUsed)
+      in
+      if not <| List.isEmpty rewrittenThings
+      then " rewriting " ++ Utils.toSentence rewrittenThings
+      else ""
+    in
+    let renamingsStr =
+      if not <| List.isEmpty renamings
+      then " renaming " ++ (renamings |> List.map (\(oldName, newName) -> oldName ++ " to " ++ newName) |> Utils.toSentence)
+      else ""
+    in
+    "Move "
+    ++ Utils.toSentence movedThingStrings
+    ++ Utils.toSentence (List.filter ((/=) "") [rewrittingsStr, renamingsStr])
+  in
+  let result =
+    synthesisResult caption (LangSimplify.simplifyAssignments newProgram) |> setResultSafe isSafe
+  in
+  result
+
+
+tryResolvingProblemsAfterMove
+    :  Dict.Dict String Ident
+    -> Maybe EId
+    -> List Pat
+    -> Set.Set Ident
+    -> Exp
+    -> Exp
+    -> List SynthesisResult
+tryResolvingProblemsAfterMove
+    uniqueNameToOldName
+    maybeNewScopeEId
+    movedPats
+    namesUniqueExplicitlyMoved
+    originalProgramUniqueNames
+    newProgramUniqueNames =
+  let maybeNewPatUniqueNames =
+    maybeNewScopeEId
+    |> Maybe.map (\newScopeEId -> justFindExpByEId newProgramUniqueNames newScopeEId |> expToLetPat)
+  in
+  let resultForOriginalNamesPriority uniqueNameToOldNamePrioritized movedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled programWithUniqueNames =
+    let (newProgramPartiallyOriginalNames, _, renamingsPreserved) =
+      -- Try revert back to original names one by one, as safe.
+      -- If new program involves a new/updated pattern (maybeNewScopeEId), ensure we don't introduce duplicate names in that pattern.
+      uniqueNameToOldNamePrioritized
+      |> List.foldl
+          (\(uniqueName, oldName) (newProgramPartiallyOriginalNames, maybeNewPatPartiallyOriginalNames, renamingsPreserved) ->
+            let intendedUses = varsWithName uniqueName originalProgramUniqueNames |> List.map (.val >> .eid) in
+            let usesInNewProgram = identifierUsesAfterDefiningPat uniqueName newProgramPartiallyOriginalNames |> List.map (.val >> .eid) in
+            let identifiersInNewPat = maybeNewPatPartiallyOriginalNames |> Maybe.map identifiersListInPat |> Maybe.withDefault [] in
+            -- If this name is part of the new pattern and renaming it would created a duplicate name, don't rename.
+            if List.member uniqueName identifiersInNewPat && List.member oldName identifiersInNewPat then
+              (newProgramPartiallyOriginalNames, maybeNewPatPartiallyOriginalNames, renamingsPreserved ++ [(oldName, uniqueName)])
+            else if not <| Utils.equalAsSets intendedUses usesInNewProgram then
+              -- Definition of this variable was moved in such a way that renaming can't make the program work.
+              -- Might as well use the old name and let the programmer fix the mess they made.
+              ( renameIdentifier uniqueName oldName newProgramPartiallyOriginalNames
+              , maybeNewPatPartiallyOriginalNames |> Maybe.map (renameIdentifierInPat uniqueName oldName)
+              , renamingsPreserved
+              )
+            else
+              let usesIfRenamed =
+                let identScopeAreas = findScopeAreasByIdent uniqueName newProgramPartiallyOriginalNames in
+                identScopeAreas
+                |> List.map (renameIdentifier uniqueName oldName)
+                |> List.concatMap (identifierUsageEIds oldName)
+              in
+              if Utils.equalAsSets intendedUses usesIfRenamed then
+                -- Safe to rename.
+                ( renameIdentifier uniqueName oldName newProgramPartiallyOriginalNames
+                , maybeNewPatPartiallyOriginalNames |> Maybe.map (renameIdentifierInPat uniqueName oldName)
+                , renamingsPreserved
+                )
+              else
+                (newProgramPartiallyOriginalNames, maybeNewPatPartiallyOriginalNames, renamingsPreserved ++ [(oldName, uniqueName)])
+          )
+          (programWithUniqueNames, maybeNewPatUniqueNames, [])
+    in
+    let newPats =
+      case maybeNewScopeEId of
+        Just newScopeEId -> [ justFindExpByEId newProgramPartiallyOriginalNames newScopeEId |> expToLetPat ]
+        Nothing          -> []
+    in
+    makeMoveResult
+        uniqueNameToOldName
+        renamingsPreserved
+        newPats
+        movedPats
+        movedUniqueIdents
+        identsInvalidlyFreeRewritten
+        identsWithInvalidlyFreeVarsHandled
+        originalProgramUniqueNames
+        newProgramPartiallyOriginalNames
+  in
+  let (uniqueNameToOldNameMoved, uniqueNameToOldNameUnmoved) =
+    uniqueNameToOldName
+    |> Dict.toList
+    |> List.partition (\(uniqueName, oldName) -> Set.member uniqueName namesUniqueExplicitlyMoved)
+  in
+  let (newProgramUniqueNamesDependenciesLifted, liftedUniqueIdents) =
+    liftDependenciesBasedOnUniqueNames newProgramUniqueNames
+  in
+  let twiddledResults =
+    case newProgramUniqueNames |> maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic |> Maybe.map (Utils.mapFst3 liftDependenciesBasedOnUniqueNames) of
+      Nothing -> []
+      Just ((newProgramTwiddlingArithmeticToSwapDependencies, liftedUniqueIdents), identsInvalidlyFreeRewritten, identsWithInvalidlyFreeVarsHandled) ->
+        [ resultForOriginalNamesPriority (uniqueNameToOldNameUnmoved ++ uniqueNameToOldNameMoved) liftedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled newProgramTwiddlingArithmeticToSwapDependencies
+        , resultForOriginalNamesPriority (uniqueNameToOldNameMoved ++ uniqueNameToOldNameUnmoved) liftedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled newProgramTwiddlingArithmeticToSwapDependencies
+        ]
+  in
+  [ resultForOriginalNamesPriority (uniqueNameToOldNameUnmoved ++ uniqueNameToOldNameMoved) liftedUniqueIdents [] [] newProgramUniqueNamesDependenciesLifted
+  , resultForOriginalNamesPriority (uniqueNameToOldNameMoved ++ uniqueNameToOldNameUnmoved) liftedUniqueIdents [] [] newProgramUniqueNamesDependenciesLifted
+  ] ++ twiddledResults
+
+
 -- Moving a definition is safe if all identifiers resolve to the same bindings.
 --
 -- More specifically:
@@ -546,14 +701,8 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
 --   - All previous references to the moved identifier still resolve to that identifer
 --   - All other variables uses of the same name do not resolve to the moved identifier
 --
-moveDefinitions_ : Bool -> (List PatBoundExp -> Exp -> (Exp, EId)) -> List PathedPatternId -> Exp -> List SynthesisResult
-moveDefinitions_ doCleanUp makeNewProgram sourcePathedPatIds program =
-  let maybeClean =
-    -- When composing transformations, can't clean up until the end (don't want to remove EIds).
-    if doCleanUp
-    then LangSimplify.simplifyAssignments
-    else identity
-  in
+moveDefinitions_ : (List PatBoundExp -> Exp -> (Exp, EId)) -> List PathedPatternId -> Exp -> List SynthesisResult
+moveDefinitions_ makeNewProgram sourcePathedPatIds program =
   let (programUniqueNames, uniqueNameToOldName) = assignUniqueNames program in
   let (pluckedPatAndBoundExps, programWithoutPlucked) =
     pluckAll sourcePathedPatIds programUniqueNames
@@ -564,135 +713,47 @@ moveDefinitions_ doCleanUp makeNewProgram sourcePathedPatIds program =
     let (pluckedPats, pluckedBoundExps)      = List.unzip pluckedPatAndBoundExps in
     let pluckedPathedPatIdentifiersUnique    = Utils.unionAll <| List.map identifiersSetInPat pluckedPats in
     let pluckedBoundExpFreeIdentifiersUnique = Utils.unionAll <| List.map freeIdentifiers pluckedBoundExps in
+    let namesUniqueExplicitlyMoved = Set.union pluckedPathedPatIdentifiersUnique pluckedBoundExpFreeIdentifiersUnique in
     let (newProgramUniqueNames, newScopeEId) =
       makeNewProgram (Utils.zip pluckedPats pluckedBoundExps) programWithoutPlucked
     in
     let newPatUniqueNames = justFindExpByEId newProgramUniqueNames newScopeEId |> expToLetPat in
-    let makeResult renamings liftedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled newProgram =
-      let newScopeExp  = justFindExpByEId newProgram newScopeEId in
-      let newScopeBody = newScopeExp |> expToLetBody in
-      let newPat       = newScopeExp |> expToLetPat in
-      let uniqueNameToOldNameUsed =
-        Dict.diff uniqueNameToOldName (List.map Utils.flip renamings |> Dict.fromList)
-      in
-      let isSafe =
-        let allReferencesSame =
-          allVarEIdsToBindingPId programUniqueNames == allVarEIdsToBindingPId newProgram
-        in
-        let noDuplicateNamesInPat =
-          let namesDefinedAtNewScope = identifiersListInPat newPat in
-          namesDefinedAtNewScope == Utils.dedup namesDefinedAtNewScope
-        in
-        allReferencesSame && noDuplicateNamesInPat
-      in
-      let caption =
-        let movedThingStrings =
-          pluckedPats ++ (List.map pVar0 liftedUniqueIdents)
-          |> List.map
-              (renameIdentifiersInPat uniqueNameToOldName >> unparsePat >> Utils.squish)
-        in
-        let rewrittingsStr =
-          let rewrittenThings =
-            identsInvalidlyFreeRewritten ++ identsWithInvalidlyFreeVarsHandled
-            |> List.map (\ident -> Utils.getWithDefault ident ident uniqueNameToOldNameUsed)
-          in
-          if not <| List.isEmpty rewrittenThings
-          then " rewriting " ++ Utils.toSentence rewrittenThings
-          else ""
-        in
-        let renamingsStr =
-          if not <| List.isEmpty renamings
-          then " renaming " ++ (renamings |> List.map (\(oldName, newName) -> oldName ++ " to " ++ newName) |> Utils.toSentence)
-          else ""
-        in
-        "Move "
-        ++ Utils.toSentence movedThingStrings
-        ++ Utils.toSentence (List.filter ((/=) "") [rewrittingsStr, renamingsStr])
-      in
-      let result =
-        synthesisResult caption (maybeClean newProgram) |> setResultSafe isSafe
-      in
-      result
-    in
     let newProgramOriginalNamesResult =
       let newProgramOriginalNames = renameIdentifiers uniqueNameToOldName newProgramUniqueNames in
-      [ makeResult [] [] [] [] newProgramOriginalNames ]
+      let newPatOriginalNames = justFindExpByEId newProgramOriginalNames newScopeEId |> expToLetPat in
+      [ makeMoveResult
+            uniqueNameToOldName
+            []
+            [ newPatOriginalNames ]
+            pluckedPats
+            [] [] []
+            programUniqueNames
+            newProgramOriginalNames
+      ]
     in
-    let newProgramMaybeRenamedResults =
+    let newProgramMaybeRenamedLiftedTwiddledResults =
       if InterfaceModel.isResultSafe (Utils.head "CodeMotion.moveDefinitionsBeforeEId" newProgramOriginalNamesResult) then
         []
       else
-        let resultForOriginalNamesPriority uniqueNameToOldNamePrioritized movedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled programWithUniqueNames =
-          let (newProgramPartiallyOriginalNames, _, renamingsPreserved) =
-            -- Try revert back to original names one by one, as safe.
-            uniqueNameToOldNamePrioritized
-            |> List.foldl
-                (\(uniqueName, oldName) (newProgramPartiallyOriginalNames, newPatPartiallyOriginalNames, renamingsPreserved) ->
-                  let intendedUses = varsWithName uniqueName programUniqueNames |> List.map (.val >> .eid) in
-                  let usesInNewProgram = identifierUsesAfterDefiningPat uniqueName newProgramPartiallyOriginalNames |> List.map (.val >> .eid) in
-                  let identifiersInNewPat = identifiersListInPat newPatPartiallyOriginalNames in
-                  -- If this name is part of the new pattern and renaming it would created a duplicate name, don't rename.
-                  if List.member uniqueName identifiersInNewPat && List.member oldName identifiersInNewPat then
-                    (newProgramPartiallyOriginalNames, newPatPartiallyOriginalNames, renamingsPreserved ++ [(oldName, uniqueName)])
-                  else if not <| Utils.equalAsSets intendedUses usesInNewProgram then
-                    -- Definition of this variable was moved in such a way that renaming can't make the program work.
-                    -- Might as well use the old name and let the programmer fix the mess they made.
-                    ( renameIdentifier uniqueName oldName newProgramPartiallyOriginalNames
-                    , renameIdentifierInPat uniqueName oldName newPatPartiallyOriginalNames
-                    , renamingsPreserved
-                    )
-                  else
-                    let usesIfRenamed =
-                      let identScopeAreas = findScopeAreasByIdent uniqueName newProgramPartiallyOriginalNames in
-                      identScopeAreas
-                      |> List.map (renameIdentifier uniqueName oldName)
-                      |> List.concatMap (identifierUsageEIds oldName)
-                    in
-                    if Utils.equalAsSets intendedUses usesIfRenamed then
-                      -- Safe to rename.
-                      ( renameIdentifier uniqueName oldName newProgramPartiallyOriginalNames
-                      , renameIdentifierInPat uniqueName oldName newPatPartiallyOriginalNames
-                      , renamingsPreserved
-                      )
-                    else
-                      (newProgramPartiallyOriginalNames, newPatPartiallyOriginalNames, renamingsPreserved ++ [(oldName, uniqueName)])
-                )
-                (programWithUniqueNames, newPatUniqueNames, [])
-          in
-          makeResult renamingsPreserved movedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled newProgramPartiallyOriginalNames
-        in
-        let (uniqueNameToOldNameMoved, uniqueNameToOldNameUnmoved) =
-          let namesMoved = Set.union pluckedPathedPatIdentifiersUnique pluckedBoundExpFreeIdentifiersUnique in
-          uniqueNameToOldName
-          |> Dict.toList
-          |> List.partition (\(uniqueName, oldName) -> Set.member uniqueName namesMoved)
-        in
-        let (newProgramUniqueNamesDependenciesLifted, liftedUniqueIdents) =
-          liftDependenciesBasedOnUniqueNames newProgramUniqueNames
-        in
-        let twiddledResults =
-          case newProgramUniqueNames |> maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic |> Maybe.map (Utils.mapFst3 liftDependenciesBasedOnUniqueNames) of
-            Nothing -> []
-            Just ((newProgramTwiddlingArithmeticToSwapDependencies, liftedUniqueIdents), identsInvalidlyFreeRewritten, identsWithInvalidlyFreeVarsHandled) ->
-              [ resultForOriginalNamesPriority (uniqueNameToOldNameUnmoved ++ uniqueNameToOldNameMoved) liftedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled newProgramTwiddlingArithmeticToSwapDependencies
-              , resultForOriginalNamesPriority (uniqueNameToOldNameMoved ++ uniqueNameToOldNameUnmoved) liftedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled newProgramTwiddlingArithmeticToSwapDependencies
-              ]
-        in
-        [ resultForOriginalNamesPriority (uniqueNameToOldNameUnmoved ++ uniqueNameToOldNameMoved) liftedUniqueIdents [] [] newProgramUniqueNamesDependenciesLifted
-        , resultForOriginalNamesPriority (uniqueNameToOldNameMoved ++ uniqueNameToOldNameUnmoved) liftedUniqueIdents [] [] newProgramUniqueNamesDependenciesLifted
-        ] ++ twiddledResults
+        tryResolvingProblemsAfterMove
+            uniqueNameToOldName
+            (Just newScopeEId)
+            pluckedPats
+            namesUniqueExplicitlyMoved
+            programUniqueNames
+            newProgramUniqueNames
     in
-    newProgramOriginalNamesResult ++ newProgramMaybeRenamedResults
+    newProgramOriginalNamesResult ++ newProgramMaybeRenamedLiftedTwiddledResults
     |> Utils.dedupBy (\(SynthesisResult {exp}) -> unparseWithUniformWhitespace False False exp)
 
 
 moveDefinitionsBeforeEId : List PathedPatternId -> EId -> Exp -> List SynthesisResult
 moveDefinitionsBeforeEId sourcePathedPatIds targetEId program =
-  moveDefinitionsBeforeEId_ True sourcePathedPatIds targetEId program
+  moveDefinitionsBeforeEId_ sourcePathedPatIds targetEId program
 
 
-moveDefinitionsBeforeEId_ : Bool -> List PathedPatternId -> EId -> Exp -> List SynthesisResult
-moveDefinitionsBeforeEId_ doCleanUp sourcePathedPatIds targetEId program =
+moveDefinitionsBeforeEId_ : List PathedPatternId -> EId -> Exp -> List SynthesisResult
+moveDefinitionsBeforeEId_ sourcePathedPatIds targetEId program =
   -- let _ = Debug.log ("moving " ++ toString sourcePathedPatIds ++ " before " ++ toString targetEId ++ " in " ++ unparseWithIds program) () in
   let makeNewProgram pluckedPatAndBoundExps programWithoutPluckedUniqueNames =
     let (pluckedPats, pluckedBoundExps) = List.unzip pluckedPatAndBoundExps in
@@ -721,7 +782,7 @@ moveDefinitionsBeforeEId_ doCleanUp sourcePathedPatIds targetEId program =
     in
     (newProgram, insertedLetEId)
   in
-  moveDefinitions_ doCleanUp makeNewProgram sourcePathedPatIds program
+  moveDefinitions_ makeNewProgram sourcePathedPatIds program
 
 
 moveDefinitionsPat : List PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
@@ -743,7 +804,7 @@ moveDefinitionsPat sourcePathedPatIds targetPathedPatId program =
     in
     (newProgram, targetEId)
   in
-  moveDefinitions_ True makeNewProgram sourcePathedPatIds program
+  moveDefinitions_ makeNewProgram sourcePathedPatIds program
 
 
 makeDuplicateResults_ newScopeEId pluckedPatAndBoundExps newProgram originalProgram =
@@ -1029,35 +1090,93 @@ addExpToExpByPath expToInsert path exp =
 
 ------------------------------------------------------------------------------
 
+-- Duplicate lets to new position, remove old lets, check for safety/resolve any dependency problems.
+-- Dup/remove workflow cleanly handles edge cases e.g. moving definition before itself.
 moveEquationsBeforeEId : List EId -> EId -> Exp -> List SynthesisResult
-moveEquationsBeforeEId letEIds targetEId program =
-  let pathedPatIds =
+moveEquationsBeforeEId letEIds targetEId originalProgram =
+  let letEIdsSorted =
     letEIds
-    |> List.sortBy (locationInProgram program)
-    |> List.map (\letEId -> ((letEId, 1), []))
+    |> List.sortBy (locationInProgram originalProgram)
   in
-  let synthesisResults =
-    pathedPatIds
+  let maxId = LangParser2.maxId originalProgram in
+  let letEIdToReinsertedLetEId =
+    letEIds
+    |> Utils.mapi1 (\(i, letEId) -> (letEId, maxId + i))
+    |> Dict.fromList
+  in
+  let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
+  let programWithDuplicatedLets =
+    letEIdsSorted
     |> List.foldl
-        (\pathedPatId priorResults ->
-          priorResults
-          |> List.concatMap
-              (\(SynthesisResult {exp, isSafe}) ->
-                -- "False" means don't perform simplifyAssignments (it can remove EIds we need in later iterations)
-                moveDefinitionsBeforeEId_ False [pathedPatId] targetEId exp
-                |> List.map (mapResultSafe ((&&) isSafe))
+        (\letEIdToDup program ->
+          let letExp = justFindExpByEId originalProgramUniqueNames letEIdToDup in
+          program
+          |> mapExpNode
+              targetEId
+              (\expToWrap ->
+                let insertedLetEId = Utils.justGet_ "moveEquationsBeforeEId" letEIdToDup letEIdToReinsertedLetEId in
+                let (_, letOrDef, isRec, pat, boundExp, _, _) = expToLetParts letExp in
+                withDummyExpInfoEId insertedLetEId <|
+                  ELet (precedingWhitespace expToWrap) letOrDef isRec pat boundExp expToWrap ""
               )
         )
-        [ synthesisResult "Original" program ]
+        originalProgramUniqueNames
   in
-  synthesisResults
-  |> List.map
-      (\(SynthesisResult result) ->
-        SynthesisResult
-            { result | description = "Move Definitions"
-                     , exp         = LangSimplify.simplifyAssignments result.exp }
-      )
-  -- |> Utils.dedupBy (.exp >> unparseWithUniformWhitespace True True)
+  let programWithDuplicatedLetsRemoved =
+    programWithDuplicatedLets
+    |> mapExp
+        (\exp ->
+          if List.member exp.val.eid letEIds then
+            copyPrecedingWhitespace exp (expToLetBody exp)
+          else
+            exp
+        )
+  in
+  let programWithNewLetsOriginalEIds =
+    let reinsertedLetEIdToOldLetEId = Utils.flipDict letEIdToReinsertedLetEId in
+    programWithDuplicatedLetsRemoved
+    |> mapExp
+        (\exp ->
+          case Dict.get exp.val.eid reinsertedLetEIdToOldLetEId of
+            Just oldEId -> setEId oldEId exp
+            Nothing     -> exp
+        )
+  in
+  let (movedPats, movedBoundExps) =
+    letEIdsSorted
+    |> List.map (justFindExpByEId originalProgramUniqueNames >> expToLetPatAndBoundExp)
+    |> List.unzip
+  in
+  let namesUniqueExplicitlyMoved =
+    [ identifiersSetInPats movedPats ] ++ List.map freeIdentifiers movedBoundExps
+    |> Utils.unionAll
+  in
+  let newProgramOriginalNamesResult =
+    let newProgramOriginalNames = renameIdentifiers uniqueNameToOldName programWithNewLetsOriginalEIds in
+    [ makeMoveResult
+          uniqueNameToOldName
+          []
+          []
+          movedPats
+          [] [] []
+          originalProgramUniqueNames
+          newProgramOriginalNames
+    ]
+  in
+  let newProgramMaybeRenamedLiftedTwiddledResults =
+    if InterfaceModel.isResultSafe (Utils.head "CodeMotion.moveDefinitionsBeforeEId" newProgramOriginalNamesResult) then
+      []
+    else
+      tryResolvingProblemsAfterMove
+          uniqueNameToOldName
+          Nothing
+          movedPats
+          namesUniqueExplicitlyMoved
+          originalProgramUniqueNames
+          programWithNewLetsOriginalEIds
+  in
+  newProgramOriginalNamesResult ++ newProgramMaybeRenamedLiftedTwiddledResults
+  |> Utils.dedupBy (\(SynthesisResult {exp}) -> unparseWithUniformWhitespace False False exp)
 
 
 ------------------------------------------------------------------------------

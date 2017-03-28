@@ -1012,6 +1012,13 @@ patToMaybePVarIdent pat =
     _              -> Nothing
 
 
+expToLetParts : Exp -> (String, LetKind, Bool, Pat, Exp, Exp, String)
+expToLetParts exp =
+  case exp.val.e__ of
+    ELet ws1 letKind rec p1 e1 e2 ws2 -> (ws1, letKind, rec, p1, e1, e2, ws2)
+    _                                 -> Debug.crash <| "LangTools.expToLetParts exp is not an ELet: " ++ unparseWithIds exp
+
+
 expToLetKind : Exp -> LetKind
 expToLetKind exp =
   case exp.val.e__ of
@@ -1038,6 +1045,13 @@ expToLetBoundExp exp =
   case exp.val.e__ of
     ELet _ _ _ _ boundExp _ _ -> boundExp
     _                         -> Debug.crash <| "LangTools.expToLetPat exp is not an ELet: " ++ unparseWithIds exp
+
+
+expToLetPatAndBoundExp : Exp -> (Pat, Exp)
+expToLetPatAndBoundExp exp =
+  case exp.val.e__ of
+    ELet _ _ _ pat boundExp _ _ -> (pat, boundExp)
+    _                           -> Debug.crash <| "LangTools.expToLetPatAndBoundExp exp is not an ELet: " ++ unparseWithIds exp
 
 
 expToMaybeLetPatAndBoundExp : Exp -> Maybe (Pat, Exp)
