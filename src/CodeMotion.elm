@@ -21,6 +21,7 @@ import InterfaceModel exposing
   ( Model, SynthesisResult(..), NamedDeuceTool
   , synthesisResult, setResultSafe, mapResultSafe, oneSafeResult
   )
+import LocEqn exposing ( LocEquation(..) )
 import Utils exposing (MaybeOne)
 import Either exposing (..)
 
@@ -363,6 +364,181 @@ liftDependenciesBasedOnUniqueNames program =
       ( finalProgram, movedIdent::movedIdents )
 
 
+-- Precondition: program has been run through assignUniqueNames
+--
+-- Not the best algorithm, but it should work for:
+--
+-- width = 50
+-- x1 = 100
+-- x2 = x1 + width
+--
+--   ⇕
+--
+-- x1 = 100
+-- x2 = x1 + 50
+-- width = x2 - x1
+--
+-- There's probably tons of strange cases where this produces undesired results.
+--
+-- Algorithm:
+-- 1. Identify all numeric variables.
+-- 2. Remember which defs had invalid numeric free variables, and where those variables are now defined.
+-- 3. Repeatedly inline all invalid numeric free variables until convergence. (Simplify operations on constants.)
+-- 4. From the end of the program (by new definition location of ident that is somewhere used free invalidly), for each tuple of (variable used free, ident defined in terms of invalid free var, corresponding bound exp where used free):
+--    1. Do nothing if either ident already handled in this loop
+--    2. Redefine the ident that is somewhere used invalidly based on that definition using it as an invalid free var. (Simplify.)
+maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic : Exp -> Maybe (Exp, List Ident, List Ident)
+maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
+  -- 1. Identify all numeric variables.
+  let numericIdents = numericLetBoundIdentifiers programUniqueNames in
+  -- 2. Remember which defs had invalid numeric free variables, and where those variables are now defined.
+  let allFreeVars = freeVars programUniqueNames in
+  let simpleLetBindings =
+    allSimplyResolvableLetBindings programUniqueNames
+    |> Dict.fromList
+  in
+  let defsWithInvalidFreeNumericVars =
+    simpleLetBindings
+    |> Dict.filter
+        (\ident boundExp ->
+          freeVars boundExp
+          |> List.any (\varExp -> Set.member (expToIdent varExp) numericIdents && List.member varExp allFreeVars)
+        )
+  in
+  let identsOriginallySomewhereInvalidlyFreeWithDefWhereUsedInvalidly =
+    defsWithInvalidFreeNumericVars
+    |> Dict.toList
+    |> List.concatMap
+        (\(ident, boundExp) ->
+          freeVars boundExp
+          |> List.filter (\varExp -> Set.member (expToIdent varExp) numericIdents && List.member varExp allFreeVars)
+          |> List.map (\invalidlyUsedVarExp -> (expToIdent invalidlyUsedVarExp, ident, boundExp))
+        )
+  in
+  -- 3. Repeatedly inline all invalid numeric free variables until convergence. (Simplify operations on constants.)
+  let inlineInvalidFreeNumericIdentsUntilConvergence program =
+    -- We are inlining definitions, which will duplicate EIds etc. so need to freshen every time.
+    let freshened = LangParser2.freshen program in
+    let allFreeVars = freeVars freshened in
+    -- TODO: Inlining could leave us in a worse situation than before.
+    let (programInlinedOnce, somethingHappened) =
+      freshened
+      |> mapFoldExp -- Bottom up version.
+          (\exp somethingHappened ->
+            case expToMaybeIdent exp of
+              Nothing -> (exp, somethingHappened)
+              Just ident ->
+                if Set.member ident numericIdents && List.member exp allFreeVars
+                then (Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic" ident simpleLetBindings, True)
+                else (exp, somethingHappened)
+          )
+          False
+    in
+    if somethingHappened
+    then inlineInvalidFreeNumericIdentsUntilConvergence programInlinedOnce
+    else freshened
+  in
+  -- Hijacking the locEqn simplification architecture. Need to give a number to each identifier.
+  -- Hmmm. Could also use pid of ident's defining pattern.
+  let identToEqnLocId =
+    identifiersSetPlusPrelude programUniqueNames
+    |> Set.toList
+    |> Utils.zipi1
+    |> List.map Utils.flip
+    |> Dict.fromList
+  in
+  let expToMaybeLocEqn exp =
+    case exp.val.e__ of
+      EConst _ n _ _      -> Just (LocEqnConst n)
+      EVar _ ident        -> Dict.get ident identToEqnLocId |> Maybe.map LocEqnLoc
+      EOp _ op operands _ ->
+        case op.val of
+          Plus  -> operands |> List.map expToMaybeLocEqn |> Utils.projJusts |> Maybe.map (LocEqnOp Plus)
+          Minus -> operands |> List.map expToMaybeLocEqn |> Utils.projJusts |> Maybe.map (LocEqnOp Minus)
+          Mult  -> operands |> List.map expToMaybeLocEqn |> Utils.projJusts |> Maybe.map (LocEqnOp Mult)
+          Div   -> operands |> List.map expToMaybeLocEqn |> Utils.projJusts |> Maybe.map (LocEqnOp Div)
+          _     -> Nothing
+
+      EComment _ _ body       -> expToMaybeLocEqn body
+      EOption _ _ _ _ body    -> expToMaybeLocEqn body
+      ELet _ _ _ _ _ body _   -> expToMaybeLocEqn body
+      ETyp _ _ _ body _       -> expToMaybeLocEqn body
+      EColonType _ e _ _ _    -> expToMaybeLocEqn e
+      ETypeAlias _ _ _ body _ -> expToMaybeLocEqn body
+      _                       -> Nothing
+  in
+  let locEqnToExp locEqn =
+    LocEqn.locEqnToExp unann Dict.empty (Utils.flipDict identToEqnLocId) locEqn
+  in
+  let inlinedSimplifiedProgram =
+    let inlinedProgram = inlineInvalidFreeNumericIdentsUntilConvergence programUniqueNames in
+    let boundEIdsToSimplify =
+      allSimplyResolvableLetBindings inlinedProgram
+      |> List.filterMap
+          (\(ident, e) ->
+            Dict.get ident defsWithInvalidFreeNumericVars
+            |> Maybe.map (\_ -> e.val.eid)
+          )
+      |> Set.fromList
+    in
+    inlinedProgram
+    |> mapExp
+        (\exp ->
+          if Set.member exp.val.eid boundEIdsToSimplify then
+            case expToMaybeLocEqn exp of
+              -- TODO: constant annotations thrown away (can't always be helped, but trivial cases should be saved)
+              Just locEqn -> LocEqn.normalizeSimplify locEqn |> locEqnToExp
+              Nothing     -> exp
+          else
+            exp
+        )
+  in
+-- 4. From the end of the program (by new definition location of ident that is somewhere used free invalidly), for each tuple of (variable used free, ident defined in terms of invalid free var, corresponding bound exp where used free):
+--    1. Do nothing if either ident already handled in this loop
+--    2. Redefine the ident that is somewhere used invalidly based on that definition using it as an invalid free var. (Simplify.)
+  let (twiddledProgram, identsInvalidlyFreeRewritten, identsWithInvalidlyFreeVarsHandled) =
+    identsOriginallySomewhereInvalidlyFreeWithDefWhereUsedInvalidly
+    |> List.sortBy
+        (\(identInvalidlyFree, identOfDefWhereUsedInvalidly, _) ->
+          ( Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic maybeTwiddledProgram sortBy1" identInvalidlyFree simpleLetBindings           |> expToLocation
+          , Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic maybeTwiddledProgram sortBy2" identOfDefWhereUsedInvalidly simpleLetBindings |> expToLocation
+          )
+        )
+    |> List.foldr
+        (\(identInvalidlyFree, identOfDefWhereUsedInvalidly, boundExpWhereUsedInvalidly) (program, identsInvalidlyFreeRewritten, identsWithInvalidlyFreeVarsHandled) ->
+          let noChange = (program, identsInvalidlyFreeRewritten, identsWithInvalidlyFreeVarsHandled) in
+          if Set.member identInvalidlyFree identsInvalidlyFreeRewritten || Set.member identOfDefWhereUsedInvalidly identsWithInvalidlyFreeVarsHandled then
+            noChange
+          else
+            case expToMaybeLocEqn boundExpWhereUsedInvalidly of
+              Nothing  -> noChange
+              Just rhs ->
+                let lhs = expToMaybeLocEqn (eVar identOfDefWhereUsedInvalidly) |> Utils.fromJust_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic expToMaybeLocEqn (eVar identOfDefWhereUsedInvalidly)" in
+                let locIdInvalidlyFree = Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic Utils.justGet_ identInvalidlyFree identToEqnLocId" identInvalidlyFree identToEqnLocId in
+                -- TODO: Explore all options non-deterministically.
+                case LocEqn.solveForLocUnchecked locIdInvalidlyFree Dict.empty lhs rhs |> Maybe.map locEqnToExp of
+                  Nothing     -> noChange
+                  Just newExp ->
+                    let invalidlyFreeBoundExpEId =
+                      allSimplyResolvableLetBindings program
+                      |> Utils.mapFirstSuccess (\(ident, boundExp) -> if ident == identInvalidlyFree then Just boundExp.val.eid else Nothing)
+                      |> Utils.fromJust_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic invalidlyFreeBoundExpEId"
+                    in
+                    let newProgram =
+                      program
+                      |> replaceExpNodePreservingPrecedingWhitespace invalidlyFreeBoundExpEId newExp
+                      |> LangParser2.freshen
+                    in
+                    (newProgram, Set.insert identInvalidlyFree identsInvalidlyFreeRewritten, Set.insert identOfDefWhereUsedInvalidly identsWithInvalidlyFreeVarsHandled)
+
+        )
+        (inlinedSimplifiedProgram, Set.empty, Set.empty)
+  in
+  if Set.size identsInvalidlyFreeRewritten > 0
+  then Just (twiddledProgram, identsInvalidlyFreeRewritten |> Set.toList, identsWithInvalidlyFreeVarsHandled |> Set.toList)
+  else Nothing
+
+
 -- Moving a definition is safe if all identifiers resolve to the same bindings.
 --
 -- More specifically:
@@ -392,7 +568,7 @@ moveDefinitions_ doCleanUp makeNewProgram sourcePathedPatIds program =
       makeNewProgram (Utils.zip pluckedPats pluckedBoundExps) programWithoutPlucked
     in
     let newPatUniqueNames = justFindExpByEId newProgramUniqueNames newScopeEId |> expToLetPat in
-    let makeResult renamings liftedUniqueIdents newProgram =
+    let makeResult renamings liftedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled newProgram =
       let newScopeExp  = justFindExpByEId newProgram newScopeEId in
       let newScopeBody = newScopeExp |> expToLetBody in
       let newPat       = newScopeExp |> expToLetPat in
@@ -410,19 +586,28 @@ moveDefinitions_ doCleanUp makeNewProgram sourcePathedPatIds program =
         allReferencesSame && noDuplicateNamesInPat
       in
       let caption =
-        let renamingsStr =
-          if not <| List.isEmpty renamings
-          then " renaming " ++ (renamings |> List.map (\(oldName, newName) -> oldName ++ " to " ++ newName) |> Utils.toSentence)
-          else ""
-        in
         let movedThingStrings =
           pluckedPats ++ (List.map pVar0 liftedUniqueIdents)
           |> List.map
               (renameIdentifiersInPat uniqueNameToOldName >> unparsePat >> Utils.squish)
         in
+        let rewrittingsStr =
+          let rewrittenThings =
+            identsInvalidlyFreeRewritten ++ identsWithInvalidlyFreeVarsHandled
+            |> List.map (\ident -> Utils.getWithDefault ident ident uniqueNameToOldNameUsed)
+          in
+          if not <| List.isEmpty rewrittenThings
+          then " rewriting " ++ Utils.toSentence rewrittenThings
+          else ""
+        in
+        let renamingsStr =
+          if not <| List.isEmpty renamings
+          then " renaming " ++ (renamings |> List.map (\(oldName, newName) -> oldName ++ " to " ++ newName) |> Utils.toSentence)
+          else ""
+        in
         "Move "
         ++ Utils.toSentence movedThingStrings
-        ++ renamingsStr
+        ++ Utils.toSentence (List.filter ((/=) "") [rewrittingsStr, renamingsStr])
       in
       let result =
         synthesisResult caption (maybeClean newProgram) |> setResultSafe isSafe
@@ -431,22 +616,13 @@ moveDefinitions_ doCleanUp makeNewProgram sourcePathedPatIds program =
     in
     let newProgramOriginalNamesResult =
       let newProgramOriginalNames = renameIdentifiers uniqueNameToOldName newProgramUniqueNames in
-      [ makeResult [] [] newProgramOriginalNames ]
+      [ makeResult [] [] [] [] newProgramOriginalNames ]
     in
     let newProgramMaybeRenamedResults =
       if InterfaceModel.isResultSafe (Utils.head "CodeMotion.moveDefinitionsBeforeEId" newProgramOriginalNamesResult) then
         []
       else
-        let (uniqueNameToOldNameMoved, uniqueNameToOldNameUnmoved) =
-          let namesMoved = Set.union pluckedPathedPatIdentifiersUnique pluckedBoundExpFreeIdentifiersUnique in
-          uniqueNameToOldName
-          |> Dict.toList
-          |> List.partition (\(uniqueName, oldName) -> Set.member uniqueName namesMoved)
-        in
-        let (newProgramUniqueNamesDependenciesLifted, liftedUniqueIdents) =
-          liftDependenciesBasedOnUniqueNames newProgramUniqueNames
-        in
-        let resultForOriginalNamesPriority uniqueNameToOldNamePrioritized =
+        let resultForOriginalNamesPriority uniqueNameToOldNamePrioritized movedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled programWithUniqueNames =
           let (newProgramPartiallyOriginalNames, _, renamingsPreserved) =
             -- Try revert back to original names one by one, as safe.
             uniqueNameToOldNamePrioritized
@@ -481,13 +657,30 @@ moveDefinitions_ doCleanUp makeNewProgram sourcePathedPatIds program =
                     else
                       (newProgramPartiallyOriginalNames, newPatPartiallyOriginalNames, renamingsPreserved ++ [(oldName, uniqueName)])
                 )
-                (newProgramUniqueNamesDependenciesLifted, newPatUniqueNames, [])
+                (programWithUniqueNames, newPatUniqueNames, [])
           in
-          makeResult renamingsPreserved liftedUniqueIdents newProgramPartiallyOriginalNames
+          makeResult renamingsPreserved movedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled newProgramPartiallyOriginalNames
         in
-        [ resultForOriginalNamesPriority (uniqueNameToOldNameUnmoved ++ uniqueNameToOldNameMoved)
-        , resultForOriginalNamesPriority (uniqueNameToOldNameMoved ++ uniqueNameToOldNameUnmoved)
-        ]
+        let (uniqueNameToOldNameMoved, uniqueNameToOldNameUnmoved) =
+          let namesMoved = Set.union pluckedPathedPatIdentifiersUnique pluckedBoundExpFreeIdentifiersUnique in
+          uniqueNameToOldName
+          |> Dict.toList
+          |> List.partition (\(uniqueName, oldName) -> Set.member uniqueName namesMoved)
+        in
+        let (newProgramUniqueNamesDependenciesLifted, liftedUniqueIdents) =
+          liftDependenciesBasedOnUniqueNames newProgramUniqueNames
+        in
+        let twiddledResults =
+          case newProgramUniqueNames |> maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic |> Maybe.map (Utils.mapFst3 liftDependenciesBasedOnUniqueNames) of
+            Nothing -> []
+            Just ((newProgramTwiddlingArithmeticToSwapDependencies, liftedUniqueIdents), identsInvalidlyFreeRewritten, identsWithInvalidlyFreeVarsHandled) ->
+              [ resultForOriginalNamesPriority (uniqueNameToOldNameUnmoved ++ uniqueNameToOldNameMoved) liftedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled newProgramTwiddlingArithmeticToSwapDependencies
+              , resultForOriginalNamesPriority (uniqueNameToOldNameMoved ++ uniqueNameToOldNameUnmoved) liftedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled newProgramTwiddlingArithmeticToSwapDependencies
+              ]
+        in
+        [ resultForOriginalNamesPriority (uniqueNameToOldNameUnmoved ++ uniqueNameToOldNameMoved) liftedUniqueIdents [] [] newProgramUniqueNamesDependenciesLifted
+        , resultForOriginalNamesPriority (uniqueNameToOldNameMoved ++ uniqueNameToOldNameUnmoved) liftedUniqueIdents [] [] newProgramUniqueNamesDependenciesLifted
+        ] ++ twiddledResults
     in
     newProgramOriginalNamesResult ++ newProgramMaybeRenamedResults
     |> Utils.dedupBy (\(SynthesisResult {exp}) -> unparseWithUniformWhitespace False False exp)

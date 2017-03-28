@@ -761,6 +761,8 @@ fst3 (x,_,_) = x
 snd3 (_,x,_) = x
 thd3 (_,_,x) = x
 
+mapFst3 f (x,y,z) = (f x, y, z)
+mapSnd3 f (x,y,z) = (x, f y, z)
 mapThd3 f (x,y,z) = (x, y, f z)
 
 fourth4 (_,_,_,x) = x

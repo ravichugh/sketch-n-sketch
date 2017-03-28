@@ -182,6 +182,10 @@ typesNodeCount types =
   types |> List.map typeNodeCount |> List.sum
 
 
+countNodes : (Exp -> Bool) -> Exp -> Int
+countNodes pred exp =
+  flattenExpTree exp
+  |> Utils.count pred
 
 
 patternListsEqual : List Pat -> List Pat -> Bool
@@ -303,8 +307,13 @@ justFindExpWithAncestorsByEId root eid =
 
 locationInProgram : Exp -> EId -> (Int, Int)
 locationInProgram program eid =
-  let exp = justFindExpByEId program eid in
+  expToLocation (justFindExpByEId program eid)
+
+
+expToLocation : Exp -> (Int, Int)
+expToLocation exp =
   (exp.start.line, exp.start.col)
+
 
 -- Is the expression in the body of only defs/comments/options?
 --
@@ -1679,6 +1688,86 @@ freeVars_ boundIdentsSet exp =
     ETypeAlias _ _ _ e1 _ -> recurse ()
     -- EVal _                -> Debug.crash "LangTools.freeVars_: shouldn't have an EVal in given expression"
     -- EDict _               -> Debug.crash "LangTools.freeVars_: shouldn't have an EDict in given expression"
+
+
+-- Probably not useful unless program has been run through assignUniqueNames
+allSimplyResolvableLetBindings : Exp -> List (Ident, Exp)
+allSimplyResolvableLetBindings program =
+  program
+  |> flattenExpTree
+  |> List.concatMap
+      (\exp ->
+        case exp.val.e__ of
+          ELet _ _ _ pat boundExp _ _ -> tryMatchExpReturningList pat boundExp
+          _                           -> []
+      )
+
+-- Precondition: program has been run through assignUniqueNames.
+--
+-- Identify all numeric variables in the program.
+-- Not the smartest; there could be false negatives, but no false positives.
+numericLetBoundIdentifiers : Exp -> Set.Set Ident
+numericLetBoundIdentifiers program =
+  let isSurelyNumeric numericIdents exp =
+    let recurse e = isSurelyNumeric numericIdents e in
+    case exp.val.e__ of
+      EConst _ _ _ _ -> True
+      EBase _ _      -> False
+      EVar _ ident   -> Set.member ident numericIdents
+      EFun _ _ _ _   -> False
+      EApp _ _ _ _   -> False -- Not smart here.
+      EOp _ op operands _ ->
+        case op.val of
+          Pi         -> True
+          DictEmpty  -> False
+          Cos        -> True
+          Sin        -> True
+          ArcCos     -> True
+          ArcSin     -> True
+          Floor      -> True
+          Ceil       -> True
+          Round      -> True
+          ToStr      -> False
+          Sqrt       -> True
+          Explode    -> False
+          DebugLog   -> List.any recurse operands
+          Plus       -> List.any recurse operands -- Can have string addition.
+          Minus      -> True
+          Mult       -> True
+          Div        -> True
+          Lt         -> False
+          Eq         -> False
+          Mod        -> True
+          Pow        -> True
+          ArcTan2    -> True
+          DictGet    -> False
+          DictRemove -> False
+          DictInsert -> False
+
+      EList _ _ _ _ _           -> False
+      EIf _ _ thenExp elseExp _ -> recurse thenExp && recurse elseExp
+      ECase _ _ branches _      -> List.all recurse (branchExps branches)
+      ETypeCase _ _ tbranches _ -> List.all recurse (tbranchExps tbranches)
+      EComment _ _ body         -> recurse body
+      EOption _ _ _ _ body      -> recurse body
+      ELet _ _ _ _ _ body _     -> recurse body
+      ETyp _ _ _ body _         -> recurse body
+      EColonType _ e _ _ _      -> recurse e
+      ETypeAlias _ _ _ body _   -> recurse body
+  in
+  let expBindings = allSimplyResolvableLetBindings program in
+  let findAllNumericIdents numericIdents =
+    let moreNumericIdents =
+      expBindings
+      |> List.filter (\(ident, boundExp) -> isSurelyNumeric numericIdents boundExp)
+      |> List.map Tuple.first
+    in
+    -- Have we converged?
+    if List.length moreNumericIdents == Set.size numericIdents
+    then numericIdents
+    else findAllNumericIdents (Set.fromList moreNumericIdents)
+  in
+  findAllNumericIdents Set.empty
 
 
 renameVarUntilBound : Ident -> Ident -> Exp -> Exp
