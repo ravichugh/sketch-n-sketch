@@ -2193,6 +2193,7 @@ makeMakeEqualTool m literals =
       synthesisResult ("New variable: " ++ newVar) newExp
     )
   in
+  -- TODO maybe call this "Make Equal with New Var"
   [ ("Make Equal", \() -> results) ]
 
 
@@ -2246,6 +2247,8 @@ makeCompareSubExpressionsTool m firstId restIds =
         |> Utils.singleton
       ) ]
   else
+    -- TODO make call this "Copy Expression",
+    -- TODO make "Copy Expression" available for selected literals
     [ ("Make Equal", \() ->
         (firstExp :: restExps) |> List.map (\exp ->
           let newExp =

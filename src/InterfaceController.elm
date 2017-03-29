@@ -2079,7 +2079,7 @@ addToolSwapNames m selections = case selections of
   ([], [], [], pathedPatId1::pathedPatId2::[], [], [], []) ->
     case [LangTools.findPat pathedPatId1 m.inputExp, LangTools.findPat pathedPatId2 m.inputExp] |> List.map (Maybe.andThen LangTools.patToMaybeIdent) of
       [Just name1, Just name2] ->
-        [ ("Swap Names Only", \() ->
+        [ ("Swap Names and Usages", \() ->
             m.inputExp
             |> composeTransformations ("Swap names " ++ name1 ++ " and " ++ name2)
                 [ renamePat pathedPatId1 "IMPROBABLE_TEMPORARY_NAME_FOR_SAFETY_CHECK!!!"
