@@ -2087,6 +2087,7 @@ makeIntroduceVarTool m expIds targetPos =
         _ ->
           []
 
+-- TODO: Bug: can't introduce var directly in from of expression being extracted.
 makeIntroduceVarTool_ m expIds addNewVarsAtThisId addNewEquationsAt =
   let toolName =
     "Introduce Var" ++ (if List.length expIds == 1 then "" else "s")
