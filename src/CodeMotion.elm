@@ -9,6 +9,7 @@ module CodeMotion exposing
   , makeIntroduceVarTool
   , makeMakeEqualTool
   , addToolCompareSubExpressions
+  , rewriteOffsetTool
   )
 
 import Lang exposing (..)
@@ -2261,3 +2262,36 @@ makeCompareSubExpressionsTool m firstId restIds =
           |> setResultSafe True -- TODO
         )
       ) ]
+
+
+------------------------------------------------------------------------------
+
+rewriteOffsetTool m ppid nums =
+  let eids = List.map Tuple.first nums in
+  let isSafe = True in -- TODO
+  if not isSafe then
+    -- TODO can do some renaming to make it safe
+    []
+  else
+    case pluck ppid m.inputExp of
+      Nothing -> []
+      Just ((p, eBase), _) ->
+        case (p.val.p__, eBase.val.e__) of
+          (PVar _ xBase _,  EConst _ nBase _ _) ->
+            [ (Utils.maybePluralize "Rewrite as Offset" nums, \() ->
+                let newExp =
+                  List.foldl
+                     (\(eid,(_,n,_,_)) ->
+                       let eBasePlusOffset =
+                         let diff = n - nBase in
+                         if diff >= 0
+                           then ePlus (eVar xBase) (eConst diff dummyLoc)
+                           else eMinus (eVar xBase) (eConst (-1 * diff) dummyLoc)
+                       in
+                       replaceExpNodePreservingPrecedingWhitespace eid eBasePlusOffset)
+                     m.inputExp nums
+                in
+                oneSafeResult newExp
+              ) ]
+
+          _ -> []

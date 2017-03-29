@@ -51,7 +51,7 @@ import Draw
 import ExpressionBasedTransform as ETransform
 import Sync
 import Eval
-import Utils
+import Utils exposing (maybePluralize)
 import Keys
 import InterfaceModel as Model exposing (..)
 import Layout exposing (clickToCanvasPoint)
@@ -1579,6 +1579,7 @@ contextSensitiveDeuceTools m =
     , addToolOneOrMoreNumsOnly thawOrFreezeTool m selections
     , addToolOneOrMoreNumsOnly showOrHideRangeTool m selections
     , addToolOneOrMoreNumsOnly addOrRemoveRangeTool m selections
+    , addToolRewriteOffset m selections
     , addToolConvertColorString m selections
     , addToolAbstract m selections
     , addToolMerge m selections
@@ -2318,10 +2319,20 @@ addToolTwiddleShapes m selections = case selections of
 
 --------------------------------------------------------------------------------
 
--- could do the following inside CodeMotion...
+addToolRewriteOffset m selections = case selections of
+  ([], _, _, _, _, _, _) -> []
 
-maybePluralize str list =
-  str ++ (if List.length list == 1 then "" else "s")
+  (nums, [], exps, [ppid], [], [], []) ->
+    if List.length nums == List.length exps
+    then CodeMotion.rewriteOffsetTool m ppid nums
+    else []
+
+  _ -> []
+
+
+--------------------------------------------------------------------------------
+
+-- could do the following inside CodeMotion...
 
 addToolIntroduceVar m selections = case selections of
   (_, _, [], _, _, _, _) -> []

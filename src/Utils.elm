@@ -333,6 +333,9 @@ niceTruncateString n toBeContinuedStr str =
   else
     str
 
+maybePluralize str list =
+  str ++ (if List.length list == 1 then "" else "s")
+
 cartProd : List a -> List b -> List (a, b)
 cartProd xs ys =
    xs |> List.concatMap (\x -> List.map ((,) x) ys)

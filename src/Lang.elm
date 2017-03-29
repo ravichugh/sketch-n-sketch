@@ -1305,6 +1305,7 @@ dummyTrace = dummyTrace_ unann
 eOp op_ es = withDummyExpInfo <| EOp " " (withDummyRange op_) es ""
 
 ePlus e1 e2 = eOp Plus [e1, e2]
+eMinus e1 e2 = eOp Minus [e1, e2]
 
 eBool  = withDummyExpInfo << EBase " " << EBool
 eStr   = withDummyExpInfo << EBase " " << EString defaultQuoteChar
