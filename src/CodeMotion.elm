@@ -2202,7 +2202,13 @@ addToolCompareSubExpressions m selections =
   case selections of
     (_, _, [], _, _, _, _)          -> []
     (_, _, [_], _, _, _, _)         -> []
-    ([], [], i::js, [], [], [], []) -> makeCompareSubExpressionsTool m i js
+    (nums, baseVals, i::js, [], [], [], []) ->
+      let atLeastOneNonLiteral =
+        List.length (i::js) > (List.length nums + List.length baseVals)
+      in
+      if atLeastOneNonLiteral
+        then makeCompareSubExpressionsTool m i js
+        else []
     _                               -> []
 
 makeCompareSubExpressionsTool m firstId restIds =
