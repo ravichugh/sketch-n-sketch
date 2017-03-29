@@ -983,6 +983,13 @@ expToMaybeNum exp =
     _              -> Nothing
 
 
+expToMaybeVar : Exp -> Maybe Exp
+expToMaybeVar exp =
+  case exp.val.e__ of
+    EVar _ _ -> Just exp
+    _        -> Nothing
+
+
 expToMaybeIdent : Exp -> Maybe Ident
 expToMaybeIdent exp =
   case exp.val.e__ of
@@ -1137,6 +1144,22 @@ identifiersList exp =
     folder
     []
     exp
+
+
+allPats : Exp -> List Pat
+allPats root =
+  flattenExpTree root
+  |> List.concatMap
+      (\exp ->
+        case exp.val.e__ of
+          EFun _ pats _ _        -> pats
+          ECase _ _ branches _   -> branchPats branches
+          ELet _ _ _ pat _ _ _   -> [pat]
+          ETypeCase _ pat _ _    -> [pat]
+          ETyp _ pat _ _ _       -> [pat]
+          ETypeAlias _ pat _ _ _ -> [pat]
+          _                      -> []
+      )
 
 
 -- Look for all non-free identifiers in the expression.
@@ -1643,6 +1666,12 @@ varsWithName : Ident -> Exp -> List Exp
 varsWithName ident exp =
   flattenExpTree exp
   |> List.filter (expToMaybeIdent >> (==) (Just ident))
+
+
+allVars : Exp -> List Exp
+allVars root =
+  flattenExpTree root
+  |> List.filterMap expToMaybeVar
 
 
 -- Which var idents in this exp refer to something outside this exp?
@@ -2240,6 +2269,35 @@ allVarEIdsToBindingPId program =
       handleCaseBranch
       Dict.empty
       Dict.empty
+
+
+-- Presumes program has been run through assignUniqueNames
+-- "Nothing" means no matching name in program
+allVarEIdsToBindingPIdBasedOnUniqueName : Exp -> Dict.Dict EId (Maybe PId)
+allVarEIdsToBindingPIdBasedOnUniqueName program =
+  let allIdentToPId =
+    flattenExpTree program
+    |> List.concatMap
+        (\exp ->
+          case exp.val.e__ of
+            EFun _ pats _ _      -> List.concatMap indentPIdsInPat pats
+            ELet _ _ _ pat _ _ _ -> indentPIdsInPat pat
+            ECase _ _ branches _ -> List.concatMap indentPIdsInPat (branchPats branches)
+            _                    -> []
+        )
+    |> Dict.fromList
+  in
+  flattenExpTree program
+  |> List.filterMap
+      (\exp ->
+        case expToMaybeIdent exp of
+          Nothing    -> Nothing
+          Just ident ->
+            case Dict.get ident allIdentToPId of
+              Nothing  -> Just (exp.val.eid, Nothing)
+              Just pid -> Just (exp.val.eid, Just pid)
+      )
+  |> Dict.fromList
 
 
 -- Outer returned maybe indicates if variable found
