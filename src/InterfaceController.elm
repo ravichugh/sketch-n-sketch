@@ -2086,9 +2086,9 @@ addToolSwapNames m selections = case selections of
                 , renamePat pathedPatId2 name1
                 , renamePat pathedPatId1 name2
                 ]
-          -- ),
-          -- ("Swap Usages", \() ->
-          --   swapUsages pathedPatId1 pathedPatId2 m.inputExp
+          ),
+          ("Swap Usages", \() ->
+            swapUsages pathedPatId1 pathedPatId2 m.inputExp
           )
         ]
 
@@ -2130,6 +2130,56 @@ renamePat (scopeId, path) newName program =
 
     Nothing ->
       []
+
+
+swapUsages : PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
+swapUsages (scopeId1, path1) (scopeId2, path2) originalProgram =
+  case (LangTools.findScopeExpAndPat (scopeId1, path1) originalProgram, LangTools.findScopeExpAndPat (scopeId2, path2) originalProgram) of
+    (Just (scopeExp1, pat1), Just (scopeExp2, pat2)) ->
+      case (LangTools.patToMaybeIdent pat1, LangTools.patToMaybeIdent pat2) of
+        (Just name1, Just name2) ->
+          let eidToBindingPId =
+            LangTools.allVarEIdsToBindingPId originalProgram
+          in
+          let newProgram =
+            originalProgram
+            |> mapExp
+                (\exp ->
+                  case (Dict.get exp.val.eid eidToBindingPId, exp.val.e__) of
+                    (Just (Just pid), EVar ws _) ->
+                      if pid == pat1.val.pid then
+                        replaceE__ exp (EVar ws name2)
+                      else if pid == pat2.val.pid then
+                        replaceE__ exp (EVar ws name1)
+                      else
+                        exp
+                    _ ->
+                      exp
+                )
+          in
+          let isSafe =
+            let expectedVarEIdsToBindingPId =
+              eidToBindingPId
+              |> Dict.map
+                  (\eid maybePId ->
+                    if maybePId == Just pat1.val.pid then
+                      Just pat2.val.pid
+                    else if maybePId == Just pat2.val.pid then
+                      Just pat1.val.pid
+                    else
+                      maybePId
+                  )
+            in
+            LangTools.allVarEIdsToBindingPId newProgram == expectedVarEIdsToBindingPId
+          in
+          let result =
+            synthesisResult ("Swap usages of " ++ name1 ++ " and " ++ name2) newProgram |> setResultSafe isSafe
+          in
+          [result]
+
+        _ -> []
+
+    _ -> []
 
 
 --------------------------------------------------------------------------------
