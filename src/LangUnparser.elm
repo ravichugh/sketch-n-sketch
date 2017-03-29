@@ -222,9 +222,9 @@ unparseWithIds e =
       -- TODO: parse/unparseWithIds are not inverses for floats (e.g. 1.0)
     EVar ws x -> ws ++ x ++ eidTag
     EFun ws1 [p] e1 ws2 ->
-      ws1 ++ "(\\" ++ unparsePatWithIds p ++ unparseWithIds e1 ++ ws2 ++ ")" ++ eidTag
+      ws1 ++ "(" ++ eidTag ++ "\\" ++ unparsePatWithIds p ++ unparseWithIds e1 ++ ws2 ++ ")"
     EFun ws1 ps e1 ws2 ->
-      ws1 ++ "(\\(" ++ (String.concat (List.map unparsePatWithIds ps)) ++ ")" ++ unparseWithIds e1 ++ ws2 ++ ")" ++ eidTag
+      ws1 ++ "(" ++ eidTag ++ "\\(" ++ (String.concat (List.map unparsePatWithIds ps)) ++ ")" ++ unparseWithIds e1 ++ ws2 ++ ")"
     EApp ws1 e1 es ws2 ->
       ws1 ++ "(" ++ unparseWithIds e1 ++ (String.concat (List.map unparseWithIds es)) ++ ws2 ++ ")" ++ eidTag
     EList ws1 es ws2 Nothing ws3 ->
@@ -232,40 +232,40 @@ unparseWithIds e =
     EList ws1 es ws2 (Just eRest) ws3 ->
       ws1 ++ "[" ++ (String.concat (List.map unparseWithIds es)) ++ ws2 ++ "|" ++ unparseWithIds eRest ++ ws3 ++ "]" ++ eidTag
     EOp ws1 op es ws2 ->
-      ws1 ++ "(" ++ strOp op.val ++ (String.concat (List.map unparseWithIds es)) ++ ws2 ++ ")" ++ eidTag
+      ws1 ++ "(" ++ eidTag ++ strOp op.val ++ (String.concat (List.map unparseWithIds es)) ++ ws2 ++ ")"
     EIf ws1 e1 e2 e3 ws2 ->
-      ws1 ++ "(if" ++ unparseWithIds e1 ++ unparseWithIds e2 ++ unparseWithIds e3 ++ ws2 ++ ")" ++ eidTag
+      ws1 ++ "(" ++ eidTag ++ "if" ++ unparseWithIds e1 ++ unparseWithIds e2 ++ unparseWithIds e3 ++ ws2 ++ ")"
     ELet ws1 Let b p e1 e2 ws2 ->
       let tok = if b then "letrec" else "let" in
-      ws1 ++ "(" ++ tok ++ unparsePatWithIds p ++ unparseWithIds e1 ++ unparseWithIds e2 ++ ws2 ++ ")" ++ eidTag
+      ws1 ++ "(" ++ eidTag ++ tok ++ unparsePatWithIds p ++ unparseWithIds e1 ++ unparseWithIds e2 ++ ws2 ++ ")"
     ELet ws1 Def b p e1 e2 ws2 ->
       -- TODO don't used nested defs until this is re-worked
       let tok = if b then "defrec" else "def" in
-      ws1 ++ "(" ++ tok ++ unparsePatWithIds p ++ unparseWithIds e1 ++ ws2 ++ ")" ++ eidTag ++ unparseWithIds e2
+      ws1 ++ "(" ++ eidTag ++ tok ++ unparsePatWithIds p ++ unparseWithIds e1 ++ ws2 ++ ")" ++ unparseWithIds e2
     ECase ws1 e1 bs ws2 ->
       let branchesStr =
         String.concat
           <| List.map (\(Branch_ bws1 pat exp bws2) -> bws1 ++ "(" ++ unparsePatWithIds pat ++ unparseWithIds exp ++ bws2 ++ ")")
           <| List.map (.val) bs
       in
-      ws1 ++ "(case" ++ unparseWithIds e1 ++ branchesStr ++ ws2 ++ ")" ++ eidTag
+      ws1 ++ "(" ++ eidTag ++ "case" ++ unparseWithIds e1 ++ branchesStr ++ ws2 ++ ")"
     ETypeCase ws1 pat tbranches ws2 ->
       let tbranchesStr =
         String.concat
           <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1 ++ "(" ++ unparseType tipe ++ unparseWithIds exp ++ bws2 ++ ")")
           <| List.map (.val) tbranches
       in
-      ws1 ++ "(typecase" ++ unparsePatWithIds pat ++ tbranchesStr ++ ws2 ++ ")" ++ eidTag
+      ws1 ++ "(" ++ eidTag ++ "typecase" ++ unparsePatWithIds pat ++ tbranchesStr ++ ws2 ++ ")"
     EComment ws s e1 ->
-      ws ++ ";" ++ s ++ eidTag ++ "\n" ++ unparseWithIds e1
+      ws ++ ";" ++ eidTag ++ s ++ "\n" ++ unparseWithIds e1
     EOption ws1 s1 ws2 s2 e1 ->
-      ws1 ++ "# " ++ s1.val ++ ":" ++ ws2 ++ s2.val ++ eidTag ++ "\n" ++ unparseWithIds e1
+      ws1 ++ "#" ++ eidTag ++ " " ++ s1.val ++ ":" ++ ws2 ++ s2.val ++ "\n" ++ unparseWithIds e1
     ETyp ws1 pat tipe e ws2 ->
-      ws1 ++ "(typ" ++ (unparsePatWithIds pat) ++ (unparseType tipe) ++ ws2 ++ ")" ++ eidTag ++ unparseWithIds e
+      ws1 ++ "(" ++ eidTag ++ "typ" ++ (unparsePatWithIds pat) ++ (unparseType tipe) ++ ws2 ++ ")" ++ unparseWithIds e
     EColonType ws1 e ws2 tipe ws3 ->
-      ws1 ++ "(" ++ (unparseWithIds e) ++ ws2 ++ ":" ++ (unparseType tipe) ++ ws3 ++ ")" ++ eidTag
+      ws1 ++ "(" ++ (unparseWithIds e) ++ ws2 ++ ":" ++ eidTag ++ (unparseType tipe) ++ ws3 ++ ")"
     ETypeAlias ws1 pat tipe e ws2 ->
-      ws1 ++ "(def" ++ (unparsePatWithIds pat) ++ (unparseType tipe) ++ ws2 ++ ")" ++ eidTag ++ unparseWithIds e
+      ws1 ++ "(" ++ eidTag ++ "def" ++ (unparsePatWithIds pat) ++ (unparseType tipe) ++ ws2 ++ ")" ++ unparseWithIds e
 
 
 -- Ignores given whitespace.
