@@ -1134,9 +1134,10 @@ moveEquationsBeforeEId letEIds targetEId originalProgram =
               targetEId
               (\expToWrap ->
                 let insertedLetEId = Utils.justGet_ "moveEquationsBeforeEId" letEIdToDup letEIdToReinsertedLetEId in
-                let (_, letOrDef, isRec, pat, boundExp, _, _) = expToLetParts letExp in
+                let (_, _, isRec, pat, boundExp, _, _) = expToLetParts letExp in
+                let letOrDef = if isTopLevelEId targetEId program then Def else Let in
                 withDummyExpInfoEId insertedLetEId <|
-                  ELet (precedingWhitespace expToWrap) letOrDef isRec pat boundExp expToWrap ""
+                  ELet (precedingWhitespace expToWrap) letOrDef isRec pat boundExp (ensureWhitespaceExp expToWrap) ""
               )
         )
         originalProgramUniqueNames
