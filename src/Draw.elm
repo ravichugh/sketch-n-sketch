@@ -572,7 +572,7 @@ pathCommands strX strY keysAndPoints =
           case list1 of
             (modifiers2,click2) :: list2 ->
               case (click2 == firstClick, list2) of
-                (True, []) -> [Utils.spaces ["'Q'", strPt click1, lastPoint]]
+                (True, []) -> [Utils.spaces ["'Q'", strPt click1, lastPoint, "'Z'"]]
                 (False, _) -> (Utils.spaces ["'Q'", strPt click1, strPt click2]) :: foo list2
                 (True, _)  -> Debug.crash "addPath Q1"
             _ -> Debug.crash "addPath Q2"
@@ -581,7 +581,7 @@ pathCommands strX strY keysAndPoints =
           case list1 of
             (modifiers2,click2) :: (modifiers3,click3) :: list3 ->
               case (click3 == firstClick, list3) of
-                (True, []) -> [Utils.spaces ["'C'", strPt click1, strPt click2, lastPoint]]
+                (True, []) -> [Utils.spaces ["'C'", strPt click1, strPt click2, lastPoint, "'Z'"]]
                 (False, _) -> (Utils.spaces ["'C'", strPt click1, strPt click2, strPt click3]) :: foo list3
                 (True, _)  -> Debug.crash "addPath C1"
             _ -> Debug.crash "addPath C2"
