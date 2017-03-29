@@ -1569,6 +1569,7 @@ contextSensitiveDeuceTools m =
     , addToolFlipBoolean m selections
     , addToolRenamePat m selections
     , addToolRenameVar m selections
+    , addToolInlineDefintion m selections
     , addToolTwiddleShapes m selections
     , addToolIntroduceVar m selections
     , CodeMotion.addToolCompareSubExpressions m selections
@@ -2120,6 +2121,25 @@ renameVar varEId newName program =
     Nothing ->
       let _ = Debug.log (oldName ++ " is free at this location in the program") () in
       []
+
+
+--------------------------------------------------------------------------------
+
+addToolInlineDefintion m selections =
+  case selections of
+    (_, _, _, [], [], _, _) -> []
+
+    ([], [], [], pathedPatIds, [], [], []) ->
+      [ (maybePluralize "Inline Definition" pathedPatIds, \() ->
+          CodeMotion.inlineDefinitions pathedPatIds m.inputExp
+        ) ]
+
+    ([], [], [], [], letEIds, [], []) ->
+      [ (maybePluralize "Inline Definition" letEIds, \() ->
+          CodeMotion.inlineDefinitions (letEIds |> List.map (\letEId -> ((letEId, 1), []))) m.inputExp
+        ) ]
+
+    _ -> []
 
 
 --------------------------------------------------------------------------------

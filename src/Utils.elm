@@ -782,6 +782,13 @@ setCardinal = List.length << Set.toList
 parseInt   = fromOk_ << String.toInt
 parseFloat = fromOk_ << String.toFloat
 
+isPrefix : List a -> List a -> Bool
+isPrefix longer prefix =
+  case (longer, prefix) of
+    (_, [])        -> True
+    ([], _)        -> False
+    (x::xs, y::ys) -> x == y && isPrefix xs ys
+
 -- Common elements shared at the beginning of each list
 commonPrefix : List (List a) -> List a
 commonPrefix lists =

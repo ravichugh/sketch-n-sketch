@@ -2,6 +2,7 @@ module CodeMotion exposing
   ( moveDefinitionsPat, moveDefinitionsBeforeEId
   , moveEquationsBeforeEId
   , duplicateDefinitionsPat, duplicateDefinitionsBeforeEId
+  , inlineDefinitions
   , abstractPVar, abstractExp, shouldBeParameterIsConstant, shouldBeParameterIsNamedUnfrozenConstant
   , removeArg, removeArgs, addArg, addArgFromPat, addArgs, addArgsFromPats, reorderFunctionArgs
   , makeEListReorderTool
@@ -531,8 +532,9 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
   else Nothing
 
 
-makeMoveResult
-    :  Dict.Dict String Ident
+makeResult
+    :  String
+    -> Dict.Dict String Ident
     -> List ( Ident, Ident )
     -> List Pat
     -> List Ident
@@ -543,7 +545,8 @@ makeMoveResult
     -> Exp
     -> Exp
     -> SynthesisResult
-makeMoveResult
+makeResult
+    verb
     uniqueNameToOldName
     renamings -- As a list of pairs
     movedPats -- unique names
@@ -566,6 +569,7 @@ makeMoveResult
       |> List.all
           (\(oldVarEId, oldPId) ->
             List.member oldVarEId varEIdsDeliberatelyRemoved || Dict.get oldVarEId newVarRefs == Just oldPId
+            -- || Debug.log (toString (oldVarEId, oldPId) ++ unparseWithIds originalProgramUniqueNames ++ unparseWithIds newProgram) False
           )
     in
     let allNewReferencesGood =
@@ -601,30 +605,34 @@ makeMoveResult
       then " renaming " ++ (renamings |> List.map (\(oldName, newName) -> oldName ++ " to " ++ newName) |> Utils.toSentence)
       else ""
     in
-    "Move "
+    verb
+    ++ " "
     ++ Utils.toSentence movedThingStrings
     ++ Utils.toSentence (List.filter ((/=) "") [rewrittingsStr, renamingsStr])
   in
   let result =
-    -- Remove assignments left behind by lifting.
     synthesisResult caption newProgram |> setResultSafe isSafe
   in
   result
 
 
-tryResolvingProblemsAfterMove
-    :  Dict.Dict String Ident
+tryResolvingProblemsAfterTransform
+    :  String
+    -> Dict.Dict String Ident
     -> Maybe EId
     -> List Pat
     -> Set.Set Ident
+    -> List EId
     -> Exp
     -> Exp
     -> List SynthesisResult
-tryResolvingProblemsAfterMove
+tryResolvingProblemsAfterTransform
+    verb
     uniqueNameToOldName
     maybeNewScopeEId
     movedPats
     namesUniqueExplicitlyMoved
+    varEIdsPreviouslyDeliberatelyRemoved
     originalProgramUniqueNames
     newProgramUniqueNames =
   let maybeNewPatUniqueNames =
@@ -669,14 +677,15 @@ tryResolvingProblemsAfterMove
           )
           (programWithUniqueNames, maybeNewPatUniqueNames, [])
     in
-    makeMoveResult
+    makeResult
+        verb
         uniqueNameToOldName
         renamingsPreserved
         movedPats
         movedUniqueIdents
         identsInvalidlyFreeRewritten
         identsWithInvalidlyFreeVarsHandled
-        varEIdsDeliberatelyRemoved
+        (varEIdsPreviouslyDeliberatelyRemoved ++ varEIdsDeliberatelyRemoved)
         insertedVarEIdToBindingPId
         originalProgramUniqueNames
         newProgramPartiallyOriginalNames
@@ -737,10 +746,10 @@ moveDefinitions_ makeNewProgram sourcePathedPatIds program =
       makeNewProgram (Utils.zip pluckedPats pluckedBoundExps) programWithoutPlucked
       |> Utils.mapFst LangSimplify.simplifyAssignments
     in
-    let newPatUniqueNames = justFindExpByEId newProgramUniqueNames newScopeEId |> expToLetPat in
     let newProgramOriginalNamesResult =
       let newProgramOriginalNames = renameIdentifiers uniqueNameToOldName newProgramUniqueNames in
-      [ makeMoveResult
+      [ makeResult
+            "Move"
             uniqueNameToOldName
             []
             pluckedPats
@@ -754,11 +763,13 @@ moveDefinitions_ makeNewProgram sourcePathedPatIds program =
       if InterfaceModel.isResultSafe (Utils.head "CodeMotion.moveDefinitionsBeforeEId" newProgramOriginalNamesResult) then
         []
       else
-        tryResolvingProblemsAfterMove
+        tryResolvingProblemsAfterTransform
+            "Move"
             uniqueNameToOldName
             (Just newScopeEId)
             pluckedPats
             namesUniqueExplicitlyMoved
+            []
             programUniqueNames
             newProgramUniqueNames
     in
@@ -1173,7 +1184,8 @@ moveEquationsBeforeEId letEIds targetEId originalProgram =
   in
   let newProgramOriginalNamesResult =
     let newProgramOriginalNames = renameIdentifiers uniqueNameToOldName programWithNewLetsOriginalEIds in
-    [ makeMoveResult
+    [ makeResult
+          "Move"
           uniqueNameToOldName
           []
           movedPats
@@ -1184,19 +1196,107 @@ moveEquationsBeforeEId letEIds targetEId originalProgram =
     ]
   in
   let newProgramMaybeRenamedLiftedTwiddledResults =
-    if InterfaceModel.isResultSafe (Utils.head "CodeMotion.moveDefinitionsBeforeEId" newProgramOriginalNamesResult) then
+    if InterfaceModel.isResultSafe (Utils.head "CodeMotion.moveEquationsBeforeEId" newProgramOriginalNamesResult) then
       []
     else
-      tryResolvingProblemsAfterMove
+      tryResolvingProblemsAfterTransform
+          "Move"
           uniqueNameToOldName
           Nothing
           movedPats
           namesUniqueExplicitlyMoved
+          []
           originalProgramUniqueNames
           programWithNewLetsOriginalEIds
   in
   newProgramOriginalNamesResult ++ newProgramMaybeRenamedLiftedTwiddledResults
   |> Utils.dedupBy (\(SynthesisResult {exp}) -> unparseWithUniformWhitespace False False exp)
+
+
+------------------------------------------------------------------------------
+
+-- Small bug: if variable to inline is unused and has variables in its boundExp, result will be marked as unsafe.
+-- (Because the eids of those usages disappear...if variable is used those usages are inlined with same EIds from
+-- the bound exp (on purpose) for the safety check.)
+inlineDefinitions : List PathedPatternId -> Exp -> List SynthesisResult
+inlineDefinitions selectedPathedPatIds originalProgram =
+  let (programUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
+  let namedPathedPatIdsToPluck =
+    selectedPathedPatIds
+    |> Utils.groupBy pathedPatIdToScopeId
+    |> Dict.toList
+    |> List.concatMap
+        (\(scopeId, pathedPatternIds) ->
+          let paths = List.map pathedPatIdToPath pathedPatternIds in
+          case findPat (scopeId, []) programUniqueNames of
+            Nothing  -> []
+            Just pat ->
+              indentPathsInPat pat
+              |> List.filter (\(ident, path) -> List.any (Utils.isPrefix path) paths)
+              |> List.map    (\(ident, path) -> (scopeId, path))
+        )
+  in
+  let (pluckedPatAndBoundExps, programWithoutPlucked) =
+    pluckAll namedPathedPatIdsToPluck programUniqueNames
+  in
+  if pluckedPatAndBoundExps == [] then
+    Debug.log "could not pluck anything" []
+  else
+    let (pluckedPats, pluckedBoundExps)      = List.unzip pluckedPatAndBoundExps in
+    let pluckedPathedPatIdentifiersUnique    = Utils.unionAll <| List.map identifiersSetInPat pluckedPats in
+    let pluckedBoundExpFreeIdentifiersUnique = Utils.unionAll <| List.map freeIdentifiers pluckedBoundExps in
+    let namesUniqueExplicitlyTouched = Set.union pluckedPathedPatIdentifiersUnique pluckedBoundExpFreeIdentifiersUnique in
+    let uniqueIdentToExp =
+      pluckedPatAndBoundExps
+      |> List.map
+          (\(pat, boundExp) ->
+            case pat.val.p__ of
+              PVar _ ident _  -> (ident, boundExp)
+              PAs _ ident _ _ -> (ident, boundExp) -- Actually, we can't pluck these yet but otherwise this transform supports PAs.
+              _               -> Debug.crash <| "CodeMotion.inlineDefinitions: should only have PVar or PAs here, got: " ++ toString (pat, boundExp)
+          )
+      |> Dict.fromList
+    in
+    let (newProgramUniqueNames, varEIdsRemoved) =
+      programWithoutPlucked
+      |> LangSimplify.simplifyAssignments
+      |> mapFoldExp
+          (\exp varEIdsRemoved ->
+            case expToMaybeIdent exp |> Maybe.andThen (\ident -> Dict.get ident uniqueIdentToExp) of
+              Just newExp -> (copyPrecedingWhitespace exp newExp, exp.val.eid::varEIdsRemoved)
+              Nothing     -> (exp, varEIdsRemoved)
+          )
+          []
+    in
+    let newProgramOriginalNamesResult =
+      let newProgramOriginalNames = renameIdentifiers uniqueNameToOldName newProgramUniqueNames in
+      [ makeResult
+            "Inline"
+            uniqueNameToOldName
+            []
+            pluckedPats
+            [] [] []
+            varEIdsRemoved Dict.empty
+            programUniqueNames
+            newProgramOriginalNames
+      ]
+    in
+    let newProgramMaybeRenamedLiftedTwiddledResults =
+      if InterfaceModel.isResultSafe (Utils.head "CodeMotion.inlineDefinitions" newProgramOriginalNamesResult) then
+        []
+      else
+        tryResolvingProblemsAfterTransform
+            "Inline"
+            uniqueNameToOldName
+            Nothing
+            pluckedPats
+            namesUniqueExplicitlyTouched
+            varEIdsRemoved
+            programUniqueNames
+            newProgramUniqueNames
+    in
+    newProgramOriginalNamesResult ++ newProgramMaybeRenamedLiftedTwiddledResults
+    |> Utils.dedupBy (\(SynthesisResult {exp}) -> unparseWithUniformWhitespace False False exp)
 
 
 ------------------------------------------------------------------------------
