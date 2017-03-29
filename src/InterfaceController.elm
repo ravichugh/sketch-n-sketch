@@ -1569,6 +1569,7 @@ contextSensitiveDeuceTools m =
     , addToolFlipBoolean m selections
     , addToolRenamePat m selections
     , addToolRenameVar m selections
+    , addToolSwapNames m selections
     , addToolInlineDefintion m selections
     , addToolTwiddleShapes m selections
     , addToolIntroduceVar m selections
@@ -2047,19 +2048,54 @@ rangeAround n =
 
 addToolRenamePat m selections = case selections of
   ([], [], [], [pathedPatId], [], [], []) ->
-    case LangTools.findPat pathedPatId m.inputExp |> Maybe.map (.val >> .p__) of
-      Just (PVar _ ident _) ->
+    case LangTools.findPat pathedPatId m.inputExp |> Maybe.andThen LangTools.patToMaybeIdent of
+      Just ident ->
         [ ("Rename " ++ ident, \() ->
             let newName = m.deuceState.renameVarTextBox in
             renamePat pathedPatId newName m.inputExp
           ) ]
 
-      Just (PAs _ ident _ _) ->
-        [ ("Rename " ++ ident, \() -> []) ]
+      _ -> []
+
+  _ -> []
+
+
+composeTransformations : String -> List (Exp -> List SynthesisResult) -> Exp -> List SynthesisResult
+composeTransformations finalCaption transformations originalProgram =
+  transformations
+  |> List.foldl
+      (\transformation results ->
+        results
+        |> List.concatMap
+            (\(SynthesisResult result) ->
+              transformation (LangParser2.freshen result.exp) |> List.map (mapResultSafe ((&&) result.isSafe))
+            )
+      )
+      [ synthesisResult "Original" originalProgram ]
+  |> List.map (setResultDescription finalCaption)
+
+
+addToolSwapNames m selections = case selections of
+  ([], [], [], pathedPatId1::pathedPatId2::[], [], [], []) ->
+    case [LangTools.findPat pathedPatId1 m.inputExp, LangTools.findPat pathedPatId2 m.inputExp] |> List.map (Maybe.andThen LangTools.patToMaybeIdent) of
+      [Just name1, Just name2] ->
+        [ ("Swap Names Only", \() ->
+            m.inputExp
+            |> composeTransformations ("Swap names " ++ name1 ++ " and " ++ name2)
+                [ renamePat pathedPatId1 "IMPROBABLE_TEMPORARY_NAME_FOR_SAFETY_CHECK!!!"
+                , renamePat pathedPatId2 name1
+                , renamePat pathedPatId1 name2
+                ]
+          -- ),
+          -- ("Swap Usages", \() ->
+          --   swapUsages pathedPatId1 pathedPatId2 m.inputExp
+          )
+        ]
 
       _ -> []
 
   _ -> []
+
 
 renamePat : PathedPatternId -> String -> Exp -> List SynthesisResult
 renamePat (scopeId, path) newName program =

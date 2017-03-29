@@ -231,6 +231,9 @@ setResultSafe isSafe synthesisResult =
 isResultSafe (SynthesisResult {isSafe}) =
   isSafe
 
+setResultDescription description (SynthesisResult result) =
+  SynthesisResult { result | description = description }
+
 type Msg
   = Msg String (Model -> Model)
 

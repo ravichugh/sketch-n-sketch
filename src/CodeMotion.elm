@@ -1250,10 +1250,9 @@ inlineDefinitions selectedPathedPatIds originalProgram =
       pluckedPatAndBoundExps
       |> List.map
           (\(pat, boundExp) ->
-            case pat.val.p__ of
-              PVar _ ident _  -> (ident, boundExp)
-              PAs _ ident _ _ -> (ident, boundExp) -- Actually, we can't pluck these yet but otherwise this transform supports PAs.
-              _               -> Debug.crash <| "CodeMotion.inlineDefinitions: should only have PVar or PAs here, got: " ++ toString (pat, boundExp)
+            case patToMaybeIdent pat of
+              Just ident -> (ident, boundExp)
+              _          -> Debug.crash <| "CodeMotion.inlineDefinitions: should only have PVar or PAs here, got: " ++ toString (pat, boundExp)
           )
       |> Dict.fromList
     in
