@@ -2231,7 +2231,7 @@ addToolInlineDefintion m selections =
 --------------------------------------------------------------------------------
 
 addToolFlipBoolean m selections = case selections of
-  ([], [], [eId], [], [], [], []) ->
+  ([], [_], [eId], [], [], [], []) ->
     case findExpByEId m.inputExp eId of
       Just ePlucked ->
         case ePlucked.val.e__ of
