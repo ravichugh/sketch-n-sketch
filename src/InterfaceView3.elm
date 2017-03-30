@@ -1709,7 +1709,14 @@ deuceTools model =
           -- nextMenu first, so it pops out at same y-position as toolButton
           Html.div [divAttrs True] (nextMenu :: toolButtonAndExtras)
     in
-    let results = func () in
+    let results =
+      let modelUnparsed = LangUnparser.unparseWithUniformWhitespace True True model.inputExp in
+      func ()
+      |> List.filter -- Ignore results equivalent to original program.
+          (\(SynthesisResult result) ->
+            modelUnparsed /= LangUnparser.unparseWithUniformWhitespace True True result.exp
+          )
+    in
 
     if String.startsWith "Rename" toolName then
       if model.deuceState.renameVarTextBox == ""
