@@ -411,6 +411,7 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
   -- 3. Repeatedly inline all invalid numeric free variables until convergence. (Simplify operations on constants.)
   let inlineInvalidFreeNumericIdentsUntilConvergence program =
     -- We are inlining definitions, which will duplicate EIds etc. so need to freshen every time.
+    -- (In particular, EIds are need for List.member exp allFreeVars)
     let freshened = LangParser2.freshen program in
     let allFreeVars = freeVars freshened in
     -- TODO: Inlining could leave us in a worse situation than before.
@@ -487,9 +488,9 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
             exp
         )
   in
--- 4. From the end of the program (by new definition location of ident that is somewhere used free invalidly), for each tuple of (variable used free, ident defined in terms of invalid free var, corresponding bound exp where used free):
---    1. Do nothing if either ident already handled in this loop
---    2. Redefine the ident that is somewhere used invalidly based on that definition using it as an invalid free var. (Simplify.)
+  -- 4. From the end of the program (by new definition location of ident that is somewhere used free invalidly), for each tuple of (variable used free, ident defined in terms of invalid free var, corresponding bound exp where used free):
+  --    1. Do nothing if either ident already handled in this loop
+  --    2. Redefine the ident that is somewhere used invalidly based on that definition using it as an invalid free var. (Simplify.)
   let (twiddledProgram, identsInvalidlyFreeRewritten, identsWithInvalidlyFreeVarsHandled) =
     identsOriginallySomewhereInvalidlyFreeWithDefWhereUsedInvalidly
     |> List.sortBy
@@ -512,15 +513,60 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
                 -- TODO: Explore all options non-deterministically.
                 case LocEqn.solveForLocUnchecked locIdInvalidlyFree Dict.empty lhs rhs |> Maybe.map locEqnToExp of
                   Nothing     -> noChange
-                  Just newExp ->
-                    let invalidlyFreeBoundExpEId =
-                      allSimplyResolvableLetBindings program
-                      |> Utils.mapFirstSuccess (\(ident, boundExp) -> if ident == identInvalidlyFree then Just boundExp.val.eid else Nothing)
-                      |> Utils.fromJust_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic invalidlyFreeBoundExpEId"
+                  Just invalidlyFreeIdentBoundExpNew ->
+                    let simpleLetBindings = allSimplyResolvableLetBindings program |> Dict.fromList in
+                    let invalidlyFreeIdentBoundExpOld =
+                      simpleLetBindings
+                      |> Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic invalidlyFreeIdentBoundExpOld" identInvalidlyFree
+                    in
+                    let boundExpWhereUsedInvalidlyPartiallyReduced =
+                      simpleLetBindings
+                      |> Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic boundExpWhereUsedInvalidlyPartiallyReduced" identOfDefWhereUsedInvalidly
+                    in
+                    let boundExpWhereUsedInvalidlyReduced =
+                      -- Inline/simplify any variables in boundExpWhereUsedInvalidly that appear in invalidlyFreeIdentBoundExpNew that were not there before in invalidlyFreeIdentBoundExpOld.
+                      -- Intuition is that we are trying not to change the number of variable uses in the program.
+                      -- May actually want to do this at all locations that used an ident invalidly, rather than just the location we used for solving.
+                      let identsToReduce =
+                        Set.diff (identifiersSet invalidlyFreeIdentBoundExpNew) (identifiersSet invalidlyFreeIdentBoundExpOld)
+                        |> Set.intersect numericIdents
+                      in
+                      let inlineUntilConvergence boundExpWhereUsedInvalidlyPartiallyReduced =
+                        -- Nothing with EIds here, don't need to freshen every time.
+                        -- TODO: Inlining could leave us in a worse situation than before.
+                        let (inlinedOnce, somethingHappened) =
+                          boundExpWhereUsedInvalidlyPartiallyReduced
+                          |> mapFoldExp -- Bottom up version.
+                              (\exp somethingHappened ->
+                                case expToMaybeIdent exp of
+                                  Nothing -> (exp, somethingHappened)
+                                  Just ident ->
+                                    if Set.member ident identsToReduce
+                                    then (Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic inlineUntilConvergence" ident simpleLetBindings |> LangParser2.clearAllIds, True)
+                                    else (exp, somethingHappened)
+                              )
+                              False
+                        in
+                        if somethingHappened
+                        then inlineInvalidFreeNumericIdentsUntilConvergence inlinedOnce
+                        else boundExpWhereUsedInvalidlyPartiallyReduced
+                      in
+                      let inlined = inlineUntilConvergence boundExpWhereUsedInvalidlyPartiallyReduced in
+                      let inlinedSimplified =
+                        if inlined == boundExpWhereUsedInvalidlyPartiallyReduced then
+                          inlined
+                        else
+                          case expToMaybeLocEqn inlined of
+                            -- TODO: constant annotations thrown away (can't always be helped, but trivial cases should be saved)
+                            Just locEqn -> LocEqn.normalizeSimplify locEqn |> locEqnToExp
+                            Nothing     -> inlined
+                      in
+                      inlinedSimplified
                     in
                     let newProgram =
                       program
-                      |> replaceExpNodePreservingPrecedingWhitespace invalidlyFreeBoundExpEId newExp
+                      |> replaceExpNodePreservingPrecedingWhitespace boundExpWhereUsedInvalidlyPartiallyReduced.val.eid boundExpWhereUsedInvalidlyReduced
+                      |> replaceExpNodePreservingPrecedingWhitespace invalidlyFreeIdentBoundExpOld.val.eid invalidlyFreeIdentBoundExpNew
                       |> LangParser2.freshen
                     in
                     (newProgram, Set.insert identInvalidlyFree identsInvalidlyFreeRewritten, Set.insert identOfDefWhereUsedInvalidly identsWithInvalidlyFreeVarsHandled)
