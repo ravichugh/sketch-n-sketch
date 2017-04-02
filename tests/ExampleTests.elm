@@ -1,4 +1,4 @@
-module ExampleTests where
+module ExampleTests exposing (..)
 
 import String
 
@@ -10,7 +10,7 @@ import LangUnparser
 
 testEvalsWithoutErrors name code =
   case parseE code of
-    Err s ->
+    Err (s, _) ->
       "can't parse " ++ name ++ ": " ++ s ++ "\n" ++ code
     Ok exp ->
       -- Elm will crash first if Eval fails.
@@ -20,12 +20,12 @@ testEvalsWithoutErrors name code =
 
 testReparsedUnparsedEvalsWithoutErrors name code =
   case parseE code of
-    Err s ->
+    Err (s, _) ->
       "can't parse " ++ name ++ ": " ++ s ++ "\n" ++ code
     Ok parsed ->
       let unparsed = LangUnparser.unparse parsed in
       case parseE unparsed of
-        Err s ->
+        Err (s, _) ->
           "can't re-parse unparsed " ++ name ++ ": " ++ s ++ "\n" ++ unparsed
         Ok reparsedExp ->
           -- Elm will crash first if Eval fails.
@@ -41,5 +41,5 @@ testExample name code =
 exampleTests : () -> List (() -> List (() -> String))
 exampleTests () =
   List.map
-    (\(name, code, thunk) -> \() -> testExample name code)
+    (\(name, (code, thunk)) -> \() -> testExample name code)
     Examples.list

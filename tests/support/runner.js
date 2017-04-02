@@ -42,9 +42,9 @@ if (process.env["SNS_TESTS_FILTER"]) {
 }
 
 // Look for all SomethingTest(s) modules...
-for (moduleName in Elm) {
+for (moduleName in this['Elm']) {
   if (moduleName.match(/Tests?$/)) {
-    var compiledModule = Elm[moduleName].make(Elm);
+    var compiledModule = this['Elm'][moduleName].make(this['Elm']);
 
     // Gather all test(s)/somethingTest(s)/something_test(s) functions in the module
     for (itemName in compiledModule) {

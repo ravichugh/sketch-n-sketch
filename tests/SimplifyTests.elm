@@ -1,4 +1,4 @@
-module SimplifyTests where
+module SimplifyTests exposing (..)
 
 import Helpers.TestTemplates exposing (..)
 

@@ -1,4 +1,4 @@
-module UnparserTests where
+module UnparserTests exposing (..)
 
 import Helpers.Matchers exposing (..)
 
@@ -9,13 +9,13 @@ import LangUnparser
 
 testParseUnparseMatch littleStr =
   case LangParser2.parseE littleStr of
-    Err s ->
+    Err (s, _) ->
       "can't parse: " ++ s ++ "\n" ++ littleStr
     Ok parsed ->
       let unparsed =
         LangUnparser.unparse parsed
       in
-      unparsed `shouldEqual` littleStr
+      expectEqual unparsed littleStr
 
 littlePrograms =
   [ "5"

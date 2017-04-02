@@ -1,8 +1,8 @@
-module Helpers.Matchers where
+module Helpers.Matchers exposing (..)
 
 
-shouldEqual : a -> a -> String
-shouldEqual actual expected =
+expectEqual : a -> a -> String
+expectEqual actual expected =
   if actual == expected then
     "ok"
   else
