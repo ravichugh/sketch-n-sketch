@@ -473,6 +473,17 @@ reflowLetWhitespace program letExp =
       Debug.crash <| "reflowLetWhitespace expected an ELet, got: " ++ unparseWithIds letExp
 
 
+newLetFancyWhitespace : EId -> Pat -> Exp -> Exp -> Exp -> Exp
+newLetFancyWhitespace insertedLetEId pat boundExp expToWrap program =
+  let letOrDef = if isTopLevelEId expToWrap.val.eid program then Def else Let in
+  let indentationAtWrapped = indentationAt expToWrap.val.eid program in
+  ELet "" letOrDef False (ensureWhitespacePat pat) (replaceIndentation "  " boundExp |> ensureWhitespaceExp)
+      (expToWrap |> ensureWhitespaceSmartExp (if isLet expToWrap then "" else "  ")) ""
+  |> withDummyExpInfoEId insertedLetEId
+  |> ensureWhitespaceNewlineExp
+  |> indent indentationAtWrapped
+
+
 identifiersVisibleAtProgramEnd : Exp -> Set.Set Ident
 identifiersVisibleAtProgramEnd program =
   let lastEId = (lastExp program).val.eid in

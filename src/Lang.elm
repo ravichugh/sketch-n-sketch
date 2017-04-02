@@ -1467,9 +1467,37 @@ precedingWhitespace exp =
   precedingWhitespaceExp__ exp.val.e__
 
 
+extractIndentation : String -> String
+extractIndentation string =
+  String.split "\n" string
+  |> Utils.maybeLast
+  |> Maybe.withDefault ""
+  |> tabsToSpaces
+
+
 indentationOf : Exp -> String
 indentationOf exp =
-  String.split "\n" (precedingWhitespace exp) |> Utils.last "Lang.indentationOf"
+  extractIndentation (precedingWhitespace exp)
+
+
+-- Given an EId in the program, what is the indentation on the line on which the expression starts?
+indentationAt : EId -> Exp -> String
+indentationAt eid program =
+  case findWithAncestorsByEId program eid of
+    Just ancestorsAndExp ->
+      ancestorsAndExp
+      |> List.reverse
+      |> List.map precedingWhitespace
+      |> Utils.mapFirstSuccess
+          (\ws ->
+            if String.contains "\n" ws
+            then Just (extractIndentation ws)
+            else Nothing
+          )
+      |> Maybe.withDefault ""
+
+    Nothing ->
+      ""
 
 
 precedingWhitespacePat : Pat -> String
@@ -1583,6 +1611,53 @@ ensureWhitespacePat pat =
   mapPrecedingWhitespacePat ensureWhitespace pat
 
 
+ensureWhitespaceNewline : String -> String
+ensureWhitespaceNewline s =
+  if String.contains "\n" s then s else "\n" ++ s
+
+-- whitespaceTwoNewlines : String -> String
+-- whitespaceTwoNewlines string =
+--   "\n\n" ++ extractIndentation string
+
+ensureWhitespaceNewlineExp : Exp -> Exp
+ensureWhitespaceNewlineExp exp =
+  mapPrecedingWhitespace ensureWhitespaceNewline exp
+
+-- whitespaceTwoNewlinesExp : Exp -> Exp
+-- whitespaceTwoNewlinesExp exp =
+--   mapPrecedingWhitespace whitespaceTwoNewlines
+
+ensureNNewlines : Int -> String -> String -> String
+ensureNNewlines n indentationIfNoPreviousNewlines ws =
+  let previousNewlineCount = List.length (String.split "\n" ws) - 1 in
+  if previousNewlineCount == 0 then
+    String.repeat n "\n" ++ indentationIfNoPreviousNewlines
+  else if previousNewlineCount < n then
+    String.repeat n "\n" ++ extractIndentation ws
+  else
+    ws
+
+
+ensureNNewlinesExp : Int -> String -> Exp -> Exp
+ensureNNewlinesExp n indentationIfNoPreviousNewlines exp =
+  mapPrecedingWhitespace (ensureNNewlines n indentationIfNoPreviousNewlines) exp
+
+
+-- If exp is multline or a let/def:
+--   Make sure preceeding whitespace contains a newline.
+--   Indent to given indentation level.
+-- Otherwise:
+--   Ensure preceeding whitespace is at least one space character.
+ensureWhitespaceSmartExp : String -> Exp -> Exp
+ensureWhitespaceSmartExp indentationIfMultiline exp =
+  if isLet exp || List.any (precedingWhitespace >> String.contains "\n") (flattenExpTree exp) then
+    exp
+    |> ensureWhitespaceNewlineExp
+    |> replaceIndentation indentationIfMultiline
+  else
+    ensureWhitespaceExp exp
+
+
 setExpListWhitespace : String -> String -> List Exp -> List Exp
 setExpListWhitespace firstWs sepWs exps =
   case exps of
@@ -1668,6 +1743,34 @@ imitatePatListWhitespace oldPats newPats =
       firstWithNewWs :: restWithNewWs
 
 
+-- 4 spaces per tab.
+tabsToSpaces : String -> String
+tabsToSpaces ws = Regex.replace Regex.All (Regex.regex "\t") (\_ -> "    ") ws
+
+
+-- The indentation difference from exp1 to exp2 is applied to exp.
+copyIndentationChange : Exp -> Exp -> Exp -> Exp
+copyIndentationChange exp1 exp2 exp =
+  let delta = String.length (indentationOf exp2 |> tabsToSpaces) - String.length (indentationOf exp1 |> tabsToSpaces) in
+  applyIndentationDelta delta exp
+
+
+-- Add/remove n spaces of indentation.
+applyIndentationDelta : Int -> Exp -> Exp
+applyIndentationDelta delta exp =
+  let processWS ws =
+    ws
+    |> Regex.replace
+        (Regex.AtMost 1)
+        (Regex.regex "\n[ \t]*$") -- $ in Javascript is end-of-string by default.
+        (\match ->
+          let priorSpacesCount = match.match |> String.dropLeft 1 |> tabsToSpaces |> String.length in
+          "\n" ++ String.repeat (priorSpacesCount + delta) " "
+        )
+  in
+  mapExp (mapPrecedingWhitespace processWS) exp
+
+
 -- Unindents until an expression is flush to the edge, then adds spaces to the indentation.
 replaceIndentation : String -> Exp -> Exp
 replaceIndentation spaces exp =
@@ -1677,27 +1780,26 @@ replaceIndentation spaces exp =
 -- Finds lowest amount of indentation and then removes it from all expressions.
 unindent : Exp -> Exp
 unindent exp =
+  let expWsAsSpaces = mapExp (mapPrecedingWhitespace tabsToSpaces) exp in
   let smallestIndentation =
-    exp
+    expWsAsSpaces
     |> foldExpViaE__
         (\e__ smallest ->
           case Regex.find Regex.All (Regex.regex "\n( *)$") (precedingWhitespaceExp__ e__) |> List.map .submatches |> List.concat of
             [Just indentation] -> if String.length indentation < String.length smallest then indentation else smallest
             _                  -> smallest
         )
-        "                                                                                                                                                                                                                                        "
+        (String.repeat 100 " ")
   in
   let removeIndentation ws =
     ws |> Regex.replace Regex.All (Regex.regex ("\n" ++ smallestIndentation)) (\_ -> "\n")
   in
-  mapExp (mapPrecedingWhitespace removeIndentation) exp
+  mapExp (mapPrecedingWhitespace removeIndentation) expWsAsSpaces
 
 
 -- Increases indentation by spaces string.
 indent : String -> Exp -> Exp
 indent spaces e =
-  -- let recurse = indent spaces in
-  -- let wrap e__ = P.WithInfo (Exp_ e__ e.val.eid) e.start e.end in
   let processWS ws =
     ws |> String.reverse
        |> Regex.replace (Regex.AtMost 1) (Regex.regex "\n") (\_ -> spaces ++ "\n")

@@ -331,11 +331,12 @@ liftDependenciesBasedOnUniqueNames program =
                   |> mapExpNode
                       eidToWrap
                       (\expToWrap ->
-                        let letOrDef = if isTopLevelEId eidToWrap programWithoutPlucked then Def else Let in
-                        withDummyExpInfoEId insertedLetEId <|
-                          ELet (precedingWhitespace expToWrap) letOrDef False
-                            (ensureWhitespacePat pluckedPat) (ensureWhitespaceExp pluckedBoundExp)
-                            (ensureWhitespaceExp expToWrap) ""
+                        newLetFancyWhitespace insertedLetEId pluckedPat pluckedBoundExp expToWrap programWithoutPlucked
+                        -- let letOrDef = if isTopLevelEId eidToWrap programWithoutPlucked then Def else Let in
+                        -- withDummyExpInfoEId insertedLetEId <|
+                        --   ELet (precedingWhitespace expToWrap) letOrDef False
+                        --     (ensureWhitespacePat pluckedPat) (ensureWhitespaceExp pluckedBoundExp)
+                        --     (ensureWhitespaceExp expToWrap) ""
                       )
                 in
                 Just (newProgram, identToLift)
@@ -850,11 +851,12 @@ moveDefinitionsBeforeEId_ sourcePathedPatIds targetEId program =
       |> mapExpNode
           targetEId
           (\expToWrap ->
-            let letOrDef = if isTopLevelEId targetEId programWithoutPluckedUniqueNames then Def else Let in
-            withDummyExpInfoEId insertedLetEId <|
-              ELet (precedingWhitespace expToWrap) letOrDef False
-                (ensureWhitespacePat newPatUniqueNames) (ensureWhitespaceExp newBoundExpUniqueNames)
-                (ensureWhitespaceExp expToWrap) ""
+            newLetFancyWhitespace insertedLetEId newPatUniqueNames newBoundExpUniqueNames expToWrap programWithoutPluckedUniqueNames
+            -- let letOrDef = if isTopLevelEId targetEId programWithoutPluckedUniqueNames then Def else Let in
+            -- withDummyExpInfoEId insertedLetEId <|
+            --   ELet (precedingWhitespace expToWrap) letOrDef False
+            --     (ensureWhitespacePat newPatUniqueNames) (ensureWhitespaceExp newBoundExpUniqueNames)
+            --     (ensureWhitespaceExp expToWrap) ""
           )
     in
     (newProgram, insertedLetEId)
@@ -947,7 +949,6 @@ duplicateDefinitionsBeforeEId sourcePathedPatIds targetEId originalProgram =
     |> mapExpNode
         targetEId
         (\expToWrap ->
-          let letOrDef = if isTopLevelEId targetEId originalProgram then Def else Let in
           let (newPat, newBoundExp) =
             case (pluckedPats, pluckedBoundExps) of
               ([pluckedPat], [boundExp]) ->
@@ -958,10 +959,11 @@ duplicateDefinitionsBeforeEId sourcePathedPatIds targetEId originalProgram =
                 , withDummyExpInfo <| EList " " (pluckedBoundExps |> setExpListWhitespace "" " ") "" Nothing "" -- May want to be smarter about whitespace here to avoid long lines.
                 )
           in
-          withDummyExpInfoEId insertedLetEId <|
-            ELet (precedingWhitespace expToWrap) letOrDef False
-              (ensureWhitespacePat newPat) (ensureWhitespaceExp newBoundExp)
-              (ensureWhitespaceExp expToWrap) ""
+          newLetFancyWhitespace insertedLetEId newPat newBoundExp expToWrap originalProgram
+          -- withDummyExpInfoEId insertedLetEId <|
+          --   ELet (precedingWhitespace expToWrap) letOrDef False
+          --     (ensureWhitespacePat newPat) (ensureWhitespaceExp newBoundExp)
+          --     (ensureWhitespaceExp expToWrap) ""
         )
     |> LangParser2.freshen -- Remove duplicate EIds
   in
@@ -1167,6 +1169,8 @@ addExpToExpByPath expToInsert path exp =
 
 ------------------------------------------------------------------------------
 
+-- TODO: whitespace fixup
+
 -- Duplicate lets to new position, remove old lets, check for safety/resolve any dependency problems.
 -- Dup/remove workflow cleanly handles edge cases e.g. moving definition before itself.
 moveEquationsBeforeEId : List EId -> EId -> Exp -> List SynthesisResult
@@ -1192,10 +1196,14 @@ moveEquationsBeforeEId letEIds targetEId originalProgram =
               targetEId
               (\expToWrap ->
                 let insertedLetEId = Utils.justGet_ "moveEquationsBeforeEId" letEIdToDup letEIdToReinsertedLetEId in
-                let (_, _, isRec, pat, boundExp, _, _) = expToLetParts letExp in
+                let (ws1, _, isRec, pat, boundExp, _, _) = expToLetParts letExp in
                 let letOrDef = if isTopLevelEId targetEId program then Def else Let in
-                withDummyExpInfoEId insertedLetEId <|
-                  ELet (precedingWhitespace expToWrap) letOrDef isRec pat boundExp (ensureWhitespaceExp expToWrap) ""
+                let indentationAtWrapped = indentationAt targetEId program in
+                ELet ws1 letOrDef isRec pat boundExp
+                    (expToWrap |> ensureWhitespaceSmartExp (indentationOf letExp ++ if isLet expToWrap then "" else "  ")) ""
+                |> withDummyExpInfoEId insertedLetEId
+                |> ensureWhitespaceNewlineExp
+                |> replaceIndentation indentationAtWrapped
               )
         )
         originalProgramUniqueNames
@@ -1509,8 +1517,9 @@ abstractExp eidToAbstract originalProgram =
       |> replaceExpNodePreservingPrecedingWhitespace eidToAbstract (eApp (eVar0 funcName) (argumentsForCallSite |> setExpListWhitespace " " " "))
     in
     let wrapped =
-      let makeELet = if isTopLevelEId expToWrap.val.eid originalProgram then eDef else eLet in
-      makeELet [(funcName, abstractedFuncExp)] expToWrapWithTargetReplaced
+      -- let makeELet = if isTopLevelEId expToWrap.val.eid originalProgram then eDef else eLet in
+      -- makeELet [(funcName, abstractedFuncExp)] expToWrapWithTargetReplaced
+      newLetFancyWhitespace -1 (pVar funcName) abstractedFuncExp expToWrap originalProgram
     in
     let newProgram =
       originalProgram
@@ -1810,11 +1819,12 @@ removeArg pathedPatId originalProgram =
                           _ ->
                             let inlinedArgEId = LangParser2.maxId originalProgram + 1 in
                             let newFBody =
-                              withDummyExpInfo <|
-                                ELet (precedingWhitespace fbody) Let False
-                                  (ensureWhitespacePat pluckedPat)
-                                  (argReplacementValue |> LangParser2.clearAllIds |> setEId inlinedArgEId |> ensureWhitespaceExp)
-                                  (ensureWhitespaceExp fbody) ""
+                              newLetFancyWhitespace -1 pluckedPat (argReplacementValue |> LangParser2.clearAllIds |> setEId inlinedArgEId) fbody originalProgram
+                              -- withDummyExpInfo <|
+                              --   ELet (precedingWhitespace fbody) Let False
+                              --     (ensureWhitespacePat pluckedPat)
+                              --     (argReplacementValue |> LangParser2.clearAllIds |> setEId inlinedArgEId |> ensureWhitespaceExp)
+                              --     (ensureWhitespaceExp fbody) ""
                             in
                             let replacementLocationEIds = [ inlinedArgEId ] in
                             (newFBody, replacementLocationEIds)
