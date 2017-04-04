@@ -988,6 +988,7 @@ findWithAncestorsByEId exp targetEId =
 -- Nothing means not found
 -- Just Nothing means EId is program root
 -- Just (Just exp) mean EId found and parent found
+parentByEId : Exp -> EId -> Maybe (Maybe Exp)
 parentByEId program targetEId =
   findWithAncestorsByEId program targetEId
   |> Maybe.map (Utils.takeLast 2 >> Utils.dropLast 1 >> List.head)
