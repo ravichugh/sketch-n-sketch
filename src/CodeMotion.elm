@@ -414,6 +414,7 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
     -- We are inlining definitions, which will duplicate EIds etc. so need to freshen every time.
     -- (In particular, EIds are need for List.member exp allFreeVars)
     let freshened = LangParser2.freshen program in
+    -- let _ = Debug.log ("initial inlining:\n" ++ unparseWithIds freshened) () in
     let allFreeVars = freeVars freshened in
     -- TODO: Inlining could leave us in a worse situation than before.
     let (programInlinedOnce, somethingHappened) =
@@ -425,7 +426,7 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
               Just ident ->
                 -- Don't duplicate any existing EIds when inlining: don't want them clobbered when freshening.
                 if Set.member ident numericIdents && List.member exp allFreeVars
-                then (Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic" ident simpleLetBindings |> LangParser2.clearAllIds, True)
+                then (Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic" ident simpleLetBindings |> LangParser2.clearAllIds |> copyPrecedingWhitespace exp, True)
                 else (exp, somethingHappened)
           )
           False
@@ -483,12 +484,14 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
           if Set.member exp.val.eid boundEIdsToSimplify then
             case expToMaybeLocEqn exp of
               -- TODO: constant annotations thrown away (can't always be helped, but trivial cases should be saved)
-              Just locEqn -> LocEqn.normalizeSimplify locEqn |> locEqnToExp
+              Just locEqn -> LocEqn.normalizeSimplify locEqn |> locEqnToExp |> copyPrecedingWhitespace exp
               Nothing     -> exp
           else
             exp
         )
+    |> LangParser2.freshen
   in
+  -- let _ = Debug.log ("inlined simplified:\n" ++ unparseWithIds inlinedSimplifiedProgram) () in
   -- 4. From the end of the program (by new definition location of ident that is somewhere used free invalidly), for each tuple of (variable used free, ident defined in terms of invalid free var, corresponding bound exp where used free):
   --    1. Do nothing if either ident already handled in this loop
   --    2. Redefine the ident that is somewhere used invalidly based on that definition using it as an invalid free var. (Simplify.)
@@ -543,16 +546,17 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
                                   Nothing -> (exp, somethingHappened)
                                   Just ident ->
                                     if Set.member ident identsToReduce
-                                    then (Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic inlineUntilConvergence" ident simpleLetBindings |> LangParser2.clearAllIds, True)
+                                    then (Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic inlineUntilConvergence" ident simpleLetBindings |> LangParser2.clearAllIds |> copyPrecedingWhitespace exp, True)
                                     else (exp, somethingHappened)
                               )
                               False
                         in
                         if somethingHappened
-                        then inlineInvalidFreeNumericIdentsUntilConvergence inlinedOnce
+                        then inlineUntilConvergence inlinedOnce
                         else boundExpWhereUsedInvalidlyPartiallyReduced
                       in
                       let inlined = inlineUntilConvergence boundExpWhereUsedInvalidlyPartiallyReduced in
+                      -- let _ = Debug.log ("reduced:\n" ++ unparseWithIds inlined) () in
                       let inlinedSimplified =
                         if inlined == boundExpWhereUsedInvalidlyPartiallyReduced then
                           inlined
@@ -562,6 +566,7 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
                             Just locEqn -> LocEqn.normalizeSimplify locEqn |> locEqnToExp
                             Nothing     -> inlined
                       in
+                      -- let _ = Debug.log ("simplified:\n" ++ unparseWithIds inlinedSimplified) () in
                       inlinedSimplified
                     in
                     let newProgram =
@@ -570,6 +575,7 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
                       |> replaceExpNodePreservingPrecedingWhitespace invalidlyFreeIdentBoundExpOld.val.eid invalidlyFreeIdentBoundExpNew
                       |> LangParser2.freshen
                     in
+                    -- let _ = Debug.log ("new program:\n" ++ unparseWithIds newProgram) () in
                     (newProgram, Set.insert identInvalidlyFree identsInvalidlyFreeRewritten, Set.insert identOfDefWhereUsedInvalidly identsWithInvalidlyFreeVarsHandled)
 
         )
