@@ -5,7 +5,7 @@ module CodeMotion exposing
   , inlineDefinitions
   , abstractPVar, abstractExp, shouldBeParameterIsConstant, shouldBeParameterIsNamedUnfrozenConstant
   , removeArg, removeArgs, addArg, addArgFromPat, addArgs, addArgsFromPats, reorderFunctionArgs
-  , makeEListReorderTool
+  , addToolReorderEList
   , makeIntroduceVarTool
   , makeMakeEqualTool
   , addToolCompareSubExpressions
@@ -2047,74 +2047,73 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
 
 ------------------------------------------------------------------------------
 
-makeEListReorderTool
-    : Model -> List EId -> ExpTargetPosition
-   -> MaybeOne NamedDeuceTool
-makeEListReorderTool m expIds expTarget =
-  let maybeParentELists =
-    List.map (findParentEList m.inputExp) (Tuple.second expTarget :: expIds)
-  in
-  case Utils.dedupByEquality maybeParentELists of
+-- TODO: define these and use this elsewhere
+bindMaybeToMaybeOne : (a -> MaybeOne b) -> Maybe a -> MaybeOne b
+bindMaybeToMaybeOne f mx =
+  case mx of
+    Nothing -> Utils.nothing
+    Just x  -> f x
 
-    -- check that a single EList is the parent of all selected expressions
-    -- and of the selected expression target positions
-    [(Just (eListId, (ws1, listExps, ws2, Nothing, ws3)), True)] ->
-
-      let (plucked, prefix, maybeSuffix) =
-        List.foldl (\listExp_i (plucked, prefix, maybeSuffix) ->
-
-          if listExp_i.val.eid == Tuple.second expTarget then
-            case (maybeSuffix, Tuple.first expTarget) of
-              (Nothing, Before) ->
-                if List.member listExp_i.val.eid expIds
-                  then (plucked ++ [listExp_i], prefix, Just [])
-                  else (plucked, prefix, Just [listExp_i])
-              (Nothing, After) ->
-                if List.member listExp_i.val.eid expIds
-                  then (plucked ++ [listExp_i], prefix, Just [])
-                  else (plucked, prefix ++ [listExp_i], Just [])
-              (Just _, _) ->
-                Debug.crash "reorder fail ..."
-
-          else if List.member listExp_i.val.eid expIds then
-            (plucked ++ [listExp_i], prefix, maybeSuffix)
-
-          else
-            case maybeSuffix of
-              Nothing     -> (plucked, prefix ++ [listExp_i], maybeSuffix)
-              Just suffix -> (plucked, prefix, Just (suffix ++ [listExp_i]))
-
-          ) ([], [], Nothing) listExps
+addToolReorderEList m selections =
+  case selections of
+    (_, _, [], _, _, _, _) -> []
+    (_, _, expIds, [], [], [expTarget], []) ->
+      let maybeMaybeParents =
+        List.map (parentByEId m.inputExp) (Tuple.second expTarget :: expIds)
       in
-      let reorderedListExps =
-        case maybeSuffix of
-          Nothing     -> Debug.crash "reorder fail ..."
-          Just suffix -> prefix ++ plucked ++ suffix
-      in
-      let reorderedEList =
-        withDummyExpInfo <|
-          EList ws1 (imitateExpListWhitespace listExps reorderedListExps)
-                ws2 Nothing ws3
-      in
-      let newExp =
-        replaceExpNode eListId reorderedEList m.inputExp
-      in
-      [ ("Reorder List", \() -> [synthesisResult "Reorder List" newExp]) ]
+      Utils.projJusts maybeMaybeParents |> bindMaybeToMaybeOne (\maybeParents ->
+      Utils.projJusts maybeParents |> bindMaybeToMaybeOne (\parents ->
+      let parentIds = List.map (.eid << .val) parents in
+        case Utils.dedup parentIds of
+          [eListId] ->
+            case (justFindExpByEId m.inputExp eListId).val.e__ of
+              EList ws1 listExps ws2 Nothing ws3 ->
 
+                let (plucked, prefix, maybeSuffix) =
+                  List.foldl (\listExp_i (plucked, prefix, maybeSuffix) ->
+
+                    if listExp_i.val.eid == Tuple.second expTarget then
+                      case (maybeSuffix, Tuple.first expTarget) of
+                        (Nothing, Before) ->
+                          if List.member listExp_i.val.eid expIds
+                            then (plucked ++ [listExp_i], prefix, Just [])
+                            else (plucked, prefix, Just [listExp_i])
+                        (Nothing, After) ->
+                          if List.member listExp_i.val.eid expIds
+                            then (plucked ++ [listExp_i], prefix, Just [])
+                            else (plucked, prefix ++ [listExp_i], Just [])
+                        (Just _, _) ->
+                          Debug.crash "reorder fail ..."
+
+                    else if List.member listExp_i.val.eid expIds then
+                      (plucked ++ [listExp_i], prefix, maybeSuffix)
+
+                    else
+                      case maybeSuffix of
+                        Nothing     -> (plucked, prefix ++ [listExp_i], maybeSuffix)
+                        Just suffix -> (plucked, prefix, Just (suffix ++ [listExp_i]))
+
+                    ) ([], [], Nothing) listExps
+                in
+                let reorderedListExps =
+                  case maybeSuffix of
+                    Nothing     -> Debug.crash "reorder fail ..."
+                    Just suffix -> prefix ++ plucked ++ suffix
+                in
+                let reorderedEList =
+                  withDummyExpInfo <|
+                    EList ws1 (imitateExpListWhitespace listExps reorderedListExps)
+                          ws2 Nothing ws3
+                in
+                let newExp =
+                  replaceExpNode eListId reorderedEList m.inputExp
+                in
+                [ ("Reorder List", \() -> [synthesisResult "Reorder List" newExp]) ]
+
+              _ -> []
+          _ -> []
+      ))
     _ -> []
-
-findParentEList exp eid =
-  let foo e (mostRecentEList, foundExp) =
-    if foundExp then (mostRecentEList, True)
-    else if e.val.eid == eid then (mostRecentEList, True)
-    else
-      case e.val.e__ of
-        EList ws1 listExps ws2 listRest ws3 ->
-          (Just (e.val.eid, (ws1, listExps, ws2, listRest, ws3)), False)
-        _ ->
-          (mostRecentEList, foundExp)
-  in
-  foldExp foo (Nothing, False) exp
 
 
 ------------------------------------------------------------------------------

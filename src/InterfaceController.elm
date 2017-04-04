@@ -738,6 +738,7 @@ msgKeyPress keyCode = Msg ("Key Press " ++ toString keyCode) <| \old ->
   old
 
 msgKeyDown keyCode = Msg ("Key Down " ++ toString keyCode) <| \old ->
+  -- let _ = Debug.log "Key Down" (keyCode, old.keysDown) in
   if [keyCode] == Keys.escape then
     let new = resetDeuceState old in
     case (old.tool, old.mouseMode) of
@@ -752,6 +753,7 @@ msgKeyDown keyCode = Msg ("Key Down " ++ toString keyCode) <| \old ->
   else if keyCode == Keys.keyMeta then
     old
     -- for now, no need to ever put keyMeta in keysDown
+    -- TODO need to put keyMeta in model, so know not to put the next key in model
 {-
   else if List.member Keys.keyMeta old.keysDown then
     -- when keyMeta is down and another key k is downed,
@@ -1586,6 +1588,7 @@ contextSensitiveDeuceTools m =
     , addToolAddArg m selections
     , addToolRemoveArg m selections
     , addToolReorderFunctionArgs m selections
+    , CodeMotion.addToolReorderEList m selections
     ]
 
 
