@@ -488,12 +488,21 @@ reflowLetWhitespace program letExp =
 newLetFancyWhitespace : EId -> Pat -> Exp -> Exp -> Exp -> Exp
 newLetFancyWhitespace insertedLetEId pat boundExp expToWrap program =
   let letOrDef = if isTopLevelEId expToWrap.val.eid program then Def else Let in
-  let indentationAtWrapped = indentationAt expToWrap.val.eid program in
+  let newLetIndentation =
+    -- If target expression is the body of a existing let, then use the indentation of the existing let.
+    -- Otherwise, copy indentation of the wrapped expression.
+    case parentByEId program expToWrap.val.eid of
+      Just (Just parent) ->
+        if (expToMaybeLetBody parent |> Maybe.map (.val >> .eid)) == Just expToWrap.val.eid
+        then indentationAt parent.val.eid program
+        else indentationAt expToWrap.val.eid program
+      _ -> indentationAt expToWrap.val.eid program
+  in
   ELet "" letOrDef False (ensureWhitespacePat pat) (replaceIndentation "  " boundExp |> ensureWhitespaceExp)
       (expToWrap |> ensureWhitespaceSmartExp (if isLet expToWrap then "" else "  ")) ""
   |> withDummyExpInfoEId insertedLetEId
   |> ensureWhitespaceNewlineExp
-  |> indent indentationAtWrapped
+  |> indent newLetIndentation
 
 
 identifiersVisibleAtProgramEnd : Exp -> Set.Set Ident
@@ -1096,6 +1105,14 @@ expToLetBody exp =
   case exp.val.e__ of
     ELet _ _ _ _ _ body _ -> body
     _                     -> Debug.crash <| "LangTools.expToLetBody exp is not an ELet: " ++ unparseWithIds exp
+
+
+expToMaybeLetBody : Exp -> Maybe Exp
+expToMaybeLetBody exp =
+  case exp.val.e__ of
+    ELet _ _ _ _ _ body _ -> Just body
+    _                     -> Nothing
+
 
 expToFuncPats : Exp -> List Pat
 expToFuncPats exp =

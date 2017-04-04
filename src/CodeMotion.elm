@@ -1198,12 +1198,20 @@ moveEquationsBeforeEId letEIds targetEId originalProgram =
                 let insertedLetEId = Utils.justGet_ "moveEquationsBeforeEId" letEIdToDup letEIdToReinsertedLetEId in
                 let (ws1, _, isRec, pat, boundExp, _, _) = expToLetParts letExp in
                 let letOrDef = if isTopLevelEId targetEId program then Def else Let in
-                let indentationAtWrapped = indentationAt targetEId program in
+                let newLetIndentation =
+                  -- If target expression is the body of a existing let, then use the indentation of the existing let.
+                  case parentByEId program targetEId of
+                    Just (Just parent) ->
+                      if (expToMaybeLetBody parent |> Maybe.map (.val >> .eid)) == Just targetEId
+                      then indentationAt parent.val.eid program
+                      else indentationAt targetEId program
+                    _ -> indentationAt targetEId program
+                in
                 ELet ws1 letOrDef isRec pat boundExp
                     (expToWrap |> ensureWhitespaceSmartExp (indentationOf letExp ++ if isLet expToWrap then "" else "  ")) ""
                 |> withDummyExpInfoEId insertedLetEId
                 |> ensureWhitespaceNewlineExp
-                |> replaceIndentation indentationAtWrapped
+                |> replaceIndentation newLetIndentation
               )
         )
         originalProgramUniqueNames

@@ -985,6 +985,14 @@ findWithAncestorsByEId exp targetEId =
     |> Maybe.map (\descendents -> exp::descendents)
 
 
+-- Nothing means not found
+-- Just Nothing means EId is program root
+-- Just (Just exp) mean EId found and parent found
+parentByEId program targetEId =
+  findWithAncestorsByEId program targetEId
+  |> Maybe.map (Utils.takeLast 2 >> Utils.dropLast 1 >> List.head)
+
+
 -- Children left-to-right.
 childExps : Exp -> List Exp
 childExps e =
