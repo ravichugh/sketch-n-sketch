@@ -487,7 +487,8 @@ reflowLetWhitespace program letExp =
 
 newLetFancyWhitespace : EId -> Pat -> Exp -> Exp -> Exp -> Exp
 newLetFancyWhitespace insertedLetEId pat boundExp expToWrap program =
-  let letOrDef = if isTopLevelEId expToWrap.val.eid program then Def else Let in
+  let isTopLevel = isTopLevelEId expToWrap.val.eid program in
+  let letOrDef = if isTopLevel then Def else Let in
   let newLetIndentation =
     -- If target expression is the body of a existing let, then use the indentation of the existing let.
     -- Otherwise, copy indentation of the wrapped expression.
@@ -499,7 +500,7 @@ newLetFancyWhitespace insertedLetEId pat boundExp expToWrap program =
       _ -> indentationAt expToWrap.val.eid program
   in
   ELet "" letOrDef False (ensureWhitespacePat pat) (replaceIndentation "  " boundExp |> ensureWhitespaceExp)
-      (expToWrap |> ensureWhitespaceSmartExp (if isLet expToWrap then "" else "  ")) ""
+      (expToWrap |> ensureWhitespaceSmartExp (if isLet expToWrap || isTopLevel then "" else "  ")) ""
   |> withDummyExpInfoEId insertedLetEId
   |> ensureWhitespaceNewlineExp
   |> indent newLetIndentation
