@@ -1733,7 +1733,7 @@ addToolMerge m selections =
       let mergeResults =
         let candidateExpFilter e = List.member e.val.eid eids in
         let minCloneCount = List.length eids in
-        ETransform.cloneEliminationSythesisResults candidateExpFilter minCloneCount m.inputExp
+        ETransform.cloneEliminationSythesisResults candidateExpFilter minCloneCount 2 m.inputExp
       in
       if mergeResults /= []
       then [ ("Merge", always mergeResults) ]

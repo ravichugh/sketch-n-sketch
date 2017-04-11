@@ -59,7 +59,7 @@ import String
 
 passiveSynthesisSearch : Exp -> List InterfaceModel.SynthesisResult
 passiveSynthesisSearch originalExp =
-  cloneEliminationSythesisResults (always True) 2 originalExp ++
+  cloneEliminationSythesisResults (always True) 2 5 originalExp ++
   mapAbstractSynthesisResults originalExp ++
   rangeSynthesisResults originalExp ++
   inlineListSynthesisResults originalExp
@@ -482,16 +482,16 @@ noExtraneousFreeVarsInRemovedClones cloneExps commonScopeWhereAbstractionWillBeD
         freeVars cloneExp |> List.all (\var -> List.member var freeAtAbstraction)
       )
 
-cloneEliminationSythesisResults : (Exp -> Bool) -> Int -> Exp -> List InterfaceModel.SynthesisResult
-cloneEliminationSythesisResults candidateExpFilter minCloneCount originalExp =
-  detectClones originalExp candidateExpFilter minCloneCount 5 1 False ++
-  detectClones originalExp candidateExpFilter minCloneCount 10 2 False ++
-  detectClones originalExp candidateExpFilter minCloneCount 15 3 False ++
-  detectClones originalExp candidateExpFilter minCloneCount 20 4 False ++
-  detectClones originalExp candidateExpFilter minCloneCount 25 5 False ++
-  detectClones originalExp candidateExpFilter minCloneCount 30 6 False ++
-  detectClones originalExp candidateExpFilter minCloneCount 35 7 False ++
-  detectClones originalExp candidateExpFilter minCloneCount 40 8 False
+cloneEliminationSythesisResults : (Exp -> Bool) -> Int -> Int -> Exp -> List InterfaceModel.SynthesisResult
+cloneEliminationSythesisResults candidateExpFilter minCloneCount minCloneSizeToArgumentRatio originalExp =
+  detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * 1) 1 False ++
+  detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * 2) 2 False ++
+  detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * 3) 3 False ++
+  detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * 4) 4 False ++
+  detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * 5) 5 False ++
+  detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * 6) 6 False ++
+  detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * 7) 7 False ++
+  detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * 8) 8 False
   |> List.filter
       (\(cloneEIdsAndExpsAndParameterExpLists, _, commonScope, _, _) ->
         let (_, cloneExps, _) = Utils.unzip3 cloneEIdsAndExpsAndParameterExpLists in
