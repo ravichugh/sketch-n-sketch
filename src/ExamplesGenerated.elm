@@ -9,8 +9,6 @@ import PreludeGenerated as Prelude
 import LangSvg
 import DefaultIconTheme
 
-fst (a, _) = a
-
 makeExample name s =
   let thunk () =
     -- TODO tolerate parse errors, change Select Example
@@ -5164,7 +5162,7 @@ defaultIconCategory =
 
 logoCategory =
   ( "Logos"
-  , List.sortBy fst
+  , List.sortBy Tuple.first
       [ makeExample "SnS Logo (UIST)" sns_UIST
       , makeExample "SnS Logo Revisited (UIST)" sns_revisited_UIST
       , makeExample "Botanic Garden Logo (UIST)" botanic_UIST
@@ -5185,7 +5183,7 @@ logoCategory =
 
 flagCategory =
   ( "Flags"
-  , List.sortBy fst
+  , List.sortBy Tuple.first
       [ makeExample "Chicago Flag" chicago
       , makeExample "US-13 Flag" usFlag13
       , makeExample "US-50 Flag" usFlag50
@@ -5283,142 +5281,14 @@ otherCategory =
 
 templateCategories =
   [ generalCategory
+  , deuceCategory
   , defaultIconCategory
   , logoCategory
   , flagCategory
   , otherCategory
   ]
 
-examples =
-  [ makeExample "BLANK" blank
-  , makeExample "*Prelude*" Prelude.src
-
-  , makeExample "SnS Logo (UIST)" sns_UIST
-  , makeExample "SnS Logo Revisited (UIST)" sns_revisited_UIST
-  , makeExample "Botanic Garden Logo (UIST)" botanic_UIST
-  , makeExample "Coffee Mugs (UIST)" coffee_UIST
-
-  , makeExample "Wave Boxes" sineWaveOfBoxes
-  , makeExample "Wave Boxes Grid" sineWaveGrid
-
-  -- up here during ad-hoc development
-  -- , makeExample "RelateRects0" relateRects0
-  -- , makeExample "RelateRects1" relateRects1
-  -- , makeExample "RelateCircles0" relateCircles0
-  -- , makeExample "RelateLines0" relateLines0
-  -- , makeExample "RelatePoints0" relatePoints0
-  -- , makeExample "RelatePoints1" relatePoints1
-  -- , makeExample "RelatePoints2" relatePoints2
-  -- , makeExample "RelatePoints3" relatePoints3
-  -- , makeExample "RelatePoints4" relatePoints4
-  -- , makeExample "Delete Boxes" deleteBoxes
-
-  , makeExample "Basic Slides" basicSlides
-  , makeExample "Logo" logo
-  , makeExample "Botanic Garden Logo" botanic
-  , makeExample "Active Trans Logo" activeTrans2
-  , makeExample "Sailboat" sailBoat
-  , makeExample "Chicago Flag" chicago
-  , makeExample "Sliders" sliders
-  , makeExample "Buttons" buttons
-  , makeExample "Widgets" widgets
-  , makeExample "xySlider" xySlider
-  , makeExample "Offsets" offsets
-  , makeExample "Tile Pattern" boxGridTokenFilter
-  , makeExample "Color Picker" rgba
-  , makeExample "Ferris Wheel" ferris
-  , makeExample "Ferris Task Before" ferris2
-  , makeExample "Ferris Task After" ferris2target
-  , makeExample "Ferris Wheel Slideshow" ferrisWheelSlideshow
-  , makeExample "SnS Logo Wheel" snsLogoWheel
-  , makeExample "Survey Results" surveyResultsTriHist2
-  , makeExample "Hilbert Curve Animation" hilbertCurveAnimation
-  , makeExample "Bar Graph" barGraph
-  , makeExample "Pie Chart" pieChart1
-  , makeExample "Solar System" solarSystem
-  , makeExample "Clique" clique
-  , makeExample "Eye Icon" eyeIcon
-  , makeExample "Wikimedia Logo" wikimedia
-  , makeExample "Haskell.org Logo" haskell
-  , makeExample "Cover Logo" cover
-  , makeExample "POP-PL Logo" poppl
-  , makeExample "Horror Films" horrorFilms0
-  , makeExample "Cycling Association" cyclingAssociation0
-  , makeExample "Lillicon P" lilliconP
-  , makeExample "Lillicon P, v2" lilliconP2
-  , makeExample "Keyboard" keyboard
-  , makeExample "Keyboard Task Before" keyboard2
-  , makeExample "Keyboard Task After" keyboard2target
-  , makeExample "Tessellation Task Before" tessellation
-  , makeExample "Tessellation Task After" tessellationTarget
-  , makeExample "Tessellation 2" tessellation2
-  , makeExample "Floral Logo 1" floralLogo
-  , makeExample "Floral Logo 2" floralLogo2
-  , makeExample "Spiral Spiral-Graph" spiralSpiralGraph
-  , makeExample "Rounded Rect" roundedRect
-
-  , makeExample "Thaw/Freeze" thawFreeze
-  , makeExample "Dictionaries" dictionaries
-  , makeExample "3 Boxes" threeBoxes
-  -- , makeExample "N Boxes H2" nBoxesH2
-  , makeExample "N Boxes Sli" nBoxes
-  , makeExample "N Boxes" groupOfBoxes
-  -- , makeExample "6 Boxes A" sixBoxesA
-  -- , makeExample "6 Boxes B" sixBoxesB
-  -- , makeExample "Wave Tokens" waveOfBoxesTokens
-  -- , makeExample "Wave 3" waveOfBoxes3
-  -- , makeExample "Chicago Flag 2" chicagoColors
-  , makeExample "Elm Logo" elmLogo
-  , makeExample "Logo 2" logo2
-  , makeExample "Logo Sizes" logoSizes
-  , makeExample "Rings" rings
-  , makeExample "Polygons" polygons
-  , makeExample "Stars" stars
-  , makeExample "Triangles" equiTri
-  , makeExample "US-13 Flag" usFlag13
-  , makeExample "US-50 Flag" usFlag50
-  , makeExample "French Sudan Flag" frenchSudan
-  , makeExample "Frank Lloyd Wright" flw1
-  , makeExample "Frank Lloyd Wright B" flw2
-  , makeExample "Bezier Curves" bezier
-  , makeExample "Fractal Tree" fractalTree
-  , makeExample "Stick Figures" stickFigures
-  , makeExample "Cult of Lambda" cultOfLambda
-  , makeExample "Matrix Transformations" matrices
-  , makeExample "Misc Shapes" miscShapes
-  , makeExample "Interface Buttons" interfaceButtons
-  , makeExample "Paths 1" paths1
-  , makeExample "Paths 2" paths2
-  , makeExample "Paths 3" paths3
-  , makeExample "Paths 4" paths4
-  , makeExample "Paths 5" paths5
-  , makeExample "Sample Rotations" rotTest
-  , makeExample "Grid Tile" gridTile
-  , makeExample "Zones" zones
-  , makeExample "Rectangle Trisection" rectangleTrisection
-  , makeExample "Battery" battery
-  , makeExample "Battery (Dynamic)" batteryDynamic
-  , makeExample "Mondrian Arch" mondrianArch
-  , makeExample "Ladder" ladder
-  , makeExample "Rails" rails
-  , makeExample "Target" target
-  , makeExample "Xs" xs
-  , makeExample "Conifer" conifer
-  , makeExample "Ferris Wheel 3" ferris3
-  , makeExample "Gear" gear
-  , makeExample "Koch Snowflake" kochSnowflake
-  , makeExample "Replace Terminals With Workstations" replaceTerminalsWithWorkstations
-  , makeExample "Balance Scale" balanceScale
-  , makeExample "Pencil Tip" pencilTip
-  , makeExample "Calendar Icon" calendarIcon
-
-  , makeExample "Icon: Cursor" DefaultIconTheme.cursor
-  , makeExample "Icon: Text" DefaultIconTheme.text
-  , makeExample "Icon: Line" DefaultIconTheme.line
-  , makeExample "Icon: Rect" DefaultIconTheme.rect
-  , makeExample "Icon: Ellipse" DefaultIconTheme.ellipse
-  , makeExample "Icon: Polygon" DefaultIconTheme.polygon
-  , makeExample "Icon: Path" DefaultIconTheme.path
-  ]
-
-list = examples
+list =
+  templateCategories
+    |> List.map Tuple.second
+    |> List.concat
