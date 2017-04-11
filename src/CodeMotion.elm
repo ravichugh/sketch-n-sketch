@@ -1533,7 +1533,7 @@ abstractExp eidToAbstract originalProgram =
     let wrapped =
       -- let makeELet = if isTopLevelEId expToWrap.val.eid originalProgram then eDef else eLet in
       -- makeELet [(funcName, abstractedFuncExp)] expToWrapWithTargetReplaced
-      newLetFancyWhitespace -1 (pVar funcName) abstractedFuncExp expToWrap originalProgram
+      newLetFancyWhitespace -1 (pVar funcName) abstractedFuncExp expToWrapWithTargetReplaced originalProgram
     in
     let newProgram =
       originalProgram
