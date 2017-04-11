@@ -1,0 +1,12 @@
+
+(def logo (\(x1 y1 w h fill stroke strokeWidth)
+  (let rectangle (rect fill x1 y1 w h)
+  (let line1 (line stroke strokeWidth x1 y1 (+ x1 w) (+ y1 h))
+  (let line2 (line stroke strokeWidth x1 (+ y1 h) (+ x1 (/ w 2)) (+ y1 (/ h 2)))
+  [rectangle line1 line2])))))
+
+(svg (concat [
+  (logo 33 21 135 120 'purple' 'orange' 15)
+  (logo 180 99 72 31 'darkgreen' 'pink' 3)
+  (logo 186 26 60 60 'black' 'white' 5)
+]))

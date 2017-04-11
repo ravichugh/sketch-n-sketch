@@ -1,0 +1,40 @@
+
+(def mug
+
+  (let fill 206
+  (let [x1 y1 w h] [41 181 155 182]
+  (let [handle_x handle_y] [(+ x1 w) (+ y1 63)]
+  (let [rx ry] [52.899480795897965 46.77512980102551]
+
+  (let [x02 y02] [(+ x1 43) (- y1 80)]
+
+  (let body
+    (rect fill x1 y1 w h)
+    
+  (let outer_handle
+    (ellipse fill handle_x handle_y rx ry)
+    
+  (let inner_handle
+    (let num 0.6201800000000001{0.001-1}
+    (ellipse 'white' handle_x handle_y (* num rx) (* num ry)))
+  
+  (let steam (\(x02 y02)
+    (let [strokeColor strokeWidth color] [440 5 499]
+    (let [x0 y0] [ x02 y02]
+    (let d ['M' x0 y0
+            'C' (- x0 21) (+ y0 26) (+ x0 19) (+ y0 34) (- x0 5) (+ y0 67)
+            'C' (+ x0 27) (+ y0 19) (- x0 8) (+ y0 17) x0 y0 'Z']
+    (rawPath color strokeColor strokeWidth d 0)))))
+
+  (let steam1
+    (steam x02 y02)
+    
+  (let steam2
+    (steam (+ x02 59) (- y02 3))
+    
+  (let steam3
+    (steam (+ x02 30) (- y02 8))
+    
+  [ outer_handle inner_handle body steam1 steam2 steam3 ])))))))))))))
+
+(svg mug)

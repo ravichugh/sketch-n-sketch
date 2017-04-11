@@ -1,0 +1,31 @@
+
+(def battery (\(topLeft bodyWidth bodyHeight capWidth capHeight strokeWidth juicePct)
+  (let topRight (vec2DPlus topLeft [bodyWidth 0!])
+
+  (let body
+    (let pts [ topLeft
+               (vec2DPlus topLeft [0! bodyHeight])
+               (vec2DPlus topLeft [bodyWidth bodyHeight])
+               topRight ]
+    (addAttr
+      (polygon 'none' 'black' strokeWidth pts)
+      ["stroke-linejoin" "round"]))
+    
+  (let cap
+    (let [x1 y1] (vec2DPlus topRight [0! (/ (- bodyHeight capHeight) 2!)])
+    (rect 'black' x1 y1 capWidth capHeight))
+  
+  (let juice
+    (let w (* juicePct bodyWidth)
+    (let fill (if (< juicePct 0.2) 'red'
+              (if (< juicePct 0.4) 'orange'
+              (if (ge juicePct 1)  'green'
+                                   'black')))
+    (rect fill (x topLeft) (y topLeft) w bodyHeight)))
+
+    [ juice body cap ]))))))
+  
+(svg (concat [
+  (battery [160 80] 198 107 30 41 14{0-40} 1{0.001-1})
+  (battery [101 253] 201 110 19 44 12{0-40} 0.8258406060606062{0.001-1})
+]))

@@ -5140,6 +5140,101 @@ calendarIcon =
 ])
 """
 
+sns_deuce =
+ """
+(def logo (\\(x1 y1 w h fill stroke strokeWidth)
+  (let rectangle (rect fill x1 y1 w h)
+  (let line1 (line stroke strokeWidth x1 y1 (+ x1 w) (+ y1 h))
+  (let line2 (line stroke strokeWidth x1 (+ y1 h) (+ x1 (/ w 2)) (+ y1 (/ h 2)))
+  [rectangle line1 line2])))))
+
+(svg (concat [
+  (logo 33 21 135 120 'purple' 'orange' 15)
+  (logo 180 99 72 31 'darkgreen' 'pink' 3)
+  (logo 186 26 60 60 'black' 'white' 5)
+]))
+
+"""
+
+battery_deuce =
+ """
+(def battery (\\(topLeft bodyWidth bodyHeight capWidth capHeight strokeWidth juicePct)
+  (let topRight (vec2DPlus topLeft [bodyWidth 0!])
+
+  (let body
+    (let pts [ topLeft
+               (vec2DPlus topLeft [0! bodyHeight])
+               (vec2DPlus topLeft [bodyWidth bodyHeight])
+               topRight ]
+    (addAttr
+      (polygon 'none' 'black' strokeWidth pts)
+      [\"stroke-linejoin\" \"round\"]))
+    
+  (let cap
+    (let [x1 y1] (vec2DPlus topRight [0! (/ (- bodyHeight capHeight) 2!)])
+    (rect 'black' x1 y1 capWidth capHeight))
+  
+  (let juice
+    (let w (* juicePct bodyWidth)
+    (let fill (if (< juicePct 0.2) 'red'
+              (if (< juicePct 0.4) 'orange'
+              (if (ge juicePct 1)  'green'
+                                   'black')))
+    (rect fill (x topLeft) (y topLeft) w bodyHeight)))
+
+    [ juice body cap ]))))))
+  
+(svg (concat [
+  (battery [160 80] 198 107 30 41 14{0-40} 1{0.001-1})
+  (battery [101 253] 201 110 19 44 12{0-40} 0.8258406060606062{0.001-1})
+]))
+
+"""
+
+coffee_deuce =
+ """
+(def mug
+
+  (let fill 206
+  (let [x1 y1 w h] [41 181 155 182]
+  (let [handle_x handle_y] [(+ x1 w) (+ y1 63)]
+  (let [rx ry] [52.899480795897965 46.77512980102551]
+
+  (let [x02 y02] [(+ x1 43) (- y1 80)]
+
+  (let body
+    (rect fill x1 y1 w h)
+    
+  (let outer_handle
+    (ellipse fill handle_x handle_y rx ry)
+    
+  (let inner_handle
+    (let num 0.6201800000000001{0.001-1}
+    (ellipse 'white' handle_x handle_y (* num rx) (* num ry)))
+  
+  (let steam (\\(x02 y02)
+    (let [strokeColor strokeWidth color] [440 5 499]
+    (let [x0 y0] [ x02 y02]
+    (let d ['M' x0 y0
+            'C' (- x0 21) (+ y0 26) (+ x0 19) (+ y0 34) (- x0 5) (+ y0 67)
+            'C' (+ x0 27) (+ y0 19) (- x0 8) (+ y0 17) x0 y0 'Z']
+    (rawPath color strokeColor strokeWidth d 0)))))
+
+  (let steam1
+    (steam x02 y02)
+    
+  (let steam2
+    (steam (+ x02 59) (- y02 3))
+    
+  (let steam3
+    (steam (+ x02 30) (- y02 8))
+    
+  [ outer_handle inner_handle body steam1 steam2 steam3 ])))))))))))))
+
+(svg mug)
+
+"""
+
 
 generalCategory =
   ( "General"
@@ -5157,6 +5252,14 @@ defaultIconCategory =
     , makeExample "Icon: Ellipse" DefaultIconTheme.ellipse
     , makeExample "Icon: Polygon" DefaultIconTheme.polygon
     , makeExample "Icon: Path" DefaultIconTheme.path
+    ]
+  )
+
+deuceCategory =
+  ( "Deuce Examples"
+  , [ makeExample "Sketch-n-Sketch Logo" sns_deuce
+    , makeExample "Battery" battery_deuce
+    , makeExample "Coffee Mug" coffee_deuce
     ]
   )
 
