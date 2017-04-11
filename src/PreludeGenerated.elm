@@ -476,9 +476,9 @@ prelude =
 ;; argument order - color, x, y, radius
 ;; creates a circle, center at (x,y) with given radius and color
 (typ circle (-> Color Num Num Num Circle))
-(def circle (\\(fill x y r)
+(def circle (\\(fill cx cy r)
   ['circle'
-     [['cx' x] ['cy' y] ['r' r] ['fill' fill]]
+     [['cx' cx] ['cy' cy] ['r' r] ['fill' fill]]
      []]))
 
 (typ circleCenter (-> Ellipse Point))
