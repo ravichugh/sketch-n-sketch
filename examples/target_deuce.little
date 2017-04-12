@@ -1,0 +1,8 @@
+(def target (\(cx cy ringWidth ringCount)
+  (let ring (\i
+    (let fill (if (= 0 (mod i 2)) 'firebrick' 'lightgray')
+    (circle fill cx cy (* ringWidth i))))
+    
+  (map ring (reverse (range 1 ringCount))))))
+
+(svg (target 200 200 50 4))

@@ -5156,6 +5156,18 @@ sns_deuce =
 
 """
 
+target_deuce =
+ """(def target (\\(cx cy ringWidth ringCount)
+  (let ring (\\i
+    (let fill (if (= 0 (mod i 2)) 'firebrick' 'lightgray')
+    (circle fill cx cy (* ringWidth i))))
+    
+  (map ring (reverse (range 1 ringCount))))))
+
+(svg (target 200 200 50 4))
+
+"""
+
 battery_deuce =
  """
 (def battery (\\(topLeft bodyWidth bodyHeight capWidth capHeight strokeWidth juicePct)
@@ -5258,6 +5270,7 @@ defaultIconCategory =
 deuceCategory =
   ( "Deuce Examples"
   , [ makeExample "Sketch-n-Sketch Logo" sns_deuce
+    , makeExample "Target" target_deuce
     , makeExample "Battery" battery_deuce
     , makeExample "Coffee Mug" coffee_deuce
     ]
