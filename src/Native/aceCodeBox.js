@@ -13,6 +13,8 @@ function initialize() {
   editor.setOption("dragEnabled", true); // true by default anyway
   editor.setOption("highlightActiveLine", false);
   editor.setShowPrintMargin(false);
+  editor.getSession().setUseSoftTabs(true);
+  editor.getSession().setTabSize(2);
 
   editor.on("input", function() {
       var info = getEditorState();
