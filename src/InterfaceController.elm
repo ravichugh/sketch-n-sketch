@@ -1591,6 +1591,7 @@ contextSensitiveDeuceTools m =
     , CodeMotion.addToolReorderEList m selections
     , addToolMakeSingleLine m selections
     , addToolMakeMultiLine m selections
+    , addToolAlign m selections
     ]
 
 
@@ -2480,5 +2481,33 @@ addToolMakeMultiLine m selections =
             ) ]
 
         _ -> []
+    _ -> []
+
+
+-- Align multiple expressions all on different lines
+addToolAlign m selections =
+  case selections of
+    (_, _, eid1::eid2::restEIds, [], [], [], []) ->
+      let eids = eid1::eid2::restEIds in
+      let exps = eids |> List.map (LangTools.justFindExpByEId m.inputExp) in
+      let lineNums = exps |> List.map (.start >> .line) in
+      if lineNums /= Utils.dedup lineNums then
+        []
+      else
+        [ ("Align Expressions", \() ->
+          let maxCol = exps |> List.map (.start >> .col) |> List.maximum |> Utils.fromJust_ "addToolAlign maxCol" in
+          m.inputExp
+          |> mapExp
+              (\e ->
+                if List.member e.val.eid eids then
+                  let wsDelta = maxCol - e.start.col in
+                  e |> pushRight (String.repeat wsDelta " ")
+                else
+                  e
+              )
+          |> synthesisResult "Align Expressions"
+          |> Utils.singleton
+        ) ]
+
     _ -> []
 

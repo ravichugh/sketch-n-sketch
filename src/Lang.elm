@@ -1819,3 +1819,9 @@ indent spaces e =
        |> String.reverse
   in
   mapExp (mapPrecedingWhitespace processWS) e
+
+-- Same as indent, but always push top level exp right even if no newline.
+pushRight : String -> Exp -> Exp
+pushRight spaces e =
+  indent spaces e
+  |> replacePrecedingWhitespace (precedingWhitespace e ++ spaces)
