@@ -1589,6 +1589,7 @@ contextSensitiveDeuceTools m =
     , addToolRemoveArg m selections
     , addToolReorderFunctionArgs m selections
     , CodeMotion.addToolReorderEList m selections
+    , addToolMakeSingleLine m selections
     ]
 
 
@@ -2392,3 +2393,57 @@ addToolDuplicateDefinition m selections = case selections of
   _ -> []
 
 
+addToolMakeSingleLine m selections =
+  let maybeEIdToDeLineAndWhetherToPreservePrecedingWhitespace =
+    case selections of
+      (_, _, [eid], [], [], [], [])      -> Just (eid, True)
+      ([], [], [], [], [letEId], [], []) -> findExpByEId m.inputExp letEId |> Maybe.andThen LangTools.expToMaybeLetBoundExp |> Maybe.map (\letBoundExp -> (letBoundExp.val.eid, False))
+      _                                  -> Nothing
+  in
+  case maybeEIdToDeLineAndWhetherToPreservePrecedingWhitespace of
+    Nothing  -> []
+    Just (eid, shouldPreservePrecedingWhitespace) ->
+      let perhapsLeftTrimmer = if shouldPreservePrecedingWhitespace then identity else String.trimLeft in
+      if LangUnparser.unparse (LangTools.justFindExpByEId m.inputExp eid) |> perhapsLeftTrimmer |> String.contains "\n" then
+        [ ("Make Single Line", \() ->
+            let deLine ws =
+              if String.contains "\n" ws
+              then " "
+              else ws
+            in
+            let deLineP__ p__ =
+              case p__ of
+                PVar   ws ident wd         -> PVar   (deLine ws) ident wd
+                PConst ws n                -> PConst (deLine ws) n
+                PBase  ws v                -> PBase  (deLine ws) v
+                PList  ws1 ps ws2 rest ws3 -> PList  (deLine ws1) (setPatListWhitespace "" " " ps) (deLine ws2) rest ""
+                PAs    ws1 ident ws2 p     -> PAs    (deLine ws1) ident " " p
+            in
+            let deLinePat p = mapPatTopDown (mapNodeP__ deLineP__) p in
+            let deLineE__ e__ =
+              case e__ of
+                EBase      ws v                     -> EBase      (deLine ws) v
+                EConst     ws n l wd                -> EConst     (deLine ws) n l wd
+                EVar       ws x                     -> EVar       (deLine ws) x
+                EFun       ws1 ps e1 ws2            -> EFun       (deLine ws1) (ps |> List.map deLinePat |> setPatListWhitespace "" " ") e1 ""
+                EApp       ws1 e1 es ws2            -> EApp       (deLine ws1) (replacePrecedingWhitespace "" e1) es ""
+                EList      ws1 es ws2 rest ws3      -> EList      (deLine ws1) (setExpListWhitespace "" " " es) (deLine ws2) rest ""
+                EOp        ws1 op es ws2            -> EOp        (deLine ws1) op es ""
+                EIf        ws1 e1 e2 e3 ws2         -> EIf        (deLine ws1) e1 e2 e3 ""
+                ELet       ws1 kind rec p e1 e2 ws2 -> ELet       (deLine ws1) kind rec p e1 e2 ""
+                ECase      ws1 e1 bs ws2            -> ECase      (deLine ws1) e1 bs ""
+                ETypeCase  ws1 pat bs ws2           -> ETypeCase  (deLine ws1) pat bs ""
+                EComment   ws s e1                  -> EComment   ws s e1
+                EOption    ws1 s1 ws2 s2 e1         -> EOption    ws1 s1 " " s2 e1
+                ETyp       ws1 pat tipe e ws2       -> ETyp       (deLine ws1) pat tipe e ""
+                EColonType ws1 e ws2 tipe ws3       -> EColonType (deLine ws1) e (deLine ws2) tipe ""
+                ETypeAlias ws1 pat tipe e ws2       -> ETypeAlias (deLine ws1) pat tipe e ""
+            in
+            let deLineExp e = mapExp (mapNodeE__ deLineE__) e in
+            m.inputExp
+            |> mapExpNode eid (\e -> e |> deLineExp |> (if shouldPreservePrecedingWhitespace then copyPrecedingWhitespace e else replacePrecedingWhitespace " "))
+            |> synthesisResult "Make Single Line"
+            |> Utils.singleton
+          ) ]
+      else
+        []

@@ -302,6 +302,17 @@ pluckExpByPath path exp =
 
 ------------------------------------------------------------------------------
 
+removeNoopResults : Exp -> List SynthesisResult -> List SynthesisResult
+removeNoopResults originalProgram results =
+  let originalUnparsed = unparseWithUniformWhitespace True True originalProgram in
+  results
+  |> List.filter -- Ignore results equivalent to original program.
+      (\(SynthesisResult result) ->
+        originalUnparsed /= unparseWithUniformWhitespace True True result.exp
+      )
+
+------------------------------------------------------------------------------
+
 -- Precondition: program has been run through assignUniqueNames
 -- Also returns a dictionary any identifiers lifted
 liftDependenciesBasedOnUniqueNames : Exp -> (Exp, List Ident)
@@ -829,6 +840,7 @@ moveDefinitions_ makeNewProgram sourcePathedPatIds program =
     in
     newProgramOriginalNamesResult ++ newProgramMaybeRenamedLiftedTwiddledResults
     |> Utils.dedupBy (\(SynthesisResult {exp}) -> unparseWithUniformWhitespace False False exp)
+    |> removeNoopResults program
 
 
 moveDefinitionsBeforeEId : List PathedPatternId -> EId -> Exp -> List SynthesisResult
@@ -1280,6 +1292,7 @@ moveEquationsBeforeEId letEIds targetEId originalProgram =
   in
   newProgramOriginalNamesResult ++ newProgramMaybeRenamedLiftedTwiddledResults
   |> Utils.dedupBy (\(SynthesisResult {exp}) -> unparseWithUniformWhitespace False False exp)
+  |> removeNoopResults originalProgram
 
 
 ------------------------------------------------------------------------------

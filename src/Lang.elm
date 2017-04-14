@@ -1261,8 +1261,14 @@ withDummyExpInfoEId eid e__ = P.WithInfo (Exp_ e__ eid) P.dummyPos P.dummyPos
 replaceE__ : Exp -> Exp__ -> Exp
 replaceE__ e e__ = let e_ = e.val in { e | val = { e_ | e__ = e__ } }
 
+mapNodeE__ : (Exp__ -> Exp__ ) -> Exp -> Exp
+mapNodeE__ f e = replaceE__ e (f e.val.e__)
+
 replaceP__ : Pat -> Pat__ -> Pat
 replaceP__ p p__ = let p_ = p.val in { p | val = { p_ | p__ = p__ } }
+
+mapNodeP__ : (Pat__ -> Pat__ ) -> Pat -> Pat
+mapNodeP__ f p = replaceP__ p (f p.val.p__)
 
 replaceP__PreservingPrecedingWhitespace  : Pat -> Pat__ -> Pat
 replaceP__PreservingPrecedingWhitespace  p p__ =
@@ -1592,17 +1598,15 @@ mapPrecedingWhitespace mapWs exp =
 
 mapPrecedingWhitespacePat : (String -> String) -> Pat -> Pat
 mapPrecedingWhitespacePat mapWs pat =
-  let pat__ =
+  let p__ =
     case pat.val.p__ of
       PVar   ws ident wd         -> PVar   (mapWs ws) ident wd
       PConst ws n                -> PConst (mapWs ws) n
       PBase  ws v                -> PBase  (mapWs ws) v
-      PList  ws1 es ws2 rest ws3 -> PList  (mapWs ws1) es ws2 rest ws3
+      PList  ws1 ps ws2 rest ws3 -> PList  (mapWs ws1) ps ws2 rest ws3
       PAs    ws1 ident ws2 p     -> PAs    (mapWs ws1) ident ws2 p
   in
-  let val = pat.val in
-  { pat | val = { val | p__ = pat__ } }
-
+  replaceP__ pat p__
 
 
 ensureWhitespace : String -> String
