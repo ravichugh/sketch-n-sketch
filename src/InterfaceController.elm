@@ -2403,7 +2403,7 @@ addToolMakeSingleLine m selections =
   case maybeEIdToDeLineAndWhetherToPreservePrecedingWhitespace of
     Nothing  -> []
     Just (eid, shouldPreservePrecedingWhitespace) ->
-      let perhapsLeftTrimmer = if shouldPreservePrecedingWhitespace then identity else String.trimLeft in
+      let perhapsLeftTrimmer = if shouldPreservePrecedingWhitespace then String.trimLeft else identity in
       if LangUnparser.unparse (LangTools.justFindExpByEId m.inputExp eid) |> perhapsLeftTrimmer |> String.contains "\n" then
         [ ("Make Single Line", \() ->
             let deLine ws =
