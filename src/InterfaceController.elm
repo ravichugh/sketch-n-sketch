@@ -1590,6 +1590,7 @@ contextSensitiveDeuceTools m =
     , addToolReorderFunctionArgs m selections
     , CodeMotion.addToolReorderEList m selections
     , addToolMakeSingleLine m selections
+    , addToolMakeMultiLine m selections
     ]
 
 
@@ -2447,3 +2448,37 @@ addToolMakeSingleLine m selections =
           ) ]
       else
         []
+
+-- For Tuples and function calls
+addToolMakeMultiLine m selections =
+  case selections of
+    (_, _, [eid], [], [], [], []) ->
+      let exp = LangTools.justFindExpByEId m.inputExp eid in
+      case exp.val.e__ of
+        EList ws1 es ws2 Nothing ws3 ->
+          if es |> List.all (precedingWhitespace >> String.contains "\n") then
+            []
+          else
+            [ ("Make Multi-line", \() ->
+              let indentation = indentationAt eid m.inputExp in
+              m.inputExp
+              |> replaceExpNodeE__ByEId eid (EList ws1 (setExpListWhitespace ("\n" ++ indentation ++ "  ") ("\n" ++ indentation ++ "  ") es) ws2 Nothing ("\n" ++ indentation))
+              |> synthesisResult "Make Multi-line"
+              |> Utils.singleton
+            ) ]
+
+        EApp ws1 e es ws2 ->
+          if es |> List.all (precedingWhitespace >> String.contains "\n") then
+            []
+          else
+            [ ("Make Multi-line", \() ->
+              let indentation = String.repeat ((Utils.head "addToolMakeMultiLine" es).start.col - 1) " " in
+              m.inputExp
+              |> replaceExpNodeE__ByEId eid (EApp ws1 e (setExpListWhitespace " " ("\n" ++ indentation) es) "")
+              |> synthesisResult "Make Multi-line"
+              |> Utils.singleton
+            ) ]
+
+        _ -> []
+    _ -> []
+
