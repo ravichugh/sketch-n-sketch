@@ -2472,7 +2472,7 @@ addToolMakeMultiLine m selections =
             []
           else
             [ ("Make Multi-line", \() ->
-              let indentation = String.repeat ((Utils.head "addToolMakeMultiLine" es).start.col - 1) " " in
+              let indentation = String.repeat (e.end.col) " " in
               m.inputExp
               |> replaceExpNodeE__ByEId eid (EApp ws1 e (setExpListWhitespace " " ("\n" ++ indentation) es) "")
               |> synthesisResult "Make Multi-line"
