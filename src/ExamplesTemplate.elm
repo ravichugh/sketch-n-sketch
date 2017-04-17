@@ -148,6 +148,7 @@ LITTLE_TO_ELM sns_deuce
 LITTLE_TO_ELM target_deuce
 LITTLE_TO_ELM battery_deuce
 LITTLE_TO_ELM coffee_deuce
+LITTLE_TO_ELM mondrian_arch_deuce
 
 generalCategory =
   ( "General"
@@ -174,6 +175,7 @@ deuceCategory =
     , makeExample "Target" target_deuce
     , makeExample "Battery" battery_deuce
     , makeExample "Coffee Mug" coffee_deuce
+    , makeExample "Mondrian Arch" mondrian_arch_deuce
     ]
   )
 

@@ -5247,6 +5247,32 @@ coffee_deuce =
 
 """
 
+mondrian_arch_deuce =
+ """;
+; Mondrian Arch
+;
+; After Henry Lieberman p554 in \"Watch What I Do:
+; Programming by Demonstration\" Appendix B. MIT Press. 1993.
+;
+
+(def arch
+  (\\(archLeft archTop archWidth pillarHeight stoneWidth)
+  (let pillarTop (+ archTop stoneWidth)
+  (let rightPillarLeft (- (+ archLeft archWidth) stoneWidth)
+    [
+      (rect 'red'   archLeft        archTop   archWidth  stoneWidth)
+      (rect 'green' archLeft        pillarTop stoneWidth pillarHeight)
+      (rect 'blue'  rightPillarLeft pillarTop stoneWidth pillarHeight)
+    ]))))
+
+(svg (concat [
+  (arch 73  44  378 280 55)
+  (arch 276 143 106 138 40)
+  (arch 131 159 118 26  54)
+]))
+
+"""
+
 
 generalCategory =
   ( "General"
@@ -5273,6 +5299,7 @@ deuceCategory =
     , makeExample "Target" target_deuce
     , makeExample "Battery" battery_deuce
     , makeExample "Coffee Mug" coffee_deuce
+    , makeExample "Mondrian Arch" mondrian_arch_deuce
     ]
   )
 
