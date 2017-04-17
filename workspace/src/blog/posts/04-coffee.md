@@ -17,6 +17,7 @@ There are now tools for
 **Grouping** shapes.
 We will write about the new features in detail in the coming months.
 In the meantime, here are some videos to preview what's new
+in <a href="../releases/v0.5/">v0.5</a>
 (also available as a [YouTube playlist][YouTube]).
 
 NOTE: Only the first and third videos below are narrated.
