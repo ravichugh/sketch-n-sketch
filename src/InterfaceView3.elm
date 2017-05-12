@@ -288,6 +288,8 @@ animationToolBox model layout =
     , pauseResumeMovieButton model
     , nextMovieButton model
     , nextSlideButton model
+    , Html.br [] []
+    , slideInfo model
     ]
 
 synthesisResultsSelectBox model layout =
@@ -555,8 +557,9 @@ htmlButtonExtraAttrs extraAttrs text onClickHandler btnKind disabled =
   -- let lineHeight = 1 + 1.1735 * unpixels params.mainSection.widgets.fontSize |> ((*) 2) |> round |> toFloat |> ((*) 0.5) in -- My best guess based on sampling Firefox's behavior.
   let commonAttrs =
     [ Attr.disabled disabled
-    , Attr.style [ ("font", params.mainSection.widgets.font)
-                 , ("fontSize", params.mainSection.widgets.fontSize)
+    -- , Attr.title text
+    , Attr.style [ ("font-family", params.mainSection.widgets.font)
+                 , ("font-size", params.mainSection.widgets.fontSize)
                  , ("box-sizing", "border-box") -- Strangely, Firefox and Chrome on Mac differ on this default.
                  , ("min-height", pixels Layout.buttonHeight)
                  , ("background", color)
@@ -592,8 +595,8 @@ iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
   in
   let commonAttrs =
     [ Attr.disabled disabled
-    , Attr.style [ ("font", params.mainSection.widgets.font)
-                 , ("fontSize", params.mainSection.widgets.fontSize)
+    , Attr.style [ ("font-family", params.mainSection.widgets.font)
+                 , ("font-size", params.mainSection.widgets.fontSize)
                  , ("height", pixels Layout.iconButtonHeight)
                  , ("background", color)
                  , ("cursor", "pointer")
@@ -939,17 +942,9 @@ captionArea model layout =
         (err, "black")
 
       _ ->
-        if model.slideCount > 1 then
-          let
-            s1 = toString model.slideNumber ++ "/" ++ toString model.slideCount
-            s2 = toString model.movieNumber ++ "/" ++ toString model.movieCount
-            s3 = truncateFloat model.movieTime ++ "/" ++ truncateFloat model.movieDuration
-          in
-          (Utils.spaces ["Slide", s1, ":: Movie", s2, ":: Time", s3], "black")
-
-        else
-          ("", "white")
-
+        case strSlideInfo model of
+          Just s  -> (s, "black")
+          Nothing -> ("", "white")
   in
   Html.span
     [ Attr.id "captionArea"
@@ -960,12 +955,39 @@ captionArea model layout =
     ]
     [ Html.text text ]
 
+slideInfo model =
+  let s =
+    case strSlideInfo model of
+      Just s  -> s
+      Nothing -> "UGH"
+  in
+  Html.span
+    [ Attr.style [ ("color", "white")
+                 , ("font-family", params.mainSection.widgets.font)
+                 , ("font-size", params.mainSection.widgets.fontSize)
+                 ] ]
+    [ Html.text s ]
+
+strSlideInfo : Model -> Maybe String
+strSlideInfo model =
+  if model.slideCount > 1 then
+    let
+      s1 = toString model.slideNumber ++ "/" ++ toString model.slideCount
+      s2 = toString model.movieNumber ++ "/" ++ toString model.movieCount
+      s3 = truncateFloat model.movieTime ++ "/" ++ truncateFloat model.movieDuration
+    in
+    Just (Utils.spaces ["Slide", s1, ":: Movie", s2, ":: Time", s3])
+
+  else
+    Nothing
+
 truncateFloat : Float -> String
 truncateFloat n =
   case String.split "." (toString n) of
     [whole]           -> whole ++ "." ++ String.padRight 1 '0' ""
     [whole, fraction] -> whole ++ "." ++ String.left 1 (String.padRight 1 '0' fraction)
     _                 -> Debug.crash "truncateFloat"
+
 
 --------------------------------------------------------------------------------
 -- Dialog Boxes
@@ -1732,8 +1754,8 @@ renameVarTextBox path =
      , Attr.style <|
          [ ("width", "100px") -- in sync with 250px - 150px above
          -- the following are the same as for htmlButton
-         , ("font", params.mainSection.widgets.font)
-         , ("fontSize", params.mainSection.widgets.fontSize)
+         , ("font-family", params.mainSection.widgets.font)
+         , ("font-size", params.mainSection.widgets.fontSize)
          , ("box-sizing", "border-box") -- Strangely, Firefox and Chrome on Mac differ on this default.
          , ("min-height", pixels Layout.buttonHeight)
          ]

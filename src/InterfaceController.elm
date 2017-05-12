@@ -973,7 +973,13 @@ msgToggleOutput = Msg "Toggle Output" <| \old ->
 --------------------------------------------------------------------------------
 
 msgStartAnimation = Msg "Start Animation" <| \old ->
-  upstate msgRedraw { old | movieTime = 0, runAnimation = True }
+  upstate msgRedraw { old | runAnimation = True }
+  -- upstate msgRedraw { old | movieTime = 0, runAnimation = True }
+
+maybeStartAnimation old =
+  if old.runAnimation
+    then { old | movieTime = 0 } |> upstate msgRedraw
+    else { old | movieTime = 0 }
 
 msgRedraw = Msg "Redraw" <| \old ->
   case LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime old.inputVal of
@@ -998,17 +1004,20 @@ msgTickDelta deltaT = Msg ("Tick Delta " ++ toString deltaT) <| \old ->
 
 msgNextSlide = Msg "Next Slide" <| \old ->
   if old.slideNumber >= old.slideCount then
-    upstate msgStartAnimation
+    -- upstate msgStartAnimation
+    maybeStartAnimation
       { old | slideNumber = old.slideNumber
             , movieNumber = old.movieCount }
   else
-    upstate msgStartAnimation
+    -- upstate msgStartAnimation
+    maybeStartAnimation
       { old | slideNumber = old.slideNumber + 1
             , movieNumber = 1 }
 
 msgPreviousSlide = Msg "Previous Slide" <| \old ->
   if old.slideNumber <= 1 then
-    upstate msgStartAnimation
+    -- upstate msgStartAnimation
+    maybeStartAnimation
       { old | slideNumber = 1, movieNumber = 1 }
   else
     let previousSlideNumber = old.slideNumber - 1 in
@@ -1017,7 +1026,8 @@ msgPreviousSlide = Msg "Previous Slide" <| \old ->
       Result.andThen (\(previousVal, _) ->
         LangSvg.resolveToMovieCount previousSlideNumber previousVal
         |> Result.map (\previousMovieCount ->
-             upstate msgStartAnimation
+             -- upstate msgStartAnimation
+             maybeStartAnimation
                { old | slideNumber = previousSlideNumber
                      , movieNumber = previousMovieCount }
         )
@@ -1029,7 +1039,8 @@ msgNextMovie = Msg "Next Movie" <| \old ->
   if old.movieNumber == old.movieCount && old.slideNumber < old.slideCount then
     upstate msgNextSlide old
   else if old.movieNumber < old.movieCount then
-    upstate msgStartAnimation { old | movieNumber = old.movieNumber + 1 }
+    -- upstate msgStartAnimation { old | movieNumber = old.movieNumber + 1 }
+    maybeStartAnimation { old | movieNumber = old.movieNumber + 1 }
   else
     -- Last movie of slide show; skip to its end.
     upstate msgRedraw { old | movieTime    = old.movieDuration
@@ -1039,7 +1050,8 @@ msgPreviousMovie = Msg "Previous Movie" <| \old ->
   if old.movieNumber == 1 then
     upstate msgPreviousSlide old
   else
-    upstate msgStartAnimation { old | movieNumber = old.movieNumber - 1 }
+    -- upstate msgStartAnimation { old | movieNumber = old.movieNumber - 1 }
+    maybeStartAnimation { old | movieNumber = old.movieNumber - 1 }
 
 msgPauseResumeMovie = Msg "Pause/Resume Movie" <| \old ->
   { old | runAnimation = not old.runAnimation }
