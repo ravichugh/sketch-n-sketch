@@ -124,11 +124,14 @@ menuBar model =
           ]
           [ Html.img
               [ Attr.class "logo-image"
-              , Attr.src "img/logo.png"
+              , Attr.src "img/light_logo.svg"
               , Attr.width 20
               , Attr.height 20
               ]
               []
+          , menu "Sketch-n-Sketch"
+              [
+              ]
           , menu "File"
               [ [ textButton "New" <|
                     Controller.msgOpenDialogBox New
@@ -152,7 +155,40 @@ menuBar model =
                     Controller.msgNoop
                 ]
               ]
-          , menu "Edit"
+          , menu "Edit Code"
+              [ [ textButton "Abstract (all constants or only named, unfrozen constants...)" Controller.msgNoop
+                , textButton "Merge" Controller.msgNoop
+                ]
+              , [ textButton "Add Arguments ..." Controller.msgNoop
+                , textButton "Remove Arguments ..." Controller.msgNoop
+                , textButton "Reorder Arguments ..." Controller.msgNoop
+                ]
+              , [ textButton "Move Definitions (...)" Controller.msgNoop
+                , textButton "Introduce Variable ..." Controller.msgNoop
+                ]
+              , [ textButton "Eliminate Common Subexpression ..." Controller.msgNoop
+                , textButton "Rename ..." Controller.msgNoop
+                , textButton "Swap Variable Names and Usages ..." Controller.msgNoop
+                , textButton "Inline Definition ..." Controller.msgNoop
+                , textButton "Duplicate Definition ..." Controller.msgNoop
+                , textButton "Make Single Line ..." Controller.msgNoop
+                , textButton "Make Multi-Line ..." Controller.msgNoop
+                , textButton "Align Expressions ..." Controller.msgNoop
+                ]
+              , [ textButton "Make Equal (Introduce Single Variable) (...)" Controller.msgNoop
+                , textButton "Make Equal (Copy Expression) ..." Controller.msgNoop
+                , textButton "Reorder Expressions (...)" Controller.msgNoop
+                , textButton "Swap Variable Usages (...)" Controller.msgNoop
+                ]
+              , [ textButton "Thaw/Freeze Numbers ..." Controller.msgNoop
+                , textButton "Add/Remove Ranges ..." Controller.msgNoop
+                , textButton "Show/Hide Sliders ..." Controller.msgNoop
+                , textButton "Rewrite as Offsets ..." Controller.msgNoop
+                , textButton "Convert Color Strings ..." Controller.msgNoop
+                , textButton "Flip Boolean ..." Controller.msgNoop
+                ]
+              ]
+          , menu "Edit Output"
               [ [ relateTextButton model "Dig Hole"
                     Controller.msgDigHole
                 , relateTextButton model "Make Equal"
@@ -186,6 +222,28 @@ menuBar model =
                     True
                 ]
               ]
+          , menu "View" <|
+              [ [ textButton "Main Layer (boolean...)" Controller.msgNoop
+                , textButton "Widget Layer (boolean...)" Controller.msgNoop
+                , textButton "Ghost Layer (boolean...)" Controller.msgNoop
+                ]
+              ]
+          , menu "Options"
+              [ [ textButton "Font Size (numeric options...)" Controller.msgNoop
+                , textButton "Auto-Run (every 1, 2, 3 second...)" Controller.msgNoop
+                ]
+              , [ textButton "Right-Click for Edit Code Menu (boolean...)" Controller.msgNoop
+                , textButton "Hold Shift for Structure Widgets (boolean...)" Controller.msgNoop
+                , textButton "Pin Edit Code Menu (boolean...)" Controller.msgNoop
+                ]
+              , [ textButton "Shape Code Templates (raw, stretchy, or sticky...)" Controller.msgNoop
+                ]
+              , [ textButton "Automatically Suggest Code Changes (boolean...)" Controller.msgNoop
+                , textButton "Live Update Heuristics (biased or fair...)" Controller.msgNoop
+                ]
+              , [ textButton "Output Type (graphics or text...)" Controller.msgNoop
+                ]
+              ]
           ]
       , Html.div
           [ Attr.class "quick-action-bar"
@@ -195,11 +253,8 @@ menuBar model =
               ]
               [ Html.text "Quick Actions"
               ]
-          , textButtonExtra "Save"
-              Controller.msgSave
-              (not model.needsSave)
-          , textButton "Open" <|
-              Controller.msgOpenDialogBox Open
+          , textButton "Syntax Guide" Controller.msgNoop
+          , textButton "Standard Prelude Library" Controller.msgNoop
           ]
       ]
 
