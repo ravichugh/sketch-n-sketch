@@ -8,6 +8,7 @@ import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
 import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature)
 import ExamplesGenerated as Examples
+import DefaultIconTheme
 import LangUnparser exposing (unparse, unparsePat)
 import DependenceGraph exposing (ScopeGraph)
 import Ace
@@ -156,7 +157,7 @@ type MouseMode
         , (Int, Int)            -- initial click
         , Bool ))               -- dragged at least one pixel
 
-  | MouseDrawNew (List (KeysDown, (Int, Int)))
+  | MouseDrawNew ShapeBeingDrawn
       -- invariant on length n of list of points:
       --   for line/rect/ellipse, n == 0 or n == 2
       --   for polygon/path,      n >= 0
@@ -167,19 +168,28 @@ type MouseMode
 
 type alias MouseTrigger a = (Int, Int) -> a
 
+-- Oldest/base point is last in all of these.
+type ShapeBeingDrawn
+  = NoPointsYet -- For shapes drawn by dragging, no points until the mouse moves after the mouse-down.
+  | TwoPoints (KeysDown, (Int, Int)) (KeysDown, (Int, Int)) -- KeysDown should probably be refactored out
+  | PolyPoints (List (Int, Int))
+  | PathPoints (List (KeysDown, (Int, Int))) -- KeysDown should probably be replaced with a more semantic represenation of point type
+  | OffsetFromExisting (Int, Int) (NumTr, NumTr)
+
+
 -- type alias ShowZones = Bool
 -- type ShowWidgets = HideWidgets | ShowAnnotatedWidgets | ShowAllWidgets
 type alias ShowGhosts = Bool
 
 type Tool
   = Cursor
+  | PointOrOffset
+  | Text
   | Line ShapeToolKind
   | Rect ShapeToolKind
   | Oval ShapeToolKind
   | Poly ShapeToolKind
   | Path ShapeToolKind
-  | Text
-  | HelperDot
   | HelperLine
   | Lambda Int -- 1-based index of selected LambdaTool
 
@@ -378,7 +388,7 @@ getFile model = { filename = model.filename
 
 --------------------------------------------------------------------------------
 
-iconNames = ["cursor", "text", "line", "rect", "ellipse", "polygon", "path", "lambda"]
+iconNames = Dict.keys DefaultIconTheme.icons
 
 --------------------------------------------------------------------------------
 
@@ -387,7 +397,7 @@ starLambdaTool = LambdaBounds (eVar "star")
 starLambdaToolIcon = lambdaToolIcon starLambdaTool
 
 lambdaToolIcon tool =
-  { iconName = String.toLower (strLambdaTool tool)
+  { iconName = Utils.naturalToCamelCase (strLambdaTool tool)
   , code = case tool of
       LambdaBounds func ->
         "(svgViewBox 100 100 (" ++ unparse func ++ " [10 10 90 90]))"

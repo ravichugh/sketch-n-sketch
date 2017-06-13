@@ -1,12 +1,17 @@
 module Draw exposing
-  ( drawNewShape
-  , drawDotSize
+  ( drawDotSize
+  , drawNewLine
+  , drawNewRect
+  , drawNewEllipse
+  , drawNewPolygon
+  , drawNewPath
   , boundingBoxOfPoints_
   , addLine
   , addRawSquare , addRawRect , addStretchySquare , addStretchyRect
   , addRawCircle , addRawOval , addStretchyCircle , addStretchyOval
   , addPath , addPolygon
-  , addLambda , addHelperDot
+  , addLambda
+  , addPoint , addOffsetAndMaybePoint , horizontalVerticalSnap
   , addTextBox
   , lambdaToolOptionsOf
   , makeTwiddleTools
@@ -17,6 +22,7 @@ import LangSvg
 import Blobs exposing (..)
 import LangUnparser exposing (unparse)
 import InterfaceModel exposing (..)
+import FastParser
 import LangTools
 import Utils
 import Either exposing (..)
@@ -25,6 +31,7 @@ import Keys
 import String
 import Regex
 import Html.Attributes as Attr
+import Set
 import Svg
 
 
@@ -61,18 +68,6 @@ boundingBoxOfPoints pts =
 --------------------------------------------------------------------------------
 -- Drawing Tools (previously in View)
 
-drawNewShape model =
-  case (model.tool, model.mouseMode) of
-    (Line _,     MouseDrawNew [pt2, pt1])    -> drawNewLine model pt2 pt1
-    (Rect _,     MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
-    (Oval _,     MouseDrawNew [pt2, pt1])    -> drawNewEllipse model.keysDown pt2 pt1
-    (Poly _,     MouseDrawNew (ptLast::pts)) -> drawNewPolygon ptLast pts
-    (Path _,     MouseDrawNew (ptLast::pts)) -> drawNewPath ptLast pts
-    (HelperDot,  MouseDrawNew [pt])          -> drawNewHelperDot pt
-    (HelperLine, MouseDrawNew [pt2, pt1])    -> drawNewLine model pt2 pt1
-    (Lambda _,   MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
-    (Text,       MouseDrawNew [pt2, pt1])    -> drawNewRect model.keysDown pt2 pt1
-    _                                        -> []
 
 defaultOpacity        = Attr.style [("opacity", "0.5")]
 defaultStroke         = LangSvg.attr "stroke" "gray"
@@ -172,8 +167,7 @@ drawNewEllipse keysDown (_,pt2) (_,pt1) =
   let clearDots = List.map (drawDot dotFillCursor) [(xb,yb),(xa,ya),pt2,pt1] in
   clearDots ++ [ ellipse ]
 
-drawNewPolygon (_,ptLast) keysAndPoints =
-  let points = List.map Tuple.second keysAndPoints in
+drawNewPolygon ptLast points =
   let (xInit,yInit) = Utils.last_ (ptLast::points) in
   let redDot = drawDot dotFill (xInit,yInit) in
   let clearDots = List.map (drawDot dotFillCursor) (ptLast::points) in
@@ -242,19 +236,6 @@ drawNewPath (keysLast,ptLast) keysAndPoints =
   in
   let clearDots = List.map (drawDot dotFillCursor) (ptLast::points) in
   redDot ++ yellowDot ++ clearDots ++ pathAndPoints
-
--- TODO this doesn't appear right away
--- (dor does initial poly, which appears only on MouseUp...)
-drawNewHelperDot (x,y) =
-  let dot =
-    svgCircle [
-        defaultFill , defaultOpacity
-      , LangSvg.attr "cx" (toString 200)
-      , LangSvg.attr "cy" (toString 200)
-      , LangSvg.attr "r" (toString drawDotSize)
-      ]
-  in
-  [ dot ]
 
 
 --------------------------------------------------------------------------------
@@ -434,16 +415,88 @@ addStretchyCircle old (_,pt2) (_,pt1) =
 
 --------------------------------------------------------------------------------
 
-addHelperDot old (_,(cx,cy)) =
+addPoint : Model -> (Int, Int) -> Model
+addPoint old (x, y) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)
-  let r = 6 in
-  let (f, args) =
-    ghost (eVar0 "circle")
-          (eStr "aqua" :: List.map eVar ["cx","cy","r"])
+  let originalProgram = old.inputExp in
+  case LangTools.nonCollidingNames ["point", "x", "y"] 2 <| LangTools.identifiersVisibleAtProgramEnd originalProgram of
+    [pointName, xName, yName] ->
+      let
+        programWithPoint =
+          LangTools.addFirstDef originalProgram (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 (toFloat x), eConstDummyLoc (toFloat y)]) (TNamed " " "Point"))
+      in
+      { old | code = LangUnparser.unparse programWithPoint }
+
+    _ -> Debug.crash "unsatisfied list length invariant in LangTools.nonCollidingNames or bug in Draw.addPoint"
+
+
+horizontalVerticalSnap : (Int, Int) -> (Int, Int) -> (Axis, Sign, Int)
+horizontalVerticalSnap (x1, y1) (x2, y2) =
+  if abs (x2 - x1) >= abs (y2 - y1) then
+    if x2 - x1 > 0
+    then (X, Positive, x2 - x1)
+    else (X, Negative, x1 - x2)
+  else
+    if y2 - y1 > 0
+    then (Y, Positive, y2 - y1)
+    else (Y, Negative, y1 - y2)
+
+
+addOffsetAndMaybePoint : Model -> (NumTr, NumTr) -> (Int, Int) -> Model
+addOffsetAndMaybePoint old ((x1, x1Tr), (y1, y1Tr)) (x2, y2) =
+  -- style matches center of attr crosshairs (View.zoneSelectPoint_)
+  let originalProgram = old.inputExp in
+  let (axis, sign, offsetAmount) = horizontalVerticalSnap (round x1, round y1) (x2, y2) in
+  let plusOrMinus = if sign == Positive then Plus else Minus in
+  let offsetFromExistingTrace trace =
+    case trace of
+      TrLoc (locId, _, offsetFromName) ->
+        let maybeNewProgram =
+          originalProgram
+          |> mapFirstSuccessNode
+              (\e ->
+                case e.val.e__ of
+                  ELet ws1 letKind isRec pat boundExp body ws2 ->
+                    let bindings = Debug.log "bindings" <| LangTools.tryMatchExpReturningList pat boundExp in
+                    if List.any (\(boundIdent, _) -> boundIdent == offsetFromName) bindings then
+                      let offsetName = LangTools.nonCollidingName (offsetFromName ++ "Offset") 2 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp body).val.eid) in
+                      let offsetExp  = (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) in
+                      let wrappedBody =
+                        let letKind = if LangTools.isTopLevel body originalProgram then Def else Let in
+                        withDummyExpInfo <| ELet ws1 letKind False (pVar offsetName) offsetExp body ""
+                      in
+                      Just <| replaceE__ e (ELet ws1 letKind isRec pat boundExp wrappedBody ws2)
+                    else
+                      Nothing
+                  _ ->
+                    Nothing
+              )
+        in
+        case maybeNewProgram of
+          Just newProgram -> { old | code = LangUnparser.unparse newProgram }
+          Nothing         -> old
+
+      _ ->
+        old
   in
-  add "helperDot" old
-    [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r]) ]
-    f args
+  if axis == X && x1Tr /= dummyTrace then
+    offsetFromExistingTrace x1Tr
+  else if axis == Y && y1Tr /= dummyTrace then
+    offsetFromExistingTrace y1Tr
+  else
+    case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| LangTools.identifiersVisibleAtProgramEnd originalProgram of
+      [pointName, xName, yName, offsetXName, offsetYName] ->
+        let
+          (offsetName, offsetFromName) = if axis == X then (offsetXName, xName) else (offsetYName, yName)
+          programWithOffset =
+            LangTools.addFirstDef originalProgram (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) |> FastParser.freshen
+          programWithOffsetAndPoint =
+            LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 x1, eConstDummyLoc y1]) (TNamed " " "Point"))
+        in
+        { old | code = LangUnparser.unparse programWithOffsetAndPoint }
+
+      _ -> Debug.crash "unsatisfied list length invariant in LangTools.nonCollidingNames or bug in Draw.addOffsetAndMaybePoint"
+
 
 --------------------------------------------------------------------------------
 
@@ -471,8 +524,7 @@ addPolygon stk old points =
     Stretchy -> addStretchablePolygon old points
     Sticky   -> addStickyPolygon old points
 
-addRawPolygon old keysAndPoints =
-  let points = List.map Tuple.second keysAndPoints in
+addRawPolygon old points =
   let sPts =
     Utils.bracks <| Utils.spaces <|
       flip List.map (List.reverse points) <| \(x,y) ->
@@ -489,8 +541,7 @@ addRawPolygon old keysAndPoints =
     [ eVar "color", eVar "strokeColor", eVar "strokeWidth"
     , eVar "pts", eConst 0 dummyLoc ]
 
-addStretchablePolygon old keysAndPoints =
-  let points = List.map Tuple.second keysAndPoints in
+addStretchablePolygon old points =
   let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
   let (width, height) = (xMax - xMin, yMax - yMin) in
   let sPcts =
@@ -510,8 +561,7 @@ addStretchablePolygon old keysAndPoints =
     (eVar0 "stretchyPolygon")
     (List.map eVar ["bounds","color","strokeColor","strokeWidth","pcts"])
 
-addStickyPolygon old keysAndPoints =
-  let points = List.map Tuple.second keysAndPoints in
+addStickyPolygon old points =
   let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
   let (width, height) = (xMax - xMin, yMax - yMin) in
   let sOffsets =
@@ -664,10 +714,7 @@ addLambdaBounds old (_,pt2) (_,pt1) func =
   let (defs, mainExp) = splitExp old.inputExp in
   let mainExp_ = addToMainExp newBlob mainExp in
   let code = unparse (fuseExp (defs, mainExp_)) in
-
-  -- upstate Run
-    { old | code = code
-          , mouseMode = MouseNothing }
+  { old | code = code }
 
   {- this version adds the call inside a new top-level definition:
 
@@ -692,8 +739,7 @@ addLambdaAnchor old _ (_,(x,y)) func =
   let (defs, mainExp) = splitExp old.inputExp in
   let mainExp_ = addToMainExp newBlob mainExp in
   let code = unparse (fuseExp (defs, mainExp_)) in
-  { old | code = code
-        , mouseMode = MouseNothing }
+  { old | code = code }
 
 addTextBox old click2 click1 =
   let (xa, xb, ya, yb) = boundingBox (Tuple.second click2) (Tuple.second click1) in
@@ -722,9 +768,7 @@ addShape old newShapeKind newShapeExp =
   let eNew = withDummyExpInfo (EVar "\n  " shapeVarName) in
   let mainExp_ = addToMainExp (varBlob eNew shapeVarName) mainExp in
   let code = unparse (fuseExp (defs_, mainExp_)) in
-  { old | code = code
-        , genSymCount = old.genSymCount + 1
-        , mouseMode = MouseNothing }
+  { old | code = code }
 
 -- TODO: replace all calls to "add" to "addShapeToProgram"; remove "add"
 -- TODO: remove randomColor/1 when they are no longer needed
@@ -750,9 +794,7 @@ add newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
   let code = unparse (fuseExp (defs_, mainExp_)) in
 
   -- upstate Run
-    { old | code = code
-          , genSymCount = old.genSymCount + 1
-          , mouseMode = MouseNothing }
+    { old | code = code }
 
 makeCallWithLocals multi locals func args =
   let recurse locals =

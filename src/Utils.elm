@@ -333,8 +333,30 @@ niceTruncateString n toBeContinuedStr str =
   else
     str
 
+maybePluralize : String -> List a -> String
 maybePluralize str list =
   str ++ (if List.length list == 1 then "" else "s")
+
+capitalize : String -> String
+capitalize str =
+  case String.split "" str of
+    []          -> ""
+    first::rest -> String.join "" (String.toUpper first :: rest)
+
+-- https://stackoverflow.com/a/41124950
+stringReplace : String -> String -> String -> String
+stringReplace target replacement string =
+  String.split target string |> String.join replacement
+
+-- "WORD Word" -> "wordWord"
+-- "word word" -> "wordWord"
+naturalToCamelCase : String -> String
+naturalToCamelCase natural =
+  natural
+  |> String.split " "
+  |> List.map String.toLower
+  |> mapi1 (\(i, word) -> if i == 1 then word else capitalize word)
+  |> String.join ""
 
 cartProd : List a -> List b -> List (a, b)
 cartProd xs ys =
@@ -382,6 +404,7 @@ unionAll sets =
 
 -- Returns false if any two sets share an element.
 -- Can help answer, "Is this a valid partition?"
+-- Or if sets are disjoint
 anyOverlap : List (Set comparable) -> Bool
 anyOverlap sets =
   Set.size (unionAll sets) < List.sum (List.map Set.size sets)

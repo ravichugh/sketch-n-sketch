@@ -59,7 +59,7 @@ msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
   case old.mode of
     Live info ->
       -- let _ = Debug.log ("Click Zone" ++ toString zoneKey) () in
-      let (mx, my) = clickToCanvasPoint old (Tuple.second old.mouseState) in
+      let (_, (mx, my)) = clickToCanvasPoint old (Tuple.second old.mouseState) in
       let trigger = Sync.prepareLiveTrigger info old.inputExp zoneKey in
       let dragInfo = (trigger, (mx, my), False) in
       { old | mouseMode = MouseDragZone zoneKey (Just dragInfo) }
@@ -73,7 +73,7 @@ msgMouseClickCanvas = Msg "MouseClickCanvas" <| \old ->
       { old | selectedShapes = Set.empty, selectedBlobs = Dict.empty }
 
     (_ , MouseNothing) ->
-      { old | mouseMode = MouseDrawNew []
+      { old | mouseMode = MouseDrawNew NoPointsYet -- No points until drag begins, or (for paths/polys) mouse-up
             , selectedShapes = Set.empty, selectedBlobs = Dict.empty }
 
     _ -> old
@@ -93,7 +93,7 @@ build wCanvas hCanvas model =
       _                                  -> (model.widgets, model.slate)
   in
   let outputShapes = buildSvg (model, addZones) slate in
-  let newShape = Draw.drawNewShape model in
+  let newShape = drawNewShape model in
   let svgWidgets =
     case (model.mode, model.showGhosts) of
       (Live _, True ) -> buildSvgWidgets wCanvas hCanvas widgets model
@@ -186,9 +186,99 @@ dragZoneEvents id shapeKind realZone =
   , onMouseOut turnOffCaptionAndHighlights
   ]
 
+--------------------------------------------------------------------------------
+
+drawNewShape model =
+  case (model.tool, model.mouseMode) of
+    (Line _,        MouseDrawNew (TwoPoints pt2 pt1))                      -> Draw.drawNewLine model pt2 pt1
+    (Rect _,        MouseDrawNew (TwoPoints pt2 pt1))                      -> Draw.drawNewRect model.keysDown pt2 pt1
+    (Oval _,        MouseDrawNew (TwoPoints pt2 pt1))                      -> Draw.drawNewEllipse model.keysDown pt2 pt1
+    (Poly _,        MouseDrawNew (PolyPoints (ptLast::pts)))               -> Draw.drawNewPolygon ptLast pts
+    (Path _,        MouseDrawNew (PathPoints (ptLast::pts)))               -> Draw.drawNewPath ptLast pts
+    (PointOrOffset, MouseDrawNew (OffsetFromExisting pt2 ((x1,_),(y1,_)))) -> drawNewPointOrOffset pt2 (round x1, round y1)
+    (PointOrOffset, MouseDrawNew (TwoPoints (_, pt2) (_, pt1)))            -> drawNewPointOrOffset pt2 pt1
+    (HelperLine,    MouseDrawNew (TwoPoints pt2 pt1))                      -> Draw.drawNewLine model pt2 pt1
+    (Lambda _,      MouseDrawNew (TwoPoints pt2 pt1))                      -> Draw.drawNewRect model.keysDown pt2 pt1
+    (Text,          MouseDrawNew (TwoPoints pt2 pt1))                      -> Draw.drawNewRect model.keysDown pt2 pt1
+    _                                                                      -> []
+
+
+drawNewPointOrOffset (x2, y2) (x1, y1) =
+  let (axis, sign, amount) = Draw.horizontalVerticalSnap (x1, y1) (x2, y2) in
+  let xyDot = svgXYDot (x1, y1) pointZoneStyles.fill.shown True [] in
+  let (arrowParts, _) = svgOffsetWidget1DArrowPartsAndEndPoint (toFloat x1, toFloat y1) axis sign amount Nothing False [] in
+  [xyDot] ++ arrowParts
+
 
 --------------------------------------------------------------------------------
 -- Widget Layer
+
+svgOffsetWidget1DArrowPartsAndEndPoint (baseX, baseY) axis sign amount maybeCaptionText isSelected extraStyles =
+  let effectiveAmount =
+    case sign of
+      Positive -> amount
+      Negative -> -amount
+  in
+  let (endX, endY) =
+    case axis of
+      X -> (baseX + effectiveAmount, baseY)
+      Y -> (baseX, baseY + effectiveAmount)
+  in
+  let lineStyle =
+    if isSelected then
+      [ attr "stroke" colorPointSelected
+      , attr "stroke-width" "5px"
+      ]
+    else
+      [ attr "stroke" "black"
+      , attr "stroke-width" "1px"
+      , attr "stroke-dasharray" "1,1"
+      ]
+  in
+  let line =
+    flip Svg.line [] <|
+      [ attrNum "x1" baseX, attrNum "y1" baseY
+      , attrNum "x2" endX,  attrNum "y2" endY
+      ] ++ lineStyle ++ extraStyles
+  in
+  let endArrow =
+    let arrowOffset = 12 in
+    let (opX1, opY1, opX2, opY2) =
+      case (axis, Utils.sgn effectiveAmount) of
+        (X, 1)  -> ((-), (-), (-), (+))
+        (X, -1) -> ((+), (-), (+), (+))
+        (Y, 1)  -> ((-), (-), (+), (-))
+        _       -> ((-), (+), (+), (+))
+    in
+    flip Svg.polyline [] <|
+      [ attr "fill" "rgba(0,0,0,0.0)"
+      , attr "cursor" "pointer"
+      , attr "points" <| toString (opX1 endX arrowOffset) ++ "," ++ toString (opY1 endY arrowOffset) ++ " " ++
+                         toString endX                    ++ "," ++ toString endY ++ " " ++
+                         toString (opX2 endX arrowOffset) ++ "," ++ toString (opY2 endY arrowOffset) ++ " "
+      ] ++ lineStyle ++ extraStyles
+  in
+  let caption =
+    let string =
+      case maybeCaptionText of
+        Just ident -> ident
+        Nothing    -> toString amount
+    in
+    let (x, y, textAnchor) =
+      case axis of
+        X -> ((baseX + endX) / 2, baseY - 10, "middle")
+        Y -> (baseX + 10, (baseY + endY) / 2, "start")
+    in
+    flip Svg.text_ [VirtualDom.text string] <|
+      [ attr "font-family" params.mainSection.uiWidgets.font
+      , attr "font-size" params.mainSection.uiWidgets.fontSize
+      , attr "text-anchor" textAnchor
+      , attr "x" (toString x)
+      , attr "y" (toString y)
+      ] ++ extraStyles
+  in
+  ([line, caption, endArrow], (endX, endY))
+
 
 buildSvgWidgets : Int -> Int -> Widgets -> InterfaceModel.Model -> List (Svg Msg)
 buildSvgWidgets wCanvas hCanvas widgets model =
@@ -276,35 +366,14 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     in
     [region, box, text, ball]
   in
-
-  let drawPointWidget i_ widget cx cy =
+  let drawPointWidget i_ widget (cx, cxTr) (cy, cyTr) =
     let idAsShape = -2 - i_ in
-    zoneSelectCrossDot model True (idAsShape, "point", LonePoint) cx cy
+    zoneSelectCrossDot model True (idAsShape, "point", LonePoint) (cx, cxTr) (cy, cyTr)
     ++ if model.tool /= Cursor then [] else zonePoint model True idAsShape "point" (ZPoint LonePoint) [] [attrNum "cx" cx, attrNum "cy" cy]
   in
   let drawOffsetWidget1D i_ baseX baseY axis sign (amount, amountTr) =
     let idAsShape = -2 - i_ in
-    let effectiveAmount =
-      case sign of
-        Positive -> amount
-        Negative -> -amount
-    in
-    let (endX, endY) =
-      case axis of
-        X -> (baseX + effectiveAmount, baseY)
-        Y -> (baseX, baseY + effectiveAmount)
-    in
-    let lineStyle =
-      if Set.member (idAsShape, "offset") model.selectedFeatures then
-        [ attr "stroke" colorPointSelected
-        , attr "stroke-width" "5px"
-        ]
-      else
-        [ attr "stroke" "black"
-        , attr "stroke-width" "1px"
-        , attr "stroke-dasharray" "1,1"
-        ]
-    in
+    let isSelected = Set.member (idAsShape, "offset") model.selectedFeatures in
     let dragStyle =
       if model.tool == Cursor then
         [ attr "cursor" "pointer"
@@ -313,55 +382,95 @@ buildSvgWidgets wCanvas hCanvas widgets model =
       else
         [ attr "cursor" "default" ]
     in
-    let line =
-      flip Svg.line [] <|
-        [ attrNum "x1" baseX, attrNum "y1" baseY
-        , attrNum "x2" endX,  attrNum "y2" endY
-        ] ++ lineStyle ++ dragStyle
+    let maybeCaptionText = traceToMaybeIdent amountTr in
+    let (arrowParts, (endX, endY)) =
+      svgOffsetWidget1DArrowPartsAndEndPoint (baseX, baseY) axis sign amount maybeCaptionText isSelected dragStyle
     in
-    let endArrow =
-      let arrowOffset = 12 in
-      let (opX1, opY1, opX2, opY2) =
-        case (axis, Utils.sgn effectiveAmount) of
-          (X, 1)  -> ((-), (-), (-), (+))
-          (X, -1) -> ((+), (-), (+), (+))
-          (Y, 1)  -> ((-), (-), (+), (-))
-          _       -> ((-), (+), (+), (+))
-      in
-      flip Svg.polyline [] <|
-        [ attr "fill" "rgba(0,0,0,0.0)"
-        , attr "cursor" "pointer"
-        , attr "points" <| toString (opX1 endX arrowOffset) ++ "," ++ toString (opY1 endY arrowOffset) ++ " " ++
-                           toString endX                 ++ "," ++ toString endY ++ " " ++
-                           toString (opX2 endX arrowOffset) ++ "," ++ toString (opY2 endY arrowOffset) ++ " "
-        ] ++ lineStyle ++ dragStyle
-    in
-    let cap =
-      let string =
-        case traceToMaybeIdent amountTr of
-          Just ident -> ident
-          Nothing    -> toString amount
-      in
-      let (x, y, textAnchor) =
-        case axis of
-          X -> ((baseX + endX) / 2, baseY - 10, "middle")
-          Y -> (baseX + 10, (baseY + endY) / 2, "start")
-      in
-      flip Svg.text_ [VirtualDom.text string] <|
-        [ attr "font-family" params.mainSection.uiWidgets.font
-        , attr "font-size" params.mainSection.uiWidgets.fontSize
-        , attr "text-anchor" textAnchor
-        , attr "x" (toString x)
-        , attr "y" (toString y)
-        ] ++ dragStyle
-    in
+    -- let effectiveAmount =
+    --   case sign of
+    --     Positive -> amount
+    --     Negative -> -amount
+    -- in
+    -- let (endX, endY) =
+    --   case axis of
+    --     X -> (baseX + effectiveAmount, baseY)
+    --     Y -> (baseX, baseY + effectiveAmount)
+    -- in
+    -- let lineStyle =
+    --   if Set.member (idAsShape, "offset") model.selectedFeatures then
+    --     [ attr "stroke" colorPointSelected
+    --     , attr "stroke-width" "5px"
+    --     ]
+    --   else
+    --     [ attr "stroke" "black"
+    --     , attr "stroke-width" "1px"
+    --     , attr "stroke-dasharray" "1,1"
+    --     ]
+    -- in
+    -- let dragStyle =
+    --   if model.tool == Cursor then
+    --     [ attr "cursor" "pointer"
+    --     , onMouseEnter (addHoveredShape idAsShape)
+    --     ] ++ dragZoneEvents idAsShape "offset" ZOffset1D
+    --   else
+    --     [ attr "cursor" "default" ]
+    -- in
+    -- let line =
+    --   flip Svg.line [] <|
+    --     [ attrNum "x1" baseX, attrNum "y1" baseY
+    --     , attrNum "x2" endX,  attrNum "y2" endY
+    --     ] ++ lineStyle ++ dragStyle
+    -- in
+    -- let endArrow =
+    --   let arrowOffset = 12 in
+    --   let (opX1, opY1, opX2, opY2) =
+    --     case (axis, Utils.sgn effectiveAmount) of
+    --       (X, 1)  -> ((-), (-), (-), (+))
+    --       (X, -1) -> ((+), (-), (+), (+))
+    --       (Y, 1)  -> ((-), (-), (+), (-))
+    --       _       -> ((-), (+), (+), (+))
+    --   in
+    --   flip Svg.polyline [] <|
+    --     [ attr "fill" "rgba(0,0,0,0.0)"
+    --     , attr "cursor" "pointer"
+    --     , attr "points" <| toString (opX1 endX arrowOffset) ++ "," ++ toString (opY1 endY arrowOffset) ++ " " ++
+    --                        toString endX                 ++ "," ++ toString endY ++ " " ++
+    --                        toString (opX2 endX arrowOffset) ++ "," ++ toString (opY2 endY arrowOffset) ++ " "
+    --     ] ++ lineStyle ++ dragStyle
+    -- in
+    -- let cap =
+    --   let string =
+    --     case traceToMaybeIdent amountTr of
+    --       Just ident -> ident
+    --       Nothing    -> toString amount
+    --   in
+    --   let (x, y, textAnchor) =
+    --     case axis of
+    --       X -> ((baseX + endX) / 2, baseY - 10, "middle")
+    --       Y -> (baseX + 10, (baseY + endY) / 2, "start")
+    --   in
+    --   flip Svg.text_ [VirtualDom.text string] <|
+    --     [ attr "font-family" params.mainSection.uiWidgets.font
+    --     , attr "font-size" params.mainSection.uiWidgets.fontSize
+    --     , attr "text-anchor" textAnchor
+    --     , attr "x" (toString x)
+    --     , attr "y" (toString y)
+    --     ] ++ dragStyle
+    -- in
     let endPt =
-      zoneSelectCrossDot model False (idAsShape, "offset", EndPoint) endX endY
+      zoneSelectCrossDot model False (idAsShape, "offset", EndPoint) (endX, dummyTrace) (endY, dummyTrace)
     in
+    -- if amount /= 0 then
+    --   [ Svg.g
+    --       [onMouseLeave (removeHoveredShape idAsShape)]
+    --       <| [line, cap, endArrow] ++ endPt
+    --   ]
+    -- else
+    --   []
     if amount /= 0 then
       [ Svg.g
           [onMouseLeave (removeHoveredShape idAsShape)]
-          <| [line, cap, endArrow] ++ endPt
+          <| arrowParts ++ endPt
       ]
     else
       []
@@ -380,8 +489,8 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
         drawNumWidget i_ widget k cap minVal maxVal curVal
 
-      WPoint (xVal, _) (yVal, _) ->
-        drawPointWidget i_ widget xVal yVal
+      WPoint xNumTr yNumTr ->
+        drawPointWidget i_ widget xNumTr yNumTr
 
       WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign amountNumTr ->
         drawOffsetWidget1D i_ baseX baseY axis sign amountNumTr
@@ -995,13 +1104,28 @@ toggleSelectedLambda nodeIdAndFeatures =
     in
     { model | selectedFeatures = List.foldl updateSet model.selectedFeatures nodeIdAndFeatures }
 
-maybeZoneSelectCrossDot sideLength model thisCrosshair x y =
+svgXYDot (x, y) fill isVisible extraAttrs =
+  svgCircle <|
+    [ attr "cx" (toString x) , attr "cy" (toString y)
+    , attr "fill" fill
+    , attr "stroke" pointZoneStyles.stroke
+    , attr "stroke-width" pointZoneStyles.strokeWidth
+    , attr "r" <|
+        if isVisible
+        then pointZoneStyles.radius
+        else "0"
+    ] ++ extraAttrs
+
+
+maybeZoneSelectCrossDot sideLength model thisCrosshair xNumTr yNumTr =
   if sideLength < minLengthForMiddleZones then []
-  else zoneSelectCrossDot model False thisCrosshair x y
+  else zoneSelectCrossDot model False thisCrosshair xNumTr yNumTr
 
 zoneSelectCrossDot : Model -> Bool -> (Int, ShapeKind, PointFeature)
-                  -> number -> number2 -> List (Svg Msg)
-zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) x y =
+                  -> NumTr -> NumTr -> List (Svg Msg)
+zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr yNumTr =
+  let ((xFloat, _), (yFloat, _)) = (xNumTr, yNumTr) in
+  let (x, y) = (round xFloat, round yFloat) in
   let xFeatureName = ShapeWidgets.unparseFeatureNum (Just kind) (XFeat pointFeature) in
   let yFeatureName = ShapeWidgets.unparseFeatureNum (Just kind) (YFeat pointFeature) in
   let thisCrosshair = (id, xFeatureName, yFeatureName) in
@@ -1042,28 +1166,33 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) x y =
     (backDisc, frontDisc)
   in
   let xyDot =
-    svgCircle <|
-      [ attr "cx" (toString x) , attr "cy" (toString y)
-      , attr "fill" <| -- "darkgray"
-          if Set.member id model.selectedShapes
-            then pointZoneStylesFillSelected model id
-            else pointZoneStyles.fill.shown
-      , attr "stroke" pointZoneStyles.stroke
-      , attr "stroke-width" pointZoneStyles.strokeWidth
-      , attr "r" <|
-          if not (objectIsCurrentlyBeingManipulated model id)
-             && (alwaysShowDot ||
-                 Set.member id model.selectedShapes ||
-                 Set.member id model.hoveredShapes ||
-                 Set.member thisCrosshair model.hoveredCrosshairs)
-          then pointZoneStyles.radius
-          else "0"
-      ] ++ if model.tool /= Cursor then [] else
+    let dotFill =
+      if Set.member id model.selectedShapes
+        then pointZoneStylesFillSelected model id
+        else pointZoneStyles.fill.shown
+    in
+    let isVisible =
+      not (objectIsCurrentlyBeingManipulated model id)
+         && (alwaysShowDot ||
+             Set.member id model.selectedShapes ||
+             Set.member id model.hoveredShapes ||
+             Set.member thisCrosshair model.hoveredCrosshairs)
+    in
+    let extraAttrs =
+      if model.tool == Cursor then
         [ onMouseDown <| Msg "Select Cross Dot..." <| \model ->
             if Set.member thisCrosshair model.hoveredCrosshairs
               then toggleSelectedLambda [xFeature, yFeature] model
               else { model | hoveredCrosshairs = Set.insert thisCrosshair model.hoveredCrosshairs }
         ]
+      else if model.tool == PointOrOffset then
+        [ onMouseDown <| Msg "Begin Offset From Point..." <| \model ->
+            { model | mouseMode = MouseDrawNew (OffsetFromExisting (x, y) (xNumTr, yNumTr)) }
+        ]
+      else
+        []
+    in
+    svgXYDot (x, y) dotFill isVisible extraAttrs
   in
   let yLine =
     svgLine <|
@@ -1133,8 +1262,8 @@ boxySelectZones model id kind boxyNums =
 
   let drawPoint maybeThreshold feature x y =
     case maybeThreshold of
-      Just thresh -> maybeZoneSelectCrossDot thresh model (id, kind, feature) x y
-      Nothing     -> zoneSelectCrossDot model False (id, kind, feature) x y in
+      Just thresh -> maybeZoneSelectCrossDot thresh model (id, kind, feature) (x, dummyTrace) (y, dummyTrace)
+      Nothing     -> zoneSelectCrossDot model False (id, kind, feature) (x, dummyTrace) (y, dummyTrace) in
 
   let drawLine threshold feature pt1 pt2 =
     maybeZoneSelectLine threshold model id kind feature pt1 pt2 in
@@ -1206,9 +1335,9 @@ makeZonesLine model id l =
   in
   let zonesSelect =
     List.concat
-       [ maybeZoneSelectCrossDot (distance pt1 pt2) model (id, "line", Center) cx cy
-       , zoneSelectCrossDot model False (id, "line", Point 1) x1 y1
-       , zoneSelectCrossDot model False (id, "line", Point 2) x2 y2]
+       [ maybeZoneSelectCrossDot (distance pt1 pt2) model (id, "line", Center) (cx, dummyTrace) (cy, dummyTrace)
+       , zoneSelectCrossDot model False (id, "line", Point 1) (x1, dummyTrace) (y1, dummyTrace)
+       , zoneSelectCrossDot model False (id, "line", Point 2) (x2, dummyTrace) (y2, dummyTrace)]
   in
   let primaryWidgets =
     boundingBoxZones model id bounds <|
@@ -1332,14 +1461,13 @@ makeZonesPoly model shape id l =
       _ ->
         Debug.crash "makeZonesPoly" in
   let zSelect =
-    let midptCrossDot ((i1, ((xi1,_),(yi1,_))), (i2, ((xi2,_),(yi2,_)))) =
-      let (xAttr1, yAttr1) = ("x" ++ toString i1, "y" ++ toString i1) in
-      let (xAttr2, yAttr2) = ("x" ++ toString i2, "y" ++ toString i2) in
-      zoneSelectCrossDot model False (id, shape, Midpoint i1) (xi1/2+xi2/2) (yi1/2+yi2/2)
+    let midptCrossDot ((i1, ((xi1, xTr1), (yi1, yTr1))), (i2, ((xi2, xTr2), (yi2, yTr2)))) =
+      let (midX, midXTr) = ((xi1+xi2)/2, TrOp Plus [xTr1, xTr2]) in -- Can't divide by two until we unify traces which will allow introduction of constants. Here it only affects drawing new offests (for now).
+      let (midY, midYTr) = ((yi1+yi2)/2, TrOp Plus [yTr1, yTr2]) in -- Can't divide by two until we unify traces which will allow introduction of constants. Here it only affects drawing new offests (for now).
+      zoneSelectCrossDot model False (id, shape, Midpoint i1) (midX, midXTr) (midY, midYTr)
     in
-    let ptCrossDot (i, ((xi,_),(yi,_))) =
-      let (xAttr, yAttr) = ("x" ++ toString i, "y" ++ toString i) in
-      zoneSelectCrossDot model False (id, shape, Point i) xi yi
+    let ptCrossDot (i, (xNumTrI, yNumTrI)) =
+      zoneSelectCrossDot model False (id, shape, Point i) xNumTrI yNumTrI
     in
     let midptCrossDots =
       let ptsI = Utils.mapi1 identity pts in
@@ -1385,10 +1513,9 @@ makeZonesPath model shape id nodeAttrs =
         Debug.crash "makeZonesPath"
   in
   let zSelect =
-    let ptCrossDot (maybeIndex, ((xi,_),(yi,_))) =
+    let ptCrossDot (maybeIndex, (xNumTr, yNumTr)) =
       let i = Utils.fromJust maybeIndex in
-      let (xAttr, yAttr) = ("x" ++ toString i, "y" ++ toString i) in
-      zoneSelectCrossDot model False (id, shape, Point i) xi yi
+      zoneSelectCrossDot model False (id, shape, Point i) xNumTr yNumTr
     in
     let crossDots = List.concatMap ptCrossDot listOfMaybeIndexWithPt in
     crossDots

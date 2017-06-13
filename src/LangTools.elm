@@ -837,73 +837,78 @@ tryMatchExp pat exp =
   --         Match expEnv
   --
   --   _ ->
-  case pat.val.p__ of
-    PVar _ ident _         -> Match [(ident, exp)]
-    PAs _ ident _ innerPat ->
-      tryMatchExp innerPat exp
-      |> matchMap (\env -> (ident, exp)::env)
+  case exp.val.e__ of
+    EColonType _ typedExp _ _ _ ->
+      tryMatchExp pat typedExp
 
-    PList _ ps _ Nothing _ ->
-      case exp.val.e__ of
-        -- TODO: list must not have rest
-        EList _ es _ Nothing _ ->
-          case Utils.maybeZip ps es of
-            Nothing    -> NoMatch
-            Just pairs ->
-              List.map (\(p, e) -> tryMatchExp p e) pairs
-              |> projMatches
+    _ ->
+      case pat.val.p__ of
+        PVar _ ident _         -> Match [(ident, exp)]
+        PAs _ ident _ innerPat ->
+          tryMatchExp innerPat exp
+          |> matchMap (\env -> (ident, exp)::env)
 
-        _ ->
-          CannotCompare
+        PList _ ps _ Nothing _ ->
+          case exp.val.e__ of
+            -- TODO: list must not have rest
+            EList _ es _ Nothing _ ->
+              case Utils.maybeZip ps es of
+                Nothing    -> NoMatch
+                Just pairs ->
+                  List.map (\(p, e) -> tryMatchExp p e) pairs
+                  |> projMatches
 
-    PList _ ps _ (Just restPat) _ ->
-      case exp.val.e__ of
-        EList _ es _ Nothing _ ->
-          if List.length es < List.length ps then
-            NoMatch
-          else
-            let (headExps, tailExps) = Utils.split (List.length ps) es in
-            let tryHeadMatch =
-              Utils.zip ps headExps
-              |> List.map (\(p, e) -> tryMatchExp p e)
-              |> projMatches
-            in
-            let tryTailMatch =
-              tryMatchExp restPat (eList tailExps Nothing)
-            in
-            [tryHeadMatch, tryTailMatch]
-            |> projMatches
+            _ ->
+              CannotCompare
 
-        -- TODO: must have same number of heads
-        EList _ es _ (Just restExp) _ ->
-          if List.length es < List.length ps then
-            NoMatch
-          else if List.length es /= List.length ps then
-            CannotCompare
-          else
-            let tryHeadMatch =
-              Utils.zip ps es
-              |> List.map (\(p, e) -> tryMatchExp p e)
-              |> projMatches
-            in
-            let tryTailMatch =
-              tryMatchExp restPat restExp
-            in
-            [tryHeadMatch, tryTailMatch]
-            |> projMatches
+        PList _ ps _ (Just restPat) _ ->
+          case exp.val.e__ of
+            EList _ es _ Nothing _ ->
+              if List.length es < List.length ps then
+                NoMatch
+              else
+                let (headExps, tailExps) = Utils.split (List.length ps) es in
+                let tryHeadMatch =
+                  Utils.zip ps headExps
+                  |> List.map (\(p, e) -> tryMatchExp p e)
+                  |> projMatches
+                in
+                let tryTailMatch =
+                  tryMatchExp restPat (eList tailExps Nothing)
+                in
+                [tryHeadMatch, tryTailMatch]
+                |> projMatches
 
-        _ ->
-          CannotCompare
+            -- TODO: must have same number of heads
+            EList _ es _ (Just restExp) _ ->
+              if List.length es < List.length ps then
+                NoMatch
+              else if List.length es /= List.length ps then
+                CannotCompare
+              else
+                let tryHeadMatch =
+                  Utils.zip ps es
+                  |> List.map (\(p, e) -> tryMatchExp p e)
+                  |> projMatches
+                in
+                let tryTailMatch =
+                  tryMatchExp restPat restExp
+                in
+                [tryHeadMatch, tryTailMatch]
+                |> projMatches
 
-    PConst _ n ->
-      case exp.val.e__ of
-        EConst _ num _ _ -> if n == num then Match [] else NoMatch
-        _                -> CannotCompare
+            _ ->
+              CannotCompare
 
-    PBase _ bv ->
-      case exp.val.e__ of
-        EBase _ ev -> if eBaseValsEqual bv ev then Match [] else NoMatch
-        _          -> CannotCompare
+        PConst _ n ->
+          case exp.val.e__ of
+            EConst _ num _ _ -> if n == num then Match [] else NoMatch
+            _                -> CannotCompare
+
+        PBase _ bv ->
+          case exp.val.e__ of
+            EBase _ ev -> if eBaseValsEqual bv ev then Match [] else NoMatch
+            _          -> CannotCompare
 
 
 -- Returns the common ancestor just inside the deepest common scope -- the expression you want to wrap with new defintions.
@@ -1007,6 +1012,16 @@ wrapWithLets listOfListsOfNamesAndAssigns isTopLevel bodyExp =
             (addPrecedingWhitespace extraWhitespace bodyExp)
       in
       wrappedWithLets
+
+
+addFirstDef : Exp -> Pat -> Exp -> Exp
+addFirstDef program pat boundExp =
+  let firstNonCommentEId e =
+    case e.val.e__ of
+      EComment _ _ body -> firstNonCommentEId body
+      _                 -> e.val.eid
+  in
+  mapExpNode (firstNonCommentEId program) (\nonComment -> withDummyExpInfo <| ELet "\n" Def False pat boundExp nonComment "") program
 
 
 expToMaybeNum : Exp -> Maybe Num
@@ -1280,15 +1295,37 @@ identifierCounts exp =
 
 -- If suggestedName is not in existing names, returns it.
 -- Otherwise appends a number (starting at i) that doesn't collide.
+-- If the name contains "{n}", place the number there instead.
 nonCollidingName : Ident -> Int -> Set.Set Ident -> Ident
 nonCollidingName suggestedName i existingNames =
-  if not (Set.member suggestedName existingNames) then
-    suggestedName
+  nonCollidingNames [suggestedName] i existingNames |> Utils.head "LangTools.nonCollidingNames did not satisfy its invariant"
+
+
+-- If suggestedName is not in existing names, returns it.
+-- Otherwise appends a number (starting at i) that doesn't collide.
+-- If the name contains "{n}", place the number there instead.
+nonCollidingNames : List Ident -> Int -> Set.Set Ident -> List Ident
+nonCollidingNames suggestedNames i existingNames =
+  let plainSuggestedNames =
+    suggestedNames
+    |> List.map (Utils.stringReplace "{n}" "")
+  in
+  if not <| Utils.anyOverlap [existingNames, Set.fromList plainSuggestedNames] then
+    plainSuggestedNames
   else
-    let newName = suggestedName ++ (toString i) in
-    if not (Set.member newName existingNames)
-    then newName
-    else nonCollidingName suggestedName (i+1) existingNames
+    let newNames =
+      suggestedNames
+      |> List.map
+          (\name ->
+            if String.contains "{n}" name then
+              Utils.stringReplace "{n}" (toString i) name
+            else
+              name ++ (toString i)
+          )
+    in
+    if not <| Utils.anyOverlap [existingNames, Set.fromList newNames]
+    then newNames
+    else nonCollidingNames suggestedNames (i+1) existingNames
 
 
 renameIdentifierInPat old new pat =

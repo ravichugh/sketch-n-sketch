@@ -210,28 +210,32 @@ onMouseClick click old =
     (Cursor, MouseDragZone (i, k, z) (Just (_, _, False))) ->
       onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
 
-    (Poly stk, MouseDrawNew points) ->
-      let pointOnCanvas = clickToCanvasPoint old click in
-      let add () =
-        let points_ = (old.keysDown, pointOnCanvas) :: points in
-        { old | mouseMode = MouseDrawNew points_ }
-      in
-      if points == [] then add ()
+    (Poly stk, MouseDrawNew NoPointsYet) ->
+      let (isOnCanvas, pointOnCanvas) = clickToCanvasPoint old click in
+      { old | mouseMode = MouseDrawNew (PolyPoints [pointOnCanvas]) }
+
+    (Poly stk, MouseDrawNew (PolyPoints points)) ->
+      let (isOnCanvas, pointOnCanvas) = clickToCanvasPoint old click in
+      if points == [] then Debug.crash "invalid state, PolyPoints should always be nonempty"
       else
-        let (_,initialPoint) = Utils.last_ points in
-        if Utils.distanceInt pointOnCanvas initialPoint > Draw.drawDotSize then add ()
+        let initialPoint = Utils.last_ points in
+        if Utils.distanceInt pointOnCanvas initialPoint > Draw.drawDotSize then { old | mouseMode = MouseDrawNew (PolyPoints (pointOnCanvas :: points)) }
         else if List.length points == 2 then { old | mouseMode = MouseNothing }
         else if List.length points == 1 then switchToCursorTool old
-        else upstateRun <| Draw.addPolygon stk old points
+        else upstateRun <| switchToCursorTool <| Draw.addPolygon stk old points
 
-    (Path stk, MouseDrawNew points) ->
-      let pointOnCanvas = clickToCanvasPoint old click in
+    (Path stk, MouseDrawNew NoPointsYet) ->
+      let (isOnCanvas, pointOnCanvas) = clickToCanvasPoint old click in
+      { old | mouseMode = MouseDrawNew (PathPoints [(old.keysDown, pointOnCanvas)]) }
+
+    (Path stk, MouseDrawNew (PathPoints points)) ->
+      let (isOnCanvas, pointOnCanvas) = clickToCanvasPoint old click in
       let add new =
         let points_ = (old.keysDown, new) :: points in
-        (points_, { old | mouseMode = MouseDrawNew points_ })
+        (points_, { old | mouseMode = MouseDrawNew (PathPoints points_) })
       in
       case points of
-        [] -> Tuple.second (add pointOnCanvas)
+        [] -> Debug.crash "invalid state, PathPoints should always be nonempty"
         (_,firstClick) :: [] ->
           if Utils.distanceInt pointOnCanvas firstClick < Draw.drawDotSize
           then switchToCursorTool old
@@ -244,15 +248,18 @@ onMouseClick click old =
             if Utils.distanceInt pointOnCanvas firstClick < Draw.drawDotSize
             then
               let (points_,old_) = add firstClick in
-              upstateRun <| Draw.addPath stk old_ points_
+              upstateRun <| switchToCursorTool <| Draw.addPath stk old_ points_
             else
               Tuple.second (add pointOnCanvas)
 
-    (HelperDot, MouseDrawNew []) ->
-      let pointOnCanvas = (old.keysDown, clickToCanvasPoint old click) in
-      { old | mouseMode = MouseDrawNew [pointOnCanvas] }
+    (PointOrOffset, _) ->
+      let (isOnCanvas, pointOnCanvas) = clickToCanvasPoint old click in
+      if isOnCanvas then
+        upstateRun <| Draw.addPoint old pointOnCanvas
+      else
+        old
 
-    (_, MouseDrawNew []) -> switchToCursorTool old
+    (_, MouseDrawNew NoPointsYet) -> switchToCursorTool old
 
     _ ->
       old
@@ -305,9 +312,10 @@ onClickPrimaryZone i k z old =
         , selectedBlobs = selectedBlobs_
         }
 
-onMouseMove newPosition old =
+onMouseDrag lastPosition newPosition old =
   let (mx0, my0) = (newPosition.x, newPosition.y) in
-  let (mx, my) = clickToCanvasPoint old newPosition in
+  let (isOnCanvas, (mx, my)) = clickToCanvasPoint old newPosition in
+  let (_, (mxLast, myLast))  = clickToCanvasPoint old lastPosition in
   case old.mouseMode of
 
     MouseNothing -> old
@@ -344,16 +352,24 @@ onMouseMove newPosition old =
               }
       )) |> handleError old
 
-    MouseDrawNew points ->
-      case (old.tool, points) of
+    MouseDrawNew shapeBeingDrawn ->
+      case (old.tool, shapeBeingDrawn) of
         (Poly _, _) -> old -- handled by onMouseClick instead
         (Path _, _) -> old -- handled by onMouseClick instead
-        (_, []) ->
+
+        (_, NoPointsYet) ->
+          let pointOnCanvas     = (old.keysDown, (mx, my)) in
+          let lastPointOnCanvas = (old.keysDown, (mxLast, myLast)) in
+          { old | mouseMode = MouseDrawNew (TwoPoints pointOnCanvas lastPointOnCanvas) }
+
+        (_, TwoPoints _ point1) ->
           let pointOnCanvas = (old.keysDown, (mx, my)) in
-          { old | mouseMode = MouseDrawNew [pointOnCanvas, pointOnCanvas] }
-        (_, (_::points)) ->
-          let pointOnCanvas = (old.keysDown, (mx, my)) in
-          { old | mouseMode = MouseDrawNew (pointOnCanvas::points) }
+          { old | mouseMode = MouseDrawNew (TwoPoints pointOnCanvas point1) }
+
+        (_, OffsetFromExisting _ basePoint) ->
+          { old | mouseMode = MouseDrawNew (OffsetFromExisting (mx, my) basePoint) }
+
+        _ -> old
 
     MouseDownInCodebox pos ->
       old
@@ -373,38 +389,40 @@ onMouseUp old =
                , history = addToHistory old.code old_.history }
 
     (_, MouseDrawNew points) ->
+      let resetMouseMode model = { model | mouseMode = MouseNothing } in
       case (old.tool, points, old.keysDown == Keys.shift) of
 
-        (Line _,     [pt2, pt1], _) -> upstateRun <| Draw.addLine old pt2 pt1
-        (HelperLine, [pt2, pt1], _) -> upstateRun <| Draw.addLine old pt2 pt1
+        (Line _,     TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addLine old pt2 pt1
+        (HelperLine, TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addLine old pt2 pt1
 
-        (Rect Raw,      [pt2, pt1], False) -> upstateRun <| Draw.addRawRect old pt2 pt1
-        (Rect Raw,      [pt2, pt1], True)  -> upstateRun <| Draw.addRawSquare old pt2 pt1
-        (Rect Stretchy, [pt2, pt1], False) -> upstateRun <| Draw.addStretchyRect old pt2 pt1
-        (Rect Stretchy, [pt2, pt1], True)  -> upstateRun <| Draw.addStretchySquare old pt2 pt1
+        (Rect Raw,      TwoPoints pt2 pt1, False) -> upstateRun <| resetMouseMode <| Draw.addRawRect old pt2 pt1
+        (Rect Raw,      TwoPoints pt2 pt1, True)  -> upstateRun <| resetMouseMode <| Draw.addRawSquare old pt2 pt1
+        (Rect Stretchy, TwoPoints pt2 pt1, False) -> upstateRun <| resetMouseMode <| Draw.addStretchyRect old pt2 pt1
+        (Rect Stretchy, TwoPoints pt2 pt1, True)  -> upstateRun <| resetMouseMode <| Draw.addStretchySquare old pt2 pt1
 
-        (Oval Raw,      [pt2, pt1], False) -> upstateRun <| Draw.addRawOval old pt2 pt1
-        (Oval Raw,      [pt2, pt1], True)  -> upstateRun <| Draw.addRawCircle old pt2 pt1
-        (Oval Stretchy, [pt2, pt1], False) -> upstateRun <| Draw.addStretchyOval old pt2 pt1
-        (Oval Stretchy, [pt2, pt1], True)  -> upstateRun <| Draw.addStretchyCircle old pt2 pt1
+        (Oval Raw,      TwoPoints pt2 pt1, False) -> upstateRun <| resetMouseMode <| Draw.addRawOval old pt2 pt1
+        (Oval Raw,      TwoPoints pt2 pt1, True)  -> upstateRun <| resetMouseMode <| Draw.addRawCircle old pt2 pt1
+        (Oval Stretchy, TwoPoints pt2 pt1, False) -> upstateRun <| resetMouseMode <| Draw.addStretchyOval old pt2 pt1
+        (Oval Stretchy, TwoPoints pt2 pt1, True)  -> upstateRun <| resetMouseMode <| Draw.addStretchyCircle old pt2 pt1
 
-        (HelperDot, [pt], _) -> upstateRun <| Draw.addHelperDot old pt
-
-        (Lambda i, [pt2, pt1], _) -> upstateRun <| Draw.addLambda i old pt2 pt1
+        (Lambda i, TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addLambda i old pt2 pt1
 
         (Poly _, _, _) -> old
         (Path _, _, _) -> old
 
-        (Text, [pt2, pt1], _) -> upstateRun <| Draw.addTextBox old pt2 pt1
+        (Text, TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addTextBox old pt2 pt1
 
-        (_, [], _)     -> switchToCursorTool old
+        (PointOrOffset, TwoPoints (_, pt2) (_, (x1,y1)), _)  -> upstateRun <| resetMouseMode <| Draw.addOffsetAndMaybePoint old ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) pt2
+        (PointOrOffset, OffsetFromExisting pt2 basePoint, _) -> upstateRun <| resetMouseMode <| Draw.addOffsetAndMaybePoint old basePoint pt2
 
-        _              -> old
+        (_, NoPointsYet, _)     -> switchToCursorTool old
+
+        _              -> resetMouseMode old
 
     (_, MouseDownInCodebox downPos) ->
       let oldPos = pixelToRowColPosition downPos old in
       let newPos = pixelToRowColPosition (Tuple.second old.mouseState) old in
-      onMouseDrag (dragSource oldPos old) (dragTarget newPos old)
+      onMouseDragged (dragSource oldPos old) (dragTarget newPos old)
         { old | mouseMode = MouseNothing }
 
     _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
@@ -522,6 +540,7 @@ update msg oldModel =
 
 upstate : Msg -> Model -> Model
 upstate (Msg caption updateModel) old =
+  -- let _ = Debug.log "" (caption, old.mouseState, old.mouseMode) in
   let _ = debugLog "Msg" caption in
   updateModel old
 
@@ -701,7 +720,7 @@ msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
     (True, (Nothing, pos)) -> -- mouse down
       let _ = debugLog "mouse down" () in
       if old.hoveringCodeBox
-      -- TODO disabling MouseDownInCodeBox because onMouseDrag is disabled
+      -- TODO disabling MouseDownInCodeBox because onMouseDragged is disabled
 {-
       then { new | mouseState = (Just False, pos),
                    mouseMode = MouseDownInCodebox pos }
@@ -728,9 +747,9 @@ msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
 
 msgMousePosition pos_ = Msg ("MousePosition " ++ toString pos_) <| \old ->
   case old.mouseState of
-    (Nothing, _)    -> { old | mouseState = (Nothing, pos_) }
-    (Just False, _) -> onMouseMove pos_ { old | mouseState = (Just True, pos_) }
-    (Just True, _)  -> onMouseMove pos_ { old | mouseState = (Just True, pos_) }
+    (Nothing, _)          -> { old | mouseState = (Nothing, pos_) }
+    (Just False, oldPos_) -> onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_) }
+    (Just True, oldPos_)  -> onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_) }
 
 --------------------------------------------------------------------------------
 
@@ -1164,13 +1183,11 @@ readFile file old =
 
 loadIcon env icon old =
   let
-    iconNameLower =
-      String.toLower icon.iconName
     actualCode =
       if icon.code /= "" then
         icon.code
       else
-        case Dict.get iconNameLower DefaultIconTheme.icons of
+        case Dict.get icon.iconName DefaultIconTheme.icons of
           Just c ->
             c
           Nothing ->
@@ -1187,7 +1204,7 @@ loadIcon env icon old =
 loadLambdaToolIcons finalEnv old =
   let foo tool acc =
     let icon = lambdaToolIcon tool in
-    if Dict.member (String.toLower icon.iconName) old.icons
+    if Dict.member icon.iconName old.icons
       then acc
       else loadIcon finalEnv icon old
   in
@@ -1470,11 +1487,11 @@ getClickedPatTarget ls pixelPos m =
 msgReceiveDotImage s = Msg "Receive Image" <| \m ->
   { m | mode = Model.PrintScopeGraph (Just s) }
 
-onMouseDrag
+onMouseDragged
     : Maybe (Either PathedPatternId EId)
    -> Maybe TargetPosition
    -> Model -> Model
-onMouseDrag dragSource dragTarget m =
+onMouseDragged dragSource dragTarget m =
   if showDeuceWidgets m
   then
     let _ = Debug.log "ignoring drag" (dragSource, dragTarget) in

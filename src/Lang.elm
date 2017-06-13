@@ -1441,14 +1441,19 @@ eDef : List (Ident, Exp) -> Exp -> Exp
 eDef = eLetOrDef Def
 
 
-eVar0 a        = withDummyExpInfo <| EVar "" a
-eVar a         = withDummyExpInfo <| EVar " " a
-eConst0 a b    = withDummyExpInfo <| EConst "" a b noWidgetDecl
-eConst a b     = withDummyExpInfo <| EConst " " a b noWidgetDecl
-eList0 a b     = withDummyExpInfo <| EList "" a "" b ""
-eList a b      = withDummyExpInfo <| EList " " a "" b ""
-eTuple0 a      = eList0 a Nothing
-eTuple a       = eList a Nothing
+eVar0 a           = withDummyExpInfo <| EVar "" a
+eVar a            = withDummyExpInfo <| EVar " " a
+eConst0 a b       = withDummyExpInfo <| EConst "" a b noWidgetDecl
+eConst a b        = withDummyExpInfo <| EConst " " a b noWidgetDecl
+eConstDummyLoc0 a = withDummyExpInfo <| EConst "" a dummyLoc noWidgetDecl
+eConstDummyLoc a  = withDummyExpInfo <| EConst " " a dummyLoc noWidgetDecl
+eList0 a b        = withDummyExpInfo <| EList "" a "" b ""
+eList a b         = withDummyExpInfo <| EList " " a "" b ""
+eTuple0 a         = eList0 a Nothing
+eTuple a          = eList a Nothing
+
+eColonType e t    = withDummyExpInfo <| EColonType " " e " " (withDummyRange t) ""
+
 eComment a b   = withDummyExpInfo <| EComment " " a b
 
 pVar0 a        = withDummyPatInfo <| PVar "" a noWidgetDecl

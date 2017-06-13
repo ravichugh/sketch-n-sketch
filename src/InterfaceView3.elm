@@ -218,6 +218,7 @@ codeToolBox model layout =
 drawToolBox model layout =
   toolBox model "drawToolBox" [] Layout.getPutDrawToolBox layout.drawTools
     [ toolButton model Cursor
+    , toolButton model PointOrOffset
     , toolButton model Text
     , toolButton model (Line Raw)
     , toolButton model (Rect Raw)
@@ -586,7 +587,7 @@ iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
         Unselected -> buttonRegularColor
         Selected   -> buttonSelectedColor
     iconHtml =
-      case Dict.get (String.toLower iconName) model.icons of
+      case Dict.get (Utils.naturalToCamelCase iconName) model.icons of
         Just h -> h
         Nothing -> Html.text ""
   in
@@ -728,7 +729,7 @@ toolButton model tool =
     Path Sticky   -> capSticky
     Text          -> "Text"
     HelperLine    -> "(Rule)"
-    HelperDot     -> "(Dot)"
+    PointOrOffset -> "Point Or Offset"
     Lambda _      -> "Lambda" -- Utils.uniLambda
     _             -> Debug.crash ("toolButton: " ++ toString tool)
   in

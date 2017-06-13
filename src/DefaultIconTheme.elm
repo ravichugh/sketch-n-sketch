@@ -5,6 +5,7 @@ import Dict
 icons =
   Dict.fromList
     [ ("cursor", cursor)
+    , ("pointOrOffset", pointOrOffset)
     , ("text", text)
     , ("line", line)
     , ("rect", rect)
@@ -29,6 +30,48 @@ cursor = """
 
 (svgViewBox 200 200 (concat [
   polygon1
+]))
+"""
+
+pointOrOffset = """
+; To customize, Save As: __ui__pointOrOffset.little
+
+(def [x1 y1] [8 42])
+(def x2 59)
+(def arrowHeadOffset 12)
+(def x11 (- x2 arrowHeadOffset))
+
+(def line1
+  (let [x1 y1 x2 y2] [x1 y1 x2 y1]
+  (let [color width] ['black' 1]
+    [ (addAttr (line color width x1 y1 x2 y2) ["stroke-dasharray" "1,1"]) ])))
+
+(def line2
+  (let [x1 y1 x2 y2] [x11 (+ y1 arrowHeadOffset) x2 y1]
+  (let [color width] ['black' 1]
+    [ (addAttr (line color width x1 y1 x2 y2) ["stroke-dasharray" "1,1"]) ])))
+
+(def line3
+  (let [x1 y1 x2 y2] [x11 (- y1 arrowHeadOffset) x2 y1]
+  (let [color width] ['black' 1]
+    [ (addAttr (line color width x1 y1 x2 y2) ["stroke-dasharray" "1,1"]) ])))
+
+(def circle1
+  (let [cx cy r] [30 13 6]
+  (let fill 'white'
+    [ (rawCircle fill 360 2 cx cy r) ])))
+
+(def circle2
+  (let [cx cy r] [x1 y1 6]
+  (let fill 'white'
+    [ (rawCircle fill 360 2 cx cy r) ])))
+
+(svgViewBox 60 60 (concat [
+  circle1
+  circle2
+  line1
+  line2
+  line3
 ]))
 """
 

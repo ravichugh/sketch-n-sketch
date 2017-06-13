@@ -25,10 +25,19 @@ strButtonTopColor = "rgba(231,76,60,1.0)" -- from InterfaceButtons example
 
 pixels n = toString n ++ "px"
 
+-- Returns (isOnCanvas, (x, y))
+-- Lets you handle off canvas clicks in their own manner.
+clickToCanvasPoint : Model -> { x : Int, y : Int } -> (Bool, (Int, Int))
 clickToCanvasPoint model {x,y} =
   let layout = computeLayout model in
   let (xOrigin, yOrigin) = (layout.canvas.left, layout.canvas.top) in
-  (x - xOrigin, y - yOrigin)
+  let (xOnCanvas, yOnCanvas) = (x - xOrigin, y - yOrigin) in
+  let isOnCanvas =
+    xOnCanvas >= 0 && xOnCanvas < layout.canvas.width &&
+    yOnCanvas >= 0 && yOnCanvas < layout.canvas.height
+  in
+  (isOnCanvas, (xOnCanvas, yOnCanvas))
+
 
 --------------------------------------------------------------------------------
 -- CSS Fixed Positions

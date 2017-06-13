@@ -160,6 +160,7 @@ generalCategory =
 defaultIconCategory =
   ( "Default Icons"
   , [ makeExample "Icon: Cursor" DefaultIconTheme.cursor
+    , makeExample "Icon: Point Or Offset" DefaultIconTheme.pointOrOffset
     , makeExample "Icon: Text" DefaultIconTheme.text
     , makeExample "Icon: Line" DefaultIconTheme.line
     , makeExample "Icon: Rect" DefaultIconTheme.rect
