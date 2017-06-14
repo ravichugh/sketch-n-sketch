@@ -6,7 +6,7 @@ import String
 
 import Lang exposing (..)
 import LangUnparser exposing (unparse, unparsePat, unparseWithIds)
-import LangParser2 as Parser
+import FastParser exposing (parseE, prelude)
 import Types
 import Utils
 
@@ -103,7 +103,7 @@ mkCap mcap l =
 
 
 
-initEnvRes = Result.map Tuple.second <| (eval [] [] Parser.prelude)
+initEnvRes = Result.map Tuple.second <| (eval [] [] prelude)
 initEnv = Utils.fromOk "Eval.initEnv" <| initEnvRes
 
 run : Exp -> Result String (Val, Widgets)
@@ -501,9 +501,9 @@ postProcessWidgets widgets =
   rangeWidgets ++ pointWidgets
 
 parseAndRun : String -> String
-parseAndRun = strVal << Tuple.first << Utils.fromOk_ << run << Utils.fromOkay "parseAndRun" << Parser.parseE
+parseAndRun = strVal << Tuple.first << Utils.fromOk_ << run << Utils.fromOkay "parseAndRun" << parseE
 
-parseAndRun_ = strVal_ True << Tuple.first << Utils.fromOk_ << run << Utils.fromOkay "parseAndRun_" << Parser.parseE
+parseAndRun_ = strVal_ True << Tuple.first << Utils.fromOk_ << run << Utils.fromOkay "parseAndRun_" << parseE
 
 btString : Backtrace -> String
 btString bt =

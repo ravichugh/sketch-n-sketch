@@ -9,8 +9,6 @@ import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
 import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature)
 import ExamplesGenerated as Examples
 import LangUnparser exposing (unparse, unparsePat)
-import LangParser2 as Parser
-import OurParser2 as P
 import DependenceGraph exposing (ScopeGraph)
 import Ace
 import DeuceWidgets exposing (DeuceState)

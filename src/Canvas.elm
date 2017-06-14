@@ -18,7 +18,7 @@ import Layout exposing (clickToCanvasPoint)
 import Sync
 import Draw
 import InterfaceModel exposing (..)
-import LangParser2 as Parser
+import FastParser exposing (parseE)
 import Eval
 
 -- Elm Libraries ---------------------------------------------------------------
@@ -161,7 +161,7 @@ iconify env code =
   let
     exp =
       Utils.fromOkay "Error parsing icon"
-        <| Parser.parseE code
+        <| parseE code
     ((val, _), _) =
       Utils.fromOkay "Error evaluating icon"
         <| Eval.doEval env exp

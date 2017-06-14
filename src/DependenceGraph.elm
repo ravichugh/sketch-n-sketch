@@ -9,7 +9,6 @@ port module DependenceGraph exposing
   )
 
 import Lang exposing (..)
-import LangParser2 as Parser
 import Utils
 
 import String

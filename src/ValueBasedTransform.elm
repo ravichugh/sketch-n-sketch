@@ -8,7 +8,7 @@ module ValueBasedTransform exposing (..)
 
 import Lang exposing (..)
 import LangTools exposing (..)
-import LangParser2 exposing (parseE, freshen, substOf)
+import FastParser exposing (prelude, freshen, substOf)
 import LangUnparser exposing (unparse)
 import InterfaceModel
 import Eval
@@ -527,7 +527,7 @@ relate_ relateType originalExp featureA featureB slate widgets syncOptions =
 relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
   let frozenLocIdToNum =
     ((frozenLocIdsAndNumbers originalExp) ++
-     (frozenLocIdsAndNumbers LangParser2.prelude))
+     (frozenLocIdsAndNumbers prelude))
     |> Dict.fromList
   in
   let aUnfrozenLocset = equationLocs syncOptions featureAEqn |> Set.fromList in

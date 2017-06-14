@@ -464,7 +464,7 @@ prelude =
 ))
 
 (typ vec2DLength (-> Point Point Num))
-(def vec2DLength (\\([x1 y1] [x2 y2] Num)
+(def vec2DLength (\\([x1 y1] [x2 y2])
   (let [dx dy] [(- x2 x1) (- y2 y1)]
   (sqrt (+ (* dx dx) (* dy dy))))))
 

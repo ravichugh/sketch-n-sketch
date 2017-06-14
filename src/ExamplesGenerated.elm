@@ -1,7 +1,7 @@
 module ExamplesGenerated exposing (list, templateCategories)
 
 import Lang
-import LangParser2 as Parser
+import FastParser exposing (parseE)
 import Types
 import Eval
 import Utils
@@ -12,7 +12,7 @@ import DefaultIconTheme
 makeExample name s =
   let thunk () =
     -- TODO tolerate parse errors, change Select Example
-    let e = Utils.fromOkay ("Error parsing example " ++ name) (Parser.parseE s) in
+    let e = Utils.fromOkay ("Error parsing example " ++ name) (parseE s) in
     -- let ati = Types.typecheck e in
     let ati = Types.dummyAceTypeInfo in
     -----------------------------------------------------
