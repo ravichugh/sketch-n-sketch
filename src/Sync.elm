@@ -16,7 +16,7 @@ import ShapeWidgets exposing
   ( ZoneName, RealZone(..), PointFeature(..), OtherFeature(..)
   )
 import Solver exposing (Equation)
-import LangParser2 as Parser
+import FastParser exposing (isPreludeLoc, substPlusOf)
 import OurParser2 as P
 import Ace
 import Config exposing (params)
@@ -91,7 +91,7 @@ locsOfTrace opts =
   let foo t = case t of
     TrLoc l ->
       let (_,b,_) = l in
-      if      Parser.isPreludeLoc l         then Set.empty
+      if      isPreludeLoc l         then Set.empty
       -- else if b == frozen                   then Set.empty
       else if b == frozen && notUnfreezeAll then Set.empty
       else if b == unann && frozenByDefault then Set.empty
@@ -306,7 +306,7 @@ type alias LiveInfo =
 prepareLiveUpdates : Options -> Exp -> Canvas -> Result String LiveInfo
 prepareLiveUpdates options e (slate, widgets) =
 
-  let initSubstPlus = Parser.substPlusOf e in
+  let initSubstPlus = substPlusOf e in
   let initSubst = Dict.map (always .val) initSubstPlus in
   let maybeCounts =
     if options.feelingLucky == heuristicsFair then

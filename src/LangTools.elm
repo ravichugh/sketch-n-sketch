@@ -12,7 +12,7 @@ module LangTools exposing (..)
 
 import Eval
 import Lang exposing (..)
-import LangParser2 as Parser
+import FastParser exposing (prelude, isPreludeLocId)
 import Utils
 import LangUnparser exposing (unparseWithIds)
 import Types
@@ -263,7 +263,7 @@ replaceConstsWithVars locIdToNewName exp =
 unfrozenLocIdsAndNumbers : Exp -> List (LocId, Num)
 unfrozenLocIdsAndNumbers exp =
   allLocsAndNumbers exp
-  |> List.filter (\((locId, annotation, _), n) -> annotation /= "!" && not (Parser.isPreludeLocId locId))
+  |> List.filter (\((locId, annotation, _), n) -> annotation /= "!" && not (isPreludeLocId locId))
   |> List.map (\((locId, _, _), n) -> (locId, n))
 
 
@@ -272,7 +272,7 @@ unfrozenLocIdsAndNumbers exp =
 frozenLocIdsAndNumbers : Exp -> List (LocId, Num)
 frozenLocIdsAndNumbers exp =
   allLocsAndNumbers exp
-  |> List.filter (\((locId, annotation, _), n) -> annotation == "!" || Parser.isPreludeLocId locId)
+  |> List.filter (\((locId, annotation, _), n) -> annotation == "!" || isPreludeLocId locId)
   |> List.map (\((locId, _, _), n) -> (locId, n))
 
 
@@ -2415,7 +2415,7 @@ type ExpressionBinding
 
 
 -- Too much recursion here, for some reason.
-preludeExpEnv = expEnvAt_ Parser.prelude (lastExp Parser.prelude).val.eid |> Utils.fromJust_ "LangTools.preludeExpEnv"
+preludeExpEnv = expEnvAt_ prelude (lastExp prelude).val.eid |> Utils.fromJust_ "LangTools.preludeExpEnv"
 
 -- Return bindings to expressions (as best as possible) at EId
 expEnvAt : Exp -> EId -> Maybe (Dict.Dict Ident ExpressionBinding)

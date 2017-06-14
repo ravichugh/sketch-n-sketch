@@ -13,7 +13,6 @@ module ExpressionBasedTransform exposing -- in contrast to ValueBasedTransform
 
 import Lang exposing (..)
 import LangUnparser exposing (unparse, unparsePat)
-import LangParser2 exposing (parseE)
 import LangSvg exposing (NodeId)
 import ShapeWidgets exposing (PointFeature, SelectedShapeFeature)
 import Blobs exposing (..)

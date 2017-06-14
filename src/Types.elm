@@ -1,8 +1,7 @@
 module Types exposing (..)
 
 import Lang exposing (..)
-import LangParser2 as Parser
-import OurParser2 as P
+import FastParser as Parser
 import LangUnparser exposing (unparsePat, unparseType)
 import Utils
 import Ace
@@ -133,14 +132,14 @@ type alias TypeError   = String
 type alias RawConstraint  = (Type, Type)
 type alias Constraint  = (Int, (Type, Type))
 type alias Constraints = List Constraint
-type alias EInfo       = P.WithInfo EId
+type alias EInfo       = WithInfo EId
 
 type alias TypeInfo =
   { constraints : Constraints
   , activeConstraints : Constraints
-  , typeErrors : List (P.WithPos TypeError)
+  , typeErrors : List (WithPos TypeError)
   -- TODO remove Maybe from rawTypes and finalTypes
-  , rawTypes : Dict.Dict EId (P.Pos, Maybe Type)
+  , rawTypes : Dict.Dict EId (Pos, Maybe Type)
   , finalTypes : Dict.Dict EId (Maybe Type)
   , namedExps : List (Pat, EId)
   , constraintCount : Int
@@ -466,7 +465,7 @@ addNamedExp : Pat -> EId -> TypeInfo -> TypeInfo
 addNamedExp p eid typeInfo =
   { typeInfo | namedExps = (p, eid) :: typeInfo.namedExps }
 
-addRawType : EId -> P.Pos -> Maybe Type -> TypeInfo -> TypeInfo
+addRawType : EId -> Pos -> Maybe Type -> TypeInfo -> TypeInfo
 addRawType eid pos mt typeInfo =
   { typeInfo | rawTypes = Dict.insert eid (pos, mt) typeInfo.rawTypes }
 
@@ -474,9 +473,9 @@ addFinalType : EId -> Maybe Type -> TypeInfo -> TypeInfo
 addFinalType eid mt typeInfo =
   { typeInfo | finalTypes = Dict.insert eid mt typeInfo.finalTypes }
 
-addTypeErrorAt : P.Pos -> TypeError -> TypeInfo -> TypeInfo
+addTypeErrorAt : Pos -> TypeError -> TypeInfo -> TypeInfo
 addTypeErrorAt pos typeError typeInfo =
-  { typeInfo | typeErrors = (P.WithPos typeError pos) :: typeInfo.typeErrors }
+  { typeInfo | typeErrors = (WithPos typeError pos) :: typeInfo.typeErrors }
 
 generateConstraintVars : Int -> TypeInfo -> (List Ident, TypeInfo)
 generateConstraintVars n typeInfo =

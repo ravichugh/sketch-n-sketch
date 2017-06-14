@@ -16,7 +16,7 @@ import Lang exposing (..)
 import LangTools exposing (..)
 import LangSimplify
 import LangUnparser exposing (unparse, unparseWithIds, unparseWithUniformWhitespace, unparsePat)
-import LangParser2
+import FastParser as Parser
 -- import DependenceGraph exposing
   -- (ScopeGraph, ScopeOrder(..), parentScopeOf, childScopesOf)
 import InterfaceModel exposing
@@ -336,7 +336,7 @@ liftDependenciesBasedOnUniqueNames program =
               Nothing -> Nothing
               Just ((pluckedPat, pluckedBoundExp), programWithoutPlucked) ->
                 let eidToWrap = deepestCommonScope program (expToMaybeIdent >> (==) (Just identToLift)) |> .val |> .eid in
-                let insertedLetEId = LangParser2.maxId program + 1 in
+                let insertedLetEId = Parser.maxId program + 1 in
                 let newProgram =
                   programWithoutPlucked
                   |> mapExpNode
@@ -424,7 +424,7 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
   let inlineInvalidFreeNumericIdentsUntilConvergence program =
     -- We are inlining definitions, which will duplicate EIds etc. so need to freshen every time.
     -- (In particular, EIds are need for List.member exp allFreeVars)
-    let freshened = LangParser2.freshen program in
+    let freshened = Parser.freshen program in
     -- let _ = Debug.log ("initial inlining:\n" ++ unparseWithIds freshened) () in
     let allFreeVars = freeVars freshened in
     -- TODO: Inlining could leave us in a worse situation than before.
@@ -437,7 +437,7 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
               Just ident ->
                 -- Don't duplicate any existing EIds when inlining: don't want them clobbered when freshening.
                 if Set.member ident numericIdents && List.member exp allFreeVars
-                then (Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic" ident simpleLetBindings |> LangParser2.clearAllIds |> copyPrecedingWhitespace exp, True)
+                then (Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic" ident simpleLetBindings |> Parser.clearAllIds |> copyPrecedingWhitespace exp, True)
                 else (exp, somethingHappened)
           )
           False
@@ -500,7 +500,7 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
           else
             exp
         )
-    |> LangParser2.freshen
+    |> Parser.freshen
   in
   -- let _ = Debug.log ("inlined simplified:\n" ++ unparseWithIds inlinedSimplifiedProgram) () in
   -- 4. From the end of the program (by new definition location of ident that is somewhere used free invalidly), for each tuple of (variable used free, ident defined in terms of invalid free var, corresponding bound exp where used free):
@@ -557,7 +557,7 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
                                   Nothing -> (exp, somethingHappened)
                                   Just ident ->
                                     if Set.member ident identsToReduce
-                                    then (Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic inlineUntilConvergence" ident simpleLetBindings |> LangParser2.clearAllIds |> copyPrecedingWhitespace exp, True)
+                                    then (Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic inlineUntilConvergence" ident simpleLetBindings |> Parser.clearAllIds |> copyPrecedingWhitespace exp, True)
                                     else (exp, somethingHappened)
                               )
                               False
@@ -584,7 +584,7 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
                       program
                       |> replaceExpNodePreservingPrecedingWhitespace boundExpWhereUsedInvalidlyPartiallyReduced.val.eid boundExpWhereUsedInvalidlyReduced
                       |> replaceExpNodePreservingPrecedingWhitespace invalidlyFreeIdentBoundExpOld.val.eid invalidlyFreeIdentBoundExpNew
-                      |> LangParser2.freshen
+                      |> Parser.freshen
                     in
                     -- let _ = Debug.log ("new program:\n" ++ unparseWithIds newProgram) () in
                     (newProgram, Set.insert identInvalidlyFree identsInvalidlyFreeRewritten, Set.insert identOfDefWhereUsedInvalidly identsWithInvalidlyFreeVarsHandled)
@@ -863,7 +863,7 @@ moveDefinitionsBeforeEId_ sourcePathedPatIds targetEId program =
           , withDummyExpInfo <| EList " " (pluckedBoundExps |> setExpListWhitespace "" " ") "" Nothing "" -- May want to be smarter about whitespace here to avoid long lines.
           )
     in
-    let insertedLetEId = LangParser2.maxId program + 1 in
+    let insertedLetEId = Parser.maxId program + 1 in
     let newProgram =
       programWithoutPluckedUniqueNames
       |> mapExpNode
@@ -961,7 +961,7 @@ duplicateDefinitionsBeforeEId sourcePathedPatIds targetEId originalProgram =
     pluckAll sourcePathedPatIds originalProgram
   in
   let (pluckedPats, pluckedBoundExps) = List.unzip pluckedPatAndBoundExps in
-  let insertedLetEId = LangParser2.maxId originalProgram + 1 in
+  let insertedLetEId = Parser.maxId originalProgram + 1 in
   let newProgram =
     originalProgram
     |> mapExpNode
@@ -983,7 +983,7 @@ duplicateDefinitionsBeforeEId sourcePathedPatIds targetEId originalProgram =
           --     (ensureWhitespacePat newPat) (ensureWhitespaceExp newBoundExp)
           --     (ensureWhitespaceExp expToWrap) ""
         )
-    |> LangParser2.freshen -- Remove duplicate EIds
+    |> Parser.freshen -- Remove duplicate EIds
   in
   makeDuplicateResults_ insertedLetEId pluckedPatAndBoundExps newProgram originalProgram
 
@@ -1006,7 +1006,7 @@ duplicateDefinitionsPat sourcePathedPatIds targetPathedPatId originalProgram =
               )
               newScopeExp
         )
-    |> LangParser2.freshen -- Remove duplicate EIds
+    |> Parser.freshen -- Remove duplicate EIds
   in
   makeDuplicateResults_ targetEId pluckedPatAndBoundExps newProgram originalProgram
 
@@ -1197,7 +1197,7 @@ moveEquationsBeforeEId letEIds targetEId originalProgram =
     letEIds
     |> List.sortBy (locationInProgram originalProgram)
   in
-  let maxId = LangParser2.maxId originalProgram in
+  let maxId = Parser.maxId originalProgram in
   let letEIdToReinsertedLetEId =
     letEIds
     |> Utils.mapi1 (\(i, letEId) -> (letEId, maxId + i))
@@ -1412,7 +1412,7 @@ abstract eid shouldBeParameter originalProgram =
             let naiveName = expNameForEIdWithDefault "arg" originalProgram e.val.eid ++ "_ARRRG!!!" in
             let name = nonCollidingName naiveName 2 namesToAvoid in
             let namesToAvoid_ = Set.insert name namesToAvoid in
-            (copyPrecedingWhitespace e (eVar name), (namesToAvoid_, name::paramNamesARRRGTagged, (LangParser2.clearAllIds e)::paramExps))
+            (copyPrecedingWhitespace e (eVar name), (namesToAvoid_, name::paramNamesARRRGTagged, (Parser.clearAllIds e)::paramExps))
           else
             (e, (namesToAvoid, paramNamesARRRGTagged, paramExps))
         )
@@ -1605,7 +1605,7 @@ addArg_ pathedPatId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody origin
                               case exp.val.e__ of
                                 EApp appWs1 appFuncExp appArgs appWs2 ->
                                   if Set.member appFuncExp.val.eid funcVarUsageEIds then
-                                    case addExpToExpsByPath (LangParser2.clearAllIds argValExp) path appArgs of
+                                    case addExpToExpsByPath (Parser.clearAllIds argValExp) path appArgs of
                                       Nothing ->
                                         (exp, funcVarUsagesTransformed)
 
@@ -1835,7 +1835,7 @@ removeArg pathedPatId originalProgram =
                             -- Inline all uses.
                             let newFBody =
                               transformVarsUntilBound
-                                  (Dict.singleton argName (\varExp -> LangParser2.clearAllIds argReplacementValue |> setEId varExp.val.eid)) -- need to preserve EId of replacement site for free var safety check below
+                                  (Dict.singleton argName (\varExp -> Parser.clearAllIds argReplacementValue |> setEId varExp.val.eid)) -- need to preserve EId of replacement site for free var safety check below
                                   fbody
                             in
                             let replacementLocationEIds =
@@ -1844,13 +1844,13 @@ removeArg pathedPatId originalProgram =
                             (newFBody, replacementLocationEIds)
 
                           _ ->
-                            let inlinedArgEId = LangParser2.maxId originalProgram + 1 in
+                            let inlinedArgEId = Parser.maxId originalProgram + 1 in
                             let newFBody =
-                              newLetFancyWhitespace -1 pluckedPat (argReplacementValue |> LangParser2.clearAllIds |> setEId inlinedArgEId) fbody originalProgram
+                              newLetFancyWhitespace -1 pluckedPat (argReplacementValue |> Parser.clearAllIds |> setEId inlinedArgEId) fbody originalProgram
                               -- withDummyExpInfo <|
                               --   ELet (precedingWhitespace fbody) Let False
                               --     (ensureWhitespacePat pluckedPat)
-                              --     (argReplacementValue |> LangParser2.clearAllIds |> setEId inlinedArgEId |> ensureWhitespaceExp)
+                              --     (argReplacementValue |> Parser.clearAllIds |> setEId inlinedArgEId |> ensureWhitespaceExp)
                               --     (ensureWhitespaceExp fbody) ""
                             in
                             let replacementLocationEIds = [ inlinedArgEId ] in

@@ -41,7 +41,7 @@ module InterfaceController exposing
 import Lang exposing (..) --For access to what makes up the Vals
 import Types
 import Ace
-import LangParser2 exposing (parseE, freshen)
+import FastParser exposing (parseE, freshen)
 import LangUnparser exposing (unparse)
 import LangTools
 import LangSimplify
@@ -157,7 +157,8 @@ discardErrorAnnotations result =
 runWithErrorHandling model exp onOk =
   let result =
     -- runWithErrorHandling is called after synthesis. Recompute line numbers.
-    let reparsedResult = unparse exp |> parseE |> discardErrorAnnotations in
+    -- TODO PARSER_ERROR_HANDLING
+    let reparsedResult = unparse exp |> parseE |> (Result.mapError toString) in
     reparsedResult
     |> Result.andThen (\reparsed ->
       runAndResolve model reparsed
@@ -433,7 +434,8 @@ dragTarget pixelPos m =
 tryRun : Model -> Result (String, Maybe Ace.Annotation) Model
 tryRun old =
   case parseE old.code of
-    Err (err, annot) -> Err (err, Just annot)
+    -- TODO PARSER_ERROR_HANDLING
+    Err err -> Err (toString err, Nothing)
     Ok e ->
       let result =
         -- let aceTypeInfo = Types.typecheck e in
@@ -795,8 +797,9 @@ maybeRunAutoSynthesis m e =
 
 msgCleanCode = Msg "Clean Code" <| \old ->
   case parseE old.code of
-    Err (err, _) ->
-      { old | caption = Just (LangError ("PARSE ERROR!\n" ++ err)) }
+    -- TODO PARSER_ERROR_HANDLING
+    Err err ->
+      { old | caption = Just (LangError ("PARSE ERROR!\n" ++ toString err)) }
     Ok reparsed ->
       let cleanedExp = LangSimplify.cleanCode reparsed in
       let code_ = unparse cleanedExp in
@@ -2075,7 +2078,7 @@ composeTransformations finalCaption transformations originalProgram =
         results
         |> List.concatMap
             (\(SynthesisResult result) ->
-              transformation (LangParser2.freshen result.exp) |> List.map (mapResultSafe ((&&) result.isSafe))
+              transformation (freshen result.exp) |> List.map (mapResultSafe ((&&) result.isSafe))
             )
       )
       [ synthesisResult "Original" originalProgram ]
