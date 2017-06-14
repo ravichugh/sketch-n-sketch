@@ -5,6 +5,7 @@ module FastParser exposing
   , clearAllIds
   , freshen
   , maxId
+  , showError
   )
 
 import List
@@ -1392,6 +1393,10 @@ program =
 --= EXPORTS
 --==============================================================================
 
+--------------------------------------------------------------------------------
+-- Parser Runners
+--------------------------------------------------------------------------------
+
 parseE_ : (Exp -> Exp) -> String -> Result Error Exp
 parseE_ f = run (map f program)
 
@@ -1400,6 +1405,80 @@ parseE = parseE_ freshen
 
 parseT : String -> Result Error Type
 parseT = run typ
+
+--------------------------------------------------------------------------------
+-- Error Handling
+--------------------------------------------------------------------------------
+
+showIndentedProblem : Int -> Problem -> String
+showIndentedProblem n prob =
+  let
+    indent =
+      String.repeat (2 * n) " "
+  in
+    case prob of
+      BadOneOf probs ->
+        indent ++ "One of:\n" ++
+          String.concat (List.map (showIndentedProblem (n + 1)) probs)
+      BadInt ->
+        indent ++ "Bad integer value\n"
+      BadFloat ->
+        indent ++ "Bad float value\n"
+      BadRepeat ->
+        indent ++ "Parse of zero-length input indefinitely\n"
+      ExpectingEnd ->
+        indent ++ "Expecting end\n"
+      ExpectingSymbol s ->
+        indent ++ "Expecting symbol '" ++ s ++ "'\n"
+      ExpectingKeyword s ->
+        indent ++ "Expecting keyword '" ++ s ++ "'\n"
+      ExpectingVariable ->
+        indent ++ "Expecting variable\n"
+      ExpectingClosing s ->
+        indent ++ "Expecting closing string '" ++ s ++ "'\n"
+      Fail s ->
+        indent ++ "Parser failure: " ++ s ++ "\n"
+
+showError : Error -> String
+showError err =
+  let
+    prettyError =
+      let
+        sourceLines =
+          String.lines err.source
+        problemLine =
+          List.head (List.drop (err.row - 1) sourceLines)
+        arrow =
+          (String.repeat (err.col - 1) " ") ++ "^"
+      in
+        case problemLine of
+          Just line ->
+            line ++ "\n" ++ arrow ++ "\n\n"
+          Nothing ->
+            ""
+    showContext c =
+      "  (row: " ++ (toString c.row) ++", col: " ++ (toString c.col)
+      ++ ") Error while parsing '" ++ c.description ++ "'\n"
+    deepestContext =
+      case List.head err.context of
+        Just c ->
+          "Error while parsing '" ++ c.description ++ "':\n"
+        Nothing ->
+          ""
+  in
+    "[Parser Error]\n\n" ++
+      deepestContext ++ "\n" ++
+      prettyError ++
+    "Position\n" ++
+    "========\n" ++
+    "  Row: " ++ (toString err.row) ++ "\n" ++
+    "  Col: " ++ (toString err.col) ++ "\n\n" ++
+    "Problem\n" ++
+    "=======\n" ++
+      (showIndentedProblem 1 err.problem) ++ "\n" ++
+    "Context Stack\n" ++
+    "=============\n" ++
+      (String.concat <| List.map showContext err.context) ++ "\n\n"
 
 --------------------------------------------------------------------------------
 -- Code from old parser

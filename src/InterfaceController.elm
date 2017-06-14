@@ -41,7 +41,7 @@ module InterfaceController exposing
 import Lang exposing (..) --For access to what makes up the Vals
 import Types
 import Ace
-import FastParser exposing (parseE, freshen)
+import FastParser exposing (parseE, freshen, showError)
 import LangUnparser exposing (unparse)
 import LangTools
 import LangSimplify
@@ -157,8 +157,7 @@ discardErrorAnnotations result =
 runWithErrorHandling model exp onOk =
   let result =
     -- runWithErrorHandling is called after synthesis. Recompute line numbers.
-    -- TODO PARSER_ERROR_HANDLING
-    let reparsedResult = unparse exp |> parseE |> (Result.mapError toString) in
+    let reparsedResult = unparse exp |> parseE |> (Result.mapError showError) in
     reparsedResult
     |> Result.andThen (\reparsed ->
       runAndResolve model reparsed
@@ -434,8 +433,7 @@ dragTarget pixelPos m =
 tryRun : Model -> Result (String, Maybe Ace.Annotation) Model
 tryRun old =
   case parseE old.code of
-    -- TODO PARSER_ERROR_HANDLING
-    Err err -> Err (toString err, Nothing)
+    Err err -> Err (showError err, Nothing)
     Ok e ->
       let result =
         -- let aceTypeInfo = Types.typecheck e in
@@ -797,9 +795,8 @@ maybeRunAutoSynthesis m e =
 
 msgCleanCode = Msg "Clean Code" <| \old ->
   case parseE old.code of
-    -- TODO PARSER_ERROR_HANDLING
     Err err ->
-      { old | caption = Just (LangError ("PARSE ERROR!\n" ++ toString err)) }
+      { old | caption = Just (LangError (showError err)) }
     Ok reparsed ->
       let cleanedExp = LangSimplify.cleanCode reparsed in
       let code_ = unparse cleanedExp in
