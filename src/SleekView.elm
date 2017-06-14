@@ -231,10 +231,10 @@ menuBar model =
           , menu "Options"
               [ [ textButton "Font Size (numeric options...)" Controller.msgNoop
                 , textButton "Auto-Run (every 1, 2, 3 second...)" Controller.msgNoop
+                , textButton "Color Scheme (light or dark)" Controller.msgNoop
                 ]
-              , [ textButton "Right-Click for Edit Code Menu (boolean...)" Controller.msgNoop
-                , textButton "Hold Shift for Structure Widgets (boolean...)" Controller.msgNoop
-                , textButton "Pin Edit Code Menu (boolean...)" Controller.msgNoop
+              , [ textButton "Edit Code UI Mode (text select, or nested boxes, or both)" Controller.msgNoop
+                , textButton "Pin Context-Sensitive Menu (boolean...)" Controller.msgNoop
                 ]
               , [ textButton "Shape Code Templates (raw, stretchy, or sticky...)" Controller.msgNoop
                 ]
