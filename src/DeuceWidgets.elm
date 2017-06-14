@@ -1,7 +1,6 @@
 module DeuceWidgets exposing (..) -- TODO
 
 import Lang exposing (..)
-import OurParser2 as P
 import LangUnparser exposing (unparse, unparsePat)
 import Utils
 import Keys
@@ -62,7 +61,7 @@ clearHoveredMenuPath = setHoveredMenuPath []
 -- Returns list of (pat, pathedPatId, startPos, endPos, selectionZoneEndPos)
 --
 -- For selecting a code element.
-findPats : Exp -> List (Pat, PathedPatternId, P.Pos, P.Pos, P.Pos)
+findPats : Exp -> List (Pat, PathedPatternId, Pos, Pos, Pos)
 findPats e =
   let find e acc =
     case e.val.e__ of
@@ -125,7 +124,7 @@ computePatTargets scopeId path addPath pat =
                                       _   -> [baseBefore, baseAfter]
 
 -- positions: start, end, start of selection area, end of selection area
-computeExpRanges : Exp -> List (Exp, EId, P.Pos, P.Pos, P.Pos, P.Pos)
+computeExpRanges : Exp -> List (Exp, EId, Pos, Pos, Pos, Pos)
 computeExpRanges e =
   let combine e acc =
     let baseValue = (e, e.val.eid, e.start, e.end, e.start, e.end) in
@@ -148,7 +147,7 @@ computeExpRanges e =
   foldExp combine [] e
 
 -- positions: start and end of selection area
-computeExpTargets : Exp -> List (ExpTargetPosition, P.Pos, P.Pos)
+computeExpTargets : Exp -> List (ExpTargetPosition, Pos, Pos)
 computeExpTargets e =
   let combine e acc =
     let baseTargets =    [((Before, e.val.eid), { line = e.start.line, col = e.start.col - 1 }, e.start),
@@ -249,7 +248,7 @@ leadingNewlines lines total =
 patBoundingPolygon :
     DeuceWidget
     -> Pat
-    -> { a | end : P.Pos }
+    -> { a | end : Pos }
     -> ( DeuceWidget, Dict Int ( Int, Int ) )
 patBoundingPolygon id pat end = boundingPolygon unparsePat id pat end
 
@@ -257,16 +256,16 @@ patBoundingPolygon id pat end = boundingPolygon unparsePat id pat end
 expBoundingPolygon :
     DeuceWidget
     -> Exp
-    -> { a | end : P.Pos }
+    -> { a | end : Pos }
     -> ( DeuceWidget, Dict Int ( Int, Int ) )
 expBoundingPolygon id exp end = boundingPolygon unparse id exp end
 
 
 boundingPolygon :
-    ({ a | start : P.Pos } -> String)
+    ({ a | start : Pos } -> String)
     -> DeuceWidget
-    -> { a | start : P.Pos }
-    -> { b | end : P.Pos }
+    -> { a | start : Pos }
+    -> { b | end : Pos }
     -> ( DeuceWidget, Dict Int ( Int, Int ) )
 boundingPolygon unparseExpOrPat id expOrPat endExpOrPat =
   let start = expOrPat.start in

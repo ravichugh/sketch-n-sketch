@@ -34,7 +34,7 @@ examples:
 loc:
 	wc -l \
     Lang.elm LangSvg.elm \
-    LangParser2.elm LangUnparser.elm OurParser2.elm FastParser.elm \
+    FastParser.elm LangUnparser.elm \
     Types.elm Eval.elm ShapeWidgets.elm \
     Solver.elm LocEqn.elm Sync.elm \
     InterfaceModel.elm \

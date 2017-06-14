@@ -17,7 +17,6 @@ import ShapeWidgets exposing
   )
 import Solver exposing (Equation)
 import FastParser exposing (isPreludeLoc, substPlusOf)
-import OurParser2 as P
 import Ace
 import Config exposing (params)
 import Utils
@@ -1168,10 +1167,10 @@ yellow = "khaki"
 green  = "limegreen"
 red    = "salmon"
 
-acePos : P.Pos  -> Ace.Pos
+acePos : Pos  -> Ace.Pos
 acePos p = { row = p.line, column = p.col }
 
-aceRange : P.WithInfo a -> Ace.Range
+aceRange : WithInfo a -> Ace.Range
 aceRange x = { start = acePos x.start, end = acePos x.end }
 
 makeHighlight : SubstPlus -> String -> Loc -> Ace.Highlight
