@@ -88,6 +88,10 @@ isSpace : Char -> Bool
 isSpace c =
   c == ' ' || c == '\n'
 
+isOnlySpaces : String -> Bool
+isOnlySpaces =
+  String.all isSpace
+
 spaces : ParserI WS
 spaces =
   trackInfo <| keep zeroOrMore isSpace
@@ -102,7 +106,7 @@ guardSpace =
       |> andThen
       ( \(offset, source) ->
           guard "expecting space" <|
-            String.slice offset (offset + 1) source == " "
+            isOnlySpaces <| String.slice offset (offset + 1) source
       )
     )
 
@@ -407,6 +411,11 @@ keywords =
     , "def"
     , "defrec"
     , "typ"
+    , "empty"
+    , "insert"
+    , "get"
+    , "remove"
+    , "debug"
     ]
 
 --------------------------------------------------------------------------------
@@ -808,46 +817,58 @@ operator =
       op =
         trackInfo <|
           oneOf
-            [ succeed Pi
-              |. keyword "pi"
+            [ -- Unary Operators
+              succeed Pi
+                |. keyword "pi"
+            , succeed DictEmpty
+                |. keyword "empty"
+              -- Non-unary operators
             , succeed Cos
-              |. spacedKeyword "cos"
+                |. spacedKeyword "cos"
             , succeed Sin
-              |. spacedKeyword "sin"
+                |. spacedKeyword "sin"
             , succeed ArcCos
-              |. spacedKeyword "arccos"
+                |. spacedKeyword "arccos"
             , succeed ArcSin
-              |. spacedKeyword "arcsin"
+                |. spacedKeyword "arcsin"
             , succeed Floor
-              |. spacedKeyword "floor"
+                |. spacedKeyword "floor"
             , succeed Ceil
-              |. spacedKeyword "ceiling"
+                |. spacedKeyword "ceiling"
             , succeed Round
-              |. spacedKeyword "round"
+                |. spacedKeyword "round"
             , succeed ToStr
-              |. spacedKeyword "toString"
+                |. spacedKeyword "toString"
             , succeed Sqrt
-              |. spacedKeyword "sqrt"
+                |. spacedKeyword "sqrt"
             , succeed Explode
-              |. spacedKeyword "explode"
+                |. spacedKeyword "explode"
             , succeed Plus
-              |. spacedKeyword "+"
+                |. spacedKeyword "+"
             , succeed Minus
-              |. spacedKeyword "-"
+                |. spacedKeyword "-"
             , succeed Mult
-              |. spacedKeyword "*"
+                |. spacedKeyword "*"
             , succeed Div
-              |. spacedKeyword "/"
+                |. spacedKeyword "/"
             , succeed Lt
-              |. spacedKeyword "<"
+                |. spacedKeyword "<"
             , succeed Eq
-              |. spacedKeyword "="
+                |. spacedKeyword "="
             , succeed Mod
-              |. spacedKeyword "mod"
+                |. spacedKeyword "mod"
             , succeed Pow
-              |. spacedKeyword "pow"
+                |. spacedKeyword "pow"
             , succeed ArcTan2
-              |. spacedKeyword "arctan2"
+                |. spacedKeyword "arctan2"
+            , succeed DictInsert
+                |. spacedKeyword "insert"
+            , succeed DictGet
+                |. spacedKeyword "get"
+            , succeed DictRemove
+                |. spacedKeyword "remove"
+            , succeed DebugLog
+                |. spacedKeyword "debug"
             ]
     in
       inContext "operator" <|
@@ -1091,23 +1112,35 @@ letBinding =
 -- Options
 --------------------------------------------------------------------------------
 
--- TODO fix options
-
-validOptionChar : Char -> Bool
-validOptionChar c =
-  Char.isLower c || Char.isUpper c || Char.isDigit c
-
 option : Parser Exp
 option =
   mapExp_ <|
-    trackInfo <|
-      succeed EOption
-        |. symbol "#"
-        |= untrackInfo spaces
-        |= trackInfo (keep oneOrMore validOptionChar)
-        |= untrackInfo spaces
-        |= trackInfo (keep oneOrMore validOptionChar)
-        |= exp
+    inContext "option" <|
+      lazy <| \_ ->
+        delayedCommitMap
+          ( \wsStart (open, opt, wsMid, val, rest) ->
+              withInfo
+                (EOption wsStart opt wsMid val rest)
+                open.start
+                val.end
+          )
+          ( untrackInfo spaces )
+          ( succeed (,,,,)
+              |= trackInfo (symbol "#")
+              |. spaces
+              |= trackInfo
+                   ( keep zeroOrMore <| \c ->
+                       c /= '\n' && c /= ' ' && c /= ':'
+                   )
+              |. symbol ":"
+              |= untrackInfo spaces
+              |= trackInfo
+                   ( keep zeroOrMore <| \c ->
+                       c /= '\n'
+                   )
+              |. symbol "\n"
+              |= exp
+          )
 
 --------------------------------------------------------------------------------
 -- Type Declarations
@@ -1237,6 +1270,7 @@ exp =
         , lazy <| \_ -> functionApplication
         , lazy <| \_ -> operator
         , lazy <| \_ -> comment
+        , lazy <| \_ -> option
         , variableExpression
         ]
 
@@ -1362,6 +1396,35 @@ topLevelComment =
       )
 
 --------------------------------------------------------------------------------
+-- Top-Level Options
+--------------------------------------------------------------------------------
+
+topLevelOption : Parser TopLevelExp
+topLevelOption =
+  inContext "top-level option" <|
+    spacesBefore
+      ( \wsStart (opt, wsMid, val) ->
+          ( \rest ->
+              exp_ <| EOption wsStart opt wsMid val rest
+          )
+      )
+      ( trackInfo <| succeed (,,)
+          |. symbol "#"
+          |. spaces
+          |= trackInfo
+               ( keep zeroOrMore <| \c ->
+                   c /= '\n' && c /= ' ' && c /= ':'
+               )
+          |. symbol ":"
+          |= untrackInfo spaces
+          |= trackInfo
+               ( keep zeroOrMore <| \c ->
+                   c /= '\n'
+               )
+          |. symbol "\n"
+      )
+
+--------------------------------------------------------------------------------
 -- General Top-Level Expressions
 --------------------------------------------------------------------------------
 
@@ -1373,6 +1436,7 @@ topLevelExp =
       , topLevelDef
       , topLevelTypeDeclaration
       , topLevelComment
+      , topLevelOption
       ]
 
 allTopLevelExps : Parser (List TopLevelExp)
@@ -1388,6 +1452,8 @@ program =
   succeed fuseTopLevelExps
     |= allTopLevelExps
     |= exp
+    |. spaces
+    |. end
 
 --==============================================================================
 --= EXPORTS

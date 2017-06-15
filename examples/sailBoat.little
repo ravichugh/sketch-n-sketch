@@ -40,7 +40,6 @@
     (* (* (* 2 (- 1 t)) t) c)) 
     (* (* t t) e))))
 
-(defrec mod (\(x m) (if (< x m) x (mod (- x m) m))))
 (def tphase (/ (mod boatpos (/ period 2)) (/ period 2)))
 (def pickdir (\(sl amp) (if 
     (< (mod boatpos period) (/ period 2))

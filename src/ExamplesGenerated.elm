@@ -1497,7 +1497,6 @@ solarSystem =
 fractalTree =
  """; A fractal tree
 ;
-(defrec mod (\\(x m) (if (< x m) x (mod (- x m) m))))
 (def nsin (\\n (if (< n (/ 3.14159 2)) (sin n) (cos (mod n (/ 3.14159 2))))))
 (def ncos (\\n (if (< n (/ 3.14159 2)) (cos n) (sin (mod n (/ 3.14159 2))))))
 (def [initwd initlen] [10! 150!])
@@ -1505,8 +1504,8 @@ fractalTree =
 (def [bendn bendnslider] (hSlider false 20! 420! 580! 1! 8! 'Bend ' 1))
 (def initangle (/ 3.14159! 2!))
 (def bend (/ 3.14159! bendn))
-(defrec exp (\\(base pow)
-  (if (< pow 1) 1 (* base (exp base (- pow 1))))))
+(defrec exp (\\(b p)
+  (if (< p 1) 1 (* b (exp b (- p 1))))))
 (def mkleftx (\\(stepnum theta px) 
   (- px (* (/ initlen stepnum) (ncos (+ theta (* (exp 0.5 stepnum) bend)))))))
 (def mkrightx (\\(stepnum theta px)
@@ -2221,7 +2220,6 @@ sailBoat =
     (* (* (* 2 (- 1 t)) t) c)) 
     (* (* t t) e))))
 
-(defrec mod (\\(x m) (if (< x m) x (mod (- x m) m))))
 (def tphase (/ (mod boatpos (/ period 2)) (/ period 2)))
 (def pickdir (\\(sl amp) (if 
     (< (mod boatpos period) (/ period 2))
@@ -2717,10 +2715,10 @@ poppl =
  """; Logo for POP-PL
 ; see https://github.com/florence/pop-pl
 
-(def M 'M')
-(def L 'L')
-(def C 'C')
-(def Z 'Z')
+(def m 'M')
+(def l 'L')
+(def c 'C')
+(def z 'Z')
 
 (def ltopWidth 29!)
 (def ltopHeight 63!)
@@ -2732,11 +2730,11 @@ poppl =
 (def cr2x (* cr2Control ltopWidth))
 (def cr2y (* cr2Control ltopHeight))
 (def lpath
-  [M (- xstart stethx) (- ystart stethy)
-   C (+ xstart -12) (+ ystart -19)
+  [m (- xstart stethx) (- ystart stethy)
+   c (+ xstart -12) (+ ystart -19)
      (+ cr2x xstart) (+ cr2y ystart)
      xstart ystart
-   L (+ xstart ltopWidth) (+ ystart ltopHeight)
+   l (+ xstart ltopWidth) (+ ystart ltopHeight)
    ])
 
 (def axstart  (+ xstart ltopWidth))
@@ -2746,11 +2744,11 @@ poppl =
 (def ay (* ascale ltopHeight))
 (def bx 18!)
 (def armpath
-  [M axstart aystart
-   C (+ xstart 71) (+ ystart 94)
+  [m axstart aystart
+   c (+ xstart 71) (+ ystart 94)
      (+ xstart 90) (+ ystart 142)
      (+ axstart ax) (+ aystart ay)
-   C (+ xstart 63) (+ ystart 190)
+   c (+ xstart 63) (+ ystart 190)
      (+ xstart 74) (+ ystart 188)
      (- (+ axstart ax) bx) (+ aystart ay)])
 
@@ -4546,7 +4544,7 @@ xs =
 ;   - colors global (below) or per function call
 ;
 
-(def X (\\(cx cy n boxWidth)
+(def x (\\(cx cy n boxWidth)
   (let [centerColor descendingColor ascendingColor] [438 32 240]
   (let square (\\(cx cy color)
     [ (squareByCenter color cx cy boxWidth) ])
@@ -4562,8 +4560,9 @@ xs =
   ))
 
 (blobs [
-  (X 200 250 3{1-6} 50)
+  (x 200 250 3{1-6} 50)
 ])
+
 """
 
 conifer =

@@ -1,6 +1,5 @@
 ; A fractal tree
 ;
-(defrec mod (\(x m) (if (< x m) x (mod (- x m) m))))
 (def nsin (\n (if (< n (/ 3.14159 2)) (sin n) (cos (mod n (/ 3.14159 2))))))
 (def ncos (\n (if (< n (/ 3.14159 2)) (cos n) (sin (mod n (/ 3.14159 2))))))
 (def [initwd initlen] [10! 150!])
@@ -8,8 +7,8 @@
 (def [bendn bendnslider] (hSlider false 20! 420! 580! 1! 8! 'Bend ' 1))
 (def initangle (/ 3.14159! 2!))
 (def bend (/ 3.14159! bendn))
-(defrec exp (\(base pow)
-  (if (< pow 1) 1 (* base (exp base (- pow 1))))))
+(defrec exp (\(b p)
+  (if (< p 1) 1 (* b (exp b (- p 1))))))
 (def mkleftx (\(stepnum theta px) 
   (- px (* (/ initlen stepnum) (ncos (+ theta (* (exp 0.5 stepnum) bend)))))))
 (def mkrightx (\(stepnum theta px)
