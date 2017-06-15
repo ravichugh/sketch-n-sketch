@@ -218,7 +218,7 @@ codeToolBox model layout =
 drawToolBox model layout =
   toolBox model "drawToolBox" [] Layout.getPutDrawToolBox layout.drawTools
     [ toolButton model Cursor
-    , toolButton model PointOrOffset
+    -- , toolButton model PointOrOffset
     , toolButton model Text
     , toolButton model (Line Raw)
     , toolButton model (Rect Raw)
